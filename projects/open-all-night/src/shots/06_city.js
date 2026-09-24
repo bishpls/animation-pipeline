@@ -369,12 +369,18 @@
   const CITY28 = (() => { const out = [], R = rng(28); let x = -5200; while (x < 7200) { const w = 360 + R() * 380, fl = 5 + Math.floor(R() * 8); if (x < -300 || x > 1500) out.push([x, w, fl, Math.max(3, Math.round(w / 120)), out.length]); x += w + 40 + R() * 70; } return out; })();
   function miniSign(x, y, w, h, on) {
     if (on <= 0) return;                                                   // dark glass
-    const pw = w * .8, ph = h * .46, cx = x + w / 2, cy = y + h / 2, lw = Math.max(2.5, ph * .18);
-    knock(P(circle(cx, cy, w * .95)), ['blue', 'black'], radial(cx, cy, w * .15, w * .95, .55 * on, 1.5));
-    const tube = P(rrect(cx - pw / 2, cy - ph / 2, pw, ph, ph * .35));
-    paint(tube, { pink: 1 }, { stroke: lw });
-    if (lw > 5) knock(tube, ['pink'], 1, { stroke: lw * .3 });
-    if (w > 36) for (let k = 0; k < 4; k++) paint(P(rect(cx - pw * .34 + k * pw * .19, cy - ph * .16, pw * .1, ph * .32)), { pink: 1 });
+    const pw = w * .82, ph = h * .5, cx = x + w / 2, cy = y + h / 2;
+    knock(P(circle(cx, cy, w * .9)), ['blue'], radial(cx, cy, w * .3, w * .9, .6 * on, 1.5));
+    paint(P(rrect(cx - pw / 2, cy - ph / 2, pw, ph, ph * .3)), { pink: 1 });
+    if (w * RISO.inks[0].ctx.getTransform().a > 22) knock(P(rect(cx - pw * .3, cy - ph * .1, pw * .6, ph * .2)), ['pink']);   // a hint of the word
+  }
+  // a lit OPEN panel for a window seen up close: a solid pink sign with the word knocked out in paper
+  function windowSign(x, y, w, h) {
+    const cx = x + w / 2, cy = y + h / 2, pw = w * .88, ph = h * .6;
+    knock(P(circle(cx, cy, w * 1.1)), ['blue'], radial(cx, cy, w * .35, w * 1.1, .65, 1.5));
+    paint(P(cut(rrect(cx - pw / 2, cy - ph / 2, pw, ph, ph * .28), (x * 7 + y) % 97, .6, .3)), { pink: 1 });
+    const L = fitShape('OPEN', pw * .74, { font: 'arch', size: ph * .6, wdth: 90, wght: 800, track: .03 });
+    drawText(L, cx, cy + L.cap / 2, null, { align: 'center', knock: true, knockInks: ['pink'] });
   }
   function s28_signs(t, lt, dur) {
     const u = E.io3(seg(t, 84.35, 86.8));
@@ -390,7 +396,7 @@
       const cw = bw / cols;
       for (let f = 0; f < fl; f++) for (let c = 0; c < cols; c++) {
         const wx = bx + c * cw + cw * .2, wy = top + 30 + f * fh + 22, ww = cw * .6, wh = fh * .56;
-        knock(P(rect(wx, wy, ww, wh)), ['black']);
+        paint(P(rect(wx, wy, ww, wh)), { blue: 1 });                           // dark glass
         const on = wave2(wx + hash(sd + f * 3 + c) * 900) * (t > 86.72 ? 1 : .9);
         miniSign(wx, wy, ww, wh, on);
       }
@@ -399,7 +405,7 @@
     building({ sign: [1, 1, 1, 1], lit: () => 0, glow: false, inWindow: (f, c, x, y, w, h) => {
       const k = (7 - f) * 4 + ((f % 2) ? 3 - c : c), on = t > 83.7 + k * .022 ? 1 : 0;
       const flick = on && t < 83.7 + k * .022 + .06 ? 0 : on;
-      if (w * Z > 70) { if (flick) openSign(x + w / 2, y + h / 2, h * .4, [1, 1, 1, 1], { border: null, darkInks: ['blue', 'black'] }); }
+      if (w * Z > 70) { if (flick) windowSign(x, y, w, h); }
       else miniSign(x, y, w, h, flick);
     } });
     paint(P(rect(-9000, 1080, 20000, 3000)), 'black');

@@ -93,7 +93,7 @@
   }
   function s15_sign(t, lt, dur) {
     const W13 = LINES[13].words, T = W13.map(w => w.t0);            // keep it open all night!
-    const S = signLayout(250, W / 2, 500);
+    const S = signLayout(285, W / 2, 505);
     const oR = S.s * .4, oc = [S.xs[0] + S.s * .42, S.cy];
     // camera: starts matching S14's last frame (the globe at S14_END), pulls back to reveal the sign
     const z0 = S14_END.R / oR, u = E.io3(clamp(lt / .62));

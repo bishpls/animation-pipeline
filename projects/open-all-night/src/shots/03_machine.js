@@ -80,7 +80,7 @@
   }
   function blinkScene(t) {
     const open = openAt(t);
-    const pull = E.out5(seg(t, 25.84, 26.12));                      // match cut: from the gear hub / iris, pull back
+    const pull = E.out5(seg(t, 25.84, 26.02));                      // match cut: from the gear hub / iris, pull back
     const push = E.io2(seg(t, 26.2, 27.9)) * .22 + E.io2(seg(t, 27.9, SNAP - .02)) * .08;
     const snapBack = t > SNAP ? E.out3(seg(t, SNAP, SNAP + .25)) : 0;
     const into = E.inExpo(seg(t, 29.52, 29.70));                     // out: into the reflected page
@@ -109,7 +109,7 @@
     if (into < .2) timecode(tc, W - 90, 120, 58, null, { knock: true, knockInks: flash && BF(t) % 2 ? ['black'] : null });
     if (flash && BF(t) % 2) ink(P(rect(W - 460, 50, 380, 90)), { pink: 0 });
   }
-  function s08_blink(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
+  function s08_blink(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: t < 25.94 ? 'black' : 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
   function s09_sold(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
 
 
@@ -384,9 +384,9 @@
       paint(P(circle(pp[0], pp[1] - 12, 14 + 4 * top, 14)), i === 3 ? { pink: 1 } : { yellow: 1 });
     }
     // the coin belt
-    paint(P(cut(rect(-300, 960, 2600, 46), 701)), 'black');
-    for (let x = -300; x < 2300; x += 170) { paint(P(circle(x, 983, 30, 20)), 'black'); knock(P(circle(x, 983, 30, 20)), ['black'], 1, { stroke: 3 }); }
-    for (let k = 0; k < 14; k++) { const x = -300 + frac(k / 14 + t * .12) * 2600; coin(x, 925, 30, .3 + k); }
+    paint(P(cut(rect(-300, -40, 2600, 40), 701)), 'black');                            // an overhead conveyor of coins
+    for (let x = -300; x < 2300; x += 170) { paint(P(circle(x, -20, 26, 20)), 'black'); knock(P(circle(x, -20, 26, 20)), ['black'], 1, { stroke: 3 }); }
+    for (let k = 0; k < 14; k++) { const x = -300 + frac(k / 14 + t * .12) * 2600; paint(P([[x, 0], [x, 26]], false), 'black', { stroke: 4 }); coin(x, 52, 28, .3 + k); }
     restore();
     // through the glass: paper sheen streaks wipe away as we pass the screen
     const g = seg(t, 65.60, 66.05);

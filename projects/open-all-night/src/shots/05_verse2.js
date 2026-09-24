@@ -457,7 +457,7 @@
   // Reads: (1) the three panels fold into the middle and their objects become one phone in a hand (by "got" 58.74);
   // (2) its screen lights on "free" (58.98); (3) a hand from above brings a coin (59.34) and drops it in on "paid"
   // (60.06); (4) every light in the city comes on (60.5–61.1); (5) the band stops: black (61.9).
-  const PH = [1120, 500];
+  const PH = [1120, 650];
   function s19_patron(t, lt, dur) {
     // night comes in behind the collapsing panels (a blue iris from the centre)
     const irisU = E.in2(seg(t, 57.9, 58.45));
@@ -493,7 +493,7 @@
         knock(P(circle(PH[0], PH[1], 900)), ['blue'], radial(PH[0], PH[1], 150, 420 + 380 * glow, .85 * clamp(glow), 1.3));
         ink(P(circle(PH[0], PH[1], 900)), { yellow: radial(PH[0], PH[1], 120, 300 + 300 * glow, .5 * clamp(glow), 1.4) });
       }
-      save(); translate(PH[0], PH[1] + 240); scale(1.3 * pop * (1 + jig), 1.3 * pop * (1 - jig)); translate(-PH[0], -(PH[1] + 240));
+      save(); translate(PH[0], PH[1] + 240); scale(1.15 * pop * (1 + jig), 1.15 * pop * (1 - jig)); translate(-PH[0], -(PH[1] + 240));
       // the kid's pink sleeve and hand, from below
       paint(P(ribbon([[PH[0] + 60, 1180], [PH[0] + 30, 950], [PH[0] + 10, PH[1] + 220]], 110, 96, 810)), { pink: 1 });
       paint(P(rrect(PH[0] - 130, PH[1] - 240, 260, 480, 34)), 'black');
@@ -517,7 +517,7 @@
     }
     // the patron's hand: a black sleeve with a paper cuff, from above, holding a coin
     const down = E.out3(seg(t, 59.3, 59.82)), hesit = E.io2(seg(t, 59.82, 60.0)), up = E.in2(seg(t, 60.22, 60.7));
-    const TOP = PH[1] + 240 - 1.3 * 472;
+    const TOP = PH[1] + 240 - 1.15 * 472;
     const hy = lerp(-420, TOP - 225, down) - 14 * hesit + 12 * E.out3(seg(t, 60.0, 60.08)) - up * 800;
     if (hy > -400) {
       const hx = PH[0] + 20;
