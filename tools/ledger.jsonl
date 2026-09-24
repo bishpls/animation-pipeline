@@ -1,0 +1,8 @@
+{"ts": "2026-09-23T20:26:21", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take1", "wall": 10}
+{"ts": "2026-09-23T20:26:39", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take6", "wall": 10}
+{"ts": "2026-09-23T20:26:40", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take4", "wall": 10}
+{"ts": "2026-09-23T20:26:54", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take2 3", "wall": 10}
+{"ts": "2026-09-23T20:27:02", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take5 7", "wall": 8}
+{"ts": "2026-09-23T20:27:16", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take7", "wall": 10}
+{"ts": "2026-09-23T20:27:18", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take3", "wall": 12}
+{"ts": "2026-09-23T20:43:58", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/open-all-night/refs/cast_ref_a.png", "ok": true}

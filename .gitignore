@@ -1,0 +1,10 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+# render artefacts (regenerable)
+projects/*/out/
+projects/*/board/
+projects/*/assets/takes/

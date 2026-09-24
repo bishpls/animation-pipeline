@@ -1,0 +1,67 @@
+{
+  "chunks": [
+    {
+      "text": "[Intro - a cappella gospel choir, then the band hits]\nOpen... all night!",
+      "duration_ms": 3900,
+      "positive_styles": ["124 BPM", "euphoric gospel disco anthem", "a cappella gospel choir swell", "powerful female soul lead vocal", "live brass section", "four-on-the-floor", "warm analog 1970s production with modern punch"],
+      "negative_styles": ["EDM drop", "autotune", "lo-fi", "sad", "trap hi-hats", "rap"],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Instrumental groove]\n{horn fanfare riff, strings sweep up}",
+      "duration_ms": 3900,
+      "positive_styles": ["124 BPM", "four-on-the-floor kick", "funky octave bassline", "triumphant horn fanfare riff", "rhythm guitar chicken-scratch", "handclaps on 2 and 4", "string sweeps"],
+      "negative_styles": ["vocals"],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Verse 1]\nTwo a.m. and a kid can't sleep,\nshe's learning all the stars for free.\nGrandma's laughing on a call from Rome,\na stranger's video fixed the sink at home.",
+      "duration_ms": 15500,
+      "positive_styles": ["124 BPM", "intimate but groovy verse", "female soul lead vocal, clear diction", "funky bass and rhythm guitar", "electric piano", "light hi-hat disco groove"],
+      "negative_styles": ["mumbled lyrics"],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Pre-Chorus]\nYou never see the wires, you never hear the gears,\nbut in the blink of an eye a whole market appears.\nSomebody pays (blink!) and the page is yours,\nevery little window, every open door!",
+      "duration_ms": 7750,
+      "positive_styles": ["124 BPM", "rising pre-chorus tension", "choir answering 'blink!'", "snare build", "strings climbing", "anticipation"],
+      "negative_styles": [],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Chorus]\nKeep it open all night! (all night!)\nEvery window, every door, every kid gets a light!\nAll it costs is a glance (a glance!)\nand the whole world's yours tonight,\nkeep it open all night!",
+      "duration_ms": 15500,
+      "positive_styles": ["124 BPM", "huge euphoric chorus", "full gospel choir call and response", "blazing horn section", "lush disco strings", "handclaps and tambourine", "anthemic, sing-along"],
+      "negative_styles": [],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Verse 2]\nTiny shop on a side street, one good loaf of bread,\none little ad and the whole town's fed!\nPenny papers, radio, the TV in the den,\nevery time the world got free, somebody paid for it then.",
+      "duration_ms": 15500,
+      "positive_styles": ["124 BPM", "playful strutting verse", "female soul lead vocal, clear diction", "horn stabs answering each line", "slap bass", "disco groove"],
+      "negative_styles": ["mumbled lyrics"],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Bridge - breakdown]\nNobody ever wrote a love song for the ads,\nfor the little gears behind the glass,\nso here's one! (here's one!)\nEverybody sing it back!",
+      "duration_ms": 9700,
+      "positive_styles": ["124 BPM", "breakdown, drums drop out", "gospel organ and choir", "tender then building", "drum fill and riser into key change"],
+      "negative_styles": [],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Final Chorus - key change up]\nKeep it open all night! (all night!)\nEvery window, every door, every kid gets a light!\nAll it costs is a glance (a glance!)\nand the whole world's yours tonight,\nkeep it open, keep it open all night!",
+      "duration_ms": 15500,
+      "positive_styles": ["124 BPM", "key change up a whole step", "biggest chorus, maximum joy", "full gospel choir and soaring lead ad-libs", "blazing horns and strings", "triumphant"],
+      "negative_styles": [],
+      "context_adherence": "high"
+    },
+    {
+      "text": "[Outro]\n(Open... all night.)\n{band stops on a final horn hit, choir holds}",
+      "duration_ms": 5800,
+      "positive_styles": ["124 BPM", "final horn stab then choir hold", "clean ending", "warm fade on the last chord"],
+      "negative_styles": ["abrupt cut"],
+      "context_adherence": "high"
+    }
+  ]
+}

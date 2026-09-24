@@ -1,0 +1,9 @@
+1. **[take5.mp3]**: This take boasts the most convincing, authentic soul diva lead vocal with excellent lyric intelligibility and a driving, infectious disco groove that locks in immediately. The first two seconds deliver a massive, tight horn and choir hook, and the 1:13 key-change chorus provides a genuinely euphoric lift. While there is a minor transient smear at 0:28 ("somebody pays"), it remains the cleanest, most professional option for a high-craft video.
+
+2. **[take1.mp3]**: The intro hook is adequately punchy, and the final key change at 1:13 offers a solid dynamic shift, but the lead vocal leans heavily into a generic musical theatre style rather than authentic soul. The groove feels slightly stiffer than the winning take, and the choir lacks the same commanding width and warmth. It also suffers from noticeable metallic sheen and pitch warbling on the vocals around 0:26 ("blink of an eye") and 0:59 ("world got free").
+
+3. **[take2.mp3]**: While the underlying beat is heavy, the lead vocal is smothered in a synthetic AI sheen that ruins the necessary soulful connection and hurts lyric intelligibility. The opening horn blast is powerful but muddy, and the final chorus lift at 1:13 feels overly compressed and dense. Furthermore, there are severe pitch warbles and smeared transients in the pre-chorus from 1:02 to 1:07 ("for the little gears behind the glass") that ruin the momentum.
+
+4. **[take6.mp3]**: The first two seconds fail to hook the listener due to a sluggish, low-energy groove that completely misses the intended triumphant disco feel. The vocal delivery is lifeless and artificial, and the final chorus key change at 1:14 falls flat without the rhythmic drive to properly support it. It is ultimately unusable due to a massive, garbled artifact that completely destroys the lyrics and instrumental transients at 0:28 ("somebody pays").
+
+WINNER: take5.mp3

@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>OPEN ALL NIGHT · studio</title>
+<style>
+  html, body { margin: 0; background: #16151a; color: #ddd; font: 13px ui-monospace, monospace; }
+  #out { display: block; width: min(100vw, 1280px); height: auto; aspect-ratio: 16 / 9; }
+  .bar { display: flex; gap: 10px; align-items: center; max-width: 1280px; padding: 8px; }
+  .bar input { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1920" height="1080"></canvas>
+<script src="../../engine/vendor/fontkit.js"></script>
+<script>window.PROJECT = { fps: 24, audio: 'assets/song.wav' };</script>
+<script src="assets/cues.js"></script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/riso.js"></script>
+<script src="../../engine/type.js"></script>
+<script src="../../engine/studio.js"></script>
+<!-- the film -->
+<script src="src/look.js"></script>
+<script src="src/cast.js"></script>
+<script src="src/lyrics.js"></script>
+<script src="src/world.js"></script>
+<script src="src/board.js"></script>
+<script src="src/timeline.js"></script>
+<script src="src/shots/01_intro.js"></script>
+<script src="src/film.js"></script>
+<script>registerCut();</script>
+<script>
+(async () => {
+  try {
+    await Promise.all(Object.entries(FONT_FILES).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
+    risoSetup(LOOK.riso);
+    window.ready = true;
+    studioUI();
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>
