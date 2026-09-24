@@ -17,7 +17,7 @@ model = opt('--model', 'gemini-3-pro-image')
 refs = [a[i + 1] for i, x in enumerate(a) if x == '--ref']
 parts = [{'inline_data': {'mime_type': mimetypes.guess_type(r)[0], 'data': base64.b64encode(open(r, 'rb').read()).decode()}} for r in refs]
 parts.append({'text': prompt})
-body = {'contents': [{'parts': parts}], 'generationConfig': {'responseModalities': ['IMAGE', 'TEXT'], 'imageConfig': {'aspectRatio': opt('--aspect', '16:9')}}}
+body = {'contents': [{'parts': parts}], 'generationConfig': {'responseModalities': ['IMAGE', 'TEXT'], 'imageConfig': {'aspectRatio': opt('--aspect', '16:9'), **({'imageSize': opt('--size')} if opt('--size') else {})}}}
 t0 = time.time()
 r = requests.post(f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={KEY}', json=body, timeout=600)
 j = r.json()

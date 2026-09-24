@@ -42,3 +42,26 @@
 {"ts": "2026-09-24T03:04:58", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 158.116, "out": "projects/hello-world/assets/takes/take4", "wall": 15}
 {"ts": "2026-09-24T03:05:12", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 158.116, "out": "projects/hello-world/assets/takes/take5", "wall": 14}
 {"ts": "2026-09-24T03:05:12", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 158.116, "out": "projects/hello-world/assets/takes/take6", "wall": 14}
+{"ts": "2026-09-24T03:25:43", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/refs/chibi_sheet.png", "ok": true}
+{"ts": "2026-09-24T03:25:47", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k04_hero.png", "ok": true}
+{"ts": "2026-09-24T03:28:02", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k03_eye.png", "ok": true}
+{"ts": "2026-09-24T03:28:02", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k05_smile.png", "ok": true}
+{"ts": "2026-09-24T03:28:03", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k08_mirror.png", "ok": true}
+{"ts": "2026-09-24T03:28:03", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k10a.png", "ok": true}
+{"ts": "2026-09-24T03:28:03", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k06_shy.png", "ok": true}
+{"ts": "2026-09-24T03:28:04", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k11_reach.png", "ok": true}
+{"ts": "2026-09-24T03:28:04", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k12_tehe.png", "ok": true}
+{"ts": "2026-09-24T03:28:05", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k09_mine.png", "ok": true}
+{"ts": "2026-09-24T03:28:05", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k04_hero.png", "ok": true}
+{"ts": "2026-09-24T03:28:05", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k07_spin.png", "ok": true}
+{"ts": "2026-09-24T03:28:06", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k10b.png", "ok": true}
+{"ts": "2026-09-24T03:28:17", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k02_pose.png", "ok": true}
+{"ts": "2026-09-24T03:30:21", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k10a.png", "ok": true}
+{"ts": "2026-09-24T03:30:23", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k02_pose.png", "ok": true}
+{"ts": "2026-09-24T03:30:24", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k04_hero.png", "ok": true}
+{"ts": "2026-09-24T03:30:25", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k11_reach.png", "ok": true}
+{"ts": "2026-09-24T03:30:26", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k06_shy.png", "ok": true}
+{"ts": "2026-09-24T03:30:28", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k08_mirror.png", "ok": true}
+{"ts": "2026-09-24T03:30:28", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k07_spin.png", "ok": true}
+{"ts": "2026-09-24T03:31:22", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k12_tehe.png", "ok": true}
+{"ts": "2026-09-24T03:39:41", "service": "higgsfield", "op": "bytedance/seedance-2.5/image-to-video", "seconds": 5, "res": "720p", "out": "projects/hello-world/assets/seedance/transform_a.mp4"}

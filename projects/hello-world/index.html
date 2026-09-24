@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>HELLO, WORLD! · studio</title>
+<style>
+  html, body { margin: 0; background: #16151a; color: #ddd; font: 13px ui-monospace, monospace; }
+  #out { display: block; width: min(100vw, 1280px); height: auto; aspect-ratio: 16 / 9; }
+  .bar { display: flex; gap: 10px; align-items: center; max-width: 1280px; padding: 8px; }
+  .bar input { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1920" height="1080"></canvas>
+<script src="../../engine/vendor/fontkit.js"></script>
+<script>window.PROJECT = { fps: 24, plain: true, audio: 'assets/mix.wav' };</script>
+<script src="assets/cues.js"></script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/riso.js"></script>
+<script src="../../engine/type.js"></script>
+<script src="../../engine/studio.js"></script>
+<script src="src/pop.js"></script>
+<script src="src/chars.js"></script>
+<script>window.KEYS = ["k02_pose","k03_eye","k04_hero","k05_smile","k06_shy","k07_spin","k08_mirror","k09_mine","k10a","k10b","k11_reach","k12_tehe"];</script>
+<script src="assets/lyrics.js"></script>
+<script src="src/board.js"></script>
+<script src="src/film.js"></script>
+<script src="src/shots/a_open.js"></script>
+<script src="src/shots/b_chorus1.js"></script>
+<script src="src/shots/c_verse2.js"></script>
+<script src="src/shots/d_chorus2.js"></script>
+<script src="src/shots/e_finale.js"></script>
+<script>
+(async () => {
+  try {
+    plainSetup();
+    await Promise.all(Object.entries(FONT_FILES).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
+    if (window.KEYS) await Promise.all(KEYS.map(k => loadImg(k, 'assets/cut/' + k + '.png')));
+    await loadSeq('transform', 'assets/seq/transform', 121);
+    await loadSeq('keychange', 'assets/seq/keychange', 97);
+    if (window.registerFilm) registerFilm();
+    window.ready = true;
+    studioUI();
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>

@@ -15,8 +15,22 @@ function shotAt(t) {
 }
 function sectionAt(t) { for (const s of C.sections || []) if (t >= s.t0 && t < s.t1) return s.name; return ''; }
 
+// Plain mode (PROJECT.plain): no riso press. Shots draw straight into X, a Canvas2D on the output canvas.
+let X = null;
+function plainSetup() {
+  const out = document.getElementById('out'); out.width = W; out.height = H;
+  X = out.getContext('2d'); window.OUTC = out;
+}
 function drawFrame(t) {
   NOW = t;
+  if (window.PROJECT && PROJECT.plain) {
+    X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = 1; X.globalCompositeOperation = 'source-over'; X.filter = 'none';
+    X.fillStyle = '#000'; X.fillRect(0, 0, W, H);
+    let ret;
+    if (window.LOOP) ret = window.LOOP(t);
+    else if (SHOTS.length) { const s = shotAt(t); X.save(); ret = s.fn(t, t - s.t0, s.t1 - s.t0) || {}; X.restore(); if (PROJECT.overlay) { X.save(); PROJECT.overlay(t, ret, s); X.restore(); } }
+    return;
+  }
   risoClear();
   let ret, printOpts = {};
   if (window.LOOP) ret = window.LOOP(t);
@@ -31,7 +45,8 @@ function drawFrame(t) {
   risoPrint(t, printOpts);
 }
 
-window.renderAt = (t, mime = 'image/jpeg', q = .95) => { drawFrame(t); return RISO.out.toDataURL(mime, q); };
+const outCanvas = () => (window.PROJECT && PROJECT.plain ? window.OUTC : RISO.out);
+window.renderAt = (t, mime = 'image/jpeg', q = .95) => { drawFrame(t); return outCanvas().toDataURL(mime, q); };
 window.frameInfo = t => ({ t, bar: barPos(t), beat: beatPos(t), section: sectionAt(t), shot: SHOTS.length ? shotAt(t).name : '' });
 window.renderSheet = (ts, cols = 4, w = 480, crop = null) => {
   const [cx, cy, cw, ch] = crop || [0, 0, W, H];
@@ -41,11 +56,11 @@ window.renderSheet = (ts, cols = 4, w = 480, crop = null) => {
   const ms = [];
   ts.forEach((t, i) => {
     const t0 = performance.now(); drawFrame(t); ms.push(Math.round(performance.now() - t0));
-    const X = (i % cols) * w, Y = Math.floor(i / cols) * (h + 18);
-    x.drawImage(RISO.out, cx, cy, cw, ch, X, Y + 18, w, h);
+    const X0 = (i % cols) * w, Y = Math.floor(i / cols) * (h + 18);
+    x.drawImage(outCanvas(), cx, cy, cw, ch, X0, Y + 18, w, h);
     const fi = frameInfo(t);
     x.fillStyle = '#ffe14d'; x.font = '12px ui-monospace, monospace';
-    x.fillText(`${t.toFixed(2)}s  f${Math.round(t * FPS)}  bar ${fi.bar.toFixed(2)}  ${fi.shot}`, X + 4, Y + 13);
+    x.fillText(`${t.toFixed(2)}s  f${Math.round(t * FPS)}  bar ${fi.bar.toFixed(2)}  ${fi.shot}`, X0 + 4, Y + 13);
   });
   return { url: S.toDataURL('image/jpeg', .88), ms };
 };
