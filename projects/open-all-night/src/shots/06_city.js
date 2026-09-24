@@ -9,7 +9,7 @@
       knock(P(circle(p[0], p[1] - 20 * s, R)), floods, radial(p[0], p[1] - 20 * s, 8 * s, R, .95 * lit, 1.2));
       ink(P(circle(p[0], p[1] - 20 * s, R * .7)), { yellow: radial(p[0], p[1] - 20 * s, 6 * s, R * .7, .55 * lit, 1.4) });
     }
-    save(); translate(p[0], p[1]); rotate(ang - Math.PI / 2 + .3); scale(s);
+    save(); translate(p[0], p[1]); rotate(ang - Math.PI + .15); scale(s);
     paint(P(rrect(-15, -52, 30, 50, 5)), 'black');
     if (lit > 0) knock(P(rrect(-11, -48, 22, 40, 3)), null);
     restore();
@@ -44,8 +44,8 @@
 
   // ---------------------------------------------------------------- 12 · Every window, every door, every kid gets a light!
   // Reads: (1) a street of facades; windows pop yellow in a cascade (34.24–35.6); (2) doors swing open, light spills out
-  // (35.96–36.9); (3) kids march in along the pavement; each lifts a phone and it lights, one per eighth note (37.4–38.8);
-  // (4) the last light glints (-> the eye's catch-light).
+  // (35.96–36.9); (3) kids march in along the pavement; each lifts a phone and it lights, a wave on sixteenths (37.4–38.25);
+  // (4) the leader's light, last in the wave, glints (-> the eye's catch-light).
   function s12_procession(t, lt, dur) {
     const down = E.io3(seg(t, 36.75, 37.4));
     const push = lerp(1, 1.06, down) * (1 + .025 * E.io2(lt / dur)) + .012 * pulse(t, 7, 1);
@@ -101,7 +101,7 @@
       const s = [1.62, 1.44, 1.7, 1.52, 1.4, 1.66, 1.55, 1.46][i];
       const enter = E.out3(clamp((t - 36.7 - i * .05) / .75));
       const x = lerp(-400 - i * 40, 1560 - i * 205, enter) + (t - 37.6) * 25, y = 1080 + (i % 2) * 14;
-      const tl = lightT0 + (N - 1 - i) * EIGHTH;           // the leader (rightmost) lights first
+      const tl = lightT0 + (N - 1 - i) * EIGHTH / 2;       // a wave on sixteenths, left to right: the leader (rightmost) lights last, then glints
       const lit = E.out3(clamp((t - tl) / .12));
       const raise = kf(t, [[tl - .22, [.35, -.4]], [tl, [3.05 + .12 * hash(i), -.12], "back"]]);
       if (enter <= 0) continue;
