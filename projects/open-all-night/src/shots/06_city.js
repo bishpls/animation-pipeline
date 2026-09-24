@@ -193,7 +193,7 @@
     // out: into the glass: the screen's paper fills the frame
     const g = t > 65.52 ? 1 : 0;
     if (g > 0) knock(P(rect(0, 0, W, H)), null, g);
-    return { lyric: t < 62.6 ? false : { slot: 'uc', y: 150, font: 'serif', wdth: null, wght: null, size: 120, lh: 1.0, ink: 'knock', accentInk: 'knock', maxW: 1080 } };
+    return { lyric: t < 62.6 ? false : { noPlate: true, plate: 'black', accentPlate: 'pink', slot: 'uc', y: 190, font: 'serif', wdth: null, wght: null, size: 104, lh: 1.25, maxW: 1200 } };
   }
 
   // ---------------------------------------------------------------- 22 · so here's one! (here's one!)

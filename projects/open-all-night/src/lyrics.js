@@ -58,7 +58,7 @@ function lyricState(t, lead = .06, hold = 1.4) {
   return null;
 }
 
-const LYRIC_DEFAULT = { x: 110, y: 930, align: 'left', size: 66, maxW: 1100, ink: 'black', accentInk: 'pink', font: 'arch', wdth: 74, wght: 800, lh: 1.08, stamp: 'pink' };
+const LYRIC_DEFAULT = { accentPlate: 'pink', x: 110, y: 930, align: 'left', size: 66, maxW: 1100, ink: 'black', accentInk: 'pink', font: 'arch', wdth: 74, wght: 800, lh: 1.08, stamp: 'pink' };
 // slots: named anchor positions (baseline of the LAST line; blocks grow upward)
 const SLOTS = {
   ll: { x: 110, y: 960, align: 'left' }, lr: { x: W - 110, y: 960, align: 'right' }, lc: { x: W / 2, y: 975, align: 'center' },
@@ -85,15 +85,29 @@ function drawLyric(t, o = {}) {
     const width = row.reduce((a, p) => a + p.S.width, 0) + sp * (row.length - 1);
     let x = o.align === 'center' ? o.x - width / 2 : o.align === 'right' ? o.x - width : o.x;
     const y = o.top ? o.y + ri * lh : o.y - (n - 1 - ri) * lh;
+    if (o.plate) {                          // Kruger bars: each word's bar segment grows in as it's sung; accent words get a pink segment
+      const pad = o.size * .2, h0 = y - o.size * .86, hh = o.size * 1.12;
+      let bx = o.align === 'center' ? o.x - width / 2 : o.align === 'right' ? o.x - width : o.x;
+      row.forEach((p, wi) => {
+        const a = t - (p.w.t0 - .05);
+        if (a >= 0) {
+          const grow = E.out3(clamp(a / .09));
+          const x0 = bx - (wi === 0 ? pad : sp / 2), x1 = bx + p.S.width + (wi === row.length - 1 ? pad : sp / 2);
+          paint(P(cut(rect(x0, h0, (x1 - x0) * grow, hh), 900 + ri * 31 + wi, 2.2, .9, 18)), p.w.accent ? o.accentPlate : o.plate);
+        }
+        bx += p.S.width + sp;
+      });
+    }
     for (const p of row) {
       const a = t - (p.w.t0 - .05);                                  // word age (a tiny lead reads as in sync)
       if (a >= 0) {
         const u = clamp(a / .2), rise = (1 - E.back(u)) * o.size * .45, outU = st.out;
         const sc = 1 - outU * .0;
-        const inkSpec = p.w.accent ? o.accentInk : o.ink;
+        const inkSpec = o.plate ? 'knock' : p.w.accent ? o.accentInk : o.ink;
+        const plateInk = p.w.accent ? o.accentPlate : o.plate;
         const dy = rise + outU * o.size * .5;
         const clipped = u < 1 || outU > 0;
-        drawText(p.S, x, y + dy, inkSpec === 'knock' ? null : inkSpec, { opaque: true, knock: inkSpec === 'knock', per: clipped ? (g) => ({ alpha: clamp(u * 3) * (1 - outU) > .5 ? 1 : 0 }) : null });
+        drawText(p.S, x, y + (o.plate ? 0 : dy), inkSpec === 'knock' ? null : inkSpec, { opaque: true, knock: inkSpec === 'knock', knockInks: o.plate ? Object.keys(typeof plateInk === 'string' ? { [plateInk]: 1 } : plateInk) : null, per: clipped ? (g) => ({ alpha: clamp(u * 3) * (1 - outU) > .5 ? 1 : 0 }) : null });
       }
       x += p.S.width + sp;
     }

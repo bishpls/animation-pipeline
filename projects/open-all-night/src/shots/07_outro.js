@@ -84,4 +84,82 @@
     return storefront(t, t - 89.54, dur);
   }
   SHOT_FN['29'] = s29_asleep;
+
+  // ---------------------------------------------------------------- 28 · the city spells OPEN (the climax)
+  // Reads: (1) one window, with its own little OPEN sign (83.78); (2) pull back over the whole skyline at first light (to 85.6);
+  //        (3) the windows light up as giant pixel letters, O on "keep" 85.70, P on "it" 86.02, E on "open" 86.30, N on the eighth after;
+  //        (4) "all night!": the whole city flashes on, and holds (86.72 / 86.94).
+  const GLYPH = {            // 5x7 block letters, drawn as windows
+    O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+    P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
+    E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+    N: ['#...#', '##..#', '#.#.#', '#.#.#', '#..##', '#...#', '#...#'],
+  };
+  const PX = 2, COLW = 30, ROWH = 38, ROWS = 7 * PX + 4, GAPC = 3;
+  const cols = Math.ceil(W / COLW) + 16, LOFF = Math.floor((cols - (4 * 5 * PX + 3 * GAPC)) / 2);   // the grid spans the frame; the word sits centred
+  const X0 = W / 2 - cols * COLW / 2, YB = 1010;               // skyline: windows grid, bottom row just above the street
+  const letterAt = (c, r) => {                                 // which letter (0..3) a window cell belongs to, or -1
+    const cc = c - LOFF, rr = r - 2;
+    if (rr < 0 || rr >= 7 * PX) return -1;
+    for (let k = 0; k < 4; k++) {
+      const lc = cc - k * (5 * PX + GAPC);
+      if (lc >= 0 && lc < 5 * PX) { const g = GLYPH['OPEN'[k]]; return g[6 - Math.floor(rr / PX)][Math.floor(lc / PX)] === '#' ? k : -1; /* rows count up from the street */ }
+    }
+    return -1;
+  };
+  // buildings: runs of columns with their own heights (in rows); all tall enough to hold the letters
+  const BLOCKS = (() => { const out = []; let c = 0, i = 0; while (c < cols) { const w = 3 + Math.floor(hash(i * 3.7) * 5); out.push({ c0: c, c1: Math.min(cols, c + w), top: ROWS + Math.floor(hash(i * 9.1) * 6), i }); c += w; i++; } return out; })();
+  const LIT = [85.70, 86.02, 86.30, 86.54];
+  function s28_open(t, lt, dur) {
+    // camera: from one window (a sign in it), pulling back over the whole skyline by 85.6
+    const TC = LOFF, TR = 6, target = [X0 + TC * COLW + COLW / 2, YB - TR * ROWH + ROWH / 2];    // a window inside the O
+    const u = E.ioExpo(seg(t, 83.95, 85.2));
+    const z = lerp(9, 1, u), cx = lerp(target[0], W / 2, u), cy = lerp(target[1], 540, u);
+    const flash = t >= 86.94 ? 1 - E.out3(clamp((t - 86.94) / .45)) : 0, allOn = t >= 86.72;
+    const kickZ = 1 + .06 * wobble(t, 86.72, 2.5, 5) + .05 * wobble(t, 86.94, 3, 6) + .02 * [85.7, 86.02, 86.3, 86.54].reduce((a, tb) => a + (t > tb ? Math.exp(-(t - tb) * 12) : 0), 0);
+    save(); cam(cx, cy, z * kickZ);
+    // sky: first light. blue above, a pink band and a yellow sliver at the horizon (solid bands, no gradients)
+    paint(P(rect(-2000, -2000, W + 4000, 4000)), { blue: 1 });
+    paint(P(rect(-2000, YB - ROWS * ROWH - 120, W + 4000, 4000)), { pink: 1 });
+    paint(P(rect(-2000, YB - ROWS * ROWH - 30, W + 4000, 4000)), { pink: 1, yellow: 1 });
+    // far skyline (pink-black overprint silhouettes) for depth
+    for (let i = 0; i < 18; i++) { const x = -300 + i * 150, h = 180 + hash(i * 5.5) * 260; paint(P(cut(rect(x, YB - ROWS * ROWH - h + 140, 132, h + 400), 960 + i)), { pink: 1, black: 1 }); }
+    // the blocks
+    for (const b of BLOCKS) {
+      const x = X0 + b.c0 * COLW - 6, w = (b.c1 - b.c0) * COLW + 6, top = YB - b.top * ROWH - 20;
+      paint(P(cut(rect(x, top, w, YB - top + 400), 970 + b.i, 1.4)), 'black');
+      if (hash(b.i * 2.3) > .6) paint(P(cut(rect(x + w * .3, top - 60, w * .3, 60), 980 + b.i)), 'black');   // water tanks, stair heads
+      for (let r = 0; r < b.top; r++) for (let c = b.c0; c < b.c1; c++) {
+        const k = letterAt(c, r), wx = X0 + c * COLW + 6, wy = YB - (r + 1) * ROWH + 8, ww = COLW - 12, wh = ROWH - 16;
+        const story = c === TC && r === TR - 1;             // the window we start in
+        const on = story || (k >= 0 ? t >= LIT[k] : (allOn ? hash(c * 13.1 + r * 7.7) > .45 : hash(c * 3.1 + r * 5.3) > .86));
+        if (!on) continue;
+        const win = P(rect(wx, wy, ww, wh));
+        if (k >= 0 && !story) {                         // letter cells fill the whole cell: the windows fuse into solid letterforms
+          const cell = P(rect(X0 + c * COLW + 1, YB - (r + 1) * ROWH + 1, COLW - 2, ROWH - 2));
+          const age = t - LIT[k], pop = age < .1 ? (BF(t) % 2 ? 1 : .0) : 1;
+          if (pop > .5) knock(cell, null);
+          if (pop > .5 && allOn) paint(cell, { pink: 1 });
+          continue;
+        }
+        if (story) {                          // letter windows: paper-bright, each with its little pink OPEN sign
+          const age = t - (story ? 0 : LIT[k]), pop = age < .12 ? (BF(t) % 2 ? 1 : .3) : 1;
+          knock(win, null);
+          if (allOn && !story) paint(win, { pink: 1 });
+          else { paint(P(rect(wx + 2, wy + wh * .3, ww - 4, wh * .4)), { pink: pop }); knock(P(rect(wx + 5, wy + wh * .44, ww - 10, wh * .12)), ['pink']); }
+        } else paint(win, { yellow: 1 });
+      }
+    }
+    // the letters' glow: a pink halftone halo over each lit letter's windows
+    for (let k = 0; k < 4; k++) if (t >= LIT[k]) {
+      const lx = X0 + (LOFF + k * (5 * PX + GAPC) + 5 * PX / 2) * COLW, ly = YB - (2 + 7 * PX / 2) * ROWH;
+      ink(P(circle(lx, ly, 420)), { pink: radial(lx, ly, 120, 420, .35 * (allOn ? 1 : .8), 1.3) });
+    }
+    paint(P(rect(-2000, YB, W + 4000, 3000)), 'black');                       // the street
+    // the window you started in: its own little sign, big while we're close
+    restore();
+    if (flash > 0) knock(P(rect(0, 0, W, H)), ['black', 'blue'], flash * .7);
+    return { lyric: { slot: 'uc', plate: 'black', size: 70, y: 120, maxW: 1700 } };
+  }
+  SHOT_FN['28'] = s28_open;
 })();

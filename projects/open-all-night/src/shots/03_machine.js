@@ -213,7 +213,7 @@
     // speed lines while falling (screen space)
     const sp = Math.sin(Math.PI * clamp(u * 1.1)) * (t < DRIP_HIT ? 1 : 0);
     if (sp > .2) for (let i = 0; i < 14; i++) { const x = 80 + hash(i * 7.3) * 1760, len = 200 + 400 * sp * hash(i + 3), y = frac(hash(i) - t * 3) * (H + len) - len; knock(P([[x, y], [x, y + len]], false), null, 1, { stroke: 3 + 4 * hash(i + 9) }); }
-    return { lyric: { slot: 'ul', ink: 'knock', accentInk: 'knock', size: 62, y: 180, maxW: 1750 } };
+    return { lyric: { slot: 'lc', size: 62, maxW: 1500 } };
   }
   SHOT_FN['07'] = s07_under;
 
@@ -391,7 +391,13 @@
     // through the glass: paper sheen streaks wipe away as we pass the screen
     const g = seg(t, 65.60, 66.05);
     if (g < 1) for (let i = 0; i < 3; i++) { const x = lerp(-400, 2600, E.in2(g)) + i * 260 - 400, w = [140, 50, 24][i]; knock(P([[x, -50], [x + w, -50], [x + w - 500, H + 50], [x - 500, H + 50]]), null, 1); }
-    return { lyric: { slot: 'll', ink: 'knock', accentInk: 'knock', size: 64, y: 1010, maxW: 1400 } };
+    // the thesis line from S20 stays up, so the film's sentence gets its full read
+    if (t < 67.45) {
+      const L = shape('Nobody ever wrote a love song for the ads,', { font: 'serif', size: 86 }), x0 = W / 2 - L.width / 2;
+      paint(P(cut(rect(x0 - 34, 118, L.width + 68, 108), 950, .8, .4)), 'black');
+      drawText(L, W / 2, 196, null, { align: 'center', knock: true, knockInks: ['black'] });
+    }
+    return { lyric: { slot: 'll', plate: 'black', size: 64, y: 1010, maxW: 1400 } };
   }
   SHOT_FN['21'] = s21_machine;
 
