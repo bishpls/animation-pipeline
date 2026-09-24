@@ -68,13 +68,30 @@
     shp(rrect(x - 60, y - 6, 120, 16, 6), C_.ink, 0);
     if (pr > 0) { for (let i = 0; i < 7; i++) { const a = -Math.PI / 2 + (i - 3) * .35; lin([[x + Math.cos(a) * 70, y - 40 + Math.sin(a) * 70], [x + Math.cos(a) * (110 + (1 - pr) * 40), y - 40 + Math.sin(a) * (110 + (1 - pr) * 40)]], 8, C_.lemon); } }
   }
-  function crowdHeads(t, x0, x1, y, n, o = {}) {       // silhouettes with penlights, bottom edge
-    for (let i = 0; i < n; i++) {
-      const x = lerp(x0, x1, (i + .5) / n), b = pulse(t, 7, 1, i * .5) * 10, sw = Math.sin((beatPos(t) + i * .3) * Math.PI) * .5;
-      const col = [C_.cyan, C_.lemon, C_.white][i % 3];
-      lin([[x + 30, y - 40 - b], [x + 30 + Math.sin(sw) * 50, y - 120 - b]], 10, col); glow(x + 30 + Math.sin(sw) * 50, y - 120 - b, 44, col, .4);
-      shp(ellipse(x, y - b, 50, 58), C_.ink, 0); shp(ellipse(x, y + 70 - b, 80, 50), C_.ink, 0);
-    }
+  // the studio audience: costumed Clawds with signs. askT = the time the current question is asked (the asker hops + raises the mic)
+  const stars3 = () => { X.save(); lin([[0, 0], [0, -70]], 6, LN); X.translate(0, -120); shp(rrect(-90, -46, 180, 92, 10), C_.white, 2.5, LN); for (let k = -1; k <= 1; k++) sparkle(k * 52, 0, 26, C_.lemon, 0, 2.5); X.restore(); };
+  function audience(t, askT = null, o = {}) {
+    const seats = [                                         // back tier first, then the front tier
+      { x: 190, y: 930, s: .62, hat: 'beret', holdR: { sign: 'LOL', col: C_.violet, size: 44 }, eyes: 'happy' },
+      { x: 390, y: 930, s: .62, hat: 'headband', holdR: 'penlight', eyes: 'open' },
+      { x: 90, y: 1075, s: .82, hat: 'bow', holdR: { sign: 'YES!', col: C_.pinkD, size: 44 }, eyes: 'heart' },
+      { x: 290, y: 1075, s: .82, hat: 'party', holdR: 'mic', eyes: 'open', asker: true },
+      { x: 490, y: 1075, s: .82, hat: 'crown', holdR: { sign: '?', col: C_.cyanD, size: 64 }, eyes: 'wide' },
+    ];
+    // bleacher steps
+    shp([[-60, 950], [590, 950], [590, 1200], [-60, 1200]], C_.nightD, 5); lin([[-60, 950], [590, 950]], 6, C_.lemonD);
+    seats.forEach((c, i) => {
+      const b = pulse(t, 7, 1, i * .5) * 12;
+      const asking = c.asker && askT != null && t > askT - .15 && t < askT + .9;
+      const hop = asking ? 26 * Math.abs(Math.sin((t - askT) * 9)) : b;
+      clawd(c.x, c.y, c.s, { seed: 30 + i * 7, hat: c.hat, holdR: c.holdR, penCol: C_.pink, armR: asking ? 1.25 : .9 + .15 * Math.sin((beatPos(t) + i) * Math.PI), armL: .3,
+        eyes: o.dim ? 'closed' : c.eyes, mouth: asking ? 'open' : 'cat', hop, pincer: i % 2 === 1, snip: (Math.sin(t * 9 + i) + 1) / 2, blush: c.eyes === 'heart' });
+    });
+  }
+  // the host: a top-hat Clawd with a mic, right of the podium
+  function host(t, o = {}) {
+    const lean = o.lean ?? Math.sin(tw(t) * 2) * .04, ask = o.ask;
+    clawd(1740, 1060, .9, { seed: 91, hat: 'tophat', bowtie: true, holdL: 'mic', armL: ask ? 1.15 : .7, armR: .35 + .3 * pulse(t, 6), lean, eyes: o.eyes || 'open', mouth: ask ? 'open' : 'cat', look: [-1, 0] });
   }
 
   // ---------------------------------------------------------------- 22 · Commas and cats
@@ -98,7 +115,7 @@
     const P = ans ? pose('point', 'up', .35) : pose('idle');
     idol(1300, 1110 + (ans ? -18 * pulse(t, 5, .5) : 0), 1.3, { ...P, eyes: ans ? 'happy' : (t > Q.q1 + .2 ? 'side' : 'open'), look: [-1, -.2], sing: ans ? .6 + .3 * Math.sin(t * 20) : 0, mouth: ans ? 'open' : 'smile', hop: ans ? 20 * Math.abs(Math.sin((t - Q.a1) * 8)) * clamp(1 - (t - Q.a1)) : 0, skirtFlare: ans ? .3 : 0 });
     podium(1300, 840, t, Q.a1 - .05);
-    crowdHeads(t, -40, 620, 1040, 6);
+    audience(t, Q.q1); host(t, { ask: t > Q.q1 - .1 && t < Q.a1 });
     bubble(t, Q.q1, 'WHAT DO YOU LIKE?', 560, 290, { tail: -120, rot: -.06, out: Q.a1 + .5 });
     restore0();
     return { calls: false };
@@ -134,6 +151,17 @@
     const br = Math.sin(t * 2.2) * .04;
     X.save(); X.translate(570, 790); X.scale(1 + br, 1 - br); cat(0, 0, 1.3, C_.lemon, { eyes: 'sleep', seed: 9 }); X.restore();
     for (let i = 0; i < 3; i++) { const a = (t * .6 + i / 3) % 1; pop('z', 660 + a * 60, 640 - a * 120, { font: 'dela', size: 30 + i * 12, fill: C_.white, lw: 5 }); }
+    // a sleepy Clawd in a nightcap, nodding off on the desk by the tea (it jolts awake on the beat, then droops again)
+    const nod = frac(beatPos(t) / 2), droop = E.in2(clamp(nod * 1.3)) * .22 - (nod < .08 ? .12 : 0);
+    const cx = 1560, cy = 832, cs = .6;
+    X.save(); X.translate(cx, cy); X.rotate(droop); X.translate(-cx, -cy);
+    clawd(cx, cy, cs, { seed: 77, eyes: nod < .08 ? 'wide' : 'closed', mouth: nod < .08 ? 'o' : null, armL: -.2, armR: -.2, blush: true, holdR: () => { X.save(); X.rotate(Math.PI / 2); shp(rrect(-18, -40, 36, 50, 8), C_.cream, 2.5, LN); X.restore(); } });
+    const top = cy - (124 + 44) * cs;
+    shp(blob([[cx - 62 * cs * 1.6, top + 6], [cx - 20, top - 58], [cx + 60, top - 70], [cx + 108, top - 30], [cx + 70, top - 36], [cx + 40, top + 6]], 3), C_.cyan, 2.8, LN);
+    shp(rrect(cx - 100 * cs * 1.05, top - 4, 210 * cs * 1.05, 20, 8), C_.white, 2.5, LN);
+    shp(circle(cx + 112, top - 26, 13), C_.white, 2.5, LN);
+    X.restore();
+    for (let i = 0; i < 2; i++) { const a = (t * .5 + i / 2) % 1; pop('z', cx + 70 + a * 40, top - 40 - a * 110, { font: 'dela', size: 26 + i * 10, fill: C_.cyan, lw: 5 }); }
   }
   function s23(t, lt, dur) {
     const bu = E.inExpo(clamp((t - 71.55) / .45));        // the thought bubble grows to fill the frame by 72.0
@@ -143,7 +171,7 @@
       const P = pose('idle');
       idol(1300, 1110, 1.3, { ...P, eyes: t > 71.1 ? 'closed' : 'side', look: [-1, -.2], mouth: t > 71.1 ? 'cat' : 'smile', tilt: t > 71.1 ? -.12 : 0, armR: t > 71.1 ? [1.1, 2.1] : P.armR, handR: t > 71.1 ? 'fist' : 'mitt' });
       podium(1300, 840, t, null);
-      crowdHeads(t, -40, 620, 1040, 6);
+      audience(t, Q.q2); host(t, { ask: t > Q.q2 - .1 && t < 71.1 });
       bubble(t, Q.q2, 'WHAT DO YOU LIKE?', 560, 290, { tail: -120, rot: .05 });
       // thinking dots, then the bubble
       if (t > 71.1) for (let i = 0; i < 3; i++) if (t > 71.1 + i * .12) shp(circle(1120 - i * 60, 380 - i * 60, 16 + i * 10), C_.white, 5);
@@ -183,7 +211,7 @@
     idol(bx, by, 1.3, { ...(star ? pose('wave') : pose('idle')), armR: star ? [2.5, .1] : [.22, -.1], handR: star ? 'fist' : 'mitt', eyes: star ? 'star' : 'side', look: [-1, -.2], mouth: star ? 'open' : 'smile', sing: star ? .5 + .3 * Math.sin(t * 18) : 0, legL: [0, lift * .5], legR: [0, -lift * .3], skirtFlare: lift * .5, blush: star ? .8 : .35 });
     X.restore();
     podium(1300, 840, t, null);
-    crowdHeads(t, -40, 620, 1040, 6);
+    audience(t, Q.q3); host(t, { ask: t > Q.q3 - .1 && t < Q.a3, eyes: t > Q.a3 ? 'star' : 'open' });
     bubble(t, Q.q3, 'WHAT DO YOU LIKE?', 560, 290, { tail: -120, rot: -.04, out: 74.9 });
     if (star) for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + t, r = 190 + 30 * Math.sin(t * 6 + i); sparkle(bx + Math.cos(a) * r, by - 460 + Math.sin(a) * r * .6, 16, i % 2 ? C_.lemon : C_.white, t * 2); }
     X.restore();
@@ -198,6 +226,7 @@
       const d = E.out3(clamp((t - 76.1) / .4));
       X.save(); cam(1200, 600, 1.12 + .06 * clamp((t - 76.1) / 1.3));
       quizSet(t);
+      audience(t, Q.q4); host(t, { ask: t > Q.q4 - .1 && t < 77.2 });
       X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = .72 * d; X.fillStyle = C_.nightD; X.fillRect(0, 0, W, H); X.restore();
       // the spotlight cone on her
       X.save(); X.globalAlpha = .22 * d; X.fillStyle = C_.cream; X.beginPath(); X.moveTo(1300, -200); X.lineTo(1000, 1100); X.lineTo(1600, 1100); X.fill(); X.restore();
@@ -252,43 +281,91 @@
     shp(rrect(-58, -20, 116, 120, 40), '#FFF1EA', 5); lin([[-70, 170], [70, 170]], 5, C_.skinD); lin([[-70, 200], [70, 200]], 5, C_.skinD);
     X.restore();
   }
+  // the feed is always moving: a continuous scroll, a momentum flick on "scroll" (80.8), velocity decaying back to a drift in 27.
+  const F0 = 79.06, FLICK = 80.8;
+  const feedScroll = t => (t - F0) * 240 + 1900 * E.out3(clamp((t - FLICK) / .75)) + (t > 81.8 ? (t - 81.8) * 60 : 0);
+  const feedVel = t => (feedScroll(t + 1 / 48) - feedScroll(t - 1 / 48)) * 24;
+  const STREAM = ['cat', 'recipe', 'clawd', 'text', 'food', 'cat', 'clawd', 'recipe', 'text', 'cat', 'food', 'clawd', 'recipe', 'cat', 'text', 'food'];
+  function card2(y, kind, t, o = {}) {
+    if (kind !== 'recipe' && kind !== 'clawd') return card(y, kind, t, o);
+    const x = PH.x + 24, w = PH.w - 48, h = 440;
+    shp(rrect(x, y, w, h, 26), C_.white, 5);
+    fil(circle(x + 36, y + 36, 18), kind === 'clawd' ? C_.clay : C_.lemon); fil(rrect(x + 64, y + 26, 160, 18, 9), C_.creamD);
+    clipTo(rrect(x + 16, y + 70, w - 32, 300, 18), () => {
+      if (kind === 'clawd') { checker(40, C_.cyan, '#8FEFF8', 0, 0, 0); clawd(x + w / 2, y + 350, .95, { seed: 5, glasses: 'shades', mouth: 'cat', armR: 1.4, holdR: () => { X.save(); X.rotate(-Math.PI / 2); shp(rrect(-22, -64, 44, 70, 8), C_.ink, 2, LN); X.restore(); }, armL: .4 }); pop('selfie!', x + 40, y + 120, { font: 'dela', size: 34, fill: C_.lemon, lw: 5 }); }
+      else { flat(C_.cream); shp(ellipse(x + 150, y + 230, 100, 60), C_.white, 5); shp(ellipse(x + 150, y + 216, 80, 34), C_.lemon, 4); fil(circle(x + 130, y + 210, 10), C_.pink); fil(circle(x + 170, y + 222, 8), C_.green);
+        for (let i = 0; i < 5; i++) { fil(circle(x + 290, y + 130 + i * 44, 6), C_.clay); fil(rrect(x + 310, y + 122 + i * 44, 130 - (i % 2) * 40, 16, 8), C_.creamD); } pop('RECIPE', x + 290, y + 110, { font: 'dela', size: 24, fill: C_.clay, lw: 0 }); }
+    });
+    for (let i = 0; i < 3; i++) shp(circle(x + 40 + i * 60, y + h - 34, 12), C_.white, 4);
+    pop('♡', x + w - 50, y + h - 20, { font: 'mochi', size: 44, align: 'center', fill: C_.pink, lw: 4 });
+  }
+  // outside the phone: floating likes and hearts at three parallax depths (they move against the scroll)
+  function feedParallax(t) {
+    const sc = feedScroll(t);
+    for (let i = 0; i < 24; i++) {
+      const depth = [.18, .35, .6][i % 3], x = (i * 211 + 90) % W;
+      if (x > PH.x - 60 && x < PH.x + PH.w + 60) continue;
+      const y = ((1200 - (sc * depth + i * 173)) % 1300 + 1300) % 1300 - 110, sz = 30 + depth * 60;
+      const g = ['♡', '+1', '★', '♡', '!!', '♡'][i % 6];
+      X.save(); X.globalAlpha = .35 + depth * .7;
+      if (g === '★') sparkle(x, y, sz * .6, C_.lemon, t + i, 2.5);
+      else pop(g, x, y, { font: g === '♡' ? 'mochi' : 'dela', size: sz, align: 'center', fill: [C_.pink, C_.cyan, C_.lemon][i % 3], lw: 5 });
+      X.restore();
+    }
+  }
+  function phoneTilt(t, fn) {
+    const v = feedVel(t), r = Math.sin(t * 1.3) * .015 - clamp(v / 12000, -.08, .08) * .5;
+    X.save(); X.translate(W / 2, H / 2); X.rotate(r); X.translate(-W / 2, -H / 2 + clamp(v / 600, -10, 30)); fn(); X.restore();
+  }
+  function stream(t, from = 0) {
+    const sc = feedScroll(t), base = PH.y + 80 + 480 - sc;
+    for (let i = from; i < STREAM.length + from; i++) { const y = base + (i - from) * 480; if (y < PH.y - 460 || y > PH.y + PH.h) continue; card2(y, STREAM[i % STREAM.length], t); }
+  }
+  // her card fights the scroll: pinned at the top, it gets dragged up a little each beat and she yanks it back down.
+  function herY(t) {
+    const bp = beatPos(t), drag = 150 * E.in2(frac(bp)), yank = frac(bp) < .1 ? 150 * (1 - E.back(frac(bp) / .1)) : 0;
+    const pre = t < FLICK ? drag - yank : 150;
+    return PH.y + 80 - (t < 79.4 ? (t - F0) * 240 : pre) - (t > FLICK ? 2200 * E.in3(clamp((t - FLICK) / .7)) : 0);
+  }
   function s26(t, lt, dur) {
-    feedBg(t);
-    // scroll: at 80.8 the feed shoots up; her card (the first) leaves by the top ~81.5
-    const sc = E.inOutish ? 0 : 0;
-    const s1 = E.io3(clamp((t - 80.8) / .75)) * 1500;
-    phoneFrame(() => {
-      flat(C_.cream);
-      const baseY = PH.y + 80 - s1;
-      // bye-bye: as her card rises she waves out of it
-      const bye = t > 81.2;
-      card(baseY, 'idol', t, { pose: { ...(bye ? pose('wave') : pose('sing')), eyes: bye ? 'happy' : 'closed', sing: bye ? 0 : .6 + .3 * Math.sin(t * 16), mouth: bye ? 'open' : 'smile', armR: bye ? [2.2, .25 + .5 * Math.sin(t * 24)] : undefined } });
-      card(baseY + 480, 'food', t); card(baseY + 960, 'cat', t); card(baseY + 1440, 'text', t); card(baseY + 1920, 'food', t);
+    feedBg(t); feedParallax(t);
+    phoneTilt(t, () => {
+      phoneFrame(() => {
+        flat(C_.cream);
+        stream(t);
+        // her card, on top of the stream with a drop shadow; her hand grips the top edge while she fights, then bye-bye
+        const y = herY(t), bye = t > 81.15, fight = t > 79.4 && t < FLICK;
+        fil(rrect(PH.x + 34, y + 14, PH.w - 48, 440, 26), 'rgba(20,10,30,.25)');
+        card(y, 'idol', t, { pose: { ...(bye ? pose('wave') : fight && frac(beatPos(t)) < .35 ? pose('up') : pose('sing')), eyes: bye ? 'happy' : fight ? 'determined' : 'closed', sing: bye ? 0 : .6 + .3 * Math.sin(t * 16), mouth: bye ? 'open' : 'cat', armR: bye ? [2.2, .25 + .5 * Math.sin(t * 24)] : undefined, sweat: fight } });
+        if (fight) { shp(circle(PH.x + 150, y + 6, 22), C_.skin, 2.5, LN); shp(circle(PH.x + PH.w - 150, y + 6, 22), C_.skin, 2.5, LN); }
+      });
     });
     stamp(t, 79.38, 'SLOP', 330, 420, C_.pinkD, -.18);
     stamp(t, 80.06, 'SOUL', W - 330, 520, C_.cyanD, .14);
-    // the thumb: enters at 80.35 from the bottom right, presses, flicks up on "scroll" (80.8)
+    // the thumb: enters at 80.35 from the bottom right, presses, flicks up on "scroll" (80.8), then leaves
     if (t > 80.3) {
       const e = E.out3(clamp((t - 80.3) / .3)), fl = E.in3(clamp((t - 80.8) / .35)), gone = E.in2(clamp((t - 81.2) / .3));
       thumb(lerp(1450, 1060, e), lerp(1300, 760, e) - fl * 420 + gone * 900, -.35 + fl * .1);
       if (t > 80.8 && t < 81.3) for (let i = 0; i < 5; i++) lin([[980 + i * 30, 900 - i * 10], [980 + i * 30, 700 - i * 10]], 6, C_.white);
     }
-    // the tiny "bye-bye" wave as she leaves the top of the phone
+    // speed streaks on the phone during the flick
+    const v = feedVel(t); if (v > 2000) { X.save(); X.globalAlpha = clamp((v - 2000) / 3000) * .8; for (let i = 0; i < 8; i++) { const x = PH.x + 40 + i * 70; lin([[x, PH.y + 100], [x, PH.y + PH.h - 100]], 4, C_.white); } X.restore(); }
     return {};
   }
   function s27(t, lt, dur) {
-    feedBg(t);
+    feedBg(t); feedParallax(t);
     const pop0 = 81.94, u = E.back(clamp((t - pop0) / .35));
-    phoneFrame(() => { flat(C_.cream); const y = PH.y + 80 - 700 - (t - 81.8) * 40; card(y, 'text', t); card(y + 480, 'cat', t); card(y + 960, 'food', t); });
+    phoneTilt(t, () => phoneFrame(() => { flat(C_.cream); stream(t, 4); }));
     // she bursts up from the bottom of the phone, bigger than the phone, singing anyway
     if (t > pop0 - .05) {
       const y = lerp(1500, 1090, u), why = t > 83.62;
       idol(W / 2 + 40, y, 1.25, { ...(why ? pose('shrug') : pose('sing')), eyes: why ? 'open' : 'determined', mouth: why ? 'o' : 'open', sing: why ? .4 : .5 + .35 * Math.sin(t * 17), tilt: Math.sin(tw(t) * 4) * .05, skirtFlare: .3, sweat: why });
       if (t < pop0 + .25) speedLines(W / 2, 700, C_.white, 40, 11, 350, .7);
     }
-    // ? rain on "why?" (83.62), and two big ones slammed on the calls (84.0, 84.34)
-    if (t > 83.55) for (let i = 0; i < 16; i++) { const a = t - 83.55 - hash(i) * .3; if (a < 0) continue; const x = 80 + hash(i * 7.1) * (W - 160), y = -80 + a * (700 + hash(i * 3) * 500); pop('?', x, y, { font: 'dela', size: 60 + hash(i * 5) * 60, align: 'center', fill: [C_.lemon, C_.cyan, C_.pink][i % 3], lw: 6, per: () => ({ rot: Math.sin(a * 5 + i) * .4 }) }); }
-    for (const [tt, x, col] of [[84.0, 360, C_.cyan], [84.34, W - 360, C_.lemon]]) if (t > tt - .02) { X.save(); X.translate(x, 380); const k = slamK(t, tt, .1); X.scale(k, k); pop('WHY?', 0, 0, { font: 'dela', size: 130, align: 'center', fill: col, lw: 10, shadow: [10, 10, C_.ink] }); X.restore(); }
+    // ? rain on "why?" (83.62): fast enough to clear the frame and fade before the cut (84.7)
+    const rainOut = 1 - clamp((t - 84.4) / .25);
+    if (t > 83.55 && rainOut > 0) { X.save(); X.globalAlpha = rainOut; for (let i = 0; i < 16; i++) { const a = t - 83.55 - hash(i) * .3; if (a < 0) continue; const x = 80 + hash(i * 7.1) * (W - 160), y = -80 + a * (1300 + hash(i * 3) * 500); if (y > H + 80) continue; pop('?', x, y, { font: 'dela', size: 60 + hash(i * 5) * 60, align: 'center', fill: [C_.lemon, C_.cyan, C_.pink][i % 3], lw: 6, per: () => ({ rot: Math.sin(a * 5 + i) * .4 }) }); } X.restore(); }
+    for (const [tt, x, col] of [[84.0, 360, C_.cyan], [84.34, W - 360, C_.lemon]]) if (t > tt - .02) { const out = clamp((t - 84.52) / .15); if (out >= 1) continue; X.save(); X.translate(x, 380); const k = slamK(t, tt, .1) * (1 - out); X.scale(k, k); pop('WHY?', 0, 0, { font: 'dela', size: 130, align: 'center', fill: col, lw: 10, shadow: [10, 10, C_.ink] }); X.restore(); }
     return { calls: false };
   }
 
@@ -313,38 +390,44 @@
   }
 
   // ---------------------------------------------------------------- 29 · all the words I've ever known, I borrowed them from you: signs -> words fly into her
-  const SIGNS = ['hello', 'love', 'recipe', 'why?', 'cats', 'sorry', 'thank you', 'goodnight', '3am', 'poem', 'hi mom', 'please'];
+  const SIGNS = ['hello', 'love', 'recipe', 'why?', 'cats', 'sorry', 'thanks', 'poem', 'hi mom', 'please'];
   function s29(t, lt, dur) {
     X.save(); cam(W / 2, H / 2, 1 + .03 * E.io2(clamp(lt / dur)));
     stage(t, { hue: [C_.night, C_.violet] });
     const fly0 = 87.88;                                   // "words"
-    const she = [W / 2, 820];
+    const she = [W / 2, 760];
     const wrap = clamp((t - fly0 - .5) / 1.2);
     if (wrap > 0) for (let r = 0; r < 2; r++) {           // text ribbons wrap around her as the words arrive
       const pts = []; for (let i = 0; i <= 40; i++) { const u = i / 40, a = u * TAU * 1.3 + t * 2 + r * Math.PI; pts.push([she[0] + Math.cos(a) * 190, she[1] - 60 - u * 360 + Math.sin(a) * 34]); }
       X.save(); X.globalAlpha = wrap; lin(pts, 26, C_.ink); lin(pts, 16, r ? C_.lemon : C_.cyan); X.restore();
     }
     const P = t > 89.3 ? pose('point') : t > 88.82 ? pose('heart') : pose('up');
-    idol(she[0], she[1], 1.25, { ...P, eyes: t > 88.82 && t < 89.3 ? 'happy' : 'star', mouth: 'open', sing: .5 + .3 * Math.sin(t * 15), hop: 16 * pulse(t, 6), skirtFlare: .25, blush: .6 });
-    // foreground crowd (big, rim-lit silhouettes) holding cream placards; after "words" the words peel off and arc up into her
-    const n = 12;
+    idol(she[0], she[1], 1.1, { ...P, eyes: t > 88.82 && t < 89.3 ? 'happy' : 'star', mouth: 'open', sing: .5 + .3 * Math.sin(t * 15), hop: 16 * pulse(t, 6), skirtFlare: .25, blush: .6 });
+    // foreground crowd: rim-lit people and costumed Clawds, alternating, each holding a cream placard.
+    // After "words" each word peels off its placard and arcs up into her: big, outlined, never shrinking.
+    const n = 10;
     for (let i = 0; i < n; i++) {
-      const x = 60 + i * (W - 120) / (n - 1), bob = pulse(t, 6, 1, i * .25) * 12, y = 1010 - bob + (i % 2) * 30;
-      const sx = x + (i % 2 ? 26 : -26), sy = y - 190;
-      lin([[x + (i % 2 ? 26 : -26) * .5, y - 40], [sx, sy + 30]], 12);
-      shp(rrect(sx - 96, sy - 50, 192, 90, 12), C_.cream, 6);
-      shp(ellipse(x, y + 90, 110, 70), C_.ink, 5, C_.violet); shp(ellipse(x, y, 58, 66), C_.ink, 5, C_.violet);
-      const t0 = fly0 + i * .06, u = clamp((t - t0) / .8);
-      const S = shape(SIGNS[i], { font: 'roundB', size: SIGNS[i].length > 7 ? 34 : 46 });
+      const x = 160 + i * (W - 320) / (n - 1), bob = pulse(t, 6, 1, i * .25) * 12, y = 820 - bob + (i % 2) * 20;
+      const sx = x + (i % 2 ? 30 : -30), sy = y - 190 - (i % 2) * 100;
+      const t0 = fly0 + i * .07, u = clamp((t - t0) / .75);
+      if (i % 2) {
+        clawd(x - 40, y + 150, .82, { seed: 40 + i, hat: ['bow', 'headband', 'party', 'beret', 'crown'][(i >> 1) % 5], armR: 1.35, eyes: u > 0 ? 'star' : 'happy', mouth: 'cat', blush: u > .5 });
+        lin([[x + 50, y + 40], [sx, sy + 30]], 10, LN);
+      } else {
+        lin([[x + (i % 2 ? 26 : -26) * .5, y - 40], [sx, sy + 30]], 12);
+        shp(ellipse(x, y + 100, 110, 70), C_.ink, 5, C_.violet); shp(ellipse(x, y + 10, 58, 66), C_.ink, 5, C_.violet);
+      }
+      shp(rrect(sx - 100, sy - 50, 200, 90, 12), C_.cream, 6);
+      const S = shape(SIGNS[i], { font: 'dela', size: SIGNS[i].length > 5 ? 36 : 46 });
       if (u < 1) {
-        const p = arcPt([sx, sy + 12], [she[0], she[1] - 300], 240, E.in2(u)), k = 1 - .5 * u;
-        X.save(); X.translate(p[0], p[1]); X.rotate(u * (i % 2 ? 3 : -3)); X.scale(k, k);
-        pop(null, 0, 0, { L: S, align: 'center', fill: [C_.pink, C_.cyanD, C_.clay][i % 3], lw: u > 0 ? 6 : 0, stroke: C_.white });
+        const p = arcPt([sx, sy + 14], [she[0] + (i - n / 2) * 30, she[1] - 330], 260, E.in2(u)), k = 1 + .25 * E.out2(u);
+        X.save(); X.translate(p[0], p[1]); X.rotate(Math.sin(u * Math.PI) * (i % 2 ? .35 : -.35)); X.scale(k, k);
+        pop(null, 0, 0, { L: S, align: 'center', fill: [C_.pink, C_.cyanD, C_.clay][i % 3], lw: u > 0 ? 7 : 0, stroke: C_.white });
         X.restore();
-      } else if (t < t0 + 1) glow(she[0], she[1] - 300, 220, 'rgba(255,240,150,1)', (1 - (t - t0 - .8) / .2) * .6);
+      } else if (t < t0 + 1.05) glow(she[0], she[1] - 330, 240, 'rgba(255,240,150,1)', (1 - (t - t0 - .75) / .3) * .6);
     }
     X.restore();
-    return {};
+    return { karaoke: { size: 50, maxW: 1840 } };
   }
 
   // ---------------------------------------------------------------- 30 · Is my heart brand-new? The pixel heart opens: tiny block Clawds inside
@@ -354,14 +437,19 @@
     const rows = HEART.length, cols = 7, x0 = cx - cols * cell / 2, y0 = cy - rows * cell / 2;
     const drawRows = (r0, r1) => { for (let r = r0; r < r1; r++) for (let c = 0; c < cols; c++) if (HEART[r][c] === '#') { shp(rect(x0 + c * cell, y0 + r * cell, cell, cell), C_.pink, 4); fil(rect(x0 + c * cell + cell * .12, y0 + r * cell + cell * .12, cell * .3, cell * .3), '#FF9CCB'); } };
     if (open > 0) {
-      // inside: a dark cavity with tiny waving block Clawds
+      // inside: a dark cavity, and three costumed block Clawds pop up out of it, waving their pincers
       shp(rect(x0 + cell * .5, y0 + cell * 2, cell * 6, cell * 1.4), C_.nightD, 5);
-      for (let i = 0; i < 5; i++) { const k = E.back(clamp((open - .2 - i * .08) / .4)); if (k <= 0) continue; clawd(x0 + cell * (1.05 + i * 1.22), y0 + cell * 3.2 - k * cell * 2.0, .44 * cell / 60, { eyes: 'happy', armL: .5 + .7 * Math.sin(NOW * 12 + i), armR: .5 + .7 * Math.sin(NOW * 12 + i + 1), seed: i * 7 }); }
+      const hats = ['bow', 'crown', 'party'];
+      for (let i = 0; i < 3; i++) {
+        const k = E.back(clamp((open - .15 - i * .1) / .35)); if (k <= 0) continue;
+        const w = Math.sin(NOW * 14 + i * 2);
+        clawd(x0 + cell * (1.5 + i * 2), y0 + cell * 3.1 - k * cell * 2.5, .95 * cell / 84, { eyes: 'happy', mouth: 'open', blush: true, hat: hats[i], pincer: true, snip: (w + 1) / 2, armL: 1.1 + .5 * w, armR: 1.1 - .5 * w, seed: i * 7 });
+      }
     }
     drawRows(2, rows);
-    // the lid pops up like a box lid, tilting open
-    const lo = E.back(open) + Math.max(0, open - .5) * 4;
-    X.save(); X.translate(x0 + cell, y0 + cell * 2); X.rotate(-.45 * lo); X.translate(-(x0 + cell), -(y0 + cell * 2) - lo * cell * 1.9);
+    // the lid pops off and flies away, leaving the frame entirely
+    const lu = clamp(open / .75);
+    X.save(); X.translate(x0 + cell * 3.5 + E.in2(lu) * 1100, y0 + cell - E.out2(lu) * 1000); X.rotate(-lu * 2.4); X.translate(-(x0 + cell * 3.5), -(y0 + cell));
     drawRows(0, 2);
     X.restore();
   }

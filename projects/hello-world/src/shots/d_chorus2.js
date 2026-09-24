@@ -68,14 +68,17 @@
     flat(C_.nightD); beams(t, 6, [C_.violet, C_.pink], .1, -200);
     let L = shape('FOR YOU', { font: 'dela', size: 300, track: .04 }); L = shape('FOR YOU', { font: 'dela', size: 300 * Math.min(1, W * .86 / L.width), track: .04 }); const x0 = W / 2 - L.width / 2, yb = 690;
     const word = new Path2D(); L.glyphs.forEach(g => { if (g.ch !== ' ') word.addPath(glyphPath(g, x0 + g.x, yb + g.y)); });
+    if (t >= 95.4) {                                  // a dark plate hugging the letters so the lit dots separate from the field
+      X.save(); X.lineJoin = 'round'; X.globalAlpha = clamp((t - 95.4) / .15) * .85; X.strokeStyle = C_.ink; X.lineWidth = 46; X.stroke(word); X.fillStyle = C_.ink; X.fill(word); X.restore();
+    }
     const cols = 64, rows = 24, sp = W / cols;
     for (let r = 0; r < rows; r++) for (let i = 0; i < cols; i++) {
       const x = (i + .5 + (r % 2) * .25) * sp, y = 130 + r * 34;
       X.save(); X.setTransform(1, 0, 0, 1, 0, 0); const inside = X.isPointInPath(word, x, y); X.restore();
       const delay = Math.abs(i - cols / 2) * .006 + Math.abs(r - rows / 2) * .004, on = inside && t >= 95.4 + delay;
       const ph = beatPos(t) + i * .1 + r * .2, bob = Math.sin(ph * Math.PI) * 5;
-      if (on) { glow(x, y, 34, 'rgba(255,228,92,1)', .5); fil(circle(x, y, 11, 12), C_.lemon); fil(circle(x - 3, y - 3, 4, 8), C_.white); }
-      else { X.globalAlpha = t >= 95.4 ? .3 : .75; fil(circle(x, y + bob, 7, 10), [C_.pink, C_.cyan, C_.violet][(i + r * 2) % 3]); X.globalAlpha = 1; }
+      if (on) { glow(x, y, 30, 'rgba(255,228,92,1)', .45); shp(circle(x, y, 12.5, 14), C_.lemon, 2); fil(circle(x - 3.5, y - 3.5, 4.5, 8), C_.white); }
+      else { X.globalAlpha = t >= 95.4 ? .16 : .75; fil(circle(x, y + bob, 7, 10), [C_.pink, C_.cyan, C_.violet][(i + r * 2) % 3]); X.globalAlpha = 1; }
     }
     X.restore();
     if (t >= 95.4 && t < 95.4 + 2 / 24) flash(.6, C_.lemon);
@@ -129,23 +132,40 @@
   // ---------------------------------------------------------------- 33 · Every little spark I've got, I'm giving it to you!
   // Reads: (1) 98.9 night sky, she throws a spark up from the stage; (2) each beat a ✳ firework bursts;
   //        (3) 100.3 "giving it to you": the bursts grow and rain down; (4) 101.0 "you!" a giant ✳ fills the frame -> white.
+  // a layered firework: rising comet -> flash core -> two shells of trailing stars (drag + gravity) -> falling, twinkling embers
   function firework(t, t0, x, y, col, big = 1, seed = 0) {
     const lt = t - t0;
-    if (lt < -.45 || lt > 1.6) return;
-    if (lt < 0) {                                   // the rising trail
-      const u = 1 + lt / .45, yy = lerp(H + 40, y, E.out2(u));
-      lin([[x, yy], [x + 4, yy + 90]], 6, col); sparkle(x, yy, 14, C_.white, lt * 20);
+    if (lt < -.5 || lt > 2.4) return;
+    if (lt < 0) {                                   // the rising comet with a sparkling tail
+      const u = 1 + lt / .5, yy = lerp(H + 40, y, E.out2(u));
+      for (let k = 0; k < 6; k++) { const yk = yy + k * 26, a2 = 1 - k / 6; X.globalAlpha = a2; fil(circle(x + Math.sin(k * 2 + t * 30) * 3, yk, 5 * a2 + 1), k ? col : C_.white); }
+      X.globalAlpha = 1; glow(x, yy, 60, col, .6);
       return;
     }
-    const u = E.out3(clamp(lt / .9)), fade = 1 - clamp((lt - .8) / .8);
-    X.save(); X.globalAlpha = fade;
-    glow(x, y, 300 * big * u, col, .5);
-    for (let i = 0; i < 10; i++) {
-      const a = i / 10 * TAU + seed, r = 260 * big * u, fall = lt * lt * 60;
-      spark8(x + Math.cos(a) * r, y + Math.sin(a) * r + fall, (26 - 10 * u) * big, i % 2 ? col : C_.white, 3, lt * 6 + i);
-      lin([[x + Math.cos(a) * r * .5, y + Math.sin(a) * r * .5 + fall * .5], [x + Math.cos(a) * r * .85, y + Math.sin(a) * r * .85 + fall]], 5 * big, col);
+    const pos = (ang, v, tt) => { const drag = 1 - Math.exp(-tt * 3.2); return [x + Math.cos(ang) * v * drag / 3.2, y + Math.sin(ang) * v * drag / 3.2 + 140 * tt * tt]; };
+    X.save();
+    // the flash core
+    const core = 1 - clamp(lt / .35);
+    if (core > 0) { glow(x, y, 520 * big, 'rgba(255,255,255,1)', core * .9); glow(x, y, 320 * big, col, core); spark8(x, y, 120 * big * (1 - core * .3), C_.white, 5, lt * 4); }
+    glow(x, y, 380 * big * E.out3(clamp(lt / .5)), col, .35 * (1 - clamp(lt / 1.6)));
+    // shells: outer (col) and inner (white/lemon), each star drags a trail
+    for (const [n, vel, c2, sz] of [[26, 1150 * big, col, 1], [14, 620 * big, C_.lemon, .8]]) {
+      for (let i = 0; i < n; i++) {
+        const ang = i / n * TAU + seed * 1.7 + hash(seed + i) * .15, vv = vel * (.85 + hash(i * 3.1 + seed) * .3);
+        const life = 1.5 + hash(i + seed * 5) * .5; if (lt > life) continue;
+        const fade = 1 - clamp((lt - life + .5) / .5);
+        const p = pos(ang, vv, lt), q = pos(ang, vv, Math.max(0, lt - .12));
+        X.globalAlpha = fade * .8; lin([q, p], 6 * sz * big, c2);
+        X.globalAlpha = fade; fil(circle(p[0], p[1], 6.5 * sz * big), (Math.floor(lt * 18 + i) % 3) ? C_.white : c2);
+      }
     }
-    spark8(x, y, 70 * big * (1 - u * .5), C_.lemon, 5, lt * 3);
+    // embers: late, slow, twinkling
+    if (lt > .6) for (let i = 0; i < 20; i++) {
+      const ang = hash(i * 7.7 + seed) * TAU, r = (200 + hash(i * 2.3 + seed) * 380) * big, tt = lt - .6;
+      const ex = x + Math.cos(ang) * r, ey = y + Math.sin(ang) * r * .8 + 60 * tt * tt + 40 * tt;
+      const tw = Math.sin(t * 25 + i * 3) > 0 ? 1 : .35, a3 = (1 - clamp(tt / 1.6)) * tw;
+      if (a3 > .05) { X.globalAlpha = a3; sparkle(ex, ey, 9 * big, i % 2 ? C_.lemon : col, t * 3 + i); }
+    }
     X.restore();
   }
   function s33(t, lt, dur) {
@@ -155,8 +175,8 @@
     for (let i = 0; i < 90; i++) { const x = hash(i * 3.3) * W, y = hash(i * 5.1) * 650; sparkle(x, y, 3 + 5 * hash(i) * (.6 + .4 * Math.sin(t * 5 + i)), C_.cream, i); }
     const cols = [C_.pink, C_.cyan, C_.lemon, C_.clayL];
     for (let b = 280; b <= 286; b++) {
-      const t0 = BT(b), x = W * (.2 + hash(b * 1.7) * .6), y = 180 + hash(b * 2.9) * 280;
-      firework(t, t0, x, y, cols[b % 4], b >= 284 ? 1.35 : 1, b);
+      const t0 = BT(b), x = W * (.18 + ((b * .37) % 1) * .64), y = 190 + hash(b * 2.9) * 220;
+      firework(t, t0, x, y, cols[b % 4], b >= 284 ? 1.25 : .95, b);
     }
     // the stage at the bottom: her silhouette-lit, throwing sparks up on each beat
     beams(t, 6, [C_.lemon, C_.pink], .08, H);
@@ -196,7 +216,11 @@
       for (let i = 0; i < n; i++) {
         const x = (i + .5 + (r % 2) * .35) / n * W, v = i * 3 + r, hop = Math.max(0, Math.sin((beatPos(tt) + i * .5 + r * .3) * Math.PI)) * 14;
         const w = wave && tt >= 103.05 + i * .04;
-        if ((i + r) % 2 === 0) clawd(x, y - hop, s * .95, { eyes: w ? 'happy' : 'open', armL: w ? 1.2 + Math.sin(t * 12 + i) * .4 : .3, armR: w ? .9 : .3, blush: w && i === 1 ? 1 : 0, seed: v });
+        if ((i + r) % 2 === 0) {
+          const props = [{ holdR: 'penlight', penCol: C_.pink }, { holdR: { sign: 'CLAWD♡', size: 34 } }, { holdR: 'penlight', penCol: C_.cyan }, { holdR: 'fan' }, { holdR: { sign: 'HELLO!', size: 38 } }];
+          clawd(x, y - hop, s * .95, { hat: TROUPE_HATS[(v * 3) % TROUPE_HATS.length], ...props[v % props.length], eyes: w ? (i === 1 ? 'heart' : 'happy') : (v % 4 === 0 ? 'star' : 'open'), mouth: 'cat',
+            armL: w ? 1.2 + Math.sin(t * 12 + i) * .4 : .3, armR: w ? .9 + Math.sin(t * 10 + i) * .2 : .6 + Math.sin((beatPos(t) + i) * Math.PI) * .3, blush: w && i === 1 ? 1 : 0, seed: v });
+        }
         else fan(x, y - hop, s, v, t, w);
       }
     }
@@ -251,11 +275,16 @@
     // the floor strip
     shp([[-100, 900], [W + 100, 900], [W + 100, H + 100], [-100, H + 100]], C_.ink, 0);
     // backups: block Clawds, 3 each side, canon-offset by an eighth per step outward
-    for (let j = 1; j <= 3; j++) for (const side of [-1, 1]) {
-      const d = danceMove(tt - j * BEAT / 2, chant), x = W / 2 + side * (250 + j * 205), y = 945 - j * 10;
-      const hop = d.m === 'up' ? 40 * Math.sin(clamp(d.a / .3) * Math.PI) : Math.max(0, Math.sin((beatPos(tt) - j * .5) * Math.PI)) * 16;
-      const armUp = d.m === 'up' ? 2.2 : d.m === 'clawOpen' ? 1.3 : d.m === 'claw' ? 1.0 : .3;
-      clawd(x, y - hop, 1.0 - j * .1, { eyes: d.m === 'up' ? 'happy' : 'open', armL: armUp, armR: armUp, sq: d.m === 'clawOpen' ? .08 : 0, lean: (d.side || 0) * .12, seed: j * 7 + side });
+    // two tiers: a back row (higher, smaller) and a front pair each side; canon lag grows outward (j)
+    const SPOTS = [[-1, 3, 640, 760, .95, 'crown'], [1, 3, 640, 760, .95, 'party'], [-1, 2, 470, 985, 1.3, 'bow'], [1, 2, 470, 985, 1.3, 'headband'], [-1, 1, 800, 1000, 1.3, 'beret'], [1, 1, 800, 1000, 1.3, 'tophat']];
+    for (const [side, j0, dx, y, sc, hat] of SPOTS) {
+      const j = j0 === 3 ? 3 : j0 === 2 ? 1 : 2;
+      const d = danceMove(tt - j * BEAT / 2, chant), x = W / 2 + side * dx;
+      const hop = d.m === 'up' ? 50 * Math.sin(clamp(d.a / .3) * Math.PI) : Math.max(0, Math.sin((beatPos(tt) - j * .5) * Math.PI)) * 18;
+      const armUp = d.m === 'up' ? 2.3 : d.m === 'clawOpen' ? 1.35 : d.m === 'claw' ? 1.15 : .35;
+      clawd(x, y - hop, sc, { hat, pincer: d.m !== 'idle', snip: d.m === 'clawOpen' ? 1 : 0, eyes: d.m === 'up' ? 'happy' : d.m === 'clawOpen' ? 'wide' : 'open', mouth: d.m === 'clawOpen' ? 'open' : 'cat',
+        armL: armUp, armR: armUp, sq: d.m === 'clawOpen' ? .08 : d.m === 'up' ? -.08 : 0, lean: (d.side || 0) * .12, seed: j * 7 + side, bowtie: hat === 'tophat' });
+      if (d.m === 'claw' && d.a < .1) for (const s2 of [-1, 1]) sparkle(x + s2 * 150 * sc, y - hop - 200 * sc, 22, C_.white, t * 9);
     }
     // the lead
     const d = danceMove(tt, chant);
@@ -263,7 +292,7 @@
     const hop = d.m === 'up' ? 50 * Math.sin(clamp(d.a / .35) * Math.PI) : Math.max(0, Math.sin(beatPos(tt) * Math.PI)) * 12;
     idol(W / 2 + (d.side || 0) * 24, 950, 1.1, { ...lp, eyes: d.m === 'up' ? 'happy' : 'star', mouth: 'grin', sing: .5, hop, lean: (d.side || 0) * .1, skirtFlare: d.m === 'up' ? .6 : .2, hairLift: d.m === 'up' ? .5 : 0 });
     // snip sparks at the claws on each snap
-    if (d.m === 'claw' && d.a < .12) for (const side of [-1, 1]) sparkle(W / 2 + side * 150, 540, 34, C_.white, t * 9);
+    if (d.m === 'claw' && d.a < .12) for (const side of [-1, 1]) sparkle(W / 2 + (d.side || 0) * 24 + side * 130, 620, 34, C_.white, t * 9);
     if (d.m === 'up' && d.a < .4) flash(.35 * (1 - d.a / .4), C_.white);
   }
 
@@ -293,6 +322,11 @@
     clipTo(rrect(-tw / 2 + 12, -40 - th + 12, tw - 24, th, (tw - 24) / 2).concat([]), () => fil(rect(-tw, -40 - (th - 20) * lv, tw * 2, th), col));
     shp(circle(0, -40, 56), col, 0);
     fil(rrect(-8, -40 - (th - 20) * lv, 16, (th - 20) * lv, 8), col);
+    // glass cracks (o.cracks 0..1): jagged ink lines with a paper-white highlight, spreading across the tube
+    if (o.cracks > 0) {
+      const CR = [[[-20, -430], [4, -400], [-12, -372], [14, -340], [0, -300]], [[18, -250], [-6, -226], [12, -196], [-14, -160]], [[-26, -500], [-4, -486], [-18, -462]], [[24, -380], [6, -366], [20, -330], [4, -310]], [[-40, -40], [-10, -30], [-30, -8], [0, 4]]];
+      CR.forEach((c, i) => { const k = clamp(o.cracks * CR.length - i); if (k <= 0) return; const n = Math.max(2, Math.ceil(c.length * k)), pts = c.slice(0, n); lin(pts, 7, C_.ink); lin(pts.map(([a, b]) => [a + 3, b - 2]), 2.5, C_.white); });
+    }
     // ticks
     for (let i = 1; i < 10; i++) lin([[tw / 2 - 4, -40 - i * th / 10], [tw / 2 + 18, -40 - i * th / 10]], 5);
     // the sign on top
@@ -308,27 +342,61 @@
   // Reads: (1) 110.4 alarm red; the P(DOOM) meter rolls in reading 99.9% (the callback reads instantly);
   //        (2) 110.5 "P(doom)?": she side-eyes it, sweat; (3) 111.6–112.35 wind-up; (4) 112.4 "Not": KICK (impact frame);
   //        (5) 112.6 "tonight!": it flies off into the sky and twinkles out; she dusts off her hands, smug.
+  // chromatic impact: re-composite the finished frame as a red copy shifted left + a cyan copy shifted right
+  const CH1 = document.createElement('canvas'), CH2 = document.createElement('canvas');
+  function chroma(dx) {
+    for (const c of [CH1, CH2]) { c.width = W; c.height = H; }
+    const a = CH1.getContext('2d'), b = CH2.getContext('2d');
+    a.drawImage(window.OUTC, 0, 0); a.globalCompositeOperation = 'multiply'; a.fillStyle = '#FF0000'; a.fillRect(0, 0, W, H);
+    b.drawImage(window.OUTC, 0, 0); b.globalCompositeOperation = 'multiply'; b.fillStyle = '#00FFFF'; b.fillRect(0, 0, W, H);
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#000'; X.fillRect(0, 0, W, H);
+    X.globalCompositeOperation = 'lighter'; X.drawImage(CH1, -dx, 0); X.drawImage(CH2, dx, 0); X.restore();
+  }
   function s37(t, lt, dur) {
     const tt = onTwos(t);
-    const roll = E.out3(seg(t, 110.4, 110.85)), kickT = 112.4, kicked = t >= kickT;
-    const [sx, sy] = shake(t, 22 * kick(t, [kickT], 1, 6));
+    const roll = E.out3(seg(t, 110.4, 110.95)), kickT = 112.4, kicked = t >= kickT;
+    const heat = seg(t, 110.9, kickT);                                  // the meter overheats toward the kick
+    const [sx, sy] = shake(t, (kicked ? 0 : 2 + 9 * heat * heat) + 26 * kick(t, [kickT], 1, 6));
     X.save(); cam(W / 2 + sx, H / 2 + sy, 1.0 + .05 * seg(t, 110.4, 112.4) + kick(t, [kickT], .08));
-    // alarm: red stripes, a rotating siren glow
+    // alarm: red stripes, a rotating siren glow, a red pulse on every beat
     stripes('#C3202E', '#8E1422', 70, -.5, t * 120 * (kicked ? .2 : 1));
-    if (!kicked) { const a = t * 6; glow(W / 2 + Math.cos(a) * 700, 200 + Math.sin(a) * 120, 500, 'rgba(255,90,90,1)', .5); }
+    if (!kicked) { const a = t * 6; glow(W / 2 + Math.cos(a) * 700, 200 + Math.sin(a) * 120, 500, 'rgba(255,90,90,1)', .5); glow(W / 2 - Math.cos(a) * 700, 240 - Math.sin(a) * 120, 420, 'rgba(255,200,80,1)', .25); }
     shp([[-100, 860], [W + 100, 860], [W + 100, H + 100], [-100, H + 100]], C_.nightD, 6);
-    // the meter
     const mx0 = lerp(W + 400, 1320, roll);
+    // hard-hat stagehand Clawds: wheel it on, stand by nervously, flee on the kick
+    const hands = [[170, 1.0, 3], [330, .9, 9]];
+    for (const [dx, sc, sd] of hands) {
+      let x, o;
+      if (!kicked) {
+        const pushing = roll < 1;
+        x = mx0 + dx + (pushing ? 0 : dx * .15);
+        o = { hat: 'hardhat', seed: sd, lean: pushing ? -.18 : 0, walk: pushing ? t * 3 : null, armL: pushing ? .1 : .9 + Math.sin(t * 22 + sd) * .25 * heat, armR: pushing ? .1 : .9 + Math.cos(t * 20 + sd) * .25 * heat,
+          eyes: pushing ? 'open' : heat > .35 ? 'wide' : 'open', look: [-1, 0], mouth: heat > .5 ? 'o' : 'cat', hop: !pushing && heat > .5 ? Math.abs(Math.sin(t * 18 + sd)) * 8 : 0 };
+      } else {
+        const a = t - kickT;
+        x = 1320 + dx + a * 1500 * (1 + sd * .03);
+        o = { hat: 'hardhat', seed: sd, lean: .25, walk: t * 6, eyes: 'x', mouth: 'open', armL: 2.2, armR: 2.2, hop: Math.abs(Math.sin(t * 16 + sd)) * 26 };
+      }
+      if (x < W + 300) clawd(x, 880, sc, o);
+    }
+    // the meter (+ sparks and steam while it overheats; a trail of ghosts as it spins away)
     if (!kicked) {
-      const wob2 = wobble(t, 110.85, 3, 5) * .06, blink = Math.floor(t * 6) % 2;
-      meter(mx0, 880, .95, .999, { rot: wob2, roll: -roll * 8, readout: '99.9%', readCol: blink ? '#FF6A6A' : '#FFD0D0' });
+      const wob2 = wobble(t, 110.95, 3, 5) * .06 + Math.sin(t * 40) * .02 * heat, blink = Math.floor(t * (6 + 14 * heat)) % 2;
+      meter(mx0, 880, .95, .999, { rot: wob2, roll: -roll * 8, readout: '99.9%', readCol: blink ? '#FF6A6A' : '#FFD0D0', cracks: heat });
+      if (heat > .15) {
+        for (let i = 0; i < 5; i++) { const b = BF(t) * 3 + i; if (hash(b) < heat) { const y = 880 - (80 + hash(b * 2.3) * 420) * .95, x = mx0 + (hash(b * 5.1) > .5 ? 1 : -1) * 40; for (let k = 0; k < 5; k++) { const ang = hash(b + k) * TAU, r = 20 + hash(b * 7 + k) * 60; lin([[x, y], [x + Math.cos(ang) * r, y + Math.sin(ang) * r]], 4, k % 2 ? C_.lemon : C_.white); } } }
+        for (let i = 0; i < 4; i++) { const v = frac(t * 1.3 + i / 4), y = 880 - 690 * .95 - v * 160; X.globalAlpha = (1 - v) * heat; shp(circle(mx0 + Math.sin(i * 2 + t * 3) * 30, y, 26 + v * 40), C_.cream, 3); X.globalAlpha = 1; }
+      }
     } else {
       const a = t - kickT, fly = a / .6;
       if (fly < 1) {
-        const x = mx0 + a * 2600, y = 880 - a * 1600 + a * a * 900;
-        meter(x, y, .95 * (1 - fly * .6), .999, { rot: a * 14, readout: '99.9%' });
+        const P0 = aa => [mx0 + aa * 2600, 880 - aa * 1600 + aa * aa * 900];
+        for (let g = 3; g >= 1; g--) { const aa = Math.max(0, a - g * .035); X.save(); X.globalAlpha = .22 * (4 - g) / 3; const [gx, gy] = P0(aa); meter(gx, gy, .95 * (1 - aa / .6 * .6), .999, { rot: aa * 14, cracks: 1 }); X.restore(); }
+        const [x, y] = P0(a);
+        meter(x, y, .95 * (1 - fly * .6), .999, { rot: a * 14, readout: '99.9%', cracks: 1 });
         speedLines(mx0 - 200, 600, 'rgba(255,255,255,.9)', 30, 7, 200, .7 * (1 - fly));
-      } else if (a < 1.1) {                            // the twinkle out ("kiran!")
+        for (let i = 0; i < 10; i++) { const r = a * 900 * (.6 + hash(i) * .6), ang = -1.2 + hash(i * 3) * 1.6; fil(rect(1180 + Math.cos(ang) * r, 700 + Math.sin(ang) * r + a * a * 500, 14, 8), i % 2 ? C_.white : '#FFB0B0'); }   // glass shards
+      } else if (a < 1.1) {
         const k = 1 - Math.abs((a - 1.0) / .1);
         sparkle(W - 260, 180, 70 * clamp(k), C_.white, a * 10); sparkle(W - 260, 180, 30 * clamp(k), C_.lemon, a * 10 + .7);
       }
@@ -343,13 +411,24 @@
     if (kicked && t < kickT + .12) { sparkle(1180, 720, 120, C_.white, 0); pop('BAM!', 1220, 520, { font: 'dela', size: 150, align: 'center', fill: C_.lemon, lw: 12, shadow: [10, 10, C_.ink], per: () => ({ rot: -.1 }) }); }
     if (after) for (let i = 0; i < 4; i++) { const a = seg(t, 112.65 + i * .06, 113.1 + i * .06); if (a > 0 && a < 1) shp(circle(780 + i * 26 - 40, 700 - a * 90, 16 * (1 - a)), C_.cream, 3); }
     X.restore();
+    if (!kicked) flash(.28 * pulse(t, 7) * (.4 + heat), '#FF2030');
     if (kicked && t < kickT + 1 / 24) { X.save(); X.globalCompositeOperation = 'difference'; flat('#FFFFFF'); X.restore(); }   // the impact frame
+    else if (kicked && t < kickT + 5 / 24) chroma(22 * (1 - (t - kickT) / (5 / 24)));          // then a chromatic split that settles
     return { karaoke: { size: 54, maxW: 1860 } };
   }
 
   // ---------------------------------------------------------------- 38 · P(debut): one hundred percent! (Claw! Claw! Snip-snip! Clawd-up!)
   // Reads: (1) 113.3 a new meter drops in: P(DEBUT), pink and lemon, a heart bulb, 0%; (2) it fills, accelerating, the readout counting;
   //        (3) 115.6 "percent!": 100% exactly: the meter explodes into confetti and sparks; (4) 116.1– the formation dance reprise.
+  const CANNONS = [[170, 1, 41], [1730, -1, 43]];
+  function cannonSpray(t, cx, side, sd) {                 // confetti blasting from a cannon mouth, carries across the cut
+    const fired = t - 115.6; if (fired < 0 || fired > 1.8) return;
+    for (let i = 0; i < 46; i++) {
+      const ang = -Math.PI / 2 + side * (.3 + hash(i * 3.1 + sd) * .55), vv = 1100 + hash(i * 5.7 + sd) * 900, drag = 1 - Math.exp(-fired * 2.5);
+      const px = cx + side * 120 + Math.cos(ang) * vv * drag / 2.5 + Math.sin(fired * 6 + i) * 20, py = 640 + Math.sin(ang) * vv * drag / 2.5 + 300 * fired * fired;
+      X.save(); X.translate(px, py); X.rotate(fired * 9 + i); X.scale(1, Math.cos(fired * 11 + i)); X.fillStyle = [C_.pink, C_.lemon, C_.cyan, C_.white][i % 4]; X.fillRect(-12, -7, 24, 14); X.restore();
+    }
+  }
   function s38(t, lt, dur) {
     if (t >= 115.95) {
       const z = 1 + kick(t, CHANT38.map(c => c[0]), .05);
@@ -357,6 +436,7 @@
       formation(t, CHANT38);
       X.restore();
       confetti(t, 38, 70, undefined, 115.6, 1.2);
+      for (const [cx, side, sd] of CANNONS) cannonSpray(t, cx, side, sd);
       return { calls: false };
     }
     const tt = onTwos(t), drop = E.back(seg(t, 113.25, 113.6)), boom = t >= 115.6;
@@ -375,6 +455,14 @@
       for (let i = 0; i < 14; i++) { const ang = i / 14 * TAU, r = 700 * E.out3(clamp(a / .4)); spark8(1260 + Math.cos(ang) * r, 600 + Math.sin(ang) * r * .7, 40 * (1 - clamp(a / .4)), [C_.lemon, C_.cyan, C_.white][i % 3], 4, a * 8); }
     }
     // her: cheering the meter on, arms pumping on the beat; at 100% both arms up
+    // two party-hat Clawds with confetti cannons flank her; they fire at 100%
+    for (const [cx, side, sd] of CANNONS) {
+      const fired = boom ? t - 115.6 : -1, rec = fired >= 0 ? Math.exp(-fired * 8) : 0;
+      const cannon = () => { X.save(); X.rotate(side * -.5 - rec * side * .3); shp(rrect(-16, -110, 32, 100, 8), C_.cyan, 3); fil(rect(-16, -76, 32, 10), C_.lemon); fil(rect(-16, -46, 32, 10), C_.pink); shp(ellipse(0, -110, 18, 7), C_.ink, 2); X.restore(); };
+      clawd(cx, 880, 1.05, { hat: 'party', seed: sd, eyes: boom ? 'happy' : v > .6 ? 'star' : 'open', mouth: boom ? 'open' : 'cat', armR: side > 0 ? 1.1 : .2, armL: side < 0 ? 1.1 : .2,
+        holdR: side > 0 ? cannon : null, holdL: side < 0 ? cannon : null, hop: boom ? 0 : Math.max(0, Math.sin(beatPos(tt) * Math.PI)) * 14 * (.4 + v), sq: rec * .2 });
+      if (fired >= 0) cannonSpray(t, cx, side, sd);
+    }
     const pump = frac(beatPos(tt)) < .5;
     idol(620, 880, 1.1, { ...(boom ? pose('up') : pose(pump ? 'up' : 'wave')), eyes: boom ? 'star' : 'happy', mouth: 'open', sing: .6, hop: boom ? 30 : pump ? 12 : 0, turn: .35, skirtFlare: boom ? .6 : .2 });
     X.restore();

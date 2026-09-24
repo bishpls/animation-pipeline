@@ -27,8 +27,8 @@ function clawd(x, y, s = 1, o = {}) {
     X.save(); X.translate(side * bw / 2, top + 58); X.rotate(-side * (ang || 0));
     if (o.pincer) {
       const op = (o.snip ?? 0) * .7 + .05;
-      X.save(); X.translate(side * 10, 0); X.rotate(-side * op); L(wob(blob([[0, -6], [side * 44, -18], [side * 50, -4], [side * 12, 4]], 3), seed + side, .3), col); X.restore();
-      X.save(); X.translate(side * 10, 0); X.rotate(side * op); L(wob(blob([[0, 6], [side * 44, 18], [side * 50, 4], [side * 12, -4]], 3), seed + side + 2, .3), col); X.restore();
+      X.save(); X.translate(side * 10, 0); X.scale(1.4, 1.4); X.rotate(-side * op); L(wob(blob([[0, -6], [side * 44, -20], [side * 52, -4], [side * 12, 4]], 3), seed + side, .3), col); X.restore();
+      X.save(); X.translate(side * 10, 0); X.scale(1.4, 1.4); X.rotate(side * op); L(wob(blob([[0, 6], [side * 44, 20], [side * 52, 4], [side * 12, -4]], 3), seed + side + 2, .3), col); X.restore();
     } else L(wob(rrect(side > 0 ? -6 : -34, -15, 40, 30, 8), seed + side, .6), col);
     if (hold) { X.translate(side * 40, 0); X.rotate(side * (ang || 0)); holdProp(hold, side, o, t); }
     X.restore();

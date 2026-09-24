@@ -17,6 +17,38 @@
       X.fillStyle = cols[i % cols.length]; X.fillRect(-11, -6, 22, 12); X.restore();
     }
   }
+  // world position of the idol's right/left mitt centre for an arm angle pair (mirrors chars.js arm geometry)
+  function idolHand(x, y, s, a, side = 1) {
+    const [sh, el] = a, S = [side * 44, IDOL.shoulderY + 12], a1 = side * -sh, a2 = a1 + side * -el;
+    const Ep = [S[0] - Math.sin(a1) * 40, S[1] + Math.cos(a1) * 40], Wr = [Ep[0] - Math.sin(a2) * 36, Ep[1] + Math.cos(a2) * 36];
+    const hc = [Wr[0] - Math.sin(a2) * 34, Wr[1] + Math.cos(a2) * 34];
+    return [x + hc[0] * s, y + hc[1] * s];
+  }
+  // a hard-hat Clawd crew firing a confetti cannon from a bottom corner (recoils on each shot)
+  function cannonCrew(t, side, shots, hat = 'hardhat', seed = 0) {
+    const rec = shots.reduce((a, tb) => a + (t >= tb ? Math.exp(-(t - tb) * 7) * Math.sin(Math.min(1, (t - tb) * 12) * Math.PI / 2) : 0), 0);
+    const x = side < 0 ? 170 : W - 170, y = H - 6;
+    X.save(); X.translate(x, y);
+    // the cannon: a striped barrel angled up and inward
+    X.save(); X.translate(side * -40, -150); X.rotate(side * .55 + side * -.12 * rec);
+    shp(rrect(-34, -150 + 40 * rec, 68, 170, 14), C_.pink, 4); for (let k = 0; k < 3; k++) fil(rect(-34, -120 + 40 * rec + k * 46, 68, 14), C_.lemon);
+    shp(ellipse(0, -150 + 40 * rec, 36, 12), C_.ink, 3);
+    X.restore();
+    X.restore();
+    const fresh = shots.some(tb => t >= tb && t - tb < .16);
+    clawd(x + side * 40 * rec, y, .8, { seed: 30 + seed, hat, eyes: fresh ? 'x' : 'happy', lean: side * .18 * rec, armL: side < 0 ? 1.1 : .4, armR: side < 0 ? .4 : 1.1, sq: -.1 * rec, mouth: fresh ? 'open' : 'cat' });
+  }
+  // a Clawd holding a penlight up, waving on the beat. Returns the penlight tip (for letters/sparks).
+  function penClawd(t, x, y, s, i, penCol, o = {}) {
+    const sw = Math.sin((beatPos(t) + i * .13) * Math.PI) * .35, ang = 1.2 + sw;
+    clawd(x, y, s, { seed: 40 + i * 3, hat: TROUPE_HATS[i % TROUPE_HATS.length], armR: ang, armL: .3 + .2 * Math.sin(t * 5 + i), eyes: o.eyes || (i % 3 === 0 ? 'happy' : 'open'), mouth: 'cat', hop: 8 * pulse(t, 8, 1, i * .07), blush: i % 4 === 1 });
+    const hop = 8 * pulse(t, 8, 1, i * .07);
+    const px = x + 100 * s, py = y - hop * s - 110 * s, tipx = px + Math.cos(-ang) * 30 * s, tipy = py + Math.sin(-ang) * 30 * s;
+    const dir = -ang - .25, ex = tipx + Math.cos(dir) * 110 * s, ey = tipy + Math.sin(dir) * 110 * s;
+    lin([[tipx, tipy], [ex, ey]], 20 * s + 5, LN); lin([[tipx, tipy], [ex, ey]], 20 * s, penCol);
+    glow(ex, ey, 70 * s + 20, penCol, .45);
+    return [ex, ey];
+  }
   function burstStars(t, t0, cx, cy, n = 10, R = 260, col = C_.lemon) {
     const a = t - t0; if (a < 0 || a > .7) return;
     const u = E.out3(a / .7);
@@ -30,6 +62,7 @@
     cutin(t, lt, dur, { img: 'k04_hero', cols: [C_.pink, C_.lemon], h: 1060, y: H / 2 + 10, push: .08, sway: 9, anchorY: .55 });
     X.restore();
     cannon(t, 39.9, 3); cannon(t, 41.5, 9, 50);
+    cannonCrew(t, -1, [39.9, 41.5], 'hardhat', 0); cannonCrew(t, 1, [39.9, 41.5], 'headband', 1);
     burstStars(t, 40.2, W / 2 - 60, 330, 12, 420, C_.white);
     burstStars(t, 41.5, W / 2 + 200, 420, 10, 360, C_.lemon);
     // DEBUT! stamp on "debut!"
@@ -47,20 +80,20 @@
   // ---------------------------------------------------------------- 14 · All the words I've ever known, I borrowed them from you!
   const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ?!&';
   function s14(t, lt, dur) {
-    const z = 1.38 + .06 * E.io2(lt / dur);
+    const z = 1.22 + .05 * E.io2(lt / dur);
     stage(t, { hue: [C_.night, C_.pink] });
     const tt = TW(t);
     // her: points at the crowd, then hands to her chest as the words arrive ("borrowed" 43.8)
     const u = clamp((tt - 43.6) / .2);
     const P0 = u < 1 ? pose('point', 'heart', E.out3(u)) : pose('heart');
     const hx = 960, hy = 800;
-    X.save(); cam(W / 2, 590, z);
-    // the letters: from penlight tips (bottom) arcing up into her chest, staggered
-    const heart = [hx, hy - 250];
+    X.save(); cam(W / 2, 560, z);
+    // the letters: from the Clawd audience's penlight tips (bottom) arcing up into her chest, staggered
+    const heart = [hx, hy - 210];
     for (let i = 0; i < 46; i++) {
       const st = 42.55 + hash(i * 3.7) * 1.7, a = (t - st) / 1.1;
       if (a < 0 || a > 1) continue;
-      const x0 = 80 + hash(i * 9.1) * (W - 160), y0 = 900 - hash(i * 2.3) * 60;
+      const ci = i % 9, x0 = (ci + .5) / 9 * W * 1.12 - W * .06 + 60, y0 = 820 - hash(i * 2.3) * 40;
       const e = E.io2(a), p = arcPt([x0, y0], heart, 180 + hash(i) * 200, e);
       const col = [C_.pink, C_.cyan, C_.lemon, C_.cream][i % 4], sz = 84 * (1 - e * .55);
       glow(p[0], p[1] - sz * .35, sz * 1.1, col, .5);
@@ -70,7 +103,8 @@
     if (got > 0) glow(heart[0], heart[1], 160 + 60 * Math.sin(t * 10), 'rgba(255,230,150,1)', .7 * got);
     idol(hx, hy, 1.05, { ...P0, eyes: t < 43.6 ? 'wink' : 'happy', mouth: 'open', sing: .4 + .4 * Math.abs(Math.sin(t * 9)), bob: -8 * pulse(t, 8), sq: hitSq(t, [42.4, 43.8]), turn: t < 43.6 ? .3 : 0, blush: .6 });
     X.restore();
-    crowd(t, { y: 930, rows: 2 });
+    const PC = [C_.pink, C_.cyan, C_.lemon];
+    for (let i = 0; i < 9; i++) penClawd(t, (i + .5) / 9 * W - 40, 1085 + (i % 2) * 16, .55, i, PC[i % 3]);
     return {};
   }
 
@@ -90,15 +124,21 @@
   function s15(t, lt, dur) {
     flat(C_.pink);
     dots('#FF78B9', 34, 8, .5, (x, y) => clamp(Math.hypot(x - W / 2, y - 420) / 900));
-    const tt = TW(t), z = 1.55 + .08 * E.io2(lt / dur);
+    const tt = TW(t), z = 1.32 + .06 * E.io2(lt / dur);
     X.save(); cam(W / 2, 560, z);
+    // two Clawds pop up from the sides holding "?" signs (47.3, 47.45)
+    [[-1, 47.3, 'party'], [1, 47.45, 'bow']].forEach(([side, tp, hat], k) => {
+      const up = E.back(clamp((t - tp) / .22)), x = W / 2 + side * 360, y = 1000 - 170 * up + 4 * Math.sin(t * 7 + k);
+      if (up <= 0) return;
+      clawd(x, y, .8, { seed: 60 + k, hat, eyes: 'wide', mouth: 'o', armL: side < 0 ? .3 : 1.5, armR: side < 0 ? 1.5 : .3, [side < 0 ? 'holdR' : 'holdL']: { sign: '?', size: 80, col: C_.pinkD }, lean: side * -.08 });
+    });
     const turn = t < 47.1 ? 1 : Math.cos(clamp((t - 47.1) / .35) * Math.PI);    // turns it over on "brand-new?"
     const look = t < 47.1 ? 0 : 1;
     idol(W / 2, 800, 1, { ...pose('offer'), eyes: t < 46.6 ? 'happy' : (look ? 'open' : 'open'), mouth: t < 46.6 ? 'open' : 'o', sing: t < 46.6 ? .5 + .4 * Math.abs(Math.sin(t * 9)) : 0, look: [0, .8], tilt: t > 47.2 ? -.12 : 0, blush: .5 });
     const up = E.back(clamp((t - 46.85) / .25));
     pixelHeart(W / 2, 700 - 40 * up + 4 * Math.sin(t * 6), 22 * (.75 + .25 * up), turn, turn < 0);
     // the question mark
-    if (t > 47.3) { const s = slamK(t, 47.3, .16); X.save(); X.translate(W / 2 + 150, 300); X.rotate(.18 + Math.sin(t * 5) * .05); X.scale(s, s); pop('?', 0, 0, { font: 'dela', size: 170, align: 'center', fill: C_.lemon, lw: 11 }); X.restore(); }
+    if (t > 47.6) { const s = slamK(t, 47.6, .16); X.save(); X.translate(W / 2 + 230, 170); X.rotate(.18 + Math.sin(t * 5) * .05); X.scale(s, s); pop('?', 0, 0, { font: 'dela', size: 140, align: 'center', fill: C_.lemon, lw: 11 }); X.restore(); }
     X.restore();
     return {};
   }
@@ -117,14 +157,15 @@
     const tt = TW(t);
     const offering = t >= 49.25;
     sunburst(W / 2, 560, offering ? C_.lemon : C_.cyan, offering ? '#FFF1A0' : '#7FEFFA', 22, t * .15);
-    const z = offering ? 1.3 + .35 * E.out3(clamp((t - 49.3) / 1.0)) : 1.35;
-    X.save(); cam(W / 2, offering ? 650 : 620, z);
+    const z = offering ? 1.15 + .2 * E.out3(clamp((t - 49.3) / 1.0)) : 1.15;
+    X.save(); cam(W / 2, offering ? 640 : 610, z);
     if (!offering) {
       idol(W / 2, 820, 1, { ...pose('shrug'), eyes: 'open', mouth: 'cat', look: [-.5, -.5], sweat: 1, tilt: .12 * Math.sin(t * 6), bob: -10 * pulse(t, 7), sq: hitSq(t, [48.2]) });
     } else {
       const u = E.back(clamp((t - 49.3) / .22));
       idol(W / 2, 820, 1, { ...pose('offer'), eyes: t > 50.4 ? 'happy' : 'open', mouth: 'open', sing: .55 + .3 * Math.abs(Math.sin(t * 9)), blush: .8, sq: hitSq(t, [49.3, 50.4]) });
-      disc(W / 2, 700 - 20 * u, 60 + 28 * u, t * 2);
+      const hL = idolHand(W / 2, 820, 1, POSE.offer.armL, -1), hR = idolHand(W / 2, 820, 1, POSE.offer.armR, 1);
+      disc(W / 2, (hL[1] + hR[1]) / 2 - 6 * u, 40 + 22 * u, t * 2);
       if (t > 50.4) burstStars(t, 50.4, W / 2, 620, 12, 240, C_.white);
       sparkle(W / 2 + 90, 560, 20 + 10 * Math.sin(t * 12), C_.white, t * 4);
     }
@@ -184,7 +225,7 @@
     idol(960, 790, .95, { ...P0, eyes: 'happy', mouth: 'open', sing: .5 + .4 * Math.abs(Math.sin(t * 9)), sq: hitSq(t, THROWS, .12), bob: -8 * pulse(t, 8), blush: .6 });
     X.restore();
     // sparks: each throw sends 7 sparks arcing to penlights; a penlight turns clay when its spark lands
-    const hand = [W / 2 + (1060 - W / 2) * 1.3 + 40, 560 + (430 - 560) * 1.3], caught = new Map();
+    const hw = idolHand(960, 790, .95, POSE.wave.armR, 1), hand = [(hw[0] - W / 2) * 1.3 + W / 2, (hw[1] - 560) * 1.3 + 540], caught = new Map();
     THROWS.forEach((tb, ti) => {
       for (let j = 0; j < 7; j++) {
         const idx = (ti * 7 + j * 3) % 19, dur2 = .7, a = (t - tb - j * .03) / dur2;
@@ -202,8 +243,9 @@
   const PROW = 19;
   function penTip(t, i, r) { const n = PROW, x = (i + .5) / n * (W + 200) - 100, yy = 930, sw = Math.sin((beatPos(t) + i * .13) * Math.PI) * .45; return [x + Math.sin(sw) * 70, yy - Math.cos(sw) * 90]; }
   function crowdPens(t, caught) {
-    // back row (plain) then the catching row
+    // back row (plain) then the catching row, held up by a row of Clawds
     crowd(t, { y: 1000, rows: 1 });
+    for (let i = 0; i < PROW; i++) { const x = (i + .5) / PROW * (W + 200) - 100; clawd(x - 18, 1045, .34, { seed: 70 + i, hat: TROUPE_HATS[i % 8], eyes: caught.has(i) ? 'star' : 'open', armR: 1.3, hop: 5 * pulse(t, 8, 1, i * .07) }); }
     const cols = [C_.pink, C_.cyan, C_.lemon];
     for (let i = 0; i < PROW; i++) {
       const x = (i + .5) / PROW * (W + 200) - 100, yy = 930, [hx, hy] = penTip(t, i, 0);
@@ -213,7 +255,6 @@
       glow(hx, hy, isC ? 90 + 40 * Math.exp(-c * 6) : 50, isC ? 'rgba(255,150,100,1)' : col, isC ? .6 : .35);
       if (isC && c < .3) sparkle(hx, hy - 20, 30 * (1 - c / .3), C_.white, i);
       if (isC) spark8(hx, hy, 12, C_.lemon, 3, t * 2);
-      shp(ellipse(x, yy + 36, 40, 48), C_.ink, 0);
     }
   }
 
@@ -233,16 +274,21 @@
     // the ojigi on "hajimemashite" (59.3): anticipation up, bow down, hold, rise; wave on "you!" (61.5)
     const bow = kf(tt, [[59.2, 0], [59.35, -.15, 'out2'], [59.6, 1, 'out3'], [60.4, 1], [60.7, 0, 'back']]);
     const b = Math.max(0, bow);
-    X.save(); cam(W / 2, 590, 1.35);
+    X.save(); cam(W / 2, 620, 1.1);
     const P0 = t > 61.3 ? pose('wave') : pose('bow');
-    idol(W / 2, 860, 1, { ...P0, eyes: b > .3 ? 'closed' : 'happy', mouth: b > .3 ? 'small' : 'open', sing: b > .3 ? 0 : .4, bob: 70 * b, sq: -.12 * bow + hitSq(t, [61.5]), tilt: 0, blush: .8 });
+    // her backup Clawds bow with her, a frame or two late (the charm is in the lag)
+    [[-1, 'bow', .06], [1, 'headband', .1]].forEach(([side, hat, lag], k) => {
+      const cb = Math.max(0, kf(tt - lag, [[59.2, 0], [59.35, -.15, 'out2'], [59.6, 1, 'out3'], [60.4, 1], [60.7, 0, 'back']]));
+      clawd(W / 2 + side * 370, 960, .8, { seed: 80 + k, hat, bow: cb, eyes: cb > .3 ? 'closed' : 'happy', mouth: cb > .3 ? null : 'cat', armL: t > 61.3 && side < 0 ? 1.6 : .2, armR: t > 61.3 && side > 0 ? 1.6 : .2, blush: 1, hop: 10 * pulse(t, 8) * (t > 60.7 ? 1 : 0) });
+    });
+    idol(W / 2, 960, 1, { ...P0, eyes: b > .3 ? 'closed' : 'happy', mouth: b > .3 ? 'small' : 'open', sing: b > .3 ? 0 : .4, bob: 70 * b, sq: -.12 * bow + hitSq(t, [61.5]), tilt: 0, blush: .8 });
     X.restore();
     // title stamp: HELLO, WORLD! with a sparkle, lands on "I made" (60.6)
     if (t >= 60.6) {
       const s = slamK(t, 60.6, .16);
       X.save(); X.translate(W / 2, 190); X.rotate(-.05); X.scale(s, s);
-      pop('HELLO, WORLD!', 0, 0, { font: 'dela', size: 170, align: 'center', fill: C_.lemon, lw: 14, shadow: [12, 12, C_.pinkD] });
-      pop('ハロー・ワールド', 0, 80, { font: 'mochi', size: 56, align: 'center', fill: C_.white, lw: 7 });
+      pop('HELLO, WORLD!', 0, 0, { font: 'dela', size: 160, align: 'center', fill: C_.lemon, lw: 14, shadow: [12, 12, C_.pinkD] });
+      pop('ハロー・ワールド', 0, 76, { font: 'mochi', size: 52, align: 'center', fill: C_.white, lw: 7 });
       X.restore();
       burstStars(t, 60.6, W / 2, 200, 14, 700, C_.white);
     }
@@ -269,20 +315,32 @@
     [67.40, 'haiR', { dx: 0, lean: -.1, hop: 30 }, 'haiR', 'HAI!'],
     [67.60, 'haiL', { dx: 0, lean: .1, hop: 30 }, 'haiL', 'HAI!'],
   ];
-  const IDP = { ...POSE, up: { armL: [2.45, -.45], armR: [2.45, -.45], handL: 'open', handR: 'open' },
-    haiR: { armL: [.35, -.1], armR: [2.45, -.35], handL: 'fist', handR: 'fist' }, haiL: { armL: [2.45, -.35], armR: [.35, -.1], handL: 'fist', handR: 'fist' } };
+  // the SD arms are short, so the dance poses keep the mitts out wide (clear of her big eyes): claws at chin height, V for "up"
+  const IDP = { ...POSE, claw: { armL: [1.75, .35], armR: [1.75, .35], handL: 'claw', handR: 'claw' }, clawOpen: { armL: [1.95, .45], armR: [1.95, .45], handL: 'clawOpen', handR: 'clawOpen' },
+    up: { armL: [2.1, -.1], armR: [2.1, -.1], handL: 'open', handR: 'open' },
+    haiR: { armL: [.35, -.1], armR: [2.15, -.1], handL: 'fist', handR: 'fist' }, haiL: { armL: [2.15, -.1], armR: [.35, -.1], handL: 'fist', handR: 'fist' } };
   function idolPose(name) { const A = IDP[name]; return { armL: A.armL, armR: A.armR, handL: A.handL, handR: A.handR }; }
   function blendP(a, b, u) { const A = idolPose(a), B = idolPose(b); return { armL: [lerp(A.armL[0], B.armL[0], u), lerp(A.armL[1], B.armL[1], u)], armR: [lerp(A.armR[0], B.armR[0], u), lerp(A.armR[1], B.armR[1], u)], handL: u > .5 ? B.handL : A.handL, handR: u > .5 ? B.handR : A.handR }; }
-  const CLP = { claw: { armL: 1.3, armR: 1.3, eyes: 'wide' }, wiggle: { armL: 1.5, armR: .9, eyes: 'wide' }, snap: { armL: .4, armR: 1.5, eyes: 'wide' }, snap2: { armL: 1.5, armR: .4, eyes: 'wide' },
-    up: { armL: 1.9, armR: 1.9, eyes: 'happy', hop: 80 }, haiR: { armL: .2, armR: 1.8, eyes: 'happy', hop: 20 }, haiL: { armL: 1.8, armR: .2, eyes: 'happy', hop: 20 }, idle: { armL: .1, armR: .1, eyes: 'open' } };
+  // Clawd troupe versions of each move: nub angles + pincer snip (0 closed .. 1 open)
+  const CLP = { claw: { armL: 1.3, armR: 1.3, snip: 0, eyes: 'wide' }, wiggle: { armL: 1.5, armR: .9, snip: 1, eyes: 'star' }, snap: { armL: .5, armR: 1.5, snip: 0, eyes: 'wide' }, snap2: { armL: 1.5, armR: .5, snip: 1, eyes: 'wide' },
+    up: { armL: 1.9, armR: 1.9, snip: 1, eyes: 'happy', hop: 70 }, haiR: { armL: .2, armR: 1.8, snip: 0, eyes: 'happy', hop: 20 }, haiL: { armL: 1.8, armR: .2, snip: 0, eyes: 'happy', hop: 20 }, idle: { armL: .15, armR: .15, snip: 0, eyes: 'open' } };
+  const moveIdx = tt => { let i = 0; while (i + 1 < MOVES.length && tt >= MOVES[i + 1][0]) i++; return i; };
+  // the backline: 6 costumed Clawds. Line formation for the first half, a V (inner pair forward) for the second.
+  // [x, y, s] per dancer for formation A (line) and B (V); d = distance from centre (sets the canon lag)
+  const TROUPE = [
+    { hat: 'bow', A: [170, 860, 1.0], B: [160, 760, .8], d: 3 },
+    { hat: 'cap', A: [440, 840, .98], B: [640, 740, .74], d: 2 },
+    { hat: 'crown', A: [650, 700, .74], B: [400, 1015, 1.0], d: 1 },
+    { hat: 'headband', A: [1270, 700, .74], B: [1440, 1015, 1.0], d: 1 },
+    { hat: 'party', A: [1480, 840, .98], B: [1240, 740, .74], d: 2 },
+    { hat: 'tophat', A: [1750, 860, 1.0], B: [1760, 760, .8], d: 3 },
+  ];
   function s21(t, lt, dur) {
     const bar = Math.floor((t - 62.12) / BAR + 1e-6), BGS = [[C_.pink, '#FF7FBF'], [C_.cyan, '#7AEFFA'], [C_.lemon, '#FFF19A'], [C_.violet, '#9F7BFF']];
     const [ca, cb] = BGS[((bar % 4) + 4) % 4];
     checker(120, ca, cb, .25, t * 60, t * 30);
     const tt = TW(t);
-    let i = 0; while (i + 1 < MOVES.length && tt >= MOVES[i + 1][0]) i++;
-    const cur = MOVES[i], prev = MOVES[Math.max(0, i - 1)], age = tt - cur[0];
-    // a 1-drawing smear between key poses (the in-between on the first 2 frames), then the held key
+    const i = moveIdx(tt), cur = MOVES[i], prev = MOVES[Math.max(0, i - 1)], age = tt - cur[0];
     const inb = age < 2 / 24 && i > 0;
     const P0 = inb ? blendP(prev[1], cur[1], .5) : idolPose(cur[1]);
     const ex = inb ? { dx: lerp(prev[2].dx || 0, cur[2].dx || 0, .5), lean: lerp(prev[2].lean || 0, cur[2].lean || 0, .5), tilt: lerp(prev[2].tilt || 0, cur[2].tilt || 0, .5), hop: 0 } : cur[2];
@@ -291,33 +349,43 @@
     const sq = hitSq(t, hits, .16, 16) + (inb ? -.12 : 0);
     const shk = kick(t, hits, 1, 14);
     X.save(); cam(W / 2 + shake(t, 6 * shk)[0], H / 2 + shake(t, 6 * shk)[1], 1 + .03 * shk);
-    // floor spot shadows
-    shp(ellipse(620 + (ex.dx || 0), 1045, 240, 34), 'rgba(27,20,24,.25)', 0); shp(ellipse(1420, 1045, 250, 34), 'rgba(27,20,24,.25)', 0);
-    // idol
+    // ---- the troupe backline (drawn first: behind her). Formation slides A -> B during the idle beat (65.25–65.6).
+    const fm = E.io3(clamp((tt - 65.2) / .4));
+    const unison = tt >= 67.0;                              // CLAWD-UP! and the HAIs of the second half: everyone together
+    TROUPE.forEach((c, k) => {
+      const lag = unison ? 0 : c.d * .045;
+      const ti = moveIdx(tt - lag), m = MOVES[ti], mp = MOVES[Math.max(0, ti - 1)], a2 = tt - lag - m[0];
+      const cp = CLP[m[3]], cpp = CLP[mp[3]], inb2 = a2 < 2 / 24 && ti > 0;
+      const arm = inb2 ? { armL: lerp(cpp.armL, cp.armL, .5), armR: lerp(cpp.armR, cp.armR, .5), snip: .5 } : cp;
+      const hop = (cp.hop || 0) * Math.sin(clamp(a2 / .3) * Math.PI);
+      const x = lerp(c.A[0], c.B[0], fm), y = lerp(c.A[1], c.B[1], fm), sc = lerp(c.A[2], c.B[2], fm);
+      const walking = fm > 0 && fm < 1;
+      const side = x < W / 2 ? -1 : 1, dx = (m[2].dx || 0) * .35;
+      shp(ellipse(x + dx, y + 4, 110 * sc, 16 * sc), 'rgba(27,20,24,.22)', 0);
+      clawd(x + dx, y, sc, { seed: 90 + k * 5, hat: c.hat, pincer: true, snip: arm.snip, armL: arm.armL, armR: arm.armR, eyes: cp.eyes, hop: hop / sc * .7, sq: hitSq(t - lag, hits, .16, 16) * 1.1, lean: -(m[2].lean || 0) * .8, walk: walking ? tt * 4 : null, blush: k % 2 === 0, mouth: /up|hai/.test(m[3]) ? 'open' : 'cat' });
+    });
+    // ---- the idol, front and centre
+    const IX = 960 + (ex.dx || 0), IS = 1.22;
+    shp(ellipse(IX, 1045, 230, 32), 'rgba(27,20,24,.25)', 0);
     const eyes = /clawOpen|claw/.test(cur[1]) ? (cur[1] === 'clawOpen' ? 'star' : 'determined') : cur[1] === 'up' ? 'happy' : /hai/.test(cur[1]) ? 'happy' : 'open';
-    idol(620 + (ex.dx || 0), 1040, 1.6, { ...P0, lean: ex.lean || 0, tilt: ex.tilt || 0, hop: hopK / 1.6, sq, eyes, mouth: /hai|up/.test(cur[1]) ? 'open' : 'grin', sing: /hai|up/.test(cur[1]) ? .7 : 0, blush: .6, skirtFlare: clamp(hopK / 70), hairLift: clamp(hopK / 90) * .6 });
-    if (inb) speedStreaks(620 + (ex.dx || 0), 700, (cur[2].dx || 0) - (prev[2].dx || 0), t);
-    // clawd: same counts, translated to nubs and hops
-    const cp = CLP[cur[3]], cpp = CLP[prev[3]];
-    const ca2 = inb ? { armL: lerp(cpp.armL, cp.armL, .5), armR: lerp(cpp.armR, cp.armR, .5) } : cp;
-    const chop = (cp.hop || 0) * Math.sin(clamp(age / .3) * Math.PI);
-    clawd(1420 - (ex.dx || 0) * .6, 1040, 2.2, { armL: ca2.armL, armR: ca2.armR, eyes: cp.eyes, hop: chop / 1.6, sq: sq * 1.2, lean: -(ex.lean || 0), blush: 1 });
+    idol(IX, 1040, IS, { ...P0, lean: ex.lean || 0, tilt: ex.tilt || 0, hop: hopK / IS, sq, eyes, mouth: /hai|up/.test(cur[1]) ? 'open' : 'grin', sing: /hai|up/.test(cur[1]) ? .7 : 0, blush: .6, skirtFlare: clamp(hopK / 70), hairLift: clamp(hopK / 90) * .6 });
+    if (inb) speedStreaks(IX, 720, (cur[2].dx || 0) - (prev[2].dx || 0), t);
+    // snip sparks at her claws on the snaps
+    if (/claw/.test(cur[1]) && age < .18) for (const side of [-1, 1]) { const h = idolHand(IX, 1040, IS, P0[side < 0 ? 'armL' : 'armR'], side); sparkle(h[0] + side * 40, h[1] - 30, 30 * (1 - age / .18) + 6, C_.white, t * 9); }
     X.restore();
-    // THE WORD: one per move, slammed full width
+    // THE WORD: one per move, slammed top centre
     if (cur[4] && age < .9) {
-      const s = slamK(t, cur[0], .12), cols = [C_.white, C_.lemon, C_.ink];
-      const big = cur[4].length > 6 ? 190 : 250;
-      const L = shape(cur[4], { font: 'dela', size: big * .82 }), fit = Math.min(1, 760 / L.width);
-      X.save(); X.translate(1400, 330); X.rotate((i % 2 ? -.06 : .06)); X.scale(s * fit, s * fit);
-      pop(cur[4], 0, 0, { font: 'dela', size: big * .82, align: 'center', fill: i % 3 === 2 ? C_.lemon : C_.white, lw: 16, shadow: [14, 14, C_.ink] });
+      const sK = slamK(t, cur[0], .12);
+      const L = shape(cur[4], { font: 'dela', size: 150 }), fit = Math.min(1, 820 / L.width);
+      X.save(); X.translate(W / 2, 175); X.rotate(i % 2 ? -.05 : .05); X.scale(sK * fit, sK * fit);
+      pop(cur[4], 0, 0, { font: 'dela', size: 150, align: 'center', fill: i % 3 === 2 ? C_.lemon : C_.white, lw: 15, shadow: [13, 13, C_.ink] });
       X.restore();
     }
-    // the template: an 8-count strip bottom centre (a dance tutorial in the frame)
-    const b0 = beatPos(62.12), cnt = Math.floor(beatPos(t) - b0 + 1e-6) % 8;
-    const bx = 1110;
-    shp(rrect(bx - 40, 520, 7 * 76 + 80, 64, 32), C_.ink, 0);
-    for (let k = 0; k < 8; k++) { const on = k === cnt; shp(circle(bx + k * 76, 552, on ? 24 : 13), on ? C_.lemon : C_.cream, on ? 5 : 0); if (on) pop(String(k + 1), bx + k * 76, 564, { font: 'dela', size: 30, align: 'center', fill: C_.ink, lw: 0 }); }
-    X.save(); X.translate(1400, 110); X.rotate(-.04); pop('♪ CLAW DANCE ♪', 0, 0, { font: 'dela', size: 58, align: 'center', fill: C_.white, lw: 8, shadow: [6, 6, C_.ink] }); X.restore();
+    // the template: tag + 8-count strip, top left
+    X.save(); X.translate(250, 78); X.rotate(-.04); pop('♪ CLAW DANCE ♪', 0, 0, { font: 'dela', size: 46, align: 'center', fill: C_.white, lw: 7, shadow: [5, 5, C_.ink] }); X.restore();
+    const b0 = beatPos(62.12), cnt = Math.floor(beatPos(t) - b0 + 1e-6) % 8, bx = 70;
+    shp(rrect(bx - 30, 104, 7 * 52 + 60, 46, 23), C_.ink, 0);
+    for (let k = 0; k < 8; k++) { const on = k === cnt; shp(circle(bx + k * 52, 127, on ? 18 : 9), on ? C_.lemon : C_.cream, on ? 4 : 0); if (on) pop(String(k + 1), bx + k * 52, 136, { font: 'dela', size: 22, align: 'center', fill: C_.ink, lw: 0 }); }
     return { karaoke: false, calls: false };
   }
   // a smear accent for in-between drawings: a few ink speed strokes beside the body

@@ -166,6 +166,17 @@
     X.restore();
     if (age < 2 / 24) flash(.18, MIXCOL[cur]);
   }
+  // the front row: costumed Clawd fans (headbands, penlights, one DEBUT sign), waving harder with each call
+  const FANS = [[140, 'headband', 'penlight', C_.pink], [420, 'bow', 'penlight', C_.cyan], [700, 'headband', { sign: 'DEBUT♪', size: 34 }, null],
+    [1220, 'party', 'penlight', C_.lemon], [1500, 'headband', 'penlight', C_.pink], [1780, 'cap', 'penlight', C_.cyan]];
+  function clawdFans(t, n) {
+    const tt = TW(t), b = beatPos(tt);
+    FANS.forEach(([x, hat, prop, col], i) => {
+      const ph = b + i * .37, sw = Math.sin(ph * Math.PI) * (.35 + n * .08);
+      clawd(x, 1110, .78, { seed: 40 + i * 7, hat, eyes: n > 2 && i % 2 ? 'star' : 'happy', blush: 1, mouth: 'open',
+        hop: 14 * Math.abs(Math.sin(ph * Math.PI)), armR: 1.4 + sw, armL: .3 + .2 * Math.cos(ph * Math.PI), holdR: prop, penCol: col });
+    });
+  }
   function s04(t, lt, dur) {
     const lit = E.out3(seg(t, 5.64, 5.9));
     stage(t, { hue: [C_.night, C_.violet] });
@@ -176,6 +187,7 @@
     const n = MIX.filter(m => t >= m[1]).length;
     X.save(); X.translate(0, lerp(360, 0, E.out3(seg(t, 5.64, 6.3))));
     crowd(t, { y: 910, rows: 3, wave: .4 + n * .15 });
+    clawdFans(t, n);
     X.restore();
     // Clawd bounces on the beat on the stage
     const tt = TW(t), b = beatPos(tt), hop = 36 * Math.abs(Math.sin(b * Math.PI));
@@ -199,7 +211,7 @@
     const tt = TW(t);
     const z = 1.55 + .15 * E.io2(lt / dur) + .5 * E.inExpo(seg(t, 13.3, GO));
     stage(t, { hue: [C_.night, C_.violet] });
-    X.save(); X.translate(0, 0); crowd(t, { y: 910, rows: 3, wave: 1.4 }); X.restore();
+    X.save(); X.translate(0, 0); crowd(t, { y: 910, rows: 3, wave: 1.4 }); clawdFans(t, 6); X.restore();
     X.save(); cam(W / 2, 620 - 120 * E.io3(seg(t, 13.2, GO)), z);
     // anticipation: the void starts bleeding in
     const ant = E.in3(seg(t, 13.2, GO));
@@ -238,34 +250,34 @@
   const SRC = [[14.1, 0], [15.94, .92], [16.94, 2.0], [21.9, 3.3], [22.6, 3.8]];
   function src(t) { return kf(t, SRC, 'lin'); }
   function holdAt(t) { return t < 15.94 ? 2 : t < 16.94 ? 1 : t < 21.9 ? 3 : 1; }
-  const RIB = [   // one costume beat per bar: [bar time, centre y (0..1 H), rx, ry, text]
-    [barT(12), .47, 460, 70, 'Dear world, I read every letter you ever wrote me ♥ '],
-    [barT(13), .8, 300, 50, '2 cups flour · 1 egg · a pinch of salt · bake until golden · '],
-    [barT(14), .62, 420, 80, 'def hello(): return "world"  # it works!! ☆ '],
-    [barT(15), .37, 260, 50, 'once upon a time · call me when you land · goodnight, moon · '],
+  // three banner ribbons, one per costume beat: each sweeps in, holds one legible line, then winds into the silhouette
+  const RIB = [   // [start, centre y, tilt, text, bind point]
+    [16.95, 300, -.06, 'Dear world, I read every letter you wrote ♥', [960, 470]],
+    [18.85, 790, .05, '2 cups flour · a pinch of salt · bake with love', [960, 760]],
+    [20.7, 420, -.04, 'def hello():  return "world"', [960, 600]],
   ];
-  function ribbon(t, [tb, cyN, rx, ry, text], i) {
-    const a = t - (tb - .3); if (a < 0 || a > 1.35) return;
-    const cx = W / 2, cy = cyN * H;
-    const inU = E.out3(clamp(a / .3)), tight = E.io3(clamp((a - .3) / .55)), done = clamp((a - 1.0) / .3);
-    const Rx = rx * lerp(1.9, 1, tight) * (1 - done * .6), Ry = ry * lerp(1.6, 1, tight) * (1 - done * .6);
-    const a0 = .1, a1 = lerp(.1, Math.PI - .1, inU), n = 40;
-    const pts = []; for (let k = 0; k <= n; k++) { const q = lerp(a0, a1, k / n); pts.push([cx + Math.cos(q) * Rx, cy + Math.sin(q) * Ry]); }
-    X.save(); X.globalAlpha = 1 - done;
-    lin(pts, 84, C_.ink); lin(pts, 70, C_.cream); lin(pts.map(([x, y]) => [x, y + 27]), 4, C_.pink, { dash: [3, 14] });
-    // the text runs along the ribbon (front half), scrolling
-    const L = shape(text + text, { font: 'roundB', size: 40 });
-    const Rm = (Rx + Ry) / 2, off = (a * 260) % (L.width / 2);
-    for (const g of L.glyphs) {
-      if (g.ch === ' ') continue;
-      const s = g.x - off + g.w / 2, q = (Math.PI - .1) - s / Rm * .95;          // text runs left -> right along the front of the loop
-      if (q < a0 + .05 || q > a1 - .05) continue;
-      const px = cx + Math.cos(q) * Rx, py = cy + Math.sin(q) * Ry, ang = Math.atan2(-Ry * Math.cos(q), Rx * Math.sin(q));
-      X.save(); X.translate(px, py); X.rotate(ang); X.fillStyle = C_.ink; X.fill(glyphPath(g, -g.w / 2, 14)); X.restore();
-    }
+  function ribbon(t, [t0, cy, tilt, text, bind], i) {
+    const a = t - t0; if (a < 0 || a > 1.95) return;
+    const inU = E.out3(clamp(a / .35)), wind = E.in3(clamp((a - 1.45) / .5));
+    const L = shape(text, { font: 'round', size: 60 }), pad = 60, bw = L.width + pad * 2;
+    X.save();
+    const hx = W / 2 + 30 - 30 * a - (1 - inU) * (W / 2 + bw / 2) * (i % 2 ? -1 : 1);
+    X.translate(lerp(hx, bind[0], wind), lerp(cy, bind[1], wind));
+    X.rotate(tilt + wind * 6 * (i % 2 ? -1 : 1)); X.scale(1 - wind * .92, 1 - wind * .92);
+    // the ribbon: a cream band with forked tails, a gentle wave
+    const pts = []; for (let k = 0; k <= 30; k++) { const u = k / 30; pts.push([-bw / 2 + u * bw, Math.sin(u * 5 + a * 3) * 10]); }
+    const top = pts.map(([x, y]) => [x, y - 46]), bot = pts.map(([x, y]) => [x, y + 46]).reverse();
+    shp(top.concat([[bw / 2 + 40, 20], [bw / 2 + 10, 0]], bot, [[-bw / 2 - 40, -20], [-bw / 2 - 10, 0]]), C_.cream, 5, LN);
+    lin(pts.map(([x, y]) => [x, y + 32]), 3, C_.pink, { dash: [4, 12] }); lin(pts.map(([x, y]) => [x, y - 32]), 3, C_.pink, { dash: [4, 12] });
+    // the text prints along it, letter by letter, riding the wave
+    const nshow = Math.floor(L.glyphs.length * clamp((a - .1) / .5));
+    L.glyphs.forEach((g, gi) => {
+      if (gi >= nshow || g.ch === ' ') return;
+      const x = -L.width / 2 + g.x, y = Math.sin(((x + bw / 2) / bw) * 5 + a * 3) * 10 + 22;
+      X.fillStyle = C_.ink; X.fill(glyphPath(g, x, y));
+    });
     X.restore();
-    // it binds: a star-burst where the costume piece forms
-    if (a > .95 && a < 1.3) { const k = (a - .95) / .35; for (let j = 0; j < 10; j++) { const q = j / 10 * TAU, r = 30 + k * 260; sparkle(cx + Math.cos(q) * r * rx / 300, cy + Math.sin(q) * r * .5, 26 * (1 - k), j % 2 ? C_.lemon : C_.white, q); } }
+    if (a > 1.8) { const k = (a - 1.8) / .15; for (let j = 0; j < 10; j++) { const q = j / 10 * TAU, r = 30 + k * 220; sparkle(bind[0] + Math.cos(q) * r, bind[1] + Math.sin(q) * r * .6, 26 * (1 - k), j % 2 ? C_.lemon : C_.white, q); } }
   }
   function s06(t, lt, dur) {
     flat('#FFFFFF');
@@ -364,14 +376,20 @@
       pop(null, x, 110 + lane * 92, { L, fill: C_.white, lw: 6 });
     }
   }
-  function echoes(t, tt, base) {   // lagged copies of her pose on "echo" (29.32)
-    const k = E.out3(seg(t, 29.32, 29.6));
-    if (k <= 0) return;
-    for (let i = 2; i >= 1; i--) {
-      const lag = i * .12, p = base(tt - lag);
-      X.save(); X.globalAlpha = .22 * k * (1 - i * .2);
-      for (const sd of [-1, 1]) idol(W / 2 + sd * i * 190 * k, 860, 1.12 - i * .08, { ...p, face: sd });
-      X.restore();
+  function echoes(t, tt, base) {   // stamped graphic copies on "echo" (29.32): flat silhouettes, cyan left / pink right, one per eighth
+    const STAMP = [29.32, 29.5, 29.68];
+    for (let i = STAMP.length; i >= 1; i--) {
+      const t0 = STAMP[i - 1]; if (t < t0) continue;
+      const k = slamK(t, t0, .1), p = base(tt - i * .09);
+      for (const sd of [-1, 1]) {
+        drawOff(() => { idol(W / 2 + sd * (130 + i * 175), 860 - i * 30, (1.0 - i * .16) * (2 - k), { ...p, face: sd }); });
+        const o = OFF.getContext('2d'), tint = c => { o.save(); o.globalCompositeOperation = 'source-in'; o.fillStyle = c; o.fillRect(0, 0, W, H); o.restore(); };
+        X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+        tint(LN); X.drawImage(OFF, sd * 12, 12);                                  // ink offset shadow
+        tint(sd < 0 ? C_.cyan : C_.pink); X.drawImage(OFF, 0, 0);                  // the flat stamped copy
+        X.restore();
+      }
+      if (t - t0 < 2 / 24) flash(.12, i % 2 ? C_.cyan : C_.pink);
     }
   }
   function s10(t, lt, dur) {
@@ -453,6 +471,15 @@
       // spotlights slam on, one per word
       LIGHTS.forEach((lt0, i) => { if (t < lt0) return; const x = [360, 1560, 700, 1220, 960][i], k = E.out3(clamp((t - lt0) / .08)); X.save(); X.globalAlpha = .35 * k; X.fillStyle = [C_.cyan, C_.pink, C_.lemon, C_.cyan, C_.white][i]; X.beginPath(); X.moveTo(x - 40, 0); X.lineTo(x + 40, 0); X.lineTo(W / 2 + 260, 900); X.lineTo(W / 2 - 260, 900); X.fill(); X.restore(); if (t - lt0 < 2 / 24) flash(.2, C_.white); });
       crowd(t, { y: 930, rows: 2, wave: .3 + n * .2 });
+      // stagehands in the wings: hard-hat Clawds yank a lever on each light (left, right, left, right, both)
+      for (const [side, x] of [[-1, 150], [1, 1770]]) {
+        const mine = LIGHTS.filter((l, i) => (i === 4 || (i % 2 === 0) === (side < 0)) && t >= l);
+        const last = mine.length ? mine[mine.length - 1] : -9, yank = Math.exp(-(t - last) * 9);
+        // the lever
+        X.save(); X.translate(x + side * -70, 740); shp(rrect(-16, -10, 32, 60, 6), C_.ink, 3, LN); X.rotate(side * (last > 0 ? .55 : -.55) * (1 - yank * .3)); lin([[0, 0], [0, -90]], 10, C_.bootD); shp(circle(0, -92, 14), C_.pink, 3, LN); X.restore();
+        clawd(x, 790, .7, { seed: side > 0 ? 71 : 73, hat: 'hardhat', pincer: true, snip: .2 + .6 * yank, sq: .25 * yank, lean: side * -.12 * yank, armL: side > 0 ? .9 : -.4 - .6 * yank, armR: side > 0 ? -.4 - .6 * yank : .9,
+          eyes: yank > .3 ? 'happy' : 'open', flip: side > 0, blush: .5 });
+      }
       const beat = pulse(t, 7), heartOn = t >= 35.3;
       const z = 1 + (heartOn ? .35 * E.io3(seg(t, 35.3, 35.7)) : 0);
       X.save(); cam(W / 2, lerp(540, 520, z - 1), z);
