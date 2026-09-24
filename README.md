@@ -1,6 +1,6 @@
 # animation-pipeline
 
-A base of operations for making films with Claude Code: songs, animation, typography and sound, all authored in code. No video-generation models: every frame is drawn by JavaScript as a pure function of time, printed through a simulated risograph, and locked to the music's own clock.
+A base of operations for making films with Claude Code: songs, animation, typography and sound, all authored in code. Frames are drawn by JavaScript as pure functions of time and locked to the music's own clock. The first two films use no generative video at all. The third uses exactly two short Seedance cut-ins, each bridging a code-rendered frame to an illustrated one.
 
 ## First work: OPEN ALL NIGHT *(a love song for the ads)*
 
@@ -52,9 +52,10 @@ Clawd's idol debut single. A J-pop debut is a self-introduction, and "Hello, wor
 
 | path | what |
 |---|---|
+| `.claude/skills/make-film/` | a Claude Code skill: the end-to-end workflow for a new film |
 | `docs/CRAFT.md` | **The method.** The rules, the look, timing, music-video specifics, the review loop, failure modes and gotchas. Start here. |
 | `engine/` | `core.js` (time, easing, beat clock, boil), `riso.js` (the press), `type.js` (variable-font kinetic type), `studio.js`, `render.mjs` (headless Chrome, parallel and resumable, sheets/strips/crops, `--serve`, `--eval`) |
-| `tools/` | `music.py` (songs + word timestamps), `audio_analyze.py` (grid, seams, cue sheet), `lyric_check.py`, `songmap.py`, `gemini.py` (media critic), `imagegen.py` (reference sheets only), `sfx.py` |
+| `tools/` | `music.py` (songs + word timestamps, stored for inpainting), `audio_analyze.py` (grid, seams, cue sheet), `lyric_check.py`, `songmap.py`, `tts.py` (narration + word timestamps), `sfx.py`, `gemini.py` (media critic), `imagegen.py` (references and keys), `chroma.py` (green-screen keying), `seedance.py` (Higgsfield Seedance 2.5, only with sign-off) |
 | `projects/open-all-night/` | the film: `STORYBOARD.md`, `src/` (look, cast, world, lyrics, eye, hook, globe, shots/), `sound.py`, `assets/` |
 | `legacy/ember/` | reusable code from the EMBER action shorts (a synth and mastering engine, IK, follow-through, sakuga FX) |
 | `docs/references/` | ClaudeAnimationBase's guide (MIT), prior art for the method |

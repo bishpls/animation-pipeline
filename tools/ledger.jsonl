@@ -72,3 +72,4 @@
 {"ts": "2026-09-24T03:46:27", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/shatter.mp3"}
 {"ts": "2026-09-24T03:46:28", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/poof.mp3"}
 {"ts": "2026-09-24T03:53:30", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/refs/chibi_neko.png", "ok": true}
+{"ts": "2026-09-24T05:36:03", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 3.0, "out": "/private/tmp/claude-501/-Users-michaelbishop-animation-pipeline/7c22d831-c4d1-4516-b6ae-de77518b85b5/scratchpad/inp_test", "wall": 2}

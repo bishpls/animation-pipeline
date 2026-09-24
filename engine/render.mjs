@@ -9,7 +9,8 @@
 //     node engine/render.mjs P --shots [--per=4]                                              first/mid/last of every shot, one sheet
 //   MAKE:
 //     node engine/render.mjs P --frames [--range=0:8] [--workers=6]                           frames -> P/out/frames (parallel, resumable)
-//     node engine/render.mjs P --encode [--out=P/out/video.mp4]                               frames + P/assets/song audio -> MP4
+//     node engine/render.mjs P --encode [--out=P/out/video.mp4] [--crf=15] [--from=1.17]        frames + audio (mix.wav > song.wav > song.mp3) -> MP4;
+//                                                                                              --from trims the head of picture and audio together
 //     node engine/render.mjs P --clip=10:14 [--out=...]                                       quick MP4 of a range, with audio
 //   DEBUG: node engine/render.mjs P --eval='LINES.map(l => [l.t0, l.text])'     evaluate an expression in the page
 //   SERVE: node engine/render.mjs P --serve   -> open the printed URL in Chrome to scrub/play with sound

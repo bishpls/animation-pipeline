@@ -31,7 +31,9 @@ def ledger(**kw):
 def compose(plan_path, out, model='music_v2_5'):
     plan = json.load(open(plan_path))
     os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
-    body = {'composition_plan': plan, 'model_id': model, 'with_timestamps': True}
+    # store_for_inpainting: keep a song_id so a single flubbed section/word can be regenerated later without redoing the take
+    # (HELLO, WORLD!'s mispronounced 'arigatou' was unfixable only because this was off). song_id lands in OUT.events.jsonl.
+    body = {'composition_plan': plan, 'model_id': model, 'with_timestamps': True, 'store_for_inpainting': True}
     t0 = time.time()
     r = requests.post(f'{API}/music/detailed/stream?output_format=mp3_48000_320', headers={'xi-api-key': KEY},
                       json=body, stream=True, timeout=900)

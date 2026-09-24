@@ -4,7 +4,7 @@ This is the working method for this repo. It distils three earlier projects (EMB
 
 ## 0. The non-negotiables
 
-1. **No video-generation models, ever.** EMBER III's Veo take was judged "painful, embarrassing slop" despite strong keyframes: the model's taste and constraints became the film's ceiling. Every frame here is authored in code as a pure function of time. Image models are allowed **only** for references (style targets, model sheets), never as frames.
+1. **Video-generation models are off by default.** EMBER III's Veo take was judged "painful, embarrassing slop" despite strong keyframes: the model's taste and constraints became the film's ceiling. Author frames in code, as pure functions of time. Image models make references and, when a film calls for it, keyed illustrations that code rigs and animates. A video model may be used only with the user's sign-off for that film, for short cut-ins code can't match, as a bridge between frames you control (§11).
 2. **Author motion, timing and composition by hand.** Those are the craft the audience attributes to the maker.
 3. **One clock.** Picture, lyrics and sound read the same cue sheet (`assets/cues.json`), so every hit lands on its frame.
 4. **Look at everything.** You can't see motion by reading code. Render contact sheets, strips and crops, open them with the Read tool, and fix what you see. Then look again.
@@ -100,6 +100,11 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 - Canvas `filter: blur()` combined with `destination-out` works: use it for soft knocks.
 - zsh doesn't word-split `$var` in `for` loops; use `${=var}`.
 - A shot's duration comes from the *next* shot's start; register the whole cut early (slates), or the last shot stretches to the end of the film.
+- **librosa's MP3 loading hung** (indefinitely, intermittently) on this machine. Decode with `ffmpeg -f f32le -` via subprocess instead (see `projects/*/sound.py`).
+- **This ffmpeg has no `drawtext` filter.** Render text or cards with PIL (or the engine) as PNGs and `overlay` them.
+- **Fonts miss symbols:** Archivo has no ✦ and Mochiy Pop no ☆, so they render as tofu boxes. Draw the shape (`sparkle`, `spark8`) or check coverage first.
+- **Scripted edits can break JS:** a Python-inserted `// comment` before a `}` on the same line silently killed a shot file. After scripted edits, `cp file.js /tmp/x.js && node --check /tmp/x.js`, and read `[page error]` lines in render output.
+- **Rate limits:** ElevenLabs music allows 2 concurrent requests, TTS 5; sound effects accept only `mp3_44100_*` output. Higgsfield rejects parallel generations, so queue them.
 
 ## 10. More lessons (WORDS ARE FOSSILS)
 
@@ -110,3 +115,42 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 - **Pace the picture to the voice:** cue camera stops to the narrator's word timestamps, arrive a beat early on new words, and hold each reveal until its meaning has printed. Fast spoken lines need faster reveals, not faster cameras.
 - **Performance trap:** `np.convolve` with a long box window over a whole song is O(N·n) and takes minutes. Use a cumulative-sum moving average.
 - **The engine does both formats and both presses:** set `PROJECT.w/h` for vertical; `risoSetup({ squeeze, deboss, inks: [{ screen: 'line' }] })` for letterpress and engraving.
+
+## 11. More lessons (HELLO, WORLD!)
+
+**Two registers (the *Panty & Stocking* principle).** Most of the film is simple, bold code animation (a chibi, beat-locked). A few beats cut to high-detail anime (transformation, chorus hero poses, the bridge close-up, the key change). The switch itself is the style: cut into sakuga on a hard beat with a one-frame flash, and smash back out. Code excels at the chibi register; spend illustration effort only on the cut-ins.
+
+**Plain mode.** `PROJECT.plain = true` skips the riso press: shots draw straight into `X` (a Canvas2D). The chibi kit (`shp`, backgrounds, `pop` type, `rig`, `cutin`, `seqDraw`) lives in `projects/hello-world/src/pop.js` and `film.js`. Copy it for the next plain-mode film, or promote it to `engine/` once a second film uses it.
+
+**Characters in code: design against a target sheet.**
+- Generate a style-target sheet in the exact SD language wanted, then code the puppet to match it and review a model-sheet loop (`--loop=chars`).
+- The first chibi (thick black line, lashed eyes, blocky hair) read "bug-eyed, too blocky". The fix was the Neko-Arc language: big calm white eyes with slit pupils, a ':3' mouth, soft pointed hair framing a small face, mitten hands, thin warm-brown line.
+- Keep the puppet API stable (`idol()`, `clawd()`, `pose()` presets) so a redesign flows into every shot automatically. Tell running agents before you change it.
+- Arm angles are easy to get backwards. Build named pose presets and check each one on the sheet.
+
+**A troupe multiplies gags.** Costumable background characters (hats, props, pincers, eye variants, `troupe()` with canon lag so they never twin) give every shot type a gag layer: stagehands, audiences, backup dancers, a curtain call. It was the user's idea and the best upgrade of the revision round.
+
+**Illustrated keys (image model to rig).**
+- Prompt for ONE illustration on a flat `#00FF00` background with "NOTHING else in the frame", and never use green on the character. Models still add scenery (curtains appeared once), so review every key on a contact sheet and regenerate rejects.
+- **Never pass a whole model sheet as the only reference:** half the keys came back as model-sheet layouts. Crop a single-figure reference (plus one good key) instead.
+- Use `tools/chroma.py` to key to transparent PNGs (with despill), and `rig()` for Live2D-ish strip warps (breath and sway). On big close-ups set sway 0, because strip seams show.
+
+**Seedance (when approved).**
+- **Image-to-video, not text-to-video:** start frame = your code render (block Clawd in the sparkle void), end frame = the keyed illustration composited on the *same* background. It interpolates a proper transformation between frames you control, so the character stays on model.
+- **Cost:** one request at a time; about 3–4.5 min per 4–5 s clip at 720p. It's softer than the code frames, so keep it to short cut-ins.
+- **Fitting it to the music:** extract to JPGs (`assets/seq/`), load with `loadSeq`, and time-remap with `seqDraw`: land the impact frame on the sung word, and stretch slower phases on held frames (twos/threes). It reads as anime timing, not stutter.
+
+**Songs.**
+- Idol pop works in ElevenLabs Music v2.5: spoken intros, crowd calls in `(parentheses)`, a MIX chant, call-and-response, a key change.
+- **Shouted chants transcribe badly,** so score them by ear (or with a Gemini check), not by lyric-check accuracy.
+- **Japanese words can be mispronounced** ("arigatou" came out arry-guh-TOO). `music.py` now stores every take for inpainting, so a flubbed section can be regenerated. Otherwise, lean in: the flub became a tehepero beat.
+- Align lyric lines to sung words once (`build_lyrics.py`), then build karaoke (a per-word wipe with Japanese glosses) and call stamps (contiguous call words grouped into one phrase) from that.
+
+**Parallel agents.**
+- **Ownership:** one agent per section file. Pre-create the stub files and script tags so nobody edits `index.html`.
+- **Shared bugs:** agents report them rather than fixing them. Batch the fixes yourself, then run a revision round that sends each agent the review notes for its own shots.
+- **Heads-ups:** when the user asks for a mid-flight change to a shared asset, message every running agent.
+
+**Critics are noisy, in both directions.** Gemini praised cut 1 and scored cut 2 lower after it improved. Its top fix for cut 2 ("redraw the 2:02 flashback") was already done. Use critics to find candidate problems, then confirm each at full resolution.
+
+**Social deliverables.** Ship a vertical template clip of the dance hook ("CLAW DANCE / try it!") alongside the MV, and put the unofficial-fan-work credit on everything. X accepts the 278 MB 1080p master at 14 Mbps.
