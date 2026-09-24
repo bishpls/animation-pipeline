@@ -26,7 +26,7 @@ function building(o = {}) {
     knock(shape, ['black']);                                         // dark glass: the sky's blue shows
     if (L > 0) {
       knock(shape, ['blue'], 1);
-      if (L >= .99) ink(shape, { yellow: 1 });
+      if (L >= .99) paint(shape, { yellow: 1 });
       else ink(shape, { yellow: L });                                // warming up: halftone
       if (o.glow !== false && L > .5) ink(P(rect(x - 30, y - 30, w + 60, h + 60)), { yellow: radial(x + w / 2, y + h / 2, 0, w * 1.3, .5 * L) });
     }
@@ -37,7 +37,7 @@ function building(o = {}) {
   const sy = B.ground - B.storeH;
   ink(P(rect(B.x - 20, sy, B.w + 40, 26)), o.blockInk || 'black');
   const aw = [B.x + 40, sy + 40, B.w - 80, 70];                      // striped awning
-  for (let i = 0; i < 12; i++) ink(P(cut([[aw[0] + i * aw[2] / 12, aw[1]], [aw[0] + (i + 1) * aw[2] / 12, aw[1]], [aw[0] + (i + 1) * aw[2] / 12, aw[1] + aw[3]], [aw[0] + (i + .5) * aw[2] / 12, aw[1] + aw[3] + 18], [aw[0] + i * aw[2] / 12, aw[1] + aw[3]]], 300 + i, .6, .3)), i % 2 ? { pink: 1 } : { yellow: 1 });
+  for (let i = 0; i < 12; i++) paint(P(cut([[aw[0] + i * aw[2] / 12, aw[1]], [aw[0] + (i + 1) * aw[2] / 12, aw[1]], [aw[0] + (i + 1) * aw[2] / 12, aw[1] + aw[3]], [aw[0] + (i + .5) * aw[2] / 12, aw[1] + aw[3] + 18], [aw[0] + i * aw[2] / 12, aw[1] + aw[3]]], 300 + i, .6, .3)), i % 2 ? { pink: 1 } : { yellow: 1 });
   const sw = [B.x + 70, sy + 135, B.w * .55, B.storeH - 150];        // shop window
   knock(P(cut(rect(...sw), 310)), ['black']);
   if (o.shopLight) { knock(P(rect(...sw)), ['blue'], o.shopLight * .7); ink(P(rect(...sw)), { yellow: .35 * o.shopLight }); }

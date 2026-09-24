@@ -6,3 +6,5 @@
 {"ts": "2026-09-23T20:27:16", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take7", "wall": 10}
 {"ts": "2026-09-23T20:27:18", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 93.05, "out": "projects/open-all-night/assets/takes/take3", "wall": 12}
 {"ts": "2026-09-23T20:43:58", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/open-all-night/refs/cast_ref_a.png", "ok": true}
+{"ts": "2026-09-23T20:56:48", "service": "elevenlabs", "op": "sfx", "out": "projects/open-all-night/assets/sfx/neon_off.mp3"}
+{"ts": "2026-09-23T20:56:48", "service": "elevenlabs", "op": "sfx", "out": "projects/open-all-night/assets/sfx/neon_on.mp3"}

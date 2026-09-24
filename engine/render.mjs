@@ -28,7 +28,7 @@ const fps = +(args.fps || 24), FRAMES = args.framesdir || `${PROJ}/out/frames`;
 const run = (cmd, a) => new Promise((ok, bad) => { const p = spawn(cmd, a, { stdio: 'inherit' }); p.on('close', c => c ? bad(new Error(cmd + ' exited ' + c)) : ok()); });
 const times = s => String(s).split(',').map(Number);
 const span = s => String(s).split(':').map(Number);
-const audioOf = () => args.audio || [`${PROJ}/assets/song.wav`, `${PROJ}/assets/song.mp3`].find(existsSync);
+const audioOf = () => args.audio || [`${PROJ}/assets/mix.wav`, `${PROJ}/assets/song.wav`, `${PROJ}/assets/song.mp3`].find(existsSync);
 
 if (args.encode) {
   const out = args.out || `${PROJ}/out/video.mp4`, n = readdirSync(FRAMES).filter(f => f.endsWith('.jpg') || f.endsWith('.png')).length, audio = audioOf();
