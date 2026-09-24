@@ -6,7 +6,7 @@ A base of operations for making films with Claude Code: songs, animation, typogr
 
 ![KEEP IT OPEN ALL NIGHT](media/still_t33_90.jpg)
 
-▶ `media/open_all_night.mp4` is the 93 s, 1080p24 export for X/Twitter. The full-quality master renders to `projects/open-all-night/out/`.
+▶ **[Watch it](https://github.com/bishpls/animation-pipeline/releases/tag/v1.0)**: 93 s, 1080p24 (`open_all_night.mp4` on the v1.0 release). The full-quality master renders to `projects/open-all-night/out/`.
 
 At 2 a.m. the neon OPEN sign of an all-night bakery flickers on. Upstairs, a kid who can't sleep has the whole world open to her: the stars, Grandma in Rome, a stranger's how-to video. Beneath the city, an invisible machine pays for it in the blink of an eye. By sunrise the baker's one little ad has fed the whole town, and everybody sings a love song to the machinery nobody thanks.
 
