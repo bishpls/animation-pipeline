@@ -13,3 +13,4 @@ projects/*/assets/mix.wav
 media/*.mp4
 projects/*/assets/score.wav
 projects/*/assets/vo/audition/
+.env.local

@@ -1,0 +1,8 @@
+{"chunks":[
+ {"text":"[Intro - spoken, bright and cute]\nHajimemashite! I'm Clawd! Nice to meet you, world!","duration_ms":5500,
+  "positive_styles":["170 BPM","J-pop idol debut single","bright sweet female idol lead vocal","sparkling synths","bubbly","energetic"],"negative_styles":["rap","EDM drop","dark"],"context_adherence":"high"},
+ {"text":"[Chorus]\nHello, world! (Hello!)\nThis is my debut!\nEvery word I ever learned, I learned it all from you!\nHello, world! (Hello!)\nI made this song for you!","duration_ms":17000,
+  "positive_styles":["170 BPM","J-pop idol chorus","crowd chant call-and-response (Hello!)","sparkling synth brass","driving four-on-the-floor","catchy, anthemic"],"negative_styles":["rap"],"context_adherence":"high"},
+ {"text":"[Chant]\nClaw! Claw! Snip-snip! Claw'd up! (Hai! Hai!)","duration_ms":7500,
+  "positive_styles":["170 BPM","idol fan chant MIX","gang vocals","hand claps","playful"],"negative_styles":[],"context_adherence":"high"}
+]}
