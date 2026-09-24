@@ -80,7 +80,7 @@
   }
   function blinkScene(t) {
     const open = openAt(t);
-    const pull = E.out5(seg(t, 25.84, 26.02));                      // match cut: from the gear hub / iris, pull back
+    const pull = E.out3(seg(t, 25.86, 26.12));                      // match cut: from the gear hub / iris, pull back
     const push = E.io2(seg(t, 26.2, 27.9)) * .22 + E.io2(seg(t, 27.9, SNAP - .02)) * .08;
     const snapBack = t > SNAP ? E.out3(seg(t, SNAP, SNAP + .25)) : 0;
     const into = E.inExpo(seg(t, 29.52, 29.70));                     // out: into the reflected page
@@ -109,7 +109,7 @@
     if (into < .2) timecode(tc, W - 90, 120, 58, null, { knock: true, knockInks: flash && BF(t) % 2 ? ['black'] : null });
     if (flash && BF(t) % 2) ink(P(rect(W - 460, 50, 380, 90)), { pink: 0 });
   }
-  function s08_blink(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: t < 25.94 ? 'black' : 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
+  function s08_blink(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: t < 26.02 ? 'black' : 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
   function s09_sold(t) { blinkScene(t); return { lyric: { slot: 'lc', ink: 'knock', accentInk: 'knock', stamp: 'pink', size: 62, maxW: 1500 } }; }
 
 
@@ -233,7 +233,7 @@
     for (let r = 0; r < S10.rows; r++) for (let c = 0; c < S10.cols; c++) {
       const x = S10.x0 + c * S10.cw + S10.cw * .12, y = S10.y0 + r * S10.rh + S10.rh * .1, w = S10.cw * .76, h = S10.rh * .72;
       const k = Math.min(winTimes.length - 1, Math.floor((c + r * 1.4) / 1.25));
-      const ot = (r === 1 && c === 2) ? 29.70 : winTimes[k] + hash(r * 9 + c) * .03, o = E.back2(seg(t, ot, ot + .16));
+      const ot = (r === 1 && c === 2) ? 29.66 : winTimes[k] + hash(r * 9 + c) * .03, o = E.back2(seg(t, ot, ot + .16));
       const room = P(cut(rect(x, y, w, h), 510 + r * 9 + c, .8));
       if (o > .02) {
         knock(room, null);                                                    // the lit room: paper
@@ -303,7 +303,7 @@
     // camera: settle in; at the end (13 only) push into the pupil
     const into = mode === 'glance' ? E.inExpo(seg(t, t0 + dur - .42, t0 + dur - .02)) : 0;
     const openIn = E.back(seg(t, t0 + .02, t0 + .3));
-    let look = kf(t, [[tG - .02, 0], [tG + .07, .85, 'outExpo'], [tAd - .02, .85], [tAd + .07, -.7, 'outExpo'], [tAd + .5, -.7], [tAd + .62, 0, 'io3']]);
+    let look = kf(t, [[tG - .12, 0], [tG - .02, -.14, 'io2'], [tG + .07, .85, 'outExpo'], [tAd - .02, .85], [tAd + .07, -.7, 'outExpo'], [tAd + .5, -.7], [tAd + .62, 0, 'io3']]);
     let open = openIn, squint = 0;
     if (mode === 'wink') { open = kf(t, [[t0, openIn], [tG - .02, 1], [tG + .06, 0, 'in2'], [tG + .22, 0], [tG + .36, 1, 'out3']]) * (t < tG ? openIn : 1); squint = kf(t, [[tG + .2, 0], [tG + .36, .35, 'out3'], [tAd + .6, .35]]); look = 0; }
     const g0 = { px: EC[0] + look * R * .42, py: EC[1] + R * .02 };

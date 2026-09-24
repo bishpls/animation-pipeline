@@ -211,7 +211,7 @@
     const burst = E.out5(seg(t, 68.17, 68.38));
     const rr = 2600 * burst;
     if (burst > 0) knock(P(circle(cx, cy, rr)), ['blue']);
-    knock(P(cut(circle(cx, cy, 120 + 520 * spot + 60 * (hit1 + b2), 72), 2210, 2)), ['blue']);
+    knock(P(cut(circle(cx, cy, 120 + 430 * spot + 60 * (hit1 + b2), 72), 2210, 2)), ["blue"]);
     if (burst > 0) {
       const n = 20;
       for (let i = 0; i < n; i++) {
@@ -377,7 +377,6 @@
   // a lit OPEN panel for a window seen up close: a solid pink sign with the word knocked out in paper
   function windowSign(x, y, w, h) {
     const cx = x + w / 2, cy = y + h / 2, pw = w * .88, ph = h * .6;
-    knock(P(circle(cx, cy, w * 1.1)), ['blue'], radial(cx, cy, w * .35, w * 1.1, .65, 1.5));
     paint(P(cut(rrect(cx - pw / 2, cy - ph / 2, pw, ph, ph * .28), (x * 7 + y) % 97, .6, .3)), { pink: 1 });
     const L = fitShape('OPEN', pw * .74, { font: 'arch', size: ph * .6, wdth: 90, wght: 800, track: .03 });
     drawText(L, cx, cy + L.cap / 2, null, { align: 'center', knock: true, knockInks: ['pink'] });

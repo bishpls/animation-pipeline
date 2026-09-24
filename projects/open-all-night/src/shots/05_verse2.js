@@ -460,7 +460,7 @@
   const PH = [1120, 650];
   function s19_patron(t, lt, dur) {
     // night comes in behind the collapsing panels (a blue iris from the centre)
-    const irisU = E.in2(seg(t, 57.9, 58.45));
+    const irisU = E.out2(seg(t, 57.9, 58.18));
     knock(P(rect(0, 0, W, H)), null);
     if (irisU > 0) paint(P(circle(W / 2, H / 2, irisU * 1250, 64)), { blue: 1 });
     // city skyline along the bottom; its windows wake after the coin
@@ -468,8 +468,8 @@
     const tops = [760, 700, 820, 660, 740, 690, 800, 720, 650, 780];
     tops.forEach((top, i) => {
       const x = -40 + i * 200, w = 190;
-      if (irisU < .55) return;
-      paint(P(cut(rect(x, top + 90 * (1 - E.out3(clamp((irisU - .55) / .45))), w, 500), 800 + i, 1.2)), 'black');
+      if (t < 58.1) return;
+      paint(P(cut(rect(x, top + 140 * (1 - E.out3(seg(t, 58.1, 58.45 + i * .02))), w, 500), 800 + i, 1.2)), 'black');
       for (let k = 0; k < 8; k++) {
         const wx = x + 30 + (k % 3) * 52, wy = top + 40 + Math.floor(k / 3) * 70, d = Math.abs(wx + 20 - PH[0]) / 900;
         const on = wake > d * .7 + hash(i * 9 + k) * .25;
@@ -480,13 +480,13 @@
     // stars come on too
     if (wake > 0) for (let i = 0; i < 40; i++) { const x = hash(i * 3.1) * W, y = hash(i * 7.7) * 560; if (wake > hash(i * 5.5) * .9 && !(x < 820 && y < 380)) knock(P(starPts(x, y, 7 + hash(i) * 6, 2.2)), ['blue']); }
     // the panels fold to the centre
-    const col = E.in3(seg(t, 57.9, 58.5));
+    const col = E.in2(seg(t, 57.92, 58.26));
     if (col < 1) for (let i = 0; i < 3; i++) {
       const p = PANELS[i], c = [p.x + p.w / 2, p.y + p.h / 2];
-      panel(i, 58.5, 1 - col, [lerp(0, PH[0] - c[0], col), lerp(0, PH[1] - c[1], col)]);
+      panel(i, 57.9, 1 - col, [lerp(0, PH[0] - c[0], col), lerp(0, PH[1] - c[1], col)]);
     }
     // the phone appears on "got" (58.74) with a pop; lights on "free" (58.98)
-    const pop = E.back(seg(t, 58.62, 58.86)), lit = seg(t, 58.96, 59.1), glow = lit * (1 + .8 * E.out3(seg(t, 60.1, 60.9)) - .3 * E.in2(seg(t, 61.2, 61.9)));
+    const pop = E.back(seg(t, 58.2, 58.44)), lit = seg(t, 58.96, 59.1), glow = lit * (1 + .8 * E.out3(seg(t, 60.1, 60.9)) - .3 * E.in2(seg(t, 61.2, 61.9)));
     const jig = wobble(t, 60.1, 5, 7) * .08;
     if (pop > 0) {
       if (lit > 0) {
