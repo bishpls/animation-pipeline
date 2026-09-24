@@ -32,6 +32,22 @@ Every word you say is a fossil. A continuous descent through a core sample: each
 
 Every etymology was checked against Etymonline, Wiktionary and OUP/NPR before a word of script was written. The narrator is an ElevenLabs voice, chosen by blind comparison and verified by speech-to-text, including the Latin. The chamber score was chosen from four takes on beat-grid fit and independent scoring. The camera arrives at each stratum as the narrator names it, cued by the voice's own timestamps. It's printed as letterpress: ink squeeze, a debossed rim, and line-screen engraving tints.
 
+## Third work: HELLO, WORLD! (ハロー・ワールド)
+
+![HELLO, WORLD!](media/hello_world_stills.jpg)
+
+▶ **[Watch it](https://github.com/bishpls/animation-pipeline/releases/tag/hello-world-v1.0)**: 2:38, 1080p24, plus a vertical CLAW DANCE clip. *Unofficial fan work.*
+
+Clawd's idol debut single. A J-pop debut is a self-introduction, and "Hello, world" is the first thing every program says; for an AI's creative debut they're the same sentence. The song answers the "is it really creative?" question without overclaiming: *"Is my heart brand-new? I don't know, but I made this song for you."* Its bridge: *"Every voice is borrowed till it's finally your own, so this one's mine."*
+
+- **Song:** Claude wrote the lyrics and the composition plan (spoken intro, MIX chant, call-and-response verse, key change) and ElevenLabs Music v2.5 performed them. Six takes were chosen between on beat-grid fit, speech-to-text intelligibility and independent critique.
+- **Two registers (the *Panty & Stocking* principle):**
+  - **Chibi:** hand-coded animation in a Neko-Arc-style SD language, with a costumed troupe of block-Clawd backup dancers.
+  - **Sakuga:** rigged, keyed anime illustrations. The transformation and the key-change blast are Seedance 2.5 image-to-video, bridging a code-rendered start frame to an illustrated end frame.
+- **Lyrics:** idol-concert karaoke that wipes on the sung syllable, with Japanese glosses and crowd-call stamps.
+- **The claw dance:** a copyable 8-count (claw, claw, snip-snip, Clawd-up, hai, hai), built as a template.
+- **Process:** a storyboard of 49 shots, then five parallel Claude subagents building sections, then full-cut reviews and revision rounds.
+
 ## The pipeline
 
 | path | what |
