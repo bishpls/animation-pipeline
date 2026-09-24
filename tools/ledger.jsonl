@@ -65,3 +65,10 @@
 {"ts": "2026-09-24T03:30:28", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k07_spin.png", "ok": true}
 {"ts": "2026-09-24T03:31:22", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/assets/keys/k12_tehe.png", "ok": true}
 {"ts": "2026-09-24T03:39:41", "service": "higgsfield", "op": "bytedance/seedance-2.5/image-to-video", "seconds": 5, "res": "720p", "out": "projects/hello-world/assets/seedance/transform_a.mp4"}
+{"ts": "2026-09-24T03:45:00", "service": "higgsfield", "op": "bytedance/seedance-2.5/image-to-video", "seconds": 4, "res": "720p", "out": "projects/hello-world/assets/seedance/keychange_a.mp4"}
+{"ts": "2026-09-24T03:46:24", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/enter.mp3"}
+{"ts": "2026-09-24T03:46:25", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/typing.mp3"}
+{"ts": "2026-09-24T03:46:26", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/bonk.mp3"}
+{"ts": "2026-09-24T03:46:27", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/shatter.mp3"}
+{"ts": "2026-09-24T03:46:28", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/poof.mp3"}
+{"ts": "2026-09-24T03:53:30", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/refs/chibi_neko.png", "ok": true}

@@ -22,7 +22,7 @@ function registerFilm() { shots(CUT.map(([t0, id]) => [t0, SHOT[id] ? Object.def
 // ------------------------------------------------------------------ karaoke
 const GLOSS = { hajimemashite: ['はじめまして', 'nice to meet you'], arigatou: ['ありがとう', 'thank you'], ikuzo: ['いくぞ！', "let's go!"], yosha: ['よっしゃ', 'alright'] };
 const nw = w => w.toLowerCase().replace(/[^a-z0-9]/g, '');
-function lineAt(t) { for (let i = LINES.length - 1; i >= 0; i--) { const L = LINES[i], nx = LINES[i + 1]; if (t >= L.t0 - .25 && t < Math.min(nx ? nx.t0 - .1 : 1e9, L.t1 + 1.1)) return L; } return null; }
+function lineAt(t) { for (let i = LINES.length - 1; i >= 0; i--) { const L = LINES[i], nx = LINES[i + 1]; if (t >= L.t0 - .12 && t < Math.min(nx ? nx.t0 - .12 : 1e9, L.t1 + 1.1)) return L; } return null; }
 // o: { y (baseline), size, maxW, fill, sungFill, stroke, calls: true }
 function karaoke(t, o = {}) {
   const L = lineAt(t); if (!L) return;
@@ -31,7 +31,7 @@ function karaoke(t, o = {}) {
   const sp = size * .3, pieces = main.map(w => ({ w, S: shape(w.w, { font: 'round', size }) }));
   const rows = [[]]; let rw = 0, maxW = o.maxW || 1640;
   for (const p of pieces) { if (rw + p.S.width > maxW && rows[rows.length - 1].length) { rows.push([]); rw = 0; } rows[rows.length - 1].push(p); rw += p.S.width + sp; }
-  const lh = size * 1.18, fade = clamp((t - (L.t0 - .25)) / .15);
+  const lh = size * 1.18, fade = clamp((t - (L.t0 - .12)) / .12);
   rows.forEach((row, ri) => {
     const width = row.reduce((a, p) => a + p.S.width, 0) + sp * (row.length - 1);
     let x = W / 2 - width / 2; const yy = y - (rows.length - 1 - ri) * lh + (1 - E.out3(fade)) * 20;
@@ -60,7 +60,8 @@ function calls(t, o = {}) {
     side++;
     const a = t - w.t0; if (a < -.02 || a > .9) return;
     const k = slamK(t, w.t0, .12), out = clamp((a - .7) / .2);
-    const x = side % 2 ? 300 : W - 300, y = 170 + (side % 3) * 60;
+    const sz = w.w.length > 12 ? 70 : 92, half = shape(w.w.toUpperCase(), { font: 'dela', size: sz }).width / 2 + 50;
+    const x = side % 2 ? Math.max(300, half) : Math.min(W - 300, W - half), y = 170 + (side % 3) * 60;
     X.save(); X.translate(x, y); X.rotate(side % 2 ? -.12 : .1); X.scale(k * (1 - out * .3), k * (1 - out * .3)); X.globalAlpha = 1 - out;
     pop(w.w.toUpperCase().replace(/[.,]/g, ''), 0, 0, { font: 'dela', size: w.w.length > 12 ? 70 : 92, align: 'center', fill: side % 2 ? C_.cyan : C_.lemon, lw: 9, shadow: [8, 8, C_.ink] });
     X.restore();

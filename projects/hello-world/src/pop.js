@@ -150,7 +150,7 @@ function rig(name, cx, cy, h, o = {}) {
     const sway = (o.sway ?? 6) * d * d * Math.sin(t * TAU * (o.swayFreq ?? .6) - v * 2.2) + (o.swayB ?? 0) * d * Math.sin(t * TAU * 1.7 + v * 5);
     const stretch = 1 + (v < ay ? br * 1.5 : 0);
     const dh = sh * s * stretch;
-    X.drawImage(img, 0, i * sh, img.width, sh + .6, -w / 2 + sway, yAcc + (v < ay ? -br * h * .4 : 0), w, dh + .8);
+    X.drawImage(img, 0, i * sh, img.width, Math.min(sh + 2, img.height - i * sh), -w / 2 + sway, yAcc + (v < ay ? -br * h * .4 : 0) - .5, w, dh + 2.5);
     yAcc += sh * s;
   }
   X.restore();

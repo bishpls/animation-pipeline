@@ -1,13 +1,14 @@
 // board.js: model sheets for the code characters
 LOOPS.chars = t => {
   checker(80, C_.cream, '#F1DDB6', .0);
-  clawd(230, 520, 1, {});
-  clawd(520, 520, 1, { eyes: 'happy', hop: 30 * Math.abs(Math.sin(t * 4)), armL: .6, armR: .6, blush: 1 });
-  clawd(810, 520, 1, { bow: .8, eyes: 'closed' });
+  const H8 = ['bow', 'headband', 'crown', 'cap', 'party', 'beret', 'hardhat', 'tophat'];
+  H8.forEach((h, i) => clawd(120 + i * 225, 540, .8, { hat: h, seed: i * 5, pincer: i % 2 === 0, snip: (Math.sin(t * 8 + i) + 1) / 2, armL: i % 3 === 0 ? 1.2 : .3, armR: .9,
+    eyes: ['open', 'happy', 'star', 'open', 'heart', 'happy', 'wide', 'shades'][i], mouth: i % 2 ? 'cat' : null, blush: i === 4, bowtie: i === 7,
+    holdR: ['penlight', { sign: 'HELLO!' }, 'fan', 'mic', 'flag', null, null, null][i], penCol: C_.pink }));
   const P7 = ['idle', 'wave', 'sing', 'claw', 'up', 'point', 'shrug', 'offer', 'heart', 'tehe', 'cupEar'];
   const E7 = [{}, { eyes: 'happy', mouth: 'open' }, { eyes: 'closed', sing: .7 }, { eyes: 'star', mouth: 'grin' }, { eyes: 'happy', mouth: 'open', hop: 20 }, { eyes: 'wink', mouth: 'grin' },
     { eyes: 'open', mouth: 'cat', sweat: 1 }, { eyes: 'happy', mouth: 'smile' }, { eyes: 'shy', blush: 1, mouth: 'small' }, { eyes: 'wink', mouth: 'tongue', tilt: -.12 }, { eyes: 'side', mouth: 'o', look: [1, 0] }];
-  P7.forEach((p, i) => { const x = 110 + (i % 6) * 300, y = i < 6 ? 1060 : 560; if (i >= 6) idol(110 + (i - 6) * 250 + 900 - 500, 560, .62, { ...pose(p), ...E7[i] }); else idol(x + 50, 1060, .78, { ...pose(p), ...E7[i] }); });
+  P7.slice(0, 6).forEach((p, i) => idol(160 + i * 320, 1070, .78, { ...pose(p), ...E7[i] }));
 };
 LOOPS.chars.len = 2;
 // the transformation void (magical-girl sparkle space), shared by the Seedance frames and the code shots around them
