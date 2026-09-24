@@ -93,7 +93,7 @@ function drawLyric(t, o = {}) {
         const inkSpec = p.w.accent ? o.accentInk : o.ink;
         const dy = rise + outU * o.size * .5;
         const clipped = u < 1 || outU > 0;
-        drawText(p.S, x, y + dy, inkSpec === 'knock' ? null : inkSpec, { knock: inkSpec === 'knock', per: clipped ? (g) => ({ alpha: clamp(u * 3) * (1 - outU) > .5 ? 1 : 0 }) : null });
+        drawText(p.S, x, y + dy, inkSpec === 'knock' ? null : inkSpec, { opaque: true, knock: inkSpec === 'knock', per: clipped ? (g) => ({ alpha: clamp(u * 3) * (1 - outU) > .5 ? 1 : 0 }) : null });
       }
       x += p.S.width + sp;
     }
@@ -111,8 +111,8 @@ function drawLyric(t, o = {}) {
       if (outU < 1) {
         save(); translate(sx + S.width / 2, sy - S.cap / 2); rotate(-.07); scale(thump); translate(-(sx + S.width / 2), -(sy - S.cap / 2));
         const pad = o.size * .22;
-        ink(P(rrect(sx - pad, sy - S.cap - pad, S.width + pad * 2, S.cap + pad * 2, 8)), o.stamp, { stroke: 6 });
-        drawText(S, sx, sy, o.stamp);
+        paint(P(rrect(sx - pad, sy - S.cap - pad, S.width + pad * 2, S.cap + pad * 2, 8)), o.stamp, { stroke: 6 });
+        drawText(S, sx, sy, o.stamp, { opaque: true });
         restore();
       }
     }

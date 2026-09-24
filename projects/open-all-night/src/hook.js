@@ -5,6 +5,7 @@
 //                                   (a 2-frame lead, big -> overshoot -> settle; o.from = start scale, o.dur)
 //   slamText(L, x, y, t, t0, spec, o)   draw a run slammed in at t0 (baseline-left x, y; o.align, o.knock, o.pivotY)
 //   slamWords(L, x, y, t, times, spec, o)  per-WORD slams inside one run: times[i] = landing time of word i
+//                                   (inked words are opaque: the field is knocked out under them; o.opaque = false to overprint)
 //   doorLetters(L, x, y, t, t0, o)   letters that swing open like doors on a hinge (their left edge), staggered by o.stagger,
 //                                   revealing o.light (ink spec) letter-shaped light behind (o.rays: true adds a knocked-out ray fan)
 //   stampAt(txt, x, y, t, t0, o)     a rubber-stamp ad-lib: thump in, hold, clear after o.hold s (o.ink, o.size, o.rot)
@@ -33,6 +34,7 @@ function slamText(L, x, y, t, t0, spec, o = {}) {
   const x0 = o.align === 'center' ? x - L.width / 2 : o.align === 'right' ? x - L.width : x;
   const px = x0 + L.width / 2, py = y - L.cap * (o.pivotY ?? .5);
   save(); translate(px, py); rotate(s.rot); scale(s.sc); translate(-px, -py);
+  if (!o.knock && o.opaque !== false) drawText(L, x0, y, null, { knock: true });
   drawText(L, x0, y, o.knock ? null : spec, { knock: o.knock, knockInks: o.knockInks });
   restore();
   return s;
@@ -51,6 +53,7 @@ function slamWords(L, x, y, t, times, spec, o = {}) {
     const px = (wx0 + wx1) / 2, py = y - L.cap * .5;
     save(); translate(px, py); rotate(s.rot); scale(s.sc); translate(-px, -py);
     const sub = { ...L, glyphs: gs, width: L.width };
+    if (!o.knock && o.opaque !== false) drawText(sub, x0, y, null, { knock: true });
     drawText(sub, x0, y, o.knock ? null : spec, { knock: o.knock, knockInks: o.knockInks });
     restore();
   });

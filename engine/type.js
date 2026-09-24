@@ -58,7 +58,7 @@ function glyphPath(g, x, y, sc = 1, rot = 0, sx = 1) {
   const p = new Path2D(); p.addPath(g.path, m); return p;
 }
 // draw a laid-out run. spec = ink spec (see ink()), or o.knock = true to knock out.
-// o.per(g, i, n) -> { dx, dy, rot, sc, sx, alpha, skip, spec } animates glyphs individually.
+// o.opaque = true prints with paint() (knocks the other inks under the letters). o.per(g, i, n) -> { dx, dy, rot, sc, sx, alpha, skip, spec } animates glyphs individually.
 function drawText(L, x, y, spec, o = {}) {
   const x0 = o.align === 'center' ? x - L.width / 2 : o.align === 'right' ? x - L.width : x;
   const n = L.glyphs.length;
@@ -71,10 +71,10 @@ function drawText(L, x, y, spec, o = {}) {
     if (a.spec || a.alpha != null) {
       const sp = a.spec || spec, al = a.alpha ?? 1;
       if (o.knock) knock(p, o.knockInks, al);
-      else ink(p, typeof sp === 'string' ? { [sp]: al } : Object.fromEntries(Object.entries(sp).map(([k, v]) => [k, typeof v === 'number' ? v * al : v])));
+      else (o.opaque ? paint : ink)(p, typeof sp === 'string' ? { [sp]: al } : Object.fromEntries(Object.entries(sp).map(([k, v]) => [k, typeof v === 'number' ? v * al : v])));
     } else whole.addPath(p);
   });
-  if (o.knock) knock(whole, o.knockInks); else if (spec) ink(whole, spec, o.stroke ? { stroke: o.stroke } : {});
+  if (o.knock) knock(whole, o.knockInks); else if (spec) (o.opaque ? paint : ink)(whole, spec, o.stroke ? { stroke: o.stroke } : {});
   return { x0, x1: x0 + L.width, w: L.width, cap: L.cap };
 }
 function type(str, x, y, o = {}) { return drawText(shape(str, o), x, y, o.ink || 'black', o); }

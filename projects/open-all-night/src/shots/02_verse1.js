@@ -177,7 +177,7 @@
     }
   }
   function s05_call(t, lt, dur) {
-    const inU = E.back(seg(t, 15.59, 15.95)), outU = E.inExpo(seg(t, 19.08, 19.46));
+    const inU = E.back(seg(t, 15.59, 15.95)), outU = E.in3(seg(t, 19.02, 19.46));
     const seam = lerp(W + 20, 960, inU) - outU * 1010;
     const lp = lt;                                       // push-in drift, opposite per panel (parallax)
     // ---- left panel: Rome, morning (pink)
@@ -190,9 +190,10 @@
     const gl = laughK(t, 16.45, 0);
     const wave = t < 16.45 ? Math.sin((t - 15.7) * TAU * 2.07) : 0;
     const gHead = -.08 - gl * .42, gBob = -gl * 16;
-    figure(CAST.grandma, 540, 1150, 2.75, {
-      head: gHead, bob: gBob / 2.75, lean: -gl * .06, eyes: t < 16.45 ? 'dot' : 'happy', mouth: t < 16.45 ? (t > 15.95 ? .35 : 0) : .4 + gl * .6,
-      aN: t < 16.45 ? [2.5, -.9 + wave * .35] : [1.2 - gl * .2, -1.9], aF: [.9, -1.6] });
+    const rise = (1 - E.back(seg(t, 15.62, 15.92))) * 420;
+    figure(CAST.grandma, 500, 1190 + rise, 3.05, {
+      head: gHead, bob: gBob / 3.05, lean: -gl * .07, eyes: t < 16.45 ? 'dot' : 'happy', mouth: t < 16.45 ? (t > 15.95 ? .4 : 0) : .55 + gl * .45,
+      aN: t < 16.45 ? [1.75, 1.05 + wave * .45] : [.35 + gl * .5, .5 + gl * .6], aF: [.15, .2] });
     restore(); unclip();
     // ---- right panel: 2 a.m. (blue), the kid in bed-light, tablet held up
     clipTo(rect(seam, -10, W - seam + 10, H + 20));
@@ -205,22 +206,23 @@
     const kl = laughK(t, 16.7, .5, 8);
     const tabP = [1180, 640];
     knock(P(circle(tabP[0], tabP[1], 420)), ['blue'], radial(tabP[0], tabP[1], 40, 420, .6, 1.4));
-    figure(CAST.kid, 1450, 1215, 3.3, {
+    figure(CAST.kid, 1440, 1235, 3.6, {
       face: -1, head: -.05 - kl * .3, bob: -kl * 12 / 3.3, eyes: t < 16.7 ? 'dot' : 'happy', mouth: t < 16.7 ? 0 : .3 + kl * .7,
-      aN: [1.55, -.9], aF: [1.3, -1.0],
-      hold: p => { save(); translate(p[0] + 4, p[1] - 18); rotate(.12); paint(P(rrect(-12, -46, 24, 92, 5)), 'black'); restore(); } });
+      aN: [1.2, .55], aF: [1.1, .6],
+      hold: p => { save(); translate(p[0] + 10, p[1] - 22); rotate(-.1); paint(P(rrect(-10, -44, 22, 88, 5)), 'black'); restore(); } });
     restore(); unclip();
     // seam: a black cut between the two worlds
     paint(P(cut(rect(seam - 8, -20, 16, H + 40), 65, .8)), 'black');
     // laugh ticks by each mouth on their beats
     const ticks = (cx, cy, k, dir, key) => { if (k < .25) return; for (let i = 0; i < 3; i++) { const a = (-.6 + i * .6) + (dir < 0 ? Math.PI : 0), r0 = 40, r1 = 40 + 50 * k; paint(P([[cx + Math.cos(a) * r0 * dir * dir, cy + Math.sin(a) * r0], [cx + Math.cos(a) * r1, cy + Math.sin(a) * r1]], false), 'black', { stroke: 7 }); } };
-    ticks(seam - 960 + 820, 330 + -gl * 30, gl, 1, 1);
-    if (seam > 1000 || outU === 0) ticks(1130 + (seam - 960) * 0, 400 - kl * 20, kl, -1, 2);
+    const tk = (cx, cy, k, dir) => { if (k < .2) return; for (let i = 0; i < 3; i++) { const a = -.75 + i * .5, r0 = 30 + 20 * (1 - k), r1 = r0 + 55 * k, c = Math.cos(a) * dir, sn = Math.sin(a); paint(P([[cx + c * r0, cy + sn * r0], [cx + c * r1, cy + sn * r1]], false), 'black', { stroke: 8 }); } };
+    tk(seam - 960 + 700, 470 - gl * 40, gl, 1);
+    if (outU < .2) tk(1255, 520 - kl * 25, kl, -1);
     // the flight line: dotted, from the Colosseum over the seam to her window, on "call from Rome"
     const fu = seg(t, 17.35, 18.5);
     if (fu > 0 && outU < .3) {
-      const a = [260 + (seam - 960), 640], b = [wx + 150, wy + 330], n = 26;
-      const pt = u => { const q = arcPt(a, b, 420, u); return q; };
+      const a = [250 + (seam - 960), 680], b = [wx + 110, wy + 300], n = 28;
+      const pt = u => arcPt(a, b, 330, u);
       for (let i = 0; i < n * E.io2(fu); i++) { const q = pt(i / n); paint(P(circle(q[0], q[1], 7, 10)), 'yellow'); }
       const hu = E.io2(fu), q = pt(hu), q2 = pt(Math.min(1, hu + .02)), ang = Math.atan2(q2[1] - q[1], q2[0] - q[0]);
       if (fu < 1) { save(); translate(q[0], q[1]); rotate(ang); paint(P([[30, 0], [-22, -18], [-10, 0], [-22, 18]]), 'yellow'); restore(); }
@@ -232,7 +234,102 @@
     return { lyric: { slot: 'lc', ink: 'knock', accentInk: 'knock', y: 1036, size: 60, maxW: 1300 } };
   }
 
+  // ---------------------------------------------------------------- 06 · a stranger's video fixed the sink at home
+  // Reads: (1) night kitchen: water sprays out from under the sink, Dad's legs kicking; (2) "video": the phone on the
+  // counter starts a how-to (a hand turning a wrench); (3) "fixed": Dad's wrench turns on the beats, mirroring it;
+  // (4) "home": the spray stops dead; (5) he slides out, sits up, thumbs up; a drip lands on his nose;
+  // (6) the camera follows a second drip down through the floor.
+  const VID = [20.40, 20.91, 21.40, 21.88];       // the video's hand turns on these beats; Dad mirrors a beat-eighth later
+  function wrenchShape(len) {           // local: handle along +x, open jaw at +x end
+    return [[-8, -9], [len - 22, -9], [len - 12, -22], [len + 16, -22], [len + 6, -8], [len - 6, -8], [len - 6, 8], [len + 6, 8], [len + 16, 22], [len - 12, 22], [len - 22, 9], [-8, 9]];
+  }
+  function turnAng(t, beats, lag = 0) { let a = 0; for (const b of beats) a += .7 * E.back(seg(t, b + lag, b + lag + .16)); return a; }
+  function s06_sink(t, lt, dur) {
+    const down = E.in3(seg(t, 22.98, 23.33));
+    save(); cam(700 + lt * 5, 610 + down * 900, 1.55 + .05 * E.io2(lt / dur));
+    flood('blue', 1);
+    // the lamp's cone of light (the blue thins; black stays solid)
+    const lx = 600;
+    paint(P([[lx, -1200], [lx, 170]], false), 'black', { stroke: 5 });
+    knock(P([[lx - 60, 240], [lx + 60, 240], [lx + 420, 900], [lx - 420, 900]]), ['blue'], radial(lx, 240, 20, 720, .72, 1.2));
+    ink(P([[lx - 60, 240], [lx + 60, 240], [lx + 420, 900], [lx - 420, 900]]), { yellow: radial(lx, 240, 10, 600, .45, 1.3) });
+    paint(P(cut([[lx - 34, 170], [lx + 34, 170], [lx + 78, 245], [lx - 78, 245]], 73)), 'black');
+    // floor (extends far down for the tilt), the sink unit, the counter
+    paint(P(cut(rect(-200, 880, W + 400, 2400), 74, 1.5)), 'black');
+    paint(P(cut(rect(300, 575, 530, 310), 75)), 'black');
+    knock(P(cut(rect(270, 552, 710, 26), 76, 1)), null);
+    paint(P(cut(rect(270, 578, 710, 12), 85, .8)), 'black');                     // the counter's underside lip
+    // faucet
+    paint(P(ribbon([[620, 552], [620, 470], [650, 432], [700, 432], [725, 462], [725, 482]], 18, 14, 77)), 'black');
+    // pipes under the sink (paper lines); the leaky joint
+    const joint = [620, 712];
+    knock(P([[620, 590], [620, 700]], false), ['black'], 1, { stroke: 12 });
+    knock(P([[620, 724], [620, 770], [585, 800], [540, 770], [540, 740], [400, 740]], false), ['black'], 1, { stroke: 12 });
+    knock(P(rect(606, 698, 28, 14)), ['black']);
+    // DAD: on his back under the sink, legs out on the floor. After "home" he slides out and sits up.
+    const out = E.io3(seg(t, 22.22, 22.55)), sit = E.back(seg(t, 22.36, 22.64));
+    const hip = [lerp(850, 930, out), lerp(852, 860, sit)];
+    const kick = t < 20.84 ? Math.sin(lt * 17) * .22 : 0;
+    const wr = turnAng(t, VID, .12);
+    const S = 1.3;
+    const blink = t > 22.8 && t < 23.0;
+    save(); translate(hip[0], hip[1]); rotate(lerp(-Math.PI / 2, -.12, sit)); translate(0, 140 * S);
+    figure(CAST.dad, 0, 0, S, {
+      ink: { yellow: 1 },
+      lN: sit > .5 ? [1.62, -.35] : [1.05 + kick, -1.95 - kick], lF: sit > .5 ? [1.55, -.25] : [.85 - kick, -1.7 + kick],
+      aN: sit > .5 ? [2.0, 1.2] : [2.28, .25],
+      aF: sit > .5 ? [.35, -.5] : [.3, -.2],
+      eyes: blink ? 'closed' : t > 22.1 ? 'happy' : 'dot', look: sit > .5 ? [0, -1] : [-.5, -1], mouth: t > 22.1 && t < 22.8 ? .55 : 0, smile: t > 22.1 ? 1 : 0,
+      hold: p => {
+        if (sit > .5) { save(); translate(p[0], p[1]); paint(P(ribbon([[0, -4], [4, -34]], 15, 12, 78)), { yellow: 1 }); restore(); return; }   // thumbs up
+        save(); translate(p[0], p[1]); rotate(-.4 + wr); knock(P(cut(wrenchShape(64), 79, .5)), null); restore();
+      } });
+    restore();
+    // the cabinet's top rail and left stile over him: he is *under* the sink
+    paint(P(cut(rect(300, 575, 530, 40), 80)), 'black');
+    paint(P(cut(rect(300, 575, 36, 310), 81)), 'black');
+    // the spray: paper droplets from the joint, spurting on the beats, weakening after "fixed", dead on "home"
+    const rate = te => (te < 19.25 ? 0 : te < 20.84 ? 1 : te < 22.08 ? lerp(1, .12, (te - 20.84) / 1.24) : 0) * (.45 + .55 * pulse(te, 5));
+    for (let i = 0; i < 200; i++) {
+      const te = 19.0 + i * .0155, a = t - te;
+      if (a < 0 || a > 1.1 || hash(i * 3.3) > rate(te)) continue;
+      const ang = -2.55 + hash(i * 1.7) * 1.9, sp = 420 + hash(i * 5.1) * 480;
+      const x = joint[0] + Math.cos(ang) * sp * a, y = joint[1] + Math.sin(ang) * sp * a + 1500 * a * a;
+      if (y > 880) continue;
+      const vx = Math.cos(ang) * sp, vy = Math.sin(ang) * sp + 3000 * a, dir = Math.atan2(vy, vx), r = 4 + hash(i * 9.1) * 6;
+      knock(P(ellipse(x, y, r * 1.9, r, dir, 12)), null);
+    }
+    // "home": a paper star pings off the joint when it seals
+    const ping = seg(t, 22.08, 22.36);
+    if (ping > 0 && ping < 1) knock(P(starPts(joint[0], joint[1], 24 + 46 * E.out3(ping), 7, 4)), null);
+    // the drip: swells under the counter lip, lands on his nose; a second one falls through the floor
+    const dx = 962, lip = 592;
+    if (t > 22.5 && t < 22.68) { const g = seg(t, 22.5, 22.68); knock(P(ellipse(dx, lip + 5 * g, 5 + 4 * g, 6 + 7 * g, 0, 12)), null); }
+    const d1 = seg(t, 22.68, 22.8);
+    if (d1 > 0 && d1 < 1) knock(P(ellipse(dx, lerp(lip + 8, 648, d1 * d1), 7, 12, 0, 12)), null);
+    if (t > 22.8 && t < 23.0) { const k = seg(t, 22.8, 23.0); for (let i = 0; i < 5; i++) { const a = -Math.PI * (.1 + .8 * i / 4); knock(P(circle(dx + Math.cos(a) * 34 * k, 648 + Math.sin(a) * 30 * k, 5 * (1 - k) + 1.5, 8)), null); } }
+    if (t > 22.9) { const u = seg(t, 22.9, 23.33); knock(P(ellipse(790, lip + 8 + 1500 * u * u, 8, 14, 0, 12)), null); }
+    // the phone on the counter: a how-to video (play, then a hand turning a wrench on the beats), a progress bar
+    const pp = [860, 440];
+    save(); translate(pp[0], pp[1]); rotate(-.08); scale(1.25);
+    paint(P(rrect(-62, -110, 124, 206, 16)), 'black');
+    knock(P(rrect(-52, -96, 104, 172, 6)), null);
+    const play = 1 - E.inBack(seg(t, 20.35, 20.55));
+    if (play > .01) { save(); scale(Math.max(.01, play)); paint(P([[-18, -34], [30, -6], [-18, 22]]), 'pink'); restore(); }
+    else {
+      const va = turnAng(t, VID, 0);
+      paint(P(ribbon([[-30, -40], [10, -40], [10, -10]], 10, 10, 84)), 'black');     // the pipe in the video
+      save(); translate(10, -6); rotate(.2 + va); paint(P(wrenchShape(40)), 'black');
+      paint(P(cut(circle(34, 0, 15, 14), 82, .4)), 'pink'); paint(P(ribbon([[34, 0], [40, 50]], 18, 20, 83)), 'pink'); restore();
+    }
+    paint(P(rect(-46, 64, 92 * seg(t, 19.8, 23.2), 6)), 'pink');
+    restore();
+    restore();
+    return { lyric: { slot: 'll', ink: 'knock', accentInk: 'knock', y: 1045, size: 58, maxW: 1700 } };
+  }
+
   SHOT_FN['03'] = s03_kid;
+  SHOT_FN['06'] = s06_sink;
   SHOT_FN['05'] = s05_call;
   SHOT_FN['04'] = s04_stars;
 })();

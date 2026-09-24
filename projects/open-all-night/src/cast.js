@@ -37,7 +37,7 @@ CAST.kid = makeChar({
     o.after = () => {                    // black hair: a cap of hair over the crown and the puff behind it, a pink hair tie
       paint(P(cut(blob([[-r * .95, r * .05], [-r * .8, -r * .8], [r * .1, -r * 1.06], [r * .7, -r * .78], [r * .35, -r * .62], [-r * .35, -r * .45], [-r * .6, r * .1]], 5), 4, 1)), { black: 1 });
       paint(P(puff), { black: 1 });
-      ink(P(cut(ellipse(-r * .38, -r * .58, r * .13, r * .3, .6, 12), 5, .5)), { pink: 1 });
+      paint(P(cut(ellipse(-r * .38, -r * .58, r * .13, r * .3, .6, 12), 5, .5)), { pink: 1 });
     };
     const face = blob([[-r * .9, -r * .2], [-r * .6, -r * .9], [r * .2, -r * 1.02], [r * .82, -r * .55], [r * .98, -r * .05], [r * 1.12, r * .12], [r * .95, r * .3], [r * .8, r * .72], [r * .1, r * .98], [-r * .6, r * .7]], 5);
     return face;
