@@ -6,6 +6,7 @@
 //   ink(path, { blue: 1, pink: .35 })        fill a Path2D (or point list) into one or more inks (value = coverage 0..1)
 //   ink(path, 'black')                       same, full coverage
 //   ink(path, { black: 1 }, { stroke: 6 })   stroke instead of fill
+//   paint(path, { pink: 1 })               OPAQUE: knock the other inks under the shape, then ink (objects)
 //   knock(path)  knock(path, ['blue'])       erase ink (paper shows through): knockouts are how print makes light
 //   layer('pink')                            the raw Canvas2D context of one ink, for anything custom
 //   save() restore() translate() rotate() scale() cam(cx, cy, zoom, rot)   transform ALL inks together
@@ -72,6 +73,14 @@ function ink(path, spec, o = {}) {
     } else { c.fillStyle = style; c.fill(p, o.rule || 'nonzero'); }
     c.restore();
   }
+}
+// paint(path, spec): OPAQUE ink. Knocks every other ink out under the shape first, so a pink blanket on a blue
+// night prints pink (ink() alone overprints: pink on blue = violet). Use paint for objects, ink for overprint effects.
+function paint(path, spec, o = {}) {
+  const s = typeof spec === 'string' ? { [spec]: 1 } : spec;
+  const others = RISO.inks.map(k => k.name).filter(n => !(n in s) || s[n] <= 0);
+  if (others.length) knock(path, others, 1, o.stroke ? { stroke: o.stroke } : {});
+  ink(path, s, o);
 }
 // knock(path, which = all inks, amount = 1 | gradient fn): erase ink so paper shows through (o.stroke, o.blur)
 function knock(path, which = null, amount = 1, o = {}) {

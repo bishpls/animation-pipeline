@@ -35,8 +35,8 @@ CAST.kid = makeChar({
   head(r, o) {       // big round head, a small upturned nose, the afro puff behind
     const puff = cut(circle(-r * .8, -r * .66, r * .8, 40), 3, 1.4, .6);
     o.after = () => {                    // black hair: a cap of hair over the crown and the puff behind it, a pink hair tie
-      ink(P(cut(blob([[-r * .95, r * .05], [-r * .8, -r * .8], [r * .1, -r * 1.06], [r * .7, -r * .78], [r * .35, -r * .62], [-r * .35, -r * .45], [-r * .6, r * .1]], 5), 4, 1)), { black: 1 });
-      ink(P(puff), { black: 1 });
+      paint(P(cut(blob([[-r * .95, r * .05], [-r * .8, -r * .8], [r * .1, -r * 1.06], [r * .7, -r * .78], [r * .35, -r * .62], [-r * .35, -r * .45], [-r * .6, r * .1]], 5), 4, 1)), { black: 1 });
+      paint(P(puff), { black: 1 });
       ink(P(cut(ellipse(-r * .38, -r * .58, r * .13, r * .3, .6, 12), 5, .5)), { pink: 1 });
     };
     const face = blob([[-r * .9, -r * .2], [-r * .6, -r * .9], [r * .2, -r * 1.02], [r * .82, -r * .55], [r * .98, -r * .05], [r * 1.12, r * .12], [r * .95, r * .3], [r * .8, r * .72], [r * .1, r * .98], [-r * .6, r * .7]], 5);
@@ -50,7 +50,7 @@ CAST.dad = makeChar({
   torsoDetail(h) { knock(P([[-14, -h + 2], [0, -h + 22], [16, -h + 2]], false), ['blue'], 1, { stroke: 3.5 }); knock(P([[2, -h + 22], [2, -8]], false), ['blue'], 1, { stroke: 2.5 }); knock(P(rrect(10, -h * .74, 16, 14, 3)), ['blue'], 1, { stroke: 2.5 }); },
   head(r, o) {       // long face, a strong nose, a flat cap (black) with a brim
     const face = blob([[-r * .85, -r * .1], [-r * .7, -r * .85], [r * .3, -r * .98], [r * .78, -r * .5], [r * .84, -r * .1], [r * 1.34, r * .22], [r * 1.34, r * .22], [r * .86, r * .36], [r * .8, r * .8], [r * .2, r * 1.12], [-r * .55, r * .8]], 5);
-    o.after = () => { ink(P(cut(blob([[-r * 1.0, -r * .35], [-r * .8, -r * 1.2], [r * .3, -r * 1.3], [r * .95, -r * .75], [r * 1.55, -r * .62], [r * 1.5, -r * .45], [r * .7, -r * .42]], 4), 7, 1)), { blue: 1, black: 1 }); };
+    o.after = () => { paint(P(cut(blob([[-r * 1.0, -r * .35], [-r * .8, -r * 1.2], [r * .3, -r * 1.3], [r * .95, -r * .75], [r * 1.55, -r * .62], [r * 1.5, -r * .45], [r * .7, -r * .42]], 4), 7, 1)), { blue: 1, black: 1 }); };
     return face;
   },
   face: { eye: [.42, -.2], mouth: [.66, .56] },
@@ -99,7 +99,7 @@ CAST.newsboy = makeChar({
   torsoDetail(h) { knock(P([[-14, -h], [-10, 2]], false), ['black'], 1, { stroke: 3 }); knock(P([[12, -h], [8, 2]], false), ['black'], 1, { stroke: 3 }); },
   head(r, o) {
     const face = blob([[-r * .85, 0], [-r * .62, -r * .82], [r * .3, -r * .95], [r * .82, -r * .45], [r * .95, r * .05], [r * 1.18, r * .25], [r * .92, r * .36], [r * .8, r * .74], [r * .1, r * 1.0], [-r * .6, r * .7]], 5);
-    o.after = () => { ink(P(cut(blob([[-r * 1.05, -r * .3], [-r * .95, -r * 1.25], [r * .4, -r * 1.35], [r * 1.05, -r * .75], [r * 1.5, -r * .55], [r * 1.4, -r * .4], [r * .6, -r * .4]], 4), 13, 1)), { black: 1, blue: 1 }); };
+    o.after = () => { paint(P(cut(blob([[-r * 1.05, -r * .3], [-r * .95, -r * 1.25], [r * .4, -r * 1.35], [r * 1.05, -r * .75], [r * 1.5, -r * .55], [r * 1.4, -r * .4], [r * .6, -r * .4]], 4), 13, 1)), { black: 1, blue: 1 }); };
     return face;
   },
   face: { eye: [.45, -.12], mouth: [.62, .52] },
@@ -113,11 +113,11 @@ CAST.anon = makeChar({
     const face = blob([[-r * .85, 0], [-r * .62, -r * .85], [r * .3, -r * .95], [r * .82, -r * .45], [r * .95, r * .05], [r * 1.15, r * .25], [r * .9, r * .36], [r * .8, r * .74], [r * .1, r * 1.0], [-r * .6, r * .7]], 5);
     o.after = () => {
       const k = v % 5, I = o.inkOv || this.ink;
-      if (k === 0) ink(P(cut(circle(-r * .25, -r * .3, r * 1.02, 28), v, 1)), I);
-      if (k === 1) { ink(P(cut(rect(-r * 1.2, -r * .9, r * 2.5, r * .22), v)), I); ink(P(cut(rrect(-r * .75, -r * 1.75, r * 1.5, r * .95, r * .2), v + 1)), I); }
-      if (k === 2) ink(P(cut(blob([[-r * 1.1, r * .9], [-r * 1.05, -r * .6], [-r * .3, -r * 1.1], [r * .6, -r * .9], [r * .5, -r * .4], [-r * .4, -r * .2], [-r * .5, r * .9]], 4), v, 1)), I);
-      if (k === 3) { ink(P(cut(circle(-r * .5, -r * 1.05, r * .45, 18), v)), I); ink(P(cut(circle(-r * .15, -r * .35, r * .9, 24), v + 2)), I); }
-      if (k === 4) ink(P(cut(blob([[-r * .95, -r * .2], [-r * .7, -r * 1.05], [r * .5, -r * 1.1], [r * .9, -r * .5], [r * .2, -r * .7]], 4), v, 1)), I);
+      if (k === 0) paint(P(cut(circle(-r * .25, -r * .3, r * 1.02, 28), v, 1)), I);
+      if (k === 1) { paint(P(cut(rect(-r * 1.2, -r * .9, r * 2.5, r * .22), v)), I); paint(P(cut(rrect(-r * .75, -r * 1.75, r * 1.5, r * .95, r * .2), v + 1)), I); }
+      if (k === 2) paint(P(cut(blob([[-r * 1.1, r * .9], [-r * 1.05, -r * .6], [-r * .3, -r * 1.1], [r * .6, -r * .9], [r * .5, -r * .4], [-r * .4, -r * .2], [-r * .5, r * .9]], 4), v, 1)), I);
+      if (k === 3) { paint(P(cut(circle(-r * .5, -r * 1.05, r * .45, 18), v)), I); paint(P(cut(circle(-r * .15, -r * .35, r * .9, 24), v + 2)), I); }
+      if (k === 4) paint(P(cut(blob([[-r * .95, -r * .2], [-r * .7, -r * 1.05], [r * .5, -r * 1.1], [r * .9, -r * .5], [r * .2, -r * .7]], 4), v, 1)), I);
     };
     return face;
   },
@@ -134,8 +134,8 @@ function drawLimb(pts, w0, w1, spec, seed, gapInk = null) {
   const path = [a, [lerp(a[0], k[0], .5), lerp(a[1], k[1], .5)], k, [lerp(k[0], h[0], .5), lerp(k[1], h[1], .5)], h];
   const rib = ribbon(path, w0, w1, seed);
   if (gapInk) knock(P(rib), gapInk, 1, { stroke: 4.5 });      // paper gap: the near limb is a separate piece of paper
-  ink(P(rib), spec);
-  ink(P(circle(k[0], k[1], (w0 + w1) / 4, 12)), spec);      // round the joint
+  paint(P(rib), spec);
+  paint(P(circle(k[0], k[1], (w0 + w1) / 4, 12)), spec);      // round the joint
 }
 function walkPose(ph) {
   const s = Math.sin(ph * TAU), c = Math.cos(ph * TAU);
@@ -158,23 +158,36 @@ function figure(Ch, x, y, s = 1, o = {}) {
   shoe(legF[2], Ch, 1, lF, seed + 2);
   const armF = limbPts(shF, Ch.armL[0], Ch.armL[1], aF);
   drawLimb(armF, Ch.limbW[0], Ch.limbW[1], I, seed + 3);
-  ink(P(circle(armF[2][0], armF[2][1], Ch.hand, 12)), I);
+  paint(P(circle(armF[2][0], armF[2][1], Ch.hand, 12)), I);
   if (o.holdF) o.holdF(armF[2], aF[0] + aF[1]);
   // near leg, torso
   const legN = limbPts([hip[0] + 8, hip[1]], l1, l2, lN);
   drawLimb(legN, Ch.legW[0], Ch.legW[1], legI, seed + 4);
   shoe(legN[2], Ch, 1, lN, seed + 5);
   save(); translate(hip[0], hip[1]); rotate(lean);
-  ink(P(cut(Ch.torso(th, o.var || 0), seed + 6, 1.1, .6)), I);
+  paint(P(cut(Ch.torso(th, o.var || 0), seed + 6, 1.1, .6)), I);
   if (Ch.torsoDetail) Ch.torsoDetail(th, I);
   restore();
   // head
   const r = Ch.headR, hc = V(neckP, [0, -Ch.neck - r * .8], lean);
-  ink(P(ribbon([V(neckP, [0, 8], lean), hc], r * .5, r * .45, seed + 7)), I);
+  paint(P(ribbon([V(neckP, [0, 8], lean), hc], r * .5, r * .45, seed + 7)), I);
   save(); translate(hc[0], hc[1]); rotate(lean * .5 + (o.head || 0));
+  drawHead(Ch, I, r, seed, o);
+  restore();
+  // near arm on top, with a paper gap
+  const armN = limbPts(shN, Ch.armL[0], Ch.armL[1], aN);
+  drawLimb(armN, Ch.limbW[0], Ch.limbW[1], I, seed + 12, inks);
+  knock(P(circle(armN[2][0], armN[2][1], Ch.hand + 2.2, 12)), inks);
+  paint(P(cut(circle(armN[2][0], armN[2][1], Ch.hand, 12), seed + 13, .5, .3)), I);
+  if (o.hold) o.hold(armN[2], aN[0] + aN[1]);
+  restore();
+}
+// the head alone, at the current transform's origin (head centre), facing +x. Used by figure() and head().
+function drawHead(Ch, I, r, seed, o) {
+  const inks = Object.keys(I);
   const ho = { var: o.var, inkOv: o.ink };
   const face = cut(Ch.head.call({ ...Ch, ink: I }, r, ho), seed + 8, .9, .5);
-  ink(P(face), I);
+  paint(P(face), I);
   if (ho.after) ho.after();
   if (o.light > .3) { save(); const cl = new Path2D(); cl.addPath(P(face)); layer(inks[0]); for (const k of RISO.inks) k.ctx.clip(cl); const lp = cut(circle(r * 1.05, r * 1.0, r * 1.02, 32), seed + 9, .8); knock(P(lp), inks); ink(P(lp), { yellow: 1 }); restore(); }
   const F = Ch.face, ex = F.eye[0] * r + (o.look ? o.look[0] * r * .08 : 0), ey = F.eye[1] * r + (o.look ? o.look[1] * r * .08 : 0);
@@ -188,16 +201,15 @@ function figure(Ch, x, y, s = 1, o = {}) {
   const mx = F.mouth[0] * r, my = F.mouth[1] * r;
   if (o.mouth > .05) { const m = clamp(o.mouth); ink(P(cut(ellipse(mx, my, r * (.1 + .07 * m), r * (.05 + .2 * m), .2, 16), seed + 11, .3, .2)), 'black'); }
   else ink(P(arcPts(mx - r * .05, my - r * .12, r * .16, .5, 1.9 - (o.smile === 0 ? .6 : 0), 8), false), 'black', { stroke: r * .05 });
-  restore();
-  // near arm on top, with a paper gap
-  const armN = limbPts(shN, Ch.armL[0], Ch.armL[1], aN);
-  drawLimb(armN, Ch.limbW[0], Ch.limbW[1], I, seed + 12, inks);
-  knock(P(circle(armN[2][0], armN[2][1], Ch.hand + 2.2, 12)), inks);
-  ink(P(cut(circle(armN[2][0], armN[2][1], Ch.hand, 12), seed + 13, .5, .3)), I);
-  if (o.hold) o.hold(armN[2], aN[0] + aN[1]);
+}
+// a head on its own (close-ups, heads peeking out of blankets, faces in windows): (x, y) = head centre, s = scale
+function head(Ch, x, y, s = 1, o = {}) {
+  const I = o.ink || Ch.ink;
+  save(); translate(x, y); scale(s * (o.face ?? 1), s); rotate(o.head || 0);
+  drawHead(Ch, I, Ch.headR, o.seed ?? 0, { ...o, head: 0 });
   restore();
 }
 function shoe(p, Ch, f, leg, seed) {
   const [w, h] = Ch.shoe;
-  ink(P(cut(blob([[-w * .35, -h * .7], [w * .45, -h * .6], [w * .75, -h * .05], [w * .7, h * .2], [-w * .4, h * .2]], 4).map(([a, b]) => [p[0] + a, p[1] + b]), seed, .5, .3)), Ch.shoeInk);
+  paint(P(cut(blob([[-w * .35, -h * .7], [w * .45, -h * .6], [w * .75, -h * .05], [w * .7, h * .2], [-w * .4, h * .2]], 4).map(([a, b]) => [p[0] + a, p[1] + b]), seed, .5, .3)), Ch.shoeInk);
 }
