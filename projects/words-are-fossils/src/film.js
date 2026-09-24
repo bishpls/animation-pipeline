@@ -76,12 +76,12 @@ function drawStop(s, t) {
     const gap = 50, total = Ls.reduce((a, L) => a + L.width, 0) + (Ls.length - 1) * (plus.width + gap * 2);
     let x = W / 2 - total / 2;
     Ls.forEach((L, i) => {
-      const tt = s.t + i * .38;
+      const tt = s.t + i * .25;
       stampText(parts[i], x + L.width / 2, cy + 20, t, tt, { font: s.font, size: sz, onInk: g, wght: 700 });
-      if (t > tt + .45) {       // the gloss under each part, hung from a hairline
-        const a = E.out3(clamp((t - tt - .45) / .3));
+      if (t > tt + .28) {       // the gloss under each part, hung from a hairline
+        const a = E.out3(clamp((t - tt - .28) / .25));
         knock(P([[x + L.width / 2, cy + 50], [x + L.width / 2, cy + 50 + 50 * a]], false), [g], 1, { stroke: 2 });
-        stampText(gl[i], x + L.width / 2, cy + 190, t, tt + .5, { font: 'garaI', size: 96, onInk: g, stagger: .025 });
+        stampText(gl[i], x + L.width / 2, cy + 190, t, tt + .3, { font: 'garaI', size: 96, onInk: g, stagger: .025 });
       }
       x += L.width;
       if (i < Ls.length - 1) { if (t > s.t + .2) drawText(plus, x + gap + plus.width / 2, cy + 5, null, { align: 'center', knock: true, knockInks: [g] }); x += plus.width + gap * 2; }
@@ -96,21 +96,26 @@ function drawStop(s, t) {
 // ------------------------------------------------------------------ the top: the title plate (intro) and the fresh layer (outro)
 function topOfWorld(t) {
   // the fresh layer (outro): a thin new stratum being laid down across the paper, a cursor riding its tip
-  const lay = E.io3(seg(t, 81.9, 84.2));
+  const OV = VO.find(v => v.id === '09_outro'), ow = OV.words, k0 = ow.findIndex(w => /^some/i.test(w.w));
   if (t > 78) {
-    const y = 700, x1 = lerp(80, W - 80, lay);
-    if (lay > 0) paint(P(cut(rect(80, y - 9, x1 - 80, 18), 5, .8, .3)), { ochre: 1 });
-    if (Math.floor(t * 1.8) % 2 === 0 || (lay > 0 && lay < 1)) paint(P(rect(x1 + 10, y - 44, 8, 88)), 'black');
+    // the cursor types the second sentence onto a fresh layer, word by word as it's spoken; the ochre layer grows beneath
+    const y = 700, typed = ow.slice(k0).filter(w => t >= w.t0 - .04).map(w => w.w).join(' ');
+    const L = shape(typed || ' ', { font: 'garaI', size: 58 }), full = shape(ow.slice(k0).map(w => w.w).join(' '), { font: 'garaI', size: 58 });
+    const x0 = W / 2 - full.width / 2;
+    if (typed) drawText(L, x0, y - 22, 'black', { opaque: true });
+    const x1 = typed ? x0 + L.width : x0;
+    if (typed) paint(P(cut(rect(x0 - 10, y, x1 - x0 + 20, 16), 5, .8, .3)), { ochre: 1 });
+    if (Math.floor(t * 1.8) % 2 === 0 || (typed && t < ow[ow.length - 1].t1 + .2)) paint(P(rect(x1 + 12, y - 70, 7, 86)), 'black');
   }
   // the title plate: an ammonite with the first line spiralling into it, then the title in wood type
   const ay = 1250, ar = 330;
   const press = E.out3(clamp((t - FILM_START) / .45));
   ammonite(W / 2, ay, ar * (1.12 - .12 * press), t);
-  const V = VO[0];
-  spiralText(V.words, W / 2, ay, ar, t);
-  const tt = 3.55;
+  const V = VO[0], OW = VO.find(v => v.id === '09_outro').words;
+  spiralText(V.words.map((w, i) => ({ ...w, again: OW[i] && i < 7 ? OW[i].t0 : null })), W / 2, ay, ar, t);
+  const tw = VO[0].words, tt = tw[1].t0;                 // WORDS on "word", ARE FOSSILS on "fossil"
   stampText('WORDS', W / 2, 1760, t, tt, { font: 'slab', size: 150, ink: 'black', stagger: .05 });
-  stampText('ARE FOSSILS', W / 2, 1900, t, tt + .35, { font: 'slab', size: 108, ink: 'ox', stagger: .04 });
+  stampText('ARE FOSSILS', W / 2, 1900, t, tw[tw.length - 1].t0, { font: 'slab', size: 108, ink: 'ox', stagger: .04 });
 }
 function ammonite(cx, cy, r, t) {
   // chambers: a logarithmic spiral with septa (ribs); slate line-screen body, paper ribs
@@ -136,7 +141,7 @@ function spiralText(words, cx, cy, r, t) {
         const u = E.out3(clamp((t - w.t0 + .05) / .2));
         const px = cx + Math.cos(ga) * rr, py = cy + Math.sin(ga) * rr;
         save(); translate(px, py); rotate(ga + Math.PI / 2); scale(1 + .3 * (1 - u));
-        drawText({ ...L, glyphs: [g], width: g.w }, -g.w / 2 - g.x, 0, 'black', { opaque: true });
+        drawText({ ...L, glyphs: [g], width: g.w }, -g.w / 2 - g.x, 0, w.again != null && t >= w.again ? 'ox' : 'black', { opaque: true });
         restore();
       }
     }
@@ -146,17 +151,19 @@ function spiralText(words, cx, cy, r, t) {
 
 // ------------------------------------------------------------------ captions: the narrator, as a museum label card
 function captions(t) {
-  const V = VO.find(v => t >= v.t0 - .1 && t < v.t1 + .7); if (!V || V.id === '00_intro') return;
+  const V = VO.find(v => t >= v.t0 - .1 && t < v.t1 + .7); if (!V || V.id === '00_intro' || V.id === '09_outro') return;   // the outro speaks through the spiral and the cursor
   // phrases: break the line at sentence punctuation
   const ph = [[]]; V.words.forEach(w => { ph[ph.length - 1].push(w); if (/[.?:!]$|\.\.\.$/.test(w.w)) ph.push([]); });
   const P0 = ph.filter(p => p.length);
   let cur = P0[0]; for (const p of P0) if (t >= p[0].t0 - .08) cur = p;
-  const size = 60, font = 'gara';
+  const size = 74, font = 'gara';
   const Ls = cur.map(w => ({ w, L: shape(w.w, { font: FORMS.has(w.w.toLowerCase()) ? 'garaI' : font, size, wght: 500 }) }));
-  const sp = size * .28, maxW = 820;
+  const sp = size * .28, maxW = 860;
   const rows = [[]]; let rw = 0;
   for (const it of Ls) { if (rw + it.L.width > maxW && rows[rows.length - 1].length) { rows.push([]); rw = 0; } rows[rows.length - 1].push(it); rw += it.L.width + sp; }
   const lh = size * 1.18, cardW = Math.max(...rows.map(r => r.reduce((a, it) => a + it.L.width, 0) + sp * (r.length - 1))) + 90;
+  const ent = E.back(clamp((t - (cur[0].t0 - .08)) / .15));
+  save(); translate(W / 2, SAFE.capY); scale(.94 + .06 * ent); translate(-W / 2, -SAFE.capY + (1 - ent) * 18);
   const cardH = rows.length * lh + 56, cy = V.id === '09_outro' ? 430 : SAFE.capY, y0 = cy - cardH / 2;   // the outro's card sits under the fresh layer, clear of the title
   const card = P(cut(rect(W / 2 - cardW / 2, y0, cardW, cardH), 3, .6, .2));
   knock(card, null); ink(card, 'black', { stroke: 3 });
@@ -169,6 +176,7 @@ function captions(t) {
       x += it.L.width + sp;
     }
   });
+  restore();
 }
 
 // ------------------------------------------------------------------ the frame
@@ -200,7 +208,7 @@ function frame(t) {
   if (t > 84.6) {
     const a = E.out3(seg(t, 84.6, 85.3));
     save(); translate(0, -(camY(t) - COL.stopY));
-    stampText('made entirely in code by Claude', W / 2, 800, t, 84.9, { font: 'garaI', size: 46, ink: 'black', stagger: .012 });
+    stampText('made entirely in code by Claude', W / 2, 790, t, 84.9, { font: 'garaI', size: 46, ink: 'black', stagger: .012 });
     restore();
   }
   return { lyric: false };

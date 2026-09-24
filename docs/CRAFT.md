@@ -100,3 +100,13 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 - Canvas `filter: blur()` combined with `destination-out` works: use it for soft knocks.
 - zsh doesn't word-split `$var` in `for` loops; use `${=var}`.
 - A shot's duration comes from the *next* shot's start; register the whole cut early (slates), or the last shot stretches to the end of the film.
+
+## 10. More lessons (WORDS ARE FOSSILS)
+
+- **Gemini has position bias in comparisons.** In a 3-way blind voice test it ranked whichever file came first as best, all three times. For small comparisons, score each candidate independently on a rubric, and add objective checks (grid fit, speech-to-text for stray vocals: Scribe tagging a score `[on-hold music]` is a red flag).
+- **Verify facts before writing the script,** and flag myths as myths (the salary/salt story is only "said to be"). A factual error in a public explainer is the only unrecoverable mistake.
+- **Short-form hooks:** trim dead air before the first word (`render.mjs --encode --from=`), and slam the title onto spoken words rather than after them.
+- **Vertical safe area:** keep captions and key text out of the bottom ~420 px and the right ~140 px (platform UI). 74 px captions read on a phone; 60 px didn't.
+- **Pace the picture to the voice:** cue camera stops to the narrator's word timestamps, arrive a beat early on new words, and hold each reveal until its meaning has printed. Fast spoken lines need faster reveals, not faster cameras.
+- **Performance trap:** `np.convolve` with a long box window over a whole song is O(N·n) and takes minutes. Use a cumulative-sum moving average.
+- **The engine does both formats and both presses:** set `PROJECT.w/h` for vertical; `risoSetup({ squeeze, deboss, inks: [{ screen: 'line' }] })` for letterpress and engraving.

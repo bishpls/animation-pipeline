@@ -22,6 +22,16 @@ At 2 a.m. the neon OPEN sign of an all-night bakery flickers on. Upstairs, a kid
 - **Sound design:** the neon sign's clicks and hum are synthesised from the same stutter schedule the picture draws, so they land frame-exactly.
 - **Process:** a storyboard with reads and lyric slots per shot, then a full-length slate animatic, then five parallel Claude subagents building sections against one craft guide, then review passes (contact sheets, strips, crops, seam checks, Gemini watch-throughs) and fixes.
 
+## Second work: WORDS ARE FOSSILS
+
+![WORDS ARE FOSSILS](media/fossils_strip.jpg)
+
+▶ **[Watch it](https://github.com/bishpls/animation-pipeline/releases/tag/fossils-v1.0)**: 86 s, vertical 1080×1920, made for TikTok, Reels and Shorts.
+
+Every word you say is a fossil. A continuous descent through a core sample: each word's strata hold its older forms, set in the type of their era (wood type, Cinzel Roman capitals, blackletter, IM Fell), down to an engraved plate of what it first meant. *Window* is a wind-eye, *companion* is the one you share bread with, *muscle* is a little mouse, *disaster* is a bad star, *clue* is Ariadne's thread. *Salary* is salt (and a myth). *Brain rot*, Oxford's 2024 word of the year, is Thoreau's, from 1854. *Goodbye* is "God be with ye".
+
+Every etymology was checked against Etymonline, Wiktionary and OUP/NPR before a word of script was written. The narrator is an ElevenLabs voice, chosen by blind comparison and verified by speech-to-text, including the Latin. The chamber score was chosen from four takes on beat-grid fit and independent scoring. The camera arrives at each stratum as the narrator names it, cued by the voice's own timestamps. It's printed as letterpress: ink squeeze, a debossed rim, and line-screen engraving tints.
+
 ## The pipeline
 
 | path | what |

@@ -166,12 +166,16 @@
     const skin = pick('ochre', 'ox');
     // the arm: a flexed silhouette: shoulder at left, upper arm across, forearm up, fist on top
     const arm = cut(blob([
-      [-360, 200], [-350, 60], [-300, -10], [-220, -60 - 55 * bulge], [-110, -95 - 70 * bulge], [0, -60 - 40 * bulge],   // shoulder, biceps
-      [60, -110], [80, -210], [70, -265], [95, -320], [165, -345], [235, -320], [255, -255], [225, -200],                  // forearm up, fist
-      [190, -170], [205, -60], [180, 60], [110, 140], [-60, 150], [-220, 200],                                              // forearm back, elbow, underarm
+      [-330, 150], [-330, 150], [-330, 0], [-330, 0],                                                                        // the sleeve cut: a crisp edge
+      [-250, -40 - 30 * bulge], [-120, -110 - 60 * bulge], [0, -95 - 40 * bulge], [70, -45],                                    // biceps peak
+      [95, -40], [95, -40],                                                                                                     // inner elbow crease
+      [105, -140], [95, -235],                                                                                                  // forearm, inner edge
+      [70, -275], [85, -345], [150, -378], [225, -360], [262, -300], [248, -240], [218, -215],                                  // fist
+      [225, -130], [238, -30], [225, 70], [225, 70],                                                                            // forearm outer edge, elbow point
+      [150, 125], [0, 140], [-200, 150],                                                                                        // underarm
     ], 5), 11, 1.4, .4);
     silhouette([arm], { [skin]: 1 }, 5);
-    for (const [x, y] of [[100, -318], [128, -330], [158, -334], [188, -328]]) line([[x, y], [x + 8, y + 26]], 3.5, { mode: 'ink', spec: 'black' });   // knuckles
+    for (const [x, y] of [[110, -340], [142, -352], [176, -354], [208, -344]]) line([[x, y], [x + 8, y + 26]], 3.5, { mode: 'ink', spec: 'black' });   // knuckles
     clipTo(arm, () => { const sh = ellipse(-60, 190, 380, 120, -.12, 40); tint(sh, { slate: G === 'slate' ? 0 : .55 }); });   // shading under the arm, a curved underside
     // the x-ray: the biceps window (paper) with a mouse inside
     const xr = ellipse(-110, -40 - 30 * bulge, 150 * bulge, 70 * bulge, -.08, 40);

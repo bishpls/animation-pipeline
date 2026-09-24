@@ -21,12 +21,12 @@ const WORDS = [
   { id: 'muscle', vo: '03_muscle', stops: [
     { kind: 'surface', text: 'muscle', label: 'ENGLISH · LATE 14TH C.', cue: [0, 0] },
     { kind: 'split', ink: 'slate', font: 'roman', parts: ['MUS', 'CULUS'], gloss: ['mouse', 'little'], label: 'LATIN', cue: [1, -.1] },
-    { kind: 'plate', ink: 'ochre', picto: 'muscle', fig: 'fig. 3 · the little mouse', cue: [2, 0] },
+    { kind: 'plate', ink: 'ochre', picto: 'muscle', fig: 'fig. 3 · the little mouse', cue: [3, 0] },
   ] },
   { id: 'disaster', vo: '04_disaster', stops: [
     { kind: 'surface', text: 'disaster', label: 'ENGLISH · 1590s', cue: [0, 0] },
     { kind: 'split', ink: 'ochre', font: 'fell', parts: ['dis', 'astro'], gloss: ['ill', 'star'], label: 'ITALIAN', cue: [1, -.1] },
-    { kind: 'plate', ink: 'slate', picto: 'disaster', fig: 'fig. 4 · the ill star', cue: [3, 0] },
+    { kind: 'plate', ink: 'slate', picto: 'disaster', fig: 'fig. 4 · the ill star', cue: [4, 0] },
   ] },
   { id: 'clue', vo: '05_clue', stops: [
     { kind: 'surface', text: 'clue', label: 'ENGLISH · 1590s', cue: [0, 0] },
