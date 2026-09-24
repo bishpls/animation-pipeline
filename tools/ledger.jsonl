@@ -8,3 +8,24 @@
 {"ts": "2026-09-23T20:43:58", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/open-all-night/refs/cast_ref_a.png", "ok": true}
 {"ts": "2026-09-23T20:56:48", "service": "elevenlabs", "op": "sfx", "out": "projects/open-all-night/assets/sfx/neon_off.mp3"}
 {"ts": "2026-09-23T20:56:48", "service": "elevenlabs", "op": "sfx", "out": "projects/open-all-night/assets/sfx/neon_on.mp3"}
+{"ts": "2026-09-23T23:33:12", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pqHfZKP75CvOlQylNhV4", "chars": 103, "out": "projects/words-are-fossils/assets/vo/audition/bill"}
+{"ts": "2026-09-23T23:33:12", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 103, "out": "projects/words-are-fossils/assets/vo/audition/george"}
+{"ts": "2026-09-23T23:33:12", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 103, "out": "projects/words-are-fossils/assets/vo/audition/lily"}
+{"ts": "2026-09-23T23:34:01", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 31, "out": "projects/words-are-fossils/assets/vo/00_intro"}
+{"ts": "2026-09-23T23:34:02", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 40, "out": "projects/words-are-fossils/assets/vo/01_window"}
+{"ts": "2026-09-23T23:34:02", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 57, "out": "projects/words-are-fossils/assets/vo/02_companion"}
+{"ts": "2026-09-23T23:34:02", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 33, "out": "projects/words-are-fossils/assets/vo/04_disaster"}
+{"ts": "2026-09-23T23:34:02", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 56, "out": "projects/words-are-fossils/assets/vo/03_muscle"}
+{"ts": "2026-09-23T23:34:03", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 24, "out": "projects/words-are-fossils/assets/vo/08_goodbye"}
+{"ts": "2026-09-23T23:34:03", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 70, "out": "projects/words-are-fossils/assets/vo/05_clue"}
+{"ts": "2026-09-23T23:34:04", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 75, "out": "projects/words-are-fossils/assets/vo/09_outro"}
+{"ts": "2026-09-23T23:34:05", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 105, "out": "projects/words-are-fossils/assets/vo/07_brainrot"}
+{"ts": "2026-09-23T23:34:22", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "JBFqnCBsd6RMkjVDRZzb", "chars": 111, "out": "projects/words-are-fossils/assets/vo/06_salary"}
+{"ts": "2026-09-23T23:35:08", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 87.0, "out": "projects/words-are-fossils/assets/takes/take2", "wall": 8}
+{"ts": "2026-09-23T23:35:08", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 87.0, "out": "projects/words-are-fossils/assets/takes/take1", "wall": 8}
+{"ts": "2026-09-23T23:35:17", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 87.0, "out": "projects/words-are-fossils/assets/takes/take3", "wall": 9}
+{"ts": "2026-09-23T23:35:17", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 87.0, "out": "projects/words-are-fossils/assets/takes/take4", "wall": 9}
+{"ts": "2026-09-24T00:21:19", "service": "elevenlabs", "op": "sfx", "out": "projects/words-are-fossils/assets/sfx/thump.mp3"}
+{"ts": "2026-09-24T00:21:19", "service": "elevenlabs", "op": "sfx", "out": "projects/words-are-fossils/assets/sfx/chisel.mp3"}
+{"ts": "2026-09-24T00:21:21", "service": "elevenlabs", "op": "sfx", "out": "projects/words-are-fossils/assets/sfx/crumble.mp3"}
+{"ts": "2026-09-24T00:21:21", "service": "elevenlabs", "op": "sfx", "out": "projects/words-are-fossils/assets/sfx/rush.mp3"}

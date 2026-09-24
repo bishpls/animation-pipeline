@@ -1,0 +1,170 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - the surface]\n{a single felt piano note, then a low cello harmonic, room tone, sparse and curious}",
+   "duration_ms": 6000,
+   "positive_styles": [
+    "80 BPM",
+    "intimate chamber score",
+    "solo cello",
+    "felt piano",
+    "warm analog room",
+    "documentary wonder",
+    "quiet, curious, tender"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "choir",
+    "drums",
+    "EDM",
+    "epic trailer"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Descent one]\n{pizzicato cello pulse begins, felt piano motif of four notes, soft}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "pizzicato cello pulse",
+    "felt piano motif",
+    "gentle forward motion"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Descent two]\n{the motif repeats with a second cello line, warm}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "two cellos",
+    "felt piano",
+    "warm",
+    "gentle"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Descent three]\n{brushed shaker and soft upright bass enter, playful}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "soft upright bass",
+    "brushed shaker",
+    "playful",
+    "felt piano"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Star]\n{celesta sparkles over held cello, a hint of mystery}",
+   "duration_ms": 6000,
+   "positive_styles": [
+    "80 BPM",
+    "celesta",
+    "held cello",
+    "mysterious"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Thread]\n{the motif unwinds as a winding cello melody, harp arpeggio}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "cello melody",
+    "harp arpeggio",
+    "winding"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Salt]\n{fuller: cello section, felt piano chords, gentle kick on one, warm and wry}",
+   "duration_ms": 12000,
+   "positive_styles": [
+    "80 BPM",
+    "cello section",
+    "felt piano chords",
+    "soft kick",
+    "wry, warm"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Modern]\n{a playful twist: a lo-fi beat and muted synth pluck join the cello, then drop out}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "lo-fi beat",
+    "muted synth pluck",
+    "cello",
+    "playful surprise"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Farewell]\n{everything falls away to solo cello and felt piano, tender, slow}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "solo cello",
+    "felt piano",
+    "tender",
+    "bittersweet"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "drums"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Coda]\n{the four-note motif returns and resolves on a warm major chord, a last piano note rings out}",
+   "duration_ms": 9000,
+   "positive_styles": [
+    "80 BPM",
+    "felt piano",
+    "cello",
+    "resolution",
+    "warm final chord",
+    "clean ending"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "abrupt cut"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

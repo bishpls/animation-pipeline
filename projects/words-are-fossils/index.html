@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>WORDS ARE FOSSILS · studio</title>
+<style>
+  html, body { margin: 0; background: #16151a; color: #ddd; font: 13px ui-monospace, monospace; }
+  #out { display: block; height: min(92vh, 1920px); width: auto; aspect-ratio: 9 / 16; }
+  .bar { display: flex; gap: 10px; align-items: center; max-width: 900px; padding: 8px; }
+  .bar input { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script src="../../engine/vendor/fontkit.js"></script>
+<script>window.PROJECT = { fps: 24, w: 1080, h: 1920, audio: 'assets/mix.wav' };</script>
+<script src="assets/cues.js"></script>
+<script src="assets/vo_cues.js"></script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/riso.js"></script>
+<script src="../../engine/type.js"></script>
+<script src="../../engine/studio.js"></script>
+<script src="src/look.js"></script>
+<script src="src/picto.js"></script>
+<script src="src/words.js"></script>
+<script src="src/film.js"></script>
+<script>
+(async () => {
+  try {
+    await Promise.all(Object.entries(FONT_FILES).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
+    risoSetup(LOOK.riso);
+    if (window.registerFilm) registerFilm();
+    window.ready = true;
+    studioUI();
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>

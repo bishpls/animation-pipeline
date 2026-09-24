@@ -2,7 +2,7 @@
 // Every frame is a pure function of t (seconds). No state carries between frames; no Math.random().
 // Loaded as a plain script: everything here is global on purpose (shots stay short and readable).
 
-const W = 1920, H = 1080;
+const W = (window.PROJECT && PROJECT.w) || 1920, H = (window.PROJECT && PROJECT.h) || 1080;   // 1080x1920 for vertical
 const FPS = (window.PROJECT && PROJECT.fps) || 24;
 const TAU = Math.PI * 2, D2R = Math.PI / 180;
 

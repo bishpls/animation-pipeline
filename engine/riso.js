@@ -20,10 +20,11 @@ function risoSetup(o) {
   RISO.paper = hexRGB(o.paper || '#f3ede2');
   RISO.cell = o.cell || 9;
   RISO.misreg = o.misreg ?? 1.6;
+  RISO.squeeze = o.squeeze || 0; RISO.deboss = o.deboss || 0;   // letterpress mode
   RISO.inks = o.inks.map((k, i) => {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d', { willReadFrequently: false });
-    const ink = { name: k.name, rgb: hexRGB(k.hex), hex: k.hex, angle: (k.angle ?? [15, 75, 0, 45, 30][i]) * D2R, canvas: c, ctx, i,
+    const ink = { name: k.name, rgb: hexRGB(k.hex), hex: k.hex, screen: k.screen || 'dot', angle: (k.angle ?? [15, 75, 0, 45, 30][i]) * D2R, canvas: c, ctx, i,
       reg: k.reg || [hash(i * 7.1) * 2 - 1, hash(i * 3.3) * 2 - 1] };
     RISO.byName[k.name] = ink;
     return ink;
@@ -115,15 +116,16 @@ function risoClear() {
 const VS = `attribute vec2 p; varying vec2 uv; void main(){ uv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }`;
 const FS = (n) => `precision highp float;
 varying vec2 uv;
-uniform vec2 res; uniform vec3 paper; uniform float seed, cell, bf, paperOn;
-${Array.from({ length: n }, (_, i) => `uniform sampler2D L${i}; uniform vec3 C${i}; uniform vec2 O${i}; uniform float A${i}, D${i};`).join('\n')}
+uniform vec2 res; uniform vec3 paper; uniform float seed, cell, bf, paperOn, squeeze, deboss;
+${Array.from({ length: n }, (_, i) => `uniform sampler2D L${i}; uniform vec3 C${i}; uniform vec2 O${i}; uniform float A${i}, D${i}, S${i};`).join('\n')}
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
   return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
-float spot(vec2 px, float a){ float s = sin(a), c = cos(a); vec2 q = mat2(c, -s, s, c) * px / cell; vec2 f = fract(q) - .5;
+float spot(vec2 px, float a, float line){ float s = sin(a), c = cos(a); vec2 q = mat2(c, -s, s, c) * px / cell; vec2 f = fract(q) - .5;
+  if (line > .5) return .5 - .5 * cos(6.2831853 * f.y);                // line screen: engraving hatch
   return .5 - .25 * (cos(6.2831853 * f.x) + cos(6.2831853 * f.y)); }
 float cov(sampler2D L, vec2 px){ return texture2D(L, px / res).a; }
-vec3 layerK(sampler2D L, vec3 col, vec2 off, float ang, float dens, vec2 px, vec3 acc){
+vec3 layerK(sampler2D L, vec3 col, vec2 off, float ang, float dens, float line, vec2 px, vec3 acc){
   vec2 warp = vec2(vn(px / 5. + seed), vn(px / 5. - seed + 9.)) - .5;
   vec2 q = px - off + warp * 1.1;
   float c = cov(L, q);
@@ -133,9 +135,14 @@ vec3 layerK(sampler2D L, vec3 col, vec2 off, float ang, float dens, vec2 px, vec
   if (c > .965 || mx > .965) k = c;                                  // solid, or the AA edge of a solid: keep it crisp
   else {                                                              // a tint: halftone with riso grain
     float g = (h21(px + seed) - .5) * .16 + (vn(px / 2.5 + seed) - .5) * .12;
-    float th = spot(px, ang) + g;
+    float th = spot(px, ang, line) + g;
     float aa = 1.2 / cell;
     k = smoothstep(th - aa, th + aa, c);
+  }
+  if (squeeze > 0.) {                                                    // letterpress: ink pools at the edge of the impression
+    float mn = min(min(cov(L, q + vec2(4., 0)), cov(L, q - vec2(4., 0))), min(cov(L, q + vec2(0, 4.)), cov(L, q - vec2(0, 4.))));
+    k = min(1., k * (1. + squeeze * .35 * step(.5, c) * (1. - mn)));
+    dens *= 1. - squeeze * .18 * (1. - mn) * step(.5, c) + squeeze * .1 * mn;
   }
   float d = dens * (.9 + .1 * vn(px / 70. + seed * .1 + ang)) * (1. - .55 * step(.9965, h21(floor(px / 1.5) + seed * 3.1)));
   return acc * mix(vec3(1.), col, clamp(k * d, 0., 1.));
@@ -145,7 +152,12 @@ void main(){
   float fib = vn(px * vec2(.012, .22) + 3.) * .6 + vn(px * vec2(.2, .015) + 7.) * .4;
   float grain = h21(px + bf * 1.37);
   vec3 acc = paperOn > .5 ? paper * (1. - .045 * fib) * (1. - .03 * grain) : vec3(1.);
-  ${Array.from({ length: n }, (_, i) => `acc = layerK(L${i}, C${i}, O${i}, A${i}, D${i}, px, acc);`).join('\n  ')}
+  ${Array.from({ length: n }, (_, i) => `acc = layerK(L${i}, C${i}, O${i}, A${i}, D${i}, S${i}, px, acc);`).join('\n  ')}
+  if (deboss > 0.) {
+    float a = 0., b = 0.;
+    ${Array.from({ length: n }, (_, i) => `a += cov(L${i}, px - vec2(2.5, 2.5)); b += cov(L${i}, px + vec2(2.5, 2.5));`).join(' ')}
+    acc *= 1. + deboss * clamp(b - a, -1., 1.) * .09;                   // the pressed-in rim: lit on one side, shadowed on the other
+  }
   gl_FragColor = vec4(acc, 1.);
 }`;
 
@@ -183,6 +195,8 @@ function risoPrint(t, o = {}) {
   gl.uniform1f(u('bf'), bf);
   gl.uniform1f(u('cell'), o.cell || RISO.cell);
   gl.uniform1f(u('paperOn'), o.paper === false ? 0 : 1);
+  gl.uniform1f(u('squeeze'), o.squeeze ?? RISO.squeeze ?? 0);
+  gl.uniform1f(u('deboss'), o.deboss ?? RISO.deboss ?? 0);
   RISO.inks.forEach((k, i) => {
     gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, RISO.tex[i]);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, k.canvas);
@@ -190,6 +204,7 @@ function risoPrint(t, o = {}) {
     const m = o.misreg ?? RISO.misreg;     // fixed per-ink offset + a small per-drawing wander (each frame is a new print)
     gl.uniform2f(u('O' + i), k.reg[0] * m + (hash(bf * 1.3 + i) - .5) * m * .6, k.reg[1] * m + (hash(bf * 2.9 + i * 5) - .5) * m * .6);
     gl.uniform1f(u('A' + i), k.angle);
+    gl.uniform1f(u('S' + i), k.screen === 'line' ? 1 : 0);
     gl.uniform1f(u('D' + i), o.density && o.density[k.name] != null ? o.density[k.name] : 1);
   });
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

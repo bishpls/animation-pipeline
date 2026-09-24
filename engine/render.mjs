@@ -34,8 +34,9 @@ if (args.encode) {
   const out = args.out || `${PROJ}/out/video.mp4`, n = readdirSync(FRAMES).filter(f => f.endsWith('.jpg') || f.endsWith('.png')).length, audio = audioOf();
   const ext = existsSync(`${FRAMES}/f00000.png`) ? 'png' : 'jpg';
   console.log(`encoding ${n} frames -> ${out}${audio ? ' with ' + audio : ''}`);
-  await run('ffmpeg', ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-i', `${FRAMES}/f%05d.${ext}`,
-    ...(audio ? ['-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '320k', '-shortest'] : []),
+  const from = +(args.from || 0), f0 = Math.round(from * fps);          // --from=seconds: start the cut later (trims picture and audio together)
+  await run('ffmpeg', ['-y', '-loglevel', 'error', '-stats', '-framerate', String(fps), '-start_number', String(f0), '-i', `${FRAMES}/f%05d.${ext}`,
+    ...(audio ? ['-ss', String(f0 / fps), '-i', audio, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '320k', '-shortest'] : []),
     '-c:v', 'libx264', '-preset', 'slow', '-crf', String(args.crf || 14), '-tune', 'grain', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', out]);
   console.log('wrote ' + out);
   process.exit(0);
