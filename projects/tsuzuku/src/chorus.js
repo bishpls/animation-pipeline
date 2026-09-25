@@ -60,7 +60,7 @@
       [82, 'headBob'], [84, 'look', { view: 'HR', z: -4 }], [85, 'headBob'], [87, 'headBob', { amp: .5 }], [89, 'look', { view: 'F', y: -.25 }],
       [90, 'look', { view: 'F', y: .15 }], [91.5, 'look', { view: 'F', y: .45, fade: 2 }],
     ],
-  }, { lips: MOVES.lips(window.WORDS, 'clawd'), blinks: MOVES.blinks(11, 60, 140) });
+  }, { lips: MOVES.lips(window.WORDS, 'clawd', window.VOCAL_ENV), blinks: MOVES.blinks(11, 60, 140) });
   const build = () => MOVES.follow(choreo(), MOVES.BODY, { start: 42 * BAR });
 
   // her backup dancers: two rows of block crabs, on the beat, pincers out in the hook and on the claws; in canon from the centre
@@ -77,23 +77,20 @@
   };
   const ROWS = [{ xs: [250, 560, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [110, 420, 1500, 1810], y: 930, s: 1.05, lag: .04 }];
 
-  // a placeholder stage: dark hall, floor, two LED panels, a key light (the real stage comes with the shot work)
-  const stage = () => {
-    const g = X.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#1b1530'); g.addColorStop(.62, '#2c2046'); g.addColorStop(.621, '#140f22'); g.addColorStop(1, '#0c0916');
-    X.fillStyle = g; X.fillRect(0, 0, W, H);
-    for (const x0 of [140, 1460]) { X.fillStyle = '#26324f'; X.fillRect(x0, 110, 320, 440); X.fillStyle = 'rgba(255,170,120,.10)'; X.fillRect(x0 + 12, 122, 296, 416); }
-    const r = X.createRadialGradient(960, 820, 40, 960, 820, 560); r.addColorStop(0, 'rgba(255,220,180,.18)'); r.addColorStop(1, 'rgba(255,220,180,0)');
-    X.fillStyle = r; X.fillRect(0, 0, W, H);
-  };
   let P = null;
   const get = () => (P = P || RIG.perform(RIGS.clawd, build()));
   window.CHOREO = window.CHOREO || {};
   window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get };                       // for the harness
+  // the stage (src/idolstage.js): the performers are drawn in WORLD coords through the stage's camera
+  const clawdT = (t, W2S, c) => { const q = P(t), [x, y] = W2S(960 + (q.rootX || 0) * .27, 1040); return { x, y, s: .27 * c.z }; };
+  const worldT = t => ({ x: 960 + (P(t).rootX || 0) * .27, y: 1040, s: .27 });
+  const footWorld = tt => { const q = P(tt), r = (q.rootX || 0) * .27; return [[960 + r + (860 - 1080 + (q.footLX || 0)) * .27, 1040], [960 + r + (1285 - 1080 + (q.footRX || 0)) * .27, 1040]]; };
   LOOPS.chorus = t => {
-    stage();
-    mascotTroupe(t, crabs, ROWS);
-    get(); const q = P(t);
-    RIGS.clawd.draw(X, t, P, { x: 960 + (q.rootX || 0) * .27, y: 1040, s: .27 });   // rootX: the side-steps travel
+    get();
+    IDOLSTAGE.frame(t, (W2S, c) => {
+      mascotTroupe(t, crabs, ROWS);
+      RIGS.clawd.draw(X, t, P, clawdT(t, W2S, c));
+    }, { locateHand: tt => RIGS.clawd.locate(tt, P, worldT(tt), 'hand_L'), clawdX: worldT(t).x, footWorld });
   };
   LOOPS.chorus.len = 220;
 }

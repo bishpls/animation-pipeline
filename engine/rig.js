@@ -142,6 +142,7 @@ const RIG = (() => {
     allL.forEach((l, i) => { const k = i + 1, c = [((k * 37) % 251 + 4) / 255, ((k * 91) % 247 + 4) / 255, ((k * 53) % 239 + 8) / 255];
       l.idc = c; window.RIG_IDS[(l.view ? l.view + ':' : '') + l.name] = c.map(v => Math.round(v * 255)); });
     rig.draw = (X, t, P, T) => draw(rig, X, t, P, T);
+    rig.locate = (t, P, T, name) => locate(rig, t, P, T, name);
     return rig;
   }
 
@@ -271,6 +272,19 @@ const RIG = (() => {
     gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(gl.getUniformLocation(prog, 'alpha'), alpha);
     const id = window.RIG_IDPASS && l.idc; gl.uniform4f(gl.getUniformLocation(prog, 'idc'), id ? id[0] : 0, id ? id[1] : 0, id ? id[2] : 0, id ? 1 : 0);
     gl.drawElements(gl.TRIANGLES, l.m.n, gl.UNSIGNED_SHORT, 0);
+  }
+
+  // where a layer is (the centroid of its deformed mesh) in screen px, without drawing: e.g. her hand, so a page-wipe can follow it
+  function locate(rig, t, P, T, name) {
+    const C = rig.R.couple || {}, vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
+    const Pt = tt => { const q = { ...P(tt), _t: tt }; const turn = (vang(q) + (q.angleX || 0) * 30) / 35, cp = q.nocouple || !C.on ? 0 : 1;
+      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0); return q; };
+    const p = Pt(t), sp = springs(rig.R, Pt, t), l = (rig.lists[p.view || 'F'] || rig.layers).find(q => q.name === name);
+    if (!l) return null;
+    const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
+    let sx = 0, sy = 0; for (let k = 0; k < pos.length; k += 2) { sx += pos[k]; sy += pos[k + 1]; }
+    const n = pos.length / 2, ox = rig.R.origin[0], oy = rig.R.origin[1];
+    return [T.x + (sx / n - ox) * T.s, T.y + (sy / n - oy) * T.s];
   }
 
   function draw(rig, X, t, P, T) {

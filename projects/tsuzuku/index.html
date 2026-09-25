@@ -50,6 +50,7 @@
 <script src="src/sway.js"></script>
 <script src="../../engine/moves.js"></script>
 <script src="src/crabs.js"></script>
+<script src="src/idolstage.js"></script>
 <script src="src/chorus.js"></script>
 <script>
 (async () => {
@@ -68,6 +69,7 @@
     if (window.PROLOGUE_INIT) await PROLOGUE_INIT();
     window.RIGS = { clawd: await RIG.load('rig/clawd/rig.json') };
     window.WORDS = await (await fetch('assets/words.json')).json();
+    window.VOCAL_ENV = await (await fetch('assets/vocal_env.json')).json();
     if (window.registerFilm) registerFilm();
     window.ready = true;
     studioUI();

@@ -113,17 +113,27 @@ const MOVES = (() => {
 
   // lip-sync from word timestamps ({t0, t1, w, who}): one drawn vowel per word, closed between words, crowd calls (in
   // parentheses) silent. Shapes change on twos.
-  function lips(words, who) {
-    const W = []; let crowd = false;
+  function lips(words, who, env) {
+    // env ({fps, [who]: [0..1]}): her voice's loudness in song time. With it, the mouth is open while she is SOUNDING (a held
+    // note stays open past its word's timestamp) and shaped by the vowel of the last word she began; crowd calls (the words in
+    // parentheses) keep it closed. Without it, one vowel per word timestamp.
+    const W = [], crowdSpans = []; let crowd = false, cs = null;
     for (const w of words || []) {
       if (w.who !== who) continue;
       const open = w.w.includes('('), close = w.w.includes(')');
-      if (open) crowd = true;
+      if (open) { crowd = true; cs = w.t0; }
       if (!crowd) W.push(w);
-      if (close) crowd = false;
+      if (close) { crowd = false; crowdSpans.push([cs, w.t1 + .15]); }
     }
     const VOW = s => ({ a: 'A', e: 'E', i: 'I', o: 'O', u: 'U', y: 'I' })[(s.toLowerCase().match(/[aeiouy]/) || ['e'])[0]];
+    const E = env && env[who], fps = env && env.fps;
     return t => { const q = Math.floor(t * 12) / 12;
+      if (E) {
+        const v = E[Math.round(q * fps)] || 0; if (v < .32) return null;
+        if (crowdSpans.some(([a, b]) => q >= a && q < b) && !W.some(w => q >= w.t0 - .04 && q < w.t1)) return null;
+        let last = null; for (const w of W) { if (w.t0 - .04 <= q) last = w; else break; }
+        return last && q - last.t0 < 4 ? VOW(last.w) : null;
+      }
       for (const w of W) if (q >= w.t0 - .04 && q < w.t1 - .03) return VOW(w.w);
       return null; };
   }
