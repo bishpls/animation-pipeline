@@ -6,7 +6,8 @@
     "eye_R",
     "brow_L",
     "brow_R",
-    "mouth"
+    "mouth",
+    "nose"
    ],
    "ellipse": [
     1068,
@@ -30,26 +31,20 @@
     "hull": [
      "eye_L",
      "eye_R",
-     "mouth"
+     "mouth",
+     "nose"
     ]
-   }
-  },
-  "neck": {
-   "rect": [
-    995,
-    700,
-    1140,
-    1000
-   ],
-   "hull": [
+   },
+   "within": [
+    "hair_front",
     "hair_side_L",
-    "hair_side_R"
-   ],
-   "clip": [
-    960,
-    700,
-    1170,
-    1000
+    "hair_side_R",
+    "eye_L",
+    "eye_R",
+    "mouth",
+    "nose",
+    "brow_L",
+    "brow_R"
    ]
   },
   "arm_L": {
@@ -80,14 +75,11 @@
    "hull": [
     "sleeve_L",
     "sleeve_R",
-    "bow",
-    "collar",
-    "hair_side_L",
-    "hair_side_R"
+    "bow"
    ],
    "clip": [
     760,
-    860,
+    900,
     1370,
     1370
    ],
@@ -159,44 +151,6 @@
     1450,
     560
    ]
-  },
-  "collar": {
-   "hull": [
-    "hair_side_L",
-    "hair_side_R",
-    "neck"
-   ],
-   "clip": [
-    760,
-    740,
-    1380,
-    1000
-   ],
-   "within_hull": true
-  },
-  "sleeve_L": {
-   "hull": [
-    "hair_side_L"
-   ],
-   "clip": [
-    560,
-    760,
-    960,
-    1110
-   ],
-   "within_hull": true
-  },
-  "sleeve_R": {
-   "hull": [
-    "hair_side_R"
-   ],
-   "clip": [
-    1180,
-    760,
-    1580,
-    1110
-   ],
-   "within_hull": true
   }
  },
  "plates": {
@@ -207,7 +161,7 @@
     "hair_side_R",
     "face"
    ],
-   "grow": -14,
+   "grow": -3,
    "colour": "shadow",
    "behind": "skirt_back"
   }
@@ -215,8 +169,87 @@
  "feather": {
   "eye_L": 10,
   "eye_R": 10,
-  "mouth": 10
+  "mouth": 10,
+  "nose": 6
  },
  "bleed": 3,
- "aa": 0.8
+ "aa": 0.8,
+ "tubes": {
+  "neck": {
+   "left": [
+    [
+     1003,
+     620
+    ],
+    [
+     1003,
+     790
+    ]
+   ],
+   "right": [
+    [
+     1130,
+     620
+    ],
+    [
+     1130,
+     790
+    ]
+   ],
+   "fill": [
+    1065,
+    840
+   ],
+   "line": 7
+  }
+ },
+ "crossfill": {
+  "targets": [
+   "collar",
+   "sleeve_L",
+   "sleeve_R",
+   "bodice",
+   "neck",
+   "chest"
+  ],
+  "sources": [
+   [
+    "views/left_aligned.png",
+    "views/layers_left/labels.png",
+    "views/layers_left/labels.json",
+    [
+     "yoke",
+     "body"
+    ]
+   ],
+   [
+    "views/right_aligned.png",
+    "views/layers_right/labels.png",
+    "views/layers_right/labels.json",
+    [
+     "yoke",
+     "body"
+    ]
+   ],
+   [
+    "views/hleft_aligned.png",
+    "views/layers_hleft/labels.png",
+    "views/layers_hleft/labels.json",
+    [
+     "yoke",
+     "body"
+    ]
+   ],
+   [
+    "views/hright_aligned.png",
+    "views/layers_hright/labels.png",
+    "views/layers_hright/labels.json",
+    [
+     "yoke",
+     "body"
+    ]
+   ]
+  ],
+  "reach": 160
+ }
 }

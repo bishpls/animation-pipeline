@@ -66,7 +66,8 @@ const RIG = (() => {
   // damped springs, stepped at 1/120 s from a pre-roll: out = spring position minus its driver (the lag), times gain
   function springs(R, P, t) {
     const S = R.springs || {}, names = Object.keys(S); if (!names.length) return {};
-    const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
+    const vang = p => (R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0;   // a drawn view is a real head angle
+    const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
       : d === 'bodyZ' ? (p.bodyZ || 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p.bodyX || 0) * 20 : (p[d] || 0); };
     const dt = 1 / 120, pre = R.preroll || 2, t0 = t - pre, n = Math.round(pre / dt);
     const st = {}; for (const k of names) { const v = drive(P(t0), k); st[k] = { x: v, v: 0 }; }
@@ -108,7 +109,9 @@ const RIG = (() => {
       const byName = Object.fromEntries(v.layers.map(l => [l.name, l])), swapped = new Set(R.head.layers || []);   // the base neck stays (chest)
       const list = []; let pending = [], used = new Set();
       const vorder = v.layers.map(l => l.name);
+      const hide = new Set(v.V.hide || []);                  // base layers this view replaces outright (e.g. the neck: the yoke draws it)
       for (const l of layers) {
+        if (hide.has(l.name)) continue;
         if (!swapped.has(l.name)) { list.push(l); continue; }
         if (byName[l.name]) {
           const i = vorder.indexOf(l.name); pending = vorder.slice(0, i).filter(n => !used.has(n) && !layers.some(b => b.name === n));
@@ -116,7 +119,7 @@ const RIG = (() => {
           list.push(byName[l.name]); used.add(l.name);
         }
       }
-      if (byName.neck) { const i = list.findIndex(l => l.name === 'neck' && !l.view); list.splice(i + 1, 0, byName.neck); used.add('neck'); }   // the view's neck over the chest
+      if (byName.neck) { const i = list.findIndex(l => l.name === 'collar' && !l.view); list.splice(i, 0, byName.neck); used.add('neck'); }   // the view's neck, under the collar
       for (const [n, where] of Object.entries(v.V.insert || {})) {        // e.g. the yoke: the view's own collar, blended over the body
         if (!byName[n]) continue; const [, ref] = where.split(':'); const i = list.findIndex(l => l.name === ref && !l.view);
         list.splice(i + 1, 0, byName[n]); used.add(n);
@@ -130,25 +133,15 @@ const RIG = (() => {
     return rig;
   }
 
-  // the head turn for one point: an ellipsoid with depth (near layers travel further; the far side compresses a little)
-  function headPoint(H, x, y, d, ax, ay) {
-    const Rx = H.radius[0] * (H.flat || 1), Ry = H.radius[1] * (H.flat || 1);    // flat > 1: a shallower curve, less wrap
-    const u = clamp((x - H.center[0]) / Rx, -.985, .985), v = clamp((y - H.center[1]) / Ry, -.985, .985);
-    const rx = Rx * (1 + d), ry = Ry * (1 + d * .6);
-    const extraX = (x - H.center[0]) - Rx * u, extraY = (y - H.center[1]) - Ry * v;
-    return [H.center[0] + rx * Math.sin(Math.asin(u) + ax) - (rx - Rx) * u + extraX * Math.cos(ax),
-            H.center[1] + ry * Math.sin(Math.asin(v) - ay) - (ry - Ry) * v + extraY * Math.cos(ay)];
-  }
-
   function deform(rig, l, p, sp, out) {
     const R = rig.R, H = l.view ? { ...R.head, ...R.views[l.view].head } : R.head, B = R.body || {}, rest = l.m.rest, name = l.name;
-    const ax = clamp(p.angleX || 0, -1, 1) * 30 * Math.PI / 180, ay = clamp(p.angleY || 0, -1, 1) * 18 * Math.PI / 180;
+    const nx = clamp(p.angleX || 0, -1, 1), ny = clamp(p.angleY || 0, -1, 1);
     const breath = p.breath !== undefined ? p.breath : .5 + .5 * Math.sin(p._t * 2 * Math.PI / 3.6);
     const viewNeck = l.view && (H.neckLayers || []).includes(name);
     const inHead = l.view ? !viewNeck : rig.head.has(name), inUpper = inHead || viewNeck || rig.upper.has(name) || rig.armOf[name];
     const sw = R.sway && R.sway[name], arm = rig.armOf[name] ? R.arms[rig.armOf[name]] : null;
     let dep = H && H.depth && H.depth[name] !== undefined ? H.depth[name] : 0;
-    const rigid = H && H.rigid && H.rigid[name], neckL = H && H.neckLayers && H.neckLayers.includes(name);
+    const rigid = H && H.rigid && H.rigid[name];
     for (let k = 0; k < rest.length; k += 2) {
       let x = rest[k], y = rest[k + 1];
       // 1. secondary motion (a bend that grows from the root)
@@ -159,22 +152,16 @@ const RIG = (() => {
       }
       // 2. the head turn: a cylinder with depth (near layers travel further; the far side compresses)
       if (inHead) {
-        const d = Array.isArray(dep) ? dep[0] + (dep[1] - dep[0]) * clamp(Math.abs(x - H.center[0]) / H.radius[0], 0, 1) : dep;
-        if (rigid) {                               // features keep their drawn shape: move with their centre, squash slightly
-          const [cx, cy] = headPoint(H, rigid[0], rigid[1], d, ax, ay), e = 2;
-          const sx = (headPoint(H, rigid[0] + e, rigid[1], d, ax, ay)[0] - headPoint(H, rigid[0] - e, rigid[1], d, ax, ay)[0]) / (2 * e);
-          x = cx + (x - rigid[0]) * sx; y = cy + (y - rigid[1]);
-        } else [x, y] = headPoint(H, x, y, d, ax, ay);
-        [x, y] = rot(x, y, H.neck[0], H.neck[1], (p.angleZ || 0));
-      }
-      // the neck's top rides with the chin (weighted by height), so head and neck never slide apart
-      if (neckL) {
-        const w = clamp((H.chinBand[1] - y) / (H.chinBand[1] - H.chinBand[0]), 0, 1);
-        if (w > 0) {
-          const [cx, cy] = headPoint(H, H.chin[0], H.chin[1], 0, ax, ay), [rx2, ry2] = rot(cx, cy, H.neck[0], H.neck[1], (p.angleZ || 0));
-          const [qx, qy] = rot(x, y, H.neck[0], H.neck[1], (p.angleZ || 0) * w);
-          x = qx + (rx2 - H.chin[0]) * w; y = qy + (ry2 - H.chin[1]) * w;
-        }
+        // the head turn by measured ratios (Live2D sample rigs): each layer moves k x the nose's travel. Features ~0.6-0.9, the
+        // face outline 0.3-0.5 (less at its edges, so the far cheek compresses), front hair ~0.5, back hair 0 or opposite.
+        // Rigid features (eyes, nose, mouth) move as a unit, from their centre.
+        const px = rigid ? rigid[0] : x, py = rigid ? rigid[1] : y, u = clamp(Math.abs(px - H.center[0]) / H.radius[0], 0, 1);
+        const kk = (K, fb) => { const k = K && K[name] !== undefined ? K[name] : fb; return Array.isArray(k) ? k[0] + (k[1] - k[0]) * u : k; };
+        const kx = kk(H.kx, .4), ky = kk(H.ky, kx);
+        // hanging hair: below the jaw, the head's tilt and nod carry it less and less (gravity keeps the tips down)
+        const hf = H.hang && H.hang[name] ? (([y0, y1, wmin]) => 1 - (1 - wmin) * clamp((py - y0) / (y1 - y0), 0, 1))(H.hang[name]) : 1;
+        x += H.D[0] * nx * kx; y -= H.D[1] * ny * ky * hf;
+        [x, y] = rot(x, y, H.pivot[0], H.pivot[1], (p.angleZ || 0) * hf);
       }
       // 3. arms at the shoulder (the sleeve follows part of the way)
       if (arm) { const a = (rig.armOf[name] === 'L' ? 1 : -1) * (p['arm' + rig.armOf[name]] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a); }
@@ -220,7 +207,7 @@ const RIG = (() => {
 
   function draw(rig, X, t, P, T) {
     const W = X.canvas.width, Hh = X.canvas.height; glInit(W, Hh);
-    const Pt = tt => ({ ...P(tt), _t: tt }), p = Pt(t), sp = springs(rig.R, Pt, t);
+    const Pt = tt => ({ ...P(tt), _t: tt }), p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
     const VV = rig.variants[p.view || 'F'] || {};
     const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth : null;

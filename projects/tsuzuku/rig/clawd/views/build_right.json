@@ -30,7 +30,50 @@
      "eye_R",
      "mouth"
     ]
-   }
+   },
+   "exclude": [
+    [
+     [
+      990,
+      690
+     ],
+     [
+      1038,
+      689
+     ],
+     [
+      1140,
+      730
+     ],
+     [
+      1229,
+      766
+     ],
+     [
+      1300,
+      770
+     ],
+     [
+      1300,
+      1000
+     ],
+     [
+      990,
+      1000
+     ]
+    ]
+   ],
+   "within": [
+    "hair_front",
+    "hair_side_L",
+    "hair_side_R",
+    "eye_L",
+    "eye_R",
+    "mouth",
+    "nose",
+    "brow_L",
+    "brow_R"
+   ]
   },
   "hair_front": {
    "hull": [
@@ -77,7 +120,7 @@
     "hair_side_R",
     "face"
    ],
-   "grow": -14,
+   "grow": -3,
    "colour": "shadow",
    "behind": "neck"
   }

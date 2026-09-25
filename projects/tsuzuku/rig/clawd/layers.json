@@ -9,6 +9,7 @@
   "brow_R",
   "eye_L",
   "eye_R",
+  "nose",
   "mouth",
   "face",
   "ahoge",
@@ -27,6 +28,7 @@
   "bow",
   "collar",
   "neck",
+  "chest",
   "bodice",
   "waistband",
   "skirt",
@@ -178,6 +180,40 @@
    ],
    "from": [
     "face"
+   ]
+  },
+  "nose": {
+   "ellipse": [
+    1065,
+    622,
+    17,
+    24
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "chest": {
+   "poly": [
+    [
+     900,
+     880
+    ],
+    [
+     1230,
+     880
+    ],
+    [
+     1230,
+     1100
+    ],
+    [
+     900,
+     1100
+    ]
+   ],
+   "from": [
+    "neck"
    ]
   }
  }

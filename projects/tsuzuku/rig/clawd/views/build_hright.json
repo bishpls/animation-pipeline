@@ -1,0 +1,132 @@
+{
+ "under": {
+  "face": {
+   "hull": [
+    "eye_L",
+    "eye_R",
+    "mouth"
+   ],
+   "ellipse": [
+    1140,
+    640,
+    178,
+    215
+   ],
+   "clip": [
+    910,
+    380,
+    1370,
+    800
+   ],
+   "flat": [
+    1115,
+    698,
+    1215,
+    726
+   ],
+   "flat_zone": {
+    "hull": [
+     "eye_L",
+     "eye_R",
+     "mouth"
+    ]
+   },
+   "exclude": [
+    [
+     [
+      950,
+      700
+     ],
+     [
+      1010,
+      700
+     ],
+     [
+      1080,
+      740
+     ],
+     [
+      1160,
+      775
+     ],
+     [
+      1260,
+      780
+     ],
+     [
+      1260,
+      1000
+     ],
+     [
+      950,
+      1000
+     ]
+    ]
+   ],
+   "within": [
+    "hair_front",
+    "hair_side_L",
+    "hair_side_R",
+    "eye_L",
+    "eye_R",
+    "mouth",
+    "nose",
+    "brow_L",
+    "brow_R"
+   ]
+  },
+  "hair_front": {
+   "hull": [
+    "pin_star",
+    "pin_crab"
+   ],
+   "clip": [
+    1190,
+    300,
+    1520,
+    560
+   ]
+  },
+  "hair_side_R": {
+   "hull": [
+    "pin_star",
+    "pin_crab"
+   ],
+   "clip": [
+    1190,
+    300,
+    1520,
+    560
+   ]
+  }
+ },
+ "plates": {
+  "hair_back": {
+   "from": [
+    "hair_front",
+    "hair_side_L",
+    "hair_side_R",
+    "face"
+   ],
+   "grow": -3,
+   "colour": "shadow",
+   "behind": "yoke"
+  }
+ },
+ "feather": {
+  "eye_L": 10,
+  "eye_R": 10,
+  "mouth": 10,
+  "yoke": {
+   "px": 30,
+   "from": [
+    "body"
+   ]
+  }
+ },
+ "bleed": 3,
+ "aa": 0.8,
+ "drop": [
+  "body"
+ ]
+}

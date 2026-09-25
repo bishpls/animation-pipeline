@@ -53,12 +53,38 @@ def main(ldir, spec, out):
     meta = json.load(open(os.path.join(ldir, 'labels.json'))); order = meta['order']
     L = {n: load(os.path.join(ldir, n + '.png')) for n in order if os.path.exists(os.path.join(ldir, n + '.png'))}
     shape = next(iter(L.values())).shape[:2]; review = np.zeros(shape, bool)
+    # cross-fill: body layers hidden under the hair get REAL drawn pixels from other registered views of the same body, wherever
+    # a view shows that spot as body (e.g. a turned head's hair has moved off the shoulder). Each pixel goes to the nearest target.
+    CF = S.get('crossfill')
+    if CF:
+        tg = [t for t in CF['targets'] if t in L]
+        dist = []; 
+        for t in tg:
+            dist.append(ndi.distance_transform_edt(~(L[t][:, :, 3] > 8)))
+        dist = np.stack(dist); near = np.argmin(dist, 0); reach = np.min(dist, 0) <= CF.get('reach', 140)
+        filled = np.zeros(shape, bool); anyA = np.zeros(shape, bool)
+        for t in tg: anyA |= L[t][:, :, 3] > 8
+        for img, lab, lj, names in CF['sources']:
+            V = load(os.path.join(os.path.dirname(spec), img)); lb = np.array(Image.open(os.path.join(os.path.dirname(spec), lab)))
+            vo = json.load(open(os.path.join(os.path.dirname(spec), lj)))['order']; ok = np.isin(lb, [vo.index(n) + 1 for n in names if n in vo])
+            ok &= (V[:, :, 3] > 200) & ~anyA & ~filled & reach
+            for i, t in enumerate(tg):
+                m = ok & (near == i); L[t][m] = V[m]; filled |= m
+        review |= filled; print(f'  crossfill {filled.sum():8d} px from {len(CF["sources"])} views')
     for n, sp in S.get('under', {}).items():
         a = L[n][:, :, 3] > 8; Z = region(sp, L, shape) | a
         if sp.get('grow'): Z = ndi.binary_dilation(Z, iterations=sp['grow'])
         Z = ndi.binary_fill_holes(Z)
         if 'clip' in sp:
             x0, y0, x1, y1 = sp['clip']; C = np.zeros(shape, bool); C[y0:y1, x0:x1] = True; Z &= C
+        for poly in sp.get('exclude', []):          # never fill here (e.g. a face fill must stop at the jaw, over the neck)
+            from PIL import ImageDraw
+            E = Image.new('L', (shape[1], shape[0]), 0); ImageDraw.Draw(E).polygon([tuple(q) for q in poly], fill=255); Z &= ~(np.array(E) > 127)
+        if sp.get('within'):                        # only under these layers (e.g. a face fill only where hair covers it at rest)
+            Wm = np.zeros(shape, bool)
+            for o in sp['within']:
+                if o in L: Wm |= L[o][:, :, 3] > 8
+            Z &= Wm | (L[n][:, :, 3] > 8)
         if sp.get('within_hull'):                  # never grow past the layer's own outline (no floating patches)
             hull = cv2.convexHull(np.argwhere(a)[:, ::-1].astype(np.int32)); H = np.zeros(shape, np.uint8); cv2.fillPoly(H, [hull], 1); Z &= H > 0
         hole = Z & ~a
@@ -69,6 +95,18 @@ def main(ldir, spec, out):
         else: L[n] = fill_from(L[n], hole)
         review |= hole
         print(f'  under {n:12s} +{hole.sum():8d} px')
+    for n, T in S.get('tubes', {}).items():
+        # two side lines [[x0, y0], [x1, y1]] (drawn contours, extended to their far ends); the band between them is filled with the
+        # sampled tone and the lines are stroked in the sampled line colour; the layer's own pixels stay on top
+        from PIL import ImageDraw
+        lay = L[n]; H0, W0 = shape; im = Image.new('RGBA', (W0, H0), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
+        (a0, a1), (b0, b1) = T['left'], T['right']; fx, fy = T['fill']; col = tuple(int(v) for v in lay[fy, fx, :3]) if lay[fy, fx, 3] > 0 else tuple(T.get('fill_rgb', (230, 180, 170)))
+        d.polygon([tuple(a0), tuple(a1), tuple(b1), tuple(b0)], fill=col + (255,))
+        lc = tuple(T.get('line_rgb', (40, 22, 20))) + (255,)
+        d.line([tuple(a0), tuple(a1)], fill=lc, width=T.get('line', 6)); d.line([tuple(b0), tuple(b1)], fill=lc, width=T.get('line', 6))
+        ext = np.array(im); a = lay[:, :, 3:4].astype(float) / 255
+        L[n] = (ext * (1 - a) + lay * a).astype(np.uint8); L[n][:, :, 3] = np.maximum(ext[:, :, 3], lay[:, :, 3])
+        print(f'  tube  {n:12s} extended')
     for n, sp in S.get('plates', {}).items():
         Z = np.zeros(shape, bool)
         for o in sp['from']: Z |= L[o][:, :, 3] > 8

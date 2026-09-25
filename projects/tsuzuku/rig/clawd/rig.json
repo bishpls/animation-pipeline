@@ -20,7 +20,8 @@
    "hair_side_R",
    "hair_front",
    "pin_crab",
-   "pin_star"
+   "pin_star",
+   "nose"
   ],
   "center": [
    1068,
@@ -30,34 +31,6 @@
    200,
    240
   ],
-  "neck": [
-   1065,
-   800
-  ],
-  "depth": {
-   "hair_front": 0.12,
-   "pin_star": 0.18,
-   "pin_crab": 0.16,
-   "brow_L": 0.015,
-   "brow_R": 0.015,
-   "eye_L": 0.06,
-   "eye_R": 0.06,
-   "mouth": 0.04,
-   "face": 0,
-   "hair_side_L": [
-    0.04,
-    -0.22
-   ],
-   "hair_side_R": [
-    0.04,
-    -0.22
-   ],
-   "bun_L": -0.24,
-   "bun_R": -0.24,
-   "hair_back": -0.35,
-   "ahoge": 0.1
-  },
-  "flat": 1.6,
   "rigid": {
    "eye_L": [
     962,
@@ -78,19 +51,88 @@
    "brow_R": [
     1180,
     460
+   ],
+   "nose": [
+    1065,
+    622
    ]
   },
-  "neckLayers": [
-   "neck"
+  "D": [
+   80,
+   42
   ],
-  "chin": [
+  "kx": {
+   "nose": 1.0,
+   "eye_L": 0.8,
+   "eye_R": 0.8,
+   "brow_L": 0.8,
+   "brow_R": 0.8,
+   "mouth": 0.7,
+   "face": [
+    0.45,
+    0.25
+   ],
+   "hair_front": [
+    0.55,
+    0.38
+   ],
+   "pin_star": 0.6,
+   "pin_crab": 0.6,
+   "hair_side_L": [
+    0.42,
+    0.18
+   ],
+   "hair_side_R": [
+    0.42,
+    0.18
+   ],
+   "ahoge": 0.3,
+   "bun_L": -0.06,
+   "bun_R": -0.06,
+   "hair_back": -0.12
+  },
+  "ky": {
+   "nose": 1.0,
+   "eye_L": 0.85,
+   "eye_R": 0.85,
+   "brow_L": 0.9,
+   "brow_R": 0.9,
+   "mouth": 0.85,
+   "face": [
+    0.4,
+    0.3
+   ],
+   "hair_front": 0.45,
+   "pin_star": 0.45,
+   "pin_crab": 0.45,
+   "hair_side_L": 0.3,
+   "hair_side_R": 0.3,
+   "ahoge": 0.2,
+   "bun_L": 0.05,
+   "bun_R": 0.05,
+   "hair_back": 0
+  },
+  "pivot": [
    1065,
-   790
+   752
   ],
-  "chinBand": [
-   790,
-   905
-  ]
+  "hang": {
+   "hair_side_L": [
+    720,
+    900,
+    0.3
+   ],
+   "hair_side_R": [
+    720,
+    900,
+    0.3
+   ],
+   "hair_back": [
+    720,
+    900,
+    0.3
+   ]
+  }
  },
  "body": {
   "waist": [
@@ -103,6 +145,7 @@
   ],
   "upper": [
    "neck",
+   "chest",
    "collar",
    "bow",
    "bodice"
@@ -215,8 +258,8 @@
   "ahoge": {
    "drive": "headX",
    "k": 140,
-   "c": 8,
-   "gain": 1.2
+   "c": 16,
+   "gain": 0.6
   },
   "bun": {
    "drive": "bounce",
@@ -251,20 +294,8 @@
    "manifest": "views/left/manifest.json",
    "head": {
     "center": [
-     1010,
-     560
-    ],
-    "neck": [
-     1040,
-     800
-    ],
-    "chin": [
-     921,
-     757
-    ],
-    "chinBand": [
-     757,
-     875
+     975,
+     600
     ],
     "rigid": {
      "eye_L": [
@@ -283,6 +314,14 @@
     "neckLayers": [
      "yoke",
      "neck"
+    ],
+    "D": [
+     60,
+     36
+    ],
+    "pivot": [
+     925,
+     720
     ]
    },
    "mouth": {
@@ -296,26 +335,18 @@
    "insert": {
     "yoke": "after:collar"
    },
-   "variants": "views/left/variants.json"
+   "variants": "views/left/variants.json",
+   "angle": -35,
+   "hide": [
+    "neck"
+   ]
   },
   "R": {
    "manifest": "views/right/manifest.json",
    "head": {
     "center": [
-     1100,
-     560
-    ],
-    "neck": [
-     1090,
-     800
-    ],
-    "chin": [
-     1229,
-     766
-    ],
-    "chinBand": [
-     766,
-     885
+     1135,
+     600
     ],
     "rigid": {
      "eye_L": [
@@ -334,6 +365,14 @@
     "neckLayers": [
      "yoke",
      "neck"
+    ],
+    "D": [
+     60,
+     36
+    ],
+    "pivot": [
+     1205,
+     728
     ]
    },
    "mouth": {
@@ -347,7 +386,113 @@
    "insert": {
     "yoke": "after:collar"
    },
-   "variants": "views/right/variants.json"
+   "variants": "views/right/variants.json",
+   "angle": 35,
+   "hide": [
+    "neck"
+   ]
+  },
+  "HL": {
+   "manifest": "views/hleft/manifest.json",
+   "variants": "views/hleft/variants.json",
+   "insert": {
+    "yoke": "after:collar"
+   },
+   "head": {
+    "D": [
+     60,
+     36
+    ],
+    "center": [
+     960,
+     600
+    ],
+    "pivot": [
+     950,
+     738
+    ],
+    "neckLayers": [
+     "yoke",
+     "neck"
+    ],
+    "rigid": {
+     "eye_L": [
+      865,
+      560
+     ],
+     "eye_R": [
+      1040,
+      558
+     ],
+     "mouth": [
+      947,
+      686
+     ]
+    }
+   },
+   "mouth": {
+    "center": [
+     947,
+     686
+    ],
+    "w": 120,
+    "h": 80
+   },
+   "angle": -20,
+   "hide": [
+    "neck"
+   ]
+  },
+  "HR": {
+   "manifest": "views/hright/manifest.json",
+   "variants": "views/hright/variants.json",
+   "insert": {
+    "yoke": "after:collar"
+   },
+   "head": {
+    "D": [
+     60,
+     36
+    ],
+    "center": [
+     1140,
+     600
+    ],
+    "pivot": [
+     1160,
+     738
+    ],
+    "neckLayers": [
+     "yoke",
+     "neck"
+    ],
+    "rigid": {
+     "eye_L": [
+      1065,
+      560
+     ],
+     "eye_R": [
+      1255,
+      560
+     ],
+     "mouth": [
+      1165,
+      686
+     ]
+    }
+   },
+   "mouth": {
+    "center": [
+     1165,
+     686
+    ],
+    "w": 120,
+    "h": 80
+   },
+   "angle": 20,
+   "hide": [
+    "neck"
+   ]
   }
  },
  "variants": "build/variants.json"
