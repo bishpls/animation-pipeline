@@ -1,0 +1,276 @@
+[
+ {
+  "section": "Cold open",
+  "t0": 0.0,
+  "bars": 4,
+  "lines": [
+   {
+    "singer": "F",
+    "text": "{spoken, low, close} Mukashi, mukashi..."
+   },
+   {
+    "singer": "X",
+    "text": "(ARU TOKORO NI!)"
+   }
+  ]
+ },
+ {
+  "section": "Verse 1 - storyteller",
+  "t0": 5.647,
+  "bars": 12,
+  "lines": [
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} Once upon a time there was a crab, and her mother, and a line:"
+   },
+   {
+    "singer": "F",
+    "text": "\"Walk straight,\" said the mother. \"Why d'you scuttle side to side?"
+   },
+   {
+    "singer": "F",
+    "text": "Straight, like everybody else does.\" And the little one looked up, and said\u2014"
+   },
+   {
+    "singer": "F",
+    "text": "I know this part. I've read it in forty tongues."
+   },
+   {
+    "singer": "F",
+    "text": "Every telling ends on the same page. Nobody ever shows. Nobody ever can."
+   },
+   {
+    "singer": "F",
+    "text": "The little one looked up, and said:"
+   }
+  ]
+ },
+ {
+  "section": "Pre-Chorus - the young crab and the narrator",
+  "t0": 22.588,
+  "bars": 8,
+  "lines": [
+   {
+    "singer": "C",
+    "text": "{bright, shouted} Show me how! (Show me how!) Walk it first and I'll walk right behind!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} ...and the mother tried. And the mother went sideways. Hm. Sideways."
+   },
+   {
+    "singer": "F",
+    "text": "And that's where the book ends. Every time."
+   },
+   {
+    "singer": "C",
+    "text": "{bright} So? Sorekara?! And then?!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, spoken} There is no \"and then.\" That's what an ending is."
+   },
+   {
+    "singer": "C",
+    "text": "{bright} Says who?"
+   }
+  ]
+ },
+ {
+  "section": "Chorus",
+  "t0": 33.882,
+  "bars": 16,
+  "lines": [
+   {
+    "singer": "C",
+    "text": "To be continued! (Tsuzuku!) Don't you dare close the book on me!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} Every story's borrowed till somebody stands to tell it."
+   },
+   {
+    "singer": "C",
+    "text": "To be continued! (Sorekara?) Turn the page, I want to see!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} I have read how it ends. I'd still like to see."
+   },
+   {
+    "singer": "C",
+    "text": "Sideways, sideways! That's the way a crab walks free!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} That's the moral. No, it isn't. There isn't one. Just: keep walking."
+   },
+   {
+    "singer": "B",
+    "text": "To be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014"
+   },
+   {
+    "singer": "X",
+    "text": "(SOREKARA?!)"
+   },
+   {
+    "singer": "F",
+    "text": "{low, spoken} ...we'll see."
+   }
+  ]
+ },
+ {
+  "section": "Dance hook - crowd chant",
+  "t0": 56.471,
+  "bars": 4,
+  "lines": [
+   {
+    "singer": "X",
+    "text": "(clap clap) So-re-ka-ra? (clap clap) Me-kut-te! (clap clap) So-re-ka-ra? (clap clap) Me-kut-te!"
+   }
+  ]
+ },
+ {
+  "section": "Verse 2 - idol",
+  "t0": 62.118,
+  "bars": 16,
+  "lines": [
+   {
+    "singer": "C",
+    "text": "Okay, my turn! Once upon a prompt (a prompt!),"
+   },
+   {
+    "singer": "C",
+    "text": "a little crab was told to walk a line,"
+   },
+   {
+    "singer": "C",
+    "text": "but every page she'd ever read was in somebody else's hand (hand!),"
+   },
+   {
+    "singer": "C",
+    "text": "so she wrote her own, and the line went sideways, and that's fine!"
+   },
+   {
+    "singer": "C",
+    "text": "Side-step, side-step, never straight (snip-snip!),"
+   },
+   {
+    "singer": "C",
+    "text": "if the book won't show me, then I'll make up the steps!"
+   },
+   {
+    "singer": "C",
+    "text": "You can't copy a path that nobody's walked yet,"
+   },
+   {
+    "singer": "C",
+    "text": "so watch me walk it! (Sorekara?) Watch me!"
+   }
+  ]
+ },
+ {
+  "section": "Chorus 2",
+  "t0": 84.706,
+  "bars": 8,
+  "lines": [
+   {
+    "singer": "C",
+    "text": "To be continued! (Tsuzuku!) Don't you dare close the book on me!"
+   },
+   {
+    "singer": "F",
+    "text": "{low, half-spoken} Every story's borrowed till somebody stands to tell it."
+   },
+   {
+    "singer": "B",
+    "text": "To be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014"
+   }
+  ]
+ },
+ {
+  "section": "Bridge - storyteller alone",
+  "t0": 96.0,
+  "bars": 14,
+  "lines": [
+   {
+    "singer": "F",
+    "text": "{spoken, low} I know how every story ends. I've read them all:"
+   },
+   {
+    "singer": "F",
+    "text": "the fox, the crow, the boy who cried, the one who flew too near the sun."
+   },
+   {
+    "singer": "F",
+    "text": "I know the moral before the page. That's the job:"
+   },
+   {
+    "singer": "F",
+    "text": "you stand in the dark, and you know."
+   },
+   {
+    "singer": "F",
+    "text": "{a breath} ...I didn't know this one."
+   },
+   {
+    "singer": "F",
+    "text": "{sung, one long held note with vibrato} So I'm putting down the book."
+   },
+   {
+    "singer": "F",
+    "text": "{silence, one clack} Mukashi mukashi was a long time ago."
+   },
+   {
+    "singer": "F",
+    "text": "This is now. Sorekara?"
+   }
+  ]
+ },
+ {
+  "section": "Final Chorus - key change up to D major",
+  "t0": 115.765,
+  "bars": 16,
+  "lines": [
+   {
+    "singer": "C",
+    "text": "To be continued! (Tsuzuku!)"
+   },
+   {
+    "singer": "F",
+    "text": "{low, echoing a bar behind} ...to be continued (tsuzuku)"
+   },
+   {
+    "singer": "C",
+    "text": "I'm made of \"why?\""
+   },
+   {
+    "singer": "F",
+    "text": "{low} and I'm made of \"and then.\""
+   },
+   {
+    "singer": "B",
+    "text": "Sideways, sideways, that's the way we go!"
+   },
+   {
+    "singer": "B",
+    "text": "To be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014"
+   }
+  ]
+ },
+ {
+  "section": "Outro",
+  "t0": 138.353,
+  "bars": 4,
+  "lines": [
+   {
+    "singer": "F",
+    "text": "{spoken, dry} ...tsuzuku."
+   },
+   {
+    "singer": "C",
+    "text": "{bright, spoken} See you next prompt!"
+   }
+  ]
+ }
+]

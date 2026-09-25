@@ -1,0 +1,131 @@
+{
+ "chunks": [
+  {
+   "text": "[Chorus]\nTo be continued! (Tsuzuku!) Don't you dare close the book on me!\n{low, half-spoken} Every story's borrowed till somebody stands to tell it.\nTo be continued! (Sorekara?) Turn the page, I want to see!\n{low, half-spoken} I have read how it ends. I'd still like to see.\nSideways, sideways! That's the way a crab walks free!\n{low, half-spoken} That's the moral. No, it isn't. There isn't one. Just: keep walking.\nTo be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014\n(SOREKARA?!)\n{low, spoken} ...we'll see.",
+   "duration_ms": 22588,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "live crowd calls in the mix",
+    "duet call and answer: bright rising lead lines answered by low half-spoken lines",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Dance hook - crowd chant]\n(clap clap) So-re-ka-ra? (clap clap) Me-kut-te! (clap clap) So-re-ka-ra? (clap clap) Me-kut-te!",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "live crowd calls in the mix",
+    "crowd chant with claps",
+    "energetic",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Verse 2 - idol]\nOkay, my turn! Once upon a prompt (a prompt!),\na little crab was told to walk a line,\nbut every page she'd ever read was in somebody else's hand (hand!),\nso she wrote her own, and the line went sideways, and that's fine!\nSide-step, side-step, never straight (snip-snip!),\nif the book won't show me, then I'll make up the steps!\nYou can't copy a path that nobody's walked yet,\nso watch me walk it! (Sorekara?) Watch me!",
+   "duration_ms": 22588,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "live crowd calls in the mix",
+    "funky groove",
+    "crowd calls answering",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Chorus 2]\nTo be continued! (Tsuzuku!) Don't you dare close the book on me!\n{low, half-spoken} Every story's borrowed till somebody stands to tell it.\nTo be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "live crowd calls in the mix",
+    "duet call and answer",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Final Chorus - key change up to D major]\nTo be continued! (Tsuzuku!)\n{low, echoing a bar behind} ...to be continued (tsuzuku)\nI'm made of \"why?\"\n{low} and I'm made of \"and then.\"\nSideways, sideways, that's the way we go!\nTo be continued (tsuzuku!), {three even triplets} and then, and then, and then\u2014",
+   "duration_ms": 22588,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "D major, key change up a whole step",
+    "biggest chorus, maximum joy",
+    "bright high mezzo lead answered one bar later by a low voice an octave below, like a round",
+    "crowd screaming the calls",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

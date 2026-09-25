@@ -1,0 +1,185 @@
+{
+ "bar": 1.411764705882353,
+ "events": [
+  {
+   "t0": 0,
+   "t1": 8.471,
+   "kind": "music",
+   "label": "prologue: HELLO, WORLD! (distant)"
+  },
+  {
+   "t0": 8.421,
+   "t1": 9.901,
+   "kind": "sfx",
+   "label": "hyoshigi: the story begins"
+  },
+  {
+   "t0": 8.471,
+   "t1": 31.059,
+   "kind": "music",
+   "label": "fable: intro + verse 1"
+  },
+  {
+   "t0": 8.965,
+   "t1": 11.438,
+   "kind": "fable",
+   "label": "Mukashi, mukashi..."
+  },
+  {
+   "t0": 11.435,
+   "t1": 14.035,
+   "kind": "crowd",
+   "label": "ARU TOKORO NI!"
+  },
+  {
+   "t0": 31.059,
+   "t1": 36.706,
+   "kind": "music",
+   "label": "fable: interlude bed"
+  },
+  {
+   "t0": 31.553,
+   "t1": 44.986,
+   "kind": "fable",
+   "label": "I know this part... The little one looked up, and said:"
+  },
+  {
+   "t0": 45.176,
+   "t1": 50.824,
+   "kind": "music",
+   "label": "fable: build"
+  },
+  {
+   "t0": 47.309,
+   "t1": 50.978,
+   "kind": "clawd",
+   "label": "Show me how! Walk it first..."
+  },
+  {
+   "t0": 51.278,
+   "t1": 53.878,
+   "kind": "crowd",
+   "label": "SHOW ME HOW!"
+  },
+  {
+   "t0": 54.178,
+   "t1": 64.337,
+   "kind": "fable",
+   "label": "...and the mother went sideways."
+  },
+  {
+   "t0": 64.637,
+   "t1": 67.353,
+   "kind": "clawd",
+   "label": "So? Sorekara?! And then?!"
+  },
+  {
+   "t0": 67.653,
+   "t1": 72.123,
+   "kind": "fable",
+   "label": "There is no \"and then.\""
+  },
+  {
+   "t0": 71.294,
+   "t1": 73.494,
+   "kind": "sfx",
+   "label": "riser into chorus"
+  },
+  {
+   "t0": 72.423,
+   "t1": 73.062,
+   "kind": "clawd",
+   "label": "Says who?"
+  },
+  {
+   "t0": 73.332,
+   "t1": 74.812,
+   "kind": "sfx",
+   "label": "hyoshigi: world switch"
+  },
+  {
+   "t0": 73.412,
+   "t1": 96.0,
+   "kind": "music",
+   "label": "clawd: chorus 1"
+  },
+  {
+   "t0": 96.0,
+   "t1": 98.6,
+   "kind": "crowd",
+   "label": "SOREKARA?!"
+  },
+  {
+   "t0": 96.0,
+   "t1": 135.529,
+   "kind": "music",
+   "label": "clawd: hook + verse 2 + chorus 2"
+  },
+  {
+   "t0": 96.776,
+   "t1": 97.415,
+   "kind": "fable",
+   "label": "...we'll see."
+  },
+  {
+   "t0": 135.529,
+   "t1": 141.176,
+   "kind": "music",
+   "label": "fable: bridge bed"
+  },
+  {
+   "t0": 136.235,
+   "t1": 153.105,
+   "kind": "fable",
+   "label": "I know how every story ends..."
+  },
+  {
+   "t0": 153.741,
+   "t1": 155.1,
+   "kind": "fable",
+   "label": "...I didn't know this one."
+  },
+  {
+   "t0": 155.294,
+   "t1": 165.176,
+   "kind": "music",
+   "label": "fable: the held note (So I'm putting down the book)"
+  },
+  {
+   "t0": 165.741,
+   "t1": 172.138,
+   "kind": "fable",
+   "label": "Mukashi mukashi was a long time ago. This is now. Sorekara?"
+  },
+  {
+   "t0": 171.529,
+   "t1": 173.729,
+   "kind": "sfx",
+   "label": "riser into final chorus"
+  },
+  {
+   "t0": 173.647,
+   "t1": 196.235,
+   "kind": "music",
+   "label": "clawd: final chorus (key change)"
+  },
+  {
+   "t0": 196.235,
+   "t1": 200.499,
+   "kind": "music",
+   "label": "outro: music box, open fifth"
+  },
+  {
+   "t0": 196.871,
+   "t1": 198.229,
+   "kind": "fable",
+   "label": "...tsuzuku."
+  },
+  {
+   "t0": 198.918,
+   "t1": 199.951,
+   "kind": "clawd",
+   "label": "See you next prompt!"
+  }
+ ]
+}

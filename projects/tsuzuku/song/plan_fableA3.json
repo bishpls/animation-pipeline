@@ -1,0 +1,107 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - instrumental]\n",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "intimate folk narrative ballad",
+    "instrumental intro",
+    "two wooden clacks, then a single lute phrase D G F E D"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "autotune",
+    "vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Verse 1]\nOnce upon a time there was a crab,\nand her mother, and a line:\n\"Walk straight,\" said the mother,\n\"why d'you scuttle side to side?\"\n\"Straight, like everybody else does.\"\nAnd the little one looked up, and said\u2014",
+   "duration_ms": 16941,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "intimate folk narrative ballad",
+    "gentle sung female vocals throughout",
+    "low contralto female folk singer, warm, dry, close-mic, straight tone, conversational phrasing"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "autotune",
+    "instrumental"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Interlude - instrumental bed]\n",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "intimate folk narrative ballad",
+    "instrumental",
+    "sparse lute and harmonium, room for a spoken voice"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "autotune",
+    "vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Pre-Chorus - instrumental build]\n",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "intimate folk narrative ballad",
+    "instrumental",
+    "tension rising",
+    "hyoshigi clacks accelerating",
+    "strings climbing",
+    "builds to a sudden stop"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "autotune",
+    "vocals"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

@@ -73,3 +73,100 @@
 {"ts": "2026-09-24T03:46:28", "service": "elevenlabs", "op": "sfx", "out": "projects/hello-world/assets/sfx/poof.mp3"}
 {"ts": "2026-09-24T03:53:30", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/hello-world/refs/chibi_neko.png", "ok": true}
 {"ts": "2026-09-24T05:36:03", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 3.0, "out": "/private/tmp/claude-501/-Users-michaelbishop-animation-pipeline/7c22d831-c4d1-4516-b6ae-de77518b85b5/scratchpad/inp_test", "wall": 2}
+{"ts": "2026-09-25T02:40:59", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 22.2, "out": "projects/duet-lab/probe1", "wall": 4}
+{"ts": "2026-09-25T02:41:00", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 22.2, "out": "projects/duet-lab/probe2", "wall": 4}
+{"ts": "2026-09-25T03:00:12", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 17.0, "out": "projects/tsuzuku/voice/fable_ref2", "wall": 4}
+{"ts": "2026-09-25T03:00:12", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 17.0, "out": "projects/tsuzuku/voice/fable_ref1", "wall": 5}
+{"ts": "2026-09-25T03:00:15", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 17.0, "out": "projects/tsuzuku/voice/fable_ref3", "wall": 3}
+{"ts": "2026-09-25T03:00:16", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 17.0, "out": "projects/tsuzuku/voice/fable_ref4", "wall": 4}
+{"ts": "2026-09-25T03:00:43", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/voice/fable_ref1.mp3"}
+{"ts": "2026-09-25T03:00:50", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/voice/fable_ref2.mp3"}
+{"ts": "2026-09-25T03:00:57", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/voice/fable_ref3.mp3"}
+{"ts": "2026-09-25T03:01:03", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/voice/fable_ref4.mp3"}
+{"ts": "2026-09-25T03:03:06", "service": "elevenlabs", "op": "stems", "in": "projects/hello-world/assets/song.mp3"}
+{"ts": "2026-09-25T03:11:46", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.888, "out": "projects/duet-lab/feel1", "wall": 5}
+{"ts": "2026-09-25T03:11:46", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.888, "out": "projects/duet-lab/feel2", "wall": 6}
+{"ts": "2026-09-25T03:15:29", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 143.999, "out": "projects/tsuzuku/assets/takes/take6", "wall": 15}
+{"ts": "2026-09-25T03:18:15", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 143.999, "out": "projects/tsuzuku/assets/takes/take12", "wall": 20}
+{"ts": "2026-09-25T03:18:40", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 143.999, "out": "projects/tsuzuku/assets/takes/take17", "wall": 15}
+{"ts": "2026-09-25T03:20:27", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/takes/take17.mp3"}
+{"ts": "2026-09-25T03:21:41", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 22.588, "out": "projects/tsuzuku/assets/takes/t17a", "wall": 17}
+{"ts": "2026-09-25T03:21:42", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 22.588, "out": "projects/tsuzuku/assets/takes/t17b", "wall": 18}
+{"ts": "2026-09-25T03:22:08", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/takes/t17a.mp3"}
+{"ts": "2026-09-25T03:22:34", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/takes/t17b.mp3"}
+{"ts": "2026-09-25T03:24:15", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world/fA_2", "wall": 6}
+{"ts": "2026-09-25T03:24:15", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world/fA_1", "wall": 6}
+{"ts": "2026-09-25T03:24:21", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world/fA_4", "wall": 6}
+{"ts": "2026-09-25T03:24:21", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world/fA_3", "wall": 6}
+{"ts": "2026-09-25T03:24:26", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world/fB_2", "wall": 4}
+{"ts": "2026-09-25T03:24:26", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world/fB_1", "wall": 4}
+{"ts": "2026-09-25T03:24:30", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world/fB_3", "wall": 4}
+{"ts": "2026-09-25T03:24:30", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world/fB_4", "wall": 4}
+{"ts": "2026-09-25T03:24:40", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world/cl_2", "wall": 10}
+{"ts": "2026-09-25T03:24:40", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world/cl_1", "wall": 10}
+{"ts": "2026-09-25T03:24:50", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world/cl_3", "wall": 10}
+{"ts": "2026-09-25T03:24:50", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world/cl_4", "wall": 10}
+{"ts": "2026-09-25T03:27:08", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world2/fA_1", "wall": 5}
+{"ts": "2026-09-25T03:27:08", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world2/fA_2", "wall": 5}
+{"ts": "2026-09-25T03:27:14", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world2/fA_3", "wall": 5}
+{"ts": "2026-09-25T03:27:14", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 33.882, "out": "projects/tsuzuku/assets/world2/fA_4", "wall": 5}
+{"ts": "2026-09-25T03:27:19", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB_1", "wall": 5}
+{"ts": "2026-09-25T03:27:21", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB_2", "wall": 7}
+{"ts": "2026-09-25T03:27:25", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB_3", "wall": 4}
+{"ts": "2026-09-25T03:27:26", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB_4", "wall": 5}
+{"ts": "2026-09-25T03:27:35", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world2/cl_1", "wall": 9}
+{"ts": "2026-09-25T03:27:35", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world2/cl_2", "wall": 9}
+{"ts": "2026-09-25T03:27:44", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world2/cl_3", "wall": 9}
+{"ts": "2026-09-25T03:27:44", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 84.705, "out": "projects/tsuzuku/assets/world2/cl_4", "wall": 9}
+{"ts": "2026-09-25T03:29:41", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 39.529, "out": "projects/tsuzuku/assets/world2/fA3_2", "wall": 6}
+{"ts": "2026-09-25T03:29:41", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 39.529, "out": "projects/tsuzuku/assets/world2/fA3_1", "wall": 6}
+{"ts": "2026-09-25T03:29:48", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 39.529, "out": "projects/tsuzuku/assets/world2/fA3_4", "wall": 6}
+{"ts": "2026-09-25T03:29:48", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 39.529, "out": "projects/tsuzuku/assets/world2/fA3_3", "wall": 7}
+{"ts": "2026-09-25T03:30:00", "service": "elevenlabs", "op": "stems", "in": "fA3_1.mp3"}
+{"ts": "2026-09-25T03:30:11", "service": "elevenlabs", "op": "stems", "in": "fA3_2.mp3"}
+{"ts": "2026-09-25T03:30:22", "service": "elevenlabs", "op": "stems", "in": "fA3_3.mp3"}
+{"ts": "2026-09-25T03:30:34", "service": "elevenlabs", "op": "stems", "in": "fA3_4.mp3"}
+{"ts": "2026-09-25T03:32:46", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB3_2", "wall": 4}
+{"ts": "2026-09-25T03:32:46", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB3_1", "wall": 4}
+{"ts": "2026-09-25T03:32:50", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB3_4", "wall": 4}
+{"ts": "2026-09-25T03:32:50", "service": "elevenlabs", "op": "music.compose", "model": "music_v2_5", "seconds": 25.412, "out": "projects/tsuzuku/assets/world2/fB3_3", "wall": 4}
+{"ts": "2026-09-25T03:34:19", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 19, "out": "projects/tsuzuku/voice/spoken/f_mukashi"}
+{"ts": "2026-09-25T03:34:20", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "cgSgspJ2msm6clMCkdW9", "chars": 55, "out": "projects/tsuzuku/voice/spoken/c_showme"}
+{"ts": "2026-09-25T03:34:21", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "cgSgspJ2msm6clMCkdW9", "chars": 25, "out": "projects/tsuzuku/voice/spoken/c_sorekara"}
+{"ts": "2026-09-25T03:34:21", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 13, "out": "projects/tsuzuku/voice/spoken/f_wellsee"}
+{"ts": "2026-09-25T03:34:22", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 49, "out": "projects/tsuzuku/voice/spoken/f_noandthen"}
+{"ts": "2026-09-25T03:34:22", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 112, "out": "projects/tsuzuku/voice/spoken/f_tried"}
+{"ts": "2026-09-25T03:34:22", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 26, "out": "projects/tsuzuku/voice/spoken/f_bridge2"}
+{"ts": "2026-09-25T03:34:23", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 160, "out": "projects/tsuzuku/voice/spoken/f_aside"}
+{"ts": "2026-09-25T03:34:23", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "cgSgspJ2msm6clMCkdW9", "chars": 20, "out": "projects/tsuzuku/voice/spoken/c_nextprompt"}
+{"ts": "2026-09-25T03:34:24", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 59, "out": "projects/tsuzuku/voice/spoken/f_nowthis"}
+{"ts": "2026-09-25T03:34:27", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 208, "out": "projects/tsuzuku/voice/spoken/f_bridge1"}
+{"ts": "2026-09-25T03:34:52", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "cgSgspJ2msm6clMCkdW9", "chars": 9, "out": "projects/tsuzuku/voice/spoken/c_sayswho"}
+{"ts": "2026-09-25T03:34:54", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "pFZP5JQG7iQjIQuC4Bku", "chars": 11, "out": "projects/tsuzuku/voice/spoken/f_tsuzuku"}
+{"ts": "2026-09-25T03:35:40", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/world2/cl_2.mp3"}
+{"ts": "2026-09-25T03:36:21", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/world2/fB3_2.mp3"}
+{"ts": "2026-09-25T03:36:44", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "FGY2WhTYpPnrIDTdsKH5", "chars": 35, "out": "projects/tsuzuku/voice/crowd/aru_3"}
+{"ts": "2026-09-25T03:36:44", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "IKne3meq5aSn9XLyUdCD", "chars": 35, "out": "projects/tsuzuku/voice/crowd/aru_2"}
+{"ts": "2026-09-25T03:36:44", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "EXAVITQu4vr4xnSDxMaL", "chars": 35, "out": "projects/tsuzuku/voice/crowd/aru_1"}
+{"ts": "2026-09-25T03:36:45", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "TX3LPaxmHKxFdv7VOQHJ", "chars": 35, "out": "projects/tsuzuku/voice/crowd/aru_4"}
+{"ts": "2026-09-25T03:36:45", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "bIHbv24MWmeRgasZH58o", "chars": 35, "out": "projects/tsuzuku/voice/crowd/aru_5"}
+{"ts": "2026-09-25T03:36:46", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "EXAVITQu4vr4xnSDxMaL", "chars": 31, "out": "projects/tsuzuku/voice/crowd/sorekara_1"}
+{"ts": "2026-09-25T03:36:46", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "bIHbv24MWmeRgasZH58o", "chars": 31, "out": "projects/tsuzuku/voice/crowd/sorekara_5"}
+{"ts": "2026-09-25T03:36:46", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "TX3LPaxmHKxFdv7VOQHJ", "chars": 31, "out": "projects/tsuzuku/voice/crowd/sorekara_4"}
+{"ts": "2026-09-25T03:36:46", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "IKne3meq5aSn9XLyUdCD", "chars": 31, "out": "projects/tsuzuku/voice/crowd/sorekara_2"}
+{"ts": "2026-09-25T03:36:46", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "FGY2WhTYpPnrIDTdsKH5", "chars": 31, "out": "projects/tsuzuku/voice/crowd/sorekara_3"}
+{"ts": "2026-09-25T03:36:47", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "FGY2WhTYpPnrIDTdsKH5", "chars": 33, "out": "projects/tsuzuku/voice/crowd/showme_3"}
+{"ts": "2026-09-25T03:36:47", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "EXAVITQu4vr4xnSDxMaL", "chars": 33, "out": "projects/tsuzuku/voice/crowd/showme_1"}
+{"ts": "2026-09-25T03:36:47", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "IKne3meq5aSn9XLyUdCD", "chars": 33, "out": "projects/tsuzuku/voice/crowd/showme_2"}
+{"ts": "2026-09-25T03:36:48", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "bIHbv24MWmeRgasZH58o", "chars": 33, "out": "projects/tsuzuku/voice/crowd/showme_5"}
+{"ts": "2026-09-25T03:36:49", "service": "elevenlabs", "op": "tts", "model": "eleven_v3", "voice": "TX3LPaxmHKxFdv7VOQHJ", "chars": 33, "out": "projects/tsuzuku/voice/crowd/showme_4"}
+{"ts": "2026-09-25T03:42:16", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/tsuzuku/refs/silhouette_target.png", "ok": true}
+{"ts": "2026-09-25T03:45:32", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/tsuzuku/refs/silhouette_target_v2.png", "ok": true}
+{"ts": "2026-09-25T03:48:38", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/tsuzuku/refs/fable_sheet.png", "ok": true}
+{"ts": "2026-09-25T03:51:23", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/tsuzuku/refs/fable_sheet_v2.png", "ok": true}
+{"ts": "2026-09-25T03:52:01", "service": "gemini", "op": "image", "model": "gemini-3-pro-image", "out": "projects/tsuzuku/refs/fable_sheet_v3.png", "ok": true}
+{"ts": "2026-09-25T04:03:17", "service": "elevenlabs", "op": "sfx", "out": "projects/tsuzuku/assets/sfx/riser.mp3"}
+{"ts": "2026-09-25T04:03:17", "service": "elevenlabs", "op": "sfx", "out": "projects/tsuzuku/assets/sfx/hyoshigi.mp3"}
+{"ts": "2026-09-25T04:03:23", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/world2/fB3_1.mp3"}
+{"ts": "2026-09-25T04:03:28", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/world2/fB3_3.mp3"}
+{"ts": "2026-09-25T04:03:34", "service": "elevenlabs", "op": "stems", "in": "projects/tsuzuku/assets/world2/fB3_4.mp3"}

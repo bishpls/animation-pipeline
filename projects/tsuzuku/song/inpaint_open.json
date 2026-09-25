@@ -1,0 +1,43 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - storyteller speaks, then sings]\n{a female voice speaks, low and close} Mukashi, mukashi...\n(ARU TOKORO NI!)\n[Verse 1 - the storyteller sings every line]\nOnce upon a time there was a crab, and her mother, and a line:\n\"Walk straight,\" said the mother. \"Why d'you scuttle side to side?\nStraight, like everybody else does.\" And the little one looked up, and said\u2014\nI know this part. I've read it in forty tongues.\nEvery telling ends on the same page. Nobody ever shows. Nobody ever can.\nThe little one looked up, and said:",
+   "duration_ms": 22588,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar",
+    "low contralto storyteller voice, warm, dry, close-mic, straight tone",
+    "speech gradually becoming melody",
+    "plucked nylon lute",
+    "two hyoshigi wooden clacks at the start",
+    "harmonium drone",
+    "D Dorian",
+    "folk narrative ballad"
+   ],
+   "negative_styles": [
+    "instrumental",
+    "no vocals",
+    "four-on-the-floor",
+    "synth",
+    "rock drums",
+    "autotune"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "ymsLvd2haUGaEvYIJNG5",
+   "range": {
+    "start_ms": 22588,
+    "end_ms": 93176
+   }
+  },
+  {
+   "song_id": "ymsLvd2haUGaEvYIJNG5",
+   "range": {
+    "start_ms": 93176,
+    "end_ms": 144000
+   }
+  }
+ ]
+}

@@ -15,3 +15,10 @@ projects/*/assets/score.wav
 projects/*/assets/vo/audition/
 .env.local
 projects/*/assets/seq/
+vendor/
+projects/*/assets/world*/
+projects/*/assets/takes/
+projects/*/assets/song_stems/
+projects/*/voice/*_stems/
+projects/*/voice/chorus_fable/
+projects/duet-lab/

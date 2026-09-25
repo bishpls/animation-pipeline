@@ -1,0 +1,54 @@
+{
+ "chunks": [
+  {
+   "text": "[Bridge - storyteller alone]\n{spoken, low} I know how every story ends. I've read them all:\nthe fox, the crow, the boy who cried, the one who flew too near the sun.\nI know the moral before the page. That's the job:\nyou stand in the dark, and you know.\n{a breath} ...I didn't know this one.\n{sung, one long held note with vibrato} So I'm putting down the book.\n{silence, one clack} Mukashi mukashi was a long time ago.\nThis is now. Sorekara?",
+   "duration_ms": 19765,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "low contralto female storyteller, dry, close-mic, straight tone, half-spoken sliding into song",
+    "intimate folk narrative ballad",
+    "strings and drums stop",
+    "one wooden clack",
+    "near silence, lute only",
+    "straight tone throughout, then ONE long held note with vibrato",
+    "builds at the very end into a key change",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "belting",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Outro]\n{spoken, dry} ...tsuzuku.\n{bright, spoken} See you next prompt!",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "85 BPM",
+    "the band stops",
+    "final chord a bare open fifth on D with no third",
+    "a music box plays four notes",
+    "clean ending",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar"
+   ],
+   "negative_styles": [
+    "abrupt cut",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

@@ -1,0 +1,93 @@
+{
+ "chunks": [
+  {
+   "text": "[Cold open]\n{spoken, low, close} Mukashi, mukashi...\n(ARU TOKORO NI!)",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "low contralto female storyteller, dry, close-mic, straight tone, half-spoken sliding into song",
+    "intimate folk narrative ballad",
+    "two wooden clacks then silence",
+    "spoken word",
+    "a match strikes",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar",
+    "the storyteller's speech becomes melody within each phrase"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "belting",
+    "autotune",
+    "singing",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Verse 1 - storyteller]\n{low, half-spoken} Once upon a time there was a crab, and her mother, and a line:\n\"Walk straight,\" said the mother. \"Why d'you scuttle side to side?\nStraight, like everybody else does.\" And the little one looked up, and said\u2014\nI know this part. I've read it in forty tongues.\nEvery telling ends on the same page. Nobody ever shows. Nobody ever can.\nThe little one looked up, and said:",
+   "duration_ms": 16941,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "low contralto female storyteller, dry, close-mic, straight tone, half-spoken sliding into song",
+    "intimate folk narrative ballad",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar",
+    "the storyteller's speech becomes melody within each phrase"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "belting",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Pre-Chorus - the young crab and the narrator]\n{bright, shouted} Show me how! (Show me how!) Walk it first and I'll walk right behind!\n{low, half-spoken} ...and the mother tried. And the mother went sideways. Hm. Sideways.\nAnd that's where the book ends. Every time.\n{bright} So? Sorekara?! And then?!\n{low, spoken} There is no \"and then.\" That's what an ending is.\n{bright} Says who?",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "85 BPM",
+    "6/8 time, lilting triplet feel",
+    "plucked nylon lute",
+    "hyoshigi wooden clapper percussion",
+    "harmonium drone",
+    "felted upright piano",
+    "D Dorian",
+    "low contralto female storyteller, dry, close-mic, straight tone, half-spoken sliding into song",
+    "intimate folk narrative ballad",
+    "a bright young voice shouting the child's lines",
+    "FEMALE VOCALIST SINGS EVERY LINE, vocals clearly audible from the first bar",
+    "the storyteller's speech becomes melody within each phrase"
+   ],
+   "negative_styles": [
+    "four-on-the-floor",
+    "synth",
+    "EDM",
+    "rock drums",
+    "belting",
+    "autotune",
+    "instrumental",
+    "no vocals"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

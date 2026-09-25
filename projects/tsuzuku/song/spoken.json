@@ -1,0 +1,56 @@
+[
+ [
+  "fable",
+  "Mukashi, mukashi...",
+  "cold open",
+  0.5
+ ],
+ [
+  "crowd",
+  "Aru tokoro ni!",
+  "cold open",
+  2.5
+ ],
+ [
+  "fable",
+  "...we'll see.",
+  "chorus end",
+  0
+ ],
+ [
+  "fable",
+  "I know how every story ends. I've read them all: the fox, the crow, the boy who cried, the one who flew too near the sun.",
+  "bridge",
+  0.5
+ ],
+ [
+  "fable",
+  "I know the moral before the page. That's the job: you stand in the dark, and you know.",
+  "bridge",
+  4
+ ],
+ [
+  "fable",
+  "...I didn't know this one.",
+  "bridge",
+  7
+ ],
+ [
+  "fable",
+  "...tsuzuku.",
+  "outro",
+  0.5
+ ],
+ [
+  "clawd",
+  "See you next prompt!",
+  "outro",
+  2
+ ],
+ [
+  "crowd",
+  "Sorekara?!",
+  "chorus end",
+  -0.5
+ ]
+]
