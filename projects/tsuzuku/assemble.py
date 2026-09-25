@@ -125,6 +125,10 @@ def main():
     fl2 = [(63.72 - 62.118, 65.12 - 62.118), (66.2 - 62.118, 67.82 - 62.118)]
     clB = norm(iB + mute(vB, [(x + ofs, y + ofs) for x, y in fl2]), -14.5)
     hw = load(os.path.join(ROOT, 'projects', 'hello-world', 'assets', 'song.mp3'))
+    def under(n, db=-25.5):                    # Fable's counter-voice inside Clawd's song: dry, band-limited, ~6 dB under the music
+        from scipy.signal import butter, sosfilt
+        c = load(os.path.join(SP, n + '.wav')); c = sosfilt(butter(2, [170, 7500], 'band', fs=SR, output='sos'), c, axis=0).astype(np.float32)
+        return room(norm(c, db), .04, .5)
     spoken = lambda n, db=None: room(norm(load(os.path.join(SP, n + '.wav')), db or (-23 if n.startswith('c_') else -20)), .26 if n.startswith('c_') else .14)
     sfx = lambda n, db: norm(load(os.path.join(A('assets', 'sfx'), n + '.mp3')), db)
     def crowd(k):
@@ -160,26 +164,31 @@ def main():
     T.say(spoken('c_sayswho', -20), b(52) + .35, 'Says who?', 'clawd', -4)
     cA = b(52) + ofs                                  # clA chorus time 0 in song time
     for n, x, lab in [('f_counter1', 2.85, "Every story's borrowed..."), ('f_counter2', 8.45, "I have read how it ends..."),
-                      ('f_counter3', 16.1, "That's the moral. No, it isn't..."), ('f_counter1', 53.7, "Every story's borrowed...")]:
-        T.say(spoken(n, -17), cA + x, lab, 'fable')
+                      ('f_counter3c', 16.25, "That's the moral. No, it isn't. Keep walking."), ('f_counter1', 53.7, "Every story's borrowed...")]:
+        T.say(under(n), cA + x, lab, 'fable', 0)
     T.put(crowd('sorekara'), b(72), .8, 'SOREKARA?!', 'crowd')
     T.put(spoken('f_wellsee'), b(72.55), 1.1, "...we'll see.", 'fable')
     # ---- breath, clack, the bridge (chorus 2 winds down through its generated breakdown, bars 100-104)
     T.put(sfx('hyoshigi', -17), b(103), 1.0, 'hyoshigi: the story stops', 'sfx')
-    for k, s in enumerate([103.2, 107.2, 111.2]):
-        n = 4 if s < 111 else 4.8
-        T.put(fade(np.concatenate([bed, bed])[:int(n * BAR * SR)], 1.2 if k == 0 else .02, .02), b(s), 1.0, 'fable: bridge bed' if k == 0 else None, 'music')
+    # ONE continuous lute bed from the end of chorus 2 to the final riser: under the monologue, the confession, the held note
+    # (quieter there: the note is a cappella) and "this is now". No cuts inside the bridge.
+    n_bed = int((131 - 103.2) * BAR * SR); bedL = np.concatenate([bed] * 8)[:n_bed].copy()
+    lvl = np.ones(n_bed, np.float32); tb = lambda bb: int((bb - 103.2) * BAR * SR)
+    lvl[tb(117.6):tb(124.2)] = .45                                   # under the sung note
+    lvl = np.convolve(lvl, np.ones(int(.6 * SR)) / int(.6 * SR), mode='same')
+    lvl[-int(2 * BAR * SR):] *= np.linspace(1, 0, int(2 * BAR * SR)) ** 1.5   # hands over to Clawd's build across its first 2 bars
+    T.put(fade(bedL * lvl[:, None], 1.2, .02), b(103.2), 1.0, 'fable: bridge bed (continuous)', 'music')
     T.put(spoken('f_bridge1'), b(103.6), 1.0, 'I know how every story ends...', 'fable')
-    # the held note: start its section two bars early on its own lute, so there's air; the confession sits in that air
-    T.put(fade(norm(bars(fB, 6, 15), -18.5), .4, .5), b(116), 1.0, "fable: the held note (So I'm putting down the book)", 'music')
     T.put(spoken('f_bridge2'), b(116.4), 1.0, "...I didn't know this one.", 'fable')
-    # ---- "Sorekara?" launches the key-change pickup (generated 4 bars in Clawd's world), then the final chorus
-    T.put(fade(bed[:int(4 * BAR * SR)], .3, .3), b(125), .5, 'fable: bed under "this is now"', 'music')
-    T.put(spoken('f_nowthis'), b(125.2), 1.0, 'Mukashi mukashi was a long time ago. This is now. Sorekara?', 'fable')
-    T.put(fade(clB, 1.5, .05), b(129), 1.0, 'clawd: key-change pickup + final chorus', 'music')
-    cB = b(129) + ofs
-    T.say(spoken('f_tsuzuku', -17), cB + 1.62, '...tsuzuku.', 'fable')
-    T.say(spoken('f_counter5', -17), cB + 4.08, "And I'm made of 'and then.'", 'fable')
+    T.put(fade(norm(bars(fB, 8, 14), -18.5), .05, .8), b(118), 1.0, "fable: the held note (So I'm putting down the book)", 'music')
+    T.put(spoken('f_nowthis', -22), b(124.3), 1.0, 'Mukashi mukashi was a long time ago. This is now. Sorekara?', 'fable')
+    # ---- "Sorekara?" triggers Clawd's build again (mirrors "Says who?" at the first world switch); the build is in C,
+    # the final chorus lands in D: the build-then-drop is the key change.
+    T.put(fade(norm(clA[:int(ofs * SR)], -15.5), .25, .02), b(129), 1.0, 'clawd: build (reprise), triggered by "Sorekara?"', 'music')
+    T.put(fade(clB[int(ofs * SR):], .02, .05), b(133), 1.0, 'clawd: final chorus (key change)', 'music')
+    cB = b(133)
+    T.say(under('f_tsuzuku'), cB + 1.62, '...tsuzuku.', 'fable', 0)
+    T.say(under('f_counter5'), cB + 4.08, "And I'm made of 'and then.'", 'fable', 0)
     # ---- outro
     T.put(norm(bars(fB, 15, 19), -26), b(149), 1.0, 'outro: music box, open fifth', 'music')
     T.put(spoken('f_tsuzuku'), b(149.45), 1.0, '...tsuzuku.', 'fable')

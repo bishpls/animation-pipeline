@@ -104,10 +104,10 @@
    "label": "I have read how it ends..."
   },
   {
-   "t0": 95.159,
-   "t1": 99.919,
+   "t0": 95.309,
+   "t1": 98.286,
    "kind": "fable",
-   "label": "That's the moral. No, it isn't..."
+   "label": "That's the moral. No, it isn't. Keep walking."
   },
   {
    "t0": 101.647,
@@ -135,9 +135,9 @@
   },
   {
    "t0": 145.694,
-   "t1": 151.341,
+   "t1": 184.941,
    "kind": "music",
-   "label": "fable: bridge bed"
+   "label": "fable: bridge bed (continuous)"
   },
   {
    "t0": 146.259,
@@ -146,34 +146,34 @@
    "label": "I know how every story ends..."
   },
   {
-   "t0": 163.765,
-   "t1": 176.471,
-   "kind": "music",
-   "label": "fable: the held note (So I'm putting down the book)"
-  },
-  {
    "t0": 164.329,
    "t1": 165.688,
    "kind": "fable",
    "label": "...I didn't know this one."
   },
   {
-   "t0": 176.471,
-   "t1": 182.118,
+   "t0": 166.588,
+   "t1": 175.059,
    "kind": "music",
-   "label": "fable: bed under \"this is now\""
+   "label": "fable: the held note (So I'm putting down the book)"
   },
   {
-   "t0": 176.753,
-   "t1": 183.15,
+   "t0": 175.482,
+   "t1": 181.879,
    "kind": "fable",
    "label": "Mukashi mukashi was a long time ago. This is now. Sorekara?"
   },
   {
    "t0": 182.118,
+   "t1": 187.765,
+   "kind": "music",
+   "label": "clawd: build (reprise), triggered by \"Sorekara?\""
+  },
+  {
+   "t0": 187.765,
    "t1": 210.39,
    "kind": "music",
-   "label": "clawd: key-change pickup + final chorus"
+   "label": "clawd: final chorus (key change)"
   },
   {
    "t0": 189.385,
