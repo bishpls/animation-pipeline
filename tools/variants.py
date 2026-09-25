@@ -22,7 +22,8 @@ def main(spec):
     S = json.load(open(spec)); base_dir = os.path.dirname(os.path.abspath(spec))
     img = np.array(Image.open(os.path.join(base_dir, S['image'])).convert('RGBA'))
     x0, y0, n = S['crop']; crop = img[y0:y0 + n, x0:x0 + n]
-    out = os.path.join(base_dir, S['out']); ed = os.path.join(out, '_edits'); os.makedirs(ed, exist_ok=True)
+    out = os.path.join(base_dir, S['out']); ed = os.path.join(out, S.get('edits', '_edits')); os.makedirs(ed, exist_ok=True)   # edits: a cache dir per crop
+    # (variant names repeat across crops, e.g. 'pinch' for each hand: give each crop its own 'edits' dir)
     cpath = os.path.join(ed, '_crop.png'); Image.fromarray(crop).save(cpath)
     H, W = crop.shape[:2]; yy, xx = np.mgrid[:H, :W]
     def ell(p): cx, cy, rx, ry = p; return ((xx - (cx - x0)) / rx) ** 2 + ((yy - (cy - y0)) / ry) ** 2 <= 1
@@ -53,6 +54,24 @@ def main(spec):
         print(f'{vname:14s} registered, residual {res:.1f}')
         for pn in V['patches']:
             M = ell(S['patches'][pn]); d = ndi.distance_transform_edt(M); a = np.clip(d / S.get('feather', 10), 0, 1)
+            if S.get('isolate') == 'skin':
+                # only the new hand: skin-coloured pixels connected to the patch centre, plus the drawn lines around them (no
+                # cuff or skirt from the edit riding along with the arm)
+                cx, cy = S['patches'][pn][0] - x0, S['patches'][pn][1] - y0; rgbE = al[:, :, :3].astype(float)
+                ref = np.median(rgbE[max(cy - 12, 0):cy + 12, max(cx - 12, 0):cx + 12].reshape(-1, 3), 0) if S.get('skin') is None else np.array(S['skin'], float)
+                R_, G_, B_ = rgbE[:, :, 0], rgbE[:, :, 1], rgbE[:, :, 2]
+                skin = (((np.abs(rgbE - ref).max(2) < S.get('skin_tol', 45)) |                  # lit skin, or shadowed skin (warm, not
+                         ((R_ > 165) & (R_ - B_ > 25) & (G_ > 105) & (R_ - G_ < 80)))            # the cuff's orange)
+                        & (al[:, :, 3] > 200) & M)
+                lab_, n_ = ndi.label(skin)
+                if n_:
+                    sz = ndi.sum(skin, lab_, range(1, n_ + 1)); keep = np.zeros_like(skin)
+                    for i in range(1, n_ + 1):
+                        if sz[i - 1] > .05 * sz.max(): keep |= lab_ == i
+                    lum = rgbE @ [.299, .587, .114]; hand = keep | (ndi.binary_dilation(keep, iterations=7) & (lum < 110))
+                    hand = ndi.binary_fill_holes(ndi.binary_closing(hand, iterations=5)) & (al[:, :, 3] > 60)
+                    hand = ndi.binary_dilation(hand, iterations=1)
+                    a = a * hand; M = M & hand
             lay = np.zeros((img.shape[0], img.shape[1], 4), np.uint8); sub = al.copy(); sub[:, :, 3] = (255 * a * (al[:, :, 3] / 255)).astype(np.uint8)
             lay[y0:y0 + n, x0:x0 + n] = sub
             ys, xs = np.where(lay[:, :, 3] > 0); bx0, bx1, by0, by1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1

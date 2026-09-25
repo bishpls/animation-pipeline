@@ -88,5 +88,65 @@
    "w": 197,
    "h": 109
   }
+ },
+ "hand_L": {
+  "pinch": {
+   "file": "hand_L@pinch.png",
+   "x": 241,
+   "y": 1690,
+   "w": 217,
+   "h": 248
+  },
+  "peace": {
+   "file": "hand_L@peace.png",
+   "x": 121,
+   "y": 1690,
+   "w": 343,
+   "h": 295
+  },
+  "point": {
+   "file": "hand_L@point.png",
+   "x": 167,
+   "y": 1695,
+   "w": 299,
+   "h": 237
+  },
+  "fist": {
+   "file": "hand_L@fist.png",
+   "x": 269,
+   "y": 1693,
+   "w": 192,
+   "h": 226
+  }
+ },
+ "hand_R": {
+  "pinch": {
+   "file": "hand_R@pinch.png",
+   "x": 1694,
+   "y": 1690,
+   "w": 233,
+   "h": 249
+  },
+  "peace": {
+   "file": "hand_R@peace.png",
+   "x": 1694,
+   "y": 1688,
+   "w": 318,
+   "h": 289
+  },
+  "point": {
+   "file": "hand_R@point.png",
+   "x": 1693,
+   "y": 1691,
+   "w": 332,
+   "h": 235
+  },
+  "fist": {
+   "file": "hand_R@fist.png",
+   "x": 1694,
+   "y": 1690,
+   "w": 194,
+   "h": 228
+  }
  }
 }

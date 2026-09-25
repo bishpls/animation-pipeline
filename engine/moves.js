@@ -16,7 +16,7 @@ const MOVES = (() => {
   const pulse = (ph, w = .35) => Math.max(0, S(PI * Math.min(1, ph / w)));      // a quick hit on the beat, then rest
   const snap = (ph, w = .25) => ease(ph / w);                                     // a quick move, then hold
   const alt = (b, every = 1) => (Math.floor(b / every) % 2 ? -1 : 1);            // +1, -1, +1 ... per period
-  const arm = (side, a, e) => side > 0 ? { armR: a, elbowR: e } : { armL: a, elbowL: e };
+  const arm = (side, a, e, h) => side > 0 ? { armR: a, elbowR: e, ...(h ? { handR: h } : {}) } : { armL: a, elbowL: e, ...(h ? { handL: h } : {}) };
 
   // Moves set TARGETS (MOVES.follow turns them into physical motion). Legs keep the beat; arms phrase on the half bar.
   const M = {
@@ -37,15 +37,17 @@ const MOVES = (() => {
     },
     // arms (side: +1 the character's left = image right); half-bar phrasing
     armPump: (b, o) => { const ev = o.every ?? 2, u = pulse((b % ev) / ev, .5), s2 = alt(b, ev) * (o.side ?? 1);
-      return { ...arm(s2, 15 + 25 * u, 45 + 65 * u), ...arm(-s2, 12, 45), bodyZ: 1.5 * s2 * u, bodyX: .25 * s2 * u }; },
+      return { ...arm(s2, 15 + 25 * u, 45 + 65 * u, 'fist'), ...arm(-s2, 12, 45, 'fist'), bodyZ: 1.5 * s2 * u, bodyX: .25 * s2 * u }; },
     handToEar: (b, o) => { const s2 = o.side ?? 1;
       return { ...arm(s2, 30, 120), ...arm(-s2, 8, 20), angleZ: 7 * s2, angleX: .2 * s2, bodyZ: 2.5 * s2, bodyX: .3 * s2 }; },
     wave: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 34, 95 + 18 * S(PI * b)), bodyZ: 1.5 * s2 }; },     // one wave per 2 beats
-    reach: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, o.a ?? 58, o.e ?? 8), ...arm(-s2, 14, 30), bodyZ: -2.5 * s2, bodyX: .35 * s2, angleZ: -3 * s2 }; },
+    reach: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, o.a ?? 58, o.e ?? 8, o.hand ?? 'point'), ...arm(-s2, 14, 30), bodyZ: -2.5 * s2, bodyX: .35 * s2, angleZ: -3 * s2 }; },
     claws: (b, o) => { const ev = o.every ?? 2, sn = (o.snip ?? 1) * pulse((b % ev) / ev, .35);      // both arms up, bent: the crab
-      return { ...arm(1, 26, 105 - 30 * sn), ...arm(-1, 26, 105 - 30 * sn), hipY: 6 * sn }; },
+      const h = sn > .25 ? 'pinch' : null;                                                                   // the snip: pinch on the hit
+      return { ...arm(1, 26, 105 - 30 * sn, h), ...arm(-1, 26, 105 - 30 * sn, h), hipY: 6 * sn }; },
     armsOut: (b, o) => ({ ...arm(1, o.a ?? 48, o.e ?? 15), ...arm(-1, o.a ?? 48, o.e ?? 15), angleY: o.y ?? -.25 }),
     present: (b, o) => ({ ...arm(1, 40, 35), ...arm(-1, 40, 35), angleY: -.35, hipY: 8 }),                  // arms open to the crowd
+    peace: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 32, 118, 'peace'), ...arm(-s2, 14, 40), angleZ: 8 * s2, bodyZ: 2 * s2, eyes: o.wink ? null : undefined, [s2 > 0 ? 'eyeR' : 'eyeL']: o.wink ? 'closed' : undefined }; },
     // head
     headBob: (b, o) => ({ angleY: -(o.amp ?? .4) * pulse(b % 1, .45) }),
     headTilt: (b, o) => { const ev = o.every ?? 2, side = alt(b, ev) * (o.side ?? 1); return { angleZ: (o.amp ?? 8) * side * snap((b % ev) / ev, .3) }; },

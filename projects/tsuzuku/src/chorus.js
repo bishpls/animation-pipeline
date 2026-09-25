@@ -10,7 +10,7 @@
            [12, 'sway', { every: 1, amp: 1.2 }], [15, 'bounce', { amp: 10 }]],
     arms: [[-1, 'idle'], [0, 'reach', { side: 1 }], [1, 'armsOut'], [2, 'handToEar', { side: -1, fade: 1 }], [4, 'wave', { side: 1 }], [5, 'present'],
            [6, 'handToEar', { side: 1, fade: 1 }], [8, 'claws', { snip: 0, fade: 1 }], [10, 'claws'], [11.75, 'claws', { every: 1 }],
-           [12.5, 'armPump', { fade: 1 }], [15, 'present', { fade: 1 }]],
+           [12.35, 'peace', { side: 1, wink: 1, fade: .6 }], [13, 'armPump', { fade: 1 }], [15, 'present', { fade: 1 }]],
     head: [[-1, 'look', { view: 'F' }], [0, 'headBob'], [2, 'look', { view: 'HR', z: -4 }], [3, 'headBob', { amp: .3 }], [4, 'headTilt'],
            [6, 'look', { view: 'HL', z: 4 }], [7, 'headBob'], [8, 'headTilt', { amp: 9 }], [12, 'headBob', { amp: .5 }], [15, 'look', { view: 'F', y: -.25 }]],
   }, { lips: MOVES.lips(window.WORDS, 'clawd'), blinks: MOVES.blinks(11, 50, 100) });

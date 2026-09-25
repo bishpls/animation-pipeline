@@ -283,7 +283,8 @@ const RIG = (() => {
     const p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
     const VV = rig.variants[p.view || 'F'] || {};
-    const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth : null;
+    const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth
+      : n === 'hand_L' ? p.handL : n === 'hand_R' ? p.handR : null;                // drawn hand shapes: pinch, peace, point, fist
     for (const l0 of (rig.lists[p.view || 'F'] || rig.layers)) {
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
       const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view, idc: l0.idc } : l0;

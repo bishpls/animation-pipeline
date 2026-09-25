@@ -1,0 +1,51 @@
+{
+ "image": "base.png",
+ "crop": [
+  0,
+  1300,
+  1056
+ ],
+ "out": "build",
+ "feather": 2,
+ "patches": {
+  "hand_L": [
+   295,
+   1830,
+   240,
+   200
+  ]
+ },
+ "variants": {
+  "pinch": {
+   "prompt": "Change ONLY the hand on the left side of the image: her thumb and index finger pinched together at the tips (a crab-claw 'snip' pinch), the other three fingers curled into the palm. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_L"
+   ]
+  },
+  "peace": {
+   "prompt": "Change ONLY the hand on the left side of the image: a V-sign (peace sign): index and middle fingers extended in a V, ring and little finger folded with the thumb over them. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_L"
+   ]
+  },
+  "point": {
+   "prompt": "Change ONLY the hand on the left side of the image: her index finger extended and pointing, the other fingers curled, thumb tucked in. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_L"
+   ]
+  },
+  "fist": {
+   "prompt": "Change ONLY the hand on the left side of the image: a relaxed closed fist. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_L"
+   ]
+  }
+ },
+ "edits": "_edits",
+ "isolate": "skin",
+ "skin": [
+  253,
+  220,
+  197
+ ]
+}
