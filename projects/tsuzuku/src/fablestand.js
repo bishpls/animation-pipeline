@@ -24,8 +24,9 @@ function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
     const ang = f => -Math.asin(Math.max(-.9, Math.min(.9, (f - body) / SC / LEG))) * 180 / Math.PI;
     const av = ang(feet.v), ah = ang(feet.h);
     const swingV = k >= 0 && STEPS[k].foot === 'v', swingH = k >= 0 && STEPS[k].foot === 'h', stance = swingV ? ah : av;
-    const p = { dx: body, dy: LEG * (1 - Math.cos(stance * Math.PI / 180)) * SC };   // the stance leg sets the hip height
-    p.skirt = .5 * av;                                                 // only the visible leg exists: the hem swings with it, half as far
+    const r = stance * Math.PI / 180, OX = -44;                        // (the ankle sits 44 master px behind the hip)
+    const p = { dx: body, dy: (LEG - (OX * Math.sin(r) + LEG * Math.cos(r))) * SC };   // the stance leg sets the hip height: its foot stays on the rail
+    p.skirt = .25 * av;                                                // the hem kicks a little with the near leg (a quarter as far): both ankles stay under it
     p.leg = av - p.skirt;
     const w = k >= 0 ? Math.sin(Math.PI * u) : 0;
     p.foot = -av;                                                      // a foot on the rail stays flat (undo the leg's angle)
@@ -42,10 +43,10 @@ function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
 }
 // the standing puppet with both feet: the far foot first (behind the skirt), then the puppet
 function drawStanding(c, p, T, o = {}) {
-  if (p._far) {                                                        // only what shows below the hem: the geta, not the ankle stub
+  if (p._far) {                                                        // the geta and its ankle, not the tall stub above it
     const pf = { ...p, leg: p._far.leg, foot: p._far.foot, 'foot.y': p._far['foot.y'] }, M = FABLE_S.world(pf, T);
-    c.save(); c.setTransform(M.skirt); c.beginPath(); c.rect(-3000, 3372, 8000, 3000); c.clip();
-    FABLE_S.draw(c, pf, T, { hide: FABLE_S.parts.map(q => q.name).filter(n => n !== 'foot') }); c.restore();
+    c.save(); c.setTransform(M.foot); c.beginPath(); c.rect(-3000, 3396 - 95, 8000, 3000); c.clip();   // the geta and a short ankle post (it reaches the hem)
+    FABLE_S.draw(c, pf, T, { solid: true, hide: FABLE_S.parts.map(q => q.name).filter(n => n !== 'foot') }); c.restore();   // plain paper: the far limb, in shadow
   }
   FABLE_S.draw(c, p, T, o);
 }
