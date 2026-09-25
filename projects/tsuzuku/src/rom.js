@@ -30,6 +30,17 @@
   add('hip sway', 3, u => ({ hipX: Math.sign(S(3 * PI * u)) * Math.min(1, Math.abs(S(3 * PI * u)) * 3), hipY: 10 * Math.abs(S(12 * PI * u)), full: 1 }));
   add('hip whip', 2, u => ({ hipX: u < .08 ? 0 : u < .5 ? 1 : -1, full: 1 }));
   add('hip+turn', 2, u => ({ hipX: sweep(u), angleX: .4 * sweep(u + .25), full: 1 }));
+  // the arms (waist-up framing): elbows alone, the shoulder and elbow together, an arm pump on the beat, arms with the hips
+  add('rest mid', 1.5, () => ({ mid: 1 }));
+  add('elbow L', 2, u => ({ elbowL: 110 * Math.abs(S(PI * u)), mid: 1 }));
+  add('elbow R', 2, u => ({ elbowR: 110 * Math.abs(S(PI * u)), mid: 1 }));
+  add('arm+elbow', 2, u => ({ armL: 30 * Math.abs(S(PI * u)), elbowL: 90 * Math.abs(S(PI * u)), armR: 20 * Math.abs(S(PI * u)), elbowR: 60 * Math.abs(S(PI * u)), mid: 1 }));
+  add('arm pump', 3, u => { const b = Math.abs(S(4 * PI * u)); return { armL: 10 + 15 * b, elbowL: 40 + 60 * b, armR: 10 + 15 * (1 - b), elbowR: 40 + 60 * (1 - b), mid: 1 }; });
+  add('arms+hips', 3, u => { const b = S(3 * PI * u); return { hipX: b, armL: 12 + 10 * b, elbowL: 50 + 30 * b, armR: 12 - 10 * b, elbowR: 50 - 30 * b, full: 1 }; });
+  // the dances themselves, from src/chorus.js etc. (window.CHOREO: {name: {t0, dur, P()}}), full-body framing, on song time
+  const DANCE = { chorus1: 18 * 60 / 170 * 4 };
+  for (const [nm, dur] of Object.entries(DANCE))
+    add(`dance ${nm}`, dur, u => { const C = window.CHOREO && window.CHOREO[nm]; return C ? { ...C.P()(C.t0 + u * C.dur), full: 1, song: 1 } : { full: 1 }; });
   // fast whips (springs): a snap each way, then settle
   add('whip X', 2, u => ({ angleX: u < .08 ? 0 : u < .5 ? K.x : -K.x }));
   add('whip bodyZ', 2, u => ({ bodyZ: u < .08 ? 0 : u < .5 ? K.bz : -K.bz }));
@@ -47,17 +58,18 @@
   // faces per view
   for (const v of VIEWS) add(`face ${v}`, 2, u => { const k = Math.floor(u * 8);
     return { view: v, eyes: [null, 'half', 'closed', 'happy', null, null, null, null][k], mouth: [null, null, null, null, 'A', 'I', 'O', 'grin'][k] }; });
-  let t = 0; window.ROM = segs.map(s => { const r = [s.name, +t.toFixed(3), +(t + s.dur).toFixed(3), s.fn(.5).full ? 'full' : 'head']; s.t0 = t; t += s.dur; return r; });
+  let t = 0; window.ROM = segs.map(s => { const q = s.fn(.5); const r = [s.name, +t.toFixed(3), +(t + s.dur).toFixed(3), q.full ? 'full' : q.mid ? 'mid' : 'head']; s.t0 = t; t += s.dur; return r; });
   const len = t, B = 60 / 170 * 4;
   const P = tt => { const s = tt < 0 ? segs[0] : segs.find(g => tt >= g.t0 && tt < g.t0 + g.dur) || segs[segs.length - 1];   // warm-up: the first pose
-    return { view: 'F', breath: .5, ...s.fn(Math.min(1, (tt - s.t0) / s.dur)) }; };
+    return { view: 'F', breath: .5, ...s.fn(Math.min(1, Math.max(0, (tt - s.t0) / s.dur))) }; };
   let PP = null;                                                     // contrapposto and a level head for the hip segments (built on
                                                                      // first draw: the rig loads after this script)
   const draw = (bg, id) => t => {
     X.fillStyle = bg; X.fillRect(0, 0, W, H);
-    const full = P(t).full; PP = PP || RIG.perform(RIGS.clawd, P, { lead: 0 });
+    const q = P(t), full = q.full, mid = q.mid; PP = PP || RIG.perform(RIGS.clawd, P, { lead: 0 });
     window.RIG_IDPASS = id;
     if (full) RIGS.clawd.draw(X, t, PP, { x: 960, y: 1060, s: .27 });                           // full body
+    else if (mid) RIGS.clawd.draw(X, t, PP, { x: 960, y: 540 + (3700 - 1250) * .5, s: .5 });    // waist-up, arms in frame
     else RIGS.clawd.draw(X, t, P, { x: 960, y: 540 + (3700 - 620) * 1.05, s: 1.05 });           // head + chest, large
     window.RIG_IDPASS = false;
   };

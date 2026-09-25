@@ -18,3 +18,11 @@ LOOPS.viewrest = t => {
   RIGS.clawd.draw(X, 0, () => ({ view: v, breath: 0, nocouple: 1 }), { x: 960, y: 1800, s: .5 });
 };
 LOOPS.viewrest.len = 5;
+// (check) arm range: both arms out to 0, 10, 20, 30, 40 degrees, full body (LOOPS.armrange)
+LOOPS.armrange = t => {
+  X.fillStyle = '#2a2440'; X.fillRect(0, 0, W, H);
+  // the shoulder, close: t selects the angle (0, 15, 25, 35, 45)
+  const k = Math.min(4, Math.floor(t * 5)), a = [0, 15, 25, 35, 20][k], e = [0, 30, 60, 90, 110][k];
+  RIGS.clawd.draw(X, 0, () => ({ armL: a, elbowL: e }), { x: 960 + (1080 - 740) * .9, y: 540 + (3700 - 1150) * .9, s: .9 });
+};
+LOOPS.armrange.len = 1;

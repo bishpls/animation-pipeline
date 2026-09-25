@@ -365,7 +365,21 @@
     1085
    ],
    "sleeve": "sleeve_L",
-   "sleeveFollow": 0.35
+   "sleeveFollow": 0.35,
+   "elbow": [
+    625,
+    1375
+   ],
+   "axis": [
+    -0.49613893835683387,
+    0.8682431421244593
+   ],
+   "blend": 55,
+   "upper": "arm_L",
+   "forearm": [
+    "cuff_L",
+    "hand_L"
+   ]
   },
   "R": {
    "layers": [
@@ -380,7 +394,21 @@
     1085
    ],
    "sleeve": "sleeve_R",
-   "sleeveFollow": 0.35
+   "sleeveFollow": 0.35,
+   "elbow": [
+    1505,
+    1375
+   ],
+   "axis": [
+    0.49613893835683387,
+    0.8682431421244593
+   ],
+   "blend": 55,
+   "upper": "arm_R",
+   "forearm": [
+    "cuff_R",
+    "hand_R"
+   ]
   }
  },
  "sway": {
@@ -857,5 +885,9 @@
   "z": 0.41,
   "lead": 0.06,
   "contra": 3.5
+ },
+ "mesh": {
+  "arm_L": 16,
+  "arm_R": 16
  }
 }

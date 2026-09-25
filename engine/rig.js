@@ -53,8 +53,8 @@ const RIG = (() => {
   const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('rig: ' + src)); i.src = src; });
 
   // a grid mesh over a layer's crop
-  function mesh(l) {
-    const cols = Math.max(2, Math.min(28, Math.round(l.w / 48))), rows = Math.max(2, Math.min(28, Math.round(l.h / 48)));
+  function mesh(l, cell = 48) {
+    const cols = Math.max(2, Math.min(64, Math.round(l.w / cell))), rows = Math.max(2, Math.min(64, Math.round(l.h / cell)));
     const rest = [], uv = [], idx = [];
     for (let j = 0; j <= rows; j++) for (let i = 0; i <= cols; i++) { rest.push(l.x + l.w * i / cols, l.y + l.h * j / rows); uv.push(i / cols, j / rows); }
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const a = j * (cols + 1) + i, b = a + 1, c = a + cols + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
@@ -89,7 +89,8 @@ const RIG = (() => {
     const man = await (await fetch(base + R.manifest)).json(); const mdir = base + R.manifest.slice(0, R.manifest.lastIndexOf('/') + 1);
     glInit(16, 16);
     const invOf = async src => { try { return texFrom(await loadImg(src)); } catch (e) { return null; } };
-    const layers = await Promise.all(man.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(mdir + l.name + '.png')), inv: await invOf(mdir + l.name + '.inv.png'), m: mesh(l) })));
+    const cellOf = n => (R.mesh && R.mesh[n]) || 48;           // finer meshes where layers bend (arms at the elbow)
+    const layers = await Promise.all(man.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(mdir + l.name + '.png')), inv: await invOf(mdir + l.name + '.inv.png'), m: mesh(l, cellOf(l.name)) })));
     // head views (drawn three-quarter heads): layer sets that replace the front head, each with its own head geometry
     const views = {};
     for (const [vn, V] of Object.entries(R.views || {})) {
@@ -184,7 +185,18 @@ const RIG = (() => {
         [x, y] = rot(x, y, H.pivot[0], H.pivot[1], az * wz);
       }
       // arms at the shoulder (the sleeve follows part of the way)
-      if (arm) { const a = (rig.armOf[name] === 'L' ? 1 : -1) * (p['arm' + rig.armOf[name]] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a); }
+      if (arm) {
+        const sd = rig.armOf[name], sg = sd === 'L' ? 1 : -1;
+        // the elbow (FK, before the shoulder): the forearm, cuff and hand rotate about it; the arm's own mesh is skinned across
+        // the joint (weight by distance along the arm axis), so it bends instead of breaking
+        const eb = p['elbow' + sd] || 0;
+        if (eb && arm.elbow) {
+          const E = arm.elbow, ax = arm.axis, sAlong = (x - E[0]) * ax[0] + (y - E[1]) * ax[1];
+          const w = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + arm.blend) / (2 * arm.blend), 0, 1)) : 0;
+          if (w) [x, y] = rot(x, y, E[0], E[1], sg * eb * w);
+        }
+        const a = sg * (p['arm' + sd] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a);
+      }
       // the body, from REST positions (so every layer meeting at a point moves identically there: no seams). The head block
       // (head, neck, collar top) moves rigidly with the collar line; hair resting on the shoulders blends to the body there.
       if (B.bodyX) {
@@ -204,7 +216,8 @@ const RIG = (() => {
       // transform, skinned into the torso across the waist band; the legs are skinned from the pelvis (top) to the ankle
       // (pinned), and the leg whose top drops shortens by bending its knee inward. The boots stay planted.
       const PV = B.pelvis;
-      if (PV && (p.hipX || p.hipY)) {
+      const fL = [p.footLX || 0, p.footLY || 0], fR = [p.footRX || 0, p.footRY || 0];     // feet: x step, y lift (px, base)
+      if (PV && (p.hipX || p.hipY || fL[0] || fL[1] || fR[0] || fR[1])) {
         const hx = clamp(p.hipX || 0, -1.3, 1.3), th = -PV.tilt * hx, dxp = PV.D * hx, dyp = (p.hipY || 0) + PV.lift * Math.abs(hx);
         const Tp = (qx, qy) => { const [a, b] = rot(qx, qy, PV.c[0], PV.c[1], th); return [a + dxp, b + dyp]; };
         const [wx, wy] = Tp(PV.waist[0], PV.waist[1]), tdx = wx - PV.waist[0], tdy = wy - PV.waist[1];
@@ -213,11 +226,15 @@ const RIG = (() => {
         else if (kind === 'body') {
           const Y0 = rest[k + 1], v = clamp((Y0 - PV.band[0]) / (PV.band[1] - PV.band[0]), 0, 1), w = v * v * (3 - 2 * v);
           const [px, py] = Tp(x, y); x = x + tdx + (px - x - tdx) * w; y = y + tdy + (py - y - tdy) * w;
+        } else if (kind === 'foot') {
+          const f = name === PV.feet[0] ? fL : fR; x += f[0]; y -= f[1];
         } else if (kind === 'leg') {
           const L0 = PV.legs[name], Y0 = rest[k + 1], v = clamp((Y0 - L0.top[1]) / (PV.ankle - L0.top[1]), 0, 1);   // 0 at the top, 1 at the ankle
           const [tx, ty] = Tp(L0.top[0], L0.top[1]), ddx = tx - L0.top[0], ddy = ty - L0.top[1], fall = 1 - v;
-          x += ddx * fall; y += ddy * fall;
-          if (ddy > 0) x += Math.sign(PV.c[0] - L0.top[0]) * PV.knee * ddy * Math.sin(Math.PI * clamp((Y0 - L0.top[1]) / (PV.ankle - L0.top[1]), 0, 1));   // the bent knee
+          const f = name === Object.keys(PV.legs)[0] ? fL : fR;                    // the ankle follows its foot
+          x += ddx * fall + f[0] * v; y += ddy * fall - f[1] * v;
+          const drop = ddy + f[1];                                                   // a lifted foot also bends the knee
+          if (drop > 0) x += Math.sign(PV.c[0] - L0.top[0]) * PV.knee * drop * Math.sin(Math.PI * v);   // the bent knee
         }
       }
       out[k] = x; out[k + 1] = y;

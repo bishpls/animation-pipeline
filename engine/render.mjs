@@ -46,7 +46,9 @@ if (args.encode) {
 // ---- static server at the repo root (fonts, cues and audio load over http, not file://)
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.ttf': 'font/ttf', '.otf': 'font/otf',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const T0 = Date.now();
 const server = http.createServer((req, res) => {
+  if (process.env.RENDER_DEBUG) console.log(`[req ${Date.now() - T0}ms]`, req.url.slice(0, 80));
   const p = join(process.cwd(), decodeURIComponent(req.url.split('?')[0]));
   if (!p.startsWith(process.cwd()) || !existsSync(p) || statSync(p).isDirectory()) {
     if (!req.url.includes('favicon')) console.log('[404]', req.url);                   // name what's missing
@@ -66,8 +68,13 @@ async function openPage(tag = '') {
   const page = await browser.newPage();
   page.on('console', m => { if (['error', 'warn', 'log'].includes(m.type()) && !m.text().includes('GPU stall')) console.log(`[page${tag}]`, m.text()); });
   page.on('pageerror', e => console.log(`[page error${tag}]`, e.message));
-  await page.goto(URL0 + '?render' + (args.loop ? '&loop=' + args.loop : ''), { waitUntil: 'load' });
-  await page.waitForFunction('window.ready === true || window.failed', { timeout: 120000 });
+  // don't wait for the 'load' event (every image and media file): the page says when it's ready (window.ready)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.goto(URL0 + '?render' + (args.loop ? '&loop=' + args.loop : ''), { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction('window.ready === true || window.failed', { timeout: 120000 }); break;
+    } catch (e) { if (attempt >= 1) throw e; console.log(`[page${tag}] retrying: ${e.message.slice(0, 60)}`); }
+  }
   if (args.loop) await page.evaluate(n => { window.LOOP = LOOPS[n]; }, args.loop);
   return page;
 }
