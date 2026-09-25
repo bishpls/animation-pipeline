@@ -137,3 +137,17 @@ MMD videos look good because the motion and camera are **authored to the song**.
 - **Most controllable:** score-driven singers (ACE Studio, Synthesizer V).
 - **Also:** Suno can't lock two personas in one generation. ACE-Step 1.5 runs locally.
 - **Licence:** ElevenLabs paid plans cover YouTube and social video, not streaming platforms.
+
+## 4. Measured: how professional 2D rigs couple head, neck and body (September 2026)
+
+Live2D's official sample rigs (Hiyori, Haru, Mao, Natori, from CubismWebSamples) were evaluated in Cubism Core 5.1 and every mesh measured at each parameter's extremes and in pairs. Statistics are in `live2d/coupling.json`, our scripts in `live2d/scripts/` (the models themselves aren't redistributed: fetch them from the repo). Units: face-outline width W and height H.
+
+- **Head parameters stop at the neck.** AngleX/Y/Z move the collar, shoulders, chest and arms by exactly 0. The neck's hidden top follows 0.03× of a turn, 0.24× of a nod, 0.49× of a tilt (0.16× mid-neck, 0 at the collar): the jaw slides over a neck drawn up under it.
+- **AngleZ** is a rigid rotation, about 0.33° per unit (±30 → ±10°), about a point 0.075 H above the chin. Hair 0.85× plus physics.
+- **AngleX/Y parallax** (per unit, times the outline's shift of 0.0029 W for X, 0.0017 H for Y): nose 2.0, mouth 1.5, eyes 1.4, front hair 1.35, side hair 0.9 (1.3 for Y), ears 0.5, back hair ~0 (0.5 for Y). Diagonals are drawn, not summed.
+- **BodyAngleZ** is a progressive bend, 0.49° per unit: the block from the shoulders up rigid at 1.0, chest 0.8, waist 0.47, skirt 0.32, legs 0; the block pivots ~1.4 H below the chin.
+- **BodyAngleX** is a turn drawn as a shear peaking at the chest centre (0.0125 W per unit): head, neck and collar 0.3× (a pure shift), shoulders 0.3×, waist 0.8×, skirt 0.52×, legs 0.18×.
+- **Breath** raises the head 0.0105 H; shoulders 0.76×, chest 0.68× (and 1–2% wider), waist 0.13×.
+- **Nesting** (exact): BodyZ rotation → body warps (X, Y, breath) → neck → AngleZ (chin pivot) → AngleX/Y face warp → parts.
+- **Timing** (56 official motions): the body moves the same way as the head in 67–89% of motions, at a smaller amplitude (head:body 1.7 for X, 3.6 for Y, 3.55 for Z in parameter units), leading by 0–67 ms; counter-rotation is an accent (~20%).
+- **Human gaze** (literature): the eyes do most of a look within ±18°; beyond that the head adds ~0.77° per degree; the trunk joins only beyond ~40°, 300–550 ms after the head. The neck couples a side-bend with rotation to the same side (0.23–0.75 in C2–C7).

@@ -226,9 +226,10 @@
     ]
    ],
    "from": [
-    "upper",
-    "body"
-   ]
+    "face"
+   ],
+   "mode": "jaw",
+   "snap": 30
   }
  },
  "line_lum": 80,

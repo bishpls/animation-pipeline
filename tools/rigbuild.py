@@ -54,6 +54,8 @@ def main(ldir, spec, out):
     L = {n: load(os.path.join(ldir, n + '.png')) for n in order if os.path.exists(os.path.join(ldir, n + '.png'))}
     orig = {n: L[n][:, :, 3] > 8 for n in L}                    # each layer's own drawn pixels (fills are everything else)
     shape = next(iter(L.values())).shape[:2]; review = np.zeros(shape, bool)
+    inv = {n: np.zeros(shape, bool) for n in L}                 # INVENTED pixels (inpaint, flat fill, plate, tube), exported as
+                                                                 # <layer>.inv.png so the ID pass can show when motion exposes them
     # fromimg: hidden parts of layers get REAL drawn pixels from a registered companion drawing that shows them (e.g. the same
     # character with her hair tied back: the full face outline, ears, neck, shoulders). Per target layer: the source labels it
     # takes; only where the target is empty, something covers that spot at rest (no change to the rest look), and not under
@@ -64,12 +66,27 @@ def main(ldir, spec, out):
         V = load(os.path.join(os.path.dirname(spec), FI['img'])); lb = np.array(Image.open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.png')))
         vo = json.load(open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.json')))['order']
         ex = np.zeros(shape, bool)
+        if 'clip' in FI:                             # only within this box (companion drawings are labelled coarsely elsewhere)
+            x0, y0, x1, y1 = FI['clip']; ex[:] = True; ex[y0:y1, x0:x1] = False
         for o in FI.get('exclude', []):
             if o in L: ex |= ndi.binary_dilation(L[o][:, :, 3] > 8, iterations=FI.get('exclude_grow', 6))
         for t, names in FI['map'].items():
             if t not in L: continue
             m = np.isin(lb, [vo.index(n) + 1 for n in names if n in vo]) & (V[:, :, 3] > 200) & ~(L[t][:, :, 3] > 8) & base_a & ~ex
             L[t][m] = V[m]; review |= m; print(f'  fromimg {t:10s} +{m.sum():8d} px')
+        SK = FI.get('skin')                        # skin by colour (face, ears and neck are one region in a drawing), each pixel to
+        if SK:                                     # the NEAREST of the target layers (e.g. face above the jaw, neck below)
+            sx, sy = SK['sample']; ref = np.median(V[sy - 6:sy + 6, sx - 6:sx + 6, :3].reshape(-1, 3), 0)
+            lum = V[:, :, :3].astype(float) @ [.299, .587, .114]
+            skin = (np.abs(V[:, :, :3].astype(float) - ref).max(2) < SK.get('tol', 38)) & (V[:, :, 3] > 200)
+            skin |= ndi.binary_dilation(skin, iterations=3) & (lum < 90) & (V[:, :, 3] > 200)        # its own outline (the jawline)
+            tg = [t for t in SK['targets'] if t in L]; dist = np.stack([ndi.distance_transform_edt(~(L[t][:, :, 3] > 8)) for t in tg]); near = np.argmin(dist, 0)
+            anyT = np.zeros(shape, bool)
+            for t in tg: anyT |= L[t][:, :, 3] > 8
+            for i, t in enumerate(tg):
+                m = skin & (near == i) & ~anyT & base_a & ~ex
+                if 'ymax' in SK: m[SK['ymax']:] = False
+                L[t][m] = V[m]; review |= m; print(f'  fromimg {t:10s} +{m.sum():8d} px (skin)')
     # cross-fill: body layers hidden under the hair get REAL drawn pixels from other registered views of the same body, wherever
     # a view shows that spot as body (e.g. a turned head's hair has moved off the shoulder). Each pixel goes to the nearest target.
     CF = S.get('crossfill')
@@ -110,7 +127,7 @@ def main(ldir, spec, out):
             F = sp.get('flat_zone'); fz = region(F, L, shape) & hole if F else np.zeros(shape, bool)
             L[n] = fill_from(L[n], hole & ~fz); L[n][fz, :3] = col.astype(np.uint8); L[n][fz, 3] = 255
         else: L[n] = fill_from(L[n], hole)
-        review |= hole
+        review |= hole; inv[n] |= hole
         print(f'  under {n:12s} +{hole.sum():8d} px')
     for n, T in S.get('tubes', {}).items():
         # two side lines [[x0, y0], [x1, y1]] (drawn contours, extended to their far ends); the band between them is filled with the
@@ -122,7 +139,7 @@ def main(ldir, spec, out):
         lc = tuple(T.get('line_rgb', (40, 22, 20))) + (255,)
         d.line([tuple(a0), tuple(a1)], fill=lc, width=T.get('line', 6)); d.line([tuple(b0), tuple(b1)], fill=lc, width=T.get('line', 6))
         ext = np.array(im); a = lay[:, :, 3:4].astype(float) / 255
-        L[n] = (ext * (1 - a) + lay * a).astype(np.uint8); L[n][:, :, 3] = np.maximum(ext[:, :, 3], lay[:, :, 3])
+        L[n] = (ext * (1 - a) + lay * a).astype(np.uint8); L[n][:, :, 3] = np.maximum(ext[:, :, 3], lay[:, :, 3]); inv[n] |= (ext[:, :, 3] > 0) & (lay[:, :, 3] < 8)
         print(f'  tube  {n:12s} extended')
     for n, sp in S.get('plates', {}).items():
         Z = np.zeros(shape, bool)
@@ -135,6 +152,12 @@ def main(ldir, spec, out):
         lum = src.astype(float) @ [.299, .587, .114]
         col = np.median(src[(lum > np.percentile(lum, 15)) & (lum < np.percentile(lum, 40))], 0) if sp.get('colour', 'shadow') == 'shadow' else np.array(sp['colour'])
         P = np.zeros(shape + (4,), np.uint8); P[Z, :3] = col.astype(np.uint8); P[Z, 3] = 255
+        inv[n] = Z.copy()
+        if 'img' in sp:                            # real drawn back hair from a registered companion drawing, where it has some; the
+            d0 = os.path.dirname(spec)             # plate extends to all of it (the build then hides whatever would show at rest)
+            V = load(os.path.join(d0, sp['img'])); M = (np.array(Image.open(os.path.join(d0, sp['mask']))) > 127) & (V[:, :, 3] > 200)
+            P[M] = V[M]; P[M, 3] = 255; inv[n][M] = False; Z |= M
+            print(f'  plate {n:12s} drawn from {sp["img"]}: {M.sum()} px')
         L[n] = P; i = order.index(sp['behind']) + 1 if sp.get('behind') in order else len(order); order.insert(i, n)
         print(f'  plate {n:12s} {Z.sum():8d} px  colour {col.astype(int).tolist()}')
     # invariant: every filled pixel must be hidden at rest by an opaque drawn layer in front of it, so the rig at rest is exactly
@@ -186,6 +209,8 @@ def main(ldir, spec, out):
         if not len(ys): continue
         x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
         Image.fromarray(lay[y0:y1, x0:x1]).save(os.path.join(out, n + '.png'))
+        iv = inv.get(n, np.zeros(shape, bool)) & (lay[:, :, 3] > 0)
+        Image.fromarray((iv[y0:y1, x0:x1] * 255).astype(np.uint8)).save(os.path.join(out, n + '.inv.png'))
         man['layers'].append({'name': n, 'x': int(x0), 'y': int(y0), 'w': int(x1 - x0), 'h': int(y1 - y0)})
     json.dump(man, open(os.path.join(out, 'manifest.json'), 'w'), indent=1)
     # review: the full composite with underpaint tinted

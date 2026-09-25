@@ -48,8 +48,9 @@
       const bp = (tt % B) / B; p.bounce = -5 * Math.max(0, Math.sin(Math.PI * Math.min(1, bp / .18)));
       return p;
     };
-    RIGS.clawd.draw(X, t, P, { x: 560, y: 1060, s: .27 });
-    RIGS.clawd.draw(X, t, P, { x: 1400, y: 1060 + (3700 - 560) * 1.15 - 700, s: 1.15 });
+    const PP = RIG.perform(RIGS.clawd, P);                                     // the body follows the head (measured ratios, leads 60 ms)
+    RIGS.clawd.draw(X, t, PP, { x: 560, y: 1060, s: .27 });
+    RIGS.clawd.draw(X, t, PP, { x: 1400, y: 1060 + (3700 - 560) * 1.15 - 700, s: 1.15 });
   };
   LOOPS.rig.len = b(8);
 }

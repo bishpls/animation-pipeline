@@ -36,3 +36,6 @@ projects/*/rig/*/views/*/_edits/
 projects/*/rig/*/views/*/_*.png
 projects/*/rig/*/_*.png
 projects/*/assets/prologue_hw/
+projects/*/rig/*/under/seg*/
+projects/*/rig/*/under/layers*/
+projects/*/rig/*/views/seg_*/

@@ -22,8 +22,9 @@ const RIG = (() => {
     in vec2 p; in vec2 uv; uniform vec2 res; out vec2 v;
     void main() { v = uv; gl_Position = vec4(p.x / res.x * 2. - 1., 1. - p.y / res.y * 2., 0, 1); }`;
   const FS = `#version 300 es
-    precision highp float; in vec2 v; uniform sampler2D tex; uniform float alpha; out vec4 o;
-    void main() { o = texture(tex, v) * alpha; }`;
+    precision highp float; in vec2 v; uniform sampler2D tex; uniform sampler2D inv; uniform float alpha; uniform vec4 idc; out vec4 o;
+    // the ID pass (idc.a > 0): each layer as its flat ID colour; its INVENTED pixels (fills) at half brightness
+    void main() { vec4 c = texture(tex, v) * alpha; o = idc.a > 0. ? (c.a > .5 ? vec4(idc.rgb * (texture(inv, v).r > .5 ? .5 : 1.), 1) : vec4(0)) : c; }`;
   let gl = null, cv = null, prog = null, buf = null;
 
   function glInit(w, h) {
@@ -60,13 +61,16 @@ const RIG = (() => {
     return { rest: new Float32Array(rest), uv: new Float32Array(uv), idx: new Uint16Array(idx), n: idx.length };
   }
 
+  const interp = (tbl, v) => { if (v <= tbl[0][0]) return tbl[0][1]; for (let i = 1; i < tbl.length; i++) if (v <= tbl[i][0]) { const [a0, b0] = tbl[i - 1], [a1, b1] = tbl[i]; return b0 + (b1 - b0) * (v - a0) / (a1 - a0); } return tbl[tbl.length - 1][1]; };
   const rot = (x, y, cx, cy, deg) => { const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a), dx = x - cx, dy = y - cy; return [cx + dx * c - dy * s, cy + dx * s + dy * c]; };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
   // damped springs, stepped at 1/120 s from a pre-roll: out = spring position minus its driver (the lag), times gain
   function springs(R, P, t) {
     const S = R.springs || {}, names = Object.keys(S); if (!names.length) return {};
-    const vang = p => (R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0;   // a drawn view is a real head angle
+    // a drawn view is a real head angle, but its drawing already carries the hair to the new place: springs feel only part
+    // of a view change (R.viewDrive), as a modest overshoot, not a whip
+    const vang = p => ((R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0) * (R.viewDrive ?? .3);
     const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
       : d === 'bodyZ' ? (p._bz ?? p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p._bx ?? p.bodyX ?? 0) * 20 : (p[d] || 0); };
     const dt = 1 / 120, pre = R.preroll || 2, t0 = t - pre, n = Math.round(pre / dt);
@@ -83,12 +87,13 @@ const RIG = (() => {
     const R = await (await fetch(url)).json();
     const man = await (await fetch(base + R.manifest)).json(); const mdir = base + R.manifest.slice(0, R.manifest.lastIndexOf('/') + 1);
     glInit(16, 16);
-    const layers = await Promise.all(man.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(mdir + l.name + '.png')), m: mesh(l) })));
+    const invOf = async src => { try { return texFrom(await loadImg(src)); } catch (e) { return null; } };
+    const layers = await Promise.all(man.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(mdir + l.name + '.png')), inv: await invOf(mdir + l.name + '.inv.png'), m: mesh(l) })));
     // head views (drawn three-quarter heads): layer sets that replace the front head, each with its own head geometry
     const views = {};
     for (const [vn, V] of Object.entries(R.views || {})) {
       const vm = await (await fetch(base + V.manifest)).json(), vdir = base + V.manifest.slice(0, V.manifest.lastIndexOf('/') + 1);
-      views[vn] = { V, layers: await Promise.all(vm.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(vdir + l.name + '.png')), m: mesh(l), view: vn }))) };
+      views[vn] = { V, layers: await Promise.all(vm.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(vdir + l.name + '.png')), inv: await invOf(vdir + l.name + '.inv.png'), m: mesh(l), view: vn }))) };
     }
     // drawn variants of face patches (tools/variants.py): {patch: {variant: layer}}, per view
     const variants = {};
@@ -130,6 +135,10 @@ const RIG = (() => {
     }
     // mouth: a small canvas texture, redrawn when the mouth is open
     if (R.mouth) { rig.mc = document.createElement('canvas'); rig.mc.width = 256; rig.mc.height = 160; rig.mtex = gl.createTexture(); }
+    // ID colours for the ID pass (tools/romcheck.py): one per (layer, view), stable, listed in window.RIG_IDS
+    const allL = [...layers, ...Object.values(views).flatMap(v => v.layers)]; window.RIG_IDS = {};
+    allL.forEach((l, i) => { const k = i + 1, c = [((k * 37) % 251 + 4) / 255, ((k * 91) % 247 + 4) / 255, ((k * 53) % 239 + 8) / 255];
+      l.idc = c; window.RIG_IDS[(l.view ? l.view + ':' : '') + l.name] = c.map(v => Math.round(v * 255)); });
     rig.draw = (X, t, P, T) => draw(rig, X, t, P, T);
     return rig;
   }
@@ -155,47 +164,39 @@ const RIG = (() => {
         if (sw.axis === 'rot') [x, y] = rot(x, y, sw.pivot[0], sw.pivot[1], amt * f);
         else if (sw.axis === 'y') y += amt * f * f; else x += amt * f * f;
       }
-      // 2. the head turn by measured ratios (Live2D sample rigs): each layer moves k x the nose's travel. Features ~0.6-0.9, the
-      // face outline 0.3-0.5 (less at its edges, so the far cheek compresses), front hair ~0.5, back hair 0 or opposite.
-      // Rigid features (eyes, nose, mouth) move as a unit, from their centre. The tilt is split: part pivots at the chin, the
-      // rest bends the neck (the head rides the neck's top along an arc).
-      // 3. neck layers are SKINNED: each point blends between the head's motion (as face outline) and the body's by height,
-      // 1 at the jaw line, 0 at the neck base, so the neck can never separate from either end.
-      const nb = B.neckBend ?? .4, az = p.angleZ || 0;
-      const headMove = (qx, qy, nm, rg, hang) => {
-        const px = rg ? rg[0] : qx, py = rg ? rg[1] : qy, u = clamp(Math.abs(px - H.center[0]) / H.radius[0], 0, 1);
+      // Measured model (docs/research/README.md §4, Live2D's sample rigs), applied innermost first:
+      //   head X/Y warp -> head Z (rigid, about a point just above the chin) -> neck (its hidden top follows part of the head)
+      //   -> arms -> body X (a shear peaking at the chest centre) -> breath -> body Z (a progressive bend) -> bounce.
+      // Head parameters never move the collar, shoulders or chest; the body's own parameters do.
+      const az = p.angleZ || 0, NK = H.neck || {};
+      const headMove = (qx, qy, nm, rg, hf) => {
+        const px = rg ? rg[0] : qx, u = clamp(Math.abs(px - H.center[0]) / H.radius[0], 0, 1);
         const kk = (K, fb) => { const k = K && K[nm] !== undefined ? K[nm] : fb; return Array.isArray(k) ? k[0] + (k[1] - k[0]) * u : k; };
-        const kx = kk(H.kx, .4), ky = kk(H.ky, kx);
-        const hf = hang && H.hang && H.hang[nm] ? (([y0, y1, wmin]) => 1 - (1 - wmin) * clamp((py - y0) / (y1 - y0), 0, 1))(H.hang[nm]) : 1;
-        let X2 = qx + H.D[0] * nx * kx * hf, Y2 = qy - H.D[1] * ny * ky * hf;
-        [X2, Y2] = rot(X2, Y2, H.pivot[0], H.pivot[1], az * (1 - nb) * hf);
-        return rot(X2, Y2, H.neckBase[0], H.neckBase[1], az * nb * hf);
+        const kx = kk(H.kx, .5), ky = kk(H.ky, kx);
+        return rot(qx + H.D[0] * nx * kx * hf, qy - H.D[1] * ny * ky * hf, H.pivot[0], H.pivot[1], az * hf * (H.hairZ && H.hairZ[nm] || 1));
       };
-      if (inHead) [x, y] = headMove(x, y, as, rigid, true);
+      if (inHead) [x, y] = headMove(x, y, as, rigid, hfv);
       else if (neckL) {
-        const w0 = clamp((H.neckBase[1] - y) / (H.neckBase[1] - H.chin[1]), 0, 1), w = w0 * w0 * (3 - 2 * w0);    // smoothstep
-        if (w > 0) { const [hx, hy] = headMove(x, y, 'face', null, false); x += (hx - x) * w; y += (hy - y) * w; }
+        // v: 0 at the chin (its top is hidden behind the jaw), 1 at the collar
+        const v = clamp((y - NK.top) / (NK.base - NK.top), 0, 1), wz = interp(NK.wz || [[0, .5], [.5, .16], [1, 0]], v), top = 1 - v;
+        x += H.D[0] * nx * .5 * (NK.wx ?? .03) * top; y -= H.D[1] * ny * .5 * (NK.wy ?? .24) * top;
+        [x, y] = rot(x, y, H.pivot[0], H.pivot[1], az * wz);
       }
-      // 4. arms at the shoulder (the sleeve follows part of the way)
+      // arms at the shoulder (the sleeve follows part of the way)
       if (arm) { const a = (rig.armOf[name] === 'L' ? 1 : -1) * (p['arm' + rig.armOf[name]] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a); }
-      // 5. the torso turns: the same ratio idea (the bow travels most, the shoulders least, and the far side narrows a little);
-      // the head rides the top of the neck
-      // One smooth field over the body (strongest at the chest centre, falling to the shoulders and down to the hips), so
-      // neighbouring layers move identically where they meet: no seams. Parts that hang in front add a small lead (the bow).
-      if (B.D && B.field) {
-        const F = B.field, bx = p._bx || 0;
-        const fx = (qx, qy) => { const kx0 = F.kc - (F.kc - F.ke) * Math.pow(clamp(Math.abs(qx - F.cx) / F.rx, 0, 1), 1.5);
-                                  return kx0 * clamp((B.hip[1] - qy) / (B.hip[1] - B.waist[1]), 0, 1) ** .7; };
-        const kf = inHead ? fx(H.neckBase[0], H.neckBase[1]) * hfv + fx(rest[k], rest[k + 1]) * (1 - hfv) : fx(rest[k], rest[k + 1]) + ((B.lead || {})[name] || 0);
-        x += B.D * bx * kf;
-      }
-      // 6. breath: the upper body stretches a little above the waist; everything above rides along
-      if (inUpper && B.waist) { const s = .006 * breath; if (y < B.waist[1]) y = B.waist[1] + (y - B.waist[1]) * (1 + s); }
-      // 7. the lean pivots at the waist (the shoulders tilt with it; the skirt follows a little), then the bounce
-      if (B.waist) {
-        const w = inUpper ? 1 : (y < B.hip[1] ? .35 : .08);
-        [x, y] = rot(x, y, B.waist[0], B.waist[1], (p._bz || 0) * w);
-        y += (p.bounce || 0) * (inUpper ? 1 : y < B.hip[1] ? .7 : .2);
+      // the body, from REST positions (so every layer meeting at a point moves identically there: no seams). The head block
+      // (head, neck, collar top) moves rigidly with the collar line; hair resting on the shoulders blends to the body there.
+      if (B.bodyX) {
+        const X0 = rest[k], Y0 = rest[k + 1], BX = B.bodyX, hb = inHead || neckL;
+        const torso = (qx, qy) => { const fh = 1 - Math.pow(clamp(Math.abs(qx - BX.cx) / BX.rx, 0, 1), 1.5), pv = interp(BX.prof, qy);
+                                    return rig.armOf[name] ? interp(BX.arm, qy) : BX.head + (pv - BX.head) * fh; };
+        const kf = hb ? BX.head * hfv + torso(X0, Y0) * (1 - hfv) : torso(X0, Y0) + ((B.lead || {})[name] || 0);
+        x += BX.D * clamp(p._bx || 0, -1.2, 1.2) * kf;
+        const BR = B.breath, br = clamp(breath, 0, 1), yb = hb ? BR.prof[0][0] : Y0;
+        y -= BR.rise * br * interp(BR.prof, yb); if (!hb) x = BX.cx + (x - BX.cx) * (1 + BR.widen * br * Math.max(0, 1 - Math.abs(Y0 - BR.chestY) / 250));
+        const BZ = B.bend, yz = hb ? BZ.prof[0][0] : Y0;
+        [x, y] = rot(x, y, BX.cx, interp(BZ.pivot, yz), (p._bz || 0) * interp(BZ.prof, yz));
+        y += (p.bounce || 0) * interp(B.bounce || [[0, 1], [1370, 1], [1900, .7], [2400, .2]], yz);
       }
       out[k] = x; out[k + 1] = y;
     }
@@ -217,6 +218,8 @@ const RIG = (() => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
   }
 
+  let black = null;
+  const blackTex = () => { if (!black) { black = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, black); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 255])); } return black; };
   function drawMesh(l, pos, T, tex, alpha = 1) {
     const n = pos.length, sc = new Float32Array(n);
     for (let k = 0; k < n; k += 2) { sc[k] = T.x + (pos[k] - T.ox) * T.s; sc[k + 1] = T.y + (pos[k + 1] - T.oy) * T.s; }
@@ -224,7 +227,10 @@ const RIG = (() => {
     gl.bindBuffer(gl.ARRAY_BUFFER, buf.p); gl.bufferData(gl.ARRAY_BUFFER, sc, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(loc('p')); gl.vertexAttribPointer(loc('p'), 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, buf.uv); gl.bufferData(gl.ARRAY_BUFFER, l.m.uv, gl.DYNAMIC_DRAW); gl.enableVertexAttribArray(loc('uv')); gl.vertexAttribPointer(loc('uv'), 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf.idx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, l.m.idx, gl.DYNAMIC_DRAW);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, (window.RIG_IDPASS && l.inv) || blackTex()); gl.uniform1i(gl.getUniformLocation(prog, 'inv'), 1);
+    gl.activeTexture(gl.TEXTURE0); gl.uniform1i(gl.getUniformLocation(prog, 'tex'), 0);
     gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1f(gl.getUniformLocation(prog, 'alpha'), alpha);
+    const id = window.RIG_IDPASS && l.idc; gl.uniform4f(gl.getUniformLocation(prog, 'idc'), id ? id[0] : 0, id ? id[1] : 0, id ? id[2] : 0, id ? 1 : 0);
     gl.drawElements(gl.TRIANGLES, l.m.n, gl.UNSIGNED_SHORT, 0);
   }
 
@@ -233,7 +239,7 @@ const RIG = (() => {
     // coupling (every shot gets it): a head turn brings the torso a quarter of the way, a tilt brings a little shoulder tilt
     const C = rig.R.couple || {}, vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
     const Pt = tt => { const q = { ...P(tt), _t: tt }; const turn = (vang(q) + (q.angleX || 0) * 30) / 35;
-      const cp = q.nocouple ? 0 : 1;
+      const cp = q.nocouple || !C.on ? 0 : 1;                  // off unless rig.json asks: coupling belongs in the motion (RIG.perform)
       q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0); return q; };
     const p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
@@ -241,7 +247,7 @@ const RIG = (() => {
     const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth : null;
     for (const l0 of (rig.lists[p.view || 'F'] || rig.layers)) {
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
-      const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view } : l0;
+      const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view, idc: l0.idc } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
       drawMesh(l, pos, TT, l.tex);
       if (rig.R.mouth && !p.mouth && l.name === rig.R.mouth.layer && (p.mouthOpen || 0) > .02) {
@@ -280,5 +286,15 @@ const RIG = (() => {
     };
   }
 
-  return { load, keys };
+  // perform(rig, P, o): the body's motion derived from the head's, per the official motions (docs/research §4): the same
+  // direction, a smaller swing, leading by ~60 ms. Turn: bodyX += x * head turn (drawn views count as real angles), clamped;
+  // tilt: bodyZ (deg) += z * angleZ (deg). Any bodyX/bodyZ the choreography sets itself is kept and added to.
+  function perform(rig, P, o = {}) {
+    const C = { x: 1.76, z: .41, lead: .06, ...(rig.R.perform || {}), ...o };
+    const vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
+    return t => { const q = P(t), h = P(t + C.lead), turn = (vang(h) + (h.angleX || 0) * 30) / 30;
+      return { ...q, bodyX: (q.bodyX || 0) + clamp(C.x * turn, -1, 1), bodyZ: (q.bodyZ || 0) + C.z * (h.angleZ || 0) }; };
+  }
+
+  return { load, keys, perform };
 })();

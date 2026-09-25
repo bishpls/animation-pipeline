@@ -94,20 +94,26 @@ if (args.eval) {
   for (const s of times(args.stills)) { const f = `${out}/t${s.toFixed(2).replace('.', '_')}.png`; writeFileSync(f, await frameOf(page, s, 'image/png')); console.log(f); }
 } else if (args.frames) {
   const probe = await openPage(), len = await lengthOf(probe); await probe.close();
-  const [a, b] = args.range ? span(args.range) : [0, len], workers = +(args.workers || 6), ext = args.png ? 'png' : 'jpg';
+  // --ranges=a:b,c:d renders several spans with ONE pool of workers (page loads are the expensive part)
+  const spans = args.ranges ? String(args.ranges).split(',').map(span) : [args.range ? span(args.range) : [0, len]], workers = +(args.workers || 6), ext = args.png ? 'png' : 'jpg';
   if (args.clean) rmSync(FRAMES, { recursive: true, force: true });
   mkdirSync(FRAMES, { recursive: true });
-  const first = Math.round(a * fps), last = Math.min(Math.ceil(len * fps) - 1, Math.round(b * fps) - 1);
-  const todo = []; for (let i = first; i <= last; i++) { const f = `${FRAMES}/f${String(i).padStart(5, '0')}.${ext}`; if (!existsSync(f) || statSync(f).size < 1000) todo.push(i); }
-  console.log(`${todo.length} frames to render (${last - first + 1 - todo.length} done), ${workers} workers`);
+  const want = new Set(); for (const [a, b] of spans) { const first = Math.round(a * fps), last = Math.min(Math.ceil(len * fps) - 1, Math.round(b * fps) - 1); for (let i = first; i <= last; i++) want.add(i); }
+  const todo = [...want].sort((p, q) => p - q).filter(i => { const f = `${FRAMES}/f${String(i).padStart(5, '0')}.${ext}`; return !existsSync(f) || statSync(f).size < 1000; });
+  console.log(`${todo.length} frames to render (${want.size - todo.length} done), ${workers} workers`);
   let next = 0, done = 0; const start = Date.now();
+  // a worker whose page never gets ready (it happens: one of many pages can stall) must not hold the run: once every frame is
+  // rendered, stop waiting for stragglers
+  let finish; const allDone = new Promise(r => { finish = r; }); if (!todo.length) finish(null);
   await Promise.all(Array.from({ length: workers }, async (_, w) => {
-    const page = await openPage('#' + w);
+    const page = await Promise.race([openPage('#' + w).catch(e => { console.log(`worker ${w}: page failed (${e.message.slice(0, 60)})`); return null; }), allDone]);
+    if (!page) return;
     while (next < todo.length) {
       const i = todo[next++], f = `${FRAMES}/f${String(i).padStart(5, '0')}.${ext}`;
       const buf = await frameOf(page, i / fps, ext === 'png' ? 'image/png' : 'image/jpeg', .96);
       writeFileSync(f + '.tmp', buf); renameSync(f + '.tmp', f);
-      if (++done % 48 === 0 || done === todo.length) { const el = (Date.now() - start) / 1000; console.log(`${done}/${todo.length}  ${(el / done * 1000).toFixed(0)} ms/frame eff  eta ${((todo.length - done) * el / done / 60).toFixed(1)} min`); }
+      if (++done === todo.length) finish(null);
+      if (done % 48 === 0 || done === todo.length) { const el = (Date.now() - start) / 1000; console.log(`${done}/${todo.length}  ${(el / done * 1000).toFixed(0)} ms/frame eff  eta ${((todo.length - done) * el / done / 60).toFixed(1)} min`); }
     }
   }));
 } else if (args.clip) {

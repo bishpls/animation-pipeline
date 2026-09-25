@@ -126,7 +126,9 @@
    ],
    "grow": -3,
    "colour": "shadow",
-   "behind": "neck"
+   "behind": "neck",
+   "img": "../under/back_left_al.png",
+   "mask": "../under/segback_left/backhair.png"
   }
  },
  "feather": {
@@ -156,5 +158,41 @@
  "aa": 0.8,
  "drop": [
   "body"
- ]
+ ],
+ "fromimg": {
+  "base": "left_aligned.png",
+  "img": "../under/tied_left_al.png",
+  "labels": "../under/layers_left",
+  "exclude": [
+   "eye_L",
+   "eye_R",
+   "mouth"
+  ],
+  "map": {
+   "upper": [
+    "collar",
+    "sleeve_L",
+    "sleeve_R",
+    "bow"
+   ]
+  },
+  "skin": {
+   "sample": [
+    980,
+    690
+   ],
+   "tol": 38,
+   "targets": [
+    "face",
+    "neck"
+   ],
+   "ymax": 985
+  },
+  "clip": [
+   560,
+   300,
+   1600,
+   1255
+  ]
+ }
 }

@@ -171,7 +171,9 @@
    ],
    "grow": -3,
    "colour": "shadow",
-   "behind": "skirt_back"
+   "behind": "skirt_back",
+   "img": "under/back_F_al.png",
+   "mask": "under/segback_F/backhair.png"
   }
  },
  "feather": {
@@ -275,6 +277,12 @@
    "sleeve_R": [
     "sleeve_R"
    ]
-  }
+  },
+  "clip": [
+   560,
+   300,
+   1600,
+   1255
+  ]
  }
 }

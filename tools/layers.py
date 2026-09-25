@@ -115,6 +115,17 @@ def main(base, spec, seg, out):
         n = cl.get('as', n.rstrip('0123456789') if n not in idx else n)   # 'neck2' = a second claim for 'neck'
         if 'ellipse' in cl:                        # a patch: e.g. an eye with the skin around it, swapped as a unit
             cx, cy, rx, ry = cl['ellipse']; yy, xx = np.mgrid[:L.shape[0], :L.shape[1]]; zone = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
+        elif 'poly' in cl and cl.get('mode') == 'jaw':
+            # pixel cut by the polygon, with its top edge snapped column by column to the drawn line nearest it (the jaw): the
+            # line stays with the part above, the skin below goes to this part
+            pz = polymask(L.shape, cl['poly']); R = cl.get('snap', 30); zone = pz.copy(); dark = lum < S.get('line_lum', 80)
+            for xx in np.nonzero(pz.any(0))[0]:
+                ys = np.nonzero(pz[:, xx])[0]; yt = ys[0]; lo, hi = max(yt - R, 0), yt + R
+                dk = np.nonzero(dark[lo:hi, xx])[0]
+                if len(dk):
+                    yd = lo + dk.max() if dk.max() < R + 8 else lo + dk.min()     # the bottom of the line run nearest the edge
+                    zone[:yd + 1, xx] = False; zone[yd + 1:hi, xx] = True
+            zone &= ndi.binary_dilation(pz, iterations=R)
         elif 'poly' in cl:                          # whole cells by majority, so the cut follows drawn lines (e.g. the jaw)
             pz = polymask(L.shape, cl['poly']); fr = ndi.mean(pz, cells, index=np.arange(nc + 1)); zone = (fr[cells] > .5) & (cells > 0)
             zone |= pz & (cells == 0) & ndi.binary_dilation(zone, iterations=S.get('line_r', 9))   # and the lines bordering those cells
