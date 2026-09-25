@@ -14,7 +14,8 @@ const PUPPET = (() => {
 
   async function load(url) {
     const J = await (await fetch(url)).json();
-    const parts = J.parts.map(q => ({ ...q, outlineP: P2(q.outline), holesP: P2(q.holes), holeList: q.holes.map(h => ({ pts: h, path: P2([h]) })) }));
+    const parts = J.parts.map(q => ({ ...q, outlineP: P2(q.outline), holesP: P2(q.holes), holeList: q.holes.map(h => ({ pts: h, path: P2([h]) })),
+      filmP: q.film && q.film.length ? P2(q.film) : null }));
     const by = Object.fromEntries(parts.map(q => [q.name, q]));
     const pup = { J, parts, by };
     pup.world = (pose, T) => world(pup, pose, T);
@@ -65,6 +66,11 @@ const PUPPET = (() => {
       c.setTransform(M[q.name]);
       c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
       c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
+      if (q.filmP && o.gel) {                     // cellophane: cut the plate's area out of the paper, then lay the gel in it,
+        c.fill(q.filmP);                           // offset from the keyline (misregistered): a sliver of open light on one side
+        c.save(); c.clip(q.filmP); c.globalCompositeOperation = 'source-over'; c.globalAlpha = o.gelAlpha ?? .9; c.fillStyle = o.gel;
+        const [mx, my] = o.misreg || [2, 2]; c.setTransform(new DOMMatrix([1, 0, 0, 1, mx, my]).multiply(M[q.name])); c.fill(q.filmP); c.restore();
+      }
       for (const pr of o.props || []) if (pr.after === q.name) { c.save(); pr.draw(c, M); c.restore(); }
     }
     // cover: close a cut-out with paper cut to its exact shape (a blink closes the eye slit): {part: [[x, y] master px inside the hole]}
