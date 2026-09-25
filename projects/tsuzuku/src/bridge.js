@@ -72,7 +72,7 @@
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
       FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
-    pageVellum(ts); pageStrip(ts);                                    // the page (Fable)
+    pageVellum(ts);                                                   // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
@@ -81,8 +81,8 @@
     if (!WT) { WT = build(); poses(); }
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const e = ts < BACK ? 0 : Math.min(1, Math.floor((ts - BACK) * 12 + 1e-6) / BACKN), ee = e * e * (3 - 2 * e);
-    stage(ts, scene, { cam: camLerp(CAM_WINDOW, CAM_WIDE, ee), doors: 1 });
-    audience(ts, { y: H + 330 - 210 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
+    const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1, page: ts });
+    readers(ts, cam);
   };
   LOOPS.bridge.len = 156.2 - S0;
 
@@ -95,7 +95,7 @@
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       draw(c);
     }, 0);
-    pageVellum(ts); pageStrip(ts);                                    // the page (Fable)
+    pageVellum(ts);                                                   // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B6 (159.53-161.0), the held note, "So I'm putting down the book": the fan opens and becomes the book, and she holds it in
@@ -108,23 +108,24 @@
     LOOPS.bridgeB6 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       stage(ts, tt => bare(tt, c => { seatedRibbon(c, pose6, T, tt); FABLE.draw(c, pose6(tt), T, { props: [fanProp(fan, tt)], rods: FABLE_RODS }); }), { cam: CAM_WINDOW, doors: 1 });
-      audience(ts, { y: H + 330, lift: 120 });
+      readers(ts, CAM_WINDOW);
     };
     LOOPS.bridgeB6.len = 161.0 - S0;
   }
   // B8-B9 (166.0 to the build, 176.47). She stands beside her zabuton (not on it, in geta), the book open face-up on the rail
   // behind her heels. The held note ends as the camera pulls back to the wood: a frame to step through. Her near hand half-rises
   // toward the book as if to take it back, stops, drops. "Mukashi mukashi was a long time ago. This is now.": seven slow steps
-  // to the frame's edge beside Clawd's puppet, feet together on "now"; she looks down at her. "Sorekara?": four quicker steps,
-  // off the screen toward the lamp as she goes (her shadow greys and softens), passing behind Clawd's cellophane (her
-  // silhouette seen through the orange, the only colour on her in the paper world), out through the frame, the ribbon last.
+  // to the frame's edge beside Clawd's puppet, feet together on "now"; she looks down at her. "Sorekara?": four steps on the beat,
+  // at puppet scale, out past her and off the window's right edge, the ribbon last. One beat of empty window. Then she is in the
+  // room beside the butai: black, rim-lit by her own lamp, facing it, the ribbon settling (Fable: "the prologue's kuroko, from
+  // the front. That's the margin F2 wants me at.")
   {
-    const S0 = 166.0, S1 = 176.47, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
+    const S0 = 166.0, S1 = 177.8, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
     const X0 = 960, BOOKX = 800, TS = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (.2: her head clears the window's top)
     const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
     for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 82 });
     const b1 = Math.round((175.06 - NOTE) / BEAT), OUT = beat(b1);
-    for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 110 });
+    for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 150 });   // on the eighths: off the right edge by 176.47
     const walk = makeWalk(steps, 82, BEAT, TS.s);
     // the one gesture: toward the book behind her (the arm back, the hand low), held, dropped; then the first step
     const reach = PUPPET.snap([[0, { upperarm: 0, forearm: 0, hand: 0, head: -3 }], [167.25, { upperarm: 24, forearm: 10, hand: 12, head: 8 }],
@@ -136,7 +137,6 @@
     const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
     const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
     const BACK2 = 166.0, BACK2N = 20;                                 // the pull-back to the wood, in drawings, as the held note ends
-    const depthAt = q => q < OUT ? 0 : Math.min(.16, .04 * Math.floor((q - OUT) * 12 + 1e-6));   // off the screen, a drawing at a time
     function scene(tt) {
       X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
       screen(tt, { stops: HOT, tex: .24, power: 1.12 });
@@ -146,9 +146,7 @@
         PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(BOOKX, FLOOR).scale(.15));
         CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       }, 0);
-      // her own plane: held nearer the lamp as she leaves, placed so her shadow's feet stay on the rail
-      const d = depthAt(tt), [lx, ly] = SCREEN.lamp, sp = 1 / (1 - d * .5), p = poseS(tt);
-      const T2 = { ...TS, x: lx + (TS.x + p.dx - lx) / sp - p.dx, y: ly + (FLOOR - ly) / sp };
+      const p = poseS(tt), T2 = TS;
       shadow(c => {
         TAILS_S.forEach((tl, i) => {
           const pts = PUPPET.stiff(FABLE_S, poseS, T2, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, tt);
@@ -157,15 +155,43 @@
         });
         c.globalCompositeOperation = 'source-over';
         drawStanding(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
-      }, d, { penumbra: true, alpha: 1 - d * 1.1 });
-      pageVellum(tt); pageStrip(tt);
+      }, 0);
+      pageVellum(tt);
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
+    }
+    // in the room: person-sized beside the butai (a kamishibai window is about a third of her height), facing it; she glides in
+    // from the right edge (her legs below the frame), stops, and her ribbon settles. Black; the window's light on her front edges.
+    const ROOM = OUT + 2.5 * BEAT, IN = 6, RX = [2180, 1690], RS = .48;
+    const roomPose = () => ({ _ghost: {}, head: -4, hair: 3.4 });
+    const roomT = tt => { const d = Math.floor((tt - ROOM) * 12 + 1e-6), u = Math.min(1, Math.max(0, d / IN)), e = 1 - (1 - u) * (1 - u);
+      return { x: RX[0] + (RX[1] - RX[0]) * e, y: 175 + (3700 - 250) * RS + (d >= 0 && d < IN && d % 2 ? -6 : 0), s: RS, flip: -1, origin: [1100, 3700] }; };
+    let RL = null;
+    function roomFable(tt) {
+      if (tt < ROOM) return;
+      if (!RL) RL = [mkCanvas(W, H), mkCanvas(W, H)];
+      const T = roomT(tt), p = roomPose(), S = RL[0].getContext('2d'), R = RL[1].getContext('2d');
+      S.setTransform(1, 0, 0, 1, 0, 0); S.globalCompositeOperation = 'source-over'; S.clearRect(0, 0, W, H);
+      // her ribbon down her back (behind her, on her right: she faces left): it swings as she stops and settles, on twos
+      const root = FABLE_S.world(p, T).head.transformPoint(new DOMPoint(900, 820)), arrive = ROOM + IN / 12;
+      const k = Math.max(0, tt - arrive), sw = tt < arrive ? 34 : 34 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
+      [[1, 0], [.86, 22]].forEach(([len, off]) => {
+        const pts = []; for (let i = 0; i <= 10; i++) { const u = i / 10; pts.push([root.x + off * RS + sw * u * u + 10 * u, root.y + u * 1150 * len]); }
+        S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(16,30,52)'; S.fill(P(PUPPET.strip(pts, 52, .85, 46)));
+      });
+      FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)' });
+      R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
+      R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,186,120,.9)'; R.fillRect(0, 0, W, H);
+      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 5, 0);                      // her edges that face the window
+      X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(9px)'; X.globalAlpha = .45; X.drawImage(RL[1], 0, 0);   // the glow first, so
+      X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);             // she stays black inside
+      X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
     }
     LOOPS.bridgeB8 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
-      stage(ts, scene, { cam: camLerp(CAM_WINDOW, CAM_WIDE, ee), doors: 1 });
-      audience(ts, { y: H + 330 - 210 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
+      const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1 });
+      roomFable(ts);
+      readers(ts, cam);
     };
     LOOPS.bridgeB8.len = S1 - S0;
   }

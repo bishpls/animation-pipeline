@@ -4,10 +4,12 @@
 // change the whole strip is pulled out and a fresh one slides in, with its edge and shadow. Fable's words in sumi, Clawd's
 // in her orange, the crowd's in Ai. Margin notes press into the vellum's left edge in the lighter ink (the earlier printing,
 // Caslon italic); the Japanese runs vertically, Mincho, at the vellum's right edge.
-const PAGE = { rect: [150, 976, 1620, 84], size: 36, margin: 64, gap: 110, base: 1028 };   // (Fable: a text block, not a subtitle bar; a whole line fits)
+// (butai px: pinned along the rail's face directly under the window's lip, between its brass corners; lit by the aperture's
+// spill, bright at the top, falling off. Fable: a text block, not a subtitle bar; a whole line fits)
+const PAGE = { rect: [1040, 1814, 1760, 86], size: 40, margin: 70, gap: 120, base: 1872, lampX: 2167 };
 // the telling's strip (the doors open to "Says who?"). The bridge prints nothing (Fable: "me off-book; no printed words until
 // the build"): the telling's strip stands there as the paper theatre returns and is the first thing struck, on the clack.
-const PAGE_SECTIONS = [{ t0: 8.9, t1: 61.4, in: 12.5 }], PAGE_STRIKE = { t0: 131.0, clack: 131.29 };
+const PAGE_SECTIONS = [{ t0: 8.9, t1: 61.4, in: 13.7 }]   // (in: once the doors are open), PAGE_STRIKE = { t0: 131.0, clack: 131.29 };
 const PAGE_INK = 'rgb(30,24,22)';                                  // sumi for every line: Clawd's are quoted, in quotation marks (Fable)
 const PAGE_JA = [                                                  // [t0, text]: the Japanese, vertical, at the vellum's right edge
   [9.33, 'むかし、むかし'], [11.44, 'あるところに'], [50.9, 'それから？']];   // (the crowd's call is carried here, not on the strip)
@@ -43,7 +45,7 @@ function pageScroll(L, ts) {                                        // the scrol
   return off;
 }
 // the strip: washi, lit from the screen side (brighter at its top edge and toward the lamp), a deckled top edge
-function pageStrip(ts) {
+function pageStrip(ts, wash = 0) {
   if (!PAGE_LAYOUT) { if (!window.WORDS) return; PAGE_LAYOUT = pageLayout(); }
   const f = 1 / 12, [x, y, w, h] = PAGE.rect, e = d => { const u = Math.min(1, Math.max(0, d / 6)); return u * u * (3 - 2 * u); };
   let L = PAGE_LAYOUT.find(S => ts >= S.t0 && ts < S.t1), slide = 0, tp = ts;
@@ -56,16 +58,17 @@ function pageStrip(ts) {
   } else return;
   X.save(); X.beginPath(); X.rect(x, y - 12, w, h + 30); X.clip(); X.translate(slide, 0);
   // its shadow on the ground plane behind it (it stands a little off the screen), then the paper
-  X.fillStyle = 'rgba(0,0,0,.28)'; X.filter = 'blur(6px)'; X.fillRect(x + 8, y - 4, w, h); X.filter = 'none';
+  X.fillStyle = 'rgba(0,0,0,.4)'; X.filter = 'blur(5px)'; X.fillRect(x + 6, y + 5, w, h); X.filter = 'none';   // its shadow on the rail
   X.save(); X.beginPath(); X.moveTo(x, y + 3); for (let k = 0; k <= 80; k++) X.lineTo(x + w * k / 80, y + 2.2 * Math.sin(k * 1.7) + 1.4 * Math.sin(k * .53)); X.lineTo(x + w, y + h); X.lineTo(x, y + h); X.closePath(); X.clip();
   X.fillStyle = FP.washi; X.fillRect(x, y - 6, w, h + 6); texture(.5);
   X.globalCompositeOperation = 'multiply';
-  const lg = X.createLinearGradient(0, y, 0, y + h); lg.addColorStop(0, 'rgb(255,244,222)'); lg.addColorStop(1, 'rgb(186,160,128)'); X.fillStyle = lg; X.fillRect(x, y - 6, w, h + 6);
-  const [lx] = SCREEN.lamp, rg = X.createRadialGradient(lx, y, 0, lx, y, w * .75); rg.addColorStop(0, 'rgb(255,250,240)'); rg.addColorStop(1, 'rgb(200,176,146)'); X.fillStyle = rg; X.fillRect(x, y - 6, w, h + 6);
+  const lg = X.createLinearGradient(0, y, 0, y + h); lg.addColorStop(0, 'rgb(255,238,210)'); lg.addColorStop(1, 'rgb(170,140,108)'); X.fillStyle = lg; X.fillRect(x, y - 6, w, h + 6);
+  const lx = PAGE.lampX, rg = X.createRadialGradient(lx, y, 0, lx, y, w * .8); rg.addColorStop(0, 'rgb(255,248,236)'); rg.addColorStop(1, 'rgb(186,158,124)'); X.fillStyle = rg; X.fillRect(x, y - 6, w, h + 6);
   X.globalCompositeOperation = 'source-over';
   // the words, pressed as they are sung; the scroll carries them left
   const off = pageScroll(L, tp);
   for (const W0 of L.words) { const px = x + W0.x - off; if (tp < W0.t0 || px > x + w || px < x - 600) continue; press(W0.str, px, PAGE.base, tp, W0.t0, { size: PAGE.size, col: PAGE_INK, hairline: true, wet: true }); }
+  if (wash > 0) { X.globalCompositeOperation = 'lighter'; X.fillStyle = `rgba(255,240,248,${wash})`; X.fillRect(x - 10, y - 10, w + 20, h + 20); }   // the flood takes paper and ink alike (the paper only)
   X.restore();
   X.fillStyle = 'rgba(40,28,20,.55)'; X.fillRect(x, y - 1, w, 1.5);   // its top edge
   X.restore();

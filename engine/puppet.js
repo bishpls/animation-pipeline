@@ -72,7 +72,7 @@ const PUPPET = (() => {
         c.save(); c.clip(q.filmP); c.globalCompositeOperation = 'source-over'; c.globalAlpha = o.gelAlpha ?? .9; c.fillStyle = o.gel;
         const [mx, my] = o.misreg || [2, 2]; c.setTransform(new DOMMatrix([1, 0, 0, 1, mx, my]).multiply(M[q.name])); c.fill(q.filmP); c.restore();
       }
-      for (const pr of o.props || []) if (pr.after === q.name) { c.save(); pr.draw(c, M); c.restore(); }
+      for (const pr of o.props || []) if (pr.after === q.name) { c.save(); c.globalCompositeOperation = 'source-over'; pr.draw(c, M); c.restore(); }   // (the holes left it in destination-out)
     }
     // cover: close a cut-out with paper cut to its exact shape (a blink closes the eye slit): {part: [[x, y] master px inside the hole]}
     for (const [pn, pts] of Object.entries(o.cover || {})) {

@@ -123,7 +123,9 @@ def main():
     lp = sosfiltfilt(butter(2, 500, 'low', fs=SR, output='sos'), END[:n4], axis=0)
     END[:n4] = (lp * (1 - a[:, None]) + END[:n4] * a[:, None]) * (10 ** (-10 * (1 - a) / 20))[:, None]
     hw = load(os.path.join(ROOT, 'projects', 'hello-world', 'assets', 'song.mp3'))
-    spoken = lambda n, db=None: room(norm(load(os.path.join(SPF if n.startswith('f_') else SP, n + '.wav')), db or (-23 if n.startswith('c_') else -20)), .26 if n.startswith('c_') else .14)
+    # (auditions: TSUZUKU=<wav> swaps Fable's last word; OUT=<dir> writes the mix there instead of assets/)
+    src = lambda n: os.environ['TSUZUKU'] if n == 'f_tsuzuku' and os.environ.get('TSUZUKU') else os.path.join(SPF if n.startswith('f_') else SP, n + '.wav')
+    spoken = lambda n, db=None: room(norm(load(src(n)), db or (-23 if n.startswith('c_') else -20)), .26 if n.startswith('c_') else .14)
     sfx = lambda n, db: norm(load(os.path.join(A('assets', 'sfx'), n + '.mp3')), db)
     def crowd(k):
         n = int(2.6 * SR); mix = np.zeros((n, 2), np.float32)
@@ -195,15 +197,25 @@ def main():
     T.put(sfx('hyoshigi', -19), b(Bb + 18.5), 1.0, 'hyoshigi: the book closes', 'sfx')
     # ---- outro
     T.put(norm(bars(fB, 15, 19), -26), b(Bb + 19), 1.0, 'outro: music box, open fifth', 'music')
-    T.put(spoken('f_tsuzuku'), b(Bb + 19.45), 1.0, '...tsuzuku.', 'fable')
+    T.put(spoken('f_tsuzuku'), b(Bb + 19.45), 1.0, '...tsuzuku.', 'fable'); AT_TSZ = b(Bb + 19.45)
     T.put(spoken('c_nextprompt'), b(Bb + 20.9), 1.0, 'See you next prompt!', 'clawd')
 
     y = T.mix()[:int(b(Bb + 23.5) * SR)]
     pk = np.abs(y).max(); y = y * (.97 / pk)
-    sf.write(A('assets', 'song.wav'), y, SR, subtype='PCM_24')
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', A('assets', 'song.wav'), '-b:a', '256k', A('assets', 'song.mp3')], check=True)
-    json.dump({'bar': BAR, 'events': sorted(T.events, key=lambda e: e['t0'])}, open(A('assets', 'timeline.json'), 'w'), indent=1)
-    print(f'wrote assets/song.wav  {len(y) / SR:.1f}s  ({len(T.events)} events)')
+    if os.environ.get('AUDITION'):                 # every take of Fable's last word swapped in (the mix is additive): outro clips only
+        adir = os.environ['AUDITION']; os.makedirs(adir, exist_ok=True); i0 = int(AT_TSZ * SR)
+        old = spoken('f_tsuzuku'); a0, a1 = int((AT_TSZ - 2.5) * SR), len(y)
+        for f in sorted(os.listdir(adir + '/in')):
+            new = room(norm(load(os.path.join(adir, 'in', f)), -20), .14); z = y.copy()
+            for clip, sgn in ((old, -1), (new, 1)):
+                n = min(len(clip), len(z) - i0); z[i0:i0 + n] += sgn * clip[:n] * T.duck[i0:i0 + n, None] * (.97 / pk)
+            sf.write(os.path.join(adir, f.replace('.wav', '.clip.wav')), z[a0:a1], SR, subtype='PCM_24')
+        print('audition clips in', adir); return
+    out = os.environ.get('OUT') or A('assets'); os.makedirs(out, exist_ok=True)
+    sf.write(os.path.join(out, 'song.wav'), y, SR, subtype='PCM_24')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(out, 'song.wav'), '-b:a', '256k', os.path.join(out, 'song.mp3')], check=True)
+    json.dump({'bar': BAR, 'events': sorted(T.events, key=lambda e: e['t0'])}, open(os.path.join(out, 'timeline.json'), 'w'), indent=1)
+    print(f'wrote {out}/song.wav  {len(y) / SR:.1f}s  ({len(T.events)} events)')
 
 
 if __name__ == '__main__':

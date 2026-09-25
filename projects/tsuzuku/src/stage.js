@@ -13,7 +13,9 @@ async function STAGE_INIT() {
   BUTAI.theatre = mkCanvas(W, H);
 }
 // the default cameras: the whole stage, and the window filling the frame (rails just visible)
-const CAM_WIDE = { x: 1920, y: 1180, zoom: .5 }, CAM_WINDOW = { x: 1920, y: 1303, zoom: 1.0 };
+// CAM_WINDOW (the telling camera, Michael + Fable): the whole window, the page strip on the rail under it, and the readers'
+// heads and shoulders over the butai's base
+const CAM_WIDE = { x: 1920, y: 1180, zoom: .5 }, CAM_WINDOW = { x: 1920, y: 1445, zoom: .8 };
 const camLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
 function stage(t, sceneFn, o = {}) {
   // 1. the theatre, offscreen
@@ -68,6 +70,7 @@ function stage(t, sceneFn, o = {}) {
     L2.globalCompositeOperation = 'multiply'; L2.fillStyle = g; L2.fillRect(-hx * 3, -hx * 3, hx * 6, hx * 6); L2.restore();
     L2.globalCompositeOperation = 'destination-in'; L2.drawImage(BUTAI.L1, 0, 0); L2.globalCompositeOperation = 'source-over';
     X = Xm; X.drawImage(BUTAI.L2, 0, 0); }
+  if (o.page !== undefined && window.pageStrip) { X.save(); X.translate(fx, fy); X.scale(z, z); pageStrip(o.page, o.pageWash || 0); X.restore(); }   // the page, pinned on the rail
   X.restore();
 }
 {

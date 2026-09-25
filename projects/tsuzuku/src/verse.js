@@ -94,7 +94,7 @@
       }
       FABLE.draw(c, p, T, { props, rods: FABLE_RODS });
     }, 0);
-    pageVellum(ts); pageStrip(ts);
+    pageVellum(ts);
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // C3: the doors open (10 drawings) on the lit screen; the camera walks in to the window (16 drawings)
@@ -104,8 +104,9 @@
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const dd = Math.min(1, Math.max(0, Math.floor((ts - DOOR0) * 12 + 1e-6) / 10)), e = Math.min(1, Math.max(0, Math.floor((ts - PUSH0) * 12 + 1e-6) / 16)), ee = e * e * (3 - 2 * e);
     window.SHORE = true;
-    try { stage(ts, scene, { cam: camLerp(CAM_WIDE, CAM_WINDOW, ee), doors: dd * dd * (3 - 2 * dd) }); } finally { window.SHORE = false; }
-    audience(ts, { y: H + 120 + 210 * ee, lift: 120, scale: .52 * (.65 + .35 * ee) });
+    const cam = camLerp(CAM_WIDE, CAM_WINDOW, ee);
+    try { stage(ts, scene, { cam, doors: dd * dd * (3 - 2 * dd), page: ts }); } finally { window.SHORE = false; }
+    readers(ts, cam);
   };
   LOOPS.telling.len = S1 - S0;
 }

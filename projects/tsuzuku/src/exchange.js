@@ -137,7 +137,6 @@
       const b0 = M.torso.transformPoint(new DOMPoint(1076, 1200)), R = 150 + 60 * build, gb = X.createRadialGradient(b0.x, b0.y, 0, b0.x, b0.y, R);
       gb.addColorStop(0, `rgba(255,150,70,${.32 * build})`); gb.addColorStop(1, 'rgba(255,120,50,0)'); X.fillStyle = gb; X.fillRect(b0.x - R, b0.y - R, 2 * R, 2 * R); X.restore();
     }
-    pageStrip(ts); flood(ts, [150, 960, 1620, 112]);                   // the strip washes out with everything else (Fable)
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // the camera: the window; "Hm." cuts to her profile (the camera close to the frame, the paper grain large)
@@ -145,8 +144,9 @@
   LOOPS.exchange = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12, close = ts >= K.close && ts < K.back;
-    stage(ts, scene, { cam: close ? CAM_HM : CAM_WINDOW, doors: 1 });
-    if (!close) audience(ts, { y: H + 330, lift: 120 });
+    const g = gapAt(ts), wash = g > 400 ? Math.min(1, (g - 400) / 1100) : 0;   // the strip washes out with everything else (Fable)
+    stage(ts, scene, { cam: close ? CAM_HM : CAM_WINDOW, doors: 1, page: ts, pageWash: wash });
+    if (!close) readers(ts, CAM_WINDOW);
   };
   LOOPS.exchange.len = S1 - S0;
 }

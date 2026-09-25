@@ -73,6 +73,12 @@ function audience(t, o = {}) {
     g.addColorStop(0, 'rgba(60,96,190,.26)'); g.addColorStop(1, 'rgba(60,96,190,0)'); X.fillStyle = g; X.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
   X.restore();
 }
+// the readers, placed from the camera: their row stands at butai y 2372 (in front of the butai's base); nearer the lens than the
+// butai, they move and scale a little more than it does. Their heads stay below the page strip; their lanterns may touch it.
+function readers(ts, cam, o = {}) {
+  const z = cam.zoom, k = Math.pow(z / CAM_WINDOW.zoom, 1.15);
+  audience(ts, { y: H / 2 + (2372 - cam.y) * z * 1.08, scale: .62 * k, lift: 40 * k, ...o });
+}
 {
   // test: verse 1's 'ARU TOKORO NI!' and the exchange's 'SHOW ME HOW!', over the paper theatre with Fable and the origami crab
   LOOPS.audience = t => {

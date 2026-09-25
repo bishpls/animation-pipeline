@@ -1,16 +1,39 @@
 // outro.js: the end, song 202.59-209.65 (BEATS O1-O3; FABLE.md §6, §9). On the hyoshigi the book closes: the paper theatre,
-// the music box, and the kuroko slides in the last card: つづく, printed large on the vellum. On the end of Fable's "...tsuzuku."
-// her seal 語 is pressed onto it in vermilion (shu, the one red thing she owns; the one beat of it in the film). On "See you
+// the music box, and the kuroko slides in the last card: つづく, printed on the vellum. Fable stands at the place she used to sit
+// (beside her zabuton), takes two geta steps to the column, reaches, hovers a beat, and on the end of her "...tsuzuku." presses
+// her seal 語 (black in her hand; the vermilion exists only as the impression: shu, the one red thing she owns, its one beat in
+// the film). "Standing at the place I used to sit is the point: I'm not reading it anymore, I'm signing it." On "See you
 // next prompt!" Clawd's paper puppet pops up in the card's corner, jaw on her words. The music box rings out; the butai's doors
 // swing shut.
 {
-  const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', SEALAT = [838, 884];
+  const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1252, SEALAT = [1140, 562], SEALW = 70;   // (the rakkan in the next column's place, below-left of く, where her arm reaches)
+  const TS0 = { x: 820, y: FLOOR, s: .22, origin: [1100, 3700] }, BEAT = 60 / 170 * 2;   // standing, beside the zabuton (560)
+  // two-link reach (standing master px): shoulder, elbow, and her fist's grip (the forearm and hand as one) onto a target
+  const SH = [1036, 960], EL = [1156, 1422], FI = [1420, 2090], L1 = Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2 = Math.hypot(FI[0] - EL[0], FI[1] - EL[1]);
+  const R1 = Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2 = Math.atan2(FI[1] - EL[1], FI[0] - EL[0]), DEG = 180 / Math.PI;
+  function reach(sx, sy, tx, ty, sc) {
+    const Dx = (tx - sx) / sc, Dy = (ty - sy) / sc, d = Math.min(Math.hypot(Dx, Dy), L1 + L2 - 1), phi = Math.atan2(Dy, Dx);
+    const a = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)))), t1 = phi + a;   // the elbow drops
+    const t2 = Math.atan2(Dy - L1 * Math.sin(t1), Dx - L1 * Math.cos(t1));
+    return { upperarm: (t1 - R1) * DEG, forearm: ((t2 - R2) - (t1 - R1)) * DEG, hand: 0 };
+  }
   let K = null, SEAL = null;
   function keys() {
     const W = window.WORDS || [], w = n => (W.find(x => x.t0 > 200 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {});
     const ts = w('tsuzuku'), see = w('see');
-    K = { card: S0, seal: Math.floor((ts.t1 - .55) * 12) / 12, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
+    K = { card: S0, seal: Math.floor((ts.t1 - .55) * 12) / 12, see: see.t0, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
+    // two geta steps to the column (her own 6/8 beat), then the reach: hover a beat, press on the end of the word, hold two, lift
+    K.walk = makeWalk([{ t: K.seal - 1.95, foot: 'v', S: 180 }, { t: K.seal - 1.95 + BEAT, foot: 'h', S: 180, close: true }], 180, BEAT, TS0.s);
+    const at = K.seal - 1.95 + 2 * BEAT, T1 = { ...TS0, x: TS0.x + 180 };
+    const sh = FABLE_S.world({ _ghost: {} }, T1).torso.transformPoint(new DOMPoint(...SH));
+    const hover = reach(sh.x, sh.y, SEALAT[0] - 16, SEALAT[1] - 20, TS0.s), press = reach(sh.x, sh.y, SEALAT[0], SEALAT[1], TS0.s), rest = { upperarm: 0, forearm: 0, hand: 0 };
+    K.arm = PUPPET.snap([[0, rest], [at + 2 * f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.seal + 9 * f, rest]], { overshoot: .05 });
+    K.head = PUPPET.snap([[0, { head: 0 }], [at, { head: 5 }], [K.seal + 9 * f, { head: 2 }], [K.see, { head: 7 }]]);
   }
+  const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
+  const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = K.walk(q), a = K.arm(q), p = { ...w, ...a, ...K.head(q), _ghost: {} };
+    if (q < K.seal - 1.95 + 2 * BEAT + 2 * f) { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
+    p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
   // the seal: a square of shu with 語 cut in reverse (hakubun: the character in paper, the ground in ink), edges worn by use
   function makeSeal() {
     const n = 220, c = mkCanvas(n, n), g = c.getContext('2d'); let s = 91;
@@ -31,23 +54,28 @@
     const [sx, sy, sw, sh] = SCREEN.rect;
     X.save(); X.beginPath(); X.rect(sx + off, sy, sw, sh); X.clip(); X.translate(off, 0);
     X.globalCompositeOperation = 'multiply'; X.fillStyle = 'rgb(236,228,214)'; X.fillRect(sx, sy, sw, sh);    // the card's paper over the vellum (a shade denser)
-    let yy = 250; for (const ch of 'つづく') { inkVellum(ch, 1010 - 95, yy + 190, ts, K.card, { font: 'mincho', size: 190, alpha: .9, col: 'rgb(30,24,22)' }); yy += 210; }
-    // the seal (a rakkan): after the last character, below and to its left, in the next column's place; ~60% of a kana (Fable)
-    if (ts >= K.seal + f) { if (!SEAL) SEAL = makeSeal(); X.save(); X.globalAlpha = .92; X.drawImage(SEAL, SEALAT[0] - 45, SEALAT[1] - 45, 90, 90); X.restore(); }
+    let yy = 216; for (const ch of 'つづく') { inkVellum(ch, COLX - 57, yy + 114, ts, K.card, { font: 'mincho', size: 114, alpha: .9, col: 'rgb(30,24,22)' }); yy += 122; }
+    // the seal (a rakkan): after the last character, below and to its left, in the next column's place; ~60% of a kana (Fable);
+    // there once her seal has lifted from it
+    if (ts >= K.seal + 3 * f) { if (!SEAL) SEAL = makeSeal(); X.save(); X.globalAlpha = .92; X.drawImage(SEAL, SEALAT[0] - SEALW / 2, SEALAT[1] - SEALW / 2, SEALW, SEALW); X.restore(); }
     X.restore();
-    // the kuroko's hand signs the book (Fable): black, unlit, in from the left with the seal; pressed (one squashed drawing,
-    // flat on the screen); lifted (the impression left); out. Four drawings. Pressing is depth: off the screen the hand's
-    // shadow is larger and softer; pressed, it is crisp.
-    const hd = Math.floor((ts - K.seal) * 12 + 1e-6) + 1;
-    if (hd >= 0 && hd < 4) {
-      const [px, py] = SEALAT, out = hd === 3, dep = [.16, 0, .12, .24][hd], sq = hd === 1 ? .94 : 1;
-      const fx = px - 44 - (out ? 280 : 0), fy = py - 24 + (out ? -30 : 0);
-      const q = PRO.kuroko.by.arm_near, M = new DOMMatrix().translate(fx, fy).rotate(34).scale(.6).translate(-1800, -800);
-      shadow(c => { c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)';
-        c.translate(fx, py); c.scale(1, sq); c.translate(-fx, -py);
-        c.fillRect(fx + 44 - 45, fy + 24 - 45, 90, 90);                  // the seal, end-on, in her fist
-        c.setTransform(c.getTransform().multiply(M)); c.fill(q.outlineP); }, dep, { penumbra: true });
-    }
+    // Fable, standing where she used to sit, beside her zabuton; she walks to the column and signs it
+    const p = poseAt(ts), T = { ...TS0, x: TS0.x }, sq = Math.floor((ts - K.seal) * 12 + 1e-6) === 0;   // the press: one squashed drawing
+    shadow(c => {
+      c.globalCompositeOperation = 'source-over';
+      FABLE.draw(c, { _ghost: {} }, { x: 560, y: FLOOR, s: .2, origin: [1150, 2760] }, { hide: ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'] });   // the zabuton
+      TAILS_S.forEach((tl, i) => {
+        const pts = PUPPET.stiff(FABLE_S, poseAt, T, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, ts);
+        c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';
+        c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
+      });
+      c.globalCompositeOperation = 'source-over';
+      const reaching = ts >= K.seal - 1.95 + 2 * BEAT + 2 * f && ts < K.seal + 9 * f;
+      drawStanding(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }], props: reaching ? [{ after: 'hand', draw: (g, M) => {
+        const q = M.hand.transformPoint(new DOMPoint(...FI));                                   // her seal, in her fist, end-on: black
+        g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgb(22,22,26)'; const hh = SEALW * (sq ? .9 : 1);
+        g.fillRect(q.x - SEALW / 2, q.y - hh / 2 + (sq ? 3 : 0), SEALW, hh); } }] : [] });
+    }, 0);
     if (off > 2) { X.save(); X.fillStyle = 'rgba(40,30,24,.5)'; X.fillRect(sx + off - 2, sy, 2, sh); X.restore(); }
     // Clawd pops up at the card's lower-right corner: a Reiniger hop up into frame, her jaw on her words; a claw up on "prompt!"
     if (ts >= K.pop) {
@@ -77,7 +105,7 @@
         g.addColorStop(0, `rgba(255,190,110,${.34 * c})`); g.addColorStop(1, 'rgba(255,170,90,0)'); X.fillStyle = g; X.fillRect(-r, -r, 2 * r, 2 * r); X.restore(); }
       X.restore();
     }
-    audience(ts, { y: H + 330 - 147 * e, lift: 120, scale: .52 * (1 - .25 * e) });
+    readers(ts, cam);
   };
   LOOPS.outro.len = S1 - S0;
 }
