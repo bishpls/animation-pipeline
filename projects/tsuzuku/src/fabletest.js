@@ -25,11 +25,17 @@ async function FABLE_INIT() { window.FABLE = await PUPPET.load('rig/fable/puppet
       const q = Math.floor(t * 12) / 12;
       if (BLINKS.some(b0 => q >= b0 && q < b0 + 2 / 12)) { c.save(); c.setTransform(M.head); c.fillStyle = 'rgb(22,22,26)'; c.beginPath(); c.ellipse(1482, 494, 70, 22, -.12, 0, 7); c.fill(); c.restore(); }
       // the ribbon: indigo cellophane on a chain from the back of the head (light through it, the world's one spot colour)
-      c.setTransform(1, 0, 0, 1, 0, 0);
-      for (const [len, seed, dx] of [[1500, 0, -14], [1250, 2.1, -22]]) {        // two tails, tied at the back of the head
-        const pts = PUPPET.chain(FABLE, pose, T, { part: 'head', at: [835, 470], n: 22, len, dx, wind: 380, seed, damp: .975 }, t);
-        film(c, PUPPET.strip(pts, 30 * T.s, .8), FP.ai, .92);
+      // the ribbon: a bow tied into the back of the hair, two tails hanging to below the waist; indigo cellophane (the gel is
+      // bluer than Ai so the light through it, warmed by the lantern, reads as Ai)
+      c.setTransform(1, 0, 0, 1, 0, 0); const GEL = '#2B3E96';
+      for (const [len, seed, off] of [[1500, 0, 0], [1280, 2.1, 22]]) {
+        const pts = PUPPET.chain(FABLE, pose, T, { part: 'head', at: [905 + off, 520], n: 24, len, wind: 520, seed, damp: .992 }, t);
+        film(c, PUPPET.strip(pts, 30 * T.s, .8), GEL, .9);
       }
+      c.setTransform(M.head); c.save();                                            // the bow: two small loops at the knot
+      c.globalCompositeOperation = 'destination-out'; c.beginPath(); c.ellipse(870, 500, 62, 30, -.5, 0, 7); c.ellipse(955, 505, 58, 28, .45, 0, 7); c.fill();
+      c.globalCompositeOperation = 'source-over'; c.globalAlpha = .9; c.fillStyle = GEL; c.fill(); c.restore();
+      c.save(); c.fillStyle = 'rgb(22,22,26)'; c.beginPath(); c.ellipse(912, 505, 18, 22, 0, 0, 7); c.fill(); c.restore();   // the knot
     }, 0);
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(t * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };

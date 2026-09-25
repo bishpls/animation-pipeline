@@ -126,9 +126,27 @@
   }
  },
  "feather": {
-  "eye_L": 10,
-  "eye_R": 10,
-  "mouth": 10,
+  "eye_L": {
+   "px": 10,
+   "toward": [
+    "face",
+    "nose"
+   ]
+  },
+  "eye_R": {
+   "px": 10,
+   "toward": [
+    "face",
+    "nose"
+   ]
+  },
+  "mouth": {
+   "px": 10,
+   "toward": [
+    "face",
+    "nose"
+   ]
+  },
   "yoke": {
    "px": 30,
    "from": [

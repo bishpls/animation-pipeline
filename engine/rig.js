@@ -251,8 +251,11 @@ const RIG = (() => {
   // and overshoot, then holds. `twos`: pose parameters step at 12 fps (anime timing); physics and the camera stay on ones.
   function keys(list, o = {}) {
     const ant = o.anticipate ?? .1, over = o.overshoot ?? .08, dur = o.move ?? .22, fps = o.twos ? 12 : 0;
+    // keys land on drawings (twos grid), so a pose change is never a drawing late; a key that switches the drawn view is a cut:
+    // its values arrive at once (a new drawing comes in its own pose) instead of easing from the old one
+    const snapT = t => fps ? Math.ceil(t * fps - 1e-6) / fps : t;
     const names = [...new Set(list.flatMap(([, k]) => Object.keys(k)))];
-    const tracks = {}; for (const n of names) { let last; tracks[n] = list.filter(([, k]) => n in k).map(([t, k]) => [t, k[n]]); }
+    const tracks = {}; for (const n of names) tracks[n] = list.filter(([, k]) => n in k).map(([t, k]) => [snapT(t), k[n], 'view' in k]);
     const shape = u => {                                        // 0..1 -> 0..1 with anticipation and overshoot
       if (u <= 0) return 0; if (u >= 1) return 1;
       if (u < .25) return -ant * Math.sin(u / .25 * Math.PI);  // wind up
@@ -263,7 +266,7 @@ const RIG = (() => {
       const tq = fps ? Math.floor(t * fps) / fps : t, out = {};
       for (const n of names) {
         const tr = tracks[n]; let v = tr[0][1];
-        for (let i = 1; i < tr.length; i++) { const [t1, v1] = tr[i], [, v0] = tr[i - 1]; if (tq < t1) break; v = typeof v1 === 'number' ? v0 + (v1 - v0) * shape((tq - t1) / dur) : v1; }
+        for (let i = 1; i < tr.length; i++) { const [t1, v1, cut] = tr[i], [, v0] = tr[i - 1]; if (tq < t1) break; v = typeof v1 === 'number' && !cut ? v0 + (v1 - v0) * shape((tq - t1) / dur) : v1; }
         out[n] = v;
       }
       return out;

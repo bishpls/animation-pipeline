@@ -76,8 +76,14 @@
     0.55,
     0.38
    ],
-   "pin_star": 0.6,
-   "pin_crab": 0.6,
+   "pin_star": [
+    0.42,
+    0.18
+   ],
+   "pin_crab": [
+    0.42,
+    0.18
+   ],
    "hair_side_L": [
     0.42,
     0.18
@@ -103,8 +109,8 @@
     0.3
    ],
    "hair_front": 0.45,
-   "pin_star": 0.45,
-   "pin_crab": 0.45,
+   "pin_star": 0.3,
+   "pin_crab": 0.3,
    "hair_side_L": 0.3,
    "hair_side_R": 0.3,
    "ahoge": 0.2,

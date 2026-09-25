@@ -122,7 +122,12 @@ def main(ldir, spec, out):
     # feather: patches (eyes, mouth) fade into the layer under them over `feather` px at their outer edge
     for n, px in S.get('feather', {}).items():
         a = L[n][:, :, 3] > 8
-        if isinstance(px, dict):                   # fade only toward the named neighbours (e.g. a yoke fades into the body, not the neck)
+        if isinstance(px, dict) and 'toward' in px:   # fade only the stretch of edge that borders these parts at rest (an eye fades
+            lab = np.array(Image.open(os.path.join(ldir, 'labels.png'))); lo = json.load(open(os.path.join(ldir, 'labels.json')))['order']   # into skin, never over hair)
+            ring = ndi.binary_dilation(a, iterations=2) & ~a; toward = ring & np.isin(lab, [lo.index(o) + 1 for o in px['toward'] if o in lo])
+            d = ndi.distance_transform_edt(~toward); d[~a] = 0; hard = ring & ~toward
+            dh = ndi.distance_transform_edt(~hard); d = np.where(dh < d, px['px'], d); px = px['px']   # near a hard edge: stay opaque
+        elif isinstance(px, dict):                 # fade only toward the named neighbours (e.g. a yoke fades into the body, not the neck)
             seed = np.zeros(shape, bool)
             for o in px['from']: seed |= L[o][:, :, 3] > 8
             d = ndi.distance_transform_edt(~seed); px = px['px']

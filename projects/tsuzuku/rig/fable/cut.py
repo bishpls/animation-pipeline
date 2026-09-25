@@ -1,6 +1,6 @@
 """Cut Fable's shadow-puppet master (src/seated.png, black paper on white, 2880 px) into pinned parts, traced to vector paths.
 
-    ../../../../.venv/bin/python cut.py        -> puppet.json (parts, pivots, paths) + _parts.png (review)
+    ../../../../.venv/bin/python cut.py [seated|standing]   -> puppet.json / puppet_standing.json (parts, pivots, paths) + _parts_<name>.png
 
 Each part = the black pixels inside its region (regions claim pixels in priority order), plus a hidden black extension under the
 parts in front of it (so a moving part never opens a gap), plus round caps at its rivets (real puppets overlap at the pins).
@@ -14,14 +14,15 @@ from scipy import ndimage as ndi
 from skimage import measure
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-G = 2.4                                                     # the review grid was 1200 px for the 2880 master
+G = 2.4                                                     # the seated review grid was 1200 px for the 2880 master
 g = lambda pts: [[x * G, y * G] for x, y in pts]
+gs = lambda pts: [[(x + 250) * 2, y * 2] for x, y in pts]    # the standing review grid: half scale, cropped 250 px from the left
 
 # rivets (joint pivots), master px
-RIV = {'neck': [1248, 823], 'shoulder': [1186, 1032], 'elbow': [1392, 1507], 'wrist': [1925, 1253], 'hip': [984, 2256]}
+RIV_SEATED = {'neck': [1248, 823], 'shoulder': [1186, 1032], 'elbow': [1392, 1507], 'wrist': [1925, 1253], 'hip': [984, 2256]}
 
 # parts front to back: region (claims black pixels), hidden extension, caps (rivet, radius), parent, pivot
-PARTS = [
+PARTS_SEATED = [
  dict(name='hand', parent='forearm', pivot='wrist', region=g([[782, 505], [830, 385], [855, 255], [935, 255], [905, 420], [880, 485], [845, 545], [800, 565]]),
       caps=[['wrist', 44]]),
  dict(name='forearm', parent='upperarm', pivot='elbow', region=g([[545, 598], [770, 530], [805, 548], [800, 640], [792, 700], [765, 830], [705, 910], [620, 870], [520, 800], [480, 700], [505, 640]]),
@@ -36,6 +37,28 @@ PARTS = [
       extend=g([[330, 850], [770, 850], [860, 900], [860, 1080], [300, 1080]])),
  dict(name='cushion', parent=None, pivot=None, region=g([[200, 1082], [1000, 1082], [1000, 1180], [200, 1180]])),
 ]
+
+
+RIV_STANDING = {'neck': [1046, 746], 'shoulder': [1036, 960], 'elbow': [1156, 1422], 'wrist': [1368, 1922], 'hip': [1030, 2116], 'ankle': [986, 3396]}
+# standing: the hair hangs BEHIND the jacket and hood, so the head is drawn behind the torso; under the ankle-length skirt only the
+# tabi and geta show, so the foot rides the ankle rivet and the skirt carries the hidden leg.
+PARTS_STANDING = [
+ dict(name='hand', parent='forearm', pivot='wrist', region=gs([[400, 925], [470, 950], [512, 1050], [495, 1112], [440, 1105], [398, 1000]]), caps=[['wrist', 40]]),
+ dict(name='forearm', parent='upperarm', pivot='elbow', region=gs([[212, 700], [300, 688], [362, 700], [402, 800], [455, 910], [440, 938], [300, 992], [262, 1008], [246, 960], [222, 880]]),
+      caps=[['elbow', 58], ['wrist', 36]]),
+ dict(name='upperarm', parent='torso', pivot='shoulder', region=gs([[198, 452], [292, 442], [348, 560], [352, 702], [300, 742], [212, 702], [202, 560]]),
+      caps=[['shoulder', 66], ['elbow', 58]]),
+ dict(name='torso', parent='skirt', pivot='hip', region=gs([[105, 378], [445, 378], [445, 560], [425, 800], [465, 925], [425, 1090], [95, 1090], [95, 720]]),
+      caps=[['hip', 70]]),
+ dict(name='head', parent='torso', pivot='neck', region=gs([[40, 40], [460, 40], [460, 360], [330, 362], [300, 395], [250, 402], [200, 422], [192, 730], [40, 730]]),
+      caps=[['neck', 50]], extend=gs([[110, 360], [320, 360], [320, 720], [95, 720]])),
+ dict(name='skirt', parent=None, pivot='hip', region=gs([[40, 1040], [500, 1040], [500, 1690], [40, 1690]]),
+      extend=gs([[140, 950], [425, 950], [425, 1060], [110, 1060]])),
+ dict(name='foot', parent='skirt', pivot='ankle', region=gs([[160, 1680], [430, 1680], [430, 1870], [160, 1870]]),
+      caps=[['ankle', 30]], extend=gs([[212, 1560], [278, 1560], [278, 1700], [212, 1700]])),
+]
+MASTERS = {'seated': dict(src='seated.png', riv=RIV_SEATED, parts=PARTS_SEATED, out='puppet.json'),
+           'standing': dict(src='standing.png', riv=RIV_STANDING, parts=PARTS_STANDING, out='puppet_standing.json')}
 
 
 def poly(shape, pts):
@@ -53,8 +76,9 @@ def trace(mask, tol=.7):
     return out
 
 
-def main():
-    im = np.array(Image.open(os.path.join(HERE, 'src', 'seated.png')).convert('L')).astype(float)
+def main(which='seated'):
+    MS = MASTERS[which]; RIV, PARTS = MS['riv'], MS['parts']
+    im = np.array(Image.open(os.path.join(HERE, 'src', MS['src'])).convert('L')).astype(float)
     ink = im < 128; H, W = ink.shape
     figure = ndi.binary_fill_holes(ndi.binary_closing(ink, iterations=6))       # the figure's area, slits included
     claimed = np.zeros_like(ink); yy, xx = np.mgrid[:H, :W]
@@ -65,7 +89,7 @@ def main():
         claimed |= own
         body = own & ink                                                          # its black paper (slits stay open)
         solid = own.copy()
-        if P.get('extend'): solid |= poly(ink.shape, P['extend'])                 # hidden extension under the parts in front
+        if P.get('extend'): solid |= poly(ink.shape, P['extend']) & figure        # hidden extension under the parts in front, never outside the figure
         for r, rad in P.get('caps', []):
             cx, cy = RIV[r]; solid |= (xx - cx) ** 2 + (yy - cy) ** 2 <= rad ** 2
         paper = body | (solid & ~own)                                             # own slits stay cut; the extension is solid
@@ -79,9 +103,10 @@ def main():
         print(f"{P['name']:9s} {paper.sum():8d} px  outline {len(out['parts'][-1]['outline'])} paths, {len(out['parts'][-1]['holes'])} holes")
     out['parts'].reverse()                                                        # draw order: back to front
     for m in reversed(masks): c = rng.integers(30, 220, 3); review[m] = (255 - (255 - c) * .85).astype(np.uint8) * 0 + c.astype(np.uint8)
-    json.dump(out, open(os.path.join(HERE, 'puppet.json'), 'w'))
-    Image.fromarray(review).resize((1200, 1200)).save(os.path.join(HERE, '_parts.png'))
+    json.dump(out, open(os.path.join(HERE, MS['out']), 'w'))
+    Image.fromarray(review).resize((W // 2, H // 2)).save(os.path.join(HERE, f'_parts_{which}.png'))
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    main(sys.argv[1] if len(sys.argv) > 1 else 'seated')
