@@ -9,7 +9,7 @@
 const PAGE = { rect: [1040, 1814, 1760, 86], size: 40, margin: 70, gap: 120, base: 1872, lampX: 2167 };
 // the telling's strip (the doors open to "Says who?"). The bridge prints nothing (Fable: "me off-book; no printed words until
 // the build"): the telling's strip stands there as the paper theatre returns and is the first thing struck, on the clack.
-const PAGE_SECTIONS = [{ t0: 8.9, t1: 61.4, in: 13.7 }]   // (in: once the doors are open), PAGE_STRIKE = { t0: 131.0, clack: 131.29 };
+const PAGE_SECTIONS = [{ t0: 8.9, t1: 61.4, in: 13.7 }], PAGE_STRIKE = { t0: 131.0, clack: 131.29 };   // (in: once the doors are open)
 const PAGE_INK = 'rgb(30,24,22)';                                  // sumi for every line: Clawd's are quoted, in quotation marks (Fable)
 const PAGE_JA = [                                                  // [t0, text]: the Japanese, vertical, at the vellum's right edge
   [9.33, 'むかし、むかし'], [11.44, 'あるところに'], [50.9, 'それから？']];   // (the crowd's call is carried here, not on the strip)

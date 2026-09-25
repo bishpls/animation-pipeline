@@ -161,10 +161,13 @@
     }
     // in the room: person-sized beside the butai (a kamishibai window is about a third of her height), facing it; she glides in
     // from the right edge (her legs below the frame), stops, and her ribbon settles. Black; the window's light on her front edges.
-    const ROOM = OUT + 2.5 * BEAT, IN = 6, RX = [2180, 1690], RS = .48;
+    const ROOM = OUT + 2.5 * BEAT, IN = 9, RX = [2180, 1690], RS = .48;
     const roomPose = () => ({ _ghost: {}, head: -4, hair: 3.4 });
-    const roomT = tt => { const d = Math.floor((tt - ROOM) * 12 + 1e-6), u = Math.min(1, Math.max(0, d / IN)), e = 1 - (1 - u) * (1 - u);
-      return { x: RX[0] + (RX[1] - RX[0]) * e, y: 175 + (3700 - 250) * RS + (d >= 0 && d < IN && d % 2 ? -6 : 0), s: RS, flip: -1, origin: [1100, 3700] }; };
+    // two geta steps in from the frame's edge on the eighths (clack, clack), then still (Fable: "gliding is for ghosts"): each
+    // step lifts her a little through the passing position and sets her down
+    const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
+      const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * Math.sin(Math.PI * u) : 0;
+      return { x, y: 175 + (3700 - 250) * RS + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
     let RL = null;
     function roomFable(tt) {
       if (tt < ROOM) return;
@@ -178,10 +181,11 @@
         const pts = []; for (let i = 0; i <= 10; i++) { const u = i / 10; pts.push([root.x + off * RS + sw * u * u + 10 * u, root.y + u * 1150 * len]); }
         S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(16,30,52)'; S.fill(P(PUPPET.strip(pts, 52, .85, 46)));
       });
-      FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)' });
       R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
-      R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,186,120,.9)'; R.fillRect(0, 0, W, H);
-      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 5, 0);                      // her edges that face the window
+      FABLE_S.draw(R, p, T, { solid: true, ink: 'rgb(9,7,9)' });                                     // her body alone (the rim is hers)
+      FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)' });
+      R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,186,120,.9)'; R.fillRect(0, 0, W, H);
+      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 5, 0);                      // only the edges that face the window
       X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(9px)'; X.globalAlpha = .45; X.drawImage(RL[1], 0, 0);   // the glow first, so
       X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);             // she stays black inside
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();

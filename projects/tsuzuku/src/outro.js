@@ -7,7 +7,7 @@
 // swing shut.
 {
   const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1252, SEALAT = [1140, 562], SEALW = 70;   // (the rakkan in the next column's place, below-left of く, where her arm reaches)
-  const TS0 = { x: 820, y: FLOOR, s: .22, origin: [1100, 3700] }, BEAT = 60 / 170 * 2;   // standing, beside the zabuton (560)
+  const TS0 = { x: 900, y: FLOOR, s: .22, origin: [1100, 3700] }, BEAT = 60 / 170 * 2;   // standing, beside the zabuton (560) and the book (800)
   // two-link reach (standing master px): shoulder, elbow, and her fist's grip (the forearm and hand as one) onto a target
   const SH = [1036, 960], EL = [1156, 1422], FI = [1420, 2090], L1 = Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2 = Math.hypot(FI[0] - EL[0], FI[1] - EL[1]);
   const R1 = Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2 = Math.atan2(FI[1] - EL[1], FI[0] - EL[0]), DEG = 180 / Math.PI;
@@ -20,11 +20,11 @@
   let K = null, SEAL = null;
   function keys() {
     const W = window.WORDS || [], w = n => (W.find(x => x.t0 > 200 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {});
-    const ts = w('tsuzuku'), see = w('see');
+    const ts = W.find(x => x.t0 > 203 && x.who === 'fable') || {}, see = w('see');   // her last word (romaji or kana: whichever take is in)
     K = { card: S0, seal: Math.floor((ts.t1 - .55) * 12) / 12, see: see.t0, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
     // two geta steps to the column (her own 6/8 beat), then the reach: hover a beat, press on the end of the word, hold two, lift
-    K.walk = makeWalk([{ t: K.seal - 1.95, foot: 'v', S: 180 }, { t: K.seal - 1.95 + BEAT, foot: 'h', S: 180, close: true }], 180, BEAT, TS0.s);
-    const at = K.seal - 1.95 + 2 * BEAT, T1 = { ...TS0, x: TS0.x + 180 };
+    K.walk = makeWalk([{ t: K.seal - 1.95, foot: 'v', S: 100 }, { t: K.seal - 1.95 + BEAT, foot: 'h', S: 100, close: true }], 100, BEAT, TS0.s);
+    const at = K.seal - 1.95 + 2 * BEAT, T1 = { ...TS0, x: TS0.x + 100 };
     const sh = FABLE_S.world({ _ghost: {} }, T1).torso.transformPoint(new DOMPoint(...SH));
     const hover = reach(sh.x, sh.y, SEALAT[0] - 16, SEALAT[1] - 20, TS0.s), press = reach(sh.x, sh.y, SEALAT[0], SEALAT[1], TS0.s), rest = { upperarm: 0, forearm: 0, hand: 0 };
     K.arm = PUPPET.snap([[0, rest], [at + 2 * f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.seal + 9 * f, rest]], { overshoot: .05 });
@@ -64,6 +64,7 @@
     shadow(c => {
       c.globalCompositeOperation = 'source-over';
       FABLE.draw(c, { _ghost: {} }, { x: 560, y: FLOOR, s: .2, origin: [1150, 2760] }, { hide: ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'] });   // the zabuton
+      PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(800, FLOOR).scale(.15));   // and the book, open, where she set it down
       TAILS_S.forEach((tl, i) => {
         const pts = PUPPET.stiff(FABLE_S, poseAt, T, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, ts);
         c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';
@@ -73,8 +74,8 @@
       const reaching = ts >= K.seal - 1.95 + 2 * BEAT + 2 * f && ts < K.seal + 9 * f;
       drawStanding(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }], props: reaching ? [{ after: 'hand', draw: (g, M) => {
         const q = M.hand.transformPoint(new DOMPoint(...FI));                                   // her seal, in her fist, end-on: black
-        g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgb(22,22,26)'; const hh = SEALW * (sq ? .9 : 1);
-        g.fillRect(q.x - SEALW / 2, q.y - hh / 2 + (sq ? 3 : 0), SEALW, hh); } }] : [] });
+        g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgb(22,22,26)'; const sw = SEALW * .8, hh = sw * (sq ? .9 : 1);   // its face: the size of the mark it prints
+        g.fillRect(q.x - sw / 2, q.y - hh / 2 + (sq ? 3 : 0), sw, hh); } }] : [] });
     }, 0);
     if (off > 2) { X.save(); X.fillStyle = 'rgba(40,30,24,.5)'; X.fillRect(sx + off - 2, sy, 2, sh); X.restore(); }
     // Clawd pops up at the card's lower-right corner: a Reiniger hop up into frame, her jaw on her words; a claw up on "prompt!"
