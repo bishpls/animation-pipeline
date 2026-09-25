@@ -40,9 +40,9 @@
    "pin_crab": 0.16,
    "brow_L": 0.015,
    "brow_R": 0.015,
-   "eye_L": 0.015,
-   "eye_R": 0.015,
-   "mouth": 0.015,
+   "eye_L": 0.06,
+   "eye_R": 0.06,
+   "mouth": 0.04,
    "face": 0,
    "hair_side_L": [
     0.04,
@@ -54,8 +54,43 @@
    ],
    "bun_L": -0.24,
    "bun_R": -0.24,
-   "hair_back": -0.35
-  }
+   "hair_back": -0.35,
+   "ahoge": 0.1
+  },
+  "flat": 1.6,
+  "rigid": {
+   "eye_L": [
+    962,
+    565
+   ],
+   "eye_R": [
+    1166,
+    565
+   ],
+   "mouth": [
+    1065,
+    690
+   ],
+   "brow_L": [
+    955,
+    460
+   ],
+   "brow_R": [
+    1180,
+    460
+   ]
+  },
+  "neckLayers": [
+   "neck"
+  ],
+  "chin": [
+   1065,
+   790
+  ],
+  "chinBand": [
+   790,
+   905
+  ]
  },
  "body": {
   "waist": [
@@ -173,32 +208,32 @@
  "springs": {
   "hair": {
    "drive": "headX",
-   "k": 55,
-   "c": 7,
+   "k": 95,
+   "c": 14,
    "gain": 1.3
   },
   "ahoge": {
    "drive": "headX",
-   "k": 95,
-   "c": 4.5,
+   "k": 140,
+   "c": 8,
    "gain": 1.2
   },
   "bun": {
    "drive": "bounce",
-   "k": 160,
-   "c": 9,
+   "k": 200,
+   "c": 16,
    "gain": 1
   },
   "bow": {
    "drive": "bodyZ",
-   "k": 80,
-   "c": 8,
+   "k": 110,
+   "c": 13,
    "gain": 1.4
   },
   "skirt": {
    "drive": "bodyZ",
-   "k": 45,
-   "c": 5,
+   "k": 70,
+   "c": 10,
    "gain": 1.6
   }
  },
@@ -210,5 +245,110 @@
   ],
   "w": 150,
   "h": 94
- }
+ },
+ "views": {
+  "L": {
+   "manifest": "views/left/manifest.json",
+   "head": {
+    "center": [
+     1010,
+     560
+    ],
+    "neck": [
+     1040,
+     800
+    ],
+    "chin": [
+     921,
+     757
+    ],
+    "chinBand": [
+     757,
+     875
+    ],
+    "rigid": {
+     "eye_L": [
+      857,
+      573
+     ],
+     "eye_R": [
+      1006,
+      541
+     ],
+     "mouth": [
+      937,
+      679
+     ]
+    },
+    "neckLayers": [
+     "yoke",
+     "neck"
+    ]
+   },
+   "mouth": {
+    "center": [
+     937,
+     681
+    ],
+    "w": 120,
+    "h": 80
+   },
+   "insert": {
+    "yoke": "after:collar"
+   },
+   "variants": "views/left/variants.json"
+  },
+  "R": {
+   "manifest": "views/right/manifest.json",
+   "head": {
+    "center": [
+     1100,
+     560
+    ],
+    "neck": [
+     1090,
+     800
+    ],
+    "chin": [
+     1229,
+     766
+    ],
+    "chinBand": [
+     766,
+     885
+    ],
+    "rigid": {
+     "eye_L": [
+      1117,
+      541
+     ],
+     "eye_R": [
+      1282,
+      567
+     ],
+     "mouth": [
+      1207,
+      677
+     ]
+    },
+    "neckLayers": [
+     "yoke",
+     "neck"
+    ]
+   },
+   "mouth": {
+    "center": [
+     1207,
+     679
+    ],
+    "w": 120,
+    "h": 80
+   },
+   "insert": {
+    "yoke": "after:collar"
+   },
+   "variants": "views/right/variants.json"
+  }
+ },
+ "variants": "build/variants.json"
 }

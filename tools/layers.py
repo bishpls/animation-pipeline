@@ -97,6 +97,7 @@ def main(base, spec, seg, out):
     for n, cl in S.get('claim', {}).items():
         if 'ellipse' in cl:                        # a patch: e.g. an eye with the skin around it, swapped as a unit
             cx, cy, rx, ry = cl['ellipse']; yy, xx = np.mgrid[:L.shape[0], :L.shape[1]]; zone = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
+        elif 'poly' in cl: zone = polymask(L.shape, cl['poly'])
         else: zone = ndi.binary_dilation(masks[n], iterations=cl.get('grow', 10))
         for other in cl['from']: L[zone & (L == idx[other])] = idx[n]
     Image.fromarray(L.astype(np.uint8)).save(os.path.join(out, 'labels.png'))

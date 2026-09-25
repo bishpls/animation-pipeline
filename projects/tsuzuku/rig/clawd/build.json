@@ -81,14 +81,17 @@
     "sleeve_L",
     "sleeve_R",
     "bow",
-    "collar"
+    "collar",
+    "hair_side_L",
+    "hair_side_R"
    ],
    "clip": [
     760,
-    900,
+    860,
     1370,
     1370
-   ]
+   ],
+   "within_hull": true
   },
   "skirt": {
    "hull": [
@@ -160,12 +163,13 @@
   "collar": {
    "hull": [
     "hair_side_L",
-    "hair_side_R"
+    "hair_side_R",
+    "neck"
    ],
    "clip": [
-    820,
-    800,
-    1320,
+    760,
+    740,
+    1380,
     1000
    ],
    "within_hull": true
@@ -175,10 +179,10 @@
     "hair_side_L"
    ],
    "clip": [
-    600,
-    820,
-    900,
-    1100
+    560,
+    760,
+    960,
+    1110
    ],
    "within_hull": true
   },
@@ -187,10 +191,10 @@
     "hair_side_R"
    ],
    "clip": [
-    1230,
-    820,
-    1530,
-    1100
+    1180,
+    760,
+    1580,
+    1110
    ],
    "within_hull": true
   }

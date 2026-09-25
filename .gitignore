@@ -28,3 +28,9 @@ projects/*/rig/*/layers/
 projects/*/rig/*/seg/
 projects/*/rig/*/test_*.png
 projects/*/rig/*/build/_*.png
+projects/*/rig/*/views/seg_*/
+projects/*/rig/*/views/layers_*/
+projects/*/rig/*/views/head_*.png
+projects/*/rig/*/build/_edits/
+projects/*/rig/*/views/*/_edits/
+projects/*/rig/*/views/*/_*.png

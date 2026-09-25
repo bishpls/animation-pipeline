@@ -1,0 +1,89 @@
+{
+ "image": "views/right_aligned.png",
+ "crop": [
+  560,
+  0,
+  1056
+ ],
+ "out": "views/right",
+ "feather": 10,
+ "patches": {
+  "eye_L": [
+   1113,
+   541,
+   88,
+   74
+  ],
+  "eye_R": [
+   1282,
+   567,
+   52,
+   62
+  ],
+  "mouth": [
+   1204,
+   690,
+   104,
+   58
+  ]
+ },
+ "variants": {
+  "closed": {
+   "prompt": "Change ONLY her eyes: both eyes gently closed as in a blink, the upper eyelash line lowered into a soft downward curve with the lashes still drawn, no iris and no eye white visible.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  },
+  "half": {
+   "prompt": "Change ONLY her eyes: both eyes half closed, the upper eyelids lowered to cover the top half of the iris, relaxed.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  },
+  "happy": {
+   "prompt": "Change ONLY her eyes: both eyes closed in a happy smile, drawn as upward-arched curved lash lines (the classic anime ^ ^ happy closed eyes).",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  },
+  "A": {
+   "prompt": "Change ONLY her mouth: open as when singing the vowel 'ah', an anime open mouth with a dark red interior, a small tongue at the bottom and a hint of upper teeth, still a little smile.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "I": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'ee', a wide, short open mouth with the upper teeth showing, smiling.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "U": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'oo', a small rounded pursed open mouth.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "E": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'eh', a medium, wide open mouth with a dark red interior and a hint of teeth.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "O": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'oh', a rounded open mouth of medium size with a dark red interior.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "grin": {
+   "prompt": "Change ONLY her mouth: a big open happy smile, the mouth open in a wide D shape with a dark red interior and a tongue.",
+   "patches": [
+    "mouth"
+   ]
+  }
+ }
+}

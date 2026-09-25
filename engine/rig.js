@@ -83,23 +83,72 @@ const RIG = (() => {
     const man = await (await fetch(base + R.manifest)).json(); const mdir = base + R.manifest.slice(0, R.manifest.lastIndexOf('/') + 1);
     glInit(16, 16);
     const layers = await Promise.all(man.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(mdir + l.name + '.png')), m: mesh(l) })));
+    // head views (drawn three-quarter heads): layer sets that replace the front head, each with its own head geometry
+    const views = {};
+    for (const [vn, V] of Object.entries(R.views || {})) {
+      const vm = await (await fetch(base + V.manifest)).json(), vdir = base + V.manifest.slice(0, V.manifest.lastIndexOf('/') + 1);
+      views[vn] = { V, layers: await Promise.all(vm.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(vdir + l.name + '.png')), m: mesh(l), view: vn }))) };
+    }
+    // drawn variants of face patches (tools/variants.py): {patch: {variant: layer}}, per view
+    const variants = {};
+    const loadVars = async (file, key) => {
+      const vt = await (await fetch(base + file)).json(), vdir = base + file.slice(0, file.lastIndexOf('/') + 1); variants[key] = {};
+      for (const [pn, vs] of Object.entries(vt)) { variants[key][pn] = {};
+        for (const [vn, e] of Object.entries(vs)) variants[key][pn][vn] = { name: pn, x: e.x, y: e.y, w: e.w, h: e.h, tex: texFrom(await loadImg(vdir + e.file)), m: mesh(e) }; }
+    };
+    if (R.variants) await loadVars(R.variants, 'F');
+    for (const [vn, V] of Object.entries(R.views || {})) if (V.variants) await loadVars(V.variants, vn);
     const set = a => new Set(a || []);
     const head = set(R.head && R.head.layers), upper = set(R.body && R.body.upper), armOf = {};
     for (const s of ['L', 'R']) if (R.arms && R.arms[s]) for (const n of R.arms[s].layers) armOf[n] = s;
-    const rig = { R, layers, head, upper, armOf, size: man.size };
+    const rig = { R, layers, head, upper, armOf, size: man.size, views, variants };
+    // the draw list for each view: the front head's layers swapped by name; view-only layers go in front of the next swapped one
+    rig.lists = { F: layers };
+    for (const [vn, v] of Object.entries(views)) {
+      const byName = Object.fromEntries(v.layers.map(l => [l.name, l])), swapped = new Set(R.head.layers || []);   // the base neck stays (chest)
+      const list = []; let pending = [], used = new Set();
+      const vorder = v.layers.map(l => l.name);
+      for (const l of layers) {
+        if (!swapped.has(l.name)) { list.push(l); continue; }
+        if (byName[l.name]) {
+          const i = vorder.indexOf(l.name); pending = vorder.slice(0, i).filter(n => !used.has(n) && !layers.some(b => b.name === n));
+          for (const n of pending) { list.push(byName[n]); used.add(n); }
+          list.push(byName[l.name]); used.add(l.name);
+        }
+      }
+      if (byName.neck) { const i = list.findIndex(l => l.name === 'neck' && !l.view); list.splice(i + 1, 0, byName.neck); used.add('neck'); }   // the view's neck over the chest
+      for (const [n, where] of Object.entries(v.V.insert || {})) {        // e.g. the yoke: the view's own collar, blended over the body
+        if (!byName[n]) continue; const [, ref] = where.split(':'); const i = list.findIndex(l => l.name === ref && !l.view);
+        list.splice(i + 1, 0, byName[n]); used.add(n);
+      }
+      for (const n of vorder) if (!used.has(n)) list.splice(list.indexOf(byName['hair_front']) >= 0 ? list.indexOf(byName['hair_front']) : list.length, 0, byName[n]);
+      rig.lists[vn] = list;
+    }
     // mouth: a small canvas texture, redrawn when the mouth is open
     if (R.mouth) { rig.mc = document.createElement('canvas'); rig.mc.width = 256; rig.mc.height = 160; rig.mtex = gl.createTexture(); }
     rig.draw = (X, t, P, T) => draw(rig, X, t, P, T);
     return rig;
   }
 
+  // the head turn for one point: an ellipsoid with depth (near layers travel further; the far side compresses a little)
+  function headPoint(H, x, y, d, ax, ay) {
+    const Rx = H.radius[0] * (H.flat || 1), Ry = H.radius[1] * (H.flat || 1);    // flat > 1: a shallower curve, less wrap
+    const u = clamp((x - H.center[0]) / Rx, -.985, .985), v = clamp((y - H.center[1]) / Ry, -.985, .985);
+    const rx = Rx * (1 + d), ry = Ry * (1 + d * .6);
+    const extraX = (x - H.center[0]) - Rx * u, extraY = (y - H.center[1]) - Ry * v;
+    return [H.center[0] + rx * Math.sin(Math.asin(u) + ax) - (rx - Rx) * u + extraX * Math.cos(ax),
+            H.center[1] + ry * Math.sin(Math.asin(v) - ay) - (ry - Ry) * v + extraY * Math.cos(ay)];
+  }
+
   function deform(rig, l, p, sp, out) {
-    const R = rig.R, H = R.head, B = R.body || {}, rest = l.m.rest, name = l.name;
+    const R = rig.R, H = l.view ? { ...R.head, ...R.views[l.view].head } : R.head, B = R.body || {}, rest = l.m.rest, name = l.name;
     const ax = clamp(p.angleX || 0, -1, 1) * 30 * Math.PI / 180, ay = clamp(p.angleY || 0, -1, 1) * 18 * Math.PI / 180;
     const breath = p.breath !== undefined ? p.breath : .5 + .5 * Math.sin(p._t * 2 * Math.PI / 3.6);
-    const inHead = rig.head.has(name), inUpper = inHead || rig.upper.has(name) || rig.armOf[name];
+    const viewNeck = l.view && (H.neckLayers || []).includes(name);
+    const inHead = l.view ? !viewNeck : rig.head.has(name), inUpper = inHead || viewNeck || rig.upper.has(name) || rig.armOf[name];
     const sw = R.sway && R.sway[name], arm = rig.armOf[name] ? R.arms[rig.armOf[name]] : null;
     let dep = H && H.depth && H.depth[name] !== undefined ? H.depth[name] : 0;
+    const rigid = H && H.rigid && H.rigid[name], neckL = H && H.neckLayers && H.neckLayers.includes(name);
     for (let k = 0; k < rest.length; k += 2) {
       let x = rest[k], y = rest[k + 1];
       // 1. secondary motion (a bend that grows from the root)
@@ -111,12 +160,21 @@ const RIG = (() => {
       // 2. the head turn: a cylinder with depth (near layers travel further; the far side compresses)
       if (inHead) {
         const d = Array.isArray(dep) ? dep[0] + (dep[1] - dep[0]) * clamp(Math.abs(x - H.center[0]) / H.radius[0], 0, 1) : dep;
-        const u = clamp((x - H.center[0]) / H.radius[0], -.985, .985), v = clamp((y - H.center[1]) / H.radius[1], -.985, .985);
-        const rx = H.radius[0] * (1 + d), ry = H.radius[1] * (1 + d * .6);
-        const extraX = (x - H.center[0]) - H.radius[0] * u, extraY = (y - H.center[1]) - H.radius[1] * v;   // beyond the cylinder: carried rigidly
-        x = H.center[0] + rx * Math.sin(Math.asin(u) + ax) - (rx - H.radius[0]) * u + extraX * Math.cos(ax);
-        y = H.center[1] + ry * Math.sin(Math.asin(v) - ay) - (ry - H.radius[1]) * v + extraY * Math.cos(ay);
+        if (rigid) {                               // features keep their drawn shape: move with their centre, squash slightly
+          const [cx, cy] = headPoint(H, rigid[0], rigid[1], d, ax, ay), e = 2;
+          const sx = (headPoint(H, rigid[0] + e, rigid[1], d, ax, ay)[0] - headPoint(H, rigid[0] - e, rigid[1], d, ax, ay)[0]) / (2 * e);
+          x = cx + (x - rigid[0]) * sx; y = cy + (y - rigid[1]);
+        } else [x, y] = headPoint(H, x, y, d, ax, ay);
         [x, y] = rot(x, y, H.neck[0], H.neck[1], (p.angleZ || 0));
+      }
+      // the neck's top rides with the chin (weighted by height), so head and neck never slide apart
+      if (neckL) {
+        const w = clamp((H.chinBand[1] - y) / (H.chinBand[1] - H.chinBand[0]), 0, 1);
+        if (w > 0) {
+          const [cx, cy] = headPoint(H, H.chin[0], H.chin[1], 0, ax, ay), [rx2, ry2] = rot(cx, cy, H.neck[0], H.neck[1], (p.angleZ || 0));
+          const [qx, qy] = rot(x, y, H.neck[0], H.neck[1], (p.angleZ || 0) * w);
+          x = qx + (rx2 - H.chin[0]) * w; y = qy + (ry2 - H.chin[1]) * w;
+        }
       }
       // 3. arms at the shoulder (the sleeve follows part of the way)
       if (arm) { const a = (rig.armOf[name] === 'L' ? 1 : -1) * (p['arm' + rig.armOf[name]] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a); }
@@ -164,18 +222,44 @@ const RIG = (() => {
     const W = X.canvas.width, Hh = X.canvas.height; glInit(W, Hh);
     const Pt = tt => ({ ...P(tt), _t: tt }), p = Pt(t), sp = springs(rig.R, Pt, t);
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
-    for (const l of rig.layers) {
+    const VV = rig.variants[p.view || 'F'] || {};
+    const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth : null;
+    for (const l0 of (rig.lists[p.view || 'F'] || rig.layers)) {
+      const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
       drawMesh(l, pos, TT, l.tex);
-      if (rig.R.mouth && l.name === rig.R.mouth.layer && (p.mouthOpen || 0) > .02) {
+      if (rig.R.mouth && !p.mouth && l.name === rig.R.mouth.layer && (p.mouthOpen || 0) > .02) {
         // the open mouth: a quad over the mouth patch, deformed with the head (carried by the patch's own mesh centre)
-        const M = rig.R.mouth, q = { m: { uv: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), idx: new Uint16Array([0, 1, 2, 1, 3, 2]), n: 6,
+        const M = l.view ? { ...rig.R.mouth, ...rig.R.views[l.view].mouth } : rig.R.mouth, q = { m: { uv: new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), idx: new Uint16Array([0, 1, 2, 1, 3, 2]), n: 6,
           rest: new Float32Array([M.center[0] - M.w / 2, M.center[1] - M.h / 2, M.center[0] + M.w / 2, M.center[1] - M.h / 2, M.center[0] - M.w / 2, M.center[1] + M.h / 2, M.center[0] + M.w / 2, M.center[1] + M.h / 2]) }, name: l.name };
-        const qp = new Float32Array(8); deform(rig, q, p, sp, qp); drawMouth(rig, p); drawMesh(q, qp, TT, rig.mtex);
+        q.view = l.view; const qp = new Float32Array(8); deform(rig, q, p, sp, qp); drawMouth(rig, p); drawMesh(q, qp, TT, rig.mtex);
       }
     }
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.drawImage(cv, 0, 0); X.restore();
   }
 
-  return { load };
+  // keys: [[t, {param: value}], ...] -> P(t). Each move eases in-out with a small anticipation (the opposite way first)
+  // and overshoot, then holds. `twos`: pose parameters step at 12 fps (anime timing); physics and the camera stay on ones.
+  function keys(list, o = {}) {
+    const ant = o.anticipate ?? .1, over = o.overshoot ?? .08, dur = o.move ?? .22, fps = o.twos ? 12 : 0;
+    const names = [...new Set(list.flatMap(([, k]) => Object.keys(k)))];
+    const tracks = {}; for (const n of names) { let last; tracks[n] = list.filter(([, k]) => n in k).map(([t, k]) => [t, k[n]]); }
+    const shape = u => {                                        // 0..1 -> 0..1 with anticipation and overshoot
+      if (u <= 0) return 0; if (u >= 1) return 1;
+      if (u < .25) return -ant * Math.sin(u / .25 * Math.PI);  // wind up
+      const v = (u - .25) / .75, e = v < .5 ? 4 * v * v * v : 1 - Math.pow(-2 * v + 2, 3) / 2;
+      return e + over * Math.sin(v * Math.PI) * (v > .6 ? 1 : 0) * Math.sin((v - .6) / .4 * Math.PI);
+    };
+    return t => {
+      const tq = fps ? Math.floor(t * fps) / fps : t, out = {};
+      for (const n of names) {
+        const tr = tracks[n]; let v = tr[0][1];
+        for (let i = 1; i < tr.length; i++) { const [t1, v1] = tr[i], [, v0] = tr[i - 1]; if (tq < t1) break; v = typeof v1 === 'number' ? v0 + (v1 - v0) * shape((tq - t1) / dur) : v1; }
+        out[n] = v;
+      }
+      return out;
+    };
+  }
+
+  return { load, keys };
 })();

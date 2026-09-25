@@ -1,0 +1,92 @@
+{
+ "eye_L": {
+  "closed": {
+   "file": "eye_L@closed.png",
+   "x": 805,
+   "y": 511,
+   "w": 105,
+   "h": 125
+  },
+  "half": {
+   "file": "eye_L@half.png",
+   "x": 805,
+   "y": 511,
+   "w": 105,
+   "h": 125
+  },
+  "happy": {
+   "file": "eye_L@happy.png",
+   "x": 805,
+   "y": 511,
+   "w": 105,
+   "h": 125
+  }
+ },
+ "eye_R": {
+  "closed": {
+   "file": "eye_R@closed.png",
+   "x": 922,
+   "y": 467,
+   "w": 177,
+   "h": 149
+  },
+  "half": {
+   "file": "eye_R@half.png",
+   "x": 922,
+   "y": 467,
+   "w": 177,
+   "h": 149
+  },
+  "happy": {
+   "file": "eye_R@happy.png",
+   "x": 922,
+   "y": 467,
+   "w": 177,
+   "h": 149
+  }
+ },
+ "mouth": {
+  "A": {
+   "file": "mouth@A.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  },
+  "I": {
+   "file": "mouth@I.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  },
+  "U": {
+   "file": "mouth@U.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  },
+  "E": {
+   "file": "mouth@E.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  },
+  "O": {
+   "file": "mouth@O.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  },
+  "grin": {
+   "file": "mouth@grin.png",
+   "x": 836,
+   "y": 634,
+   "w": 209,
+   "h": 117
+  }
+ }
+}

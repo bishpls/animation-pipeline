@@ -83,7 +83,12 @@ def main(ldir, spec, out):
         print(f'  plate {n:12s} {Z.sum():8d} px  colour {col.astype(int).tolist()}')
     # feather: patches (eyes, mouth) fade into the layer under them over `feather` px at their outer edge
     for n, px in S.get('feather', {}).items():
-        a = L[n][:, :, 3] > 8; d = ndi.distance_transform_edt(a)
+        a = L[n][:, :, 3] > 8
+        if isinstance(px, dict):                   # fade only toward the named neighbours (e.g. a yoke fades into the body, not the neck)
+            seed = np.zeros(shape, bool)
+            for o in px['from']: seed |= L[o][:, :, 3] > 8
+            d = ndi.distance_transform_edt(~seed); px = px['px']
+        else: d = ndi.distance_transform_edt(a)
         L[n][:, :, 3] = (L[n][:, :, 3] * np.clip(d / px, 0, 1)).astype(np.uint8)
     # bleed: every layer extends a few px under the layers in front of it (no hairline seams when parts shift), then its
     # edge is anti-aliased (the cut masks are binary)
@@ -106,7 +111,7 @@ def main(ldir, spec, out):
             cover |= a
     man = {'size': [shape[1], shape[0]], 'layers': []}
     for n in reversed(order):                     # back to front
-        if n not in L: continue
+        if n not in L or n in S.get('drop', []): continue
         lay = L[n]; ys, xs = np.where(lay[:, :, 3] > 0)
         if not len(ys): continue
         x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
