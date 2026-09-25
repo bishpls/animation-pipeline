@@ -34,7 +34,8 @@ RIV_SEATED = {'nape': [960, 720], 'neck': [1248, 823], 'shoulder': [1186, 1032],
 
 # parts front to back: region (claims black pixels), hidden extension, caps (rivet, radius), parent, pivot
 PARTS_SEATED = [
- dict(name='hand', parent='forearm', pivot='wrist', region=g([[782, 505], [830, 385], [855, 255], [935, 255], [905, 420], [880, 485], [845, 545], [800, 565]]),
+ dict(name='hand', parent='forearm', pivot='wrist',              # the fist only: the fan is a code prop (fan/fan.json) held behind the fingers
+      region=[[1877, 1212], [1965, 1012], [2060, 1012], [2075, 985], [2110, 990], [2125, 1060], [2112, 1164], [2028, 1308], [1920, 1356]],
       caps=[['wrist', 44]]),
  dict(name='forearm', parent='upperarm', pivot='elbow',
       # the top edge follows the master's visible sleeve edge exactly, then rounds over the elbow on an arc about its rivet

@@ -27,6 +27,7 @@
 <script src="src/fablezoom.js"></script>
 <script src="src/fablestand.js"></script>
 <script src="src/fablerange.js"></script>
+<script src="src/fablefan.js"></script>
 <script src="../../engine/rig.js"></script>
 <script src="src/rigtest.js"></script>
 <script src="src/viewtest.js"></script>
@@ -37,6 +38,7 @@
     await Promise.all(Object.entries(FONT_FILES).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
     if (window.PAPER_INIT) await PAPER_INIT();
     if (window.FABLE_INIT) await FABLE_INIT();
+    if (window.FAN_INIT) await FAN_INIT();
     window.RIGS = { clawd: await RIG.load('rig/clawd/rig.json') };
     window.WORDS = await (await fetch('assets/words.json')).json();
     if (window.registerFilm) registerFilm();

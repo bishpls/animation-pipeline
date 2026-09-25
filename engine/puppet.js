@@ -65,6 +65,7 @@ const PUPPET = (() => {
       c.setTransform(M[q.name]);
       c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
       c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
+      for (const pr of o.props || []) if (pr.after === q.name) { c.save(); pr.draw(c, M); c.restore(); }
     }
     // cover: close a cut-out with paper cut to its exact shape (a blink closes the eye slit): {part: [[x, y] master px inside the hole]}
     for (const [pn, pts] of Object.entries(o.cover || {})) {
@@ -164,5 +165,48 @@ const PUPPET = (() => {
     return P;
   }
 
-  return { load, snap, chain, strip, stiff };
+  // ---- morphing cut-paper shapes (the fan and every noun it becomes: rig/fable/fan/fan.json)
+  // Outlines share a point count and start near the grip; a pair is aligned by the cyclic shift that minimises the travel,
+  // so an in-between is a plausible cut shape. Slits (constant count) interpolate end to end.
+  async function loadShapes(url) {
+    const J = await (await fetch(url)).json(), S = {};
+    for (const [n, v] of Object.entries(J.shapes)) S[n] = { o: v.outline, sl: v.slits };
+    return { S, shift: {} };
+  }
+  function bestShift(A, B) {
+    const m = A.length; let best = 0, bd = Infinity;
+    for (let k = 0; k < m; k += 2) { let d = 0; for (let i = 0; i < m; i += 4) { const b = B[(i + k) % m]; d += (A[i][0] - b[0]) ** 2 + (A[i][1] - b[1]) ** 2; } if (d < bd) { bd = d; best = k; } }
+    return best;
+  }
+  function shapeAt(SH, a, b, u) {
+    const A = SH.S[a], B = SH.S[b]; if (u <= 0 || a === b) return A; if (u >= 1) return B;
+    const key = a + '>' + b; if (SH.shift[key] === undefined) SH.shift[key] = bestShift(A.o, B.o);
+    const k = SH.shift[key], m = A.o.length, o = new Array(m);
+    for (let i = 0; i < m; i++) { const p = A.o[i], q = B.o[(i + k) % m]; o[i] = [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u]; }
+    const sl = A.sl.map((s, i) => s.map((v, j) => v + (B.sl[i][j] - v) * u));
+    return { o, sl };
+  }
+  // draw a shape into c under matrix Mx (a DOMMatrix: shape px -> canvas): black paper, slits cut through
+  function drawShape(c, sh, Mx, ink = 'rgb(22,22,26)') {
+    c.save(); c.setTransform(Mx);
+    const p = new Path2D(); p.moveTo(sh.o[0][0], sh.o[0][1]); for (let i = 1; i < sh.o.length; i++) p.lineTo(sh.o[i][0], sh.o[i][1]); p.closePath();
+    c.globalCompositeOperation = 'source-over'; c.fillStyle = ink; c.fill(p);
+    c.globalCompositeOperation = 'destination-out'; c.strokeStyle = '#000'; c.lineCap = 'round';
+    for (const [x0, y0, x1, y1, w] of sh.sl) if (w > .5) { c.lineWidth = w; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
+    c.restore();
+  }
+  // a sequence of shapes over time, each change in three held drawings (u = 1/3, 2/3, 1), each held `hold` drawings at `fps`
+  function morphs(list, o = {}) {
+    const fps = o.fps || 12, hold = o.hold || 2;
+    return t => {
+      const q = Math.floor(t * fps + 1e-6) / fps; let cur = list[0][1], prev = cur, u = 1;
+      for (let i = 1; i < list.length; i++) {
+        const [t1, s1] = list[i]; if (q < t1 - 1e-6) break;
+        const d = Math.floor((q - t1) * fps / hold + 1e-6); prev = list[i - 1][1]; cur = s1; u = Math.min(1, (d + 1) / 3);
+      }
+      return [prev, cur, u];
+    };
+  }
+
+  return { load, snap, chain, strip, stiff, loadShapes, shapeAt, drawShape, morphs };
 })();
