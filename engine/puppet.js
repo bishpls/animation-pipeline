@@ -14,7 +14,7 @@ const PUPPET = (() => {
 
   async function load(url) {
     const J = await (await fetch(url)).json();
-    const parts = J.parts.map(q => ({ ...q, outlineP: P2(q.outline), holesP: P2(q.holes) }));
+    const parts = J.parts.map(q => ({ ...q, outlineP: P2(q.outline), holesP: P2(q.holes), holeList: q.holes.map(h => ({ pts: h, path: P2([h]) })) }));
     const by = Object.fromEntries(parts.map(q => [q.name, q]));
     const pup = { J, parts, by };
     pup.world = (pose, T) => world(pup, pose, T);
@@ -28,12 +28,19 @@ const PUPPET = (() => {
     const get = name => {
       if (M[name]) return M[name];
       const q = pup.by[name], parent = q.parent ? get(q.parent) : base.translate((pose.dx || 0) / T.s, (pose.dy || 0) / T.s);
-      const a = pose[name] || 0, [px, py] = q.pivot || [0, 0];
-      return (M[name] = parent.translate(px, py).rotate(a).translate(-px, -py));
+      const a = pose[name] || 0, [px, py] = q.pivot || [0, 0], ty = pose[name + '.y'] || 0;   // name.y: a lift along the parent (master px)
+      return (M[name] = parent.translate(0, ty).translate(px, py).rotate(a).translate(-px, -py));
     };
     for (const q of pup.parts) get(q.name);
     return M;
   }
+
+  const inPoly = (pts, x, y) => { let ins = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins; } return ins; };
+  let GL = null;
+  const ghostLayer = c => {
+    if (!GL || GL.canvas.width !== c.canvas.width || GL.canvas.height !== c.canvas.height) { const cv = document.createElement('canvas'); cv.width = c.canvas.width; cv.height = c.canvas.height; GL = cv.getContext('2d'); }
+    return GL;
+  };
 
   function draw(pup, c, pose, T, o = {}) {
     const M = world(pup, pose, T);
@@ -42,17 +49,27 @@ const PUPPET = (() => {
     for (const q of pup.parts) {
       if (o.hide && o.hide.includes(q.name)) continue;
       if (o.ghosts && o.ghosts.includes(q.name) && G[q.name]) {        // three fanned afterimages (Fable: instead of a smear)
+        // older echoes read as cutouts held further from the screen: lighter, softer shadows; the newest is full black paper.
+        // Each echo is drawn on its own layer so its cut-outs don't punch through the others.
         const [a0, a1] = G[q.name];
-        for (const a of [a0, (a0 + a1) / 2, a1]) {
-          const Mg = world(pup, { ...pose, [q.name]: a }, T)[q.name]; c.setTransform(Mg);
-          c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
-          c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
+        for (const [a, al, bl] of [[a0 + (a1 - a0) * .1, .28, 3], [(a0 + a1) / 2, .5, 1.5], [a1 - (a1 - a0) * .15, 1, 0]]) {
+          const L = ghostLayer(c); L.setTransform(1, 0, 0, 1, 0, 0); L.clearRect(0, 0, L.canvas.width, L.canvas.height);
+          L.setTransform(world(pup, { ...pose, [q.name]: a }, T)[q.name]);
+          L.globalCompositeOperation = 'source-over'; L.fillStyle = o.ink || 'rgb(22,22,26)'; L.fill(q.outlineP);
+          L.globalCompositeOperation = 'destination-out'; L.fill(q.holesP);
+          c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-over'; c.globalAlpha = al; c.filter = bl ? `blur(${bl}px)` : 'none';
+          c.drawImage(L.canvas, 0, 0); c.restore();
         }
         continue;
       }
       c.setTransform(M[q.name]);
       c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
       c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
+    }
+    // cover: close a cut-out with paper cut to its exact shape (a blink closes the eye slit): {part: [[x, y] master px inside the hole]}
+    for (const [pn, pts] of Object.entries(o.cover || {})) {
+      const q = pup.by[pn]; c.setTransform(M[pn]); c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)';
+      for (const [px, py] of pts) for (const h of q.holeList) if (inPoly(h.pts, px, py)) { c.fill(h.path); c.lineWidth = 3; c.strokeStyle = c.fillStyle; c.stroke(h.path); }
     }
     c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)';
     for (const r of o.rods || []) {            // rods: from a point on a part (master px) straight down out of frame
@@ -77,7 +94,7 @@ const PUPPET = (() => {
         const a = tr[n]; let v = a[0][1];
         for (let i = 1; i < a.length; i++) {
           const [t1, v1] = a[i], [, v0] = a[i - 1]; if (q < t1 - 1e-6) break;
-          const d = Math.round((q - t1) * fps);
+          const d = Math.floor((q - t1) * fps + 1e-6);   // drawings since the key (floor: a key between grid lines still gets its in-between)
           if (d === 0 && v0 !== v1) { v = v0 + (v1 - v0) * inb; out._ghost[n] = [v0, v1]; }
           else if (d === 1 && v0 !== v1) v = v1 + (v1 - v0) * over;
           else v = v1;
@@ -133,10 +150,12 @@ const PUPPET = (() => {
     const fps = o.fps || 12, n = o.rest.length, seg = o.len / n * T.s, k = o.follow ?? .55, gw = o.gravity ?? .35;
     const q0 = Math.floor(t * fps + 1e-6) / fps, pre = o.preroll || 1.5;
     const frame = tt => { const M = world(pup, poseAt(tt), T)[o.part]; const p = M.transformPoint(new DOMPoint(o.at[0], o.at[1])); return { x: p.x, y: p.y, rot: Math.atan2(M.b, M.a) * 180 / Math.PI * (T.flip || 1) }; };
-    let ang = null, prev = null;
+    let ang = null, prev = null, pprev = null;
     for (let tt = q0 - pre; tt <= q0 + 1e-6; tt += 1 / fps) {
       const F = prev || frame(tt);                                          // the strip answers the previous drawing (a lag of one)
-      const want = o.rest.map(r => (1 - gw) * (r + F.rot) + gw * 90);     // its drawn curve, pulled toward hanging
+      const vx = pprev ? (F.x - pprev.x) / T.s : 0;                          // the root's travel per drawing (master px): the strip trails it
+      const want = o.rest.map((r, i) => (1 - gw) * (r + F.rot) + gw * 90 + Math.max(-40, Math.min(40, vx * (o.drag ?? .09) * (T.flip || 1) * (i + 1) / n)));
+      pprev = F;
       ang = ang ? ang.map((a, i) => a + (want[i] - a) * k) : want;
       prev = frame(tt);
     }
