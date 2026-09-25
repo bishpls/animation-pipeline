@@ -87,7 +87,21 @@ PARTS_STANDING = [
  dict(name='foot', parent='leg', pivot='ankle', region=gs([[160, 1680], [430, 1680], [430, 1870], [160, 1870]]),
       caps=[['ankle', 30]], extend=gs([[212, 1560], [278, 1560], [278, 1700], [212, 1700]])),
 ]
-MASTERS = {'seated': dict(src='seated.png', riv=RIV_SEATED, parts=PARTS_SEATED, out='puppet.json'),
+gk = lambda pts: [[(x + 150) * 2, y * 2] for x, y in pts]    # the kuroko review grid: half scale, cropped 150 px from the left
+RIV_KUROKO = {'shoulder': [950, 1010], 'hip': [900, 2100]}
+PARTS_KUROKO = [
+ dict(name='rods', drop=True, region=gk([[600, 0], [930, 0], [930, 470], [790, 372], [712, 228], [640, 232], [640, 0]])),
+ # the prologue's kuroko (hood up, working rods): both arms and sleeves as one piece about the shoulder; the rods are
+                   # left out of the paper (drawn in code from each fist, so each can work its own puppet)
+ dict(name='arms', parent='body', pivot='shoulder',
+      region=gk([[330, 470], [470, 440], [560, 352], [612, 300], [628, 238], [705, 232], [712, 300], [652, 352], [612, 398], [700, 380],
+                 [785, 378], [792, 450], [706, 520], [690, 560], [695, 700], [660, 860], [600, 860], [520, 800], [450, 760], [390, 700],
+                 [330, 640], [290, 560], [290, 500]]), caps=[['shoulder', 60]]),
+ dict(name='body', parent=None, pivot='hip', region=[[0, 0], [2160, 0], [2160, 3840], [0, 3840]],
+      extend=gk([[300, 470], [470, 470], [540, 560], [520, 760], [420, 780], [300, 700]])),
+]
+MASTERS = {'kuroko': dict(src='../../kuroko/rods.png', riv=RIV_KUROKO, parts=PARTS_KUROKO, out='../kuroko/puppet.json'),
+           'seated': dict(src='seated.png', riv=RIV_SEATED, parts=PARTS_SEATED, out='puppet.json'),
            'standing': dict(src='standing.png', riv=RIV_STANDING, parts=PARTS_STANDING, out='puppet_standing.json')}
 
 
@@ -121,6 +135,7 @@ def main(which='seated'):
         for r, rad in P.get('minus', []):
             cx, cy = RIV[r]; reg &= ~((xx - cx) ** 2 + (yy - cy) ** 2 <= rad ** 2)
         own = reg & figure & ~claimed
+        if P.get('drop'): claimed |= own; continue                               # claimed and discarded (e.g. rods drawn in code)
         claimed |= own
         body = own & ink                                                          # its black paper (slits stay open)
         if P.get('slits'):                                                        # long slits filled; short ones kept; new ones cut

@@ -65,6 +65,7 @@ const PUPPET = (() => {
       }
       c.setTransform(M[q.name]);
       c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
+      if (o.solid) continue;                       // (the outline only: e.g. to find a silhouette's outer edge for a rim light)
       c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
       if (q.filmP && o.gel) {                     // cellophane: cut the plate's area out of the paper, then lay the gel in it,
         c.fill(q.filmP);                           // offset from the keyline (misregistered): a sliver of open light on one side
