@@ -6,9 +6,9 @@ async function INK_INIT() {
   const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error(src)); i.src = src; });
   // plate separation: each pixel = paper x (1 - k) x lerp(1, AI, i); solved from R and B (black darkens all, indigo mostly R)
   const AI = [22 / 255, 94 / 255, 131 / 255];
-  const plates = (img, x0 = 0, y0 = 0) => {
-    const w = img.width, h = img.height, c = document.createElement('canvas'); c.width = w; c.height = h;
-    const g = c.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, w, h), px = d.data;
+  const plates = (img, x0 = 0, y0 = 0, sc = 1) => {
+    const w = Math.round(img.width * sc), h = Math.round(img.height * sc), c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0, w, h); const d = g.getImageData(0, 0, w, h), px = d.data;
     const K = new ImageData(w, h), I = new ImageData(w, h), kp = K.data, ip = I.data;
     for (let p = 0; p < px.length; p += 4) {
       const a = px[p + 3] / 255; if (a < .02) continue;
@@ -30,6 +30,7 @@ async function INK_INIT() {
   };
   INK.closeup = await card('rig/fable_ink', 'closeup', 'build/variants.json');
   INK.lamp = await card('rig/fable_ink', 'lamp');
+  INK.stand = []; for (let k = 1; k <= 6; k++) INK.stand.push({ base: plates(await load(`rig/fable_ink/stand${k}.png`), 0, 0, 2 / 3), V: {} });
 }
 // print a card: washi, then the indigo plate (misregistered), then the ink plate; variant plates printed over their patches
 function inkPrint(C, o = {}) {
@@ -41,6 +42,11 @@ function inkPrint(C, o = {}) {
   g.globalCompositeOperation = 'multiply'; g.globalAlpha = .22; g.drawImage(FIBRE, 0, 0, w, h); g.globalAlpha = 1;
   const plateSet = [C.base, ...((o.variant && C.V[o.variant]) || [])];
   const [mx, my] = o.misreg || [5, 3];                                            // master px (the card is printed large)
+  for (const [ang, al] of (o.ghosts && o.ghosts.fans) || []) {                   // fanned paper afterimages (Fable: instead of a smear)
+    const [px, py] = o.ghosts.pivot, [cx0, cy0, cw, chh] = o.ghosts.clip; g.save(); g.beginPath(); g.rect(cx0, cy0, cw, chh); g.clip();   // the pleats only
+    g.translate(px, py); g.rotate(ang * Math.PI / 180); g.translate(-px, -py); g.globalAlpha = al; g.globalCompositeOperation = 'multiply';
+    g.drawImage(C.base.i, mx, my); g.drawImage(C.base.k, 0, 0); g.restore();
+  }
   g.globalCompositeOperation = 'multiply'; g.drawImage(C.base.i, mx, my); g.drawImage(C.base.k, 0, 0);
   // a variant patch REPLACES what's under it: fresh washi (fibre and all) through its footprint, then its own plates
   for (const P of plateSet.slice(1)) {
@@ -127,4 +133,41 @@ function inkPrint(C, o = {}) {
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
   LOOPS.inklamp.len = S1 - S0;
+}
+
+{
+  // B7, the standing up (Fable's spec; song 161.0-166.0): six drawings, one warp, a static camera. Seated with the book, two
+  // seconds still (the longest hold in the film); the book lifted; set on the floor, hands empty, held; one knee up (the card
+  // folds at her hips, a crease across the waist, a shadow under the lifted half); the rise in one drawing with the pleats
+  // fanned into three afterimages; standing on the geta clack, eyes up at the lens, the card keeping a faint crease.
+  const B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
+  const S0 = 161.0, S1 = 166.0, GETA = beat(8);                                  // the clack on her 6/8 beat (165.18)
+  const KEYS = [[S0, 0], [163.0, 1], [163.25, 2], [164.25, 3], [GETA - 2 / 12, 4], [GETA, 5]];
+  const LANTERN = [617 * 2 / 3, 1724 * 2 / 3];
+  LOOPS.inkstand = t => {
+    const s = S0 + Math.floor(t * 12 + 1e-6) / 12; let k = 0; for (const [t0, i] of KEYS) if (s >= t0 - 1e-6) k = i;
+    const C = INK.stand[k], w = C.base.w, h = C.base.h;
+    const src = inkPrint(C, { misreg: [4, 2.5], ghosts: k === 4 ? { clip: [w * .44, h * .6, w * .34, h * .31], pivot: [w * .6, h * .58], fans: [[-8, .2], [7, .3]] } : null });
+    X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
+    // the fold at her hips: snaps in over two drawings with the knee-up, eases on the rise, stays a faint crease once she stands
+    const d4 = Math.floor((s - 164.25) * 12 + 1e-6), TH = 6;
+    const bendDeg = k < 3 ? 0 : k === 3 ? (d4 === 0 ? TH / 2 : TH) : k === 4 ? TH * .5 : TH * .18, th = bendDeg * Math.PI / 180, FOLD = .56;   // at her waist
+    const CH = 1000, CW = CH * w / h, cx = W / 2, cy = H / 2 + 6;
+    const map = (u, v) => { let y = v; if (v < FOLD) y = FOLD - (FOLD - v) * Math.cos(th); return [cx + (u - .5) * CW, cy + (y - .5) * CH]; };
+    X.save(); X.filter = 'blur(18px)'; X.fillStyle = 'rgba(0,0,0,.7)'; X.fillRect(cx - CW / 2 + 14, cy - CH / 2 + 22, CW, CH); X.restore();
+    if (th > 0) { const [, yf] = map(.5, FOLD); X.save(); X.filter = 'blur(10px)'; X.fillStyle = `rgba(0,0,0,${.5 * Math.sin(th) / Math.sin(TH * Math.PI / 180)})`;
+      X.fillRect(cx - CW / 2, cy - CH / 2 + 30, CW, yf - (cy - CH / 2)); X.restore(); }                // the shadow under the lifted half
+    WARP.draw(X, src, map, { cols: 32, rows: 48, shade: (u, v) => v < FOLD ? 1 + .6 * Math.sin(th) * (v / FOLD) ** 3 : 1 });
+    if (th > 0) { const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), q = Math.min(1, bendDeg / TH);
+      X.save(); X.globalAlpha = .2 + .5 * q; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5, x1 - x0, 1.6); X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2); X.restore(); }
+    // the light: the lantern on the floor (lower left) lights her from below; the rest of the page in half-light
+    if (!INK._L) { INK._L = document.createElement('canvas'); INK._L.width = W; INK._L.height = H; }
+    const L = INK._L.getContext('2d'); L.globalCompositeOperation = 'source-over'; L.fillStyle = 'rgb(118,108,96)'; L.fillRect(0, 0, W, H);
+    L.globalCompositeOperation = 'lighter'; const lx = cx + (LANTERN[0] / w - .5) * CW, ly = cy + (LANTERN[1] / h - .5) * CH;
+    const g1 = L.createRadialGradient(lx, ly, 0, lx, ly, 900); g1.addColorStop(0, 'rgba(244,201,122,.95)'); g1.addColorStop(.5, 'rgba(200,150,90,.45)'); g1.addColorStop(1, 'rgba(0,0,0,0)');
+    L.fillStyle = g1; L.fillRect(0, 0, W, H);
+    X.save(); X.globalCompositeOperation = 'multiply'; X.drawImage(INK._L, 0, 0); X.restore();
+    X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
+  };
+  LOOPS.inkstand.len = S1 - S0;
 }
