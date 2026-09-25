@@ -45,7 +45,7 @@ function washiBorder(t, o = {}) {
 // ---- margin notes in the bottom margin ---------------------------------------------------------------------------------
 function marginNotes(t, notes, o = {}) {
   if (o.clear !== undefined && t >= o.clear) return;
-  const [x0, y0, w, h] = MARGIN.rect || [38, 38, W - 76, H - 108], base = y0 + h + (MARGIN.bottom || 70) * .62, size = Math.round((MARGIN.bottom || 70) * .4);
+  const [x0, y0, w, h] = MARGIN.rect || [38, 38, W - 76, H - 108], base = y0 + h + (MARGIN.bottom || 70) * .66, size = 35;   // (Fable: the page's size, 32-36)
   let x = x0 + 30;
   for (const [t0, str] of notes) {
     const wd = shape(str, { font: 'caslonI', size }).width;
@@ -61,8 +61,9 @@ const WIPE_UP = { upperarm: -168, forearm: -22, hand: -10 }, WIPE_MID = { uppera
 const PRESS_ON = { upperarm: -36, forearm: -30, hand: 10 }, ARM_REST = { upperarm: 0, forearm: 0, hand: 0 };
 function fableMarginPose(t, o) {
   const f = 1 / 12, keys = [[-1e9, ARM_REST]];
-  for (const [t0, dur = .5] of (o.wipes || []).map(w => Array.isArray(w) ? w : [w, .5])) keys.push([t0 - dur, WIPE_UP], [t0 - dur / 2, WIPE_MID], [t0, WIPE_END], [t0 + 8 * f, ARM_REST]);
-  for (const t0 of (o.presses || [])) keys.push([t0 - 3 * f, PRESS_ON], [t0 + 4 * f, ARM_REST]);
+  const L = 2 * f;                                                     // (a snapped pose lands two drawings after its key)
+  for (const [t0, dur = .5] of (o.wipes || []).map(w => Array.isArray(w) ? w : [w, .5])) keys.push([t0 - dur - L, WIPE_UP], [t0 - dur / 2 - L, WIPE_MID], [t0 - L, WIPE_END], [t0 + 8 * f, ARM_REST]);
+  for (const t0 of (o.presses || [])) keys.push([t0 - L, PRESS_ON], [t0 + 5 * f, ARM_REST]);
   keys.sort((a, b) => a[0] - b[0]);
   const p = { ...PUPPET.snap(keys, { overshoot: .06 })(t), head: 0 };
   p.hair = -(p.head || 0) * .85; return p;
@@ -73,14 +74,18 @@ function fableMargin(t, o = {}) {
   // her silhouette (with its pinholes) on a layer; the ribbon down her back in Ai
   const g = marginLayer(0), root = FABLE_S.world(p, T).head.transformPoint(new DOMPoint(900, 820));
   [[1, 0], [.86, 22]].forEach(([len, off]) => { const pts = []; for (let i = 0; i <= 10; i++) { const u = i / 10; pts.push([root.x - flip * (off * s + 10 * u), root.y + u * 2400 * s * len]); }
-    g.fillStyle = FP.aiD; g.fill(P(PUPPET.strip(pts, 118 * s, .85, 104 * s))); });
+    g.fillStyle = 'rgb(38,104,160)'; g.fill(P(PUPPET.strip(pts, 118 * s, .85, 104 * s))); });   // Ai, lit by her lights
   drawStanding(g, p, T, { ink: 'rgb(10,8,10)' });
   // two coloured shadows on the stage behind her: each light's shadow is lit by the other light
   if (light > 0) {
     X.save(); X.globalAlpha = .55 * light;
-    for (const [dx, col] of [[34 * s / .22, 'rgb(255,92,170)'], [-30 * s / .22, 'rgb(80,220,255)']]) {
+    const top = T.y - 3450 * s;                                         // her head's height: the shadows fade and soften toward it
+    for (const [sh, col] of [[-.34, 'rgb(255,92,170)'], [.3, 'rgb(80,220,255)']]) {
       const c = marginLayer(1); c.drawImage(MARGIN.L[0], 0, 0); c.globalCompositeOperation = 'source-in'; c.fillStyle = col; c.fillRect(0, 0, W, H);
-      X.save(); X.translate(T.x, T.y); X.transform(1.04, 0, dx / 900 * 2, 1.02, dx, 0); X.translate(-T.x, -T.y); X.filter = 'blur(2px)'; X.drawImage(MARGIN.L[1], 0, 0); X.restore();
+      const fade = c.createLinearGradient(0, T.y, 0, top); fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(1, 'rgba(0,0,0,.25)');
+      c.globalCompositeOperation = 'destination-in'; c.fillStyle = fade; c.fillRect(0, 0, W, H);
+      X.save(); X.translate(T.x, T.y); X.transform(1, 0, sh, 1, 0, 0); X.translate(-T.x, -T.y);   // a shear about the geta's contact: no shift at her feet
+      X.filter = 'blur(1px)'; X.drawImage(MARGIN.L[1], 0, 0); X.globalAlpha *= .5; X.filter = 'blur(6px)'; X.drawImage(MARGIN.L[1], 0, 0); X.restore();
     }
     X.restore();
   }
@@ -135,7 +140,8 @@ function fableCards(t, o = {}) {
       const edgeX = side < 0 ? lead.x : lead.x + rw, s = rh / 1500, hx = edgeX - side * 34 + side * out * 300, hy = ry + rh * .55;   // her fist over the card's edge
       const p = { upperarm: 0, forearm: 0, hand: 0, _ghost: {} }, M0 = new DOMMatrix().translate(hx, hy).scale(side < 0 ? s : -s, s).rotate(-68).translate(-1420, -2090);
       const g = marginLayer(2); g.setTransform(M0);
-      for (const n of ['forearm', 'hand']) { const q = FABLE_S.by[n]; g.fillStyle = 'rgb(10,8,10)'; g.fill(q.outlineP); }   // her sleeve and hand, flat
+      for (const n of ['forearm', 'hand']) { const q = FABLE_S.by[n]; g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgb(10,8,10)'; g.fill(q.outlineP); }
+      for (const n of ['forearm', 'hand']) { g.globalCompositeOperation = 'destination-out'; g.fill(FABLE_S.by[n].holesP); }   // her sleeve and hand, the wrist's pinhole in it
       X.drawImage(MARGIN.L[2], 0, 0);
     }
   }
