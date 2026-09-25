@@ -4,12 +4,12 @@
 // next prompt!" Clawd's paper puppet pops up in the card's corner, jaw on her words. The music box rings out; the butai's doors
 // swing shut.
 {
-  const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E';
+  const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', SEALAT = [838, 884];
   let K = null, SEAL = null;
   function keys() {
     const W = window.WORDS || [], w = n => (W.find(x => x.t0 > 200 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {});
     const ts = w('tsuzuku'), see = w('see');
-    K = { card: S0, seal: ts.t1 - .55, pop: see.t0 - 4 * f, doors: 208.15 };
+    K = { card: S0, seal: Math.floor((ts.t1 - .55) * 12) / 12, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
   }
   // the seal: a square of shu with 語 cut in reverse (hakubun: the character in paper, the ground in ink), edges worn by use
   function makeSeal() {
@@ -32,12 +32,22 @@
     X.save(); X.beginPath(); X.rect(sx + off, sy, sw, sh); X.clip(); X.translate(off, 0);
     X.globalCompositeOperation = 'multiply'; X.fillStyle = 'rgb(236,228,214)'; X.fillRect(sx, sy, sw, sh);    // the card's paper over the vellum (a shade denser)
     let yy = 250; for (const ch of 'つづく') { inkVellum(ch, 1010 - 95, yy + 190, ts, K.card, { font: 'mincho', size: 190, alpha: .9, col: 'rgb(30,24,22)' }); yy += 210; }
-    if (ts >= K.seal) {                                                // the seal: pressed (one drawing squashed), lifted, the impression left
-      if (!SEAL) SEAL = makeSeal();
-      const k = Math.floor((ts - K.seal) * 12 + 1e-6), sq = k === 0 ? 1.06 : 1, a = k === 0 ? .7 : .92;
-      X.save(); X.translate(1160, 800); X.scale(sq, sq); X.globalAlpha = a; X.drawImage(SEAL, -60, -60, 120, 120); X.restore();
-    }
+    // the seal (a rakkan): after the last character, below and to its left, in the next column's place; ~60% of a kana (Fable)
+    if (ts >= K.seal + f) { if (!SEAL) SEAL = makeSeal(); X.save(); X.globalAlpha = .92; X.drawImage(SEAL, SEALAT[0] - 45, SEALAT[1] - 45, 90, 90); X.restore(); }
     X.restore();
+    // the kuroko's hand signs the book (Fable): black, unlit, in from the left with the seal; pressed (one squashed drawing,
+    // flat on the screen); lifted (the impression left); out. Four drawings. Pressing is depth: off the screen the hand's
+    // shadow is larger and softer; pressed, it is crisp.
+    const hd = Math.floor((ts - K.seal) * 12 + 1e-6) + 1;
+    if (hd >= 0 && hd < 4) {
+      const [px, py] = SEALAT, out = hd === 3, dep = [.16, 0, .12, .24][hd], sq = hd === 1 ? .94 : 1;
+      const fx = px - 44 - (out ? 280 : 0), fy = py - 24 + (out ? -30 : 0);
+      const q = PRO.kuroko.by.arm_near, M = new DOMMatrix().translate(fx, fy).rotate(34).scale(.6).translate(-1800, -800);
+      shadow(c => { c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)';
+        c.translate(fx, py); c.scale(1, sq); c.translate(-fx, -py);
+        c.fillRect(fx + 44 - 45, fy + 24 - 45, 90, 90);                  // the seal, end-on, in her fist
+        c.setTransform(c.getTransform().multiply(M)); c.fill(q.outlineP); }, dep, { penumbra: true });
+    }
     if (off > 2) { X.save(); X.fillStyle = 'rgba(40,30,24,.5)'; X.fillRect(sx + off - 2, sy, 2, sh); X.restore(); }
     // Clawd pops up at the card's lower-right corner: a Reiniger hop up into frame, her jaw on her words; a claw up on "prompt!"
     if (ts >= K.pop) {
@@ -54,11 +64,20 @@
   LOOPS.outro = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
+    if (ts >= K.cut) { X.fillStyle = '#000'; X.fillRect(0, 0, W, H); return; }   // a cut, never a fade: the lamp isn't dying (Fable)
     const dc = Math.min(1, Math.max(0, Math.floor((ts - K.doors) * 12 + 1e-6) / 12)), doors = 1 - dc * dc * (3 - 2 * dc);   // the book closes
     const e = Math.min(1, Math.max(0, (ts - 205.9) / 2.2)), cam = camLerp(CAM_WINDOW, CAM_WIDE, e * e * (3 - 2 * e) * .7);
-    stage(ts, scene, { cam, doors, lit: ts > 209.3 ? Math.max(0, 1 - (ts - 209.3) / .3) : 1 });
+    const c = dc * dc * (3 - 2 * dc);
+    stage(ts, scene, { cam, doors, doorLight: 1 - .72 * c });
+    if (c > 0) {                                                       // closed, the lamp still on inside: it leaks at the arches
+      const z = cam.zoom, T = (x, y) => [W / 2 + (x - cam.x) * z, H / 2 + (y - cam.y) * z];
+      X.save(); X.globalCompositeOperation = 'lighter';
+      for (const ax of [1335, 2505]) { const [x, y] = T(ax, 826), r = 330 * z;
+        X.save(); X.translate(x, y); X.scale(1, .42); const g = X.createRadialGradient(0, 0, 0, 0, 0, r);
+        g.addColorStop(0, `rgba(255,190,110,${.34 * c})`); g.addColorStop(1, 'rgba(255,170,90,0)'); X.fillStyle = g; X.fillRect(-r, -r, 2 * r, 2 * r); X.restore(); }
+      X.restore();
+    }
     audience(ts, { y: H + 330 - 147 * e, lift: 120, scale: .52 * (1 - .25 * e) });
-    if (ts > 209.3) { X.fillStyle = `rgba(0,0,0,${Math.min(1, (ts - 209.3) / .3)})`; X.fillRect(0, 0, W, H); }
   };
   LOOPS.outro.len = S1 - S0;
 }

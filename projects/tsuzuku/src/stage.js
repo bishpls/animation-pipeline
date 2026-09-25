@@ -49,7 +49,7 @@ function stage(t, sceneFn, o = {}) {
       const u0 = i / N, u1 = (i + 1) / N, g0 = 1 + (grow - 1) * u0, g1 = 1 + (grow - 1) * u1;
       const srcX = side < 0 ? (c >= 0 ? w * (1 - u1) : w * u0) : (c >= 0 ? w * u0 : w * (1 - u1));
       const dx = dir * ww * u0, dw = dir * ww * (u1 - u0), mid = h / 2;
-      X.save(); X.filter = `brightness(${.95 * shade})`;
+      X.save(); X.filter = `brightness(${.95 * shade * (o.doorLight ?? 1)})`;   // doorLight: closed on a lit screen, their faces are in the dark
       X.setTransform(new DOMMatrix([1, 0, 0, 1, 0, 0]).multiply(X.getTransform()));
       X.drawImage(face, srcX, 0, w / N, h, Math.min(dx, dx + dw), mid - mid * (g0 + g1) / 2, Math.abs(dw) + .6, h * (g0 + g1) / 2);
       X.restore();
