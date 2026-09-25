@@ -7,13 +7,14 @@ async function FABLE_INIT() { window.FABLE = await PUPPET.load('rig/fable/puppet
 const FABLE_LAMP = [[0, '#FFEBC0'], [.3, '#F8CD83'], [.7, '#D28F45'], [1, '#5E3516']];
 // seated, in any shot: her rods (torso and hand; she is moved by something, and shows it) and the ribbon, a stiff cellophane
 // bookmark whose two tails trail off her back, drawn first so her paper covers it where it crosses her
+const FABLE_GEL = 'rgba(30, 78, 122, .88)';   // the ribbon: Ai lit through the vellum, deeper and greyer (Fable: the second plate, not a highlighter)
 const FABLE_RODS = [{ part: 'torso', at: [1080, 1900], w: 7 }, { part: 'hand', at: [1880, 1330], w: 5, lean: -70 }];
 const FABLE_TAILS = [{ len: 1900, w: 118, rest: [96, 101, 107, 112, 114, 110, 103] }, { len: 1600, w: 104, rest: [99, 106, 113, 118, 116, 108, 100] }];
 function seatedRibbon(c, poseAt, T, tq) {
   FABLE_TAILS.forEach((tl, i) => {
     const pts = PUPPET.stiff(FABLE, poseAt, T, { part: 'head', at: [905, 640], rest: tl.rest, len: tl.len }, tq);
     c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';   // folds double darker
-    c.fillStyle = 'rgba(38, 104, 205, .82)'; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
+    c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
   });
   c.globalCompositeOperation = 'source-over';
 }
@@ -33,7 +34,7 @@ function seatedRibbon(c, poseAt, T, tq) {
   ]);
   const pose = t => hang(pose0(t));
   const BLINKS = [1.2, 3.1, 5.6, 7.9];
-  const GEL = 'rgba(38, 104, 205, .82)';   // multiplied through the warm vellum, this lands near Ai; folds double darker
+  const GEL = FABLE_GEL;                     // folds double darker
   const TAILS = [                           // the bookmark's two tails: drawn curves (degrees, 90 = down) that trail off her back
     { len: 1900, w: 118, rest: [96, 101, 107, 112, 114, 110, 103] },
     { len: 1600, w: 104, rest: [99, 106, 113, 118, 116, 108, 100] }];

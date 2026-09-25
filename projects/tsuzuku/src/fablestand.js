@@ -8,7 +8,7 @@
 function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
   const plan = (() => {                                                // each foot's plants (world x, canvas px) after each step
     let v = 0, h = 0; const P = [{ v, h }];
-    for (const st of STEPS) { if (st.foot === 'v') v = st.close ? h : h + S; else h = st.close ? v : v + S; P.push({ v, h }); }
+    for (const st of STEPS) { const s = st.S ?? S; if (st.foot === 'v') v = st.close ? h : h + s; else h = st.close ? v : v + s; P.push({ v, h }); }   // (a step may set its own stride)
     return P;
   })();
   const ease = u => u * u * (3 - 2 * u), D = st => st.dur ?? dur;     // (a step may set its own duration)
@@ -54,7 +54,7 @@ function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
       TAILS.forEach((tl, i) => {
         const pts = PUPPET.stiff(FABLE_S, pose, T, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, tq);
         c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';
-        c.fillStyle = 'rgba(38, 104, 205, .82)'; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
+        c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
       });
       c.globalCompositeOperation = 'source-over';
       FABLE_S.draw(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });

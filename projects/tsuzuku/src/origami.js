@@ -34,6 +34,14 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
     shadow(c => {
       seatedRibbon(c, fpose, TF, ts);
       FABLE.draw(c, pf, TF, { props: [fanProp(() => ['fan_closed', 'fan_closed', 1], ts)], rods: FABLE_RODS });
+      ORIGAMI_DRAW(c, ts);
+      if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
+    }, 0);
+    X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
+  };
+  // the little one and her unfolding, at song time ts, into a shadow() layer (shared with the verse's continuous timeline)
+  window.ORIGAMI_DRAW = (c, ts) => {
+      c.globalCompositeOperation = 'source-over';
       if (ts < CUT) {
         const [a, b, u] = unfold(ts), sh = PUPPET.shapeAt(ORI, a, b, u);   // the creases lead (the fold lines appear before the paper moves)
         const hopping = ts > bar(17.5) && ts < bar(19.5), ph = ((ts - bar(17.5)) / (B / 2)) % 1;
@@ -53,9 +61,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
         CLAWDP.draw(c, p, { x: CX, y: FLOOR, s: SC, origin: [1076, 2800] }, { gel: CLAWD_GEL, misreg: [1.5, 1], cover,
           rods: [{ part: 'torso', at: [1076, 1200], w: 5 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 30 }] });
       }
-      if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
-    }, 0);
-    X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
+  window.ORIGAMI = { CX, SC, EYES, UNFOLD, FLOOR };
   LOOPS.origami.len = 12;
 }
