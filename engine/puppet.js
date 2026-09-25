@@ -38,8 +38,18 @@ const PUPPET = (() => {
   function draw(pup, c, pose, T, o = {}) {
     const M = world(pup, pose, T);
     c.save();
+    const G = (o.ghosts && pose._ghost) || {};
     for (const q of pup.parts) {
       if (o.hide && o.hide.includes(q.name)) continue;
+      if (o.ghosts && o.ghosts.includes(q.name) && G[q.name]) {        // three fanned afterimages (Fable: instead of a smear)
+        const [a0, a1] = G[q.name];
+        for (const a of [a0, (a0 + a1) / 2, a1]) {
+          const Mg = world(pup, { ...pose, [q.name]: a }, T)[q.name]; c.setTransform(Mg);
+          c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
+          c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
+        }
+        continue;
+      }
       c.setTransform(M[q.name]);
       c.globalCompositeOperation = 'source-over'; c.fillStyle = o.ink || 'rgb(22,22,26)'; c.fill(q.outlineP);
       c.globalCompositeOperation = 'destination-out'; c.fill(q.holesP);
@@ -54,19 +64,23 @@ const PUPPET = (() => {
     return M;
   }
 
-  // stop-motion posing: keys [[t, {part: deg}], ...]; every change snaps through one in-between drawing (a 1/12 s smear-free
-  // step at 1/3 and 2/3 of the way... on threes: a hold, one in-between, the new pose) and holds. No easing curves.
+  // stop-motion posing: keys [[t, {part: deg}], ...]. Every change runs: one in-between drawing, one drawing past the new pose
+  // (the paper's overshoot), then the pose, held. No easing curves. On the in-between drawing, out._ghost[part] = [from, to]
+  // (draw() can fan three afterimages there instead of a smear).
   function snap(list, o = {}) {
-    const fps = o.fps || 12, inb = o.inbetween ?? .55;
+    const fps = o.fps || 12, inb = o.inbetween ?? .5, over = o.overshoot ?? .12;
     const names = [...new Set(list.flatMap(([, k]) => Object.keys(k)))];
     const tr = Object.fromEntries(names.map(n => [n, list.filter(([, k]) => n in k).map(([t, k]) => [t, k[n]])]));
     return t => {
-      const q = Math.floor(t * fps) / fps, out = {};
+      const q = Math.floor(t * fps + 1e-6) / fps, out = { _ghost: {} };
       for (const n of names) {
         const a = tr[n]; let v = a[0][1];
         for (let i = 1; i < a.length; i++) {
-          const [t1, v1] = a[i], [, v0] = a[i - 1]; if (q < t1) break;
-          v = q < t1 + 1 / fps ? v0 + (v1 - v0) * inb : v1;          // one in-between drawing, then the new pose
+          const [t1, v1] = a[i], [, v0] = a[i - 1]; if (q < t1 - 1e-6) break;
+          const d = Math.round((q - t1) * fps);
+          if (d === 0 && v0 !== v1) { v = v0 + (v1 - v0) * inb; out._ghost[n] = [v0, v1]; }
+          else if (d === 1 && v0 !== v1) v = v1 + (v1 - v0) * over;
+          else v = v1;
         }
         out[n] = v;
       }
@@ -98,15 +112,38 @@ const PUPPET = (() => {
     return P;
   }
   // a strip polygon around chain points, `w` wide (canvas px), tapering to `tip`
-  function strip(pts, w, tip = .6) {
+  function strip(pts, w, tip = .6, notch = 0) {
     const L = [], R = [];
     for (let i = 0; i < pts.length; i++) {
       const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
       const hw = w / 2 * (1 - (1 - tip) * i / (pts.length - 1)), nx = -dy / d * hw, ny = dx / d * hw;
       L.push([pts[i][0] + nx, pts[i][1] + ny]); R.push([pts[i][0] - nx, pts[i][1] - ny]);
     }
+    if (notch) {                                   // a bookmark's swallowtail: the end cut in a V
+      const e = pts[pts.length - 1], f = pts[pts.length - 2], dx = e[0] - f[0], dy = e[1] - f[1], d = Math.hypot(dx, dy) || 1;
+      return [...L, [e[0] - dx / d * notch, e[1] - dy / d * notch], ...R.reverse()];
+    }
     return [...L, ...R.reverse()];
   }
 
-  return { load, snap, chain, strip };
+  // a stiff cellophane strip that holds its drawn curve (Fable's ribbon): segments with rest angles in the root part's frame,
+  // pulled back toward rest and toward hanging each drawing (it lags one drawing and settles in about three). No wind.
+  // Stepped per drawing (fps) from a pre-roll, so a frame is a pure function of t. Returns canvas points.
+  function stiff(pup, poseAt, T, o, t) {
+    const fps = o.fps || 12, n = o.rest.length, seg = o.len / n * T.s, k = o.follow ?? .55, gw = o.gravity ?? .35;
+    const q0 = Math.floor(t * fps + 1e-6) / fps, pre = o.preroll || 1.5;
+    const frame = tt => { const M = world(pup, poseAt(tt), T)[o.part]; const p = M.transformPoint(new DOMPoint(o.at[0], o.at[1])); return { x: p.x, y: p.y, rot: Math.atan2(M.b, M.a) * 180 / Math.PI * (T.flip || 1) }; };
+    let ang = null, prev = null;
+    for (let tt = q0 - pre; tt <= q0 + 1e-6; tt += 1 / fps) {
+      const F = prev || frame(tt);                                          // the strip answers the previous drawing (a lag of one)
+      const want = o.rest.map(r => (1 - gw) * (r + F.rot) + gw * 90);     // its drawn curve, pulled toward hanging
+      ang = ang ? ang.map((a, i) => a + (want[i] - a) * k) : want;
+      prev = frame(tt);
+    }
+    const F = frame(q0); const P = [[F.x, F.y]];
+    for (let i = 0; i < n; i++) { const a = ang[i] * Math.PI / 180, p = P[i]; P.push([p[0] + Math.cos(a) * seg * (T.flip || 1), p[1] + Math.sin(a) * seg]); }
+    return P;
+  }
+
+  return { load, snap, chain, strip, stiff };
 })();

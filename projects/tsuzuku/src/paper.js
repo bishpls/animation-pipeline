@@ -50,9 +50,9 @@ function screen(t, o = {}) {
   X.beginPath(); X.rect(x, y, w, h); X.clip();
   // the lantern's light through vellum: warm, bright at the lamp, falling to dim warm grey at the edges (physical falloff, not a style gradient)
   const g = X.createRadialGradient(lx, ly, 0, lx, ly, Math.max(w, h) * .75 * pw);
-  g.addColorStop(0, '#FFF1CF'); g.addColorStop(.35, '#F7D99B'); g.addColorStop(.75, '#C99A5E'); g.addColorStop(1, '#6E5236');
+  for (const [k, c] of (o.stops || [[0, '#FFF1CF'], [.35, '#F7D99B'], [.75, '#C99A5E'], [1, '#6E5236']])) g.addColorStop(k, c);
   X.fillStyle = g; X.fillRect(x, y, w, h);
-  texture(.55);
+  texture(o.tex ?? .55);
   X.restore();
 }
 
