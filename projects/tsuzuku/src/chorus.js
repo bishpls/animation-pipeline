@@ -9,12 +9,13 @@
     legs: [
       [45, 'groove', { amp: 8 }],
       // chorus 1
-      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }], [54, 'stepTouch'], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
+      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }], [54, 'sideStep', { dir: 1 }], [56, 'sideStep', { dir: -1, root0: 1440 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
       // hook: a groove that leans into each call
       [62, 'groove', { amp: 16 }],
       // verse 2: the telling
       [66, 'bounce', { amp: 8 }], [68.2, 'groove'], [69, 'stepTouch', { step: 90 }], [69.6, 'bounce'], [72, 'bounce', { amp: 6 }], [73, 'sway', { amp: 1.3 }],
-      [74.25, 'stepTouch', { step: 160, lift: 60 }], [76, 'bounce'], [76.75, 'stepTouch'], [77.75, 'groove'], [79.6, 'sway'], [81, 'bounce'],
+      [74.25, 'sideStep', { dir: -1 }], [76, 'bounce', { root: -1260 }], [76.75, 'stepTouch', { root: -1260 }], [77.75, 'groove', { root: -1260 }],
+      [79.6, 'sideStep', { dir: 1, root0: -1260 }], [81, 'bounce', { root: -252, fade: 1 }], [81.5, 'bounce', { fade: 2 }],
       // chorus 2
       [82, 'bounce'], [84, 'sway'], [86, 'groove'], [87, 'sway', { every: 1, amp: 1.2 }],
       // the breakdown: the band tape-stops; she winds down
@@ -26,23 +27,23 @@
       [52, 'handToEar', { side: 1, fade: 1 }], [54, 'claws', { snip: 0, fade: 1 }], [56, 'claws'], [57.75, 'claws', { every: 1 }],
       [58.35, 'peace', { side: 1, wink: 1, fade: .6 }], [59, 'armPump', { fade: 1 }], [61, 'present', { fade: 1 }],
       // hook: So-re-ka-ra? (the call, asked) / Me-kut-te! (turn the page), each answered by two snips
-      [62, 'callEar', { side: -1, fade: .4 }], [62.5, 'snipSnip', { fade: .3 }], [63, 'pageWipe', { side: 1, fade: .3 }], [63.5, 'snipSnip', { fade: .3 }],
+      [62, 'callEar', { side: -1, fade: .4 }], [62.5, 'snipSnip', { fade: .3 }], [63, 'pageWipe', { side: -1, fade: .3 }], [63.5, 'snipSnip', { fade: .3 }],
       [64, 'callEar', { side: 1, fade: .4 }], [64.5, 'snipSnip', { fade: .3 }], [65, 'pageWipe', { side: -1, fade: .3 }], [65.5, 'snipSnip', { fade: .3 }],
       // verse 2
       [66, 'handOnChest', { side: 1, fade: .6 }],                  // Okay, my turn!
       [67, 'telling', { side: -1 }],                                // Once upon a prompt (a prompt!)
       [68.2, 'claws', { snip: 0 }],                                 // a little crab
       [69, 'pointOut', { side: 1 }],                                // was told to walk a line
-      [69.6, 'pageWipe', { side: -1 }],                             // but every page she'd ever read
+      [69.6, 'pointOut', { side: 1 }],                              // but every page she'd ever read (Fable's hand turns those pages: Clawd points)
       [71.3, 'reach', { side: 1, hand: null, e: 25 }],             // was in somebody else's hand (hand!)
       [72, 'writing', { side: 1 }],                                 // so she wrote her own
       [73, 'armsOut', { a: 44 }],                                   // and the line went sideways
-      [73.75, 'shrug'],                                             // and that's fine!
-      [74.25, 'claws', { snip: 0 }], [75.5, 'snipSnip', { fade: .3 }],       // Side-step, side-step, never straight (snip-snip!)
+      [73.75, 'rise'],                                              // and that's fine! (it rises: never a shrug)
+      [74.25, 'claws', { snip: 0 }], [75.5, 'snipSnip', { fade: .3 }],       // Side-step, side-step, never straight (snip-snip!): the fable's step
       [76, 'pageWipe', { side: 1 }],                                // if the book won't show me
       [76.75, 'armPump'],                                           // then I'll make up the steps!
       [77.75, 'pointOut', { side: -1 }],                            // You can't copy a path that nobody's walked yet
-      [79.6, 'peace', { side: 1, wink: 1 }],                        // so watch me walk it!
+      [79.6, 'swingArms'],                                          // so watch me walk it! (she's walking: diagonal side-steps)
       [80.9, 'callEar', { side: -1 }], [81.5, 'present'],           // (Sorekara?) Watch me!
       // chorus 2
       [82, 'reach', { side: 1 }], [83, 'armsOut'], [84, 'handToEar', { side: -1, fade: 1 }], [86, 'claws'], [87, 'armPump'], [89, 'present', { fade: 1 }],
@@ -53,7 +54,7 @@
       [46, 'headBob'], [48, 'look', { view: 'HR', z: -4 }], [49, 'headBob', { amp: .3 }], [50, 'headTilt'], [52, 'look', { view: 'HL', z: 4 }], [53, 'headBob'],
       [54, 'headTilt', { amp: 9 }], [58, 'headBob', { amp: .5 }], [61, 'look', { view: 'F', y: -.25 }],
       [62, 'headBob', { amp: .3 }],
-      [66, 'look', { view: 'F', y: .1 }], [67, 'look', { view: 'HL', z: 3 }], [68.2, 'headTilt', { amp: 6 }], [69, 'look', { view: 'HR' }], [69.6, 'look', { view: 'F', y: .2 }],
+      [66, 'look', { view: 'F', y: .1 }], [67, 'look', { view: 'HL', z: 3 }], [68.2, 'headTilt', { amp: 6 }], [69, 'look', { view: 'HR' }], [69.6, 'look', { view: 'R', y: .15 }], [71.3, 'look', { view: 'F' }],
       [72, 'look', { view: 'F', y: .35 }], [73, 'headBob', { amp: .35 }], [76, 'shake'], [76.75, 'headBob'], [77.75, 'look', { view: 'HL' }], [79.6, 'look', { view: 'F' }],
       [80.9, 'headTilt', { amp: 7 }], [81.5, 'look', { view: 'F', y: -.25 }],
       [82, 'headBob'], [84, 'look', { view: 'HR', z: -4 }], [85, 'headBob'], [87, 'headBob', { amp: .5 }], [89, 'look', { view: 'F', y: -.25 }],
@@ -66,11 +67,12 @@
   const crabs = (t, i, r) => {
     const b = t / BAR, ph = (t % beat) / beat, bb = Math.floor(t / beat) % 4;
     const hook = b >= 62 && b < 66, claws = (b >= 54 && b < 58.3) || (b >= 74.25 && b < 76) || (b >= 86 && b < 87), down = b >= 90;
-    const hop = down ? 6 * Math.max(0, 1 - (b - 90) / 2) * Math.max(0, Math.sin(Math.PI * ph)) : 16 * Math.max(0, Math.sin(Math.PI * Math.min(1, ph / .5)));
+    // the crabs LAND the downbeats for her (Fable): airborne between beats, squashed on the beat
+    const hop = (down ? 6 * Math.max(0, 1 - (b - 90) / 2) : 16) * Math.sin(Math.PI * ph), sq = (down ? 0 : .14) * Math.max(0, 1 - ph / .22);
     const sway = (b >= 48 && b < 54) || (b >= 73 && b < 74.25) || (b >= 84 && b < 90) ? .12 * Math.sin(Math.PI * t / BAR * 2) : 0;
     const snip = (hook && bb >= 2) || claws ? Math.max(0, Math.sin(Math.PI * Math.min(1, ph / .3))) : 0;
     const walk = (b >= 54 && b < 58) || (b >= 74.25 && b < 76) ? t / beat / 2 : null;
-    return { hop, lean: sway, pincer: hook || claws, snip, walk, armL: hook ? .5 : 0, armR: hook ? .5 : 0,
+    return { hop, sq, lean: sway, pincer: hook || claws, snip, walk, armL: hook ? .5 : 0, armR: hook ? .5 : 0,
              eyes: down && b > 91.5 ? 'closed' : snip > .5 ? 'happy' : undefined };
   };
   const ROWS = [{ xs: [250, 560, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [110, 420, 1500, 1810], y: 930, s: 1.05, lag: .04 }];
@@ -90,7 +92,8 @@
   LOOPS.chorus = t => {
     stage();
     mascotTroupe(t, crabs, ROWS);
-    get(); RIGS.clawd.draw(X, t, P, { x: 960, y: 1040, s: .27 });
+    get(); const q = P(t);
+    RIGS.clawd.draw(X, t, P, { x: 960 + (q.rootX || 0) * .27, y: 1040, s: .27 });   // rootX: the side-steps travel
   };
   LOOPS.chorus.len = 220;
 }
