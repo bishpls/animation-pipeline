@@ -43,9 +43,10 @@
       [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }]]);
   };
   const BLINKS = [133.4, 142.6, 146.3, 151.7, 155.2];
+  const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm(q), ...head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
   const T = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
   // Clawd's puppet, set down at the edge: leaning, head down, rod leaning, the eye slits still lit
-  const CP = { x: 1690, y: FLOOR, s: .16, origin: [1076, 2800] }, CPOSE = { skirt: 11, head: 15, upperarm_L: 6, upperarm_R: -4, claw_L: 10, claw_R: -8, _ghost: {} };
+  const CP = { x: 1690, y: FLOOR, s: .16, origin: [1076, 2800] }, CPOSE = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6, _ghost: {} };   // arms hanging plumb (the lean undone)
   function scene(ts) {
     const strike = {}; let bright = 0;
     for (const [k, t0, dir] of STRIKES) { const u = pulled(ts, t0); strike[k] = [u, dir]; bright += u * (k.startsWith('rocks') ? .5 : 1); }
@@ -53,13 +54,14 @@
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
     screen(ts, { stops, tex: .32 - .08 * b, power: 1 + .12 * b });
     shore(ts, { floor: FLOOR, still: CLACK, strike });
-    const p = { ...arm(ts), ...head(ts), _ghost: {} }; p.hair = -(p.head || 0) * .85;
+    const p = poseAt(ts);
     const blink = BLINKS.some(b0 => ts >= b0 && ts < b0 + 2 * f);
     shadow(c => {
+      seatedRibbon(c, poseAt, T, ts);
       c.globalCompositeOperation = 'source-over';
       if (strike.ground[0] > 0) { c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }   // the plain rail the beach lay on
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
-      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {} });
+      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }

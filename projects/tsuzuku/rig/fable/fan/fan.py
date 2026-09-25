@@ -86,6 +86,14 @@ def fan(spread, R=470, r0=36, blades=6, stagger=0.0):
     return np.array(pts), slits
 
 
+def shut(R=470, r0=36):
+    """The fan closed tight (Fable: "one stick and its pin", not a whisk of spread ribs): the six blades stacked into one narrow
+    wedge, the pin a round hole just above her fist; the other slits collapsed into the stick (they open with the fan)."""
+    a, b, rr = 19, 24, 22                                     # half-widths at the pivot and the tip; the rounded pivot end
+    pts = [[-a, 0], [-b, -R], [b, -R], [a, 0]] + [[rr * math.cos(t), rr * math.sin(t)] for t in np.linspace(0, math.pi, 9)[1:-1]]
+    return np.array(pts, float), [[0, -95, 0, -95, 11]] + [[0, -R * .5, 0, -R * .5, 0]] * (N - 1)
+
+
 def ruled(L=700, h=30):
     """The fan closed and laid flat: a long bar standing up from the grip like the closed fan (so the fan -> line in-betweens
     stay thin); the runtime lays it level by rotating the prop. Five tick slits across it."""
@@ -95,7 +103,7 @@ def ruled(L=700, h=30):
 
 def main():
     out = {'M': M, 'N': N, 'shapes': {}}
-    for name, (pts, slits) in {'fan_closed': fan(16, stagger=.05), 'fan_open': fan(150), 'line': ruled()}.items():
+    for name, (pts, slits) in {'fan_closed': shut(), 'fan_open': fan(150), 'line': ruled()}.items():
         o = ccw_from(resample(pts, M), np.array([0., 0.]))
         out['shapes'][name] = {'outline': o.round(1).tolist(), 'slits': sorted(slits, key=lambda s: (s[0] + s[2]) / 2)}
     for name in TAKES:

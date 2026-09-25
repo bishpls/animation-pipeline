@@ -27,8 +27,11 @@ function stage(t, sceneFn, o = {}) {
   X.drawImage(BUTAI.theatre, sx, sy, sw, sh, a0, b0, a1 - a0, b1 - b0);
   const lit = o.lit ?? 1;                                                                                // before the match: a dark screen
   if (lit < 1) { X.fillStyle = `rgba(6,5,4,${1 - lit})`; X.fillRect(a0, b0, a1 - a0, b1 - b0); }
+  // the wood (frame and doors) on its own layer, lit below from the aperture only
+  if (!BUTAI.L1) { BUTAI.L1 = mkCanvas(W, H); BUTAI.L2 = mkCanvas(W, H); }
+  const Xm = X; X = BUTAI.L1.getContext('2d'); X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.clearRect(0, 0, W, H);
   const [fx, fy] = T(0, 0); X.save(); X.translate(fx, fy); X.scale(z, z);
-  X.filter = 'brightness(.62)'; X.drawImage(BUTAI.frame, 0, 0); X.filter = 'none';                      // the wood, in the room's low light
+  X.filter = 'brightness(.95)'; X.drawImage(BUTAI.frame, 0, 0); X.filter = 'none';                      // the wood (lit below: from the aperture only)
   // light spilling from the lit screen onto the inner rails
   X.globalCompositeOperation = 'screen'; const sp = X.createLinearGradient(0, wy0 - 140, 0, wy0); sp.addColorStop(0, 'rgba(255,190,110,0)'); sp.addColorStop(1, `rgba(255,190,110,${.16 * lit})`);
   X.fillStyle = sp; X.fillRect(wx0 - 140, wy0 - 140, wx1 - wx0 + 280, 140); X.globalCompositeOperation = 'source-over';
@@ -46,7 +49,7 @@ function stage(t, sceneFn, o = {}) {
       const u0 = i / N, u1 = (i + 1) / N, g0 = 1 + (grow - 1) * u0, g1 = 1 + (grow - 1) * u1;
       const srcX = side < 0 ? (c >= 0 ? w * (1 - u1) : w * u0) : (c >= 0 ? w * u0 : w * (1 - u1));
       const dx = dir * ww * u0, dw = dir * ww * (u1 - u0), mid = h / 2;
-      X.save(); X.filter = `brightness(${.62 * shade})`;
+      X.save(); X.filter = `brightness(${.95 * shade})`;
       X.setTransform(new DOMMatrix([1, 0, 0, 1, 0, 0]).multiply(X.getTransform()));
       X.drawImage(face, srcX, 0, w / N, h, Math.min(dx, dx + dw), mid - mid * (g0 + g1) / 2, Math.abs(dw) + .6, h * (g0 + g1) / 2);
       X.restore();
@@ -55,6 +58,16 @@ function stage(t, sceneFn, o = {}) {
   };
   doorPanel(BUTAI.dl, BUTAI.doorL[1], -1); doorPanel(BUTAI.dr, BUTAI.doorR[0], 1);
   X.restore();
+  // the lamp is the world's only light (Fable): the wood is lit from the aperture, warm on the inner frame and the doors'
+  // inner edges, falling to black at the outer corners; before the match, almost nothing (the room's own faint light)
+  { const L2 = BUTAI.L2.getContext('2d'); L2.setTransform(1, 0, 0, 1, 0, 0); L2.globalCompositeOperation = 'copy'; L2.drawImage(BUTAI.L1, 0, 0);
+    const [cx, cy] = T((wx0 + wx1) / 2, (wy0 + wy1) / 2), hx = (wx1 - wx0) / 2 * z, hy = (wy1 - wy0) / 2 * z, k = .1 + .9 * lit;
+    L2.save(); L2.translate(cx, cy); L2.scale(1, hy / hx);
+    const g = L2.createRadialGradient(0, 0, hx * .96, 0, 0, hx * 2.05), c = (r, gg, b) => `rgb(${Math.round(r * k)},${Math.round(gg * k)},${Math.round(b * k)})`;
+    g.addColorStop(0, c(255, 222, 176)); g.addColorStop(.18, c(196, 150, 104)); g.addColorStop(.5, c(84, 60, 42)); g.addColorStop(1, c(8, 6, 5));
+    L2.globalCompositeOperation = 'multiply'; L2.fillStyle = g; L2.fillRect(-hx * 3, -hx * 3, hx * 6, hx * 6); L2.restore();
+    L2.globalCompositeOperation = 'destination-in'; L2.drawImage(BUTAI.L1, 0, 0); L2.globalCompositeOperation = 'source-over';
+    X = Xm; X.drawImage(BUTAI.L2, 0, 0); }
   X.restore();
 }
 {

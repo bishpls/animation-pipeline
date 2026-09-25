@@ -30,10 +30,10 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
     screen(ts, { stops: FABLE_LAMP, tex: .32 });
     if (window.SHORE) shore(ts, { floor: FLOOR });
-    const pf = { ...fable(ts), _ghost: {} }; pf.hair = -(pf.head || 0) * .85;
+    const fpose = tt => { const p = { ...fable(Math.floor(tt * 12 + 1e-6) / 12), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; }, pf = fpose(ts), TF = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
     shadow(c => {
-      c.globalCompositeOperation = 'source-over';
-      FABLE.draw(c, pf, { x: 560, y: 960, s: .2, origin: [1150, 2760] }, { props: [fanProp(() => ['fan_closed', 'fan_closed', 1], ts)] });
+      seatedRibbon(c, fpose, TF, ts);
+      FABLE.draw(c, pf, TF, { props: [fanProp(() => ['fan_closed', 'fan_closed', 1], ts)], rods: FABLE_RODS });
       if (ts < CUT) {
         const [a, b, u] = unfold(ts), sh = PUPPET.shapeAt(ORI, a, b, u);   // the creases lead (the fold lines appear before the paper moves)
         const hopping = ts > bar(17.5) && ts < bar(19.5), ph = ((ts - bar(17.5)) / (B / 2)) % 1;
