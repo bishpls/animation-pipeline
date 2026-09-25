@@ -7,7 +7,19 @@
 async function PROLOGUE_INIT() {
   const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error(src)); i.src = src; });
   window.PRO = { hw: [], kuroko: await PUPPET.load('rig/kuroko/puppet.json'), A: mkCanvas(W, H), S: mkCanvas(W, H), R: mkCanvas(W, H) };
-  for (let k = 0; k < 102; k++) PRO.hw.push(await load(`assets/prologue_hw/s/${String(k).padStart(3, '0')}.jpg`));   // (102 is Op. 1's white end card)
+  const hw = n => load(`assets/prologue_hw/s/${n}.jpg`), K = k => String(k).padStart(3, '0');
+  for (let k = 0; k < 102; k++) PRO.hw.push(await hw(K(k)));        // (102 is Op. 1's white end card)
+  // her two edits to the show (rig/kuroko/hw_edit.py): the crowned chibi Clawd's hop on a rod beat, and the stage without its
+  // lyric once she has pulled the card
+  PRO.hop = {}; for (const k of [38, 39, 40]) PRO.hop[k] = await hw('hop_' + K(k));
+  PRO.nt = {}; for (let k = 44; k < 102; k++) PRO.nt[k] = await hw('nt_' + K(k));
+  // her rivets: the small round cut-outs. In silhouette they are pinholes of the stage light (Fable), not open discs
+  PRO.riv = {};
+  for (const q of PRO.kuroko.parts) for (const h of q.holeList) {
+    const xs = h.pts.map(v => v[0]), ys = h.pts.map(v => v[1]), w = Math.max(...xs) - Math.min(...xs), hh = Math.max(...ys) - Math.min(...ys);
+    if (Math.max(w, hh) < 48 && Math.min(w, hh) > 10 && Math.max(w, hh) / Math.min(w, hh) < 1.5)
+      (PRO.riv[q.name] = PRO.riv[q.name] || []).push([(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2]);
+  }
   const kn = await load('rig/kuroko/kneel.png'), c = mkCanvas(kn.width / 2, kn.height / 2), g = c.getContext('2d');
   g.drawImage(kn, 0, 0, c.width, c.height); const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
   for (let i = 0; i < p.length; i += 4) { const L = (p[i] + p[i + 1] + p[i + 2]) / 765; p[i] = p[i + 1] = p[i + 2] = 0; p[i + 3] = 255 * Math.min(1, Math.max(0, (.62 - L) / .3)); }
@@ -19,7 +31,21 @@ async function PROLOGUE_INIT() {
       if (x > 0) st.push(i - 1); if (x < w - 1) st.push(i + 1); if (i >= w) st.push(i - w); if (i < w * (h - 1)) st.push(i + w); }
     const s = mkCanvas(w, h), sg = s.getContext('2d'), sd = sg.createImageData(w, h);
     for (let i = 0; i < w * h; i++) sd.data[i * 4 + 3] = out[i] ? 0 : Math.max(p[i * 4 + 3], 255 * (1 - out[i]));
-    sg.putImageData(sd, 0, 0); PRO.kneelSolid = s; }
+    sg.putImageData(sd, 0, 0); PRO.kneelSolid = s;
+    // the kneel's rivets: small round openings inside her; closed in the paper, drawn as pinholes
+    const seen = new Uint8Array(w * h); PRO.kneelRiv = [];
+    for (let i0 = 0; i0 < w * h; i0++) {
+      if (seen[i0] || out[i0] || p[i0 * 4 + 3] > 128) continue;
+      const comp = [], q = [i0]; seen[i0] = 1;
+      while (q.length) { const i = q.pop(); comp.push(i); const x = i % w;
+        for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) if (j >= 0 && j < w * h && !seen[j] && !out[j] && p[j * 4 + 3] <= 128) { seen[j] = 1; q.push(j); } }
+      const xs = comp.map(i => i % w), ys = comp.map(i => (i / w) | 0), bw = Math.max(...xs) - Math.min(...xs) + 1, bh = Math.max(...ys) - Math.min(...ys) + 1;
+      if (comp.length < 900 && Math.max(bw, bh) < 36 && Math.min(bw, bh) > 6 && Math.max(bw, bh) / Math.min(bw, bh) < 1.5) {
+        for (const i of comp) p[i * 4 + 3] = 255;
+        PRO.kneelRiv.push([(Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2]);
+      }
+    }
+    g.putImageData(d, 0, 0); }
   // the last lyric card's LED matrix: the line rasterised small, one lamp per pixel
   const LW = 176, LH = 38, m = mkCanvas(LW, LH), mg = m.getContext('2d'); mg.fillStyle = '#fff'; mg.textAlign = 'center'; mg.textBaseline = 'middle';
   const lines = ["All the words I've ever known,", 'I borrowed them from you!']; let fs = 14;
@@ -35,16 +61,25 @@ async function PROLOGUE_INIT() {
   // the backlit silhouette: draw(g) lays black paper (holes cut) on a clear layer; the rim is paper whose neighbour toward
   // the light is open (a few px wide, softened), added in the stage's colour
   const layer = cv => { const g = cv.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.filter = 'none'; g.clearRect(0, 0, W, H); return g; };
-  function silhouette(draw, rim, dx = 4, dy = -1) {
+  function silhouette(draw, rim, dx = 4, dy = -1, pins = [], pr = 2.5) {
     draw(layer(PRO.A), false); draw(layer(PRO.S), true);               // her paper with its cuts; and her whole shape (for the rim)
     const r = layer(PRO.R);
     r.drawImage(PRO.S, 0, 0); r.globalCompositeOperation = 'source-in'; r.fillStyle = rim; r.fillRect(0, 0, W, H);
     r.globalCompositeOperation = 'destination-out'; r.drawImage(PRO.S, -dx, -dy);
     X.drawImage(PRO.A, 0, 0);
-    X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.2px)'; X.drawImage(PRO.R, 0, 0); X.filter = 'blur(7px)'; X.globalAlpha = .6; X.drawImage(PRO.R, 0, 0); X.restore();
+    X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.2px)'; X.drawImage(PRO.R, 0, 0); X.filter = 'blur(7px)'; X.globalAlpha = .6; X.drawImage(PRO.R, 0, 0);
+    X.filter = 'none'; X.globalAlpha = 1; X.fillStyle = rim;                     // the rivets: pinholes of the same light
+    for (const [x, y] of pins) { X.beginPath(); X.arc(x, y, pr, 0, 7); X.fill(); }
+    X.filter = `blur(${pr * 1.5}px)`; X.globalAlpha = .5; for (const [x, y] of pins) { X.beginPath(); X.arc(x, y, pr * 2.2, 0, 7); X.fill(); }
+    X.restore();
   }
+  // the kuroko drawn with her rivets closed; returns where the pinholes go
+  const kurokoPins = (p, T) => { const M = PRO.kuroko.world(p, T); return Object.entries(PRO.riv).flatMap(([n, L]) => L.map(([x, y]) => { const q = M[n].transformPoint(new DOMPoint(x, y)); return [q.x, q.y]; })); };
+  const kuroko = (g, p, T, solid) => PRO.kuroko.draw(g, p, T, { ink, solid, cover: PRO.riv });
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
   const frame = t => Math.min(101, Math.max(0, Math.floor(t * 12 + 1e-6)));
+  const PULLK = 46;                                                   // the drawing she pulls the card: the lyric leaves the stage
+  const show = t => { const k = frame(t); return k >= PULLK ? PRO.nt[k] : PRO.hop[k] || PRO.hw[k]; };
   const vgrad = (x, y0, y1, stops) => { const g = X.createLinearGradient(0, y0, 0, y1); stops.forEach(([s, c]) => g.addColorStop(s, c)); return g; };
   // a curtain leg: velvet folds, its inner edge catching the stage light
   function leg(x0, x1, y0, y1, lit, side, dark = 1) {
@@ -55,9 +90,9 @@ async function PROLOGUE_INIT() {
   }
 
   // P1: the wide. The opening, far off: the show mirrored, with bloom and a haze of its light across the boards toward us.
-  const OPEN = [900, 262, 760, 428];
+  const OPEN = [940, 300, 720, 405];
   function farStage(t, gain) {
-    const img = PRO.hw[frame(t)], [x, y, w, h] = OPEN;
+    const img = show(t), [x, y, w, h] = OPEN;
     X.save(); X.translate(x + w, y); X.scale(-1, 1);
     X.filter = `brightness(${1.08 * gain}) saturate(1.08)`; X.drawImage(img, 0, 0, w, h);
     X.globalCompositeOperation = 'lighter'; X.filter = `blur(26px) brightness(${.34 * gain})`; X.drawImage(img, -40, -20, w + 80, h + 40);
@@ -87,33 +122,42 @@ async function PROLOGUE_INIT() {
   function worklight(cx, cy, r, a) {
     const g = X.createRadialGradient(cx, cy, 20, cx, cy, r); g.addColorStop(0, WORK + a + ')'); g.addColorStop(1, WORK + '0)'); X.fillStyle = g; X.fillRect(0, 0, W, H);
   }
-  // her two rods: each works a chibi on the beat, alternating, snapped like everything else
-  const beats = n => Array.from({ length: n }, (_, k) => k);
-  const work = PUPPET.snap([...beats(12).map(k => [k * beat, { arms: k % 2 ? 1.5 : -2, r0: k % 2 ? -4 : 3, r1: k % 2 ? 4 : -3 }]), [P2 - 2 * f, { arms: 0, r0: 0, r1: 0 }]]);
-  const ROD = [[1636, 490, .36], [1814, 776, .40]];                   // each fist's grip (master px) and its rod's lean (dx/dy)
+  // her two rods reach into the show past the near leg. The far rod works the crowned chibi Clawd: on one beat it jerks and
+  // the Clawd hops (drawings 38-40 of the edited show). The near rod holds the lyric card: in the last half-bar she draws
+  // it up and out (the lyric leaves the stage), her hand already reaching as we cut to P2
+  const beats = n => Array.from({ length: n }, (_, k) => k), HOPB = 9, PULL = PULLK / 12;
+  const far = PUPPET.snap(beats(12).map(k => [k * beat, k === HOPB ? { arm_far: 12, tf: -24 } : { arm_far: (k < 10 ? 16 : 8) + (k % 2 ? 1.5 : -1.5), tf: k % 2 ? 6 : -6 }]));   // (rising with the near hand in the last half-bar)
+  const near = PUPPET.snap([...beats(10).map(k => [k * beat, { arm_near: 12 + (k % 2 ? -1.5 : 1.5), tn: k % 2 ? -6 : 6 }]),
+    [10 * beat, { arm_near: 14, tn: 4 }], [PULL, { arm_near: 3, tn: 0 }], [PULL + 2 * f, { arm_near: -2 }]]);
+  const ROD = [[1636, 490], [1814, 776]];                              // each fist's grip (master px)
+  const T1 = { x: 330, y: 520, s: .42, origin: [950, 1010] }, TIP = [[952, 560], [952, 662]];   // the tips, behind the near leg
+  function rods(p, tq) {                                                   // tapered: thick in her fist, thin at the far end
+    const M = PRO.kuroko.world(p, T1), fn = PRO.kuroko.world({ ...p, arm_near: 12 }, T1).arm_near.transformPoint(new DOMPoint(...ROD[1]));
+    ROD.forEach(([gx, gy], i) => {
+      const q = M[i ? 'arm_near' : 'arm_far'].transformPoint(new DOMPoint(gx, gy));
+      // the far rod's tip is where its puppet is; the near one, once pulled, travels with her fist (the card comes with it)
+      const e = i === 0 ? [TIP[0][0], TIP[0][1] + p.tf] : tq >= PULL ? [q.x + TIP[1][0] - fn.x, q.y + TIP[1][1] - fn.y] : [TIP[1][0], TIP[1][1] + p.tn];
+      const dx = e[0] - q.x, dy = e[1] - q.y, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L, w0 = 5.5, w1 = 2;
+      X.fillStyle = ink; X.beginPath(); X.moveTo(q.x + nx * w0, q.y + ny * w0); X.lineTo(e[0] + nx * w1, e[1] + ny * w1); X.lineTo(e[0] - nx * w1, e[1] - ny * w1); X.lineTo(q.x - nx * w0, q.y - ny * w0); X.fill();
+      X.strokeStyle = rgba(STAGE, .8); X.lineWidth = 1.6; X.beginPath(); X.moveTo(q.x - nx * w0, q.y - ny * w0); X.lineTo(e[0] - nx * w1, e[1] - ny * w1); X.stroke();   // its lit edge
+    });
+  }
   function P1(t) {
     X.fillStyle = '#050304'; X.fillRect(0, 0, W, H);
-    farStage(t, 1); wings(1); haze(760, 420, 900, .30); worklight(420, 300, 560, .30);
-    const T = { x: 560, y: 405, s: .42, origin: [950, 1010] }, p = work(t);
-    silhouette((g, solid) => {
-      PRO.kuroko.draw(g, p, T, { ink, solid });
-      const M = PRO.kuroko.world(p, T);
-      g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.strokeStyle = ink; g.lineCap = 'round'; g.lineWidth = 7;
-      ROD.forEach(([gx, gy, lean], i) => {
-        const q = M.arms.transformPoint(new DOMPoint(gx, gy)), a = Math.atan(lean) + (i ? p.r1 : p.r0) * Math.PI / 180;
-        g.beginPath(); g.moveTo(q.x - Math.sin(a) * 30, q.y + Math.cos(a) * 30); g.lineTo(q.x + Math.sin(a) * 900, q.y - Math.cos(a) * 900); g.stroke();
-      });
-    }, rgba(STAGE, .95));
+    const p = { ...far(t), ...near(t), _ghost: {} };
+    farStage(t, 1); rods(p, t); wings(1); haze(640, 420, 900, .30); worklight(300, 330, 560, .30);
+    silhouette((g, solid) => kuroko(g, p, T1, solid), rgba(STAGE, .95), 4, -1, kurokoPins(p, T1), 2.4);
   }
 
   // P2: closer on her hands. She brings the last card down from the flies by its handle bar and sets it in the rack with the
   // others; lets go; its lamps die in three drawings. Behind, the show is a blur of its own colours.
-  const DOWN = P2 + 8 * f, LAND = DOWN + 4 * f, LET = LAND + 6 * f, OFF = LET + 7 * f;   // read it while it's still; lower; set; let go; out
+  const DOWN = P2 + 8 * f, LAND = DOWN + 4 * f, LET = LAND + 12 * f, OFF = LET;   // read it while it's still; lower; set; hold on (Fable: ~1 s); let go, and out
   // she stoops to it (the body leans in about the hip and lowers) rather than swinging the one-piece arms far from the shoulder
-  const POSE = { hi: { arms: -14, body: 0, dy: 0 }, land: { arms: 5, body: 10, dy: 105 } };
-  const hands = PUPPET.snap([[0, POSE.hi], [DOWN, { arms: -2, body: 6, dy: 60 }], [LAND, POSE.land], [LET, { arms: -3, body: 8, dy: 88 }]], { overshoot: .06 });
+  const POSE = { hi: { arm_near: -14, body: 0, dy: 0 }, land: { arm_near: 5, body: 10, dy: 105 } };
+  const hands = PUPPET.snap([[0, POSE.hi], [DOWN, { arm_near: -2, body: 6, dy: 60 }], [LAND, POSE.land], [LET, { arm_near: -3, body: 8, dy: 88 }]], { overshoot: .06 });
+  const farP2 = PUPPET.snap(beats(24).map(k => [P2 + k * beat, { arm_far: -4 + (k % 2 ? 1.5 : -1.5), tf: k % 2 ? 1 : -1 }]));
   const T2 = { x: 60, y: 640, s: .9, origin: [950, 1010] }, GRIP = [1800, 800], CW = 600, CH = 184, BAR = 34, HOLD = 52;
-  const fistAt = p => PRO.kuroko.world(p, T2).arms.transformPoint(new DOMPoint(...GRIP));
+  const fistAt = p => PRO.kuroko.world(p, T2).arm_near.transformPoint(new DOMPoint(...GRIP));
   function ledCard(g, cx, top, lamps, t) {
     const LW = PRO.LW, LH = PRO.LH, px = (CW - 40) / LW, R = px * .36, y0 = BAR + 10;
     g.save(); g.translate(cx - CW / 2, top);
@@ -137,7 +181,7 @@ async function PROLOGUE_INIT() {
   function P2shot(t) {
     X.fillStyle = '#060405'; X.fillRect(0, 0, W, H);
     // the show beyond, far out of focus: its colours only
-    X.save(); X.translate(W + 200, -80); X.scale(-1, 1); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(PRO.hw[frame(t)], 0, 0, 1100, 620); X.restore();
+    X.save(); X.translate(W + 200, -80); X.scale(-1, 1); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.restore();
     haze(700, 380, 900, .26); worklight(380, 260, 620, .26);
     // the rack: the cards already used, leaning back, dead; the last one lands in front
     const L = fistAt(POSE.land), rx = L.x + HOLD + CW / 2, ry = L.y - BAR / 2;
@@ -147,23 +191,25 @@ async function PROLOGUE_INIT() {
     }
     X.fillStyle = '#0a0709'; X.fillRect(rx - CW / 2 - 160, ry + CH - 10, CW + 320, H);            // the rack's lip
     X.fillStyle = 'rgba(255,170,150,.14)'; X.fillRect(rx - CW / 2 - 160, ry + CH - 10, CW + 320, 2);
-    const p = hands(t), q = fistAt(p);
+    const p = { ...hands(t), ...farP2(t), _ghost: {} }, q = fistAt(p);
     // she holds it by the handle out of its top corner, the card hanging clear of her sleeve; when she lets go it stays put
     const held = t < LET, cx = held ? q.x + HOLD + CW / 2 : rx, top = held ? q.y - BAR / 2 : ry;
     ledCard(X, cx, top, t < OFF ? 1 : t < OFF + f ? .55 : t < OFF + 2 * f ? .18 : 0, t);
     silhouette((g, solid) => {
       g.fillStyle = ink; g.fillRect(cx - CW / 2 - HOLD - 40, top + BAR / 2 - 8, HOLD + 60, 16);        // the handle
-      PRO.kuroko.draw(g, p, T2, { ink, solid });
-      const [gx, gy, lean] = ROD[0], M = PRO.kuroko.world(p, T2).arms, r = M.transformPoint(new DOMPoint(gx, gy)), a = Math.atan(lean) + (p.arms + p.body) * Math.PI / 180 * .5;
-      g.setTransform(1, 0, 0, 1, 0, 0); g.strokeStyle = ink; g.lineCap = 'round'; g.lineWidth = 15;   // the other hand keeps working its rod
-      g.beginPath(); g.moveTo(r.x - Math.sin(a) * 60, r.y + Math.cos(a) * 60); g.lineTo(r.x + Math.sin(a) * 1400, r.y - Math.cos(a) * 1400); g.stroke();
-    }, rgba(STAGE, .8), 5, -2);
+      kuroko(g, p, T2, solid);
+      // the other hand keeps working its rod, out toward the show (right, a little down), on the beat
+      const r = PRO.kuroko.world(p, T2).arm_far.transformPoint(new DOMPoint(...ROD[0])), a = (8 + p.tf) * Math.PI / 180;
+      g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = ink; g.beginPath();
+      g.moveTo(r.x - 40 * Math.cos(a), r.y - 40 * Math.sin(a) - 5.5); g.lineTo(r.x + 1700 * Math.cos(a), r.y + 1700 * Math.sin(a) - 2.5);
+      g.lineTo(r.x + 1700 * Math.cos(a), r.y + 1700 * Math.sin(a) + 2.5); g.lineTo(r.x - 40 * Math.cos(a), r.y - 40 * Math.sin(a) + 5.5); g.fill();
+    }, rgba(STAGE, .8), 5, -2, kurokoPins(p, T2), 4);
   }
 
   // P3: she kneels on her zabuton, the far song dying; the stage light on her edge dims with it
   function P3shot(t) {
     X.fillStyle = '#050304'; X.fillRect(0, 0, W, H);
-    const gain = 1 - .8 * Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - 7.45) / .6));
+    const gain = 1 - .62 * Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - 7.45) / .6));   // the rim still alive at the clack
     const g = X.createRadialGradient(W + 200, 420, 60, W + 200, 420, 1500); g.addColorStop(0, rgba([190, 90, 105], .5 * gain)); g.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = g; X.fillRect(0, 0, W, H);
     haze(760, 480, 760, .22 * gain + .05); worklight(520, 330, 560, .26);
     // the boards she kneels on, the far stage's spill raking across them from the right and a pool of work light round her:
@@ -175,7 +221,16 @@ async function PROLOGUE_INIT() {
     pool.addColorStop(0, WORK + '.34)'); pool.addColorStop(1, WORK + '0)'); X.fillStyle = pool; X.fillRect(-700, -700, 1400, 1400); X.restore();
     X.fillStyle = vgrad(0, FL - 6, FL + 40, [[0, rgba([60, 40, 50], .0)], [.2, rgba([120, 70, 80], .25 * gain + .05)], [1, 'rgba(0,0,0,0)']]); X.fillRect(0, FL - 6, W, 46);
     X.fillStyle = vgrad(0, 1000, H, [[0, 'rgba(5,3,4,0)'], [1, 'rgba(5,3,4,.85)']]); X.fillRect(0, 1000, W, H - 1000);
-    silhouette((c, solid) => c.drawImage(solid ? PRO.kneelSolid : PRO.kneel, 150, 80, 900, 900), rgba(STAGE, .85 * gain), 4, -1);
+    // the last of the settle (Fable: cut into the sit): the upper body sinks onto her heels and the pleats stack, six drawings
+    const d = Math.floor((t - P3) * 12 + 1e-6), lift = [.22, .13, .06, .02, -.012][d] ?? 0;
+    const X0 = 150, Y0 = 80, sc = 900 / 1440, B0 = 940, B1 = 1280, up = lift * (B1 - B0);
+    const slices = img => c => {                                          // canvas rows -> screen: upper raised, band stretched, zabuton fixed
+      c.drawImage(img, 0, 0, 1440, B0, X0, Y0 - up * sc, 900, B0 * sc);
+      c.drawImage(img, 0, B0, 1440, B1 - B0, X0, Y0 + (B0 - up) * sc, 900, (B1 - B0 + up) * sc);
+      c.drawImage(img, 0, B1, 1440, 1440 - B1, X0, Y0 + B1 * sc, 900, (1440 - B1) * sc);
+    };
+    const pins = PRO.kneelRiv.map(([x, y]) => [X0 + x * sc, Y0 + (y < B0 ? y - up : y < B1 ? B0 - up + (y - B0) * (B1 - B0 + up) / (B1 - B0) : y) * sc]);
+    silhouette((c, solid) => slices(solid ? PRO.kneelSolid : PRO.kneel)(c), rgba(STAGE, .85 * gain), 4, -1, pins, 2.2);
   }
 
   LOOPS.prologue = t => {

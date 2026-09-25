@@ -93,12 +93,18 @@ PARTS_KUROKO = [
  dict(name='rods', drop=True, region=gk([[600, 0], [930, 0], [930, 470], [790, 372], [712, 228], [640, 232], [640, 0]])),
  # the prologue's kuroko (hood up, working rods): both arms and sleeves as one piece about the shoulder; the rods are
                    # left out of the paper (drawn in code from each fist, so each can work its own puppet)
- dict(name='arms', parent='body', pivot='shoulder',
+ # the near arm (the big bell sleeve, out to its trim, and the lower fist) in front; the far arm (upper sleeve and fist) behind it
+ dict(name='arm_near', parent='body', pivot='shoulder',
+      region=gk([[284, 500], [330, 470], [365, 474], [425, 506], [500, 566], [522, 578], [552, 548], [650, 492], [660, 470], [700, 380],
+                 [785, 378], [792, 450], [706, 520], [690, 560], [695, 700], [660, 860], [600, 862], [560, 840], [500, 815], [430, 790],
+                 [393, 750], [350, 700], [313, 650], [296, 600], [287, 550]]), caps=[['shoulder', 60]]),
+ dict(name='arm_far', parent='body', pivot='shoulder',
       region=gk([[330, 470], [470, 440], [560, 352], [612, 300], [628, 238], [705, 232], [712, 300], [652, 352], [612, 398], [700, 380],
-                 [785, 378], [792, 450], [706, 520], [690, 560], [695, 700], [660, 860], [600, 860], [520, 800], [450, 760], [390, 700],
-                 [330, 640], [290, 560], [290, 500]]), caps=[['shoulder', 60]]),
+                 [660, 470], [650, 492], [552, 548], [522, 578], [500, 566], [425, 506], [365, 474]]),
+      extend=gk([[430, 500], [520, 470], [560, 520], [530, 575], [470, 545]])),   # the far sleeve runs on under the near one
  dict(name='body', parent=None, pivot='hip', region=[[0, 0], [2160, 0], [2160, 3840], [0, 3840]],
-      extend=gk([[300, 470], [470, 470], [540, 560], [520, 760], [420, 780], [300, 700]])),
+      extend=gk([[300, 470], [420, 432], [540, 405], [585, 450], [560, 560], [520, 760], [420, 780], [300, 700]]),   # under both sleeves
+      fill=[[960, 792]]),                                                   # the hood's short fold cut by the shoulder (Fable: a stray stroke)
 ]
 MASTERS = {'kuroko': dict(src='../../kuroko/rods.png', riv=RIV_KUROKO, parts=PARTS_KUROKO, out='../kuroko/puppet.json'),
            'seated': dict(src='seated.png', riv=RIV_SEATED, parts=PARTS_SEATED, out='puppet.json'),
@@ -138,6 +144,10 @@ def main(which='seated'):
         if P.get('drop'): claimed |= own; continue                               # claimed and discarded (e.g. rods drawn in code)
         claimed |= own
         body = own & ink                                                          # its black paper (slits stay open)
+        if P.get('fill'):                                                         # cuts closed: the open region under each point
+            op, _ = ndi.label(own & ~ink)
+            for fx, fy in P['fill']:
+                if op[fy, fx]: body |= op == op[fy, fx]
         if P.get('slits'):                                                        # long slits filled; short ones kept; new ones cut
             sl, ns = ndi.label(own & ~ink)
             for i, sli in enumerate(ndi.find_objects(sl)):

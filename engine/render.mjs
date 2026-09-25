@@ -48,7 +48,10 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
   '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.css': 'text/css', '.svg': 'image/svg+xml' };
 const server = http.createServer((req, res) => {
   const p = join(process.cwd(), decodeURIComponent(req.url.split('?')[0]));
-  if (!p.startsWith(process.cwd()) || !existsSync(p) || statSync(p).isDirectory()) { res.writeHead(404); return res.end(); }
+  if (!p.startsWith(process.cwd()) || !existsSync(p) || statSync(p).isDirectory()) {
+    if (!req.url.includes('favicon')) console.log('[404]', req.url);                   // name what's missing
+    res.writeHead(404); return res.end();
+  }
   res.writeHead(200, { 'content-type': MIME[extname(p)] || 'application/octet-stream', 'cache-control': 'no-store' });
   res.end(readFileSync(p));
 });
