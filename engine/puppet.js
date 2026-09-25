@@ -196,9 +196,16 @@ const PUPPET = (() => {
     return { o, sl };
   }
   // draw a shape into c under matrix Mx (a DOMMatrix: shape px -> canvas): black paper, slits cut through
-  function drawShape(c, sh, Mx, ink = 'rgb(22,22,26)') {
+  function drawShape(c, sh, Mx, ink = 'rgb(22,22,26)', o = {}) {
     c.save(); c.setTransform(Mx);
     const p = new Path2D(); p.moveTo(sh.o[0][0], sh.o[0][1]); for (let i = 1; i < sh.o.length; i++) p.lineTo(sh.o[i][0], sh.o[i][1]); p.closePath();
+    if (o.gel) {                                   // coloured paper, backlit: the sheet is gel, its folds darker lines (more layers)
+      c.globalCompositeOperation = 'source-over'; c.fillStyle = o.gel; c.fill(p);
+      c.clip(p);                                   // a fold line exists only on the paper (when creases lead, the next shape's folds
+      c.strokeStyle = o.crease || 'rgba(120,40,12,.75)'; c.lineCap = 'round';   // show where they cross the current sheet)
+      for (const [x0, y0, x1, y1, w] of sh.sl) if (w > .5) { c.lineWidth = w * (o.creaseScale || 1); c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }
+      c.restore(); return;
+    }
     c.globalCompositeOperation = 'source-over'; c.fillStyle = ink; c.fill(p);
     c.globalCompositeOperation = 'destination-out'; c.strokeStyle = '#000'; c.lineCap = 'round';
     for (const [x0, y0, x1, y1, w] of sh.sl) if (w > .5) { c.lineWidth = w; c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); }

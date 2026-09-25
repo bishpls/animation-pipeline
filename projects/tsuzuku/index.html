@@ -29,6 +29,7 @@
 <script src="src/fablerange.js"></script>
 <script src="src/fablefan.js"></script>
 <script src="src/clawdpaper.js"></script>
+<script src="src/origami.js"></script>
 <script src="../../engine/rig.js"></script>
 <script src="src/rigtest.js"></script>
 <script src="src/viewtest.js"></script>
@@ -41,6 +42,7 @@
     if (window.FABLE_INIT) await FABLE_INIT();
     if (window.FAN_INIT) await FAN_INIT();
     if (window.CLAWDP_INIT) await CLAWDP_INIT();
+    if (window.ORIGAMI_INIT) await ORIGAMI_INIT();
     window.RIGS = { clawd: await RIG.load('rig/clawd/rig.json') };
     window.WORDS = await (await fetch('assets/words.json')).json();
     if (window.registerFilm) registerFilm();
