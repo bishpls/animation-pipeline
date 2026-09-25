@@ -132,7 +132,18 @@
     900,
     0.3
    ]
-  }
+  },
+  "neckBase": [
+   1065,
+   880
+  ],
+  "chin": [
+   1065,
+   790
+  ],
+  "neckLayers": [
+   "neck"
+  ]
  },
  "body": {
   "waist": [
@@ -149,7 +160,18 @@
    "collar",
    "bow",
    "bodice"
-  ]
+  ],
+  "D": 45,
+  "neckBend": 0.4,
+  "field": {
+   "cx": 1065,
+   "rx": 430,
+   "kc": 0.85,
+   "ke": 0.35
+  },
+  "lead": {
+   "bow": 0.18
+  }
  },
  "arms": {
   "L": {
@@ -322,6 +344,14 @@
     "pivot": [
      925,
      720
+    ],
+    "neckBase": [
+     1060,
+     880
+    ],
+    "chin": [
+     921,
+     757
     ]
    },
    "mouth": {
@@ -373,6 +403,14 @@
     "pivot": [
      1205,
      728
+    ],
+    "neckBase": [
+     1060,
+     880
+    ],
+    "chin": [
+     1229,
+     766
     ]
    },
    "mouth": {
@@ -428,7 +466,15 @@
       947,
       686
      ]
-    }
+    },
+    "neckBase": [
+     1060,
+     880
+    ],
+    "chin": [
+     950,
+     775
+    ]
    },
    "mouth": {
     "center": [
@@ -479,7 +525,15 @@
       1165,
       686
      ]
-    }
+    },
+    "neckBase": [
+     1060,
+     880
+    ],
+    "chin": [
+     1160,
+     775
+    ]
    },
    "mouth": {
     "center": [
@@ -495,5 +549,9 @@
    ]
   }
  },
- "variants": "build/variants.json"
+ "variants": "build/variants.json",
+ "couple": {
+  "turn": 0.25,
+  "tilt": 0.25
+ }
 }
