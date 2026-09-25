@@ -32,6 +32,10 @@ async function PAPER_INIT() {
   const img = f.getImageData(0, 0, 1024, 1024);
   for (let i = 0; i < img.data.length; i += 4) { const x = (i / 4) % 1024, y = Math.floor(i / 4 / 1024); const m = (noise1(x * .013 + y * .011) + noise1(y * .017 - x * .007 + 9)) * 9 + (R() - .5) * 10; img.data[i] += m; img.data[i + 1] += m; img.data[i + 2] += m; }
   f.putImageData(img, 0, 0);
+  // make the tile seamless: mirror it into a 2048 tile (every edge meets its own mirror image)
+  const M2 = mkCanvas(2048, 2048), m = M2.getContext('2d');
+  for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { m.save(); m.translate(sx < 0 ? 2048 : 0, sy < 0 ? 2048 : 0); m.scale(sx, sy); m.drawImage(FIBRE, sx < 0 ? 0 : 0, 0); m.restore(); }
+  FIBRE = M2;
   // film grain frames (stop-motion flicker)
   GRAIN = Array.from({ length: 4 }, (_, k) => { const g = mkCanvas(512, 512), x = g.getContext('2d'), d = x.createImageData(512, 512), r = rng(k + 3); for (let i = 0; i < d.data.length; i += 4) { const v = 128 + (r() - .5) * 60; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return g; });
 }

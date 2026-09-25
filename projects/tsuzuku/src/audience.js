@@ -17,7 +17,7 @@ function audience(t, o = {}) {
   const order = []; for (let i = 0; i < n; i++) order.push(i);
   for (const i of order) {
     const q = AUD[Math.floor(rnd() * AUD.length)], x = (i + .5) / n * W + (rnd() - .5) * 60, sc = sc0 * (.85 + .3 * rnd()), ph = rnd();
-    const lift = inCall ? -26 * Math.max(0, Math.sin(Math.PI * ((tq / beat + ph * .25) % 1))) : -3 * Math.sin(2 * Math.PI * (t / (3.1 + ph) + ph));
+    const lift = inCall ? -(o.lift || 26) * Math.max(0, Math.sin(Math.PI * ((tq / beat + ph * .25) % 1))) : -3 * Math.sin(2 * Math.PI * (t / (3.1 + ph) + ph));
     const sway = q.lantern ? (inCall ? 6 : 2) * Math.sin(2 * Math.PI * (tq / (beat * 2) + ph)) : 0;
     X.setTransform(sc, 0, 0, sc, x, y0 + lift); X.rotate(sway * Math.PI / 180);
     X.fillStyle = '#0a0808'; X.fill(q.outlineP);

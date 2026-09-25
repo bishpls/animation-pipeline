@@ -29,6 +29,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;                   // song time, on twos
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
     screen(ts, { stops: FABLE_LAMP, tex: .32 });
+    if (window.SHORE) shore(ts, { floor: FLOOR });
     const pf = { ...fable(ts), _ghost: {} }; pf.hair = -(pf.head || 0) * .85;
     shadow(c => {
       c.globalCompositeOperation = 'source-over';
@@ -52,7 +53,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
         CLAWDP.draw(c, p, { x: CX, y: FLOOR, s: SC, origin: [1076, 2800] }, { gel: CLAWD_GEL, misreg: [1.5, 1], cover,
           rods: [{ part: 'torso', at: [1076, 1200], w: 5 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 30 }] });
       }
-      c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10);
+      if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
     }, 0);
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };

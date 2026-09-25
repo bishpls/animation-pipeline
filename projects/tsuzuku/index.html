@@ -34,6 +34,8 @@
 <script src="src/ink.js"></script>
 <script src="src/audience.js"></script>
 <script src="src/mother.js"></script>
+<script src="src/stage.js"></script>
+<script src="src/scenery.js"></script>
 <script src="../../engine/rig.js"></script>
 <script src="src/rigtest.js"></script>
 <script src="src/viewtest.js"></script>
@@ -50,6 +52,8 @@
     if (window.ORIGAMI_INIT) await ORIGAMI_INIT();
     if (window.INK_INIT) await INK_INIT();
     if (window.AUD_INIT) await AUD_INIT();
+    if (window.STAGE_INIT) await STAGE_INIT();
+    if (window.SCENERY_INIT) await SCENERY_INIT();
     window.RIGS = { clawd: await RIG.load('rig/clawd/rig.json') };
     window.WORDS = await (await fetch('assets/words.json')).json();
     if (window.registerFilm) registerFilm();
