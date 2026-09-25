@@ -1,0 +1,29 @@
+{
+ "chunks": [
+  {
+   "text": "[Pickup - key change build]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4",
+    "bright J-pop idol",
+    "D major",
+    "instrumental drum fill and riser",
+    "building to the final chorus",
+    "crowd roar swells"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "IRm925U1stZoMTV7UtQN",
+   "range": {
+    "start_ms": 62118,
+    "end_ms": 84706
+   }
+  }
+ ]
+}

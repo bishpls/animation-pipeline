@@ -1,0 +1,60 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - build up]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd",
+    "instrumental build-up that starts sparse and quiet",
+    "snare roll accelerating",
+    "rising riser sweep",
+    "crowd cheering swells",
+    "filter sweep opening up",
+    "explodes into the chorus"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "IRm925U1stZoMTV7UtQN",
+   "range": {
+    "start_ms": 0,
+    "end_ms": 62118
+   }
+  },
+  {
+   "text": "[Ending - breakdown]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd",
+    "the band breaks down after the chorus",
+    "drums drop out",
+    "a final sustained chord",
+    "slowing down like a tape stop",
+    "fades to silence",
+    "instrumental"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "new chorus"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}
