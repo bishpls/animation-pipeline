@@ -348,7 +348,9 @@
    "feet": [
     "boot_L",
     "boot_R"
-   ]
+   ],
+   "heel": 34,
+   "drawIn": 26
   }
  },
  "arms": {

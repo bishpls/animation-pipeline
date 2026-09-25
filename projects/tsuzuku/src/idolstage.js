@@ -259,7 +259,10 @@ const IDOLSTAGE = (() => {
     X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();
     // Fable's paper, in screen space: the frame, the notes, her silhouette at the margin
     const inner = window.washiBorder ? null : [0, 0, W, H];
-    if (window.fableMargin && b < 90.5) fableMargin(t, { x: 118, y: 1015, s: .13, flip: false, wipes: [[b2t(WIPE2), 1.6 * BT]], presses: [48.11, 52.23, 56.24, 84.24].map(b2t), light: b >= 90 ? .4 : 1 });
+    // Fable at the stage's left wing, feet on Clawd's floor, in STAGE coords through the camera (her ruling: in the picture,
+    // never fixed to the screen; she leaves the frame with the picture in push-ins and close-ups)
+    const [fx, fy] = W2S(205, 1020);
+    if (window.fableMargin && b < 90.5 && fx > -200 && fx < W + 200) fableMargin(t, { x: fx, y: fy, s: .215 * c.z, flip: false, wipes: [[b2t(WIPE2), 1.6 * BT]], presses: [48.11, 52.23, 56.24, 84.24].map(b2t), light: b >= 90 ? .4 : 1 });
     if (window.marginNotes) {
       marginNotes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
                       [b2t(56.24), '~~That\'s the moral.~~ There isn\'t one. Keep walking.']], { clear: b2t(WIPE1) + .4 });

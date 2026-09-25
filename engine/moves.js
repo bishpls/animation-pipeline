@@ -42,12 +42,14 @@ const MOVES = (() => {
       // travelling: per period k the lead foot has LANDED at the downbeat (weight low, hips over it); the trail foot closes
       // (ph .3-.67, the root travels with it); then the lead lifts and travels to land on the next downbeat. rootX (base px)
       // moves her across the stage (the stage adds it to the draw position); feet are relative to the root, so they're flat.
-      const ev = o.every ?? 2, k = Math.floor(b / ev), ph = (b % ev) / ev, dir = o.dir ?? 1, st = o.step ?? 360, r0 = o.root0 ?? 0;
+      const ev = o.every ?? 2, k = Math.floor(b / ev), ph = (b % ev) / ev, dir = o.dir ?? 1, st = o.step ?? 240, r0 = o.root0 ?? 0;
       const close = ph < .3 ? 0 : ph < .67 ? ease((ph - .3) / .37) : 1, out = ph < .67 ? 0 : ease((ph - .67) / .33);
       const root = r0 + dir * st * (k + close), leadAbs = r0 + dir * st * (k + 1 + out), trailAbs = r0 + dir * st * (k + close);
       const lead = dir > 0 ? 'R' : 'L', trail = dir > 0 ? 'L' : 'R', lift = ph < .67 ? 0 : S(PI * (ph - .67) / .33);
       const land = pulse(ph, .35);
+      const tlift = ph > .3 && ph < .67 ? S(PI * (ph - .3) / .37) : 0;        // the trailing foot LIFTS as it closes (never dragged)
       return { rootX: root, ['foot' + lead + 'X']: leadAbs - root, ['foot' + lead + 'Y']: (o.lift ?? 40) * lift, ['foot' + trail + 'X']: trailAbs - root,
+               ['foot' + trail + 'Y']: (o.tlift ?? 34) * tlift,
                hipX: dir * (.85 * (1 - close) - .3 * lift), hipY: (o.dip ?? 28) * land, bodyZ: 2.5 * dir * (1 - close) };
     },
     swingArms: (b, o) => { const u = S(PI * b / 2); return { ...arm(1, 16 + 10 * u, 35 + 15 * u), ...arm(-1, 16 - 10 * u, 35 - 15 * u) }; },   // walking

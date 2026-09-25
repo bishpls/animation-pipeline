@@ -218,6 +218,11 @@ const RIG = (() => {
       // (pinned), and the leg whose top drops shortens by bending its knee inward. The boots stay planted.
       const PV = B.pelvis;
       const fL = [p.footLX || 0, p.footLY || 0], fR = [p.footRX || 0, p.footRY || 0];     // feet: x step, y lift (px, base)
+      // weight shift: when the hips move over one foot, the other unloads: its heel lifts and it draws a little toward the
+      // centre (so feet are never glued through a sway); the lift bends that knee through the leg skinning below
+      if (PV && PV.heel) { const hw = clamp(p.hipX || 0, -1.3, 1.3);
+        fL[1] += PV.heel * Math.max(0, hw); fL[0] += PV.drawIn * Math.max(0, hw);
+        fR[1] += PV.heel * Math.max(0, -hw); fR[0] -= PV.drawIn * Math.max(0, -hw); }
       if (PV && (p.hipX || p.hipY || fL[0] || fL[1] || fR[0] || fR[1])) {
         const hx = clamp(p.hipX || 0, -1.3, 1.3), th = -PV.tilt * hx, dxp = PV.D * hx, dyp = (p.hipY || 0) + PV.lift * Math.abs(hx);
         const Tp = (qx, qy) => { const [a, b] = rot(qx, qy, PV.c[0], PV.c[1], th); return [a + dxp, b + dyp]; };

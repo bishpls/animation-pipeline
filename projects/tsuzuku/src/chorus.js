@@ -9,13 +9,13 @@
     legs: [
       [45, 'groove', { amp: 8 }],
       // chorus 1
-      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }], [54, 'sideStep', { dir: 1 }], [56, 'sideStep', { dir: -1, root0: 1440 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
+      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }], [54, 'sideStep', { dir: 1 }], [56, 'sideStep', { dir: -1, root0: 960 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
       // hook: a groove that leans into each call
       [62, 'groove', { amp: 16 }],
       // verse 2: the telling
       [66, 'bounce', { amp: 8 }], [68.2, 'groove'], [69, 'stepTouch', { step: 90 }], [69.6, 'bounce'], [72, 'bounce', { amp: 6 }], [73, 'sway', { amp: 1.3 }],
-      [74.25, 'sideStep', { dir: -1 }], [76, 'bounce', { root: -1260 }], [76.75, 'stepTouch', { root: -1260 }], [77.75, 'groove', { root: -1260 }],
-      [79.6, 'sideStep', { dir: 1, root0: -1260 }], [81, 'bounce', { root: -252, fade: 1 }], [81.5, 'bounce', { fade: 2 }],
+      [74.25, 'sideStep', { dir: -1 }], [76, 'bounce', { root: -840 }], [76.75, 'stepTouch', { root: -840 }], [77.75, 'groove', { root: -840 }],
+      [79.6, 'sideStep', { dir: 1, root0: -840 }], [81, 'bounce', { root: -168, fade: 1 }], [81.5, 'bounce', { fade: 2 }],
       // chorus 2
       [82, 'bounce'], [84, 'sway'], [86, 'groove'], [87, 'sway', { every: 1, amp: 1.2 }],
       // the breakdown: the band tape-stops; she winds down
@@ -75,7 +75,7 @@
     return { hop, sq, lean: sway, pincer: hook || claws, snip, walk, armL: hook ? .5 : 0, armR: hook ? .5 : 0,
              eyes: down && b > 91.5 ? 'closed' : snip > .5 ? 'happy' : undefined };
   };
-  const ROWS = [{ xs: [250, 560, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [110, 420, 1500, 1810], y: 930, s: 1.05, lag: .04 }];
+  const ROWS = [{ xs: [370, 610, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [330, 560, 1500, 1810], y: 930, s: 1.05, lag: .04 }];   // the left wing is Fable's
 
   let P = null;
   const get = () => (P = P || RIG.perform(RIGS.clawd, build()));
