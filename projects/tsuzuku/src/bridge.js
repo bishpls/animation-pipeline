@@ -45,6 +45,16 @@
       [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }]]);
   };
   const BLINKS = [133.4, 142.6, 146.3, 151.7, 155.2];
+  // her monologue as margin notes (Fable: "what's left on the bare vellum before the close-up is what I know"): Caslon italic,
+  // the lighter ink, each word pressed as she says it; lines as she breathes them. Still there after the close-up (B6).
+  const NOTE_LINES = [6, 8, 4, 8, 7, 3, 5, 3];                       // words per line (the gallery split after "crow," and "cried,"; 44 words)
+  let NOTES = null;
+  function bridgeNotes(ts) {
+    if (!NOTES) { const ws = (window.WORDS || []).filter(w => w.who === 'fable' && w.t0 > 131.5 && w.t0 < 156); if (ws.length < 44) return;
+      NOTES = []; let k = 0, y = 232;
+      for (const n of NOTE_LINES) { let x = 176; for (const w of ws.slice(k, k + n)) { NOTES.push({ w: w.w, t0: w.t0, x, y }); x += shape(w.w + ' ', { font: 'caslonI', size: 27 }).width; } k += n; y += 34; } }
+    for (const n of NOTES) inkVellum(n.w, n.x, n.y, ts, n.t0, { size: 27 });
+  }
   const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm(q), ...head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
   const T = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
   // Clawd's puppet, set down at the edge: leaning, head down, rod leaning, the eye slits still lit
@@ -72,7 +82,7 @@
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
       FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
-    pageVellum(ts);                                                   // (the strip: stage())
+    pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
@@ -95,7 +105,7 @@
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       draw(c);
     }, 0);
-    pageVellum(ts);                                                   // (the strip: stage())
+    pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B6 (159.53-161.0), the held note, "So I'm putting down the book": the fan opens and becomes the book, and she holds it in
@@ -123,7 +133,7 @@
     const S0 = 166.0, S1 = 177.8, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
     const X0 = 960, BOOKX = 800, TS = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (.2: her head clears the window's top)
     const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
-    for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 82 });
+    for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 88 });   // (to within arm's reach of her head)
     const b1 = Math.round((175.06 - NOTE) / BEAT), OUT = beat(b1);
     for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 150 });   // on the eighths: off the right edge by 176.47
     const walk = makeWalk(steps, 82, BEAT, TS.s);
@@ -131,8 +141,18 @@
     const reach = PUPPET.snap([[0, { upperarm: 0, forearm: 0, hand: 0, head: -3 }], [167.25, { upperarm: 24, forearm: 10, hand: 12, head: 8 }],
       [168.05, { upperarm: 0, forearm: 0, hand: 0, head: 0 }]]);
     const look = PUPPET.snap([[0, { head: 0 }], [steps[6].t + BEAT, { head: 14 }], [OUT - 1 / 12, { head: 0 }]]);
-    const poseS = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = walk(q), r = reach(q), p = { ...w, _ghost: {} };
-      p.upperarm = (w.upperarm || 0) + r.upperarm; p.forearm = r.forearm; p.hand = r.hand; p.head = q < 168.5 ? r.head : look(q).head;
+    // at the stop, her hand rests on Clawd's head (Fable: "a rest, not a pat"): it settles in two drawings and doesn't move; her
+    // question ("Sorekara?") is what lifts it, on the first step out
+    const STOP = steps[6].t + BEAT; let rest = null;
+    const restArm = q => {
+      if (!rest) { const w = walk(STOP + .5), T0 = { ...TS, x: TS.x + w.dx, y: TS.y + w.dy };
+        const sh = FABLE_S.world({ _ghost: {} }, T0).torso.transformPoint(new DOMPoint(...STAND_ARM.SH)), hd = CLAWDP.world(CPOSE, CP).head.transformPoint(new DOMPoint(860, 250));
+        const on = standReach(sh.x, sh.y, hd.x - 6, hd.y - 14, TS.s), z = { upperarm: 0, forearm: 0, hand: 0 };
+        rest = PUPPET.snap([[0, z], [STOP + 2 / 12, on], [OUT, z]], { overshoot: 0 }); }
+      return rest(q);
+    };
+    const poseS = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = walk(q), r = reach(q), h = restArm(q), p = { ...w, _ghost: {} };
+      p.upperarm = (w.upperarm || 0) + r.upperarm + h.upperarm; p.forearm = r.forearm + h.forearm; p.hand = r.hand + h.hand; p.head = q < 168.5 ? r.head : look(q).head;
       p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
     const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
     const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
@@ -146,6 +166,7 @@
         PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(BOOKX, FLOOR).scale(.15));
         CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       }, 0);
+      bridgeText(tt);
       const p = poseS(tt), T2 = TS;
       shadow(c => {
         TAILS_S.forEach((tl, i) => {
@@ -198,5 +219,12 @@
       readers(ts, cam);
     };
     LOOPS.bridgeB8.len = S1 - S0;
+    // after she stands, her lines are the text, not notes (Fable): full ink, set to read at the wide, "Sorekara?" in quotation marks
+    let TEXT = null;
+    function w8(n, after) { return ((window.WORDS || []).find(x => x.t0 > after && x.w.toLowerCase().replace(/[^a-z]/g, '').startsWith(n)) || {}).t0 ?? 999; }
+    function bridgeText(tt) {
+      if (!TEXT) TEXT = [[w8('mukashi', 168), 'Mukashi mukashi was a long time ago.'], [w8('this', 172), 'This is now.'], [w8('sorekara', 174.5), '\u201CSorekara?\u201D']];
+      TEXT.forEach(([t0, str], i) => inkVellum(str, 190, 262 + i * 76, tt, t0, { font: 'caslon', size: 54, alpha: .92, col: 'rgb(30,24,22)' }));
+    }
   }
 }

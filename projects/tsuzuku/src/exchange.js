@@ -36,12 +36,14 @@
       else if (d >= 1 && d <= 4) { p.dy = -h * Math.sin(Math.PI * d / 5); p.thigh_L = 4; p.thigh_R = -4; p['shin_L.y'] = -70; p['shin_R.y'] = -70; } }
     return p;
   };
-  // the card's pull (px to the right): on "Every time." it's pulled a third out in 8 drawings (hiki-nuki) and held there, still,
-  // until she tears it (Michael: the later tugs read as the scenery creeping, and brought the shore over her puppet)
+  // the card's pull (px to the right): on "Every time." it's pulled most of the way out in 12 drawings and held there, still,
+  // until she tears it. Michael: the reeds must clear Fable and leave Clawd in the open; the clump (~460 px) can't fit in the
+  // ~320 px between them, so the card goes until its reeds are past her. (The later tugs read as the scenery creeping.)
+  const PULL = 1320;
   function pullAt(ts) {
     if (ts < K.every) return 0;
-    const u = Math.min(1, Math.floor((ts - K.every) * 12 + 1e-6) / 8), e = u * u * (3 - 2 * u);
-    return 560 * e;
+    const u = Math.min(1, Math.floor((ts - K.every) * 12 + 1e-6) / 12), e = u * u * (3 - 2 * u);
+    return PULL * e;
   }
   // the mother, in card coordinates (X3): tried straight (toward the lamp, stiff steps on the eighths); veered sideways, off right
   function mother(ts) {
@@ -65,10 +67,10 @@
     } finally { X = Xs; }
   }
   // the tear (X8): a ragged line through the card at Clawd; the halves part, drawings apart; the stage light through the gap
-  // (in card coordinates, placed so that when it rips the tear runs through the card just behind Clawd)
+  // (in card coordinates: the tear runs through what's left of the card in the window, right beside her)
   let TEAR = null;
   const tearLine = () => {                                           // a slow wander, and on it the fine zigzag of torn fibre
-    const pts = [], x0 = CX - 30 - pullAt(K.tear); let x = 0, i = 0;
+    const pts = [], x0 = 150 + 70; let x = 0, i = 0;
     for (let y = 150; y <= 1090; y += 9, i++) { x += ((y * 7919) % 23 - 11) * .55; x = Math.max(-60, Math.min(60, x)); pts.push([x0 + x + (i % 2 ? 1 : -1) * (1 + (i * 53) % 5) + ((i * 37) % 7 - 3), y]); }   // (an irregular zigzag, not a saw)
     return pts;
   };

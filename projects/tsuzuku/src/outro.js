@@ -8,31 +8,26 @@
 {
   const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1252, SEALAT = [1140, 562], SEALW = 70;   // (the rakkan in the next column's place, below-left of く, where her arm reaches)
   const TS0 = { x: 900, y: FLOOR, s: .22, origin: [1100, 3700] }, BEAT = 60 / 170 * 2;   // standing, beside the zabuton (560) and the book (800)
-  // two-link reach (standing master px): shoulder, elbow, and her fist's grip (the forearm and hand as one) onto a target
-  const SH = [1036, 960], EL = [1156, 1422], FI = [1420, 2090], L1 = Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2 = Math.hypot(FI[0] - EL[0], FI[1] - EL[1]);
-  const R1 = Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2 = Math.atan2(FI[1] - EL[1], FI[0] - EL[0]), DEG = 180 / Math.PI;
-  function reach(sx, sy, tx, ty, sc) {
-    const Dx = (tx - sx) / sc, Dy = (ty - sy) / sc, d = Math.min(Math.hypot(Dx, Dy), L1 + L2 - 1), phi = Math.atan2(Dy, Dx);
-    const a = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)))), t1 = phi + a;   // the elbow drops
-    const t2 = Math.atan2(Dy - L1 * Math.sin(t1), Dx - L1 * Math.cos(t1));
-    return { upperarm: (t1 - R1) * DEG, forearm: ((t2 - R2) - (t1 - R1)) * DEG, hand: 0 };
-  }
+  const FI = STAND_ARM.FI, SH = STAND_ARM.SH, reach = standReach;
   let K = null, SEAL = null;
   function keys() {
     const W = window.WORDS || [], w = n => (W.find(x => x.t0 > 200 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {});
     const ts = W.find(x => x.t0 > 203 && x.who === 'fable') || {}, see = w('see');   // her last word (romaji or kana: whichever take is in)
-    K = { card: S0, seal: Math.floor((ts.t1 - .55) * 12) / 12, see: see.t0, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
+    // the press lands on the end of her word: 204.64, measured from the take's voiced audio (voice/tsuzuku_v2/1_1: 0.71 s voiced,
+    // placed at 203.93); the TTS alignment's end (words.json) runs 0.8 s long past the ellipsis and the full stop
+    K = { card: S0, seal: Math.floor(204.637 * 12) / 12, see: see.t0, pop: see.t0 - 4 * f, doors: 207.5, cut: 209.45 };
+    K.walk0 = K.card + 7 * f; K.at = K.walk0 + BEAT;                   // once the card has landed: two steps on the eighths, then the reach
     // two geta steps to the column (her own 6/8 beat), then the reach: hover a beat, press on the end of the word, hold two, lift
-    K.walk = makeWalk([{ t: K.seal - 1.95, foot: 'v', S: 100 }, { t: K.seal - 1.95 + BEAT, foot: 'h', S: 100, close: true }], 100, BEAT, TS0.s);
-    const at = K.seal - 1.95 + 2 * BEAT, T1 = { ...TS0, x: TS0.x + 100 };
+    K.walk = makeWalk([{ t: K.walk0, dur: BEAT / 2, foot: 'v', S: 100 }, { t: K.walk0 + BEAT / 2, dur: BEAT / 2, foot: 'h', S: 100, close: true }], 100, BEAT, TS0.s);
+    const at = K.at, T1 = { ...TS0, x: TS0.x + 100 };
     const sh = FABLE_S.world({ _ghost: {} }, T1).torso.transformPoint(new DOMPoint(...SH));
     const hover = reach(sh.x, sh.y, SEALAT[0] - 16, SEALAT[1] - 20, TS0.s), press = reach(sh.x, sh.y, SEALAT[0], SEALAT[1], TS0.s), rest = { upperarm: 0, forearm: 0, hand: 0 };
-    K.arm = PUPPET.snap([[0, rest], [at + 2 * f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.seal + 9 * f, rest]], { overshoot: .05 });
+    K.arm = PUPPET.snap([[0, rest], [at + f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.seal + 9 * f, rest]], { overshoot: .05 });
     K.head = PUPPET.snap([[0, { head: 0 }], [at, { head: 5 }], [K.seal + 9 * f, { head: 2 }], [K.see, { head: 7 }]]);
   }
   const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
   const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = K.walk(q), a = K.arm(q), p = { ...w, ...a, ...K.head(q), _ghost: {} };
-    if (q < K.seal - 1.95 + 2 * BEAT + 2 * f) { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
+    if (q < K.at + f) { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
     p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
   // the seal: a square of shu with 語 cut in reverse (hakubun: the character in paper, the ground in ink), edges worn by use
   function makeSeal() {
@@ -71,7 +66,7 @@
         c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
       });
       c.globalCompositeOperation = 'source-over';
-      const reaching = ts >= K.seal - 1.95 + 2 * BEAT + 2 * f && ts < K.seal + 9 * f;
+      const reaching = ts >= K.at + f && ts < K.seal + 9 * f;
       drawStanding(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }], props: reaching ? [{ after: 'hand', draw: (g, M) => {
         const q = M.hand.transformPoint(new DOMPoint(...FI));                                   // her seal, in her fist, end-on: black
         g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgb(22,22,26)'; const sw = SEALW * .8, hh = sw * (sq ? .9 : 1);   // its face: the size of the mark it prints

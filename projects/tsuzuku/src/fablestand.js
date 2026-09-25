@@ -41,6 +41,19 @@ function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
     return p;
   };
 }
+// her arm as two links (standing master px): shoulder, elbow, and her fist's grip (the forearm and hand as one). standReach()
+// returns the pose that puts the fist on a target (canvas px), given the shoulder's canvas position and the puppet's scale;
+// the elbow drops (it bends down, never up)
+const STAND_ARM = (() => { const SH = [1036, 960], EL = [1156, 1422], FI = [1420, 2090];
+  return { SH, EL, FI, L1: Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2: Math.hypot(FI[0] - EL[0], FI[1] - EL[1]),
+    R1: Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2: Math.atan2(FI[1] - EL[1], FI[0] - EL[0]) }; })();
+function standReach(sx, sy, tx, ty, sc) {
+  const { L1, L2, R1, R2 } = STAND_ARM, D = 180 / Math.PI;
+  const Dx = (tx - sx) / sc, Dy = (ty - sy) / sc, d = Math.min(Math.hypot(Dx, Dy), L1 + L2 - 1), phi = Math.atan2(Dy, Dx);
+  const a = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)))), t1 = phi + a;
+  const t2 = Math.atan2(Dy - L1 * Math.sin(t1), Dx - L1 * Math.cos(t1));
+  return { upperarm: (t1 - R1) * D, forearm: ((t2 - R2) - (t1 - R1)) * D, hand: 0 };
+}
 // the standing puppet with both feet: the far foot first (behind the skirt), then the puppet
 function drawStanding(c, p, T, o = {}) {
   if (p._far) {                                                        // the geta and its ankle, not the tall stub above it

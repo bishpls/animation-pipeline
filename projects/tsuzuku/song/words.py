@@ -60,7 +60,7 @@ spoken = [('Mukashi, mukashi...', 'fable', 'fable_lily/takes/f_mukashi_1'), ('Sh
           ('There is no "and then."', 'fable', 'retake/f_noandthen_7b'), ('Says who?', 'clawd', 'retake/c_sayswho_5c'),
           ('I know how every story ends...', 'fable', 'fable_lily/takes/f_bridge1_1'), ("...I didn't know this one.", 'fable', 'fable_lily/takes/f_bridge2_1'),
           ('Mukashi mukashi was a long time ago. This is now. Sorekara?', 'fable', 'fable_lily/takes/f_nowthis_1'),
-          ('...tsuzuku.', 'fable', 'fable_lily/takes/f_tsuzuku_1'), ('See you next prompt!', 'clawd', 'clone/c_nextprompt')]
+          ('...tsuzuku.', 'fable', 'tsuzuku_v2/takes/1_1'), ('See you next prompt!', 'clawd', 'clone/c_nextprompt')]
 for label, who, base in spoken:
     e = ev[label]; base = os.path.join(V, base)
     if os.path.exists(base + '.json'): put(tts_words(base), e['t0'], who, 'spoken: ' + label)
