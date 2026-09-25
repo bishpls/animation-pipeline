@@ -13,7 +13,7 @@
   "bun_L",
   "bun_R",
   "neck",
-  "yoke",
+  "upper",
   "body"
  ],
  "split": {
@@ -155,7 +155,46 @@
     "face"
    ]
   },
-  "neck": {
+  "upper": {
+   "poly": [
+    [
+     540,
+     760
+    ],
+    [
+     1600,
+     760
+    ],
+    [
+     1600,
+     1255
+    ],
+    [
+     1400,
+     1255
+    ],
+    [
+     1385,
+     1385
+    ],
+    [
+     745,
+     1385
+    ],
+    [
+     730,
+     1255
+    ],
+    [
+     540,
+     1255
+    ]
+   ],
+   "from": [
+    "body"
+   ]
+  },
+  "neck2": {
    "poly": [
     [
      850,
@@ -187,48 +226,42 @@
     ]
    ],
    "from": [
-    "face"
-   ]
-  },
-  "yoke": {
-   "poly": [
-    [
-     740,
-     650
-    ],
-    [
-     1400,
-     650
-    ],
-    [
-     1400,
-     965
-    ],
-    [
-     1180,
-     945
-    ],
-    [
-     1065,
-     935
-    ],
-    [
-     950,
-     945
-    ],
-    [
-     740,
-     965
-    ]
-   ],
-   "from": [
-    "body",
-    "neck"
+    "upper",
+    "body"
    ]
   }
  },
  "line_lum": 80,
  "line_grow": 2,
  "line_r": 9,
- "force": {}
+ "force": {},
+ "diff": {
+  "ref": "base.png",
+  "ref_labels": "layers",
+  "ref_body": [
+   "collar",
+   "sleeve_L",
+   "sleeve_R",
+   "bodice",
+   "bow",
+   "chest",
+   "neck",
+   "trim_L",
+   "trim_R"
+  ],
+  "from": [
+   "body"
+  ],
+  "left": "hair_side_L",
+  "right": "hair_side_R",
+  "split": 1020,
+  "thresh": 45,
+  "frac": 0.5,
+  "box": [
+   560,
+   640,
+   1600,
+   1000
+  ]
+ }
 }

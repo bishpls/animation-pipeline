@@ -52,7 +52,24 @@ def main(ldir, spec, out):
     S = json.load(open(spec)); os.makedirs(out, exist_ok=True)
     meta = json.load(open(os.path.join(ldir, 'labels.json'))); order = meta['order']
     L = {n: load(os.path.join(ldir, n + '.png')) for n in order if os.path.exists(os.path.join(ldir, n + '.png'))}
+    orig = {n: L[n][:, :, 3] > 8 for n in L}                    # each layer's own drawn pixels (fills are everything else)
     shape = next(iter(L.values())).shape[:2]; review = np.zeros(shape, bool)
+    # fromimg: hidden parts of layers get REAL drawn pixels from a registered companion drawing that shows them (e.g. the same
+    # character with her hair tied back: the full face outline, ears, neck, shoulders). Per target layer: the source labels it
+    # takes; only where the target is empty, something covers that spot at rest (no change to the rest look), and not under
+    # the excluded layers (eyes/mouth: variants swap there, so no second pair of eyes may sit underneath).
+    FI = S.get('fromimg')
+    if FI:
+        base_a = load(os.path.join(os.path.dirname(spec), FI['base']))[:, :, 3] > 8
+        V = load(os.path.join(os.path.dirname(spec), FI['img'])); lb = np.array(Image.open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.png')))
+        vo = json.load(open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.json')))['order']
+        ex = np.zeros(shape, bool)
+        for o in FI.get('exclude', []):
+            if o in L: ex |= ndi.binary_dilation(L[o][:, :, 3] > 8, iterations=FI.get('exclude_grow', 6))
+        for t, names in FI['map'].items():
+            if t not in L: continue
+            m = np.isin(lb, [vo.index(n) + 1 for n in names if n in vo]) & (V[:, :, 3] > 200) & ~(L[t][:, :, 3] > 8) & base_a & ~ex
+            L[t][m] = V[m]; review |= m; print(f'  fromimg {t:10s} +{m.sum():8d} px')
     # cross-fill: body layers hidden under the hair get REAL drawn pixels from other registered views of the same body, wherever
     # a view shows that spot as body (e.g. a turned head's hair has moved off the shoulder). Each pixel goes to the nearest target.
     CF = S.get('crossfill')
@@ -109,16 +126,26 @@ def main(ldir, spec, out):
         print(f'  tube  {n:12s} extended')
     for n, sp in S.get('plates', {}).items():
         Z = np.zeros(shape, bool)
-        for o in sp['from']: Z |= L[o][:, :, 3] > 8
+        for o in sp['from']:
+            if o in L: Z |= L[o][:, :, 3] > 8
         Z = ndi.binary_fill_holes(Z); g = sp.get('grow', 0)
         if g > 0: Z = ndi.binary_dilation(Z, iterations=g)
         if g < 0: Z = ndi.binary_erosion(Z, iterations=-g)             # shrink: a plate must never peek out at rest
-        src = np.concatenate([L[o][L[o][:, :, 3] > 8, :3] for o in sp['from']])
+        src = np.concatenate([L[o][L[o][:, :, 3] > 8, :3] for o in sp['from'] if o in L and o != 'face'])
         lum = src.astype(float) @ [.299, .587, .114]
         col = np.median(src[(lum > np.percentile(lum, 15)) & (lum < np.percentile(lum, 40))], 0) if sp.get('colour', 'shadow') == 'shadow' else np.array(sp['colour'])
         P = np.zeros(shape + (4,), np.uint8); P[Z, :3] = col.astype(np.uint8); P[Z, 3] = 255
         L[n] = P; i = order.index(sp['behind']) + 1 if sp.get('behind') in order else len(order); order.insert(i, n)
         print(f'  plate {n:12s} {Z.sum():8d} px  colour {col.astype(int).tolist()}')
+    # invariant: every filled pixel must be hidden at rest by an opaque drawn layer in front of it, so the rig at rest is exactly
+    # the illustration. Front to back: remove fill pixels that nothing in front covers.
+    cover = np.zeros(shape, bool); removed = 0
+    for n in order:
+        if n not in L: continue
+        a = L[n][:, :, 3] > 8; o = orig.get(n, np.zeros(shape, bool)); leak = a & ~o & ~cover
+        if S.get('hidden_only', True) and leak.any(): L[n][leak, 3] = 0; removed += leak.sum()
+        cover |= (L[n][:, :, 3] > 250) & o                    # only drawn pixels count as cover (fills behind fills don't)
+    print(f'  hidden-only: removed {removed} visible fill px')
     # feather: patches (eyes, mouth) fade into the layer under them over `feather` px at their outer edge
     for n, px in S.get('feather', {}).items():
         a = L[n][:, :, 3] > 8

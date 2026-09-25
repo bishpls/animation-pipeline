@@ -4,22 +4,24 @@
    "hull": [
     "eye_L",
     "eye_R",
-    "brow_L",
-    "brow_R",
     "mouth",
-    "nose"
-   ],
-   "ellipse": [
-    1068,
-    585,
-    178,
-    215
+    "nose",
+    "brow_L",
+    "brow_R"
    ],
    "clip": [
     860,
     380,
     1280,
     792
+   ],
+   "within": [
+    "eye_L",
+    "eye_R",
+    "mouth",
+    "nose",
+    "brow_L",
+    "brow_R"
    ],
    "flat": [
     1000,
@@ -34,18 +36,7 @@
      "mouth",
      "nose"
     ]
-   },
-   "within": [
-    "hair_front",
-    "hair_side_L",
-    "hair_side_R",
-    "eye_L",
-    "eye_R",
-    "mouth",
-    "nose",
-    "brow_L",
-    "brow_R"
-   ]
+   }
   },
   "arm_L": {
    "hull": [
@@ -151,6 +142,19 @@
     1450,
     560
    ]
+  },
+  "neck": {
+   "hull": [
+    "collar",
+    "chest",
+    "face"
+   ],
+   "clip": [
+    975,
+    600,
+    1155,
+    975
+   ]
   }
  },
  "plates": {
@@ -159,7 +163,11 @@
     "hair_front",
     "hair_side_L",
     "hair_side_R",
-    "face"
+    "face",
+    "bun_L",
+    "bun_R",
+    "ahoge",
+    "neck"
    ],
    "grow": -3,
    "colour": "shadow",
@@ -192,35 +200,6 @@
  },
  "bleed": 3,
  "aa": 0.8,
- "tubes": {
-  "neck": {
-   "left": [
-    [
-     1003,
-     620
-    ],
-    [
-     1003,
-     790
-    ]
-   ],
-   "right": [
-    [
-     1130,
-     620
-    ],
-    [
-     1130,
-     790
-    ]
-   ],
-   "fill": [
-    1065,
-    840
-   ],
-   "line": 7
-  }
- },
  "crossfill": {
   "targets": [
    "collar",
@@ -236,8 +215,7 @@
     "views/layers_left/labels.png",
     "views/layers_left/labels.json",
     [
-     "yoke",
-     "body"
+     "upper"
     ]
    ],
    [
@@ -245,8 +223,7 @@
     "views/layers_right/labels.png",
     "views/layers_right/labels.json",
     [
-     "yoke",
-     "body"
+     "upper"
     ]
    ],
    [
@@ -254,8 +231,7 @@
     "views/layers_hleft/labels.png",
     "views/layers_hleft/labels.json",
     [
-     "yoke",
-     "body"
+     "upper"
     ]
    ],
    [
@@ -263,11 +239,42 @@
     "views/layers_hright/labels.png",
     "views/layers_hright/labels.json",
     [
-     "yoke",
-     "body"
+     "upper"
     ]
    ]
   ],
   "reach": 160
+ },
+ "fromimg": {
+  "base": "base.png",
+  "img": "under/tied_al.png",
+  "labels": "under/layers",
+  "exclude": [
+   "eye_L",
+   "eye_R",
+   "mouth",
+   "nose",
+   "brow_L",
+   "brow_R"
+  ],
+  "map": {
+   "face": [
+    "face",
+    "ear_L",
+    "ear_R"
+   ],
+   "neck": [
+    "neck"
+   ],
+   "collar": [
+    "collar"
+   ],
+   "sleeve_L": [
+    "sleeve_L"
+   ],
+   "sleeve_R": [
+    "sleeve_R"
+   ]
+  }
  }
 }

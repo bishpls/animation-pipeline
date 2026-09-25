@@ -119,9 +119,10 @@ const RIG = (() => {
           list.push(byName[l.name]); used.add(l.name);
         }
       }
-      if (byName.neck) { const i = list.findIndex(l => l.name === 'collar' && !l.view); list.splice(i, 0, byName.neck); used.add('neck'); }   // the view's neck, under the collar
-      for (const [n, where] of Object.entries(v.V.insert || {})) {        // e.g. the yoke: the view's own collar, blended over the body
-        if (!byName[n]) continue; const [, ref] = where.split(':'); const i = list.findIndex(l => l.name === ref && !l.view);
+      // explicit placements [[layer, 'after:ref'], ...]: ref is found among view layers first, then base layers
+      for (const [n, where] of (Array.isArray(v.V.insert) ? v.V.insert : Object.entries(v.V.insert || {}))) {
+        if (!byName[n]) continue; const ref = where.split(':')[1];
+        let i = list.findIndex(l => l.name === ref && l.view); if (i < 0) i = list.findIndex(l => l.name === ref);
         list.splice(i + 1, 0, byName[n]); used.add(n);
       }
       for (const n of vorder) if (!used.has(n)) list.splice(list.indexOf(byName['hair_front']) >= 0 ? list.indexOf(byName['hair_front']) : list.length, 0, byName[n]);
@@ -137,16 +138,20 @@ const RIG = (() => {
     const R = rig.R, H = l.view ? { ...R.head, ...R.views[l.view].head } : R.head, B = R.body || {}, rest = l.m.rest, name = l.name;
     const nx = clamp(p.angleX || 0, -1, 1), ny = clamp(p.angleY || 0, -1, 1);
     const breath = p.breath !== undefined ? p.breath : .5 + .5 * Math.sin(p._t * 2 * Math.PI / 3.6);
-    const viewNeck = l.view && (H.neckLayers || []).includes(name);
-    const inHead = l.view ? !viewNeck : rig.head.has(name), inUpper = inHead || viewNeck || rig.upper.has(name) || rig.armOf[name];
-    const sw = R.sway && R.sway[name], arm = rig.armOf[name] ? R.arms[rig.armOf[name]] : null;
+    const viewNeck = l.view && (H.neckLayers || []).includes(name), viewBody = l.view && (R.views[l.view].bodyLayers || []).includes(name);
+    const inHead = l.view ? !viewNeck && !viewBody : rig.head.has(name), inUpper = inHead || viewNeck || viewBody || rig.upper.has(name) || rig.armOf[name];
+    const fo = R.follow && R.follow[name];               // e.g. the back-hair plate moves exactly like the side hair in front of it
+    const arm = rig.armOf[name] ? R.arms[rig.armOf[name]] : null;
     let dep = H && H.depth && H.depth[name] !== undefined ? H.depth[name] : 0;
     const rigid = H && H.rigid && H.rigid[name], neckL = (H.neckLayers || []).includes(name) && !inHead;
     for (let k = 0; k < rest.length; k += 2) {
       let x = rest[k], y = rest[k + 1];
+      const as = fo ? (x < (H.center ? H.center[0] : fo.split) ? fo.left : fo.right) : name, sw = R.sway && R.sway[as];
+      // hair resting on the shoulders is skinned to the body: 1 above the jaw line, falling to wmin at the tips
+      const hg = inHead && H.hang && H.hang[as], hfv = hg ? 1 - (1 - hg[2]) * clamp((y - hg[0]) / (hg[1] - hg[0]), 0, 1) : 1;
       // 1. secondary motion (a bend that grows from the root)
       if (sw) {
-        const f = clamp((y - sw.root) / sw.len, 0, 1.2), amt = (sp[sw.spring] || 0) * (sw.amp || 1);
+        const f = clamp((y - sw.root) / sw.len, 0, 1.2) * (hg ? hfv : 1), amt = (sp[sw.spring] || 0) * (sw.amp || 1);
         if (sw.axis === 'rot') [x, y] = rot(x, y, sw.pivot[0], sw.pivot[1], amt * f);
         else if (sw.axis === 'y') y += amt * f * f; else x += amt * f * f;
       }
@@ -154,22 +159,22 @@ const RIG = (() => {
       // face outline 0.3-0.5 (less at its edges, so the far cheek compresses), front hair ~0.5, back hair 0 or opposite.
       // Rigid features (eyes, nose, mouth) move as a unit, from their centre. The tilt is split: part pivots at the chin, the
       // rest bends the neck (the head rides the neck's top along an arc).
+      // 3. neck layers are SKINNED: each point blends between the head's motion (as face outline) and the body's by height,
+      // 1 at the jaw line, 0 at the neck base, so the neck can never separate from either end.
       const nb = B.neckBend ?? .4, az = p.angleZ || 0;
-      if (inHead) {
-        const px = rigid ? rigid[0] : x, py = rigid ? rigid[1] : y, u = clamp(Math.abs(px - H.center[0]) / H.radius[0], 0, 1);
-        const kk = (K, fb) => { const k = K && K[name] !== undefined ? K[name] : fb; return Array.isArray(k) ? k[0] + (k[1] - k[0]) * u : k; };
+      const headMove = (qx, qy, nm, rg, hang) => {
+        const px = rg ? rg[0] : qx, py = rg ? rg[1] : qy, u = clamp(Math.abs(px - H.center[0]) / H.radius[0], 0, 1);
+        const kk = (K, fb) => { const k = K && K[nm] !== undefined ? K[nm] : fb; return Array.isArray(k) ? k[0] + (k[1] - k[0]) * u : k; };
         const kx = kk(H.kx, .4), ky = kk(H.ky, kx);
-        // hanging hair: below the jaw, the head's tilt and nod carry it less and less (gravity keeps the tips down)
-        const hf = H.hang && H.hang[name] ? (([y0, y1, wmin]) => 1 - (1 - wmin) * clamp((py - y0) / (y1 - y0), 0, 1))(H.hang[name]) : 1;
-        x += H.D[0] * nx * kx; y -= H.D[1] * ny * ky * hf;
-        [x, y] = rot(x, y, H.pivot[0], H.pivot[1], az * (1 - nb) * hf);
-        [x, y] = rot(x, y, H.neckBase[0], H.neckBase[1], az * nb * hf);
-      }
-      // 3. the neck bends: its top follows part of the head's tilt and the chin's sideways travel; its base stays in the collar
-      if (neckL) {
-        const w = clamp((H.neckBase[1] - y) / (H.neckBase[1] - H.chin[1]), 0, 1.3);
-        [x, y] = rot(x, y, H.neckBase[0], H.neckBase[1], az * nb * w);
-        x += H.D[0] * nx * .4 * w;
+        const hf = hang && H.hang && H.hang[nm] ? (([y0, y1, wmin]) => 1 - (1 - wmin) * clamp((py - y0) / (y1 - y0), 0, 1))(H.hang[nm]) : 1;
+        let X2 = qx + H.D[0] * nx * kx * hf, Y2 = qy - H.D[1] * ny * ky * hf;
+        [X2, Y2] = rot(X2, Y2, H.pivot[0], H.pivot[1], az * (1 - nb) * hf);
+        return rot(X2, Y2, H.neckBase[0], H.neckBase[1], az * nb * hf);
+      };
+      if (inHead) [x, y] = headMove(x, y, as, rigid, true);
+      else if (neckL) {
+        const w0 = clamp((H.neckBase[1] - y) / (H.neckBase[1] - H.chin[1]), 0, 1), w = w0 * w0 * (3 - 2 * w0);    // smoothstep
+        if (w > 0) { const [hx, hy] = headMove(x, y, 'face', null, false); x += (hx - x) * w; y += (hy - y) * w; }
       }
       // 4. arms at the shoulder (the sleeve follows part of the way)
       if (arm) { const a = (rig.armOf[name] === 'L' ? 1 : -1) * (p['arm' + rig.armOf[name]] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a); }
@@ -181,7 +186,7 @@ const RIG = (() => {
         const F = B.field, bx = p._bx || 0;
         const fx = (qx, qy) => { const kx0 = F.kc - (F.kc - F.ke) * Math.pow(clamp(Math.abs(qx - F.cx) / F.rx, 0, 1), 1.5);
                                   return kx0 * clamp((B.hip[1] - qy) / (B.hip[1] - B.waist[1]), 0, 1) ** .7; };
-        const kf = inHead ? fx(H.neckBase[0], H.neckBase[1]) : fx(rest[k], rest[k + 1]) + ((B.lead || {})[name] || 0);
+        const kf = inHead ? fx(H.neckBase[0], H.neckBase[1]) * hfv + fx(rest[k], rest[k + 1]) * (1 - hfv) : fx(rest[k], rest[k + 1]) + ((B.lead || {})[name] || 0);
         x += B.D * bx * kf;
       }
       // 6. breath: the upper body stretches a little above the waist; everything above rides along
@@ -228,12 +233,14 @@ const RIG = (() => {
     // coupling (every shot gets it): a head turn brings the torso a quarter of the way, a tilt brings a little shoulder tilt
     const C = rig.R.couple || {}, vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
     const Pt = tt => { const q = { ...P(tt), _t: tt }; const turn = (vang(q) + (q.angleX || 0) * 30) / 35;
-      q._bx = (q.bodyX || 0) + (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + (C.tilt ?? .25) * (q.angleZ || 0); return q; };
+      const cp = q.nocouple ? 0 : 1;
+      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0); return q; };
     const p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
     const VV = rig.variants[p.view || 'F'] || {};
     const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth : null;
     for (const l0 of (rig.lists[p.view || 'F'] || rig.layers)) {
+      if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
       const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
       drawMesh(l, pos, TT, l.tex);

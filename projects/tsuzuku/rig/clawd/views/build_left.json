@@ -118,7 +118,11 @@
     "hair_front",
     "hair_side_L",
     "hair_side_R",
-    "face"
+    "face",
+    "bun_L",
+    "bun_R",
+    "ahoge",
+    "neck"
    ],
    "grow": -3,
    "colour": "shadow",
@@ -145,12 +149,6 @@
    "toward": [
     "face",
     "nose"
-   ]
-  },
-  "yoke": {
-   "px": 30,
-   "from": [
-    "body"
    ]
   }
  },

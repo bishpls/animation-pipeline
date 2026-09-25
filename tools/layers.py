@@ -84,6 +84,23 @@ def main(base, spec, seg, out):
             if c == main or sz[c - 1] > S.get('min_frag', 600): continue
             m = lab == c; ring = ndi.binary_dilation(m, iterations=2) & ~m; nb = L[ring]; nb = nb[(nb != k) & (nb != 0)]
             if len(nb): L[m] = np.bincount(nb).argmax()
+    # diff rule (for registered alternate drawings, e.g. head views): a cell labelled as body that differs from the reference
+    # drawing's body at the same place (or where the reference has no body) is really something else (hair resting on the
+    # shoulder, the same orange as the sleeves) and goes to the named part by side
+    DR = S.get('diff')
+    if DR:
+        ref = np.array(Image.open(DR['ref']).convert('RGBA')).astype(float); rl = np.array(Image.open(os.path.join(DR['ref_labels'], 'labels.png')))
+        ro = json.load(open(os.path.join(DR['ref_labels'], 'labels.json')))['order']; body = np.isin(rl, [ro.index(n) + 1 for n in DR['ref_body'] if n in ro])
+        dif = (np.abs(ref[:, :, :3] - B[:, :, :3].astype(float)).max(2) > DR.get('thresh', 45)) | ~body
+        fr_ids = [idx[n] for n in DR['from'] if n in idx]
+        for c in np.unique(cells[np.isin(L, fr_ids)]):
+            if not c: continue
+            m = cells == c
+            if 'box' in DR:
+                x0, y0, x1, y1 = DR['box']; yy, xx = np.argwhere(m).mean(0)
+                if not (x0 <= xx <= x1 and y0 <= yy <= y1): continue
+            if dif[m].mean() > DR.get('frac', .5):
+                cx = np.argwhere(m)[:, 1].mean(); L[m] = idx[DR['left'] if cx < DR['split'] else DR['right']]
     # colour rules: a part keeps only cells whose mean colour is in range; the rest go to another part
     for n, (lo, hi, other) in S.get('colour', {}).items():
         for c in np.unique(cells[L == idx[n]]):
@@ -95,6 +112,7 @@ def main(base, spec, seg, out):
         L[stray & ~keep] = idx[other]
     # claims: a part takes pixels near its SAM mask from named neighbours (e.g. the face takes its jawline back from the neck)
     for n, cl in S.get('claim', {}).items():
+        n = cl.get('as', n.rstrip('0123456789') if n not in idx else n)   # 'neck2' = a second claim for 'neck'
         if 'ellipse' in cl:                        # a patch: e.g. an eye with the skin around it, swapped as a unit
             cx, cy, rx, ry = cl['ellipse']; yy, xx = np.mgrid[:L.shape[0], :L.shape[1]]; zone = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2 <= 1
         elif 'poly' in cl:                          # whole cells by majority, so the cut follows drawn lines (e.g. the jaw)

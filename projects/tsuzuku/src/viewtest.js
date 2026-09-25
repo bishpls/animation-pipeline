@@ -11,3 +11,10 @@ LOOPS.views = t => {
   RIGS.clawd.draw(X, 0, () => ({ view: v }), { x: 960, y: 540 + (3700 - 700) * 1.25, s: 1.25 });
 };
 LOOPS.views.len = 10;
+// (check) one view at rest at base scale 0.5 on a flat background, to diff against its aligned source drawing
+LOOPS.viewrest = t => {
+  X.fillStyle = '#1e1c32'; X.fillRect(0, 0, W, H);
+  const v = ['F', 'L', 'R', 'HL', 'HR'][Math.min(4, Math.floor(t))];
+  RIGS.clawd.draw(X, 0, () => ({ view: v, breath: 0, nocouple: 1 }), { x: 960, y: 1800, s: .5 });
+};
+LOOPS.viewrest.len = 5;

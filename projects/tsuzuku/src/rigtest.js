@@ -53,3 +53,12 @@
   };
   LOOPS.rig.len = b(8);
 }
+// the same test on magenta: tools/holes.py finds enclosed background (holes) frame by frame
+LOOPS.rigmag = t => { window.DEBUG_BG = '#ff00ff'; LOOPS.rig(t); window.DEBUG_BG = null; };
+LOOPS.rigmag.len = LOOPS.rig.len;
+// (debug) the same frame four times, each with one layer set hidden: LOOPS.hidetest
+LOOPS.hidetest = t => {
+  const sets = [[], ['hair_back'], ['hair_side_L'], ['hair_side_R']], k = Math.min(3, Math.floor(t));
+  window.RIG_HIDE = sets[k]; window.DEBUG_BG = '#ff00ff'; LOOPS.rig(201 / 24); window.RIG_HIDE = null; window.DEBUG_BG = null;
+};
+LOOPS.hidetest.len = 4;

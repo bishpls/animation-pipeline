@@ -74,23 +74,23 @@
    ],
    "hair_front": [
     0.55,
-    0.38
+    0.2
    ],
    "pin_star": [
-    0.42,
-    0.18
+    0.55,
+    0.2
    ],
    "pin_crab": [
-    0.42,
-    0.18
+    0.55,
+    0.2
    ],
    "hair_side_L": [
-    0.42,
-    0.18
+    0.55,
+    0.2
    ],
    "hair_side_R": [
-    0.42,
-    0.18
+    0.55,
+    0.2
    ],
    "ahoge": 0.3,
    "bun_L": -0.06,
@@ -108,11 +108,11 @@
     0.4,
     0.3
    ],
-   "hair_front": 0.45,
-   "pin_star": 0.3,
-   "pin_crab": 0.3,
-   "hair_side_L": 0.3,
-   "hair_side_R": 0.3,
+   "hair_front": 0.42,
+   "pin_star": 0.4,
+   "pin_crab": 0.4,
+   "hair_side_L": 0.35,
+   "hair_side_R": 0.35,
    "ahoge": 0.2,
    "bun_L": 0.05,
    "bun_R": 0.05,
@@ -124,19 +124,19 @@
   ],
   "hang": {
    "hair_side_L": [
-    720,
-    900,
-    0.3
+    760,
+    885,
+    0
    ],
    "hair_side_R": [
-    720,
-    900,
-    0.3
+    760,
+    885,
+    0
    ],
    "hair_back": [
-    720,
-    900,
-    0.3
+    760,
+    885,
+    0
    ]
   },
   "neckBase": [
@@ -274,6 +274,12 @@
    "len": 600,
    "spring": "skirt",
    "amp": 4.5
+  },
+  "hair_front": {
+   "root": 430,
+   "len": 440,
+   "spring": "hair",
+   "amp": 2.6
   }
  },
  "springs": {
@@ -340,7 +346,6 @@
      ]
     },
     "neckLayers": [
-     "yoke",
      "neck"
     ],
     "D": [
@@ -368,13 +373,29 @@
     "w": 120,
     "h": 80
    },
-   "insert": {
-    "yoke": "after:collar"
-   },
+   "insert": [
+    [
+     "neck",
+     "after:waistband"
+    ],
+    [
+     "upper",
+     "after:neck"
+    ]
+   ],
    "variants": "views/left/variants.json",
    "angle": -35,
    "hide": [
-    "neck"
+    "neck",
+    "chest",
+    "collar",
+    "bow",
+    "bodice",
+    "sleeve_L",
+    "sleeve_R"
+   ],
+   "bodyLayers": [
+    "upper"
    ]
   },
   "R": {
@@ -399,7 +420,6 @@
      ]
     },
     "neckLayers": [
-     "yoke",
      "neck"
     ],
     "D": [
@@ -427,21 +447,44 @@
     "w": 120,
     "h": 80
    },
-   "insert": {
-    "yoke": "after:collar"
-   },
+   "insert": [
+    [
+     "neck",
+     "after:waistband"
+    ],
+    [
+     "upper",
+     "after:neck"
+    ]
+   ],
    "variants": "views/right/variants.json",
    "angle": 35,
    "hide": [
-    "neck"
+    "neck",
+    "chest",
+    "collar",
+    "bow",
+    "bodice",
+    "sleeve_L",
+    "sleeve_R"
+   ],
+   "bodyLayers": [
+    "upper"
    ]
   },
   "HL": {
    "manifest": "views/hleft/manifest.json",
    "variants": "views/hleft/variants.json",
-   "insert": {
-    "yoke": "after:collar"
-   },
+   "insert": [
+    [
+     "neck",
+     "after:waistband"
+    ],
+    [
+     "upper",
+     "after:neck"
+    ]
+   ],
    "head": {
     "D": [
      60,
@@ -456,7 +499,6 @@
      738
     ],
     "neckLayers": [
-     "yoke",
      "neck"
     ],
     "rigid": {
@@ -492,15 +534,31 @@
    },
    "angle": -20,
    "hide": [
-    "neck"
+    "neck",
+    "chest",
+    "collar",
+    "bow",
+    "bodice",
+    "sleeve_L",
+    "sleeve_R"
+   ],
+   "bodyLayers": [
+    "upper"
    ]
   },
   "HR": {
    "manifest": "views/hright/manifest.json",
    "variants": "views/hright/variants.json",
-   "insert": {
-    "yoke": "after:collar"
-   },
+   "insert": [
+    [
+     "neck",
+     "after:waistband"
+    ],
+    [
+     "upper",
+     "after:neck"
+    ]
+   ],
    "head": {
     "D": [
      60,
@@ -515,7 +573,6 @@
      738
     ],
     "neckLayers": [
-     "yoke",
      "neck"
     ],
     "rigid": {
@@ -551,7 +608,16 @@
    },
    "angle": 20,
    "hide": [
-    "neck"
+    "neck",
+    "chest",
+    "collar",
+    "bow",
+    "bodice",
+    "sleeve_L",
+    "sleeve_R"
+   ],
+   "bodyLayers": [
+    "upper"
    ]
   }
  },
@@ -559,5 +625,12 @@
  "couple": {
   "turn": 0.25,
   "tilt": 0.25
+ },
+ "follow": {
+  "hair_back": {
+   "left": "hair_side_L",
+   "right": "hair_side_R",
+   "split": 1065
+  }
  }
 }
