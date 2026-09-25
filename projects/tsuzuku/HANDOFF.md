@@ -21,7 +21,8 @@ The paper-world loops are all on the song clock (`LOOPS.<name>`, t = 0 at the ti
 Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131–176.5).
 
 ## The seams
-1. **X8 → K1 (≈ 60.1 – 61.0).** On "Says" (60.08) the book's card tears just behind Clawd's paper puppet (theatre x ≈ 1220);
+1. **X8 → K1 (≈ 60.1 – 61.0).** On "Says" (60.08) the book's card (pulled most of the way out since "Every time.") tears in
+   what's left of it in the window, right beside Clawd's paper puppet (theatre x ≈ 1540);
    the halves part over 10 drawings and stage light (white core, pink `rgba(255,120,190)` and cyan `rgba(90,220,255)` fringes)
    floods through, washing the paper world white by ≈ 60.9. Fable (seated, left) and Clawd's paper puppet stay silhouettes.
    BEATS K1 wants "through the torn paper, Clawd's stage powers up": the cleanest join is for K1 to open on the white and
