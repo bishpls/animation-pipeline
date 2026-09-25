@@ -126,6 +126,7 @@ def main(ldir, spec, out):
             x0, y0, x1, y1 = sp['flat']; sm = L[n][y0:y1, x0:x1]; col = np.median(sm[sm[:, :, 3] > 200][:, :3], 0)
             F = sp.get('flat_zone'); fz = region(F, L, shape) & hole if F else np.zeros(shape, bool)
             L[n] = fill_from(L[n], hole & ~fz); L[n][fz, :3] = col.astype(np.uint8); L[n][fz, 3] = 255
+            hole = hole & ~fz            # flat skin under the eye/mouth patches matches their own skin edges: not counted as invented
         else: L[n] = fill_from(L[n], hole)
         review |= hole; inv[n] |= hole
         print(f'  under {n:12s} +{hole.sum():8d} px')
@@ -157,7 +158,12 @@ def main(ldir, spec, out):
             d0 = os.path.dirname(spec)             # plate extends to all of it (the build then hides whatever would show at rest)
             V = load(os.path.join(d0, sp['img'])); M = (np.array(Image.open(os.path.join(d0, sp['mask']))) > 127) & (V[:, :, 3] > 200)
             P[M] = V[M]; P[M, 3] = 255; inv[n][M] = False; Z |= M
-            print(f'  plate {n:12s} drawn from {sp["img"]}: {M.sum()} px')
+            rest = Z & ~M                          # the rest of the plate: nearest drawn hair pixel, softened (texture continues)
+            if rest.any() and M.any():
+                _, (iy, ix) = ndi.distance_transform_edt(~M, return_indices=True); ext = V[iy, ix, :3].astype(float)
+                ext = np.stack([ndi.gaussian_filter(ext[:, :, c], 2.5) for c in range(3)], -1)
+                P[rest, :3] = ext[rest].clip(0, 255).astype(np.uint8)
+            print(f'  plate {n:12s} drawn from {sp["img"]}: {M.sum()} px (+{rest.sum()} extended)')
         L[n] = P; i = order.index(sp['behind']) + 1 if sp.get('behind') in order else len(order); order.insert(i, n)
         print(f'  plate {n:12s} {Z.sum():8d} px  colour {col.astype(int).tolist()}')
     # invariant: every filled pixel must be hidden at rest by an opaque drawn layer in front of it, so the rig at rest is exactly

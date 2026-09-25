@@ -9,20 +9,6 @@
     "brow_L",
     "brow_R"
    ],
-   "clip": [
-    860,
-    380,
-    1280,
-    792
-   ],
-   "within": [
-    "eye_L",
-    "eye_R",
-    "mouth",
-    "nose",
-    "brow_L",
-    "brow_R"
-   ],
    "flat": [
     1000,
     630,

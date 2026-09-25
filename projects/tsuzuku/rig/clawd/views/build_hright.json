@@ -6,18 +6,6 @@
     "eye_R",
     "mouth"
    ],
-   "ellipse": [
-    1140,
-    640,
-    178,
-    215
-   ],
-   "clip": [
-    910,
-    380,
-    1370,
-    800
-   ],
    "flat": [
     1115,
     698,
@@ -62,17 +50,6 @@
       1000
      ]
     ]
-   ],
-   "within": [
-    "hair_front",
-    "hair_side_L",
-    "hair_side_R",
-    "eye_L",
-    "eye_R",
-    "mouth",
-    "nose",
-    "brow_L",
-    "brow_R"
    ]
   },
   "hair_front": {
