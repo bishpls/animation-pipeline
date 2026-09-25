@@ -8,8 +8,9 @@
 {
   const S0 = 131.0, CLACK = 131.29, FLOOR = 962, f = 1 / 12;
   const w = n => ((window.WORDS || []).find(x => x.t0 > 131 && x.t0 < 157 && x.w.toLowerCase().startsWith(n)) || {}).t0;   // a word's onset
-  // the strikes, one per line of the monologue, in the breath after it: [key, start, direction]
-  const STRIKES = [['far', 134.9, 1], ['rocksL', 148.85, -1], ['rocksR', 148.85, 1], ['pine', 150.92, 1], ['ground', 154.25, 1]];
+  // the strikes, one per line of the monologue, in the breath after it, on its last four lines (Michael: keep the shore in shot
+  // through the gallery, then strike it in close succession toward the end): [key, start, direction]
+  const STRIKES = [['far', 148.85, 1], ['rocksL', 150.92, -1], ['rocksR', 150.92, 1], ['pine', 154.25, 1], ['ground', 155.62, 1]];
   const PULLU = [.015, .06, .16, .32, .55, .82, 1];                    // a tug, then the slide, accelerating (drawings)
   const pulled = (ts, t0) => ts < t0 ? 0 : PULLU[Math.min(PULLU.length - 1, Math.floor((ts - t0) * 12 + 1e-6))];
   const HOT = [[0, '#FFF7E6'], [.3, '#FDE6B8'], [.7, '#EDB878'], [1, '#93643A']];

@@ -129,13 +129,14 @@ function butai(t, o = {}) {
 // Each word appears as the type is pressed (a tiny scale-in + deboss + ink spreading). Horizontal (caslon) or vertical (mincho).
 function press(str, x, y, t, t0, o = {}) {
   if (t < t0) return;
-  const a = t - t0, sq = a < .06 ? 1.04 - a * .6 : 1, ink = clamp(.55 + a * 3, 0, 1);
+  const a = t - t0, sq = a < .06 ? 1.04 - a * .6 : 1, ink = o.wet ? 1 - .16 * clamp(a / .5, 0, 1) : clamp(.55 + a * 3, 0, 1);   // wet: pressed dark, settling lighter
   const L = shape(str, { font: o.font || 'caslon', size: o.size || 58, wght: o.wght || 500 });
   const x0 = o.align === 'center' ? x - L.width / 2 : o.align === 'right' ? x - L.width : x;
   X.save(); X.translate(x0 + L.width / 2, y); X.scale(sq, sq); X.translate(-(x0 + L.width / 2), -y);
   const draw = (dx, dy, col) => { X.fillStyle = col; for (const g of L.glyphs) if (g.ch !== ' ') X.fill(glyphPath(g, x0 + g.x + dx, y + g.y + dy)); };
-  draw(-1, -1.2, 'rgba(255,248,230,.55)');                // the deboss: lit upper-left rim
-  draw(1, 1.2, 'rgba(60,40,20,.35)');                     // shadowed lower-right rim
+  if (o.hairline) draw(.6, .7, 'rgba(60,40,20,.28)');     // letterpress: a hairline shadow on one side (Fable), not a bevel
+  else { draw(-1, -1.2, 'rgba(255,248,230,.55)');          // the deboss: lit upper-left rim
+    draw(1, 1.2, 'rgba(60,40,20,.35)'); }                 // shadowed lower-right rim
   X.globalAlpha = ink; draw(0, 0, o.col || FP.sumi);
   X.restore();
   return L.width;

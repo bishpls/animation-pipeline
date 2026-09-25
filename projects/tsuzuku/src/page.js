@@ -4,12 +4,13 @@
 // change the whole strip is pulled out and a fresh one slides in, with its edge and shadow. Fable's words in sumi, Clawd's
 // in her orange, the crowd's in Ai. Margin notes press into the vellum's left edge in the lighter ink (the earlier printing,
 // Caslon italic); the Japanese runs vertically, Mincho, at the vellum's right edge.
-const PAGE = { rect: [150, 972, 1620, 98], size: 56, margin: 64, gap: 110, base: 1038 };
-// sections: each its own strip (paper world only): the telling (the doors open to "Says who?") and the bridge
-const PAGE_SECTIONS = [{ t0: 8.9, t1: 60.2, in: 12.5 }, { t0: 131.2, t1: 176.6, in: 131.29 }];
-const PAGE_INK = { fable: 'rgb(34,28,26)', clawd: 'rgb(176,74,30)', crowd: 'rgb(30,72,104)' };
+const PAGE = { rect: [150, 976, 1620, 84], size: 36, margin: 64, gap: 110, base: 1028 };   // (Fable: a text block, not a subtitle bar; a whole line fits)
+// the telling's strip (the doors open to "Says who?"). The bridge prints nothing (Fable: "me off-book; no printed words until
+// the build"): the telling's strip stands there as the paper theatre returns and is the first thing struck, on the clack.
+const PAGE_SECTIONS = [{ t0: 8.9, t1: 61.4, in: 12.5 }], PAGE_STRIKE = { t0: 131.0, clack: 131.29 };
+const PAGE_INK = 'rgb(30,24,22)';                                  // sumi for every line: Clawd's are quoted, in quotation marks (Fable)
 const PAGE_JA = [                                                  // [t0, text]: the Japanese, vertical, at the vellum's right edge
-  [9.33, 'むかし、むかし'], [11.44, 'あるところに'], [50.9, 'それから？'], [168.62, 'むかしむかし'], [175.06, 'それから？']];
+  [9.33, 'むかし、むかし'], [11.44, 'あるところに'], [50.9, 'それから？']];   // (the crowd's call is carried here, not on the strip)
 const PAGE_NOTES = [                                               // margin notes (verse 1), pressed one per beat, lighter ink
   [28.23, 'I know this part.'], [28.93, "I've read it in forty tongues."], [29.64, 'Every telling ends on the same page.'],
   [30.34, 'Nobody ever shows.'], [31.05, 'Nobody ever can.']];
@@ -19,15 +20,16 @@ function pageLayout() {                                            // lines from
   const f = 1 / 12, sp = shape(' ', { font: 'caslon', size: PAGE.size }).width || PAGE.size * .28;
   const visR = PAGE.rect[2] - PAGE.margin;                         // the press can't reach past this (strip px)
   return PAGE_SECTIONS.map(S => {
-    const ws = (window.WORDS || []).filter(w => w.t0 >= S.t0 && w.t0 < S.t1).sort((a, b) => a.t0 - b.t0);
-    const words = []; let x = PAGE.margin, prev = null, moves = [], off = 0;
-    for (const w of ws) {
-      const who = w.who || 'fable', str = w.w.replace(/…/g, '...'), width = shape(str, { font: 'caslon', size: PAGE.size }).width;
-      const newLine = !prev || who !== prev.who || w.t0 - prev.t1 > .45;
-      if (newLine && prev) { x += PAGE.gap; if (x - off > PAGE.margin) { off = x - PAGE.margin; moves.push([w.t0, off]); } }
-      if (x + width - off > visR) { off = x + width - visR + PAGE.size; moves.push([w.t0, off]); }   // a long line: the carriage moves on
-      words.push({ str, who, x, t0: w.t0 }); x += width + sp; prev = w;
-    }
+    const ws = (window.WORDS || []).filter(w => w.t0 >= S.t0 && w.t0 < S.t1 && w.who !== 'crowd').sort((a, b) => a.t0 - b.t0);
+    const lines = []; let prev = null;                                // lines: a change of speaker or a breath
+    for (const w of ws) { if (!prev || (w.who || 'fable') !== (prev.who || 'fable') || w.t0 - prev.t1 > .45) lines.push([]); lines[lines.length - 1].push(w); prev = w; }
+    const words = [], moves = []; let x = PAGE.margin;
+    lines.forEach((ln, li) => {
+      if (li) { x += PAGE.gap; moves.push([ln[0].t0, x - PAGE.margin]); }   // once per line (Fable): a page has lines, not a crawl
+      const q = ln[0].who === 'clawd';                                     // her lines quoted
+      ln.forEach((w, i) => { let str = w.w.replace(/…/g, '...'); if (q && i === 0) str = '\u201C' + str; if (q && i === ln.length - 1) str = str + '\u201D';
+        const width = shape(str, { font: 'caslon', size: PAGE.size }).width; words.push({ str, x, t0: w.t0 }); x += width + sp; });
+    });
     return { ...S, words, moves };
   });
 }
@@ -43,12 +45,15 @@ function pageScroll(L, ts) {                                        // the scrol
 // the strip: washi, lit from the screen side (brighter at its top edge and toward the lamp), a deckled top edge
 function pageStrip(ts) {
   if (!PAGE_LAYOUT) { if (!window.WORDS) return; PAGE_LAYOUT = pageLayout(); }
-  const L = PAGE_LAYOUT.find(S => ts >= S.t0 && ts < S.t1); if (!L) return;
-  const f = 1 / 12, [x, y, w, h] = PAGE.rect;
-  // sliding in at the section's start / out at its end: a card pulled sideways (6 drawings each way)
-  const din = Math.floor((ts - L.in) * 12 + 1e-6), dout = Math.floor((L.t1 - ts) * 12 + 1e-6);
-  const e = d => { const u = Math.min(1, Math.max(0, d / 6)); return u * u * (3 - 2 * u); };
-  const slide = ts < L.in ? -(w + 60) : din < 6 ? -(w + 60) * (1 - e(din)) : dout < 6 ? (w + 60) * (1 - e(dout)) : 0;
+  const f = 1 / 12, [x, y, w, h] = PAGE.rect, e = d => { const u = Math.min(1, Math.max(0, d / 6)); return u * u * (3 - 2 * u); };
+  let L = PAGE_LAYOUT.find(S => ts >= S.t0 && ts < S.t1), slide = 0, tp = ts;
+  if (!L && ts >= PAGE_STRIKE.t0 && ts < PAGE_STRIKE.clack + 1) {      // the bridge: the telling's strip as it was left, struck on the clack
+    L = PAGE_LAYOUT[0]; tp = L.t1 - .01; const d = Math.floor((ts - PAGE_STRIKE.clack) * 12 + 1e-6); if (d >= 6) return;
+    slide = ts < PAGE_STRIKE.clack ? 0 : (w + 60) * e(d + 1);
+  } else if (L) {                                                     // sliding in at the section's start / out at its end (6 drawings each way)
+    const din = Math.floor((ts - L.in) * 12 + 1e-6), dout = Math.floor((L.t1 - ts) * 12 + 1e-6);
+    slide = ts < L.in ? -(w + 60) : din < 6 ? -(w + 60) * (1 - e(din)) : dout < 6 ? (w + 60) * (1 - e(dout)) : 0;
+  } else return;
   X.save(); X.beginPath(); X.rect(x, y - 12, w, h + 30); X.clip(); X.translate(slide, 0);
   // its shadow on the ground plane behind it (it stands a little off the screen), then the paper
   X.fillStyle = 'rgba(0,0,0,.28)'; X.filter = 'blur(6px)'; X.fillRect(x + 8, y - 4, w, h); X.filter = 'none';
@@ -59,8 +64,8 @@ function pageStrip(ts) {
   const [lx] = SCREEN.lamp, rg = X.createRadialGradient(lx, y, 0, lx, y, w * .75); rg.addColorStop(0, 'rgb(255,250,240)'); rg.addColorStop(1, 'rgb(200,176,146)'); X.fillStyle = rg; X.fillRect(x, y - 6, w, h + 6);
   X.globalCompositeOperation = 'source-over';
   // the words, pressed as they are sung; the scroll carries them left
-  const off = pageScroll(L, ts);
-  for (const W0 of L.words) { const px = x + W0.x - off; if (ts < W0.t0 || px > x + w || px < x - 600) continue; press(W0.str, px, PAGE.base, ts, W0.t0, { size: PAGE.size, col: PAGE_INK[W0.who] || PAGE_INK.fable }); }
+  const off = pageScroll(L, tp);
+  for (const W0 of L.words) { const px = x + W0.x - off; if (tp < W0.t0 || px > x + w || px < x - 600) continue; press(W0.str, px, PAGE.base, tp, W0.t0, { size: PAGE.size, col: PAGE_INK, hairline: true, wet: true }); }
   X.restore();
   X.fillStyle = 'rgba(40,28,20,.55)'; X.fillRect(x, y - 1, w, 1.5);   // its top edge
   X.restore();
@@ -74,9 +79,9 @@ function inkVellum(str, x, y, ts, t0, o = {}) {
 }
 function pageVellum(ts) {
   // margin notes: the vellum's left edge, top down, one per beat (verse 1)
-  if (ts >= PAGE_NOTES[0][0] && ts < 60.2) PAGE_NOTES.forEach(([t0, s], i) => inkVellum(s, 176, 232 + i * 40, ts, t0, { size: 27 }));
+  if (ts >= PAGE_NOTES[0][0] && ts < 61.4) PAGE_NOTES.forEach(([t0, s], i) => inkVellum(s, 176, 232 + i * 40, ts, t0, { size: 27 }));
   // the Japanese: vertical at the right edge, the latest line only (it replaces the one before)
-  const cur = PAGE_JA.filter(([t0]) => ts >= t0 && (ts < 60.2 || t0 > 131)).pop(), gl = ts >= PAGE_GLOSS[0] && ts < 60.2;
+  const cur = PAGE_JA.filter(([t0]) => ts >= t0 && ts < 61.4).pop(), gl = ts >= PAGE_GLOSS[0] && ts < 61.4;
   // (in the shore scenes the right edge holds the pine above and the reeds below: the column sits in the clear between them)
   const top = ts > 131 ? 196 : 424;                                 // (in the bridge the pine is struck and Clawd's puppet leans lower right: the column rises)
   const vert = (s, x, t0, size) => { let yy = top; for (const ch of s) {

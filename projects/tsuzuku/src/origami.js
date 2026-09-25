@@ -33,6 +33,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
     const fpose = tt => { const p = { ...fable(Math.floor(tt * 12 + 1e-6) / 12), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; }, pf = fpose(ts), TF = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
     shadow(c => {
       seatedRibbon(c, fpose, TF, ts);
+      if (window.VERSE_SET) VERSE_SET(c, ts);                        // the mother and the line, where the telling set them
       FABLE.draw(c, pf, TF, { props: [fanProp(() => ['fan_closed', 'fan_closed', 1], ts)], rods: FABLE_RODS });
       ORIGAMI_DRAW(c, ts);
       if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
