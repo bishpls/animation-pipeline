@@ -14,6 +14,8 @@
   function keys() {
     const w = n => ((window.WORDS || []).find(x => x.t0 > 12 && x.t0 < 25 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {}).t0;
     const k = { time: w('time'), crab: w('crab'), mother: w('mother'), line: w('line'), walk: w('walk'), straight: w('straight'), why: w('why'), scuttle: w('scuttle') };
+    const w2 = n => ((window.WORDS || []).find(x => x.t0 > 25 && x.t0 < 29 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {}).t0;
+    k.row = ['straight', 'like', 'everybody', 'else', 'does'].map(w2);   // V3's steps: one per word
     k.release = k.crab + 2 * f; k.landed = k.release + 3 * f;         // the crab leaves the hand: one hop, three drawings
     k.sleeve = k.mother + 6 * f; k.fan2 = k.sleeve + 3 * f;           // a new fan from her sleeve
     k.set = k.line + 3 * f; k.laid = k.set + 2 * f;                   // the line lowered level to the floor, then run out
@@ -36,13 +38,26 @@
     if (!K) { if (!window.WORDS) return; keys(); }
     if (ts >= K.mother) {                                              // the mother hops in from the wing, stiff (no rock), and stands
       let [x, y] = hopX(MOTHER.from, MOTHER.x, K.mother, K.mother + 9 * f, ts, 16, 4);
-      if ((ts >= K.walk && ts < K.walk + 2 * f) || (ts >= K.straight && ts < K.straight + 2 * f)) y -= 10;   // "Walk straight," a stiff bob
+      for (const tb of [K.walk, K.straight]) { const d = Math.floor((ts - tb) * 12 + 1e-6); if (d >= 0 && d < 3) y -= [10, 20, 20][d]; }   // "Walk straight,": a rod lift, two drawings up, one held, drop
       PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(x, FLOOR + y).scale(MOTHER.sc));
     }
     if (ts >= K.laid) {                                                // the line on the ground, run out in three drawings
       const d = Math.min(3, Math.floor((ts - K.laid) * 12 + 1e-6)), L = 140 + (LINE.len - 140) * [0, .45, .8, 1][d];
       PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'line', 'line', 1), new DOMMatrix().translate(LINE.x0, FLOOR - 7).rotate(90).scale(.45, L / 700));   // a ruler lying on the ground, its ticks open to the light
     }
+  };
+  // V3, "Straight, like everybody else does." (Fable): three identical crabs at the screen step in lockstep, one plane nearer the
+  // lamp per word, larger, softer, greyer, until on "does." they are one tissue-grey mass, the tone of the far hills; then nothing.
+  // Placed so each shadow grows where it stands, feet on the floor. The little one stays at the screen, crisp and orange.
+  window.VERSE_ROW = ts => {
+    if (!K) { if (!window.WORDS) return; keys(); }
+    const R = K.row; if (ts < R[0] || ts >= R[4] + 2 * f) return;
+    let k = 0; for (let i = 0; i < R.length; i++) if (ts >= R[i]) k = i;
+    const DEP = [0, .15, .3, .46, .62], d = DEP[k], hop = Math.floor((ts - R[k]) * 12 + 1e-6) === 0 && k > 0 ? 8 : 0;   // each step a small lift, one drawing
+    const [lx, ly] = SCREEN.lamp, sp = 1 / (1 - d * .5);
+    shadow(c => { c.globalCompositeOperation = 'source-over';
+      for (const x of [852, 976, 1100]) PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(lx + (x - lx) / sp, ly + (FLOOR - hop - ly) / sp).scale(.21)); },   // (clear of her zabuton)
+      d, { penumbra: true, alpha: 1 - d * 1.05 });
   };
   function little(c, ts) {                                             // the little one: black paper until "why", then clay-orange
     if (ts < K.landed) return;
