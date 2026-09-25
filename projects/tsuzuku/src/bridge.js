@@ -75,4 +75,69 @@
     audience(ts, { y: H + 270 - 150 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
   };
   LOOPS.bridge.len = 156.2 - S0;
+
+  // ---- after the close-up: the bare hot vellum, nothing left of the shore but the rail -----------------------------------
+  function bare(ts, draw) {
+    X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
+    screen(ts, { stops: HOT, tex: .24, power: 1.12 });
+    shadow(c => {
+      c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10);
+      CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
+      draw(c);
+    }, 0);
+    X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
+  }
+  // B6 (159.53-161.0), the held note, "So I'm putting down the book": the fan opens and becomes the book, and she holds it in
+  // her lap, as B7 (the ink standing-up) finds her: seated with the book, still
+  {
+    const S0 = 159.53, CHEST = { forearm: 14, hand: -6, upperarm: 6 };
+    const fan = PUPPET.morphs([[0, 'fan_closed'], [S0 + 1 * f, 'fan_open'], [land(160.46), 'book']]);
+    const arm6 = PUPPET.snap([[0, LAP], [S0 + 1 * f, CHEST], [160.55, LAP]]), head6 = PUPPET.snap([[0, { head: 7 }], [S0 + 2 * f, { head: 3 }], [160.6, { head: 8 }]]);
+    const pose6 = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm6(q), ...head6(q), _ghost: {} }; p.hair = -p.head * .85; return p; };
+    LOOPS.bridgeB6 = t => {
+      const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
+      stage(ts, tt => bare(tt, c => { seatedRibbon(c, pose6, T, tt); FABLE.draw(c, pose6(tt), T, { props: [fanProp(fan, tt)], rods: FABLE_RODS }); }), { cam: CAM_WINDOW, doors: 1 });
+      audience(ts, { y: H + 270, lift: 120 });
+    };
+    LOOPS.bridgeB6.len = 161.0 - S0;
+  }
+  // B8-B9 (166.0 to the build, 176.47). She stands where she sat (the ink cut-in stood her up on the geta clack); the zabuton
+  // and the book stay on the rail. The held note ends as the camera pulls back to the wood: a frame to step through. "Mukashi
+  // mukashi was a long time ago. This is now.": she walks to the frame's edge, where Clawd's puppet leans, and stops. "Sorekara?":
+  // she steps out through it (her shadow goes where the screen ends).
+  {
+    const S0 = 166.0, S1 = 176.47, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
+    const TS = { x: 560, y: FLOOR, s: .22, origin: [1100, 3700] }, STRIDE = 148;
+    // her steps on her own 6/8 beat: seven to the edge beside Clawd's puppet (feet together on "now"); then on "Sorekara?"
+    // four quicker ones, half a beat each (the question quickens her), out through the frame by the build
+    const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
+    for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6 });
+    const b1 = Math.round((175.06 - NOTE) / BEAT); for (let i = 0; i < 4; i++) steps.push({ t: beat(b1) + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v' });
+    const walk = makeWalk(steps, STRIDE, BEAT);
+    // her hands don't know what to do yet: two small starts before the walk; she looks at Clawd's puppet as she arrives
+    const hands = PUPPET.snap([[0, { forearm: 0, hand: 0 }], [166.9, { forearm: -8, hand: 6 }], [167.6, { forearm: 3, hand: -2 }], [168.2, { forearm: 0, hand: 0 }]]);
+    const look = PUPPET.snap([[0, { head: -3 }], [168.4, { head: 0 }], [steps[6].t + BEAT, { head: 9 }], [175.0, { head: 0 }]]);
+    const poseS = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = walk(q), p = { ...w, ...hands(q), ...look(q), _ghost: {} };
+      p.upperarm = (w.upperarm || 0); p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
+    const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
+    const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
+    const BACK2 = 166.0, BACK2N = 20;                                 // the pull-back to the wood, in drawings, as the held note ends
+    LOOPS.bridgeB8 = t => {
+      const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
+      const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
+      stage(ts, tt => bare(tt, c => {
+        FABLE.draw(c, { _ghost: {} }, T, { hide: HIDE_SEATED });       // the zabuton, left where it was
+        PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(700, FLOOR).scale(.15));   // the book, set down
+        TAILS_S.forEach((tl, i) => {
+          const pts = PUPPET.stiff(FABLE_S, poseS, TS, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, tt);
+          c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';
+          c.fillStyle = 'rgba(38, 104, 205, .82)'; c.fill(P(PUPPET.strip(pts, tl.w * TS.s, .85, tl.w * .9 * TS.s)));
+        });
+        c.globalCompositeOperation = 'source-over';
+        FABLE_S.draw(c, poseS(tt), TS, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
+      }), { cam: camLerp(CAM_WINDOW, CAM_WIDE, ee), doors: 1 });
+      audience(ts, { y: H + 270 - 150 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
+    };
+    LOOPS.bridgeB8.len = S1 - S0;
+  }
 }
