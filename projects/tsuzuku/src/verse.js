@@ -41,6 +41,10 @@
       for (const tb of [K.walk, K.straight]) { const d = Math.floor((ts - tb) * 12 + 1e-6); if (d >= 0 && d < 3) y -= [10, 20, 20][d]; }   // "Walk straight,": a rod lift, two drawings up, one held, drop
       PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(x, FLOOR + y).scale(MOTHER.sc));
     }
+    VERSE_LINE(c, ts);
+  };
+  window.VERSE_LINE = (c, ts) => {                                     // the ruler alone (the exchange carries it on the book's card)
+    if (!K) { if (!window.WORDS) return; keys(); }
     if (ts >= K.laid) {                                                // the line on the ground, run out in three drawings
       const d = Math.min(3, Math.floor((ts - K.laid) * 12 + 1e-6)), L = 140 + (LINE.len - 140) * [0, .45, .8, 1][d];
       PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'line', 'line', 1), new DOMMatrix().translate(LINE.x0, FLOOR - 7).rotate(90).scale(.45, L / 700));   // a ruler lying on the ground, its ticks open to the light
