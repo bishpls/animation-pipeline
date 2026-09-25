@@ -6,20 +6,20 @@
   1392
  ],
  "out": "build",
- "feather": 12,
+ "feather": 16,
  "keep": "Keep EVERYTHING else exactly identical: the same face, hair, bangs, head angle, position and size in the frame, the same fine pen-and-ink linework and cross-hatching, the same flat indigo second colour, the same white paper. Only the eyes change. No new colours, no grey wash.",
  "patches": {
   "eye_L": [
-   1525,
+   1565,
    735,
-   300,
-   115
+   232,
+   112
   ],
   "eye_R": [
-   2240,
+   2190,
    772,
-   195,
-   100
+   132,
+   96
   ]
  },
  "variants": {

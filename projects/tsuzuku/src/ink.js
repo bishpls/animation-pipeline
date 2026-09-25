@@ -19,7 +19,8 @@ async function INK_INIT() {
       ip[p] = 22; ip[p + 1] = 94; ip[p + 2] = 131; ip[p + 3] = 255 * i * a;
     }
     const mk = D => { const cc = document.createElement('canvas'); cc.width = w; cc.height = h; cc.getContext('2d').putImageData(D, 0, 0); return cc; };
-    return { k: mk(K), i: mk(I), x: x0, y: y0, w, h };
+    const M = new ImageData(w, h); for (let p = 0; p < px.length; p += 4) { M.data[p] = M.data[p + 1] = M.data[p + 2] = 255; M.data[p + 3] = px[p + 3]; }
+    return { k: mk(K), i: mk(I), m: mk(M), x: x0, y: y0, w, h };                   // m: the patch's own footprint (feathered)
   };
   const card = async (dir, name, varFile) => {
     const base = plates(await load(`${dir}/${name}.png`)), V = {};
@@ -35,48 +36,59 @@ function inkPrint(C, o = {}) {
   const w = C.base.w, h = C.base.h;
   if (!INK._c || INK._c.width !== w) { INK._c = document.createElement('canvas'); INK._c.width = w; INK._c.height = h; }
   const g = INK._c.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-  g.fillStyle = '#EDE7DA'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#ECE9E1'; g.fillRect(0, 0, w, h);                              // washi, cool and grey (FABLE.md palette)
   // washi fibre, one tile stretched over the whole card (the 1024 px tile isn't seamless: no repeats inside a card)
   g.globalCompositeOperation = 'multiply'; g.globalAlpha = .22; g.drawImage(FIBRE, 0, 0, w, h); g.globalAlpha = 1;
   const plateSet = [C.base, ...((o.variant && C.V[o.variant]) || [])];
-  // a variant patch replaces what's under it: paper it over first, then print its plates
-  for (const P of plateSet.slice(1)) { g.globalCompositeOperation = 'source-over'; g.save(); g.globalCompositeOperation = 'destination-out'; g.drawImage(P.k, P.x, P.y); g.restore(); }
   const [mx, my] = o.misreg || [5, 3];                                            // master px (the card is printed large)
-  g.globalCompositeOperation = 'multiply';
-  for (const P of plateSet) g.drawImage(P.i, P.x + mx, P.y + my);
-  for (const P of plateSet) g.drawImage(P.k, P.x, P.y);
+  g.globalCompositeOperation = 'multiply'; g.drawImage(C.base.i, mx, my); g.drawImage(C.base.k, 0, 0);
+  // a variant patch REPLACES what's under it: fresh washi (fibre and all) through its footprint, then its own plates
+  for (const P of plateSet.slice(1)) {
+    if (!INK._p || INK._p.width < P.w || INK._p.height < P.h) { INK._p = document.createElement('canvas'); INK._p.width = Math.max(P.w, 64); INK._p.height = Math.max(P.h, 64); }
+    const q = INK._p.getContext('2d'); q.setTransform(1, 0, 0, 1, 0, 0); q.globalCompositeOperation = 'source-over'; q.globalAlpha = 1; q.clearRect(0, 0, INK._p.width, INK._p.height);
+    q.fillStyle = '#ECE9E1'; q.fillRect(0, 0, P.w, P.h);
+    q.globalCompositeOperation = 'multiply'; q.globalAlpha = .22; q.drawImage(FIBRE, -P.x, -P.y, w, h); q.globalAlpha = 1;
+    q.globalCompositeOperation = 'multiply'; q.drawImage(P.i, mx, my); q.drawImage(P.k, 0, 0);
+    q.globalCompositeOperation = 'destination-in'; q.drawImage(P.m, 0, 0);
+    g.globalCompositeOperation = 'source-over'; g.drawImage(INK._p, 0, 0, P.w, P.h, P.x, P.y, P.w, P.h);
+  }
+  for (const [x, y, r] of o.rivets || []) {                                      // brass pins, drawn in ink: a ring, a dot of highlight
+    g.globalCompositeOperation = 'source-over'; g.fillStyle = '#ECE9E1'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = 'rgb(22,22,26)'; g.lineWidth = r * .32; g.stroke();
+    g.fillStyle = 'rgb(22,22,26)'; g.beginPath(); g.arc(x + r * .18, y + r * .18, r * .32, 0, 7); g.fill();
+  }
   return INK._c;
 }
 {
   // B5, the bridge close-up (song 156.2-159.5): "...I didn't know this one." Held; the camera approaches the card (the grain
   // grows); on "I didn't" the paper bends back along a fold under her chin (the smallest head movement, as paper); after the
   // line, one blink (half, closed, half, on twos); the fold settles.
-  const S0 = 156.2, S1 = 159.53, LINE = 157.21, BLINK = 158.55;
-  const bend = s => { const u = Math.max(0, Math.min(1, (s - LINE) / .5)); return 7 * (u < 1 ? Math.sin(u * Math.PI / 2) : 1) * (s > BLINK + .6 ? Math.max(.4, 1 - (s - BLINK - .6) / 1.5) : 1); };   // degrees
+  const S0 = 156.2, S1 = 159.53, LINE = 157.21, BLINK = 158.55, TH = 7;
+  // the fold snaps in over two drawings (no ease), holds; after the blink it springs back 80% and stays faintly creased
+  const bend = s => { if (s < LINE) return 0; const d = Math.floor((s - LINE) * 12 + 1e-6); if (d === 0) return TH * .5;
+    if (s < BLINK + .5) return TH; const e = Math.floor((s - BLINK - .5) * 12 + 1e-6); return e === 0 ? TH * .55 : TH * .2; };
   LOOPS.inkcloseup = t => {
-    const s = S0 + Math.floor(t * 12 + 1e-6) / 12;                                // song time; the card moves on twos
-    const sc = S0 + t;                                                           // the camera on ones
+    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, sc = S0 + t;               // the card on twos; the camera on ones
     const d = Math.round((s - BLINK) * 12), variant = d === 0 || d === 2 ? 'half' : d === 1 ? 'closed' : null;
     const src = inkPrint(INK.closeup, { variant });
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-    const zoom = 1 + .06 * Math.min(1, (sc - S0) / (S1 - S0)), CH = 1060 * zoom, CW = CH * src.width / src.height, cx = W / 2, cy = H / 2 + 8;
-    const FOLD = .72, th = bend(s) * Math.PI / 180;                              // the fold: 66% down the card (under her chin)
-    const map = (u, v) => {
-      let y = v; if (v < FOLD) y = FOLD - (FOLD - v) * Math.cos(th);           // above the fold the card tips back: foreshortened
-      const xL = (u - .5) * (1 - .018 * Math.sin(th) * (FOLD - Math.min(v, FOLD)) / FOLD);   // and narrows a touch at the top
-      return [cx + xL * CW, cy + (y - .5) * CH];
-    };
-    // the card's shadow on the stage, then the card
+    // the camera approaches the card (the grain grows), ending tight on her eyes so the quotation marks read
+    const a = Math.min(1, (sc - S0) / (S1 - S0)), e = a * a * (3 - 2 * a), zoom = 1 + 1.35 * e;
+    const CH = 1060 * zoom, CW = CH * src.width / src.height, fu = .5 + (.535 - .5) * e, fv = .5 + (.345 - .5) * e;
+    const cx = W / 2 - (fu - .5) * CW, cy = H / 2 + 8 - (fv - .5) * CH;
+    const FOLD = .72, th = bend(s) * Math.PI / 180;
+    const map = (u, v) => { let y = v; if (v < FOLD) y = FOLD - (FOLD - v) * Math.cos(th);
+      const xL = (u - .5) * (1 - .018 * Math.sin(th) * (FOLD - Math.min(v, FOLD)) / FOLD); return [cx + xL * CW, cy + (y - .5) * CH]; };
     X.save(); X.filter = 'blur(18px)'; X.fillStyle = 'rgba(0,0,0,.7)'; X.fillRect(cx - CW / 2 + 14, cy - CH / 2 + 22, CW, CH); X.restore();
-    WARP.draw(X, src, map, { cols: 32, rows: 48, shade: (u, v) => {
-      const lamp = 1;
-      const fold = v < FOLD ? 1 + .9 * Math.sin(th) * (v / FOLD) ** 3 : 1;      // the tipped paper catches a little more light toward the fold
-      const crease = 1 + .55 * Math.sin(th) * Math.exp(-(((v - FOLD) / .008) ** 2));
-      return lamp * fold * crease; } });
-    // the lantern: warm light on the card, falling off to its edges
-    X.save(); X.globalCompositeOperation = 'multiply'; const lg = X.createRadialGradient(cx + 60, cy - 80, 80, cx, cy, CW * .8);
-    lg.addColorStop(0, '#FFF6E4'); lg.addColorStop(.6, '#F6DDB0'); lg.addColorStop(1, '#C9965A'); X.fillStyle = lg;
-    X.fillRect(cx - CW / 2 - 40, cy - CH / 2 - 40, CW + 80, CH + 80); X.restore();
+    WARP.draw(X, src, map, { cols: 32, rows: 48, shade: (u, v) => v < FOLD ? 1 + .6 * Math.sin(th) * (v / FOLD) ** 3 : 1 });
+    if (th > 0) {                                                                // the crease: a ridge line, highlight above and shadow below
+      const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), k = Math.min(1, Math.sin(th) / Math.sin(TH * Math.PI / 180));
+      X.save(); X.globalAlpha = .18 + .55 * k; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5 * zoom, x1 - x0, 1.6 * zoom);
+      X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2 * zoom); X.restore();
+    }
+    // lamplight: near neutral on this card (the washi stays cool), a gentle falloff to its edges
+    X.save(); X.globalCompositeOperation = 'multiply'; const lg = X.createRadialGradient(W / 2, H / 2 - 40, 100, W / 2, H / 2, W * .7);
+    lg.addColorStop(0, '#FFFFFF'); lg.addColorStop(.7, '#EDEBE6'); lg.addColorStop(1, '#BDB6AA'); X.fillStyle = lg; X.fillRect(0, 0, W, H); X.restore();
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
   LOOPS.inkcloseup.len = S1 - S0;
@@ -89,7 +101,7 @@ function inkPrint(C, o = {}) {
   const S0 = 9.0, S1 = 12.7, MATCH = 10.25, LAMP = 11.44;
   const FLAME = [1975, 1012], LANTERN = [2050, 1500];
   LOOPS.inklamp = t => {
-    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, src = inkPrint(INK.lamp, { misreg: [6, 4] });
+    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, src = inkPrint(INK.lamp, { misreg: [6, 4], rivets: [[1500, 1265, 17]] });
     X.fillStyle = '#050404'; X.fillRect(0, 0, W, H);
     const CW = W * 1.02, CH = CW * src.height / src.width, cx = W / 2, cy = H / 2, k = CW / src.width;
     const at = ([x, y]) => [cx + (x - src.width / 2) * k, cy + (y - src.height / 2) * k];
@@ -106,11 +118,11 @@ function inkPrint(C, o = {}) {
       const f = Math.floor(dm * 12 + 1e-6);
       glow(at(FLAME), (f < 2 ? 420 : 280) * (1 - .5 * lit), 'rgba(255,186,105,A)', f < 2 ? 1 : .45 + .06 * Math.sin(s * 23));
     }
-    if (lit > 0) { glow(at(LANTERN), 1650 * k * (.55 + .45 * lit), 'rgba(255,200,132,A)', lit); glow(at(LANTERN), 760 * k, 'rgba(255,214,148,A)', lit); }
+    if (lit > 0) { glow(at(LANTERN), 1650 * k * (.55 + .45 * lit), 'rgba(255,200,132,A)', lit); glow(at(LANTERN), 760 * k, 'rgba(244,201,122,A)', lit * .8); }
     X.save(); X.globalCompositeOperation = 'multiply'; X.drawImage(INK._L, 0, 0); X.restore();
     if (lit > 0) {                                                             // the lantern's paper, glowing from inside
       X.save(); X.globalCompositeOperation = 'screen'; const [lx, ly] = at(LANTERN), g = X.createRadialGradient(lx, ly, 0, lx, ly, 440 * k);
-      g.addColorStop(0, `rgba(255,190,105,${.4 * lit})`); g.addColorStop(1, 'rgba(255,190,105,0)'); X.fillStyle = g; X.fillRect(lx - 460 * k, ly - 460 * k, 920 * k, 920 * k); X.restore();
+      g.addColorStop(0, `rgba(244,201,122,${.2 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)');   // Lantern #F4C97A, capped: the ribs stay X.fillStyle = g; X.fillRect(lx - 460 * k, ly - 460 * k, 920 * k, 920 * k); X.restore();
     }
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
