@@ -16,7 +16,8 @@ async function SCENERY_INIT() {
 function placeFlat(c, name, [x, y, w, h], depth, lamp, flip = false, src = [0, 1]) {
   const [lx, ly] = lamp, s = 1 / (1 - Math.min(depth, .8) * .5), f = FLATS[name];
   const px = lx + (x - lx) / s, py = ly + (y - ly) / s, sx = src[0] * f.width, sw = (src[1] - src[0]) * f.width;
-  c.save(); c.translate(px + (flip ? w / s : 0), py); c.scale(flip ? -1 : 1, 1); c.drawImage(f, sx, 0, sw, f.height, 0, 0, w / s, h / s); c.restore();
+  const sy = (src[2] ?? 0) * f.height, sh = ((src[3] ?? 1) - (src[2] ?? 0)) * f.height;           // src: [x0, x1, y0, y1] fractions
+  c.save(); c.translate(px + (flip ? w / s : 0), py); c.scale(flip ? -1 : 1, 1); c.drawImage(f, sx, sy, sw, sh, 0, 0, w / s, h / s); c.restore();
 }
 // the shore (verse 1): far hills over the sea, waves, rocks and reeds at the sides, a pine leaning in from the right, the beach
 function shore(t, o = {}) {
@@ -29,7 +30,7 @@ function shore(t, o = {}) {
   plane('far', [100, FLOOR - 569, 1720, 573], .5, false, [0, 1], .34);                                   // hills over the sea, tops ~250 px above the floor
   plane('rocks', [60, FLOOR - 470, 380, 470], .18, false, [0, .2], .62);                  // a reed clump at the left edge only
   plane('rocks', [1600, FLOOR - 400, 260, 400], .18, false, [.86, 1], .62);               // and one under the pine, at the right
-  plane('pine', [1180, 36, 660, 640], .1, true, [0, 1], .82);                                    // high at the right, clear of the actors' heads
+  plane('pine', [1140, -40, 880, 453], .1, true, [0, .55, 0, .85], .82);                  // the tree part of the flat at its true shape; the trunk runs off the right edge                                    // high at the right, clear of the actors' heads
   shadow(c => { c.globalCompositeOperation = 'source-over'; c.drawImage(FLATS.ground, 100, FLOOR - 330, 1720, 573);   // its top edge (.583 of the flat) is the floor
     // the stage floor stays plain where the actors play: the shells and seaweed only at the edges
     c.clearRect(o.clearX0 ?? 520, 0, (o.clearX1 ?? 1480) - (o.clearX0 ?? 520), FLOOR - 1); }, 0);

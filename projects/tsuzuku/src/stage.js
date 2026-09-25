@@ -25,10 +25,12 @@ function stage(t, sceneFn, o = {}) {
   X.fillStyle = '#0b0908'; X.fillRect(0, 0, W, H);
   const [wx0, wy0, wx1, wy1] = BUTAI.win, [sx, sy, sw, sh] = SCREEN.rect, [a0, b0] = T(wx0 - 6, wy0 - 6), [a1, b1] = T(wx1 + 6, wy1 + 6);
   X.drawImage(BUTAI.theatre, sx, sy, sw, sh, a0, b0, a1 - a0, b1 - b0);
+  const lit = o.lit ?? 1;                                                                                // before the match: a dark screen
+  if (lit < 1) { X.fillStyle = `rgba(6,5,4,${1 - lit})`; X.fillRect(a0, b0, a1 - a0, b1 - b0); }
   const [fx, fy] = T(0, 0); X.save(); X.translate(fx, fy); X.scale(z, z);
   X.filter = 'brightness(.62)'; X.drawImage(BUTAI.frame, 0, 0); X.filter = 'none';                      // the wood, in the room's low light
   // light spilling from the lit screen onto the inner rails
-  X.globalCompositeOperation = 'screen'; const sp = X.createLinearGradient(0, wy0 - 140, 0, wy0); sp.addColorStop(0, 'rgba(255,190,110,0)'); sp.addColorStop(1, 'rgba(255,190,110,.16)');
+  X.globalCompositeOperation = 'screen'; const sp = X.createLinearGradient(0, wy0 - 140, 0, wy0); sp.addColorStop(0, 'rgba(255,190,110,0)'); sp.addColorStop(1, `rgba(255,190,110,${.16 * lit})`);
   X.fillStyle = sp; X.fillRect(wx0 - 140, wy0 - 140, wx1 - wx0 + 280, 140); X.globalCompositeOperation = 'source-over';
   // the doors: open = lying flat beside the frame; closed = over the window; mid-swing, foreshortened, the free edge nearer the lens
   const open = Math.max(0, Math.min(1, o.doors ?? 1)), phi = (1 - open) * Math.PI;                       // 0 open .. PI closed
@@ -59,7 +61,8 @@ function stage(t, sceneFn, o = {}) {
   // stagetest: the doors open (1 s), the camera pushes from the whole stage to the window (3 s), the seated phrase plays inside
   LOOPS.stagetest = t => {
     const doors = Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - .5) / 1.0)), u = Math.min(1, Math.max(0, (t - 1.8) / 3)), e = u * u * (3 - 2 * u);
-    stage(t, tt => LOOPS.fable(tt), { doors: doors * doors * (3 - 2 * doors), cam: camLerp(CAM_WIDE, CAM_WINDOW, e) });
+    const lit = t < 2.2 ? 0 : Math.min(1, Math.floor((t - 2.2) * 12) / 3);                         // the match, then three drawings
+    stage(t, tt => LOOPS.fable(tt), { doors: doors * doors * (3 - 2 * doors), cam: camLerp(CAM_WIDE, CAM_WINDOW, e), lit });
   };
   LOOPS.stagetest.len = 7;
 }
