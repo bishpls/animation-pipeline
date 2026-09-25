@@ -46,7 +46,7 @@ function drawStanding(c, p, T, o = {}) {
   if (p._far) {                                                        // the geta and its ankle, not the tall stub above it
     const pf = { ...p, leg: p._far.leg, foot: p._far.foot, 'foot.y': p._far['foot.y'] }, M = FABLE_S.world(pf, T);
     c.save(); c.setTransform(M.foot); c.beginPath(); c.rect(-3000, 3396 - 95, 8000, 3000); c.clip();   // the geta and a short ankle post (it reaches the hem)
-    FABLE_S.draw(c, pf, T, { solid: true, hide: FABLE_S.parts.map(q => q.name).filter(n => n !== 'foot') }); c.restore();   // plain paper: the far limb, in shadow
+    FABLE_S.draw(c, pf, T, { hide: FABLE_S.parts.map(q => q.name).filter(n => n !== 'foot') }); c.restore();   // the far geta cut like the near one (Michael: solid read as a bug)
   }
   FABLE_S.draw(c, p, T, o);
 }

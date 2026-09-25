@@ -30,6 +30,8 @@ def setup(ids_p):
                         if not inv and (dr or dg or db): continue
                         ks.append((c[0] + dr) * 65536 + (c[1] + dg) * 256 + (c[2] + db)); vs.append(i); iv.append(inv)
     o = np.argsort(ks); LUT_K = np.array(ks)[o]; LUT_V = np.array(vs)[o]; LUT_I = np.array(iv, bool)[o]
+    global ARMIDS
+    ARMIDS = np.array([i for i, k in enumerate(KEYS, 1) if k.split(':')[-1].rsplit('_', 1)[0] in ('arm', 'cuff', 'hand', 'trim')])
 
 
 def decode(path):
@@ -43,16 +45,36 @@ def decode(path):
     return lab, inv, (x0, y0)
 
 
+REST = {}                                                            # (view, framing) -> rest coverage mask (full frame)
+
+
+def load_rest(path):
+    global REST
+    if path and os.path.exists(path): z = np.load(path); REST = {tuple(k.split('|')): z[k] for k in z.files}
+
+
 def analyse(args):
-    f, d = args
+    f, d, fr = args
     r = decode(os.path.join(d, 'romid', f'f{f:05d}.png'))
     if r is None: return f, None
     lab, inv, (x0, y0) = r
     bg = lab == 0; L, n = ndi.label(bg); edge = set(np.unique(np.concatenate([L[0], L[-1], L[:, 0], L[:, -1]])))
     ids = [i for i in range(1, n + 1) if i not in edge]; holes = []
+    views0 = {}
+    for i in np.unique(lab):
+        if i and ':' in KEYS[i - 1]: views0[KEYS[i - 1].split(':')[0]] = views0.get(KEYS[i - 1].split(':')[0], 0) + 1
+    v0 = max(views0, key=views0.get) if views0 else 'F'; cov = REST.get((v0, fr))
     if ids:
         sz = ndi.sum(bg, L, ids); com = ndi.center_of_mass(bg, L, ids)
-        holes = [(int(s), (c[1] + x0, c[0] + y0)) for s, c in zip(sz, com) if s >= 14]
+        # a HOLE is enclosed background where the character covered the spot at rest; enclosed background that was background
+        # at rest too (an arm touching the skirt closes a gap) is correct
+        # ...and a pocket bounded by an arm (the arm swinging in to touch the skirt or torso) is a gap between parts, not a hole
+        armids = ARMIDS; objs = ndi.find_objects(L)
+        def by_arm(i):
+            sl = objs[i - 1]; sl2 = tuple(slice(max(q.start - 3, 0), q.stop + 3) for q in sl)
+            m = L[sl2] == i; ring = ndi.binary_dilation(m, iterations=2) & ~m
+            return np.isin(lab[sl2][ring], armids).any()
+        holes = [(int(s), (c[1] + x0, c[0] + y0)) for i, s, c in zip(ids, sz, com) if s >= 14 and not by_arm(i)]
     il = np.where(inv, lab, 0); cnt = np.bincount(il.ravel(), minlength=len(KEYS) + 1)
     views = {}
     for i in np.unique(lab):
@@ -65,30 +87,49 @@ def analyse(args):
     return f, (v, holes, cnt, cents)
 
 
+def _init(ids_p, rp): setup(ids_p); load_rest(rp)
+
+
 def main():
     a = sys.argv[1:]; out, rom_p, ids_p = a[:3]
     opt = lambda k, dflt: type(dflt)(a[a.index(k) + 1]) if k in a else dflt
     ROM = json.load(open(rom_p)); setup(ids_p)
     frames = sorted(int(f[1:6]) for f in os.listdir(os.path.join(out, 'romid')) if f.endswith('.png'))
     seg_of = lambda f: next((s for s in ROM if s[1] <= f / FPS < s[2]), ROM[-1])
+    frm = lambda sg: sg[3] if len(sg) > 3 else 'head'                 # framing: baselines are per (view, framing)
     if '--from-report' in a: report = json.load(open(os.path.join(out, 'report.json'))); return sheet(out, report, opt('--sheet', 18))
-    with Pool(opt('--workers', 8), initializer=setup, initargs=(ids_p,)) as pool:
-        res = dict(pool.map(analyse, [(f, out) for f in frames], chunksize=8))
+    frm0 = lambda f: frm(seg_of(f))
+    # rest coverage masks first (per view and framing), then every frame in parallel
+    covs = {}
+    for sg in ROM:
+        if not sg[0].startswith('rest '): continue
+        f = int((sg[2] - .05) * FPS); p = os.path.join(out, 'romid', f'f{f:05d}.png')
+        if not os.path.exists(p): continue
+        a = np.array(Image.open(p).convert('RGB')); lab_ = decode(p)
+        if lab_ is None: continue
+        vs = {}
+        for i in np.unique(lab_[0]):
+            if i and ':' in KEYS[i - 1]: vs[KEYS[i - 1].split(':')[0]] = vs.get(KEYS[i - 1].split(':')[0], 0) + 1
+        covs[f'{max(vs, key=vs.get) if vs else "F"}|{frm(sg)}'] = a.any(2)
+    rp = os.path.join(out, '_rest.npz'); np.savez_compressed(rp, **covs); load_rest(rp)
+    init = lambda: None
+    with Pool(opt('--workers', 8), initializer=_init, initargs=(ids_p, rp)) as pool:
+        res = dict(pool.map(analyse, [(f, out, frm0(f)) for f in frames], chunksize=8))
     base = {}
-    for name, t0, t1 in ROM:                                          # rest baselines per view (settled end of the segment)
-        if not name.startswith('rest '): continue
-        f = int((t1 - .05) * FPS)
-        if f in res and res[f]: v, h, c, _ = res[f]; base[v] = (h, c)
+    for sg in ROM:                                                    # rest baselines per (view, framing), settled end of segment
+        if not sg[0].startswith('rest '): continue
+        f = int((sg[2] - .05) * FPS)
+        if f in res and res[f]: v, h, c, _ = res[f]; base[(v, frm(sg))] = (h, c)
     report = []
     for f in frames:
         if not res[f]: continue
-        v, hs, cnt, cents = res[f]; bh, bc = base.get(v, ([], np.zeros_like(cnt)))
+        v, hs, cnt, cents = res[f]; bh, bc = base.get((v, frm(seg_of(f))), ([], np.zeros_like(cnt)))
         hs = [(s, c) for s, c in hs if not any(abs(c[0] - b[1][0]) < 110 and abs(c[1] - b[1][1]) < 110 and .25 < s / b[0] < 4 for b in bh)]
         sl = sorted([(int(cnt[i] - bc[i]), KEYS[i - 1], cents.get(i, (0, 0))) for i in range(1, len(cnt)) if cnt[i] - bc[i] > 120], reverse=True)[:5]
         report.append({'f': f, 'seg': seg_of(f)[0], 'view': v, 'holes': hs, 'slivers': sl, 'score': sum(s for s, _ in hs) + .5 * sum(e for e, _, _ in sl)})
     json.dump(report, open(os.path.join(out, 'report.json'), 'w'))
     print(f'{"segment":16s} frames  holes(fr, max px)   invented exposed (fr, worst layers px)')
-    for name, t0, t1 in ROM:
+    for name, t0, t1, *_ in ROM:
         R = [r for r in report if r['seg'] == name]
         if not R: continue
         hf = [r for r in R if r['holes']]; sf = [r for r in R if r['slivers']]; worst = {}

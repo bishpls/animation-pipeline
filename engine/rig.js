@@ -72,6 +72,7 @@ const RIG = (() => {
     // of a view change (R.viewDrive), as a modest overshoot, not a whip
     const vang = p => ((R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0) * (R.viewDrive ?? .3);
     const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
+      : d === 'pelvis' ? (p._bz ?? p.bodyZ ?? 0) + (p.hipX || 0) * 8 : d === 'hipY' ? (p.hipY || 0) + (p.bounce || 0)
       : d === 'bodyZ' ? (p._bz ?? p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p._bx ?? p.bodyX ?? 0) * 20 : (p[d] || 0); };
     const dt = 1 / 120, pre = R.preroll || 2, t0 = t - pre, n = Math.round(pre / dt);
     const st = {}; for (const k of names) { const v = drive(P(t0), k); st[k] = { x: v, v: 0 }; }
@@ -198,6 +199,27 @@ const RIG = (() => {
         [x, y] = rot(x, y, BX.cx, interp(BZ.pivot, yz), (p._bz || 0) * interp(BZ.prof, yz));
         y += (p.bounce || 0) * interp(B.bounce || [[0, 1], [1370, 1], [1900, .7], [2400, .2]], yz);
       }
+      // the pelvis (outermost): hipX shifts it sideways and tilts it (the hip on the weight side rises), hipY dips it. The torso
+      // rides the waist point (translation only: its own tilt is bodyZ, the contrapposto); pelvis layers take the full pelvis
+      // transform, skinned into the torso across the waist band; the legs are skinned from the pelvis (top) to the ankle
+      // (pinned), and the leg whose top drops shortens by bending its knee inward. The boots stay planted.
+      const PV = B.pelvis;
+      if (PV && (p.hipX || p.hipY)) {
+        const hx = clamp(p.hipX || 0, -1.3, 1.3), th = -PV.tilt * hx, dxp = PV.D * hx, dyp = (p.hipY || 0) + PV.lift * Math.abs(hx);
+        const Tp = (qx, qy) => { const [a, b] = rot(qx, qy, PV.c[0], PV.c[1], th); return [a + dxp, b + dyp]; };
+        const [wx, wy] = Tp(PV.waist[0], PV.waist[1]), tdx = wx - PV.waist[0], tdy = wy - PV.waist[1];
+        const kind = PV.legs[name] ? 'leg' : PV.feet.includes(name) ? 'foot' : rig.armOf[name] || inHead || neckL ? 'torso' : 'body';
+        if (kind === 'torso') { x += tdx; y += tdy; }
+        else if (kind === 'body') {
+          const Y0 = rest[k + 1], v = clamp((Y0 - PV.band[0]) / (PV.band[1] - PV.band[0]), 0, 1), w = v * v * (3 - 2 * v);
+          const [px, py] = Tp(x, y); x = x + tdx + (px - x - tdx) * w; y = y + tdy + (py - y - tdy) * w;
+        } else if (kind === 'leg') {
+          const L0 = PV.legs[name], Y0 = rest[k + 1], v = clamp((Y0 - L0.top[1]) / (PV.ankle - L0.top[1]), 0, 1);   // 0 at the top, 1 at the ankle
+          const [tx, ty] = Tp(L0.top[0], L0.top[1]), ddx = tx - L0.top[0], ddy = ty - L0.top[1], fall = 1 - v;
+          x += ddx * fall; y += ddy * fall;
+          if (ddy > 0) x += Math.sign(PV.c[0] - L0.top[0]) * PV.knee * ddy * Math.sin(Math.PI * clamp((Y0 - L0.top[1]) / (PV.ankle - L0.top[1]), 0, 1));   // the bent knee
+        }
+      }
       out[k] = x; out[k + 1] = y;
     }
   }
@@ -293,7 +315,9 @@ const RIG = (() => {
     const C = { x: 1.76, z: .41, lead: .06, ...(rig.R.perform || {}), ...o };
     const vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
     return t => { const q = P(t), h = P(t + C.lead), turn = (vang(h) + (h.angleX || 0) * 30) / 30;
-      return { ...q, bodyX: (q.bodyX || 0) + clamp(C.x * turn, -1, 1), bodyZ: (q.bodyZ || 0) + C.z * (h.angleZ || 0) }; };
+      // contrapposto: the shoulders counter-tilt over the weight leg (bodyZ follows hipX), and the head stays near level
+      const cz = (C.contra ?? 3) * (q.hipX || 0), bz = (q.bodyZ || 0) + C.z * (h.angleZ || 0) + cz;
+      return { ...q, bodyX: (q.bodyX || 0) + clamp(C.x * turn, -1, 1), bodyZ: bz, angleZ: (q.angleZ || 0) - (C.level ?? .8) * cz }; };
   }
 
   return { load, keys, perform };

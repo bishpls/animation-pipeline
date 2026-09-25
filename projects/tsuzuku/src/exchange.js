@@ -3,8 +3,8 @@
 // X3 "...and the mother tried.": straight, here, is toward the lamp: she swells and softens; "And the mother went sideways.":
 // she veers back to the screen and scuttles off. "Hm.": cut to Fable's profile, one dry dip. X4 "And that's where the book
 // ends.": the fan opens and snaps shut; "Every time.": hiki-nuki, the card pulled half out and held. X5 "So? Sorekara?! And
-// then?!": Clawd hops. X6: Fable begins to slide the card fully out, in tugs; X7, the build: the tugs quicken with the hyoshigi,
-// Clawd's eye slits burn, her cellophane glows from inside. X8 "Says who?": the card tears at her; stage light floods the rip.
+// then?!": Clawd hops. X6-X7: the card held half out, still; the build: Clawd's eye slits burn, her cellophane glows from
+// inside. X8 "Says who?": the card tears at her; stage light floods the rip.
 {
   const FLOOR = 962, f = 1 / 12, S0 = 36.0, S1 = 61.0, T = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
   const CX = 1250, CS = .16, beat8 = 60 / 85 / 2;                     // Clawd's puppet where she unfolded; the lute's 6/8 eighths
@@ -15,12 +15,11 @@
     const k = { tried: w('and', 37.5, 38.5), sideways: w('and', 40, 41), hm: w('hm'), sideways2: w('sideways', 44, 46), that: w('thats', 46, 48), ends: w('ends'),
       every: w('every'), so: w('so', 50, 51.5), sorekara: w('sorekara'), then: w('then', 52.5, 53.5), oh: w('oh'), ending: w('thats', 56.5, 57.5), says: w('says'), who: w('who', 60, 61) };
     k.close = k.hm - f; k.back = w('and', 46.5, 47) - 7 * f;           // the close-up: from just before "Hm." to just before "And that's"
-    k.tugs = [k.oh + .3, 55.0, 56.3, 57.2, 57.9, 58.45, 58.9, 59.25, 59.55, 59.8];   // X6 then the build: the tugs quicken with the hyoshigi
     k.tear = k.says;
     K = k;
     K.fan = PUPPET.morphs([[0, 'fan_closed'], [k.that - 3 * f, 'fan_open'], [k.ends + f, 'fan_closed']], { hold: 1 });
     K.arm = PUPPET.snap([[0, { forearm: 12, hand: -6, upperarm: 0 }], [k.that - 6 * f, EYE], [k.every - 2 * f, { forearm: -4, hand: -22, upperarm: -14 }],   // the fan's tip sweeps the card out
-      [k.every + 8 * f, { forearm: 12, hand: -6, upperarm: 0 }], [k.oh + .1, { forearm: -4, hand: -20, upperarm: -12 }], [k.tear, { forearm: 20, hand: 0, upperarm: 8 }]]);
+      [k.every + 8 * f, { forearm: 12, hand: -6, upperarm: 0 }], [k.tear, { forearm: 20, hand: 0, upperarm: 8 }]]);
     K.head = PUPPET.snap([[0, { head: 9 }], [k.tried, { head: 5 }], [k.sideways + .3, { head: 3 }], [k.hm, { head: 11 }], [k.hm + 3 * f, { head: 5 }],
       [k.so, { head: 7 }], [k.oh, { head: 3 }], [k.tear + f, { head: -5 }]]);
     K.clawd = PUPPET.snap([[0, { head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }], [k.tried, { head: 6 }], [k.sideways + .5, { head: 10 }],
@@ -37,12 +36,12 @@
       else if (d >= 1 && d <= 4) { p.dy = -h * Math.sin(Math.PI * d / 5); p.thigh_L = 4; p.thigh_R = -4; p['shin_L.y'] = -70; p['shin_R.y'] = -70; } }
     return p;
   };
-  // the card's pull (px to the right): held until "Every time.", half out in 8 drawings; then the tugs, each 36 px in 2 drawings
+  // the card's pull (px to the right): on "Every time." it's pulled a third out in 8 drawings (hiki-nuki) and held there, still,
+  // until she tears it (Michael: the later tugs read as the scenery creeping, and brought the shore over her puppet)
   function pullAt(ts) {
     if (ts < K.every) return 0;
-    const u = Math.min(1, Math.floor((ts - K.every) * 12 + 1e-6) / 8), e = u * u * (3 - 2 * u); let p = 640 * e;
-    for (const tg of K.tugs) if (ts >= tg) p += 36 * Math.min(1, (Math.floor((ts - tg) * 12 + 1e-6) + 1) / 2);
-    return p;
+    const u = Math.min(1, Math.floor((ts - K.every) * 12 + 1e-6) / 8), e = u * u * (3 - 2 * u);
+    return 560 * e;
   }
   // the mother, in card coordinates (X3): tried straight (toward the lamp, stiff steps on the eighths); veered sideways, off right
   function mother(ts) {
@@ -147,7 +146,7 @@
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12, close = ts >= K.close && ts < K.back;
     stage(ts, scene, { cam: close ? CAM_HM : CAM_WINDOW, doors: 1 });
-    if (!close) audience(ts, { y: H + 330, lift: 120, calls: [[35.12, 37.72]] });
+    if (!close) audience(ts, { y: H + 330, lift: 120 });
   };
   LOOPS.exchange.len = S1 - S0;
 }

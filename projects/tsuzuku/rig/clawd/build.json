@@ -52,15 +52,16 @@
    "hull": [
     "sleeve_L",
     "sleeve_R",
-    "bow"
+    "bow",
+    "trim_L",
+    "trim_R"
    ],
    "clip": [
-    760,
-    900,
-    1370,
-    1370
-   ],
-   "within_hull": true
+    700,
+    880,
+    1440,
+    1380
+   ]
   },
   "skirt": {
    "hull": [
@@ -141,6 +142,20 @@
     1155,
     975
    ]
+  },
+  "skirt_back": {
+   "hull": [
+    "shorts",
+    "skirt",
+    "skirt_back"
+   ],
+   "clip": [
+    430,
+    1700,
+    1710,
+    2360
+   ],
+   "within_hull": true
   }
  },
  "plates": {

@@ -26,7 +26,7 @@ for sub in ('romid', 'rom'):
     shutil.rmtree(os.path.join(O, sub), ignore_errors=True)
 # contiguous ranges (merge neighbours) -> one render each
 ranges = []
-for _, s0, s1 in pick:
+for _, s0, s1, *_ in pick:
     if ranges and abs(ranges[-1][1] - s0) < 1e-6: ranges[-1][1] = s1
     else: ranges.append([s0, s1])
 node('--loop=romid', '--frames', '--png', f'--framesdir={os.path.join(O, "romid")}', '--ranges=' + ','.join(f'{s0}:{s1}' for s0, s1 in ranges), f'--workers={opt("--workers", 6)}')

@@ -105,7 +105,7 @@
     const dd = Math.min(1, Math.max(0, Math.floor((ts - DOOR0) * 12 + 1e-6) / 10)), e = Math.min(1, Math.max(0, Math.floor((ts - PUSH0) * 12 + 1e-6) / 16)), ee = e * e * (3 - 2 * e);
     window.SHORE = true;
     try { stage(ts, scene, { cam: camLerp(CAM_WIDE, CAM_WINDOW, ee), doors: dd * dd * (3 - 2 * dd) }); } finally { window.SHORE = false; }
-    audience(ts, { y: H + 120 + 210 * ee, lift: 120, scale: .52 * (.65 + .35 * ee), calls: [[11.44, 14.04]] });
+    audience(ts, { y: H + 120 + 210 * ee, lift: 120, scale: .52 * (.65 + .35 * ee) });
   };
   LOOPS.telling.len = S1 - S0;
 }
