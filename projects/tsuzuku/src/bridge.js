@@ -35,18 +35,25 @@
       [WT.fox - L - 4 * f, { forearm: 34, hand: -12, upperarm: 14 }],   // the fox at lap height, looking up
       [WT.crow - L - 4 * f, { upperarm: -50, forearm: 62, hand: -25 }],  // the crow held up and out
       [WT.boy - L - 4 * f, { forearm: 8, hand: -2, upperarm: 3 }],
-      [WT.flew - L - 4 * f, { upperarm: -60, forearm: 30, hand: -5 }],   // the wings high; the falling figure hangs from that hand by the ankles
+      [WT.flew - L - 4 * f, { upperarm: -60, forearm: 30, hand: -5 }],   // the wings high
+      [land(WT.sun), { upperarm: -65, forearm: 90, hand: 0 }],          // he pitches over; her hand drops forward into the catch: he hangs by the ankles, clear of her sleeve
       [WT.moral - 6 * f, { forearm: 14, hand: -6, upperarm: 6 }],       // brought in to chest height to be put away (the open fan clear of her face)
       [WT.job + 6 * f, LAP]]);                                          // folded, back in her lap
     head = PUPPET.snap([[0, { head: 7 }], [WT.all - 7 * f, { head: 0 }], [WT.fox - L - 3 * f, { head: 8 }], [WT.crow - L - 3 * f, { head: -4 }],
-      [WT.boy - L - 3 * f, { head: 2 }], [WT.flew - L - 3 * f, { head: -7 }], [WT.sun - 2 * f, { head: 3 }], [WT.moral - 5 * f, { head: 2 }],
+      [WT.boy - L - 3 * f, { head: 2 }], [WT.flew - L - 3 * f, { head: -7 }], [land(WT.sun) + f, { head: 9 }], [WT.moral - 5 * f, { head: 2 }],
       [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }]]);
   };
   const BLINKS = [133.4, 142.6, 146.3, 151.7, 155.2];
   const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm(q), ...head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
   const T = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
   // Clawd's puppet, set down at the edge: leaning, head down, rod leaning, the eye slits still lit
-  const CP = { x: 1690, y: FLOOR, s: .16, origin: [1076, 2800] }, CPOSE = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6, _ghost: {} };   // arms hanging plumb (the lean undone)
+  const CP = { x: 1640, y: FLOOR, s: .16, origin: [1076, 2800] }, CPOSE = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6, _ghost: {} };   // arms hanging plumb (the lean undone)
+  // on the clack the story stops, and so does she: her rod lifts her out of the story's place, carries her to the edge, sets
+  // her down; she goes limp against the frame (whole, inside the window: put away, not lost)
+  const LIMP = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6 };
+  const setDown = PUPPET.snap([[0, { x: 1400, y: 0, skirt: 0, head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }],
+    [CLACK + f, { x: 1520, y: -36 }], [CLACK + 4 * f, { x: CP.x, y: 0 }], [CLACK + 6 * f, LIMP]], { overshoot: .08 });
+  const clawdAt = ts => { const k = setDown(ts); return { pose: { ...k, _ghost: {} }, T: { ...CP, x: k.x, y: FLOOR + k.y }, lean: ts >= CLACK + 5 * f ? -70 : 0 }; };
   function scene(ts) {
     const strike = {}; let bright = 0;
     for (const [k, t0, dir] of STRIKES) { const u = pulled(ts, t0); strike[k] = [u, dir]; bright += u * (k.startsWith('rocks') ? .5 : 1); }
@@ -60,7 +67,8 @@
       seatedRibbon(c, poseAt, T, ts);
       c.globalCompositeOperation = 'source-over';
       if (strike.ground[0] > 0) { c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }   // the plain rail the beach lay on
-      CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
+      const cl = clawdAt(ts);
+      CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
       FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
@@ -145,7 +153,7 @@
           c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T2.s, .85, tl.w * .9 * T2.s)));
         });
         c.globalCompositeOperation = 'source-over';
-        FABLE_S.draw(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
+        drawStanding(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
       }, d, { penumbra: true, alpha: 1 - d * 1.1 });
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
     }

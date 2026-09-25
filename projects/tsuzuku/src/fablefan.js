@@ -11,10 +11,18 @@ function fanProp(seq, t, free = null) {
   return { after: 'forearm', draw: (c, M) => {
     if (free) { const [a, b, u] = seq(t); PUPPET.drawShape(c, PUPPET.shapeAt(FAN, fanShape(a), fanShape(b), u), free(M)); return; }
     const [a, b, u] = seq(t), mix = (T, d) => (T[a] ?? d) + ((T[b] ?? d) - (T[a] ?? d)) * u;
-    const sh = PUPPET.shapeAt(FAN, fanShape(a), fanShape(b), u), sc = mix(FAN_SCALE, 1);
     const Mx = M.hand.translate(FAN_GRIP[0], FAN_GRIP[1]), ang = Math.atan2(Mx.b, Mx.a) * 180 / Math.PI;   // the hand's world angle
     // orientation: a fan follows the hand (with its lean); the line lies level; a creature stands upright in the world
     const rot = n => n.startsWith('fan') ? FAN_TILT : n === 'line' ? 90 - ang : -ang;
+    // the fall (wings -> the falling figure, held by the ankles): not a morph down through her fist but a pitch forward over
+    // the front of her hand, three cards: the wings tipped 70 degrees forward, the falling figure swung 50 out, hanging
+    const fall = (a === 'wings' && b === 'falling') || (a === 'falling' && b === 'wings');
+    if (fall && u < 1) {
+      const first = u < .5, n = first ? a : b, swing = (a === 'wings') === first ? 70 : -50;
+      PUPPET.drawShape(c, PUPPET.shapeAt(FAN, n, n, 1), Mx.rotate(rot(n) + swing).scale(mix(FAN_SCALE, 1)));
+      return;
+    }
+    const sh = PUPPET.shapeAt(FAN, fanShape(a), fanShape(b), u), sc = mix(FAN_SCALE, 1);
     PUPPET.drawShape(c, sh, Mx.rotate(rot(a) + (rot(b) - rot(a)) * u).scale(sc));
   } };
 }

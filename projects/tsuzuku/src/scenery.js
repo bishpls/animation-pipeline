@@ -5,7 +5,7 @@
 const FLATS = {};
 async function SCENERY_INIT() {
   const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
-  for (const n of ['far', 'rocks', 'waves', 'ground', 'pine']) {
+  for (const n of ['far', 'rocksL', 'rocksR', 'waves', 'ground', 'pine']) {
     const img = await load(`rig/scenery/${n}.png`), w = 1920, h = Math.round(img.height * w / img.width), c = mkCanvas(w, h), g = c.getContext('2d');
     g.drawImage(img, 0, 0, w, h); const d = g.getImageData(0, 0, w, h), p = d.data;
     for (let i = 0; i < p.length; i += 4) { const L = (p[i] * .299 + p[i + 1] * .587 + p[i + 2] * .114) / 255; p[i] = 22; p[i + 1] = 22; p[i + 2] = 26; p[i + 3] = 255 * Math.min(1, Math.max(0, (1 - L) * 1.15)); }
@@ -39,9 +39,9 @@ function shore(t, o = {}) {
   };
   // content bands (fraction of each flat's height): far .56-.94, waves ~.47-1; each placed so its base sits behind the beach
   plane('far', [100, FLOOR - 569, 1720, 573], .5, false, [0, 1], .34);                                   // hills over the sea, tops ~250 px above the floor
-  plane('rocks', [60, FLOOR - 470, 380, 470], .18, false, [0, .2], .62, 'rocksL');        // a reed clump at the left edge only
-  plane('rocks', [1600, FLOOR - 400, 260, 400], .18, false, [.86, 1], .62, 'rocksR');     // and one under the pine, at the right
-  plane('pine', [1140, -40, 880, 453], .1, true, [0, .55, 0, .85], .82);                  // the tree part of the flat at its true shape; the trunk runs off the right edge, high at the right, clear of the actors' heads
+  plane('rocksL', [60, FLOOR - 470, 457, 470], .18, false, [0, 1], .62);                 // a reed clump at the left edge (its own flat: split_rocks.py)
+  plane('rocksR', [1574, FLOOR - 400, 287, 400], .18, false, [0, 1], .62);                // and one under the pine, at the right
+  plane('pine', [628, -40, 1392, 453], .1, true, [0, .87, 0, .85], .82);                  // the whole tree to its branch tips (no cut edge), true shape; the trunk runs off the right edge, high, clear of the actors' heads
   const [ug, dg] = pull('ground');
   if (ug < 1) shadow(c => { c.globalCompositeOperation = 'source-over'; const off = dg * ug * 1900;
     c.drawImage(FLATS.ground, 100 + off, FLOOR - 330, 1720, 573);                          // its top edge (.583 of the flat) is the floor
