@@ -1,0 +1,42 @@
+{
+ "image": "closeup.png",
+ "crop": [
+  1150,
+  300,
+  1392
+ ],
+ "out": "build",
+ "feather": 12,
+ "keep": "Keep EVERYTHING else exactly identical: the same face, hair, bangs, head angle, position and size in the frame, the same fine pen-and-ink linework and cross-hatching, the same flat indigo second colour, the same white paper. Only the eyes change. No new colours, no grey wash.",
+ "patches": {
+  "eye_L": [
+   1525,
+   735,
+   300,
+   115
+  ],
+  "eye_R": [
+   2240,
+   772,
+   195,
+   100
+  ]
+ },
+ "variants": {
+  "closed": {
+   "prompt": "Change ONLY her eyes: both eyes gently closed, the upper lash line lowered into a soft downward curve with the lashes still drawn in ink, no iris visible.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  },
+  "half": {
+   "prompt": "Change ONLY her eyes: both eyes half closed, the upper eyelids lowered to cover the top half of the indigo irises, the quotation-mark catchlight still visible below the lid.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  }
+ },
+ "transparent": false
+}

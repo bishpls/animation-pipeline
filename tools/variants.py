@@ -33,8 +33,8 @@ def main(spec):
     for vname, V in S['variants'].items():
         ep = os.path.join(ed, vname + '.png')
         if not os.path.exists(ep):
-            subprocess.run([os.path.join(ROOT, '.venv', 'bin', 'python'), os.path.join(ROOT, 'tools', 'gptimage.py'), 'Edit this character close-up. ' + V['prompt'] + ' ' + KEEP,
-                            ep, '--model', S.get('model', 'gpt-image-2.5-sunburst'), '--size', f'{n}x{n}', '--quality', S.get('quality', 'high'), '--transparent', '--ref', cpath], check=True)
+            subprocess.run([os.path.join(ROOT, '.venv', 'bin', 'python'), os.path.join(ROOT, 'tools', 'gptimage.py'), 'Edit this character close-up. ' + V['prompt'] + ' ' + S.get('keep', KEEP),
+                            ep, '--model', S.get('model', 'gpt-image-2.5-sunburst'), '--size', f'{n}x{n}', '--quality', S.get('quality', 'high')] + (['--transparent'] if S.get('transparent', True) else []) + ['--ref', cpath], check=True)
         e = np.array(Image.open(ep).convert('RGBA').resize((W, H), Image.LANCZOS))
         # register the edit onto the crop using everything except the changed parts
         m = (~changed).astype(np.uint8); warp = np.eye(2, 3, dtype=np.float32)

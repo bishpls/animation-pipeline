@@ -1,0 +1,34 @@
+{
+ "eye_L": {
+  "closed": {
+   "file": "eye_L@closed.png",
+   "x": 1225,
+   "y": 620,
+   "w": 601,
+   "h": 231
+  },
+  "half": {
+   "file": "eye_L@half.png",
+   "x": 1225,
+   "y": 620,
+   "w": 601,
+   "h": 231
+  }
+ },
+ "eye_R": {
+  "closed": {
+   "file": "eye_R@closed.png",
+   "x": 2045,
+   "y": 672,
+   "w": 391,
+   "h": 201
+  },
+  "half": {
+   "file": "eye_R@half.png",
+   "x": 2045,
+   "y": 672,
+   "w": 391,
+   "h": 201
+  }
+ }
+}
