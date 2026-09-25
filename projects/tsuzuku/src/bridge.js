@@ -1,12 +1,13 @@
-// bridge.js: the bridge's paper half, song 131.0-156.2 (BEATS B1-B4; Fable's rulings). The hyoshigi stops the story and the
-// lamp's sway with it. Fable alone on her zabuton, the fan in her lap; Clawd's puppet set down at the edge, rod leaning, never
+// bridge.js: the bridge's paper half, song 131.29-156.2 (BEATS B1-B4; Fable's rulings). The hyoshigi stops the story and the
+// lamp's sway with it; the lamp itself comes down out of the sky into her lap ("one lantern; it's the lamp": the hall's match
+// cut lands here, same seiza, lantern at the same knee). Fable alone on her zabuton, the fan in her lap; Clawd's puppet set down at the edge, rod leaning, never
 // struck. "I've read them all": the fan becomes the fox, the crow, the boy who cried, the wings and the falling figure, each
 // landing on its word. "I know the moral before the page": she puts each shape back into the fan; "That's the job": it folds.
 // Meanwhile the scenery is struck plane by plane, far to near, one per line, each a card pulled sideways; every plane gone lets
 // more light through, so the vellum ends bare and hot, the brightest it has been. "You stand in the dark": the camera pulls
 // back past the butai's wood. B5 (the ink close-up, LOOPS.inkcloseup) follows at 156.2.
 {
-  const S0 = 131.0, CLACK = 131.29, FLOOR = 962, f = 1 / 12;
+  const CLACK = 131.29, S0 = CLACK, FLOOR = 962, f = 1 / 12;
   const w = n => ((window.WORDS || []).find(x => x.t0 > 131 && x.t0 < 157 && x.w.toLowerCase().startsWith(n)) || {}).t0;   // a word's onset
   // the strikes, one per line of the monologue, in the breath after it, on its last four lines (Michael: keep the shore in shot
   // through the gallery, then strike it in close succession toward the end): [key, start, direction]
@@ -45,6 +46,21 @@
       [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }]]);
   };
   const BLINKS = [133.4, 142.6, 146.3, 151.7, 155.2];
+  // the lamp (Fable: "one lantern; it's the lamp"): on the clack it comes out of the sky into her lap, at her right knee (the
+  // camera side); on "You stand" she sets it down in front of her knees, at the cushion's right front edge. It lights the
+  // vellum from where it is: a pool, dimmer than the sky lamp; the flats' shadows fall from it, longer, upward.
+  const KNEE = [740, 834], FLOORSPOT = [755, FLOOR], LSC = 1.4, LEAN = 25, LEAN_LAP = -78;   // (on her thigh at the knee, its stick lying back across her lap; then the cushion's right front edge, its stick leaning away)
+  let SETAT = 152.55;
+  const lanternAt = ts => {
+    const d = Math.floor((ts - (SETAT - 2 * f)) * 12 + 1e-6);          // (the hand reaches it two drawings before "stand")
+    if (d < 2) return { x: KNEE[0], y: KNEE[1], held: d >= 0 };
+    if (d >= 6) return { x: FLOORSPOT[0], y: FLOORSPOT[1], held: false };
+    const u = (d - 1) / 5; return { x: KNEE[0] + (FLOORSPOT[0] - KNEE[0]) * u, y: KNEE[1] + (FLOORSPOT[1] - KNEE[1]) * u - 30 * Math.sin(Math.PI * u), held: true };
+  };
+  const lampOf = L => [L.x, L.y - (7 + CHO.h / 2) * LSC];
+  const bailAt = L => [L.x, L.y - 7 * LSC - CHO.h * LSC - 5 * LSC - CHO.w * .2 * LSC], grip = L => { const b = bailAt(L); return [b[0], b[1] - 14 * LSC]; };
+  // the vellum lit from the lamp where it is: a pool, dimmer than the sky lamp was, that opens as the planes go
+  const POOL = [[0, '#FFF3DA'], [.25, '#F6D398'], [.62, '#B7803F'], [1, '#2C1A0C']];
   // her monologue as margin notes (Fable: "what's left on the bare vellum before the close-up is what I know"): Caslon italic,
   // the lighter ink, each word pressed as she says it; lines as she breathes them. Still there after the close-up (B6).
   const NOTE_LINES = [6, 8, 4, 8, 7, 3, 5, 3];                       // words per line (the gallery split after "crow," and "cried,"; 44 words)
@@ -55,7 +71,9 @@
       for (const n of NOTE_LINES) { let x = 176; for (const w of ws.slice(k, k + n)) { NOTES.push({ w: w.w, t0: w.t0, x, y }); x += shape(w.w + ' ', { font: 'caslonI', size: 27 }).width; } k += n; y += 34; } }
     for (const n of NOTES) inkVellum(n.w, n.x, n.y, ts, n.t0, { size: 27 });
   }
-  const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm(q), ...head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
+  const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm(q), ...head(q), _ghost: {} };
+    const L = lanternAt(q); if (L.held) { Object.assign(p, reachIn(FABLE, p, T, 'torso', SEAT_ARM, grip(L))); p.head = 9; }
+    p.hair = -(p.head || 0) * .85; return p; };
   const T = { x: 560, y: 960, s: .2, origin: [1150, 2760] };
   // Clawd's puppet, set down at the edge: leaning, head down, rod leaning, the eye slits still lit
   const CP = { x: 1640, y: FLOOR, s: .16, origin: [1076, 2800] }, CPOSE = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6, _ghost: {} };   // arms hanging plumb (the lean undone)
@@ -68,10 +86,10 @@
   function scene(ts) {
     const strike = {}; let bright = 0;
     for (const [k, t0, dir] of STRIKES) { const u = pulled(ts, t0); strike[k] = [u, dir]; bright += u * (k.startsWith('rocks') ? .5 : 1); }
-    const b = bright / 4, stops = HOT.map(([k, c], i) => [k, mixHex(FABLE_LAMP[i][1], c, b)]);
+    const b = bright / 4, stops = HOT.map(([k, c], i) => [k, mixHex(POOL[i][1], c, b)]), L = lanternAt(ts), lamp = lampOf(L);
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-    screen(ts, { stops, tex: .32 - .08 * b, power: 1 + .12 * b });
-    shore(ts, { floor: FLOOR, still: CLACK, strike });
+    screen(ts, { stops, tex: .32 - .08 * b, power: .66 + .36 * b, lamp });
+    shore(ts, { floor: FLOOR, still: CLACK, strike, lamp });
     const p = poseAt(ts);
     const blink = BLINKS.some(b0 => ts >= b0 && ts < b0 + 2 * f);
     shadow(c => {
@@ -80,15 +98,18 @@
       if (strike.ground[0] > 0) { c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }   // the plain rail the beach lay on
       const cl = clawdAt(ts);
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
-      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
+      FABLE.draw(c, p, T, { props: L.held ? [] : [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
+    const lt = chochin(L.x, L.y, LSC, { gold: true, stick: L.held ? null : ts < SETAT ? LEAN_LAP : LEAN });   // the brightest thing in the window
+    if (L.held) { const fi = fistAt(FABLE, p, T, SEAT_ARM); X.save(); X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 3.2 * LSC; X.lineCap = 'round'; X.beginPath(); X.moveTo(...lt.top); X.lineTo(...fi); X.stroke(); X.restore(); }
+    shadow(c => { c.globalCompositeOperation = 'source-over'; FABLE.draw(c, p, T, { hide: ['cushion', 'lower', 'torso', 'head', 'hair', 'upperarm'] }); }, 0);   // her hand's shadow on it
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
-  const BACK = 152.46, BACKN = 12;
+  const BACK = 152.96, BACKN = 12;                                  // (after she has set the lamp down)
   LOOPS.bridge = t => {
-    if (!WT) { WT = build(); poses(); }
+    if (!WT) { WT = build(); poses(); SETAT = WT.stand || SETAT; }
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const e = ts < BACK ? 0 : Math.min(1, Math.floor((ts - BACK) * 12 + 1e-6) / BACKN), ee = e * e * (3 - 2 * e);
     const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1, page: ts });
@@ -97,14 +118,16 @@
   LOOPS.bridge.len = 156.2 - S0;
 
   // ---- after the close-up: the bare hot vellum, nothing left of the shore but the rail -----------------------------------
+  const FLOOR_L = { x: FLOORSPOT[0], y: FLOORSPOT[1], held: false };
   function bare(ts, draw) {
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-    screen(ts, { stops: HOT, tex: .24, power: 1.12 });
+    screen(ts, { stops: HOT, tex: .24, power: 1.02, lamp: lampOf(FLOOR_L) });
     shadow(c => {
       c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10);
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       draw(c);
     }, 0);
+    chochin(FLOOR_L.x, FLOOR_L.y, LSC, { gold: true, stick: LEAN });
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
@@ -122,94 +145,142 @@
     };
     LOOPS.bridgeB6.len = 161.0 - S0;
   }
-  // B8-B9 (166.0 to the build, 176.47). She stands beside her zabuton (not on it, in geta), the book open face-up on the rail
-  // behind her heels. The held note ends as the camera pulls back to the wood: a frame to step through. Her near hand half-rises
-  // toward the book as if to take it back, stops, drops. "Mukashi mukashi was a long time ago. This is now.": seven slow steps
-  // to the frame's edge beside Clawd's puppet, feet together on "now"; she looks down at her. "Sorekara?": four steps on the beat,
-  // at puppet scale, out past her and off the window's right edge, the ribbon last. One beat of empty window. Then she is in the
-  // room beside the butai: black, rim-lit by her own lamp, facing it, the ribbon settling (Fable: "the prologue's kuroko, from
-  // the front. That's the margin F2 wants me at.")
+  // B8-B9 (166.0-177.8). She stands where she stood up, facing what she set down: the book, and the lamp on the floor beside it
+  // (Fable). She bows; her hand goes to the book and hovers one beat over it (the not-knowing), then takes the lamp by its stick
+  // instead (the decision). She straightens, turns, and "Mukashi mukashi was a long time ago. This is now." walks seven steps to
+  // the frame's edge with the light hanging from her hand; the pool travels with her. At the stop she sets it at Clawd's feet
+  // (its light on her from below), rises, and rests her hand on her head: a rest, not a pat. "Sorekara?" lifts the hand; the
+  // lamp comes up in one snap on the first step, and four quicker steps take her and the light off the window's right edge.
+  // The window goes dark but for Clawd's eye slits, lit from inside. Then she is in the room beside the butai: hood up, the
+  // lantern lit in her hand, her face lit from below (C2's picture in silhouette; the prologue's kuroko from the front).
   {
     const S0 = 166.0, S1 = 177.8, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
-    const X0 = 960, BOOKX = 800, TS = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (.2: her head clears the window's top)
+    const X0 = 960, BOOKX = 850, TS0 = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };
     const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
     for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 88 });   // (to within arm's reach of her head)
     const b1 = Math.round((175.06 - NOTE) / BEAT), OUT = beat(b1);
     for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 150 });   // on the eighths: off the right edge by 176.47
-    const walk = makeWalk(steps, 82, BEAT, TS.s);
-    // the one gesture: toward the book behind her (the arm back, the hand low), held, dropped; then the first step
-    const reach = PUPPET.snap([[0, { upperarm: 0, forearm: 0, hand: 0, head: -3 }], [167.25, { upperarm: 24, forearm: 10, hand: 12, head: 8 }],
-      [168.05, { upperarm: 0, forearm: 0, hand: 0, head: 0 }]]);
-    const look = PUPPET.snap([[0, { head: 0 }], [steps[6].t + BEAT, { head: 14 }], [OUT - 1 / 12, { head: 0 }]]);
-    // at the stop, her hand rests on Clawd's head (Fable: "a rest, not a pat"): it settles in two drawings and doesn't move; her
-    // question ("Sorekara?") is what lifts it, on the first step out
-    const STOP = steps[6].t + BEAT; let rest = null;
-    const restArm = q => {
-      if (!rest) { const w = walk(STOP + .5), T0 = { ...TS, x: TS.x + w.dx, y: TS.y + w.dy };
-        const sh = FABLE_S.world({ _ghost: {} }, T0).torso.transformPoint(new DOMPoint(...STAND_ARM.SH)), hd = CLAWDP.world(CPOSE, CP).head.transformPoint(new DOMPoint(860, 250));
-        const on = standReach(sh.x, sh.y, hd.x - 6, hd.y - 14, TS.s), z = { upperarm: 0, forearm: 0, hand: 0 };
-        rest = PUPPET.snap([[0, z], [STOP + 2 / 12, on], [OUT, z]], { overshoot: 0 }); }
-      return rest(q);
-    };
-    const poseS = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = walk(q), r = reach(q), h = restArm(q), p = { ...w, _ghost: {} };
-      p.upperarm = (w.upperarm || 0) + r.upperarm + h.upperarm; p.forearm = r.forearm + h.forearm; p.hand = r.hand + h.hand; p.head = q < 168.5 ? r.head : look(q).head;
-      p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
+    const walk = makeWalk(steps, 88, BEAT, TS0.s), STOP = steps[6].t + BEAT;
+    // the beats of her hands
+    const BOW = 166.5, HOVER = 166.85, TAKE = HOVER + BEAT, UP = TAKE + 3 * f, TURN = UP + 3 * f;
+    const SETD = STOP + f, RISE = SETD + 5 * f, REST = RISE + 2 * f, GRAB = OUT - f;
+    const CARRY = { upperarm: 10, forearm: -34, hand: 0 };
+    const bowAt = PUPPET.snap([[0, { torso: 0 }], [BOW, { torso: 44 }], [UP, { torso: 0 }], [SETD, { torso: 44 }], [RISE, { torso: 0 }], [GRAB, { torso: 30 }], [OUT + f, { torso: 0 }]], { overshoot: .05 });
+    const headAt = PUPPET.snap([[0, { head: 6 }], [BOW, { head: 14 }], [UP, { head: 4 }], [TURN + f, { head: 0 }], [STOP, { head: 14 }], [OUT, { head: 0 }]]);
+    const flipAt = q => q < TURN ? -1 : 1;
+    const Tq = q => ({ ...TS0, flip: flipAt(q) });                  // (the walk's dx/dy live in the pose)
+    const L0 = { x: 755, y: FLOOR };                                   // the lamp where she set it down in B4
+    const stickTopFloor = (L, lean) => { const h = CHO.h * LSC, bx = L.x, by = L.y - 7 * LSC - h - 5 * LSC - CHO.w * .2 * LSC, a = lean * Math.PI / 180, Ls = CHO.stick * h; return [bx + Math.sin(a) * Ls, by - Math.cos(a) * Ls]; };
+    let SPOT = null;                                                  // where she sets it down at the stop (at her feet, toward Clawd)
+    const setSpot = () => { const w = walk(STOP + .2); SPOT = { x: X0 + w.dx + 70, y: FLOOR }; };
+    // which arm target, frame by frame: null = the carry pose (the lamp hangs from her fist)
+    function armTarget(q, pose, T) {
+      if (q >= BOW && q < HOVER) return [BOOKX + 40, 690];            // on the way down to it
+      if (q >= HOVER && q < TAKE) return [BOOKX + 20, 700];           // one beat over the book
+      if (q >= TAKE && q < UP) return stickTopFloor(L0, LEAN);       // the lamp's stick instead
+      if (q >= SETD && q < RISE) return stickTopFloor(SPOT, -LEAN);  // set at her feet
+      if (q >= RISE && q < GRAB) { const hd = CLAWDP.world(CPOSE, CP).head.transformPoint(new DOMPoint(860, 250)); return q >= REST ? [hd.x - 6, hd.y - 14] : [hd.x - 40, hd.y - 60]; }
+      if (q >= GRAB && q < OUT + f) return stickTopFloor(SPOT, -LEAN); // one snap: down to it and up with it
+      return null;
+    }
+    const lampState = q => q < TAKE ? { floor: L0, lean: LEAN } : (q >= SETD + 2 * f && q < GRAB) ? { floor: SPOT, lean: -LEAN } : { hand: true };
+    function poseS(tt) {
+      const q = Math.floor(tt * 12 + 1e-6) / 12; if (!SPOT) setSpot();
+      const w = walk(q), p = { ...w, ...bowAt(q), ...headAt(q), _ghost: {} }; p.torso = (w.torso || 0) + p.torso;
+      const T = Tq(q), tg = armTarget(q, p, T), carrying = q >= TAKE;
+      if (tg) Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, tg));
+      else if (carrying) { p.upperarm = CARRY.upperarm + (w.upperarm || 0); p.forearm = CARRY.forearm; p.hand = 0; }
+      else { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
+      p.hair = -(p.head + (p.torso || 0)) * .85; p._T = T; return p;
+    }
+    // the lamp's light this frame: where it is (on the floor, or hanging from her fist, swinging a little as she walks)
+    function lampNow(tt, p) {
+      const q = Math.floor(tt * 12 + 1e-6) / 12, st = lampState(q);
+      if (st.floor) { const h = CHO.h * LSC; return { st, cx: st.floor.x, cy: st.floor.y - 7 * LSC - h / 2 }; }
+      const fi = fistAt(FABLE_S, p, p._T, STAND_ARM), dir = flipAt(q), k = Math.floor((q - TURN) * 12 + 1e-6);
+      const swing = q < TURN + 4 * f ? [0, 14, -8, 4][Math.max(0, Math.min(3, k))] * dir : 5 * Math.sin(q * 2 * Math.PI / BEAT) * (q >= steps[0].t && q < STOP + .2 || q >= OUT ? 1 : 0);
+      const drop = CHO.w * .2 * LSC + 5 * LSC + CHO.h * LSC / 2, a = 28 * Math.PI / 180, Ls = CHO.stick * CHO.h * LSC * .8;
+      const tip = [fi[0] + dir * Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];
+      return { st, fi, dir, swing, cx: tip[0] - Math.sin(swing * Math.PI / 180) * drop, cy: tip[1] + Math.cos(swing * Math.PI / 180) * drop };
+    }
     const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
     const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
     const BACK2 = 166.0, BACK2N = 20;                                 // the pull-back to the wood, in drawings, as the held note ends
+    const EDGE = SCREEN.rect[0] + SCREEN.rect[2];
     function scene(tt) {
+      const p = poseS(tt), ln = lampNow(tt, p), gone = ln.cx > EDGE + CHO.w * LSC * .8;   // the light has left the window
       X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-      screen(tt, { stops: HOT, tex: .24, power: 1.12 });
+      if (!gone) screen(tt, { stops: HOT, tex: .24, power: 1.02, lamp: [ln.cx, ln.cy] });
+      else { X.fillStyle = '#0b0908'; X.fillRect(...SCREEN.rect); }
       shadow(c => {                                                  // the screen plane: the rail, what she left, Clawd's puppet
         c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10);
         FABLE.draw(c, { _ghost: {} }, T, { hide: HIDE_SEATED });
         PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(BOOKX, FLOOR).scale(.15));
         CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       }, 0);
-      bridgeText(tt);
-      const p = poseS(tt), T2 = TS;
+      if (gone) {                                                    // her eye slits, lit from inside, in the dark window
+        const M = CLAWDP.world(CPOSE, CP).head, hd = CLAWDP.by.head; X.save(); X.setTransform(X.getTransform().multiply(M));
+        const inPoly = (pts, x, y) => { let r = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) r = !r; } return r; };
+        for (const [ex, ey] of [[956, 704], [1187, 713]]) for (const h of hd.holeList) if (inPoly(h.pts, ex, ey)) {
+          X.globalCompositeOperation = 'lighter'; X.shadowColor = 'rgba(255,200,120,.9)'; X.shadowBlur = 18; X.fillStyle = 'rgb(255,226,170)'; X.fill(h.path); }
+        X.restore();
+      }
+      const T2 = p._T;
       shadow(c => {
         TAILS_S.forEach((tl, i) => {
-          const pts = PUPPET.stiff(FABLE_S, poseS, T2, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, tt);
+          // solved facing right and mirrored when she faces left (a flipped card flips its ribbon with it)
+          let pts = PUPPET.stiff(FABLE_S, poseS, TS0, { part: 'head', at: [900, 820], rest: tl.rest, len: tl.len, drag: .1 }, tt);
+          if (T2.flip < 0) pts = pts.map(([x, y]) => [2 * T2.x - x, y]);
           c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = i ? 'multiply' : 'source-over';
           c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T2.s, .85, tl.w * .9 * T2.s)));
         });
         c.globalCompositeOperation = 'source-over';
         drawStanding(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
       }, 0);
-      pageVellum(tt);
+      // the lamp, over everything on the screen: on the floor with its stick, or hanging from her fist
+      if (!gone || ln.cx < EDGE + 200) {
+        X.save(); X.beginPath(); X.rect(...SCREEN.rect); X.clip();
+        if (ln.st.floor) chochin(ln.st.floor.x, ln.st.floor.y, LSC, { gold: true, stick: ln.st.lean });
+        else chochinHang(ln.fi[0], ln.fi[1], ln.dir, LSC, { gold: true, swing: ln.swing });
+        X.restore();
+      }
+      if (!gone) { bridgeText(tt); pageVellum(tt); }                   // (ink on unlit paper is nothing)
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
     }
-    // in the room: person-sized beside the butai (a kamishibai window is about a third of her height), facing it; she glides in
-    // from the right edge (her legs below the frame), stops, and her ribbon settles. Black; the window's light on her front edges.
-    const ROOM = OUT + 2.5 * BEAT, IN = 9, RX = [2180, 1690], RS = .48;
-    const roomPose = () => ({ _ghost: {}, head: -4, hair: 3.4 });
-    // two geta steps in from the frame's edge on the eighths (clack, clack), then still (Fable: "gliding is for ghosts"): each
-    // step lifts her a little through the passing position and sets her down
+    // in the room: person-sized beside the butai, facing it; two geta steps in from the frame's edge (no glide), still. Hood up;
+    // the lantern lit in her hand, low; her face lit from below. Black; the light is in front of her and beneath.
+    const ROOM = OUT + 2.5 * BEAT, RX = [2180, 1690], RS = .48, RLSC = 2.3;
+    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 110, 560])); };   // her fist at her chest
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
       const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * Math.sin(Math.PI * u) : 0;
       return { x, y: 175 + (3700 - 250) * RS + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
+    // her hood, up (the canon's): over the crown and down the back to the shoulder, its opening from the brow down behind the
+    // cheek to the jaw, so her profile shows (head-part master px)
+    const HOOD = [[1330, 330], [1290, 230], [1150, 165], [980, 150], [820, 200], [700, 330], [650, 520], [640, 720], [670, 880], [760, 980], [900, 960], [1020, 880], [1120, 800], [1180, 730], [1230, 620], [1262, 480]];
     let RL = null;
     function roomFable(tt) {
       if (tt < ROOM) return;
       if (!RL) RL = [mkCanvas(W, H), mkCanvas(W, H)];
-      const T = roomT(tt), p = roomPose(), S = RL[0].getContext('2d'), R = RL[1].getContext('2d');
+      const T = roomT(tt), p = roomPose(T), S = RL[0].getContext('2d'), R = RL[1].getContext('2d'), M = FABLE_S.world(p, T);
       S.setTransform(1, 0, 0, 1, 0, 0); S.globalCompositeOperation = 'source-over'; S.clearRect(0, 0, W, H);
-      // her ribbon down her back (behind her, on her right: she faces left): it swings as she stops and settles, on twos
-      const root = FABLE_S.world(p, T).head.transformPoint(new DOMPoint(900, 820)), arrive = ROOM + IN / 12;
-      const k = Math.max(0, tt - arrive), sw = tt < arrive ? 34 : 34 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
-      [[1, 0], [.86, 22]].forEach(([len, off]) => {
-        const pts = []; for (let i = 0; i <= 10; i++) { const u = i / 10; pts.push([root.x + off * RS + sw * u * u + 10 * u, root.y + u * 1150 * len]); }
-        S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(16,30,52)'; S.fill(P(PUPPET.strip(pts, 52, .85, 46)));
-      });
+      FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)', hide: ['hair'] });
+      S.setTransform(M.head); S.fillStyle = 'rgb(9,7,9)'; S.beginPath(); HOOD.forEach(([x, y], i) => i ? S.lineTo(x, y) : S.moveTo(x, y)); S.closePath(); S.fill();
+      S.setTransform(1, 0, 0, 1, 0, 0);
+      // the lantern in her hand (hung from its stick), and its light on her from below and in front
+      const fi = fistAt(FABLE_S, p, T, STAND_ARM), arrive = ROOM + BEAT, k = Math.max(0, tt - arrive), sw = tt < arrive ? 10 * Math.sin((tt - ROOM) * 2 * Math.PI / (BEAT / 2)) : 8 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
+      const drop = CHO.w * .2 * RLSC + 5 * RLSC + CHO.h * RLSC / 2, a = 0, Ls = CHO.stick * CHO.h * RLSC * .3, tip = [fi[0] - Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];
+      const lc = [tip[0] - Math.sin(sw * Math.PI / 180) * drop, tip[1] + Math.cos(sw * Math.PI / 180) * drop];
       R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
-      FABLE_S.draw(R, p, T, { solid: true, ink: 'rgb(9,7,9)' });                                     // her body alone (the rim is hers)
-      FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)' });
-      R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,186,120,.9)'; R.fillRect(0, 0, W, H);
-      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 5, 0);                      // only the edges that face the window
-      X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(9px)'; X.globalAlpha = .45; X.drawImage(RL[1], 0, 0);   // the glow first, so
-      X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);             // she stays black inside
+      R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
+      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 4, -6);                    // the edges that face the lamp (in front and below)
+      R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 1900 * RS); g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
+      // her lantern lights the air of the room around her: her black shape reads against it
+      X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(lc[0], lc[1], 20, lc[0], lc[1], 820);
+      hz.addColorStop(0, 'rgba(150,104,56,.42)'); hz.addColorStop(.45, 'rgba(90,60,34,.2)'); hz.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = hz; X.fillRect(0, 0, W, H); X.restore();
+      X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(10px)'; X.globalAlpha = .6; X.drawImage(RL[1], 0, 0);
+      X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
+      chochinHang(fi[0], fi[1], -1, RLSC, { swing: sw, len: .3, stickAngle: 0 });   // the canon's indigo chōchin, lit
     }
     LOOPS.bridgeB8 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
@@ -219,11 +290,10 @@
       readers(ts, cam);
     };
     LOOPS.bridgeB8.len = S1 - S0;
-    // after she stands, her lines are the text, not notes (Fable): full ink, set to read at the wide, "Sorekara?" in quotation marks
     let TEXT = null;
     function w8(n, after) { return ((window.WORDS || []).find(x => x.t0 > after && x.w.toLowerCase().replace(/[^a-z]/g, '').startsWith(n)) || {}).t0 ?? 999; }
     function bridgeText(tt) {
-      if (!TEXT) TEXT = [[w8('mukashi', 168), 'Mukashi mukashi was a long time ago.'], [w8('this', 172), 'This is now.'], [w8('sorekara', 174.5), '\u201CSorekara?\u201D']];
+      if (!TEXT) TEXT = [[w8('mukashi', 168), 'Mukashi mukashi was a long time ago.'], [w8('this', 172), 'This is now.'], [w8('sorekara', 174.5), '“Sorekara?”']];
       TEXT.forEach(([t0, str], i) => inkVellum(str, 190, 262 + i * 76, tt, t0, { font: 'caslon', size: 54, alpha: .92, col: 'rgb(30,24,22)' }));
     }
   }

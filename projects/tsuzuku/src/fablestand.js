@@ -44,16 +44,24 @@ function makeWalk(STEPS, S = 130, dur = 60 / 170 * 2, SC = .22, LEG = 1280) {
 // her arm as two links (standing master px): shoulder, elbow, and her fist's grip (the forearm and hand as one). standReach()
 // returns the pose that puts the fist on a target (canvas px), given the shoulder's canvas position and the puppet's scale;
 // the elbow drops (it bends down, never up)
-const STAND_ARM = (() => { const SH = [1036, 960], EL = [1156, 1422], FI = [1420, 2090];
-  return { SH, EL, FI, L1: Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2: Math.hypot(FI[0] - EL[0], FI[1] - EL[1]),
-    R1: Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2: Math.atan2(FI[1] - EL[1], FI[0] - EL[0]) }; })();
-function standReach(sx, sy, tx, ty, sc) {
-  const { L1, L2, R1, R2 } = STAND_ARM, D = 180 / Math.PI;
+const armOf = (SH, EL, FI) => ({ SH, EL, FI, L1: Math.hypot(EL[0] - SH[0], EL[1] - SH[1]), L2: Math.hypot(FI[0] - EL[0], FI[1] - EL[1]),
+  R1: Math.atan2(EL[1] - SH[1], EL[0] - SH[0]), R2: Math.atan2(FI[1] - EL[1], FI[0] - EL[0]) });
+const STAND_ARM = armOf([1036, 960], [1156, 1422], [1420, 2090]);
+const SEAT_ARM = armOf([1186, 1032], [1392, 1507], [2040, 1062]);        // (the seated puppet; FI = the fan's grip in her fist)
+function standReach(sx, sy, tx, ty, sc, A = STAND_ARM) {
+  const { L1, L2, R1, R2 } = A, D = 180 / Math.PI;
   const Dx = (tx - sx) / sc, Dy = (ty - sy) / sc, d = Math.min(Math.hypot(Dx, Dy), L1 + L2 - 1), phi = Math.atan2(Dy, Dx);
   const a = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d)))), t1 = phi + a;
   const t2 = Math.atan2(Dy - L1 * Math.sin(t1), Dx - L1 * Math.cos(t1));
   return { upperarm: (t1 - R1) * D, forearm: ((t2 - R2) - (t1 - R1)) * D, hand: 0 };
 }
+// the reach in the arm's own frame: the target (canvas px) taken into the parent part's master coordinates, so a bowed torso or
+// a flipped figure needs nothing special. Returns { upperarm, forearm, hand } for pup.world/draw.
+function reachIn(pup, pose, T, parent, A, target) {
+  const M = pup.world({ ...pose, upperarm: 0, forearm: 0, hand: 0 }, T)[parent], p = M.inverse().transformPoint(new DOMPoint(target[0], target[1]));
+  return standReach(A.SH[0], A.SH[1], p.x, p.y, 1, A);
+}
+const fistAt = (pup, pose, T, A) => { const q = pup.world(pose, T).hand.transformPoint(new DOMPoint(...A.FI)); return [q.x, q.y]; };
 // the standing puppet with both feet: the far foot first (behind the skirt), then the puppet
 function drawStanding(c, p, T, o = {}) {
   if (p._far) {                                                        // the geta and its ankle, not the tall stub above it

@@ -145,3 +145,47 @@ function pressV(str, x, y, t, t0, o = {}) {              // vertical Japanese, t
   const size = o.size || 46; let yy = y;
   [...str].forEach((ch, i) => { press(ch, x, yy + size, t, t0 + i * (o.stagger ?? .05), { ...o, font: o.font || 'mincho', size, align: 'center' }); yy += size * 1.08; });
 }
+
+// ------------------------------------------------------------------ her lantern (the canon's chōchin; FABLE.md: "the only light
+// source in my world, and I carry it into other people's"): a barrel of paper on a bamboo spiral, black lacquer caps, a bail
+// and a carrying stick. Lit, it's the brightest thing in the frame. In the paper world it's backlit through the vellum, so it
+// reads gold (#F4C97A, "backlight through paper; never a surface colour": o.gold); elsewhere its paper is the canon's indigo.
+// chochin(): standing on its base at (x, y); o.stick = degrees the carrying stick leans from upright (+ = to the right), or
+// null. Returns the stick's free end (or the bail). chochinHang(): hanging from its stick's tip at (tx, ty), swung by `swing`
+// degrees. Both return { top, cx, cy } (the stick's end or the bail; the light's centre).
+const CHO = { w: 58, h: 88, stick: 1.35 };
+function chochinBody(cx, cy, sc, rot, o) {
+  const w = CHO.w * sc, h = CHO.h * sc, lit = o.lit ?? 1;
+  X.save(); X.translate(cx, cy); X.rotate(rot * Math.PI / 180);
+  if (lit > 0 && o.halo !== false) { X.save(); X.globalCompositeOperation = 'lighter'; const R = h * 2.4, g = X.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, `rgba(244,201,122,${.3 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)'); X.fillStyle = g; X.fillRect(-R, -R, 2 * R, 2 * R); X.restore(); }
+  X.save(); const body = new Path2D(); body.ellipse(0, 0, w / 2, h / 2, 0, 0, 7); X.clip(body);
+  const g = X.createRadialGradient(0, h * .08, 0, 0, 0, h * .62);
+  if (o.gold) { g.addColorStop(0, '#FFF6E2'); g.addColorStop(.35, '#F4C97A'); g.addColorStop(.75, 'rgb(200,128,58)'); g.addColorStop(1, 'rgb(96,52,24)'); }
+  else if (lit > 0) { g.addColorStop(0, '#FFF3D6'); g.addColorStop(.3, '#F4C97A'); g.addColorStop(.72, 'rgb(74,104,172)'); g.addColorStop(1, 'rgb(22,36,80)'); }
+  else { g.addColorStop(0, 'rgb(28,40,70)'); g.addColorStop(1, 'rgb(12,18,36)'); }
+  X.fillStyle = g; X.fillRect(-w, -h, 2 * w, 2 * h);
+  X.strokeStyle = o.gold ? 'rgba(70,36,14,.42)' : 'rgba(10,14,40,.4)'; X.lineWidth = Math.max(1, 1.6 * sc);   // the bamboo ribs, bowed
+  for (let k = 1; k < 10; k++) { const yy = -h / 2 + h * k / 10, hw = w / 2 * Math.sqrt(1 - (yy / (h / 2)) ** 2);
+    X.beginPath(); X.moveTo(-hw, yy); X.quadraticCurveTo(0, yy + 3 * sc, hw, yy); X.stroke(); }
+  X.restore();
+  X.fillStyle = 'rgb(12,10,12)';                                                                    // the lacquer caps and the bail
+  X.fillRect(-w * .33, -h / 2 - 5 * sc, w * .66, 9 * sc); X.fillRect(-w * .33, h / 2 - 4 * sc, w * .66, 11 * sc);
+  X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 2.4 * sc; X.beginPath(); X.arc(0, -h / 2 - 5 * sc, w * .2, Math.PI, 0); X.stroke();
+  X.restore();
+}
+function chochin(x, y, sc = 1, o = {}) {
+  const h = CHO.h * sc, cx = x, cy = y - 7 * sc - h / 2, bail = [x, cy - h / 2 - 5 * sc - CHO.w * .2 * sc];
+  chochinBody(cx, cy, sc, 0, o);
+  if (o.stick == null) return { top: bail, cx, cy };
+  const a = o.stick * Math.PI / 180, L = CHO.stick * h, top = [bail[0] + Math.sin(a) * L, bail[1] - Math.cos(a) * L];
+  X.save(); X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 3.2 * sc; X.lineCap = 'round'; X.beginPath(); X.moveTo(...bail); X.lineTo(...top); X.stroke(); X.restore();
+  return { top, cx, cy };
+}
+function chochinHang(fx, fy, dir, sc = 1, o = {}) {                   // from her fist: the stick forward and a little down, the lantern hanging from its tip
+  const h = CHO.h * sc, L = CHO.stick * h * (o.len ?? .8), a = (o.stickAngle ?? 28) * Math.PI / 180, tip = [fx + dir * Math.cos(a) * L, fy + Math.sin(a) * L];
+  X.save(); X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 3.2 * sc; X.lineCap = 'round'; X.beginPath(); X.moveTo(fx, fy); X.lineTo(...tip); X.stroke(); X.restore();
+  const sw = (o.swing || 0) * Math.PI / 180, drop = CHO.w * .2 * sc + 5 * sc + h / 2, cx = tip[0] - Math.sin(sw) * drop, cy = tip[1] + Math.cos(sw) * drop;
+  chochinBody(cx, cy, sc, o.swing || 0, o);
+  return { top: tip, cx, cy };
+}

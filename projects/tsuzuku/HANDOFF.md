@@ -12,11 +12,11 @@ The paper-world loops are all on the song clock (`LOOPS.<name>`, t = 0 at the ti
 | 12.7 – 24.0 | `telling` | the doors open; the crab, the mother, the ruler; the little one lights orange |
 | 24.0 – 36.0 | `verse1` | the row walks into the light; the unfold into Clawd's paper puppet; "Show me how!" |
 | 36.0 – 61.0 | `exchange` | the mother goes sideways; "Hm."; hiki-nuki; "Sorekara?!"; the card tears on "Says who?" |
-| 131.0 – 156.2 | `bridge` | the clack; the fan's gallery; the shore struck; the pull-back to the wood |
+| 131.29 – 156.2 | `bridge` | opens on the clack (a match cut from the hall: seated, the lamp in her lap at her right knee); the fan's gallery; the shore struck; "You stand": the lamp set down; the pull-back to the wood |
 | 156.2 – 159.53 | `inkcloseup` | ink cut-in: the close-up |
 | 159.53 – 161.0 | `bridgeB6` | the fan becomes the book |
 | 161.0 – 166.0 | `inkstand` | ink cut-in: the standing up (geta clack 165.18) |
-| 166.0 – 177.8 | `bridgeB8` | she walks to the frame's edge; on "Sorekara?" four steps off the window's right edge (gone by 176.47); one beat of empty window; from 176.82 she stands in the room beside the butai (right), person-sized, black, rim-lit, facing it |
+| 166.0 – 177.8 | `bridgeB8` | she takes up the lamp, walks it to Clawd's puppet, sets it at her feet, rests a hand on her head; "Sorekara?": off the window's right edge with the lamp (gone by 176.47); the window dark but Clawd's eye slits; from 176.82 in the room beside the butai: hood up, the lantern lit in her hand, face lit from below |
 
 Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131–176.5).
 
@@ -29,9 +29,11 @@ Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131�
    resolve into the stage, or for the rip to show the stage directly (the paper side can render the torn card as a mask over
    your frame if you want that: ask).
 2. **B9 → F1 (176.47 – 177.8).** Fable walks off the window's right edge on "Sorekara?" (gone by 176.47), one beat of empty
-   window, then at 176.82 she glides in from the right edge of frame and stands in the room beside the butai: CAM_WIDE, her
-   figure at screen x ≈ 1540–1880, head top ≈ y 175, hips at the frame bottom, facing left (toward the window), black with a
-   warm rim on her front edges. Fable: "That's the margin F2 wants me at." F1 ("stage light bleeds into the paper; the paper
+   window, then at 176.82 two geta steps in from the right edge of frame and she stands in the room beside the butai: CAM_WIDE,
+   standing puppet silhouette at s .48 facing left, feet off frame at (1690, 1831). At 177.8 (screen px): crown (1758, 134),
+   nose (1591, 315), chin (1615, 379), shoulder (1721, 516), hip (1724, 1071), fist (1580, 560) holding a short stick level,
+   the canon's indigo chōchin hanging from it, centre (1498, 699), 133 × 202 px, lit (#F4C97A core). Hood up; black, rim-lit
+   from below and in front by the lantern; the room's air warm around her. The window is dark except Clawd's eye slits. Fable: "That's the margin F2 wants me at." F1 ("stage light bleeds into the paper; the paper
    world folds back like a curtain onto Clawd's stage") can open from this frame at 177.8.
 3. **Fable at the margin in Clawd's world** (K3 48.1, K5 52.2, K7 56.2 in bar numbers; H2, F2, F4, F6, F8): her riveted
    silhouette with two coloured shadows (pink and cyan) pressing margin notes. The paper side has her puppets (`FABLE`, seated;
