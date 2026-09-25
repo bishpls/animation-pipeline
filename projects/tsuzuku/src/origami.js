@@ -37,6 +37,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
       ORIGAMI_DRAW(c, ts);
       if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
     }, 0);
+    if (window.pageStrip) { pageVellum(ts); pageStrip(ts); }         // the page (Fable)
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
   // the little one and her unfolding, at song time ts, into a shadow() layer (shared with the verse's continuous timeline)

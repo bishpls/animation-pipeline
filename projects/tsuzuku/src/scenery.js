@@ -58,7 +58,7 @@ function shore(t, o = {}) {
   LOOPS.verse1 = t => {
     window.SHORE = true;
     try { stage(t, tt => LOOPS.origami(tt), { cam: CAM_WINDOW, doors: 1 }); } finally { window.SHORE = false; }
-    audience(24 + t, { y: H + 270, lift: 120, calls: [[35.12, 37.4]] });           // near the stage: head-tops and lanterns, lifting on the call
+    audience(24 + t, { y: H + 330, lift: 120, calls: [[35.12, 37.4]] });           // near the stage: head-tops and lanterns, lifting on the call
   };
   LOOPS.verse1.len = 12;
 }

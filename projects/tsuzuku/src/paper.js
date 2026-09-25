@@ -47,7 +47,7 @@ function texture(alpha = 1, mode = 'multiply', scale = 1) {
 }
 
 // ------------------------------------------------------------------ the screen (backlit vellum)
-const SCREEN = { rect: [150, 70, 1620, 900], lamp: [1180, 560], power: 1 };   // the lamp: at the actors' head height, over the story (Fable)
+const SCREEN = { rect: [150, 170, 1620, 900], lamp: [1180, 560], power: 1 };   // the lamp: at the actors' head height, over the story (Fable). The window shows y 170-1070: room under the floor (962) for the page strip
 function screen(t, o = {}) {
   const [x, y, w, h] = o.rect || SCREEN.rect, [lx, ly] = o.lamp || SCREEN.lamp, pw = (o.power ?? 1) * (1 + .025 * noise1(t * 7.3) + .015 * noise1(t * 19));   // lantern flicker
   X.save();

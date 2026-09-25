@@ -71,6 +71,7 @@
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
       FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
+    pageVellum(ts); pageStrip(ts);                                    // the page (Fable)
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
@@ -80,7 +81,7 @@
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const e = ts < BACK ? 0 : Math.min(1, Math.floor((ts - BACK) * 12 + 1e-6) / BACKN), ee = e * e * (3 - 2 * e);
     stage(ts, scene, { cam: camLerp(CAM_WINDOW, CAM_WIDE, ee), doors: 1 });
-    audience(ts, { y: H + 270 - 150 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
+    audience(ts, { y: H + 330 - 210 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
   };
   LOOPS.bridge.len = 156.2 - S0;
 
@@ -93,6 +94,7 @@
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       draw(c);
     }, 0);
+    pageVellum(ts); pageStrip(ts);                                    // the page (Fable)
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // B6 (159.53-161.0), the held note, "So I'm putting down the book": the fan opens and becomes the book, and she holds it in
@@ -105,7 +107,7 @@
     LOOPS.bridgeB6 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       stage(ts, tt => bare(tt, c => { seatedRibbon(c, pose6, T, tt); FABLE.draw(c, pose6(tt), T, { props: [fanProp(fan, tt)], rods: FABLE_RODS }); }), { cam: CAM_WINDOW, doors: 1 });
-      audience(ts, { y: H + 270, lift: 120 });
+      audience(ts, { y: H + 330, lift: 120 });
     };
     LOOPS.bridgeB6.len = 161.0 - S0;
   }
@@ -117,12 +119,12 @@
   // silhouette seen through the orange, the only colour on her in the paper world), out through the frame, the ribbon last.
   {
     const S0 = 166.0, S1 = 176.47, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
-    const X0 = 960, BOOKX = 800, TS = { x: X0, y: FLOOR, s: .22, origin: [1100, 3700] };
+    const X0 = 960, BOOKX = 800, TS = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (.2: her head clears the window's top)
     const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
     for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 82 });
     const b1 = Math.round((175.06 - NOTE) / BEAT), OUT = beat(b1);
     for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 110 });
-    const walk = makeWalk(steps, 82, BEAT);
+    const walk = makeWalk(steps, 82, BEAT, TS.s);
     // the one gesture: toward the book behind her (the arm back, the hand low), held, dropped; then the first step
     const reach = PUPPET.snap([[0, { upperarm: 0, forearm: 0, hand: 0, head: -3 }], [167.25, { upperarm: 24, forearm: 10, hand: 12, head: 8 }],
       [168.05, { upperarm: 0, forearm: 0, hand: 0, head: 0 }]]);
@@ -155,13 +157,14 @@
         c.globalCompositeOperation = 'source-over';
         drawStanding(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
       }, d, { penumbra: true, alpha: 1 - d * 1.1 });
+      pageVellum(tt); pageStrip(tt);
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
     }
     LOOPS.bridgeB8 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
       stage(ts, scene, { cam: camLerp(CAM_WINDOW, CAM_WIDE, ee), doors: 1 });
-      audience(ts, { y: H + 270 - 150 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
+      audience(ts, { y: H + 330 - 210 * ee, lift: 120, scale: .52 * (1 - .35 * ee) });
     };
     LOOPS.bridgeB8.len = S1 - S0;
   }
