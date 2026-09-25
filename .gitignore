@@ -22,3 +22,9 @@ projects/*/assets/song_stems/
 projects/*/voice/*_stems/
 projects/*/voice/chorus_fable/
 projects/duet-lab/
+# rig art intermediates (regenerable: tools/segment.py, tools/layers.py) and candidate bases
+projects/*/rig/*/base/
+projects/*/rig/*/layers/
+projects/*/rig/*/seg/
+projects/*/rig/*/test_*.png
+projects/*/rig/*/build/_*.png

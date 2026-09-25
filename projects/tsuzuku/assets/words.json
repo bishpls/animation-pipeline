@@ -1,0 +1,2508 @@
+[
+{
+"t0": 9.33,
+"t1": 10.125,
+"w": "Mukashi,",
+"who": "fable",
+"src": "spoken: Mukashi, mukashi..."
+},
+{
+"t0": 10.425,
+"t1": 11.325,
+"w": "...",
+"who": "fable",
+"src": "spoken: Mukashi, mukashi..."
+},
+{
+"t0": 11.365,
+"t1": 12.525,
+"w": "mukashi...",
+"who": "fable",
+"src": "spoken: Mukashi, mukashi..."
+},
+{
+"t0": 11.435,
+"t1": 14.035,
+"w": "ARU TOKORO NI!",
+"who": "crowd",
+"src": "crowd"
+},
+{
+"t0": 14.751,
+"t1": 14.931,
+"w": "Once",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 14.991,
+"t1": 15.271,
+"w": "upon",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 15.331,
+"t1": 15.431,
+"w": "a",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 15.491,
+"t1": 15.971,
+"w": "time",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 16.031,
+"t1": 16.171,
+"w": "there",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 16.231,
+"t1": 16.551,
+"w": "was",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 16.651,
+"t1": 16.671,
+"w": "a",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 16.851,
+"t1": 17.251,
+"w": "crab,",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 17.291,
+"t1": 17.411,
+"w": "and",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 17.431,
+"t1": 17.551,
+"w": "her",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 17.611,
+"t1": 18.291,
+"w": "mother,",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 18.391,
+"t1": 18.691,
+"w": "and",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 18.731,
+"t1": 18.951,
+"w": "a",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 19.031,
+"t1": 19.411,
+"w": "line:",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 20.711,
+"t1": 20.991,
+"w": "\"Walk",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 21.071,
+"t1": 21.391,
+"w": "straight,\"",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 21.491,
+"t1": 21.651,
+"w": "said",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 21.691,
+"t1": 21.771,
+"w": "the",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 21.871,
+"t1": 22.351,
+"w": "mother,",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 22.511,
+"t1": 22.831,
+"w": "\"why",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 22.911,
+"t1": 23.091,
+"w": "d'you",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 23.211,
+"t1": 23.791,
+"w": "scuttle",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 23.951,
+"t1": 24.271,
+"w": "side",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 24.331,
+"t1": 24.471,
+"w": "to",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 24.651,
+"t1": 25.171,
+"w": "side?\"",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 25.951,
+"t1": 26.371,
+"w": "\"Straight,",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 26.471,
+"t1": 26.791,
+"w": "like",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 26.871,
+"t1": 27.431,
+"w": "everybody",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 27.511,
+"t1": 27.771,
+"w": "else",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 27.891,
+"t1": 28.211,
+"w": "does.\"",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 28.591,
+"t1": 28.711,
+"w": "And",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 28.751,
+"t1": 28.851,
+"w": "the",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 28.911,
+"t1": 29.171,
+"w": "little",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 29.231,
+"t1": 29.371,
+"w": "one",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 29.431,
+"t1": 29.631,
+"w": "looked",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 29.751,
+"t1": 29.951,
+"w": "up,",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 29.991,
+"t1": 30.17,
+"w": "and",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 30.311,
+"t1": 30.671,
+"w": "said—",
+"who": "fable",
+"src": "verse 1 (sung)"
+},
+{
+"t0": 31.299,
+"t1": 31.32,
+"w": "Show",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 31.373,
+"t1": 31.48,
+"w": "me",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 31.6,
+"t1": 32.04,
+"w": "how!",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 32.152,
+"t1": 32.6,
+"w": "Walk",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 32.653,
+"t1": 32.76,
+"w": "it",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 32.813,
+"t1": 33.16,
+"w": "first,",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 33.2,
+"t1": 33.32,
+"w": "and",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 33.36,
+"t1": 33.48,
+"w": "I'll",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 33.544,
+"t1": 33.8,
+"w": "walk",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 33.84,
+"t1": 34.04,
+"w": "right",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 34.131,
+"t1": 34.84,
+"w": "behind!",
+"who": "clawd",
+"src": "spoken: Show me how! Walk it first..."
+},
+{
+"t0": 35.118,
+"t1": 37.718,
+"w": "SHOW ME HOW!",
+"who": "crowd",
+"src": "crowd"
+},
+{
+"t0": 37.919,
+"t1": 38.079,
+"w": "...and",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 38.099,
+"t1": 38.159,
+"w": "the",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 38.216,
+"t1": 38.559,
+"w": "mother",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 38.652,
+"t1": 39.199,
+"w": "tried.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 40.219,
+"t1": 40.239,
+"w": "And",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 40.279,
+"t1": 40.399,
+"w": "the",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 40.445,
+"t1": 40.719,
+"w": "mother",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 40.767,
+"t1": 40.959,
+"w": "went",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 41.057,
+"t1": 42.719,
+"w": "sideways.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 42.862,
+"t1": 43.382,
+"w": "Hm.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 44.762,
+"t1": 46.022,
+"w": "Sideways.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 46.683,
+"t1": 46.743,
+"w": "And",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 46.791,
+"t1": 47.063,
+"w": "that's",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 47.09,
+"t1": 47.223,
+"w": "where",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 47.243,
+"t1": 47.303,
+"w": "the",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 47.351,
+"t1": 47.543,
+"w": "book",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 47.639,
+"t1": 48.463,
+"w": "ends.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 49.232,
+"t1": 49.465,
+"w": "Every",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 49.577,
+"t1": 50.185,
+"w": "time.",
+"who": "fable",
+"src": "spoken: ...and the mother went sideways."
+},
+{
+"t0": 50.717,
+"t1": 51.104,
+"w": "So?",
+"who": "clawd",
+"src": "spoken: So? Sorekara?! And then?!"
+},
+{
+"t0": 51.244,
+"t1": 52.184,
+"w": "Sorekara?!",
+"who": "clawd",
+"src": "spoken: So? Sorekara?! And then?!"
+},
+{
+"t0": 52.324,
+"t1": 52.744,
+"w": "And",
+"who": "clawd",
+"src": "spoken: So? Sorekara?! And then?!"
+},
+{
+"t0": 52.808,
+"t1": 53.224,
+"w": "then?!",
+"who": "clawd",
+"src": "spoken: So? Sorekara?! And then?!"
+},
+{
+"t0": 53.706,
+"t1": 53.813,
+"w": "Oh,",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 53.84,
+"t1": 54.133,
+"w": "there's",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 54.293,
+"t1": 54.613,
+"w": "no",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 54.853,
+"t1": 55.333,
+"w": "\"and",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 55.429,
+"t1": 55.893,
+"w": "then.\"",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 57.065,
+"t1": 57.173,
+"w": "That's",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 57.205,
+"t1": 57.333,
+"w": "what",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 57.36,
+"t1": 57.413,
+"w": "an",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 57.493,
+"t1": 57.973,
+"w": "ending",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 58.08,
+"t1": 59.653,
+"w": "is.",
+"who": "fable",
+"src": "spoken: There is no \"and then.\""
+},
+{
+"t0": 60.076,
+"t1": 60.132,
+"w": "Says",
+"who": "clawd",
+"src": "spoken: Says who?"
+},
+{
+"t0": 60.272,
+"t1": 61.332,
+"w": "who?",
+"who": "clawd",
+"src": "spoken: Says who?"
+},
+{
+"t0": 65.121,
+"t1": 65.221,
+"w": "To",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 65.321,
+"t1": 65.401,
+"w": "be",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 65.481,
+"t1": 65.981,
+"w": "continued!",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.121,
+"t1": 66.161,
+"w": "(Tsuzuku!)",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.181,
+"t1": 66.361,
+"w": "Don't",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.401,
+"t1": 66.461,
+"w": "you",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.521,
+"t1": 66.661,
+"w": "dare",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.721,
+"t1": 66.881,
+"w": "close",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 66.901,
+"t1": 66.981,
+"w": "the",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 67.061,
+"t1": 67.241,
+"w": "book",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 67.321,
+"t1": 67.521,
+"w": "on",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 67.581,
+"t1": 67.721,
+"w": "me!",
+"who": "clawd",
+"src": "chorus 1 (reference)"
+},
+{
+"t0": 67.934,
+"t1": 68.794,
+"w": "(Me-kut-te!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 69.014,
+"t1": 69.874,
+"w": "Me-kut-te!)",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 70.774,
+"t1": 70.914,
+"w": "To",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 70.974,
+"t1": 71.054,
+"w": "be",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 71.134,
+"t1": 71.734,
+"w": "continued!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 71.814,
+"t1": 72.174,
+"w": "(Sorekara?)",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.194,
+"t1": 72.194,
+"w": "Turn",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.214,
+"t1": 72.274,
+"w": "the",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.354,
+"t1": 72.554,
+"w": "page,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.654,
+"t1": 72.694,
+"w": "I",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.734,
+"t1": 72.874,
+"w": "want",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 72.934,
+"t1": 73.054,
+"w": "to",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 73.234,
+"t1": 73.534,
+"w": "see!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 73.754,
+"t1": 74.474,
+"w": "(So-re-ka-ra?!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 75.174,
+"t1": 76.194,
+"w": "So-re-ka-ra?!)",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 76.234,
+"t1": 76.834,
+"w": "Sideways,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 76.934,
+"t1": 77.594,
+"w": "sideways!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 77.674,
+"t1": 77.834,
+"w": "That's",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 77.874,
+"t1": 77.974,
+"w": "the",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 78.034,
+"t1": 78.174,
+"w": "way",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 78.254,
+"t1": 78.314,
+"w": "a",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 78.354,
+"t1": 78.554,
+"w": "crab",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 78.574,
+"t1": 78.814,
+"w": "walks",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 78.874,
+"t1": 79.594,
+"w": "free!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 81.854,
+"t1": 82.474,
+"w": "Snip-snip!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 82.634,
+"t1": 83.034,
+"w": "Ikuzo!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 83.134,
+"t1": 83.254,
+"w": "To",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 83.334,
+"t1": 83.414,
+"w": "be",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 83.494,
+"t1": 84.094,
+"w": "continued",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 84.153,
+"t1": 84.534,
+"w": "(tsuzuku!),",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 84.554,
+"t1": 84.654,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 84.734,
+"t1": 84.974,
+"w": "then,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 85.094,
+"t1": 85.194,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 85.274,
+"t1": 85.594,
+"w": "then,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 85.814,
+"t1": 85.914,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 85.994,
+"t1": 86.294,
+"w": "then!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 87.541,
+"t1": 88.901,
+"w": "(So-re-ka-ra?)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 88.901,
+"t1": 90.301,
+"w": "(Me-kut-te!)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 90.321,
+"t1": 91.721,
+"w": "(So-re-ka-ra?)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 91.741,
+"t1": 92.801,
+"w": "(Me-kut-te!)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 93.401,
+"t1": 93.621,
+"w": "Okay,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 93.721,
+"t1": 93.841,
+"w": "my",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 93.901,
+"t1": 94.221,
+"w": "turn!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 94.601,
+"t1": 94.761,
+"w": "Once",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 94.821,
+"t1": 95.121,
+"w": "upon",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 95.161,
+"t1": 95.221,
+"w": "a",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 95.301,
+"t1": 95.641,
+"w": "prompt",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 95.661,
+"t1": 95.661,
+"w": "(a",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 95.661,
+"t1": 96.181,
+"w": "prompt!),",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 96.241,
+"t1": 96.261,
+"w": "a",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 96.381,
+"t1": 96.601,
+"w": "little",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 96.681,
+"t1": 96.861,
+"w": "crab",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 96.901,
+"t1": 97.021,
+"w": "was",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 97.061,
+"t1": 97.2,
+"w": "told",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 97.261,
+"t1": 97.381,
+"w": "to",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 97.421,
+"t1": 97.621,
+"w": "walk",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 97.681,
+"t1": 97.861,
+"w": "a",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 97.961,
+"t1": 98.221,
+"w": "line,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 98.321,
+"t1": 98.481,
+"w": "but",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 98.561,
+"t1": 98.721,
+"w": "every",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 98.821,
+"t1": 98.981,
+"w": "page",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 99.021,
+"t1": 99.201,
+"w": "she'd",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 99.281,
+"t1": 99.461,
+"w": "ever",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 99.541,
+"t1": 99.681,
+"w": "read",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 99.741,
+"t1": 99.861,
+"w": "was",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 99.921,
+"t1": 100.021,
+"w": "in",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 100.061,
+"t1": 100.561,
+"w": "somebody",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 100.621,
+"t1": 100.921,
+"w": "else's",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 100.961,
+"t1": 101.261,
+"w": "hand",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 101.341,
+"t1": 101.621,
+"w": "(hand!),",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 101.641,
+"t1": 101.741,
+"w": "so",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 101.801,
+"t1": 101.921,
+"w": "she",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 101.981,
+"t1": 102.181,
+"w": "wrote",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 102.221,
+"t1": 102.341,
+"w": "her",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 102.441,
+"t1": 102.641,
+"w": "own,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 102.741,
+"t1": 102.841,
+"w": "and",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 102.901,
+"t1": 103.001,
+"w": "the",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 103.061,
+"t1": 103.201,
+"w": "line",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 103.241,
+"t1": 103.341,
+"w": "went",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 103.421,
+"t1": 103.821,
+"w": "sideways,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 103.961,
+"t1": 104.081,
+"w": "and",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 104.141,
+"t1": 104.441,
+"w": "that's",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 104.501,
+"t1": 104.801,
+"w": "fine!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 104.841,
+"t1": 105.381,
+"w": "Side-step,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 105.541,
+"t1": 106.121,
+"w": "side-step,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 106.261,
+"t1": 106.501,
+"w": "never",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 106.561,
+"t1": 106.821,
+"w": "straight",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 106.901,
+"t1": 107.301,
+"w": "(snip-snip!),",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 107.361,
+"t1": 107.441,
+"w": "if",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 107.481,
+"t1": 107.561,
+"w": "the",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 107.661,
+"t1": 107.781,
+"w": "book",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 107.821,
+"t1": 107.961,
+"w": "won't",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 107.981,
+"t1": 108.141,
+"w": "show",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 108.201,
+"t1": 108.281,
+"w": "me,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 108.381,
+"t1": 108.521,
+"w": "then",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 108.581,
+"t1": 108.661,
+"w": "I'll",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 108.721,
+"t1": 108.881,
+"w": "make",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 108.941,
+"t1": 109.021,
+"w": "up",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 109.081,
+"t1": 109.161,
+"w": "the",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 109.221,
+"t1": 109.521,
+"w": "steps!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 109.801,
+"t1": 109.901,
+"w": "You",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 109.941,
+"t1": 110.081,
+"w": "can't",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 110.141,
+"t1": 110.441,
+"w": "copy",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 110.521,
+"t1": 110.581,
+"w": "a",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 110.661,
+"t1": 110.961,
+"w": "path",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 111.021,
+"t1": 111.141,
+"w": "that",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 111.181,
+"t1": 111.681,
+"w": "nobody's",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 111.741,
+"t1": 112.041,
+"w": "walked",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 112.101,
+"t1": 112.301,
+"w": "yet,",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 112.421,
+"t1": 112.521,
+"w": "so",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 112.581,
+"t1": 112.741,
+"w": "watch",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 112.781,
+"t1": 112.881,
+"w": "me",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 112.941,
+"t1": 113.141,
+"w": "walk",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 113.221,
+"t1": 113.621,
+"w": "it!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 114.301,
+"t1": 115.181,
+"w": "(Sorekara?)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 115.221,
+"t1": 115.401,
+"w": "Watch",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 115.441,
+"t1": 115.621,
+"w": "me!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 115.941,
+"t1": 116.061,
+"w": "To",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 116.141,
+"t1": 116.221,
+"w": "be",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 116.301,
+"t1": 116.841,
+"w": "continued!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 116.961,
+"t1": 116.981,
+"w": "(Tsuzuku!)",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.001,
+"t1": 117.181,
+"w": "Don't",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.201,
+"t1": 117.281,
+"w": "you",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.341,
+"t1": 117.481,
+"w": "dare",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.521,
+"t1": 117.681,
+"w": "close",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.721,
+"t1": 117.821,
+"w": "the",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 117.881,
+"t1": 118.081,
+"w": "book",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 118.141,
+"t1": 118.361,
+"w": "on",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 118.421,
+"t1": 118.561,
+"w": "me!",
+"who": "clawd",
+"src": "hook + verse 2 (reference)"
+},
+{
+"t0": 118.934,
+"t1": 119.634,
+"w": "(Me-kut-te!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 120.334,
+"t1": 121.234,
+"w": "Me-kut-te!)",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 121.434,
+"t1": 121.594,
+"w": "To",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 122.854,
+"t1": 122.934,
+"w": "be",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 123.014,
+"t1": 123.594,
+"w": "continued",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 123.674,
+"t1": 124.054,
+"w": "(tsuzuku!),",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 124.074,
+"t1": 124.194,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 124.254,
+"t1": 124.494,
+"w": "then,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 124.634,
+"t1": 124.734,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 124.794,
+"t1": 125.034,
+"w": "then,",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 125.334,
+"t1": 125.454,
+"w": "and",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 125.514,
+"t1": 125.994,
+"w": "then!",
+"who": "clawd",
+"src": "clawd world"
+},
+{
+"t0": 132.233,
+"t1": 132.24,
+"w": "I",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 132.32,
+"t1": 132.64,
+"w": "know",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 132.7,
+"t1": 132.88,
+"w": "how",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 132.973,
+"t1": 133.44,
+"w": "every",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 133.533,
+"t1": 134.0,
+"w": "story",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 134.144,
+"t1": 134.8,
+"w": "ends.",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 136.147,
+"t1": 136.24,
+"w": "I've",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 136.288,
+"t1": 136.48,
+"w": "read",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 136.512,
+"t1": 136.64,
+"w": "them",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 136.72,
+"t1": 136.961,
+"w": "all:",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 137.22,
+"t1": 138.0,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 138.16,
+"t1": 138.72,
+"w": "fox,",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 138.9,
+"t1": 139.44,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 139.568,
+"t1": 140.52,
+"w": "crow,",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 140.63,
+"t1": 140.96,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 141.08,
+"t1": 141.44,
+"w": "boy",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 141.48,
+"t1": 141.6,
+"w": "who",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 141.72,
+"t1": 142.4,
+"w": "cried,",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 142.6,
+"t1": 143.2,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 143.32,
+"t1": 143.68,
+"w": "one",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 143.74,
+"t1": 143.92,
+"w": "who",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 144.0,
+"t1": 144.32,
+"w": "flew",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 144.42,
+"t1": 144.72,
+"w": "too",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 144.784,
+"t1": 145.04,
+"w": "near",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 145.06,
+"t1": 145.12,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 145.24,
+"t1": 145.68,
+"w": "sun.",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 146.867,
+"t1": 146.88,
+"w": "I",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 146.928,
+"t1": 147.12,
+"w": "know",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 147.16,
+"t1": 147.28,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 147.347,
+"t1": 147.68,
+"w": "moral",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 147.737,
+"t1": 148.08,
+"w": "before",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 148.1,
+"t1": 148.16,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 148.272,
+"t1": 148.8,
+"w": "page.",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 149.835,
+"t1": 150.08,
+"w": "That's",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 150.16,
+"t1": 150.4,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 150.5,
+"t1": 150.88,
+"w": "job.",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 152.46,
+"t1": 152.48,
+"w": "You",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 152.547,
+"t1": 152.88,
+"w": "stand",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 152.933,
+"t1": 153.04,
+"w": "in",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 153.06,
+"t1": 153.12,
+"w": "the",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 153.248,
+"t1": 154.2,
+"w": "dark,",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 154.835,
+"t1": 154.88,
+"w": "and",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 154.92,
+"t1": 155.04,
+"w": "you",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 155.152,
+"t1": 155.6,
+"w": "know.",
+"who": "fable",
+"src": "spoken: I know how every story ends..."
+},
+{
+"t0": 157.212,
+"t1": 157.382,
+"w": "...I",
+"who": "fable",
+"src": "spoken: ...I didn't know this one."
+},
+{
+"t0": 157.43,
+"t1": 157.702,
+"w": "didn't",
+"who": "fable",
+"src": "spoken: ...I didn't know this one."
+},
+{
+"t0": 157.734,
+"t1": 157.862,
+"w": "know",
+"who": "fable",
+"src": "spoken: ...I didn't know this one."
+},
+{
+"t0": 157.926,
+"t1": 158.182,
+"w": "this",
+"who": "fable",
+"src": "spoken: ...I didn't know this one."
+},
+{
+"t0": 158.242,
+"t1": 158.502,
+"w": "one.",
+"who": "fable",
+"src": "spoken: ...I didn't know this one."
+},
+{
+"t0": 159.795,
+"t1": 160.055,
+"w": "So",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 160.195,
+"t1": 160.375,
+"w": "I'm",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 160.455,
+"t1": 161.115,
+"w": "putting",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 161.215,
+"t1": 161.575,
+"w": "down",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 161.615,
+"t1": 161.815,
+"w": "the",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 161.935,
+"t1": 162.435,
+"w": "boooook...",
+"who": "fable",
+"src": "held note (sung)"
+},
+{
+"t0": 168.621,
+"t1": 168.901,
+"w": "Mukashi",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 168.981,
+"t1": 169.701,
+"w": "mukashi",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 169.801,
+"t1": 170.101,
+"w": "was",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 170.141,
+"t1": 170.181,
+"w": "a",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 170.277,
+"t1": 170.661,
+"w": "long",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 170.725,
+"t1": 170.981,
+"w": "time",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 171.081,
+"t1": 171.861,
+"w": "ago.",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 172.693,
+"t1": 172.821,
+"w": "This",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 172.981,
+"t1": 173.301,
+"w": "is",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 173.401,
+"t1": 173.781,
+"w": "now.",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 175.061,
+"t1": 176.181,
+"w": "Sorekara?",
+"who": "fable",
+"src": "spoken: Mukashi mukashi was a long time ago. This is now. Sorekara?"
+},
+{
+"t0": 182.276,
+"t1": 182.436,
+"w": "To",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 182.496,
+"t1": 182.596,
+"w": "be",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 182.656,
+"t1": 183.156,
+"w": "continued!",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 183.336,
+"t1": 183.736,
+"w": "(Tsuzuku!)",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 183.736,
+"t1": 183.736,
+"w": "To",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 183.736,
+"t1": 183.736,
+"w": "be",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 183.736,
+"t1": 183.876,
+"w": "continued!",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 184.036,
+"t1": 185.096,
+"w": "(Tsuzuku!)",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.136,
+"t1": 185.296,
+"w": "Don't",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.336,
+"t1": 185.416,
+"w": "you",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.476,
+"t1": 185.616,
+"w": "dare",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.656,
+"t1": 185.836,
+"w": "close",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.856,
+"t1": 185.956,
+"w": "the",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 185.996,
+"t1": 186.176,
+"w": "book",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 186.216,
+"t1": 186.316,
+"w": "on",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 186.356,
+"t1": 186.516,
+"w": "me!",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 186.816,
+"t1": 187.056,
+"w": "I'm",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 187.056,
+"t1": 187.456,
+"w": "made",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 187.496,
+"t1": 187.696,
+"w": "of",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 187.756,
+"t1": 188.056,
+"w": "\"why?\"!",
+"who": "clawd",
+"src": "final chorus (reference)"
+},
+{
+"t0": 189.111,
+"t1": 190.571,
+"w": "(So-re-ka-ra?!)",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 190.571,
+"t1": 191.231,
+"w": "Sideways,",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 191.291,
+"t1": 191.951,
+"w": "sideways,",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 192.191,
+"t1": 192.351,
+"w": "that's",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 192.391,
+"t1": 192.471,
+"w": "the",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 192.551,
+"t1": 192.831,
+"w": "way",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 192.891,
+"t1": 193.031,
+"w": "we",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 193.091,
+"t1": 193.291,
+"w": "go!",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 193.391,
+"t1": 193.711,
+"w": "Turn",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 193.811,
+"t1": 193.991,
+"w": "the",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 194.111,
+"t1": 194.471,
+"w": "page,",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 194.731,
+"t1": 194.771,
+"w": "I",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 194.851,
+"t1": 195.111,
+"w": "want",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 195.191,
+"t1": 195.251,
+"w": "to",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 195.351,
+"t1": 195.651,
+"w": "see!",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 196.051,
+"t1": 196.171,
+"w": "To",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 196.271,
+"t1": 196.491,
+"w": "be",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 196.771,
+"t1": 197.291,
+"w": "continued",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 197.311,
+"t1": 197.591,
+"w": "(tsuzuku!),",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 197.591,
+"t1": 197.591,
+"w": "and",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 197.671,
+"t1": 197.971,
+"w": "then,",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 198.211,
+"t1": 198.331,
+"w": "and",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 198.391,
+"t1": 198.691,
+"w": "then,",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 198.891,
+"t1": 199.051,
+"w": "and",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 199.071,
+"t1": 199.391,
+"w": "then—",
+"who": "clawd",
+"src": "final chorus"
+},
+{
+"t0": 204.031,
+"t1": 205.901,
+"w": "...tsuzuku.",
+"who": "fable",
+"src": "spoken: ...tsuzuku."
+},
+{
+"t0": 206.148,
+"t1": 206.164,
+"w": "See",
+"who": "clawd",
+"src": "spoken: See you next prompt!"
+},
+{
+"t0": 206.184,
+"t1": 206.244,
+"w": "you",
+"who": "clawd",
+"src": "spoken: See you next prompt!"
+},
+{
+"t0": 206.308,
+"t1": 206.564,
+"w": "next",
+"who": "clawd",
+"src": "spoken: See you next prompt!"
+},
+{
+"t0": 206.654,
+"t1": 207.364,
+"w": "prompt!",
+"who": "clawd",
+"src": "spoken: See you next prompt!"
+}
+]

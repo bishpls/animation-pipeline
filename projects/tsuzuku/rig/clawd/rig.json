@@ -1,0 +1,214 @@
+{
+ "manifest": "build/manifest.json",
+ "origin": [
+  1080,
+  3700
+ ],
+ "preroll": 2,
+ "head": {
+  "layers": [
+   "hair_back",
+   "bun_L",
+   "bun_R",
+   "face",
+   "mouth",
+   "eye_L",
+   "eye_R",
+   "brow_L",
+   "brow_R",
+   "hair_side_L",
+   "hair_side_R",
+   "hair_front",
+   "pin_crab",
+   "pin_star"
+  ],
+  "center": [
+   1068,
+   560
+  ],
+  "radius": [
+   200,
+   240
+  ],
+  "neck": [
+   1065,
+   800
+  ],
+  "depth": {
+   "hair_front": 0.12,
+   "pin_star": 0.18,
+   "pin_crab": 0.16,
+   "brow_L": 0.015,
+   "brow_R": 0.015,
+   "eye_L": 0.015,
+   "eye_R": 0.015,
+   "mouth": 0.015,
+   "face": 0,
+   "hair_side_L": [
+    0.04,
+    -0.22
+   ],
+   "hair_side_R": [
+    0.04,
+    -0.22
+   ],
+   "bun_L": -0.24,
+   "bun_R": -0.24,
+   "hair_back": -0.35
+  }
+ },
+ "body": {
+  "waist": [
+   1065,
+   1370
+  ],
+  "hip": [
+   1065,
+   1900
+  ],
+  "upper": [
+   "neck",
+   "collar",
+   "bow",
+   "bodice"
+  ]
+ },
+ "arms": {
+  "L": {
+   "layers": [
+    "sleeve_L",
+    "trim_L",
+    "arm_L",
+    "cuff_L",
+    "hand_L"
+   ],
+   "shoulder": [
+    745,
+    1085
+   ],
+   "sleeve": "sleeve_L",
+   "sleeveFollow": 0.35
+  },
+  "R": {
+   "layers": [
+    "sleeve_R",
+    "trim_R",
+    "arm_R",
+    "cuff_R",
+    "hand_R"
+   ],
+   "shoulder": [
+    1385,
+    1085
+   ],
+   "sleeve": "sleeve_R",
+   "sleeveFollow": 0.35
+  }
+ },
+ "sway": {
+  "hair_side_L": {
+   "root": 430,
+   "len": 440,
+   "spring": "hair",
+   "amp": 2.6
+  },
+  "hair_side_R": {
+   "root": 430,
+   "len": 440,
+   "spring": "hair",
+   "amp": 2.6
+  },
+  "ahoge": {
+   "axis": "rot",
+   "pivot": [
+    1030,
+    215
+   ],
+   "root": -10000,
+   "len": 10000,
+   "spring": "ahoge",
+   "amp": 0.9
+  },
+  "bun_L": {
+   "axis": "rot",
+   "pivot": [
+    835,
+    300
+   ],
+   "root": -10000,
+   "len": 10000,
+   "spring": "bun",
+   "amp": 0.18
+  },
+  "bun_R": {
+   "axis": "rot",
+   "pivot": [
+    1300,
+    300
+   ],
+   "root": -10000,
+   "len": 10000,
+   "spring": "bun",
+   "amp": -0.18
+  },
+  "bow": {
+   "root": 1000,
+   "len": 260,
+   "spring": "bow",
+   "amp": 3
+  },
+  "skirt": {
+   "root": 1400,
+   "len": 560,
+   "spring": "skirt",
+   "amp": 3.5
+  },
+  "skirt_back": {
+   "root": 1600,
+   "len": 600,
+   "spring": "skirt",
+   "amp": 4.5
+  }
+ },
+ "springs": {
+  "hair": {
+   "drive": "headX",
+   "k": 55,
+   "c": 7,
+   "gain": 1.3
+  },
+  "ahoge": {
+   "drive": "headX",
+   "k": 95,
+   "c": 4.5,
+   "gain": 1.2
+  },
+  "bun": {
+   "drive": "bounce",
+   "k": 160,
+   "c": 9,
+   "gain": 1
+  },
+  "bow": {
+   "drive": "bodyZ",
+   "k": 80,
+   "c": 8,
+   "gain": 1.4
+  },
+  "skirt": {
+   "drive": "bodyZ",
+   "k": 45,
+   "c": 5,
+   "gain": 1.6
+  }
+ },
+ "mouth": {
+  "layer": "mouth",
+  "center": [
+   1065,
+   693
+  ],
+  "w": 150,
+  "h": 94
+ }
+}

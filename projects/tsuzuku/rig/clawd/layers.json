@@ -1,0 +1,184 @@
+{
+ "order": [
+  "pin_star",
+  "pin_crab",
+  "hair_front",
+  "hair_side_L",
+  "hair_side_R",
+  "brow_L",
+  "brow_R",
+  "eye_L",
+  "eye_R",
+  "mouth",
+  "face",
+  "ahoge",
+  "bun_L",
+  "bun_R",
+  "hand_L",
+  "hand_R",
+  "cuff_L",
+  "cuff_R",
+  "arm_L",
+  "arm_R",
+  "trim_L",
+  "trim_R",
+  "sleeve_L",
+  "sleeve_R",
+  "bow",
+  "collar",
+  "neck",
+  "bodice",
+  "waistband",
+  "skirt",
+  "shorts",
+  "boot_L",
+  "boot_R",
+  "leg_L",
+  "leg_R",
+  "skirt_back"
+ ],
+ "split": {
+  "hair": [
+   [
+    "hair_front",
+    [
+     [
+      790,
+      120
+     ],
+     [
+      1340,
+      120
+     ],
+     [
+      1340,
+      380
+     ],
+     [
+      1262,
+      430
+     ],
+     [
+      1255,
+      565
+     ],
+     [
+      880,
+      565
+     ],
+     [
+      872,
+      430
+     ],
+     [
+      790,
+      380
+     ]
+    ]
+   ],
+   [
+    "hair_side_L",
+    [
+     [
+      0,
+      0
+     ],
+     [
+      1065,
+      0
+     ],
+     [
+      1065,
+      3840
+     ],
+     [
+      0,
+      3840
+     ]
+    ]
+   ],
+   [
+    "hair_side_R",
+    [
+     [
+      1065,
+      0
+     ],
+     [
+      2160,
+      0
+     ],
+     [
+      2160,
+      3840
+     ],
+     [
+      1065,
+      3840
+     ]
+    ]
+   ]
+  ]
+ },
+ "force": {},
+ "line_r": 9,
+ "line_lum": 80,
+ "line_grow": 2,
+ "colour": {
+  "pin_star": [
+   [
+    170,
+    130,
+    0
+   ],
+   [
+    255,
+    255,
+    170
+   ],
+   "hair_side_R"
+  ]
+ },
+ "claim": {
+  "face": {
+   "grow": 14,
+   "from": [
+    "neck",
+    "collar"
+   ]
+  },
+  "eye_L": {
+   "ellipse": [
+    962,
+    565,
+    74,
+    62
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "eye_R": {
+   "ellipse": [
+    1166,
+    565,
+    76,
+    62
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "mouth": {
+   "ellipse": [
+    1065,
+    690,
+    70,
+    30
+   ],
+   "from": [
+    "face"
+   ]
+  }
+ }
+}

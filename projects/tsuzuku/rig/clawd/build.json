@@ -1,0 +1,218 @@
+{
+ "under": {
+  "face": {
+   "hull": [
+    "eye_L",
+    "eye_R",
+    "brow_L",
+    "brow_R",
+    "mouth"
+   ],
+   "ellipse": [
+    1068,
+    585,
+    178,
+    215
+   ],
+   "clip": [
+    860,
+    380,
+    1280,
+    792
+   ],
+   "flat": [
+    1000,
+    630,
+    1130,
+    660
+   ],
+   "flat_zone": {
+    "hull": [
+     "eye_L",
+     "eye_R",
+     "mouth"
+    ]
+   }
+  },
+  "neck": {
+   "rect": [
+    995,
+    700,
+    1140,
+    1000
+   ],
+   "hull": [
+    "hair_side_L",
+    "hair_side_R"
+   ],
+   "clip": [
+    960,
+    700,
+    1170,
+    1000
+   ]
+  },
+  "arm_L": {
+   "hull": [
+    "trim_L"
+   ],
+   "grow": 6,
+   "clip": [
+    560,
+    1150,
+    800,
+    1400
+   ]
+  },
+  "arm_R": {
+   "hull": [
+    "trim_R"
+   ],
+   "grow": 6,
+   "clip": [
+    1330,
+    1150,
+    1580,
+    1400
+   ]
+  },
+  "bodice": {
+   "hull": [
+    "sleeve_L",
+    "sleeve_R",
+    "bow",
+    "collar"
+   ],
+   "clip": [
+    760,
+    900,
+    1370,
+    1370
+   ]
+  },
+  "skirt": {
+   "hull": [
+    "hand_L",
+    "hand_R"
+   ],
+   "clip": [
+    380,
+    1500,
+    1780,
+    2000
+   ],
+   "within_hull": true
+  },
+  "shorts": {
+   "rect": [
+    860,
+    1880,
+    1290,
+    2060
+   ]
+  },
+  "leg_L": {
+   "hull": [
+    "shorts"
+   ],
+   "clip": [
+    820,
+    1960,
+    1068,
+    2260
+   ]
+  },
+  "leg_R": {
+   "hull": [
+    "shorts"
+   ],
+   "clip": [
+    1068,
+    1960,
+    1330,
+    2260
+   ]
+  },
+  "hair_front": {
+   "hull": [
+    "pin_star",
+    "pin_crab"
+   ],
+   "clip": [
+    1150,
+    300,
+    1450,
+    560
+   ]
+  },
+  "hair_side_R": {
+   "hull": [
+    "pin_star",
+    "pin_crab"
+   ],
+   "clip": [
+    1150,
+    300,
+    1450,
+    560
+   ]
+  },
+  "collar": {
+   "hull": [
+    "hair_side_L",
+    "hair_side_R"
+   ],
+   "clip": [
+    820,
+    800,
+    1320,
+    1000
+   ],
+   "within_hull": true
+  },
+  "sleeve_L": {
+   "hull": [
+    "hair_side_L"
+   ],
+   "clip": [
+    600,
+    820,
+    900,
+    1100
+   ],
+   "within_hull": true
+  },
+  "sleeve_R": {
+   "hull": [
+    "hair_side_R"
+   ],
+   "clip": [
+    1230,
+    820,
+    1530,
+    1100
+   ],
+   "within_hull": true
+  }
+ },
+ "plates": {
+  "hair_back": {
+   "from": [
+    "hair_front",
+    "hair_side_L",
+    "hair_side_R",
+    "face"
+   ],
+   "grow": -14,
+   "colour": "shadow",
+   "behind": "skirt_back"
+  }
+ },
+ "feather": {
+  "eye_L": 10,
+  "eye_R": 10,
+  "mouth": 10
+ },
+ "bleed": 3,
+ "aa": 0.8
+}
