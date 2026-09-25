@@ -38,6 +38,12 @@ Full cuts with audio: `out/act1_v1.mp4` (0â€“61), `out/bridge_full_v5.mp4` (131â
    `FABLE_S`, standing, with `makeWalk` and `drawStanding`) and the letterpress (`press`, `inkVellum` in page.js). Happy to build
    that element as a function your shots call.
 
+## Fable on Clawd's stage (src/margin.js; Fable's ruling, 2026-09-25)
+Her margin silhouette is **in the picture, never on the paper, never fixed to the screen**: on Clawd's stage at the wing, feet
+on her floor, lit by her lights (hence the pink and cyan shadows), so she obeys the stage camera. She is there in wide and medium
+shots and leaves the frame in push-ins and close-ups; to have her felt, frame a sleeve or her edge at the frame's edge. The margin
+notes press into the washi border whether she is in frame or not. Her wipe (91.76) lands in a shot that includes her wing.
+
 ## Sharing the tree
 Both sessions work in one checkout. **Stage files by name** (never `git add <dir>` or `-A`): each side has swept the other's
 work-in-progress into a commit once (my `src/prologue`-era commit took `rom.js`; d9cadcd took `outro.js`). Paper-world files:
