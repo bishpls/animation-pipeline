@@ -184,12 +184,15 @@ const PUPPET = (() => {
     for (let k = 0; k < m; k += 2) { let d = 0; for (let i = 0; i < m; i += 4) { const b = B[(i + k) % m]; d += (A[i][0] - b[0]) ** 2 + (A[i][1] - b[1]) ** 2; } if (d < bd) { bd = d; best = k; } }
     return best;
   }
-  function shapeAt(SH, a, b, u) {
+  // Fable's rule: the slits lead, the outline follows. Card 1 (u = 1/3) is the source outline already cut with the target's
+  // slits (the cut comes before the shape, as in real paper); card 2 (u = 2/3) is the outline 2/3 of the way; card 3 the pose.
+  function shapeAt(SH, a, b, u, lead = true) {
     const A = SH.S[a], B = SH.S[b]; if (u <= 0 || a === b) return A; if (u >= 1) return B;
+    const ou = lead ? (u < .5 ? 0 : u) : u;
     const key = a + '>' + b; if (SH.shift[key] === undefined) SH.shift[key] = bestShift(A.o, B.o);
     const k = SH.shift[key], m = A.o.length, o = new Array(m);
-    for (let i = 0; i < m; i++) { const p = A.o[i], q = B.o[(i + k) % m]; o[i] = [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u]; }
-    const sl = A.sl.map((s, i) => s.map((v, j) => v + (B.sl[i][j] - v) * u));
+    for (let i = 0; i < m; i++) { const p = A.o[i], q = B.o[(i + k) % m]; o[i] = [p[0] + (q[0] - p[0]) * ou, p[1] + (q[1] - p[1]) * ou]; }
+    const sl = lead ? B.sl : A.sl.map((s, i) => s.map((v, j) => v + (B.sl[i][j] - v) * u));
     return { o, sl };
   }
   // draw a shape into c under matrix Mx (a DOMMatrix: shape px -> canvas): black paper, slits cut through
