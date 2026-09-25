@@ -23,7 +23,7 @@
     else if (s >= SIDEWAYS) { const k = step((s - SIDEWAYS) / (beat / 2)); depth = Math.max(0, .55 - k * .12); x = 900 + Math.min(k, 30) * 16 * (s < SIDE2 ? 1 : -1.2) + (s >= SIDE2 ? 30 * 16 : 0); rock = 5 * (k % 2 ? 1 : -1); y = FLOOR - 10 * (k % 2); }
     // held nearer the lamp, the shadow grows about the lamp's point; lift the puppet so its shadow still stands on the floor
     const [lx, ly] = SCREEN.lamp, sp = 1 / (1 - Math.min(depth, .8) * .5), yy = ly + (y - ly) / sp;
-    shadow(c => { c.globalCompositeOperation = 'source-over'; PUPPET.drawShape(c, crab, new DOMMatrix().translate(x, yy).rotate(rock).scale(.26 * 1.4)); }, depth);
+    shadow(c => { c.globalCompositeOperation = 'source-over'; PUPPET.drawShape(c, crab, new DOMMatrix().translate(x, yy).rotate(rock).scale(.26 * 1.4)); }, depth, { penumbra: true });
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
   LOOPS.mother.len = 9;

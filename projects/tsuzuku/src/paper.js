@@ -67,8 +67,11 @@ function shadow(drawFn, depth = 0, o = {}) {
   X.save();
   if (o.clip !== false) { const [x, y, w, h] = o.rect || SCREEN.rect; X.beginPath(); X.rect(x, y, w, h); X.clip(); }
   X.translate(lx, ly); X.scale(s, s); X.translate(-lx, -ly);
-  X.filter = `blur(${blur}px)`; X.globalCompositeOperation = 'multiply'; X.globalAlpha = o.alpha ?? 1;
-  X.drawImage(PXC, 0, 0);
+  X.globalCompositeOperation = 'multiply'; X.globalAlpha = o.alpha ?? 1;
+  if (o.penumbra && depth > .02) {             // an extended lamp: a soft fringe (penumbra) around a crisp dark core (umbra)
+    X.filter = `blur(${blur * .8}px)`; X.globalAlpha = (o.alpha ?? 1) * .75; X.drawImage(PXC, 0, 0);
+    X.filter = `blur(${.6 + depth * 2}px)`; X.globalAlpha = o.alpha ?? 1; X.drawImage(PXC, 0, 0);
+  } else { X.filter = `blur(${blur}px)`; X.drawImage(PXC, 0, 0); }
   X.restore();
 }
 // inside a shadow drawFn:
