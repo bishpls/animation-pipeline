@@ -48,6 +48,19 @@ const MOVES = (() => {
     armsOut: (b, o) => ({ ...arm(1, o.a ?? 48, o.e ?? 15), ...arm(-1, o.a ?? 48, o.e ?? 15), angleY: o.y ?? -.25 }),
     present: (b, o) => ({ ...arm(1, 40, 35), ...arm(-1, 40, 35), angleY: -.35, hipY: 8 }),                  // arms open to the crowd
     peace: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 32, 118, 'peace'), ...arm(-s2, 14, 40), angleZ: 8 * s2, bodyZ: 2 * s2, eyes: o.wink ? null : undefined, [s2 > 0 ? 'eyeR' : 'eyeL']: o.wink ? 'closed' : undefined }; },
+    // the hook (one call per bar: the call on beats 1-2, the crowd's two claps on 3-4, which Clawd answers with two snips)
+    snipSnip: (b, o) => { const hit = b < 2 ? pulse(b % 1, .3) : 0, h = hit > .25 ? 'pinch' : null;        // two snips from its start
+      return { ...arm(1, 24, 100 - 28 * hit, h), ...arm(-1, 24, 100 - 28 * hit, h), hipY: 5 * hit }; },
+    callEar: (b, o) => { const s2 = o.side ?? 1;                                 // the call, asked: hand to ear, the head tilts in
+      return { ...arm(s2, 30, 120), ...arm(-s2, 12, 35), angleZ: 8 * s2, angleX: .2 * s2, bodyZ: 2.5 * s2, bodyX: .3 * s2 }; },
+    pageWipe: (b, o) => { const s2 = o.side ?? 1, u = snap(b / 2, .6);      // turn the page: a flat hand sweeps across the body
+      return { ...arm(s2, 38 - 46 * u, 10 - 135 * u), ...arm(-s2, 14, 30), bodyZ: -2.5 * s2 * u, bodyX: -.4 * s2 * u, angleZ: -3 * s2 * u }; },
+    handOnChest: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, -8, -125), ...arm(-s2, 10, 25), angleY: -.15 }; },
+    telling: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 30, 45), ...arm(-s2, 12, 30), angleZ: 4 * s2, bodyZ: 1.5 * s2 }; },   // an open palm, telling
+    writing: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 24 + 4 * S(PI * b * 2), 70 + 12 * S(PI * b * 4), 'point'), ...arm(-s2, 16, 60), angleY: .25 }; },
+    shrug: (b, o) => ({ ...arm(1, 26, 70), ...arm(-1, 26, 70), angleZ: 6 * (o.side ?? 1), hipY: 6 }),
+    pointOut: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 50, 5, 'point'), ...arm(-s2, 12, 30), bodyX: .3 * s2, angleX: .15 * s2 }; },
+    shake: (b, o) => ({ angleX: .22 * S(2 * PI * b) }),                                                          // 'no, no'
     // head
     headBob: (b, o) => ({ angleY: -(o.amp ?? .4) * pulse(b % 1, .45) }),
     headTilt: (b, o) => { const ev = o.every ?? 2, side = alt(b, ev) * (o.side ?? 1); return { angleZ: (o.amp ?? 8) * side * snap((b % ev) / ev, .3) }; },

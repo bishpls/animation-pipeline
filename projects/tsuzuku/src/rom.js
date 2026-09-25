@@ -38,7 +38,7 @@
   add('arm pump', 3, u => { const b = Math.abs(S(4 * PI * u)); return { armL: 10 + 15 * b, elbowL: 40 + 60 * b, armR: 10 + 15 * (1 - b), elbowR: 40 + 60 * (1 - b), mid: 1 }; });
   add('arms+hips', 3, u => { const b = S(3 * PI * u); return { hipX: b, armL: 12 + 10 * b, elbowL: 50 + 30 * b, armR: 12 - 10 * b, elbowR: 50 - 30 * b, full: 1 }; });
   // the dances themselves, from src/chorus.js etc. (window.CHOREO: {name: {t0, dur, P()}}), full-body framing, on song time
-  const DANCE = { chorus1: 18 * 60 / 170 * 4 };
+  const DANCE = { clawdA: 48 * 60 / 170 * 4 };
   for (const [nm, dur] of Object.entries(DANCE))
     add(`dance ${nm}`, dur, u => { const C = window.CHOREO && window.CHOREO[nm]; return C ? { ...C.P()(C.t0 + u * C.dur), full: 1, song: 1 } : { full: 1 }; });
   // fast whips (springs): a snap each way, then settle

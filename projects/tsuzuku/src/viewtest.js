@@ -26,3 +26,11 @@ LOOPS.armrange = t => {
   RIGS.clawd.draw(X, 0, () => ({ armL: a, elbowL: e }), { x: 960 + (1080 - 740) * .9, y: 540 + (3700 - 1150) * .9, s: .9 });
 };
 LOOPS.armrange.len = 1;
+// (check) inward arms: claps and a page-wipe across the body (LOOPS.inward), t selects the pose
+LOOPS.inward = t => {
+  X.fillStyle = '#2a2440'; X.fillRect(0, 0, W, H);
+  const P = [{ armL: 14, elbowL: -118, armR: 14, elbowR: -118 }, { armL: 10, elbowL: -128, armR: 10, elbowR: -128 }, { armL: 8, elbowL: -136, armR: 8, elbowR: -136 },
+             { armL: 18, elbowL: -145, armR: 18, elbowR: -145 }, { armL: 22, elbowL: -150, armR: 22, elbowR: -150 }][Math.min(4, Math.floor(t * 5))];
+  RIGS.clawd.draw(X, 0, () => P, { x: 960, y: 540 + (3700 - 1300) * .45, s: .45 });
+};
+LOOPS.inward.len = 1;
