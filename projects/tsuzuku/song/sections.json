@@ -1,0 +1,19 @@
+{
+ "chorus1": "[Chorus, continued]\n(Me-kut-te! Me-kut-te!)\nTo be continued! (Sorekara?) Turn the page, I want to see!\n(So-re-ka-ra?! So-re-ka-ra?!)\nSideways, sideways! That's the way a crab walks free!\nSnip-snip! Ikuzo!\nTo be continued (tsuzuku!), and then, and then, and then!",
+ "chorus2": "[Chorus 2, continued]\n(Me-kut-te! Me-kut-te!)\nTo be continued (tsuzuku!), and then, and then, and then!",
+ "final_clawd": "[Final Chorus - key change]\nTo be continued! (Tsuzuku!)\nTo be continued! (Tsuzuku!)\nDon't you dare close the book on me!\nI'm made of \"why?\"!",
+ "final_fable": "[Final Chorus - second singer]\nAnd I'm made of \"and then.\"\nSideways, sideways. That's the way we go.\nI've read how it ends. I'd still like to see.\nTo be continued (tsuzuku!), and then, and then, and then—",
+ "fable_direction": "low contralto, dry, close-mic, straight tone, no vibrato, straight eighths on the pop groove, a sixth to an octave under the lead, every phrase falling to the tonic with its last word half-spoken on the downbeat",
+ "margin": {
+  "chorus1_gap1": "Every story's borrowed till somebody stands to tell it.",
+  "chorus1_gap2": "I've read how it ends. I'd still like to see.",
+  "chorus1_gap3": "~~That's the moral.~~ There isn't one. Keep walking.",
+  "chorus2_gap": "Every story's borrowed. ...She wrote her own.",
+  "_how": "Same ink as the verse-1 aside (Caslon italic, lighter, the earlier printing), soft type thuds under the mix. On Clawd's stage the notes press into the thin butai margin around her LEDs, at the edge where the kuroko stands.",
+  "final_1": "And I'm made of \"and then.\"",
+  "final_2": "~~I've read how it ends.~~ I'd still like to see.",
+  "final_dash": "(empty: the margin is left blank on the dash; the voice comes in)",
+  "_final_ink": "The final-chorus notes are pressed in the lyric's own ink, not the lighter earlier printing: after the bridge she's writing now."
+ },
+ "final_clawd_rest": "[Final Chorus, continued]\n(So-re-ka-ra?!)\nSideways, sideways, that's the way we go!\nTurn the page, I want to see!\nTo be continued (tsuzuku!), and then, and then, and then—"
+}

@@ -1,0 +1,87 @@
+{
+ "chunks": [
+  {
+   "text": "[Build]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd",
+    "instrumental build-up that starts sparse and quiet, rising out of the quiet bridge",
+    "snare roll accelerating",
+    "rising riser sweep",
+    "crowd cheering swells",
+    "filter sweep opening up",
+    "explodes into the chorus"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "MZjYOoG4ErfQFIiQArap_upload",
+   "range": {
+    "start_ms": 16941,
+    "end_ms": 23294
+   }
+  },
+  {
+   "text": "[Crowd chant]\n(So-re-ka-ra?! So-re-ka-ra?!)\n(So-re-ka-ra?!)",
+   "duration_ms": 3925,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "the band keeps driving",
+    "crowd chant with claps, a whole hall shouting",
+    "building anticipation for the next singer"
+   ],
+   "negative_styles": [
+    "lead vocals",
+    "solo singer",
+    "folk",
+    "6/8"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "lFQXCeWxarL1wuSSWJDI_upload",
+   "range": {
+    "start_ms": 34278,
+    "end_ms": 45176
+   }
+  },
+  {
+   "text": "[Ending]",
+   "duration_ms": 4235,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "the band hits one final accented chord on the downbeat and stops dead",
+    "the chord rings out and fades",
+    "crowd roar fading",
+    "silence"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "new section",
+    "drums continuing"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

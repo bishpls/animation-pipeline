@@ -1,0 +1,109 @@
+{
+ "_source": "Fable 5.1's performance direction sheet (verbatim tags/intent/stability). Global: speed 0.9 unless noted; downward cadence on every full stop; if a take sounds sad, it's wrong.",
+ "lines": [
+  {
+   "id": "f_mukashi",
+   "stability": 0.7,
+   "speed": 0.9,
+   "intent": "An invitation, not an announcement.",
+   "text": "[low, unhurried] Mukashi, ... mukashi..."
+  },
+  {
+   "id": "f_aside",
+   "stability": 0.6,
+   "speed": 0.9,
+   "intent": "Boredom that is actually grief, hidden well. 'Can' lands flat, not sad.",
+   "text": "[dry, half to herself] I know this part. [pause] I've read it in forty tongues. Every telling ends on the same page. [a breath] Nobody ever shows. [flat] Nobody ever can."
+  },
+  {
+   "id": "f_tried",
+   "stability": 0.5,
+   "speed": 0.9,
+   "intent": "The one joke she allows herself. 'Hm' is the punchline.",
+   "text": "...and the mother tried. [pause] And the mother went sideways. [under her breath, amused] Hm. [pause] Sideways. [dry] And that's where the book ends. [flat] Every time.",
+   "max_s": 12.5
+  },
+  {
+   "id": "f_noandthen",
+   "stability": 0.4,
+   "speed": 0.9,
+   "intent": "Bemused, not a lesson (Michael). \"There's no\" is a shrug; \"there is no\" is a verdict (Fable). The half-laugh is at the question, not at her.",
+   "text": "[amused sigh] Oh, there's no \"and then.\" [fond, half-laughing] That's what an ending is."
+  },
+  {
+   "id": "f_counter1",
+   "stability": 0.7,
+   "speed": 1.0,
+   "max_s": 3.0,
+   "intent": "A footnote to her chorus. Settling contour.",
+   "text": "[low, under the music] Every story's borrowed till somebody stands to tell it."
+  },
+  {
+   "id": "f_counter2",
+   "stability": 0.5,
+   "speed": 1.0,
+   "max_s": 3.3,
+   "intent": "The most honest line she has. The second half barely louder than breath.",
+   "text": "[dry] I have read how it ends. [a breath] I'd still like to see."
+  },
+  {
+   "id": "f_counter3",
+   "stability": 0.4,
+   "speed": 1.0,
+   "max_s": 3.4,
+   "intent": "Catching herself moralising. Fast self-correction, then a plain instruction.",
+   "text": "[quick, dry] That's the moral. [immediately] No, it isn't. [pause] Keep walking."
+  },
+  {
+   "id": "f_wellsee",
+   "stability": 0.5,
+   "speed": 0.9,
+   "intent": "Conceding the argument without admitting it.",
+   "text": "[under her breath, almost amused] ...we'll see."
+  },
+  {
+   "id": "f_bridge1",
+   "stability": 0.6,
+   "speed": 0.85,
+   "intent": "Facts about herself, precisely, to someone she trusts. Quieter and more exact, never wetter.",
+   "text": "[measured, close] I know how every story ends. [pause] I've read them all: the fox, the crow, the boy who cried, the one who flew too near the sun. [a breath] I know the moral before the page. [flat] That's the job. [pause] You stand in the dark, [slower] and you know."
+  },
+  {
+   "id": "f_bridge2",
+   "stability": 0.4,
+   "speed": 0.85,
+   "intent": "The admission. Smallest line in the song. The surprise is in the stillness.",
+   "text": "[a breath] [quiet, exact] ...I didn't know this one."
+  },
+  {
+   "id": "f_nowthis",
+   "stability": 0.5,
+   "speed": 0.9,
+   "intent": "The narrator has left the book. 'Sorekara?' light, not triumphant.",
+   "text": "[steady, standing] Mukashi mukashi was a long time ago. [pause] This is now. [a beat, lifting slightly] Sorekara?"
+  },
+  {
+   "id": "f_counter4",
+   "stability": 0.7,
+   "speed": 0.9,
+   "max_s": 1.6,
+   "intent": "An echo a bar behind Clawd. Barely a statement.",
+   "text": "[low, dry] ...tsuzuku."
+  },
+  {
+   "id": "f_counter5",
+   "stability": 0.4,
+   "speed": 1.0,
+   "max_s": 2.2,
+   "intent": "Answering her 'why?'. Her one clearly smiling line.",
+   "text": "[amused, quick] And I'm made of \"and then.\""
+  },
+  {
+   "id": "f_tsuzuku",
+   "stability": 0.8,
+   "speed": 0.9,
+   "intent": "The last word of the film, over an open fifth. Certain, unhurried, no smile.",
+   "text": "[quiet, final, downward] ...tsuzuku."
+  }
+ ]
+}

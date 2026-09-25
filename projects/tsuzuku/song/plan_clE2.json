@@ -1,0 +1,44 @@
+{
+ "chunks": [
+  {
+   "song_id": "jAP4rzEN6d4WbE5kD8nY_upload",
+   "range": {
+    "start_ms": 28235,
+    "end_ms": 45176
+   }
+  },
+  {
+   "song_id": "8vKRMiMWQHajdX6gZsSb_upload",
+   "range": {
+    "start_ms": 5647,
+    "end_ms": 22588
+   }
+  },
+  {
+   "text": "[Final Chorus - second singer]\nAnd I'm made of \"and then.\"\nSideways, sideways. That's the way we go.\nI've read how it ends. I'd still like to see.\nTo be continued (tsuzuku!), and then, and then, and then\u2014",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "D major",
+    "biggest chorus, maximum joy",
+    "crowd screaming the calls",
+    "low contralto, dry, close-mic, straight tone, no vibrato, straight eighths on the pop groove, a sixth to an octave under the lead, every phrase falling to the tonic with its last word half-spoken on the downbeat",
+    "the same low contralto singer as the previous section, now over the pop band"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "high mezzo",
+    "bright idol lead"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

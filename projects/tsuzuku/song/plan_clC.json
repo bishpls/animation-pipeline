@@ -1,0 +1,119 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - build up]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd",
+    "instrumental build-up that starts sparse and quiet",
+    "snare roll accelerating",
+    "rising riser sweep",
+    "crowd cheering swells",
+    "filter sweep opening up",
+    "explodes into the chorus"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "AGb2PZOQgRw4Ka5wKY36_upload",
+   "range": {
+    "start_ms": 0,
+    "end_ms": 3000
+   }
+  },
+  {
+   "text": "[Chorus, continued]\n(Me-kut-te! Me-kut-te!)\nTo be continued! (Sorekara?) Turn the page, I want to see!\n(So-re-ka-ra?! So-re-ka-ra?!)\nSideways, sideways! That's the way a crab walks free!\nSnip-snip! Ikuzo!\nTo be continued (tsuzuku!), and then, and then, and then!",
+   "duration_ms": 19588,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd calls in the mix",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "crowd call-and-response fills the gaps"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "second voice",
+    "duet",
+    "harmony vocals answering"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "song_id": "AGb2PZOQgRw4Ka5wKY36_upload",
+   "range": {
+    "start_ms": 22588,
+    "end_ms": 53647
+   }
+  },
+  {
+   "text": "[Chorus 2, continued]\n(Me-kut-te! Me-kut-te!)\nTo be continued (tsuzuku!), and then, and then, and then!",
+   "duration_ms": 8471,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd calls in the mix",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks",
+    "crowd call-and-response fills the gaps"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "second voice",
+    "duet",
+    "harmony vocals answering"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Ending - breakdown]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "C major",
+    "live crowd",
+    "the band breaks down after the chorus",
+    "drums drop out",
+    "a final sustained chord",
+    "slowing down like a tape stop",
+    "fades to silence",
+    "instrumental"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "new chorus"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

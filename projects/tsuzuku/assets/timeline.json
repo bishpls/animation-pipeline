@@ -21,7 +21,7 @@
   },
   {
    "t0": 8.965,
-   "t1": 11.561,
+   "t1": 12.525,
    "kind": "fable",
    "label": "Mukashi, mukashi..."
   },
@@ -32,176 +32,194 @@
    "label": "ARU TOKORO NI!"
   },
   {
+   "t0": 28.225,
+   "t1": 28.825,
+   "kind": "margin",
+   "label": "margin: I know this part."
+  },
+  {
+   "t0": 28.931,
+   "t1": 29.531,
+   "kind": "margin",
+   "label": "margin: I've read it in forty tongues."
+  },
+  {
+   "t0": 29.637,
+   "t1": 30.237,
+   "kind": "margin",
+   "label": "margin: Every telling ends on the same page."
+  },
+  {
+   "t0": 30.343,
+   "t1": 30.943,
+   "kind": "margin",
+   "label": "margin: Nobody ever shows."
+  },
+  {
+   "t0": 31.049,
+   "t1": 31.649,
+   "kind": "margin",
+   "label": "margin: Nobody ever can.  \u300c\u8ab0\u306b\u3082\u3001\u3067\u304d\u306a\u3044\u3002\u300d"
+  },
+  {
    "t0": 31.059,
    "t1": 36.706,
-   "kind": "music",
-   "label": "fable: interlude bed"
-  },
-  {
-   "t0": 31.906,
-   "t1": 44.778,
-   "kind": "fable",
-   "label": "I know this part... Nobody ever can."
-  },
-  {
-   "t0": 45.176,
-   "t1": 50.824,
    "kind": "music",
    "label": "fable: build"
   },
   {
-   "t0": 46.404,
-   "t1": 50.143,
+   "t0": 31.079,
+   "t1": 34.818,
    "kind": "clawd",
    "label": "Show me how! Walk it first..."
   },
   {
-   "t0": 50.443,
-   "t1": 53.043,
+   "t0": 35.118,
+   "t1": 37.718,
    "kind": "crowd",
    "label": "SHOW ME HOW!"
   },
   {
-   "t0": 53.343,
-   "t1": 64.905,
+   "t0": 38.018,
+   "t1": 50.159,
    "kind": "fable",
    "label": "...and the mother went sideways."
   },
   {
-   "t0": 65.205,
-   "t1": 67.972,
+   "t0": 50.459,
+   "t1": 53.226,
    "kind": "clawd",
    "label": "So? Sorekara?! And then?!"
   },
   {
-   "t0": 68.272,
-   "t1": 72.912,
+   "t0": 53.526,
+   "t1": 58.493,
    "kind": "fable",
    "label": "There is no \"and then.\""
   },
   {
-   "t0": 73.412,
-   "t1": 146.852,
+   "t0": 59.294,
+   "t1": 132.734,
    "kind": "music",
    "label": "clawd: build + chorus 1 + hook + verse 2 + chorus 2 + breakdown"
   },
   {
-   "t0": 73.762,
-   "t1": 74.867,
+   "t0": 59.644,
+   "t1": 61.072,
    "kind": "clawd",
    "label": "Says who?"
   },
   {
-   "t0": 82.009,
-   "t1": 84.72,
-   "kind": "fable",
-   "label": "Every story's borrowed..."
+   "t0": 67.924,
+   "t1": 68.524,
+   "kind": "margin",
+   "label": "margin: Every story's borrowed till somebody stands to tell it."
   },
   {
-   "t0": 87.609,
-   "t1": 90.189,
-   "kind": "fable",
-   "label": "I have read how it ends..."
+   "t0": 73.741,
+   "t1": 74.341,
+   "kind": "margin",
+   "label": "margin: I've read how it ends. I'd still like to see."
   },
   {
-   "t0": 95.309,
-   "t1": 98.263,
-   "kind": "fable",
-   "label": "That's the moral. No, it isn't. Keep walking."
+   "t0": 79.402,
+   "t1": 80.002,
+   "kind": "margin",
+   "label": "margin: ~~That's the moral.~~ There isn't one. Keep walking."
   },
   {
-   "t0": 101.647,
-   "t1": 104.247,
-   "kind": "crowd",
-   "label": "SOREKARA?!"
+   "t0": 118.917,
+   "t1": 119.517,
+   "kind": "margin",
+   "label": "margin: Every story's borrowed. ...She wrote her own."
   },
   {
-   "t0": 102.424,
-   "t1": 103.278,
-   "kind": "fable",
-   "label": "...we'll see."
-  },
-  {
-   "t0": 132.859,
-   "t1": 135.57,
-   "kind": "fable",
-   "label": "Every story's borrowed..."
-  },
-  {
-   "t0": 145.412,
-   "t1": 146.892,
+   "t0": 131.294,
+   "t1": 132.774,
    "kind": "sfx",
    "label": "hyoshigi: the story stops"
   },
   {
-   "t0": 145.694,
-   "t1": 186.353,
+   "t0": 131.576,
+   "t1": 180.706,
    "kind": "music",
    "label": "fable: bridge bed (continuous)"
   },
   {
-   "t0": 146.259,
-   "t1": 164.588,
+   "t0": 132.141,
+   "t1": 155.601,
    "kind": "fable",
    "label": "I know how every story ends..."
   },
   {
-   "t0": 164.329,
-   "t1": 166.236,
+   "t0": 157.271,
+   "t1": 158.502,
    "kind": "fable",
    "label": "...I didn't know this one."
   },
   {
-   "t0": 166.588,
-   "t1": 175.059,
+   "t0": 159.529,
+   "t1": 168.0,
    "kind": "music",
    "label": "fable: the held note (So I'm putting down the book)"
   },
   {
-   "t0": 175.482,
-   "t1": 182.222,
+   "t0": 168.424,
+   "t1": 175.668,
    "kind": "fable",
    "label": "Mukashi mukashi was a long time ago. This is now. Sorekara?"
   },
   {
+   "t0": 176.471,
+   "t1": 204.755,
+   "kind": "music",
+   "label": "clawd: build -> final chorus (hers alone) -> the band hits on the dash, rings out"
+  },
+  {
    "t0": 182.118,
-   "t1": 187.765,
-   "kind": "music",
-   "label": "clawd: build into the final chorus (chorus-1 build, up a step), triggered by \"Sorekara?\""
+   "t1": 200.471,
+   "kind": "cue",
+   "label": "clawd: final chorus"
   },
   {
-   "t0": 187.765,
-   "t1": 210.39,
-   "kind": "music",
-   "label": "clawd: final chorus (key change)"
+   "t0": 189.096,
+   "t1": 189.696,
+   "kind": "margin",
+   "label": "margin: And I'm made of \"and then.\""
   },
   {
-   "t0": 189.385,
-   "t1": 190.568,
-   "kind": "fable",
-   "label": "...tsuzuku."
+   "t0": 193.388,
+   "t1": 193.988,
+   "kind": "margin",
+   "label": "margin: ~~I've read how it ends.~~ I'd still like to see."
   },
   {
-   "t0": 191.845,
-   "t1": 193.924,
-   "kind": "fable",
-   "label": "And I'm made of 'and then.'"
+   "t0": 199.073,
+   "t1": 203.294,
+   "kind": "margin",
+   "label": "margin: (empty)"
   },
   {
-   "t0": 210.353,
-   "t1": 214.616,
+   "t0": 202.588,
+   "t1": 204.068,
+   "kind": "sfx",
+   "label": "hyoshigi: the book closes"
+  },
+  {
+   "t0": 203.294,
+   "t1": 207.558,
    "kind": "music",
    "label": "outro: music box, open fifth"
   },
   {
-   "t0": 210.988,
-   "t1": 212.172,
+   "t0": 203.929,
+   "t1": 205.027,
    "kind": "fable",
    "label": "...tsuzuku."
   },
   {
-   "t0": 213.035,
-   "t1": 214.407,
+   "t0": 205.976,
+   "t1": 207.348,
    "kind": "clawd",
    "label": "See you next prompt!"
   }

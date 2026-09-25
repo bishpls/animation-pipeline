@@ -1,0 +1,90 @@
+{
+ "chunks": [
+  {
+   "song_id": "8vKRMiMWQHajdX6gZsSb_upload",
+   "range": {
+    "start_ms": 5647,
+    "end_ms": 22588
+   }
+  },
+  {
+   "song_id": "AGb2PZOQgRw4Ka5wKY36_upload",
+   "range": {
+    "start_ms": 50824,
+    "end_ms": 62118
+   }
+  },
+  {
+   "text": "[Pickup - key change build]",
+   "duration_ms": 5647,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "D major",
+    "instrumental drum fill and riser",
+    "building to the final chorus",
+    "crowd roar swells"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Final Chorus - key change]\nTo be continued! (Tsuzuku!)\nTo be continued! (Tsuzuku!)\nDon't you dare close the book on me!\nI'm made of \"why?\"!",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "D major, key change up a whole step",
+    "biggest chorus, maximum joy",
+    "crowd screaming the calls",
+    "bright high mezzo idol lead, forward, a smile in the tone, upward leaps on hooks"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "second voice",
+    "duet",
+    "harmony vocals answering"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Final Chorus - second singer]\nAnd I'm made of \"and then.\"\nSideways, sideways. That's the way we go.\nI've read how it ends. I'd still like to see.\nTo be continued (tsuzuku!), and then, and then, and then\u2014",
+   "duration_ms": 11294,
+   "positive_styles": [
+    "170 BPM",
+    "straight 4/4, four-on-the-floor",
+    "slap bass",
+    "sparkling synth brass and arpeggios",
+    "bright J-pop idol",
+    "D major",
+    "biggest chorus, maximum joy",
+    "crowd screaming the calls",
+    "low contralto, dry, close-mic, straight tone, no vibrato, straight eighths on the pop groove, a sixth to an octave under the lead, every phrase falling to the tonic with its last word half-spoken on the downbeat",
+    "a different singer takes the lead: the low contralto from the opening verse"
+   ],
+   "negative_styles": [
+    "6/8",
+    "waltz",
+    "folk",
+    "autotune",
+    "instrumental",
+    "high mezzo",
+    "bright idol lead"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

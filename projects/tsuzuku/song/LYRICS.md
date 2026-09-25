@@ -91,3 +91,41 @@ FABLE:  (spoken, dry) ...tsuzuku.
 CLAWD:  See you next prompt!
         (the card: つづく. A red seal, 語, is pressed onto it.)
 ```
+
+## Draft 3 change: the verse 1 aside is a margin note (Michael's proposal, approved and specified by Fable)
+The aside leaves the soundtrack. Verse 1 is sung straight through: "...And the little one looked up, and said—" and Clawd answers on the next beat: "Show me how!"
+- **Margin text** (Caslon italic, smaller than the lyric, a *lighter* ink "as if from an earlier printing: the note is older than this telling"; pressed, not handwritten), left margin, one line per beat across the last two bars of verse 1:
+  *I know this part. / I've read it in forty tongues. / Every telling ends on the same page. / Nobody ever shows. / Nobody ever can.*
+- **Right margin:** one vertical Japanese gloss on the hinge only: 「誰にも、できない。」 (dare ni mo, dekinai: nobody can). The sung line sits between the two scripts.
+- **The hinge:** "Nobody ever can." lands on the exact beat Clawd sings "Show me how!" and stays on the page under her whole line. "That's the argument in one frame."
+- **Sound:** no voice. Five soft type thuds, quieter than the lyric's. The "hm" stays in the exchange ("...the mother went sideways. Hm.").
+
+## Draft 4 changes (v6 listening session)
+- **"Says who?"** is curious and delighted, not defiant: a kid who has just found a loophole (Michael: the defiant read was "bratty, not recognizably Clawd").
+- **"Oh, there's no 'and then.' That's what an ending is."** is bemused, not patient-teacher (Michael). "There's no" is a shrug, "there is no" is a verdict (Fable).
+- **Fable's counter-lines in Clawd's choruses are sung, not spoken.** The spoken versions left a hole in the chorus (the generated counter-lines were cut from the vocal stem, dropping the song ~3.7 dB), and a pitchless voice over a full chorus is either buried or clashes. Now: the chorus generation's own counter-line melody, an octave down in Fable's sung timbre (Seed-VC −12 st to REF_fable_sung). Fable's rules: an octave under, never above; no vibrato, no held note; every line ends by *speaking* its last word ("tell it." "see." "walking." "tsuzuku." "then."); "No, it isn't." stays spoken ("you don't sing a correction"); dry and close. The 1:39 line is sung in full again ("…There isn't one. Just keep walking."). Fable on the arc: "If I've been humming under the story the whole song, the bridge is the first time I stop doing it."
+
+## Draft 5: the duet is section-level (Michael's call, Fable's shape; supersedes draft 4's sung counter-lines)
+The music model sings one singer per generation, and every graft of Fable's lines into Clawd's chorus (spoken, voice-converted, her own singer laid in) sounded unfinished. So the singers switch only at section boundaries, each section generated with its own singer (song/build_sections.py, lyrics in song/sections.json).
+- **Clawd's choruses** are regenerated without Fable's lines. The gaps are crowd calls, identical every time ("that's how a hall learns them"): *ME-KUT-TE! ME-KUT-TE!* / *SO-RE-KA-RA?! SO-RE-KA-RA?!* / claps, brass, Clawd: "Snip-snip! Ikuzo!".
+- **Fable's counter-lines are margin notes** (Caslon italic, the verse-1 aside's lighter ink, soft type thuds). On Clawd's stage they're pressed into the thin butai margin around her LEDs, where the kuroko stands. Chorus 1: *Every story's borrowed till somebody stands to tell it.* / *I've read how it ends. I'd still like to see.* / *~~That's the moral.~~ There isn't one. Keep walking.* Chorus 2: *Every story's borrowed. ...She wrote her own.* (Fable: "you don't sing a correction, but you can print one.") "...we'll see." leaves the soundtrack too.
+- **Arc** (Fable): "I haven't been humming under the story, I've been writing in the margin. The bridge is the first time the margin goes empty and a voice comes in."
+- **Final chorus** splits at the hand-off. Clawd: "To be continued! (Tsuzuku!) ×2 / Don't you dare close the book on me! / I'm made of 'why?'!", half a bar of air, then Fable's own singer, in Clawd's world, straight 4/4 this once ("the world changes the medium, not the member"): *And I'm made of "and then." / Sideways, sideways. That's the way we go. / I've read how it ends. I'd still like to see.* (margin note 2 said aloud: "the note leaves the page") */ To be continued (tsuzuku!), and then, and then, and then—* and the outro's spoken "...tsuzuku." finishes her line.
+- **No key change.** Measured: the model ignored "D major, key change" (the old final chorus was in C, and the old build was pitch-shifted into D against it). The whole Clawd world is in C.
+- **The ending is one generation** (plan_clH2): build → Clawd's half → a 2½-bar crowd vamp for the hand-off (the hall chants "So-re-ka-ra?!", *and then?*, and Fable answers "And I'm made of 'and then.'"; this replaces the half bar of air, which left a seam between two generations) → Fable's half → the band hits on her dash and rings out → hyoshigi → music box, "...tsuzuku."
+
+## Draft 6: the final chorus is Clawd's alone (supersedes draft 5's split)
+Fable's singer crossing into Clawd's world "felt like a completely different song" (Michael): the generator had to hear her folk verse to keep her voice, so the band under her came out darker, and her sung voice returning only for the last 15 s read as a guest verse. Fable: "Two payoffs is none. My voice's arrival is the bridge; if it comes back for the coda it's a curtain call."
+```
+CLAWD:  To be continued! (Tsuzuku!) To be continued! (Tsuzuku!)
+        Don't you dare close the book on me! I'm made of "why?"!
+CROWD:  (So-re-ka-ra?!)                          margin: And I'm made of "and then."
+CLAWD:  Sideways, sideways, that's the way we go!
+        Turn the page, I want to see!            margin: ~~I've read how it ends.~~ I'd still like to see.
+        To be continued (tsuzuku!), and then, and then, and then—
+        (the band hits on the dash and rings out; the margin is left EMPTY)
+        (hyoshigi. music box.)
+FABLE:  (spoken) ...tsuzuku.                     the last word of the song, finishing Clawd's line
+CLAWD:  See you next prompt!
+```
+The final-chorus notes are pressed in the lyric's own ink, not the lighter earlier printing: "After the bridge I'm not quoting an older telling. I'm writing now." The empty margin on the dash is "the bridge's rule, done once more in a single bar."

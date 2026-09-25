@@ -1,0 +1,67 @@
+{
+ "chunks": [
+  {
+   "song_id": "8vKRMiMWQHajdX6gZsSb_upload",
+   "range": {
+    "start_ms": 0,
+    "end_ms": 22588
+   }
+  },
+  {
+   "text": "[Verse 2]\nEvery story's borrowed till somebody stands to tell it.\nI have read how it ends, I'd still like to see.\nThat's the moral. No, it isn't. There isn't one. Just keep walking.\nEvery story's borrowed till somebody stands to tell it.",
+   "duration_ms": 19765,
+   "positive_styles": [
+    "6/8 time, lilting triplet feel",
+    "85 BPM",
+    "intimate folk narrative ballad",
+    "very sparse: only a soft plucked nylon lute",
+    "gentle sung female vocals throughout",
+    "C major",
+    "low contralto female folk singer, warm, dry, close-mic, straight tone, conversational phrasing",
+    "the same singer as before",
+    "no vibrato",
+    "half-sung, the melody arrives a word at a time"
+   ],
+   "negative_styles": [
+    "vibrato",
+    "belting",
+    "male vocals",
+    "choir",
+    "backing vocals",
+    "drums",
+    "synth",
+    "autotune",
+    "instrumental"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Coda]\nTo be continued. Tsuzuku.\nAnd I'm made of \"and then.\"",
+   "duration_ms": 8471,
+   "positive_styles": [
+    "6/8 time, lilting triplet feel",
+    "85 BPM",
+    "intimate folk narrative ballad",
+    "very sparse: only a soft plucked nylon lute",
+    "gentle sung female vocals throughout",
+    "D major",
+    "low contralto female folk singer, warm, dry, close-mic, straight tone, conversational phrasing",
+    "the same singer as before",
+    "no vibrato",
+    "half-sung, the melody arrives a word at a time"
+   ],
+   "negative_styles": [
+    "vibrato",
+    "belting",
+    "male vocals",
+    "choir",
+    "backing vocals",
+    "drums",
+    "synth",
+    "autotune",
+    "instrumental"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}
