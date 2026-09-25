@@ -21,19 +21,32 @@ function placeFlat(c, name, [x, y, w, h], depth, lamp, flip = false, src = [0, 1
 }
 // the shore (verse 1): far hills over the sea, waves, rocks and reeds at the sides, a pine leaning in from the right, the beach
 function shore(t, o = {}) {
-  const FLOOR = o.floor || 962, sway = o.sway ?? 1, [lx0, ly0] = SCREEN.lamp;
-  const lampAt = d => [lx0 + sway * 60 * d * Math.sin(t * .37) + sway * 25 * d * Math.sin(t * .91), ly0];   // deep planes drift more
+  const FLOOR = o.floor || 962, sway = o.sway ?? 1, [lx0, ly0] = SCREEN.lamp, ts = Math.min(t, o.still ?? Infinity);   // still: the lamp held (the bridge's clack)
+  const lampAt = d => [lx0 + sway * 60 * d * Math.sin(ts * .37) + sway * 25 * d * Math.sin(ts * .91), ly0];   // deep planes drift more
+  // the bridge (Fable): each plane struck, a card pulled sideways off the screen: {key: [u, dir]}, u 0 in place .. 1 gone.
+  // Pulled, it comes a little off the screen toward the lamp (its shadow grows and softens) and its tissue card shows: the
+  // straight edge of the paper it was cut on.
+  const S = o.strike || {}, pull = key => S[key] || [0, 1];
+  const card = (c, rect, depth, lamp, a) => { const [lx, ly] = lamp, s = 1 / (1 - Math.min(depth, .8) * .5), [x, y, w, h] = rect;
+    c.fillStyle = `rgba(22,22,26,${a})`; c.fillRect(lx + (x - lx) / s, ly + (y - ly) / s, w / s, h / s); };
   // Reiniger's tissue paper: the further back a plane, the thinner its paper, the greyer its shadow; the actors (black card)
   // always read against it. `ink` = how much light the paper stops.
-  const plane = (name, rect, depth, flip, src, ink) => { const lamp = lampAt(depth); shadow(c => { c.globalCompositeOperation = 'source-over'; placeFlat(c, name, rect, depth, lamp, flip, src); }, depth, { penumbra: true, lamp, alpha: (o.alpha ?? 1) * ink }); };
+  const plane = (name, rect, depth, flip, src, ink, key = name) => {
+    const [u, dir] = pull(key); if (u >= 1) return;
+    const d = depth + (u > 0 ? .05 : 0), lamp = lampAt(depth), r = [rect[0] + dir * u * 1900, rect[1], rect[2], rect[3]];
+    shadow(c => { c.globalCompositeOperation = 'source-over'; if (u > 0) card(c, r, d, lamp, .1 * Math.min(1, u / .16)); placeFlat(c, name, r, d, lamp, flip, src); },
+      d, { penumbra: true, lamp, alpha: (o.alpha ?? 1) * ink });
+  };
   // content bands (fraction of each flat's height): far .56-.94, waves ~.47-1; each placed so its base sits behind the beach
   plane('far', [100, FLOOR - 569, 1720, 573], .5, false, [0, 1], .34);                                   // hills over the sea, tops ~250 px above the floor
-  plane('rocks', [60, FLOOR - 470, 380, 470], .18, false, [0, .2], .62);                  // a reed clump at the left edge only
-  plane('rocks', [1600, FLOOR - 400, 260, 400], .18, false, [.86, 1], .62);               // and one under the pine, at the right
-  plane('pine', [1140, -40, 880, 453], .1, true, [0, .55, 0, .85], .82);                  // the tree part of the flat at its true shape; the trunk runs off the right edge                                    // high at the right, clear of the actors' heads
-  shadow(c => { c.globalCompositeOperation = 'source-over'; c.drawImage(FLATS.ground, 100, FLOOR - 330, 1720, 573);   // its top edge (.583 of the flat) is the floor
+  plane('rocks', [60, FLOOR - 470, 380, 470], .18, false, [0, .2], .62, 'rocksL');        // a reed clump at the left edge only
+  plane('rocks', [1600, FLOOR - 400, 260, 400], .18, false, [.86, 1], .62, 'rocksR');     // and one under the pine, at the right
+  plane('pine', [1140, -40, 880, 453], .1, true, [0, .55, 0, .85], .82);                  // the tree part of the flat at its true shape; the trunk runs off the right edge, high at the right, clear of the actors' heads
+  const [ug, dg] = pull('ground');
+  if (ug < 1) shadow(c => { c.globalCompositeOperation = 'source-over'; const off = dg * ug * 1900;
+    c.drawImage(FLATS.ground, 100 + off, FLOOR - 330, 1720, 573);                          // its top edge (.583 of the flat) is the floor
     // the stage floor stays plain where the actors play: the shells and seaweed only at the edges
-    c.clearRect(o.clearX0 ?? 520, 0, (o.clearX1 ?? 1480) - (o.clearX0 ?? 520), FLOOR - 1); }, 0);
+    c.clearRect((o.clearX0 ?? 520) + off, 0, (o.clearX1 ?? 1480) - (o.clearX0 ?? 520), FLOOR - 1); }, 0);
 }
 {
   LOOPS.shoretest = t => { const tq = Math.floor(t * 12 + 1e-6) / 12; X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H); screen(tq, { stops: FABLE_LAMP, tex: .32 }); shore(tq); };

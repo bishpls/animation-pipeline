@@ -11,7 +11,7 @@ from scipy import ndimage as ndi
 
 HERE = os.path.dirname(os.path.abspath(__file__)); PROJ = os.path.dirname(os.path.dirname(HERE))
 S = os.path.join(PROJ, 'assets', 'prologue_hw', 's')
-HOP = {38: 26, 39: 40, 40: 22}              # drawing -> lift (frame px): up on the rod beat, apex, down; lands on 41
+HOP = {38: 26, 39: 40, 40: 42, 41: 22}      # drawing -> lift (frame px): up on the rod beat, apex held a drawing, down; lands on 42
 PULL = range(44, 102)                       # drawings with the subtitle gone (the pull is at 46; a margin either side)
 CRAB = (690, 240, 960, 452)                 # the crowned crab's box (frame px): the right side of the unmirrored frame
 
@@ -42,7 +42,7 @@ def main():
         img = cv2.imread(os.path.join(S, f'{k:03d}.jpg')); m = text_mask(img)
         cv2.imwrite(os.path.join(S, f'nt_{k:03d}.jpg'), cv2.inpaint(img, m.astype(np.uint8) * 255, 13, cv2.INPAINT_TELEA), [cv2.IMWRITE_JPEG_QUALITY, 94])
         if k in (46, 50): review.append(cv2.imread(os.path.join(S, f'nt_{k:03d}.jpg')))
-    top = np.hstack(review[:3]); bot = np.hstack(review[3:] + [np.zeros_like(review[0])])
+    n = len(HOP); top = np.hstack(review[:n]); bot = np.hstack(review[n:] + [np.zeros_like(review[0])] * (2 * n - len(review)))
     cv2.imwrite(os.path.join(PROJ, 'board', 'fable', '_hw_edit.jpg'), cv2.resize(np.vstack([top, bot]), None, fx=.6, fy=.6))
     print('hop', list(HOP), 'pull', PULL.start, '-', PULL.stop - 1)
 
