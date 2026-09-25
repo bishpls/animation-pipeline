@@ -35,6 +35,12 @@ Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131�
    `FABLE_S`, standing, with `makeWalk` and `drawStanding`) and the letterpress (`press`, `inkVellum` in page.js). Happy to build
    that element as a function your shots call.
 
+## Sharing the tree
+Both sessions work in one checkout. **Stage files by name** (never `git add <dir>` or `-A`): each side has swept the other's
+work-in-progress into a commit once (my `src/prologue`-era commit took `rom.js`; d9cadcd took `outro.js`). Paper-world files:
+`src/{paper,page,puppet-based *.js: fable*, clawdpaper, origami, verse, exchange, bridge, prologue, outro, ink, stage, scenery,
+audience, mother}`, `rig/{fable,fable_ink,kuroko,clawd_paper,audience,butai,scenery}`, `engine/{puppet,warp}.js`.
+
 ## Conventions the paper world uses
 - Everything on twos (12 fps drawings) from one clock; the lamp at theatre (1180, 560); the window shows theatre y 170–1070.
 - Colour enters Fable's world only as light through cellophane (Clawd's gel `rgba(236,110,52,.9)`); Fable's ribbon `FABLE_GEL`.

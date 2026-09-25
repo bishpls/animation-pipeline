@@ -68,7 +68,11 @@
   // the tear (X8): a ragged line through the card at Clawd; the halves part, drawings apart; the stage light through the gap
   // (in card coordinates, placed so that when it rips the tear runs through the card just behind Clawd)
   let TEAR = null;
-  const tearLine = () => { const pts = [], x0 = CX - 30 - pullAt(K.tear); let x = 0; for (let y = 150; y <= 1090; y += 26) { x += ((y * 7919) % 23 - 11) * 1.6; pts.push([x0 + Math.max(-60, Math.min(60, x)), y]); } return pts; };
+  const tearLine = () => {                                           // a slow wander, and on it the fine zigzag of torn fibre
+    const pts = [], x0 = CX - 30 - pullAt(K.tear); let x = 0, i = 0;
+    for (let y = 150; y <= 1090; y += 9, i++) { x += ((y * 7919) % 23 - 11) * .55; x = Math.max(-60, Math.min(60, x)); pts.push([x0 + x + (i % 2 ? 1 : -1) * (1 + (i * 53) % 5) + ((i * 37) % 7 - 3), y]); }   // (an irregular zigzag, not a saw)
+    return pts;
+  };
   const gapAt = ts => ts < K.tear ? 0 : [0, 14, 40, 90, 170, 280, 420, 600, 820, 1100, 1500][Math.min(10, Math.floor((ts - K.tear) * 12 + 1e-6))];
   function composite(ts) {
     if (!TEAR) TEAR = tearLine();
@@ -88,15 +92,28 @@
       const ex = sx + pull; X.save(); X.fillStyle = 'rgba(40,30,24,.5)'; X.fillRect(ex - 2, sy, 2, sh);
       const gr = X.createLinearGradient(ex - 26, 0, ex, 0); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.16)'); X.fillStyle = gr; X.fillRect(ex - 26, sy, 26, sh); X.restore();
     }
-    if (gap > 0) {                                                     // light through the rip: hotter than the lamp, the stage's colour at its fringes
-      X.save(); X.beginPath(); for (const [x, y] of TEAR) X.lineTo(x + pull - gap / 2, y); for (const [x, y] of [...TEAR].reverse()) X.lineTo(x + pull + gap / 2, y); X.closePath();
-      X.globalCompositeOperation = 'lighter'; X.filter = `blur(${6 + gap * .04}px)`;
-      X.fillStyle = 'rgba(255,236,246,.9)'; X.fill(); X.filter = `blur(${30 + gap * .1}px)`; X.fillStyle = 'rgba(255,120,190,.55)'; X.fill();
-      X.filter = `blur(${50 + gap * .12}px)`; X.fillStyle = 'rgba(90,220,255,.35)'; X.fill(); X.restore();
+    if (gap > 0) {
+      const gapPath = () => { X.beginPath(); for (const [x, y] of TEAR) X.lineTo(x + pull - gap / 2, y); for (const [x, y] of [...TEAR].reverse()) X.lineTo(x + pull + gap / 2, y); X.closePath(); };
+      // her light through the rip, as hot and soft as it likes: the core fills the gap exactly; the bloom spills, fainter
+      X.save(); X.globalCompositeOperation = 'lighter';
+      gapPath(); X.filter = `blur(${24 + gap * .08}px)`; X.fillStyle = 'rgba(255,120,190,.3)'; X.fill();
+      X.filter = `blur(${44 + gap * .1}px)`; X.fillStyle = 'rgba(90,220,255,.22)'; X.fill();
+      X.filter = 'none'; gapPath(); X.fillStyle = 'rgba(255,240,248,.95)'; X.fill(); X.restore();
+      // the card's torn edges: crisp and ragged, a hairline of white fibre along each, a shadow on the card side (Fable)
+      for (const side of [-1, 1]) {
+        const ex = pull + side * gap / 2;
+        X.save(); X.beginPath(); TEAR.forEach(([x, y], i) => i ? X.lineTo(x + ex - side * 5, y) : X.moveTo(x + ex - side * 5, y));
+        X.globalCompositeOperation = 'multiply'; X.strokeStyle = 'rgba(60,44,34,.55)'; X.lineWidth = 8; X.filter = 'blur(2px)'; X.stroke(); X.restore();
+        X.save(); X.globalCompositeOperation = 'lighter'; X.strokeStyle = 'rgba(255,250,240,.95)'; X.lineWidth = 1.6;
+        X.beginPath(); TEAR.forEach(([x, y], i) => i ? X.lineTo(x + ex, y) : X.moveTo(x + ex, y)); X.stroke();
+        X.lineWidth = 1; X.beginPath();                                  // fibres standing off the tear
+        TEAR.forEach(([x, y], i) => { if (i % 2) return; for (let k = 0; k < 2; k++) { const r = ((i * 31 + k * 17) % 13) / 13, yy = y + k * 8, L = 3 + r * 7; X.moveTo(x + ex, yy); X.lineTo(x + ex + side * L, yy + (r - .5) * 6); } });
+        X.stroke(); X.restore();
+      }
     }
   }
-  function flood(ts) {                                                 // the stage light fills the paper world (it washes the ink out; the puppets stay black)
-    const gap = gapAt(ts), [sx, sy, sw, sh] = SCREEN.rect;
+  function flood(ts, rect) {                                           // the stage light fills the paper world (it washes paper and ink out; the black and the gels survive)
+    const gap = gapAt(ts), [sx, sy, sw, sh] = rect || SCREEN.rect;
     if (gap > 400) { X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = `rgba(255,240,248,${Math.min(1, (gap - 400) / 1100)})`; X.fillRect(sx, sy, sw, sh); X.restore(); }
   }
   function scene(ts) {
@@ -121,11 +138,11 @@
       const b0 = M.torso.transformPoint(new DOMPoint(1076, 1200)), R = 150 + 60 * build, gb = X.createRadialGradient(b0.x, b0.y, 0, b0.x, b0.y, R);
       gb.addColorStop(0, `rgba(255,150,70,${.32 * build})`); gb.addColorStop(1, 'rgba(255,120,50,0)'); X.fillStyle = gb; X.fillRect(b0.x - R, b0.y - R, 2 * R, 2 * R); X.restore();
     }
-    pageStrip(ts);
+    pageStrip(ts); flood(ts, [150, 960, 1620, 112]);                   // the strip washes out with everything else (Fable)
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // the camera: the window; "Hm." cuts to her profile (the camera close to the frame, the paper grain large)
-  const CAM_HM = { x: 1526, y: 1195, zoom: 2.4 };                    // (her head, theatre ~(610, 528), in butai px)
+  const CAM_HM = { x: 1672, y: 1303, zoom: 2.4 };                    // her profile at the left of the frame, looking into the space; the margin notes out of it
   LOOPS.exchange = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12, close = ts >= K.close && ts < K.back;
