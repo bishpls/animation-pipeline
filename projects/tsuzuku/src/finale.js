@@ -86,7 +86,8 @@
   // lantern in hand, and the canon crosses the window's edge. The room is the frame throughout; the card's camera moves inside.)
   //   FIN: the default room shot: the window ~52% of the frame, Fable standing at its right, whole (feet ~(1650, 1010), 893 px)
   //   WHY: "why" (132.9-133.9): the window's right side, Clawd large in it looking OUT at her; Fable from the knees up
-  const FIN = { x: 2053, y: 1249, zoom: .55 }, WHY = { x: 2588, y: 1120, zoom: .75 };
+  // (Michael: the window centred and much bigger, Fable standing in front of its right edge, over the screen)
+  const FIN = { x: 1920, y: 1300, zoom: .9 }, WHY = { x: 2250, y: 1150, zoom: 1.15 };
   const MED = (cx = 960, cy = 330, z = 1.5) => ({ cx, cy, z });
   const SHOTS = [
     [125.9, WIDE, WIDE, room(CAMW)],                                   // the room: B9's end; the window blazes
@@ -100,7 +101,7 @@
     [137, IDOLSTAGE.LOW(960, 470, 1.14), IDOLSTAGE.LOW(990, 465, 1.2)], // F6 from inside the hall (her line on the LEDs and in the margin)
     [138.87, FULL, MED(960, 320, 1.4)],
     [140.85, MED(960, 330, 1.5), MED(960, 330, 1.5)],                  // the hit: frozen
-    [142, WIDE, WIDE, room(CAMW)],                                      // the room: she leaves; the doors close
+    [142, WIDE, WIDE, room({ x: 1920, y: 1330, zoom: .72 })],          // the room: she holds, smiling; the doors close
   ];
   const HITS = [[129, .05, 6], [141, .05, 4]]; for (let bb = 130; bb < 141; bb++) if (bb !== 134) HITS.push([bb, .017, 0]);
   const TF = 199.07;                                                   // the hit on the dash ("and then-"): everything freezes
@@ -112,9 +113,17 @@
   const side = t => (t >= b2t(137) && t < b2t(139) ? ['I’D', 'STILL', 'LIKE', 'TO SEE'] : null);
 
   // the room figure: standing Fable (the lantern, the set-down, the walk out), at her place beside the butai
-  const FEET = [3308, 2104];                                           // butai px: where she knelt in world A ("I stand where I sat")
+  // her place: at 177.8 exactly B9's (feet at butai (3308, 2104), beside the butai); as the camera pushes in (126.93-129) she's on
+  // her finale plane, in front of the window's right edge (nearer the lens: m), and stays on it
+  const FEET = [3308, 2104], NEAR = { x: 2548, y: 2130, m: 1.12, s: .99 };
+  const placeAt = (cam, t) => {
+    const old = { x: W / 2 + (FEET[0] - cam.x) * cam.zoom, y: H / 2 + (FEET[1] - cam.y) * cam.zoom, s: 1.394 * cam.zoom };
+    const k = cam.zoom * NEAR.m, nw = { x: W / 2 + (NEAR.x - cam.x) * k, y: H / 2 + (NEAR.y - cam.y) * k, s: NEAR.s * k };
+    const u = Math.max(0, Math.min(1, (t / BAR - 126.93) / (129 - 126.93))), e = u * u * (3 - 2 * u);
+    return { x: old.x + (nw.x - old.x) * e, y: old.y + (nw.y - old.y) * e, s: old.s + (nw.s - old.s) * e };
+  };
   const roomFable = (t, frozen) => (X, cam, lit) => {
-    const T = { x: W / 2 + (FEET[0] - cam.x) * cam.zoom, y: H / 2 + (FEET[1] - cam.y) * cam.zoom, s: 1.394 * cam.zoom };
+    const T = placeAt(cam, t);
     FABLESTAGE.room(X, t, T, { P });                                   // (standing, lantern in hand: the canon, the hood at "why", 135, the walk off)
   };
   // the blaze at 177.8 (the stage powering up: it covers the medium's change) and the light ringing out after the freeze
