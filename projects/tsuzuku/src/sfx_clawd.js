@@ -49,7 +49,7 @@
     for (let k = 0; k < 4; k++) E.push(at(ROOM.walk + (k + 1 / 1.4) * ROOM.step, 'geta', -30 - 2 * k));   // she walks out right (each hop lands at 1/1.4)
     const hop = (ST.dance - ST.enter[0] - .08) / 2;                                    // her two hops onto Clawd's stage, geta landing
     for (let i = 1; i <= 2; i++) E.push(at(b2t(ST.enter[0] + i * hop), 'geta', -28));
-    for (const [t0] of FIN.notes || [[189.11], [193.39]]) E.push(at(t0 + .06, 'press', -31));   // F4, F6: her lines pressed in full ink  (fallback: finale NOTES)
+    for (const n of FIN.notes || [189.11, 193.39]) E.push(at((Array.isArray(n) ? n[0] : n) + .06, 'press', -31));   // her finale lines pressed in full ink (CHOREO.clawdF.keys.notes: times)
     E.push([(FIN.tf ?? 199.07) + .04, 'ring', -37]);                                   // the freeze: the room's air, a faint ring-out  (fallback: TF)
     return E;
   });
