@@ -113,7 +113,7 @@
   const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 26 * f, MATCH_N = 20;
   // the seam from the hall (Fable: "black on the clack; the lantern alone glides to B1's position; B1 fades in around it"). FROM:
   // the hall lantern's screen centre and body height in the stage session's last frame
-  const FROM = { x: 1433, y: 1001, h: 150 }, GLIDE = [CLACK, CLACK + 10 * f], FADE = [CLACK + 8 * f, CLACK + 17 * f];   // (the room wide's lantern, beside her at the butai's right)
+  const FROM = { x: 1376, y: 903, h: 156 }, GLIDE = [CLACK, CLACK + 10 * f], FADE = [CLACK + 8 * f, CLACK + 17 * f];   // (the room wide's lantern, beside her at the butai's right)
   function seam(ts) {
     if (ts >= FADE[1]) return;
     const bx = 1009 + (FLOORSPOT[0] - 150) * 1821 / 1620, by = 805 + (FLOORSPOT[1] - 7 * LSC - CHO.h * LSC / 2 - 170) * 996 / 900;
