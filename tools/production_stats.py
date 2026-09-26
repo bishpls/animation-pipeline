@@ -135,7 +135,9 @@ def assets():
     return {'clawd_rig_layers': len(clawd_layers), 'clawd_drawn_variants': cnt('rig/clawd/build/*@*.png'),
             'clawd_view_drawings': cnt('rig/clawd/views/*_aligned.png'),
             'fable_seated_pose_drawings': cnt('rig/fable_seated/figure_*.png'),
-            'mocap_clips': cnt('refs/mocap/*_v1.mp4'), 'sound_library_files': len({os.path.splitext(f)[0] for f in glob.glob(os.path.join(P, 'sound/lib/*'))}),
+            'mocap_clips': len([f for f in glob.glob(os.path.join(P, 'refs/mocap/*_v[0-9].mp4'))]), 'sound_library_files': len({os.path.splitext(f)[0] for f in glob.glob(os.path.join(P, 'sound/lib/*'))}),
+            'sound_cues': len(json.load(open(os.path.join(P, 'sound/cues.json')))) if os.path.exists(os.path.join(P, 'sound/cues.json')) else None,
+            'film_cuts_rendered': len(glob.glob(os.path.join(P, 'out/tsuzuku_film_v*.mp4'))),
             'lines_of_code': code, 'film_length_s': 209.65, 'frames_at_24fps': round(209.65 * 24)}
 
 
