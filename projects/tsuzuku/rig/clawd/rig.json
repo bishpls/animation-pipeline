@@ -975,5 +975,6 @@
   "sleeve_L": 16,
   "sleeve_R": 16,
   "upper": 24
- }
+ },
+ "armPoses": "build/armposes.json"
 }

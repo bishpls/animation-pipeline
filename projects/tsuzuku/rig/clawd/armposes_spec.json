@@ -1,0 +1,177 @@
+{
+ "image": "base.png",
+ "out": "build",
+ "poses": [
+  {
+   "name": "cross",
+   "side": "R",
+   "arm": -61,
+   "elbow": -97,
+   "hand": null,
+   "crop": [
+    232,
+    640,
+    1696
+   ],
+   "shoulder": [
+    1385,
+    1085
+   ],
+   "tol": [
+    34,
+    50
+   ],
+   "prompt": "Change ONLY her arm on the RIGHT side of the image (the character's left arm): she brings it up and across in front of her chest. Her upper arm crosses in front of her chest, going from her shoulder down and across toward the middle of her chest, her elbow bent in front of her chest, and her forearm rising again across her chest toward her other shoulder; her open hand, fingers together and relaxed, palm facing the viewer, ends just in front of her other shoulder on the LEFT side of the image. Her puffed sleeve lifts and turns with her arm, the cream sleeve trim and the orange cuff come with it. The arm is in FRONT of her dress and bow.",
+   "pos": [
+    [
+     1250,
+     1160
+    ],
+    [
+     1110,
+     1225
+    ],
+    [
+     940,
+     1140
+    ],
+    [
+     770,
+     1060
+    ],
+    [
+     700,
+     1010
+    ]
+   ],
+   "neg": [
+    [
+     729,
+     1097
+    ],
+    [
+     680,
+     1180
+    ],
+    [
+     1071,
+     697
+    ],
+    [
+     971,
+     1197
+    ],
+    [
+     1065,
+     1500
+    ],
+    [
+     560,
+     1450
+    ],
+    [
+     1500,
+     1500
+    ]
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       771,
+       869
+      ],
+      [
+       720,
+       820
+      ],
+      [
+       830,
+       930
+      ]
+     ],
+     "box": [
+      640,
+      720,
+      900,
+      1010
+     ]
+    },
+    "cuff": {
+     "pos": [
+      [
+       907,
+       1054
+      ]
+     ],
+     "box": [
+      840,
+      980,
+      990,
+      1130
+     ]
+    },
+    "forearm": {
+     "pos": [
+      [
+       1000,
+       1080
+      ],
+      [
+       1100,
+       1111
+      ],
+      [
+       1180,
+       1180
+      ]
+     ]
+    },
+    "upper": {
+     "pos": [
+      [
+       1214,
+       1254
+      ],
+      [
+       1310,
+       1170
+      ]
+     ]
+    },
+    "trim": {
+     "pos": [
+      [
+       1300,
+       1069
+      ]
+     ],
+     "box": [
+      1200,
+      990,
+      1400,
+      1150
+     ]
+    },
+    "puff": {
+     "pos": [
+      [
+       1357,
+       969
+      ],
+      [
+       1420,
+       1010
+      ]
+     ],
+     "box": [
+      1180,
+      840,
+      1500,
+      1080
+     ]
+    }
+   }
+  }
+ ]
+}

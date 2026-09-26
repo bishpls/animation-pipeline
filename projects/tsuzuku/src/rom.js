@@ -26,6 +26,7 @@
   add('Z+bodyZ', 2, u => ({ angleZ: K.z * sweep(u), bodyZ: K.bz * sweep(u) }));
   // the hips (full-body framing): sway alone, sway with the beat dip, a whip, and sway under a head turn; contrapposto from perform
   add('rest full', 1.5, () => ({ full: 1 }));
+  for (const v of ['HL', 'L', 'HR', 'R']) add(`rest full ${v}`, 1.5, () => ({ view: v, full: 1 }));   // (baselines for the dances' drawn views)
   add('hipX', 2, u => ({ hipX: sweep(u), full: 1 }));
   add('hip sway', 3, u => ({ hipX: Math.sign(S(3 * PI * u)) * Math.min(1, Math.abs(S(3 * PI * u)) * 3), hipY: 10 * Math.abs(S(12 * PI * u)), full: 1 }));
   add('hip whip', 2, u => ({ hipX: u < .08 ? 0 : u < .5 ? 1 : -1, full: 1 }));
@@ -37,6 +38,17 @@
   add('arm+elbow', 2, u => ({ armL: 30 * Math.abs(S(PI * u)), elbowL: 90 * Math.abs(S(PI * u)), armR: 20 * Math.abs(S(PI * u)), elbowR: 60 * Math.abs(S(PI * u)), mid: 1 }));
   add('arm pump', 3, u => { const b = Math.abs(S(4 * PI * u)); return { armL: 10 + 15 * b, elbowL: 40 + 60 * b, armR: 10 + 15 * (1 - b), elbowR: 40 + 60 * (1 - b), mid: 1 }; });
   add('arms+hips', 3, u => { const b = S(3 * PI * u); return { hipX: b, armL: 12 + 10 * b, elbowL: 50 + 30 * b, armR: 12 - 10 * b, elbowR: 50 - 30 * b, full: 1 }; });
+  // rig v2 (MOTION.md §6): the windmill (the forearm circling past the upper arm, the arm drawn in front), the arm across the
+  // chest and overhead, an arm behind; the feet: heel pivots, toe in/out, point and flex, the weight-shift pivot
+  add('windmill R', 3, u => ({ armR: 30 + 30 * S(2 * PI * u), elbowR: 160 + 150 * S(2 * PI * u), armFrontR: 1, full: 1 }));
+  add('windmill L', 3, u => ({ armL: 30 + 30 * S(2 * PI * u), elbowL: 160 + 150 * S(2 * PI * u), armFrontL: 1, full: 1 }));
+  add('arm across', 2, u => ({ armR: -90 * Math.abs(S(PI * u)), elbowR: 60 * Math.abs(S(PI * u)), armFrontR: 1, full: 1 }));
+  add('arm overhead', 2, u => ({ armL: 160 * Math.abs(S(PI * u)), elbowL: 30 * Math.abs(S(PI * u)), armR: 150 * Math.abs(S(PI * u)), full: 1 }));
+  add('arm behind', 2, u => ({ armR: -30 * Math.abs(S(PI * u)), elbowR: 40 * Math.abs(S(PI * u)), armBackR: 1, full: 1 }));
+  add('feet pivot', 2, u => ({ heelL: 60 * Math.max(0, S(2 * PI * u)), heelR: 60 * Math.max(0, -S(2 * PI * u)), full: 1 }));
+  add('feet turn', 2, u => ({ footLR: 30 * S(2 * PI * u), footRR: -25 * S(2 * PI * u), full: 1 }));
+  add('feet point', 2, u => ({ footRY: 60 * Math.abs(S(PI * u)), footRP: S(2 * PI * u), full: 1 }));
+  add('weight pivot', 2, u => ({ hipX: sweep(u), hipY: 20 * Math.abs(sweep(u)), full: 1 }));
   // the dances themselves, from src/chorus.js etc. (window.CHOREO: {name: {t0, dur, P()}}), full-body framing, on song time
   const DANCE = { clawdA: 48 * 60 / 170 * 4 };
   for (const [nm, dur] of Object.entries(DANCE))
@@ -68,7 +80,7 @@
     X.fillStyle = bg; X.fillRect(0, 0, W, H);
     const q = P(t), full = q.full, mid = q.mid; PP = PP || RIG.perform(RIGS.clawd, P, { lead: 0 });
     window.RIG_IDPASS = id;
-    if (full) RIGS.clawd.draw(X, t, PP, { x: 960, y: 1060, s: .27 });                           // full body
+    if (full) RIGS.clawd.draw(X, t, q.song ? P : PP, { x: 960, y: 1060, s: .27 });              // full body (a dance is performed already: not twice)
     else if (mid) RIGS.clawd.draw(X, t, PP, { x: 960, y: 540 + (3700 - 1250) * .5, s: .5 });    // waist-up, arms in frame
     else RIGS.clawd.draw(X, t, P, { x: 960, y: 540 + (3700 - 620) * 1.05, s: 1.05 });           // head + chest, large
     window.RIG_IDPASS = false;

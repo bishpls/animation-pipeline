@@ -1,0 +1,26 @@
+{
+ "R": [
+  {
+   "name": "cross",
+   "arm": -61,
+   "elbow": -97,
+   "hand": null,
+   "tol": [
+    34,
+    50
+   ],
+   "file": "armpose_R_cross.png",
+   "x": 662,
+   "y": 745,
+   "w": 828,
+   "h": 542,
+   "replaces": [
+    "sleeve_R",
+    "trim_R",
+    "arm_R",
+    "cuff_R",
+    "hand_R"
+   ]
+  }
+ ]
+}

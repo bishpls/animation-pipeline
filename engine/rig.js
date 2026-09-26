@@ -111,7 +111,16 @@ const RIG = (() => {
     for (const s of ['L', 'R']) if (R.arms && R.arms[s]) for (const n of R.arms[s].layers) armOf[n] = s;
     const puffSides = {};                                      // layer -> the arms whose puff it carries
     for (const s of ['L', 'R']) if (R.arms && R.arms[s] && R.arms[s].puff) for (const n of R.arms[s].puff.layers) (puffSides[n] = puffSides[n] || []).push(s);
-    const rig = { R, layers, head, upper, armOf, puffSides, size: man.size, views, variants };
+    // drawn arm poses (tools/armpose.py): a whole arm redrawn at a pose the mesh can't make read; swapped in near its angles
+    const armPoses = { L: [], R: [] };
+    if (R.armPoses) {
+      const at = await (await fetch(base + R.armPoses)).json(), adir = base + R.armPoses.slice(0, R.armPoses.lastIndexOf('/') + 1);
+      for (const s of ['L', 'R']) for (const e of (at[s] || [])) {
+        const nm = `armpose_${s}_${e.name}`; armOf[nm] = s;
+        armPoses[s].push({ ...e, name: nm, pose: { ...e, side: s }, tex: texFrom(await loadImg(adir + e.file)), m: mesh(e, cellOf('arm_' + s)) });
+      }
+    }
+    const rig = { R, layers, head, upper, armOf, puffSides, size: man.size, views, variants, armPoses };
     // the draw list for each view: the front head's layers swapped by name; view-only layers go in front of the next swapped one
     rig.lists = { F: layers };
     for (const [vn, v] of Object.entries(views)) {
@@ -140,7 +149,7 @@ const RIG = (() => {
     // mouth: a small canvas texture, redrawn when the mouth is open
     if (R.mouth) { rig.mc = document.createElement('canvas'); rig.mc.width = 256; rig.mc.height = 160; rig.mtex = gl.createTexture(); }
     // ID colours for the ID pass (tools/romcheck.py): one per (layer, view), stable, listed in window.RIG_IDS
-    const allL = [...layers, ...Object.values(views).flatMap(v => v.layers)]; window.RIG_IDS = {};
+    const allL = [...layers, ...Object.values(views).flatMap(v => v.layers), ...armPoses.L, ...armPoses.R]; window.RIG_IDS = {};
     allL.forEach((l, i) => { const k = i + 1, c = [((k * 37) % 251 + 4) / 255, ((k * 91) % 247 + 4) / 255, ((k * 53) % 239 + 8) / 255];
       l.idc = c; window.RIG_IDS[(l.view ? l.view + ':' : '') + l.name] = c.map(v => Math.round(v * 255)); });
     rig.draw = (X, t, P, T) => draw(rig, X, t, P, T);
@@ -209,17 +218,32 @@ const RIG = (() => {
         const A = R.arms[sd], w = puffW(A, x, y, sd);
         if (w > 0) [x, y] = rot(x, y, A.shoulder[0], A.shoulder[1], (sd === 'L' ? 1 : -1) * (p['arm' + sd] || 0) * w);
       }
+      // a drawn arm pose: its own skeleton (the arm's, turned to the pose's angles); the forearm side of the bend line (the bisector
+      // of upper arm and forearm through the pose's elbow) turns by the elbow's difference, then the whole by the shoulder's,
+      // falling to none at the shoulder joint itself (so the puff stays on the body). l.dw scales the differences (the hold).
+      if (l.pose) {
+        const Q = l.pose, A = R.arms[Q.side], sg = Q.side === 'L' ? 1 : -1, S0 = A.shoulder, wrap = v => ((v + 180) % 360 + 360) % 360 - 180;
+        const rv = (v, d) => { const a = d * Math.PI / 180, c = Math.cos(a), s2 = Math.sin(a); return [v[0] * c - v[1] * s2, v[0] * s2 + v[1] * c]; };
+        const Ep = rot(A.elbow[0], A.elbow[1], S0[0], S0[1], sg * Q.arm), u1 = rv(A.axis, sg * Q.arm), u2 = rv(A.axis, sg * (Q.arm + Q.elbow));
+        let dv = [u1[0] + u2[0], u1[1] + u2[1]]; const dl = Math.hypot(dv[0], dv[1]) || 1; dv = [dv[0] / dl, dv[1] / dl];
+        const dA = (p['arm' + Q.side] || 0) - Q.arm, dE = wrap(wrap(p['elbow' + Q.side] || 0) - Q.elbow), k2 = l.dw ?? 1;
+        const bl = A.blend * .6, wv = smooth(clamp(((x - Ep[0]) * dv[0] + (y - Ep[1]) * dv[1] + bl) / (2 * bl), 0, 1));
+        if (wv && dE) [x, y] = rot(x, y, Ep[0], Ep[1], sg * dE * k2 * wv);
+        const ws = smooth(clamp((Math.hypot(x - S0[0], y - S0[1]) - 40) / 160, 0, 1));
+        if (dA) [x, y] = rot(x, y, S0[0], S0[1], sg * dA * k2 * ws);
+      }
       // arms at the shoulder
-      if (arm && !(arm.puff && arm.puff.layers.includes(name))) {
+      else if (arm && !(arm.puff && arm.puff.layers.includes(name))) {
         const sd = rig.armOf[name], sg = sd === 'L' ? 1 : -1;
         // the elbow (FK, before the shoulder): the forearm, cuff and hand rotate about it; the arm's own mesh is skinned across
         // the joint (weight by distance along the arm axis), so it bends instead of breaking
         const eb = p['elbow' + sd] || 0;
         if (eb && arm.elbow) {
           const E = arm.elbow, ax = arm.axis, sAlong = (x - E[0]) * ax[0] + (y - E[1]) * ax[1];
-          const bl = arm.blend * clamp(1 - (Math.abs(eb) - 120) / 60, .08, 1);   // past 120 deg the joint sharpens to a hinge (circles, the windmill)
+          const ebw = ((eb + 180) % 360 + 360) % 360 - 180;                       // (the bend as seen: 330 is -30)
+          const bl = arm.blend * clamp(1 - (Math.abs(ebw) - 120) / 60, .08, 1);  // past 120 deg the joint sharpens to a hinge (circles, the windmill)
           const w = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + bl) / (2 * bl), 0, 1)) : 0;
-          if (w) [x, y] = rot(x, y, E[0], E[1], sg * eb * w);
+          if (w) [x, y] = rot(x, y, E[0], E[1], sg * ebw * w);                   // (as seen: a partly weighted 330 would swing through 165)
         }
         const a = sg * (p['arm' + sd] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a);
       }
@@ -350,7 +374,24 @@ const RIG = (() => {
         else if (p['armBack' + sd] > .5) { const rest2 = order.filter(l => !grp.includes(l.name)), at = rest2.findIndex(l => l.name === 'shorts'); order = [...rest2.slice(0, Math.max(0, at)), ...mv, ...rest2.slice(Math.max(0, at))]; }
       }
     }
-    for (const l0 of order) {
+    // drawn arm poses: near a pose's angles (within its tolerance, the hand shape matching), that arm is the drawing. At the
+    // pose's centre it holds its drawn angles; toward the tolerance's edge it turns by the full difference, so the swap to and
+    // from the mesh arm meets it where the mesh arm is (a key drawing the in-betweens run into and out of)
+    const swapIn = {};
+    if (!p.view || p.view === 'F') for (const sd of ['L', 'R']) {
+      const wrap = v => ((v + 180) % 360 + 360) % 360 - 180; let best = null, bd = 1;
+      for (const P0 of rig.armPoses[sd]) {
+        const Q = P0.pose; if ((Q.hand || null) !== (p['hand' + sd] || null)) continue;
+        const d = Math.max(Math.abs((p['arm' + sd] || 0) - Q.arm) / Q.tol[0], Math.abs(wrap(wrap(p['elbow' + sd] || 0) - Q.elbow)) / Q.tol[1]);
+        if (d < bd) { bd = d; best = P0; }
+      }
+      if (best) { const u = clamp((bd - .35) / .65, 0, 1); swapIn[sd] = { ...best, dw: u * u * (3 - 2 * u) }; }
+    }
+    const swapped = new Set(Object.values(swapIn).flatMap(q => q.pose.replaces)), anchor = {};
+    for (const sd in swapIn) anchor['arm_' + sd] = swapIn[sd];
+    for (const l00 of order) {
+      if (swapped.has(l00.name) && !anchor[l00.name]) continue;
+      const l0 = anchor[l00.name] || l00;
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
       const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view, idc: l0.idc } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);

@@ -32,6 +32,9 @@ def setup(ids_p):
     o = np.argsort(ks); LUT_K = np.array(ks)[o]; LUT_V = np.array(vs)[o]; LUT_I = np.array(iv, bool)[o]
     global ARMIDS
     ARMIDS = np.array([i for i, k in enumerate(KEYS, 1) if k.split(':')[-1].rsplit('_', 1)[0] in ('arm', 'cuff', 'hand', 'trim')])
+    global LEGL, LEGR                                                  # the two legs (thigh, boot): a pocket both bound is between the legs
+    LEGL = np.array([i for i, k in enumerate(KEYS, 1) if k.split(':')[-1] in ('leg_L', 'boot_L')])
+    LEGR = np.array([i for i, k in enumerate(KEYS, 1) if k.split(':')[-1] in ('leg_R', 'boot_R')])
 
 
 def decode(path):
@@ -60,9 +63,11 @@ def analyse(args):
     lab, inv, (x0, y0) = r
     bg = lab == 0; L, n = ndi.label(bg); edge = set(np.unique(np.concatenate([L[0], L[-1], L[:, 0], L[:, -1]])))
     ids = [i for i in range(1, n + 1) if i not in edge]; holes = []
-    views0 = {}
-    for i in np.unique(lab):
-        if i and ':' in KEYS[i - 1]: views0[KEYS[i - 1].split(':')[0]] = views0.get(KEYS[i - 1].split(':')[0], 0) + 1
+    # the view: a drawn view's layers cover thousands of pixels; a few stray ID-colour matches on antialiased edges don't count
+    ui, uc = np.unique(lab, return_counts=True); views0 = {}
+    for i, c in zip(ui, uc):
+        if i and ':' in KEYS[i - 1]: views0[KEYS[i - 1].split(':')[0]] = views0.get(KEYS[i - 1].split(':')[0], 0) + int(c)
+    views0 = {k: c for k, c in views0.items() if c > 2000}
     v0 = max(views0, key=views0.get) if views0 else 'F'; cov = REST.get((v0, fr))
     if ids:
         sz = ndi.sum(bg, L, ids); com = ndi.center_of_mass(bg, L, ids)
@@ -74,12 +79,16 @@ def analyse(args):
             sl = objs[i - 1]; sl2 = tuple(slice(max(q.start - 3, 0), q.stop + 3) for q in sl)
             m = L[sl2] == i; ring = ndi.binary_dilation(m, iterations=2) & ~m
             return np.isin(lab[sl2][ring], armids).any()
-        holes = [(int(s), (c[1] + x0, c[0] + y0)) for i, s, c in zip(ids, sz, com) if s >= 14 and not by_arm(i)]
+        # ...and a pocket bounded by both legs (the knees or boots closing as the feet cross, in a curtsy) is the gap between them
+        def by_legs(i):
+            sl = objs[i - 1]; sl2 = tuple(slice(max(q.start - 3, 0), q.stop + 3) for q in sl)
+            m = L[sl2] == i; ring = lab[sl2][ndi.binary_dilation(m, iterations=2) & ~m]
+            return np.isin(ring, LEGL).any() and np.isin(ring, LEGR).any()
+        # (gaps drawn into the art are the rest baseline's own holes, subtracted in main: don't filter them here, or the baseline
+        # loses them and they show up everywhere else)
+        holes = [(int(s), (c[1] + x0, c[0] + y0)) for i, s, c in zip(ids, sz, com) if s >= 14 and not by_arm(i) and not by_legs(i)]
     il = np.where(inv, lab, 0); cnt = np.bincount(il.ravel(), minlength=len(KEYS) + 1)
-    views = {}
-    for i in np.unique(lab):
-        if i and ':' in KEYS[i - 1]: views[KEYS[i - 1].split(':')[0]] = views.get(KEYS[i - 1].split(':')[0], 0) + 1
-    v = max(views, key=views.get) if views else 'F'
+    v = v0
     cents = {}
     for i in np.nonzero(cnt > 60)[0]:
         if not i: continue

@@ -45,6 +45,24 @@
    "patches": [
     "hand_R"
    ]
+  },
+  "cup": {
+   "prompt": "Change ONLY the hand on the right side of the image: a cupped listening hand: all four fingers together and gently curved forward, the thumb alongside, the palm facing the viewer and slightly hollow, as if cupped behind an ear to listen. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
+  },
+  "palm": {
+   "prompt": "Change ONLY the hand on the right side of the image: an open hand turned palm toward the viewer, fingers relaxed and slightly spread, a graceful presenting gesture, the whole palm visible. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
+  },
+  "flat": {
+   "prompt": "Change ONLY the hand on the right side of the image: a flat, straight hand like a blade: the four fingers straight and pressed together, the thumb tucked alongside, the palm facing the viewer, as if about to sweep a page. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
   }
  },
  "edits": "_edits/hand_R",
