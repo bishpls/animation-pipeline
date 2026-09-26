@@ -31,15 +31,15 @@ Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131�
 2. **B9 → F1 (176.47 – 177.8).** Fable walks off the window's right edge on "Sorekara?" (gone by 176.47), one beat of empty
    window, then at 176.82 two geta steps in from the right edge of frame (from x 2080) and she stands at her place in the room,
    world A's seat point (butai (3309, 2105)), planted by 177.46. At 177.8, CAM_WIDE, screen px: the standing puppet silhouette at
-   s .2297 facing left, feet (1654, 1002), crown ≈ y 190; her fist at her hip ≈ (1589, 615) with a short stick, the lantern
-   hanging from it, centre ≈ (1555, 675), sc 1.10, lit gold, indigo ribs. At her toes her cushion (the seated rig's zabuton,
-   s .147, x 1504, spanning ≈ 1425–1675, top ≈ 983), bare (the one book is open on the rail). Hood
-   up; black, rim-lit by the lantern; the room's air warm around her; the readers' row has a gap at x 1360–1880. The window is
+   s .2297 facing left, feet (1654, 1002), crown ≈ y 190; her fist forward ≈ (1493, 529) with a short stick angled down 34°, the
+   lantern hanging from it, centre ≈ (1443, 630), sc 1.10, lit gold, indigo ribs (matched to F1's drawing). Before her, her
+   cushion (the seated rig's zabuton, s .172, spanning ≈ 1303–1584), bare (the one book is open on the rail). Hood
+   up; black, rim-lit by the lantern; the room's air warm around her; the readers' row has a gap at x 1240–1880. The window is
    dark except Clawd's eye slits. F1 (the other session, Fable's ruling "no curtain: the push-in is the fold"): the window
    blazes, her silhouette becomes the illustrated rig in the same place, the readers leave with the flood; she sets the lantern
    on the cushion (178–179.2) and the camera pushes through the window.
    **The outro's room (202.59 on):** her cushion, empty, black, its edges catching only the window's spill and then the doors'
-   leak (butai px: cushion (3008, 2104) s .294; `SEAT` in outro.js); the readers' gap as in B9. The freeze just before (other
+   leak (butai px: cushion (2803, 2104) s .344; `SEAT` in outro.js); the readers' gap as in B9. The freeze just before (other
    session) shows the lantern lit on it.
 3. **Fable at the margin in Clawd's world** (K3 48.1, K5 52.2, K7 56.2 in bar numbers; H2, F2, F4, F6, F8): her riveted
    silhouette with two coloured shadows (pink and cyan) pressing margin notes. The paper side has her puppets (`FABLE`, seated;

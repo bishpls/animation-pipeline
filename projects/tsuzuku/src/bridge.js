@@ -302,8 +302,8 @@
     // up from here: the lantern set on the cushion; one book, the open one on the rail). Hood up; the lantern lit in her
     // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
     const ROOM = OUT + 2.5 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
-    const CUSH = { x: FEET[0] - 150, s: .147 };                         // (her cushion at her toes, bare: one doesn't stand on a zabuton; the one book is open on the rail)
-    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 60, FEET[1] - 400])); };   // her fist at her hip
+    const CUSH = { x: 1401.5, s: .172 };                               // (her cushion before her, bare, ≈ x 1303-1584 as F1 draws it: one doesn't stand on a zabuton; the one book is open on the rail)
+    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 161, FEET[1] - 473])); };   // her fist forward, a little above her hip (F1's drawing: (1493, 529))
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
       const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * RK * Math.sin(Math.PI * u) : 0;
       return { x, y: FEET[1] + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
@@ -323,7 +323,7 @@
       S.setTransform(1, 0, 0, 1, 0, 0);
       // the lantern in her hand (hung from its stick), and its light on her from below and in front
       const fi = fistAt(FABLE_S, p, T, STAND_ARM), arrive = ROOM + BEAT, k = Math.max(0, tt - arrive), sw = tt < arrive ? 10 * Math.sin((tt - ROOM) * 2 * Math.PI / (BEAT / 2)) : 8 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
-      const drop = CHO.w * .2 * RLSC + 5 * RLSC + CHO.h * RLSC / 2, a = 0, Ls = CHO.stick * CHO.h * RLSC * .3, tip = [fi[0] - Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];
+      const drop = CHO.w * .2 * RLSC + 5 * RLSC + CHO.h * RLSC / 2, a = 34 * Math.PI / 180, Ls = CHO.stick * CHO.h * RLSC * .46, tip = [fi[0] - Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];   // (the stick down 34°: F1's lantern)
       const lc = [tip[0] - Math.sin(sw * Math.PI / 180) * drop, tip[1] + Math.cos(sw * Math.PI / 180) * drop];
       R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
       R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
@@ -336,7 +336,7 @@
       X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(10px)'; X.globalAlpha = .6; X.drawImage(RL[1], 0, 0);
       X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
-      chochinHang(fi[0], fi[1], -1, RLSC, { swing: sw, len: .3, stickAngle: 0, gold: true, ribs: 'rgba(22,40,96,.6)' });   // the lamp she carried out: the same gold, indigo only in its ribs (Fable)
+      chochinHang(fi[0], fi[1], -1, RLSC, { swing: sw, len: .46, stickAngle: 34, gold: true, ribs: 'rgba(22,40,96,.6)' });   // the lamp she carried out: the same gold, indigo only in its ribs (Fable)
     }
     PAPER_SFX.push(() => { const E = [[TAKE1, 'lantern', -31], [SET1 - f, 'lantern_set', -31], [OUT + .12, 'lantern', -31]];   // she takes the lamp; sets it at Clawd's feet; takes it up
       for (const st of steps) E.push([st.t + (st.dur || BEAT), 'geta', st.dur ? -33 : -31]);             // her geta on the rail (after B7's clack)
@@ -347,7 +347,7 @@
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
       const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1 });
       roomFable(ts);
-      readers(ts, cam, { gap: [1360, 1880] });                         // (nobody in front of her place)
+      readers(ts, cam, { gap: [1240, 1880] });                         // (nobody in front of her place)
     };
     LOOPS.bridgeB8.len = S1 - S0;
     let TEXT = null;

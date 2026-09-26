@@ -109,7 +109,7 @@
   // final chorus; at the clack it's inside the window again, on the rail (a kuroko's cut); the empty cushion is the audience's
   // arithmetic (Fable). Butai px (B9's end frame at CAM_WIDE, doubled). Black; its edges catch only the window's spill, and once
   // the doors are shut, the leak at their arches
-  const SEAT = { cush: [3008, 2104], cs: .294 };
+  const SEAT = { cush: [2803, 2104], cs: .344 };
   const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
   let SL = null;
   function roomSeat(ts, cam, open, leak) {
@@ -145,7 +145,7 @@
         dust(ts, (px, py) => c * lightPool(x, y, r, .6)(px, py), { seed: 9 + i, n: 26, rect: [x - r, y - r * .6, 2 * r, 1.2 * r], col: [255, 200, 130], alpha: 1.4 }); });
     }
     roomSeat(ts, cam, doors, c);
-    readers(ts, cam, { gap: [1360, 1920] });                           // (nobody in front of her place, as in B9)
+    readers(ts, cam, { gap: [1240, 1920] });                           // (nobody in front of her place, as in B9)
   };
   LOOPS.outro.len = S1 - S0;
 }
