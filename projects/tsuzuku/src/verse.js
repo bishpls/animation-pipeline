@@ -71,9 +71,15 @@
     let x = LITTLE.land, y = 0, rock = 0;
     if (ts >= K.scuttle) { const [hx, hy, fr] = hopX(LITTLE.land, LITTLE.end, K.scuttle, S1 - f, ts, 16, 4); x = hx; y = hy; rock = 5 * Math.sin(2 * Math.PI * fr); }
     const M = new DOMMatrix().translate(x, FLOOR + y).rotate(rock);
-    const d = Math.floor((ts - K.why) * 12 + 1e-6), glow = ts < K.why ? 0 : [.35, .7, 1][Math.min(2, d)];
-    if (glow > 0) PUPPET.drawShape(c, PUPPET.shapeAt(ORI, 'ocrab', 'ocrab', 1), M.scale(.16), null, { gel: PAPER_GEL, crease: CREASE });
-    if (glow < 1) { c.save(); c.globalAlpha = 1 - glow; PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), M.scale(LITTLE.sc)); c.restore(); }
+    // the turn (Fable, for Michael's "a two-frame swap-in could be mistaken for a mistake"): a shadow puppet has two faces, and the
+    // kuroko turns it over in place. Black full, black half-width, edge-on, orange half-width, orange full on "why"; the light comes
+    // round with the orange face; one afterimage, no cross-fade
+    const TURN = [[1, 'b'], [.5, 'b'], [.06, 'b'], [.5, 'o'], [1, 'o']], d = Math.floor((ts - (K.why - 4 * f)) * 12 + 1e-6);
+    const face = (k, a = 1) => { const [sx, side] = TURN[Math.max(0, Math.min(4, k))]; c.save(); c.globalAlpha = a;
+      if (side === 'o') PUPPET.drawShape(c, PUPPET.shapeAt(ORI, 'ocrab', 'ocrab', 1), M.scale(.16 * sx, .16), null, { gel: PAPER_GEL, crease: CREASE });
+      else PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), M.scale(LITTLE.sc * sx, LITTLE.sc)); c.restore(); };
+    if (d >= 1 && d <= 4) face(d - 1, .25);                            // (the drawing before, faintly: the flip-book afterimage)
+    face(d);
   }
   function scene(ts) {
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
@@ -114,7 +120,7 @@
   const DRIFT0 = 17.2;                                               // (the crab's hop to the floor)
   window.CAM_HANDS = { x: 1800, y: 1545, zoom: 1.18 }; window.CAM_FLOOR = { x: 1890, y: 1525, zoom: 1.13 };   // (the strip's text starts at butai x ~1114 and ends at y ~1964: both views keep it)
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); } const k = K, E = [[DOOR0, 'doors_open', -30], [land(k.time), 'fan_flick', -30], [land(k.crab), 'paper_fold', -32],
-    [k.landed, 'paper_tap', -29], [land(k.line), 'paper_fold', -32], [k.laid, 'paper_tap', -30]];
+    [k.landed, 'paper_tap', -29], [land(k.line), 'paper_fold', -32], [k.laid, 'paper_tap', -30], [k.why - 2 * f, 'paper_tap', -34]];   // (the turn: a paper tick edge-on)
     for (let i = 1; i <= 4; i++) E.push([k.mother + i * 9 * f / 4, 'paper_tap', -32]);                   // the mother's stiff hops in
     for (const tb of [k.walk, k.straight]) E.push([tb + 3 * f, 'paper_tap', -33]);                        // "Walk straight,": her lifts, set down
     for (let i = 1; i <= 4; i++) E.push([k.scuttle + i * (S1 - f - k.scuttle) / 4, 'paper_tap', -35]);   // the little one scuttles

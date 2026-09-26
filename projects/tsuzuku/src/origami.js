@@ -19,16 +19,12 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
   const LOOK = bar(20.3);                                              // "and the little one looked up": the shell tips back, two drawings, hold
   const lookAt = ts => ts < LOOK ? 0 : ts < LOOK + f ? .5 : 1;
   // the unfold in the light (Fable, round 2, as Michael cut it: no change of size; she is born at her own size, on the floor).
-  // As the crab unfolds, the lamp's light pours through the thinning sheet: the paper turns a luminous gold-orange (the gel
-  // thinner and purer), holds through the square, the cut and her waking, and settles back to her denser red-orange as her claw
-  // comes down, before the readers' call
-  const LIGHT0 = UNFOLD - 2 * f, LIGHT1 = SQUARE, SETTLE0 = bar(24.2), SETTLE1 = 35.12;
-  const lightAt = ts => {
-    if (ts < LIGHT0 || ts >= SETTLE1) return 0;
-    const e = u => u * u * (3 - 2 * u);
-    if (ts < LIGHT1) return e((ts - LIGHT0 + f) / (LIGHT1 - LIGHT0 + f));
-    return ts < SETTLE0 ? 1 : 1 - e((ts - SETTLE0) / (SETTLE1 - SETTLE0));
-  };
+  // Opened, the one layer of paper lets the lamp through: the sheet and her cut are a luminous gold-orange (the gel thinner and
+  // purer)
+  // (Fable's rule, for Michael's "Clawd changes colour. What's up with that?": colour density follows the paper's layers, so it
+  // changes only when the paper changes. The crab, folded, is red-orange; the open sheet and her cut from it are gold; the puppet,
+  // riveted, is red-orange from the keyline drawing on. Two transformations, two changes, never a settle)
+  const lightAt = ts => ts >= SQUARE && ts < KEYLINE ? 1 : 0;
   const fable = PUPPET.snap([[0, { head: -10, forearm: 0, hand: 0 }], [28.59 - 2 / 12, { head: 3 }], [bar(21.25), { head: 9, forearm: 12, hand: -6 }]]);   // the mother's voice (head up) to "does."; the narrator (level) from "And the little one"; she looks down at it
   const WSTART = 31.30;
   const jawAt = ts => { for (const w of (window.WORDS || [])) if (w.who === 'clawd' && w.t0 >= WSTART - .05 && ts >= w.t0 && ts < w.t1) return (ts - w.t0) / Math.max(.08, w.t1 - w.t0) < .7 ? 9 : 4; return 0; };
