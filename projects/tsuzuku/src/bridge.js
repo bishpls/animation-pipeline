@@ -159,52 +159,65 @@
   {
     const S0 = 166.0, S1 = 177.8, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
     const X0 = 1060, BOOKX = 950, TS0 = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (the lamp and the book at her feet, as the ink stand-up left them)
-    const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [];
-    for (let i = 0; i < 7; i++) steps.push({ t: beat(b0 + i), foot: i % 2 ? 'h' : 'v', close: i === 6, S: 74 });   // (to within arm's reach of her head)
+    // Michael: stop well short of Clawd (her bow was folding over her), and ease every bow and reach over several drawings (one
+    // drawing between upright and bowed was far too jerky). So: five steps to a stop a lean's length from her; bow to set the
+    // lamp down between them; still bent, the hand onto her head; "Sorekara?" lifts it back to the lamp, and she goes.
+    const b0 = Math.ceil((168.62 - NOTE) / BEAT), steps = [], SW = 68;
+    for (let i = 0; i < 5; i++) steps.push({ t: beat(b0 + 1 + i), foot: i % 2 ? 'h' : 'v', close: i === 4, S: SW });   // feet together on "now"
     const b1 = Math.round((175.06 - NOTE) / BEAT), OUT = beat(b1);
-    for (let i = 0; i < 4; i++) steps.push({ t: OUT + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 150 });   // on the eighths: off the right edge by 176.47
-    const walk = makeWalk(steps, 74, BEAT, TS0.s), STOP = steps[6].t + BEAT;
-    // the beats of her hands
-    const BOW = 166.5, HOVER = 166.85, TAKE = HOVER + BEAT, UP = TAKE + 3 * f, TURN = UP + 3 * f;
-    const SETD = STOP + f, RISE = SETD + 5 * f, REST = RISE + 2 * f, GRAB = OUT - f;
-    const CARRY = { upperarm: 10, forearm: -34, hand: 0 };
-    const bowAt = PUPPET.snap([[0, { torso: 0 }], [BOW, { torso: 44 }], [UP, { torso: 0 }], [SETD, { torso: 44 }], [RISE, { torso: 0 }], [GRAB, { torso: 30 }], [OUT + f, { torso: 0 }]], { inbetween: 1, overshoot: 0 });   // (paper: one drawing down, one up)
-    const headAt = PUPPET.snap([[0, { head: 6 }], [BOW, { head: 14 }], [UP, { head: 4 }], [TURN + f, { head: 0 }], [STOP, { head: 14 }], [OUT, { head: 0 }]]);
+    for (let i = 0; i < 4; i++) steps.push({ t: OUT + .12 + i * BEAT / 2, dur: BEAT / 2, foot: i % 2 ? 'h' : 'v', S: 150 });   // on the eighths: off the right edge by 176.5
+    const walk = makeWalk(steps, SW, BEAT, TS0.s), STOP = steps[4].t + BEAT;
+    // the beats (song s)
+    const BOW0 = 166.3, BOW1 = 166.8, TAKE0 = BOW1 + BEAT, TAKE1 = TAKE0 + .25, UP0 = TAKE1 + .08, UP1 = UP0 + .5, TURN = UP1 + .08;
+    const SET0 = STOP + .05, SET1 = SET0 + .55, PAT0 = SET1 + .1, PAT1 = PAT0 + .45, LIFT0 = OUT - .4, LIFT1 = OUT - .22;
+    // eased keys (numbers or tokens resolved each frame), sampled per drawing
+    const ease = u => u * u * (3 - 2 * u);
+    const channel = keys => (q, res = v => v) => {
+      if (q <= keys[0][0]) return res(keys[0][1]);
+      for (let i = 1; i < keys.length; i++) { const [t1, v1] = keys[i], [t0, v0] = keys[i - 1]; if (q < t1) { const e = ease((q - t0) / (t1 - t0)), A = res(v0), B = res(v1);
+        return Array.isArray(A) ? A.map((x, k) => x + (B[k] - x) * e) : A + (B - A) * e; } }
+      return res(keys[keys.length - 1][1]);
+    };
+    const torsoC = channel([[0, 0], [BOW0, 0], [BOW1, 40], [UP0, 40], [UP1, 0], [SET0, 0], [SET1, 42], [PAT1, 34], [LIFT0, 34], [OUT, 40], [OUT + .4, 0]]);
+    const headC = channel([[0, 6], [BOW0, 6], [BOW1, 14], [UP0, 14], [UP1, 2], [TURN + .2, 0], [SET0, 0], [SET1, 14], [PAT1, 16], [LIFT0, 16], [OUT + .4, 0]]);
+    const armC = channel([[0, 'rest'], [BOW0, 'rest'], [BOW1, 'book'], [TAKE0, 'book'], [TAKE1, 'stick0'], [UP0, 'stick0'], [UP1, 'carry'], [SET0, 'carry'], [SET1, 'stickS'],
+      [PAT0, 'stickS'], [PAT0 + .25, 'headUp'], [PAT1, 'head'], [LIFT0, 'head'], [LIFT1, 'headUp'], [OUT, 'stickS'], [OUT + .12, 'stickS'], [OUT + .5, 'carry']]);
     const flipAt = q => q < TURN ? -1 : 1;
     const Tq = q => ({ ...TS0, flip: flipAt(q) });                  // (the walk's dx/dy live in the pose)
     const L0 = { x: 830, y: FLOOR };                                   // the lamp at her feet, its stick leaning toward her
     const stickTopFloor = (L, lean) => { const h = CHO.h * LSC, bx = L.x, by = L.y - 7 * LSC - h - 5 * LSC - CHO.w * .2 * LSC, a = lean * Math.PI / 180, Ls = CHO.stick * h; return [bx + Math.sin(a) * Ls, by - Math.cos(a) * Ls]; };
-    let SPOT = null;                                                  // where she sets it down at the stop (at her feet, toward Clawd)
-    const setSpot = () => { const w = walk(STOP + .2); SPOT = { x: X0 + w.dx + 70, y: FLOOR }; };
-    // which arm target, frame by frame: null = the carry pose (the lamp hangs from her fist)
-    function armTarget(q, pose, T) {
-      if (q >= BOW && q < HOVER) return [BOOKX + 30, 690];            // on the way down to it
-      if (q >= HOVER && q < TAKE) return [BOOKX + 10, 705];           // one beat over the book
-      if (q >= TAKE && q < UP) return stickTopFloor(L0, LEAN);       // the lamp's stick instead
-      if (q >= SETD && q < RISE) return stickTopFloor(SPOT, -LEAN);  // set at her feet
-      if (q >= RISE && q < GRAB) { const hd = CLAWDP.world(CPOSE, CP).head.transformPoint(new DOMPoint(860, 250)); return q >= REST ? [hd.x - 6, hd.y - 14] : [hd.x - 40, hd.y - 60]; }
-      if (q >= GRAB && q < OUT + f) return stickTopFloor(SPOT, -LEAN); // one snap: down to it and up with it
-      return null;
-    }
-    const lampState = q => q < TAKE ? { floor: L0, lean: LEAN } : (q >= SETD + 2 * f && q < GRAB) ? { floor: SPOT, lean: -LEAN } : { hand: true };
+    const SPOT = { x: X0 + 4 * SW + 138, y: FLOOR };                  // between them: in front of her feet, short of Clawd
+    const HEAD = () => { const hd = CLAWDP.world(CPOSE, CP).head.transformPoint(new DOMPoint(860, 250)); return [hd.x - 6, hd.y - 14]; };
+    // the lamp: on the floor until her fist reaches its stick, in her hand until it's set down, and so on
+    const lampState = q => q < TAKE1 ? { floor: L0, lean: LEAN } : (q >= SET1 && q < OUT) ? { floor: SPOT, lean: -LEAN } : { hand: true };
     function poseS(tt) {
-      const q = Math.floor(tt * 12 + 1e-6) / 12; if (!SPOT) setSpot();
-      const w = walk(q), p = { ...w, ...bowAt(q), ...headAt(q), _ghost: {} }; p.torso = (w.torso || 0) + p.torso;
-      const T = Tq(q), tg = armTarget(q, p, T), carrying = q >= TAKE;
-      if (tg) Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, tg));
-      else if (carrying) { p.upperarm = CARRY.upperarm + (w.upperarm || 0); p.forearm = CARRY.forearm; p.hand = 0; }
-      else { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
+      const q = Math.floor(tt * 12 + 1e-6) / 12;
+      const w = walk(q), p = { ...w, torso: (w.torso || 0) + torsoC(q), head: headC(q), _ghost: {} }, T = Tq(q), dir = T.flip;
+      const shp = FABLE_S.world({ ...p, upperarm: 0, forearm: 0, hand: 0 }, T).torso.transformPoint(new DOMPoint(...STAND_ARM.SH)), sh = [shp.x, shp.y];
+      const res = v => v === 'rest' ? [sh[0] + dir * 18, sh[1] + 228] : v === 'carry' ? [sh[0] + dir * 70, sh[1] + 175 + (w.upperarm || 0) * 3]
+        : v === 'book' ? [BOOKX + 5, 690] : v === 'stick0' ? stickTopFloor(L0, LEAN) : v === 'stickS' ? stickTopFloor(SPOT, -LEAN)
+        : v === 'head' ? HEAD() : v === 'headUp' ? (h => [h[0] - 30, h[1] - 70])(HEAD()) : v;
+      Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, armC(q, res)));
       p.hair = -(p.head + (p.torso || 0)) * .85; p._T = T; return p;
     }
-    // the lamp's light this frame: where it is (on the floor, or hanging from her fist, swinging a little as she walks)
+    // the lamp this frame: on the floor, hanging from her fist on a short stick (swinging a little as she walks), or between
+    // the two over three drawings as she lifts it or sets it down (the stick from its bail to her fist all the while)
+    const HANG = .5, BLEND = .25;
+    const floorC = L => [L.x, L.y - 7 * LSC - CHO.h * LSC / 2];
     function lampNow(tt, p) {
-      const q = Math.floor(tt * 12 + 1e-6) / 12, st = lampState(q);
-      if (st.floor) { const h = CHO.h * LSC; return { st, cx: st.floor.x, cy: st.floor.y - 7 * LSC - h / 2 }; }
-      const fi = fistAt(FABLE_S, p, p._T, STAND_ARM), dir = flipAt(q), k = Math.floor((q - TURN) * 12 + 1e-6);
-      const swing = q < TURN + 4 * f ? [0, 14, -8, 4][Math.max(0, Math.min(3, k))] * dir : 5 * Math.sin(q * 2 * Math.PI / BEAT) * (q >= steps[0].t && q < STOP + .2 || q >= OUT ? 1 : 0);
-      const drop = CHO.w * .2 * LSC + 5 * LSC + CHO.h * LSC / 2, a = 28 * Math.PI / 180, Ls = CHO.stick * CHO.h * LSC * .8;
+      const q = Math.floor(tt * 12 + 1e-6) / 12, dir = flipAt(q), fi = fistAt(FABLE_S, p, p._T, STAND_ARM), k = Math.floor((q - TURN) * 12 + 1e-6);
+      const swing = q >= TURN && q < TURN + 4 * f ? [0, 12, -7, 3][Math.max(0, Math.min(3, k))] * dir : 5 * Math.sin(q * 2 * Math.PI / BEAT) * (q >= steps[0].t && q < STOP + .2 || q >= OUT + .4 ? 1 : 0);
+      const drop = CHO.w * .2 * LSC + 5 * LSC + CHO.h * LSC / 2, a = 28 * Math.PI / 180, Ls = CHO.stick * CHO.h * LSC * HANG;
       const tip = [fi[0] + dir * Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];
-      return { st, fi, dir, swing, cx: tip[0] - Math.sin(swing * Math.PI / 180) * drop, cy: tip[1] + Math.cos(swing * Math.PI / 180) * drop };
+      const hang = { hang: true, fi, dir, swing, cx: tip[0] - Math.sin(swing * Math.PI / 180) * drop, cy: tip[1] + Math.cos(swing * Math.PI / 180) * drop };
+      const blend = (L, u) => { const e = ease(u), [fx, fy] = floorC(L); return { blend: true, fi, cx: fx + (hang.cx - fx) * e, cy: fy + (hang.cy - fy) * e }; };
+      if (q < TAKE1) return { floor: L0, lean: LEAN, cx: floorC(L0)[0], cy: floorC(L0)[1] };
+      if (q < TAKE1 + BLEND) return blend(L0, (q - TAKE1) / BLEND);
+      if (q < SET1 - BLEND) return hang;
+      if (q < SET1) return blend(SPOT, 1 - (q - (SET1 - BLEND)) / BLEND);
+      if (q < OUT) return { floor: SPOT, lean: -LEAN, cx: floorC(SPOT)[0], cy: floorC(SPOT)[1] };
+      if (q < OUT + BLEND) return blend(SPOT, (q - OUT) / BLEND);
+      return hang;
     }
     const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
     const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
@@ -243,8 +256,11 @@
       // the lamp, over everything on the screen: on the floor with its stick, or hanging from her fist
       if (!gone || ln.cx < EDGE + 200) {
         X.save(); X.beginPath(); X.rect(...SCREEN.rect); X.clip();
-        if (ln.st.floor) chochin(ln.st.floor.x, ln.st.floor.y, LSC, { gold: true, stick: ln.st.lean });
-        else chochinHang(ln.fi[0], ln.fi[1], ln.dir, LSC, { gold: true, swing: ln.swing });
+        if (ln.floor) chochin(ln.floor.x, ln.floor.y, LSC, { gold: true, stick: ln.lean });
+        else if (ln.hang) chochinHang(ln.fi[0], ln.fi[1], ln.dir, LSC, { gold: true, swing: ln.swing, len: HANG });
+        else { const bail = [ln.cx, ln.cy - CHO.h * LSC / 2 - 5 * LSC - CHO.w * .2 * LSC];
+          X.save(); X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 3.2 * LSC; X.lineCap = 'round'; X.beginPath(); X.moveTo(...bail); X.lineTo(...ln.fi); X.stroke(); X.restore();
+          chochinBody(ln.cx, ln.cy, LSC, 0, { gold: true }); }
         X.restore();
       }
       if (!gone) { bridgeText(tt); pageVellum(tt); }                   // (ink on unlit paper is nothing)
