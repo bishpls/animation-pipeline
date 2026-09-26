@@ -54,6 +54,9 @@
   const FLOORSPOT = [428, FLOOR], LSC = 1.4, LEAN = 25;   // (x: lands on the hall lantern at the match cut, screen ≈ (666, 980))
   const lanternAt = ts => ({ x: FLOORSPOT[0], y: FLOORSPOT[1], held: false });
   const lampOf = L => [L.x, L.y - (7 + CHO.h / 2) * LSC];
+  // the lamp's rod (Michael): whenever it isn't in her hand, it's worked like every other thing in the window, a rod from its
+  // base down out of the frame (Fable: "everything in this film has been visibly worked")
+  const lampRod = (x, y) => { X.save(); X.strokeStyle = 'rgb(22,22,26)'; X.lineWidth = 5; X.lineCap = 'round'; X.beginPath(); X.moveTo(x, y - 4); X.lineTo(x - 18, H + 20); X.stroke(); X.restore(); };
   const bailAt = L => [L.x, L.y - 7 * LSC - CHO.h * LSC - 5 * LSC - CHO.w * .2 * LSC], grip = L => { const b = bailAt(L); return [b[0], b[1] - 14 * LSC]; };
   // the vellum lit from the lamp where it is: a pool, dimmer than the sky lamp was, that opens as the planes go
   const POOL = [[0, '#FFF1D6'], [.22, '#F2CB8E'], [.55, '#B98A52'], [1, '#5A3C22']];   // (a lamp's falloff: no rim)
@@ -101,7 +104,7 @@
       FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink && !back ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS, hide: back ? ['head', 'hair'] : [] });
       if (back) FABLE.draw(c, { ...p, head: 10, hair: -8.5 }, Tb, { hide: ['cushion', 'lower', 'torso', 'upperarm', 'forearm', 'hand'] });   // her head, turned back and down to it
     }, 0);
-    chochin(L.x, L.y, LSC, { gold: true });                           // the brightest thing in the window
+    lampRod(L.x, L.y); chochin(L.x, L.y, LSC, { gold: true });        // the brightest thing in the window
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
@@ -118,7 +121,10 @@
     const u = Math.min(1, Math.max(0, Math.floor((ts - GLIDE[0]) * 12 + 1e-6) / Math.round((GLIDE[1] - GLIDE[0]) * 12))), e = u * u * (3 - 2 * u);
     const v = Math.min(1, Math.max(0, Math.floor((ts - FADE[0]) * 12 + 1e-6) / Math.round((FADE[1] - FADE[0]) * 12)));
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = `rgba(0,0,0,${1 - v})`; X.fillRect(0, 0, W, H); X.restore();
-    if (v < 1) { X.save(); X.globalAlpha = 1 - v; chochinBody(FROM.x + (to.x - FROM.x) * e, FROM.y + (to.y - FROM.y) * e, (FROM.h + (to.h - FROM.h) * e) / CHO.h, 0, { gold: true }); X.restore(); }
+    if (v < 1) { const cx = FROM.x + (to.x - FROM.x) * e, cy = FROM.y + (to.y - FROM.y) * e, sc = (FROM.h + (to.h - FROM.h) * e) / CHO.h, by = cy + CHO.h * sc / 2 + 6 * sc;
+      X.save(); X.globalAlpha = 1 - v; const rg = X.createLinearGradient(0, by, 0, by + 260); rg.addColorStop(0, 'rgb(150,112,70)'); rg.addColorStop(1, 'rgba(20,16,12,1)');   // its rod, lit by it
+      X.strokeStyle = rg; X.lineWidth = 5 * sc / LSC; X.lineCap = 'round'; X.beginPath(); X.moveTo(cx, by); X.lineTo(cx - 18 * sc / LSC, H + 20); X.stroke();
+      chochinBody(cx, cy, sc, 0, { gold: true }); X.restore(); }
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
   const BACK = 152.46, BACKN = 12;
@@ -143,7 +149,7 @@
       CLAWDP.draw(c, CPOSE, CP, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: -70 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 26 }] });
       draw(c);
     }, 0);
-    chochin(FLOOR_L.x, FLOOR_L.y, LSC, { gold: true });
+    lampRod(FLOOR_L.x, FLOOR_L.y); chochin(FLOOR_L.x, FLOOR_L.y, LSC, { gold: true });
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
@@ -269,7 +275,7 @@
       // the lamp, over everything on the screen: on the floor with its stick, or hanging from her fist
       if (!gone || ln.cx < EDGE + 200) {
         X.save(); X.beginPath(); X.rect(...SCREEN.rect); X.clip();
-        if (ln.floor) chochin(ln.floor.x, ln.floor.y, LSC, { gold: true, stick: ln.lean });
+        if (ln.floor) { if (ln.floor === L0) lampRod(L0.x, L0.y); chochin(ln.floor.x, ln.floor.y, LSC, { gold: true, stick: ln.lean }); }   // (the rod until she takes it)
         else if (ln.hang) chochinHang(ln.fi[0], ln.fi[1], ln.dir, LSC, { gold: true, swing: ln.swing, len: HANG });
         else { const bail = [ln.cx, ln.cy - CHO.h * LSC / 2 - 5 * LSC - CHO.w * .2 * LSC];
           X.save(); X.strokeStyle = 'rgb(12,10,12)'; X.lineWidth = 3.2 * LSC; X.lineCap = 'round'; X.beginPath(); X.moveTo(...bail); X.lineTo(...ln.fi); X.stroke(); X.restore();
