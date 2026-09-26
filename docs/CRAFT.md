@@ -133,7 +133,7 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 
 **Two registers (the *Panty & Stocking* principle).** Most of the film is simple, bold code animation (a chibi, beat-locked). A few beats cut to high-detail anime (transformation, chorus hero poses, the bridge close-up, the key change). The switch itself is the style: cut into sakuga on a hard beat with a one-frame flash, and smash back out. Code excels at the chibi register; spend illustration effort only on the cut-ins.
 
-**Plain mode.** `PROJECT.plain = true` skips the riso press: shots draw straight into `X` (a Canvas2D). The chibi kit (`shp`, backgrounds, `pop` type, `rig`, `cutin`, `seqDraw`) lives in `projects/hello-world/src/pop.js` and `film.js`. Copy it for the next plain-mode film, or promote it to `engine/` once a second film uses it.
+**Plain mode.** `PROJECT.plain = true` skips the riso press: shots draw straight into `X` (a Canvas2D). The chibi kit (`shp`, backgrounds, `pop` type, `rig`) is `engine/pop.js`: it was promoted from HELLO, WORLD! when TSUZUKU became its second user. `cutin` and `seqDraw` still live in `projects/hello-world/src/film.js`.
 
 **Characters in code: design against a target sheet.**
 - Generate a style-target sheet in the exact SD language wanted, then code the puppet to match it and review a model-sheet loop (`--loop=chars`).
