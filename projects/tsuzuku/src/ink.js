@@ -170,11 +170,14 @@ function inkPrint(C, o = {}) {
     // folds along it and deepens it, and it relaxes back to faint
     { const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), q = Math.min(1, bendDeg / TH);
       X.save(); X.globalAlpha = .16 + .54 * q; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5, x1 - x0, 1.6); X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2); X.restore(); }
-    // the light: the lantern on the floor (lower left) lights her from below; the rest of the page in half-light
+    // the light: the lantern on the floor (lower left), and nothing else. A low pool: seated, her face is in it (~590 px from the
+    // lantern); standing, it isn't (~800 px), so she rises out of the light and stands in the dark while the pleats stay in the
+    // pool (Fable: "standing up out of the light"). The light doesn't move; she does.
     if (!INK._L) { INK._L = document.createElement('canvas'); INK._L.width = W; INK._L.height = H; }
-    const L = INK._L.getContext('2d'); L.globalCompositeOperation = 'source-over'; L.fillStyle = 'rgb(118,108,96)'; L.fillRect(0, 0, W, H);
+    const L = INK._L.getContext('2d'); L.globalCompositeOperation = 'source-over'; L.fillStyle = 'rgb(46,42,38)'; L.fillRect(0, 0, W, H);
     L.globalCompositeOperation = 'lighter'; const lx = cx + (LANTERN[0] / w - .5) * CW, ly = cy + (LANTERN[1] / h - .5) * CH;
-    const g1 = L.createRadialGradient(lx, ly, 0, lx, ly, 900); g1.addColorStop(0, 'rgba(244,201,122,.95)'); g1.addColorStop(.5, 'rgba(200,150,90,.45)'); g1.addColorStop(1, 'rgba(0,0,0,0)');
+    const g1 = L.createRadialGradient(lx, ly, 0, lx, ly, 830); g1.addColorStop(0, 'rgba(250,210,135,1)'); g1.addColorStop(.42, 'rgba(226,176,110,.72)');
+    g1.addColorStop(.72, 'rgba(190,140,86,.26)'); g1.addColorStop(.9, 'rgba(120,85,50,.06)'); g1.addColorStop(1, 'rgba(0,0,0,0)');
     L.fillStyle = g1; L.fillRect(0, 0, W, H);
     X.save(); X.globalCompositeOperation = 'multiply'; X.drawImage(INK._L, 0, 0); X.restore();
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();

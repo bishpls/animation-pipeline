@@ -9,18 +9,23 @@ async function AUD_INIT() {
 // a chōchin (Fable: paper, lit from inside, ribs, no highlight): indigo washi on a bamboo spiral, black lacquer caps top and
 // bottom; the candle sits low in the middle, so the paper is brightest there and dims toward the sides as it curves away; the
 // ribs are shadows on the lit paper. Drawn in the person's frame at the traced lantern's centre and radius.
-function lantern([cx, cy, r], sc, tq, ph) {
+function lantern([cx, cy, r], sc, tq, ph, lit = 1) {
   // the readers' lanterns are copies of hers (Michael): the same chōchin, body, caps and bail, in indigo, lit cool; hers alone
   // is warm. Sized to the traced lantern it replaces (drawn in the reader's frame, at its centre)
   const fl = 1 + .04 * Math.sin(tq * 23 + ph * 9);                  // (the flame's small breathing, on twos)
-  chochinBody(cx, cy, 2.2 * r / CHO.h, 0, { cool: true, halo: false, lit: fl, ribs: 'rgba(10,16,48,.45)' });
+  chochinBody(cx, cy, 2.2 * r / CHO.h, 0, { cool: lit > 0, halo: false, lit: fl * lit, ribs: 'rgba(10,16,48,.45)' });
 }
 // seated row: a stable arrangement (seeded), people at mixed heights along the bottom edge. They sit between us and the lit
 // stage, so we see their backs: black, but never lost in the dark. The floor and air in front of the stage behind them are
 // lit by its spill, so their heads stand out against a warm band; the stage light rims their top edges; their own lanterns
 // light their hands and sleeves indigo. A crowd call starts each of them on their next hop, and a hop in progress when the call
 // ends is finished: nobody stops in mid-air.
-const AUD_CALLS = [[11.44, 14.04], [35.12, 37.72]];                     // the crowd calls (timeline.json), song seconds
+const AUD_CALLS = [[11.44, 14.04], [35.12, 37.72], [206.15, 207.4]];     // the crowd calls (timeline.json), song seconds; and "See you next prompt!"
+// the readers answer the story (Fable): they lean in as the crab unfolds and hold it until their call; one lantern goes out on
+// "You stand in the dark" and stays out (what's put out stays out)
+const AUD_LEAN = [[30.2, 35.12]], AUD_OUT = { t: 153.25, i: 1 };
+const leanAt = t => { for (const [a, b] of AUD_LEAN) { if (t < a || t > b + .5) continue; const u = Math.min(1, (t - a) / .35), v = t > b ? 1 - (t - b) / .5 : 1; return Math.max(0, Math.min(u, v)); } return 0; };
+function lampOut(i, tq) { if (i !== AUD_OUT.i || tq < AUD_OUT.t) return 1; const d = Math.floor((tq - AUD_OUT.t) * 12 + 1e-6); return [.6, .25][d] ?? 0; }   // it gutters and goes out
 let AUD_L = null, AUD_R = null;
 function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, gap: [x0, x1] }
   if (!window.AUD) return;
@@ -35,10 +40,10 @@ function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, g
     // o.gap = [x0, x1] (screen px): nobody there; the row is respaced across the width either side of it
     const g = o.gap, avail = g ? W - (g[1] - g[0]) : W; let bx = (i + .5) / n * avail; if (g && bx > g[0]) bx += g[1] - g[0];
     const q = AUD[Math.floor(rnd() * AUD.length)], x = bx + (rnd() - .5) * 60, sc = sc0 * (.85 + .3 * rnd()), ph = rnd();
-    const h = hop(ph), lift = h > 0 ? -L * h : -3 * Math.sin(2 * Math.PI * (tq / (3.1 + ph) + ph));
+    const h = hop(ph), ln = leanAt(tq) * (.8 + .4 * ph), lift = (h > 0 ? -L * h : -3 * Math.sin(2 * Math.PI * (tq / (3.1 + ph) + ph))) - L * .45 * ln;   // (the lean: up on their knees, forward)
     const live = calls.some(([a, b]) => tq >= a && tq < b + beat), sway = q.lantern ? (live ? 6 : 2) * Math.sin(2 * Math.PI * (tq / (beat * 2) + ph)) : 0;
     const M = new DOMMatrix().translate(x, y0 + lift).scale(sc).rotate(sway);
-    P.push({ q, x, sc, ph, M, lc: q.lantern ? M.transformPoint(new DOMPoint(q.lc[0], q.lc[1])) : null });
+    P.push({ q, x, sc, ph, M, lit: lampOut(i, tq), lc: q.lantern ? M.transformPoint(new DOMPoint(q.lc[0], q.lc[1])) : null });
   }
   // 1. the lit floor behind them: a warm band at the height of their heads
   const gl = o.glow ?? 1;
@@ -51,8 +56,9 @@ function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, g
     if (p.q.lantern) { const [lx, ly, lr] = p.q.lc; A.globalCompositeOperation = 'destination-out'; A.beginPath(); A.ellipse(lx, ly, lr * 1.22, lr * 1.22, 0, 0, 7); A.fill(); } }
   A.globalCompositeOperation = 'source-over';
   A.setTransform(1, 0, 0, 1, 0, 0); A.globalCompositeOperation = 'source-atop';
-  for (const p of P) if (p.lc) { const R = p.q.lc[2] * p.sc * 3.2, g = A.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
+  for (const p of P) if (p.lc && p.lit > 0) { const R = p.q.lc[2] * p.sc * 3.2, g = A.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R); A.globalAlpha = p.lit;
     g.addColorStop(0, 'rgba(70,98,190,.7)'); g.addColorStop(1, 'rgba(10,8,8,0)'); A.fillStyle = g; A.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
+  A.globalAlpha = 1;
   // 3. the rim: the stage light catching their top edges (from behind them)
   const Rg = AUD_R.getContext('2d'); Rg.setTransform(1, 0, 0, 1, 0, 0); Rg.globalCompositeOperation = 'source-over'; Rg.filter = 'none'; Rg.clearRect(0, 0, W, H);
   Rg.drawImage(AUD_L, 0, 0); Rg.globalCompositeOperation = 'source-in'; Rg.fillStyle = `rgba(255,186,128,${.85 * gl})`; Rg.fillRect(0, 0, W, H);
@@ -61,10 +67,10 @@ function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, g
   X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1px)'; X.drawImage(AUD_R, 0, 0); X.filter = 'blur(6px)'; X.globalAlpha = .5; X.drawImage(AUD_R, 0, 0); X.restore();
   // 4. the lanterns themselves, then their glow in the dark hall
   X.save(); X.filter = `blur(${(o.blur ?? 1.2) * .6}px)`;
-  for (const p of P) if (p.q.holesP) { X.setTransform(p.M); lantern(p.q.lc, p.sc, tq, p.ph); }
+  for (const p of P) if (p.q.holesP) { X.setTransform(p.M); lantern(p.q.lc, p.sc, tq, p.ph, p.lit); }
   X.restore();
   X.save(); X.globalCompositeOperation = 'screen';
-  for (const p of P) if (p.lc) { const R = p.q.lc[2] * p.sc * 2.6, g = X.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
+  for (const p of P) if (p.lc && p.lit > 0) { const R = p.q.lc[2] * p.sc * 2.6 * p.lit, g = X.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
     g.addColorStop(0, 'rgba(60,96,190,.26)'); g.addColorStop(1, 'rgba(60,96,190,0)'); X.fillStyle = g; X.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
   X.restore();
 }

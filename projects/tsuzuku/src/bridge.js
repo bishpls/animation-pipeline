@@ -279,6 +279,9 @@
           c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T2.s, .85, tl.w * .9 * T2.s)));
         });
         c.globalCompositeOperation = 'source-over';
+        // the flip-turn is one drawing: the card she was, facing the other way, stays faintly exposed for two (flip-book afterimages)
+        const kt = Math.floor((Math.floor(tt * 12 + 1e-6) / 12 - TURN) * 12 + 1e-6);
+        if (kt === 0 || kt === 1) { const pb = poseS(TURN - f); c.save(); c.globalAlpha = kt ? .12 : .28; drawStanding(c, pb, pb._T); c.restore(); }
         drawStanding(c, p, T2, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }] });
       }, 0);
       // the lamp, over everything on the screen: on the floor with its stick, or hanging from her fist
@@ -294,13 +297,16 @@
       if (!gone) { bridgeText(tt); pageVellum(tt); }                   // (ink on unlit paper is nothing)
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
     }
-    // in the room: person-sized beside the butai, facing it; two geta steps in from the frame's edge (no glide), still. Hood up;
-    // the lantern lit in her hand, low; her face lit from below. Black; the light is in front of her and beneath.
-    const ROOM = OUT + 2.5 * BEAT, RX = [2180, 1690], RS = .48, RLSC = 2.3;
-    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 110, 560])); };   // her fist at her chest
+    // in the room: beside the butai, facing it, at her place in world A (she knelt there, at the window's height: butai
+    // (3309, 2105), (1654, 1002) at the wide); two geta steps in from the frame's edge (no glide), still, at her cushion, the
+    // closed book on the floor beside it (F1 picks up from here: the lantern set on the cushion). Hood up; the lantern lit in her
+    // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
+    const ROOM = OUT + 2.5 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
+    const CUSH = { x: FEET[0] - 150, s: .147 }, BOOKR = { x: FEET[0] - 200, w: 58, h: 12, y: FEET[1] - 22 };   // (her cushion at her toes: one doesn't stand on a zabuton; the book left closed on it)
+    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 60, FEET[1] - 400])); };   // her fist at her hip
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
-      const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * Math.sin(Math.PI * u) : 0;
-      return { x, y: 175 + (3700 - 250) * RS + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
+      const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * RK * Math.sin(Math.PI * u) : 0;
+      return { x, y: FEET[1] + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
     // her hood, up (the canon's): over the crown and down the back to the shoulder, its opening from the brow down behind the
     // cheek to the jaw, so her profile shows (head-part master px)
     const HOOD = [[1330, 330], [1290, 230], [1150, 165], [980, 150], [820, 200], [700, 330], [650, 520], [640, 720], [670, 880], [760, 980], [900, 960], [1020, 880], [1120, 800], [1180, 730], [1230, 620], [1262, 480]];
@@ -313,6 +319,8 @@
       FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)', hide: ['hair'] });
       S.setTransform(M.head); S.fillStyle = 'rgb(9,7,9)'; S.beginPath(); HOOD.forEach(([x, y], i) => i ? S.lineTo(x, y) : S.moveTo(x, y)); S.closePath(); S.fill();
       S.setTransform(1, 0, 0, 1, 0, 0);
+      FABLE.draw(S, { _ghost: {} }, { x: CUSH.x, y: FEET[1], s: CUSH.s, origin: [1150, 2760] }, { solid: true, ink: 'rgb(9,7,9)', hide: HIDE_SEATED });   // her cushion
+      S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(9,7,9)'; S.fillRect(BOOKR.x - BOOKR.w / 2, BOOKR.y - BOOKR.h, BOOKR.w, BOOKR.h);          // the book, closed
       // the lantern in her hand (hung from its stick), and its light on her from below and in front
       const fi = fistAt(FABLE_S, p, T, STAND_ARM), arrive = ROOM + BEAT, k = Math.max(0, tt - arrive), sw = tt < arrive ? 10 * Math.sin((tt - ROOM) * 2 * Math.PI / (BEAT / 2)) : 8 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
       const drop = CHO.w * .2 * RLSC + 5 * RLSC + CHO.h * RLSC / 2, a = 0, Ls = CHO.stick * CHO.h * RLSC * .3, tip = [fi[0] - Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];
@@ -320,10 +328,11 @@
       R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
       R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
       R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 4, -6);                    // the edges that face the lamp (in front and below)
-      R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 1900 * RS); g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
+      R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 2700 * RS);   // (the lamp at her hip: its light reaches her hood) g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
       // her lantern lights the air of the room around her: her black shape reads against it
-      X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(lc[0], lc[1], 20, lc[0], lc[1], 820);
+      X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(lc[0], lc[1], 20, lc[0], lc[1], 1150 * RK);
       hz.addColorStop(0, 'rgba(150,104,56,.42)'); hz.addColorStop(.45, 'rgba(90,60,34,.2)'); hz.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = hz; X.fillRect(0, 0, W, H); X.restore();
+      const dr = 720 * RK; dust(tt, lightPool(lc[0], lc[1], dr), { seed: 5, n: 50, rect: [lc[0] - .7 * dr, lc[1] - .7 * dr, 1.4 * dr, 1.4 * dr], col: [255, 204, 140], alpha: 1.2 });                     // and the dust in it (real air: the room)
       X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(10px)'; X.globalAlpha = .6; X.drawImage(RL[1], 0, 0);
       X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
@@ -338,7 +347,7 @@
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
       const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1 });
       roomFable(ts);
-      readers(ts, cam);
+      readers(ts, cam, { gap: [1360, 1880] });                         // (nobody in front of her place)
     };
     LOOPS.bridgeB8.len = S1 - S0;
     let TEXT = null;

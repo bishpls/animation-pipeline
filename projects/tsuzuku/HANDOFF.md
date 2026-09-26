@@ -16,7 +16,7 @@ The paper-world loops are all on the song clock (`LOOPS.<name>`, t = 0 at the ti
 | 156.2 – 159.53 | `inkcloseup` | ink cut-in: the close-up |
 | 159.53 – 161.0 | `bridgeB6` | the fan becomes the book |
 | 161.0 – 166.0 | `inkstand` | ink cut-in: the standing up (geta clack 165.18) |
-| 166.0 – 177.8 | `bridgeB8` | she takes up the lamp, walks it to Clawd's puppet, sets it at her feet, rests a hand on her head; "Sorekara?": off the window's right edge with the lamp (gone by 176.47); the window dark but Clawd's eye slits; from 176.82 in the room beside the butai: hood up, the lantern lit in her hand, face lit from below |
+| 166.0 – 177.8 | `bridgeB8` | she takes up the lamp, walks it to Clawd's puppet, sets it at her feet, rests a hand on her head; "Sorekara?": off the window's right edge with the lamp (gone by 176.47); the window dark but Clawd's eye slits; from 176.82 in the room at her world-A place beside the butai, at her cushion: hood up, the lantern lit in her hand at her hip |
 
 Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131–176.5).
 
@@ -29,12 +29,19 @@ Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131�
    resolve into the stage, or for the rip to show the stage directly (the paper side can render the torn card as a mask over
    your frame if you want that: ask).
 2. **B9 → F1 (176.47 – 177.8).** Fable walks off the window's right edge on "Sorekara?" (gone by 176.47), one beat of empty
-   window, then at 176.82 two geta steps in from the right edge of frame and she stands in the room beside the butai: CAM_WIDE,
-   standing puppet silhouette at s .48 facing left, feet off frame at (1690, 1831). At 177.8 (screen px): crown (1758, 134),
-   nose (1591, 315), chin (1615, 379), shoulder (1721, 516), hip (1724, 1071), fist (1580, 560) holding a short stick level,
-   the canon's indigo chōchin hanging from it, centre (1498, 699), 133 × 202 px, lit (#F4C97A core). Hood up; black, rim-lit
-   from below and in front by the lantern; the room's air warm around her. The window is dark except Clawd's eye slits. Fable: "That's the margin F2 wants me at." F1 ("stage light bleeds into the paper; the paper
-   world folds back like a curtain onto Clawd's stage") can open from this frame at 177.8.
+   window, then at 176.82 two geta steps in from the right edge of frame (from x 2080) and she stands at her place in the room,
+   world A's seat point (butai (3309, 2105)), planted by 177.46. At 177.8, CAM_WIDE, screen px: the standing puppet silhouette at
+   s .2297 facing left, feet (1654, 1002), crown ≈ y 190; her fist at her hip ≈ (1589, 615) with a short stick, the lantern
+   hanging from it, centre ≈ (1555, 675), sc 1.10, lit gold, indigo ribs. At her toes her cushion (the seated rig's zabuton,
+   s .147, x 1504, spanning ≈ 1425–1675, top ≈ 983), the book closed on its left end (58 × 12, centre x 1454, top ≈ 968). Hood
+   up; black, rim-lit by the lantern; the room's air warm around her; the readers' row has a gap at x 1360–1880. The window is
+   dark except Clawd's eye slits. F1 (the other session, Fable's ruling "no curtain: the push-in is the fold"): the window
+   blazes, her silhouette becomes the illustrated rig in the same place, the readers leave with the flood; she sets the lantern
+   on the cushion (178–179.2) and the camera pushes through the window.
+   **The outro's room (202.59 on):** her place again, in the paper medium: the cushion, the closed book, and her lantern set on
+   the cushion, lit, its stick resting down against it (butai px: cushion (3008, 2104) s .294, book centre x 2908, lantern base
+   (3048, 2066) sc 2.2; `SEAT` in outro.js), black with the lantern's rim; the readers' gap as in B9. The freeze just before
+   (other session) shows them illustrated.
 3. **Fable at the margin in Clawd's world** (K3 48.1, K5 52.2, K7 56.2 in bar numbers; H2, F2, F4, F6, F8): her riveted
    silhouette with two coloured shadows (pink and cyan) pressing margin notes. The paper side has her puppets (`FABLE`, seated;
    `FABLE_S`, standing, with `makeWalk` and `drawStanding`) and the letterpress (`press`, `inkVellum` in page.js). Happy to build
@@ -51,7 +58,8 @@ C2 lights it and ends with her raising it out of the top of frame -> C3: its glo
 light is the hung lantern) -> the flood at 60-61 covers her taking it -> world A: lit on the floor at her left in every room shot
 -> 131.29: black but that lantern at the room end camera's (1376, 903), 156 px, which glides to the bridge's floor spot beside
 her (B1 fades in around it) -> B8: taken up, set at Clawd's feet, carried out of the window -> 176.82: lit in her hand in the room
--> F2: set at Clawd's stage lip. When it stands on its own in the paper world it has a puppeteer's rod; never in the room.
+-> F1: set on her cushion (178–179.2), where it stays, lit, through the final chorus ("what steps in has empty hands") -> the
+freeze and the outro: lit on the cushion. When it stands on its own in the paper world it has a puppeteer's rod; never in the room.
 
 ## Sound
 The paper world's sound effects are a stem under the song (song.mp3 untouched): each picture module registers its cues with

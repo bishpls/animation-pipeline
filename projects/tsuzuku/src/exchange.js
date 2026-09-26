@@ -121,9 +121,15 @@
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
     screen(ts, { stops: FABLE_LAMP, tex: .32 });
     pageVellum(ts);                                                    // the margin ink is on the vellum, under everything that comes off it
-    card(ts); composite(ts); flood(ts);
-    // the teller and the visitor, off the card; the stage floor under them
-    const pf = fablePose(ts), hop = hopAt(ts), build = Math.min(1, Math.max(0, (ts - 56.5) / (K.tear - 56.5)));
+    card(ts); composite(ts);
+    // the light takeover (Fable): through the build, as Clawd's cellophane lights from inside, the lamp's pool sinks: by "Says" she's
+    // the brightest thing in the window and the teller nearly a shadow (the vellum floored at 40%). On twos, eased.
+    const pf = fablePose(ts), hop = hopAt(ts), build = Math.min(1, Math.max(0, (Math.floor(ts * 12 + 1e-6) / 12 - 56.5) / (K.tear - 56.5)));
+    if (build > 0) { const e = build * build * (3 - 2 * build), [sx, sy, sw, sh] = SCREEN.rect;
+      X.save(); X.globalCompositeOperation = 'multiply'; const cx = CX, g = X.createRadialGradient(cx, 700, 60, cx, 700, 1100);   // dimmer everywhere but around her
+      g.addColorStop(0, `rgb(${255 - 90 * e},${255 - 100 * e},${255 - 110 * e})`); g.addColorStop(1, `rgb(${255 - 150 * e},${255 - 152 * e},${255 - 155 * e})`);
+      X.fillStyle = g; X.fillRect(sx, sy, sw, sh); X.restore(); }
+    flood(ts);
     const pc = { ...K.clawd(Math.floor(ts * 12 + 1e-6) / 12), ...hop, jaw: jawAt(ts), _ghost: {} };
     shadow(c => {
       // the stage rail: only where the book's card has been pulled away (until then the actors stand on its beach: no rail pops in
@@ -138,8 +144,8 @@
       const M = CLAWDP.world(pc, { x: CX, y: FLOOR + hop.dy, s: CS, origin: [1076, 2800] }), eye = [[956, 704], [1187, 713]].map(([a, b]) => M.head.transformPoint(new DOMPoint(a, b)));
       X.save(); X.globalCompositeOperation = 'lighter';
       for (const e of eye) { const r = 10 + 26 * build, gr = X.createRadialGradient(e.x, e.y, 0, e.x, e.y, r); gr.addColorStop(0, `rgba(255,236,200,${.9 * build})`); gr.addColorStop(1, 'rgba(255,160,90,0)'); X.fillStyle = gr; X.fillRect(e.x - r, e.y - r, 2 * r, 2 * r); }
-      const b0 = M.torso.transformPoint(new DOMPoint(1076, 1200)), R = 150 + 60 * build, gb = X.createRadialGradient(b0.x, b0.y, 0, b0.x, b0.y, R);
-      gb.addColorStop(0, `rgba(255,150,70,${.32 * build})`); gb.addColorStop(1, 'rgba(255,120,50,0)'); X.fillStyle = gb; X.fillRect(b0.x - R, b0.y - R, 2 * R, 2 * R); X.restore();
+      const b0 = M.torso.transformPoint(new DOMPoint(1076, 1200)), R = 150 + 170 * build, gb = X.createRadialGradient(b0.x, b0.y, 0, b0.x, b0.y, R);
+      gb.addColorStop(0, `rgba(255,150,70,${.5 * build})`); gb.addColorStop(1, 'rgba(255,120,50,0)'); X.fillStyle = gb; X.fillRect(b0.x - R, b0.y - R, 2 * R, 2 * R); X.restore();
     }
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }

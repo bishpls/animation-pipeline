@@ -118,6 +118,12 @@ async function PROLOGUE_INIT() {
     const g = X.createRadialGradient(cx, cy, 30, cx, cy, r); g.addColorStop(0, rgba([150, 88, 92], a)); g.addColorStop(.55, rgba([90, 50, 62], a * .55)); g.addColorStop(1, 'rgba(0,0,0,0)');
     X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore();
   }
+  // dust in the wings' air: warm where the show's spill hangs, blue in the work light (behind her; her black shape covers it)
+  function motes(t, hx, hy, hr, wx, wy, wr, seed, gain = 1) {
+    const box = (x, y, r) => [x - r * .7, y - r * .7, r * 1.4, r * 1.4];                  // (the motes where the light is)
+    dust(t, (x, y) => gain * lightPool(hx, hy, hr)(x, y), { seed, n: 70, rect: box(hx, hy, hr), col: [255, 190, 172], alpha: 1.3 });
+    dust(t, lightPool(wx, wy, wr), { seed: seed + 10, n: 40, rect: box(wx, wy, wr), col: [160, 182, 240], alpha: 1.1 });
+  }
   // the work light behind her: a pool of backstage blue her pinholes show
   function worklight(cx, cy, r, a) {
     const g = X.createRadialGradient(cx, cy, 20, cx, cy, r); g.addColorStop(0, WORK + a + ')'); g.addColorStop(1, WORK + '0)'); X.fillStyle = g; X.fillRect(0, 0, W, H);
@@ -145,7 +151,7 @@ async function PROLOGUE_INIT() {
   function P1(t) {
     X.fillStyle = '#050304'; X.fillRect(0, 0, W, H);
     const p = { ...far(t), ...near(t), _ghost: {} };
-    farStage(t, 1); rods(p, t); wings(1); haze(640, 420, 900, .30); worklight(300, 330, 560, .30);
+    farStage(t, 1); rods(p, t); wings(1); haze(640, 420, 900, .30); worklight(300, 330, 560, .30); motes(t, 640, 420, 900, 300, 330, 560, 1);
     silhouette((g, solid) => kuroko(g, p, T1, solid), rgba(STAGE, .95), 4, -1, kurokoPins(p, T1), 2.4);
   }
 
@@ -182,7 +188,7 @@ async function PROLOGUE_INIT() {
     X.fillStyle = '#060405'; X.fillRect(0, 0, W, H);
     // the show beyond, far out of focus: its colours only
     X.save(); X.translate(W + 200, -80); X.scale(-1, 1); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.restore();
-    haze(700, 380, 900, .26); worklight(380, 260, 620, .26);
+    haze(700, 380, 900, .26); worklight(380, 260, 620, .26); motes(t, 700, 380, 900, 380, 260, 620, 2);
     // the rack: the cards already used, leaning back, dead; the last one lands in front
     const L = fistAt(POSE.land), rx = L.x + HOLD + CW / 2, ry = L.y - BAR / 2;
     for (let i = 5; i >= 1; i--) {
@@ -211,7 +217,7 @@ async function PROLOGUE_INIT() {
     X.fillStyle = '#050304'; X.fillRect(0, 0, W, H);
     const gain = 1 - .62 * Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - 7.45) / .6));   // the rim still alive at the clack
     const g = X.createRadialGradient(W + 200, 420, 60, W + 200, 420, 1500); g.addColorStop(0, rgba([190, 90, 105], .5 * gain)); g.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = g; X.fillRect(0, 0, W, H);
-    haze(760, 480, 760, .22 * gain + .05); worklight(520, 330, 560, .26);
+    haze(760, 480, 760, .22 * gain + .05); worklight(520, 330, 560, .26); motes(t, 760, 480, 760, 520, 330, 560, 3, .4 + .6 * gain);
     // the boards she kneels on, the far stage's spill raking across them from the right and a pool of work light round her:
     // her zabuton is black against them
     const FL = 868;

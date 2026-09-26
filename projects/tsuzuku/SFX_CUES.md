@@ -21,6 +21,6 @@ From Fable's reviews. Times are song seconds; "on the lute triplet" = snapped to
   the lamp; sideways: scuttling off, quiet before "Hm."), the row stepping into the light, the unfold (two folds, silence on the
   square, one snip, one tk), the hiki-nuki, Clawd's hops, the tear, Clawd set down, the gallery and its put-back, each plane
   struck, B6's fan-to-book, B7's geta (the loudest thing: "the geta only"), B8's lantern and geta, the room's clack-clack, the
-  outro's card, steps, seal and Clawd's peek, the doors closing.
+  outro's card, the seal drawn from her collar (cloth), steps, the seal and Clawd's peek, the doors closing.
 - **Levels:** each cue's peak is set relative to the song's own level around it; no ducking. The stem is `assets/sfx_paper.wav`
   (not committed; rebuild with `sound/mix.py`); the paper-world cuts carry `out/paper_mix.wav` (song + stem). `song.mp3` is untouched.

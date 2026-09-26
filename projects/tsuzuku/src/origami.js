@@ -18,7 +18,7 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
   const crabX = ts => { const u = Math.max(0, Math.min(1, (ts - bar(17.5)) / bar(2))); return CX + 110 * Math.sin(Math.PI * 2 * u) * (1 - u * .3); };
   const LOOK = bar(20.3);                                              // "and the little one looked up": the shell tips back, two drawings, hold
   const lookAt = ts => ts < LOOK ? 0 : ts < LOOK + f ? .5 : 1;
-  const fable = PUPPET.snap([[0, { head: 0, forearm: 0, hand: 0 }], [bar(19.5), { head: 5 }], [bar(21.25), { head: 9, forearm: 12, hand: -6 }]]);   // she looks down at it
+  const fable = PUPPET.snap([[0, { head: -10, forearm: 0, hand: 0 }], [28.59 - 2 / 12, { head: 3 }], [bar(21.25), { head: 9, forearm: 12, hand: -6 }]]);   // the mother's voice (head up) to "does."; the narrator (level) from "And the little one"; she looks down at it
   const WSTART = 31.30;
   const jawAt = ts => { for (const w of (window.WORDS || [])) if (w.who === 'clawd' && w.t0 >= WSTART - .05 && ts >= w.t0 && ts < w.t1) return (ts - w.t0) / Math.max(.08, w.t1 - w.t0) < .7 ? 9 : 4; return 0; };
   const clawd = PUPPET.snap([[0, { head: 0, upperarm_R: 0, forearm_R: 0 }], [EYES, { head: -8 }], [EYES + .25, { upperarm_R: -95, forearm_R: -30, claw_R: -10 }], [bar(24.2), { upperarm_R: 0, forearm_R: 0, claw_R: 0, head: 0 }]]);

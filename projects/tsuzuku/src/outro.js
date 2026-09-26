@@ -9,7 +9,8 @@
   const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1252, SEALAT = [1140, 562], SEALW = 70;   // (the rakkan in the next column's place, below-left of く, where her arm reaches)
   const TS0 = { x: 900, y: FLOOR, s: .22, origin: [1100, 3700] }, BEAT = 60 / 170 * 2;   // standing, beside the zabuton (560) and the book (800)
   const FI = STAND_ARM.FI, SH = STAND_ARM.SH, reach = standReach;
-  let K = null, SEAL = null;
+  const COLLAR = [1075, 800], CARRY_FI = [1650, 1900], CORD = 2.6;   // (torso master px: the cord's exit; the fist carried low in front)
+  let K = null, SEAL = null, CORD_LEN = 0;
   function keys() {
     const W = window.WORDS || [], w = n => (W.find(x => x.t0 > 200 && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {});
     const ts = W.find(x => x.t0 > 203 && x.who === 'fable') || {}, see = w('see');   // her last word (romaji or kana: whichever take is in)
@@ -20,14 +21,21 @@
     // two geta steps to the column (her own 6/8 beat), then the reach: hover a beat, press on the end of the word, hold two, lift
     K.walk = makeWalk([{ t: K.walk0, dur: BEAT / 2, foot: 'v', S: 100 }, { t: K.walk0 + BEAT / 2, dur: BEAT / 2, foot: 'h', S: 100, close: true }], 100, BEAT, TS0.s);
     const at = K.at, T1 = { ...TS0, x: TS0.x + 100 };
-    const sh = FABLE_S.world({ _ghost: {} }, T1).torso.transformPoint(new DOMPoint(...SH));
+    const TM = FABLE_S.world({ _ghost: {} }, T1).torso, sh = TM.transformPoint(new DOMPoint(...SH)), co = TM.transformPoint(new DOMPoint(...COLLAR));
+    CORD_LEN = Math.hypot(SEALAT[0] - co.x, SEALAT[1] - co.y) / TS0.s * 1.01;   // (just long enough to reach the column)
     const hover = reach(sh.x, sh.y, SEALAT[0] - 16, SEALAT[1] - 20, TS0.s), press = reach(sh.x, sh.y, SEALAT[0], SEALAT[1], TS0.s), rest = { upperarm: 0, forearm: 0, hand: 0 };
-    K.arm = PUPPET.snap([[0, rest], [at + f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.seal + 9 * f, rest]], { overshoot: .05 });
+    // before the steps she draws it out: a hand to her collar, and out on its cord (FABLE.md: tucked inside the jacket, revealed
+    // once per song); she carries it to the column in her fist, and after the press tucks it back
+    const collar = { upperarm: -20, forearm: -155, hand: -20 }, carry = standReach(SH[0], SH[1], ...CARRY_FI, 1);   // (the hand flat at her collar: set by eye)
+    K.draw = K.card + f; K.out = K.card + 5 * f; K.tuck = K.seal + 8 * f;
+    // (her forearm is long: half-way up it juts out like a wave, so the one in-between sits .7 of the way, the hand near her chin)
+    const draw = PUPPET.snap([[0, rest], [K.draw, collar]], { inbetween: .7, overshoot: .05 });
+    const arm = PUPPET.snap([[0, collar], [K.out, carry], [at + f, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.tuck, collar], [K.tuck + 3 * f, rest]], { overshoot: .05 });
+    K.arm = q => q < K.out - 1e-6 ? draw(q) : arm(q);
     K.head = PUPPET.snap([[0, { head: 0 }], [at, { head: 5 }], [K.seal + 9 * f, { head: 2 }], [K.see, { head: 7 }]]);
   }
   const TAILS_S = [{ len: 2500, w: 118, rest: [97, 100, 104, 107, 108, 105, 100] }, { len: 2150, w: 104, rest: [100, 104, 108, 111, 110, 104, 99] }];
   const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, w = K.walk(q), a = K.arm(q), p = { ...w, ...a, ...K.head(q), _ghost: {} };
-    if (q < K.at + f) { p.upperarm = w.upperarm || 0; p.forearm = 0; p.hand = 0; }
     p.hair = -(p.head + (p.torso || 0)) * .85; return p; };
   // the seal: a square of shu with 語 cut in reverse (hakubun: the character in paper, the ground in ink), edges worn by use
   function makeSeal() {
@@ -69,11 +77,16 @@
         c.fillStyle = FABLE_GEL; c.fill(P(PUPPET.strip(pts, tl.w * T.s, .85, tl.w * .9 * T.s)));
       });
       c.globalCompositeOperation = 'source-over';
-      const reaching = ts >= K.at + f && ts < K.seal + 9 * f;
-      drawStanding(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }], props: reaching ? [{ after: 'hand', draw: (g, M) => {
-        const q = M.hand.transformPoint(new DOMPoint(...FI));                                   // her seal, in her fist, end-on: black
-        g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = 'rgb(22,22,26)'; const sw = SEALW * .8, hh = sw * (sq ? .9 : 1);   // its face: the size of the mark it prints
-        g.fillRect(q.x - sw / 2, q.y - hh / 2 + (sq ? 3 : 0), sw, hh); } }] : [] });
+      const out = ts >= K.out && ts < K.tuck + f;                                                  // the seal out of her jacket
+      drawStanding(c, p, T, { rods: [{ part: 'torso', at: [1060, 1700], w: 7 }], props: out ? [{ after: 'hand', draw: (g, M) => {
+        const q = M.hand.transformPoint(new DOMPoint(...FI)), o = M.torso.transformPoint(new DOMPoint(...COLLAR));
+        g.setTransform(1, 0, 0, 1, 0, 0); g.fillStyle = g.strokeStyle = 'rgb(22,22,26)';
+        // its cord, from the collar to her fist: a paper thread, slack when she carries it, taut at the column (a parabola of
+        // fixed length: the sag from the span)
+        const d = Math.hypot(q.x - o.x, q.y - o.y), L = CORD_LEN * T.s, h = d < L ? Math.sqrt(3 * d * (L - d) / 8) : 0;
+        g.lineWidth = CORD; g.lineCap = 'round'; g.beginPath(); g.moveTo(o.x, o.y); g.quadraticCurveTo((o.x + q.x) / 2, (o.y + q.y) / 2 + 2 * h, q.x, q.y); g.stroke();
+        const sw = SEALW * .8, hh = sw * (sq ? .9 : 1);                                         // her seal, in her fist, end-on: black;
+        g.fillRect(q.x - sw / 2, q.y - hh / 2 + (sq ? 3 : 0), sw, hh); } }] : [] });           // its face the size of the mark it prints
     }, 0);
     if (off > 2) { X.save(); X.fillStyle = 'rgba(40,30,24,.5)'; X.fillRect(sx + off - 2, sy, 2, sh); X.restore(); }
     // Clawd pops up at the card's lower-right corner: a Reiniger hop up into frame, her jaw on her words; a claw up on "prompt!"
@@ -91,7 +104,34 @@
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); }
-    return [[K.card, 'paper_slide', -30], [K.walk0 + BEAT / 2, 'geta', -31], [K.walk0 + BEAT, 'geta', -31], [K.seal, 'stamp', -27], [K.pop, 'hop', -31], [K.doors, 'doors_shut', -27]]; });
+    return [[K.card, 'paper_slide', -30], [K.walk0 + BEAT / 2, 'geta', -31], [K.walk0 + BEAT, 'geta', -31], [K.draw + f, 'cloth', -36], [K.seal, 'stamp', -27], [K.pop, 'hop', -31], [K.doors, 'doors_shut', -27]]; });
+  // her place in the room (Clawd's world A and F1): her cushion at the window's right, the closed book on its left end, and the
+  // lantern she set down on it at the blaze (178-179.2), still lit. Butai px (B9's end frame at CAM_WIDE, doubled). In my medium:
+  // black, rimmed by the lantern, which is the one gold light (the freeze just before shows them illustrated: the world changing back)
+  const SEAT = { cush: [3008, 2104], cs: .294, book: [2908, 2060, 116, 24], lamp: [3048, 2066], ls: 2.2 };
+  const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
+  let SL = null;
+  function roomSeat(ts, cam) {
+    const z = cam.zoom, T = (x, y) => [W / 2 + (x - cam.x) * z, H / 2 + (y - cam.y) * z], [lx, ly] = T(...SEAT.lamp);
+    if (lx - 700 * z > W) return;
+    if (!SL) SL = [mkCanvas(W, H), mkCanvas(W, H)];
+    const S = SL[0].getContext('2d'), R = SL[1].getContext('2d'), [cx, cy] = T(...SEAT.cush), [bx, by] = T(SEAT.book[0], SEAT.book[1]), sc = SEAT.ls * z;
+    S.setTransform(1, 0, 0, 1, 0, 0); S.globalCompositeOperation = 'source-over'; S.clearRect(0, 0, W, H);
+    FABLE.draw(S, { _ghost: {} }, { x: cx, y: cy, s: SEAT.cs * z, origin: [1150, 2760] }, { solid: true, ink: 'rgb(9,7,9)', hide: HIDE_SEATED });
+    S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(9,7,9)'; S.fillRect(bx - SEAT.book[2] * z / 2, by - SEAT.book[3] * z, SEAT.book[2] * z, SEAT.book[3] * z);
+    const lc = [lx, ly - (7 + CHO.h / 2) * sc];                        // the light's centre
+    R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
+    R.drawImage(SL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
+    R.globalCompositeOperation = 'destination-out'; R.drawImage(SL[0], -3 * z, 8 * z);             // the edges that face the lamp (above them)
+    R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(...lc, 0, ...lc, 700 * z); g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
+    X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(...lc, 20, ...lc, 1100 * z);   // its light in the room's air
+    hz.addColorStop(0, 'rgba(150,104,56,.42)'); hz.addColorStop(.45, 'rgba(90,60,34,.2)'); hz.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = hz; X.fillRect(0, 0, W, H); X.restore();
+    const dr = 720 * z; dust(ts, lightPool(...lc, dr), { seed: 12, n: 40, rect: [lc[0] - .7 * dr, lc[1] - .7 * dr, 1.4 * dr, 1.4 * dr], col: [255, 204, 140], alpha: 1.2 });
+    X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(6px)'; X.globalAlpha = .6; X.drawImage(SL[1], 0, 0);
+    X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(SL[0], 0, 0);
+    X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1px)'; X.drawImage(SL[1], 0, 0); X.restore();
+    chochin(lx, ly, sc, { gold: true, stick: 158, ribs: 'rgba(22,40,96,.6)' });                    // set down, its stick resting on the cushion
+  }
   LOOPS.outro = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
@@ -107,8 +147,11 @@
         X.save(); X.translate(x, y); X.scale(1, .42); const g = X.createRadialGradient(0, 0, 0, 0, 0, r);
         g.addColorStop(0, `rgba(255,190,110,${.34 * c})`); g.addColorStop(1, 'rgba(255,170,90,0)'); X.fillStyle = g; X.fillRect(-r, -r, 2 * r, 2 * r); X.restore(); }
       X.restore();
+      [1335, 2505].forEach((ax, i) => { const [x, y] = T(ax, 826), r = 330 * z;              // dust settling in the leak
+        dust(ts, (px, py) => c * lightPool(x, y, r, .6)(px, py), { seed: 9 + i, n: 26, rect: [x - r, y - r * .6, 2 * r, 1.2 * r], col: [255, 200, 130], alpha: 1.4 }); });
     }
-    readers(ts, cam);
+    roomSeat(ts, cam);
+    readers(ts, cam, { gap: [1360, 1920] });                           // (nobody in front of her place, as in B9)
   };
   LOOPS.outro.len = S1 - S0;
 }

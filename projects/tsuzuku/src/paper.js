@@ -197,3 +197,25 @@ function chochinHang(fx, fy, dir, sc = 1, o = {}) {                   // from he
 // [[song s, sound name (sound/lib), gain dB]] for sound/mix.py
 const PAPER_SFX = [];
 function paperSfx() { return PAPER_SFX.flatMap(fn => fn()).filter(e => isFinite(e[0])).sort((a, b) => a[0] - b[0]).map(([t, n, g]) => [+t.toFixed(3), n, g]); }
+// ------------------------------------------------------------------ dust (Fable: only where there's air: backstage, the room,
+// the closed doors; never on the vellum, which is a screen, not a space). Motes wander slowly on twos and show only where a
+// light is: light(x, y) -> 0..1 (canvas px). Each turns as it drifts, so it glints and dims. A pure function of t.
+const lightPool = (cx, cy, r, sy = 1) => (x, y) => { const d = Math.hypot(x - cx, (y - cy) / sy) / r; return d >= 1 ? 0 : (1 - d) * (1 - d); };
+function dust(t, light, o = {}) {
+  const n = o.n ?? 80, [x0, y0, w, h] = o.rect ?? [0, 0, W, H], col = o.col ?? [255, 214, 168], a = o.alpha ?? .8, q = Math.floor(t * 12 + 1e-6) / 12;
+  let s = (o.seed ?? 7) * 7919 + 13; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const wrap = (v, m) => ((v % m) + m) % m;
+  X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = `rgb(${col})`;
+  for (let i = 0; i < n; i++) {
+    const px = rnd(), py = rnd(), big = rnd() < .12, r = (big ? 2.2 + rnd() * 1.6 : .7 + rnd() * 1.1) * (o.size ?? 1), ph = rnd() * 6.283, sp = .25 + rnd() * .5;
+    const vx = (rnd() - .5) * 10, vy = (rnd() - .35) * 8;                                          // (px/s: mostly settling)
+    const x = x0 + wrap(px * w + vx * q + 26 * Math.sin(q * sp + ph) + 8 * Math.sin(q * sp * 2.7 + ph * 1.7), w);
+    const y = y0 + wrap(py * h + vy * q + 18 * Math.sin(q * sp * .8 + ph * 2.3) + 6 * Math.sin(q * sp * 3.1 + ph), h);
+    const L = light(x, y); if (L < .02) continue;
+    const glint = .45 + .55 * Math.max(0, Math.sin(q * (1.2 + sp * 3) + ph * 3));                  // a flake turning in the beam
+    X.globalAlpha = Math.min(1, a * L * glint * (big ? .45 : 1));
+    if (big) { X.filter = 'blur(1.6px)'; }                                                           // (nearer the lens: soft)
+    X.beginPath(); X.arc(x, y, r, 0, 7); X.fill(); if (big) X.filter = 'none';
+  }
+  X.restore();
+}

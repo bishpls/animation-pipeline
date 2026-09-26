@@ -25,8 +25,11 @@
     K.fanB = PUPPET.morphs([[0, 'fan_closed'], [land(k.line), 'line']]);
     K.arm = PUPPET.snap([[0, REST], [k.time - 8 * f, EYE], [k.release + f, LAP], [k.sleeve, { forearm: 22, hand: 10, upperarm: 10 }], [k.fan2, EYE],
       [k.set - 2 * f, { forearm: 30, hand: -30, upperarm: -20 }], [k.laid + 3 * f, LAP], [k.fan3, REST]]);
+    // voices in the head (Fable; rakugo): she tips her head up to voice the mother, back to level for the narration; each snap
+    // lands on the first word (a snapped key lands two drawings after itself). The child's lines are Clawd's own.
+    const said = w('said'), UP = { head: -10 }, NARR = { head: 3 };
     K.head = PUPPET.snap([[0, { head: 0 }], [k.release, { head: 8 }], [k.mother + 3 * f, { head: 5 }], [k.fan2, { head: 1 }], [k.set, { head: 9 }],
-      [k.walk, { head: 5 }], [k.why, { head: 9 }], [k.fan3, { head: 0 }]]);
+      [k.walk - 2 * f, UP], [said - 2 * f, NARR], [k.why - 2 * f, UP]]);   // (held up into verse 1: "Straight, like everybody else does." is hers too)
   }
   const poseAt = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...K.arm(q), ...K.head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
   const hopX = (a, b, t0, t1, ts, lift, n) => {                       // stop-motion hops from a to b: position per drawing, a lift in each hop
@@ -90,8 +93,11 @@
       VERSE_SET(c, ts); little(c, ts);
       if (ts >= K.release && ts < K.landed) {                          // the crab in the air: one hop from her hand to the floor
         const Mh = FABLE.world(poseAt(K.release), T).hand.translate(FAN_GRIP[0], FAN_GRIP[1]), h0 = Mh.transformPoint(new DOMPoint(0, 0));
-        const u = (Math.floor((ts - K.release) * 12 + 1e-6) + 1) / 3, x = h0.x + (LITTLE.land - h0.x) * u, y = h0.y + (FLOOR - h0.y) * u - 120 * Math.sin(Math.PI * u);
-        PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(x, y).scale(.2 + (LITTLE.sc - .2) * u));
+        const at = d => { const u = (d + 1) / 3; return new DOMMatrix().translate(h0.x + (LITTLE.land - h0.x) * u, h0.y + (FLOOR - h0.y) * u - 120 * Math.sin(Math.PI * u)).scale(.2 + (LITTLE.sc - .2) * u); };
+        const d = Math.floor((ts - K.release) * 12 + 1e-6), crab = PUPPET.shapeAt(FAN, 'crab', 'crab', 1);
+        // flip-book afterimages (Fable's device, as in B7's pleats): the last two places it was, faintly exposed, from her hand
+        for (const [g, a] of [[d - 2, .12], [d - 1, .26]]) if (g >= -1) { c.save(); c.globalAlpha = a; PUPPET.drawShape(c, crab, at(g)); c.restore(); }
+        PUPPET.drawShape(c, crab, at(d));
       }
       if (ts >= K.set && ts < K.laid) {                                // the line lowered level to the floor, two drawings
         const u = (Math.floor((ts - K.set) * 12 + 1e-6) + 1) / 2, Mh = FABLE.world(poseAt(K.set), T).hand.translate(FAN_GRIP[0], FAN_GRIP[1]), h0 = Mh.transformPoint(new DOMPoint(0, 0));
