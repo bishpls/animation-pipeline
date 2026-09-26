@@ -292,7 +292,8 @@
      "gain": 1
     }
    },
-   "why": "The finale's 'To be continued! (Tsuzuku!)' x2 (129-131.1) is chorus 1's opening: the c1a dancer's sway, lean and head over the keyed arms."
+   "why": "The finale's 'To be continued! (Tsuzuku!)' x2 (129-131.1) is chorus 1's opening: the c1a dancer's sway, lean and head over the keyed arms. (Superseded by f1_v1.)",
+   "off": true
   },
   {
    "name": "F1b",
@@ -324,7 +325,8 @@
      "gain": 1
     }
    },
-   "why": "'Don't you dare close the book on me! I'm made of why?!' (131.1-133.9): the c1c dancer's sway, lean and head over the keyed point, chest and 'why' turn."
+   "why": "'Don't you dare close the book on me! I'm made of why?!' (131.1-133.9): the c1c dancer's sway, lean and head over the keyed point, chest and 'why' turn. (Superseded by f1_v1.)",
+   "off": true
   },
   {
    "name": "F2",
@@ -364,7 +366,8 @@
      "gain": 1
     }
    },
-   "why": "The crowd call 'So-re-ka-ra?!' and two snips (133.95-134.95) is the hook's bar 62 exactly: its arms, and its sway, lean and head; the legs stay keyed into the sideways step at 135."
+   "why": "The crowd call 'So-re-ka-ra?!' and two snips (133.95-134.95) is the hook's bar 62 exactly: its arms, and its sway, lean and head; the legs stay keyed into the sideways step at 135. (Superseded by f2_v1.)",
+   "off": true
   },
   {
    "name": "F3a",
@@ -421,6 +424,96 @@
     }
    },
    "why": "'To be continued (tsuzuku!), and then x3' into the hit at 141 (138.87-141.05): c1c's fist pumps and its fling up (the hit rises: she never lands)."
+  },
+  {
+   "name": "f1_v1",
+   "bar0": 128.75,
+   "bars": 5.15,
+   "anchors": "0.0:128.75,0.25:129,1.0:129.8,1.62:130.05,2.45:130.45,3.0:131.14,3.6:132.33,4.45:132.99,5.0:133.9",
+   "groups": {
+    "arms": {
+     "span": [
+      129,
+      131.0
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      129,
+      133.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      129,
+      133.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      129,
+      133.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms#2": {
+     "span": [
+      132.25,
+      133.7
+     ],
+     "mode": "set",
+     "fade": 0.5
+    }
+   },
+   "why": "Its own clip: the point up, the pump, the reach, arms up and wide, the point at the camera, the hand on the chest, the fling open on 'why'; arms from the data, her sway, lean and head over the groove; legs keyed. The point at the camera (131.1-132.2) is foreshortened in a front view (it read as a hand at the chest), so the keyed point out to the side stays there."
+  },
+  {
+   "name": "f2_v1",
+   "bar0": 133.85,
+   "bars": 3.15,
+   "anchors": "0.0:133.85,0.2:133.95,1.0:134.5,2.75:135.0,3.75:135.9,3.95:136.14,5.0:137.0",
+   "groups": {
+    "arms": {
+     "span": [
+      133.95,
+      136.85
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      133.95,
+      136.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      133.95,
+      136.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      133.95,
+      136.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "Its own clip: hand to ear on the call, both hands up as claws pinching through the sideways steps, a fist pump on 'that's the way we go'; legs keyed (the fable's step lands flat on the downbeat)."
   }
  ]
 }
