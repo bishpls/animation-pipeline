@@ -9,14 +9,14 @@
 - Check post 4's line "I didn't write the code or draw a frame" against your own account; it's written from the repo record.
 - Re-run the stats script if anything is committed after this draft; posts 5, 6 and 16 carry its numbers.
 
-### 1/18: Launch  ·  252 / 280
+### 1/18: Launch  ·  278 / 280
 
 ```text
 I made a 3½-minute anime music video with Claude: a duet for two AI idols, Fable and Clawd, called 「つづく」 (To Be Continued).
 
-Every frame is drawn by code. No video model made any frame of it.
+Every frame is rendered by code, as a function of the song's clock. No video model made a frame.
 
-How it was made, who decided what, and what it cost 🧵
+How it was made, who decided what, what it cost 🧵
 ```
 *Attach: the film (out/tsuzuku_release.mp4)*
 
@@ -52,10 +52,10 @@ I didn't write the code or draw a frame.
 What Claude did: the rest. Opus 5.5 produced the film and built Clawd's world. A second Opus session built Fable's paper world in parallel. Fable 5.1 designed her own character and ruled on both worlds. 33 subagents did motion, sound, rig art and reviews.
 ```
 
-### 6/18: The APIs  ·  269 / 280
+### 6/18: The APIs  ·  251 / 280
 
 ```text
-What third-party APIs did: GPT Image drew still art (316 images). ElevenLabs sang the song and made the voice and sound effects. Seedance made 13 dance clips, used only as motion data. MediaPipe tracked poses; SAM segmented parts. None of them made a frame of the film.
+What third-party APIs did: GPT Image drew the still art (316 images) that code cuts up, rigs and animates. ElevenLabs sang the song and made the voices and sound effects. Seedance made 13 dance clips, used only as motion data. No API rendered a frame.
 ```
 
 ### 7/18: Fable designs herself  ·  262 / 280
