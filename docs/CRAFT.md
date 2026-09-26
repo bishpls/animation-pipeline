@@ -270,3 +270,25 @@ Distilled from one long session of director notes and in-character reviews (Fabl
 - **Reset canvas composite state before every prop** (a leftover destination-out erased a fist).
 - **Watch coordinate frames and signs** (card-local vs screen; absolute vs relative key times; applying a walk offset twice).
 - **After scripted edits, run a syntax check and one render;** an inserted comment swallowed a declaration.
+
+## 14. More lessons (TSUZUKU, Clawd's world and the film as a whole)
+
+- **Every presence needs a place and a cause.** A symbolic figure at a stage's wing, a hand sliding cards in at a screen's edge, and an
+  audience of placeholders all read as mistakes, however meaningful. What worked: the second character physically in the room, the
+  screen's pages turning because her book's pages turn, and the audience's size and look consistent across worlds (a stated rule:
+  readers only inside the box).
+- **Composition is a character note.** The framing that honoured the concept (a small window in a big dark room) starved the
+  performance. The user's rule held up: the main action gets most of the frame, and the frame device (the butai's hinges) stays
+  visible at the edges.
+- **Never move the camera without a reason the viewer can see.** A slow "breathing" drift, a pull-back on the downbeat and a
+  character eased across the room during a push all read as errors. Push in once, cut on the beat, lock the rest.
+- **Hand-keyed dance reads as poses cycling.** Measure it (stillness, pose clusters, hand swaps, foot travel) before touching it. The
+  fixes that mattered: a groove layer on the core, feet that step on the counts, hands that change through in-betweens and follow the
+  arm, and directed video clips used only as pose data (MediaPipe to rig channels, time-warped to the beat), never as pixels.
+- **Text on a performer's screen must never be split, hidden or hopping.** Place a line in one free spot for the whole phrase (her
+  silhouette sampled through it, plus what the camera and any foreground figure cover), and drop it where it can't fit whole.
+- **Review in rounds, with different eyes.** The character's own creator (Fable) for meaning; a fresh "cold" director who has never
+  seen the process; Gemini as a noisy sensor (verify every claim at full resolution: about half were real); and a frame-difference
+  scan of the whole film. Each round found things the others missed. The user's own frame-by-frame notes found the most.
+- **Two sessions in one tree:** stage by explicit path; send exact numbers (screen px, times) at every seam; confirm a match by
+  measuring the other side's last frame; and never rewrite a shared file wholesale (re-read it and make surgical edits).
