@@ -80,7 +80,17 @@
   const ROWS = [{ xs: [370, 610, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [330, 560, 1500, 1810], y: 930, s: 1.05, lag: .04 }];   // the left wing is Fable's
 
   let P = null;
-  const get = () => (P = P || RIG.perform(RIGS.clawd, build()));
+  // MOTION.md: fix #1, the core dances (MOTIONLAB.groove on the performed channels: a real bounce, weight shifts, the chest and
+  // head following the pelvis, phase-locked to the kick), and the hook's body from motion capture (the Seedance reference,
+  // retargeted; keyed hands, faces and views on top), crossfaded in and out over a quarter bar
+  const blend = (A, B, w) => { if (w <= 0) return A; if (w >= 1) return B; const q = { ...A };
+    for (const k in B) q[k] = typeof A[k] === 'number' && typeof B[k] === 'number' ? A[k] + (B[k] - A[k]) * w : w < .5 ? A[k] : B[k]; return q; };
+  const perform = () => {
+    const P0 = RIG.perform(RIGS.clawd, build()); if (typeof MOTIONLAB === 'undefined') return P0;
+    const P1 = MOTIONLAB.groove(P0), Pm = MOTIONLAB.groove(P0, { bounce: 0, sway: 0, curves: MOTIONLAB.mocap().curves, only: [62, 66] });
+    return t => { const b = t / BAR, w = Math.max(0, Math.min(1, (b - 61.75) / .25, (66.25 - b) / .25)); return w > 0 ? blend(P1(t), Pm(t), w) : P1(t); };
+  };
+  const get = () => (P = P || perform());
   window.CHOREO = window.CHOREO || {};
   window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get };                       // for the harness
   // the stage (src/idolstage.js): the performers are drawn in WORLD coords through the stage's camera

@@ -146,5 +146,5 @@ const MOTIONLAB = (() => {
     }
     return out;
   }
-  return { dump, springs, groove, CH, PTS };
+  return { dump, springs, groove, mocap, CH, PTS };
 })();
