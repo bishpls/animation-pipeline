@@ -1,0 +1,245 @@
+{
+ "R": [
+  {
+   "name": "rest",
+   "hand": "rest",
+   "file": "armpose_R_rest.png",
+   "x": 246,
+   "y": 1872,
+   "w": 685,
+   "h": 433,
+   "replaces": [
+    "sleeve_R",
+    "hand_R",
+    "stick"
+   ],
+   "fist": [
+    604.5,
+    1983.7
+   ],
+   "tip": [
+    241.8,
+    2014.9
+   ],
+   "ring": [
+    302.0,
+    2022.0
+   ],
+   "wrist": [
+    694.2,
+    1976.0
+   ],
+   "arm": 0,
+   "elbow": 0,
+   "tol": [
+    999,
+    999
+   ],
+   "follow": true,
+   "anchor": "sleeve_R"
+  },
+  {
+   "name": "lift",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "lift",
+   "tol": [
+    999,
+    999
+   ],
+   "file": "armpose_R_lift.png",
+   "x": 289,
+   "y": 1245,
+   "w": 725,
+   "h": 615,
+   "replaces": [
+    "sleeve_R",
+    "hand_R",
+    "stick"
+   ],
+   "follow": true,
+   "anchor": "sleeve_R",
+   "fist": [
+    666.0,
+    1315.0
+   ],
+   "tip": [
+    288.5,
+    1260.6
+   ],
+   "ring": [
+    331.7,
+    1276.0
+   ],
+   "wrist": [
+    755.1,
+    1327.8
+   ]
+  },
+  {
+   "name": "up",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "up",
+   "tol": [
+    999,
+    999
+   ],
+   "file": "armpose_R_up.png",
+   "x": 302,
+   "y": 448,
+   "w": 723,
+   "h": 560,
+   "replaces": [
+    "sleeve_R",
+    "hand_R",
+    "stick"
+   ],
+   "follow": true,
+   "anchor": "sleeve_R",
+   "fist": [
+    676.8,
+    548.8
+   ],
+   "tip": [
+    282.9,
+    461.0
+   ],
+   "ring": [
+    342.8,
+    461.0
+   ],
+   "wrist": [
+    764.7,
+    568.3
+   ]
+  }
+ ],
+ "L": [
+  {
+   "name": "clap",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "clap",
+   "tol": [
+    999,
+    999
+   ],
+   "file": "armpose_L_clap.png",
+   "x": 680,
+   "y": 1575,
+   "w": 551,
+   "h": 1090,
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "follow": true,
+   "anchor": "sleeve_L",
+   "hand0": [
+    791.0,
+    1921.8
+   ]
+  },
+  {
+   "name": "sweep",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "sweep",
+   "tol": [
+    999,
+    999
+   ],
+   "file": "armpose_L_sweep.png",
+   "x": 391,
+   "y": 1489,
+   "w": 735,
+   "h": 941,
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "follow": true,
+   "anchor": "sleeve_L",
+   "hand0": [
+    551.3,
+    1557.8
+   ]
+  },
+  {
+   "name": "down",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "down",
+   "tol": [
+    999,
+    999
+   ],
+   "file": "armpose_L_down.png",
+   "x": 761,
+   "y": 1266,
+   "w": 459,
+   "h": 1425,
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "follow": true,
+   "anchor": "sleeve_L",
+   "hand0": [
+    948.6,
+    1504.1
+   ]
+  },
+  {
+   "name": "pushA",
+   "hand": "pushA",
+   "arm": 0,
+   "elbow": 0,
+   "tol": [
+    999,
+    999
+   ],
+   "follow": true,
+   "anchor": "sleeve_L",
+   "file": "armpose_L_pushA.png",
+   "x": 680,
+   "y": 717,
+   "w": 442,
+   "h": 1345,
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "hand0": [
+    1060.0,
+    770.5
+   ]
+  },
+  {
+   "name": "pushB",
+   "hand": "pushB",
+   "arm": 0,
+   "elbow": 0,
+   "tol": [
+    999,
+    999
+   ],
+   "follow": true,
+   "anchor": "sleeve_L",
+   "file": "armpose_L_pushB.png",
+   "x": 820,
+   "y": 962,
+   "w": 733,
+   "h": 1106,
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "hand0": [
+    1486.8,
+    1030.4
+   ]
+  }
+ ]
+}

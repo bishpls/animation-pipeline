@@ -1,0 +1,473 @@
+{
+ "image": "../base_keyed.png",
+ "out": "build",
+ "poses": [
+  {
+   "name": "lift",
+   "side": "R",
+   "arm": -40,
+   "elbow": 0,
+   "hand": "lift",
+   "tol": [
+    30,
+    40
+   ],
+   "crop": [
+    100,
+    1000,
+    1536
+   ],
+   "prompt": "Her RIGHT arm (the lantern arm: its hand holds the stick on the left of the picture, and its wide sleeve's end shows past her left sleeve) lifts the lantern forward and up toward the window: her right forearm, in its wide sleeve (the sleeve sliding back a little toward the elbow), rises in front of her on the LEFT of her head, her right hand at the height of her chin, gripping the same short stick, held level, and the lit paper lantern hangs straight down from the stick's tip on its wire handle, in front of her on the left, clear of her head and her body. Her left arm (nearest the viewer) hangs unchanged.",
+   "pos": [
+    [
+     700,
+     1300
+    ]
+   ],
+   "neg": [
+    [
+     1100,
+     1800
+    ],
+    [
+     300,
+     1650
+    ],
+    [
+     1180,
+     1190
+    ]
+   ],
+   "replaces": [
+    "sleeve_R",
+    "hand_R",
+    "stick"
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       733,
+       1365
+      ],
+      [
+       650,
+       1300
+      ],
+      [
+       820,
+       1480
+      ]
+     ]
+    },
+    "stick": {
+     "pos": [
+      [
+       450,
+       1268
+      ],
+      [
+       350,
+       1262
+      ]
+     ],
+     "box": [
+      230,
+      1228,
+      600,
+      1302
+     ]
+    },
+    "sleeve": {
+     "pos": [
+      [
+       880,
+       1600
+      ],
+      [
+       850,
+       1700
+      ]
+     ],
+     "box": [
+      760,
+      1380,
+      1000,
+      1880
+     ]
+    }
+   }
+  },
+  {
+   "name": "up",
+   "side": "R",
+   "arm": -80,
+   "elbow": 0,
+   "hand": "up",
+   "tol": [
+    30,
+    40
+   ],
+   "crop": [
+    0,
+    200,
+    2048
+   ],
+   "prompt": "Her RIGHT arm (the lantern arm: its hand holds the stick on the left of the picture) is raised HIGH, holding the lantern up overhead toward the window: her right arm reaches up and forward, her right hand above the top of her head on the LEFT side, gripping the same short stick, held level; the lit paper lantern hangs straight down from the stick's tip on its wire handle, up in front of her on the left, beside and a little above her head, clear of her head. Her wide right sleeve has fallen back toward her shoulder, showing her pale forearm. Her left arm (nearest the viewer) hangs unchanged.",
+   "pos": [
+    [
+     800,
+     700
+    ]
+   ],
+   "neg": [
+    [
+     330,
+     800
+    ],
+    [
+     1100,
+     1100
+    ],
+    [
+     1100,
+     850
+    ]
+   ],
+   "replaces": [
+    "sleeve_R",
+    "hand_R",
+    "stick"
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       650,
+       560
+      ],
+      [
+       700,
+       600
+      ]
+     ]
+    },
+    "stick": {
+     "pos": [
+      [
+       450,
+       490
+      ],
+      [
+       360,
+       470
+      ]
+     ],
+     "box": [
+      280,
+      430,
+      620,
+      545
+     ]
+    },
+    "forearm": {
+     "pos": [
+      [
+       833,
+       723
+      ],
+      [
+       950,
+       900
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "name": "clap",
+   "side": "L",
+   "arm": 35,
+   "elbow": 40,
+   "hand": "clap",
+   "tol": [
+    25,
+    35
+   ],
+   "crop": [
+    300,
+    1400,
+    1536
+   ],
+   "prompt": "Her LEFT arm (the arm nearest the viewer, on the left of the picture) reaches forward, bent at the elbow, and her left hand pats the WRIST of her right hand (the hand holding the lantern's stick), her left palm against the back of her right wrist, a gentle clap. Her right hand, the stick and the lantern stay exactly where they are. Her wide left sleeve hangs below her forearm, with its thin torn edge and the small brass rivet pins at the elbow and wrist.",
+   "pos": [
+    [
+     800,
+     1950
+    ]
+   ],
+   "neg": [
+    [
+     678,
+     1981
+    ],
+    [
+     600,
+     1960
+    ],
+    [
+     1300,
+     2200
+    ],
+    [
+     1400,
+     1800
+    ]
+   ],
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       797,
+       1928
+      ],
+      [
+       840,
+       1900
+      ]
+     ]
+    },
+    "sleeve": {
+     "pos": [
+      [
+       900,
+       2150
+      ],
+      [
+       870,
+       2300
+      ],
+      [
+       960,
+       1995
+      ]
+     ],
+     "box": [
+      800,
+      1850,
+      1215,
+      2700
+     ]
+    },
+    "upper": {
+     "pos": [
+      [
+       1050,
+       1750
+      ],
+      [
+       1000,
+       1650
+      ]
+     ],
+     "box": [
+      880,
+      1500,
+      1215,
+      2000
+     ]
+    }
+   }
+  },
+  {
+   "name": "sweep",
+   "side": "L",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "sweep",
+   "tol": [
+    999,
+    999
+   ],
+   "crop": [
+    300,
+    1100,
+    1536
+   ],
+   "prompt": "Her LEFT arm (the arm nearest the viewer, on the left of the picture) is raised forward toward the lit stage window on the left: her forearm lifted in front of her to about the height of her chest, her hand open and relaxed, the fingers loosely spread and slightly curled, palm turned down, as if sweeping lightly across a page. Her wide left sleeve hangs below the raised forearm in a deep soft fold, with its thin torn edge and the small brass rivet pins at the elbow and the wrist. Her right hand, the stick and the lit lantern stay exactly where they are, and her raised left hand is above them, clear of the lantern.",
+   "pos": [
+    [
+     700,
+     1600
+    ]
+   ],
+   "neg": [
+    [
+     656,
+     1982
+    ],
+    [
+     600,
+     2000
+    ],
+    [
+     1300,
+     2000
+    ],
+    [
+     1190,
+     1230
+    ]
+   ],
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       450,
+       1540
+      ],
+      [
+       420,
+       1520
+      ]
+     ]
+    },
+    "forearm": {
+     "pos": [
+      [
+       600,
+       1580
+      ],
+      [
+       680,
+       1620
+      ]
+     ]
+    },
+    "sleeve": {
+     "pos": [
+      [
+       780,
+       1800
+      ],
+      [
+       820,
+       2000
+      ],
+      [
+       760,
+       2200
+      ]
+     ],
+     "box": [
+      650,
+      1560,
+      1100,
+      2520
+     ]
+    }
+   }
+  },
+  {
+   "name": "down",
+   "side": "L",
+   "arm": 0,
+   "elbow": 0,
+   "hand": "down",
+   "tol": [
+    999,
+    999
+   ],
+   "crop": [
+    300,
+    600,
+    1536
+   ],
+   "prompt": "Her LEFT arm (the arm nearest the viewer, on the left of the picture) is bent up: her elbow hangs down at her side, pointing down and a little out to the left, and her left hand is raised to her left shoulder, beside her neck, relaxed, fingers loosely curled: she has just pushed her hood back and her hand is coming down. Her wide left sleeve falls back from the raised forearm, showing her pale forearm, and hangs from her upper arm in a deep fold, with its thin torn edge and the small brass rivet pins at the elbow and the wrist. Everything else unchanged.",
+   "pos": [
+    [
+     900,
+     1300
+    ]
+   ],
+   "neg": [
+    [
+     1150,
+     1700
+    ],
+    [
+     1150,
+     1150
+    ],
+    [
+     700,
+     1990
+    ],
+    [
+     1250,
+     1400
+    ]
+   ],
+   "replaces": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "parts": {
+    "hand": {
+     "pos": [
+      [
+       1050,
+       1310
+      ],
+      [
+       1000,
+       1330
+      ]
+     ]
+    },
+    "forearm": {
+     "pos": [
+      [
+       950,
+       1500
+      ],
+      [
+       900,
+       1680
+      ]
+     ]
+    },
+    "sleeve": {
+     "pos": [
+      [
+       900,
+       1900
+      ],
+      [
+       950,
+       2050
+      ],
+      [
+       1000,
+       1800
+      ]
+     ],
+     "box": [
+      800,
+      1560,
+      1215,
+      2136
+     ]
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,677 @@
+{
+ "manifest": "build/manifest.json",
+ "origin": [
+  1390,
+  4345
+ ],
+ "preroll": 3,
+ "idPrefix": "fable3q",
+ "head": {
+  "layers": [
+   "hair",
+   "hair_head",
+   "ribbon",
+   "ribbon_knot",
+   "ear",
+   "face",
+   "eye",
+   "hair_front"
+  ],
+  "center": [
+   1250,
+   950
+  ],
+  "radius": [
+   320,
+   330
+  ],
+  "rigid": {},
+  "D": [
+   30,
+   22
+  ],
+  "pivot": [
+   1255,
+   1200
+  ],
+  "neckLayers": [
+   "neck"
+  ],
+  "neck": {
+   "top": 1150,
+   "base": 1320,
+   "wz": [
+    [
+     0,
+     0.9
+    ],
+    [
+     0.5,
+     0.4
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "wx": 0.03,
+   "wy": 0.24
+  }
+ },
+ "body": {
+  "waist": [
+   1420,
+   2080
+  ],
+  "hip": [
+   1420,
+   2500
+  ],
+  "upper": [
+   "neck",
+   "hood",
+   "jacket",
+   "sleeve_R_back"
+  ],
+  "bodyX": {
+   "D": 40,
+   "cx": 1420,
+   "rx": 460,
+   "head": 0.3,
+   "prof": [
+    [
+     1300,
+     0.3
+    ],
+    [
+     1480,
+     1.0
+    ],
+    [
+     2080,
+     0.8
+    ],
+    [
+     2500,
+     0.52
+    ],
+    [
+     3300,
+     0.18
+    ]
+   ],
+   "arm": [
+    [
+     1480,
+     0.3
+    ],
+    [
+     2300,
+     0.12
+    ]
+   ]
+  },
+  "breath": {
+   "rise": 6,
+   "prof": [
+    [
+     1300,
+     1.0
+    ],
+    [
+     1400,
+     0.76
+    ],
+    [
+     1600,
+     0.68
+    ],
+    [
+     2080,
+     0.13
+    ],
+    [
+     2300,
+     0
+    ]
+   ],
+   "widen": 0.008,
+   "chestY": 1800
+  },
+  "bend": {
+   "prof": [
+    [
+     1300,
+     1.0
+    ],
+    [
+     1480,
+     0.85
+    ],
+    [
+     2080,
+     0.5
+    ],
+    [
+     2500,
+     0.3
+    ],
+    [
+     3300,
+     0
+    ]
+   ],
+   "pivot": [
+    [
+     1300,
+     2150
+    ],
+    [
+     1480,
+     2300
+    ],
+    [
+     2080,
+     2600
+    ],
+    [
+     2500,
+     3000
+    ],
+    [
+     3300,
+     3700
+    ]
+   ]
+  },
+  "bounce": [
+   [
+    0,
+    1
+   ],
+   [
+    2080,
+    1
+   ],
+   [
+    3000,
+    0.6
+   ],
+   [
+    3900,
+    0.15
+   ]
+  ],
+  "pelvis": {
+   "c": [
+    1420,
+    2500
+   ],
+   "waist": [
+    1420,
+    2080
+   ],
+   "band": [
+    2020,
+    2200
+   ],
+   "D": 150,
+   "tilt": 3.5,
+   "lift": 6,
+   "ankle": 4150,
+   "knee": 0,
+   "legs": {},
+   "feet": [
+    "foot_L",
+    "foot_R"
+   ],
+   "heel": 18,
+   "drawIn": 10,
+   "ankleJ": 4200,
+   "sole": 4358,
+   "footLen": 200,
+   "point": 30,
+   "heelPivot": false,
+   "skirt": {
+    "layers": [
+     "hakama"
+    ],
+    "top": 3150,
+    "hem": 4130,
+    "split": 1390,
+    "soft": 300,
+    "follow": 0.8,
+    "lift": 0.6
+   }
+  }
+ },
+ "arms": {
+  "L": {
+   "layers": [
+    "sleeve_L",
+    "hand_L"
+   ],
+   "shoulder": [
+    1062,
+    1480
+   ],
+   "elbow": [
+    1180,
+    1985
+   ],
+   "axis": [
+    0.227,
+    0.974
+   ],
+   "blend": 90,
+   "upper": "sleeve_L",
+   "forearm": [
+    "hand_L"
+   ],
+   "hang": {
+    "layers": [
+     "sleeve_L"
+    ],
+    "k": 0.6,
+    "d0": 50,
+    "d1": 320,
+    "anchor": [
+     1005,
+     2600,
+     140,
+     340
+    ]
+   }
+  },
+  "R": {
+   "layers": [
+    "sleeve_R",
+    "hand_R",
+    "stick",
+    "lantern"
+   ],
+   "shoulder": [
+    1634,
+    1466
+   ],
+   "elbow": [
+    1180,
+    1820
+   ],
+   "axis": [
+    -0.789,
+    0.615
+   ],
+   "blend": 70,
+   "upper": null,
+   "forearm": [
+    "sleeve_R",
+    "hand_R",
+    "stick",
+    "lantern"
+   ]
+  }
+ },
+ "sway": {
+  "hair": [
+   {
+    "axis": "rot",
+    "pivot": [
+     1520,
+     1030
+    ],
+    "rigid": true,
+    "plus": {
+     "angleZ": -0.5,
+     "_bz": -0.5
+    }
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1520,
+     1030
+    ],
+    "rigid": true,
+    "spring": "hairZ",
+    "amp": 1
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1520,
+     1030
+    ],
+    "rigid": true,
+    "spring": "hairX",
+    "amp": -0.45
+   }
+  ],
+  "ribbon": [
+   {
+    "axis": "rot",
+    "pivot": [
+     1522,
+     1165
+    ],
+    "rigid": true,
+    "plus": {
+     "angleZ": -0.85,
+     "_bz": -0.85
+    }
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1522,
+     1165
+    ],
+    "rigid": true,
+    "spring": "ribZ",
+    "amp": 1.2
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1522,
+     1165
+    ],
+    "rigid": true,
+    "spring": "ribX",
+    "amp": -0.8
+   },
+   {
+    "axis": "x",
+    "root": 1300,
+    "len": 1550,
+    "spring": "ribX",
+    "amp": -9
+   }
+  ],
+  "lantern": [
+   {
+    "axis": "rot",
+    "pivot": [
+     302,
+     2022
+    ],
+    "rigid": true,
+    "plus": {
+     "lanternRot": 1
+    }
+   },
+   {
+    "axis": "tx",
+    "rigid": true,
+    "plus": {
+     "lanternDX": 1
+    }
+   },
+   {
+    "axis": "ty",
+    "rigid": true,
+    "plus": {
+     "lanternDY": 1
+    }
+   }
+  ],
+  "hand_L": [
+   {
+    "axis": "tx",
+    "rigid": true,
+    "plus": {
+     "handIn": 0.28
+    }
+   },
+   {
+    "axis": "ty",
+    "rigid": true,
+    "plus": {
+     "handIn": -0.96
+    }
+   }
+  ],
+  "sleeve_L": {
+   "axis": "x",
+   "root": 1750,
+   "len": 950,
+   "spring": "sleeve",
+   "amp": -5
+  },
+  "sleeve_R_back": {
+   "axis": "x",
+   "root": 1600,
+   "len": 1000,
+   "spring": "sleeve",
+   "amp": -4
+  },
+  "hakama": {
+   "axis": "x",
+   "root": 3200,
+   "len": 950,
+   "spring": "skirt",
+   "amp": -6
+  },
+  "ribbon_up": [
+   {
+    "axis": "rot",
+    "pivot": [
+     1500,
+     1301
+    ],
+    "rigid": true,
+    "plus": {
+     "angleZ": -0.85,
+     "_bz": -0.85
+    }
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1500,
+     1301
+    ],
+    "rigid": true,
+    "spring": "ribZ",
+    "amp": 1.2
+   },
+   {
+    "axis": "rot",
+    "pivot": [
+     1500,
+     1301
+    ],
+    "rigid": true,
+    "spring": "ribX",
+    "amp": -0.8
+   },
+   {
+    "axis": "x",
+    "root": 1350,
+    "len": 1450,
+    "spring": "ribX",
+    "amp": -9
+   }
+  ]
+ },
+ "springs": {
+  "hairZ": {
+   "drive": "headZ",
+   "k": 14,
+   "c": 3.5,
+   "gain": 1
+  },
+  "hairX": {
+   "drive": "swing",
+   "k": 14,
+   "c": 3.5,
+   "gain": 1
+  },
+  "ribZ": {
+   "drive": "headZ",
+   "k": 12,
+   "c": 2.2,
+   "gain": 1
+  },
+  "ribX": {
+   "drive": "swing",
+   "k": 12,
+   "c": 2.2,
+   "gain": 1
+  },
+  "sleeve": {
+   "drive": "swing",
+   "k": 30,
+   "c": 5,
+   "gain": 1
+  },
+  "skirt": {
+   "drive": "swing",
+   "k": 40,
+   "c": 6,
+   "gain": 1
+  }
+ },
+ "couple": {
+  "on": false
+ },
+ "mesh": {
+  "sleeve_L": 20,
+  "hakama": 40,
+  "jacket": 48,
+  "hair": 48,
+  "ribbon": 24
+ },
+ "variants": "build/variants.json",
+ "armPoses": "build/armposes.json",
+ "armPosesInViews": true,
+ "views": {
+  "hoodup": {
+   "manifest": "../views/hoodup/manifest.json",
+   "keep": [
+    "face",
+    "eye",
+    "hair_front"
+   ],
+   "hide": [
+    "hood"
+   ],
+   "bodyLayers": [
+    "back_up"
+   ],
+   "insert": [
+    [
+     "back_up",
+     "after:sleeve_R_back"
+    ],
+    [
+     "ribbon_up",
+     "after:back_up"
+    ],
+    [
+     "hood_up",
+     "after:hair_front"
+    ]
+   ],
+   "head": {
+    "hang": {
+     "hood_up": [
+      1150,
+      1420,
+      0.0
+     ]
+    }
+   }
+  },
+  "push1": {
+   "manifest": "../views/push1/manifest.json",
+   "hide": [
+    "hair_front",
+    "eye",
+    "face",
+    "ear",
+    "ribbon_knot",
+    "ribbon",
+    "hair_head",
+    "hair",
+    "hood",
+    "neck",
+    "sleeve_R_back",
+    "jacket",
+    "hand_R",
+    "sleeve_R",
+    "stick"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:hakama"
+    ]
+   ]
+  },
+  "push2": {
+   "manifest": "../views/push2/manifest.json",
+   "hide": [
+    "hair_front",
+    "eye",
+    "face",
+    "ear",
+    "ribbon_knot",
+    "ribbon",
+    "hair_head",
+    "hair",
+    "hood",
+    "neck",
+    "sleeve_R_back",
+    "jacket",
+    "hand_R",
+    "sleeve_R",
+    "stick"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:hakama"
+    ]
+   ]
+  },
+  "turn": {
+   "manifest": "../views/turn/manifest.json",
+   "hide": [
+    "neck",
+    "hood"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:sleeve_R_back"
+    ]
+   ]
+  },
+  "turn_half": {
+   "manifest": "../views/turn_half/manifest.json",
+   "hide": [
+    "neck",
+    "hood"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:sleeve_R_back"
+    ]
+   ]
+  }
+ }
+}

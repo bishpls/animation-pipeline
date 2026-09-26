@@ -14,6 +14,12 @@
 //   sway: { layer: { root: y, len: px, spring: 'name', amp: px, axis: 'x' | 'y' | 'rot', pivot: [x, y] } }
 //   springs: { name: { drive: 'headX' | 'headZ' | 'bodyZ' | 'bounce' | 'armL' ..., k, c, gain, mix: { drive: weight }, max } }
 //   mouth: { layer, center: [x, y], w, h }     procedural mouth drawn over the mouth patch when open
+//   sway entries may be arrays (several per layer), and take: rigid: true (the whole layer turns/moves as one plate, no bend),
+//     plus: { param: k } (adds k * p[param] to the amount, e.g. gravity against the head's tilt, or an angle the motion computes),
+//     axis 'tx' / 'ty' (a rigid translation, px). spring is optional.
+//   views[v].keep: base head layers the view keeps (drawn with the base's own geometry and variants)
+//   armPosesInViews: true lets drawn arm poses swap in inside views too
+// Also per frame: p.swap = { layer: variant } (any layer's drawn variant), p.hide = [layer, ...].
 // Parameters (all default 0): angleX, angleY (-1..1 = +-30/+-18 deg), angleZ (deg), bodyZ (deg), bodyX (-1..1), bounce (px),
 //   breath (0..1, auto if undefined), armL, armR (deg, + = outward), mouthOpen (0..1), mouthWide (-1..1), smile (0..1).
 
@@ -131,9 +137,10 @@ const RIG = (() => {
       const list = []; let pending = [], used = new Set();
       const vorder = v.layers.map(l => l.name);
       const hide = new Set(v.V.hide || []);                  // base layers this view replaces outright (e.g. the neck: the yoke draws it)
+      const keep = new Set(v.V.keep || []);                  // base head layers the view keeps as they are (e.g. the face under a hood)
       for (const l of layers) {
         if (hide.has(l.name)) continue;
-        if (!swapped.has(l.name)) { list.push(l); continue; }
+        if (!swapped.has(l.name) || (keep.has(l.name) && !byName[l.name])) { list.push(l); continue; }
         if (byName[l.name]) {
           const i = vorder.indexOf(l.name); pending = vorder.slice(0, i).filter(n => !used.has(n) && !layers.some(b => b.name === n));
           for (const n of pending) { list.push(byName[n]); used.add(n); }
@@ -190,13 +197,16 @@ const RIG = (() => {
     const rigid = H && H.rigid && H.rigid[name], neckL = (H.neckLayers || []).includes(name) && !inHead, pSides = puffSides(rig, name);
     for (let k = 0; k < rest.length; k += 2) {
       let x = rest[k], y = rest[k + 1];
-      const as = fo ? (x < (H.center ? H.center[0] : fo.split) ? fo.left : fo.right) : name, sw = R.sway && R.sway[as];
+      const as = fo ? (x < (H.center ? H.center[0] : fo.split) ? fo.left : fo.right) : name, swl = R.sway && R.sway[as];
       // hair resting on the shoulders is skinned to the body: 1 above the jaw line, falling to wmin at the tips
       const hg = inHead && H.hang && H.hang[as], hfv = hg ? 1 - (1 - hg[2]) * clamp((y - hg[0]) / (hg[1] - hg[0]), 0, 1) : 1;
       // 1. secondary motion (a bend that grows from the root)
-      if (sw) {
-        const f = clamp((y - sw.root) / sw.len, 0, 1.2) * (hg ? hfv : 1), amt = (sp[sw.spring] || 0) * (sw.amp || 1);
+      if (swl) for (const sw of Array.isArray(swl) ? swl : [swl]) {
+        const f = sw.rigid ? 1 : clamp((y - sw.root) / sw.len, 0, 1.2) * (hg ? hfv : 1);
+        let amt = (sw.spring ? sp[sw.spring] || 0 : 0) * (sw.amp || 1);
+        if (sw.plus) for (const pk in sw.plus) amt += (p[pk] || 0) * sw.plus[pk];
         if (sw.axis === 'rot') [x, y] = rot(x, y, sw.pivot[0], sw.pivot[1], amt * f);
+        else if (sw.axis === 'tx') x += amt; else if (sw.axis === 'ty') y += amt;
         else if (sw.axis === 'y') y += amt * f * f; else x += amt * f * f;
       }
       // Measured model (docs/research/README.md §4, Live2D's sample rigs), applied innermost first:
@@ -237,6 +247,8 @@ const RIG = (() => {
         if (wv && dE) [x, y] = rot(x, y, Ep[0], Ep[1], sg * dE * k2 * wv);
         const ws = smooth(clamp((Math.hypot(x - S0[0], y - S0[1]) - 40) / 160, 0, 1));
         if (dA) [x, y] = rot(x, y, S0[0], S0[1], sg * dA * k2 * ws);
+        const XF = p['pose' + Q.side];
+        if (XF) { if (XF.a) [x, y] = rot(x, y, XF.cx, XF.cy, XF.a); x += XF.dx || 0; y += XF.dy || 0; }
       }
       // arms at the shoulder
       else if (arm && !(arm.puff && arm.puff.layers.includes(name))) {
@@ -402,7 +414,7 @@ const RIG = (() => {
     const p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
     const VV = rig.variants[p.view || 'F'] || {};
-    const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth
+    const want = n => p.swap && p.swap[n] ? p.swap[n] : n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth
       : n === 'hand_L' ? p.handL : n === 'hand_R' ? p.handR : null;                // drawn hand shapes: pinch, peace, point, fist
     let order = rig.lists[p.view || 'F'] || rig.layers;
     if (p.armFrontL > .5 || p.armFrontR > .5 || p.armBackL > .5 || p.armBackR > .5) {    // the arm's depth, by layer order (a circle passes
@@ -417,18 +429,18 @@ const RIG = (() => {
     // pose's centre it holds its drawn angles; toward the tolerance's edge it turns by the full difference, so the swap to and
     // from the mesh arm meets it where the mesh arm is (a key drawing the in-betweens run into and out of)
     const swapIn = {};
-    if (!p.view || p.view === 'F') for (const sd of ['L', 'R']) {
+    if (!p.view || p.view === 'F' || rig.R.armPosesInViews) for (const sd of ['L', 'R']) {
       const wrap = v => ((v + 180) % 360 + 360) % 360 - 180; let best = null, bd = 1;
       for (const P0 of rig.armPoses[sd]) {
         const Q = P0.pose; if ((Q.hand || null) !== (p['hand' + sd] || null)) continue;
         const d = Math.max(Math.abs((p['arm' + sd] || 0) - Q.arm) / Q.tol[0], Math.abs(wrap(wrap(p['elbow' + sd] || 0) - Q.elbow)) / Q.tol[1]);
         if (d < bd) { bd = d; best = P0; }
       }
-      if (best) { const u = clamp((bd - .35) / .65, 0, 1); swapIn[sd] = { ...best, dw: u * u * (3 - 2 * u) }; }
+      if (best) { const u = clamp((bd - .35) / .65, 0, 1); swapIn[sd] = { ...best, dw: best.pose.follow ? 1 : u * u * (3 - 2 * u) }; }
     }
     const swapped = new Set(Object.values(swapIn).flatMap(q => q.pose.replaces)), anchor = {};
-    for (const sd in swapIn) anchor['arm_' + sd] = swapIn[sd];
-    for (const l00 of order) {
+    for (const sd in swapIn) anchor[swapIn[sd].anchor || 'arm_' + sd] = swapIn[sd];
+    for (const l00 of p.hide ? order.filter(l => !p.hide.includes(l.name)) : order) {
       if (swapped.has(l00.name) && !anchor[l00.name]) continue;
       const l0 = anchor[l00.name] || l00;
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)

@@ -1,0 +1,172 @@
+{
+ "fromimg": [
+  {
+   "base": "../base_keyed.png",
+   "img": "../under/noarms_fixed.png",
+   "labels": "../under/lab_noarms",
+   "map": {
+    "jacket": [
+     "jacket"
+    ]
+   },
+   "clip": [
+    640,
+    1480,
+    1300,
+    2760
+   ]
+  },
+  {
+   "base": "../base_keyed.png",
+   "img": "../under/nohair_al.png",
+   "labels": "../under/lab_nohair",
+   "map": {
+    "jacket": [
+     "jacket"
+    ]
+   },
+   "clip": [
+    1100,
+    1150,
+    1860,
+    2980
+   ]
+  },
+  {
+   "base": "../base_keyed.png",
+   "img": "../under/nohair_al.png",
+   "labels": "../under/lab_nohair",
+   "map": {
+    "neck": [
+     "skin"
+    ]
+   },
+   "clip": [
+    1150,
+    1110,
+    1340,
+    1330
+   ]
+  },
+  {
+   "base": "../base_keyed.png",
+   "img": "../under/noribbon_al.png",
+   "labels": "../under/lab_noribbon",
+   "map": {
+    "hair": [
+     "hair"
+    ]
+   },
+   "clip": [
+    1400,
+    1150,
+    1820,
+    2700
+   ]
+  }
+ ],
+ "under": {
+  "hair": {
+   "rect": [
+    1150,
+    950,
+    1700,
+    1330
+   ],
+   "hull": [
+    "ear",
+    "face"
+   ],
+   "clip": [
+    1100,
+    940,
+    1720,
+    1340
+   ]
+  },
+  "neck": {
+   "hull": [
+    "face"
+   ],
+   "clip": [
+    1120,
+    1120,
+    1330,
+    1330
+   ]
+  },
+  "hakama": {
+   "rect": [
+    980,
+    2860,
+    1880,
+    3010
+   ],
+   "clip": [
+    960,
+    2840,
+    1900,
+    3020
+   ]
+  },
+  "sleeve_R_back": {
+   "rect": [
+    1660,
+    1500,
+    1880,
+    2560
+   ],
+   "clip": [
+    1640,
+    1480,
+    1900,
+    2580
+   ]
+  },
+  "face": {
+   "hull": [
+    "eye"
+   ],
+   "flat": [
+    1082,
+    1095,
+    1106,
+    1125
+   ],
+   "flat_zone": {
+    "hull": [
+     "eye"
+    ]
+   },
+   "clip": [
+    1030,
+    995,
+    1110,
+    1090
+   ]
+  },
+  "jacket": {
+   "rect": [
+    880,
+    1440,
+    1215,
+    2050
+   ],
+   "within": [
+    "sleeve_L"
+   ],
+   "clip": [
+    860,
+    1420,
+    1230,
+    2060
+   ]
+  }
+ },
+ "outer_margin": 14,
+ "bleed": 3,
+ "aa": 0.8,
+ "outer_margin_skip": [
+  "hair"
+ ]
+}

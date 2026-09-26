@@ -20,20 +20,12 @@ const FABLEROOM = (() => {
     R.meta = await (await fetch(base + 'meta.json')).json();
     await Promise.all(Object.entries(R.meta.drawings).map(async ([k, d]) => { R.img[k] = await get(d.file); }));
     plan();
-    const eb = 'rig/fable_room/ending/', eget = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = eb + f; });
-    E.meta = await (await fetch(eb + 'meta.json')).json();
-    await Promise.all(Object.entries(E.meta.drawings).map(async ([k, d]) => { E.img[k] = await eget(d.file); }));
-    endPlace();
-    try { Q.base = await get3('base_keyed.png'); } catch (e) { Q.base = null; }   // (the three-quarter rig's base: preview only)
+    // the room ending: the three-quarter mesh rig (rig/fable_3q) and its key drawings' reference points
+    E.rig = await RIG.load('rig/fable_3q/mesh/rig.json');
+    const ap = await (await fetch('rig/fable_3q/mesh/build/armposes.json')).json();
+    E.poses = Object.fromEntries([...(ap.R || []), ...(ap.L || [])].map(q => [q.name, q]));
+    E.meta = { rig: 'fable_3q' };                                     // (FABLESTAGE.room's gate)
   }
-  // ---- the three-quarter rig (rig/fable_3q): WIP. LOOPS.room3q_film: the film with the static base drawing in her place
-  const Q = { base: null, FEET: [1390, 3745], K: 1140.5 / 3650 }, get3 = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = 'rig/fable_3q/' + f; });
-  function static3q(X, T) {
-    const s = T.s * Q.K; X.save(); X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
-    X.drawImage(Q.base, T.x - Q.FEET[0] * s, T.y - Q.FEET[1] * s, Q.base.width * s, Q.base.height * s); X.restore();
-  }
-  LOOPS.room3q_film = t => { window.FABLE3Q_STATIC = true; try { LOOPS.film(t); } finally { window.FABLE3Q_STATIC = false; } };
-  LOOPS.room3q_film.len = 209.65;
 
   // ---- the timeline (slots of 1/12 s from the song clock). [drawing, slots]; the props and lantern follow the drawing
   const T0 = 178.25;                                                       // (the set-down starts on the drawing after 178.2)
@@ -144,167 +136,275 @@ const FABLEROOM = (() => {
   LOOPS.fableroom_key.len = 181.5;
 
   // =============================================================================================================== the ending
-  // The room ending (Michael + Fable; the final chorus, 177.8-201.3). She stays at her place beside the butai, in profile facing the
-  // window, and she's moved by it (Michael, after v6: "sullen... at odds with the finale"; Fable's arc). Every standing drawing is
-  // hold with only the head, the face or the free arm pasted in (rig/fable_room/build.py ending); the lantern is a prop, its stick
-  // fixed in her fist and the lantern swinging on its ring. Twos, snaps and holds; small code offsets (the bounce) only.
-  //   177.8   hood up, the head following Clawd in the card a bar late (small), the face at rest.
-  //   182.12  the drop: F-A, "the corner" (the mouth's corner up, the eye bright). Head bobs on her pulse (the half-note), small
-  //           (a lift); from 185.7 the lantern swings with them, +-6 degrees.
-  //   187.67  "why" (Clawd looks out at her at 187.62): the hood push, the free (near) hand: rising, to the rim, the hood sliding
-  //           back, the hood down with her hand at the back of her head. F-B, "the eyebrow" (the dry, knowing half-smile), revealed.
-  //   188.76  two claps with the hall before its "SO-RE-KA-RA?!" (189.11): the free hand to the lantern wrist (the lantern stays).
-  //   189.08  the bobs grow (a dip on the pulse); F-B.
-  //   190.588 the step toward the window (past the cushion's near side), landing on the downbeat of bar 135 with a bounce (a dip,
-  //           then up: a squash about her soles, feet planted); the trailing foot closes at 190.941.
-  //   191.25  F-C, "the smile" (lips closed, eyes open); the bobs are full (a dip on the pulse, a lift between).
-  //   193.33  the page-wipe on "Turn the page" (mekutte, 193.39), with Clawd: the free hand up and across toward the window, held,
-  //           back.
-  //   197.24  claps, two before each "and then" (197.59, 198.21, 198.89), on the eighths before the call.
-  //   199.0   the hit: the lantern raised overhead (r_half, r_up: snapped on the dash, 199.07), F-D, "the hit": an open smile, eyes
-  //           open, at the window ("I'd still like to see"). Held, frozen with the card, through the ring-out.
-  //   200.58  she lowers it (r_half, then standing) and stays (Fable, after v7: no walk-off): F-C, watching the doors close on the
-  //           frozen card (201.5-202.4), the lantern settling on its ring, still, lit, to the outro's clack at 202.59. (The turn,
-  //           glance and walk drawings stay in rig/fable_room/ending for the record; OFF is unused.)
-  const E = { meta: null, img: {}, head: null, P: null }, BR = 60 / 170 * 4, BEAT = BR / 4, EIGHTH = BR / 8;
+  // The room ending (Michael + Fable; the final chorus, 177.8-202.59). She stays in her room outside the butai, watching Clawd's
+  // show through its window with her lantern lit: joyful, moved, the peak of her arc. A mesh-rigged illustration (rig/fable_3q,
+  // RIGGING.md; engine/rig.js), seen THREE-QUARTERS FROM BEHIND, turned toward the window at the picture's left: her back and left
+  // side toward us, the lantern in her far (right) hand held forward past her edge, lighting her cheek. In the room she's a person,
+  // not a puppet (Fable): a 12 fps grid, every change with in-betweens; the hair (a rigid sheet hung at the tie), the ribbon (its own
+  // plate at the knot, always in front of the hair), the sleeves, the hem and the lantern swing on springs from a fixed pre-roll.
+  //   FABLEROOM.ending(X, t, T, o)   T = { x, y, s }: her feet on screen (the point between them); s: screen px per unit of the old
+  //                                room drawings (she stands 1140.5 of them tall, hood down: s 1 = 1140 px). o.P (Clawd) unused.
+  // Her timeline (Fable's rulings; "her pulse" = the half-note, 0.706 s; song seconds):
+  //   always   her weight shifts foot to foot ON HER PULSE (hips leading, the hakama swinging with them, the unloaded heel lifting),
+  //            the shoulders following (the near one dips with the near foot), the head tilting side to side after them (5-8
+  //            degrees, never a nod); small through the build, full from the drop (182.12); held from the raise to the end.
+  //   177.8    hood up, the near hand resting in its sleeve, the face at rest
+  //   182.12   the drop: the corner of the mouth up, the eye bright
+  //   187.67   the hood push (the near hand out of the sleeve, to the hood's crown, the hood pulled back over three drawings; down by
+  //            188.42), the head turning ~15 degrees toward us as it comes off (the profile, the dry half-smile), then back
+  //   188.76   two claps at the lantern wrist before "SO-RE-KA-RA" (189.11)
+  //   190.588  the step toward the window (her near foot, landing on the pulse, a small bounce); the trailing foot closes at 190.941
+  //   191.25   a real closed-lips smile
+  //   193.39   "Turn the page": one sweep of the free hand across the window's light, six drawings, eased, ending at her side
+  //   197.24   claps before each "and then" (197.24/.415, 197.858/198.035, 198.538/.715: the last pair rides the lantern's rise)
+  //   198.36   the raise: the lantern rises through eight drawings (key drawings: at rest, lifted to her chin, overhead) and is
+  //            overhead ON the dash (199.07); an open smile, eyes open. Held through the freeze
+  //   200.6    she lowers it (eight drawings) and HOLDS, smiling, watching the window as the doors close (201.5-202.4), lit by it
+  //   blinks   ~180.5, 185.0, 192.5, 201.9: half, closed, half (never on the hit, mid-clap or in the push)
+  const E = { meta: null, rig: null, poses: null }, BR = 60 / 170 * 4, BEAT = BR / 4, EIGHTH = BR / 8, PULSE = BR / 2;
+  const KQ = 1140.5 / 3650, ORIGIN = [1390, 4345];                 // (rig px per old drawing px; her feet in the rig)
+  const EK = { start: 177.8, drop: 129 * BR, push: 187.667, hoodDown: 188.42, stepLift: 190.30, stepLand: 190.588, stepClose: 190.941,
+               smile: 191.25, sweep: 193.39, raise: 199.07 - 2 * BEAT, hit: 199.07, lower: 200.6, end: 202.59 };
+  const CLAPS = [[188.76, 188.93], [197.24, 197.415], [197.858, 198.035], [198.538, 198.715]];
+  const BLINKS = [180.5, 185.0, 192.5, 201.9];
   const sl = t => Math.floor(t * 12 + 1e-6);
-  const EK = { start: 177.8, drop: 182.1176, swing: 185.7, push: 187.6667, stepK: 190.5834, close: 190.9167, smile: 191.25,
-               wipe: 193.3334, hit: 199.0, lower: 200.5834, freeze: 199.07 };
-  const PULSE = BR / 2;                                                // her pulse: the half-note
-  const CALLS1 = [189.111], CALLS2 = [197.591, 198.211, 198.891];      // (the hall's calls: two claps on the eighths before each)
-  const CLAPS = [...CALLS1, ...CALLS2].flatMap(c => [c - 2 * EIGHTH, c - EIGHTH]);
-  const PUSH = [['push0.A', 2], ['push1.A', 2], ['push1b.A', 1], ['push2.B', 1], ['push2b.B', 1], ['push3.B', 2], ['wipe1.B', 2]];   // (the hood's cloth on twos, v7; hood down from push2)
-  const WIPE = [['wipe1.C', 2], ['wipe2.C', 5], ['wipe1.C', 2]];
-  const OFF = [['r_half', 1], ['d.C', 1], ['turn1.C', 1], ['turn2.C', 1], ['wc1g', 2], ['wp1.C', 1], ['wc2.C', 2], ['wp1b', 2]];
-  const FL = 1218.5, D_NEAR = 499, D_FAR_Y = 1194.5;                 // (hold's near geta tip, its far geta's sole: measured)
-  const PLACE = {};                                                    // drawing px offsets of the placed drawings
-  function endPlace() {
-    const M = E.meta.drawings, G = n => M[n].geta, bot = n => Math.max(...G(n).map(g => g.box[3])), cx = g => (g.box[0] + g.box[2]) / 2;
-    // the step: the far foot stays where it stood (its tip, its sole); the near foot lands one step toward the window, on the
-    // floor in front of the cushion's corner (the cushion reaches nearer the viewer than her feet: a step along the line would
-    // land on it), so she closes one step left and a little nearer. L: that move, for the closed pose and the walk-off after it
-    const sN = G('step.B')[0], sF = G('step.B')[1], dFar = G('d.C')[0].box[0];
-    PLACE.step = [dFar - sF.box[0], D_FAR_Y - sF.box[3]];
-    PLACE.L = [sN.box[0] + PLACE.step[0] - D_NEAR, sN.box[3] + PLACE.step[1] - FL];
-    const F2 = FL + PLACE.L[1], c0 = (dFar + 641.5) / 2 + PLACE.L[0];  // her feet, closed: the floor line she walks off on
-    const u1 = G('turn1.C'), c1 = (Math.min(...u1.map(g => g.box[0])) + Math.max(...u1.map(g => g.box[2]))) / 2;
-    PLACE['turn1.C'] = [c0 - c1, F2 - bot('turn1.C')];                 // she pivots on the spot
-    PLACE['turn2.C'] = [c0 - cx(G('turn2.C')[0]), F2 - bot('turn2.C')]; // the back foot is the pivot foot; the front one steps out
-    const toe = (n, i) => G(n)[i].toe[0] + PLACE[n][0];
-    PLACE.wc1g = [toe('turn2.C', 1) - G('wc1g')[0].toe[0], F2 - bot('wc1g')];   // each planted geta pinned to where it landed
-    PLACE['wp1.C'] = [toe('wc1g', 1) - G('wp1.C')[0].toe[0], F2 - bot('wp1.C')];
-    PLACE['wc2.C'] = [toe('wp1.C', 0) - G('wc2.C')[0].toe[0], F2 - bot('wc2.C')];
-    PLACE.wp1b = [toe('wc2.C', 1) - G('wp1.C')[0].toe[0], F2 - bot('wp1.C')];
+  const cl01 = u => Math.max(0, Math.min(1, u)), ss = u => { u = cl01(u); return u * u * (3 - 2 * u); };
+  const ease = u => { u = cl01(u); return u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2; };
+  const lerp = (a, b, u) => a + (b - a) * u;
+  const bump = (t, a, b, r) => ss((t - (a - r)) / r) * (1 - ss((t - b) / r));    // 1 on [a, b], eased over r at both ends
+  // her weight: -1 on the near (image-left) foot, +1 on the far one. It arrives ON each pulse (the near foot on the bar's first and
+  // third beats), holds a little with a small overshoot, then carries over, eased
+  function weight(t) {
+    if (t >= 189.9 && t < 191.3) {                                    // (the step: the weight never moves onto a lifted foot)
+      if (t < 190.40) return 1;
+      if (t < EK.stepLand) return 1 - 2 * ss((t - 190.40) / (EK.stepLand - 190.40));
+      if (t < 191.0) return -1;
+      return -1 + 2 * ss((t - 191.0) / (191.294 - 191.0));
+    }
+    const u = t / PULSE, k = Math.floor(u), f = u - k, from = k % 2 ? 1 : -1;
+    const g = f < .28 ? 0 : ss((f - .28) / .72), over = f < .28 ? .1 * Math.sin(Math.PI * f / .28) : 0;
+    return from * (1 + over) - 2 * from * g;
   }
-  // before the drop the head follows Clawd a bar late (her angleY at t - 1 bar: chin up / level), held three drawings at least
-  function headTrack(P) {
-    const k0 = sl(EK.start), k1 = sl(EK.drop), raw = [];
-    for (let k = k0; k < k1; k++) { const v = (P(k / 12 - BR) || {}).angleY || 0; raw.push(v > .2 ? 'up' : ''); }
-    const out = raw.slice();
-    for (let i = 0, prev = ''; i < out.length;) { let j = i; while (j < out.length && raw[j] === raw[i]) j++; const v = j - i >= 3 ? raw[i] : prev; for (let m = i; m < j; m++) out[m] = v; prev = v; i = j; }
-    return { k0, h: out };
+  const dip = t => { const f = (t / PULSE) % 1; return f < .28 ? 0 : Math.sin(Math.PI * (f - .28) / .72); };   // the knees soften mid-transfer
+  // energy: small through the build, full from the drop, easing out through the raise; held (breath only) after
+  const env = t => t < EK.drop ? .35 + .65 * ss((t - (EK.drop - BR / 2)) / (BR / 2)) : t < EK.raise ? 1 : 1 - ss((t - EK.raise) / (EK.hit - EK.raise));
+  // the step toward the window: the near foot lifts, swings and lands on the pulse; the body travels over it; the trailing foot
+  // closes; planted feet never slide (each foot's world x is fixed while it's down: foot = world - root)
+  const STEP = 170;                                                  // (rig px, image-left)
+  function step(t) {
+    const nu = cl01((t - EK.stepLift) / (EK.stepLand - EK.stepLift)), fu = cl01((t - 190.66) / (EK.stepClose - 190.66));
+    const root = -STEP * (.55 * ss((t - EK.stepLift) / (EK.stepLand - EK.stepLift)) + .45 * ss((t - EK.stepLand) / (EK.stepClose - EK.stepLand)));
+    const u = t - EK.stepLand, bounce = u > 0 ? 22 * Math.exp(-7 * u) * Math.sin(2 * Math.PI * Math.min(u, .7) / .36) : 0;
+    return { rootX: root, footLX: -STEP * ease(nu) - root, footLY: 42 * Math.sin(Math.PI * nu), footRX: -STEP * ease(fu) - root, footRY: 34 * Math.sin(Math.PI * fu), bounce };
   }
-  const phase = t => (((t - EK.drop) / PULSE) % 1 + 1) % 1;
-  function swingAt(k) {                                                // the lantern on its ring, with her pulse, on twos (degrees)
-    if (k < sl(EK.swing)) return 0;
-    const v = Math.sin(2 * Math.PI * phase(k / 12)); return Math.round(v * 2) * 3;   // (-6, -3, 0, 3, 6)
+  // ---- the lantern arm: key drawings (rig/fable_3q/poses.py: rest, lift, up), placed by the fist and the stick's angle
+  const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]) * 180 / Math.PI;
+  const rotP = (p, c, deg) => { const a = deg * Math.PI / 180, dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * Math.cos(a) - dy * Math.sin(a), c[1] + dx * Math.sin(a) + dy * Math.cos(a)]; };
+  // raise progress s (0 at rest, 1 lifted to the chin, 2 overhead) per drawing, from the first drawing after 198.364: a slow start
+  // (the last claps ride it), then up fast onto the dash (the drawing that holds 199.07); lowering from 200.6 the same way back
+  // (the first four drawings are the anticipation: the lantern dips a little and gathers while the last two claps land on the wrist;
+  //  then it rises fast, overshoots, settles: Fable's 'two beats before the dash' and her claps before each 'and then', both)
+  const RAISE = [-.02, -.05, -.06, -.03, .3, .8, 1.35, 1.8, 2.06, 2.0];
+  const LOWER = [1.85, 1.6, 1.25, .9, .6, .35, .15, .05, 0];
+  function raise(t) {
+    const k = sl(t), k0 = sl(EK.raise) + 1, k1 = sl(EK.lower);
+    if (k >= k1) return LOWER[Math.min(k - k1, LOWER.length - 1)];
+    if (k >= k0) return RAISE[Math.min(k - k0, RAISE.length - 1)];
+    return 0;
   }
-  function claps(k) {                                                  // the clap drawing at slot k (null: not clapping)
-    const shut = CLAPS.map(sl), near = shut.filter(s => s >= k - 6 && s <= k + 6);
-    if (!near.length) return null;
-    if (shut.includes(k)) return 'c_shut';
-    const first = Math.min(...near), last = Math.max(...near);
-    if (k >= first - 2 && k <= last + 1) return 'c_open';
+  function lanternArm(s) {                                           // -> { hand, pose, ring, wrist }
+    const Pz = E.poses; if (!Pz || s === 0) return { ring: [302, 2022], wrist: Pz ? Pz.rest.wrist : [694, 1976] };
+    if (s < 0) {                                                     // (the anticipation: the rest drawing dips, tilting a little)
+      const D = Pz.rest, pose = { a: s * 40, cx: D.fist[0], cy: D.fist[1], dx: 0, dy: -s * 700 };
+      const place = q => { const r = rotP(q, D.fist, pose.a); return [r[0], r[1] + pose.dy]; };
+      return { hand: 'rest', pose, ring: place(D.ring), wrist: place(D.wrist) };
+    }
+    const keys = [Pz.rest, Pz.lift, Pz.up], i = Math.min(1, Math.floor(s)), u = Math.min(1, s - i), a = keys[i], b = keys[i + 1];
+    const F = [lerp(a.fist[0], b.fist[0], u), lerp(a.fist[1], b.fist[1], u)] , th = lerp(ang(a.tip, a.fist), ang(b.tip, b.fist), u);
+    const D = keys[Math.min(2, Math.round(s))], da = th - ang(D.tip, D.fist);     // (the nearer key drawing, moved to the in-between's place)
+    const place = q => { const r = rotP(q, D.fist, da); return [r[0] + F[0] - D.fist[0], r[1] + F[1] - D.fist[1]]; };
+    return { hand: D.name, pose: { a: da, cx: D.fist[0], cy: D.fist[1], dx: F[0] - D.fist[0], dy: F[1] - D.fist[1] }, ring: place(D.ring), wrist: place(D.wrist) };
+  }
+  // ---- the free hand, and the drawn states around the hood push. The arm is key drawings (rig/fable_3q/poses.py, build.py
+  // pusharms: pushA gripping the hood's crown, pushB pulling it back, 'down' at her shoulder, the clap at the lantern wrist, the
+  // sweep up in the light) turned about her shoulder for the in-betweens (p.poseL); the mesh arm only near rest (small angles)
+  const HAND_IN = 290, SH = [1062, 1480];                           // (rig px: the hand drawn up into its sleeve; her shoulder)
+  const KP = sl(EK.push);                                            // the push's first drawing (187.667)
+  function view(k) {
+    if (k < KP + 2) return 'hoodup';                                 // 177.8-187.75: hood up
+    if (k < KP + 4) return 'push1';                                  // her hand grips the hood's crown
+    if (k < KP + 6) return 'push2';                                  // the hood pulled back, the hair out, the head turning
+    if (k < KP + 8) return 'turn';                                   // hood down (188.17), the profile found, the dry half-smile
+    if (k < KP + 10) return 'turn_half';                             // back toward the window
     return null;
   }
-  function endState(t) {
-    let k = sl(t); const s = { d: 'u.N', ox: 0, oy: 0, sy: 1, swing: 0, k };
-    if (k > sl(EK.hit) + 1 && k < sl(EK.lower)) k = sl(EK.hit) + 1;              // the hit: r_up held, frozen with the card
-    const run = (list, k0) => { let at = k0; for (const [d, n] of list) { if (k < at + n) return d; at += n; } return null; };
-    if (k >= sl(EK.lower)) {                                                     // she lowers it and stays (Fable, v7: no walk-off)
-      // "I stay and watch the doors close on her frozen card by both lights": standing, F-C, watching the window, the lantern
-      // in her hand settling on its ring after the lowering (a swing that dies out, held on twos), still to the outro's clack
-      const i = k - sl(EK.lower);
-      if (i < 1) return { ...s, d: 'r_half', ox: PLACE.L[0], oy: PLACE.L[1] };
-      const SETTLE = [6, 6, 6, -5, -5, -5, 4, 4, 4, -3, -3, -3, 2, 2, 2, -1, -1, -1];
-      return { ...s, d: 'd.C', ox: PLACE.L[0], oy: PLACE.L[1], swing: SETTLE[i - 1] || 0 };
+  const clapK = CLAPS.flat().map(sl);                                // (a pat lands on the drawing that holds its time)
+  const opened = k => Math.min(...clapK.map(c => [0, .55, 1][Math.min(2, Math.abs(k - c))]));
+  function freeArm(t, s) {
+    const k = sl(t), o = { armL: 0, elbowL: 0, handIn: 0 };
+    const key = (hand, a = 0, dx = 0, dy = 0) => { o.handL = hand; o.poseL = { a, cx: SH[0], cy: SH[1], dx, dy }; };
+    const mesh = (a, e, hi = 0) => { o.armL = a; o.elbowL = e; o.handIn = hi; };
+    // resting in its sleeve until the push
+    if (k < KP - 1) { o.handIn = HAND_IN; return o; }
+    // the push: out of the sleeve and up, the grip, the pull, down to her shoulder, forward to the lantern wrist (the first claps)
+    const PUSH = [[KP - 1, () => mesh(6, 8, HAND_IN * .5)], [KP, () => mesh(-4, 34)], [KP + 1, () => key('pushA', -38)], [KP + 2, () => key('pushA')],
+                  [KP + 3, () => key('pushA', 3)], [KP + 4, () => key('pushB')], [KP + 5, () => key('pushB', 4)], [KP + 6, () => key('down', 18)],
+                  [KP + 7, () => key('down')], [KP + 8, () => key('down', -12)], [KP + 9, () => key('clap', 30)], [KP + 10, () => key('clap', 16)],
+                  [KP + 11, () => key('clap', 7)]];
+    for (const [kk, f] of PUSH) if (k === kk) { f(); return o; }
+    // the claps: the palm at the lantern wrist (it follows the wrist's small dip in the raise's anticipation), lifting off between pats
+    const W = lanternArm(s).wrist, W0 = E.poses ? E.poses.rest.wrist : W;
+    const clapAt = () => { const op = opened(k); key('clap', 0, 10 * op + W[0] - W0[0], -24 * op + W[1] - W0[1]); };
+    const c1 = clapK[0], c2 = clapK[1], c3 = clapK[2], c8 = clapK[clapK.length - 1];
+    if (k >= KP + 12 && k <= c2) { clapAt(); return o; }
+    // (to and from her side the hand stays by her body, never across the lantern: the clap drawing turned in, then the mesh arm at
+    //  angles solved to keep the hand at her hip: (-28, 52) -> (913, 2468), (-14, 30) -> (896, 2601))
+    const back = [() => key('clap', -16), () => mesh(-28, 52), () => mesh(-14, 30)];     // (and down to her side)
+    if (k > c2 && k <= c2 + 3) { back[k - c2 - 1](); return o; }
+    const toward = [() => mesh(-14, 30), () => mesh(-28, 52), () => key('clap', -16)];    // (up from her side to the wrist)
+    if (k >= c3 - 3 && k < c3) { toward[k - c3 + 3](); return o; }
+    if (k >= c3 && k <= c8) { clapAt(); return o; }
+    if (k > c8 && k <= c8 + 3) { back[k - c8 - 1](); return o; }
+    // "Turn the page": up by her body, out along the arc into the light (the sweep drawing, on 'mekutte'), and down the arc and
+    //  back by her body to her side: one sweep, eased (close drawings at its ends, wide in its middle), no hold
+    const ks = sl(EK.sweep);
+    const SWEEP = [[ks - 3, () => mesh(-14, 30)], [ks - 2, () => mesh(-28, 52)], [ks - 1, () => key('clap', -16)], [ks, () => key('sweep', -26)],
+                   [ks + 1, () => key('sweep')], [ks + 2, () => key('sweep', -10)], [ks + 3, () => key('sweep', -26)], [ks + 4, () => key('clap', 2)],
+                   [ks + 5, () => key('clap', -16)], [ks + 6, () => mesh(-28, 52)], [ks + 7, () => mesh(-14, 30)]];
+    for (const [kk, f] of SWEEP) if (k === kk) { f(); return o; }
+    return o;
+  }
+  // ---- the face: rest -> the corner (182.12) -> the smile (191.25) -> the open smile on the hit, eyes open -> the smile; blinks
+  function face(t) {
+    const k = sl(t), at = x => sl(x);
+    let st = t < EK.drop ? null : t < EK.smile ? 'corner' : 'smile', eye = st;
+    if (k >= at(EK.hit) - 1 && k < at(EK.lower)) { st = k < at(EK.hit) ? 'open_half' : 'open'; eye = 'corner'; }
+    else if (k >= at(EK.lower) && k < at(EK.lower) + 2) { st = 'open_half'; eye = 'corner'; }
+    for (const b of BLINKS) { const i = k - at(b); if (i >= 0 && i < 3) eye = i === 1 ? 'blink' : 'blink_half'; }
+    const sw = {}; if (st) { sw.face = st; sw.ear = st; } if (eye) sw.eye = eye;
+    return sw;
+  }
+  // ---- all her parameters at song time t (continuous; the rig draws on the 12 fps grid and steps its springs from a pre-roll)
+  function pose(t) {
+    const e = env(t), tilt = e * (1 - bump(t, EK.push - .1, EK.hoodDown + .25, .3)), st = step(t), s = raise(t);
+    // (the hips shift, the shoulders dip with the near foot, the head tilts after them; small enough that the head stays over her
+    //  feet: a weight shift, not a ballad crowd's sway. Head tilt in total ~6.4 degrees: its own 5 plus the shoulders')
+    const p = { hipX: .35 * e * weight(t), bodyZ: 1.4 * e * weight(t - .09), angleZ: 5.0 * tilt * weight(t - .16),
+                hipY: 10 * e * dip(t) + st.bounce, breath: .5 + .5 * Math.sin(2 * Math.PI * t / 3.4),
+                footLX: st.footLX, footLY: st.footLY, footRX: st.footRX, footRY: st.footRY, rootX: st.rootX };
+    p.swing = (p.bodyZ || 0) + p.hipX * 8 + st.rootX / 25;           // (the springs' drive: the hips' shift and her travel)
+    Object.assign(p, freeArm(t, s));
+    const LA = lanternArm(s);
+    if (LA.hand) { p.handR = LA.hand; p.poseR = LA.pose; }
+    p.lanternDX = LA.ring[0] - 302; p.lanternDY = LA.ring[1] - 2022; p._ringY = LA.ring[1];
+    p.swap = face(t); const v = view(sl(t)); if (v) p.view = v;
+    return p;
+  }
+  // the lantern on its ring: a damped pendulum (length 370 rig px: ~0.8 s, near her pulse) driven by the hook's motion (the hand, the
+  // body's sway, her travel), stepped at 120 Hz from a fixed pre-roll, so a frame is a pure function of t
+  const G = 21700, LEN = 370, W0 = Math.sqrt(G / LEN), ZETA = .12;
+  function hook(t) {
+    const p = pose(t), lx = LANTERN_X(p);
+    return [lx, p._ringY + (p.hipY || 0)];
+  }
+  const LANTERN_X = p => 302 + p.lanternDX + (p.rootX || 0) + 150 * (p.hipX || 0) + (2600 - (p._ringY || 2022)) * Math.sin((p.bodyZ || 0) * .45 * Math.PI / 180);
+  function pendulum(t) {
+    const dt = 1 / 120, n = 360; let th = 0, om = 0, h0 = hook(t - n * dt - 2 * dt), h1 = hook(t - n * dt - dt);
+    for (let i = 0; i <= n; i++) {
+      const h2 = hook(t - (n - i) * dt), ax = (h2[0] - 2 * h1[0] + h0[0]) / (dt * dt), ay = (h2[1] - 2 * h1[1] + h0[1]) / (dt * dt);
+      const acc = -(G + ay) / LEN * Math.sin(th) - ax / LEN * Math.cos(th) - 2 * ZETA * W0 * om;
+      om += acc * dt; th += om * dt; h0 = h1; h1 = h2;
     }
-    if (k >= sl(EK.hit)) return { ...s, d: k === sl(EK.hit) ? 'r_half' : 'r_up', ox: PLACE.L[0], oy: PLACE.L[1] };
-    const closed = k >= sl(EK.close), face = k >= sl(EK.smile) ? 'C' : 'B', ph = phase(k / 12);
-    if (closed) [s.ox, s.oy] = PLACE.L;
-    s.swing = swingAt(k);
-    if (k >= sl(EK.push) && k < sl(EK.push) + 11) return { ...s, d: run(PUSH, sl(EK.push)) };
-    const c = claps(k); if (c) return { ...s, d: c + '.' + face };
-    if (k >= sl(EK.wipe) && k < sl(EK.wipe) + 9) return { ...s, d: run(WIPE, sl(EK.wipe)) };
-    if (k >= sl(EK.stepK) && k < sl(EK.close)) {                                // the step: a bounce on the landing
-      [s.ox, s.oy] = PLACE.step; s.sy = k === sl(EK.stepK) ? .985 : k === sl(EK.stepK) + 1 ? 1.012 : 1;
-      return { ...s, d: 'step.B' };
-    }
-    if (k >= sl(EK.push)) {                                                      // hood down: bobs on the pulse, growing
-      if (face === 'B') return { ...s, d: ph < .2 ? 'd_dn.B' : 'd.B' };
-      return { ...s, d: ph < .2 ? 'd_dn.C' : ph >= .5 && ph < .7 ? 'd_up.C' : 'd.C' };
-    }
-    if (k >= sl(EK.drop)) return { ...s, d: ph < .25 ? 'u_up.A' : 'u.A' };       // hood up, the corner: a small lift on the pulse
-    const hv = E.head ? E.head.h[k - E.head.k0] || '' : '';
-    return { ...s, d: hv === 'up' ? 'u_up.N' : 'u.N' };
+    return Math.max(-14, Math.min(14, th * 180 / Math.PI));
   }
   function ending(X, t, T, o = {}) {
-    if (window.FABLE3Q_STATIC && Q.base) { static3q(X, T); return { d: '3q' }; }
-    if (!E.meta) return null;
-    if (o.P && E.P !== o.P) { E.P = o.P; E.head = headTrack(o.P); }
-    const st = endState(Math.max(t, EK.start)), [w, h] = E.meta.size, P = E.meta.points, M = E.meta.drawings;
-    X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-559, -FL);
-    X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
-    // (no cushion in the room: Fable has one zabuton, and she left it on the rail inside the window at B8, beside the book)
-    if (st.d) {
-      const m = M[st.d], pr = m.prop;
-      X.save(); X.translate(st.ox, st.oy);
-      if (st.sy !== 1) { const fx = 559; X.translate(fx, FL); X.scale(1, st.sy); X.translate(-fx, -FL); }   // (the bounce: about her soles)
-      let lc = null;
-      if (pr) {                                                        // the lantern prop: the stick in her fist, the lantern on its ring
-        X.save(); X.translate(pr[0], pr[1]);
-        X.drawImage(E.img.prop_stick, 0, 0, w, h);
-        const [hx, hy] = P.hook, a = st.swing * Math.PI / 180;
-        X.translate(hx, hy); X.rotate(a); X.translate(-hx, -hy); X.drawImage(E.img.prop_lantern, 0, 0, w, h);
-        X.restore();
-        const [cx, cy] = P.lantern_c; lc = [pr[0] + P.hook[0] + (cx - P.hook[0]) * Math.cos(a) - (cy - P.hook[1]) * Math.sin(a),
-                                            pr[1] + P.hook[1] + (cx - P.hook[0]) * Math.sin(a) + (cy - P.hook[1]) * Math.cos(a)];
-      } else lc = m.lantern;
-      X.drawImage(E.img[st.d], 0, 0, w, h);
-      // the lantern's warm light: on her sleeve, her face from below, the floor; it goes where the lantern goes
-      if (lc && !o.figureOnly) {
-        const fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3);
-        X.globalCompositeOperation = 'lighter';
-        const gr = X.createRadialGradient(lc[0], lc[1], 8, lc[0], lc[1], 300 * fl);
-        gr.addColorStop(0, 'rgba(244,190,110,.32)'); gr.addColorStop(.4, 'rgba(244,160,80,.12)'); gr.addColorStop(1, 'rgba(244,160,80,0)');
-        X.fillStyle = gr; X.fillRect(lc[0] - 310, lc[1] - 310, 620, 620);
-      }
-      X.restore();
+    if (!E.rig) return null;
+    try { return endingDraw(X, t, T, o); }
+    catch (e) { if (!E.warned) { E.warned = true; console.error('FABLEROOM.ending: ' + (e && e.stack || e)); } X.restore && X.setTransform(1, 0, 0, 1, 0, 0); return null; }
+  }
+  function endingDraw(X, t, T, o) {
+    const tq = Math.floor(Math.max(t, EK.start) * 12 + 1e-6) / 12, th = pendulum(tq), s = T.s * KQ;
+    const P3 = tt => { const p = pose(tt); p.lanternRot = th - .42 * (p.bodyZ || 0); return p; };
+    const p = P3(tq), TT = { x: T.x + (p.rootX || 0) * s, y: T.y, s };
+    X.save(); X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
+    E.rig.draw(X, tq, P3, TT);
+    if (!o.figureOnly) {                                               // her lantern's warm light: her sleeve, her cheek, the floor
+      const a = th * Math.PI / 180, cx = 302 + p.lanternDX + (p.hipX || 0) * 150 + Math.sin(a) * 360, cy = p._ringY + Math.cos(a) * 360;
+      const lx = TT.x + (cx - ORIGIN[0]) * s, ly = TT.y + (cy - ORIGIN[1]) * s, fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3), R = 1500 * s * fl;
+      X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'lighter';
+      const gr = X.createRadialGradient(lx, ly, 8, lx, ly, R);
+      gr.addColorStop(0, 'rgba(244,190,110,.30)'); gr.addColorStop(.35, 'rgba(244,160,80,.11)'); gr.addColorStop(1, 'rgba(244,160,80,0)');
+      X.fillStyle = gr; X.fillRect(lx - R, ly - R, 2 * R, 2 * R);
     }
     X.restore();
-    return st;
+    return { t: tq, p, th };
   }
   // the sounds (sound/mix.py; names from sound/sfx_lib.py), from the same constants: the cloth of the hood sliding back, her claps
-  // (her palm on her own wrist: quiet, under the hall's), the step's two geta, and her geta on the walk-off's two contacts
-  PAPER_SFX.push(() => [[(sl(EK.push) + 4) / 12, 'cloth', -31], ...CLAPS.map(c => [c, 'clap', -34]),
-                        [190.588, 'geta', -24], [190.941, 'geta', -26]]);   // (the walk-off's geta went with the walk-off: v7)
-  // preview: the ending on a plain dark ground at the finale's room camera (FIN: her feet at (1650, 1010), s .767), on the song
-  // clock, Clawd's performance from finale.js (CHOREO.clawdF). ?loop=fableroom_end; _key: the figure alone on green, camera still
-  const FIN = { x: 1650, y: 1010, s: 1.394 * .55 };
-  const clawdP = () => (window.CHOREO && CHOREO.clawdF && CHOREO.clawdF.P ? CHOREO.clawdF.P() : null);
-  LOOPS.fableroom_end = t => {
+  // (her palm on her own wrist: quiet, under the hall's), the step's two geta
+  PAPER_SFX.push(() => [[EK.push + .33, 'cloth', -31], ...CLAPS.flat().map(c => [c, 'clap', -34]),
+                        [EK.stepLand, 'geta', -24], [EK.stepClose, 'geta', -26]]);
+  // previews: the ending on a plain dark ground at the finale's default room shot (FIN, T from the finale's framing), on the song
+  // clock; _big: her head and shoulders large (for 100% crops); _key: the figure alone on green
+  const FIN = { x: 1593, y: 1377, s: .998 };
+  const endBg = () => {
     X.setTransform(1, 0, 0, 1, 0, 0);
-    const gr = X.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#0f0b09'); gr.addColorStop(1, '#1d1611'); X.fillStyle = gr; X.fillRect(0, 0, W, H);
-    X.fillStyle = '#e8d8b8'; X.globalAlpha = .12; X.fillRect(120, 140, 1180, 700); X.globalAlpha = 1; X.fillStyle = '#0a0806'; X.fillRect(0, 1010, W, H - 1010);
-    const st = ending(X, t, FIN, { P: clawdP() });
-    X.fillStyle = 'rgba(255,255,255,.7)'; X.font = '24px sans-serif';
-    X.fillText(`song ${t.toFixed(3)}  bar ${(t / BR).toFixed(2)}  ${st ? st.d || '(gone)' : ''}`, 30, 40);
+    const gr = X.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#1a1426'); gr.addColorStop(1, '#241a30'); X.fillStyle = gr; X.fillRect(0, 0, W, H);
+    X.fillStyle = '#e8d8f0'; X.globalAlpha = .16; X.fillRect(135, 60, 1650, 900); X.globalAlpha = 1;
   };
-  LOOPS.fableroom_end.len = 202;
-  LOOPS.fableroom_end_key = t => {
-    X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#00ff00'; X.fillRect(0, 0, W, H);
-    ending(X, t, { x: 1250, y: 1010, s: .697 }, { P: clawdP(), figureOnly: true });
-  };
-  LOOPS.fableroom_end_key.len = 202;
-  return { load, room, state, plan, SEQ: () => SEQ, R, T0, ending, endState, E, EK, PLACE };
+  const label = (t, st) => { X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = 'rgba(255,255,255,.75)'; X.font = '24px sans-serif';
+    X.fillText(`song ${t.toFixed(3)}  bar ${(t / BR).toFixed(2)}  drawing ${sl(t)}${st && st.p.handR ? '  ' + st.p.handR : ''}${st && st.p.handL ? '  ' + st.p.handL : ''}`, 30, 40); };
+  LOOPS.fableroom_end = t => { endBg(); label(t, ending(X, Math.max(177.8, t), FIN)); };
+  LOOPS.fableroom_end.len = 203;
+  LOOPS.fableroom_end_wide = t => { endBg(); label(t, ending(X, Math.max(177.8, t), { x: 1100, y: 1030, s: .8 })); };
+  LOOPS.fableroom_end_wide.len = 203;
+  LOOPS.fableroom_end_why = t => { endBg(); label(t, ending(X, Math.max(177.8, t), { x: 1768, y: 1649, s: 1.275 })); };   // (the 'why' two-shot's T)
+  LOOPS.fableroom_end_why.len = 203;
+  LOOPS.fableroom_end_key = t => { X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#00ff00'; X.fillRect(0, 0, W, H); ending(X, Math.max(177.8, t), { x: 1100, y: 1030, s: .8 }, { figureOnly: true }); };
+  LOOPS.fableroom_end_key.len = 203;
+  // ---- the range-of-motion test (tools/romrun.py projects/tsuzuku --name fable3qrom): every control alone and combined, every
+  // drawn view's rest, tilt and sway, the step, spring whips, the free arm's mesh angles and every key drawing turned through the
+  // range the motion uses (inside the views it plays in), the lantern's raise path and swing, the face's states, and the ending
+  // performed. 'rest' segments are the per-view baselines. LOOPS.fable3qrom / fable3qromid (the ID pass)
+  {
+    const segs = [], add = (name, dur, frame, fn) => segs.push({ name, dur, frame, fn });
+    const sw = u => Math.sin(2 * Math.PI * u), up = u => .5 - .5 * Math.cos(2 * Math.PI * u);
+    const VIEWS = [null, 'hoodup', 'push1', 'push2', 'turn', 'turn_half'];
+    for (const v of VIEWS) for (const fr of ['full', 'head']) add(`rest ${fr} ${v || 'F'}`, .5, fr, () => ({ view: v || undefined }));
+    for (const v of [null, 'hoodup']) {
+      add(`tilt ${v || 'F'}`, 2, 'head', u => ({ view: v || undefined, angleZ: 6.3 * sw(u), bodyZ: 1.8 * sw(u) }));   // (the performed range +25%)
+      add(`weight ${v || 'F'}`, 2, 'full', u => ({ view: v || undefined, hipX: .6 * sw(u), bodyZ: 2.5 * sw(u), angleZ: 6 * sw(u), hipY: 14 * up(u) }));
+      add(`whip ${v || 'F'}`, 2, 'full', u => ({ view: v || undefined, hipX: .6 * Math.sign(sw(3 * u)), swing: 8 * Math.sign(sw(3 * u)), angleZ: 8 * Math.sign(sw(3 * u)) }));
+    }
+    add('step', 1.4, 'full', u => { const st = step(190.1 + 1.2 * u); return { ...st, rootX: 0, footLX: st.footLX + st.rootX, footRX: st.footRX + st.rootX, hipY: st.bounce }; });
+    add('feet', 2, 'full', u => ({ footLY: 50 * Math.max(0, sw(u)), footRY: 50 * Math.max(0, -sw(u)), hipX: .5 * sw(u) }));
+    add('hand in', 1, 'full', u => ({ handIn: HAND_IN * up(u) }));
+    add('arm mesh', 3, 'full', u => ({ armL: -30 + 40 * up(u), elbowL: 60 * up(1.5 * u) }));
+    const KEYS = [['clap', -24, 32, [null, 'turn_half']], ['sweep', -42, 4, [null]], ['down', -14, 20, [null, 'turn', 'turn_half']],
+                  ['pushA', -40, 5, ['hoodup', 'push1']], ['pushB', -2, 6, ['push2']]];
+    for (const [h, a0, a1, views] of KEYS) for (const v of views)
+      add(`key ${h} ${v || 'F'}`, 2, 'full', u => ({ view: v || undefined, handL: h, poseL: { a: a0 + (a1 - a0) * up(u), cx: SH[0], cy: SH[1], dx: 0, dy: 0 } }));
+    add('clap pats', 1.5, 'full', u => { const op = Math.abs(sw(2 * u)); return { handL: 'clap', poseL: { a: 0, cx: SH[0], cy: SH[1], dx: 10 * op, dy: -24 * op } }; });
+    add('raise', 3, 'full', u => { const s = -.06 + 2.12 * up(u), LA = lanternArm(s); return { handR: LA.hand, poseR: LA.pose, lanternDX: LA.ring[0] - 302, lanternDY: LA.ring[1] - 2022, lanternRot: 14 * sw(2 * u) }; });
+    add('swing', 1.5, 'full', u => ({ lanternRot: 16 * sw(u), hipX: .4 * sw(u) }));
+    for (const f of ['corner', 'smile', 'open_half', 'open']) add(`face ${f}`, .5, 'head', () => ({ swap: { face: f, ear: f, eye: f === 'open' ? 'corner' : f } }));
+    add('blink', .5, 'head', u => ({ swap: { eye: u < .33 ? 'blink_half' : u < .66 ? 'blink' : 'blink_half' } }));
+    add('perform', EK.end - EK.start, 'full', null);
+    let T0 = 0; for (const g of segs) { g.t0 = T0; T0 += g.dur; }
+    window.ROMSETS = window.ROMSETS || {}; window.ROMSETS.fable3qrom = segs.map(g => [g.name, +g.t0.toFixed(3), +(g.t0 + g.dur).toFixed(3), g.frame]);
+    const FR = { full: { x: 960, y: 1070, s: .9 }, head: { x: 960 + (1390 - 1250) * 2.4 * KQ, y: 540 + (4345 - 1050) * 2.4 * KQ, s: 2.4 } };
+    const romDraw = (bgc, id) => t => {
+      X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = bgc; X.fillRect(0, 0, W, H);
+      const g = segs.find(q => t >= q.t0 && t < q.t0 + q.dur) || segs[segs.length - 1];
+      window.RIG_IDPASS = id;
+      try {
+        if (!g.fn) endingDraw(X, EK.start + (t - g.t0), FR.full, { figureOnly: true });
+        else if (E.rig) { const P = tt => ({ breath: .5, ...g.fn(Math.min(1, Math.max(0, (tt - g.t0) / g.dur))) }), T = FR[g.frame];
+          E.rig.draw(X, t, P, { x: T.x, y: T.y, s: T.s * KQ }); }
+      } finally { window.RIG_IDPASS = false; }
+    };
+    LOOPS.fable3qrom = romDraw('#201d33', false); LOOPS.fable3qromid = romDraw('#000000', true); LOOPS.fable3qrommag = romDraw('#ff00ff', false);
+    LOOPS.fable3qrommag.len = T0;
+    LOOPS.fable3qrom.len = LOOPS.fable3qromid.len = T0;
+  }
+  return { load, room, state, plan, SEQ: () => SEQ, R, T0, ending, pose, raise, lanternArm, pendulum, E, EK };
 })();

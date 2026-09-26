@@ -1,0 +1,106 @@
+{
+ "eye": {
+  "corner": {
+   "file": "eye@corner.png",
+   "x": 1047,
+   "y": 1011,
+   "w": 50,
+   "h": 68
+  },
+  "smile": {
+   "file": "eye@smile.png",
+   "x": 1048,
+   "y": 1011,
+   "w": 49,
+   "h": 68
+  },
+  "open_half": {
+   "file": "eye@open_half.png",
+   "x": 1048,
+   "y": 1011,
+   "w": 49,
+   "h": 68
+  },
+  "open": {
+   "file": "eye@open.png",
+   "x": 1049,
+   "y": 1011,
+   "w": 48,
+   "h": 69
+  },
+  "blink_half": {
+   "file": "eye@blink_half.png",
+   "x": 1049,
+   "y": 1011,
+   "w": 48,
+   "h": 69
+  },
+  "blink": {
+   "file": "eye@blink.png",
+   "x": 1048,
+   "y": 1011,
+   "w": 49,
+   "h": 69
+  }
+ },
+ "face": {
+  "corner": {
+   "file": "face@corner.png",
+   "x": 1056,
+   "y": 994,
+   "w": 221,
+   "h": 309
+  },
+  "smile": {
+   "file": "face@smile.png",
+   "x": 1057,
+   "y": 995,
+   "w": 220,
+   "h": 308
+  },
+  "open_half": {
+   "file": "face@open_half.png",
+   "x": 1057,
+   "y": 995,
+   "w": 220,
+   "h": 308
+  },
+  "open": {
+   "file": "face@open.png",
+   "x": 1056,
+   "y": 994,
+   "w": 221,
+   "h": 309
+  }
+ },
+ "ear": {
+  "corner": {
+   "file": "ear@corner.png",
+   "x": 1174,
+   "y": 1003,
+   "w": 46,
+   "h": 150
+  },
+  "smile": {
+   "file": "ear@smile.png",
+   "x": 1174,
+   "y": 1002,
+   "w": 46,
+   "h": 151
+  },
+  "open_half": {
+   "file": "ear@open_half.png",
+   "x": 1174,
+   "y": 1003,
+   "w": 46,
+   "h": 150
+  },
+  "open": {
+   "file": "ear@open.png",
+   "x": 1174,
+   "y": 1002,
+   "w": 46,
+   "h": 151
+  }
+ }
+}

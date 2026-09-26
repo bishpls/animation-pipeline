@@ -11,6 +11,7 @@ from gptimage import generate  # noqa: E402
 ref = lambda n: os.path.join(D, 'refs', n + '.png')   # (refs/: the seated three-quarter drawing mirrored to face left; the room
                                                     #  drawing x_d on green)
 CANON = os.path.join(D, '..', 'fable_room', 'src', 'ref_canon_side_back.png')
+KUROKO = os.path.join(D, '..', 'kuroko', 'kneel.png')                  # (the prologue's hood outline: Fable)
 mine = lambda n: os.path.join(D, 'src', n + '.png')
 SIZE = '2160x3840'
 
@@ -80,6 +81,96 @@ JOBS = {
                "closed mouth. Chin level. "
                + BG),
     # (chosen: base_b_2, kept as src/base.png; keyed to base_keyed.png with rig/fable_seated/key.py)
+    # the checkpoint's review (Michael, Fable): the deckle a thin torn edge (4-6 px on screen at FIN, ~16 px here), never lace; the
+    # rivets small brass pins at the near sleeve's shoulder, elbow and wrist (and the far shoulder if it shows)
+    'base_c': ([mine('base')],
+               "Edit this illustration. Keep EVERYTHING else exactly the same: her pose, face, hair, ribbon, hands, the lantern and "
+               "stick, the jacket's shape and folds, the hakama, her feet, the lighting, her position and size in the canvas, the "
+               "style, lineart and colours, and the flat green background. Change ONLY these two things: "
+               "(1) THE TRIM: the wide, lacy grey-brown trim along the jacket's hem, along the bottom edge of her left sleeve (nearest "
+               "the viewer) and along the opening of her right sleeve (where her right hand holds the stick) becomes a THIN torn-paper "
+               "edge: the black cloth now reaches almost all the way down, and only a narrow, ragged, irregular torn edge remains, "
+               "about one third of the current trim's width, in a dark charcoal grey only a little lighter than the black cloth. No "
+               "lace, no frills, no scallops, no fur, no white or cream. "
+               "(2) THE RIVETS: remove the two large brass grommets (rings) on her left sleeve. Instead put small round brass rivet "
+               "pins (small solid domed brass heads, like the pins of a paper puppet's joints, much smaller than the grommets) at "
+               "three joints of her left arm, on the outside of the left sleeve: at the shoulder, at the elbow, and at the wrist just "
+               "above the torn edge of the cuff; and one on her right shoulder where it shows past her hair. "
+               + BG),
+    # (chosen: base_c_1, kept as src/base.png; the rig's canvas is it keyed and padded 600 px at the top: base_keyed.png)
+
+    # ---- companions (edits of src/base.png, registered back onto the base by build.py): what motion reveals, and the drawn states
+    'noarms': ([mine('base')],
+               "Edit this illustration. Remove BOTH of her arms and BOTH wide sleeves, and the lantern, its stick and her right hand: "
+               "she now wears the same black jacket as a SLEEVELESS vest. On the left side of the picture, where her left sleeve hung, "
+               "draw the jacket's left side: a clean continuous side contour from her shoulder straight down to the hem, the black "
+               "cloth with the same folds and lighting, closed at the armhole, with the same thin torn-edge hem. Nothing hangs at her "
+               "sides. Keep EVERYTHING else exactly the same: her head, face, hair, ribbon, the hood lying on her shoulders, the back "
+               "of the jacket, the hakama, her feet, her position and size in the canvas, the style, lineart and colours. " + BG),
+    'nohair': ([mine('base')],
+               "Edit this illustration. Her long hair is now gathered up and pinned in a small low bun at the back of her head, and "
+               "the ribbon's two tails are gone, so the WHOLE back of her jacket is visible: the black hood lying folded on her "
+               "shoulders and upper back behind her neck (soft folds of the same black cloth, its edge rimmed with the same light), "
+               "and below it the jacket's back panel with its centre-back seam down to the hem. Keep EVERYTHING else exactly the same: "
+               "her face, her bangs, her arms and sleeves, the lantern and stick, the hakama, her feet, her position and size in the "
+               "canvas, the style, lineart, colours and lighting. " + BG),
+    'noribbon': ([mine('base')],
+                 "Edit this illustration. Remove ONLY the two long ribbon tails hanging down her back (keep the ribbon's bow knot at "
+                 "the back of her head exactly as it is). Where the tails were, her long straight blue-black hair continues: the same "
+                 "strands, sheen and shading, down to the same dead-flat cut at the bottom. Keep EVERYTHING else exactly the same. " + BG),
+    'hoodup': ([mine('base'), KUROKO, ref('seated_3q_mirror')],
+               "Edit image 1. Her hood is now UP. Keep EVERYTHING else exactly the same: her pose, both arms and hands, the lantern and "
+               "stick, the jacket below the shoulders, the hakama, her feet, her position and size in the canvas, the style, lineart, "
+               "colours and lighting. "
+               "The hood: the same black cloth as the jacket, raised over her whole head. Its outline is the deep cowl of image 2 (a "
+               "smooth dome over the head with a soft point at the back of the crown, the back falling straight down to her "
+               "shoulders); image 3 shows the same hood from this three-quarter-back angle. It hides her hair entirely (no hair falls "
+               "down her back now: it is inside the hood and the jacket). At the hood's front edge, on the left, we still see exactly "
+               "what we see now: the tips of her straight bangs, the edge of her cheek, the outer corner of her eye with its lashes, and "
+               "the corner of her mouth, calm. The ribbon's two long indigo-teal tails come out from under the hood's hem at the nape "
+               "and hang straight down the middle of her back over the jacket to below the jacket's hem. The hood's left edge is "
+               "rimmed with the same pink and cyan edge light as her shoulder. " + BG),
+    'turn': ([mine('base')],
+             "Edit this illustration. Turn ONLY her head about 15 degrees toward the viewer, so her face is now seen in a clean side "
+             "profile (it was a lost profile): now visible are the end of her eyebrow under the bangs, her eye (open, looking left at "
+             "the stage window), the tip of her nose, her lips and chin. Her expression: a dry, knowing half-smile, one corner of the "
+             "mouth lifted, the cheek lifted a little with it, the eye a touch narrowed. Her neck turns with the head a little; her "
+             "hair, the ribbon at the back of her head, her ear and her bangs turn with her head naturally. Keep EVERYTHING else "
+             "exactly the same: her body, jacket, the hood lying on her shoulders, her arms, the lantern, the hair hanging down her "
+             "back, the ribbon's tails, the hakama, feet, her position and size, the style, lineart, colours and lighting. " + BG),
+    # ---- the hood push (187.67-188.42): two drawn in-betweens with the near arm raised (the rig's arm leads in and out of them)
+    'push1': ([mine('hoodup')],
+              "Edit this illustration. Keep EVERYTHING the same (the raised hood exactly as it is, the ribbon tails, her face at the "
+              "hood's edge, the lantern arm and the lantern, the jacket, the hakama, her feet, her position and size, the style, "
+              "lineart, colours and lighting) except her LEFT arm, the arm on the left of the picture nearest the viewer: she has "
+              "raised it to her head to pull the hood back. Her left upper arm is lifted out to the side, the elbow bent and pointing "
+              "out to the left at about the height of her ear; her forearm rises to her head, and her left hand is on top of the "
+              "hood at the crown of her head, fingers curled over the hood's cloth, gripping it. The wide left sleeve has slid down "
+              "the raised forearm toward the elbow and hangs in a deep fold below the upper arm, with its thin torn edge; her pale "
+              "forearm shows between the sleeve and her hand. The small brass rivet pins stay on the sleeve at the shoulder and the "
+              "elbow. " + BG),
+    # (push2_v1 raised a second arm on the right of her head while the far hand still held the lantern: three arms)
+    'push2': ([mine('push1'), mine('base')],
+              "Edit image 1. The hood is now being pulled back: it is halfway off, slipping down the back of her head, its cloth "
+              "bunched in her left hand. It is the SAME raised left arm as in image 1 (the arm on the LEFT of the picture, nearest the "
+              "viewer, its elbow out to the LEFT of her head at ear height, its wide sleeve fallen toward the elbow): the forearm now "
+              "reaches across the back of her head, and the left hand holds the hood's bunched cloth at the back of her head, a little "
+              "lower than in image 1. Her RIGHT arm is unchanged: it still holds the lantern's stick forward on the left of the "
+              "picture. Only these two arms: no other arm or hand is raised. The top of her head is uncovered: her blue-black hair and straight bangs, as in image "
+              "2, and her long hair spills out from under the sliding hood down her back. The ribbon's bow at the back of her head is "
+              "still hidden by the hood's cloth; its two tails hang down her back as before. Her head has turned a little toward the "
+              "viewer (about 8 degrees), so a little more of her cheek shows. Keep EVERYTHING else the same: the lantern arm and the "
+              "lantern, the jacket below the shoulders, the hakama, her feet, her position and size, the style, lineart, colours "
+              "and lighting. " + BG),
+    # the head's way back from the push's turn (15 degrees toward the viewer, the profile) to the window: an in-between drawing
+    'turn_half': ([mine('base'), mine('turn')],
+                  "Edit image 1. Turn ONLY her head about 7 degrees toward the viewer: halfway between image 1 (a lost profile) and "
+                  "image 2 (a clean side profile): a little more of her cheek shows, the tip of her nose just appears past the cheek's "
+                  "curve, the outer corner of her eye and its lashes, and the corner of her mouth lifted in a small dry half-smile. Her "
+                  "hair, the ribbon at the back of her head, her ear and her bangs turn with her head naturally (half as far as in "
+                  "image 2). Keep EVERYTHING else exactly as in image 1: her body, jacket, the hood lying on her shoulders, her arms, "
+                  "the lantern, the hair hanging down her back, the ribbon's tails, the hakama, feet, her position and size, the "
+                  "style, lineart, colours and lighting. " + BG),
 }
 
 
