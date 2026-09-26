@@ -176,3 +176,97 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 - **A drawn view is a whole new drawing.** A three-quarter head pasted on the front body can never match at the collar and shoulders; swap the head with the neck, collar and upper body as one drawing, so the only joins are where the drawings agree (waist, cuffs).
 - **Colour can't separate parts that share a colour** (her hair and sleeves are the same orange). For registered alternate drawings, compare with the reference drawing: what differs from its body is hair.
 - **Test the whole range, every frame, both sides.** `src/rom.js` is a matrix of every control alone and in combination, fast whips, tilts and nods inside every drawn view, and every view switch both ways; `tools/romcheck.py` checks every frame for background holes (ignoring gaps drawn into the art) and exposed invented pixels (from an ID pass), and sheets the worst frames. A single choreographed test loop hid most of the bugs a user found by eye.
+
+## 13. More lessons (TSUZUKU, the paper world)
+
+Distilled from one long session of director notes and in-character reviews (Fable, the character's own designer), each fixed turn by turn. The paper-world specifics are in `projects/tsuzuku/` (HANDOFF.md, SFX_CUES.md, FABLE.md).
+
+**Continuity**
+- **Anything that appears or disappears mid-shot reads as a glitch, even when intended.** A fold crease that arrived with the move, a tint that snapped on, a floor rail that appeared at a cut: each was read as a bug. Make it faintly present from the shot's first frame (then deepen it), or bring it in through a visible action over several drawings. After fixing one, search sibling shots for the same device.
+- **One object, one design, everywhere.** The ink cut-ins drew a round lantern while every other world had the oblong one; the room lantern came out as the readers' blue. Keep a canon per recurring prop (shape, colour, who owns which variant); when one world changes it, list every shot that shows it and update them all.
+- **A prop that leaves the picture must be seen going somewhere.** The lantern lit at 0:09 became "the sky" and vanished for 70 s; the fix shows the hand-off (raised out of frame, its glow rising behind the screen). Trace each important prop through the whole film and show the transitions, not just the states.
+- **Keep a state table of props at every cut** ("what she sets down stays down"): the book set down in the bridge had to still be there in the outro.
+- **Design fixes and test-loop features must reach every shot.** The ribbon and rods existed only in the model test; a colour drifted between files until it became one shared constant. Shots call one shared draw function with one set of constants; after a fix, grep every use.
+- **Match cuts match on screen coordinates at the cut frame, and both sides re-publish them after any restaging.** A floor-bound object can match in x only; don't float it to match y.
+- **Handoffs are continuous:** the release frame equals the rest position (a card jumped 70 px when let go; a lantern popped between hanging and standing until a three-drawing blend).
+- **Paired elements get the same treatment** (a solid-black far geta read as a bug beside the cut-out near one), and **one instance of each role per frame** (two audiences in one frame read wrong; so did a second pair of the narrator's hands).
+
+**Motion & timing** (extends §5, §9)
+- **Snap or ease depends on screen size.** One-drawing snaps read as paper at puppet scale and as "far too jerky" in a close, large move. Anything covering much of the frame eases over 4–6 drawings and holds at both ends; travel time scales with distance.
+- **Measure every move in pixels at 1080p before trusting it to read.** A 10 px bob is a twitch; a gesture during a camera move vanishes. Fewer, bigger moves, longer holds.
+- **The key time is when the pose lands.** A snap puts the pose two drawings after its key; schedule the landing on the beat and check a strip at exactly t0. Print every scheduled event time; rounding silently moved a step a beat late.
+- **Cue-triggered cycles finish after the cue ends** (the audience snapped down mid-jump); gate the start, not the existence. One cue list feeds every shot.
+- **Motion needs a visible cause, or it reads as drift** (a card creeping in tugs looked janky). If it needs explaining, cut it.
+- **Walks:** the body glides on planted feet; check the planted foot's world position numerically. A figure that slides without steps "is a ghost".
+- **In a morph, the defining detail comes first** (the slits before the outline, creases before the fold); start from real drawings; rotate rather than morph when only orientation changes.
+- **Hold the story drawings** long enough to be found; **cut on the action** and into a settle, not after it; **time events to when they're visible** (a glow that rose behind closed doors was never seen).
+- **Test every rig flipped:** physics and IK written for a right-facing figure broke on the flip. Solve IK in the parent part's frame.
+
+**Staging & composition**
+- **Measure clearances before staging, then check the strip for overlaps.** A bow folded over the other character; a 460 px reed clump could never fit a 320 px gap; a lantern on her lap sat in the fan's space all scene.
+- **In silhouette, black on black disappears.** Every black shape needs a lit ground at every framing: open screen behind held props, rim light, stage spill on the audience, tissue-grey far planes.
+- **Keep the face and the line of address clear** (props across the profile, a crow on her head, a pine grazing a head). Write the film's composition rules down and check every shot.
+- **An inactive figure must be seen becoming inactive, then be fully inert** (a set-down puppet with one raised claw still read as alive).
+- **Accidental alignments read as intent:** a resting hand at another head's height read as an unfinished pat. Clear it, or make it a real gesture.
+- **Check physical plausibility with numbers:** reach, contact, what stands on what (geta on a cushion; a seal twice the size of its mark).
+- **Anything that moves by itself needs a visible worker** (a rod, a hand), given enough drawings to read. A hand that flashes in for three drawings reads as a glitch.
+- **A character in another world obeys that world's camera:** never draw a diegetic figure in screen space (it becomes a watermark); it leaves the frame in close-ups.
+- **Crop scenery at natural edges and never change its aspect**; don't cover designed art with overlays; frame text fully in or fully out.
+- **Every hand has a job,** in every shot.
+
+**Light**
+- **Name the light sources; every lit surface obeys them.** Painted wood lit by a key that doesn't exist, a rim on the wrong edge, and a "gel" that would be a second light were all wrong.
+- **Light arrives with its source** (gold leaked before the match). Light by layers and multiplies, not region masks (a region mask left a hard rectangle).
+- **When the light moves, re-derive every shadow and placement.** Flats placed for an overhead lamp dragged their cut edge into frame when the lamp moved low.
+- **Soft shadows are penumbra, not blur;** every shadow is anchored at its contact point (offset coloured shadows read as "anaglyph ghosts").
+- **Judge gels over the real light and paper,** never as swatches (indigo over warm light went teal).
+- **An overexposure takes paper and ink alike;** wash layers go on top, glows under silhouettes.
+- **Materials match the medium:** no specular highlights, wind or lens effects in a paper world ("marbles").
+- **Hard cut unless the light itself is dying;** keep something lit so the cut to black is seen.
+
+**Type & text**
+- **One face and size per text role, readable at every framing where it's seen.** Keep a table (role, face, size, ink); the director caught a second face used for the same voice.
+- **Each text surface belongs to one voice and obeys the world's physics;** text changes per line, never as a crawl; letterpress is a hairline shadow, not a bevel.
+- **Follow the script's conventions** (vertical Japanese punctuation, a seal's place) and **place text in the clear per camera.**
+- **Never key code to a word's spelling;** a new take changed "tsuzuku" to つづく.
+
+**Image-model art** (extends §9, §12)
+- **The registration residual is the check.** A high residual means something upstream is wrong (a transparent flag on opaque ink art).
+- **Register on structure; for a new pose, align on hand-measured landmarks** (the face). ECC on hatching locked onto a false 640 px offset.
+- **Paste masks cover the union of the old and new shapes,** outlines included, or the old one ghosts. Remove old shapes from traced silhouettes before lighting them.
+- **A new pose is a new drawing, not a warp:** sliding a region to fake a raise left a hole and dragged the arms.
+- **Edit once, paste many** where the object doesn't move between drawings; for drawn detail, edit a crop and register it back (inpainting fails on drawn features).
+
+**Review process**
+- **"Is this intentional?" means it didn't read.** Answer in a line, then change the picture.
+- **The character's designer rules on identity and arc; the director's eye overrides.** Log overrides to the reviewer "for the record". Keep one persistent reviewer per character, and brief it with pass sheets, full-resolution stills, strips and numbered questions.
+- **Turn verbal rulings into coordinates before building** ("beside the cushion" was out of reach).
+- **Two reviewers of one character can diverge:** relay rulings verbatim, put conflicts to the director, record them with a date.
+- **Reviewers verify for themselves and write to private output paths.**
+
+**Checking** (extends §7, §11)
+- **Scan every drawing numerically for pops:** the mean change between consecutive drawings, flagged against the local median. Every flag is either a deliberate cut or a glitch to fix (this found a rail that popped in at a seam).
+- **Sample at exact drawing times** (k/12); off-grid stills skip in-betweens.
+- **A missed crop proves nothing:** re-crop in screen space where the subject actually is.
+- **When it's too small to judge by eye, print numbers** (a foot's drift, a step a beat late, an arm 26 px short).
+- **Don't trust a job's completion signal:** check durations, a frame, and audio offsets for loops that don't start at 0. A pipe into `tail` hid a page error from `set -e`.
+
+**Working alongside another session**
+- **Stage files by explicit path,** never a directory; each session keeps its own script block in `index.html`.
+- **Separate output paths** for each session and reviewer; the shared default `board/sheet.jpg` got overwritten.
+- **Budget the machine:** eight parallel full-song mixes drove the load to 347 and stalled the other session's renders.
+- **Keep a HANDOFF.md** of shots on the song clock, seams with times and coordinates, and shared rulings.
+- **Deliver cross-session pieces as functions with agreed, stable signatures,** and a demo loop.
+- **Announce shared-asset changes with their exact extent** (the master changed only between 203.93 and 205.03 s, verified sample by sample).
+
+**Audio** (extends §9)
+- **Audition without touching the master:** prove the rebuild is bit-identical first, then swap takes into the mix window only.
+- **Measure word ends in the audio;** alignments pad silence (0.8 s).
+- **Direct the emotion, write Japanese in kana, and measure pitch contours** ("downward" fought a flat-accent word).
+- **Sound effects are registered by the picture code** that times the event (one clock), mixed as a stem at the level around each cue, with no ducking.
+
+**Code**
+- **Every loop renders correctly cold, at any t** (a loop that depended on another's lazily built table lost its props).
+- **Reset canvas composite state before every prop** (a leftover destination-out erased a fist).
+- **Watch coordinate frames and signs** (card-local vs screen; absolute vs relative key times; applying a walk offset twice).
+- **After scripted edits, run a syntax check and one render;** an inserted comment swallowed a declaration.
