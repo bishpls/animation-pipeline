@@ -60,7 +60,7 @@ const IDOLSTAGE = (() => {
     [86, FULL, FULL],
     [88, MED(960, 300, 1.6), MED(960, 290, 1.9)],
     [90, FULL, { cx: 960, cy: 520, z: .94 }],            // the breakdown: pull back as the lights die
-    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 520, cy: 720, z: 1.42 }],   // ...and find Fable, seated with her lantern: the match cut to B1
+    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 475, cy: 720, z: 1.42 }],   // ...and find Fable, seated with her lantern: the match cut to B1
     [93, WIDE, WIDE],
   ];
   function camAt(t) {
