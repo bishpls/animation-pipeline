@@ -76,21 +76,21 @@
   const TWO = (cx, cy, z) => ({ cx, cy, z });
   // the card's camera frames the two of them: both full figures with headroom over Fable's crown (world y ~ -10), inside the washi
   // border (the picture is ~972 px tall on screen)
-  const FULLF = TWO(1220, 500, .8), MED2 = (z = 1.24, cy = 310) => TWO(1240, cy, z), CU2 = TWO(1240, 170, 1.72), HALL = TWO(1120, 490, .76);
+  const FULLF = TWO(1220, 500, .8), MED2 = (z = 1.24, cy = 295) => TWO(1240, cy, z), CU2 = TWO(1240, 170, 1.72), HALL = TWO(1120, 490, .76);
   const SHOTS = [
     [125.9, FULLF, FULLF, room(CAMW)],                                // the room: B9's end; the window blazes
     [126.93, FULLF, FULLF, room(CAMW, CARDC)],                        // the push-in through the window (she walks out right)
     [128.21, FULLF, FULLF],                                            // her stage, full frame: Fable hops in from the right
     [129, TWO(1220, 500, .78), FULLF],                                 // the drop (the key change)
-    [130.15, MED2(1.16, 340), MED2(1.22, 330)],
-    [131.1, MED2(), MED2(1.29, 305)],                                  // the two of them
+    [130.15, MED2(1.16, 325), MED2(1.22, 315)],
+    [131.1, MED2(), MED2(1.29, 290)],                                  // the two of them
     [132.9, CU2, TWO(1240, 165, 1.78)],                                // "why": she turns and finds a face
     [133.9, HALL, HALL],                                               // (So-re-ka-ra?!) the hall
     [135, TWO(1130, 500, .8), TWO(1130, 500, .8)],                  // sideways, together: locked, full bodies
     [137, TWO(1100, 495, .8), TWO(1100, 490, .83)],                  // F6: her line on the LEDs and in the margin
     [138.87, FULLF, MED2(1.02, 400)],
-    [140.85, MED2(1.34, 280), MED2(1.34, 280)],                          // the hit, close: frozen
-    [142, WIDE, WIDE, room(CAMW)],                                     // the room: the frozen window, the light ringing out
+    [140.85, MED2(1.34, 262), MED2(1.34, 262)],                          // the hit, close: frozen
+    [142, FULLF, FULLF, room(CAMW)],                                   // (the frozen picture framed for both: her crown is above the card's default)                                     // the room: the frozen window, the light ringing out
   ];
   const HITS = [[129, .05, 6], [141, .05, 4]]; for (let bb = 130; bb < 141; bb++) if (bb !== 134) HITS.push([bb, .017, 0]);
   const TF = 199.07;                                                   // the hit on the dash ("and then-"): everything freezes
