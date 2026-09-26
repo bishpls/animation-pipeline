@@ -39,6 +39,9 @@ Fable, the character, is the subagent who rules on her world and her identity. R
 - **Her motion grammar.** Twos, snap and hold, no springs. Afterimages instead of smears.
 - **Rakugo head angles** for each voice she tells in: up for the mother, level to narrate.
 - **The seal 語.** Her one red thing, pressed once, in the outro.
+- **The first rhyme.** The prologue's kneeling kuroko comes back at the lamp-lighting (C2) in the same place and facing, now a shadow on the screen.
+- **The hood comes down behind closed doors.** She is hooded as the kuroko who lights the lamp and bare-headed as the teller. The change happens while the doors are shut, both between C2 and the telling and in the room.
+- **One look each.** She looks at Clawd once in the telling (on "Oh,") and once in the bridge.
 
 ## Decisions and failures
 - **The first stand-up walk** was jerky and seemed to have one foot. It was rebuilt as a computed walk with both geta.
