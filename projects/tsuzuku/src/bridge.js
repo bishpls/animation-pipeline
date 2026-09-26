@@ -25,7 +25,7 @@
     // put back, one card each (hold 1), from the falling figure to the open fan by "page", then folded on "job"
     const r0 = w('moral') - 2 * f;
     REW = PUPPET.morphs([[0, 'falling'], [r0, 'wings'], [r0 + 3 * f, 'boy'], [r0 + 6 * f, 'crow'], [r0 + 9 * f, 'fox'], [land(page) + 1 * f, 'fan_open'], [land(job), 'fan_closed']], { hold: 1 });
-    return { fox, crow, boy, flew, sun, all, moral: w('moral'), job, stand: w('stand') };
+    return { fox, crow, boy, flew, sun, all, moral: w('moral'), job, stand: w('stand'), dark: w('dark') };
   };
   let WT = null;
   const seq = tt => tt < WT.moral - 2 * f ? GAL(tt) : REW(tt);
@@ -87,13 +87,19 @@
     shore(ts, { floor: FLOOR, still: CLACK, strike, lamp });
     const p = poseAt(ts);
     const blink = BLINKS.some(b0 => ts >= b0 && ts < b0 + 2 * f);
+    // "You stand in the dark,": her head turns back to the lamp behind her, snapped (the head card flipped about her neck), and
+    // holds through "and you know." (Fable: "I look at the light I'm about to leave.")
+    const back = WT.dark && ts >= WT.dark, NECK = [1248, 823];
+    let Tb = null; if (back) { const nx = FABLE.world(p, T).torso.transformPoint(new DOMPoint(...NECK)).x, Tf = { ...T, flip: -1 };
+      const fx = FABLE.world(p, Tf).torso.transformPoint(new DOMPoint(...NECK)).x; Tb = { ...Tf, x: T.x + nx - fx }; }
     shadow(c => {
       seatedRibbon(c, poseAt, T, ts);
       c.globalCompositeOperation = 'source-over';
       if (strike.ground[0] > 0) { c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }   // the plain rail the beach lay on
       const cl = clawdAt(ts);
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
-      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
+      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink && !back ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS, hide: back ? ['head', 'hair'] : [] });
+      if (back) FABLE.draw(c, { ...p, head: 10, hair: -8.5 }, Tb, { hide: ['cushion', 'lower', 'torso', 'upperarm', 'forearm', 'hand'] });   // her head, turned back and down to it
     }, 0);
     chochin(L.x, L.y, LSC, { gold: true });                           // the brightest thing in the window
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
