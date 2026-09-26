@@ -1,10 +1,11 @@
 // outro.js: the end, song 202.59-209.65 (BEATS O1-O3; FABLE.md §6, §9; Fable's ruling for the room ending, Michael's call).
-// The doors were shut by the room at the end of the final chorus; on the hyoshigi they open onto a dark window with a warm glow
-// at its right edge: her light arrives before she does. She enters from the right as the paper silhouette, hood down, her
+// The doors were shut on the finale while she watched from the room; the hyoshigi cuts to black for two drawings (the kuroko
+// moves in the dark), and the picture returns with the doors parting on a dark window, a warm glow at its right edge: her light
+// arrives before she does. She steps back in from the right, the mirror of B9, as the paper silhouette, hood down, her
 // lantern low in her trailing hand (the only light in the theatre, never put down since B9), drawing her seal 語 from her
 // collar as she walks (black in her hand; the vermilion exists only as the impression: shu, its one beat in the film). The card
-// with つづく slides in as she arrives; she stops to the column's right, reaches across, and on the end of her "...tsuzuku."
-// presses it. On "See you next prompt!" Clawd's paper puppet pops up beside the open book at the lower left, jaw on her words.
+// with つづく slides in as she arrives; she stops to the column's right, draws the seal back and on the end of her "...tsuzuku."
+// presses it beneath く; the card takes the thud. On "See you next prompt!" Clawd's paper puppet pops up beside the open book at the lower left, jaw on her words.
 // The music box rings out; the butai's doors swing shut on her light.
 {
   const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1290, SEALAT = [1293, 556], SEALW = 62, CLAWDX = 960;   // (the rakkan beneath く: from the column's right her arm reaches it without crossing the word)
@@ -27,17 +28,19 @@
     K.walk0 = STEPS[0] - D; K.x0 = -2 * STRIDE;
     const T1 = { ...TS0, x: STOP }, TM = FABLE_S.world({ _ghost: {}, torso: LEAN }, T1).torso, co = TM.transformPoint(new DOMPoint(...COLLAR));
     CORD_LEN = Math.hypot(SEALAT[0] - co.x, SEALAT[1] - co.y) / TS0.s * 1.01;   // (just long enough to reach the column)
-    const at = { _ghost: {}, torso: LEAN }, hover = reachIn(FABLE_S, at, T1, 'torso', STAND_ARM, [SEALAT[0] + 14, SEALAT[1] - 20]),
+    const at = { _ghost: {}, torso: LEAN }, hover = reachIn(FABLE_S, at, T1, 'torso', STAND_ARM, [SEALAT[0] + 14, SEALAT[1] - 20]), wind = reachIn(FABLE_S, at, T1, 'torso', STAND_ARM, [SEALAT[0] + 46, SEALAT[1] - 74]),
       press = reachIn(FABLE_S, at, T1, 'torso', STAND_ARM, SEALAT), rest = { upperarm: 0, forearm: 0, hand: 0 };
     // she draws it out as she walks: a hand to her collar (203.1), and out on its cord by 203.5, carried low; at the column the
     // reach, a hover, the press on the end of the word, hold two, lift, and back to the collar
     const collar = { upperarm: -20, forearm: -155, hand: -20 }, carry = standReach(SH[0], SH[1], ...CARRY_FI, 1);
     K.draw = 203.1 - f; K.out = 203.5 - f; K.tuck = K.seal + 8 * f;
     const draw = PUPPET.snap([[0, rest], [K.draw, collar]], { inbetween: .7, overshoot: .05 });   // (her forearm is long: the in-between near her chin)
-    const arm = PUPPET.snap([[0, collar], [K.out, carry], [K.at, hover], [K.seal, press], [K.seal + 3 * f, hover], [K.tuck, collar], [K.tuck + 3 * f, rest]], { overshoot: .05 });
+    // the press (the other session's Fable: "press it, the thud; I should be seen to own it"): the seal brought to the corner, drawn back
+    // and up (the wind-up), then in, hard, on the end of the word; held two; lifted clear
+    const arm = PUPPET.snap([[0, collar], [K.out, carry], [K.at, hover], [K.seal - 3 * f, wind], [K.seal, press], [K.seal + 3 * f, hover], [K.tuck, collar], [K.tuck + 3 * f, rest]], { overshoot: .05 });
     K.arm = q => q < K.out - 1e-6 ? draw(q) : arm(q);
     K.lean = PUPPET.snap([[0, { torso: 0 }], [K.at - f, { torso: LEAN }], [K.tuck, { torso: 0 }]]);   // (she leans into the reach)
-    K.head = PUPPET.snap([[0, { head: 0 }], [K.at, { head: 5 }], [K.seal + 9 * f, { head: 2 }], [K.see, { head: 7 }]]);
+    K.head = PUPPET.snap([[0, { head: 0 }], [K.at, { head: 5 }], [K.seal, { head: 9 }], [K.seal + 9 * f, { head: 2 }], [K.see, { head: 7 }]]);   // (a nod into the press)
   }
   // her far arm carries the lantern, low at her hip and a little behind her (drawn behind the body: only the fist, the stick and
   // the light clear her silhouette); it swings a few degrees with the steps and settles when she stops
@@ -77,7 +80,8 @@
     const d = Math.floor((ts - K.card) * 12 + 1e-6), v = Math.min(1, Math.max(0, (d + 1) / 6)), e = v * v * (3 - 2 * v), off = (1 - e) * 1700;
     const [sx, sy, sw, sh] = SCREEN.rect;
     if (off < sw) {
-      X.save(); X.beginPath(); X.rect(sx + off, sy, sw, sh); X.clip(); X.translate(off, 0);
+      const ds = Math.floor((ts - K.seal) * 12 + 1e-6), shiver = ds === 0 ? 3 : ds === 1 ? -2 : 0;   // the thud: the card takes the stamp
+      X.save(); X.beginPath(); X.rect(sx + off, sy, sw, sh); X.clip(); X.translate(off + shiver, shiver ? 1 : 0);
       X.globalCompositeOperation = 'multiply'; X.fillStyle = 'rgb(236,228,214)'; X.fillRect(sx, sy, sw, sh);    // the card's paper over the vellum (a shade denser)
       let yy = 200; for (const ch of 'つづく') { inkVellum(ch, COLX - 50, yy + 100, ts, K.card, { font: 'mincho', size: 100, alpha: .9, col: 'rgb(30,24,22)' }); yy += 108; }
       // the seal (a rakkan), ~60% of a kana (Fable); there once her seal has lifted from it
@@ -133,16 +137,16 @@
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     if (ts >= K.cut) { X.fillStyle = '#000'; X.fillRect(0, 0, W, H); return; }   // a cut, never a fade: the lamp isn't dying (Fable)
     const dc = Math.min(1, Math.max(0, Math.floor((ts - K.doors) * 12 + 1e-6) / 12)), doors = 1 - dc * dc * (3 - 2 * dc);   // the book closes
-    // the camera: on the finale's last framing (the whole butai, doors shut), it walks in to the window as the doors open; at the
-    // end it draws back as the music box rings out
+    // the camera: from the whole butai (the finale's framing) it walks in to the window as the doors open; at the end it draws back
+    // as the music box rings out
     const i0 = Math.min(1, Math.max(0, (ts - S0) / (PUSH1 - S0))), e = Math.min(1, Math.max(0, (ts - 205.9) / 2.2));
     const cam = ts < 205.9 ? camLerp(CAM_WIDE, CAM_WINDOW, i0 * i0 * (3 - 2 * i0)) : camLerp(CAM_WINDOW, CAM_WIDE, e * e * (3 - 2 * e) * .7);
     const c = dc * dc * (3 - 2 * dc);
-    const o0 = Math.min(1, Math.max(0, (ts - S0) / (OPEN1 - S0))), opened = o0 * o0 * (3 - 2 * o0);   // the doors open on the clack (they were shut by the room)
-    // the light: on the clack the wood still has the finale's pink (Clawd's world, lit behind the shut doors); it goes out over four
-    // drawings as the doors part, onto the dark window and her light coming
-    const g0 = Math.min(1, Math.max(0, (ts - S0) / (4 * f))), out = 1 - g0 * g0 * (3 - 2 * g0), spill = [255, 150 + 72 * (1 - out), 176 + 39 * out].map(Math.round);
-    stage(ts, scene, { cam, doors: Math.min(doors, opened), doorLight: 1 - .72 * c, lit: Math.max(out, .3 + .7 * arrival(ts)), spill });
+    // the clack cuts to black for two drawings (Fable: "the kuroko moves in the dark; no frame may show me in the room and my
+    // light inside the window at once"); the picture returns with the doors already parting on the dark vellum, her glow at its edge
+    if (ts < S0 + 2 * f - 1e-6) { X.fillStyle = '#000'; X.fillRect(0, 0, W, H); return; }
+    const o0 = Math.min(1, Math.max(0, (ts - S0) / (OPEN1 - S0))), opened = o0 * o0 * (3 - 2 * o0);
+    stage(ts, scene, { cam, doors: Math.min(doors, opened), doorLight: 1 - .72 * c, lit: .3 + .7 * arrival(ts) });
     if (c > 0) {                                                       // closed, the lamp still on inside: it leaks at the arches
       const z = cam.zoom, T = (x, y) => [W / 2 + (x - cam.x) * z, H / 2 + (y - cam.y) * z];
       X.save(); X.globalCompositeOperation = 'lighter';
@@ -153,8 +157,8 @@
       [1335, 2505].forEach((ax, i) => { const [x, y] = T(ax, 826), r = 330 * z;              // dust settling in the leak
         dust(ts, (px, py) => c * lightPool(x, y, r, .6)(px, py), { seed: 9 + i, n: 26, rect: [x - r, y - r * .6, 2 * r, 1.2 * r], col: [255, 200, 130], alpha: 1.4 }); });
     }
-    // (no readers: Michael's rule, the audience lives inside the box. And no cushion in the room: she walked off with her light
-    // at the end of the finale, and the room is empty and dark)
+    // (no readers: Michael's rule, the audience lives inside the box. And no cushion in the room: her one zabuton is on the rail
+    // inside the window, where she left it at B8)
   };
   LOOPS.outro.len = S1 - S0;
 }
