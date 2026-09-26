@@ -55,7 +55,7 @@ const IDOLSTAGE = (() => {
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
     // the tear's match cut (Fable, via the paper session): through the white, the paper Clawd's buns sit at screen (1320, 440),
     // head ~100 px: the idol opens on that shape (buns and hairclip), held two drawings, then the camera eases back to the stage
-    [43.2, { cx: 466, cy: 92, z: .92, hold: 2 / 12 / BR }, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],
+    [43.2, { cx: 489, cy: 175, z: .92, hold: 2 / 12 / BR }, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],
     [45, WIDE, WIDE, room(RC.wide, RC.def)],                      // the room: the tear floods it with her light; in, arriving on the drop
     [46, MED(960, 380, 1.3), MED(960, 350, 1.45)],               // K2: the drop, on the downbeat: in close (the director: never a pull-back on the drop)
     [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
