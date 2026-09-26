@@ -159,10 +159,14 @@ async function PROLOGUE_INIT() {
 
   // P2: closer on her hands. She brings the last card down from the flies by its handle bar and sets it in the rack with the
   // others; lets go; its lamps die in three drawings. Behind, the show is a blur of its own colours.
-  const DOWN = P2 + 8 * f, LAND = DOWN + 4 * f, LET = LAND + 12 * f, OFF = LET;   // read it while it's still; lower; set; hold on (Fable: ~1 s); let go, and out
+  const DOWN = P2 + 8 * f, LAND = DOWN + 4 * f, LET = LAND + 12 * f, OFF = LET;
+  const SECT = [OFF + beat, OFF + 1.5 * beat, OFF + 2 * beat], SPOTOFF = OFF + 2.5 * beat;   // (after the lamps die: left, right, the centre; the spot last, before P3)   // read it while it's still; lower; set; hold on (Fable: ~1 s); let go, and out
   // she stoops to it (the body leans in about the hip and lowers) rather than swinging the one-piece arms far from the shoulder
   const POSE = { hi: { arm_near: -14, body: 0, dy: 0 }, land: { arm_near: 5, body: 10, dy: 105 } };
-  const hands = PUPPET.snap([[0, POSE.hi], [DOWN, { arm_near: -2, body: 6, dy: 60 }], [LAND, POSE.land], [LET, { arm_near: -3, body: 8, dy: 88 }]], { overshoot: .06 });
+  // (the stoop in steps of two drawings: she fills the frame here, so one big snap of her whole body read as a jump cut, v7)
+  const mixP = (a, b, u) => Object.fromEntries(Object.keys(a).map(k => [k, a[k] + (b[k] - a[k]) * u])), DN = { arm_near: -2, body: 6, dy: 60 };
+  const hands = PUPPET.snap([[0, POSE.hi], [DOWN - 6 * f, mixP(POSE.hi, DN, .25)], [DOWN - 4 * f, mixP(POSE.hi, DN, .5)], [DOWN - 2 * f, mixP(POSE.hi, DN, .75)], [DOWN, DN],
+    [DOWN + 2 * f, mixP(DN, POSE.land, .5)], [LAND, POSE.land], [LET, { arm_near: -3, body: 8, dy: 88 }]], { overshoot: .03 });
   const farP2 = PUPPET.snap(beats(24).map(k => [P2 + k * beat, { arm_far: -4 + (k % 2 ? 1.5 : -1.5), tf: k % 2 ? 1 : -1 }]));
   const T2 = { x: 60, y: 640, s: .9, origin: [950, 1010] }, GRIP = [1800, 800], CW = 600, CH = 184, BAR = 34, HOLD = 52;
   const fistAt = p => PRO.kuroko.world(p, T2).arm_near.transformPoint(new DOMPoint(...GRIP));
@@ -188,8 +192,16 @@ async function PROLOGUE_INIT() {
   }
   function P2shot(t) {
     X.fillStyle = '#060405'; X.fillRect(0, 0, W, H);
-    // the show beyond, far out of focus: its colours only
-    X.save(); X.translate(W - 900, -80); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.restore();
+    // the show beyond, far out of focus: its colours only. Once her card is set and its lamps die, the show ENDS (Fable, for the
+    // director's "the prologue idol reads as the lead"): its lights go down in sections on the beats, the followspot last
+    X.save(); X.translate(W - 900, -80); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.filter = 'none';
+    if (t >= SECT[0]) {
+      if (!PRO.mask) PRO.mask = mkCanvas(1100, 620);
+      const m = PRO.mask.getContext('2d'); m.globalCompositeOperation = 'source-over'; m.fillStyle = '#fff'; m.fillRect(0, 0, 1100, 620); m.fillStyle = '#0a0808';
+      [[0, 0, 380, 620], [720, 0, 380, 620], [380, 0, 340, 620]].forEach((r, i) => { if (t >= SECT[i]) m.fillRect(...r); });
+      if (t < SPOTOFF) { const g = m.createRadialGradient(560, 330, 40, 560, 330, 190); g.addColorStop(0, '#fff'); g.addColorStop(1, 'rgba(255,255,255,0)'); m.fillStyle = g; m.fillRect(300, 80, 520, 520); }   // the followspot on her
+      X.globalCompositeOperation = 'multiply'; X.filter = 'blur(36px)'; X.drawImage(PRO.mask, 0, 0); }
+    X.restore();
     haze(700, 380, 900, .26); worklight(380, 260, 620, .26); motes(t, 700, 380, 900, 380, 260, 620, 2);
     // the rack: the cards already used, leaning back, dead; the last one lands in front
     const L = fistAt(POSE.land), rx = L.x + HOLD + CW / 2, ry = L.y - BAR / 2;
@@ -217,7 +229,7 @@ async function PROLOGUE_INIT() {
   // P3: she kneels on her zabuton, the far song dying; the stage light on her edge dims with it
   function P3shot(t) {
     X.fillStyle = '#050304'; X.fillRect(0, 0, W, H);
-    const gain = 1 - .62 * Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - 7.45) / .6));   // the rim still alive at the clack
+    const gain = .62 * (1 - .45 * Math.min(1, Math.max(0, (Math.floor(t * 12) / 12 - 7.45) / .6)));   // the dark after the show (its lights went down in P2); the rim still alive at the clack
     const g = X.createRadialGradient(W + 200, 420, 60, W + 200, 420, 1500); g.addColorStop(0, rgba([190, 90, 105], .5 * gain)); g.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = g; X.fillRect(0, 0, W, H);
     haze(760, 480, 760, .22 * gain + .05); worklight(520, 330, 560, .26); motes(t, 760, 480, 760, 520, 330, 560, 3, .4 + .6 * gain);
     // the boards she kneels on, the far stage's spill raking across them from the right and a pool of work light round her:
