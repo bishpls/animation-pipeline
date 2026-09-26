@@ -39,7 +39,10 @@ const FABLESTAGE = (() => {
              dx: ROOM.stride * (k + Math.min(1, f * 1.4)), dy: -28 * Math.sin(Math.PI * Math.min(1, f * 1.4)) };
   }
   function room(X, t, T, o = {}) {
-    if (typeof FABLEROOM !== 'undefined' && FABLEROOM.R && FABLEROOM.R.meta) return FABLEROOM.room(X, t, T, o);   // the drawn set-down, turn and walk
+    // the room ending (Michael; o.P given): she stays in the room through the final chorus, lantern in hand. (Interim, until its
+    // drawings land: the holding drawing, still, until the walk-off at 200.6)
+    if (o.P) { if (t >= 200.6) return; t = Math.min(t, 178.1); if (!R.meta) return; }
+    else if (typeof FABLEROOM !== 'undefined' && FABLEROOM.R && FABLEROOM.R.meta) return FABLEROOM.room(X, t, T, o);   // the drawn set-down, turn and walk
     if (!R.meta) return;
     const st = roomState(t), [w, h] = R.meta.size, P = R.meta.points, dir = o.walkDir ?? 1;
     X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-P.feet[0], -P.feet[1]);
