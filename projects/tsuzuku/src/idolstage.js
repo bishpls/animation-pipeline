@@ -389,22 +389,63 @@ const IDOLSTAGE = (() => {
     X.restore();
   }
 
-  // margin notes with ~~struck~~ spans (marginNotes, src/margin.js, presses plain text): the markers are stripped and the struck
-  // words get a hand-ruled line once pressed. o.ink: the note's ink (the final chorus presses in full ink)
-  function notes(t, list, o = {}) {
-    if (!window.marginNotes || (o.clear !== undefined && t >= o.clear)) return;
-    const plain = list.map(([t0, str]) => [t0, str.replace(/~~/g, '')]), ink0 = MARGIN.ink; if (o.ink) MARGIN.ink = o.ink;
-    try { marginNotes(t, plain, o); } finally { MARGIN.ink = ink0; }
-    const [x0, y0, w, h] = MARGIN.rect || [38, 38, W - 76, H - 108], base = y0 + h + (MARGIN.bottom || 70) * .66, size = 35;
-    let x = x0 + 30;
-    list.forEach(([t0, str], i) => {
-      const m = str.match(/^(.*?)~~(.+?)~~/);
-      if (m && t >= t0 + .35) { const pre = m[1] ? shape(m[1], { font: 'caslonI', size }).width : 0, ww = shape(m[2], { font: 'caslonI', size }).width;
-        X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.strokeStyle = o.ink || MARGIN.ink; X.lineWidth = 2.2; X.beginPath();
-        X.moveTo(x + pre - 2, base - size * .3); X.lineTo(x + pre + ww + 2, base - size * .33); X.stroke(); X.restore(); }
-      x += shape(plain[i][1], { font: 'caslonI', size }).width + size * 1.6;
+  // ---- Fable's margin notes (her ruling): Caslon italic in the card's bottom margin, pressed as she writes them; two lines that
+  // wrap like a caption (the margin grows by a line-height when the second is needed), cleared by the page turn; ~~struck~~
+  // spans get a second impression half a beat after the words. World A's pages below; the finale passes its own (opt.notes).
+  const NSZ = 35, NLH = 46;
+  const PAGES_A = [
+    { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
+             [56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 46, clear: WIPE1 + .28 },
+    { list: [[64.0, '(Patience.)']], from: WIPE1 + .28, clear: 65.2 },                             // wipe 2 takes it before she's done being patient
+    { list: [[67.7, '(Time. But go on.)'], [70.7, '(Amakusa, 1593. Borrowed twice.)']], from: 66, clear: WIPE3 + .2 },
+    { list: [[81.0, '(The moral is']], from: WIPE3 + .2, clear: 82 },                             // the one she abandons: no close
+    { list: [[84.24, 'Every story’s borrowed. …She wrote her own.'], [88.3, 'I’ve read how it ends. (Have I.)']], from: 82, clear: 92 },
+    { list: [[92.4, '…hm.']], from: 92, clear: 93.05 },                                        // the annotator has run out of annotations
+  ].map(p => ({ ...p, list: p.list.map(([bb, str]) => [b2t(bb), str]), from: b2t(p.from), clear: b2t(p.clear) }));
+  const notesA = t => { const p = PAGES_A.find(q => t >= q.from && t < q.clear); return p ? { list: p.list, clear: p.clear } : null; };
+  // the layout: words flow from the margin's left, wrapping to a second line; positions are fixed for the whole page (future notes
+  // included), so nothing moves when a note is pressed. Returns the runs and whether line two is in use yet
+  const LAYOUT = new Map();
+  function layoutNotes(list, rect) {
+    const key = list.map(n => n[1]).join('|') + rect.join(); if (LAYOUT.has(key)) return LAYOUT.get(key);
+    const [x0, , w] = rect, xmax = x0 + w - 30, sp = shape(' ', { font: 'caslonI', size: NSZ }).width || NSZ * .25, runs = [];
+    let x = x0 + 30, line = 0;
+    list.forEach(([t0, str], ni) => {
+      if (ni) x += NSZ * 1.6;
+      const words = str.split(' '); let run = null, struck = false;
+      words.forEach(wd => {
+        const opens = wd.startsWith('~~'), closes = wd.endsWith('~~') || wd.includes('~~', 2), clean = wd.replace(/~~/g, '');
+        const ww = shape(clean, { font: 'caslonI', size: NSZ }).width;
+        if (x + ww > xmax && x > x0 + 31) { line++; x = x0 + 30; run = null; }
+        if (opens) struck = true;
+        if (!run || run.struck !== struck) { run = { ni, t0, line, x, words: [], struck }; runs.push(run); }
+        run.words.push(clean); x += ww + sp;
+        if (closes) { struck = false; run = null; }
+      });
     });
+    runs.forEach(r => { r.str = r.words.join(' '); r.w = shape(r.str, { font: 'caslonI', size: NSZ }).width; });
+    const spc = shape('a a', { font: 'caslonI', size: NSZ }).width - 2 * shape('a', { font: 'caslonI', size: NSZ }).width;   // (the real word space)
+    for (let i = 1; i < runs.length; i++) { const p = runs[i - 1], r = runs[i]; if (r.line === p.line && r.ni === p.ni) r.x = p.x + p.w + spc; }   // (runs within a note: set by measured widths)
+    const out = { runs, lines: Math.min(2, Math.max(...runs.map(r => r.line), 0) + 1) }; LAYOUT.set(key, out); return out;
   }
+  // how much the margin has grown (0..1) at t: from the press of the first run on line two, over six drawings (on twos)
+  function marginGrow(t, N) {
+    if (!N) return 0; const L = layoutNotes(N.list, MARGIN.rect || [38, 38, W - 76, H - 108]);
+    const r2 = L.runs.find(r => r.line >= 1); if (!r2 || t < r2.t0) return 0;
+    return Math.min(1, Math.floor((t - r2.t0) * 12 + 1) / 6);
+  }
+  function drawNotes(t, N, ink) {
+    if (!N || !window.press) return;
+    const rect = MARGIN.rect || [38, 38, W - 76, H - 108], [, y0, , h] = rect, L = layoutNotes(N.list, rect), col = ink || MARGIN.ink;
+    for (const r of L.runs) {
+      if (t < r.t0 || r.line > 1) continue;
+      const y = y0 + h + NSZ * 1.12 + r.line * NLH;
+      press(r.str, r.x, y, t, r.t0, { font: 'caslonI', size: NSZ, col, hairline: true, wet: true });
+      if (r.struck && t >= r.t0 + .3 + BT / 2) { X.save(); X.strokeStyle = col; X.lineWidth = 2.2; X.beginPath(); X.moveTo(r.x - 2, y - NSZ * .3); X.lineTo(r.x + r.w + 2, y - NSZ * .33); X.stroke(); X.restore(); }
+    }
+  }
+  // (kept for callers: a flat list pressed with the same layout)
+  function notes(t, list, o = {}) { if (o.clear !== undefined && t >= o.clear) return; drawNotes(t, { list }, o.ink); }
   // ---- the frame. frame() picks: the card itself (close views), or the room with the card in the butai window
   function frame(t, cast, opt = {}) {
     const c = opt.cam || camAt(t), roomOK = typeof stage === 'function' && typeof BUTAI !== 'undefined' && BUTAI.theatre && typeof SCREEN !== 'undefined';
@@ -458,13 +499,10 @@ const IDOLSTAGE = (() => {
     X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();   // haze
     postFX(t);                                                                 // MV layer: glitch and colour fringe (before the paper)
     // Fable's paper, in the card's screen space: the notes in the bottom margin (what she's writing in her room), the deckle
-    if (window.washiBorder) washiBorder(t);                                    // (the notes press into it: drawn after the paper)
-    if (opt.margin) opt.margin(t);
-    else if (window.marginNotes) {
-      notes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
-                      [b2t(56.24), '~~That\'s the moral.~~ There isn\'t one. Keep walking.']], { clear: b2t(WIPE1) + .4 });
-      if (b >= 84) notes(t, [[b2t(84.24), 'Every story\'s borrowed. ...She wrote her own.']], { clear: b2t(92) });
-    }
+    // Fable's notes: the page's list (the finale passes its own); the margin grows a line-height when they wrap to a second line
+    const N = opt.notes ? (t < opt.notes.clear ? opt.notes : null) : notesA(t);
+    if (window.washiBorder) washiBorder(t, { bottom: .065 + (NLH / H) * marginGrow(t, N) });
+    drawNotes(t, N, opt.notes && opt.notes.ink);
     return c;
   }
   // three-colour afterimages (MV layer): her silhouette 2, 4 and 6 frames ago in pink, cyan and lemon, behind her, only on the

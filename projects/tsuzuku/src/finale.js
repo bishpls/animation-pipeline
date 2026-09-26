@@ -96,8 +96,9 @@
   const TF = 199.07;                                                   // the hit on the dash ("and then-"): everything freezes
 
   // her lines in the margin, full ink (F4, F6); the margin empties on the hit (F8). F6 also on Clawd's side screens
-  const NOTES = [[189.11, 'And I’m made of “and then.”'], [193.39, '~~I’ve read how it ends.~~ I’d still like to see.']];
-  const margin = t => IDOLSTAGE.notes(t, NOTES, { ink: 'rgb(22,22,26)', clear: TF });
+  // (Fable: in the finale her lines press as she sings them, a bar behind Clawd's; three lines, full ink, then empty at the hit)
+  const NOTES = { list: [[b2t(130.2), '\u2026to be continued.'], [189.11, 'And I\u2019m made of \u201cand then.\u201d'], [193.39, '~~I\u2019ve read how it ends.~~ I\u2019d still like to see.']],
+                  ink: 'rgb(22,22,26)', clear: TF };
   const side = t => (t >= b2t(137) && t < b2t(139) ? ['I’D', 'STILL', 'LIKE', 'TO SEE'] : null);
 
   // the room figure: standing Fable (the lantern, the set-down, the walk out), at her place beside the butai
@@ -126,7 +127,7 @@
       mascotTroupe(tt, crabs, ROWS);
       FABLESTAGE.stage(X, tt, FW, P, { enter: 2000 });                 // (upstage: behind Clawd; she hops in from beyond the frame's edge)
       RIGS.clawd.draw(X, tt, P, clawdT(tt, W2S, cam));
-    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, margin, roomFable: roomFable(t), roomAfter: roomAfter(t),
+    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, roomFable: roomFable(t), roomAfter: roomAfter(t),
          clawdAt: (t2, W2S, cam, g) => RIGS.clawd.draw(g || X, t2, P, clawdT(t2, W2S, cam)) });
   };
   LOOPS.finale.len = 203;

@@ -82,8 +82,7 @@ const FABLESEAT = (() => {
       // (67-68 and 70-70.7: the over-the-shoulder page turns; her room drawing isn't on screen)
       const s1 = snip(b, [68.25, 68.5], 68.85); if (b >= 68.17 && s1) { pose = s1; nod = 0; tilt = qb < .5 ? .6 : -.6; }
       const s2 = snip(b, [70.77, 71.02, 71.27], 71.5); if (b >= 70.7 && s2) { pose = s2; lean = Math.floor(beat) % 2 ? .5 : -.5; tilt = -lean * 1.2; nod = qb < .3 ? .6 : 0; }
-      if (b >= 80.9 && b < 81.5) { pose = 'ear'; tilt = .5; }
-      if (b >= 72 && !(b >= 80.9 && b < 81.5)) { sway = 0; tilt = .25 * Math.round(2 * Math.sin(2 * Math.PI * b / 4)) / 2; }   // watching, following her
+      if (b >= 72) { sway = 0; tilt = .25 * Math.round(2 * Math.sin(2 * Math.PI * b / 4)) / 2; }   // watching, following her
     }
     // chorus 2, joining: she claps with the hall on the backbeat (half, CLAP, half, open), bobbing on the beat; 86: pincers with
     // Clawd's claws, snipping on every beat; 87: back to clapping, now with the seated sideways shift and the head going with it
@@ -96,6 +95,9 @@ const FABLESEAT = (() => {
       if (b >= 84.24 - .55 && b < 84.24 + .8) { pose = 'write'; lean = 0; tilt = 0; }
     }
     if (b >= 90) { pose = 'rest'; nod = 0; sway = 0; tilt = 0; lean = 0; }       // the lights die: still, the lantern lit
+    // her later notes (her ruling on Michael's "more of those"): she writes each one, over whatever else she's doing; the abandoned
+    // one at 81 is written on her own call (the pen lifts, unfinished); "...hm." at 92.4, alone, in the dark
+    for (const p of [81.0, 88.3, 92.4]) if (b >= p - .4 && b < p + .6) { pose = 'write'; lean = 0; tilt = 0; nod = b >= p - .05 && b < p + .25 ? .6 : 0; }
     const page = typeof IDOLSTAGE !== 'undefined' ? IDOLSTAGE.screenPage(t) : null;   // what her book shows: the screen's page
     return { pose, nod, lean, sway, tilt, breath, page, t: tq, b };
   }
