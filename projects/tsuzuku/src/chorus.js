@@ -102,7 +102,8 @@
     IDOLSTAGE.frame(t, (W2S, c) => {
       mascotTroupe(t, crabs, ROWS);
       RIGS.clawd.draw(X, t, P, clawdT(t, W2S, c));
-    }, { locateHand: tt => RIGS.clawd.locate(tt, P, worldT(tt), 'hand_L'), clawdX: worldT(t).x, footWorld });
+    }, { locateHand: tt => RIGS.clawd.locate(tt, P, worldT(tt), 'hand_L'), clawdX: worldT(t).x, footWorld,
+         clawdAt: (tt, W2S, c, g) => RIGS.clawd.draw(g || X, tt, P, clawdT(tt, W2S, c)) });   // (the MV layer's afterimages: her at an earlier t, into g)
   };
   LOOPS.chorus.len = 220;
   // (review) Clawd alone, full body, a fixed camera on a plain ground: for judging moves the stage camera leaves (the curtsy)
