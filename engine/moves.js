@@ -18,6 +18,20 @@ const MOVES = (() => {
   const alt = (b, every = 1) => (Math.floor(b / every) % 2 ? -1 : 1);            // +1, -1, +1 ... per period
   const arm = (side, a, e, h) => side > 0 ? { armR: a, elbowR: e, ...(h ? { handR: h } : {}) } : { armL: a, elbowL: e, ...(h ? { handL: h } : {}) };
 
+  // foot patterns for M.feet (s = one step, 240 base px: Michael's length; never longer)
+  const s1 = 240, FEET = {
+    // in place: a small step-tap on every "and", the weight over the other foot (the feet are never still in a groove)
+    march: { len: 2, keys: [[0, 0, 0, .3, ''], [.25, 0, 0, .45, 'L'], [.75, 0, 0, -.3, ''], [1.25, 0, 0, -.45, 'R'], [1.75, 0, 0, .3, ''], [2, 0, 0, .3, '']] },
+    // side-close-side (1 & 2), the free foot closes on 3, hold 4; then back the other way (8 beats; travels two steps and home)
+    chasse: { len: 8, keys: [[0, 0, 0, 0, ''], [1, 0, s1, .8, ''], [1.5, s1, s1, 0, ''], [2, s1, 2 * s1, .8, ''], [3, 2 * s1, 2 * s1, .1, ''], [4, 2 * s1, 2 * s1, -.2, ''],
+                              [5, s1, 2 * s1, -.8, ''], [5.5, s1, s1, 0, ''], [6, 0, s1, -.8, ''], [7, 0, 0, -.1, ''], [8, 0, 0, 0, '']] },
+    // out, out, in, in (a V-step front on): R out on 1, L out on 2, R in on 3, L in on 4, the weight going with each
+    vstep: { len: 4, keys: [[0, 0, 0, 0, ''], [1, 0, .62 * s1, .7, ''], [2, -.62 * s1, .62 * s1, -.5, ''], [3, -.62 * s1, 0, -.7, ''], [4, 0, 0, 0, '']] },
+    // step-touch that travels: step side on 1, touch the other in on 2 (lifted), four times one way, four back (16 beats)
+    travel: { len: 16, keys: [[0, 0, 0, 0, ''], [1, 0, s1, .8, ''], [2, s1, s1, 0, ''], [3, s1, 2 * s1, .8, ''], [4, 2 * s1, 2 * s1, 0, ''], [5, 2 * s1, 3 * s1, .8, ''], [6, 3 * s1, 3 * s1, 0, ''],
+                              [7, 3 * s1, 4 * s1, .8, ''], [8, 4 * s1, 4 * s1, 0, ''], [9, 3 * s1, 4 * s1, -.8, ''], [10, 3 * s1, 3 * s1, 0, ''], [11, 2 * s1, 3 * s1, -.8, ''],
+                              [12, 2 * s1, 2 * s1, 0, ''], [13, s1, 2 * s1, -.8, ''], [14, s1, s1, 0, ''], [15, 0, s1, -.8, ''], [16, 0, 0, 0, '']] },
+  };
   // Moves set TARGETS (MOVES.follow turns them into physical motion). Legs keep the beat; arms phrase on the half bar.
   const M = {
     idle: () => ({}),
@@ -35,6 +49,23 @@ const MOVES = (() => {
       const out = S(PI * ph), step = (o.step ?? 120) * out, lift = (o.lift ?? 45) * (ph < .5 ? 1 : .6) * Math.abs(S(2 * PI * ph));   // (lifted home too: never dragged)
       const f = side > 0 ? { footRX: step, footRY: lift } : { footLX: -step, footLY: lift };
       return { ...f, hipX: 1.1 * side * out, bodyZ: 2 * side * out, hipY: (o.dip ?? 14) * pulse(b % 1, .5) };
+    },
+    // FOOT PATTERNS (the director's note on v5: "the dance isn't a dance... all the choreography is arm poses"): the feet step on
+    // the counts through the grooves. Each pattern is keys [beat, dL, dR, weight, lift], dL/dR = each foot's displacement from its
+    // rest place in base px (x o.step/240), weight -1..1 (over the image-left foot .. the image-right one), lift = a foot that lifts
+    // in place during the segment from this key (a tap); a foot whose place changes lifts on its way (never dragged). The root is
+    // the midpoint of the feet, so a planted foot never moves in the world. Patterns are cycles that end where they begin (feet
+    // together at o.root), so moves crossfade with the feet together. o.side -1 mirrors.
+    feet: (b, o) => {
+      const P = FEET[o.pattern || 'march'], k0 = (o.step ?? 240) / 240, side = o.side ?? 1, ph = ((b % P.len) + P.len) % P.len;
+      let i = 0; while (i + 1 < P.keys.length && P.keys[i + 1][0] <= ph) i++;
+      const A = P.keys[i], B = P.keys[Math.min(i + 1, P.keys.length - 1)], u = B[0] > A[0] ? (ph - A[0]) / (B[0] - A[0]) : 0, e = ease(u);
+      let dL = (A[1] + (B[1] - A[1]) * e) * k0, dR = (A[2] + (B[2] - A[2]) * e) * k0, w = A[3] + (B[3] - A[3]) * e;
+      const hl = o.lift ?? 34, arc = S(PI * u);
+      let lL = (B[1] !== A[1] || A[4] === 'L' ? hl * arc * (A[4] === 'L' ? .7 : 1) : 0), lR = (B[2] !== A[2] || A[4] === 'R' ? hl * arc * (A[4] === 'R' ? .7 : 1) : 0);
+      if (side < 0) { [dL, dR] = [-dR, -dL]; [lL, lR] = [lR, lL]; w = -w; }
+      const root = (dL + dR) / 2;
+      return { rootX: (o.root ?? 0) + root, footLX: dL - root, footRX: dR - root, footLY: lL, footRY: lR, hipX: .8 * w, bodyZ: 1.8 * w };
     },
     // the sideways step (Fable's exception): each step travels in the last third of a period and LANDS on its downbeat, weight
     // low (a dip), feet flat; the other foot closes mid-period, lifted (never dragged), and the root travels with it. rootX (base

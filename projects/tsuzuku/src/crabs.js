@@ -73,6 +73,6 @@ const MASCOT_HATS = ['bow', 'headband', 'crown', 'cap', 'party', 'beret', 'hardh
 function mascotTroupe(t, P, rows) {
   for (const r of rows) r.xs.forEach((x, i) => {
     const d = Math.abs(i - (r.xs.length - 1) / 2), lag = d * (r.lag ?? .05), m = P(t - lag, i, r) || {};
-    mascot(x, r.y, r.s, { seed: 20 + i * 7 + (r.seed || 0), hat: MASCOT_HATS[(i + (r.seed || 0)) % MASCOT_HATS.length], ...m });
+    mascot(x + (m.dx || 0), r.y + (m.dy || 0), r.s, { seed: 20 + i * 7 + (r.seed || 0), hat: MASCOT_HATS[(i + (r.seed || 0)) % MASCOT_HATS.length], ...m });   // (dx, dy: a formation change)
   });
 }

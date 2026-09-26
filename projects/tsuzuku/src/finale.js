@@ -11,15 +11,23 @@
 //   node engine/render.mjs projects/tsuzuku --loop=finale --clip=177.8:202.59
 {
   const BAR = 60 / 170 * 4, beat = BAR / 4, b2t = b => b * BAR;
+  // the feet land on the DRUMS, not the grid: the kicks sit ~50 ms behind the 170 BPM grid (MOTION.md), so the legs track is
+  // shifted by that (the sideways step 'lands on the downbeat' as the audience hears it)
+  const onDrums = list => list.map(([b, n, o]) => [b + .05 / BAR, n, o]);
   const choreo = () => MOVES.choreo({ bpm: 170, t0: 0 }, {
-    legs: [
+    legs: onDrums([
       [124, 'idle'], [127, 'groove', { amp: 6 }],
-      [129, 'bounce'], [131, 'groove'], [133.9, 'bounce', { amp: 12 }],
-      // "Sideways, sideways, that's the way we go!": the fable's step, landing each downbeat, weight low, feet flat (she steps too)
-      // (each starts closed and its lead foot steps out to LAND on the downbeat, as in world A: a step already out slid into place)
-      [134.835, 'sideStep', { dir: -1, every: 1, steps: 2, lead: .66 }], [137, 'groove', { root: -480 }],
-      [138.835, 'sideStep', { dir: 1, every: 1, steps: 2, root0: -480, lead: .66 }], [141, 'idle'],
-    ],
+      // (feet on the counts, as in world A: the director's note on v5)
+      [129, 'feet', { pattern: 'chasse' }],                                         // To be continued! (Tsuzuku!) x2
+      [131, 'feet', { pattern: 'vstep' }],                                          // Don't you dare close the book on me! I'm made of "why?"!
+      [133, 'feet', { pattern: 'march' }],                                          // (So-re-ka-ra?!)
+      // "Sideways, sideways, that's the way we go!": the fable's step, landing each downbeat, weight low, feet flat (Fable steps too,
+      // in her room). Four steps, one on each beat, so the root travels (each starts closed; its lead steps out to LAND on the beat)
+      [134.835, 'sideStep', { dir: -1, every: 1, steps: 8, lead: .66 }],           // (eight steps across the stage, one on each beat)
+      [137, 'feet', { pattern: 'vstep', root: -1920 }],                              // Turn the page, I want to see!
+      [138.835, 'sideStep', { dir: 1, every: 1, steps: 8, root0: -1920, lead: .66 }], // To be continued, and then, and then, and then-: home by 140.75
+      [141, 'idle'],                                                                  // (the hit: frozen)
+    ]),
     arms: [
       [124, 'idle'], [127.5, 'rise'],                                   // the build: rising with the power-up
       [129, 'reach', { side: 1 }], [129.86, 'armPump', { fade: .3 }],  // To be continued! (Tsuzuku!)
@@ -130,7 +138,7 @@
     const tt = Math.min(t, TF), c = IDOLSTAGE.camFrom(SHOTS, t, HITS, FIN);         // (the room is the frame throughout: Fable outside the box)
     IDOLSTAGE.OVR.side = side;
     IDOLSTAGE.frame(tt, (W2S, cam) => {
-      mascotTroupe(tt, crabs, ROWS);
+      if (cam.z <= 1.3) mascotTroupe(tt, crabs, ROWS);                       // (in close shots only a hat's pompom would peek in: a lone dot)
       RIGS.clawd.draw(X, tt, P, clawdT(tt, W2S, cam));
     }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, roomFable: roomFable(t), roomAfter: roomAfter(t), doors: doorsAt(t),
          clawdAt: (t2, W2S, cam, g) => RIGS.clawd.draw(g || X, t2, P, clawdT(t2, W2S, cam)) });

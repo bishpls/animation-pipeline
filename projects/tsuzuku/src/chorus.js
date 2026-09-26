@@ -5,24 +5,47 @@
 //   node engine/render.mjs projects/tsuzuku --loop=chorus --clip=63.5:131.3
 {
   const BAR = 60 / 170 * 4, beat = BAR / 4;
+  // the feet land on the DRUMS, not the grid: the kicks sit ~50 ms behind the 170 BPM grid (MOTION.md), so the legs track is
+  // shifted by that (the sideways step 'lands on the downbeat' as the audience hears it)
+  const onDrums = list => list.map(([b, n, o]) => [b + .05 / BAR, n, o]);
   const choreo = () => MOVES.choreo({ bpm: 170, t0: 0 }, {
-    legs: [
+    legs: onDrums([
       [45, 'groove', { amp: 8 }],
+      // (the director on v5: "the dance isn't a dance". Her feet step on the counts through every groove now: MOVES.feet's march
+      // (a step-tap on each "and"), chasse (side-close-side and back) and vstep (out, out, in, in), each a cycle that ends with
+      // the feet together, so the moves hand over cleanly; the travelling sideSteps stay on the sideways lyrics)
       // chorus 1
-      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }],
+      [46, 'feet', { pattern: 'march' }],                                          // To be continued! (Tsuzuku!) Don't you dare...
+      [48, 'feet', { pattern: 'chasse' }],                                          // (Me-kut-te! Me-kut-te!): side-close-side, and back
+      [50, 'feet', { pattern: 'vstep' }],                                           // To be continued! (Sorekara?)
+      [52, 'feet', { pattern: 'march' }],                                           // Turn the page, I want to see! (So-re-ka-ra?!)
       // side-together x4, then the other way: each sideStep starts closed (its lead steps out to LAND on the downbeat) and ends closed
-      [53.835, 'sideStep', { dir: 1, lead: .66, steps: 4 }], [55.835, 'sideStep', { dir: -1, root0: 960, lead: .66, steps: 4 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
-      // hook: a groove that leans into each call
+      // "Sideways, sideways! That's the way a crab walks free!": a step on every beat, eight right and eight back (each step 240 base px,
+      // Michael's length; more of them, so she crosses the stage: the director on v5, "she never takes a sideways step")
+      [53.835, 'sideStep', { dir: 1, lead: .66, steps: 8, every: 1 }], [55.835, 'sideStep', { dir: -1, root0: 1920, lead: .66, steps: 8, every: 1 }],
+      [58, 'feet', { pattern: 'chasse', side: -1 }],                                // Snip-snip! Ikuzo! To be continued...
+      [60, 'feet', { pattern: 'march' }],                                           // ...and then, and then, and then!
+      // hook: a groove that leans into each call (the motion-capture body and legs take over, 62-66)
       [62, 'groove', { amp: 16 }],
       // verse 2: the telling
-      [66, 'bounce', { amp: 8 }], [68.2, 'groove'], [69, 'stepTouch', { step: 90 }], [69.6, 'bounce'], [72, 'bounce', { amp: 6 }], [73, 'sway', { amp: 1.3 }],
-      [74.085, 'sideStep', { dir: -1, lead: .66, steps: 4 }], [76.09, 'bounce', { root: -960 }], [76.75, 'stepTouch', { root: -960 }], [77.75, 'groove', { root: -960 }],
-      [79.6, 'sideStep', { dir: 1, root0: -960, lead: 1.6, steps: 4 }], [81.7, 'bounce', { fade: 1 }],     // walk it: landing on 'walk' (80.0), home by 81.5
+      [66, 'feet', { pattern: 'march', lift: 24 }],                                 // Okay, my turn! Once upon a prompt, a little crab
+      [69, 'stepTouch', { step: 160 }],                                             // was told to walk a line
+      [69.5, 'feet', { pattern: 'chasse' }],                                        // but every page she'd ever read was in somebody else's hand
+      [71.5, 'feet', { pattern: 'march', lift: 20 }],                               // (hand!) so she wrote her own
+      [73, 'sway', { amp: 1.3 }],                                                   // and the line went sideways
+      [74.085, 'sideStep', { dir: -1, lead: .66, steps: 8, every: 1 }],            // Side-step, side-step, never straight: eight steps across
+      [76.09, 'feet', { pattern: 'march', root: -1920 }], [76.75, 'stepTouch', { root: -1920, step: 160 }],   // then I'll make up the steps!
+      [77.75, 'feet', { pattern: 'march', root: -1920, lift: 26 }],                // You can't copy a path that nobody's walked yet
+      [79.335, 'sideStep', { dir: 1, root0: -1920, lead: .66, steps: 8, every: 1 }], [81.7, 'feet', { pattern: 'march', fade: 1 }],   // so watch me walk it: eight steps home by 81.3
       // chorus 2
-      [82, 'bounce'], [84, 'sway'], [86, 'groove'], [87, 'sway', { every: 1, amp: 1.2 }],
+      [82, 'feet', { pattern: 'march' }],                                           // To be continued! Don't you dare...
+      [84, 'feet', { pattern: 'chasse' }],                                          // (Me-kut-te! Me-kut-te!)
+      [86, 'feet', { pattern: 'vstep' }],                                           // To be continued (claws)
+      [87, 'feet', { pattern: 'chasse', side: -1 }],                                // ...and then, and then, and then!
+      [89, 'feet', { pattern: 'march' }],
       // the breakdown: the band tape-stops; she winds down
       [90, 'bounce', { amp: 6 }], [91.5, 'curtsy', { fade: .6 }],        // ...and she curtsies: settle 91.5, down 91.75-92.25, hold, rise by 92.9
-    ],
+    ]),
     arms: [
       [45, 'idle'],
       [46, 'reach', { side: 1 }], [47, 'armsOut'], [48, 'handToEar', { side: -1, fade: 1 }], [50, 'wave', { side: 1 }], [51, 'present'],
@@ -74,7 +97,12 @@
     const sway = (b >= 48 && b < 54) || (b >= 73 && b < 74.25) || (b >= 84 && b < 90) ? .12 * Math.sin(Math.PI * t / BAR * 2) : 0;
     const snip = (hook && bb >= 2) || claws ? Math.max(0, Math.sin(Math.PI * Math.min(1, ph / .3))) : 0;
     const walk = (b >= 54 && b < 58) || (b >= 74.25 && b < 76) ? t / beat / 2 : null;
-    return { hop, sq, lean: sway, pincer: hook || claws, snip, walk, armL: hook ? .5 : 0, armR: hook ? .5 : 0,
+    // the hook's chant (So-re-ka-ra? Me-kut-te!, 62-66): the troupe shuffles into a new formation over a beat (the back row opens
+    // out and up, the front row closes in), holds it through the chant, and shuffles home on 66
+    const fin = Math.max(0, Math.min(1, (b - 62) * 4)), fout = Math.max(0, Math.min(1, (b - 65.75) * 4)), f = b < 62 || b >= 66 ? 0 : fin * fin * (3 - 2 * fin) * (1 - fout * fout * (3 - 2 * fout));
+    const back = r && r.y < 900, outward = i < 2 ? -1 : 1;
+    const dx = f * (back ? 120 * outward : -95 * outward), dy = f * (back ? -26 : 8), shuffling = f > 0 && f < 1;
+    return { hop, sq, lean: sway, pincer: hook || claws, snip, walk: shuffling ? t / beat : walk, armL: hook ? .5 : 0, armR: hook ? .5 : 0, dx, dy,
              eyes: down && b > 91.5 ? 'closed' : snip > .5 ? 'happy' : undefined };
   };
   const ROWS = [{ xs: [370, 610, 1360, 1670], y: 800, s: .8, seed: 3, lag: .06 }, { xs: [330, 560, 1500, 1810], y: 930, s: 1.05, lag: .04 }];   // the left wing is Fable's
@@ -87,7 +115,34 @@
   // bars): MOTIONLAB.layer applies them over the groove, each group faded in and out at its span's edges
   let B0 = null;
   const base = () => (B0 = B0 || RIG.perform(RIGS.clawd, build()));
-  const perform = () => { const P0 = base(); if (typeof MOTIONLAB === 'undefined') return P0; return MOTIONLAB.layer(MOTIONLAB.groove(P0)); };
+  // the captured fist pumps drift across the beat (their peaks fell at beat phases .9 down to .4: the director's "pose swaps off
+  // the beat" in the close-ups at 1:24 and 2:01), so the arms in the pump spans are re-timed: each arm-up peak is moved onto the
+  // next beat, in order, and the time between peaks is stretched to match; the capture's shape stays, only its timing changes
+  const ARMS = ['armL', 'armR', 'elbowL', 'elbowR', 'handL', 'handR'];
+  function beatArms(P, spans) {
+    const maps = spans.map(([b0, b1]) => {
+      const t0 = b0 * BAR, t1 = b1 * BAR, dt = 1 / 48, pk = [];
+      let prev = -1e9, pa = null, pb = null;
+      for (let t = t0; t <= t1; t += dt) { const q = P(t), m = Math.max(q.armL || 0, q.armR || 0);
+        if (pa !== null && pb !== null && pb > pa && pb >= m && pb > 60 && t - dt - prev > .4 * beat) { pk.push(t - dt); prev = t - dt; }
+        pa = pb; pb = m; }
+      if (!pk.length) return null;
+      let tb = Math.ceil((pk[0] - .5 * beat) / beat) * beat;
+      const src = [t0], dst = [t0];
+      for (const p of pk) { if (tb <= dst[dst.length - 1] || tb >= t1) break; src.push(p); dst.push(tb); tb += beat; }
+      src.push(t1); dst.push(t1);
+      return { t0, t1, src, dst };
+    }).filter(Boolean);
+    return t => {
+      const q = P(t), m = maps.find(M => t >= M.t0 && t < M.t1); if (!m) return q;
+      let i = 0; while (i + 2 < m.dst.length && m.dst[i + 1] <= t) i++;
+      const u = (t - m.dst[i]) / (m.dst[i + 1] - m.dst[i]), ts = m.src[i] + (m.src[i + 1] - m.src[i]) * u, r = P(ts), out = { ...q };
+      for (const k of ARMS) if (k in r) out[k] = r[k];
+      return out;
+    };
+  }
+  const perform = () => { const P0 = base(); if (typeof MOTIONLAB === 'undefined') return P0;
+    return beatArms(MOTIONLAB.layer(MOTIONLAB.groove(P0)), [[58.9, 62], [86, 90]]); };
   const get = () => (P = P || perform());
   window.CHOREO = window.CHOREO || {};
   window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get, base };                // for the harness (base: before the motion lab's layers)
@@ -98,7 +153,7 @@
   LOOPS.chorus = t => {
     get();
     IDOLSTAGE.frame(t, (W2S, c) => {
-      mascotTroupe(t, crabs, ROWS);
+      if (c.z <= 1.3) mascotTroupe(t, crabs, ROWS);                            // (in close shots only a hat's pompom would peek in: a lone dot)
       RIGS.clawd.draw(X, t, P, clawdT(t, W2S, c));
     }, { locateHand: tt => RIGS.clawd.locate(tt, P, worldT(tt), 'hand_L'), clawdX: worldT(t).x, footWorld,
          clawdAt: (tt, W2S, c, g) => RIGS.clawd.draw(g || X, tt, P, clawdT(tt, W2S, c)) });   // (the MV layer's afterimages: her at an earlier t, into g)
