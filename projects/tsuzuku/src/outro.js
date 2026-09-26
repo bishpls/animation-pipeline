@@ -9,7 +9,7 @@
 // The music box rings out; the butai's doors swing shut on her light.
 {
   const S0 = 202.59, S1 = 209.65, f = 1 / 12, FLOOR = 962, SHU = '#D93A2E', COLX = 1290, SEALAT = [1293, 556], SEALW = 62, CLAWDX = 960;   // (the rakkan beneath く: from the column's right her arm reaches it without crossing the word)
-  const STOP = 1470, STRIDE = 240, LEAN = 6, TS0 = { x: STOP, y: FLOOR, s: .22, origin: [1100, 3700], flip: -1 }, BEAT = 60 / 170 * 2;   // facing left, to the column's right
+  const STOP = 1470, STRIDE = 240, LEAN = 6, TS0 = { x: STOP, y: FLOOR, s: .22, origin: [1100, 3682], flip: -1 }, BEAT = 60 / 170 * 2;   // facing left, to the column's right
   const OPEN1 = 203.0, PUSH1 = 203.42, STEPS = [203.0, 203.35, 203.7], CARD = 203.5, LSC = 1.4;
   const FI = STAND_ARM.FI, SH = STAND_ARM.SH;
   const COLLAR = [1075, 800], CARRY_FI = [1650, 1900], CORD = 2.6;   // (torso master px: the cord's exit; the fist carried low in front)

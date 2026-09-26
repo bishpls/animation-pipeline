@@ -185,7 +185,8 @@
   // lantern lit in her hand, her face lit from below (C2's picture in silhouette; the prologue's kuroko from the front).
   {
     const S0 = 166.0, S1 = 177.8, B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
-    const X0 = 1060, BOOKX = 950, TS0 = { x: X0, y: FLOOR, s: .2, origin: [1100, 3700] };   // (the lamp and the book at her feet, as the ink stand-up left them)
+    const X0 = 1060, BOOKX = 950, TS0 = { x: X0, y: FLOOR, s: .2, origin: [1100, 3682] };   // (3682: the geta's sole, 18 master px above the puppet's reference line: on the rail, as B7 leaves her)
+      // (the lamp and the book at her feet, as the ink stand-up left them)
     // Michael: stop well short of Clawd (her bow was folding over her), and ease every bow and reach over several drawings (one
     // drawing between upright and bowed was far too jerky). So: five steps to a stop a lean's length from her; bow to set the
     // lamp down between them; still bent, the hand onto her head; "Sorekara?" lifts it back to the lamp, and she goes.
