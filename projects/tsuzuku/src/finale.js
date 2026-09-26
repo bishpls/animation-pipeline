@@ -16,8 +16,9 @@
       [124, 'idle'], [127, 'groove', { amp: 6 }],
       [129, 'bounce'], [131, 'groove'], [133.9, 'bounce', { amp: 12 }],
       // "Sideways, sideways, that's the way we go!": the fable's step, landing each downbeat, weight low, feet flat (she steps too)
-      [135, 'sideStep', { dir: -1, every: 1, steps: 2 }], [137, 'groove', { root: -480 }],
-      [138.87, 'bounce', { root: -480 }], [139, 'sideStep', { dir: 1, every: 1, steps: 2, root0: -480 }], [141, 'idle'],
+      // (each starts closed and its lead foot steps out to LAND on the downbeat, as in world A: a step already out slid into place)
+      [134.835, 'sideStep', { dir: -1, every: 1, steps: 2, lead: .66 }], [137, 'groove', { root: -480 }],
+      [138.835, 'sideStep', { dir: 1, every: 1, steps: 2, root0: -480, lead: .66 }], [141, 'idle'],
     ],
     arms: [
       [124, 'idle'], [127.5, 'rise'],                                   // the build: rising with the power-up
