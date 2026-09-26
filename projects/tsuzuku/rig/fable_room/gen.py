@@ -165,6 +165,151 @@ JOBS['rise2'] = ([mine('rise'), ref('empty')],
     "they are in image 1. Flat pure green (#00FF00) background, nothing else in the frame. No green on the character. No shadow "
     "on the ground. " + LIGHT_L)
 
+# ================================================================================================================ the room ending
+# (Michael + Fable: she stays in the room through the final chorus, lantern in hand, watching the window.) Every drawing is an edit
+# of the hold drawing; build.py pastes back only what changed, so the lantern arm (hold's far arm, forward, the lantern hanging at
+# the hip) is the same pixels in every drawing: "the lantern hand holds still throughout"
+HOLD = ref('base_room')
+KEEP = ("Keep EVERYTHING else exactly as in image 1, pixel for pixel where possible: her far arm held forward with the short "
+        "stick and the lit paper lantern hanging from it (same place, same size), her face, the jacket, the skirt, her feet and "
+        "geta, the purple floor cushion, the lighting (warm amber light from the lantern on her front, a cool blue rim on her "
+        "back), the scale and the position on the canvas. Flat pure green (#00FF00) background, nothing else in the frame. No green "
+        "on the character. No shadow on the ground. ")
+NEAR = "her near arm (the one nearest to us, hanging relaxed at her side in image 1)"
+JOBS['e_down'] = ([HOLD, mine('ref_canon_side_back')],
+    "Image 1 is the girl standing in profile facing left, hood up, holding a lit paper lantern on a short stick. Image 2 is her "
+    "character sheet (side view and back view, hood down). Redraw image 1 with her hood DOWN: the hood has fallen back and lies "
+    "soft and empty on her shoulders and upper back, bunched at the nape of her neck; her head is uncovered, as in image 2: dark "
+    "indigo hair with straight-cut bangs and straight side locks, the sides gathered back half-up and tied at the back of her head "
+    "with the indigo-teal ribbon in a small bow, its two long tails hanging straight down her back; the rest of the long straight "
+    "hair falls down her back to the waist, over the fallen hood. The same face in profile, the same calm expression, eyes looking "
+    "left. " + KEEP + DESIGN)
+JOBS['e_push1'] = ([HOLD],
+    "Edit image 1. Change ONLY " + NEAR + ": she raises that hand to her head and takes hold of the front edge of her hood just "
+    "above her forehead, fingertips curled over the rim, about to push the hood back; her elbow is raised forward and up, and the "
+    "wide sleeve has slid down her forearm toward the elbow, showing her wrist. The hood is still up. " + KEEP + DESIGN)
+JOBS['e_push2'] = ([HOLD],
+    "Edit image 1. Change ONLY " + NEAR + " and her hood: with that hand she pushes her hood back off her head. The hood is halfway "
+    "off, sliding back: its front rim is now at the top of her head, behind the crown, and her hand is on top of her head pushing "
+    "it back, elbow raised. Her dark indigo hair with straight-cut bangs is uncovered at the forehead and the top of her head; the "
+    "hood's fabric bunches behind her head. " + KEEP + DESIGN)
+JOBS['e_wipe1'] = ([HOLD],
+    "Edit image 1. Change ONLY " + NEAR + ": she lifts that hand in front of her body to chest height, forearm level and pointing "
+    "forward (to the left of the picture), the elbow bent and close to her side, the hand open and flat with the palm facing "
+    "forward and the fingers together, as if about to turn the page of a large book; the wide sleeve hangs down below the "
+    "forearm. The hand is above the lantern's stick, not touching it. " + KEEP + DESIGN)
+JOBS['e_wipe2'] = ([HOLD],
+    "Edit image 1. Change ONLY " + NEAR + ": she sweeps that hand forward toward the left of the picture, as if turning a page "
+    "in the air: the arm reaching forward at chest-to-shoulder height, elbow a little bent, the open hand palm facing forward-left, "
+    "fingers together, well in front of her body; the wide sleeve swings back and hangs below the arm. A small, contained gesture "
+    "(half of a full reach). The arm passes above the lantern's stick, not touching it. " + KEEP + DESIGN)
+
+DOWN = mine('e_down')
+KEEPD = KEEP.replace("her face,", "her face, her hair and ribbon, the fallen hood,")
+JOBS['e_push3'] = ([DOWN],
+    "Edit image 1. Change ONLY " + NEAR + ": she has just pushed her hood back and her hand is still at the back of her head, "
+    "resting on her hair just above the ribbon's bow, the elbow raised forward and up beside her face (not covering it), the wide "
+    "sleeve slid down toward the elbow. The hood lies fallen on her shoulders exactly as in image 1. " + KEEPD + DESIGN)
+JOBS['e_step'] = ([DOWN],
+    "Edit image 1. She takes one short step forward, to the LEFT (the direction she faces): her near foot (nearest to us) has just "
+    "been set down flat on the floor one geta-length ahead of where it stood; her far foot stays exactly where it was, its heel a "
+    "little raised; her body has moved forward to halfway between the two feet, upright and calm, head level. Her arms are exactly "
+    "as in image 1 (the far arm holding the lantern stick forward, the lantern hanging from it, the near hand relaxed at her side), "
+    "only carried forward with her body. The pleated skirt is pushed forward a little by the front leg. Hood down, hair and ribbon "
+    "as in image 1. The same scale, the floor at the same height, the cushion where it is. Flat pure green (#00FF00) background, "
+    "nothing else in the frame. No green on the character. No shadow on the ground. " + DESIGN)
+JOBS['e_hd_up'] = ([DOWN],
+    "Edit image 1. Change ONLY her head: she lifts her chin a little and looks slightly up toward the left, as if watching something "
+    "rise in a window: the head tilted back by about six degrees, pivoting at the neck; the hair and ribbon follow the head. The "
+    "same face and expression. " + KEEPD + DESIGN)
+JOBS['e_hd_dn'] = ([DOWN],
+    "Edit image 1. Change ONLY her head: she lowers her chin a little and looks slightly down toward the left: the head tilted "
+    "forward by about six degrees, pivoting at the neck; the hair and ribbon follow the head. The same face and expression. "
+    + KEEPD + DESIGN)
+JOBS['e_hu_up'] = ([HOLD],
+    "Edit image 1. Change ONLY her head and hood: she lifts her chin a little and looks slightly up toward the left, as if watching "
+    "something rise in a window: the head tilted back by about six degrees, pivoting at the neck; the hood moves with her head. The "
+    "same face and expression. " + KEEP + DESIGN)
+JOBS['e_turn1'] = ([DOWN, mine('front')],
+    "Image 1 is the girl standing in profile facing left, hood down, holding a lit paper lantern on a short stick forward in her "
+    "far hand (her right hand). Image 2 is the same girl in another moment, turning toward the viewer: use it only for the body "
+    "angle. Redraw image 1 with her turning round toward the viewer, to walk off to the right: her body turned three-quarters "
+    "toward the viewer, still facing a little to the left of the picture; her head turned further than her body, almost facing the "
+    "viewer, her eyes glancing toward the right of the picture. The lantern stays in her right hand on its short stick, held low "
+    "and a little forward at hip height, the lit lantern hanging below it in front of the left side of her skirt. Her other hand "
+    "relaxed at her side. Hood down: the hood fallen on her shoulders, hair and ribbon as in image 1; feet together on the same "
+    "spot; the pleated skirt swinging a little with the turn. The lantern's warm light lights her from below and in front; a cool "
+    "rim on the right side of her figure. The same scale, the floor at the same height, the purple cushion where it is in image 1. "
+    "Flat pure green (#00FF00) background, nothing else in the frame. No green on the character. No shadow on the ground. " + DESIGN)
+
+# (e_step v1: the model rescaled her, soles 110 px higher, and set the front geta up on the cushion. The cushion lies just
+# upstage of her step line: a step to the left passes in front of its corner, on the floor)
+JOBS['e_step'] = ([DOWN],
+    "Edit image 1. She takes ONE short step forward, to the LEFT (the direction she faces). Keep her EXACTLY the same size: the "
+    "top of her head at the same height as in image 1, and BOTH soles on the same flat floor line as in image 1 (the bottom of the "
+    "geta at the same height as in image 1). Her near foot (nearest to us) is set down flat on the floor directly ahead of her "
+    "other foot: the heel of the front geta about where the toe of the back geta is, one geta-length forward. The front geta "
+    "stands on the floor IN FRONT of the purple cushion's corner (nearer to us than the cushion), never on the cushion. Her far "
+    "foot stays exactly where it is in image 1, its heel a little raised. Her body has moved forward to halfway between the two "
+    "feet, upright, head level. Her arms are as in image 1 (the far arm holding the lantern stick forward, the lantern hanging, the "
+    "near hand relaxed at her side), only carried forward with her body. The pleated skirt is pushed forward a little by the front "
+    "leg. Hood down, hair and ribbon as in image 1. The cushion stays exactly where it is. Flat pure green (#00FF00) background, "
+    "nothing else in the frame. No green on the character. No shadow on the ground. " + DESIGN)
+JOBS['e_turn2'] = ([mine('e_turn1'), mine('turn_r')],
+    "Image 1 is the girl turning round toward the viewer, hood down, a lit paper lantern on a short stick in her right hand. Image "
+    "2 is the same girl in another moment (use it only for the body angle): three-quarters facing right, about to walk off to the "
+    "right. Redraw image 1 one moment later: her body turned three-quarters toward the RIGHT of the picture, her head in profile "
+    "facing right, looking right. The lantern stays in her right hand (now the hand nearest to us), held low on its short stick "
+    "and carried a little forward, so the lit lantern hangs ahead of her to the right at knee-to-hip height, leading the way. Her "
+    "other arm relaxed at her side. Her weight shifting onto her far foot, about to take the first step to the right; the pleated "
+    "skirt swinging with the turn; the ribbon and long hair swinging out behind her to the left. Hood down (fallen on her "
+    "shoulders), the same face, hair and ribbon as image 1. The lantern's warm light lights her front from below; a cool rim on "
+    "her back. The same scale as image 1, the floor at the same height, the purple cushion where it is in image 1. Flat pure green "
+    "(#00FF00) background, nothing else in the frame. No green on the character. No shadow on the ground. " + DESIGN)
+
+# ---- the walk-off (200.6): profile facing right, the lantern carried ahead in the near hand, hood down. Identity, lantern and
+# light from e_turn2; the leg pose from the room walk's drawings (image 2)
+WALKOFF = ("Image 1 is the girl, hood down, carrying a lit paper lantern on a short stick in her right hand. Image 2 is the same girl "
+           "walking in another scene: use image 2 ONLY for the legs, feet and body position. Draw the girl of image 1 in profile "
+           "facing RIGHT, walking to the right, in the leg pose of image 2. She carries the lantern exactly as in image 1: in her "
+           "near hand (her right hand, nearest to us), the arm low and steady, the hand a little forward of her hip holding the "
+           "short stick, the lit lantern hanging ahead of her at knee-to-hip height, leading the way. Her far arm swings a little. "
+           "Hood down, fallen on her shoulders; her hair, bangs, ribbon bow and long ribbon tails as in image 1, the long hair and "
+           "ribbon trailing behind her to the left. The same face. The lantern's warm light lights her front and her skirt from "
+           "ahead and below; a cool rim on her back. The same scale as image 1 (the same height from the top of her head to the "
+           "soles), the floor at the same height, the purple cushion where it is in image 1. " + DESIGN
+           + "Flat pure green (#00FF00) background, nothing else in the frame. No green on the character. No shadow on the ground. ")
+JOBS['e_wc1'] = ([mine('e_turn2'), mine('walk_u1')], WALKOFF + "This is the CONTACT drawing: her near leg forward, its geta just "
+                 "set down on the floor a short step ahead; her far leg behind, heel raised, the geta tipped onto its front tooth.")
+JOBS['e_wp1'] = ([mine('e_turn2'), mine('walk_m1')], WALKOFF + "This is the PASSING drawing: her near leg planted straight under "
+                 "her body; her far leg lifted and swinging forward beside it, the geta just off the floor; the skirt nudged forward by "
+                 "the swinging knee.")
+JOBS['e_wc2'] = ([mine('e_turn2'), mine('walk_u2')], WALKOFF + "This is the other CONTACT drawing: her far leg forward, its geta "
+                 "just set down on the floor a short step ahead; her near leg behind, heel raised, the geta tipped onto its front tooth.")
+
+# ---- the deckle edge, not fur (Fable's ruling, commit cd023ef; the director: "the deckle reads as fur"): every room drawing that
+# shows a cuff or the jacket's hem, edited directly with one identical prompt so the poses stay registered -> src/k_<name>.png
+DECKLE = ("Edit image 1. Change ONLY the trim at the hem of her black jacket and at the openings of her wide sleeves (the cuffs). "
+          "Remove the pale, fluffy, fur-like cream band there completely: the black cloth itself simply ends in a thin, irregular, "
+          "torn-paper (deckle) edge, like the rough edge of handmade paper, its torn fibres only a slightly lighter value of the same "
+          "black cloth (a dark warm grey). No white, no cream, no pale band, no fur. Keep EVERYTHING else exactly as in image 1, pixel "
+          "for pixel: her pose, face, hood, hair, ribbon, hands, the lantern and its stick, the skirt, the tabi and geta, the purple "
+          "cushion, the lighting, the scale and the position on the canvas. Flat pure green (#00FF00) background.")
+for n, src in [('hold', HOLD)] + [(k, mine('e_' + k)) for k in ['push1', 'push2', 'push3', 'wipe1', 'wipe2', 'step', 'turn1', 'turn2', 'wc1', 'wp1', 'wc2']]:
+    JOBS['k_' + n] = ([src], DECKLE)
+
+# (the step, again: the cushion lies ahead of her feet and reaches nearer the viewer than they do, so a step along her facing line
+# lands on it. She steps toward the window past its near side: the front foot on the floor in front of the cushion's corner)
+JOBS['k_step2'] = ([mine('k_step')],
+    "Edit image 1. Change ONLY her front foot (the one nearest to us, stepping forward to the left) and the skirt just above it: "
+    "move that foot a little toward the viewer and down in the picture, so the geta stands flat on the floor clearly IN FRONT OF "
+    "the purple cushion, nearer to us than the cushion's front edge and tassel: the bottom of that geta lower in the picture than "
+    "the lowest point of the cushion, by about half the height of a geta. The geta overlaps the cushion's front corner only as "
+    "something in front of it; it does not stand on the cushion. Her back foot stays exactly where it is. Keep everything else "
+    "exactly as in image 1 (her face, hair, ribbon, the fallen hood, the jacket and its thin torn-paper hem and cuffs, the lantern "
+    "and its stick, the cushion, the lighting, the scale and the position). Flat pure green (#00FF00) background. " + DESIGN.replace(
+    "a rough cream paper-fibre (deckle) trim at the jacket hem and the cuffs", "a thin, irregular torn-paper edge at the jacket hem and the cuffs, a lighter value of the black cloth, no white"))
+
 
 def run(name):
     refs, prompt = JOBS[name]

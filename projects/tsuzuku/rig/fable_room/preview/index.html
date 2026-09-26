@@ -33,6 +33,7 @@
 <script src="src/origami.js"></script>
 <script src="../../engine/warp.js"></script>
 <script src="src/ink.js"></script>
+<script src="src/paperink.js"></script>
 <script src="src/audience.js"></script>
 <script src="src/mother.js"></script>
 <script src="src/stage.js"></script>
@@ -53,13 +54,14 @@
 <script src="src/crabs.js"></script>
 <script src="src/idolstage.js"></script>
 <script src="src/fableseat.js"></script>
+<script src="src/fableroom.js"></script>
 <script src="src/fablestage.js"></script>
 <script src="src/chorus.js"></script>
 <script src="src/motionlab.js"></script>
 <script src="src/finale.js"></script>
-<script src="src/fableroom.js"></script>
 <script src="src/sfx_clawd.js"></script>
 <script src="src/film.js"></script>
+<script src="src/makingof.js"></script>
 <script>
 (async () => {
   try {
@@ -81,8 +83,8 @@
     if (typeof IDOLSTAGE !== 'undefined') await IDOLSTAGE.load();
     if (typeof FABLESEAT !== 'undefined') await FABLESEAT.load();
     if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();
-    if (typeof FABLEROOM !== 'undefined') await FABLEROOM.load();
-    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) FABLESTAGE.room = FABLEROOM.room;   // (preview only: finale's room figure)
+    if (typeof FABLEROOM !== 'undefined' && !FABLEROOM.E.meta) await FABLEROOM.load();
+    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) { const r0 = FABLESTAGE.room; FABLESTAGE.room = (X, t, T, o = {}) => o.P ? FABLEROOM.ending(X, t, T, o) : r0(X, t, T, o); }
     if (window.registerFilm) registerFilm();
     window.ready = true;
     studioUI();

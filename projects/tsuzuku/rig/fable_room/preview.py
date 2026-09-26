@@ -8,12 +8,13 @@ import os
 D = os.path.dirname(os.path.abspath(__file__)); P = os.path.abspath(os.path.join(D, '..', '..'))
 s = open(os.path.join(P, 'index.html')).read()
 s = s.replace('<head>', '<head>\n<base href="/projects/tsuzuku/">', 1)
-s = s.replace('<script src="src/finale.js"></script>', '<script src="src/finale.js"></script>\n<script src="src/fableroom.js"></script>', 1)
-s = s.replace("    if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();",
-              "    if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();\n"
-              "    if (typeof FABLEROOM !== 'undefined') await FABLEROOM.load();\n"
-              "    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) FABLESTAGE.room = FABLEROOM.room;   // (preview only: finale's room figure)", 1)
-assert 'fableroom.js' in s and 'FABLEROOM.load' in s, 'index.html changed shape: update preview.py'
+if 'src/fableroom.js' not in s:                                        # (index.html loads it now; FABLESTAGE.load loads its drawings)
+    s = s.replace('<script src="src/finale.js"></script>', '<script src="src/finale.js"></script>\n<script src="src/fableroom.js"></script>', 1)
+# preview only: the finale's room figure routed to FABLEROOM.ending when finale.js passes Clawd's channels (o.P), as it will be
+hook = "    if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();"
+assert hook in s, 'index.html changed shape: update preview.py'
+s = s.replace(hook, hook + "\n    if (typeof FABLEROOM !== 'undefined' && !FABLEROOM.E.meta) await FABLEROOM.load();"
+              "\n    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) { const r0 = FABLESTAGE.room; FABLESTAGE.room = (X, t, T, o = {}) => o.P ? FABLEROOM.ending(X, t, T, o) : r0(X, t, T, o); }", 1)
 os.makedirs(os.path.join(D, 'preview'), exist_ok=True)
 open(os.path.join(D, 'preview', 'index.html'), 'w').write(s)
 print('wrote', os.path.join(D, 'preview', 'index.html'))
