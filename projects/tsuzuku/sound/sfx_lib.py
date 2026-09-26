@@ -30,6 +30,18 @@ LIB = {  # name: (prompt, seconds)
  'hop':        ('a small paper puppet hopping, a light paper flutter then a soft tap landing, close, dry', .5),
  'press':      ("(not generated: the song's own letterpress thud, assets/sfx/press.mp3, copied in)", .5),
 }
+# ---- Clawd's world (added by the Clawd-world session; cues registered in src/sfx_clawd.js). Her world is a stage, not a tabletop:
+# brighter, but still under the song. Fable's own sounds in her room (page turns, brush, claps) stay close and dry like the rest.
+LIB.update({
+ 'led_on':     ('a large LED stage screen powering on in sections: a rising clean electric hum with a few soft heavy relay clunks, arena, no music', 2.5),
+ 'page_whoosh':('a giant sheet of paper swept over in one fast turn, a big airy paper whoosh ending in a bright soft sparkle shimmer, clean, no music', 1.0),
+ 'page_turn':  ('one page of a hardbound book turned by hand, a soft dry paper rustle, close microphone, quiet room', .8),
+ 'brush':      ('a calligraphy brush writing a few quick strokes on washi paper, soft dry bristle whispers, very close, quiet room', 1.0),
+ 'glitch':     ('a tiny digital glitch, one very short crackle of electronic static, clean', .5),
+ 'blaze':      ('a soft bright light swell blooming open, an airy rising shimmer, gentle, no music', 1.2),
+ 'ring':       ('a faint high shimmering ring slowly fading away in a quiet dark wooden room, very soft and airy, no music', 2.5),
+ 'clap':       ('one single dry hand clap by one person, close microphone, quiet room', .5),
+})
 
 def gen(name):
     p, secs = LIB[name]; mp3 = os.path.join(HERE, 'lib', name + '.mp3')
