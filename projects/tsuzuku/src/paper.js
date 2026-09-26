@@ -165,7 +165,7 @@ function chochinBody(cx, cy, sc, rot, o) {
   else if (lit > 0) { g.addColorStop(0, '#FFF3D6'); g.addColorStop(.3, '#F4C97A'); g.addColorStop(.72, 'rgb(74,104,172)'); g.addColorStop(1, 'rgb(22,36,80)'); }
   else { g.addColorStop(0, 'rgb(28,40,70)'); g.addColorStop(1, 'rgb(12,18,36)'); }
   X.fillStyle = g; X.fillRect(-w, -h, 2 * w, 2 * h);
-  X.strokeStyle = o.gold ? 'rgba(70,36,14,.42)' : 'rgba(10,14,40,.4)'; X.lineWidth = Math.max(1, 1.6 * sc);   // the bamboo ribs, bowed
+  X.strokeStyle = o.ribs || (o.gold ? 'rgba(70,36,14,.42)' : 'rgba(10,14,40,.4)'); X.lineWidth = Math.max(1, 1.6 * sc);   // the bamboo ribs, bowed
   for (let k = 1; k < 10; k++) { const yy = -h / 2 + h * k / 10, hw = w / 2 * Math.sqrt(1 - (yy / (h / 2)) ** 2);
     X.beginPath(); X.moveTo(-hw, yy); X.quadraticCurveTo(0, yy + 3 * sc, hw, yy); X.stroke(); }
   X.restore();

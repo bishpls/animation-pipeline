@@ -12,7 +12,7 @@ The paper-world loops are all on the song clock (`LOOPS.<name>`, t = 0 at the ti
 | 12.7 – 24.0 | `telling` | the doors open; the crab, the mother, the ruler; the little one lights orange |
 | 24.0 – 36.0 | `verse1` | the row walks into the light; the unfold into Clawd's paper puppet; "Show me how!" |
 | 36.0 – 61.0 | `exchange` | the mother goes sideways; "Hm."; hiki-nuki; "Sorekara?!"; the card tears on "Says who?" |
-| 131.29 – 156.2 | `bridge` | opens on the clack (a match cut from the hall: seated, the lamp in her lap at her right knee); the fan's gallery; the shore struck; "You stand": the lamp set down; the pull-back to the wood |
+| 131.29 – 156.2 | `bridge` | opens on the clack (a match cut from the hall: seated; the lamp on the floor beside her, image-left, behind her back; Michael moved it off her lap); the fan's gallery; the shore struck; the pull-back to the wood |
 | 156.2 – 159.53 | `inkcloseup` | ink cut-in: the close-up |
 | 159.53 – 161.0 | `bridgeB6` | the fan becomes the book |
 | 161.0 – 166.0 | `inkstand` | ink cut-in: the standing up (geta clack 165.18) |

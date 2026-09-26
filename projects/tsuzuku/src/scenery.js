@@ -23,8 +23,8 @@ function placeFlat(c, name, [x, y, w, h], depth, lamp, flip = false, src = [0, 1
 function shore(t, o = {}) {
   const FLOOR = o.floor || 962, sway = o.sway ?? 1, [lx0, ly0] = SCREEN.lamp, ts = Math.min(t, o.still ?? Infinity);   // still: the lamp held (the bridge's clack)
   const lampAt = d => [lx0 + sway * 60 * d * Math.sin(ts * .37) + sway * 25 * d * Math.sin(ts * .91), ly0];   // deep planes drift more
-  // o.lamp: the lamp has moved (the bridge: into her lap, onto the floor, into her hand). The flats stay where they were held
-  // for the lamp above; their shadows now fall from the new one (a low lamp lengthens them upward)
+  // o.lamp: the lamp has moved (the bridge: down beside her, into her hand). The flats are held for where it is, so their
+  // shadows still land on their places (held for the old lamp, a low lamp would scale the flats' cut edges into the window)
   // the bridge (Fable): each plane struck, a card pulled sideways off the screen: {key: [u, dir]}, u 0 in place .. 1 gone.
   // Pulled, it comes a little off the screen toward the lamp (its shadow grows and softens) and its tissue card shows: the
   // straight edge of the paper it was cut on.
@@ -35,7 +35,7 @@ function shore(t, o = {}) {
   // always read against it. `ink` = how much light the paper stops.
   const plane = (name, rect, depth, flip, src, ink, key = name) => {
     const [u, dir] = pull(key); if (u >= 1) return;
-    const d = depth + (u > 0 ? .05 : 0), lamp = lampAt(depth), proj = o.lamp || lamp, r = [rect[0] + dir * u * 1900, rect[1], rect[2], rect[3]];
+    const d = depth + (u > 0 ? .05 : 0), lamp = o.lamp || lampAt(depth), proj = lamp, r = [rect[0] + dir * u * 1900, rect[1], rect[2], rect[3]];
     shadow(c => { c.globalCompositeOperation = 'source-over'; if (u > 0) card(c, r, d, lamp, .1 * Math.min(1, u / .16)); placeFlat(c, name, r, d, lamp, flip, src); },
       d, { penumbra: true, lamp: proj, alpha: (o.alpha ?? 1) * ink });
   };
