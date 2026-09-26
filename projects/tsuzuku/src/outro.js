@@ -105,32 +105,26 @@
   }
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); }
     return [[K.card, 'paper_slide', -30], [K.walk0 + BEAT / 2, 'geta', -31], [K.walk0 + BEAT, 'geta', -31], [K.draw + f, 'cloth', -36], [K.seal, 'stamp', -27], [K.pop, 'hop', -31], [K.doors, 'doors_shut', -27]]; });
-  // her place in the room (Clawd's world A and F1): her cushion at the window's right, the closed book on its left end, and the
-  // lantern she set down on it at the blaze (178-179.2), still lit. Butai px (B9's end frame at CAM_WIDE, doubled). In my medium:
-  // black, rimmed by the lantern, which is the one gold light (the freeze just before shows them illustrated: the world changing back)
-  const SEAT = { cush: [3008, 2104], cs: .294, book: [2908, 2060, 116, 24], lamp: [3048, 2066], ls: 2.2 };
+  // her place in the room (Clawd's world A and F1): her cushion at the window's right, empty. Her lantern stood on it through the
+  // final chorus; at the clack it's inside the window again, on the rail (a kuroko's cut); the empty cushion is the audience's
+  // arithmetic (Fable). Butai px (B9's end frame at CAM_WIDE, doubled). Black; its edges catch only the window's spill, and once
+  // the doors are shut, the leak at their arches
+  const SEAT = { cush: [3008, 2104], cs: .294 };
   const HIDE_SEATED = ['lower', 'torso', 'head', 'hair', 'upperarm', 'forearm', 'hand'];
   let SL = null;
-  function roomSeat(ts, cam) {
-    const z = cam.zoom, T = (x, y) => [W / 2 + (x - cam.x) * z, H / 2 + (y - cam.y) * z], [lx, ly] = T(...SEAT.lamp);
-    if (lx - 700 * z > W) return;
+  function roomSeat(ts, cam, open, leak) {
+    const z = cam.zoom, T = (x, y) => [W / 2 + (x - cam.x) * z, H / 2 + (y - cam.y) * z], [cx, cy] = T(...SEAT.cush);
+    if (cx - 400 * z > W) return;
     if (!SL) SL = [mkCanvas(W, H), mkCanvas(W, H)];
-    const S = SL[0].getContext('2d'), R = SL[1].getContext('2d'), [cx, cy] = T(...SEAT.cush), [bx, by] = T(SEAT.book[0], SEAT.book[1]), sc = SEAT.ls * z;
+    const S = SL[0].getContext('2d'), R = SL[1].getContext('2d'), [wx, wy] = T(2830, 1801);        // (the window's lower right corner)
     S.setTransform(1, 0, 0, 1, 0, 0); S.globalCompositeOperation = 'source-over'; S.clearRect(0, 0, W, H);
     FABLE.draw(S, { _ghost: {} }, { x: cx, y: cy, s: SEAT.cs * z, origin: [1150, 2760] }, { solid: true, ink: 'rgb(9,7,9)', hide: HIDE_SEATED });
-    S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(9,7,9)'; S.fillRect(bx - SEAT.book[2] * z / 2, by - SEAT.book[3] * z, SEAT.book[2] * z, SEAT.book[3] * z);
-    const lc = [lx, ly - (7 + CHO.h / 2) * sc];                        // the light's centre
+    S.setTransform(1, 0, 0, 1, 0, 0);
     R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
-    R.drawImage(SL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
-    R.globalCompositeOperation = 'destination-out'; R.drawImage(SL[0], -3 * z, 8 * z);             // the edges that face the lamp (above them)
-    R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(...lc, 0, ...lc, 700 * z); g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
-    X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(...lc, 20, ...lc, 1100 * z);   // its light in the room's air
-    hz.addColorStop(0, 'rgba(150,104,56,.42)'); hz.addColorStop(.45, 'rgba(90,60,34,.2)'); hz.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = hz; X.fillRect(0, 0, W, H); X.restore();
-    const dr = 720 * z; dust(ts, lightPool(...lc, dr), { seed: 12, n: 40, rect: [lc[0] - .7 * dr, lc[1] - .7 * dr, 1.4 * dr, 1.4 * dr], col: [255, 204, 140], alpha: 1.2 });
-    X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(6px)'; X.globalAlpha = .6; X.drawImage(SL[1], 0, 0);
-    X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(SL[0], 0, 0);
-    X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1px)'; X.drawImage(SL[1], 0, 0); X.restore();
-    chochin(lx, ly, sc, { gold: true, stick: 158, ribs: 'rgba(22,40,96,.6)' });                    // set down, its stick resting on the cushion
+    R.drawImage(SL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,190,120,.8)'; R.fillRect(0, 0, W, H);
+    R.globalCompositeOperation = 'destination-out'; R.drawImage(SL[0], 3 * z, 6 * z);               // the edges that face the window (above, to the left)
+    R.globalCompositeOperation = 'destination-in'; R.globalAlpha = .55 * open + .3 * leak; R.fillRect(0, 0, W, H); R.globalAlpha = 1;
+    X.save(); X.drawImage(SL[0], 0, 0); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1px)'; X.drawImage(SL[1], 0, 0); X.restore();
   }
   LOOPS.outro = t => {
     if (!K) keys();
@@ -150,7 +144,7 @@
       [1335, 2505].forEach((ax, i) => { const [x, y] = T(ax, 826), r = 330 * z;              // dust settling in the leak
         dust(ts, (px, py) => c * lightPool(x, y, r, .6)(px, py), { seed: 9 + i, n: 26, rect: [x - r, y - r * .6, 2 * r, 1.2 * r], col: [255, 200, 130], alpha: 1.4 }); });
     }
-    roomSeat(ts, cam);
+    roomSeat(ts, cam, doors, c);
     readers(ts, cam, { gap: [1360, 1920] });                           // (nobody in front of her place, as in B9)
   };
   LOOPS.outro.len = S1 - S0;

@@ -33,15 +33,14 @@ Full cuts with audio: `out/act1_v1.mp4` (0–61), `out/bridge_full_v5.mp4` (131�
    world A's seat point (butai (3309, 2105)), planted by 177.46. At 177.8, CAM_WIDE, screen px: the standing puppet silhouette at
    s .2297 facing left, feet (1654, 1002), crown ≈ y 190; her fist at her hip ≈ (1589, 615) with a short stick, the lantern
    hanging from it, centre ≈ (1555, 675), sc 1.10, lit gold, indigo ribs. At her toes her cushion (the seated rig's zabuton,
-   s .147, x 1504, spanning ≈ 1425–1675, top ≈ 983), the book closed on its left end (58 × 12, centre x 1454, top ≈ 968). Hood
+   s .147, x 1504, spanning ≈ 1425–1675, top ≈ 983), bare (the one book is open on the rail). Hood
    up; black, rim-lit by the lantern; the room's air warm around her; the readers' row has a gap at x 1360–1880. The window is
    dark except Clawd's eye slits. F1 (the other session, Fable's ruling "no curtain: the push-in is the fold"): the window
    blazes, her silhouette becomes the illustrated rig in the same place, the readers leave with the flood; she sets the lantern
    on the cushion (178–179.2) and the camera pushes through the window.
-   **The outro's room (202.59 on):** her place again, in the paper medium: the cushion, the closed book, and her lantern set on
-   the cushion, lit, its stick resting down against it (butai px: cushion (3008, 2104) s .294, book centre x 2908, lantern base
-   (3048, 2066) sc 2.2; `SEAT` in outro.js), black with the lantern's rim; the readers' gap as in B9. The freeze just before
-   (other session) shows them illustrated.
+   **The outro's room (202.59 on):** her cushion, empty, black, its edges catching only the window's spill and then the doors'
+   leak (butai px: cushion (3008, 2104) s .294; `SEAT` in outro.js); the readers' gap as in B9. The freeze just before (other
+   session) shows the lantern lit on it.
 3. **Fable at the margin in Clawd's world** (K3 48.1, K5 52.2, K7 56.2 in bar numbers; H2, F2, F4, F6, F8): her riveted
    silhouette with two coloured shadows (pink and cyan) pressing margin notes. The paper side has her puppets (`FABLE`, seated;
    `FABLE_S`, standing, with `makeWalk` and `drawStanding`) and the letterpress (`press`, `inkVellum` in page.js). Happy to build
@@ -58,8 +57,10 @@ C2 lights it and ends with her raising it out of the top of frame -> C3: its glo
 light is the hung lantern) -> the flood at 60-61 covers her taking it -> world A: lit on the floor at her left in every room shot
 -> 131.29: black but that lantern at the room end camera's (1376, 903), 156 px, which glides to the bridge's floor spot beside
 her (B1 fades in around it) -> B8: taken up, set at Clawd's feet, carried out of the window -> 176.82: lit in her hand in the room
--> F1: set on her cushion (178–179.2), where it stays, lit, through the final chorus ("what steps in has empty hands") -> the
-freeze and the outro: lit on the cushion. When it stands on its own in the paper world it has a puppeteer's rod; never in the room.
+-> F1: set on her cushion (178–179.2), where it stays, lit, through the final chorus ("what steps in has empty hands"); at the
+outro's clack it is inside the window again, on the rail (a kuroko's cut); the cushion is empty (Fable: "the empty cushion is the
+audience's arithmetic"). One book, too: the open one she left face-up on the rail in B8 ("it's the readers' now"); the cushion
+carries the lantern during F and nothing else. When it stands on its own in the paper world it has a puppeteer's rod; never in the room.
 
 ## Sound
 The paper world's sound effects are a stem under the song (song.mp3 untouched): each picture module registers its cues with

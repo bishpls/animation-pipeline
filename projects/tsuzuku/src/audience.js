@@ -40,7 +40,12 @@ function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, g
     // o.gap = [x0, x1] (screen px): nobody there; the row is respaced across the width either side of it
     const g = o.gap, avail = g ? W - (g[1] - g[0]) : W; let bx = (i + .5) / n * avail; if (g && bx > g[0]) bx += g[1] - g[0];
     const q = AUD[Math.floor(rnd() * AUD.length)], x = bx + (rnd() - .5) * 60, sc = sc0 * (.85 + .3 * rnd()), ph = rnd();
-    const h = hop(ph), ln = leanAt(tq) * (.8 + .4 * ph), lift = (h > 0 ? -L * h : -3 * Math.sin(2 * Math.PI * (tq / (3.1 + ph) + ph))) - L * .45 * ln;   // (the lean: up on their knees, forward)
+    const h = hop(ph), ln = leanAt(tq) * (.8 + .4 * ph), base = h > 0 ? -L * h : -3 * Math.sin(2 * Math.PI * (tq / (3.1 + ph) + ph));
+    // the lean: up on their knees, a head's height; a lantern held up stops short of the story strip on the rail (o.ceil): the
+    // words stay readable through the five-second hold
+    let lean = L * 1.6 * ln;
+    if (lean > 0 && o.ceil != null && q.lantern) { const top = y0 + base + (q.lc[1] - q.lc[2] * 1.3) * sc; lean = Math.min(lean, Math.max(0, top - o.ceil)); }
+    const lift = base - lean;
     const live = calls.some(([a, b]) => tq >= a && tq < b + beat), sway = q.lantern ? (live ? 6 : 2) * Math.sin(2 * Math.PI * (tq / (beat * 2) + ph)) : 0;
     const M = new DOMMatrix().translate(x, y0 + lift).scale(sc).rotate(sway);
     P.push({ q, x, sc, ph, M, lit: lampOut(i, tq), lc: q.lantern ? M.transformPoint(new DOMPoint(q.lc[0], q.lc[1])) : null });
@@ -78,7 +83,7 @@ function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, g
 // butai, they move and scale a little more than it does. Their heads stay below the page strip; their lanterns may touch it.
 function readers(ts, cam, o = {}) {
   const z = cam.zoom, k = Math.pow(z / CAM_WINDOW.zoom, 1.15);
-  audience(ts, { y: H / 2 + (2372 - cam.y) * z * 1.08, scale: .62 * k, lift: 40 * k, ...o });
+  audience(ts, { y: H / 2 + (2372 - cam.y) * z * 1.08, scale: .62 * k, lift: 40 * k, ceil: H / 2 + (1904 - cam.y) * z, ...o });   // (ceil: the strip's bottom edge)
 }
 {
   // test: verse 1's 'ARU TOKORO NI!' and the exchange's 'SHOW ME HOW!', over the paper theatre with Fable and the origami crab

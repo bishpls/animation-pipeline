@@ -298,11 +298,11 @@
       X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
     }
     // in the room: beside the butai, facing it, at her place in world A (she knelt there, at the window's height: butai
-    // (3309, 2105), (1654, 1002) at the wide); two geta steps in from the frame's edge (no glide), still, at her cushion, the
-    // closed book on the floor beside it (F1 picks up from here: the lantern set on the cushion). Hood up; the lantern lit in her
+    // (3309, 2105), (1654, 1002) at the wide); two geta steps in from the frame's edge (no glide), still, at her cushion (F1 picks
+    // up from here: the lantern set on the cushion; one book, the open one on the rail). Hood up; the lantern lit in her
     // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
     const ROOM = OUT + 2.5 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
-    const CUSH = { x: FEET[0] - 150, s: .147 }, BOOKR = { x: FEET[0] - 200, w: 58, h: 12, y: FEET[1] - 22 };   // (her cushion at her toes: one doesn't stand on a zabuton; the book left closed on it)
+    const CUSH = { x: FEET[0] - 150, s: .147 };                         // (her cushion at her toes, bare: one doesn't stand on a zabuton; the one book is open on the rail)
     const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 60, FEET[1] - 400])); };   // her fist at her hip
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
       const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * RK * Math.sin(Math.PI * u) : 0;
@@ -320,7 +320,7 @@
       S.setTransform(M.head); S.fillStyle = 'rgb(9,7,9)'; S.beginPath(); HOOD.forEach(([x, y], i) => i ? S.lineTo(x, y) : S.moveTo(x, y)); S.closePath(); S.fill();
       S.setTransform(1, 0, 0, 1, 0, 0);
       FABLE.draw(S, { _ghost: {} }, { x: CUSH.x, y: FEET[1], s: CUSH.s, origin: [1150, 2760] }, { solid: true, ink: 'rgb(9,7,9)', hide: HIDE_SEATED });   // her cushion
-      S.setTransform(1, 0, 0, 1, 0, 0); S.fillStyle = 'rgb(9,7,9)'; S.fillRect(BOOKR.x - BOOKR.w / 2, BOOKR.y - BOOKR.h, BOOKR.w, BOOKR.h);          // the book, closed
+      S.setTransform(1, 0, 0, 1, 0, 0);
       // the lantern in her hand (hung from its stick), and its light on her from below and in front
       const fi = fistAt(FABLE_S, p, T, STAND_ARM), arrive = ROOM + BEAT, k = Math.max(0, tt - arrive), sw = tt < arrive ? 10 * Math.sin((tt - ROOM) * 2 * Math.PI / (BEAT / 2)) : 8 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);
       const drop = CHO.w * .2 * RLSC + 5 * RLSC + CHO.h * RLSC / 2, a = 0, Ls = CHO.stick * CHO.h * RLSC * .3, tip = [fi[0] - Math.cos(a) * Ls, fi[1] + Math.sin(a) * Ls];

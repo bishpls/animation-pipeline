@@ -95,8 +95,9 @@
         const Mh = FABLE.world(poseAt(K.release), T).hand.translate(FAN_GRIP[0], FAN_GRIP[1]), h0 = Mh.transformPoint(new DOMPoint(0, 0));
         const at = d => { const u = (d + 1) / 3; return new DOMMatrix().translate(h0.x + (LITTLE.land - h0.x) * u, h0.y + (FLOOR - h0.y) * u - 120 * Math.sin(Math.PI * u)).scale(.2 + (LITTLE.sc - .2) * u); };
         const d = Math.floor((ts - K.release) * 12 + 1e-6), crab = PUPPET.shapeAt(FAN, 'crab', 'crab', 1);
-        // flip-book afterimages (Fable's device, as in B7's pleats): the last two places it was, faintly exposed, from her hand
-        for (const [g, a] of [[d - 2, .12], [d - 1, .26]]) if (g >= -1) { c.save(); c.globalAlpha = a; PUPPET.drawShape(c, crab, at(g)); c.restore(); }
+        // flip-book afterimages (Fable's device, as in B7's pleats): the last two places it was, faintly exposed, from her hand;
+        // in the air only: the landing drawing is clean (the trail ends where it lands)
+        if (d < 2) for (const [g, a] of [[d - 2, .12], [d - 1, .26]]) if (g >= -1) { c.save(); c.globalAlpha = a; PUPPET.drawShape(c, crab, at(g)); c.restore(); }
         PUPPET.drawShape(c, crab, at(d));
       }
       if (ts >= K.set && ts < K.laid) {                                // the line lowered level to the floor, two drawings
