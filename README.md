@@ -48,6 +48,16 @@ Clawd's idol debut single. A J-pop debut is a self-introduction, and "Hello, wor
 - **The claw dance:** a copyable 8-count (claw, claw, snip-snip, Clawd-up, hai, hai), built as a template.
 - **Process:** a storyboard of 49 shots, then five parallel Claude subagents building sections, then full-cut reviews and revision rounds.
 
+## Fourth work: 「つづく」 TO BE CONTINUED *(in production)*
+
+![One frame, taken apart](projects/tsuzuku/docs/making-of/img/one_frame_taken_apart.jpg)
+
+ANTHOLOGY Op. 2: a 3:30 duet for two AI idols, Fable and Clawd. Fable 5.1 designed her own character and ruled on how she
+appears in both worlds; Fable tells Aesop's crab and her mother in a cut-paper shadow theatre, and Clawd's idol stage plays as a
+card inside it. Every frame is drawn by code. A video model was used only as dance reference, pose-tracked into numbers; none of
+its pixels are in the film. How it was made, who decided what, and what it cost:
+**[projects/tsuzuku/MAKING-OF.md](projects/tsuzuku/MAKING-OF.md)**.
+
 ## The pipeline
 
 | path | what |
