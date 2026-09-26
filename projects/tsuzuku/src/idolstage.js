@@ -392,7 +392,7 @@ const IDOLSTAGE = (() => {
   // ---- Fable's margin notes (her ruling): Caslon italic in the card's bottom margin, pressed as she writes them; two lines that
   // wrap like a caption (the margin grows by a line-height when the second is needed), cleared by the page turn; ~~struck~~
   // spans get a second impression half a beat after the words. World A's pages below; the finale passes its own (opt.notes).
-  const NSZ = 35, NLH = 46;
+  const NSZ = 35, NLH = 46, NFONT = { font: 'caslonI', size: NSZ, wght: 500 };   // (measured exactly as press() sets it)
   const PAGES_A = [
     { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
              [56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 46, clear: WIPE1 + .28 },
@@ -408,14 +408,14 @@ const IDOLSTAGE = (() => {
   const LAYOUT = new Map();
   function layoutNotes(list, rect) {
     const key = list.map(n => n[1]).join('|') + rect.join(); if (LAYOUT.has(key)) return LAYOUT.get(key);
-    const [x0, , w] = rect, xmax = x0 + w - 30, sp = shape(' ', { font: 'caslonI', size: NSZ }).width || NSZ * .25, runs = [];
+    const [x0, , w] = rect, xmax = x0 + w - 30, sp = shape(' ', NFONT).width || NSZ * .25, runs = [];
     let x = x0 + 30, line = 0;
     list.forEach(([t0, str], ni) => {
       if (ni) x += NSZ * 1.6;
       const words = str.split(' '); let run = null, struck = false;
       words.forEach(wd => {
         const opens = wd.startsWith('~~'), closes = wd.endsWith('~~') || wd.includes('~~', 2), clean = wd.replace(/~~/g, '');
-        const ww = shape(clean, { font: 'caslonI', size: NSZ }).width;
+        const ww = shape(clean, NFONT).width;
         if (x + ww > xmax && x > x0 + 31) { line++; x = x0 + 30; run = null; }
         if (opens) struck = true;
         if (!run || run.struck !== struck) { run = { ni, t0, line, x, words: [], struck }; runs.push(run); }
@@ -423,8 +423,8 @@ const IDOLSTAGE = (() => {
         if (closes) { struck = false; run = null; }
       });
     });
-    runs.forEach(r => { r.str = r.words.join(' '); r.w = shape(r.str, { font: 'caslonI', size: NSZ }).width; });
-    const spc = shape('a a', { font: 'caslonI', size: NSZ }).width - 2 * shape('a', { font: 'caslonI', size: NSZ }).width;   // (the real word space)
+    runs.forEach(r => { r.str = r.words.join(' '); r.w = shape(r.str, NFONT).width; });
+    const spc = shape('a a', NFONT).width - 2 * shape('a', NFONT).width;   // (the real word space)
     for (let i = 1; i < runs.length; i++) { const p = runs[i - 1], r = runs[i]; if (r.line === p.line && r.ni === p.ni) r.x = p.x + p.w + spc; }   // (runs within a note: set by measured widths)
     const out = { runs, lines: Math.min(2, Math.max(...runs.map(r => r.line), 0) + 1) }; LAYOUT.set(key, out); return out;
   }
