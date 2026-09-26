@@ -597,7 +597,7 @@ const IDOLSTAGE = (() => {
     withX(card.getContext('2d'), () => cardFrame(t, cast, opt, c));
     const b = lb(t), cam = c.room || RC.ots, lit = b < 90 ? 1 : Math.max(.2, 1 - (b - 90) / 3);
     const R0 = SCREEN.rect; SCREEN.rect = [0, 15, 1920, 1050];                  // (the window's aspect: 1.828)
-    try { stage(t, () => X.drawImage(card, 0, 0), { cam, doors: 1, spill: [255, 150, 215].map(v => Math.round(v * lit)) }); } finally { SCREEN.rect = R0; }
+    try { stage(t, () => X.drawImage(card, 0, 0), { cam, doors: opt.doors ?? 1, spill: [255, 150, 215].map(v => Math.round(v * lit)) }); } finally { SCREEN.rect = R0; }
     X.setTransform(1, 0, 0, 1, 0, 0);
     if (c.ots) {                                                                 // over her shoulder: the window beyond, out of focus
       const buf = ROOM.buf || (ROOM.buf = mk()), g = buf.getContext('2d'); g.clearRect(0, 0, W, H); g.drawImage(X.canvas, 0, 0);

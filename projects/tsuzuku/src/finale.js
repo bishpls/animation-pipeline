@@ -37,7 +37,7 @@
     head: [
       [124, 'look', { view: 'F', y: .2 }], [127.5, 'look', { view: 'F', y: -.2 }],
       [129, 'headBob'], [131, 'look', { view: 'F' }],
-      [132.9, 'look', { view: 'HR', z: -3 }],                          // "why": she turns and finds a face
+      [132.9, 'look', { view: 'R', z: -4, x: .35 }],                   // "why": she turns and looks OUT of the card, at Fable (the fourth wall, once)
       [133.9, 'headTilt', { amp: 7 }], [135, 'headBob'], [137, 'look', { view: 'F' }], [138.87, 'headBob'],
       [140.85, 'look', { view: 'F', y: -.3 }],
     ],
@@ -60,7 +60,7 @@
     const walk = claws || (b >= 139 && b < 141) ? t / beat / 2 : null;
     return { hop, sq, lean: sway, pincer: call || claws, snip, walk, armL: call ? .5 : 0, armR: call ? .5 : 0, eyes: snip > .5 ? 'happy' : undefined };
   };
-  const ROWS = [{ xs: [330, 580, 1590, 1820], y: 800, s: .8, seed: 5, lag: .06 }, { xs: [300, 540, 1660, 1880], y: 930, s: 1.05, lag: .04 }];   // (Fable stands upstage right)
+  const ROWS = [{ xs: [370, 610, 1360, 1670], y: 800, s: .8, seed: 5, lag: .06 }, { xs: [330, 560, 1500, 1810], y: 930, s: 1.05, lag: .04 }];
 
   // where they stand (world coords, the card's floor): Clawd centre; Fable one step upstage at her stage-left (house right)
   // Fable is the taller one ("tall and narrow next to Clawd's fluffy A-line", FABLE.md §3; no number in the docs; the paper world
@@ -74,23 +74,25 @@
   const CAMW = { x: 1920, y: 1180, zoom: .5 }, CARDC = { x: 1919.5, y: 1303, zoom: 1.0475 };
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 }, room = (a, b = a) => ({ room: [a, b] });
   const TWO = (cx, cy, z) => ({ cx, cy, z });
-  // the card's camera frames the two of them: both full figures with headroom over Fable's crown (world y ~ -10), inside the washi
-  // border (the picture is ~972 px tall on screen)
-  const FULLF = TWO(1220, 500, .8), MED2 = (z = 1.24, cy = 295) => TWO(1240, cy, z), CU2 = TWO(1240, 170, 1.72), HALL = TWO(1120, 490, .76);
+  // (Michael + Fable: the room ending. Fable doesn't join the stage: she stands in her room at the butai's right, outside the box,
+  // lantern in hand, and the canon crosses the window's edge. The room is the frame throughout; the card's camera moves inside.)
+  //   FIN: the default room shot: the window ~52% of the frame, Fable standing at its right, whole (feet ~(1650, 1010), 893 px)
+  //   WHY: "why" (132.9-133.9): the window's right side, Clawd large in it looking OUT at her; Fable from the knees up
+  const FIN = { x: 2053, y: 1249, zoom: .55 }, WHY = { x: 2588, y: 1120, zoom: .75 };
+  const MED = (cx = 960, cy = 330, z = 1.5) => ({ cx, cy, z });
   const SHOTS = [
-    [125.9, FULLF, FULLF, room(CAMW)],                                // the room: B9's end; the window blazes
-    [126.93, FULLF, FULLF, room(CAMW, CARDC)],                        // the push-in through the window (she walks out right)
-    [128.21, FULLF, FULLF],                                            // her stage, full frame: Fable hops in from the right
-    [129, TWO(1220, 500, .78), FULLF],                                 // the drop (the key change)
-    [130.15, MED2(1.16, 325), MED2(1.22, 315)],
-    [131.1, MED2(), MED2(1.29, 290)],                                  // the two of them
-    [132.9, CU2, TWO(1240, 165, 1.78)],                                // "why": she turns and finds a face
-    [133.9, HALL, HALL],                                               // (So-re-ka-ra?!) the hall
-    [135, TWO(1130, 500, .8), TWO(1130, 500, .8)],                  // sideways, together: locked, full bodies
-    [137, TWO(1100, 495, .8), TWO(1100, 490, .83)],                  // F6: her line on the LEDs and in the margin
-    [138.87, FULLF, MED2(1.02, 400)],
-    [140.85, MED2(1.34, 262), MED2(1.34, 262)],                          // the hit, close: frozen
-    [142, FULLF, FULLF, room(CAMW)],                                   // (the frozen picture framed for both: her crown is above the card's default)                                     // the room: the frozen window, the light ringing out
+    [125.9, WIDE, WIDE, room(CAMW)],                                   // the room: B9's end; the window blazes
+    [126.93, WIDE, FULL, room(CAMW, FIN)],                             // in, to the window and her (she stays)
+    [129, FULL, FULL],                                                  // the drop (the key change)
+    [130.15, MED(960, 330, 1.5), MED(960, 320, 1.62)],
+    [131.1, FULL, MED(960, 340, 1.3)],
+    [132.9, MED(960, 330, 1.45), MED(960, 326, 1.5), room(WHY)],       // "why": she looks out of the card, at her
+    [133.9, { cx: 960, cy: 600, z: .96 }, WIDE],                       // (So-re-ka-ra?!) the hall
+    [135, FULL, FULL],                                                  // sideways, together, across the window's edge
+    [137, WIDE, FULL],                                                  // F6: her line on the LEDs and in the margin
+    [138.87, FULL, MED(960, 320, 1.4)],
+    [140.85, MED(960, 330, 1.5), MED(960, 330, 1.5)],                  // the hit: frozen
+    [142, WIDE, WIDE, room(CAMW)],                                      // the room: she leaves; the doors close
   ];
   const HITS = [[129, .05, 6], [141, .05, 4]]; for (let bb = 130; bb < 141; bb++) if (bb !== 134) HITS.push([bb, .017, 0]);
   const TF = 199.07;                                                   // the hit on the dash ("and then-"): everything freezes
@@ -105,7 +107,7 @@
   const FEET = [3308, 2104];                                           // butai px: where she knelt in world A ("I stand where I sat")
   const roomFable = (t, frozen) => (X, cam, lit) => {
     const T = { x: W / 2 + (FEET[0] - cam.x) * cam.zoom, y: H / 2 + (FEET[1] - cam.y) * cam.zoom, s: 1.394 * cam.zoom };
-    FABLESTAGE.room(X, t, T);
+    FABLESTAGE.room(X, t, T, { P });                                   // (standing, lantern in hand: the canon, the hood at "why", 135, the walk off)
   };
   // the blaze at 177.8 (the stage powering up: it covers the medium's change) and the light ringing out after the freeze
   const roomAfter = t => (X, cam) => {
@@ -120,15 +122,17 @@
   };
 
   window.CHOREO.clawdF.keys = { notes: NOTES.list.map(n => n[0]), tf: TF };            // (src/sfx_clawd.js: the presses and the freeze)
+  // the curtain (Michael): after the freeze she walks off with her lantern, and the butai's doors close on the frozen card
+  // (201.5-202.4, on twos); the paper world's outro opens them on the paper theatre
+  const doorsAt = t => { if (t < 201.5) return 1; const tq = Math.floor(t * 12) / 12, u = Math.min(1, (tq - 201.5) / .9); return 1 - u * u * (3 - 2 * u); };
   LOOPS.finale = t => {
     get();
-    const tt = Math.min(t, TF), c = IDOLSTAGE.camFrom(SHOTS, t, HITS, null);        // (from 181 the room is gone: the card fills the frame)
+    const tt = Math.min(t, TF), c = IDOLSTAGE.camFrom(SHOTS, t, HITS, FIN);         // (the room is the frame throughout: Fable outside the box)
     IDOLSTAGE.OVR.side = side;
     IDOLSTAGE.frame(tt, (W2S, cam) => {
       mascotTroupe(tt, crabs, ROWS);
-      FABLESTAGE.stage(X, tt, FW, P, { enter: 2000 });                 // (upstage: behind Clawd; she hops in from beyond the frame's edge)
       RIGS.clawd.draw(X, tt, P, clawdT(tt, W2S, cam));
-    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, roomFable: roomFable(t), roomAfter: roomAfter(t),
+    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, roomFable: roomFable(t), roomAfter: roomAfter(t), doors: doorsAt(t),
          clawdAt: (t2, W2S, cam, g) => RIGS.clawd.draw(g || X, t2, P, clawdT(t2, W2S, cam)) });
   };
   LOOPS.finale.len = 203;
