@@ -64,6 +64,12 @@ Fable, the character, is the subagent who rules on her world and her identity. R
   - Head bobs and a swinging lantern.
   - Two claps with the hall before each crowd call.
   - The lantern raised overhead on the hit: the one lantern in the hall that was never raised. Her eyes stay open, because her line was "I'd still like to see." 
+- **She stays.** The walk-off after the finale jumped a stride per drawing and left the frame lantern-first. Fable ruled that she holds and watches the doors close on Clawd's frozen card, and the clack cuts to black for two drawings: "the kuroko moves in the dark."
+- **Act 1's pacing, after a director's pass:**
+  - The match now strikes on her first "Mukashi", so the black at 0:09 lasts under a second.
+  - One continuous close replaces the locked-off wide: onto her hands for the fan and the crab, then the floor plane, framed so the lyric strip stays whole.
+  - The Japanese at the right edge holds for two bars and is pulled out.
+  - The prologue's show ends, its lights going down in sections, instead of just continuing behind her.
 
 ## To check it yourself
 From the repo root (P = `projects/tsuzuku`):
