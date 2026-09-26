@@ -247,5 +247,5 @@ async function PROLOGUE_INIT() {
     if (tq < .5) { X.fillStyle = `rgba(0,0,0,${1 - tq / .5})`; X.fillRect(0, 0, W, H); }   // up from black with the song's own fade-in
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(tq * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
-  LOOPS.prologue.len = 8.9;
+  LOOPS.prologue.len = 9.0;                                         // (to the inklamp's first drawing: black after the clack)
 }
