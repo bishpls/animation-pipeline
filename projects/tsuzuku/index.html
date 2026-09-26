@@ -52,6 +52,7 @@
 <script src="src/crabs.js"></script>
 <script src="src/idolstage.js"></script>
 <script src="src/fableseat.js"></script>
+<script src="src/fablestage.js"></script>
 <script src="src/chorus.js"></script>
 <script src="src/motionlab.js"></script>
 <script>
@@ -74,6 +75,7 @@
     window.VOCAL_ENV = await (await fetch('assets/vocal_env.json')).json();
     if (typeof IDOLSTAGE !== 'undefined') await IDOLSTAGE.load();
     if (typeof FABLESEAT !== 'undefined') await FABLESEAT.load();
+    if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();
     if (window.registerFilm) registerFilm();
     window.ready = true;
     studioUI();

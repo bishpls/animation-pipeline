@@ -1,0 +1,74 @@
+{
+ "scale": 0.75,
+ "size": [
+  1536,
+  2304
+ ],
+ "joints": {
+  "shoulder_L": [
+   528.8,
+   586.5
+  ],
+  "elbow_L": [
+   442.5,
+   813.8
+  ],
+  "wrist_L": [
+   351.0,
+   1006.5
+  ],
+  "shoulder_R": [
+   999.8,
+   586.5
+  ],
+  "elbow_R": [
+   1080.0,
+   813.8
+  ],
+  "wrist_R": [
+   1170.0,
+   1007.2
+  ],
+  "neck": [
+   768.0,
+   420.0
+  ],
+  "waist": [
+   768.0,
+   937.5
+  ],
+  "hip_L": [
+   697.5,
+   997.5
+  ],
+  "hip_R": [
+   838.5,
+   997.5
+  ],
+  "feet": [
+   768.0,
+   2145.0
+  ]
+ },
+ "parts": {
+  "upper_L": "upper_L.png",
+  "fore_L": "fore_L.png",
+  "hand_L": "hand_L.png",
+  "upper_R": "upper_R.png",
+  "fore_R": "fore_R.png",
+  "hand_R": "hand_R.png",
+  "head": "head.png",
+  "body": "body.png",
+  "skirt_top": "skirt_top.png",
+  "leg_L": "leg_L.png",
+  "leg_R": "leg_R.png",
+  "skirt_under": "skirt_under.png",
+  "foot_L": "foot_L.png",
+  "foot_R": "foot_R.png",
+  "hoodup": "hoodup.png",
+  "hoodpush": "hoodpush.png",
+  "head_smile": "head_smile.png",
+  "head_closed": "head_closed.png",
+  "head_why": "head_why.png"
+ }
+}

@@ -1,0 +1,34 @@
+{
+ "scale": 0.5,
+ "size": [
+  1024,
+  1280
+ ],
+ "points": {
+  "feet": [
+   559.0,
+   1218.5
+  ],
+  "crown": [
+   578.5,
+   53.5
+  ],
+  "lantern_hand": [
+   278.0,
+   680.5
+  ],
+  "lantern_down": [
+   315.5,
+   1037.5
+  ]
+ },
+ "drawings": {
+  "hold": "hold.png",
+  "props_hold": "props_hold.png",
+  "empty": "empty.png",
+  "props_empty": "props_empty.png",
+  "setdown": "setdown.png",
+  "walk1": "walk1.png",
+  "walk2": "walk2.png"
+ }
+}
