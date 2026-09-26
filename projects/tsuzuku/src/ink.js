@@ -74,7 +74,7 @@ function inkPrint(C, o = {}) {
   // the fold snaps in over two drawings (no ease), holds; after the blink it springs back 80% and stays faintly creased
   const bend = s => { if (s < LINE) return 0; const d = Math.floor((s - LINE) * 12 + 1e-6); if (d === 0) return TH * .5;
     if (s < BLINK + .5) return TH; const e = Math.floor((s - BLINK - .5) * 12 + 1e-6); return e === 0 ? TH * .55 : TH * .2; };
-  LOOPS.inkcloseup = t => {
+  LOOPS.inkcloseup_print = t => {                                            // (the full-frame ink print: retired from the film, kept for the making-of)
     const s = S0 + Math.floor(t * 12 + 1e-6) / 12, sc = S0 + t;               // the card on twos; the camera on ones
     const d = Math.round((s - BLINK) * 12), variant = d === 0 || d === 2 ? 'half' : d === 1 ? 'closed' : null;
     const src = inkPrint(INK.closeup, { variant });
@@ -98,6 +98,41 @@ function inkPrint(C, o = {}) {
     X.save(); X.globalCompositeOperation = 'multiply'; const lg = X.createRadialGradient(W / 2, H / 2 - 40, 100, W / 2, H / 2, W * .7);
     lg.addColorStop(0, '#FFFFFF'); lg.addColorStop(.7, '#EDEBE6'); lg.addColorStop(1, '#BDB6AA'); X.fillStyle = lg; X.fillRect(0, 0, W, H); X.restore();
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
+  };
+  LOOPS.inkcloseup_print.len = S1 - S0;
+  // B5 in the film (Michael: the full-frame ink cut-in "doesn't fit the aesthetic"; Fable's ruling): the drawing stays, as a
+  // kamishibai card pulled into the butai's window. No cut at 156.2: the B4 wide holds while the card slides in from the right
+  // over the vellum (six drawings, its edge and shadow leading); the camera approaches the window, arriving at CAM_WINDOW on
+  // "...I didn't know this one."; hold; one blink, the paper bending along its old fold; pulled out to the right on the note,
+  // revealing her seated puppet as B6 begins. The bridge notes stay on the vellum under the card
+  const IN0 = 156.2, CAM0 = 156.5, CAM1 = 157.2, OUT0 = 159.0, BL = 157.9, FOLDV = .72;
+  PAPER_SFX.push(() => [[IN0, 'paper_slide', -30], [OUT0, 'paper_slide', -32]]);
+  LOOPS.inkcloseup = t => {
+    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, f = 1 / 12;
+    const c0 = Math.min(1, Math.max(0, Math.floor((s - CAM0) * 12 + 1e-6) / ((CAM1 - CAM0) * 12))), ce = c0 * c0 * (3 - 2 * c0);   // (in drawings)
+    const cam = camLerp(CAM_WIDE, CAM_WINDOW, ce);
+    const dIn = Math.floor((s - IN0) * 12 + 1e-6), dOut = Math.floor((s - OUT0) * 12 + 1e-6);
+    const ui = Math.min(1, (dIn + 1) / 6), uo = s < OUT0 ? 0 : Math.min(1, (dOut + 1) / 6), sm = u => u * u * (3 - 2 * u);
+    const dB = Math.round((s - BL) * 12), variant = dB === 0 || dB === 2 ? 'half' : dB === 1 ? 'closed' : null;
+    stage(s, tt => {
+      (tt < 157.5 ? window.BRIDGE_B4 : window.BRIDGE_B6)(tt);        // under the card (hidden while it fills the window)
+      const [sx, sy, sw, sh] = SCREEN.rect, off = (1 - sm(ui)) * sw + sm(uo) * sw;
+      if (off >= sw) return;
+      const src = inkPrint(INK.closeup, { variant }), cw = sw, ch = cw * src.height / src.width, cy = sy + sh * .40 - ch * .34;   // (her eyes at 40% of the window)
+      X.save(); X.beginPath(); X.rect(sx, sy, sw, sh); X.clip();
+      X.save(); X.filter = 'blur(10px)'; X.fillStyle = 'rgba(0,0,0,.55)'; X.fillRect(sx + off - 18, sy, 30, sh); X.restore();   // the edge's shadow on the vellum
+      X.drawImage(src, sx + off, cy, cw, ch);
+      // the card's old fold under her chin: faint, deepened for the blink (the paper bends)
+      const bendK = variant ? (variant === 'closed' ? 1 : .6) : 0, yf = cy + FOLDV * ch;
+      X.globalAlpha = .16 + .5 * bendK; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(sx + off, yf - 2.5, cw, 1.6);
+      X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(sx + off, yf, cw, 2.2); X.globalAlpha = 1;
+      // lit from the room (a card, not the backlit vellum): a gentle warm falloff to its edges, and the grain
+      X.globalCompositeOperation = 'multiply'; const lg = X.createRadialGradient(sx + off + cw * .55, sy + sh * .45, 60, sx + off + cw * .5, sy + sh * .5, cw * .75);
+      lg.addColorStop(0, '#FFFFFF'); lg.addColorStop(.7, '#EDE7DC'); lg.addColorStop(1, '#B8AE9E'); X.fillStyle = lg; X.fillRect(sx + off, sy, cw, sh);
+      X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(tt * 12) % 4], 'repeat'); X.fillRect(sx + off, sy, cw, sh);
+      X.restore();
+    }, { cam, doors: 1 });
+    readers(s, cam);
   };
   LOOPS.inkcloseup.len = S1 - S0;
 }

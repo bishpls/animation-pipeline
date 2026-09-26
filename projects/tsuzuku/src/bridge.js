@@ -143,6 +143,7 @@
     seam(ts);
   };
   LOOPS.bridge.len = 156.2 - S0;
+  window.BRIDGE_B4 = ts => { if (!WT) { WT = build(); poses(); } scene(ts); };   // (B5, the card in the window, slides in over B4's last frame)
 
   // ---- after the close-up: the bare hot vellum, nothing left of the shore but the rail -----------------------------------
   const FLOOR_L = { x: FLOORSPOT[0], y: FLOORSPOT[1], held: false };
@@ -172,6 +173,7 @@
       readers(ts, CAM_WINDOW);
     };
     LOOPS.bridgeB6.len = 161.0 - S0;
+    window.BRIDGE_B6 = tt => bare(tt, c => { seatedRibbon(c, pose6, T, S0); FABLE.draw(c, pose6(S0), T, { props: [fanProp(fan, S0)], rods: FABLE_RODS }); });   // (B6's first drawing, under B5's card as it's pulled out)
   }
   // B8-B9 (166.0-177.8). She stands where she stood up, facing what she set down: the book, and the lamp on the floor beside it
   // (Fable). She bows; her hand goes to the book and hovers one beat over it (the not-knowing), then takes the lamp by its stick
