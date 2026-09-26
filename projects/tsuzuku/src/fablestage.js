@@ -192,8 +192,9 @@ const FABLESTAGE = (() => {
     add('step L', 2, 'full', u => ({ footLX: -120 * up(u), footLY: 40 * Math.max(0, sw(u)) }));
     add('step R', 2, 'full', u => ({ footRX: 120 * up(u), footRY: 40 * Math.max(0, sw(u)) }));
     add('side step', 2, 'full', u => ({ footLX: -100 * up(u), footRX: -60 * up(u), hipX: -.8 * up(u) }));
-    add('perform 129-135', 6 * BR, 'full', u => { const PF = window.CHOREO && CHOREO.clawdF && CHOREO.clawdF.P(); return PF ? mapP(PF(b2t(129 + 6 * u) - BR)) : {}; });
-    add('perform 135-141', 6 * BR, 'full', u => { const PF = window.CHOREO && CHOREO.clawdF && CHOREO.clawdF.P(); return PF ? mapP(PF(b2t(135 + 6 * u))) : {}; });
+    const perf = b => { const PF = window.CHOREO && CHOREO.clawdF && CHOREO.clawdF.P(), st = PF && pose(Math.floor(b2t(b) * 12 + 1e-6) / 12, PF); return st && st.p ? st.p : {}; };   // (as the finale plays her)
+    add('perform 129-135', 6 * BR, 'full', u => perf(129 + 6 * u));
+    add('perform 135-141', 6 * BR, 'full', u => perf(135 + 6 * u));
     let T0 = 0; for (const g of segs) { g.t0 = T0; T0 += g.dur; }
     window.ROMSETS = window.ROMSETS || {}; window.ROMSETS.fablerom = segs.map(g => [g.name, +g.t0.toFixed(3), +(g.t0 + g.dur).toFixed(3), g.frame]);
     const FR = { full: { x: 960, y: 1060, s: 1020 / RIGH }, mid: { x: 960, y: 540 + (2940 - 1150) * .52, s: .52 }, head: { x: 960, y: 560 + (2940 - 420) * .95, s: .95 } };
