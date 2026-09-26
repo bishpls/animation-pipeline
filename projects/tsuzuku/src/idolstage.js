@@ -523,6 +523,13 @@ const IDOLSTAGE = (() => {
     if (opt.roomFable) opt.roomFable(X, cam, lit);
     else if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
     if (opt.roomAfter) opt.roomAfter(X, cam);
+    // the tear's flood (61.0, world A's first frame): her light takes the window and washes the room white, covering the move from
+    // the paper world's readers to one audience (Fable: "the white covers the move"); it ebbs over two thirds of a second
+    const tf = t - 60.99;                                                          // (world A starts at 61.0)
+    if (tf >= 0 && tf < .7) { const [wx, wy] = [W / 2 + (1919.5 - cam.x) * cam.zoom, H / 2 + (1303 - cam.y) * cam.zoom], a = .95 * (1 - tf / .7) ** 1.6;
+      X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'lighter';
+      const g = X.createRadialGradient(wx, wy, 200, wx, wy, 1900); g.addColorStop(0, `rgba(255,244,250,${a})`); g.addColorStop(.5, `rgba(255,236,246,${a * .6})`); g.addColorStop(1, `rgba(255,236,246,${a * .25})`);
+      X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore(); }
     return c;
   }
   // her book mirrors the screen: the same faces, and Clawd's page (drawn live) for the over-the-shoulder cut at 80.2
