@@ -435,7 +435,7 @@
     "arms": {
      "span": [
       129,
-      131.0
+      130.12
      ],
      "mode": "set",
      "fade": 0.3
@@ -471,9 +471,17 @@
      ],
      "mode": "set",
      "fade": 0.5
+    },
+    "arms#3": {
+     "span": [
+      130.36,
+      131.0
+     ],
+     "mode": "set",
+     "fade": 0.2
     }
    },
-   "why": "Its own clip: the point up, the pump, the reach, arms up and wide, the point at the camera, the hand on the chest, the fling open on 'why'; arms from the data, her sway, lean and head over the groove; legs keyed. The point at the camera (131.1-132.2) is foreshortened in a front view (it read as a hand at the chest), so the keyed point out to the side stays there."
+   "why": "Its own clip: the point up, the pump, the reach, arms up and wide, the point at the camera, the hand on the chest, the fling open on 'why'; arms from the data, her sway, lean and head over the groove; legs keyed. The point at the camera (131.1-132.2) is foreshortened in a front view (it read as a hand at the chest), so the keyed point out to the side stays there. Her fold at the chest before the arms go up (130.12-130.45) is keyed: at the song's speed the retarget swung the arm over the top."
   },
   {
    "name": "f2_v1",
