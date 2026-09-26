@@ -19,7 +19,7 @@ LIFT = {'turn1': [[1310, 750], [1395, 660], [1440, 492], [1500, 560], [1580, 640
                   [1500, 1185], [1470, 1080], [1440, 990], [1380, 880], [1310, 790]],        # the lifting page (its back is blank), traced
         'turn2': [[1625, 465], [1690, 530], [1735, 610], [1745, 690], [1725, 780], [1650, 920], [1570, 1070], [1505, 1185], [1480, 1100], [1440, 1010],
                   [1405, 955], [1480, 830], [1515, 715], [1560, 640]]}
-base = key(os.path.join(D, 'src/ots/ots.png')); H, W = base.shape[:2]
+base = key(os.path.join(D, 'src/ots/ots.png')); H, W = base.shape[:2]   # (the set-up as drawn: registration target)
 
 
 def poly(p):
@@ -41,10 +41,16 @@ pages = poly(Q['left']) | poly(Q['right'])
 paper = lambda a: (lum(a) > 150) & (a[..., 3] > 200)
 out = {'quads': {k: [[round(x * S, 1), round(y * S, 1)] for x, y in v] for k, v in Q.items()}}
 fit = (base[..., 3] > 200) & ~ndi.binary_dilation(pages | poly(HAND), iterations=60)
+# the lantern moved to the floor at her left (out of this frame, behind her): its corner, bottom right, from 'ots_nolantern'
+LZ = [[2100, 700], [2560, 700], [2560, 1440], [1900, 1440], [1990, 1100]]
+from build import over
+nl, _ = register(key(os.path.join(D, 'src/ots/ots_nolantern.png')), fit & ~poly(LZ))
+lzm = poly(LZ) & ~ndi.binary_dilation(pages, iterations=8)
+lzm = feather(lzm, 14)
 for d in ['ots', 'turn1', 'turn2']:
-    if d == 'ots': al, res = base, 0
+    if d == 'ots': al, res = over(base, nl, lzm), 0
     else:
-        al, warp = register(key(os.path.join(D, f'src/ots/{d}.png')), fit); res = np.abs(lum(al) - lum(base))[fit].mean()
+        al, warp = register(key(os.path.join(D, f'src/ots/{d}.png')), fit); res = np.abs(lum(al) - lum(base))[fit].mean(); al = over(al, nl, lzm)
     if d == 'ots': cover = poly(HAND)
     else:
         diff = np.abs(al[..., :3].astype(np.int16) - base[..., :3].astype(np.int16)).max(-1) > 40

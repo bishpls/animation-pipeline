@@ -1,6 +1,7 @@
 // fableseat.js: Fable in the hall during Clawd's world A (her ruling, CLAWDWORLD.md). She sits seiza on her cushion at the front
-// rail, house-left, seen from behind: hood up, the book open on her lap, the lantern lit at her right knee (the one lantern in
-// the hall never raised), geta paired beside the cushion. An illustrated puppet from rig/fable_seated (GPT Image drawings of one
+// rail, house-left, seen from behind: hood up, the book open on her lap, her lantern lit on the floor at her left (the one
+// lantern in the hall never raised; set where the paper world sets it, so the cut into B1 is lamp to lamp), geta paired beside
+// the cushion, her hands on her thighs when idle. An illustrated puppet from rig/fable_seated (GPT Image drawings of one
 // pose set, registered and cut by build.py): one drawing per arm pose, swapped on a snap; a nod and a seated weight shift warped
 // in strips; the ribbon on its own layer. Her clock, not Clawd's: everything is sampled on twos (12 drawings a second) and
 // held. No springs.
@@ -8,7 +9,7 @@
 //   FABLESEAT.cue(t)                 {pose, nod, lean, sway} on the song clock (bars below are SONG bars)
 const FABLESEAT = (() => {
   const BR = 60 / 170 * 4, BT = BR / 4;
-  const M = { meta: null, img: {}, cache: new Map() };
+  const M = { meta: null, img: {}, cache: new Map() }, LANTERN_S = .9;          // (a step farther than her right knee: a touch smaller)
   async function load(base = 'rig/fable_seated/') {
     M.meta = await (await fetch(base + 'meta.json')).json();
     const get = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + f; });
@@ -25,7 +26,7 @@ const FABLESEAT = (() => {
   const inAny = (b, W) => W.some(([a, z]) => b >= a && b < z);
   function cue(t) {
     const tq = Math.floor(t * 12 + 1e-6) / 12, b = tq / BR, f = b - Math.floor(b), bar = Math.floor(b);
-    let pose = 'base', nod = 0, lean = 0, sway = 0;
+    let pose = 'rest', nod = 0, lean = 0, sway = 0;
     const chorus = inAny(b, [[46, 62], [82, 90]]), still = b >= 72 && b < 82 || b >= 90;
     if (chorus) {
       nod = f < .06 ? .55 : f < .36 ? 1 : f < .42 ? .4 : 0;                     // down on the one, hold, up
@@ -45,7 +46,7 @@ const FABLESEAT = (() => {
       if (b >= 65 && b < 65.4) pose = b < 65.07 ? 'write' : b < 65.2 ? 'wipe0' : 'wipe1';   // wipe 2, with her: flat hand, left to right
       nod = pose === 'ear' ? .3 : 0; sway = 0;                                        // (wipe 1, at 63, is Clawd's alone: she's still)
     }
-    if (b >= 72 && b < 82) pose = 'rest';                                          // hands empty, watching
+    // (from 72: hands empty, watching; 'rest' is already her idle)
     if (still) { nod = 0; sway = 0; }
     return { pose, nod, lean, sway, b };
   }
@@ -77,9 +78,11 @@ const FABLESEAT = (() => {
     const st = cue(t), P = M.meta.pivots, [w, h] = M.meta.size, fig = warped(st);
     X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-P.seat[0], -P.seat[1]);
     X.filter = `brightness(${(.7 + .3 * light).toFixed(3)})`;                       // in the hall, lit from the stage
-    X.drawImage(M.img.lantern, 0, 0, w, h); X.drawImage(fig, 0, 0, w, h); X.filter = 'none';
-    // her lantern: a warm core (#F4C97A) through indigo paper; it lights her sleeve and the cushion, and the floor round it
-    const [lx, ly] = P.lantern, fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3);
+    const [ox, oy] = P.lantern, [lx, ly] = P.lantern_at, ls = LANTERN_S;                    // (the lantern layer, moved to her left)
+    X.save(); X.translate(lx, ly); X.scale(ls, ls); X.translate(-ox, -oy); X.drawImage(M.img.lantern, 0, 0, w, h); X.restore();
+    X.drawImage(fig, 0, 0, w, h); X.filter = 'none';
+    // her lantern: a warm core (#F4C97A) through indigo paper; it lights her left side and the cushion, and the floor round it
+    const fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3);
     X.globalCompositeOperation = 'lighter';
     let g = X.createRadialGradient(lx, ly, 10, lx, ly, 330 * fl);
     g.addColorStop(0, 'rgba(244,201,122,.30)'); g.addColorStop(.35, 'rgba(244,170,90,.12)'); g.addColorStop(1, 'rgba(244,170,90,0)');
@@ -153,10 +156,10 @@ const FABLESEAT = (() => {
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
     X.drawImage(O.img[draw], 0, 0, W, H);
     X.globalCompositeOperation = 'multiply'; X.drawImage(c, 0, 0); X.globalCompositeOperation = 'source-over';
-    // the lantern at her knee (bottom right): its warm light breathing on the page
+    // her lantern on the floor at her left, out of frame behind her: its warm light breathing on the page from the left
     const fl = 1 + .05 * Math.sin(t * 8.3) * Math.sin(t * 2.9); X.globalCompositeOperation = 'lighter';
-    const gr = X.createRadialGradient(1840, 1010, 20, 1840, 1010, 520 * fl); gr.addColorStop(0, 'rgba(244,201,122,.28)'); gr.addColorStop(.4, 'rgba(244,170,90,.08)'); gr.addColorStop(1, 'rgba(244,170,90,0)');
-    X.fillStyle = gr; X.fillRect(1200, 400, 720, 680);
+    const gr = X.createRadialGradient(640, 1180, 30, 640, 1180, 820 * fl); gr.addColorStop(0, 'rgba(244,201,122,.30)'); gr.addColorStop(.45, 'rgba(244,170,90,.10)'); gr.addColorStop(1, 'rgba(244,170,90,0)');
+    X.fillStyle = gr; X.fillRect(0, 340, 1500, 740);
     X.restore();
   }
   return { load: async () => { await load(); await loadOts(); }, draw, cue, ots, M };

@@ -84,13 +84,21 @@ def over(dst, src, m):
     return np.dstack([np.clip(rgb, 0, 255), np.clip(A, 0, 255)]).astype(np.uint8)
 
 
+def beneath(top, bottom):
+    """top drawn over bottom (premultiplied)"""
+    pa = lambda a: np.dstack([a[..., :3].astype(np.float32) * (a[..., 3:] / 255), a[..., 3:].astype(np.float32)])
+    T, B = pa(top), pa(bottom); P = T + B * (1 - T[..., 3:] / 255)
+    A = P[..., 3:]; rgb = np.where(A > 0, P[..., :3] / np.maximum(A, 1e-6) * 255, 0)
+    return np.dstack([np.clip(rgb, 0, 255), np.clip(A, 0, 255)]).astype(np.uint8)
+
+
 def cut():
     Z = json.load(open(os.path.join(D, 'zones.json'))); SC = Z.get('scale', .6)
     def poly(p): m = np.zeros((H, W), np.uint8); cv2.fillPoly(m, [np.array(p, np.int32)], 1); return m.astype(bool)
     arm, lz = poly(Z['arm']), poly(Z['lantern'])
     fitmask = (base[..., 3] > 200) & ~ndi.binary_dilation(arm | lz, iterations=40)
     AL = {}
-    for p in POSES + ['noribbon']:
+    for p in POSES + ['noribbon', 'nolantern']:
         al, _ = register(key(os.path.join(D, f'src/poses/{p}.png')), fitmask); AL[p] = colour_match(al, fitmask & (al[..., 3] > 200))
     # the lantern: from 'write' (her hand has let go), moved to the base's place
     body = Z['lantern_body']
@@ -110,12 +118,15 @@ def cut():
     ribbon = base.copy(); ribbon[..., 3] = (base[..., 3] * np.clip(feather(ndi.binary_dilation(rib, iterations=3), 2.5), 0, 1)).astype(np.uint8)
     under = ndi.binary_dilation(rib, iterations=22) & rz
     fig = over(fig, nr, feather(under, 10))
+    # the lantern now stands on the floor at her left (both Fables: "lamp to lamp" across the cut into B1), so where it stood,
+    # at her right knee, the figure needs the cushion's corner: from 'nolantern', only there, under whatever each pose draws
+    nlc = AL['nolantern'].copy(); nlc[..., 3] = (nlc[..., 3] * feather(ndi.binary_dilation(lmask, iterations=10) & lz & ~poly(Z['hand']), 4)).astype(np.uint8)
     out = {'scale': SC, 'size': [round(W * SC), round(H * SC)], 'pivots': {k: [round(a * SC, 1), round(b * SC, 1)] for k, (a, b) in Z['pivots'].items()}, 'poses': {}}
     save = lambda a, name: Image.fromarray(a).resize((round(W * SC), round(H * SC)), Image.LANCZOS).save(os.path.join(D, name))
     save(lantern, 'lantern.png'); save(ribbon, 'ribbon.png')
     # each pose: the changed region of the arm (and the hood for 'ear'), feathered, laid over the figure
     for p in ['base'] + POSES:
-        if p == 'base': save(fig, 'figure_base.png'); out['poses'][p] = 'figure_base.png'; continue
+        if p == 'base': save(beneath(fig, nlc), 'figure_base.png'); out['poses'][p] = 'figure_base.png'; continue
         al = AL[p].copy()
         ex, ey, v = lantern_offset(al, body)                         # take out this drawing's own (displaced) lantern
         el = shift(lmask.astype(np.uint8), ex, ey).astype(bool); el = ndi.binary_dilation(el, iterations=5)
@@ -129,6 +140,10 @@ def cut():
         lab, n = ndi.label(m); sizes = ndi.sum(m, lab, range(1, n + 1)); m = np.isin(lab, 1 + np.flatnonzero(sizes > 4000))
         m = ndi.binary_dilation(m, iterations=14) & (zone | lz)
         comp = over(fig, al, feather(m, 9))
+        ring = poly(Z['hand']) & ndi.binary_dilation(lmask, iterations=14)          # what's left of the old lantern's ring handle
+        if p == 'wipe0': ring &= np.mgrid[:H, :W][0] > 1520                         # (her hand passes just above it)
+        comp[..., 3] = (comp[..., 3] * ~ring).astype(np.uint8)
+        comp = beneath(comp, nlc)
         name = f'figure_{p}.png'; save(comp, name); out['poses'][p] = name
         print(f'{p:6s} patch {m.sum() / 1e3:.0f}k px, lantern offset {ex},{ey} ncc {v:.2f}')
     json.dump(out, open(os.path.join(D, 'meta.json'), 'w'), indent=1)
