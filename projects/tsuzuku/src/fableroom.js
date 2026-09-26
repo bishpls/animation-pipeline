@@ -236,6 +236,13 @@ const FABLEROOM = (() => {
     if (k < KP + 6) return 'push2';                                  // the hood pulled back, the hair out, the head turning
     if (k < KP + 8) return 'turn';                                   // hood down (188.17), the profile found, the dry half-smile
     if (k < KP + 10) return 'turn_half';                             // back toward the window
+    // the hit (Fable: 'the one face the finale is for'): the head turns ~15 degrees toward us again, two drawings, arriving with the
+    // lantern on the dash, so the open smile and the bright eye are seen past the cheek; held through the freeze; back to the
+    // window on the lowering (the half turn on its first drawing, then the base head with the smile)
+    const kh = sl(EK.hit), kl = sl(EK.lower);
+    if (k === kh - 1) return 'turn_half_hit';
+    if (k >= kh && k < kl) return 'turn_hit';
+    if (k === kl) return 'turn_half_hit';
     return null;
   }
   const clapK = CLAPS.flat().map(sl);                                // (a pat lands on the drawing that holds its time)
@@ -357,6 +364,9 @@ const FABLEROOM = (() => {
   LOOPS.fableroom_end.len = 203;
   LOOPS.fableroom_end_wide = t => { endBg(); label(t, ending(X, Math.max(177.8, t), { x: 1100, y: 1030, s: .8 })); };
   LOOPS.fableroom_end_wide.len = 203;
+  LOOPS.fableroom_end_id = t => { X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#000'; X.fillRect(0, 0, W, H); window.RIG_IDPASS = true;
+    try { ending(X, Math.max(177.8, t), FIN, { figureOnly: true }); } finally { window.RIG_IDPASS = false; } };   // (debug: the ID pass)
+  LOOPS.fableroom_end_id.len = 203;
   LOOPS.fableroom_end_why = t => { endBg(); label(t, ending(X, Math.max(177.8, t), { x: 1768, y: 1649, s: 1.275 })); };   // (the 'why' two-shot's T)
   LOOPS.fableroom_end_why.len = 203;
   LOOPS.fableroom_end_key = t => { X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#00ff00'; X.fillRect(0, 0, W, H); ending(X, Math.max(177.8, t), { x: 1100, y: 1030, s: .8 }, { figureOnly: true }); };

@@ -672,6 +672,38 @@
      "after:sleeve_R_back"
     ]
    ]
+  },
+  "turn_hit": {
+   "manifest": "../views/turn_hit/manifest.json",
+   "hide": [
+    "neck",
+    "hood"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:sleeve_R_back"
+    ]
+   ]
+  },
+  "turn_half_hit": {
+   "manifest": "../views/turn_half_hit/manifest.json",
+   "hide": [
+    "neck",
+    "hood"
+   ],
+   "bodyLayers": [
+    "upper"
+   ],
+   "insert": [
+    [
+     "upper",
+     "after:sleeve_R_back"
+    ]
+   ]
   }
  }
 }

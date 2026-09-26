@@ -143,7 +143,7 @@ def views(names):
             arm = np.array(Image.open(P('under', 'seg_' + {'push1': 'pushA', 'push2': 'pushB'}[name], 'arm.png'))) > 127   # the raised arm
             zone = va & (ndi.binary_dilation(upper, iterations=30) | (yy < 2600)) & ~lantern & ~ndi.binary_erosion(arm, iterations=3)   # (under the arm's edge: no crack)
             export(name, [('upper', cut(zone))], fig & ~upper)
-        elif name in ('turn', 'turn_half'):              # the head, the hair and ribbon, the hood and neck; the base's arms and jacket stay
+        elif name in ('turn', 'turn_half', 'turn_hit', 'turn_half_hit'):              # the head, the hair and ribbon, the hood and neck; the base's arms and jacket stay
             head = np.zeros(fig.shape, bool)
             for n in HEADS + ['neck', 'hood', 'hair', 'ribbon']: head |= Lb(n)
             arms = ndi.binary_dilation(Lb('sleeve_L') | Lb('hand_L') | Lb('sleeve_R') | Lb('hand_R') | Lb('stick'), iterations=3)
@@ -263,8 +263,128 @@ def hairclone():
     print('hair plate top: cloned', n, 'px')
 
 
+# ---- the ribbon in Ai (Fable, after the rig review: "it reads as Clawd's cyan"): her indigo, the deep blue between her hakama and
+# her hair's shadows, its own shading and line kept (every pixel scaled from its luminance), the cyan only as a rim on its right
+# edge and a pink rim on its left (the window's light), like the sleeves' rim lights. Applied after the build and the views; each
+# file is marked (a PNG text chunk) so a rerun never recolours twice
+# (the hakama's own Ai, a touch deeper; highlights stay indigo, never cyan: first try, the hair's shadow blue, lost it in the hair)
+AI = np.array([20, 80, 126], float); AI_HI = np.array([44, 110, 166], float); L_AI = 85.0
+RIM_R = np.array([40, 190, 255], float); RIM_L = np.array([240, 90, 170], float); RW = 18
+
+
+def edge_dist(m):
+    """per pixel: its distance (px) to the mask's left edge and right edge along the row"""
+    H, W = m.shape; ix = np.broadcast_to(np.arange(W), (H, W))
+    last = np.maximum.accumulate(np.where(~m, ix, -1), axis=1); dl = ix - last
+    nxt = np.minimum.accumulate(np.where(~m, ix, W)[:, ::-1], axis=1)[:, ::-1]; dr = nxt - ix
+    return dl, dr
+
+
+def ai_recolour(img, mask):
+    out = img.copy(); rgb = img[..., :3].astype(float); L = rgb @ [.299, .587, .114]; r = (L / L_AI)[..., None]
+    col = np.where(r <= 1, AI * r, AI + (AI_HI - AI) * np.clip(r - 1, 0, 1))
+    solid = mask & (img[..., 3] > 8); dl, dr = edge_dist(solid)
+    wl = (np.clip(1 - (dl - 1) / RW, 0, 1) ** 1.3 * .8)[..., None]; wr = (np.clip(1 - (dr - 1) / RW, 0, 1) ** 1.3 * .75)[..., None]
+    lit = np.clip((L - 30) / 40, 0, 1)[..., None]                                  # (rims light the cloth, not its drawn lines)
+    col = col * (1 - wl * lit) + RIM_L * wl * lit
+    col = col * (1 - wr * lit) + RIM_R * wr * lit
+    out[mask, :3] = np.clip(col[mask], 0, 255).astype(np.uint8)
+    return out
+
+
+def ribbon_mask(img):
+    """the ribbon's pixels in a flattened view drawing: seeded by its own teal, closed, grown over its lines, never the hair's rim"""
+    a = img.astype(int); rgb = a[..., :3]; L = rgb @ [.299, .587, .114]
+    seed = (np.abs(rgb - [24, 100, 138]).max(2) < 30) & (a[..., 3] > 200)
+    box = np.zeros(seed.shape, bool); box[900:2880, 1330:1840] = True; seed &= box
+    lab, n = ndi.label(seed); sz = ndi.sum(seed, lab, range(1, n + 1)); seed = np.isin(lab, 1 + np.nonzero(sz > 800)[0]) if n else seed
+    m = ndi.binary_fill_holes(ndi.binary_closing(seed, iterations=10))
+    tealish = (rgb[..., 1] > rgb[..., 0] + 25) & (rgb[..., 1] > .55 * rgb[..., 2]) | (L < 60)
+    return ndi.binary_dilation(m, iterations=4) & (a[..., 3] > 8) & tealish & box
+
+
+def ribbon_ai():
+    from PIL import PngImagePlugin
+    def done(p): return Image.open(p).info.get('ai') == '1'
+    def save(p, arr): info = PngImagePlugin.PngInfo(); info.add_text('ai', '1'); Image.fromarray(arr).save(p, pnginfo=info)
+    for n in ('ribbon', 'ribbon_knot'):
+        p = P('mesh', 'build', n + '.png')
+        if done(p): continue
+        im = rgba(p); save(p, ai_recolour(im, im[..., 3] > 0)); print('recoloured', n)
+    # the hair under the tails (from the no-ribbon companion) kept traces of the ribbon's old teal: a ghost where the tails swing
+    # off. Painted out from the strands around them (invented, marked)
+    p = P('mesh', 'build', 'hair.png')
+    if not done(p):
+        import cv2
+        H = rgba(p); IV = np.array(Image.open(P('mesh', 'build', 'hair.inv.png'))) > 127
+        man = json.load(open(P('mesh', 'build', 'manifest.json'))); eh = [l for l in man['layers'] if l['name'] == 'hair'][0]
+        under = np.zeros(H.shape[:2], bool)                                           # (only where the ribbon covers the hair at rest)
+        R0 = np.array(Image.open(P('mesh', 'layers', 'ribbon.png')))[..., 3] > 8
+        under[:] = R0[eh['y']:eh['y'] + eh['h'], eh['x']:eh['x'] + eh['w']]
+        c = H[..., :3].astype(int); t = (c[..., 1] > c[..., 0] + 40) & (c[..., 1] > .62 * c[..., 2]) & (c[..., 1] > 70) & (H[..., 3] > 8)
+        t = ndi.binary_dilation(t, iterations=2) & (H[..., 3] > 8) & ndi.binary_erosion(under, iterations=1)
+        H[..., :3] = np.where(t[..., None], cv2.inpaint(np.ascontiguousarray(H[..., :3]), t.astype(np.uint8), 9, cv2.INPAINT_TELEA), H[..., :3])
+        save(p, H); IV |= t; Image.fromarray((IV * 255).astype(np.uint8)).save(P('mesh', 'build', 'hair.inv.png')); print('hair: ribbon traces painted out', int(t.sum()))
+    p = P('views', 'hoodup', 'ribbon_up.png')
+    if os.path.exists(p) and not done(p): im = rgba(p); save(p, ai_recolour(im, im[..., 3] > 0)); print('recoloured hoodup/ribbon_up')
+    for v in sorted(os.listdir(P('views'))):
+        p = P('views', v, 'upper.png')
+        if not os.path.exists(p) or done(p): continue
+        man = json.load(open(P('views', v, 'manifest.json'))); e = [l for l in man['layers'] if l['name'] == 'upper'][0]
+        im = rgba(p); full = np.zeros((4440, 2160, 4), np.uint8); full[e['y']:e['y'] + e['h'], e['x']:e['x'] + e['w']] = im
+        m = ribbon_mask(full); full = ai_recolour(full, m)
+        save(p, full[e['y']:e['y'] + e['h'], e['x']:e['x'] + e['w']]); print('recoloured', v, 'upper:', int(m.sum()), 'px of ribbon')
+
+
+# ---- the hit's face (Fable, after the rig review: "the one face the finale is for"): the push's turned head (the profile) with the
+# open smile and the bright, open eye; and the half turn with the smile opening, for the in-between. One GPT Image edit of a head crop
+# each (cached in under/_edits_hit), registered on everything but the face, colour-matched, pasted in through a feathered face zone
+HIT = {
+ 'turn_hit': ('turn', "She smiles openly, overjoyed: her lips part in a wide open smile (a glimpse of her upper teeth), her cheek rounds and "
+              "lifts, and her eye is wide open and bright, looking up and to the left at the stage (the iris raised a little). "),
+ 'turn_half_hit': ('turn_half', "She is breaking into an open smile: her lips just parting, her cheek lifting and rounding, her eye opening "
+                   "wide and bright, looking up and to the left at the stage. "),
+}
+HIT_KEEP = ("The head does NOT turn and does not move: the same angle, position and size. Keep EVERYTHING else exactly identical: her "
+            "hair, bangs, the ribbon, her ear, neck and collar, the crisp anime lineart, cel shading, colours and edge lighting. Only the "
+            "face changes as described. Transparent background.")
+
+
+def hitface(names):
+    import subprocess, cv2
+    X0, Y0, NN = 650, 600, 1024; ed = P('under', '_edits_hit'); os.makedirs(ed, exist_ok=True)
+    gl = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 200 * (1 - a[..., 3] / 255)).astype(np.float32)
+    yy, xx = np.mgrid[:NN, :NN]; zone = ((xx - (1130 - X0)) / 165.) ** 2 + ((yy - (1150 - Y0)) / 185.) ** 2 <= 1
+    for name in names:
+        src, prompt = HIT[name]; V = rgba(P('under', src + '_al.png')); crop = V[Y0:Y0 + NN, X0:X0 + NN].copy()
+        cp = os.path.join(ed, f'_crop_{name}.png'); Image.fromarray(crop).save(cp); ep = os.path.join(ed, name + '.png')
+        if not os.path.exists(ep):
+            subprocess.run([os.path.join(P('..', '..', '..', '..'), '.venv', 'bin', 'python'), os.path.join(P('..', '..', '..', '..'), 'tools', 'gptimage.py'),
+                            'Edit this character close-up, seen in side profile. ' + prompt + HIT_KEEP, ep, '--size', f'{NN}x{NN}', '--quality', 'high',
+                            '--transparent', '--ref', cp], check=True)
+        e = np.array(Image.open(ep).convert('RGBA').resize((NN, NN), Image.LANCZOS))
+        m = (~ndi.binary_dilation(zone, iterations=30) & (crop[..., 3] > 200)).astype(np.uint8); w = np.eye(2, 3, dtype=np.float32)
+        for sc in (.25, .5, 1.):
+            A = cv2.GaussianBlur(cv2.resize(gl(crop), None, fx=sc, fy=sc), (0, 0), 1.2); Bv = cv2.GaussianBlur(cv2.resize(gl(e), None, fx=sc, fy=sc), (0, 0), 1.2)
+            w2 = w.copy(); w2[:, 2] *= sc
+            _, w2 = cv2.findTransformECC(A, Bv, w2, cv2.MOTION_AFFINE, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6), cv2.resize(m, None, fx=sc, fy=sc, interpolation=cv2.INTER_NEAREST), 5)
+            w = w2.copy(); w[:, 2] /= sc
+        al = cv2.warpAffine(e, w, (NN, NN), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP); res = float(np.abs(gl(al) - gl(crop))[m.astype(bool)].mean())
+        k = m.astype(bool) & (al[..., 3] > 200)
+        for c in range(3):
+            sa, sb = al[k, c].astype(float), crop[k, c].astype(float)
+            al[..., c] = np.clip((al[..., c] - sa.mean()) / (sa.std() + 1e-6) * sb.std() + sb.mean(), 0, 255).astype(np.uint8)
+        f = np.clip(ndi.distance_transform_edt(zone) / 14, 0, 1)[..., None]
+        pa = lambda q: np.dstack([q[..., :3].astype(float) * (q[..., 3:] / 255), q[..., 3:].astype(float)])
+        mix = pa(al) * f + pa(crop) * (1 - f); A2 = mix[..., 3:]; out = np.dstack([np.where(A2 > 0, mix[..., :3] / np.maximum(A2, 1e-6) * 255, 0), A2])
+        V2 = V.copy(); V2[Y0:Y0 + NN, X0:X0 + NN] = np.clip(out, 0, 255).astype(np.uint8)
+        Image.fromarray(V2).save(P('under', name + '_al.png')); print(f'{name}: registered, residual {res:.1f}')
+
+
 if __name__ == '__main__':
     a = sys.argv[1:]
+    if a[0] == 'hitface': hitface(a[1:] or list(HIT))
+    if a[0] == 'ribbon_ai': ribbon_ai()
     if a[0] == 'hairclone': hairclone()
     if a[0] == 'fix_sweep': fix_sweep()
     if a[0] == 'extend_down': extend_down()
