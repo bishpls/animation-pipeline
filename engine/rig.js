@@ -149,9 +149,12 @@ const RIG = (() => {
     // mouth: a small canvas texture, redrawn when the mouth is open
     if (R.mouth) { rig.mc = document.createElement('canvas'); rig.mc.width = 256; rig.mc.height = 160; rig.mtex = gl.createTexture(); }
     // ID colours for the ID pass (tools/romcheck.py): one per (layer, view), stable, listed in window.RIG_IDS
-    const allL = [...layers, ...Object.values(views).flatMap(v => v.layers), ...armPoses.L, ...armPoses.R]; window.RIG_IDS = {};
-    allL.forEach((l, i) => { const k = i + 1, c = [((k * 37) % 251 + 4) / 255, ((k * 91) % 247 + 4) / 255, ((k * 53) % 239 + 8) / 255];
-      l.idc = c; window.RIG_IDS[(l.view ? l.view + ':' : '') + l.name] = c.map(v => Math.round(v * 255)); });
+    // (they accumulate across rigs with unique colours: the first rig loaded keeps the plain keys and colours 1..n; a later rig's
+    // keys carry its rig.json "idPrefix", so loading Fable's rig after Clawd's never changes Clawd's map)
+    const allL = [...layers, ...Object.values(views).flatMap(v => v.layers), ...armPoses.L, ...armPoses.R], k0 = window.RIG_IDN || 0; window.RIG_IDS = window.RIG_IDS || {};
+    allL.forEach((l, i) => { const k = k0 + i + 1, c = [((k * 37) % 251 + 4) / 255, ((k * 91) % 247 + 4) / 255, ((k * 53) % 239 + 8) / 255];
+      l.idc = c; window.RIG_IDS[(R.idPrefix ? R.idPrefix + '/' : '') + (l.view ? l.view + ':' : '') + l.name] = c.map(v => Math.round(v * 255)); });
+    window.RIG_IDN = k0 + allL.length;
     rig.draw = (X, t, P, T) => draw(rig, X, t, P, T);
     rig.locate = (t, P, T, name) => locate(rig, t, P, T, name);
     return rig;
@@ -237,15 +240,29 @@ const RIG = (() => {
         const sd = rig.armOf[name], sg = sd === 'L' ? 1 : -1;
         // the elbow (FK, before the shoulder): the forearm, cuff and hand rotate about it; the arm's own mesh is skinned across
         // the joint (weight by distance along the arm axis), so it bends instead of breaking
-        const eb = p['elbow' + sd] || 0;
+        const eb = p['elbow' + sd] || 0; let ew = 0, ebw = 0;
         if (eb && arm.elbow) {
           const E = arm.elbow, ax = arm.axis, sAlong = (x - E[0]) * ax[0] + (y - E[1]) * ax[1];
-          const ebw = ((eb + 180) % 360 + 360) % 360 - 180;                       // (the bend as seen: 330 is -30)
+          ebw = ((eb + 180) % 360 + 360) % 360 - 180;                             // (the bend as seen: 330 is -30)
           const bl = arm.blend * clamp(1 - (Math.abs(ebw) - 120) / 60, .08, 1);  // past 120 deg the joint sharpens to a hinge (circles, the windmill)
-          const w = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + bl) / (2 * bl), 0, 1)) : 0;
-          if (w) [x, y] = rot(x, y, E[0], E[1], sg * ebw * w);                   // (as seen: a partly weighted 330 would swing through 165)
+          ew = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + bl) / (2 * bl), 0, 1)) : 0;
+          if (ew) [x, y] = rot(x, y, E[0], E[1], sg * ebw * ew);                 // (as seen: a partly weighted 330 would swing through 165)
         }
         const a = sg * (p['arm' + sd] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a);
+        // hanging cloth (arms.<s>.hang: { layers, k, d0, d1 }; Fable's wide kimono sleeves): cloth far from the arm line doesn't turn
+        // with the arm. It hangs from its point on the (turned) arm line, turned back by part of the arm's turn (k), more the farther it
+        // is from the arm (d0..d1 px), so a raised arm carries its sleeve's top and the rest drapes below it
+        const HG = arm.hang;
+        if (HG && HG.layers.includes(name) && (a || ew)) {
+          const S0 = arm.shoulder, ax = arm.axis, rx = rest[k] - S0[0], ry = rest[k + 1] - S0[1], along = rx * ax[0] + ry * ax[1];
+          const perp = Math.abs(rx * ax[1] - ry * ax[0]), wd = smooth(clamp((perp - (HG.d0 ?? 40)) / ((HG.d1 ?? 260) - (HG.d0 ?? 40)), 0, 1));
+          if (wd > 0) {
+            let q = [S0[0] + ax[0] * along, S0[1] + ax[1] * along];
+            if (ew) q = rot(q[0], q[1], arm.elbow[0], arm.elbow[1], sg * ebw * ew);
+            q = rot(q[0], q[1], S0[0], S0[1], a);
+            [x, y] = rot(x, y, q[0], q[1], -(sg * ebw * ew + a) * (HG.k ?? .6) * wd);
+          }
+        }
       }
       // the body, from REST positions (so every layer meeting at a point moves identically there: no seams). The head block
       // (head, neck, collar top) moves rigidly with the collar line; hair resting on the shoulders blends to the body there.
