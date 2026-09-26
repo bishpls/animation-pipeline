@@ -1,0 +1,16 @@
+{
+ "order": ["hand_L", "cuff_L", "sleeve_L", "hair_front", "eye_L", "mouth", "face", "ribbon", "hair", "hood", "neck",
+           "sleeve_R_back", "jacket", "hakama", "foot_L", "foot_R", "hand_R", "sleeve_R", "stick", "lantern"],
+ "split": {"hair": [["hair_front", [[990,90],[1180,90],[1175,400],[1160,560],[1090,592],[1000,470]]]]},
+ "force": {},
+ "line_r": 9, "line_lum": 55, "line_grow": 2, "dark_by_pixel": true,
+ "claim": {
+  "eye_L": {"ellipse": [1070, 442, 26, 40], "from": ["face"]},
+  "mouth": {"ellipse": [1092, 590, 42, 62], "from": ["face"]},
+  "neck": {"poly": [[1192,548],[1300,548],[1310,705],[1225,705],[1195,632]], "mode": "jaw", "snap": 6, "from": ["face"]},
+  "hood": {"poly": [[1060,775],[1100,700],[1200,672],[1300,668],[1335,700],[1335,790],[1250,805],[1150,800]], "from": ["jacket", "sleeve_L"]},
+  "hood2": {"as": "hood", "poly": [[1560,760],[1640,770],[1705,800],[1730,870],[1715,960],[1690,1010],[1600,1010],[1570,900]], "from": ["jacket", "sleeve_R_back"]},
+  "hand_L": {"grow": 4, "from": ["cuff_L"]},
+  "hand_R": {"grow": 4, "from": ["sleeve_R"]}
+ }
+}

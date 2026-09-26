@@ -24,7 +24,16 @@ const FABLEROOM = (() => {
     E.meta = await (await fetch(eb + 'meta.json')).json();
     await Promise.all(Object.entries(E.meta.drawings).map(async ([k, d]) => { E.img[k] = await eget(d.file); }));
     endPlace();
+    try { Q.base = await get3('base_keyed.png'); } catch (e) { Q.base = null; }   // (the three-quarter rig's base: preview only)
   }
+  // ---- the three-quarter rig (rig/fable_3q): WIP. LOOPS.room3q_film: the film with the static base drawing in her place
+  const Q = { base: null, FEET: [1390, 3745], K: 1140.5 / 3650 }, get3 = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = 'rig/fable_3q/' + f; });
+  function static3q(X, T) {
+    const s = T.s * Q.K; X.save(); X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
+    X.drawImage(Q.base, T.x - Q.FEET[0] * s, T.y - Q.FEET[1] * s, Q.base.width * s, Q.base.height * s); X.restore();
+  }
+  LOOPS.room3q_film = t => { window.FABLE3Q_STATIC = true; try { LOOPS.film(t); } finally { window.FABLE3Q_STATIC = false; } };
+  LOOPS.room3q_film.len = 209.65;
 
   // ---- the timeline (slots of 1/12 s from the song clock). [drawing, slots]; the props and lantern follow the drawing
   const T0 = 178.25;                                                       // (the set-down starts on the drawing after 178.2)
@@ -240,6 +249,7 @@ const FABLEROOM = (() => {
     return { ...s, d: hv === 'up' ? 'u_up.N' : 'u.N' };
   }
   function ending(X, t, T, o = {}) {
+    if (window.FABLE3Q_STATIC && Q.base) { static3q(X, T); return { d: '3q' }; }
     if (!E.meta) return null;
     if (o.P && E.P !== o.P) { E.P = o.P; E.head = headTrack(o.P); }
     const st = endState(Math.max(t, EK.start)), [w, h] = E.meta.size, P = E.meta.points, M = E.meta.drawings;
