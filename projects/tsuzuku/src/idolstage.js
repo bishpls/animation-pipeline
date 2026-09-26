@@ -332,7 +332,7 @@ const IDOLSTAGE = (() => {
     du: ['......#.#.', '.####..#.#', '#....#....', '......#...', '......#...', '.....#....', '...##.....', '..........'],
     ku: ['....#.....', '...#......', '..#.......', '.#........', '..#.......', '...#......', '....#.....', '..........'],
     ar: ['..........', '.....#....', '......#...', '########..', '......#...', '.....#....', '..........', '..........'] };
-  function storyPage(X, t, [rx, ry, rw, rh]) {
+  function storyPage(X, t, [rx, ry, rw, rh], o = {}) {
     // 76 (Fable's ruling on Michael's "needs a strong visual"): Clawd retells the fable on Fable's page, in her own medium. The
     // page arrives with only the ruled line and Fable's title (her ink). Clawd's footprints stamp on "make up the steps" (clay);
     // Fable's shore builds block by block in pixels, in FABLE'S ink ("you can't copy a path nobody's walked yet"); the staircase
@@ -360,11 +360,22 @@ const IDOLSTAGE = (() => {
     const ms = pop(79.6);
     if (ms) { const cp = 6.5 * u; X.save(); X.translate(lx0 + (brk - lx0) * .45, ly); X.scale(ms, ms); X.fillStyle = INK;
       MOM.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect((i - 8) * cp, (j - MOM.length) * cp, cp - .5, cp - .5); })); X.restore(); }
-    // her pixel crab walks it, sideways: at the front of the staircase as it draws, then bouncing at its end
+    // her pixel crab (Michael: animate it, dancing): it rides the front of the staircase as it draws, then dances sideways back and
+    // forth along the whole path, a step per beat, up and down its stairs, hopping on the beat, legs trading on each step (the same
+    // page prints in Fable's book, so it dances there too)
     if (grow > 0) {
-      const cx = grow < 1 ? sx1 : lx1 - st * .5, k = Math.floor((cx - brk) / st), up = (k % 4 === 1 || k % 4 === 2) ? hgt : 0;
-      const beat = Math.floor(t / BT), cp = 3.2 * u, legs = beat % 2 ? PCRAB_B : PCRAB, bob = grow < 1 ? 0 : ((t / BT) % 1 < .3 ? cp : 0);
-      X.fillStyle = K.clay; legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect(cx - 5 * cp + i * cp, ly - up - 7 * cp - bob + j * cp, cp - .4, cp - .4); }));
+      const tb = t / BT, span = lx1 - brk - st * .6;
+      let cx;
+      if (grow < 1) cx = sx1;
+      else { const q = (tb - b2t(80.35) / BT) / 8, tri = 1 - Math.abs(((q % 2) + 2) % 2 - 1);   // back and forth over 8 beats each way
+        const stepped = Math.floor(tri * 8 * 2) / (8 * 2);                                       // (in beat-sized shuffles, on twos)
+        cx = brk + st * .3 + span * stepped; }
+      const k = Math.floor((cx - brk) / st), up = (k % 4 === 1 || k % 4 === 2) ? hgt : 0;
+      const ph = tb % 1, hop = grow < 1 ? 0 : Math.max(0, Math.sin(Math.PI * Math.min(1, ph / .45))) * 8 * u;
+      const cp = 4.6 * u * (o.crab || 1), legs = Math.floor(tb * 2) % 2 ? PCRAB_B : PCRAB, claws = grow >= 1 && ph < .3;   // claws up on the beat (o.crab: bigger in her book, so it reads in the close shot)
+      const cell = (i, j, pad) => X.fillRect(cx - 5 * cp + i * cp - pad, ly - up - 7 * cp - hop + j * cp - (claws && j < 2 ? cp : 0) - pad, cp - .5 + 2 * pad, cp - .5 + 2 * pad);
+      X.fillStyle = 'rgba(28,24,30,.92)'; legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') cell(i, j, Math.max(1, cp * .28)); }));   // an ink keyline: it reads on the clay stairs
+      X.fillStyle = K.clay; legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') cell(i, j, 0); }));
     }
     // her footprints, stamped on "then I'll make up the steps!" (76.75-77.75), walking left to right just above the line
     const cell = 11 * u;
@@ -744,7 +755,7 @@ const IDOLSTAGE = (() => {
     withX(g, () => {
       const sz = h * .05; let y = h * .16;
       for (const str of FABLE_TEXT) { if (str) { const L = shape(str, { font: 'caslon', size: sz * .92 }); g.fillStyle = 'rgba(34,28,24,.9)'; for (const gl of L.glyphs) if (gl.ch !== ' ') g.fill(glyphPath(gl, w * .05 + gl.x, y + gl.y)); } y += sz * 1.32; }
-      storyPage(g, t, [w / 2, 0, w / 2, h]);
+      storyPage(g, t, [w / 2, 0, w / 2, h], { crab: 2.2 });
     });
     return c;
   }
