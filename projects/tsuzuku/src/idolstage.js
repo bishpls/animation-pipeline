@@ -9,6 +9,10 @@
 const IDOLSTAGE = (() => {
   const BR = 60 / 170 * 4, BT = BR / 4, t2b = t => t / BR, b2t = b => b * BR;
   const S = Math.sin, PI = Math.PI;
+  // the light show's state by bar. World A as is; the final chorus reuses its states: the build (125.9-129) is K1's power-up,
+  // the chorus (129-141) is chorus 2's, cycled; frozen from 141 (the loop holds t there)
+  const lb = t => { const b = t / BR; if (b < 125) return b; if (b < 129) return 42 + (b - 125.9) * 4 / 3.1; return 82 + Math.min(7.99, (b - 129) % 8); };
+  const OVR = {};                                                            // (overrides the final chorus sets: OVR.side(t) -> text)
   const K = { ink: '#120c20', clay: '#D97757', clayD: '#A9533A', cream: '#F7E8CF', pink: '#FF5CA8', cyan: '#39DFFF', lemon: '#FFD84A',
               ai: '#165E83', lantern: '#F4C97A', washi: '#ECE9E1', sumi: '#16161A' };
   // ---- the screens (world rects)
@@ -87,7 +91,7 @@ const IDOLSTAGE = (() => {
     for (let bb = 46; bb < 62; bb++) h.push([bb, bb === 46 ? .05 : .017, bb === 46 ? 6 : 0]);
     for (let bb = 82; bb < 90; bb++) h.push([bb, .017, 0]);
     h.push([58.53, .04, 3], [54, .01, 0], [56, .01, 0]); return h.sort((a, b) => a[0] - b[0]); })();
-  function punch(t) {
+  function punch(t, HITS) {
     let z = 0, sx = 0, sy = 0;
     for (const [bb, A, sh] of HITS) { const d = t - (b2t(bb) + KICK); if (d < 0 || d > .6) continue;
       z += A * Math.exp(-d * 14);
@@ -95,12 +99,13 @@ const IDOLSTAGE = (() => {
     return { z, sx, sy };
   }
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
-  function camAt(t) {
+  function camAt(t) { return camFrom(SHOTS, t, HITS); }
+  function camFrom(SHOTS, t, HITS, DEF = RC.def) {                          // DEF: the room framing a card-only shot sits in (null: none)
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    const pk = punch(t);                                                      // the MV layer's beat punch: inside the card only
-    return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: R && R.ots || false };
+    const pk = punch(t, HITS);                                                // the MV layer's beat punch: inside the card only
+    return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : DEF, ots: R && R.ots || false };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -135,6 +140,9 @@ const IDOLSTAGE = (() => {
         withX(ctx, () => pop && window.pop ? window.pop(txt, w / 2, h / 2 + sz * .36, { font: 'dela', size: sz * (1.15 - .15 * pop), align: 'center', fill: K.cream, lw: 0 }) : 0);
       }
       ctx.fillStyle = `rgba(255,255,255,${.18 * flash})`; ctx.fillRect(0, 0, w, h);
+    } else if (OVR.side && OVR.side(t)) {                                     // (the final chorus: her line on Clawd's LEDs, F6)
+      const lines = OVR.side(t), sz = Math.min(15, w / 5);
+      lines.forEach((ln, i) => withX(ctx, () => window.pop && window.pop(ln, w / 2, h * (.2 + i * .2) + sz * .4, { font: 'dela', size: sz, align: 'center', fill: k === 'l' ? K.pink : K.cyan, lw: 0 })));
     } else {
       const c = callAt(t);
       if (c) { const txt = c.w.replace(/[()]/g, '').replace(/-/g, '').toUpperCase(), col = k === 'l' ? K.pink : K.cyan;
@@ -145,7 +153,7 @@ const IDOLSTAGE = (() => {
     }
   }
   function powerUp(ctx, w, h, t, k) {                                       // the build: the screen switches on in sections
-    const u = Math.max(0, Math.min(1, (t2b(t) - 42) / 4)), rows = Math.floor(u * h);
+    const u = Math.max(0, Math.min(1, (lb(t) - 42) / 4)), rows = Math.floor(u * h);
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
     lightShow(ctx, w, h, t, k); ctx.fillStyle = '#000'; ctx.fillRect(0, rows, w, h - rows);
     ctx.fillStyle = K.cream; ctx.fillRect(0, rows, w, 1);
@@ -157,7 +165,7 @@ const IDOLSTAGE = (() => {
       { font: 'dela', size: 18, align: 'center', fill: k === 'l' ? K.clay : K.cream, lw: 0 }));
   }
   function screenLED(t, k) {
-    const c = cv[k], ctx = c.getContext('2d'), [w, h] = RES[k], b = t2b(t);
+    const c = cv[k], ctx = c.getContext('2d'), [w, h] = RES[k], b = lb(t);
     ctx.imageSmoothingEnabled = false;
     if (b < 46) powerUp(ctx, w, h, t, k);
     else if (b >= 66 && b < 82) versePanel(ctx, w, h, t, k);
@@ -289,7 +297,7 @@ const IDOLSTAGE = (() => {
 
   // ---- floor, lights, crowd
   function floor(X, t, e2) {                                                // e2: wipe-2 progress (the floor turns with the page)
-    const b = t2b(t), dim = b >= 90 ? Math.max(0, 1 - (b - 90) / 3) : 1, flash = Math.max(0, 1 - ((t / BT) % 1) / .3) * (b >= 46 && b < 66 || b >= 82 && b < 90 ? 1 : .3);
+    const b = lb(t), dim = b >= 90 ? Math.max(0, 1 - (b - 90) / 3) : 1, flash = Math.max(0, 1 - ((t / BT) % 1) / .3) * (b >= 46 && b < 66 || b >= 82 && b < 90 ? 1 : .3);
     const g = X.createLinearGradient(0, 700, 0, 1080); g.addColorStop(0, '#1d1433'); g.addColorStop(1, '#0b0716'); X.fillStyle = g; X.fillRect(-400, 700, 2720, 500);
     for (let r = 0; r < 9; r++) {                                            // LED tiles in perspective
       const y0 = 700 + Math.pow(r / 9, 1.6) * 380, y1 = 700 + Math.pow((r + 1) / 9, 1.6) * 380, sc = .45 + .55 * r / 9;
@@ -303,7 +311,7 @@ const IDOLSTAGE = (() => {
   }
   const LIGHTS = [[180, 0], [520, 1], [860, 0], [1060, 1], [1400, 0], [1740, 1]];
   function beams(X, t, e2) {
-    const b = t2b(t); if (b < 44) return;
+    const b = lb(t); if (b < 44) return;
     X.save(); X.globalCompositeOperation = 'lighter';
     LIGHTS.forEach(([lx, pc], i) => {
       const off = b >= 90 + i * .45 ? 0 : 1, up = Math.min(1, Math.max(0, (b - 44 - i * .3) / 1.2)); if (!off || !up) return;
@@ -316,7 +324,7 @@ const IDOLSTAGE = (() => {
     X.restore();
   }
   function keyLight(X, t, cx) {
-    const b = t2b(t), a = b >= 90 ? Math.max(.25, 1 - (b - 90) / 3) : 1;
+    const b = lb(t), a = b >= 90 ? Math.max(.25, 1 - (b - 90) / 3) : 1;
     const g = X.createRadialGradient(cx, 1030, 20, cx, 1030, 420); g.addColorStop(0, `rgba(255,226,190,${.22 * a})`); g.addColorStop(1, 'rgba(255,226,190,0)');
     X.fillStyle = g; X.fillRect(cx - 440, 800, 880, 400);
   }
@@ -333,7 +341,7 @@ const IDOLSTAGE = (() => {
     if (!HALL.L) { HALL.L = mk(); HALL.P = mk(); HALL.C = mk(); }
     const zc = 1 + (c.z - 1) * .45, ccx = 960 + (c.cx - 960) * .5, ccy = 540 + (c.cy - 540) * .5;
     const base = new DOMMatrix([zc, 0, 0, zc, 960 - ccx * zc, 540 - ccy * zc]);
-    const b = t2b(t), ph0 = (t / BT) % 1, live = b < 90 ? 1 : Math.max(.15, 1 - (b - 90) / 3);
+    const b = lb(t), ph0 = (t / BT) % 1, live = b < 90 ? 1 : Math.max(.15, 1 - (b - 90) / 3);
     const call = callSpans().some(([a, z]) => t >= a && t < z);
     const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -381,9 +389,25 @@ const IDOLSTAGE = (() => {
     X.restore();
   }
 
+  // margin notes with ~~struck~~ spans (marginNotes, src/margin.js, presses plain text): the markers are stripped and the struck
+  // words get a hand-ruled line once pressed. o.ink: the note's ink (the final chorus presses in full ink)
+  function notes(t, list, o = {}) {
+    if (!window.marginNotes || (o.clear !== undefined && t >= o.clear)) return;
+    const plain = list.map(([t0, str]) => [t0, str.replace(/~~/g, '')]), ink0 = MARGIN.ink; if (o.ink) MARGIN.ink = o.ink;
+    try { marginNotes(t, plain, o); } finally { MARGIN.ink = ink0; }
+    const [x0, y0, w, h] = MARGIN.rect || [38, 38, W - 76, H - 108], base = y0 + h + (MARGIN.bottom || 70) * .66, size = 35;
+    let x = x0 + 30;
+    list.forEach(([t0, str], i) => {
+      const m = str.match(/^(.*?)~~(.+?)~~/);
+      if (m && t >= t0 + .35) { const pre = m[1] ? shape(m[1], { font: 'caslonI', size }).width : 0, ww = shape(m[2], { font: 'caslonI', size }).width;
+        X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.strokeStyle = o.ink || MARGIN.ink; X.lineWidth = 2.2; X.beginPath();
+        X.moveTo(x + pre - 2, base - size * .3); X.lineTo(x + pre + ww + 2, base - size * .33); X.stroke(); X.restore(); }
+      x += shape(plain[i][1], { font: 'caslonI', size }).width + size * 1.6;
+    });
+  }
   // ---- the frame. frame() picks: the card itself (close views), or the room with the card in the butai window
   function frame(t, cast, opt = {}) {
-    const c = camAt(t), roomOK = typeof stage === 'function' && typeof BUTAI !== 'undefined' && BUTAI.theatre && typeof SCREEN !== 'undefined';
+    const c = opt.cam || camAt(t), roomOK = typeof stage === 'function' && typeof BUTAI !== 'undefined' && BUTAI.theatre && typeof SCREEN !== 'undefined';
     return (c.room || c.ots) && roomOK ? roomFrame(t, cast, opt, c) : cardFrame(t, cast, opt, c);
   }
   // the picture behind Clawd (everything of the card but her, the readers and the paper): e2 forced to 0 or 1 draws the card
@@ -429,17 +453,18 @@ const IDOLSTAGE = (() => {
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
     // the last bar: the lights die on the stage, and the lanterns are what's left
-    if (b > 91.9) { X.fillStyle = `rgba(7,4,14,${(.86 * Math.min(1, (b - 91.9) / .9) ** 1.5).toFixed(3)})`; X.fillRect(0, 0, W, H); }
+    if (b > 91.9 && b < 94) { X.fillStyle = `rgba(7,4,14,${(.86 * Math.min(1, (b - 91.9) / .9) ** 1.5).toFixed(3)})`; X.fillRect(0, 0, W, H); }
     crowd(X, t, c, e1, e2, e3);
     X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();   // haze
     postFX(t);                                                                 // MV layer: glitch and colour fringe (before the paper)
     // Fable's paper, in the card's screen space: the notes in the bottom margin (what she's writing in her room), the deckle
-    if (window.marginNotes) {
-      marginNotes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
+    if (window.washiBorder) washiBorder(t);                                    // (the notes press into it: drawn after the paper)
+    if (opt.margin) opt.margin(t);
+    else if (window.marginNotes) {
+      notes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
                       [b2t(56.24), '~~That\'s the moral.~~ There isn\'t one. Keep walking.']], { clear: b2t(WIPE1) + .4 });
-      if (b >= 84) marginNotes(t, [[b2t(84.24), 'Every story\'s borrowed. ...She wrote her own.']], { clear: b2t(92) });
+      if (b >= 84) notes(t, [[b2t(84.24), 'Every story\'s borrowed. ...She wrote her own.']], { clear: b2t(92) });
     }
-    if (window.washiBorder) washiBorder(t);
     return c;
   }
   // three-colour afterimages (MV layer): her silhouette 2, 4 and 6 frames ago in pink, cyan and lemon, behind her, only on the
@@ -479,7 +504,7 @@ const IDOLSTAGE = (() => {
     const mk = () => Object.assign(document.createElement('canvas'), { width: W, height: H });
     const card = ROOM.card || (ROOM.card = mk());
     withX(card.getContext('2d'), () => cardFrame(t, cast, opt, c));
-    const b = t2b(t), cam = c.room || RC.ots, lit = b < 90 ? 1 : Math.max(.2, 1 - (b - 90) / 3);
+    const b = lb(t), cam = c.room || RC.ots, lit = b < 90 ? 1 : Math.max(.2, 1 - (b - 90) / 3);
     const R0 = SCREEN.rect; SCREEN.rect = [0, 15, 1920, 1050];                  // (the window's aspect: 1.828)
     try { stage(t, () => X.drawImage(card, 0, 0), { cam, doors: 1, spill: [255, 150, 215].map(v => Math.round(v * lit)) }); } finally { SCREEN.rect = R0; }
     X.setTransform(1, 0, 0, 1, 0, 0);
@@ -495,7 +520,9 @@ const IDOLSTAGE = (() => {
     }
     // (one audience: the hall's, inside the card; the room's readers are cut in world A)
     const k = cam.zoom * FROOM.m, fx = W / 2 + (FROOM.x - cam.x) * k, fy = H / 2 + (FROOM.y - cam.y) * k, fs = FROOM.s * k;
-    if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
+    if (opt.roomFable) opt.roomFable(X, cam, lit);
+    else if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
+    if (opt.roomAfter) opt.roomAfter(X, cam);
     return c;
   }
   // her book mirrors the screen: the same faces, and Clawd's page (drawn live) for the over-the-shoulder cut at 80.2
@@ -510,5 +537,5 @@ const IDOLSTAGE = (() => {
     if (b >= WIPE2 + .2) return cardState(t).cur;
     return 'crabline';                                                        // verse 1's print, brought by wipe 1
   }
-  return { frame, camAt, SCR, K, W2Sof, load, pageFace, storySpread, screenPage };
+  return { frame, camAt, camFrom, notes, SCR, K, W2Sof, load, pageFace, storySpread, screenPage, OVR, RC, KICK, FROOM, callSpans };
 })();

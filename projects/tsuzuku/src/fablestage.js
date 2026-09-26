@@ -102,6 +102,7 @@ const FABLESTAGE = (() => {
     const hood = p.hood === 'up' ? 'hoodup' : p.hood === 'push' ? 'hoodpush' : null;
     g.save(); g.translate(K * 14 * (q.angleX || 0), K * 12 * (q.angleY || 0));
     g.translate(J.neck[0], J.neck[1]); g.rotate(.5 * clamp(q.angleZ || 0, -20, 20) * D2R); g.translate(-J.neck[0], -J.neck[1]);
+    if (!hood && p.face === 'head_why' && !FACE.whyRight) { g.translate(2 * J.neck[0], 0); g.scale(-1, 1); }   // (she stands at Clawd's image-right: her glance goes image-left, to her)
     g.drawImage(I[hood || p.face], 0, 0, w, h); g.restore();
     for (const s of ['L', 'R']) {
       if (hood === 'hoodpush' && s === 'L') continue;                                 // (that drawing raises this arm)
@@ -118,6 +119,7 @@ const FABLESTAGE = (() => {
     if (hood === 'hoodpush') g.drawImage(I.hoodpush, 0, 0, w, h);
     g.restore();
   }
+  const FACE = { whyRight: false };                                                  // (the drawing glances image-right)
   const PAD = 420;                                                                     // room round the drawing for arms and travel
   function figure(p) {
     const key = JSON.stringify([p.hood, p.face, p.lift, +p.hop.toFixed(3), ...['hipX', 'hipY', 'bounce', 'footLX', 'footLY', 'footRX', 'footRY', 'bodyX', 'bodyZ',
