@@ -200,10 +200,10 @@ const IDOLSTAGE = (() => {
     else if (which === 'verse') {                                           // the page turns with her book: new from the left
       const st = cardState(t);
       if (!st.next) put(st.cur);
-      else { const xe = rect[0] + rect[2] * st.u;
-        X.save(); X.beginPath(); X.rect(rect[0], rect[1], xe - rect[0], rect[3]); X.clip(); put(st.next); X.restore();
-        X.save(); X.beginPath(); X.rect(xe, rect[1], rect[0] + rect[2] - xe, rect[3]); X.clip(); put(st.cur); X.restore();
-        const g = X.createLinearGradient(xe - 40, 0, xe, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); X.fillStyle = g; X.fillRect(xe - 40, rect[1], 40, rect[3]);
+      else { const xe = rect[0] + rect[2] * (1 - st.u);                    // (the turn goes right to left, as her book's does)
+        X.save(); X.beginPath(); X.rect(xe, rect[1], rect[0] + rect[2] - xe, rect[3]); X.clip(); put(st.next); X.restore();
+        X.save(); X.beginPath(); X.rect(rect[0], rect[1], xe - rect[0], rect[3]); X.clip(); put(st.cur); X.restore();
+        const g = X.createLinearGradient(xe, 0, xe + 40, 0); g.addColorStop(0, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = g; X.fillRect(xe, rect[1], 40, rect[3]);
         X.fillStyle = 'rgba(255,252,240,.9)'; X.fillRect(xe - 1.5, rect[1], 3, rect[3]); fringeEdge(X, xe, rect[1], rect[3]); }
     }
     else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
@@ -219,6 +219,7 @@ const IDOLSTAGE = (() => {
   }
   const FACES = {};
   function pageFace(name, w, h) {
+    if (name === 'crabline' && typeof ORI !== 'undefined' && typeof PUPPET !== 'undefined' && typeof FAN !== 'undefined') return crabCard(w, h);
     if (name !== 'title') return window.cardFace ? cardFace(name, w, h) : null;
     const key = `title${w}x${h}`; if (FACES[key]) return FACES[key];
     const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d'), X0 = X; X = g;
@@ -234,6 +235,19 @@ const IDOLSTAGE = (() => {
   }
   // the MV layer's colour fringe on a turning edge: pink ahead of it, cyan behind
   function fringeEdge(X, x, y, h) { X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = 'rgba(255,92,168,.55)'; X.fillRect(x + 3, y, 3, h); X.fillStyle = 'rgba(57,223,255,.55)'; X.fillRect(x - 6, y, 3, h); X.restore(); }
+  // verse 1's print, retold for her screen: the little one (the origami crab of Fable's telling, clay) at the start of the ruled
+  // line, looking along it; her mother (the fan's crab, ink) further on, bigger, turned to her. Never touching
+  function crabCard(w, h) {
+    const key = `crab${w}x${h}`; if (FACES[key]) return FACES[key];
+    const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d');
+    g.drawImage(cardFace('blank', w, h), 0, 0);
+    const fl = h * .78, ink = 'rgb(22,22,26)';
+    g.fillStyle = ink; g.fillRect(w * .08, fl, w * .84, Math.max(3, h * .012));
+    for (let k = 1; k < 6; k++) g.fillRect(w * .08 + w * .84 * k / 6 - 1, fl - h * .02, 2, h * .02);
+    PUPPET.drawShape(g, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(w * .7, fl).scale(-h / 1050, h / 1050));   // the mother, turned to her
+    PUPPET.drawShape(g, PUPPET.shapeAt(ORI, 'ocrab', 'ocrab', 1), new DOMMatrix().translate(w * .27, fl).scale(h / 2600), null, { gel: 'rgba(217,119,87,.95)', crease: 'rgba(128,42,12,.8)' });
+    return (FACES[key] = c);
+  }
   // a card's paper edge crossing the picture (wipe 2, the pulls): the old card rides over the new one, so its edge throws a soft
   // shadow onto the new card, and catches the light
   function paperEdge(X, xe) {

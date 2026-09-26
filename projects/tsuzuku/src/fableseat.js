@@ -215,7 +215,10 @@ const FABLESEAT = (() => {
     const tq = Math.floor(t * 12 + 1e-6) / 12;
     let before = o.initial || 'notes', after = o.initial || 'notes', d = 99;
     for (const [t0, name] of turns) { const k = Math.floor((tq - (t0 - 6 / 12)) * 12 + 1e-6); if (k >= 0) { before = after; after = name; d = k; } }
-    let draw = d <= 1 ? 'turn1' : d <= 4 ? 'turn2' : 'ots', L = after, R = d <= 4 ? before : after;   // (the old right page until the turned one lands)
+    // mid-turn, the page under the lifting page already shows the new spread; the page the turned leaf lands on keeps the old one
+    // until it lands (Michael: it changed before the turn completed). Unflipped, the left leaf lifts; flipped (her room), the right
+    let draw = d <= 1 ? 'turn1' : d <= 4 ? 'turn2' : 'ots', L = after, R = d <= 4 ? before : after;
+    if (o.flip) { L = d <= 4 ? before : after; R = after; }
     if (o.draw) { draw = o.draw; L = R = o.spread || 'notes'; }
     // mirrored (her room: she faces the window, so we're over her left shoulder): the drawing and its mask flip, the print doesn't
     const mq = p => p.map(([x, y]) => [W - x, y]), sw = m => [m[1], m[0], m[3], m[2]];
