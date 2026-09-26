@@ -1,6 +1,6 @@
 # Craft guide: making films with Claude Code
 
-This is the working method for this repo. It distils three earlier projects (EMBER I–III in `~/opus-anim-test`, John Heibel's *I'm Upping My P(doom)* and ClaudeAnimationBase) plus what OPEN ALL NIGHT taught along the way. Read it before starting a film, and again before handing work to subagents.
+This is the working method for this repo. It distils three earlier projects (EMBER I–III in `~/opus-anim-test`, John Heibel's *I'm Upping My P(doom)* and ClaudeAnimationBase) plus what OPEN ALL NIGHT taught along the way. Read it before starting a film, and again before handing work to subagents. Every tool is indexed in `docs/TOOLS.md`; the methods for rigging, motion, review and multi-session work have their own pages (`docs/RIGGING.md`, `docs/MOTION.md`, `docs/REVIEW.md`, `docs/SESSIONS.md`).
 
 ## 0. The non-negotiables
 
@@ -36,6 +36,7 @@ full-length passes                                ->  --frames + --encode, watch
   - Tints below about 0.97 coverage print as halftone dots in that ink's screen angle.
 - `type.js`: variable-font glyph outlines via fontkit. `shape()` lays out a line (kerning, wdth and wght axes); `drawText(L, x, y, spec, { per })` animates per glyph; `fitShape()`.
 - `studio.js` + `render.mjs`: the timeline, contact sheets and parallel resumable frame rendering in headless Chrome (GPU), with a static server. Also `--eval` to inspect page state and `--serve` to scrub with sound.
+- Added by later films: `pop.js` (the plain-mode chibi kit), `puppet.js` (cut-paper puppets), `warp.js` (mesh-warped canvases), `rig.js` (a Live2D-style mesh rig) and `moves.js` (its dance vocabulary and choreography). See `docs/TOOLS.md`.
 
 ## 3. Look rules (OPEN ALL NIGHT; adapt per film, but pick rules and keep them)
 
@@ -70,6 +71,8 @@ Code moves everything at once, on one curve, by one amount; that's what reads as
 - **Loop the ending into the opening** where you can; replays count.
 
 ## 7. The review loop
+
+The full loop, with the numeric scans and the reviewers, is `docs/REVIEW.md`.
 
 ```bash
 node engine/render.mjs P --sheet=1,2.5,4 --cols=3 --w=640      # the shape of a shot
@@ -170,6 +173,8 @@ Every-frame sameness of speed; stacked reads; tiny characters in big empty frame
 
 ## 12. Rigging illustrated characters (TSUZUKU, Clawd's idol rig)
 
+The method in full, for every kind of character: `docs/RIGGING.md`.
+
 - **Measure, don't guess.** How professional rigs couple head, neck and body is measured from Live2D's own sample rigs (`docs/research/README.md` §4, `docs/research/live2d/`). Head controls never move the collar, shoulders or chest; the neck's hidden top follows a fraction of the head; body motion comes from its own controls, animated in step with the head (`RIG.perform`). Every hand-tuned coupling I tried first was wrong in a way the numbers would have shown.
 - **The rest pose must reproduce the illustration exactly** (`tools/restcheck.py`). Anything painted underneath is hidden at rest by construction; the build removes any fill that shows.
 - **Hidden areas get real drawing, not invented paint.** Ask the image model for a companion drawing that shows what's hidden (the same character with her hair tied back: full jawline, ears, neck, shoulders), register it, and take pixels from it. Invented fills (inpainting, flat plates) are the last resort, and the build marks them (`<layer>.inv.png`) so tests can see when motion exposes them.
@@ -251,7 +256,7 @@ Distilled from one long session of director notes and in-character reviews (Fabl
 - **When it's too small to judge by eye, print numbers** (a foot's drift, a step a beat late, an arm 26 px short).
 - **Don't trust a job's completion signal:** check durations, a frame, and audio offsets for loops that don't start at 0. A pipe into `tail` hid a page error from `set -e`.
 
-**Working alongside another session**
+**Working alongside another session** (the conventions in full: `docs/SESSIONS.md`)
 - **Stage files by explicit path,** never a directory; each session keeps its own script block in `index.html`.
 - **Separate output paths** for each session and reviewer; the shared default `board/sheet.jpg` got overwritten.
 - **Budget the machine:** eight parallel full-song mixes drove the load to 347 and stalled the other session's renders.
@@ -285,6 +290,7 @@ Distilled from one long session of director notes and in-character reviews (Fabl
 - **Hand-keyed dance reads as poses cycling.** Measure it (stillness, pose clusters, hand swaps, foot travel) before touching it. The
   fixes that mattered: a groove layer on the core, feet that step on the counts, hands that change through in-betweens and follow the
   arm, and directed video clips used only as pose data (MediaPipe to rig channels, time-warped to the beat), never as pixels.
+  The method: `docs/MOTION.md`.
 - **Text on a performer's screen must never be split, hidden or hopping.** Place a line in one free spot for the whole phrase (her
   silhouette sampled through it, plus what the camera and any foreground figure cover), and drop it where it can't fit whole.
 - **Review in rounds, with different eyes.** The character's own creator (Fable) for meaning; a fresh "cold" director who has never
