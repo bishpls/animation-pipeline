@@ -21,53 +21,68 @@ const IDOLSTAGE = (() => {
 
   // ---- the key times (song bars)
   const WIPE1 = 63, WIPE2 = 65, WIPE3 = 76;                                  // her page-wipes (all left to right)
-  const CARDS = [[67.5, 'crabline'], [70.45, 'scripts']];                   // each lands as Fable's page turn lands (the OTS cuts)
+  // verse 2's cards: Fable pulls each one from her room (hiki-nuki; her ruling): the old card slides out to the teller's side,
+  // its paper edge crossing the whole picture left to right, the next card behind it; only the screen's picture differs
+  const CARD_PULLS = [[67.2, 67.75, 'crabline'], [70.08, 70.42, 'scripts']];   // [bar the edge starts, bar it's through, the card]
   const words = () => (window.WORDS || []).filter(w => w.who === 'clawd');   // (her words only)
   const inParens = (() => { let m = null; return () => { if (m) return m; m = new Set(); let on = false;
     for (const w of words()) { if (w.w.includes('(')) on = true; if (on) m.add(w); if (w.w.includes(')')) on = false; } return m; }; })();
 
-  // Fable's seat, on the foreground plane (see frame): her seat point at the widest shot, her scale, the plane's parallax
-  const FAB = { seat: [285, 1048], s: .5, par: 1.4 }, OTSBUF = {};
-  // ---- the camera: shots [bar, from, to]; {cx, cy, z}: world point at screen centre, zoom
+  // ---- the room (Fable's ruling on Michael's structure): Clawd's world is a card in Fable's butai. Close views are the card
+  // itself (the washi deckle is its edge); room shots film it inside the butai window with the paper world's stage()
+  // (src/stage.js), the room readers (src/audience.js), and Fable seated seiza at the butai's right, the teller's side, facing the
+  // window, her warm lantern between her and the butai (src/fableseat.js). Room cameras are in butai px.
+  const RC = { window: { x: 1920, y: 1445, zoom: .8 }, wide: { x: 2050, y: 1330, zoom: .5 }, card: { x: 1919.5, y: 1303, zoom: 1.0475 },
+               teller: { x: 2620, y: 1600, zoom: .66 }, teller2: { x: 2720, y: 1650, zoom: .7 }, pull: { x: 2560, y: 1540, zoom: .64 },
+               clap: { x: 2760, y: 1660, zoom: .72 }, clap2: { x: 2960, y: 1790, zoom: .86 }, end: { x: 2080, y: 1340, zoom: .52 }, ots: { x: 1760, y: 1180, zoom: .74 } };
+  const FROOM = { x: 3450, y: 2250, m: 1, s: .94 };        // Fable's seat point in the room: beside the butai, at its depth; her scale
+  const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: true };
+  // ---- the camera: shots [bar, from, to, room?]; {cx, cy, z}: world point at screen centre, zoom (the card's own camera)
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
-  const OTS = { cx: 678, cy: 570, z: .96, ots: true };   // over Fable's shoulder: her book in the foreground, the screen and Clawd beyond
   const SHOTS = [
-    [42, WIDE, { cx: 960, cy: 520, z: 1.06 }],          // K1: the build, the stage powering up
-    [46, WIDE, FULL],                                     // K2: the drop
-    [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],       // "Don't you dare close the book on me!"
-    [48, { cx: 960, cy: 600, z: .96 }, WIDE],            // K3: ME-KUT-TE! the hall
-    [50, CU(), CU(960, 210, 3.3)],                        // K4: "Turn the page": close, the head turn
-    [52, WIDE, FULL],                                     // K5: SO-RE-KA-RA?!
-    [54, FULL, FULL],                                     // K6: the side-step (full body)
-    [58, MED(960, 300, 1.6), MED(960, 290, 2.0)],       // K8: Snip-snip! Ikuzo! (a push-in)
+    [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
+    [45, WIDE, WIDE, room(RC.wide)],                              // the room: the tear floods it with her light (one bar)
+    [46, WIDE, FULL, room(RC.wide, RC.card)],                     // K2: the drop, pushing into the card: full frame by 47
+    [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
+    [48, WIDE, WIDE, OTSR],                                       // over Fable's shoulder: she writes the note (half a bar)
+    [48.5, { cx: 960, cy: 600, z: .96 }, WIDE],                  // K3: ME-KUT-TE! the hall
+    [50, CU(), CU(960, 210, 3.3)],                                // K4: "Turn the page": close, the head turn
+    [52, FULL, FULL, room(RC.teller)],                            // the teller: writing, then a small head bob (one bar)
+    [53, WIDE, FULL],                                             // K5: SO-RE-KA-RA?!
+    [54, FULL, FULL],                                             // K6: the side-step (full body)
+    [56, FULL, FULL, room(RC.teller2)],                           // the teller again (one bar)
+    [57, FULL, FULL],
+    [58, MED(960, 300, 1.6), MED(960, 290, 2.0)],               // K8: Snip-snip! Ikuzo! (a push-in)
     [60, FULL, { cx: 960, cy: 540, z: .98 }],
-    [62, FULL, FULL],                                     // the hook: ONE locked full-body shot, four bars, no cuts
-    [66, MED(820, 330, 1.35), MED(820, 320, 1.4)],      // verse 2: her and the screen
-    [67, OTS, OTS],                                       // Fable turns the page: the crab and the line (one bar)
+    [62, FULL, FULL],                                             // the hook: ONE locked full-body shot, four bars, no cuts
+    [66, MED(820, 330, 1.35), MED(820, 320, 1.4)],              // verse 2: her and the screen
+    [67, FULL, FULL, room(RC.pull)],                              // hiki-nuki: Fable pulls the card (one bar)
     [68, MED(820, 322, 1.42), MED(820, 318, 1.47)],
     [69, { cx: 900, cy: 360, z: 1.2 }, { cx: 910, cy: 360, z: 1.22 }],
-    [70, OTS, OTS],                                       // ...and again: the pages in other scripts
-    [70.7, { cx: 915, cy: 360, z: 1.23 }, { cx: 920, cy: 360, z: 1.25 }],
-    [72, MED(900, 300, 1.55), MED(900, 290, 1.7)],      // she writes her own
-    [74.25, FULL, FULL],                                  // side-step, side-step
-    [76, WIDE, { cx: 960, cy: 600, z: 1.05 }],           // the blank page; the footprints
+    [70, FULL, FULL, room(RC.pull)],                              // ...and the next (half a bar)
+    [70.5, { cx: 915, cy: 360, z: 1.23 }, { cx: 920, cy: 360, z: 1.25 }],
+    [72, MED(900, 300, 1.55), MED(900, 290, 1.7)],              // she writes her own
+    [74.25, FULL, FULL],                                          // side-step, side-step
+    [76, WIDE, { cx: 960, cy: 600, z: 1.05 }],                   // the page nobody pulled; the footprints
     [77.75, { cx: 900, cy: 560, z: 1.05 }, { cx: 930, cy: 430, z: 1.45 }],   // the path draws itself; a push-in
-    [81.5, CU(), CU(960, 215, 3.2)],                      // "Watch me!"
-    [82, WIDE, FULL],                                     // chorus 2
+    [81.5, CU(), CU(960, 215, 3.2)],                              // "Watch me!"
+    [82, FULL, FULL, room(RC.clap)],                              // chorus 2: the teller claps with the hall (one bar)
     [83, MED(960, 330, 1.7), MED(960, 320, 1.85)],
-    [84, { cx: 960, cy: 600, z: .96 }, WIDE],            // ME-KUT-TE! and the note
+    [84, { cx: 960, cy: 600, z: .96 }, WIDE],                    // ME-KUT-TE! and the note
     [86, FULL, FULL],
-    [88, MED(960, 300, 1.6), MED(960, 290, 1.9)],
-    [90, FULL, { cx: 960, cy: 520, z: .94 }],            // the breakdown: pull back as the lights die
-    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 475, cy: 720, z: 1.42 }],   // ...and find Fable, seated with her lantern: the match cut to B1
-    [93, WIDE, WIDE],
+    [88, FULL, FULL, room(RC.clap2)],                             // ...and she's in it now (one bar)
+    [89, MED(960, 295, 1.75), MED(960, 290, 1.9)],
+    [90, FULL, { cx: 960, cy: 520, z: .94 }],                    // the breakdown: pull back as the lights die
+    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 960, cy: 540, z: 1 }, room(RC.card, RC.end)],   // ...back out into her room: black on the clack
+    [93, WIDE, WIDE, room(RC.end)],
   ];
+  const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
   function camAt(t) {
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
-    const [b0, A, Bc] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
+    const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, ots: !!A.ots };
+    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : null, ots: !!(R && R.ots) };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -139,19 +154,70 @@ const IDOLSTAGE = (() => {
     // bloom: the content again, soft and additive (Clawd's world has bloom; Fable's never does)
     X.save(); X.globalCompositeOperation = 'lighter'; X.globalAlpha = .28 * alpha; X.filter = 'blur(14px)'; X.drawImage(c, x - 10, y - 10, w + 20, h + 20); X.restore();
   }
-  // Fable's page on the centre screen: paper over the LED (never on it); `fableCards` draws the card and her hand
+  // Fable's page on the centre screen: paper over the LED (never on it). Verse 1's print; verse 2's cards (pulled from her room:
+  // the next card left of the paper edge, the old one right of it); and the page her wipe at 76 brings (storyPage)
   function drawPage(X, t, W2S, which) {
     const [x, y, w, h] = SCR.c, [sx, sy] = W2S(x, y), [ex, ey] = W2S(x + w, y + h), rect = [sx, sy, ex - sx, ey - sy];
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
-    const paper = () => window.cardFace ? X.drawImage(cardFace('blank', Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]) : (X.fillStyle = K.washi, X.fillRect(...rect));
-    if (which === 'blank') paper();
-    else if (window.fableCards) {
-      if (which === 'verse') paper();                                      // (a blank page under the cards: they slide onto paper)
-      const tt = which === 'verse1' ? b2t(40) : t;                         // verse 1's print: the crab card, landed long ago
-      fableCards(tt, { rect, from: 'left', cards: which === 'verse1' ? [[b2t(30), 'crabline']] : CARDS.map(([bb, n]) => [b2t(bb), n]), withdraw: -1e9 });   // (no hand: hers turns the page in her lap)
-    } else { X.fillStyle = K.washi; X.fillRect(...rect); }
+    const put = name => { if (window.cardFace) X.drawImage(cardFace(name, Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]); else { X.fillStyle = K.washi; X.fillRect(...rect); } };
+    if (which === 'verse1') put('crabline');
+    else if (which === 'verse') {
+      const b = t2b(t); let cur = 'blank', next = null, u = 0;
+      for (const [a, z, name] of CARD_PULLS) { if (b >= z) cur = name; else if (b >= a) { next = name; u = (b - a) / (z - a); } }
+      if (next === null) put(cur);
+      else { const xe = pullX(u); X.save(); X.beginPath(); X.rect(0, 0, xe, H); X.clip(); put(next); X.restore(); X.save(); X.beginPath(); X.rect(xe, 0, W - xe, H); X.clip(); put(cur); X.restore(); }
+    } else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
     X.restore();
     return rect;
+  }
+  // the pull: eased (a hand's pull: quick in the middle), on twos like everything of Fable's; screen x of the paper edge
+  const pullX = u => { const q = Math.floor(u * 7) / 7, e = q * q * (3 - 2 * q); return e * W; };
+  function pullAt(t) { const b = t2b(t); for (const [a, z] of CARD_PULLS) if (b >= a && b < z) return pullX((b - a) / (z - a)); return null; }
+  // a card's paper edge crossing the picture (wipe 2, the pulls): the old card rides over the new one, so its edge throws a soft
+  // shadow onto the new card, and catches the light
+  function paperEdge(X, xe) {
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+    const g = X.createLinearGradient(xe - 34, 0, xe, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.42)');
+    X.fillStyle = g; X.fillRect(xe - 34, 0, 34, H); X.fillStyle = 'rgba(246,240,226,.9)'; X.fillRect(xe - 1, 0, 3, H);
+    X.restore();
+  }
+  // 76: the page her wipe brings: nobody is pulling, so it carries only verse 1's ruled line, "walk straight". She makes up the
+  // steps (Fable): her pixel footprints stamp across it; the line breaks into her staircase under "watch me walk it"; 「つづく→」
+  // lands in pixel in the bottom-right corner, the arrow pointing to the teller's side, where cards go.
+  const GL = {
+    tsu: ['..........', '.######...', '#......#..', '.......#..', '......#...', '....##....', '..##......', '..........'],
+    du: ['......#.#.', '.####..#.#', '#....#....', '......#...', '......#...', '.....#....', '...##.....', '..........'],
+    ku: ['....#.....', '...#......', '..#.......', '.#........', '..#.......', '...#......', '....#.....', '..........'],
+    ar: ['..........', '.....#....', '......#...', '########..', '......#...', '.....#....', '..........', '..........'] };
+  function storyPage(X, t, [rx, ry, rw, rh]) {
+    const b = t2b(t), u = rh / 520, ly = ry + rh * .7, lx0 = rx + rw * .08, lx1 = rx + rw * .92, lw = Math.max(2, 5 * u);
+    const pop = t0 => { const k = Math.floor((t - b2t(t0)) * 24); return k < 0 ? 0 : k < 1 ? 1.35 : k < 2 ? 1.12 : 1; };   // a stamp lands
+    // the ruled line, and where her staircase has replaced it
+    const brk = lx0 + (lx1 - lx0) * .16, grow = Math.max(0, Math.min(1, (b - 79.6) / .75)), sx1 = brk + (lx1 - brk) * grow;
+    X.fillStyle = 'rgba(30,24,20,.85)'; X.fillRect(lx0, ly, (grow > 0 ? brk : lx1) - lx0, lw);
+    if (grow > 0 && grow < 1) X.fillRect(sx1, ly, lx1 - sx1, lw);
+    for (let k = 1; k < 6; k++) { const tx = lx0 + (lx1 - lx0) * k / 6; if (grow === 0 || tx < brk || tx > sx1) X.fillRect(tx - 1, ly - 10 * u, 2, 10 * u); }
+    if (grow > 0) {                                                               // up, across, down, across: sideways, never straight
+      const st = 34 * u, hgt = 16 * u; X.fillStyle = K.clay;
+      for (let x = brk, k = 0; x < sx1; x += st, k++) { const up = (k % 4 === 0 || k % 4 === 1) ? 1 : 0, yy = ly - (k % 4 === 1 || k % 4 === 2 ? hgt : 0);
+        X.fillRect(x, yy, Math.min(st, sx1 - x), lw * 1.3); if (k % 2 === 0) X.fillRect(x + st - lw * 1.3, ly - hgt, lw * 1.3, hgt + lw * 1.3); }
+    }
+    // her footprints, stamped on "then I'll make up the steps!" (76.75, 77.0, 77.25, 77.5), walking left to right along the line
+    const cell = 13 * u;
+    for (let k = 0; k < 5; k++) {                                                // (76.75 .. 77.75: one per stamp, the last on "steps!")
+      const t0 = 76.75 + k * .25, s = pop(t0); if (!s) continue;
+      const fx = lx0 + (lx1 - lx0) * (.08 + .21 * k), fy = ly - (k % 2 ? 34 : 78) * u;
+      X.save(); X.translate(fx, fy); X.scale(s, s); X.fillStyle = K.clay;
+      for (let q = 0; q < 3; q++) X.fillRect(-cell * 1.5 + q * cell, -cell * 2.2, cell - 1, cell * .9);   // toes
+      X.fillRect(-cell * 1.4, -cell * 1.1, cell * 2.8, cell * 2.2);                                          // sole
+      X.restore();
+    }
+    // 「つづく→」: her pixels, in the corner, pointing where the cards go
+    const s = pop(80.3); if (!s) return;
+    const px = rh * .02, gx0 = rx + rw * .6, gy0 = ry + rh * .8;
+    X.save(); X.translate(gx0 + px * 20, gy0 + px * 4); X.scale(s, s); X.translate(-px * 20, -px * 4); X.fillStyle = K.clay;
+    ['tsu', 'du', 'ku', 'ar'].forEach((n, i) => GL[n].forEach((row, yy) => [...row].forEach((ch, xx) => { if (ch === '#') X.fillRect(i * px * 10.5 + xx * px, yy * px, px - .5, px - .5); })));
+    X.restore();
   }
   // Clawd's pixel crab and pixel line, drawn onto Fable's page by her claw (bars 72-73.75): a staircase line (her hem motif)
   function pixelCrab(X, t, rect) {
@@ -200,39 +266,51 @@ const IDOLSTAGE = (() => {
     const g = X.createRadialGradient(cx, 1030, 20, cx, 1030, 420); g.addColorStop(0, `rgba(255,226,190,${.22 * a})`); g.addColorStop(1, 'rgba(255,226,190,0)');
     X.fillStyle = g; X.fillRect(cx - 440, 800, 880, 400);
   }
-  // the readers: illustrated audience members seen from behind (rig/crowd/sprites, generated and cut), each raising an indigo
-  // paper lantern (Fable's lightstick). Two rows, parallax, each person bobbing on the beat with their own timing; the lanterns
-  // sweep with every page-wipe (the hall wipes with her). The lantern glows (bloom) on top.
-  const CROWD = { imgs: [], meta: [] };
-  async function load() {
-    const base = 'rig/crowd/sprites/'; CROWD.meta = await (await fetch(base + 'meta.json')).json();
-    CROWD.imgs = await Promise.all(CROWD.meta.map(m => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + m.file; })));
-  }
+  // the readers in the hall: the same people as in Fable's room (src/audience.js: traced silhouettes holding her oblong indigo
+  // chōchin), seen from the other side of the card, so Clawd's stage rims them: pink from one side, cyan from the other (Michael:
+  // one audience for both worlds). Two rows with parallax; each bobs on the beat on their own phase and hops on the crowd calls;
+  // the lanterns sweep with every page-wipe (the hall wipes with her).
+  const HALL = {};
+  async function load() {}
+  const callSpans = (() => { let m = null; return () => m || (m = words().filter(w => inParens().has(w)).map(w => [w.t0 - .05, w.t1 + .25])); })();
   function crowd(X, t, c, e1, e2, e3) {
-    if (!CROWD.imgs.length) return;
+    if (!window.AUD || typeof lantern !== 'function') return;
+    const mk = () => Object.assign(document.createElement('canvas'), { width: W, height: H });
+    if (!HALL.L) { HALL.L = mk(); HALL.P = mk(); HALL.C = mk(); }
     const zc = 1 + (c.z - 1) * .45, ccx = 960 + (c.cx - 960) * .5, ccy = 540 + (c.cy - 540) * .5;
-    X.save(); X.setTransform(zc, 0, 0, zc, 960 - ccx * zc, 540 - ccy * zc);
-    const ph = (t / BT) % 1, b = t2b(t), live = b < 90 ? 1 : Math.max(.15, 1 - (b - 90) / 3);
+    const base = new DOMMatrix([zc, 0, 0, zc, 960 - ccx * zc, 540 - ccy * zc]);
+    const b = t2b(t), ph0 = (t / BT) % 1, live = b < 90 ? 1 : Math.max(.15, 1 - (b - 90) / 3);
+    const call = callSpans().some(([a, z]) => t >= a && t < z);
     const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
-    const n = CROWD.imgs.length;
-    for (const [row, count, sc, base, dx] of [[0, 17, .19, 1075, 0], [1, 14, .25, 1125, 60]]) {
-      for (let i = 0; i < count; i++) {
-        const k = (i * 7 + row * 5) % n, m = CROWD.meta[k], img = CROWD.imgs[k], flip = hash(i * 13 + row) > .5;
-        const s2 = sc * (.92 + .16 * hash(i * 3 + row * 9)), x = -120 + dx + i * (2200 / count) + (hash(i + row * 40) - .5) * 40;
-        const off = hash(i * 5 + row * 17) * .3, bob = 14 * live * Math.max(0, S(PI * ((ph + off) % 1))) * (row ? 1.2 : .9);
-        const ang = (wipe * .22 + .05 * S(2 * PI * (t / BR) + i)) * live;              // the lanterns sweep with the wipes
-        const w = m.w * s2, h = m.h * s2;
-        X.save(); X.translate(x, base - bob); X.rotate(ang * (1 - .3 * row)); X.scale(flip ? -1 : 1, 1);
-        X.filter = row ? 'brightness(.62) saturate(.85)' : 'brightness(.48) saturate(.8)';   // in the hall, lit from the stage
-        X.drawImage(img, -w / 2, -h, w, h); X.filter = 'none';
-        // the lantern's glow
-        const lx = (m.lantern[0] - m.w / 2) * s2, ly = (m.lantern[1] - m.h) * s2;
-        X.globalCompositeOperation = 'lighter';
-        const g = X.createRadialGradient(lx, ly, 2, lx, ly, 70 * s2 / .25); g.addColorStop(0, `rgba(150,180,255,${.45 * live})`); g.addColorStop(.35, `rgba(60,90,200,${.22 * live})`); g.addColorStop(1, 'rgba(22,94,131,0)');
-        X.fillStyle = g; X.fillRect(lx - 80 * s2 / .25, ly - 80 * s2 / .25, 160 * s2 / .25, 160 * s2 / .25);
-        X.restore();
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const P = [];
+    for (const [row, n, sc, y0, dx] of [[0, 12, .36, 1150, 0], [1, 10, .47, 1225, 80]]) {
+      for (let i = 0; i < n; i++) {
+        const q = AUD[Math.floor(rnd() * AUD.length)], x = -60 + dx + (i + .5) * (2040 / n) + (rnd() - .5) * 60, s = sc * (.9 + .2 * rnd()), ph = rnd(), flip = rnd() > .5;
+        const bob = (call ? 20 : 8) * live * Math.max(0, S(PI * ((ph0 + ph * .3) % 1)));
+        const sway = q.lantern ? (wipe * 14 + 3 * S(2 * PI * (t / BR) + i)) * live : 0;
+        const M = base.translate(x, y0 - bob).scale(flip ? -s : s, s).rotate(flip ? -sway : sway);
+        P.push({ q, M, s, ph, lc: q.lantern ? M.transformPoint(new DOMPoint(q.lc[0], q.lc[1])) : null });
       }
     }
+    // silhouettes, their own lanterns' light on their hands, and the rims (pink catches their upper left, cyan their upper right)
+    const A = HALL.L.getContext('2d'); A.setTransform(1, 0, 0, 1, 0, 0); A.globalCompositeOperation = 'source-over'; A.filter = 'none'; A.clearRect(0, 0, W, H);
+    for (const p of P) { A.setTransform(p.M); A.fillStyle = '#0b0910'; A.fill(p.q.outlineP); }
+    A.setTransform(1, 0, 0, 1, 0, 0); A.globalCompositeOperation = 'source-atop';
+    for (const p of P) if (p.lc) { const R = p.q.lc[2] * p.s * zc * 3.2, g = A.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
+      g.addColorStop(0, `rgba(70,98,190,${.7 * live})`); g.addColorStop(1, 'rgba(10,8,8,0)'); A.fillStyle = g; A.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
+    const rim = (cv, col, ox) => { const R = cv.getContext('2d'); R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'copy'; R.drawImage(HALL.L, 0, 0);
+      R.globalCompositeOperation = 'source-in'; R.fillStyle = col; R.fillRect(0, 0, W, H); R.globalCompositeOperation = 'destination-out'; R.drawImage(HALL.L, ox, 5); R.globalCompositeOperation = 'source-over'; };
+    rim(HALL.P, `rgba(255,92,168,${.9 * live})`, 4); rim(HALL.C, `rgba(57,223,255,${.8 * live})`, -4);
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+    X.filter = 'blur(1.2px)'; X.drawImage(HALL.L, 0, 0);
+    X.globalCompositeOperation = 'lighter'; X.filter = 'blur(.8px)'; X.drawImage(HALL.P, 0, 0); X.drawImage(HALL.C, 0, 0);
+    X.filter = 'blur(6px)'; X.globalAlpha = .45; X.drawImage(HALL.P, 0, 0); X.drawImage(HALL.C, 0, 0); X.restore();
+    // the lanterns themselves (her chōchin, indigo), then their glow in the dark hall
+    X.save(); X.filter = 'blur(.7px)'; for (const p of P) if (p.q.holesP) { X.setTransform(p.M); lantern(p.q.lc, p.s, t, p.ph); } X.restore();
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'screen';
+    for (const p of P) if (p.lc) { const R = p.q.lc[2] * p.s * zc * 2.8, g = X.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
+      g.addColorStop(0, `rgba(80,110,220,${.32 * live})`); g.addColorStop(1, 'rgba(60,96,190,0)'); X.fillStyle = g; X.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
     X.restore();
   }
   // footprints and the path (verse 2): pixel prints left where she stamps (76.75-77.75), a staircase path under her side-steps
@@ -249,26 +327,26 @@ const IDOLSTAGE = (() => {
     X.restore();
   }
 
-  // ---- the frame
+  // ---- the frame. frame() picks: the card itself (close views), or the room with the card in the butai window
   function frame(t, cast, opt = {}) {
-    const c = camAt(t), W2S = W2Sof(c), b = t2b(t);
-    const hand = opt.locateHand || (() => [960, 500]);
-    const e1 = wipeProg(t, WIPE1, hand), e2 = wipeProg(t, WIPE2, hand), e3 = wipeProg(t, WIPE3, hand);
-    X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = K.ink; X.fillRect(0, 0, W, H);
+    const c = camAt(t), roomOK = typeof stage === 'function' && typeof BUTAI !== 'undefined' && BUTAI.theatre && typeof SCREEN !== 'undefined';
+    return (c.room || c.ots) && roomOK ? roomFrame(t, cast, opt, c) : cardFrame(t, cast, opt, c);
+  }
+  // the picture behind Clawd (everything of the card but her, the readers and the paper): e2 forced to 0 or 1 draws the card
+  // before or after wipe 2
+  function backdrop(t, c, W2S, e1, e2, e3, opt) {
+    const b = t2b(t);
     camXform(X, c);
-    // the hall
     const g = X.createLinearGradient(0, -200, 0, 720); g.addColorStop(0, '#0d0818'); g.addColorStop(1, '#241840'); X.fillStyle = g; X.fillRect(-500, -300, 2920, 1020);
     X.fillStyle = '#0a0612'; for (let i = 0; i < 9; i++) X.fillRect(-100 + i * 260, -40, 16, 80); X.fillRect(-400, -40, 2720, 18);   // truss
-    // the screens: LED, or Fable's page left of the wipe edge
     for (const k of ['l', 'r']) drawLED(X, t, k);
     const [sx, sy, sw, sh] = SCR.c, edge = e => sx + sw * e;
     drawLED(X, t, 'c');
-    const page = b >= WIPE3 ? (e3 < 1 ? [['verse', 1], ['blank', e3]] : [['blank', 1]]) : b >= WIPE2 ? [['verse1', 1 - 0], ['verse', e2]] : b >= WIPE1 ? [['verse1', e1]] : [];
-    const pageVisible = b < 82;
-    if (pageVisible) for (const [which, e] of page) {
+    const page = b >= WIPE3 ? (e3 < 1 ? [['verse', 1], ['blank', e3]] : [['blank', 1]]) : b >= WIPE2 ? [['verse1', 1], ['verse', e2]] : b >= WIPE1 ? [['verse1', e1]] : [];
+    if (b < 82) for (const [which, e] of page) {
       if (e <= 0) continue;
       X.save(); X.beginPath(); X.rect(sx, sy, sw * e, sh); X.clip();
-      const rect = drawPage(X, t, W2S, which === 'verse' && b < WIPE2 + 2 ? 'blank' : which);   // after wipe 2: a blank page until the cards come
+      const rect = drawPage(X, t, W2S, which);
       if (which === 'verse' && b >= 72) { X.save(); X.setTransform(1, 0, 0, 1, 0, 0); pixelCrab(X, t, rect); X.restore(); }   // rect is in screen px
       X.restore(); camXform(X, c);
       if (e < 1) { X.save(); X.fillStyle = 'rgba(255,255,255,.35)'; X.fillRect(edge(e) - 3, sy, 6, sh); X.restore(); }   // the turning edge
@@ -277,39 +355,57 @@ const IDOLSTAGE = (() => {
     beams(X, t, b >= WIPE2 && b < 82 ? e2 : 0);
     keyLight(X, t, opt.clawdX || 960);
     if (opt.footWorld) prints(X, t, opt.footWorld);
+  }
+  function cardFrame(t, cast, opt, c) {
+    const W2S = W2Sof(c), b = t2b(t);
+    const hand = opt.locateHand || (() => [960, 500]);
+    const e1 = wipeProg(t, WIPE1, hand), e2 = wipeProg(t, WIPE2, hand), e3 = wipeProg(t, WIPE3, hand);
+    X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = K.ink; X.fillRect(0, 0, W, H);
+    // wipe 2 is a card pull seen from inside (Fable): the paper edge crosses the whole picture with Clawd's hand, the next card
+    // behind it; she stays, because she's live. So the picture behind her is drawn twice, split at the edge.
+    if (e2 > 0 && e2 < 1) {
+      const xe = e2 * W;
+      X.save(); X.beginPath(); X.rect(0, 0, xe, H); X.clip(); backdrop(t, c, W2S, e1, 1, e3, opt); X.restore();
+      X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.beginPath(); X.rect(xe, 0, W - xe, H); X.clip(); backdrop(t, c, W2S, e1, 0, e3, opt); X.restore();
+      paperEdge(X, xe);
+    } else backdrop(t, c, W2S, e1, e2, e3, opt);
+    const pe = pullAt(t); if (pe !== null) paperEdge(X, pe);                   // verse 2's cards, pulled from her room
+    camXform(X, c);
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
-    if (c.ots && typeof FABLESEAT !== 'undefined') {       // over her shoulder: the stage beyond, out of focus; her page turn in front
-      const buf = OTSBUF.c || (OTSBUF.c = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = buf.getContext('2d');
-      g.clearRect(0, 0, W, H); g.drawImage(X.canvas, 0, 0); X.save(); X.filter = 'blur(3px) brightness(.9)'; X.drawImage(buf, 0, 0); X.restore();
-      FABLESEAT.ots(X, t, CARDS.map(([bb, n]) => [b2t(bb), n]));
-    } else {
-    // the last bar: the hall goes dark on the stage, and the lanterns are what's left: hers is the last light (the match cut
-    // to B1, where it becomes the theatre's lamp)
+    // the last bar: the lights die on the stage, and the lanterns are what's left
     if (b > 91.9) { X.fillStyle = `rgba(7,4,14,${(.86 * Math.min(1, (b - 91.9) / .9) ** 1.5).toFixed(3)})`; X.fillRect(0, 0, W, H); }
     crowd(X, t, c, e1, e2, e3);
-    // Fable in the front row (her ruling): seated on her cushion at the rail, house-left, the nearest reader to the camera. A
-    // foreground plane: it moves 1.4x the stage's camera, so she frames the wides and leaves in every push-in.
-    if (typeof FABLESEAT !== 'undefined') {
-      const f = FAB.par, zf = 1 + (c.z - 1) * f, cx = 960 + (c.cx - 960) * f, cy = 540 + (c.cy - 540) * f;
-      const x = (FAB.seat[0] - cx) * zf + 960, y = (FAB.seat[1] - cy) * zf + 540, s = FAB.s * zf;
-      if (x > -700 * s && x < W + 700 * s && y - 1100 * s < H) FABLESEAT.draw(X, t, { x, y, s }, b < 90 ? 1 : Math.max(.35, 1 - (b - 90) / 3));
-    }
-    }
-    // haze
-    X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();
-    // Fable's paper, in screen space: the frame, the notes, her silhouette at the margin
-    const inner = window.washiBorder ? null : [0, 0, W, H];
-    // Fable at the stage's left wing, feet on Clawd's floor, in STAGE coords through the camera (her ruling: in the picture,
-    // never fixed to the screen; she leaves the frame with the picture in push-ins and close-ups)
-    const [fx, fy] = W2S(205, 1020);
-    if (window.fableMargin && opt.fableAtWing && b < 90.5 && fx > -200 && fx < W + 200) fableMargin(t, { x: fx, y: fy, s: .215 * c.z, flip: false, wipes: [[b2t(WIPE2), 1.6 * BT]], presses: [48.11, 52.23, 56.24, 84.24].map(b2t), light: b >= 90 ? .4 : 1 });
+    X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();   // haze
+    // Fable's paper, in the card's screen space: the notes in the bottom margin (what she's writing in her room), the deckle
     if (window.marginNotes) {
       marginNotes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
                       [b2t(56.24), '~~That\'s the moral.~~ There isn\'t one. Keep walking.']], { clear: b2t(WIPE1) + .4 });
       if (b >= 84) marginNotes(t, [[b2t(84.24), 'Every story\'s borrowed. ...She wrote her own.']], { clear: b2t(92) });
     }
     if (window.washiBorder) washiBorder(t);
+    return c;
+  }
+  // the room: the card offscreen, filmed in the butai window by the paper world's stage(), the room's readers, and Fable
+  const ROOM = {};
+  function roomFrame(t, cast, opt, c) {
+    const mk = () => Object.assign(document.createElement('canvas'), { width: W, height: H });
+    const card = ROOM.card || (ROOM.card = mk());
+    withX(card.getContext('2d'), () => cardFrame(t, cast, opt, c));
+    const b = t2b(t), cam = c.room || RC.ots, lit = b < 90 ? 1 : Math.max(.2, 1 - (b - 90) / 3);
+    const R0 = SCREEN.rect; SCREEN.rect = [0, 15, 1920, 1050];                  // (the window's aspect: 1.828)
+    try { stage(t, () => X.drawImage(card, 0, 0), { cam, doors: 1, spill: [255, 150, 215].map(v => Math.round(v * lit)) }); } finally { SCREEN.rect = R0; }
+    X.setTransform(1, 0, 0, 1, 0, 0);
+    if (c.ots) {                                                                 // over her shoulder: the window beyond, out of focus
+      const buf = ROOM.buf || (ROOM.buf = mk()), g = buf.getContext('2d'); g.clearRect(0, 0, W, H); g.drawImage(X.canvas, 0, 0);
+      X.save(); X.filter = 'blur(3px) brightness(.85)'; X.drawImage(buf, 0, 0); X.restore();
+      if (typeof FABLESEAT !== 'undefined') FABLESEAT.ots(X, t, [], { flip: true, draw: 'write', spread: 'notes' });
+      return c;
+    }
+    // the readers keep clear of her (audience's o.gap): her figure and lantern span about -640..+420 drawing px about her seat
+    const k = cam.zoom * FROOM.m, fx = W / 2 + (FROOM.x - cam.x) * k, fy = H / 2 + (FROOM.y - cam.y) * k, fs = FROOM.s * k;
+    if (window.readers) readers(t, cam, { calls: callSpans(), gap: [fx - 640 * fs - 190, fx + 420 * fs + 70] });
+    if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
     return c;
   }
   return { frame, camAt, SCR, K, W2Sof, load };

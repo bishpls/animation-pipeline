@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from key import key
 
 D = os.path.dirname(os.path.abspath(__file__)); DBG = '--debug' in sys.argv
-POSES = ['write', 'ear', 'clap', 'clapopen', 'wipe0', 'wipe1', 'rest']
+POSES = ['write', 'ear', 'clap', 'clapopen', 'clapmid', 'wipe0', 'wipe1', 'rest', 'pull']
 base = key(os.path.join(D, 'src/base.png')); H, W = base.shape[:2]
 lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)
 
@@ -98,7 +98,7 @@ def cut():
     arm, lz = poly(Z['arm']), poly(Z['lantern'])
     fitmask = (base[..., 3] > 200) & ~ndi.binary_dilation(arm | lz, iterations=40)
     AL = {}
-    for p in POSES + ['noribbon', 'nolantern']:
+    for p in POSES + ['noribbon', 'nolantern', 'warmlantern']:
         al, _ = register(key(os.path.join(D, f'src/poses/{p}.png')), fitmask); AL[p] = colour_match(al, fitmask & (al[..., 3] > 200))
     # the lantern: from 'write' (her hand has let go), moved to the base's place
     body = Z['lantern_body']
@@ -106,6 +106,10 @@ def cut():
     lw = shift(AL['write'], -ox, -oy); lmask = lz & (lw[..., 3] > 8)
     lmask = ndi.binary_fill_holes(ndi.binary_opening(lmask, iterations=2))
     lantern = lw.copy(); lantern[..., 3] = (lw[..., 3] * lmask).astype(np.uint8)
+    if Z.get('warm', True):                            # the bridge's warm chouchin (Michael: "it makes Fable stand out from the crowd")
+        wl = AL['warmlantern']; wy = np.mgrid[:H, :W][0] >= Z['hand'][2][1]           # below her hand: the warm body; above: the ring
+        wb = lz & wy & (wl[..., 3] > 8); wb = ndi.binary_fill_holes(ndi.binary_opening(wb, iterations=2))
+        lantern = over(lantern * (~wb[..., None]), wl, feather(wb, 1.5)); lmask = lmask | wb
     # the figure: base minus the lantern (her fingers on the handle stay: they don't match the clean lantern)
     rm = ndi.binary_dilation(lmask, iterations=4) & lz & ~poly(Z['hand'])   # (her fingers round the handle stay in the figure)
     hb = poly(Z['hand']) & lmask; rm |= hb & (np.abs(lum(base) - lum(lantern)) < 20)
@@ -126,7 +130,7 @@ def cut():
     save(lantern, 'lantern.png'); save(ribbon, 'ribbon.png')
     # each pose: the changed region of the arm (and the hood for 'ear'), feathered, laid over the figure
     for p in ['base'] + POSES:
-        if p == 'base': save(beneath(fig, nlc), 'figure_base.png'); out['poses'][p] = 'figure_base.png'; continue
+        if p == 'base': save(fig if Z.get('lantern_at_knee') else beneath(fig, nlc), 'figure_base.png'); out['poses'][p] = 'figure_base.png'; continue
         al = AL[p].copy()
         ex, ey, v = lantern_offset(al, body)                         # take out this drawing's own (displaced) lantern
         el = shift(lmask.astype(np.uint8), ex, ey).astype(bool); el = ndi.binary_dilation(el, iterations=5)
@@ -142,8 +146,8 @@ def cut():
         comp = over(fig, al, feather(m, 9))
         ring = poly(Z['hand']) & ndi.binary_dilation(lmask, iterations=14)          # what's left of the old lantern's ring handle
         if p == 'wipe0': ring &= np.mgrid[:H, :W][0] > 1520                         # (her hand passes just above it)
-        comp[..., 3] = (comp[..., 3] * ~ring).astype(np.uint8)
-        comp = beneath(comp, nlc)
+        if not Z.get('lantern_at_knee'): comp[..., 3] = (comp[..., 3] * ~ring).astype(np.uint8)
+        if not Z.get('lantern_at_knee'): comp = beneath(comp, nlc)
         name = f'figure_{p}.png'; save(comp, name); out['poses'][p] = name
         print(f'{p:6s} patch {m.sum() / 1e3:.0f}k px, lantern offset {ex},{ey} ncc {v:.2f}')
     json.dump(out, open(os.path.join(D, 'meta.json'), 'w'), indent=1)

@@ -47,12 +47,15 @@ from build import over
 nl, _ = register(key(os.path.join(D, 'src/ots/ots_nolantern.png')), fit & ~poly(LZ))
 lzm = poly(LZ) & ~ndi.binary_dilation(pages, iterations=8)
 lzm = feather(lzm, 14)
-for d in ['ots', 'turn1', 'turn2']:
+for d in ['ots', 'turn1', 'turn2', 'write']:
     if d == 'ots': al, res = over(base, nl, lzm), 0
     else:
         al, warp = register(key(os.path.join(D, f'src/ots/{d}.png')), fit); res = np.abs(lum(al) - lum(base))[fit].mean(); al = over(al, nl, lzm)
     if d == 'ots': cover = poly(HAND)
-    else:
+    elif d == 'write':                                                    # her hand and brush on the left page
+        diff = np.abs(al[..., :3].astype(np.int16) - over(base, nl, lzm)[..., :3].astype(np.int16)).max(-1) > 40
+        cover = ndi.binary_dilation(ndi.binary_fill_holes(ndi.binary_closing(ndi.binary_opening(diff, iterations=2), iterations=6)) & ndi.binary_dilation(poly(HAND) | pages, iterations=40), iterations=8) | poly(HAND)
+    if d in ('turn1', 'turn2'):
         diff = np.abs(al[..., :3].astype(np.int16) - base[..., :3].astype(np.int16)).max(-1) > 40
         cover = ndi.binary_fill_holes(ndi.binary_closing(ndi.binary_opening(diff, iterations=2), iterations=6))
         lab, n = ndi.label(cover); sizes = ndi.sum(cover, lab, range(1, n + 1)); cover = np.isin(lab, 1 + np.flatnonzero(sizes > 3000))

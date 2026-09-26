@@ -44,8 +44,10 @@
   "ear": "figure_ear.png",
   "clap": "figure_clap.png",
   "clapopen": "figure_clapopen.png",
+  "clapmid": "figure_clapmid.png",
   "wipe0": "figure_wipe0.png",
   "wipe1": "figure_wipe1.png",
-  "rest": "figure_rest.png"
+  "rest": "figure_rest.png",
+  "pull": "figure_pull.png"
  }
 }
