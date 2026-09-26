@@ -87,9 +87,9 @@ function inkPrint(C, o = {}) {
       const xL = (u - .5) * (1 - .018 * Math.sin(th) * (FOLD - Math.min(v, FOLD)) / FOLD); return [cx + xL * CW, cy + (y - .5) * CH]; };
     X.save(); X.filter = 'blur(18px)'; X.fillStyle = 'rgba(0,0,0,.7)'; X.fillRect(cx - CW / 2 + 14, cy - CH / 2 + 22, CW, CH); X.restore();
     WARP.draw(X, src, map, { cols: 32, rows: 48, shade: (u, v) => v < FOLD ? 1 + .6 * Math.sin(th) * (v / FOLD) ** 3 : 1 });
-    if (th > 0) {                                                                // the crease: a ridge line, highlight above and shadow below
-      const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), k = Math.min(1, Math.sin(th) / Math.sin(TH * Math.PI / 180));
-      X.save(); X.globalAlpha = .18 + .55 * k; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5 * zoom, x1 - x0, 1.6 * zoom);
+    {                                                                            // the crease: a ridge line, highlight above and shadow below;
+      const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), k = Math.min(1, Math.sin(th) / Math.sin(TH * Math.PI / 180));   // an old fold, faint from the
+      X.save(); X.globalAlpha = .16 + .57 * k;                                   // first drawing (Michael), deepened by the snap X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5 * zoom, x1 - x0, 1.6 * zoom);
       X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2 * zoom); X.restore();
     }
     // lamplight: near neutral on this card (the washi stays cool), a gentle falloff to its edges
