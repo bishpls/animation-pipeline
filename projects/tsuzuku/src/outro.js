@@ -42,7 +42,10 @@
   }
   function scene(ts) {
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-    screen(ts, { stops: FABLE_LAMP, tex: .32 });
+    // the lamp is back on the rail beside the zabuton, on its rod (Fable: the theatre after the show is lit from the floor, so the
+    // doors close on a light we can account for); the pool from low-left, as in the bridge
+    const LX = 428, LSC = 1.4, lamp = [LX, FLOOR - (7 + CHO.h / 2) * LSC];
+    screen(ts, { stops: [[0, '#FFF1D6'], [.22, '#F2CB8E'], [.55, '#B98A52'], [1, '#5A3C22']], tex: .32, power: 1.2, lamp });
     shadow(c => { c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 110); }, 0);   // the stage floor
     // the card slides in from the right (6 drawings) with つづく printed on it; its leading edge and shadow on the way in
     const d = Math.floor((ts - K.card) * 12 + 1e-6), u = Math.min(1, (d + 1) / 6), e = u * u * (3 - 2 * u), off = (1 - e) * 1700;
@@ -83,6 +86,8 @@
         CLAWDP.draw(c, p, { x: 1600, y: FLOOR + 40 + rise, s: .16, origin: [1076, 2800] }, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5 }] });
         c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 110); }, 0);   // she rises from behind the floor
     }
+    X.save(); X.strokeStyle = 'rgb(22,22,26)'; X.lineWidth = 5; X.lineCap = 'round'; X.beginPath(); X.moveTo(LX, FLOOR - 4); X.lineTo(LX - 18, H + 20); X.stroke(); X.restore();   // its rod
+    chochin(LX, FLOOR, LSC, { gold: true });
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); }

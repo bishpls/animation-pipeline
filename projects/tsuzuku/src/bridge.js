@@ -133,6 +133,8 @@
     for (const n of ['fox', 'crow', 'boy', 'flew', 'sun']) E.push([land(WT[n]), 'paper_fold', -33]);            // each noun (SFX_CUES: a soft fold per morph)
     const r0 = WT.moral - 2 * f; for (let i = 0; i < 4; i++) E.push([r0 + i * 3 * f, 'paper_fold', -37]);          // put back, a card each
     const seen = new Set(); for (const [, t0] of STRIKES) if (!seen.has(t0)) { seen.add(t0); E.push([t0, 'paper_slide', -30]); }   // each plane struck
+    const ws = (window.WORDS || []).filter(w => w.who === 'fable' && w.t0 > 131.5 && w.t0 < 156); let k = 0;   // a soft press as each margin-note line begins (Fable)
+    for (const n of NOTE_LINES) { if (ws[k]) E.push([ws[k].t0 - .01, 'press', -36]); k += n; }
     return E; });
   LOOPS.bridge = t => {
     if (!WT) { WT = build(); poses(); }

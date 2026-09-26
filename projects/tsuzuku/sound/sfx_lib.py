@@ -28,6 +28,7 @@ LIB = {  # name: (prompt, seconds)
  'led_off':    ('a small electric sign switching off, a tiny soft click and hum fading, close', .6),
  'cloth':      ('heavy cotton clothing rustling as someone kneels down on a cushion, a soft settle, close, quiet', 1.0),
  'hop':        ('a small paper puppet hopping, a light paper flutter then a soft tap landing, close, dry', .5),
+ 'press':      ("(not generated: the song's own letterpress thud, assets/sfx/press.mp3, copied in)", .5),
 }
 
 def gen(name):
