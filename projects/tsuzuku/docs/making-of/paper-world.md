@@ -15,7 +15,12 @@ Every frame is drawn by code, in the browser's 2D canvas, as a pure function of 
   - They're animated on twos (12 drawings a second) with stop-motion snaps: one in-between, a small overshoot, a hold.
   - Walks are computed (`makeWalk` in `src/fablestand.js`): each geta plants, the hem kicks over the stepping leg, and the body rises through the pass.
   - Reaches use two-link IK.
-  - The origami crab unfolds by morphing shapes; its creases lead the folds.
+  - The origami crab unfolds by morphing shapes; its creases lead the folds. When colour enters, the kuroko turns the little crab over (black face, edge-on, orange face) rather than cross-fading it.
+- **Fable in the room** (`rig/fable_3q`, `engine/rig.js`, `src/fableroom.js`). For the finale she's a person outside the box, so she's a mesh rig, not a puppet. She's seen three-quarters from behind, turned to the window, and every change has in-betweens:
+  - Her weight shifts on her own pulse (Clawd's half-note), the hakama swinging and the head tilting, never nodding.
+  - The hair swings as one flat sheet, with the ribbon in front of it.
+  - The lantern is a simulated pendulum whose light follows it.
+  - Faces are patches on the drawing, and each smile lifts the cheek and the ear.
 - **Type**. Letterpress on the page strip and ink on the vellum (`press`, `inkVellum`), set from the vocal's word timestamps.
 - **Light and air**:
   - The lantern (a chōchin, drawn in code) and its pool.
@@ -29,14 +34,15 @@ GPT Image (logged in `tools/ledger.jsonl`) made **still drawings only**:
 - **Scenery flats**: pine, rocks, far hills.
 - **The butai's wood** and the reader silhouettes.
 - **The ink close-up** (`rig/fable_ink`), printed by code through separated plates: washi, an indigo plate misregistered a few pixels, then ink. A fold is a mesh warp with a crease. In the film it's a kamishibai card slid into the butai's window (B5). The ink lamp-lighting and stand-up drawings are kept for this page only.
-- **The finale's illustrated Fable** (`rig/fable_room`): drawings of her in the room, swapped on twos. Code places each drawing, pastes her faces on, swings the lantern (cut out as a prop), and adds the bobs and the bounce.
+- **The finale's illustrated Fable** (`rig/fable_3q`): one base drawing seen three-quarters from behind, plus companions for what motion reveals (the hood up, the arms in poses a mesh can't bend to: the clap, the sweep, the raise), face and head-turn edits, all cut into layers and rigged by code. 29 requests in all. The earlier room drawings (`rig/fable_room`) are kept for this page.
 
 ## Fable's rulings
 Fable, the character, is the subagent who rules on her world and her identity. Rulings that shaped the paper world:
 - **The lamp is the only light**, and "light makes no sound in my world."
 - **The lantern chain.** One oblong chōchin everywhere: lit in the dark at 9 s, hung for the telling, and carried through the bridge. From B9 it stays in her hand: out into the room for the finale, off to the right, and back in through the window for the outro. It's the only light in the last shot, and the doors close on it.
 - **One book**, open on the rail from B8.
-- **Her motion grammar.** Twos, snap and hold, no springs. Afterimages instead of smears.
+- **Her motion grammar.** Inside the box: twos, snap and hold, no springs, afterimages instead of smears. In the room, where she's a person watching a show, her timing is eased: every change has in-betweens, and only the rivets, the torn deckle and a crease where the rig bends say "paper".
+- **Colour density follows the paper's layers.** The folded crab and the riveted puppet are red-orange; only the open sheet is gold. Colour changes when the paper changes, never in a settle.
 - **Rakugo head angles** for each voice she tells in: up for the mother, level to narrate.
 - **The seal 語.** Her one red thing, pressed once, in the outro.
 - **The first rhyme.** The prologue's kneeling kuroko comes back at the lamp-lighting (C2) in the same place and facing, now a shadow on the screen.
@@ -64,7 +70,9 @@ Fable, the character, is the subagent who rules on her world and her identity. R
   - Head bobs and a swinging lantern.
   - Two claps with the hall before each crowd call.
   - The lantern raised overhead on the hit: the one lantern in the hall that was never raised. Her eyes stay open, because her line was "I'd still like to see." 
-- **She stays.** The walk-off after the finale jumped a stride per drawing and left the frame lantern-first. Fable ruled that she holds and watches the doors close on Clawd's frozen card, and the clack cuts to black for two drawings: "the kuroko moves in the dark."
+- **The room ending, animated for real.** The joyful version was still whole drawings swapped on twos, and Michael found it "very jerky", "nodding, not dancey head-bobbing", "facing sideways". Fable let her room timing go ("in the room I'm a person"). She was rebuilt as the rig above, seen from behind toward the window, and it overlaps the window so her hands cross Clawd's light. On the hit her head turns toward us, so the open smile reads under the raised lantern.
+- **She stays.** The walk-off after the finale jumped a stride per drawing and left the frame lantern-first. Fable ruled that she holds and watches the doors close on Clawd's frozen card, and the clack cuts to black for two drawings: "the kuroko moves in the dark." In the outro she steps back into the window from its right edge, the mirror of B9.
+- **The seal is pressed, not shown.** From the column's right her sleeve would have covered く for the whole press, so the seal went beneath the word. A reviewer read the first version as the seal simply appearing. Now she draws it back and up, drives it in on the end of her word with a nod, and the card jolts under the stamp.
 - **Act 1's pacing, after a director's pass:**
   - The match now strikes on her first "Mukashi", so the black at 0:09 lasts under a second.
   - One continuous close replaces the locked-off wide: onto her hands for the fan and the crab, then the floor plane, framed so the lyric strip stays whole.
@@ -78,7 +86,8 @@ From the repo root (P = `projects/tsuzuku`):
 node engine/render.mjs P --loop=bridge --sheet=21.6,22.2      # any moment of the bridge, from code
 node engine/render.mjs P --loop=inkstand --strip=3.3:4.2      # every drawing of the stand-up
 node engine/render.mjs P --loop=origami --strip=6.1:7.5       # the unfold, drawing by drawing
-node engine/render.mjs P --loop=fablerom                      # the finale rig's range of motion
+node engine/render.mjs P --loop=fable3qrom                    # the room rig's range of motion
+node engine/render.mjs P --loop=film --strip=198.9:199.4       # the lantern raised onto the hit, every drawing
 node engine/render.mjs P --loop=bridge --eval='WORDS.length'  # inspect the page's state
 ```
 
