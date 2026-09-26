@@ -59,6 +59,28 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
   // the little one at (ax, ay) (null: where she is on the floor); k: how much of the lamp's light is coming through her paper (0..1)
   // (lit through, the paper passes more light: thinner (alpha down) and purer (blue out), so brighter and more saturated)
   const gelAt = (rgb, a, k, to) => k > 0 ? `rgba(${rgb.map((v, i) => Math.round(v + (to[i] - v) * k))}, ${(a - .2 * k).toFixed(3)})` : `rgba(${rgb}, ${a})`;
+  // the flat square (the director: it read as flat, see-through gel). An unfolded sheet keeps the relief of its folds: eight
+  // facets around the centre, each a plane tilted a little, toward the lamp or away, alternating; the mountains (the diagonals)
+  // a light ridge, the valleys (the centre lines) a dark line, the quarter creases fainter. And it's paper: what's
+  // behind it (the mother's claws) doesn't show through. Shape px: the square is 2900 across, standing on y 0
+  function sheet(c, M, gel) {
+    const S = 1450, C = [0, -S], sq = new Path2D(); sq.rect(-S, -2 * S, 2 * S, 2 * S);
+    c.save(); c.setTransform(M);
+    c.globalCompositeOperation = 'destination-out'; c.fillStyle = '#000'; c.fill(sq);
+    c.globalCompositeOperation = 'source-over'; c.fillStyle = gel; c.fill(sq); c.clip(sq);
+    const R = [[S, 0], [S, -S], [0, -S], [-S, -S], [-S, 0], [-S, S], [0, S], [S, S]].map(([dx, dy]) => [C[0] + dx, C[1] + dy]);   // rays: edge middles (valleys) and corners (mountains), alternating
+    for (let i = 0; i < 8; i++) {                                     // each facet a plane, tilted as one piece: toward the lamp or away, alternating
+      const A = R[i], B = R[(i + 1) % 8];
+      c.fillStyle = i % 2 ? 'rgba(96,34,4,.13)' : 'rgba(255,226,160,.09)'; c.beginPath(); c.moveTo(...C); c.lineTo(...A); c.lineTo(...B); c.closePath(); c.fill();
+    }
+    c.lineCap = 'round';
+    const line = (x0, y0, x1, y1, w, col, dx = 0, dy = 0) => { c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(x0 + dx, y0 + dy); c.lineTo(x1 + dx, y1 + dy); c.stroke(); };
+    line(-S, 0, S, -2 * S, 10, 'rgba(255,236,190,.55)'); line(-S, -2 * S, S, 0, 10, 'rgba(255,236,190,.55)');   // the mountains: ridges, lit
+    line(-S, 0, S, -2 * S, 7, 'rgba(110,38,8,.35)', 12, 12); line(-S, -2 * S, S, 0, 7, 'rgba(110,38,8,.35)', -12, 12);   // (each with its shaded flank)
+    line(0, 0, 0, -2 * S, 9, CREASE); line(-S, -S, S, -S, 9, CREASE);                                            // the valleys
+    for (const q of [-S / 2, S / 2]) { line(q, 0, q, -2 * S, 6, 'rgba(128,42,12,.4)'); line(-S, -S + q, S, -S + q, 6, 'rgba(128,42,12,.4)'); }   // the quarter creases
+    c.restore();
+  }
   function drawIt(c, ts, ax, ay, k = 0) {
       c.globalCompositeOperation = 'source-over';
       const gel = gelAt([236, 118, 58], .92, k, [255, 160, 14]), cgel = k > 0 ? gelAt([236, 110, 52], .9, k, [255, 152, 12]) : CLAWD_GEL;
@@ -68,7 +90,8 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
         const x = ax ?? (ts < UNFOLD ? crabX(ts) : CX), y = ay - (hopping && ax == null ? 14 * Math.sin(Math.PI * ph) : 0), rock = hopping ? 5 * Math.sin(2 * Math.PI * ph) : 0;
         const lk = ts < UNFOLD ? lookAt(ts) : 0;                           // tipped back on its rear legs: shorter, lifted a little
         const M = new DOMMatrix().translate(x, y - 16 * lk).rotate(rock).scale(SC, SC * (1 - .16 * lk));
-        PUPPET.drawShape(c, sh, M, null, { gel, crease: CREASE });
+        if (a === 'osquare' || (b === 'osquare' && u >= 1)) sheet(c, M, gel);   // the flat square: paper that has been folded
+        else PUPPET.drawShape(c, sh, M, null, { gel, crease: CREASE });
         if (ts >= PENCIL) {                                                // she is drawn before she is cut: one faint pencil line on the sheet
           const o = ORI.S.opuppet.o; c.save(); c.setTransform(M); c.beginPath(); c.moveTo(o[0][0], o[0][1]); for (const q of o) c.lineTo(q[0], q[1]); c.closePath();
           c.strokeStyle = 'rgba(70,40,24,.45)'; c.lineWidth = 7; c.stroke(); c.restore();

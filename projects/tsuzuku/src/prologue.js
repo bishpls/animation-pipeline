@@ -1,6 +1,6 @@
 // prologue.js: song 0-8.47 s (BEATS P1-P3; FABLE.md §8, "a retcon"). HELLO, WORLD!'s last chorus seen from behind its stage,
-// tiny and bright past the wings (mirrored: we're on the wrong side of it); in the foreground the kuroko, Fable with her hood
-// up, works the troupe on rods. P2: closer on her hands as she sets the last lyric card down on the stack; its LEDs go out.
+// tiny and bright past the wings (we're on the wrong side of it: the wings, her rods going in from ours); in the foreground
+// the kuroko, Fable with her hood up, works the troupe on rods. P2: closer on her hands as she sets the last lyric card down on the stack; its LEDs go out.
 // Nobody looked. P3: she kneels on her zabuton as the far song fades. The first hyoshigi clack (8.43) cuts to black.
 // Everything here is backlit: she is black paper with a rim of stage light on the side facing it, and her rivets and the
 // deckle trim of her sleeves are pinholes of the backstage work light.
@@ -89,11 +89,13 @@ async function PROLOGUE_INIT() {
     X.fillStyle = g; X.fillRect(x0, y0, x1 - x0, y1 - y0);
   }
 
-  // P1: the wide. The opening, far off: the show mirrored, with bloom and a haze of its light across the boards toward us.
+  // P1: the wide. The opening, far off: the show, with bloom and a haze of its light across the boards toward us.
   const OPEN = [940, 300, 720, 405];
   function farStage(t, gain) {
     const img = show(t), [x, y, w, h] = OPEN;
-    X.save(); X.translate(x + w, y); X.scale(-1, 1);
+    // (not mirrored, and sharp: Fable's ruling on the director's note. The hall reads the lyric on the far show at 3.3 and finds
+    // the same card in her hands at 5.5, facing us; "the wrong side" is the wings, the leg and her rods going in from ours)
+    X.save(); X.translate(x, y);
     X.filter = `brightness(${1.08 * gain}) saturate(1.08)`; X.drawImage(img, 0, 0, w, h);
     X.globalCompositeOperation = 'lighter'; X.filter = `blur(26px) brightness(${.34 * gain})`; X.drawImage(img, -40, -20, w + 80, h + 40);
     X.restore();
@@ -187,7 +189,7 @@ async function PROLOGUE_INIT() {
   function P2shot(t) {
     X.fillStyle = '#060405'; X.fillRect(0, 0, W, H);
     // the show beyond, far out of focus: its colours only
-    X.save(); X.translate(W + 200, -80); X.scale(-1, 1); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.restore();
+    X.save(); X.translate(W - 900, -80); X.filter = 'blur(60px) brightness(.55)'; X.drawImage(show(t), 0, 0, 1100, 620); X.restore();
     haze(700, 380, 900, .26); worklight(380, 260, 620, .26); motes(t, 700, 380, 900, 380, 260, 620, 2);
     // the rack: the cards already used, leaning back, dead; the last one lands in front
     const L = fistAt(POSE.land), rx = L.x + HOLD + CW / 2, ry = L.y - BAR / 2;
