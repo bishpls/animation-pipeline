@@ -99,13 +99,17 @@
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
+  // B1 opens on the hall's last frame, matched (the stage session's numbers at 131.29: crown (900, 108), seat (866, 947)): the
+  // camera close on her, the grain large; it holds while Clawd's puppet is set down, then eases out to the telling camera
+  const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 8 * f, MATCH_N = 20;
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
   const BACK = 152.46, BACKN = 12;
   LOOPS.bridge = t => {
     if (!WT) { WT = build(); poses(); }
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const e = ts < BACK ? 0 : Math.min(1, Math.floor((ts - BACK) * 12 + 1e-6) / BACKN), ee = e * e * (3 - 2 * e);
-    const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1, page: ts });
+    const m = Math.min(1, Math.max(0, Math.floor((ts - MATCH_HOLD) * 12 + 1e-6) / MATCH_N)), mm = m * m * (3 - 2 * m);
+    const cam = ts < BACK ? camLerp(CAM_MATCH, CAM_WINDOW, mm) : camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1, page: ts });
     readers(ts, cam);
   };
   LOOPS.bridge.len = 156.2 - S0;
