@@ -350,7 +350,12 @@
     "boot_R"
    ],
    "heel": 34,
-   "drawIn": 26
+   "drawIn": 26,
+   "ankleJ": 3300,
+   "sole": 3700,
+   "footLen": 240,
+   "point": 80,
+   "heelPivot": true
   }
  },
  "arms": {

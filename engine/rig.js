@@ -217,7 +217,8 @@ const RIG = (() => {
         const eb = p['elbow' + sd] || 0;
         if (eb && arm.elbow) {
           const E = arm.elbow, ax = arm.axis, sAlong = (x - E[0]) * ax[0] + (y - E[1]) * ax[1];
-          const w = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + arm.blend) / (2 * arm.blend), 0, 1)) : 0;
+          const bl = arm.blend * clamp(1 - (Math.abs(eb) - 120) / 60, .08, 1);   // past 120 deg the joint sharpens to a hinge (circles, the windmill)
+          const w = arm.forearm && arm.forearm.includes(name) ? 1 : name === arm.upper ? (v => v * v * (3 - 2 * v))(clamp((sAlong + bl) / (2 * bl), 0, 1)) : 0;
           if (w) [x, y] = rot(x, y, E[0], E[1], sg * eb * w);
         }
         const a = sg * (p['arm' + sd] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a);
@@ -245,12 +246,15 @@ const RIG = (() => {
       // (pinned), and the leg whose top drops shortens by bending its knee inward. The boots stay planted.
       const PV = B.pelvis;
       const fL = [p.footLX || 0, p.footLY || 0], fR = [p.footRX || 0, p.footRY || 0];     // feet: x step, y lift (px, base)
+      const hp = { L: p.heelL || 0, R: p.heelR || 0 };                                // heel pivot (px): the ankle and shin rise, the sole stays
       // weight shift: when the hips move over one foot, the other unloads: its heel lifts and it draws a little toward the
       // centre (so feet are never glued through a sway); the lift bends that knee through the leg skinning below
       if (PV && PV.heel) { const hw = clamp(p.hipX || 0, -1.3, 1.3);
-        fL[1] += PV.heel * Math.max(0, hw); fL[0] += PV.drawIn * Math.max(0, hw);
-        fR[1] += PV.heel * Math.max(0, -hw); fR[0] -= PV.drawIn * Math.max(0, -hw); }
-      if (PV && (p.hipX || p.hipY || fL[0] || fL[1] || fR[0] || fR[1])) {
+        if (PV.heelPivot) { hp.L += PV.heel * Math.max(0, hw); hp.R += PV.heel * Math.max(0, -hw); }   // the free foot rolls onto its toe
+        else { fL[1] += PV.heel * Math.max(0, hw); fR[1] += PV.heel * Math.max(0, -hw); }
+        fL[0] += PV.drawIn * Math.max(0, hw); fR[0] -= PV.drawIn * Math.max(0, -hw); }
+      const artic = hp.L || hp.R || p.footLR || p.footRR || p.footLP || p.footRP;
+      if (PV && (p.hipX || p.hipY || fL[0] || fL[1] || fR[0] || fR[1] || artic)) {
         const hx = clamp(p.hipX || 0, -1.3, 1.3), th = -PV.tilt * hx, dxp = PV.D * hx, dyp = (p.hipY || 0) + PV.lift * Math.abs(hx);
         const Tp = (qx, qy) => { const [a, b] = rot(qx, qy, PV.c[0], PV.c[1], th); return [a + dxp, b + dyp]; };
         const [wx, wy] = Tp(PV.waist[0], PV.waist[1]), tdx = wx - PV.waist[0], tdy = wy - PV.waist[1];
@@ -260,13 +264,19 @@ const RIG = (() => {
           const Y0 = rest[k + 1], v = clamp((Y0 - PV.band[0]) / (PV.band[1] - PV.band[0]), 0, 1), w = v * v * (3 - 2 * v);
           const [px, py] = Tp(x, y); x = x + tdx + (px - x - tdx) * w; y = y + tdy + (py - y - tdy) * w;
         } else if (kind === 'foot') {
-          const f = name === PV.feet[0] ? fL : fR; x += f[0]; y -= f[1];
+          // the boot is the shin and the foot; below the ankle (PV.ankleJ) the foot articulates in the front view: a heel pivot
+          // stretches it between the risen ankle and the planted sole, toe in/out swings the toe box sideways (footSR, deg, + out),
+          // and a point lengthens it downward (footSP, -1 flex .. 1 point)
+          const sd = name === PV.feet[0] ? 'L' : 'R', f = sd === 'L' ? fL : fR, A = PV.ankleJ || 3300, So = PV.sole || 3700;
+          const v = clamp((rest[k + 1] - A) / (So - A), 0, 1), out = sd === 'L' ? -1 : 1;
+          x += f[0] + out * Math.sin((p['foot' + sd + 'R'] || 0) * Math.PI / 180) * (PV.footLen || 240) * v;
+          y -= f[1] + hp[sd] * (1 - v) - (p['foot' + sd + 'P'] || 0) * (PV.point || 80) * v;
         } else if (kind === 'leg') {
           const L0 = PV.legs[name], Y0 = rest[k + 1], v = clamp((Y0 - L0.top[1]) / (PV.ankle - L0.top[1]), 0, 1);   // 0 at the top, 1 at the ankle
           const [tx, ty] = Tp(L0.top[0], L0.top[1]), ddx = tx - L0.top[0], ddy = ty - L0.top[1], fall = 1 - v;
-          const f = name === Object.keys(PV.legs)[0] ? fL : fR;                    // the ankle follows its foot
-          x += ddx * fall + f[0] * v; y += ddy * fall - f[1] * v;
-          const drop = ddy + f[1];                                                   // a lifted foot also bends the knee
+          const lsd = name === Object.keys(PV.legs)[0] ? 'L' : 'R', f = lsd === 'L' ? fL : fR, fy = f[1] + hp[lsd];   // the ankle follows its foot (and its heel)
+          x += ddx * fall + f[0] * v; y += ddy * fall - fy * v;
+          const drop = ddy + fy;                                                     // a lifted foot (or heel) also bends the knee
           if (drop > 0) x += Math.sign(PV.c[0] - L0.top[0]) * (1 - 2 * clamp(p.kneeOut || 0, 0, 1)) * PV.knee * drop * Math.sin(Math.PI * v);   // the bent knee (kneeOut 1: out, a curtsy's plié)
         }
       }
@@ -331,7 +341,16 @@ const RIG = (() => {
     const VV = rig.variants[p.view || 'F'] || {};
     const want = n => n === 'eye_L' ? (p.eyeL || p.eyes) : n === 'eye_R' ? (p.eyeR || p.eyes) : n === 'mouth' ? p.mouth
       : n === 'hand_L' ? p.handL : n === 'hand_R' ? p.handR : null;                // drawn hand shapes: pinch, peace, point, fist
-    for (const l0 of (rig.lists[p.view || 'F'] || rig.layers)) {
+    let order = rig.lists[p.view || 'F'] || rig.layers;
+    if (p.armFrontL > .5 || p.armFrontR > .5 || p.armBackL > .5 || p.armBackR > .5) {    // the arm's depth, by layer order (a circle passes
+      order = order.slice();                                                               // in front of the face or behind the body)
+      for (const sd of ['L', 'R']) {
+        const grp = ['arm_' + sd, 'cuff_' + sd, 'hand_' + sd], mv = order.filter(l => grp.includes(l.name)); if (!mv.length) continue;
+        if (p['armFront' + sd] > .5) order = order.filter(l => !grp.includes(l.name)).concat(mv);
+        else if (p['armBack' + sd] > .5) { const rest2 = order.filter(l => !grp.includes(l.name)), at = rest2.findIndex(l => l.name === 'shorts'); order = [...rest2.slice(0, Math.max(0, at)), ...mv, ...rest2.slice(Math.max(0, at))]; }
+      }
+    }
+    for (const l0 of order) {
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
       const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view, idc: l0.idc } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
