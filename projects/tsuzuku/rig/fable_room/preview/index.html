@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
 <head>
+<base href="/projects/tsuzuku/">
 <meta charset="utf-8">
 <title>つづく · studio</title>
 <style>
@@ -52,11 +53,11 @@
 <script src="src/crabs.js"></script>
 <script src="src/idolstage.js"></script>
 <script src="src/fableseat.js"></script>
-<script src="src/fableroom.js"></script>
 <script src="src/fablestage.js"></script>
 <script src="src/chorus.js"></script>
 <script src="src/motionlab.js"></script>
 <script src="src/finale.js"></script>
+<script src="src/fableroom.js"></script>
 <script src="src/sfx_clawd.js"></script>
 <script src="src/film.js"></script>
 <script>
@@ -80,6 +81,8 @@
     if (typeof IDOLSTAGE !== 'undefined') await IDOLSTAGE.load();
     if (typeof FABLESEAT !== 'undefined') await FABLESEAT.load();
     if (typeof FABLESTAGE !== 'undefined') await FABLESTAGE.load();
+    if (typeof FABLEROOM !== 'undefined') await FABLEROOM.load();
+    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) FABLESTAGE.room = FABLEROOM.room;   // (preview only: finale's room figure)
     if (window.registerFilm) registerFilm();
     window.ready = true;
     studioUI();

@@ -24,6 +24,7 @@ const FABLESTAGE = (() => {
     await Promise.all(Object.entries(R.meta.drawings).map(async ([k, f]) => { R.img[k] = await get('room/' + f); }));
     FS.rig = await RIG.load(base + 'mesh/rig.json');
     FS.hoodup = await get('mesh/entrance_hoodup.png'); FS.hoodpush = await get('mesh/entrance_hoodpush.png');
+    if (typeof FABLEROOM !== 'undefined') await FABLEROOM.load();      // the room figure (src/fableroom.js: set-down, turn, walk)
   }
 
   // ---- the room ---------------------------------------------------------------------------------------------------------
@@ -38,6 +39,7 @@ const FABLESTAGE = (() => {
              dx: ROOM.stride * (k + Math.min(1, f * 1.4)), dy: -28 * Math.sin(Math.PI * Math.min(1, f * 1.4)) };
   }
   function room(X, t, T, o = {}) {
+    if (typeof FABLEROOM !== 'undefined' && FABLEROOM.R && FABLEROOM.R.meta) return FABLEROOM.room(X, t, T, o);   // the drawn set-down, turn and walk
     if (!R.meta) return;
     const st = roomState(t), [w, h] = R.meta.size, P = R.meta.points, dir = o.walkDir ?? 1;
     X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-P.feet[0], -P.feet[1]);
@@ -117,7 +119,8 @@ const FABLESTAGE = (() => {
     if (!FS.rig) return null;
     const st = pose(t, clawdP); if (!st) return null;
     const m = X.getTransform(), zs = Math.hypot(m.a, m.b), s = (T.h || T.s * 2085) / RIGH;
-    const fx = T.x + (st.entrance ? (o.enter ?? 2000) * .75 * s * st.x : st.rootX * .27), fy = T.y - 60 * .75 * s * st.hop;
+    // (the entrance starts off the frame's right edge: her first drawing is cut by it, an arrival, never a pop: Fable)
+    const fx = T.x + (st.entrance ? (o.enter ?? 2000) * 1.1 * s * st.x : st.rootX * .27), fy = T.y - 60 * .75 * s * st.hop;
     const sp = m.transformPoint(new DOMPoint(fx, fy)), TT = { x: sp.x, y: sp.y, s: s * zs };
     const W0 = X.canvas.width, H0 = X.canvas.height;
     if (!OFF || OFF.width !== W0 || OFF.height !== H0) { OFF = Object.assign(document.createElement('canvas'), { width: W0, height: H0 }); SH = Object.assign(document.createElement('canvas'), { width: W0 / 2, height: H0 / 2 }); }
