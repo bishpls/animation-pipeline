@@ -154,8 +154,9 @@ const FABLEROOM = (() => {
   //   197.24  claps, two before each "and then" (197.59, 198.21, 198.89), on the eighths before the call.
   //   199.0   the hit: the lantern raised overhead (r_half, r_up: snapped on the dash, 199.07), F-D, "the hit": an open smile, eyes
   //           open, at the window ("I'd still like to see"). Held, frozen with the card, through the ring-out.
-  //   200.58  she lowers it (r_half, then standing), turns (three-quarter, the lantern swinging round in front), glances back at the
-  //           window smiling, and walks off right with the lantern leading, geta on the beat (200.82, 201.18); gone by ~201.3.
+  //   200.58  she lowers it (r_half, then standing) and stays (Fable, after v7: no walk-off): F-C, watching the doors close on the
+  //           frozen card (201.5-202.4), the lantern settling on its ring, still, lit, to the outro's clack at 202.59. (The turn,
+  //           glance and walk drawings stay in rig/fable_room/ending for the record; OFF is unused.)
   const E = { meta: null, img: {}, head: null, P: null }, BR = 60 / 170 * 4, BEAT = BR / 4, EIGHTH = BR / 8;
   const sl = t => Math.floor(t * 12 + 1e-6);
   const EK = { start: 177.8, drop: 182.1176, swing: 185.7, push: 187.6667, stepK: 190.5834, close: 190.9167, smile: 191.25,
@@ -163,7 +164,7 @@ const FABLEROOM = (() => {
   const PULSE = BR / 2;                                                // her pulse: the half-note
   const CALLS1 = [189.111], CALLS2 = [197.591, 198.211, 198.891];      // (the hall's calls: two claps on the eighths before each)
   const CLAPS = [...CALLS1, ...CALLS2].flatMap(c => [c - 2 * EIGHTH, c - EIGHTH]);
-  const PUSH = [['push0.A', 2], ['push1.A', 2], ['push2.B', 2], ['push3.B', 3], ['wipe1.B', 2]];     // (hood down from push2's end)
+  const PUSH = [['push0.A', 2], ['push1.A', 2], ['push1b.A', 1], ['push2.B', 1], ['push2b.B', 1], ['push3.B', 2], ['wipe1.B', 2]];   // (the hood's cloth on twos, v7; hood down from push2)
   const WIPE = [['wipe1.C', 2], ['wipe2.C', 5], ['wipe1.C', 2]];
   const OFF = [['r_half', 1], ['d.C', 1], ['turn1.C', 1], ['turn2.C', 1], ['wc1g', 2], ['wp1.C', 1], ['wc2.C', 2], ['wp1b', 2]];
   const FL = 1218.5, D_NEAR = 499, D_FAR_Y = 1194.5;                 // (hold's near geta tip, its far geta's sole: measured)
@@ -211,10 +212,13 @@ const FABLEROOM = (() => {
     let k = sl(t); const s = { d: 'u.N', ox: 0, oy: 0, sy: 1, swing: 0, k };
     if (k > sl(EK.hit) + 1 && k < sl(EK.lower)) k = sl(EK.hit) + 1;              // the hit: r_up held, frozen with the card
     const run = (list, k0) => { let at = k0; for (const [d, n] of list) { if (k < at + n) return d; at += n; } return null; };
-    if (k >= sl(EK.lower)) {                                                     // she lowers it, turns, glances back, goes
-      const d = run(OFF, sl(EK.lower)); if (!d) return { ...s, d: null, gone: true };
-      const [ox, oy] = d === 'r_half' || d === 'd.C' ? PLACE.L : PLACE[d];
-      return { ...s, d: d === 'wp1b' ? 'wp1.C' : d, ox, oy };
+    if (k >= sl(EK.lower)) {                                                     // she lowers it and stays (Fable, v7: no walk-off)
+      // "I stay and watch the doors close on her frozen card by both lights": standing, F-C, watching the window, the lantern
+      // in her hand settling on its ring after the lowering (a swing that dies out, held on twos), still to the outro's clack
+      const i = k - sl(EK.lower);
+      if (i < 1) return { ...s, d: 'r_half', ox: PLACE.L[0], oy: PLACE.L[1] };
+      const SETTLE = [6, 6, 6, -5, -5, -5, 4, 4, 4, -3, -3, -3, 2, 2, 2, -1, -1, -1];
+      return { ...s, d: 'd.C', ox: PLACE.L[0], oy: PLACE.L[1], swing: SETTLE[i - 1] || 0 };
     }
     if (k >= sl(EK.hit)) return { ...s, d: k === sl(EK.hit) ? 'r_half' : 'r_up', ox: PLACE.L[0], oy: PLACE.L[1] };
     const closed = k >= sl(EK.close), face = k >= sl(EK.smile) ? 'C' : 'B', ph = phase(k / 12);
@@ -273,7 +277,7 @@ const FABLEROOM = (() => {
   // the sounds (sound/mix.py; names from sound/sfx_lib.py), from the same constants: the cloth of the hood sliding back, her claps
   // (her palm on her own wrist: quiet, under the hall's), the step's two geta, and her geta on the walk-off's two contacts
   PAPER_SFX.push(() => [[(sl(EK.push) + 4) / 12, 'cloth', -31], ...CLAPS.map(c => [c, 'clap', -34]),
-                        [190.588, 'geta', -24], [190.941, 'geta', -26], [200.824, 'geta', -26], [201.176, 'geta', -27]]);
+                        [190.588, 'geta', -24], [190.941, 'geta', -26]]);   // (the walk-off's geta went with the walk-off: v7)
   // preview: the ending on a plain dark ground at the finale's room camera (FIN: her feet at (1650, 1010), s .767), on the song
   // clock, Clawd's performance from finale.js (CHOREO.clawdF). ?loop=fableroom_end; _key: the figure alone on green, camera still
   const FIN = { x: 1650, y: 1010, s: 1.394 * .55 };

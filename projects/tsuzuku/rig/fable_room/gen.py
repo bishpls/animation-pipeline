@@ -383,6 +383,20 @@ JOBS['g_wc1'] = ([os.path.join(D, 'src', '_faces', 'guide_glance.png')],
     "and cuffs in a lighter value of the black cloth (no white, no pale band), exactly as in image 1: same size and position. "
     "Flat pure green (#00FF00) background, nothing else. No green on her.")
 
+# (v7 review, the director: the hood jumps between push drawings. Two cloth in-betweens, from the deckled pair either side)
+INB = ("Image 1 and image 2 are two drawings of one animation of the same girl, in the same frame, as she pushes her hood back with "
+       "her near hand. Draw the in-between drawing, exactly halfway between them: the hand and arm halfway between their places in "
+       "image 1 and image 2, and the hood's cloth halfway through its fall: ")
+INBK = (" Everything else identical to both images: the face in profile, the far arm holding the lantern's stick forward, the "
+        "lantern, the jacket with its thin torn-paper (deckle) hem and cuffs in a lighter value of the black cloth (no white, no pale "
+        "band), the skirt, feet and geta, the scale and position, the lighting. Flat pure green (#00FF00) background. No green on her.")
+JOBS['k_push1b'] = ([mine('k_push1'), mine('k_push2')], INB + "the hood is starting to slide back off her head, its front rim now "
+    "at the top of her forehead, pushed by her fingers, the first of her bangs showing beneath it, the cloth creasing at the back of "
+    "her head." + INBK)
+JOBS['k_push2b'] = ([mine('k_push2'), mine('k_push3')], INB + "the hood has slipped off the back of her head and is falling down "
+    "past the nape of her neck toward her shoulders, the cloth folding as it drops, her hand following it down behind her head; "
+    "her whole head of hair uncovered." + INBK)
+
 
 def run(name):
     refs, prompt = JOBS[name]

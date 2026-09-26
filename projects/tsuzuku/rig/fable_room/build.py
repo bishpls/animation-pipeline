@@ -287,6 +287,9 @@ def ending():
         fig = (img[..., 3] > 0) & ~cush                                  # (in the footprint, no slivers: what's left there is geta,
         thin = foot & fig & ~ndi.binary_opening(fig, iterations=3)       #  tabi or skirt, all solid)
         out[k] = figure_only(img, cush | thin, np.zeros_like(cush))       # (no default navy cut: the tabi shades lavender)
+    # (v7 review: the hood's cloth in-betweens, push1 -> push2 and push2 -> push3; patched onto hold like the push, from the deckled set)
+    for n in ('push1b', 'push2b'):
+        kn = load_reg('k_' + n); out[n] = blend(hold, kn, feather_mask(changed(kn, hold, zone)) * armz)
     out, prop_meta = expressed(out, hold, base, K, M, SRC, H, W, xx, yy)
     # full-res exports of the composites, for crop edits (faces) and whole edits (claps, the raise): src/x_<name>.png
     for k in ('u', 'u_up', 'd', 'd_up', 'd_dn'):
@@ -374,6 +377,7 @@ def expressed(out, hold, base, K, M, SRC, H, W, xx, yy):
     new['u.A'] = face('u', 'A', 'u'); new['u_up.A'] = face('u_up', 'A', 'u_up')
     new['push0.A'] = face('push0', 'A', 'u'); new['push1.A'] = face('push1', 'A', 'u')
     new['push2.B'] = face('push2', 'B', 'd'); new['push3.B'] = face('push3', 'B', 'd')
+    new['push1b.A'] = face('push1b', 'A', 'u'); new['push2b.B'] = face('push2b', 'B', 'd')
     for hk in ('d', 'd_up', 'd_dn'):
         new[hk + '.B'] = face(hk, 'B', 'd')
         new[hk + '.C'] = face(hk, 'C', hk)
@@ -408,7 +412,7 @@ def expressed(out, hold, base, K, M, SRC, H, W, xx, yy):
     offsets = {}
     for k in list(new):
         body = k.split('.')[0]
-        if body in ('u', 'u_up', 'push0', 'push1', 'push2', 'push3', 'd', 'd_up', 'd_dn', 'wipe1', 'wipe2', 'c_open', 'c_shut'):
+        if body in ('u', 'u_up', 'push0', 'push1', 'push1b', 'push2', 'push2b', 'push3', 'd', 'd_up', 'd_dn', 'wipe1', 'wipe2', 'c_open', 'c_shut'):
             same = np.abs(new[k][..., :3].astype(int) - hold[..., :3].astype(int)).max(-1) < 40
             new[k] = with_alpha(new[k], ~(cut & (same | (new[k][..., 3] < 40)))); offsets[k] = [0, 0]
     for k in ('r_half', 'r_up'):                                          # (the raise carries its own lantern: hold's leaves, fully)
@@ -423,9 +427,32 @@ def expressed(out, hold, base, K, M, SRC, H, W, xx, yy):
     lc = lantern_center(st)
     own = box_mask((H, W), (int(lc[0]) - 190, int(lc[1]) - 330, int(lc[0]) + 190, int(lc[1]) + 280)) if lc else np.zeros((H, W), bool)
     stcut = (ndi.binary_dilation(sh(lan | stk), iterations=14) | own) & (xx < GRIP[0] + sdx - 40)
-    new['step.B'] = with_alpha(st, ~stcut); offsets['step.B'] = [sdx, sdy]
+    new['step.B'] = match_colours(with_alpha(st, ~stcut), new['d.B']); offsets['step.B'] = [sdx, sdy]
     pts = {'grip': GRIP, 'hook': HOOK, 'lantern_c': lantern_center(hold)}
     return new, {'layers': layers, 'offsets': {k: [v[0] * SC, v[1] * SC] for k, v in offsets.items()}, 'points': pts}
+
+
+def match_colours(img, ref):
+    """v7 review: the step drawing (three generations of edits) drifted: the hakama royal blue, not her teal. Each region (hakama,
+    hair, jacket; soft masks by colour and place) gets its LAB mean and spread matched to the standing drawing's"""
+    H, W = img.shape[:2]; yy, xx = np.mgrid[:H, :W]
+    lab = lambda a: cv2.cvtColor(a[..., :3], cv2.COLOR_RGB2LAB).astype(np.float32)
+    def masks(a):
+        r, g, b = [a[..., i].astype(np.float32) for i in range(3)]; lum = .299 * r + .587 * g + .114 * b; al = a[..., 3] > 128
+        return {'skirt': al & (yy > 1560) & (b > r + 40), 'hair': al & (yy < 1300) & (b > r + 30) & (lum < 120) & ~((yy > 1560)),
+                'jacket': al & (yy < 1700) & (lum < 70) & (np.abs(b - r) < 40)}
+    Li, Lr = lab(img), lab(ref); Mi, Mr = masks(img), masks(ref); out = Li.copy(); wsum = np.zeros((H, W), np.float32)
+    acc = np.zeros_like(Li)
+    for k in ('skirt', 'hair', 'jacket'):
+        mi, mr = Mi[k], Mr[k]
+        if mi.sum() < 500 or mr.sum() < 500: continue
+        mu_i, sd_i, mu_r, sd_r = Li[mi].mean(0), Li[mi].std(0) + 1e-3, Lr[mr].mean(0), Lr[mr].std(0)
+        t = (Li - mu_i) / sd_i * sd_r + mu_r
+        w = np.clip(ndi.gaussian_filter(mi.astype(np.float32), 6) * 1.6, 0, 1)
+        acc += t * w[..., None]; wsum += w
+    k = np.clip(wsum, 0, 1)[..., None]; out = Li * (1 - k) + (acc / np.maximum(wsum, 1e-6)[..., None]) * k
+    rgb = cv2.cvtColor(np.clip(out, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
+    o = img.copy(); o[..., :3] = rgb; return o
 
 
 def save_to(img, path):
