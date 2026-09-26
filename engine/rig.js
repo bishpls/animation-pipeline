@@ -249,13 +249,16 @@ const RIG = (() => {
           if (ew) [x, y] = rot(x, y, E[0], E[1], sg * ebw * ew);                 // (as seen: a partly weighted 330 would swing through 165)
         }
         const a = sg * (p['arm' + sd] || 0) * (name === arm.sleeve ? (arm.sleeveFollow || .4) : 1); [x, y] = rot(x, y, arm.shoulder[0], arm.shoulder[1], a);
-        // hanging cloth (arms.<s>.hang: { layers, k, d0, d1 }; Fable's wide kimono sleeves): cloth far from the arm line doesn't turn
+        // hanging cloth (arms.<s>.hang: { layers, k, d0, d1, anchor }; Fable's wide kimono sleeves): cloth far from the arm line doesn't turn
         // with the arm. It hangs from its point on the (turned) arm line, turned back by part of the arm's turn (k), more the farther it
         // is from the arm (d0..d1 px), so a raised arm carries its sleeve's top and the rest drapes below it
         const HG = arm.hang;
         if (HG && HG.layers.includes(name) && (a || ew)) {
           const S0 = arm.shoulder, ax = arm.axis, rx = rest[k] - S0[0], ry = rest[k + 1] - S0[1], along = rx * ax[0] + ry * ax[1];
-          const perp = Math.abs(rx * ax[1] - ry * ax[0]), wd = smooth(clamp((perp - (HG.d0 ?? 40)) / ((HG.d1 ?? 260) - (HG.d0 ?? 40)), 0, 1));
+          const perp = Math.abs(rx * ax[1] - ry * ax[0]);
+          // (none at the opening: the sleeve's end stays on its cuff, HG.anchor = [x, y, r0, r1] around the cuff, rest px)
+          const an = HG.anchor, wa = an ? smooth(clamp((Math.hypot(rest[k] - an[0], rest[k + 1] - an[1]) - an[2]) / (an[3] - an[2]), 0, 1)) : 1;
+          const wd = wa * smooth(clamp((perp - (HG.d0 ?? 40)) / ((HG.d1 ?? 260) - (HG.d0 ?? 40)), 0, 1));
           if (wd > 0) {
             let q = [S0[0] + ax[0] * along, S0[1] + ax[1] * along];
             if (ew) q = rot(q[0], q[1], arm.elbow[0], arm.elbow[1], sg * ebw * ew);

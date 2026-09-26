@@ -1,0 +1,14 @@
+{
+ "order": [
+  "collar",
+  "cord",
+  "jacket",
+  "kimono",
+  "obi",
+  "hakama"
+ ],
+ "line_r": 9,
+ "line_lum": 55,
+ "line_grow": 2,
+ "dark_by_pixel": true
+}

@@ -1,0 +1,417 @@
+{
+ "manifest": "build/manifest.json",
+ "origin": [
+  1015,
+  2940
+ ],
+ "preroll": 2,
+ "head": {
+  "layers": [
+   "hair_back",
+   "face",
+   "mouth",
+   "eye_L",
+   "eye_R",
+   "hair_side_L",
+   "hair_side_R",
+   "hair_front"
+  ],
+  "center": [
+   1015,
+   390
+  ],
+  "radius": [
+   150,
+   190
+  ],
+  "rigid": {
+   "eye_L": [
+    935,
+    347
+   ],
+   "eye_R": [
+    1082,
+    347
+   ],
+   "mouth": [
+    1015,
+    457
+   ]
+  },
+  "D": [
+   55,
+   34
+  ],
+  "kx": {
+   "eye_L": 0.7,
+   "eye_R": 0.7,
+   "mouth": 0.75,
+   "face": [
+    0.5,
+    0.35
+   ],
+   "hair_back": 0,
+   "hair_front": [
+    0.62,
+    0.3
+   ],
+   "hair_side_L": [
+    0.62,
+    0.3
+   ],
+   "hair_side_R": [
+    0.62,
+    0.3
+   ]
+  },
+  "ky": {
+   "eye_L": 0.7,
+   "eye_R": 0.7,
+   "mouth": 0.75,
+   "face": [
+    0.5,
+    0.4
+   ],
+   "hair_back": 0.25,
+   "hair_front": [
+    0.62,
+    0.55
+   ],
+   "hair_side_L": [
+    0.62,
+    0.55
+   ],
+   "hair_side_R": [
+    0.62,
+    0.55
+   ]
+  },
+  "pivot": [
+   1015,
+   522
+  ],
+  "hang": {
+   "hair_side_L": [
+    520,
+    660,
+    0.25
+   ],
+   "hair_side_R": [
+    520,
+    660,
+    0.25
+   ],
+   "hair_back": [
+    520,
+    660,
+    0.25
+   ]
+  },
+  "neckLayers": [
+   "neck"
+  ],
+  "neck": {
+   "top": 470,
+   "base": 600,
+   "wz": [
+    [
+     0,
+     0.5
+    ],
+    [
+     0.5,
+     0.16
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "wx": 0.03,
+   "wy": 0.24
+  },
+  "hairZ": {
+   "hair_side_L": 0.85,
+   "hair_side_R": 0.85,
+   "hair_back": 0.85
+  }
+ },
+ "body": {
+  "waist": [
+   1015,
+   1180
+  ],
+  "hip": [
+   1015,
+   1500
+  ],
+  "upper": [
+   "neck",
+   "collar",
+   "cord",
+   "kimono",
+   "jacket"
+  ],
+  "bodyX": {
+   "D": 40,
+   "cx": 1015,
+   "rx": 380,
+   "head": 0.3,
+   "prof": [
+    [
+     600,
+     0.3
+    ],
+    [
+     800,
+     1.0
+    ],
+    [
+     1180,
+     0.8
+    ],
+    [
+     1500,
+     0.52
+    ],
+    [
+     2100,
+     0.18
+    ]
+   ],
+   "arm": [
+    [
+     800,
+     0.3
+    ],
+    [
+     1300,
+     0.12
+    ]
+   ]
+  },
+  "breath": {
+   "rise": 4,
+   "prof": [
+    [
+     600,
+     1.0
+    ],
+    [
+     650,
+     0.76
+    ],
+    [
+     800,
+     0.68
+    ],
+    [
+     1180,
+     0.13
+    ],
+    [
+     1300,
+     0
+    ]
+   ],
+   "widen": 0.012,
+   "chestY": 850
+  },
+  "bend": {
+   "prof": [
+    [
+     600,
+     1.0
+    ],
+    [
+     800,
+     0.8
+    ],
+    [
+     1180,
+     0.47
+    ],
+    [
+     1500,
+     0.32
+    ],
+    [
+     2100,
+     0
+    ]
+   ],
+   "pivot": [
+    [
+     600,
+     1150
+    ],
+    [
+     800,
+     1300
+    ],
+    [
+     1180,
+     1500
+    ],
+    [
+     1500,
+     1800
+    ],
+    [
+     2100,
+     2400
+    ]
+   ]
+  },
+  "bounce": [
+   [
+    0,
+    1
+   ],
+   [
+    1180,
+    1
+   ],
+   [
+    1800,
+    0.6
+   ],
+   [
+    2600,
+    0.15
+   ]
+  ],
+  "pelvis": {
+   "c": [
+    1015,
+    1500
+   ],
+   "waist": [
+    1015,
+    1180
+   ],
+   "band": [
+    1150,
+    1270
+   ],
+   "D": 120,
+   "tilt": 4,
+   "lift": 5,
+   "ankle": 2780,
+   "knee": 0,
+   "legs": {},
+   "feet": [
+    "foot_L",
+    "foot_R"
+   ],
+   "heel": 10,
+   "drawIn": 12,
+   "ankleJ": 2860,
+   "sole": 2940,
+   "footLen": 150,
+   "point": 30,
+   "heelPivot": false,
+   "skirt": {
+    "layers": [
+     "hakama"
+    ],
+    "top": 1700,
+    "hem": 2680,
+    "split": 1015,
+    "soft": 260,
+    "follow": 0.8,
+    "lift": 0.6
+   }
+  }
+ },
+ "arms": {
+  "L": {
+   "layers": [
+    "sleeve_L",
+    "cuff_L",
+    "hand_L"
+   ],
+   "shoulder": [
+    720,
+    800
+   ],
+   "elbow": [
+    590,
+    1080
+   ],
+   "axis": [
+    -0.421,
+    0.907
+   ],
+   "blend": 70,
+   "upper": "sleeve_L",
+   "forearm": [
+    "cuff_L",
+    "hand_L"
+   ],
+   "hang": {
+    "layers": [
+     "sleeve_L"
+    ],
+    "k": 0.6,
+    "d0": 40,
+    "d1": 260,
+    "anchor": [
+     523,
+     1469,
+     110,
+     280
+    ]
+   }
+  },
+  "R": {
+   "layers": [
+    "sleeve_R",
+    "cuff_R",
+    "hand_R"
+   ],
+   "shoulder": [
+    1310,
+    800
+   ],
+   "elbow": [
+    1440,
+    1080
+   ],
+   "axis": [
+    0.421,
+    0.907
+   ],
+   "blend": 70,
+   "upper": "sleeve_R",
+   "forearm": [
+    "cuff_R",
+    "hand_R"
+   ],
+   "hang": {
+    "layers": [
+     "sleeve_R"
+    ],
+    "k": 0.6,
+    "d0": 40,
+    "d1": 260,
+    "anchor": [
+     1500,
+     1471,
+     110,
+     280
+    ]
+   }
+  }
+ },
+ "couple": {
+  "on": false
+ },
+ "mesh": {
+  "sleeve_L": 20,
+  "sleeve_R": 20,
+  "hakama": 40,
+  "jacket": 40
+ },
+ "idPrefix": "fable"
+}

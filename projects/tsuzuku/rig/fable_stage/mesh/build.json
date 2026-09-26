@@ -1,0 +1,22 @@
+{
+ "fromimg": [
+  {"base": "../base_stage_keyed.png", "img": "under/noarms_al.png", "labels": "under/layers_noarms",
+   "map": {"jacket": ["jacket"], "hakama": ["hakama"], "kimono": ["kimono"]},
+   "clip": [380, 700, 1680, 1900], "exclude": ["eye_L", "eye_R", "mouth"]},
+  {"base": "../base_stage_keyed.png", "img": "under/nohead_al.png", "labels": "under/layers_nohead",
+   "map": {"jacket": ["jacket"], "collar": ["collar"], "kimono": ["kimono"], "cord": ["cord"]},
+   "clip": [760, 420, 1280, 820], "exclude": ["eye_L", "eye_R", "mouth"]}
+ ],
+ "under": {
+  "face": {"hull": ["eye_L", "eye_R", "mouth"]},
+  "neck": {"ellipse": [1015, 478, 78, 46], "clip": [935, 420, 1095, 530]},
+  "sleeve_L": {"hull": ["cuff_L"], "grow": 4, "clip": [380, 1360, 700, 1620]},
+  "sleeve_R": {"hull": ["cuff_R"], "grow": 4, "clip": [1330, 1360, 1660, 1620]}
+ },
+ "plates": {
+  "hair_back": {"from": ["hair_front", "hair_side_L", "hair_side_R", "face", "neck"], "grow": -3, "colour": "shadow", "behind": "foot_R"}
+ },
+ "outer_margin": 14,
+ "bleed": 3,
+ "aa": 0.8
+}

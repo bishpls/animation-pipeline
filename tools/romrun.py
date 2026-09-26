@@ -1,6 +1,6 @@
 """One command for a rig's range-of-motion check (fast path).
 
-    .venv/bin/python tools/romrun.py projects/<film> [--seg tilt,switch] [--sheet 18] [--workers 6]
+    .venv/bin/python tools/romrun.py projects/<film> [--name rom] [--seg tilt,switch] [--sheet 18] [--workers 6]
 
 1. reads the segment list and layer IDs from the page (window.ROM, window.RIG_IDS)
 2. renders ONLY the ID pass (LOOPS.romid), for the chosen segments (substring match) plus the rest segments (baselines)
@@ -13,11 +13,12 @@ import json, os, shutil, subprocess, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 a = sys.argv[1:]; P = a[0]
 opt = lambda k, d: type(d)(a[a.index(k) + 1]) if k in a else d
-O = os.path.join(ROOT, P, 'out', 'rom'); FPS = 24
+NAME = opt('--name', 'rom')                  # another rig's test: LOOPS.<name> and <name>id, window.ROMSETS[<name>] (Fable: fablerom)
+O = os.path.join(ROOT, P, 'out', NAME); FPS = 24
 node = lambda *args: subprocess.run(['node', os.path.join(ROOT, 'engine', 'render.mjs'), P, *args], cwd=ROOT, capture_output=True, text=True)
 t0 = time.time()
 os.makedirs(O, exist_ok=True)
-r = node('--loop=rom', '--eval=JSON.stringify({rom: window.ROM, ids: window.RIG_IDS})')
+r = node(f'--loop={NAME}', f'--eval=JSON.stringify({{rom: (window.ROMSETS && window.ROMSETS["{NAME}"]) || window.ROM, ids: window.RIG_IDS}})')
 d = json.loads(json.loads(r.stdout.strip().splitlines()[-1]))
 json.dump(d['rom'], open(os.path.join(O, 'rom.json'), 'w')); json.dump(d['ids'], open(os.path.join(O, 'ids.json'), 'w'))
 segs = d['rom']; want = [s for s in opt('--seg', '').split(',') if s]
@@ -29,7 +30,7 @@ ranges = []
 for _, s0, s1, *_ in pick:
     if ranges and abs(ranges[-1][1] - s0) < 1e-6: ranges[-1][1] = s1
     else: ranges.append([s0, s1])
-node('--loop=romid', '--frames', '--png', f'--framesdir={os.path.join(O, "romid")}', '--ranges=' + ','.join(f'{s0}:{s1}' for s0, s1 in ranges), f'--workers={opt("--workers", 6)}')
+node(f'--loop={NAME}id', '--frames', '--png', f'--framesdir={os.path.join(O, "romid")}', '--ranges=' + ','.join(f'{s0}:{s1}' for s0, s1 in ranges), f'--workers={opt("--workers", 6)}')
 t1 = time.time()
 chk = subprocess.run([os.path.join(ROOT, '.venv', 'bin', 'python'), os.path.join(ROOT, 'tools', 'romcheck2.py'), O, os.path.join(O, 'rom.json'), os.path.join(O, 'ids.json'),
                       '--sheet', '0'], capture_output=True, text=True)
@@ -41,7 +42,7 @@ for rr in sorted([x for x in rep if x['score'] > 0], key=lambda x: -x['score']):
     if len(picked) >= N: break
 if picked:
     ts = ','.join(f'{f / FPS:.4f}' for f in picked)
-    node('--loop=rom', f'--stills={ts}')
+    node(f'--loop={NAME}', f'--stills={ts}')
     os.makedirs(os.path.join(O, 'rom'), exist_ok=True); sd = os.path.join(ROOT, P, 'board', 'stills')
     for f in picked:
         tn = f'{f / FPS:.4f}'.rstrip('0').rstrip('.'); src = os.path.join(sd, 't' + tn.replace('.', '_') + '.png')

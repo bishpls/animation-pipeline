@@ -1,0 +1,228 @@
+{
+ "order": [
+  "cuff_L",
+  "cuff_R",
+  "hand_L",
+  "hand_R",
+  "sleeve_L",
+  "sleeve_R",
+  "hair_front",
+  "hair_side_L",
+  "hair_side_R",
+  "eye_L",
+  "eye_R",
+  "mouth",
+  "face",
+  "neck",
+  "collar",
+  "cord",
+  "jacket",
+  "kimono",
+  "obi",
+  "hakama",
+  "foot_L",
+  "foot_R"
+ ],
+ "split": {
+  "hair": [
+   [
+    "hair_front",
+    [
+     [
+      820,
+      30
+     ],
+     [
+      1210,
+      30
+     ],
+     [
+      1205,
+      300
+     ],
+     [
+      1150,
+      338
+     ],
+     [
+      880,
+      338
+     ],
+     [
+      825,
+      300
+     ]
+    ]
+   ],
+   [
+    "hair_side_L",
+    [
+     [
+      600,
+      250
+     ],
+     [
+      1015,
+      250
+     ],
+     [
+      1015,
+      900
+     ],
+     [
+      600,
+      900
+     ]
+    ]
+   ],
+   [
+    "hair_side_R",
+    [
+     [
+      1015,
+      250
+     ],
+     [
+      1450,
+      250
+     ],
+     [
+      1450,
+      900
+     ],
+     [
+      1015,
+      900
+     ]
+    ]
+   ]
+  ]
+ },
+ "force": {},
+ "line_r": 9,
+ "line_lum": 55,
+ "line_grow": 2,
+ "claim": {
+  "face": {
+   "grow": 6,
+   "from": [
+    "neck"
+   ]
+  },
+  "eye_L": {
+   "ellipse": [
+    935,
+    347,
+    62,
+    36
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "eye_R": {
+   "ellipse": [
+    1082,
+    347,
+    62,
+    36
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "mouth": {
+   "ellipse": [
+    1015,
+    457,
+    40,
+    20
+   ],
+   "from": [
+    "face"
+   ]
+  },
+  "hand_L": {
+   "grow": 4,
+   "from": [
+    "cuff_L"
+   ]
+  },
+  "hand_R": {
+   "grow": 4,
+   "from": [
+    "cuff_R"
+   ]
+  },
+  "hair_side_L": {
+   "grow": 10,
+   "from": [
+    "hair_front"
+   ]
+  },
+  "hair_side_R": {
+   "grow": 10,
+   "from": [
+    "hair_front"
+   ]
+  },
+  "neck": {
+   "poly": [
+    [
+     918,
+     440
+    ],
+    [
+     940,
+     460
+    ],
+    [
+     962,
+     476
+    ],
+    [
+     1000,
+     498
+    ],
+    [
+     1015,
+     502
+    ],
+    [
+     1030,
+     500
+    ],
+    [
+     1062,
+     484
+    ],
+    [
+     1085,
+     468
+    ],
+    [
+     1100,
+     456
+    ],
+    [
+     1118,
+     462
+    ],
+    [
+     1118,
+     660
+    ],
+    [
+     918,
+     660
+    ]
+   ],
+   "mode": "jaw",
+   "snap": 14,
+   "from": [
+    "face"
+   ]
+  }
+ },
+ "dark_by_pixel": true
+}
