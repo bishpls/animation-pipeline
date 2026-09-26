@@ -165,7 +165,7 @@ function inkPrint(C, o = {}) {
   // the hand-off (Fable): in its last drawings she raises the lit lantern to hang it (a new drawing: arms up, the lantern at the
   // top edge, her face lit from above); the light climbs her face from below to above and leaves by the top of the frame
   const RAISE = 12.25, UPPER = [2150, -60];                             // (the raised lantern: its light just above the frame)
-  PAPER_SFX.push(() => [[MATCH, 'match', -24], [RAISE - 1 / 12, 'lantern', -32]]);   // (the lantern bloom: silent; the crowd's call is the sound)
+  PAPER_SFX.push(() => [[RAISE - 1 / 12, 'lantern', -32]]);   // (the lantern bloom: silent; the crowd's call is the sound. The match: paperink.js, at its strike)
   LOOPS.inklamp = t => {
     const s = S0 + Math.floor(t * 12 + 1e-6) / 12, raised = s >= RAISE;
     const src = raised ? inkPrint(INK.raise, { misreg: [6, 4] }) : inkPrint(INK.lamp, { misreg: [6, 4], rivets: [[1500, 1265, 17]] });

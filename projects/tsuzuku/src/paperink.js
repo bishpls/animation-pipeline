@@ -2,8 +2,8 @@
 // narrative is jarring... reconceptualize via the language of the paper-puppet stage"; Fable's rulings, verbatim in the
 // comments below). This file redefines LOOPS.inklamp and LOOPS.inkstand; ink.js keeps its ink drawings and loops (the
 // making-of shows them) and is overridden here by script order. Same names, S0 and len; film.js dispatches them in local
-// seconds. The sound stays registered by ink.js on the same keys (the match at MATCH, the lantern's handle at RAISE - 1/12,
-// the geta at GETA), so the events below land on those times.
+// seconds. Sound: C2's match is registered here (at the strike); ink.js keeps the lantern's handle (RAISE - 1/12) and
+// the geta (GETA); B7's lamp slide is registered here too. The pictures land on those times.
 {
   const f = 1 / 12, FLOOR = 962, INK = 'rgb(22,22,26)';
   const q12 = t => Math.floor(t * 12 + 1e-6) / 12;
@@ -268,16 +268,18 @@
   // doors will open on her, 12.8); the screen dark but for what the match and then the lantern light. She is the kuroko of
   // the prologue on her own screen: the seated puppet with her hood up (the hood's opening cut as a line of light), the
   // lantern in her lap. Nothing lit, nothing seen: every light here arrives with its source.
-  //   9.0     black. "Mukashi, mukashi..." in the dark
-  //   10.25   the match flares (two drawings), then a small flame: her fingers, the match and the lantern's cap in black
-  //   10.5    she brings it down to the lantern's mouth
+  //   8.43    black from the prologue's clack
+  //   9.33    the match strikes on her first "Mukashi" (two drawings of flare), then a small flame: her fingers, the match and
+  //           the lantern's cap in black, the hood's edge caught in its wider, fainter reach (a rim, not a fill)
+  //   9.58    she brings it down to the lantern's mouth and holds it there through "...mukashi"
   //   11.44   "ARU TOKORO NI!": the chōchin blooms (three drawings); the vellum lights round her: the hood, its opening, the
   //           eye-hole lit from below; the match shaken out
   //   12.17   her far hand takes the lantern (the handle's sound), the near one back in her lap; 12.25 she raises it, up past
   //           her face and out of the top of the frame (five drawings): the light climbs her profile from below to above and
   //           leaves; cut to the butai (the telling)
   {
-    const S0 = 9.0, S1 = 12.7, MATCH = 10.25, LAMP = 11.44, RAISE = 12.25;       // (ink.js registers the match and the lantern)
+    const S0 = 9.0, S1 = 12.7, MATCH = 9 + 4 * f, LAMP = 11.44, RAISE = 12.25;     // (the strike on WORDS' first 'Mukashi,' 9.33; ink.js registers the lantern)
+    PAPER_SFX.push(() => [[MATCH, 'match', -24]]);                                   // (moved here from ink.js with the strike)
     const TC = { x: 560, y: 960, s: .2, origin: [1150, 2760] };                   // the teller's place (verse.js T)
     const CAMC = () => camAt(640, 670, 2.0);
     const LS = 1.2, LB = [722, 858];                                              // the chōchin's scale; its base on her lap
@@ -307,8 +309,9 @@
     const OUT = LAMP + 3 * f, TAKE0 = RAISE - 2 * f, TAKE1 = RAISE - f;              // match withdrawn and shaken out; the near hand down, the far hand to the lantern
     const LOW = [700, 818];                                                          // the near hand, back in her lap
     function nearTarget(q) {
-      if (q < 10.5) return M0;
-      if (q < 10.5 + 4 * f + 1e-6) return mix2(M0, AT, ease((q - 10.5) / (4 * f)));
+      const TO = MATCH + 3 * f;                                                      // (to the mouth: four drawings, eased)
+      if (q < TO) return M0;
+      if (q < TO + 4 * f + 1e-6) return mix2(M0, AT, ease((q - TO) / (4 * f)));
       if (q < OUT) return AT;
       if (q < TAKE0) return M2;
       return mix2(M2, LOW, ease((q - TAKE0) / (2 * f)));                             // the match put away, the hand stays low
@@ -341,6 +344,7 @@
         X.fillStyle = g; X.fillRect(px - r, py - r, 2 * r, 2 * r); };
       const flick = 1 + .05 * Math.sin(q * 23) + .03 * Math.sin(q * 41);
       if (fl) pool(fl.x, fl.y, fl.flare ? 250 + 110 * fl.flare : 190 * flick * (1 - .6 * lit), fl.flare ? .95 : .62 * (1 - .5 * lit));
+      if (fl && !fl.flare && lit === 0) pool(fl.x, fl.y, 640 * flick, .2);         // its faint reach: enough for her hood's edge and her hands to read, black on it
       if (lit > 0) pool(cx, cy, 980 * (.45 + .55 * lit) * flick, .92 * lit);
       X.globalCompositeOperation = 'source-over';
       texture(.45);
