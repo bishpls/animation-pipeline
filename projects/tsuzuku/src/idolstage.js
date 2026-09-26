@@ -23,7 +23,9 @@ const IDOLSTAGE = (() => {
   const WIPE1 = 63, WIPE2 = 65, WIPE3 = 76;                                  // her page-wipes (all left to right)
   // verse 2's cards: Fable pulls each one from her room (hiki-nuki; her ruling): the old card slides out to the teller's side,
   // its paper edge crossing the whole picture left to right, the next card behind it; only the screen's picture differs
-  const CARD_PULLS = [[67.2, 67.75, 'crabline'], [70.08, 70.42, 'scripts']];   // [bar the edge starts, bar it's through, the card]
+  // Michael: the screen mirrors Fable's book, and she turns its page as the screen changes (the over-the-shoulder cuts). Each
+  // turn is six drawings (on twos) landing at its bar; the screen's page turns on the same drawings, left to right
+  const CARD_TURNS = [[67.5, 'crabline'], [70.45, 'scripts']];               // [bar the turn lands, the card]
   const words = () => (window.WORDS || []).filter(w => w.who === 'clawd');   // (her words only)
   const inParens = (() => { let m = null; return () => { if (m) return m; m = new Set(); let on = false;
     for (const w of words()) { if (w.w.includes('(')) on = true; if (on) m.add(w); if (w.w.includes(')')) on = false; } return m; }; })();
@@ -39,7 +41,7 @@ const IDOLSTAGE = (() => {
                teller: { x: 2560, y: 1560, zoom: .86 }, teller2: { x: 2640, y: 1600, zoom: .9 }, pull: { x: 2480, y: 1520, zoom: .82 },
                clap: { x: 2700, y: 1640, zoom: .92 }, clap2: { x: 2860, y: 1720, zoom: 1.05 }, end: { x: 2200, y: 1480, zoom: .6 }, ots: { x: 1760, y: 1180, zoom: .74 } };
   const FROOM = { x: 3309, y: 2105, m: 1, s: .85 };        // Fable's seat point in the room: kneeling beside the window, at its height; her scale
-  const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: true };
+  const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: 'write' }, OTST = { ots: 'turn' }, OTSS = { ots: 'story' };
   // ---- the camera: shots [bar, from, to, room?]; {cx, cy, z}: world point at screen centre, zoom (the card's own camera)
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
@@ -60,15 +62,17 @@ const IDOLSTAGE = (() => {
     [60, FULL, { cx: 960, cy: 540, z: .98 }],
     [62, FULL, FULL],                                             // the hook: ONE locked full-body shot, four bars, no cuts
     [66, MED(820, 330, 1.35), MED(820, 320, 1.4)],              // verse 2: her and the screen
-    [67, FULL, FULL, room(RC.pull)],                              // hiki-nuki: Fable pulls the card (one bar)
+    [67, FULL, FULL, OTST],                                       // over her shoulder: she turns the page, the screen turns with it
     [68, MED(820, 322, 1.42), MED(820, 318, 1.47)],
     [69, { cx: 900, cy: 360, z: 1.2 }, { cx: 910, cy: 360, z: 1.22 }],
-    [70, FULL, FULL, room(RC.pull)],                              // ...and the next (half a bar)
-    [70.5, { cx: 915, cy: 360, z: 1.23 }, { cx: 920, cy: 360, z: 1.25 }],
+    [70, FULL, FULL, OTST],                                       // ...and the next (a shorter cut)
+    [70.7, { cx: 915, cy: 360, z: 1.23 }, { cx: 920, cy: 360, z: 1.25 }],
     [72, MED(900, 300, 1.55), MED(900, 290, 1.7)],              // she writes her own
     [74.25, FULL, FULL],                                          // side-step, side-step
     [76, WIDE, { cx: 960, cy: 600, z: 1.05 }],                   // the page nobody pulled; the footprints
-    [77.75, { cx: 900, cy: 560, z: 1.05 }, { cx: 930, cy: 430, z: 1.45 }],   // the path draws itself; a push-in
+    [77.75, { cx: 900, cy: 560, z: 1.05 }, { cx: 925, cy: 460, z: 1.35 }],   // the path draws itself; a push-in
+    [80.2, WIDE, WIDE, OTSS],                                     // over her shoulder: Clawd's page in Fable's book (she wrote her own)
+    [80.9, { cx: 930, cy: 430, z: 1.45 }, { cx: 930, cy: 430, z: 1.45 }],
     [81.5, CU(), CU(960, 215, 3.2)],                              // "Watch me!"
     [82, FULL, FULL, room(RC.clap)],                              // chorus 2: the teller claps with the hall (one bar)
     [83, MED(960, 330, 1.7), MED(960, 320, 1.85)],
@@ -85,7 +89,7 @@ const IDOLSTAGE = (() => {
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: !!(R && R.ots) };
+    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: R && R.ots || false };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -164,7 +168,15 @@ const IDOLSTAGE = (() => {
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
     const put = name => X.drawImage(pageFace(name, Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]);
     if (which === 'verse1') put('crabline');
-    else if (which === 'verse') { const st = cardState(t); put(st.next || st.cur); }   // (the old card slides off on top: slidingCard)
+    else if (which === 'verse') {                                           // the page turns with her book: new from the left
+      const st = cardState(t);
+      if (!st.next) put(st.cur);
+      else { const xe = rect[0] + rect[2] * st.u;
+        X.save(); X.beginPath(); X.rect(rect[0], rect[1], xe - rect[0], rect[3]); X.clip(); put(st.next); X.restore();
+        X.save(); X.beginPath(); X.rect(xe, rect[1], rect[0] + rect[2] - xe, rect[3]); X.clip(); put(st.cur); X.restore();
+        const g = X.createLinearGradient(xe - 40, 0, xe, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); X.fillStyle = g; X.fillRect(xe - 40, rect[1], 40, rect[3]);
+        X.fillStyle = 'rgba(255,252,240,.9)'; X.fillRect(xe - 1.5, rect[1], 3, rect[3]); }
+    }
     else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
     X.restore();
     return rect;
@@ -172,10 +184,9 @@ const IDOLSTAGE = (() => {
   // verse 2's cards: before the first pull, the fable's title page (Michael: not blank). A pull slides the old card out of the
   // screen, across the stage and out of the window into Fable's hand; the next card is behind it. On twos, eased like a hand.
   function cardState(t) {
-    const b = t2b(t); let cur = 'title', next = null, u = 0;
-    for (const [a, z, name] of CARD_PULLS) { if (b >= z) cur = name; else if (b >= a) { next = name; u = (b - a) / (z - a); } }
-    const tq = Math.floor(u * 12 * (next ? 1 : 0)) / 12;                      // (on twos-ish: 12 steps across the pull)
-    return { cur, next, u: next ? tq * tq * (3 - 2 * tq) : 0 };
+    const tq = Math.floor(t * 12 + 1e-6) / 12; let cur = 'title', next = null, u = 0;
+    for (const [land, name] of CARD_TURNS) { const d = Math.floor((tq - (b2t(land) - 6 / 12)) * 12 + 1e-6); if (d >= 6) cur = name; else if (d >= 0) { next = name; u = [.12, .3, .52, .7, .86, .96][d]; } }
+    return { cur, next, u };                                                  // (her turn drawings: turn1 d0-1, turn2 d2-4, landed d5)
   }
   const FACES = {};
   function pageFace(name, w, h) {
@@ -191,19 +202,6 @@ const IDOLSTAGE = (() => {
       if (window.PUPPET && window.FAN) PUPPET.drawShape(g, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(w * .5, h * .9).scale(h / 2400));
     } finally { X = X0; }
     return (FACES[key] = c);
-  }
-  // the old card on its way out, in the card's screen space (drawn over the stage, under Clawd): out through the window's right
-  // edge; roomFrame draws the part beyond it, in the room, behind Fable's hand. D: the travel, drop: it dips toward her hand
-  function cardSlide(t, W2S) {
-    const st = cardState(t); if (!st.next) return null;
-    const [x, y, w, h] = SCR.c, [sx, sy] = W2S(x, y), [ex, ey] = W2S(x + w, y + h), D = W - sx + 60;
-    return { name: st.cur, rect: [sx + st.u * D, sy + st.u * st.u * (ey - sy) * .5, ex - sx, ey - sy] };
-  }
-  function slidingCard(X, t, W2S) {
-    const sl = cardSlide(t, W2S); if (!sl) return;
-    const [x, y, w, h] = sl.rect, f = pageFace(sl.name, Math.round(w), Math.round(h)); if (!f) return;
-    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.shadowColor = 'rgba(0,0,0,.45)'; X.shadowBlur = 18; X.shadowOffsetX = 8; X.shadowOffsetY = 8;
-    X.drawImage(f, x, y, w, h); X.restore();
   }
   // a card's paper edge crossing the picture (wipe 2, the pulls): the old card rides over the new one, so its edge throws a soft
   // shadow onto the new card, and catches the light
@@ -410,7 +408,6 @@ const IDOLSTAGE = (() => {
       X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.beginPath(); X.rect(xe, 0, W - xe, H); X.clip(); backdrop(t, c, W2S, e1, 0, e3, opt); X.restore();
       paperEdge(X, xe);
     } else backdrop(t, c, W2S, e1, e2, e3, opt);
-    if (t2b(t) < 82) slidingCard(X, t, W2S);                                   // verse 2's cards, pulled from her room
     camXform(X, c);
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
@@ -440,21 +437,22 @@ const IDOLSTAGE = (() => {
     if (c.ots) {                                                                 // over her shoulder: the window beyond, out of focus
       const buf = ROOM.buf || (ROOM.buf = mk()), g = buf.getContext('2d'); g.clearRect(0, 0, W, H); g.drawImage(X.canvas, 0, 0);
       X.save(); X.filter = 'blur(3px) brightness(.85)'; X.drawImage(buf, 0, 0); X.restore();
-      if (typeof FABLESEAT !== 'undefined') FABLESEAT.ots(X, t, [], { flip: true, draw: 'write', spread: 'notes' });
+      if (typeof FABLESEAT !== 'undefined') {
+        if (c.ots === 'write') FABLESEAT.ots(X, t, [], { flip: true, draw: 'write', spread: 'notes' });
+        else if (c.ots === 'turn') FABLESEAT.ots(X, t, CARD_TURNS.map(([bb, n]) => [b2t(bb), n]), { flip: true, initial: 'title' });
+        else FABLESEAT.ots(X, t, [], { flip: true, draw: 'ots', spread: 'story' });
+      }
       return c;
     }
     // (one audience: the hall's, inside the card; the room's readers are cut in world A)
     const k = cam.zoom * FROOM.m, fx = W / 2 + (FROOM.x - cam.x) * k, fy = H / 2 + (FROOM.y - cam.y) * k, fs = FROOM.s * k;
-    // the pulled card, where it has left the window: in the room, over the rail, behind her (she's taking it)
-    const sl = cardSlide(t, W2Sof(c));
-    if (sl) {
-      const toB = (px, py) => [1003 + px * 1833 / 1920, 799 + (py - 15) * 1008 / 1050], toR = ([bx, by]) => [W / 2 + (bx - cam.x) * cam.zoom, H / 2 + (by - cam.y) * cam.zoom];
-      const [x, y, w, h] = sl.rect, [a0, b0] = toR(toB(x, y)), [a1, b1] = toR(toB(x + w, y + h)), edge = toR([2836, 0])[0], f = pageFace(sl.name, Math.round(w), Math.round(h));
-      if (f && a1 > edge) { X.save(); X.beginPath(); X.rect(edge, 0, W - edge, H); X.clip(); X.shadowColor = 'rgba(0,0,0,.5)'; X.shadowBlur = 20; X.shadowOffsetX = 10; X.shadowOffsetY = 10;
-        X.filter = `brightness(${(.62 + .28 * lit).toFixed(2)})`; X.drawImage(f, a0, b0, a1 - a0, b1 - b0); X.restore(); }
-    }
     if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
     return c;
   }
-  return { frame, camAt, SCR, K, W2Sof, load };
+  // her book mirrors the screen: the same faces, and Clawd's page (drawn live) for the over-the-shoulder cut at 80.2
+  function storySpread(t, w, h) {
+    const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d');
+    g.drawImage(pageFace('blank', w, h), 0, 0); withX(g, () => storyPage(g, t, [0, 0, w, h])); return c;
+  }
+  return { frame, camAt, SCR, K, W2Sof, load, pageFace, storySpread };
 })();

@@ -56,11 +56,9 @@ const FABLESEAT = (() => {
     // answers "Sorekara?" (her own call) with a hand to her ear
     if (b >= 66 && b < 82) {
       nod = b < 72 ? (qb < .12 ? .25 : qb < .3 ? .5 : 0) : 0;
-      if (b >= 67 && b < 67.95) { pose = 'pull'; lean = b < 67.2 ? .15 : -.9 * clamp((b - 67.2) / .55); }
-      else if (b >= 67.95 && b < 68.15) lean = -.9 * (1 - (b - 67.95) / .2);
+      // (67-68 and 70-70.7: the over-the-shoulder page turns; her room drawing isn't on screen)
       const s1 = snip(b, [68.25, 68.5], 68.85); if (b >= 68.17 && s1) { pose = s1; nod = 0; tilt = qb < .5 ? .6 : -.6; }
-      if (b >= 69.9 && b < 70.52) { pose = 'pull'; lean = b < 70.08 ? .35 : -1.3 * clamp((b - 70.08) / .34); tilt = b < 70.08 ? .6 : -1; }
-      const s2 = snip(b, [70.52, 70.77, 71.02], 71.3); if (b >= 70.52 && s2) { pose = s2; lean = Math.floor(beat) % 2 ? .5 : -.5; tilt = -lean * 1.2; nod = qb < .3 ? .6 : 0; }
+      const s2 = snip(b, [70.77, 71.02, 71.27], 71.5); if (b >= 70.7 && s2) { pose = s2; lean = Math.floor(beat) % 2 ? .5 : -.5; tilt = -lean * 1.2; nod = qb < .3 ? .6 : 0; }
       if (b >= 80.9 && b < 81.5) { pose = 'ear'; tilt = .5; }
       if (b >= 72 && !(b >= 80.9 && b < 81.5)) { sway = 0; tilt = .25 * Math.round(2 * Math.sin(2 * Math.PI * b / 4)) / 2; }   // watching, following her
     }
@@ -163,7 +161,9 @@ const FABLESEAT = (() => {
       PRESSES.slice(0, 3).forEach((p, i) => { if (b >= p - .04) { k = i + 1; frac = clamp((b - (p - .04)) / .3); } });
       const key = `notes${k}_${frac.toFixed(3)}`; return O.spread[key] || (O.spread[key] = notesSpread(w, h, k, frac));
     }
-    return O.spread[name] || (O.spread[name] = cardFace(name, w, h));
+    if (name === 'story') return typeof IDOLSTAGE !== 'undefined' ? IDOLSTAGE.storySpread(t, w, h) : cardFace('blank', w, h);   // (live: Clawd writing in it)
+    const face = n => typeof IDOLSTAGE !== 'undefined' ? IDOLSTAGE.pageFace(n, w, h) : cardFace(n, w, h);
+    return O.spread[name] || (O.spread[name] = face(name));
   }
   // a source rect onto a quad (bilinear grid of affine triangles)
   function quadMap(g, img, sx, sy, sw, sh, q, n = 10) {
@@ -186,7 +186,7 @@ const FABLESEAT = (() => {
   function ots(X, t, turns, o = {}) {
     if (!O.quads) return;
     const tq = Math.floor(t * 12 + 1e-6) / 12;
-    let before = 'notes', after = 'notes', d = 99;
+    let before = o.initial || 'notes', after = o.initial || 'notes', d = 99;
     for (const [t0, name] of turns) { const k = Math.floor((tq - (t0 - 6 / 12)) * 12 + 1e-6); if (k >= 0) { before = after; after = name; d = k; } }
     let draw = d <= 1 ? 'turn1' : d <= 4 ? 'turn2' : 'ots', L = after, R = d <= 4 ? before : after;   // (the old right page until the turned one lands)
     if (o.draw) { draw = o.draw; L = R = o.spread || 'notes'; }
