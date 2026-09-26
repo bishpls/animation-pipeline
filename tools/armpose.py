@@ -1,4 +1,4 @@
-"""Drawn arm poses for the rig (MOTION.md §6): where the mesh can't make an arm read (the upper arm swung across the chest, say),
+"""Drawn arm poses for the rig (projects/tsuzuku/MOTION.md §6): where the mesh can't make an arm read (the upper arm swung across the chest, say),
 GPT Image redraws the whole arm (puff, upper arm, cuff, hand) at that pose as an edit of the base; the edit is registered onto
 the base, SAM cuts the new arm, and the rig swaps it in whenever the performed angles are near the pose's (engine/rig.js
 armPoses), rotated by the difference.

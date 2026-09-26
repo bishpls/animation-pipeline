@@ -20,25 +20,31 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
 
 ## Layout
 - `engine/`: the shared engine: `core.js` (time, easing, beat clock, boil), `riso.js` (the print press), `type.js` (variable-font
-  kinetic type), `studio.js` (timeline; riso mode or plain Canvas2D mode via `PROJECT.plain`), `render.mjs`, plus the vendored
-  fontkit and fonts (all OFL; check glyph coverage before using symbols like ✦ ☆).
-- `tools/`:
+  kinetic type), `studio.js` (timeline; riso mode or plain Canvas2D mode via `PROJECT.plain`), `render.mjs`, `pop.js` (the chibi kit
+  for plain mode), `puppet.js` (cut-paper puppets), `warp.js` (mesh-warped canvases), `rig.js` (the mesh rig runtime), `moves.js`
+  (dance moves and choreography), plus the vendored fontkit and fonts (all OFL; check glyph coverage before using symbols like ✦ ☆).
+- `tools/`: every tool, with its usage, is indexed in `docs/TOOLS.md`. The ones used on every film:
   - `music.py`: ElevenLabs songs, with word timestamps and a stored song_id for inpainting
   - `audio_analyze.py`: beat grid, seams, the cue sheet
   - `lyric_check.py`: speech-to-text diff against the lyrics
   - `songmap.py`: spectrogram and lyric map of a song
   - `tts.py`: narration, with word timestamps
-  - `sfx.py`: sound effects
+  - `sfx.py`: sound effects; `sfxmix.py`: the SFX stem from the picture's cue list, mixed over the song
   - `gemini.py`: media critic
-  - `imagegen.py`: references and keys (`--size 2K`)
-  - `chroma.py`: flat-green keys to transparent PNG
+  - `imagegen.py`: references and keys (`--size 2K`); `gptimage.py`: rig art and pose edits
+  - `chroma.py`: flat-green keys to transparent PNG; `rigkit.py`: register, colour-match and composite drawings in rig builders
+  - rigs, motion and checks: `segment.py`, `layers.py`, `rigbuild.py`, `variants.py`, `restcheck.py`, `romrun.py`, `motion_audit.py`,
+    `dance_audit.py`, `posetrack.py`, `retarget_mocap.py`, `vocalenv.py`, `filmscan.py`
   - `seedance.py`: Higgsfield Seedance 2.5, text-to-video and image-to-video
+- `docs/`: `CRAFT.md` (the method and its lessons), `TOOLS.md`, `RIGGING.md`, `MOTION.md`, `REVIEW.md`, `SESSIONS.md`; `research/`
+  (measured Live2D coupling); `references/`: prior art.
 - `projects/<film>/`: `index.html` (script order is the film), `src/` (look, characters, lyrics, `shots/`), `assets/`, `STORYBOARD.md`,
   `board/` (review images, gitignored), `out/` (renders, gitignored).
   - `open-all-night`: riso, 16:9
   - `words-are-fossils`: letterpress, 9:16
   - `hello-world`: plain Canvas2D chibi plus sakuga cut-ins, 16:9
-- `legacy/ember/`: reusable code from the EMBER shorts. `docs/references/`: prior art.
+  - `tsuzuku`: plain Canvas2D paper theatre plus a mesh-rigged idol stage, 16:9; the whole film is `--loop=film`
+- `legacy/ember/`: reusable code from the EMBER shorts.
 
 ## Commands (from repo root; P = projects/<film>)
 ```bash
@@ -48,5 +54,7 @@ node engine/render.mjs P --strip=30.8:31.4               # every frame of a mome
 node engine/render.mjs P --loop=chars --stills=0.3       # a standalone board (model sheets, look tests)
 node engine/render.mjs P --eval='LINES.length'           # inspect page state
 node engine/render.mjs P --frames --workers=6 --clean && node engine/render.mjs P --encode [--from=s] [--crf=15]
+.venv/bin/python tools/romrun.py P                      # a rig's range of motion, every frame checked
+.venv/bin/python tools/filmscan.py P/out/frames --known 9.0,12.7   # pops and jumps across a rendered film, minus known cuts
 node engine/render.mjs P --serve                         # scrub with sound in Chrome
 ```

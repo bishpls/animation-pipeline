@@ -333,7 +333,7 @@ const MOVES = (() => {
       return out;
     };
   }
-  // hands(P): the hand drawings as a layer over a performance (MOTION.md §11). A keyed shape (a move's hand) stays while the
+  // hands(P): the hand drawings as a layer over a performance (projects/tsuzuku/MOTION.md §11; docs/MOTION.md). A keyed shape (a move's hand) stays while the
   // arm does what that shape is for (a cup at the ear, a point on a straight arm, a pinch on bent claws); where the arm does
   // something else (motion capture replacing the arms under keyed hands) and on the plain hand, the shape follows the arm's
   // speed and phase: a half-curl ('relax') while a fast swing accelerates, a loose open hand ('loose') on the follow-through as

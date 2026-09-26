@@ -95,7 +95,7 @@ def ledger():
 
 
 def git():
-    """commits touching the film, classified by which session's files they touch (HANDOFF.md's list is the paper world's)"""
+    """commits touching the film, classified by which session's files they touch (projects/tsuzuku/HANDOFF.md's list is the paper world's)"""
     paper = re.compile(r'projects/%s/(src/(paper|page|fable(?!seat|stage)\w*|clawdpaper|origami|verse|exchange|bridge|prologue|outro|ink|stage|scenery|audience|mother)\.js'
                        r'|rig/(fable|fable_ink|kuroko|clawd_paper|audience|butai|scenery)/|sound/|voice/|song/|FABLE\.md|HANDOFF\.md)|engine/(puppet|warp)\.js' % FILM)
     log = subprocess.run(['git', '-C', ROOT, 'log', '--numstat', '--format=@@%h %aI', '--', f'projects/{FILM}', 'engine', 'tools'],

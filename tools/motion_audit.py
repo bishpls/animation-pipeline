@@ -1,4 +1,4 @@
-"""Measure a rig choreography against motion-design principles (MOTION.md): stillness, velocity and acceleration, arcs,
+"""Measure a rig choreography against motion-design principles (docs/MOTION.md; projects/tsuzuku/MOTION.md): stillness, velocity and acceleration, arcs,
 overlap (successive breaking), accents against the beat grid and the drum hits, secondary motion, and energy against the
 song. Input: a MOTIONLAB.dump() and the song.
 

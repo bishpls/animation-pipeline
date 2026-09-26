@@ -1,4 +1,4 @@
-"""Per-phrase audit of a rig choreography (MOTION.md §11): which bars are hand-keyed or motion-captured, how many distinct
+"""Per-phrase audit of a rig choreography (projects/tsuzuku/MOTION.md §11): which bars are hand-keyed or motion-captured, how many distinct
 upper-body poses each phrase holds, the hands (default-hand share, shape changes, instant swaps, shapes lost in turned views,
 shape against the arm's action), and the secondary motion (hair, buns, ahoge, bow, skirt) against the body's speed.
 Input: a MOTIONLAB.dump() with hands (src/motionlab.js), and the film's refs/mocap/phrases.json.

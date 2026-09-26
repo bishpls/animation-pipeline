@@ -1,4 +1,4 @@
-"""Where a retargeted clip runs out of rig (MOTION.md, "Rig limits"): per channel, the target (unclamped, from the pose) against
+"""Where a retargeted clip runs out of rig (projects/tsuzuku/MOTION.md §6, "Rig limits"): per channel, the target (unclamped, from the pose) against
 what the rig got (the retarget's clamped curve), with the clamps marked; the arm's depth (the wrist in front of or behind the
 body, which a front-view rig can only show by layer order); forearm foreshortening (its image length against its 3D length);
 and the feet: toe direction, heel lift against the toe (a pivot), and planted feet that slide.
