@@ -74,5 +74,33 @@
    141
   ],
   "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement. An energetic idol dance at 170 BPM: a big flat-hand sweep with her RIGHT hand across her body from her right to her left, like turning a giant page; then she reaches out forward with her LEFT hand; then fist pumps on the beat, bouncing; then she swings both arms, and on the final beat she throws both arms up high in a V, rises onto her toes, chin up, and holds it. The big finale of an idol concert: joyful, precise, rhythmic, every move big and clear, like a professional J-pop idol dancer."
+ },
+ "c1a_v2": {
+  "bars": [
+   46,
+   50
+  ],
+  "reuse": [
+   [
+    82,
+    86
+   ]
+  ],
+  "why": "c1a_v1's body was posed (dips on the beat, the core still 27%): directed as a bouncing, travelling dance",
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with plenty of space on both sides, even soft lighting, no cuts, no camera movement. A fast, bouncy J-pop idol chorus at 170 BPM, and she never stops moving: a springy bounce in her knees on every beat, a step on every count. First she punches her LEFT arm up and out to the side, pointing, twice on the beat, stepping in place; then she flings both arms open wide in a big V and bounces; then she cups her RIGHT hand behind her ear and leans into it, listening, while she travels: quick side-steps to her LEFT (step, close, step), then back to her RIGHT, her hips swinging, her head bobbing. Big, loose, joyful movement with real weight, like a professional idol dancer in the middle of a concert, never posing or freezing."
+ },
+ "c1s_v1": {
+  "bars": [
+   54,
+   58
+  ],
+  "reuse": [
+   [
+    74.25,
+    75.5
+   ]
+  ],
+  "why": "chorus 1's sideways claws (54-58), hand-keyed: a held two-arm pose with a snip pulse for four bars",
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with plenty of space on both sides, even soft lighting, no cuts, no camera movement. A playful, bouncy J-pop idol dance at 170 BPM: she holds both hands up beside her shoulders as crab claws, elbows out, pinching her fingers and thumbs together on every beat, and she side-steps across the floor like a crab: step-together to her LEFT four times, then step-together back to her RIGHT four times, bouncing on every step, her shoulders and head swinging into the direction she travels, her claws bobbing and wagging with each step. Joyful, precise, rhythmic, every move big and clear, never posing or freezing."
  }
 }

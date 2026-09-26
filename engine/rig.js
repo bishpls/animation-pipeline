@@ -12,7 +12,7 @@
 //   body: { waist: [x, y], hip: [x, y], upper: [layers], lower: [layers] }
 //   arms: { L: { layers, shoulder: [x, y], sleeve: 'layer', sleeveFollow: .4 }, R: {...} }
 //   sway: { layer: { root: y, len: px, spring: 'name', amp: px, axis: 'x' | 'y' | 'rot', pivot: [x, y] } }
-//   springs: { name: { drive: 'headX' | 'headZ' | 'bodyZ' | 'bounce' | 'armL' ..., k, c, gain } }
+//   springs: { name: { drive: 'headX' | 'headZ' | 'bodyZ' | 'bounce' | 'armL' ..., k, c, gain, mix: { drive: weight }, max } }
 //   mouth: { layer, center: [x, y], w, h }     procedural mouth drawn over the mouth patch when open
 // Parameters (all default 0): angleX, angleY (-1..1 = +-30/+-18 deg), angleZ (deg), bodyZ (deg), bodyX (-1..1), bounce (px),
 //   breath (0..1, auto if undefined), armL, armR (deg, + = outward), mouthOpen (0..1), mouthWide (-1..1), smile (0..1).
@@ -71,16 +71,19 @@ const RIG = (() => {
     // a drawn view is a real head angle, but its drawing already carries the hair to the new place: springs feel only part
     // of a view change (R.viewDrive), as a modest overshoot, not a whip
     const vang = p => ((R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0) * (R.viewDrive ?? .3);
-    const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
+    const drive0 = (p, d) => d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
       : d === 'pelvis' ? (p._bz ?? p.bodyZ ?? 0) + (p.hipX || 0) * 8 : d === 'hipY' ? (p.hipY || 0) + (p.bounce || 0)
-      : d === 'bodyZ' ? (p._bz ?? p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p._bx ?? p.bodyX ?? 0) * 20 : (p[d] || 0); };
+      : d === 'bodyZ' ? (p._bz ?? p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p._bx ?? p.bodyX ?? 0) * 20 : (p[d] || 0);
+    // mix: { drive: weight } more drives added in (hair that also feels the hips and the lean, a skirt that trails the travel)
+    const drive = (p, name) => { const s = S[name]; let v = drive0(p, s.drive); if (s.mix) for (const k in s.mix) v += drive0(p, k) * s.mix[k]; return v; };
     const dt = 1 / 120, pre = R.preroll || 2, t0 = t - pre, n = Math.round(pre / dt);
     const st = {}; for (const k of names) { const v = drive(P(t0), k); st[k] = { x: v, v: 0 }; }
     for (let i = 1; i <= n; i++) {
       const p = P(t0 + i * dt);
       for (const k of names) { const s = S[k], d = drive(p, k), q = st[k]; const a = -s.k * (q.x - d) - s.c * q.v; q.v += a * dt; q.x += q.v * dt; }
     }
-    const P1 = P(t), out = {}; for (const k of names) out[k] = (st[k].x - drive(P1, k)) * (S[k].gain || 1); return out;
+    // (max: a soft limit, for a part that swings only so far: the buns, when a jump drives them hard)
+    const P1 = P(t), out = {}; for (const k of names) { const v = (st[k].x - drive(P1, k)) * (S[k].gain || 1); out[k] = S[k].max ? S[k].max * Math.tanh(v / S[k].max) : v; } return out;
   }
 
   async function load(url) {
@@ -429,7 +432,9 @@ const RIG = (() => {
       if (swapped.has(l00.name) && !anchor[l00.name]) continue;
       const l0 = anchor[l00.name] || l00;
       if (window.RIG_HIDE && window.RIG_HIDE.includes(l0.name)) continue;          // (debug)
-      const w = want(l0.name), l = w && VV[l0.name] && VV[l0.name][w] ? { ...VV[l0.name][w], view: l0.view, idc: l0.idc } : l0;
+      // (a front-body layer drawn in a turned view, the hands, takes its front drawings: the view tables hold only its face)
+      const w = want(l0.name), V0 = VV[l0.name] && VV[l0.name][w] ? VV : !l0.view && rig.variants.F ? rig.variants.F : VV;
+      const l = w && V0[l0.name] && V0[l0.name][w] ? { ...V0[l0.name][w], view: l0.view, idc: l0.idc } : l0;
       const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
       drawMesh(l, pos, TT, l.tex);
       if (rig.R.mouth && !p.mouth && l.name === rig.R.mouth.layer && (p.mouthOpen || 0) > .02) {

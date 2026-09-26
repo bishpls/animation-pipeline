@@ -12,5 +12,6 @@ for ph in json.load(open(os.path.join(M, 'phrases.json')))['phrases']:
            os.path.join(M, ph['name'] + '_rig.json'), '--bar0', str(ph['bar0']), '--bars', str(ph['bars'])]
     if ph.get('anchors'): cmd += ['--anchors', ph['anchors']]
     if ph.get('tail'): cmd += ['--tail', ph['tail']]
+    if ph.get('wrap'): cmd += ['--wrap', ph['wrap']]
     r = subprocess.run(cmd, capture_output=True, text=True)
     print(ph['name'], 'ok' if r.returncode == 0 else 'FAILED\n' + r.stderr[-800:])

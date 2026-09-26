@@ -63,6 +63,18 @@
    "patches": [
     "hand_R"
    ]
+  },
+  "relax": {
+   "prompt": "Change ONLY the hand on the right side of the image: a relaxed, natural half-curled hand, the resting hand of a dancer: the four fingers softly bent at the knuckles about halfway toward the palm, gently separated and slightly fanned, the thumb resting loosely alongside the index finger; the exact in-between of an open hand and a loose fist. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
+  },
+  "loose": {
+   "prompt": "Change ONLY the hand on the right side of the image: a soft, graceful open hand (a dancer's ballet hand): the four fingers extended with a slight natural curve, loosely together with small gaps between them, the middle finger a little lower than the others, the thumb relaxed in toward the palm; open but not spread and not stiff. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
   }
  },
  "edits": "_edits/hand_R",

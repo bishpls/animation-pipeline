@@ -8,6 +8,8 @@
   // the feet land on the DRUMS, not the grid: the kicks sit ~50 ms behind the 170 BPM grid (MOTION.md), so the legs track is
   // shifted by that (the sideways step 'lands on the downbeat' as the audience hears it)
   const onDrums = list => list.map(([b, n, o]) => [b + .05 / BAR, n, o]);
+  // a jump whose apex is on the word at song time t (a frame early: a visual hit reads on time); MOVES.hop, 1.5 beats in
+  const hop = (t, o) => [(t - 1 / 24) / BAR - 1.5 / 4, 'hop', { at: 1.5, fade: .01, h: 160, ...o }];
   const choreo = () => MOVES.choreo({ bpm: 170, t0: 0 }, {
     legs: onDrums([
       [45, 'groove', { amp: 8 }],
@@ -46,6 +48,12 @@
       // the breakdown: the band tape-stops; she winds down
       [90, 'bounce', { amp: 6 }], [91.5, 'curtsy', { fade: .6 }],        // ...and she curtsies: settle 91.5, down 91.75-92.25, hold, rise by 92.9
     ]),
+    // the big "then!" of each chorus (60.91, 88.91): a small jump, airborne on the word, landing after the beat (Fable: Clawd
+    // never lands on it); on a channel of its own, over the feet
+    jump: [[45, 'idle'], hop(85.99), [61.4, 'idle'], hop(125.51), [89.4, 'idle']],
+    // chorus 2's "Me-kut-te!" (turn the page): she turns with it, F > HR > R and back (the head track's views), and her feet
+    // pivot the same way, toes toward image right
+    turn: [[45, 'idle'], [84.3, () => ({ footRR: 20, footLR: -14 }), { fade: .3 }], [85.05, 'idle', { fade: .6 }]],
     arms: [
       [45, 'idle'],
       [46, 'reach', { side: 1 }], [47, 'armsOut'], [48, 'handToEar', { side: -1, fade: 1 }], [50, 'wave', { side: 1 }], [51, 'present'],
@@ -82,7 +90,7 @@
       [66, 'look', { view: 'F', y: .1 }], [67, 'look', { view: 'HL', z: 3 }], [68.2, 'headTilt', { amp: 6 }], [69, 'look', { view: 'HR' }], [69.6, 'look', { view: 'R', y: .15 }], [71.3, 'look', { view: 'F' }],
       [72, 'look', { view: 'F', y: .35 }], [73, 'headBob', { amp: .35 }], [76, 'shake'], [76.75, 'headBob'], [77.75, 'look', { view: 'HL' }], [79.6, 'look', { view: 'F' }],
       [80.9, 'headTilt', { amp: 7 }], [81.5, 'look', { view: 'F', y: -.25 }],
-      [82, 'headBob'], [84, 'look', { view: 'HR', z: -4 }], [85, 'headBob'], [87, 'headBob', { amp: .5 }], [89, 'look', { view: 'F', y: -.25 }],
+      [82, 'headBob'], [84, 'look', { view: 'HR', z: -4 }], [84.3, 'look', { view: 'R', z: -5, fade: .3 }], [85.05, 'look', { view: 'HR', z: -3, fade: .3 }], [85.2, 'headBob'], [87, 'headBob', { amp: .5 }], [89, 'look', { view: 'F', y: -.25 }],
       [90, 'look', { view: 'F', y: .15 }], [91.5, 'look', { view: 'F', y: 0, fade: 1 }],     // (the curtsy bows the head)
     ],
   }, { lips: MOVES.lips(window.WORDS, 'clawd', window.VOCAL_ENV), blinks: MOVES.blinks(11, 60, 140) });
@@ -141,8 +149,10 @@
       return out;
     };
   }
-  const perform = () => { const P0 = base(); if (typeof MOTIONLAB === 'undefined') return P0;
-    return beatArms(MOTIONLAB.layer(MOTIONLAB.groove(P0)), [[58.9, 62], [86, 90]]); };
+  // the hands last (MOVES.hands, MOTION.md §11): the keyed shapes where the arm does their job, the speed shapes elsewhere, and
+  // an in-between drawing on every change
+  const perform = () => { const P0 = base(); if (typeof MOTIONLAB === 'undefined') return MOVES.hands(P0, { start: 42 * BAR });
+    return MOVES.hands(beatArms(MOTIONLAB.layer(MOTIONLAB.groove(P0)), [[58.9, 62], [86, 90]]), { start: 42 * BAR }); };
   const get = () => (P = P || perform());
   window.CHOREO = window.CHOREO || {};
   window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get, base };                // for the harness (base: before the motion lab's layers)
@@ -167,4 +177,9 @@
   LOOPS.clawdface = t => { get(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H);
     const o = RIGS.clawd.R.origin, s = 1.1; RIGS.clawd.draw(X, t, P, { x: 960 + (o[0] - 1065) * s, y: 560 + (o[1] - 700) * s, s }); };
   LOOPS.clawdface.len = 220;
+  // (review) her arms and hands, large, on a camera that follows her (MOTION.md §11): both of her worlds, the finale's from 170 s
+  LOOPS.clawdhands = t => { const Pc = t >= 170 && window.CHOREO.clawdF ? window.CHOREO.clawdF.P() : get();
+    X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H);
+    const o = RIGS.clawd.R.origin, s = .42; RIGS.clawd.draw(X, t, Pc, { x: 960 + (o[0] - 1080) * s, y: 540 + (o[1] - 1150) * s, s }); };
+  LOOPS.clawdhands.len = 220;
 }

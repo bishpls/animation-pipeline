@@ -54,7 +54,7 @@
   // refs/mocap/phrases.json (the finale's are the f* phrases, bars 129-141), keyed hands, faces and views on top
   let P = null, B0 = null;
   const base = () => (B0 = B0 || RIG.perform(RIGS.clawd, MOVES.follow(choreo(), MOVES.BODY, { start: 124 * BAR, world: { footLX: 1, footRX: 1, hipX: 140 } })));
-  const get = () => (P = P || (typeof MOTIONLAB !== 'undefined' ? MOTIONLAB.layer(MOTIONLAB.groove(base())) : base()));
+  const get = () => (P = P || MOVES.hands(typeof MOTIONLAB !== 'undefined' ? MOTIONLAB.layer(MOTIONLAB.groove(base())) : base(), { start: 124 * BAR }));   // (the hands: MOVES.hands)
   window.CHOREO = window.CHOREO || {};
   window.CHOREO.clawdF = { t0: 126 * BAR, dur: 17.5 * BAR, P: get, base };            // (for the harness; base: before the lab's layers)
 

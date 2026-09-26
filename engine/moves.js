@@ -89,6 +89,20 @@ const MOVES = (() => {
                ['foot' + trail + 'Y']: (o.tlift ?? 34) * tlift,
                hipX: dir * ((entry ? 0 : .85 * (1 - close)) - .3 * lift), hipY: (o.dip ?? 28) * land, bodyZ: 2.5 * dir * (entry ? 0 : 1 - close) };
     },
+    // a small jump on a hit (Fable: Clawd never lands ON the beat): the apex sits on the hit, o.at beats from the move's start.
+    // Anticipation (she sinks into her knees, then drives up through her toes, heels lifting), the rise, the legs tucking a
+    // little in the air, and the landing given in the knees (the squash) after the hit, off the beat. o.h lift (base px),
+    // o.air beats in the air, o.up the part of them rising. Add it on a channel of its own: it's zero outside the jump
+    hop: (b, o) => {
+      const at = o.at ?? 1.5, h = o.h ?? 120, air = o.air ?? 1, t0 = at - air * (o.up ?? .45), t1 = t0 + air;
+      let y = 0, tuck = 0;
+      if (b > t0 && b < t1) { const u = b < at ? (at - b) / (at - t0) : (b - at) / (t1 - at); y = h * (1 - u * u); tuck = (o.tuck ?? 36) * S(PI * (b - t0) / air); }
+      const sink = ease((b - (t0 - .6)) / .4) * (1 - ease((b - (t0 - .2)) / .2));        // down over .4 beat, then the push
+      const push = b > t0 - .2 && b < t0 + .1 ? S(PI * (b - (t0 - .2)) / .3) : 0;        // legs straighten, heels up, into the takeoff
+      const g = (b - t1) / .6, land = g > 0 && g < 1 ? (g < .2 ? S(PI / 2 * g / .2) : Math.pow(1 - (g - .2) / .8, 2)) : 0;
+      return { hipY: (o.crouch ?? 50) * sink - 18 * push + (o.land ?? 60) * land - y, footLY: y + tuck, footRY: y + tuck,
+               heelL: 45 * push, heelR: 45 * push, angleY: -.12 * y / h + .1 * land };
+    },
     swingArms: (b, o) => { const u = S(PI * b / 2); return { ...arm(1, 16 + 10 * u, 35 + 15 * u), ...arm(-1, 16 - 10 * u, 35 - 15 * u) }; },   // walking
     rise: (b, o) => ({ ...arm(1, 52, 18), ...arm(-1, 52, 18), angleY: .3, hipY: -8 }),                    // phrase end, rising
     // arms (side: +1 the character's left = image right); half-bar phrasing
@@ -319,10 +333,65 @@ const MOVES = (() => {
       return out;
     };
   }
+  // hands(P): the hand drawings as a layer over a performance (MOTION.md §11). A keyed shape (a move's hand) stays while the
+  // arm does what that shape is for (a cup at the ear, a point on a straight arm, a pinch on bent claws); where the arm does
+  // something else (motion capture replacing the arms under keyed hands) and on the plain hand, the shape follows the arm's
+  // speed and phase: a half-curl ('relax') while a fast swing accelerates, a loose open hand ('loose') on the follow-through as
+  // it slows, the plain hand at rest. No shape snaps to another: each change passes through an in-between drawing for a frame
+  // ('relax' to or from a closed shape, 'loose' between open ones), taken from the side that matters less (a keyed shape
+  // arrives on time; a release lags a frame). Computed once on the 24 fps grid from a fixed start and cached, so any t gives the
+  // same answer in any render order; the drawings change on ones.
+  //   o.start  seconds (before it, P passes through)   o.fast  deg/s that counts as a swing (150)
+  function hands(P, o = {}) {
+    const F = o.fps ?? 24, start = o.start ?? 0, fast = o.fast ?? 150, f0 = Math.ceil(start * F - 1e-6);
+    const wrap = v => ((v + 180) % 360 + 360) % 360 - 180, sh = v => ((v + 150) % 360 + 360) % 360 - 150;   // (the rig's shoulder window)
+    const FOR = { cup: (a, e) => e >= 80 && a >= 5, point: (a, e) => Math.abs(e) <= 95 && a >= -35, pinch: (a, e) => e >= 45 && e <= 165,
+                  peace: (a, e) => e >= 75, palm: (a, e) => Math.abs(e) <= 110 && a >= -35, skirtpinch: a => a < 5 };
+    const CLOSED = new Set(['fist', 'pinch', 'point', 'peace', 'skirtpinch', 'relax']), IB = new Set(['relax', 'loose']);
+    const Q = [], V = { L: [], R: [] }, T = { L: [], R: [] }, run = { L: 0, R: 0 };
+    const pose = i => { while (Q.length <= i) Q.push(P((f0 + Q.length) / F)); return Q[Math.max(0, i)]; };
+    const raw = (s, i) => { const p = pose(i); return [sh(p['arm' + s] || 0), wrap(p['elbow' + s] || 0)]; };
+    const speed = (s, i) => {                                                   // deg/s, the upper arm and (less) the forearm, over 3 frames
+      while (V[s].length <= Math.max(1, i + 1)) { const j = V[s].length, [a0, e0] = raw(s, j - 1), [a1, e1] = raw(s, j + 1);
+        V[s].push(Math.hypot(wrap(a1 - a0), .7 * wrap(e1 - e0)) * F / 2); }
+      return i < 0 ? V[s][0] : (V[s][Math.max(0, i - 1)] + V[s][i] + V[s][i + 1]) / 3;
+    };
+    const shape = (s, i) => {                                                   // the shape the arm asks for, frame by frame (sequential)
+      while (T[s].length <= i) {
+        const j = T[s].length, p = pose(j), [a, e] = raw(s, j); let h = p['hand' + s] || null;
+        if (h && FOR[h] && !FOR[h](a, e)) h = null;                             // the keyed shape, if the arm is doing its job
+        if (!h) {
+          const v = speed(s, j), v0 = speed(s, j - 2), cur = j ? T[s][j - 1] : null, ruled = cur === null || IB.has(cur);
+          h = v > fast ? (v >= v0 ? 'relax' : 'loose') : ruled && cur && v > .45 * fast ? 'loose' : null;
+          if (ruled && h !== cur && run[s] < 3) h = cur;                         // (a speed shape holds 3 frames: no flicker on noisy data)
+        }
+        run[s] = j && T[s][j - 1] === h ? run[s] + 1 : 1; T[s].push(h);
+      }
+      return T[s][i];
+    };
+    const ib = (A, B) => CLOSED.has(A) || CLOSED.has(B) ? 'relax' : 'loose';
+    const carrier = (s, f) => {                                                 // the frame that draws the change between f and f+1 (or -1)
+      const A = shape(s, f), B = shape(s, f + 1); if (A === B || IB.has(A) || IB.has(B)) return -1;
+      const lead = f > 0 && shape(s, f - 1) === A, trail = shape(s, f + 2) === B;
+      return B ? (lead ? f : trail ? f + 1 : -1) : (trail ? f + 1 : lead ? f : -1);
+    };
+    const drawn = (s, i) => {
+      const A = shape(s, i);
+      if (carrier(s, i) === i) return ib(A, shape(s, i + 1));
+      if (i > 0 && carrier(s, i - 1) === i) return ib(shape(s, i - 1), A);
+      return A;
+    };
+    return t => {
+      const out = { ...P(t) }, i = Math.floor(t * F + 1e-6) - f0; if (i < 0) return out;
+      for (const s of ['L', 'R']) { const h = drawn(s, i); if (h) out['hand' + s] = h; else delete out['hand' + s]; }
+      return out;
+    };
+  }
+
   // the default body springs: arms looser at the elbow (the forearm trails), hips weighty, the body lean slow
   const BODY = { armL: { w: 13, z: .62 }, armR: { w: 13, z: .62 }, elbowL: { w: 10, z: .5 }, elbowR: { w: 10, z: .5 },
                  hipX: { w: 11, z: .7 }, hipY: { w: 22, z: .55 }, bodyZ: { w: 8, z: .7 }, bodyX: { w: 8, z: .75 },
                  footLX: { w: 34, z: .95 }, footRX: { w: 34, z: .95 }, footLY: { w: 30, z: .8 }, footRY: { w: 30, z: .8 } };   // feet: stiff (flat, no slide)
 
-  return { M, choreo, follow, BODY, lips, blinks, pulse, snap, ease };
+  return { M, choreo, follow, hands, BODY, lips, blinks, pulse, snap, ease };
 })();

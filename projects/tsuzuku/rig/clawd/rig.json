@@ -570,19 +570,28 @@
    "drive": "headX",
    "k": 95,
    "c": 14,
-   "gain": 1.3
+   "gain": 1.3,
+   "mix": {
+    "bodyZ": 1.2,
+    "hipX": 6,
+    "rootX": 0.025
+   }
   },
   "ahoge": {
    "drive": "headX",
    "k": 140,
    "c": 16,
-   "gain": 0.6
+   "gain": 0.6,
+   "mix": {
+    "hipY": 0.1
+   }
   },
   "bun": {
    "drive": "hipY",
    "k": 200,
    "c": 16,
-   "gain": 1
+   "gain": 1,
+   "max": 70
   },
   "bow": {
    "drive": "bodyZ",
@@ -594,7 +603,10 @@
    "drive": "pelvis",
    "k": 70,
    "c": 10,
-   "gain": 1.6
+   "gain": 1.6,
+   "mix": {
+    "rootX": 0.035
+   }
   }
  },
  "mouth": {

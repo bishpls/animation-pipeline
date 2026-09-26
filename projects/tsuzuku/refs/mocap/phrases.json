@@ -65,6 +65,60 @@
    "why": "Not clearly better: as 'set' the dancer's body is posed (core still 27% vs the groove's 0%, dips on the beat), and as residuals over the groove the difference is marginal. The keyed chorus-1 opening and the groove stay."
   },
   {
+   "name": "c1a_v2",
+   "bar0": 46,
+   "bars": 4,
+   "anchors": "0.25:46.12,0.5:46.25,1.0:46.5,1.5:46.75,1.72:46.83,2.05:47.05,2.4:47.75,2.6:48.0,5.0:50.0",
+   "groups": {
+    "arms": {
+     "span": [
+      46.05,
+      47.9
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "arms#2": {
+     "span": [
+      48.0,
+      49.9
+     ],
+     "mode": "residual",
+     "gain": 1,
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      46,
+      49.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      46,
+      49.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      46,
+      49.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "reuse": [
+    36
+   ],
+   "why": "Folded (MOTION.md \u00a711): its own clip, directed as a bouncing dance after c1a_v1's posed body. The pointing arm punches up on each beat (46-47: the point hand at the top, curled on the way down), the fling into the V (47), then her sway, lean and head over the keyed hand-to-ear (48-50). Arms 54 -> 150 deg/s, lean and tilt 7.6 -> 11.7 deg sd. Reused for chorus 2's opening (82-86, the same lyric). Elbows read inside one turn (--wrap): the unwrap had slipped a turn and the right forearm spun round as it blended back.",
+   "wrap": "elbowL,elbowR"
+  },
+  {
    "name": "c1b_v1",
    "bar0": 50,
    "bars": 3.8,
@@ -113,6 +167,41 @@
     }
    },
    "why": "Folded: the wave's arms from the data, and her sway, lean and head over the keyed present and ear."
+  },
+  {
+   "name": "c1s_v1",
+   "bar0": 53.9,
+   "bars": 4.2,
+   "anchors": "2.8:53.9,3.0:54.0,3.42:54.25,3.88:54.5,4.25:54.75,4.67:55.0,3.0:55.02,3.42:55.25,3.88:55.5,4.25:55.75,4.46:55.85,0.7:55.87,0.88:56.0,1.33:56.25,1.75:56.5,2.12:56.75,2.54:57.0,3.0:57.25,0.88:57.27,1.33:57.5,1.75:57.75,2.12:58.0,2.54:58.1",
+   "wrap": "elbowL,elbowR",
+   "groups": {
+    "arms": {
+     "span": [
+      54.0,
+      58.1
+     ],
+     "mode": "residual",
+     "gain": 1.5,
+     "fade": 0.3
+    },
+    "torso": {
+     "span": [
+      54.0,
+      58.0
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      54.0,
+      58.0
+     ],
+     "mode": "residual",
+     "gain": 0.6
+    }
+   },
+   "why": "Folded as residuals (MOTION.md \u00a711): chorus 1's sideways claws (54-58), her beats spliced onto our steps (the rightward half of her travel onto ours, then the leftward), her claw bob over the keyed claws (x1.5), her lean and head (x.6) over the keyed ones; legs keyed. A modest gain: arms 50 -> 72 deg/s, lean and tilt 12.6 -> 13.5 deg sd."
   },
   {
    "name": "c1c_v1",
@@ -261,6 +350,39 @@
     }
    },
    "why": "Folded: the point and the reach, then arms wide into the rise overhead on 'that's fine!' (73.75) from the data; the keyed writing with her motion at .6; the keyed side-step from 74.085."
+  },
+  {
+   "name": "V2c_side",
+   "clip": "c1s_v1",
+   "shift": 18.25,
+   "groups": {
+    "arms": {
+     "span": [
+      56.0,
+      57.25
+     ],
+     "mode": "residual",
+     "gain": 1.5,
+     "fade": 0.3
+    },
+    "torso": {
+     "span": [
+      56.0,
+      57.25
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      56.0,
+      57.25
+     ],
+     "mode": "residual",
+     "gain": 0.6
+    }
+   },
+   "why": "Verse 2's 'side-step, side-step' (74.25-75.5, travelling left): c1s_v1's leftward half, the same residual groups. Lean and tilt 4.7 -> 6.7 deg sd."
   },
   {
    "name": "F1a",

@@ -2,7 +2,7 @@
 song's beat grid. Writes channel curves for src/motionlab.js (MOTIONLAB.groove(P, { curves })):
     { src, bar0, bars, fps, warp: {src_dips, target}, curves: { channel: { b: [song bars], v: [values], mode } } }
 
-    .venv/bin/python tools/retarget_mocap.py POSE.json OUT.json --bar0 62 --bars 4 [--bpm 170] [--dip beat|and] [--sheet SHEET.jpg VIDEO.mp4]
+    .venv/bin/python tools/retarget_mocap.py POSE.json OUT.json --bar0 62 --bars 4 [--bpm 170] [--dip beat|and] [--wrap elbowL,elbowR] [--sheet SHEET.jpg VIDEO.mp4]
 
 Mapping (the rig is a front view; the image plane is what reads):
   - the rig's image-left arm is the dancer's right arm (MediaPipe 12, 14, 16), the image-right arm her left (11, 13, 15): no mirror.
@@ -91,6 +91,11 @@ ch['kneeOut'] = np.clip(.5 + 1.2 * (splay - np.median(splay)), 0, 1)
 LIM = {'armFront': (0, 1), 'armBack': (0, 1), 'arm': (-720, 720), 'elbow': (-720, 720), 'hipY': (-40, 170), 'hipX': (-1.3, 1.3), 'bodyZ': (-12, 12), 'bodyX': (-.9, .9),
        'angleZ': (-14, 14), 'angleX': (-.7, .7), 'angleY': (-.8, .8), 'footLX': (-220, 220), 'footRX': (-220, 220), 'footLY': (0, 110), 'footRY': (0, 110),
        'footLR': (-30, 35), 'footRR': (-30, 35), 'footLP': (-1, 1), 'footRP': (-1, 1), 'heelL': (0, 70), 'heelR': (0, 70), 'kneeOut': (.38, 1)}   # (knees no further in than a touch: knock-kneed reads wrong on her)
+# --wrap elbowL,...: these channels read inside one turn (-180..180) with spikes removed (5-frame median): for a phrase whose
+# forearm swings fast while foreshortened, where the unwrap slipped a turn and the curve would spin the forearm round as it
+# blends back into the keyed arm (c1a_v2's right elbow: 368 hanging, 6 in the V)
+for k in (opt('--wrap', '') or '').split(','):
+    if k in ch: from scipy.signal import medfilt; ch[k] = medfilt(wrap(ch[k]), 5)
 for k in ch:
     if k.startswith('armFront') or k.startswith('armBack'): continue
     lo, hi = next(v for kk, v in LIM.items() if k.startswith(kk)); ch[k] = np.clip(savgol_filter(ch[k], 7, 2), lo, hi)   # (re-clamped: the filter overshoots)

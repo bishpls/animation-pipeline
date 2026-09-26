@@ -14,13 +14,14 @@ const MOTIONLAB = (() => {
   function springs(R, P, t) {
     const S = R.springs || {}, names = Object.keys(S);
     const vang = p => ((R.views && p.view && R.views[p.view] && R.views[p.view].angle) || 0) * (R.viewDrive ?? .3);
-    const drive = (p, name) => { const d = S[name].drive; return d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
+    const drive0 = (p, d) => d === 'headX' ? vang(p) + (p.angleX || 0) * 30 : d === 'headZ' ? (p.angleZ || 0) : d === 'headY' ? (p.angleY || 0) * 18
       : d === 'pelvis' ? (p.bodyZ ?? 0) + (p.hipX || 0) * 8 : d === 'hipY' ? (p.hipY || 0) + (p.bounce || 0)
-      : d === 'bodyZ' ? (p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p.bodyX ?? 0) * 20 : (p[d] || 0); };
+      : d === 'bodyZ' ? (p.bodyZ ?? 0) : d === 'bounce' ? (p.bounce || 0) : d === 'bodyX' ? (p.bodyX ?? 0) * 20 : (p[d] || 0);
+    const drive = (p, name) => { const s = S[name]; let v = drive0(p, s.drive); if (s.mix) for (const k in s.mix) v += drive0(p, k) * s.mix[k]; return v; };
     const dt = 1 / 120, pre = R.preroll || 2, t0 = t - pre, n = Math.round(pre / dt);
     const st = {}; for (const k of names) st[k] = { x: drive(P(t0), k), v: 0 };
     for (let i = 1; i <= n; i++) { const p = P(t0 + i * dt); for (const k of names) { const s = S[k], d = drive(p, k), q = st[k]; const a = -s.k * (q.x - d) - s.c * q.v; q.v += a * dt; q.x += q.v * dt; } }
-    const P1 = P(t), out = {}; for (const k of names) out[k] = (st[k].x - drive(P1, k)) * (S[k].gain || 1); return out;
+    const P1 = P(t), out = {}; for (const k of names) { const v = (st[k].x - drive(P1, k)) * (S[k].gain || 1); out[k] = S[k].max ? S[k].max * Math.tanh(v / S[k].max) : v; } return out;
   }
   // ---- fix #1 (MOTION.md): the core dances. An additive layer on the performed choreography, driven from the pelvis:
   //   bounce   she rises ON the beat (Fable: Clawd never lands) and gives on the "and": a quick push from the dip into the rise,
@@ -54,7 +55,8 @@ const MOTIONLAB = (() => {
       const q = { ...P(t) }, b = t / BAR;
       const trav = Math.abs(((P(t + FR).rootX || 0) - (P(t - FR).rootX || 0)) / (2 * FR)) > 40 ? .5 : 1;   // travelling: the feet are busy
       const E = energyAt(b) * trav, add = (k, v) => { q[k] = (q[k] || 0) + v; };
-      add('hipY', E * (Ay * dip(t) - .35 * Ay * rise(t)));
+      const air = Math.max(0, Math.min(1, Math.min(q.footLY || 0, q.footRY || 0) / 30));   // both feet up (a jump): no knee bounce in the air
+      add('hipY', E * (1 - air) * (Ay * dip(t) - .35 * Ay * rise(t)));
       q.kneeOut = Math.min(1, Math.max(q.kneeOut || 0, .62 * Math.min(1, E * 1.5)));  // the knees track over the toes (not knock-kneed)
       add('hipX', E * Ax * sway(t));
       if (Ay === 0 && Ax === 0) { if (o.curves && (!o.only || (b >= o.only[0] && b < o.only[1]))) for (const [k, c] of Object.entries(o.curves)) { const v = sampleCurve(c, b) * (c.gain ?? 1); q[k] = c.mode === 'set' ? v : (q[k] || 0) + v; } return q; }
@@ -211,12 +213,12 @@ const MOTIONLAB = (() => {
   LOOPS.motionlab_finale.len = 220;
 
   function dump(b0 = 45, b1 = 93, fps = 24, pts = true, which = 'now') {
-    const P = which === 'finale' ? CHOREO.clawdF.P() : which === 'finale_keyed' ? groove(CHOREO.clawdF.base()) : which === 'after' ? after() : which === 'mocap' ? hookMocap() : which === 'base' ? CHOREO.clawdA.base() : which === 'lab' ? layer(groove(CHOREO.clawdA.base())) : which === 'v11' ? layer(groove(CHOREO.clawdA.base()), phrases().phrases.filter(q => q.name === 'hook_v1')) : CHOREO.clawdA.P(), rig = RIGS.clawd, out = { fps, b0, b1, bar: BAR, t: [], P: {}, view: [], pts: {}, sp: {} };
+    const P = which === 'finale' ? CHOREO.clawdF.P() : which === 'finale_keyed' ? groove(CHOREO.clawdF.base()) : which === 'after' ? after() : which === 'mocap' ? hookMocap() : which === 'base' ? CHOREO.clawdA.base() : which === 'lab' ? layer(groove(CHOREO.clawdA.base())) : which === 'v11' ? layer(groove(CHOREO.clawdA.base()), phrases().phrases.filter(q => q.name === 'hook_v1')) : CHOREO.clawdA.P(), rig = RIGS.clawd, out = { fps, b0, b1, bar: BAR, t: [], P: {}, view: [], hand: { L: [], R: [] }, pts: {}, sp: {} };
     for (const k of CH) out.P[k] = [];
     if (pts) for (const k of PTS) out.pts[k] = [];
     for (const k of Object.keys(rig.R.springs || {})) out.sp[k] = [];
     for (let t = b0 * BAR; t < b1 * BAR; t += 1 / fps) {
-      const q = P(t); out.t.push(+t.toFixed(4)); out.view.push(q.view || 'F');
+      const q = P(t); out.t.push(+t.toFixed(4)); out.view.push(q.view || 'F'); out.hand.L.push(q.handL || null); out.hand.R.push(q.handR || null);
       for (const k of CH) out.P[k].push(+(q[k] || 0).toFixed(4));
       const T = { x: 960 + (q.rootX || 0) * .27, y: 1040, s: .27 };
       if (pts) for (const k of PTS) { const p = rig.locate(t, P, T, k); out.pts[k].push(p ? [+p[0].toFixed(2), +p[1].toFixed(2)] : null); }

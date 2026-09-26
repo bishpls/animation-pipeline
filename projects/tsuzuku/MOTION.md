@@ -235,3 +235,139 @@ Michael shared a motion-graphics vocabulary built frame by frame in Python. What
 2. **Strips:** the same four phrases, plus the `motionlab` side-by-sides.
 3. **Fable:** her rulings govern her feature (e.g. Clawd never lands, the fable's step lands flat on the downbeat, both wipes left to right).
 4. **Michael:** he watches full-length passes with sound.
+
+## 11. Dance refinement v9: the hands, two more capture phrases, the jump, the follow-through
+
+Michael on v8: the dance is "definitely improvable, albeit with clear effort", and "the hands in particular for a lot of the detailed actions might be a little iffy". This pass measured first, then worked on the hands, the two capture clips, the accents and the secondary motion.
+
+Tools:
+- `tools/dance_audit.py` (new): a per-phrase audit of a `MOTIONLAB.dump()`, which now records the hands. It reports mocap coverage, held-pose clusters, arm speed, lean/tilt variety, airborne frames, and the hands: plain-hand share, changes per bar, instant swaps, named shapes in turned views, and the plain hand on fast swings (arm over 150 deg/s). It also reports the springs against hip speed.
+- `LOOPS.clawdhands` (in `src/chorus.js`): the arms and hands, large, on a camera that follows her (world A, and the finale from 170 s).
+
+```bash
+node engine/render.mjs projects/tsuzuku --eval='JSON.stringify(MOTIONLAB.dump(45, 93, 24))'                    # (unwrap the JSON string)
+node engine/render.mjs projects/tsuzuku --eval='JSON.stringify(MOTIONLAB.dump(126, 143.5, 24, true, "finale"))'
+.venv/bin/python tools/dance_audit.py DUMP.json projects/tsuzuku [--finale] [--phrases phrases.json] --out board/motion/dance_v9.json
+```
+
+### v8, measured (world A)
+
+| phrase (bars) | arms mocap | held poses | arm deg/s | plain hand L / R | instant swaps L / R | named shape in a turned view, frames L / R | plain hand on fast swings L / R |
+|---|---|---|---|---|---|---|---|
+| build (45–46) | 0.00 | 1 | 16 | 1.00 / 1.00 | 0 / 0 | 0 / 0 | – / – |
+| C1a drop (46–50) | 0.00 | 3 | 54 | 0.50 / 0.72 | 1 / 1 | 38 / 0 | 0.0 / 0.58 |
+| C1b wave (50–54) | 0.83 | 4 | 74 | 0.66 / 0.25 | 3 / 2 | 8 / 38 | 0.0 / 0.66 |
+| C1 sideways (54–58) | 0.00 | 2 | 50 | 0.85 / 0.78 | 10 / 11 | 0 / 0 | 1.0 / – |
+| C1c ikuzo (58–62) | 0.89 | 1 | 292 | 0.21 / 0.05 | 5 / 6 | 0 / 0 | 0.09 / 0.09 |
+| hook (62–66) | 1.00 | 3 | 126 | 0.48 / 0.73 | 20 / 18 | 0 / 0 | 0.72 / 0.83 |
+| V2a telling (66–70) | 0.69 | 4 | 82 | 0.67 / 0.75 | 2 / 1 | 43 / 34 | 0.8 / 0.7 |
+| V2b wrote her own (70–74) | 0.90 | 3 | 115 | 1.00 / 0.22 | 0 / 1 | 0 / 46 | 1.0 / 0.13 |
+| V2c side-step (74–78) | 0.00 | 3 | 91 | 0.65 / 0.51 | 6 / 7 | 9 / 4 | 0.45 / 0.29 |
+| V2d walk it (78–82) | 0.00 | 5 | 49 | 0.30 / 0.87 | 3 / 1 | 56 / 0 | 0.14 / – |
+| C2a continued (82–86) | 0.00 | 3 | 50 | 0.47 / 0.72 | 2 / 2 | 38 / 0 | 0.14 / 1.0 |
+| C2b and-then (86–90) | 0.73 | 1 | 231 | 0.16 / 0.16 | 7 / 6 | 0 / 0 | 0.09 / 0.13 |
+| breakdown+curtsy (90–93) | 0.00 | 4 | 29 | 0.31 / 0.31 | 2 / 2 | 0 / 0 | – / – |
+
+- **The hands snapped, every time.** All 119 shape changes in world A were instant swaps (26 in the finale): the move vocabulary's hands are strings, and `choreo` switches a string halfway through a crossfade. The hook alone had 38.
+- **Shapes vanished in turned views.** The rig drew the hands' named shapes only in the front view: the view tables in `views/*/variants.json` hold only the face. So 314 frames of world A (38 in C1a, 77 in V2a, 46 in V2b, 56 in V2d, 38 in C2a...) drew a point, cup or palm as the plain open hand. The hand layers are front-body layers in every view.
+- **The plain hand on fast swings:** 34% of swing frames in world A, and 57% in the finale (hook .72 / .83, V2a .8 / .7).
+- **Shapes that didn't match the arm.** 104 frames in world A and 50 in the finale drew a shape whose arm wasn't doing its job: a cup away from the ear, a point on a folded arm, a palm swung across. Nearly all fall where motion capture replaced the keyed arms and left the keyed hand on top. For example, the finale's point held through f1/f3's arms at -92 to 144 deg.
+- **Still hand-keyed:** the build, C1a (46–50), C1 sideways (54–58), V2c, V2d, C2a (82–86) and the breakdown. The two chorus openings and the sideways claws are the highest-energy of these.
+- **Pose variety:** 27 held poses in world A, but the top six take 56% of the held time (the director's "about six upper-body poses cycling"). The finale has 12 held poses, with the top six at 79%.
+- **Secondary motion:**
+  - The hair had no correlation with body speed (r 0, rms 4.4). It was driven only by head turns.
+  - The skirt correlated at .40 and the buns at .34.
+  - Nothing reacted to her travelling across the stage.
+
+### What changed
+1. **Two in-between hand drawings per side.**
+   - `relax`, a half-curl: the resting hand between open and fist. `loose`, a soft open ballet hand.
+   - Made with `tools/variants.py` (GPT Image, four edits, logged) and checked at 100% and 2x (`board/motion/hands_inbetweens_100.png`).
+   - One set per side covers every view, because the arm, cuff and hand are front layers in all five views.
+2. **The rig takes the front drawings in turned views.** `engine/rig.js` draw(): a front-body layer in a turned view uses the front variant table when the view's own table lacks it.
+3. **`MOVES.hands(P)`, a hand-shape rule layer over the performance.** It runs last in `chorus.js` perform() and `finale.js` get().
+   - A keyed shape stays while the arm does its job:
+     - cup: elbow ≥ 80
+     - point: elbow ≤ 95
+     - pinch: elbow 45–165
+     - peace: elbow ≥ 75
+     - palm: elbow ≤ 110
+     - skirt-pinch: arm down
+   - Elsewhere, and on the plain hand, the shape follows the arm's speed and phase:
+     - `relax` while a swing (over 150 deg/s) accelerates;
+     - `loose` on the follow-through as it slows;
+     - the plain hand at rest.
+     - A speed shape holds at least 3 frames.
+   - Every change passes through an in-between for one frame: `relax` to or from a closed shape, `loose` between open ones.
+     - The in-between takes the frame from the side that matters less: a keyed shape arrives on time, and a release lags a frame. A snip reads plain, relax, PINCH, relax, plain.
+   - It is computed once on the 24 fps grid from a fixed start and cached, so it gives the same result in any render order.
+4. **Motion capture: two Seedance clips, 5 s each, one request at a time, about $2.94 in total.**
+   - `c1a_v2` (46–50, reused at 82–86):
+     - Directed as a bouncing, travelling dance, because c1a_v1's body was posed.
+     - Its arms, set from 46 to 48: the pointing arm punches up on each beat, with the point drawing at the top and `relax` on the way down, then flings into the V.
+     - Her sway, lean and head as residuals, plus residual arms over the keyed hand-to-ear.
+     - `tools/retarget_mocap.py --wrap` (new, opt-in per phrase): the elbow unwrap had slipped a turn (368° while the arm hung), which spun the forearm round as it blended back into the keyed arm.
+   - `c1s_v1` (54–58), plus its leftward half reused as `V2c_side` (74.25–75.5):
+     - Her claws bob (×1.5), with her lean and head (×.6) as residuals over the keyed claws.
+     - Her beats are spliced onto our steps (her rightward travel onto ours, then her leftward).
+     - A modest gain: she held stiff claw mittens.
+5. **The jump (`MOVES.hop`, on a channel of its own)** comes on each chorus's big "then!" (60.91, 88.91).
+   - It opens with a crouch (50 base px) and a push through the toes with the heels up.
+   - A 160 px lift, with the legs tucking in the air.
+   - The apex falls on the word (86.0 s).
+   - The landing is given in the knees, 0.3 beat after the downbeat. Clawd never lands on it.
+   - The groove drops its knee bounce while both feet are off the floor.
+6. **The turn:** chorus 2's "Me-kut-te!" (84.3–85.05) goes F > HR > R and back, with the feet pivoting toward image right.
+7. **Follow-through** (`rig.json` springs; `mix` and `max` are new in `rig.js` springs(), mirrored in `MOTIONLAB.springs`):
+   - The hair also feels the lean (bodyZ ×1.2), the hips (hipX ×6) and the travel (rootX ×.025).
+   - The ahoge feels the bounce (hipY ×.1).
+   - The skirt trails the travel (rootX ×.035).
+   - The buns get a soft limit (max 70), so the jump's landing doesn't splay them to 27° and show the dark under-fill.
+
+### v9, measured (world A)
+
+| phrase | arms mocap | arm deg/s | lean + tilt sd (deg) | plain hand L / R | instant swaps | plain hand on fast swings L / R | airborne frames |
+|---|---|---|---|---|---|---|---|
+| build | 0.00 | 23 | 5.5 | 1.00 / 0.97 | 0 | – / 0.5 | 0 |
+| C1a drop | **0.94** | **150** (54) | **11.7** (7.6) | 0.37 / 0.59 | 0 | 0.13 / 0.05 | 0 |
+| C1b wave | 0.83 | 75 | 13.5 | 0.62 / 0.03 | 0 | 0.0 / 0.0 | 0 |
+| C1 sideways | **1.00** | **72** (50) | 13.5 (12.6) | 0.71 / 0.68 | 0 | 0.14 / 0.0 | 0 |
+| C1c ikuzo | 0.91 | 292 | 11.0 | 0.12 / 0.00 | 0 | 0.03 / 0.0 | **8** |
+| hook | 1.00 | 126 | 11.4 | 0.27 / 0.31 | 2 | 0.17 / 0.08 | 0 |
+| V2a telling | 0.69 | 82 | 9.2 | 0.60 / 0.61 | 0 | 0.05 / 0.15 | 0 |
+| V2b wrote her own | 0.90 | 115 | 7.8 | 0.90 / 0.15 | 0 | 0.1 / 0.03 | 0 |
+| V2c side-step | 0.31 | 98 | **6.7** (4.7) | 0.51 / 0.35 | 0 | 0.05 / 0.0 | 0 |
+| V2d walk it | 0.00 | 50 | 4.2 | 0.27 / 0.87 | 0 | 0.07 / 0.0 | 0 |
+| C2a continued | **0.93** | **144** (50) | **12.3** (7.9) | 0.32 / 0.59 | 0 | 0.13 / 0.07 | 0 |
+| C2b and-then | 0.73 | 231 | 12.4 | 0.09 / 0.08 | 1 | 0.0 / 0.02 | **9** |
+| breakdown+curtsy | 0.00 | 29 | 5.7 | 0.30 / 0.30 | 0 | – / – | 0 |
+
+| measure | v8 | v9 |
+|---|---|---|
+| instant hand swaps: world A / finale | 119 / 26 | **3 / 0** (each of the 3 is two one-frame shapes back to back) |
+| named shapes drawn as the plain hand in turned views | 314 frames | **0**: the front drawings now come in (V2b's point toward R, `board/motion/turned_view_point.jpg`) |
+| shape drawn on an arm not doing its job: world A / finale | 104 / 50 frames | **≈0 / 0** (8 frames at sub-frame sample times) |
+| plain hand on fast swings: world A / finale | 34% / 57% | **5% / 1%** |
+| plain-hand share: world A / finale | 55% / 74% | 45% / 54% |
+| held poses, and the top six's share of held time | 27, 56% | 26, **52%** |
+| hair rms, and r with hip speed: world A / finale | 4.4, 0 / 4.7, .29 | **7.0, .20 / 5.7, .41** |
+| skirt rms, and r: world A | 7.4, .40 | 7.7, .35 (it now also trails the travel) |
+| energy vs song per bar, r (`motion_audit`) | .445 | **.486** |
+| fastest hand, px/frame at the wide | 170 (76.9) | 190 (46.89: the fling into the V) |
+| range-of-motion holes, dance clawdA (`romrun`) | 188 frames, max 59 px | **126 frames, max 45 px**; exposed hair_back +40 frames (the hair moves more); no new holes elsewhere |
+
+Review images are in `board/motion/`:
+- `hands_inbetweens_100.png`
+- `film_hands_100.jpg` (film frames cropped at 100%)
+- `jump_c1_frames.jpg`
+- `c1a_v2_sheet.jpg` and `c1a_punch_strip.jpg`
+- `c1s_before_after.jpg`
+- `turn_c2.jpg`
+
+The clips are `out/dance_worldA_v9.mp4` (61.0–131.29) and `out/dance_finale_v9.mp4` (177.8–202.59), with the film's mix.
+
+### Open
+- **No finale jump.** Fable copies Clawd's hips and feet in unison from bar 135 (`fablestage.js` mapP). A jump into the freeze at 141 would lift her too: that call belongs to the paper session.
+- **Still keyed:** V2d (78–82), the build and the breakdown.
+- **The fling into the V at 46.9** is now the fastest hand in world A. It comes from the dancer's own two-frame fling.
+- **SFX stem:** the hook's snip at 92.49 now draws one frame later. `out/paper_mix.wav` wasn't rebuilt.
