@@ -41,6 +41,7 @@ const FABLESTAGE = (() => {
   function room(X, t, T, o = {}) {
     // the room ending (Michael; o.P given): she stays in the room through the final chorus, lantern in hand. (Interim, until its
     // drawings land: the holding drawing, still, until the walk-off at 200.6)
+    if (o.P && typeof FABLEROOM !== 'undefined' && FABLEROOM.E && FABLEROOM.E.meta) return FABLEROOM.ending(X, t, T, o);   // the room ending (Michael + Fable: she stays in the room, moved; src/fableroom.js)
     if (o.P) { if (t >= 200.6) return; t = Math.min(t, 178.1); if (!R.meta) return; }
     else if (typeof FABLEROOM !== 'undefined' && FABLEROOM.R && FABLEROOM.R.meta) return FABLEROOM.room(X, t, T, o);   // the drawn set-down, turn and walk
     if (!R.meta) return;
