@@ -13,18 +13,20 @@
   function keys() {
     const W = window.WORDS || [], w = (n, a = 36, b = 62) => (W.find(x => x.t0 > a && x.t0 < b && x.w.toLowerCase().replace(/[^a-z]/g, '') === n) || {}).t0;
     const k = { tried: w('and', 37.5, 38.5), sideways: w('and', 40, 41), hm: w('hm'), sideways2: w('sideways', 44, 46), that: w('thats', 46, 48), ends: w('ends'),
-      every: w('every'), so: w('so', 50, 51.5), sorekara: w('sorekara'), then: w('then', 52.5, 53.5), oh: w('oh'), ending: w('thats', 56.5, 57.5), says: w('says'), who: w('who', 60, 61) };
+      every: w('every'), so: w('so', 50, 51.5), sorekara: w('sorekara'), then: w('then', 52.5, 53.5), oh: w('oh'), no: w('no', 54, 55), ending: w('thats', 56.5, 57.5), endingw: w('ending', 57.3, 57.8), says: w('says'), who: w('who', 60, 61) };
     k.close = k.hm - f; k.back = w('and', 46.5, 47) - 7 * f;           // the close-up: from just before "Hm." to just before "And that's"
-    k.tear = k.says;
+    k.tear = k.says; k.build = 55.9;                                   // Clawd starts to burn as "and then." ends
     K = k;
     K.fan = PUPPET.morphs([[0, 'fan_closed'], [k.that - 3 * f, 'fan_open'], [k.ends + f, 'fan_closed']], { hold: 1 });
     K.arm = PUPPET.snap([[0, { forearm: 12, hand: -6, upperarm: 0 }], [k.that - 6 * f, EYE], [k.every - 2 * f, { forearm: -4, hand: -22, upperarm: -14 }],   // the fan's tip sweeps the card out
-      [k.every + 8 * f, { forearm: 12, hand: -6, upperarm: 0 }], [k.tear, { forearm: 20, hand: 0, upperarm: 8 }]]);
+      [k.every + 8 * f, { forearm: 12, hand: -6, upperarm: 0 }], [k.no, { forearm: 24, hand: 4, upperarm: 4 }], [k.no + 3 * f, { forearm: 12, hand: -6, upperarm: 0 }],   // "no": the closed fan taps once
+      [k.tear, { forearm: 20, hand: 0, upperarm: 8 }]]);
     K.head = PUPPET.snap([[0, { head: 9 }], [k.tried, { head: 5 }], [k.sideways + .3, { head: 3 }], [k.hm, { head: 11 }], [k.hm + 3 * f, { head: 5 }],
-      [k.so, { head: 7 }], [k.oh, { head: 3 }], [k.tear + f, { head: -5 }]]);
+      [k.so, { head: 7 }], [k.oh, { head: 1 }], [k.endingw, { head: 9 }], [k.tear + f, { head: -5 }]]);   // "Oh,": she looks at the visitor; "ending": eyes down, the matter closed
     K.clawd = PUPPET.snap([[0, { head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }], [k.tried, { head: 6 }], [k.sideways + .5, { head: 10 }],
       [k.every, { head: -4 }], [k.so, { head: -6, upperarm_R: -60, forearm_R: -20 }], [k.sorekara, { upperarm_L: 95, forearm_L: 30, upperarm_R: -95, forearm_R: -30, head: -8 }],
-      [k.then + .5, { upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0, head: 4 }], [k.says - 2 * f, { head: -9, upperarm_L: 70, forearm_L: 10, upperarm_R: -70, forearm_R: -10 }]]);
+      [k.then + .5, { upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0, head: 4 }], [k.oh + .2, { head: 11 }],   // "Oh,": the puzzled tilt
+      [k.endingw, { head: 2, upperarm_L: 8, forearm_L: -10, upperarm_R: -8, forearm_R: 10 }], [k.says - 2 * f, { head: -9, upperarm_L: 70, forearm_L: 10, upperarm_R: -70, forearm_R: -10 }]]);
     K.hops = [[k.so, 50], [k.sorekara, 85], [k.then, 60]];
   }
   const fablePose = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...K.arm(q), ...K.head(q), _ghost: {} }; p.hair = -(p.head || 0) * .85; return p; };
@@ -124,7 +126,7 @@
     card(ts); composite(ts);
     // the light takeover (Fable): through the build, as Clawd's cellophane lights from inside, the lamp's pool sinks: by "Says" she's
     // the brightest thing in the window and the teller nearly a shadow (the vellum floored at 40%). On twos, eased.
-    const pf = fablePose(ts), hop = hopAt(ts), build = Math.min(1, Math.max(0, (Math.floor(ts * 12 + 1e-6) / 12 - 56.5) / (K.tear - 56.5)));
+    const pf = fablePose(ts), hop = hopAt(ts), build = Math.min(1, Math.max(0, (Math.floor(ts * 12 + 1e-6) / 12 - K.build) / (K.tear - K.build)));
     if (build > 0) { const e = build * build * (3 - 2 * build), [sx, sy, sw, sh] = SCREEN.rect;
       X.save(); X.globalCompositeOperation = 'multiply'; const cx = CX, g = X.createRadialGradient(cx, 700, 60, cx, 700, 1100);   // dimmer everywhere but around her
       g.addColorStop(0, `rgb(${255 - 90 * e},${255 - 100 * e},${255 - 110 * e})`); g.addColorStop(1, `rgb(${255 - 150 * e},${255 - 152 * e},${255 - 155 * e})`);
@@ -151,8 +153,11 @@
   }
   // the camera: the window; "Hm." cuts to her profile (the camera close to the frame, the paper grain large)
   const CAM_HM = { x: 1672, y: 1303, zoom: 2.4 };                    // her profile at the left of the frame, looking into the space; the margin notes out of it
+  // X6-X7 (the director: the act sagged here): from "Oh," to the tear the camera walks slowly in on the two of them, the strip kept
+  const CAM_PUSH = { x: 1880, y: 1400, zoom: .93 };
+  const camAt = ts => { const u = Math.min(1, Math.max(0, (ts - K.oh) / (K.tear - K.oh))); return camLerp(CAM_WINDOW, CAM_PUSH, u * u * (3 - 2 * u)); };
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); } const k = K, E = [[k.that - 3 * f, 'fan_flick', -30], [k.ends + f, 'fan_shut', -27],
-    [k.every, 'paper_slide', -27], [k.tear, 'paper_tear', -20]];
+    [k.every, 'paper_slide', -27], [k.no + f, 'paper_tap', -33], [k.tear, 'paper_tear', -20]];
     for (let i = 1; (k.tried + i * beat8) < k.sideways; i++) E.push([k.tried + i * beat8, 'paper_tap', -32 - 1.2 * i]);   // straight: stiff steps, away toward the lamp
     for (let i = 1; i < 20 && k.sideways + i * beat8 / 2 < k.hm - .2; i++) E.push([k.sideways + i * beat8 / 2, 'paper_tap', -38 + Math.min(4, i * .6)]);   // sideways: scuttling off (quiet before "Hm.")
     for (const [t0] of K.hops) E.push([t0, 'hop', -31], [t0 + 5 * f, 'paper_tap', -29]);                                  // Clawd's hops
@@ -161,8 +166,9 @@
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12, close = ts >= K.close && ts < K.back;
     const g = gapAt(ts), wash = g > 400 ? Math.min(1, (g - 400) / 1100) : 0;   // the strip washes out with everything else (Fable)
-    stage(ts, scene, { cam: close ? CAM_HM : CAM_WINDOW, doors: 1, page: ts, pageWash: wash });
-    if (!close) readers(ts, CAM_WINDOW);
+    const cam = close ? CAM_HM : camAt(ts);
+    stage(ts, scene, { cam, doors: 1, page: ts, pageWash: wash });
+    if (!close) readers(ts, cam);
   };
   LOOPS.exchange.len = S1 - S0;
 }
