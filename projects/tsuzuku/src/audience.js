@@ -22,7 +22,7 @@ function lantern([cx, cy, r], sc, tq, ph) {
 // ends is finished: nobody stops in mid-air.
 const AUD_CALLS = [[11.44, 14.04], [35.12, 37.72]];                     // the crowd calls (timeline.json), song seconds
 let AUD_L = null, AUD_R = null;
-function audience(t, o = {}) {
+function audience(t, o = {}) {   // o: { n, y, scale, lift, calls, blur, glow, gap: [x0, x1] }
   if (!window.AUD) return;
   if (!AUD_L) { AUD_L = mkCanvas(W, H); AUD_R = mkCanvas(W, H); }
   const n = o.n || 9, y0 = o.y ?? H + 30, sc0 = o.scale || .52, B = 60 / 170 * 4, beat = o.beat || B / 2, L = o.lift || 26;
@@ -32,7 +32,9 @@ function audience(t, o = {}) {
     return calls.some(([a, b]) => t0 >= a - 1e-6 && t0 < b) ? Math.sin(Math.PI * (u - k)) : 0; };
   const P = [];
   for (let i = 0; i < n; i++) {
-    const q = AUD[Math.floor(rnd() * AUD.length)], x = (i + .5) / n * W + (rnd() - .5) * 60, sc = sc0 * (.85 + .3 * rnd()), ph = rnd();
+    // o.gap = [x0, x1] (screen px): nobody there; the row is respaced across the width either side of it
+    const g = o.gap, avail = g ? W - (g[1] - g[0]) : W; let bx = (i + .5) / n * avail; if (g && bx > g[0]) bx += g[1] - g[0];
+    const q = AUD[Math.floor(rnd() * AUD.length)], x = bx + (rnd() - .5) * 60, sc = sc0 * (.85 + .3 * rnd()), ph = rnd();
     const h = hop(ph), lift = h > 0 ? -L * h : -3 * Math.sin(2 * Math.PI * (tq / (3.1 + ph) + ph));
     const live = calls.some(([a, b]) => tq >= a && tq < b + beat), sway = q.lantern ? (live ? 6 : 2) * Math.sin(2 * Math.PI * (tq / (beat * 2) + ph)) : 0;
     const M = new DOMMatrix().translate(x, y0 + lift).scale(sc).rotate(sway);
