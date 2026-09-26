@@ -104,6 +104,13 @@
   }
   // C3: the doors open (10 drawings) on the lit screen; the camera walks in to the window (16 drawings)
   const DOOR0 = 12.8, PUSH0 = 13.4, HANG0 = 13.2;                  // (the glow still climbing as the doors part)
+  PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); } const k = K, E = [[DOOR0, 'doors_open', -30], [land(k.time), 'fan_flick', -30], [land(k.crab), 'paper_fold', -32],
+    [k.landed, 'paper_tap', -29], [land(k.line), 'paper_fold', -32], [k.laid, 'paper_tap', -30]];
+    for (let i = 1; i <= 4; i++) E.push([k.mother + i * 9 * f / 4, 'paper_tap', -32]);                   // the mother's stiff hops in
+    for (const tb of [k.walk, k.straight]) E.push([tb + 3 * f, 'paper_tap', -33]);                        // "Walk straight,": her lifts, set down
+    for (let i = 1; i <= 4; i++) E.push([k.scuttle + i * (S1 - f - k.scuttle) / 4, 'paper_tap', -35]);   // the little one scuttles
+    k.row.forEach((t, i) => i && E.push([t, 'paper_tap', -31 - 3 * i]));                                    // the row, stepping away into the light
+    return E; });
   LOOPS.telling = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;

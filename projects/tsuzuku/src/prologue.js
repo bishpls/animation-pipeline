@@ -233,6 +233,7 @@ async function PROLOGUE_INIT() {
     silhouette((c, solid) => slices(solid ? PRO.kneelSolid : PRO.kneel)(c), rgba(STAGE, .85 * gain), 4, -1, pins, 2.2);
   }
 
+  PAPER_SFX.push(() => [[LAND, 'card_rack', -30], [LET, 'led_off', -34], [P3, 'cloth', -32]]);   // the card set in the rack; its lamps die; she kneels
   LOOPS.prologue = t => {
     if (t >= BLACK) { X.fillStyle = '#000'; X.fillRect(0, 0, W, H); return; }
     const tq = Math.floor(t * 12 + 1e-6) / 12;

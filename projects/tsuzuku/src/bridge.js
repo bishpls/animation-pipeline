@@ -128,6 +128,12 @@
   }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
   const BACK = 152.46, BACKN = 12;
+  PAPER_SFX.push(() => { if (!WT) { if (!window.WORDS) return []; WT = build(); poses(); }
+    const E = [[CLACK + 22 * f, 'paper_tap', -31], [land(WT.all), 'fan_flick', -31], [land(WT.job), 'fan_shut', -28]];   // Clawd set down; the fan opens; it shuts on "job"
+    for (const n of ['fox', 'crow', 'boy', 'flew', 'sun']) E.push([land(WT[n]), 'paper_fold', -33]);            // each noun (SFX_CUES: a soft fold per morph)
+    const r0 = WT.moral - 2 * f; for (let i = 0; i < 4; i++) E.push([r0 + i * 3 * f, 'paper_fold', -37]);          // put back, a card each
+    const seen = new Set(); for (const [, t0] of STRIKES) if (!seen.has(t0)) { seen.add(t0); E.push([t0, 'paper_slide', -30]); }   // each plane struck
+    return E; });
   LOOPS.bridge = t => {
     if (!WT) { WT = build(); poses(); }
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
@@ -160,6 +166,7 @@
     const fan = PUPPET.morphs([[0, 'fan_closed'], [S0 + 1 * f, 'fan_open'], [land(160.46), 'book']]);
     const arm6 = PUPPET.snap([[0, LAP], [S0 + 1 * f, CHEST], [160.55, LAP]]), head6 = PUPPET.snap([[0, { head: 7 }], [S0 + 2 * f, { head: 3 }], [160.6, { head: 8 }]]);
     const pose6 = tt => { const q = Math.floor(tt * 12 + 1e-6) / 12, p = { ...arm6(q), ...head6(q), _ghost: {} }; p.hair = -p.head * .85; return p; };
+    PAPER_SFX.push(() => [[S0 + f, 'fan_flick', -32], [land(160.46), 'paper_fold', -31]]);     // the fan opens and becomes the book
     LOOPS.bridgeB6 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       stage(ts, tt => bare(tt, c => { seatedRibbon(c, pose6, T, tt); FABLE.draw(c, pose6(tt), T, { props: [fanProp(fan, tt)], rods: FABLE_RODS }); }), { cam: CAM_WINDOW, doors: 1 });
@@ -320,6 +327,10 @@
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
       chochinHang(fi[0], fi[1], -1, RLSC, { swing: sw, len: .3, stickAngle: 0, gold: true, ribs: 'rgba(22,40,96,.6)' });   // the lamp she carried out: the same gold, indigo only in its ribs (Fable)
     }
+    PAPER_SFX.push(() => { const E = [[TAKE1, 'lantern', -31], [SET1 - f, 'lantern_set', -31], [OUT + .12, 'lantern', -31]];   // she takes the lamp; sets it at Clawd's feet; takes it up
+      for (const st of steps) E.push([st.t + (st.dur || BEAT), 'geta', st.dur ? -33 : -31]);             // her geta on the rail (after B7's clack)
+      E.push([ROOM + BEAT / 2, 'geta', -26], [ROOM + BEAT, 'geta', -26]);                                // in the room: clack, clack (Fable), nearer
+      return E; });
     LOOPS.bridgeB8 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);

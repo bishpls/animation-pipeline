@@ -143,6 +143,12 @@
   }
   // the camera: the window; "Hm." cuts to her profile (the camera close to the frame, the paper grain large)
   const CAM_HM = { x: 1672, y: 1303, zoom: 2.4 };                    // her profile at the left of the frame, looking into the space; the margin notes out of it
+  PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); } const k = K, E = [[k.that - 3 * f, 'fan_flick', -30], [k.ends + f, 'fan_shut', -27],
+    [k.every, 'paper_slide', -27], [k.tear, 'paper_tear', -20]];
+    for (let i = 1; (k.tried + i * beat8) < k.sideways; i++) E.push([k.tried + i * beat8, 'paper_tap', -32 - 1.2 * i]);   // straight: stiff steps, away toward the lamp
+    for (let i = 1; i < 20 && k.sideways + i * beat8 / 2 < k.hm - .2; i++) E.push([k.sideways + i * beat8 / 2, 'paper_tap', -38 + Math.min(4, i * .6)]);   // sideways: scuttling off (quiet before "Hm.")
+    for (const [t0] of K.hops) E.push([t0, 'hop', -31], [t0 + 5 * f, 'paper_tap', -29]);                                  // Clawd's hops
+    return E; });
   LOOPS.exchange = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12, close = ts >= K.close && ts < K.back;

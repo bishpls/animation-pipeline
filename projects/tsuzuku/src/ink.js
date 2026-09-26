@@ -110,6 +110,7 @@ function inkPrint(C, o = {}) {
   // the hand-off (Fable): in its last drawings she raises the lit lantern to hang it (a new drawing: arms up, the lantern at the
   // top edge, her face lit from above); the light climbs her face from below to above and leaves by the top of the frame
   const RAISE = 12.25, UPPER = [2150, -60];                             // (the raised lantern: its light just above the frame)
+  PAPER_SFX.push(() => [[MATCH, 'match', -24], [RAISE - 1 / 12, 'lantern', -32]]);   // (the lantern bloom: silent; the crowd's call is the sound)
   LOOPS.inklamp = t => {
     const s = S0 + Math.floor(t * 12 + 1e-6) / 12, raised = s >= RAISE;
     const src = raised ? inkPrint(INK.raise, { misreg: [6, 4] }) : inkPrint(INK.lamp, { misreg: [6, 4], rivets: [[1500, 1265, 17]] });
@@ -148,6 +149,7 @@ function inkPrint(C, o = {}) {
   // fanned into three afterimages; standing on the geta clack, eyes up at the lens, the card keeping a faint crease.
   const B = 60 / 170 * 4, BEAT = B / 2, NOTE = 159.53, beat = k => NOTE + k * BEAT;
   const S0 = 161.0, S1 = 166.0, GETA = beat(8);                                  // the clack on her 6/8 beat (165.18)
+  PAPER_SFX.push(() => [[GETA, 'geta', -22]]);                                     // Fable: "Sound: the geta only"
   const KEYS = [[S0, 0], [163.0, 1], [163.25, 2], [164.25, 3], [GETA - 2 / 12, 4], [GETA, 5]];
   const LANTERN = [617 * 2 / 3, 1724 * 2 / 3];
   LOOPS.inkstand = t => {

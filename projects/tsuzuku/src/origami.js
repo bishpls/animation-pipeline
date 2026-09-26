@@ -25,6 +25,8 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
   const RIV = [[850, 1044], [716, 1272], [552, 1494], [1304, 1044], [1434, 1272], [1604, 1494], [894, 1962], [894, 2160], [1254, 1962], [1260, 2160]];
   const EYE_PTS = [[956, 704], [1187, 713]];
   const allCover = pts => Object.fromEntries(CLAWDP.parts.map(q => [q.name, pts]));
+  PAPER_SFX.push(() => { const E = [[UNFOLD, 'paper_fold', -28], [UNFOLD + 3 * f, 'paper_fold', -28], [CUT, 'snip', -26], [RIVETS, 'rivet', -28]];   // SFX_CUES: silence on the held square
+    for (let k = 1; k <= 4; k++) E.push([bar(17.5) + k * B / 2, 'paper_tap', -35]); return E; });                                // her side-steps
   LOOPS.origami = t => {
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;                   // song time, on twos
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);

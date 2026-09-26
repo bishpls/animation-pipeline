@@ -191,3 +191,9 @@ function chochinHang(fx, fy, dir, sc = 1, o = {}) {                   // from he
   chochinBody(cx, cy, sc, o.swing || 0, o);
   return { top: tip, cx, cy };
 }
+
+// ------------------------------------------------------------------ sound: each module registers its sound events, computed from
+// the same constants and word times that drive its picture (one clock), so sound can't drift from picture. paperSfx() -> sorted
+// [[song s, sound name (sound/lib), gain dB]] for sound/mix.py
+const PAPER_SFX = [];
+function paperSfx() { return PAPER_SFX.flatMap(fn => fn()).filter(e => isFinite(e[0])).sort((a, b) => a[0] - b[0]).map(([t, n, g]) => [+t.toFixed(3), n, g]); }

@@ -85,6 +85,8 @@
     }
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
+  PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); }
+    return [[K.card, 'paper_slide', -30], [K.walk0 + BEAT / 2, 'geta', -31], [K.walk0 + BEAT, 'geta', -31], [K.seal, 'stamp', -27], [K.pop, 'hop', -31], [K.doors, 'doors_shut', -27]]; });
   LOOPS.outro = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
