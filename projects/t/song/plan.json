@@ -1,0 +1,39 @@
+{
+ "chunks": [
+  {
+   "text": "[Intro - the clock]\n{a dry ticking pulse on every eighth note, like a clock or a metronome, and one soft felt piano note on each downbeat; almost nothing else; quiet and exact}",
+   "duration_ms": 4000,
+   "positive_styles": ["120 BPM", "minimal electronic", "ticking clock pulse", "felt piano", "warm analog", "precise", "curious", "quiet"],
+   "negative_styles": ["vocals", "singing", "voice", "choir", "humming", "spoken word", "drums", "epic trailer"],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Build]\n{a warm analog synth arpeggio enters under the tick, a soft bass pulse joins, rising, a short riser into the next downbeat}",
+   "duration_ms": 4000,
+   "positive_styles": ["120 BPM", "analog synth arpeggio", "soft bass pulse", "rising", "anticipation", "ticking clock pulse"],
+   "negative_styles": ["vocals", "singing", "voice", "choir", "humming"],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Drop]\n{kick drum and hand claps land on the downbeat, a full, clean groove; the arpeggio and a bright, simple melody on top}",
+   "duration_ms": 8000,
+   "positive_styles": ["120 BPM", "four on the floor kick", "hand claps", "analog arpeggio", "bright simple melody", "warm", "joyful", "clean mix"],
+   "negative_styles": ["vocals", "singing", "voice", "choir", "humming", "distorted", "dubstep"],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Peak]\n{the melody climbs an octave, fuller chords, open hi-hats, the biggest and brightest part of the piece}",
+   "duration_ms": 8000,
+   "positive_styles": ["120 BPM", "full groove", "melody an octave up", "open hi-hats", "big warm chords", "euphoric but gentle"],
+   "negative_styles": ["vocals", "singing", "voice", "choir", "humming", "distorted"],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Ending]\n{the drums drop out, the arpeggio and the tick for one bar, then one final full-band chord hit on the downbeat that rings out and decays to complete silence}",
+   "duration_ms": 8000,
+   "positive_styles": ["120 BPM", "clean ending", "final chord hit", "long natural decay", "ticking clock pulse stops"],
+   "negative_styles": ["vocals", "singing", "voice", "choir", "humming", "fade out", "loop"],
+   "context_adherence": "high"
+  }
+ ]
+}

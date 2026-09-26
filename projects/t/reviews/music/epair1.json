@@ -1,0 +1,16 @@
+```json
+{
+  "winner": "Q",
+  "margin": "clear",
+  "P": {
+    "seam_24": "There is a noticeable and jarring jump at 0:24 that skips a beat and completely breaks the groove.",
+    "ending": "The final hit itself is on time, but the ring-out is unnatural and distracting.",
+    "artefacts": "There is a distinct, unwanted voice-like sighing sound in the reverb tail of the final hit."
+  },
+  "Q": {
+    "seam_24": "The transition at 0:24 is seamless, perfectly maintaining the tempo and groove.",
+    "ending": "The final hit is strong, clean, and features a smooth, natural-sounding ring-out that stops effectively.",
+    "artefacts": "No audible artefacts or glitches."
+  }
+}
+```

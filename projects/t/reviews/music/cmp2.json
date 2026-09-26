@@ -1,0 +1,14 @@
+{
+  "ranking": [
+    "Z",
+    "W",
+    "X",
+    "Y"
+  ],
+  "why": {
+    "W": "Features a solid build and a clean ending that rings out nicely, but its organic, acoustic pop arrangement feels slightly less minimal and precise for locking tight animation lines compared to Z.",
+    "X": "Lacks a driving musical beat, relying almost entirely on the initial ticking and slow, swelling strings. This makes it poorly suited for locking precise, line-by-line drawing to a rhythm.",
+    "Y": "Contains prominent, artificial voice-like choir synths that swell in the second half, which directly violates the negative constraints and muddies the mix.",
+    "Z": "Perfectly matches the minimal and precise brief. The sharp, quantized electronic beat is ideal for locking animation, the build is methodical, and it finishes on a strong, clean hit that rings out flawlessly without any artifacts."
+  }
+}

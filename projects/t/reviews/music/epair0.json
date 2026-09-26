@@ -1,0 +1,16 @@
+```json
+{
+  "winner": "P",
+  "margin": "large",
+  "P": {
+    "seam_24": "Completely seamless, with no audible jump, tempo change, or disruption to the groove.",
+    "ending": "Very clean and satisfying. The final hit lands precisely, and the reverb/ring-out fades naturally.",
+    "artefacts": "None detected; the audio remains clean throughout."
+  },
+  "Q": {
+    "seam_24": "There is a very noticeable jump and bad edit at 0:24 that momentarily disrupts the groove and tempo.",
+    "ending": "The final hit is messy, and the ring-out is compromised by unnatural noises.",
+    "artefacts": "There is a distinct, strange voice-like/glitchy artefact during the final hit's ring-out, as well as the noticeable splice click/jump at 0:24."
+  }
+}
+```
