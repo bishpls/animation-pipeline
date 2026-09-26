@@ -19,7 +19,7 @@
     // her snips: every onset of a pinch hand (the hook's snipSnip on the crowd's claps; the claws sections), a frame after it closes
     const snips = (P, b0, b1) => { let prev = false;
       for (let t = b2t(b0); t < b2t(b1); t += FR) { const q = P(t), pin = q.handL === 'pinch' || q.handR === 'pinch';
-        if (pin && !prev) E.push(at(t + FR, 'snip', -30)); prev = pin; } };
+        if (pin && !prev) E.push(at(t + FR, 'snip', -34)); prev = pin; } };
     snips(CHOREO.clawdA.P(), 45, 93);
     if (CHOREO.clawdF) snips(CHOREO.clawdF.P(), 128, 141);                             // (the finale's call and claws)
     // the crab troupe lands the downbeats for her (Fable's rule): a soft wooden tap, under the song, where they dance (not in the
@@ -37,7 +37,7 @@
         const c = FABLESEAT.cue(t), b = t / BR;
         if (c.pose === 'write' && pp !== 'write') w0 = t;
         if (pp === 'write' && c.pose !== 'write' && w0 !== null && t - w0 > .45) E.push([w0 + 2 * FR, 'brush', -34]);   // (not the wipe's brief prep)
-        if (c.pose === 'clap' && pp !== 'clap' && b >= 82 && b < 90) E.push([t, 'clap', -35]);
+        if (c.pose === 'clap' && pp !== 'clap' && b >= 82 && b < 90) E.push([t, 'clap', -38]);
         pp = c.pose;
       }
     }

@@ -41,7 +41,7 @@ function glyphUnitPath(F, key, g) {
 function shape(str, o = {}) {
   const { f, key, F } = fontInst(o.font || 'arch', { wdth: o.wdth, wght: o.wght, opsz: o.opsz });
   const s = o.size || 100, k = s / f.unitsPerEm, tr = (o.track || 0) * s, sp = (o.space ?? .06) * s;
-  const run = f.layout(o.upper ? str.toUpperCase() : str);
+  const run = f.layout(o.upper ? str.toUpperCase() : str, o.features);   // (o.features: OpenType features on/off, e.g. { liga: false })
   const glyphs = []; let x = 0;
   run.glyphs.forEach((g, i) => {
     const pos = run.positions[i], adv = pos.xAdvance * k;

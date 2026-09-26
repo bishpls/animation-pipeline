@@ -153,7 +153,7 @@ const FABLESEAT = (() => {
   async function loadOts(base = 'rig/fable_seated/') {
     O.quads = (await (await fetch(base + 'ots.json')).json()).quads;
     const get = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + f; });
-    await Promise.all(['ots', 'turn1', 'turn2', 'write'].map(async d => { O.img[d] = await get(`ots_${d}.png`); O.mask[d] = await get(`ots_${d}_page.png`); }));
+    await Promise.all(['ots', 'turn1', 'turn2', 'turn3', 'write'].map(async d => { O.img[d] = await get(`ots_${d}.png`); O.mask[d] = await get(`ots_${d}_page.png`); }));
   }
   // her book: the fable printed on the left page, and on the right page, in the margin's Caslon italic and her lighter ink, the
   // notes she writes (k of them so far, the last one written to `frac`: it writes on under her brush, with the margin's press)
@@ -217,8 +217,10 @@ const FABLESEAT = (() => {
     for (const [t0, name] of turns) { const k = Math.floor((tq - (t0 - 6 / 12)) * 12 + 1e-6); if (k >= 0) { before = after; after = name; d = k; } }
     // mid-turn, the page under the lifting page already shows the new spread; the page the turned leaf lands on keeps the old one
     // until it lands (Michael: it changed before the turn completed). Unflipped, the left leaf lifts; flipped (her room), the right
-    let draw = d <= 1 ? 'turn1' : d <= 4 ? 'turn2' : 'ots', L = after, R = d <= 4 ? before : after;
-    if (o.flip) { L = d <= 4 ? before : after; R = after; }
+    // six drawings to the landing (the v7 review: it snapped from the raised leaf to the finished spread): the leaf lifts (turn1),
+    // passes upright (turn2), lands (turn3, the new page printed on it), then lies flat on the landing drawing at t0
+    let draw = d <= 1 ? 'turn1' : d <= 3 ? 'turn2' : d <= 5 ? 'turn3' : 'ots', L = after, R = d <= 3 ? before : after;
+    if (o.flip) { L = d <= 3 ? before : after; R = after; }
     if (o.draw) { draw = o.draw; L = R = o.spread || 'notes'; }
     // mirrored (her room: she faces the window, so we're over her left shoulder): the drawing and its mask flip, the print doesn't
     const mq = p => p.map(([x, y]) => [W - x, y]), sw = m => [m[1], m[0], m[3], m[2]];
