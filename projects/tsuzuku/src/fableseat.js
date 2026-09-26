@@ -114,18 +114,25 @@ const FABLESEAT = (() => {
     const get = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + f; });
     await Promise.all(['ots', 'turn1', 'turn2', 'write'].map(async d => { O.img[d] = await get(`ots_${d}.png`); O.mask[d] = await get(`ots_${d}_page.png`); }));
   }
-  // the notes she wrote in chorus 1, on the spread she turns away from (the margin's Caslon italic, her lighter ink)
-  function notesSpread(w, h) {
+  // her book: the fable printed on the left page, and on the right page, in the margin's Caslon italic and her lighter ink, the
+  // notes she writes (k of them so far, the last one written to `frac`: it writes on under her brush, with the margin's press)
+  const NOTES = [['Every story’s borrowed', 'till somebody stands', 'to tell it.'], ['I’ve read how it ends.', 'I’d still like to see.'], ['That’s the moral.', 'There isn’t one.', 'Keep walking.']];
+  const FABLE_TEXT = ['The Crab and her Mother.', '', 'A mother crab said to her', 'child, “Why do you walk', 'sideways? Walk straight.”', 'The young crab said,', '“Show me how, and I’ll', 'follow.” The mother tried,', 'and went sideways.'];
+  function notesSpread(w, h, k = 3, frac = 1) {
     const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), X0 = X; X = g;
+    const text = (str, x, y, font, size, col) => { const L = shape(str, { font, size }); g.fillStyle = col; for (const gl of L.glyphs) if (gl.ch !== ' ') g.fill(glyphPath(gl, x + gl.x, y + gl.y)); return L.width; };
     try {
       g.fillStyle = '#ECE9E1'; g.fillRect(0, 0, w, h);
-      const lines = [['Every story’s borrowed', 'till somebody stands', 'to tell it.'], ['I’ve read how it ends.', 'I’d still like to see.'], ['That’s the moral.', 'There isn’t one.', 'Keep walking.']];
-      const size = h * .056; let y = h * .16; g.fillStyle = 'rgba(38,32,44,.85)';
-      lines.forEach((para, k) => {
+      const size = h * .05; let y = h * .15;
+      FABLE_TEXT.forEach(str => { if (str) text(str, w * .06, y, 'caslon', size * .92, 'rgba(34,28,24,.9)'); y += size * 1.32; });
+      y = h * .15;
+      NOTES.slice(0, k).forEach((para, j) => {
+        const widths = para.map(str => shape(str, { font: 'caslonI', size }).width), total = widths.reduce((a, b) => a + b, 0);
+        let left = j === k - 1 ? frac * total : total;
         para.forEach((str, i) => {
-          const L = shape(str, { font: 'caslonI', size }), x = w * .07 + (k === 2 && i ? size * .6 : 0);
-          for (const gl of L.glyphs) if (gl.ch !== ' ') g.fill(glyphPath(gl, x + gl.x, y + gl.y));
-          if (k === 2 && i === 0) g.fillRect(x - 4, y - size * .3, L.width + 8, Math.max(2, size * .06));   // struck through
+          const x = w * .56 + (j === 2 && i ? size * .6 : 0), show = Math.max(0, Math.min(widths[i], left)); left -= widths[i];
+          if (show > 0) { g.save(); g.beginPath(); g.rect(x - 4, y - size * 1.1, show + 4, size * 1.6); g.clip(); text(str, x, y, 'caslonI', size, 'rgba(38,32,44,.85)'); g.restore(); }
+          if (j === 2 && i === 0 && show >= widths[i]) g.fillRect(x - 4, y - size * .3, widths[i] + 8, Math.max(2, size * .06));   // struck through
           y += size * 1.3;
         });
         y += size * .9;
@@ -133,9 +140,14 @@ const FABLESEAT = (() => {
     } finally { X = X0; }
     return c;
   }
-  function spreadImg(name) {
+  function spreadImg(name, t) {
     const w = 980, h = 520;
-    return O.spread[name] || (O.spread[name] = name === 'notes' ? notesSpread(w, h) : cardFace(name, w, h));
+    if (name === 'notes') {                                                   // the notes so far; the newest writes on (on twos)
+      const b = Math.floor(t * 12 + 1e-6) / 12 / BR; let k = 0, frac = 1;
+      PRESSES.slice(0, 3).forEach((p, i) => { if (b >= p - .04) { k = i + 1; frac = clamp((b - (p - .04)) / .3); } });
+      const key = `notes${k}_${frac.toFixed(3)}`; return O.spread[key] || (O.spread[key] = notesSpread(w, h, k, frac));
+    }
+    return O.spread[name] || (O.spread[name] = cardFace(name, w, h));
   }
   // a source rect onto a quad (bilinear grid of affine triangles)
   function quadMap(g, img, sx, sy, sw, sh, q, n = 10) {
@@ -167,7 +179,7 @@ const FABLESEAT = (() => {
     const QL = o.flip ? sw(mq(O.quads.right)) : O.quads.left, QR = o.flip ? sw(mq(O.quads.left)) : O.quads.right;
     const c = O.buf || (O.buf = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = c.getContext('2d');
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
-    quadMap(g, spreadImg(L), 0, 0, 490, 520, QL); quadMap(g, spreadImg(R), 490, 0, 490, 520, QR);
+    quadMap(g, spreadImg(L, t), 0, 0, 490, 520, QL); quadMap(g, spreadImg(R, t), 490, 0, 490, 520, QR);
     g.setTransform(o.flip ? -1 : 1, 0, 0, 1, o.flip ? W : 0, 0); g.globalCompositeOperation = 'destination-in'; g.drawImage(O.mask[draw], 0, 0); g.globalCompositeOperation = 'source-over';
     X.save(); X.setTransform(o.flip ? -1 : 1, 0, 0, 1, o.flip ? W : 0, 0);
     X.drawImage(O.img[draw], 0, 0, W, H); X.setTransform(1, 0, 0, 1, 0, 0);
