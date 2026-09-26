@@ -22,7 +22,7 @@
       [k.every + 8 * f, { forearm: 12, hand: -6, upperarm: 0 }], [k.no, { forearm: 24, hand: 4, upperarm: 4 }], [k.no + 3 * f, { forearm: 12, hand: -6, upperarm: 0 }],   // "no": the closed fan taps once
       [k.tear, { forearm: 20, hand: 0, upperarm: 8 }]]);
     K.head = PUPPET.snap([[0, { head: 9 }], [k.tried, { head: 5 }], [k.sideways + .3, { head: 3 }], [k.hm, { head: 11 }], [k.hm + 3 * f, { head: 5 }],
-      [k.so, { head: 7 }], [k.oh, { head: 1 }], [k.endingw, { head: 9 }], [k.tear + f, { head: -5 }]]);   // "Oh,": she looks at the visitor; "ending": eyes down, the matter closed
+      [k.so, { head: 7 }], [k.oh, { head: 1 }], [k.endingw, { head: 9 }], [k.tear + f, { head: -5 }]]);   // "Oh,": she looks at the visitor (Fable: the only time in the telling, as the look down at her puppet is the only one in the bridge; one each); "ending": eyes down, the matter closed
     K.clawd = PUPPET.snap([[0, { head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }], [k.tried, { head: 6 }], [k.sideways + .5, { head: 10 }],
       [k.every, { head: -4 }], [k.so, { head: -6, upperarm_R: -60, forearm_R: -20 }], [k.sorekara, { upperarm_L: 95, forearm_L: 30, upperarm_R: -95, forearm_R: -30, head: -8 }],
       [k.then + .5, { upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0, head: 4 }], [k.oh + .2, { head: 11 }],   // "Oh,": the puzzled tilt
