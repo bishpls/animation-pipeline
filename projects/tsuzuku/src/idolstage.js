@@ -243,41 +243,94 @@ const IDOLSTAGE = (() => {
     ku: ['....#.....', '...#......', '..#.......', '.#........', '..#.......', '...#......', '....#.....', '..........'],
     ar: ['..........', '.....#....', '......#...', '########..', '......#...', '.....#....', '..........', '..........'] };
   function storyPage(X, t, [rx, ry, rw, rh]) {
-    const b = t2b(t), u = rh / 520, ly = ry + rh * .7, lx0 = rx + rw * .08, lx1 = rx + rw * .92, lw = Math.max(2, 5 * u);
+    // 76 (Fable's ruling on Michael's "needs a strong visual"): Clawd retells the fable on Fable's page, in her own medium. The
+    // page arrives with only the ruled line and Fable's title (her ink). Clawd's footprints stamp on "make up the steps" (clay);
+    // Fable's shore builds block by block in pixels, in FABLE'S ink ("you can't copy a path nobody's walked yet"); the staircase
+    // draws under the walking crab while the mother crab (ink) watches from the start of the straight line; "& ME" stamps after
+    // the title in clay ("she adds herself; she doesn't delete the mother"); 「つづく→」 last. Clay is the one warm thing on the page.
+    const b = t2b(t), u = rh / 520, ly = ry + rh * .72, lx0 = rx + rw * .08, lx1 = rx + rw * .92, lw = Math.max(2, 5 * u), INK = 'rgba(28,24,30,.9)';
     const pop = t0 => { const k = Math.floor((t - b2t(t0)) * 24); return k < 0 ? 0 : k < 1 ? 1.35 : k < 2 ? 1.12 : 1; };   // a stamp lands
-    // the ruled line, and where her staircase has replaced it
-    const brk = lx0 + (lx1 - lx0) * .16, grow = Math.max(0, Math.min(1, (b - 79.6) / .75)), sx1 = brk + (lx1 - brk) * grow;
-    X.fillStyle = 'rgba(30,24,20,.85)'; X.fillRect(lx0, ly, (grow > 0 ? brk : lx1) - lx0, lw);
+    // Fable's title, small, top-left, her ink (from the wipe)
+    const tsz = rh * .052, tx = rx + rw * .05, ty = ry + rh * .1;
+    const tw = window.press ? press('The Crab and her Mother', tx, ty, t, b2t(WIPE3), { font: 'caslonI', size: tsz, col: 'rgba(38,32,44,.85)', hairline: true }) : 0;
+    // her shore, in pixels, Fable's ink: built left to right, block by block (77.75-79.6)
+    pixelShore(X, t, [rx, ry, rw, rh], ly);
+    // the ruled line ("walk straight"), and where her staircase has replaced it
+    const brk = lx0 + (lx1 - lx0) * .2, grow = Math.max(0, Math.min(1, (b - 79.6) / .75)), sx1 = brk + (lx1 - brk) * grow;
+    X.fillStyle = INK; X.fillRect(lx0, ly, (grow > 0 ? brk : lx1) - lx0, lw);
     if (grow > 0 && grow < 1) X.fillRect(sx1, ly, lx1 - sx1, lw);
-    for (let k = 1; k < 6; k++) { const tx = lx0 + (lx1 - lx0) * k / 6; if (grow === 0 || tx < brk || tx > sx1) X.fillRect(tx - 1, ly - 10 * u, 2, 10 * u); }
+    for (let k = 1; k < 6; k++) { const q = lx0 + (lx1 - lx0) * k / 6; if (grow === 0 || q < brk || q > sx1) X.fillRect(q - 1, ly - 10 * u, 2, 10 * u); }
+    const st = 34 * u, hgt = 16 * u;
     if (grow > 0) {                                                               // up, across, down, across: sideways, never straight
-      const st = 34 * u, hgt = 16 * u; X.fillStyle = K.clay;
-      for (let x = brk, k = 0; x < sx1; x += st, k++) { const up = (k % 4 === 0 || k % 4 === 1) ? 1 : 0, yy = ly - (k % 4 === 1 || k % 4 === 2 ? hgt : 0);
+      X.fillStyle = K.clay;
+      for (let x = brk, k = 0; x < sx1; x += st, k++) { const yy = ly - (k % 4 === 1 || k % 4 === 2 ? hgt : 0);
         X.fillRect(x, yy, Math.min(st, sx1 - x), lw * 1.3); if (k % 2 === 0) X.fillRect(x + st - lw * 1.3, ly - hgt, lw * 1.3, hgt + lw * 1.3); }
     }
-    // her pixel crab walks it, sideways (Michael): at the front of the staircase as it draws, then beside 「つづく→」, bouncing
+    // the mother crab (Fable's ink), larger, at the start of the straight line, watching her go
+    const ms = pop(79.6);
+    if (ms) { const cp = 6.5 * u; X.save(); X.translate(lx0 + (brk - lx0) * .45, ly); X.scale(ms, ms); X.fillStyle = INK;
+      MOM.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect((i - 8) * cp, (j - MOM.length) * cp, cp - .5, cp - .5); })); X.restore(); }
+    // her pixel crab walks it, sideways: at the front of the staircase as it draws, then bouncing at its end
     if (grow > 0) {
-      const st = 34 * u, hgt = 16 * u, cx = grow < 1 ? sx1 : lx1 - st * .5, k = Math.floor((cx - brk) / st), up = (k % 4 === 1 || k % 4 === 2) ? hgt : 0;
-      const beat = Math.floor(t / BT), cp = 3.2 * u, legs = beat % 2 ? PCRAB_B : PCRAB;
-      X.fillStyle = K.clay; const bob = grow < 1 ? 0 : ((t / BT) % 1 < .3 ? cp : 0);
-      legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect(cx - 5 * cp + i * cp, ly - up - 7 * cp - bob + j * cp, cp - .4, cp - .4); }));
+      const cx = grow < 1 ? sx1 : lx1 - st * .5, k = Math.floor((cx - brk) / st), up = (k % 4 === 1 || k % 4 === 2) ? hgt : 0;
+      const beat = Math.floor(t / BT), cp = 3.2 * u, legs = beat % 2 ? PCRAB_B : PCRAB, bob = grow < 1 ? 0 : ((t / BT) % 1 < .3 ? cp : 0);
+      X.fillStyle = K.clay; legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect(cx - 5 * cp + i * cp, ly - up - 7 * cp - bob + j * cp, cp - .4, cp - .4); }));
     }
-    // her footprints, stamped on "then I'll make up the steps!" (76.75, 77.0, 77.25, 77.5), walking left to right along the line
-    const cell = 13 * u;
-    for (let k = 0; k < 5; k++) {                                                // (76.75 .. 77.75: one per stamp, the last on "steps!")
-      const t0 = 76.75 + k * .25, s = pop(t0); if (!s) continue;
-      const fx = lx0 + (lx1 - lx0) * (.08 + .21 * k), fy = ly - (k % 2 ? 34 : 78) * u;
+    // her footprints, stamped on "then I'll make up the steps!" (76.75-77.75), walking left to right just above the line
+    const cell = 11 * u;
+    for (let k = 0; k < 5; k++) {
+      const s = pop(76.75 + k * .25); if (!s) continue;
+      const fx = lx0 + (lx1 - lx0) * (.1 + .19 * k), fy = ly - (k % 2 ? 18 : 44) * u;
       X.save(); X.translate(fx, fy); X.scale(s, s); X.fillStyle = K.clay;
-      for (let q = 0; q < 3; q++) X.fillRect(-cell * 1.5 + q * cell, -cell * 2.2, cell - 1, cell * .9);   // toes
-      X.fillRect(-cell * 1.4, -cell * 1.1, cell * 2.8, cell * 2.2);                                          // sole
-      X.restore();
+      for (let q = 0; q < 3; q++) X.fillRect(-cell * 1.5 + q * cell, -cell * 2.2, cell - 1, cell * .9);
+      X.fillRect(-cell * 1.4, -cell * 1.1, cell * 2.8, cell * 2.2); X.restore();
     }
-    // 「つづく→」: her pixels, in the corner, pointing where the cards go
-    const s = pop(80.3); if (!s) return;
-    const px = rh * .02, gx0 = rx + rw * .6, gy0 = ry + rh * .8;
+    // "& ME": she adds herself after Fable's title, in clay pixels
+    const ams = pop(80.3);
+    if (ams && tw) { const px = tsz * .2; X.save(); X.translate(tx + tsz * .1, ty + tsz * .45);                      // (a second line under her title: clear of Clawd) X.scale(ams, ams); X.fillStyle = K.clay;
+      ['amp', 'sp', 'M', 'E'].forEach((n, i) => (GL[n] || []).forEach((row, yy) => [...row].forEach((ch, xx) => { if (ch === '#') X.fillRect(i * px * 6.2 + xx * px, yy * px, px - .4, px - .4); }))); X.restore(); }
+    // 「つづく→」: her pixels, in the corner, pointing where the cards go (last)
+    const s = pop(80.8); if (!s) return;
+    const px = rh * .02, gx0 = rx + rw * .62, gy0 = ry + rh * .82;
     X.save(); X.translate(gx0 + px * 20, gy0 + px * 4); X.scale(s, s); X.translate(-px * 20, -px * 4); X.fillStyle = K.clay;
     ['tsu', 'du', 'ku', 'ar'].forEach((n, i) => GL[n].forEach((row, yy) => [...row].forEach((ch, xx) => { if (ch === '#') X.fillRect(i * px * 10.5 + xx * px, yy * px, px - .5, px - .5); })));
     X.restore();
+  }
+  // the mother crab, larger (Fable's ink)
+  const MOM = ['..##........##..', '.#..#......#..#.', '.#.##......##.#.', '..##..#..#..##..', '...#..#..#..#...', '....########....', '..############..',
+               '.###.######.###.', '################', '.##############.', '..############..', '.#.#.#....#.#.#.', '#..#..#..#..#..#'];
+  Object.assign(GL, {
+    amp: ['.##..', '#..#.', '.##..', '.##.#', '#..#.', '#..##', '.##.#'], sp: [], M: ['#...#', '##.##', '#.#.#', '#.#.#', '#...#', '#...#', '#...#'],
+    E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'] });
+  // Fable's shore (src/scenery.js's cut-paper flats) re-drawn as Clawd's pixels: the flats composed in the page's shape, sampled
+  // onto a grid of square cells, each cell inked if the paper covers it. Pine top-left, islands mid, reeds right, shells low (the
+  // telling's card, Fable's ruling). Cells appear left to right with a scatter, 77.75-79.6, on ones
+  const SHORE = new Map();
+  function shoreGrid(cols, rows) {
+    const key = cols + 'x' + rows; if (SHORE.has(key)) return SHORE.get(key);
+    if (typeof FLATS === 'undefined' || !FLATS.pine) return null;
+    const W0 = 1600, H0 = Math.round(W0 * rows / cols), c = Object.assign(document.createElement('canvas'), { width: W0, height: H0 }), g = c.getContext('2d');
+    const put = (f, x, y, w, h, flip = false, src = [0, 1, 0, 1], a = 1) => { g.save(); g.globalAlpha = a; g.translate(x * W0 + (flip ? w * W0 : 0), y * H0); g.scale(flip ? -1 : 1, 1);
+      g.drawImage(f, src[0] * f.width, src[2] * f.height, (src[1] - src[0]) * f.width, (src[3] - src[2]) * f.height, 0, 0, w * W0, h * H0); g.restore(); };
+    const ly = .72, cells = [];
+    const layer = (fn, tone, th = 96) => { g.clearRect(0, 0, W0, H0); fn();
+      const s = Object.assign(document.createElement('canvas'), { width: cols, height: rows }), sg = s.getContext('2d'); sg.drawImage(c, 0, 0, cols, rows);
+      const d = sg.getImageData(0, 0, cols, rows).data;
+      for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) if (d[(j * cols + i) * 4 + 3] > th) cells.push([i, j, tone]); };
+    layer(() => put(FLATS.far, .04, ly - .24, .92, .27), .32, 150);                         // the islands over the sea, faint, low
+    layer(() => { put(FLATS.rocksL, -.02, ly - .3, .2, .3); put(FLATS.rocksR, .84, ly - .26, .17, .26); }, .8);   // reeds at the sides
+    layer(() => put(FLATS.pine, -.1, .2, .56, .3, false, [0, .87, 0, .85]), .9);            // the pine, top-left (its trunk off the page's left), under the title
+    layer(() => { put(FLATS.ground, 0, ly - .36, 1, .62); g.clearRect(.1 * W0, 0, .8 * W0, H0); g.clearRect(0, 0, W0, (ly + .02) * H0); }, .75);   // a few shells, at the very edges, below the line
+    const out = { cells, cols, rows }; SHORE.set(key, out); return out;
+  }
+  function pixelShore(X, t, [rx, ry, rw, rh]) {
+    const b = t2b(t); if (b < 77.75) return;
+    const cols = 86, cs = rw / cols, rows = Math.round(rh / cs), G = shoreGrid(cols, rows); if (!G) return;
+    const span = 1.85, done = b >= 77.75 + span;
+    for (const [i, j, tone] of G.cells) {
+      if (!done) { const at = 77.75 + span * (.82 * i / cols + .18 * hash2(i * 31 + j, 7)); if (b < at) continue; }
+      X.fillStyle = `rgba(28,24,30,${tone})`; X.fillRect(rx + i * cs, ry + j * cs, cs - Math.max(.6, cs * .12), cs - Math.max(.6, cs * .12));
+    }
   }
   // Clawd's pixel crab and pixel line, drawn onto Fable's page by her claw (bars 72-73.75): a staircase line (her hem motif)
   const PCRAB = ['..#....#..', '.#.#..#.#.', '..######..', '.########.', '##.####.##', '.########.', '#.#....#.#'];
@@ -571,9 +624,19 @@ const IDOLSTAGE = (() => {
     return c;
   }
   // her book mirrors the screen: the same faces, and Clawd's page (drawn live) for the over-the-shoulder cut at 80.2
+  // (her book: the old telling printed on the left page, Clawd's pixel page facing it on the right; Fable: "letterpress left,
+  // her pixels right, facing")
+  const FABLE_TEXT = ['The Crab and her Mother.', '', 'A mother crab said to her', 'child, \u201cWhy do you walk', 'sideways? Walk straight.\u201d',
+                      'The young crab said,', '\u201cShow me how, and I\u2019ll', 'follow.\u201d The mother tried,', 'and went sideways.'];
   function storySpread(t, w, h) {
     const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d');
-    g.drawImage(pageFace('blank', w, h), 0, 0); withX(g, () => storyPage(g, t, [0, 0, w, h])); return c;
+    g.drawImage(pageFace('blank', w, h), 0, 0);
+    withX(g, () => {
+      const sz = h * .05; let y = h * .16;
+      for (const str of FABLE_TEXT) { if (str) { const L = shape(str, { font: 'caslon', size: sz * .92 }); g.fillStyle = 'rgba(34,28,24,.9)'; for (const gl of L.glyphs) if (gl.ch !== ' ') g.fill(glyphPath(gl, w * .05 + gl.x, y + gl.y)); } y += sz * 1.32; }
+      storyPage(g, t, [w / 2, 0, w / 2, h]);
+    });
+    return c;
   }
   // which of Fable's pages the screen is showing (null while it's LED): her book in the room shows the same (Michael)
   function screenPage(t) {
