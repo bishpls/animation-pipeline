@@ -67,7 +67,7 @@
     const CAM7 = () => camAt(846, 612, 1.45);
     // the beats (song s, on the drawing grid)
     const LIFT = 163.0, BOW0 = 163.25, BOW1 = BOW0 + 4 * f, REL = BOW1 + 2 * f, UP0 = REL, UP1 = UP0 + 4 * f;
-    const K1 = 164 + 4 * f, K2 = K1 + 2 * f, R1 = 164 + 10 * f, LAND = 165 + 2 * f, START = LAND + 2 * f;
+    const K0B = 164 + 4 * f, K1 = K0B + f, K2 = K1 + 2 * f, R1 = 164 + 10 * f, LAND = 165 + 2 * f, START = LAND + 2 * f;
     const BOOK = { x: 825, s: .15 };                                              // on the floor in front of her knees (B8 draws it at .15)
     const BOW = 48;                                                               // (the reach to the floor from seiza)
     // ---- the seated card (161.0-164.25) -----------------------------------------------------------------------------
@@ -84,7 +84,9 @@
         const from = q < UP0 ? LIFTED : LAP;
         arm = { upperarm: mix(from.upperarm, reach.upperarm, u), forearm: mix(from.forearm, reach.forearm, u), hand: mix(from.hand, reach.hand, u) };
       }
-      Object.assign(p, arm); p.hair = -(p.head + p.torso * .3) * .85; return p;
+      if (q >= K0B - 1e-6) { p.torso = 9; p['torso.y'] = -120; p.head = 6; Object.assign(p, reachIn(FABLE, p, TSEAT, 'torso', SEAT_ARM, [700, 860])); }   // (the swap's first in-between: off her heels, hands pushing on her thighs)
+      else Object.assign(p, arm);
+      p.hair = -(p.head + p.torso * .3) * .85; return p;
     }
     const bookSeq = () => ['book', 'book', 1];
     // the book this drawing: in her fist (a prop) until she lets go, then on the floor; it shrinks to the floor size (B8's) as
@@ -165,7 +167,7 @@
     // a geta (the standing puppet's foot part) with its ankle at (ax, FLOOR - lift - ankle height), tilted (+ = heel up) about
     // its toe; cut to the geta and a short ankle post (as drawStanding cuts the far foot), so no post shows above the skirt
     function drawFoot(c, ax, lift, tilt, s, dir, o = {}) {
-      const ay = FLOOR - (3700 - ANK[1]) * s - lift;
+      const ay = FLOOR - (3682 - ANK[1]) * s - lift;                               // (its sole on the rail, as the lamp and the book sit on it)
       let M = new DOMMatrix().translate(ax, ay).rotate(dir * tilt).scale(dir * s, s).translate(-ANK[0], -ANK[1]);
       if (tilt) { const toe = M.transformPoint(new DOMPoint(1290, 3680)); M = new DOMMatrix().translate(0, FLOOR - lift - toe.y).multiply(M); }
       c.save(); c.setTransform(M); c.beginPath(); c.rect(-3000, ANK[1] - 95, 8000, 3000); c.clip();
@@ -222,18 +224,9 @@
       if (q < K1) { drawSeated(c, q); return; }
       FABLE.draw(c, { _ghost: {} }, TSEAT, { hide: HIDE_SEATED });                  // her zabuton, empty (as B8 has it)
       const k = keyAt(q);
-      // afterimages: the card she was, faintly exposed (the swap to the standing card; the turn)
-      const ghost = (qq, a) => { c.save(); c.globalAlpha = a; figureOnly(c, qq); c.restore(); };
-      const d = Math.round((q - K1) * 12), dt = Math.round((q - (R1 + 3 * f)) * 12);
-      if (d === 0) ghost(K1 - f, .28); else if (d === 1) ghost(K1 - f, .12);
-      if (dt === 0) ghost(R1 + 2 * f, .28); else if (dt === 1) ghost(R1 + 2 * f, .12);
-      // the pleats, on the fastest drawings of the rise: the skirt's last two states faint behind it (a flip-book, not a smear)
-      const dr = Math.round((q - R1) * 12);
-      if (dr >= 1 && dr <= 2) for (const [back, a] of [[2, .12], [1, .26]]) { const kk = keyAt(q - back * f); c.save(); c.globalAlpha = a; drawSkirt(c, kk, null, { solid: true }); c.restore(); }
       drawRibbon(c, q);
       drawStand(c, q, k);
     }
-    function figureOnly(c, q) { if (q < K1) FABLE.draw(c, seatPose(q), TSEAT, { solid: true }); else drawStand(c, q, keyAt(q), { solid: true }); }
     // the book on the floor once she lets go
     const floorBook = (c, q) => { if (q >= REL - 1e-6) PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(BOOK.x, FLOOR).scale(BOOK.s)); };
     // the lamp brought to her: B6 leaves it at 428 (left of the cushion); B8 opens with it at her feet on its rod, its stick
