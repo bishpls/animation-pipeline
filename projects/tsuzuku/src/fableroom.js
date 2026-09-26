@@ -254,7 +254,7 @@ const FABLEROOM = (() => {
     for (const [kk, f] of PUSH) if (k === kk) { f(); return o; }
     // the claps: the palm at the lantern wrist (it follows the wrist's small dip in the raise's anticipation), lifting off between pats
     const W = lanternArm(s).wrist, W0 = E.poses ? E.poses.rest.wrist : W;
-    const clapAt = () => { const op = opened(k); key('clap', 0, 10 * op + W[0] - W0[0], -24 * op + W[1] - W0[1]); };
+    const clapAt = () => { const op = opened(k); key('clap', 0, 22 * op + W[0] - W0[0], -62 * op + W[1] - W0[1]); };   // (a pat lifts ~20 px at FIN)
     const c1 = clapK[0], c2 = clapK[1], c3 = clapK[2], c8 = clapK[clapK.length - 1];
     if (k >= KP + 12 && k <= c2) { clapAt(); return o; }
     // (to and from her side the hand stays by her body, never across the lantern: the clap drawing turned in, then the mesh arm at
