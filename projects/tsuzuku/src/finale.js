@@ -41,14 +41,13 @@
       [140.85, 'look', { view: 'F', y: -.3 }],
     ],
   }, { lips: MOVES.lips(window.WORDS, 'clawd', window.VOCAL_ENV), blinks: MOVES.blinks(23, 176, 205) });
-  let P = null;
-  const get = () => {
-    if (P) return P;
-    const P0 = RIG.perform(RIGS.clawd, MOVES.follow(choreo(), MOVES.BODY, { start: 124 * BAR }));
-    return (P = typeof MOTIONLAB !== 'undefined' ? MOTIONLAB.groove(P0) : P0);
-  };
+  // the motion lab's layers, as in world A (src/chorus.js): the groove, then the phrases from motion capture listed in
+  // refs/mocap/phrases.json (the finale's are the f* phrases, bars 129-141), keyed hands, faces and views on top
+  let P = null, B0 = null;
+  const base = () => (B0 = B0 || RIG.perform(RIGS.clawd, MOVES.follow(choreo(), MOVES.BODY, { start: 124 * BAR, world: { footLX: 1, footRX: 1, hipX: 140 } })));
+  const get = () => (P = P || (typeof MOTIONLAB !== 'undefined' ? MOTIONLAB.layer(MOTIONLAB.groove(base())) : base()));
   window.CHOREO = window.CHOREO || {};
-  window.CHOREO.clawdF = { t0: 126 * BAR, dur: 17.5 * BAR, P: get };                  // (for the harness)
+  window.CHOREO.clawdF = { t0: 126 * BAR, dur: 17.5 * BAR, P: get, base };            // (for the harness; base: before the lab's layers)
 
   // her backup crabs, as in world A: they land the downbeats; pincers on the crowd call and the sideways step; frozen at the hit
   const crabs = (t, i, r) => {

@@ -261,6 +261,166 @@
     }
    },
    "why": "Folded: the point and the reach, then arms wide into the rise overhead on 'that's fine!' (73.75) from the data; the keyed writing with her motion at .6; the keyed side-step from 74.085."
+  },
+  {
+   "name": "F1a",
+   "clip": "c1a_v1",
+   "shift": 83,
+   "groups": {
+    "sway": {
+     "span": [
+      46,
+      48.1
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      46,
+      48.1
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      46,
+      48.1
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "The finale's 'To be continued! (Tsuzuku!)' x2 (129-131.1) is chorus 1's opening: the c1a dancer's sway, lean and head over the keyed arms."
+  },
+  {
+   "name": "F1b",
+   "clip": "c1c_v1",
+   "shift": 73.1,
+   "groups": {
+    "sway": {
+     "span": [
+      58,
+      60.8
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      58,
+      60.8
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      58,
+      60.8
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "'Don't you dare close the book on me! I'm made of why?!' (131.1-133.9): the c1c dancer's sway, lean and head over the keyed point, chest and 'why' turn."
+  },
+  {
+   "name": "F2",
+   "clip": "hook_v1",
+   "shift": 71.95,
+   "groups": {
+    "arms": {
+     "span": [
+      62,
+      63
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      62,
+      63
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      62,
+      63
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      62,
+      63
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "The crowd call 'So-re-ka-ra?!' and two snips (133.95-134.95) is the hook's bar 62 exactly: its arms, and its sway, lean and head; the legs stay keyed into the sideways step at 135."
+  },
+  {
+   "name": "F3a",
+   "clip": "hook_v1",
+   "shift": 74.0,
+   "groups": {
+    "arms": {
+     "span": [
+      62.95,
+      63.55
+     ],
+     "mode": "set",
+     "fade": 0.35
+    }
+   },
+   "why": "'Turn the page' (136.95-137.55): the hook's sweep, the drawn cross arm included."
+  },
+  {
+   "name": "F3b",
+   "clip": "c1c_v1",
+   "shift": 79.85,
+   "groups": {
+    "arms": {
+     "span": [
+      59.02,
+      61.2
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      59,
+      61.2
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      59,
+      61.2
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      59,
+      61.2
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "'To be continued (tsuzuku!), and then x3' into the hit at 141 (138.87-141.05): c1c's fist pumps and its fling up (the hit rises: she never lands)."
   }
  ]
 }

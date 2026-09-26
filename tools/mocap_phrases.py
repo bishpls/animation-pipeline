@@ -7,7 +7,7 @@ import json, os, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 proj = sys.argv[1]; only = sys.argv[2:]; M = os.path.join(proj, 'refs', 'mocap')
 for ph in json.load(open(os.path.join(M, 'phrases.json')))['phrases']:
-    if only and ph['name'] not in only: continue
+    if (only and ph['name'] not in only) or ph.get('clip'): continue          # (a reuse of another phrase's curves: nothing to retarget)
     cmd = [os.path.join(ROOT, '.venv', 'bin', 'python'), os.path.join(ROOT, 'tools', 'retarget_mocap.py'), os.path.join(M, ph['name'] + '_pose.json'),
            os.path.join(M, ph['name'] + '_rig.json'), '--bar0', str(ph['bar0']), '--bars', str(ph['bars'])]
     if ph.get('anchors'): cmd += ['--anchors', ph['anchors']]

@@ -149,8 +149,10 @@ const MOTIONLAB = (() => {
     const L = [];
     for (const ph of list) {
       if (ph.off) continue;                                                       // (kept for the record, not folded: see its reason)
-      const J = getJSON('refs/mocap/' + ph.name + '_rig.json'); if (!J) continue;
-      for (const sh of [0, ...(ph.reuse || [])]) for (const [g, spec] of Object.entries(ph.groups)) {
+      // ph.clip: another phrase's curves (a reuse elsewhere in the song: the finale repeats world A's phrases); ph.shift: bars added
+      // to its spans (given in the clip's bars), sampled back at b - shift
+      const J = getJSON('refs/mocap/' + (ph.clip || ph.name) + '_rig.json'); if (!J) continue;
+      for (const sh of [ph.shift ?? 0, ...(ph.reuse || [])]) for (const [g, spec] of Object.entries(ph.groups)) {
         if (!spec) continue;
         // a group is [b0, b1] (the data replaces the channels) or {span, mode: 'residual', gain}: the keyed pose stays and the data's
         // motion about its own mean over the span is added (keyed poses, captured dynamics: a real dancer's hand-to-ear doesn't
@@ -189,8 +191,22 @@ const MOTIONLAB = (() => {
   };
   LOOPS.motionlab_v12.len = 220;
 
+  // the finale: keyed (with the groove) | with the motion-capture phrases (the f/F entries of refs/mocap/phrases.json)
+  //   node engine/render.mjs projects/tsuzuku --loop=motionlab_finale --clip=181.6:199.9 --out=projects/tsuzuku/out/finale_mocap_sbs_v1.mp4
+  let PFK = null;
+  LOOPS.motionlab_finale = t => {
+    const Pa = PFK = PFK || groove(CHOREO.clawdF.base()), Pb = CHOREO.clawdF.P();
+    X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H); X.fillStyle = '#2c2838'; X.fillRect(0, 1000, W, 80); X.fillStyle = '#4a4458'; X.fillRect(958, 0, 4, H);
+    RIGS.clawd.draw(X, t, Pa, { x: 480 + (Pa(t).rootX || 0) * .2, y: 1040, s: .25 });
+    RIGS.clawd.draw(X, t, Pb, { x: 1440 + (Pb(t).rootX || 0) * .2, y: 1040, s: .25 });
+    const b = t / BAR, ph = phrases().phrases.find(q => !q.off && q.clip && Object.values(q.groups).some(g => { const sp = Array.isArray(g) ? g : g.span; return b >= sp[0] + q.shift && b < sp[1] + q.shift; }));
+    X.fillStyle = 'rgba(255,255,255,.75)'; X.font = '600 28px sans-serif'; X.fillText('keyed', 40, 56); X.fillText('mocap' + (ph ? '  (' + ph.name + ': ' + ph.clip + ')' : ''), 1000, 56);
+    X.font = '20px sans-serif'; X.fillText('bar ' + b.toFixed(2), 40, 90);
+  };
+  LOOPS.motionlab_finale.len = 220;
+
   function dump(b0 = 45, b1 = 93, fps = 24, pts = true, which = 'now') {
-    const P = which === 'after' ? after() : which === 'mocap' ? hookMocap() : which === 'base' ? CHOREO.clawdA.base() : which === 'lab' ? layer(groove(CHOREO.clawdA.base())) : which === 'v11' ? layer(groove(CHOREO.clawdA.base()), phrases().phrases.filter(q => q.name === 'hook_v1')) : CHOREO.clawdA.P(), rig = RIGS.clawd, out = { fps, b0, b1, bar: BAR, t: [], P: {}, view: [], pts: {}, sp: {} };
+    const P = which === 'finale' ? CHOREO.clawdF.P() : which === 'finale_keyed' ? groove(CHOREO.clawdF.base()) : which === 'after' ? after() : which === 'mocap' ? hookMocap() : which === 'base' ? CHOREO.clawdA.base() : which === 'lab' ? layer(groove(CHOREO.clawdA.base())) : which === 'v11' ? layer(groove(CHOREO.clawdA.base()), phrases().phrases.filter(q => q.name === 'hook_v1')) : CHOREO.clawdA.P(), rig = RIGS.clawd, out = { fps, b0, b1, bar: BAR, t: [], P: {}, view: [], pts: {}, sp: {} };
     for (const k of CH) out.P[k] = [];
     if (pts) for (const k of PTS) out.pts[k] = [];
     for (const k of Object.keys(rig.R.springs || {})) out.sp[k] = [];
