@@ -41,10 +41,12 @@ const IDOLSTAGE = (() => {
   // Michael: one audience (the room's readers are cut), the window larger, and Fable in frame at all times. So the room is the
   // frame for all of world A: `def` holds the window at ~70% of the frame with Fable kneeling at its right, at the window's
   // height (where a teller sits); the card's own camera still moves inside the window. The others are the beats' framings.
-  const RC = { window: { x: 1920, y: 1445, zoom: .8 }, wide: { x: 2080, y: 1420, zoom: .52 }, def: { x: 2281, y: 1466, zoom: .72 },
+  // (Michael: the window centred and much bigger, the hinges still at the frame's edges; Fable may sit in front of it)
+  const RC = { window: { x: 1920, y: 1445, zoom: .8 }, wide: { x: 1920, y: 1330, zoom: .62 }, def: { x: 1920, y: 1300, zoom: .9 },
                teller: { x: 2560, y: 1560, zoom: .86 }, teller2: { x: 2640, y: 1600, zoom: .9 }, pull: { x: 2480, y: 1520, zoom: .82 },
-               clap: { x: 2700, y: 1640, zoom: .92 }, clap2: { x: 2860, y: 1720, zoom: 1.05 }, end: { x: 2200, y: 1480, zoom: .6 }, ots: { x: 1760, y: 1180, zoom: .74 } };
-  const FROOM = { x: 3309, y: 2105, m: 1, s: .85 };        // Fable's seat point in the room: kneeling beside the window, at its height; her scale
+               clap: { x: 2700, y: 1640, zoom: .92 }, clap2: { x: 2860, y: 1720, zoom: 1.05 }, end: { x: 1920, y: 1330, zoom: .7 }, ots: { x: 1760, y: 1180, zoom: .74 } };
+  // Fable's seat point: in front of the butai (m: her plane nearer the lens than the window's), at its lower right, seen from behind
+  const FROOM = { x: 2728, y: 1815, m: 1.1, s: .727 };
   const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: 'write' }, OTST = { ots: 'turn' }, OTSS = { ots: 'story' };
   // ---- the camera: shots [bar, from, to, room?]; {cx, cy, z}: world point at screen centre, zoom (the card's own camera)
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
@@ -105,7 +107,7 @@ const IDOLSTAGE = (() => {
   }
   // the room camera's slow drift in its default framing: a lateral float and a breath of zoom over eight bars (the director: the
   // room shot was a locked wall); small enough to never feel handheld
-  const drift = (C, t) => { const u = t / (8 * BR) * 2 * PI; return { x: C.x + 46 * S(u), y: C.y + 14 * S(u * .5 + 1), zoom: C.zoom * (1 + .018 * S(u * .75 + 2)) }; };
+  const drift = (C, t) => { const u = t / (8 * BR) * 2 * PI; return { x: C.x + 22 * S(u), y: C.y + 8 * S(u * .5 + 1), zoom: C.zoom * (1 + .012 * S(u * .75 + 2)) }; };
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
   function camAt(t) { return camFrom(SHOTS, t, HITS); }
   function camFrom(SHOTS, t, HITS, DEF = RC.def) {                          // DEF: the room framing a card-only shot sits in (null: none)
@@ -487,7 +489,7 @@ const IDOLSTAGE = (() => {
     const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const P = [];
-    const ROWSC = c.low ? [[0, 8, .95, 1290, 0], [1, 6, 1.5, 1560, 140]] : [[0, 12, .32, 1195, 0], [1, 10, .42, 1275, 80]];   // (a low shot: we're among them)
+    const ROWSC = c.low ? [[0, 10, .5, 1060, 0], [1, 8, .7, 1150, 110]] : [[0, 12, .32, 1195, 0], [1, 10, .42, 1275, 80]];   // (a low shot: we're among them)
     for (const [row, n, sc, y0, dx] of ROWSC) {   // (low enough that her feet show, in the normal shots)
       for (let i = 0; i < n; i++) {
         const q = AUD[Math.floor(rnd() * AUD.length)], x = -60 + dx + (i + .5) * (2040 / n) + (rnd() - .5) * 60, s = sc * (.9 + .2 * rnd()), ph = rnd(), flip = rnd() > .5;
@@ -535,6 +537,7 @@ const IDOLSTAGE = (() => {
   // wrap like a caption (the margin grows by a line-height when the second is needed), cleared by the page turn; ~~struck~~
   // spans get a second impression half a beat after the words. World A's pages below; the finale passes its own (opt.notes).
   // (the Caslon italic's standard ligatures join s+t into a historical 'st' that reads as 'ft' (the v7 review): off, for notes)
+  const NOTE_W = .8;                                                          // (Fable sits over the card's lower right: the notes stay left of her)
   const NSZ = 46, NLH = 58, NFONT = { font: 'caslonI', size: NSZ, wght: 500, features: { liga: false, dlig: false, clig: false } };
   const PAGES_A = [
     { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
@@ -553,7 +556,7 @@ const IDOLSTAGE = (() => {
   // there (the v7 review: "I've / read how the others end"); words wrap only inside a clause too long for a line
   function layoutNotes(list, rect) {
     const key = list.map(n => n[1]).join('|') + rect.join(); if (LAYOUT.has(key)) return LAYOUT.get(key);
-    const [x0, , w] = rect, xl = x0 + 30, xmax = x0 + w - 30, spc = shape('a a', NFONT).width - 2 * shape('a', NFONT).width, runs = [];
+    const [x0, , w] = rect, xl = x0 + 30, xmax = x0 + w * NOTE_W - 30, spc = shape('a a', NFONT).width - 2 * shape('a', NFONT).width, runs = [];
     const ww = str => shape(str, NFONT).width;
     let x = xl, line = 0;
     list.forEach(([t0, str], ni) => {
@@ -577,14 +580,14 @@ const IDOLSTAGE = (() => {
       });
     });
     runs.forEach(r => { r.str = r.words.join(' '); r.w = ww(r.str); });
-    const out = { runs, lines: Math.min(2, Math.max(...runs.map(r => r.line), 0) + 1) }; LAYOUT.set(key, out); return out;
+    const out = { runs, lines: Math.min(3, Math.max(...runs.map(r => r.line), 0) + 1) }; LAYOUT.set(key, out); return out;
   }
   // how much the margin has grown (0..1) at t: over the six drawings BEFORE the first run on line two is pressed (on twos), so the
   // paper is there when the ink lands (the v7 review: the second line was cut by the mat)
-  function marginGrow(t, N) {
-    if (!N) return 0; const L = layoutNotes(N.list, MARGIN.rect || [38, 38, W - 76, H - 108]);
-    const r2 = L.runs.find(r => r.line >= 1); if (!r2 || t < r2.t0 - .5) return 0;
-    return Math.min(1, Math.floor((t - (r2.t0 - .5)) * 12 + 1) / 6);
+  function marginGrow(t, N) {                                                // (lines beyond the first: 0..2, each grown before it presses)
+    if (!N) return 0; const L = layoutNotes(N.list, MARGIN.rect || [38, 38, W - 76, H - 108]); let g = 0;
+    for (const ln of [1, 2]) { const r = L.runs.find(q => q.line >= ln); if (r && t >= r.t0 - .5) g += Math.min(1, Math.floor((t - (r.t0 - .5)) * 12 + 1) / 6); }
+    return g;
   }
   // the letterpress of paper.js's press(), in the notes' own shaping (no ligatures): scale-in, a hairline shadow, wet ink settling
   function pressNote(str, x, y, t, t0, col) {
@@ -598,7 +601,7 @@ const IDOLSTAGE = (() => {
     if (!N) return;
     const rect = MARGIN.rect || [38, 38, W - 76, H - 108], [, y0, , h] = rect, L = layoutNotes(N.list, rect), col = ink || MARGIN.ink;
     for (const r of L.runs) {
-      if (t < r.t0 || r.line > 1) continue;
+      if (t < r.t0 || r.line > 2) continue;
       const y = y0 + h + NSZ * 1.12 + r.line * NLH;
       pressNote(r.str, r.x, y, t, r.t0, col);
       if (r.struck && t >= r.t0 + .3 + BT / 2) { X.save(); X.strokeStyle = col; X.lineWidth = 2.2; X.beginPath(); X.moveTo(r.x - 2, y - NSZ * .3); X.lineTo(r.x + r.w + 2, y - NSZ * .33); X.stroke(); X.restore(); }
