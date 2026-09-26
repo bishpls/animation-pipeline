@@ -51,7 +51,7 @@
   // vellum from where it is: a pool, dimmer than the sky lamp; the flats' shadows fall from it, longer, upward.
   // (Michael: not on her lap, where it sat in the fan's space all through the gallery; on the floor beside her, image-left,
   // behind her back, out of the story's two-thirds. Seated, she can't reach the floor, so it stays there until she stands.)
-  const FLOORSPOT = [400, FLOOR], LSC = 1.4, LEAN = 25;
+  const FLOORSPOT = [428, FLOOR], LSC = 1.4, LEAN = 25;   // (x: lands on the hall lantern at the match cut, screen ≈ (666, 980))
   const lanternAt = ts => ({ x: FLOORSPOT[0], y: FLOORSPOT[1], held: false });
   const lampOf = L => [L.x, L.y - (7 + CHO.h / 2) * LSC];
   const bailAt = L => [L.x, L.y - 7 * LSC - CHO.h * LSC - 5 * LSC - CHO.w * .2 * LSC], grip = L => { const b = bailAt(L); return [b[0], b[1] - 14 * LSC]; };
