@@ -76,8 +76,8 @@
   // her down; she goes limp against the frame (whole, inside the window: put away, not lost)
   const LIMP = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6 };
   const setDown = PUPPET.snap([[0, { x: 1400, y: 0, skirt: 0, head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }],
-    [CLACK + 16 * f, { x: 1520, y: -36 }], [CLACK + 19 * f, { x: CP.x, y: 0 }], [CLACK + 21 * f, LIMP]], { overshoot: .08 });   // (once the theatre has faded in)
-  const clawdAt = ts => { const k = setDown(ts); return { pose: { ...k, _ghost: {} }, T: { ...CP, x: k.x, y: FLOOR + k.y }, lean: ts >= CLACK + 20 * f ? -70 : 0 }; };
+    [CLACK + 19 * f, { x: 1520, y: -36 }], [CLACK + 22 * f, { x: CP.x, y: 0 }], [CLACK + 24 * f, LIMP]], { overshoot: .08 });   // (once the theatre has faded in)
+  const clawdAt = ts => { const k = setDown(ts); return { pose: { ...k, _ghost: {} }, T: { ...CP, x: k.x, y: FLOOR + k.y }, lean: ts >= CLACK + 23 * f ? -70 : 0 }; };
   function scene(ts) {
     const strike = {}; let bright = 0;
     for (const [k, t0, dir] of STRIKES) { const u = pulled(ts, t0); strike[k] = [u, dir]; bright += u * (k.startsWith('rocks') ? .5 : 1); }
@@ -107,10 +107,10 @@
   }
   // B1 opens on the hall's last frame, matched (the stage session's numbers at 131.29: crown (900, 108), seat (866, 947)): the
   // camera close on her, the grain large; it holds while Clawd's puppet is set down, then eases out to the telling camera
-  const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 22 * f, MATCH_N = 20;
+  const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 26 * f, MATCH_N = 20;
   // the seam from the hall (Fable: "black on the clack; the lantern alone glides to B1's position; B1 fades in around it"). FROM:
   // the hall lantern's screen centre and body height in the stage session's last frame
-  const FROM = { x: 666, y: 895, h: 219 }, GLIDE = [CLACK, CLACK + 6 * f], FADE = [CLACK + 5 * f, CLACK + 14 * f];
+  const FROM = { x: 1433, y: 1001, h: 150 }, GLIDE = [CLACK, CLACK + 10 * f], FADE = [CLACK + 8 * f, CLACK + 17 * f];   // (the room wide's lantern, beside her at the butai's right)
   function seam(ts) {
     if (ts >= FADE[1]) return;
     const bx = 1009 + (FLOORSPOT[0] - 150) * 1821 / 1620, by = 805 + (FLOORSPOT[1] - 7 * LSC - CHO.h * LSC / 2 - 170) * 996 / 900;
