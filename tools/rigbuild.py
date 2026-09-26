@@ -65,8 +65,8 @@ def main(ldir, spec, out):
     # character with her hair tied back: the full face outline, ears, neck, shoulders). Per target layer: the source labels it
     # takes; only where the target is empty, something covers that spot at rest (no change to the rest look), and not under
     # the excluded layers (eyes/mouth: variants swap there, so no second pair of eyes may sit underneath).
-    FI = S.get('fromimg')
-    if FI:
+    FIs = S.get('fromimg') or []
+    for FI in (FIs if isinstance(FIs, list) else [FIs]):        # (one companion, or a list of them, applied in order)
         base_a = load(os.path.join(os.path.dirname(spec), FI['base']))[:, :, 3] > 8
         V = load(os.path.join(os.path.dirname(spec), FI['img'])); lb = np.array(Image.open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.png')))
         vo = json.load(open(os.path.join(os.path.dirname(spec), FI['labels'], 'labels.json')))['order']

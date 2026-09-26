@@ -282,8 +282,20 @@ const RIG = (() => {
         const hx = clamp(p.hipX || 0, -1.3, 1.3), th = -PV.tilt * hx, dxp = PV.D * hx, dyp = (p.hipY || 0) + PV.lift * Math.abs(hx);
         const Tp = (qx, qy) => { const [a, b] = rot(qx, qy, PV.c[0], PV.c[1], th); return [a + dxp, b + dyp]; };
         const [wx, wy] = Tp(PV.waist[0], PV.waist[1]), tdx = wx - PV.waist[0], tdy = wy - PV.waist[1];
-        const kind = PV.legs[name] ? 'leg' : PV.feet.includes(name) ? 'foot' : rig.armOf[name] || inHead || neckL ? 'torso' : 'body';
+        const kind = PV.legs[name] ? 'leg' : PV.feet.includes(name) ? 'foot' : PV.skirt && PV.skirt.layers.includes(name) ? 'skirt'
+          : rig.armOf[name] || inHead || neckL ? 'torso' : 'body';
         if (kind === 'torso') { x += tdx; y += tdy; }
+        else if (kind === 'skirt') {
+          // a long skirt over both feet (Fable's hakama; pelvis.skirt: { layers, top, hem, split, soft, follow, lift }): its top rides
+          // the pelvis like the body; toward the hem it hangs over the feet instead: the left half over the left foot, the right half
+          // over the right, blended across the middle, lifting a little over a raised foot. The hips shift and dip above it and the
+          // hem stays over the feet (the knees bend unseen under the cloth)
+          const SK = PV.skirt, Y0 = rest[k + 1], X0 = rest[k], v = clamp((Y0 - PV.band[0]) / (PV.band[1] - PV.band[0]), 0, 1), w = v * v * (3 - 2 * v);
+          const [px, py] = Tp(x, y), bx = x + tdx + (px - x - tdx) * w, by = y + tdy + (py - y - tdy) * w;
+          const u0 = clamp((Y0 - SK.top) / (SK.hem - SK.top), 0, 1), u = u0 * u0 * (3 - 2 * u0), s0 = clamp((X0 - SK.split) / (SK.soft || 200) + .5, 0, 1), s = s0 * s0 * (3 - 2 * s0);
+          const hx = x + fL[0] * (1 - s) + fR[0] * s, hy = y - ((fL[1] + hp.L) * (1 - s) + (fR[1] + hp.R) * s) * (SK.lift ?? .6), g = u * (SK.follow ?? .8);
+          x = bx + (hx - bx) * g; y = by + (hy - by) * g;
+        }
         else if (kind === 'body') {
           const Y0 = rest[k + 1], v = clamp((Y0 - PV.band[0]) / (PV.band[1] - PV.band[0]), 0, 1), w = v * v * (3 - 2 * v);
           const [px, py] = Tp(x, y); x = x + tdx + (px - x - tdx) * w; y = y + tdy + (py - y - tdy) * w;

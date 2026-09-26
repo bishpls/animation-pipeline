@@ -57,6 +57,14 @@ def main(base, spec, seg, out):
         take = f >= best; take &= f > .25; best[take] = f[take]; lab_of[take] = idx[n]
     lab_of[0] = 0
     L = lab_of[cells]
+    # "dark_by_pixel": dark fills (cells from the thick-dark pass) are split pixel by pixel by the masks instead of going whole to
+    # one part. For characters dressed in near-black (Fable's jacket, sleeves and hair): black meets black with no visible line to
+    # cut along, so a whole dark region would otherwise go to a single part. Each pixel goes to the front-most part whose mask
+    # covers it; pixels no mask covers keep the cell's vote.
+    if S.get('dark_by_pixel'):
+        dk = cells > n1
+        for n in reversed(order):                 # front parts last: they win
+            if n in masks: L[dk & masks[n]] = idx[n]
     for n, pts in S.get('force', {}).items():
         for x, y in pts:
             c = cells[int(y), int(x)]
