@@ -237,13 +237,15 @@
     // the book on the floor once she lets go
     const floorBook = (c, q) => { if (q >= REL - 1e-6) PUPPET.drawShape(c, PUPPET.shapeAt(FAN, 'book', 'book', 1), new DOMMatrix().translate(BOOK.x, FLOOR).scale(BOOK.s)); };
     // the lamp brought to her: B6 leaves it at 428 (left of the cushion); B8 opens with it at her feet on its rod, its stick
-    // tipped toward her for the take. Once she stands, a kuroko slides it along the rail to her on its rod (six drawings, eased);
-    // the pool travels with it
-    const GLIDE0 = 165.42, GLIDE1 = GLIDE0 + 6 * f, L8 = 745, LEAN8 = 25;   // (745 here: just left of the book, as B8 frames lamp, book and her at the cut)
-    const lampXAt = q => { const u = Math.min(1, Math.max(0, (q - GLIDE0) / (GLIDE1 - GLIDE0))), e = u * u * (3 - 2 * u); return [LAMPX + (L8 - LAMPX) * e, e]; };
+    // tipped toward her for the take. While she rises (the eye is on her), a kuroko slides it along the rail on its rod: on
+    // twos, a start and a stop, the same distance every drawing (a rod-slid thing moves like a hand, not a curve), and the
+    // pool travels with it. Its stick, drawn from B7's first drawing, leans away from her until then (clear of her kneeling
+    // back, against the lit vellum) and tips over toward her as it comes.
+    const GLIDE0 = 164 + 5 * f, GLIDEN = 7, L8 = 720, LEAN8 = 25;                   // (164.42 to 165.0; 720: just left of the book, clear of it, as far from her as B8 has it)
+    const lampXAt = q => { const u = q < GLIDE0 - 1e-6 ? 0 : Math.min(1, (Math.floor((q - GLIDE0) * 12 + 1e-6) + 1) / (GLIDEN + 1)); return [LAMPX + (L8 - LAMPX) * u, u]; };
     PAPER_SFX.push(() => [[GLIDE0, 'paper_slide', -37]]);
     function scene7(ts) {
-      const q = q12(ts), [lx] = lampXAt(q), lamp = [lx, FLOOR - (7 + CHO.h / 2) * LSC];
+      const q = q12(ts), [lx, lu] = lampXAt(q), lamp = [lx, FLOOR - (7 + CHO.h / 2) * LSC];
       X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
       screen(ts, { stops: HOT, tex: .24, power: 1.02, lamp });
       shadow(c => {
@@ -253,7 +255,7 @@
         figure(c, q);
       }, 0);
       X.save(); X.strokeStyle = INK; X.lineWidth = 5; X.lineCap = 'round'; X.beginPath(); X.moveTo(lx, FLOOR - 4); X.lineTo(lx - 18, H + 20); X.stroke(); X.restore();   // its rod
-      chochin(lx, FLOOR, LSC, { gold: true, stick: LEAN8 });   // (its stick up for the take from B7's first drawing: it arrives at a cut, not mid-shot)
+      chochin(lx, FLOOR, LSC, { gold: true, stick: LEAN8 * (2 * lu - 1) });   // (its stick from B7's first drawing: it arrives at a cut, not mid-shot)
       grain(ts);
     }
     LOOPS.inkstand = t => {
@@ -278,8 +280,9 @@
   //   10.5    she brings it down to the lantern's mouth
   //   11.44   "ARU TOKORO NI!": the chōchin blooms (three drawings); the vellum lights round her: the hood, its opening, the
   //           eye-hole lit from below; the match shaken out
-  //   12.17   both hands take the lantern (the handle's sound); 12.25 she raises it, up past her face and out of the top of
-  //           the frame (five drawings): the light climbs her from below to above and leaves; cut to the butai (the telling)
+  //   12.17   her far hand takes the lantern (the handle's sound), the near one back in her lap; 12.25 she raises it, up past
+  //           her face and out of the top of the frame (five drawings): the light climbs her profile from below to above and
+  //           leaves; cut to the butai (the telling)
   {
     const S0 = 9.0, S1 = 12.7, MATCH = 10.25, LAMP = 11.44, RAISE = 12.25;       // (ink.js registers the match and the lantern)
     const TC = { x: 560, y: 960, s: .2, origin: [1150, 2760] };                   // the teller's place (verse.js T)
@@ -302,24 +305,27 @@
     // the near fist (the match) and the far fist (steadying the lantern), as targets (canvas px), by drawing
     const BASE = () => 7 * LS + CHO.h * LS / 2;                                   // (the lantern's centre to its base)
     // the lantern's centre: on her lap until the raise; then up in front of her face and out of the top, five drawings
-    const RISE = [[722, 740], [720, 640], [717, 530], [714, 420], [712, 326]];
+    const RISE = [[722, 720], [724, 620], [722, 515], [716, 415], [708, 326]];     // (up a hand's width in front of her face)
+    const ARCH = [0, 0, -2, -4, -6];                                                 // she arches back a little as it goes over her (the arm clears her profile)
     const lc = q => q < RAISE ? [LB[0], LB[1] - BASE()] : RISE[Math.min(4, Math.floor((q - RAISE) * 12 + 1e-6))];
     const MOUTH = [LB[0] + 4, LB[1] - 7 * LS - CHO.h * LS - 6 * LS];                 // the lantern's mouth (its top cap)
     const M0 = [760, 690], M2 = [772, 706], matchTip = 26;                           // the match after the strike; withdrawn
     const AT = [MOUTH[0] + 4, MOUTH[1] - matchTip + 8];                              // (the fist that puts the match's head in the mouth)
-    const OUT = LAMP + 3 * f, TAKE0 = RAISE - 2 * f, TAKE1 = RAISE - f;              // match withdrawn and shaken out; the hands to the lantern
+    const OUT = LAMP + 3 * f, TAKE0 = RAISE - 2 * f, TAKE1 = RAISE - f;              // match withdrawn and shaken out; the near hand down, the far hand to the lantern
+    const LOW = [700, 818];                                                          // the near hand, back in her lap
     function nearTarget(q) {
       if (q < 10.5) return M0;
       if (q < 10.5 + 4 * f + 1e-6) return mix2(M0, AT, ease((q - 10.5) / (4 * f)));
       if (q < OUT) return AT;
       if (q < TAKE0) return M2;
-      const [cx, cy] = lc(q), under = [cx + 14, cy + BASE() + 6];
-      return q < TAKE1 ? mix2(M2, under, .5) : under;                                 // to the lantern's base; under it, lifting
+      return mix2(M2, LOW, ease((q - TAKE0) / (2 * f)));                             // the match put away, the hand stays low
     }
-    function farTarget(q) { const [cx, cy] = lc(q); return q < TAKE0 ? [cx - 26, cy + 10] : [cx - 2, cy + BASE() + 12]; }   // (both hands under it; the far one a little lower)
+    // the far arm (drawn behind her, so her profile, the eye-hole and the hood's opening stay cut clean over it) steadies the
+    // lantern in her lap, takes it from under its base and raises it out of the top of the frame
+    function farTarget(q) { const [cx, cy] = lc(q); return q < TAKE1 ? [cx - 26, cy + 10] : [cx - 2, cy + BASE() + 10]; }
     const headKeys = PUPPET.snap([[0, { head: 10 }], [OUT + f, { head: 6 }], [RAISE + f, { head: -4 }], [RAISE + 3 * f, { head: -16 }]]);
     function poseC(q, target) {
-      const p = { torso: 0, ...headKeys(q), _ghost: {} }; p.hair = 0;
+      const p = { torso: q < RAISE ? 0 : ARCH[Math.min(4, Math.floor((q - RAISE) * 12 + 1e-6))], ...headKeys(q), _ghost: {} }; p.hair = 0;
       Object.assign(p, reachIn(FABLE, p, TC, 'torso', SEAT_ARM, target));
       return p;
     }
@@ -364,7 +370,7 @@
       shadow(c => {
         c.globalCompositeOperation = 'source-over';
         // the far arm first (behind her), then her, hood up; the match in the near fist; the lantern, unlit, is paper
-        FABLE.draw(c, pF, { ...TC, x: TC.x - 5, y: TC.y - 4 }, { hide: ['cushion', 'lower', 'torso', 'head', 'hair'] });
+        FABLE.draw(c, pF, { ...TC, x: TC.x - 5, y: TC.y - 4 }, { hide: ['cushion', 'lower', 'torso', 'head', 'hair'] });   // (the far arm alone, behind her)
         FABLE.draw(c, pN, TC, { hide: ['hair'], props: [hoodProp], rods: FABLE_RODS });
         if (q < TAKE0) {
           const o = fistC(q, nearTarget(q));
