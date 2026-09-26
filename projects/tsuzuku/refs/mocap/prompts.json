@@ -1,0 +1,57 @@
+{
+ "c1a": {
+  "bars": [
+   46,
+   50
+  ],
+  "reuse": [
+   [
+    82,
+    86
+   ]
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. An energetic, bouncy idol dance at 170 BPM, knees bending on every beat: first she points her LEFT arm out and up to the side, bouncing; then she opens both arms wide in a big V toward the audience; then she cups her RIGHT hand behind her ear and leans toward it as if listening, hips swaying side to side, bobbing her head, holding the listening pose for a few beats. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "c1b": {
+  "bars": [
+   50,
+   53.8
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. A bouncy idol groove at 170 BPM, knees bending on every beat, hips swaying: first she waves her LEFT hand high beside her head, tilting her head; then she presents both arms open low toward the audience, palms up; then she cups her LEFT hand behind her ear and leans toward it as if listening, hips swaying, holding it for a few beats. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "c1c": {
+  "bars": [
+   58,
+   62
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. A high-energy idol dance at 170 BPM, hips swaying on every beat: first a peace sign with her LEFT hand beside her eye, with a wink; then fist pumps, alternating arms, punching up high on the beat; then she opens both arms low toward the audience and rises onto her toes, chin up. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "v2a": {
+  "bars": [
+   66,
+   70
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. A light, bouncy idol dance at 170 BPM, like telling a story: first she puts her LEFT hand flat on her chest; then she opens her RIGHT hand, palm up, beside her as if telling a tale, swaying; then both hands up by her shoulders as crab claws, bobbing; then she steps out and touches, pointing her LEFT arm straight out to the side, and points again. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "v2b": {
+  "bars": [
+   70,
+   74
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. A light, bouncy idol dance at 170 BPM: first she points her LEFT arm straight out to the side; then she reaches out with her LEFT hand open as if taking something from someone; then she pretends to write in the air with her LEFT hand, small quick scribbles, bouncing; then she opens both arms wide; then she rises onto her toes lifting both arms up and out, chin up, joyful. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "c2b": {
+  "bars": [
+   86,
+   90
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. A high-energy idol dance at 170 BPM, hips swaying on every beat: first both hands up by her shoulders as crab claws, pinching the fingers together on the beat; then fist pumps, alternating arms, punching up high on the beat; then she opens both arms low toward the audience and bounces. Joyful, precise, rhythmic, like a professional J-pop idol dancer; every move big and clear."
+ },
+ "curtsy": {
+  "bars": [
+   90,
+   93
+  ],
+  "prompt": "Full-body shot of one young woman dancer in a short orange idol dress and white knee socks, dancing in place on a plain light-grey studio floor against a plain light-grey wall. Static locked-off camera, front view, her whole body from head to feet always in frame with space around her, even soft lighting, no cuts, no camera movement, she stays on the same spot. At the end of her performance she slows down, bouncing gently twice, then makes a graceful curtsy: she steps her right foot back behind her left, bends both knees in a small ballet-style bow, holds the edges of her dress lightly at her sides with both hands, bows her head with her eyes closed, holds the bow, then rises gently and smiles. Calm, elegant, sincere."
+ }
+}

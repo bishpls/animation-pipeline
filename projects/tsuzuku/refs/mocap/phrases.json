@@ -1,0 +1,266 @@
+{
+ "note": "Motion-capture phrases for world A (MOTION.md \u00a75). Per phrase: the Seedance clip (<name>.mp4, prompt in prompts.json), the retarget's anchors ('source s:song bar'), the bars it covers, and which channel groups apply over which bars. Rebuild all: tools/mocap_phrases.py Recipe (from the audit): the bounce (hipY) and the legs stay the groove's everywhere except the hook (Fable: Clawd rises on the beat; the dancers dip on it); the dancer's sway, torso and head add as residuals; her arms replace the keyed ones only where their structure matches, and add as residuals over keyed poses that must reach her head (ear, peace, writing).",
+ "phrases": [
+  {
+   "name": "hook_v1",
+   "bar0": 62,
+   "bars": 4,
+   "anchors": "0.08:62,0.95:62.5,1.70:63,2.20:63.5,2.95:64,3.95:64.5,4.60:65,5.0:65.5",
+   "tail": "3.95:4.60:65.5:66",
+   "groups": {
+    "body": [
+     62,
+     66
+    ],
+    "arms": [
+     62,
+     66
+    ]
+   },
+   "why": "Folded in v11 (the coordinator's 979865e): body and arms from the data; keyed hands and faces on top."
+  },
+  {
+   "name": "c1a_v1",
+   "bar0": 46,
+   "bars": 4,
+   "anchors": "0.0:46,2.15:48.2,5.0:50",
+   "groups": {
+    "sway": {
+     "span": [
+      46,
+      50
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      46,
+      50
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      46,
+      50
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms": {
+     "span": [
+      48.2,
+      50
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "reuse": [
+    36
+   ],
+   "off": true,
+   "why": "Not clearly better: as 'set' the dancer's body is posed (core still 27% vs the groove's 0%, dips on the beat), and as residuals over the groove the difference is marginal. The keyed chorus-1 opening and the groove stay."
+  },
+  {
+   "name": "c1b_v1",
+   "bar0": 50,
+   "bars": 3.8,
+   "anchors": "0.0:50,1.15:51,2.8:52.1,5.0:53.8",
+   "groups": {
+    "sway": {
+     "span": [
+      50,
+      53.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      50,
+      53.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      50,
+      53.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms": {
+     "span": [
+      50,
+      50.85
+     ],
+     "mode": "set",
+     "fade": 0.4
+    },
+    "arms#2": {
+     "span": [
+      51.15,
+      53.6
+     ],
+     "mode": "residual",
+     "gain": 1,
+     "fade": 0.4
+    }
+   },
+   "why": "Folded: the wave's arms from the data, and her sway, lean and head over the keyed present and ear."
+  },
+  {
+   "name": "c1c_v1",
+   "bar0": 58,
+   "bars": 4,
+   "anchors": "0.0:58,0.55:58.35,1.6:59,3.95:61,5.0:62",
+   "groups": {
+    "sway": {
+     "span": [
+      58,
+      61.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      58,
+      61.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      58,
+      61.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms": {
+     "span": [
+      58.2,
+      58.95
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms#2": {
+     "span": [
+      59.05,
+      61.9
+     ],
+     "mode": "set",
+     "fade": 0.35
+    }
+   },
+   "why": "Folded: the fist pumps and the fling up and out from the data (foreshortened forearms filled); her sway, lean and head over the groove."
+  },
+  {
+   "name": "v2a_v1",
+   "bar0": 66,
+   "bars": 3.7,
+   "anchors": "0.0:66,0.95:67,2.45:68.2,4.0:69,5.0:69.7",
+   "groups": {
+    "sway": {
+     "span": [
+      66,
+      69.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      66,
+      69.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      66,
+      69.6
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms": {
+     "span": [
+      66.1,
+      68.95
+     ],
+     "mode": "set",
+     "fade": 0.35
+    }
+   },
+   "why": "Folded: hand on chest, the telling palm and the claws from the data (worst hand jump 137 -> 70 px/frame); the keyed step-touch and points from 69."
+  },
+  {
+   "name": "v2b_v1",
+   "bar0": 70,
+   "bars": 4.08,
+   "anchors": "0.0:70,1.2:71.3,1.9:72,3.35:73,4.15:73.75,5.0:74.08",
+   "groups": {
+    "sway": {
+     "span": [
+      70,
+      73.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      70,
+      73.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      70,
+      73.85
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "arms": {
+     "span": [
+      70.3,
+      71.9
+     ],
+     "mode": "set",
+     "fade": 1.0
+    },
+    "arms#2": {
+     "span": [
+      71.95,
+      72.95
+     ],
+     "mode": "residual",
+     "gain": 0.6,
+     "fade": 0.35
+    },
+    "arms#3": {
+     "span": [
+      73.0,
+      74.0
+     ],
+     "mode": "set",
+     "fade": 0.35
+    }
+   },
+   "why": "Folded: the point and the reach, then arms wide into the rise overhead on 'that's fine!' (73.75) from the data; the keyed writing with her motion at .6; the keyed side-step from 74.085."
+  }
+ ]
+}

@@ -83,16 +83,14 @@
   // MOTION.md: fix #1, the core dances (MOTIONLAB.groove on the performed channels: a real bounce, weight shifts, the chest and
   // head following the pelvis, phase-locked to the kick), and the hook's body from motion capture (the Seedance reference,
   // retargeted; keyed hands, faces and views on top), crossfaded in and out over a quarter bar
-  const blend = (A, B, w) => { if (w <= 0) return A; if (w >= 1) return B; const q = { ...A };
-    for (const k in B) q[k] = typeof A[k] === 'number' && typeof B[k] === 'number' ? A[k] + (B[k] - A[k]) * w : w < .5 ? A[k] : B[k]; return q; };
-  const perform = () => {
-    const P0 = RIG.perform(RIGS.clawd, build()); if (typeof MOTIONLAB === 'undefined') return P0;
-    const P1 = MOTIONLAB.groove(P0), Pm = MOTIONLAB.groove(P0, { bounce: 0, sway: 0, curves: MOTIONLAB.mocap().curves, only: [62, 66] });
-    return t => { const b = t / BAR, w = Math.max(0, Math.min(1, (b - 61.75) / .25, (66.25 - b) / .25)); return w > 0 ? blend(P1(t), Pm(t), w) : P1(t); };
-  };
+  // the phrases from motion capture are listed in refs/mocap/phrases.json (clip, anchors, and which channel groups over which
+  // bars): MOTIONLAB.layer applies them over the groove, each group faded in and out at its span's edges
+  let B0 = null;
+  const base = () => (B0 = B0 || RIG.perform(RIGS.clawd, build()));
+  const perform = () => { const P0 = base(); if (typeof MOTIONLAB === 'undefined') return P0; return MOTIONLAB.layer(MOTIONLAB.groove(P0)); };
   const get = () => (P = P || perform());
   window.CHOREO = window.CHOREO || {};
-  window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get };                       // for the harness
+  window.CHOREO.clawdA = { t0: 45 * BAR, dur: 48 * BAR, P: get, base };                // for the harness (base: before the motion lab's layers)
   // the stage (src/idolstage.js): the performers are drawn in WORLD coords through the stage's camera
   const clawdT = (t, W2S, c) => { const q = P(t), [x, y] = W2S(960 + (q.rootX || 0) * .27, 1040); return { x, y, s: .27 * c.z }; };
   const worldT = t => ({ x: 960 + (P(t).rootX || 0) * .27, y: 1040, s: .27 });

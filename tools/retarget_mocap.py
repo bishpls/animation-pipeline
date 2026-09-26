@@ -42,6 +42,10 @@ for sd, (s, e, w) in {'L': (SH_R, EL_R, WR_R), 'R': (SH_L, EL_L, WR_L)}.items():
     up, fo = L(e) - L(s), L(w) - L(e)
     th, ph = np.unwrap(np.radians(outward(up, sd))), np.unwrap(np.radians(outward(fo, sd)))
     rel = deg(ph - th); rel -= 360 * np.round(np.median(rel) / 360)              # continuous through the crossing (wrapping flips it +-180)
+    # a forearm pointing at the camera is foreshortened in the image, and its image angle is unreliable (a punch toward the lens
+    # reads as the forearm folding down): where its image length is under 70% of full, fill the elbow from the frames either side
+    fl = np.linalg.norm(fo, axis=1); fsc = fl / np.percentile(fl, 97); good = fsc >= .7
+    if good.sum() > 4 and (~good).any(): rel = np.interp(np.arange(n), np.flatnonzero(good), rel[good])
     ch['arm' + sd] = np.clip(deg(th) - REST, -100, 175); ch['elbow' + sd] = np.clip(rel, -320, 320)   # (rig v2: the elbow hinges past 120)
     # the arm's depth by layer order: the wrist well in front of the shoulder plane draws the arm over the face and hair; behind
     # the body plane, under the torso (rig.js armFront/armBack), held at least 3 frames so it doesn't flicker
