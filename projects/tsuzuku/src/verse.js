@@ -74,8 +74,13 @@
   }
   function scene(ts) {
     X.fillStyle = '#0d0b0a'; X.fillRect(0, 0, W, H);
-    screen(ts, { stops: FABLE_LAMP, tex: .32 });
-    shore(ts, { floor: FLOOR });
+    // the lamp arriving (Fable: C2 lifted it out of frame; here it's hung): the hotspot starts low, climbs to head height over
+    // the story, sways once and settles, on twos. After that it's the sky (SCREEN.lamp), as in the rest of act 1
+    const hang = Math.min(1, Math.max(0, Math.floor((ts - HANG0) * 12 + 1e-6) / 12)), he = 1 - (1 - hang) ** 3;
+    const sw = ts < HANG0 + 1 ? 0 : 42 * Math.exp(-(ts - HANG0 - 1) * 2.2) * Math.sin((ts - HANG0 - 1) * 7);
+    const lamp = [SCREEN.lamp[0] + sw, SCREEN.lamp[1] + (1 - he) * 480], settled = ts > HANG0 + 3.2;
+    screen(ts, { stops: FABLE_LAMP, tex: .32, lamp: settled ? undefined : lamp, power: .75 + .25 * he });
+    shore(ts, { floor: FLOOR, lamp: settled ? undefined : lamp });
     const p = poseAt(ts), props = [];
     if (ts < K.release) props.push(fanProp(K.fanA, ts));
     else if (ts >= K.fan2 && ts < K.set) props.push(fanProp(K.fanB, ts));
@@ -98,7 +103,7 @@
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   }
   // C3: the doors open (10 drawings) on the lit screen; the camera walks in to the window (16 drawings)
-  const DOOR0 = 12.8, PUSH0 = 13.4;
+  const DOOR0 = 12.8, PUSH0 = 13.4, HANG0 = 13.2;                  // (the glow still climbing as the doors part)
   LOOPS.telling = t => {
     if (!K) keys();
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;

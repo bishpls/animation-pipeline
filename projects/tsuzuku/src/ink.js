@@ -30,6 +30,7 @@ async function INK_INIT() {
   };
   INK.closeup = await card('rig/fable_ink', 'closeup', 'build/variants.json');
   INK.lamp = await card('rig/fable_ink', 'lamp');
+  INK.raise = await card('rig/fable_ink', 'lamp_raise');            // C2's last drawing: the lantern raised to be hung
   INK.stand = []; for (let k = 1; k <= 6; k++) INK.stand.push({ base: plates(await load(`rig/fable_ink/stand${k}.png`), 0, 0, 2 / 3), V: {} });
 }
 // print a card: washi, then the indigo plate (misregistered), then the ink plate; variant plates printed over their patches
@@ -106,8 +107,12 @@ function inkPrint(C, o = {}) {
   // over three drawings, the lantern paper glowing from inside. The card breathes (a faint bend) once it's lit.
   const S0 = 9.0, S1 = 12.7, MATCH = 10.25, LAMP = 11.44;
   const FLAME = [1975, 1012], LANTERN = [2050, 1500];
+  // the hand-off (Fable): in its last drawings she raises the lit lantern to hang it (a new drawing: arms up, the lantern at the
+  // top edge, her face lit from above); the light climbs her face from below to above and leaves by the top of the frame
+  const RAISE = 12.25, UPPER = [2150, -60];                             // (the raised lantern: its light just above the frame)
   LOOPS.inklamp = t => {
-    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, src = inkPrint(INK.lamp, { misreg: [6, 4], rivets: [[1500, 1265, 17]] });
+    const s = S0 + Math.floor(t * 12 + 1e-6) / 12, raised = s >= RAISE;
+    const src = raised ? inkPrint(INK.raise, { misreg: [6, 4] }) : inkPrint(INK.lamp, { misreg: [6, 4], rivets: [[1500, 1265, 17]] });
     X.fillStyle = '#050404'; X.fillRect(0, 0, W, H);
     const CW = W * 1.02, CH = CW * src.height / src.width, cx = W / 2, cy = H / 2, k = CW / src.width;
     const at = ([x, y]) => [cx + (x - src.width / 2) * k, cy + (y - src.height / 2) * k];
@@ -120,14 +125,15 @@ function inkPrint(C, o = {}) {
     L.globalCompositeOperation = 'lighter';
     const glow = ([x, y], r, col, a) => { const g = L.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, col.replace('A', a)); g.addColorStop(1, col.replace('A', 0)); L.fillStyle = g; L.fillRect(x - r, y - r, 2 * r, 2 * r); };
     const dm = s - MATCH;
-    if (dm >= 0) {                                                             // the match: a flare, then a small steady flame light
+    if (dm >= 0 && !raised) {                                                  // the match: a flare, then a small steady flame light
       const f = Math.floor(dm * 12 + 1e-6);
       glow(at(FLAME), (f < 2 ? 420 : 280) * (1 - .5 * lit), 'rgba(255,186,105,A)', f < 2 ? 1 : .45 + .06 * Math.sin(s * 23));
     }
-    if (lit > 0) { glow(at(LANTERN), 1650 * k * (.55 + .45 * lit), 'rgba(255,200,132,A)', lit); glow(at(LANTERN), 760 * k, 'rgba(244,201,122,A)', lit * .8); }
+    const dr = Math.floor((s - RAISE) * 12 + 1e-6), LP = raised ? at([UPPER[0], UPPER[1] - Math.max(0, dr - 2) * 90]) : at(LANTERN);   // then it goes up out of frame
+    if (lit > 0) { glow(LP, 1650 * k * (.55 + .45 * lit), 'rgba(255,200,132,A)', lit); glow(LP, 760 * k, 'rgba(244,201,122,A)', lit * .8); }
     X.save(); X.globalCompositeOperation = 'multiply'; X.drawImage(INK._L, 0, 0); X.restore();
     if (lit > 0) {                                                             // the lantern's paper, glowing from inside
-      X.save(); X.globalCompositeOperation = 'screen'; const [lx, ly] = at(LANTERN), g = X.createRadialGradient(lx, ly, 0, lx, ly, 440 * k);
+      X.save(); X.globalCompositeOperation = 'screen'; const [lx, ly] = LP, g = X.createRadialGradient(lx, ly, 0, lx, ly, 440 * k);
       g.addColorStop(0, `rgba(244,201,122,${.2 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)');   // Lantern #F4C97A, capped: the ribs stay X.fillStyle = g; X.fillRect(lx - 460 * k, ly - 460 * k, 920 * k, 920 * k); X.restore();
     }
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
