@@ -1,0 +1,40 @@
+{
+ "image": "../base_stage_keyed.png",
+ "crop": [
+  512,
+  0,
+  1024
+ ],
+ "out": "build",
+ "edits": "_edits_face1024",
+ "feather": 10,
+ "patches": {
+  "eye_L": [
+   935,
+   347,
+   62,
+   36
+  ],
+  "eye_R": [
+   1082,
+   347,
+   62,
+   36
+  ],
+  "mouth": [
+   1015,
+   457,
+   40,
+   20
+  ]
+ },
+ "variants": {
+  "glance": {
+   "prompt": "Her eyes glance sideways to the LEFT side of the image (the viewer's left): both irises move into the left corners of her eyes, a calm sidelong look. The eyelids, lashes, face and head stay exactly the same; only the irises move.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  }
+ }
+}

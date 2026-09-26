@@ -1,0 +1,48 @@
+{
+ "image": "../base_stage_keyed.png",
+ "crop": [
+  640,
+  16,
+  768
+ ],
+ "out": "build",
+ "edits": "_edits_face",
+ "feather": 10,
+ "patches": {
+  "eye_L": [
+   935,
+   347,
+   62,
+   36
+  ],
+  "eye_R": [
+   1082,
+   347,
+   62,
+   36
+  ],
+  "mouth": [
+   1015,
+   457,
+   40,
+   20
+  ]
+ },
+ "variants": {
+  "closed": {
+   "prompt": "Her eyes are gently closed (a blink): the upper lids down, soft curved lash lines. Nothing else changes.",
+   "patches": [
+    "eye_L",
+    "eye_R"
+   ]
+  },
+  "smile": {
+   "prompt": "A small, dry, knowing smile: one eyebrow slightly raised, the eyes a touch narrower, the corners of the mouth lifted a little.",
+   "patches": [
+    "eye_L",
+    "eye_R",
+    "mouth"
+   ]
+  }
+ }
+}

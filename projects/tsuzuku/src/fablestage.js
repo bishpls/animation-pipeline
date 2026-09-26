@@ -105,7 +105,9 @@ const FABLESTAGE = (() => {
       return { entrance: b < ST.hood[0] ? 'hoodup' : 'hoodpush', b, tq, x: 1 - (k + (k < 2 ? f : 0)) / 2, hop: Math.sin(Math.PI * f) * (u < 2 ? 1 : 0) };
     }
     const q = clawdP ? clawdAt(clawdP, srcTime(tq)) : {}, p = mapP(q);
-    if (b >= 131.5 && b < 133.3) { p.angleX = -.32; p.angleZ = (p.angleZ || 0) - 2; }   // "why": she glances at Clawd (image-left)
+    if (b >= 131.5 && b < 133.3) { p.angleX = -.32; p.angleZ = (p.angleZ || 0) - 2; p.eyes = 'glance'; }   // "why": she glances at Clawd (image-left)
+    if ((b >= 133.3 && b < 135) || b >= ST.freeze) { p.eyes = 'smile'; p.mouth = 'smile'; }   // then the dry smile, one brow up; held at the freeze
+    for (const k of [130.3, 136.4, 138.2, 139.9]) if (b >= k && b < k + .12) p.eyes = 'closed';   // blinks, two drawings
     return { p, b, tq, x: 0, hop: 0, rootX: AMP * (q.rootX || 0) };
   }
   let OFF = null, SH = null;

@@ -413,5 +413,6 @@
   "hakama": 40,
   "jacket": 40
  },
- "idPrefix": "fable"
+ "idPrefix": "fable",
+ "variants": "build/variants.json"
 }

@@ -1,0 +1,57 @@
+{
+ "eye_L": {
+  "closed": {
+   "file": "eye_L@closed.png",
+   "x": 873,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  },
+  "smile": {
+   "file": "eye_L@smile.png",
+   "x": 873,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  },
+  "glance": {
+   "file": "eye_L@glance.png",
+   "x": 873,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  }
+ },
+ "eye_R": {
+  "closed": {
+   "file": "eye_R@closed.png",
+   "x": 1020,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  },
+  "smile": {
+   "file": "eye_R@smile.png",
+   "x": 1020,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  },
+  "glance": {
+   "file": "eye_R@glance.png",
+   "x": 1020,
+   "y": 311,
+   "w": 125,
+   "h": 73
+  }
+ },
+ "mouth": {
+  "smile": {
+   "file": "mouth@smile.png",
+   "x": 975,
+   "y": 437,
+   "w": 81,
+   "h": 41
+  }
+ }
+}
