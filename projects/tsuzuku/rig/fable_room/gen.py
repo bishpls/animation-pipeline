@@ -310,10 +310,52 @@ JOBS['k_step2'] = ([mine('k_step')],
     "and its stick, the cushion, the lighting, the scale and the position). Flat pure green (#00FF00) background. " + DESIGN.replace(
     "a rough cream paper-fibre (deckle) trim at the jacket hem and the cuffs", "a thin, irregular torn-paper edge at the jacket hem and the cuffs, a lighter value of the black cloth, no white"))
 
+# ================================================================================ the ending, expressed (Michael: "sullen"; Fable)
+# faces: one crop edit (1024, flattened on green) per face per head angle; build.py registers each onto every drawing sharing that
+# head and pastes the face through a feathered patch (tools/variants.py style)
+FK = ("Keep EVERYTHING else exactly identical: the same profile and head angle, the same hair, bangs, ribbon and hood, the clothes, "
+      "the same position and size in the frame, the same anime lineart, colours and lighting. Only her expression changes. Flat "
+      "pure green (#00FF00) background.")
+FACES = {
+    'A': "Edit this close-up. Change ONLY her expression: the corner of her mouth turns up in the faintest smile, and her eye is a "
+         "little more open and brighter, with a small bright glint of light on the side of the eye toward the left (the window). ",
+    'B': "Edit this close-up. Change ONLY her expression: one eyebrow raised (showing just under the edge of her straight bangs), "
+         "with a dry, knowing half-smile: one corner of the mouth up, the eye bright and a little narrowed, amused. ",
+    'C': "Edit this close-up. Change ONLY her expression: a real, warm smile with the lips closed, the cheek lifting with it, the "
+         "eye open, bright and shining, still looking in the same direction. Happy and moved. ",
+}
+FC = lambda n: os.path.join(D, 'src', '_faces', n + '_crop.png')
+for fid, head in [('A', 'x_u'), ('A', 'x_u_up'), ('B', 'x_d'), ('C', 'x_d'), ('C', 'x_d_up'), ('C', 'x_d_dn'), ('C', 'k_wp1'), ('C', 'k_turn1')]:
+    JOBS[f'_faces/f{fid}_{head}'] = ([FC(head)], FACES[fid] + FK)
+SIZES = {k: '1024x1024' for k in JOBS if k.startswith('_faces/')}
+DG = mine('x_d_green')
+KD = ("Keep EVERYTHING else exactly as in image 1: her face, hair, ribbon, the fallen hood, the jacket with its thin torn-paper "
+      "(deckle) hem and cuffs in a lighter value of the black cloth (no white, no pale band), the skirt, feet and geta, the scale and "
+      "position on the canvas, the lighting. Flat pure green (#00FF00) background, nothing else in the frame. No green on her. ")
+JOBS['c_open'] = ([DG], "Edit image 1. Change ONLY her near arm (the free hand nearest to us, hanging at her side): she brings that "
+    "hand forward and up in front of her body to clap against the wrist of her other hand, the one holding the lantern's stick: the "
+    "free hand open, palm facing the lantern hand's wrist, a hand's width away from it, about to clap. The lantern hand, its stick "
+    "and the lit lantern stay exactly where they are. A warm, closed-lip smile, eyes bright. " + KD)
+JOBS['c_shut'] = ([DG], "Edit image 1. Change ONLY her near arm (the free hand nearest to us, hanging at her side): she claps: the "
+    "palm of her free hand strikes the wrist of her other hand, the one holding the lantern's stick, in front of her body; the free "
+    "hand touches that wrist. The lantern hand, its stick and the lit lantern stay exactly where they are. A warm, closed-lip "
+    "smile, eyes bright. " + KD)
+FD = ("Her face: an open, delighted smile (mouth open, happy), eyes wide OPEN and shining, looking up and to the left at the "
+      "window. ")
+JOBS['r_half'] = ([DG], "Edit image 1. She raises the lantern: the arm holding the lantern's short stick lifts forward and up to "
+    "shoulder height, the stick held level, the lit lantern hanging from its end in front of her at chest height. Her other hand "
+    "relaxed at her side. " + FD + KD)
+JOBS['r_up'] = ([DG], "Edit image 1. She raises the lantern high: the arm holding the lantern's short stick is lifted straight up "
+    "overhead and a little forward, the lit lantern hanging from the stick's end above and in front of her head, glowing. Her other "
+    "hand relaxed at her side. " + FD + KD)
+JOBS['g_wc1'] = ([mine('k_wc1')], "Edit image 1. Change ONLY her head: she turns her head back over her near shoulder to glance "
+    "behind her, toward the LEFT of the picture (the window she is leaving), with a warm, closed-lip smile and bright open eyes. "
+    "Her body, legs, arms, the lantern and its stick, her hair and ribbon trailing behind, exactly as in image 1. " + KD)
+
 
 def run(name):
     refs, prompt = JOBS[name]
-    generate(prompt, mine(name), size='2048x2560', quality='high', refs=refs)
+    generate(prompt, mine(name), size=SIZES.get(name, '2048x2560') if 'SIZES' in globals() else '2048x2560', quality='high', refs=refs)
 
 
 if __name__ == '__main__':

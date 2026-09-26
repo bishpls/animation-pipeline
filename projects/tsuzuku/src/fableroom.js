@@ -135,28 +135,37 @@ const FABLEROOM = (() => {
   LOOPS.fableroom_key.len = 181.5;
 
   // =============================================================================================================== the ending
-  // The room ending (Michael + Fable; the final chorus, 177.8-201.5). She stays at her place beside the butai, in profile facing
-  // the window, the lantern on its short stick in her fist (hold's arm: the drawing B9 hands off to at 177.8), and it never moves:
-  // every standing drawing is hold with only the head or the free arm pasted in (rig/fable_room/build.py ending), so the lantern,
-  // the fist and the far sleeve are hold's own pixels throughout. "A still light in a moving room." Twos, snap and hold.
-  //   177.8   hood up. The head follows Clawd in the card a bar late, small: her angleY at t - 1 bar, on twos, as chin up / level /
-  //           chin down (hood up: up or level), each held at least three drawings. Nothing else moves.
-  //   187.83  "why" (Clawd turns and looks out at her at 187.62): the hood push, the free (near) hand: rising, to the hood's rim
-  //           (held), the hood sliding back, the hood down with her hand at the back of her head (held), the hand coming down;
-  //           hood down from 188.42, all landed by 188.92. Her face in profile from then.
-  //   190.588 the step (the only time she moves on Clawd's beat): the near foot one step toward the window, landing on the
-  //           downbeat of bar 135; the trailing foot closes on the next beat (190.941). Held there. Feet pinned (no slide).
-  //   194.67  one page-wipe, a bar after Clawd's (bar 136.99, "Turn the page"): the free hand up, swept toward the window (held),
-  //           back, at rest by 195.5. Half her own reach.
-  //   199.07  she freezes with the card (the drawing held) until 200.6.
-  //   200.67  she turns (three-quarter to the viewer, the lantern swinging round in front of her; three-quarter right) and walks
-  //           off the frame's right edge, the lantern carried ahead, geta on the beat (200.82, 201.18), the ribbon last; gone at
-  //           201.5 (off the frame's edge at the room's wide camera by ~201.3). Her lantern's light leaves with her; the cushion stays.
-  const E = { meta: null, img: {}, head: null, P: null }, BR = 60 / 170 * 4, sl = t => Math.floor(t * 12 + 1e-6);
-  const EK = { start: 177.8, push: 187.8334, step: 190.5834, close: 190.9167, wipe: 194.6667, freeze: 199.07, off: 200.6667 };
-  const PUSH = [['push0', 2], ['push1', 3], ['push2', 2], ['push3', 4], ['d_wipe1', 2]];     // (hood down from push3)
-  const WIPE = [['d_wipe1', 2], ['d_wipe2', 6], ['d_wipe1', 2]];
-  const OFF = [['turn1', 1], ['turn2', 1], ['wc1', 2], ['wp1', 2], ['wc2', 2], ['wp1b', 2]];   // (wp1b: wp1 again, the next step)
+  // The room ending (Michael + Fable; the final chorus, 177.8-201.3). She stays at her place beside the butai, in profile facing the
+  // window, and she's moved by it (Michael, after v6: "sullen... at odds with the finale"; Fable's arc). Every standing drawing is
+  // hold with only the head, the face or the free arm pasted in (rig/fable_room/build.py ending); the lantern is a prop, its stick
+  // fixed in her fist and the lantern swinging on its ring. Twos, snaps and holds; small code offsets (the bounce) only.
+  //   177.8   hood up, the head following Clawd in the card a bar late (small), the face at rest.
+  //   182.12  the drop: F-A, "the corner" (the mouth's corner up, the eye bright). Head bobs on her pulse (the half-note), small
+  //           (a lift); from 185.7 the lantern swings with them, +-6 degrees.
+  //   187.67  "why" (Clawd looks out at her at 187.62): the hood push, the free (near) hand: rising, to the rim, the hood sliding
+  //           back, the hood down with her hand at the back of her head. F-B, "the eyebrow" (the dry, knowing half-smile), revealed.
+  //   188.76  two claps with the hall before its "SO-RE-KA-RA?!" (189.11): the free hand to the lantern wrist (the lantern stays).
+  //   189.08  the bobs grow (a dip on the pulse); F-B.
+  //   190.588 the step toward the window (past the cushion's near side), landing on the downbeat of bar 135 with a bounce (a dip,
+  //           then up: a squash about her soles, feet planted); the trailing foot closes at 190.941.
+  //   191.25  F-C, "the smile" (lips closed, eyes open); the bobs are full (a dip on the pulse, a lift between).
+  //   193.33  the page-wipe on "Turn the page" (mekutte, 193.39), with Clawd: the free hand up and across toward the window, held,
+  //           back.
+  //   197.24  claps, two before each "and then" (197.59, 198.21, 198.89), on the eighths before the call.
+  //   199.0   the hit: the lantern raised overhead (r_half, r_up: snapped on the dash, 199.07), F-D, "the hit": an open smile, eyes
+  //           open, at the window ("I'd still like to see"). Held, frozen with the card, through the ring-out.
+  //   200.58  she lowers it (r_half, then standing), turns (three-quarter, the lantern swinging round in front), glances back at the
+  //           window smiling, and walks off right with the lantern leading, geta on the beat (200.82, 201.18); gone by ~201.3.
+  const E = { meta: null, img: {}, head: null, P: null }, BR = 60 / 170 * 4, BEAT = BR / 4, EIGHTH = BR / 8;
+  const sl = t => Math.floor(t * 12 + 1e-6);
+  const EK = { start: 177.8, drop: 182.1176, swing: 185.7, push: 187.6667, stepK: 190.5834, close: 190.9167, smile: 191.25,
+               wipe: 193.3334, hit: 199.0, lower: 200.5834, freeze: 199.07 };
+  const PULSE = BR / 2;                                                // her pulse: the half-note
+  const CALLS1 = [189.111], CALLS2 = [197.591, 198.211, 198.891];      // (the hall's calls: two claps on the eighths before each)
+  const CLAPS = [...CALLS1, ...CALLS2].flatMap(c => [c - 2 * EIGHTH, c - EIGHTH]);
+  const PUSH = [['push0.A', 2], ['push1.A', 2], ['push2.B', 2], ['push3.B', 3], ['wipe1.B', 2]];     // (hood down from push2's end)
+  const WIPE = [['wipe1.C', 2], ['wipe2.C', 5], ['wipe1.C', 2]];
+  const OFF = [['r_half', 1], ['d.C', 1], ['turn1.C', 1], ['turn2.C', 1], ['wc1g', 2], ['wp1.C', 1], ['wc2.C', 2], ['wp1b', 2]];
   const FL = 1218.5, D_NEAR = 499, D_FAR_Y = 1194.5;                 // (hold's near geta tip, its far geta's sole: measured)
   const PLACE = {};                                                    // drawing px offsets of the placed drawings
   function endPlace() {
@@ -164,72 +173,107 @@ const FABLEROOM = (() => {
     // the step: the far foot stays where it stood (its tip, its sole); the near foot lands one step toward the window, on the
     // floor in front of the cushion's corner (the cushion reaches nearer the viewer than her feet: a step along the line would
     // land on it), so she closes one step left and a little nearer. L: that move, for the closed pose and the walk-off after it
-    const sN = G('step')[0], sF = G('step')[1], dFar = G('d')[0].box[0];
+    const sN = G('step.B')[0], sF = G('step.B')[1], dFar = G('d.C')[0].box[0];
     PLACE.step = [dFar - sF.box[0], D_FAR_Y - sF.box[3]];
     PLACE.L = [sN.box[0] + PLACE.step[0] - D_NEAR, sN.box[3] + PLACE.step[1] - FL];
     const F2 = FL + PLACE.L[1], c0 = (dFar + 641.5) / 2 + PLACE.L[0];  // her feet, closed: the floor line she walks off on
-    const u1 = G('turn1'), c1 = (Math.min(...u1.map(g => g.box[0])) + Math.max(...u1.map(g => g.box[2]))) / 2;
-    PLACE.turn1 = [c0 - c1, F2 - bot('turn1')];                        // she pivots on the spot
-    PLACE.turn2 = [c0 - cx(G('turn2')[0]), F2 - bot('turn2')];        // the back foot is the pivot foot; the front one steps out
+    const u1 = G('turn1.C'), c1 = (Math.min(...u1.map(g => g.box[0])) + Math.max(...u1.map(g => g.box[2]))) / 2;
+    PLACE['turn1.C'] = [c0 - c1, F2 - bot('turn1.C')];                 // she pivots on the spot
+    PLACE['turn2.C'] = [c0 - cx(G('turn2.C')[0]), F2 - bot('turn2.C')]; // the back foot is the pivot foot; the front one steps out
     const toe = (n, i) => G(n)[i].toe[0] + PLACE[n][0];
-    PLACE.wc1 = [toe('turn2', 1) - G('wc1')[0].toe[0], F2 - bot('wc1')];   // each planted geta pinned to where it landed
-    PLACE.wp1 = [toe('wc1', 1) - G('wp1')[0].toe[0], F2 - bot('wp1')];
-    PLACE.wc2 = [toe('wp1', 0) - G('wc2')[0].toe[0], F2 - bot('wc2')];
-    PLACE.wp1b = [toe('wc2', 1) - G('wp1')[0].toe[0], F2 - bot('wp1')];
+    PLACE.wc1g = [toe('turn2.C', 1) - G('wc1g')[0].toe[0], F2 - bot('wc1g')];   // each planted geta pinned to where it landed
+    PLACE['wp1.C'] = [toe('wc1g', 1) - G('wp1.C')[0].toe[0], F2 - bot('wp1.C')];
+    PLACE['wc2.C'] = [toe('wp1.C', 0) - G('wc2.C')[0].toe[0], F2 - bot('wc2.C')];
+    PLACE.wp1b = [toe('wc2.C', 1) - G('wp1.C')[0].toe[0], F2 - bot('wp1.C')];
   }
-  // the head, from Clawd's performance a bar late: sampled at every drawing 177.8-200.6, quantized, runs under three drawings
-  // dropped (so it holds). Built once from the whole range (the same at any t, cold or warm)
+  // before the drop the head follows Clawd a bar late (her angleY at t - 1 bar: chin up / level), held three drawings at least
   function headTrack(P) {
-    const k0 = sl(EK.start), k1 = sl(EK.off), raw = [];
-    for (let k = k0; k < k1; k++) { const q = P(k / 12 - BR) || {}, v = q.angleY || 0; raw.push(v > .2 ? 'up' : v < -.15 ? 'dn' : ''); }
+    const k0 = sl(EK.start), k1 = sl(EK.drop), raw = [];
+    for (let k = k0; k < k1; k++) { const v = (P(k / 12 - BR) || {}).angleY || 0; raw.push(v > .2 ? 'up' : ''); }
     const out = raw.slice();
     for (let i = 0, prev = ''; i < out.length;) { let j = i; while (j < out.length && raw[j] === raw[i]) j++; const v = j - i >= 3 ? raw[i] : prev; for (let m = i; m < j; m++) out[m] = v; prev = v; i = j; }
     return { k0, h: out };
   }
+  const phase = t => (((t - EK.drop) / PULSE) % 1 + 1) % 1;
+  function swingAt(k) {                                                // the lantern on its ring, with her pulse, on twos (degrees)
+    if (k < sl(EK.swing)) return 0;
+    const v = Math.sin(2 * Math.PI * phase(k / 12)); return Math.round(v * 2) * 3;   // (-6, -3, 0, 3, 6)
+  }
+  function claps(k) {                                                  // the clap drawing at slot k (null: not clapping)
+    const shut = CLAPS.map(sl), near = shut.filter(s => s >= k - 6 && s <= k + 6);
+    if (!near.length) return null;
+    if (shut.includes(k)) return 'c_shut';
+    const first = Math.min(...near), last = Math.max(...near);
+    if (k >= first - 2 && k <= last + 1) return 'c_open';
+    return null;
+  }
   function endState(t) {
-    let k = sl(t); const s = { d: 'u', ox: 0, oy: 0, lantern: true, gone: false, k };
-    if (k >= sl(EK.freeze) && k < sl(EK.off)) k = sl(EK.freeze);                 // the freeze: her drawing held
+    let k = sl(t); const s = { d: 'u.N', ox: 0, oy: 0, sy: 1, swing: 0, k };
+    if (k > sl(EK.hit) + 1 && k < sl(EK.lower)) k = sl(EK.hit) + 1;              // the hit: r_up held, frozen with the card
     const run = (list, k0) => { let at = k0; for (const [d, n] of list) { if (k < at + n) return d; at += n; } return null; };
-    if (k >= sl(EK.off)) {                                                       // the walk-off
-      const d = run(OFF, sl(EK.off)); if (!d) return { ...s, d: null, gone: true };
-      const [ox, oy] = PLACE[d]; return { ...s, d: d === 'wp1b' ? 'wp1' : d, ox, oy, carried: true };
+    if (k >= sl(EK.lower)) {                                                     // she lowers it, turns, glances back, goes
+      const d = run(OFF, sl(EK.lower)); if (!d) return { ...s, d: null, gone: true };
+      const [ox, oy] = d === 'r_half' || d === 'd.C' ? PLACE.L : PLACE[d];
+      return { ...s, d: d === 'wp1b' ? 'wp1.C' : d, ox, oy };
     }
-    const hoodDown = k >= sl(EK.push) + 7, closed = k >= sl(EK.close);
+    if (k >= sl(EK.hit)) return { ...s, d: k === sl(EK.hit) ? 'r_half' : 'r_up', ox: PLACE.L[0], oy: PLACE.L[1] };
+    const closed = k >= sl(EK.close), face = k >= sl(EK.smile) ? 'C' : 'B', ph = phase(k / 12);
     if (closed) [s.ox, s.oy] = PLACE.L;
-    let g = k >= sl(EK.push) ? run(PUSH, sl(EK.push)) : null;
-    if (!g && k >= sl(EK.wipe)) g = run(WIPE, sl(EK.wipe));
-    if (!g && k >= sl(EK.step) && k < sl(EK.close)) { [s.ox, s.oy] = PLACE.step; return { ...s, d: 'step', carried: true }; }
-    if (g) return { ...s, d: g };
+    s.swing = swingAt(k);
+    if (k >= sl(EK.push) && k < sl(EK.push) + 11) return { ...s, d: run(PUSH, sl(EK.push)) };
+    const c = claps(k); if (c) return { ...s, d: c + '.' + face };
+    if (k >= sl(EK.wipe) && k < sl(EK.wipe) + 9) return { ...s, d: run(WIPE, sl(EK.wipe)) };
+    if (k >= sl(EK.stepK) && k < sl(EK.close)) {                                // the step: a bounce on the landing
+      [s.ox, s.oy] = PLACE.step; s.sy = k === sl(EK.stepK) ? .985 : k === sl(EK.stepK) + 1 ? 1.012 : 1;
+      return { ...s, d: 'step.B' };
+    }
+    if (k >= sl(EK.push)) {                                                      // hood down: bobs on the pulse, growing
+      if (face === 'B') return { ...s, d: ph < .2 ? 'd_dn.B' : 'd.B' };
+      return { ...s, d: ph < .2 ? 'd_dn.C' : ph >= .5 && ph < .7 ? 'd_up.C' : 'd.C' };
+    }
+    if (k >= sl(EK.drop)) return { ...s, d: ph < .25 ? 'u_up.A' : 'u.A' };       // hood up, the corner: a small lift on the pulse
     const hv = E.head ? E.head.h[k - E.head.k0] || '' : '';
-    s.d = hoodDown ? (hv ? 'd_' + hv : 'd') : (hv === 'up' ? 'u_up' : 'u');
-    return s;
+    return { ...s, d: hv === 'up' ? 'u_up.N' : 'u.N' };
   }
   function ending(X, t, T, o = {}) {
     if (!E.meta) return null;
     if (o.P && E.P !== o.P) { E.P = o.P; E.head = headTrack(o.P); }
-    const st = endState(Math.max(t, EK.start)), [w, h] = E.meta.size, P = R.meta ? R.meta.points : { feet: [559, 1218.5] };
-    X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-P.feet[0], -P.feet[1]);
+    const st = endState(Math.max(t, EK.start)), [w, h] = E.meta.size, P = E.meta.points, M = E.meta.drawings;
+    X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-559, -FL);
     X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
     if (!o.figureOnly) X.drawImage(E.img.props, 0, 0, w, h);
     if (st.d) {
-      X.drawImage(E.img[st.d], st.ox, st.oy, w, h);
-      // the lantern's warm light, in her fist: on her sleeve, her face from below, the floor; it goes where she goes
-      const lc = E.meta.drawings[st.d].lantern, fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3);
+      const m = M[st.d], pr = m.prop;
+      X.save(); X.translate(st.ox, st.oy);
+      if (st.sy !== 1) { const fx = 559; X.translate(fx, FL); X.scale(1, st.sy); X.translate(-fx, -FL); }   // (the bounce: about her soles)
+      let lc = null;
+      if (pr) {                                                        // the lantern prop: the stick in her fist, the lantern on its ring
+        X.save(); X.translate(pr[0], pr[1]);
+        X.drawImage(E.img.prop_stick, 0, 0, w, h);
+        const [hx, hy] = P.hook, a = st.swing * Math.PI / 180;
+        X.translate(hx, hy); X.rotate(a); X.translate(-hx, -hy); X.drawImage(E.img.prop_lantern, 0, 0, w, h);
+        X.restore();
+        const [cx, cy] = P.lantern_c; lc = [pr[0] + P.hook[0] + (cx - P.hook[0]) * Math.cos(a) - (cy - P.hook[1]) * Math.sin(a),
+                                            pr[1] + P.hook[1] + (cx - P.hook[0]) * Math.sin(a) + (cy - P.hook[1]) * Math.cos(a)];
+      } else lc = m.lantern;
+      X.drawImage(E.img[st.d], 0, 0, w, h);
+      // the lantern's warm light: on her sleeve, her face from below, the floor; it goes where the lantern goes
       if (lc && !o.figureOnly) {
-        const lx = lc[0] + st.ox, ly = lc[1] + st.oy;
+        const fl = 1 + .04 * Math.sin(t * 9.1) * Math.sin(t * 3.3);
         X.globalCompositeOperation = 'lighter';
-        const gr = X.createRadialGradient(lx, ly, 8, lx, ly, 300 * fl);
+        const gr = X.createRadialGradient(lc[0], lc[1], 8, lc[0], lc[1], 300 * fl);
         gr.addColorStop(0, 'rgba(244,190,110,.32)'); gr.addColorStop(.4, 'rgba(244,160,80,.12)'); gr.addColorStop(1, 'rgba(244,160,80,0)');
-        X.fillStyle = gr; X.fillRect(lx - 310, ly - 310, 620, 620);
+        X.fillStyle = gr; X.fillRect(lc[0] - 310, lc[1] - 310, 620, 620);
       }
+      X.restore();
     }
     X.restore();
     return st;
   }
-  // the sounds (sound/mix.py; names from sound/sfx_lib.py), from the same constants: the step's two geta, the cloth of the hood
-  // as it slides back, and her geta on the walk-off's two contacts. Nothing for the wipe or the head (her gestures are silent)
-  PAPER_SFX.push(() => [[190.588, 'geta', -24], [190.941, 'geta', -26], [(sl(EK.push) + 5) / 12, 'cloth', -31],
-                        [(sl(EK.off) + 2) / 12, 'geta', -26], [(sl(EK.off) + 6) / 12, 'geta', -27]]);
+  // the sounds (sound/mix.py; names from sound/sfx_lib.py), from the same constants: the cloth of the hood sliding back, her claps
+  // (her palm on her own wrist: quiet, under the hall's), the step's two geta, and her geta on the walk-off's two contacts
+  PAPER_SFX.push(() => [[(sl(EK.push) + 4) / 12, 'cloth', -31], ...CLAPS.map(c => [c, 'clap', -34]),
+                        [190.588, 'geta', -24], [190.941, 'geta', -26], [200.824, 'geta', -26], [201.176, 'geta', -27]]);
   // preview: the ending on a plain dark ground at the finale's room camera (FIN: her feet at (1650, 1010), s .767), on the song
   // clock, Clawd's performance from finale.js (CHOREO.clawdF). ?loop=fableroom_end; _key: the figure alone on green, camera still
   const FIN = { x: 1650, y: 1010, s: 1.394 * .55 };

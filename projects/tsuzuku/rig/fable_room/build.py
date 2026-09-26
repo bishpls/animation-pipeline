@@ -178,7 +178,7 @@ def main():
     for n, img in drawings.items():
         facing = -1 if n in ('hold', 'empty', 'setdown', 'bend', 'down', 'rise', 'rise2', 'turn_l') else 1
         if n not in reg and n not in ('hold', 'empty', 'setdown'): continue
-        f = geta(img, xmin=0, facing=facing)
+        f = geta(img, xmin=0, facing=facing) if k.split('.')[0] in ('d', 'u', 'step', 'turn1', 'turn2', 'wc1g', 'wp1', 'wc2') else {'sole': 0, 'geta': []}
         g = [{'toe': h(q['toe']), 'box': [round(v * SC, 1) for v in q['box']], 'lift': round(q['lift'] * SC, 1)} for q in f['geta']]
         cx = np.mean([(q['box'][0] + q['box'][2]) / 2 for q in f['geta']]) if f['geta'] else float('nan')
         ys, xs = np.nonzero(img[..., 3] > 128)
@@ -287,22 +287,145 @@ def ending():
         fig = (img[..., 3] > 0) & ~cush                                  # (in the footprint, no slivers: what's left there is geta,
         thin = foot & fig & ~ndi.binary_opening(fig, iterations=3)       #  tabi or skirt, all solid)
         out[k] = figure_only(img, cush | thin, np.zeros_like(cush))       # (no default navy cut: the tabi shades lavender)
+    out, prop_meta = expressed(out, hold, base, K, M, SRC, H, W, xx, yy)
+    # full-res exports of the composites, for crop edits (faces) and whole edits (claps, the raise): src/x_<name>.png
+    for k in ('u', 'u_up', 'd', 'd_up', 'd_dn'):
+        if k in out and not os.path.exists(os.path.join(SRC, 'x_' + k + '.png')): Image.fromarray(out[k]).save(os.path.join(SRC, 'x_' + k + '.png'))
     meta = {'scale': SC, 'size': [round(W * SC), round(H * SC)], 'points': {}, 'drawings': {}}
     h = lambda p: [round(p[0] * SC, 1), round(p[1] * SC, 1)]
     for k, img in out.items():
-        facing = 1 if k in ('turn2', 'wc1', 'wp1', 'wc2') else -1
-        f = geta(img, xmin=0, facing=facing)
+        facing = 1 if k.split('.')[0] in ('turn2', 'wc1', 'wc1g', 'wp1', 'wc2') else -1
+        f = geta(img, xmin=0, facing=facing) if k.split('.')[0] in ('d', 'u', 'step', 'turn1', 'turn2', 'wc1g', 'wp1', 'wc2') else {'sole': 0, 'geta': []}
         g = [{'toe': h(q['toe']), 'box': [round(v * SC, 1) for v in q['box']], 'lift': round(q['lift'] * SC, 1)} for q in f['geta']]
         lc = lantern_center(img)
         ys, xs = np.nonzero(img[..., 3] > 128)
         meta['drawings'][k] = {'file': k + '.png', 'sole': round(f['sole'] * SC, 1), 'geta': g, 'crown': round(ys.min() * SC, 1),
-                               'lantern': h(lc) if lc else None}
+                               'lantern': h(lc) if lc else None, 'prop': prop_meta['offsets'].get(k)}
         save_to(img, os.path.join(ENDOUT, k + '.png'))
     save_to(props, os.path.join(ENDOUT, 'props.png')); meta['drawings']['props'] = {'file': 'props.png'}
+    for k in ('lantern', 'stick'): save_to(prop_meta['layers'][k], os.path.join(ENDOUT, 'prop_' + k + '.png')); meta['drawings']['prop_' + k] = {'file': 'prop_' + k + '.png'}
+    meta['points'].update({k: h(v) for k, v in prop_meta['points'].items()})
     meta['points']['feet'] = [559.0, 1218.5]                             # (the room drawings' feet: T is given there)
     json.dump(meta, open(os.path.join(ENDOUT, 'meta.json'), 'w'), indent=1)
     for k, d in meta['drawings'].items():
         if 'geta' in d: print(f'{k:8s} sole {d["sole"]:7.1f} crown {d["crown"]:6.1f} lantern {d["lantern"]}  geta', [(q['toe'], q['lift']) for q in d['geta']])
+
+
+# ---------------------------------------------------------------------------------------------- the ending, expressed (v2)
+# Michael (after v6): "sullen, expressionless... at odds with the finale". Fable's arc: F-A the corner (hood up, from the drop),
+# F-B the eyebrow (the hood push), F-C the smile (from the step), F-D the hit (drawn into r_half / r_up), a smiling glance back.
+# Faces are crop edits (src/_faces, 1024, one per face per head angle) registered onto every drawing sharing that head (the head's
+# own drawing: identity; others: an ECC fit on the face, translation + rotation) and pasted through a feathered ellipse. The
+# lantern is cut out of every standing drawing as a prop: its stick (fixed in the fist) and the lantern (it swings on its ring).
+FACES = [('A', 'u', 'x_u', (640, 0)), ('A', 'u_up', 'x_u_up', (640, 0)), ('B', 'd', 'x_d', (640, 0)), ('C', 'd', 'x_d', (640, 0)),
+         ('C', 'd_up', 'x_d_up', (640, 0)), ('C', 'd_dn', 'x_d_dn', (640, 0)), ('C', 'wp1', 'k_wp1', (700, 0)), ('C', 'turn1', 'k_turn1', (700, 0))]
+GRIP, HOOK = (700, 1105), (548, 1116)                                   # hold, full res: the fist's grip on the stick; the lantern's ring
+LANBOX, STICKBOX = (380, 1116, 720, 1640), (505, 1080, 662, 1128)
+
+
+def face_patches(SRC):
+    F = os.path.join(SRC, '_faces'); P = {}
+    L = lambda a: a[..., :3].astype(np.float64) @ [.299, .587, .114]
+    for fid, head, crop, (x0, y0) in FACES:
+        c = key(os.path.join(F, crop + '_crop.png')).astype(np.float32); e = key(os.path.join(F, f'f{fid}_{crop}.png')).astype(np.float32)
+        (dx, dy), _ = cv2.phaseCorrelate(L(c), L(e))
+        e = cv2.warpAffine(e, np.float32([[1, 0, -dx], [0, 1, -dy]]), (1024, 1024), borderMode=cv2.BORDER_REPLICATE)
+        d = np.abs(e[..., :3] - c[..., :3]).max(-1) * (c[..., 3] > 128)
+        ch = ndi.binary_opening(ndi.gaussian_filter(d, 2) > 28, iterations=2); ch[:200] = 0; ch[680:] = 0
+        ys, xs = np.nonzero(ch); cx, cy = float(np.median(xs)), float(np.median(ys))
+        yy, xx = np.mgrid[:1024, :1024]; r = np.sqrt(((xx - cx) / 125) ** 2 + ((yy - cy) / 175) ** 2)
+        m = np.clip((1 - r) / .18, 0, 1) * (c[..., 3] > 0)                  # (a feathered ellipse round the eye, brow and mouth)
+        big = np.zeros((2560, 2048, 4), np.float32); big[y0:y0 + 1024, x0:x0 + 1024] = e
+        bm = np.zeros((2560, 2048), np.float32); bm[y0:y0 + 1024, x0:x0 + 1024] = m
+        P[(fid, head)] = {'img': big, 'mask': bm, 'center': (cx + x0, cy + y0)}
+    return P
+
+
+def fit_face(src, dst, center, init=(0, 0)):
+    """the euclidean transform taking src's face (round center) onto dst's"""
+    g = lambda a: (a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 128 * (1 - a[..., 3] / 255)
+    cx, cy = [int(v) for v in center]; x0, y0 = max(0, cx - 260), max(0, cy - 300)
+    A, B = g(src)[y0:y0 + 600, x0:x0 + 520], g(dst)[y0:y0 + 600, x0:x0 + 520]
+    wm = np.float32([[1, 0, init[0]], [0, 1, init[1]]])
+    try:
+        _, wm = cv2.findTransformECC(cv2.GaussianBlur(A, (0, 0), 1.5), cv2.GaussianBlur(B, (0, 0), 1.5), wm, cv2.MOTION_EUCLIDEAN,
+                                     (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-6), None, 5)
+    except cv2.error: pass
+    # (crop coords -> canvas coords): x' = R (x - o) + t + o
+    R, t = wm[:, :2], wm[:, 2]; o = np.float32([x0, y0]); off = t + o - R @ o
+    return np.hstack([R, off[:, None]]).astype(np.float32)                 # (ECC's warp maps src coords onto dst: warpAffine's forward map)
+
+
+def put_face(dst, patch, A=None):
+    img, m = patch['img'], patch['mask']
+    if A is not None:
+        img = cv2.warpAffine(img, A, (2048, 2560), flags=cv2.INTER_LINEAR); m = cv2.warpAffine(m, A, (2048, 2560), flags=cv2.INTER_LINEAR)
+    return blend(dst, np.clip(img, 0, 255).astype(np.uint8), m)                # (inside the ellipse the patch owns the silhouette)
+
+
+def expressed(out, hold, base, K, M, SRC, H, W, xx, yy):
+    FP = face_patches(SRC); o = dict(out); new = {}
+    def face(k, fid, head):
+        init = (-57, 0) if k == 'step' else (0, 0)                        # (the step's head moved with her body)
+        A = None if k == head else fit_face(o[head], o[k], FP[(fid, head)]['center'], init)
+        if A is not None: print(f'face {fid}:{head} -> {k}: rot {np.degrees(np.arctan2(A[1, 0], A[0, 0])):+.2f} deg, shift {A[0, 2]:+.1f},{A[1, 2]:+.1f}')
+        return put_face(o[k], FP[(fid, head)], A)
+    new['u.N'], new['u_up.N'] = o['u'], o['u_up']
+    new['u.A'] = face('u', 'A', 'u'); new['u_up.A'] = face('u_up', 'A', 'u_up')
+    new['push0.A'] = face('push0', 'A', 'u'); new['push1.A'] = face('push1', 'A', 'u')
+    new['push2.B'] = face('push2', 'B', 'd'); new['push3.B'] = face('push3', 'B', 'd')
+    for hk in ('d', 'd_up', 'd_dn'):
+        new[hk + '.B'] = face(hk, 'B', 'd')
+        new[hk + '.C'] = face(hk, 'C', hk)
+    new['step.B'] = face('step', 'B', 'd')
+    new['turn1.C'] = face('turn1', 'C', 'turn1'); new['wp1.C'] = face('wp1', 'C', 'wp1')
+    new['turn2.C'] = face('turn2', 'C', 'wp1'); new['wc2.C'] = face('wc2', 'C', 'wp1')
+    # the free arm's gestures over the faced heads: the wipe (and its first drawing as the hand's way down from the hood) and the
+    # claps (edits of the hood-down composite: registered on it, only the arm taken, below the jaw)
+    arm = ((xx < 1170) & (yy > 520)) | ((xx < 1320) & (yy > 1000)); armz = ndi.gaussian_filter((yy < 1585).astype(np.float32), 4)
+    armm = lambda n: M[n] * ndi.gaussian_filter(arm.astype(np.float32), 5) * armz
+    new['wipe1.B'] = blend(new['d.B'], K['e_wipe1'], armm('e_wipe1'))
+    new['wipe1.C'] = blend(new['d.C'], K['e_wipe1'], armm('e_wipe1')); new['wipe2.C'] = blend(new['d.C'], K['e_wipe2'], armm('e_wipe2'))
+    xd = out['d']; lowz = ndi.gaussian_filter(((yy > 640) & (yy < 1585)).astype(np.float32), 4)
+    def reg_on_d(n):
+        img = key(os.path.join(SRC, n + '.png'))
+        g = lambda a: (a[..., :3].astype(np.float64) @ [.299, .587, .114]) * (a[..., 3] / 255)
+        (dx, dy), _ = cv2.phaseCorrelate(g(xd)[1600:2500], g(img)[1600:2500])   # (on the skirt and feet: unchanged)
+        print(f'{n:8s} on d: shift {-dx:+.1f},{-dy:+.1f}')
+        return cv2.warpAffine(img, np.float32([[1, 0, -dx], [0, 1, -dy]]), (W, H), borderValue=(0, 0, 0, 0))
+    for n in ('c_open', 'c_shut'):
+        img = reg_on_d(n); m = feather_mask(changed(img, xd, (yy > 640) & (yy < 1585))) * lowz
+        new[n + '.B'] = blend(new['d.B'], img, m); new[n + '.C'] = blend(new['d.C'], img, m)
+    for n in ('r_half', 'r_up'):                                          # (the raise: a whole drawing, registered on d; its own lantern,
+        new[n] = reg_on_d(n)                                              #  its handle and stick; the F-D face drawn in)
+    g = key(os.path.join(SRC, 'g_wc1.png')); r_, g_, b_ = [g[..., i].astype(int) for i in range(3)]   # (the glance: a whole drawing,
+    cm = cushion_mask(g); new['wc1g'] = figure_only(g, cm | ((xx < 640) & (yy > 2000)), np.zeros((H, W), bool))   #  cut like wc1)
+    # the lantern as a prop: cut from hold (the ring and the stick left of her fingers; the lantern below the ring), taken out of
+    # every standing drawing where the drawing still shows hold's own lantern pixels (a clapping hand over the stick stays)
+    lan = box_mask((H, W), LANBOX) & (hold[..., 3] > 0); stk = box_mask((H, W), STICKBOX) & (hold[..., 3] > 0)
+    layers = {'lantern': with_alpha(hold, lan), 'stick': with_alpha(hold, stk)}
+    cut = ndi.binary_dilation(lan | stk, iterations=2)
+    offsets = {}
+    for k in list(new):
+        body = k.split('.')[0]
+        if body in ('u', 'u_up', 'push0', 'push1', 'push2', 'push3', 'd', 'd_up', 'd_dn', 'wipe1', 'wipe2', 'c_open', 'c_shut'):
+            same = np.abs(new[k][..., :3].astype(int) - hold[..., :3].astype(int)).max(-1) < 40
+            new[k] = with_alpha(new[k], ~(cut & (same | (new[k][..., 3] < 40)))); offsets[k] = [0, 0]
+    for k in ('r_half', 'r_up'):                                          # (the raise carries its own lantern: hold's leaves, fully)
+        same = np.abs(new[k][..., :3].astype(int) - hold[..., :3].astype(int)).max(-1) < 60
+        new[k] = with_alpha(new[k], ~(ndi.binary_dilation(lan | stk, iterations=6) & (same | (new[k][..., 3] < 60))))
+    # the step: its own lantern arm, translated with her body: find it (hold's fist and sleeve), cut its lantern and stick
+    st = new["step.B"]; gg = lambda a: ((a[..., :3].astype(np.float32) @ np.float32([.299, .587, .114])) * (a[..., 3].astype(np.float32) / 255)).astype(np.float32)
+    tpl = gg(hold)[1000:1150, 640:980]; res = cv2.matchTemplate(gg(st)[850:1300, 300:1100], tpl, cv2.TM_CCOEFF_NORMED)
+    _, sc, _, (mx, my) = cv2.minMaxLoc(res); sdx, sdy = mx + 300 - 640, my + 850 - 1000
+    print(f'step: lantern arm at {sdx:+d},{sdy:+d} from hold (ncc {sc:.2f})')
+    sh = lambda m: cv2.warpAffine(m.astype(np.uint8), np.float32([[1, 0, sdx], [0, 1, sdy]]), (W, H)) > 0
+    lc = lantern_center(st)
+    own = box_mask((H, W), (int(lc[0]) - 190, int(lc[1]) - 330, int(lc[0]) + 190, int(lc[1]) + 280)) if lc else np.zeros((H, W), bool)
+    stcut = (ndi.binary_dilation(sh(lan | stk), iterations=14) | own) & (xx < GRIP[0] + sdx - 40)
+    new['step.B'] = with_alpha(st, ~stcut); offsets['step.B'] = [sdx, sdy]
+    pts = {'grip': GRIP, 'hook': HOOK, 'lantern_c': lantern_center(hold)}
+    return new, {'layers': layers, 'offsets': {k: [v[0] * SC, v[1] * SC] for k, v in offsets.items()}, 'points': pts}
 
 
 def save_to(img, path):
