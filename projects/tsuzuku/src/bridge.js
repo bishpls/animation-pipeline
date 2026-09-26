@@ -301,11 +301,14 @@
     // (3309, 2105), (1654, 1002) at the wide); two geta steps in from the frame's edge (no glide), still, at her cushion (F1 picks
     // up from here: the lantern set on the cushion; one book, the open one on the rail). Hood up; the lantern lit in her
     // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
-    const ROOM = OUT + 2 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
-    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 161, FEET[1] - 473])); };   // her fist forward, a little above her hip (F1's drawing: (1493, 529))
-    const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
-      const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * RK * Math.sin(Math.PI * u) : 0;
-      return { x, y: FEET[1] + lift, s: RS, flip: -1, origin: [1100, 3700] }; };
+    // (her finale spot, from the other session's re-framing: she stands there the whole finale and the push-in is pure camera. At
+    // the wide: feet (1312, 1072), 645 px tall, in front of the butai, overlapping the window's lower right. Four geta steps in
+    // from the frame's edge on the eighths, arriving with most of a beat to hold before the blaze)
+    const ROOM = OUT + 2 * BEAT, FEET = [1312, 1072], RX = [2080, FEET[0]], RS = 645 / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48, NST = 4;
+    const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }, k = RS / .2297; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 161 * k, FEET[1] - 473 * k])); };   // her fist forward, a little above her hip (F1's drawing)
+    const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 4, k = Math.min(NST, Math.max(0, q / st)), i = Math.min(NST - 1, Math.floor(k)), u = k >= NST ? 1 : k - i;
+      const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / NST, lift = k < NST ? -14 * RK * Math.sin(Math.PI * u) : 0;
+      return { x, y: FEET[1] + lift, s: RS, flip: -1, origin: [1100, 3682] }; };
     // her hood, up (the canon's): over the crown and down the back to the shoulder, its opening from the brow down behind the
     // cheek to the jaw, so her profile shows (head-part master px)
     const HOOD = [[1330, 330], [1290, 230], [1150, 165], [980, 150], [820, 200], [700, 330], [650, 520], [640, 720], [670, 880], [760, 980], [900, 960], [1020, 880], [1120, 800], [1180, 730], [1230, 620], [1262, 480]];
@@ -346,7 +349,7 @@
     }
     PAPER_SFX.push(() => { const E = [[TAKE1, 'lantern', -31], [SET1 - f, 'lantern_set', -31], [OUT + .12, 'lantern', -31]];   // she takes the lamp; sets it at Clawd's feet; takes it up
       for (const st of steps) E.push([st.t + (st.dur || BEAT), 'geta', st.dur ? -33 : -31]);             // her geta on the rail (after B7's clack)
-      E.push([ROOM + BEAT / 2, 'geta', -26], [ROOM + BEAT, 'geta', -26]);                                // in the room: clack, clack (Fable), nearer
+      for (let i = 1; i <= NST; i++) E.push([ROOM + i * BEAT / 4, 'geta', -26 - (i < NST ? 1 : 0)]);      // in the room: four clacks on the eighths, nearer
       return E; });
     LOOPS.bridgeB8 = t => {
       const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
