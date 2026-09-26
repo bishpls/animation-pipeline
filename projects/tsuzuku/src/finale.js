@@ -97,7 +97,7 @@
     [132.9, MED(960, 330, 1.45), MED(960, 326, 1.5), room(WHY)],       // "why": she looks out of the card, at her
     [133.9, { cx: 960, cy: 600, z: .96 }, WIDE],                       // (So-re-ka-ra?!) the hall
     [135, FULL, FULL],                                                  // sideways, together, across the window's edge
-    [137, WIDE, FULL],                                                  // F6: her line on the LEDs and in the margin
+    [137, IDOLSTAGE.LOW(960, 470, 1.14), IDOLSTAGE.LOW(990, 465, 1.2)], // F6 from inside the hall (her line on the LEDs and in the margin)
     [138.87, FULL, MED(960, 320, 1.4)],
     [140.85, MED(960, 330, 1.5), MED(960, 330, 1.5)],                  // the hit: frozen
     [142, WIDE, WIDE, room(CAMW)],                                      // the room: she leaves; the doors close

@@ -48,6 +48,8 @@ const IDOLSTAGE = (() => {
   const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: 'write' }, OTST = { ots: 'turn' }, OTSS = { ots: 'story' };
   // ---- the camera: shots [bar, from, to, room?]; {cx, cy, z}: world point at screen centre, zoom (the card's own camera)
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
+  // a shot from inside the hall: the readers' heads and lanterns big and soft in the foreground, the card camera looking up past them
+  const LOW = (cx = 960, cy = 470, z = 1.18) => ({ cx, cy, z, low: true });
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
   const SHOTS = [
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
@@ -60,7 +62,7 @@ const IDOLSTAGE = (() => {
     [52, WIDE, FULL],                                             // K5 (Fable's head bob plays at the window's side: Michael, no zoom-cut)
     [54, FULL, FULL],                                             // K6: the side-step (full body)
     [58, MED(960, 300, 1.6), MED(960, 290, 2.0)],               // K8: Snip-snip! Ikuzo! (a push-in)
-    [60, FULL, { cx: 960, cy: 540, z: .98 }],
+    [60, LOW(960, 480, 1.14), LOW(960, 470, 1.2)],                // from inside the hall, looking up past the lanterns
     [62, FULL, FULL],                                             // the hook: ONE locked full-body shot, four bars, no cuts
     [66, MED(820, 330, 1.35), MED(820, 320, 1.4)],              // verse 2: her and the screen
     [67, FULL, FULL, OTST],                                       // over her shoulder: she turns the page, the screen turns with it
@@ -78,7 +80,7 @@ const IDOLSTAGE = (() => {
     [82, WIDE, FULL],                                             // chorus 2 (she claps along at the window's side)
     [83, MED(960, 330, 1.7), MED(960, 320, 1.85)],
     [84, { cx: 960, cy: 600, z: .96 }, WIDE],                    // ME-KUT-TE! and the note
-    [86, FULL, FULL],
+    [86, LOW(930, 470, 1.16), LOW(990, 465, 1.2)],               // from the hall again, drifting (chorus 2)
     [88, MED(960, 300, 1.6), MED(960, 290, 1.9)],
     [90, FULL, { cx: 960, cy: 520, z: .94 }],                    // the breakdown: pull back as the lights die
     [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 960, cy: 540, z: 1 }, room(RC.def, RC.end)],    // ...back out into her room: black on the clack
@@ -98,6 +100,9 @@ const IDOLSTAGE = (() => {
       if (sh) { const f = Math.floor(t * 24), k = sh * Math.exp(-d * 18); sx += k * (hash2(f, 1) - .5) * 2; sy += k * (hash2(f, 2) - .5) * 2; } }
     return { z, sx, sy };
   }
+  // the room camera's slow drift in its default framing: a lateral float and a breath of zoom over eight bars (the director: the
+  // room shot was a locked wall); small enough to never feel handheld
+  const drift = (C, t) => { const u = t / (8 * BR) * 2 * PI; return { x: C.x + 46 * S(u), y: C.y + 14 * S(u * .5 + 1), zoom: C.zoom * (1 + .018 * S(u * .75 + 2)) }; };
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
   function camAt(t) { return camFrom(SHOTS, t, HITS); }
   function camFrom(SHOTS, t, HITS, DEF = RC.def) {                          // DEF: the room framing a card-only shot sits in (null: none)
@@ -105,7 +110,8 @@ const IDOLSTAGE = (() => {
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
     const pk = punch(t, HITS);                                                // the MV layer's beat punch: inside the card only
-    return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : DEF, ots: R && R.ots || false };
+    const room = R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : DEF && drift(DEF, t);
+    return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, low: !!(A.low || Bc.low), room, ots: R && R.ots || false };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -421,7 +427,8 @@ const IDOLSTAGE = (() => {
     const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const P = [];
-    for (const [row, n, sc, y0, dx] of [[0, 12, .32, 1195, 0], [1, 10, .42, 1275, 80]]) {   // (low enough that her feet show)
+    const ROWSC = c.low ? [[0, 8, .95, 1290, 0], [1, 6, 1.5, 1560, 140]] : [[0, 12, .32, 1195, 0], [1, 10, .42, 1275, 80]];   // (a low shot: we're among them)
+    for (const [row, n, sc, y0, dx] of ROWSC) {   // (low enough that her feet show, in the normal shots)
       for (let i = 0; i < n; i++) {
         const q = AUD[Math.floor(rnd() * AUD.length)], x = -60 + dx + (i + .5) * (2040 / n) + (rnd() - .5) * 60, s = sc * (.9 + .2 * rnd()), ph = rnd(), flip = rnd() > .5;
         const bob = (call ? 20 : 8) * live * Math.max(0, S(PI * ((ph0 + ph * .3) % 1)));
@@ -440,7 +447,7 @@ const IDOLSTAGE = (() => {
       R.globalCompositeOperation = 'source-in'; R.fillStyle = col; R.fillRect(0, 0, W, H); R.globalCompositeOperation = 'destination-out'; R.drawImage(HALL.L, ox, 5); R.globalCompositeOperation = 'source-over'; };
     rim(HALL.P, `rgba(255,92,168,${.9 * live})`, 4); rim(HALL.C, `rgba(57,223,255,${.8 * live})`, -4);
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
-    X.filter = 'blur(1.2px)'; X.drawImage(HALL.L, 0, 0);
+    X.filter = c.low ? 'blur(3.5px)' : 'blur(1.2px)'; X.drawImage(HALL.L, 0, 0);
     X.globalCompositeOperation = 'lighter'; X.filter = 'blur(.8px)'; X.drawImage(HALL.P, 0, 0); X.drawImage(HALL.C, 0, 0);
     X.filter = 'blur(6px)'; X.globalAlpha = .45; X.drawImage(HALL.P, 0, 0); X.drawImage(HALL.C, 0, 0); X.restore();
     // the lanterns themselves (her chōchin, indigo), then their glow in the dark hall
@@ -668,5 +675,5 @@ const IDOLSTAGE = (() => {
     return 'crabline';                                                        // verse 1's print, brought by wipe 1
   }
   const WIPES = [WIPE1, WIPE2, WIPE3];                                        // (for the sound: src/sfx_clawd.js reads these)
-  return { WIPES, CARD_TURNS, GLITCH, frame, camAt, camFrom, notes, SCR, K, W2Sof, load, pageFace, storySpread, screenPage, OVR, RC, KICK, FROOM, callSpans };
+  return { LOW, WIPES, CARD_TURNS, GLITCH, frame, camAt, camFrom, notes, SCR, K, W2Sof, load, pageFace, storySpread, screenPage, OVR, RC, KICK, FROOM, callSpans };
 })();
