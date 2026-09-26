@@ -86,6 +86,24 @@ const MOVES = (() => {
     shrug: (b, o) => ({ ...arm(1, 26, 70), ...arm(-1, 26, 70), angleZ: 6 * (o.side ?? 1), hipY: 6 }),
     pointOut: (b, o) => { const s2 = o.side ?? 1; return { ...arm(s2, 50, 5, 'point'), ...arm(-s2, 12, 30), bodyX: .3 * s2, angleX: .15 * s2 }; },
     shake: (b, o) => ({ angleX: .22 * S(2 * PI * b) }),                                                          // 'no, no'
+    // the curtsy (the end of her performance), in beats from its start: weight onto the front foot while the other lifts, travels
+    // back and behind and PLACES (no sliding contact), then loads; both knees bend (the hip drop), the head bows, eyes close,
+    // and both hands pinch the skirt's sides and lift them a little outward; a real hold, then a light rise. The back foot is
+    // the image-right one (R: its leg draws behind the other). o.down [start, end] beats of the dip; o.rise [start, end].
+    curtsy: (b, o) => {
+      const [d0, d1] = o.down ?? [1, 3], [r0, r1] = o.rise ?? [4.4, 5.6], back = o.back ?? -200, deep = o.deep ?? 175;
+      const step = ease(b / .9), dip = ease((b - d0) / (d1 - d0)) - (1 - (o.rest ?? .38)) * ease((b - r0) / (r1 - r0));
+      const reach = ease(b / 1.1), lift = ease((b - d0) / (d1 - d0)) * (1 - .6 * ease((b - r0) / (r1 - r0)));
+      const out = {
+        hipX: -.42 * step, hipY: deep * dip, kneeOut: .75 * step,                                  // (knees bend out: a plié, not knock-kneed)
+        footRX: back * step, footRY: 36 * S(PI * Math.min(1, b / .9)) + 20 * step,            // lift, travel, place (back = up the floor)
+        armL: -26 * reach + 2 * lift, armR: -26 * reach + 2 * lift, elbowL: 8 * reach + 13 * lift, elbowR: 8 * reach + 13 * lift,   // (on the hem: the lift is the elbows)
+        angleY: .8 * dip + .08 * step, bodyZ: .8 * step,
+      };
+      if (b > .7) { out.handL = 'skirtpinch'; out.handR = 'skirtpinch'; }
+      if (b > d0 + .6 && b < r0 + .5) out.eyes = 'closed'; else if (b > d0 + .3 && b < r1) out.eyes = 'half';
+      return out;
+    },
     // head
     headBob: (b, o) => ({ angleY: -(o.amp ?? .4) * pulse(b % 1, .45) }),
     headTilt: (b, o) => { const ev = o.every ?? 2, side = alt(b, ev) * (o.side ?? 1); return { angleZ: (o.amp ?? 8) * side * snap((b % ev) / ev, .3) }; },

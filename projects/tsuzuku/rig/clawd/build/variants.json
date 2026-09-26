@@ -159,6 +159,13 @@
    "y": 1693,
    "w": 192,
    "h": 226
+  },
+  "skirtpinch": {
+   "file": "hand_L@skirtpinch.png",
+   "x": 274,
+   "y": 1689,
+   "w": 186,
+   "h": 228
   }
  },
  "hand_R": {
@@ -189,6 +196,13 @@
    "y": 1690,
    "w": 194,
    "h": 228
+  },
+  "skirtpinch": {
+   "file": "hand_R@skirtpinch.png",
+   "x": 1693,
+   "y": 1692,
+   "w": 228,
+   "h": 240
   }
  }
 }

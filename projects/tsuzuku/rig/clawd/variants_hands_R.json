@@ -39,6 +39,12 @@
    "patches": [
     "hand_R"
    ]
+  },
+  "skirtpinch": {
+   "prompt": "Change ONLY the hand on the right side of the image: a curtsy's skirt-pinch: her thumb and index finger pinched delicately together at the tips as if holding the edge of her skirt between them, the other three fingers softly curled and relaxed, the wrist gently bent. The hand stays attached to the same wrist, the same size, at the same position and angle, drawn in the same crisp anime lineart and cel shading with the same skin colours. Do not change the arm, the orange cuff, the skirt or anything else.",
+   "patches": [
+    "hand_R"
+   ]
   }
  },
  "edits": "_edits/hand_R",

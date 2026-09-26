@@ -21,7 +21,7 @@
       // chorus 2
       [82, 'bounce'], [84, 'sway'], [86, 'groove'], [87, 'sway', { every: 1, amp: 1.2 }],
       // the breakdown: the band tape-stops; she winds down
-      [90, 'bounce', { amp: 6 }], [91.5, 'idle', { fade: 2 }],
+      [90, 'bounce', { amp: 6 }], [91.5, 'curtsy', { fade: .6 }],        // ...and she curtsies: settle 91.5, down 91.75-92.25, hold, rise by 92.9
     ],
     arms: [
       [45, 'idle'],
@@ -49,7 +49,7 @@
       [80.9, 'callEar', { side: -1 }], [81.5, 'present'],           // (Sorekara?) Watch me!
       // chorus 2
       [82, 'reach', { side: 1 }], [83, 'armsOut'], [84, 'handToEar', { side: -1, fade: 1 }], [86, 'claws'], [87, 'armPump'], [89, 'present', { fade: 1 }],
-      [90, 'idle', { fade: 3 }],
+      [90, 'idle', { fade: 3 }],                                       // (the curtsy carries the arms from 91.5)
     ],
     head: [
       [45, 'look', { view: 'F' }],
@@ -60,7 +60,7 @@
       [72, 'look', { view: 'F', y: .35 }], [73, 'headBob', { amp: .35 }], [76, 'shake'], [76.75, 'headBob'], [77.75, 'look', { view: 'HL' }], [79.6, 'look', { view: 'F' }],
       [80.9, 'headTilt', { amp: 7 }], [81.5, 'look', { view: 'F', y: -.25 }],
       [82, 'headBob'], [84, 'look', { view: 'HR', z: -4 }], [85, 'headBob'], [87, 'headBob', { amp: .5 }], [89, 'look', { view: 'F', y: -.25 }],
-      [90, 'look', { view: 'F', y: .15 }], [91.5, 'look', { view: 'F', y: .45, fade: 2 }],
+      [90, 'look', { view: 'F', y: .15 }], [91.5, 'look', { view: 'F', y: 0, fade: 1 }],     // (the curtsy bows the head)
     ],
   }, { lips: MOVES.lips(window.WORDS, 'clawd', window.VOCAL_ENV), blinks: MOVES.blinks(11, 60, 140) });
   const build = () => MOVES.follow(choreo(), MOVES.BODY, { start: 42 * BAR, world: { footLX: 1, footRX: 1, hipX: 140 } });   // (hipX: pelvis D)
@@ -95,4 +95,8 @@
     }, { locateHand: tt => RIGS.clawd.locate(tt, P, worldT(tt), 'hand_L'), clawdX: worldT(t).x, footWorld });
   };
   LOOPS.chorus.len = 220;
+  // (review) Clawd alone, full body, a fixed camera on a plain ground: for judging moves the stage camera leaves (the curtsy)
+  LOOPS.clawdsolo = t => { get(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H);
+    X.fillStyle = '#2c2838'; X.fillRect(0, 1000, W, 80); RIGS.clawd.draw(X, t, P, { x: 960 + (P(t).rootX || 0) * .27, y: 1040, s: .27 }); };
+  LOOPS.clawdsolo.len = 220;
 }
