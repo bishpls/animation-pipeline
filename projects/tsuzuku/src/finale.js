@@ -152,7 +152,7 @@
     IDOLSTAGE.frame(tt, (W2S, cam) => {
       if (cam.z <= 1.3) mascotTroupe(tt, crabs, ROWS);                       // (in close shots only a hat's pompom would peek in: a lone dot)
       RIGS.clawd.draw(X, tt, P, clawdT(tt, W2S, cam));
-    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, roomFable: roomFable(t), roomAfter: roomAfter(t), doors: doorsAt(t),
+    }, { cam: c, clawdX: 960 + (P(tt).rootX || 0) * .27, notes: NOTES, camAt: t2 => IDOLSTAGE.camFrom(SHOTS, t2, HITS, FIN), fableX: 1380, roomFable: roomFable(t), roomAfter: roomAfter(t), doors: doorsAt(t),
          clawdAt: (t2, W2S, cam, g) => RIGS.clawd.draw(g || X, t2, P, clawdT(t2, W2S, cam)) });
   };
   LOOPS.finale.len = 203;

@@ -174,27 +174,49 @@ const IDOLSTAGE = (() => {
       else { const r = 10 + 6 * flash; ctx.fillStyle = k === 'l' ? K.pink : K.cyan; ctx.globalAlpha = .7; ctx.beginPath(); ctx.arc(w / 2, h * .42, r, 0, PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     }
   }
-  // where a word goes on the centre screen: her silhouette at the word's start and middle, in LED dots (a dilated mask); the
-  // largest size whose box finds a free run of columns, scored high and near her head. Cached per word; deterministic in t
+  // where a word goes on the centre screen: one place per PHRASE (Michael: words hopping side to side read as noise). Free across
+  // the whole phrase: her silhouette sampled through it (in LED dots, dilated), plus what Fable covers from the room (the card's
+  // lower right) and what the card's camera doesn't show at any sample. Sized for the phrase's longest word, scored high and near
+  // her head. Cached per phrase; deterministic in t
   const PLACE = new Map();
+  const clean = q => q.w.replace(/[(),!?"]/g, '').toUpperCase();
+  function phraseOf(wd) {
+    const list = words().filter(q => !inParens().has(q)); let i = list.indexOf(wd); if (i < 0) return [wd];
+    let a = i, z = i; while (a > 0 && list[a].t0 - list[a - 1].t1 < .8) a--; while (z < list.length - 1 && list[z + 1].t0 - list[z].t1 < .8) z++;
+    return list.slice(a, z + 1);
+  }
   function wordPlace(wd, txt, w, h) {
-    if (PLACE.has(wd.t0)) return PLACE.get(wd.t0);
+    // the phrase's place; where the whole phrase has none (a close push-in with her arms out all line), the word's own
+    const ph = phraseOf(wd), a = placeFor(ph, 'p' + ph[0].t0, w, h);
+    return a || placeFor([wd], 'w' + wd.t0, w, h);
+  }
+  function placeFor(ph, key, w, h) {
+    if (PLACE.has(key)) return PLACE.get(key);
     if (!LEDX.at || typeof shape !== 'function') return null;
     const k = W / SCR.c[2], mc = PLACE.canvas || (PLACE.canvas = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = mc.getContext('2d');
     const sm = PLACE.small || (PLACE.small = Object.assign(document.createElement('canvas'), { width: w, height: h })), sg = sm.getContext('2d');
-    const W2Sd = (x, y) => [(x - SCR.c[0]) * k, (y - SCR.c[1]) * k], occ = new Uint8Array(w * h);
-    for (const tt of [wd.t0 + .04, wd.t0 + Math.max(.08, Math.min(.5, (wd.t1 - wd.t0) * .6))]) {
+    const W2Sd = (x, y) => [(x - SCR.c[0]) * k, (y - SCR.c[1]) * k], occ = new Uint8Array(w * h), cover = new Uint8Array(w * h);
+    const t0 = ph[0].t0, t1 = Math.min(ph[ph.length - 1].t1 + (ph.length > 1 ? .3 : .2), t0 + 6), n0 = Math.max(2, Math.ceil((t1 - t0) / .14));
+    const dx = SCR.c[2] / w, dy = SCR.c[3] / h;
+    for (let s2 = 0; s2 <= n0; s2++) {
+      const tt = t0 + (t1 - t0) * s2 / n0;
       g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, H);
       LEDX.at(tt, W2Sd, { z: k }, g); g.setTransform(1, 0, 0, 1, 0, 0);
       sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, w, h); sg.drawImage(mc, 0, 0, W, SCR.c[3] * k, 0, 0, w, h);
       const d = sg.getImageData(0, 0, w, h).data; for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 30) occ[i] = 1;
+      // the card's camera at this moment: dots it doesn't show, and dots behind Fable (the card's lower right, from the room)
+      const c = (LEDX.camAt || camAt)(tt);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const sx = (SCR.c[0] + (x + .5) * dx - c.cx) * c.z + 960, sy = (SCR.c[1] + (y + .5) * dy - c.cy) * c.z + 540;
+        if (sx < 30 || sx > 1890 || sy < 30 || sy > 1000 || (sx > LEDX.fableX && sy > 200)) cover[y * w + x] = 1;
+      }
     }
     const busy = (x, y) => x < 0 || x >= w || y < 0 || y >= h ? 0 : occ[y * w + x];
     const dil = new Uint8Array(w * h);                                          // (a margin of 3 dots across, 2 up and down)
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let b = 0; for (let dy = -2; dy <= 2 && !b; dy++) for (let dx = -3; dx <= 3 && !b; dx++) b = busy(x + dx, y + dy); dil[y * w + x] = b; }
-    let top = h, sx = 0, n = 0; for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { top = y; break; }
-    for (let y = top; y < Math.min(h, top + 15); y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { sx += x; n++; }
-    const headX = n ? sx / n : w / 2, w100 = shape(txt, { font: 'dela', size: 100 }).width;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let b = cover[y * w + x]; for (let ddy = -2; ddy <= 2 && !b; ddy++) for (let ddx = -3; ddx <= 3 && !b; ddx++) b = busy(x + ddx, y + ddy); dil[y * w + x] = b; }
+    let top = h, sxh = 0, n = 0; for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { top = y; break; }
+    for (let y = top; y < Math.min(h, top + 15); y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { sxh += x; n++; }
+    const headX = n ? sxh / n : w / 2, w100 = Math.max(...ph.map(q => shape(clean(q), { font: 'dela', size: 100 }).width));
     let best = null;
     for (let sz = 40; sz >= 12 && !best; sz -= 2) {
       const Lw = w100 * sz / 100, hg = Math.ceil(sz * .78); if (Lw > w * .92) continue;
@@ -210,7 +232,7 @@ const IDOLSTAGE = (() => {
         }
       }
     }
-    PLACE.set(wd.t0, best); return best;
+    PLACE.set(key, best); return best;
   }
   // is the placed word (LED dots) wholly inside what the card's camera shows now?
   function ledVisible(pl, w, h) {
@@ -651,7 +673,7 @@ const IDOLSTAGE = (() => {
     if (opt.footWorld) prints(X, t, opt.footWorld);
   }
   function cardFrame(t, cast, opt, c) {
-    const W2S = W2Sof(c), b = t2b(t); LEDX.clawd = opt.clawdX || 960; LEDX.at = opt.clawdAt || null; LEDX.cam = c;
+    const W2S = W2Sof(c), b = t2b(t); LEDX.clawd = opt.clawdX || 960; LEDX.at = opt.clawdAt || null; LEDX.cam = c; LEDX.camAt = opt.camAt || null; LEDX.fableX = opt.fableX ?? 1520;
     const hand = opt.locateHand || (() => [960, 500]);
     const e1 = wipeProg(t, WIPE1, hand), e2 = wipeProg(t, WIPE2, hand), e3 = wipeProg(t, WIPE3, hand);
     X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = K.ink; X.fillRect(0, 0, W, H);
