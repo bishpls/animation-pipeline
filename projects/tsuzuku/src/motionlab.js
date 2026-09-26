@@ -142,6 +142,7 @@ const MOTIONLAB = (() => {
                    legs: ['footLX', 'footLY', 'footRX', 'footRY', 'footLR', 'footRR', 'footLP', 'footRP', 'heelL', 'heelR', 'kneeOut'],
                    arms: ['armL', 'armR', 'elbowL', 'elbowR', 'armFrontL', 'armFrontR', 'armBackL', 'armBackR'] };
   GROUPS.body = [...GROUPS.pelvis, ...GROUPS.torso, ...GROUPS.head, ...GROUPS.legs];
+  const ANG = new Set(['armL', 'armR', 'elbowL', 'elbowR']);                    // (read modulo 360 by the rig: blended the short way)
   const JSONS = {};
   const getJSON = url => JSONS[url] || (JSONS[url] = (() => { const x = new XMLHttpRequest(); x.open('GET', url, false); x.send(); return x.status === 200 ? JSON.parse(x.responseText) : null; })());
   const phrases = () => getJSON('refs/mocap/phrases.json') || { phrases: [] };
@@ -163,6 +164,10 @@ const MOTIONLAB = (() => {
         L.push({ keys, curves: J.curves, b0: span[0] + sh, b1: span[1] + sh, sh, fade: (!Array.isArray(spec) && spec.fade) || ph.fade || .25, name: ph.name, mode, gain, mean });
       }
     }
+    // an angle's curve joins the keyed motion on the branch (whole turns) nearest the keyed value where its fade-in starts, then
+    // blends linearly: a per-frame 'short way' flips when the two rotate past each other by half a turn (66.16's elbow)
+    const branch = (e, k) => { if (!e.turn) e.turn = {}; if (e.turn[k] === undefined) { const b0 = e.b0 - e.fade / 2, q0 = P(b0 * BAR)[k] || 0, v0 = sampleCurve(e.curves[k], b0 - e.sh);
+      e.turn[k] = 360 * Math.round((q0 - v0) / 360); } return e.turn[k]; };
     return t => {
       const q = { ...P(t) }, b = t / BAR;
       for (const e of L) {
@@ -171,7 +176,7 @@ const MOTIONLAB = (() => {
         for (const k of e.keys) { const v = sampleCurve(e.curves[k], b - e.sh);
           if (k.startsWith('armFront') || k.startsWith('armBack')) { if (w > .5 && e.mode === 'set') q[k] = v; }
           else if (e.mode === 'residual') q[k] = (q[k] || 0) + (v - e.mean[k]) * e.gain * w;
-          else q[k] = (q[k] || 0) + (v - (q[k] || 0)) * w; }
+          else { const q0 = q[k] || 0, v2 = ANG.has(k) ? v + branch(e, k) : v; q[k] = q0 + (v2 - q0) * w; } }
       }
       return q;
     };

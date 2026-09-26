@@ -196,10 +196,10 @@
     "arms": {
      "span": [
       66.1,
-      68.95
+      68.85
      ],
      "mode": "set",
-     "fade": 0.35
+     "fade": 0.6
     }
    },
    "why": "Folded: hand on chest, the telling palm and the claws from the data (worst hand jump 137 -> 70 px/frame); the keyed step-touch and points from 69."
@@ -383,7 +383,7 @@
      "fade": 0.35
     }
    },
-   "why": "'Turn the page' (136.95-137.55): the hook's sweep, the drawn cross arm included."
+   "why": "'Turn the page' (136.95-137.55): the hook's sweep, the drawn cross arm included. Kept over f3's own sweep, which goes right to left (Fable: the page turns left to right)."
   },
   {
    "name": "F3b",
@@ -423,7 +423,8 @@
      "gain": 1
     }
    },
-   "why": "'To be continued (tsuzuku!), and then x3' into the hit at 141 (138.87-141.05): c1c's fist pumps and its fling up (the hit rises: she never lands)."
+   "why": "'To be continued (tsuzuku!), and then x3' into the hit at 141 (138.87-141.05): c1c's fist pumps and its fling up (the hit rises: she never lands). (Superseded by f3_v1.)",
+   "off": true
   },
   {
    "name": "f1_v1",
@@ -514,6 +515,121 @@
     }
    },
    "why": "Its own clip: hand to ear on the call, both hands up as claws pinching through the sideways steps, a fist pump on 'that's the way we go'; legs keyed (the fable's step lands flat on the downbeat)."
+  },
+  {
+   "name": "f3_v1",
+   "bar0": 137.6,
+   "bars": 4.4,
+   "anchors": "0.6:137.6,0.75:137.93,1.6:138.87,3.1:139.96,3.5:140.5,3.8:140.9,5.0:142.0",
+   "groups": {
+    "arms": {
+     "span": [
+      137.62,
+      141.3
+     ],
+     "mode": "set",
+     "fade": 0.3
+    },
+    "sway": {
+     "span": [
+      137.62,
+      141.3
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      137.62,
+      141.3
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      137.62,
+      141.3
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "Its own clip from its reach on: the reach, the pumps, arms out wide, the fling up into a held V at 141 (the hit rises). Its opening sweep isn't used (right to left); the hook's is (F3a). Legs keyed: the dancer runs in place, but the fable's step lands flat."
+  },
+  {
+   "name": "c2b_v1",
+   "bar0": 86,
+   "bars": 4,
+   "anchors": "0.0:86,2.1:87,4.3:89,5.0:90",
+   "groups": {
+    "arms": {
+     "span": [
+      86,
+      88.9
+     ],
+     "mode": "set",
+     "fade": 0.4
+    },
+    "sway": {
+     "span": [
+      86,
+      89.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "torso": {
+     "span": [
+      86,
+      89.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    },
+    "head": {
+     "span": [
+      86,
+      89.9
+     ],
+     "mode": "residual",
+     "gain": 1
+    }
+   },
+   "why": "Chorus 2's back half: claws at the head, fist pumps; the keyed 'present' from 89 (the dancer's hands pass her face on the way down, which read as hiding); legs keyed."
+  },
+  {
+   "name": "curtsy_v1",
+   "bar0": 91.4,
+   "bars": 1.6,
+   "anchors": "2.0:91.4,2.75:91.75,3.5:92.25,4.4:92.75,5.0:93.0",
+   "groups": {
+    "torso": {
+     "span": [
+      91.5,
+      92.95
+     ],
+     "mode": "residual",
+     "gain": 0.8
+    },
+    "head": {
+     "span": [
+      91.5,
+      92.95
+     ],
+     "mode": "residual",
+     "gain": 0.8
+    },
+    "sway": {
+     "span": [
+      91.5,
+      92.95
+     ],
+     "mode": "residual",
+     "gain": 0.8
+    }
+   },
+   "why": "The keyed curtsy keeps its legs, feet and skirt-pinch arms (the dancer's is deeper than the rig's legs allow, and opens with a twirl no front view can draw); her bow of the torso and head and her sway ride on top."
   }
  ]
 }

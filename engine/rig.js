@@ -356,7 +356,9 @@ const RIG = (() => {
   function locate(rig, t, P, T, name) {
     const C = rig.R.couple || {}, vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
     const Pt = tt => { const q = { ...P(tt), _t: tt }; const turn = (vang(q) + (q.angleX || 0) * 30) / 35, cp = q.nocouple || !C.on ? 0 : 1;
-      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0); return q; };
+      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0);
+      for (const k of ['armL', 'armR']) if (q[k] != null) q[k] = ((q[k] + 150) % 360 + 360) % 360 - 150;   // (a shoulder reads modulo 360: window -150..210)
+      return q; };
     const p = Pt(t), sp = springs(rig.R, Pt, t), l = (rig.lists[p.view || 'F'] || rig.layers).find(q => q.name === name);
     if (!l) return null;
     const pos = new Float32Array(l.m.rest.length); deform(rig, l, p, sp, pos);
@@ -371,7 +373,9 @@ const RIG = (() => {
     const C = rig.R.couple || {}, vang = q => (rig.R.views && q.view && rig.R.views[q.view] && rig.R.views[q.view].angle) || 0;
     const Pt = tt => { const q = { ...P(tt), _t: tt }; const turn = (vang(q) + (q.angleX || 0) * 30) / 35;
       const cp = q.nocouple || !C.on ? 0 : 1;                  // off unless rig.json asks: coupling belongs in the motion (RIG.perform)
-      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0); return q; };
+      q._bx = (q.bodyX || 0) + cp * (C.turn ?? .25) * turn; q._bz = (q.bodyZ || 0) + cp * (C.tilt ?? .25) * (q.angleZ || 0);
+      for (const k of ['armL', 'armR']) if (q[k] != null) q[k] = ((q[k] + 150) % 360 + 360) % 360 - 150;   // (a shoulder reads modulo 360: window -150..210)
+      return q; };
     const p = Pt(t), sp = springs(rig.R, Pt, t); rig.last = { p, sp };   // (debug: last pose)
     const TT = { x: T.x, y: T.y, s: T.s, ox: rig.R.origin[0], oy: rig.R.origin[1] };
     const VV = rig.variants[p.view || 'F'] || {};

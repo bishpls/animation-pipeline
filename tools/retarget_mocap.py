@@ -41,12 +41,16 @@ ch = {}
 for sd, (s, e, w) in {'L': (SH_R, EL_R, WR_R), 'R': (SH_L, EL_L, WR_L)}.items():   # rig image-left = her right
     up, fo = L(e) - L(s), L(w) - L(e)
     th, ph = np.unwrap(np.radians(outward(up, sd))), np.unwrap(np.radians(outward(fo, sd)))
+    # the shoulder stays continuous (unwrapped: an arm swinging up across the chest to overhead passes -180 = 180), shifted by
+    # whole turns so its median sits in the rig's window; not clamped: the rig reads it modulo 360 (a clamp pinned f3's V at the
+    # hit to -100 when the unwrap had drifted a turn)
+    k = np.round((np.median(deg(th) - REST) - 30) / 360); th = th - np.radians(360 * k); ph = ph - np.radians(360 * k)
     rel = deg(ph - th); rel -= 360 * np.round(np.median(rel) / 360)              # continuous through the crossing (wrapping flips it +-180)
     # a forearm pointing at the camera is foreshortened in the image, and its image angle is unreliable (a punch toward the lens
     # reads as the forearm folding down): where its image length is under 70% of full, fill the elbow from the frames either side
     fl = np.linalg.norm(fo, axis=1); fsc = fl / np.percentile(fl, 97); good = fsc >= .7
     if good.sum() > 4 and (~good).any(): rel = np.interp(np.arange(n), np.flatnonzero(good), rel[good])
-    ch['arm' + sd] = np.clip(deg(th) - REST, -100, 175); ch['elbow' + sd] = np.clip(rel, -320, 320)   # (rig v2: the elbow hinges past 120)
+    ch['arm' + sd] = deg(th) - REST; ch['elbow' + sd] = rel                    # (rig v2: both read modulo 360)
     # the arm's depth by layer order: the wrist well in front of the shoulder plane draws the arm over the face and hair; behind
     # the body plane, under the torso (rig.js armFront/armBack), held at least 3 frames so it doesn't flicker
     dz = wld[:, w, 2] - (wld[:, 11, 2] + wld[:, 12, 2]) / 2
@@ -84,7 +88,7 @@ for sd, (hl, ti) in {'L': (30, 32), 'R': (29, 31)}.items():
     ch['foot' + sd + 'R'] = yaw; ch['heel' + sd] = np.where(lifted, 0, up * mpm * 1.4); ch['foot' + sd + 'P'] = np.where(lifted, up / .06, 0)
 splay = ((L(KN_L)[:, 0] - L(KN_R)[:, 0]) - (L(AN_L)[:, 0] - L(AN_R)[:, 0])) / ed
 ch['kneeOut'] = np.clip(.5 + 1.2 * (splay - np.median(splay)), 0, 1)
-LIM = {'armFront': (0, 1), 'armBack': (0, 1), 'arm': (-100, 175), 'elbow': (-320, 320), 'hipY': (-40, 170), 'hipX': (-1.3, 1.3), 'bodyZ': (-12, 12), 'bodyX': (-.9, .9),
+LIM = {'armFront': (0, 1), 'armBack': (0, 1), 'arm': (-720, 720), 'elbow': (-720, 720), 'hipY': (-40, 170), 'hipX': (-1.3, 1.3), 'bodyZ': (-12, 12), 'bodyX': (-.9, .9),
        'angleZ': (-14, 14), 'angleX': (-.7, .7), 'angleY': (-.8, .8), 'footLX': (-220, 220), 'footRX': (-220, 220), 'footLY': (0, 110), 'footRY': (0, 110),
        'footLR': (-30, 35), 'footRR': (-30, 35), 'footLP': (-1, 1), 'footRP': (-1, 1), 'heelL': (0, 70), 'heelR': (0, 70), 'kneeOut': (.38, 1)}   # (knees no further in than a touch: knock-kneed reads wrong on her)
 for k in ch:
