@@ -111,6 +111,8 @@
   }
   // C3: the doors open (10 drawings) on the lit screen; the camera walks in to the window (16 drawings)
   const DOOR0 = 12.8, PUSH0 = 13.4, HANG0 = 13.2;                  // (the glow still climbing as the doors part)
+  const DRIFT0 = 17.2;                                               // (the crab's hop to the floor)
+  window.CAM_HANDS = { x: 1800, y: 1545, zoom: 1.18 }; window.CAM_FLOOR = { x: 1890, y: 1525, zoom: 1.13 };   // (the strip's text starts at butai x ~1114 and ends at y ~1964: both views keep it)
   PAPER_SFX.push(() => { if (!K) { if (!window.WORDS) return []; keys(); } const k = K, E = [[DOOR0, 'doors_open', -30], [land(k.time), 'fan_flick', -30], [land(k.crab), 'paper_fold', -32],
     [k.landed, 'paper_tap', -29], [land(k.line), 'paper_fold', -32], [k.laid, 'paper_tap', -30]];
     for (let i = 1; i <= 4; i++) E.push([k.mother + i * 9 * f / 4, 'paper_tap', -32]);                   // the mother's stiff hops in
@@ -123,9 +125,13 @@
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;
     const dd = Math.min(1, Math.max(0, Math.floor((ts - DOOR0) * 12 + 1e-6) / 10)), e = Math.min(1, Math.max(0, Math.floor((ts - PUSH0) * 12 + 1e-6) / 16)), ee = e * e * (3 - 2 * e);
     window.SHORE = true;
-    const cam = camLerp(CAM_WIDE, CAM_WINDOW, ee);
+    // one close (Fable, for the director's "one locked-off tableau"): the walk-in carries on past the window onto her hands for
+    // the fan on "time" and the crab on "crab,"; drifts down with the hop to the floor plane, holding close through "her
+    // mother," the ruler, the bob and the glow; verse 1 walks back out (scenery.js). The strip stays in frame and legible
+    const d0 = Math.min(1, Math.max(0, Math.floor((ts - DRIFT0) * 12 + 1e-6) / 8)), de = d0 * d0 * (3 - 2 * d0);
+    const cam = ts < DRIFT0 ? camLerp(CAM_WIDE, CAM_HANDS, ee) : camLerp(CAM_HANDS, CAM_FLOOR, de);
     try { stage(ts, scene, { cam, doors: dd * dd * (3 - 2 * dd), page: ts }); } finally { window.SHORE = false; }
-    readers(ts, cam);
+    readers(ts, cam, cam.zoom > .85 ? { ceil: H / 2 + (1975 - cam.y) * cam.zoom } : {});   // (in the close, their lanterns stay under the strip's words)
   };
   LOOPS.telling.len = S1 - S0;
 }

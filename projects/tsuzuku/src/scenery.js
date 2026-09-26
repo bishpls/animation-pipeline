@@ -59,8 +59,9 @@ function shore(t, o = {}) {
   // verse 1 in its world: the shore, Fable telling, the crab, the unfold; inside the butai, the audience in the room
   LOOPS.verse1 = t => {
     window.SHORE = true;
-    try { stage(t, tt => LOOPS.origami(tt), { cam: CAM_WINDOW, doors: 1, page: 24 + Math.floor(t * 12 + 1e-6) / 12 }); } finally { window.SHORE = false; }
-    readers(24 + t, CAM_WINDOW);                                   // the readers: heads and lanterns, lifting on the call
+    const u = Math.min(1, Math.max(0, Math.floor(t * 12 + 1e-6) / 18)), cam = window.CAM_FLOOR ? camLerp(CAM_FLOOR, CAM_WINDOW, u * u * (3 - 2 * u)) : CAM_WINDOW;   // (the telling's close walks back out for V3, 24-25.5)
+    try { stage(t, tt => LOOPS.origami(tt), { cam, doors: 1, page: 24 + Math.floor(t * 12 + 1e-6) / 12 }); } finally { window.SHORE = false; }
+    readers(24 + t, cam, cam.zoom > .85 ? { ceil: H / 2 + (1975 - cam.y) * cam.zoom } : {});   // the readers: heads and lanterns, lifting on the call (under the strip in the close)
   };
   LOOPS.verse1.len = 12;
 }
