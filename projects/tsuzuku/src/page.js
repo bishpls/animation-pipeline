@@ -83,12 +83,15 @@ function inkVellum(str, x, y, ts, t0, o = {}) {
 function pageVellum(ts) {
   // margin notes: the vellum's left edge, top down, one per beat (verse 1)
   if (ts >= PAGE_NOTES[0][0] && ts < 61.4) PAGE_NOTES.forEach(([t0, s], i) => inkVellum(s, 176, 232 + i * 40, ts, t0, { size: 27 }));
-  // the Japanese: vertical at the right edge, the latest line only (it replaces the one before)
-  const cur = PAGE_JA.filter(([t0]) => ts >= t0 && ts < 61.4).pop(), gl = ts >= PAGE_GLOSS[0] && ts < 61.4;
+  // the Japanese: vertical at the right edge, the latest line only (it replaces the one before). Transient (Fable, for the
+  // director's "four text tracks at once"): each arrives on its beat, holds two bars, and is pulled out upward in two drawings
+  const HOLD2 = 2 * 60 / 170 * 4, live = t0 => ts >= t0 && ts < 61.4 && ts < t0 + HOLD2 + 2 / 12;
+  const pull = t0 => { const d = Math.floor((ts - t0 - HOLD2) * 12 + 1e-6); return d < 0 ? [1, 0] : d === 0 ? [.5, -14] : [.2, -30]; };
+  const cur = PAGE_JA.filter(([t0]) => live(t0)).pop(), gl = live(PAGE_GLOSS[0]);
   // (in the shore scenes the right edge holds the pine above and the reeds below: the column sits in the clear between them)
   const top = ts > 131 ? 196 : 424;                                 // (in the bridge the pine is struck and Clawd's puppet leans lower right: the column rises)
-  const vert = (s, x, t0, size) => { let yy = top; for (const ch of s) {
+  const vert = (s, x, t0, size) => { const [k, dy] = pull(t0); let yy = top + dy; for (const ch of s) {
     const p = '、。'.includes(ch) ? [size * .55, -size * .6] : [0, 0];   // vertical setting: the comma and full stop sit top-right in their cell
-    inkVellum(ch, x - size / 2 + p[0], yy + size + p[1], ts, t0, { font: 'mincho', size, alpha: .75, col: 'rgb(40,30,26)' }); yy += size * 1.06; } };
+    inkVellum(ch, x - size / 2 + p[0], yy + size + p[1], ts, t0, { font: 'mincho', size, alpha: .75 * k, col: 'rgb(40,30,26)' }); yy += size * 1.06; } };
   if (gl) vert(PAGE_GLOSS[1], 1738, PAGE_GLOSS[0], 25); else if (cur) vert(cur[1], 1738, cur[0], 27);
 }
