@@ -301,7 +301,6 @@
     // up from here: the lantern set on the cushion; one book, the open one on the rail). Hood up; the lantern lit in her
     // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
     const ROOM = OUT + 2 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
-    const CUSH = { x: 1401.5, s: .172 };                               // (her cushion before her, bare, ≈ x 1303-1584 as F1 draws it: one doesn't stand on a zabuton; the one book is open on the rail)
     const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 161, FEET[1] - 473])); };   // her fist forward, a little above her hip (F1's drawing: (1493, 529))
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
       const e = u * u * (3 - 2 * u), x = RX[0] + (RX[1] - RX[0]) * (i + e) / 2, lift = k < 2 ? -14 * RK * Math.sin(Math.PI * u) : 0;
@@ -318,7 +317,7 @@
       FABLE_S.draw(S, p, T, { solid: true, ink: 'rgb(9,7,9)', hide: ['hair'] });
       S.setTransform(M.head); S.fillStyle = 'rgb(9,7,9)'; S.beginPath(); HOOD.forEach(([x, y], i) => i ? S.lineTo(x, y) : S.moveTo(x, y)); S.closePath(); S.fill();
       S.setTransform(1, 0, 0, 1, 0, 0);
-      FABLE.draw(S, { _ghost: {} }, { x: CUSH.x, y: FEET[1], s: CUSH.s, origin: [1150, 2760] }, { solid: true, ink: 'rgb(9,7,9)', hide: HIDE_SEATED });   // her cushion
+      // (no cushion in the room: her one zabuton is on the rail inside the window, where she left it at B8: Fable)
       S.setTransform(1, 0, 0, 1, 0, 0);
       // the lantern in her hand (hung from its stick), and its light on her from below and in front
       const fi = fistAt(FABLE_S, p, T, STAND_ARM), arrive = ROOM + BEAT, k = Math.max(0, tt - arrive), sw = tt < arrive ? 10 * Math.sin((tt - ROOM) * 2 * Math.PI / (BEAT / 2)) : 8 * Math.exp(-k * 2.6) * Math.cos(k * 7.5);

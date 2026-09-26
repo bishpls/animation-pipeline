@@ -241,7 +241,7 @@ const FABLEROOM = (() => {
     const st = endState(Math.max(t, EK.start)), [w, h] = E.meta.size, P = E.meta.points, M = E.meta.drawings;
     X.save(); X.translate(T.x, T.y); X.scale(T.s, T.s); X.translate(-559, -FL);
     X.globalCompositeOperation = 'source-over'; X.globalAlpha = 1;
-    if (!o.figureOnly) X.drawImage(E.img.props, 0, 0, w, h);
+    // (no cushion in the room: Fable has one zabuton, and she left it on the rail inside the window at B8, beside the book)
     if (st.d) {
       const m = M[st.d], pr = m.prop;
       X.save(); X.translate(st.ox, st.oy);
