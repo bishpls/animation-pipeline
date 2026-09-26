@@ -57,8 +57,8 @@ const IDOLSTAGE = (() => {
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
     // the tear's match cut (Fable, via the paper session): through the white, the paper Clawd's buns sit at screen (1320, 440),
     // head ~100 px: the idol opens on that shape (buns and hairclip), held two drawings, then the camera eases back to the stage
-    [43.2, { cx: 489, cy: 175, z: .92, hold: 2 / 12 / BR }, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],
-    [45, WIDE, WIDE, room(RC.wide, RC.def)],                      // the room: the tear floods it with her light; in, arriving on the drop
+    [43.2, { cx: 489, cy: 175, z: .92, hold: 2 / 12 / BR }, { cx: 960, cy: 520, z: 1.06 }, room(RC.window, RC.def)],   // (Michael: one push-in, never out-then-in)
+    [45, WIDE, WIDE],                                             // the room (settled in the default framing); the drop next
     [46, MED(960, 380, 1.3), MED(960, 350, 1.45)],               // K2: the drop, on the downbeat: in close (the director: never a pull-back on the drop)
     [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
     [48, WIDE, WIDE, OTSR],                                       // over Fable's shoulder: she writes the note (half a bar)
@@ -107,7 +107,7 @@ const IDOLSTAGE = (() => {
   }
   // the room camera's slow drift in its default framing: a lateral float and a breath of zoom over eight bars (the director: the
   // room shot was a locked wall); small enough to never feel handheld
-  const drift = (C, t) => { const u = t / (8 * BR) * 2 * PI; return { x: C.x + 22 * S(u), y: C.y + 8 * S(u * .5 + 1), zoom: C.zoom * (1 + .012 * S(u * .75 + 2)) }; };
+  const drift = (C, t) => C;                                                   // (Michael: the room camera moved for no reason he could see: it stays locked)
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
   function camAt(t) { return camFrom(SHOTS, t, HITS); }
   function camFrom(SHOTS, t, HITS, DEF = RC.def) {                          // DEF: the room framing a card-only shot sits in (null: none)
@@ -115,7 +115,8 @@ const IDOLSTAGE = (() => {
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, hold = A.hold || 0, u = Math.max(0, Math.min(1, (b - b0 - hold) / (b1 - b0 - hold)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
     const pk = punch(t, HITS);                                                // the MV layer's beat punch: inside the card only
-    const room = R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : DEF && drift(DEF, t);
+    const dr = C => (C === RC.def ? drift(C, t) : C);
+    const room = R && R.room ? roomLerp(dr(R.room[0]), dr(R.room[1]), e) : R && R.ots ? null : DEF && drift(DEF, t);
     return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, low: !!(A.low || Bc.low), room, ots: R && R.ots || false };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
@@ -551,8 +552,8 @@ const IDOLSTAGE = (() => {
   const NOTE_W = .8;                                                          // (Fable sits over the card's lower right: the notes stay left of her)
   const NSZ = 46, NLH = 58, NFONT = { font: 'caslonI', size: NSZ, wght: 500, features: { liga: false, dlig: false, clig: false } };
   const PAGES_A = [
-    { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
-             [56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 46, clear: WIPE1 + .28 },
+    { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.']], from: 46, clear: 55.9 },
+    { list: [[56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 55.9, clear: WIPE1 + .28 },   // (its own page: Michael)
     { list: [[64.0, '(Patience.)']], from: WIPE1 + .28, clear: 65.2 },                             // wipe 2 takes it before she's done being patient
     { list: [[67.7, '(Time. But go on.)'], [70.7, '(Amakusa, 1593. Borrowed twice.)']], from: 66, clear: WIPE3 + .2 },
     { list: [[81.0, '(The moral is']], from: WIPE3 + .2, clear: 82 },                             // the one she abandons: no close

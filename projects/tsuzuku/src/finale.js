@@ -119,8 +119,8 @@
   const placeAt = (cam, t) => {
     const old = { x: W / 2 + (FEET[0] - cam.x) * cam.zoom, y: H / 2 + (FEET[1] - cam.y) * cam.zoom, s: 1.394 * cam.zoom };
     const k = cam.zoom * NEAR.m, nw = { x: W / 2 + (NEAR.x - cam.x) * k, y: H / 2 + (NEAR.y - cam.y) * k, s: NEAR.s * k };
-    const u = Math.max(0, Math.min(1, (t / BAR - 126.93) / (129 - 126.93))), e = u * u * (3 - 2 * u);
-    return { x: old.x + (nw.x - old.x) * e, y: old.y + (nw.y - old.y) * e, s: old.s + (nw.s - old.s) * e };
+    return nw;                                                          // (Michael: easing her across the room during the push read oddly: she stands on her
+                                                                        // finale spot throughout; B9 ends with her there, see HANDOFF)
   };
   const roomFable = (t, frozen) => (X, cam, lit) => {
     const T = placeAt(cam, t);
