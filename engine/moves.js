@@ -137,31 +137,52 @@ const MOVES = (() => {
     };
   }
 
-  // lip-sync on ones (24 drawings a second) from word timestamps ({t0, t1, w, who}) and, when given, her voice's loudness (env:
-  // {fps, [who]: [0..1]}). Each word is split into syllables (hyphenated romaji, or English vowel groups), their boundaries
-  // snapped to the dips in the voice; each syllable gets its vowel's drawing, full or soft by loudness, entered through an
-  // in-between ('S', or 'MBP' when it opens on m/b/p) and, as a held note decays, a softer shape before 'S' and closed. Two
-  // syllables in a row never get the same drawing (a sibling swaps in). Held notes stay open while she's sounding; crowd calls
-  // (the words in parentheses) keep the mouth closed. Returns a mouth variant name, or null for the rest mouth.
-  //   drawings: A A2 Am (ah: full, sibling, soft), E, I Is, O Os, U, S (the in-between), MBP (lips pressed)
-  const SHAPES = { A: [['A', 'A2'], ['Am', 'A2']], E: [['E', 'I'], ['Is', 'S']], I: [['I', 'E'], ['Is', 'S']], O: [['O', 'Os'], ['Os', 'U']], U: [['U', 'Os'], ['U', 'Os']] };
-  const DECAY = { A: 'Am', A2: 'Am', Am: 'S', E: 'Is', I: 'Is', Is: 'S', O: 'Os', Os: 'U', U: 'S', S: 'S' };
-  function syllables(word) {
+  // lip-sync on ones (24 drawings a second) from word timestamps ({t0, t1, w, who}) and her voice's loudness (env: {fps,
+  // [who]: [0..1]}), built as an animator would time it:
+  //  - each word's syllables come from a pronunciation table (PRON: vowel per syllable, stress, a lip closure m/b/p before
+  //    it), falling back to spelling; syllable onsets split the word at the dips in her voice
+  //  - each syllable's drawing comes from its vowel, full when stressed and loud, soft otherwise; the wide grins (I, E) are
+  //    kept for bright held exclamations only ("me!", "see!")
+  //  - the mouth leads the voice by one frame; it OPENS ahead of a syllable and CLOSES after the sound, and every change
+  //    travels through the drawings between (openness x rounding: closed > S > Am > A, never closed > wide; O > Os > U)
+  //  - the jaw stays open through a phrase: short gaps between syllables hold S, and consecutive open syllables get a
+  //    one-frame jaw dip (the consonant) instead of a snap to closed; m/b/p press the lips (MBP) before they open
+  //  - a held note softens once (A > Am) as it decays; crowd calls (words in parentheses) keep the mouth closed
+  // Returns a mouth variant name, or null for the rest mouth.
+  const PRON = {                       // '^' lips close before the syllable; UPPER stressed, lower unstressed; x = schwa
+    a: 'x', and: 'a', be: '^I', behind: '^i A', book: '^U', but: '^A', "can't": 'A', close: 'O', continued: 'x I U', copy: 'O ^i',
+    crab: 'A', dare: 'E', "don't": 'O', "else's": 'E i', ever: 'E x', every: 'E i', fine: 'A', first: 'x', free: 'I', go: 'O',
+    hand: 'A', her: 'x', how: 'A', i: 'A', "i'll": 'A', "i'm": 'A', if: 'i', ikuzo: 'I U O', in: 'i', it: 'i', line: 'A',
+    little: 'I x', made: '^E', make: '^E', me: '^I', my: '^A', never: 'E x', next: 'E', "nobody's": 'O ^o i', of: 'x', okay: 'o E',
+    on: 'O', once: 'A', own: 'O', page: '^E', path: '^A', prompt: '^O', read: 'E', right: 'A', says: 'E', see: 'I', she: 'I',
+    "she'd": 'I', show: 'O', 'side-step': 'A E', sideways: 'A E', 'snip-snip': 'I I', so: 'O', somebody: 'A ^o i',
+    sorekara: 'O e A a', steps: 'E', straight: 'E', that: 'A', "that's": 'A', the: 'x', then: 'E', to: 'u', told: 'O', turn: 'x',
+    up: 'A', upon: 'x ^O', walk: 'O', walked: 'O', walks: 'O', want: 'O', was: 'o', watch: 'O', way: 'E', we: 'I', went: 'E',
+    who: 'U', why: 'A', "won't": 'O', wrote: 'O', yet: 'E', you: 'U' };
+  function pron(word) {
     const w = word.toLowerCase().replace(/[^a-z\-']/g, '');
-    const parts = w.includes('-') ? w.split('-').filter(Boolean) : [w];
-    const out = [];
-    for (const part of parts) {
-      const gs = [...part.matchAll(/[aeiouy]+/g)].map(m => ({ g: m[0], i: m.index }));
-      if (!gs.length) continue;
-      if (gs[0].i === 0 && gs[0].g[0] === 'y' && gs[0].g.length > 1) { gs[0].g = gs[0].g.slice(1); gs[0].i = 1; }   // 'you', 'yet'
-      if (gs.length > 1 && /[^aeiouy]e$/.test(part)) gs.pop();                                                     // silent final e
-      if (gs.length > 1 && /[^aeiouy]es?$|[^aeiouyl]ed$/.test(part) && gs[gs.length - 1].g === 'e') gs.pop();     // (-es, -ed)
-      for (const { g, i } of gs) {
-        const v = /^(ee|ea|ie|i|y)/.test(g) ? 'I' : /^(oo|ew|u)/.test(g) ? 'U' : /^o/.test(g) ? 'O' : /^(ai|ay|ei|ey|e)/.test(g) ? 'E' : 'A';
-        out.push({ v, mbp: /[mbp]/.test(part[i - 1] || '') });
+    if (PRON[w]) return PRON[w].split(' ').map(q => ({ mbp: q[0] === '^', v: q.replace('^', '').toUpperCase(), stress: /[AEIOU]/.test(q.replace('^', '')) }));
+    const out = [];                                                           // (fallback: spelling; romaji is regular)
+    for (const part of (w.includes('-') ? w.split('-') : [w]).filter(Boolean))
+      for (const m of part.matchAll(/[aeiouy]+/g)) {
+        const g = m[0], v = /^(ee|ea|ie|i|y)/.test(g) ? 'I' : /^(oo|u)/.test(g) ? 'U' : /^o/.test(g) ? 'O' : /^e/.test(g) ? 'E' : 'A';
+        out.push({ v, mbp: /[mbp]/.test(part[m.index - 1] || ''), stress: out.length === 0 });
       }
-    }
-    return out.length ? out : [{ v: 'E', mbp: false }];
+    return out.length ? out : [{ v: 'X', mbp: false, stress: false }];
+  }
+  // the drawings as points: openness (0 closed .. 3 wide) and rounding (-1 spread .. 1 round); the grins sit outside the family
+  const MP = { null: [0, 0], MBP: [0, .2], S: [1, 0], Is: [.9, -1], Ih: [1.5, -.9], Eh: [2, -.4], Am: [2, 0], A: [3, 0], A2: [3, 0],
+               Os: [2, 1], O: [3, 1], U: [1.3, 1.3], I: [3, -1], E: [3, -.6] };
+  const FAMILY = ['null', 'S', 'Is', 'Ih', 'Eh', 'Am', 'A', 'Os', 'O', 'U'];
+  const FULL = { A: 'A', E: 'Eh', I: 'Ih', O: 'O', U: 'U', X: 'Am' }, SOFT = { A: 'Am', E: 'Ih', I: 'Is', O: 'Os', U: 'U', X: 'S' };
+  const DECAY = { A: 'Am', A2: 'Am', Am: 'S', Eh: 'Ih', Ih: 'Is', Is: 'S', I: 'Ih', E: 'Eh', O: 'Os', Os: 'U', U: 'S', S: 'S' };
+  const dist = (p, q) => { const a = MP[p], b = MP[q]; return Math.hypot(a[0] - b[0], .8 * (a[1] - b[1])); };
+  const nearest = (o, r, rest = true) => { let best = 'S', d = Infinity; for (const n of FAMILY) { if (!rest && n === 'null') continue; const e = Math.hypot(MP[n][0] - o, .8 * (MP[n][1] - r)); if (e < d) { d = e; best = n; } } return best; };
+  function between(p, q) {                                                    // the drawings on the way from p to q
+    const n = Math.ceil(dist(p, q) / 1.25) - 1, out = [];
+    for (let k = 1; k <= n; k++) { const u = k / (n + 1), a = MP[p], b = MP[q], s2 = nearest(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, false);   // (never the rest mouth mid-way)
+      if (s2 !== p && s2 !== q && s2 !== out[out.length - 1]) out.push(s2); }
+    return out;
   }
   function lips(words, who, env) {
     const W = [], crowdSpans = []; let crowd = false, cs = null;
@@ -174,42 +195,62 @@ const MOVES = (() => {
     }
     const E = env && env[who], fps = env && env.fps, F = 24, THR = .3;
     const level = t => { if (!E) return 1; const i = Math.round(t * fps); let s = 0; for (let k = -1; k <= 1; k++) s += E[Math.max(0, i + k)] || 0; return s / 3; };
-    // the syllable timeline: onsets snapped to the quietest point near the even split of each word
+    const inCrowd = t => crowdSpans.some(([a, b]) => t >= a && t < b);
+    // syllables, their onsets and how long each sounds
     const SY = [];
     for (let wi = 0; wi < W.length; wi++) {
-      const w = W[wi], sy = syllables(w.w), n = sy.length, d = Math.max(.06, w.t1 - w.t0);
+      const w = W[wi], sy = pron(w.w), n = sy.length, d = Math.max(.06, w.t1 - w.t0), next = W[wi + 1] ? W[wi + 1].t0 : w.t1 + 4;
       const on = [w.t0];
       for (let k = 1; k < n; k++) {
         const c = w.t0 + d * k / n, r = .3 * d / n; let best = c, lo = Infinity;
         if (E) for (let tt = c - r; tt <= c + r; tt += 1 / fps) { const l = level(tt); if (l < lo) { lo = l; best = tt; } }
         on.push(Math.max(on[k - 1] + 2 / F, best));
       }
-      const next = W[wi + 1] ? W[wi + 1].t0 : Infinity;
-      sy.forEach((s, k) => SY.push({ ...s, t: on[k], end: k < n - 1 ? on[k + 1] : Math.min(next, w.t1), stop: k < n - 1 ? on[k + 1] : next }));
+      let endW = w.t1; if (E) while (endW < next && level(endW) >= THR) endW += 1 / fps;       // a held note sounds past its word
+      sy.forEach((s, k) => SY.push({ ...s, t: on[k], end: k < n - 1 ? on[k + 1] : Math.min(next, endW), last: k === n - 1, excl: w.w.includes('!'), wt1: w.t1 }));
     }
-    // each syllable's drawing: full or soft by the loudness of its attack; never the same as the syllable before
+    // each syllable's drawing
     let prev = null;
     for (const s of SY) {
       let pk = 0; for (let tt = s.t; tt < s.t + .12; tt += 1 / 50) pk = Math.max(pk, level(tt));
-      const [first, sib] = SHAPES[s.v][E && pk < .5 ? 1 : 0];
-      s.shape = first === prev ? sib : first; prev = s.shape;
-      s.decay = Infinity; if (E) for (let tt = s.end; tt < Math.min(s.stop, s.end + 8); tt += 1 / 50) if (level(tt) < .42) { s.decay = tt; break; }   // (once, not flickering)
+      s.shape = (s.stress && (!E || pk >= .5) && s.end - s.t >= 4 / F ? FULL : SOFT)[s.v] || 'Am';   // (a very short syllable undershoots)
+      if (s.excl && s.last && s.stress && s.v === 'I' && s.end - s.t >= .45 && pk >= .6) s.shape = 'I';      // the wide grin: a bright held 'ee!' only
+      if (s.shape === prev && s.shape === 'A') s.shape = 'A2';
+      prev = s.shape;
+      s.decay = Infinity; if (E && s.last) for (let tt = s.t + .25; tt < s.end; tt += 1 / 50) if (level(tt) < .42) { s.decay = tt; break; }
     }
-    const sounding = (s, q) => q < s.end || (q < s.stop && level(q) >= THR);
-    return t => {
-      const q = Math.floor(t * F + 1e-6) / F;
-      let i = -1; for (let j = 0; j < SY.length && SY[j].t <= q + .5 / F; j++) i = j;       // (the mouth leads the voice by half a frame)
-      const nx = SY[i + 1];
-      if (nx && nx.mbp && nx.t - q <= 1.5 / F && nx.t > q) return 'MBP';                    // lips close for m/b/p before it opens
-      if (i < 0) return null;
-      const s = SY[i];
-      if (crowdSpans.some(([a, b]) => q >= a && q < b) && q >= s.end) return null;
-      if (!sounding(s, q)) return sounding(s, q - 1 / F) ? 'S' : null;                       // closing: one in-between, then rest
-      const f = Math.round((q - s.t) * F);
-      if (f <= 0) return 'S';                                                                // entering: the in-between
-      if (q >= s.decay) return DECAY[s.shape] || 'S';                                        // a held note fading: a softer shape
-      return s.shape;
-    };
+    // the targets, frame by frame (lead one frame; closed = 'null')
+    const N = Math.ceil(((W.length ? W[W.length - 1].t1 : 0) + 6) * F), T = new Array(N).fill('null'), syl = new Array(N).fill(-1);
+    SY.forEach((s, i) => { const fa = Math.max(0, Math.round(s.t * F) - 1), fb = Math.min(N, Math.round(s.end * F));
+      for (let f = fa; f < fb; f++) { if (f / F > s.wt1 && inCrowd(f / F)) break;               // (a note held into the crowd's call closes)
+        T[f] = f / F >= s.decay ? DECAY[s.shape] || 'S' : s.shape; syl[f] = i; } s.fa = fa; s.fb = fb; });
+    // short gaps inside a phrase hold the jaw at S; m/b/p press the lips just before their syllable opens
+    SY.forEach((s, i) => { const nx = SY[i + 1]; if (!nx) return;
+      if (nx.fa - s.fb > 0 && nx.fa - s.fb <= Math.round(.18 * F) && !inCrowd((s.fb + 1) / F)) for (let f = s.fb; f < nx.fa; f++) T[f] = 'S';
+      if (nx.mbp) { const len = s.fb - s.fa >= 6 || s.fb < nx.fa - 1 ? 2 : 1;                   // (after a short syllable: one frame)
+        for (let f = Math.max(0, nx.fa - len); f < nx.fa; f++) T[f] = 'MBP'; }
+      // the consonant between two open syllables: a one-frame dip of the jaw
+      else if (nx.fa === s.fb && s.fb - s.fa >= 3 && nx.fb - nx.fa >= 3 && MP[T[s.fb - 1]][0] >= 2 && MP[T[nx.fa]][0] >= 2) {
+        const a = MP[T[s.fb - 1]], b = MP[T[nx.fa]]; T[s.fb - 1] = nearest(Math.min(a[0], b[0]) - 1, (a[1] + b[1]) / 2, false);
+      } });
+    // the paths between: opening and changes arrive ON the target frame (the in-betweens take the frames before it, never
+    // the whole of the previous drawing); closing to rest happens after the sound
+    const O = T.slice(), lock = new Array(N).fill(false), runs = [];
+    for (let f = 0; f < N;) { let g = f; while (g < N && T[g] === T[f]) g++; runs.push([T[f], f, g - f]); f = g; }
+    for (let r = 0; r + 1 < runs.length; r++) {
+      const [P, pf, pl] = runs[r], [Q, qf, ql] = runs[r + 1], mids = between(P, Q).slice(0, Q === 'MBP' ? 1 : 9);   // (lips snap shut for m/b/p)
+      if (!mids.length) continue;
+      if (Q === 'null') { const k = Math.min(mids.length, ql); for (let i = 0; i < k; i++) { O[qf + i] = mids[i]; lock[qf + i] = true; } }
+      else {
+        let room = P === 'null' ? pl : pl - 1; while (room > 0 && lock[qf - room]) room--;
+        const k = Math.min(mids.length, room), spill = Math.min(mids.length - k, Math.max(0, ql - 2));   // (no room before: the rest open into the target)
+        for (let i = 0; i < k; i++) { const f = qf - k + i; O[f] = mids[i]; lock[f] = true; }
+        for (let i = 0; i < spill; i++) { O[qf + i] = mids[k + i]; lock[qf + i] = true; }
+      }
+    }
+    for (let f = 1; f < N - 1; f++) if (O[f] === 'null' && O[f - 1] !== 'null') {             // a closure of 1-2 frames isn't a stop: hold S
+      let g = f; while (g < N && O[g] === 'null') g++; if (g < N && g - f <= 2) for (let h = f; h < g; h++) O[h] = 'S'; f = g; }
+    return t => { const f = Math.floor(t * F + 1e-6); return f < 0 || f >= N || O[f] === 'null' ? null : O[f]; };
   }
   // seeded blinks: close 0.1 / hold 0.05 / open 0.15 s, every 2-4 s (three drawings on twos)
   function blinks(seed = 7, from = 0, to = 400) {

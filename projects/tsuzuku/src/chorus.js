@@ -99,4 +99,8 @@
   LOOPS.clawdsolo = t => { get(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H);
     X.fillStyle = '#2c2838'; X.fillRect(0, 1000, W, 80); RIGS.clawd.draw(X, t, P, { x: 960 + (P(t).rootX || 0) * .27, y: 1040, s: .27 }); };
   LOOPS.clawdsolo.len = 220;
+  // (review) her face, large, on a fixed camera: for judging the mouth drawings and their timing at full resolution
+  LOOPS.clawdface = t => { get(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = '#3a3448'; X.fillRect(0, 0, W, H);
+    const o = RIGS.clawd.R.origin, s = 1.1; RIGS.clawd.draw(X, t, P, { x: 960 + (o[0] - 1065) * s, y: 560 + (o[1] - 700) * s, s }); };
+  LOOPS.clawdface.len = 220;
 }

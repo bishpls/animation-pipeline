@@ -120,6 +120,18 @@
    "patches": [
     "mouth"
    ]
+  },
+  "Eh": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'eh' naturally: a relaxed open mouth, a little wider than it is tall and about as tall as a soft 'ah', the corners relaxed and level (not a smile, not a grin), a narrow band of upper teeth along the top edge, a dark red interior and a dull, darker pink tongue low in the mouth. The same line weight and the same muted colours as her other open mouths.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "Ih": {
+   "prompt": "Change ONLY her mouth: singing a short 'ih' naturally: lips gently spread and only slightly open, a slim opening that shows the edge of the upper teeth as a thin white band with a thin dark red gap below it, the corners relaxed and level (not a grin), no tongue visible. The same line weight and muted colours as her other mouths.",
+   "patches": [
+    "mouth"
+   ]
   }
  }
 }
