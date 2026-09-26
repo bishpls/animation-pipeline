@@ -326,8 +326,9 @@
       const lc = [tip[0] - Math.sin(sw * Math.PI / 180) * drop, tip[1] + Math.cos(sw * Math.PI / 180) * drop];
       R.setTransform(1, 0, 0, 1, 0, 0); R.globalCompositeOperation = 'source-over'; R.clearRect(0, 0, W, H);
       R.drawImage(RL[0], 0, 0); R.globalCompositeOperation = 'source-in'; R.fillStyle = 'rgba(255,196,120,.95)'; R.fillRect(0, 0, W, H);
-      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 4, -6);                    // the edges that face the lamp (in front and below)
-      R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 2700 * RS);   // (the lamp at her hip: its light reaches her hood) g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
+      R.globalCompositeOperation = 'destination-out'; R.drawImage(RL[0], 4 * RK, -6 * RK);          // the edges that face the lamp (in front and below; the offset at her scale)
+      R.globalCompositeOperation = 'destination-in'; const g = R.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 2700 * RS);   // (the lamp at her hip: its light reaches her hood)
+      g.addColorStop(0, '#000'); g.addColorStop(.5, 'rgba(0,0,0,.8)'); g.addColorStop(1, 'rgba(0,0,0,0)'); R.fillStyle = g; R.fillRect(0, 0, W, H);
       // her lantern lights the air of the room around her: her black shape reads against it
       X.save(); X.globalCompositeOperation = 'lighter'; const hz = X.createRadialGradient(lc[0], lc[1], 20, lc[0], lc[1], 1150 * RK);
       hz.addColorStop(0, 'rgba(150,104,56,.42)'); hz.addColorStop(.45, 'rgba(90,60,34,.2)'); hz.addColorStop(1, 'rgba(0,0,0,0)'); X.fillStyle = hz; X.fillRect(0, 0, W, H); X.restore();

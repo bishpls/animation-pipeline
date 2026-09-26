@@ -171,7 +171,8 @@ function inkPrint(C, o = {}) {
     X.save(); X.globalCompositeOperation = 'multiply'; X.drawImage(INK._L, 0, 0); X.restore();
     if (lit > 0) {                                                             // the lantern's paper, glowing from inside
       X.save(); X.globalCompositeOperation = 'screen'; const [lx, ly] = LP, g = X.createRadialGradient(lx, ly, 0, lx, ly, 440 * k);
-      g.addColorStop(0, `rgba(244,201,122,${.2 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)');   // Lantern #F4C97A, capped: the ribs stay X.fillStyle = g; X.fillRect(lx - 460 * k, ly - 460 * k, 920 * k, 920 * k); X.restore();
+      g.addColorStop(0, `rgba(244,201,122,${.2 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)');   // Lantern #F4C97A, capped: the ribs stay
+      X.fillStyle = g; X.fillRect(lx - 460 * k, ly - 460 * k, 920 * k, 920 * k); X.restore();
     }
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .14; X.fillStyle = X.createPattern(GRAIN[Math.floor(s * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
