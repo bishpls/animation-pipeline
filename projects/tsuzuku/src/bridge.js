@@ -300,7 +300,7 @@
     // (3309, 2105), (1654, 1002) at the wide); two geta steps in from the frame's edge (no glide), still, at her cushion (F1 picks
     // up from here: the lantern set on the cushion; one book, the open one on the rail). Hood up; the lantern lit in her
     // hand at her hip; her face lit from below. Black; the light is in front of her and beneath.
-    const ROOM = OUT + 2.5 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
+    const ROOM = OUT + 2 * BEAT, FEET = [1654, 1002], RX = [2080, FEET[0]], RS = (FEET[1] - 190) / 3535, RLSC = 2.3 * RS / .48, RK = RS / .48;   // (crown at y 190)
     const CUSH = { x: 1401.5, s: .172 };                               // (her cushion before her, bare, ≈ x 1303-1584 as F1 draws it: one doesn't stand on a zabuton; the one book is open on the rail)
     const roomPose = T => { const p = { _ghost: {}, head: -4, hair: 3.4 }; return Object.assign(p, reachIn(FABLE_S, p, T, 'torso', STAND_ARM, [T.x - 161, FEET[1] - 473])); };   // her fist forward, a little above her hip (F1's drawing: (1493, 529))
     const roomT = tt => { const q = Math.floor((tt - ROOM) * 12 + 1e-6) / 12, st = BEAT / 2, k = Math.min(2, Math.max(0, q / st)), i = Math.min(1, Math.floor(k)), u = k >= 2 ? 1 : k - i;
@@ -335,6 +335,12 @@
       const dr = 720 * RK; dust(tt, lightPool(lc[0], lc[1], dr), { seed: 5, n: 50, rect: [lc[0] - .7 * dr, lc[1] - .7 * dr, 1.4 * dr, 1.4 * dr], col: [255, 204, 140], alpha: 1.2 });                     // and the dust in it (real air: the room)
       X.save(); X.globalCompositeOperation = 'lighter'; X.filter = 'blur(10px)'; X.globalAlpha = .6; X.drawImage(RL[1], 0, 0);
       X.globalCompositeOperation = 'source-over'; X.filter = 'none'; X.globalAlpha = 1; X.drawImage(RL[0], 0, 0);
+      // the lantern's light wraps a little into the cloth nearest it (her sleeve and front): a figure lit by a lamp in her hand, not
+      // a hole in the frame (the director: the crudest drawing in the film, on its most important beat)
+      if (!RL[2]) RL[2] = mkCanvas(W, H);
+      const Q = RL[2].getContext('2d'); Q.setTransform(1, 0, 0, 1, 0, 0); Q.globalCompositeOperation = 'copy'; Q.drawImage(RL[0], 0, 0); Q.globalCompositeOperation = 'source-in';
+      const wg = Q.createRadialGradient(lc[0], lc[1], 0, lc[0], lc[1], 520 * RK); wg.addColorStop(0, 'rgba(255,170,96,.34)'); wg.addColorStop(.45, 'rgba(190,110,60,.12)'); wg.addColorStop(1, 'rgba(0,0,0,0)');
+      Q.fillStyle = wg; Q.fillRect(0, 0, W, H); X.globalCompositeOperation = 'lighter'; X.drawImage(RL[2], 0, 0); X.globalCompositeOperation = 'source-over';
       X.globalCompositeOperation = 'lighter'; X.filter = 'blur(1.4px)'; X.drawImage(RL[1], 0, 0); X.restore();
       chochinHang(fi[0], fi[1], -1, RLSC, { swing: sw, len: .46, stickAngle: 34, gold: true, ribs: 'rgba(22,40,96,.6)' });   // the lamp she carried out: the same gold, indigo only in its ribs (Fable)
     }
