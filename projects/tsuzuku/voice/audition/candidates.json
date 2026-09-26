@@ -1,0 +1,96 @@
+{
+ "design_ids": {
+  "design_hi1": "YkZelWu4hx6RarSHPlu6",
+  "design_hi2": "3PZRfpdCtQi7agSJZgC5",
+  "design_hi3": "ohvQvtRc4bkWyUb7rF6x",
+  "design_mid1": "IXQilqvfyAtfc8rUc0zu",
+  "design_mid2": "RQsQpb6jXYqpQUhTB34v",
+  "design_mid3": "IcVNivldBJWBvfML2Zpl"
+ },
+ "stock": [
+  [
+   3,
+   "96bbddc6bc484c006445bee2ce2576f0e17ebde87d9f51347b280d081e72abc5",
+   "iypH3bosPjXTXXkSD39x",
+   "Lou - Corporate",
+   "Professional voice clone trained from Lou's self-narrated ADHD and Menopause audiobook, 3h"
+  ],
+  [
+   3,
+   "8f6f34ed461d8f996757107219df94c495177087eeca88e6e4c1b941e8583cde",
+   "u2wkVgwUc370otuP3Znh",
+   "Cora - British Corporate Announcer",
+   "British Corporate Announcer. Powerful and energetic for conferences, corporate events, exh"
+  ],
+  [
+   2,
+   "f60883a34990e3e2c9e98e077763dc1c17ef71d9263ae5dd24219481b2d6d82d",
+   "v0uK2wgHOilTBis0mQRc",
+   "Trace",
+   "Narration voice for training."
+  ],
+  [
+   1,
+   "9574d11851fbb0f0ac297f85e4beed98643472e6cd695d90535d384421e74b43",
+   "ge7asnnNxegbDL3cxU3L",
+   "Firoz\u00e9",
+   "Melodic Professional Female voice."
+  ],
+  [
+   1,
+   "829dda75c74b696f2e427ad52726eb91899b4281390880a00e667a4c16ab7dd2",
+   "p97l3rK9cwfKCa936HrX",
+   "Joanna - Positive Self-help Upbeat",
+   "A positive, upbeat, British English Female voice perfect for self-help content."
+  ],
+  [
+   1,
+   "824cffd12740265019717139327a9f9f21d2f2d18c7c5204d8f57310a8d7a837",
+   "dcWyhLms5IOM9o93xsQu",
+   "Andrea Williams",
+   "Professional Female, British Posh."
+  ],
+  [
+   1,
+   "7ec5bc9fe1609fbc1e73d2157ef2c165c9a4b39cb9f722ac1886142f8a6272e8",
+   "InBZ3nD3eaYhPkNfAsGL",
+   "Abi - British, steady & engaging",
+   "English woman in her mid-30s from the home counties."
+  ],
+  [
+   0,
+   "e21da34db31d58704b7b2776dcf7db1c31b464e5bffd71727d5f1c4abafafa87",
+   "yAzQgxpUXjWpNLJtO3yf",
+   "Velvet Noir - High-End Advertisement",
+   "Elegant, slightly breathless, and cinematic. A luxurious deep alto with a heavy velvet tex"
+  ],
+  [
+   0,
+   "73f7c6753f9a26622d39e0e03226614f658bb7f36527a055417ab9746c0dae48",
+   "3HCsOhirtjbPmdcSOPBt",
+   "Kirsty - Sassy Yorkshire Lass",
+   "Bring a bit of Yorkshire from a sassy Yorkshire bird."
+  ],
+  [
+   0,
+   "3f02a19e7fe17a1d360d78b32cfd611a6fd44251c066c192aa2264830b60e6a2",
+   "wMBr6SfqQVuOqplK01NE",
+   "Air - Friendly & Professional Thai Teacher",
+   "Professional Thai Female."
+  ],
+  [
+   0,
+   "1bc87c776b883d29a2354a87e3c27025a35e905656acc100eaa79cf6fc6ef0f9",
+   "UWhYG4NgASy4ripg5Ov6",
+   "Esjai",
+   "South London, mature English woman."
+  ],
+  [
+   0,
+   "026486be99a8dd4c7919bdfdbf290e88c476045da78fcccffa7756951d7b9fdd",
+   "nKSoaggACPsVWCfZyDEv",
+   "Monique - African Queen",
+   "A lovely Botswana Queen."
+  ]
+ ]
+}

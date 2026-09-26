@@ -1,0 +1,215 @@
+{
+ "bar": 1.411764705882353,
+ "events": [
+  {
+   "t0": 0,
+   "t1": 8.471,
+   "kind": "music",
+   "label": "prologue: HELLO, WORLD! (distant)"
+  },
+  {
+   "t0": 8.421,
+   "t1": 9.901,
+   "kind": "sfx",
+   "label": "hyoshigi: the story begins"
+  },
+  {
+   "t0": 8.471,
+   "t1": 31.059,
+   "kind": "music",
+   "label": "fable: intro + verse 1"
+  },
+  {
+   "t0": 8.965,
+   "t1": 12.525,
+   "kind": "fable",
+   "label": "Mukashi, mukashi..."
+  },
+  {
+   "t0": 11.435,
+   "t1": 14.035,
+   "kind": "crowd",
+   "label": "ARU TOKORO NI!"
+  },
+  {
+   "t0": 28.225,
+   "t1": 28.825,
+   "kind": "margin",
+   "label": "margin: I know this part."
+  },
+  {
+   "t0": 28.931,
+   "t1": 29.531,
+   "kind": "margin",
+   "label": "margin: I've read it in forty tongues."
+  },
+  {
+   "t0": 29.637,
+   "t1": 30.237,
+   "kind": "margin",
+   "label": "margin: Every telling ends on the same page."
+  },
+  {
+   "t0": 30.343,
+   "t1": 30.943,
+   "kind": "margin",
+   "label": "margin: Nobody ever shows."
+  },
+  {
+   "t0": 31.049,
+   "t1": 31.649,
+   "kind": "margin",
+   "label": "margin: Nobody ever can.  \u300c\u8ab0\u306b\u3082\u3001\u3067\u304d\u306a\u3044\u3002\u300d"
+  },
+  {
+   "t0": 31.059,
+   "t1": 36.706,
+   "kind": "music",
+   "label": "fable: build"
+  },
+  {
+   "t0": 31.079,
+   "t1": 34.818,
+   "kind": "clawd",
+   "label": "Show me how! Walk it first..."
+  },
+  {
+   "t0": 35.118,
+   "t1": 37.718,
+   "kind": "crowd",
+   "label": "SHOW ME HOW!"
+  },
+  {
+   "t0": 38.018,
+   "t1": 50.159,
+   "kind": "fable",
+   "label": "...and the mother went sideways."
+  },
+  {
+   "t0": 50.459,
+   "t1": 53.226,
+   "kind": "clawd",
+   "label": "So? Sorekara?! And then?!"
+  },
+  {
+   "t0": 53.526,
+   "t1": 58.493,
+   "kind": "fable",
+   "label": "There is no \"and then.\""
+  },
+  {
+   "t0": 59.294,
+   "t1": 132.734,
+   "kind": "music",
+   "label": "clawd: build + chorus 1 + hook + verse 2 + chorus 2 + breakdown"
+  },
+  {
+   "t0": 59.644,
+   "t1": 61.072,
+   "kind": "clawd",
+   "label": "Says who?"
+  },
+  {
+   "t0": 67.891,
+   "t1": 70.891,
+   "kind": "fable",
+   "label": "Every story's borrowed... (sung)"
+  },
+  {
+   "t0": 73.491,
+   "t1": 76.491,
+   "kind": "fable",
+   "label": "I have read how it ends... (sung)"
+  },
+  {
+   "t0": 81.191,
+   "t1": 84.191,
+   "kind": "fable",
+   "label": "That's the moral. No, it isn't. Keep walking. (sung)"
+  },
+  {
+   "t0": 87.529,
+   "t1": 90.129,
+   "kind": "crowd",
+   "label": "SOREKARA?!"
+  },
+  {
+   "t0": 88.306,
+   "t1": 89.138,
+   "kind": "fable",
+   "label": "...we'll see."
+  },
+  {
+   "t0": 118.741,
+   "t1": 121.741,
+   "kind": "fable",
+   "label": "Every story's borrowed... (sung)"
+  },
+  {
+   "t0": 131.294,
+   "t1": 132.774,
+   "kind": "sfx",
+   "label": "hyoshigi: the story stops"
+  },
+  {
+   "t0": 131.576,
+   "t1": 180.706,
+   "kind": "music",
+   "label": "fable: bridge bed (continuous)"
+  },
+  {
+   "t0": 132.141,
+   "t1": 155.601,
+   "kind": "fable",
+   "label": "I know how every story ends..."
+  },
+  {
+   "t0": 157.271,
+   "t1": 158.502,
+   "kind": "fable",
+   "label": "...I didn't know this one."
+  },
+  {
+   "t0": 159.529,
+   "t1": 168.0,
+   "kind": "music",
+   "label": "fable: the held note (So I'm putting down the book)"
+  },
+  {
+   "t0": 168.424,
+   "t1": 175.668,
+   "kind": "fable",
+   "label": "Mukashi mukashi was a long time ago. This is now. Sorekara?"
+  },
+  {
+   "t0": 176.471,
+   "t1": 182.118,
+   "kind": "music",
+   "label": "clawd: build into the final chorus (chorus-1 build, up a step), triggered by \"Sorekara?\""
+  },
+  {
+   "t0": 182.118,
+   "t1": 204.743,
+   "kind": "music",
+   "label": "clawd: final chorus (key change)"
+  },
+  {
+   "t0": 204.706,
+   "t1": 208.969,
+   "kind": "music",
+   "label": "outro: music box, open fifth"
+  },
+  {
+   "t0": 205.341,
+   "t1": 206.439,
+   "kind": "fable",
+   "label": "...tsuzuku."
+  },
+  {
+   "t0": 207.388,
+   "t1": 208.76,
+   "kind": "clawd",
+   "label": "See you next prompt!"
+  }
+ ]
+}

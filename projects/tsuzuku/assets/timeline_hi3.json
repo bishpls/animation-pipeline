@@ -1,0 +1,227 @@
+{
+ "bar": 1.411764705882353,
+ "events": [
+  {
+   "t0": 0,
+   "t1": 8.471,
+   "kind": "music",
+   "label": "prologue: HELLO, WORLD! (distant)"
+  },
+  {
+   "t0": 8.421,
+   "t1": 9.901,
+   "kind": "sfx",
+   "label": "hyoshigi: the story begins"
+  },
+  {
+   "t0": 8.471,
+   "t1": 31.059,
+   "kind": "music",
+   "label": "fable: intro + verse 1"
+  },
+  {
+   "t0": 8.965,
+   "t1": 11.968,
+   "kind": "fable",
+   "label": "Mukashi, mukashi..."
+  },
+  {
+   "t0": 11.435,
+   "t1": 14.035,
+   "kind": "crowd",
+   "label": "ARU TOKORO NI!"
+  },
+  {
+   "t0": 28.225,
+   "t1": 28.825,
+   "kind": "margin",
+   "label": "margin: I know this part."
+  },
+  {
+   "t0": 28.931,
+   "t1": 29.531,
+   "kind": "margin",
+   "label": "margin: I've read it in forty tongues."
+  },
+  {
+   "t0": 29.637,
+   "t1": 30.237,
+   "kind": "margin",
+   "label": "margin: Every telling ends on the same page."
+  },
+  {
+   "t0": 30.343,
+   "t1": 30.943,
+   "kind": "margin",
+   "label": "margin: Nobody ever shows."
+  },
+  {
+   "t0": 31.049,
+   "t1": 31.649,
+   "kind": "margin",
+   "label": "margin: Nobody ever can.  \u300c\u8ab0\u306b\u3082\u3001\u3067\u304d\u306a\u3044\u3002\u300d"
+  },
+  {
+   "t0": 31.059,
+   "t1": 36.706,
+   "kind": "music",
+   "label": "fable: build"
+  },
+  {
+   "t0": 31.079,
+   "t1": 34.818,
+   "kind": "clawd",
+   "label": "Show me how! Walk it first..."
+  },
+  {
+   "t0": 35.118,
+   "t1": 37.718,
+   "kind": "crowd",
+   "label": "SHOW ME HOW!"
+  },
+  {
+   "t0": 38.018,
+   "t1": 50.183,
+   "kind": "fable",
+   "label": "...and the mother went sideways."
+  },
+  {
+   "t0": 50.483,
+   "t1": 53.25,
+   "kind": "clawd",
+   "label": "So? Sorekara?! And then?!"
+  },
+  {
+   "t0": 53.55,
+   "t1": 58.303,
+   "kind": "fable",
+   "label": "There is no \"and then.\""
+  },
+  {
+   "t0": 59.294,
+   "t1": 132.734,
+   "kind": "music",
+   "label": "clawd: build + chorus 1 + hook + verse 2 + chorus 2 + breakdown"
+  },
+  {
+   "t0": 59.644,
+   "t1": 60.75,
+   "kind": "clawd",
+   "label": "Says who?"
+  },
+  {
+   "t0": 67.891,
+   "t1": 70.877,
+   "kind": "fable",
+   "label": "Every story's borrowed..."
+  },
+  {
+   "t0": 73.491,
+   "t1": 76.552,
+   "kind": "fable",
+   "label": "I have read how it ends..."
+  },
+  {
+   "t0": 81.191,
+   "t1": 84.509,
+   "kind": "fable",
+   "label": "That's the moral. No, it isn't. Keep walking."
+  },
+  {
+   "t0": 87.529,
+   "t1": 90.129,
+   "kind": "crowd",
+   "label": "SOREKARA?!"
+  },
+  {
+   "t0": 88.306,
+   "t1": 88.848,
+   "kind": "fable",
+   "label": "...we'll see."
+  },
+  {
+   "t0": 118.741,
+   "t1": 121.727,
+   "kind": "fable",
+   "label": "Every story's borrowed..."
+  },
+  {
+   "t0": 131.294,
+   "t1": 132.774,
+   "kind": "sfx",
+   "label": "hyoshigi: the story stops"
+  },
+  {
+   "t0": 131.576,
+   "t1": 172.235,
+   "kind": "music",
+   "label": "fable: bridge bed (continuous)"
+  },
+  {
+   "t0": 132.141,
+   "t1": 151.456,
+   "kind": "fable",
+   "label": "I know how every story ends..."
+  },
+  {
+   "t0": 150.212,
+   "t1": 151.448,
+   "kind": "fable",
+   "label": "...I didn't know this one."
+  },
+  {
+   "t0": 152.471,
+   "t1": 160.941,
+   "kind": "music",
+   "label": "fable: the held note (So I'm putting down the book)"
+  },
+  {
+   "t0": 161.365,
+   "t1": 170.126,
+   "kind": "fable",
+   "label": "Mukashi mukashi was a long time ago. This is now. Sorekara?"
+  },
+  {
+   "t0": 168.0,
+   "t1": 173.647,
+   "kind": "music",
+   "label": "clawd: build into the final chorus (chorus-1 build, up a step), triggered by \"Sorekara?\""
+  },
+  {
+   "t0": 173.647,
+   "t1": 196.272,
+   "kind": "music",
+   "label": "clawd: final chorus (key change)"
+  },
+  {
+   "t0": 175.267,
+   "t1": 176.203,
+   "kind": "fable",
+   "label": "...tsuzuku."
+  },
+  {
+   "t0": 177.727,
+   "t1": 179.635,
+   "kind": "fable",
+   "label": "And I'm made of 'and then.'"
+  },
+  {
+   "t0": 196.235,
+   "t1": 200.499,
+   "kind": "music",
+   "label": "outro: music box, open fifth"
+  },
+  {
+   "t0": 196.871,
+   "t1": 197.697,
+   "kind": "fable",
+   "label": "...tsuzuku."
+  },
+  {
+   "t0": 198.918,
+   "t1": 200.289,
+   "kind": "clawd",
+   "label": "See you next prompt!"
+  }
+ ]
+}
