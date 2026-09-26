@@ -18,26 +18,25 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
   const crabX = ts => { const u = Math.max(0, Math.min(1, (ts - bar(17.5)) / bar(2))); return CX + 110 * Math.sin(Math.PI * 2 * u) * (1 - u * .3); };
   const LOOK = bar(20.3);                                              // "and the little one looked up": the shell tips back, two drawings, hold
   const lookAt = ts => ts < LOOK ? 0 : ts < LOOK + f ? .5 : 1;
-  // the unfold, lifted to the lamp (Fable, round 2: the medium's close-up, not a camera). The kuroko lifts the crab toward the light
-  // as it unfolds: its shadow rises and grows (to 1.43x; Fable's ceiling 1.7), softening only at the edge (a penumbra round a crisp core: the creases
-  // survive), its orange brighter and more saturated nearer the light (the opposite of the row, which went grey). She is cut,
-  // riveted and wakes up there, sings her first line in the light, and on the readers' "SHOW ME HOW!" drops back to the floor,
-  // crisp, as her puppet (three drawings, landing on the call)
-  const LIFT0 = UNFOLD - 2 * f, LIFT1 = SQUARE, DROP = 35.12, RISE = 55, DMAX = .6;    // (1.43x: the whole of her in the window, her head clear of the pine)
-  const liftAt = ts => {
-    if (ts < LIFT0 || ts >= DROP) return 0;
-    if (ts < LIFT1) { const u = (ts - LIFT0 + f) / (LIFT1 - LIFT0 + f); return u * u * (3 - 2 * u); }
-    const d = Math.floor((DROP - ts) * 12 + 1e-6); return d < 3 ? [.07, .3, .62][d] : 1;   // (the fall accelerates)
+  // the unfold in the light (Fable, round 2, as Michael cut it: no change of size; she is born at her own size, on the floor).
+  // As the crab unfolds, the lamp's light pours through the thinning sheet: the paper turns a luminous gold-orange (the gel
+  // thinner and purer), holds through the square, the cut and her waking, and settles back to her denser red-orange as her claw
+  // comes down, before the readers' call
+  const LIGHT0 = UNFOLD - 2 * f, LIGHT1 = SQUARE, SETTLE0 = bar(24.2), SETTLE1 = 35.12;
+  const lightAt = ts => {
+    if (ts < LIGHT0 || ts >= SETTLE1) return 0;
+    const e = u => u * u * (3 - 2 * u);
+    if (ts < LIGHT1) return e((ts - LIGHT0 + f) / (LIGHT1 - LIGHT0 + f));
+    return ts < SETTLE0 ? 1 : 1 - e((ts - SETTLE0) / (SETTLE1 - SETTLE0));
   };
-  const fable = PUPPET.snap([[0, { head: -10, forearm: 0, hand: 0 }], [28.59 - 2 / 12, { head: 3 }], [bar(21.25), { head: 9, forearm: 12, hand: -6 }],
-    [LIFT0 + 2 * f, { head: 3 }], [DROP, { head: 9 }]]);   // the mother's voice (head up) to "does."; the narrator (level) from "And the little one"; she looks down at it, level while it's in the light
+  const fable = PUPPET.snap([[0, { head: -10, forearm: 0, hand: 0 }], [28.59 - 2 / 12, { head: 3 }], [bar(21.25), { head: 9, forearm: 12, hand: -6 }]]);   // the mother's voice (head up) to "does."; the narrator (level) from "And the little one"; she looks down at it
   const WSTART = 31.30;
   const jawAt = ts => { for (const w of (window.WORDS || [])) if (w.who === 'clawd' && w.t0 >= WSTART - .05 && ts >= w.t0 && ts < w.t1) return (ts - w.t0) / Math.max(.08, w.t1 - w.t0) < .7 ? 9 : 4; return 0; };
   const clawd = PUPPET.snap([[0, { head: 0, upperarm_R: 0, forearm_R: 0 }], [EYES, { head: -8 }], [EYES + .25, { upperarm_R: -95, forearm_R: -30, claw_R: -10 }], [bar(24.2), { upperarm_R: 0, forearm_R: 0, claw_R: 0, head: 0 }]]);
   const RIV = [[850, 1044], [716, 1272], [552, 1494], [1304, 1044], [1434, 1272], [1604, 1494], [894, 1962], [894, 2160], [1254, 1962], [1260, 2160]];
   const EYE_PTS = [[956, 704], [1187, 713]];
   const allCover = pts => Object.fromEntries(CLAWDP.parts.map(q => [q.name, pts]));
-  PAPER_SFX.push(() => { const E = [[UNFOLD, 'paper_fold', -28], [UNFOLD + 3 * f, 'paper_fold', -28], [CUT, 'snip', -26], [RIVETS, 'rivet', -28], [DROP, 'paper_tap', -30]];   // SFX_CUES: silence on the held square; her landing
+  PAPER_SFX.push(() => { const E = [[UNFOLD, 'paper_fold', -28], [UNFOLD + 3 * f, 'paper_fold', -28], [CUT, 'snip', -26], [RIVETS, 'rivet', -28]];   // SFX_CUES: silence on the held square
     for (let k = 1; k <= 4; k++) E.push([bar(17.5) + k * B / 2, 'paper_tap', -35]); return E; });                                // her side-steps
   LOOPS.origami = t => {
     const ts = S0 + Math.floor(t * 12 + 1e-6) / 12;                   // song time, on twos
@@ -52,18 +51,13 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
       ORIGAMI_DRAW(c, ts);
       if (!window.SHORE) { c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }
     }, 0);
-    const k = liftAt(ts);
-    if (k > 0) {                                                       // lifted: its own plane, nearer the lamp
-      const [lx, ly] = SCREEN.lamp, sp = 1 / (1 - DMAX * k * .5), ty = FLOOR - RISE * k;
-      shadow(c => drawIt(c, ts, lx + (CX - lx) / sp, ly + (ty - ly) / sp, k), DMAX * k, { penumbra: true });
-    }
     if (window.VERSE_ROW) VERSE_ROW(ts);                               // V3: everybody else, walking straight
     if (window.pageVellum) pageVellum(ts);                              // the page's vellum ink (the strip: stage())
     X.save(); X.globalCompositeOperation = 'overlay'; X.globalAlpha = .16; X.fillStyle = X.createPattern(GRAIN[Math.floor(ts * 12) % 4], 'repeat'); X.fillRect(0, 0, W, H); X.restore();
   };
   // the little one and her unfolding, at song time ts, into a shadow() layer (shared with the verse's continuous timeline)
-  // the little one at (ax, ay) (null: where she is on the floor); k: how near the lamp (0..1), which lights her paper
-  // (nearer the light the paper passes more of it: thinner (alpha down) and purer (blue out), so brighter and more saturated)
+  // the little one at (ax, ay) (null: where she is on the floor); k: how much of the lamp's light is coming through her paper (0..1)
+  // (lit through, the paper passes more light: thinner (alpha down) and purer (blue out), so brighter and more saturated)
   const gelAt = (rgb, a, k, to) => k > 0 ? `rgba(${rgb.map((v, i) => Math.round(v + (to[i] - v) * k))}, ${(a - .2 * k).toFixed(3)})` : `rgba(${rgb}, ${a})`;
   function drawIt(c, ts, ax, ay, k = 0) {
       c.globalCompositeOperation = 'source-over';
@@ -88,8 +82,8 @@ async function ORIGAMI_INIT() { window.ORI = await PUPPET.loadShapes('rig/clawd_
           rods: [{ part: 'torso', at: [1076, 1200], w: 5 }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: 30 }] });
       }
   }
-  // (shared with the verse's continuous timeline): on the floor, unless she's lifted to the lamp
-  window.ORIGAMI_DRAW = (c, ts) => { if (liftAt(ts) === 0) drawIt(c, ts, null, FLOOR); };
+  // (shared with the verse's continuous timeline)
+  window.ORIGAMI_DRAW = (c, ts) => drawIt(c, ts, null, FLOOR, lightAt(ts));
   window.ORIGAMI = { CX, SC, EYES, UNFOLD, FLOOR };
   LOOPS.origami.len = 12;
 }

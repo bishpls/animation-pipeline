@@ -10,7 +10,7 @@ The paper-world loops are all on the song clock (`LOOPS.<name>`, t = 0 at the ti
 | 0.0 – 9.0 | `prologue` (t = song) | HELLO, WORLD! from backstage; the kuroko; black on the first hyoshigi clack (8.41) |
 | 9.0 – 12.7 | `inklamp` | ink cut-in: the match, the lamp |
 | 12.7 – 24.0 | `telling` | the doors open; the crab, the mother, the ruler; the little one lights orange |
-| 24.0 – 36.0 | `verse1` | the row walks into the light; the unfold, lifted toward the lamp (its shadow 1.43×, brighter), into Clawd's paper puppet, who sings "Show me how!" in the light and drops to the floor on the readers' call (35.12) |
+| 24.0 – 36.0 | `verse1` | the row walks into the light; the unfold into Clawd's paper puppet, on the floor at her own size, the lamp's light pouring through the sheet (a luminous gold-orange from the unfold through her waking, settling to her red-orange by the readers' call, 35.12); "Show me how!" |
 | 36.0 – 61.0 | `exchange` | the mother goes sideways; "Hm."; hiki-nuki; "Sorekara?!"; the card tears on "Says who?" |
 | 131.29 – 156.2 | `bridge` | opens on the clack (a match cut from the hall: seated; the lamp on the floor beside her, image-left, behind her back; Michael moved it off her lap); the fan's gallery; the shore struck; the pull-back to the wood |
 | 156.2 – 159.53 | `inkcloseup` | ink cut-in: the close-up |
