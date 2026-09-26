@@ -162,20 +162,49 @@ const IDOLSTAGE = (() => {
   function drawPage(X, t, W2S, which) {
     const [x, y, w, h] = SCR.c, [sx, sy] = W2S(x, y), [ex, ey] = W2S(x + w, y + h), rect = [sx, sy, ex - sx, ey - sy];
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
-    const put = name => { if (window.cardFace) X.drawImage(cardFace(name, Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]); else { X.fillStyle = K.washi; X.fillRect(...rect); } };
+    const put = name => X.drawImage(pageFace(name, Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]);
     if (which === 'verse1') put('crabline');
-    else if (which === 'verse') {
-      const b = t2b(t); let cur = 'blank', next = null, u = 0;
-      for (const [a, z, name] of CARD_PULLS) { if (b >= z) cur = name; else if (b >= a) { next = name; u = (b - a) / (z - a); } }
-      if (next === null) put(cur);
-      else { const xe = pullX(u); X.save(); X.beginPath(); X.rect(0, 0, xe, H); X.clip(); put(next); X.restore(); X.save(); X.beginPath(); X.rect(xe, 0, W - xe, H); X.clip(); put(cur); X.restore(); }
-    } else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
+    else if (which === 'verse') { const st = cardState(t); put(st.next || st.cur); }   // (the old card slides off on top: slidingCard)
+    else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
     X.restore();
     return rect;
   }
-  // the pull: eased (a hand's pull: quick in the middle), on twos like everything of Fable's; screen x of the paper edge
-  const pullX = u => { const q = Math.floor(u * 7) / 7, e = q * q * (3 - 2 * q); return e * W; };
-  function pullAt(t) { const b = t2b(t); for (const [a, z] of CARD_PULLS) if (b >= a && b < z) return pullX((b - a) / (z - a)); return null; }
+  // verse 2's cards: before the first pull, the fable's title page (Michael: not blank). A pull slides the old card out of the
+  // screen, across the stage and out of the window into Fable's hand; the next card is behind it. On twos, eased like a hand.
+  function cardState(t) {
+    const b = t2b(t); let cur = 'title', next = null, u = 0;
+    for (const [a, z, name] of CARD_PULLS) { if (b >= z) cur = name; else if (b >= a) { next = name; u = (b - a) / (z - a); } }
+    const tq = Math.floor(u * 12 * (next ? 1 : 0)) / 12;                      // (on twos-ish: 12 steps across the pull)
+    return { cur, next, u: next ? tq * tq * (3 - 2 * tq) : 0 };
+  }
+  const FACES = {};
+  function pageFace(name, w, h) {
+    if (name !== 'title') return window.cardFace ? cardFace(name, w, h) : null;
+    const key = `title${w}x${h}`; if (FACES[key]) return FACES[key];
+    const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d'), X0 = X; X = g;
+    try {
+      g.drawImage(cardFace('blank', w, h), 0, 0);
+      const ink = 'rgb(36,28,24)', text = (str, y, font, size, col = ink) => { const L = shape(str, { font, size }); g.fillStyle = col; for (const gl of L.glyphs) if (gl.ch !== ' ') g.fill(glyphPath(gl, (w - L.width) / 2 + gl.x, y + gl.y)); };
+      text('THE CRAB', h * .34, 'fell', h * .13); text('AND HER MOTHER', h * .5, 'fell', h * .095);
+      text('a fable of \u00c6sop, retold', h * .62, 'caslonI', h * .05, 'rgba(36,28,24,.8)');
+      g.fillStyle = ink; g.fillRect(w * .36, h * .69, w * .28, Math.max(2, h * .006));                       // the rule
+      if (window.PUPPET && window.FAN) PUPPET.drawShape(g, PUPPET.shapeAt(FAN, 'crab', 'crab', 1), new DOMMatrix().translate(w * .5, h * .9).scale(h / 2400));
+    } finally { X = X0; }
+    return (FACES[key] = c);
+  }
+  // the old card on its way out, in the card's screen space (drawn over the stage, under Clawd): out through the window's right
+  // edge; roomFrame draws the part beyond it, in the room, behind Fable's hand. D: the travel, drop: it dips toward her hand
+  function cardSlide(t, W2S) {
+    const st = cardState(t); if (!st.next) return null;
+    const [x, y, w, h] = SCR.c, [sx, sy] = W2S(x, y), [ex, ey] = W2S(x + w, y + h), D = W - sx + 60;
+    return { name: st.cur, rect: [sx + st.u * D, sy + st.u * st.u * (ey - sy) * .5, ex - sx, ey - sy] };
+  }
+  function slidingCard(X, t, W2S) {
+    const sl = cardSlide(t, W2S); if (!sl) return;
+    const [x, y, w, h] = sl.rect, f = pageFace(sl.name, Math.round(w), Math.round(h)); if (!f) return;
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.shadowColor = 'rgba(0,0,0,.45)'; X.shadowBlur = 18; X.shadowOffsetX = 8; X.shadowOffsetY = 8;
+    X.drawImage(f, x, y, w, h); X.restore();
+  }
   // a card's paper edge crossing the picture (wipe 2, the pulls): the old card rides over the new one, so its edge throws a soft
   // shadow onto the new card, and catches the light
   function paperEdge(X, xe) {
@@ -205,6 +234,13 @@ const IDOLSTAGE = (() => {
       for (let x = brk, k = 0; x < sx1; x += st, k++) { const up = (k % 4 === 0 || k % 4 === 1) ? 1 : 0, yy = ly - (k % 4 === 1 || k % 4 === 2 ? hgt : 0);
         X.fillRect(x, yy, Math.min(st, sx1 - x), lw * 1.3); if (k % 2 === 0) X.fillRect(x + st - lw * 1.3, ly - hgt, lw * 1.3, hgt + lw * 1.3); }
     }
+    // her pixel crab walks it, sideways (Michael): at the front of the staircase as it draws, then beside 「つづく→」, bouncing
+    if (grow > 0) {
+      const st = 34 * u, hgt = 16 * u, cx = grow < 1 ? sx1 : lx1 - st * .5, k = Math.floor((cx - brk) / st), up = (k % 4 === 1 || k % 4 === 2) ? hgt : 0;
+      const beat = Math.floor(t / BT), cp = 3.2 * u, legs = beat % 2 ? PCRAB_B : PCRAB;
+      X.fillStyle = K.clay; const bob = grow < 1 ? 0 : ((t / BT) % 1 < .3 ? cp : 0);
+      legs.forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '#') X.fillRect(cx - 5 * cp + i * cp, ly - up - 7 * cp - bob + j * cp, cp - .4, cp - .4); }));
+    }
     // her footprints, stamped on "then I'll make up the steps!" (76.75, 77.0, 77.25, 77.5), walking left to right along the line
     const cell = 13 * u;
     for (let k = 0; k < 5; k++) {                                                // (76.75 .. 77.75: one per stamp, the last on "steps!")
@@ -223,10 +259,12 @@ const IDOLSTAGE = (() => {
     X.restore();
   }
   // Clawd's pixel crab and pixel line, drawn onto Fable's page by her claw (bars 72-73.75): a staircase line (her hem motif)
+  const PCRAB = ['..#....#..', '.#.#..#.#.', '..######..', '.########.', '##.####.##', '.########.', '#.#....#.#'];
+  const PCRAB_B = ['..#....#..', '.#.#..#.#.', '..######..', '.########.', '##.####.##', '.########.', '.#.#..#.#.'];   // (the other step)
   function pixelCrab(X, t, rect) {
     const b = t2b(t); if (b < 72) return;
     const u = Math.min(1, (b - 72) / 1.6), [x, y, w, h] = rect, p = w / 64;
-    const CRAB = ['..#....#..', '.#.#..#.#.', '..######..', '.########.', '##.####.##', '.########.', '#.#....#.#'];
+    const CRAB = PCRAB;
     const cells = []; CRAB.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') cells.push([i, j]); }));
     const nC = Math.floor(u * 1.4 * cells.length);
     X.save(); X.fillStyle = K.clay;
@@ -372,7 +410,7 @@ const IDOLSTAGE = (() => {
       X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.beginPath(); X.rect(xe, 0, W - xe, H); X.clip(); backdrop(t, c, W2S, e1, 0, e3, opt); X.restore();
       paperEdge(X, xe);
     } else backdrop(t, c, W2S, e1, e2, e3, opt);
-    const pe = pullAt(t); if (pe !== null) paperEdge(X, pe);                   // verse 2's cards, pulled from her room
+    if (t2b(t) < 82) slidingCard(X, t, W2S);                                   // verse 2's cards, pulled from her room
     camXform(X, c);
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
@@ -407,6 +445,14 @@ const IDOLSTAGE = (() => {
     }
     // (one audience: the hall's, inside the card; the room's readers are cut in world A)
     const k = cam.zoom * FROOM.m, fx = W / 2 + (FROOM.x - cam.x) * k, fy = H / 2 + (FROOM.y - cam.y) * k, fs = FROOM.s * k;
+    // the pulled card, where it has left the window: in the room, over the rail, behind her (she's taking it)
+    const sl = cardSlide(t, W2Sof(c));
+    if (sl) {
+      const toB = (px, py) => [1003 + px * 1833 / 1920, 799 + (py - 15) * 1008 / 1050], toR = ([bx, by]) => [W / 2 + (bx - cam.x) * cam.zoom, H / 2 + (by - cam.y) * cam.zoom];
+      const [x, y, w, h] = sl.rect, [a0, b0] = toR(toB(x, y)), [a1, b1] = toR(toB(x + w, y + h)), edge = toR([2836, 0])[0], f = pageFace(sl.name, Math.round(w), Math.round(h));
+      if (f && a1 > edge) { X.save(); X.beginPath(); X.rect(edge, 0, W - edge, H); X.clip(); X.shadowColor = 'rgba(0,0,0,.5)'; X.shadowBlur = 20; X.shadowOffsetX = 10; X.shadowOffsetY = 10;
+        X.filter = `brightness(${(.62 + .28 * lit).toFixed(2)})`; X.drawImage(f, a0, b0, a1 - a0, b1 - b0); X.restore(); }
+    }
     if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
     return c;
   }

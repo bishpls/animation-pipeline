@@ -14,7 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from key import key
 
 D = os.path.dirname(os.path.abspath(__file__)); DBG = '--debug' in sys.argv
-POSES = ['write', 'ear', 'clap', 'clapopen', 'clapmid', 'wipe0', 'wipe1', 'rest', 'pull']
+POSES = ['write', 'ear', 'clap', 'clapopen', 'clapmid', 'wipe0', 'wipe1', 'rest', 'pull', 'pincers', 'pincersnip']
+BOTH_ARMS = {'pincers', 'pincersnip'}                # poses that raise her left arm too (image-left, past the hood)
 base = key(os.path.join(D, 'src/base.png')); H, W = base.shape[:2]
 lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)
 
@@ -139,6 +140,7 @@ def cut():
         pa = lambda a: a[..., :3].astype(np.float32) * (a[..., 3:] / 255)
         d = np.maximum(np.abs(pa(al) - pa(fig)).max(-1), np.abs(al[..., 3].astype(np.float32) - fig[..., 3]))
         zone = arm | (poly(Z['hood_r']) if p == 'ear' else False)
+        if p in BOTH_ARMS: zone = zone | (poly(Z['left']) & ~ndi.binary_dilation(rib, iterations=10))   # (clear of the ribbon: its own layer)
         m = ndi.binary_opening(d > 45, iterations=3) & zone
         m = ndi.binary_fill_holes(ndi.binary_closing(m, iterations=8))
         lab, n = ndi.label(m); sizes = ndi.sum(m, lab, range(1, n + 1)); m = np.isin(lab, 1 + np.flatnonzero(sizes > 4000))

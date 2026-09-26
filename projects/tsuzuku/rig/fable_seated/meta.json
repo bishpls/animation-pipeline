@@ -48,6 +48,8 @@
   "wipe0": "figure_wipe0.png",
   "wipe1": "figure_wipe1.png",
   "rest": "figure_rest.png",
-  "pull": "figure_pull.png"
+  "pull": "figure_pull.png",
+  "pincers": "figure_pincers.png",
+  "pincersnip": "figure_pincersnip.png"
  }
 }

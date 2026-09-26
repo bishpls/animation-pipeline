@@ -25,19 +25,25 @@ const FABLESEAT = (() => {
   const CLAPS = [62.5, 62.75, 63.5, 63.75, 64.5, 64.75, 65.5, 65.75];         // with the hall (Clawd's snips)
   const PULLS = [[67, 67.2, 67.75], [70, 70.08, 70.42]];                     // [she reaches, the edge starts, it's through] (idolstage CARD_PULLS)
   const inAny = (b, W) => W.some(([a, z]) => b >= a && b < z);
+  // pincer snips (both hands up as a crab's claws, Michael): open between, shut on each snip
+  const snip = (b, hits, end) => hits.some(h => b >= h && b < h + .1) ? 'pincersnip' : b < end ? 'pincers' : null;
   function cue(t) {
     const tq = Math.floor(t * 12 + 1e-6) / 12, b = tq / BR, f = b - Math.floor(b), bar = Math.floor(b);
+    const beat = Math.floor(b * 4), qb = b * 4 - beat;                          // Clawd's beat and its phase
     let pose = 'rest', nod = 0, lean = 0, sway = 0, tilt = 0;
-    // chorus 1, annotating: a nod on the one, the ribbon on the offbeat; from 52 a small head bob side to side, on her pulse
+    const breath = Math.round(4 * Math.sin(2 * Math.PI * b / 2)) / 4;          // she's always in frame: a slow breath, stepped
+    // chorus 1, annotating: a nod on the one, the ribbon on the offbeat. 52: a small head bob side to side on her pulse. 56: she's
+    // more into it: left-left, right-right on the beats (Michael), a nod on every beat, the shoulders going with it
     if (b >= 46 && b < 62) {
       nod = f < .06 ? .4 : f < .3 ? .7 : f < .36 ? .3 : 0;
       sway = (f >= .5 && f < .56 ? .5 : f >= .56 && f < .9 ? 1 : f >= .9 ? .4 : 0) * (bar % 2 ? -1 : 1);
-      if (b >= 52) { const h = (b * 2) % 1, side = Math.floor(b * 2) % 2 ? -1 : 1; tilt = side * (h < .12 ? .5 : h < .88 ? 1 : .5); nod *= .5; }
+      if (b >= 52 && b < 56) { const h = (b * 2) % 1, side = Math.floor(b * 2) % 2 ? -1 : 1; tilt = side * (h < .12 ? .5 : h < .88 ? 1 : .5); nod *= .5; }
+      if (b >= 56) { const side = Math.floor(beat / 2) % 2 ? -1 : 1; tilt = side * (qb < .15 ? 1.1 : 1.5); nod = qb < .12 ? .5 : qb < .4 ? 1 : qb < .5 ? .4 : 0; lean = side * .45; }
     }
     for (const p of PRESSES) if (b >= p - .55 && b < p + .8) { pose = 'write'; if (b >= p - .06 && b < p + .3) nod = Math.max(nod, .7); }
     // "Sideways, sideways!": one seated weight shift each way (54.00, 54.49)
     if (b >= 54 && b < 55.05) lean = b < 54.06 ? -.5 : b < 54.49 ? -1 : b < 54.55 ? 0 : b < 54.98 ? 1 : .4;
-    // the hook (no cuts to her, but she's in it): hand to ear on the call, two low claps with the hall, the wipe with her on 65
+    // the hook: hand to ear on the call, two low claps with the hall, the wipe with her on 65
     if (b >= 62 && b < 66) {
       pose = (b >= 62 && b < 62.4) || (b >= 64 && b < 64.4) ? 'ear' : 'rest';
       for (let i = 0; i < CLAPS.length; i += 2) { const [c1, c2] = [CLAPS[i], CLAPS[i + 1]];
@@ -45,31 +51,41 @@ const FABLESEAT = (() => {
       if (b >= 65 && b < 65.4) pose = b < 65.07 ? 'write' : b < 65.2 ? 'wipe0' : 'wipe1';
       nod = pose === 'ear' ? .3 : 0; sway = 0; tilt = 0;
     }
-    // verse 2: she reaches up and pulls each card from the butai's side (leaning back as it comes), then hands to thighs, still
-    for (const [r, a, z] of PULLS) if (b >= r && b < z + .18) {
-      pose = b < z + .08 ? 'pull' : 'rest'; lean = b < a ? 0 : b < z ? -.9 * clamp((b - a) / (z - a)) : -.9 * (1 - clamp((b - z) / .18));
+    // verse 2, watching and pulling the cards. The card slides out of Clawd's screen into her hand (idolstage draws it); on "a
+    // little crab" both hands go up as pincers and snip with her; the second pull is livelier (she's getting into it), and she
+    // answers "Sorekara?" (her own call) with a hand to her ear
+    if (b >= 66 && b < 82) {
+      nod = b < 72 ? (qb < .12 ? .25 : qb < .3 ? .5 : 0) : 0;
+      if (b >= 67 && b < 67.95) { pose = 'pull'; lean = b < 67.2 ? .15 : -.9 * clamp((b - 67.2) / .55); }
+      else if (b >= 67.95 && b < 68.15) lean = -.9 * (1 - (b - 67.95) / .2);
+      const s1 = snip(b, [68.25, 68.5], 68.85); if (b >= 68.17 && s1) { pose = s1; nod = 0; tilt = qb < .5 ? .6 : -.6; }
+      if (b >= 69.9 && b < 70.52) { pose = 'pull'; lean = b < 70.08 ? .35 : -1.3 * clamp((b - 70.08) / .34); tilt = b < 70.08 ? .6 : -1; }
+      const s2 = snip(b, [70.52, 70.77, 71.02], 71.3); if (b >= 70.52 && s2) { pose = s2; lean = Math.floor(beat) % 2 ? .5 : -.5; tilt = -lean * 1.2; nod = qb < .3 ? .6 : 0; }
+      if (b >= 80.9 && b < 81.5) { pose = 'ear'; tilt = .5; }
+      if (b >= 72 && !(b >= 80.9 && b < 81.5)) { sway = 0; tilt = .25 * Math.round(2 * Math.sin(2 * Math.PI * b / 4)) / 2; }   // watching, following her
     }
-    // chorus 2, joining: she claps with the hall on the backbeat (half, CLAP, half, open), bobbing on the beat; from 86 she's in
-    // it: the seated sideways shift each half-bar, the head going with it
+    // chorus 2, joining: she claps with the hall on the backbeat (half, CLAP, half, open), bobbing on the beat; 86: pincers with
+    // Clawd's claws, snipping on every beat; 87: back to clapping, now with the seated sideways shift and the head going with it
     if (b >= 82 && b < 90) {
       const q = ((b * 4 - 1) % 2 + 2) % 2 / 2;                                 // 0 on beats 2 and 4
       pose = q < .1 ? 'clap' : q < .2 ? 'clapmid' : q < .88 ? 'clapopen' : 'clapmid';
-      const qb = (b * 4) % 1; nod = qb < .15 ? .35 : qb < .5 ? .8 : qb < .62 ? .35 : 0;
-      if (b >= 86) { const side = Math.floor(b * 2) % 2 ? -1 : 1, h = (b * 2) % 1; lean = side * (h < .12 ? .5 : h < .9 ? 1 : .5); tilt = -side * (h < .12 ? .4 : .8); }
+      nod = qb < .15 ? .35 : qb < .5 ? .8 : qb < .62 ? .35 : 0;
+      if (b >= 86 && b < 87) { pose = qb < .3 ? 'pincersnip' : 'pincers'; const side = beat % 2 ? -1 : 1; lean = side * .6; tilt = -side; }
+      if (b >= 87) { const side = Math.floor(b * 2) % 2 ? -1 : 1, h = (b * 2) % 1; lean = side * (h < .12 ? .5 : h < .9 ? 1.1 : .5); tilt = -side * (h < .12 ? .5 : 1); }
       if (b >= 84.24 - .55 && b < 84.24 + .8) { pose = 'write'; lean = 0; tilt = 0; }
     }
-    if (b >= 72 && b < 82) { nod = 0; sway = 0; tilt = 0; }                     // watching
     if (b >= 90) { pose = 'rest'; nod = 0; sway = 0; tilt = 0; lean = 0; }       // the lights die: still, the lantern lit
-    return { pose, nod, lean, sway, tilt, b };
+    return { pose, nod, lean, sway, tilt, breath, b };
   }
 
   // ---- the drawing, warped in strips (cached per state: she holds, so most frames hit)
   function warped(st) {
-    const key = [st.pose, st.nod.toFixed(2), st.lean.toFixed(2), st.sway.toFixed(2), st.tilt.toFixed(2)].join('|');
+    const key = [st.pose, st.nod.toFixed(2), st.lean.toFixed(2), st.sway.toFixed(2), st.tilt.toFixed(2), (st.breath || 0).toFixed(2)].join('|');
     if (M.cache.has(key)) return M.cache.get(key);
     const [w, h] = M.meta.size, P = M.meta.pivots, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
     const hood = y => 1 - sm(P.neck[1] - 80, P.neck[1] + 30, y);
-    const dy = y => st.nod * 26 * hood(y);                                                   // the hood drops forward
+    const dy = y => st.nod * 26 * hood(y)                                                    // the hood drops forward
+                  - (st.breath || 0) * 5 * clamp((P.hem[1] - y) / (P.hem[1] - P.crown[1]));   // and the whole back rises with a breath
     const dx = y => st.lean * 34 * clamp((P.hem[1] - y) / (P.hem[1] - P.crown[1])) ** 1.2   // the torso rocks over the seat
                   + st.tilt * 20 * hood(y) * clamp((P.neck[1] - y) / (P.neck[1] - P.crown[1]));   // the head tips side to side
     const strips = (img, y0, y1, ex) => {
@@ -83,7 +99,7 @@ const FABLESEAT = (() => {
     // the ribbon: tied under the hood, it rides the nod and the lean, and its tail swings on the offbeat
     const tie = P.tie[1], L = 780;
     strips(M.img.ribbon, 0, h, y => st.sway * 44 * clamp((y - tie) / L) ** 1.6);
-    if (M.cache.size > 64) M.cache.delete(M.cache.keys().next().value);
+    if (M.cache.size > 96) M.cache.delete(M.cache.keys().next().value);
     M.cache.set(key, c); return c;
   }
 
