@@ -99,7 +99,7 @@
 
   // her lines in the margin, full ink (F4, F6); the margin empties on the hit (F8). F6 also on Clawd's side screens
   // (Fable: in the finale her lines press as she sings them, a bar behind Clawd's; three lines, full ink, then empty at the hit)
-  const NOTES = { list: [[b2t(130.2), '\u2026to be continued.'], [189.11, 'And I\u2019m made of \u201cand then.\u201d'], [193.39, '~~I\u2019ve read how it ends.~~ I\u2019d still like to see.']],
+  const NOTES = { list: [[b2t(130.2), '...to be continued.'], [189.11, 'And I\u2019m made of \u201cand then.\u201d'], [193.39, '~~I\u2019ve read how it ends.~~ I\u2019d still like to see.']],
                   ink: 'rgb(22,22,26)', clear: TF };
   const side = t => (t >= b2t(137) && t < b2t(139) ? ['I’D', 'STILL', 'LIKE', 'TO SEE'] : null);
 
@@ -114,7 +114,7 @@
     const [wx, wy] = [W / 2 + (1919.5 - cam.x) * cam.zoom, H / 2 + (1303 - cam.y) * cam.zoom], R = 1100 * cam.zoom;
     let a = 0, col = '255,240,250';
     if (t < 178.5) a = .95 * Math.max(0, 1 - (t - 177.8) / .7) ** 1.6;
-    if (t >= b2t(142)) { a = .45 * Math.exp(-(t - b2t(142)) / 1.1) + .08; col = '255,214,236'; }
+    if (t >= b2t(142)) { const u = Math.min(1, (t - b2t(142)) / BAR); a = .42 * Math.sin(Math.PI * u) ** 1.5 + .06 * (1 - u); col = '255,214,236'; }   // the light rings out: one slow flare, a bar (Fable), then the doors
     if (a <= 0) return;
     X.save(); X.globalCompositeOperation = 'lighter';
     const g = X.createRadialGradient(wx, wy, R * .2, wx, wy, R * 2.2); g.addColorStop(0, `rgba(${col},${a})`); g.addColorStop(.45, `rgba(${col},${a * .35})`); g.addColorStop(1, `rgba(${col},0)`);

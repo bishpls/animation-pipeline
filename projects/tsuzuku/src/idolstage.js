@@ -337,14 +337,14 @@ const IDOLSTAGE = (() => {
   const PCRAB_B = ['..#....#..', '.#.#..#.#.', '..######..', '.########.', '##.####.##', '.########.', '.#.#..#.#.'];   // (the other step)
   function pixelCrab(X, t, rect) {
     const b = t2b(t); if (b < 72) return;
-    const u = Math.min(1, (b - 72) / 1.6), [x, y, w, h] = rect, p = w / 64;
+    const u = Math.min(1, (b - 72) / 1.6), [x, y, w, h] = rect, p = w / 110;          // (small, in the page's empty bottom-left: never over its print)
     const CRAB = PCRAB;
     const cells = []; CRAB.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') cells.push([i, j]); }));
     const nC = Math.floor(u * 1.4 * cells.length);
     X.save(); X.fillStyle = K.clay;
-    cells.slice(0, nC).forEach(([i, j]) => X.fillRect(x + w * .74 + i * p * 1.6, y + h * .16 + j * p * 1.6, p * 1.5, p * 1.5));
+    cells.slice(0, nC).forEach(([i, j]) => X.fillRect(x + w * .06 + i * p * 1.6, y + h * .74 + j * p * 1.6, p * 1.5, p * 1.5));
     const steps = Math.floor(Math.max(0, u * 1.4 - .6) / .8 * 12);                               // the line goes sideways: a staircase
-    X.fillStyle = K.clayD; for (let s = 0; s < steps; s++) X.fillRect(x + w * .12 + s * p * 3.4, y + h * .86 - (s % 2) * p * 1.6, p * 3.4, p * 1.6);
+    X.fillStyle = K.clayD; for (let s = 0; s < steps; s++) X.fillRect(x + w * .22 + s * p * 3.4, y + h * .9 - (s % 2) * p * 1.6, p * 3.4, p * 1.6);
     X.restore();
   }
 
@@ -452,8 +452,8 @@ const IDOLSTAGE = (() => {
     { list: [[64.0, '(Patience.)']], from: WIPE1 + .28, clear: 65.2 },                             // wipe 2 takes it before she's done being patient
     { list: [[67.7, '(Time. But go on.)'], [70.7, '(Amakusa, 1593. Borrowed twice.)']], from: 66, clear: WIPE3 + .2 },
     { list: [[81.0, '(The moral is']], from: WIPE3 + .2, clear: 82 },                             // the one she abandons: no close
-    { list: [[84.24, 'Every story’s borrowed. …She wrote her own.'], [88.3, '~~I’ve read how it ends.~~ I’ve read how the others end.']], from: 82, clear: 92 },
-    { list: [[92.4, '…hm.']], from: 92, clear: 93.05 },                                        // the annotator has run out of annotations
+    { list: [[84.24, 'Every story’s borrowed. ...She wrote her own.'], [88.3, '~~I’ve read how it ends.~~ I’ve read how the others end.']], from: 82, clear: 92 },
+    { list: [[92.4, '...hm.']], from: 92, clear: 93.05 },                                        // the annotator has run out of annotations
   ].map(p => ({ ...p, list: p.list.map(([bb, str]) => [b2t(bb), str]), from: b2t(p.from), clear: b2t(p.clear) }));
   const notesA = t => { const p = PAGES_A.find(q => t >= q.from && t < q.clear); return p ? { list: p.list, clear: p.clear } : null; };
   // the layout: words flow from the margin's left, wrapping to a second line; positions are fixed for the whole page (future notes
@@ -617,10 +617,10 @@ const IDOLSTAGE = (() => {
     // the tear's flood (61.0, world A's first frame): her light takes the window and washes the room white, covering the move from
     // the paper world's readers to one audience (Fable: "the white covers the move"); it ebbs over two thirds of a second
     const tf = t - 60.99;                                                          // (world A starts at 61.0)
-    if (tf >= 0 && tf < .7) { const [wx, wy] = [W / 2 + (1919.5 - cam.x) * cam.zoom, H / 2 + (1303 - cam.y) * cam.zoom], a = .95 * (1 - tf / .7) ** 1.6;
+    if (tf >= 0 && tf < .88) { const [wx, wy] = [W / 2 + (1919.5 - cam.x) * cam.zoom, H / 2 + (1303 - cam.y) * cam.zoom], a = tf < .18 ? 1 : .95 * (1 - (tf - .18) / .7) ** 1.6;   // (held white half a beat: Fable, "the audience should lose the picture for a moment")
       X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalCompositeOperation = 'lighter';
       const g = X.createRadialGradient(wx, wy, 200, wx, wy, 1900); g.addColorStop(0, `rgba(255,244,250,${a})`); g.addColorStop(.5, `rgba(255,236,246,${a * .6})`); g.addColorStop(1, `rgba(255,236,246,${a * .25})`);
-      X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore(); }
+      X.fillStyle = g; X.fillRect(0, 0, W, H); if (tf < .18) { X.globalCompositeOperation = 'source-over'; X.fillStyle = 'rgb(255,248,252)'; X.fillRect(0, 0, W, H); } X.restore(); }
     return c;
   }
   // her book mirrors the screen: the same faces, and Clawd's page (drawn live) for the over-the-shoulder cut at 80.2
