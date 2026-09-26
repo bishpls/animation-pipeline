@@ -8,6 +8,11 @@ BUILD.json:
                       "rect": [x0, y0, x1, y1], "clip": [x0, y0, x1, y1]}}
       The layer is extended over that area and the new pixels are filled from its own flat colours (OpenCV inpainting of the
       interior, lines excluded so they don't smear). The original pixels are kept on top, untouched.
+      Also "exclude": [polygons] (never fill there) and "lines": {"pts": [[[x, y], ...], ...], "width": px, "rgb": [r, g, b]}: ink
+      strokes laid only on the new (invented) pixels, e.g. a torso's side contour under a sleeve, so a revealed edge is inked.
+  "outer_margin": px (default 0): invented pixels (fills, plate extensions) and bleed never come within px of the figure's outer
+      silhouette (its outer edges: a single layer within "junction" px, default 18; junctions keep their fills). What's behind a part at the silhouette is background, so relative motion there shows background, never a flat
+      fill with no line (paint outside the lines). "outer_margin_skip": [layers] exempts a layer (e.g. one whose fill is inked).
   "plates": {"name": {"from": [layers], "grow": px, "colour": "shadow" | [r, g, b], "behind": "layer"}}
       New layers made from a region (e.g. the back-hair plate behind the head), filled flat.
 Writes OUT_DIR/<layer>.png (cropped, premultiplied-safe RGBA), OUT_DIR/manifest.json {size, layers: [{name, x, y, w, h}]} in draw
@@ -128,6 +133,16 @@ def main(ldir, spec, out):
             L[n] = fill_from(L[n], hole & ~fz); L[n][fz, :3] = col.astype(np.uint8); L[n][fz, 3] = 255
             hole = hole & ~fz            # flat skin under the eye/mouth patches matches their own skin edges: not counted as invented
         else: L[n] = fill_from(L[n], hole)
+        if 'lines' in sp:                          # ink, anti-aliased (drawn 4x, reduced), straddling the fill's edge, never over the drawn art
+            from PIL import ImageDraw
+            LN = sp['lines']; k = 4; E = Image.new('L', (shape[1] * k, shape[0] * k), 0); d = ImageDraw.Draw(E)
+            for pts in LN['pts']: d.line([(q[0] * k, q[1] * k) for q in pts], fill=255, width=LN.get('width', 7) * k, joint='curve')
+            ia = np.asarray(E.resize((shape[1], shape[0]), Image.LANCZOS)).astype(float) / 255
+            where = (ia > .02) & ~orig[n]; c = np.array(LN.get('rgb', [38, 22, 18]), float); lay = L[n].astype(float)
+            A0 = lay[where, 3:4] / 255; aw = ia[where][:, None]
+            lay[where, :3] = (lay[where, :3] * A0 * (1 - aw) + c * aw) / np.maximum(A0 * (1 - aw) + aw, 1e-6)
+            lay[where, 3] = 255 * (A0[:, 0] * (1 - aw[:, 0]) + aw[:, 0])
+            L[n] = lay.clip(0, 255).astype(np.uint8); hole = hole | where
         review |= hole; inv[n] |= hole
         print(f'  under {n:12s} +{hole.sum():8d} px')
     for n, T in S.get('tubes', {}).items():
@@ -166,6 +181,25 @@ def main(ldir, spec, out):
             print(f'  plate {n:12s} drawn from {sp["img"]}: {M.sum()} px (+{rest.sum()} extended)')
         L[n] = P; i = order.index(sp['behind']) + 1 if sp.get('behind') in order else len(order); order.insert(i, n)
         print(f'  plate {n:12s} {Z.sum():8d} px  colour {col.astype(int).tolist()}')
+    # outer margin: no invented pixel within `outer_margin` px of the figure's silhouette (the union of drawn pixels)
+    # Only the figure's OUTER edges count: silhouette pixels with a single layer within `junction` px (a bun's rim, a puff's curve).
+    # Where two layers meet at the silhouette (a bun's base on the side hair) the fill behind bridges a real crack: keep it.
+    om = S.get('outer_margin', 0); band = np.zeros(shape, bool)
+    if om:
+        names = [n for n in order if n in orig]; lab = np.zeros(shape, np.int16); FIG = np.zeros(shape, bool)
+        for i, n in enumerate(names): m = orig[n] & ~FIG; lab[m] = i + 1; FIG |= m          # front-most drawn layer per pixel
+        edge = FIG & ~ndi.binary_erosion(FIG); J = S.get('junction', 18); near = np.zeros(shape, np.uint8)
+        for i in range(1, len(names) + 1):
+            m = lab == i
+            if not m.any(): continue
+            ys, xs = np.where(m); y0, y1, x0, x1 = max(ys.min() - J, 0), ys.max() + J + 1, max(xs.min() - J, 0), xs.max() + J + 1
+            near[y0:y1, x0:x1] += (ndi.distance_transform_edt(~m[y0:y1, x0:x1]) <= J).astype(np.uint8)
+        outer = edge & (near <= 1)
+        band = ~FIG | (ndi.distance_transform_edt(~outer) <= om); cut = 0
+        for n in L:
+            if n in S.get('outer_margin_skip', []): continue
+            kill = inv[n] & band & (L[n][:, :, 3] > 0); L[n][kill, 3] = 0; inv[n] &= ~kill; cut += kill.sum()
+        print(f'  outer margin {om}px: removed {cut} invented px at the silhouette')
     # invariant: every filled pixel must be hidden at rest by an opaque drawn layer in front of it, so the rig at rest is exactly
     # the illustration. Front to back: remove fill pixels that nothing in front covers.
     cover = np.zeros(shape, bool); removed = 0
@@ -198,7 +232,7 @@ def main(ldir, spec, out):
             if n not in L: continue
             lay = L[n]; a = lay[:, :, 3] > 8
             if n not in S.get('feather', {}):
-                grow = ndi.binary_dilation(a, iterations=bl) & cover & ~a
+                grow = ndi.binary_dilation(a, iterations=bl) & cover & ~a & ~band   # (never under the outer silhouette)
                 if grow.any():
                     _, (iy, ix) = ndi.distance_transform_edt(~a, return_indices=True)
                     lay[grow, :3] = lay[iy[grow], ix[grow], :3]; lay[grow, 3] = 255

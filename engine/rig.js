@@ -95,7 +95,7 @@ const RIG = (() => {
     const views = {};
     for (const [vn, V] of Object.entries(R.views || {})) {
       const vm = await (await fetch(base + V.manifest)).json(), vdir = base + V.manifest.slice(0, V.manifest.lastIndexOf('/') + 1);
-      views[vn] = { V, layers: await Promise.all(vm.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(vdir + l.name + '.png')), inv: await invOf(vdir + l.name + '.inv.png'), m: mesh(l), view: vn }))) };
+      views[vn] = { V, layers: await Promise.all(vm.layers.map(async l => ({ ...l, tex: texFrom(await loadImg(vdir + l.name + '.png')), inv: await invOf(vdir + l.name + '.inv.png'), m: mesh(l, cellOf(l.name)), view: vn }))) };
     }
     // drawn variants of face patches (tools/variants.py): {patch: {variant: layer}}, per view
     const variants = {};
@@ -109,7 +109,9 @@ const RIG = (() => {
     const set = a => new Set(a || []);
     const head = set(R.head && R.head.layers), upper = set(R.body && R.body.upper), armOf = {};
     for (const s of ['L', 'R']) if (R.arms && R.arms[s]) for (const n of R.arms[s].layers) armOf[n] = s;
-    const rig = { R, layers, head, upper, armOf, size: man.size, views, variants };
+    const puffSides = {};                                      // layer -> the arms whose puff it carries
+    for (const s of ['L', 'R']) if (R.arms && R.arms[s] && R.arms[s].puff) for (const n of R.arms[s].puff.layers) (puffSides[n] = puffSides[n] || []).push(s);
+    const rig = { R, layers, head, upper, armOf, puffSides, size: man.size, views, variants };
     // the draw list for each view: the front head's layers swapped by name; view-only layers go in front of the next swapped one
     rig.lists = { F: layers };
     for (const [vn, v] of Object.entries(views)) {
@@ -146,6 +148,21 @@ const RIG = (() => {
     return rig;
   }
 
+  // puff weight: along the arm axis from the shoulder (0 at along[0], 1 at along[1], smoothstepped), times a soft gate that is 0
+  // inside the torso's side contour (a polyline [x, y] top to bottom) and up to `inset` px outside it, 1 from inset + gate px
+  const smooth = v => v * v * (3 - 2 * v);
+  function puffW(A, x, y, sd) {
+    const P = A.puff, sh = A.shoulder, ax = A.axis, sAl = (x - sh[0]) * ax[0] + (y - sh[1]) * ax[1];
+    const wa = smooth(clamp((sAl - P.along[0]) / (P.along[1] - P.along[0]), 0, 1));
+    if (!wa) return 0;
+    const T = P.torso; let xc = T[0][0];
+    if (y >= T[T.length - 1][1]) xc = T[T.length - 1][0];
+    else for (let i = 1; i < T.length; i++) if (y <= T[i][1]) { const u = clamp((y - T[i - 1][1]) / (T[i][1] - T[i - 1][1] || 1), 0, 1); xc = T[i - 1][0] + (T[i][0] - T[i - 1][0]) * u; break; }
+    const out = sd === 'L' ? xc - x : x - xc;                 // (the inner seam, on the contour and just outside it, never moves)
+    return wa * smooth(clamp((out - (P.inset ?? 16)) / (P.gate || 48), 0, 1));
+  }
+  const puffSides = (rig, name) => rig.puffSides[name] || [];
+
   function deform(rig, l, p, sp, out) {
     const R = rig.R, H = l.view ? { ...R.head, ...R.views[l.view].head } : R.head, B = R.body || {}, rest = l.m.rest, name = l.name;
     const nx = clamp(p.angleX || 0, -1, 1), ny = clamp(p.angleY || 0, -1, 1);
@@ -155,7 +172,7 @@ const RIG = (() => {
     const fo = R.follow && R.follow[name];               // e.g. the back-hair plate moves exactly like the side hair in front of it
     const arm = rig.armOf[name] ? R.arms[rig.armOf[name]] : null;
     let dep = H && H.depth && H.depth[name] !== undefined ? H.depth[name] : 0;
-    const rigid = H && H.rigid && H.rigid[name], neckL = (H.neckLayers || []).includes(name) && !inHead;
+    const rigid = H && H.rigid && H.rigid[name], neckL = (H.neckLayers || []).includes(name) && !inHead, pSides = puffSides(rig, name);
     for (let k = 0; k < rest.length; k += 2) {
       let x = rest[k], y = rest[k + 1];
       const as = fo ? (x < (H.center ? H.center[0] : fo.split) ? fo.left : fo.right) : name, sw = R.sway && R.sway[as];
@@ -185,8 +202,15 @@ const RIG = (() => {
         x += H.D[0] * nx * .5 * (NK.wx ?? .03) * top; y -= H.D[1] * ny * .5 * (NK.wy ?? .24) * top;
         [x, y] = rot(x, y, H.pivot[0], H.pivot[1], az * wz);
       }
-      // arms at the shoulder (the sleeve follows part of the way)
-      if (arm) {
+      // the puff sleeves (arms.<s>.puff): skinned to the shoulder rotation by region, so the puff's opening moves exactly with the
+      // trim and the upper arm while its top and its inner seam stay on the body (it stretches between; nothing slides apart).
+      // Applies to the sleeve layer, and to a view's flattened 'upper' layer, which carries both puffs.
+      for (const sd of puffSides(rig, name)) {
+        const A = R.arms[sd], w = puffW(A, x, y, sd);
+        if (w > 0) [x, y] = rot(x, y, A.shoulder[0], A.shoulder[1], (sd === 'L' ? 1 : -1) * (p['arm' + sd] || 0) * w);
+      }
+      // arms at the shoulder
+      if (arm && !(arm.puff && arm.puff.layers.includes(name))) {
         const sd = rig.armOf[name], sg = sd === 'L' ? 1 : -1;
         // the elbow (FK, before the shoulder): the forearm, cuff and hand rotate about it; the arm's own mesh is skinned across
         // the joint (weight by distance along the arm axis), so it bends instead of breaking
@@ -203,7 +227,10 @@ const RIG = (() => {
       if (B.bodyX) {
         const X0 = rest[k], Y0 = rest[k + 1], BX = B.bodyX, hb = inHead || neckL;
         const torso = (qx, qy) => { const fh = 1 - Math.pow(clamp(Math.abs(qx - BX.cx) / BX.rx, 0, 1), 1.5), pv = interp(BX.prof, qy);
-                                    return rig.armOf[name] ? interp(BX.arm, qy) : BX.head + (pv - BX.head) * fh; };
+                                    const tb = BX.head + (pv - BX.head) * fh;
+                                    if (pSides.length) { let w = 0; for (const sd of pSides) w = Math.max(w, puffW(R.arms[sd], qx, qy, sd));   // a puff: the body
+                                      return tb * (1 - w) + interp(BX.arm, qy) * w; }                                               // at its seam, the arm at its trim
+                                    return rig.armOf[name] ? interp(BX.arm, qy) : tb; };
         const kf = hb ? BX.head * hfv + torso(X0, Y0) * (1 - hfv) : torso(X0, Y0) + ((B.lead || {})[name] || 0);
         x += BX.D * clamp(p._bx || 0, -1.2, 1.2) * kf;
         const BR = B.breath, br = clamp(breath, 0, 1), yb = hb ? BR.prof[0][0] : Y0;
@@ -240,7 +267,7 @@ const RIG = (() => {
           const f = name === Object.keys(PV.legs)[0] ? fL : fR;                    // the ankle follows its foot
           x += ddx * fall + f[0] * v; y += ddy * fall - f[1] * v;
           const drop = ddy + f[1];                                                   // a lifted foot also bends the knee
-          if (drop > 0) x += Math.sign(PV.c[0] - L0.top[0]) * PV.knee * drop * Math.sin(Math.PI * v);   // the bent knee
+          if (drop > 0) x += Math.sign(PV.c[0] - L0.top[0]) * (1 - 2 * clamp(p.kneeOut || 0, 0, 1)) * PV.knee * drop * Math.sin(Math.PI * v);   // the bent knee (kneeOut 1: out, a curtsy's plié)
         }
       }
       out[k] = x; out[k + 1] = y;

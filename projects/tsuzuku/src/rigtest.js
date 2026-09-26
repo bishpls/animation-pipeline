@@ -63,3 +63,17 @@ LOOPS.hidetest = t => {
   window.RIG_HIDE = sets[k]; window.DEBUG_BG = '#ff00ff'; LOOPS.rig(201 / 24); window.RIG_HIDE = null; window.DEBUG_BG = null;
 };
 LOOPS.hidetest.len = 4;
+// (debug) Clawd at any song time of world A (the chorus choreography): left on magenta, right as the ID pass (each layer a flat
+// colour, its invented pixels at half brightness). LOOPS.clawdat (head), clawdatmid (waist up), clawdatfull; t = song seconds
+{
+  const at = T => t => {
+    const P = window.CHOREO.clawdA.P();
+    X.fillStyle = '#ff00ff'; X.fillRect(0, 0, W / 2, H); X.fillStyle = '#000'; X.fillRect(W / 2, 0, W / 2, H);
+    X.save(); X.beginPath(); X.rect(0, 0, W / 2, H); X.clip(); RIGS.clawd.draw(X, t, P, T(480)); X.restore();
+    X.save(); X.beginPath(); X.rect(W / 2, 0, W / 2, H); X.clip(); window.RIG_IDPASS = true; RIGS.clawd.draw(X, t, P, T(1440)); window.RIG_IDPASS = false; X.restore();
+  };
+  LOOPS.clawdat = at(x => ({ x, y: 540 + (3700 - 620) * 1.05, s: 1.05 }));
+  LOOPS.clawdatmid = at(x => ({ x, y: 540 + (3700 - 1250) * .5, s: .5 }));
+  LOOPS.clawdatfull = at(x => ({ x, y: 1060, s: .27 }));
+  LOOPS.clawdat.len = LOOPS.clawdatmid.len = LOOPS.clawdatfull.len = 220;
+}
