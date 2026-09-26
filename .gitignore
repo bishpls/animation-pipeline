@@ -39,3 +39,7 @@ projects/*/assets/prologue_hw/
 projects/*/rig/*/under/seg*/
 projects/*/rig/*/under/layers*/
 projects/*/rig/*/views/seg_*/
+
+# pose-estimation env (Python 3.12, MediaPipe) and its downloadable model
+.venv-pose/
+tools/models/

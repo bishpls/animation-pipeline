@@ -32,10 +32,13 @@ const IDOLSTAGE = (() => {
   // itself (the washi deckle is its edge); room shots film it inside the butai window with the paper world's stage()
   // (src/stage.js), the room readers (src/audience.js), and Fable seated seiza at the butai's right, the teller's side, facing the
   // window, her warm lantern between her and the butai (src/fableseat.js). Room cameras are in butai px.
-  const RC = { window: { x: 1920, y: 1445, zoom: .8 }, wide: { x: 2050, y: 1330, zoom: .5 }, card: { x: 1919.5, y: 1303, zoom: 1.0475 },
-               teller: { x: 2620, y: 1600, zoom: .66 }, teller2: { x: 2720, y: 1650, zoom: .7 }, pull: { x: 2560, y: 1540, zoom: .64 },
-               clap: { x: 2760, y: 1660, zoom: .72 }, clap2: { x: 2960, y: 1790, zoom: .86 }, end: { x: 2080, y: 1340, zoom: .52 }, ots: { x: 1760, y: 1180, zoom: .74 } };
-  const FROOM = { x: 3450, y: 2250, m: 1, s: .94 };        // Fable's seat point in the room: beside the butai, at its depth; her scale
+  // Michael: one audience (the room's readers are cut), the window larger, and Fable in frame at all times. So the room is the
+  // frame for all of world A: `def` holds the window at ~70% of the frame with Fable kneeling at its right, at the window's
+  // height (where a teller sits); the card's own camera still moves inside the window. The others are the beats' framings.
+  const RC = { window: { x: 1920, y: 1445, zoom: .8 }, wide: { x: 2080, y: 1420, zoom: .52 }, def: { x: 2281, y: 1466, zoom: .72 },
+               teller: { x: 2560, y: 1560, zoom: .86 }, teller2: { x: 2640, y: 1600, zoom: .9 }, pull: { x: 2480, y: 1520, zoom: .82 },
+               clap: { x: 2700, y: 1640, zoom: .92 }, clap2: { x: 2860, y: 1720, zoom: 1.05 }, end: { x: 2200, y: 1480, zoom: .6 }, ots: { x: 1760, y: 1180, zoom: .74 } };
+  const FROOM = { x: 3309, y: 2105, m: 1, s: .85 };        // Fable's seat point in the room: kneeling beside the window, at its height; her scale
   const room = (a, b = a) => ({ room: [a, b] }), OTSR = { ots: true };
   // ---- the camera: shots [bar, from, to, room?]; {cx, cy, z}: world point at screen centre, zoom (the card's own camera)
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
@@ -43,7 +46,7 @@ const IDOLSTAGE = (() => {
   const SHOTS = [
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
     [45, WIDE, WIDE, room(RC.wide)],                              // the room: the tear floods it with her light (one bar)
-    [46, WIDE, FULL, room(RC.wide, RC.card)],                     // K2: the drop, pushing into the card: full frame by 47
+    [46, WIDE, FULL, room(RC.wide, RC.def)],                      // K2: the drop, pushing in to the window and her
     [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
     [48, WIDE, WIDE, OTSR],                                       // over Fable's shoulder: she writes the note (half a bar)
     [48.5, { cx: 960, cy: 600, z: .96 }, WIDE],                  // K3: ME-KUT-TE! the hall
@@ -74,7 +77,7 @@ const IDOLSTAGE = (() => {
     [88, FULL, FULL, room(RC.clap2)],                             // ...and she's in it now (one bar)
     [89, MED(960, 295, 1.75), MED(960, 290, 1.9)],
     [90, FULL, { cx: 960, cy: 520, z: .94 }],                    // the breakdown: pull back as the lights die
-    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 960, cy: 540, z: 1 }, room(RC.card, RC.end)],   // ...back out into her room: black on the clack
+    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 960, cy: 540, z: 1 }, room(RC.def, RC.end)],    // ...back out into her room: black on the clack
     [93, WIDE, WIDE, room(RC.end)],
   ];
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
@@ -82,7 +85,7 @@ const IDOLSTAGE = (() => {
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : null, ots: !!(R && R.ots) };
+    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: !!(R && R.ots) };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -402,9 +405,8 @@ const IDOLSTAGE = (() => {
       if (typeof FABLESEAT !== 'undefined') FABLESEAT.ots(X, t, [], { flip: true, draw: 'write', spread: 'notes' });
       return c;
     }
-    // the readers keep clear of her (audience's o.gap): her figure and lantern span about -640..+420 drawing px about her seat
+    // (one audience: the hall's, inside the card; the room's readers are cut in world A)
     const k = cam.zoom * FROOM.m, fx = W / 2 + (FROOM.x - cam.x) * k, fy = H / 2 + (FROOM.y - cam.y) * k, fs = FROOM.s * k;
-    if (window.readers) readers(t, cam, { calls: callSpans(), gap: [fx - 640 * fs - 190, fx + 420 * fs + 70] });
     if (typeof FABLESEAT !== 'undefined') FABLESEAT.draw(X, t, { x: fx, y: fy, s: fs, flip: true }, lit);
     return c;
   }
