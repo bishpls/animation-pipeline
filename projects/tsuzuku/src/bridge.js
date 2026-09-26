@@ -76,8 +76,8 @@
   // her down; she goes limp against the frame (whole, inside the window: put away, not lost)
   const LIMP = { skirt: 11, head: 15, upperarm_L: -41, forearm_L: -6, upperarm_R: 18, forearm_R: 6 };
   const setDown = PUPPET.snap([[0, { x: 1400, y: 0, skirt: 0, head: 0, upperarm_L: 0, forearm_L: 0, upperarm_R: 0, forearm_R: 0 }],
-    [CLACK + f, { x: 1520, y: -36 }], [CLACK + 4 * f, { x: CP.x, y: 0 }], [CLACK + 6 * f, LIMP]], { overshoot: .08 });
-  const clawdAt = ts => { const k = setDown(ts); return { pose: { ...k, _ghost: {} }, T: { ...CP, x: k.x, y: FLOOR + k.y }, lean: ts >= CLACK + 5 * f ? -70 : 0 }; };
+    [CLACK + 16 * f, { x: 1520, y: -36 }], [CLACK + 19 * f, { x: CP.x, y: 0 }], [CLACK + 21 * f, LIMP]], { overshoot: .08 });   // (once the theatre has faded in)
+  const clawdAt = ts => { const k = setDown(ts); return { pose: { ...k, _ghost: {} }, T: { ...CP, x: k.x, y: FLOOR + k.y }, lean: ts >= CLACK + 20 * f ? -70 : 0 }; };
   function scene(ts) {
     const strike = {}; let bright = 0;
     for (const [k, t0, dir] of STRIKES) { const u = pulled(ts, t0); strike[k] = [u, dir]; bright += u * (k.startsWith('rocks') ? .5 : 1); }
@@ -107,7 +107,19 @@
   }
   // B1 opens on the hall's last frame, matched (the stage session's numbers at 131.29: crown (900, 108), seat (866, 947)): the
   // camera close on her, the grain large; it holds while Clawd's puppet is set down, then eases out to the telling camera
-  const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 8 * f, MATCH_N = 20;
+  const CAM_MATCH = { x: 1486, y: 1334, zoom: 1.742 }, MATCH_HOLD = CLACK + 22 * f, MATCH_N = 20;
+  // the seam from the hall (Fable: "black on the clack; the lantern alone glides to B1's position; B1 fades in around it"). FROM:
+  // the hall lantern's screen centre and body height in the stage session's last frame
+  const FROM = { x: 666, y: 895, h: 219 }, GLIDE = [CLACK, CLACK + 6 * f], FADE = [CLACK + 5 * f, CLACK + 14 * f];
+  function seam(ts) {
+    if (ts >= FADE[1]) return;
+    const bx = 1009 + (FLOORSPOT[0] - 150) * 1821 / 1620, by = 805 + (FLOORSPOT[1] - 7 * LSC - CHO.h * LSC / 2 - 170) * 996 / 900;
+    const to = { x: W / 2 + (bx - CAM_MATCH.x) * CAM_MATCH.zoom, y: H / 2 + (by - CAM_MATCH.y) * CAM_MATCH.zoom, h: CHO.h * LSC * 1821 / 1620 * CAM_MATCH.zoom };
+    const u = Math.min(1, Math.max(0, Math.floor((ts - GLIDE[0]) * 12 + 1e-6) / Math.round((GLIDE[1] - GLIDE[0]) * 12))), e = u * u * (3 - 2 * u);
+    const v = Math.min(1, Math.max(0, Math.floor((ts - FADE[0]) * 12 + 1e-6) / Math.round((FADE[1] - FADE[0]) * 12)));
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = `rgba(0,0,0,${1 - v})`; X.fillRect(0, 0, W, H); X.restore();
+    if (v < 1) { X.save(); X.globalAlpha = 1 - v; chochinBody(FROM.x + (to.x - FROM.x) * e, FROM.y + (to.y - FROM.y) * e, (FROM.h + (to.h - FROM.h) * e) / CHO.h, 0, { gold: true }); X.restore(); }
+  }
   // B4: "You stand in the dark," the camera pulls back past the wood, in drawings, and holds
   const BACK = 152.46, BACKN = 12;
   LOOPS.bridge = t => {
@@ -117,6 +129,7 @@
     const m = Math.min(1, Math.max(0, Math.floor((ts - MATCH_HOLD) * 12 + 1e-6) / MATCH_N)), mm = m * m * (3 - 2 * m);
     const cam = ts < BACK ? camLerp(CAM_MATCH, CAM_WINDOW, mm) : camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1, page: ts });
     readers(ts, cam);
+    seam(ts);
   };
   LOOPS.bridge.len = 156.2 - S0;
 
@@ -311,9 +324,12 @@
     LOOPS.bridgeB8.len = S1 - S0;
     let TEXT = null;
     function w8(n, after) { return ((window.WORDS || []).find(x => x.t0 > after && x.w.toLowerCase().replace(/[^a-z]/g, '').startsWith(n)) || {}).t0 ?? 999; }
+    // after she stands, her lines in full ink (Fable), in the notes' own Caslon italic and set as the notes are, a short column
+    // down the left margin (Michael: one hand, and the space economised), large enough to read at the wide; each line pressed
+    // on its first word
     function bridgeText(tt) {
-      if (!TEXT) TEXT = [[w8('mukashi', 168), 'Mukashi mukashi was a long time ago.'], [w8('this', 172), 'This is now.'], [w8('sorekara', 174.5), '“Sorekara?”']];
-      TEXT.forEach(([t0, str], i) => inkVellum(str, 190, 262 + i * 76, tt, t0, { font: 'caslon', size: 54, alpha: .92, col: 'rgb(30,24,22)' }));
+      if (!TEXT) TEXT = [[w8('mukashi', 168), 'Mukashi mukashi'], [w8('was', 169.5), 'was a long time ago.'], [w8('this', 172), 'This is now.'], [w8('sorekara', 174.5), '\u201CSorekara?\u201D']];
+      TEXT.forEach(([t0, str], i) => inkVellum(str, 180, 250 + i * 62, tt, t0, { font: 'caslonI', size: 46, alpha: .92, col: 'rgb(30,24,22)' }));
     }
   }
 }

@@ -2,7 +2,8 @@
 // the camera physically approaching the frame"). A scene draws the theatre as usual (screen + shadows, full frame); stage()
 // renders it offscreen, sets its SCREEN.rect into the butai's window, lays the wooden frame over it, swings the doors on their
 // hinges (in perspective), and films it all with a camera in butai-art pixels.
-//   stage(t, sceneFn, { cam: { x, y, zoom }, doors: 0..1 (1 = open) })
+//   stage(t, sceneFn, { cam: { x, y, zoom }, doors: 0..1 (1 = open), lit, page, spill: [r, g, b] (the aperture's light on the wood;
+//   default the lamp's warm) })
 const BUTAI = { win: [1009, 805, 2830, 1801], hingeL: 872, hingeR: 2968, doorL: [39, 868], doorR: [2968, 3801], size: [3840, 2160] };
 async function STAGE_INIT() {
   const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = 'rig/butai/butai.png'; });
@@ -35,7 +36,8 @@ function stage(t, sceneFn, o = {}) {
   const [fx, fy] = T(0, 0); X.save(); X.translate(fx, fy); X.scale(z, z);
   X.filter = 'brightness(.95)'; X.drawImage(BUTAI.frame, 0, 0); X.filter = 'none';                      // the wood (lit below: from the aperture only)
   // light spilling from the lit screen onto the inner rails
-  X.globalCompositeOperation = 'screen'; const sp = X.createLinearGradient(0, wy0 - 140, 0, wy0); sp.addColorStop(0, 'rgba(255,190,110,0)'); sp.addColorStop(1, `rgba(255,190,110,${.16 * lit})`);
+  const SP = o.spill || [255, 190, 110];
+  X.globalCompositeOperation = 'screen'; const sp = X.createLinearGradient(0, wy0 - 140, 0, wy0); sp.addColorStop(0, `rgba(${SP},0)`); sp.addColorStop(1, `rgba(${SP},${.16 * lit})`);
   X.fillStyle = sp; X.fillRect(wx0 - 140, wy0 - 140, wx1 - wx0 + 280, 140); X.globalCompositeOperation = 'source-over';
   // the doors: open = lying flat beside the frame; closed = over the window; mid-swing, foreshortened, the free edge nearer the lens
   const open = Math.max(0, Math.min(1, o.doors ?? 1)), phi = (1 - open) * Math.PI;                       // 0 open .. PI closed
@@ -66,7 +68,8 @@ function stage(t, sceneFn, o = {}) {
     const [cx, cy] = T((wx0 + wx1) / 2, (wy0 + wy1) / 2), hx = (wx1 - wx0) / 2 * z, hy = (wy1 - wy0) / 2 * z, k = .1 + .9 * lit;
     L2.save(); L2.translate(cx, cy); L2.scale(1, hy / hx);
     const g = L2.createRadialGradient(0, 0, hx * .96, 0, 0, hx * 2.05), c = (r, gg, b) => `rgb(${Math.round(r * k)},${Math.round(gg * k)},${Math.round(b * k)})`;
-    g.addColorStop(0, c(255, 222, 176)); g.addColorStop(.18, c(196, 150, 104)); g.addColorStop(.5, c(84, 60, 42)); g.addColorStop(1, c(8, 6, 5));
+    if (o.spill) { const [r, gg, b] = o.spill; g.addColorStop(0, c(r, gg, b)); g.addColorStop(.18, c(r * .75, gg * .72, b * .7)); g.addColorStop(.5, c(r * .32, gg * .3, b * .3)); g.addColorStop(1, c(8, 6, 5)); }
+    else { g.addColorStop(0, c(255, 222, 176)); g.addColorStop(.18, c(196, 150, 104)); g.addColorStop(.5, c(84, 60, 42)); g.addColorStop(1, c(8, 6, 5)); }
     L2.globalCompositeOperation = 'multiply'; L2.fillStyle = g; L2.fillRect(-hx * 3, -hx * 3, hx * 6, hx * 6); L2.restore();
     L2.globalCompositeOperation = 'destination-in'; L2.drawImage(BUTAI.L1, 0, 0); L2.globalCompositeOperation = 'source-over';
     X = Xm; X.drawImage(BUTAI.L2, 0, 0); }

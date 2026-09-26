@@ -10,7 +10,7 @@ async function AUD_INIT() {
 // bottom; the candle sits low in the middle, so the paper is brightest there and dims toward the sides as it curves away; the
 // ribs are shadows on the lit paper. Drawn in the person's frame at the traced lantern's centre and radius.
 function lantern([cx, cy, r], sc, tq, ph) {
-  const w = r * .86, h = r * 1.08, fl = 1 + .05 * Math.sin(tq * 23 + ph * 9);      // (the flame's small breathing, on twos)
+  const w = r * .7, h = r * 1.12, fl = 1 + .05 * Math.sin(tq * 23 + ph * 9);       // oblong, like hers (Michael); the flame's small breathing, on twos
   X.save(); X.beginPath(); X.ellipse(cx, cy, w, h, 0, 0, 7); X.clip();
   X.fillStyle = 'rgb(14,18,40)'; X.fillRect(cx - w, cy - h, 2 * w, 2 * h);
   X.save(); X.translate(cx, cy + h * .22); X.scale(w / h, 1);           // the glow: round about the candle, squeezed to the paper
@@ -22,7 +22,7 @@ function lantern([cx, cy, r], sc, tq, ph) {
     X.beginPath(); X.moveTo(cx - hw, cy + y); X.quadraticCurveTo(cx, cy + y + r * .07, cx + hw, cy + y); X.stroke(); }
   X.restore();
   X.fillStyle = '#0a0808';                                            // the caps
-  for (const s of [-1, 1]) { X.beginPath(); X.ellipse(cx, cy + s * h * .93, w * .5, r * .13, 0, 0, 7); X.fill(); }
+  for (const s of [-1, 1]) X.fillRect(cx - w * .62, cy + s * h * .93 - r * .1, w * 1.24, r * .2);   // the lacquer caps, flat like hers
 }
 // seated row: a stable arrangement (seeded), people at mixed heights along the bottom edge. They sit between us and the lit
 // stage, so we see their backs: black, but never lost in the dark. The floor and air in front of the stage behind them are
