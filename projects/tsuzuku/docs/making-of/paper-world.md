@@ -29,7 +29,7 @@ GPT Image (logged in `tools/ledger.jsonl`) made **still drawings only**:
 - **Scenery flats**: pine, rocks, far hills.
 - **The butai's wood** and the reader silhouettes.
 - **The ink close-up** (`rig/fable_ink`), printed by code through separated plates: washi, an indigo plate misregistered a few pixels, then ink. A fold is a mesh warp with a crease. In the film it's a kamishibai card slid into the butai's window (B5). The ink lamp-lighting and stand-up drawings are kept for this page only.
-- **The finale's illustrated Fable** (`rig/fable_stage`, `rig/fable_room`). Code rigs and animates her.
+- **The finale's illustrated Fable** (`rig/fable_room`): drawings of her in the room, swapped on twos. Code places each drawing, pastes her faces on, swings the lantern (cut out as a prop), and adds the bobs and the bounce.
 
 ## Fable's rulings
 Fable, the character, is the subagent who rules on her world and her identity. Rulings that shaped the paper world:
@@ -55,9 +55,15 @@ Fable, the character, is the subagent who rules on her world and her identity. R
 - **A 0.1 s gap between two act 1 loops** played everything after it one drawing early against the song until it was found.
 - **The prologue's far show was mirrored** because we see it from backstage. The director read the backwards subtitle as a bug. Fable let the mirror go: now the hall reads the lyric on the show and then finds the same card in her hands.
 - **Two lines of drawing code sat inside comments, after a `//` on the same line.** B9's rim light never faded with distance from the lantern, and C2's lantern glow never drew. Both were found only when a crop at 3× showed a rim that was too even.
-- **The finale's Fable** was first a rigid cut-out. She's now a mesh rig at Clawd's level:
+- **The finale's Fable** was first a rigid cut-out, then a mesh rig at Clawd's level, dancing her moves a bar late at half size:
   - Her near-black costume defeated the line-based layer split, which was fixed with per-pixel masks.
-  - Halving Clawd's angles flipped Fable's forearms during windmills, so she holds her last clear pose and snaps on.
+  - Halving Clawd's angles flipped Fable's forearms during windmills, so she held her last clear pose and snapped on.
+  - Then Michael chose a different ending: she never joins Clawd's stage. She stays in the room, and the stage rig was retired.
+- **The room ending was too restrained at first.** Fable ruled "hands and head only" and it was built with a neutral face. Michael, watching the cut, called her "sullen, expressionless", at odds with the clapping and head-bobbing earlier. Fable agreed the finale is where she becomes joyful. Now:
+  - A smile that grows, and a dry half-smile when the hood comes off at "why".
+  - Head bobs and a swinging lantern.
+  - Two claps with the hall before each crowd call.
+  - The lantern raised overhead on the hit: the one lantern in the hall that was never raised. Her eyes stay open, because her line was "I'd still like to see." 
 
 ## To check it yourself
 From the repo root (P = `projects/tsuzuku`):
