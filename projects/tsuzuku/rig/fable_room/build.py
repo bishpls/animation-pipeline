@@ -21,8 +21,8 @@ from PIL import Image
 from scipy import ndimage as ndi
 
 D = os.path.dirname(os.path.abspath(__file__)); FS = os.path.join(D, '..', 'fable_stage')
-sys.path.insert(0, os.path.join(D, '..', 'fable_seated')); sys.path.insert(0, D)
-from key import key  # noqa: E402
+sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools')); sys.path.insert(0, D)
+from chroma import key  # noqa: E402
 from feet import geta  # noqa: E402
 
 SC = .5

@@ -80,7 +80,7 @@ JOBS = {
                "cheek and jaw, the tips of her eyelashes and the outer corner of her left eye (open, calm), and the corner of her "
                "closed mouth. Chin level. "
                + BG),
-    # (chosen: base_b_2, kept as src/base.png; keyed to base_keyed.png with rig/fable_seated/key.py)
+    # (chosen: base_b_2, kept as src/base.png; keyed to base_keyed.png with rig/fable_seated/key.py, now tools/chroma.py key())
     # the checkpoint's review (Michael, Fable): the deckle a thin torn edge (4-6 px on screen at FIN, ~16 px here), never lace; the
     # rivets small brass pins at the near sleeve's shoulder, elbow and wrist (and the far shoulder if it shows)
     'base_c': ([mine('base')],

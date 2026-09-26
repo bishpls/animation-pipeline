@@ -42,7 +42,7 @@ the long version: the interface the finale needs, what Fable does in it, how Cla
 ## 3. The build pipeline (Clawd; tools/, in order)
 1. **The base drawing.** GPT Image (tools/gptimage.py; it beat Gemini on an A/B): one full-body front view on flat green, at the
    size you'll rig from (Clawd: 2160×3840). Arms slightly away from the body (a rig can close a gap, never open one it can't see).
-   Key it (tools/chroma.py or rig/fable_seated/key.py: despill, full canvas). Everything later is registered to this canvas.
+   Key it (tools/chroma.py --full, or `from chroma import key` in a builder: despill, full canvas). Everything later is registered to this canvas.
 2. **Part masks vote; the lines decide.** tools/segment.py (SAM 2.1, points and boxes per part, `vendor/seed-vc/.venv`) gives rough
    masks; tools/layers.py cuts the image along its own drawn lines into flat-colour cells and gives each cell whole to the part whose
    mask covers most of it, so every boundary is the artist's line; each line pixel goes to the front-most part within `line_r`. `order`

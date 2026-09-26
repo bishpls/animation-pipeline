@@ -4,12 +4,13 @@ and cuts for each a mask of the flat page paper that shows (not under her hand, 
 the card's spread onto it. Writes ots_<d>.png and ots_<d>_page.png at 1920x1080, and ots.json with the page quads (screen px).
     .venv/bin/python rig/fable_seated/ots.py
 """
-import json, os
+import json, os, sys
 import numpy as np, cv2
 from PIL import Image
 from scipy import ndimage as ndi
-from key import key
-from build import lum, feather
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'tools'))
+from chroma import key  # noqa: E402
+from build import lum, feather  # noqa: E402
 
 D = os.path.dirname(os.path.abspath(__file__)); S = 1920 / 2560
 Q = {'left': [[1350, 650], [1700, 785], [1500, 1190], [1235, 1070]],        # outer top, spine top, spine bottom, outer bottom

@@ -7,7 +7,7 @@ import numpy as np
 from scipy import ndimage as ndi
 
 D = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(D, '..', 'fable_seated'))
+sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools'))
 
 
 def geta(img, xmin=900, facing=1, k=1.0):
@@ -40,7 +40,7 @@ def geta(img, xmin=900, facing=1, k=1.0):
 
 
 if __name__ == '__main__':
-    from key import key
+    from chroma import key
     for n in sys.argv[1:]:
         p = n if n.endswith('.png') else os.path.join(D, 'src', n + '.png')
         f = geta(key(p), facing=-1 if 'left' in n else 1)

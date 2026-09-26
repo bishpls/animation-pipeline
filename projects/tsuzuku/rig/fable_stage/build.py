@@ -15,8 +15,8 @@ from PIL import Image
 from scipy import ndimage as ndi
 
 D = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(D, '..', 'fable_seated'))
-from key import key  # noqa: E402
+sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools'))
+from chroma import key  # noqa: E402
 
 lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)
 feather = lambda m, r: np.clip(ndi.distance_transform_edt(m) / r, 0, 1)

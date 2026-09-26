@@ -10,8 +10,8 @@ from PIL import Image
 from scipy import ndimage as ndi
 
 D = os.path.dirname(os.path.abspath(__file__)); P = lambda *a: os.path.join(D, *a)
-sys.path.insert(0, P('..', 'fable_seated'))
-from key import key  # noqa: E402
+sys.path.insert(0, P('..', '..', '..', '..', 'tools'))
+from chroma import key  # noqa: E402
 
 PAD = 600
 lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)

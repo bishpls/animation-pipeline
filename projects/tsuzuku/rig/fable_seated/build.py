@@ -10,8 +10,8 @@ import json, os, sys
 import numpy as np, cv2
 from PIL import Image
 from scipy import ndimage as ndi
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from key import key
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'tools'))
+from chroma import key
 
 D = os.path.dirname(os.path.abspath(__file__)); DBG = '--debug' in sys.argv
 POSES = ['write', 'ear', 'clap', 'clapopen', 'clapmid', 'wipe0', 'wipe1', 'rest', 'pull', 'pincers', 'pincersnip']

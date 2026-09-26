@@ -7,8 +7,8 @@ on the floor in two consecutive drawings is planted: it must not move. Prints sc
 import glob, os, sys
 import numpy as np
 from PIL import Image
-D = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(D, '..', 'fable_seated')); sys.path.insert(0, D)
-from key import key  # noqa: E402
+D = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools')); sys.path.insert(0, D)
+from chroma import key  # noqa: E402
 from feet import geta  # noqa: E402
 
 K = .697 * .5
