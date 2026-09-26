@@ -152,6 +152,30 @@ def cut():
         if not Z.get('lantern_at_knee'): comp = beneath(comp, nlc)
         name = f'figure_{p}.png'; save(comp, name); out['poses'][p] = name
         print(f'{p:6s} patch {m.sum() / 1e3:.0f}k px, lantern offset {ex},{ey} ncc {v:.2f}')
+    # her book: the paper that shows in each pose (the stage prints the screen's page on it, Michael: the book mirrors the screen)
+    out['book'] = {}
+    bz = poly(Z['book'])
+    def paper_of(name):
+        fig = np.asarray(Image.open(os.path.join(D, name)).convert('RGBA').resize((W, H), Image.LANCZOS)).astype(np.int16)
+        r, g, b, a = fig[..., 0], fig[..., 1], fig[..., 2], fig[..., 3]
+        return bz & (a > 200) & ((r + g + b) / 3 > 150) & ((r - b) < 60) & (np.abs(r - g) < 40)
+    # the book sits still in her lap; her cuffs (the same cream) move with her arms. So the book is where it is in the poses that
+    # show it plainly, and a pose's book is its paper inside that, opened to strip the cuffs' fibrous fringe
+    canon = np.zeros((H, W), bool)
+    for q in ('ear', 'rest', 'base'): canon |= ndi.binary_opening(paper_of(out['poses'][q]), iterations=3)
+    canon = ndi.binary_dilation(ndi.binary_fill_holes(ndi.binary_closing(canon, iterations=6)), iterations=4)
+    for p, name in out['poses'].items():
+        paper = ndi.binary_opening(paper_of(name) & canon, iterations=5)
+        lab, n = ndi.label(paper)
+        if not n: continue
+        sizes = ndi.sum(paper, lab, range(1, n + 1)); keep = np.isin(lab, 1 + np.flatnonzero(sizes > max(1500, sizes.max() * .15)))
+        if keep.sum() < 2500: continue
+        ys, xs = np.nonzero(keep); rect = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
+        quad = cv2.boxPoints(rect)                                           # four corners, ordered round the rectangle
+        mk = (feather(keep, 1.5) * 255).astype(np.uint8)
+        Image.fromarray(np.dstack([np.full_like(mk, 255)] * 3 + [mk])).resize((round(W * SC), round(H * SC)), Image.LANCZOS).save(os.path.join(D, f'book_{p}.png'))
+        out['book'][p] = {'mask': f'book_{p}.png', 'quad': [[round(float(x) * SC, 1), round(float(y) * SC, 1)] for x, y in quad]}
+        print(f'book {p:10s} {keep.sum() / 1e3:.0f}k px')
     json.dump(out, open(os.path.join(D, 'meta.json'), 'w'), indent=1)
 
 

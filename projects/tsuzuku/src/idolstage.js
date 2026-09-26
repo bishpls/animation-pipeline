@@ -454,5 +454,12 @@ const IDOLSTAGE = (() => {
     const c = Object.assign(document.createElement('canvas'), { width: w, height: h }), g = c.getContext('2d');
     g.drawImage(pageFace('blank', w, h), 0, 0); withX(g, () => storyPage(g, t, [0, 0, w, h])); return c;
   }
-  return { frame, camAt, SCR, K, W2Sof, load, pageFace, storySpread };
+  // which of Fable's pages the screen is showing (null while it's LED): her book in the room shows the same (Michael)
+  function screenPage(t) {
+    const b = t2b(t); if (b < WIPE1 + .2 || b >= 82) return null;
+    if (b >= WIPE3 + .2) return 'story';
+    if (b >= WIPE2 + .2) return cardState(t).cur;
+    return 'crabline';                                                        // verse 1's print, brought by wipe 1
+  }
+  return { frame, camAt, SCR, K, W2Sof, load, pageFace, storySpread, screenPage };
 })();

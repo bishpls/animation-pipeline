@@ -15,6 +15,29 @@ const FABLESEAT = (() => {
     const get = f => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + f; });
     const names = Object.entries(M.meta.poses).concat([['lantern', 'lantern.png'], ['ribbon', 'ribbon.png']]);
     await Promise.all(names.map(async ([k, f]) => { M.img[k] = await get(f); }));
+    await Promise.all(Object.entries(M.meta.book || {}).map(async ([p, bk]) => { BOOK.mask[p] = await get(bk.mask); }));
+  }
+  // her book shows the page on Clawd's screen (Michael): printed into the paper of the book in each pose drawing (its mask and
+  // quad from build.py), before the strip warps so it moves with her. Pre-flipped: the room draws her mirrored.
+  const BOOK = { mask: {}, cache: new Map() };
+  function poseImage(pose, page, t, flip) {
+    const bk = M.meta.book && M.meta.book[pose];
+    if (!page || !bk || !BOOK.mask[pose] || typeof IDOLSTAGE === 'undefined') return M.img[pose];
+    const key = [pose, page, flip ? 1 : 0, page === 'story' ? Math.floor(t * 12) : 0].join('|');
+    if (BOOK.cache.has(key)) return BOOK.cache.get(key);
+    const [w, h] = M.meta.size, mk = () => Object.assign(document.createElement('canvas'), { width: w, height: h });
+    const c = mk(), g = c.getContext('2d'); g.drawImage(M.img[pose], 0, 0, w, h);
+    const fw = 490, fh = 260, face = page === 'story' ? IDOLSTAGE.storySpread(t, fw, fh) : IDOLSTAGE.pageFace(page, fw, fh);
+    const ff = Object.assign(document.createElement('canvas'), { width: fw, height: fh }), fg = ff.getContext('2d');
+    if (flip) { fg.translate(fw, 0); fg.scale(-1, 1); } fg.drawImage(face, 0, 0, fw, fh);
+    const q = [...bk.quad].sort((a, b) => a[1] - b[1]), top = q.slice(0, 2).sort((a, b) => a[0] - b[0]), bot = q.slice(2).sort((a, b) => a[0] - b[0]);
+    const buf = mk(), bg = buf.getContext('2d');
+    bg.fillStyle = 'rgba(236,222,206,.72)'; bg.fillRect(0, 0, w, h);                // (soften the drawing's own lines of text)
+    quadMap(bg, ff, 0, 0, fw, fh, [top[0], top[1], bot[1], bot[0]]);
+    bg.setTransform(1, 0, 0, 1, 0, 0); bg.globalCompositeOperation = 'destination-in'; bg.drawImage(BOOK.mask[pose], 0, 0, w, h);
+    g.globalCompositeOperation = 'multiply'; g.drawImage(buf, 0, 0); g.globalCompositeOperation = 'source-over';
+    if (BOOK.cache.size > 40) BOOK.cache.delete(BOOK.cache.keys().next().value);
+    BOOK.cache.set(key, c); return c;
   }
   const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
   const sm = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
@@ -73,12 +96,13 @@ const FABLESEAT = (() => {
       if (b >= 84.24 - .55 && b < 84.24 + .8) { pose = 'write'; lean = 0; tilt = 0; }
     }
     if (b >= 90) { pose = 'rest'; nod = 0; sway = 0; tilt = 0; lean = 0; }       // the lights die: still, the lantern lit
-    return { pose, nod, lean, sway, tilt, breath, b };
+    const page = typeof IDOLSTAGE !== 'undefined' ? IDOLSTAGE.screenPage(t) : null;   // what her book shows: the screen's page
+    return { pose, nod, lean, sway, tilt, breath, page, t: tq, b };
   }
 
   // ---- the drawing, warped in strips (cached per state: she holds, so most frames hit)
   function warped(st) {
-    const key = [st.pose, st.nod.toFixed(2), st.lean.toFixed(2), st.sway.toFixed(2), st.tilt.toFixed(2), (st.breath || 0).toFixed(2)].join('|');
+    const key = [st.pose, st.nod.toFixed(2), st.lean.toFixed(2), st.sway.toFixed(2), st.tilt.toFixed(2), (st.breath || 0).toFixed(2), st.page, st.page === 'story' ? st.t : 0, st.flip ? 1 : 0].join('|');
     if (M.cache.has(key)) return M.cache.get(key);
     const [w, h] = M.meta.size, P = M.meta.pivots, c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
     const hood = y => 1 - sm(P.neck[1] - 80, P.neck[1] + 30, y);
@@ -93,7 +117,8 @@ const FABLESEAT = (() => {
       }
     };
     const hem = Math.round(P.hem[1]);
-    strips(M.img[st.pose], 0, hem); g.drawImage(M.img[st.pose], 0, hem, w, h - hem, 0, hem, w, h - hem);
+    const img = poseImage(st.pose, st.page, st.t, st.flip);
+    strips(img, 0, hem); g.drawImage(img, 0, hem, w, h - hem, 0, hem, w, h - hem);
     // the ribbon: tied under the hood, it rides the nod and the lean, and its tail swings on the offbeat
     const tie = P.tie[1], L = 780;
     strips(M.img.ribbon, 0, h, y => st.sway * 44 * clamp((y - tie) / L) ** 1.6);
@@ -103,7 +128,7 @@ const FABLESEAT = (() => {
 
   function draw(X, t, T, light = 1) {
     if (!M.meta) return;
-    const st = cue(t), P = M.meta.pivots, [w, h] = M.meta.size, fig = warped(st);
+    const st = cue(t); st.flip = !!T.flip; const P = M.meta.pivots, [w, h] = M.meta.size, fig = warped(st);
     X.save(); X.translate(T.x, T.y); X.scale(T.flip ? -T.s : T.s, T.s); X.translate(-P.seat[0], -P.seat[1]);
     X.filter = `brightness(${(.58 + .3 * light).toFixed(3)})`;                      // in her dark room, lit by the window and her lantern
     X.drawImage(M.img.lantern, 0, 0, w, h); X.drawImage(fig, 0, 0, w, h); X.filter = 'none';
