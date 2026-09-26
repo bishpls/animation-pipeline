@@ -126,7 +126,9 @@
     const pf = fablePose(ts), hop = hopAt(ts), build = Math.min(1, Math.max(0, (ts - 56.5) / (K.tear - 56.5)));
     const pc = { ...K.clawd(Math.floor(ts * 12 + 1e-6) / 12), ...hop, jaw: jawAt(ts), _ghost: {} };
     shadow(c => {
-      c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 12);
+      // the stage rail: only where the book's card has been pulled away (until then the actors stand on its beach: no rail pops in
+      // at the cut from verse 1)
+      const bare = Math.min(1620, pullAt(ts)); c.globalCompositeOperation = 'source-over'; c.fillStyle = 'rgb(22,22,26)'; if (bare > 0) c.fillRect(150, FLOOR, bare, 12);
       seatedRibbon(c, fablePose, T, ts);
       FABLE.draw(c, pf, T, { props: [fanProp(K.fan, ts)], rods: FABLE_RODS });
       CLAWDP.draw(c, pc, { x: CX, y: FLOOR + hop.dy, s: CS, origin: [1076, 2800] }, { gel: CLAWD_GEL, misreg: [1.5, 1],
