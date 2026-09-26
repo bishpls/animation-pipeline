@@ -157,11 +157,13 @@ const CHO = { w: 58, h: 88, stick: 1.35 };
 function chochinBody(cx, cy, sc, rot, o) {
   const w = CHO.w * sc, h = CHO.h * sc, lit = o.lit ?? 1;
   X.save(); X.translate(cx, cy); X.rotate(rot * Math.PI / 180);
+  const HC = o.cool ? '96,130,230' : '244,201,122';
   if (lit > 0 && o.halo !== false) { X.save(); X.globalCompositeOperation = 'lighter'; const R = h * 2.4, g = X.createRadialGradient(0, 0, 0, 0, 0, R);
-    g.addColorStop(0, `rgba(244,201,122,${.3 * lit})`); g.addColorStop(1, 'rgba(244,201,122,0)'); X.fillStyle = g; X.fillRect(-R, -R, 2 * R, 2 * R); X.restore(); }
+    g.addColorStop(0, `rgba(${HC},${.3 * lit})`); g.addColorStop(1, `rgba(${HC},0)`); X.fillStyle = g; X.fillRect(-R, -R, 2 * R, 2 * R); X.restore(); }
   X.save(); const body = new Path2D(); body.ellipse(0, 0, w / 2, h / 2, 0, 0, 7); X.clip(body);
   const g = X.createRadialGradient(0, h * .08, 0, 0, 0, h * .62);
   if (o.gold) { g.addColorStop(0, '#FFF6E2'); g.addColorStop(.35, '#F4C97A'); g.addColorStop(.75, 'rgb(200,128,58)'); g.addColorStop(1, 'rgb(96,52,24)'); }
+  else if (o.cool) { g.addColorStop(0, 'rgb(208,220,255)'); g.addColorStop(.35, 'rgb(118,146,228)'); g.addColorStop(.75, 'rgb(52,72,170)'); g.addColorStop(1, 'rgb(18,26,74)'); }   // the readers' (indigo, lit)
   else if (lit > 0) { g.addColorStop(0, '#FFF3D6'); g.addColorStop(.3, '#F4C97A'); g.addColorStop(.72, 'rgb(74,104,172)'); g.addColorStop(1, 'rgb(22,36,80)'); }
   else { g.addColorStop(0, 'rgb(28,40,70)'); g.addColorStop(1, 'rgb(12,18,36)'); }
   X.fillStyle = g; X.fillRect(-w, -h, 2 * w, 2 * h);

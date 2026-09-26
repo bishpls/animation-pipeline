@@ -10,19 +10,10 @@ async function AUD_INIT() {
 // bottom; the candle sits low in the middle, so the paper is brightest there and dims toward the sides as it curves away; the
 // ribs are shadows on the lit paper. Drawn in the person's frame at the traced lantern's centre and radius.
 function lantern([cx, cy, r], sc, tq, ph) {
-  const w = r * .7, h = r * 1.12, fl = 1 + .05 * Math.sin(tq * 23 + ph * 9);       // oblong, like hers (Michael); the flame's small breathing, on twos
-  X.save(); X.beginPath(); X.ellipse(cx, cy, w, h, 0, 0, 7); X.clip();
-  X.fillStyle = 'rgb(14,18,40)'; X.fillRect(cx - w, cy - h, 2 * w, 2 * h);
-  X.save(); X.translate(cx, cy + h * .22); X.scale(w / h, 1);           // the glow: round about the candle, squeezed to the paper
-  const g = X.createRadialGradient(0, 0, 0, 0, 0, h * 1.25 * fl);
-  g.addColorStop(0, 'rgb(150,172,238)'); g.addColorStop(.35, 'rgb(84,112,206)'); g.addColorStop(.75, 'rgb(40,58,146)'); g.addColorStop(1, 'rgb(18,24,70)');
-  X.fillStyle = g; X.fillRect(-h * 2, -h * 2, h * 4, h * 4); X.restore();
-  X.strokeStyle = 'rgba(8,10,30,.42)'; X.lineWidth = Math.max(1.2, r * .035);    // the ribs, bowed a little (it's round)
-  for (let k = 1; k < 9; k++) { const y = -h + 2 * h * k / 9, hw = w * Math.sqrt(1 - (y / h) ** 2);
-    X.beginPath(); X.moveTo(cx - hw, cy + y); X.quadraticCurveTo(cx, cy + y + r * .07, cx + hw, cy + y); X.stroke(); }
-  X.restore();
-  X.fillStyle = '#0a0808';                                            // the caps
-  for (const s of [-1, 1]) X.fillRect(cx - w * .62, cy + s * h * .93 - r * .1, w * 1.24, r * .2);   // the lacquer caps, flat like hers
+  // the readers' lanterns are copies of hers (Michael): the same chōchin, body, caps and bail, in indigo, lit cool; hers alone
+  // is warm. Sized to the traced lantern it replaces (drawn in the reader's frame, at its centre)
+  const fl = 1 + .04 * Math.sin(tq * 23 + ph * 9);                  // (the flame's small breathing, on twos)
+  chochinBody(cx, cy, 2.2 * r / CHO.h, 0, { cool: true, halo: false, lit: fl, ribs: 'rgba(10,16,48,.45)' });
 }
 // seated row: a stable arrangement (seeded), people at mixed heights along the bottom edge. They sit between us and the lit
 // stage, so we see their backs: black, but never lost in the dark. The floor and air in front of the stage behind them are
@@ -54,7 +45,9 @@ function audience(t, o = {}) {
     X.fillStyle = g; X.fillRect(-W, -W, 2 * W, 2 * W); X.restore(); }
   // 2. their silhouettes on a layer; their lanterns' light on their hands and sleeves
   const A = AUD_L.getContext('2d'); A.setTransform(1, 0, 0, 1, 0, 0); A.globalCompositeOperation = 'source-over'; A.filter = 'none'; A.clearRect(0, 0, W, H);
-  for (const p of P) { A.setTransform(p.M); A.fillStyle = '#0a0808'; A.fill(p.q.outlineP); }
+  for (const p of P) { A.setTransform(p.M); A.globalCompositeOperation = 'source-over'; A.fillStyle = '#0a0808'; A.fill(p.q.outlineP);
+    if (p.q.lantern) { const [lx, ly, lr] = p.q.lc; A.globalCompositeOperation = 'destination-out'; A.beginPath(); A.ellipse(lx, ly, lr * 1.22, lr * 1.22, 0, 0, 7); A.fill(); } }
+  A.globalCompositeOperation = 'source-over';
   A.setTransform(1, 0, 0, 1, 0, 0); A.globalCompositeOperation = 'source-atop';
   for (const p of P) if (p.lc) { const R = p.q.lc[2] * p.sc * 3.2, g = A.createRadialGradient(p.lc.x, p.lc.y, 0, p.lc.x, p.lc.y, R);
     g.addColorStop(0, 'rgba(70,98,190,.7)'); g.addColorStop(1, 'rgba(10,8,8,0)'); A.fillStyle = g; A.fillRect(p.lc.x - R, p.lc.y - R, 2 * R, 2 * R); }
