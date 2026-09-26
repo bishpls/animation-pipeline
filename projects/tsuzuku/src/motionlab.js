@@ -35,7 +35,8 @@ const MOTIONLAB = (() => {
   // o.curves: retargeted channel curves (MOTION.md, "Retargeting"): {channel: {b: [song bars], v: [values], gain, mode}}; 'add'
   // (default) adds the sampled curve, 'set' replaces the channel. Sampled linearly on the song bar.
   const BT = BAR / 4, FR = 1 / 24;
-  const ENERGY = [[45, .45], [46, 1], [62, .8], [66, .55], [82, 1.1], [90, .6], [91.2, .25], [91.6, 0]];
+  const ENERGY = [[45, .45], [46, 1], [62, .8], [66, .55], [82, 1.1], [90, .6], [91.2, .25], [91.6, 0],
+                  [125.9, .5], [129, 1.2], [135, 1.1], [141, 0]];                        // (the final chorus: src/finale.js)
   const energyAt = b => {                                                           // eased over half a bar into each section's level
     let i = 0; while (i + 1 < ENERGY.length && b >= ENERGY[i + 1][0]) i++;
     const [b0, v] = ENERGY[i]; if (i === 0 || b < b0) return v;
