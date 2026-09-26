@@ -43,7 +43,10 @@
       [WT.job + 6 * f, LAP]]);                                          // folded, back in her lap
     head = PUPPET.snap([[0, { head: 7 }], [WT.all - 7 * f, { head: 0 }], [WT.fox - L - 3 * f, { head: 8 }], [WT.crow - L - 3 * f, { head: -4 }],
       [WT.boy - L - 3 * f, { head: 2 }], [WT.flew - L - 3 * f, { head: -7 }], [land(WT.sun) + f, { head: 9 }], [WT.moral - 5 * f, { head: 2 }],
-      [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }]]);
+      [WT.job + 7 * f, { head: 7 }], [WT.stand, { head: 4 }],
+      // "You stand in the dark,": she bows her head (Michael: somber, wistful; the turn back to the lamp read as a mistake), over a
+      // few drawings, and holds it through "and you know" into "...I didn't know this one"
+      [WT.dark - 3 * f, { head: 9 }], [WT.dark, { head: 13 }], [WT.dark + 3 * f, { head: 16 }]]);
   };
   const BLINKS = [133.4, 142.6, 146.3, 151.7, 155.2];
   // the lamp (Fable: "one lantern; it's the lamp"): on the clack it comes out of the sky into her lap, at her right knee (the
@@ -90,19 +93,13 @@
     shore(ts, { floor: FLOOR, still: CLACK, strike, lamp });
     const p = poseAt(ts);
     const blink = BLINKS.some(b0 => ts >= b0 && ts < b0 + 2 * f);
-    // "You stand in the dark,": her head turns back to the lamp behind her, snapped (the head card flipped about her neck), and
-    // holds through "and you know." (Fable: "I look at the light I'm about to leave.")
-    const back = WT.dark && ts >= WT.dark, NECK = [1248, 823];
-    let Tb = null; if (back) { const nx = FABLE.world(p, T).torso.transformPoint(new DOMPoint(...NECK)).x, Tf = { ...T, flip: -1 };
-      const fx = FABLE.world(p, Tf).torso.transformPoint(new DOMPoint(...NECK)).x; Tb = { ...Tf, x: T.x + nx - fx }; }
     shadow(c => {
       seatedRibbon(c, poseAt, T, ts);
       c.globalCompositeOperation = 'source-over';
       if (strike.ground[0] > 0) { c.fillStyle = 'rgb(22,22,26)'; c.fillRect(150, FLOOR, 1620, 10); }   // the plain rail the beach lay on
       const cl = clawdAt(ts);
       CLAWDP.draw(c, cl.pose, cl.T, { gel: CLAWD_GEL, misreg: [1.5, 1], rods: [{ part: 'torso', at: [1076, 1200], w: 5, lean: cl.lean }, { part: 'claw_R', at: [1640, 1600], w: 2.5, lean: cl.lean ? 26 : 0 }] });
-      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink && !back ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS, hide: back ? ['head', 'hair'] : [] });
-      if (back) FABLE.draw(c, { ...p, head: 10, hair: -8.5 }, Tb, { hide: ['cushion', 'lower', 'torso', 'upperarm', 'forearm', 'hand'] });   // her head, turned back and down to it
+      FABLE.draw(c, p, T, { props: [fanProp(seq, ts)], cover: blink ? { head: [[1496, 491]] } : {}, rods: FABLE_RODS });
     }, 0);
     lampRod(L.x, L.y); chochin(L.x, L.y, LSC, { gold: true });        // the brightest thing in the window
     pageVellum(ts); bridgeNotes(ts);                                  // (the strip: stage())
@@ -347,7 +344,7 @@
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
       const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1 });
       roomFable(ts);
-      readers(ts, cam, { gap: [1240, 1880] });                         // (nobody in front of her place)
+      readers(ts, cam);                                                 // (the full row: Michael, a gap parses as missing audience)
     };
     LOOPS.bridgeB8.len = S1 - S0;
     let TEXT = null;
