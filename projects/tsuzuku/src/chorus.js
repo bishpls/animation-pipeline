@@ -9,13 +9,15 @@
     legs: [
       [45, 'groove', { amp: 8 }],
       // chorus 1
-      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }], [54, 'sideStep', { dir: 1 }], [56, 'sideStep', { dir: -1, root0: 960 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
+      [46, 'bounce'], [48, 'sway'], [50, 'groove'], [52, 'sway', { side: -1 }],
+      // side-together x4, then the other way: each sideStep starts closed (its lead steps out to LAND on the downbeat) and ends closed
+      [53.835, 'sideStep', { dir: 1, lead: .66, steps: 4 }], [55.835, 'sideStep', { dir: -1, root0: 960, lead: .66, steps: 4 }], [58, 'sway', { every: 1, amp: 1.2 }], [61, 'bounce', { amp: 10 }],
       // hook: a groove that leans into each call
       [62, 'groove', { amp: 16 }],
       // verse 2: the telling
       [66, 'bounce', { amp: 8 }], [68.2, 'groove'], [69, 'stepTouch', { step: 90 }], [69.6, 'bounce'], [72, 'bounce', { amp: 6 }], [73, 'sway', { amp: 1.3 }],
-      [74.25, 'sideStep', { dir: -1 }], [76, 'bounce', { root: -840 }], [76.75, 'stepTouch', { root: -840 }], [77.75, 'groove', { root: -840 }],
-      [79.6, 'sideStep', { dir: 1, root0: -840 }], [81, 'bounce', { root: -168, fade: 1 }], [81.5, 'bounce', { fade: 2 }],
+      [74.085, 'sideStep', { dir: -1, lead: .66, steps: 4 }], [76.09, 'bounce', { root: -960 }], [76.75, 'stepTouch', { root: -960 }], [77.75, 'groove', { root: -960 }],
+      [79.6, 'sideStep', { dir: 1, root0: -960, lead: 1.6, steps: 4 }], [81.7, 'bounce', { fade: 1 }],     // walk it: landing on 'walk' (80.0), home by 81.5
       // chorus 2
       [82, 'bounce'], [84, 'sway'], [86, 'groove'], [87, 'sway', { every: 1, amp: 1.2 }],
       // the breakdown: the band tape-stops; she winds down
@@ -61,7 +63,7 @@
       [90, 'look', { view: 'F', y: .15 }], [91.5, 'look', { view: 'F', y: .45, fade: 2 }],
     ],
   }, { lips: MOVES.lips(window.WORDS, 'clawd', window.VOCAL_ENV), blinks: MOVES.blinks(11, 60, 140) });
-  const build = () => MOVES.follow(choreo(), MOVES.BODY, { start: 42 * BAR });
+  const build = () => MOVES.follow(choreo(), MOVES.BODY, { start: 42 * BAR, world: { footLX: 1, footRX: 1, hipX: 140 } });   // (hipX: pelvis D)
 
   // her backup dancers: two rows of block crabs, on the beat, pincers out in the hook and on the claws; in canon from the centre
   const crabs = (t, i, r) => {

@@ -68,7 +68,7 @@
    ]
   },
   "E": {
-   "prompt": "Change ONLY her mouth: singing the vowel 'eh', a medium, wide open mouth with a dark red interior and a hint of teeth.",
+   "prompt": "Change ONLY her mouth: singing the vowel 'eh': a wide, fairly flat open mouth, about twice as wide as it is tall, the upper teeth showing as a white band along the top, dark red interior, the tongue low and flat.",
    "patches": [
     "mouth"
    ]
@@ -81,6 +81,42 @@
   },
   "grin": {
    "prompt": "Change ONLY her mouth: a big open happy smile, the mouth open in a wide D shape with a dark red interior and a tongue.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "A2": {
+   "prompt": "Change ONLY her mouth: singing the vowel 'eh', a medium, wide open mouth with a dark red interior and a hint of teeth.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "S": {
+   "prompt": "Change ONLY her mouth: lips just parted, a small open mouth about a third as tall as a full 'ah', a thin sliver of dark red interior showing, the corners still gently smiling.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "Am": {
+   "prompt": "Change ONLY her mouth: singing a relaxed 'ah' at medium volume: an anime open mouth about half as tall as a wide-open 'ah', dark red interior, a small tongue at the bottom and a hint of upper teeth, a little smile.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "Is": {
+   "prompt": "Change ONLY her mouth: singing a soft 'ee': the lips drawn slightly wide and nearly closed, a narrow opening that shows only the white of the teeth, no tongue.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "Os": {
+   "prompt": "Change ONLY her mouth: singing a soft 'oh': a small rounded open mouth, a little smaller and rounder than a full 'oh', dark red interior.",
+   "patches": [
+    "mouth"
+   ]
+  },
+  "MBP": {
+   "prompt": "Change ONLY her mouth: lips pressed together as when saying 'm' or 'b': a short closed mouth line, slightly flattened and pursed, the corners relaxed with no smile, a tiny line of tension under the lower lip.",
    "patches": [
     "mouth"
    ]

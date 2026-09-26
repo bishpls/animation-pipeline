@@ -32,25 +32,31 @@ const MOVES = (() => {
     },
     stepTouch: (b, o) => {                                                     // step out and touch in, alternating feet
       const ev = o.every ?? 2, k = Math.floor(b / ev), ph = (b % ev) / ev, side = (k % 2 ? -1 : 1) * (o.side ?? 1);
-      const out = S(PI * ph), step = (o.step ?? 120) * out, lift = (o.lift ?? 45) * Math.max(0, S(2 * PI * ph));
+      const out = S(PI * ph), step = (o.step ?? 120) * out, lift = (o.lift ?? 45) * (ph < .5 ? 1 : .6) * Math.abs(S(2 * PI * ph));   // (lifted home too: never dragged)
       const f = side > 0 ? { footRX: step, footRY: lift } : { footLX: -step, footLY: lift };
       return { ...f, hipX: 1.1 * side * out, bodyZ: 2 * side * out, hipY: (o.dip ?? 14) * pulse(b % 1, .5) };
     },
-    // the sideways step (Fable's exception): each step travels in the last third of the period before and LANDS on the
-    // downbeat, weight low (a deep dip), feet flat; the other foot closes mid-period. Steps travel in one direction (o.dir).
+    // the sideways step (Fable's exception): each step travels in the last third of a period and LANDS on its downbeat, weight
+    // low (a dip), feet flat; the other foot closes mid-period, lifted (never dragged), and the root travels with it. rootX (base
+    // px) moves her across the stage; feet are relative to the root. Entry and exit are part of the move, so it never starts or
+    // stops with a foot in the air or apart:
+    //   o.lead   beats from the move's start to the first landing: she starts closed, and the lead steps out to land (0: starts landed)
+    //   o.steps  landings; after the last the trail closes and she holds, feet together. A reversal is then a clean
+    //            side-together | side the other way: a second sideStep starting closed where this one stopped (root0).
     sideStep: (b, o) => {
-      // travelling: per period k the lead foot has LANDED at the downbeat (weight low, hips over it); the trail foot closes
-      // (ph .3-.67, the root travels with it); then the lead lifts and travels to land on the next downbeat. rootX (base px)
-      // moves her across the stage (the stage adds it to the draw position); feet are relative to the root, so they're flat.
-      const ev = o.every ?? 2, k = Math.floor(b / ev), ph = (b % ev) / ev, dir = o.dir ?? 1, st = o.step ?? 240, r0 = o.root0 ?? 0;
-      const close = ph < .3 ? 0 : ph < .67 ? ease((ph - .3) / .37) : 1, out = ph < .67 ? 0 : ease((ph - .67) / .33);
-      const root = r0 + dir * st * (k + close), leadAbs = r0 + dir * st * (k + 1 + out), trailAbs = r0 + dir * st * (k + close);
-      const lead = dir > 0 ? 'R' : 'L', trail = dir > 0 ? 'L' : 'R', lift = ph < .67 ? 0 : S(PI * (ph - .67) / .33);
-      const land = pulse(ph, .35);
-      const tlift = ph > .3 && ph < .67 ? S(PI * (ph - .3) / .37) : 0;        // the trailing foot LIFTS as it closes (never dragged)
+      const ev = o.every ?? 2, dir = o.dir ?? 1, st = o.step ?? 240, r0 = o.root0 ?? 0, n = o.steps ?? Infinity, u = (b - (o.lead ?? 0)) / ev;
+      let k = Math.floor(u), ph = u - k;
+      if (u < 0) { k = -1; ph = Math.max(0, u + 1); }                                  // the entry: closed, then the lead steps out
+      if (k > n - 1) { k = n - 1; ph = 1; }                                             // the exit: closed, held
+      const last = k === n - 1, entry = k < 0;
+      const close = entry ? 1 : ph < .3 ? 0 : ph < .67 ? ease((ph - .3) / .37) : 1, out = last || ph < .67 ? 0 : ease((ph - .67) / .33);
+      const root = r0 + dir * st * (k + close), leadAbs = r0 + dir * st * (k + 1 + out), trailAbs = root;
+      const lead = dir > 0 ? 'R' : 'L', trail = dir > 0 ? 'L' : 'R', lift = last || ph < .67 ? 0 : S(PI * (ph - .67) / .33);
+      const land = entry ? 0 : pulse(ph, .35);
+      const tlift = !entry && ph > .3 && ph < .67 ? S(PI * (ph - .3) / .37) : 0;       // the trailing foot LIFTS as it closes
       return { rootX: root, ['foot' + lead + 'X']: leadAbs - root, ['foot' + lead + 'Y']: (o.lift ?? 40) * lift, ['foot' + trail + 'X']: trailAbs - root,
                ['foot' + trail + 'Y']: (o.tlift ?? 34) * tlift,
-               hipX: dir * (.85 * (1 - close) - .3 * lift), hipY: (o.dip ?? 28) * land, bodyZ: 2.5 * dir * (1 - close) };
+               hipX: dir * ((entry ? 0 : .85 * (1 - close)) - .3 * lift), hipY: (o.dip ?? 28) * land, bodyZ: 2.5 * dir * (entry ? 0 : 1 - close) };
     },
     swingArms: (b, o) => { const u = S(PI * b / 2); return { ...arm(1, 16 + 10 * u, 35 + 15 * u), ...arm(-1, 16 - 10 * u, 35 - 15 * u) }; },   // walking
     rise: (b, o) => ({ ...arm(1, 52, 18), ...arm(-1, 52, 18), angleY: .3, hipY: -8 }),                    // phrase end, rising
@@ -113,12 +119,33 @@ const MOVES = (() => {
     };
   }
 
-  // lip-sync from word timestamps ({t0, t1, w, who}): one drawn vowel per word, closed between words, crowd calls (in
-  // parentheses) silent. Shapes change on twos.
+  // lip-sync on ones (24 drawings a second) from word timestamps ({t0, t1, w, who}) and, when given, her voice's loudness (env:
+  // {fps, [who]: [0..1]}). Each word is split into syllables (hyphenated romaji, or English vowel groups), their boundaries
+  // snapped to the dips in the voice; each syllable gets its vowel's drawing, full or soft by loudness, entered through an
+  // in-between ('S', or 'MBP' when it opens on m/b/p) and, as a held note decays, a softer shape before 'S' and closed. Two
+  // syllables in a row never get the same drawing (a sibling swaps in). Held notes stay open while she's sounding; crowd calls
+  // (the words in parentheses) keep the mouth closed. Returns a mouth variant name, or null for the rest mouth.
+  //   drawings: A A2 Am (ah: full, sibling, soft), E, I Is, O Os, U, S (the in-between), MBP (lips pressed)
+  const SHAPES = { A: [['A', 'A2'], ['Am', 'A2']], E: [['E', 'I'], ['Is', 'S']], I: [['I', 'E'], ['Is', 'S']], O: [['O', 'Os'], ['Os', 'U']], U: [['U', 'Os'], ['U', 'Os']] };
+  const DECAY = { A: 'Am', A2: 'Am', Am: 'S', E: 'Is', I: 'Is', Is: 'S', O: 'Os', Os: 'U', U: 'S', S: 'S' };
+  function syllables(word) {
+    const w = word.toLowerCase().replace(/[^a-z\-']/g, '');
+    const parts = w.includes('-') ? w.split('-').filter(Boolean) : [w];
+    const out = [];
+    for (const part of parts) {
+      const gs = [...part.matchAll(/[aeiouy]+/g)].map(m => ({ g: m[0], i: m.index }));
+      if (!gs.length) continue;
+      if (gs[0].i === 0 && gs[0].g[0] === 'y' && gs[0].g.length > 1) { gs[0].g = gs[0].g.slice(1); gs[0].i = 1; }   // 'you', 'yet'
+      if (gs.length > 1 && /[^aeiouy]e$/.test(part)) gs.pop();                                                     // silent final e
+      if (gs.length > 1 && /[^aeiouy]es?$|[^aeiouyl]ed$/.test(part) && gs[gs.length - 1].g === 'e') gs.pop();     // (-es, -ed)
+      for (const { g, i } of gs) {
+        const v = /^(ee|ea|ie|i|y)/.test(g) ? 'I' : /^(oo|ew|u)/.test(g) ? 'U' : /^o/.test(g) ? 'O' : /^(ai|ay|ei|ey|e)/.test(g) ? 'E' : 'A';
+        out.push({ v, mbp: /[mbp]/.test(part[i - 1] || '') });
+      }
+    }
+    return out.length ? out : [{ v: 'E', mbp: false }];
+  }
   function lips(words, who, env) {
-    // env ({fps, [who]: [0..1]}): her voice's loudness in song time. With it, the mouth is open while she is SOUNDING (a held
-    // note stays open past its word's timestamp) and shaped by the vowel of the last word she began; crowd calls (the words in
-    // parentheses) keep it closed. Without it, one vowel per word timestamp.
     const W = [], crowdSpans = []; let crowd = false, cs = null;
     for (const w of words || []) {
       if (w.who !== who) continue;
@@ -127,17 +154,44 @@ const MOVES = (() => {
       if (!crowd) W.push(w);
       if (close) { crowd = false; crowdSpans.push([cs, w.t1 + .15]); }
     }
-    const VOW = s => ({ a: 'A', e: 'E', i: 'I', o: 'O', u: 'U', y: 'I' })[(s.toLowerCase().match(/[aeiouy]/) || ['e'])[0]];
-    const E = env && env[who], fps = env && env.fps;
-    return t => { const q = Math.floor(t * 12) / 12;
-      if (E) {
-        const v = E[Math.round(q * fps)] || 0; if (v < .32) return null;
-        if (crowdSpans.some(([a, b]) => q >= a && q < b) && !W.some(w => q >= w.t0 - .04 && q < w.t1)) return null;
-        let last = null; for (const w of W) { if (w.t0 - .04 <= q) last = w; else break; }
-        return last && q - last.t0 < 4 ? VOW(last.w) : null;
+    const E = env && env[who], fps = env && env.fps, F = 24, THR = .3;
+    const level = t => { if (!E) return 1; const i = Math.round(t * fps); let s = 0; for (let k = -1; k <= 1; k++) s += E[Math.max(0, i + k)] || 0; return s / 3; };
+    // the syllable timeline: onsets snapped to the quietest point near the even split of each word
+    const SY = [];
+    for (let wi = 0; wi < W.length; wi++) {
+      const w = W[wi], sy = syllables(w.w), n = sy.length, d = Math.max(.06, w.t1 - w.t0);
+      const on = [w.t0];
+      for (let k = 1; k < n; k++) {
+        const c = w.t0 + d * k / n, r = .3 * d / n; let best = c, lo = Infinity;
+        if (E) for (let tt = c - r; tt <= c + r; tt += 1 / fps) { const l = level(tt); if (l < lo) { lo = l; best = tt; } }
+        on.push(Math.max(on[k - 1] + 2 / F, best));
       }
-      for (const w of W) if (q >= w.t0 - .04 && q < w.t1 - .03) return VOW(w.w);
-      return null; };
+      const next = W[wi + 1] ? W[wi + 1].t0 : Infinity;
+      sy.forEach((s, k) => SY.push({ ...s, t: on[k], end: k < n - 1 ? on[k + 1] : Math.min(next, w.t1), stop: k < n - 1 ? on[k + 1] : next }));
+    }
+    // each syllable's drawing: full or soft by the loudness of its attack; never the same as the syllable before
+    let prev = null;
+    for (const s of SY) {
+      let pk = 0; for (let tt = s.t; tt < s.t + .12; tt += 1 / 50) pk = Math.max(pk, level(tt));
+      const [first, sib] = SHAPES[s.v][E && pk < .5 ? 1 : 0];
+      s.shape = first === prev ? sib : first; prev = s.shape;
+      s.decay = Infinity; if (E) for (let tt = s.end; tt < Math.min(s.stop, s.end + 8); tt += 1 / 50) if (level(tt) < .42) { s.decay = tt; break; }   // (once, not flickering)
+    }
+    const sounding = (s, q) => q < s.end || (q < s.stop && level(q) >= THR);
+    return t => {
+      const q = Math.floor(t * F + 1e-6) / F;
+      let i = -1; for (let j = 0; j < SY.length && SY[j].t <= q + .5 / F; j++) i = j;       // (the mouth leads the voice by half a frame)
+      const nx = SY[i + 1];
+      if (nx && nx.mbp && nx.t - q <= 1.5 / F && nx.t > q) return 'MBP';                    // lips close for m/b/p before it opens
+      if (i < 0) return null;
+      const s = SY[i];
+      if (crowdSpans.some(([a, b]) => q >= a && q < b) && q >= s.end) return null;
+      if (!sounding(s, q)) return sounding(s, q - 1 / F) ? 'S' : null;                       // closing: one in-between, then rest
+      const f = Math.round((q - s.t) * F);
+      if (f <= 0) return 'S';                                                                // entering: the in-between
+      if (q >= s.decay) return DECAY[s.shape] || 'S';                                        // a held note fading: a softer shape
+      return s.shape;
+    };
   }
   // seeded blinks: close 0.1 / hold 0.05 / open 0.15 s, every 2-4 s (three drawings on twos)
   function blinks(seed = 7, from = 0, to = 400) {
@@ -155,12 +209,15 @@ const MOVES = (() => {
   function follow(P, springs, o = {}) {
     // simulated once from a FIXED start on a fixed grid and cached, so any t gives the same answer in any render order (and
     // the rig's own springs, which query P many times per frame, cost nothing extra)
-    const names = Object.keys(springs), dt = 1 / 120, start = o.start ?? 0, cache = [];
+    // o.world {key: px per unit}: follow these in WORLD space (value x scale + rootX), so a travelling root (sideStep) never
+    // makes a planted foot or the pelvis slide while the spring catches up with the relative target
+    const names = Object.keys(springs), dt = 1 / 120, start = o.start ?? 0, cache = [], Wd = o.world || {};
+    const val = (p, k) => (p[k] || 0) * (Wd[k] ?? 1) + (k in Wd ? (p.rootX || 0) : 0);
     const stateAt = j => {
-      if (cache.length === 0) { const p0 = P(start); cache.push(names.map(k => [p0[k] || 0, 0])); }
+      if (cache.length === 0) { const p0 = P(start); cache.push(names.map(k => [val(p0, k), 0])); }
       while (cache.length <= j) {
         const prev = cache[cache.length - 1], p = P(start + cache.length * dt);
-        cache.push(names.map((k, i) => { const { w, z } = springs[k], [x, v] = prev[i], a = w * w * ((p[k] || 0) - x) - 2 * z * w * v, v2 = v + a * dt; return [x + v2 * dt, v2]; }));
+        cache.push(names.map((k, i) => { const { w, z } = springs[k], [x, v] = prev[i], a = w * w * (val(p, k) - x) - 2 * z * w * v, v2 = v + a * dt; return [x + v2 * dt, v2]; }));
       }
       return cache[j];
     };
@@ -168,7 +225,7 @@ const MOVES = (() => {
       const out = { ...P(t) };
       if (t < start) return out;
       const f = (t - start) / dt, j = Math.floor(f), u = f - j, A = stateAt(j), B = stateAt(j + 1);
-      names.forEach((k, i) => { out[k] = A[i][0] + (B[i][0] - A[i][0]) * u; });
+      names.forEach((k, i) => { const x = A[i][0] + (B[i][0] - A[i][0]) * u; out[k] = k in Wd ? (x - (out.rootX || 0)) / Wd[k] : x; });
       return out;
     };
   }
