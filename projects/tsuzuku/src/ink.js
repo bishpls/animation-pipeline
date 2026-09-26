@@ -106,6 +106,22 @@ function inkPrint(C, o = {}) {
   // "...I didn't know this one."; hold; one blink, the paper bending along its old fold; pulled out to the right on the note,
   // revealing her seated puppet as B6 begins. The bridge notes stay on the vellum under the card
   const IN0 = 156.2, CAM0 = 156.5, CAM1 = 157.2, OUT0 = 159.0, BL = 157.9, FOLDV = .72;
+  // the quotation marks in her eyes, lifted to catchlights (the other session's Fable: at the card's size the drawn marks, paper
+  // on blue, didn't read). A mask of the marks from the print (their round heads bright, the tails faint), laid over it with a
+  // soft glow while her eyes are open
+  let HL = null;
+  function catchlights(src) {
+    if (HL) return HL;
+    const w = src.width, h = src.height, g = src.getContext('2d'), c = mkCanvas(w, h), o = c.getContext('2d'), out = o.createImageData(w, h);
+    for (const [x0, y0, x1, y1] of [[1622, 712, 1678, 760], [2230, 726, 2290, 774]]) {   // (print px: the two pupils' marks)
+      const bw = x1 - x0, d = g.getImageData(x0, y0, bw, y1 - y0).data;
+      for (let y = 0; y < y1 - y0; y++) for (let x = 0; x < bw; x++) {
+        const i = (y * bw + x) * 4, L = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2];
+        if (L > 100 && d[i + 2] - d[i] < 25) { const j = ((y0 + y) * w + x0 + x) * 4; out.data[j] = out.data[j + 1] = out.data[j + 2] = 255; out.data[j + 3] = Math.min(255, (L - 100) * 2.6); }
+      }
+    }
+    o.putImageData(out, 0, 0); return HL = c;
+  }
   PAPER_SFX.push(() => [[IN0, 'paper_slide', -30], [OUT0, 'paper_slide', -32]]);
   LOOPS.inkcloseup = t => {
     const s = S0 + Math.floor(t * 12 + 1e-6) / 12, f = 1 / 12;
@@ -122,10 +138,13 @@ function inkPrint(C, o = {}) {
       X.save(); X.beginPath(); X.rect(sx, sy, sw, sh); X.clip();
       X.save(); X.filter = 'blur(10px)'; X.fillStyle = 'rgba(0,0,0,.55)'; X.fillRect(sx + off - 18, sy, 30, sh); X.restore();   // the edge's shadow on the vellum
       X.drawImage(src, sx + off, cy, cw, ch);
+      if (!variant) { const hl = catchlights(inkPrint(INK.closeup, {})); X.save(); X.globalCompositeOperation = 'screen';
+        X.filter = 'blur(2px)'; X.globalAlpha = .6; X.drawImage(hl, sx + off, cy, cw, ch); X.filter = 'none'; X.globalAlpha = .95; X.drawImage(hl, sx + off, cy, cw, ch); X.restore(); }
       // the card's old fold under her chin: faint, deepened for the blink (the paper bends)
+      // (a soft ridge, not a drawn line: as a crisp hairline it read as a stage rail across her chin, the director's note on v7)
       const bendK = variant ? (variant === 'closed' ? 1 : .6) : 0, yf = cy + FOLDV * ch;
-      X.globalAlpha = .16 + .5 * bendK; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(sx + off, yf - 2.5, cw, 1.6);
-      X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(sx + off, yf, cw, 2.2); X.globalAlpha = 1;
+      X.save(); X.filter = 'blur(3px)'; X.globalAlpha = .05 + .45 * bendK; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(sx + off, yf - 6, cw, 5);
+      X.globalCompositeOperation = 'multiply'; X.globalAlpha = .08 + .55 * bendK; X.fillStyle = 'rgb(150,140,128)'; X.fillRect(sx + off, yf - 1, cw, 7); X.restore();
       // lit from the room (a card, not the backlit vellum): a gentle warm falloff to its edges, and the grain
       X.globalCompositeOperation = 'multiply'; const lg = X.createRadialGradient(sx + off + cw * .55, sy + sh * .45, 60, sx + off + cw * .5, sy + sh * .5, cw * .75);
       lg.addColorStop(0, '#FFFFFF'); lg.addColorStop(.7, '#EDE7DC'); lg.addColorStop(1, '#B8AE9E'); X.fillStyle = lg; X.fillRect(sx + off, sy, cw, sh);
