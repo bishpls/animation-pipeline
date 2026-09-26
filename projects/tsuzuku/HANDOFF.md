@@ -46,6 +46,19 @@ on her floor, lit by her lights (hence the pink and cyan shadows), so she obeys 
 shots and leaves the frame in push-ins and close-ups; to have her felt, frame a sleeve or her edge at the frame's edge. The margin
 notes press into the washi border whether she is in frame or not. Her wipe (91.76) lands in a shot that includes her wing.
 
+## The lantern chain (Fable's ruling, 2026-09-25; one object everywhere: her oblong chōchin, gold paper, indigo ribs and caps)
+C2 lights it and ends with her raising it out of the top of frame -> C3: its glow rises behind the vellum and settles (act 1's
+light is the hung lantern) -> the flood at 60-61 covers her taking it -> world A: lit on the floor at her left in every room shot
+-> 131.29: black but that lantern at the room end camera's (1376, 903), 156 px, which glides to the bridge's floor spot beside
+her (B1 fades in around it) -> B8: taken up, set at Clawd's feet, carried out of the window -> 176.82: lit in her hand in the room
+-> F2: set at Clawd's stage lip. When it stands on its own in the paper world it has a puppeteer's rod; never in the room.
+
+## Sound
+The paper world's sound effects are a stem under the song (song.mp3 untouched): each picture module registers its cues with
+`PAPER_SFX.push(() => [[song s, name, gain dB], ...])` (src/paper.js; names from sound/lib/), `sound/mix.py` dumps them via
+`paperSfx()`, builds `assets/sfx_paper.wav` (levels relative to the song around each cue, no ducking) and `out/paper_mix.wav`.
+Clawd's world can register into the same list (its own names, added to sound/sfx_lib.py) and get one stem for the film.
+
 ## Sharing the tree
 Both sessions work in one checkout. **Stage files by name** (never `git add <dir>` or `-A`): each side has swept the other's
 work-in-progress into a commit once (my `src/prologue`-era commit took `rom.js`; d9cadcd took `outro.js`). Paper-world files:
