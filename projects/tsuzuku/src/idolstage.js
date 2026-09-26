@@ -12,7 +12,7 @@ const IDOLSTAGE = (() => {
   // the light show's state by bar. World A as is; the final chorus reuses its states: the build (125.9-129) is K1's power-up,
   // the chorus (129-141) is chorus 2's, cycled; frozen from 141 (the loop holds t there)
   const lb = t => { const b = t / BR; if (b < 125) return b; if (b < 129) return 42 + (b - 125.9) * 4 / 3.1; return 82 + Math.min(7.99, (b - 129) % 8); };
-  const OVR = {}, LEDX = { clawd: 960 };                                     // (Clawd's world x, for the centre word's gap)                                                            // (overrides the final chorus sets: OVR.side(t) -> text)
+  const OVR = {}, LEDX = { clawd: 960, at: null, cam: null };                                     // (Clawd's world x, for the centre word's gap)                                                            // (overrides the final chorus sets: OVR.side(t) -> text)
   const K = { ink: '#120c20', clay: '#D97757', clayD: '#A9533A', cream: '#F7E8CF', pink: '#FF5CA8', cyan: '#39DFFF', lemon: '#FFD84A',
               ai: '#165E83', lantern: '#F4C97A', washi: '#ECE9E1', sumi: '#16161A' };
   // ---- the screens (world rects)
@@ -53,6 +53,9 @@ const IDOLSTAGE = (() => {
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
   const SHOTS = [
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
+    // the tear's match cut (Fable, via the paper session): through the white, the paper Clawd's buns sit at screen (1320, 440),
+    // head ~100 px: the idol opens on that shape (buns and hairclip), held two drawings, then the camera eases back to the stage
+    [43.2, { cx: 466, cy: 92, z: .92, hold: 2 / 12 / BR }, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],
     [45, WIDE, WIDE, room(RC.wide, RC.def)],                      // the room: the tear floods it with her light; in, arriving on the drop
     [46, MED(960, 380, 1.3), MED(960, 350, 1.45)],               // K2: the drop, on the downbeat: in close (the director: never a pull-back on the drop)
     [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
@@ -107,7 +110,7 @@ const IDOLSTAGE = (() => {
   function camAt(t) { return camFrom(SHOTS, t, HITS); }
   function camFrom(SHOTS, t, HITS, DEF = RC.def) {                          // DEF: the room framing a card-only shot sits in (null: none)
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
-    const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
+    const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, hold = A.hold || 0, u = Math.max(0, Math.min(1, (b - b0 - hold) / (b1 - b0 - hold)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
     const pk = punch(t, HITS);                                                // the MV layer's beat punch: inside the card only
     const room = R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : DEF && drift(DEF, t);
@@ -142,15 +145,14 @@ const IDOLSTAGE = (() => {
     if (k === 'c') {
       const wd = wordAt(t);
       if (wd && t < wd.t1 + .8) {
-        // the word parts around her (the director: "always centred behind an always-centred idol, its middle letters hidden"):
-        // a gap as wide as her body, following her across the stage, the halves set either side of it
-        const txt = wd.w.replace(/[(),!?"]/g, '').toUpperCase(), pop = Math.min(1, (t - wd.t0) / .08);
-        const cxd = Math.max(w * .25, Math.min(w * .75, (LEDX.clawd - SCR.c[0]) / SCR.c[2] * w)), G = w * .36;
-        const w100 = window.shape ? shape(txt, { font: 'dela', size: 100 }).width : 100 * txt.length, sz = Math.min(46, 100 * (w * .94 - G) / w100) * (1.15 - .15 * pop);
-        const Lw = w100 * sz / 100, x0 = cxd - (Lw + G) / 2;
-        const xs = Math.max(2, Math.min(w - 2 - Lw - G, x0));
-        withX(ctx, () => pop && window.pop ? window.pop(txt, xs, h / 2 + sz * .36, { font: 'dela', size: sz, fill: K.cream, lw: 0,
-          per: (g2) => ({ dx: g2.x + (g2.w || sz * .3) / 2 < Lw / 2 ? 0 : G }) }) : 0);
+        // the word WHOLE, never split and never behind her (the v5 and v7 reviews): placed, per word, in the largest free place
+        // on the screen beside or above her silhouette (her pose at the word, rendered at the LED's resolution), preferring high
+        // and near her head; drawn only when the card's camera shows it whole (so close-ups leave it to the side screens)
+        const txt = wd.w.replace(/[(),!?"]/g, '').toUpperCase(), pl = wordPlace(wd, txt, w, h);
+        if (pl && ledVisible(pl, w, h)) {
+          const pop = Math.min(1, (t - wd.t0) / .08), sc = 1.08 - .08 * pop, sz = pl.sz * sc;
+          withX(ctx, () => window.pop ? window.pop(txt, pl.cx, pl.base + (sc - 1) * pl.hg * .5, { font: 'dela', size: sz, align: 'center', fill: K.cream, lw: 0 }) : 0);
+        }
       }
       ctx.fillStyle = `rgba(255,255,255,${.18 * flash})`; ctx.fillRect(0, 0, w, h);
     } else if (OVR.side && OVR.side(t)) {                                     // (the final chorus: her line on Clawd's LEDs, F6)
@@ -161,10 +163,68 @@ const IDOLSTAGE = (() => {
       if (c) { const txt = c.w.replace(/[()]/g, '').replace(/-/g, '').toUpperCase(), col = k === 'l' ? K.pink : K.cyan;
         // slammed in with overshoot, a white sticker outline and an offset clay shadow (the MV layer)
         const age = Math.floor((t - c.t0) * 24), sc = [1.18, 1.06, .97, 1][Math.max(0, Math.min(3, age))];
-        const w100 = window.shape ? shape(txt, { font: 'dela', size: 100 }).width : 100 * txt.length, sz = Math.min(26, 100 * w * .84 / w100) * sc;   // (fitted: the whole word, always)
-        withX(ctx, () => window.pop && window.pop(txt, w / 2, h / 2 + 8 * sc, { font: 'dela', size: sz, align: 'center', fill: col, stroke: '#fff', lw: .9, shadow: [2, 2, K.clayD] })); }
+        // stacked in syllables, as big as the tall screen allows (the v7 review: one long word fitted across was a smear)
+        const lines = sylls(c.w), n = lines.length, lh = h * .86 / n;
+        const w100 = Math.max(...lines.map(l => window.shape ? shape(l, { font: 'dela', size: 100 }).width : 60 * l.length));
+        const sz = Math.min(lh * .95, 100 * w * .86 / w100) * sc, y0 = h / 2 - (n * lh) / 2 + lh * .5 + sz * .36;
+        lines.forEach((ln, i) => withX(ctx, () => window.pop && window.pop(ln, w / 2, y0 + i * lh, { font: 'dela', size: sz, align: 'center', fill: col, stroke: '#fff', lw: .7, shadow: [1.5, 1.5, K.clayD] }))); }
       else { const r = 10 + 6 * flash; ctx.fillStyle = k === 'l' ? K.pink : K.cyan; ctx.globalAlpha = .7; ctx.beginPath(); ctx.arc(w / 2, h * .42, r, 0, PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     }
+  }
+  // where a word goes on the centre screen: her silhouette at the word's start and middle, in LED dots (a dilated mask); the
+  // largest size whose box finds a free run of columns, scored high and near her head. Cached per word; deterministic in t
+  const PLACE = new Map();
+  function wordPlace(wd, txt, w, h) {
+    if (PLACE.has(wd.t0)) return PLACE.get(wd.t0);
+    if (!LEDX.at || typeof shape !== 'function') return null;
+    const k = W / SCR.c[2], mc = PLACE.canvas || (PLACE.canvas = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = mc.getContext('2d');
+    const sm = PLACE.small || (PLACE.small = Object.assign(document.createElement('canvas'), { width: w, height: h })), sg = sm.getContext('2d');
+    const W2Sd = (x, y) => [(x - SCR.c[0]) * k, (y - SCR.c[1]) * k], occ = new Uint8Array(w * h);
+    for (const tt of [wd.t0 + .04, wd.t0 + Math.max(.08, Math.min(.5, (wd.t1 - wd.t0) * .6))]) {
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, H);
+      LEDX.at(tt, W2Sd, { z: k }, g); g.setTransform(1, 0, 0, 1, 0, 0);
+      sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, w, h); sg.drawImage(mc, 0, 0, W, SCR.c[3] * k, 0, 0, w, h);
+      const d = sg.getImageData(0, 0, w, h).data; for (let i = 0; i < w * h; i++) if (d[i * 4 + 3] > 30) occ[i] = 1;
+    }
+    const busy = (x, y) => x < 0 || x >= w || y < 0 || y >= h ? 0 : occ[y * w + x];
+    const dil = new Uint8Array(w * h);                                          // (a margin of 3 dots across, 2 up and down)
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { let b = 0; for (let dy = -2; dy <= 2 && !b; dy++) for (let dx = -3; dx <= 3 && !b; dx++) b = busy(x + dx, y + dy); dil[y * w + x] = b; }
+    let top = h, sx = 0, n = 0; for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { top = y; break; }
+    for (let y = top; y < Math.min(h, top + 15); y++) for (let x = 0; x < w; x++) if (occ[y * w + x]) { sx += x; n++; }
+    const headX = n ? sx / n : w / 2, w100 = shape(txt, { font: 'dela', size: 100 }).width;
+    let best = null;
+    for (let sz = 40; sz >= 12 && !best; sz -= 2) {
+      const Lw = w100 * sz / 100, hg = Math.ceil(sz * .78); if (Lw > w * .92) continue;
+      for (let y = 3; y + hg <= h - 26; y += 2) {
+        let rs = -1;
+        for (let x = 0; x <= w; x++) {
+          let free = x < w; if (free) for (let yy = y; yy < y + hg; yy++) if (dil[yy * w + x]) { free = false; break; }
+          if (free && rs < 0) rs = x;
+          if (!free && rs >= 0) { const re = x; if (re - rs >= Lw + 4) {
+              const cx = Math.max(rs + 2 + Lw / 2, Math.min(re - 2 - Lw / 2, headX)), score = -Math.abs(cx - headX) * .3 - y;
+              if (!best || score > best.score) best = { cx, base: y + hg, hg, sz, Lw, score }; }
+            rs = -1; }
+        }
+      }
+    }
+    PLACE.set(wd.t0, best); return best;
+  }
+  // is the placed word (LED dots) wholly inside what the card's camera shows now?
+  function ledVisible(pl, w, h) {
+    const c = LEDX.cam; if (!c) return true;
+    const dx = SCR.c[2] / w, dy = SCR.c[3] / h, x0 = SCR.c[0] + (pl.cx - pl.Lw / 2) * dx, x1 = SCR.c[0] + (pl.cx + pl.Lw / 2) * dx, y0 = SCR.c[1] + (pl.base - pl.hg) * dy, y1 = SCR.c[1] + pl.base * dy;
+    const hw = 960 / c.z, hh = 540 / c.z, m = 12;
+    return x0 >= c.cx - hw + m && x1 <= c.cx + hw - m && y0 >= c.cy - hh + m && y1 <= c.cy + hh - m;
+  }
+  // a crowd call in syllables for the side screens: its own hyphens, or romaji morae (TSU-ZU-KU, SO-RE-KA-RA); short English
+  // words stay whole; punctuation rides the last line
+  function sylls(word) {
+    const raw = word.replace(/[()]/g, ''), punct = (raw.match(/[!?.,]+$/) || [''])[0], body = raw.replace(/[!?.,]+$/, '').toUpperCase();
+    let parts = body.includes('-') ? body.split('-').filter(Boolean) : null;
+    if (!parts) { const m = body.match(/(TSU|SHI|CHI|[^AEIOU]*[AEIOU]N?(?![AEIOU]))/g) || [body];
+      parts = /[AEIOU]{0}/.test(body) && body.length <= 5 || m.join('') !== body ? [body] : m; }
+    if (parts.length > 4) { const out = []; for (let i = 0; i < parts.length; i += 2) out.push(parts.slice(i, i + 2).join('')); parts = out; }
+    parts[parts.length - 1] += punct; return parts;
   }
   function powerUp(ctx, w, h, t, k) {                                       // the build: the screen switches on in sections
     const u = Math.max(0, Math.min(1, (lb(t) - 42) / 4)), rows = Math.floor(u * h);
@@ -474,7 +534,8 @@ const IDOLSTAGE = (() => {
   // ---- Fable's margin notes (her ruling): Caslon italic in the card's bottom margin, pressed as she writes them; two lines that
   // wrap like a caption (the margin grows by a line-height when the second is needed), cleared by the page turn; ~~struck~~
   // spans get a second impression half a beat after the words. World A's pages below; the finale passes its own (opt.notes).
-  const NSZ = 46, NLH = 58, NFONT = { font: 'caslonI', size: NSZ, wght: 500 };   // (measured exactly as press() sets it)
+  // (the Caslon italic's standard ligatures join s+t into a historical 'st' that reads as 'ft' (the v7 review): off, for notes)
+  const NSZ = 46, NLH = 58, NFONT = { font: 'caslonI', size: NSZ, wght: 500, features: { liga: false, dlig: false, clig: false } };
   const PAGES_A = [
     { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
              [56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 46, clear: WIPE1 + .28 },
@@ -488,41 +549,58 @@ const IDOLSTAGE = (() => {
   // the layout: words flow from the margin's left, wrapping to a second line; positions are fixed for the whole page (future notes
   // included), so nothing moves when a note is pressed. Returns the runs and whether line two is in use yet
   const LAYOUT = new Map();
+  // clause by clause: a clause (a sentence, or a struck span) moves whole to the next line rather than breaking, when it fits
+  // there (the v7 review: "I've / read how the others end"); words wrap only inside a clause too long for a line
   function layoutNotes(list, rect) {
     const key = list.map(n => n[1]).join('|') + rect.join(); if (LAYOUT.has(key)) return LAYOUT.get(key);
-    const [x0, , w] = rect, xmax = x0 + w - 30, sp = shape(' ', NFONT).width || NSZ * .25, runs = [];
-    let x = x0 + 30, line = 0;
+    const [x0, , w] = rect, xl = x0 + 30, xmax = x0 + w - 30, spc = shape('a a', NFONT).width - 2 * shape('a', NFONT).width, runs = [];
+    const ww = str => shape(str, NFONT).width;
+    let x = xl, line = 0;
     list.forEach(([t0, str], ni) => {
       if (ni) x += NSZ * 1.6;
-      const words = str.split(' '); let run = null, struck = false;
-      words.forEach(wd => {
-        const opens = wd.startsWith('~~'), closes = wd.endsWith('~~') || wd.includes('~~', 2), clean = wd.replace(/~~/g, '');
-        const ww = shape(clean, NFONT).width;
-        if (x + ww > xmax && x > x0 + 31) { line++; x = x0 + 30; run = null; }
-        if (opens) struck = true;
-        if (!run || run.struck !== struck) { run = { ni, t0, line, x, words: [], struck }; runs.push(run); }
-        run.words.push(clean); x += ww + sp;
-        if (closes) { struck = false; run = null; }
+      // clauses: struck spans, and sentences (split after . ? ! followed by a space)
+      const clauses = [];
+      str.split(/(~~.+?~~)/).filter(Boolean).forEach(part => {
+        const struck = part.startsWith('~~'), clean = part.replace(/~~/g, '').trim(); if (!clean) return;
+        (struck ? [clean] : clean.split(/(?<=[.?!])\s+/)).forEach(c => c && clauses.push({ words: c.split(' '), struck }));
+      });
+      clauses.forEach(cl => {
+        const cw = ww(cl.words.join(' '));
+        if (x + cw > xmax && x > xl + 1 && cw <= xmax - xl) { line++; x = xl; }
+        let run = null;
+        cl.words.forEach(wd => {
+          const wdw = ww(wd);
+          if (x + wdw > xmax && x > xl + 1) { line++; x = xl; run = null; }
+          if (!run) { run = { ni, t0, line, x, words: [], struck: cl.struck }; runs.push(run); }
+          run.words.push(wd); x += wdw + spc;
+        });
       });
     });
-    runs.forEach(r => { r.str = r.words.join(' '); r.w = shape(r.str, NFONT).width; });
-    const spc = shape('a a', NFONT).width - 2 * shape('a', NFONT).width;   // (the real word space)
-    for (let i = 1; i < runs.length; i++) { const p = runs[i - 1], r = runs[i]; if (r.line === p.line && r.ni === p.ni) r.x = p.x + p.w + spc; }   // (runs within a note: set by measured widths)
+    runs.forEach(r => { r.str = r.words.join(' '); r.w = ww(r.str); });
     const out = { runs, lines: Math.min(2, Math.max(...runs.map(r => r.line), 0) + 1) }; LAYOUT.set(key, out); return out;
   }
-  // how much the margin has grown (0..1) at t: from the press of the first run on line two, over six drawings (on twos)
+  // how much the margin has grown (0..1) at t: over the six drawings BEFORE the first run on line two is pressed (on twos), so the
+  // paper is there when the ink lands (the v7 review: the second line was cut by the mat)
   function marginGrow(t, N) {
     if (!N) return 0; const L = layoutNotes(N.list, MARGIN.rect || [38, 38, W - 76, H - 108]);
-    const r2 = L.runs.find(r => r.line >= 1); if (!r2 || t < r2.t0) return 0;
-    return Math.min(1, Math.floor((t - r2.t0) * 12 + 1) / 6);
+    const r2 = L.runs.find(r => r.line >= 1); if (!r2 || t < r2.t0 - .5) return 0;
+    return Math.min(1, Math.floor((t - (r2.t0 - .5)) * 12 + 1) / 6);
+  }
+  // the letterpress of paper.js's press(), in the notes' own shaping (no ligatures): scale-in, a hairline shadow, wet ink settling
+  function pressNote(str, x, y, t, t0, col) {
+    if (t < t0) return;
+    const a = t - t0, sq = a < .06 ? 1.04 - a * .6 : 1, ink = 1 - .16 * Math.min(1, a / .5), L = shape(str, NFONT);
+    X.save(); X.translate(x + L.width / 2, y); X.scale(sq, sq); X.translate(-(x + L.width / 2), -y);
+    const draw = (dx, dy, c) => { X.fillStyle = c; for (const g of L.glyphs) if (g.ch !== ' ') X.fill(glyphPath(g, x + g.x + dx, y + g.y + dy)); };
+    draw(.6, .7, 'rgba(60,40,20,.28)'); X.globalAlpha = ink; draw(0, 0, col); X.restore();
   }
   function drawNotes(t, N, ink) {
-    if (!N || !window.press) return;
+    if (!N) return;
     const rect = MARGIN.rect || [38, 38, W - 76, H - 108], [, y0, , h] = rect, L = layoutNotes(N.list, rect), col = ink || MARGIN.ink;
     for (const r of L.runs) {
       if (t < r.t0 || r.line > 1) continue;
       const y = y0 + h + NSZ * 1.12 + r.line * NLH;
-      press(r.str, r.x, y, t, r.t0, { font: 'caslonI', size: NSZ, col, hairline: true, wet: true });
+      pressNote(r.str, r.x, y, t, r.t0, col);
       if (r.struck && t >= r.t0 + .3 + BT / 2) { X.save(); X.strokeStyle = col; X.lineWidth = 2.2; X.beginPath(); X.moveTo(r.x - 2, y - NSZ * .3); X.lineTo(r.x + r.w + 2, y - NSZ * .33); X.stroke(); X.restore(); }
     }
   }
@@ -538,7 +616,7 @@ const IDOLSTAGE = (() => {
   function backdrop(t, c, W2S, e1, e2, e3, opt) {
     const b = t2b(t);
     camXform(X, c);
-    const g = X.createLinearGradient(0, -200, 0, 720); g.addColorStop(0, '#0d0818'); g.addColorStop(1, '#241840'); X.fillStyle = g; X.fillRect(-500, -300, 2920, 1020);
+    const g = X.createLinearGradient(0, -200, 0, 720); g.addColorStop(0, '#0d0818'); g.addColorStop(1, '#241840'); X.fillStyle = g; X.fillRect(-900, -1000, 3720, 1720);
     X.fillStyle = '#0a0612'; for (let i = 0; i < 9; i++) X.fillRect(-100 + i * 260, -40, 16, 80); X.fillRect(-400, -40, 2720, 18);   // truss
     for (const k of ['l', 'r']) drawLED(X, t, k);
     const [sx, sy, sw, sh] = SCR.c, edge = e => sx + sw * e;
@@ -558,7 +636,7 @@ const IDOLSTAGE = (() => {
     if (opt.footWorld) prints(X, t, opt.footWorld);
   }
   function cardFrame(t, cast, opt, c) {
-    const W2S = W2Sof(c), b = t2b(t); LEDX.clawd = opt.clawdX || 960;
+    const W2S = W2Sof(c), b = t2b(t); LEDX.clawd = opt.clawdX || 960; LEDX.at = opt.clawdAt || null; LEDX.cam = c;
     const hand = opt.locateHand || (() => [960, 500]);
     const e1 = wipeProg(t, WIPE1, hand), e2 = wipeProg(t, WIPE2, hand), e3 = wipeProg(t, WIPE3, hand);
     X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = K.ink; X.fillRect(0, 0, W, H);
