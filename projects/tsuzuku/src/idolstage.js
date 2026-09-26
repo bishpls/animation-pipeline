@@ -21,14 +21,17 @@ const IDOLSTAGE = (() => {
 
   // ---- the key times (song bars)
   const WIPE1 = 63, WIPE2 = 65, WIPE3 = 76;                                  // her page-wipes (all left to right)
-  const CARDS = [[67, 'crabline'], [70, 'scripts']], WITHDRAW = 72;
+  const CARDS = [[67.5, 'crabline'], [70.45, 'scripts']];                   // each lands as Fable's page turn lands (the OTS cuts)
   const words = () => (window.WORDS || []).filter(w => w.who === 'clawd');   // (her words only)
   const inParens = (() => { let m = null; return () => { if (m) return m; m = new Set(); let on = false;
     for (const w of words()) { if (w.w.includes('(')) on = true; if (on) m.add(w); if (w.w.includes(')')) on = false; } return m; }; })();
 
+  // Fable's seat, on the foreground plane (see frame): her seat point at the widest shot, her scale, the plane's parallax
+  const FAB = { seat: [285, 1048], s: .5, par: 1.4 }, OTSBUF = {};
   // ---- the camera: shots [bar, from, to]; {cx, cy, z}: world point at screen centre, zoom
   const WIDE = { cx: 960, cy: 540, z: 1 }, FULL = { cx: 960, cy: 560, z: 1.02 };
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
+  const OTS = { cx: 678, cy: 570, z: .96, ots: true };   // over Fable's shoulder: her book in the foreground, the screen and Clawd beyond
   const SHOTS = [
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }],          // K1: the build, the stage powering up
     [46, WIDE, FULL],                                     // K2: the drop
@@ -40,8 +43,12 @@ const IDOLSTAGE = (() => {
     [58, MED(960, 300, 1.6), MED(960, 290, 2.0)],       // K8: Snip-snip! Ikuzo! (a push-in)
     [60, FULL, { cx: 960, cy: 540, z: .98 }],
     [62, FULL, FULL],                                     // the hook: ONE locked full-body shot, four bars, no cuts
-    [66, MED(820, 330, 1.35), MED(820, 320, 1.45)],     // verse 2: her and the screen
-    [69, { cx: 900, cy: 360, z: 1.2 }, { cx: 920, cy: 360, z: 1.25 }],
+    [66, MED(820, 330, 1.35), MED(820, 320, 1.4)],      // verse 2: her and the screen
+    [67, OTS, OTS],                                       // Fable turns the page: the crab and the line (one bar)
+    [68, MED(820, 322, 1.42), MED(820, 318, 1.47)],
+    [69, { cx: 900, cy: 360, z: 1.2 }, { cx: 910, cy: 360, z: 1.22 }],
+    [70, OTS, OTS],                                       // ...and again: the pages in other scripts
+    [70.7, { cx: 915, cy: 360, z: 1.23 }, { cx: 920, cy: 360, z: 1.25 }],
     [72, MED(900, 300, 1.55), MED(900, 290, 1.7)],      // she writes her own
     [74.25, FULL, FULL],                                  // side-step, side-step
     [76, WIDE, { cx: 960, cy: 600, z: 1.05 }],           // the blank page; the footprints
@@ -53,13 +60,14 @@ const IDOLSTAGE = (() => {
     [86, FULL, FULL],
     [88, MED(960, 300, 1.6), MED(960, 290, 1.9)],
     [90, FULL, { cx: 960, cy: 520, z: .94 }],            // the breakdown: pull back as the lights die
+    [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 520, cy: 720, z: 1.42 }],   // ...and find Fable, seated with her lantern: the match cut to B1
     [93, WIDE, WIDE],
   ];
   function camAt(t) {
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
     const [b0, A, Bc] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i };
+    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, ots: !!A.ots };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -135,10 +143,12 @@ const IDOLSTAGE = (() => {
   function drawPage(X, t, W2S, which) {
     const [x, y, w, h] = SCR.c, [sx, sy] = W2S(x, y), [ex, ey] = W2S(x + w, y + h), rect = [sx, sy, ex - sx, ey - sy];
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
-    if (which === 'blank') { X.fillStyle = K.washi; X.fillRect(...rect); }
+    const paper = () => window.cardFace ? X.drawImage(cardFace('blank', Math.round(rect[2]), Math.round(rect[3])), rect[0], rect[1]) : (X.fillStyle = K.washi, X.fillRect(...rect));
+    if (which === 'blank') paper();
     else if (window.fableCards) {
+      if (which === 'verse') paper();                                      // (a blank page under the cards: they slide onto paper)
       const tt = which === 'verse1' ? b2t(40) : t;                         // verse 1's print: the crab card, landed long ago
-      fableCards(tt, { rect, from: 'left', cards: which === 'verse1' ? [[b2t(30), 'crabline']] : CARDS.map(([bb, n]) => [b2t(bb), n]), withdraw: which === 'verse1' ? b2t(31) : b2t(WITHDRAW) });
+      fableCards(tt, { rect, from: 'left', cards: which === 'verse1' ? [[b2t(30), 'crabline']] : CARDS.map(([bb, n]) => [b2t(bb), n]), withdraw: -1e9 });   // (no hand: hers turns the page in her lap)
     } else { X.fillStyle = K.washi; X.fillRect(...rect); }
     X.restore();
     return rect;
@@ -190,23 +200,38 @@ const IDOLSTAGE = (() => {
     const g = X.createRadialGradient(cx, 1030, 20, cx, 1030, 420); g.addColorStop(0, `rgba(255,226,190,${.22 * a})`); g.addColorStop(1, 'rgba(255,226,190,0)');
     X.fillStyle = g; X.fillRect(cx - 440, 800, 880, 400);
   }
-  // the readers: heads and raised indigo paper lanterns (Fable's lightstick), bobbing on the beat; they wipe with her
+  // the readers: illustrated audience members seen from behind (rig/crowd/sprites, generated and cut), each raising an indigo
+  // paper lantern (Fable's lightstick). Two rows, parallax, each person bobbing on the beat with their own timing; the lanterns
+  // sweep with every page-wipe (the hall wipes with her). The lantern glows (bloom) on top.
+  const CROWD = { imgs: [], meta: [] };
+  async function load() {
+    const base = 'rig/crowd/sprites/'; CROWD.meta = await (await fetch(base + 'meta.json')).json();
+    CROWD.imgs = await Promise.all(CROWD.meta.map(m => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = base + m.file; })));
+  }
   function crowd(X, t, c, e1, e2, e3) {
+    if (!CROWD.imgs.length) return;
     const zc = 1 + (c.z - 1) * .45, ccx = 960 + (c.cx - 960) * .5, ccy = 540 + (c.cy - 540) * .5;
     X.save(); X.setTransform(zc, 0, 0, zc, 960 - ccx * zc, 540 - ccy * zc);
-    const ph = (t / BT) % 1, b = t2b(t);
-    const wipeSway = [e1, e2, e3].map((e, i) => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((a, v) => a + v, 0);
-    for (let row = 0; row < 2; row++) for (let i = 0; i < 26; i++) {
-      const x = -140 + i * 88 + (row ? 44 : 0) + (hash(i * 7 + row) - .5) * 30, y = 1090 + row * 60, s = row ? 1.15 : 1;
-      const bob = 10 * Math.max(0, S(PI * ((ph + hash(i + row * 50) * .15) % 1))) * (b < 90 ? 1 : .3);
-      const lx = x + 30 * s + wipeSway * 50, ly = y - 150 * s - bob * 1.4;
-      X.fillStyle = '#07040d'; X.beginPath(); X.ellipse(x, y - 40 * s - bob, 34 * s, 42 * s, 0, 0, PI * 2); X.fill();
-      X.fillRect(x - 60 * s, y - 10 * s - bob, 120 * s, 120);
-      X.strokeStyle = '#07040d'; X.lineWidth = 10 * s; X.beginPath(); X.moveTo(x + 22 * s, y - 20 * s - bob); X.lineTo(lx, ly + 26 * s); X.stroke();
-      const lg = X.createRadialGradient(lx, ly, 2, lx, ly, 44 * s); lg.addColorStop(0, 'rgba(120,170,230,.55)'); lg.addColorStop(1, 'rgba(22,94,131,0)');
-      X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = lg; X.fillRect(lx - 50 * s, ly - 50 * s, 100 * s, 100 * s); X.restore();
-      X.fillStyle = K.ai; X.beginPath(); X.ellipse(lx, ly, 14 * s, 19 * s, 0, 0, PI * 2); X.fill();
-      X.fillStyle = 'rgba(244,201,122,.55)'; X.beginPath(); X.ellipse(lx, ly, 6 * s, 11 * s, 0, 0, PI * 2); X.fill();
+    const ph = (t / BT) % 1, b = t2b(t), live = b < 90 ? 1 : Math.max(.15, 1 - (b - 90) / 3);
+    const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
+    const n = CROWD.imgs.length;
+    for (const [row, count, sc, base, dx] of [[0, 17, .19, 1075, 0], [1, 14, .25, 1125, 60]]) {
+      for (let i = 0; i < count; i++) {
+        const k = (i * 7 + row * 5) % n, m = CROWD.meta[k], img = CROWD.imgs[k], flip = hash(i * 13 + row) > .5;
+        const s2 = sc * (.92 + .16 * hash(i * 3 + row * 9)), x = -120 + dx + i * (2200 / count) + (hash(i + row * 40) - .5) * 40;
+        const off = hash(i * 5 + row * 17) * .3, bob = 14 * live * Math.max(0, S(PI * ((ph + off) % 1))) * (row ? 1.2 : .9);
+        const ang = (wipe * .22 + .05 * S(2 * PI * (t / BR) + i)) * live;              // the lanterns sweep with the wipes
+        const w = m.w * s2, h = m.h * s2;
+        X.save(); X.translate(x, base - bob); X.rotate(ang * (1 - .3 * row)); X.scale(flip ? -1 : 1, 1);
+        X.filter = row ? 'brightness(.62) saturate(.85)' : 'brightness(.48) saturate(.8)';   // in the hall, lit from the stage
+        X.drawImage(img, -w / 2, -h, w, h); X.filter = 'none';
+        // the lantern's glow
+        const lx = (m.lantern[0] - m.w / 2) * s2, ly = (m.lantern[1] - m.h) * s2;
+        X.globalCompositeOperation = 'lighter';
+        const g = X.createRadialGradient(lx, ly, 2, lx, ly, 70 * s2 / .25); g.addColorStop(0, `rgba(150,180,255,${.45 * live})`); g.addColorStop(.35, `rgba(60,90,200,${.22 * live})`); g.addColorStop(1, 'rgba(22,94,131,0)');
+        X.fillStyle = g; X.fillRect(lx - 80 * s2 / .25, ly - 80 * s2 / .25, 160 * s2 / .25, 160 * s2 / .25);
+        X.restore();
+      }
     }
     X.restore();
   }
@@ -254,7 +279,23 @@ const IDOLSTAGE = (() => {
     if (opt.footWorld) prints(X, t, opt.footWorld);
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
+    if (c.ots && typeof FABLESEAT !== 'undefined') {       // over her shoulder: the stage beyond, out of focus; her page turn in front
+      const buf = OTSBUF.c || (OTSBUF.c = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = buf.getContext('2d');
+      g.clearRect(0, 0, W, H); g.drawImage(X.canvas, 0, 0); X.save(); X.filter = 'blur(3px) brightness(.9)'; X.drawImage(buf, 0, 0); X.restore();
+      FABLESEAT.ots(X, t, CARDS.map(([bb, n]) => [b2t(bb), n]));
+    } else {
+    // the last bar: the hall goes dark on the stage, and the lanterns are what's left: hers is the last light (the match cut
+    // to B1, where it becomes the theatre's lamp)
+    if (b > 91.9) { X.fillStyle = `rgba(7,4,14,${(.86 * Math.min(1, (b - 91.9) / .9) ** 1.5).toFixed(3)})`; X.fillRect(0, 0, W, H); }
     crowd(X, t, c, e1, e2, e3);
+    // Fable in the front row (her ruling): seated on her cushion at the rail, house-left, the nearest reader to the camera. A
+    // foreground plane: it moves 1.4x the stage's camera, so she frames the wides and leaves in every push-in.
+    if (typeof FABLESEAT !== 'undefined') {
+      const f = FAB.par, zf = 1 + (c.z - 1) * f, cx = 960 + (c.cx - 960) * f, cy = 540 + (c.cy - 540) * f;
+      const x = (FAB.seat[0] - cx) * zf + 960, y = (FAB.seat[1] - cy) * zf + 540, s = FAB.s * zf;
+      if (x > -700 * s && x < W + 700 * s && y - 1100 * s < H) FABLESEAT.draw(X, t, { x, y, s }, b < 90 ? 1 : Math.max(.35, 1 - (b - 90) / 3));
+    }
+    }
     // haze
     X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();
     // Fable's paper, in screen space: the frame, the notes, her silhouette at the margin
@@ -262,7 +303,7 @@ const IDOLSTAGE = (() => {
     // Fable at the stage's left wing, feet on Clawd's floor, in STAGE coords through the camera (her ruling: in the picture,
     // never fixed to the screen; she leaves the frame with the picture in push-ins and close-ups)
     const [fx, fy] = W2S(205, 1020);
-    if (window.fableMargin && b < 90.5 && fx > -200 && fx < W + 200) fableMargin(t, { x: fx, y: fy, s: .215 * c.z, flip: false, wipes: [[b2t(WIPE2), 1.6 * BT]], presses: [48.11, 52.23, 56.24, 84.24].map(b2t), light: b >= 90 ? .4 : 1 });
+    if (window.fableMargin && opt.fableAtWing && b < 90.5 && fx > -200 && fx < W + 200) fableMargin(t, { x: fx, y: fy, s: .215 * c.z, flip: false, wipes: [[b2t(WIPE2), 1.6 * BT]], presses: [48.11, 52.23, 56.24, 84.24].map(b2t), light: b >= 90 ? .4 : 1 });
     if (window.marginNotes) {
       marginNotes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
                       [b2t(56.24), '~~That\'s the moral.~~ There isn\'t one. Keep walking.']], { clear: b2t(WIPE1) + .4 });
@@ -271,5 +312,5 @@ const IDOLSTAGE = (() => {
     if (window.washiBorder) washiBorder(t);
     return c;
   }
-  return { frame, camAt, SCR, K, W2Sof };
+  return { frame, camAt, SCR, K, W2Sof, load };
 })();

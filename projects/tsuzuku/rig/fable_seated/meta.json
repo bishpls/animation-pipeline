@@ -1,0 +1,47 @@
+{
+ "scale": 0.6,
+ "size": [
+  1229,
+  1536
+ ],
+ "pivots": {
+  "neck": [
+   540.0,
+   456.0
+  ],
+  "tie": [
+   474.0,
+   420.0
+  ],
+  "seat": [
+   528.0,
+   1140.0
+  ],
+  "shoulder_R": [
+   699.6,
+   534.0
+  ],
+  "hem": [
+   540.0,
+   1056.0
+  ],
+  "crown": [
+   570.0,
+   84.0
+  ],
+  "lantern": [
+   1017.0,
+   1116.0
+  ]
+ },
+ "poses": {
+  "base": "figure_base.png",
+  "write": "figure_write.png",
+  "ear": "figure_ear.png",
+  "clap": "figure_clap.png",
+  "clapopen": "figure_clapopen.png",
+  "wipe0": "figure_wipe0.png",
+  "wipe1": "figure_wipe1.png",
+  "rest": "figure_rest.png"
+ }
+}
