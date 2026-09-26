@@ -12,7 +12,7 @@ const IDOLSTAGE = (() => {
   // the light show's state by bar. World A as is; the final chorus reuses its states: the build (125.9-129) is K1's power-up,
   // the chorus (129-141) is chorus 2's, cycled; frozen from 141 (the loop holds t there)
   const lb = t => { const b = t / BR; if (b < 125) return b; if (b < 129) return 42 + (b - 125.9) * 4 / 3.1; return 82 + Math.min(7.99, (b - 129) % 8); };
-  const OVR = {};                                                            // (overrides the final chorus sets: OVR.side(t) -> text)
+  const OVR = {}, LEDX = { clawd: 960 };                                     // (Clawd's world x, for the centre word's gap)                                                            // (overrides the final chorus sets: OVR.side(t) -> text)
   const K = { ink: '#120c20', clay: '#D97757', clayD: '#A9533A', cream: '#F7E8CF', pink: '#FF5CA8', cyan: '#39DFFF', lemon: '#FFD84A',
               ai: '#165E83', lantern: '#F4C97A', washi: '#ECE9E1', sumi: '#16161A' };
   // ---- the screens (world rects)
@@ -51,8 +51,8 @@ const IDOLSTAGE = (() => {
   const MED = (x = 960, y = 330, z = 1.8) => ({ cx: x, cy: y, z }), CU = (x = 960, y = 215, z = 3.1) => ({ cx: x, cy: y, z });
   const SHOTS = [
     [42, WIDE, { cx: 960, cy: 520, z: 1.06 }, room(RC.window)],   // K1: the build, in the window where the card tore (the telling camera)
-    [45, WIDE, WIDE, room(RC.wide)],                              // the room: the tear floods it with her light (one bar)
-    [46, WIDE, FULL, room(RC.wide, RC.def)],                      // K2: the drop, pushing in to the window and her
+    [45, WIDE, WIDE, room(RC.wide, RC.def)],                      // the room: the tear floods it with her light; in, arriving on the drop
+    [46, MED(960, 380, 1.3), MED(960, 350, 1.45)],               // K2: the drop, on the downbeat: in close (the director: never a pull-back on the drop)
     [47, MED(960, 330, 1.7), MED(960, 320, 1.85)],               // "Don't you dare close the book on me!"
     [48, WIDE, WIDE, OTSR],                                       // over Fable's shoulder: she writes the note (half a bar)
     [48.5, { cx: 960, cy: 600, z: .96 }, WIDE],                  // K3: ME-KUT-TE! the hall
@@ -71,7 +71,7 @@ const IDOLSTAGE = (() => {
     [72, MED(900, 300, 1.55), MED(900, 290, 1.7)],              // she writes her own
     [74.25, FULL, FULL],                                          // side-step, side-step
     [76, WIDE, { cx: 960, cy: 600, z: 1.05 }],                   // the page nobody pulled; the footprints
-    [77.75, { cx: 900, cy: 560, z: 1.05 }, { cx: 925, cy: 460, z: 1.35 }],   // the path draws itself; a push-in
+    [77.75, { cx: 900, cy: 560, z: 1.02 }, { cx: 920, cy: 520, z: 1.14 }],   // the path draws itself; a gentle push-in (her whole figure)
     [80.2, WIDE, WIDE, OTSS],                                     // over her shoulder: Clawd's page in Fable's book (she wrote her own)
     [80.9, { cx: 930, cy: 430, z: 1.45 }, { cx: 930, cy: 430, z: 1.45 }],
     [81.5, CU(), CU(960, 215, 3.2)],                              // "Watch me!"
@@ -136,8 +136,15 @@ const IDOLSTAGE = (() => {
     if (k === 'c') {
       const wd = wordAt(t);
       if (wd && t < wd.t1 + .8) {
-        const txt = wd.w.replace(/[(),!?"]/g, '').toUpperCase(), pop = Math.min(1, (t - wd.t0) / .08), sz = Math.min(46, 1.05 * w / Math.max(3, txt.length));
-        withX(ctx, () => pop && window.pop ? window.pop(txt, w / 2, h / 2 + sz * .36, { font: 'dela', size: sz * (1.15 - .15 * pop), align: 'center', fill: K.cream, lw: 0 }) : 0);
+        // the word parts around her (the director: "always centred behind an always-centred idol, its middle letters hidden"):
+        // a gap as wide as her body, following her across the stage, the halves set either side of it
+        const txt = wd.w.replace(/[(),!?"]/g, '').toUpperCase(), pop = Math.min(1, (t - wd.t0) / .08);
+        const cxd = Math.max(w * .25, Math.min(w * .75, (LEDX.clawd - SCR.c[0]) / SCR.c[2] * w)), G = w * .36;
+        const w100 = window.shape ? shape(txt, { font: 'dela', size: 100 }).width : 100 * txt.length, sz = Math.min(46, 100 * (w * .94 - G) / w100) * (1.15 - .15 * pop);
+        const Lw = w100 * sz / 100, x0 = cxd - (Lw + G) / 2;
+        const xs = Math.max(2, Math.min(w - 2 - Lw - G, x0));
+        withX(ctx, () => pop && window.pop ? window.pop(txt, xs, h / 2 + sz * .36, { font: 'dela', size: sz, fill: K.cream, lw: 0,
+          per: (g2) => ({ dx: g2.x + (g2.w || sz * .3) / 2 < Lw / 2 ? 0 : G }) }) : 0);
       }
       ctx.fillStyle = `rgba(255,255,255,${.18 * flash})`; ctx.fillRect(0, 0, w, h);
     } else if (OVR.side && OVR.side(t)) {                                     // (the final chorus: her line on Clawd's LEDs, F6)
@@ -147,8 +154,9 @@ const IDOLSTAGE = (() => {
       const c = callAt(t);
       if (c) { const txt = c.w.replace(/[()]/g, '').replace(/-/g, '').toUpperCase(), col = k === 'l' ? K.pink : K.cyan;
         // slammed in with overshoot, a white sticker outline and an offset clay shadow (the MV layer)
-        const age = Math.floor((t - c.t0) * 24), sc = [1.32, 1.12, .95, 1][Math.max(0, Math.min(3, age))], sz = Math.min(26, 1.6 * w / Math.max(3, txt.length * .9)) * sc;
-        withX(ctx, () => window.pop && window.pop(txt.slice(0, 8), w / 2, h / 2 + 8 * sc, { font: 'dela', size: sz, align: 'center', fill: col, stroke: '#fff', lw: .9, shadow: [2, 2, K.clayD] })); }
+        const age = Math.floor((t - c.t0) * 24), sc = [1.18, 1.06, .97, 1][Math.max(0, Math.min(3, age))];
+        const w100 = window.shape ? shape(txt, { font: 'dela', size: 100 }).width : 100 * txt.length, sz = Math.min(26, 100 * w * .84 / w100) * sc;   // (fitted: the whole word, always)
+        withX(ctx, () => window.pop && window.pop(txt, w / 2, h / 2 + 8 * sc, { font: 'dela', size: sz, align: 'center', fill: col, stroke: '#fff', lw: .9, shadow: [2, 2, K.clayD] })); }
       else { const r = 10 + 6 * flash; ctx.fillStyle = k === 'l' ? K.pink : K.cyan; ctx.globalAlpha = .7; ctx.beginPath(); ctx.arc(w / 2, h * .42, r, 0, PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     }
   }
@@ -399,7 +407,7 @@ const IDOLSTAGE = (() => {
     const wipe = [e1, e2, e3].map(e => (e > 0 && e < 1 ? S(PI * e) : 0)).reduce((q, v) => q + v, 0);
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const P = [];
-    for (const [row, n, sc, y0, dx] of [[0, 12, .36, 1150, 0], [1, 10, .47, 1225, 80]]) {
+    for (const [row, n, sc, y0, dx] of [[0, 12, .32, 1195, 0], [1, 10, .42, 1275, 80]]) {   // (low enough that her feet show)
       for (let i = 0; i < n; i++) {
         const q = AUD[Math.floor(rnd() * AUD.length)], x = -60 + dx + (i + .5) * (2040 / n) + (rnd() - .5) * 60, s = sc * (.9 + .2 * rnd()), ph = rnd(), flip = rnd() > .5;
         const bob = (call ? 20 : 8) * live * Math.max(0, S(PI * ((ph0 + ph * .3) % 1)));
@@ -445,7 +453,7 @@ const IDOLSTAGE = (() => {
   // ---- Fable's margin notes (her ruling): Caslon italic in the card's bottom margin, pressed as she writes them; two lines that
   // wrap like a caption (the margin grows by a line-height when the second is needed), cleared by the page turn; ~~struck~~
   // spans get a second impression half a beat after the words. World A's pages below; the finale passes its own (opt.notes).
-  const NSZ = 35, NLH = 46, NFONT = { font: 'caslonI', size: NSZ, wght: 500 };   // (measured exactly as press() sets it)
+  const NSZ = 46, NLH = 58, NFONT = { font: 'caslonI', size: NSZ, wght: 500 };   // (measured exactly as press() sets it)
   const PAGES_A = [
     { list: [[48.11, 'Every story’s borrowed till somebody stands to tell it.'], [52.23, 'I’ve read how it ends. I’d still like to see.'],
              [56.24, '~~That’s the moral.~~ There isn’t one. Keep walking.']], from: 46, clear: WIPE1 + .28 },
@@ -529,7 +537,7 @@ const IDOLSTAGE = (() => {
     if (opt.footWorld) prints(X, t, opt.footWorld);
   }
   function cardFrame(t, cast, opt, c) {
-    const W2S = W2Sof(c), b = t2b(t);
+    const W2S = W2Sof(c), b = t2b(t); LEDX.clawd = opt.clawdX || 960;
     const hand = opt.locateHand || (() => [960, 500]);
     const e1 = wipeProg(t, WIPE1, hand), e2 = wipeProg(t, WIPE2, hand), e3 = wipeProg(t, WIPE3, hand);
     X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = K.ink; X.fillRect(0, 0, W, H);
@@ -554,7 +562,7 @@ const IDOLSTAGE = (() => {
     // Fable's paper, in the card's screen space: the notes in the bottom margin (what she's writing in her room), the deckle
     // Fable's notes: the page's list (the finale passes its own); the margin grows a line-height when they wrap to a second line
     const N = opt.notes ? (t < opt.notes.clear ? opt.notes : null) : notesA(t);
-    if (window.washiBorder) washiBorder(t, { bottom: .065 + (NLH / H) * marginGrow(t, N) });
+    if (window.washiBorder) washiBorder(t, { bottom: .078 + (NLH / H) * marginGrow(t, N) });
     drawNotes(t, N, opt.notes && opt.notes.ink);
     return c;
   }
