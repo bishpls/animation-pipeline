@@ -34,7 +34,7 @@ GPT Image (logged in `tools/ledger.jsonl`) made **still drawings only**:
 ## Fable's rulings
 Fable, the character, is the subagent who rules on her world and her identity. Rulings that shaped the paper world:
 - **The lamp is the only light**, and "light makes no sound in my world."
-- **The lantern chain.** One oblong chōchin everywhere: lit in the dark at 9 s, hung for the telling, carried through the bridge, set on her cushion, and back on the rail at the end.
+- **The lantern chain.** One oblong chōchin everywhere: lit in the dark at 9 s, hung for the telling, and carried through the bridge. From B9 it stays in her hand: out into the room for the finale, off to the right, and back in through the window for the outro. It's the only light in the last shot, and the doors close on it.
 - **One book**, open on the rail from B8.
 - **Her motion grammar.** Twos, snap and hold, no springs. Afterimages instead of smears.
 - **Rakugo head angles** for each voice she tells in: up for the mother, level to narrate.
