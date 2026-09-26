@@ -352,6 +352,37 @@ JOBS['g_wc1'] = ([mine('k_wc1')], "Edit image 1. Change ONLY her head: she turns
     "behind her, toward the LEFT of the picture (the window she is leaving), with a warm, closed-lip smile and bright open eyes. "
     "Her body, legs, arms, the lantern and its stick, her hair and ribbon trailing behind, exactly as in image 1. " + KD)
 
+# (the glance, again: Fable: "the look back closes what her turn at 'why' opened... a look to camera is the idol's grammar; the
+# kuroko is never looked at and never looks out." v1 (g_wc1_v1) turned her face to camera. Back over her shoulder to the window)
+JOBS['g_wc1'] = ([mine('k_wc1')], "Edit image 1. Change ONLY her head and neck: as she walks away to the right, she glances back "
+    "over her shoulder at the window she is leaving, which is BEHIND her, to the LEFT of the picture: her head turned round so her "
+    "face is seen in profile looking LEFT, back past her own shoulder, NOT toward the viewer; a warm closed-lip smile, the eye open "
+    "and bright, looking left and slightly up. Her body still walks to the right: the body, legs, feet and geta, both arms, the lantern "
+    "held ahead of her in her near hand on its short stick, the long hair and ribbon trailing behind her, and the jacket's thin "
+    "torn-paper (deckle) hem and cuffs in a lighter value of the black cloth (no white, no pale band) exactly as in image 1. " + KD)
+
+# (v2 kept her looking ahead. v3: image 2 shows the head she turns back with: her own smiling profile, facing left)
+JOBS['g_wc1'] = ([mine('k_wc1'), os.path.join(D, 'src', '_faces', 'ref_head_left_C.png')],
+    "Image 1 is the girl walking to the right, carrying a lit lantern ahead of her. Image 2 is her own head in profile facing LEFT, "
+    "smiling. Redraw image 1 with ONE change: she looks back over her shoulder, so her head is turned round to face LEFT like "
+    "image 2 (the same face, profile facing left, a warm closed-lip smile, eye open and bright, looking left and slightly up), "
+    "while her body keeps walking to the right. Her near shoulder is under her chin as she looks back past it; her hair and "
+    "ribbon still trail behind her. Everything else exactly as in image 1: the body, legs, feet and geta, both arms, the lantern "
+    "held ahead in her near hand on its short stick, and the jacket's thin torn-paper (deckle) hem and cuffs in a lighter value "
+    "of the black cloth (no white, no pale band). " + KD)
+
+# (v3 kept her looking ahead too. v4: a paste-up guide (her own smiling profile-left head, from d.C, set on wc1's neck), redrawn
+# by the model into one coherent drawing)
+JOBS['g_wc1'] = ([os.path.join(D, 'src', '_faces', 'guide_glance.png')],
+    "Image 1 is a rough paste-up. Redraw it as one clean, coherent illustration in exactly the same style: a girl walking to the "
+    "RIGHT who looks back over her shoulder toward the LEFT, at something behind her. KEEP her head turned as in image 1: her face in "
+    "profile facing LEFT, a warm closed-lip smile, the eye open and bright looking left. Join the head naturally to her neck and "
+    "shoulders (her chin over her near shoulder as she looks back past it); arrange her long dark indigo hair and the two long "
+    "indigo-teal ribbon tails naturally, trailing behind her to the left, never across her face. Keep the body, legs, feet and geta, "
+    "both arms, the lit lantern held ahead of her in her near hand on its short stick, and the jacket's thin torn-paper (deckle) hem "
+    "and cuffs in a lighter value of the black cloth (no white, no pale band), exactly as in image 1: same size and position. "
+    "Flat pure green (#00FF00) background, nothing else. No green on her.")
+
 
 def run(name):
     refs, prompt = JOBS[name]
