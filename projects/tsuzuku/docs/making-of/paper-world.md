@@ -50,7 +50,7 @@ Fable, the character, is the subagent who rules on her world and her identity. R
 - **Readers** appear only inside the box: none in the room outside it.
 - **A 0.1 s gap between two act 1 loops** played everything after it one drawing early against the song until it was found.
 - **The prologue's far show was mirrored** because we see it from backstage. The director read the backwards subtitle as a bug. Fable let the mirror go: now the hall reads the lyric on the show and then finds the same card in her hands.
-- **Two lines of drawing code sat after a `//` on the line above them.** B9's rim light never faded with distance from the lantern, and C2's lantern glow never drew. Both were found only when a crop at 3× showed a rim that was too even.
+- **Two lines of drawing code sat inside comments, after a `//` on the same line.** B9's rim light never faded with distance from the lantern, and C2's lantern glow never drew. Both were found only when a crop at 3× showed a rim that was too even.
 - **The finale's Fable** was first a rigid cut-out. She's now a mesh rig at Clawd's level:
   - Her near-black costume defeated the line-based layer split, which was fixed with per-pixel masks.
   - Halving Clawd's angles flipped Fable's forearms during windmills, so she holds her last clear pose and snaps on.
