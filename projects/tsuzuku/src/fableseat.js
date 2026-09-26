@@ -88,7 +88,7 @@ const FABLESEAT = (() => {
     // Clawd's claws, snipping on every beat; 87: back to clapping, now with the seated sideways shift and the head going with it
     if (b >= 82 && b < 90) {
       const q = ((b * 4 - 1) % 2 + 2) % 2 / 2;                                 // 0 on beats 2 and 4
-      pose = q < .1 ? 'clap' : q < .2 ? 'clapmid' : q < .88 ? 'clapopen' : 'clapmid';
+      pose = q < .24 ? 'clap' : q < .36 ? 'clapmid' : q < .86 ? 'clapopen' : 'clapmid';   // (the clap holds two drawings on twos: every one shows)
       nod = qb < .15 ? .35 : qb < .5 ? .8 : qb < .62 ? .35 : 0;
       if (b >= 86 && b < 87) { pose = qb < .3 ? 'pincersnip' : 'pincers'; const side = beat % 2 ? -1 : 1; lean = side * .6; tilt = -side; }
       if (b >= 87) { const side = Math.floor(b * 2) % 2 ? -1 : 1, h = (b * 2) % 1; lean = side * (h < .12 ? .5 : h < .9 ? 1.1 : .5); tilt = -side * (h < .12 ? .5 : 1); }

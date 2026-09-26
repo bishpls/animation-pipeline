@@ -119,6 +119,7 @@
     X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore();
   };
 
+  window.CHOREO.clawdF.keys = { notes: NOTES.list.map(n => n[0]), tf: TF };            // (src/sfx_clawd.js: the presses and the freeze)
   LOOPS.finale = t => {
     get();
     const tt = Math.min(t, TF), c = IDOLSTAGE.camFrom(SHOTS, t, HITS, null);        // (from 181 the room is gone: the card fills the frame)

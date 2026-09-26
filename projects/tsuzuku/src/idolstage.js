@@ -582,5 +582,6 @@ const IDOLSTAGE = (() => {
     if (b >= WIPE2 + .2) return cardState(t).cur;
     return 'crabline';                                                        // verse 1's print, brought by wipe 1
   }
-  return { frame, camAt, camFrom, notes, SCR, K, W2Sof, load, pageFace, storySpread, screenPage, OVR, RC, KICK, FROOM, callSpans };
+  const WIPES = [WIPE1, WIPE2, WIPE3];                                        // (for the sound: src/sfx_clawd.js reads these)
+  return { WIPES, CARD_TURNS, GLITCH, frame, camAt, camFrom, notes, SCR, K, W2Sof, load, pageFace, storySpread, screenPage, OVR, RC, KICK, FROOM, callSpans };
 })();
