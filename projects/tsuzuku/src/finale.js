@@ -28,6 +28,9 @@
       [138.835, 'sideStep', { dir: 1, every: 1, steps: 8, root0: -1920, lead: .66 }], // To be continued, and then, and then, and then-: home by 140.75
       [141, 'idle'],                                                                  // (the hit: frozen)
     ]),
+    // the hit on the dash: she jumps and the picture freezes at the top of it (Clawd never lands; the new room Fable moves on her own
+    // pulse, so it doesn't lift her): MOVES.hop with its apex on the frozen frame (199.07)
+    jump: [[124, 'idle'], [199.07 / BAR - 1.5 / 4, 'hop', { at: 1.5, fade: .01, h: 190 }]],
     arms: [
       [124, 'idle'], [127.5, 'rise'],                                   // the build: rising with the power-up
       [129, 'reach', { side: 1 }], [129.86, 'armPump', { fade: .3 }],  // To be continued! (Tsuzuku!)
