@@ -399,7 +399,7 @@ const IDOLSTAGE = (() => {
     { list: [[64.0, '(Patience.)']], from: WIPE1 + .28, clear: 65.2 },                             // wipe 2 takes it before she's done being patient
     { list: [[67.7, '(Time. But go on.)'], [70.7, '(Amakusa, 1593. Borrowed twice.)']], from: 66, clear: WIPE3 + .2 },
     { list: [[81.0, '(The moral is']], from: WIPE3 + .2, clear: 82 },                             // the one she abandons: no close
-    { list: [[84.24, 'Every story’s borrowed. …She wrote her own.'], [88.3, 'I’ve read how it ends. (Have I.)']], from: 82, clear: 92 },
+    { list: [[84.24, 'Every story’s borrowed. …She wrote her own.'], [88.3, '~~I’ve read how it ends.~~ I’ve read how the others end.']], from: 82, clear: 92 },
     { list: [[92.4, '…hm.']], from: 92, clear: 93.05 },                                        // the annotator has run out of annotations
   ].map(p => ({ ...p, list: p.list.map(([bb, str]) => [b2t(bb), str]), from: b2t(p.from), clear: b2t(p.clear) }));
   const notesA = t => { const p = PAGES_A.find(q => t >= q.from && t < q.clear); return p ? { list: p.list, clear: p.clear } : null; };
