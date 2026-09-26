@@ -53,11 +53,8 @@ const IDOLSTAGE = (() => {
     [48, WIDE, WIDE, OTSR],                                       // over Fable's shoulder: she writes the note (half a bar)
     [48.5, { cx: 960, cy: 600, z: .96 }, WIDE],                  // K3: ME-KUT-TE! the hall
     [50, CU(), CU(960, 210, 3.3)],                                // K4: "Turn the page": close, the head turn
-    [52, FULL, FULL, room(RC.teller)],                            // the teller: writing, then a small head bob (one bar)
-    [53, WIDE, FULL],                                             // K5: SO-RE-KA-RA?!
+    [52, WIDE, FULL],                                             // K5 (Fable's head bob plays at the window's side: Michael, no zoom-cut)
     [54, FULL, FULL],                                             // K6: the side-step (full body)
-    [56, FULL, FULL, room(RC.teller2)],                           // the teller again (one bar)
-    [57, FULL, FULL],
     [58, MED(960, 300, 1.6), MED(960, 290, 2.0)],               // K8: Snip-snip! Ikuzo! (a push-in)
     [60, FULL, { cx: 960, cy: 540, z: .98 }],
     [62, FULL, FULL],                                             // the hook: ONE locked full-body shot, four bars, no cuts
@@ -74,22 +71,36 @@ const IDOLSTAGE = (() => {
     [80.2, WIDE, WIDE, OTSS],                                     // over her shoulder: Clawd's page in Fable's book (she wrote her own)
     [80.9, { cx: 930, cy: 430, z: 1.45 }, { cx: 930, cy: 430, z: 1.45 }],
     [81.5, CU(), CU(960, 215, 3.2)],                              // "Watch me!"
-    [82, FULL, FULL, room(RC.clap)],                              // chorus 2: the teller claps with the hall (one bar)
+    [82, WIDE, FULL],                                             // chorus 2 (she claps along at the window's side)
     [83, MED(960, 330, 1.7), MED(960, 320, 1.85)],
     [84, { cx: 960, cy: 600, z: .96 }, WIDE],                    // ME-KUT-TE! and the note
     [86, FULL, FULL],
-    [88, FULL, FULL, room(RC.clap2)],                             // ...and she's in it now (one bar)
-    [89, MED(960, 295, 1.75), MED(960, 290, 1.9)],
+    [88, MED(960, 300, 1.6), MED(960, 290, 1.9)],
     [90, FULL, { cx: 960, cy: 520, z: .94 }],                    // the breakdown: pull back as the lights die
     [91.5, { cx: 960, cy: 520, z: .94 }, { cx: 960, cy: 540, z: 1 }, room(RC.def, RC.end)],    // ...back out into her room: black on the clack
     [93, WIDE, WIDE, room(RC.end)],
   ];
+  // ---- the MV layer (MOTION.md §9; Clawd's world only, inside the card; Fable's paper never shakes or fringes)
+  // the beat punch: the card's zoom jumps on the kick and decays (chorus downbeats; bigger on the drop and "Ikuzo!"; the side-step
+  // landings); never in the hook, the one locked shot fans learn from. KICK: the drums sit ~50 ms behind the grid (MOTION.md)
+  const KICK = .05, HITS = (() => { const h = [];
+    for (let bb = 46; bb < 62; bb++) h.push([bb, bb === 46 ? .05 : .017, bb === 46 ? 6 : 0]);
+    for (let bb = 82; bb < 90; bb++) h.push([bb, .017, 0]);
+    h.push([58.53, .04, 3], [54, .01, 0], [56, .01, 0]); return h.sort((a, b) => a[0] - b[0]); })();
+  function punch(t) {
+    let z = 0, sx = 0, sy = 0;
+    for (const [bb, A, sh] of HITS) { const d = t - (b2t(bb) + KICK); if (d < 0 || d > .6) continue;
+      z += A * Math.exp(-d * 14);
+      if (sh) { const f = Math.floor(t * 24), k = sh * Math.exp(-d * 18); sx += k * (hash2(f, 1) - .5) * 2; sy += k * (hash2(f, 2) - .5) * 2; } }
+    return { z, sx, sy };
+  }
   const roomLerp = (a, b, u) => ({ x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, zoom: a.zoom * Math.pow(b.zoom / a.zoom, u) });
   function camAt(t) {
     const b = t2b(t); let i = 0; while (i + 1 < SHOTS.length && b >= SHOTS[i + 1][0]) i++;
     const [b0, A, Bc, R] = SHOTS[i], b1 = i + 1 < SHOTS.length ? SHOTS[i + 1][0] : b0 + 4, u = Math.max(0, Math.min(1, (b - b0) / (b1 - b0)));
     const e = u * u * (3 - 2 * u), m = (p, q) => p + (q - p) * e;
-    return { cx: m(A.cx, Bc.cx), cy: m(A.cy, Bc.cy), z: m(A.z, Bc.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: R && R.ots || false };
+    const pk = punch(t);                                                      // the MV layer's beat punch: inside the card only
+    return { cx: m(A.cx, Bc.cx) + pk.sx, cy: m(A.cy, Bc.cy) + pk.sy, z: m(A.z, Bc.z) * (1 + pk.z), shot: i, room: R && R.room ? roomLerp(R.room[0], R.room[1], e) : R && R.ots ? null : RC.def, ots: R && R.ots || false };
   }
   const W2Sof = c => (x, y) => [(x - c.cx) * c.z + 960, (y - c.cy) * c.z + 540];
   const camXform = (X, c) => X.setTransform(c.z, 0, 0, c.z, 960 - c.cx * c.z, 540 - c.cy * c.z);
@@ -127,7 +138,9 @@ const IDOLSTAGE = (() => {
     } else {
       const c = callAt(t);
       if (c) { const txt = c.w.replace(/[()]/g, '').replace(/-/g, '').toUpperCase(), col = k === 'l' ? K.pink : K.cyan;
-        withX(ctx, () => window.pop && window.pop(txt.slice(0, 8), w / 2, h / 2 + 8, { font: 'dela', size: Math.min(26, 1.6 * w / Math.max(3, txt.length * .9)), align: 'center', fill: col, lw: 0 })); }
+        // slammed in with overshoot, a white sticker outline and an offset clay shadow (the MV layer)
+        const age = Math.floor((t - c.t0) * 24), sc = [1.32, 1.12, .95, 1][Math.max(0, Math.min(3, age))], sz = Math.min(26, 1.6 * w / Math.max(3, txt.length * .9)) * sc;
+        withX(ctx, () => window.pop && window.pop(txt.slice(0, 8), w / 2, h / 2 + 8 * sc, { font: 'dela', size: sz, align: 'center', fill: col, stroke: '#fff', lw: .9, shadow: [2, 2, K.clayD] })); }
       else { const r = 10 + 6 * flash; ctx.fillStyle = k === 'l' ? K.pink : K.cyan; ctx.globalAlpha = .7; ctx.beginPath(); ctx.arc(w / 2, h * .42, r, 0, PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     }
   }
@@ -175,7 +188,7 @@ const IDOLSTAGE = (() => {
         X.save(); X.beginPath(); X.rect(rect[0], rect[1], xe - rect[0], rect[3]); X.clip(); put(st.next); X.restore();
         X.save(); X.beginPath(); X.rect(xe, rect[1], rect[0] + rect[2] - xe, rect[3]); X.clip(); put(st.cur); X.restore();
         const g = X.createLinearGradient(xe - 40, 0, xe, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)'); X.fillStyle = g; X.fillRect(xe - 40, rect[1], 40, rect[3]);
-        X.fillStyle = 'rgba(255,252,240,.9)'; X.fillRect(xe - 1.5, rect[1], 3, rect[3]); }
+        X.fillStyle = 'rgba(255,252,240,.9)'; X.fillRect(xe - 1.5, rect[1], 3, rect[3]); fringeEdge(X, xe, rect[1], rect[3]); }
     }
     else { put('blank'); if (t2b(t) >= WIPE3) storyPage(X, t, rect); }
     X.restore();
@@ -203,12 +216,14 @@ const IDOLSTAGE = (() => {
     } finally { X = X0; }
     return (FACES[key] = c);
   }
+  // the MV layer's colour fringe on a turning edge: pink ahead of it, cyan behind
+  function fringeEdge(X, x, y, h) { X.save(); X.globalCompositeOperation = 'lighter'; X.fillStyle = 'rgba(255,92,168,.55)'; X.fillRect(x + 3, y, 3, h); X.fillStyle = 'rgba(57,223,255,.55)'; X.fillRect(x - 6, y, 3, h); X.restore(); }
   // a card's paper edge crossing the picture (wipe 2, the pulls): the old card rides over the new one, so its edge throws a soft
   // shadow onto the new card, and catches the light
   function paperEdge(X, xe) {
     X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
     const g = X.createLinearGradient(xe - 34, 0, xe, 0); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.42)');
-    X.fillStyle = g; X.fillRect(xe - 34, 0, 34, H); X.fillStyle = 'rgba(246,240,226,.9)'; X.fillRect(xe - 1, 0, 3, H);
+    X.fillStyle = g; X.fillRect(xe - 34, 0, 34, H); X.fillStyle = 'rgba(246,240,226,.9)'; X.fillRect(xe - 1, 0, 3, H); fringeEdge(X, xe, 0, H);
     X.restore();
   }
   // 76: the page her wipe brings: nobody is pulling, so it carries only verse 1's ruled line, "walk straight". She makes up the
@@ -388,7 +403,7 @@ const IDOLSTAGE = (() => {
       const rect = drawPage(X, t, W2S, which);
       if (which === 'verse' && b >= 72) { X.save(); X.setTransform(1, 0, 0, 1, 0, 0); pixelCrab(X, t, rect); X.restore(); }   // rect is in screen px
       X.restore(); camXform(X, c);
-      if (e < 1) { X.save(); X.fillStyle = 'rgba(255,255,255,.35)'; X.fillRect(edge(e) - 3, sy, 6, sh); X.restore(); }   // the turning edge
+      if (e < 1) { X.save(); X.fillStyle = 'rgba(255,255,255,.35)'; X.fillRect(edge(e) - 3, sy, 6, sh); fringeEdge(X, edge(e), sy, sh); X.restore(); }   // the turning edge
     }
     floor(X, t, b >= WIPE2 && b < 82 ? (b >= WIPE2 + 1.6 / 4 ? 1 : e2) : 0);
     beams(X, t, b >= WIPE2 && b < 82 ? e2 : 0);
@@ -409,12 +424,15 @@ const IDOLSTAGE = (() => {
       paperEdge(X, xe);
     } else backdrop(t, c, W2S, e1, e2, e3, opt);
     camXform(X, c);
+    afterimages(t, c, W2S, opt);                                               // (MV layer: behind her, on the fastest moves)
+    camXform(X, c);
     cast(W2S, c);
     X.setTransform(1, 0, 0, 1, 0, 0);
     // the last bar: the lights die on the stage, and the lanterns are what's left
     if (b > 91.9) { X.fillStyle = `rgba(7,4,14,${(.86 * Math.min(1, (b - 91.9) / .9) ** 1.5).toFixed(3)})`; X.fillRect(0, 0, W, H); }
     crowd(X, t, c, e1, e2, e3);
     X.save(); X.globalCompositeOperation = 'screen'; X.fillStyle = 'rgba(60,40,90,.08)'; X.fillRect(0, 0, W, H); X.restore();   // haze
+    postFX(t);                                                                 // MV layer: glitch and colour fringe (before the paper)
     // Fable's paper, in the card's screen space: the notes in the bottom margin (what she's writing in her room), the deckle
     if (window.marginNotes) {
       marginNotes(t, [[b2t(48.11), "Every story's borrowed till somebody stands to tell it."], [b2t(52.23), "I've read how it ends. I'd still like to see."],
@@ -423,6 +441,37 @@ const IDOLSTAGE = (() => {
     }
     if (window.washiBorder) washiBorder(t);
     return c;
+  }
+  // three-colour afterimages (MV layer): her silhouette 2, 4 and 6 frames ago in pink, cyan and lemon, behind her, only on the
+  // fastest arcs: the page-wipes (63, 65), the "Ikuzo!" pump (58.53) and "watch me walk it!" (80); they replace smear drawings
+  const AFTER = [[63, 63.45], [65, 65.45], [58.4, 58.8], [79.9, 80.35]], ECHO = [[6, 'rgba(255,216,74,1)', .16], [4, 'rgba(57,223,255,1)', .28], [2, 'rgba(255,92,168,1)', .4]];
+  function afterimages(t, c, W2S, opt) {
+    const b = t2b(t); if (!opt.clawdAt || !AFTER.some(([a, z]) => b >= a && b < z)) return;
+    const cv = ROOM.echo || (ROOM.echo = Object.assign(document.createElement('canvas'), { width: W, height: H })), g = cv.getContext('2d');
+    for (const [fr, col, a] of ECHO) {
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, W, H);
+      opt.clawdAt(t - fr / 24, W2S, c, g);
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, W, H);
+      X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.globalAlpha = a; X.drawImage(cv, 0, 0); X.restore();
+    }
+  }
+  // glitch (strips shifted: Clawd is code) where the stage powers up after the tear and at the breakdown's tape-stop; a colour
+  // fringe (R and B apart) decaying on the drop and "Ikuzo!"
+  const GLITCH = [[43.22, 3], [90.0, 3]], FRINGE = [[46, 3, 7], [58.53, 3, 5]];
+  function postFX(t) {
+    const f = Math.floor(t * 24), g0 = GLITCH.find(([bb, n]) => { const d = f - Math.floor((b2t(bb) + KICK) * 24); return d >= 0 && d < n; });
+    const fr = FRINGE.map(([bb, n, px]) => { const d = f - Math.floor((b2t(bb) + KICK) * 24); return d >= 0 && d < n ? px * (1 - d / n) : 0; }).find(v => v > 0);
+    if (!g0 && !fr) return;
+    const buf = ROOM.fx || (ROOM.fx = Object.assign(document.createElement('canvas'), { width: W, height: H })), bg = buf.getContext('2d');
+    bg.setTransform(1, 0, 0, 1, 0, 0); bg.globalCompositeOperation = 'copy'; bg.drawImage(X.canvas, 0, 0);
+    X.save(); X.setTransform(1, 0, 0, 1, 0, 0);
+    if (g0) { let y = 0, k = 0; while (y < H) { const hh = 14 + Math.floor(hash2(f * 7 + k, 3) * 70), dx = (hash2(f * 11 + k, 5) - .5) * (hash2(k, f) > .55 ? 90 : 12);
+        X.drawImage(buf, 0, y, W, hh, dx, y, W, hh); y += hh; k++; } }
+    if (fr) { for (const [col, dx] of [['rgb(255,0,0)', fr], ['rgb(0,0,255)', -fr]]) {
+        const cc = ROOM.fx2 || (ROOM.fx2 = Object.assign(document.createElement('canvas'), { width: W, height: H })), c2 = cc.getContext('2d');
+        c2.globalCompositeOperation = 'copy'; c2.drawImage(buf, 0, 0); c2.globalCompositeOperation = 'multiply'; c2.fillStyle = col; c2.fillRect(0, 0, W, H);
+        X.globalCompositeOperation = 'screen'; X.globalAlpha = .45; X.drawImage(cc, dx, 0); X.globalAlpha = 1; X.globalCompositeOperation = 'source-over'; } }
+    X.restore();
   }
   // the room: the card offscreen, filmed in the butai window by the paper world's stage(), the room's readers, and Fable
   const ROOM = {};
