@@ -28,7 +28,7 @@ GPT Image (logged in `tools/ledger.jsonl`) made **still drawings only**:
 - **Source drawings the puppets were cut from** (`rig/fable`, `rig/clawd_paper`, `rig/kuroko`). On screen they're black silhouettes with cut-outs, so what survives from the model is a shape.
 - **Scenery flats**: pine, rocks, far hills.
 - **The butai's wood** and the reader silhouettes.
-- **The ink cut-ins** (`rig/fable_ink`: the close-up, the lamp, the six stand-up drawings). Code prints them through separated plates: washi, an indigo plate misregistered a few pixels, then ink. A fold is a mesh warp with a crease.
+- **The ink close-up** (`rig/fable_ink`), printed by code through separated plates: washi, an indigo plate misregistered a few pixels, then ink. A fold is a mesh warp with a crease. In the film it's a kamishibai card slid into the butai's window (B5). The ink lamp-lighting and stand-up drawings are kept for this page only.
 - **The finale's illustrated Fable** (`rig/fable_stage`, `rig/fable_room`). Code rigs and animates her.
 
 ## Fable's rulings
@@ -42,6 +42,7 @@ Fable, the character, is the subagent who rules on her world and her identity. R
 
 ## Decisions and failures
 - **The first stand-up walk** was jerky and seemed to have one foot. It was rebuilt as a computed walk with both geta.
+- **The ink cut-ins went back into the theatre.** Full-frame illustrated drawings in the middle of a shadow play broke its rules. The director also caught the stand-up collapsing between two keys and a hairline seam across it. B5 became a card in the window. The lamp-lighting (C2) and the stand-up (B7) are shadow puppetry now: a match flare picks her silhouette out of the black, and she kneels up and rises through five drawings with the pleats unstacking.
 - **Three "elevate" ideas cut after A/B tests** at 2–4× crops:
   - paper-edge translucency
   - ink bleed
@@ -60,7 +61,7 @@ From the repo root (P = `projects/tsuzuku`):
 
 ```bash
 node engine/render.mjs P --loop=bridge --sheet=21.6,22.2      # any moment of the bridge, from code
-node engine/render.mjs P --loop=inkstand --strip=3.9:4.3      # every drawing of the ink stand-up
+node engine/render.mjs P --loop=inkstand --strip=3.3:4.2      # every drawing of the stand-up
 node engine/render.mjs P --loop=origami --strip=6.1:7.5       # the unfold, drawing by drawing
 node engine/render.mjs P --loop=fablerom                      # the finale rig's range of motion
 node engine/render.mjs P --loop=bridge --eval='WORDS.length'  # inspect the page's state
