@@ -158,8 +158,10 @@ function inkPrint(C, o = {}) {
     if (th > 0) { const [, yf] = map(.5, FOLD); X.save(); X.filter = 'blur(10px)'; X.fillStyle = `rgba(0,0,0,${.5 * Math.sin(th) / Math.sin(TH * Math.PI / 180)})`;
       X.fillRect(cx - CW / 2, cy - CH / 2 + 30, CW, yf - (cy - CH / 2)); X.restore(); }                // the shadow under the lifted half
     WARP.draw(X, src, map, { cols: 32, rows: 48, shade: (u, v) => v < FOLD ? 1 + .6 * Math.sin(th) * (v / FOLD) ** 3 : 1 });
-    if (th > 0) { const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), q = Math.min(1, bendDeg / TH);
-      X.save(); X.globalAlpha = .2 + .5 * q; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5, x1 - x0, 1.6); X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2); X.restore(); }
+    // the crease: an old fold in the card, faint from the first drawing (Michael: a line that appears reads as a glitch); the rise
+    // folds along it and deepens it, and it relaxes back to faint
+    { const [x0, yf] = map(0, FOLD), [x1] = map(1, FOLD), q = Math.min(1, bendDeg / TH);
+      X.save(); X.globalAlpha = .16 + .54 * q; X.fillStyle = 'rgba(255,255,250,.9)'; X.fillRect(x0, yf - 2.5, x1 - x0, 1.6); X.fillStyle = 'rgba(60,55,50,.55)'; X.fillRect(x0, yf, x1 - x0, 2.2); X.restore(); }
     // the light: the lantern on the floor (lower left) lights her from below; the rest of the page in half-light
     if (!INK._L) { INK._L = document.createElement('canvas'); INK._L.width = W; INK._L.height = H; }
     const L = INK._L.getContext('2d'); L.globalCompositeOperation = 'source-over'; L.fillStyle = 'rgb(118,108,96)'; L.fillRect(0, 0, W, H);
