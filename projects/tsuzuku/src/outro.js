@@ -145,7 +145,7 @@
         dust(ts, (px, py) => c * lightPool(x, y, r, .6)(px, py), { seed: 9 + i, n: 26, rect: [x - r, y - r * .6, 2 * r, 1.2 * r], col: [255, 200, 130], alpha: 1.4 }); });
     }
     roomSeat(ts, cam, doors, c);
-    readers(ts, cam);                                                  // (the full row: Michael, a gap parses as missing audience)
+    // (no readers: Michael's rule, the audience lives inside the box; outside it, in the room, Fable is alone)
   };
   LOOPS.outro.len = S1 - S0;
 }

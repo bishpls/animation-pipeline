@@ -344,7 +344,7 @@
       const e = Math.min(1, Math.floor((ts - BACK2) * 12 + 1e-6) / BACK2N), ee = e * e * (3 - 2 * e);
       const cam = camLerp(CAM_WINDOW, CAM_WIDE, ee); stage(ts, scene, { cam, doors: 1 });
       roomFable(ts);
-      readers(ts, cam);                                                 // (the full row: Michael, a gap parses as missing audience)
+      // (no readers: Michael's rule, the audience lives inside the box; outside it, in the room, Fable is alone)
     };
     LOOPS.bridgeB8.len = S1 - S0;
     let TEXT = null;
