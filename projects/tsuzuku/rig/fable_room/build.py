@@ -24,26 +24,16 @@ D = os.path.dirname(os.path.abspath(__file__)); FS = os.path.join(D, '..', 'fabl
 sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools')); sys.path.insert(0, D)
 from chroma import key  # noqa: E402
 from feet import geta  # noqa: E402
+from rigkit import with_alpha, over, bleed, poly  # noqa: E402
 
 SC = .5
 OUT = os.path.join(D, 'room')
-
-
-def bleed(img, px=6):
-    a = img[..., 3] > 16; rgb = img[..., :3].copy()
-    if not a.any(): return img
-    d, (iy, ix) = ndi.distance_transform_edt(~a, return_indices=True); m = (~a) & (d <= px)
-    rgb[m] = img[iy[m], ix[m], :3]; o = img.copy(); o[..., :3] = rgb; return o
 
 
 def save(img, name):
     """full-res RGBA (base frame) -> room/<name>.png at SC"""
     H, W = img.shape[:2]
     Image.fromarray(bleed(img)).resize((round(W * SC), round(H * SC)), Image.LANCZOS).save(os.path.join(OUT, name + '.png'))
-
-
-def with_alpha(img, m):
-    o = img.copy(); o[..., 3] = (img[..., 3].astype(np.float32) * np.clip(m, 0, 1)).astype(np.uint8); return o
 
 
 def cushion_mask(img):
@@ -83,17 +73,6 @@ def lantern_box(img, x1=980, y0=1500):
     if not n: return None
     k = 1 + int(np.argmax(ndi.sum(lit, lab, range(1, n + 1)))); ys, xs = np.nonzero(lab == k)
     return [int(xs.min()) - 22, int(ys.min()) - 70, int(xs.max()) + 22, int(ys.max()) + 34]
-
-
-def over(dst, src):
-    pa = lambda a: np.dstack([a[..., :3].astype(np.float32) * (a[..., 3:] / 255), a[..., 3:].astype(np.float32)])
-    T, B = pa(src), pa(dst); P = T + B * (1 - T[..., 3:] / 255)
-    A = P[..., 3:]; rgb = np.where(A > 0, P[..., :3] / np.maximum(A, 1e-6) * 255, 0)
-    return np.dstack([np.clip(rgb, 0, 255), np.clip(A, 0, 255)]).astype(np.uint8)
-
-
-def poly(shape, pts):
-    m = np.zeros(shape, np.uint8); cv2.fillPoly(m, [np.array(pts, np.int32)], 1); return m.astype(bool)
 
 
 def box_mask(shape, b):

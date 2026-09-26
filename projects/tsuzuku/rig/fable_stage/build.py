@@ -17,54 +17,8 @@ from scipy import ndimage as ndi
 D = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(D, '..', '..', '..', '..', 'tools'))
 from chroma import key  # noqa: E402
+from rigkit import lum, feather, register, residual, colour_match, with_alpha, over, bleed, poly  # noqa: E402
 
-lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)
-feather = lambda m, r: np.clip(ndi.distance_transform_edt(m) / r, 0, 1)
-
-
-def register(img, base, mask, motion=cv2.MOTION_AFFINE):
-    """img warped onto base, fitted on mask (coarse to fine)"""
-    H, W = base.shape[:2]; warp = np.eye(2, 3, dtype=np.float32)
-    for sc in (.125, .25, .5):
-        a = cv2.GaussianBlur(cv2.resize(lum(base), None, fx=sc, fy=sc), (0, 0), 1.2)
-        b = cv2.GaussianBlur(cv2.resize(lum(img), None, fx=sc, fy=sc), (0, 0), 1.2)
-        w = warp.copy(); w[:, 2] *= sc
-        _, w = cv2.findTransformECC(a, b, w, motion, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 300, 1e-6),
-                                    cv2.resize(mask.astype(np.uint8), None, fx=sc, fy=sc, interpolation=cv2.INTER_NEAREST), 5)
-        warp = w.copy(); warp[:, 2] /= sc
-    al = cv2.warpAffine(img, warp, (W, H), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=(0, 0, 0, 0))
-    return al, float(np.abs(lum(al) - lum(base))[mask].mean())
-
-
-def colour_match(al, base, k):
-    for c in range(3):
-        sa, sb = al[k, c].astype(float), base[k, c].astype(float)
-        al[..., c] = np.clip((al[..., c] - sa.mean()) / (sa.std() + 1e-6) * sb.std() + sb.mean(), 0, 255).astype(np.uint8)
-    return al
-
-
-def with_alpha(img, m):
-    o = img.copy(); o[..., 3] = (img[..., 3].astype(np.float32) * np.clip(m, 0, 1)).astype(np.uint8); return o
-
-
-def over(dst, src):
-    pa = lambda a: np.dstack([a[..., :3].astype(np.float32) * (a[..., 3:] / 255), a[..., 3:].astype(np.float32)])
-    T, B = pa(src), pa(dst); P = T + B * (1 - T[..., 3:] / 255)
-    A = P[..., 3:]; rgb = np.where(A > 0, P[..., :3] / np.maximum(A, 1e-6) * 255, 0)
-    return np.dstack([np.clip(rgb, 0, 255), np.clip(A, 0, 255)]).astype(np.uint8)
-
-
-def bleed(img, px=6):
-    """colour pushed outward under transparent pixels (no dark fringes when scaled or rotated)"""
-    a = img[..., 3] > 16; rgb = img[..., :3].copy()
-    if not a.any(): return img
-    _, (iy, ix) = ndi.distance_transform_edt(~a, return_indices=True)
-    d = ndi.distance_transform_edt(~a); m = (~a) & (d <= px)
-    rgb[m] = img[iy[m], ix[m], :3]; o = img.copy(); o[..., :3] = rgb; return o
-
-
-def poly(shape, pts):
-    m = np.zeros(shape, np.uint8); cv2.fillPoly(m, [np.array(pts, np.int32)], 1); return m.astype(bool)
 
 
 # ---------------------------------------------------------------------------------------------------------------------- stage
@@ -82,7 +36,7 @@ def stage():
     def reg(name, exclude):
         img = key(os.path.join(D, 'src/poses', name + '.png'))
         fit = A & ~ndi.binary_dilation(exclude, iterations=40)
-        al, res = register(img, base, fit); al = colour_match(al, base, fit & (al[..., 3] > 200)); print(f'{name:9s} residual {res:.1f}'); return al
+        al, _ = register(img, base, fit); res = residual(al, base, fit); al = colour_match(al, base, fit & (al[..., 3] > 200)); print(f'{name:9s} residual {res:.1f}'); return al
     armzone = ((xx < 960) | (xx > 1090)) & (yy > 620) & (yy < 1820)
     headzone = yy < 760
     noarms = reg('noarms', armzone | seg['hand_L'] | seg['hand_R'])
@@ -161,7 +115,7 @@ def stage():
     for f in ('smile', 'closed', 'why'):
         e = np.asarray(Image.open(os.path.join(D, 'src/poses', f'face_{f}.png')).convert('RGBA').resize((n, n), Image.LANCZOS)).copy()
         e = key_rgb(e)
-        al, res = register(e, crop, (crop[..., 3] > 200) & ~ndi.binary_dilation(pc, iterations=20))
+        fit = (crop[..., 3] > 200) & ~ndi.binary_dilation(pc, iterations=20); al, _ = register(e, crop, fit); res = residual(al, crop, fit)
         al = colour_match(al, crop, (crop[..., 3] > 200) & ~ndi.binary_dilation(pc, iterations=20) & (al[..., 3] > 200))
         full = parts['head'].copy(); m = feather(pc, 10)
         sub = full[y0:y0 + n, x0:x0 + n].astype(np.float32); sub[..., :3] = sub[..., :3] * (1 - m[..., None]) + al[..., :3] * m[..., None]

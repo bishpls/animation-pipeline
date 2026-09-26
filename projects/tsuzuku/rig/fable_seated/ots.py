@@ -10,7 +10,7 @@ from PIL import Image
 from scipy import ndimage as ndi
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', '..', 'tools'))
 from chroma import key  # noqa: E402
-from build import lum, feather  # noqa: E402
+from rigkit import lum, register, residual, feather, blend  # noqa: E402
 
 D = os.path.dirname(os.path.abspath(__file__)); S = 1920 / 2560
 Q = {'left': [[1350, 650], [1700, 785], [1500, 1190], [1235, 1070]],        # outer top, spine top, spine bottom, outer bottom
@@ -27,37 +27,25 @@ def poly(p):
     m = np.zeros((H, W), np.uint8); cv2.fillPoly(m, [np.array(p, np.int32)], 1); return m.astype(bool)
 
 
-def register(img, mask):
-    warp = np.eye(2, 3, dtype=np.float32)
-    for sc in (.125, .25, .5):
-        a = cv2.GaussianBlur(cv2.resize(lum(base), None, fx=sc, fy=sc), (0, 0), 1.2); b = cv2.GaussianBlur(cv2.resize(lum(img), None, fx=sc, fy=sc), (0, 0), 1.2)
-        w = warp.copy(); w[:, 2] *= sc
-        _, w = cv2.findTransformECC(a, b, w, cv2.MOTION_AFFINE, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 300, 1e-6),
-                                    cv2.resize(mask.astype(np.uint8), None, fx=sc, fy=sc, interpolation=cv2.INTER_NEAREST), 5)
-        warp = w.copy(); warp[:, 2] /= sc
-    return cv2.warpAffine(img, warp, (W, H), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=(0, 0, 0, 0)), warp
-
-
 pages = poly(Q['left']) | poly(Q['right'])
 paper = lambda a: (lum(a) > 150) & (a[..., 3] > 200)
 out = {'quads': {k: [[round(x * S, 1), round(y * S, 1)] for x, y in v] for k, v in Q.items()}}
 fit = (base[..., 3] > 200) & ~ndi.binary_dilation(pages | poly(HAND), iterations=60)
 # the lantern moved to the floor at her left (out of this frame, behind her): its corner, bottom right, from 'ots_nolantern'
 LZ = [[2100, 700], [2560, 700], [2560, 1440], [1900, 1440], [1990, 1100]]
-from build import over
-nl, _ = register(key(os.path.join(D, 'src/ots/ots_nolantern.png')), fit & ~poly(LZ))
+nl, _ = register(key(os.path.join(D, 'src/ots/ots_nolantern.png')), base, fit & ~poly(LZ))
 lzm = poly(LZ) & ~ndi.binary_dilation(pages, iterations=8)
 lzm = feather(lzm, 14)
 for d in ['ots', 'turn1', 'turn2', 'turn3', 'write']:
-    if d == 'ots': al, res = over(base, nl, lzm), 0
+    if d == 'ots': al, res = blend(base, nl, lzm), 0
     else:
-        al, warp = register(key(os.path.join(D, f'src/ots/{d}.png')), fit); res = np.abs(lum(al) - lum(base))[fit].mean(); al = over(al, nl, lzm)
+        al, warp = register(key(os.path.join(D, f'src/ots/{d}.png')), base, fit); res = residual(al, base, fit); al = blend(al, nl, lzm)
     if d == 'ots': cover = poly(HAND)
     elif d == 'turn3':                                                    # the leaf landing: print on it (it's nearly flat); only her hand covers
         rgb = al[..., :3].astype(np.int16); skin = (rgb[..., 0] - rgb[..., 1] > 42) & (rgb[..., 0] > 150) & (al[..., 3] > 200)   # (skin: r-g 50-67; lit paper 17-35)
         cover = ndi.binary_dilation(poly([[1690, 990], [2040, 990], [2040, 1280], [1690, 1280]]) & skin, iterations=3)   # (her fingers only)
     elif d == 'write':                                                    # her hand and brush on the left page
-        diff = np.abs(al[..., :3].astype(np.int16) - over(base, nl, lzm)[..., :3].astype(np.int16)).max(-1) > 40
+        diff = np.abs(al[..., :3].astype(np.int16) - blend(base, nl, lzm)[..., :3].astype(np.int16)).max(-1) > 40
         cover = ndi.binary_dilation(ndi.binary_fill_holes(ndi.binary_closing(ndi.binary_opening(diff, iterations=2), iterations=6)) & ndi.binary_dilation(poly(HAND) | pages, iterations=40), iterations=8) | poly(HAND)
     if d in ('turn1', 'turn2'):
         diff = np.abs(al[..., :3].astype(np.int16) - base[..., :3].astype(np.int16)).max(-1) > 40

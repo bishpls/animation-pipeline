@@ -12,9 +12,9 @@ from scipy import ndimage as ndi
 D = os.path.dirname(os.path.abspath(__file__)); P = lambda *a: os.path.join(D, *a)
 sys.path.insert(0, P('..', '..', '..', '..', 'tools'))
 from chroma import key  # noqa: E402
+from rigkit import lum, register, residual  # noqa: E402
 
 PAD = 600
-lum = lambda a: ((a[..., :3].astype(np.float32) @ [.299, .587, .114]) * (a[..., 3] / 255) + 255 * (1 - a[..., 3] / 255)).astype(np.float32)
 rgba = lambda p: np.array(Image.open(p).convert('RGBA'))
 
 
@@ -26,21 +26,6 @@ def boxes(shape, bs):
     m = np.zeros(shape, bool)
     for x0, y0, x1, y1 in bs: m[y0:y1, x0:x1] = True
     return m
-
-
-def register(img, base, mask, motion=cv2.MOTION_AFFINE):
-    """img warped onto base, fitted on mask (coarse to fine); returns (aligned, residual on the mask)"""
-    H, W = base.shape[:2]; warp = np.eye(2, 3, dtype=np.float32)
-    for sc in (.125, .25, .5):
-        a = cv2.GaussianBlur(cv2.resize(lum(base), None, fx=sc, fy=sc), (0, 0), 1.2)
-        b = cv2.GaussianBlur(cv2.resize(lum(img), None, fx=sc, fy=sc), (0, 0), 1.2)
-        w = warp.copy(); w[:, 2] *= sc
-        _, w = cv2.findTransformECC(a, b, w, motion, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 300, 1e-6),
-                                    cv2.resize(mask.astype(np.uint8), None, fx=sc, fy=sc, interpolation=cv2.INTER_NEAREST), 5)
-        warp = w.copy(); warp[:, 2] /= sc
-    al = cv2.warpAffine(img, warp, (W, H), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=(0, 0, 0, 0))
-    res = float(np.abs(lum(al) - lum(base))[mask & (base[..., 3] > 200)].mean())
-    return al, res, warp
 
 
 # the regions each companion's edit should have left alone (padded canvas px)
@@ -56,7 +41,7 @@ def reg(names):
     base = rgba(P('base_keyed.png')); os.makedirs(P('under'), exist_ok=True); log = {}
     for n in names:
         img = padded(P('src', n + '.png')); m = boxes(base.shape[:2], ROI[n])
-        al, res, w = register(img, base, m)
+        al, w = register(img, base, m); res = residual(al, base, m & (base[..., 3] > 200))
         Image.fromarray(al).save(P('under', n + '_al.png')); log[n] = {'residual': round(res, 2), 'warp': np.round(w, 4).tolist()}
         print(f'{n:10s} residual {res:5.2f}  warp {np.round(w, 4).tolist()}')
     J = P('under', 'reg.json'); old = json.load(open(J)) if os.path.exists(J) else {}; old.update(log); json.dump(old, open(J, 'w'), indent=1)
