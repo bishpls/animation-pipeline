@@ -157,7 +157,7 @@ def main():
     for n, img in drawings.items():
         facing = -1 if n in ('hold', 'empty', 'setdown', 'bend', 'down', 'rise', 'rise2', 'turn_l') else 1
         if n not in reg and n not in ('hold', 'empty', 'setdown'): continue
-        f = geta(img, xmin=0, facing=facing) if k.split('.')[0] in ('d', 'u', 'step', 'turn1', 'turn2', 'wc1g', 'wp1', 'wc2') else {'sole': 0, 'geta': []}
+        f = geta(img, xmin=0, facing=facing)
         g = [{'toe': h(q['toe']), 'box': [round(v * SC, 1) for v in q['box']], 'lift': round(q['lift'] * SC, 1)} for q in f['geta']]
         cx = np.mean([(q['box'][0] + q['box'][2]) / 2 for q in f['geta']]) if f['geta'] else float('nan')
         ys, xs = np.nonzero(img[..., 3] > 128)
