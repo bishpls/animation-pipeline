@@ -50,3 +50,7 @@ projects/*/rig/*/*/build/_*.png
 projects/*/rig/*/*/under/seg_*/
 projects/*/rig/*/*/under/layers_*/
 projects/*/rig/*/*/under/*_k.png
+# game captures (tools/machinima): renders of game data, kept outside the repo and never committed
+projects/*/assets/plates
+projects/*/assets/mix_raw.wav
+projects/*/director/build/

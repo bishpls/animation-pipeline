@@ -1,0 +1,22 @@
+{
+ "chunks": [
+  {"text": "[Intro - instrumental]", "duration_ms": 4000,
+   "positive_styles": ["120 BPM", "instrumental", "filtered analog synth pad swelling", "ticking closed hi-hats on eighth notes", "rising noise sweep", "anticipation, the moment before a match starts"],
+   "negative_styles": ["vocals", "singing", "orchestral", "lo-fi"], "context_adherence": "high"},
+  {"text": "[Build - instrumental]", "duration_ms": 4000,
+   "positive_styles": ["120 BPM", "instrumental", "four-on-the-floor kick enters", "funky slap bass riff", "snare roll accelerating into the drop"],
+   "negative_styles": ["vocals", "singing", "orchestral"], "context_adherence": "high"},
+  {"text": "[Drop - instrumental]", "duration_ms": 8000,
+   "positive_styles": ["120 BPM", "instrumental", "punchy breakbeat drums", "slap bass", "synth brass stabs landing squarely on the downbeats", "bright retro-futuristic arcade energy", "tight, rhythmic, every hit clean"],
+   "negative_styles": ["vocals", "singing", "orchestral", "lo-fi", "ambient"], "context_adherence": "high"},
+  {"text": "[Drop variation - instrumental]", "duration_ms": 8000,
+   "positive_styles": ["120 BPM", "instrumental", "same groove, syncopated brass stabs", "busier drums", "rapid drum fill across the final bar"],
+   "negative_styles": ["vocals", "singing", "orchestral"], "context_adherence": "high"},
+  {"text": "[Impact and breakdown - instrumental]", "duration_ms": 4000,
+   "positive_styles": ["instrumental", "one massive impact hit on the first beat", "sub-bass boom", "sudden half-time breakdown with a long reverb tail", "slow-motion feeling, suspended"],
+   "negative_styles": ["vocals", "singing", "orchestral"], "context_adherence": "high"},
+  {"text": "[Outro - instrumental]", "duration_ms": 6000,
+   "positive_styles": ["120 BPM", "instrumental", "the groove slams back for one bar", "a final big brass stab on the downbeat", "then it rings out to silence", "clean ending"],
+   "negative_styles": ["vocals", "singing", "orchestral", "fade out"], "context_adherence": "high"}
+ ]
+}

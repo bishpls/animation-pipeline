@@ -1,0 +1,22 @@
+{
+ "falco": {
+  "dsmash": 7,
+  "dtilt": 9,
+  "fsmash": 13,
+  "ftilt": 7,
+  "jab": 4,
+  "shine": 2,
+  "usmash": 8,
+  "utilt": 9
+ },
+ "fox": {
+  "dsmash": 7,
+  "dtilt": 9,
+  "fsmash": 13,
+  "ftilt": 7,
+  "jab": 4,
+  "shine": 2,
+  "usmash": 8,
+  "utilt": 9
+ }
+}

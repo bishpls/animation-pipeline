@@ -46,22 +46,25 @@ function drawFrame(t) {
 }
 
 const outCanvas = () => (window.PROJECT && PROJECT.plain ? window.OUTC : RISO.out);
-window.renderAt = (t, mime = 'image/jpeg', q = .95) => { drawFrame(t); return outCanvas().toDataURL(mime, q); };
+// window.PREFRAME(t), if a film defines one (engine/plate.js does), is awaited before each rendered frame: async assets such as
+// image-sequence plates are loaded for t first, so headless renders never draw a missing frame.
+const preframe = t => (window.PREFRAME ? window.PREFRAME(t) : null);
+window.renderAt = async (t, mime = 'image/jpeg', q = .95) => { await preframe(t); drawFrame(t); return outCanvas().toDataURL(mime, q); };
 window.frameInfo = t => ({ t, bar: barPos(t), beat: beatPos(t), section: sectionAt(t), shot: SHOTS.length ? shotAt(t).name : '' });
-window.renderSheet = (ts, cols = 4, w = 480, crop = null) => {
+window.renderSheet = async (ts, cols = 4, w = 480, crop = null) => {
   const [cx, cy, cw, ch] = crop || [0, 0, W, H];
   const h = Math.round(w * ch / cw), rows = Math.ceil(ts.length / cols);
   const S = document.createElement('canvas'); S.width = cols * w; S.height = rows * (h + 18);
   const x = S.getContext('2d'); x.fillStyle = '#111'; x.fillRect(0, 0, S.width, S.height);
   const ms = [];
-  ts.forEach((t, i) => {
-    const t0 = performance.now(); drawFrame(t); ms.push(Math.round(performance.now() - t0));
+  for (const [i, t] of ts.entries()) {
+    await preframe(t); const t0 = performance.now(); drawFrame(t); ms.push(Math.round(performance.now() - t0));
     const X0 = (i % cols) * w, Y = Math.floor(i / cols) * (h + 18);
     x.drawImage(outCanvas(), cx, cy, cw, ch, X0, Y + 18, w, h);
     const fi = frameInfo(t);
     x.fillStyle = '#ffe14d'; x.font = '12px ui-monospace, monospace';
     x.fillText(`${t.toFixed(2)}s  f${Math.round(t * FPS)}  bar ${fi.bar.toFixed(2)}  ${fi.shot}`, X0 + 4, Y + 13);
-  });
+  }
   return { url: S.toDataURL('image/jpeg', .88), ms };
 };
 

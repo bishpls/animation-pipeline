@@ -1,6 +1,8 @@
 """Analyse a song take and write its cue sheet (the single clock the animation locks to).
 
-    .venv/bin/python tools/audio_analyze.py TAKE.mp3 [--bpm 124] [--cues out.json] [--plot out.png]
+    .venv/bin/python tools/audio_analyze.py TAKE.mp3 [--bpm 124] [--downbeat 6.0] [--cues out.json] [--plot out.png]
+--downbeat pins the grid to a downbeat you measured (e.g. the first kick of a bar), for when the tracker locks onto an off-beat:
+syncopated breakbeat kicks did that on FRAME PERFECT's song (the grid came out 0.8 s late).
 
 Reads TAKE.events.jsonl (from tools/music.py) when present for sections + word timestamps.
 Reports: tempo, beat-grid fit (how far detected beats drift from a fixed grid), seam jumps at section
@@ -53,6 +55,9 @@ lt = librosa.frames_to_time(np.arange(len(low)), sr=sr, hop_length=512)
 grid = np.arange(phase, dur, P)
 score = [np.mean([low[np.argmin(np.abs(lt - g))] for g in grid[k::4]]) for k in range(4)]
 down0 = grid[int(np.argmax(score))]
+if opt('--downbeat'):                   # a measured downbeat overrides the tracked phase
+    D = float(opt('--downbeat')); phase = D % P; resid = ((bt - phase + P / 2) % P) - P / 2
+    grid = np.arange(phase, dur, P); down0 = phase + round((D - phase) / P) % 4 * P
 beats_grid = grid.tolist()
 downbeats = [g for g in grid if abs(((g - down0) / P) % 4) < 1e-6 or abs(((g - down0) / P) % 4 - 4) < 1e-6]
 
