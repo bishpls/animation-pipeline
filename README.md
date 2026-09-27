@@ -60,6 +60,8 @@ its pixels are in the film. How it was made, who decided what, and what it cost:
 
 ## FRAME PERFECT (a Melee machinima)
 
+▶ **[Watch it](https://github.com/bishpls/animation-pipeline/releases/tag/frame-perfect-v1.0)**: 34 s, 1080p60.
+
 A 34-second Super Smash Bros. Melee fight, Fox against Falco, in which every hit lands on the beat, because every input was
 written as code on the song's beat grid. The game is rebuilt from the [doldecomp/melee](https://github.com/doldecomp/melee)
 decompilation with a director compiled into it, and captured in Dolphin one image per game frame, with waveshines, pillars,

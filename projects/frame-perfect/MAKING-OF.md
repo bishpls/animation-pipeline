@@ -1,5 +1,8 @@
 # FRAME PERFECT: making-of
 
+▶ **[Watch it](https://github.com/bishpls/animation-pipeline/releases/tag/frame-perfect-v1.0)**: 34 s, 1080p60 (the master and a
+14 Mbps cut for posting).
+
 A 34-second Melee fight in which every hit lands on the beat, because every input was written as code on the song's beat
 grid. Fox and Falco on Final Destination: a cold open, fourteen bars of combos cut on the downbeats, a freeze on the song's
 dead stop, and a star KO on the ring-out.
