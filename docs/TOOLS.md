@@ -21,12 +21,13 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `warp.js` | draw a canvas through a deformed WebGL2 mesh: paper that bends, cards that breathe |
 | `rig.js` | a Live2D-style mesh runtime for layered illustrations: head displacement tables, neck, body shear and bend, FK arms with depth order, pelvis and feet, drawn views, variants, springs, `RIG.perform` coupling |
 | `moves.js` | a dance vocabulary and choreography compiler over `rig.js` channels: `MOVES.choreo`, `follow` (springs), `lips`, `blinks`, `hands`, `hop` |
+| `plate.js` | image-sequence plates on the film clock (a game capture, footage rendered elsewhere), loaded on demand: `plate(dir, {n, fps, t0})`, `.draw(X, t, ...)`; headless renders await each frame (`window.PREFRAME`) and refuse to draw a neighbour (FRAME PERFECT) |
 
 ## Song, voice and sound
 | tool | what |
 |---|---|
 | `music.py` | ElevenLabs Music: compose from a composition plan; keeps audio, word timestamps and the song_id for inpainting |
-| `audio_analyze.py` | beat grid, seams and the cue sheet (`assets/cues.json`): the one clock |
+| `audio_analyze.py` | beat grid, seams and the cue sheet (`assets/cues.json`): the one clock; `--downbeat S` pins the grid to a measured downbeat when a syncopated kick fools the tracker (FRAME PERFECT's came out 0.8 s late) |
 | `lyric_check.py` | speech-to-text (Scribe) diffed against the intended lyrics |
 | `songmap.py` | spectrogram, loudness, sections, bars and lyrics on one image: see the song |
 | `stems.py` | ElevenLabs stem separation; `--pitch` prints a vocal's range |
@@ -69,6 +70,21 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `mocap_sheet.py` | contact sheet and wrist/hip plot of a tracked clip, to judge a generation |
 | `mocap_diagnose.py` | where a retargeted clip runs out of rig (targets against clamps) |
 | `seedance.py` | Higgsfield Seedance 2.5; **off by default** (CLAUDE.md): only with the user's sign-off, one request at a time |
+
+## Game machinima (tools/machinima: decompiled games as a film backend; setup, controls and lab findings in its README)
+
+| tool | what it's for |
+|---|---|
+| `machinima/dolphin.py` | Dolphin as a headless plate renderer: isolated pinned profile, one PNG per game frame, DSP audio, the game's OSReport log |
+| `machinima/plates.py` | plates between the director's slates (refused if a frame is missing), display aspect, the game audio cut between the slate clicks |
+| `machinima/melee/build.py` | a film's choreography -> the director's tables -> the Melee decomp's non-matching build (hooks behind `#ifndef MUST_MATCH`) -> main.dol |
+| `machinima/melee/director/` | the director compiled into Melee: match setup, scripted pads, free camera, freeze, closed-loop approach and tech (fast fall, L-cancel, low laser), hit/laser/state logs |
+| `machinima/melee/dsl.py` | the choreography language: moves timed to their hit frame, waveshine and multishine, wavedash, DI, camera keys and tracking |
+| `machinima/melee/report.py` | every intended hit against the logged one (frame and beat error); `--fix` the timing solve, `--calib` measured frame data |
+| `machinima/melee/timeline.py` | a run as per-fighter action timelines per labelled segment |
+
+Game data (disc images, the game's executable, builds, captured plates, raw game audio) never enters the repo: it lives in
+`~/games/` or under gitignored paths.
 
 ## Review and bookkeeping
 | tool | what |

@@ -22,7 +22,8 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
 - `engine/`: the shared engine: `core.js` (time, easing, beat clock, boil), `riso.js` (the print press), `type.js` (variable-font
   kinetic type), `studio.js` (timeline; riso mode or plain Canvas2D mode via `PROJECT.plain`), `render.mjs`, `pop.js` (the chibi kit
   for plain mode), `puppet.js` (cut-paper puppets), `warp.js` (mesh-warped canvases), `rig.js` (the mesh rig runtime), `moves.js`
-  (dance moves and choreography), plus the vendored fontkit and fonts (all OFL; check glyph coverage before using symbols like ✦ ☆).
+  (dance moves and choreography), `plate.js` (image-sequence plates, e.g. game captures), plus the vendored fontkit and fonts (all OFL;
+  check glyph coverage before using symbols like ✦ ☆).
 - `tools/`: every tool, with its usage, is indexed in `docs/TOOLS.md`. The ones used on every film:
   - `music.py`: ElevenLabs songs, with word timestamps and a stored song_id for inpainting
   - `audio_analyze.py`: beat grid, seams, the cue sheet
@@ -36,6 +37,8 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - rigs, motion and checks: `segment.py`, `layers.py`, `rigbuild.py`, `variants.py`, `restcheck.py`, `romrun.py`, `motion_audit.py`,
     `dance_audit.py`, `posetrack.py`, `retarget_mocap.py`, `vocalenv.py`, `filmscan.py`
   - `seedance.py`: Higgsfield Seedance 2.5, text-to-video and image-to-video
+  - `machinima/`: decompiled games as a film backend (Melee via doldecomp + Dolphin; `tools/machinima/README.md`). Game data
+    (disc images, builds, plates) never enters the repo.
 - `docs/`: `CRAFT.md` (the method and its lessons), `TOOLS.md`, `RIGGING.md`, `MOTION.md`, `REVIEW.md`, `SESSIONS.md`; `research/`
   (measured Live2D coupling); `references/`: prior art.
 - `projects/<film>/`: `index.html` (script order is the film), `src/` (look, characters, lyrics, `shots/`), `assets/`, `STORYBOARD.md`,
@@ -44,6 +47,8 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `words-are-fossils`: letterpress, 9:16
   - `hello-world`: plain Canvas2D chibi plus sakuga cut-ins, 16:9
   - `tsuzuku`: plain Canvas2D paper theatre plus a mesh-rigged idol stage, 16:9; the whole film is `--loop=film`
+  - `t`: riso, 9:16, one function of time (`make.sh` rebuilds it)
+  - `frame-perfect`: a Melee machinima, 16:9 at 60 fps; plates from `tools/machinima`, composited in plain mode
 - `legacy/ember/`: reusable code from the EMBER shorts.
 
 ## Commands (from repo root; P = projects/<film>)
