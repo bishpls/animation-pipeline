@@ -29,6 +29,13 @@ A missed crop proves nothing: re-crop where the subject actually is. When it's t
 | motion quality against the baseline | `tools/motion_audit.py`, `dance_audit.py`, `phrase_metrics.py` (docs/MOTION.md) |
 | lyric intelligibility | `tools/lyric_check.py` |
 | audio joins, levels, offsets | a dB-per-half-bar profile; check durations and a frame, never a job's completion message |
+| a refactor changed nothing (two branches, byte for byte) | the same stills on both, rendered with `RENDER_EXACT=1` and compared with `cmp` |
+
+**GPU renders aren't bit-exact.** Canvas2D is rasterized on the GPU by default (fast, and the look the films were made with),
+and blur filters and additive blends can come out a level or two different between two renders of the same frame, even
+cold: TSUZUKU's prologue varied in 39-146 pixels by at most 2 levels. The frame function is still pure; this is raster jitter.
+For identity checks, `RENDER_EXACT=1` rasterizes Canvas2D on the CPU. It is bit-exact across runs, about 60x slower, and not
+the release look (about 1 level on average, up to 70 at some edges), so it's for comparing branches, never for a cut.
 
 ## 3. Watch it whole (every cut)
 `--frames --workers=6 --clean`, then `--encode` with the mix, then watch the full length with sound. Take screenshots of what's

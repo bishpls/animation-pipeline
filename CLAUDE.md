@@ -62,4 +62,5 @@ node engine/render.mjs P --frames --workers=6 --clean && node engine/render.mjs 
 .venv/bin/python tools/romrun.py P                      # a rig's range of motion, every frame checked
 .venv/bin/python tools/filmscan.py P/out/frames --known 9.0,12.7   # pops and jumps across a rendered film, minus known cuts
 node engine/render.mjs P --serve                         # scrub with sound in Chrome
+RENDER_EXACT=1 node engine/render.mjs P --stills=5,30   # bit-exact (CPU canvas) stills, for A/B identity checks (docs/REVIEW.md)
 ```

@@ -62,8 +62,11 @@ const URL0 = `http://127.0.0.1:${server.address().port}/${PROJ}/index.html`;
 if (args.serve) { console.log(`studio: ${URL0}${args.loop ? '?loop=' + args.loop : ''}`); await new Promise(() => {}); }
 
 const gpu = process.platform === 'darwin' ? ['--use-angle=metal'] : ['--use-gl=angle'];
+// RENDER_EXACT=1: Canvas2D rasterized on the CPU (WebGL stays on the GPU). GPU canvas raster (blur filters, 'lighter') can differ
+// by a level or two between runs of the same frame; the CPU path is bit-exact, for identity checks (A/B of two branches).
+const exact = process.env.RENDER_EXACT === '1' ? ['--disable-accelerated-2d-canvas', '--disable-gpu-rasterization'] : ['--enable-gpu-rasterization'];
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, protocolTimeout: 0,
-  args: ['--ignore-gpu-blocklist', ...gpu, '--enable-gpu-rasterization', '--window-size=1920,1080', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--autoplay-policy=no-user-gesture-required'] });
+  args: ['--ignore-gpu-blocklist', ...gpu, ...exact, '--window-size=1920,1080', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--autoplay-policy=no-user-gesture-required'] });
 async function openPage(tag = '') {
   const page = await browser.newPage();
   page.on('console', m => { if (['error', 'warn', 'log'].includes(m.type()) && !m.text().includes('GPU stall')) console.log(`[page${tag}]`, m.text()); });
