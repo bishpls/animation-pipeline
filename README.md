@@ -58,6 +58,15 @@ card inside it. Every frame is drawn by code. A video model was used only as dan
 its pixels are in the film. How it was made, who decided what, and what it cost:
 **[projects/tsuzuku/MAKING-OF.md](projects/tsuzuku/MAKING-OF.md)**.
 
+## FRAME PERFECT (a Melee machinima)
+
+A 34-second Super Smash Bros. Melee fight, Fox against Falco, in which every hit lands on the beat, because every input was
+written as code on the song's beat grid. The game is rebuilt from the [doldecomp/melee](https://github.com/doldecomp/melee)
+decompilation with a director compiled into it, and captured in Dolphin one image per game frame, with waveshines, pillars,
+L-cancels and a freeze on the song's dead stop. No player, no video model; no game data is in the repo. How it works, what the
+labs measured, and who did what: **[projects/frame-perfect/MAKING-OF.md](projects/frame-perfect/MAKING-OF.md)**; the tooling:
+**[tools/machinima/](tools/machinima/README.md)**. *Unofficial, non-commercial fan work.*
+
 ## The pipeline
 
 | path | what |
