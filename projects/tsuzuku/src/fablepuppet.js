@@ -1,4 +1,6 @@
-// fabletest.js: Fable's shadow-puppet motion test (LOOPS.fable), per Fable's review:
+// fablepuppet.js: Fable's shadow puppet in the paper world: loading it (FABLE_INIT), her lamp, her rods and the cellophane
+// ribbon (FABLE_LAMP, FABLE_GEL, FABLE_RODS, FABLE_TAILS, seatedRibbon), which every paper-world shot uses; and the motion
+// test it grew from (LOOPS.fable; this file was fabletest.js), per Fable's review:
 // one clock (everything in the frame on twos: pose, ribbon, lantern flicker, grain); fewer, bigger moves with long holds;
 // each move = one in-between, one drawing past the pose, the pose (held); the two big fan moves fan three afterimages on the
 // in-between; the ribbon is a stiff cellophane bookmark knotted at the nape under the hair, a gel that shows only where it

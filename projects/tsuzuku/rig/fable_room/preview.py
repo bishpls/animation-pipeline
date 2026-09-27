@@ -16,5 +16,6 @@ assert hook in s, 'index.html changed shape: update preview.py'
 s = s.replace(hook, hook + "\n    if (typeof FABLEROOM !== 'undefined' && !FABLEROOM.E.meta) await FABLEROOM.load();"
               "\n    if (typeof FABLEROOM !== 'undefined' && !location.search.includes('v1')) { const r0 = FABLESTAGE.room; FABLESTAGE.room = (X, t, T, o = {}) => o.P ? FABLEROOM.ending(X, t, T, o) : r0(X, t, T, o); }", 1)
 os.makedirs(os.path.join(D, 'preview'), exist_ok=True)
+os.makedirs(os.path.join(D, 'preview'), exist_ok=True)                  # (generated, gitignored: re-run this after index.html changes)
 open(os.path.join(D, 'preview', 'index.html'), 'w').write(s)
 print('wrote', os.path.join(D, 'preview', 'index.html'))
