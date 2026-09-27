@@ -52,7 +52,6 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `armpose.py` | drawn arm poses where the mesh can't make an arm read |
 | `restcheck.py` | invariant: the rig at rest reproduces the illustration (heat map of any difference) |
 | `romrun.py` | one-command range-of-motion check: renders the ID pass of `src/rom.js`, checks every frame, sheets the worst (`romcheck2.py` does the checking) |
-| `romcheck.py` | the older three-pass ROM check (normal, magenta, ID renders); `romcheck2.py` needs only the ID pass |
 | `romheat.py` | heat maps of where a ROM run's problems happen |
 | `holes.py` | holes in a rig test rendered on magenta (background showing through the character) |
 

@@ -1,6 +1,6 @@
 // rom.js: the range-of-motion test (LOOPS.rom, .rommag, .romid). A matrix of short segments, each exercising one thing:
 // every view at rest, every control swept alone both ways, the common combinations, fast whips (springs), tilts and nods
-// inside every drawn view, every view switch both ways, faces per view. tools/romcheck.py checks every frame.
+// inside every drawn view, every view switch both ways, faces per view. tools/romrun.py checks every frame.
 // window.ROM lists the segments ([name, t0, t1]) for the checker.
 {
   const segs = [], S = Math.sin, PI = Math.PI;

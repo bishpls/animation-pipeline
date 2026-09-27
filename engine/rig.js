@@ -158,7 +158,7 @@ const RIG = (() => {
     }
     // mouth: a small canvas texture, redrawn when the mouth is open
     if (R.mouth) { rig.mc = document.createElement('canvas'); rig.mc.width = 256; rig.mc.height = 160; rig.mtex = gl.createTexture(); }
-    // ID colours for the ID pass (tools/romcheck.py): one per (layer, view), stable, listed in window.RIG_IDS
+    // ID colours for the ID pass (tools/romrun.py, tools/romcheck2.py): one per (layer, view), stable, listed in window.RIG_IDS
     // (they accumulate across rigs with unique colours: the first rig loaded keeps the plain keys and colours 1..n; a later rig's
     // keys carry its rig.json "idPrefix", so loading Fable's rig after Clawd's never changes Clawd's map)
     const allL = [...layers, ...Object.values(views).flatMap(v => v.layers), ...armPoses.L, ...armPoses.R], k0 = window.RIG_IDN || 0; window.RIG_IDS = window.RIG_IDS || {};
