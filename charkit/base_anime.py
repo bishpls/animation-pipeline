@@ -23,8 +23,11 @@ derive(): MakeHuman's body with its own head wrapped onto the anime head at neut
 The asset stores: verts, faces, UVs, skin weights (VRM bones) and MakeHuman's face-bone masks, joints, the source vertex in
 hm08 of every vertex (so MakeHuman's macro targets still shape the body), region masks, the eye and mouth loops, rings and
 schedules, landmarks, and the wrap's parameters (per shell vertex: the realistic direction and the neutral surface point),
-so charkit/anime_head.rewrap re-shapes the head to a spec's knobs without MakeHuman's head. The 'head_detail' knobs
-(reshape's detail shares) are baked in; the 'ear' knob scales the stored ear relief.
+so charkit/anime_head.rewrap re-shapes the head to a spec's knobs without MakeHuman's head; the neck's top as its neutral
+offset from MakeHuman's body (a build places it from the spec's body, as the makehuman base does); and the removed realistic
+interior as ghost points the joints follow (so the head, jaw and neck joints, and the garments fitted along them, land where
+they do on the makehuman base). The 'head_detail' knobs (reshape's detail shares) are baked in; the 'ear' knob scales the
+stored ear relief.
 
 Licence: derived from MakeHuman's CC0 1.0 assets (charkit/assets/makehuman/LICENSE.md); the derived asset is CC0 too.
 """
