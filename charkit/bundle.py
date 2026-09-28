@@ -77,14 +77,19 @@ def material_tones(m):
 
 
 def _toon3(m):
-    """a plain charkit.shade.toon3 material's shading (the emission fed by its rim screen straight), else None:
-    dict(ldir, lit, shade, deep (linear), lit_at, deep_at (ramp element positions), rim, rim_amt, blend, rim_from,
-    rim_to)."""
+    """a charkit.shade.toon3 material's shading (the emission fed by its rim screen, or by the screen multiplied by a
+    texture: a textured toon), else None: dict(ldir, lit, shade, deep (linear), lit_at, deep_at (ramp element
+    positions), rim, rim_amt, blend, rim_from, strength, texture (the image multiplied in, or None))."""
     nodes = m.node_tree.nodes
     em = next((n for n in nodes if n.type == 'EMISSION'), None)
     if em is None or not em.inputs['Color'].is_linked:
         return None
     rm = em.inputs['Color'].links[0].from_node
+    texture = None
+    if rm.type == 'MIX' and rm.blend_type == 'MULTIPLY' and not rm.inputs['Factor'].is_linked and \
+            rm.inputs['B'].is_linked and rm.inputs['B'].links[0].from_node.type == 'TEX_IMAGE' and rm.inputs['A'].is_linked:
+        texture = rm.inputs['B'].links[0].from_node.image
+        rm = rm.inputs['A'].links[0].from_node
     if rm.type != 'MIX' or rm.blend_type != 'SCREEN' or not rm.inputs['A'].is_linked:
         return None
     m2 = rm.inputs['A'].links[0].from_node
@@ -105,7 +110,7 @@ def _toon3(m):
                 lit_at=pos(s_lit), deep_at=pos(s_deep), rim=list(rm.inputs['B'].default_value)[:3],
                 rim_amt=float(lm.inputs[1].default_value), blend=float(lw.inputs['Blend'].default_value),
                 rim_from=[float(rr.inputs['From Min'].default_value), float(rr.inputs['From Max'].default_value)],
-                strength=float(em.inputs['Strength'].default_value))
+                strength=float(em.inputs['Strength'].default_value), texture=texture.name if texture is not None else None)
 
 
 def material_record(m):

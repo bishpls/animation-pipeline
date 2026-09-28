@@ -1127,9 +1127,17 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
         N[back] = -N[back]
         slots = s['slots'][t]
         col = np.zeros((len(t), 3))
+        luv = o.a(s['variant'], 'luv') if not s['hull'] else None
         for k_ in np.unique(slots):
             sel = slots == k_
-            col[sel] = _shade(B, o, o.material(int(k_))[1], N[sel], view_d)
+            mat = o.material(int(k_))[1]
+            col[sel] = _shade(B, o, mat, N[sel], view_d)
+            img = mat and ((mat.get('shading') or {}).get('texture') or (mat.get('kind') == 'plate' and mat.get('image')))
+            if img and luv is not None:                       # a texture multiplied in (a plate: the texture is the colour)
+                tl, w = Tl[t[sel]], bc[m][sel]
+                tx = _sample(B.image(img), luv[tl[:, 0]] * w[:, 0:1] + luv[tl[:, 1]] * w[:, 1:2] + luv[tl[:, 2]] * w[:, 2:3])
+                c = _lin(tx[:, :3])
+                col[sel] = col[sel] * c if mat.get('kind') == 'toon3' else c * tx[:, 3:4] + (1 - tx[:, 3:4])
         if s['paint'] is not None:
             p = np.asarray(s['paint'], float)[t]
             ok = np.isfinite(p[:, 0])

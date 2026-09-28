@@ -440,9 +440,9 @@ one sheet pixel, 0.0087 L; `sheet_neck_to_jaw` reads its one row, which a pixel 
 eye, silhouette, scalp and hair-noise renders drawn from the bundle.
 
 **Known gaps.**
-- The scalp and hair-noise renders shade toon3 and flat materials. A material the bundle can't read as either (the
-  analytic hair's angel-ring material, the face shading's SDF) is drawn in its flat lit tone; `hair_noise` then carries
-  a caution naming it. The eye renders draw the skin in its flat tone (the SDF face shading and blush aren't drawn: the
+- The scalp and hair-noise renders shade toon3 (plain or textured), flat and plate materials. A material the bundle
+  can't read as one of those (the analytic hair's angel-ring material, the face shading's SDF) is drawn in its flat lit
+  tone; `hair_noise` then carries a caution naming it. The eye renders draw the skin in its flat tone (the SDF face shading and blush aren't drawn: the
   eye segmentation doesn't read skin tones).
 - EEVEE's anti-aliasing is stochastic; the calibrated filter matches it in the mean, not pixel for pixel.
 - `--qa blender` is kept for the transition; it measures inside Blender with the splat z-buffer and EEVEE, as before.
