@@ -37,6 +37,9 @@ LOSS_SCALE = 3.0                # soft-L1 above this many tolerances (the smooth
 POLISH = (2.0, 1.0, 0.5)        # the pattern search's step sizes, in knob steps
 POLISH_MOVES = 12               # at most this many moves per step size
 CYCLES = 3                      # trust region then polish, restarted from the polished point while the fine cost drops
+FAST = False                    # optimise(fast=): Broyden updates between full Jacobians, and a model-guided polish
+BROYDEN_REFRESH = 4             # fast: a full finite-difference Jacobian at least every this many trust-region steps
+POLISH_SHARE = 0.25             # fast: the polish first tries this share of its moves, those the Jacobian predicts best
 PROTECT = 6.0                   # a term leaving the status band it started in (PASS, or WARN) costs this much more per
                                 # tolerance: the merge gate fails any graded check that gets worse
 
@@ -154,7 +157,11 @@ def vector(res, x=None, knobs=(), keep=None):
 
 def cost(res, x=None, knobs=(), loss='linear', keep=None):
     """0.5 sum of the loss over the vector, as scipy's least_squares counts it ('linear' or 'soft_l1' at LOSS_SCALE)."""
-    f = vector(res, x, knobs, keep)
+    return loss_of(vector(res, x, knobs, keep), loss)
+
+
+def loss_of(f, loss='linear'):
+    """cost's loss over a least-squares vector."""
     if loss == 'soft_l1':
         c = LOSS_SCALE
         return float(0.5 * np.sum(c * c * 2 * (np.sqrt(1 + (f / c) ** 2) - 1)))
@@ -313,11 +320,16 @@ class Budget(Exception):
 
 
 def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', protect=True, baseline=None,
-             log=print):
+             fast=None, log=print):
     """least squares over one group's knobs and terms from the spec's values (see the module). protect: each term kept
-    in the status band it started in (or had in `baseline`, a check set, where it has the check).
-    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, history, stopped})."""
+    in the status band it started in (or had in `baseline`, a check set, where it has the check). fast (default FAST):
+    the trust region's Jacobian is updated from each step's own evaluation (Broyden) between full finite-difference ones
+    (at least every BROYDEN_REFRESH steps), one evaluation a step instead of one per knob; and the polish tries the moves
+    the Jacobian predicts best first (POLISH_SHARE of them), sweeping them all only to confirm it has stopped at its
+    finest step, where the plain polish sweeps every move every time.
+    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, phases, fast, history, stopped})."""
     from scipy.optimize import least_squares
+    fast = FAST if fast is None else fast
     knobs = [k for k in knobs if k.group == group]
     terms = [t for t in terms if t.group == group]
     st = np.array([k.step for k in knobs])
@@ -364,7 +376,9 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                                                          for k, v_ in zip(knobs, x0 + u * st))))
         return v
 
-    def jac(u):
+    model = {'J': None, 'u': None, 'f': None, 'age': 0}        # the latest Jacobian, where it was taken, and its age
+
+    def jac_fd(u):
         pts = []
         for i in range(len(u)):
             e = np.zeros(len(u)); e[i] = 1.0 if u[i] + 1 <= uhi[i] else -1.0
@@ -373,11 +387,31 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
         f0 = vector(R[0], x0 + u * st, knobs, keep)
         return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs, keep) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
+    def jac(u):
+        u = np.asarray(u, float)
+        fu = f(u)                                    # trf evaluated fun(u) before asking for its Jacobian: no evaluation
+        if fast and model['J'] is not None and model['age'] < BROYDEN_REFRESH:
+            s_ = u - model['u']
+            ss = float(s_ @ s_)
+            if ss > 1e-12:                           # Broyden's update: the secant through the step just taken
+                Jn = model['J'] + np.outer(fu - model['f'] - model['J'] @ s_, s_) / ss
+                model.update(J=Jn, u=u.copy(), f=fu, age=model['age'] + 1)
+                return Jn
+        Jm = jac_fd(u)
+        model.update(J=Jm, u=u.copy(), f=fu, age=0)
+        return Jm
+
+    def costs(cands):
+        return [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True, 'polish'), cands)]
+
     def polish(u):
         """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
-        taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
+        taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). fast: the moves the
+        Jacobian predicts best are tried first; past the finest step size a miss ends that step size, and at the finest
+        the other moves are swept before it stops. -> (u, fine cost)."""
         cur = cost(evaluate([u], True, 'polish')[0], x0 + u * st, knobs, loss, keep)
-        for dstep in POLISH:
+        for si, dstep in enumerate(POLISH):
+            finest = si == len(POLISH) - 1
             for _ in range(POLISH_MOVES):
                 cands = []
                 for i in range(len(u)):
@@ -385,13 +419,28 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                         v = u.copy(); v[i] = np.clip(v[i] + sgn * dstep, ulo[i], uhi[i])
                         if not np.allclose(v, u):
                             cands.append((i, v))
-                cs = [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True, 'polish'), cands)]
+                if not cands:
+                    break
+                if fast and model['J'] is not None and len(cands) > 4:
+                    f0 = f(u, True)
+                    pred = [loss_of(f0 + model['J'] @ (v - u), loss) for _, v in cands]
+                    order = list(np.argsort(pred, kind='stable'))
+                    k = max(2, int(np.ceil(POLISH_SHARE * len(cands))))
+                    tried = [cands[i] for i in order[:k]]
+                    cs = costs(tried)
+                    if min(cs) >= cur - 1e-6:
+                        if not finest:
+                            break                    # the model's best don't help at this step size: go finer
+                        rest = [cands[i] for i in order[k:]]
+                        tried, cs = tried + rest, cs + costs(rest)
+                else:
+                    tried, cs = cands, costs(cands)
                 j = int(np.argmin(cs))
                 if cs[j] >= cur - 1e-6:
                     break
-                i = cands[j][0]
-                log('  polish %s %+.1f step -> %.3f' % (knobs[i].name, cands[j][1][i] - u[i], cs[j]))
-                cur, u = cs[j], cands[j][1]
+                i = tried[j][0]
+                log('  polish %s %+.1f step -> %.3f' % (knobs[i].name, tried[j][1][i] - u[i], cs[j]))
+                cur, u = cs[j], tried[j][1]
         return u, cur
 
     stopped, u, done = None, np.zeros(len(knobs)), None
@@ -414,7 +463,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     info = {'group': group, 'start': dict(zip([k.name for k in knobs], x0.round(5).tolist())),
             'fitted': dict(zip([k.name for k in knobs], x.round(5).tolist())),
             'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(knobs, x) if k.at_bound(xi)},
-            'evaluations': used[0], 'phases': phases, 'stopped': stopped, 'history': hist}
+            'evaluations': used[0], 'phases': phases, 'fast': fast, 'stopped': stopped, 'history': hist}
     return with_knobs(spec, x, knobs), info
 
 
