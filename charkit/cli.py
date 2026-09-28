@@ -1,6 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
+                                      [--hair geom|mesh]
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
@@ -9,7 +10,9 @@ build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's object
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
-out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py).
+out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). With hair.shape.mode 'geom' (or
+--hair geom) the generated hair is cut out venv-side by charkit.geom first (out/geom/hair.npz, cached by the resolved spec
+and the GLB) and the Blender stage loads that closed surface (docs/GEOM.md).
 
 export: a saved build (.blend) to our glTF 2.0 / VRM 1.0 with the OPENADS_charkit_look extension (charkit/gltf.py), checked
 on the way out; engine/three/charkit/look.js renders it, projects/charkit-look inspects it and boards it against Blender.
@@ -106,6 +109,10 @@ def build(args):
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
     spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args)
+    if opt('--hair') and (spec.get('hair') or {}).get('shape'):
+        spec['hair']['shape']['mode'] = opt('--hair')
+        json.dump(spec, open(resolved, 'w'), indent=1)
+    spec = geom_hair(spec, resolved, out)
     boards = opt('--boards', 'views,body,expressions,mouths')
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--',
            resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
@@ -121,6 +128,39 @@ def build(args):
         print('sheet', p)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def geom_hair(spec, resolved, out):
+    """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz (reused
+    while the resolved spec and the GLB are unchanged), and the resolved spec pointed at it."""
+    import hashlib
+    shape = (spec.get('hair') or {}).get('shape') or {}
+    if shape.get('mode') != 'geom':
+        return spec
+    glb = _path(shape['glb'])
+    st = os.stat(glb)
+    key = hashlib.sha1((json.dumps({k: v for k, v in spec.items() if k != 'hair'}, sort_keys=True) +
+                        json.dumps({k: v for k, v in spec['hair'].items() if k != 'shape'}, sort_keys=True) +
+                        json.dumps({k: v for k, v in shape.items() if k not in ('geom', 'mode')}, sort_keys=True) +
+                        f'{st.st_size}:{int(st.st_mtime)}').encode()).hexdigest()[:16]
+    path = os.path.join(out, 'geom', 'hair.npz')
+    fresh = False
+    if os.path.exists(path):
+        from .geom.io import load_npz
+        _, meta, _ = load_npz(path, with_meta=True)
+        fresh = meta.get('key') == key
+    if not fresh:
+        from .geom import parts
+        C = parts.Case.load(resolved, fit=False)
+        R = parts.hair(C, **shape.get('geom_opts', {}))
+        st_ = parts.measure(C, R, parts.hair_region(C), parts.hair_color(C), zmin=C.chin_z,
+                            out_dir=os.path.join(out, 'geom'), name='hair')
+        parts.save_part(R, path, meta=dict(key=key, align=C.align, measure=st_))
+        print('geom hair', path, json.dumps({k: st_[k] for k in ('faces', 'parts', 'open_edges', 'nonmanifold_edges',
+                                                                   'self_intersecting_faces', 'silhouette_iou_mean')}))
+    shape['geom'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
 
 
 def export(args):

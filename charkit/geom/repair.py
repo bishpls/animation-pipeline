@@ -236,46 +236,37 @@ def remove_small_parts(m, min_faces=None, min_area_frac=None, min_size=None, kee
 
 # ------------------------------------------------------------------------------------------------------------------ report
 def report(m, self_intersections=True, sample=20000, seed=0):
-    """a health report (dict): counts, open (boundary) edges, non-manifold edges and vertices, parts (vertex-connected),
-    boundary loops, orientation consistency, watertightness, area, volume (when watertight), degenerate and duplicate
-    faces, and an estimate of self-intersecting faces (from up to `sample` faces)."""
+    """a health report (dict). The counts charkit.trace.health gives a build's trace, under the same names (verts, faces,
+    edges, open_edges, nonmanifold_edges, shells, closed_shells, inverted_shells, degenerate_faces, loose_verts, area),
+    so kernel numbers and trace numbers compare, plus: parts (= shells), nonmanifold_verts (bow-ties), misoriented_edges,
+    boundary_loops, duplicate_faces, watertight, consistently_oriented, volume / euler / genus when watertight, and an
+    estimate of self-intersecting faces (from up to `sample` faces)."""
+    from ..trace import health
     m = as_mesh(m)
     F = m.F
-    r = {'verts': int(m.nv), 'faces': int(m.nf)}
+    r = health(m.V, F)
     if m.nf == 0:
-        r.update(open_edges=0, nonmanifold_edges=0, parts=0, watertight=False)
+        r.update(parts=0, watertight=False)
         return r
     E, inv, cnt = unique_edges(F)
-    r['edges'] = int(len(E))
-    r['open_edges'] = int((cnt == 1).sum())
-    r['nonmanifold_edges'] = int((cnt > 2).sum())
-    # orientation: each manifold edge should appear once in each direction
+    r['parts'] = r['shells']
     he = half_edges(F)
     fwd = he[:, 0] < he[:, 1]
     nf_ = np.bincount(inv, weights=fwd, minlength=len(E))
-    two = cnt == 2
-    r['misoriented_edges'] = int((two & (nf_ != 1)).sum())
-    vl, k = components(F, m.nv)
-    used = np.zeros(m.nv, bool); used[F.ravel()] = True
-    r['parts'] = int(len(np.unique(vl[used])))
-    r['unused_verts'] = int((~used).sum())
+    r['misoriented_edges'] = int(((cnt == 2) & (nf_ != 1)).sum())
     r['boundary_loops'] = len(boundary_loops(F)) if r['open_edges'] else 0
     r['nonmanifold_verts'] = _nonmanifold_verts(F, m.nv)
-    ar = face_areas(m.V, F)
-    r['degenerate_faces'] = int((ar <= 1e-14 * max(1.0, float(np.abs(m.V).max()) ** 2)).sum() +
-                                ((F[:, 0] == F[:, 1]) | (F[:, 1] == F[:, 2]) | (F[:, 0] == F[:, 2])).sum())
     s = np.sort(F, axis=1)
     r['duplicate_faces'] = int(len(s) - len(np.unique(s, axis=0)))
     r['watertight'] = bool(r['open_edges'] == 0 and r['nonmanifold_edges'] == 0)
     r['consistently_oriented'] = bool(r['misoriented_edges'] == 0)
-    r['area'] = float(ar.sum())
     lo, hi = m.bounds()
     r['bounds'] = [lo.round(6).tolist(), hi.round(6).tolist()]
     if r['watertight']:
         r['volume'] = signed_volume(m.V, F)
-        chi = m.nv - r['unused_verts'] - len(E) + m.nf
+        chi = m.nv - r['loose_verts'] - len(E) + m.nf
         r['euler'] = int(chi)
-        r['genus'] = int((2 * r['parts'] - chi) // 2)
+        r['genus'] = int((2 * r['shells'] - chi) // 2)
     if self_intersections and m.nf >= 2:
         from .bvh import BVH
         rng = np.random.default_rng(seed)

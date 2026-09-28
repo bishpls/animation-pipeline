@@ -181,12 +181,17 @@ def dominant_class(C, hue_tol=None, margin=0.12, upper=False):
 
 # ------------------------------------------------------------------------------------------------------------ extraction
 def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliver=None, min_frac=0.02, seeds=None,
-            bounds=None, cover=None, seal=None, post=None, verbose=True, name='part', debug=None):
+            bounds=None, cover=None, seal=None, seal_zone=None, post=None, close_pits=None, verbose=True, name='part',
+            debug=None):
     """cut a part out of the generated character as a signed-distance grid (see the module doc).
     region: fn(points (N,3)) -> bool, where the part may be. keep_color: fn(colours (N,3)) -> bool (the part's colours).
     h: voxel size (default 0.006 L). clear: how far our body is grown before it is subtracted (default 0.012 L).
-    color_depth: how deep under the generated surface its colour decides (default 0.03 L). seal: gaps in the generated
-    surface (with our body as a wall) narrower than 2 x seal are closed when finding its solid (default 0.012 L). sliver: parts thinner than
+    color_depth: how deep under the generated surface its colour decides (default 0.03 L; np.inf: every voxel takes the
+    colour of the generated surface nearest to it). close_pits: dents and pinholes narrower than 2 x this are filled at
+    the end (default 1.5 h). seal: gaps in the generated
+    surface (with our body as a wall) narrower than 2 x seal are closed when finding its solid (default 0.012 L);
+    seal_zone=(seal2, fn(points) -> bool): a bigger seal where fn allows (hair: the cap, so the mass sits on the scalp
+    instead of a thin sheet over a gap, while the fringe and the hanging locks keep their shapes). sliver: parts thinner than
     2 x this lying against our body are opened away (default 1.5 h). min_frac: parts smaller than this share of the
     biggest are dropped (seeds: world points whose parts are always kept). bounds: (lo, hi) of the work box (default: the
     generated character's points in the region). cover: dict(centre, depth, reach, thick, bin): close the holes our body
@@ -222,6 +227,12 @@ def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliv
     log('body signed distance')
     body_wall = S_body.data <= clear
     S_gen_occ = volume.solid(G, grid, walls=body_wall, seal=seal)
+    if seal_zone is not None:
+        big = volume.solid(G, grid, walls=body_wall, seal=seal_zone[0])
+        zone = seal_zone[1](grid.points()).reshape(grid.shape)
+        extra = big.data & ~S_gen_occ.data & zone
+        S_gen_occ.data |= extra
+        stats['seal_zone_vox'] = int(extra.sum())
     log('solid of the generated shell')
     S_gen = volume.solid_sdf(G, S_gen_occ, bvh=gb)
     log('its signed distance')
@@ -304,6 +315,12 @@ def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliv
     # outside the kept solid grown by 2 voxels nothing may survive
     far = ~ndi.binary_dilation(occ, st, iterations=2)
     phi[far] = np.maximum(phi[far], h)
+    close_pits = 1.5 * h if close_pits is None else close_pits
+    if close_pits > 0:
+        inside = phi < 0
+        filled = volume.closing(grid.like(inside), close_pits).data & ~inside
+        phi[filled] = -0.5 * h
+        stats['pits_filled_vox'] = int(filled.sum())
     S = grid.like(phi.astype(np.float32))
     stats['time_s'] = round(time.time() - T0, 1)
     return dict(sdf=S, occ=grid.like(occ), stats=stats, grid=grid)
@@ -489,7 +506,7 @@ def hair(case, h=None, verbose=True, **kw):
     """the hair of the case as one closed surface. kw: extract()'s and finish()'s options."""
     reg = hair_region(case, kw.pop('below', None), kw.pop('shoulder_x', None), face=kw.pop('face', False))
     cc = kw.pop('keep_color', None) or hair_color(case)
-    kw.setdefault('color_depth', 0.08 * case.L)
+    kw.setdefault('color_depth', np.inf)                  # every voxel takes its nearest generated surface's colour
     fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
     fin.setdefault('close', 0.16 * case.L)                  # envelope: the gaps between locks closed, big soft shapes
     fin.setdefault('blur', 0.12 * case.L)
@@ -497,6 +514,16 @@ def hair(case, h=None, verbose=True, **kw):
     Hd = case.A['head']
     hc = case.centre + np.array([0.0, (Hd['H'].db - Hd['H'].df) / 2, 0.06 * case.L])     # charkit.hair.Volume's centre
     cover = kw.pop('cover', dict(centre=hc, zmin=case.chin_z, exclude=face_cone))
+    if 'seal_zone' not in kw:
+        zc = case.eye_z - 0.1 * case.L
+
+        def cap(P):
+            # above the ears' middle and outside the face's cone (from the hair centre)
+            Q = P - hc
+            az = np.degrees(np.arctan2(Q[:, 0], -Q[:, 1]))
+            el = np.degrees(np.arctan2(Q[:, 2], np.hypot(Q[:, 0], Q[:, 1])))
+            return (P[:, 2] > zc) & ~face_cone(az, el)
+        kw['seal_zone'] = (0.04 * case.L, cap)
     post = kw.pop('post', lambda occ, grid: hanging(occ, grid, case.chin_z))
     E = extract(case, reg, cc, h=h, seeds=seeds, cover=cover, post=post, verbose=verbose, name='hair', **kw)
     R = finish(E['sdf'], verbose=verbose, name='hair', **fin)
@@ -533,60 +560,80 @@ def skin_color(case, hue_tol=15.0):
     return dominant_class(G.vc[m], hue_tol=hue_tol, margin=0.08, upper=True)
 
 
-def surface_parts(case, region, drop_color, max_drop=0.4, min_frac=0.01, weld=1e-7):
+def surface_parts(case, region, drop_color, max_drop=0.3, min_frac=0.01, hug=None, weld=1e-7):
     """the generated surface's own pieces in a region: its faces there, split into edge-connected parts (after welding
-    the UV seams), keeping the parts with less than `max_drop` of their area coloured like drop_color (skin: the legs and
-    hands) and at least min_frac of the biggest's area. -> (Mesh of the kept faces, info list per part)."""
+    the UV seams); the parts with `max_drop` or more of their area coloured like drop_color (skin: the legs, the hands)
+    are dropped; with hug (world units), so are the faces of the other parts lying within `hug` of a dropped part (shorts
+    and tights hug the legs; a skirt stands off them), and the rest is split again; parts under min_frac of the biggest
+    go. -> (Mesh of the kept faces, info per part)."""
+    from scipy.spatial import cKDTree
     from .mesh import compact, components, face_areas
     G = case.gen_welded(weld)
-    fc = G.V[G.F].mean(1)
-    sub, _ = compact(G, region(fc))
+    sub, _ = compact(G, region(G.V[G.F].mean(1)))
     lab, k = components(sub.F, by='face')
     ar = face_areas(sub.V, sub.F)
-    bad_v = drop_color(sub.vc)
-    bad_f = bad_v[sub.F].mean(1)
+    bad_f = drop_color(sub.vc)[sub.F].mean(1)
     area = np.bincount(lab, weights=ar, minlength=k)
     badf = np.bincount(lab, weights=ar * bad_f, minlength=k) / np.maximum(area, 1e-12)
-    keep = (badf < max_drop) & (area >= min_frac * area.max())
-    info = [dict(part=int(i), area_m2=round(float(area[i]), 5), drop_share=round(float(badf[i]), 3), kept=bool(keep[i]))
-            for i in np.argsort(-area)]
-    out, _ = compact(sub, keep[lab])
+    dropped = badf >= max_drop
+    keep_f = ~dropped[lab]
+    hugged = 0
+    if hug and dropped.any() and keep_f.any():
+        tree = cKDTree(sub.V[np.unique(sub.F[~keep_f])])
+        d, _ = tree.query(sub.V[sub.F[keep_f]].mean(1))
+        near = np.zeros(len(keep_f), bool)
+        near[np.nonzero(keep_f)[0][d < hug]] = True
+        hugged = int(near.sum())
+        keep_f &= ~near
+    kept, _ = compact(sub, keep_f)
+    lab2, k2 = components(kept.F, by='face')
+    ar2 = face_areas(kept.V, kept.F)
+    area2 = np.bincount(lab2, weights=ar2, minlength=k2)
+    big = area2 >= min_frac * (area2.max() if k2 else 0)
+    info = dict(pieces=[dict(area_m2=round(float(area[i]), 5), drop_share=round(float(badf[i]), 3),
+                             dropped=bool(dropped[i])) for i in np.argsort(-area)],
+                hugging_faces_dropped=hugged, kept_parts=[round(float(a), 5) for a in sorted(area2[big], reverse=True)])
+    out, _ = compact(kept, big[lab2])
     return out, info
 
 
-def skirt(case, h=None, top=None, bottom=None, thick=None, verbose=True, **kw):
+def skirt(case, h=None, top=None, bottom=None, thick=None, hug=None, verbose=True, **kw):
     """the skirt of the case as one closed surface: the generated surface between the waist and mid-thigh split into its
     own pieces (the skirt panels come apart from the legs-and-shorts piece and the hands once cut to the band; with
     top=None the band's top is searched, waist +0.10 .. -0.12 L, for the cut that frees the most skirt), the
-    pieces that aren't skin kept, and that sheet thickened into a solid `thick` across (default 0.016 L: TRELLIS makes
+    pieces that aren't skin and don't hug it (the shorts: median distance from the skin under `hug`, default 0.05 L)
+    kept, and that sheet thickened into a solid `thick` across (default 0.016 L: TRELLIS makes
     cloth as a hair-thin double wall) before the same finishing as the hair. kw: finish()'s options."""
     t0 = time.time()
     L = case.L
     h = h or 0.006 * L
+    hug = 0.05 * L if hug is None else hug
     skin = skin_color(case)
     if top is None:
         # the highest cut below which the skirt comes apart from the body: the one keeping the most non-skin area
         best = None
         for t in np.arange(0.10, -0.121, -0.02):
             reg_t = skirt_region(case, t, bottom)
-            sh, inf = surface_parts(case, reg_t, skin)
-            area = sum(p['area_m2'] for p in inf if p['kept'])
+            sh, inf = surface_parts(case, reg_t, skin, hug=hug)
+            area = sum(inf['kept_parts'])
             if best is None or area > best[0] * 1.02:
                 best = (area, t, sh, inf)
         _, top, sheet, info = best
         reg = skirt_region(case, top, bottom)
     else:
         reg = skirt_region(case, top, bottom)
-        sheet, info = surface_parts(case, reg, skin)
+        sheet, info = surface_parts(case, reg, skin, hug=hug)
     r = 0.5 * (0.016 * L if thick is None else thick)
     S = volume.thicken(sheet, r, h=h)
     if verbose:
-        print('  [skirt] %d parts kept of %d, sheet %d tris, grid %s  %.1fs' % (
-            sum(p['kept'] for p in info), len(info), sheet.nf, S.shape, time.time() - t0))
+        print('  [skirt] %d parts kept of %d pieces (%d hugging faces out), sheet %d tris, grid %s  %.1fs' % (
+            len(info['kept_parts']), len(info['pieces']), info['hugging_faces_dropped'], sheet.nf, S.shape,
+            time.time() - t0))
     fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
     fin.setdefault('close', 0.10 * L)
     fin.setdefault('blur', 0.08 * L)
     fin.setdefault('target_edge', min(2.5 * h, 1.6 * r))      # edges no longer than the cloth is thick: no folds across it
+    fin.setdefault('decimate_to', 60000)                       # then quadric decimation: the pleats are flat
     R = finish(S, verbose=verbose, name='skirt', **fin)
     R.update(sdf=S, sheet=sheet, stats=dict(h=h, grid=list(S.shape), thick=2 * r, z_band=list(reg.z), top=round(float(top), 3), parts=info,
                                             time_s=round(time.time() - t0, 1)))
@@ -624,13 +671,14 @@ def silhouettes(part, ref, frame, azimuths=AZ, zmin=None):
     return out, masks
 
 
-def measure(case, R, region, keep_color, zmin=None, res=480, out_dir=None, name='part'):
+def measure(case, R, region, keep_color, zmin=None, res=480, out_dir=None, name='part', ref=None):
     """a part's numbers: health (parts, open / non-manifold edges, self-crossings, genus, volume) and silhouette IoU
-    against the generated part from six azimuths (whole region, and above zmin when given); with out_dir, the overlays
-    (grey both, red only ours, blue only the generated) as PNG. -> dict."""
+    against the generated part (its faces coloured like the part in the region, or `ref`) from six azimuths (whole
+    region, and above zmin when given); with out_dir, the overlays (grey both, red only ours, blue only the generated) as
+    PNG. -> dict."""
     from . import raster
     m = R['mesh']
-    ref = reference(case, region, keep_color)
+    ref = reference(case, region, keep_color) if ref is None else ref
     fr = raster.Frame.around([m, ref], res=res, aspect=1.0)
     iou, masks = silhouettes(m, ref, fr)
     rep = R['report']
