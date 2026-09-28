@@ -1,13 +1,15 @@
 """The build cache (docs/CHARKIT.md §3): each scene stage's output is checkpointed under charkit/out/.cache/ and restored,
 instead of rebuilt, when nothing the stage read has changed; the boards, the QA and the VRM are cached the same way on the
-whole scene. Blender-side (charkit/scene.py and charkit/build_blender.py drive it); the hashing and the code closure are
-plain Python.
+whole scene, each QA part (eyes, sheet, figures, body...) on what it reads (`part`), the model sheet's design-side
+measurements per argument (`memo`), and the venv-side geom hair cut on its inputs (`file_step`). Blender-side
+(charkit/scene.py and charkit/build_blender.py drive it); the hashing and the code closure are plain Python.
 
 A stage's key is what the stage read, recorded while it ran, so a read nobody listed can't be missed:
   code      the stage function, the scene.py helpers it calls and scene.py's top-level statements, and every charkit
             module they import, transitively, as syntax trees (comments and docstrings don't count); the kit's data
             (charkit/assets); this module; the Blender, numpy and Python versions
-  spec      each top-level spec section it read (`spec.hair`), exactly
+  spec      each spec key it read, at any depth (`spec.head.width`), exactly (whether a dict is empty, its length or
+            a key's presence when that is all it asked)
   upstream  each value it read of what came before: the Scene's attributes and, key by key, the dicts under them
             (`character.data.head.L`, `character.data.joints.neck01____head`), shade.MATS entries, Blender objects (their
             full state, or the part scene.DEPS declares the stage reads: garments read the body below the neck, and only the
@@ -25,6 +27,9 @@ A checkpoint holds what the stage changed and only that, so it restores onto a r
                name), the notes it wrote, and its changes to objects made before it: new vertex groups, modifiers (settings
                and stack position), attributes and material slots, replayed on restore
   inputs.npz   the small arrays it read, so a miss can say how far they moved; images.npz the float images' pixels
+Nothing is stored from a run that printed a traceback (a check that caught an error), from a build whose charkit sources
+changed as it ran, or with less than CHARKIT_CACHE_MIN_FREE_GB (2) free; a store that fails leaves the build running.
+The cache keeps under CHARKIT_CACHE_GB (5), least recently used entries out first.
 Anything else a stage changes (an earlier mesh's vertices, a material made before it, an object it reached without
 reading it through the Scene) makes it uncacheable: it runs every time and the trace says why. After a restore the trace's
 own snapshot of the stage (the objects it added, their geometry hashes and health) must equal the one stored with the
