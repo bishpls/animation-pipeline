@@ -5,6 +5,9 @@ compared.
 
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--keep]
 
+The worktree is a sparse checkout (SPARSE, plus the paths the character's manifest names): a few hundred MB instead
+of every film's assets. The gate refuses to start with under 5 GB free.
+
 The verdict:
   FAIL   the merge conflicts, a test fails, a build fails, or a graded check gets worse (PASS -> WARN/FAIL, WARN -> FAIL)
          or disappears
@@ -24,6 +27,35 @@ def _git(*a, cwd=ROOT, check=True):
     if check and r.returncode:
         raise SystemExit('git %s: %s' % (' '.join(a), r.stderr.strip()))
     return r
+
+
+# what a charkit build reads from the repo: the gate's worktree checks out only these (plus what the spec's manifest
+# names), not every project's assets. The whole repo is about 1.8 GB tracked (other films' rigs and media); this is a
+# few hundred MB, and a full checkout per gate run filled the disk once.
+SPARSE = ['charkit', 'engine', 'tools', 'docs', 'infra', 'projects/charkit-look', 'projects/clawd3d']
+
+
+def _sparse_dirs(spec):
+    dirs = list(SPARSE)
+    try:
+        s = json.load(open(os.path.join(ROOT, spec)))
+        mp = (s.get('ref') or {}).get('manifest')
+        if mp:
+            for r in json.load(open(os.path.join(ROOT, mp)))['references'].values():
+                p = r['path']
+                if r.get('tracked', True) and not os.path.isabs(p):
+                    dirs.append(p if os.path.isdir(os.path.join(ROOT, p)) else os.path.dirname(p))
+        for k in ('rig',):
+            v = (s.get('ref') or {}).get(k)
+            if v:
+                dirs.append(v)
+    except (OSError, ValueError, KeyError):
+        pass
+    return sorted(set(d for d in dirs if d))
+
+
+def _free_gb(path):
+    return shutil.disk_usage(path).free / 2 ** 30
 
 
 def _link_inputs(wt):
@@ -93,7 +125,11 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
     os.rmdir(wt)
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
            't': time.strftime('%Y-%m-%dT%H:%M:%S')}
-    _git('worktree', 'add', '--detach', wt, head)
+    if _free_gb(os.path.dirname(wt)) < 5:
+        raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(os.path.dirname(wt)))
+    _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
+    _git('sparse-checkout', 'set', '--cone', *_sparse_dirs(spec), cwd=wt)
+    _git('checkout', '--detach', head, cwd=wt)
     try:
         _link_inputs(wt)
         # the baseline: cached per integration commit, spec and options
