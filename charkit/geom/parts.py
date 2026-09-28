@@ -28,7 +28,7 @@ from . import io as gio, repair, smooth, volume
 from .mesh import Mesh, as_mesh, vertex_normals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-VERSION = 4                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
+VERSION = 5                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
 
 
 # ------------------------------------------------------------------------------------------------------------ the case
@@ -544,6 +544,7 @@ def hair(case, h=None, verbose=True, **kw):
     fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
     fin.setdefault('close', 0.30 * case.L)                  # envelope: the gaps between locks closed, one big soft mass
     fin.setdefault('blur', 0.25 * case.L)
+    fin.setdefault('decimate_to', 50000)                    # quadric decimation after the remesh: the shape at half the faces
     seeds = np.array([[0.0, case.centre[1], case.centre[2] + 0.45 * case.L]])
     Hd = case.A['head']
     hc = case.centre + np.array([0.0, (Hd['H'].db - Hd['H'].df) / 2, 0.06 * case.L])     # charkit.hair.Volume's centre
