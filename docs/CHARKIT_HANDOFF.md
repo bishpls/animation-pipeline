@@ -50,14 +50,39 @@ so this file restates what's needed from it.
 
 ## In flight at handoff
 
-1. **`tool/bodyfit`** (`~/animation-pipeline-bodyfit`, head `4ac9b4f` or later), not merged. It has a fast numpy body,
-   garment and hair evaluator (40x or more faster than Blender), a sensitivity table (`bodysens`), per-piece fitting
-   against the sheet, and rest-pose knobs (arm abduction, leg splay). It also registers as the tune loop's body fitter.
-   Read `docs/BODYFIT_STATUS.md` on that branch if it exists (asked for at handoff). To resume:
-   1. merge `pipeline-3d` into it;
-   2. finish phase 2;
+1. **`tool/bodyfit`** (`~/animation-pipeline-bodyfit`, head `d7f4ea7`), wrapped up and committed, **not merged or
+   gated**. Read its `docs/BODYFIT_STATUS.md` first. What it has:
+   - a fast numpy body, garment and hair evaluator: about 90x Blender, geometry within 4e-7 m, all 93 sheet checks
+     grading as Blender does;
+   - `bodysens`;
+   - per-piece fitting against the sheet, with rest-pose knobs;
+   - registration as the tune loop's body fitter.
+
+   Its fitted Clawd builds with 27 checks better and none worse:
+
+   | Check | Before | After |
+   |---|---|---|
+   | shape_iou | 0.588 | 0.741 |
+   | ref_iou | 0.549 | 0.660 |
+   | body checks passing | 10 of 49 | 20 of 49 |
+   | palette checks passing | 5 of 13 | 11 of 13 |
+   | face and eye checks | | unchanged |
+
+   It holds the head's size fixed while fitting the body. So Clawd became 1.468 m and 5.87 heads, from 1.55 m and 6.2
+   heads; `--free-head` restores the old behaviour. **That is a design change to show Michael at the review.**
+
+   To resume:
+   1. merge `pipeline-3d` (conflicts are likely in `cli.py` and `docs/CHARKIT.md`; keep both sides);
+   2. run the tests;
    3. run `python -m charkit gate tool/bodyfit --into pipeline-3d`;
-   4. merge it into `pipeline-3d`.
+   4. refresh `bodysens` (about 30 min; the current table predates a Solidify fix);
+   5. merge.
+
+   Known gaps:
+   - the buns sit lower and the hair is about 12% narrow, and no knob reaches either (the TRELLIS hair carries them);
+   - the skirt's front opening;
+   - the IoU and leg checks trade against each other;
+   - two single-pixel checks flip easily.
 2. **`tool/measure`** (`~/animation-pipeline-measure`, head `bc816d0`), **ready but parked on purpose.** It moves all
    measurement out of Blender:
    - Blender exports one geometry bundle per build (`charkit/bundle.py`, `OUT/bundle/`);
