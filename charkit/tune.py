@@ -7,7 +7,8 @@ items (docs/CHARKIT.md §4).
 
   1. checkpoint 0: the spec built as it is (resolved: the manifest, refs.fit's first guess) with full QA;
   2. rounds: each fitter in the registry (charkit/fitters.py: build options, the face, the body) whose target checks
-     aren't all passing runs from the best checkpoint so far, and what it changes is built and QA'd as a new checkpoint
+     aren't all passing runs from the best checkpoint so far (the spec it resolved to), and what it changes is built and
+     QA'd as a new checkpoint
      (the build worker and stage cache are used when present: tool/speed);
   3. each checkpoint is compared with the best so far by the gate's QA diff (charkit.gate.compare_qa): it is accepted
      only when no graded check regresses (a status gets worse, or a check disappears) unless an explicit trade-off rule
@@ -252,7 +253,9 @@ class Builder:
         qa = json.load(open(qp))
         begin = next((r for r in _trace(d) if r.get('event') == 'begin'), {})
         cache = _cache_info(d)
-        return Checkpoint(id=n, label=label, spec=_rel(spec_path), args=list(args), out=_rel(d), boards=boards, ok=True,
+        rp = os.path.join(d, spec['name'] + '.spec.json')
+        return Checkpoint(id=n, label=label, spec=_rel(spec_path), resolved=_rel(rp) if os.path.exists(rp) else None,
+                          args=list(args), out=_rel(d), boards=boards, ok=True,
                           reused=reused, seconds=round(time.time() - t, 1), git=begin.get('git'), summary=qa.get('summary'),
                           score=checks.score(qa), counts=_counts(qa), cache=cache, _qa=qa)
 
@@ -383,6 +386,10 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                 log('  ck%d %s: build FAILED' % (ck['id'], label))
             return ck
 
+        def start(ck):
+            """what a fitter starts from: exactly what the checkpoint built (its resolved spec)."""
+            return _path(ck.get('resolved') or ck['spec'])
+
         def compare(best, ck, fit=None):
             rem = history.remeasured(best.get('git'), ck.get('git'), list(checks.graded(ck.qa)))
             d = accept(best.qa, ck.qa, cfg.get('tradeoffs', []), rem) if ck['ok'] else \
@@ -420,7 +427,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                         bl, sl = left()
                         if (bl is not None and bl <= 0) or (sl is not None and sl <= 0):
                             break
-                        res = F.run(_path(best['spec']), best['args'], os.path.join(out, 'fit_r%d_options' % rnd), log, option=o)
+                        res = F.run(start(best), best['args'], os.path.join(out, 'fit_r%d_options' % rnd), log, option=o)
                         R.write('fit', round=rnd, from_checkpoint=best['id'], **_fit_public(res))
                         if res['status'] != 'fitted':
                             continue
@@ -434,7 +441,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                 last_input[F.name] = best['id']
                 fdir = os.path.join(out, 'fit_r%d_%s' % (rnd, F.name))
                 log('  fit %s from ck%d%s' % (F.name, best['id'], '' if F.landed else ' (STUB)'))
-                res = F.run(_path(best['spec']), best['args'], fdir, log)
+                res = F.run(start(best), best['args'], fdir, log)
                 res.setdefault('fitter', F.name)
                 fits[F.name] = dict(res, from_checkpoint=best['id'], round=rnd)
                 R.write('fit', round=rnd, from_checkpoint=best['id'], **_fit_public(res))
@@ -455,7 +462,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                         bl, sl = left()
                         if (bl is not None and bl <= 0) or (sl is not None and sl <= 0):
                             break
-                        sp = FT.with_block(_path(best['spec']), res['spec'], F.knobs, blk,
+                        sp = FT.with_block(start(best), res['spec'], F.knobs, blk,
                                            os.path.join(fdir, '%s.%s.json' % (name, blk)))
                         ck = checkpoint('%s-%s' % (F.name, blk), sp, res.get('args', best['args']))
                         if compare(best, ck, res)['verdict'] == 'accept':
