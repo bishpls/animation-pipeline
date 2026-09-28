@@ -87,3 +87,32 @@ not used. Everything else is ours. Painted textures come from GPT Image under Op
 5. **Garments:** the template set and fitting. Board: outfit turntable and range of motion.
 6. **Export and QA:** VRM export, the three.js preview, the automated boards.
 7. **Clawd v2** from the kit, re-rendered in the dance test; then a second character from a new spec.
+
+## 7. Export and the three.js look
+
+`python -m charkit export charkit/out/NAME/NAME.blend` (or `build ... --vrm`) writes `NAME.vrm`: our own glTF 2.0 / VRM 1.0
+writer (`charkit/gltf.py`, numpy + bpy, no add-on), clean under the Khronos validator (`node tools/gltf_validate.mjs`).
+
+- **Meshes** as Blender renders them: modifiers evaluated at the render subdivision (`--subdiv`, default 2: level 1 visibly
+  moves the creased eye margins), without armature and outline. POSITION is the surface Blender draws (the outline SOLIDIFY
+  moves it inward by the line width); `_HULL_NORMAL` where the hull's direction differs from NORMAL (the hair's envelope
+  normals, flat parts); `_OUTLINE_WIDTH` (the outline's per-vertex factor), `_FACE_MASK`; TEXCOORD_0 'uv' and TEXCOORD_1
+  'face' or 'lock', only where a material reads them. A keyed mesh splits into the part its keys move (sparse POSITION
+  targets, NORMAL targets from the keyed hull directions) and a static rest.
+- **Skeleton**: nodes with identity rotations in the VRM T-pose; the inverse bind matrices keep the build's A-pose, so no
+  mesh or key is re-baked. `bindPose` (normalized-bone rotations) brings the build pose back.
+- **VRMC_vrm**: humanoid, meta, expressions from our keys (aa ih ou ee oh from mouth_*, blink and per-eye blinks, happy angry
+  sad relaxed surprised, lookUp/Down/Left/Right from the iris keys, lookAt type expression), every other key as a custom
+  expression. **VRMC_materials_mtoon** fallbacks for other viewers (two tones, the step as shift and toony, world outlines).
+- **OPENADS_charkit_look** (version 1; glTF frame, linear colours): root `{character, light.direction, head {bone, centre, L},
+  height, features.through, bindPose}`; per material `{kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha,
+  lit, shade, deep, threshold, deepThreshold, softness, light, rim {color, amount, facing, range}, texture?, face {sdf
+  (rg16: R high byte, G low), fringe, blush, softness, fringeRange, lit, shade, mask}, hair {lock, ring {color, elevation,
+  centre, width, soft, facing, facingBlend, mid, amount}, gradient, strands}, color}` (texture infos add `wrap`, `filter`);
+  per mesh `{object, outline {width, color, widthAttribute, normalAttribute}, feature, holdout}`. The exporter reads the
+  parameters back from the node graphs `shade.py`, `faceshade.py`, `hair.py` and `garments.py` build.
+
+`engine/three/charkit/look.js` renders it in three.js WebGPU with TSL (every number from the file; the face light in head
+space, so the SDF shadow follows the head), and `projects/charkit-look` inspects it (`--serve`) and boards it against the
+Blender build's own boards: every Clawd board (head views, body, expressions, mouths) and the analytic-hair variant
+(`charkit/spec/clawd_locks.json`) match to under 1.1/255 mean difference, the rest being edge anti-aliasing.

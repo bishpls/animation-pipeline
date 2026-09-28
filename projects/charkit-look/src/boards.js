@@ -130,12 +130,12 @@ LOOPS.hook = t => {
   const w = W / 2;
   X.fillStyle = '#26252b'; X.fillRect(0, 0, W, H);
   for (const [i, az] of [0, 35].entries()) {
-    const cam = CK.camera({ target: [0, 0.8, 0], az, dist: 4.2, height: 0.25, lens: 40, aspect: w / H });
+    const cam = CK.camera({ target: [0, 0.85, 0], az, dist: 3.2, height: 0.15, lens: 50, aspect: w / H });
     BP.through = 0.55;
     BP.render(BSCENE, cam, BCK, [i * w, 0, w, H]);
   }
   X.drawImage(BCTX.canvas, 0, 0);
-  label(`charkit look · ${BCTX.backend} · t ${t.toFixed(2)} f${Math.round(t * FPS) + 1}`, 16, 32, '#ddd', 22);
+  label(`charkit look · ${BCTX.backend} · t ${t.toFixed(2)} f${Math.round(t * FPS) + 1}`, 16, 32, '#555', 22);
 };
 LOOPS.hook.len = 5;
 LOOPS.hook.setup = async () => {
@@ -145,6 +145,35 @@ LOOPS.hook.setup = async () => {
   // CK.update() owns the face: route the performer's face track through our expressions
   const at = PERF.at;
   PERF.at = t => { at(t); const f = blink(t); BCK.expressions(f.eyesHalf ? { eye_half: 1 } : f); };
+};
+
+// the same file in a standard VRM viewer's terms: three-vrm's own loader and MToon (the VRMC_materials_mtoon fallbacks),
+// lit by one key light from the file's light direction, next to our look
+let MT = null;
+LOOPS.mtoon = t => {
+  const views = [[0, 'face'], [35, 'face'], [0, 'body'], [35, 'body']], w = W / 4;
+  X.fillStyle = '#26252b'; X.fillRect(0, 0, W, H);
+  BCK.buildPose(); BCK.keys({}); BCK.expressions({}); BCK.update();
+  const cams = views.map(([az, k]) => k === 'face'
+    ? CK.camera({ target: [0, BINFO.eyeZ + 0.06 * BINFO.L, 0], az, dist: 1.0, lens: 85, aspect: w / (H / 2) })
+    : CK.camera({ target: [0, BINFO.height * 0.52, 0], az, dist: 6, ortho: BINFO.height * 1.12, aspect: w / (H / 2) }));
+  if (MT) V3.draw(BCTX, MT.stage.scene, cams.map((c, i) => [c, i * w, H / 2, w, H / 2]));    // (clears the canvas first)
+  cams.forEach((c, i) => { BP.through = views[i][1] === 'face' ? 0.55 : 0; BP.render(BSCENE, c, BCK, [i * w, 0, w, H / 2]); });
+  X.drawImage(BCTX.canvas, 0, 0);
+  label('charkit look (OPENADS_charkit_look)', 12, 26, '#555');
+  label('three-vrm + MToon (VRMC_materials_mtoon fallback)', 12, H / 2 + 26, '#555');
+};
+LOOPS.mtoon.len = 1;
+LOOPS.mtoon.setup = async () => {
+  const vrm = await V3.load(BCTX, BCK.url);
+  const stage = V3.stage({ bg: new THREE.Color(0.86, 0.86, 0.90).getHex(), ldir: BCK.light.toArray() });
+  stage.scene.add(vrm.scene);
+  // the build pose on three-vrm's normalized bones, as ours
+  vrm.humanoid.resetNormalizedPose();
+  for (const [b, q] of Object.entries(BCK.bindPose)) { const n = vrm.humanoid.getNormalizedBoneNode(b); if (n) n.quaternion.fromArray(q); }
+  vrm.humanoid.update(); vrm.scene.updateMatrixWorld(true);
+  MT = { vrm, stage };
+  await V3.warm(BCTX, stage.scene, CK.camera({ target: [0, 1, 0], dist: 3 }));
 };
 
 // a turntable of the head and body, 360 degrees over 5 s

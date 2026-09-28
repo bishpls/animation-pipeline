@@ -10,17 +10,21 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
                put into the T-pose VRM 1.0 requires (arms and legs straightened); the meshes keep the build's A-pose bind
                (the inverse bind matrices are the A-pose), so nothing is re-baked and every shape key stays exact.
                extensions.OPENADS_charkit_look.bindPose holds the normalized-bone rotations that bring the build pose back.
-  meshes       every visible mesh as Blender renders it (modifiers evaluated: the garment mask, subdivision capped at
-               --subdiv, garment thickness, the hair's transferred envelope normals baked into NORMAL), without its armature
-               and outline modifiers; one primitive per material, each with its own compacted vertices. POSITION is the
-               surface Blender draws: charkit's outline SOLIDIFY (offset 1, negative thickness) moves the surface inward by the
-               line width, so it is baked in, and the hull (drawn by the runtime, or MToon) goes back out by the same amount.
+  meshes       every visible mesh as Blender renders it (modifiers evaluated: the garment mask, subdivision at --subdiv,
+               default 2 = the skin's render level (level 1 visibly moves the creased eye margins), garment thickness, the
+               hair's transferred envelope normals baked into NORMAL), without its armature and outline modifiers; one
+               primitive per material, each with its own compacted vertices. POSITION is the surface Blender draws: charkit's
+               outline SOLIDIFY (offset 1, negative thickness) moves the surface inward by the line width, so it is baked in,
+               and the hull (drawn by the runtime, or MToon) goes back out by the same amount.
   attributes   JOINTS_0/WEIGHTS_0 (top four), TEXCOORD_0 = the 'uv' layer, TEXCOORD_1 = 'face' (the skin's front projection:
                the SDF, fringe and blush maps) or 'lock' (analytic hair: across, along); custom: _OUTLINE_WIDTH (0..1, the
                outline's per-vertex factor: 0 round the eye and mouth openings, fading at hair tips), _FACE_MASK (1 on the
                face, where the SDF shading replaces toon3), _HULL_NORMAL (the direction the hull extrudes along, where it differs
                from NORMAL: custom or flat normals).
-  morphs       every shape key (eye_*, mouth_*, brow_*, look_*) as a sparse POSITION morph target, names in extras.targetNames.
+  morphs       every shape key (eye_*, mouth_*, brow_*, look_*) as a sparse POSITION morph target (names in
+               extras.targetNames), plus NORMAL targets on outlined meshes from the keyed hull directions (Blender rebuilds
+               the outline after the keys). A keyed mesh splits into NAME (the triangles its keys move, with the targets) and
+               NAME.static (the rest): a runtime's morph buffers cover only the moving part.
   textures     PNG: eye plates, the face SDF (16-bit packed into R (high) and G (low) bytes, B = R), fringe and blush maps,
                garment textures.
   materials    OPENADS_charkit_look (below) with each material's own parameters, plus a VRMC_materials_mtoon fallback.
@@ -29,7 +33,8 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
                'expression'), and every other key as a custom expression of its own name.
 
 The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linear:
-  root      {version, character, light: {direction}, head: {bone, centre, L}, features: {through: 0.55}, bindPose: {bone: quat}}
+  root      {version, character, light: {direction}, head: {bone, centre, L}, height, features: {through: 0.55},
+             bindPose: {bone: quat}}
   material  {kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha: opaque | blend,
              toon3/face/hair: lit, shade, deep, threshold, deepThreshold, softness, rim: {color, amount, facing, range}, texture?,
              face: {sdf, fringe, blush (textureInfo), softness, fringeRange, mask: '_FACE_MASK'},

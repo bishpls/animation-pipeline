@@ -16,6 +16,8 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `type.js` | variable-font kinetic type via fontkit (`shape`, `drawText`, `fitShape`); check glyph coverage before using symbols |
 | `studio.js` | the timeline (`shots`, `LOOPS`, `PROJECT.overlay`); `PROJECT.plain = true` skips the press for plain Canvas2D |
 | `render.mjs` | headless Chrome: stills, sheets, strips, crops, `--eval`, `--serve`, parallel resumable `--frames`, `--encode` |
+| `three/vrm.js` | a VRM in three.js (WebGPU or WebGL2) as a pure function of time: `V3.renderer`, `load`, `retarget` (canonical clip onto the normalized humanoid), `performer` (fixed-step springs, face track), `warm`, Blender-style cameras |
+| `three/charkit/look.js` | charkit's look on our own export (`charkit/gltf.py`): TSL materials for toon3, the SDF face, hair (ring, gradient, strands), eye plates, inverted hulls with per-vertex width, eyes through the fringe, bloom, debug views (`CK.load`, `CK.pipeline`, `CK.camera`) |
 | `pop.js` | the chibi register's kit for plain mode: `shp`, backgrounds (sunburst, checker, dots, speed lines), `pop` type, sparkles, `rig()` strip-warp for keyed illustrations (HELLO, WORLD!, TSUZUKU) |
 | `puppet.js` | jointed cut-paper shadow puppets (Reiniger): traced silhouettes pinned at rivets, cut-outs punched through (TSUZUKU's paper world) |
 | `warp.js` | draw a canvas through a deformed WebGL2 mesh: paper that bends, cards that breathe |
@@ -104,6 +106,9 @@ Game data (disc images, the game's executable, builds, captured plates, raw game
 |---|---|
 | `mocap3d/gemx_remote.sh` | NVIDIA GEM-X on the GPU box: push directed reference clips, run it static-camera, convert, pull back canonical clips (`--install` once per box). About 2 min and 9.3 GB of VRAM per 5 s clip on an L4 |
 | `mocap3d/soma_clip.py` | GEM-X output to the canonical clip (`<name>.clip.npz`: SOMA 77 joints, T-pose-relative rotations, metric root, foot contacts, floor locked) and a BVH; `--check` (npz FK vs BVH), `--qa DIR` (foot slide, swaps, bone lengths, root range) |
+| `charkit/gltf.py` (`python -m charkit export BUILD.blend`) | our own glTF 2.0 / VRM 1.0 writer for a built character: meshes as Blender renders them, sparse morph targets from every shape key, T-pose nodes over the A-pose bind, the `OPENADS_charkit_look` extension (every material's look), MToon fallbacks, VRM expressions and lookAt from our keys (docs/CHARKIT.md §7) |
+| `projects/charkit-look` | the inspector (`render.mjs projects/charkit-look --serve`: orbit, debug views, parts, expressions, keys, gaze, bones, light, pick, the QA report) and the boards: Blender's build boards next to our WebGPU look with the difference (`--loop=views`, `body`, `expr`, `mouth`, `debug`, `mtoon`, `hook`, `turn`) |
+| `gltf_validate.mjs` | the Khronos glTF validator on a .glb / .vrm (`node tools/gltf_validate.mjs FILE`) |
 | `projects/clawd3d/build/motion.py` | posing and retargeting in armature space: calibration in the source rest pose (hands by their knuckle line), anchor time-warps, springs for secondary motion, floor lock from contacts |
 
 ## GPU box (infra/gcp: CUDA-only models; the plan is docs/PIPELINE_3D.md)

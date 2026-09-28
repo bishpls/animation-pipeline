@@ -19,14 +19,16 @@
        node engine/render.mjs projects/charkit-look --loop=hook --strip=0:5 --step=12   the hook clip in our look (a pure
                                                                                           function of t: springs stepped
                                                                                           from 0, blinks from a seed)
-       node engine/render.mjs projects/charkit-look --loop=turn --frames ...            a turntable -->
+       node engine/render.mjs projects/charkit-look --loop=turn --frames ...            a turntable
+       node engine/render.mjs projects/charkit-look --loop=mtoon --stills=0             ours over what a standard VRM
+                                                                                          viewer shows (three-vrm + MToon) -->
 <canvas id="out" width="16" height="16"></canvas>
 <script>
   // per-board canvas sizes (W, H are fixed when engine/core.js loads)
   (() => {
     const q = new URLSearchParams(location.search), loop = (q.get('loop') || '').split('~')[0];
     const size = { views: [2700, 900], body: [1800, 1000], expr: [1800, 600], mouth: [1800, 600], debug: [2400, 1200],
-      hook: [1920, 1080], turn: [1080, 1080] }[loop] || [1920, 1080];
+      hook: [1920, 1080], turn: [1080, 1080], mtoon: [2400, 1200] }[loop] || [1920, 1080];
     window.PROJECT = { fps: 24, plain: true, w: size[0], h: size[1], duration: 5 };
     window.RENDER = q.has('render') || !!loop;
   })();

@@ -1,5 +1,5 @@
 """Blender entry for `python -m charkit build` (charkit/cli.py): build a resolved spec's scene, render its boards, save it.
-    blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend]
+    blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend] [--qa] [--vrm]
 """
 import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,6 +22,13 @@ if '--qa' in a:
     R = qa3d.run(S, os.path.join(out, 'qa'), ref)
     print('CHARKIT_QA', json.dumps({k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'}))
     print('CHARKIT_QA_SUMMARY', R['summary'])
+if '--vrm' in a:
+    import json
+    from charkit import gltf
+    path = os.path.join(out, spec['name'] + '.vrm')
+    gltf.export_scene(S, path, meta={'name': spec['name'].capitalize()})
+    c = gltf.check(path)
+    print('CHARKIT_GLTF', json.dumps({k: c.get(k) for k in ('bytes', 'triangles', 'errors', 'look_kinds')}, default=str))
 if '--blend' in a:
     scene.save(os.path.join(out, spec['name'] + '.blend'))
 print('CHARKIT_BUILD_DONE', out)
