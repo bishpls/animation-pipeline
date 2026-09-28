@@ -4479,14 +4479,14 @@
     "type": "bow tail",
     "motion": "spring",
     "hand": "bow.tail",
-    "note": "in the hand list only as bow's 'tail' knob: no piece, motion or chain of its own"
+    "note": "in the hand list only inside bow: the bow template builds its tails (a fixed length), weighted with it"
    },
    {
     "piece": "bow_tail_L",
     "type": "bow tail",
     "motion": "spring",
     "hand": "bow.tail",
-    "note": "in the hand list only as bow's 'tail' knob: no piece, motion or chain of its own"
+    "note": "in the hand list only inside bow: the bow template builds its tails (a fixed length), weighted with it"
    },
    {
     "piece": "bodice_panel",

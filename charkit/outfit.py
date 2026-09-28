@@ -2419,11 +2419,16 @@ def compare_spec(D, spec, G):
             continue
         host, knob = kind.split('.')
         hk = [h for h in hand if h.get('kind') == ('shell' if host == 'shell' else host)]
-        present = [h['_nm'] for h in hk if knob in h or (host == 'bow' and knob == 'tail')]
+        present = [h['_nm'] for h in hk if knob in h]
+        built_in = [h['_nm'] for h in hk] if (host == 'bow' and knob == 'tail') else []
+        if present:
+            note = "in the hand list only as %s's %r knob: no piece, motion or chain of its own" % (present[0], knob)
+        elif built_in:
+            note = "in the hand list only inside %s: the bow template builds its tails (a fixed length), weighted with it" % built_in[0]
+        else:
+            note = 'missing from the hand list'
         as_knob.append(dict(piece=g['id'], type=g['type'], motion=g['motion']['class'],
-                            hand='%s.%s' % (present[0], knob) if present else None,
-                            note=('in the hand list only as %s\'s %r knob: no piece, motion or chain of its own' % (present[0], knob))
-                            if present else 'missing from the hand list'))
+                            hand='%s.%s' % ((present or built_in)[0], knob) if (present or built_in) else None, note=note))
     extra = [dict(hand=h['_nm'], kind=h['kind'], library=h['_lib']) for i, h in enumerate(hand) if i not in used]
     return dict(matched=matched, knob_only=as_knob, missed_by_hand=missed, extra_in_hand=extra)
 
