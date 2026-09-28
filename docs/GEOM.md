@@ -71,8 +71,8 @@ surface is the generated one at sub-voxel accuracy.
    along with parts over 2 % of it, inner cavities are filled, and pits narrower than 3 mm are closed.
 7. The signed distance is exact against the generated surface and our grown body where they bound the part, and
    voxel-smooth where a mask cuts.
-8. `finish`: marching cubes (coincident opposite pairs dropped), Taubin 10, isotropic remesh at 2.5 h, Taubin 10,
-   self-crossings relaxed or cut out and refilled.
+8. `finish`: marching cubes (coincident opposite pairs dropped), Taubin 10, isotropic remesh at 2.5 h, quadric
+   decimation to 50 k faces, Taubin 10, self-crossings relaxed or cut out and refilled.
 9. Envelope normals: the part's solid, closed by 0.30 L, blurred by 0.25 L, and the gradient taken at every vertex.
    The toon ramp sees one soft mass.
 
@@ -120,7 +120,9 @@ transfer_normals(ob, normals_proxy(path, 'hair_shape_normals'))   # then the env
 
 Set custom normals *after* the outline. Solidify re-derives the corner normals of the surface it thickens. Custom normals
 set on the mesh come out about 2° off on average, with 1 % of corners more than 24° off, which shows as a mottled
-terminator. A Data Transfer after it keeps them within a degree.
+terminator. A Data Transfer after it, with 'NEAREST_NORMAL' mapping, keeps them to 0.02° on average (0.08° at the 99th
+percentile). It costs 0.24 s each time a 100 k-face part is evaluated, and 0.11 s at the hair's 50 k faces (there
+0.02° on average, 0.39° at the 99th percentile).
 
 The build already does this, opt-in. `python -m charkit build SPEC --hair geom` (or `hair.shape.mode: "geom"`) runs the
 hair extraction venv-side into `OUT/geom/hair.npz`, cached by the resolved spec, the GLB and `parts.VERSION`.
@@ -139,6 +141,8 @@ python -m charkit.geom render IN OUT.png --az 0,90     python -m charkit.geom ex
 ```
 
 Tests (37, about 10 s): `python -m pytest charkit/tests/geom`. `CHARKIT_GEOM_REAL=1` adds the real Clawd hair and skirt.
+`python charkit/tests/test_geom.py` runs them all as one script, which is how the merge gate runs them.
+`python -m charkit gate tool/geom --into pipeline-3d --args "--hair geom"` measures what the kernel hair does to the build.
 
 ## Findings along the way
 
