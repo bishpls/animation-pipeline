@@ -264,7 +264,35 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    `python -m charkit tune charkit/spec/clawd.json --review`. Then check the VRM export (`charkit build ... --vrm`, and
    `node tools/gltf_validate.mjs`) and the inspector (`node engine/render.mjs projects/charkit-look --serve`). Keep this
    run's `work_items.md` as the baseline.
-3. **Gate and merge `tool/measure`** against that baseline, then run one confirming `charkit tune`.
+3. **Gate and merge `tool/measure`** against that baseline, then run one confirming `charkit tune`. The merge is
+   prepared on `tool/measure` (`d477cd4`, all 18 test files ok); see "In flight" for its conflict resolution.
+   - **Fit speed (`tool/fitspeed`), alongside:**
+     1. *The body probe.* `BodyFitter` inherits the face fitter's `sensitivity_at`, which reads `facefit.KNOBS`, so
+        the body probe comes back empty. The tune then runs a full, uncapped body fit every round: 30+ min in the
+        baseline, even where the fit can't pay off. Give `BodyFitter` its own probe from `bodyfit.knobs(spec)` and
+        `terms(spec)`. That also restores the body's end-state table for the triage. Merge this before the
+        confirming tune.
+     2. *Instrument first.* Record evaluations and time per phase in the fit reports (sensitivity table, gradients,
+        trust-region steps, pattern search, repair), and per evaluation stage (geometry, silhouettes, sheet, face,
+        pieces).
+     3. *Fewer evaluations.* The finite-difference gradient costs one evaluation per knob, and the pattern search
+        tries every knob both ways. The changes:
+        - group knobs that move disjoint checks into one evaluation (the sparse-Jacobian trick);
+        - reuse the start table as the first gradient, with Broyden updates between full gradients;
+        - rank the pattern search's candidates by the gradient's prediction.
+
+        Acceptance: on a fixed start spec, the same QA result as today's optimiser, with the evaluation count and
+        time reported side by side.
+     4. *Cheaper evaluations* (after measure). Rasterise each view once with triangle IDs, and derive every label
+        image from it. Today one evaluation rasterises the same geometry about 26 times.
+
+     Measured 2026-09-28 on the baseline's start spec, one evaluation costs:
+     - 2.7 s for a garment knob;
+     - 4.8 s for a body knob (it rebuilds all 19 garment pieces);
+     - 6.1 s for the full check set.
+
+     About two-thirds of it is measurement. Three workers run the evaluations, limited by about 1 GB each on the 16 GB
+     Mac, with 9 of its 12 cores idle.
 4. **Clean up the merged worktrees:** fit, speed, tune, bodyfit and measure, once merged.
    - Archive the valuable outputs (gate reports, before/after sheets, fit reports) into
      `~/animation-pipeline-3d/charkit/out/archive/<name>/`. Earlier ones are already there.
