@@ -3,7 +3,8 @@
     off it and given thickness; they carry the body's weights exactly, and the body under them is masked away (no
     poke-through). Tops, shorts, boots, gloves, tights.
   - built pieces: a pleated skirt (a waist ring from the body's section, a hem by azimuth, pleats, panels, a patterned
-    hem), puffy sleeves, bands (cuffs, wristbands, waistbands, boot tops), a sailor collar, a bow.
+    hem), a hanging panel (an overskirt panel or tail hung from the waist ring at an azimuth), puffy sleeves, bands
+    (cuffs, wristbands, waistbands, boot tops), a sailor collar, a bow (with a tail length).
 Built pieces are weighted by construction (a skirt blends the hips into each thigh by side and height, as a skirt should).
 All sizes are in head lengths L unless noted. Each spec: {kind, name, color, ...kind's knobs}.
 """
@@ -239,6 +240,49 @@ def skirt(A, spec):
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=zw)
 
 
+def panel(A, spec):
+    """a panel hanging from the waist ring (an overskirt panel, a coat's tail): centred on azimuth `az` (degrees; 0 the
+    front, + toward her left, 180 the back), `width` L round the ring, `length` L down, spreading by `flare` degrees
+    away from the body as it falls and widening by `spread` (a share of its width) at the hem; lifted `offset` L off
+    the body's section at the waist (under a skirt: less than the skirt's). UV: u across 0 .. 1, v 0 at the waist .. 1
+    at the hem. Weights: the hips at the waist, its side's thigh taking over down its length (as the skirt's).
+    -> dict(verts, faces, weights, uv, z_waist)."""
+    L = A['head']['L']
+    hj = bone_seg(A, 'hips')[0]; sj = bone_seg(A, 'spine')[1]
+    zw = hj[2] + (sj[2] - hj[2]) * spec.get('waist', 0.5)
+    n_ring = 144
+    c, rad = body_section(A, zw, n=n_ring)
+    off = spec.get('offset', 0.02) * L
+    length = spec.get('length', 1.0) * L
+    fl = math.tan(math.radians(spec.get('flare', 30.0)))
+    a0 = math.radians(spec.get('az', 180.0))
+    cols, rows = spec.get('cols', 24), spec.get('rows', 16)
+    spread = spec.get('spread', 0.2)
+    r_mid = float(np.interp((a0 + math.pi) % (2 * math.pi), np.linspace(0, 2 * math.pi, n_ring, endpoint=False), rad,
+                            period=2 * math.pi)) + off
+    half = spec.get('width', 0.4) * L / 2 / max(1e-6, r_mid)          # radians either side at the waist
+    verts, uvs = [], []
+    for j in range(rows + 1):
+        v = j / rows
+        for i in range(cols + 1):
+            u = i / cols
+            a = a0 + (2 * u - 1) * half * (1 + spread * v)
+            k = ((a + math.pi) % (2 * math.pi)) / (2 * math.pi) * n_ring
+            r0 = float(np.interp(k, np.arange(n_ring), rad, period=n_ring)) + off
+            r = r0 + length * fl * v ** 0.85
+            z = zw - length * v * (1 - 0.12 * fl * v)
+            verts.append((c[0] + math.sin(a) * r, c[1] - math.cos(a) * r, z))
+            uvs.append((u, v))
+    faces = [(j * (cols + 1) + i, j * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i)
+             for j in range(rows) for i in range(cols)]
+    verts = np.array(verts)
+    vv = np.array([u[1] for u in uvs])
+    sx = np.clip(verts[:, 0] / (0.08 * L), -1, 1)
+    leg = 0.65 * vv ** 1.4
+    Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
+    return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=zw)
+
+
 def stepped_hem(n=1024, band=0.16, steps=6, step_h=0.045, repeat=10, panel=None, colors=((0.86, 0.42, 0.24),
                 (0.28, 0.20, 0.18)), pleats=0):
     """RGBA texture for a skirt: the body colour with a dark band along the hem (v = 1) whose top edge rises and falls in
@@ -371,7 +415,8 @@ def sleeve(A, spec):
 # ---------------------------------------------------------------------------------------------------------------------- bow
 def bow(A, spec):
     """a big ribbon bow on the chest: two puffy lobes (squashed, tapering into the knot, a soft fold down their face), a
-    rounded knot, two tails hanging out and down with notched ends. -> dict(verts, faces, weights, uv)."""
+    rounded knot, two tails hanging out and down with notched ends (`tail`: their length, a share of the size; 0.62).
+    -> dict(verts, faces, weights, uv)."""
     L = A['head']['L']
     sz = spec.get('size', 0.5) * L
     uc = bone_seg(A, 'upperChest'); ch = bone_seg(A, 'chest')
@@ -410,7 +455,7 @@ def bow(A, spec):
         vs, us = [], []
         for i in range(M + 1):
             s_ = i / M
-            p = c + np.array([sx * sz * (0.05 + 0.2 * s_), -0.01 * L * s_, -sz * (0.08 + 0.62 * s_)])
+            p = c + np.array([sx * sz * (0.05 + 0.2 * s_), -0.01 * L * s_, -sz * (0.08 + spec.get('tail', 0.62) * s_)])
             w = sz * (0.13 + 0.09 * s_)
             notch = sz * 0.10 if i == M else 0.0
             for (dx, dz, dy) in ((-w / 2, 0, -0.01 * L), (0, notch, -0.01 * L), (w / 2, 0, -0.01 * L),
@@ -657,6 +702,16 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
         elif k == 'bow':
             G = bow(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col)], uv=G['uv'])
+        elif k == 'panel':
+            G = panel(A, s)
+            if s.get('hem') == 'stepped':
+                tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
+                                  steps=s.get('steps', 6))
+                mats = [_toon_tex(nm, eyetex.to_blender_image(nm + '_tex', tex))]
+            else:
+                mats = [_toon(nm, col)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'])
+            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
         else:
             raise ValueError(k)
         sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
