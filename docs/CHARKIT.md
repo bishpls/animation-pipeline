@@ -159,7 +159,11 @@ changed in place) is uncacheable: it runs every time, and the trace and `CHARKIT
 restore the trace's own snapshot of the stage (the objects it added, their geometry hashes and health; the names and
 modifier stacks of those it changed) must equal the one stored with the entry, or the build starts over with every step
 run and the entry dropped (`CHARKIT_CACHE_RESTORE_FAILED`). `--cache verify` runs every step and compares it with the
-entry a lookup would have restored, flagging a key that missed an input (`CHARKIT_CACHE_STALE`).
+entry a lookup would have restored, flagging a key that missed an input (`CHARKIT_CACHE_STALE`; images are compared by
+their pixels' encoding, not the date Blender stamps into each PNG). Nothing is stored from a run that printed a traceback
+(a QA check that caught an error and reported SKIPPED: a full disk once did that to the model-sheet body check), from a
+build whose charkit sources changed while it ran, or with less than `CHARKIT_CACHE_MIN_FREE_GB` (2) left on the disk; a
+store that fails leaves the build running, uncached.
 
 Modes: `--cache on` (the default), `off` (or `--no-cache`), `refresh` (run and store everything), `stages` (restore the
 stages, run the products afresh on the restored scene), `verify`. `python -m charkit cache info | clear`; the cache
@@ -174,7 +178,9 @@ carry over), resets the scene to factory settings, and checks the datablock coun
 the worker's first clean state; a job that finds anything left over prints `CHARKIT_WORKER_LEAK` and the worker restarts
 itself in place afterwards. The worker is recorded in `charkit/out/worker/.pid.json` and each job in its output folder
 under the worker's pid (`python -m charkit ps`, `kill`); `stop` signals only that pid, after checking it is this
-checkout's worker. It saves Blender's start-up and keeps its render state warm between builds.
+checkout's worker. Each job takes a machine-wide build slot (`procs.acquire_slot`, with its memory check) and, after
+clearing its scene and collecting Python's garbage, gives it back: an idle worker holds no slot. It saves Blender's
+start-up and keeps its render state warm between builds; `worker status` shows its resident memory (IDLE_MEM).
 
 Tests: `charkit/tests/test_cache.py` (digests, recorded reads, the code closure, the file memo, invalidation by a code
 file, an input file or a spec key, and a restore onto a rebuilt upstream in Blender);
