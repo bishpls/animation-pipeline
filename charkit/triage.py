@@ -4,8 +4,9 @@ its evidence, and ranked into work items (docs/CHARKIT.md §4).
     python -m charkit triage DIR [--spec SPEC]     # DIR: a tune run's folder (tune.jsonl) or one build's (qa/qa.json)
 
 The classes (the first that applies; the others that also apply are listed as `also`):
-  measurement uncertain  the number itself is in doubt: the fast evaluator predicted a severity the build doesn't
-                         reproduce (or disagrees with the final build), the build didn't repeat, the check flags missing
+  measurement uncertain  the number itself is in doubt: the fast evaluator disagrees with the final build on it (a
+                         misprediction for a candidate only is listed, not the class), the build didn't repeat, the check
+                         flags missing
                          data or thin data ("few pixels"), or the value is within the error the check itself states (a
                          scale caution's percentage) or the reference's (the tune config's `uncertain`) of passing. A
                          standing caution alone is soft: listed, not the class
@@ -92,13 +93,23 @@ def movers(check, tables, knobs, spec):
             lo, hi = K.get('bounds') or t.get('bounds') or (None, None)
             from .fitters import get
             x = get(spec, K['path'], K.get('default')) if K.get('path') else t.get('value', t.get('x'))
+            # at a bound the outward step is clipped to no move: when the inward step worsens the check, the improving
+            # direction is past the bound (a blocked mover, its gain read off the inward side)
+            ab = t.get('at_bound') or (('upper' if _num(x) and hi is not None and x >= hi - 1e-9 else
+                                        'lower' if _num(x) and lo is not None and x <= lo + 1e-9 else None))
+            if d is None and ab == 'upper' and dm > NOISE and abs(dp) < NOISE:
+                d, dp = +1, -dm
+            elif d is None and ab == 'lower' and dp > NOISE and abs(dm) < NOISE:
+                d, dm = -1, -dp
             room = None
             if d is not None and _num(x) and lo is not None:
-                room = ((hi - x) if d > 0 else (x - lo)) / step
+                room = max(0.0, ((hi - x) if d > 0 else (x - lo)) / step)
             conf = []
             if d is not None:
                 for m, f in M.items():
-                    if m == check or m.split('.')[0] == check or m.endswith('.ours'):
+                    # conflicts over graded values only: a check's value (the worst of its graded parts), not its parts
+                    # (sheet_width.d90 is recorded, not graded)
+                    if m == check or '.' in m:
                         continue
                     a, b = f.get('at'), f.get('plus' if d > 0 else 'minus')
                     if not (_num(a) and _num(b)):
@@ -173,9 +184,12 @@ def uncertainty(check, c, ctx):
         strong.append('confidence %.2f' % c['confidence'])
     if _num(c.get('rows')) and c['rows'] < 8:
         strong.append('measured over %d rows only' % c['rows'])
-    if check in ctx.get('disagree', {}):
+    if check in ctx.get('agreement', {}):                   # at this build: the number the fit optimises isn't this one
+        p, b = ctx['agreement'][check]
+        strong.append('the fast evaluator reads %s here, the build %s' % (p, b))
+    elif check in ctx.get('disagree', {}):                  # at a candidate: the fitter's predictions for it are loose
         p, b = ctx['disagree'][check]
-        strong.append('the fast evaluator predicted %s, the build measured %s' % (p, b))
+        soft.append('the fast evaluator predicted %s for a candidate, its build measured %s' % (p, b))
     if check in ctx.get('nondeterministic', []):
         strong.append('the final build did not repeat the best checkpoint\'s value')
     if wo:
@@ -217,7 +231,9 @@ GENERIC = {'sheet', 'body', 'shape', 'front', 'back', 'three', 'quarter', 'profi
            'mid', 'lit', 'shade', 'ratio', 'span', 'run', 'eye', 'expr', 'palette', 'hair'}
 SYNONYMS = {'hem': ['skirt'], 'feet': ['height', 'heads_tall', 'leg'], 'top': ['height', 'heads_tall', 'crown'],
             'leg': ['leg', 'height'], 'sleeves': ['sleeve', 'puff'], 'boot': ['boot'], 'skin': ['skin', 'slim', 'hip'],
-            'outfit': ['garments'], 'neck': ['neck'], 'jaw': ['jaw', 'chin', 'low'], 'nose': ['nose'], 'chin': ['chin']}
+            'outfit': ['garments'], 'neck': ['neck'], 'jaw': ['jaw', 'chin', 'low'], 'nose': ['nose'], 'chin': ['chin'],
+            'orange': ['.color'], 'cream': ['panel_color', 'panel.color'], 'dark': ['hem_color', 'sole_color'],
+            'white': ['boots.color', 'shoe_L.color', 'shoe_R.color'], 'iris': ['iris.'], 'skin': ['skin.']}
 
 
 # ------------------------------------------------------------------------------------------------------------ classify
@@ -291,6 +307,11 @@ def classify(check, c, ctx):
             free = [m for m in imp if m not in blocked]
             clean = [m for m in free if not m['conflicts']]
             confl = [m for m in free if m['conflicts']]
+            if blocked and (not free or max(m['gain'] for m in blocked) >= max(m['gain'] for m in free)):
+                b = ', '.join('%s at its %s bound %s (%s)' % (m['knob'], 'upper' if m['dir'] > 0 else 'lower', m['bound'], m['x'])
+                              for m in blocked)
+                ev['bounds'] = [{'knob': m['knob'], 'bound': m['bound'], 'value': m['x'], 'gain': m['gain']} for m in blocked]
+                cands.append(('knob at a bound', 'the knob that would improve it most is at its range\'s end: %s' % b))
             if clean:
                 reach = sum(m['gain'] * (m['room'] if m['room'] is not None else 99) for m in clean)
                 in_obj = any(f.targets_of([check]) and f.landed for f in fitters if f.name in {m['fitter'] for m in clean})
@@ -512,17 +533,19 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
     fspec = json.load(open(sp)) if os.path.exists(sp) else spec
     fspec.setdefault('ref', spec.get('ref'))
     tables = {n: f.get('sensitivity') for n, f in (fits or {}).items() if f.get('sensitivity')}
-    disagree = {}
+    disagree, agree = {}, dict(agreement or {})
     for r in recs:
-        if r.get('event') in ('compare', 'validate'):
+        if r.get('event') == 'compare':
             disagree.update(r.get('disagree') or {})
-    disagree.update(agreement or {})
+        elif r.get('event') == 'validate':
+            agree.update(r.get('disagree') or {})
     accepted = {n: f.get('accepted') is not None for n, f in (fits or {}).items()}
     state = {n: ('accepted at ck%s' % f['accepted']) if f.get('accepted') is not None else f.get('status', 'not run')
              for n, f in (fits or {}).items()}
     ctx = {'fitters': fitters, 'spec': fspec, 'tables': tables, 'knobs': {f.name: f.knobs for f in fitters},
            'accepted': accepted, 'fit_state': state,
-           'records': recs, 'config': cfg, 'disagree': disagree, 'nondeterministic': list(nondeterministic),
+           'records': recs, 'config': cfg, 'disagree': disagree, 'agreement': agree,
+           'nondeterministic': list(nondeterministic),
            'inventory': FT.inventory(fspec), 'tickets': load_tickets(spec)}
     its = items(qa, ctx, bd)
     classes = {}

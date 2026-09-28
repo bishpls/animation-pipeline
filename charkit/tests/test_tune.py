@@ -126,7 +126,7 @@ class F(fitters.Fitter):
 
 def _ctx(spec, table, fitters_, recs=(), config=None, **kw):
     return dict({'fitters': fitters_, 'spec': spec, 'tables': {'face': table}, 'knobs': {f.name: f.knobs for f in fitters_},
-                 'records': list(recs), 'config': config or {}, 'disagree': {}, 'nondeterministic': [],
+                 'records': list(recs), 'config': config or {}, 'disagree': {}, 'agreement': {}, 'nondeterministic': [],
                  'inventory': fitters.inventory(spec)}, **kw)
 
 
@@ -180,6 +180,15 @@ def test_triage_reads_the_fitkit_schema():
     cls, detail, ev, _ = triage.classify('eye_pupil_aspect', {'value': 0.60, 'status': 'FAIL'}, ctx)
     assert cls == 'knob at a bound' and ev['bounds'][0]['bound'] == 0.30, (cls, detail)
     assert triage.movers('eye_lid_gap', {'face': table}, {}, spec) is None          # the table doesn't measure it
+    # at its upper bound the outward step is clipped (plus == at): the inward step worsening it says the fix is past the cap
+    nose = {'schema': 'charkit.sensitivity/1', 'knobs': {
+        'head.nose_tip': {'value': 0.04, 'step': 0.008, 'bounds': [0.0, 0.04], 'group': 'face', 'at_bound': 'upper',
+                          'measures': {'sheet_nose_reach': _m(-0.0413, -0.05, -0.0413), 'sheet_width.d90': _m(1.3, 1.1, 1.3)}},
+        'head.flat': {'value': 0.8, 'step': 0.06, 'bounds': [0.6, 1.3], 'group': 'face', 'at_bound': None,
+                      'measures': {'sheet_nose_reach': _m(-0.0413, -0.0440, -0.0400)}}}}
+    cls, detail, ev, _ = triage.classify('sheet_nose_reach', {'value': -0.0413, 'status': 'FAIL'}, _ctx({'name': 'x'}, nose, [face]))
+    assert cls == 'knob at a bound' and 'head.nose_tip' in detail, (cls, detail)
+    assert not any(c['check'].startswith('sheet_width') for m in ev['knobs'] for c in m['conflicts'])   # d90 isn't graded
 
 
 def test_options_and_partial_specs():
@@ -221,6 +230,12 @@ def test_triage_uncertain_and_built_evidence():
     assert cls == 'measurement uncertain' and 'stated error' in detail, (cls, detail)
     cls, _, _, _ = triage.classify('sheet_width', {'value': 0.80, 'status': 'FAIL', 'missing': 0.4}, ctx)
     assert cls == 'measurement uncertain'
+    # the evaluator off at a candidate only: listed; off at this build: the class
+    c2 = _ctx(spec, {}, [face], disagree={'eye_aspect': [0.87, 0.77]})
+    cls, _, _, also = triage.classify('eye_aspect', {'value': 0.74, 'status': 'FAIL'}, c2)
+    assert cls != 'measurement uncertain' and 'measurement uncertain' in also, (cls, also)
+    c3 = _ctx(spec, {}, [face], agreement={'eye_aspect': [0.87, 0.74]})
+    assert triage.classify('eye_aspect', {'value': 0.74, 'status': 'FAIL'}, c3)[0] == 'measurement uncertain'
     # a standing scale caution is soft, unless the check is within the error it states
     cau = "scale: the sheet's eye spacing reads +3.5% against its figure height (used)"
     cls, _, _, also = triage.classify('body_front_feet', {'value': -0.45, 'design': -5.19, 'status': 'FAIL', 'caution': cau}, ctx)

@@ -269,6 +269,8 @@ SECTIONS = [
     ('body_*_hem*', ['garments', 'outfit']), ('body_*_sleeves', ['garments', 'outfit']), ('body_*_boot', ['garments', 'outfit']),
     ('body_*', ['body', 'garments', 'outfit']), ('hair_*', ['hair']), ('expr_*', ['eyes', 'mouth', 'brows']),
     ('palette_skin_*', ['skin']), ('palette_hair_*', ['hair_colors']), ('palette_iris_*', ['iris']),
+    ('palette_orange_*', ['garments', 'outfit']), ('palette_cream_*', ['garments', 'outfit']),
+    ('palette_dark_*', ['garments', 'outfit']), ('palette_white_*', ['garments', 'outfit']),
     ('palette*', ['garments', 'outfit', 'accessories', 'skin', 'hair_colors', 'iris']),
 ]
 
