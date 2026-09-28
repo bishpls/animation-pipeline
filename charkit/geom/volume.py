@@ -526,6 +526,38 @@ def keep_components(G, largest=None, min_voxels=None, min_frac=None, connectivit
     return G.like(km)
 
 
+def weld(G, r, min_frac=0.02):
+    """bridge a part's separate pieces where they come within 2 r of the main one: the voxels within r of both become
+    solid (a local closing between pieces only; the gaps inside a piece, like pleats, are left alone). Pieces under
+    min_frac of the biggest are ignored. -> (Grid, pieces still apart)."""
+    from scipy import ndimage as ndi
+    from scipy.ndimage import distance_transform_edt as edt
+    occ = G.occupancy()
+    lab, n = ndi.label(occ, ndi.generate_binary_structure(3, 1))
+    if n < 2:
+        return G, 0
+    sizes = np.bincount(lab.ravel(), minlength=n + 1); sizes[0] = 0
+    order = np.argsort(-sizes)
+    main = lab == order[0]
+    d_main = edt(~main) * G.h
+    add = np.zeros(G.shape, bool)
+    apart = 0
+    for j in order[1:]:
+        if sizes[j] < min_frac * sizes[order[0]]:
+            break
+        dj = edt(lab != j) * G.h
+        bridge = (dj <= r) & (d_main <= r) & ~occ
+        if bridge.any():
+            add |= bridge
+        else:
+            apart += 1
+    if G.is_sdf:
+        D = G.data.copy()
+        D[add] = np.minimum(D[add], -0.5 * G.h)
+        return G.like(D), apart
+    return G.like(occ | add), apart
+
+
 def restrict(G, keep):
     """zero out (make outside) voxels where keep(points (N,3)) -> bool (N,) is False; `keep` may also be a bool array of the
     grid's shape."""

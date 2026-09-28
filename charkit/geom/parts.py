@@ -28,7 +28,7 @@ from . import io as gio, repair, smooth, volume
 from .mesh import Mesh, as_mesh, vertex_normals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-VERSION = 3                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
+VERSION = 4                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
 
 
 # ------------------------------------------------------------------------------------------------------------ the case
@@ -350,7 +350,8 @@ def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliv
     return dict(sdf=S, occ=grid.like(occ), stats=stats, grid=grid)
 
 
-FINISH_KW = ('target_edge', 'taubin_iters', 'remesh', 'decimate_to', 'envelope', 'close', 'blur', 'smooth_after', 'env_mix')
+FINISH_KW = ('target_edge', 'taubin_iters', 'remesh', 'decimate_to', 'envelope', 'close', 'blur', 'smooth_after', 'env_mix',
+             'min_part')
 
 
 def _poke_cover(grid, inside, outside, layer, centre, bin_deg=2.5, grow=2, exclude=None, debug=None):
@@ -385,7 +386,7 @@ def _poke_cover(grid, inside, outside, layer, centre, bin_deg=2.5, grow=2, exclu
 
 
 def finish(S, target_edge=None, taubin_iters=10, remesh=True, decimate_to=None, smooth_after=10, envelope=True,
-           close=None, blur=None, env_mix=0.0, verbose=True, name='part'):
+           close=None, blur=None, env_mix=0.0, min_part=0.01, verbose=True, name='part'):
     """a part's SDF grid to the final surface: marching cubes (closed, manifold), Taubin smoothing, an isotropic remesh to
     target_edge (default 2.5 h; or with remesh=False a quadric decimation to `decimate_to` faces), a last Taubin pass, any
     self-crossings (folds in features thinner than an edge) relaxed or cut out and refilled, and envelope normals (the part's solid closed by `close` and blurred by `blur`,
@@ -395,7 +396,7 @@ def finish(S, target_edge=None, taubin_iters=10, remesh=True, decimate_to=None, 
     t0 = time.time()
     h = S.h
     m = volume.to_mesh(S)
-    m = repair.remove_small_parts(m, keep_largest=1)
+    m = repair.remove_small_parts(m, min_area_frac=min_part)       # specks go; real separate pieces stay (and count)
     if verbose:
         print('  [%s] marching cubes: %d tris  %.1fs' % (name, m.nf, time.time() - t0))
     m = smooth.taubin(m, iters=taubin_iters)
@@ -650,6 +651,8 @@ def skirt(case, h=None, top=None, bottom=None, thick=None, hug=None, verbose=Tru
         sheet, info = surface_parts(case, reg, skin, hug=hug)
     r = 0.5 * (0.016 * L if thick is None else thick)
     S = volume.thicken(sheet, r, h=h)
+    # panels hanging side by side from the waistband come a few mm apart: bridged where they come close
+    S, apart = volume.weld(S, 1.5 * r)
     if verbose:
         print('  [skirt] %d parts kept of %d pieces (%d hugging faces out), sheet %d tris, grid %s  %.1fs' % (
             len(info['kept_parts']), len(info['pieces']), info['hugging_faces_dropped'], sheet.nf, S.shape,
@@ -660,7 +663,8 @@ def skirt(case, h=None, top=None, bottom=None, thick=None, hug=None, verbose=Tru
     fin.setdefault('target_edge', min(2.5 * h, 1.6 * r))      # edges no longer than the cloth is thick: no folds across it
     fin.setdefault('decimate_to', 60000)                       # then quadric decimation: the pleats are flat
     R = finish(S, verbose=verbose, name='skirt', **fin)
-    R.update(sdf=S, sheet=sheet, stats=dict(h=h, grid=list(S.shape), thick=2 * r, z_band=list(reg.z), top=round(float(top), 3), parts=info,
+    R.update(sdf=S, sheet=sheet, stats=dict(h=h, grid=list(S.shape), thick=2 * r, z_band=list(reg.z), top=round(float(top), 3),
+                                            pieces_not_welded=apart, parts=info,
                                             time_s=round(time.time() - t0, 1)))
     return R
 

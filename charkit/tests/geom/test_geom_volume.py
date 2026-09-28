@@ -87,6 +87,16 @@ def test_solid_of_a_hollow_shell_and_cavities():
     assert leak.voxel_volume() < 0.3 * SPHERE and abs(sealed.voxel_volume() - SPHERE) / SPHERE < 0.08
 
 
+def test_weld_bridges_close_pieces_only():
+    a = volume.sdf(pr.box((1, 1, 1), centre=(-0.53, 0, 0)), h=0.02)
+    b = volume.sdf(pr.box((1, 1, 1), centre=(0.53, 0, 0)), h=0.02)
+    far = volume.sdf(pr.box((0.5, 0.5, 0.5), centre=(2.0, 0, 0)), h=0.02)
+    two = volume.union(volume.union(a, b), far)
+    w, apart = volume.weld(two, 0.05)
+    assert volume.component_count(w) == 2 and apart == 1          # the near pair joined, the far box left alone
+    assert repair.report(volume.to_mesh(w), self_intersections=False)['shells'] == 2
+
+
 def test_thicken_sheet_and_components():
     sheet = pr.grid(10, 1.0)
     S = volume.thicken(sheet, 0.05, h=0.02)
