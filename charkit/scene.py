@@ -5,15 +5,23 @@ analytic volume, say), or render boards from the result.
     body+head -> face features -> face shading -> hair -> accessories -> garments -> (boards, export)
 
     from charkit import scene; S = scene.build(spec)     # inside Blender: S.character, S.hair, S.garments, ...
-    scene.boards(S, out, which=('views', 'expressions', 'mouths', 'body'))
+    scene.boards(S, out, which=('views', 'expressions', 'mouths', 'body'))     # expressions: EXPR and PRESETS
 """
 import json, os
 
 import numpy as np
 
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
-EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint']
-MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised']
+EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint', 'shock']
+MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised', 'laugh', 'wavy', 'yawn']
+# combined expressions: the eyes, mouth and brows together (the template's own; the model sheet's heads are matched to them
+# in charkit/exprqa.py, and a head none of them covers asks for a new one)
+PRESETS = {
+    'laugh': dict(eye='happy', mouth='laugh', brow='raise'),
+    'angry': dict(eye=None, mouth='frown', brow='angry'),
+    'fluster': dict(eye='shock', mouth='wavy', brow='surprised'),
+    'yawn': dict(eye='blink', mouth='yawn', brow='raise'),
+}
 
 
 class Scene:
@@ -349,7 +357,7 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
     """render the review boards into out/: head views (front .. back), the expression and mouth sets, full-body views."""
     import bpy
     from . import qa, trace
-    from .boards.face_board import set_expr, set_mouth
+    from .boards.face_board import set_expr, set_mouth, set_preset
     os.makedirs(out, exist_ok=True)
     sc = bpy.context.scene
     A = S.character['data']; eye_z = A['head']['eye_z']; L = A['head']['L']
@@ -384,6 +392,11 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
             p = os.path.join(out, f'expr_{e}.png'); made.append(p)
             shot(p, (0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, lens=85)
         set_expr(S.character, None)
+        for e in PRESETS:
+            set_preset(S.character, e)
+            p = os.path.join(out, f'preset_{e}.png'); made.append(p)
+            shot(p, (0, 0, eye_z - 0.12 * L), 0, 0.5, 0.0, lens=85)
+        set_preset(S.character, None)
     if 'mouths' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
         for m in MOUTH:

@@ -235,6 +235,10 @@ def build_eyes(A, arm, skin, spec, look=None):
             back = np.zeros((len(o.data.vertices), 3)); back[:, 1] = 0.006
             for name in ('blink', 'happy'):
                 _key(o, f'eye_{name}', back)
+        # expressions that scale the iris (a shocked eye's shrunken iris)
+        cz = eyetex._knobs(IK)['cz']
+        for name, s_ in eyelib.IRIS_SCALE.items():
+            _key(iob, f'eye_{name}', eyelib.iris_scale(E['iris'][0], E['iris'][2], cz, s_))
         lv, lq, lm, off = [], [], [], 0
         for k_, (rv, rq) in enumerate(E['lashes']):
             lv.append(rv); lq += [tuple(i + off for i in f) for f in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)

@@ -100,7 +100,7 @@ def sheets(spec, out):
     from .scene import EXPR, MOUTH
     ex = [os.path.join(b, f'expr_{e}.png') for e in EXPR]; mo = [os.path.join(b, f'mouth_{m}.png') for m in MOUTH]
     if all(os.path.exists(p) for p in ex + mo):
-        S = Image.new('RGB', (1800, 257 + 180), 'white')
+        S = Image.new('RGB', (max(257 * len(ex), 180 * len(mo)), 257 + 180), 'white')
         for i, p in enumerate(ex):
             S.paste(Image.open(p).convert('RGB').resize((257, 257)), (i * 257, 0))
         for i, p in enumerate(mo):

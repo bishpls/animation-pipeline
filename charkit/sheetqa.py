@@ -69,9 +69,10 @@ def _components(m):
     return sorted(out, key=lambda t: -t[0])
 
 
-def find_eyes(lab, box, n=2, facing=-1):
+def find_eyes(lab, box, n=2, facing=-1, max_tilt=None):
     """the iris blobs inside a head box (x0, y0, x1, y1) of a label image -> list of (x, y) pixel centroids, left to right
-    (the two largest, grown a little so a pupil doesn't split one; blobs under a tenth of the largest are left out)."""
+    (the two largest, grown a little so a pupil doesn't split one; blobs under a tenth of the largest are left out).
+    max_tilt: a pair must lie within this slope (dy / dx) of level (a hair ornament beside one eye is not a pair)."""
     x0, y0, x1, y1 = box
     y1 = y0 + int(0.62 * (y1 - y0))                          # eyes sit in the head box's upper part (not the collar)
     m = lab[y0:y1, x0:x1] == 3
@@ -91,7 +92,7 @@ def find_eyes(lab, box, n=2, facing=-1):
         for j in range(i + 1, len(cents)):
             a, b = cents[i], cents[j]
             dx, dy = abs(a[0] - b[0]), abs(a[1] - b[1])
-            if not (0.1 * bw <= dx <= 0.6 * bw):
+            if not (0.1 * bw <= dx <= 0.6 * bw) or (max_tilt is not None and dy > max_tilt * dx):
                 continue
             sc = dy / dx + abs(np.log(a[2] / b[2]))
             if sc < score:
@@ -317,3 +318,289 @@ def sheet_ppl(sheet_rgb, front_box, rig_alpha, rig_ppl):
     """the sheet's pixels per head length from its front figure's height against the design rig's (the same drawing at a
     known scale): far steadier than the sheet's few-pixel eye spacing."""
     return rig_ppl * figure_height(sheet_rgb, box=front_box) / figure_height(alpha=rig_alpha)
+
+
+# ------------------------------------------------------------------------------------------------------ figure detection
+def label(m):
+    """4-connected components of a bool mask (row runs joined by a union-find; pure numpy and python, fast enough for a
+    whole sheet) -> (labels (H, W) int, 0 = background, n)."""
+    H, W = m.shape
+    pad = np.zeros((H, W + 2), np.int8); pad[:, 1:-1] = m
+    d = np.diff(pad, axis=1)
+    rs, cs = np.nonzero(d == 1)
+    _, ce = np.nonzero(d == -1)                              # row-major: starts and ends pair up
+    n = len(rs)
+    out = np.zeros((H, W), np.int32)
+    if not n:
+        return out, 0
+    parent = np.arange(n)
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+    first = np.searchsorted(rs, np.arange(H + 1))
+    for r in range(H - 1):
+        i, i1, j, j1 = first[r], first[r + 1], first[r + 1], first[r + 2]
+        while i < i1 and j < j1:
+            if cs[i] < ce[j] and cs[j] < ce[i]:
+                a, b = find(i), find(j)
+                if a != b:
+                    parent[max(a, b)] = min(a, b)
+            if ce[i] < ce[j]:
+                i += 1
+            else:
+                j += 1
+    roots = np.array([find(i) for i in range(n)])
+    _, ids = np.unique(roots, return_inverse=True)
+    ids = ids + 1
+    ln = ce - cs
+    rows = np.repeat(rs, ln)
+    cols = np.repeat(cs, ln) + (np.arange(ln.sum()) - np.repeat(np.cumsum(ln) - ln, ln))
+    out[rows, cols] = np.repeat(ids, ln)
+    return out, int(ids.max())
+
+
+def boxes(lab, n):
+    """per component 1..n: (x0, y0, x1, y1) (x1, y1 exclusive) and its area -> (n, 4) int array, (n,) areas."""
+    ys, xs = np.nonzero(lab)
+    k = lab[ys, xs] - 1
+    B = np.zeros((n, 4), int)
+    B[:, 0] = B[:, 1] = 1 << 30
+    np.minimum.at(B[:, 0], k, xs); np.minimum.at(B[:, 1], k, ys)
+    np.maximum.at(B[:, 2], k, xs + 1); np.maximum.at(B[:, 3], k, ys + 1)
+    return B, np.bincount(k, minlength=n)
+
+
+def background(rgb):
+    """the sheet's paper colour: the median of its border."""
+    b = np.concatenate([rgb[:4].reshape(-1, 3), rgb[-4:].reshape(-1, 3), rgb[:, :4].reshape(-1, 3), rgb[:, -4:].reshape(-1, 3)])
+    return np.median(b, 0)
+
+
+def foreground(rgb, bg=None, thr=0.12, paper=0.012):
+    """what is drawn: pixels away from the paper colour, with the regions they enclose filled (white boots on white
+    paper), except enclosed paper (the gap between an arm and the body: within `paper` of the paper colour)."""
+    bg = background(rgb) if bg is None else bg
+    fg = np.abs(rgb - bg).sum(-1) > thr
+    holes, n = label(~fg)
+    if n:
+        B, area = boxes(holes, n)
+        H, W = fg.shape
+        edge = (B[:, 0] == 0) | (B[:, 1] == 0) | (B[:, 2] == W) | (B[:, 3] == H)
+        ys, xs = np.nonzero(holes)
+        k = holes[ys, xs] - 1
+        mean = np.stack([np.bincount(k, rgb[ys, xs, c], n) for c in range(3)], 1) / np.maximum(area, 1)[:, None]
+        fill = ~edge & (np.abs(mean - bg).max(1) > paper)
+        fg = fg | fill[np.maximum(holes - 1, 0)] & (holes > 0)
+    return fg
+
+
+# the head box convention (the framing the manifest's hand-typed boxes use, reproduced within 2 px on Clawd's sheet): a
+# square `size` L on a side, its top `above` L over the eye line; across, centred on the head's axis, `back` L toward the
+# back of the head (the sheet's facing). The axis: the eyes' midpoint from the front; `axis` L behind the eyes in a turned
+# view (a drawn 3/4 keeps its eyes as far forward as the profile does, whatever its eye spacing says); the silhouette's
+# centre round the eye line from the back
+HEAD_BOX = dict(size=1.74, above=0.77, back=0.04, axis=0.27, band=0.2)
+FIGURE_MIN = 0.002                  # blobs under this share of the sheet are specks (a boot's shadow, a sweat drop)
+
+
+def _row_centre(mask, y0, y1):
+    """the median over rows y0..y1 of each row's silhouette centre (midway between its first and last pixel)."""
+    c = []
+    for r in range(max(0, y0), min(mask.shape[0], y1)):
+        xs = np.nonzero(mask[r])[0]
+        if len(xs):
+            c.append((xs[0] + xs[-1]) / 2)
+    return float(np.median(c)) if c else None
+
+
+def head_box(mask, eye_y, ppl, facing=-1, eyes_x=None, turned=False):
+    """a figure's head box [x0, y0, x1, y1] by HEAD_BOX from its silhouette mask, eye line, eyes' columns and scale."""
+    K = HEAD_BOX
+    if eyes_x:
+        c = float(np.mean(eyes_x)) - (facing * K['axis'] * ppl if turned else 0.0)
+    else:
+        c = _row_centre(mask, int(eye_y - K['band'] * ppl), int(eye_y + K['band'] * ppl) + 1)
+    c -= facing * K['back'] * ppl
+    half = K['size'] * ppl / 2
+    y0 = eye_y - K['above'] * ppl
+    return [int(round(c - half)), int(round(y0)), int(round(c + half)), int(round(y0 + 2 * half))]
+
+
+def detect_figures(rgb, ppl=None, eye_x=0.168, facing=None):
+    """the figures on a model sheet, found from the picture: the full figures (front, three_quarter, profile, back: each
+    with its box, its head box by HEAD_BOX, its eyes and eye line) and the expression heads (left to right), hand studies
+    and specks left out. rgb (H, W, 3) floats; ppl: the sheet's pixels per head length when known (sheet_ppl), else from
+    the front figure's eye spacing (2 * eye_x L; +-4% on a small sheet); facing: the side views' direction, else found.
+
+    A blob is a full figure when it is at least half as tall as the tallest; a head when it carries the hair's colour; else
+    it is skipped (hands). Views: two eyes (a level pair) and a silhouette centred on them = front, off-centre =
+    three_quarter; one eye = profile (facing the side its eye is on); none, mostly hair on top = back.
+    -> dict(size, bg, ppl, scale, facing, figures {view: {...}}, expressions [...], skipped [...], _fg, _blobs)."""
+    H, W, _ = rgb.shape
+    bg = background(rgb)
+    fg = foreground(rgb, bg)
+    blobs, n = label(fg)
+    B, area = boxes(blobs, n)
+    lab = classes(rgb)
+    keep = [i for i in range(n) if area[i] >= FIGURE_MIN * H * W]
+    tall = max(B[i, 3] - B[i, 1] for i in keep)
+    lowest = max(B[i, 3] for i in keep if B[i, 3] - B[i, 1] >= 0.5 * tall)
+    figs, heads, skipped = [], [], []
+    for i in keep:
+        x0, y0, x1, y1 = (int(v) for v in B[i])
+        m = blobs == i + 1
+        info = dict(box=[x0, y0, x1, y1], _mask=m, area=int(area[i]))
+        if y1 - y0 >= 0.5 * tall:
+            band = (x0, y0, x1, int(y0 + 0.4 * tall))                   # the head: eyes in its upper part
+            e2 = find_eyes(lab, band, 2, max_tilt=0.25)
+            e1 = find_eyes(lab, band, 1) if not e2 else []
+            hair = float(((lab == 2) & m)[y0:int(y0 + 0.25 * tall)].sum() / max(1, m[y0:int(y0 + 0.25 * tall)].sum()))
+            info.update(eyes=e2 or e1, hair_share=round(hair, 3))
+            figs.append(info)
+        else:
+            sub = m[y0:y1, x0:x1]
+            hair = float((lab[y0:y1, x0:x1][sub] == 2).mean())
+            if hair < 0.15:
+                skipped.append(dict(box=[x0, y0, x1, y1], why='no hair (%.2f of it): a hand study or a prop' % hair))
+                continue
+            info.update(eyes=find_eyes(lab, (x0, y0, x1, y1), 2, max_tilt=0.25), hair_share=round(hair, 3))
+            heads.append(info)
+    # the scale: given, or the front figure's eye spacing (the most symmetric two-eyed figure)
+    two = [f for f in figs if len(f['eyes']) == 2]
+    for f in two:
+        ex = [e[0] for e in f['eyes']]
+        ey = float(np.mean([e[1] for e in f['eyes']]))
+        c = _row_centre(f['_mask'], int(ey - 20), int(ey + 21))
+        f['_off'] = (c - np.mean(ex)) / max(1.0, abs(ex[1] - ex[0]))     # silhouette centre off the eyes, in eye spacings
+    front = min(two, key=lambda f: abs(f['_off'])) if two else None
+    scale = 'given'
+    if ppl is None:
+        if front is None:
+            raise RuntimeError('no two-eyed figure to scale the sheet by: pass ppl')
+        ppl = abs(front['eyes'][1][0] - front['eyes'][0][0]) / (2 * eye_x)
+        scale = 'eyes'
+    # views
+    out = dict(size=[W, H], bg=[round(float(v), 4) for v in bg], ppl=round(float(ppl), 2), scale=scale, figures={},
+               expressions=[], skipped=skipped, _fg=fg, _blobs=blobs, _lab=lab)
+    named = []
+    for f in figs:
+        e = f['eyes']
+        if len(e) == 2:
+            view = 'front' if f is front and abs(f['_off']) < 0.5 else 'three_quarter'
+        elif len(e) == 1:
+            view = 'profile'
+        elif f['hair_share'] > 0.5:
+            view = 'back'
+        else:
+            skipped.append(dict(box=f['box'], why='a full figure with no eyes and little hair on top'))
+            continue
+        named.append((view, f))
+    fy = front and float(np.mean([e[1] for e in front['eyes']])) - front['box'][1]    # the eye line under the figure's top
+    side = [f for v, f in named if v in ('profile', 'three_quarter')]
+    if facing is None:                                                  # the side views' eyes lie toward their face
+        votes = [np.sign(np.mean([e[0] for e in f['eyes']]) - _row_centre(f['_mask'], int(f['eyes'][0][1] - 20),
+                                                                          int(f['eyes'][0][1] + 21))) for f in side]
+        facing = int(np.sign(np.sum(votes))) or -1
+    out['facing'] = facing
+    for view, f in sorted(named, key=lambda t: t[1]['box'][0]):
+        name = view if view not in out['figures'] else '%s_%d' % (view, sum(k.startswith(view) for k in out['figures']) + 1)
+        e = f['eyes']
+        if e:
+            eye_y = float(np.mean([p[1] for p in e]))
+        else:
+            eye_y = f['box'][1] + (fy if fy is not None else 0.16 * (f['box'][3] - f['box'][1]))
+        rec = dict(box=f['box'], head=head_box(f['_mask'], eye_y, ppl, facing, [p[0] for p in e], view != 'front'),
+                   eyes=[[round(a, 2), round(b, 2)] for a, b in e], eye_y=round(eye_y, 2),
+                   partial=bool(f['box'][3] < lowest - 0.1 * tall),
+                   bottom_L=round((f['box'][3] - eye_y) / ppl, 3), _mask=f['_mask'])
+        if view == 'back':
+            rec['axis_x'] = round(_row_centre(f['_mask'], int(eye_y - 20), int(eye_y + 21)), 2)
+        out['figures'][name] = rec
+    # the expression heads, left to right: eye line from open eyes, else where the open-eyed heads have it
+    rel = [(float(np.mean([e[1] for e in h['eyes']])) - h['box'][1]) / (h['box'][3] - h['box'][1]) for h in heads if h['eyes']]
+    rel = float(np.median(rel)) if rel else 0.58
+    fw = None
+    if front is not None:                                               # the front figure's head width at its eyes
+        ey = float(np.mean([e[1] for e in front['eyes']]))
+        fw = _band_width(front['_mask'], ey, ppl)
+    for h in sorted(heads, key=lambda h: h['box'][0]):
+        x0, y0, x1, y1 = h['box']
+        e = h['eyes']
+        eye_y = float(np.mean([p[1] for p in e])) if e else y0 + rel * (y1 - y0)
+        axis = _row_centre(h['_mask'], int(eye_y - 0.2 * ppl), int(eye_y + 0.2 * ppl) + 1)
+        hw = _band_width(h['_mask'], eye_y, ppl)
+        hp = ppl * hw / fw if fw else ppl                                # drawn at its own scale: by its head's width
+        rec = dict(box=h['box'], eyes=[[round(a, 2), round(b, 2)] for a, b in e], eye_y=round(eye_y, 2),
+                   eye_y_from=('eyes' if e else 'heads'), axis_x=round(axis, 2), ppl=round(hp, 2), _mask=h['_mask'])
+        if len(e) == 2:
+            rec['ppl_eyes'] = round(abs(e[1][0] - e[0][0]) / (2 * eye_x), 2)
+        rec['head'] = head_box(h['_mask'], eye_y, hp, facing, [p[0] for p in e] or [axis])
+        out['expressions'].append(rec)
+    return out
+
+
+def _band_width(mask, eye_y, ppl, band=0.2):
+    """a head's silhouette width round its eye line: the median row width over +-band L."""
+    w = []
+    for r in range(int(eye_y - band * ppl), int(eye_y + band * ppl) + 1):
+        xs = np.nonzero(mask[r])[0] if 0 <= r < mask.shape[0] else []
+        if len(xs):
+            w.append(xs[-1] - xs[0] + 1)
+    return float(np.median(w)) if w else None
+
+
+def manifest_figures(D, pad=8):
+    """a detect_figures result as a manifest's `figures` (references.sheet.figures): the front figure's region (its box
+    padded, so its border is paper), the head boxes of the front, three-quarter and profile views, the facing; plus the
+    back's and the expression heads' boxes."""
+    W, H = D['size']
+    F = D['figures']
+    fb = F['front']['box']
+    out = {'front_figure': [max(0, fb[0] - pad), max(0, fb[1] - pad), min(W, fb[2] + pad), min(H, fb[3] + pad)],
+           'heads': {v: F[v]['head'] for v in ('front', 'three_quarter', 'profile') if v in F},
+           'facing': D['facing']}
+    extra = {v: {'box': F[v]['box'], 'head': F[v]['head']} for v in F}
+    out['figures'] = extra
+    out['expressions'] = [{'box': e['box'], 'head': e['head']} for e in D['expressions']]
+    return out
+
+
+def verify_figures(D, figures, tol=5):
+    """detected head boxes against a manifest's (hand-typed) ones -> {view: {'detected', 'typed', 'off' (max |px|), 'ok'}}."""
+    out = {}
+    for v, typed in (figures.get('heads') or {}).items():
+        det = D['figures'].get(v, {}).get('head')
+        if det is None:
+            out[v] = {'typed': typed, 'detected': None, 'ok': False}
+            continue
+        off = int(max(abs(a - b) for a, b in zip(det, typed)))
+        out[v] = {'typed': list(typed), 'detected': det, 'off': off, 'ok': off <= tol}
+    return out
+
+
+def figures_picture(rgb, D):
+    """the sheet with what detect_figures found: figure boxes blue, head boxes green, expression heads orange, skipped
+    blobs grey, eyes red (row 0 = top)."""
+    im = rgb.copy() * 0.85 + 0.15
+
+    def rect(b, c, t=2):
+        x0, y0, x1, y1 = (int(v) for v in b)
+        H, W = im.shape[:2]
+        x0, x1, y0, y1 = max(0, x0), min(W - 1, x1), max(0, y0), min(H - 1, y1)
+        im[y0:y0 + t, x0:x1] = c; im[y1 - t + 1:y1 + 1, x0:x1] = c
+        im[y0:y1, x0:x0 + t] = c; im[y0:y1, x1 - t + 1:x1 + 1] = c
+    for v, f in D['figures'].items():
+        rect(f['box'], (0.15, 0.3, 0.95)); rect(f['head'], (0.1, 0.7, 0.2))
+        for x, y in f['eyes']:
+            im[int(y) - 2:int(y) + 3, int(x) - 2:int(x) + 3] = (0.95, 0.1, 0.1)
+        im[int(f['eye_y']), f['box'][0]:f['box'][2]:3] = (0.95, 0.1, 0.1)
+    for e in D['expressions']:
+        rect(e['box'], (0.95, 0.55, 0.1)); rect(e['head'], (0.1, 0.7, 0.2), 1)
+        for x, y in e['eyes']:
+            im[int(y) - 2:int(y) + 3, int(x) - 2:int(x) + 3] = (0.95, 0.1, 0.1)
+        im[int(e['eye_y']), e['box'][0]:e['box'][2]:3] = (0.95, 0.1, 0.1)
+    for s in D['skipped']:
+        rect(s['box'], (0.5, 0.5, 0.5))
+    return np.clip(im, 0, 1)
