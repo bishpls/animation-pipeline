@@ -261,15 +261,15 @@ SECTIONS = [
     ('sheet_*', ['head', 'body.proportions.neck_w', 'body.proportions.neck_len']),
     ('face_shape_*', ['head', 'body.proportions.neck_w']),
     ('eye_*', ['eyes', 'iris']),
-    ('shape_iou_hair', ['hair', 'accessories']), ('shape_iou*', ['body', 'hair', 'garments', 'accessories']),
-    ('ref_iou', ['body', 'hair', 'garments', 'accessories']),
-    ('scalp_px', ['hair']), ('hair_noise', ['hair.shape']), ('poke_share', ['garments']),
+    ('shape_iou_hair', ['hair', 'accessories']), ('shape_iou*', ['body', 'hair', 'garments', 'outfit', 'accessories']),
+    ('ref_iou', ['body', 'hair', 'garments', 'outfit', 'accessories']),
+    ('scalp_px', ['hair']), ('hair_noise', ['hair.shape']), ('poke_share', ['garments', 'outfit']),
     ('face_folds', ['base']), ('face_*', ['eyes', 'mouth', 'brows']),
-    ('body_*_iou_hair', ['hair']), ('body_*_hair_*', ['hair']), ('body_*_skirt_width', ['garments']),
-    ('body_*_hem*', ['garments']), ('body_*_sleeves', ['garments']), ('body_*_boot', ['garments']),
-    ('body_*', ['body', 'garments']), ('hair_*', ['hair']), ('expr_*', ['eyes', 'mouth', 'brows']),
+    ('body_*_iou_hair', ['hair']), ('body_*_hair_*', ['hair']), ('body_*_skirt_width', ['garments', 'outfit']),
+    ('body_*_hem*', ['garments', 'outfit']), ('body_*_sleeves', ['garments', 'outfit']), ('body_*_boot', ['garments', 'outfit']),
+    ('body_*', ['body', 'garments', 'outfit']), ('hair_*', ['hair']), ('expr_*', ['eyes', 'mouth', 'brows']),
     ('palette_skin_*', ['skin']), ('palette_hair_*', ['hair_colors']), ('palette_iris_*', ['iris']),
-    ('palette*', ['garments', 'accessories', 'skin', 'hair_colors', 'iris']),
+    ('palette*', ['garments', 'outfit', 'accessories', 'skin', 'hair_colors', 'iris']),
 ]
 
 

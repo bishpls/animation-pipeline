@@ -318,7 +318,7 @@ class BodyFitter(Fitter):
     name = 'body'
     branch = 'tool/bodyfit'
     targets = ('shape_iou', 'shape_iou_*', 'ref_iou', 'body_*', 'palette_*', 'scalp_px', 'poke_share')
-    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'hair.*', 'garments.*', 'accessories.*',
+    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'hair.*', 'garments.*', 'outfit.*', 'accessories.*',
             'skin.*', 'hair_colors.*', 'lash_color', 'brow_color', 'iris.top', 'iris.mid', 'iris.bottom', 'iris.ring',
             'iris.pupil')
 
