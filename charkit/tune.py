@@ -531,7 +531,9 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                         sp = FT.with_block(start(best), res['spec'], F.knobs, blk,
                                            os.path.join(fdir, '%s.%s.json' % (name, blk)))
                         ck = checkpoint('%s-%s' % (F.name, blk), sp, res.get('args', best['args']))
-                        if compare(best, ck, res)['verdict'] == 'accept':
+                        # the fit's 'after' is for all its blocks: only its 'before' can be held against this build
+                        part = dict(res, predicted={k: [b, None] for k, (b, a) in (res.get('predicted') or {}).items()})
+                        if compare(best, ck, part)['verdict'] == 'accept':
                             best = ck
                             fits[F.name]['accepted'] = ck['id']
                             last_input[F.name] = ck['id']

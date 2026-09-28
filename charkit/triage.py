@@ -126,7 +126,8 @@ def build_evidence(recs, check):
             s0 = checks.severity(check, mine['base'][0], mine['base'][1])
             s1 = checks.severity(check, mine['cand'][0], mine['cand'][1])
             others = [g for g in r['regressed'] if g['check'] != check]
-            if s0 is not None and s1 is not None and s0 - s1 > NOISE and others:
+            # a real gain only: a quarter of a warn band, or a tenth of how far it was from passing
+            if s0 is not None and s1 is not None and s0 - s1 >= max(0.25, 0.1 * s0) and others:
                 conflicts.append({'checkpoint': r['checkpoint'], 'label': labels.get(r['checkpoint'], r.get('label')),
                                   'against': r['against'], 'gain': [mine['base'], mine['cand']],
                                   'regressed': [[g['check'], g['base'], g['cand']] for g in others]})

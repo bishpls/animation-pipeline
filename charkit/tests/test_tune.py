@@ -224,6 +224,9 @@ def test_triage_uncertain_and_built_evidence():
              'rows': [{'check': 'sheet_width', 'base': [0.80, 'FAIL'], 'cand': [0.95, 'PASS'], 'verdict': 'improved'}],
              'regressed': [{'check': 'eye_width', 'base': [1.0, 'PASS'], 'cand': [0.85, 'WARN'], 'verdict': 'regressed'}]}]
     recs.insert(0, {'event': 'checkpoint', 'id': 3, 'label': 'face'})
+    # a trivial gain in the same rejected move is no evidence of a trade-off
+    tiny = [dict(recs[1], rows=[{'check': 'sheet_width', 'base': [0.80, 'FAIL'], 'cand': [0.801, 'FAIL'], 'verdict': 'value'}])]
+    assert triage.build_evidence(tiny, 'sheet_width') == ([], [])
     cls, detail, ev, _ = triage.classify('sheet_width', {'value': 0.80, 'status': 'FAIL'}, _ctx(spec, {}, [face], recs))
     assert cls == 'trade-off' and 'eye_width PASS -> WARN' in detail and '(face)' in detail and ev['built_conflicts'], (cls, detail)
 
