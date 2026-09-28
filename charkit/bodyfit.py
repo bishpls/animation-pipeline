@@ -188,16 +188,21 @@ def tie(K, spec, graph):
 
 
 # ------------------------------------------------------------------------------------------------------------ terms
+GONE = 8.0                      # a term whose check stops measuring (a skirt width the arms hide): the gate reads a check
+                                # that disappears as a failure, so it costs more than any reading of it
+
+
 class Term(fitkit.Term):
     """fitkit.Term with one more reading, 'hold' (floor = (target, start value)): no further from its target than at the
-    start, max(0, |v - target| - |v0 - target|) / tol (a check another fit owns, kept)."""
+    start, max(0, |v - target| - |v0 - target|) / tol (a check another fit owns, kept); and a check that stops measuring
+    reads GONE, not fitkit.MISSING (the fit only keeps terms its start measures)."""
 
     def residual(self, checks):
+        if self.value(checks) is None:
+            return GONE, None
         if self.kind != 'hold':
             return super().residual(checks)
         v = self.value(checks)
-        if v is None:
-            return fitkit.MISSING, None
         t, v0 = self.floor
         return float(max(0.0, abs(v - t) - abs(v0 - t)) / self.tol), v
 
@@ -251,9 +256,10 @@ FACE_HOLD = {'sheet_width': 1.0, 'sheet_neck_to_jaw': 1.0, 'sheet_profile': 0.0,
              'sheet_nose_reach': 0.0, 'sheet_chin_reach': 0.0, 'sheet_cheek': 0.0, 'sheet_cheek_chin': 0.0}
 
 
-def hold_terms(before):
+def hold_terms(before, groups=('body', 'details', 'hair')):
     """the face's model-sheet checks (the face fit's; the body fit mustn't move them away from their targets): a
-    'hold' term per check at its start value, a tenth of its tolerance, in the body's group."""
+    'hold' term per check at its start value, a tenth of its tolerance, in every group (the collar can cover the neck
+    row the neck-to-jaw check reads)."""
     from .sheetqa import LIMITS as S
     lim = {'sheet_width': 'width', 'sheet_neck_to_jaw': 'width', 'sheet_profile': 'profile', 'sheet_profile_chin': 'chin',
            'sheet_nose_reach': 'reach', 'sheet_chin_reach': 'reach', 'sheet_cheek': 'cheek', 'sheet_cheek_chin': 'chin'}
@@ -261,8 +267,9 @@ def hold_terms(before):
     for k, target in FACE_HOLD.items():
         v0 = (before.get(k) or {}).get('value')
         if isinstance(v0, (int, float)):
-            T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', 'body', (target, v0),
-                          weight=1.0))
+            for g in groups:
+                T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', g, (target, v0),
+                              weight=1.0))
     return T
 
 
@@ -290,13 +297,14 @@ PIECE_GROUP = {'skirt': 'skirt', 'overskirt panel': 'skirt', 'shorts': 'skirt', 
                'waistband': 'details', 'collar': 'details', 'bow': 'details', 'sleeve': 'details', 'sleeve cuff': 'details',
                'cuff': 'details'}
 PIECE_TOL = 0.10                # L: a piece's extent edge against the outfit graph's
-PIECE_MIN_PX = 150              # a view where the piece shows fewer pixels (either side) is left out
+PIECE_MIN_PX = 150              # a view where the piece shows fewer pixels (either side) is left out, and one where one
+PIECE_PX_RATIO = 2.5            # side shows it this many times more: its extent is then what hides it, not its own
 
 
 def piece_terms(extents, graph):
     """per-piece extent terms (bodymeasure.piece_checks' names): each mapped piece's four bbox edges in every view it
-    shows in, against the outfit graph (the authority for the outfit's pieces), the piece's views sharing one view's
-    weight. The arms' pieces (sleeves, cuffs) are also terms of the body (its rest pose moves them). The top is left out
+    shows in comparably on both sides (PIECE_MIN_PX, PIECE_PX_RATIO), against the outfit graph (the authority for the
+    outfit's pieces), the piece's views sharing one view's weight. The arms' pieces (sleeves, cuffs) are also terms of the body (its rest pose moves them). The top is left out
     (ours carries its bodice panel, the graph draws them apart)."""
     from .bodymeasure import EDGES
     types = {p['id']: p['type'] for p in graph['pieces']}
@@ -305,7 +313,7 @@ def piece_terms(extents, graph):
         g = PIECE_GROUP.get(types.get(pid))
         if g is None:
             continue
-        vs = {v: r for v, r in vs.items() if min(r['px']) >= PIECE_MIN_PX}
+        vs = {v: r for v, r in vs.items() if min(r['px']) >= PIECE_MIN_PX and max(r['px']) <= PIECE_PX_RATIO * min(r['px'])}
         for v in vs:
             for e in EDGES:
                 name = 'piece_%s_%s_%s' % (pid, v, e)
@@ -423,7 +431,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
         if graph is not None:
             T += piece_terms({k[6:]: v for k, v in _extents(at_start).items()}, graph)
         T = _grouped([t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] +
-                     hold_terms(before))
+                     hold_terms(protected))
         rep.update(declare={'knobs': {k.name: k.declare() for k in K}, 'terms': [t.declare() for t in T]},
                    outfit_start=drafted)
         log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
@@ -445,6 +453,25 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
             rep['groups'][g] = {k: v for k, v in info.items() if k != 'history'}
             rep['groups'][g]['cost_history'] = [h['cost'] for h in info['history']]
             log('bodyfit: %s %s' % (g, info['fitted']))
+        # the repair: a check that reads worse than at the start (or in the baseline) has its terms weighed REPAIR
+        # times and their groups fitted again from where they are (fitkit's protection is soft: many terms can outvote
+        # one)
+        rep['repair'] = {}
+        for rnd in range(REPAIR_ROUNDS):
+            now = pool.map([(fitted, 'all', True)])[0]
+            reg = fitkit.regressions(protected, now, lambda c: not c.startswith('piece_'))
+            if not reg:
+                break
+            log('bodyfit: repair %d: %s' % (rnd + 1, reg))
+            for g in [g for g in groups if any(t.group == g and t.check in reg for t in T)]:
+                Tr = [copy.copy(t) for t in T]
+                for t in Tr:
+                    if t.check in reg:
+                        t.weight = REPAIR * (t.weight if t.weight is not None else 1.0)
+                fitted, info = fitkit.optimise(pool, fitted, K, Tr, g, authority, budget=REPAIR_BUDGET,
+                                               baseline=protected, log=log)
+                rep['repair']['%s_%d' % (g, rnd + 1)] = {k: v for k, v in info.items() if k != 'history'}
+                log('bodyfit: repaired %s %s' % (g, info['fitted']))
         # the checks the fit doesn't aim at (the face's, the expressions, folds, scalp, ...) mustn't read worse: each
         # group's change is scaled back while one does
         aimed = {t.check for t in T if t.kind != 'hold'}
@@ -483,6 +510,9 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
 
 
 WORKERS = 2                     # evaluator processes (each holds an evaluator: about 1.5 GB; the machine is shared)
+REPAIR = 16.0                   # a regressed check's terms weigh this many times more in the repair
+REPAIR_ROUNDS = 2
+REPAIR_BUDGET = 120
 
 
 def _extents(checks):

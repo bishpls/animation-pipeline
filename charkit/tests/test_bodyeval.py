@@ -238,7 +238,7 @@ def test_fit_terms_and_paired_knobs():
     t = bodyfit._iou_term('x', (0.85, 0.70), 'body_silhouette', 'sheet', 'front', 'body')
     assert abs(t.residual({'x': {'value': 0.55, 'status': 'FAIL'}})[0] - 3.0) < 1e-9          # (1 - 0.55) / 0.15
     assert abs(t.residual({'x': {'value': 0.85, 'status': 'PASS'}})[0] - 1.0) < 1e-9          # the PASS line at 1
-    assert abs(t.warn - 2.0) < 1e-9 and t.residual({})[0] == fitkit.MISSING
+    assert abs(t.warn - 2.0) < 1e-9 and t.residual({})[0] == bodyfit.GONE                    # a check that stopped
     h = bodyfit.Term('y', None, 'hold', 0.01, 'face_front', 'sheet', 'face', 'body', (1.0, 0.8))
     assert h.residual({'y': {'value': 0.85, 'status': 'FAIL'}})[0] == 0.0                    # nearer its target
     assert abs(h.residual({'y': {'value': 0.78, 'status': 'FAIL'}})[0] - 2.0) < 1e-9          # 0.02 further away
@@ -299,7 +299,8 @@ def test_outfit_graph_start_and_pieces():
     assert k.get(two) == 146.0
     k.put(two, 150.0)
     assert [g.get('az') for g in two['garments'][-2:]] == [150.0, -150.0]                # a mirror pair
-    ext = {'skirt': {'front': {'d': [0.1, -0.2, 0.0, 0.05], 'px': [900, 800]}, 'back': {'d': [0, 0, 0, 0], 'px': [900, 100]}}}
+    ext = {'skirt': {'front': {'d': [0.1, -0.2, 0.0, 0.05], 'px': [900, 800]}, 'back': {'d': [0, 0, 0, 0], 'px': [900, 100]},
+                     'profile': {'d': [0, 0, 0, 0], 'px': [3000, 900]}}}                    # (back: few; profile: hidden)
     T = bodyfit.piece_terms(ext, graph)
     assert len(T) == 4 and {t.view for t in T} == {'front'} and T[0].weight == 1.0        # back: too few pixels
 
