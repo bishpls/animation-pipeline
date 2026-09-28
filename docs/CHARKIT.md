@@ -45,6 +45,7 @@ component that reads them; `charkit/spec/schema.json` collects them.
 | **garments** (`charkit/garments.py`) | outfit pieces as templates fitted to the body (offset surfaces, then shaped): skirts (A-line, pleated, layered), jackets, blouses, sleeves (puff, fitted), collars (sailor, stand), bows and ribbons, cuffs, boots, gloves, shorts, tights; weights transferred from the body; springs on loose parts | per piece | templates + the body |
 | **materials** (`charkit/shading.py`) | the shader stack: three-tone ramps from ramp textures, the SDF face shadow, hair with gradient, strand strokes and highlight, rim light, coloured outlines with per-vertex width, the forehead hair shadow, inner-line and feature passes for post | palette, ramp softness, outline width | kit.py's shaders, promoted |
 | **paint** (`charkit/paint.py`) | painted textures: GPT Image paints matching views of the character (front, both three-quarters, profile, back; head close-ups), which are projected onto the UVs from calibrated cameras and blended by facing, then baked: skin gradients, blush, lip tint, eye-white shading, hair gradients and strands, cloth detail | which views, style prompt | tools/gptimage.py + Blender projection bake |
+| **outfit intake** (`charkit/outfit.py`, §8) | the outfit component graph from the references: each piece's type, side, attachment, layer order, colour, extents per view and in 3D, motion class; a draft garment list and spring chains | none: it measures | the rig's layers, the model sheet, the TRELLIS field, annotated notes |
 | **geometry** (`charkit/geom/`, docs/GEOM.md) | deterministic mesh operations venv-side instead of Blender's modifiers: repair, voxel solids and booleans, remeshing, smoothing, envelope normals; a generated character's hair or skirt cut into one closed surface for the Blender stage | voxel size, clearance, seal, colour family, envelope blur | numpy, scipy, scikit-image, numba, manifold3d |
 | **export and QA** (`charkit/qa.py`, `export.py`) | boards: turntable, head close-up turntable, expression sheet, viseme sheet, a lighting sweep, range of motion, overlay on the reference, topology stats; VRM 1.0 / glTF export for three.js | | |
 
@@ -214,10 +215,10 @@ When something can only be judged by eye, name the measurement that would close 
   - Anything that starts Blender goes through `procs.run` (or `procs.acquire_slot`). `ps` shows who holds the slots.
 
 **References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
-fit and QA read: the model sheet, the 2D rig, the generated 3D-style key and the TRELLIS mesh. For each it records its
-role, scale method and figures, provenance (the model and ledger entry, or the regeneration command for large files kept
-out of git, with their hash) and cautions (the rig's face layer is bled out under the hair, so its bottom isn't the
-chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
+fit and QA read: the model sheet, the 2D rig, the generated 3D-style key, the TRELLIS mesh and the outfit graph (§8).
+For each it records its role, scale method and figures, provenance (the model and ledger entry, or the regeneration
+command for large files kept out of git, with their hash) and cautions (the rig's face layer is bled out under the hair,
+so its bottom isn't the chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
 the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
@@ -274,3 +275,154 @@ writer (`charkit/gltf.py`, numpy + bpy, no add-on), clean under the Khronos vali
 space, so the SDF shadow follows the head), and `projects/charkit-look` inspects it (`--serve`) and boards it against the
 Blender build's own boards: every Clawd board (head views, body, expressions, mouths) and the analytic-hair variant
 (`charkit/spec/clawd_locks.json`) match to under 1.1/255 mean difference, the rest being edge anti-aliasing.
+
+## 8. Outfit intake: the references as pieces
+
+`python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]`
+(`charkit/outfit.py`, numpy and scipy, about 80 s on Clawd) turns a character's references into an **outfit component
+graph**. Layered and flowy attire then becomes separately built, rigged and measured pieces instead of knobs on one
+garment. It writes into `--out` (default `charkit/out/NAME/outfit/`):
+
+- `outfit_graph.json`: the graph;
+- `outfit.png`: each sheet view with every piece outlined and labelled (red boxes mark cells no piece took), the rig's
+  layer to piece mapping, and the field from four sides coloured by piece;
+- `outfit.md`: the table, the comparison with the spec's hand-written list, the template gaps, the springs and the flags;
+- `outfit_masks.npz`: each piece's exact mask in each view.
+
+It also writes the graph as the character's reference `refs/NAME/outfit_graph.json` and registers it in the manifest
+(kind `outfit_graph`, role, provenance with the inputs' hashes, authority `outfit_pieces`). The rest of the manifest's
+text is left as written. A run is deterministic: two runs give the same bytes.
+
+**Per piece:** `id`, `type`, `side` (L her left, R, C) and mirror `pair`; `colour` (the rig's drawn sRGB, plus the sheet's
+lit and shade tones by `paletteqa.tones`) and `trims` (a colour along an edge: its edge, stepped or plain, height and
+thickness);
+`attach` (bone and t along it, region, parent and where the parent came from, contacts); `layer` (number, over, under);
+`extent` per view (bbox, area and outline polygons in L from the eye line; x toward the image's right from the view's
+origin, as `bodyqa.design_views` grids, or her left in the rig's frame); `extent3d` (bbox `[x0, y0, z0, x1, y1, z1]` in
+the rig's frame, y toward her back, and the share of cells the sheet confirmed); `views` (seen in, pixel areas); `motion`
+(class, reason, coverage round the bone, 3D flare); `sources`; `flags`. At the top level: the sources (rig, sheet with each
+view's azimuth and field fit, field, notes), the 2D skeleton, unmatched cells, `templates` (the draft), `comparison` and
+`springs`.
+
+**Sources, combined and cross-checked:**
+
+1. **The rig** (front, precise). Each front pixel belongs to the top-most layer drawn there. A layer's pixels are split by
+   colour family: k-means tones per layer, merged when close in weighted Lab and of one hue, so a fold's shadow stays with
+   its cloth while cream and skin stay apart. Rules on shape then cut out the sub-pieces:
+   - the piece's own colour: the largest family that lies through the piece, not along its outline and not a stepped hem;
+   - a colour running the piece's length through its body is a **panel** (the skirt's cream front);
+   - a band at its top edge standing proud of it is a **cuff** (a boot's turned-down top);
+   - a colour along an edge is a **trim**. It is **stepped** when the line between it and the cloth is a stair: the treads
+     and risers of its slope, even on a slanted hem;
+   - cells of the piece's colour that hang free, long and thin, touching the rest only at their top, are **tails**
+     either side, or a centre **panel** (the bib the rig draws between the bow's tails);
+   - two major components far apart, the layer's own whole drawing absent from the gap, are a **mirror pair** (the back
+     panels). A bodice split by the bow over it stays one piece.
+
+   Types come from the layer names' words and these rules. Sides are hers, so the rig's `sleeve_L` (the image's left) is
+   `sleeve_R`. The 2D skeleton comes from `rig.json`'s joints, with the wrist where the hand's layer starts. `rig.json`'s
+   own grouping of layers (head, torso, each arm and leg) picks the bone.
+2. **The sheet.** The figures come from `sheetqa.detect_figures` and the class images from `bodyqa.design_views` (the
+   model-sheet QA's own: orange, cream, dark, white, hair, iris). Nothing is re-segmented. Faint drawn lines (a black
+   top-hat on the value) split the classes into cells, and the cells are matched to pieces:
+   - by the field's prediction: the nearest predicted piece its class allows, within 0.12 L. A cell two predictions
+     share is split pixel by pixel;
+   - by adjacency as a tie-breaker: a doubtful cell goes to the piece whose rig neighbours match its own;
+   - by landmarks for cells no prediction reached: heights from the eye line, side, class.
+
+   Without a field the prediction is by landmarks alone (`--no-field`: coarser; about twice the flags on Clawd).
+3. **The field** (TRELLIS.2, `trellis_ext/field.py`; `charkit/out/i3d/ext/*/<stem>_field.npz`). Surface cells on a 384³
+   grid are fitted by silhouette IoU to the rig's front and to each figure. The 3/4 azimuth is searched from the one the
+   eyes give. The cells are labelled by a geodesic competition that is aware of colour:
+   - the seeds are front-visible cells whose rig label agrees 0.02 L round, whose colour is nearest the field's own colour
+     for the rig family drawn there, and near their label's median;
+   - an edge costs its length × (1 + (ΔE/10)²);
+   - a piece reaches at most its drawn size from its seeds;
+   - a piece the front shows whole (no background, under a quarter occluded: a bow, its tails, the bib) goes no deeper than
+     0.1 L behind its seeds, so a bow can't run round the neck into the collar's back flap.
+
+   The labels projected into each view are the prediction. The sheet's own masks then vote back into every cell shown in
+   a view (Clawd: 76 k cells voted, 86% agreeing with the prediction). The final labels give `extent3d`, the coverage and
+   the springs.
+4. **The notes** (`refs/NAME/outfit_notes.json`, versioned, with provenance): an annotated vision pass, piece by piece
+   (names, types, rig layers, parents, bones, motion, views). Each note is matched to a measured piece (rig layer, side,
+   colour, type) and every field is compared. Disagreements go to `flags`. In the graph the notes give the id, type, name
+   and parent (`parent_from: notes`, `parent_measured` kept); the measurement gives everything else.
+
+**Attach and layers.** The bone is the limb bone the drawing covers most of, for pieces in an arm or leg group. On the
+head it is the head. On the torso it is the torso bone at the piece's height (3D centroid). Parents:
+- a sub-piece's own piece;
+- for a hanging piece, the garment touching its top edge from above;
+- for a wrapping limb piece, a wrapping garment on a nearer bone (sleeve on top, sleeve cuff on sleeve);
+- for torso wraps and head pieces, the body.
+
+Over and under come from the rig's drawing order between touching layers (whole drawings included). Within a layer a
+panel is level with its piece, a cuff over it, and a tail under its knot. `layer.n` is the depth of that chain.
+
+**Motion** (reasons are recorded). A piece **wraps** its bone when the confirmed cells cover 60% of the way round it, or
+35% and it is seen from front and back. Without a field it wraps when seen front and back and it crosses the body or lies
+on a limb. Then:
+- **rigid**: small (under 0.3 L), or wraps without flaring;
+- **cloth**: wraps and flares 1.5x over 0.4 L, not on a forearm, hand, shin or foot (a skirt: a ring of chains);
+- **rigid**: lies on the hair, or has its bottom edge tucked into a band that doesn't run up under it (the bib into the
+  waistband);
+- **spring**: hangs 0.3 L below its top edge and is 1.5x longer than wide;
+- **rigid** otherwise.
+
+**Templates** are additive: a type the library lacks is a gap, and the design never limits the library. The map
+(`outfit.TEMPLATES`):
+
+| type | template |
+|---|---|
+| top, shorts | shell |
+| boot | shell + shoe |
+| boot cuff, cuff, sleeve cuff | band |
+| sleeve | sleeve |
+| skirt | skirt |
+| collar | collar |
+| bow | bow |
+| waistband | belt |
+| overskirt panel | **panel** (new) |
+| hair accessory | accessories bun, star or crab (by the layer's name) |
+| skirt panel, bodice panel, bow tail | a knob of the skirt, the top and the bow |
+
+New here are `garments.panel`, a panel hung from the waist ring at an azimuth with a stepped hem, and the bow's `tail`
+length. The defaults are unchanged. The draft's first knob guesses come from the measured extents, each knob marked
+`measured` or `default`, with mirror pairs averaged. The comparison with the spec's list gives matched entries (with knob
+deltas), pieces the hand list has only as a knob, pieces it misses, and entries it has extra.
+
+**Springs** (`springs[]`) are data for the rig / VRM exporter:
+- the joints run down the confirmed cells from the attachment (from the parent's lower edge when the piece hangs under
+  it), one per 0.15 L;
+- cloth gets eight chains round its bone;
+- stiffness is 0.35 / length, drag is 0.3 + 0.5 width / length, with gravity and hit radius;
+- positions are in L in the rig's frame.
+
+They are not wired into `gltf.py` yet. That needs spring bones in the armature and the pieces' weights moved onto them.
+Each chain then becomes one `VRMC_springBone.springs[]` entry, its joints the chain's bones with these values.
+
+**Clawd** (`charkit/refs/clawd/outfit_graph.json`): 26 pieces. The comparison with the spec's list:
+- 21 match (every hand entry is found; none is extra);
+- 4 pieces exist in the hand list only as knobs: the cream skirt panel, the two bow tails and the bib;
+- 2 are missing from it: the stepped-hem back panels. The hand list fakes them with the skirt's `back` of 0.55, while
+  the skirt's own back hem measures 0.06.
+
+Motion:
+- spring: the skirt panel, both back panels and both bow tails;
+- cloth: the skirt;
+- rigid: everything else (cuffs, waistband, boots and their cuffs, sleeves, the collar, the bow, the bib, buns, clips).
+
+There are 12 flags:
+- the back panels' parent: skirt measured, waistband noted;
+- the collar's parent: body measured, top noted;
+- the bib's type and parent: the rig draws it in the bow's layer;
+- the tails' bone: chest against upperChest;
+- views: the crab clip is seen only on the front (a doodle elsewhere), the far bun is not found in profile.
+
+**Known limits.**
+- One test character.
+- Bone heights are the drawing's 2D skeleton, not the 3D body's, so torso cut knobs stay defaults.
+- The 3/4 fit picks 41° by silhouette against 26° from the eyes.
+- Pleat counts and repeats are rough.
+- The springs are not wired into the VRM.
+- Accessories only map by layer name.
