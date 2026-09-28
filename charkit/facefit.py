@@ -397,7 +397,8 @@ def prepare_cache(resolved, cache, log=print):
     log('fit: caching the target, hair and garments in Blender -> %s' % cache)
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'fit_blender.py'), '--',
            resolved, cache, '--env']
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    from . import procs
+    r = procs.run(cmd, cache, 'fit cache')                # a machine-wide build slot, its pid recorded in the cache dir
     if 'CHARKIT_FIT_BLENDER_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-3000:] + r.stderr[-3000:])
         raise SystemExit('fit: the Blender cache step failed')
