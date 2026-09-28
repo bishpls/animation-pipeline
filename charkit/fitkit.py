@@ -37,7 +37,7 @@ LOSS_SCALE = 3.0                # soft-L1 above this many tolerances (the smooth
 POLISH = (2.0, 1.0, 0.5)        # the pattern search's step sizes, in knob steps
 POLISH_MOVES = 12               # at most this many moves per step size
 CYCLES = 3                      # trust region then polish, restarted from the polished point while the fine cost drops
-FAST = False                    # optimise(fast=): Broyden updates between full Jacobians, and a model-guided polish
+FAST = True                     # optimise(fast=): Broyden updates between full Jacobians, and a model-guided polish
 BROYDEN_REFRESH = 4             # fast: a full finite-difference Jacobian at least every this many trust-region steps
 POLISH_SHARE = 0.25             # fast: the polish first tries this share of its moves, those the Jacobian predicts best
 PROTECT = 6.0                   # a term leaving the status band it started in (PASS, or WARN) costs this much more per
