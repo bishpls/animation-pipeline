@@ -21,9 +21,9 @@ checks exist because someone saw a problem the metrics didn't, so review feeds t
            ticket: a proposed check (name, what to measure, views, the reference that is the authority), the passing
            checks that should have caught it, and, where the QA's own tables already hold the numbers, the proposed
            measure's value now (a prototype, e.g. the face's length over its width against the design's, from
-           sheetqa's chin and widths). The triage measures that prototype again on every build it triages, so the
-           reviewer's note is a tracked (provisional) number from then on, until the real check lands. The triage lists every open measure ticket as `needs a measurement` until a check
-           of that name appears in a build's QA; `tickets --sync` then marks it landed.
+           sheetqa's chin and widths). The triage lists every open measure ticket as `needs a measurement` until a check
+           of that name appears in a build's QA (`tickets --sync` then marks it landed), and measures its prototype
+           again on every build it triages: the reviewer's note is a tracked (provisional) number from then on.
 """
 import html, json, os, re, time
 
