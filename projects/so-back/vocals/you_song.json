@@ -1,0 +1,64 @@
+{
+ "falcon": {
+  "text_small.en": "WE'RE SO DONE! WE'RE SO DONE! It's so over! Game over! It's so... Continue fight fight! Ready? We're so DONE! Success! Unbelievable! We're so DONE! A new breaker! Future carrier! We're so so DONE! Wow! Incredible! This game's winner is... Captain Falcon!",
+  "slot_small.en": "Incredible! This game's winner is... Captain Falcon!",
+  "p_small.en": 0.0,
+  "miss_small.en": "This game's winner is... Captain Falcon! (1.00)",
+  "text_medium.en": "We're so bad! We're so bad! It's so over! Game over! It's so over! Continue, fight, fight! Ready? Go! We're so bad! Success! Concrete! We're so bad! A new record! Choose your carrier! We're, we're so, so bad! Wow! Incredible! This game's winner is... Captain Falcon!",
+  "slot_medium.en": "Incredible! This game's winner is... Captain Falcon!",
+  "p_medium.en": 0.0,
+  "miss_medium.en": "This game's winner is... Captain Falcon! (1.00)"
+ },
+ "mew+tail": {
+  "text_small.en": "WE'RE SO DONE! WE'RE SO DONE! It's. So. Over. Game Over. It's. So. Continue. Fight. Fight! Ready? BOW! WE'RE SO DONE! Success! Ugly! WE'RE SO DONE! A NEW RIDER! Future Carrier! We're so so DONE! Wow! Incredible! This game's winner is... You!",
+  "slot_small.en": "Incredible! This game's winner is... You!",
+  "p_small.en": 0.994,
+  "miss_small.en": "This game's winner is... New! (0.00)",
+  "text_medium.en": "We're so bad! We're so bad! It's so over Game over It's so over Continue, fight, fight! Ready? Go! We're so bad! Success, complete! We're so bad! A new record, choose your carrier! We're, we're so, so bad! Wow, incredible, this game's winner is you!",
+  "slot_medium.en": "incredible, this game's winner is you!",
+  "p_medium.en": 0.999,
+  "miss_medium.en": "This game's winner is... New! (0.00)",
+  "vox_centroid": 554,
+  "vox_hf": 2.0,
+  "vox_f0": 262
+ },
+ "young+two": {
+  "text_small.en": "WE'RE SO DONE! WE'RE SO DONE! It's so over! Game over! It's so... Continue fight fight! Ready? We're so DONE! Success! Unbeliev! We're so DONE! A new breaker! Future carrier! We're so so DONE! Wow! Incredible! This game's winner is...",
+  "slot_small.en": "Incredible! This game's winner is...",
+  "p_small.en": 0.25,
+  "miss_small.en": "This game's winner is... Two! (0.54)",
+  "text_medium.en": "We're so bad! We're so bad! It's so over Game over It's so over Continue, fight, fight! Ready? Go! We're so bad! Success, complete! We're so bad! A new record, choose your carrier! We're, we're so, so bad! Wow, incredible this game's winner is!",
+  "slot_medium.en": "incredible this game's winner is!",
+  "p_medium.en": 0.478,
+  "miss_medium.en": "This game's winner is... Two! (0.23)",
+  "vox_centroid": 330,
+  "vox_hf": 0.4,
+  "vox_f0": 247
+ },
+ "mew": {
+  "text_small.en": "WE'RE SO DONE! WE'RE SO DONE! It's so over! Game over! It's so... Continue fight fight! Ready? We're so DONE! Success! Unbeliev! We're so DONE! A new writer! Future character! We're so so DONE! Wow! Incredible! This game's winner is... You!",
+  "slot_small.en": "Incredible! This game's winner is... You!",
+  "p_small.en": 0.994,
+  "miss_small.en": "This game's winner is...! (0.00)",
+  "text_medium.en": "We're so bad! We're so bad! It's so over Game over It's so over Continue, fight, fight! Ready? Go! We're so bad! Success, complete! We're so bad! A new record, choose your carrier! We're, we're so, so bad! Wow, incredible this game's winner is you!",
+  "slot_medium.en": "incredible this game's winner is you!",
+  "p_medium.en": 0.999,
+  "miss_medium.en": "This game's winner is... New! (0.00)",
+  "vox_centroid": 684,
+  "vox_hf": 3.2,
+  "vox_f0": 264
+ },
+ "yoshi+two": {
+  "text_small.en": "WE'RE SO DONE! WE'RE SO DONE! It's. So. Over. Game Over. It's. So. Continue. Fight. Fight! Ready? BOW! WE'RE SO DONE! Success! Ugly! WE'RE SO DONE! A NEW RIDER! Future Carrier! We're so so... BOW! Wow! Incredible! This game's winner is...",
+  "slot_small.en": "Incredible! This game's winner is...",
+  "p_small.en": 0.139,
+  "miss_small.en": "This game's winner is... Two! (0.75)",
+  "text_medium.en": "We're so bad! We're so bad! It's so over Game over It's so over Continue, fight, fight! Ready? Go! We're so bad! Success, complete! We're so bad! A new record, choose your carrier! We're, we're so, so bad! Wow, incredible this game's winner is!",
+  "slot_medium.en": "incredible this game's winner is!",
+  "p_medium.en": 0.383,
+  "miss_medium.en": "This game's winner is... Two! (0.47)",
+  "vox_centroid": 325,
+  "vox_hf": 0.4,
+  "vox_f0": 177
+ }
+}

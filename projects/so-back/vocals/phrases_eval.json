@@ -1,0 +1,1082 @@
+{
+ "its_so_over": {
+  "ranked": [
+   {
+    "stt_small.en": "It's so over!",
+    "stt_medium.en": "It's so over.",
+    "stt_turbo": "It's so over.",
+    "ctx_small.en": "Continue. It's so over.",
+    "ctx_medium.en": "Continue? It's so over.",
+    "ctx_turbo": "Continue? It's so over.",
+    "phit_small.en": 0.981,
+    "miss_small.en": "It's over! (0.01)",
+    "phit_medium.en": 0.966,
+    "miss_medium.en": "It's over! (0.03)",
+    "phone_p": 0.001,
+    "phone_alt": "ɪ t s s oʊ (0.94)",
+    "seams": [
+     {
+      "seam": "winner I-s|target-S",
+      "t": 0.698,
+      "pct": 100.0,
+      "f0_st": 9.52
+     }
+    ],
+    "recipe": [
+     "is+t",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.529,
+     1.068
+    ],
+    "dur": 2.066,
+    "score": 1.974,
+    "file": "spliced/its_so_over_1_is+t+sudden+no+gameover_native.wav"
+   },
+   {
+    "stt_small.en": "It's so over!",
+    "stt_medium.en": "It's so over.",
+    "stt_turbo": "It's so over.",
+    "ctx_small.en": "Continue. It's so over.",
+    "ctx_medium.en": "Continue? It's so over.",
+    "ctx_turbo": "Continue? It's so over.",
+    "phit_small.en": 0.976,
+    "miss_small.en": "It's over! (0.01)",
+    "phit_medium.en": 0.936,
+    "miss_medium.en": "It's over! (0.05)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s s oʊ (0.81)",
+    "seams": [
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.758,
+      "pct": 100.0,
+      "f0_st": 6.71
+     }
+    ],
+    "recipe": [
+     "targets",
+     "single+no",
+     "gameover"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.609,
+     1.128
+    ],
+    "dur": 2.126,
+    "score": 1.956,
+    "file": "spliced/its_so_over_2_targets+single+no+gameover_native.wav"
+   },
+   {
+    "stt_small.en": "It's so over!",
+    "stt_medium.en": "It's so over.",
+    "stt_turbo": "It's so over.",
+    "ctx_small.en": "Continue. It's so over.",
+    "ctx_medium.en": "Continue? It's so over!",
+    "ctx_turbo": "Continue? It's so over.",
+    "phit_small.en": 0.984,
+    "miss_small.en": "It's over! (0.01)",
+    "phit_medium.en": 0.924,
+    "miss_medium.en": "It's over! (0.06)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s s oʊ (0.72)",
+    "seams": [
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.778,
+      "pct": 100.0,
+      "f0_st": 9.52
+     }
+    ],
+    "recipe": [
+     "targets",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.609,
+     1.148
+    ],
+    "dur": 2.146,
+    "score": 1.954,
+    "file": "spliced/its_so_over_3_targets+sudden+no+gameover_native.wav"
+   },
+   {
+    "stt_small.en": "It's so over!",
+    "stt_medium.en": "It's so over.",
+    "stt_turbo": "It's so over.",
+    "ctx_small.en": "Continue. It's so over.",
+    "ctx_medium.en": "Continue? It's so over.",
+    "ctx_turbo": "Continue? It's so over.",
+    "phit_small.en": 0.953,
+    "miss_small.en": "It's over! (0.03)",
+    "phit_medium.en": 0.914,
+    "miss_medium.en": "It's over! (0.07)",
+    "phone_p": 0.011,
+    "phone_alt": "ɪ s s oʊ oʊ v ɚ (0.62)",
+    "seams": [
+     {
+      "seam": "winner I-s|target-S",
+      "t": 0.624,
+      "pct": 100.0,
+      "f0_st": -1.7
+     }
+    ],
+    "recipe": [
+     "is+t",
+     "surv+no",
+     "gameover"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.529,
+     0.995
+    ],
+    "dur": 1.993,
+    "score": 1.944,
+    "file": "spliced/its_so_over_4_is+t+surv+no+gameover_native.wav"
+   },
+   {
+    "stt_small.en": "It's so over!",
+    "stt_medium.en": "It's so over!",
+    "stt_turbo": "It's so over.",
+    "ctx_small.en": "Continue this song over!",
+    "ctx_medium.en": "Continue. It's so over.",
+    "ctx_turbo": "Continue? It's so over.",
+    "phit_small.en": 0.951,
+    "miss_small.en": "This so over! (0.03)",
+    "phit_medium.en": 0.923,
+    "miss_medium.en": "It's over! (0.05)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s s oʊ (0.87)",
+    "seams": [
+     {
+      "seam": "th-I-s|targe-TS",
+      "t": 0.678,
+      "pct": 100.0,
+      "f0_st": 9.52
+     }
+    ],
+    "recipe": [
+     "this+ts",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "native",
+    "free_hits": "5/6",
+    "starts": [
+     0.0,
+     0.509,
+     1.048
+    ],
+    "dur": 2.046,
+    "score": 1.77,
+    "file": "spliced/its_so_over_5_this+ts+sudden+no+gameover_native.wav"
+   },
+   {
+    "stt_small.en": "It's some over.",
+    "stt_medium.en": "It's... ...Sung... ...Over.",
+    "stt_turbo": "It's song over.",
+    "ctx_small.en": "Continue. It's some over.",
+    "ctx_medium.en": "Continue? It's song over.",
+    "ctx_turbo": "Continue? It's song over.",
+    "phit_small.en": 0.485,
+    "miss_small.en": "It's over! (0.36)",
+    "phit_medium.en": 0.423,
+    "miss_medium.en": "It's over! (0.33)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s s oʊ (0.98)",
+    "seams": [
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.758,
+      "pct": 100.0,
+      "f0_st": -4.9
+     }
+    ],
+    "recipe": [
+     "targets",
+     "single+no",
+     "gameover"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.609,
+     1.128
+    ],
+    "dur": 2.126,
+    "score": 0.454,
+    "file": "spliced/its_so_over_6_targets+single+no+gameover_tuned.wav"
+   },
+   {
+    "stt_small.en": "It's time over.",
+    "stt_medium.en": "It's all over.",
+    "stt_turbo": "It's... ...sung over.",
+    "ctx_small.en": "Continue. It's some over.",
+    "ctx_medium.en": "Continue? It's song over.",
+    "ctx_turbo": "Continue. It's song over.",
+    "phit_small.en": 0.708,
+    "miss_small.en": "It's over! (0.16)",
+    "phit_medium.en": 0.132,
+    "miss_medium.en": "It's all over! (0.73)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s s oʊ (0.97)",
+    "seams": [
+     {
+      "seam": "winner I-s|target-S",
+      "t": 0.624,
+      "pct": 100.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "is+t",
+     "surv+no",
+     "gameover"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.529,
+     0.995
+    ],
+    "dur": 1.993,
+    "score": 0.42,
+    "file": "spliced/its_so_over_7_is+t+surv+no+gameover_tuned.wav"
+   },
+   {
+    "stt_small.en": "It's Sunkover!",
+    "stt_medium.en": "This song over.",
+    "stt_turbo": "It's song over.",
+    "ctx_small.en": "Continue this song over.",
+    "ctx_medium.en": "Continue this song over.",
+    "ctx_turbo": "Continue this song over.",
+    "phit_small.en": 0.468,
+    "miss_small.en": "It's all over! (0.32)",
+    "phit_medium.en": 0.2,
+    "miss_medium.en": "It's all over! (0.50)",
+    "phone_p": 0.002,
+    "phone_alt": "ɪ t s oʊ v ɚ (0.28)",
+    "seams": [
+     {
+      "seam": "th-I-s|targe-TS",
+      "t": 0.678,
+      "pct": 100.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "this+ts",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.509,
+     1.048
+    ],
+    "dur": 2.046,
+    "score": 0.336,
+    "file": "spliced/its_so_over_8_this+ts+sudden+no+gameover_tuned.wav"
+   },
+   {
+    "stt_small.en": "It's some over.",
+    "stt_medium.en": "It's... ...Sung Over.",
+    "stt_turbo": "It's song over.",
+    "ctx_small.en": "Continue. It's some over.",
+    "ctx_medium.en": "Continue? It's song over.",
+    "ctx_turbo": "Continue? It's song over.",
+    "phit_small.en": 0.527,
+    "miss_small.en": "It's over! (0.28)",
+    "phit_medium.en": 0.087,
+    "miss_medium.en": "It's all over! (0.51)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s oʊ v ɚ (0.62)",
+    "seams": [
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.778,
+      "pct": 100.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "targets",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.609,
+     1.148
+    ],
+    "dur": 2.146,
+    "score": 0.307,
+    "file": "spliced/its_so_over_9_targets+sudden+no+gameover_tuned.wav"
+   },
+   {
+    "stt_small.en": "It's some over.",
+    "stt_medium.en": "It's over.",
+    "stt_turbo": "It's song over.",
+    "ctx_small.en": "Continue. It's some over.",
+    "ctx_medium.en": "Continue? It's song over.",
+    "ctx_turbo": "Continue. It's song over.",
+    "phit_small.en": 0.392,
+    "miss_small.en": "It's over! (0.32)",
+    "phit_medium.en": 0.076,
+    "miss_medium.en": "It's over! (0.56)",
+    "phone_p": 0.0,
+    "phone_alt": "ɪ t s oʊ v ɚ (0.49)",
+    "seams": [
+     {
+      "seam": "winner I-s|target-S",
+      "t": 0.698,
+      "pct": 100.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "is+t",
+     "sudden+no",
+     "gameover"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.529,
+     1.068
+    ],
+    "dur": 2.066,
+    "score": 0.234,
+    "file": "spliced/its_so_over_10_is+t+sudden+no+gameover_tuned.wav"
+   }
+  ],
+  "audition": [
+   {
+    "n": 1,
+    "t": 0.0,
+    "file": "spliced/its_so_over_1_is+t+sudden+no+gameover_native.wav"
+   },
+   {
+    "n": 2,
+    "t": 2.57,
+    "file": "spliced/its_so_over_2_targets+single+no+gameover_native.wav"
+   },
+   {
+    "n": 3,
+    "t": 5.19,
+    "file": "spliced/its_so_over_3_targets+sudden+no+gameover_native.wav"
+   },
+   {
+    "n": 4,
+    "t": 7.84,
+    "file": "spliced/its_so_over_4_is+t+surv+no+gameover_native.wav"
+   },
+   {
+    "n": 5,
+    "t": 10.33,
+    "file": "spliced/its_so_over_5_this+ts+sudden+no+gameover_native.wav"
+   },
+   {
+    "n": 6,
+    "t": 12.88,
+    "file": "spliced/its_so_over_6_targets+single+no+gameover_tuned.wav"
+   },
+   {
+    "n": 7,
+    "t": 15.5,
+    "file": "spliced/its_so_over_7_is+t+surv+no+gameover_tuned.wav"
+   },
+   {
+    "n": 8,
+    "t": 18.0,
+    "file": "spliced/its_so_over_8_this+ts+sudden+no+gameover_tuned.wav"
+   },
+   {
+    "n": 9,
+    "t": 20.54,
+    "file": "spliced/its_so_over_9_targets+sudden+no+gameover_tuned.wav"
+   },
+   {
+    "n": 10,
+    "t": 23.19,
+    "file": "spliced/its_so_over_10_is+t+sudden+no+gameover_tuned.wav"
+   }
+  ]
+ },
+ "were_so_back": {
+  "ranked": [
+   {
+    "stt_small.en": "We're so back.",
+    "stt_medium.en": "We're so back!",
+    "stt_turbo": "Winner, so back!",
+    "ctx_small.en": "Continue. We're so back.",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? Winner, so back!",
+    "phit_small.en": 0.99,
+    "miss_small.en": "We're so bad! (0.00)",
+    "phit_medium.en": 0.975,
+    "miss_medium.en": "We're so bad! (0.02)",
+    "phone_p": 0.001,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.56)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 64.0,
+      "f0_st": 6.41
+     },
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.759,
+      "pct": 100.0,
+      "f0_st": 9.99
+     },
+     {
+      "seam": "B-reak|h-A-nd",
+      "t": 1.163,
+      "pct": 99.3,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "single+no",
+     "break+hand+complete"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.129
+    ],
+    "dur": 1.445,
+    "score": 1.983,
+    "file": "spliced/were_so_back_1_winner-n+single+no+break+hand+complete_native.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO BACK!",
+    "stt_medium.en": "WE'RE SO BACK!",
+    "stt_turbo": "We're so back.",
+    "ctx_small.en": "Continue? We're so back!",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? We're so back.",
+    "phit_small.en": 0.974,
+    "miss_small.en": "Wear so back! (0.01)",
+    "phit_medium.en": 0.981,
+    "miss_medium.en": "We're so bad! (0.01)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.51)",
+    "seams": [
+     {
+      "seam": "WI-ns|mast-ER",
+      "t": 0.19,
+      "pct": 99.6,
+      "f0_st": -4.34
+     },
+     {
+      "seam": "S-urvival|n-O contest",
+      "t": 0.445,
+      "pct": 100.0,
+      "f0_st": -1.7
+     },
+     {
+      "seam": "B-reak|h-A-nd",
+      "t": 0.85,
+      "pct": 99.4,
+      "f0_st": -7.92
+     }
+    ],
+    "recipe": [
+     "wins+master",
+     "surv+no",
+     "break+hand+complete"
+    ],
+    "variant": "native",
+    "free_hits": "6/6",
+    "starts": [
+     0.0,
+     0.35,
+     0.816
+    ],
+    "dur": 1.133,
+    "score": 1.978,
+    "file": "spliced/were_so_back_2_wins+master+surv+no+break+hand+complete_native.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO BACK!",
+    "stt_medium.en": "We're so back!",
+    "stt_turbo": "Winner, so back!",
+    "ctx_small.en": "Continue? We're so back!",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? Winner sold back!",
+    "phit_small.en": 0.96,
+    "miss_small.en": "We're so black! (0.02)",
+    "phit_medium.en": 0.956,
+    "miss_medium.en": "We're so bad! (0.02)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.56)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 64.0,
+      "f0_st": 6.41
+     },
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.759,
+      "pct": 100.0,
+      "f0_st": 9.99
+     },
+     {
+      "seam": "B-utton|sm-A-sh",
+      "t": 1.158,
+      "pct": 100.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "single+no",
+     "button+smash+continue"
+    ],
+    "variant": "native",
+    "free_hits": "5/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.129
+    ],
+    "dur": 1.429,
+    "score": 1.791,
+    "file": "spliced/were_so_back_3_winner-n+single+no+button+smash+continue_native.wav"
+   },
+   {
+    "stt_small.en": "We're so back!",
+    "stt_medium.en": "We're so back!",
+    "stt_turbo": "Winner, so big!",
+    "ctx_small.en": "Continue. We're so back.",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? Winner, so peck!",
+    "phit_small.en": 0.986,
+    "miss_small.en": "We're so big! (0.01)",
+    "phit_medium.en": 0.986,
+    "miss_medium.en": "We're so bad! (0.01)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.51)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 64.0,
+      "f0_st": 6.41
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.779,
+      "pct": 100.0,
+      "f0_st": 9.61
+     },
+     {
+      "seam": "B-onus|h-A-nd",
+      "t": 1.171,
+      "pct": 93.9,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "sudden+no",
+     "bonus+hand+kirby"
+    ],
+    "variant": "native",
+    "free_hits": "4/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.149
+    ],
+    "dur": 1.461,
+    "score": 1.653,
+    "file": "spliced/were_so_back_4_winner-n+sudden+no+bonus+hand+kirby_native.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO BECKED!",
+    "stt_medium.en": "WE'RE SO BACK!",
+    "stt_turbo": "We're so back!",
+    "ctx_small.en": "Continue? We're so back!",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? Where's some heck?",
+    "phit_small.en": 0.98,
+    "miss_small.en": "We're so big! (0.01)",
+    "phit_medium.en": 0.987,
+    "miss_medium.en": "We're so big! (0.00)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b æ (0.50)",
+    "seams": [
+     {
+      "seam": "WI-ns|play-ER",
+      "t": 0.19,
+      "pct": 92.8,
+      "f0_st": 0.75
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.64,
+      "pct": 100.0,
+      "f0_st": 9.61
+     },
+     {
+      "seam": "B-onus|h-A-nd",
+      "t": 1.032,
+      "pct": 93.0,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "wins+player",
+     "sudden+no",
+     "bonus+hand+kirby"
+    ],
+    "variant": "native",
+    "free_hits": "4/6",
+    "starts": [
+     0.0,
+     0.471,
+     1.01
+    ],
+    "dur": 1.322,
+    "score": 1.65,
+    "file": "spliced/were_so_back_5_wins+player+sudden+no+bonus+hand+kirby_native.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO BECKED",
+    "stt_medium.en": "We're so back!",
+    "stt_turbo": "We're some mack!",
+    "ctx_small.en": "Continue! We're so back!",
+    "ctx_medium.en": "Continue? We're so back!",
+    "ctx_turbo": "Continue? We're some Rick!",
+    "phit_small.en": 0.911,
+    "miss_small.en": "We're so big! (0.05)",
+    "phit_medium.en": 0.886,
+    "miss_medium.en": "We're so bad! (0.07)",
+    "phone_p": 0.001,
+    "phone_alt": "w ɪɹ s oʊ b æ (0.36)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 76.8,
+      "f0_st": 0.38
+     },
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.759,
+      "pct": 100.0,
+      "f0_st": -0.94
+     },
+     {
+      "seam": "B-reak|h-A-nd",
+      "t": 1.163,
+      "pct": 99.5,
+      "f0_st": 0.57
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "single+no",
+     "break+hand+complete"
+    ],
+    "variant": "tuned",
+    "free_hits": "3/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.129
+    ],
+    "dur": 1.445,
+    "score": 1.4,
+    "file": "spliced/were_so_back_6_winner-n+single+no+break+hand+complete_tuned.wav"
+   },
+   {
+    "stt_small.en": "Where it's so eck!",
+    "stt_medium.en": "Where is Soeck?",
+    "stt_turbo": "Where is soo peck?",
+    "ctx_small.en": "CONTINUE? WHERE IS SO HECK?",
+    "ctx_medium.en": "Continue? Where is Soeck?",
+    "ctx_turbo": "Continue? Where is some heck?",
+    "phit_small.en": 0.978,
+    "miss_small.en": "We're sold back! (0.01)",
+    "phit_medium.en": 0.98,
+    "miss_medium.en": "We're so big! (0.01)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.56)",
+    "seams": [
+     {
+      "seam": "WI-ns|winn-ER is",
+      "t": 0.19,
+      "pct": 97.1,
+      "f0_st": -6.97
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.61,
+      "pct": 100.0,
+      "f0_st": 9.71
+     },
+     {
+      "seam": "B-onus|A-nd",
+      "t": 1.001,
+      "pct": 97.4,
+      "f0_st": null
+     }
+    ],
+    "recipe": [
+     "wins+winner",
+     "sudden+no",
+     "bonus+and+kirby"
+    ],
+    "variant": "native",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.44,
+     0.98
+    ],
+    "dur": 1.31,
+    "score": 0.979,
+    "file": "spliced/were_so_back_7_wins+winner+sudden+no+bonus+and+kirby_native.wav"
+   },
+   {
+    "stt_small.en": "WEAR IT SO HECK",
+    "stt_medium.en": "When it's so bad",
+    "stt_turbo": "Where is some heck?",
+    "ctx_small.en": "Continue? Wear it some back!",
+    "ctx_medium.en": "Continue? Where is Sonic?",
+    "ctx_turbo": "Continue? Where is some dick?",
+    "phit_small.en": 0.899,
+    "miss_small.en": "We're sold back! (0.05)",
+    "phit_medium.en": 0.952,
+    "miss_medium.en": "We're so bad! (0.03)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b æ (0.52)",
+    "seams": [
+     {
+      "seam": "WI-ns|winn-ER is",
+      "t": 0.19,
+      "pct": 88.4,
+      "f0_st": -0.47
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.61,
+      "pct": 100.0,
+      "f0_st": -0.28
+     },
+     {
+      "seam": "B-onus|A-nd",
+      "t": 1.001,
+      "pct": 92.2,
+      "f0_st": -0.19
+     }
+    ],
+    "recipe": [
+     "wins+winner",
+     "sudden+no",
+     "bonus+and+kirby"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.44,
+     0.98
+    ],
+    "dur": 1.31,
+    "score": 0.926,
+    "file": "spliced/were_so_back_8_wins+winner+sudden+no+bonus+and+kirby_tuned.wav"
+   },
+   {
+    "stt_small.en": "WEAR SOME BECK",
+    "stt_medium.en": "We're so back!",
+    "stt_turbo": "Where's some gecko?",
+    "ctx_small.en": "CONTINUE? WEAR SOME BECK!",
+    "ctx_medium.en": "Continue? We're so big!",
+    "ctx_turbo": "Continue? We're song back!",
+    "phit_small.en": 0.698,
+    "miss_small.en": "We're so black! (0.07)",
+    "phit_medium.en": 0.492,
+    "miss_medium.en": "We're so big! (0.32)",
+    "phone_p": 0.002,
+    "phone_alt": "w ɪɹ s oʊ b æ (0.32)",
+    "seams": [
+     {
+      "seam": "WI-ns|mast-ER",
+      "t": 0.19,
+      "pct": 99.0,
+      "f0_st": -0.19
+     },
+     {
+      "seam": "S-urvival|n-O contest",
+      "t": 0.445,
+      "pct": 100.0,
+      "f0_st": -0.19
+     },
+     {
+      "seam": "B-reak|h-A-nd",
+      "t": 0.85,
+      "pct": 100.0,
+      "f0_st": 0.19
+     }
+    ],
+    "recipe": [
+     "wins+master",
+     "surv+no",
+     "break+hand+complete"
+    ],
+    "variant": "tuned",
+    "free_hits": "1/6",
+    "starts": [
+     0.0,
+     0.35,
+     0.816
+    ],
+    "dur": 1.133,
+    "score": 0.764,
+    "file": "spliced/were_so_back_9_wins+master+surv+no+break+hand+complete_tuned.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO RICK",
+    "stt_medium.en": "We're so big!",
+    "stt_turbo": "wear some dick",
+    "ctx_small.en": "Continue? Wear some rec!",
+    "ctx_medium.en": "Continue? Will some break?",
+    "ctx_turbo": "Continue? Well, some dick!",
+    "phit_small.en": 0.731,
+    "miss_small.en": "We're so big! (0.18)",
+    "phit_medium.en": 0.273,
+    "miss_medium.en": "We're so big! (0.69)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.52)",
+    "seams": [
+     {
+      "seam": "WI-ns|play-ER",
+      "t": 0.19,
+      "pct": 69.3,
+      "f0_st": 0.38
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.64,
+      "pct": 100.0,
+      "f0_st": -0.57
+     },
+     {
+      "seam": "B-onus|h-A-nd",
+      "t": 1.032,
+      "pct": 89.1,
+      "f0_st": 0.19
+     }
+    ],
+    "recipe": [
+     "wins+player",
+     "sudden+no",
+     "bonus+hand+kirby"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.471,
+     1.01
+    ],
+    "dur": 1.322,
+    "score": 0.502,
+    "file": "spliced/were_so_back_10_wins+player+sudden+no+bonus+hand+kirby_tuned.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO BRO-",
+    "stt_medium.en": "We're so broke!",
+    "stt_turbo": "We're sober!",
+    "ctx_small.en": "Continue! Winner! So! Ruck!",
+    "ctx_medium.en": "Continue? We're so glad!",
+    "ctx_turbo": "Continue? Winner, Sombra!",
+    "phit_small.en": 0.42,
+    "miss_small.en": "We're sold back! (0.36)",
+    "phit_medium.en": 0.37,
+    "miss_medium.en": "We're so bad! (0.45)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b æ (0.45)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 95.1,
+      "f0_st": -0.19
+     },
+     {
+      "seam": "S-ingle|n-O contest",
+      "t": 0.759,
+      "pct": 100.0,
+      "f0_st": -0.47
+     },
+     {
+      "seam": "B-utton|sm-A-sh",
+      "t": 1.158,
+      "pct": 99.9,
+      "f0_st": 0.85
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "single+no",
+     "button+smash+continue"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.129
+    ],
+    "dur": 1.429,
+    "score": 0.395,
+    "file": "spliced/were_so_back_11_winner-n+single+no+button+smash+continue_tuned.wav"
+   },
+   {
+    "stt_small.en": "WE'RE SO RICK",
+    "stt_medium.en": "We're so big!",
+    "stt_turbo": "We're so sick!",
+    "ctx_small.en": "Continue! We're so quick!",
+    "ctx_medium.en": "Continue? We're so rich!",
+    "ctx_turbo": "Continue? We're some rick!",
+    "phit_small.en": 0.485,
+    "miss_small.en": "We're so big! (0.46)",
+    "phit_medium.en": 0.178,
+    "miss_medium.en": "We're so big! (0.78)",
+    "phone_p": 0.0,
+    "phone_alt": "w ɪɹ s oʊ b ɛ (0.57)",
+    "seams": [
+     {
+      "seam": "WI-nner drops|winn-ER drops",
+      "t": 0.33,
+      "pct": 60.9,
+      "f0_st": -0.19
+     },
+     {
+      "seam": "S-udden|n-O contest",
+      "t": 0.779,
+      "pct": 100.0,
+      "f0_st": 0.94
+     },
+     {
+      "seam": "B-onus|h-A-nd",
+      "t": 1.171,
+      "pct": 86.7,
+      "f0_st": 0.75
+     }
+    ],
+    "recipe": [
+     "winner-n",
+     "sudden+no",
+     "bonus+hand+kirby"
+    ],
+    "variant": "tuned",
+    "free_hits": "0/6",
+    "starts": [
+     0.0,
+     0.61,
+     1.149
+    ],
+    "dur": 1.461,
+    "score": 0.332,
+    "file": "spliced/were_so_back_12_winner-n+sudden+no+bonus+hand+kirby_tuned.wav"
+   }
+  ],
+  "audition": [
+   {
+    "n": 1,
+    "t": 0.0,
+    "file": "spliced/were_so_back_1_winner-n+single+no+break+hand+complete_native.wav"
+   },
+   {
+    "n": 2,
+    "t": 1.95,
+    "file": "spliced/were_so_back_2_wins+master+surv+no+break+hand+complete_native.wav"
+   },
+   {
+    "n": 3,
+    "t": 3.58,
+    "file": "spliced/were_so_back_3_winner-n+single+no+button+smash+continue_native.wav"
+   },
+   {
+    "n": 4,
+    "t": 5.51,
+    "file": "spliced/were_so_back_4_winner-n+sudden+no+bonus+hand+kirby_native.wav"
+   },
+   {
+    "n": 5,
+    "t": 7.47,
+    "file": "spliced/were_so_back_5_wins+player+sudden+no+bonus+hand+kirby_native.wav"
+   },
+   {
+    "n": 6,
+    "t": 9.29,
+    "file": "spliced/were_so_back_6_winner-n+single+no+break+hand+complete_tuned.wav"
+   },
+   {
+    "n": 7,
+    "t": 11.24,
+    "file": "spliced/were_so_back_7_wins+winner+sudden+no+bonus+and+kirby_native.wav"
+   },
+   {
+    "n": 8,
+    "t": 13.05,
+    "file": "spliced/were_so_back_8_wins+winner+sudden+no+bonus+and+kirby_tuned.wav"
+   },
+   {
+    "n": 9,
+    "t": 14.86,
+    "file": "spliced/were_so_back_9_wins+master+surv+no+break+hand+complete_tuned.wav"
+   },
+   {
+    "n": 10,
+    "t": 16.49,
+    "file": "spliced/were_so_back_10_wins+player+sudden+no+bonus+hand+kirby_tuned.wav"
+   },
+   {
+    "n": 11,
+    "t": 18.31,
+    "file": "spliced/were_so_back_11_winner-n+single+no+button+smash+continue_tuned.wav"
+   },
+   {
+    "n": 12,
+    "t": 20.24,
+    "file": "spliced/were_so_back_12_winner-n+sudden+no+bonus+hand+kirby_tuned.wav"
+   }
+  ]
+ }
+}

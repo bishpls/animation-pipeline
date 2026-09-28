@@ -1,0 +1,53 @@
+idx	file	sample_id	sfx_id(s)	char_kind (gm_80168C5C)	text	dur_s	us_code_refs
+0	nr_name_00_id1476.wav	1476	510000	Captain(0x00)	Captain Falcon	1.162	yes
+1	nr_name_01_id1477.wav	1477	510001	Donkey(0x01)	Donkey Kong	1.192	yes
+2	nr_name_02_id1478.wav	1478	510002	DrMario(0x16)	Dr. Mario	1.328	yes
+3	nr_name_03_id1479.wav	1479	510003		Fighting Wire Frames	2.084	none found
+4	nr_name_04_id1480.wav	1480	510004	Falco(0x14)	Falco	0.817	yes
+5	nr_name_05_id1481.wav	1481	510005	Fox(0x02)	Fox	0.620	yes
+6	nr_name_06_id1482.wav	1482	510006	Ganon(0x19)	Ganondorf	0.900	yes
+7	nr_name_07_id1483.wav	1483	510007		Giant	0.672	yes
+8	nr_name_08_id1484.wav	1484	510008	GigaKoopa(0x1D)	Giga Bowser	1.245	yes
+9	nr_name_09_id1485.wav	1485	510009		Giga Koopa (JP name)	1.118	none found
+10	nr_name_10_id1486.wav	1486	510010	GameWatch(0x03)	Mr. Game & Watch	1.742	yes
+11	nr_name_11_id1487.wav	1487	510011	PopoNana(0x0E)	Ice Climbers	1.385	yes
+12	nr_name_12_id1488.wav	1488	510012	Emblem(0x17)	Roy	0.976	yes
+13	nr_name_13_id1489.wav	1489	510013	Purin(0x0F)	Jigglypuff	0.906	yes
+14	nr_name_14_id1490.wav	1490	510014		Hurry!	0.807	none found
+15	nr_name_15_id1491.wav	1491	510015	Kirby(0x04)	Kirby	0.654	yes
+16	nr_name_16_id1492.wav	1492	510016	Koopa(0x05)	Bowser	1.062	yes
+17	nr_name_17_id1493.wav	1493	510017		Koopa (JP name)	0.872	none found
+18	nr_name_18_id1494.wav	1494	510018	Link(0x06)	Link	0.755	yes
+19	nr_name_19_id1495.wav	1495	510019	CLink(0x15)	Young Link	0.935	yes
+20	nr_name_20_id1496.wav	1496	510020	Luigi(0x07)	Luigi	0.884	yes
+21	nr_name_21_id1497.wav	1497	510021	Mario(0x08)	Mario	1.267	yes
+22	nr_name_22_id1498.wav	1498	510022	Mars(0x09)	Marth	0.505	yes
+23	nr_name_23_id1499.wav	1499	510023		Metal	0.840	yes
+24	nr_name_24_id1500.wav	1500	510024	Mewtwo(0x0A)	Mewtwo	1.158	yes
+25	nr_name_25_id1501.wav	1501	510025	MasterHand(0x1A)	Master Hand	1.199	yes
+26	nr_name_26_id1502.wav	1502	510026	Ness(0x0B)	Ness	0.802	yes
+27	nr_name_27_id1503.wav	1503	510027	Peach(0x0C)	Peach	0.681	yes
+28	nr_name_28_id1504.wav	1504	510028	Pichu(0x18)	Pichu	0.715	yes
+29	nr_name_29_id1505.wav	1505	510029	Pikachu(0x0D)	Pikachu	0.694	yes
+30	nr_name_30_id1506.wav	1506	510030	Samus(0x10)	Samus	0.789	yes
+31	nr_name_31_id1507.wav	1507	510031	Yoshi(0x11)	Yoshi	0.664	yes
+32	nr_name_32_id1508.wav	1508	510032	Seak(0x13)	Sheik	0.657	yes
+33	nr_name_33_id1509.wav	1509	510033	Zelda(0x12)	Zelda	0.726	yes
+34	nr_name_34_id1510.wav	1510	510034		Defeated	1.055	yes
+35	nr_name_35_id1511.wav	1511	510035		Five	0.678	yes
+36	nr_name_36_id1512.wav	1512	510036		Four	0.658	yes
+37	nr_name_37_id1513.wav	1513	510037,510038		Game!	0.886	yes
+38	nr_name_38_id1514.wav	1514	510039		Go!	0.519	yes
+39	nr_name_39_id1515.wav	1515	510040		One	0.625	yes
+40	nr_name_40_id1516.wav	1516	510041		Player one	0.975	yes
+41	nr_name_41_id1517.wav	1517	510042		Player two	1.120	yes
+42	nr_name_42_id1518.wav	1518	510043		Player three	1.174	yes
+43	nr_name_43_id1519.wav	1519	510044		Player four	1.153	yes
+44	nr_name_44_id1520.wav	1520	510045		Ready?	0.813	yes
+45	nr_name_45_id1521.wav	1521	510046		Success!	0.854	yes
+46	nr_name_46_id1522.wav	1522	510047		Three	0.559	yes
+47	nr_name_47_id1523.wav	1523	510048,510049		Time!	0.907	yes
+48	nr_name_48_id1524.wav	1524	510050		Two	0.520	yes
+49	nr_name_49_id1525.wav	1525	510051		Team	0.600	yes
+50	nr_name_50_id1526.wav	1526	510052		Break the targets!	1.633	yes
+51	nr_name_51_id1527.wav	1527	510053		Computer player	1.354	yes

@@ -1,0 +1,17 @@
+.env
+.env.local
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+# renders, reviews and song takes (regenerable)
+projects/*/out/
+projects/*/board/
+projects/*/assets/takes/
+projects/*/assets/song.wav
+projects/*/assets/song.mp3
+projects/*/assets/mix.wav
+# game data and game-derived media never enter the repo: captures, plates, builds
+projects/*/assets/plates
+projects/*/director/build/

@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>SO BACK · Melee type board</title>
+<style>html,body{margin:0;background:#111}#out{display:block;height:92vh;width:auto;aspect-ratio:9/16}</style></head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script src="../../../engine/vendor/fontkit.js"></script>
+<script>window.PROJECT = { fps: 60, w: 1080, h: 1920, plain: true, duration: 1 };</script>
+<script src="../../../engine/core.js"></script>
+<script src="../../../engine/riso.js"></script>
+<script src="../../../engine/type.js"></script>
+<script src="../../../engine/studio.js"></script>
+<script src="../../../engine/pop.js"></script>
+<script src="../src/meleetype.js"></script>
+<script>
+// the Melee type board: every deliverable of projects/so-back/type on a dark field and on hot fields
+function board(bgA, bgB) {
+  X.fillStyle = bgA; X.fillRect(0, 0, W, H / 2); X.fillStyle = bgB; X.fillRect(0, H / 2, W, H / 2);
+  // 1. the game's own word graphics
+  const words = [['game', 290, 110], ['go', 790, 110], ['ready', 250, 250], ['time', 770, 250], ['success', 290, 380],
+    ['complete', 800, 380], ['failure', 280, 510], ['sudden', 680, 510], ['death', 930, 510]];
+  for (const [k, x, y] of words) mword(k, x, y, { h: k === 'sudden' || k === 'death' ? 80 : 110 });
+  mword('gameover', 300, 620, { h: 64, tint: '#dfe8ff' }); mword('continue_small', 790, 620, { h: 28, tint: '#fff' });
+  mword('coming', 380, 700, { h: 56, tint: '#fff' }); mword('soon', 760, 700, { h: 56, tint: '#fff' });
+  // 2. our lines in the game's menu font, dressed like its word graphics
+  mtext("WE'RE SO BACK", W / 2, 810, { size: 120, style: 'game' });
+  mtext("it's so over", W / 2, 920, { size: 90, style: 'time' });
+  mtext('THIS GAME’S WINNER IS...', W / 2, 1010, { size: 64, style: 'failure' });
+  mtext('YOU!', 300, 1140, { size: 170, style: 'success' });
+  mdigits('5.5', 780, 1150, { h: 190 });
+  mtext('CHOOSE YOUR CHARACTER!', W / 2, 1290, { size: 64, style: 'go' });
+  mtext('SHOW ME YA MOVES!', W / 2, 1390, { size: 88, style: 'complete' });
+  mtext('CONTINUE?', 300, 1500, { size: 84, style: 'death' });
+  mdigits('999%', 800, 1500, { h: 110, color: '#ff3a2a' });
+  // 3. name plates: results banner (serif) and results label (sans)
+  const keys = ['falcon', 'fox', 'falco', 'marth', 'puff', 'pikachu', 'sheik', 'peach'];
+  keys.forEach((k, i) => { mname(k, 280, 1610 + i * 40, { h: 28, set: 'banner', panel: true }); mname(k, 800, 1610 + i * 40, { h: 26, set: 'label', panel: true }); });
+}
+LOOPS.dark = t => board('#0a0716', '#1a0f33'); LOOPS.dark.len = 1;
+LOOPS.hot = t => { board('#ff2e9a', '#c8ff2e'); }; LOOPS.hot.len = 1;
+(async () => { try { plainSetup(); await MT.load('../assets/plates/soback_type'); window.ready = true; studioUI(); } catch (e) { console.error(e.stack || e); window.failed = true; } })();
+</script></body></html>

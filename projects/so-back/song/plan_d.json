@@ -1,0 +1,163 @@
+{
+ "chunks": [
+  {
+   "text": "[Cold open - the drop - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental hyperpop",
+    "starts instantly at full energy on the first beat",
+    "euphoric drop: huge detuned supersaw chords, bouncy distorted 808 bass, sparkling fast arpeggios",
+    "bubblegum bass, pitched-up synth chops, shiny metallic plucks",
+    "ends with a tape-stop slowdown into near silence"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "intro",
+    "build-up",
+    "silence at the start"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[It's so over - sad breakdown - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "75 BPM half-time",
+    "instrumental",
+    "sudden sad breakdown",
+    "very sparse and quiet",
+    "a lonely detuned music-box melody in a minor key",
+    "heavy reverb, vinyl crackle, muffled underwater low-pass",
+    "soft sub bass only, no drums",
+    "melancholy, wistful, empty, it's over"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "drums",
+    "hi-hats",
+    "loud",
+    "bright",
+    "happy",
+    "major key",
+    "supersaw"
+   ],
+   "context_adherence": "low"
+  },
+  {
+   "text": "[The turn - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental",
+    "the filter sweeps open",
+    "pitch riser climbing",
+    "snare roll accelerating",
+    "tension building fast",
+    "ends on one beat of total silence right before the drop"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out"
+   ],
+   "context_adherence": "medium"
+  },
+  {
+   "text": "[We're so back - drop - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental",
+    "the euphoric drop returns even bigger",
+    "bright major key",
+    "huge detuned supersaw chords",
+    "bouncy distorted 808 bass",
+    "sparkling arpeggios",
+    "metallic clanging percussion",
+    "four-on-the-floor kick with trap hi-hats",
+    "bubblegum bass, pitched-up synth chops, shiny metallic plucks",
+    "triumphant, joyful, techno-optimist"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "sad",
+    "minor key",
+    "lo-fi"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Drop variation - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental",
+    "same drop, maximum energy",
+    "glitch stutter edits",
+    "rapid drum fill across the final bar",
+    "joyful chaos"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "sad",
+    "breakdown"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Ending - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "instrumental",
+    "one final huge chord stab on the first beat",
+    "then a short ring-out to silence",
+    "clean hard ending"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}
