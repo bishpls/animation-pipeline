@@ -3,7 +3,7 @@ machinery (knobs, terms, the pool, the optimiser, the sensitivity table, triage)
 which knobs the face owns, which checks it answers to, and how to measure them fast (charkit/faceeval.py).
 
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--workers N]
-                                    [--baseline QA.json] [--views] [--verify] [--write-spec]
+                                    [--baseline QA.json] [--refresh-only] [--views] [--verify] [--write-spec]
     python -m charkit fit --validate BUILD_DIR...     # the evaluator against builds' own QA (BUILD/qa/faceeval_agreement.json)
     from charkit import facefit; spec, report = facefit.fit('charkit/spec/clawd.json', 'charkit/out/clawd_fit')
 
@@ -63,11 +63,12 @@ GROUP_WHAT = {'eyes': ('eyes',), 'face': ('sheet', 'face_shape')}
 JITTER = [(0, 0, 0), (0.5, 0.5, 0.5), (0.25, 0.75, 0.5), (0.75, 0.25, 0.25)]
 AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile': 'sheet', 'chin': 'sheet',
              'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'rig'}
-VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes')
+VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes', 'coverage')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
 VIEW_BUDGET = 120               # evaluations per view in --views
-REFRESH_BUDGET = 160            # evaluations for the face's fit again once the garments are rebuilt for a new body
+REFRESH_BUDGET = 160            # evaluations for the face's fit again once the hair and garments are rebuilt for it
+REFRESH_ROUNDS = 2
 
 
 def terms():
@@ -102,6 +103,11 @@ def terms():
         T.append(Term(chk, sub, kind, tol, measure, ref, view, 'face', warn=lim[1] / lim[0]))
     # a guard: enough neck showing under the chin that neck_to_jaw's row (0.06 L down) lands on the neck, not the collar
     T.append(Term('sheet_neck_run', None, 'floor', S['chin'][0], 'face_front', 'sheet', 'front', 'face', floor=NECK_RUN))
+    # kept, not aimed at (a token weight; their status band protected): how much face the hair leaves showing. A fuller
+    # face culls more of the generated hair, so these follow the head only once the hair is rebuilt for it (the refresh)
+    for view in ('front', 'three_quarter'):
+        T.append(Term('face_shape_coverage_' + view, None, 'ratio', F['coverage'][0], 'coverage', 'trellis', 'coverage',
+                      'face', warn=F['coverage'][1] / F['coverage'][0], weight=0.02))
     return T
 
 
@@ -124,7 +130,7 @@ class FaceChecks:
 
     def checks(self, spec, group, fine=False):
         what = GROUP_WHAT.get(group, ('eyes', 'sheet', 'face_shape', 'expressions'))
-        return self.E.run(spec, what=what, covers=(group == 'all'), jitter=None if fine else JITTER,
+        return self.E.run(spec, what=what, covers=group in ('all', 'face'), jitter=None if fine else JITTER,
                           ss=None if fine else 3)['checks']
 
 
@@ -133,9 +139,10 @@ def _p(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 
-def cache_dir(spec):
-    """where fit_blender's arrays for this spec live: keyed by what makes them (body, hair, garments, the target)."""
-    keys = {k: spec.get(k) for k in ('base', 'body', 'hair', 'hair_colors', 'accessories', 'garments')}
+def cache_dir(spec, head=False):
+    """where fit_blender's arrays for this spec live: keyed by what makes them (body, hair, garments, the target; with
+    head, the head too: the hair is culled against the face, so a refreshed cache follows the fitted head)."""
+    keys = {k: spec.get(k) for k in ('base', 'body', 'hair', 'hair_colors', 'accessories', 'garments') + (('head',) if head else ())}
     h = hashlib.sha1(json.dumps(keys, sort_keys=True, default=str).encode()).hexdigest()[:12]
     return os.path.join(ROOT, 'charkit', 'out', 'fit_cache', '%s_%s' % (spec['name'], h))
 
@@ -153,7 +160,8 @@ def prepare(spec_path, out, base=None, log=print):
 
 
 # ------------------------------------------------------------------------------------------------------------ the fit
-def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face'), views=False, baseline=None, log=print):
+def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face'), views=False, baseline=None, main=True,
+        log=print):
     """fit the face, eye and neck knobs of a spec (a path, or a dict already resolved with out/ref_measure.json in place)
     to its QA; write the fitted spec and the reports into out. budget: the most evaluations (each a few seconds of one
     core), None: each group's own limit. baseline: a QA (qa.json path or its checks) whose statuses the fit mustn't
@@ -185,6 +193,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
         fitted, left = spec, budget
         # the eyes, the face, then the eyes again: the face's knobs move the skin round the eyes a little
         order = [g for g in ('eyes', 'face') if g in groups] + (['eyes'] if 'eyes' in groups and 'face' in groups else [])
+        order = order if main else []
         for n_, g in enumerate(order):
             share = None if left is None else max(20, int(left * sum(k.group == g for k in KNOBS) /
                                                           max(1, sum(k.group in order for k in KNOBS))))
@@ -195,21 +204,26 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
             rep['groups'][key]['cost_history'] = [h['cost'] for h in info['history']]
             if left is not None:
                 left = max(0, left - info['evaluations'])
-        # body knobs moved: the garments were moved with the skin, an approximation (the neckline reads the neck check).
-        # Build them for the fitted body in Blender and fit the face again from there
-        if 'face' in groups and any(k.path[0] == 'body' and abs(k.get(fitted) - k.get(spec)) > 1e-9 for k in KNOBS):
-            c2 = cache_dir(fitted)
+        # the hair and garments were cached for the start: the garments moved with the skin (an approximation that
+        # misreads the neckline), the hair culled against the start's face (a fuller face culls more of it). Rebuild
+        # them in Blender for the fitted head and body and fit the face again from there, while it still moves
+        rep['refresh'] = []
+        for rnd in range(REFRESH_ROUNDS if 'face' in groups else 0):
+            c2 = cache_dir(fitted, head=True)
             if not os.path.exists(os.path.join(c2, 'env.npz')):
                 rp = os.path.join(out, spec['name'] + '.refresh.json')
                 json.dump(fitted, open(rp, 'w'), indent=1)
                 prepare_cache(rp, c2, log)
             pool.close()
             pool = fitkit.Pool('charkit.facefit:FaceChecks', (fitted, R, c2), workers)
-            log('fit: garments rebuilt for the fitted body; the face again')
+            log('fit: hair and garments rebuilt for the fitted face (round %d); the face again' % (rnd + 1))
+            prev = [k.get(fitted) for k in KNOBS]
             fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, 'face', authority, budget=REFRESH_BUDGET,
                                            loss=LOSS['face'], baseline=baseline, log=log)
-            rep['groups']['face_refresh'] = {k: v for k, v in info.items() if k != 'history'}
+            rep['refresh'].append(dict({k: v for k, v in info.items() if k != 'history'}, cache=c2))
             rep['cache'] = c2
+            if np.allclose(prev, [k.get(fitted) for k in KNOBS]):
+                break
         # the checks the fit doesn't aim at (expressions, folds, coverage...) mustn't read worse: each group's change is
         # scaled back while one does
         aimed = {t.check for t in T}
@@ -440,7 +454,7 @@ def main(args):
     groups = (opt('--only'),) if opt('--only') else ('eyes', 'face')
     fitted, rep = fit(spec_path, out, budget=int(opt('--budget')) if opt('--budget') else None, base=opt('--base'),
                       workers=int(opt('--workers')) if opt('--workers') else None, groups=groups, views='--views' in args,
-                      baseline=_p(opt('--baseline')) if opt('--baseline') else None)
+                      baseline=_p(opt('--baseline')) if opt('--baseline') else None, main='--refresh-only' not in args)
     if '--verify' in args:
         from . import cli
         bout = os.path.join(out, 'build')

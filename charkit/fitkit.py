@@ -68,10 +68,11 @@ class Knob:
 
 
 class Term:
-    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None, warn=2.0):
+    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None, warn=2.0, weight=None):
         self.check, self.sub, self.kind, self.tol = check, sub, kind, tol
         self.measure, self.ref, self.view, self.group, self.floor = measure, ref, view, group, floor
         self.warn = warn                # the WARN limit in tolerances (the FAIL line)
+        self.weight = weight            # a fixed weight instead of the authority's (a small one: a term kept, not aimed at)
 
     @property
     def name(self):
@@ -112,7 +113,7 @@ class Term:
 
     def declare(self):
         return {'check': self.check, 'sub': self.sub, 'kind': self.kind, 'tol': self.tol, 'measure': self.measure,
-                'ref': self.ref, 'view': self.view, 'group': self.group, 'floor': self.floor}
+                'ref': self.ref, 'view': self.view, 'group': self.group, 'floor': self.floor, 'weight': self.weight}
 
 
 def with_knobs(spec, x, knobs):
@@ -129,8 +130,8 @@ def residuals(checks, terms, authority=None):
     out = []
     for t in terms:
         r, v = t.residual(checks)
-        out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, r=r, value=v, tol=t.tol, warn=t.warn,
-                        w=1.0 if A.get(t.measure, t.ref) == t.ref else 0.25))
+        w = t.weight if t.weight is not None else 1.0 if A.get(t.measure, t.ref) == t.ref else 0.25
+        out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, r=r, value=v, tol=t.tol, warn=t.warn, w=w))
     return out
 
 
