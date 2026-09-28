@@ -8,6 +8,11 @@ convert a raw file again, check a clip, or write the QA for a folder of clips.
     .venv/bin/python tools/mocap3d/soma_clip.py OUT_BASE.raw.npz OUT_BASE        # convert again (numpy + scipy only)
     .venv/bin/python tools/mocap3d/soma_clip.py --check OUT_BASE                 # FK of the npz vs FK of the BVH read back, + QA
     .venv/bin/python tools/mocap3d/soma_clip.py --qa DIR [--mp POSE_DIR]         # DIR/qa.json over every DIR/*.clip.npz
+A SOMA-skeleton BVH (BONES-SEED soma_uniform) converts the same way, numpy + scipy only, resampled (default 30 fps):
+    .venv/bin/python tools/mocap3d/soma_clip.py SRC.bvh OUT_BASE [--fps 30] [--meta EXTRA.json]
+    .venv/bin/python tools/mocap3d/soma_clip.py --bones SELECTION.json SRC_ROOT OUT_DIR   # a selection (projects/*/refs/bones/)
+    .venv/bin/python tools/mocap3d/soma_clip.py --check OUT_BASE --check-src SRC.bvh      # + the clip against the BVH's own FK
+BONES-SEED data is licensed: converted clips stay in gitignored folders and never enter this public repo.
 
 The clip (<base>.clip.npz), everything in metres, Y up, the character facing +Z on the first frame (glTF convention):
   fps       float
@@ -19,7 +24,8 @@ The clip (<base>.clip.npz), everything in metres, Y up, the character facing +Z 
   root      T×3 world position of the root joint; the first frame at x = z = 0; the floor at y = 0, taken from the body mesh's
             lowest point on planted frames with GEM-X's slow height drift fitted out as a line (--floor flat: one constant shift)
   contact   T×4 probabilities for L heel, L toe, R heel, R toe: GEM-X's static-joint confidences (sigmoid of its logits) for
-            LeftFoot (the ankle, standing in for the heel) and LeftToeBase (the ball of the foot), then the right side
+            LeftFoot (the ankle, standing in for the heel) and LeftToeBase (the ball of the foot), then the right side; for a BVH
+            source, derived from those joints' height above their rest height and their horizontal speed
   meta      JSON string: source, model, versions, licences, command, date, conventions
 FK:  G[root] = rot[root], p[root] = root[t];  G[j] = G[parent]·rot[j],  p[j] = p[parent] + G[parent]·offsets[j].
 The BVH carries the same skeleton and motion: metres, Y up, ZXY Euler channels (degrees), root OFFSET 0 with absolute position
@@ -215,6 +221,127 @@ def convert(raw_path, base, floor_mode='lock'):
     return base + '.clip.npz'
 
 
+# ---------------------------------------------------------------- SOMA BVH input (BONES-SEED), numpy + scipy only
+TPOSE_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'soma_tpose.json')
+BONES_LICENCE = ('BONES-SEED License, Qualifying Startup tier (https://bones.studio/info/seed-license): credit "Motion Data by Bones '
+                 'Studio" (https://bones.studio/); never redistribute raw or converted data (keep it out of the public repo); no '
+                 'training of motion-generative models on it')
+
+
+def soma_tpose():
+    d = json.load(open(TPOSE_JSON))
+    return d['joints'], mat_wxyz(np.array(d['world_quat_wxyz']))
+
+
+def resample_local(R, t, fps_in, fps_out):
+    """local rotations/translations at fps_out: every Nth frame when fps_in/fps_out is a whole number, else slerp/lerp."""
+    ratio = fps_in / fps_out
+    if abs(ratio - round(ratio)) < 1e-6:
+        k = int(round(ratio)); return R[::k], t[::k], f'exact decimation: every {k}th source frame'
+    from scipy.spatial.transform import Slerp
+    n_in = len(R); s = np.arange(int(np.floor((n_in - 1) / ratio + 1e-9)) + 1) * ratio
+    Ro = np.stack([Slerp(np.arange(n_in), Rot.from_matrix(R[:, j]))(s).as_matrix() for j in range(R.shape[1])], 1)
+    to = np.stack([np.stack([np.interp(s, np.arange(n_in), t[:, j, a]) for a in range(3)], -1) for j in range(t.shape[1])], 1)
+    return Ro, to, 'slerp (rotations) and lerp (translations) at the output times'
+
+
+def contacts_from_height(names, P, rest_y, fps, h_on=.03, v_on=.35):
+    """T×4 contact probabilities for LeftFoot, LeftToeBase, RightFoot, RightToeBase from the joint's height above its own rest
+    height (the T-pose stands on the floor) and its horizontal speed: soft thresholds at h_on (m) and v_on (m/s)."""
+    out = []
+    for jn in CONTACT_NAMES:
+        j = names.index(jn); h = P[:, j, 1] - rest_y[j]
+        v = np.linalg.norm(np.gradient(P[:, j][:, [0, 2]], axis=0), axis=-1) * fps
+        out.append(1 / (1 + np.exp((h - h_on) / .008)) / (1 + np.exp((v - v_on) / .07)))
+    return np.stack(out, 1)
+
+
+def convert_bvh(src, base, fps_out=30.0, meta=None, cmd=''):
+    """A SOMA-skeleton BVH (BONES-SEED soma_uniform: centimetres, Y up, 120 fps, virtual Root with zero channels, Hips with
+    absolute position channels, ZYX local rotations in SOMA's own joint frames, i.e. SOMALayer's absolute_pose) -> canonical clip.
+    The rest is SOMA's T-pose (soma_tpose.json) with the BVH's own bone offsets, so rot means what it means in a GEM-X clip."""
+    names78, par78, Rl, tl, fps_file = bvh_local(src)
+    jn, Rr78 = soma_tpose()
+    assert names78 == jn, 'not the SOMA 78-joint layout'
+    assert np.abs(tl[:, 0]).max() < 1e-6 and np.abs(Rl[:, 0] - np.eye(3)).max() < 1e-6, 'Root channels are not zero'
+    fps_in = float(round(fps_file)) if abs(fps_file - round(fps_file)) < .01 else fps_file   # 'Frame Time: 0.008333' is 1/120
+    n_src = len(Rl)
+    Rl, tl, how = resample_local(Rl, tl, fps_in, fps_out)
+    G, P = fk_local(par78, Rl, tl * .01)                                       # world, metres
+    offs = read_bvh(src)[2] * .01
+    Lrest = np.array([Rr78[j] if par78[j] < 0 else Rr78[par78[j]].T @ Rr78[j] for j in range(78)])
+    _, Prest = fk_local(par78, Lrest[None], offs[None])
+    names, parents = names78[1:], np.array([p - 1 if p > 0 else -1 for p in par78[1:]])
+    R, P, Rr, Pr = G[:, 1:], P[:, 1:], Rr78[1:], Prest[0, 1:]
+    # heading: rotate about Y so the root faces +Z on frame 0; move the frame-0 root to x = z = 0 (the floor stays the capture's)
+    f = (R[0, 0] @ Rr[0].T) @ np.array([0, 0, 1.0]); yaw = np.arctan2(f[0], f[2])
+    Ry = Rot.from_euler('y', -yaw).as_matrix(); shift = np.array([P[0, 0, 0], 0, P[0, 0, 2]])
+    P = np.einsum('ab,tjb->tja', Ry, P - shift); R = np.einsum('ab,tjbc->tjac', Ry, R)
+    Dw = np.einsum('tjab,jcb->tjac', R, Rr); Lr = Dw.copy()
+    for j in range(len(names)):
+        if parents[j] >= 0: Lr[:, j] = np.einsum('tba,tbc->tac', Dw[:, parents[j]], Dw[:, j])
+    offsets = np.array([Pr[j] - Pr[parents[j]] if parents[j] >= 0 else Pr[j] for j in range(len(names))])   # root: hips above the floor
+    rot, root = quat_wxyz(Lr), P[:, 0].copy()
+    Pf, _ = fk(parents, offsets, rot, root)
+    err = np.linalg.norm(Pf - P, axis=-1).max()
+    assert err < 1e-4, f'canonical FK mismatch {err * 1000:.3f} mm'
+    rest_P, _ = fk(parents, offsets, np.tile([1.0, 0, 0, 0], (1, len(names), 1)), offsets[:1])
+    contact = contacts_from_height(names, P, rest_P[0, :, 1], fps_out)
+    feet = [names.index(n) for n in ('LeftFoot', 'LeftToeBase', 'LeftToeEnd', 'RightFoot', 'RightToeBase', 'RightToeEnd')]
+    meta = dict(meta or {})
+    meta.update({'source_bvh': os.path.basename(src), 'source_fps': fps_in, 'source_frames': n_src, 'fps': fps_out, 'resample': how,
+                 'model': 'none (optical motion capture, BONES-SEED soma_uniform BVH)', 'licence': BONES_LICENCE,
+                 'rest': "SOMA T-pose rotations (tools/mocap3d/soma_tpose.json) with the BVH's own bone offsets",
+                 'units_in': 'BVH centimetres -> metres', 'axes_in': 'BVH Y up; the capture floor is y = 0 (kept)',
+                 'contact': (f'derived (no model confidences): foot/toe joint within 3 cm of its rest height above the floor and moving '
+                             f'under 0.35 m/s horizontally (soft thresholds); LeftFoot (ankle) as heel, LeftToeBase (ball) as toe'),
+                 'conventions': 'metres; Y up; facing +Z on frame 0 (glTF); rot = local quaternions w,x,y,z against the SOMA T-pose '
+                                'with world-aligned joint frames; root = world Hips position, frame 0 at x=z=0, floor y=0; '
+                                'offsets[0] = Hips rest position above the floor, not added in FK',
+                 'heading_yaw_deg': round(float(np.degrees(yaw)), 3), 'shift_xz_m': [round(float(shift[0]), 6), round(float(shift[2]), 6)],
+                 'canonical_fk_err_mm': round(float(err) * 1000, 5), 'frames': int(len(P)), 'command': cmd,
+                 'date': datetime.datetime.now().astimezone().isoformat(timespec='seconds'),
+                 'bvh': f'{os.path.basename(base)}.bvh: metres, Y up, {BVH_ORDER} Euler (degrees), root OFFSET 0 + absolute position'})
+    clip = dict(fps=float(fps_out), joints=np.array(names), parents=parents.astype(np.int32), offsets=offsets.astype(np.float32),
+                rot=rot.astype(np.float32), root=root.astype(np.float32), contact=contact.astype(np.float32), meta=json.dumps(meta))
+    np.savez_compressed(base + '.clip.npz', **clip)
+    np.savez_compressed(base + '.aux.npz', foot_min_y=P[:, feet, 1].min(1))
+    write_bvh(base + '.bvh', clip, meta)
+    return base + '.clip.npz'
+
+
+def check_bvh_source(src, base):
+    """FK of the canonical clip against the source BVH's own FK at the same instants (after the clip's recorded heading/shift)."""
+    c = load_clip(base); m = json.loads(str(c['meta']))
+    names78, par78, Rl, tl, _ = bvh_local(src)
+    k = int(round(m['source_fps'] / float(c['fps'])))
+    assert m['resample'].startswith('exact'), 'check needs an exact decimation'
+    _, Ps = fk_local(par78, Rl[::k], tl[::k] * .01)
+    Ps = Ps[:, 1:] - np.array([m['shift_xz_m'][0], 0, m['shift_xz_m'][1]])
+    Ps = np.einsum('ab,tjb->tja', Rot.from_euler('y', -np.radians(m['heading_yaw_deg'])).as_matrix(), Ps)
+    P, _ = fk(c['parents'], c['offsets'].astype(float), c['rot'].astype(float), c['root'].astype(float))
+    e = np.linalg.norm(P - Ps[:len(P)], axis=-1)
+    print(f'{os.path.basename(base)}: npz FK vs source BVH FK ({os.path.basename(src)}, every {k}th frame) over {len(P)} frames × '
+          f'{P.shape[1]} joints: max {e.max() * 1000:.4f} mm, mean {e.mean() * 1000:.4f} mm')
+    return float(e.max())
+
+
+def convert_bones(selection, src_root, out_dir, fps_out=30.0, cmd=''):
+    """every motion in a BONES-SEED selection (selection.json: name, metadata row) whose BVH is under src_root."""
+    S = json.load(open(selection)); os.makedirs(out_dir, exist_ok=True)
+    for s in S['motions']:
+        md = s['metadata']; src = os.path.join(src_root, md['move_soma_uniform_path'])
+        if not os.path.exists(src): print('MISSING', src); continue
+        keep = ['move_name', 'filename', 'content_name', 'package', 'category', 'content_natural_desc_1', 'content_technical_description',
+                'content_short_description', 'content_type_of_movement', 'content_body_position', 'take_date', 'actor_uid',
+                'actor_gender', 'actor_height_cm', 'move_duration_frames', 'is_mirror', 'move_soma_uniform_path']
+        meta = {'source': f"BONES-SEED {md['move_soma_uniform_path']}", 'dataset': S.get('source'), 'dataset_revision': S.get('revision'),
+                'credit': 'Motion Data by Bones Studio (https://bones.studio/)', 'group': s['group'],
+                'bones': {k: md.get(k) for k in keep}}
+        convert_bvh(src, os.path.join(out_dir, s['name']), fps_out, meta, cmd)
+        print('converted', s['name'])
+
+
 def derived_contacts(names, P, fps):
     ids = [names.index(n) for n in CONTACT_NAMES]
     h = P[:, ids, 1]; v = np.r_[np.zeros((1, 4)), np.linalg.norm(np.diff(P[:, ids][..., [0, 2]], axis=0), axis=-1) * fps]
@@ -290,20 +417,33 @@ def read_bvh(path):
     return names, np.array(parents), np.array(offsets), chans, motion, ft
 
 
-def bvh_fk(path):
+def bvh_local(path):
+    """-> names, parents, local rotations (T×J×3×3), local translations (T×J×3), fps. Rotation channels compose in the order
+    written (ZYX = Rz·Ry·Rx); a joint's position channels replace its OFFSET (Blender's importer and BONES-SEED's Hips agree)."""
     names, parents, offsets, chans, motion, ft = read_bvh(path)
-    T, c = len(motion), 0
-    G = np.zeros((T, len(names), 3, 3)); P = np.zeros((T, len(names), 3))
-    for j in range(len(names)):
-        pos, R = np.zeros((T, 3)), np.tile(np.eye(3), (T, 1, 1))
+    T, J, c = len(motion), len(names), 0
+    R = np.tile(np.eye(3), (T, J, 1, 1)); t = np.tile(offsets, (T, 1, 1)).astype(float)
+    for j in range(J):
         for ch in chans[j]:
             v = motion[:, c]; c += 1
-            if ch.endswith('position'): pos[:, 'XYZ'.index(ch[0])] = v
-            else: R = R @ Rot.from_euler(ch[0].lower(), np.radians(v)[:, None]).as_matrix()   # channels compose left to right
+            if ch.endswith('position'): t[:, j, 'XYZ'.index(ch[0])] = v
+            else: R[:, j] = R[:, j] @ Rot.from_euler(ch[0].lower(), np.radians(v)[:, None]).as_matrix()
+    return names, parents, R, t, 1 / ft
+
+
+def fk_local(parents, R, t):
+    """world rotations and positions from local rotations and translations (parents before children)."""
+    G = np.zeros_like(R); P = np.zeros(t.shape)
+    for j in range(R.shape[1]):
         p = parents[j]
-        if p < 0: G[:, j] = R; P[:, j] = offsets[j] + pos
-        else: G[:, j] = G[:, p] @ R; P[:, j] = P[:, p] + np.einsum('tab,b->ta', G[:, p], offsets[j])
-    return names, P, 1 / ft
+        if p < 0: G[:, j] = R[:, j]; P[:, j] = t[:, j]
+        else: G[:, j] = G[:, p] @ R[:, j]; P[:, j] = P[:, p] + np.einsum('tab,tb->ta', G[:, p], t[:, j])
+    return G, P
+
+
+def bvh_fk(path):
+    names, parents, R, t, fps = bvh_local(path)
+    return names, fk_local(parents, R, t)[1], fps
 
 
 # ---------------------------------------------------------------- checks and QA
@@ -363,11 +503,14 @@ def qa(base):
                              'range': round(float(np.ptp(root[:, 1])), 3)},
            'root_travel_xz_m': round(float(np.linalg.norm(root[:, [0, 2]] - root[0, [0, 2]], axis=1).max()), 3),
            'contact_frac': {k: round(float((con[:, i] > .5).mean()), 3) for i, k in enumerate(['L_heel', 'L_toe', 'R_heel', 'R_toe'])}}
-    if aux is not None:
+    if aux is not None and 'sole_y' in aux.files:
         s = aux['sole_y']; pl = con.max(1) > .5
         out['sole_height_m'] = {'min': round(float(s.min()), 3), 'max': round(float(s.max()), 3),
                                 'planted_abs_mean': round(float(np.abs(s[pl]).mean()), 4) if pl.any() else None,
                                 'planted_abs_p95': round(float(np.percentile(np.abs(s[pl]), 95)), 4) if pl.any() else None}
+    if aux is not None and 'foot_min_y' in aux.files:                          # BVH sources: the lowest foot joint
+        s = aux['foot_min_y']; out['foot_joint_min_height_m'] = {'min': round(float(s.min()), 3), 'max': round(float(s.max()), 3)}
+    if aux is not None and 'kp2d_conf' in aux.files:
         kc = aux['kp2d_conf']
         if np.isfinite(kc).all():
             grp = {'body': list(range(0, 8)) + [11, 12, 13, 14, 39, 40, 41, 42] + list(range(67, 77)), 'face': [8, 9, 10],
@@ -423,10 +566,20 @@ def main():
     ap.add_argument('--gemx', default='/srv/work/gemx'); ap.add_argument('--cmd', default='')
     ap.add_argument('--check'); ap.add_argument('--qa'); ap.add_argument('--floor', default='lock', choices=['lock', 'linear', 'flat'])
     ap.add_argument('--mp', help='with --qa: a folder of MediaPipe tracks (<name>_pose.json) to compare against')
+    ap.add_argument('--bones', nargs=3, metavar=('SELECTION', 'SRC_ROOT', 'OUT_DIR'), help='convert a BONES-SEED selection')
+    ap.add_argument('--check-src', help='with --check: the source BVH, to compare its own FK with the clip')
+    ap.add_argument('--meta', help='for a .bvh input: a JSON file of extra meta')
     a = ap.parse_args()
-    if a.check: check(a.check); print(json.dumps(qa(a.check), indent=1)); return
+    cmd = a.cmd or ' '.join(['soma_clip.py'] + sys.argv[1:])
+    if a.check:
+        if a.check_src: check_bvh_source(a.check_src, a.check)
+        check(a.check); print(json.dumps(qa(a.check), indent=1)); return
     if a.qa: qa_dir(a.qa, a.mp); return
+    if a.bones: convert_bones(*a.bones, fps_out=a.fps or 30.0, cmd=cmd); return
     base = os.path.abspath(a.base)
+    if a.inp.endswith('.bvh'):
+        convert_bvh(a.inp, base, a.fps or 30.0, json.load(open(a.meta)) if a.meta else None, cmd)
+        check_bvh_source(a.inp, base); check(base); print(f'wrote {base}.clip.npz, {base}.bvh'); return
     if a.inp.endswith('.pt'):
         fps = a.fps
         if fps is None and a.src:
