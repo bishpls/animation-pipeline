@@ -1,0 +1,59 @@
+{
+ "name": "clawd",
+ "references": {
+  "sheet": {
+   "kind": "model_sheet",
+   "path": "projects/hello-world/refs/idol_D.png",
+   "tracked": true,
+   "role": "the design's authority: full-body front, 3/4, profile and back, four expression heads, hands; the sheet the 2D rig was built from",
+   "figures": {"front_figure": [0, 0, 380, 768],
+               "heads": {"front": [100, 60, 300, 260], "three_quarter": [440, 60, 640, 260], "profile": [740, 60, 940, 260]},
+               "facing": -1},
+   "scale": {"method": "its front figure's height against the rig's (the same drawing at a known scale)", "from": "rig"},
+   "cautions": ["low resolution (a head is about 115 px per head length): eye-spacing scale is +-4%, use the figure height"]
+  },
+  "rig": {
+   "kind": "rig_2d",
+   "path": "projects/tsuzuku/rig/clawd",
+   "tracked": true,
+   "role": "the front design at high resolution, cut into layers: eye layers (the eyes' shape, iris, pupil), the face layer, hair layers",
+   "scale": {"method": "eye layers' spacing = 2 * eye_x head lengths", "eye_x": 0.168},
+   "cautions": ["the face layer is bled out under the hair (about 15 px): its bottom is not the chin; take the chin from the sheet"]
+  },
+  "key3d": {
+   "kind": "generated_key",
+   "path": "charkit/refs/clawd/clawd_3dstyle.png",
+   "tracked": true,
+   "sha256": "98dd83a3d3a2a348881dae0a7e95105021ebce89b6e1196bb1f9449133343c2d",
+   "role": "a 3D-style restyle of the design (front, full body): the TRELLIS input and the ref_iou silhouette",
+   "provenance": {"model": "gpt-image-2.5-sunburst", "ts": "2026-09-28T02:37:47", "size": "1024x1536", "quality": "high",
+                  "ledger": "tools/ledger.jsonl (the main checkout)", "from": "the rig's base drawing"},
+   "cautions": ["an interpretation of the design, not the design: its face is rounder and fuller than the sheet's"]
+  },
+  "trellis": {
+   "kind": "generated_mesh",
+   "path": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
+   "tracked": false,
+   "sha256": "4e6ff5a0dca00c50a34dadad252d5bc11fbd2e87e56bcfb4f6f1778717634b0f",
+   "role": "the 3D target: the hair's shape, the face's depth where the drawings have none, the silhouette per band",
+   "provenance": {"tool": "TRELLIS.2 (tools/imageto3d)", "input": "key3d", "seed": 1, "res": "1024_cascade",
+                  "command": "tools/imageto3d/trellis_remote.sh --res 1024_cascade --seeds 1 charkit/refs/clawd/clawd_3dstyle.png",
+                  "note": "the command is reconstructed from the output's name and the run's settings, not logged at the time"},
+   "cautions": ["48 MB, kept out of git: regenerate with the command, or copy it into charkit/out/i3d/clawd/"]
+  }
+ },
+ "authority": {
+  "face_front": "sheet",
+  "face_three_quarter": "sheet",
+  "face_profile": "sheet",
+  "chin": "sheet",
+  "feature_heights": "sheet",
+  "face_depth": "trellis",
+  "eyes": "rig",
+  "hair_shape": "trellis",
+  "hair_silhouette": "sheet",
+  "body_silhouette": "sheet",
+  "expressions": "sheet",
+  "palette": "sheet"
+ }
+}

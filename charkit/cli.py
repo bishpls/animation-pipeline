@@ -5,6 +5,10 @@
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
+    python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
+    python -m charkit history NAME [--check CHECK]                     # QA across builds
+    python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
+    python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -31,7 +35,8 @@ def _path(p):
 
 def resolve(spec_path, out, do_fit=True, base=None):
     from . import refs
-    spec = json.load(open(spec_path))
+    from . import manifest
+    spec = manifest.resolve(json.load(open(spec_path)))
     if base:
         spec['base'] = base
     ref = spec.get('ref', {})
@@ -121,7 +126,8 @@ def build(args):
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--',
            resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
           (['--vrm'] if '--vrm' in args else [])
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    from . import history, procs
+    r = procs.run(cmd, out, 'build ' + name)
     if 'CHARKIT_BUILD_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
@@ -130,6 +136,7 @@ def build(args):
             print(line)
     for p in sheets(spec, out):
         print('sheet', p)
+    history.append(out, name)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
 
@@ -199,6 +206,21 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'refs-check':
+        from . import manifest
+        manifest.main(rest)
+    elif cmd == 'gate':
+        from . import gate
+        gate.main(rest)
+    elif cmd == 'history':
+        from . import history
+        history.main(rest)
+    elif cmd == 'ps':
+        from . import procs
+        procs.ps(rest)
+    elif cmd == 'kill':
+        from . import procs
+        procs.kill(rest)
     elif cmd == 'refs':
         from . import refs
         R = refs.measure(rest[0], float(rest[rest.index('--eye-x') + 1]) if '--eye-x' in rest else 0.168)

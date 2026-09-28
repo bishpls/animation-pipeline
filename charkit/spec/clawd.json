@@ -1,8 +1,7 @@
 {
  "name": "clawd",
  "ref": {
-  "rig": "projects/tsuzuku/rig/clawd",
-  "image": "charkit/out/i3d/in/clawd_3dstyle.png",
+  "manifest": "charkit/refs/clawd/manifest.json",
   "fit": [
    "face",
    "features",
@@ -238,7 +237,7 @@
    ]
   ],
   "shape": {
-   "glb": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
+   "glb": "ref:trellis",
    "below": 0.33,
    "shoulder_x": 0.19,
    "mode": "mesh",

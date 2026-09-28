@@ -11,6 +11,8 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
   face_shape the face's shape against the generated character's face (charkit/faceqa.py: the lower face's width, the chin,
              the profile, the cheek at three-quarter, depth from under the eyes; how much face the hair leaves showing) and
              the feature heights against the design rig; overlays qa_face_shape.png, qa_face_contours.png
+  sheet      the face against the design's model sheet (charkit/sheetqa.py): front half-widths, the profile's front
+             edge and reach (nose, chin), the chin's height, the far cheek at three-quarter; overlay qa_sheet.png
   eye        each eye head-on against the design rig's eye layer (charkit/eyeqa.py): the opening's aspect and width, how
              much of it the iris fills, the pupil's run and aspect; overlay qa_eyes.png
   face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
@@ -226,6 +228,104 @@ def _load_rgba(path):
     if px.shape[2] == 3:
         px = np.concatenate([px, np.ones(px.shape[:2] + (1,), np.float32)], -1)
     return px
+
+
+# --------------------------------------------------------------------------------------------------- model sheet
+def sheet(S, out):
+    """our face against the design's model sheet (charkit.sheetqa): the sheet measured at its scale (from the rig's
+    front figure), ours rendered in flat class colours at the same scale and angles. -> (table, checks)."""
+    from . import sheetqa
+    ref = S.spec.get('ref') if isinstance(S.spec.get('ref'), dict) else {}
+    sh = ref.get('sheet')
+    rp = os.path.join(os.path.dirname(os.path.abspath(out)), 'ref_measure.json')
+    if not sh or not ref.get('rig') or not os.path.exists(rp):
+        return None, {'sheet': {'status': 'SKIPPED', 'why': 'no spec.ref.sheet / rig / ref_measure.json'}}
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fp = lambda p: p if os.path.isabs(p) else os.path.join(root, p)
+    rgb = _load_rgba(fp(sh['image']))[..., :3]
+    rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    ex = Hd['eye_knobs']['x']
+    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = sheetqa.measure_sheet(rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
+    az3 = D.get('az_three_quarter', 35.0)
+    # ours: every visible surface z-buffered at the sheet's scale, each triangle labelled by class
+    from . import faceqa, trace
+    CL = sheetqa.CLASS
+    meshes = []
+    skin = S.character['skin']
+    V, F, mats = trace.mesh_arrays(skin, materials=True)
+    T, poly = faceqa.triangles(*F)
+    names = [(m.name if m else '').split('.')[0] for m in skin.data.materials]
+    by = np.array([CL['skin'] if n in ('skin', 'face_skin') else CL['line'] if n in ('cavity', 'eyeline') else CL['other']
+                   for n in names] or [CL['other']])
+    meshes.append((V, T, by[mats[poly]]))
+    part_cls = {'iris': CL['iris'], 'lash': CL['line'], 'brow': CL['line'], 'sclera': CL['other']}
+    for p in S.character['eyes']:
+        for k, c in part_cls.items():
+            if p.get(k) is not None:
+                v, f = trace.mesh_arrays(p[k]); t, _ = faceqa.triangles(*f)
+                meshes.append((v, t, np.full(len(t), c)))
+    for nm, o in S.character['mouth'].items():
+        if o is not None:
+            v, f = trace.mesh_arrays(o); t, _ = faceqa.triangles(*f)
+            meshes.append((v, t, np.full(len(t), CL['line'] if 'line' in nm else CL['other'])))
+    covers = []                                                        # hair and what it carries: coverage only
+    for group, c, dst in ((S.hair, CL['hair'], covers), (S.accessories, CL['other'], covers), (S.garments, CL['other'], meshes)):
+        for o in group:
+            if o.type == 'MESH' and not o.hide_render:
+                v, f = trace.mesh_arrays(o); t, _ = faceqa.triangles(*f)
+                dst.append((v, t, np.full(len(t), c)))
+    irc = [trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']]     # iris centres (world)
+    cx, cy = Hd['centre'][0], Hd['centre'][1]
+    ez = float(np.mean([c[2] for c in irc]))
+    pix = 1.0 / ppl
+    win = faceqa.WIN
+    O, raw = {}, {}
+    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
+        a = math.radians(az)
+        org = (cx * math.cos(a) + cy * math.sin(a), ez)
+        # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
+        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix)
+        lab = np.where(lab < 0, CL['other'], lab)
+        face = faceqa.face_region(depth, np.where(lab == CL['skin'], 1, 0), 0.035 * L, pix=pix)
+        dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix)
+        shown = face & (lv == CL['skin'])
+        def px(P):
+            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
+            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
+        eyes = sorted(px(c) for c in irc)
+        if view == 'profile':
+            eyes = [px(max(irc, key=lambda c: c[0]))]                  # the near eye from +x: the character's left
+        raw[view] = (lab, face, shown, eyes, depth, lv)
+    # our chin: where the profile's front edge turns back to the neck (the under-chin runs smoothly into the neck, so
+    # the face region alone doesn't stop there); every view's face is cut below it, as a drawn jaw line cuts the design's
+    lab, face, shown, eyes, depth, lv = raw['profile']
+    M = sheetqa.measure_labels(lab, face, 'profile', ppl, eyes)
+    chin = faceqa.chin_bottom(-M['lead'], M['z'])
+    for view, (lab, face, shown, eyes, depth, lv) in raw.items():
+        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
+        if chin is not None:
+            # the skin below the chin out first, then the fill again: the neck beside the chin can then only be reached
+            # across the jaw's depth jump
+            skin = (lab == CL['skin']) & (zr >= chin)[:, None]
+            face = faceqa.face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
+            shown = face & (lv == CL['skin'])
+        O[view] = sheetqa.measure_labels(lab, face, view, ppl, eyes)
+        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+    C = sheetqa.compare(O, D)
+    for view in ('front', 'three_quarter', 'profile'):             # the design's face is drawn as it shows: all of it
+        if view in O and view in D:
+            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
+            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
+            r = round(osh / max(1.0, dsh), 3)
+            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN',
+                                  'note': 'our lower face left showing by the hair, against the design\'s (warns only)'}
+    _save_rgb(os.path.join(out, 'qa_sheet.png'), sheetqa.picture(O, D))
+    strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
+    table = {'ppl': ppl, 'az_three_quarter': az3, 'design': {v: strip(D[v]) for v in ('front', 'three_quarter', 'profile') if v in D},
+             'ours': {v: strip(O[v]) for v in O}}
+    return table, C
 
 
 # --------------------------------------------------------------------------------------------------- face shape
@@ -607,6 +707,13 @@ def run(S, out, ref_image=None):
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['eye'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+    # --- the face against the design's model sheet
+    try:
+        rep['sheet'], sc_ = sheet(S, out)
+        rep['checks'].update({'sheet_' + k: v for k, v in sc_.items()})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        rep['checks']['sheet'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's shape against the generated character's
     try:
         rep['face_shape'], fc = face_shape(S, out)

@@ -1,0 +1,35 @@
+"""charkit.gate's QA comparison and charkit.manifest's spec resolution (venv: run this file, or pytest)."""
+import json, os, sys, tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from charkit import gate, manifest
+
+
+def test_compare_qa_verdicts():
+    a = {'checks': {'a': {'value': 1, 'status': 'PASS'}, 'b': {'value': 0.7, 'status': 'FAIL'}, 'c': {'value': 2, 'status': 'WARN'},
+                    'd': {'value': 3, 'status': 'PASS'}, 'e': {'value': 1, 'status': 'INFO'}, 'f': {'value': 5, 'status': 'PASS'}}}
+    b = {'checks': {'a': {'value': 0.5, 'status': 'FAIL'}, 'b': {'value': 0.9, 'status': 'PASS'}, 'c': {'value': 2.5, 'status': 'WARN'},
+                    'e': {'value': 2, 'status': 'INFO'}, 'f': {'value': 5, 'status': 'PASS'}, 'g': {'value': 1, 'status': 'PASS'}}}
+    v = {r['check']: r['verdict'] for r in gate.compare_qa(a, b)}
+    assert v == {'a': 'regressed', 'b': 'improved', 'c': 'value', 'd': 'gone', 'e': 'value', 'g': 'new'}, v
+
+
+def test_manifest_resolves_refs():
+    d = tempfile.mkdtemp()
+    mp = os.path.join(d, 'manifest.json')
+    json.dump({'name': 'x', 'references': {'rig': {'path': 'rigs/x'}, 'key3d': {'path': 'keys/x.png'},
+                                           'trellis': {'path': 'out/x.glb'},
+                                           'sheet': {'path': 'refs/x.png', 'figures': {'heads': {'front': [0, 0, 1, 1]}}}},
+               'authority': {'chin': 'sheet'}}, open(mp, 'w'))
+    spec = {'ref': {'manifest': mp, 'fit': ['face']}, 'hair': {'shape': {'glb': 'ref:trellis'}}}
+    s = manifest.resolve(spec)
+    assert s['ref']['rig'] == 'rigs/x' and s['ref']['image'] == 'keys/x.png'
+    assert s['ref']['sheet']['image'] == 'refs/x.png' and s['ref']['sheet']['heads']['front'] == [0, 0, 1, 1]
+    assert s['hair']['shape']['glb'] == 'out/x.glb' and s['ref']['authority'] == {'chin': 'sheet'}
+    assert manifest.resolve({'ref': {'rig': 'r'}}) == {'ref': {'rig': 'r'}}          # no manifest: unchanged
+
+
+if __name__ == '__main__':
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f(); print('ok', k)

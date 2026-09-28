@@ -396,7 +396,17 @@ def diff(ra, rb, tol=1e-4, time_ratio=1.5):
             if a.get('knobs', {}).get(k) != b.get('knobs', {}).get(k):
                 lines.append('knobs %s changed' % k)
         if a.get('landmarks') and b.get('landmarks'):
-            _num_diff(a['landmarks'], b['landmarks'], 'landmarks', tol, lines)
+            la, lb = dict(a['landmarks']), dict(b['landmarks'])
+            ja, jb = la.pop('joints', {}) or {}, lb.pop('joints', {}) or {}
+            _num_diff(la, lb, 'landmarks', tol, lines)
+            moved = {k: float(np.max(np.abs(np.asarray(ja[k], float) - np.asarray(jb[k], float))))
+                     for k in set(ja) & set(jb) if np.asarray(ja[k]).shape == np.asarray(jb[k]).shape}
+            moved = {k: v for k, v in moved.items() if v > tol}
+            if moved:
+                k = max(moved, key=moved.get)
+                lines.append('landmarks.joints: %d moved, most %s by %.4f' % (len(moved), k, moved[k]))
+            for k in sorted(set(ja) ^ set(jb)):
+                lines.append('landmarks.joints.%s %s' % (k, 'new in B' if k in jb else 'gone in B'))
         oa = {**a['added'], **a['changed']}; ob = {**b['added'], **b['changed']}
         for nm in sorted(set(oa) | set(ob)):
             x, y = oa.get(nm), ob.get(nm)

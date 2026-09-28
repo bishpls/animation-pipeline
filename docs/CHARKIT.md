@@ -111,6 +111,18 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     eyes (where the two are aligned). How much face the hair leaves showing is a separate, warn-only check, and the feature
     heights against the design rig are informational. Overlays: `qa_face_contours.png` (both contours per view, the
     chins) and `qa_face_shape.png` (the two faces from the front, and the depth difference);
+  - the face against the design's model sheet (`charkit/sheetqa.py`; `spec.ref.sheet` holds the image and the head boxes of
+    its front, 3/4 and profile figures). The sheet is scaled by matching its front figure's height to the rig's, which
+    is the same drawing at a known scale, and each view is aligned on its eyes. The 3/4 angle comes from how much the
+    eye spacing shortens. In the drawing, the face is the skin reached from under the eyes with the drawn lines as
+    walls. Ours is `faceqa`'s z-buffer at the sheet's scale, each triangle labelled by class, without the hair. Its face
+    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck. Graded:
+    - the front half-widths at 55% and 75% of the way to each face's own chin;
+    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck);
+    - the profile's front edge, the nose's and chin's reach in front of the eye, and the chin's height;
+    - the far cheek at 3/4.
+
+    How much face the hair leaves showing against the design's warns only. Overlay: `qa_sheet.png`;
   - the eyes against the design rig's eye layers (`charkit/eyeqa.py`), which are drawn whole under the hair. Each of our eyes
     is rendered head-on at the rig's scale with no hair or brows, and both are segmented by colour into sclera, iris (an
     ellipse through its ring), pupil, highlight and lid line. Graded: the opening's aspect and width, the iris's width in
@@ -121,6 +133,28 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
+
+**Every build is recorded, and every merge is measured first.**
+- `python -m charkit history NAME [--check CHECK]` shows QA across builds. Each build appends its checks to
+  `charkit/out/history/NAME.jsonl`, with the git commit, spec hash and base.
+- `python -m charkit gate BRANCH [--into REF] [--args "--base anime"]` shows what merging a branch would do, before it
+  happens. A throwaway worktree at the integration head builds the baseline (cached per commit and options). It then takes
+  the branch with `git merge --no-commit`, runs the tests and builds again. The report in `charkit/out/gate/` lists every
+  check that moved (regressed, improved, value, new, gone), the tests and the trace diff.
+  - FAIL: a conflict, a failing test, a failed build, or a graded check that got worse or disappeared.
+  - WARN: the build is 1.5x slower.
+  - No branch moves.
+- Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
+  worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
+
+**References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
+fit and QA read: the model sheet, the 2D rig, the generated 3D-style key and the TRELLIS mesh. For each it records its
+role, scale method and figures, provenance (the model and ledger entry, or the regeneration command for large files kept
+out of git, with their hash) and cautions (the rig's face layer is bled out under the hair, so its bottom isn't the
+chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
+the 3D rebuild is settled in writing.
+- A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
+- `python -m charkit refs-check SPEC` verifies the manifest.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
