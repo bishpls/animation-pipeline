@@ -305,6 +305,31 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
 
    Register every re-anchored check in `history.STEPS`, and measure against `charkit/out/baseline`: the confirming
    tune after it is the before and after. The review page (step 5) is built from the generated references.
+
+   **Done on `tool/refs` (2026-09-28, second session), gating into `pipeline-3d`:**
+   - `body_turnaround.png`: one GPT Image call (front, 3/4, side and back in one A-pose), generated from idol_D, the
+     rig's front drawing, `head_turnaround` and `garment_breakdown`. Its prompt is in `gen/prompts.json`.
+   - `charkit refcheck` (page: `charkit/out/refcheck/clawd/index.html`):
+     - `head_turnaround` and `body_turnaround` agree on every face and eye check;
+     - the body sheet's views share one eye line (0.009 L) and one ground line (0.017 L);
+     - `head_construction` is the outlier on the chin (+0.03–0.05 L), the neck and the pupil's aspect (1.57x). An
+       earlier "lid line 1.67x" was a crop artefact, fixed with a 0.18 x 0.15 L eye crop.
+   - The manifest's `sheets` fill the 'sheet' role: face and eyes → `head_turnaround`; body, hair silhouettes and
+     palette → `body_turnaround`. The eyes' authority moved from the rig; expressions have none. `qa3d.Design`,
+     `bodymeasure.Sheet` and the outfit graph read them, each scaled by its own eyes (the kit's convention), with no
+     rig and no idol_D in the scale chain.
+   - `checks.authorize`: a check measured against a non-authority reference reads INFO (`ref_iou`, `shape_iou*`, the
+     TRELLIS face-shape checks except depth, expressions). Steps are registered at `9307073`.
+   - The review sheets (`sheet_views`, `sheet_body`) put the turnarounds over our boards.
+   - The outfit graph was rebuilt from `body_turnaround`: field IoU front 0.85 and profile 0.76 (idol_D: 0.83 and
+     0.72), 17 flags where there were 27. The TRELLIS field file must sit at
+     `charkit/out/i3d/ext/runA/clawd_3dstyle_s1_field.npz` (restored from the archive).
+   - On Clawd's current spec against the turnarounds:
+     - `sheet_profile` FAILs (0.043), and nose and chin reach FAIL;
+     - the eye opening is narrower than the turnaround's (0.79);
+     - the buns sit 0.24 L low and the boot tops are off.
+   - Known fragility: the fast evaluator and the QA can place our chin one pixel apart at 200 px/L. On the steep
+     V-shaped jaw that moves `sheet_width` about 2%, which crosses its FAIL line (1.151 against 1.125).
    - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
      - the body probe;
      - per-phase instrumentation;
