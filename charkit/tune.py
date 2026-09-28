@@ -18,7 +18,8 @@ items (docs/CHARKIT.md §4).
      the last --rounds rounds (`stalled`), when no fitter has anything left to change (`converged`), or when the budget
      (full builds including the final one, default 8, or minutes with an `m` suffix) runs out (`budget`);
   5. the best checkpoint is built once more with every board (`final`: the review's pictures, and a check that the build
-     is repeatable), each landed fitter measures its sensitivity table there (its own fit's table is at its start), the
+     is repeatable), each landed fitter measures its sensitivity table there (its own fit's table is at its start) and
+     checks its fast evaluator against that build's QA (a check they disagree on is `measurement uncertain`), the
      residual checks are triaged (charkit/triage.py: DIR/work_items.json and .md), and with --review the review board,
      page and notes file are written (charkit/review.py) and the final build also exports a VRM for the inspector.
 
@@ -499,9 +500,20 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                     fits[F.name]['sensitivity_at'] = end_ck['id']
                 R.write('sensitivity', fitter=F.name, at=end_ck['id'], ok=bool(T_),
                         path=_rel(os.path.join(out, 'sensitivity_%s' % F.name, 'sensitivity.json')))
+        # the fast evaluators against the final build's own QA: where they disagree, the fit optimised another number
+        agree = {}
+        for F in reg:
+            if hasattr(F, 'validate') and F.landed:
+                rows = F.validate(_path(end_ck['out']), log) or []
+                bad = agreement(rows)
+                agree.update(bad)
+                R.write('validate', fitter=F.name, at=end_ck['id'], checks=len(rows), disagree=bad)
+                if rows:
+                    log('  %s evaluator vs the build: %d checks, %d disagree%s' % (F.name, len(rows), len(bad),
+                        ': ' + ', '.join(bad) if bad else ''))
         from . import triage
         T = triage.run(end_ck, fits, reg, cks, read(os.path.join(out, 'tune.jsonl')), cfg, rspec,
-                       os.path.join(out, 'triage'), nondeterministic=repeat or [])
+                       os.path.join(out, 'triage'), nondeterministic=repeat or [], agreement=agree)
         R.write('triage', items=len(T['items']), path=_rel(T['json']), md=_rel(T['md']),
                 classes=T['classes'])
         log('  triage: %d work items -> %s' % (len(T['items']), _rel(T['md'])))
@@ -538,6 +550,17 @@ def _fit_public(res):
         if r.get(k):
             r[k] = _rel(r[k])
     return r
+
+
+def agreement(rows, band=0.5):
+    """a fitter's validate() rows -> {check: [evaluator, build]} where their severities differ by more than `band`."""
+    out = {}
+    for r in rows or []:
+        a, b = checks.severity(r['check'], r.get('eval'), r.get('eval_status')), \
+            checks.severity(r['check'], r.get('blender'), r.get('blender_status'))
+        if a is not None and b is not None and abs(a - b) > band:
+            out[r['check']] = [r.get('eval'), r.get('blender')]
+    return out
 
 
 def disagreement(fit, ck, start=None, band=0.5):

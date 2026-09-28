@@ -403,7 +403,7 @@ def markdown(items_, title, meta=None):
     return '\n'.join(L) + '\n'
 
 
-def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=()):
+def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(), agreement=None):
     """triage a tune run's end state -> {items, json, md, classes}; writes out_dir/work_items.json and .md and copies both
     beside the tune folder."""
     from . import fitters as FT
@@ -416,8 +416,9 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
     tables = {n: f.get('sensitivity') for n, f in (fits or {}).items() if f.get('sensitivity')}
     disagree = {}
     for r in recs:
-        if r.get('event') == 'compare':
+        if r.get('event') in ('compare', 'validate'):
             disagree.update(r.get('disagree') or {})
+    disagree.update(agreement or {})
     accepted = {n: f.get('accepted') is not None for n, f in (fits or {}).items()}
     state = {n: ('accepted at ck%s' % f['accepted']) if f.get('accepted') is not None else f.get('status', 'not run')
              for n, f in (fits or {}).items()}

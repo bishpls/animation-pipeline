@@ -214,6 +214,16 @@ class FaceFitter(Fitter):
         res.update(fitter=self.name, seconds=round(time.time() - t, 1), args=list(args))
         return res
 
+    def validate(self, build, log=print):
+        """the fast evaluator against a finished build's own QA (`python -m charkit fit --validate BUILD`) -> rows
+        [{check, eval, blender, diff, same_status}] (BUILD/qa/faceeval_agreement.json), or None."""
+        if not self.landed or not hasattr(self.mod, 'validate'):
+            return None
+        from . import procs
+        r = procs.run([PY, '-m', 'charkit', 'fit', '--validate', build], build, 'validate face', cwd=ROOT)
+        p = os.path.join(build, 'qa', 'faceeval_agreement.json')
+        return json.load(open(p)) if r.returncode == 0 and os.path.exists(p) else None
+
     def sensitivity_at(self, spec_path, out, log=print):
         """the sensitivity table at a spec (the end state's, for the triage; the fit's own is at its start) ->
         out/sensitivity.json, or None when the fitter can't measure one. Runs in a subprocess (the fit's workers)."""
