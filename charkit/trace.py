@@ -8,7 +8,10 @@ it, so a bad board traces back to the stage, object and number that made it, and
       span    a timed sub-step (fit_cranium, a board render, the QA pass)
       note    any value a stage wants on the record (trace.note('hair.parts', kept=3, dropped=12))
       qa      the QA checks
+      product a cached build product (the boards, the QA, the VRM): run or restored
       end     the total time
+A cached build (charkit/cache.py) adds `cache` to each stage and product record: a hit (restored, `dt` is the restore) or a
+miss with the reason (what the stage read that changed); records replayed from a cache entry carry `cached: true`.
 
 Mesh health (`health`, pure numpy, usable outside Blender): open (boundary) edges, non-manifold edges (3+ faces), shells,
 degenerate faces, loose verts, and closed shells whose signed volume is negative (inside-out). The evaluated mesh is measured
@@ -16,6 +19,7 @@ degenerate faces, loose verts, and closed shells whose signed volume is negative
 
     python -m charkit trace OUT/trace.jsonl                 # a table per stage
     python -m charkit trace A/trace.jsonl B/trace.jsonl     # what changed between two builds (identical builds: nothing)
+    python -m charkit trace A B --no-time                   # ... leaving out stage times (content only: a busy machine)
 
 Inside a build: `trace.begin(path)`, then `with trace.stage('hair', S): ...`, `with trace.span('board', path=p): ...`,
 `trace.note(...)`; every call is a no-op when no trace is open, so library code can log freely.
@@ -31,6 +35,7 @@ OUTLINE_MODS = ('outline', 'under_garments')
 # parts that are open sheets by design (plates, ribbons, strips, proxies): their open edges are not a fault
 SHEETS = ('brow_', 'iris_', 'sclera_', 'lash_', 'mouth_line', 'teeth', 'tongue', 'hair_shape_normals')
 HEALTH_FLAGS = ('open_edges', 'nonmanifold_edges', 'inverted_shells', 'degenerate_faces', 'loose_verts')
+_HEALTH = {}                            # geometry hash -> health, seeded from a restored stage's own records
 
 
 def faults(rec):
@@ -55,6 +60,8 @@ class Trace:
         self.f = open(path, 'w')
         self.t0 = time.perf_counter()
         self.prev = {}                  # object name -> its last snapshot (for added / changed / removed)
+        self.last = None                # the last stage record
+        self.taps = []                  # lists collecting every record written (capture())
 
     def write(self, event, name=None, **kw):
         rec = {'t': round(time.perf_counter() - self.t0, 4), 'event': event}
@@ -63,6 +70,10 @@ class Trace:
         rec.update(kw)
         self.f.write(json.dumps(_plain(rec), separators=(',', ':')) + '\n')
         self.f.flush()
+        for tap in self.taps:
+            tap.append(rec)
+        if event == 'stage':
+            self.last = rec
         return rec
 
     def close(self):
@@ -98,6 +109,33 @@ def active():
     return _T is not None
 
 
+def last():
+    """the last stage record written (None without a trace)."""
+    return _T.last if _T is not None else None
+
+
+@contextlib.contextmanager
+def capture():
+    """collect the records written inside the block (a cached step replays them on a hit)."""
+    got = []
+    if _T is not None:
+        _T.taps.append(got)
+    try:
+        yield got
+    finally:
+        if _T is not None and got in _T.taps:
+            _T.taps.remove(got)
+
+
+def replay(recs, **extra):
+    """write captured records again (their own time stamps dropped), each with `extra`."""
+    for r in recs:
+        if _T is not None:
+            kw = {k: v for k, v in r.items() if k not in ('t', 'event', 'name')}
+            kw.update(extra)
+            _T.write(r['event'], r.get('name'), **kw)
+
+
 def note(name, **values):
     if _T is not None:
         _T.write('note', name, **values)
@@ -131,7 +169,7 @@ def stage(name, S=None, objects=None):
     finally:
         if _T is not None:
             dt = time.perf_counter() - t
-            snap = scene_snapshot(objects, _T.prev)
+            snap = scene_snapshot(objects, _T.prev, reuse=extra.pop('_reuse', ()))
             added = {k: v for k, v in snap.items() if k not in _T.prev}
             changed = {k: v for k, v in snap.items() if k in _T.prev and (_T.prev[k]['hash'] != v['hash'] or
                                                                            _T.prev[k].get('modifiers') != v.get('modifiers'))}
@@ -228,17 +266,40 @@ def geometry_hash(V, F=None, decimals=5):
 
 
 # --------------------------------------------------------------------------------------------------- Blender snapshots
+_BATCH = [False]                        # inside measuring(): the skip modifiers are already off, the depsgraph current
+
+
+@contextlib.contextmanager
+def measuring(obs, skip=OUTLINE_MODS):
+    """the objects' `skip` modifiers off and one depsgraph update for all of them, so mesh_arrays inside needn't toggle and
+    re-evaluate object by object (no object's surface depends on another's outline or mask)."""
+    import bpy
+    off = [m for o in obs if o.type == 'MESH' for m in o.modifiers if m.name in skip and m.show_viewport]
+    for m in off:
+        m.show_viewport = False
+    bpy.context.evaluated_depsgraph_get().update()
+    _BATCH[0] = True
+    try:
+        yield
+    finally:
+        _BATCH[0] = False
+        for m in off:
+            m.show_viewport = True
+
+
 def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False):
     """world-space (V, (loop verts, starts, counts)) of a mesh object; evaluated (modifiers, shape keys at their values)
     with the `skip` modifiers off. materials=True adds each polygon's material index as a third item."""
     import bpy
     off = []
     if evaluated:
-        for m in ob.modifiers:
-            if m.name in skip and m.show_viewport:
-                m.show_viewport = False; off.append(m)
+        if not _BATCH[0]:
+            for m in ob.modifiers:
+                if m.name in skip and m.show_viewport:
+                    m.show_viewport = False; off.append(m)
         dg = bpy.context.evaluated_depsgraph_get()
-        dg.update()
+        if not _BATCH[0]:
+            dg.update()
         oe = ob.evaluated_get(dg)
         me = oe.to_mesh()
     else:
@@ -271,7 +332,7 @@ def object_snapshot(ob, prev=None):
     if ob.type == 'MESH':
         V, F = mesh_arrays(ob)
         hsh = geometry_hash(V, F)
-        hl = prev['health'] if prev and prev.get('hash') == hsh and 'health' in prev else health(V, F)
+        hl = prev['health'] if prev and prev.get('hash') == hsh and 'health' in prev else _HEALTH.get(hsh) or health(V, F)
         rec.update(hash=hsh, health=hl, base_verts=len(ob.data.vertices))
         if ob.name.startswith(SHEETS):
             rec['sheet'] = True
@@ -293,11 +354,22 @@ def object_snapshot(ob, prev=None):
     return rec
 
 
-def scene_snapshot(objects=None, prev=None):
+def seed_health(records):
+    """reuse the health of object records already measured (a restored stage's), by geometry hash."""
+    for r in records.values():
+        if r.get('hash') and r.get('health'):
+            _HEALTH[r['hash']] = r['health']
+
+
+def scene_snapshot(objects=None, prev=None, reuse=()):
+    """every object's record; `reuse`: names whose record in `prev` stands (a restored stage left them as they were)."""
     import bpy
     prev = prev or {}
     obs = objects if objects is not None else [o for o in bpy.context.scene.objects if o.type in ('MESH', 'ARMATURE')]
-    return {o.name: object_snapshot(o, prev.get(o.name)) for o in obs}
+    fresh = [o for o in obs if not (o.name in reuse and o.name in prev)]
+    with measuring(fresh):
+        snap = {o.name: object_snapshot(o, prev.get(o.name)) for o in fresh}
+    return {o.name: snap[o.name] if o.name in snap else prev[o.name] for o in obs}
 
 
 def landmarks(S):
@@ -325,8 +397,9 @@ def summary(recs):
     for r in recs:
         ev = r['event']
         if ev == 'stage':
-            out.append('\nstage %-14s %7.2fs  objects %d  (+%d ~%d -%d)' % (r['name'], r['dt'], r['objects'], len(r['added']),
-                                                                         len(r['changed']), len(r['removed'])))
+            out.append('\nstage %-14s %7.2fs  objects %d  (+%d ~%d -%d)%s' % (r['name'], r['dt'], r['objects'], len(r['added']),
+                                                                           len(r['changed']), len(r['removed']),
+                                                                           _cache_txt(r.get('cache'))))
             for tag, group in (('+', r['added']), ('~', r['changed'])):
                 for nm, o in sorted(group.items()):
                     h = o.get('health')
@@ -339,15 +412,21 @@ def summary(recs):
             for nm in r['removed']:
                 out.append('  - %s' % nm)
         elif ev == 'span':
-            vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name', 'dt')}
-            out.append('span  %-14s %7.2fs  %s' % (r['name'], r['dt'], json.dumps(vals) if vals else ''))
+            vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name', 'dt', 'cache', 'cached')}
+            out.append('span  %-14s %7.2fs  %s%s%s' % (r['name'], r['dt'], json.dumps(vals) if vals else '',
+                                                    '  (cached)' if r.get('cached') else '', _cache_txt(r.get('cache'))))
+        elif ev == 'product':
+            out.append('%-5s %-14s %7.2fs%s' % ('prod', r['name'], r['dt'], _cache_txt(r.get('cache'))))
         elif ev == 'note':
-            vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name')}
+            vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name', 'cached')}
             txt = json.dumps(vals)
             out.append('note  %-14s %s' % (r['name'], txt if len(txt) <= 200 else txt[:197] + '...'))
         elif ev == 'qa':
             out.append('\nqa    ' + ', '.join('%s %s (%s)' % (k, v[0], v[1]) for k, v in r.get('checks', {}).items()))
         elif ev == 'end':
+            cs = cache_summary(recs)
+            if cs:
+                out.append('\n' + cs)
             out.append('\ntotal %.1fs' % r['total'])
     return '\n'.join(out)
 
@@ -419,7 +498,9 @@ def diff(ra, rb, tol=1e-4, time_ratio=1.5):
             _num_diff({k: x.get(k) for k in ('health', 'bbox', 'shape_keys', 'modifiers', 'materials')},
                       {k: y.get(k) for k in ('health', 'bbox', 'shape_keys', 'modifiers', 'materials')}, nm, tol, sub)
             lines += sub or ['%s: geometry moved (same counts and bbox)' % nm]
-        if max(a['dt'], b['dt']) > 0.5 and max(a['dt'], b['dt']) / max(1e-3, min(a['dt'], b['dt'])) > time_ratio:
+        restored = (a.get('cache') or {}).get('hit') or (b.get('cache') or {}).get('hit')   # a restore's time isn't the stage's
+        if time_ratio and not restored and max(a['dt'], b['dt']) > 0.5 and \
+                max(a['dt'], b['dt']) / max(1e-3, min(a['dt'], b['dt'])) > time_ratio:
             lines.append('time %.2fs -> %.2fs' % (a['dt'], b['dt']))
         if lines:
             out.append('stage %s' % name)
@@ -433,13 +514,33 @@ def diff(ra, rb, tol=1e-4, time_ratio=1.5):
     return '\n'.join(out) if out else 'no differences'
 
 
+def _cache_txt(c):
+    if not c:
+        return ''
+    if c.get('hit'):
+        return '  cache hit' + (' (verified)' if c.get('verified') else '')
+    why = c.get('why') or ''
+    return '  cache miss%s%s' % (': ' + why if why else '', '' if c.get('stored', True) else ' [not stored: %s]' % c.get('uncacheable', '?'))
+
+
+def cache_summary(recs):
+    """one line: the stages and products restored and run, and the time the restores took."""
+    rows = [(r['name'], r['cache']) for r in recs if r.get('cache') and r['event'] in ('stage', 'span', 'product')]
+    if not rows:
+        return None
+    hit = [n for n, c in rows if c.get('hit')]
+    miss = ['%s (%s)' % (n, c.get('why') or 'miss') for n, c in rows if not c.get('hit')]
+    return 'cache: %d/%d restored%s' % (len(hit), len(rows), ('; ran ' + ', '.join(miss)) if miss else '')
+
+
 def main(args):
     if not args:
         print(__doc__); return
-    if len(args) == 1:
-        print(summary(read(args[0])))
+    files = [a for a in args if not a.startswith('--')]
+    if len(files) == 1:
+        print(summary(read(files[0])))
     else:
-        print(diff(read(args[0]), read(args[1])))
+        print(diff(read(files[0]), read(files[1]), time_ratio=None if '--no-time' in args else 1.5))
 
 
 # ------------------------------------------------------------------------------------------------------------ helpers

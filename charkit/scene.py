@@ -332,6 +332,48 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
           ('garments', stage_garments)]
 
 
+# ------------------------------------------------------------------------------------------------------ the stage cache
+# What a stage reads of earlier stages' output only in part (charkit/cache.py keys every other read whole, exactly).
+# 'structure': a Blender object's names, modifier stack, groups, slots and transform, not its geometry (a stage that only
+# parents to the rig, or adds a group and a modifier to the skin). A function: the part of the value that matters.
+GARMENT_KINDS = ('shell', 'band', 'shoe', 'belt', 'sleeve', 'skirt', 'collar', 'bow')
+
+
+def body_below_neck(verts, S):
+    """garments read the body below the neck's middle: shell regions (the Clawd top reaches 0.3 up the neck), the collar's
+    neckline (0.08 L round the neck's base), bands, the skirt's and belt's sections, the bow on the chest, nearest-vertex
+    weights for pieces lying on the torso and limbs. -> (the cut's height, the rows under it, their positions); all of
+    verts when an outfit reaches higher (a region, cut or band on the head or past the neck's middle, a kind this doesn't
+    know)."""
+    from . import mh
+    J = S.character['data']['joints']
+    h, t = (np.asarray(J[k], float) for k in mh.VRM_JOINTS['neck'])
+    for g in S.spec.get('garments') or []:
+        if g.get('kind') not in GARMENT_KINDS or g.get('kind') == 'collar' and g.get('rise', 0.0) > 0.05:
+            return verts
+        for bone, *rest in list(g.get('region', [])) + list(g.get('cuts', [])) + ([[g['bone'], g.get('t', 0.5)]]
+                                                                                    if 'bone' in g else []):
+            ts = [x for x in rest if isinstance(x, (int, float))]
+            if bone == 'head' or bone == 'neck' and max(ts, default=1.0) > 0.45:
+                return verts
+    z = float(0.5 * (h[2] + t[2]))
+    rows = np.nonzero(verts[:, 2] < z)[0]
+    return z, rows, verts[rows]
+
+
+def fringe(objs, S):
+    """face shading reads which hair objects there are and the fringe (hair_front*: its shadow on the face), not the
+    rest of the hair."""
+    return [o.name for o in objs], [o for o in objs if o.name.startswith('hair_front')]
+
+
+DEPS = {
+    'hair': {'character.arm': 'structure'},
+    'face_shading': {'character.skin': 'structure', 'hair': fringe},
+    'garments': {'character.skin': 'structure', 'character.arm': 'structure', 'character.data.verts': body_below_neck},
+}
+
+
 def fit_cranium(spec, root, load=None):
     """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
     the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair.
@@ -371,18 +413,26 @@ def fit_cranium(spec, root, load=None):
     return spec
 
 
-def build(spec, until=None, skip=()):
-    """run the stages in order (stop after `until`, leave out `skip`). -> Scene."""
+def build(spec, until=None, skip=(), cache=None):
+    """run the stages in order (stop after `until`, leave out `skip`), each restored from `cache` (a charkit.cache.Cache)
+    instead when nothing it reads has changed. -> Scene."""
     from . import trace
     reset()
-    with trace.span('fit_cranium'):
-        spec = fit_cranium(spec, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if cache is None:
+        with trace.span('fit_cranium'):
+            spec = fit_cranium(spec, root)
+    else:
+        spec = cache.spec_step('fit_cranium', fit_cranium, spec, root)
     reset()
     S = Scene(spec)
     for name, fn in STAGES:
         if name not in skip:
-            with trace.stage(name, S):
-                fn(S)
+            if cache is None:
+                with trace.stage(name, S):
+                    fn(S)
+            else:
+                cache.stage(name, fn, S, DEPS.get(name))
         if name == until:
             break
     return S

@@ -4,25 +4,41 @@ pattern that would match another worktree's builds.
 
     python -m charkit ps                  # the running charkit builds (every worktree under the same parent folder)
     python -m charkit kill OUT_DIR        # stop that build's recorded process
+
+The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
+in its output folder with the worker's pid: stopping that build stops the worker.
 """
-import glob, json, os, signal, subprocess, sys, time
+import contextlib, glob, json, os, signal, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIDFILE = '.pid.json'
 
 
-def run(cmd, out, label='build', **kw):
-    """run a command to completion with its pid recorded in `out`/.pid.json (removed when it ends) -> CompletedProcess."""
+def write(out, pid, label, cmd):
+    """record a process in `out`/.pid.json. -> the record's path."""
     os.makedirs(out, exist_ok=True)
     pf = os.path.join(out, PIDFILE)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
-    json.dump({'pid': p.pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
+    json.dump({'pid': pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
                'started': time.strftime('%Y-%m-%dT%H:%M:%S')}, open(pf, 'w'))
+    return pf
+
+
+@contextlib.contextmanager
+def record(out, pid, label, cmd):
+    """`out`/.pid.json names `pid` while the block runs."""
+    pf = write(out, pid, label, cmd)
     try:
-        so, se = p.communicate()
+        yield pf
     finally:
         if os.path.exists(pf):
             os.remove(pf)
+
+
+def run(cmd, out, label='build', **kw):
+    """run a command to completion with its pid recorded in `out`/.pid.json (removed when it ends) -> CompletedProcess."""
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
+    with record(out, p.pid, label, cmd):
+        so, se = p.communicate()
     return subprocess.CompletedProcess(cmd, p.returncode, so, se)
 
 

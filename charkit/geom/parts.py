@@ -80,7 +80,9 @@ class Case:
             R = refs.measure(cli._path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
             spec = refs.fit(spec, R, ref.get('fit', ('face', 'features', 'hair')))
         spec = scene.fit_cranium(spec, ROOT, load=lambda p: load_generated(p, compat=True))
-        key = hashlib.sha1(json.dumps(spec, sort_keys=True, default=str).encode()).hexdigest()[:16]
+        from .. import cache as kcache                  # the assembly's code (charkit.cache.code_units): an edit re-assembles
+        code = kcache.digest(kcache.code_units(character.assemble))
+        key = hashlib.sha1((json.dumps(spec, sort_keys=True, default=str) + code).encode()).hexdigest()[:16]
         cdir = os.path.join(ROOT, 'charkit', 'out', 'geom', 'cache')
         cpath = os.path.join(cdir, f'{spec.get("name", "char")}_{key}.pkl')
         t = time.time()
