@@ -95,6 +95,27 @@ so this file restates what's needed from it.
    Its gate passed against `6419bcd`. It must be gated against the **baseline build test** (step 2 below), then merged.
    `bodyeval` should then move onto `bundle.Builder` and `qa3d.evaluate(...)`; its own measure code is duplicated.
 
+## End-to-end run at handoff (2026-09-28, the merged stack without bodyfit)
+
+`charkit tune charkit/spec/clawd.json --out charkit/out/e2e --budget 8 --review --workers 3` ran unattended in 549 s.
+The steps, in order:
+1. ck0 start: cached, 4 s. Score 114.62; 43 pass, 30 warn, 41 fail.
+2. ck1 geom hair: **accepted**. Score 113.10.
+3. ck2 anime base: **rejected** (eye width and iris ratio, the laugh mouth, neck-to-jaw).
+4. The face probe found the face converged, so the refit was skipped.
+5. ck3 final: stop, converged. Score 113.10; 43 pass, 31 warn, 40 fail.
+
+Then the final spec was built with `--vrm`: `charkit/out/e2e/export/clawd.vrm` passes the Khronos validator with 0 errors
+and 0 warnings. Triage produced 73 work items in `charkit/out/e2e/work_items.md`:
+- needs a knob: 45, mostly body and garments, which bodyfit addresses;
+- needs a capability: 9;
+- trade-off: 8;
+- measurement uncertain: 6;
+- knob at a bound: 3;
+- needs a measurement: 2.
+
+After bodyfit merges, rerun this exact command as the baseline for gating `tool/measure`.
+
 ## Next steps, in order (the checkpoint)
 
 1. **Merge `tool/bodyfit`** through the gate.
