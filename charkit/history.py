@@ -23,6 +23,8 @@ STEPS = [
     ('face_folds', '8017ff3', 'the expression library grew (tool/sheet: shock eyes; laugh, yawn and wavy mouths), and '
                               'face_folds sums its folds over every key: Clawd 1014 -> 1257 with the same skin'),
     ('face_expr_range', '8017ff3', 'FACE_EXPECT gained the shock eye (tool/sheet)'),
+    ('face_shape_coverage_*', '5652f64', 'framing against the generated shape is INFO: the sheet grades framing '
+                                         '(sheet_shown_*), per the manifest'),
 ]
 
 

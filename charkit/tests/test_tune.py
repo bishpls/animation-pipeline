@@ -199,6 +199,14 @@ def test_options_and_partial_specs():
     assert res['changed'] == {'head.chin': [1.0, 1.3], 'eyes.width': [0.2, 0.22]} and set(res['blocks']) == {'face', 'eyes'}
 
 
+def test_triage_decisions():
+    spec = {'name': 'x'}
+    cfg = {'decisions': [{'checks': ['sheet_shown_*'], 'class': 'needs a capability', 'by': 'a reviewer',
+                          'why': 'cull_face takes the cheek locks'}]}
+    cls, detail, ev, also = triage.classify('sheet_shown_front', {'value': 0.4, 'status': 'WARN'}, _ctx(spec, {}, [], config=cfg))
+    assert cls == 'needs a capability' and 'cull_face' in detail and 'by a reviewer' in detail and 'needs a knob' in also, (cls, also)
+
+
 def test_triage_uncertain_and_built_evidence():
     spec = {'name': 'x'}
     face = F('face', ('sheet_*',), {})

@@ -332,7 +332,7 @@ When something can only be judged by eye, name the measurement that would close 
 - **Measurement steps.** When a check's measurement changes rather than the character, its numbers step. `hair_noise`
   read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `face_folds`
   rose from 1014 to 1257 on the same skin when the expression library grew, because it sums over every key (8017ff3,
-  tool/sheet). `history.STEPS`
+  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). `history.STEPS`
   lists each step (the check, the commit, what changed). A build is before or after a step by whether that commit is in
   its history. `history --check` draws a line at each step, `history.trend` reads only the builds since the latest one,
   and the gate's and the tune loop's comparisons call such a check `remeasured`, neither better nor worse. Add a step
@@ -512,7 +512,9 @@ rule lets a sheet, body or palette check cross its limit by at most 0.15 warn ba
 checkpoint gains overall: a flip smaller than the sheet's own error is noise. Without it, geom hair was rejected for
 `body_profile_hair_width` moving 0.920 -> 0.914 while three hair lengths reached PASS. The config also holds the build
 options, the stop settings and each reference's stated error (`uncertain`: the sheet is good to about a pixel, 0.009 L,
-or 3% on a ratio).
+or 3% on a ratio). Its `decisions` record a class people decided for a check, with who and why. The triage puts that
+class first and keeps its own beside it: Clawd's `sheet_shown_*` gap after the face fit is a hair capability, because
+`scene.cull_face` takes the cheek side locks when the jaw widens.
 
 **Triage** (`charkit/triage.py`; `python -m charkit triage DIR` redoes it for a tune folder or any build). Every check
 still WARN or FAIL is classified by why the loop couldn't fix it. The first class that applies wins; the others are

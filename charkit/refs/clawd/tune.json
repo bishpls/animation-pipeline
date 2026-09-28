@@ -9,8 +9,6 @@
    "why": "face_profile: the sheet is the authority"},
   {"allow": ["face_shape_chin"], "when": ["sheet_profile_chin", "sheet_cheek_chin"], "floor": "FAIL", "ratio": 3.0,
    "why": "chin: the sheet is the authority"},
-  {"allow": ["face_shape_coverage_*"], "when": ["sheet_shown_*"], "floor": "WARN",
-   "why": "hair_silhouette: the sheet is the authority for how much face the hair shows"},
   {"allow": ["shape_iou", "shape_iou_*", "ref_iou"], "when": ["body_*"], "floor": "FAIL", "ratio": 2.0,
    "why": "body_silhouette: the sheet is the authority; the generated shape and key are interpretations"},
   {"allow": ["body_*", "sheet_*", "palette_*"], "noise": true, "max_cost": 0.15, "floor": "WARN",
@@ -21,6 +19,10 @@
    "why": "charkit/geom's closed hair shell (docs/GEOM.md): hair_noise ~0.31 -> ~0.19, passes both gates"},
   {"name": "anime-base", "set": {"base": "anime"}, "targets": ["face_folds"],
    "why": "charkit's anime base mesh: clean lid and lip rings (face_folds 1014 -> 135 on Clawd)"}
+ ],
+ "decisions": [
+  {"checks": ["sheet_shown_*"], "class": "needs a capability", "by": "the coordinator, 2026-09-28",
+   "why": "the framing gap left after the face fit: scene.cull_face takes the cheek side locks when the jaw widens; keep the locks in front of the cheeks, as the geom hair mode does (a hair capability)"}
  ],
  "stop": {"rounds": 2, "min_gain": 0.5},
  "uncertain": {"sheet": {"ratio": 0.03, "abs": 0.009}}

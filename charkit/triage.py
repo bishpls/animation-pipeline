@@ -23,7 +23,8 @@ The classes (the first that applies; the others that also apply are listed as `a
   not in the objective   a knob improves it with no cost, but no fitter's objective includes the check
 (A free knob that would improve a targeted check at no cost to another check, moving away from its template default,
 is a trade-off with the fit's pull toward the defaults.)
-Review tickets (charkit/refs/NAME/tickets.json, charkit/review.py) join the list: a measurement the metrics missed
+A class people decided (the tune config's `decisions`: {checks, class, why, by}) comes first, the evidence's own class
+kept beside it in `also`. Review tickets (charkit/refs/NAME/tickets.json, charkit/review.py) join the list: a measurement the metrics missed
 (`needs a measurement`, until a check of that name appears in the QA; where the ticket has a prototype computed from
 the QA's own tables it is measured again on this build: status PROVISIONAL PASS/WARN/FAIL), and reviewer notes on
 existing checks (evidence, and a higher rank).
@@ -333,6 +334,12 @@ def classify(check, c, ctx):
                 cands.append(('knob at a bound', 'the knobs that would improve it are at their range\'s end: %s' % b))
     if not cands:
         cands.append(('needs a capability', cap or 'no class fits the evidence'))
+    # a class people decided (the tune config's `decisions`) comes first; what the evidence says stays beside it
+    for dcs in (ctx.get('config') or {}).get('decisions', []):
+        if any(fnmatch.fnmatchcase(check, p) for p in dcs.get('checks', [])):
+            ev['decision'] = {k: dcs[k] for k in ('class', 'why', 'by') if k in dcs}
+            cands.insert(0, (dcs['class'], 'decided%s: %s' % (' by %s' % dcs['by'] if dcs.get('by') else '', dcs['why'])))
+            break
     # measurement uncertainty is the primary class only when it is strong
     cls, detail = cands[0]
     also = []
