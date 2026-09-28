@@ -136,8 +136,13 @@ def vector(res, x=None, knobs=()):
     return np.concatenate(parts)
 
 
-def cost(res, x=None, knobs=()):
-    return float(0.5 * np.sum(vector(res, x, knobs) ** 2))
+def cost(res, x=None, knobs=(), loss='linear'):
+    """0.5 sum of the loss over the vector, as scipy's least_squares counts it ('linear' or 'soft_l1' at LOSS_SCALE)."""
+    f = vector(res, x, knobs)
+    if loss == 'soft_l1':
+        c = LOSS_SCALE
+        return float(0.5 * np.sum(c * c * 2 * (np.sqrt(1 + (f / c) ** 2) - 1)))
+    return float(0.5 * np.sum(f ** 2))
 
 
 # ------------------------------------------------------------------------------------------------------------ workers
@@ -287,7 +292,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
 
     def fun(u):
         v = f(u)
-        c = float(0.5 * np.sum(v ** 2))
+        c = cost(evaluate([u])[0], x0 + np.asarray(u) * st, knobs, loss)
         hist.append({'x': (x0 + u * st).round(5).tolist(), 'cost': round(c, 4)})
         if best['c'] is None or c < best['c']:
             best.update(u=np.array(u), c=c)
@@ -306,7 +311,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     def polish(u):
         """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
         taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
-        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs)
+        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs, loss)
         for dstep in POLISH:
             for _ in range(POLISH_MOVES):
                 cands = []
@@ -315,7 +320,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                         v = u.copy(); v[i] = np.clip(v[i] + sgn * dstep, ulo[i], uhi[i])
                         if not np.allclose(v, u):
                             cands.append((i, v))
-                cs = [cost(r, x0 + v * st, knobs) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
+                cs = [cost(r, x0 + v * st, knobs, loss) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
                 j = int(np.argmin(cs))
                 if cs[j] >= cur - 1e-6:
                     break

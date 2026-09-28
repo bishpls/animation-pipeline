@@ -11,8 +11,9 @@ surface in the scene occluding (hair, eyes, clothes), the visible skin masked. M
                 the half-width, from the side views the front edge
   profile       the midline's front edge (side view) from the nose to the chin: mean distance between the two curves
   chin          the chin's bottom (where the profile turns back to the neck) below the eye line: ours, target, design
-  depth         over the skin both show from the front: ours minus target along the view (+ = ours further back), per
-                region (cheeks, jaw, nose and mouth, chin), after taking out the median offset (the alignment's)
+  depth         over the skin both show from the front, down to the higher of the two chins: ours minus target along the
+                view (+ = ours further back), per region (cheeks, jaw, nose and mouth, chin), after taking out the median
+                offset (the alignment's)
   features      mouth, nose and brow heights from the eye line against the design rig's
 
     from charkit import faceqa
@@ -267,7 +268,7 @@ def measure(ours, target, lm, ref=None, pix=PIX, tcache=None):
                                'visible_vs_target': round(float(vis_o.sum() / max(1, vis_t.sum())), 3)}
     # depth over the face both show from the front: ours minus the target (+ = ours further back), per region
     M = maps['front']
-    both = M['fo'] & M['ft']
+    both = M['fo'] & M['ft'] & (z > bottom)[:, None]        # the face, not the neck under the chins
     if both.sum() > 50:
         with np.errstate(invalid='ignore'):
             dd = np.where(both, M['do'] - M['dt'], 0.0) / L

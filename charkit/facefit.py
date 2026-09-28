@@ -42,7 +42,7 @@ KNOBS = [
     Knob('head.flat', ('head', 'flat'), 1.0, 0.06, (0.60, 1.30), 'face'),
     Knob('head.low_flat', ('head', 'low_flat'), 1.0, 0.08, (0.70, 2.00), 'face'),
     Knob('head.depth', ('head', 'depth'), 1.0, 0.03, (0.85, 1.15), 'face'),
-    Knob('head.nose_tip', ('head', 'nose_tip'), 0.0, 0.015, (0.0, 0.12), 'face'),
+    Knob('head.nose_tip', ('head', 'nose_tip'), 0.0, 0.008, (0.0, 0.04), 'face'),    # past ~0.04 L it reads as a spike
     Knob('head.neck_r', ('head', 'neck_r'), 1.0, 0.08, (0.60, 1.30), 'face'),
     Knob('body.neck_w', ('body', 'proportions', 'neck_w'), 0.82, 0.05, (0.40, 1.00), 'face'),
     Knob('body.neck_len', ('body', 'proportions', 'neck_len'), 0.72, 0.06, (0.60, 1.20), 'face'),
@@ -64,6 +64,7 @@ AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile
 VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
+VIEW_BUDGET = 120               # evaluations per view in --views
 
 
 def terms():
@@ -167,18 +168,21 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
         open(os.path.join(out, 'sensitivity.md'), 'w').write(sensitivity_md(table, T))
         log('fit: sensitivity table written (%d knobs)' % len(table['knobs']))
         fitted, left = spec, budget
-        for g in groups:
+        # the eyes, the face, then the eyes again: the face's knobs move the skin round the eyes a little
+        order = [g for g in ('eyes', 'face') if g in groups] + (['eyes'] if 'eyes' in groups and 'face' in groups else [])
+        for n_, g in enumerate(order):
             share = None if left is None else max(20, int(left * sum(k.group == g for k in KNOBS) /
-                                                          max(1, sum(k.group in groups for k in KNOBS))))
+                                                          max(1, sum(k.group in order for k in KNOBS))))
             fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, g, authority, budget=share, loss=LOSS.get(g, 'soft_l1'),
                                            log=log)
-            rep['groups'][g] = {k: v for k, v in info.items() if k != 'history'}
-            rep['groups'][g]['cost_history'] = [h['cost'] for h in info['history']]
+            key = g if g not in rep['groups'] else g + '_again'
+            rep['groups'][key] = {k: v for k, v in info.items() if k != 'history'}
+            rep['groups'][key]['cost_history'] = [h['cost'] for h in info['history']]
             if left is not None:
                 left = max(0, left - info['evaluations'])
         after = pool.map([(fitted, 'all', True)])[0]
         if views:
-            rep['views_alone'] = views_alone(pool, spec, T, authority, log)
+            rep['views_alone'] = views_alone(pool, fitted, T, authority, budget=VIEW_BUDGET, log=log)
     finally:
         pool.close()
     fitted = copy.deepcopy(fitted)
@@ -199,16 +203,20 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
     return fitted, rep
 
 
-def views_alone(pool, spec, T, authority, log=print):
-    """the face fitted to each view's terms alone (all together is the main fit): each view's best residuals."""
+def views_alone(pool, spec, T, authority, budget=None, log=print):
+    """from the joint fit (spec), each view's face terms fitted alone: how far that view could go if the others didn't
+    count. A view that passes alone but not jointly is held back by the others (one rigid face can't do both)."""
     out = {}
     for view in ('front', 'three_quarter', 'profile', 'depth'):
         sub = [t for t in T if t.group == 'face' and t.view == view]
-        s2, info = fitkit.optimise(pool, spec, KNOBS, sub, 'face', authority, loss=LOSS['face'], log=lambda *a: None)
+        s2, info = fitkit.optimise(pool, spec, KNOBS, sub, 'face', authority, budget=budget, loss=LOSS['face'],
+                                   log=lambda *a: None)
         res = fitkit.residuals(pool.map([(s2, 'face', True)])[0], sub, authority)
         out[view] = {'rms': round(float(np.sqrt(np.mean([r['r'] ** 2 for r in res]))), 3),
                      'worst': max(res, key=lambda r: abs(r['r']))['name'], 'max': round(max(abs(r['r']) for r in res), 3),
-                     'fitted': info['fitted'], 'evaluations': info['evaluations']}
+                     'within_tolerance': sum(abs(r['r']) <= 1 for r in res), 'terms': len(res),
+                     'rows': {r['name']: round(r['r'], 3) for r in res},
+                     'fitted': info['fitted'], 'at_bound': info['at_bound'], 'evaluations': info['evaluations']}
         log('fit: %s alone -> RMS %.2f' % (view, out[view]['rms']))
     return out
 
@@ -277,9 +285,12 @@ def report_md(rep):
         L += ['| %s | %s | %.2f | %+.2f | %+.2f |' % (r['term'], r['ref'], r['weight'], r['before'], r['after']) for r in d['rows']]
         L.append('')
     if rep.get('views_alone'):
-        L += ['## Each view fitted alone', '', '| view | RMS alone | worst alone | RMS in the joint fit |', '|---|---|---|---|']
+        L += ['## Each view fitted alone (from the joint fit)', '',
+              '| view | RMS alone | passing alone | worst alone | RMS jointly | knobs at bound alone |', '|---|---|---|---|---|---|']
         for v, d in rep['views_alone'].items():
-            L.append('| %s | %.2f | %s %+.2f | %.2f |' % (v, d['rms'], d['worst'], d['max'], rep['residuals'][v]['rms_after']))
+            L.append('| %s | %.2f | %d of %d | %s %+.2f | %.2f | %s |' % (
+                v, d['rms'], d['within_tolerance'], d['terms'], d['worst'], d['max'], rep['residuals'][v]['rms_after'],
+                ', '.join('%s (%s)' % kv for kv in d['at_bound'].items())))
         L.append('')
     L += ['## Knobs', '', '| knob | start | fitted | default | bounds | at bound |', '|---|---|---|---|---|---|']
     for n, k in rep['knobs'].items():
