@@ -216,7 +216,8 @@ def test_review_note_to_tickets():
     os.makedirs(os.path.join(b, 'qa'))
     spec = {'name': 'x', 'ref': {'manifest': os.path.join(d, 'manifest.json'), 'authority': {'face_front': 'sheet'}}}
     json.dump(spec, open(os.path.join(b, 'x.spec.json'), 'w'))
-    Q = qa(sheet_width=(1.02, 'PASS'), sheet_profile_chin=(-0.01, 'PASS'), face_shape_chin=(0.0, 'PASS'), eye_aspect=(0.7, 'FAIL'))
+    Q = qa(sheet_width=(1.02, 'PASS'), sheet_profile_chin=(-0.01, 'PASS'), face_shape_chin=(0.0, 'PASS'), eye_aspect=(0.7, 'FAIL'),
+           shape_iou_hair=(0.97, 'PASS'), hair_noise=(0.3, 'FAIL'))
     Q['sheet'] = {'ours': {'front': {'chin': -0.40, 'widths': {'d55': 0.26, 'd75': 0.19}}},
                   'design': {'front': {'chin': -0.36, 'widths': {'d55': 0.27, 'd75': 0.20}}}}
     json.dump(Q, open(os.path.join(b, 'qa', 'qa.json'), 'w'))
@@ -232,6 +233,11 @@ def test_review_note_to_tickets():
     t2 = review.ticket(b, n2['id'])                                     # eye_aspect fails: a work item on it
     assert t2['kind'] == 'work' and t2['checks'] == ['eye_aspect'], t2
     assert review.load_notes(b)['notes'][0]['ticket'] == t1['id']
+    # "flat" bangs are the hair's shape (which passes), not its shading (which fails): the metrics missed it
+    t3 = review.ticket(b, review.add_note(b, 'the bangs read as a flat helmet')['id'])
+    assert t3['kind'] == 'measure' and t3['proposed']['check'] == 'hair_front_outline' and t3['missed_by'] == ['shape_iou_hair'], t3
+    t4 = review.ticket(b, review.add_note(b, 'the hair shading looks noisy')['id'])
+    assert t4['kind'] == 'work' and t4['checks'] == ['hair_noise'], t4
     # the triage lists the missing measurement, and the eye note ranks eye_aspect up
     ctx = _ctx(spec, {}, [], tickets=review.load_tickets(spec)['tickets'])
     its = triage.items(Q, ctx)

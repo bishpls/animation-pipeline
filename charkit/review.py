@@ -14,8 +14,9 @@ checks exist because someone saw a problem the metrics didn't, so review feeds t
            written from the page (the review server), the inspector's review panel (projects/charkit-look, served by the
            review server) or the command line
   tickets  charkit/refs/NAME/tickets.json (tracked: tickets outlive builds). A note is matched against CONCERNS, what a
-           reviewer's words usually mean ("long" + face -> the face's length over its width), giving the checks that
-           measure it. If any of them is WARN or FAIL in the build, the note is a `work` ticket: it joins those checks'
+           reviewer's words usually mean ("long" + face -> the face's length over its width; "flat" + bangs -> the hair's
+           shape, not its shading), giving the checks that measure it: the ones the note names, else its first
+           concern's. If any of them is WARN or FAIL in the build, the note is a `work` ticket: it joins those checks'
            work items as evidence and ranks them higher. If they all pass (the metrics missed it), it is a `measure`
            ticket: a proposed check (name, what to measure, views, the reference that is the authority), the passing
            checks that should have caught it, and, where the QA's own tables already hold the numbers, the proposed
@@ -123,10 +124,19 @@ CONCERNS = [
     {'id': 'neck', 'words': r'\bneck\b', 'with': None, 'region': 'face', 'checks': ['sheet_neck_to_jaw'],
      'propose': {'check': 'sheet_neck_length', 'views': ['front', 'profile'], 'measure': 'body_silhouette', 'proto': None,
                  'what': "the neck's length from the chin to the collar against the design's"}},
-    {'id': 'hair', 'words': r'\b(hair|bangs?|fringe|buns?|ahoge|helmet|volume|strands?)\b', 'with': None, 'region': 'hair',
-     'checks': ['shape_iou_hair', 'sheet_shown_*', 'hair_*', 'scalp_px', 'hair_noise'],
-     'propose': {'check': 'hair_front_outline', 'views': ['front', 'back'], 'measure': 'hair_silhouette', 'proto': None,
-                 'what': "the hair's outline against the design's front and back figures"}},
+    {'id': 'hair_shading', 'words': r'\b(nois\w*|shading|shadows?|strands?|texture|messy|blotch\w*|speckl\w*)\b',
+     'with': r'\b(hair|bangs?|fringe|buns?)\b', 'region': 'hair', 'checks': ['hair_noise'],
+     'propose': {'check': 'hair_tone_regions', 'views': ['front', 'three_quarter'], 'measure': 'hair_shape', 'proto': None,
+                 'what': "the hair's shadow shapes: how many tone regions and how ragged their edges, against the design's"}},
+    {'id': 'hair_framing', 'words': r'\b(cover\w*|hid\w*|shows?|showing|framing|frames?)\b',
+     'with': r'\b(hair|bangs?|fringe)\b', 'region': 'hair', 'checks': ['sheet_shown_*', 'face_shape_coverage_*'],
+     'propose': {'check': 'sheet_fringe_line', 'views': ['front'], 'measure': 'hair_silhouette', 'proto': None,
+                 'what': "the fringe's lower edge across the face against the design's"}},
+    {'id': 'hair_shape', 'words': r'\b(hair|bangs?|fringe|buns?|ahoge|helmet|volume|flat|puffy|outline|silhouette)\b',
+     'with': None, 'region': 'hair', 'checks': ['shape_iou_hair', 'hair_*', '!hair_noise', 'scalp_px'],
+     'propose': {'check': 'hair_front_outline', 'views': ['front', 'three_quarter', 'back'], 'measure': 'hair_silhouette',
+                 'proto': None, 'what': "the hair's outline per view against the design's figures (its volume and where "
+                                        "the bangs stand off the forehead)"}},
     {'id': 'body', 'words': r'\b(legs?|torso|arms?|shoulders?|hips?|proportion\w*|heads? tall|height|body|chest)\b', 'with': None,
      'region': 'silhouette', 'checks': ['shape_iou', 'shape_iou_*', 'ref_iou', 'body_*'],
      'propose': {'check': 'body_proportions', 'views': ['front', 'profile'], 'measure': 'body_silhouette', 'proto': None,
@@ -223,21 +233,28 @@ def ticket(build, note_id, kind=None, check=None):
     qa = json.load(open(os.path.join(b, 'qa', 'qa.json')))
     C = qa.get('checks') or {}
     found = concerns(note['text'])
-    pats = list(note.get('checks') or []) + [p for c in found for p in c['checks']]
-    related = sorted({k for k in C for p in pats if fnmatch.fnmatchcase(k, p) and C[k].get('status') in checks.GRADED})
-    bad = [k for k in related if C[k]['status'] != 'PASS']
-    ok = [k for k in related if C[k]['status'] == 'PASS']
+    def graded(pats):                                  # glob patterns; '!pattern' leaves matches out
+        inc, exc = [p for p in pats if not p.startswith('!')], [p[1:] for p in pats if p.startswith('!')]
+        return sorted({k for k in C for p in inc if fnmatch.fnmatchcase(k, p) and not any(fnmatch.fnmatchcase(k, x) for x in exc)
+                       and C[k].get('status') in checks.GRADED})
+    # the checks that measure what the note says: the ones it names, else its first (most specific) concern's; the
+    # other concerns' checks are listed as related
+    direct = graded(list(note.get('checks') or []) or (found[0]['checks'] if found else []))
+    related = graded(list(note.get('checks') or []) + [p for c in found for p in c['checks']])
+    bad = [k for k in direct if C[k]['status'] != 'PASS']
+    ok = [k for k in direct if C[k]['status'] == 'PASS']
     kind = kind or ('work' if bad else 'measure')
     T = load_tickets(spec)
     t = {'id': 'T%03d' % (len(T['tickets']) + 1), 'kind': kind, 'status': 'open', 'created': time.strftime('%Y-%m-%dT%H:%M:%S'),
          'text': note['text'], 'note': note_id, 'build': _rel(b), 'view': note.get('view'),
          'region': note.get('region') or (found[0]['region'] if found else None), 'severity': note.get('severity', 2),
-         'concerns': [c['id'] for c in found], 'related': {k: [C[k].get('value'), C[k]['status']] for k in related}}
+         'concerns': [c['id'] for c in found], 'direct': direct,
+         'related': {k: [C[k].get('value'), C[k]['status']] for k in related}}
     if note.get('camera'):
         t['camera'] = note['camera']
     t['board'] = os.path.join(_rel(b), 'review', 'board.png')
     if kind == 'work':
-        t['checks'] = [check] if check else (bad or related)
+        t['checks'] = [check] if check else (bad or direct or related)
     else:
         prop = dict(found[0]['propose']) if found else {
             'check': check or 'review_' + re.sub(r'[^a-z0-9]+', '_', note['text'].lower()).strip('_')[:32],
