@@ -15,9 +15,14 @@ Michael **paused the Clawd buildout** to invest in the toolkit: measurement, obs
 - `~/animation-pipeline-3d` is the integration worktree (`pipeline-3d`). Merge branches here, and fast-forward `main` with
   `git -C ~/animation-pipeline merge --ff-only pipeline-3d`.
 - Head at handoff: `eaf0ec8`.
+- **Resumed 2026-09-28 on the second account:**
+  - `tool/bodyfit` merged at `77721ff` (gate PASS);
+  - the dance port committed at `885d53c`;
+  - the baseline tune is running in `charkit/out/baseline`.
 
 The plan doc "Charkit Toolkit Buildout Plan" is a Claude Doc on Michael's first account. A new account may not see it,
-so this file restates what's needed from it.
+so this file restates what's needed from it. That includes the plan's character buildout (its phases 3 and 4), under
+"Functionality buildout" below.
 
 ## Merged this round (on pipeline-3d / main)
 
@@ -50,8 +55,13 @@ so this file restates what's needed from it.
 
 ## In flight at handoff
 
-1. **`tool/bodyfit`** (`~/animation-pipeline-bodyfit`, head `d7f4ea7`), wrapped up and committed, **not merged or
-   gated**. Read its `docs/BODYFIT_STATUS.md` first. What it has:
+1. **`tool/bodyfit`: merged 2026-09-28 at `77721ff`.**
+   - The gate passed: 27 checks better, none worse, all 17 test files ok, Blender time 113 → 114 s. The report is
+     `charkit/out/gate/gate_tool-bodyfit_3c295b8_into_315045c.md`.
+   - Still to do: refresh `bodysens` (step 4 below).
+
+   It was at `~/animation-pipeline-bodyfit`, head `d7f4ea7`. Its `docs/BODYFIT_STATUS.md` is now on `pipeline-3d`.
+   What it has:
    - a fast numpy body, garment and hair evaluator: about 90x Blender, geometry within 4e-7 m, all 93 sheet checks
      grading as Blender does;
    - `bodysens`;
@@ -71,11 +81,12 @@ so this file restates what's needed from it.
    It holds the head's size fixed while fitting the body. So Clawd became 1.468 m and 5.87 heads, from 1.55 m and 6.2
    heads; `--free-head` restores the old behaviour. **That is a design change to show Michael at the review.**
 
-   To resume:
-   1. merge `pipeline-3d` (conflicts are likely in `cli.py` and `docs/CHARKIT.md`; keep both sides);
+   The merge steps, all done except the `bodysens` refresh:
+   1. merge `pipeline-3d` (it merged cleanly, as `3c295b8`);
    2. run the tests;
    3. run `python -m charkit gate tool/bodyfit --into pipeline-3d`;
-   4. refresh `bodysens` (about 30 min; the current table predates a Solidify fix);
+   4. refresh `bodysens`: still to do. It takes about 30 min, and the current table predates a Solidify fix. The tune
+      doesn't read it, since the tune measures its own tables, so it doesn't block the baseline;
    5. merge.
 
    Known gaps:
@@ -94,6 +105,13 @@ so this file restates what's needed from it.
 
    Its gate passed against `6419bcd`. It must be gated against the **baseline build test** (step 2 below), then merged.
    `bodyeval` should then move onto `bundle.Builder` and `qa3d.evaluate(...)`; its own measure code is duplicated.
+
+   **Expected conflict: `charkit/sheetqa.py` `measure_ours`** (a trial `git merge-tree` against bodyfit shows it).
+   - measure calls `faceqa.zbuffer(..., thin=(CLASS['line'],))`, since its `zbuffer` gains `method` and `thin`;
+   - bodyfit made `zbuffer` and `face_region` injectable, and passes `bodymeasure.zsplat`, which has no `thin`.
+
+   The clean resolution is to use measure's rasteriser on both paths and retire `zsplat`. That is the bodyeval
+   deduplication above.
 
 ## End-to-end run at handoff (2026-09-28, the merged stack without bodyfit)
 
@@ -176,7 +194,8 @@ Suggested priority, face first:
 6. garment pieces (puffs, pleated panels);
 7. hair components and rework later.
 
-These go before the secondary phase, but after the bodyfit and measure merges.
+These go before the secondary phase, but after the bodyfit and measure merges. "Functionality buildout" below turns
+them into work items.
 
 ## Generated references (2026-09-28, GPT Image 2.5 from the model sheet and the rig)
 
@@ -210,6 +229,8 @@ Use them in this order:
    separate pleated panels in layers, the puff's stand-off off the arm).
 4. Use `hair_breakdown` for the hair component graph later.
 
+None of this is built yet. It's item 1 of phase 4 under "Functionality buildout".
+
 Michael's decisions on further generation (2026-09-28):
 - **Mouth expressions:** standardize them in the template (a quality and detail pass); don't bring a generated reference
   against them.
@@ -237,8 +258,9 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
 
 ## Next steps, in order (the checkpoint)
 
-1. **Merge `tool/bodyfit`** through the gate.
-2. **Baseline full build test** on the merged stack:
+1. **Merge `tool/bodyfit`** through the gate. Done: `77721ff`.
+2. **Baseline full build test** on the merged stack (running since 2026-09-28 17:07, as
+   `charkit tune charkit/spec/clawd.json --out charkit/out/baseline --budget 8 --review --workers 3`, the e2e command):
    `python -m charkit tune charkit/spec/clawd.json --review`. Then check the VRM export (`charkit build ... --vrm`, and
    `node tools/gltf_validate.mjs`) and the inspector (`node engine/render.mjs projects/charkit-look --serve`). Keep this
    run's `work_items.md` as the baseline.
@@ -261,16 +283,155 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    - **"The face reads long" ticket:** it now measures 6% short. Does it look short to him? If not, the measurement is
      wrong.
    - The top triaged work items from the tune run.
-6. **Secondary phase**, only after that review:
+   - **Height:** the body fit holds the head, so Clawd is 1.468 m and 5.87 heads (was 1.55 m, 6.2). Keep it, or free
+     the head (`--free-head`)?
+   - **Order after the checkpoint:**
+     - the plan (written before the e2e review) put remote build scoping first, before any pipeline feature;
+     - Michael's e2e review put the face first, before the secondary phase.
+
+     This file follows the later call (step 6 before step 7). Confirm it, or move remote scoping up if build
+     throughput is the bottleneck.
+6. **Functionality buildout, face first:** the next section. It turns the review's face-first priorities and the
+   plan's "Resume Clawd" phase into work items with deliverables and acceptance checks.
+7. **Secondary phase**, only after that review:
    1. **Remote build backend (scoping) comes first:** a CPU spot VM for parallel builds, the existing L4 box for EEVEE
       renders, `charkit build --remote`, platform-keyed gate baselines, the same guardrails as the GPU box. New cloud
       resources only with Michael's go-ahead.
    2. **Motion QA:** range-of-motion and dance-clip sweeps. Measure interpenetration, stretch, joint volume and spring
-      stability.
+      stability. The dance port's findings are the first targets: the arm through the top at frame 260, and the skirt
+      at frame 200.
    3. **A generic path for untemplated parts:** the cleaned generated surface plus auto-rigging.
    4. **Spring bones:** VRMC_springBone export and runtime simulation, driven by the outfit graph's motion classes.
    5. **Generated-view consistency** for single-image input.
    6. **Hair as components:** ponytails, twintails, buns and locks, each rigged with its own physics.
+
+## Functionality buildout (after the checkpoint review)
+
+The plan's sequencing had four phases, each ending at a gate:
+1. build the tools in parallel;
+2. merge them in order (Gate 2: "Clawd rebuilds on main, QA no worse than today");
+3. wire them into `charkit build` (Gate 3: "one command builds Clawd end to end");
+4. resume Clawd.
+
+**The end gate: every Clawd check PASS or WARN, and the dance demo approved.** The toolkit round covered phases 1
+and 2. Phase 3 is partly done. Phase 4 is the character buildout itself: the face-first work, garments, then the dance
+demo.
+
+### Phase 3, wiring: where it stands
+
+| Plan item | Status |
+| --- | --- |
+| Hair and skirt from TRELLIS parts, cleaned by the kernel | Hair: done (`--hair geom`, accepted in the e2e tune). Skirt: not started; its geometry is still the parametric template |
+| The anime base as the default for new specs | Built, not the default. It was rejected in the e2e tune (eye width, iris ratio, laugh mouth, neck-to-jaw). A review decision (step 5) |
+| Export the .glb; review boards drawn by the WebGPU renderer | Export: done (the VRM passes the validator with 0 errors and 0 warnings). WebGPU matches the Blender boards to under 1.1/255, but the build's review boards are still Blender renders |
+| QA metrics and overlays in the inspector | Done |
+
+Gate 3 is met: `charkit tune --review` takes the spec to a fitted, QA'd and exported build.
+
+### Phase 4, in order
+
+Each item follows the rules: measure first; a reference grades only what the manifest makes it the authority for; new
+checks are registered in `history.STEPS` so the gate reads them as remeasured, not as regressions; every new check gets
+tests in `charkit/tests/`. Build the checks after `tool/measure` merges, on the geometry bundle, so they're written once.
+
+1. **Generated references become authorities** (the review's items 1 and 7). The six sheets in
+   `charkit/refs/clawd/gen/` are registered but grade nothing: no code reads them, and the authority map is unchanged.
+   1. *Consistency check.* Compare each generated sheet with `idol_D` at the sheet's scale: silhouettes and landmarks
+      per view, with a report per reference. It's the first slice of the secondary phase's generated-view
+      consistency. Acceptance: `head_turnaround` and `head_construction` agree with the sheet within the existing
+      `sheet_*` PASS limits in the views they share, and the known caution shows (`head_construction`'s front chin is
+      more pointed).
+   2. *Authority map* (`manifest.json` `authority`), only for the sheets that pass:
+      - face profile, skull and eye depth → `head_construction` / `head_turnaround`;
+      - eye ratios → `head_construction` (it agrees with the rig: opening aspect 0.922 vs 0.925);
+      - new entries for garment piece shape → `garment_breakdown`, `sleeve_closeup`, `skirt_closeup`;
+      - hair components → `hair_breakdown`, later.
+   3. *Single-authority grading.* Make `ref_iou` INFO, and `shape_iou` INFO outside TRELLIS's authority (depth and
+      hair). Rebuild `sheet_views` and `sheet_body` on `idol_D`'s own figures, matched per view and scale; today their
+      reference column is the 3D-style key made from the rig.
+   4. *Review input.* Notes anchored to a region and view on the board, with a severity, so each note maps to a check.
+      Acceptance: each of Michael's e2e notes maps to a check whose status matches his severity.
+2. **Face profile** (the review's item 2).
+   - Build the feature metrics against `head_construction`'s profile: nose-tip projection, nasion depth, lip and chin
+     projection, the jaw angle, the forehead slope, the eye's set-back from the brow-nose line, slope and curvature
+     along the profile, and the worst deviation.
+   - Then add the head-shaping capability: fit the midline profile spline to the design's profile, set the eye's
+     depth, and give the nose, lips and chin structure. The `nose_tip` knob is capped at 0.04 L.
+
+   Acceptance:
+   - the metrics FAIL on today's build, where `sheet_profile` says 0.039 L WARN and Michael says "catastrophically
+     off", so the measurement agrees with his eye;
+   - then they PASS after the capability, and he agrees at review.
+3. **Eyes** (item 3). Grade `pupil_share`: the design's pupil covers 0.067 of the iris (construction sheet) or 0.071
+   (rig); ours covers 0.049. Then fix the pupil and the opening's aspect: 0.685 against the design's 0.922.
+   Acceptance: `pupil_share` and `eye_aspect` PASS, with pupil run and lid gap held. They trade against each other
+   today.
+4. **Review calibration and a perceptual metric** (item 4). Weights and limits come from Michael's severity calls.
+   Try DINOv3 features per view and region as a complement.
+5. **Mouth** (item 5). A quality and detail pass on the expression template: standardize the mouths in the template,
+   with no generated reference (Michael's call). Face folds are 1321, mostly from the laugh, yawn and wavy mouth keys.
+   Acceptance: the `expr_*` checks hold, and face folds drop.
+6. **Garments** (item 6; the plan's "seed garments from TRELLIS parts").
+   - Per-piece shape checks from the outfit graph's per-view piece masks.
+   - The skirt as separate pieces in layers:
+     - the knife-pleated orange outer skirt;
+     - the pleated cream front panel set into it;
+     - the longer stepped under-panels at the sides and back.
+   - The puff sleeves: the gathered cap, the balloon stand-off from the arm, the gathers into the cream band, and the
+     cuff's notch.
+
+   Acceptance:
+   - the pleat and panel counts match `skirt_closeup` (its top-down view gives only the order and count);
+   - the stand-off matches `sleeve_closeup`'s cross-section;
+   - sizes on the body match the sheet.
+7. **The dance demo** (the plan's last phase-4 step). Finish the dance port (below) after the secondary phase's motion
+   QA and spring bones, which measure what the port found by eye. Render the full clip for Michael's approval.
+8. **Hair components and the hair rework** (item 7): strands, chunks and layers from `hair_breakdown`, after the face.
+   Lock-level labelling is a stretch goal for a later checkpoint.
+
+### The dance port (`885d53c`)
+
+`projects/clawd3d/shots/dance_charkit.py` (the shot) and `charkit_rig.py` (its helpers) put charkit's Clawd through the
+old dance test: TSUZUKU bars 58–66, the same clip, camera, stage and lip-sync. A subagent built them. It was stopped on
+purpose when Michael paused the Clawd demo for the toolkit round, and its files stayed uncommitted until `885d53c`.
+
+- **State.**
+  - Six stills are rendered in `projects/clawd3d/out/dance_charkit/stills_post/` (gitignored; the best are 0140, 0230
+    and 0290).
+  - The full 295-frame clip was never rendered. Estimate: 15–18 min plus 1 min of post.
+  - Run it with `blender -b --factory-startup --python projects/clawd3d/shots/dance_charkit.py -- OUTDIR`, then
+    `projects/clawd3d/shots/encode.sh OUTDIR`.
+  - `--charkit HEAD|live|REV` pins the charkit a shot is built with.
+- **Written against charkit before the toolkit merges.** Bodyfit's rest-pose knobs (arm_down 11.1°, leg_in 5.7°,
+  elbow 2.2°) change the A-pose its calibration assumes. Re-check the calibration and the floor lock on the current
+  stack before a full render.
+- **What it found:**
+  - All 52 bone names match the old bone map.
+  - Charkit's torso bones lean off the body: the hips 35° back, the neck 60° forward, the head 23° back, the
+    clavicles about 25° off. So the calibration aims only the limbs, hands and fingers, and treats the torso as
+    already matching the source's rest.
+  - The floor lock runs on the shoes: the soles sit 9 mm below the floor at rest.
+  - The springs are added shot-side: three hair pendulums from the crown, rising from zero at the eye line, and one
+    skirt pendulum, 45% at the hem.
+  - The face light needs the head's rotation from rest, not the bone's world matrix.
+- **Seen in stills, not measured** (motion QA's first targets):
+  - arm skin through the top when an arm crosses the chest (frame 260, shoulder skinning);
+  - the skirt deforming a lot when a thigh lifts (frame 200);
+  - collar nicks near the neck, and the cream panel's jagged side edges;
+  - spring motion never reviewed as motion.
+- **Charkit fixes it recommends** (status checked 2026-09-28 on `885d53c`):
+
+  | Fix | Status |
+  | --- | --- |
+  | The hair's shading helper is rigged to the head, so the hair's shading drifts as the head turns: bake `volume_normals` at build time and drop the helper | open (`scene.py:294`, `:320`) |
+  | `bow()` is weighted entirely to `upperChest`: use nearest body weights, as `collar()` does | open (the shot does it) |
+  | The collar offset 0.03 L touches the top: sit it outside the top (0.012 + 0.01 L) | open (the shot pushes it out 2.5 mm) |
+  | Panel UVs use a per-face front test (`mean y < cyf + 0.02`), which makes jagged edges: project per corner | open (`garments.py:655`) |
+  | `faceshade.set_light` should ask for the rotation from rest, or take the armature | open |
+  | Outline thickness as a parameter: 1.1–1.4 mm is under a pixel at full-body framing | open (hard-coded at the call site) |
+  | Keep the neck and head bones near upright, or ship `charkit_rig.calibrate` as a charkit helper | open |
+  | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
+  | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
 ## Known issues and work items
 
