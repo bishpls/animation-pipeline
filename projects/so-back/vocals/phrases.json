@@ -1,0 +1,1463 @@
+{
+ "game": {
+  "src": "name_37",
+  "text": "Game!",
+  "file": "phrases/game.wav",
+  "dur": 0.885,
+  "onset": 0.0,
+  "gain_db": -0.9,
+  "syllables": [
+   {
+    "word": "game",
+    "vowel": "eɪ",
+    "t0": 0.065,
+    "t1": 0.155,
+    "f0": 204.2,
+    "midi": 55.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "go": {
+  "src": "name_38",
+  "text": "Go!",
+  "file": "phrases/go.wav",
+  "dur": 0.515,
+  "onset": 0.0,
+  "gain_db": -1.3,
+  "syllables": [
+   {
+    "word": "go",
+    "vowel": "oʊ",
+    "t0": 0.025,
+    "t1": 0.51,
+    "f0": 412.1,
+    "midi": 67.9
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "ready": {
+  "src": "name_44",
+  "text": "Ready?",
+  "file": "phrases/ready.wav",
+  "dur": 0.81,
+  "onset": 0.0,
+  "gain_db": -1.0,
+  "syllables": [
+   {
+    "word": "ready",
+    "vowel": "ɛ",
+    "t0": 0.015,
+    "t1": 0.065,
+    "f0": null,
+    "midi": null
+   },
+   {
+    "word": "ready",
+    "vowel": "i",
+    "t0": 0.235,
+    "t1": 0.805,
+    "f0": 194.4,
+    "midi": 54.9
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "failure": {
+  "src": "nr_1p_08",
+  "text": "Failure.",
+  "file": "phrases/failure.wav",
+  "dur": 1.25,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "failure",
+    "vowel": "eɪ",
+    "t0": 0.13,
+    "t1": 0.24,
+    "f0": 281.5,
+    "midi": 61.3
+   },
+   {
+    "word": "failure",
+    "vowel": "ɚ",
+    "t0": 0.7,
+    "t1": 1.245,
+    "f0": 161.6,
+    "midi": 51.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "defeated": {
+  "src": "name_34",
+  "text": "Defeated",
+  "file": "phrases/defeated.wav",
+  "dur": 1.055,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "defeated",
+    "vowel": "ɪ",
+    "t0": 0.045,
+    "t1": 0.315,
+    "f0": 176.3,
+    "midi": 53.2
+   },
+   {
+    "word": "defeated",
+    "vowel": "iː",
+    "t0": 0.35,
+    "t1": 0.555,
+    "f0": 192.3,
+    "midi": 54.7
+   },
+   {
+    "word": "defeated",
+    "vowel": "ɪ",
+    "t0": 0.565,
+    "t1": 0.855,
+    "f0": 474.8,
+    "midi": 70.3
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "game_over": {
+  "src": "nr_1p_03",
+  "text": "Game over.",
+  "file": "phrases/game_over.wav",
+  "dur": 2.09,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "game",
+    "vowel": "eɪ",
+    "t0": 0.015,
+    "t1": 0.735,
+    "f0": 110.4,
+    "midi": 45.1
+   },
+   {
+    "word": "over",
+    "vowel": "oʊ",
+    "t0": 1.135,
+    "t1": 1.24,
+    "f0": 111.6,
+    "midi": 45.2
+   },
+   {
+    "word": "over",
+    "vowel": "ɚ",
+    "t0": 1.4,
+    "t1": 2.085,
+    "f0": 163.4,
+    "midi": 51.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "no_contest": {
+  "src": "nr_vs_00",
+  "text": "No contest!",
+  "file": "phrases/no_contest.wav",
+  "dur": 1.23,
+  "onset": 0.0,
+  "gain_db": -0.2,
+  "syllables": [
+   {
+    "word": "no",
+    "vowel": "oʊ",
+    "t0": 0.08,
+    "t1": 0.44,
+    "f0": 350.0,
+    "midi": 65.0
+   },
+   {
+    "word": "contest",
+    "vowel": "ɑː",
+    "t0": 0.445,
+    "t1": 0.525,
+    "f0": 168.8,
+    "midi": 52.4
+   },
+   {
+    "word": "contest",
+    "vowel": "ɛ",
+    "t0": 0.725,
+    "t1": 0.91,
+    "f0": 128.6,
+    "midi": 47.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "continue": {
+  "src": "nr_1p_02",
+  "text": "Continue?",
+  "file": "phrases/continue.wav",
+  "dur": 0.935,
+  "onset": 0.0,
+  "gain_db": -0.7,
+  "syllables": [
+   {
+    "word": "continue",
+    "vowel": "ə",
+    "t0": 0.015,
+    "t1": 0.12,
+    "f0": 135.8,
+    "midi": 48.6
+   },
+   {
+    "word": "continue",
+    "vowel": "ɪ",
+    "t0": 0.265,
+    "t1": 0.42,
+    "f0": 158.1,
+    "midi": 51.3
+   },
+   {
+    "word": "continue",
+    "vowel": "uː",
+    "t0": 0.545,
+    "t1": 0.93,
+    "f0": 161.6,
+    "midi": 51.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "five": {
+  "src": "name_35",
+  "text": "Five",
+  "file": "phrases/five.wav",
+  "dur": 0.675,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "five",
+    "vowel": "aɪ",
+    "t0": 0.09,
+    "t1": 0.13,
+    "f0": 312.2,
+    "midi": 63.1
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "four": {
+  "src": "name_36",
+  "text": "Four",
+  "file": "phrases/four.wav",
+  "dur": 0.655,
+  "onset": 0.0,
+  "gain_db": -0.1,
+  "syllables": [
+   {
+    "word": "four",
+    "vowel": "oːɹ",
+    "t0": 0.09,
+    "t1": 0.65,
+    "f0": 221.6,
+    "midi": 57.1
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "three": {
+  "src": "name_46",
+  "text": "Three",
+  "file": "phrases/three.wav",
+  "dur": 0.555,
+  "onset": 0.0,
+  "gain_db": 1.6,
+  "syllables": [
+   {
+    "word": "three",
+    "vowel": "iː",
+    "t0": 0.065,
+    "t1": 0.55,
+    "f0": 275.5,
+    "midi": 60.9
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "two": {
+  "src": "name_48",
+  "text": "Two",
+  "file": "phrases/two.wav",
+  "dur": 0.52,
+  "onset": 0.0,
+  "gain_db": 0.1,
+  "syllables": [
+   {
+    "word": "two",
+    "vowel": "uː",
+    "t0": 0.015,
+    "t1": 0.515,
+    "f0": 269.5,
+    "midi": 60.5
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "one": {
+  "src": "name_39",
+  "text": "One",
+  "file": "phrases/one.wav",
+  "dur": 0.62,
+  "onset": 0.0,
+  "gain_db": -0.2,
+  "syllables": [
+   {
+    "word": "one",
+    "vowel": "ʌ",
+    "t0": 0.025,
+    "t1": 0.14,
+    "f0": 350.0,
+    "midi": 65.0
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "success": {
+  "src": "name_45",
+  "text": "Success!",
+  "file": "phrases/success.wav",
+  "dur": 0.85,
+  "onset": 0.0,
+  "gain_db": 0.9,
+  "syllables": [
+   {
+    "word": "success",
+    "vowel": "ə",
+    "t0": 0.07,
+    "t1": 0.145,
+    "f0": 256.7,
+    "midi": 59.7
+   },
+   {
+    "word": "success",
+    "vowel": "ɛ",
+    "t0": 0.33,
+    "t1": 0.465,
+    "f0": 350.1,
+    "midi": 65.0
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "complete": {
+  "src": "nr_1p_06",
+  "text": "Complete!",
+  "file": "phrases/complete.wav",
+  "dur": 2.73,
+  "onset": 0.0,
+  "gain_db": -0.2,
+  "syllables": [
+   {
+    "word": "complete",
+    "vowel": "ə",
+    "t0": 0.015,
+    "t1": 0.11,
+    "f0": 165.1,
+    "midi": 52.0
+   },
+   {
+    "word": "complete",
+    "vowel": "iː",
+    "t0": 0.37,
+    "t1": 0.64,
+    "f0": 168.8,
+    "midi": 52.4
+   }
+  ],
+  "under": "a crowd cheer under and after the word (from ~0.6 s to the end, 2.7 s): trim at ~0.65 s for the dry word"
+ },
+ "a_new_record": {
+  "src": "nr_1p_00",
+  "text": "A new record!",
+  "file": "phrases/a_new_record.wav",
+  "dur": 2.72,
+  "onset": 0.005,
+  "gain_db": -0.3,
+  "syllables": [
+   {
+    "word": "a",
+    "vowel": "ɐ",
+    "t0": 0.005,
+    "t1": 0.165,
+    "f0": 310.5,
+    "midi": 63.0
+   },
+   {
+    "word": "new",
+    "vowel": "uː",
+    "t0": 0.33,
+    "t1": 0.415,
+    "f0": 367.7,
+    "midi": 65.9
+   },
+   {
+    "word": "record",
+    "vowel": "ɛ",
+    "t0": 0.51,
+    "t1": 1.01,
+    "f0": 327.9,
+    "midi": 63.9
+   },
+   {
+    "word": "record",
+    "vowel": "ɚ",
+    "t0": 1.09,
+    "t1": 1.245,
+    "f0": 320.8,
+    "midi": 63.5
+   }
+  ],
+  "under": "a crowd cheer under and after the words (from ~0.8 s to the end, 2.7 s): trim at ~1.0 s for the dry words"
+ },
+ "congratulations": {
+  "src": "nr_1p_01",
+  "text": "Congratulations!",
+  "file": "phrases/congratulations.wav",
+  "dur": 1.69,
+  "onset": 0.0,
+  "gain_db": -0.4,
+  "syllables": [
+   {
+    "word": "congratulations",
+    "vowel": "ə",
+    "t0": 0.025,
+    "t1": 0.15,
+    "f0": 165.1,
+    "midi": 52.0
+   },
+   {
+    "word": "congratulations",
+    "vowel": "æ",
+    "t0": 0.37,
+    "t1": 0.65,
+    "f0": 163.4,
+    "midi": 51.8
+   },
+   {
+    "word": "congratulations",
+    "vowel": "ə",
+    "t0": 0.705,
+    "t1": 0.765,
+    "f0": 335.1,
+    "midi": 64.3
+   },
+   {
+    "word": "congratulations",
+    "vowel": "eɪ",
+    "t0": 0.83,
+    "t1": 0.985,
+    "f0": 322.6,
+    "midi": 63.6
+   },
+   {
+    "word": "congratulations",
+    "vowel": "ə",
+    "t0": 1.105,
+    "t1": 1.22,
+    "f0": 178.2,
+    "midi": 53.4
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "wow_incredible": {
+  "src": "nr_1p_05",
+  "text": "Wow, incredible!",
+  "file": "phrases/wow_incredible.wav",
+  "dur": 1.79,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "wow",
+    "vowel": "aʊ",
+    "t0": 0.045,
+    "t1": 0.79,
+    "f0": 230.2,
+    "midi": 57.8
+   },
+   {
+    "word": "incredible",
+    "vowel": "ɪ",
+    "t0": 0.79,
+    "t1": 0.88,
+    "f0": 174.4,
+    "midi": 53.0
+   },
+   {
+    "word": "incredible",
+    "vowel": "ɛ",
+    "t0": 1.25,
+    "t1": 1.34,
+    "f0": 352.0,
+    "midi": 65.1
+   },
+   {
+    "word": "incredible",
+    "vowel": "ᵻ",
+    "t0": 1.37,
+    "t1": 1.405,
+    "f0": 320.8,
+    "midi": 63.5
+   },
+   {
+    "word": "incredible",
+    "vowel": "əl",
+    "t0": 1.49,
+    "t1": 1.785,
+    "f0": 170.6,
+    "midi": 52.6
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "choose_your_character": {
+  "src": "nr_select_04",
+  "text": "Choose your character!",
+  "file": "phrases/choose_your_character.wav",
+  "dur": 1.445,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "choose",
+    "vowel": "uː",
+    "t0": 0.105,
+    "t1": 0.125,
+    "f0": 163.4,
+    "midi": 51.8
+   },
+   {
+    "word": "your",
+    "vowel": "ʊɹ",
+    "t0": 0.3,
+    "t1": 0.315,
+    "f0": 348.1,
+    "midi": 64.9
+   },
+   {
+    "word": "character",
+    "vowel": "æ",
+    "t0": 0.45,
+    "t1": 0.495,
+    "f0": 331.5,
+    "midi": 64.1
+   },
+   {
+    "word": "character",
+    "vowel": "ɪ",
+    "t0": 0.585,
+    "t1": 0.68,
+    "f0": 337.0,
+    "midi": 64.4
+   },
+   {
+    "word": "character",
+    "vowel": "ɚ",
+    "t0": 1.065,
+    "t1": 1.44,
+    "f0": 163.4,
+    "midi": 51.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "super_smash_brothers_melee": {
+  "src": "nr_title_01",
+  "text": "Super Smash Brothers Melee!",
+  "file": "phrases/super_smash_brothers_melee.wav",
+  "dur": 6.655,
+  "onset": 0.005,
+  "gain_db": -0.6,
+  "syllables": [
+   {
+    "word": "super",
+    "vowel": "uː",
+    "t0": 0.225,
+    "t1": 0.245,
+    "f0": 353.9,
+    "midi": 65.2
+   },
+   {
+    "word": "super",
+    "vowel": "ɚ",
+    "t0": 0.475,
+    "t1": 0.715,
+    "f0": 205.3,
+    "midi": 55.8
+   },
+   {
+    "word": "smash",
+    "vowel": "æ",
+    "t0": 1.04,
+    "t1": 1.24,
+    "f0": 369.6,
+    "midi": 66.0
+   },
+   {
+    "word": "brothers",
+    "vowel": "ʌ",
+    "t0": 1.505,
+    "t1": 1.67,
+    "f0": 350.0,
+    "midi": 65.0
+   },
+   {
+    "word": "brothers",
+    "vowel": "ɚ",
+    "t0": 1.69,
+    "t1": 2.02,
+    "f0": 252.5,
+    "midi": 59.4
+   },
+   {
+    "word": "melee",
+    "vowel": "eɪ",
+    "t0": 2.695,
+    "t1": 2.72,
+    "f0": 401.1,
+    "midi": 67.4
+   },
+   {
+    "word": "melee",
+    "vowel": "eɪ",
+    "t0": 2.855,
+    "t1": 6.62,
+    "f0": 278.5,
+    "midi": 61.1
+   }
+  ],
+  "under": "the title shout: 'Super Smash Brothers' 0-2.4 s, then 'Melee' held ~4 s with a rising, processed sustain (part of the original recording, no band music under it)"
+ },
+ "sudden_death": {
+  "src": "nr_vs_01",
+  "text": "Sudden death.",
+  "file": "phrases/sudden_death.wav",
+  "dur": 1.145,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "sudden",
+    "vowel": "ʌ",
+    "t0": 0.185,
+    "t1": 0.205,
+    "f0": 203.1,
+    "midi": 55.6
+   },
+   {
+    "word": "sudden",
+    "vowel": "ə",
+    "t0": 0.4,
+    "t1": 0.57,
+    "f0": 190.2,
+    "midi": 54.5
+   },
+   {
+    "word": "death",
+    "vowel": "ɛ",
+    "t0": 0.675,
+    "t1": 0.8,
+    "f0": 216.8,
+    "midi": 56.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "super_sudden_death": {
+  "src": "nr_select_12",
+  "text": "Super Sudden Death!",
+  "file": "phrases/super_sudden_death.wav",
+  "dur": 2.105,
+  "onset": 0.0,
+  "gain_db": 1.7,
+  "syllables": [
+   {
+    "word": "super",
+    "vowel": "uː",
+    "t0": 0.18,
+    "t1": 0.205,
+    "f0": 346.3,
+    "midi": 64.9
+   },
+   {
+    "word": "super",
+    "vowel": "ɚ",
+    "t0": 0.43,
+    "t1": 0.655,
+    "f0": 174.4,
+    "midi": 53.0
+   },
+   {
+    "word": "sudden",
+    "vowel": "ʌ",
+    "t0": 0.87,
+    "t1": 0.955,
+    "f0": 329.7,
+    "midi": 64.0
+   },
+   {
+    "word": "sudden",
+    "vowel": "ə",
+    "t0": 1.2,
+    "t1": 1.225,
+    "f0": 369.6,
+    "midi": 66.0
+   },
+   {
+    "word": "death",
+    "vowel": "ɛ",
+    "t0": 1.465,
+    "t1": 1.67,
+    "f0": 297.3,
+    "midi": 62.2
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "this_games_winner_is": {
+  "src": "nr_vs_05",
+  "text": "This game's winner is...",
+  "file": "phrases/this_games_winner_is.wav",
+  "dur": 1.57,
+  "onset": 0.0,
+  "gain_db": -0.4,
+  "syllables": [
+   {
+    "word": "this",
+    "vowel": "ɪ",
+    "t0": 0.03,
+    "t1": 0.11,
+    "f0": 300.6,
+    "midi": 62.4
+   },
+   {
+    "word": "game's",
+    "vowel": "eɪ",
+    "t0": 0.305,
+    "t1": 0.515,
+    "f0": 327.9,
+    "midi": 63.9
+   },
+   {
+    "word": "winner",
+    "vowel": "ɪ",
+    "t0": 0.795,
+    "t1": 0.805,
+    "f0": 159.8,
+    "midi": 51.5
+   },
+   {
+    "word": "winner",
+    "vowel": "ɚ",
+    "t0": 0.915,
+    "t1": 1.1,
+    "f0": 165.1,
+    "midi": 52.0
+   },
+   {
+    "word": "is",
+    "vowel": "ɪ",
+    "t0": 1.1,
+    "t1": 1.22,
+    "f0": 158.1,
+    "midi": 51.3
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "wins": {
+  "src": "nr_vs_06",
+  "text": "WINS!",
+  "file": "phrases/wins.wav",
+  "dur": 1.205,
+  "onset": 0.0,
+  "gain_db": -0.1,
+  "syllables": [
+   {
+    "word": "wins",
+    "vowel": "ɪ",
+    "t0": 0.085,
+    "t1": 0.125,
+    "f0": 324.4,
+    "midi": 63.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "hurry": {
+  "src": "name_14",
+  "text": "Hurry!",
+  "file": "phrases/hurry.wav",
+  "dur": 0.805,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "hurry",
+    "vowel": "ɜː",
+    "t0": 0.015,
+    "t1": 0.17,
+    "f0": 245.7,
+    "midi": 58.9
+   },
+   {
+    "word": "hurry",
+    "vowel": "i",
+    "t0": 0.28,
+    "t1": 0.8,
+    "f0": 205.1,
+    "midi": 55.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "time": {
+  "src": "name_47",
+  "text": "Time!",
+  "file": "phrases/time.wav",
+  "dur": 0.905,
+  "onset": 0.0,
+  "gain_db": 0.6,
+  "syllables": [
+   {
+    "word": "time",
+    "vowel": "aɪ",
+    "t0": 0.015,
+    "t1": 0.21,
+    "f0": 313.9,
+    "midi": 63.2
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "team": {
+  "src": "name_49",
+  "text": "Team",
+  "file": "phrases/team.wav",
+  "dur": 0.6,
+  "onset": 0.0,
+  "gain_db": 0.1,
+  "syllables": [
+   {
+    "word": "team",
+    "vowel": "iː",
+    "t0": 0.06,
+    "t1": 0.22,
+    "f0": 179.2,
+    "midi": 53.4
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "versus": {
+  "src": "nr_1p_10",
+  "text": "versus",
+  "file": "phrases/versus.wav",
+  "dur": 0.995,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "versus",
+    "vowel": "ɜː",
+    "t0": 0.125,
+    "t1": 0.26,
+    "f0": 165.1,
+    "midi": 52.0
+   },
+   {
+    "word": "versus",
+    "vowel": "ə",
+    "t0": 0.365,
+    "t1": 0.73,
+    "f0": 172.5,
+    "midi": 52.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "and": {
+  "src": "nr_1p_04",
+  "text": "And...",
+  "file": "phrases/and.wav",
+  "dur": 0.795,
+  "onset": 0.0,
+  "gain_db": -1.0,
+  "syllables": [
+   {
+    "word": "and",
+    "vowel": "æ",
+    "t0": 0.0,
+    "t1": 0.195,
+    "f0": 275.5,
+    "midi": 60.9
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "melee": {
+  "src": "nr_select_05",
+  "text": "Melee!",
+  "file": "phrases/melee.wav",
+  "dur": 1.575,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "melee",
+    "vowel": "eɪ",
+    "t0": 0.22,
+    "t1": 0.225,
+    "f0": 373.7,
+    "midi": 66.2
+   },
+   {
+    "word": "melee",
+    "vowel": "eɪ",
+    "t0": 0.9,
+    "t1": 1.555,
+    "f0": 184.1,
+    "midi": 53.9
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "smash_brothers": {
+  "src": "nr_title_03",
+  "text": "Smash Brothers!",
+  "file": "phrases/smash_brothers.wav",
+  "dur": 5.65,
+  "onset": 0.0,
+  "gain_db": -0.6,
+  "syllables": [
+   {
+    "word": "smash",
+    "vowel": "æ",
+    "t0": 1.23,
+    "t1": 1.395,
+    "f0": 371.6,
+    "midi": 66.1
+   },
+   {
+    "word": "brothers",
+    "vowel": "ʌ",
+    "t0": 3.665,
+    "t1": 3.765,
+    "f0": 260.9,
+    "midi": 60.0
+   },
+   {
+    "word": "brothers",
+    "vowel": "ɚ",
+    "t0": 4.03,
+    "t1": 5.11,
+    "f0": 234.0,
+    "midi": 58.1
+   }
+  ],
+  "under": "the Japanese title's 'Smash Brothers': 'Smash' held ~1.4 s and 'Brothers' ~3.8 s, both on rising, processed sustains (clean voice, no music)"
+ },
+ "nintendo_all_star": {
+  "src": "nr_title_00",
+  "text": "Nintendo All-Star!",
+  "file": "phrases/nintendo_all_star.wav",
+  "dur": 1.8,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "nintendo",
+    "vowel": "ɪ",
+    "t0": 0.025,
+    "t1": 0.065,
+    "f0": 172.5,
+    "midi": 52.8
+   },
+   {
+    "word": "nintendo",
+    "vowel": "ɛ",
+    "t0": 0.265,
+    "t1": 0.35,
+    "f0": 194.5,
+    "midi": 54.9
+   },
+   {
+    "word": "nintendo",
+    "vowel": "oʊ",
+    "t0": 0.53,
+    "t1": 0.675,
+    "f0": 275.5,
+    "midi": 60.9
+   },
+   {
+    "word": "all",
+    "vowel": "ɔː",
+    "t0": 0.675,
+    "t1": 0.79,
+    "f0": 275.5,
+    "midi": 60.9
+   },
+   {
+    "word": "star",
+    "vowel": "ɑːɹ",
+    "t0": 1.16,
+    "t1": 1.795,
+    "f0": 163.4,
+    "midi": 51.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "all_star": {
+  "src": "nr_select_03",
+  "text": "All-Star!",
+  "file": "phrases/all_star.wav",
+  "dur": 1.955,
+  "onset": 0.0,
+  "gain_db": -0.4,
+  "syllables": [
+   {
+    "word": "all",
+    "vowel": "ɔː",
+    "t0": 0.0,
+    "t1": 0.23,
+    "f0": 290.9,
+    "midi": 61.8
+   },
+   {
+    "word": "star",
+    "vowel": "ɑːɹ",
+    "t0": 0.59,
+    "t1": 1.95,
+    "f0": 172.5,
+    "midi": 52.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "break_the_targets": {
+  "src": "name_50",
+  "text": "Break the targets!",
+  "file": "phrases/break_the_targets.wav",
+  "dur": 1.63,
+  "onset": 0.0,
+  "gain_db": 0.7,
+  "syllables": [
+   {
+    "word": "break",
+    "vowel": "eɪ",
+    "t0": 0.125,
+    "t1": 0.43,
+    "f0": 161.6,
+    "midi": 51.7
+   },
+   {
+    "word": "the",
+    "vowel": "ə",
+    "t0": 0.615,
+    "t1": 0.775,
+    "f0": 272.5,
+    "midi": 60.7
+   },
+   {
+    "word": "targets",
+    "vowel": "ɑːɹ",
+    "t0": 0.83,
+    "t1": 1.0,
+    "f0": 266.6,
+    "midi": 60.3
+   },
+   {
+    "word": "targets",
+    "vowel": "ɪ",
+    "t0": 1.03,
+    "t1": 1.125,
+    "f0": 216.8,
+    "midi": 56.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "grab_the_coins": {
+  "src": "nr_select_07",
+  "text": "Grab the coins!",
+  "file": "phrases/grab_the_coins.wav",
+  "dur": 1.305,
+  "onset": 0.0,
+  "gain_db": 0.6,
+  "syllables": [
+   {
+    "word": "grab",
+    "vowel": "æ",
+    "t0": 0.095,
+    "t1": 0.145,
+    "f0": 269.5,
+    "midi": 60.5
+   },
+   {
+    "word": "the",
+    "vowel": "ə",
+    "t0": 0.43,
+    "t1": 0.56,
+    "f0": 310.5,
+    "midi": 63.0
+   },
+   {
+    "word": "coins",
+    "vowel": "ɔɪ",
+    "t0": 0.57,
+    "t1": 0.72,
+    "f0": 320.8,
+    "midi": 63.5
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "survival": {
+  "src": "nr_select_08",
+  "text": "Survival!",
+  "file": "phrases/survival.wav",
+  "dur": 1.025,
+  "onset": 0.0,
+  "gain_db": 0.2,
+  "syllables": [
+   {
+    "word": "survival",
+    "vowel": "ɚ",
+    "t0": 0.105,
+    "t1": 0.125,
+    "f0": 221.6,
+    "midi": 57.1
+   },
+   {
+    "word": "survival",
+    "vowel": "aɪ",
+    "t0": 0.375,
+    "t1": 0.515,
+    "f0": 263.7,
+    "midi": 60.1
+   },
+   {
+    "word": "survival",
+    "vowel": "əl",
+    "t0": 0.57,
+    "t1": 1.02,
+    "f0": 128.6,
+    "midi": 47.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "metal": {
+  "src": "name_23",
+  "text": "Metal",
+  "file": "phrases/metal.wav",
+  "dur": 0.84,
+  "onset": 0.0,
+  "gain_db": -1.3,
+  "syllables": [
+   {
+    "word": "metal",
+    "vowel": "ɛ",
+    "t0": 0.095,
+    "t1": 0.26,
+    "f0": 161.6,
+    "midi": 51.7
+   },
+   {
+    "word": "metal",
+    "vowel": "əl",
+    "t0": 0.27,
+    "t1": 0.835,
+    "f0": 255.3,
+    "midi": 59.6
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "giant": {
+  "src": "name_07",
+  "text": "Giant",
+  "file": "phrases/giant.wav",
+  "dur": 0.67,
+  "onset": 0.0,
+  "gain_db": -0.5,
+  "syllables": [
+   {
+    "word": "giant",
+    "vowel": "aɪ",
+    "t0": 0.025,
+    "t1": 0.195,
+    "f0": 209.8,
+    "midi": 56.2
+   },
+   {
+    "word": "giant",
+    "vowel": "ə",
+    "t0": 0.195,
+    "t1": 0.325,
+    "f0": 174.4,
+    "midi": 53.0
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "bonus_stage": {
+  "src": "nr_1p_07",
+  "text": "Bonus stage!",
+  "file": "phrases/bonus_stage.wav",
+  "dur": 1.35,
+  "onset": 0.005,
+  "gain_db": 1.0,
+  "syllables": [
+   {
+    "word": "bonus",
+    "vowel": "oʊ",
+    "t0": 0.025,
+    "t1": 0.18,
+    "f0": 169.7,
+    "midi": 52.5
+   },
+   {
+    "word": "bonus",
+    "vowel": "ə",
+    "t0": 0.24,
+    "t1": 0.375,
+    "f0": 338.8,
+    "midi": 64.5
+   },
+   {
+    "word": "stage",
+    "vowel": "eɪ",
+    "t0": 0.66,
+    "t1": 1.095,
+    "f0": 172.5,
+    "midi": 52.8
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "race_to_the_finish": {
+  "src": "nr_1p_09",
+  "text": "Race to the Finish!",
+  "file": "phrases/race_to_the_finish.wav",
+  "dur": 1.375,
+  "onset": 0.0,
+  "gain_db": -0.8,
+  "syllables": [
+   {
+    "word": "race",
+    "vowel": "eɪ",
+    "t0": 0.075,
+    "t1": 0.105,
+    "f0": 165.1,
+    "midi": 52.0
+   },
+   {
+    "word": "to",
+    "vowel": "ə",
+    "t0": 0.52,
+    "t1": 0.55,
+    "f0": 329.8,
+    "midi": 64.0
+   },
+   {
+    "word": "the",
+    "vowel": "ə",
+    "t0": 0.655,
+    "t1": 0.695,
+    "f0": 322.6,
+    "midi": 63.6
+   },
+   {
+    "word": "finish",
+    "vowel": "ɪ",
+    "t0": 0.77,
+    "t1": 0.855,
+    "f0": 263.8,
+    "midi": 60.1
+   },
+   {
+    "word": "finish",
+    "vowel": "ɪ",
+    "t0": 0.905,
+    "t1": 1.035,
+    "f0": 165.1,
+    "midi": 52.0
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "computer_player": {
+  "src": "name_51",
+  "text": "Computer player",
+  "file": "phrases/computer_player.wav",
+  "dur": 1.35,
+  "onset": 0.0,
+  "gain_db": -1.0,
+  "syllables": [
+   {
+    "word": "computer",
+    "vowel": "ə",
+    "t0": 0.025,
+    "t1": 0.115,
+    "f0": 239.1,
+    "midi": 58.4
+   },
+   {
+    "word": "computer",
+    "vowel": "uː",
+    "t0": 0.27,
+    "t1": 0.39,
+    "f0": 243.1,
+    "midi": 58.7
+   },
+   {
+    "word": "computer",
+    "vowel": "ɚ",
+    "t0": 0.405,
+    "t1": 0.64,
+    "f0": 221.6,
+    "midi": 57.1
+   },
+   {
+    "word": "player",
+    "vowel": "eɪ",
+    "t0": 0.715,
+    "t1": 0.86,
+    "f0": 221.6,
+    "midi": 57.1
+   },
+   {
+    "word": "player",
+    "vowel": "ɚ",
+    "t0": 0.86,
+    "t1": 1.345,
+    "f0": 221.6,
+    "midi": 57.1
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "winner_drops_out": {
+  "src": "nr_select_21",
+  "text": "Winner drops out!",
+  "file": "phrases/winner_drops_out.wav",
+  "dur": 1.66,
+  "onset": 0.0,
+  "gain_db": 0.0,
+  "syllables": [
+   {
+    "word": "winner",
+    "vowel": "ɪ",
+    "t0": 0.195,
+    "t1": 0.225,
+    "f0": 238.6,
+    "midi": 58.4
+   },
+   {
+    "word": "winner",
+    "vowel": "ɚ",
+    "t0": 0.48,
+    "t1": 0.695,
+    "f0": 216.0,
+    "midi": 56.7
+   },
+   {
+    "word": "drops",
+    "vowel": "ɑː",
+    "t0": 0.76,
+    "t1": 0.83,
+    "f0": 162.5,
+    "midi": 51.8
+   },
+   {
+    "word": "out",
+    "vowel": "aʊ",
+    "t0": 1.065,
+    "t1": 1.42,
+    "f0": 171.6,
+    "midi": 52.7
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "single_button": {
+  "src": "nr_select_17",
+  "text": "Single Button!",
+  "file": "phrases/single_button.wav",
+  "dur": 1.39,
+  "onset": 0.0,
+  "gain_db": -1.1,
+  "syllables": [
+   {
+    "word": "single",
+    "vowel": "ɪ",
+    "t0": 0.16,
+    "t1": 0.185,
+    "f0": 263.7,
+    "midi": 60.1
+   },
+   {
+    "word": "single",
+    "vowel": "əl",
+    "t0": 0.395,
+    "t1": 0.51,
+    "f0": 198.7,
+    "midi": 55.2
+   },
+   {
+    "word": "button",
+    "vowel": "ʌ",
+    "t0": 0.705,
+    "t1": 0.76,
+    "f0": 189.2,
+    "midi": 54.4
+   },
+   {
+    "word": "button",
+    "vowel": "ə",
+    "t0": 0.89,
+    "t1": 0.985,
+    "f0": 207.6,
+    "midi": 56.0
+   }
+  ],
+  "under": "clean: voice and its own reverb only"
+ },
+ "game_set_jp": {
+  "src": "jp_37",
+  "text": "Game set! (Japanese bank)",
+  "file": "phrases/game_set_jp.wav",
+  "dur": 1.05,
+  "onset": 0.0,
+  "gain_db": 0.9,
+  "syllables": [],
+  "under": "clean: voice and its own reverb only"
+ },
+ "time_up_jp": {
+  "src": "jp_48",
+  "text": "Time up! (Japanese bank)",
+  "file": "phrases/time_up_jp.wav",
+  "dur": 1.18,
+  "onset": 0.0,
+  "gain_db": -0.5,
+  "syllables": [],
+  "under": "clean: voice and its own reverb only"
+ }
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SO BACK · studio</title>
+<style>
+  html, body { margin: 0; background: #0b0a10; color: #ddd; font: 13px ui-monospace, monospace; }
+  #out { display: block; height: min(92vh, 1920px); width: auto; aspect-ratio: 9 / 16; }
+  .bar { display: flex; gap: 10px; align-items: center; max-width: 900px; padding: 8px; }
+  .bar input { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script src="../../engine/vendor/fontkit.js"></script>
+<script>window.PROJECT = { fps: 60, w: 1080, h: 1920, plain: true, audio: 'assets/mix.wav', duration: 28.8 };</script>
+<script src="assets/cues.js"></script>
+<script src="assets/vox.js"></script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/riso.js"></script>
+<script src="../../engine/type.js"></script>
+<script src="../../engine/studio.js"></script>
+<script src="../../engine/plate.js"></script>
+<script src="../../engine/pop.js"></script>
+<script src="src/meleetype.js"></script>
+<script src="src/fx.js"></script>
+<script src="src/edit.js"></script>
+<script src="src/captions.js"></script>
+<script src="src/sfx.js"></script>
+<script src="src/fields.js"></script>
+<script src="src/shots/spine.js"></script>
+<script src="src/shots/drop.js"></script>
+<script src="src/shots/drop2.js"></script>
+<script src="src/shots/end.js"></script>
+<script src="src/film.js"></script>
+<script src="src/board.js"></script>
+<script>
+(async () => {
+  try {
+    plainSetup();
+    await Promise.all(Object.entries(SB_FONTS).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
+    await MT.load();
+    window.ready = true;
+    studioUI();
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>

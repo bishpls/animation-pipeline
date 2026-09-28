@@ -52,6 +52,8 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `tsuzuku`: plain Canvas2D paper theatre plus a mesh-rigged idol stage, 16:9; the whole film is `--loop=film`
   - `t`: riso, 9:16, one function of time (`make.sh` rebuilds it)
   - `frame-perfect`: a Melee machinima, 16:9 at 60 fps; plates from `tools/machinima`, composited in plain mode
+  - `so-back`: a Melee hyperpop hard edit, 9:16 at 60 fps; plates from its own pinned machinima kit (portrait, two-pass keyed),
+    announcer-spliced vocals, Melee's own type; the release slice is the `so-back` branch
   - `clawd3d`: TSUZUKU's Clawd as a 3D cel character (headless Blender) and the first 3D mocap dance test (docs/PIPELINE_3D.md phase 1)
 - `legacy/ember/`: reusable code from the EMBER shorts.
 

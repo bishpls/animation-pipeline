@@ -298,3 +298,39 @@ Distilled from one long session of director notes and in-character reviews (Fabl
   scan of the whole film. Each round found things the others missed. The user's own frame-by-frame notes found the most.
 - **Two sessions in one tree:** stage by explicit path; send exact numbers (screen px, times) at every seam; confirm a match by
   measuring the other side's last frame; and never rewrite a shared file wholesale (re-read it and make surgical edits).
+
+## 15. More lessons (SO BACK, a Melee hard edit)
+
+The full account is `projects/so-back/MAKING-OF.md`.
+
+**Game capture**
+- **Portrait from the game's own projection.** A 9:16 projection aspect at internal res 4 gives native portrait plates.
+  A 90° camera roll rotates camera-facing effects against the world, and a Melee player would see it.
+- **Key with two deterministic passes, not a colour.** Capture the same script on black and on grey 96; the difference
+  solves coverage exactly and keeps additive glows. On big hits the game's own translucent full-frame flash turns into a
+  pale wash over bright fields, so invert it.
+- **Capture lanes.** Parallel captures each get a disc folder and a Dolphin profile, and builds share a lock. Changes to
+  the shared kit must be additive, and every one is logged.
+- **A lost frame without lag is a presentation problem.** Immediate XFB fixed a deterministic lost frame.
+
+**Vocals**
+- **Spliced vocals are judged by ear.** Speech-to-text can't hear shrillness. Keep syllables within about 5–7 semitones
+  of their recording, and get the "processed" character from hard tuning, not pitch height. Consonants live or die by
+  their splice level: a /k/ 4 dB down was "bad" instead of "back" over a brighter song.
+
+**Song**
+- **Seat a take on the locked grid instead of chasing a perfect one.** When the picture is already locked to a grid,
+  remove or insert bars inside a quiet section so the new take's drop lands on the picture's downbeat.
+
+**Text**
+- **Use the medium's own text.** Six faces read as a template pack. The game's word graphics and menu font, extracted
+  from the disc, read as the game.
+- **Put text behind a keyed subject.** It gives big words room without covering the character.
+
+**Edit**
+- **Preload what will actually be drawn.** With time-remapped plates, run the frame once in record mode, note the plate
+  frames it would draw, load exactly those, then draw.
+
+**Review**
+- **Gemini as a critic was usually wrong here, not just noisy.** About one checkable claim in four held up, and its song
+  rankings were pure position bias. The director's notes and frame-level checks carried the review.
