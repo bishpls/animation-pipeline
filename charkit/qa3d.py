@@ -93,12 +93,36 @@ def _key_xz(ob, name):
 
 def face(S, expressions=None, mouths=None):
     """the face's measured expressions and mouth shapes (see the module docstring) -> (table, checks)."""
+    skin = S.character['skin']
+    mouths = mouths or [k.name[6:] for k in (skin.data.shape_keys.key_blocks if skin.data.shape_keys else [])
+                        if k.name.startswith('mouth_')]
+    return face_from(S.character['data'], S.spec, lambda name: _key_xz(skin, name), expressions, mouths)
+
+
+def key_xz_numpy(A):
+    """face_from's key reader for an assembly (charkit.character.assemble with keys): the skin's world (x, z) under a
+    shape key as the build names them ('eye_blink': both eyes' offsets, 'mouth_aa'), or at rest (None)."""
+    V = np.asarray(A['verts'])
+    def get(name):
+        if name is None:
+            return V[:, [0, 2]]
+        if name.startswith('eye_') and name[4:] in A['eyes'][0]['keys']:
+            return (V + sum(E['keys'][name[4:]][0] for E in A['eyes']))[:, [0, 2]]
+        if name.startswith('mouth_') and name[6:] in A['mouth']['keys']:
+            return (V + A['mouth']['keys'][name[6:]])[:, [0, 2]]
+        return V[:, [0, 2]]
+    return get
+
+
+def face_from(A, spec, key_xz, expressions=None, mouths=None):
+    """face()'s measures from the assembly A and a key reader key_xz(name) -> the skin's (x, z) under that shape key
+    (the basis for None or a missing key): Blender's shape keys, or key_xz_numpy(A). -> (table, checks)."""
     from .eyetex import DEFAULT_IRIS
-    skin = S.character['skin']; A = S.character['data']; Hd = A['head']; L = Hd['L']
+    Hd = A['head']; L = Hd['L']
     expressions = expressions or FACE_EXPECT.keys()
     EK = Hd['eye_knobs']; W = EK['width'] * L
-    IK = dict(DEFAULT_IRIS); IK.update(S.spec.get('iris') or {})
-    base = _key_xz(skin, None)
+    IK = dict(DEFAULT_IRIS); IK.update(spec.get('iris') or {})
+    base = key_xz(None)
     table = {'eyes': {}, 'mouth': {}}
     eyes = []
     for E in A['eyes']:
@@ -108,7 +132,7 @@ def face(S, expressions=None, mouths=None):
         _, a0 = opening(base[up], base[lo], xs)
         eyes.append((E['side'], up, lo, xs, iris, a0))
     for name in ['neutral'] + list(expressions):
-        P = base if name == 'neutral' else _key_xz(skin, 'eye_' + name)
+        P = base if name == 'neutral' else key_xz('eye_' + name)
         row = {}
         for side, up, lo, xs, iris, a0 in eyes:
             _, a = opening(P[up], P[lo], xs)
@@ -120,10 +144,9 @@ def face(S, expressions=None, mouths=None):
     up, lo = list(m['upper']), list(m['lower'])
     xs = np.linspace(base[up, 0].min(), base[up, 0].max(), 96)
     mid = 0.5 * (xs.min() + xs.max())
-    mouths = mouths or [k.name[6:] for k in (skin.data.shape_keys.key_blocks if skin.data.shape_keys else [])
-                        if k.name.startswith('mouth_')]
+    mouths = mouths or list(A['mouth'].get('keys') or [])
     for name in ['neutral'] + [k for k in mouths if k != 'neutral']:
-        P = base if name == 'neutral' else _key_xz(skin, 'mouth_' + name)
+        P = base if name == 'neutral' else key_xz('mouth_' + name)
         g, a = opening(P[up], P[lo], xs)
         on = g > 0.002 * L
         left, right = float(np.trapezoid(g[xs < mid], xs[xs < mid])), float(np.trapezoid(g[xs >= mid], xs[xs >= mid]))

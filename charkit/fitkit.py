@@ -6,7 +6,8 @@ body, garment or hair fitter can use for its own (docs/CHARKIT.md §4).
   Term      one graded check's residual: which check (and which of its sub-values), how it's read ('ratio': (v - 1) / tol,
             'abs': v / tol, 'gap': one-sided), its PASS tolerance, the measure it belongs to and which reference measured
             it (so the character's authority map (charkit/refs/NAME/manifest.json) weights it: full weight when that
-            reference is the authority for the measure, a quarter otherwise), and the view it is seen in
+            reference is the authority for the measure, a quarter otherwise), and the view it is seen in; 'floor':
+            one-sided, max(0, floor - v) / tol (a guard that keeps another measure readable)
   evaluator a picklable class, built once in each worker process, with checks(spec, group, fine) -> {name: check};
             fine=True measures exactly as the QA does, fine=False may smooth (charkit.facefit's jitters the sheet's grid)
 
@@ -29,6 +30,10 @@ SCHEMA = 'charkit.sensitivity/1'
 MISSING = 3.0                   # the residual of a check that couldn't be measured
 HINGE = 2.0                     # beyond its tolerance a residual counts again, this many times
 REG = 0.3                       # the pull toward the template defaults: residual REG * (x - default) / range
+LOSS_SCALE = 3.0                # soft-L1 above this many tolerances (the smooth phase)
+POLISH = (2.0, 1.0, 0.5)        # the pattern search's step sizes, in knob steps
+POLISH_MOVES = 12               # at most this many moves per step size
+CYCLES = 3                      # trust region then polish, restarted from the polished point while the fine cost drops
 
 
 class Knob:
@@ -57,9 +62,9 @@ class Knob:
 
 
 class Term:
-    def __init__(self, check, sub, kind, tol, measure, ref, view, group):
+    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None):
         self.check, self.sub, self.kind, self.tol = check, sub, kind, tol
-        self.measure, self.ref, self.view, self.group = measure, ref, view, group
+        self.measure, self.ref, self.view, self.group, self.floor = measure, ref, view, group, floor
 
     @property
     def name(self):
@@ -85,7 +90,14 @@ class Term:
         v = self.value(checks)
         if v is None:
             return MISSING, None
-        r = (v - 1) / self.tol if self.kind == 'ratio' else max(0.0, v / self.tol - 0.5) if self.kind == 'gap' else v / self.tol
+        if self.kind == 'ratio':
+            r = (v - 1) / self.tol
+        elif self.kind == 'gap':
+            r = max(0.0, v / self.tol - 0.5)
+        elif self.kind == 'floor':
+            r = max(0.0, self.floor - v) / self.tol
+        else:
+            r = v / self.tol
         miss = (checks.get(self.check) or {}).get('missing')
         if miss:
             r = r * (1 - miss) + MISSING * miss
@@ -93,7 +105,7 @@ class Term:
 
     def declare(self):
         return {'check': self.check, 'sub': self.sub, 'kind': self.kind, 'tol': self.tol, 'measure': self.measure,
-                'ref': self.ref, 'view': self.view, 'group': self.group}
+                'ref': self.ref, 'view': self.view, 'group': self.group, 'floor': self.floor}
 
 
 def with_knobs(spec, x, knobs):
@@ -252,6 +264,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, log=p
     st = np.array([k.step for k in knobs])
     lo = np.array([k.bounds[0] for k in knobs]); hi = np.array([k.bounds[1] for k in knobs])
     x0 = np.clip(np.array([k.get(spec) for k in knobs]), lo, hi)
+    x0 = np.clip(x0, lo + 0.5 * st, hi - 0.5 * st)          # half a step inside its bounds: a trust region can move
     ulo, uhi = (lo - x0) / st, (hi - x0) / st
     memo, hist, used = {}, [], [0]
 
@@ -290,19 +303,12 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, log=p
         f0 = vector(R[0], x0 + u * st, knobs)
         return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
-    stopped = None
-    try:
-        least_squares(fun, np.zeros(len(knobs)), jac=jac, bounds=(ulo, uhi), method='trf', x_scale=1.0,
-                      max_nfev=max(3, 4 * len(knobs)), xtol=1e-3, ftol=1e-4, gtol=1e-6)
-    except Budget:
-        stopped = 'budget'
-    u = np.clip(best['u'], ulo, uhi)
-    # the polish at the QA's own grid: the best coordinate move (a step, then half a step, either way) while it helps
-    try:
+    def polish(u):
+        """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
+        taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
         cur = cost(evaluate([u], True)[0], x0 + u * st, knobs)
-        for _ in range(4):
-            moved = False
-            for dstep in (1.0, 0.5):
+        for dstep in POLISH:
+            for _ in range(POLISH_MOVES):
                 cands = []
                 for i in range(len(u)):
                     for sgn in (-1, 1):
@@ -311,13 +317,28 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, log=p
                             cands.append((i, v))
                 cs = [cost(r, x0 + v * st, knobs) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
                 j = int(np.argmin(cs))
-                if cs[j] < cur - 1e-6:
-                    cur, u, moved = cs[j], cands[j][1], True
-                    log('  polish %s -> %.3f' % (knobs[cands[j][0]].name, cur))
-            if not moved:
+                if cs[j] >= cur - 1e-6:
+                    break
+                i = cands[j][0]
+                log('  polish %s %+.1f step -> %.3f' % (knobs[i].name, cands[j][1][i] - u[i], cs[j]))
+                cur, u = cs[j], cands[j][1]
+        return u, cur
+
+    stopped, u, done = None, np.zeros(len(knobs)), None
+    try:
+        for cycle in range(CYCLES):
+            best.update(u=np.array(u), c=None)
+            # soft-L1: a term that jumps (a measure flipping between two readings) can't dominate the step
+            least_squares(fun, u, jac=jac, bounds=(ulo, uhi), method='trf', x_scale=1.0, loss='soft_l1',
+                          f_scale=LOSS_SCALE, max_nfev=max(3, 4 * len(knobs)), xtol=1e-3, ftol=1e-4, gtol=1e-6)
+            u, c = polish(np.clip(best['u'], ulo, uhi))
+            if done is not None and c >= done[1] - 1e-6:
                 break
+            done = (u, c)
+            log('  %s cycle %d: fine cost %.3f' % (group, cycle + 1, c))
     except Budget:
         stopped = 'budget'
+    u = done[0] if done is not None else np.clip(best['u'], ulo, uhi)
     x = x0 + u * st
     info = {'group': group, 'start': dict(zip([k.name for k in knobs], x0.round(5).tolist())),
             'fitted': dict(zip([k.name for k in knobs], x.round(5).tolist())),

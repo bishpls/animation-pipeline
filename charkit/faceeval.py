@@ -29,7 +29,7 @@ from . import character, eyeqa, eyetex, faceqa, sheetqa, subdiv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EYE_SIZE = 0.42                  # the eye render's window, in L (charkit.qa3d._eye_render)
-SS = 4                           # eye render supersampling per pixel side
+SS = 4                           # eye render supersampling per pixel side (3 agrees nearly as well at 40% the cost)
 FILTER = 0.55                    # the pixel filter's Gaussian sigma, in output pixels (EEVEE's 1.5 px filter)
 STATUS = ['PASS', 'WARN', 'FAIL', 'SKIPPED']
 
@@ -370,14 +370,15 @@ class Evaluator:
         C = faceqa.checks(Rm)
         return Rm, {('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in C.items()}
 
-    def eye_image(self, G, side):
+    def eye_image(self, G, side, ss=None):
         """one eye rendered as charkit.qa3d._eye_render renders it: head-on, orthographic, EYE_SIZE L square round the eye
         centre at the rig's scale; the skin and that eye's white, iris and lashes. -> RGBA floats (n, n, 4), row 0 = top."""
         A = G['A']; S = G['spec']; L = A['head']['L']
+        SSk = ss or SS
         E = next(E for E in A['eyes'] if (E['side'] > 0) == (side == 'L'))
         n = int(round(EYE_SIZE * self.R['ppl']))
-        pix = EYE_SIZE * L / n / SS
-        N = n * SS
+        pix = EYE_SIZE * L / n / SSk
+        N = n * SSk
         x0 = E['c'][0] - EYE_SIZE * L / 2; z0 = E['c'][1] + EYE_SIZE * L / 2
         V, T, fm = G['skin']
         P = G['parts']
@@ -412,18 +413,19 @@ class Evaluator:
                 ci = _sample(tex_i, u)
                 rgb[m] = ci[:, :3] * ci[:, 3:4] + s_rgb * (1 - ci[:, 3:4])
             al[m] = 1
-        img = _blur_down(np.concatenate([rgb * al[..., None], al[..., None]], -1), SS, FILTER)
+        img = _blur_down(np.concatenate([rgb * al[..., None], al[..., None]], -1), SSk, FILTER)
         a = img[..., 3:4]
         return np.concatenate([np.where(a > 1e-6, img[..., :3] / np.maximum(a, 1e-6), 0), a], -1)
 
-    def eyes(self, G):
-        """the eye checks (charkit.qa3d.eyes': each eye against its design layer, the worse eye's status per check)."""
+    def eyes(self, G, ss=None):
+        """the eye checks (charkit.qa3d.eyes': each eye against its design layer, the worse eye's status per check);
+        ss: the render's supersampling (default SS)."""
         if not self.eye_design:
             return None, {'eye': {'status': 'SKIPPED', 'why': 'no design rig'}}
         table, checks, pics = {}, {}, {}
         for side in ('R', 'L'):
             des_px, md = self.eye_design[side]
-            px = self.eye_image(G, side)
+            px = self.eye_image(G, side, ss)
             mo = eyeqa.measure(px, self.R['ppl'])
             table[side] = {'ours': {k: v for k, v in mo.items() if not k.startswith('_')},
                            'design': {k: v for k, v in md.items() if not k.startswith('_')}}
@@ -434,15 +436,30 @@ class Evaluator:
             pics[side] = (px, des_px, mo, md)
         return (table, pics), {'eye_' + k: v for k, v in checks.items()}
 
-    def run(self, spec, what=('eyes', 'sheet', 'face_shape'), covers=True, jitter=None):
+    def expressions(self, spec):
+        """the expression checks the build's QA makes from the shape keys (charkit.qa3d.face_from: face_*) and the fold
+        count round the openings (qa3d.face_folds), on the numpy assembly with its keys (~3 s). -> checks."""
+        from . import qa3d
+        S = self.prepare(spec)
+        A = character.assemble(S, keys=True, cache=self.cache)
+        _, fc = qa3d.face_from(A, S, qa3d.key_xz_numpy(A))
+        C = {'face_' + k: v for k, v in fc.items()}
+        ff = qa3d.face_folds(A)
+        C['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
+                           'status': qa3d._grade('face_folds', ff['total'], False)}
+        return C
+
+    def run(self, spec, what=('eyes', 'sheet', 'face_shape'), covers=True, jitter=None, ss=None):
         """-> {'checks': {name: check}, 'raw': {'sheet': O, 'face_shape': R, 'eyes': table}, 'geometry': G}."""
         G = self.geometry(spec)
         out = {'checks': {}, 'raw': {}, 'geometry': G}
         if 'eyes' in what:
-            r, c = self.eyes(G); out['raw']['eyes'] = r; out['checks'].update(c)
+            r, c = self.eyes(G, ss); out['raw']['eyes'] = r; out['checks'].update(c)
         if 'sheet' in what:
             r, c = self.sheet(G, covers, jitter); out['raw']['sheet'] = r
             out['checks'].update({'sheet_' + k: v for k, v in c.items()})
         if 'face_shape' in what:
             r, c = self.face_shape(G, covers); out['raw']['face_shape'] = r; out['checks'].update(c)
+        if 'expressions' in what:
+            out['checks'].update(self.expressions(spec))
         return out

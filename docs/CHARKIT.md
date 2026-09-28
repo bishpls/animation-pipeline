@@ -156,6 +156,46 @@ the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
 
+**The QA chooses the face's knobs: `python -m charkit fit SPEC`** (`charkit/facefit.py`). The face, eye and neck knobs
+are fitted to the graded eye, sheet and face-shape checks, then built (`build DIR/NAME.fit.json`).
+- **The fast evaluator** (`charkit/faceeval.py`, numpy only) measures a knob set the QA's way in a few seconds (a full
+  Blender build takes 90). It makes what the build would make: `character.assemble` without the shape keys, keeping the
+  body and the wrap's knob-independent part between calls (0.5 s). The skin is subdivided as Blender's modifier does it
+  (`charkit/subdiv.py`: level 1, limit surface, eye margins creased, OpenSubdiv's child order; within 1 µm of Blender's).
+  The cranium is fitted from the hair, and the TRELLIS target is aligned on our eyes, both as the build does. Then it
+  runs the QA's own measures: `sheetqa.measure_ours` (moved out of `qa3d.sheet` so both call the same code),
+  `faceqa.measure`, and `eyeqa` on an eye render of its own. That render is a 4x-supersampled z-buffer: the skin coloured by
+  material, the eye plates by their `eyetex` textures at their UVs (the iris over the white by its alpha), the lashes
+  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`) and `face_folds` come from the assembly's
+  keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
+  `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair, accessories and
+  garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
+  `python -m charkit fit --validate BUILD_DIR` compares it with a build's own `qa.json`.
+- **The fit** (`charkit/fitkit.py`, generic; `facefit.py` declares the face's part). Knobs carry a spec path, template
+  default, step, bounds and group. Terms are graded checks read as residuals in units of their PASS tolerance. The
+  manifest's authority map weights them: full weight where that reference is the authority for the measure, a quarter
+  otherwise, so the sheet leads the face's 2D shape, the rig the eyes, and TRELLIS the depth. A residual beyond its
+  tolerance counts again (a hinge); a missing check costs 3; a regulariser pulls toward the template defaults. Each
+  group is fitted by scipy's trust-region least squares on a parallel finite-difference Jacobian (one knob step). The
+  sheet's 115-px/L grid is smoothed there over four sub-pixel offsets, with a soft-L1 loss so a term that flips between
+  two readings can't steer. A pattern search at the QA's own grid then polishes the result. It is deterministic.
+  The groups are `eyes` (the eye checks) and `face` (sheet and face-shape: front, 3/4, profile and depth at once).
+  - Interface: `facefit.fit(spec, out, budget=None) -> (fitted_spec, report)`; `facefit.declare()` lists the knobs
+    (bounds included) and the terms.
+  - `DIR/sensitivity.json` (schema `charkit.sensitivity/1`): knob -> measure -> {at, minus, plus, per_step, per_unit}.
+    `sensitivity.md` is the readable version.
+  - `DIR/fit_report.json|md`: every check before and after, residuals per view, each knob's start, fitted value, default
+    and whether it ended at a bound. What still fails is triaged (`fitkit.triage`) as *needs a knob*, *knob at bound* or
+    *trade-off*.
+  - `--views` also fits each view alone. If every view passes alone but not together, one rigid face can't match them
+    all, which is the case for view-dependent face keys.
+- **Knobs added for it**: `head.nose_tip` (the nose's projection in L: a relief on the wrapped face, both bases;
+  `Head.nose_relief`) and `head.low_flat` (the lower face's section, from a sharp V to a broad jaw, growing from the eye
+  line to the chin). The neck already had `body.proportions.neck_w`, `neck_len` and `head.neck_r`.
+- **Fixes it needed**: `refs.fit` takes the chin from the model sheet (`refs.sheet_chin`), or from the rig's face layer
+  less its bleed. The QA's chin search (`faceqa.chin_bottom`) starts under the nose, where a projecting nose used to
+  read as the chin.
+
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
 a lighting sweep of the face; a range-of-motion sheet (T-pose, arms up, deep bend, twist, crouch, kick); and topology stats

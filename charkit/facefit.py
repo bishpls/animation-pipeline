@@ -4,6 +4,7 @@ which knobs the face owns, which checks it answers to, and how to measure them f
 
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--workers N]
                                     [--views] [--verify] [--write-spec]
+    python -m charkit fit --validate BUILD_DIR...     # the evaluator against builds' own QA (BUILD/qa/faceeval_agreement.json)
     from charkit import facefit; spec, report = facefit.fit('charkit/spec/clawd.json', 'charkit/out/clawd_fit')
 
   1. resolve the spec as `build` does (the manifest, refs.fit as the first guess) and cache what only Blender makes: the
@@ -39,6 +40,7 @@ KNOBS = [
     Knob('head.chin', ('head', 'chin'), 1.0, 0.12, (0.50, 2.20), 'face'),
     Knob('head.chin_fwd', ('head', 'chin_fwd'), 1.0, 0.05, (0.80, 1.50), 'face'),
     Knob('head.flat', ('head', 'flat'), 1.0, 0.06, (0.60, 1.30), 'face'),
+    Knob('head.low_flat', ('head', 'low_flat'), 1.0, 0.08, (0.70, 2.00), 'face'),
     Knob('head.depth', ('head', 'depth'), 1.0, 0.03, (0.85, 1.15), 'face'),
     Knob('head.nose_tip', ('head', 'nose_tip'), 0.0, 0.015, (0.0, 0.12), 'face'),
     Knob('head.neck_r', ('head', 'neck_r'), 1.0, 0.08, (0.60, 1.30), 'face'),
@@ -60,6 +62,7 @@ JITTER = [(0, 0, 0), (0.5, 0.5, 0.5), (0.25, 0.75, 0.5), (0.75, 0.25, 0.25)]
 AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile': 'sheet', 'chin': 'sheet',
              'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'rig'}
 VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes')
+NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 
 
 def terms():
@@ -87,6 +90,8 @@ def terms():
             ('face_shape_depth', 'cheeks', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth'),
             ('face_shape_depth', 'chin', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth')):
         T.append(Term(chk, sub, kind, tol, measure, ref, view, 'face'))
+    # a guard: enough neck showing under the chin that neck_to_jaw's row (0.06 L down) lands on the neck, not the collar
+    T.append(Term('sheet_neck_run', None, 'floor', S['chin'][0], 'face_front', 'sheet', 'front', 'face', floor=NECK_RUN))
     return T
 
 
@@ -97,7 +102,8 @@ def declare():
 
 class FaceChecks:
     """the fit's evaluator in each worker (fitkit's protocol): the face's checks for a spec, per group ('all': every
-    check, with the hair and clothes); fine=False smooths the sheet's measures over JITTER."""
+    check, with the hair and clothes); fine=False smooths the sheet's measures over JITTER and renders the eyes at 3x
+    supersampling instead of 4x."""
 
     def __init__(self, spec, R, cache):
         from . import faceeval
@@ -105,7 +111,8 @@ class FaceChecks:
 
     def checks(self, spec, group, fine=False):
         what = GROUP_WHAT.get(group, ('eyes', 'sheet', 'face_shape'))
-        return self.E.run(spec, what=what, covers=(group == 'all'), jitter=None if fine else JITTER)['checks']
+        return self.E.run(spec, what=what, covers=(group == 'all'), jitter=None if fine else JITTER,
+                          ss=None if fine else 3)['checks']
 
 
 # ------------------------------------------------------------------------------------------------------------ preparing
@@ -115,7 +122,7 @@ def _p(p):
 
 def cache_dir(spec):
     """where fit_blender's arrays for this spec live: keyed by what makes them (body, hair, garments, the target)."""
-    keys = {k: spec.get(k) for k in ('base', 'body', 'hair', 'hair_colors', 'accessories', 'garments', 'eyes')}
+    keys = {k: spec.get(k) for k in ('base', 'body', 'hair', 'hair_colors', 'accessories', 'garments')}
     h = hashlib.sha1(json.dumps(keys, sort_keys=True, default=str).encode()).hexdigest()[:12]
     return os.path.join(ROOT, 'charkit', 'out', 'fit_cache', '%s_%s' % (spec['name'], h))
 
@@ -128,14 +135,7 @@ def prepare(spec_path, out, base=None, log=print):
     R = json.load(open(os.path.join(out, 'ref_measure.json')))
     cache = cache_dir(spec)
     if not (os.path.exists(os.path.join(cache, 'target.npz')) and os.path.exists(os.path.join(cache, 'env.npz'))):
-        os.makedirs(cache, exist_ok=True)
-        log('fit: caching the target, hair and garments in Blender -> %s' % cache)
-        cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'fit_blender.py'), '--',
-               resolved, cache, '--env']
-        r = subprocess.run(cmd, capture_output=True, text=True)
-        if 'CHARKIT_FIT_BLENDER_DONE' not in r.stdout:
-            sys.stderr.write(r.stdout[-3000:] + r.stderr[-3000:])
-            raise SystemExit('fit: the Blender cache step failed')
+        prepare_cache(resolved, cache, log)
     return spec, R, cache
 
 
@@ -302,8 +302,78 @@ def write_spec(src, fitted, groups=('eyes', 'face')):
     json.dump(S, open(src, 'w'), indent=1)
 
 
+def validate(build, workers=1):
+    """the evaluator against a Blender build's own QA: the build's resolved spec (BUILD/NAME.spec.json) measured by
+    charkit.faceeval, every eye, sheet, face-shape and expression check beside the build's qa/qa.json.
+    -> rows [dict(check, eval, blender, diff, same_status)], written to BUILD/qa/faceeval_agreement.json."""
+    from . import faceeval
+    qa = json.load(open(os.path.join(build, 'qa', 'qa.json')))
+    sp = [f for f in os.listdir(build) if f.endswith('.spec.json')][0]
+    spec = json.load(open(os.path.join(build, sp)))
+    R = json.load(open(os.path.join(build, 'ref_measure.json')))
+    cache = cache_dir(spec)
+    if not os.path.exists(os.path.join(cache, 'env.npz')):
+        prepare_cache(os.path.join(build, sp), cache)
+    E = faceeval.Evaluator(spec, R, cache)
+    C = E.run(spec, what=('eyes', 'sheet', 'face_shape', 'expressions'))['checks']
+    rows = []
+    for k, c in C.items():
+        b = qa['checks'].get(k)
+        if not b or 'value' not in c:
+            continue
+        ev, bv = c.get('value'), b.get('value')
+        d = None
+        if isinstance(ev, (int, float)) and isinstance(bv, (int, float)) and not isinstance(ev, bool):
+            d = round(abs(ev - bv), 5)
+        rows.append({'check': k, 'eval': ev, 'blender': bv, 'diff': d, 'eval_status': c.get('status'),
+                     'blender_status': b.get('status'), 'same_status': c.get('status') == b.get('status')})
+    json.dump(rows, open(os.path.join(build, 'qa', 'faceeval_agreement.json'), 'w'), indent=1)
+    return rows
+
+
+def compare_boards(before, after, out):
+    """before/after boards stacked (each build's sheet_views.png, qa/qa_sheet.png, qa/qa_eyes.png, qa/qa_face_contours.png)
+    -> the paths written into out (compare_*.png)."""
+    from PIL import Image, ImageDraw
+    made = []
+    for rel in ('sheet_views.png', 'qa/qa_sheet.png', 'qa/qa_eyes.png', 'qa/qa_face_contours.png'):
+        a, b = os.path.join(before, rel), os.path.join(after, rel)
+        if not (os.path.exists(a) and os.path.exists(b)):
+            continue
+        A, B = Image.open(a).convert('RGB'), Image.open(b).convert('RGB')
+        W = max(A.width, B.width)
+        im = Image.new('RGB', (W, A.height + B.height + 40), 'white')
+        d = ImageDraw.Draw(im)
+        d.text((6, 4), 'before: ' + before, fill=(0, 0, 0)); im.paste(A, (0, 20))
+        d.text((6, A.height + 24), 'after: ' + after, fill=(0, 0, 0)); im.paste(B, (0, A.height + 40))
+        p = os.path.join(out, 'compare_' + os.path.basename(rel))
+        im.save(p); made.append(p)
+    return made
+
+
+def prepare_cache(resolved, cache, log=print):
+    """fit_blender's arrays for a resolved spec, into cache."""
+    os.makedirs(cache, exist_ok=True)
+    log('fit: caching the target, hair and garments in Blender -> %s' % cache)
+    cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'fit_blender.py'), '--',
+           resolved, cache, '--env']
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if 'CHARKIT_FIT_BLENDER_DONE' not in r.stdout:
+        sys.stderr.write(r.stdout[-3000:] + r.stderr[-3000:])
+        raise SystemExit('fit: the Blender cache step failed')
+
+
 def main(args):
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if args and args[0] == '--validate':
+        for b in args[1:]:
+            rows = validate(_p(b))
+            print('%s: %d checks, %d with the same status' % (b, len(rows), sum(r['same_status'] for r in rows)))
+            for r in rows:
+                print('  %-34s eval %-10s blender %-10s diff %-8s %s' % (r['check'], json.dumps(r['eval'])[:10],
+                      json.dumps(r['blender'])[:10], r['diff'], '' if r['same_status'] else
+                      'status %s vs %s' % (r['eval_status'], r['blender_status'])))
+        return
     spec_path = args[0]
     name = json.load(open(spec_path))['name']
     out = _p(opt('--out', 'charkit/out/%s_fit' % name))

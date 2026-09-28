@@ -159,6 +159,19 @@ def measure_labels(lab, face, view, ppl, eyes, facing=-1):
                 vals = [np.nanmean(a[sel]) for a in (left, right) if np.isfinite(a[sel]).any()]
                 m[k] = round(float(max(vals)), 4) if vals else None
         out['widths'] = m
+        # how much skin shows down the midline under the chin (a drawn jaw line skipped) before anything else: the neck's
+        # visible run (the neck check below reads one row of it, so a short run puts that row on the collar)
+        if chin is not None:
+            r0 = int(np.argmin(np.abs(z - chin))) + 1
+            c0 = int(round(ex))
+            col = (lab[:, c0] == 1) | (lab[:, c0] == 5) if 0 <= c0 < W else np.zeros(H, bool)
+            k = r0
+            while k < min(H, r0 + 5) and not col[k]:
+                k += 1
+            e = k
+            while e < H and col[e]:
+                e += 1
+            out['neck_run'] = round((e - r0) / ppl, 4) if e > k else 0.0
         # the neck just under the chin: the skin connected to the midline 0.06 L below the chin, its half-width (a drawn
         # jaw sits clearly wider than the neck; a face that runs into the neck with no jaw line doesn't)
         if chin is not None:
@@ -268,6 +281,9 @@ def compare(O, D):
             C['neck_to_jaw'] = {'value': round(ro / rd, 3), 'ours': round(ro, 3), 'design': round(rd, 3),
                                 'status': grade('width', abs(ro / rd - 1)),
                                 'note': "the neck's half-width under the chin over the face's at 75%: near 1 = no jaw line"}
+        if O['front'].get('neck_run') is not None:
+            C['neck_run'] = {'value': O['front']['neck_run'], 'design': D['front'].get('neck_run'), 'status': 'INFO',
+                             'note': 'skin showing down the midline under the chin, L; neck_to_jaw reads its row at 0.06'}
     for view, key in (('profile', 'profile'), ('three_quarter', 'cheek')):
         if view not in O or view not in D:
             continue

@@ -19,6 +19,8 @@ DEFAULT_HEAD = {
     'chin_fwd': 1.0,   # chin depth (forward/back)
     'forehead': 1.0,   # forehead slope (< 1 slopes back more)
     'flat': 1.0,       # face flatness (superellipse)
+    'low_flat': 1.0,   # the lower face's section: > 1 fuller (a broad jaw seen from the front), < 1 a sharper V; grows
+                       # from the eye line (no change) to the chin
     'depth': 1.0,      # front-to-back depth of the skull
     'back': 1.0,       # back-of-skull bulge
     'socket': 1.0,     # eye socket depth
@@ -140,6 +142,7 @@ class Head:
             return self.cr['wf'] * k, self.cr['wb'] * k, self.cr['df'] * k, self.cr['db'] * k, n
         d = min(1.0, -z / self.chin)
         n = (2.35 - 0.85 * d ** 1.4) * K['flat']                 # the lower face narrows to a forward V in section
+        n *= 1 + (K['low_flat'] - 1) * d ** 1.4
         return self._p[0](d), self._p[1](d), self._p[2](d), self._p[3](d), max(1.45, n)
 
     def sections(self, z):
@@ -159,7 +162,7 @@ class Head:
         top = [self.cr['wf'] * k, self.cr['wb'] * k, self.cr['df'] * k, self.cr['db'] * k, (2.35 - 0.3 * t) * K['flat']]
         # the lower face
         d = np.clip(-z / self.chin, 0, 1)
-        n = (2.35 - 0.85 * d ** 1.4) * K['flat']
+        n = (2.35 - 0.85 * d ** 1.4) * K['flat'] * (1 + (K['low_flat'] - 1) * d ** 1.4)
         low = [p.many(d) for p in self._p] + [np.maximum(1.45, n)]
         return tuple(np.where(z < 0, lo_, np.where(z <= self.zc, mi, tp)) for lo_, mi, tp in zip(low, mid, top))
 
