@@ -113,6 +113,8 @@ Game data (disc images, the game's executable, builds, captured plates, raw game
 | `infra/gcp/gpu.sh` | `up` (start and wait for boot), `ssh [cmd]`, `push` / `pull` (to `/srv/work/`), `status`, `stop`; it stops itself after 30 idle minutes (`touch /srv/work/.keepalive` covers a long download) |
 | `infra/gcp/gpu-provision.sh` | creates the box once: its own VPC (IAP SSH in, NAT out, no external IP), a service account limited to its bucket and logs; prints the plan, `--execute` runs it |
 | `infra/gcp/gpu.env.example` | the config; copy to `gpu.env` (gitignored) |
+| `imageto3d/trellis_remote.sh` | TRELLIS.2 image-to-3D on the box (`--install` once): several samples per model load, seeds (`--repeat` checks reproducibility), multi-view samples (`front.png+left.png`, `--mv multidiffusion\|stochastic`), `--no-tex` for shape only. Writes GLBs, `<tag>_field.npz` and run.json (stage timings, VRAM) to `charkit/out/i3d/<job>` |
+| `imageto3d/trellis_ext/` | our TRELLIS.2 extension, wrapping the upstream clone unedited: `pipeline.py` (box: staged run, multi-view, field capture), `field.py` (the field file: the decoder's surface voxels with dual vertices, edge flags and PBR attributes; reader, dense solid and SDF, raw mesh, previews), `parts.py` (hair / skin / garment / other label volume and per-part marching-cubes PLYs; numpy, scipy, scikit-image) |
 
 ## Review and bookkeeping
 | tool | what |
