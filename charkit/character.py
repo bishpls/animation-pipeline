@@ -10,22 +10,33 @@ from . import anime_head, body as bodylib, brows as browlib, eyes as eyelib, mou
 
 def assemble(spec):
     """numpy assembly: -> dict(verts, faces, fmat (0 body, 1 head), weights {vrm bone: (N,)}, joints, face_w {MakeHuman face
-    bone: (N,)}, body (the body data), head info)."""
-    B = bodylib.build_body_data(spec.get('body'), keep_head=True)
-    L = B['head_len']
-    V0 = B['verts']
-    fw = B['face_w']
-    eye_w = np.max([fw[b] for b in fw if b.startswith(('orbicularis', 'oculi'))], axis=0)
-    lips_w = np.max([fw[b] for b in fw if b.startswith('oris')], axis=0)
-    wings_w = np.max([fw[b] for b in fw if b.startswith('levator06')], axis=0)
-    V, H, centre, info = anime_head.reshape(V0, B['faces'], B['head_w'], B['marks'], L, spec.get('head'),
-                                            detail=spec.get('head_detail'), eye_w=eye_w, lips_w=lips_w, wings_w=wings_w)
+    bone: (N,)}, body (the body data), head info).
+    spec['base']: 'makehuman' (the default): MakeHuman's own head wrapped onto the anime head, its eyes and mouth detected in
+    its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its eyes and mouth
+    from stored labels."""
+    anime = spec.get('base', 'makehuman') == 'anime'
+    if anime:
+        from . import base_anime
+        B, V, H, centre, info = base_anime.wrap(spec)
+        L = B['head_len']
+        V0 = B['verts']
+    else:
+        B = bodylib.build_body_data(spec.get('body'), keep_head=True)
+        L = B['head_len']
+        V0 = B['verts']
+        fw = B['face_w']
+        eye_w = np.max([fw[b] for b in fw if b.startswith(('orbicularis', 'oculi'))], axis=0)
+        lips_w = np.max([fw[b] for b in fw if b.startswith('oris')], axis=0)
+        wings_w = np.max([fw[b] for b in fw if b.startswith('levator06')], axis=0)
+        V, H, centre, info = anime_head.reshape(V0, B['faces'], B['head_w'], B['marks'], L, spec.get('head'),
+                                                detail=spec.get('head_detail'), eye_w=eye_w, lips_w=lips_w, wings_w=wings_w)
     # the eyes: the margins onto the anime outline, the lids and pockets after them; plates, lashes and lid keys
     EK = eyelib._knobs(spec.get('eyes'))
     F = eyelib.Face(H, centre)
     eyes = []
     for side, s_ in ((1, 'l'), (-1, 'r')):
-        E = dict(side=side, eye=eyelib.detect(B['base_body'], B['faces'], B['eyeballs'][s_]),
+        E = dict(side=side, eye=eyelib.labels(B['base'], side) if anime else
+                 eyelib.detect(B['base_body'], B['faces'], B['eyeballs'][s_]),
                  c=(side * EK['x'] * L, centre[2] + EK['z'] * L))
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
@@ -52,9 +63,12 @@ def assemble(spec):
     fw = B['face_w']
     uw = sum(fw.get(b, 0) for b in ('oris05', 'oris03.L', 'oris03.R', 'levator06.L', 'levator06.R'))
     lw = sum(fw.get(b, 0) for b in ('oris01', 'oris07.L', 'oris07.R'))
-    lw8 = fw['oris05'] + fw['oris01']
-    lips_b = (B['base_body'] * lw8[:, None]).sum(0) / lw8.sum()
-    Mo = dict(m=mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw), c=(0.0, centre[2] + H.mouth_z))
+    if anime:
+        Mo = dict(m=mouthlib.labels(B['base']), c=(0.0, centre[2] + H.mouth_z))
+    else:
+        lw8 = fw['oris05'] + fw['oris01']
+        lips_b = (B['base_body'] * lw8[:, None]).sum(0) / lw8.sum()
+        Mo = dict(m=mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw), c=(0.0, centre[2] + H.mouth_z))
     V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'])
     Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'))
                   for sh in mouthlib.SHAPES if sh != 'neutral'}
@@ -76,7 +90,8 @@ def assemble(spec):
     # joints in and around the head follow the reshaped surface
     J = dict(B['joints'])
     near = [k for k, p in J.items() if p[2] > B['marks']['chin'][2] - 0.35 * L]
-    moved = anime_head.follow([J[k] for k in near], V0, V)
+    has = np.all(np.isfinite(V0), axis=1)                # (an anime base's new vertices have no pre-wrap position)
+    moved = anime_head.follow([J[k] for k in near], V0[has], V[has])
     for k, p in zip(near, moved):
         J[k] = p
     head_info = dict(L=L, H=H, centre=centre, eye_z=centre[2], info=info, marks=B['marks'], eye_knobs=EK)

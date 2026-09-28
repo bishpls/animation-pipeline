@@ -244,16 +244,24 @@ def place(V, eye, F, K, L, side, eye_c):
         V[v] = [x2, F.y(x2, z2) + off, z2]
     for v, p in tgt.items():
         V[v] = p
-    # the pocket: a funnel from the margin back behind the plate (the lid's thickness, then the back wall)
+    # the pocket: a funnel from the margin back behind the plate (the lid's thickness, then the back wall). An anime base's
+    # shallow socket (charkit/base_anime.py) says per vertex: its margin vertex, the pull toward the centre and the depth.
     depth = K['depth'] * L
     cen = np.array([ex, ez])
+    sock = eye.get('socket') or {}
+    mi = {v: j for j, v in enumerate(m)}
     for v, r in eye['pocket'].items():
-        j = int(np.argmin(np.linalg.norm(old - V[v], axis=1)))    # nearest margin vertex (by old positions)
-        mp = new[j]
-        pull = min(0.92, 0.05 + 0.13 * (r - 1))
+        if v in sock:
+            src, pull, dz = sock[v]
+            mp = new[mi[src]]
+        else:
+            j = int(np.argmin(np.linalg.norm(old - V[v], axis=1)))    # nearest margin vertex (by old positions)
+            mp = new[j]
+            pull = min(0.92, 0.05 + 0.13 * (r - 1))
+            dz = 0.0012 + 0.0022 * (r - 1) ** 0.8
         x2 = mp[0] + (cen[0] - mp[0]) * pull
         z2 = mp[2] + (cen[1] - mp[2]) * pull
-        V[v] = [x2, F.y(x2, z2) + depth + 0.0012 + 0.0022 * (r - 1) ** 0.8, z2]
+        V[v] = [x2, F.y(x2, z2) + depth + dz, z2]
     return V, tgt
 
 
@@ -391,11 +399,23 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
         x2, z2 = V[v, 0] + d[0], V[v, 2] + d[2]
         off = V[v, 1] - F.y(V[v, 0], V[v, 2])
         D[v] = np.array([x2, F.y(x2, z2) + off, z2]) - V[v]
+    sock = eye.get('socket') or {}
+    dm = D[np.array(eye['margin'])].mean(0)
     for v, r in eye['pocket'].items():
+        if v in sock:                                              # a socket vertex: its margin vertex's move, the cap the mean
+            m_, pull, _ = sock[v]
+            D[v] = D[m_] * (1 - pull) + dm * pull
+            continue
         dd = np.linalg.norm(src - V[v], axis=1)
         w = 1 / np.maximum(dd, 1e-5) ** 4
         D[v] = (w[:, None] * md).sum(0) / w.sum() * max(0.0, 1.0 - 0.18 * (r - 1))
     return D
+
+
+def labels(base, side):
+    """an eye's topology from a derived base's stored labels (charkit/base_anime.py) instead of detect(): the same dict, plus
+    'socket' {vertex: (margin vertex, pull, depth)} for its shallow socket. side: 1 her left, -1 her right."""
+    return base.eye(side)
 
 
 def expressions(K, L):
