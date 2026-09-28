@@ -5,8 +5,10 @@ its evidence, and ranked into work items (docs/CHARKIT.md §4).
 
 The classes (the first that applies; the others that also apply are listed as `also`):
   measurement uncertain  the number itself is in doubt: the fast evaluator predicted a severity the build doesn't
-                         reproduce, the build didn't repeat, the check flags missing data or a caution, or the value is
-                         within the reference's own stated error of passing (the tune config's `uncertain`)
+                         reproduce (or disagrees with the final build), the build didn't repeat, the check flags missing
+                         data or thin data ("few pixels"), or the value is within the error the check itself states (a
+                         scale caution's percentage) or the reference's (the tune config's `uncertain`) of passing. A
+                         standing caution alone is soft: listed, not the class
   trade-off              fixing it costs another check: a checkpoint that improved it was rejected because another check
                          regressed (built and measured), a trade-off rule let it get worse to pay for another, or every
                          knob that improves it worsens another check (the sensitivity table: which, and by how much per
@@ -31,7 +33,7 @@ and conflicts behind its class. Rank: severity (capped at charkit.checks.CAP) ti
 first, internals last), times 1.5 with a reviewer's note, times 0.6 when it is measured against a reference that isn't
 its measure's authority.
 """
-import fnmatch, json, os
+import fnmatch, json, os, re
 
 from . import checks
 
@@ -139,9 +141,28 @@ def uncertainty(check, c, ctx):
     for k in ('missing',):
         if _num(c.get(k)) and c[k] > 0:
             strong.append('%s %.0f%% of it unmeasured' % (k, 100 * c[k]))
+    kind, p, w, wo = checks.rule(check)
     for k in ('caution', 'cautions', 'uncertain'):
-        if c.get(k):
-            strong.append('the check cautions: %s' % (c[k] if isinstance(c[k], str) else json.dumps(c[k])[:160]))
+        if not c.get(k):
+            continue
+        txt = c[k] if isinstance(c[k], str) else json.dumps(c[k])
+        # a standing caution (the sheet's scale, say) is soft, unless the check is within the error it states or its
+        # data is thin
+        if re.search(r'\bfew\b', txt):
+            strong.append('the check cautions: %s' % txt[:160])
+            continue
+        m = re.search(r'([+-]?\d+(?:\.\d+)?)\s*%', txt)
+        v, d = c.get('value'), c.get('design')
+        err = None
+        if m and kind == 'ratio':
+            err = abs(float(m.group(1))) / 100
+        elif m and kind == 'abs' and _num(d):
+            err = abs(float(m.group(1))) / 100 * abs(d)
+        x = (abs(v - 1) if kind == 'ratio' else abs(v)) if _num(v) and kind in ('ratio', 'abs') else None
+        if err is not None and x is not None and x - p <= err:
+            strong.append('within its own stated error (%.3g) of passing: %s' % (err, txt[:120]))
+        else:
+            soft.append('caution: %s' % txt[:160])
     if _num(c.get('confidence')) and c['confidence'] < 0.5:
         strong.append('confidence %.2f' % c['confidence'])
     if _num(c.get('rows')) and c['rows'] < 8:
@@ -151,7 +172,6 @@ def uncertainty(check, c, ctx):
         strong.append('the fast evaluator predicted %s, the build measured %s' % (p, b))
     if check in ctx.get('nondeterministic', []):
         strong.append('the final build did not repeat the best checkpoint\'s value')
-    kind, p, w, wo = checks.rule(check)
     if wo:
         soft.append('warn-only (a framing measure, never fails)')
     _, src = checks.measure(check)
@@ -211,6 +231,8 @@ def classify(check, c, ctx):
     owners = [f for f in fitters if f.targets_of([check])]
     ev['fitters'] = [{'name': f.name, 'stub': not f.landed} for f in owners]
     cap = checks.capability(check)
+    if isinstance(c.get('missing'), str):                  # the template has nothing close: an addition, not a knob
+        cands.append(('needs a capability', '%s (closest: %s)' % (c['missing'], c.get('match'))))
     if mv is None or not mv:
         # nothing measured moves it
         stubs = [f.name for f in owners if not f.landed]

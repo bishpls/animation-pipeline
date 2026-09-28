@@ -312,12 +312,15 @@ def with_block(spec_path, fitted_path, knobs, block, out_path):
 
 # ------------------------------------------------------------------------------------------------------------ body
 class BodyFitter(Fitter):
-    """STUB for tool/bodyfit: the body, garments and hair fitted to the silhouette checks. Declares its targets and the
-    spec sections it will own; fits nothing until it lands (then: `python -m charkit bodyfit`, same result shape)."""
+    """STUB for tool/bodyfit: the body, garments, hair and palette fitted to the silhouette, model-sheet body and palette
+    checks. Declares its targets and the spec sections it will own; fits nothing until it lands (then:
+    `python -m charkit bodyfit`, same result shape)."""
     name = 'body'
     branch = 'tool/bodyfit'
-    targets = ('shape_iou', 'shape_iou_*', 'ref_iou', 'body_*', 'hair_*', 'scalp_px', 'poke_share')
-    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'hair.*', 'garments.*', 'accessories.*')
+    targets = ('shape_iou', 'shape_iou_*', 'ref_iou', 'body_*', 'palette_*', 'scalp_px', 'poke_share')
+    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'hair.*', 'garments.*', 'accessories.*',
+            'skin.*', 'hair_colors.*', 'lash_color', 'brow_color', 'iris.top', 'iris.mid', 'iris.bottom', 'iris.ring',
+            'iris.pupil')
 
     def __init__(self):
         self.landed = os.path.exists(os.path.join(ROOT, 'charkit', 'bodyfit.py'))

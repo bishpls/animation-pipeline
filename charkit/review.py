@@ -307,8 +307,8 @@ def sync(spec, build=None):
 
 # ------------------------------------------------------------------------------------------------------------ board
 BOARD_OVERLAYS = ['qa/qa_sheet.png', 'qa/qa_eyes.png', 'qa/qa_face_contours.png', 'qa/qa_face_shape.png',
-                  'qa/qa_shape_overlay.png', 'qa/qa_ref_overlay.png', 'qa/qa_scalp_front.png', 'qa/qa_body.png',
-                  'qa/qa_expressions.png', 'qa/qa_palette.png']
+                  'qa/qa_sheet_body.png', 'qa/qa_sheet_expr.png', 'qa/qa_sheet_palette.png', 'qa/qa_shape_overlay.png',
+                  'qa/qa_ref_overlay.png', 'qa/qa_scalp_front.png', 'qa/qa_sheet_figures.png']
 BOARD_SHEETS = ['sheet_views.png', 'sheet_body.png', 'sheet_face.png']
 
 
@@ -463,7 +463,8 @@ def page(build, spec, items=None, qa=None):
     os.makedirs(rv, exist_ok=True)
     rel = lambda p: os.path.relpath(p, rv)
     views = {'sheet_views.png': 'front', 'sheet_body.png': 'body', 'sheet_face.png': 'expressions', 'qa/qa_sheet.png': 'profile',
-             'qa/qa_eyes.png': 'front', 'qa/qa_face_contours.png': 'three_quarter'}
+             'qa/qa_eyes.png': 'front', 'qa/qa_face_contours.png': 'three_quarter', 'qa/qa_sheet_body.png': 'body',
+             'qa/qa_sheet_expr.png': 'expressions'}
     ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
     design = (ref.get('sheet') or {}).get('image')
     sh = []

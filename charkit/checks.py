@@ -38,6 +38,12 @@ def _limits():
     """(pattern, kind, pass, warn, warn_only) from the QA modules' LIMITS; first match wins."""
     from . import eyeqa, faceqa, qa3d, sheetqa
     Q, E, S, F = qa3d.LIMITS, eyeqa.LIMITS, sheetqa.LIMITS, faceqa.LIMITS
+    try:                                   # the whole model sheet (tool/sheet): body per view, palette
+        from . import bodyqa, paletteqa
+        B, P = bodyqa.LIMITS, paletteqa.LIMITS
+    except ImportError:
+        B, P = {'iou': (0.85, 0.70), 'iou_part': (0.70, 0.50), 'length': (0.08, 0.16), 'width': (0.08, 0.15)}, \
+            {'lit': (5.0, 10.0), 'shade': (7.0, 14.0)}
     R = [
         ('shape_iou', 'hi', *Q['shape_iou'], False), ('shape_iou_hair', 'hi', *Q['shape_iou_hair'], False),
         ('ref_iou', 'hi', *Q['ref_iou'], False),
@@ -57,6 +63,17 @@ def _limits():
         ('face_shape_width', 'ratio', *F['width'], False), ('face_shape_chin', 'abs', *F['chin'], False),
         ('face_shape_profile', 'lo', *F['profile'], False), ('face_shape_cheek', 'lo', *F['cheek'], False),
         ('face_shape_depth', 'lo', *F['depth'], False), ('face_shape_coverage_*', 'ratio', *F['coverage'], True),
+        # body per view (front, three_quarter, profile, back): silhouette and part IoUs, heights (L), widths (ratios)
+        ('body_*_iou', 'hi', *B['iou'], False), ('body_*_iou_*', 'hi', *B['iou_part'], False),
+        ('body_*_hair_width', 'ratio', *B['width'], False), ('body_*_skirt_width', 'ratio', *B['width'], False),
+        ('body_*_sleeves', 'ratio', *B['width'], False),
+        ('body_*_feet', 'abs', *B['length'], False), ('body_*_top', 'abs', *B['length'], False),
+        ('body_*_hair_length', 'abs', *B['length'], False), ('body_*_hem', 'abs', *B['length'], False),
+        ('body_*_hem_mid', 'abs', *B['length'], False), ('body_*_leg', 'abs', *B['length'], False),
+        ('body_*_boot', 'abs', *B['length'], False),
+        ('palette_*_lit', 'lo', *P['lit'], False), ('palette_*_shade', 'lo', *P['shade'], False),
+        # an expression head's part: its value is the match distance, graded by its features' worst status
+        ('expr_*', 'status', 0, 0, False), ('figures_*', 'status', 0, 0, True),
     ]
     return R
 
@@ -142,7 +159,10 @@ REGIONS = [
     ('sheet_shown_*', 'hair', 0.7), ('face_shape_coverage_*', 'hair', 0.6),
     ('shape_iou', 'silhouette', 0.9), ('ref_iou', 'silhouette', 0.9), ('shape_iou_hair', 'silhouette', 0.9),
     ('hair_noise', 'hair', 0.6), ('scalp_px', 'hair', 0.7), ('poke_share', 'outfit', 0.5),
-    ('body_*', 'silhouette', 0.85), ('hair_*', 'hair', 0.75),
+    ('body_*_iou', 'silhouette', 0.9), ('body_*_iou_hair', 'hair', 0.8), ('body_*_hair_*', 'hair', 0.8),
+    ('body_*_iou_skin', 'silhouette', 0.75), ('body_*_iou_outfit', 'outfit', 0.8),
+    ('body_*_skirt_width', 'outfit', 0.8), ('body_*_hem*', 'outfit', 0.75), ('body_*_sleeves', 'outfit', 0.7),
+    ('body_*_boot', 'outfit', 0.6), ('body_*', 'silhouette', 0.85), ('figures_*', 'internal', 0.2), ('hair_*', 'hair', 0.75),
     ('expr_*', 'expressions', 0.75), ('face_expr_range', 'expressions', 0.7), ('face_blink_*', 'expressions', 0.7),
     ('face_*_asym', 'expressions', 0.7), ('face_viseme_gap', 'expressions', 0.6),
     ('palette*', 'palette', 0.8),
@@ -172,7 +192,9 @@ MEASURES = [
     ('eye_*', 'eyes', 'rig'),
     ('shape_iou_hair', 'hair_shape', 'trellis'), ('shape_iou*', 'body_silhouette', 'trellis'),
     ('ref_iou', 'body_silhouette', 'key3d'), ('scalp_px', 'hair_shape', None), ('hair_noise', 'hair_shape', None),
+    ('body_*_iou_hair', 'hair_silhouette', 'sheet'), ('body_*_hair_*', 'hair_silhouette', 'sheet'),
     ('body_*', 'body_silhouette', 'sheet'), ('hair_*', 'hair_silhouette', 'sheet'), ('expr_*', 'expressions', 'sheet'),
+    ('figures_*', None, 'sheet'),
     ('palette*', 'palette', 'sheet'),
     ('poke_share', None, None), ('face_folds', None, None), ('face_*', 'expressions', None),
 ]
@@ -192,8 +214,9 @@ OVERLAYS = [
     ('face_shape_*', ['qa/qa_face_contours.png', 'qa/qa_face_shape.png']),
     ('shape_iou*', ['qa/qa_shape_overlay.png', 'sheet_body.png']), ('ref_iou', ['qa/qa_ref_overlay.png', 'sheet_body.png']),
     ('scalp_px', ['qa/qa_scalp_front.png']), ('hair_noise', ['sheet_views.png']), ('poke_share', ['sheet_body.png']),
-    ('face_folds', ['sheet_face.png']), ('face_*', ['sheet_face.png']), ('body_*', ['qa/qa_body.png', 'sheet_body.png']),
-    ('expr_*', ['qa/qa_expressions.png', 'sheet_face.png']), ('palette*', ['qa/qa_palette.png']),
+    ('face_folds', ['sheet_face.png']), ('face_*', ['sheet_face.png']), ('body_*', ['qa/qa_sheet_body.png', 'sheet_body.png']),
+    ('expr_*', ['qa/qa_sheet_expr.png', 'sheet_face.png']), ('palette*', ['qa/qa_sheet_palette.png']),
+    ('figures_*', ['qa/qa_sheet_figures.png']),
 ]
 
 
@@ -208,7 +231,11 @@ def overlays(name):
 # what the check measures that no knob expresses: a template or geometry change (for the triage's "needs a capability")
 CAPABILITY = {
     'face_folds': "the skin's lid and lip rings fold under the keys: the base mesh's topology round the openings "
-                  "(charkit/base_anime.py re-lays them; `--base anime`)",
+                  "(charkit/base_anime.py re-lays them; `--base anime`), and MakeHuman's mouth cavity doesn't follow "
+                  "tall openings (the laugh, yawn and wavy mouth keys fold)",
+    'expr_*': "the expression library's shapes (charkit/eyes.py, mouth.py, brows.py; scene.PRESETS): a shape the "
+              "sheet draws that the template doesn't have, or has only roughly, is a template addition",
+    'figures_*': "the model sheet's figure detection (charkit/sheetqa.py detect_figures) against the typed head boxes",
     'hair_noise': "the generated hair's normals: the hair surface itself (charkit/geom's closed shell, `--hair geom`)",
     'scalp_px': "hair coverage: the hair volume's shape over the cranium (charkit/hair.py, charkit/geom)",
     'poke_share': "garments fitted as offsets of the body: collision-aware fitting of each piece (charkit/garments.py)",
@@ -238,8 +265,11 @@ SECTIONS = [
     ('ref_iou', ['body', 'hair', 'garments', 'accessories']),
     ('scalp_px', ['hair']), ('hair_noise', ['hair.shape']), ('poke_share', ['garments']),
     ('face_folds', ['base']), ('face_*', ['eyes', 'mouth', 'brows']),
+    ('body_*_iou_hair', ['hair']), ('body_*_hair_*', ['hair']), ('body_*_skirt_width', ['garments']),
+    ('body_*_hem*', ['garments']), ('body_*_sleeves', ['garments']), ('body_*_boot', ['garments']),
     ('body_*', ['body', 'garments']), ('hair_*', ['hair']), ('expr_*', ['eyes', 'mouth', 'brows']),
-    ('palette*', ['skin', 'hair_colors', 'garments', 'iris']),
+    ('palette_skin_*', ['skin']), ('palette_hair_*', ['hair_colors']), ('palette_iris_*', ['iris']),
+    ('palette*', ['garments', 'accessories', 'skin', 'hair_colors', 'iris']),
 ]
 
 

@@ -195,6 +195,18 @@ def test_triage_uncertain_and_built_evidence():
     assert cls == 'measurement uncertain' and 'stated error' in detail, (cls, detail)
     cls, _, _, _ = triage.classify('sheet_width', {'value': 0.80, 'status': 'FAIL', 'missing': 0.4}, ctx)
     assert cls == 'measurement uncertain'
+    # a standing scale caution is soft, unless the check is within the error it states
+    cau = "scale: the sheet's eye spacing reads +3.5% against its figure height (used)"
+    cls, _, _, also = triage.classify('body_front_feet', {'value': -0.45, 'design': -5.19, 'status': 'FAIL', 'caution': cau}, ctx)
+    assert cls == 'needs a knob' and 'measurement uncertain' in also, (cls, also)
+    cls, detail, _, _ = triage.classify('body_front_feet', {'value': -0.2, 'design': -5.19, 'status': 'FAIL', 'caution': cau}, ctx)
+    assert cls == 'measurement uncertain' and 'own stated error' in detail, (cls, detail)   # 0.2 - 0.08 <= 3.5% of 5.19
+    cls, _, _, _ = triage.classify('palette_dark_lit', {'value': 11.0, 'status': 'FAIL', 'caution': 'few design pixels (40)'}, ctx)
+    assert cls == 'measurement uncertain'
+    # an expression the template has nothing close to: a template addition
+    cls, detail, _, _ = triage.classify('expr_yawn_mouth', {'value': 1.4, 'status': 'FAIL', 'match': 'laugh',
+                                                            'missing': 'the library has nothing within tolerance: add it to the template'}, ctx)
+    assert cls == 'needs a capability' and 'add it to the template' in detail, (cls, detail)
     # a rejected checkpoint that improved the check while another regressed: a measured trade-off
     recs = [{'event': 'compare', 'verdict': 'reject', 'checkpoint': 3, 'against': 1,
              'rows': [{'check': 'sheet_width', 'base': [0.80, 'FAIL'], 'cand': [0.95, 'PASS'], 'verdict': 'improved'}],
