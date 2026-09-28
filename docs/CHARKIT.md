@@ -127,6 +127,64 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     - the far cheek at 3/4.
 
     How much face the hair leaves showing against the design's warns only. Overlay: `qa_sheet.png`;
+  - the model sheet's figures, found from the picture (`sheetqa.detect_figures`). Blobs off the paper, the regions they
+    enclose filled (white boots on white paper). A blob at least half as tall as the tallest is a full figure; its view
+    comes from its eyes: a level pair centred in the head's silhouette is the front, off-centre the 3/4, one eye the
+    profile (facing the side its eye is on), none under a head of hair the back. A shorter blob carrying the hair's colour
+    is an expression head; the rest (the hand studies) is skipped. A figure whose bottom stops short of the others' is cut
+    (the 3/4 stands behind the heads). Head boxes follow one framing (`HEAD_BOX`, in L round the eyes), which reproduces
+    the manifest's hand-typed boxes within 2 px given the sheet's scale. `python -m charkit figures SPEC [--write]` checks
+    them against the manifest or writes them into it. Checks `figures_head_*` (px off the typed box), overlay
+    `qa_sheet_figures.png`;
+  - the whole character against the sheet's full figures (`charkit/bodyqa.py`). The drawing is segmented into skin, hair,
+    iris, line and the garment families (orange dress, cream bow, panel and cuffs, dark hems and shorts, white boots).
+    Hair and dress share their orange, so a line-bounded orange region centred above the shoulders (`HAIR_SPLIT`, -0.8 L)
+    is hair. A cream fold's shadow has skin's hue, so each pale region takes its majority. Dark regions that survive an
+    erosion are garment, thin ones line, and the lines are then absorbed. Ours is z-buffered (`faceqa.zbuffer`) at the
+    sheet's scale from 0, the sheet's 3/4 angle, 90 and 180 degrees, each triangle classed by its object (the skin by
+    material with the garment mask on, eye parts, hair) or, for garments and accessories, by the colour family of what its
+    material renders there (`qa3d.material_tones`, a texture sampled at the polygon's UV). Both sides share one grid,
+    aligned on the eyes rather than the feet: every other sheet check runs from the eye line, and a proportion error then
+    shows where it is (long legs put the feet low) instead of being spread over the figure. The back has no eyes, so it
+    takes the front's eye line and its head's axis. Per view, checks `body_<view>_*`:
+    - IoU of the silhouette, hair, skin and outfit (every garment family); each family's IoU is information;
+    - the feet and the top (L from the eye line);
+    - the hair's length, width and reach;
+    - the skirt's widest row through the body's axis (rows where an arm reaches it left out) and its hem, overall and at
+      the middle;
+    - the sleeves' span;
+    - the leg, from where the legs show under the skirt to the sole, and the boot's white top (front and back);
+    - each arm's angle, as information: the build pose isn't the sheet's, so the skin IoU carries it.
+
+    A cut figure is compared above its cut. A sheet whose eye spacing and figure height disagree on the scale by more than
+    3% puts a `caution` on every check. `bodyqa.design_views` hands the segmentation over as data (class, garment-family
+    and figure masks per view on the eye-aligned grid), and `bodyqa.evaluate` grades any label image from
+    `faceqa.zbuffer` without Blender. Overlay: `qa_sheet_body.png`, per view the design's classes, ours, and the
+    silhouettes with the hair outlined and the measured heights ticked;
+  - the expression heads against the kit's expression library (`charkit/exprqa.py`). Both sides are measured from class
+    images: the drawn head segmented by colour, ours z-buffered head-on with the eye, mouth and brow keys summed onto
+    the posed base meshes (the key blocks, no render, no hair). The sheet's heads share one scale, from their hair's
+    width against the front figure's; their eye spacing is kept as a check and cautions past 10%. Each head is aligned on
+    its found eyes.
+    - Eyes: open or closed. Open eyes give the aspect and the iris over the opening, both against the face's neutral: the
+      sheet's front figure for the design, ours at rest, so the iris size `eyeqa` grades doesn't read as an expression.
+      Closed eyes give the lid's arc: + an arch (^^), - a sag.
+    - Mouth: width, open height, area, fill, corner lift and wobble.
+    - Brows: tilt and height, only where the drawing shows them past its fringe.
+
+    Each head is matched part by part to the closest library entry, the match is rendered, and each part is graded
+    (`expr_<head>_<eye|mouth|brow>`, with the ranked candidates). The template owns the library: the sheet never defines
+    or limits it. A part with nothing within tolerance FAILs as `missing`, which means it gets added to the template.
+    Clawd's sheet asked for mouths `laugh` (a wide D), `wavy` (flustered) and `yawn` (a tall O), and eyes `shock` (the
+    iris shrunk by `eyes.IRIS_SCALE`), plus the combined `scene.PRESETS` laugh, angry, fluster and yawn. Overlay:
+    `qa_sheet_expr.png`, per head the drawing, its classes and our match;
+  - the palette (`charkit/paletteqa.py`). The design's tones per class come from the sheet's own pixels: the full
+    figures' class images, a pixel in from each edge, the iris only round the eyes. Each class is split into lit and
+    shade at the L* that best separates them, and each tone is its pixels' median. Ours are the flat tones our materials
+    render unlit (toon3's lit and shade; a texture sampled where it is used), area-weighted. Graded by CIEDE2000: lit
+    passes within 5 and warns within 10, shade within 7 and 14. dL, dC and dh ride along (Clawd's skin: +5 L*, -8 C*, the
+    paler look). `paletteqa.extract` and `tones` take any picture with a class image. Overlay: `qa_sheet_palette.png`,
+    the design over ours per class, lit then shade, with a grade bar;
   - the eyes against the design rig's eye layers (`charkit/eyeqa.py`), which are drawn whole under the hair. Each of our eyes
     is rendered head-on at the rig's scale with no hair or brows, and both are segmented by colour into sclera, iris (an
     ellipse through its ring), pupil, highlight and lid line. Graded: the opening's aspect and width, the iris's width in

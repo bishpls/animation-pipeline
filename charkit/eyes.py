@@ -449,4 +449,22 @@ def expressions(K, L):
                     'lower': K['lower'] / 0.9}), None),
         'squint': (up({'height': K['height'] * 0.8, 'lower': K['lower'] / 0.8}),
                    lo({'height': K['height'] * 0.72, 'lower': K['lower'] * 0.6})),
+        # shocked (asked for by the model sheet's flustered head, charkit/exprqa.py): the lids as they are, the iris
+        # shrunk (IRIS_SCALE)
+        'shock': (None, None),
     }
+
+
+# expressions that also scale the iris about its centre, as a share of its size (a shocked eye's shrunken iris)
+IRIS_SCALE = {'shock': 0.33}
+
+
+def iris_scale(verts, uvs, cz, s):
+    """offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz)): the plate's point there,
+    interpolated from its nearest vertices in uv."""
+    V, U = np.asarray(verts, float), np.asarray(uvs, float)
+    d = np.linalg.norm(U - np.array([0.5, 0.5 + cz]), axis=1)
+    k = np.argsort(d)[:4]
+    w = 1 / np.maximum(d[k], 1e-6)
+    c = (V[k] * w[:, None]).sum(0) / w.sum()
+    return (V - c) * (s - 1)

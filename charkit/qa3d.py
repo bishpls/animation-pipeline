@@ -13,6 +13,15 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
              the feature heights against the design rig; overlays qa_face_shape.png, qa_face_contours.png
   sheet      the face against the design's model sheet (charkit/sheetqa.py): front half-widths, the profile's front
              edge and reach (nose, chin), the chin's height, the far cheek at three-quarter; overlay qa_sheet.png
+  figures    the model sheet's figures found from the picture (charkit/sheetqa.py detect_figures) against the spec's
+             hand-typed head boxes; overlay qa_sheet_figures.png
+  body       the whole character against the sheet's front, 3/4, profile and back figures (charkit/bodyqa.py): silhouette,
+             hair, skin and outfit IoU aligned on the eyes, the feet, hair length and width, the skirt's flare and hem,
+             sleeves, leg and boot; z-buffered by class (scene_classes); overlay qa_sheet_body.png
+  expr       the sheet's expression heads matched part by part to the kit's library and graded (charkit/exprqa.py; our
+             keys applied to the posed base meshes, z-buffered); overlay qa_sheet_expr.png
+  palette    the design's colours per class (the sheet's pixels) against our materials' unlit tones, CIEDE2000
+             (charkit/paletteqa.py); overlay qa_sheet_palette.png
   eye        each eye head-on against the design rig's eye layer (charkit/eyeqa.py): the opening's aspect and width, how
              much of it the iris fills, the pupil's run and aspect; overlay qa_eyes.png
   face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
@@ -38,8 +47,17 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
 }
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
-               'angry': (0.5, 1.05), 'sad': (0.5, 1.05)}
+               'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
 VISEMES = ('aa', 'ih', 'ou', 'ee', 'oh')
+
+
+def _json(o):
+    """numpy values in the report as plain JSON."""
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    if isinstance(o, np.generic):
+        return o.item()
+    return str(o)
 
 
 def _grade(key, v, higher_better=True):
@@ -310,8 +328,299 @@ def sheet(S, out):
     return table, C
 
 
+# --------------------------------------------------------------------------------------------------- model sheet: materials
+def _srgb(c):
+    c = np.clip(np.asarray(c, float)[:3], 0, None)
+    return np.where(c <= 0.0031308, c * 12.92, 1.055 * c ** (1 / 2.4) - 0.055)
+
+
+def material_tones(m):
+    """what a material renders unlit, read from its nodes (no override, no render): toon3's lit, shade and deep tones (sRGB)
+    or a flat emission's colour, and the image a texture multiplies in (a textured toon, an eye plate) or None.
+    -> dict(lit, shade, deep, image)."""
+    out = dict(lit=None, shade=None, deep=None, image=None)
+    if m is None or not m.use_nodes:
+        return out
+    nodes = m.node_tree.nodes
+    for n in nodes:                     # toon3: the lit mix takes the shade/deep mix in A and the lit tone in B
+        if n.type == 'MIX' and getattr(n, 'data_type', '') == 'RGBA' and n.blend_type == 'MIX' and \
+                n.inputs['A'].is_linked and not n.inputs['B'].is_linked:
+            src = n.inputs['A'].links[0].from_node
+            if src.type == 'MIX' and not src.inputs['A'].is_linked and not src.inputs['B'].is_linked:
+                out.update(lit=_srgb(n.inputs['B'].default_value), shade=_srgb(src.inputs['B'].default_value),
+                           deep=_srgb(src.inputs['A'].default_value))
+                break
+    for n in nodes:
+        if n.type == 'MIX' and getattr(n, 'data_type', '') == 'RGBA' and n.blend_type == 'MULTIPLY' and \
+                not n.inputs['Factor'].is_linked and n.inputs['B'].is_linked and n.inputs['B'].links[0].from_node.type == 'TEX_IMAGE':
+            out['image'] = n.inputs['B'].links[0].from_node.image                    # a textured toon (skirt, panel)
+    em = next((n for n in nodes if n.type == 'EMISSION'), None)
+    if out['lit'] is None and em is not None:
+        c = em.inputs['Color']
+        if not c.is_linked:
+            out['lit'] = out['shade'] = out['deep'] = _srgb(c.default_value)
+        elif c.links[0].from_node.type == 'TEX_IMAGE':                                # a plate: the image is the colour
+            out['image'] = c.links[0].from_node.image
+            out['lit'] = out['shade'] = out['deep'] = np.ones(3)
+    return out
+
+
+_IMAGES = {}
+
+
+def _image_px(img):
+    """a Blender image's pixels as stored (rows bottom-up, RGBA; charkit's images hold sRGB values), cached."""
+    if img.name not in _IMAGES:
+        w, h = img.size
+        px = np.empty(w * h * img.channels, np.float32); img.pixels.foreach_get(px)
+        px = px.reshape(h, w, img.channels)
+        if img.channels == 3:
+            px = np.concatenate([px, np.ones((h, w, 1), np.float32)], -1)
+        _IMAGES[img.name] = px
+    return _IMAGES[img.name]
+
+
+def poly_colours(ob, mats, puv):
+    """per polygon of an evaluated mesh: the sRGB lit and shade colours its material renders unlit (a texture sampled at
+    the polygon's UV centre and multiplied in) and the texture's alpha there (1 without one). -> (lit (nf, 3), shade
+    (nf, 3), alpha (nf,))."""
+    nf = len(mats)
+    lit, shd, alpha = np.full((nf, 3), 0.5), np.full((nf, 3), 0.5), np.ones(nf)
+    for mi in np.unique(mats):
+        sel = mats == mi
+        m = ob.data.materials[mi] if mi < len(ob.data.materials) else None
+        t = material_tones(m)
+        if t['lit'] is not None:
+            lit[sel], shd[sel] = t['lit'], t['shade']
+        if t['image'] is not None and np.isfinite(puv[sel]).all():
+            px = _image_px(t['image'])
+            h, w = px.shape[:2]
+            uv = np.clip(puv[sel], 0, 1 - 1e-6)
+            tx = px[(uv[:, 1] * h).astype(int), (uv[:, 0] * w).astype(int)]
+            lit[sel] = lit[sel] * tx[:, :3]; shd[sel] = shd[sel] * tx[:, :3]; alpha[sel] = tx[:, 3]
+    return lit, shd, alpha
+
+
+def _tri_area(V, T):
+    return 0.5 * np.linalg.norm(np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]]), axis=1)
+
+
+def scene_classes(S):
+    """every visible surface of the character as triangles with a model-sheet class each (charkit.bodyqa.CLASS), by object:
+    the skin (its garment mask on: what the clothes hide stays hidden) by material (skin, the mouth's cavity and the eye
+    line as line), the eye plates (iris where its texture is opaque, the sclera white), lashes and brows as line, the
+    teeth white, the hair, accessories and garments by their colour family (an orange accessory sits in the hair).
+    -> ([(V, T, labels)], {class: [(lit, shade, area)]}) (the colours per class for the palette)."""
+    from . import bodyqa, faceqa, trace
+    CL = bodyqa.CLASS
+    meshes, cols = [], {}
+
+    def put(ob, labels_fn, skip=trace.OUTLINE_MODS):
+        V, F, mats, puv = trace.mesh_arrays(ob, materials=True, uv='uv', skip=skip)
+        T, poly = faceqa.triangles(*F)
+        if not len(T):
+            return
+        lit, shd, alpha = poly_colours(ob, mats, puv)
+        lab = labels_fn(mats[poly], lit[poly], alpha[poly])
+        keep = lab >= 0
+        T, lab, poly = T[keep], lab[keep], poly[keep]
+        meshes.append((V, T, lab))
+        area = _tri_area(V, T)
+        for c in np.unique(lab):
+            s = lab == c
+            cols.setdefault(int(c), []).extend(zip(map(tuple, lit[poly][s]), map(tuple, shd[poly][s]), area[s]))
+    skin = S.character['skin']
+    names = [(m.name if m else '').split('.')[0] for m in skin.data.materials]
+    by = np.array([CL['skin'] if n in ('skin', 'face_skin') else CL['line'] if n in ('cavity', 'eyeline') else CL['other']
+                   for n in names] or [CL['other']])
+    put(skin, lambda mi, c, a: by[mi], skip=('outline',))
+    for p in S.character['eyes']:
+        for k, c_ in (('iris', CL['iris']), ('sclera', CL['white']), ('lash', CL['line']), ('brow', CL['line'])):
+            if p.get(k) is not None:
+                put(p[k], lambda mi, c, a, c_=c_, k=k: np.where(a >= 0.5, c_, -1) if k == 'iris' else np.full(len(mi), c_))
+    for nm, o in S.character['mouth'].items():
+        if o is not None:
+            c_ = CL['white'] if nm == 'teeth' else CL['line'] if 'line' in nm else CL['other']
+            put(o, lambda mi, c, a, c_=c_: np.full(len(mi), c_))
+    for o in S.hair:
+        if o.type == 'MESH' and not o.hide_render:
+            put(o, lambda mi, c, a: np.full(len(mi), CL['hair']))
+    for o in S.accessories:
+        if o.type == 'MESH' and not o.hide_render:
+            put(o, lambda mi, c, a: np.where(bodyqa.family(c) == CL['orange'], CL['hair'], bodyqa.family(c)))
+    for o in S.garments:
+        if o.type == 'MESH' and not o.hide_render:
+            put(o, lambda mi, c, a: bodyqa.family(c))
+    return meshes, cols
+
+
+def _sheet_context(S, out=None):
+    """the design's model sheet, loaded and measured once per QA pass: the picture, its scale (the front figure's height
+    against the rig's), its figures (detected; the spec's head boxes where it has them) and the three-quarter's angle."""
+    if getattr(S, '_sheet_ctx', None) is not None:
+        return S._sheet_ctx
+    from . import sheetqa
+    ref = S.spec.get('ref') if isinstance(S.spec.get('ref'), dict) else {}
+    sh = ref.get('sheet')
+    rp = os.path.join(os.path.dirname(os.path.abspath(out)), 'ref_measure.json') if out else None
+    if not sh or not ref.get('rig') or not rp or not os.path.exists(rp):
+        S._sheet_ctx = {'why': 'no spec.ref.sheet / rig / ref_measure.json'}
+        return S._sheet_ctx
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fp = lambda p: p if os.path.isabs(p) else os.path.join(root, p)
+    rgb = _load_rgba(fp(sh['image']))[..., :3].astype(float)
+    rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
+    ex = S.character['data']['head']['eye_knobs']['x']
+    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = sheetqa.detect_figures(rgb, ppl=ppl, eye_x=ex, facing=sh.get('facing'))
+    fe = D['figures'].get('front', {}).get('eyes') or []
+    ppl_eyes = abs(fe[1][0] - fe[0][0]) / (2 * ex) if len(fe) == 2 else None
+    te = D['figures'].get('three_quarter', {}).get('eyes') or []
+    az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * ex * ppl), 0, 1)))) if len(te) == 2 else 35.0
+    heads = {k: tuple(v) for k, v in (sh.get('heads') or {}).items()} or \
+        {v: tuple(D['figures'][v]['head']) for v in ('front', 'three_quarter', 'profile') if v in D['figures']}
+    S._sheet_ctx = dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl_eyes, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
+                        verify=sheetqa.verify_figures(D, sh))
+    return S._sheet_ctx
+
+
+def _scale_caution(ctx):
+    """a caution when the sheet's two scales disagree (the rig-matched figure height against the small eye spacing)."""
+    if ctx.get('ppl_eyes'):
+        d = ctx['ppl_eyes'] / ctx['ppl'] - 1
+        if abs(d) > 0.03:
+            return 'scale: the sheet\'s eye spacing reads %+.1f%% against its figure height (used); lengths far from the ' \
+                   'eyes carry it (%.2f L at the feet)' % (100 * d, abs(d) * 5.2)
+    return None
+
+
+def expression_data(S):
+    """the head's parts for charkit.exprqa as numpy: the base meshes as posed (armature only: vertices match the shape keys)
+    with a class per triangle and each expression key's world offsets (sparse). Only the skin's front head faces are kept;
+    no hair (the features are measured, the drawing's brows only where its fringe shows them).
+    -> dict(parts [(name, V, T, labels, {key: (idx, D)})], eye_z, L)."""
+    from . import exprqa, faceqa, trace
+    CL = exprqa.CLASS
+    Hd = S.character['data']['head']; L = Hd['L']; c = np.asarray(Hd['centre'], float)
+    parts = []
+
+    def put(name, ob, labels_fn, keep_fn=None):
+        skip = tuple(m.name for m in ob.modifiers if m.type != 'ARMATURE')
+        V, F, mats, puv = trace.mesh_arrays(ob, materials=True, uv='uv', skip=skip)
+        T, poly = faceqa.triangles(*F)
+        lit, _, alpha = poly_colours(ob, mats, puv)
+        lab = labels_fn(mats[poly], alpha[poly])
+        ok = lab >= 0
+        if keep_fn is not None:
+            ok &= keep_fn(V[T].mean(1))
+        T, lab = T[ok], lab[ok]
+        keys = {}
+        ks = ob.data.shape_keys
+        if ks:
+            n = len(ob.data.vertices)
+            base = np.empty(n * 3); ks.key_blocks[0].data.foreach_get('co', base)
+            M3 = np.array(ob.matrix_world)[:3, :3]
+            for kb in ks.key_blocks[1:]:
+                if kb.name.startswith(('eye_', 'mouth_', 'brow_')) and not kb.name.endswith(('_L', '_R')):
+                    co = np.empty(n * 3); kb.data.foreach_get('co', co)
+                    d = ((co - base).reshape(-1, 3)) @ M3.T
+                    idx = np.nonzero(np.abs(d).max(1) > 1e-7)[0]
+                    keys[kb.name] = (idx, d[idx])
+        parts.append((name, V, T, lab, keys))
+    skin = S.character['skin']
+    names = [(m.name if m else '').split('.')[0] for m in skin.data.materials]
+    by = np.array([CL['skin'] if n in ('skin', 'face_skin') else CL['mouth'] if n == 'cavity' else CL['line'] if n == 'eyeline'
+                   else -1 for n in names] or [-1])
+    head = lambda P: (P[:, 2] > c[2] - 0.85 * L) & (P[:, 2] < c[2] + 0.55 * L) & (P[:, 1] < c[1] + 0.1 * L)
+    put('skin', skin, lambda mi, a: by[mi], head)
+    for p in S.character['eyes']:
+        for k, cl in (('iris', CL['iris']), ('sclera', CL['white']), ('lash', CL['line']), ('brow', CL['brow'])):
+            if p.get(k) is not None:
+                put(p[k].name, p[k], lambda mi, a, cl=cl, k=k: np.where(a >= 0.5, cl, -1) if k == 'iris' else np.full(len(mi), cl))
+    for nm, o in S.character['mouth'].items():
+        if o is not None:
+            cl = CL['white'] if nm == 'teeth' else CL['mouth'] if nm == 'tongue' else CL['line']
+            put(nm, o, lambda mi, a, cl=cl: np.full(len(mi), cl))
+    iw = [trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']]
+    return dict(parts=parts, eye_z=float(np.mean([w[2] for w in iw])), L=L)
+
+
+def sheet_expressions(S, out):
+    """the sheet's expression heads against the kit's expression library (charkit.exprqa) -> (table, checks)."""
+    from . import exprqa
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'expr': {'status': 'SKIPPED', 'why': ctx['why']}}
+    if not ctx['D']['expressions']:
+        return None, {'expr': {'status': 'SKIPPED', 'why': 'no expression heads found on the sheet'}}
+    table, C, pic = exprqa.sheet_run(expression_data(S), ctx['rgb'], ctx['D'], ctx['eye_x'])
+    _save_rgb(os.path.join(out, 'qa_sheet_expr.png'), pic)
+    return table, C
+
+
+def sheet_body(S, out):
+    """the whole character against the design's full figures (charkit.bodyqa): front, three-quarter, profile, back, each
+    z-buffered at the sheet's scale from the same azimuth with a class per triangle, aligned on the eyes. -> (table,
+    checks)."""
+    from . import bodyqa, trace
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'body': {'status': 'SKIPPED', 'why': ctx['why']}}
+    meshes, cols = scene_classes(S)
+    S._sheet_colours = cols
+    Hd = S.character['data']['head']
+    iw = np.array([trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']])       # iris centres (world)
+    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, Hd['centre'], Hd['L'], ctx['ppl'], list(design))
+    table, C, views = bodyqa.evaluate(labels, design, _scale_caution(ctx))
+    table.update(ppl=round(ctx['ppl'], 2), az=bodyqa.azimuths(ctx['az3']))
+    for v in bodyqa.AZ:
+        if v not in design:
+            C[v] = {'status': 'SKIPPED', 'why': 'no %s figure on the sheet' % v}
+    if views:
+        _save_rgb(os.path.join(out, 'qa_sheet_body.png'), bodyqa.picture(views))
+    return table, C
+
+
+def sheet_palette(S, out):
+    """the design's colours per class (the sheet's own pixels, charkit.paletteqa) against the flat tones our materials
+    render unlit -> (table, checks)."""
+    from . import bodyqa, paletteqa
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'palette': {'status': 'SKIPPED', 'why': ctx['why']}}
+    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    cols = getattr(S, '_sheet_colours', None) or scene_classes(S)[1]
+    D, O = paletteqa.extract_views(design), paletteqa.ours(cols)
+    _save_rgb(os.path.join(out, 'qa_sheet_palette.png'), np.repeat(np.repeat(paletteqa.picture(O, D), 2, 0), 2, 1))
+    hx = lambda T: {k: paletteqa._hex(v) if v is not None and not isinstance(v, (int, float)) else v for k, v in T.items()}
+    table = {'design': {n: hx(t) for n, t in D.items() if t}, 'ours': {n: hx(t) for n, t in O.items()}}
+    return table, paletteqa.compare(O, D)
+
+
+def sheet_figures(S, out):
+    """what figure detection found on the sheet (charkit.sheetqa.detect_figures) against the spec's hand-typed head boxes
+    -> (table, checks); overlay qa_sheet_figures.png."""
+    from . import sheetqa
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'figures': {'status': 'SKIPPED', 'why': ctx['why']}}
+    D = ctx['D']
+    _save_rgb(os.path.join(out, 'qa_sheet_figures.png'), sheetqa.figures_picture(ctx['rgb'], D))
+    C = {}
+    for v, r in ctx['verify'].items():
+        C['head_' + v] = {'value': r.get('off'), 'status': 'PASS' if r['ok'] else 'WARN', 'detected': r['detected'],
+                          'typed': r['typed'], 'note': 'max |detected - typed| px over the head box'}
+    table = {'ppl': round(D['ppl'], 2), 'facing': D['facing'],
+             'figures': {v: {k: f[k] for k in ('box', 'head', 'eyes', 'eye_y', 'partial', 'bottom_L')} for v, f in D['figures'].items()},
+             'expressions': [{k: e[k] for k in ('box', 'head', 'eyes', 'eye_y', 'eye_y_from', 'ppl')} for e in D['expressions']],
+             'skipped': D['skipped'], 'manifest': sheetqa.manifest_figures(D)}
+    C['found'] = {'value': sorted(D['figures']), 'expressions': len(D['expressions']), 'status': 'INFO'}
+    return table, C
+
+
 # --------------------------------------------------------------------------------------------------- face shape
-FACE_PARTS = ('sclera', 'iris', 'lash', 'brow', 'teeth', 'tongue', 'mouth_line', 'line')
+FACE_PARTS =('sclera', 'iris', 'lash', 'brow', 'teeth', 'tongue', 'mouth_line', 'line')
 
 
 def face_shape(S, out):
@@ -696,6 +1005,17 @@ def run(S, out, ref_image=None):
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['sheet'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+    # --- the rest of the model sheet: its figures, the whole character, the expression heads, the palette
+    from . import trace
+    for key, fn, pre in (('sheet_figures', sheet_figures, 'figures_'), ('sheet_body', sheet_body, 'body_'),
+                         ('sheet_expr', sheet_expressions, ''), ('sheet_palette', sheet_palette, 'palette_')):
+        try:
+            with trace.span('qa.' + key):
+                rep[key], sc_ = fn(S, out)
+            rep['checks'].update({pre + k: v for k, v in sc_.items()})
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            rep['checks'][key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's shape against the generated character's
     try:
         rep['face_shape'], fc = face_shape(S, out)
@@ -714,5 +1034,5 @@ def run(S, out, ref_image=None):
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
     graded = [c['status'] for c in rep['checks'].values() if c.get('status') in order]
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
-    json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1)
+    json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     return rep

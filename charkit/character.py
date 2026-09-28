@@ -76,6 +76,8 @@ def assemble(spec, keys=True, cache=None):
         E['brow_keys'] = {k: browlib.ribbon(F, BK, EK, L, sd, c, knobs=kn)[0] - E['brow'][0]
                           for k, kn in browlib.expressions(BK).items()}
         for name, (uf, lf) in eyelib.expressions(EK, L).items():
+            if uf is None and lf is None:                 # the lids as they are (a shocked eye: its iris key only)
+                continue
             D = eyelib.lid_key(V, E['eye'], F, EK, L, sd, c, uf, lf)
             lash = eyelib.lashes(F, EK, L, sd, c, uf, lf)
             E['keys'][name] = (D, [lv - bv for (lv, _), (bv, _) in zip(lash, E['lashes'])])
@@ -257,6 +259,10 @@ def build_eyes(A, arm, skin, spec, look=None):
             back = np.zeros((len(o.data.vertices), 3)); back[:, 1] = 0.006
             for name in ('blink', 'happy'):
                 _key(o, f'eye_{name}', back)
+        # expressions that scale the iris (a shocked eye's shrunken iris)
+        cz = eyetex._knobs(IK)['cz']
+        for name, s_ in eyelib.IRIS_SCALE.items():
+            _key(iob, f'eye_{name}', eyelib.iris_scale(E['iris'][0], E['iris'][2], cz, s_))
         lv, lq, lm, off = [], [], [], 0
         for k_, (rv, rq) in enumerate(E['lashes']):
             lv.append(rv); lq += [tuple(i + off for i in f) for f in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)

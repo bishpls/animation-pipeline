@@ -12,6 +12,7 @@
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
                                     [--write-spec]                     # the face, eye and neck knobs from the QA
                                                                        # (charkit/facefit.py; build takes DIR/NAME.fit.json)
+    python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -108,7 +109,7 @@ def sheets(spec, out):
     from .scene import EXPR, MOUTH
     ex = [os.path.join(b, f'expr_{e}.png') for e in EXPR]; mo = [os.path.join(b, f'mouth_{m}.png') for m in MOUTH]
     if all(os.path.exists(p) for p in ex + mo):
-        S = Image.new('RGB', (1800, 257 + 180), 'white')
+        S = Image.new('RGB', (max(257 * len(ex), 180 * len(mo)), 257 + 180), 'white')
         for i, p in enumerate(ex):
             S.paste(Image.open(p).convert('RGB').resize((257, 257)), (i * 257, 0))
         for i, p in enumerate(mo):
@@ -200,6 +201,44 @@ def export(args):
             print(line)
 
 
+def figures(args):
+    """the model sheet's figures found from the picture (charkit.sheetqa.detect_figures), scaled by the rig: the head
+    boxes against the manifest's hand-typed ones, and with --write the manifest's references.sheet.figures replaced by
+    the detected (the front figure's region, the head boxes, the facing, plus the back's and the expression heads')."""
+    import numpy as np
+    from PIL import Image
+    from . import manifest, refs, sheetqa
+    spec = manifest.resolve(json.load(open(_path(args[0]))))
+    ref = spec.get('ref') or {}
+    sh = ref.get('sheet') or {}
+    if not sh.get('image'):
+        raise SystemExit('the spec has no model sheet (ref.sheet)')
+    rgb = np.asarray(Image.open(_path(sh['image'])).convert('RGB')).astype(float) / 255
+    ex = spec.get('eyes', {}).get('x', 0.168)
+    ppl = None
+    if ref.get('rig') and sh.get('front_figure'):
+        alpha = np.asarray(Image.open(os.path.join(_path(ref['rig']), 'base.png')).convert('RGBA'))[..., 3] / 255.0
+        ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], alpha, refs.measure(_path(ref['rig']), ex)['ppl'])
+    D = sheetqa.detect_figures(rgb, ppl=ppl, eye_x=ex)
+    print('scale %.2f px/L (%s), facing %d' % (D['ppl'], 'rig' if ppl else 'eye spacing', D['facing']))
+    for v, f in D['figures'].items():
+        print('  %-14s box %-22s head %-22s eyes %d%s' % (v, f['box'], f['head'], len(f['eyes']), '  (cut)' if f['partial'] else ''))
+    for i, e in enumerate(D['expressions']):
+        print('  expression %d  box %-22s eyes %d' % (i, e['box'], len(e['eyes'])))
+    for s_ in D['skipped']:
+        print('  skipped       box %-22s %s' % (s_['box'], s_['why']))
+    for v, r in sheetqa.verify_figures(D, sh).items():
+        print('  %-14s detected %s typed %s: %s px %s' % (v, r['detected'], r['typed'], r.get('off'), 'ok' if r['ok'] else 'OFF'))
+    if '--write' in args:
+        mp = ref.get('manifest')
+        if not mp:
+            raise SystemExit('the spec has no ref.manifest to write to')
+        M = json.load(open(_path(mp)))
+        M['references']['sheet']['figures'] = sheetqa.manifest_figures(D)
+        json.dump(M, open(_path(mp), 'w'), indent=1)
+        print('wrote', mp)
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ('-h', '--help'):
@@ -218,6 +257,8 @@ def main(argv=None):
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)
+    elif cmd == 'figures':
+        figures(rest)
     elif cmd == 'gate':
         from . import gate
         gate.main(rest)

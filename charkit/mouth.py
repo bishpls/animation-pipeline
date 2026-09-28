@@ -122,7 +122,8 @@ def _knobs(k):
 
 
 # a mouth shape: width (share of the neutral), open (height, in widths), up (upper lip rise share of the opening), corner
-# (corner lift, in widths), upper_round/lower_round (0 flat .. 1 round), smile (the line's curve for closed shapes)
+# (corner lift, in widths), upper_round/lower_round (0 flat .. 1 round), smile (the line's curve for closed shapes), wave
+# (both lips' wobble, in widths, zero at the corners; `waves` across the mouth, symmetric about its middle)
 SHAPES = {
     'neutral': dict(width=1.0, open=0.0),
     'aa': dict(width=0.78, open=0.62, up=0.18, corner=0.02, upper_round=0.35, lower_round=1.0),
@@ -135,6 +136,11 @@ SHAPES = {
     'frown': dict(width=0.92, open=0.0, smile=-0.18),
     'surprised': dict(width=0.5, open=0.5, up=0.35, corner=0.0, upper_round=0.9, lower_round=0.9),
     'pout': dict(width=0.62, open=0.0, smile=-0.04),
+    # expression mouths the model sheet asked for (charkit/exprqa.py: none of the above within tolerance)
+    'laugh': dict(width=2.0, open=2.0, up=0.2, corner=0.05, smile=0.06, upper_round=0.05, lower_round=1.0),    # a wide D
+    'wavy': dict(width=1.9, open=0.6, up=0.45, corner=0.0, smile=-0.02, upper_round=0.3, lower_round=0.45, wave=0.08,
+                 waves=2.5),                                                                                  # flustered
+    'yawn': dict(width=1.25, open=1.8, up=0.3, corner=-0.12, smile=0.0, upper_round=0.85, lower_round=0.95),    # a tall O
 }
 
 
@@ -153,17 +159,23 @@ def curves(K, L, shape):
         return x, smile * W * u * u + corner * u * u
     gap = K['gap'] * L
 
+    def wave(t):
+        t = np.asarray(t, float)
+        if not S.get('wave'):
+            return 0 * t
+        return S['wave'] * K['width'] * L * np.cos(2 * np.pi * S.get('waves', 2.5) * (t - 0.5)) * np.sin(np.pi * t) ** 0.7
+
     def upper(t):
         x, z = base(t)
         s = np.sin(np.pi * np.asarray(t, float))
         prof = s ** (1.0 - 0.7 * S.get('upper_round', 0.5)) if op > 0 else 0 * s
-        return x, z + op * up * prof
+        return x, z + op * up * prof + wave(t)
 
     def lower(t):
         x, z = base(t)
         s = np.sin(np.pi * np.asarray(t, float))
         prof = s ** (1.0 - 0.7 * S.get('lower_round', 0.8)) if op > 0 else 0 * s
-        return x, z - gap * s ** 0.8 - op * (1 - up) * prof
+        return x, z - gap * s ** 0.8 - op * (1 - up) * prof + wave(t)
     return upper, lower
 
 
