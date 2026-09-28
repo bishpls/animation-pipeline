@@ -10,7 +10,7 @@ import numpy as np
 
 from . import shade
 
-FACE_WIN = (-0.16, 0.16, -0.45, 0.25)       # the 'face' UV's window in head space, in L: x0, x1, z0, z1
+FACE_WIN = (-0.16, 0.16, -0.45, 0.60)       # the 'face' UV's window in head space, in L: x0, x1, z0, z1
 
 
 def _grid(size, L):
@@ -98,7 +98,7 @@ def face_mask(V, faces, head_w, centre, H):
     fwd = -n[:, 1]
     q = V - np.asarray(centre)
     L = H.L
-    m = np.clip((fwd - 0.05) / 0.35, 0, 1)
+    m = np.clip((fwd + 0.35) / 0.3, 0, 1)                  # the whole front half (hair covers the handover)
     m *= np.clip((q[:, 2] + H.chin * 1.02) / (0.04 * L), 0, 1) * np.clip((0.30 * L - q[:, 2]) / (0.06 * L), 0, 1)
     m *= np.clip((head_w - 0.3) / 0.4, 0, 1)
     return m

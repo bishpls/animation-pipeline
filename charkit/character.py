@@ -100,7 +100,7 @@ def build(spec, clay=None, look=None):
         if A['fmat'][pi] == 1:
             for li in p.loop_indices:
                 q = V[me.loops[li].vertex_index] - c
-                fuv.data[li].uv = ((q[0] + 0.16 * L) / (0.32 * L), (q[2] + 0.45 * L) / (0.70 * L))
+                fuv.data[li].uv = ((q[0] + 0.16 * L) / (0.32 * L), (q[2] + 0.45 * L) / (1.05 * L))
     ob = bpy.data.objects.new(spec.get('name', 'char') + '_skin', me)
     bpy.context.scene.collection.objects.link(ob)
     if clay:

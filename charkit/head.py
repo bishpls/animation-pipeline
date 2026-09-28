@@ -30,6 +30,7 @@ DEFAULT_HEAD = {
     'mouth_w': 1.0,    # mouth half-width, x 0.085 L
     'neck_r': 1.0,     # neck radius under the jaw
     'ear': 1.0,        # ear size (the MakeHuman ear's detail)
+    'low_wf': None,    # optional: the lower face's half-widths at LOW_D (in L), e.g. fitted to a design by charkit.refs
 }
 
 # profiles (units of L): the lower face by d = 0 (eye line) .. 1 (chin); the cranium from the eye line to Z_C (its widest)
@@ -97,7 +98,8 @@ class Head:
         # the lower-face profiles with the knobs folded in
         c, j, ch = K['cheek'], K['jaw_w'], K['chin']
         zone = [1, 1 + (c - 1) * 0.6, c, 0.5 * (c + j), j, 0.5 * (j + ch), ch]
-        self.lwf = [w * L * K['width'] * z for w, z in zip(LOW_WF, zone)]
+        base_wf = K.get('low_wf') or LOW_WF                     # a fitted profile (charkit.refs) replaces the default
+        self.lwf = [w * L * K['width'] * z for w, z in zip(base_wf, zone)]
         self.lwb = [w * L * K['width'] for w in LOW_WB]
         cf = K['chin_fwd']
         self.ldf = [d * L * K['depth'] * (1 + (cf - 1) * t ** 2) for d, t in zip(LOW_DF, LOW_D)]
@@ -125,8 +127,8 @@ class Head:
             n = (2.35 - 0.3 * t) * K['flat']
             return self.cr['wf'] * k, self.cr['wb'] * k, self.cr['df'] * k, self.cr['db'] * k, n
         d = min(1.0, -z / self.chin)
-        n = (2.35 - 0.2 * d) * K['flat']
-        return self._p[0](d), self._p[1](d), self._p[2](d), self._p[3](d), max(1.6, n)
+        n = (2.35 - 0.85 * d ** 1.4) * K['flat']                 # the lower face narrows to a forward V in section
+        return self._p[0](d), self._p[1](d), self._p[2](d), self._p[3](d), max(1.45, n)
 
     def surface(self, a, z):
         wf, wb, df, db, n = self.section(z)

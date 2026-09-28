@@ -76,6 +76,14 @@ class Volume:
             row[bad] = t[i + 1][bad]
         self.r = np.nan_to_num(t, nan=0.4 * L)
         self.el0 = -22.0
+        self.sil = None
+        ref = S.get('silhouette')
+        if ref:
+            import json, os
+            if isinstance(ref, str):
+                root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                ref = json.load(open(ref if os.path.isabs(ref) else os.path.join(root, ref)))
+            self.fit(ref)
 
     def head_r(self, az, el):
         az = ((az + 180) % 360) - 180
@@ -95,14 +103,48 @@ class Volume:
         t *= 1 - 0.55 * front * max(0.0, 1 - max(0.0, el - 10) / 45)
         return t
 
+    def fit(self, ref, scale=0.92, smooth=5):
+        """fit the volume to a front-view design outline (charkit.refs.measure): at every height the sides and back are
+        scaled out (or in) to the drawn hair's half-width on that side; the front over the face stays."""
+        L = self.L
+        z = np.array(ref['hair_z']); o = np.argsort(z)
+        k = np.ones(smooth) / smooth
+        sm = lambda a: np.convolve(np.asarray(a)[o], k, mode='same')
+        self.sil = (z[o], sm(ref['hair_wl']) * L * scale, sm(ref['hair_wr']) * L * scale)
+        self.eye_z = self.c[2] - 0.06 * L
+        # the unfitted volume's side extent by height, each side
+        self.base_side = {}
+        for sgn in (1, -1):
+            P = np.array([self._point(90 * sgn, e) for e in np.linspace(89, -80, 120)])
+            zz = (P[:, 2] - self.eye_z) / L
+            o2 = np.argsort(zz)
+            self.base_side[sgn] = (zz[o2], np.abs(P[o2, 0] - self.c[0]))
+
     def point(self, az, el, r=1.0):
+        p = self._point(az, el, r)
+        if self.sil is None:
+            return p
+        L = self.L
+        zr = (p[2] - self.eye_z) / L
+        h = p - self.c; h[2] = 0
+        sgn = 1 if h[0] >= 0 else -1
+        z0, wl, wr = self.sil
+        W = np.interp(zr, z0, wl if sgn > 0 else wr)
+        bz, bw = self.base_side[sgn]
+        Bw = max(1e-4, np.interp(zr, bz, bw) * r)
+        s_ = min(3.0, max(0.7, W / Bw))
+        a = abs(((az + 180) % 360) - 180)
+        g = abs(math.sin(math.radians(a))) ** 0.6 if a < 90 else 1.0
+        return self.c + h * (1 + (s_ - 1) * g) + np.array([0, 0, p[2] - self.c[2]])
+
+    def _point(self, az, el, r=1.0):
         if el >= self.el0:
             rr = self.head_r(az, el) + self.thickness(az, el)
             return self.c + _dir(az, el) * rr * r
-        p0 = self.point(az, self.el0, 1.0)
+        p0 = self._point(az, self.el0, 1.0)
         f = (self.el0 - el) / 60.0                         # 0 at el0 .. 1 at the ends
         hc = p0 - self.c; hc[2] = 0
-        bulge = 1 + 0.08 * math.sin(min(1.0, f) * math.pi * 0.7) - 0.12 * max(0.0, f - 0.8)
+        bulge = 1 + self.S.get('flare', 0.08) * math.sin(min(1.0, f) * math.pi * 0.7) - 0.12 * max(0.0, f - 0.8)
         drop = (self.S['length'] + 0.35) * self.L
         p = self.c + hc * bulge * r
         p[2] = p0[2] - drop * f
@@ -426,4 +468,4 @@ def build(A, arm, style=None, colors=None):
             sol.vertex_group = 'outline_w'; sol.thickness_vertex_group = 0.0
         character._to_head(ob, arm)
         obs.append(ob)
-    return obs
+    return obs, V

@@ -58,7 +58,7 @@ def main(out, names):
         shade.outline(C['skin'], thick=0.0011, color=(0.42, 0.26, 0.26))
         bangs = None
         if HAIR:
-            hobs = hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
+            hobs, _ = hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
             hb = next(o for o in hobs if o.name.startswith('hair_front'))
             bangs = (np.array([v.co for v in hb.data.vertices]), [tuple(p.vertices) for p in hb.data.polygons])
         faceshade.apply(C, bangs=bangs, colors=SKIN)
