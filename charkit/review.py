@@ -5,6 +5,7 @@ checks exist because someone saw a problem the metrics didn't, so review feeds t
     python -m charkit review board BUILD [--spec SPEC]         # BUILD/review/: board.png, index.html, notes.json
     python -m charkit review serve BUILD [--port 8765]         # the board page, saving notes and tickets (127.0.0.1 only)
     python -m charkit review note BUILD "the face reads long" [--view front] [--region face] [--severity 1-3] [--checks a,b]
+                                   [--author NAME]
     python -m charkit review ticket BUILD NOTE_ID [--measure | --work] [--check NAME]
     python -m charkit review tickets NAME [--build BUILD] [--sync]   # the character's tickets; --sync marks landed ones
 
@@ -172,12 +173,14 @@ CONCERNS = [
 
 
 def concerns(text):
+    """the CONCERNS a note's words match, the most specific first: a concern matched on two parts (its words and its
+    subject: "hide" + "bangs") before one matched on a word alone ("eyes")."""
     t = text.lower()
     out = []
     for c in CONCERNS:
         if re.search(c['words'], t) and (not c['with'] or re.search(c['with'], t)):
             out.append(c)
-    return out
+    return sorted(out, key=lambda c: 0 if c['with'] else 1)
 
 
 # ------------------------------------------------------------------------------------------------------------ notes
@@ -265,8 +268,9 @@ def ticket(build, note_id, kind=None, check=None):
          'region': note.get('region') or (found[0]['region'] if found else None), 'severity': note.get('severity', 2),
          'concerns': [c['id'] for c in found], 'direct': direct,
          'related': {k: [C[k].get('value'), C[k]['status']] for k in related}}
-    if note.get('camera'):
-        t['camera'] = note['camera']
+    for k in ('camera', 'author'):
+        if note.get(k):
+            t[k] = note[k]
     t['board'] = os.path.join(_rel(b), 'review', 'board.png')
     if kind == 'work':
         t['checks'] = [check] if check else (bad or direct or related)
@@ -594,7 +598,7 @@ def main(args):
         serve(rest[0], int(opt('--port', 8765)))
     elif cmd == 'note':
         n = add_note(rest[0], rest[1], opt('--view'), opt('--region'), opt('--severity', 2),
-                     (opt('--checks') or '').split(','))
+                     (opt('--checks') or '').split(','), author=opt('--author'))
         print(json.dumps(n))
     elif cmd == 'ticket':
         kind = 'measure' if '--measure' in rest else 'work' if '--work' in rest else None
