@@ -32,6 +32,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EYE_SIZE = 0.42                  # the eye render's window, in L (charkit.qa3d._eye_render)
 SS = 4                           # eye render supersampling per pixel side (3 agrees nearly as well at 40% the cost)
 FILTER = 0.55                    # the pixel filter's Gaussian sigma, in output pixels (EEVEE's 1.5 px filter)
+TEX_BLUR = 0.4                   # the eye textures' prefilter, sigma in texels per output pixel (the renderer's mipmaps)
 STATUS = ['PASS', 'WARN', 'FAIL', 'SKIPPED']
 
 
@@ -237,6 +238,25 @@ def _sample(tex, uv):
            + at(y0 + 1, x0 + 1) * fx * fy)
     inside = (uv[:, 0] >= 0) & (uv[:, 0] <= 1) & (uv[:, 1] >= 0) & (uv[:, 1] <= 1)
     return np.where(inside[:, None], out, 0.0)
+
+
+def EK_width(A):
+    return A['head']['eye_knobs']['width'] * A['head']['L']
+
+
+def _blur_tex(tex, sigma):
+    """a Gaussian blur of a texture (sigma in texels), premultiplied by its alpha."""
+    if sigma < 0.3:
+        return tex
+    a = tex[..., 3:4]
+    img = np.concatenate([tex[..., :3] * a, a], -1)
+    r = int(math.ceil(3 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2); k /= k.sum()
+    pad = np.pad(img, ((r, r), (r, r), (0, 0)), mode='edge')
+    tmp = sum(k[i] * pad[i:i + img.shape[0], :, :] for i in range(2 * r + 1))
+    tmp = sum(k[i] * tmp[:, i:i + img.shape[1], :] for i in range(2 * r + 1))
+    al = tmp[..., 3:4]
+    return np.concatenate([np.where(al > 1e-6, tmp[..., :3] / np.maximum(al, 1e-6), tex[..., :3]), al], -1)
 
 
 def _blur_down(img, ss, sigma):
@@ -482,6 +502,9 @@ class Evaluator:
         ir_t = eyetex.iris(IK); sh_t = eyetex.shine(IK)
         a_ = sh_t[..., 3:4]
         tex_i = np.concatenate([ir_t[..., :3] * (1 - a_) + sh_t[..., :3] * a_, np.maximum(ir_t[..., 3:4], a_)], -1)
+        if TEX_BLUR:                                # the renderer's mipmapped lookup: a texel footprint per pixel
+            tpp = tex_i.shape[0] / (EK_width(A) / (EYE_SIZE * L / n))
+            tex_i = _blur_tex(tex_i, TEX_BLUR * tpp); tex_s = _blur_tex(tex_s, TEX_BLUR * tpp)
         for k, (v, t, _, uv) in ((1, sc), (2, ir)):
             m = M == k
             if not m.any():

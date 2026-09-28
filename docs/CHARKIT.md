@@ -265,7 +265,20 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
   line to the chin). The neck already had `body.proportions.neck_w`, `neck_len` and `head.neck_r`.
 - **Fixes it needed**: `refs.fit` takes the chin from the model sheet (`refs.sheet_chin`), or from the rig's face layer
   less its bleed. The QA's chin search (`faceqa.chin_bottom`) starts under the nose, where a projecting nose used to
-  read as the chin.
+  read as the chin. `faceqa`'s depth regions stop at the higher of the two chins, since below it the check read the
+  target's neck against our under-chin.
+- **When body knobs move** (the neck's length and width), the cached garments are moved with the skin while searching.
+  That is only an approximation of refitting them (it misread the neckline by 0.1 in `neck_to_jaw`), so the fit then
+  rebuilds them in Blender for the fitted body and fits the face again from there.
+- **Known gaps**:
+  - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
+    its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
+    and pupil aspect 0.81 against 0.94, with the same statuses. Neither a culled nor an unculled shell reproduces
+    what EEVEE draws, so fitted eyes are confirmed in a build.
+  - The sheet is 115 px per head length, so one pixel is 0.009 L, half a chin tolerance. `neck_to_jaw` reads a single
+    row, and `neck_run` above 0.1 L keeps that row off the collar.
+  - The drawn profile's nose reach (0.157 L in front of the eye) is a drawing convention. A rigid 3D nose that long
+    reads as a spike, so `nose_tip` stops at 0.04 L and the nose-reach term stays a trade-off.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
