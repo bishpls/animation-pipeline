@@ -256,7 +256,13 @@ def classify(check, c, ctx):
                 else:
                     m = max(clean, key=lambda m: m['gain'])
                     away = _num(m.get('default')) and _num(m['x']) and (m['x'] - m['default']) * m['dir'] >= 0
-                    if away:
+                    acc = (ctx.get('accepted') or {}).get(m['fitter'])
+                    if not acc:
+                        cands.append(('trade-off', '%s improves it %.2f warn bands a step at no cost to another check, but the '
+                                      '%s fitter\'s joint fit wasn\'t accepted from here (%s): its solution trades this '
+                                      'against its other terms, or the build rejected it' % (
+                                          m['knob'], m['gain'], m['fitter'], ctx.get('fit_state', {}).get(m['fitter'], 'not run'))))
+                    elif away:
                         cands.append(('trade-off', '%s improves it %.2f warn bands a step at no cost to another check, but '
                                       'moves further from its template default (%s, now %s): the fit\'s pull toward the '
                                       'defaults holds it' % (m['knob'], m['gain'], m['default'], m['x'])))
@@ -412,7 +418,11 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
     for r in recs:
         if r.get('event') == 'compare':
             disagree.update(r.get('disagree') or {})
+    accepted = {n: f.get('accepted') is not None for n, f in (fits or {}).items()}
+    state = {n: ('accepted at ck%s' % f['accepted']) if f.get('accepted') is not None else f.get('status', 'not run')
+             for n, f in (fits or {}).items()}
     ctx = {'fitters': fitters, 'spec': fspec, 'tables': tables, 'knobs': {f.name: f.knobs for f in fitters},
+           'accepted': accepted, 'fit_state': state,
            'records': recs, 'config': cfg, 'disagree': disagree, 'nondeterministic': list(nondeterministic),
            'inventory': FT.inventory(fspec), 'tickets': load_tickets(spec)}
     its = items(qa, ctx, bd)
@@ -468,6 +478,7 @@ def from_dir(d, spec_path=None, config=None):
         best_id = stop[-1]['best'] if stop else cks[-1]['id']
         end = next((c for c in reversed(cks) if c['label'] == 'final'), None) or next(c for c in cks if c['id'] == best_id)
         fits = {}
+        labels = {c['id']: c['label'] for c in cks}
         for r in recs:
             if r['event'] == 'fit' and r.get('status') in ('fitted', 'no change') and r.get('fitter') != 'options':
                 f = dict(r)
@@ -475,6 +486,15 @@ def from_dir(d, spec_path=None, config=None):
                 if os.path.exists(sp):
                     f['sensitivity'] = json.load(open(sp))
                 fits[r['fitter']] = f
+            elif r['event'] == 'compare' and r['verdict'] == 'accept':
+                lab = labels.get(r['checkpoint'], '')
+                for n, f in fits.items():
+                    if lab == n or lab.startswith(n + '-'):
+                        f['accepted'] = r['checkpoint']
+            elif r['event'] == 'sensitivity' and r.get('ok'):
+                sp = _path(r['path'])
+                if os.path.exists(sp):
+                    fits.setdefault(r['fitter'], {'fitter': r['fitter']})['sensitivity'] = json.load(open(sp))
         nondet = next((r.get('differs') for r in recs if r['event'] == 'repeat'), [])
         out_dir = os.path.join(d, 'triage')
     else:

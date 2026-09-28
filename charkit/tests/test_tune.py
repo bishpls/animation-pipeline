@@ -124,7 +124,7 @@ def test_triage_classes():
         # cheek: moves the cheek with no cost, but no fitter targets eye_... ; sheet_cheek is targeted
         'head.cheek': {'x': 1.0, 'step': 0.1, 'measures': {'eye_width': _m(0.80, 0.78, 0.84), 'sheet_cheek': _m(0.03, 0.03, 0.03)}},
     }
-    ctx = _ctx(spec, table, [face])
+    ctx = _ctx(spec, table, [face], accepted={'face': True})
     c = lambda k, v, s: triage.classify(k, {'value': v, 'status': s}, ctx)
     cls, detail, ev, _ = c('sheet_width', 0.80, 'FAIL')
     assert cls == 'knob at a bound' and 'head.jaw_w' in detail and ev['bounds'][0]['bound'] == 1.6, (cls, detail)
@@ -139,6 +139,9 @@ def test_triage_classes():
     # eye_width: cheek improves it at no cost, moving away from its default (1.0 -> up): the fit's pull to the defaults
     cls, detail, _, _ = c('eye_width', 0.80, 'FAIL')
     assert cls == 'trade-off' and 'default' in detail, (cls, detail)
+    # the same, but the face fit was never accepted from here: its joint fit trades it (or the build rejected it)
+    cls, detail, _, _ = triage.classify('eye_width', {'value': 0.80, 'status': 'FAIL'}, _ctx(spec, table, [face]))
+    assert cls == 'trade-off' and "wasn't accepted" in detail, (cls, detail)
     face2 = F('face', ('sheet_*',), face.knobs and {'head.jaw_w': (0.7, 1.6), 'head.chin': (0.5, 2.0), 'head.cheek': (0.7, 1.4)})
     cls, detail, _, _ = triage.classify('eye_width', {'value': 0.80, 'status': 'FAIL'}, _ctx(spec, table, [face2]))
     assert cls == 'not in the objective' and 'head.cheek' in detail, (cls, detail)
