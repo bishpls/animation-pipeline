@@ -61,7 +61,9 @@ def _build(wt, spec, out, args):
 
 def compare_qa(a, b, remeasured=None):
     """per check: baseline -> candidate, with a verdict (regressed, improved, value, new, gone, removed, ungraded;
-    remeasured for a check in `remeasured`, whose measurement changed between the two builds: charkit.history.STEPS)."""
+    remeasured for a check in `remeasured`, whose measurement changed between the two builds: charkit.history.STEPS).
+    A graded check that disappears is gone (the gate fails), unless a measurement step the branch brings covers it:
+    then it was retired by that step (removed), as an ungraded one that disappears is."""
     import fnmatch
     ca, cb = a.get('checks', {}), b.get('checks', {})
     rows = []
@@ -74,7 +76,8 @@ def compare_qa(a, b, remeasured=None):
         if x is None:
             v = 'new'
         elif y is None:
-            v = 'gone' if sx in RANK else 'removed'
+            stepped = remeasured and any(fnmatch.fnmatchcase(k, p) for p in remeasured)
+            v = 'gone' if sx in RANK and not stepped else 'removed'
         elif remeasured and any(fnmatch.fnmatchcase(k, p) for p in remeasured) and (sx, vx) != (sy, vy):
             v = 'remeasured'
         elif sx in RANK and (sy not in RANK):
