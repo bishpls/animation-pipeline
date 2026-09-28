@@ -259,14 +259,36 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
 ## Next steps, in order (the checkpoint)
 
 1. **Merge `tool/bodyfit`** through the gate. Done: `77721ff`.
-2. **Baseline full build test** on the merged stack (running since 2026-09-28 17:07, as
-   `charkit tune charkit/spec/clawd.json --out charkit/out/baseline --budget 8 --review --workers 3`, the e2e command):
-   `python -m charkit tune charkit/spec/clawd.json --review`. Then check the VRM export (`charkit build ... --vrm`, and
-   `node tools/gltf_validate.mjs`) and the inspector (`node engine/render.mjs projects/charkit-look --serve`). Keep this
-   run's `work_items.md` as the baseline.
-3. **Gate and merge `tool/measure`** against that baseline, then run one confirming `charkit tune`. The merge is
-   prepared on `tool/measure` (`d477cd4`, all 18 test files ok); see "In flight" for its conflict resolution.
-   - **Fit speed (`tool/fitspeed`), alongside:**
+2. **Baseline full build test: done 2026-09-28.** It ran
+   `charkit tune charkit/spec/clawd.json --out charkit/out/baseline --budget 8 --review --workers 3` in 44 min over
+   6 builds.
+   - Best: ck0, score 57.35 (the e2e run was 114.62), with 59 pass, 33 warn and 22 fail.
+   - 57 work items in `charkit/out/baseline/work_items.md`, which is the baseline.
+   - The VRM passes the validator with 0 errors and 0 warnings. The inspector loads it and matches Blender to
+     0.75/255: `--loop='body~baseline/ck5_final~vrm:clawd'`.
+   - It also exposed three tune bugs, now fixed on `tool/fitspeed` (below). The body fit ran for 30 min, and its
+     block and half-step checkpoints (ck2–ck4) rebuilt ck0 unchanged.
+3. **`tool/measure`: merged 2026-09-28 at `750a186`.** Blender time per build went from 123 s to 50 s; a full build
+   plus QA is now about 35 s.
+   - The first gate FAILed on four remeasured checks: the gate ran `pipeline-3d`'s `history.STEPS`, which lacks the
+     branch's own steps. The gate now reads STEPS from the merged tree (`history.load_steps`). The second gate
+     PASSed: 73 remeasured, none regressed.
+   - Reports are in `charkit/out/archive/measure/`.
+   - `bodyeval --validate` against a post-merge build passes (fixed on fitspeed: the Blender dump needed
+     `qa3d_blender`).
+   - Still to do: the confirming tune, after fitspeed merges.
+   - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
+     - the body probe;
+     - per-phase instrumentation;
+     - the outfit draft as a measured start: it had reset the fitted garments on every fit;
+     - list-aware knob paths for blocks and half steps;
+     - the `bodyeval_blender` fix;
+     - bounded evaluator memory: the hem textures shared, the garment cache capped;
+     - `optimise(fast=)`: Broyden updates and a guided polish. It isn't the default until the Clawd benchmark
+       agrees.
+
+     The sparse-Jacobian idea is dropped: three whole-figure IoUs couple every figure knob (19 colours for 19
+     knobs). The original plan:
      1. *The body probe.* `BodyFitter` inherits the face fitter's `sensitivity_at`, which reads `facefit.KNOBS`, so
         the body probe comes back empty. The tune then runs a full, uncapped body fit every round: 30+ min in the
         baseline, even where the fit can't pay off. Give `BodyFitter` its own probe from `bodyfit.knobs(spec)` and
