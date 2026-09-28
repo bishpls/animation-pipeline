@@ -178,6 +178,34 @@ Suggested priority, face first:
 
 These go before the secondary phase, but after the bodyfit and measure merges.
 
+## Generated references (2026-09-28, GPT Image 2.5 from the model sheet and the rig)
+
+Four sheets are in `charkit/refs/clawd/gen/` (prompts in `prompts.json`), registered in the manifest with provenance and
+cautions. The authority map is unchanged until each is checked against the sheet.
+
+- **`head_turnaround`:** front, 3/4, profile and back of the head at about 4x the sheet's resolution. It's on-model, and
+  the profile finally resolves the eye set-back, the pointed nose, the lips and the chin.
+- **`head_construction`:** the bald head with guide lines (skull top, brow, eye, nose, mouth, chin), front and profile:
+  the skull, the ear, and the face under the hair. It's the best profile reference we have. Caution: its front chin is
+  more pointed than the sheet's.
+- **`garment_breakdown`:** a labelled flat-lay. It has every piece the outfit graph found, plus the shapes our templates
+  lack: the puff volume and gathers, the pleated cream panel, the stepped back-panel hems, and the cuffs' step motif.
+- **`hair_breakdown`:** the hair's layers as colour families in three views, with a legend (bangs, side locks, upper and
+  lower back, buns, ahoge, flyaways). Layers separate reliably; locks within a layer only partly.
+
+Use them in this order:
+1. Check `head_turnaround` and `head_construction` against the sheet at its scale, which is the generated-view
+   consistency check.
+2. Make them the authority for face profile and skull (profile feature metrics, the midline profile target, eye depth).
+3. Use `garment_breakdown` for the piece-shape templates and checks.
+4. Use `hair_breakdown` for the hair component graph later.
+
+Worth generating next, if useful:
+- a high-resolution eye close-up sheet (pupil, iris and sclera ratios, and expressions);
+- a high-resolution mouth expression sheet, for the mouth detail pass;
+- per-garment close-ups (puff sleeve, skirt panels);
+- a hair sheet with strongly distinct colours per lock.
+
 ## Next steps, in order (the checkpoint)
 
 1. **Merge `tool/bodyfit`** through the gate.
