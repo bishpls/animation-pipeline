@@ -86,8 +86,10 @@ class MultiViewModel:
     """a flow model driven by V view conditions (the rows of `cond`) for one sample. The sampler calls it like the model;
     the positive condition is recognised by identity (the sampler passes the tensor through untouched), the negative
     (unconditional, zeros) one is cut to one row. `rescale` (multidiffusion): the averaged clean-sample prediction is
-    scaled back to the views' mean standard deviation (averaging disagreeing predictions shrinks it, and the texture
-    model reads a shrunken shape latent badly)."""
+    scaled back to the views' mean standard deviation each step, like CFG-rescale. Without it the texture stage came out
+    as a near-black mask on Clawd's head (front + three-quarter), even with only the shape stages multi-view; with it the
+    texture is as clean as single view (charkit/out/i3d/ext/compare_multiview.png). The final latents' std is about the
+    same either way (0.92), so the difference is in the trajectory, not the endpoint's scale."""
 
     def __init__(self, model, cond, mode='multidiffusion', weights=None, rescale=True, sigma_min=1e-5):
         self.model, self.cond, self.mode = model, cond, mode
