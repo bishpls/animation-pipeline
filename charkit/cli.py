@@ -136,10 +136,11 @@ def build(args):
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
-    spec = geom_hair(spec, resolved, out)
+    mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
+    spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
-        (['--vrm'] if '--vrm' in args else []) + ['--cache', opt('--cache', 'off' if '--no-cache' in args else 'on')]
+        (['--vrm'] if '--vrm' in args else []) + ['--cache', mode]
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
     from . import history, procs, worker
     r = worker.submit(job, out, 'build ' + name) if '--no-worker' not in args else None
@@ -158,7 +159,7 @@ def build(args):
     print('built', out)
 
 
-def geom_hair(spec, resolved, out):
+def geom_hair(spec, resolved, out, mode='on'):
     """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz, and the
     resolved spec pointed at it. A cached step (charkit.cache.file_step, restored by copy): the cut is given the resolved
     spec without the outfit (out/geom/cut.spec.json), so an outfit change can't reach it, and it runs again when that spec,
@@ -183,9 +184,12 @@ def geom_hair(spec, resolved, out):
         parts.save_part(R, path, meta=dict(align=C.align, measure=st_))
         print('geom hair', path, json.dumps({k: st_[k] for k in ('faces', 'parts', 'open_edges', 'nonmanifold_edges',
                                                                    'self_intersecting_faces', 'silhouette_iou_mean')}))
-    r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=[_path(shape['glb'])], modules=('charkit.geom.parts',),
-                        name_key=spec['name'])
-    print('CHARKIT_CACHE geom_hair', r)
+    if mode == 'off':
+        run()
+    else:
+        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=[_path(shape['glb'])],
+                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec

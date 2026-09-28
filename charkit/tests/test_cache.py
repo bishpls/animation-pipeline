@@ -36,10 +36,12 @@ def test_recorded_reads():
     try:
         A['verts']; A['head']['L']; 'c' in A['joints']; A.get('missing'); list(A['joints'])
         A['new'] = 1; A['new']
+        (A.get('head') or {}).get('L')                                    # truthiness: whether it's empty, not all of it
     finally:
         cache._REC = None
     got = {cache.readable(p) for p in rec.reads}
-    assert got == {'data.verts', 'data.head.L', 'data.joints.c?', 'data.missing', 'data.joints[*]'}, got
+    assert got == {'data.verts', 'data.head.L', 'data.joints.c?', 'data.missing', 'data.joints[*]', 'data.joints[len]',
+                   'data.head[empty?]'}, got
     # the declared part: verts keyed on their first two rows only
     assert rec.reads[('S', 'data', 'verts')] == cache.digest(np.arange(2.0))
     assert ('S', 'data', 'new') in rec.writes and ('S', 'data', 'new') not in rec.reads

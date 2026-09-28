@@ -11,7 +11,7 @@ Builds (each into its own out folder; `fresh` ones with --cache off):
   head         head.width: garments run too (the head wrap drags the neck and shoulder joints the outfit hangs from)
   outfit       a garment's colour: character, hair, face shading restored; garments run; in the QA the parts that
                don't look at the clothes (eyes, face, expressions, the sheet's figures) restored
-  glb          the TRELLIS GLB swapped for another's content at the same path: the fit and the hair run
+  glb          the TRELLIS GLB at the same path rewritten turned 0.5 degrees: the fit and the hair run
   code         a code edit in garments.py: garments (and the products) run; a comment-only edit: nothing runs
   verify       eyes.width again with --cache verify: every stage runs and is compared with the entry a lookup would take
 The changed builds are each diffed against a fresh build of the same spec: `no differences` (stage times left out).
@@ -30,6 +30,24 @@ def copy_checkout(dst):
     os.makedirs(os.path.join(dst, 'charkit', 'out'))
     os.symlink(os.path.join(REPO, 'charkit', 'out', 'i3d'), os.path.join(dst, 'charkit', 'out', 'i3d'))
     os.symlink(os.path.join(REPO, 'projects'), os.path.join(dst, 'projects'))
+
+
+def turned_glb(src, dst, deg=0.5):
+    """a copy of a GLB whose scene is turned `deg` about z (a new root node): valid, with other geometry."""
+    import math, struct
+    b = open(src, 'rb').read()
+    magic, ver, _ = struct.unpack_from('<III', b, 0)
+    n, kind = struct.unpack_from('<II', b, 12)
+    J = json.loads(b[20:20 + n])
+    rest = b[20 + n:]
+    sc = J['scenes'][J.get('scene', 0)]
+    J['nodes'].append({'name': 'turn', 'children': sc['nodes'],
+                       'rotation': [0.0, 0.0, math.sin(math.radians(deg) / 2), math.cos(math.radians(deg) / 2)]})
+    sc['nodes'] = [len(J['nodes']) - 1]
+    js = json.dumps(J).encode()
+    js += b' ' * (-len(js) % 4)
+    out = struct.pack('<II', len(js), kind) + js + rest
+    open(dst, 'wb').write(struct.pack('<III', magic, ver, 12 + len(out)) + out)
 
 
 def build(root, spec, out, *args, env=None):
@@ -161,7 +179,7 @@ def main(args):
         a = build(root, p, out('glb_a'), *B, env=env); show('glb_a', a)
         b = build(root, p, out('glb_b'), *B, env=env); show('glb_b', b)
         check(not ran(b), 'glb: a second build with the copy restores everything')
-        shutil.copyfile(os.path.join(REPO, 'charkit', 'out', 'i3d', 'clawd', 'clawd_3dstyle_s2.glb'), glb)
+        turned_glb(os.path.join(REPO, 'charkit', 'out', 'i3d', 'clawd', 'clawd_3dstyle_s1.glb'), glb)
         c = build(root, p, out('glb'), *B, env=env); show('glb', c)
         f = build(root, p, out('glb_fresh'), *B, '--cache', 'off', env=env)
         check({'fit_cranium', 'hair'} <= set(ran(c)) and 'file ' in c['steps']['hair'].get('why', ''),

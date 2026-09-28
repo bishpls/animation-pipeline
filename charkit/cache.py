@@ -48,6 +48,8 @@ SCHEMA = 1
 MODES = ('on', 'off', 'refresh', 'verify', 'stages')
 MAX_GB = float(os.environ.get('CHARKIT_CACHE_MAX_GB', 12))
 ALL, HAS = '\0*', '\0?'                 # path markers: the whole dict was read; only the key's presence was
+NONEMPTY, LEN = '\0#', '\0n'             # ...only whether the dict is empty; only how many keys it has
+MARKS = (ALL, HAS, NONEMPTY, LEN)
 
 
 def cache_dir():
@@ -776,7 +778,18 @@ class TrackedDict(dict):
         self._all(); return dict.__iter__(self)
 
     def __len__(self):
-        self._all(); return dict.__len__(self)
+        n = dict.__len__(self)
+        r = _REC
+        if r is not None and not r.paused:
+            r.read(self._path + (LEN,), n)
+        return n
+
+    def __bool__(self):
+        b = dict.__len__(self) > 0
+        r = _REC
+        if r is not None and not r.paused:
+            r.read(self._path + (NONEMPTY,), b)
+        return b
 
     def keys(self):
         self._all(); return dict.keys(self)
@@ -838,12 +851,12 @@ def adopt(S, names=None):
 def readable(path):
     """('S', 'character', 'data', 'verts') -> 'character.data.verts'."""
     p = list(path[1:] if path[0] == 'S' else path)
-    s = '.'.join(str(k) for k in p if k not in (ALL, HAS))
-    return s + ('[*]' if p and p[-1] == ALL else '?' if p and p[-1] == HAS else '')
+    s = '.'.join(str(k) for k in p if k not in MARKS)
+    return s + {ALL: '[*]', HAS: '?', NONEMPTY: '[empty?]', LEN: '[len]'}.get(p[-1] if p else None, '')
 
 
 def _dep_name(path):
-    return '.'.join(str(k) for k in (path[1:] if path[0] == 'S' else path) if k not in (ALL, HAS))
+    return '.'.join(str(k) for k in (path[1:] if path[0] == 'S' else path) if k not in MARKS)
 
 
 class Scoped:
@@ -892,9 +905,13 @@ class Recorder:
         self.files_only = False          # a product's recorder: files only (its scene is keyed whole)
 
     def facet(self, path, v):
-        """the value a read is keyed on: the declared part (scene.DEPS), or the whole."""
+        """the value a read is keyed on: the declared part (scene.DEPS), or the whole (a spec value naming a file in the
+        output folder by its path there: the file itself is keyed by content)."""
+        out = getattr(self.cache, 'out', None)
+        if path[0] == 'spec' and out:
+            v = _out_rel(v, out + os.sep)
         dep = self.deps.get(_dep_name(path))
-        if dep is None or path[-1] in (ALL, HAS):
+        if dep is None or path[-1] in MARKS:
             return v, self.default
         if callable(dep):
             return dep(v, self.S), None
@@ -935,6 +952,18 @@ class Recorder:
             self.wrote.add(p)
         elif p not in self.wrote and self.cache.watch(p):
             self.files.add(p)
+
+
+def _out_rel(v, out):
+    """v with strings naming paths in the output folder made relative to it ('<out>/geom/hair.npz')."""
+    if isinstance(v, str):
+        return '<out>/' + v[len(out):] if v.startswith(out) else v
+    if isinstance(v, dict):
+        return {k: _out_rel(x, out) for k, x in dict.items(v)} if any(
+            isinstance(x, (str, dict, list, tuple)) for x in dict.values(v)) else v
+    if isinstance(v, (list, tuple)) and v and any(isinstance(x, (str, dict, list, tuple)) for x in v):
+        return type(v)(_out_rel(x, out) for x in v)
+    return v
 
 
 def _objects_in(v, depth=0):
@@ -1101,6 +1130,10 @@ def _resolve(path, S):
     for i, k in enumerate(rest):
         if k == ALL:
             return v
+        if k == NONEMPTY:
+            return dict.__len__(v) > 0 if isinstance(v, dict) else ABSENT
+        if k == LEN:
+            return dict.__len__(v) if isinstance(v, dict) else ABSENT
         if i + 1 < len(rest) and rest[i + 1] == HAS:
             return isinstance(v, dict) and dict.__contains__(v, k)
         v = dict.get(v, k, ABSENT) if isinstance(v, dict) else ABSENT
@@ -1401,7 +1434,7 @@ class Cache:
             rec.errors.append('changes the spec: %s' % e)
         # a value it read and then changed in place is an input and an output at once
         for p, h in rec.reads.items():
-            if p[-1] in (ALL, HAS) or p in rec.dict_writes or p in rec.spec or rec.written(p) or \
+            if p[-1] in MARKS or p in rec.dict_writes or p in rec.spec or rec.written(p) or \
                     p[0] == 'S' and p[1] in rec.attrs:
                 continue
             v = _resolve(p, S)
@@ -1831,7 +1864,7 @@ class Cache:
             parent = _resolve(p[:-1], S)
             writes[p] = dict.get(parent, p[-1], ABSENT) if isinstance(parent, dict) else ABSENT
         for p, h in rec.reads.items():
-            if p[-1] in (ALL, HAS) or p in writes or rec.written(p) or p[0] == 'S' and p[1] in attrs:
+            if p[-1] in MARKS or p in writes or rec.written(p) or p[0] == 'S' and p[1] in attrs:
                 continue
             v = _resolve(p, S)
             if isinstance(v, (np.ndarray, list, dict)) or hasattr(v, '__dict__') and not _is_id(v):
@@ -1979,7 +2012,7 @@ def venv_env():
     return out
 
 
-def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
+def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False):
     """a venv-side step whose product is files under `out` (the geom hair cut, before Blender): restored by copying them
     when its code (fns and every charkit module they import), the venv's packages, `key` (what it is given, exactly), the
     content of `inputs` and of every file it opened are unchanged. -> 'hit' | 'miss: why'."""
@@ -1993,7 +2026,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
     envv = venv_env()
     static = digest([SCHEMA, 'venv', name, units, envv, key, sorted((os.path.abspath(p), files.get(p)) for p in inputs)])
     kd = os.path.join(d, 'venv', name, static[:20])
-    for c in _entries(kd):
+    for c in _entries(kd) if not refresh else []:
         try:
             E = Entry(c)
             if all(files.get(p) == h for p, h in E.m['reads']):
@@ -2002,13 +2035,13 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     shutil.copyfile(os.path.join(E.dir, 'files', rel), dst)
                 for line in E.m['stdout']:
-                    print(line)
+                    print(line.replace(E.m.get('out', '\0'), os.path.abspath(out)))
                 os.utime(E.file('manifest.json'))
                 files.save()
                 return 'hit'
         except (OSError, ValueError, KeyError):
             continue
-    why = 'file changed' if _entries(kd) else 'no entry'
+    why = 'refresh' if refresh else 'file changed' if _entries(kd) else 'no entry'
     last = os.path.join(d, 'last', 'venv_%s_%s.json' % (name, name_key or 'build'))
     try:
         L = json.load(open(last))
@@ -2038,7 +2071,6 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
     if any(os.stat(os.path.join(dd, f)).st_mtime > t0 for dd, ds, fs in os.walk(KIT) for f in fs if f.endswith('.py')
            and not dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests')))):
         return 'miss: charkit changed during the step (not stored)'
-
     tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
     try:
         for rel in outs:
@@ -2046,8 +2078,8 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.copyfile(os.path.join(out, rel), dst)
         _write_json(os.path.join(tmp, 'manifest.json'), dict(schema=SCHEMA, kind='venv', step=name, static=static, units=units,
-                                                             env=envv, reads=reads, files=outs, created=time.strftime(
-                                                                 '%Y-%m-%dT%H:%M:%S'),
+                                                             env=envv, reads=reads, files=outs, out=os.path.abspath(out),
+                                                             created=time.strftime('%Y-%m-%dT%H:%M:%S'),
                                                              stdout=[l for l in lines if l.startswith(('geom ', 'CHARKIT_'))]))
         final = os.path.join(kd, key2[:24])
         os.makedirs(kd, exist_ok=True)

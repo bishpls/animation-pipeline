@@ -22,7 +22,7 @@ def main(a, worker=False, t0=None):
     for attempt in range(2):
         C = None if mode == 'off' else cache.Cache(mode, spec['name'], out, t0=t0 or T0)
         trace.begin(os.path.join(out, 'trace.jsonl'), spec={k: v for k, v in spec.items() if k != '_dir'}, spec_path=a[0],
-                    boards=which, cache=mode, worker=worker)
+                    boards=which, cache_mode=mode, worker=worker)
         try:
             S = scene.build(spec, cache=C)
             break

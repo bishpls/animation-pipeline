@@ -503,11 +503,10 @@ def _sheet_context(S, out=None):
 
 
 def _design(ctx):
-    """the design's full figures cut and classified (charkit.bodyqa.design_views), once per QA pass."""
+    """the design's full figures cut and classified (charkit.bodyqa.design_views): memoized by the build cache, so the
+    parts that use it don't each carry a copy."""
     from . import bodyqa
-    if 'design' not in ctx:
-        ctx['design'] = _memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
-    return ctx['design']
+    return _memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
 
 
 def _memo(fn, *a, **kw):
