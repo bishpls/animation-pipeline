@@ -205,6 +205,10 @@ When something can only be judged by eye, name the measurement that would close 
   - No branch moves.
 - Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
   worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
+- Builds share a machine-wide number of slots (`CHARKIT_BUILD_SLOTS`, default 2). A Blender build of a character with its
+  QA holds a few GB, and five worktrees building at once ran a 16 GB machine out of memory. A build takes a free slot or
+  waits for one; the OS releases a slot when its process ends, crashed or not. Anything that starts Blender goes through
+  `procs.run` (or `procs.acquire_slot`), and `ps` shows who holds the slots.
 
 **References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
 fit and QA read: the model sheet, the 2D rig, the generated 3D-style key, the TRELLIS mesh and the outfit graph (§8).
