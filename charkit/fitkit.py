@@ -255,7 +255,7 @@ class Budget(Exception):
     pass
 
 
-def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, log=print):
+def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', log=print):
     """least squares over one group's knobs and terms from the spec's values (see the module).
     -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, history, stopped})."""
     from scipy.optimize import least_squares
@@ -328,8 +328,9 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, log=p
     try:
         for cycle in range(CYCLES):
             best.update(u=np.array(u), c=None)
-            # soft-L1: a term that jumps (a measure flipping between two readings) can't dominate the step
-            least_squares(fun, u, jac=jac, bounds=(ulo, uhi), method='trf', x_scale=1.0, loss='soft_l1',
+            # soft-L1 (the default): a term that jumps (a measure flipping between two readings) can't dominate the
+            # step; 'linear' (plain least squares) converges faster where every term is smooth
+            least_squares(fun, u, jac=jac, bounds=(ulo, uhi), method='trf', x_scale=1.0, loss=loss,
                           f_scale=LOSS_SCALE, max_nfev=max(3, 4 * len(knobs)), xtol=1e-3, ftol=1e-4, gtol=1e-6)
             u, c = polish(np.clip(best['u'], ulo, uhi))
             if done is not None and c >= done[1] - 1e-6:

@@ -63,6 +63,7 @@ AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile
              'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'rig'}
 VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
+LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
 
 
 def terms():
@@ -169,7 +170,8 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
         for g in groups:
             share = None if left is None else max(20, int(left * sum(k.group == g for k in KNOBS) /
                                                           max(1, sum(k.group in groups for k in KNOBS))))
-            fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, g, authority, budget=share, log=log)
+            fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, g, authority, budget=share, loss=LOSS.get(g, 'soft_l1'),
+                                           log=log)
             rep['groups'][g] = {k: v for k, v in info.items() if k != 'history'}
             rep['groups'][g]['cost_history'] = [h['cost'] for h in info['history']]
             if left is not None:
@@ -202,7 +204,7 @@ def views_alone(pool, spec, T, authority, log=print):
     out = {}
     for view in ('front', 'three_quarter', 'profile', 'depth'):
         sub = [t for t in T if t.group == 'face' and t.view == view]
-        s2, info = fitkit.optimise(pool, spec, KNOBS, sub, 'face', authority, log=lambda *a: None)
+        s2, info = fitkit.optimise(pool, spec, KNOBS, sub, 'face', authority, loss=LOSS['face'], log=lambda *a: None)
         res = fitkit.residuals(pool.map([(s2, 'face', True)])[0], sub, authority)
         out[view] = {'rms': round(float(np.sqrt(np.mean([r['r'] ** 2 for r in res]))), 3),
                      'worst': max(res, key=lambda r: abs(r['r']))['name'], 'max': round(max(abs(r['r']) for r in res), 3),

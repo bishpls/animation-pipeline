@@ -116,9 +116,13 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     is the same drawing at a known scale, and each view is aligned on its eyes. The 3/4 angle comes from how much the
     eye spacing shortens. In the drawing, the face is the skin reached from under the eyes with the drawn lines as
     walls. Ours is `faceqa`'s z-buffer at the sheet's scale, each triangle labelled by class, without the hair. Its face
-    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck. Graded:
+    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck (searched from
+    0.2 L under the eye line, below the nose: a projecting nose isn't the chin). Graded:
     - the front half-widths at 55% and 75% of the way to each face's own chin;
-    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck);
+    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck). It reads
+      one row, 0.06 L under the chin; `neck_run` (INFO) says how much neck shows there before the collar. Under about
+      0.1 L, a one-pixel chin move flips that row between the neck and the shirt: on Clawd the neck read 0.139 or
+      0.048 L;
     - the profile's front edge, the nose's and chin's reach in front of the eye, and the chin's height;
     - the far cheek at 3/4.
 
