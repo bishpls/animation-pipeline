@@ -1,19 +1,25 @@
-"""Generated references against the design's model sheet (docs/CHARKIT.md §4, the manifest's authority map). A generated
-sheet (charkit/refs/NAME/gen/) is only a candidate authority: it is used for a measure after it agrees with the model sheet
-on what both show. For a head sheet (the manifest's layout 'heads': a turnaround, a construction drawing):
+"""Generated references checked for consistency (docs/CHARKIT.md §4, the manifest's authority map). The references
+generated for the 3D pipeline (charkit/refs/NAME/gen/: turnarounds, construction drawings) are the base to build on: at
+several times the model sheet's resolution, drawn for 3D, they resolve what the small 2D sheet can't. What decides whether
+they can be trusted is whether they agree with each other, as views of one head must:
 
-  1. its construction guide lines are painted out (they would wall the face into strips);
-  2. its heads are found (detect_heads) and it is resampled to the model sheet's scale: its front head's eye spacing
-     made the sheet's, so both are measured at the sheet's pixels and in the same head lengths;
-  3. each head is measured exactly as the QA measures the design's (sheetqa.measure_figure), and graded against the
-     design with the QA's own face checks (sheetqa.compare: the widths and neck to jaw in front, the front edge and the
-     reach in profile, the far cheek in three-quarter, the chin), the same limits our 3D face is held to.
+  - between sheets: every pair of head sheets, view by view, graded with the QA's own face checks (sheetqa.compare: the
+    widths and neck to jaw in front, the front edge and the reaches in profile, the far cheek in three-quarter, the chin)
+    at the limits our 3D face is held to;
+  - within a sheet: its views against each other (the front's chin tip and the profile's chin are one point of one head).
 
-A reference passes a view when every graded check there passes; that view's measures can then be made its authority.
+How each departs from the original model sheet is reported too, as information: where the 3D references differ from the
+2D design, not a verdict on them.
+
+For a head sheet (the manifest's layout 'heads'): its construction guide lines are painted out (they would wall the face
+into strips); its heads are found (detect_heads); it is resampled to a common scale (its front eyes as far apart as the
+model sheet's, so every sheet is measured in the same pixels and head lengths as the QA's numbers); each head is measured
+as the QA measures a drawn head (sheetqa.measure_labels), bounded by its own drawn lines, or cut at the profile's drawn
+chin where the neck is drawn in the face's own skin tone (measure_heads, drawn_chin).
 
     python -m charkit refcheck SPEC [--out DIR] [--refs head_turnaround,head_construction] [--no-open]
-        -> DIR/refcheck.json and DIR/index.html (opened in the browser): per reference and view, the design's head, the
-           reference's at the same scale and alignment, both faces overlaid, and the checks with their numbers
+        -> DIR/refcheck.json and DIR/index.html (opened in the browser): the pairs, each view side by side at the same
+           scale with the faces overlaid and the checks; each sheet's own views; the departures from the model sheet
 """
 import html, json, os, subprocess, sys, time
 
@@ -185,40 +191,69 @@ def _strip(M):
             if not isinstance(v, np.ndarray) and k not in ('lab', 'face')}
 
 
-def check(spec, ref, sheet=None, log=print):
-    """one head sheet against the model sheet. spec: the resolved spec; ref: the manifest's entry.
-    -> dict(ref, path, factor, guides, views {view: {checks, measures, pass}}, pass, _pictures)."""
+CHIN_VIEWS = 0.02    # a sheet's front chin tip and its profile's chin are one point of one head: within this (L)
+
+
+def measure_ref(ref, S, log=print):
+    """one head sheet measured at the common scale -> dict(ref, path, factor, scale_vs_sheet, guides, chin (the
+    profile's drawn chin), O {view: measures}, _rgb, _heads)."""
     from PIL import Image
-    from . import bodymeasure
-    S = sheet or bodymeasure.Sheet(spec)
     facing = S.spec_sheet.get('facing', -1)
-    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in S.spec_sheet['heads'].items()}, S.eye_x, ppl=S.ppl)
     rgb0 = np.asarray(Image.open(_p(ref['path'])).convert('RGB')).astype(float) / 255
     rgb0, guides = without_guides(rgb0)
-    spacing = S.ppl_eyes * 2 * S.eye_x                                   # the design's front eyes, px apart
-    rgb, f, H = at_scale(rgb0, S.eye_x, spacing, facing)
-    log('%s: x%.3f (%.2fx the model sheet), heads %s, %d guide lines out' % (
-        ref['id'], f, 1 / f, ', '.join(H['heads']), len(guides)))
-    OA, chin = measure_heads(rgb, H['heads'], S.ppl, facing)             # at the design's scale (S.ppl)
-    out = {'ref': ref['id'], 'path': ref['path'], 'factor': round(f, 4), 'scale_vs_sheet': round(1 / f, 2),
-           'guides': guides, 'chin_cut': None if chin is None else round(chin, 4), 'views': {}, '_pictures': {}}
+    rgb, f, H = at_scale(rgb0, S.eye_x, S.ppl_eyes * 2 * S.eye_x, facing)
+    O, chin = measure_heads(rgb, H['heads'], S.ppl, facing)
+    log('%s: x%.3f (%.2fx the model sheet), heads %s, %d guide lines out, profile chin %s' % (
+        ref['id'], f, 1 / f, ', '.join(H['heads']), len(guides), None if chin is None else round(chin, 3)))
+    return dict(ref=ref['id'], path=ref['path'], factor=round(f, 4), scale_vs_sheet=round(1 / f, 2), guides=guides,
+                chin=None if chin is None else round(chin, 4), O=O, _rgb=rgb, _heads=H['heads'])
+
+
+def _graded(C):
+    return {k: {x: v[x] for x in ('value', 'status', 'design', 'ours', 'note') if x in v} for k, v in C.items()}
+
+
+def _worst(checks):
+    st = [c.get('status') for c in checks.values()]
+    return 'FAIL' if 'FAIL' in st else 'WARN' if 'WARN' in st else 'PASS' if 'PASS' in st else 'INFO'
+
+
+def compare_views(A, B):
+    """B's faces graded against A's, view by view (sheetqa.compare: ratios and gaps are B's over or less A's)
+    -> {view: dict(checks, status)}."""
+    out = {}
     for view in VIEWS:
-        if view not in OA or view not in D:
-            continue
-        h = H['heads'][view]
-        O = {view: OA[view]}
-        C = sheetqa.compare(O, D)
-        graded = {k: v for k, v in C.items() if v.get('status') in ('PASS', 'WARN', 'FAIL')}
-        out['views'][view] = {'checks': {k: {x: v[x] for x in ('value', 'status', 'design', 'ours', 'note') if x in v}
-                                         for k, v in C.items()},
-                              'measures': _strip(O[view]), 'design': _strip(D[view]),
-                              'pass': bool(graded) and all(v['status'] == 'PASS' for v in graded.values())}
-        # the pictures: the design's head and this head, framed alike (sheetqa.head_box), and both faces overlaid
-        dbox = S.D['figures'][view]['head'] if view in S.D['figures'] else S.spec_sheet['heads'][view]
-        out['_pictures'][view] = dict(design=_crop(S.rgb, dbox), ref=_crop(rgb, h['head']),
-                                      overlay=sheetqa.picture(O, D, scale=2))
-    out['pass'] = bool(out['views']) and all(v['pass'] for v in out['views'].values())
+        if view in A and view in B:
+            C = _graded(sheetqa.compare({view: B[view]}, {view: A[view]}))
+            out[view] = {'checks': C, 'status': _worst(C)}
     return out
+
+
+def within(R):
+    """one sheet's views against each other -> {check: dict(value, status, note)}."""
+    O, out = R['O'], {}
+    cf, cp = (O.get(v, {}).get('chin') for v in ('front', 'profile'))
+    if cf is not None and cp is not None:
+        d = cf - cp
+        out['chin_views'] = {'value': round(d, 4), 'status': 'PASS' if abs(d) <= CHIN_VIEWS else
+                             'WARN' if abs(d) <= 2 * CHIN_VIEWS else 'FAIL',
+                             'note': "the front's chin tip less the profile's chin, L: one point of one head"}
+    return out
+
+
+def run(spec, refs, S, log=print):
+    """-> dict(sheets [measure_ref], pairs [dict(a, b, views)], within {ref: checks}, design {ref: views}): the pairs and
+    each sheet's own views are the verdict; design (each sheet against the model sheet) is information."""
+    D = sheetqa.measure_sheet(S.rgb, {k: tuple(v) for k, v in S.spec_sheet['heads'].items()}, S.eye_x, ppl=S.ppl)
+    sheets = [measure_ref(r, S, log) for r in refs]
+    pairs = [dict(a=A['ref'], b=B['ref'], views=compare_views(A['O'], B['O']))
+             for i, A in enumerate(sheets) for B in sheets[i + 1:]]
+    res = dict(sheets=sheets, pairs=pairs, within={R['ref']: within(R) for R in sheets},
+               design={R['ref']: compare_views({v: D[v] for v in VIEWS if v in D}, R['O']) for R in sheets}, _D=D)
+    st = [v['status'] for p in pairs for v in p['views'].values()] + \
+         [c['status'] for w in res['within'].values() for c in w.values()]
+    res['status'] = 'FAIL' if 'FAIL' in st else 'WARN' if 'WARN' in st else 'PASS'
+    return res
 
 
 def _crop(rgb, box):
@@ -239,9 +274,8 @@ def _png(arr, path, scale=1):
     return os.path.basename(path)
 
 
-def page(results, out, spec_name):
-    """the review page: per reference and view, the design's head | the reference's | the faces overlaid, and the
-    checks (value, design, status)."""
+def page(res, S, out, spec_name):
+    """the review page: the verdict (the pairs and each sheet's own views), then the departures from the model sheet."""
     css = ('body{font:14px/1.4 -apple-system,system-ui,sans-serif;margin:24px;background:#fafafa;color:#222}'
            'h1{font-size:20px}h2{font-size:17px;margin-top:32px}h3{font-size:15px;margin:18px 0 6px}'
            '.row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}.tile{text-align:center;font-size:12px;color:#555}'
@@ -249,50 +283,69 @@ def page(results, out, spec_name):
            'table{border-collapse:collapse;font-size:13px}td,th{border:1px solid #ddd;padding:3px 8px;text-align:right}'
            'th{background:#f0f0f0}td:first-child,th:first-child{text-align:left}'
            '.PASS{color:#1a7f37;font-weight:600}.WARN{color:#9a6700;font-weight:600}.FAIL{color:#cf222e;font-weight:600}'
-           '.INFO{color:#777}.verdict{font-size:15px;margin:4px 0 12px}.note{color:#666;font-size:12px;max-width:900px}')
+           '.INFO{color:#777}.note{color:#666;font-size:12px;max-width:960px}')
+    by = {R['ref']: R for R in res['sheets']}
     L = ['<!doctype html><meta charset="utf-8"><title>refcheck %s</title><style>%s</style>' % (html.escape(spec_name), css),
-         '<h1>Generated references against the model sheet (%s)</h1>' % html.escape(spec_name),
-         '<p class="note">Each generated head sheet is brought to the model sheet\'s scale (its front eyes as far apart as '
-         'the sheet\'s), measured the way the QA measures the sheet\'s heads, and graded with the QA\'s own face checks '
-         'at the same limits our 3D face is held to. The overlay: grey both, <b style="color:#e33">red</b> the reference '
-         'only, <b style="color:#35f">blue</b> the design only. %s</p>' % time.strftime('%Y-%m-%d %H:%M')]
-    # the summary: per reference and view, the verdict and what didn't pass
-    L.append('<h2>Summary</h2><table><tr><th>reference</th><th>scale</th>%s</tr>' % ''.join(
-        '<th>%s</th>' % v.replace('_', '-') for v in VIEWS))
-    for r in results:
-        cells = []
-        for v in VIEWS:
-            V = r['views'].get(v)
-            if V is None:
-                cells.append('<td></td>'); continue
-            bad = ['%s %s' % (k, c['status']) for k, c in V['checks'].items() if c.get('status') in ('WARN', 'FAIL')]
-            worst = 'FAIL' if any(c.get('status') == 'FAIL' for c in V['checks'].values()) else 'WARN' if bad else 'PASS'
-            cells.append('<td class="%s">%s%s</td>' % (worst, worst, (': ' + html.escape(', '.join(bad))) if bad else ''))
-        L.append('<tr><td>%s</td><td>%.2fx</td>%s</tr>' % (html.escape(r['ref']), r['scale_vs_sheet'], ''.join(cells)))
-    L.append('</table><p class="note">A view that passes every check can be the authority for what it measures. The '
-             'model sheet stays the authority wherever a reference only warns or fails.</p>')
-    for r in results:
-        L.append('<h2>%s <span class="%s">%s</span></h2>' % (html.escape(r['ref']), 'PASS' if r['pass'] else 'FAIL',
-                                                            'passes' if r['pass'] else 'does not pass every view'))
-        L.append('<p class="note"><a href="%s">%s</a>: resampled x%.3f (%.2fx the model sheet\'s resolution)%s.</p>' % (
-            html.escape(os.path.relpath(_p(r['path']), out)), html.escape(r['path']), r['factor'], r['scale_vs_sheet'],
-            ', %d guide lines painted out' % len(r['guides']) if r['guides'] else ''))
-        for view, V in r['views'].items():
-            P = r['_pictures'][view]
-            stem = '%s_%s' % (r['ref'], view)
-            L.append('<h3>%s: <span class="%s">%s</span> <span class="note">(face bounded by %s)</span></h3>' % (
-                view.replace('_', '-'), 'PASS' if V['pass'] else 'FAIL', 'PASS' if V['pass'] else 'not all PASS',
-                'its own drawn lines' if V['measures'].get('bounded') == 'lines' else 'a cut at the profile\'s drawn chin'))
-            L.append('<div class="row">')
-            for key, cap, sc in (('design', 'design (idol_D)', 3), ('ref', r['ref'], 3), ('overlay', 'faces overlaid', 1)):
-                L.append('<div class="tile"><img src="%s">%s</div>' % (_png(P[key], os.path.join(out, '%s_%s.png' % (stem, key)), sc), html.escape(cap)))
-            L.append('<table><tr><th>check</th><th>value</th><th>design</th><th>status</th></tr>')
-            for k, c in V['checks'].items():
-                val = c.get('value'); dv = c.get('design')
-                L.append('<tr><td>%s</td><td>%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
-                    html.escape(k), html.escape(json.dumps(val)), html.escape(json.dumps(dv)) if dv is not None else '',
-                    c.get('status', ''), c.get('status', '')))
-            L.append('</table></div>')
+         '<h1>Generated references: consistency (%s) <span class="%s">%s</span></h1>' % (
+             html.escape(spec_name), res['status'], res['status']),
+         '<p class="note">The references generated for the 3D pipeline, measured against each other: each pair view by '
+         'view with the QA\'s own face checks, at the limits our 3D face is held to, and each sheet\'s views against each '
+         'other. Every sheet is brought to one scale (its front eyes as far apart as the model sheet\'s) and measured the '
+         'way the QA measures a drawn head. Overlays: grey both, <b style="color:#e33">red</b> the second only, '
+         '<b style="color:#35f">blue</b> the first only. How each departs from the original model sheet (idol_D) is at '
+         'the end, as information. %s</p>' % time.strftime('%Y-%m-%d %H:%M'),
+         '<h2>Between sheets</h2><table><tr><th>pair</th>%s</tr>' % ''.join('<th>%s</th>' % v.replace('_', '-') for v in VIEWS)]
+
+    def cell(V):
+        if V is None:
+            return '<td></td>'
+        bad = ['%s %s' % (k, c['status']) for k, c in V['checks'].items() if c.get('status') in ('WARN', 'FAIL')]
+        return '<td class="%s">%s%s</td>' % (V['status'], V['status'], (': ' + html.escape(', '.join(bad))) if bad else '')
+    for pr in res['pairs']:
+        L.append('<tr><td>%s vs %s</td>%s</tr>' % (html.escape(pr['a']), html.escape(pr['b']),
+                                                  ''.join(cell(pr['views'].get(v)) for v in VIEWS)))
+    L.append('</table><h2>Within each sheet</h2><table><tr><th>sheet</th><th>scale</th><th>views</th><th>check</th>'
+             '<th>value</th><th>status</th></tr>')
+    for R in res['sheets']:
+        W = res['within'][R['ref']] or {'(none)': {'value': '', 'status': 'INFO', 'note': 'needs a front and a profile'}}
+        for k, c in W.items():
+            L.append('<tr><td>%s</td><td>%.2fx</td><td>%s</td><td>%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
+                html.escape(R['ref']), R['scale_vs_sheet'], ', '.join(R['O']), html.escape(k), c['value'], c['status'],
+                c['status']))
+    L.append('</table>')
+
+    def tiles(stem, a_img, a_cap, b_img, b_cap, overlay, V):
+        L.append('<div class="row">')
+        for key, img, cap, sc in (('a', a_img, a_cap, 3), ('b', b_img, b_cap, 3), ('overlay', overlay, 'faces overlaid', 1)):
+            L.append('<div class="tile"><img src="%s">%s</div>' % (_png(img, os.path.join(out, '%s_%s.png' % (stem, key)), sc),
+                                                                  html.escape(cap)))
+        L.append('<table><tr><th>check</th><th>value</th><th>first</th><th>status</th></tr>')
+        for k, c in V['checks'].items():
+            L.append('<tr><td>%s</td><td>%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
+                html.escape(k), html.escape(json.dumps(c.get('value'))),
+                html.escape(json.dumps(c.get('design'))) if c.get('design') is not None else '', c.get('status', ''),
+                c.get('status', '')))
+        L.append('</table></div>')
+    for pr in res['pairs']:
+        A, B = by[pr['a']], by[pr['b']]
+        L.append('<h2>%s vs %s</h2>' % (html.escape(pr['a']), html.escape(pr['b'])))
+        for view, V in pr['views'].items():
+            L.append('<h3>%s: <span class="%s">%s</span></h3>' % (view.replace('_', '-'), V['status'], V['status']))
+            tiles('%s_vs_%s_%s' % (pr['a'], pr['b'], view), _crop(A['_rgb'], A['_heads'][view]['head']), pr['a'],
+                  _crop(B['_rgb'], B['_heads'][view]['head']), pr['b'],
+                  sheetqa.picture({view: B['O'][view]}, {view: A['O'][view]}, scale=2), V)
+    L.append('<h2>Departures from the model sheet (information)</h2><p class="note">Each sheet against idol_D, the '
+             'original 2D design, with the same checks: where the 3D references differ from it, not a verdict.</p>')
+    for R in res['sheets']:
+        for view, V in res['design'][R['ref']].items():
+            dbox = S.D['figures'][view]['head'] if view in S.D['figures'] else S.spec_sheet['heads'][view]
+            L.append('<h3>%s, %s: <span class="INFO">%s against idol_D</span> <span class="note">(face bounded by %s)</span></h3>' % (
+                html.escape(R['ref']), view.replace('_', '-'), V['status'],
+                'its own drawn lines' if R['O'][view].get('bounded') == 'lines' else 'a cut at the profile\'s drawn chin'))
+            tiles('%s_vs_design_%s' % (R['ref'], view), _crop(S.rgb, dbox), 'idol_D', _crop(R['_rgb'], R['_heads'][view]['head']),
+                  R['ref'], sheetqa.picture({view: R['O'][view]}, {view: res['_D'][view]}, scale=2), V)
+    L.append('<p class="note">Sources: %s.</p>' % ', '.join('<a href="%s">%s</a>' % (
+        html.escape(os.path.relpath(_p(R['path']), out)), html.escape(R['path'])) for R in res['sheets']))
     p = os.path.join(out, 'index.html')
     open(p, 'w').write('\n'.join(L))
     return p
@@ -315,16 +368,20 @@ def main(args):
     want = opt('--refs')
     want = want.split(',') if want else [r['id'] for r in refs if r.get('layout') == 'heads']
     S = bodymeasure.Sheet(spec)
-    results = [check(spec, next(r for r in refs if r['id'] == rid), S) for rid in want]
-    json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'results': [{k: v for k, v in r.items() if not k.startswith('_')}
-                                                                for r in results]},
+    res = run(spec, [next(r for r in refs if r['id'] == rid) for rid in want], S)
+    plain = lambda x: {k: v for k, v in x.items() if not k.startswith('_')}
+    json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'status': res['status'],
+               'sheets': [dict(plain(R), O={v: _strip(m) for v, m in R['O'].items()}) for R in res['sheets']],
+               'pairs': res['pairs'], 'within': res['within'], 'design': res['design']},
               open(os.path.join(out, 'refcheck.json'), 'w'), indent=1, default=str)
-    p = page(results, out, name)
-    for r in results:
-        print('%-20s %s  %s' % (r['ref'], 'PASS' if r['pass'] else 'FAIL', '  '.join(
-            '%s %s' % (v, ' '.join('%s=%s:%s' % (k, c.get('value'), c.get('status')) for k, c in V['checks'].items()
-                                   if c.get('status') in ('PASS', 'WARN', 'FAIL'))) for v, V in r['views'].items())))
-    print('page:', p)
+    p = page(res, S, out, name)
+    for pr in res['pairs']:
+        print('%s vs %s: %s' % (pr['a'], pr['b'], '  '.join('%s %s (%s)' % (v, V['status'], ', '.join(
+            '%s=%s' % (k, c.get('value')) for k, c in V['checks'].items() if c.get('status') in ('PASS', 'WARN', 'FAIL')))
+            for v, V in pr['views'].items())))
+    for r, W in res['within'].items():
+        print('%s within: %s' % (r, ', '.join('%s=%s %s' % (k, c['value'], c['status']) for k, c in W.items()) or '-'))
+    print('consistency:', res['status'], '| page:', p)
     if '--no-open' not in args:
         subprocess.run(['open', p])
 
