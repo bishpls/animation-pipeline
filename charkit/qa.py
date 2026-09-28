@@ -61,3 +61,59 @@ def sheet(paths, out, cols, cell=(360, 640), labels=None):
             d.text(((i % cols) * cell[0] + 8, (i // cols) * cell[1] + 6), labels[i], fill=(240, 240, 240))
     S.save(out)
     return out
+
+
+def features_through(path, feature_objs, hide_objs, holdout_objs, amount=0.55):
+    """anime eyes and brows through the hair: re-render only the features (the skin as a holdout, so it still hides what it
+    should; the hair hidden), then lay them over the saved image at `amount` (where the features were visible anyway the
+    two agree, so only the hair-covered parts change)."""
+    import bpy
+    sc = bpy.context.scene
+    hold = bpy.data.materials.get('holdout')
+    if hold is None:
+        hold = bpy.data.materials.new('holdout'); hold.use_nodes = True
+        nt = hold.node_tree
+        for n in list(nt.nodes):
+            nt.nodes.remove(n)
+        o = nt.nodes.new('ShaderNodeOutputMaterial'); h = nt.nodes.new('ShaderNodeHoldout')
+        nt.links.new(h.outputs[0], o.inputs['Surface'])
+    saved_mats = {ob.name: [s_.material for s_ in ob.material_slots] for ob in holdout_objs}
+    saved_hide = {ob.name: ob.hide_render for ob in hide_objs}
+    feat = set(ob.name for ob in feature_objs)
+    others = [ob for ob in sc.objects if ob.type == 'MESH' and ob.name not in feat and ob not in holdout_objs]
+    saved_other = {ob.name: ob.hide_render for ob in others}
+    mods = {}
+    try:
+        for ob in holdout_objs:
+            for s_ in ob.material_slots:
+                s_.material = hold
+            for m in ob.modifiers:
+                if m.type == 'SOLIDIFY':
+                    mods[(ob.name, m.name)] = m.show_render; m.show_render = False
+        for ob in others:
+            ob.hide_render = True
+        film = sc.render.film_transparent
+        sc.render.film_transparent = True
+        tmp = path[:-4] + '_feat.png'
+        sc.render.filepath = tmp
+        bpy.ops.render.render(write_still=True)
+        sc.render.film_transparent = film
+    finally:
+        for ob in holdout_objs:
+            for s_, m in zip(ob.material_slots, saved_mats[ob.name]):
+                s_.material = m
+            for m in ob.modifiers:
+                if (ob.name, m.name) in mods:
+                    m.show_render = mods[(ob.name, m.name)]
+        for ob in others:
+            ob.hide_render = saved_other[ob.name]
+    a = bpy.data.images.load(path); b = bpy.data.images.load(tmp)
+    w, h = a.size
+    A = np.array(a.pixels[:], dtype=np.float32).reshape(h, w, 4)
+    Bf = np.array(b.pixels[:], dtype=np.float32).reshape(h, w, 4)
+    k = (amount * Bf[..., 3:4])
+    A[..., :3] = A[..., :3] * (1 - k) + Bf[..., :3] * k
+    a.pixels.foreach_set(A.ravel())
+    a.filepath_raw = path; a.file_format = 'PNG'; a.save()
+    bpy.data.images.remove(a); bpy.data.images.remove(b)
+    os.remove(tmp)

@@ -28,14 +28,14 @@ def _blur(a, r):
     return np.apply_along_axis(lambda m: np.convolve(m, k, mode='same'), 1, a)
 
 
-def sdf(H, size=512, nose=True, tri=True):
+def sdf(H, size=512, nose=True, tri=False):
     """the threshold map (float, 0..1) for light from HER LEFT (+x); the shader mirrors it for the right. t = 0 light from the
     front, 0.5 from the side, 1 from behind: a pixel is lit while the light's t is below its value."""
     L = H.L
     X, Z = _grid(size, L)
     wid = np.array([H.section(z)[0] for z in Z[:, 0]])[:, None] + 1e-5
     s = np.clip(X / wid, -1.3, 1.3)                    # -1 her right edge (far from the light) .. +1 her left edge
-    t_edge = 0.5 + 0.5 * np.sign(s) * np.abs(s) ** 1.25
+    t_edge = 0.5 + 0.5 * np.sign(s) * np.abs(s) ** 1.6
     thr = 0.06 + 0.90 * t_edge
     if nose:                                           # the nose's small shadow on her right cheek, early
         nx, nz = X / (0.07 * L), (Z - H.nose_z) / (0.06 * L)

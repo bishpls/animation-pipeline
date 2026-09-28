@@ -59,7 +59,7 @@ def main(out, names):
         bangs = None
         if HAIR:
             hobs = hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
-            hb = next(o for o in hobs if o.name.startswith('hair_bangs'))
+            hb = next(o for o in hobs if o.name.startswith('hair_front'))
             bangs = (np.array([v.co for v in hb.data.vertices]), [tuple(p.vertices) for p in hb.data.polygons])
         faceshade.apply(C, bangs=bangs, colors=SKIN)
         A = C['data']; eye_z = A['head']['eye_z']; L = A['head']['L']
@@ -67,14 +67,21 @@ def main(out, names):
         sc.camera = cam
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
         tgt = (0, 0, eye_z + 0.02 * L)
+        feats = [p[k] for p in C['eyes'] for k in ('sclera', 'iris', 'lash', 'brow')]
+        hair_obs = [o for o in bpy.data.objects if o.name.startswith('hair_')]
+
+        def shot(path, *a, **kw):
+            qa.render_view(cam, *a, path, **kw)
+            if HAIR:
+                qa.features_through(path, feats, hair_obs, [C['skin']])
         for az in (0, 30, 60, 90, 150):
-            qa.render_view(cam, tgt, az, 0.78 if az < 100 else 0.95, 0.0, os.path.join(out, f'{name}_face_{az:03d}.png'), lens=85)
+            shot(os.path.join(out, f'{name}_face_{az:03d}.png'), tgt, az, 0.78 if az < 100 else 0.95, 0.0, lens=85)
         if os.environ.get('CHARKIT_FAST') == '1':
             continue
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
         for e in EXPR:
             set_expr(C, e)
-            qa.render_view(cam, (0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, os.path.join(out, f'{name}_expr_{e}.png'), lens=85)
+            shot(os.path.join(out, f'{name}_expr_{e}.png'), (0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, lens=85)
         set_expr(C, None)
         for m in MOUTH:
             set_mouth(C, m)
