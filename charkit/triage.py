@@ -113,9 +113,10 @@ def movers(check, tables, knobs, spec):
 
 # ------------------------------------------------------------------------------------------------------------ evidence
 def build_evidence(recs, check):
-    """what the tune's builds say about a check: rejected checkpoints that improved it while another regressed, and
+    """what the tune's builds say about a check: rejected checkpoints that improved it while others regressed, and
     accepted ones where a rule let it get worse -> (conflicts, traded)."""
     conflicts, traded = [], []
+    labels = {r['id']: r['label'] for r in recs if r.get('event') == 'checkpoint'}
     for r in recs:
         if r.get('event') != 'compare':
             continue
@@ -124,12 +125,11 @@ def build_evidence(recs, check):
         if r['verdict'] == 'reject' and mine and r.get('regressed'):
             s0 = checks.severity(check, mine['base'][0], mine['base'][1])
             s1 = checks.severity(check, mine['cand'][0], mine['cand'][1])
-            if s0 is not None and s1 is not None and s0 - s1 > NOISE:
-                for g in r['regressed']:
-                    if g['check'] == check:
-                        continue
-                    conflicts.append({'checkpoint': r['checkpoint'], 'against': r['against'], 'gain': [mine['base'], mine['cand']],
-                                      'regressed': g['check'], 'cost': [g['base'], g['cand']]})
+            others = [g for g in r['regressed'] if g['check'] != check]
+            if s0 is not None and s1 is not None and s0 - s1 > NOISE and others:
+                conflicts.append({'checkpoint': r['checkpoint'], 'label': labels.get(r['checkpoint'], r.get('label')),
+                                  'against': r['against'], 'gain': [mine['base'], mine['cand']],
+                                  'regressed': [[g['check'], g['base'], g['cand']] for g in others]})
         for t in r.get('traded') or []:
             if t['check'] == check:
                 traded.append(dict(t, checkpoint=r['checkpoint']))
@@ -207,6 +207,14 @@ def reference(check, spec):
     return out
 
 
+# words too common in check names to pick a knob by, and what a check's word means in knob names
+GENERIC = {'sheet', 'body', 'shape', 'front', 'back', 'three', 'quarter', 'profile', 'face', 'width', 'length', 'iou',
+           'mid', 'lit', 'shade', 'ratio', 'span', 'run', 'eye', 'expr', 'palette', 'hair'}
+SYNONYMS = {'hem': ['skirt'], 'feet': ['height', 'heads_tall', 'leg'], 'top': ['height', 'heads_tall', 'crown'],
+            'leg': ['leg', 'height'], 'sleeves': ['sleeve', 'puff'], 'boot': ['boot'], 'skin': ['skin', 'slim', 'hip'],
+            'outfit': ['garments'], 'neck': ['neck'], 'jaw': ['jaw', 'chin', 'low'], 'nose': ['nose'], 'chin': ['chin']}
+
+
 # ------------------------------------------------------------------------------------------------------------ classify
 def classify(check, c, ctx):
     """one residual check -> (class, detail sentence, evidence dict, also [other classes])."""
@@ -220,9 +228,11 @@ def classify(check, c, ctx):
     if strong:
         cands.append(('measurement uncertain', '; '.join(strong)))
     if conflicts:
-        x = conflicts[-1]
-        cands.append(('trade-off', 'checkpoint ck%d improved it (%s -> %s) but %s regressed (%s -> %s), so it was rejected' % (
-            x['checkpoint'], x['gain'][0][0], x['gain'][1][0], x['regressed'], x['cost'][0][1], x['cost'][1][1])))
+        x = max(conflicts, key=lambda x: (checks.severity(check, x['gain'][0][0], x['gain'][0][1]) or 0) -
+                                         (checks.severity(check, x['gain'][1][0], x['gain'][1][1]) or 0))
+        cands.append(('trade-off', 'ck%d (%s) improved it (%s -> %s) but was rejected for what it cost: %s' % (
+            x['checkpoint'], x.get('label') or '?', x['gain'][0][0], x['gain'][1][0],
+            ', '.join('%s %s -> %s' % (g, b[1], c[1] or 'gone') for g, b, c in x['regressed']))))
         ev['built_conflicts'] = conflicts
     if traded:
         t = traded[-1]
@@ -244,6 +254,12 @@ def classify(check, c, ctx):
         stubs = [f.name for f in owners if not f.landed]
         hand = [k for k in ctx.get('inventory', {}) if any(k == s or k.startswith(s + '.') for s in checks.sections(check))
                 and not any(f.owner_of(k) and f.landed for f in fitters)]
+        # the knobs whose path shares a word with the check first (pupil -> iris.pupil_rz, hem -> garments.skirt.*)
+        words = set()
+        for w in check.split('_'):
+            if len(w) >= 3 and w not in GENERIC:
+                words.update(SYNONYMS.get(w, [w]))
+        hand.sort(key=lambda k: -sum(w in k for w in words))
         ev['hand_knobs'] = hand[:12]
         if mv == [] :
             what = 'none of the %s fitter\'s knobs moves it by more than %.2f warn bands a step' % (

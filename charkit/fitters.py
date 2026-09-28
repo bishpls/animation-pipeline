@@ -51,19 +51,27 @@ def dotted(path):
 
 
 def inventory(spec, prefix=()):
-    """every numeric knob in a spec -> {dotted path: value} (lists of numbers count as one knob)."""
+    """every numeric knob in a spec -> {dotted path: value}. Lists of numbers count as one knob; a list item with a
+    name is addressed by it (garments.skirt.flare); structural selectors (lists mixing names and numbers, such as a
+    garment's region [bone, from, to]) and the derived fit data (ref, silhouette, low_wf) are left out."""
     out = {}
     if isinstance(spec, dict):
         for k, v in spec.items():
-            if k in ('ref', 'name'):
+            if k in ('ref', 'name', 'fit', 'silhouette', 'geom') or str(k).startswith('_'):
                 continue
             out.update(inventory(v, prefix + (k,)))
     elif isinstance(spec, list):
-        if spec and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in spec):
+        num = lambda x: isinstance(x, (int, float)) and not isinstance(x, bool)
+        if spec and all(num(x) for x in spec):
             out[dotted(prefix)] = spec
+        elif spec and all(isinstance(x, list) and all(num(y) for y in x) for x in spec):
+            out[dotted(prefix)] = spec                        # a table of numbers (a hem profile, bang tips): one knob
+        elif any(isinstance(x, str) for x in spec):
+            pass                                              # a selector (a bone name with its range)
         else:
             for i, v in enumerate(spec):
-                out.update(inventory(v, prefix + (i,)))
+                key = v.get('name') or ('%s_%d' % (v['kind'], i) if v.get('kind') else i) if isinstance(v, dict) else i
+                out.update(inventory(v, prefix + (key,)))
     elif isinstance(spec, (int, float)) and not isinstance(spec, bool):
         out[dotted(prefix)] = spec
     return out

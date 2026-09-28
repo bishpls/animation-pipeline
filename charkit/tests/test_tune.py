@@ -223,8 +223,9 @@ def test_triage_uncertain_and_built_evidence():
     recs = [{'event': 'compare', 'verdict': 'reject', 'checkpoint': 3, 'against': 1,
              'rows': [{'check': 'sheet_width', 'base': [0.80, 'FAIL'], 'cand': [0.95, 'PASS'], 'verdict': 'improved'}],
              'regressed': [{'check': 'eye_width', 'base': [1.0, 'PASS'], 'cand': [0.85, 'WARN'], 'verdict': 'regressed'}]}]
+    recs.insert(0, {'event': 'checkpoint', 'id': 3, 'label': 'face'})
     cls, detail, ev, _ = triage.classify('sheet_width', {'value': 0.80, 'status': 'FAIL'}, _ctx(spec, {}, [face], recs))
-    assert cls == 'trade-off' and 'eye_width' in detail and ev['built_conflicts'], (cls, detail)
+    assert cls == 'trade-off' and 'eye_width PASS -> WARN' in detail and '(face)' in detail and ev['built_conflicts'], (cls, detail)
 
 
 def test_triage_ranks_visible_and_far_first():
@@ -294,6 +295,16 @@ def test_review_note_to_tickets():
     Q['checks']['sheet_face_length'] = {'value': 1.15, 'status': 'FAIL'}
     json.dump(Q, open(os.path.join(b, 'qa', 'qa.json'), 'w'))
     assert [t['id'] for t in review.sync(spec, b)] == [t1['id']]
+
+
+def test_knob_inventory():
+    spec = {'name': 'x', 'ref': {'rig': 'r'}, 'head': {'chin': 1.0, 'low_wf': [0.3, 0.2]},
+            'garments': [{'kind': 'shell', 'name': 'top', 'region': [['hips', -1, 3]], 'offset': 0.01},
+                         {'kind': 'skirt', 'name': 'skirt', 'flare': 42}, {'kind': 'bow', 'size': 0.8}],
+            'hair': {'hem': [[50, -58], [75, -70]], 'silhouette': {'hair_z': [0.1]}}}
+    inv = fitters.inventory(spec)
+    assert set(inv) == {'head.chin', 'head.low_wf', 'garments.top.offset', 'garments.skirt.flare', 'garments.bow_2.size',
+                        'hair.hem'}, sorted(inv)
 
 
 def test_merge_args():
