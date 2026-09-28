@@ -21,6 +21,8 @@ def main(a, worker=False, t0=None):
     mode = a[a.index('--cache') + 1] if '--cache' in a else 'on'
     for attempt in range(2):
         C = None if mode == 'off' else cache.Cache(mode, spec['name'], out, t0=t0 or T0)
+        if C is not None:
+            C.spec_file = spec
         trace.begin(os.path.join(out, 'trace.jsonl'), spec={k: v for k, v in spec.items() if k != '_dir'}, spec_path=a[0],
                     boards=which, cache_mode=mode, worker=worker)
         try:

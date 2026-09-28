@@ -1168,6 +1168,7 @@ class Cache:
         self.spec = None                 # the build's spec, for the products (set once the scene is built)
         self.t0 = t0 or time.time()      # when this build's code was loaded
         self._edited = None
+        self.spec_file, self.refs, self.warned = None, None, set()      # the resolved spec (its ref.manifest)
         global _CUR
         _CUR = self
         from . import shade
@@ -1207,6 +1208,28 @@ class Cache:
         units['charkit/assets'] = self.assets()
         units = dict(sorted(units.items()))
         return digest([SCHEMA, kind, name, units, self.env, extra]), units
+
+    def hashed(self, p):
+        """a read file's sha256, compared with the reference manifest's where it lists one (a file that moved on from
+        its manifest is keyed by what it holds now, and said)."""
+        h = self.files.get(p, fresh=True)
+        if self.refs is None:
+            self.refs = {}
+            mp = ((self.spec_file or {}).get('ref') or {}).get('manifest') if isinstance(self.spec_file, dict) else None
+            try:
+                R = json.load(open(mp if os.path.isabs(mp) else os.path.join(ROOT, mp)))['references'] if mp else {}
+                self.refs = {os.path.normpath(os.path.join(ROOT, r['path'])): r['sha256'] for r in R.values()
+                             if r.get('sha256')}
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        m = self.refs.get(os.path.normpath(p))
+        if m and m != h and p not in self.warned:
+            from . import trace
+            self.warned.add(p)
+            trace.note('cache.manifest', path=os.path.relpath(p, ROOT), sha256=h, manifest=m)
+            print('CHARKIT_CACHE_MANIFEST %s differs from its manifest\'s sha256 (keyed on its content)' %
+                  os.path.relpath(p, ROOT))
+        return h
 
     def fkey(self, p):
         """a file read's key: ('out', relative path) under this build's output folder (read afresh from the current
@@ -1515,7 +1538,7 @@ class Cache:
         run.files |= {p for jp in run.reads if jp[0] == 'spec' for p in spec_paths(_resolve(jp, S))}
         reads = {p: h for p, h in run.reads.items()}
         for p in sorted(run.files):
-            reads[self.fkey(p)] = self.files.get(p, fresh=True)
+            reads[self.fkey(p)] = self.hashed(p)
         key = digest([static, sorted((json.dumps(_jpath(p)), h) for p, h in reads.items())])[:24]
         state = None
         if self.edited():
@@ -1761,7 +1784,7 @@ class Cache:
         outs = sorted(k for k, v in after.items() if before.get(k) != v and not k.endswith(('.blend', '.blend1'))
                       and os.path.basename(k) not in ('trace.jsonl', '.pid.json'))
         info = {'hit': False, 'why': why or 'miss'}
-        reads = {self.fkey(p): self.files.get(p, fresh=True) for p in sorted(rec.files | spec_paths(spec))}
+        reads = {self.fkey(p): self.hashed(p) for p in sorted(rec.files | spec_paths(spec))}
         key = digest([static, sorted((json.dumps(_jpath(p)), h) for p, h in reads.items())])
         stdout = [l for l in lines if l.startswith('CHARKIT_')]
         if sk is not None and self.edited():
@@ -1879,7 +1902,7 @@ class Cache:
         run_files = rec.files | {q for jp in rec.reads if jp[0] == 'spec' for q in spec_paths(_resolve(jp, S))}
         reads = dict(rec.reads)
         for q in sorted(run_files):
-            reads[self.fkey(q)] = self.files.get(q, fresh=True)
+            reads[self.fkey(q)] = self.hashed(q)
         key = digest([static, sorted((json.dumps(_jpath(q)), h) for q, h in reads.items())])[:24]
         info = {'hit': False, 'why': why or 'miss'}
         state = dict(result=result, attrs=attrs, writes=writes,
