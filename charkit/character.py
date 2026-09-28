@@ -91,7 +91,10 @@ def assemble(spec):
     J = dict(B['joints'])
     near = [k for k, p in J.items() if p[2] > B['marks']['chin'][2] - 0.35 * L]
     has = np.all(np.isfinite(V0), axis=1)                # (an anime base's new vertices have no pre-wrap position)
-    moved = anime_head.follow([J[k] for k in near], V0[has], V[has])
+    fp, fq = V0[has], V[has]
+    if 'ghosts' in B:                                    # an anime base: the removed realistic interior, as wrapped
+        fp, fq = np.vstack([fp, B['ghosts'][0]]), np.vstack([fq, B['ghosts'][1]])
+    moved = anime_head.follow([J[k] for k in near], fp, fq)
     for k, p in zip(near, moved):
         J[k] = p
     head_info = dict(L=L, H=H, centre=centre, eye_z=centre[2], info=info, marks=B['marks'], eye_knobs=EK)

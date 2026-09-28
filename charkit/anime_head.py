@@ -350,7 +350,8 @@ def follow(points, V0, V1, k=8):
     return out
 
 
-def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, marks, neck, L, knobs=None, ear=None):
+def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, marks, neck, L, knobs=None, ear=None,
+           extra=None):
     """Re-wrap a derived anime base (charkit/base_anime.py) to a spec's head knobs: reshape()'s wrap without MakeHuman's head.
     The base was wrapped at neutral knobs; each shell vertex keeps its realistic direction, so the knobs' anime surface is
     ray-cast along the knobs' remapped directions and the vertex moves by the surface's change (its detail rides along);
@@ -361,7 +362,8 @@ def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, m
     points (head space, units of L); lm_r: the realistic landmarks' directions; profile [(share of eye line -> chin, front y -
     eye y, in L)]: the realistic face's midline; warps: (eye, mouth) warp settings; Vbody (N,3): the spec's body where the
     base has a MakeHuman vertex (NaN elsewhere); marks: the spec's realistic marks (chin, eye_l); neck: (radius, centre) of
-    the neck where the head bone lets go; L the head length; ear: optional (indices, relief in L) for the 'ear' knob.
+    the neck where the head bone lets go; L the head length; ear: optional (indices, relief in L) for the 'ear' knob;
+    extra: optional points (M,3) in the same head space, carried by the same field (info['extra']).
     -> (V, H, centre, info) as reshape()."""
     H = headlib.Head(L, knobs)
     ey = float(marks['eye_l'][1])
@@ -387,8 +389,12 @@ def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, m
     src = np.vstack([R[shell], R[fixed]])
     dsp = np.vstack([out[shell] - R[shell], Vbody[fixed] - R[fixed]])
     out[free] = R[free] + idw(R[free], src, dsp, power=4)
+    ex = None
+    if extra is not None and len(extra):
+        Rx = centre + L * np.asarray(extra)
+        ex = Rx + idw(Rx, src, dsp, power=4)
     if ear is not None and H.K.get('ear', 1.0) != 1.0:
         ei, ed = ear
         out[ei] += (H.K['ear'] - 1.0) * L * np.asarray(ed)
-    info = dict(pinned=pinned, region=region, eye_world=lm_a['eye_pts'], c_real=None, c_anime=c_a, target=(TV, TT))
+    info = dict(pinned=pinned, region=region, eye_world=lm_a['eye_pts'], c_real=None, c_anime=c_a, target=(TV, TT), extra=ex)
     return out, H, centre, info
