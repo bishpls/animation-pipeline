@@ -433,11 +433,11 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
             """what a fitter starts from: exactly what the checkpoint built (its resolved spec)."""
             return _path(ck.get('resolved') or ck['spec'])
 
-        def compare(best, ck, fit=None):
+        def compare(best, ck, fit=None, fit_start=None):
             rem = history.remeasured(best.get('git'), ck.get('git'), list(checks.graded(ck.qa)))
             d = accept(best.qa, ck.qa, cfg.get('tradeoffs', []), rem, authority=auth) if ck['ok'] else \
                 {'verdict': 'reject', 'why': 'the build failed', 'gain': 0, 'rows': [], 'regressed': [], 'traded': [], 'improved': []}
-            dis = disagreement(fit, ck, best) if fit and ck['ok'] else {}
+            dis = disagreement(fit, ck, fit_start or best) if fit and ck['ok'] else {}     # 'before' is where the fit began
             R.write('compare', checkpoint=ck['id'], against=best['id'], verdict=d['verdict'], why=d['why'], gain=d['gain'],
                     score=d.get('score'), regressed=d['regressed'], traded=d['traded'], improved=d['improved'],
                     remeasured=rem, disagree=dis,
@@ -497,7 +497,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                             if r2['status'] != 'fitted':
                                 continue
                             ck2 = checkpoint('option-%s+%s' % (o['name'], G.name), r2['spec'], r2.get('args', ck['args']))
-                            if compare(best, ck2, r2)['verdict'] == 'accept':
+                            if compare(best, ck2, r2, fit_start=ck)['verdict'] == 'accept':
                                 best = ck2
                                 fits[G.name] = dict(r2, from_checkpoint=ck['id'], round=rnd, accepted=ck2['id'])
                                 last_input[G.name] = ck2['id']
