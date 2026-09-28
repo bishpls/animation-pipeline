@@ -287,9 +287,10 @@ def measuring(obs, skip=OUTLINE_MODS):
             m.show_viewport = True
 
 
-def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False):
+def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False, uv=None):
     """world-space (V, (loop verts, starts, counts)) of a mesh object; evaluated (modifiers, shape keys at their values)
-    with the `skip` modifiers off. materials=True adds each polygon's material index as a third item."""
+    with the `skip` modifiers off. materials=True adds each polygon's material index as a third item; uv (a UV layer's
+    name) adds each polygon's mean UV ((nf, 2), NaN without the layer) after it."""
     import bpy
     off = []
     if evaluated:
@@ -316,14 +317,24 @@ def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False):
         loopv = np.empty(len(me.loops), np.int64); me.loops.foreach_get('vertex_index', loopv)
         if materials:
             mats = np.empty(nf, np.int64); me.polygons.foreach_get('material_index', mats)
+        if uv is not None:
+            lay = me.uv_layers.get(uv)
+            puv = np.full((nf, 2), np.nan)
+            if lay is not None and nf:
+                luv = np.empty(len(me.loops) * 2, np.float64); lay.data.foreach_get('uv', luv)
+                luv = luv.reshape(-1, 2)
+                puv = np.add.reduceat(luv, starts, axis=0) / counts[:, None]
     finally:
         if evaluated:
             oe.to_mesh_clear()
             for m in off:
                 m.show_viewport = True
+    out = (V, (loopv, starts, counts))
     if materials:
-        return V, (loopv, starts, counts), mats
-    return V, (loopv, starts, counts)
+        out += (mats,)
+    if uv is not None:
+        out += (puv,)
+    return out
 
 
 def object_snapshot(ob, prev=None):

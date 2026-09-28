@@ -54,7 +54,8 @@ def main(a, worker=False):
                 R = qa3d.run(S, os.path.join(out, 'qa'), ref)
             trace.event('qa', checks={k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'},
                         summary=R['summary'])
-            print('CHARKIT_QA', json.dumps({k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'}))
+            print('CHARKIT_QA', json.dumps({k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'},
+                                           default=qa3d._json))
             print('CHARKIT_QA_SUMMARY', R['summary'])
         product('qa', qa, [qa3d.run], opts=[os.path.relpath(ref, ROOT) if ref else None])
     if '--vrm' in a:
