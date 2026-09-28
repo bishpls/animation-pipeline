@@ -261,18 +261,19 @@ def material_look(m):
         frr = next((l.to_node for l in fr.outputs['Color'].links), None) if fr else None
         col = next(n for n in mixes if n.blend_type == 'MIX' and not n.inputs['A'].is_linked and not n.inputs['B'].is_linked
                    and n is not m1)
-        face = {'sdf': {'_image': sdf.image.name, 'uv': 'face', 'encoding': 'rg16', 'filter': sdf.interpolation.lower()},
+        face = {'sdf': {'_image': sdf.image.name, 'uv': 'face', 'encoding': 'rg16', 'filter': sdf.interpolation.lower(),
+                        'wrap': sdf.extension.lower()},
                 'softness': round(float(edge.inputs['From Max'].default_value), 6),
                 'lit': _col(col.inputs['A']), 'shade': _col(col.inputs['B']), 'mask': '_FACE_MASK',
                 'light': r6(g3([N['ldir_head'].inputs[i].default_value for i in range(3)]))}
         d['_images'][sdf.image.name] = sdf.image
         if fr is not None:
-            face['fringe'] = {'_image': fr.image.name, 'uv': 'face', 'wrap': 'clip'}
+            face['fringe'] = {'_image': fr.image.name, 'uv': 'face', 'wrap': fr.extension.lower(), 'filter': fr.interpolation.lower()}
             face['fringeRange'] = [round(float(frr.inputs['From Min'].default_value), 6),
                                    round(float(frr.inputs['From Max'].default_value), 6)]
             d['_images'][fr.image.name] = fr.image
         if bl is not None:
-            face['blush'] = {'_image': bl.image.name, 'uv': 'face', 'wrap': 'clip'}
+            face['blush'] = {'_image': bl.image.name, 'uv': 'face', 'wrap': bl.extension.lower(), 'filter': bl.interpolation.lower()}
             d['_images'][bl.image.name] = bl.image
         d.update(kind='face', face=face)
     if any(n.type == 'UVMAP' and n.uv_map == 'lock' for n in N):   # hair.material
@@ -380,7 +381,7 @@ class Eval:
     off (co: the original surface), and with it on (surf: the first N vertices of its result, the surface Blender draws,
     moved inward by the line width; the hull is the original surface), for the base and for every shape key."""
 
-    def __init__(self, ob, subdiv=1):
+    def __init__(self, ob, subdiv=2):
         import bpy
         self.ob = ob
         om = _outline_mod(ob)
@@ -470,21 +471,35 @@ class Eval:
                 self.attrs[a.name] = x
 
 
-def head_frame(skin_eval):
-    """the face UV's frame (charkit.character.build: u = (x - cx + 0.42 L) / 0.84 L, v = (z - cz + 0.45 L) / 1.05 L) solved
-    back from the skin's face-UV corners: -> (centre x, centre z, L) in Blender world, or None."""
-    E = skin_eval
-    if 'face' not in E.uv:
+def head_frame(ob):
+    """the face UV's frame (charkit.character.build: u = (x - cx + 0.42 L) / 0.84 L, v = (z - cz + 0.45 L) / 1.05 L on the
+    head's faces) solved back from the original mesh's face-material corners: -> (centre x, y, z, L) in Blender world, or
+    None. (The y is the head faces' mean depth: the face UV doesn't carry it.)"""
+    me = ob.data
+    if 'face' not in me.uv_layers:
         return None
-    uv = E.uv['face']; m = np.abs(uv).sum(1) > 1e-6
-    if m.sum() < 10:
+    slots = [i for i, m in enumerate(me.materials) if m and m.node_tree and 'ldir_head' in m.node_tree.nodes]
+    if not slots:
         return None
-    p = E.co[E.loop_v[m]]
-    a = 0.84 * uv[m, 0] - 0.42; b = 1.05 * uv[m, 1] - 0.45
-    A = np.stack([np.ones_like(a), a], 1)
-    (cx, L1), *_ = np.linalg.lstsq(A, p[:, 0], rcond=None)
+    nl = len(me.loops)
+    uv = np.empty(nl * 2, np.float32); me.uv_layers['face'].data.foreach_get('uv', uv); uv = uv.reshape(-1, 2)
+    lv = np.empty(nl, np.int32); me.loops.foreach_get('vertex_index', lv)
+    co = np.empty(len(me.vertices) * 3, np.float32); me.vertices.foreach_get('co', co); co = co.reshape(-1, 3)
+    pm = np.empty(len(me.polygons), np.int32); me.polygons.foreach_get('material_index', pm)
+    ls = np.empty(len(me.polygons), np.int32); me.polygons.foreach_get('loop_start', ls)
+    lt = np.empty(len(me.polygons), np.int32); me.polygons.foreach_get('loop_total', lt)
+    sel = np.zeros(nl, bool)
+    for s_, t_, m_ in zip(ls, lt, pm):
+        if m_ in slots:
+            sel[s_:s_ + t_] = True
+    if sel.sum() < 10:
+        return None
+    mw = np.array(ob.matrix_world)
+    p = co[lv[sel]] @ mw[:3, :3].T + mw[:3, 3]
+    a = 0.84 * uv[sel, 0] - 0.42; b = 1.05 * uv[sel, 1] - 0.45
+    (cx, L1), *_ = np.linalg.lstsq(np.stack([np.ones_like(a), a], 1), p[:, 0], rcond=None)
     (cz, L2), *_ = np.linalg.lstsq(np.stack([np.ones_like(b), b], 1), p[:, 2], rcond=None)
-    return float(cx), float(cz), float((L1 + L2) / 2)
+    return float(cx), float(p[:, 1].mean()), float(cz), float((L1 + L2) / 2)
 
 
 # ------------------------------------------------------------------------------------------------------------- export
@@ -494,7 +509,7 @@ def _roles(objects):
     return {'features': feats, 'holdouts': skin}
 
 
-def export(path, arm=None, objects=None, name=None, subdiv=1, roles=None, meta=None, tpose=True, log=print):
+def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=None, tpose=True, extra=None, log=print):
     """write the character in the current Blender scene (its armature and visible, rigged meshes) to path (.vrm / .glb).
     -> a report dict."""
     import bpy
@@ -564,7 +579,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=1, roles=None, meta=N
 
     def texinfo(d, images):
         """our {'_image', 'uv', ...} -> a glTF-style textureInfo {index, texCoord, ...}."""
-        out = {k: v for k, v in d.items() if not k.startswith('_') and k not in ('uv', 'filter')}
+        out = {k: v for k, v in d.items() if not k.startswith('_') and k != 'uv'}
         out['index'] = texture(images[d['_image']], d)
         out['texCoord'] = 0 if d.get('uv', 'uv') == 'uv' else 1
         return out
@@ -612,11 +627,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=1, roles=None, meta=N
         unit = lambda x: x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)
         co, surf = xf(E.co), xf(E.surf)
         if ob.name in roles['holdouts'] and head_info is None:
-            hf = head_frame(E)
-            if hf:
-                head_info = hf
-                fm = np.abs(E.uv['face']).sum(1) > 1e-6
-                head_y = float(co[E.loop_v[fm], 1].mean())
+            head_info = head_frame(ob)
         # outline: width (m), colour, per-vertex factor. Blender's SOLIDIFY (offset 1, negative thickness) draws the surface
         # moved inward (surf) and the hull at the original surface (co): hull direction = co - surf where it moved
         om = _outline_mod(ob)
@@ -666,71 +677,87 @@ def export(path, arm=None, objects=None, name=None, subdiv=1, roles=None, meta=N
         need_hull = outline is not None and np.abs(cn - hulln[L_]).max() > 2e-3
         keys = {kn: xf(kc) for kn, kc in E.keys.items()}
         key_names = list(keys)
-        prims = []
-        for mi in np.unique(E.tri_mat):
-            m = E.materials[mi] if mi < len(E.materials) else None
-            mat_i = material(m, outline)
-            used = texcoords(W.js['materials'][mat_i]['extensions'][EXT])
-            u1 = uv1 if 1 in used else None
-            u0 = uv0 if (0 in used or u1 is not None) else None     # TEXCOORD_1 needs a TEXCOORD_0
-            if u1 is not None and u0 is None:
-                u0 = np.zeros_like(u1)
-            tl = E.tri[E.tri_mat == mi].ravel()
-            cols = [L_[tl].astype(np.float32)[:, None], np.round(cn[tl], 4)]
-            cols += [np.round(u[tl], 5) for u in (u0, u1) if u is not None]
-            corner = np.ascontiguousarray(np.concatenate(cols, 1).astype(np.float32))
-            view = corner.view(np.dtype((np.void, corner.dtype.itemsize * corner.shape[1])))
-            _, first, inv = np.unique(view.ravel(), return_index=True, return_inverse=True)
-            lp = tl[first]                                   # a representative loop per glTF vertex
-            vi = L_[lp]
-            P_ = g3(surf[vi]).astype(np.float32)
-            attrs = {'POSITION': W.accessor(P_, 'VEC3', target=34962, minmax=True),
-                     'NORMAL': W.accessor(g3(cn[lp]).astype(np.float32), 'VEC3', target=34962),
-                     'JOINTS_0': W.accessor(joints[vi].astype(np.uint8 if len(names) < 256 else np.uint16), 'VEC4',
-                                            target=34962),
-                     'WEIGHTS_0': W.accessor(tw[vi].astype(np.float32), 'VEC4', target=34962)}
-            if u0 is not None:
-                attrs['TEXCOORD_0'] = W.accessor((u0[lp] * [1, -1] + [0, 1]).astype(np.float32), 'VEC2', target=34962)
-            if u1 is not None:
-                attrs['TEXCOORD_1'] = W.accessor((u1[lp] * [1, -1] + [0, 1]).astype(np.float32), 'VEC2', target=34962)
-            if ow is not None:
-                attrs['_OUTLINE_WIDTH'] = W.accessor(ow[vi].astype(np.float32), 'SCALAR', target=34962)
-            if need_hull:
-                attrs['_HULL_NORMAL'] = W.accessor(g3(hulln[vi]).astype(np.float32), 'VEC3', target=34962)
-            if 'face_mask' in E.attrs:
-                attrs['_FACE_MASK'] = W.accessor(E.attrs['face_mask'][vi].astype(np.float32), 'SCALAR', target=34962)
-            ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
-            prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
-            if key_names:
-                tg = []
-                for kn in key_names:
-                    tg.append({'POSITION': W.sparse_vec3(g3(keys[kn][vi] - surf[vi]))})
-                prim['targets'] = tg
-            prims.append(prim)
-        if not prims:
-            continue
-        mesh = {'name': ob.name, 'primitives': prims}
+        # a keyed mesh splits in two: the part its keys move (with the morph targets) and the static rest (no targets),
+        # so a runtime's morph buffers cover only the moving part; the seam's vertices never move, so nothing opens
+        tri_v = L_[E.tri]
         if key_names:
-            mesh['extras'] = {'targetNames': key_names}
-            mesh['weights'] = [0.0] * len(key_names)
-        mx = {'object': ob.name}
-        if outline:
-            mx['outline'] = {'width': outline[0], 'color': list(outline[1])}
-            if ow is not None:
-                mx['outline']['widthAttribute'] = '_OUTLINE_WIDTH'
-            if need_hull:
-                mx['outline']['normalAttribute'] = '_HULL_NORMAL'
-        if ob.name in roles['features']:
-            mx['feature'] = True
-        if ob.name in roles['holdouts']:
-            mx['holdout'] = True
-        mesh['extensions'] = {EXT: mx}
-        W.js['meshes'].append(mesh)
-        W.js['nodes'].append({'name': ob.name, 'mesh': len(W.js['meshes']) - 1, 'skin': 0})
-        W.js['scenes'][0]['nodes'].append(len(W.js['nodes']) - 1)
+            mv = np.zeros(len(co), bool)
+            for kn in key_names:
+                mv |= np.abs(keys[kn] - surf).max(1) > 1e-7
+            tri_moves = mv[tri_v].any(1)
+            groups = [('', tri_moves, key_names), ('.static', ~tri_moves, [])]
+        else:
+            groups = [('', np.ones(len(E.tri), bool), [])]
+        made = []
+        for suffix, tsel, knames in groups:
+            prims = []
+            for mi in np.unique(E.tri_mat[tsel]):
+                m = E.materials[mi] if mi < len(E.materials) else None
+                mat_i = material(m, outline)
+                used = texcoords(W.js['materials'][mat_i]['extensions'][EXT])
+                u1 = uv1 if 1 in used else None
+                u0 = uv0 if (0 in used or u1 is not None) else None     # TEXCOORD_1 needs a TEXCOORD_0
+                if u1 is not None and u0 is None:
+                    u0 = np.zeros_like(u1)
+                tl = E.tri[(E.tri_mat == mi) & tsel].ravel()
+                cols = [L_[tl].astype(np.float32)[:, None], np.round(cn[tl], 4)]
+                cols += [np.round(u[tl], 5) for u in (u0, u1) if u is not None]
+                corner = np.ascontiguousarray(np.concatenate(cols, 1).astype(np.float32))
+                view = corner.view(np.dtype((np.void, corner.dtype.itemsize * corner.shape[1])))
+                _, first, inv = np.unique(view.ravel(), return_index=True, return_inverse=True)
+                lp = tl[first]                                   # a representative loop per glTF vertex
+                vi = L_[lp]
+                P_ = g3(surf[vi]).astype(np.float32)
+                attrs = {'POSITION': W.accessor(P_, 'VEC3', target=34962, minmax=True),
+                         'NORMAL': W.accessor(g3(cn[lp]).astype(np.float32), 'VEC3', target=34962),
+                         'JOINTS_0': W.accessor(joints[vi].astype(np.uint8 if len(names) < 256 else np.uint16), 'VEC4',
+                                                target=34962),
+                         'WEIGHTS_0': W.accessor(tw[vi].astype(np.float32), 'VEC4', target=34962)}
+                if u0 is not None:
+                    attrs['TEXCOORD_0'] = W.accessor((u0[lp] * [1, -1] + [0, 1]).astype(np.float32), 'VEC2', target=34962)
+                if u1 is not None:
+                    attrs['TEXCOORD_1'] = W.accessor((u1[lp] * [1, -1] + [0, 1]).astype(np.float32), 'VEC2', target=34962)
+                if ow is not None:
+                    attrs['_OUTLINE_WIDTH'] = W.accessor(ow[vi].astype(np.float32), 'SCALAR', target=34962)
+                if need_hull:
+                    attrs['_HULL_NORMAL'] = W.accessor(g3(hulln[vi]).astype(np.float32), 'VEC3', target=34962)
+                if 'face_mask' in E.attrs:
+                    attrs['_FACE_MASK'] = W.accessor(E.attrs['face_mask'][vi].astype(np.float32), 'SCALAR', target=34962)
+                ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
+                prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
+                if knames:
+                    prim['targets'] = [{'POSITION': W.sparse_vec3(g3(keys[kn][vi] - surf[vi]))} for kn in knames]
+                prims.append(prim)
+            if not prims:
+                continue
+            mesh = {'name': ob.name + suffix, 'primitives': prims}
+            if knames:
+                mesh['extras'] = {'targetNames': knames}
+                mesh['weights'] = [0.0] * len(knames)
+            mx = {'object': ob.name}
+            if outline:
+                mx['outline'] = {'width': outline[0], 'color': list(outline[1])}
+                if ow is not None:
+                    mx['outline']['widthAttribute'] = '_OUTLINE_WIDTH'
+                if need_hull:
+                    mx['outline']['normalAttribute'] = '_HULL_NORMAL'
+            if ob.name in roles['features']:
+                mx['feature'] = True
+            if ob.name in roles['holdouts']:
+                mx['holdout'] = True
+            mesh['extensions'] = {EXT: mx}
+            W.js['meshes'].append(mesh)
+            W.js['nodes'].append({'name': ob.name + suffix, 'mesh': len(W.js['meshes']) - 1, 'skin': 0})
+            W.js['scenes'][0]['nodes'].append(len(W.js['nodes']) - 1)
+            made += prims
+        if not made:
+            continue
+        prims = made
         rep['objects'][ob.name] = {'vertices': int(sum(W.js['accessors'][p['attributes']['POSITION']]['count'] for p in prims)),
                                    'triangles': int(sum(W.js['accessors'][p['indices']]['count'] for p in prims) // 3),
                                    'primitives': len(prims), 'keys': len(key_names),
+                                   'moving_vertices': int(sum(W.js['accessors'][p['attributes']['POSITION']]['count']
+                                                              for p in prims if p.get('targets'))),
                                    'outline': bool(outline), 'custom_normals': bool(need_hull)}
         log(f'[gltf] {ob.name}: {rep["objects"][ob.name]}')
 
@@ -742,9 +769,9 @@ def export(path, arm=None, objects=None, name=None, subdiv=1, roles=None, meta=N
              'light': {'direction': ldir or r6(g3([-0.45, -0.55, 0.70]) / np.linalg.norm([-0.45, -0.55, 0.70]))},
              'features': {'through': THROUGH}, 'bindPose': bindq, 'tpose': bool(tpose)}
     if head_info:
-        cx, cz, L = head_info
-        cy = head_y
+        cx, cy, cz, L = head_info
         rootx['head'] = {'bone': 'head', 'centre': r6(g3([cx, cy, cz])), 'L': round(L, 6)}
+    rootx.update(extra or {})
     W.js['extensions'][EXT] = rootx
     W.use(EXT); W.use('VRMC_materials_mtoon')
     vrm = vrmc(W, names, idx, mesh_node, P, head, name, meta or {}, rep)
@@ -867,7 +894,9 @@ def export_scene(S, path, **kw):
     objs = [o for o in bpy.context.scene.objects if o.type == 'MESH' and not o.hide_render
             and o.parent == S.character['arm']]
     roles = {'features': [o.name for o in S.features], 'holdouts': [S.character['skin'].name]}
-    return export(path, arm=S.character['arm'], objects=objs, name=S.name, roles=roles, **kw)
+    extra = {'height': float((S.spec.get('body') or {}).get('height_m', 1.6))}
+    extra.update(kw.pop('extra', {}) or {})
+    return export(path, arm=S.character['arm'], objects=objs, name=S.name, roles=roles, extra=extra, **kw)
 
 
 # ------------------------------------------------------------------------------------------------------------ checking
@@ -906,11 +935,12 @@ if __name__ == '__main__':
     blend = bpy.data.filepath
     out = argv[0] if argv and not argv[0].startswith('--') else os.path.splitext(blend)[0] + '.vrm'
     spec = os.path.splitext(blend)[0] + '.spec.json'
-    meta = {}
+    meta, extra = {}, {}
     if os.path.exists(spec):
         sp = json.load(open(spec))
         meta['name'] = sp.get('name', 'charkit').capitalize()
-    rep = export(out, subdiv=int(opt('--subdiv', 1)), meta=meta, tpose='--no-tpose' not in argv)
+        extra['height'] = float((sp.get('body') or {}).get('height_m', 1.6))
+    rep = export(out, subdiv=int(opt('--subdiv', 2)), meta=meta, tpose='--no-tpose' not in argv, extra=extra)
     json.dump(rep, open(os.path.splitext(out)[0] + '.export.json', 'w'), indent=1, default=str)
     c = check(out)
     print('CHARKIT_GLTF', json.dumps({k: c.get(k) for k in ('bytes', 'triangles', 'humanBones', 'errors', 'warnings', 'tpose',

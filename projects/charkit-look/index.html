@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>charkit look · inspector</title>
+<link rel="stylesheet" href="src/inspector.css">
+</head>
+<body>
+<!-- charkit's own look (engine/three/charkit/look.js) on our own export (charkit/gltf.py), in three.js WebGPU.
+     Interactive: node engine/render.mjs projects/charkit-look --serve, then open the printed URL (the inspector;
+       ?vrm=charkit/out/NAME/NAME.vrm&qa=charkit/out/NAME/qa/qa.json pick the character and its QA report).
+     Boards (Blender | ours | difference x4, the Blender build's own board cameras; ~NAME picks another character):
+       node engine/render.mjs projects/charkit-look --loop=views --stills=0,1,2,3,4     head views 0 30 60 90 150
+       node engine/render.mjs projects/charkit-look --loop=body --stills=0,1,2,3         full body 0 35 90 180
+       node engine/render.mjs projects/charkit-look --loop=expr --stills=0,1,2,3,4,5,6   blink happy half wide angry sad squint
+       node engine/render.mjs projects/charkit-look --loop=mouth --stills=0,1,...,9      the mouth set
+       node engine/render.mjs projects/charkit-look --loop=debug --stills=0              one view in every debug mode
+       node engine/render.mjs projects/charkit-look --loop=hook --strip=0:5 --step=12   the hook clip in our look (a pure
+                                                                                          function of t: springs stepped
+                                                                                          from 0, blinks from a seed)
+       node engine/render.mjs projects/charkit-look --loop=turn --frames ...            a turntable -->
+<canvas id="out" width="16" height="16"></canvas>
+<script>
+  // per-board canvas sizes (W, H are fixed when engine/core.js loads)
+  (() => {
+    const q = new URLSearchParams(location.search), loop = (q.get('loop') || '').split('~')[0];
+    const size = { views: [2700, 900], body: [1800, 1000], expr: [1800, 600], mouth: [1800, 600], debug: [2400, 1200],
+      hook: [1920, 1080], turn: [1080, 1080] }[loop] || [1920, 1080];
+    window.PROJECT = { fps: 24, plain: true, w: size[0], h: size[1], duration: 5 };
+    window.RENDER = q.has('render') || !!loop;
+  })();
+</script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/studio.js"></script>
+<script src="../../engine/vendor/three-vrm.js"></script>
+<script src="../../engine/three/vrm.js"></script>
+<script src="../../engine/three/charkit/look.js"></script>
+<script src="src/boards.js"></script>
+<script src="src/inspector.js"></script>
+<script>
+(async () => {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (window.RENDER) { plainSetup(); await setupBoards(q); window.ready = true; studioUI(); }
+    else { document.getElementById('out').remove(); await startInspector(q); window.ready = true; }
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>
