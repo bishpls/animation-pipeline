@@ -331,7 +331,8 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    - Check `git status` for uncommitted work, then `git worktree remove` and `git branch -d`.
    - Never use `--slim` or `git sparse-checkout set` by hand in zsh: an unquoted `$var` is a single word there, and git
      deletes ignored-only directories outside the cone. `tools/worktree.sh --slim` now guards against this.
-5. **Checkpoint review with Michael.** Make a private review page: the design sheet next to ours per view (front, 3/4,
+5. **Checkpoint review with Michael.** Make a local HTML review page and open it in the browser (`open`), not a list
+   of file paths: the design sheet next to ours per view (front, 3/4,
    profile, back, face close-ups, eyes, expressions), before and after this round, the QA summary, and these open
    decisions:
    - **Anime base:** it cuts face folds from 1321 to 320, but regresses eye width and iris ratio, the laugh mouth, and
