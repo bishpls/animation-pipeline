@@ -600,7 +600,7 @@ def sub_regions(fam, region, main, fams, ppl, dist=None):
         gm = _clean((fam == g) & region, 0.006 * ppl, minpx / 4)
         if gm.sum() < minpx:
             continue
-        lbl, nl = _label(gm, 2)
+        lbl, _ = _label(gm, 2)
         big = lbl == (np.argmax(np.bincount(lbl.ravel())[1:]) + 1)       # its largest part decides panel or band
         gr = np.nonzero(big.any(1))[0]
         gt, gb = gr.min(), gr.max()
@@ -968,11 +968,8 @@ def fit_field(Fd, target, az, rows=None, init=None, spans=(0.06, 0.2, 0.12), lev
     r, _ = view_axes(az)
     X, Z = Fd['P'] @ r, Fd['P'][:, 2]
     zs = np.nonzero(target.any(1))[0]
-    xs = np.nonzero(target.any(0))[0]
     x0, z0, st = GRID
-    top, bot = z0 - zs.min() * st, z0 - zs.max() * st
-    if rows is not None:
-        bot = z0 - np.nonzero(rows & target.any(1))[0].max() * st
+    top = z0 - zs.min() * st
     if init is not None and init[1] is None:                        # the scale and height known: centre x
         s, tz = init[0], init[2]
         band = (Z > tz + s * (top - 1.6)) & (Z < tz + s * (top - 0.8))
@@ -1024,7 +1021,7 @@ def project(Fd, fit, ppl, origin, shape, r=1):
 
 def visible(Fd, fit, ppl, origin, shape, tol_L=0.03, r=1):
     """per cell: shown in the view (within tol_L of the front-most surface at its pixel) -> (bool (n,), u, v)."""
-    idx, dep, (u, v, d) = project(Fd, fit, ppl, origin, shape, r)
+    _, dep, (u, v, d) = project(Fd, fit, ppl, origin, shape, r)
     ui = np.clip(np.round(u).astype(int), 0, shape[1] - 1)
     vi = np.clip(np.round(v).astype(int), 0, shape[0] - 1)
     inside = (u >= 0) & (u < shape[1]) & (v >= 0) & (v < shape[0])
@@ -1118,7 +1115,6 @@ def complete(R, pieces, step=None):
         st = step or 6
         ys, xs = p['mask'].pixels()
         m = p['mask']
-        mine = np.zeros(len(ys), bool)
         over = bg = tot = 0
         for dy, dx in ((st, 0), (-st, 0), (0, st), (0, -st)):
             y2, x2 = np.clip(ys + dy, 0, H - 1), np.clip(xs + dx, 0, W - 1)
@@ -1279,7 +1275,7 @@ def landmark_pass(A, vn, min_px=12):
     sheet's front (else the rig's) hold the cell's, on the cell's side of the body in this view; pieces not yet seen in
     the view first. The body's own cells (a highlight on skin, the hair's shading) stay out: where the prediction
     around the cell is the body. -> the cells taken, [(cell id, label)]."""
-    ppl, n = A['sheet']['ppl'], A['n']
+    n = A['n']
     mt, Av, pred, toL = A['match'][vn], A['assigned'][vn], A['pred'][vn], A['toL'][vn]
     front = A['assigned'].get('front')
     zr = {}
@@ -1685,7 +1681,7 @@ def pick_bone(sk, group, g, mask, F, at):
         kind, side = group
         names = [side + b for b in (('UpperArm', 'LowerArm', 'Hand') if kind == 'arm' else ('UpperLeg', 'LowerLeg', 'Foot'))]
         sub = {b: sk[b] for b in names if b in sk}
-        b, t, ln = covered_bone(sub, mask, F, min_len=0.05)
+        b, t, _ = covered_bone(sub, mask, F, min_len=0.05)
         if b is None:
             b, t, _ = nearest_bone(sub, *g['centroid'])
         return b, t
@@ -2014,7 +2010,7 @@ def verify(A, st, notes):
     """the annotated vision pass against the measurement: each annotated piece matched to a measured one (its rig
     layer, side, colour and type), then every field compared; disagreements flagged. -> (match {note id: piece index},
     flags [dict(piece, field, notes, measured, note)])."""
-    P, n = A['pieces'], A['n']
+    P = A['pieces']
     flags = []
     if not notes:
         return {}, flags
@@ -2109,8 +2105,6 @@ def draft(G, A, st):
     knobs {entry: {knob: source}}, gaps [...])."""
     P, F = A['pieces'], A['F']
     sk = F['skeleton']
-    by = {g['id']: g for g in G['pieces']}
-    kidx = {g['id']: g['_k'] for g in G['pieces']}
     garments, acc, src, gaps = [], [], {}, []
 
     def add(entry, knobs, lib=garments):
@@ -2193,7 +2187,7 @@ def draft(G, A, st):
                     kn['panel'] = 'measured (half widths, colour; heights default)'
                 add(e, kn)
             else:                                                   # shorts
-                lt, kn_ = sk.get('leftUpperLeg'), None
+                lt = sk.get('leftUpperLeg')
                 t1 = (lt[0][1] - geo['bbox'][1]) / (lt[0][1] - lt[1][1]) if lt else 0.4
                 t1 = float(np.clip(t1, 0.05, 0.9))
                 add(dict(kind='shell', name=g['id'], region=[["hips", -1, 3], ["spine", -1, 3], ["leftUpperLeg", -1, _r(t1, 2)],
@@ -2221,13 +2215,7 @@ def draft(G, A, st):
                 gaps.append(dict(piece=g['id'], type=t, need='an accessory template for %s' % p['layer'])); continue
             e, kn = _accessory_entry(g, words[0], A, st)
             add(e, kn, acc)
-        elif '.' in kind:
-            host, knob = kind.split('.')
-            gp = by.get(g['attach']['parent'])
-            if host == 'bow' and knob == 'tail':
-                continue                                            # measured into the bow's entry above
-            if host == 'skirt' or host == 'shell':
-                continue                                            # the host entry measures it (skirt.panel, top's panel)
+        # a type that is a knob of another's template (skirt.panel, shell.panel, bow.tail): its host entry measures it
     # a mirror pair's measured knobs averaged (the design is symmetric; each drawn side differs a little)
     for lib in (garments, acc):
         byname = {e['name']: e for e in lib}
@@ -2331,7 +2319,6 @@ def _panel_entry(g, A, st, G, wb):
     bk = g['extent'].get('back')
     e['width'] = _r((bk['bbox'][2] - bk['bbox'][0]) if bk else s['geometry']['width'], 2)
     kn['width'] = 'measured (back view)' if bk else 'measured (front)'
-    wz = None
     wbe = wb['extent'] if wb else {}
     drops = []
     for vn, ex in g['extent'].items():
@@ -2500,7 +2487,7 @@ def _chain(pts, seg_L):
     n = int(np.clip(round((top - bot) / seg_L) + 1, 3, 8))
     edges = np.linspace(top, bot, n)
     joints = []
-    for i, ze in enumerate(edges):
+    for ze in edges:
         half = (top - bot) / max(1, n - 1) / 2
         sel = np.abs(z - ze) <= max(half, 0.02)
         q = pts[sel] if sel.any() else pts[np.argsort(np.abs(z - ze))[:3]]
@@ -2727,7 +2714,7 @@ def picture(A, G, path, scale=2):
         dr.text((8, 6), '%s (az %s)' % (vn, G['sources']['sheet']['views'][vn]['az']), fill=(0, 0, 0), font=font)
         tiles.append(im)
     row1 = _hstack(tiles)
-    R, F = A['R'], A['F']
+    R = A['R']
     own = R['own']
     ys, xs = np.nonzero(own >= 0)
     y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
