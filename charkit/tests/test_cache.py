@@ -165,11 +165,24 @@ def test_invalidation():
         out, r, _ = build(spec)
         assert r == 'miss' and out['b'] == 12, (r, out)
         open(probe, 'a').write('\n\nX = 1\n')                                 # the code file it runs
-        st = os.stat(probe); os.utime(probe, ns=(st.st_atime_ns, st.st_mtime_ns + 1_000_000)); cache._MODS.clear()
+        old = time.time() - 5                                                  # (edited before the next build starts)
+        os.utime(probe, (old, old)); cache._MODS.clear()
         C = cache.Cache('on', 'probe')
         E, why = C.lookup('stages', 'probe', *C.static('stages', 'probe', [_probe_fit], extra=[3]), types.SimpleNamespace(
             spec=cache.TrackedDict(spec, ('spec',))), None)
         assert E is None and why.startswith('code charkit/probe.py'), why
+        out, r, _ = build(spec)
+        assert r == 'miss'
+        out, r, _ = build(spec)
+        assert r == 'hit'
+        # a source edited while a build runs: the keys read the file, the build ran the code it had loaded, so it stores
+        # nothing (the next build runs it again)
+        C = cache.Cache('on', 'probe')
+        open(probe, 'a').write('\nY = 2\n'); cache._MODS.clear()
+        C.spec_step('probe', _probe_fit, dict(spec), 3); C.finish()
+        assert 'probe' in C.ran and C.now['probe']['entry'] is None and C.edited() == 'charkit/probe.py', C.now
+        old = time.time() - 5
+        os.utime(probe, (old, old))
         out, r, _ = build(spec)
         assert r == 'miss'
         out, r, _ = build(spec)

@@ -203,7 +203,7 @@ def _feed_id(h, x, facet):
     h.update(b'ID'); _feed(h, [x.id_type, x.name, x.library.filepath if x.library else None])
     if facet == 'name' or x.id_type != 'OBJECT':
         return
-    _feed(h, ob_parts(x, full=facet != 'structure'))
+    _feed(h, render_parts(x) if facet == 'render' else ob_parts(x, full=facet != 'structure'))
 
 
 # ---------------------------------------------------------------------------------------------------- Blender state
@@ -350,20 +350,64 @@ def ob_parts(ob, full=True):
     return P
 
 
-def _mat_digest(m):
-    """a material's settings and node graph (what a later stage could change on one it didn't make)."""
+def render_parts(ob):
+    """what a render or a measurement of an object reads (a QA part): its full state, its materials' node graphs and the
+    images they sample, and the objects its modifiers take from (the rig's pose and bones, a normals source)."""
+    P = ob_parts(ob, full=True)
+    for i, s_ in enumerate(ob.material_slots):
+        if s_.material is not None:
+            P['mat:%d' % i] = _mat_digest(s_.material, images=True)
+    for m in ob.modifiers:
+        for k, v in rna(m).items():
+            if isinstance(v, tuple) and len(v) == 3 and v[0] == 'ID' and v[1] == 'OBJECT' and v[2] != ob.name:
+                t = _bpy().data.objects.get(v[2])
+                if t is not None:
+                    P['from:%s.%s' % (m.name, k)] = digest(ob_parts(t, full=True))
+    return P
+
+
+def _loose_rna(s):
+    """a node's settable settings (its operation, blend type, interpolation...): no collections, pointers or layout."""
+    out = {}
+    for p in s.bl_rna.properties:
+        k = p.identifier
+        if p.type in ('COLLECTION', 'POINTER') or p.is_readonly or k in _LAYOUT:
+            continue
+        v = getattr(s, k)
+        out[k] = sorted(v) if p.type == 'ENUM' and p.is_enum_flag else _plain_seq(v) if getattr(p, 'is_array', False) else v
+    return out
+
+
+_LAYOUT = ('rna_type', 'location', 'width', 'height', 'select', 'hide', 'show_options', 'show_preview', 'label', 'color',
+           'use_custom_color', 'location_absolute', 'show_texture', 'warning_propagation', 'color_tag')
+
+
+def _tree_digest(nt, images, depth=0):
     nodes = []
-    if m.node_tree:
-        for n in m.node_tree.nodes:
-            ins = []
-            for s_ in n.inputs:
-                dv = getattr(s_, 'default_value', None)
-                ins.append(_plain_seq(dv) if dv is not None and not isinstance(dv, (str, int, float, bool)) else dv)
-            nodes.append([n.name, n.bl_idname, ins, getattr(n, 'image', None) and n.image.name])
-        nodes.append(sorted((l.from_node.name, l.from_socket.identifier, l.to_node.name, l.to_socket.identifier)
-                            for l in m.node_tree.links))
-    return digest([m.name, m.use_backface_culling, getattr(m, 'blend_method', None), getattr(m, 'surface_render_method', None),
-                   nodes])
+    for n in nt.nodes:
+        ins = []
+        for s_ in n.inputs:
+            dv = getattr(s_, 'default_value', None)
+            ins.append(_plain_seq(dv) if dv is not None and not isinstance(dv, (str, int, float, bool)) else dv)
+        img = getattr(n, 'image', None)
+        ramp = getattr(n, 'color_ramp', None)
+        sub = getattr(n, 'node_tree', None)
+        nodes.append([n.name, n.bl_idname, ins, _loose_rna(n), img and img.name,
+                      _img_digest(img) if img and images else None,
+                      [(e.position, tuple(e.color)) for e in ramp.elements] if ramp is not None else None,
+                      (ramp.interpolation, ramp.color_mode) if ramp is not None else None,
+                      _tree_digest(sub, images, depth + 1) if sub is not None and depth < 4 else None])
+    nodes.append(sorted((l.from_node.name, l.from_socket.identifier, l.to_node.name, l.to_socket.identifier)
+                        for l in nt.links))
+    return digest(nodes)
+
+
+def _mat_digest(m, images=False):
+    """a material's settings and node graph: every node's inputs and settings, its colour ramp, its image (by content with
+    images=True) and a group's own graph (what a later stage could change on a material it didn't make; what a render
+    reads)."""
+    return digest([m.name, m.use_backface_culling, getattr(m, 'blend_method', None),
+                   getattr(m, 'surface_render_method', None), _tree_digest(m.node_tree, images) if m.node_tree else None])
 
 
 def _img_digest(i, pixels=False):
@@ -664,6 +708,7 @@ class TrackedDict(dict):
         self._path = path
 
     def __reduce_ex__(self, proto):
+        self._all()                                         # a copy or a pickle reads it all
         return (dict, (), None, None, iter(dict.items(self)))
 
     def _r(self, k, v):
@@ -836,8 +881,9 @@ class Scoped:
 class Recorder:
     """one step's reads (path -> digest at the first read), writes, files opened, and the earlier objects it reached."""
 
-    def __init__(self, cache, step, deps, S):
+    def __init__(self, cache, step, deps, S, default=None):
         self.cache, self.step, self.deps, self.S = cache, step, deps or {}, S
+        self.default = default           # the facet objects are keyed on ('render' for QA parts)
         self.reads, self.writes, self.values = {}, set(), {}
         self.files, self.wrote = set(), set()
         self.touched, self.errors = {}, []
@@ -849,7 +895,7 @@ class Recorder:
         """the value a read is keyed on: the declared part (scene.DEPS), or the whole."""
         dep = self.deps.get(_dep_name(path))
         if dep is None or path[-1] in (ALL, HAS):
-            return v, None
+            return v, self.default
         if callable(dep):
             return dep(v, self.S), None
         return v, dep
@@ -1065,7 +1111,7 @@ class Cache:
     """one build's use of the cache: `stage` runs or restores a scene stage, `spec_step` the spec-only cranium fit,
     `product` a build product; each step's entry id joins `chain`, which keys the products on the whole scene."""
 
-    def __init__(self, mode='on', name='build', out=None):
+    def __init__(self, mode='on', name='build', out=None, t0=None):
         if mode not in MODES:
             raise ValueError('cache mode %r (one of %s)' % (mode, ', '.join(MODES)))
         self.mode, self.name = mode, name
@@ -1087,6 +1133,8 @@ class Cache:
         self.wrote = set()               # files written during this build: outputs, not inputs
         self._assets = None
         self.spec = None                 # the build's spec, for the products (set once the scene is built)
+        self.t0 = t0 or time.time()      # when this build's code was loaded
+        self._edited = None
         global _CUR
         _CUR = self
         from . import shade
@@ -1095,6 +1143,20 @@ class Cache:
         _hook()
 
     # --------------------------------------------------------------------------------------------------- keys
+    def edited(self):
+        """a charkit source file changed since this build loaded its code? Its entries would be keyed on code it didn't
+        run (the keys read the files on disk), so it stores none from then on."""
+        if not self._edited:
+            for d, dirs, files in os.walk(KIT):
+                dirs[:] = [x for x in dirs if x not in ('out', '__pycache__', 'tests')]
+                for f in files:
+                    if f.endswith('.py') and os.stat(os.path.join(d, f)).st_mtime > self.t0:
+                        self._edited = os.path.relpath(os.path.join(d, f), ROOT)
+                        break
+                if self._edited:
+                    break
+        return self._edited
+
     def watch(self, p):
         """is an opened file an input to key on (not the kit's own code and data, Python's or Blender's, nor a file this
         build wrote)? The output folder's own inputs (out/geom/hair.npz, cut before Blender) count."""
@@ -1113,14 +1175,24 @@ class Cache:
         units = dict(sorted(units.items()))
         return digest([SCHEMA, kind, name, units, self.env, extra]), units
 
-    def current(self, path, S, deps, memo):
+    def fkey(self, p):
+        """a file read's key: ('out', relative path) under this build's output folder (read afresh from the current
+        build's), else ('file', absolute path)."""
+        if self.out and p.startswith(self.out + os.sep):
+            return ('out', os.path.relpath(p, self.out))
+        return ('file', p)
+
+    def fpath(self, k):
+        return os.path.join(self.out, k[1]) if k[0] == 'out' else k[1]
+
+    def current(self, path, S, deps, memo, default=None):
         """the digest a recorded read has now."""
         if path in memo:
             return memo[path]
-        if path[0] == 'file':
-            h = self.files.get(path[1])
+        if path[0] in ('file', 'out'):
+            h = self.files.get(self.fpath(path), fresh=path[0] == 'out')
         else:
-            rec = Recorder(self, None, deps, S)
+            rec = Recorder(self, None, deps, S, default)
             rec.paused = 1
             v = _resolve(path, S)
             fv, facet = rec.facet(path, v)
@@ -1128,7 +1200,7 @@ class Cache:
         memo[path] = h
         return h
 
-    def lookup(self, kind, name, static, units, S, deps):
+    def lookup(self, kind, name, static, units, S, deps, default=None):
         """-> (the first entry whose reads all match, or None; why not)."""
         d = os.path.join(self.dir, kind, name, static[:20])
         cands = _entries(d)
@@ -1143,7 +1215,7 @@ class Cache:
                 for jp, h in E.m['reads']:
                     p = _tpath(jp)
                     try:
-                        if self.current(p, S, deps, memo) != h:
+                        if self.current(p, S, deps, memo, default) != h:
                             bad.append(p)
                     except Exception as e:
                         bad.append(p)
@@ -1157,7 +1229,7 @@ class Cache:
                 continue
         if first is None:
             return None, 'no usable entry'
-        return None, self.why_reads(first[0], first[1], S, deps)
+        return None, self.why_reads(first[0], first[1], S, deps, default)
 
     def why_static(self, name, units):
         L = self.last.get(name)
@@ -1172,7 +1244,7 @@ class Cache:
                                       if L['env'].get(k) != v)
         return 'no entry for this code'
 
-    def why_reads(self, E, bad, S, deps):
+    def why_reads(self, E, bad, S, deps, default=None):
         vals = {}
         p = E.file('inputs.npz')
         if os.path.exists(p):
@@ -1184,18 +1256,20 @@ class Cache:
                         vals[tp] = z[k]
         out = []
         for tp in bad[:4]:
-            if tp[0] == 'file':
-                out.append('file ' + os.path.relpath(tp[1], ROOT))
+            if tp[0] in ('file', 'out'):
+                out.append('file ' + (os.path.join('OUT', tp[1]) if tp[0] == 'out' else os.path.relpath(tp[1], ROOT)))
                 continue
             txt = readable(tp)
             if tp in vals:
                 try:
-                    rec = Recorder(self, None, deps, S)
+                    rec = Recorder(self, None, deps, S, default)
                     rec.paused = 1
                     fv, _ = rec.facet(tp, _resolve(tp, S))
                     cur = fv[-1] if isinstance(fv, tuple) else fv
-                    if isinstance(cur, np.ndarray) and cur.shape == vals[tp].shape:
-                        txt += ' moved %.2g' % float(np.max(np.abs(cur.astype(float) - vals[tp].astype(float))))
+                    if isinstance(cur, np.ndarray) and cur.shape == vals[tp].shape and cur.size:
+                        mv = float(np.max(np.abs(cur.astype(float) - vals[tp].astype(float))))
+                        if mv > 0:
+                            txt += ' moved %.2g' % mv
                 except Exception:
                     pass
             out.append(txt + ('' if 'moved' in txt else ' changed'))
@@ -1408,9 +1482,11 @@ class Cache:
         run.files |= {p for jp in run.reads if jp[0] == 'spec' for p in spec_paths(_resolve(jp, S))}
         reads = {p: h for p, h in run.reads.items()}
         for p in sorted(run.files):
-            reads[('file', p)] = self.files.get(p)
+            reads[self.fkey(p)] = self.files.get(p, fresh=True)
         key = digest([static, sorted((json.dumps(_jpath(p)), h) for p, h in reads.items())])[:24]
         state = None
+        if self.edited():
+            errors.append('%s changed during the build' % self.edited())
         if not errors:
             try:
                 state = self.store(kind, name, static, units, run, reads, key, trace_rec)
@@ -1652,10 +1728,11 @@ class Cache:
         outs = sorted(k for k, v in after.items() if before.get(k) != v and not k.endswith(('.blend', '.blend1'))
                       and os.path.basename(k) not in ('trace.jsonl', '.pid.json'))
         info = {'hit': False, 'why': why or 'miss'}
-        files = {p: self.files.get(p) for p in sorted(rec.files | spec_paths(spec))}
-        reads = {('file', p): h for p, h in files.items()}
+        reads = {self.fkey(p): self.files.get(p, fresh=True) for p in sorted(rec.files | spec_paths(spec))}
         key = digest([static, sorted((json.dumps(_jpath(p)), h) for p, h in reads.items())])
         stdout = [l for l in lines if l.startswith('CHARKIT_')]
+        if sk is not None and self.edited():
+            sk, why = None, '%s changed during the build' % self.edited()
         if sk is not None and self.mode != 'off' and not os.path.exists(os.path.join(self.dir, 'products', name,
                                                                                          static[:20], key[:24])):
             tmp = tempfile.mkdtemp(prefix='.w-', dir=self.dir)
@@ -1697,6 +1774,133 @@ class Cache:
         self.ran.append(name)
         return False
 
+    # --------------------------------------------------------------------------------------------------- QA parts
+    def part(self, name, fn, S, *args):
+        """a part of a product (a QA measurement: fn(S, *args)), run or restored: keyed like a stage on what it reads
+        through the Scene, with objects keyed as rendered (geometry, materials and their images, the rig), and on the
+        files it opens and the spec paths it reads; its return value, its Scene writes, the files it writes under the
+        output folder and its trace records come back on a hit. An argument naming the output folder is keyed as such."""
+        from . import trace
+        t = time.perf_counter()
+        key_args = [('<out>', os.path.relpath(os.path.abspath(a), self.out)) if isinstance(a, str) and self.out and
+                    os.path.abspath(a).startswith(self.out) else a for a in args]
+        static, units = self.static('parts', name, [fn], extra=key_args)
+        adopt(S)
+        E, why = (self.lookup('parts', name, static, units, S, None, 'render') if self.mode in ('on', 'verify')
+                  else (None, 'cache %s' % self.mode))
+        if E is not None and self.mode == 'on':
+            try:
+                st = self.load_state(E)
+                for rel in E.m['files']:
+                    dst = os.path.join(self.out, rel)
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    shutil.copyfile(os.path.join(E.dir, 'files', rel), dst)
+                for k, v in st['attrs'].items():
+                    setattr(S, k, v)
+                _apply(S, st['writes'])
+                adopt(S)
+                trace.replay(st['records'], cached=True)
+                os.utime(E.file('manifest.json'))
+                trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache={'hit': True, 'key': E.id[:12]})
+                return st['result']
+            except (RestoreError, OSError, KeyError) as e:          # a part that doesn't restore runs (nothing to undo)
+                why = 'its entry did not restore (%s)' % e
+                shutil.rmtree(E.dir, ignore_errors=True)
+        global _REC
+        rec = Recorder(self, name, None, S, 'render')
+        obs0 = {o.as_pointer(): ob_parts(o, full=False) for o in _bpy().data.objects}
+        attrs0 = dict(vars(S))
+        before = _tree(self.out)
+        _REC = rec
+        try:
+            with trace.capture() as got:
+                result = fn(Scoped(S, rec), *args)
+        finally:
+            _REC = None
+        rec.paused = 1
+        after = _tree(self.out)
+        outs = sorted(k for k, v in after.items() if before.get(k) != v and not k.endswith(('.blend', '.blend1'))
+                      and os.path.basename(k) not in ('trace.jsonl', '.pid.json'))
+        attrs = {k: v for k, v in vars(S).items() if k != 'spec' and (k not in attrs0 or attrs0[k] is not v)}
+        writes, errors = {}, list(rec.errors)
+        for p in sorted(rec.writes, key=len):
+            if p[0] != 'S' or len(p) <= 2 or p[1] in attrs:
+                if p[0] != 'S':
+                    errors.append('writes %s' % readable(p))
+                continue
+            parent = _resolve(p[:-1], S)
+            writes[p] = dict.get(parent, p[-1], ABSENT) if isinstance(parent, dict) else ABSENT
+        for p, h in rec.reads.items():
+            if p[-1] in (ALL, HAS) or p in writes or rec.written(p) or p[0] == 'S' and p[1] in attrs:
+                continue
+            v = _resolve(p, S)
+            if isinstance(v, (np.ndarray, list, dict)) or hasattr(v, '__dict__') and not _is_id(v):
+                if digest(*rec.facet(p, v)) != h:
+                    errors.append('changes %s in place' % readable(p))
+        obs1 = {o.as_pointer(): o for o in _bpy().data.objects}
+        for ptr, parts0 in obs0.items():
+            o = obs1.get(ptr)
+            if o is None or ob_parts(o, full=False) != parts0:
+                errors.append('changes or removes the object %s' % (o.name if o is not None else '?'))
+                break
+        run_files = rec.files | {q for jp in rec.reads if jp[0] == 'spec' for q in spec_paths(_resolve(jp, S))}
+        reads = dict(rec.reads)
+        for q in sorted(run_files):
+            reads[self.fkey(q)] = self.files.get(q, fresh=True)
+        key = digest([static, sorted((json.dumps(_jpath(q)), h) for q, h in reads.items())])[:24]
+        info = {'hit': False, 'why': why or 'miss'}
+        state = dict(result=result, attrs=attrs, writes=writes,
+                     records=[{k: v for k, v in r.items() if k != 't'} for r in got])
+        final = os.path.join(self.dir, 'parts', name, static[:20], key)
+        blob = None
+        if self.edited():
+            errors.append('%s changed during the build' % self.edited())
+        if not errors:
+            try:
+                blob = _dumps(state, {})
+            except Uncacheable as e:
+                errors.append(str(e))
+        if errors:
+            info.update(stored=False, uncacheable='; '.join(errors[:2]))
+            print('CHARKIT_CACHE_UNCACHEABLE %s: %s' % (name, '; '.join(errors)))
+        elif self.mode != 'off' and not os.path.exists(final):
+            tmp = tempfile.mkdtemp(prefix='.w-', dir=self.dir)
+            try:
+                for rel in outs:
+                    d = os.path.join(tmp, 'files', rel)
+                    os.makedirs(os.path.dirname(d), exist_ok=True)
+                    shutil.copyfile(os.path.join(self.out, rel), d)
+                open(os.path.join(tmp, 'state.pkl'), 'wb').write(blob)
+                _write_json(os.path.join(tmp, 'manifest.json'), dict(
+                    schema=SCHEMA, kind='parts', step=name, static=static, id=key, units=units, env=self.env,
+                    reads=[[_jpath(q), h] for q, h in sorted(reads.items(), key=lambda kv: json.dumps(_jpath(kv[0])))],
+                    files=outs, digests={rel: self.files.get(os.path.join(self.out, rel), fresh=True) for rel in outs},
+                    created=time.strftime('%Y-%m-%dT%H:%M:%S'), spec_name=self.name))
+                os.makedirs(os.path.dirname(final), exist_ok=True)
+                try:
+                    os.rename(tmp, final)
+                except OSError:
+                    shutil.rmtree(tmp, ignore_errors=True)
+            except Exception:
+                shutil.rmtree(tmp, ignore_errors=True)
+                raise
+        if self.mode == 'verify' and E is not None:
+            bad = [rel for rel in sorted(set(E.m['files']) | set(outs)) if E.m['digests'].get(rel) !=
+                   (self.files.get(os.path.join(self.out, rel), fresh=True) if rel in outs else None)]
+            try:
+                if digest(self.load_state(E)['result'], 'name') != digest(result, 'name'):
+                    bad.append('its result')
+            except RestoreError as e:
+                bad.append('its stored state does not load: %s' % e)
+            info['verified'] = not bad
+            if bad:
+                info['stale'] = bad[:6]
+                self.stale.append((name, bad))
+                print('CHARKIT_CACHE_STALE %s: %s' % (name, ', '.join(bad[:6])))
+        adopt(S)
+        trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache=info)
+        return result
+
     # --------------------------------------------------------------------------------------------------- the end
     def finish(self):
         """record this build's entries (for the next build's miss reasons), save the file memo, trim the cache."""
@@ -1708,6 +1912,59 @@ class Cache:
         prune(self.dir)
         if _CUR is self:
             _CUR = None
+
+
+def part(name, fn, S, *args):
+    """a QA part through the running build's cache (Cache.part), or called when there is none."""
+    C = _CUR
+    if C is None or C.mode == 'off':
+        return fn(S, *args)
+    return C.part(name, fn, S, *args)
+
+
+def memo(fn, *args, **kw):
+    """fn(*args, **kw) for a pure function (numpy in, numpy out: the design-side measurements of a model sheet), kept on
+    disk by its code and its arguments' digest; each call returns a fresh copy. Outside a build it just calls."""
+    C = _CUR
+    if C is None or C.mode == 'off':
+        return fn(*args, **kw)
+    r = _REC
+    if r is not None and not r.paused:                      # the step around it reads the arguments whole
+        for a in list(args) + list(kw.values()):
+            for t in _tracked_in(a):
+                r.read(t._path + (ALL,), t)
+    units = code_units(fn)
+    key = digest([SCHEMA, units, env(), args, kw])[:24]
+    p = os.path.join(C.dir, 'memo', '%s.%s' % (fn.__module__, fn.__name__), key + '.pkl')
+    if os.path.exists(p) and C.mode in ('on', 'stages'):
+        try:
+            with open(p, 'rb') as f:
+                out = pickle.load(f)
+            os.utime(p)
+            return out
+        except Exception:
+            pass
+    out = fn(*args, **kw)
+    try:
+        blob = pickle.dumps(out, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        return out
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = '%s.%d.tmp' % (p, os.getpid())
+    open(tmp, 'wb').write(blob)
+    os.replace(tmp, p)
+    return out
+
+
+def _tracked_in(v, depth=0):
+    if isinstance(v, TrackedDict):
+        yield v
+    elif depth < 2 and isinstance(v, (list, tuple)):
+        for e in v:
+            yield from _tracked_in(e, depth + 1)
+    elif depth < 2 and isinstance(v, dict):
+        for e in dict.values(v):
+            yield from _tracked_in(e, depth + 1)
 
 
 def venv_env():
@@ -1729,6 +1986,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
     global _REC
     d = cache_dir()
     files = Files(d)
+    t0 = time.time()
     units = code_units(*fns, modules=('charkit.cache',) + tuple(modules))
     units['charkit/assets'] = files.get(os.path.join(KIT, 'assets'))
     units = dict(sorted(units.items()))
@@ -1777,6 +2035,10 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None):
     outs = sorted(k for k, v in after.items() if before.get(k) != v)
     reads = sorted((p, files.get(p)) for p in rec.files)
     key2 = digest([static, reads])
+    if any(os.stat(os.path.join(dd, f)).st_mtime > t0 for dd, ds, fs in os.walk(KIT) for f in fs if f.endswith('.py')
+           and not dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests')))):
+        return 'miss: charkit changed during the step (not stored)'
+
     tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
     try:
         for rel in outs:
@@ -2009,7 +2271,7 @@ def entries(d=None):
     """every entry: (kind, step, path, bytes, last used)."""
     d = d or cache_dir()
     out = []
-    for kind in ('stages', 'products'):
+    for kind in ('stages', 'products', 'parts', 'venv'):
         base = os.path.join(d, kind)
         if not os.path.isdir(base):
             continue
@@ -2021,6 +2283,12 @@ def entries(d=None):
                     if os.path.exists(m):
                         size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(p) for f in fs)
                         out.append((kind, step, p, size, os.path.getmtime(m)))
+    base = os.path.join(d, 'memo')
+    if os.path.isdir(base):
+        for step in sorted(os.listdir(base)):
+            for f in os.listdir(os.path.join(base, step)):
+                p = os.path.join(base, step, f)
+                out.append(('memo', step, p, os.path.getsize(p), os.path.getmtime(p)))
     return out
 
 
@@ -2031,7 +2299,10 @@ def prune(d=None, max_gb=None):
     cap = (max_gb or MAX_GB) * 1e9
     while es and total > cap:
         e = es.pop(0)
-        shutil.rmtree(e[2], ignore_errors=True)
+        if os.path.isdir(e[2]):
+            shutil.rmtree(e[2], ignore_errors=True)
+        elif os.path.exists(e[2]):
+            os.remove(e[2])
         total -= e[3]
 
 
@@ -2048,7 +2319,7 @@ def main(args):
             print('  %-9s %-14s %3d entries %8.1f MB  last used %s' % (kind, step, n, size / 1e6,
                                                                        time.strftime('%Y-%m-%d %H:%M', time.localtime(t))))
     elif args[0] == 'clear':
-        for k in ('stages', 'products', 'last'):
+        for k in ('stages', 'products', 'parts', 'venv', 'memo', 'last'):
             shutil.rmtree(os.path.join(d, k), ignore_errors=True)
         print('cleared', d)
     else:

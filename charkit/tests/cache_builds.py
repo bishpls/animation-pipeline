@@ -9,7 +9,8 @@ Builds (each into its own out folder; `fresh` ones with --cache off):
   stages       the stages restored, boards and QA run on the restored scene (qa.json must equal the fresh build's)
   eyes         eyes.width: character, hair, face shading run; garments restored
   head         head.width: garments run too (the head wrap drags the neck and shoulder joints the outfit hangs from)
-  outfit       a garment's colour: character, hair, face shading restored; garments run
+  outfit       a garment's colour: character, hair, face shading restored; garments run; in the QA the parts that
+               don't look at the clothes (eyes, face, expressions, the sheet's figures) restored
   glb          the TRELLIS GLB swapped for another's content at the same path: the fit and the hair run
   code         a code edit in garments.py: garments (and the products) run; a comment-only edit: nothing runs
   verify       eyes.width again with --cache verify: every stage runs and is compared with the entry a lookup would take
@@ -39,7 +40,8 @@ def build(root, spec, out, *args, env=None):
     if r.returncode:
         raise SystemExit('build %s failed:\n%s' % (out, (r.stdout + r.stderr)[-3000:]))
     recs = [json.loads(l) for l in open(os.path.join(out, 'trace.jsonl'))]
-    steps = {r_['name']: r_['cache'] for r_ in recs if r_.get('cache') and r_['event'] in ('stage', 'span', 'product')}
+    steps = {r_['name']: r_['cache'] for r_ in recs if r_.get('cache') and r_['event'] in ('stage', 'span', 'product',
+                                                                                           'part')}
     return dict(seconds=round(dt, 1), blender=next((r_['total'] for r_ in recs if r_['event'] == 'end'), None), steps=steps,
                 stdout=r.stdout)
 
@@ -113,7 +115,9 @@ def main(args):
         check(same, '%s: qa.json values identical to fresh%s' % (n, '' if same else ': ' + ', '.join(which)))
     if want('stages'):
         R['stages'] = build(root, spec, out('stages'), *B, '--cache', 'stages', env=env); show('stages', R['stages'])
-        check(set(ran(R['stages'])) == {'boards', 'qa'}, 'stages: the stages restored, boards and QA run')
+        check({'boards', 'qa'} <= set(ran(R['stages'])) and not {'fit_cranium', 'character', 'hair', 'face_shading',
+                                                                  'garments'} & set(ran(R['stages'])),
+              'stages: the stages restored, boards and QA run')
         same, which = qa_same(out('fresh'), out('stages'))
         check(same, 'stages: QA run on the restored scene equals the fresh build\'s%s' % ('' if same else ': ' + str(which)))
         check(diff(root, out('fresh'), out('stages')) == 'no differences', 'stages: trace diff: no differences')
@@ -141,7 +145,10 @@ def main(args):
     if want('outfit'):
         def outfit(s):
             next(g for g in s['garments'] if g['name'] == 'skirt')['color'] = [0.7, 0.3, 0.5]
-        changed('outfit', outfit, {'garments'}, {'fit_cranium', 'character', 'hair', 'face_shading'})
+        r = changed('outfit', outfit, {'garments'}, {'fit_cranium', 'character', 'hair', 'face_shading'})
+        parts = {'eyes', 'face', 'sheet_expr', 'sheet_figures'}
+        check(parts <= set(restored(r)), 'outfit: QA parts that don\'t read the clothes restored (%s)' %
+              ', '.join(sorted(set(restored(r)) - {'fit_cranium', 'character', 'hair', 'face_shading'})))
     if want('glb'):
         # the same path, other content: the build reads the GLB by path, so only its content can tell
         glb = os.path.join(root, 'glb', 'clawd.glb')

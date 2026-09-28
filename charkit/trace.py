@@ -9,6 +9,7 @@ it, so a bad board traces back to the stage, object and number that made it, and
       note    any value a stage wants on the record (trace.note('hair.parts', kept=3, dropped=12))
       qa      the QA checks
       product a cached build product (the boards, the QA, the VRM): run or restored
+      part    a cached part of one (a QA measurement: eyes, sheet, figures, body...): run or restored
       end     the total time
 A cached build (charkit/cache.py) adds `cache` to each stage and product record: a hit (restored, `dt` is the restore) or a
 miss with the reason (what the stage read that changed); records replayed from a cache entry carry `cached: true`.
@@ -426,8 +427,9 @@ def summary(recs):
             vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name', 'dt', 'cache', 'cached')}
             out.append('span  %-14s %7.2fs  %s%s%s' % (r['name'], r['dt'], json.dumps(vals) if vals else '',
                                                     '  (cached)' if r.get('cached') else '', _cache_txt(r.get('cache'))))
-        elif ev == 'product':
-            out.append('%-5s %-14s %7.2fs%s' % ('prod', r['name'], r['dt'], _cache_txt(r.get('cache'))))
+        elif ev in ('product', 'part'):
+            out.append('%-5s %-14s %7.2fs%s' % ('prod' if ev == 'product' else ' part', r['name'], r['dt'],
+                                                _cache_txt(r.get('cache'))))
         elif ev == 'note':
             vals = {k: v for k, v in r.items() if k not in ('t', 'event', 'name', 'cached')}
             txt = json.dumps(vals)
@@ -536,7 +538,7 @@ def _cache_txt(c):
 
 def cache_summary(recs):
     """one line: the stages and products restored and run, and the time the restores took."""
-    rows = [(r['name'], r['cache']) for r in recs if r.get('cache') and r['event'] in ('stage', 'span', 'product')]
+    rows = [(r['name'], r['cache']) for r in recs if r.get('cache') and r['event'] in ('stage', 'span', 'product', 'part')]
     if not rows:
         return None
     hit = [n for n, c in rows if c.get('hit')]

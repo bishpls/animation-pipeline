@@ -90,7 +90,7 @@ def job(conn, msg, base):
         if leak:
             print('CHARKIT_WORKER_LEAK', json.dumps(leak))
         import charkit.build_blender as bb
-        bb.main(list(msg['argv']), worker=True)
+        bb.main(list(msg['argv']), worker=True, t0=t)
     except BaseException:
         ok = False
         traceback.print_exc()

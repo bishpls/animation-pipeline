@@ -5,13 +5,14 @@ The stages go through the build cache (charkit/cache.py), and so do the boards, 
 scene; --cache off builds without it. A restore that doesn't reproduce its stage starts the build over with every step
 run and stored anew. The persistent worker (charkit/worker.py) calls main() once per job in a live Blender.
 """
-import os, shutil, sys
+import os, shutil, sys, time
+T0 = time.time()                        # before charkit is imported: a source edited after this isn't the code that runs
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 
-def main(a, worker=False):
+def main(a, worker=False, t0=None):
     import json
     from charkit import cache, scene, trace
     spec = scene.load(a[0])
@@ -19,7 +20,7 @@ def main(a, worker=False):
     which = [w for w in a[2].split(',') if w] if len(a) > 2 and not a[2].startswith('--') else []
     mode = a[a.index('--cache') + 1] if '--cache' in a else 'on'
     for attempt in range(2):
-        C = None if mode == 'off' else cache.Cache(mode, spec['name'], out)
+        C = None if mode == 'off' else cache.Cache(mode, spec['name'], out, t0=t0 or T0)
         trace.begin(os.path.join(out, 'trace.jsonl'), spec={k: v for k, v in spec.items() if k != '_dir'}, spec_path=a[0],
                     boards=which, cache=mode, worker=worker)
         try:

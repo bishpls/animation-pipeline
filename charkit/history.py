@@ -24,7 +24,7 @@ def append(out, name, note=None):
             rec = json.loads(line)
             if rec.get('event') == 'begin':
                 begin = rec
-            elif rec.get('cache') and rec.get('event') in ('stage', 'span', 'product'):
+            elif rec.get('cache') and rec.get('event') in ('stage', 'span', 'product', 'part'):
                 c = rec['cache']
                 cache[rec['name']] = 'hit' if c.get('hit') else 'miss: %s' % (c.get('why') or '?')
             elif rec.get('event') == 'end':

@@ -33,7 +33,7 @@ def build(spec, out, *a, env=None):
         raise SystemExit('build %s failed:\n%s' % (out, (r.stdout + r.stderr)[-3000:]))
     w = next((json.loads(l.split(' ', 1)[1]) for l in r.stdout.splitlines() if l.startswith('CHARKIT_WORKER ')), None)
     recs = [json.loads(l) for l in open(os.path.join(out, 'trace.jsonl'))]
-    steps = {x['name']: x['cache'] for x in recs if x.get('cache') and x['event'] in ('stage', 'span', 'product')}
+    steps = {x['name']: x['cache'] for x in recs if x.get('cache') and x['event'] in ('stage', 'span', 'product', 'part')}
     return dict(seconds=round(time.time() - t, 1), worker=w, steps=steps, stdout=r.stdout)
 
 
