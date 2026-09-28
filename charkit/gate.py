@@ -53,8 +53,8 @@ def _build(wt, spec, out, args):
 
 
 def compare_qa(a, b, remeasured=None):
-    """per check: baseline -> candidate, with a verdict (regressed, improved, value, new, gone, ungraded; remeasured for a
-    check in `remeasured`, whose measurement changed between the two builds: charkit.history.STEPS)."""
+    """per check: baseline -> candidate, with a verdict (regressed, improved, value, new, gone, removed, ungraded;
+    remeasured for a check in `remeasured`, whose measurement changed between the two builds: charkit.history.STEPS)."""
     import fnmatch
     ca, cb = a.get('checks', {}), b.get('checks', {})
     rows = []
@@ -64,7 +64,11 @@ def compare_qa(a, b, remeasured=None):
         vx, vy = (x or {}).get('value'), (y or {}).get('value')
         if x == y:
             continue
-        if remeasured and x and y and any(fnmatch.fnmatchcase(k, p) for p in remeasured) and (sx, vx) != (sy, vy):
+        if x is None:
+            v = 'new'
+        elif y is None:
+            v = 'gone' if sx in RANK else 'removed'
+        elif remeasured and any(fnmatch.fnmatchcase(k, p) for p in remeasured) and (sx, vx) != (sy, vy):
             v = 'remeasured'
         elif sx in RANK and (sy not in RANK):
             v = 'gone' if y is None or sy in ('SKIPPED', None) else 'ungraded'
@@ -164,7 +168,7 @@ def _write(rep, gdir, tag):
         L.append('\nTests: ' + ', '.join('%s %s' % (k, 'ok' if v == 'ok' else 'FAILED') for k, v in rep['tests'].items()))
     if rep.get('qa') is not None:
         L.append('\n| check | base | candidate | verdict |\n| --- | --- | --- | --- |')
-        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'remeasured': 5, 'ungraded': 6}
+        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'remeasured': 5, 'ungraded': 6, 'removed': 7}
         for r in sorted(rep['qa'], key=lambda r: order.get(r['verdict'], 9)):
             L.append('| %s | %s %s | %s %s | %s |' % (r['check'], str(r['base'][0])[:10], r['base'][1] or '',
                                                      str(r['cand'][0])[:10], r['cand'][1] or '', r['verdict']))

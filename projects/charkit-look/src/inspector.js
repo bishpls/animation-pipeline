@@ -323,7 +323,9 @@ async function startInspector(q) {
       qBox.append(el('div', { class: 'note' }, 'face, from the shape keys (eyes: opening against neutral, share of iris visible; mouth: in head lengths)'), te, tm);
     }
     const dir = qaPath.replace(/[^/]+$/, '');
-    for (const f of ['qa_sheet.png', 'qa_eyes.png', 'qa_face_contours.png', 'qa_face_shape.png', 'qa_shape_overlay.png', 'qa_ref_overlay.png', 'qa_scalp_front.png']) {
+    // the model sheet (figures found, face, whole body per view, expression heads, palette), then the rest
+    for (const f of ['qa_sheet_figures.png', 'qa_sheet.png', 'qa_sheet_body.png', 'qa_sheet_expr.png', 'qa_sheet_palette.png',
+      'qa_eyes.png', 'qa_face_contours.png', 'qa_face_shape.png', 'qa_shape_overlay.png', 'qa_ref_overlay.png', 'qa_scalp_front.png']) {
       const im = new Image(); im.className = 'qaimg'; im.title = f;
       im.onload = () => qBox.append(im); im.src = root + dir + f;
       im.onclick = () => window.open(im.src);
