@@ -189,7 +189,7 @@ MEASURES = [
     ('face_shape_profile', 'face_profile', 'trellis'), ('face_shape_chin', 'chin', 'trellis'),
     ('face_shape_depth', 'face_depth', 'trellis'), ('face_shape_coverage_*', 'hair_silhouette', 'trellis'),
     ('face_shape_features', 'feature_heights', 'rig'),
-    ('eye_*', 'eyes', 'rig'),
+    ('eye_*', 'eyes', 'sheet'),
     ('shape_iou_hair', 'hair_shape', 'trellis'), ('shape_iou*', 'body_silhouette', 'trellis'),
     ('ref_iou', 'body_silhouette', 'key3d'), ('scalp_px', 'hair_shape', None), ('hair_noise', 'hair_shape', None),
     ('body_*_iou_hair', 'hair_silhouette', 'sheet'), ('body_*_hair_*', 'hair_silhouette', 'sheet'),
@@ -198,6 +198,22 @@ MEASURES = [
     ('palette*', 'palette', 'sheet'),
     ('poke_share', None, None), ('face_folds', None, None), ('face_*', 'expressions', None),
 ]
+
+
+def authorize(checks, authority):
+    """each check graded only against its measure's authority (the manifest's): a graded check measured against a
+    reference that isn't its measure's authority, or whose measure has none (the expressions: the template library's),
+    reads INFO, its value kept and its grade as 'graded_as'. Mixed references pulled the fits in different directions
+    (Michael's review, 2026-09-28). In place and returned."""
+    for k, c in list(checks.items()):
+        if not isinstance(c, dict) or c.get('status') not in ('PASS', 'WARN', 'FAIL'):
+            continue
+        m, src = measure(k)
+        if m is None or src is None or m not in authority or authority[m] == src:
+            continue
+        checks[k] = dict(c, status='INFO', graded_as=c['status'],
+                         why='measured against %s; %s is the authority for %s' % (src, authority[m] or 'no reference', m))
+    return checks
 
 
 def measure(name):

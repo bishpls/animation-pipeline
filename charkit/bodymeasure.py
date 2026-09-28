@@ -53,12 +53,29 @@ class Sheet:
     def __init__(self, spec):
         from . import bodyqa, eyes as eyelib, paletteqa, refs, sheetqa
         ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+        p = lambda x: x if os.path.isabs(x) else os.path.join(ROOT, x)
+        self.face_design = None
+        self.face_sheet = ref.get('face_sheet')
+        gen = ref.get('body_sheet')
+        if gen:
+            # a generated full-body sheet (the manifest's sheets.body), as qa3d.Design.sheet_context reads it: scaled by
+            # its own front eyes (the kit's convention), no rig in the chain
+            self.spec_sheet = dict(gen)
+            self.rgb = _png(p(gen['image']))[..., :3]
+            self.eye_x = eyelib._knobs(spec.get('eyes'))['x']
+            self.D = sheetqa.detect_figures(self.rgb, None, self.eye_x, gen.get('facing', -1))
+            self.ppl = self.ppl_eyes = self.D['ppl']
+            te = self.D['figures'].get('three_quarter', {}).get('eyes') or []
+            self.az3 = round(float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * self.eye_x * self.ppl), 0, 1))))
+                             if len(te) == 2 else 35.0, 1)
+            self.design = bodyqa.design_views(self.rgb, self.D, self.ppl)
+            self.palette = paletteqa.extract_views(self.design)
+            self.caution = None
+            return
         sh = ref.get('sheet')
         if not sh or not ref.get('rig'):
             raise ValueError('no spec.ref.sheet / rig')
-        p = lambda x: x if os.path.isabs(x) else os.path.join(ROOT, x)
         self.spec_sheet = sh
-        self.face_design = None
         self.rgb = _png(p(sh['image']))[..., :3]
         rig_alpha = _png(os.path.join(p(ref['rig']), 'base.png'))[..., 3]
         R = refs.measure(p(ref['rig']), (spec.get('eyes') or {}).get('x', 0.168))
@@ -379,8 +396,14 @@ def sheet_face(bundle, sheet):
     CL = sheetqa.CLASS
     lm = bundle['landmarks']
     if getattr(sheet, 'face_design', None) is None:
-        heads = {k: tuple(v) for k, v in (sheet.spec_sheet.get('heads') or {}).items()}
-        sheet.face_design = sheetqa.measure_sheet(sheet.rgb, heads, sheet.eye_x, ppl=sheet.ppl)
+        fs = getattr(sheet, 'face_sheet', None)
+        if fs:                                          # a generated head sheet (sheets.face), as qa3d reads it
+            from . import refcheck
+            sheet.face_design = refcheck.face_design(_png(os.path.join(ROOT, fs['image']) if not os.path.isabs(fs['image'])
+                                                          else fs['image'])[..., :3], sheet.eye_x, fs.get('facing', -1))
+        else:
+            heads = {k: tuple(v) for k, v in (sheet.spec_sheet.get('heads') or {}).items()}
+            sheet.face_design = sheetqa.measure_sheet(sheet.rgb, heads, sheet.eye_x, ppl=sheet.ppl)
     D = sheet.face_design
     meshes, covers = [], []
     for o in objects(bundle, face=True):
@@ -392,7 +415,7 @@ def sheet_face(bundle, sheet):
         else:
             meshes.append((o['V'], o['F'], np.where(lab == B['skin'], CL['skin'],
                                                     np.where(lab == B['line'], CL['line'], CL['other']))))
-    O = sheetqa.measure_ours(meshes, covers, np.asarray(lm['iris'], float), lm['centre'], lm['L'], sheet.ppl,
+    O = sheetqa.measure_ours(meshes, covers, np.asarray(lm['iris'], float), lm['centre'], lm['L'], D['ppl'],
                              D.get('az_three_quarter', 35.0), face_region=face_region)
     C = sheetqa.compare(O, D)
     C.update(sheetqa.shown(O, D))

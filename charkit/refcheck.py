@@ -285,7 +285,46 @@ def within(R):
     return out
 
 
-EYE_BOX = (0.15, 0.11)   # an eye's crop round its centre, half-width and half-height in L (clear of the nose and brow)
+EYE_BOX = (0.18, 0.15)   # an eye's crop round its centre, half-width and half-height in L: the whole lash line (0.15 x 0.11 cut it)
+FACE_PPL = 200           # the QA's face scale on a generated head sheet, px per L (the old model sheet's was 115)
+
+
+def _load(path):
+    from PIL import Image
+    return np.asarray(Image.open(_p(path)).convert('RGB')).astype(float) / 255
+
+
+def face_design(rgb, eye_x, facing=-1, ppl=FACE_PPL):
+    """a head sheet as the QA's face design (sheetqa.measure_sheet's shape, qa3d.Design.sheet_measures): resampled so its
+    front eyes sit 2 eye_x L apart at `ppl` (the kit's convention, as our face is drawn), every view measured as a
+    drawn head is (measure_heads). rgb: the sheet's pixels, floats (H, W, 3)
+    -> {view: measures, 'ppl', 'ppl_eyes', 'az_three_quarter', 'chin_cut'}."""
+    rgb0, _ = without_guides(np.asarray(rgb, float))
+    rgb, f, H = at_scale(rgb0, eye_x, 2 * eye_x * ppl, facing)
+    O, chin = measure_heads(rgb, H['heads'], ppl, facing)
+    D = dict(O, ppl=float(ppl), ppl_eyes=float(ppl), chin_cut=chin, factor=f)
+    fe, te = (H['heads'].get(v, {}).get('eyes') or [] for v in ('front', 'three_quarter'))
+    if len(fe) == 2 and len(te) == 2:
+        D['az_three_quarter'] = round(float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) /
+                                                                          abs(fe[1][0] - fe[0][0]), 0, 1)))), 1)
+    return D
+
+
+def eye_design(rgb, eye_x, facing=-1, ppl=FACE_PPL, box=EYE_BOX):
+    """a head sheet's front eyes cut at the sheet's own resolution, as the QA's eye design (qa3d.Design.eye_layers):
+    rgb: the sheet's pixels -> ({our side: rgba}, the sheet's own px per L). The picture's left eye is our right ('R'),
+    as the rig's eye_L is."""
+    rgb0, _ = without_guides(np.asarray(rgb, float))
+    rgb, f, H = at_scale(rgb0, eye_x, 2 * eye_x * ppl, facing)
+    fe = sorted(H['heads']['front']['eyes'])
+    own = ppl / f
+    hw, hh = box[0] * own, box[1] * own
+    out = {}
+    for side, (x, y) in zip(('R', 'L'), fe):
+        cx, cy = x / f, y / f
+        crop = rgb0[int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
+        out[side] = np.concatenate([crop, np.ones(crop.shape[:2] + (1,))], -1)
+    return out, own
 
 
 def eye(R, S):
@@ -452,7 +491,13 @@ def main(args):
     refs = M['references'] if isinstance(M['references'], list) else [dict(id=k, **v) for k, v in M['references'].items()]
     want = opt('--refs')
     want = want.split(',') if want else [r['id'] for r in refs if r.get('layout') in ('heads', 'figures')]
-    S = bodymeasure.Sheet(spec)
+    # the source design (idol_D), for the common scale and the departures: the spec without the generated sheets that
+    # otherwise fill the design's role
+    import copy
+    src = copy.deepcopy(spec)
+    for k in [k for k in src['ref'] if k.endswith('_sheet')]:
+        src['ref'].pop(k)
+    S = bodymeasure.Sheet(src)
     res = run(spec, [next(r for r in refs if r['id'] == rid) for rid in want], S)
     plain = lambda x: {k: v for k, v in x.items() if not k.startswith('_')}
     json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'status': res['status'],

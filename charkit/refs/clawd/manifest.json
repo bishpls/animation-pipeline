@@ -5,7 +5,7 @@
    "kind": "model_sheet",
    "path": "projects/hello-world/refs/idol_D.png",
    "tracked": true,
-   "role": "the design's authority: full-body front, 3/4, profile and back, four expression heads, hands; the sheet the 2D rig was built from",
+   "role": "the source design (idol_D): the input to the generated references, and no measure's authority (Michael, 2026-09-28: drawn in another aesthetic and scale than the turnarounds). The authority map's 'sheet' role is filled by the generated sheets (the manifest's 'sheets': face, eyes, body)",
    "figures": {
     "front_figure": [
      0,
@@ -305,15 +305,22 @@
   "chin": "sheet",
   "feature_heights": "sheet",
   "face_depth": "trellis",
-  "eyes": "rig",
+  "eyes": "sheet",
   "hair_shape": "trellis",
   "hair_silhouette": "sheet",
   "body_silhouette": "sheet",
-  "expressions": "sheet",
+  "expressions": null,
   "palette": "sheet",
-  "outfit_pieces": "outfit_graph"
+  "outfit_pieces": "outfit_graph",
+  "skull": "head_construction"
  },
  "notes": [
-  "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown."
- ]
+  "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown.",
+  "2026-09-28 (second session): the generated sheets are the base; idol_D is the source design only. 'sheets' names which reference fills the 'sheet' role per kind (face and eyes: head_turnaround; body, hair silhouettes and palette: body_turnaround); the eyes' authority moved from the rig to it; expressions have none (the template library's). charkit refcheck: the turnarounds agree with each other; head_construction is the outlier on the chin, neck, pupil aspect and lid line, so it holds the skull and ears only."
+ ],
+ "sheets": {
+  "face": "head_turnaround",
+  "eyes": "head_turnaround",
+  "body": "body_turnaround"
+ }
 }

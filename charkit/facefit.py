@@ -62,7 +62,7 @@ GROUP_WHAT = {'eyes': ('eyes',), 'face': ('sheet', 'face_shape')}
 # the model sheet's measures are smoothed over these sub-pixel grids while the fit searches (a pixel is 0.009 L there)
 JITTER = [(0, 0, 0), (0.5, 0.5, 0.5), (0.25, 0.75, 0.5), (0.75, 0.25, 0.25)]
 AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile': 'sheet', 'chin': 'sheet',
-             'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'rig'}
+             'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'sheet'}
 VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes', 'coverage')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
@@ -75,9 +75,9 @@ def terms():
     """the graded checks the face fit answers to, as fitkit terms (tolerances: each QA module's PASS limit)."""
     from . import eyeqa, faceqa, sheetqa
     E, S, F = eyeqa.LIMITS, sheetqa.LIMITS, faceqa.LIMITS
-    T = [Term('eye_' + k, None, 'ratio', E[k][0], 'eyes', 'rig', 'eyes', 'eyes', warn=E[k][1] / E[k][0])
+    T = [Term('eye_' + k, None, 'ratio', E[k][0], 'eyes', 'sheet', 'eyes', 'eyes', warn=E[k][1] / E[k][0])
          for k in ('aspect', 'width', 'iris_ratio', 'pupil_run', 'pupil_aspect', 'lid_span')]
-    T.append(Term('eye_lid_gap', None, 'gap', eyeqa.LID_GAP[0], 'eyes', 'rig', 'eyes', 'eyes',
+    T.append(Term('eye_lid_gap', None, 'gap', eyeqa.LID_GAP[0], 'eyes', 'sheet', 'eyes', 'eyes',
                   warn=2 * eyeqa.LID_GAP[1] / eyeqa.LID_GAP[0] - 1))
     for chk, sub, kind, tol, measure, ref, view in (
             ('sheet_width', 'd55', 'ratio', S['width'][0], 'face_front', 'sheet', 'front'),
