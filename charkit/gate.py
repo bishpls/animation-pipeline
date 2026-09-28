@@ -61,7 +61,11 @@ def compare_qa(a, b):
         vx, vy = (x or {}).get('value'), (y or {}).get('value')
         if x == y:
             continue
-        if sx in RANK and (sy not in RANK):
+        if x is None:
+            v = 'new'
+        elif y is None:
+            v = 'gone' if sx in RANK else 'removed'
+        elif sx in RANK and (sy not in RANK):
             v = 'gone' if y is None or sy in ('SKIPPED', None) else 'ungraded'
         elif sy in RANK and sx not in RANK:
             v = 'new'
@@ -157,7 +161,7 @@ def _write(rep, gdir, tag):
         L.append('\nTests: ' + ', '.join('%s %s' % (k, 'ok' if v == 'ok' else 'FAILED') for k, v in rep['tests'].items()))
     if rep.get('qa') is not None:
         L.append('\n| check | base | candidate | verdict |\n| --- | --- | --- | --- |')
-        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'ungraded': 5}
+        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'ungraded': 5, 'removed': 6}
         for r in sorted(rep['qa'], key=lambda r: order.get(r['verdict'], 9)):
             L.append('| %s | %s %s | %s %s | %s |' % (r['check'], str(r['base'][0])[:10], r['base'][1] or '',
                                                      str(r['cand'][0])[:10], r['cand'][1] or '', r['verdict']))
