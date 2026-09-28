@@ -47,6 +47,27 @@ component that reads them; `charkit/spec/schema.json` collects them.
 | **paint** (`charkit/paint.py`) | painted textures: GPT Image paints matching views of the character (front, both three-quarters, profile, back; head close-ups), which are projected onto the UVs from calibrated cameras and blended by facing, then baked: skin gradients, blush, lip tint, eye-white shading, hair gradients and strands, cloth detail | which views, style prompt | tools/gptimage.py + Blender projection bake |
 | **export and QA** (`charkit/qa.py`, `export.py`) | boards: turntable, head close-up turntable, expression sheet, viseme sheet, a lighting sweep, range of motion, overlay on the reference, topology stats; VRM 1.0 / glTF export for three.js | | |
 
+### The base mesh: `spec['base']`
+
+Two bases build the same character (`python -m charkit build SPEC.json --base anime`, or `"base": "anime"` in the spec):
+
+- **`makehuman`** (the default): MakeHuman's own realistic head wrapped onto the anime head on every build
+  (`charkit/anime_head.reshape`), its eye margins, mouth corners and cavities detected in the realistic topology each time.
+- **`anime`**: charkit's own anime base (`charkit/base_anime.py`, asset `charkit/assets/base_anime/base_anime.npz`, 0.6 MB,
+  CC0): derived once from MakeHuman through the neutral anime wrap and cleaned for anime use: shallow eye sockets behind the
+  plates instead of the realistic pockets, the lid rings round each opening re-laid into clean concentric loops (the wrap
+  folds them back over the big anime outline), a compact mouth cavity and flattened lip rolls, the nostrils cut out and
+  filled (a soft nose), the ears' folds flattened, the under-jaw/neck junction filleted. It stores its regions (face,
+  scalp, neck, ears, nose, lips, jaw, under_jaw, eye margins, sockets and lids, the mouth's loop and cavity), the eye and
+  mouth loops with their outer rings and the socket and cavity schedules, landmarks, joints, weights, UVs, and each vertex's
+  source vertex in hm08. A build takes the body from MakeHuman's macro targets as before (same vertex indices), re-wraps
+  the stored head to the spec's head knobs (`anime_head.rewrap`), and places the eyes and mouth from the stored labels
+  (`eyes.labels`, `mouth.labels`): nothing is re-detected. The joints follow the wrap as on `makehuman` (the removed realistic
+  interior is stored as ghost points they follow), so garments fitted along the bones fit the same. Re-derive after changing
+  the wrap or the cleaning:
+  `python -m charkit.base_anime derive`. The QA check `face_folds` counts folded skin round the openings at rest and under
+  every lid and mouth key (Clawd: 1014 on `makehuman`, 135 on `anime`).
+
 ## 3. Build flow
 
 ```

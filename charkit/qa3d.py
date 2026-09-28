@@ -18,6 +18,8 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
              right symmetry, each mouth shape's opening (area, width, height, left / right balance) and how distinct the
              visemes are from each other; graded: blink closes, no iris in a blink, eyes and mouth symmetric, visemes
              distinct, and each expression's openness inside the range it is meant to have (FACE_EXPECT, warn only)
+  face_folds skin faces round the eyes and the mouth facing away at rest or flipping under a lid or mouth key (folded lid
+             and lip rings: the realistic lids stretched onto the anime outline, the lip rolls), summed over the keys
 
     from charkit import qa3d; report = qa3d.run(S, out)       # S: charkit.scene.Scene, after scene.build
 """
@@ -28,7 +30,7 @@ import numpy as np
 AZ = (0, 45, 90, 135, 180, 270)
 LIMITS = {                     # (pass at or better, warn at or better); else fail
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
-    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08),
+    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
     'viseme_gap': (0.010, 0.005),
 }
@@ -372,6 +374,32 @@ def _bbox_norm(mask, size=(200, 320)):
 
 
 # ------------------------------------------------------------------------------------------------------------------ checks
+def _face_normals(V, faces):
+    Q = np.array([tuple(f) + (f[-1],) * (4 - len(f)) for f in faces])      # triangles padded (their normal is unchanged)
+    n = np.cross(V[Q[:, 2]] - V[Q[:, 0]], V[Q[:, 3]] - V[Q[:, 1]])
+    return n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-15)
+
+
+def face_folds(A):
+    """skin faces round the eyes and the mouth (the openings' own walls, fmat 2 and 3, left out) facing away from the viewer
+    at rest, and flipped (turned past 90 degrees) or facing away under each lid and mouth key. numpy only.
+    -> dict(rest, keys {key: count}, total)."""
+    V = np.asarray(A['verts']); F = A['faces']; fm = np.asarray(A['fmat']); Hd = A['head']; L = Hd['L']
+    q = (np.array([V[list(f)].mean(0) for f in F]) - Hd['centre']) / L
+    mouth = (fm == 1) & (np.abs(q[:, 0]) < 0.16) & (np.abs(q[:, 2] + 0.28) < 0.1) & (q[:, 1] < -0.2)
+    eyes = (fm == 1) & (np.abs(np.abs(q[:, 0]) - 0.17) < 0.14) & (np.abs(q[:, 2]) < 0.12) & (q[:, 1] < -0.15)
+    n0 = _face_normals(V, F)
+    rest = int(((mouth | eyes) & (n0[:, 1] > 0.2)).sum())
+    keys = {}
+    for sh, D in A['mouth']['keys'].items():
+        n1 = _face_normals(V + D, F)
+        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+    for sh in A['eyes'][0]['keys']:
+        n1 = _face_normals(V + sum(E['keys'][sh][0] for E in A['eyes']), F)
+        keys['eye_' + sh] = int((eyes & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+    return dict(rest=rest, keys=keys, total=rest + sum(keys.values()))
+
+
 def _character_objects(S):
     return [S.character['skin']] + [o for p in S.character['eyes'] for o in p.values()] + \
         list(S.character['mouth'].values()) + list(S.hair) + list(S.accessories) + list(S.garments)
@@ -543,6 +571,10 @@ def run(S, out, ref_image=None):
             vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
         v = float(np.mean(vals))
         rep['checks']['hair_noise'] = {'value': round(v, 4), 'status': _grade('hair_noise', v, False)}
+    # --- face folds: the skin round the openings at rest and under the keys
+    ff = face_folds(A)
+    rep['checks']['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
+                                   'base': S.spec.get('base', 'makehuman'), 'status': _grade('face_folds', ff['total'], False)}
     # --- mesh health (information)
     import bmesh
     mh = {}
