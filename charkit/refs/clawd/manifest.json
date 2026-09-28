@@ -40,6 +40,39 @@
                   "command": "tools/imageto3d/trellis_remote.sh --res 1024_cascade --seeds 1 charkit/refs/clawd/clawd_3dstyle.png",
                   "note": "the command is reconstructed from the output's name and the run's settings, not logged at the time"},
    "cautions": ["48 MB, kept out of git: regenerate with the command, or copy it into charkit/out/i3d/clawd/"]
+  },
+  "outfit_graph": {
+   "kind": "outfit_graph",
+   "path": "charkit/refs/clawd/outfit_graph.json",
+   "tracked": true,
+   "sha256": "10a94dabc222deef1656ae1b7eb0ac6d5948a1cb2f0452caba755737325ee7d1",
+   "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
+   "provenance": {
+    "tool": "charkit.outfit",
+    "version": 1,
+    "command": "python -m charkit outfit charkit/spec/clawd.json",
+    "inputs": {
+     "sheet": {
+      "path": "projects/hello-world/refs/idol_D.png",
+      "sha256": "74d181d70824ec770dae2911e6a6e8c4fbb9d994a17df119973425dbc8e57361"
+     },
+     "rig": {
+      "path": "projects/tsuzuku/rig/clawd"
+     },
+     "trellis": {
+      "path": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
+      "sha256": "4e6ff5a0dca00c50a34dadad252d5bc11fbd2e87e56bcfb4f6f1778717634b0f"
+     },
+     "field": {
+      "path": "charkit/out/i3d/ext/runA/clawd_3dstyle_s1_field.npz"
+     },
+     "notes": {
+      "path": "charkit/refs/clawd/outfit_notes.json",
+      "version": 1
+     }
+    }
+   },
+   "cautions": ["measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"]
   }
  },
  "authority": {
@@ -54,6 +87,7 @@
   "hair_silhouette": "sheet",
   "body_silhouette": "sheet",
   "expressions": "sheet",
-  "palette": "sheet"
+  "palette": "sheet",
+  "outfit_pieces": "outfit_graph"
  }
 }

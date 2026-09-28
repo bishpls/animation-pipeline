@@ -10,6 +10,8 @@
     python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
+    python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
+                                                 # the outfit component graph from the references (charkit/outfit.py)
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -248,6 +250,9 @@ def main(argv=None):
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)
+    elif cmd == 'outfit':
+        from . import outfit
+        outfit.main(rest)
     elif cmd == 'figures':
         figures(rest)
     elif cmd == 'gate':
