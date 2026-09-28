@@ -287,8 +287,8 @@ def sheet(S, out):
     rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
     A = S.character['data']; Hd = A['head']; L = Hd['L']
     ex = Hd['eye_knobs']['x']
-    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
-    D = sheetqa.measure_sheet(rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
+    ppl = _memo(sheetqa.sheet_ppl, rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = _memo(sheetqa.measure_sheet, rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
     az3 = D.get('az_three_quarter', 35.0)
     # ours: every visible surface z-buffered at the sheet's scale, each triangle labelled by class
     from . import faceqa, trace
@@ -471,8 +471,8 @@ def _sheet_context(S, out=None):
     rgb = _load_rgba(fp(sh['image']))[..., :3].astype(float)
     rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
     ex = S.character['data']['head']['eye_knobs']['x']
-    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
-    D = sheetqa.detect_figures(rgb, ppl=ppl, eye_x=ex, facing=sh.get('facing'))
+    ppl = _memo(sheetqa.sheet_ppl, rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = _memo(sheetqa.detect_figures, rgb, ppl=ppl, eye_x=ex, facing=sh.get('facing'))
     fe = D['figures'].get('front', {}).get('eyes') or []
     ppl_eyes = abs(fe[1][0] - fe[0][0]) / (2 * ex) if len(fe) == 2 else None
     te = D['figures'].get('three_quarter', {}).get('eyes') or []
@@ -482,6 +482,27 @@ def _sheet_context(S, out=None):
     S._sheet_ctx = dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl_eyes, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
                         verify=sheetqa.verify_figures(D, sh))
     return S._sheet_ctx
+
+
+def _design(ctx):
+    """the design's full figures cut and classified (charkit.bodyqa.design_views): memoized by the build cache, so the
+    parts that use it don't each carry a copy."""
+    from . import bodyqa
+    return _memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
+
+
+def _memo(fn, *a, **kw):
+    """a design-side measurement (a pure function of the sheet's pixels): kept by the build cache per its arguments'
+    digest and its code (charkit.cache.memo), computed when there is no cache."""
+    from . import cache
+    return cache.memo(fn, *a, **kw)
+
+
+def _part(name, fn, S, *args):
+    """a QA part through the build cache (charkit.cache.part): restored with its overlays while everything it reads
+    (our meshes as rendered, the references, its code) is unchanged; called directly without a cache."""
+    from . import cache
+    return cache.part(name, fn, S, *args)
 
 
 def _scale_caution(ctx):
@@ -570,7 +591,7 @@ def sheet_body(S, out):
     S._sheet_colours = cols
     Hd = S.character['data']['head']
     iw = np.array([trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']])       # iris centres (world)
-    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    design = _design(ctx)
     labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, Hd['centre'], Hd['L'], ctx['ppl'], list(design))
     table, C, views = bodyqa.evaluate(labels, design, _scale_caution(ctx))
     table.update(ppl=round(ctx['ppl'], 2), az=bodyqa.azimuths(ctx['az3']))
@@ -589,9 +610,9 @@ def sheet_palette(S, out):
     ctx = _sheet_context(S, out)
     if 'why' in ctx:
         return None, {'palette': {'status': 'SKIPPED', 'why': ctx['why']}}
-    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    design = _design(ctx)
     cols = getattr(S, '_sheet_colours', None) or scene_classes(S)[1]
-    D, O = paletteqa.extract_views(design), paletteqa.ours(cols)
+    D, O = _memo(paletteqa.extract_views, design), paletteqa.ours(cols)
     _save_rgb(os.path.join(out, 'qa_sheet_palette.png'), np.repeat(np.repeat(paletteqa.picture(O, D), 2, 0), 2, 1))
     hx = lambda T: {k: paletteqa._hex(v) if v is not None and not isinstance(v, (int, float)) else v for k, v in T.items()}
     table = {'design': {n: hx(t) for n, t in D.items() if t}, 'ours': {n: hx(t) for n, t in O.items()}}
@@ -993,14 +1014,14 @@ def run(S, out, ref_image=None):
     rep['checks']['mesh'] = {'status': 'INFO', 'objects': mh}
     # --- the eyes against the design's
     try:
-        rep['eyes'], ec = eyes(S, out)
+        rep['eyes'], ec = _part('eyes', eyes, S, out)
         rep['checks'].update({'eye_' + k: v for k, v in ec.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['eye'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face against the design's model sheet
     try:
-        rep['sheet'], sc_ = sheet(S, out)
+        rep['sheet'], sc_ = _part('sheet', sheet, S, out)
         rep['checks'].update({'sheet_' + k: v for k, v in sc_.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -1011,21 +1032,21 @@ def run(S, out, ref_image=None):
                          ('sheet_expr', sheet_expressions, ''), ('sheet_palette', sheet_palette, 'palette_')):
         try:
             with trace.span('qa.' + key):
-                rep[key], sc_ = fn(S, out)
+                rep[key], sc_ = _part(key, fn, S, out)
             rep['checks'].update({pre + k: v for k, v in sc_.items()})
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's shape against the generated character's
     try:
-        rep['face_shape'], fc = face_shape(S, out)
+        rep['face_shape'], fc = _part('face_shape', face_shape, S, out)
         rep['checks'].update({('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in fc.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['face_shape'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's expressions and mouth shapes (geometry)
     try:
-        rep['face'], fc = face(S)
+        rep['face'], fc = _part('face', face, S)
         rep['checks'].update({'face_' + k: v for k, v in fc.items()})
     except Exception as e:                                         # a face check that can't run says so, the rest stands
         rep['checks']['face'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}

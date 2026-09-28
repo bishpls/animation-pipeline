@@ -85,6 +85,134 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
 
+In code (`charkit/scene.py`): `fit_cranium` (the skull's height from the generated hair) -> `character` (body, head,
+features, keys) -> `hair` (and accessories) -> `face_shading` -> `garments`; then the products: boards, QA, the VRM, the
+`.blend`. With `hair.shape.mode 'geom'` the hair is cut venv-side first (`charkit.geom`, `OUT/geom/hair.npz`).
+
+### The build cache
+
+`python -m charkit build` restores a stage from `charkit/out/.cache/` instead of running it when nothing the stage read
+has changed (`charkit/cache.py`), and restores the boards, the QA and the VRM the same way when the whole scene is
+unchanged. Inside the QA each part (eyes, sheet, figures, body, expressions, palette, face shape, face) is cached on its
+own, and the design-side measurements of the model sheet (figure detection, the sheet's scale and measures, the design's
+views and palette) are kept per reference and code. The trace says, per stage, product and part, what was restored and,
+for what ran, why (`python -m charkit trace OUT/trace.jsonl`; the summary line reads `cache: 12/14 restored; ran garments
+(spec.garments changed), qa (the scene changed ...)`). `history` rows carry the same.
+
+**A stage's key is what it read, recorded as it ran**, not a list kept by hand (the trace's `STAGE_KEYS` misses keys such
+as `lash_color` and `base`, which the character reads):
+- *code*: the stage function, the `scene.py` helpers it calls and `scene.py`'s top-level statements, and every charkit
+  module those import, transitively, compared as syntax trees (a comment or docstring edit doesn't count); the kit's data
+  (`charkit/assets`); `cache.py`; the Blender, numpy and Python versions.
+- *spec*: every key it read, at any depth (`spec.head.width`, `spec.eyes.x`), exactly.
+- *upstream*: every value it read of earlier stages, key by key through the Scene's dicts (`character.data.head.L`,
+  `character.data.joints.neck01____head`), `shade.MATS` entries, Blender objects (their full state), except where
+  `scene.DEPS` declares that a stage reads a value only in part (below).
+- *files*: every file it opened outside the kit (the TRELLIS GLB; `OUT/geom/hair.npz`) and every path named in the spec
+  keys it read, by sha256 (a stat-checked memo skips re-hashing an unchanged file; the reference manifest's own sha256 is
+  compared against, never trusted instead). A file under the output folder is keyed relative to it.
+
+A lookup evaluates each stored entry's recorded reads against the scene as it stands and restores the first that matches
+in full. Keys are exact: a float that moved by 1e-11 is a change.
+
+**The dependency map** (Clawd, as recorded in its entries' manifests):
+
+| step | spec keys read | what it reads of earlier steps | files |
+| --- | --- | --- | --- |
+| geom hair (venv, `mode: geom`) | the resolved spec without the outfit | (assembles the character itself) | the GLB; the venv's packages |
+| fit_cranium | `body.height_m`, `body.heads_tall`, `eyes.x`, `hair.shape.{glb, fit_cranium, under}`, whether `head.cranium` is set | - | the GLB |
+| character | `base`, `name`, `body`, `head`, `head_detail`, `eyes`, `iris`, `brows`, `mouth`, `skin`, `skin_line`, the lash, brow, crease, cavity, eyeline and mouth-line colours | which `shade.MATS` materials exist | (the MakeHuman or anime base: the kit's data, in the code key) |
+| hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs `x` and `z`, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure, `shade.MATS` | the GLB, or `OUT/geom/hair.npz` |
+| face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, the hair objects' names and the fringe (`hair_front*`) | - |
+| garments | `garments` | verts below the neck's middle, faces, 52 bones' weights, the 22 joints its bones run between (the neck's two among them), `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
+| boards, QA, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
+| QA parts | what each reads (`spec.ref.*`) | each reads through the Scene: eyes and face the head and its keys, figures the eye spacing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig, `OUT/ref_measure.json` |
+
+`scene.DEPS` holds the partial reads, each with its reason: garments read the body only below the neck's middle
+(`body_below_neck`: shell regions, the collar's neckline, bands, sections and nearest-vertex weights all lie there; an
+outfit reaching the head or past the neck's middle is keyed on the whole body); a stage that only parents to the rig, or
+adds a vertex group and a modifier to the skin, reads their *structure* (names, stack, transform, pose), not their
+geometry; face shading reads the fringe, not the rest of the hair.
+
+What the measured keys show about the build itself:
+- **head.width is not a face-only knob**: the head wrap drags the joints near the head with it (`anime_head.follow`
+  moves every joint within 0.35 L of the chin with the surface: 127 of them), among them the neck bone's two ends, which
+  the top's neckline, the collar and the neck's cut hang from, by 0.055 and 0.069 mm. A fresh build at `head.width` 1.1
+  moves the collar by 0.5 mm and the sleeves and cuffs a little, so garments rebuild, and the trace says why:
+  `garments: miss (character.data.joints.head____head moved 6.9e-05; character.data.joints.neck01____head moved
+  5.5e-05; ...)`. `eyes.width` moves no joint the outfit uses: garments are restored.
+- **Body knobs reach the head by float noise**: `body.proportions.leg_slim` moves every vertex, and the joints at the
+  head by about 2e-11 m (rounding through the body's proportion and height scaling), so the hair, which reads the head
+  and the body round it, rebuilds. Keys are exact on purpose; removing that noise at its source (and keying the hair on
+  the body near the head only) is what would let a body-only change keep the hair.
+
+**A checkpoint holds what the stage changed**, so it restores onto a rebuilt upstream (garments onto a new face): the
+datablocks it made (`data.blend`, written by `bpy.data.libraries.write`; what they point at from before, the rig or a
+shared material, is re-bound by name on append), and pickled (`state.pkl`, Blender references by name) the Scene
+attributes and the spec and dict entries it wrote, key by key, its `shade.MATS` entries, its notes, and its changes to
+objects made before it: new vertex groups, modifiers (settings and stack position), attributes and material slots,
+replayed on restore. Pickle holds numpy arrays and charkit's own classes as Python keeps them (a `.npz`/JSON schema would
+have to track every structure a stage keeps); entries are read only from this folder, which charkit alone writes.
+
+**Correctness before speed.** A stage that changes anything a restore can't replay (an earlier mesh's vertices, a
+material made before it, the scene's settings, an object it reached without reading it through the Scene, a value it read
+changed in place) is uncacheable: it runs every time, and the trace and `CHARKIT_CACHE_UNCACHEABLE` say why. After a
+restore the trace's own snapshot of the stage (the objects it added, their geometry hashes and health; the names and
+modifier stacks of those it changed) must equal the one stored with the entry, or the build starts over with every step
+run and the entry dropped (`CHARKIT_CACHE_RESTORE_FAILED`). `--cache verify` runs every step and compares it with the
+entry a lookup would have restored, flagging a key that missed an input (`CHARKIT_CACHE_STALE`; images are compared by
+their pixels' encoding, not the date Blender stamps into each PNG). Nothing is stored from a run that printed a traceback
+(a QA check that caught an error and reported SKIPPED: a full disk once did that to the model-sheet body check), from a
+build whose charkit sources changed while it ran, or with less than `CHARKIT_CACHE_MIN_FREE_GB` (2) left on the disk; a
+store that fails leaves the build running, uncached.
+
+Modes: `--cache on` (the default), `off` (or `--no-cache`), `refresh` (run and store everything), `stages` (restore the
+stages, run the products afresh on the restored scene), `verify`. `python -m charkit cache info | clear`; the cache
+keeps under `CHARKIT_CACHE_GB` (5) by dropping the least recently used entries (`python -m charkit ps` and `cache info` show its size); `CHARKIT_CACHE_DIR` moves it.
+
+### The build worker
+
+`python -m charkit worker start | stop | status` keeps one Blender running with charkit loaded (`charkit/worker.py`,
+`charkit/worker_blender.py`); `build` sends its job over a local socket when the worker runs, and starts a fresh Blender
+otherwise or with `--no-worker`. Each job drops and re-imports charkit's modules (edited code and module state never
+carry over), resets the scene to factory settings, and checks the datablock counts and charkit's own handlers against
+the worker's first clean state; a job that finds anything left over prints `CHARKIT_WORKER_LEAK` and the worker restarts
+itself in place afterwards. The worker is recorded in `charkit/out/worker/.pid.json` and each job in its output folder
+under the worker's pid (`python -m charkit ps`, `kill`); `stop` signals only that pid, after checking it is this
+checkout's worker. Each job takes a machine-wide build slot (`procs.acquire_slot`, with its memory check) and, after
+clearing its scene and collecting Python's garbage, gives it back: an idle worker holds no slot. It saves Blender's
+start-up and keeps its render state warm between builds. Memory: 0.2 GB idle when started; a job's scene is cleared and
+Python's garbage collected before its slot goes back, but Blender and Python keep 0.5 to 1.2 GB of what a Clawd build
+freed (measured after cold, warm and other-character jobs), so after a job that leaves it above
+`CHARKIT_WORKER_MAX_IDLE_MB` (600) the worker restarts in place (same pid and socket; a build that arrives meanwhile
+waits for it) and idles at 0.2 GB again. `worker status` shows its resident memory and restarts; stop it when done.
+
+Measured on Clawd (`--boards views`, QA on, `--no-blend`; wall clock on a machine shared with other builds, load
+average 30 to 60, so the ratios matter more than the seconds):
+
+| build | time | restored | ran |
+| --- | --- | --- | --- |
+| fresh, `--cache off` | 200.7 s | - | everything |
+| cold (cache on, empty) | 203.2 s | - | everything (the cache's own cost: 1%) |
+| warm, no change | 4.6 s (Blender 3.3 s) | every stage, the boards, the QA | nothing: 44x |
+| warm in the worker | 4.2 s | everything | nothing |
+| `--cache stages` | 104.8 s | the stages | the boards and QA, on the restored scene |
+| `eyes.width` 0.2 -> 0.22 | 150.5 s | fit, garments, 1 QA part | character, hair, face shading, boards, 7 QA parts |
+| `head.width` 1.0 -> 1.1 | 292.1 s | fit, 1 QA part | every stage (the neck's joints moved), boards, QA |
+| a skirt's colour | 145.8 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+| the GLB changed in place | 183.7 s | character, face shading, garments, 3 QA parts | fit, hair, boards, the rest of QA |
+| a comment in garments.py | 8.1 s | everything | nothing |
+| a code edit in garments.py | 133.0 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+
+Every one of those builds trace-diffs to `no differences` against a fresh build of the same spec, with identical
+`qa.json` values and pixel-identical boards and QA overlays (`charkit/tests/cache_builds.py`); the worker's builds, the
+same spec twice with another character between, likewise (`charkit/tests/worker_builds.py`).
+
+Tests: `charkit/tests/test_cache.py` (digests, recorded reads, the code closure, the file memo, invalidation by a code
+file, an input file or a spec key, and a restore onto a rebuilt upstream in Blender);
+`charkit/tests/cache_builds.py` and `charkit/tests/worker_builds.py` (real builds: what each change restores and runs,
+the times, and the trace and qa.json proofs against fresh builds).
+
 ## 4. Measurement and review (the quality gate)
 
 Numbers first, pictures second. `python -m charkit build` writes two records into the output folder:
