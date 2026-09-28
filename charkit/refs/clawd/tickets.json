@@ -1,0 +1,560 @@
+{
+ "character": "clawd",
+ "tickets": [
+  {
+   "id": "T001",
+   "kind": "measure",
+   "status": "open",
+   "created": "2026-09-28T10:14:34",
+   "text": "the face reads long",
+   "note": "N001",
+   "build": "charkit/out/tune/clawd/ck3_final",
+   "view": "front",
+   "region": "face",
+   "severity": 2,
+   "concerns": [
+    "face_length"
+   ],
+   "direct": [
+    "face_shape_chin",
+    "sheet_cheek_chin",
+    "sheet_profile_chin",
+    "sheet_width"
+   ],
+   "related": {
+    "face_shape_chin": [
+     -0.012,
+     "PASS"
+    ],
+    "sheet_cheek_chin": [
+     -0.0245,
+     "WARN"
+    ],
+    "sheet_profile_chin": [
+     -0.0238,
+     "WARN"
+    ],
+    "sheet_width": [
+     0.825,
+     "FAIL"
+    ]
+   },
+   "board": "charkit/out/tune/clawd/ck3_final/review/board.png",
+   "proposed": {
+    "check": "sheet_face_length",
+    "views": [
+     "front"
+    ],
+    "measure": "face_front",
+    "proto": "face_length",
+    "what": "the face's length over its width against the design's (a face can pass the chin's height and each width alone and still read long)",
+    "prototype": {
+     "value": 1.093,
+     "ours": 1.435,
+     "design": 1.313,
+     "kind": "ratio",
+     "limits": [
+      0.04,
+      0.08
+     ],
+     "how": "front view: the chin's depth under the eye line over the half-width at 55% of the way to the chin (sheetqa's chin and widths.d55), ours over the design's",
+     "status": "FAIL"
+    },
+    "value": 1.093
+   },
+   "missed_by": [
+    "face_shape_chin"
+   ],
+   "reference": {
+    "measure": "face_front",
+    "authority": "sheet"
+   },
+   "author": "Claude (the tune proof run's review)"
+  },
+  {
+   "id": "T002",
+   "kind": "measure",
+   "status": "open",
+   "created": "2026-09-28T10:14:38",
+   "text": "the buns read as hard-edged boxes, not the rounded buns of the design",
+   "note": "N002",
+   "build": "charkit/out/tune/clawd/ck3_final",
+   "view": "three_quarter",
+   "region": "hair",
+   "severity": 2,
+   "concerns": [
+    "hair_shape"
+   ],
+   "direct": [
+    "body_back_hair_length",
+    "body_back_hair_width",
+    "body_back_iou_hair",
+    "body_front_hair_length",
+    "body_front_hair_width",
+    "body_front_iou_hair",
+    "body_profile_hair_length",
+    "body_profile_hair_width",
+    "body_profile_iou_hair",
+    "body_three_quarter_hair_length",
+    "body_three_quarter_hair_width",
+    "body_three_quarter_iou_hair",
+    "scalp_px",
+    "shape_iou_hair"
+   ],
+   "related": {
+    "body_back_hair_length": [
+     -0.0087,
+     "PASS"
+    ],
+    "body_back_hair_width": [
+     0.883,
+     "WARN"
+    ],
+    "body_back_iou_hair": [
+     0.643,
+     "WARN"
+    ],
+    "body_front_hair_length": [
+     -0.0782,
+     "PASS"
+    ],
+    "body_front_hair_width": [
+     0.882,
+     "WARN"
+    ],
+    "body_front_iou_hair": [
+     0.481,
+     "FAIL"
+    ],
+    "body_profile_hair_length": [
+     -0.0174,
+     "PASS"
+    ],
+    "body_profile_hair_width": [
+     0.92,
+     "PASS"
+    ],
+    "body_profile_iou_hair": [
+     0.463,
+     "FAIL"
+    ],
+    "body_three_quarter_hair_length": [
+     0.0261,
+     "PASS"
+    ],
+    "body_three_quarter_hair_width": [
+     0.848,
+     "FAIL"
+    ],
+    "body_three_quarter_iou_hair": [
+     0.474,
+     "FAIL"
+    ],
+    "scalp_px": [
+     0,
+     "PASS"
+    ],
+    "shape_iou_hair": [
+     0.987,
+     "PASS"
+    ]
+   },
+   "board": "charkit/out/tune/clawd/ck3_final/review/board.png",
+   "proposed": {
+    "check": "hair_bun_outline",
+    "views": [
+     "front",
+     "three_quarter",
+     "back"
+    ],
+    "measure": "hair_silhouette",
+    "what": "the hair's outline per view against the design's figures (its volume and where the bangs stand off the forehead)"
+   },
+   "missed_by": [
+    "body_back_hair_length",
+    "body_front_hair_length",
+    "body_profile_hair_length",
+    "body_profile_hair_width",
+    "body_three_quarter_hair_length",
+    "scalp_px",
+    "shape_iou_hair"
+   ],
+   "reference": {
+    "measure": "hair_silhouette",
+    "authority": "sheet"
+   },
+   "author": "Claude (the tune proof run's review)"
+  },
+  {
+   "id": "T003",
+   "kind": "work",
+   "status": "open",
+   "created": "2026-09-28T10:14:38",
+   "text": "the hair shading is blotchy: light speckles on the back and sides",
+   "note": "N003",
+   "build": "charkit/out/tune/clawd/ck3_final",
+   "view": "back",
+   "region": "hair",
+   "severity": 2,
+   "concerns": [
+    "hair_shading",
+    "hair_shape"
+   ],
+   "direct": [
+    "hair_noise"
+   ],
+   "related": {
+    "body_back_hair_length": [
+     -0.0087,
+     "PASS"
+    ],
+    "body_back_hair_width": [
+     0.883,
+     "WARN"
+    ],
+    "body_back_iou_hair": [
+     0.643,
+     "WARN"
+    ],
+    "body_front_hair_length": [
+     -0.0782,
+     "PASS"
+    ],
+    "body_front_hair_width": [
+     0.882,
+     "WARN"
+    ],
+    "body_front_iou_hair": [
+     0.481,
+     "FAIL"
+    ],
+    "body_profile_hair_length": [
+     -0.0174,
+     "PASS"
+    ],
+    "body_profile_hair_width": [
+     0.92,
+     "PASS"
+    ],
+    "body_profile_iou_hair": [
+     0.463,
+     "FAIL"
+    ],
+    "body_three_quarter_hair_length": [
+     0.0261,
+     "PASS"
+    ],
+    "body_three_quarter_hair_width": [
+     0.848,
+     "FAIL"
+    ],
+    "body_three_quarter_iou_hair": [
+     0.474,
+     "FAIL"
+    ],
+    "scalp_px": [
+     0,
+     "PASS"
+    ],
+    "shape_iou_hair": [
+     0.987,
+     "PASS"
+    ]
+   },
+   "board": "charkit/out/tune/clawd/ck3_final/review/board.png",
+   "checks": [
+    "hair_noise"
+   ],
+   "author": "Claude (the tune proof run's review)"
+  },
+  {
+   "id": "T004",
+   "kind": "work",
+   "status": "open",
+   "created": "2026-09-28T10:14:38",
+   "text": "the bangs hide the eyes at three-quarter and in profile",
+   "note": "N004",
+   "build": "charkit/out/tune/clawd/ck3_final",
+   "view": "three_quarter",
+   "region": "hair",
+   "severity": 3,
+   "concerns": [
+    "hair_framing",
+    "eyes",
+    "hair_shape"
+   ],
+   "direct": [
+    "face_shape_coverage_front",
+    "face_shape_coverage_three_quarter",
+    "sheet_shown_front",
+    "sheet_shown_profile",
+    "sheet_shown_three_quarter"
+   ],
+   "related": {
+    "body_back_hair_length": [
+     -0.0087,
+     "PASS"
+    ],
+    "body_back_hair_width": [
+     0.883,
+     "WARN"
+    ],
+    "body_back_iou_hair": [
+     0.643,
+     "WARN"
+    ],
+    "body_front_hair_length": [
+     -0.0782,
+     "PASS"
+    ],
+    "body_front_hair_width": [
+     0.882,
+     "WARN"
+    ],
+    "body_front_iou_hair": [
+     0.481,
+     "FAIL"
+    ],
+    "body_profile_hair_length": [
+     -0.0174,
+     "PASS"
+    ],
+    "body_profile_hair_width": [
+     0.92,
+     "PASS"
+    ],
+    "body_profile_iou_hair": [
+     0.463,
+     "FAIL"
+    ],
+    "body_three_quarter_hair_length": [
+     0.0261,
+     "PASS"
+    ],
+    "body_three_quarter_hair_width": [
+     0.848,
+     "FAIL"
+    ],
+    "body_three_quarter_iou_hair": [
+     0.474,
+     "FAIL"
+    ],
+    "eye_aspect": [
+     0.701,
+     "FAIL"
+    ],
+    "eye_highlight_side": [
+     [
+      0.33,
+      0.63
+     ],
+     "WARN"
+    ],
+    "eye_iris_ratio": [
+     1.15,
+     "WARN"
+    ],
+    "eye_lid_gap": [
+     0.0044,
+     "WARN"
+    ],
+    "eye_lid_span": [
+     1.242,
+     "FAIL"
+    ],
+    "eye_pupil_aspect": [
+     0.476,
+     "FAIL"
+    ],
+    "eye_pupil_run": [
+     1.897,
+     "FAIL"
+    ],
+    "eye_width": [
+     0.917,
+     "WARN"
+    ],
+    "face_shape_coverage_front": [
+     1.041,
+     "PASS"
+    ],
+    "face_shape_coverage_three_quarter": [
+     0.941,
+     "PASS"
+    ],
+    "scalp_px": [
+     0,
+     "PASS"
+    ],
+    "shape_iou_hair": [
+     0.987,
+     "PASS"
+    ],
+    "sheet_shown_front": [
+     0.387,
+     "WARN"
+    ],
+    "sheet_shown_profile": [
+     0.155,
+     "WARN"
+    ],
+    "sheet_shown_three_quarter": [
+     0.446,
+     "WARN"
+    ]
+   },
+   "board": "charkit/out/tune/clawd/ck3_final/review/board.png",
+   "checks": [
+    "sheet_shown_front",
+    "sheet_shown_profile",
+    "sheet_shown_three_quarter"
+   ],
+   "author": "Claude (the tune proof run's review)"
+  },
+  {
+   "id": "T005",
+   "kind": "work",
+   "status": "open",
+   "created": "2026-09-28T10:14:38",
+   "text": "the skirt flares into a wide cone; the design's is a short pleated A-line with a stepped hem",
+   "note": "N005",
+   "build": "charkit/out/tune/clawd/ck3_final",
+   "view": "body",
+   "region": "outfit",
+   "severity": 3,
+   "concerns": [
+    "outfit"
+   ],
+   "direct": [
+    "body_back_boot",
+    "body_back_hem",
+    "body_back_hem_mid",
+    "body_back_iou_outfit",
+    "body_back_skirt_width",
+    "body_back_sleeves",
+    "body_front_boot",
+    "body_front_hem",
+    "body_front_hem_mid",
+    "body_front_iou_outfit",
+    "body_front_skirt_width",
+    "body_front_sleeves",
+    "body_profile_hem",
+    "body_profile_iou_outfit",
+    "body_profile_skirt_width",
+    "body_three_quarter_hem",
+    "body_three_quarter_hem_mid",
+    "body_three_quarter_iou_outfit",
+    "body_three_quarter_skirt_width",
+    "body_three_quarter_sleeves",
+    "poke_share"
+   ],
+   "related": {
+    "body_back_boot": [
+     0.2781,
+     "FAIL"
+    ],
+    "body_back_hem": [
+     -0.0783,
+     "PASS"
+    ],
+    "body_back_hem_mid": [
+     -0.5303,
+     "FAIL"
+    ],
+    "body_back_iou_outfit": [
+     0.475,
+     "FAIL"
+    ],
+    "body_back_skirt_width": [
+     1.456,
+     "FAIL"
+    ],
+    "body_back_sleeves": [
+     1.032,
+     "PASS"
+    ],
+    "body_front_boot": [
+     0.2086,
+     "FAIL"
+    ],
+    "body_front_hem": [
+     -0.087,
+     "WARN"
+    ],
+    "body_front_hem_mid": [
+     -0.4695,
+     "FAIL"
+    ],
+    "body_front_iou_outfit": [
+     0.487,
+     "FAIL"
+    ],
+    "body_front_skirt_width": [
+     1.295,
+     "FAIL"
+    ],
+    "body_front_sleeves": [
+     1.021,
+     "PASS"
+    ],
+    "body_profile_hem": [
+     -0.1478,
+     "WARN"
+    ],
+    "body_profile_iou_outfit": [
+     0.47,
+     "FAIL"
+    ],
+    "body_profile_skirt_width": [
+     1.11,
+     "WARN"
+    ],
+    "body_three_quarter_hem": [
+     -0.1044,
+     "WARN"
+    ],
+    "body_three_quarter_hem_mid": [
+     -0.3477,
+     "FAIL"
+    ],
+    "body_three_quarter_iou_outfit": [
+     0.627,
+     "WARN"
+    ],
+    "body_three_quarter_skirt_width": [
+     1.357,
+     "FAIL"
+    ],
+    "body_three_quarter_sleeves": [
+     0.994,
+     "PASS"
+    ],
+    "poke_share": [
+     0.0113,
+     "WARN"
+    ]
+   },
+   "board": "charkit/out/tune/clawd/ck3_final/review/board.png",
+   "checks": [
+    "body_back_boot",
+    "body_back_hem_mid",
+    "body_back_iou_outfit",
+    "body_back_skirt_width",
+    "body_front_boot",
+    "body_front_hem",
+    "body_front_hem_mid",
+    "body_front_iou_outfit",
+    "body_front_skirt_width",
+    "body_profile_hem",
+    "body_profile_iou_outfit",
+    "body_profile_skirt_width",
+    "body_three_quarter_hem",
+    "body_three_quarter_hem_mid",
+    "body_three_quarter_iou_outfit",
+    "body_three_quarter_skirt_width",
+    "poke_share"
+   ],
+   "author": "Claude (the tune proof run's review)"
+  }
+ ]
+}

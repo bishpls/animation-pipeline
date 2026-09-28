@@ -11,7 +11,7 @@ worktree reads a few hundred MB of it. Standard library only (tools/worktree.sh 
 """
 import json, os, sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.environ.get('CHARKIT_ROOT') or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CORE = ['engine', 'tools', 'docs', 'infra']
 CHARKIT = CORE + ['charkit', 'projects/charkit-look', 'projects/clawd3d']
 
