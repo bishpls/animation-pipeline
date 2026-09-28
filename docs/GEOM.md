@@ -17,7 +17,7 @@ is ordered, so reruns give the same bytes.
 | `io` | `load`/`save` for .glb/.gltf, .ply (ascii and binary), .obj and .npz. glTF comes in with node transforms applied and the base-colour texture sampled to per-vertex sRGB colour (bilinear or nearest, times baseColorFactor and COLOR_0), turned z-up the way Blender's importer does it. `blender_compat=True` reproduces `i3d.load_glb`'s colours exactly (see "Findings") |
 | `repair` | `merge_close`, `clean` (degenerate faces, duplicates, coincident opposite pairs), `orient` (consistent winding across manifold edges, then each part turned outward: closed parts by volume, open ones by winding number), `fill_holes`, `remove_small_parts`, `fix_self_intersections` (local relaxation), `cut_intersections` (cut out, refill, relax), `report` |
 | `bvh` | `BVH(mesh)`: `nearest`, `signed_distance` (sign from the winding number, or from pseudo-normals), `winding_number` (Barill et al. fast dipole approximation), `contains`, `ray_cast`, `ray_count`, `ray_hits`. numba, parallel over queries |
-| `volume` | `Grid` (world-lattice snapped, so grids with the same voxel size combine voxel for voxel): `occupancy` (winding number or 3-axis ray parity), `solid` (see below), `sdf` (exact near the surface, EDT far), `thicken` (a sheet to a closed solid), `to_mesh` (marching cubes: closed, manifold, wound outward), `union` / `intersection` / `difference`, `dilate` / `erode` / `opening` / `closing` / `blur`, `fill_cavities`, `keep_components`, `restrict` |
+| `volume` | `Grid` (world-lattice snapped, so grids with the same voxel size combine voxel for voxel): `occupancy` (winding number or 3-axis ray parity), `solid` (see below), `sdf` (exact near the surface, EDT far), `thicken` (a sheet to a closed solid), `to_mesh` (marching cubes: closed, manifold, wound outward), `union` / `intersection` / `difference`, `dilate` / `erode` / `opening` / `closing` / `blur`, `fill_cavities`, `keep_components`, `weld` (bridge nearby pieces), `restrict` |
 | `boolean` | `boolean(a, b, op)`: exact through manifold3d when both inputs are manifold, the volume path otherwise; reports which path it took |
 | `smooth` | `taubin`, `laplacian`, `bilateral_normals` (Zheng et al. normal filtering with the Sun et al. vertex update), `smooth_normals`, `envelope_normals` |
 | `remesh` | `isotropic(m, L)` (Botsch-Kobbelt: split, collapse, flip toward valence 6, tangential relaxation, projection back onto the input, colours carried); `decimate(m, faces)` (Garland-Heckbert quadrics). Both keep a closed manifold closed and manifold (link condition, valence and normal-flip checks) |
@@ -60,7 +60,8 @@ surface is the generated one at sub-voxel accuracy.
 4. Colour: every voxel takes the colour of the generated surface nearest to it. Voxels that aren't hair-coloured go:
    skin, the collar, eyes and clips. The hair colour family is fitted to the generated crown (`hair_color`). This
    replaces `scene.cull_face`'s geometric face rule, which cuts the side locks flat in front of the cheeks. That rule
-   is still available as `face=True`.
+   is still available as `face=True`. Hair the generated character hides under its own skin also goes: a ray from the
+   voxel straight out from the head's axis meets generated skin first.
 5. Poke-through cover: where our head pokes out through the generated hair, a 3 mm layer over our grown skin closes
    the hole. This happens where hair-coloured generated surface lies inside our body and nothing of the hair is left
    outside along that direction from the hair centre (2.5° bins, excluding the face cone, above the chin). On Clawd
@@ -89,7 +90,9 @@ hair-thin double walls. So the skirt comes from the generated surface itself:
 - Drop the pieces that are 30 % or more skin, then the faces of the rest that hug a dropped piece: anything within
   0.05 L of the legs (shorts, tights).
 - Thicken what is left into a solid 0.016 L thick with `volume.thicken`. That is an exact distance, so the result is
-  closed.
+  closed. `volume.weld` then bridges the pieces that come within a few mm of the main one: the lens where the distances
+  to the two add up to 2 r. The front panels hang 5 to 6 mm off the waistband, and the bridge makes the skirt one
+  surface.
 - Finish as the hair does: remesh at 1.6 × the half-thickness, so no edge is longer than the cloth is thick and
   nothing folds across it, then quadric-decimate to 60 k faces.
 
@@ -135,7 +138,7 @@ python -m charkit.geom thicken IN OUT --r R            python -m charkit.geom bo
 python -m charkit.geom render IN OUT.png --az 0,90     python -m charkit.geom extract SPEC.json --part hair,skirt --glb PATH
 ```
 
-Tests (36, about 10 s): `python -m pytest charkit/tests/geom`. `CHARKIT_GEOM_REAL=1` adds the real Clawd hair and skirt.
+Tests (37, about 10 s): `python -m pytest charkit/tests/geom`. `CHARKIT_GEOM_REAL=1` adds the real Clawd hair and skirt.
 
 ## Findings along the way
 
@@ -152,3 +155,22 @@ Tests (36, about 10 s): `python -m pytest charkit/tests/geom`. `CHARKIT_GEOM_REA
 - qa3d's `hair_noise` read mostly Blender's dither. Renders are dithered by default, and ±0.5/255 of noise inside a flat
   toon tone splits it at a luminance percentile. The same hair measures 0.006 to 0.014 without dither and 0.19 to 0.73
   with it. qa3d's QA renders now turn dither off.
+
+## Known limits
+
+- The extraction is faithful to the generated hair: silhouette IoU against the generated hair above the chin is about
+  0.99 from every azimuth. What shows through it depends on our head. Clawd's face is narrower than the generated one,
+  so in profile the side hair covers more of our cheek than it covers the generated face. That is a head fit
+  (anime_head knobs), not an extraction issue.
+- Only the cap is filled down to the scalp. Hanging locks and the back sheet stay as TRELLIS made them: a closed skin
+  2 to 3 mm thick with a gap to the neck. The seal zone decides this.
+- The skirt is in the generated character's pose. Our legs stand wider and poke through it, and it has no skin weights
+  yet. Fitting it (a wrap onto our hips and thighs, weights blended like `garments.skirt`) is the next step.
+- The colour families are fitted automatically: hair from the crown, skin from the nose. Clothes the same colour as the
+  hair are kept out of the hair by region: the chin cut, `shoulder_x`, and the hanging rule below the chin. Another
+  character's outfit may need its own region.
+- genus is about 25 on the hair: the ahoge loop and gaps between locks. Pits under 3 mm are closed; closing more
+  would merge locks.
+- qa3d's `hair_noise`, now without dither, still reads about 0.18 on the kernel hair (0.31 on the mesh-mode hair). At
+  QA resolution (about 9,000 hair pixels) the inverted-hull outline lines between locks are most of it. A numpy toon
+  render of the same hair without outlines measures 0.03 to 0.08.
