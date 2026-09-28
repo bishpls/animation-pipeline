@@ -79,7 +79,7 @@ labs measured, and who did what: **[projects/frame-perfect/MAKING-OF.md](project
 | `engine/` | `core.js` (time, easing, beat clock, boil), `riso.js` (the press), `type.js` (variable-font kinetic type), `studio.js`, `render.mjs` (headless Chrome, parallel and resumable, sheets/strips/crops, `--serve`, `--eval`), `pop.js` (the chibi kit), `puppet.js` (cut-paper puppets), `warp.js`, `rig.js` (a Live2D-style mesh rig), `moves.js` (dance choreography) |
 | `tools/` | `music.py` (songs + word timestamps, stored for inpainting), `audio_analyze.py` (grid, seams, cue sheet), `lyric_check.py`, `songmap.py`, `tts.py` (narration + word timestamps), `sfx.py` and `sfxmix.py`, `gemini.py` (media critic), `imagegen.py` and `gptimage.py`, `chroma.py` (green-screen keying), rig building and range-of-motion checks, motion audits and mocap retargeting, `filmscan.py`, `seedance.py` (Higgsfield Seedance 2.5, only with sign-off). All of them: `docs/TOOLS.md` |
 | `projects/open-all-night/` | the film: `STORYBOARD.md`, `src/` (look, cast, world, lyrics, eye, hook, globe, shots/), `sound.py`, `assets/` |
-| `legacy/ember/` | reusable code from the EMBER action shorts (a synth and mastering engine, IK, follow-through, sakuga FX) |
+| `legacy/ember/` | reusable code from the EMBER action shorts (a synth and mastering engine, IK, follow-through, sakuga FX, the Round 5 Blender character build) |
 | `docs/references/` | ClaudeAnimationBase's guide (MIT), prior art for the method |
 
 ```bash

@@ -85,6 +85,14 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 Game data (disc images, the game's executable, builds, captured plates, raw game audio) never enters the repo: it lives in
 `~/games/` or under gitignored paths.
 
+## GPU box (infra/gcp: CUDA-only models; the plan is docs/PIPELINE_3D.md)
+
+| tool | what |
+|---|---|
+| `infra/gcp/gpu.sh` | `up` (start and wait for boot), `ssh [cmd]`, `push` / `pull` (to `/srv/work/`), `status`, `stop`; it stops itself after 30 idle minutes (`touch /srv/work/.keepalive` covers a long download) |
+| `infra/gcp/gpu-provision.sh` | creates the box once: its own VPC (IAP SSH in, NAT out, no external IP), a service account limited to its bucket and logs; prints the plan, `--execute` runs it |
+| `infra/gcp/gpu.env.example` | the config; copy to `gpu.env` (gitignored) |
+
 ## Review and bookkeeping
 | tool | what |
 |---|---|

@@ -40,7 +40,10 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `machinima/`: decompiled games as a film backend (Melee via doldecomp + Dolphin; `tools/machinima/README.md`). Game data
     (disc images, builds, plates) never enters the repo.
 - `docs/`: `CRAFT.md` (the method and its lessons), `TOOLS.md`, `RIGGING.md`, `MOTION.md`, `REVIEW.md`, `SESSIONS.md`; `research/`
-  (measured Live2D coupling); `references/`: prior art.
+  (measured Live2D coupling); `references/`: prior art. `PIPELINE_3D.md`: the 3D pipeline plan (mocap, characters, camera conte,
+  licences read as commercial, build order).
+- `infra/gcp/`: the GPU research box for CUDA-only models (`gpu.sh up | ssh | push | pull | stop`); its config `gpu.env` is
+  gitignored because this repo is public. Research repos run there, never on the laptop.
 - `projects/<film>/`: `index.html` (script order is the film), `src/` (look, characters, lyrics, `shots/`), `assets/`, `STORYBOARD.md`,
   `board/` (review images, gitignored), `out/` (renders, gitignored).
   - `open-all-night`: riso, 16:9
