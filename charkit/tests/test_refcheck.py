@@ -35,6 +35,33 @@ def test_drawn_chin_finds_the_turn_to_the_neck_on_a_receding_profile():
     assert faceqa.chin_bottom(-lead, z, -0.2) > -0.34
 
 
+
+def test_checks_are_graded_only_against_their_measures_authority():
+    from charkit import checks
+    A = {'body_silhouette': 'sheet', 'hair_shape': 'trellis', 'expressions': None, 'face_depth': 'trellis'}
+    C = {'shape_iou': {'value': 0.74, 'status': 'WARN'},                 # the silhouette against TRELLIS: not its authority
+         'shape_iou_hair': {'value': 0.97, 'status': 'PASS'},            # the hair shape against TRELLIS: its authority
+         'body_front_iou': {'value': 0.78, 'status': 'WARN'},            # against the sheet: its authority
+         'expr_laugh_mouth': {'value': 0.2, 'status': 'FAIL'},           # expressions: no reference
+         'face_shape_depth': {'value': 0.02, 'status': 'WARN'},
+         'poke_share': {'value': 0.01, 'status': 'WARN'}}                # no measure: untouched
+    checks.authorize(C, A)
+    assert C['shape_iou']['status'] == 'INFO' and C['shape_iou']['graded_as'] == 'WARN' and C['shape_iou']['value'] == 0.74
+    assert C['expr_laugh_mouth']['status'] == 'INFO'
+    assert [C[k]['status'] for k in ('shape_iou_hair', 'body_front_iou', 'face_shape_depth', 'poke_share')] == \
+        ['PASS', 'WARN', 'WARN', 'WARN']
+
+
+def test_the_manifest_fills_the_design_sheets_from_the_generated_references():
+    from charkit import manifest
+    spec = {'name': 'clawd', 'ref': {'manifest': 'charkit/refs/clawd/manifest.json'}}
+    ref = manifest.resolve(spec)['ref']
+    assert ref['face_sheet']['id'] == 'head_turnaround' and ref['eyes_sheet']['id'] == 'head_turnaround'
+    assert ref['body_sheet']['id'] == 'body_turnaround' and ref['body_sheet']['layout'] == 'figures'
+    assert ref['authority']['eyes'] == 'sheet' and ref['authority']['expressions'] is None
+    assert ref['sheet']['image'].endswith('idol_D.png')                  # the source design, still resolved for refs.fit
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
