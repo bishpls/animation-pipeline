@@ -156,6 +156,77 @@ the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
 
+**The fast evaluator: the body, garments and hair without Blender** (`charkit/bodyeval.py`). A fit needs many
+evaluations, and a Blender build with its QA takes about 100 s. `bodyeval.Evaluator(spec)` makes every object the build
+makes, in numpy, at the rest pose: the skin (masked under the tight garments, as the build masks it), the eyes and the
+mouth, every garment piece (the builders in `charkit/garments.py`), the hair and its cap, and the accessories. It then
+measures qa3d's silhouette checks with `charkit.geom.raster` (pixel centres, qa3d's camera and bands, a part label per
+triangle).
+- **The hair.** The generated TRELLIS hair is selected, culled and smoothed as `scene.hair_shape_volume` and
+  `hair_shape_mesh` do it (BVH signed distance, a vectorised face cull, Blender's Smooth modifier, which moves each
+  vertex toward its edges' midpoints). Mode `geom` uses charkit.geom's closed hair, and the analytic locks are
+  `hair.generate`. The cap comes from `hair.cap`, and the accessories sit on `hair.MeshVolume`. Both run in the venv
+  because `hair` casts rays with charkit.geom's BVH when numba is there.
+- **What is cached.** The assembly is pickled by spec and code. A body knob rebuilds only the body: the macro stage of
+  `body.build_body_data` is cached, so this takes about 0.2 s. `bodyeval.compose` carries the assembled head over in its
+  own frame (head centre, L), because the anime head is a wrap onto an L-sized target. The hair layers (selection,
+  finish, cap, accessories) are kept in the head frame by the knobs each reads, and garment pieces are cached by their
+  own spec.
+- **Checked against Blender.** Run `python -m charkit bodyeval --validate BUILD` on a finished build. It dumps the
+  build's geometry (`charkit/bodyeval_blender.py`) and compares object by object, then compares the QA checks and each
+  view's silhouette pixel by pixel (from qa3d's overlay). With `--from SPEC --knob PATH=VALUE ...`, it evaluates the base
+  spec with those knobs, which tests the fast knob path against a build made from them. On Clawd:
+  - Every object built by the same code matches to 1e-7 m, and the float32 trace hashes match.
+  - The ported hair is within 1.1 mm (bbox) and at 0.98 silhouette IoU of Blender's.
+  - The QA checks are within 0.005: shape_iou 0.577 against 0.579, hair 0.971 against 0.976, torso 0.631 against
+    0.633, skirt 0.569, legs 0.299, ref_iou 0.546 against 0.549.
+  - The silhouettes agree at 0.986 to 0.990 IoU per view (the target's at 0.998). What is left is the subdivision
+    surface's shrinkage, under a pixel. The QA's flat renders don't draw the outline hulls.
+  - A body knob through `compose` stays within 0.002 of a full assembly on every QA number, and within 0.3 mm on
+    average, across ten body knobs.
+  - A Blender build of Clawd with four body knobs changed (leg 1.0, hip 1.0, neck_w 0.7, heads_tall 6.0) was validated
+    against the evaluator's fast path from the base spec. The objects are within 0.5 mm on average. The collar's surface
+    walk can jump one vertex on a sub-millimetre change: 23 mm, once. The QA checks are within 0.005, and the
+    silhouettes agree at 0.986 or better (0.994 for the target).
+  - faceqa's splat z-buffer covers any pixel a triangle touches, so it reads 3.6 % more pixels (0.96 IoU against Blender)
+    and is about 40x slower. That is why the raster is used.
+  - Speed, warm, per evaluation with the QA and measurements. It depends on the machine's load:
+    - a garment knob or an accessory: 0.15 to 0.3 s;
+    - a body knob: 1.2 to 2.7 s;
+    - a hair-selection knob: 0.9 to 2.5 s.
+
+    Blender takes about 100 s, so the slowest knob is at least 40x faster. The first evaluation of a spec takes 12 to
+    20 s.
+- **The measurements** (`bodyeval.MEASURES`, `bodyeval.measures`): the QA's IoUs, and ours minus the target's for the
+  following, in head lengths L.
+  - The filled width and outer extent per band, front and side.
+  - The silhouette's top and bottom.
+  - The arms' line from vertical (front, shoulder to waist).
+  - Each leg's line and the gap between the legs.
+
+**Every knob's effect on the silhouette** (`charkit/bodysens.py`). `python -m charkit bodysens SPEC [--only
+body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/out/bodyeval/NAME/`.
+- **The inventory.** It lists every knob the body, the garment builders (parsed from `charkit/garments.py`, and a test
+  holds the table to them) and the hair read, with its value or the builder's default, a step and a range. Each knob has
+  a kind: geometry, colour, resolution, categorical, or inactive (read on a path this spec doesn't take).
+- **The table.** Each geometry knob is moved a step each way through the evaluator, and the table records every
+  measurement's change per step. The analytic locks, inactive under the TRELLIS hair, are measured on the analytic
+  variant. Hair modes are measured as variants.
+- **Needs a capability.** A measurement is listed when no knob moves it, when no single knob reaches half way to the
+  target within its range, when it needs a limb turned, or when the best knob closes it only by pushing other
+  measurements further out of tolerance. Each listing gives the best knob, its reach and its cost.
+- **Findings on Clawd** (305 knobs listed, 221 measured, 10 min).
+  - The figure is 0.27 L longer than the generated shape (`body.heads_tall`: 0.20 L per 0.2).
+  - The skirt is 0.41 L too full from the front (`flare` 0.08 L per 3 degrees, `length` 0.07 L per 0.05 L, `back`
+    0.06 L).
+  - The legs stand 0.43 L further apart (`hip` 0.034 L per 0.05).
+  - `height_m` moves nothing: the target is scaled by our eye spacing, so everything is in L.
+  - Many garment knobs move nothing at band scale (cuffs, sleeves, collar, the shells' regions and cuts). That needs
+    per-piece measurements.
+  - Needing a capability: the arms' angle (40 degrees against 26) and the legs' splay (5 degrees). Every body knob
+    scales along or across a bone, so none turns a limb. They move only as side effects of the torso's length or the
+    head count. This leaves the front torso and legs spans out, and it wants a rest-pose knob.
+
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
 a lighting sweep of the face; a range-of-motion sheet (T-pose, arms up, deep bend, twist, crouch, kick); and topology stats

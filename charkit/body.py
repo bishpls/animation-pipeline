@@ -5,7 +5,7 @@ Proportions are edited as scale transforms per VRM bone (along the bone and acro
 blend skinning with the body's own weights: a leg lengthens smoothly through the hip and knee, children move with their
 parents, and the skeleton (whose joints are vertex averages) follows exactly. See docs/CHARKIT.md §2.
 """
-import math
+import json, math
 import numpy as np
 
 from . import mh
@@ -110,27 +110,43 @@ def _lips_centre(verts, skel, n):
     return acc / max(tot, 1e-9)
 
 
+_MACRO = {}
+
+
+def macro_stage(P):
+    """what only the macro knobs (sex, age, muscle, weight, height, ideal, ethnic) decide: MakeHuman's base morphed, its
+    joints, the VRM weights and each helper vertex's nearest body vertex. Cached per macro knobs (the proportions and the
+    height scaling don't touch it); callers get it read-only."""
+    key = json.dumps([P[k] for k in ('sex', 'age', 'muscle', 'weight', 'height', 'ideal')] + list(P['ethnic']))
+    if key not in _MACRO:
+        base = mh.Base()
+        skel = mh.Skeleton()
+        N = 13380                                             # the body group (the helpers come after it)
+        mw = mh.macro_weights(sex=P['sex'], age=P['age'], muscle=P['muscle'], weight=P['weight'], height=P['height'],
+                              proportions=P['ideal'], ethnic=tuple(P['ethnic']))
+        v_mh = mh.morph(base.verts, mw)
+        body_bl, helpers_bl = mh.to_blender(v_mh[:N]), mh.to_blender(v_mh[N:])
+        if len(_MACRO) >= 4:
+            _MACRO.clear()
+        _MACRO[key] = dict(base=base, skel=skel, N=N, v_mh=v_mh, body_bl=body_bl, helpers_bl=helpers_bl,
+                           joints={k: mh.to_blender(p) for k, p in skel.joint_positions(v_mh).items()},
+                           W=mh.vrm_weights(skel, N), nn=nearest(helpers_bl, body_bl))
+    return _MACRO[key]
+
+
 def build_body_data(spec_body=None, neck_below_top=0.86, keep_head=False):
     """-> dict(verts (Blender frame, stylised, scaled, feet on z=0), faces (kept, re-indexed), face_uv, uvs, weights
     {vrm bone: (n,)}, joints {mh joint: pos}, neck_ring [vertex indices of the open neck boundary, ordered], params)."""
     P = _merge(DEFAULT_BODY, spec_body or {})
-    base = mh.Base()
-    skel = mh.Skeleton()
-    N = 13380                                                 # the body group (the helpers come after it)
-    mw = mh.macro_weights(sex=P['sex'], age=P['age'], muscle=P['muscle'], weight=P['weight'], height=P['height'],
-                          proportions=P['ideal'], ethnic=tuple(P['ethnic']))
-    v_mh = mh.morph(base.verts, mw)
-    verts = mh.to_blender(v_mh[:N])
-    joints = {k: mh.to_blender(p) for k, p in skel.joint_positions(v_mh).items()}
-    W = mh.vrm_weights(skel, N)
-    verts = stylise(verts, joints, W, bone_scales(P['proportions']))
+    M = macro_stage(P)
+    base, skel, N = M['base'], M['skel'], M['N']
+    v_mh, body_bl, helpers_bl, nn = M['v_mh'], M['body_bl'], M['helpers_bl'], M['nn']
+    joints = dict(M['joints'])
+    W = {k: w.copy() for k, w in M['W'].items()}
+    verts = stylise(body_bl, joints, W, bone_scales(P['proportions']))
     # joints follow: recompute them on the stylised mesh (joints are vertex averages; helper-vertex joints move rigidly
     # with the nearest body vertex's displacement)
-    disp = np.zeros_like(v_mh)
-    body_bl = mh.to_blender(v_mh[:N])
     d_body = verts - body_bl
-    helpers_bl = mh.to_blender(v_mh[N:])
-    nn = nearest(helpers_bl, body_bl)
     all_new = np.vstack([verts, helpers_bl + d_body[nn]])
     joints = {j: all_new[np.array(ix)].mean(0) for j, ix in skel.joints.items()}
     body_faces = [(i, f) for i, f in enumerate(base.faces) if base.face_group[i] == 'body']

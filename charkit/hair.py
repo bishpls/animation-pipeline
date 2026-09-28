@@ -52,6 +52,24 @@ def _dir(az, el):
     return np.array([math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)])
 
 
+def _cast_from(O, D, V, T):
+    """first-hit distances of rays from one origin O along D (M,3) on triangles, inf on a miss: charkit.geom's BVH where
+    numba is (the venv), anime_head.raycast where it isn't (Blender). The BVH's misses are cast again the numpy way
+    (its edge tolerance catches rays through a shared edge), so both give the same hits."""
+    try:
+        from .geom.bvh import BVH
+        from .geom.mesh import Mesh
+    except ImportError:
+        return ah.raycast(O, D, V, T)
+    D = np.asarray(D, float)
+    t, _ = BVH(Mesh(np.asarray(V, float), np.asarray(T))).ray_cast(np.broadcast_to(np.asarray(O, float), D.shape), D,
+                                                                   tmin=1e-9)
+    miss = ~np.isfinite(t)
+    if miss.any():
+        t[miss] = ah.raycast(np.asarray(O, float), D[miss], V, T)
+    return t
+
+
 class Volume:
     """The hair mass's outer surface. Built from the head: its radius along each direction from the hair centre (a ray-cast
     grid), plus a thickness that is fullest at the crown and thin at the hairline; below el0 the mass hangs: straight down,
@@ -67,7 +85,7 @@ class Volume:
         self.azs = np.arange(-180, 181, 5.0)
         self.els = np.arange(-40, 91, 5.0)
         D = np.array([_dir(a, e) for e in self.els for a in self.azs])
-        t = ah.raycast(self.c, D, TVw, TT)
+        t = _cast_from(self.c, D, TVw, TT)
         t = np.where(np.isfinite(t), t, np.nan).reshape(len(self.els), len(self.azs))
         # fill misses (under the jaw) from the row above
         for i in range(len(self.els) - 2, -1, -1):
@@ -162,6 +180,26 @@ class Volume:
         return n / ln if ln > 1e-12 else h / np.linalg.norm(h)
 
 
+def _cast_in(V, F, O, D, R):
+    """first-hit distances of rays O + t D (t <= R) on a mesh, NaN on a miss: Blender's BVH inside Blender, charkit.geom's
+    (the same first hit, numba) in the venv."""
+    try:
+        from mathutils import Vector
+        from mathutils.bvhtree import BVHTree
+    except ImportError:
+        from .geom.bvh import BVH
+        from .geom.mesh import Mesh
+        t, _ = BVH(Mesh.from_polys(np.asarray(V, float), [tuple(f) for f in F])).ray_cast(O, D, R)
+        return np.where(np.isfinite(t), t, np.nan)
+    bvh = BVHTree.FromPolygons([Vector(v) for v in V], [tuple(f) for f in F])
+    out = np.full(len(O), np.nan)
+    for i, (o, d) in enumerate(zip(O, D)):
+        hit = bvh.ray_cast(Vector(o), Vector(d), R)
+        if hit[0] is not None:
+            out[i] = hit[3]
+    return out
+
+
 class MeshVolume(Volume):
     """The hair volume from a generated hair surface (charkit.i3d: a TRELLIS.2 mesh's hair part, in world): its outermost
     radius along each direction from the hair centre (a ray-cast grid, cast inward from outside so inner layers don't
@@ -170,20 +208,12 @@ class MeshVolume(Volume):
 
     def __init__(self, H, centre, S, target, hair_mesh, step=3.0, smooth=6):
         super().__init__(H, centre, S, target)
-        from mathutils import Vector
-        from mathutils.bvhtree import BVHTree
         V, F = hair_mesh
-        bvh = BVHTree.FromPolygons([Vector(v) for v in V], [tuple(f) for f in F])
         self.m_az = np.arange(-180, 180 + step / 2, step)
         self.m_el = np.arange(-86, 88 + step / 2, step)
         R = 1.5 * self.L
-        grid = np.full((len(self.m_el), len(self.m_az)), np.nan)
-        for i, e in enumerate(self.m_el):
-            for j, a in enumerate(self.m_az):
-                d = _dir(a, e)
-                hit = bvh.ray_cast(Vector(self.c + d * R), Vector(-d), R)
-                if hit[0] is not None:
-                    grid[i, j] = R - hit[3]
+        D = np.array([[_dir(a, e) for a in self.m_az] for e in self.m_el])
+        grid = R - _cast_in(V, F, self.c + D.reshape(-1, 3) * R, -D.reshape(-1, 3), R).reshape(D.shape[:2])
         # the mass, not its curls: bound each radius by the head-based volume (no spikes through gaps, no caves), hold the
         # crown near the analytic dome (buns and clips are built as accessories), fill gaps, then blur (wrapping round)
         base = np.array([[np.linalg.norm(Volume._point(self, a, e) - self.c) for a in self.m_az] for e in self.m_el])
@@ -401,8 +431,13 @@ def generate(H, centre, target, style=None, volume=None):
         B.add(*sweep(V, pts, 0.028 * L, th=0.5, w_root=0.9, tip=0.7, sharp=1.2, n=18))
     out['hair_front'] = B.data()
 
-    # the cap: a smooth shell under everything so no scalp shows (open over the face)
-    NA, NE = 64, 26
+    out['hair_cap'] = cap(V)
+    return out, V
+
+
+def cap(V, NA=64, NE=26):
+    """the cap: a smooth shell just inside the volume V, under everything so no scalp shows (open over the face).
+    -> (verts, faces, uvs)."""
     verts, uvs = [], []
     for i in range(NE + 1):
         el = 90 - 130 * i / NE
@@ -417,8 +452,7 @@ def generate(H, centre, target, style=None, volume=None):
                 continue
             a, b = i * NA + k, i * NA + (k + 1) % NA
             faces.append((a, b, b + NA, a + NA))
-    out['hair_cap'] = (np.array(verts), faces, uvs)
-    return out, V
+    return np.array(verts), faces, uvs
 
 
 def proxy_mesh(V, NA=72, NE=40):

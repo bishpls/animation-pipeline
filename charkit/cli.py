@@ -9,6 +9,8 @@
     python -m charkit history NAME [--check CHECK]                     # QA across builds
     python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
+    python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
+    python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -206,6 +208,12 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'bodyeval':
+        from . import bodyeval
+        bodyeval.main(rest)
+    elif cmd == 'bodysens':
+        from . import bodysens
+        bodysens.main(rest)
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)

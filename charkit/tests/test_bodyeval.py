@@ -1,0 +1,182 @@
+"""charkit.bodyeval and charkit.bodysens on synthetic fixtures with known answers (venv: run this file, or pytest)."""
+import os, sys
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from charkit import bodyeval, bodysens
+
+
+def grid_mesh(n=6, z=0.0):
+    """an n x n vertex grid of quads in the xy plane."""
+    xs, ys = np.meshgrid(np.arange(n, dtype=float), np.arange(n, dtype=float))
+    V = np.stack([xs.ravel(), ys.ravel(), np.full(n * n, z)], 1)
+    F = [(j * n + i, j * n + i + 1, (j + 1) * n + i + 1, (j + 1) * n + i) for j in range(n - 1) for i in range(n - 1)]
+    return V, F
+
+
+def test_knob_paths():
+    spec = {'body': {'proportions': {'leg': 1.1}}, 'garments': [{'kind': 'skirt', 'name': 'skirt', 'flare': 40},
+                                                                  {'kind': 'shell', 'name': 'top', 'cuts': [['hips', 0.0, 'above', 0.1]]}],
+            'accessories': [{'kind': 'bun'}, {'kind': 'star', 'size': 0.16}]}
+    assert bodyeval.get_knob(spec, 'garments.skirt.flare') == 40
+    assert bodyeval.get_knob(spec, 'garments.top.cuts.0.3') == 0.1
+    assert bodyeval.get_knob(spec, 'accessories.star.size') == 0.16
+    assert bodyeval.get_knob(spec, 'body.proportions.hip', 'd') == 'd'
+    S = bodyeval.with_knobs(spec, {'garments.skirt.flare': 30, 'body.proportions.hip': 0.9, 'accessories.1.size': 0.2,
+                                   'garments.top.cuts.0.3': 0.2})
+    assert S['garments'][0]['flare'] == 30 and S['body']['proportions']['hip'] == 0.9
+    assert S['accessories'][1]['size'] == 0.2 and S['garments'][1]['cuts'][0][3] == 0.2
+    assert spec['garments'][0]['flare'] == 40                                    # the original is untouched
+
+
+def test_blender_smooth_is_the_midpoint_rule():
+    V, F = grid_mesh(4)
+    V[5, 2] = 1.0                                                                # one raised interior vertex (4 neighbours)
+    S = bodyeval.blender_smooth(V, F, factor=0.5, iterations=1)
+    # Blender: v' = v (1 - f) + f * mean of the edge midpoints = v + f/2 (mean of neighbours - v)
+    assert abs(S[5, 2] - (1.0 + 0.25 * (0.0 - 1.0))) < 1e-12
+    assert abs(S[1, 2] - 0.5 * 0.5 * (1.0 / 3.0)) < 1e-12                        # a border neighbour: 3 edges, one raised
+
+
+def test_drop_small_parts_and_triangulate():
+    V1, F1 = grid_mesh(5)                                                        # 16 quads
+    V2, F2 = grid_mesh(2, z=5.0)                                                 # 1 quad
+    V = np.vstack([V1, V2]); F = np.asarray(F1 + [tuple(i + len(V1) for i in f) for f in F2])
+    T = bodyeval.triangulate(F)
+    assert T.shape == (34, 3)
+    v, f = bodyeval.drop_small_parts(V, T, 10)
+    assert len(f) == 32 and np.all(v[:, 2] == 0)
+    mixed = bodyeval.triangulate([(0, 1, 2), (0, 1, 2, 3), (0, 1, 2, 3, 4)])
+    assert len(mixed) == 1 + 2 + 3
+
+
+def test_bbox_norm_and_iou():
+    a = np.zeros((100, 60), bool); a[10:90, 20:40] = True
+    b = np.zeros((300, 300), bool); b[50:250, 100:150] = True                    # the same shape, scaled and moved
+    assert bodyeval._iou(bodyeval.bbox_norm(a), bodyeval.bbox_norm(b)) == 1.0
+
+
+def test_pose_measures_known_angles():
+    from charkit.geom.raster import Frame
+    fr = Frame((0.0, 0.0, 1.0), 2.0, (400, 400))
+    H, W = 400, 400
+    z = bodyeval._rows_z(fr)
+    pix = 2.0 / H
+    x = (np.arange(W) + 0.5 - W / 2) * pix
+    m = np.zeros((H, W), bool)
+    lm = dict(L=0.25, chin=1.6, waist=1.0, knee=0.5)
+    t30, t5 = np.tan(np.radians(30)), np.tan(np.radians(5))
+    for r in range(H):
+        zz = z[r]
+        if 1.0 < zz < 1.6:                                                        # a torso and two arms at 30 degrees
+            m[r, np.abs(x) < 0.1] = True
+            reach = 0.1 + (1.6 - zz) * t30
+            m[r, (np.abs(x) > reach - 0.03) & (np.abs(x) < reach)] = True
+        if 0.0 < zz < 0.5:                                                        # legs spreading 5 degrees, gap 0.1 at the knee
+            c = 0.1 + (0.5 - zz) * t5
+            m[r, np.abs(np.abs(x) - c) < 0.05] = True
+    P = bodyeval.pose_measures(m, fr, lm)
+    assert abs(P['arm_angle'] - 30) < 1.0, P
+    assert abs(P['leg_angle'] - 5) < 1.0, P
+    # the gap between the inner edges, 0.1 + 2 (0.5 - z) tan 5, averaged over the rows 0.2 L .. 1.2 L below the knee
+    assert abs(P['leg_gap'] - (0.1 + 2 * 0.175 * t5) / 0.25) < 0.03, P
+
+
+def test_compose_carries_the_head_frame():
+    """pure head vertices land on the old anime head moved by F (head centre, L); the body is the new body's."""
+    from charkit import head as headlib
+    rng = np.random.default_rng(1)
+    n = 400
+    V0 = rng.normal(size=(n, 3)) * 0.1
+    hw = np.zeros(n); hw[:150] = 1.0; hw[150:200] = 0.3                         # a head, a neck blend, the body
+    region = hw > 0.02
+    Vo = V0.copy(); Vo[region] += rng.normal(size=(region.sum(), 3)) * 0.01     # the wrap moved the head region
+    K = headlib._knobs({})
+    L0, L1, s0, s1 = 0.25, 0.27, 1.0, 1.1
+    t = np.array([0.0, 0.01, 0.2])
+    V1 = s1 / s0 * V0 + t                                                        # the new body (a similarity everywhere)
+    V1[200:] += rng.normal(size=(n - 200, 3)) * 0.02                             # ... but the body proper changed shape
+    B0 = dict(verts=V0, head_w=hw, scale=s0, marks={'chin': np.zeros(3)})
+    B1 = dict(verts=V1, head_w=hw, scale=s1, head_len=L1, joints={'a': np.zeros(3)}, weights={}, params={},
+              marks={'chin': t})
+    H0 = headlib.Head(L0, K)
+    c0 = np.array([0.0, 0.0, H0.chin])
+    A0 = dict(verts=Vo, faces=[], body=B0, joints={'a': np.zeros(3)}, weights={}, eyes=[],
+              head=dict(L=L0, H=H0, centre=c0, info=dict(region=region, profile=[], target=(np.zeros((3, 3)), np.zeros((1, 3), int)))),
+              mouth=dict(c=(0.0, c0[2]), teeth=(np.zeros((1, 3)), []), tongue=(np.zeros((1, 3)), []), line=(np.zeros((1, 3)), []),
+                         keys={}, teeth_keys={}, line_keys={}, tongue_keys={}))
+    A = bodyeval.compose(A0, None, B1)
+    lam = L1 / L0
+    c1 = A['head']['centre']
+    assert abs(c1[2] - (t[2] + headlib.Head(L1, K).chin)) < 1e-12
+    assert np.allclose(A['verts'][:150], c1 + lam * (Vo[:150] - c0), atol=1e-12)
+    assert np.allclose(A['verts'][200:], V1[200:], atol=1e-12)                    # outside the wrap: the new body exactly
+
+
+def test_cull_face_matches_scene():
+    """the vectorised face cull against scene.cull_face on random points round a real anime head."""
+    from charkit import head as headlib, scene
+    L = 0.25
+    H = headlib.Head(L, {})
+    c = np.array([0.0, -0.03, 1.4])
+    A = dict(head=dict(H=H, centre=c, L=L))
+    rng = np.random.default_rng(3)
+    P = c + rng.uniform([-0.3 * L, -0.5 * L, -0.5 * L], [0.3 * L, 0.2 * L, 0.3 * L], size=(160, 3))
+    F = np.arange(160).reshape(-1, 1).repeat(3, 1)                              # one degenerate face per point
+    v1, _ = bodyeval.cull_face(A, P, F, {})
+    v2, _ = scene.cull_face(bodyeval._S({}, A), P, [tuple(f) for f in F], {})
+    kept1 = {tuple(np.round(p, 9)) for p in v1}
+    kept2 = {tuple(np.round(p, 9)) for p in v2}
+    assert len(kept1 ^ kept2) <= 2, (len(kept1), len(kept2), len(kept1 ^ kept2))  # (the grid's interpolation at the edge)
+
+
+def test_volume_cast_matches_numpy():
+    from charkit import anime_head as ah, hair
+    th, ph = np.meshgrid(np.linspace(0, np.pi, 24), np.linspace(0, 2 * np.pi, 48, endpoint=False), indexing='ij')
+    V = np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1).reshape(-1, 3)
+    idx = np.arange(24 * 48).reshape(24, 48)
+    a, b = idx[:-1], np.roll(idx, -1, 1)[:-1]
+    cc, d = idx[1:], np.roll(idx, -1, 1)[1:]
+    T = np.concatenate([np.stack([a, cc, b], -1).reshape(-1, 3), np.stack([b, cc, d], -1).reshape(-1, 3)])
+    D = np.random.default_rng(0).normal(size=(300, 3)); D /= np.linalg.norm(D, axis=1, keepdims=True)
+    O = np.array([0.1, -0.05, 0.02])
+    t1, t2 = ah.raycast(O, D, V, T), hair._cast_from(O, D, V, T)
+    assert np.array_equal(np.isfinite(t1), np.isfinite(t2)) and np.allclose(t1, t2)
+
+
+def test_inventory_covers_every_builder_knob():
+    keys = bodysens.builder_keys()
+    for kind, ks in keys.items():
+        listed = {k.split('.')[0] for k in bodysens.GARMENT[kind]}
+        missing = ks - listed - set(bodysens.NOT_KNOBS) - set(bodysens.COLOURS)
+        assert not missing, (kind, missing)
+    spec = {'body': {}, 'garments': [{'kind': k, 'name': k + '_x', 'side': 'left'} for k in bodysens.GARMENT],
+            'hair': {'shape': {'glb': 'x.glb', 'mode': 'mesh', 'select': 'outside'}},
+            'accessories': [{'kind': 'bun', 'az': 0, 'el': 60}, {'kind': 'star', 'az': 30, 'el': 30}]}
+    K = bodysens.inventory(spec)
+    paths = {k['path'] for k in K}
+    for kind in bodysens.GARMENT:
+        for k in bodysens.GARMENT[kind]:
+            assert 'garments.%s_x.%s' % (kind, k) in paths
+    assert 'body.proportions.leg' in paths and 'body.heads_tall' in paths and 'hair.shape.below' in paths
+    assert any(p.startswith('hair.bangs.tips.') for p in paths)                   # the analytic locks, walked
+    assert next(k for k in K if k['path'] == 'accessories.0.size')['kind'] == 'inactive'      # carried by the shape
+
+
+def test_capabilities_flags_unmoved_measures():
+    T = {'base': {'iou': 0.5, 'arm_angle': 12.0, 'leg_angle': 5.0, 'leg_gap': 0.001, 'bottom': 0.3, 'top': 0.2},
+         'knobs': [dict(path='a', kind='geometry', value=1.0, step=0.1, lo=0.0, hi=2.0,
+                        d={'iou': 0.05, 'arm_angle': 0.01, 'leg_angle': 1.0, 'bottom': -0.05, 'top': 0.001}),
+                   dict(path='b', kind='geometry', value=1.0, step=0.1, lo=0.0, hi=2.0, d={'top': -0.01, 'bottom': 0.2})]}
+    C = {c['measure']: c['status'] for c in bodysens.capabilities(T)}
+    assert C['iou'] == 'left to the fit' and C['arm_angle'] == 'no knob moves it' and C['leg_gap'] == 'ok'
+    assert C['leg_angle'] == 'no knob turns a limb'
+    assert C['bottom'] == 'a knob reaches it'                 # 'b' closes bottom and costs little elsewhere ...
+    assert C['top'] == 'only at a cost', C                    # ... but closing top with 'b' wrecks bottom
+
+
+if __name__ == '__main__':
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f(); print('ok', k)
