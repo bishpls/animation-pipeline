@@ -336,7 +336,7 @@ def picture(O, D, scale=2):
     return np.repeat(np.repeat(im, scale, 0), scale, 1)
 
 
-def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
+def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2, zbuffer=None, face_region=None):
     """our face measured as the design's is (charkit/qa3d.py hands over the scene's arrays; charkit/faceeval.py its own):
     meshes [(V world, tris, class per triangle)]: the skin, eyes, mouth and clothes (not the hair); covers: the hair and
     what it carries, the same way (only for how much face shows); irc: the iris plates' centres (world); centre: the head
@@ -344,9 +344,12 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
     Each view is z-buffered at the sheet's scale (charkit.faceqa), the face is the skin reached from under the eyes
     without crossing a depth jump, and every view's face is cut at the chin (where the profile's front edge turns back
     to the neck, searched from `below` L under the eye line: under the nose), as a drawn jaw line cuts the design's.
+    zbuffer, face_region: faceqa's by default, or drop-ins giving the same pixels (zbuffer takes faceqa.zbuffer's `thin`).
     -> {view: measure_labels(...) + 'shown'}."""
     import math
     from . import faceqa
+    zbuffer = zbuffer or faceqa.zbuffer
+    face_region = face_region or faceqa.face_region
     cx, cy = centre[0], centre[1]
     ez = float(np.mean([c[2] for c in irc]))
     pix = 1.0 / ppl
@@ -356,11 +359,11 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
         a = math.radians(az)
         org = (cx * math.cos(a) + cy * math.sin(a), ez)
         # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
-        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix, thin=(CLASS['line'],))
+        depth, lab = zbuffer(meshes, az, org, L, pix, win, thin=(CLASS['line'],))
         lab = np.where(lab < 0, CLASS['other'], lab)
-        face = faceqa.face_region(depth, np.where(lab == CLASS['skin'], 1, 0), 0.035 * L, pix=pix)
+        face = face_region(depth, np.where(lab == CLASS['skin'], 1, 0), 0.035 * L, pix=pix)
         if covers:
-            dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix, thin=(CLASS['line'],))
+            dv, lv = zbuffer(meshes + covers, az, org, L, pix, win, thin=(CLASS['line'],))
         else:
             lv = lab
         def px(P):
@@ -381,7 +384,7 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
             # the skin below the chin out first, then the fill again: the neck beside the chin can then only be reached
             # across the jaw's depth jump
             skin = (lab == CLASS['skin']) & (zr >= chin)[:, None]
-            face = faceqa.face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
+            face = face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
         shown = face & (lv == CLASS['skin'])
         O[view] = measure_labels(lab, face, view, ppl, eyes)
         O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)

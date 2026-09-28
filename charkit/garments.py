@@ -6,7 +6,8 @@
     hem), a hanging panel (an overskirt panel or tail hung from the waist ring at an azimuth), puffy sleeves, bands
     (cuffs, wristbands, waistbands, boot tops), a sailor collar, a bow (with a tail length).
 Built pieces are weighted by construction (a skirt blends the hips into each thigh by side and height, as a skirt should).
-All sizes are in head lengths L unless noted. Each spec: {kind, name, color, ...kind's knobs}.
+All sizes are in head lengths L unless noted. Each spec: {kind, name, color, shade (optional: the shadow tone as a
+multiplier of the colour, SHADE_MUL by default), ...kind's knobs}.
 """
 import math
 import numpy as np
@@ -559,16 +560,30 @@ def collar(A, spec, normals=None):
 
 
 # ----------------------------------------------------------------------------------------------------------------- Blender
-def _toon(name, color):
+SHADE_MUL = (0.86, 0.80, 0.84)      # a garment's shade tone: its colour times this (a spec's 'shade' replaces it)
+DEEP_MUL = (0.70, 0.62, 0.70)       # the deep tone, kept in this ratio to the shade's
+
+
+def _muls(shade_mul=None):
+    """(shade, deep) multipliers: the defaults, or a garment's own shade with the deep tone in the defaults' ratio."""
+    if shade_mul is None:
+        return SHADE_MUL, DEEP_MUL
+    sm = np.asarray(shade_mul, float)
+    return tuple(sm), tuple(sm * np.array(DEEP_MUL) / np.array(SHADE_MUL))
+
+
+def _toon(name, color, shade_mul=None):
     from . import shade
     c = np.asarray(color, float)
-    return shade.toon3(name, tuple(c), tuple(c * np.array([0.86, 0.80, 0.84])), tuple(c * np.array([0.70, 0.62, 0.70])))
+    sm, dm = _muls(shade_mul)
+    return shade.toon3(name, tuple(c), tuple(c * np.array(sm)), tuple(c * np.array(dm)))
 
 
-def _toon_tex(name, image, shade_mul=(0.86, 0.80, 0.84), deep_mul=(0.70, 0.62, 0.70)):
+def _toon_tex(name, image, shade_mul=None):
     """toon3 whose three tones come from a texture (multiplied for the shadow tones)."""
     from . import shade
-    m = shade.toon3(name, (1, 1, 1), shade_mul, deep_mul)
+    sm, dm = _muls(shade_mul)
+    m = shade.toon3(name, (1, 1, 1), sm, dm)
     nt = m.node_tree
     tx = nt.nodes.new('ShaderNodeTexImage'); tx.image = image; tx.interpolation = 'Linear'; tx.extension = 'EXTEND'
     uv = nt.nodes.new('ShaderNodeUVMap'); uv.uv_map = 'uv'
@@ -624,12 +639,13 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
     for s in specs or []:
         k, nm = s['kind'], s['name']
         col = s.get('color', (0.8, 0.8, 0.8))
+        sh = s.get('shade')                                         # its own shade multiplier (else SHADE_MUL)
         if k == 'shell':
             G = shell(A, s, nrm)
-            mats = [_toon(nm, col)]
+            mats = [_toon(nm, col, sh)]
             midx = None
             if 'sole' in s:                                           # boots: the bottom as a dark sole
-                mats.append(_toon(nm + '_sole', s['sole']['color']))
+                mats.append(_toon(nm + '_sole', s['sole']['color'], sh))
                 zmin = G['verts'][:, 2].min()
                 midx = [1 if G['verts'][list(f), 2].max() < zmin + s['sole']['height'] * L else 0 for f in G['faces']]
             uvc = G['uvs']
@@ -649,7 +665,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
                 tex = np.empty((n_, n_, 4)); tex[..., 3] = 1
                 tex[..., :3] = np.where(inside_[..., None], np.array(P_['color']), np.array(col))
                 img = eyetex.to_blender_image(nm + '_panel', tex)
-                mats[0] = _toon_tex(nm + '_tex', img)
+                mats[0] = _toon_tex(nm + '_tex', img, sh)
                 uvc = []
                 for f in G['faces']:
                     front = G['verts'][list(f)].mean(0)[1] < cyf + 0.02
@@ -669,10 +685,10 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
                     hide[v] = True
         elif k == 'band':
             G = band(A, s)
-            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col)], uv=G['uv'])
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'shoe':
             G = shoe(A, s)
-            mats = [_toon(nm, col), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)))]
+            mats = [_toon(nm, col, sh), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['sole'])
             # the body's foot is inside it: mask it
             dom_, _ = dominant(A)
@@ -680,10 +696,10 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
                 hide[np.nonzero(dom_ == b_)[0]] = True
         elif k == 'belt':
             G = belt(A, s)
-            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col)], uv=G['uv'])
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'sleeve':
             G = sleeve(A, s)
-            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col)], uv=G['uv'])
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':
             G = skirt(A, s)
@@ -691,25 +707,25 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
             tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
                               repeat=s.get('repeat', 8), pleats=s.get('pleats', 24))
             img = eyetex.to_blender_image(nm + '_tex', tex)
-            mats = [_toon_tex(nm, img), _toon(nm + '_panel', s.get('panel_color', col))]
+            mats = [_toon_tex(nm, img, sh), _toon(nm + '_panel', s.get('panel_color', col), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['panel'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
         elif k == 'collar':
             G = collar(A, s, nrm)
-            mats = [_toon(nm, col), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)))]
+            mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
         elif k == 'bow':
             G = bow(A, s)
-            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col)], uv=G['uv'])
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'panel':
             G = panel(A, s)
             if s.get('hem') == 'stepped':
                 tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
                                   steps=s.get('steps', 6))
-                mats = [_toon_tex(nm, eyetex.to_blender_image(nm + '_tex', tex))]
+                mats = [_toon_tex(nm, eyetex.to_blender_image(nm + '_tex', tex), sh)]
             else:
-                mats = [_toon(nm, col)]
+                mats = [_toon(nm, col, sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
         else:
