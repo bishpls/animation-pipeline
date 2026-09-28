@@ -420,6 +420,14 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
   that cover the cheeks. Scaling the face change back to half still reads 1.19; freezing the widths restores it, but
   gives up the width, neck and depth gains. Keeping the side locks is the hair's to decide (the geom hair already
   keeps them in front of the cheeks).
+  - Each view fitted alone from the joint result (`--views`), against the joint fit: front 1.19 (1.10 jointly), 3/4
+    1.45 (1.43), profile 1.45 (1.50). So one rigid face holds all three about as well as each could alone. What limits
+    them is the knob set, not a conflict between views:
+    - front: `neck_to_jaw`;
+    - 3/4: TRELLIS's fuller cheek;
+    - profile: the drawn nose reach, which a rigid face can't follow (the one candidate for a profile-only face key).
+    Depth against TRELLIS passes alone (0.04) but reads 1.02 with the sheet: the 3D restyle's rounder face disagrees
+    with the drawing, and the sheet has the authority.
   - The evaluator agrees with Blender's QA on four builds: the unfitted Clawd, the fitted Clawd twice (before and after
     a merge), and the fitted knobs on the anime base. That is 46 checks each: 183 of 184 statuses match,
     the miss being the anime base's `eye_lid_span` (WARN against PASS). The sheet, face-shape, expression and fold
