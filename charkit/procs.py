@@ -2,16 +2,20 @@
 (`.pid.json`: pid, command, start time) while it runs, so a build can be listed and stopped by its own record, never by a
 pattern that would match another worktree's builds.
 
-Builds also share a machine-wide number of slots (CHARKIT_BUILD_SLOTS, default 2: a Blender build of a character with
-its QA holds a few GB, and several worktrees building at once ran a 16 GB machine out of memory). A build takes a free
-slot (an flock on ~/.cache/charkit/slots/N, released by the OS when the process ends, crashed or not) or waits for one.
+Builds also share a machine-wide number of slots, and start only when the machine has memory to spare. A Clawd build
+with QA and export peaks at 2.2 GB of Blender (measured), and five worktrees building at once ran a 16 GB machine out
+of memory. A build takes a free slot (an flock on ~/.cache/charkit/slots/N, released by the OS when the process ends,
+crashed or not) once at least CHARKIT_BUILD_MEM_GB (default 3) is available, or waits. The slot count is the
+environment's CHARKIT_BUILD_SLOTS, else the machine setting `python -m charkit slots N` writes (waiting builds pick it
+up), else 2.
 
-    python -m charkit ps                  # the running charkit builds (every worktree under the same parent folder)
+    python -m charkit ps                  # the slots, who holds them, the running builds (every worktree)
     python -m charkit kill OUT_DIR        # stop that build's recorded process
+    python -m charkit slots [N]           # show or set the machine's slot count
 
 The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
-in its output folder with the worker's pid: stopping that build stops the worker. The worker takes a slot per job and
-releases it between jobs.
+in its output folder with the worker's pid: stopping that build stops the worker. The worker takes a slot per job
+(acquire_slot, with its memory check) and releases it between jobs.
 """
 import contextlib, fcntl, glob, json, os, signal, subprocess, sys, time
 
@@ -23,14 +27,49 @@ SLOTS_DIR = os.path.expanduser('~/.cache/charkit/slots')
 
 
 def slots():
-    return max(1, int(os.environ.get('CHARKIT_BUILD_SLOTS', '2')))
+    if os.environ.get('CHARKIT_BUILD_SLOTS'):
+        return max(1, int(os.environ['CHARKIT_BUILD_SLOTS']))
+    try:
+        return max(1, int(open(os.path.join(SLOTS_DIR, 'count')).read().strip()))
+    except (OSError, ValueError):
+        return 2
 
 
-def acquire_slot(label='build', poll=2.0):
-    """take a machine-wide build slot, waiting while all are held -> the open lock file (keep it; closing releases)."""
+def available_gb():
+    """memory the machine can hand out now (free + inactive + speculative pages; macOS vm_stat), or None elsewhere."""
+    try:
+        out = subprocess.run(['vm_stat'], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    page = 16384
+    vals = {}
+    for line in out.splitlines():
+        if 'page size of' in line:
+            page = int(line.split('page size of')[1].split()[0])
+        elif ':' in line:
+            k, v = line.split(':', 1)
+            try:
+                vals[k.strip()] = int(v.strip().rstrip('.'))
+            except ValueError:
+                pass
+    pages = sum(vals.get(k, 0) for k in ('Pages free', 'Pages inactive', 'Pages speculative'))
+    return pages * page / 2 ** 30 if vals else None
+
+
+def acquire_slot(label='build', poll=2.0, mem=None):
+    """take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short
+    -> the open lock file (keep it; closing releases)."""
     os.makedirs(SLOTS_DIR, exist_ok=True)
+    need = float(os.environ.get('CHARKIT_BUILD_MEM_GB', '3')) if mem is None else mem
     waited = False
     while True:
+        free = available_gb()
+        if free is not None and free < need:
+            if not waited:
+                sys.stderr.write('charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
+                waited = True
+            time.sleep(poll)
+            continue
         for i in range(slots()):
             f = open(os.path.join(SLOTS_DIR, str(i)), 'a+')
             try:
@@ -121,9 +160,20 @@ def slot_holders():
     return out
 
 
+def set_slots(args):
+    """show or set the machine's slot count (CHARKIT_BUILD_SLOTS in the environment still wins)."""
+    os.makedirs(SLOTS_DIR, exist_ok=True)
+    if args:
+        open(os.path.join(SLOTS_DIR, 'count'), 'w').write(str(max(1, int(args[0]))) + '\n')
+    free = available_gb()
+    print('build slots: %d%s; %s GB available' % (slots(), ' (from CHARKIT_BUILD_SLOTS)' if os.environ.get('CHARKIT_BUILD_SLOTS') else '',
+                                                   '%.1f' % free if free is not None else '?'))
+
+
 def ps(args=()):
     held = slot_holders()
-    print('build slots: %d of %d busy' % (len(held), slots()))
+    free = available_gb()
+    print('build slots: %d of %d busy; %s GB available' % (len(held), slots(), '%.1f' % free if free is not None else '?'))
     for i, who in held:
         print('  slot %d: %s' % (i, who))
     rs = records()

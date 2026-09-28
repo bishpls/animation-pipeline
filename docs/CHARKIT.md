@@ -301,10 +301,14 @@ When something can only be judged by eye, name the measurement that would close 
   - No branch moves.
 - Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
   worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
-- Builds share a machine-wide number of slots (`CHARKIT_BUILD_SLOTS`, default 2). A Blender build of a character with its
-  QA holds a few GB, and five worktrees building at once ran a 16 GB machine out of memory. A build takes a free slot or
-  waits for one; the OS releases a slot when its process ends, crashed or not. Anything that starts Blender goes through
-  `procs.run` (or `procs.acquire_slot`), and `ps` shows who holds the slots.
+- Builds share a machine-wide number of slots, and start only when memory is available.
+  - A Clawd build with QA and export peaks at 2.2 GB of Blender (measured). Five worktrees building at once ran a 16 GB
+    machine out of memory.
+  - A build takes a free slot once `CHARKIT_BUILD_MEM_GB` (default 3) is available, or waits. The OS releases a slot when
+    its process ends, crashed or not.
+  - `python -m charkit slots N` sets the machine's count, and waiting builds pick it up. `CHARKIT_BUILD_SLOTS` in the
+    environment wins over it. Use 3 on this 16 GB machine when it's dedicated to charkit, 2 otherwise.
+  - Anything that starts Blender goes through `procs.run` (or `procs.acquire_slot`). `ps` shows who holds the slots.
 
 **References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
 fit and QA read: the model sheet, the 2D rig, the generated 3D-style key and the TRELLIS mesh. For each it records its
