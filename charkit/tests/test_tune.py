@@ -349,6 +349,9 @@ def test_probe_headroom():
            'measures': {'sheet_width.d55': {'at': 0.80, 'minus': 0.75, 'plus': 0.86}}}}}
     r = fitters.probe_headroom(far, spec, T, K)
     assert r['best'][:2] == ['head.cheek', 'plus'] and r['headroom'] > 0.2, r
+    far['knobs']['head.cheek']['measures']['sheet_width'] = {'at': 0.80, 'minus': 0.75, 'plus': 0.86}
+    r = fitters.probe_headroom(far, spec, T, K)                  # 0.80 -> 0.86: (0.20 - 0.14) / 0.07 warn bands
+    assert abs(r['score_headroom'] - 0.857) < 0.01 and r['score_steps'][0][:2] == ['head.cheek', 'plus'], r
     # at the optimum both steps cost more: no headroom
     opt = {'schema': 'charkit.sensitivity/1', 'knobs': {'head.cheek': {'value': 1.0, 'step': 0.1, 'group': 'face',
            'measures': {'sheet_width.d55': {'at': 1.0, 'minus': 0.95, 'plus': 1.05}}}}}

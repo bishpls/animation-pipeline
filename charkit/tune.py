@@ -20,8 +20,9 @@ items (docs/CHARKIT.md §4).
      whose only losses are checks a landed fitter owns gets that fitter's re-fit first, and the two are compared as one
      move (anime-base's eye width is the face fitter's);
      Before a landed fitter's full fit, a probe measures its sensitivity table at the start (two fast evaluations per
-     knob) and the drop in the fitter's own objective at the best single knob step; below the config's
-     probe.min_headroom (default 2%) the fit is skipped as converged (an already-fitted spec stays cheap to re-tune).
+     knob), the drop in the fitter's own objective at the best single knob step, and what every knob's better step
+     gains in the tune's weighted QA score; below the config's probe.min_headroom (default 2%) or probe.min_score_gain
+     (default 1 warn band) the fit is skipped as converged (an already-fitted spec stays cheap to re-tune).
      After a fit, a prescreen: when the fit's own report predicts a status regression no rule allows, the whole move
      isn't built (its evaluator agrees with the build); its blocks and half step are;
   4. the loop stops when every graded check passes (`pass`), when the best score improved by less than --min-gain over
@@ -514,22 +515,28 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                 fdir = os.path.join(out, 'fit_r%d_%s' % (rnd, F.name))
                 # the probe: a full fit only where a single knob step shows the fitter's objective can drop
                 if F.landed and hasattr(F, 'probe'):
-                    th = (cfg.get('probe') or {}).get('min_headroom', 0.02)
+                    P = cfg.get('probe') or {}
+                    th, ts = P.get('min_headroom', 0.02), P.get('min_score_gain', 1.0)
                     pr = F.probe(start(best), os.path.join(fdir, 'probe'), log)
                     if pr:
-                        verdict = 'fit' if pr['headroom'] >= th else 'converged'
+                        why = [w for w, bad in (('its objective drops %.1f%% at the best single step (< %.1f%%)' % (
+                                                    100 * pr['headroom'], 100 * th), pr['headroom'] < th),
+                                                ('the QA score gains %.2f warn bands from every knob\'s better step '
+                                                 '(< %.2f)' % (pr['score_headroom'], ts), pr['score_headroom'] < ts)) if bad]
+                        verdict = 'converged' if why else 'fit'
                         R.write('probe', round=rnd, fitter=F.name, from_checkpoint=best['id'], cost=pr['cost'],
-                                best=pr['best'], headroom=pr['headroom'], threshold=th, evaluations=pr['evaluations'],
-                                seconds=pr['seconds'], verdict=verdict,
+                                best=pr['best'], headroom=pr['headroom'], threshold=th, score_headroom=pr['score_headroom'],
+                                score_threshold=ts, score_steps=pr['score_steps'], evaluations=pr['evaluations'],
+                                seconds=pr['seconds'], verdict=verdict, why=why,
                                 path=_rel(os.path.join(fdir, 'probe', 'sensitivity.json')))
-                        log('  probe %s at ck%d: objective %.3f, best single step %s %s -> %.3f (%.1f%%, threshold %.1f%%): %s (%.0f s)' % (
+                        log('  probe %s at ck%d: objective %.3f, best step %s %s -> %.3f (%.1f%%); QA score headroom %.2f: %s (%.0f s)' % (
                             F.name, best['id'], pr['cost'], pr['best'][0], pr['best'][1], pr['best'][2],
-                            100 * pr['headroom'], 100 * th, verdict, pr['seconds']))
+                            100 * pr['headroom'], pr['score_headroom'], verdict, pr['seconds']))
                         if verdict == 'converged':
                             fits[F.name] = {'fitter': F.name, 'status': 'converged', 'sensitivity': pr['table'],
                                             'sensitivity_at': best['id'], 'from_checkpoint': best['id'], 'round': rnd}
                             R.write('fit', round=rnd, from_checkpoint=best['id'], fitter=F.name, status='converged',
-                                    why='the probe: no single knob step lowers the objective by %.1f%%' % (100 * th))
+                                    why='the probe: ' + '; '.join(why))
                             continue
                 log('  fit %s from ck%d%s' % (F.name, best['id'], '' if F.landed else ' (STUB)'))
                 res = F.run(start(best), best['args'], fdir, log)

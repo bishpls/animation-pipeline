@@ -342,7 +342,8 @@ def with_block(spec_path, fitted_path, knobs, block, out_path):
 def probe_headroom(table, spec, terms, knobs, authority=None):
     """from a sensitivity table (charkit.sensitivity/1), the fit objective at the table's point and at each knob's step
     either way (fitkit.residuals and fitkit.cost over `terms`, with the regulariser over `knobs`, a list of fitkit.Knob)
-    -> {cost, best: [knob, side, cost], headroom: (cost - best) / cost, evaluations}."""
+    -> {cost, best: [knob, side, cost], headroom: (cost - best) / cost, score_headroom (each knob's better step in the
+    tune's weighted QA score, summed: what the fit could gain where the tune judges it), score_steps, evaluations}."""
     from . import fitkit
     K = table.get('knobs', table)
 
@@ -379,7 +380,26 @@ def probe_headroom(table, spec, terms, knobs, authority=None):
             if best is None or c < best[2]:
                 best = [k.name, side, round(float(c), 4)]
     head = (c0 - best[2]) / c0 if best and c0 > 0 else 0.0
+    # the tune's own measure: each knob's better step in the weighted QA score (checks.score's severities), summed
+    from . import checks
+    score_gain, steps = 0.0, []
+    for n, e in K.items():
+        g = {}
+        for side in ('minus', 'plus'):
+            d = 0.0
+            for m, x in e['measures'].items():
+                if '.' in m or x.get('at') is None or x.get(side) is None:
+                    continue
+                a, b = checks.severity(m, x['at']), checks.severity(m, x[side])
+                if a is not None and b is not None:
+                    d += checks.weight(m, authority) * (min(checks.CAP, b) - min(checks.CAP, a))
+            g[side] = d
+        side = min(g, key=g.get) if g else None
+        if side and g[side] < 0:
+            score_gain -= g[side]
+            steps.append([n, side, round(-g[side], 3)])
     return {'cost': round(float(c0), 4), 'best': best, 'headroom': round(float(head), 4),
+            'score_headroom': round(score_gain, 3), 'score_steps': sorted(steps, key=lambda s: -s[2])[:6],
             'evaluations': 2 * len(K) + len({e.get('group') for e in K.values()})}
 
 

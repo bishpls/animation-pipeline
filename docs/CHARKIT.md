@@ -470,12 +470,19 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
      `palette_*` checks).
 
    **The probe.** Before a landed fitter's full fit, the tune measures that fitter's sensitivity table at the start
-   (two fast evaluations per knob, 1 to 3 minutes). It then computes how far the fitter's own objective (fitkit's
-   cost over its terms, regulariser included) drops at the best single knob step. Below `probe.min_headroom` (2%) the
-   fit is skipped as `converged`, and the table serves the triage. The probe is recorded in tune.jsonl with its cost,
-   best step, headroom and verdict. It keeps re-tuning an already-fitted spec cheap: on Clawd's fitted spec the full
-   face fit took about 40 minutes and moved 21 knobs by under 1% each. (The fit's `REFRESH_BUDGET` rounds, with their
-   Blender cache rebuilds, aren't capped by `--budget`.)
+   (two fast evaluations per knob, 1 to 3 minutes). From it the probe reads two things:
+   - how far the fitter's own objective (fitkit's cost over its terms, regulariser included) drops at the best single
+     knob step;
+   - what every knob's better step gains in the tune's weighted QA score, summed.
+
+   If the objective drops by less than `probe.min_headroom` (2%), or the QA score gains less than
+   `probe.min_score_gain` (1 warn band), the fit is skipped as `converged` and the table serves the triage. The probe
+   is recorded in tune.jsonl: both headrooms, the best steps and the verdict.
+
+   Both measures are needed. On Clawd's fitted spec with geom hair, the objective had 8.9% headroom, but the QA score
+   could gain only 0.68 warn bands (`body.neck_w` 0.38, `eyes.lash` 0.18, `iris.rz` 0.12). The full face fit then took
+   about 40 minutes and moved 21 knobs by under 1% each, and its checkpoint scored worse than its start. The fit's
+   `REFRESH_BUDGET` rounds, with their Blender cache rebuilds, aren't capped by `--budget`.
 
    **The prescreen.** After a fit, the tune reads the fit's report. If the report predicts a status regression that no
    trade-off rule allows, the whole move isn't built, since the fast evaluator agrees with the build. Only its blocks
