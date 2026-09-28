@@ -24,6 +24,14 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   gitignored. Never print or commit them. Log paid calls to `tools/ledger.jsonl`.
 - **Git:** commit with the user's identity. Never push or publish without asking. Scan the full history for keys before
   any push.
+- **Waiting on a long job:** start it with `run_in_background` and wait for its notification, or use
+  `python -m charkit wait OUT_DIR` for a build. Don't use a foreground `until …; sleep` loop. When the tool call times
+  out, the loop keeps running in the background, and loops pile up. `pgrep -f PATTERN` also matches the waiting shell's
+  own command line, so such a loop never exits.
+- **Worktrees are sparse:** make them with `tools/worktree.sh NAME [--profile core|charkit] [PATH ...]`, never with plain
+  `git worktree add`. A full checkout is about 1.8 GB of every film's rig art and audio, copied into each worktree. A
+  charkit worktree needs about 0.3 GB. Use `tools/worktree.sh --add PATH` to check out more later. Big generated files
+  (game builds, renders, frames) stay out of worktrees, and are shared or cleaned when the work is done.
 
 ## Layout
 - `engine/`: the shared engine: `core.js` (time, easing, beat clock, boil), `riso.js` (the print press), `type.js` (variable-font
