@@ -85,35 +85,11 @@ def stage_hair(S):
                                       {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')})
 
 
-def hair_shape_volume(S, shape, hc):
-    """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
-    above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
-    from . import hair, i3d
-    A = S.character['data']; Hd = A['head']; L = Hd['L']
-    path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['glb'])
-    V, F, C = i3d.load_glb(path)
-    eyes = i3d.find_eyes(V, C)
-    if eyes is None:
-        raise RuntimeError('no eyes found on the generated shape')
-    EK = Hd['eye_knobs']
-    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
-    V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
-    cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
-                                   hc.get('deep', (0.6, 0.22, 0.16))]
-    chin_z = Hd['centre'][2] - Hd['H'].chin
-    if shape.get('select') == 'outside':
-        hv, hf = i3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
-                                     below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
-    elif shape.get('select') == 'exclude':
-        hv, hf = i3d.hair_by_exclusion(V, C, F, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
-    elif 'hue' in shape:
-        hv, hf = i3d.hair_by_hue(V, C, F, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
-                                 below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
-    else:
-        hv, hf = i3d.hair_part(V, C, F, cols, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L,
-                               max_d=shape.get('max_d', 0.22))
-    # cull what lies on or behind our face (the generated face's own lips and brows share the hair's hue)
+def cull_face(S, hv, hf, shape):
+    """drop generated 'hair' lying on or behind our face (the generated face's own lips, brows, nose) and anything over the
+    lower face (only side locks belong there)."""
     from .eyes import Face
+    Hd = S.character['data']['head']; L = Hd['L']
     Fc = Face(Hd['H'], Hd['centre'])
     cz = Hd['centre'][2]
     keep = np.ones(len(hv), bool)
@@ -129,6 +105,38 @@ def hair_shape_volume(S, shape, hc):
     hf = [f for f in hf if all(keep[v] for v in f)]
     used = sorted({v for f in hf for v in f}); remap = {o: n for n, o in enumerate(used)}
     hv = hv[used]; hf = [tuple(remap[v] for v in f) for f in hf]
+    return hv, hf
+
+
+def hair_shape_volume(S, shape, hc):
+    """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
+    above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
+    from . import hair, i3d
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['glb'])
+    V, F, C = i3d.load_glb(path)
+    eyes = i3d.find_eyes(V, C)
+    if eyes is None:
+        raise RuntimeError('no eyes found on the generated shape')
+    EK = Hd['eye_knobs']
+    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
+    S.shape_full = (V, F)                                   # the whole aligned shape (QA compares against it)
+    cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
+                                   hc.get('deep', (0.6, 0.22, 0.16))]
+    chin_z = Hd['centre'][2] - Hd['H'].chin
+    if shape.get('select') == 'outside':
+        hv, hf = i3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
+                                     below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
+    elif shape.get('select') == 'exclude':
+        hv, hf = i3d.hair_by_exclusion(V, C, F, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
+    elif 'hue' in shape:
+        hv, hf = i3d.hair_by_hue(V, C, F, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
+                                 below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
+    else:
+        hv, hf = i3d.hair_part(V, C, F, cols, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L,
+                               max_d=shape.get('max_d', 0.22))
+    hv, hf = cull_face(S, hv, hf, shape)
     S.hair_shape = (hv, hf)
     style = hair._style(S.spec['hair'])
     return hair.MeshVolume(Hd['H'], Hd['centre'], style, Hd['info']['target'], (hv, hf))
@@ -152,12 +160,52 @@ def hair_cap(S, hc):
     return ob
 
 
+def hair_volume_mesh(S, shape):
+    """the generated hair as one clean closed surface: the aligned generated character clipped to the head region, voxel-
+    remeshed (watertight: no double shells, no holes), minus our body inflated by `inflate` (its face, neck and the clothes
+    lying on us fall away), with the same-coloured sleeves low at the sides cut off. -> (verts, faces) world."""
+    import bpy, bmesh
+    from . import character
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    V, F = S.shape_full
+    chin_z = Hd['centre'][2] - Hd['H'].chin
+    zcut = chin_z - shape.get('below', 0.33) * L
+    ob = character._mesh('hair_vol', V, F, None, [])
+    bm = bmesh.new(); bm.from_mesh(ob.data)
+    geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+    r = bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, zcut), plane_no=(0, 0, 1), clear_inner=True)
+    edges = [e for e in r['geom_cut'] if isinstance(e, bmesh.types.BMEdge)]
+    if edges:
+        bmesh.ops.holes_fill(bm, edges=edges)
+    bm.to_mesh(ob.data); bm.free()
+    rm = ob.modifiers.new('rm', 'REMESH'); rm.mode = 'VOXEL'; rm.voxel_size = shape.get('vox', 0.008) * L
+    with bpy.context.temp_override(object=ob):
+        bpy.ops.object.modifier_apply(modifier='rm')
+    # our body, inflated, as the cutter
+    from .anime_head import vertex_normals
+    BV = A['verts'] + vertex_normals(A['verts'], A['faces']) * shape.get('inflate', 0.02) * L
+    cut = character._mesh('hair_cutter', BV, A['faces'], None, [])
+    bo = ob.modifiers.new('cut', 'BOOLEAN'); bo.operation = 'DIFFERENCE'; bo.object = cut; bo.solver = 'EXACT'
+    with bpy.context.temp_override(object=ob):
+        bpy.ops.object.modifier_apply(modifier='cut')
+    bpy.data.objects.remove(cut, do_unlink=True)
+    me = ob.data
+    hv = np.array([v.co for v in me.vertices]); hf = [tuple(p.vertices) for p in me.polygons]
+    bpy.data.objects.remove(ob, do_unlink=True)
+    low = hv[:, 2] < chin_z + 0.02
+    bad = low & (np.abs(hv[:, 0]) > shape.get('shoulder_x', 0.19))
+    hf = [f for f in hf if not any(bad[v] for v in f)]
+    return hv, hf
+
+
 def hair_shape_mesh(S, shape, hc):
     """the generated hair itself as the hair: remeshed into clean even topology (voxel remesh), smoothed, reduced, shaded
     with charkit's hair look (toon ramp and outline, normals from a blurred copy of itself for big clean shadow shapes),
     rigged to the head."""
     import bpy
     from . import character, hair, shade
+    if shape.get('select') == 'volume':
+        S.hair_shape = cull_face(S, *hair_volume_mesh(S, shape), shape)
     hv, hf = S.hair_shape
     L = S.character['data']['head']['L']
     ob = character._mesh('hair_shape', hv, hf, None, [])
@@ -179,6 +227,24 @@ def hair_shape_mesh(S, shape, hc):
     import bmesh
     bm = bmesh.new(); bm.from_mesh(ob.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005 * L)
+    # drop the small loose fragments the selection leaves (slivers and specks); keep the pieces that make the hair
+    bm.faces.ensure_lookup_table()
+    seen, small = set(), []
+    min_faces = shape.get('min_part', 150)
+    for f0 in bm.faces:
+        if f0.index in seen:
+            continue
+        part, stack = [], [f0]; seen.add(f0.index)
+        while stack:
+            f = stack.pop(); part.append(f)
+            for e in f.edges:
+                for g in e.link_faces:
+                    if g.index not in seen:
+                        seen.add(g.index); stack.append(g)
+        if len(part) < min_faces:
+            small += part
+    bmesh.ops.delete(bm, geom=small, context='FACES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     bm.to_mesh(ob.data); bm.free()
     # normals from the hair's smooth envelope (the ray-cast mass, charkit.hair.MeshVolume): big clean shadow shapes, the
@@ -217,8 +283,45 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
           ('garments', stage_garments)]
 
 
+def fit_cranium(spec, root):
+    """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
+    the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair."""
+    from . import i3d
+    shape = (spec.get('hair') or {}).get('shape') or {}
+    if not shape.get('glb') or not shape.get('fit_cranium', True):
+        return spec
+    P = spec.get('body', {})
+    L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
+    path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
+    V, F, C = i3d.load_glb(path)
+    eyes = i3d.find_eyes(V, C)
+    if eyes is None:
+        return spec
+    ex = spec.get('eyes', {}).get('x', 0.168)
+    V = i3d.align_by_eyes(V, eyes, np.zeros(3), 2 * ex * L)            # eye line at z = 0, the midline at x = 0
+    ey = (eyes[0][1] + eyes[1][1]) / 2
+    # the crown: the middle of the head (behind the fringe and the ahoge, in front of the back), the hair's highest points
+    # per thin slice along the midline, their median (an ahoge or a bun is an outlier)
+    tops = []
+    for dy in np.linspace(0.25, 0.5, 6):
+        m = (np.abs(V[:, 0]) < 0.03 * L) & (np.abs(V[:, 1] - dy * L) < 0.03 * L) & (V[:, 2] > 0)
+        if m.any():
+            tops.append(V[m, 2].max())
+    if not tops:
+        return spec
+    top = float(np.median(tops)) / L                                   # the hair's crown above the eye line, in L
+    under = shape.get('under', 0.05)
+    head = spec.setdefault('head', {})
+    if 'cranium' not in head:
+        head['cranium'] = round(max(0.6, min(1.1, (top - under) / 0.555)), 3)
+        print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
+    return spec
+
+
 def build(spec, until=None, skip=()):
     """run the stages in order (stop after `until`, leave out `skip`). -> Scene."""
+    reset()
+    spec = fit_cranium(spec, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     reset()
     S = Scene(spec)
     for name, fn in STAGES:

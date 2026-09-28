@@ -250,7 +250,10 @@
     "bun"
    ],
    "select": "outside",
-   "clear_skin": 0.01
+   "clear_skin": 0.01,
+   "vox": 0.008,
+   "inflate": 0.02,
+   "min_part": 20
   }
  },
  "hair_colors": {

@@ -13,6 +13,15 @@ which = [w for w in a[2].split(',') if w] if len(a) > 2 and not a[2].startswith(
 S = scene.build(spec)
 if which:
     scene.boards(S, os.path.join(out, 'boards'), which)
+if '--qa' in a:
+    import json
+    from charkit import qa3d
+    ref = spec.get('ref', {}).get('image') if isinstance(spec.get('ref'), dict) else None
+    if ref and not os.path.isabs(ref):
+        ref = os.path.join(ROOT, ref)
+    R = qa3d.run(S, os.path.join(out, 'qa'), ref)
+    print('CHARKIT_QA', json.dumps({k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'}))
+    print('CHARKIT_QA_SUMMARY', R['summary'])
 if '--blend' in a:
     scene.save(os.path.join(out, spec['name'] + '.blend'))
 print('CHARKIT_BUILD_DONE', out)

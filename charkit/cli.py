@@ -1,6 +1,6 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
-    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit]
+    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
 
 build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -102,11 +102,14 @@ def build(args):
     spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args)
     boards = opt('--boards', 'views,body,expressions,mouths')
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--',
-           resolved, out, boards] + ([] if '--no-blend' in args else ['--blend'])
+           resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa'])
     r = subprocess.run(cmd, capture_output=True, text=True)
     if 'CHARKIT_BUILD_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
+    for line in r.stdout.splitlines():
+        if line.startswith('CHARKIT_QA'):
+            print(line)
     for p in sheets(spec, out):
         print('sheet', p)
     print('built', out)
