@@ -228,9 +228,9 @@ def geometry_hash(V, F=None, decimals=5):
 
 
 # --------------------------------------------------------------------------------------------------- Blender snapshots
-def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS):
+def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False):
     """world-space (V, (loop verts, starts, counts)) of a mesh object; evaluated (modifiers, shape keys at their values)
-    with the `skip` modifiers off."""
+    with the `skip` modifiers off. materials=True adds each polygon's material index as a third item."""
     import bpy
     off = []
     if evaluated:
@@ -253,11 +253,15 @@ def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS):
         starts = np.empty(nf, np.int64); counts = np.empty(nf, np.int64)
         me.polygons.foreach_get('loop_start', starts); me.polygons.foreach_get('loop_total', counts)
         loopv = np.empty(len(me.loops), np.int64); me.loops.foreach_get('vertex_index', loopv)
+        if materials:
+            mats = np.empty(nf, np.int64); me.polygons.foreach_get('material_index', mats)
     finally:
         if evaluated:
             oe.to_mesh_clear()
             for m in off:
                 m.show_viewport = True
+    if materials:
+        return V, (loopv, starts, counts), mats
     return V, (loopv, starts, counts)
 
 

@@ -102,6 +102,14 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
   - scalp showing through the hair;
   - garment poke-through;
   - hair shading noise;
+  - the face's shape against the generated character's face (`charkit/faceqa.py`). Both faces are z-buffered from the front,
+    at 3/4 and in profile with every surface occluding; the generated mesh's skin is found by colour. Ours is measured
+    without its hair, since we know it underneath, and the target only where its face shows. The checks: the lower face's
+    half-width at the mouth line and halfway to the chin (as a ratio), the chin's height (where the profile turns back to
+    the neck), the profile's front edge, the far cheek's contour at 3/4, and depth over the cheeks and chin from under the
+    eyes (where the two are aligned). How much face the hair leaves showing is a separate, warn-only check, and the feature
+    heights against the design rig are informational. Overlays: `qa_face_contours.png` (both contours per view, the
+    chins) and `qa_face_shape.png` (the two faces from the front, and the depth difference);
   - the face, measured from the shape keys' geometry (no render, about 0.04 s): each expression's eye opening against
     neutral and against its intended range (`FACE_EXPECT`), the iris left visible (none in a blink), left/right symmetry,
     each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.

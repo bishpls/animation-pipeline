@@ -122,6 +122,7 @@ def hair_shape_volume(S, shape, hc):
     eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
     V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
     S.shape_full = (V, F)                                   # the whole aligned shape (QA compares against it)
+    S.shape_colors = C                                      # its per-vertex colours (the face QA finds its skin by them)
     cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
                                    hc.get('deep', (0.6, 0.22, 0.16))]
     chin_z = Hd['centre'][2] - Hd['H'].chin
