@@ -418,42 +418,77 @@ def interpolate(spec_path, fitted_path, knobs, t, out_path):
 
 # ------------------------------------------------------------------------------------------------------------ body
 class BodyFitter(Fitter):
-    """STUB for tool/bodyfit: the body, garments, hair and palette fitted to the silhouette, model-sheet body and palette
-    checks. Declares its targets and the spec sections it will own; fits nothing until it lands (then:
-    `python -m charkit bodyfit`, same result shape)."""
+    """charkit.bodyfit (tool/bodyfit): the body, garments, hair and palette fitted to the silhouette, model-sheet body,
+    outfit-piece and palette checks with charkit.fitkit on charkit.bodyeval's fast evaluator (`python -m charkit bodyfit
+    SPEC --palette`). Its knobs depend on the spec's garments (bodyfit.declare(spec)): the table here is the body's and
+    the hair's until a run reads the spec's own."""
     name = 'body'
     branch = 'tool/bodyfit'
     targets = ('shape_iou', 'shape_iou_*', 'ref_iou', 'body_*', 'palette_*', 'scalp_px', 'poke_share')
-    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'hair.*', 'garments.*', 'outfit.*', 'accessories.*',
-            'skin.*', 'hair_colors.*', 'lash_color', 'brow_color', 'iris.top', 'iris.mid', 'iris.bottom', 'iris.ring',
-            'iris.pupil')
+    owns = ('body.height_m', 'body.heads_tall', 'body.proportions.*', 'body.pose.*', 'hair.*', 'garments.*', 'outfit.*',
+            'accessories.*', 'skin.*', 'hair_colors.*', 'lash_color', 'brow_color', 'iris.top', 'iris.mid', 'iris.bottom',
+            'iris.ring', 'iris.pupil')
 
-    def __init__(self):
-        self.landed = os.path.exists(os.path.join(ROOT, 'charkit', 'bodyfit.py'))
-        self.knobs = {}
+    def __init__(self, budget=None, workers=None):
+        self.budget, self.workers = budget, workers
+        self.mod, self.knobs = None, {}
+        try:
+            from . import bodyfit
+            self.mod = bodyfit
+        except Exception:
+            pass
+        self.landed = self.mod is not None and hasattr(self.mod, 'fit') and hasattr(self.mod, 'declare')
         if self.landed:
             try:
-                from . import bodyfit
-                self.knobs = _knob_table(getattr(bodyfit, 'KNOBS', {}))
-                self.landed = hasattr(bodyfit, 'main')
+                self.knobs = self._table(self.mod.declare())
             except Exception:
-                self.landed = False
+                pass
+
+    @staticmethod
+    def _table(D):
+        """bodyfit.declare()'s knobs as the registry's table: the first spec path of each (a dotted path whose list items
+        are named), its default, step, bounds and group as the block."""
+        return {n: {'path': tuple(k['paths'][0].split('.')), 'paths': list(k['paths']), 'default': k['default'],
+                    'step': k['step'], 'bounds': tuple(k['bounds']), 'block': k.get('group')} for n, k in D['knobs'].items()}
 
     def run(self, spec_path, args, out, log=print):
         if not self.landed:
             return {'fitter': self.name, 'status': 'stub', 'why': 'STUB: the body fitter (tool/bodyfit) has not landed'}
         from . import procs
+        from .bodyeval import get_knob
         os.makedirs(out, exist_ok=True)
         t = time.time()
-        r = procs.run([PY, '-m', 'charkit', 'bodyfit', spec_path, '--out', out], out, 'fit body', cwd=ROOT, start_new_session=True)
+        cmd = [PY, '-m', 'charkit', 'bodyfit', spec_path, '--out', out, '--palette']
+        if self.budget:
+            cmd += ['--budget', str(self.budget)]
+        if self.workers:
+            cmd += ['--workers', str(self.workers)]
+        r = procs.run(cmd, out, 'fit body', cwd=ROOT, start_new_session=True)
         open(os.path.join(out, 'fit.log'), 'w').write(r.stdout + r.stderr)
         name = json.load(open(spec_path))['name']
-        fitted = os.path.join(out, name + '.fit.json')
-        if r.returncode or not os.path.exists(fitted):
+        fitted = os.path.join(out, name + '.bodyfit.json')
+        rp = os.path.join(out, 'bodyfit_report.json')
+        if r.returncode or not os.path.exists(fitted) or not os.path.exists(rp):
             return {'fitter': self.name, 'status': 'failed', 'seconds': round(time.time() - t, 1), 'why': (r.stdout + r.stderr)[-800:]}
-        res = read_fit(out, spec_path, fitted, self.knobs)
-        res.update(fitter=self.name, seconds=round(time.time() - t, 1), args=list(args))
-        return res
+        rep = json.load(open(rp))
+        self.knobs = self._table(rep['declare'])
+        a, b = json.load(open(spec_path)), json.load(open(fitted))
+        changed, blocks = {}, {}
+        for n, k in self.knobs.items():
+            x0, x1 = get_knob(a, k['paths'][0], k['default']), get_knob(b, k['paths'][0], k['default'])
+            if isinstance(x0, (int, float)) and isinstance(x1, (int, float)) and abs(x1 - x0) > 1e-6:
+                changed[n] = [x0, x1]
+                blocks.setdefault(k['block'], []).append(n)
+        bounds = [{'knob': n, 'side': v['at_bound'], 'value': v.get('fitted'),
+                   'bound': v['bounds'][0 if v['at_bound'] == 'lower' else 1]}
+                  for n, v in (rep.get('knobs') or {}).items() if v.get('at_bound')]
+        sp = os.path.join(out, 'sensitivity.json')
+        predicted = {k: [(rep['before'].get(k) or [None])[0], v[0]] for k, v in rep.get('after', {}).items()
+                     if not k.startswith('piece_')}
+        return {'fitter': self.name, 'status': 'fitted' if changed else 'no change', 'spec': fitted, 'changed': changed,
+                'blocks': blocks, 'bounds': bounds, 'sensitivity': json.load(open(sp)) if os.path.exists(sp) else None,
+                'predicted': predicted, 'predicted_regressions': rep.get('regressions') or {}, 'report': rp,
+                'seconds': round(time.time() - t, 1), 'args': list(args)}
 
 
 # ------------------------------------------------------------------------------------------------------------ options
@@ -500,5 +535,5 @@ class OptionsFitter(Fitter):
 def registry(config=None, budget=None, only=None, workers=None):
     """the fitters in the order the loop runs them (budget: each fast fitter's evaluations)."""
     config = config or {}
-    F = [OptionsFitter(config.get('options')), FaceFitter(budget, workers), BodyFitter()]
+    F = [OptionsFitter(config.get('options')), FaceFitter(budget, workers), BodyFitter(budget, workers)]
     return [f for f in F if not only or f.name in only]

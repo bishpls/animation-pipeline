@@ -435,7 +435,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
         rep.update(declare={'knobs': {k.name: k.declare() for k in K}, 'terms': [t.declare() for t in T]},
                    outfit_start=drafted)
         log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
-        table = fitkit.sensitivity(pool, start, [k for k in K if k.group in groups])
+        table = fitkit.sensitivity(pool, start, K)
         json.dump(table, open(os.path.join(out, 'sensitivity.json'), 'w'), indent=1)
         log('bodyfit: sensitivity table (%d knobs)' % len(table['knobs']))
         fitted = start
@@ -472,6 +472,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
                                                baseline=protected, log=log)
                 rep['repair']['%s_%d' % (g, rnd + 1)] = {k: v for k, v in info.items() if k != 'history'}
                 log('bodyfit: repaired %s %s' % (g, info['fitted']))
+        fitted, rep['line_repair'] = line_repair(pool, fitted, K, T, protected, table, log)
         # the checks the fit doesn't aim at (the face's, the expressions, folds, scalp, ...) mustn't read worse: each
         # group's change is scaled back while one does
         aimed = {t.check for t in T if t.kind != 'hold'}
@@ -507,6 +508,55 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
     open(os.path.join(out, 'bodyfit_report.md'), 'w').write(report_md(rep))
     log('bodyfit: wrote %s (%.0f s)' % (p, rep['seconds']))
     return fitted, rep
+
+
+LINE_STEPS = (0.5, 1.0, 1.5, 2.0, 3.0, 4.0)      # the line repair's trial steps along a knob, in knob steps
+
+
+def line_repair(pool, spec, K, T, protected, table, log=print):
+    """what the repair left: for each check still reading worse than in the baseline, a line search along the knobs
+    that move it most (the sensitivity table's per-step change, the helpful direction), taking the smallest step that
+    brings it back into its band without any other graded check reading worse than it does now.
+    -> (spec, {check: {knob, steps, value} or 'unrepaired'})."""
+    names = lambda c: not c.startswith('piece_')
+    now = pool.map([(spec, 'all', True)])[0]
+    reg = fitkit.regressions(protected, now, names)
+    out = {}
+    for chk in list(reg):
+        t = next((t for t in T if t.check == chk and t.kind != 'hold'), None)
+        movers = []
+        for k in K:
+            m = ((table.get('knobs') or {}).get(k.name) or {}).get('measures', {}).get(chk) or {}
+            if m.get('per_step'):
+                movers.append((abs(m['per_step']), k, m['per_step']))
+        movers.sort(key=lambda x: -x[0])
+        v = (now.get(chk) or {}).get('value')
+        done = None
+        for _, k, ps in movers[:3]:
+            if t is None or v is None:
+                break
+            target = 1.0 if t.kind in ('ratio', 'floor') and (t.kind == 'ratio' or t.floor == 1.0) else 0.0
+            sgn = 1.0 if (target - v) * ps > 0 else -1.0
+            x0 = k.get(spec)
+            xs = [min(k.bounds[1], max(k.bounds[0], x0 + sgn * st * k.step)) for st in LINE_STEPS]
+            specs = [fitkit.with_knobs(spec, [x], [k]) for x in xs]
+            cs = pool.map([(s_, 'all', True) for s_ in specs])
+            for st, x, s_, c in zip(LINE_STEPS, xs, specs, cs):
+                r2 = fitkit.regressions(protected, c, names)
+                if chk not in r2 and set(r2) <= set(reg) - {chk}:
+                    done = (k, st, x, s_, c)
+                    break
+            if done:
+                break
+        if done:
+            k, st, x, spec, now = done
+            reg = fitkit.regressions(protected, now, names)
+            out[chk] = {'knob': k.name, 'steps': st, 'value': round(x, 5), 'check': (now.get(chk) or {}).get('value')}
+            log('bodyfit: line repair %s: %s %+g steps -> %s' % (chk, k.name, st, out[chk]['check']))
+        else:
+            out[chk] = 'unrepaired'
+            log('bodyfit: line repair %s: none of its knobs brings it back alone' % chk)
+    return spec, out
 
 
 WORKERS = 2                     # evaluator processes (each holds an evaluator: about 1.5 GB; the machine is shared)
