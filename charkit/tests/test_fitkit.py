@@ -70,6 +70,29 @@ def test_sensitivity_schema_and_triage():
     assert why == {'far': 'knob at bound', 'dead': 'needs a knob'}, why
 
 
+
+class TimedToy(Toy):
+    """Toy that keeps its stage times, as charkit.bodyfit.BodyChecks does."""
+
+    def checks(self, spec, group, fine=False):
+        self.timing = {'measure': 0.001, 'geometry': 0.002}
+        return super().checks(spec, group, fine)
+
+
+def test_evaluations_are_counted_and_timed_by_phase():
+    pool = fitkit.Pool('charkit.tests.test_fitkit:TimedToy', (), workers=1)
+    spec, info = fitkit.optimise(pool, {'name': 'toy'}, KNOBS, TERMS, 'g', {'profile': 'sheet'}, log=lambda *a: None)
+    ph = info['phases']
+    assert {'start', 'gradient', 'polish'} <= set(ph), ph
+    assert sum(v['evaluations'] for v in ph.values()) == info['evaluations']
+    fitkit.sensitivity(pool, {'name': 'toy'}, KNOBS)
+    R = pool.report()
+    assert R['phases']['sensitivity']['evaluations'] == 1 + 2 * len(KNOBS)
+    assert R['phases']['gradient']['evaluations'] == ph['gradient']['evaluations']
+    assert R['phases']['gradient']['stages'] == {'geometry': 0.002, 'measure': 0.001}
+    assert R['workers'] == 1 and R['peak_mb'] > 0 and R['phases']['polish']['parallelism'] > 0
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

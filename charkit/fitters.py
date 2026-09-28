@@ -31,20 +31,55 @@ def _path(p):
 
 
 # ------------------------------------------------------------------------------------------------------------ knobs
+def _item(lst, key):
+    """a list element's index by index, name or kind (charkit.bodyeval's rule: garments.skirt.flare), or None."""
+    if isinstance(key, int) or (isinstance(key, str) and key.isdigit()):
+        return int(key) if int(key) < len(lst) else None
+    for i, x in enumerate(lst):
+        if isinstance(x, dict) and (x.get('name') == key or x.get('kind') == key):
+            return i
+    return None
+
+
 def get(spec, path, default=None):
+    """a value by path (a tuple of keys); list items by index, name or kind."""
     d = spec
-    for k in path[:-1]:
-        d = d.get(k) if isinstance(d, dict) else None
-        if d is None:
+    for k in path:
+        if isinstance(d, list):
+            i = _item(d, k)
+            if i is None:
+                return default
+            d = d[i]
+        elif isinstance(d, dict) and k in d:
+            d = d[k]
+        else:
             return default
-    return d.get(path[-1], default) if isinstance(d, dict) else default
+    return d
 
 
-def put(spec, path, value):
-    d = spec
+def put(spec, path, value, source=None):
+    """set a value by path in place, creating dict levels; a list item is found by index, name or kind. A list item the
+    spec lacks is copied whole from `source` (a fit's spec, where the fit added the piece), else KeyError."""
+    d, src = spec, source
     for k in path[:-1]:
-        d = d.setdefault(k, {})
-    d[path[-1]] = value
+        if isinstance(d, list):
+            i = _item(d, k)
+            j = _item(src, k) if isinstance(src, list) else None
+            if i is None:
+                if j is None:
+                    raise KeyError('no list item %r on the way to %s' % (k, dotted(path)))
+                d.append(copy.deepcopy(src[j]))
+                i = len(d) - 1
+            d, src = d[i], (src[j] if j is not None else None)
+        else:
+            d, src = d.setdefault(k, {}), (src.get(k) if isinstance(src, dict) else None)
+    if isinstance(d, list):
+        i = _item(d, path[-1])
+        if i is None:
+            raise KeyError('no list item %r for %s' % (path[-1], dotted(path)))
+        d[i] = value
+    else:
+        d[path[-1]] = value
 
 
 def dotted(path):
@@ -327,14 +362,17 @@ def predicted_checks(rep):
 
 
 def with_block(spec_path, fitted_path, knobs, block, out_path):
-    """the spec with only one block's fitted knobs applied (a partial checkpoint) -> out_path."""
+    """the spec with only one block's fitted knobs applied (a partial checkpoint) -> out_path, or None when that writes
+    nothing (a checkpoint of it would only rebuild its start)."""
     a, b = json.load(open(spec_path)), json.load(open(fitted_path))
     S = copy.deepcopy(a)
     for n, k in knobs.items():
         if k['block'] == block:
             v = get(b, k['path'])
             if v is not None:
-                put(S, k['path'], v)
+                put(S, k['path'], v, source=b)
+    if S == a:
+        return None
     json.dump(S, open(out_path, 'w'), indent=1)
     return out_path
 
@@ -405,18 +443,26 @@ def probe_headroom(table, spec, terms, knobs, authority=None):
 
 def interpolate(spec_path, fitted_path, knobs, t, out_path):
     """the spec with every fitted knob moved a fraction t of the way from its start to the fit (a shorter step along
-    the fit's move) -> out_path."""
+    the fit's move) -> out_path, or None when that changes nothing."""
     a, b = json.load(open(spec_path)), json.load(open(fitted_path))
     S = copy.deepcopy(a)
     for n, k in knobs.items():
         x0, x1 = get(a, k['path'], k['default']), get(b, k['path'], k['default'])
         if isinstance(x0, (int, float)) and isinstance(x1, (int, float)) and x0 != x1:
-            put(S, k['path'], round(x0 + t * (x1 - x0), 5))
+            try:
+                put(S, k['path'], round(x0 + t * (x1 - x0), 5))
+            except KeyError:
+                pass                                 # a piece the fit added: it has no start to step from
+    if S == a:
+        return None                                  # nothing to interpolate: a checkpoint would rebuild its start
     json.dump(S, open(out_path, 'w'), indent=1)
     return out_path
 
 
 # ------------------------------------------------------------------------------------------------------------ body
+DRAFT_MIN_GAIN = 0.02        # a draft kept at the body fit's start this good is worth a fit (the probe's min_headroom)
+
+
 class BodyFitter(Fitter):
     """charkit.bodyfit (tool/bodyfit): the body, garments, hair and palette fitted to the silhouette, model-sheet body,
     outfit-piece and palette checks with charkit.fitkit on charkit.bodyeval's fast evaluator (`python -m charkit bodyfit
@@ -451,6 +497,41 @@ class BodyFitter(Fitter):
         return {n: {'path': tuple(k['paths'][0].split('.')), 'paths': list(k['paths']), 'default': k['default'],
                     'step': k['step'], 'bounds': tuple(k['bounds']), 'block': k.get('group'),
                     'derived': list(k.get('derived') or ())} for n, k in D['knobs'].items()}
+
+    def probe(self, spec_path, out, log=print):
+        """the look before a full fit (FaceFitter.probe's result) from the fit's own start: `python -m charkit bodyfit
+        SPEC --probe` (charkit.bodyfit.probe). None when it can't be measured, or when the outfit graph's draft kept at
+        the start drops the fit's cost by DRAFT_MIN_GAIN or more: that's a change of its own, which a step table can't
+        judge, so the fit runs."""
+        r = self._probe(spec_path, out, log)
+        if r and r.get('drafted') and r.get('draft_gain', 1.0) >= DRAFT_MIN_GAIN:
+            log("  probe body: the outfit graph's draft of %s drops the cost %.1f%%: the fit runs" % (
+                ', '.join(r['drafted']), 100 * r['draft_gain']))
+            return None
+        return r
+
+    def sensitivity_at(self, spec_path, out, log=print):
+        """the body fit's sensitivity table at a spec (the probe's), for the triage -> the table, or None."""
+        r = self._probe(spec_path, out, log)
+        return r['table'] if r else None
+
+    def _probe(self, spec_path, out, log=print):
+        if not self.landed:
+            return None
+        from . import procs
+        os.makedirs(out, exist_ok=True)
+        cmd = [PY, '-m', 'charkit', 'bodyfit', spec_path, '--out', out, '--probe']
+        if self.workers:
+            cmd += ['--workers', str(self.workers)]
+        r = procs.run(cmd, out, 'probe body', cwd=ROOT, start_new_session=True)
+        open(os.path.join(out, 'probe.log'), 'w').write(r.stdout + r.stderr)
+        p, sp = os.path.join(out, 'probe.json'), os.path.join(out, 'sensitivity.json')
+        if r.returncode or not os.path.exists(p) or not os.path.exists(sp):
+            log('  probe body failed: %s' % (r.stdout + r.stderr)[-300:])
+            return None
+        R = json.load(open(p))
+        R['table'] = json.load(open(sp))
+        return R
 
     def run(self, spec_path, args, out, log=print):
         if not self.landed:

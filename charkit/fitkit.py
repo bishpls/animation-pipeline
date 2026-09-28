@@ -25,7 +25,7 @@ scaled back while one of them reads worse. Deterministic: no randomness anywhere
     spec2, info = fitkit.optimise(pool, spec, knobs, terms, group, authority, budget=200)
     rows = fitkit.triage(after_residuals, T, knobs, spec2)           # needs a knob / knob at bound / trade-off
 """
-import copy, importlib, math
+import copy, importlib, math, os, sys, time
 
 import numpy as np
 
@@ -172,8 +172,15 @@ def _init(factory, args):
 
 
 def _run(job):
+    """one evaluation in a worker -> (checks, meta {seconds, stages (the evaluator's `timing`, if it keeps one), pid,
+    peak_mb (the worker's peak resident memory)})."""
+    import resource
     spec, group, fine = job
-    return plain(_W.checks(spec, group, fine))
+    t = time.time()
+    c = plain(_W.checks(spec, group, fine))
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss                 # bytes on macOS, KB on Linux
+    return c, {'seconds': time.time() - t, 'stages': dict(getattr(_W, 'timing', None) or {}), 'pid': os.getpid(),
+               'peak_mb': rss / (1 << 20) if sys.platform == 'darwin' else rss / 1024}
 
 
 def plain(x):
@@ -190,21 +197,50 @@ def plain(x):
 
 
 class Pool:
-    """evaluations in worker processes, each holding its own evaluator (factory 'module:Class', built with args)."""
+    """evaluations in worker processes, each holding its own evaluator (factory 'module:Class', built with args).
+    map(jobs, phase) labels what the evaluations were for; report() gives, per phase, how many there were, the wall time
+    they took and the time the workers spent (their ratio is the parallelism the phase got: more workers help only a
+    phase whose parallelism is near the worker count), the evaluator's own stage times, and each worker's peak memory."""
 
     def __init__(self, factory, args, workers=1):
         import multiprocessing as mp
         self.n = max(1, int(workers))
         self.calls = 0
+        self.stats, self.peak, self.t0 = {}, {}, time.time()
         if self.n > 1:
             self.p = mp.get_context('spawn').Pool(self.n, initializer=_init, initargs=(factory, args))
         else:
             self.p = None
             _init(factory, args)
 
-    def map(self, jobs):
+    def map(self, jobs, phase='other'):
+        t = time.time()
         self.calls += len(jobs)
-        return self.p.map(_run, jobs) if self.p else [_run(j) for j in jobs]
+        R = self.p.map(_run, jobs) if self.p else [_run(j) for j in jobs]
+        s = self.stats.setdefault(phase, {'calls': 0, 'evaluations': 0, 'seconds': 0.0, 'eval_seconds': 0.0, 'stages': {}})
+        s['calls'] += 1
+        s['evaluations'] += len(jobs)
+        s['seconds'] += time.time() - t
+        for _, m in R:
+            s['eval_seconds'] += m['seconds']
+            for k, v in m['stages'].items():
+                s['stages'][k] = s['stages'].get(k, 0.0) + v
+            self.peak[m['pid']] = max(self.peak.get(m['pid'], 0.0), m['peak_mb'])
+        return [c for c, _ in R]
+
+    def report(self):
+        """-> {workers, seconds (since the pool started), phases {phase: {calls, evaluations, seconds (wall),
+        eval_seconds (summed over the workers), per_eval, parallelism (eval_seconds / seconds), stages {stage: seconds
+        per evaluation}}}, peak_mb (the largest worker's), peak_mb_total (all workers')}."""
+        ph = {}
+        for k, s in sorted(self.stats.items(), key=lambda kv: -kv[1]['seconds']):
+            n = max(1, s['evaluations'])
+            ph[k] = {'calls': s['calls'], 'evaluations': s['evaluations'], 'seconds': round(s['seconds'], 1),
+                     'eval_seconds': round(s['eval_seconds'], 1), 'per_eval': round(s['eval_seconds'] / n, 3),
+                     'parallelism': round(s['eval_seconds'] / max(1e-9, s['seconds']), 2),
+                     'stages': {st: round(v / n, 3) for st, v in sorted(s['stages'].items(), key=lambda kv: -kv[1])}}
+        return {'workers': self.n, 'seconds': round(time.time() - self.t0, 1), 'phases': ph,
+                'peak_mb': round(max(self.peak.values(), default=0.0)), 'peak_mb_total': round(sum(self.peak.values()))}
 
     def close(self):
         if self.p:
@@ -246,7 +282,7 @@ def sensitivity(pool, spec, knobs, fine=False):
         for sgn in (-1, 1):
             jobs.append((with_knobs(spec, [min(k.bounds[1], max(k.bounds[0], x0 + sgn * k.step))], [k]), k.group, fine))
             index.append((k, k.group, sgn))
-    out = pool.map(jobs)
+    out = pool.map(jobs, phase='sensitivity')
     base = {g: measures(c) for (k, g, s), c in zip(index, out) if k is None}
     T = {}
     for (k, g, sgn), c in zip(index, out):
@@ -289,23 +325,26 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     x0 = np.clip(np.array([k.get(spec) for k in knobs]), lo, hi)
     x0 = np.clip(x0, lo + 0.5 * st, hi - 0.5 * st)          # half a step inside its bounds: a trust region can move
     ulo, uhi = (lo - x0) / st, (hi - x0) / st
-    memo, hist, used = {}, [], [0]
+    memo, hist, used, phases = {}, [], [0], {}
 
-    def evaluate(us, fine=False):
+    def evaluate(us, fine=False, phase='step'):
         keys = [(tuple(np.round(u, 6)), fine) for u in us]
         todo = list(dict.fromkeys(k for k in keys if k not in memo))
         if todo:
             if budget is not None and used[0] + len(todo) > budget:
                 raise Budget()
             used[0] += len(todo)
-            cs = pool.map([(with_knobs(spec, x0 + np.array(k[0]) * st, knobs), group, fine) for k in todo])
+            t = time.time()
+            cs = pool.map([(with_knobs(spec, x0 + np.array(k[0]) * st, knobs), group, fine) for k in todo], phase=phase)
+            P = phases.setdefault(phase, {'evaluations': 0, 'calls': 0, 'seconds': 0.0})
+            P['evaluations'] += len(todo); P['calls'] += 1; P['seconds'] = round(P['seconds'] + time.time() - t, 2)
             for k, c in zip(todo, cs):
                 memo[k] = residuals(c, terms, authority)
         return [memo[k] for k in keys]
 
     keep = None
     if protect:
-        keep = bands(evaluate([np.zeros(len(knobs))], True)[0])
+        keep = bands(evaluate([np.zeros(len(knobs))], True, 'start')[0])
         if baseline:
             kb = bands(residuals(baseline, terms, authority))
             keep = [b if t.check in baseline else k for t, k, b in zip(terms, keep, kb)]
@@ -330,14 +369,14 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
         for i in range(len(u)):
             e = np.zeros(len(u)); e[i] = 1.0 if u[i] + 1 <= uhi[i] else -1.0
             pts.append(u + e)
-        R = evaluate([u] + pts)
+        R = evaluate([u] + pts, phase='gradient')
         f0 = vector(R[0], x0 + u * st, knobs, keep)
         return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs, keep) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
     def polish(u):
         """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
         taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
-        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs, loss, keep)
+        cur = cost(evaluate([u], True, 'polish')[0], x0 + u * st, knobs, loss, keep)
         for dstep in POLISH:
             for _ in range(POLISH_MOVES):
                 cands = []
@@ -346,7 +385,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                         v = u.copy(); v[i] = np.clip(v[i] + sgn * dstep, ulo[i], uhi[i])
                         if not np.allclose(v, u):
                             cands.append((i, v))
-                cs = [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
+                cs = [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True, 'polish'), cands)]
                 j = int(np.argmin(cs))
                 if cs[j] >= cur - 1e-6:
                     break
@@ -375,7 +414,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     info = {'group': group, 'start': dict(zip([k.name for k in knobs], x0.round(5).tolist())),
             'fitted': dict(zip([k.name for k in knobs], x.round(5).tolist())),
             'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(knobs, x) if k.at_bound(xi)},
-            'evaluations': used[0], 'stopped': stopped, 'history': hist}
+            'evaluations': used[0], 'phases': phases, 'stopped': stopped, 'history': hist}
     return with_knobs(spec, x, knobs), info
 
 
@@ -399,7 +438,7 @@ def guard(pool, start, fitted, knobs, before, names, steps=(0.75, 0.5, 0.25, 0.0
     the start, the whole fitted change is scaled back (steps of the change). -> (spec, info {kept, regressions})."""
     x0 = np.array([k.get(start) for k in knobs]); x1 = np.array([k.get(fitted) for k in knobs])
     specs = [with_knobs(start, x0 + t * (x1 - x0), knobs) for t in (1.0,) + tuple(steps)]
-    cs = pool.map([(s_, 'all', True) for s_ in specs])
+    cs = pool.map([(s_, 'all', True) for s_ in specs], phase='guard')
     for t, s_, c in zip((1.0,) + tuple(steps), specs, cs):
         reg = regressions(before, c, names)
         if not reg:
