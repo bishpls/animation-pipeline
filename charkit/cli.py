@@ -12,6 +12,7 @@
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
     python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
     python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
+    python -m charkit bodyfit SPEC [--pieces body,skirt,...] [--palette] [--write-spec]   # fit them to the model sheet
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -253,6 +254,9 @@ def main(argv=None):
     elif cmd == 'bodysens':
         from . import bodysens
         bodysens.main(rest)
+    elif cmd == 'bodyfit':
+        from . import bodyfit
+        bodyfit.main(rest)
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)

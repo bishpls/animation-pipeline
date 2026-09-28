@@ -282,8 +282,63 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
   - Many garment knobs move nothing at band scale (cuffs, sleeves, collar, the shells' regions and cuts). That needs
     per-piece measurements.
   - Needing a capability: the arms' angle (40 degrees against 26) and the legs' splay (5 degrees). Every body knob
-    scales along or across a bone, so none turns a limb. They move only as side effects of the torso's length or the
-    head count. This leaves the front torso and legs spans out, and it wants a rest-pose knob.
+    scaled along or across a bone, so none turned a limb. They moved only as side effects of the torso's length or the
+    head count, which left the front torso and legs spans out. The rest-pose knobs below were added for this.
+
+**The rest pose** (`body.pose`: `arm_down`, `elbow`, `leg_in`, in degrees from MakeHuman's A-pose; `body.rest_pose`).
+- **What each turns.** Each knob turns its bone in the frontal plane about the front-back axis through the bone's head:
+  the upper arms at the shoulders, the forearms at the elbows, the thighs at the hips.
+- **How.** The skin follows by linear blend skinning with the body's own weights, down the VRM hierarchy. The VRM
+  joints land exactly on the turned bones, and the result becomes the rest. The armature, the garments (sleeves and
+  cuffs ride their bones) and the head are then built on it.
+- **Zero is the old build.** At zero nothing is computed, so it is bit for bit the old build.
+- **Export.** The VRM export's T-pose is taken from whatever the rest is (`gltf.skeleton` turns each bone from its
+  bind direction to the T-pose's), and `bindPose` brings the build pose back.
+- **On Clawd.** `arm_down` 14 and `leg_in` 5 bring the arms to 26 degrees and the legs together. That raises shape_iou
+  from 0.577 to 0.675, the legs band from 0.30 to 0.53, and ref_iou from 0.546 to 0.749.
+
+**One measurement code for every geometry source** (`charkit/bodymeasure.py`).
+- **The bundle.** The measures take a bundle, which is plain data:
+  - per object: world vertices, triangles, and per triangle a model-sheet class (`bodyqa.CLASS`) and the lit and shade
+    tones its material renders unlit;
+  - the landmarks (L, the head centre, the chin, waist and knee heights, the iris centres);
+  - the aligned generated shape.
+- **Producing one.** `bodyeval.Geometry.bundle(levels)` makes one from the fast evaluator. It subdivides the skin and
+  garments as the build evaluates them (Catmull-Clark to the limit surface, `bodyeval.subdivide`; 'viewport' for what
+  the in-Blender QA z-buffers, 'render' for what its renders show). It takes the classes and tones from the build's own
+  material rules: the skirt's stepped hem and the top's front panel sampled per subdivided face, the iris where its
+  texture is opaque. A Blender export of the same bundle would be measured by the same functions:
+  - `shape` (qa3d's shape and ref IoUs, charkit.geom.raster);
+  - `sheet_body` (charkit.bodyqa's checks against the model sheet);
+  - `sheet_palette` (charkit.paletteqa's);
+  - `measures` (the band, extent and pose measurements).
+- **zsplat.** `bodymeasure.zsplat` is faceqa's point-splat z-buffer compiled with numba. It gives the same labels (38 of
+  456,000 pixels differ, on depth ties) and is about 20x faster.
+- **Against the merged build's QA.** All 81 body_* and palette_* checks grade the same, with values within 0.012
+  (lengths in L, width ratios) and 0.14 dE. The front arm angle, which is information only, is within 0.5 degrees.
+  The shape silhouettes agree at 0.993 to 0.997 per view.
+
+**Fitting the body, garments and hair to the sheet** (`charkit/bodyfit.py`: `python -m charkit bodyfit SPEC [--pieces
+body,skirt,boots,sleeves,hair] [--palette] [--write-spec]`).
+- **Pieces.** The fit goes piece by piece:
+  - the body: head count, proportions and the rest pose (the neck's knobs are left to the face fit);
+  - the skirt: flare, length, back, waist;
+  - the boots: the shell's top on the shins, and the cuffs;
+  - the sleeves: puff and length;
+  - the hair: hair.shape's below and shoulder_x.
+- **Terms.** Each piece is a least-squares fit over its knobs against all its terms at once:
+  - the sheet's four views: feet, legs, boots, hems, the skirt's and sleeves' widths, the hair's length and width, the
+    top, the arms' angle, and the silhouette, skin, outfit and hair IoUs;
+  - the generated shape's bands.
+- **Weights.** Each term is weighted by the manifest's authority map: full where its reference is the authority for
+  its measure (the sheet for the body's and hair's silhouettes, the generated shape for the hair's shape), a quarter
+  otherwise. Each knob is pulled toward its template default. The terms and the knobs follow charkit.fitkit's
+  conventions (tool/fit).
+- **The palette.** `--palette` sets the skin and hair colours to the sheet's lit and shade tones. Each class of
+  garment colours moves by the one shift that minimises its dE00, kept inside its colour family. A class that doesn't
+  read better, re-measured, keeps its colours.
+- **What it writes.** `DIR/NAME.bodyfit.json` is the fitted spec. `bodyfit_report.md` has every check before and after,
+  the knobs per piece and what still fails.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

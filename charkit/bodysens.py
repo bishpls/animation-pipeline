@@ -1,7 +1,7 @@
 """The body, garment and hair knobs, and what each does to the silhouette (docs/CHARKIT.md §4): an inventory of every knob
 the body, the garment builders and the hair read (the spec's value or the builder's default, a step and a range), and a
 sensitivity table measured through the fast evaluator (charkit.bodyeval): each knob moved a step each way from the spec,
-every silhouette measurement (bodyeval.MEASURES) read, the central difference kept. Measurements that no knob moves, or
+every silhouette measurement (bodymeasure.MEASURES) read, the central difference kept. Measurements that no knob moves, or
 that no single knob can move far enough within its range to close today's error, are listed as needing a capability.
 
     python -m charkit bodysens SPEC [--out DIR] [--only body,garments,hair] [--pieces skirt,top]
@@ -26,6 +26,9 @@ BODY = {
     'ethnic.0': (0.1, 0.0, 1.0, 'MakeHuman macro'), 'ethnic.1': (0.1, 0.0, 1.0, 'MakeHuman macro'),
 }
 PROPORTION = (0.05, 0.5, 1.6, 'scale along / across the bones')
+POSE_KNOBS = {'arm_down': (3.0, -20.0, 40.0, 'the rest pose: arms lowered at the shoulders, degrees'),
+        'elbow': (3.0, -20.0, 40.0, 'the rest pose: forearms bent in at the elbows, degrees'),
+        'leg_in': (1.5, -10.0, 15.0, 'the rest pose: legs brought together at the hips, degrees')}
 
 # per garment kind: knob -> (default, step, lo, hi, note). Defaults are the builders' (charkit/garments.py).
 GARMENT = {
@@ -119,6 +122,9 @@ def inventory(spec):
     for k, d in DEFAULT_BODY['proportions'].items():
         st, lo, hi, note = PROPORTION
         add('body.proportions.' + k, 'body', None, get_knob(spec, 'body.proportions.' + k, d), st, lo, hi, note)
+    for k, d in DEFAULT_BODY['pose'].items():
+        st, lo, hi, note = POSE_KNOBS[k]
+        add('body.pose.' + k, 'body', None, get_knob(spec, 'body.pose.' + k, d), st, lo, hi, note)
     # the garments: every piece's knobs (its own value or the builder's default)
     for s in spec.get('garments') or []:
         nm, kind = s['name'], s['kind']
@@ -331,18 +337,18 @@ def _tol(m):
     return 0.02 if 'iou' in m else 0.5 if 'angle' in m else 0.02
 
 
-POSE = ('arm_angle', 'leg_angle')           # limb directions: every body knob scales along or across a bone, none turns one
+POSE = ('arm_angle', 'leg_angle')           # limb directions: only the rest-pose knobs (body.pose) turn a limb
 
 
 def capabilities(T, share=0.5):
     """what the knobs can do about each measurement's error, linearised: -> [dict(measure, value, gap, status, best,
     reach, cost)]. status: 'ok' (within tolerance); 'no knob moves it' (every change under the noise floor); 'no knob
     reaches it' (the best single knob, within its range, closes under `share` of the gap); 'no knob turns a limb' (a pose
-    measurement: the body knobs scale along and across the bones, so a limb's direction moves only through what else
-    they change); 'only at a cost' (closing `share` of the gap with the best knob pushes other measurements further out
+    measurement, in a table without the rest-pose knobs: the proportions scale along and across the bones, so a limb's
+    direction moves only through what else they change); 'only at a cost' (closing `share` of the gap with the best knob pushes other measurements further out
     of tolerance than it brings this one in, each counted in its own tolerances); 'a knob reaches it'. The aggregate IoUs
     are left to the fit (every knob moves them a little)."""
-    from .bodyeval import MEASURES
+    from .bodymeasure import MEASURES
     base = T['base']
     err = {m: v - (1.0 if 'iou' in m else 0.0) for m, v in base.items() if m in MEASURES and v is not None and np.isfinite(v)}
     out = []
@@ -377,7 +383,7 @@ def capabilities(T, share=0.5):
             status = 'left to the fit'
         elif not moved:
             status = 'no knob moves it'
-        elif m in POSE:
+        elif m in POSE and not any(k['path'].startswith('body.pose.') for k in T['knobs']):
             status = 'no knob turns a limb'
         elif reach < share * abs(gap):
             status = 'no knob reaches it'
@@ -391,10 +397,10 @@ def capabilities(T, share=0.5):
 
 def report(T, spec_name=''):
     """a readable summary (markdown) of a sensitivity table."""
-    from .bodyeval import MEASURES
+    from .bodymeasure import MEASURES
     L = ['# Knob sensitivity: %s' % spec_name, '',
          'Each knob moved one step each way from the spec through the fast evaluator (charkit/bodyeval.py); the change '
-         'per step of each silhouette measurement (charkit.bodyeval.MEASURES; widths and extents are ours minus the '
+         'per step of each silhouette measurement (charkit.bodymeasure.MEASURES; widths and extents are ours minus the '
          'generated shape\'s, in head lengths L). %d knobs, %.0f s.' % (len(T['knobs']), T['seconds']), '']
     L += ['## Today\'s measurements', '', '| measure | value | what |', '| --- | --- | --- |']
     for m, desc in MEASURES.items():

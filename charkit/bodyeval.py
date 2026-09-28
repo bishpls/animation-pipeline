@@ -25,10 +25,11 @@ import copy, hashlib, json, os, pickle, time
 
 import numpy as np
 
+from .bodymeasure import AZ, iou as _iou                    # (the measurements live in charkit/bodymeasure.py)
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(ROOT, 'charkit', 'out', 'bodyeval', 'cache')
-AZ = (0, 45, 90, 135, 180, 270)                                           # qa3d's azimuths
-RES = (360, 560)                                                          # qa3d's QA camera
+SUBDIV = {'viewport': {'skin': 1, 'garments': 1}, 'render': {'skin': 2, 'garments': 1}, 'base': {}}   # the build's levels
 BODY_KEYS = ('body',)                                                     # spec sections compose() can take over
 
 
@@ -434,37 +435,70 @@ def hair_cap(A, spec):
 
 # ------------------------------------------------------------------------------------------------------------ geometry
 class Part:
-    """one object: name, group (skin, eyes, mouth, hair, accessories, garments), world verts, polygons."""
+    """one object: name, group (skin, eyes, mouth, hair, accessories, garments), world verts, polygons, and per polygon
+    the sRGB tones its material renders unlit (lit, shade) and its model-sheet class (charkit.bodyqa.CLASS; -1: not drawn,
+    a transparent texel), when known."""
 
-    def __init__(self, name, group, V, polys):
+    def __init__(self, name, group, V, polys, lit=None, shade=None, cls=None):
         self.name, self.group, self.V = name, group, np.asarray(V, float)
         self.polys = polys
+        self.lit, self.shade, self.cls = lit, shade, cls
         self._tris = None
 
     def tris(self):
         if self._tris is None:
-            self._tris = triangulate(self.polys)
-        return self._tris
+            self._tris = triangulate(self.polys, with_poly=True)
+        return self._tris[0]
+
+    def tri_poly(self):
+        self.tris()
+        return self._tris[1]
+
+    def subdivided(self, levels):
+        """the part after `levels` of Catmull-Clark (subdivide), as Blender's Subdivision Surface evaluates it, with each
+        new face's tones (a textured part sampled at the new face's UV centre) and class. Cached on the part.
+        -> (V, quads, parent polygon per quad, lit, shade, cls or None)."""
+        cache = self.__dict__.setdefault('_sub', {})
+        if levels not in cache:
+            V, polys, parent = self.V, self.polys, np.arange(len(self.polys))
+            tex = getattr(self, 'tex', None)
+            uvc = tex['uvc'] if tex else None
+            for _ in range(levels):
+                V, polys, par, uvc = subdivide(V, polys, uvc)
+                parent = parent[par]
+            if tex:
+                uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
+                lit, shade = tex['fn'](uvm, parent)
+            else:
+                lit = self.lit[parent] if self.lit is not None else None
+                shade = self.shade[parent] if self.shade is not None else None
+            cache[levels] = (V, polys, parent, lit, shade, self.cls[parent] if self.cls is not None else None)
+        return cache[levels]
 
     def __repr__(self):
         return 'Part(%s, %s, %d verts)' % (self.name, self.group, len(self.V))
 
 
-def triangulate(polys):
-    """fan triangles of polygons (a list of index tuples or an (n, k) array). -> (m, 3) int array."""
+def triangulate(polys, with_poly=False):
+    """fan triangles of polygons (a list of index tuples or an (n, k) array). -> (m, 3) int array [, each triangle's
+    polygon]."""
     if isinstance(polys, np.ndarray) and polys.ndim == 2:
         P = polys.astype(np.int64)
-        return np.concatenate([P[:, [0, j, j + 1]] for j in range(1, P.shape[1] - 1)]) if P.shape[1] >= 3 else P[:0, :3]
-    out = []
+        k = P.shape[1]
+        T = np.concatenate([P[:, [0, j, j + 1]] for j in range(1, k - 1)]) if k >= 3 else P[:0, :3]
+        return (T, np.tile(np.arange(len(P)), max(0, k - 2))) if with_poly else T
+    out, pid = [], []
     by = {}
-    for f in polys:
-        by.setdefault(len(f), []).append(f)
-    for k, fs in sorted(by.items()):
+    for i, f in enumerate(polys):
+        by.setdefault(len(f), []).append(i)
+    for k, ids in sorted(by.items()):
         if k < 3:
             continue
-        P = np.asarray(fs, np.int64)
+        P = np.asarray([polys[i] for i in ids], np.int64)
         out += [P[:, [0, j, j + 1]] for j in range(1, k - 1)]
-    return np.concatenate(out) if out else np.zeros((0, 3), np.int64)
+        pid += [np.asarray(ids)] * (k - 2)
+    T = np.concatenate(out) if out else np.zeros((0, 3), np.int64)
+    return (T, np.concatenate(pid) if pid else np.zeros(0, np.int64)) if with_poly else T
 
 
 def _loops(A):
@@ -507,7 +541,93 @@ def garment_piece(A, s, nrm=None, dom=None):
         G = gm.bow(A, s)
     else:
         raise ValueError(k)
-    return Part(nm, 'garments', G['verts'], G['faces']), hide
+    lit, shade, tex = garment_tones(A, s, G)
+    P = Part(nm, 'garments', G['verts'], G['faces'], lit, shade)
+    P.tex = tex
+    return P, hide
+
+
+SHADE_MUL = np.array([0.86, 0.80, 0.84])               # garments._toon's shade tone (and _toon_tex's)
+
+
+def _texel(img, uv):
+    """charkit.qa3d.poly_colours' texture lookup: an (n, n, C) image (row 0 = top, as built) at UVs (clipped), the texel
+    Blender's bottom-up pixels put there."""
+    h, w = img.shape[:2]
+    uv = np.clip(np.nan_to_num(uv, nan=0.0), 0, 1 - 1e-6)
+    return img[h - 1 - (uv[:, 1] * h).astype(int), (uv[:, 0] * w).astype(int)]
+
+
+def _face_uv(faces, uv):
+    """per face, the mean of its corners' UVs (per-vertex uv (n, 2) or per-corner [[uv, ...], ...])."""
+    if uv is not None and len(uv) == len(faces) and len(faces) and hasattr(uv[0][0], '__len__'):
+        return np.array([np.mean(c, 0) for c in uv])
+    U = np.asarray(uv, float)
+    return np.array([U[list(f)].mean(0) for f in faces])
+
+
+def garment_tones(A, s, G):
+    """per face of a garment piece, the sRGB tones its material renders unlit, as garments.build makes the materials: a
+    colour toon (lit, lit * SHADE_MUL), a second material by face (the skirt's panel, a shoe's or boot's sole, the collar's
+    stripe), a textured toon (the skirt's stepped hem, a shell's front panel) sampled at the face's UV centre.
+    -> (lit (nf, 3), shade (nf, 3), tex): tex, for a textured piece, dict(uvc (per face, its corners' UVs), fn (UV
+    centres, parent faces) -> lit) so a subdivided face samples at its own centre, as Blender's evaluated mesh does."""
+    from . import garments as gm
+    L = A['head']['L']
+    k = s['kind']
+    col = np.asarray(s.get('color', (0.8, 0.8, 0.8)), float)
+    F = G['faces']
+    nf = len(F)
+    V = G['verts']
+    flat = np.zeros(nf, bool)                              # faces on a second, flat material
+    second = None
+    fn, uvc = None, None
+    if k == 'shell':
+        if 'sole' in s:
+            zmin = V[:, 2].min()
+            flat = np.array([V[list(f), 2].max() < zmin + s['sole']['height'] * L for f in F])
+            second = np.asarray(s['sole']['color'], float)
+        if 'panel' in s:
+            P_ = s['panel']
+            z0_ = gm.bone_seg(A, P_['from'][0])[0][2] + P_['from'][1] * L
+            z1_ = gm.bone_seg(A, P_['to'][0])[0][2] + P_['to'][1] * L
+            cyf = A['head']['centre'][1]
+            zlo, zhi = z0_ - 0.2 * L, z1_ + 0.2 * L
+            front = np.array([V[list(f)].mean(0)[1] < cyf + 0.02 for f in F])
+            uvc = [[((V[v][0] / L + 0.5) if fr else 5.0, (V[v][2] - zlo) / (zhi - zlo)) for v in f] for f, fr in zip(F, front)]
+            pc = np.asarray(P_['color'], float)
+
+            def fn(uv, parent):
+                n_ = 512                                          # the build's texture, at its texel centres
+                uv = np.clip(uv, 0, 1 - 1e-6)
+                uc = (np.floor(uv[:, 0] * n_) + 0.5) / n_; vc = (np.floor(uv[:, 1] * n_) + 0.5) / n_
+                X, Z = (uc - 0.5) * L, zlo + vc * (zhi - zlo)
+                t_ = np.clip((z1_ - Z) / max(1e-6, z1_ - z0_), 0, 1)
+                hw = (P_['half_top'] + (P_['half_bottom'] - P_['half_top']) * t_) * L
+                inside = (Z >= z0_) & (Z <= z1_) & (np.abs(X) < hw)
+                return np.where(inside[:, None], pc, col)
+    elif k == 'shoe':
+        flat = np.asarray(G['sole'], bool); second = np.asarray(s.get('sole_color', (0.26, 0.21, 0.21)), float)
+    elif k == 'collar':
+        flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
+    elif k == 'skirt':
+        flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
+        pw = s.get('panel', 0.0) / (2 * np.pi)
+        img = gm.stepped_hem(colors=(tuple(col), s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
+                             repeat=s.get('repeat', 8), pleats=s.get('pleats', 24))
+        U = np.asarray(G['uv'], float)
+        uvc = [U[list(f)] for f in F]
+        fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
+
+    def tones(uv_centre, parent):
+        lit = np.tile(col, (len(parent), 1)) if fn is None else fn(uv_centre, parent)
+        if second is not None:
+            lit = np.where(flat[parent][:, None], second, lit)
+        shade = lit * SHADE_MUL
+        return lit, shade
+    base_uv = np.array([np.mean(c, 0) for c in uvc]) if uvc is not None else np.zeros((nf, 2))
+    lit, shade = tones(base_uv, np.arange(nf))
+    return lit, shade, (dict(uvc=uvc, fn=tones) if uvc is not None else dict(uvc=None, fn=tones))
 
 
 def garment_parts(A, specs, cache=None, akey=None):
@@ -532,24 +652,84 @@ def garment_parts(A, specs, cache=None, akey=None):
     return parts, hide
 
 
-def character_parts(A, hide=None):
-    """the skin (minus the vertices the garments hide, as the build's mask modifier does), the eyes and the mouth."""
+def _flat(n, c):
+    c = np.asarray(c, float)
+    return np.tile(c, (n, 1)), np.tile(c, (n, 1))
+
+
+def _plate(E, key, tex):
+    """an eye plate's per-polygon texture colour and alpha at the polygon's UV centre."""
+    _, q, uv = E[key]
+    px = _texel(tex, _face_uv(q, uv))
+    return px[:, :3].astype(float), px[:, 3].astype(float)
+
+
+def character_parts(A, hide=None, spec=None):
+    """the skin (minus the vertices the garments hide, as the build's mask modifier does), the eyes and the mouth, with
+    their materials' unlit tones and model-sheet classes per polygon (qa3d.scene_classes' rules: the skin by material,
+    the iris where its texture is opaque, the sclera and teeth white, lashes, brows and lines as line)."""
+    from . import eyetex
+    from .bodyqa import CLASS as CL
+    from .scene import SKIN
+    spec = spec or {}
     F = A['faces']
-    polys = F if hide is None or not hide.any() else [f for f in F if not any(hide[v] for v in f)]
-    out = [Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys)]
+    keep = np.ones(len(F), bool) if hide is None or not hide.any() else \
+        np.array([not any(hide[v] for v in f) for f in F])
+    polys = [f for f, k in zip(F, keep) if k]
+    fm = np.asarray(A['fmat'])[keep]
+    sk = {k: tuple(v) for k, v in spec.get('skin', {}).items()} or SKIN
+    tone = {0: (sk['lit'], sk['shade'], CL['skin']), 1: (sk['lit'], sk['shade'], CL['skin']),
+            2: (spec.get('cavity_color', (0.38, 0.12, 0.15)),) * 2 + (CL['line'],),
+            3: (spec.get('eyeline_color', (0.22, 0.12, 0.10)),) * 2 + (CL['line'],)}
+    lit = np.array([tone[m][0] for m in fm], float); shd = np.array([tone[m][1] for m in fm], float)
+    out = [Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys, lit, shd, np.array([tone[m][2] for m in fm]))]
+    IK = spec.get('iris')
+    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
+    al = sh[..., 3:4]
+    comp = np.concatenate([ir[..., :3] * (1 - al) + sh[..., :3] * al, np.maximum(ir[..., 3:4], al)], -1)
+    scl = eyetex.sclera(IK)
+    lash_c = spec.get('lash_color', (0.16, 0.09, 0.10)); brow_c = spec.get('brow_color', (0.30, 0.20, 0.20))
     for E in A['eyes']:
         tag = 'L' if E['side'] > 0 else 'R'
-        out.append(Part('sclera_' + tag, 'eyes', E['sclera'][0], E['sclera'][1]))
-        out.append(Part('iris_' + tag, 'eyes', E['iris'][0], E['iris'][1]))
+        c, _ = _plate(E, 'sclera', scl)
+        out.append(Part('sclera_' + tag, 'eyes', E['sclera'][0], E['sclera'][1], c, c, np.full(len(c), CL['white'])))
+        c, a = _plate(E, 'iris', comp)
+        out.append(Part('iris_' + tag, 'eyes', E['iris'][0], E['iris'][1], c, c, np.where(a >= 0.5, CL['iris'], -1)))
         lv, lq, off = [], [], 0
         for rv, rq in E['lashes']:
             lv.append(rv); lq += [tuple(i + off for i in f) for f in rq]; off += len(rv)
-        out.append(Part('lash_' + tag, 'eyes', np.vstack(lv), lq))
-        out.append(Part('brow_' + tag, 'eyes', E['brow'][0], E['brow'][1]))
+        out.append(Part('lash_' + tag, 'eyes', np.vstack(lv), lq, *_flat(len(lq), lash_c), np.full(len(lq), CL['line'])))
+        bq = E['brow'][1]
+        out.append(Part('brow_' + tag, 'eyes', E['brow'][0], bq, *_flat(len(bq), brow_c), np.full(len(bq), CL['line'])))
     Mo = A['mouth']
-    for nm, key in (('teeth', 'teeth'), ('tongue', 'tongue'), ('mouth_line', 'line')):
-        out.append(Part(nm, 'mouth', Mo[key][0], Mo[key][1]))
+    for nm, key, c, cl in (('teeth', 'teeth', (0.97, 0.96, 0.97), CL['white']), ('tongue', 'tongue', (0.86, 0.46, 0.50), CL['other']),
+                           ('mouth_line', 'line', spec.get('mouth_line_color', (0.36, 0.16, 0.14)), CL['line'])):
+        q = Mo[key][1]
+        out.append(Part(nm, 'mouth', Mo[key][0], q, *_flat(len(q), c), np.full(len(q), cl)))
     return out
+
+
+def hair_tones(parts, spec):
+    """the hair's and accessories' unlit tones and classes (in place): the hair objects all hair (scene's materials:
+    the generated hair's toon3 of lit/shade, the cap's of shade/deep, the locks' 'hair'), an accessory by its colour
+    family (an orange one sits in the hair; one made of the hair's material is hair)."""
+    from .bodyqa import CLASS as CL, family
+    C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72))
+    C.update({k: tuple(v) for k, v in (spec.get('hair_colors') or {}).items()})
+    for p in parts:
+        n = len(p.polys)
+        if p.group == 'hair':
+            lit, shd = (C['shade'], C['deep']) if p.name == 'hair_cap' else (C['lit'], C['shade'])
+            p.lit, p.shade = _flat(n, lit)[0], _flat(n, shd)[0]
+            p.cls = np.full(n, CL['hair'])
+        elif p.group == 'accessories':
+            a = getattr(p, 'spec', {})
+            if a.get('material', a.get('kind')) == 'hair':
+                p.lit, p.shade = _flat(n, C['lit'])[0], _flat(n, C['shade'])[0]
+            else:
+                p.lit = p.shade = _flat(n, a.get('color', (0.9, 0.9, 0.9)))[0]
+            fam = family(p.lit)
+            p.cls = np.where(fam == CL['orange'], CL['hair'], fam)
 
 
 class Geometry:
@@ -563,6 +743,35 @@ class Geometry:
         self.landmarks = dict(L=self.L, centre=np.asarray(Hd['centre'], float), chin=float(Hd['centre'][2] - Hd['H'].chin),
                               waist=float(bone_seg(A, 'spine')[0][2]), knee=float(bone_seg(A, 'leftLowerLeg')[0][2]))
         self.timings = timings or {}
+
+    def bundle(self, levels='viewport'):
+        """the geometry as plain data (charkit.bodymeasure's bundle): per object its world verts, triangles, and per
+        triangle a model-sheet class and the unlit tones; the landmarks; the aligned target. levels: the subdivision the
+        build's evaluated meshes carry, 'viewport' (what the in-Blender QA z-buffers: skin and garments at level 1),
+        'render' (what its renders show: skin 2, garments 1), 'base' (none), or {group: level}."""
+        lv = SUBDIV[levels] if isinstance(levels, str) else levels
+        key = json.dumps(lv, sort_keys=True)
+        self.__dict__.setdefault('_bundles', {})
+        if key not in self._bundles:
+            from .bodyqa import CLASS as CL, family
+            objs = []
+            for p in self.parts:
+                n_ = lv.get(p.group, 0)
+                if n_:
+                    V, polys, _, lit, shd, cls = p.subdivided(n_)
+                    T, pid = triangulate(polys, with_poly=True)
+                else:
+                    V, T, pid = p.V, p.tris(), p.tri_poly()
+                    lit, shd, cls = p.lit, p.shade, p.cls
+                n = len(pid) and int(pid.max()) + 1
+                lit = lit if lit is not None else np.full((max(n, 1), 3), 0.5)
+                shd = shd if shd is not None else lit
+                cls = cls if cls is not None else family(lit) if p.lit is not None else np.full(len(lit), CL['other'])
+                objs.append(dict(name=p.name, group=p.group, V=V, F=T, label=np.asarray(cls)[pid], lit=lit[pid],
+                                 shade=shd[pid]))
+            iris = np.array([p.V.mean(0) for p in self.parts if p.name.startswith('iris_')])
+            self._bundles[key] = dict(objects=objs, landmarks=dict(self.landmarks, iris=iris), target=self.target)
+        return self._bundles[key]
 
     def part(self, name):
         return next(p for p in self.parts if p.name == name)
@@ -712,10 +921,12 @@ class Evaluator:
                 mid, spacing = scene.eye_target(A, base_shape)
                 full = (i3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
                 align = dict(eye_mid=mid, spacing=spacing)
-        accs = self._memo('accessories', _h([vkey, acc]), lambda: [(n, to_head(v, A), f) for n, v, f, _ in
+        accs = self._memo('accessories', _h([vkey, acc]), lambda: [(n, to_head(v, A), f, a) for n, v, f, a in
                                                                    accessories.generate(vol(), L, acc)])
         parts = [Part(n, 'hair', from_head(q, A), f) for n, q, f in objects]
-        parts += [Part(n, 'accessories', from_head(q, A), f) for n, q, f in accs]
+        for n, q, f, a in accs:
+            parts.append(Part(n, 'accessories', from_head(q, A), f))
+            parts[-1].spec = a
         return parts, full, align
 
     def geom_hair(self, spec, A):
@@ -753,46 +964,31 @@ class Evaluator:
             self._garments = {k: v for k, v in self._garments.items() if k[0] == akey}
         garm, hide = garment_parts(A, spec.get('garments'), self._garments, akey)
         t3 = time.time()
-        parts = character_parts(A, hide) + hair + garm
+        hair_tones(hair, spec)
+        ckey = (akey, hashlib.sha1(np.packbits(hide).tobytes()).hexdigest()[:12],
+                _h({k: spec.get(k) for k in ('skin', 'iris', 'lash_color', 'brow_color', 'cavity_color', 'eyeline_color',
+                                             'mouth_line_color')}))
+        if getattr(self, '_char', (None,))[0] != ckey:                   # (their subdivision rides on the parts)
+            self._char = (ckey, character_parts(A, hide, spec))
+        parts = self._char[1] + hair + garm
         return Geometry(spec, A, parts, target, align, timings=dict(assembly=round(t1 - t0, 3), how=how,
                                                                     hair=round(t2 - t1, 3), garments=round(t3 - t2, 3)))
 
     # ---- measuring
     def frame(self, G):
-        """qa3d's QA camera: orthographic, framing the character's z range (its objects' base verts) * 1.08."""
-        from .geom.raster import Frame
-        zs = np.concatenate([p.V[:, 2] for p in G.parts if len(p.V)])
-        zmin, zmax = float(zs.min()), float(zs.max())
-        return Frame((0.0, 0.0, (zmin + zmax) / 2), (zmax - zmin) * 1.08, RES)
-
-    def labels(self, G, az, fr, groups=None):
-        """the nearest part per pixel from azimuth az: -> (label (H, W) part index or -1, depth)."""
-        from .geom.raster import rasterize
-        from .geom.mesh import Mesh
-        Vs, Fs, lab, off = [], [], [], 0
-        for i, p in enumerate(G.parts):
-            if groups and p.group not in groups:
-                continue
-            T = p.tris()
-            if not len(T):
-                continue
-            Vs.append(p.V); Fs.append(T + off); lab.append(np.full(len(T), i)); off += len(p.V)
-        m = Mesh(np.vstack(Vs), np.vstack(Fs))
-        zb, fb, _ = rasterize(m, az, fr)
-        lab = np.concatenate(lab)
-        return np.where(fb >= 0, lab[np.maximum(fb, 0)], -1), zb
+        """qa3d's QA camera for this geometry (bodymeasure.frame over its base meshes)."""
+        from . import bodymeasure
+        return bodymeasure.frame(G.bundle('base'))
 
     def target_masks(self, G, fr, azs=AZ):
         if G.target is None:
             return None
-        from .geom.raster import silhouette
-        from .geom.mesh import Mesh
+        from . import bodymeasure
         key = (tuple(np.round(fr.centre, 7)), round(fr.scale, 7), tuple(np.round(G.target[0][:3].ravel(), 7)), tuple(azs))
         if key not in self._targets:
-            m = Mesh(G.target[0], np.asarray(G.target[1]))
             if len(self._targets) >= 4:
                 self._targets.pop(next(iter(self._targets)))
-            self._targets[key] = {az: silhouette(m, az, fr) for az in azs}
+            self._targets[key] = bodymeasure.target_masks(G.target, fr, azs)
         return self._targets[key]
 
     def ref_mask(self):
@@ -808,59 +1004,43 @@ class Evaluator:
             self._ref = a[..., 3] / 255.0 > 0.5 if a[..., 3].min() < 255 else a[..., :3].sum(-1) / 255.0 < 2.8
         return self._ref
 
-    def qa(self, G, azs=AZ, labels=False):
-        """qa3d's silhouette checks on the numpy geometry: shape IoU against the aligned generated shape per azimuth and
-        per height band (hair above the chin, torso to the waist, skirt to the knee, legs), their means, and the front
-        silhouette's IoU against the reference image (both cropped to their bounding boxes). -> dict (labels=True adds the
-        label images and masks)."""
+    def qa(self, G, azs=AZ, labels=False, levels='render'):
+        """qa3d's silhouette checks on the geometry (bodymeasure.shape on its bundle, subdivided as the build renders):
+        shape IoU against the aligned generated shape per azimuth and band, their means, and ref_iou. -> dict (labels=True
+        adds the label images, the target masks, the framing and the bands)."""
+        from . import bodymeasure
         fr = self.frame(G)
-        lm = G.landmarks
-        bands = {'hair': (lm['chin'], 99.0), 'torso': (lm['waist'], lm['chin']), 'skirt': (lm['knee'], lm['waist']),
-                 'legs': (-99.0, lm['knee'])}
-        H = fr.res[1]
-        row = lambda z: int(round((0.5 - (z - fr.centre[2]) / fr.scale) * H))
-        tm = self.target_masks(G, fr, azs)
-        out = {'views': {}, 'checks': {}}
-        labs = {}
-        for az in azs:
-            lab, _ = self.labels(G, az, fr)
-            labs[az] = lab
-            o = lab >= 0
-            if tm is None:
-                continue
-            g = tm[az]
-            d = {'iou': round(_iou(o, g), 3)}
-            for bn, (z0, z1) in bands.items():
-                r0, r1 = max(0, row(z1)), min(H, row(z0))
-                if r1 > r0:
-                    d['iou_' + bn] = round(_iou(o[r0:r1], g[r0:r1]), 3)
-            out['views'][az] = d
-        if tm is not None:
-            out['checks']['shape_iou'] = round(float(np.mean([out['views'][a]['iou'] for a in azs])), 3)
-            for bn in bands:
-                out['checks']['shape_iou_' + bn] = round(float(np.mean([out['views'][a].get('iou_' + bn, 0) for a in azs])), 3)
-        ref = self.ref_mask()
-        if ref is not None and 0 in labs:
-            out['checks']['ref_iou'] = round(_iou(bbox_norm(labs[0] >= 0), bbox_norm(ref)), 3)
-        if labels:
-            out['labels'], out['target'], out['frame'], out['bands'] = labs, tm, fr, bands
+        return bodymeasure.shape(G.bundle(levels), fr, self.target_masks(G, fr, azs), self.ref_mask(), azs, labels)
+
+    def sheet(self):
+        """the model sheet measured once (bodymeasure.Sheet), or None without one."""
+        if not hasattr(self, '_sheet'):
+            from . import bodymeasure
+            try:
+                self._sheet = bodymeasure.Sheet(self.spec)
+            except ValueError:
+                self._sheet = None
+        return self._sheet
+
+    def sheet_checks(self, G, palette=True):
+        """qa3d's body_* and palette_* checks against the model sheet on the geometry (bodymeasure.sheet_body and
+        sheet_palette on its bundle, subdivided as the build evaluates it). -> {check: dict} named as qa.json names them."""
+        from . import bodymeasure
+        S = self.sheet()
+        if S is None:
+            return {}
+        B = G.bundle('viewport')
+        _, C, _ = bodymeasure.sheet_body(B, S)
+        out = {'body_' + k: v for k, v in C.items()}
+        if palette:
+            out.update({'palette_' + k: v for k, v in bodymeasure.sheet_palette(B, S)[1].items()})
         return out
 
 
-def _iou(a, b):
-    u = (a | b).sum()
-    return float((a & b).sum() / u) if u else 1.0
-
-
-def bbox_norm(mask, size=(200, 320)):
-    """qa3d._bbox_norm: a mask cropped to its bounding box and resampled (nearest) to size."""
-    ys, xs = np.nonzero(mask)
-    if len(ys) == 0:
-        return np.zeros(size[::-1], bool)
-    m = mask[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-    H, W = size[1], size[0]
-    yi = (np.arange(H) * m.shape[0] / H).astype(int); xi = (np.arange(W) * m.shape[1] / W).astype(int)
-    return m[yi][:, xi]
+def measures(G, Q):
+    """bodymeasure.measures for a Geometry and its qa(..., labels=True)."""
+    from . import bodymeasure
+    return bodymeasure.measures(Q, G.landmarks)
 
 
 # ------------------------------------------------------------------------------------------------------------ validation
@@ -901,112 +1081,12 @@ def compare_dump(G, dump):
     return out
 
 
-# ------------------------------------------------------------------------------------------------------------ measures
-MEASURES = {
-    'iou': 'shape IoU against the generated shape, the mean over the six QA azimuths (qa3d shape_iou)',
-    'iou_hair': 'the same above the chin', 'iou_torso': 'chin to waist', 'iou_skirt': 'waist to knee', 'iou_legs': 'below the knee',
-    'ref_iou': 'front silhouette against the reference image, both cropped to their boxes (qa3d ref_iou)',
-    'top': 'the silhouette top (hair, buns) above the target\'s, L', 'bottom': 'the feet\'s bottom below the target\'s, L',
-    'arm_angle': 'the arms\' outer line from vertical (front, shoulder to waist) minus the target\'s, degrees',
-    'leg_angle': 'each leg\'s centre line from vertical (front, below the knee) minus the target\'s, degrees',
-    'leg_gap': 'the gap between the legs (front, below the knee) minus the target\'s, L',
-}
-for _v in ('front', 'side'):
-    for _b in ('hair', 'torso', 'skirt', 'legs'):
-        MEASURES['%s_%s_fill' % (_v, _b)] = 'filled width per row in the %s band, %s view, minus the target\'s, L' % (_b, _v)
-        MEASURES['%s_%s_span' % (_v, _b)] = 'outer extent per row in the %s band, %s view, minus the target\'s, L' % (_b, _v)
-
-
-def _rows_z(fr):
-    H = fr.res[1]
-    return fr.centre[2] + (0.5 - (np.arange(H) + 0.5) / H) * fr.scale
-
-
-def _profile(m):
-    """per row: filled count, leftmost and rightmost column (NaN where empty)."""
-    cnt = m.sum(1).astype(float)
-    has = cnt > 0
-    lo = np.where(has, np.argmax(m, 1), np.nan)
-    hi = np.where(has, m.shape[1] - 1 - np.argmax(m[:, ::-1], 1), np.nan)
-    return cnt, lo, hi
-
-
-def _line_angle(z, x):
-    """the angle from vertical (degrees) of a least-squares line x(z)."""
-    ok = np.isfinite(x)
-    if ok.sum() < 4:
-        return np.nan
-    k = np.polyfit(z[ok], x[ok], 1)[0]
-    return float(np.degrees(np.arctan(k)))
-
-
-def pose_measures(m, fr, lm):
-    """the arms' and legs' lines in a front silhouette: arm_angle (outer contour, shoulder to waist, both sides' mean),
-    leg_angle (each leg's centre line below the knee), leg_gap (the empty run between the legs there, L)."""
-    z = _rows_z(fr)
-    pix = fr.scale / fr.res[1]
-    L = lm['L']
-    W = m.shape[1]; mid = W // 2
-    _, lo, hi = _profile(m)
-    arm = (z < lm['chin'] - 0.45 * L) & (z > lm['waist'])
-    a_r = _line_angle(z[arm], (hi[arm] - mid) * pix)
-    a_l = _line_angle(z[arm], (mid - lo[arm]) * pix)
-    legs = (z < lm['knee'] - 0.2 * L) & (z > lm['knee'] - 1.2 * L)
-    cols = np.arange(W)
-    left, right = m[:, :mid], m[:, mid:]
-    with np.errstate(invalid='ignore'):
-        cl = (left * cols[:mid]).sum(1) / left.sum(1)
-        cr = (right * cols[mid:]).sum(1) / right.sum(1)
-    l_r = _line_angle(z[legs], (cr[legs] - mid) * pix)
-    l_l = _line_angle(z[legs], (mid - cl[legs]) * pix)
-    gap = []
-    for r in np.nonzero(legs)[0]:
-        row = m[r]
-        if row[:mid].any() and row[mid:].any():
-            a_ = mid - 1 - np.argmax(row[:mid][::-1])          # the left leg's inner edge
-            b_ = mid + np.argmax(row[mid:])                     # the right leg's inner edge
-            gap.append((b_ - a_ - 1) * pix / L)
-    return dict(arm_angle=-np.nanmean([a_r, a_l]), leg_angle=-np.nanmean([l_r, l_l]),
-                leg_gap=float(np.mean(gap)) if gap else np.nan)
-
-
-def measures(G, Q):
-    """the silhouette measurements (MEASURES) from a qa(..., labels=True) result: the QA's IoUs, and ours minus the
-    target's for the band profiles (front and side), the extents and the pose lines."""
-    fr, lm, bands = Q['frame'], G.landmarks, Q['bands']
-    L = lm['L']
-    pix = fr.scale / fr.res[1]
-    z = _rows_z(fr)
-    out = {k.replace('shape_', ''): v for k, v in Q['checks'].items()}
-    T = Q['target']
-    if T is None:
-        return out
-    for view, az in (('front', 0), ('side', 90)):
-        o, g = Q['labels'][az] >= 0, T[az]
-        (co, lo_o, hi_o), (cg, lo_g, hi_g) = _profile(o), _profile(g)
-        for b, (z0, z1) in bands.items():
-            rows = (z >= z0) & (z < z1) & ((co > 0) | (cg > 0))
-            if not rows.any():
-                continue
-            out['%s_%s_fill' % (view, b)] = float((co[rows] - cg[rows]).mean() * pix / L)
-            so, sg = hi_o - lo_o + 1, hi_g - lo_g + 1
-            both = rows & np.isfinite(so) & np.isfinite(sg)
-            out['%s_%s_span' % (view, b)] = float(np.nanmean(so[both] - sg[both]) * pix / L) if both.any() else np.nan
-        if view == 'front':
-            ro, rg = np.nonzero(co)[0], np.nonzero(cg)[0]
-            out['top'] = float((z[ro[0]] - z[rg[0]]) / L)
-            out['bottom'] = float((z[rg[-1]] - z[ro[-1]]) / L)
-            po, pg = pose_measures(o, fr, lm), pose_measures(g, fr, lm)
-            for k in po:
-                out[k] = float(po[k] - pg[k])
-                out[k + '_ours'] = float(po[k]); out[k + '_target'] = float(pg[k])
-    return out
-
-
 # validate()'s tolerances: the build's own spec (exact), and a base spec with knob overrides (composed: a body knob carries
 # the head over and keeps the hair selection; the collar's surface walk can jump a vertex on a sub-millimetre change)
-TOL = dict(exact=dict(objects_max_m=1e-5, hair_bbox_m=0.002, hair_iou=0.97, qa=0.01, mask_ours=0.98, mask_target=0.995),
-           composed=dict(objects_mean_m=1e-3, hair_bbox_m=0.002, hair_iou=0.95, qa=0.01, mask_ours=0.98, mask_target=0.99),
+TOL = dict(exact=dict(objects_max_m=1e-5, hair_bbox_m=0.002, hair_iou=0.97, qa=0.01, mask_ours=0.98, mask_target=0.995,
+                      sheet=0.02, sheet_deg=1.5, sheet_de=0.5),
+           composed=dict(objects_mean_m=1e-3, hair_bbox_m=0.002, hair_iou=0.95, qa=0.01, mask_ours=0.98, mask_target=0.99,
+                         sheet=0.03, sheet_deg=2.0, sheet_de=1.0),
            speedup=10.0)
 
 
@@ -1080,6 +1160,10 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
         if bk:
             rep['qa'][k] = {'blender': qa['checks'][bk].get('value'), 'numpy': v}
     rep['qa_views'] = {str(az): {'blender': qa['views'].get(str(az)), 'numpy': Q['views'][az]} for az in AZ}
+    # the model sheet's body and palette checks
+    SC = E.sheet_checks(G) if any(k.startswith(('body_', 'palette_')) for k in qa['checks']) else {}
+    rep['sheet'] = {k: {'blender': [qa['checks'][k].get('value'), qa['checks'][k].get('status')],
+                        'numpy': [v.get('value'), v.get('status')]} for k, v in SC.items() if k in qa['checks']}
     ovp = os.path.join(build, 'qa', 'qa_shape_overlay.png')
     if os.path.exists(ovp):
         masks = _decode_overlay(ovp, len(AZ))
@@ -1125,6 +1209,12 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
     for az, v in (rep.get('masks') or {}).items():
         if v['ours'] < tol['mask_ours'] or v['target'] < tol['mask_target']:
             fails.append('masks at %s: ours %.3f target %.3f' % (az, v['ours'], v['target']))
+    for k, v in rep['sheet'].items():
+        (bv, bs), (nv, ns) = v['blender'], v['numpy']
+        t_ = tol['sheet_deg'] if k.endswith('_arms') else tol['sheet_de'] if k.startswith('palette_') else tol['sheet']
+        off = abs(bv - nv) > t_ if isinstance(bv, (int, float)) and isinstance(nv, (int, float)) else bv != nv
+        if off or (bs != ns and not k.endswith('_arms')):
+            fails.append('%s: %s %s vs %s %s' % (k, nv, ns, bv, bs))
     if rep['time']['speedup_worst'] is not None and rep['time']['speedup_worst'] < TOL['speedup']:
         fails.append('only %.1fx faster' % rep['time']['speedup_worst'])
     rep['verdict'] = 'FAIL' if fails else 'PASS'
@@ -1157,6 +1247,12 @@ def main(args):
         for k, v in rep['qa'].items():
             print('  %-18s blender %-7s numpy %s' % (k, v['blender'], v['numpy']))
         print('masks', rep.get('masks'))
+        sh = rep.get('sheet') or {}
+        if sh:
+            same = sum(v['blender'][1] == v['numpy'][1] for v in sh.values())
+            dv = [abs(v['blender'][0] - v['numpy'][0]) for k, v in sh.items() if not k.endswith('_arms') and
+                  isinstance(v['blender'][0], (int, float)) and isinstance(v['numpy'][0], (int, float))]
+            print('sheet checks: %d of %d grade the same; values within %.3f' % (same, len(sh), max(dv) if dv else 0))
         print('time', rep['time'])
         print('validate:', rep['verdict'], '; '.join(rep['why']))
         return
@@ -1176,3 +1272,93 @@ def main(args):
                   default=float)
         save_png(np.concatenate([overlay(Q['labels'][az] >= 0, Q['target'][az]) for az in AZ], 1),
                  os.path.join(_abs(out), 'shape_overlay.png'))
+
+
+# ------------------------------------------------------------------------------------------------------ subdivision
+def subdivide(V, polys, uv=None, limit=True):
+    """one level of Catmull-Clark (Blender's Subdivision Surface at level 1: boundaries smooth, the result pushed to the
+    limit surface), numpy. polys: index tuples of any size; uv: optional per-corner UVs [[(u, v), ...] per polygon],
+    interpolated linearly. -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
+    from scipy import sparse
+    V = np.asarray(V, float)
+    nv = len(V)
+    if isinstance(polys, np.ndarray) and polys.ndim == 2:
+        cnt = np.full(len(polys), polys.shape[1])
+        lv = polys.astype(np.int64).ravel()
+    else:
+        cnt = np.array([len(f) for f in polys])
+        lv = np.concatenate([np.asarray(f, np.int64) for f in polys])
+    st = np.r_[0, np.cumsum(cnt)[:-1]]
+    nf = len(polys)
+    fid = np.repeat(np.arange(nf), cnt)
+    nxt = np.arange(len(lv)) + 1
+    nxt[st + cnt - 1] = st
+    prv = np.arange(len(lv)) - 1
+    prv[st] = st + cnt - 1
+    FP = np.zeros((nf, 3)); np.add.at(FP, fid, V[lv]); FP /= cnt[:, None]
+    # edges: one per unordered pair; each loop's edge runs to the next corner
+    a, b = lv, lv[nxt]
+    key = np.minimum(a, b) * nv + np.maximum(a, b)
+    ukey, einv, ecnt = np.unique(key, return_inverse=True, return_counts=True)
+    ne = len(ukey)
+    ea, eb = ukey // nv, ukey % nv
+    efs = np.zeros((ne, 3)); np.add.at(efs, einv, FP[fid])
+    bnd = ecnt == 1
+    EP = np.where(bnd[:, None], (V[ea] + V[eb]) / 2, (V[ea] + V[eb] + efs) / 4)      # (two faces' points summed)
+    EP = np.where((ecnt > 2)[:, None], (V[ea] + V[eb]) / 2, EP)             # (non-manifold: the midpoint)
+    # vertices: interior (Q + 2R + (n - 3) S) / n; boundary (prev + 6 v + next) / 8
+    ones = np.ones(ne)
+    VE = sparse.coo_matrix((np.r_[ones, ones], (np.r_[ea, eb], np.r_[np.arange(ne), np.arange(ne)])), shape=(nv, ne)).tocsr()
+    val = np.asarray(VE.sum(1)).ravel()
+    R = (VE @ ((V[ea] + V[eb]) / 2)) / np.maximum(val, 1)[:, None]
+    VF = sparse.coo_matrix((np.ones(len(lv)), (lv, fid)), shape=(nv, nf)).tocsr()
+    nfv = np.asarray(VF.sum(1)).ravel()
+    Q = (VF @ FP) / np.maximum(nfv, 1)[:, None]
+    n_ = np.maximum(val, 1)[:, None]
+    VP = (Q + 2 * R + (n_ - 3) * V) / n_
+    VB = sparse.coo_matrix((np.r_[ones[bnd], ones[bnd]], (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
+    nb_ = np.asarray(VB.sum(1)).ravel()
+    onb = nb_ == 2
+    VP[onb] = ((VB @ V)[onb] + 6 * V[onb]) / 8
+    VP[(nb_ > 0) & ~onb] = V[(nb_ > 0) & ~onb]                             # (a corner of several boundaries: kept)
+    VP[val == 0] = V[val == 0]
+    # the new mesh: vertices, then face points, then edge points; a quad per corner
+    NV = np.vstack([VP, FP, EP])
+    e_next = einv                                                         # the edge from this corner to the next
+    e_prev = einv[prv]                                                    # the edge into this corner
+    quads = np.stack([lv, nv + nf + e_next, nv + fid, nv + nf + e_prev], 1)
+    parent = fid
+    UV = None
+    if uv is not None:
+        U = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
+        fuv = np.zeros((nf, 2)); np.add.at(fuv, fid, U); fuv /= cnt[:, None]
+        UV = np.stack([U, (U + U[nxt]) / 2, fuv[fid], (U + U[prv]) / 2], 1)
+    if limit:
+        NV = limit_positions(NV, quads)
+    return NV, quads, parent, UV
+
+
+def limit_positions(V, quads):
+    """Catmull-Clark limit positions of an all-quad mesh's vertices: interior (n^2 v + 4 sum(edge neighbours) + sum(face
+    diagonals)) / (n (n + 5)); on a boundary the cubic B-spline's (prev + 4 v + next) / 6."""
+    from scipy import sparse
+    nv = len(V)
+    Qd = np.asarray(quads, np.int64)
+    a = Qd.ravel(); b = np.roll(Qd, -1, 1).ravel(); d = np.roll(Qd, -2, 1).ravel()
+    key = np.minimum(a, b) * nv + np.maximum(a, b)
+    ukey, cnt_e = np.unique(key, return_counts=True)
+    ea, eb = ukey // nv, ukey % nv
+    ne = len(ukey)
+    E = sparse.coo_matrix((np.ones(2 * ne), (np.r_[ea, eb], np.r_[eb, ea])), shape=(nv, nv)).tocsr()
+    val = np.asarray(E.sum(1)).ravel()
+    Dg = sparse.coo_matrix((np.ones(len(a)), (a, d)), shape=(nv, nv)).tocsr()
+    n = np.maximum(val, 1)[:, None]
+    out = (n * n * V + 4 * (E @ V) + Dg @ V) / (n * (n + 5))
+    bnd = cnt_e == 1
+    B = sparse.coo_matrix((np.ones(2 * bnd.sum()), (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
+    nb_ = np.asarray(B.sum(1)).ravel()
+    on = nb_ == 2
+    out[on] = ((B @ V)[on] + 4 * V[on]) / 6
+    odd = (nb_ > 0) & ~on
+    out[odd] = V[odd]
+    return out

@@ -15,7 +15,11 @@ DEFAULT_BODY = {
     'height_m': 1.60, 'heads_tall': 6.5,
     'proportions': {'leg': 1.10, 'shin': 1.04, 'arm': 1.0, 'torso': 0.94, 'shoulder': 0.86, 'hip': 1.0, 'neck_len': 0.72,
                     'neck_w': 0.82, 'arm_slim': 0.84, 'leg_slim': 0.92, 'hand': 0.88, 'foot': 0.86, 'waist': 0.92},
+    # the rest pose, degrees from MakeHuman's A-pose, turned in the frontal plane (rest_pose): the arms lowered at the
+    # shoulders, the forearms bent in at the elbows, the legs brought together at the hips
+    'pose': {'arm_down': 0.0, 'elbow': 0.0, 'leg_in': 0.0},
 }
+POSE = {'arm_down': 'UpperArm', 'elbow': 'LowerArm', 'leg_in': 'UpperLeg'}
 
 
 def _merge(a, b):
@@ -110,6 +114,57 @@ def _lips_centre(verts, skel, n):
     return acc / max(tot, 1e-9)
 
 
+def _rot_y(deg):
+    a = math.radians(deg)
+    return np.array([[math.cos(a), 0.0, math.sin(a)], [0.0, 1.0, 0.0], [-math.sin(a), 0.0, math.cos(a)]])
+
+
+def rest_pose(all_new, N, nn, joints, W, pose, skel):
+    """the rest pose turned by the pose knobs (degrees; POSE names the bone each turns): each bone rotated in the frontal
+    plane about the front-back axis through its head, down the VRM hierarchy, the skin following by linear blend skinning
+    with the body's own weights. The result is the new rest: the armature, the garments and the head are built on it.
+    all_new: the body's N vertices then the helpers (each helper moves with its nearest body vertex, nn, as the
+    proportions move them). -> (all_new, joints): the VRM joints exactly on their bones, the others vertex averages."""
+    order, seen = [], set()
+
+    def visit(b):
+        if b in seen:
+            return
+        par = mh.VRM_PARENT.get(b)
+        if par:
+            visit(par)
+        seen.add(b); order.append(b)
+    for b in mh.VRM_JOINTS:
+        visit(b)
+    T = {}
+    for b in order:
+        R, t = T[mh.VRM_PARENT[b]] if mh.VRM_PARENT.get(b) else (np.eye(3), np.zeros(3))
+        Q = np.eye(3)
+        for knob, bone in POSE.items():
+            if b.endswith(bone) and pose.get(knob):
+                Q = _rot_y(pose[knob] * (1 if b.startswith('left') else -1))      # her left at +x: toward the body
+        h = joints[mh.VRM_JOINTS[b][0]]
+        T[b] = (R @ Q, R @ (h - Q @ h) + t)
+    V = all_new[:N]
+    out = np.zeros_like(V)
+    wsum = np.zeros(N)
+    for b, (R, t) in T.items():
+        w = W.get(b)
+        if w is None:
+            continue
+        out += w[:N, None] * (V @ R.T + t)
+        wsum += w[:N]
+    miss = wsum < 1e-6
+    out[miss] = V[miss]
+    out[~miss] /= wsum[~miss, None]
+    moved = np.vstack([out, all_new[N:] + (out - V)[nn]])
+    J = {j: moved[np.array(ix)].mean(0) for j, ix in skel.joints.items()}
+    for b, (R, t) in T.items():
+        for j in mh.VRM_JOINTS[b][1:]:
+            J[j] = R @ joints[j] + t
+    return moved, J
+
+
 _MACRO = {}
 
 
@@ -149,6 +204,9 @@ def build_body_data(spec_body=None, neck_below_top=0.86, keep_head=False):
     d_body = verts - body_bl
     all_new = np.vstack([verts, helpers_bl + d_body[nn]])
     joints = {j: all_new[np.array(ix)].mean(0) for j, ix in skel.joints.items()}
+    if any(P['pose'].get(k) for k in POSE):
+        all_new, joints = rest_pose(all_new, N, nn, joints, W, P['pose'], skel)
+        verts = all_new[:N].copy()
     body_faces = [(i, f) for i, f in enumerate(base.faces) if base.face_group[i] == 'body']
     head_w = W.get('head', np.zeros(N))
     P_ = P

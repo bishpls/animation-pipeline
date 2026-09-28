@@ -4,7 +4,7 @@ import os, sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from charkit import bodyeval, bodysens
+from charkit import bodyeval, bodymeasure, bodysens
 
 
 def grid_mesh(n=6, z=0.0):
@@ -54,14 +54,14 @@ def test_drop_small_parts_and_triangulate():
 def test_bbox_norm_and_iou():
     a = np.zeros((100, 60), bool); a[10:90, 20:40] = True
     b = np.zeros((300, 300), bool); b[50:250, 100:150] = True                    # the same shape, scaled and moved
-    assert bodyeval._iou(bodyeval.bbox_norm(a), bodyeval.bbox_norm(b)) == 1.0
+    assert bodymeasure.iou(bodymeasure.bbox_norm(a), bodymeasure.bbox_norm(b)) == 1.0
 
 
 def test_pose_measures_known_angles():
     from charkit.geom.raster import Frame
     fr = Frame((0.0, 0.0, 1.0), 2.0, (400, 400))
     H, W = 400, 400
-    z = bodyeval._rows_z(fr)
+    z = bodymeasure._rows_z(fr)
     pix = 2.0 / H
     x = (np.arange(W) + 0.5 - W / 2) * pix
     m = np.zeros((H, W), bool)
@@ -76,7 +76,7 @@ def test_pose_measures_known_angles():
         if 0.0 < zz < 0.5:                                                        # legs spreading 5 degrees, gap 0.1 at the knee
             c = 0.1 + (0.5 - zz) * t5
             m[r, np.abs(np.abs(x) - c) < 0.05] = True
-    P = bodyeval.pose_measures(m, fr, lm)
+    P = bodymeasure.pose_measures(m, fr, lm)
     assert abs(P['arm_angle'] - 30) < 1.0, P
     assert abs(P['leg_angle'] - 5) < 1.0, P
     # the gap between the inner edges, 0.1 + 2 (0.5 - z) tan 5, averaged over the rows 0.2 L .. 1.2 L below the knee
@@ -174,6 +174,82 @@ def test_capabilities_flags_unmoved_measures():
     assert C['leg_angle'] == 'no knob turns a limb'
     assert C['bottom'] == 'a knob reaches it'                 # 'b' closes bottom and costs little elsewhere ...
     assert C['top'] == 'only at a cost', C                    # ... but closing top with 'b' wrecks bottom
+
+
+def test_subdivide_cube():
+    """Catmull-Clark on a cube: a corner's vertex point is 5/9 and an edge's point (v0 + v1 + two face points) / 4."""
+    V = np.array([[x, y, z] for x in (-1, 1) for y in (-1, 1) for z in (-1, 1)], float)
+    F = [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)]
+    NV, Q, parent, _ = bodyeval.subdivide(V, F, limit=False)
+    assert Q.shape == (24, 4) and len(NV) == 8 + 6 + 12 and sorted(set(parent.tolist())) == list(range(6))
+    assert np.allclose(NV[0], [-5 / 9] * 3)
+    edge = NV[8 + 6:]
+    assert np.any(np.all(np.isclose(edge, [-0.75, -0.75, 0.0]), 1))
+    NL, _, _, _ = bodyeval.subdivide(V, F, limit=True)                    # the limit surface lies further in
+    assert np.linalg.norm(NL, axis=1).max() < np.linalg.norm(NV, axis=1).max()
+
+
+def test_zsplat_is_faceqa_zbuffer():
+    from charkit import faceqa
+    V1, T1 = sphere(0.3, (0, 0, 0))
+    V2, T2 = sphere(0.12, (0.1, -0.4, 0.05))
+    meshes = [(V1, T1, np.full(len(T1), 1)), (V2, T2, np.full(len(T2), 2))]
+    win = dict(x=0.5, top=0.5, bottom=-0.5)
+    for az in (0.0, 37.0, 90.0):
+        d1, l1 = faceqa.zbuffer(meshes, az, (0.0, 0.0), 1.0, 0.01, win)
+        d2, l2 = bodymeasure.zsplat(meshes, az, (0.0, 0.0), 1.0, 0.01, win)
+        assert (l1 != l2).sum() <= 2 and np.allclose(np.where(np.isfinite(d1), d1, 0), np.where(np.isfinite(d2), d2, 0))
+
+
+def sphere(r, c, n=24):
+    th, ph = np.meshgrid(np.linspace(0, np.pi, n), np.linspace(0, 2 * np.pi, 2 * n, endpoint=False), indexing='ij')
+    V = r * np.stack([np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), np.cos(th)], -1).reshape(-1, 3) + np.asarray(c)
+    idx = np.arange(n * 2 * n).reshape(n, 2 * n)
+    a, b = idx[:-1], np.roll(idx, -1, 1)[:-1]
+    cc, d = idx[1:], np.roll(idx, -1, 1)[1:]
+    return V, np.concatenate([np.stack([a, cc, b], -1).reshape(-1, 3), np.stack([b, cc, d], -1).reshape(-1, 3)])
+
+
+def test_rest_pose_turns_the_limbs():
+    """the pose knobs turn each bone by their angle in the frontal plane; at zero nothing moves."""
+    from charkit import body, mh
+    a = body.build_body_data({}, keep_head=True)
+    b = body.build_body_data({'pose': {'arm_down': 10.0, 'leg_in': 4.0, 'elbow': 0.0}}, keep_head=True)
+    c = body.build_body_data({'pose': {'arm_down': 0.0}}, keep_head=True)
+    assert np.array_equal(a['verts'], c['verts'])
+    ang = lambda D, bn: np.degrees(np.arctan2(*(lambda d: (abs(d[0]), -d[2]))(
+        np.asarray(D['joints'][mh.VRM_JOINTS[bn][1]]) - np.asarray(D['joints'][mh.VRM_JOINTS[bn][0]]))))
+    for bn, d in (('leftUpperArm', 10.0), ('rightUpperArm', 10.0), ('leftUpperLeg', 4.0), ('rightUpperLeg', 4.0)):
+        assert abs((ang(a, bn) - ang(b, bn)) - d) < 0.3, (bn, ang(a, bn), ang(b, bn))
+    hw = a['head_w'] > 0.5                                         # the head only rescales with the feet's height
+    assert np.abs(a['verts'][hw] - b['verts'][hw]).max() < 0.002
+
+
+def test_fit_terms_and_paired_knobs():
+    from charkit import bodyfit
+    spec = {'garments': [{'kind': 'sleeve', 'name': 'sleeve_L', 'side': 'left'}, {'kind': 'sleeve', 'name': 'sleeve_R', 'side': 'right'},
+                         {'kind': 'skirt', 'name': 'skirt'}]}
+    K = {k.name: k for k in bodyfit.knobs(spec)}
+    k = K['sleeve.puff']
+    assert k.paths == ['garments.sleeve_L.puff', 'garments.sleeve_R.puff'] and k.get(spec) == k.default
+    k.put(spec, 1.3)
+    assert spec['garments'][0]['puff'] == 1.3 and spec['garments'][1]['puff'] == 1.3
+    t = bodyfit.Term('x', None, 'floor', 0.15, 'body_silhouette', 'sheet', 'front', 'body', floor=0.85)
+    assert t.residual({'x': {'value': 0.55, 'status': 'FAIL'}})[0] == (0.85 - 0.55) / 0.15
+    assert t.residual({'x': {'value': 0.9, 'status': 'PASS'}})[0] == 0.0
+    assert t.residual({})[0] == 3.0
+    R = bodyfit.residuals({'x': {'value': 0.55, 'status': 'FAIL'}}, [t, bodyfit.Term('x', None, 'floor', 0.15, 'body_silhouette',
+                                                                                   'trellis', 'shape', 'body', floor=0.85)])
+    assert R[0]['w'] == 1.0 and R[1]['w'] == 0.25                 # the sheet decides the body's silhouette
+
+
+def test_palette_members_by_family():
+    from charkit import bodyfit
+    spec = {'hair': {}, 'garments': [{'kind': 'skirt', 'name': 'skirt', 'color': [0.86, 0.42, 0.24], 'hem_color': [0.3, 0.22, 0.2],
+                                      'panel_color': [0.97, 0.9, 0.72]}]}
+    M = bodyfit.palette_members(spec)
+    assert ('garments.skirt.color', 'garment') in M['orange'] and ('garments.skirt.hem_color', 'garment') in M['dark']
+    assert ('garments.skirt.panel_color', 'garment') in M['cream'] and M['skin'] == [('skin', 'toon3')]
 
 
 if __name__ == '__main__':
