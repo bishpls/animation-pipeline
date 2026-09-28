@@ -114,17 +114,18 @@ as `lash_color` and `base`, which the character reads):
 A lookup evaluates each stored entry's recorded reads against the scene as it stands and restores the first that matches
 in full. Keys are exact: a float that moved by 1e-11 is a change.
 
-**The dependency map** (Clawd, as recorded; `python -m charkit cache info` lists the entries):
+**The dependency map** (Clawd, as recorded in its entries' manifests):
 
-| step | spec | what it reads of earlier steps | files |
+| step | spec keys read | what it reads of earlier steps | files |
 | --- | --- | --- | --- |
 | geom hair (venv, `mode: geom`) | the resolved spec without the outfit | (assembles the character itself) | the GLB; the venv's packages |
-| fit_cranium | `body.height_m`, `body.heads_tall`, `eyes.x`, `hair` (its shape), `head.cranium?` | - | the GLB |
-| character | `base`, `body`, `head`, `head_detail`, `eyes`, `iris`, `brows`, `mouth`, `skin`, `skin_line`, `name`, the feature colours | - | (the kit's MakeHuman or anime base) |
-| hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure | the GLB, or `hair.npz` |
-| face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, which hair objects exist and the fringe (`hair_front*`) | - |
-| garments | `garments` | the body's verts below the neck's middle, faces, weights, the joints its bones use, `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
-| boards, QA, VRM | the whole spec and every file it names | every stage's entry (and the products before them) | what they open |
+| fit_cranium | `body.height_m`, `body.heads_tall`, `eyes.x`, `hair.shape.{glb, fit_cranium, under}`, whether `head.cranium` is set | - | the GLB |
+| character | `base`, `name`, `body`, `head`, `head_detail`, `eyes`, `iris`, `brows`, `mouth`, `skin`, `skin_line`, the lash, brow, crease, cavity, eyeline and mouth-line colours | which `shade.MATS` materials exist | (the MakeHuman or anime base: the kit's data, in the code key) |
+| hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs `x` and `z`, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure, `shade.MATS` | the GLB, or `OUT/geom/hair.npz` |
+| face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, the hair objects' names and the fringe (`hair_front*`) | - |
+| garments | `garments` | verts below the neck's middle, faces, 52 bones' weights, the 22 joints its bones run between (the neck's two among them), `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
+| boards, QA, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
+| QA parts | what each reads (`spec.ref.*`) | each reads through the Scene: eyes and face the head and its keys, figures the eye spacing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig, `OUT/ref_measure.json` |
 
 `scene.DEPS` holds the partial reads, each with its reason: garments read the body only below the neck's middle
 (`body_below_neck`: shell regions, the collar's neckline, bands, sections and nearest-vertex weights all lie there; an
@@ -133,14 +134,16 @@ adds a vertex group and a modifier to the skin, reads their *structure* (names, 
 geometry; face shading reads the fringe, not the rest of the hair.
 
 What the measured keys show about the build itself:
-- **head.width is not a face-only knob**: the head wrap drags 127 joints (`anime_head.follow` moves the joints within
-  0.35 L of the chin with the surface), among them the neck's base and the shoulders' by up to 0.07 mm, and the collar,
-  sleeves and cuffs hang from those. A fresh build at `head.width` 1.1 moves the collar by 0.5 mm, so garments rebuild
-  (`garments: miss (character.data.joints.head____head moved 6.9e-05; ...)`). `eyes.width` is face-only: garments are
-  restored.
-- **Body knobs reach the head by float noise**: `body.proportions.leg_slim` moves every vertex, the head's by about
-  1e-11 m (the body's rescale to its height), so the hair, which reads the head, rebuilds. Removing that noise at its
-  source is what would let body-only changes keep the hair.
+- **head.width is not a face-only knob**: the head wrap drags the joints near the head with it (`anime_head.follow`
+  moves every joint within 0.35 L of the chin with the surface: 127 of them), among them the neck bone's two ends, which
+  the top's neckline, the collar and the neck's cut hang from, by 0.055 and 0.069 mm. A fresh build at `head.width` 1.1
+  moves the collar by 0.5 mm and the sleeves and cuffs a little, so garments rebuild, and the trace says why:
+  `garments: miss (character.data.joints.head____head moved 6.9e-05; character.data.joints.neck01____head moved
+  5.5e-05; ...)`. `eyes.width` moves no joint the outfit uses: garments are restored.
+- **Body knobs reach the head by float noise**: `body.proportions.leg_slim` moves every vertex, and the joints at the
+  head by about 2e-11 m (rounding through the body's proportion and height scaling), so the hair, which reads the head
+  and the body round it, rebuilds. Keys are exact on purpose; removing that noise at its source (and keying the hair on
+  the body near the head only) is what would let a body-only change keep the hair.
 
 **A checkpoint holds what the stage changed**, so it restores onto a rebuilt upstream (garments onto a new face): the
 datablocks it made (`data.blend`, written by `bpy.data.libraries.write`; what they point at from before, the rig or a

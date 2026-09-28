@@ -1954,6 +1954,7 @@ class Cache:
                 self.stale.append((name, bad))
                 print('CHARKIT_CACHE_STALE %s: %s' % (name, ', '.join(bad[:6])))
         adopt(S)
+        self.now[name] = dict(static=static, units=units, env=self.env, entry=None if errors else key)
         trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache=info)
         return result
 

@@ -108,8 +108,8 @@ def submit(job, out, label):
     s = _connect()
     if s is None:
         return None
-    lines, done = [], None
-    with procs.record(out, I['pid'], label + ' (worker)', ['blender-worker', ENTRY]):
+    lines, done, killed = [], None, False
+    with procs.record(out, I['pid'], label + ' (worker)', ['blender-worker', ENTRY]) as pf:
         try:
             env = {k: v for k, v in os.environ.items() if k.startswith('CHARKIT_')}      # the cache's settings, per job
             s.sendall((json.dumps({'op': 'build', 'argv': job, 'env': env}) + '\n').encode())
@@ -122,6 +122,9 @@ def submit(job, out, label):
             done = None
         finally:
             s.close()
+        killed = done is None and not os.path.exists(pf)          # `charkit kill OUT` took the record with it
+    if killed:
+        raise SystemExit('the build was stopped (python -m charkit kill): its worker, pid %d, with it' % I['pid'])
     if done is None:
         sys.stderr.write('the worker stopped mid-job; building in a fresh Blender\n')
         return None
