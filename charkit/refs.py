@@ -102,3 +102,27 @@ if __name__ == '__main__':
     json.dump(R, open(out, 'w'), indent=1)
     print('px/L %.0f  chin %.3f L  hair z %.2f..%.2f  tips %s' % (R['ppl'], R['chin'], R['bottom'], R['top'],
                                                                    [(round(a, 3), round(b, 3)) for a, b in R['fringe_tips']]))
+
+
+def fit(spec, R, parts=('face', 'features', 'hair')):
+    """a spec with knobs fitted to a design's measurements (measure()'s dict), where the spec doesn't set them itself:
+    face: the lower-face width profile (the cheeks held at the cranium's width, since the design hides them under hair; the
+    drawn chin point softened for 3D) and the face length; features: the mouth and nose heights; hair: the silhouette."""
+    import copy
+    S = copy.deepcopy(spec)
+    head = S.setdefault('head', {})
+    if 'face' in parts and R.get('face_wf'):
+        wf = list(R['face_wf'])
+        wf[0], wf[1] = min(wf[0], 0.345), min(wf[1], 0.35)
+        wf[-2], wf[-1] = max(wf[-2], 0.06), max(wf[-1], 0.035)
+        head.setdefault('low_wf', [round(x, 4) for x in wf])
+        head.setdefault('face_len', round(abs(R['chin']) / 0.445, 4))
+    f = R.get('features', {})
+    if 'features' in parts and f:
+        if 'mouth_z' in f:
+            head.setdefault('mouth_z', round(-f['mouth_z'] / 0.28, 4))
+        if 'nose_z' in f:
+            head.setdefault('nose_z', round(-f['nose_z'] / 0.145, 4))
+    if 'hair' in parts and S.get('hair') is not None and R.get('hair_z'):
+        S['hair'].setdefault('silhouette', {k: R[k] for k in ('hair_z', 'hair_wl', 'hair_wr')})
+    return S

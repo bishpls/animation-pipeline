@@ -1,6 +1,14 @@
 {
  "name": "clawd",
- "ref": "projects/tsuzuku/rig/clawd/base.png",
+ "ref": {
+  "rig": "projects/tsuzuku/rig/clawd",
+  "image": "charkit/out/i3d/in/clawd_3dstyle.png",
+  "fit": [
+   "face",
+   "features",
+   "hair"
+  ]
+ },
  "body": {
   "height_m": 1.55,
   "heads_tall": 6.2,
@@ -12,22 +20,10 @@
   }
  },
  "head": {
-  "low_wf": [
-   0.345,
-   0.35,
-   0.315,
-   0.208,
-   0.112,
-   0.06,
-   0.035
-  ],
-  "face_len": 0.89,
   "chin": 1.0,
   "cheek": 1.0,
   "jaw_w": 1.0,
-  "width": 1.0,
-  "mouth_z": 0.929,
-  "nose_z": 0.959
+  "width": 1.0
  },
  "eyes": {
   "width": 0.2,
@@ -240,8 +236,7 @@
     66,
     62
    ]
-  ],
-  "silhouette": "charkit/spec/clawd_ref.json"
+  ]
  },
  "hair_colors": {
   "lit": [

@@ -15,9 +15,8 @@ VARIANTS = {
     'sharp': {'head': {'chin': 0.65, 'jaw_w': 0.92, 'cheek': 0.8, 'face_len': 1.06, 'width': 0.96, 'flat': 1.15}},
 }
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
-EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint']
+from charkit.scene import EXPR, MOUTH  # noqa: E402
 HAIR = os.environ.get('CHARKIT_HAIR', '1') == '1'
-MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised']
 
 
 def set_expr(C, name):
