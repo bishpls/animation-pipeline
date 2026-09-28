@@ -1,0 +1,1679 @@
+{
+ "c1a_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 0.72,
+    "p95_mm_per_frame": 1.87
+   },
+   "LeftToeBase": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 1.32,
+    "p95_mm_per_frame": 3.1
+   },
+   "RightFoot": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 0.58,
+    "p95_mm_per_frame": 1.86
+   },
+   "RightToeBase": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 1.07,
+    "p95_mm_per_frame": 2.73
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 3.32,
+   "joint": "RightHand",
+   "frame": 46
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.958,
+   "max": 0.999,
+   "range": 0.041
+  },
+  "root_travel_xz_m": 0.069,
+  "contact_frac": {
+   "L_heel": 1.0,
+   "L_toe": 1.0,
+   "R_heel": 1.0,
+   "R_toe": 1.0
+  },
+  "sole_height_m": {
+   "min": -0.003,
+   "max": 0.001,
+   "planted_abs_mean": 0.0006,
+   "planted_abs_p95": 0.002
+  },
+  "kp2d_conf_mean": {
+   "body": 0.959,
+   "face": 0.978,
+   "left_fingers": 0.938,
+   "right_fingers": 0.933
+  },
+  "bvh_vs_npz_max_mm": 0.0028,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 8,
+   "L_wrist": {
+    "rms_cm": 9.7,
+    "corr_xyz": [
+     0.72,
+     1.0,
+     0.92
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 28.2,
+    "corr_xyz": [
+     0.96,
+     1.0,
+     0.82
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 17.3,
+    "corr_xyz": [
+     0.64,
+     1.0,
+     0.91
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 22.1,
+    "corr_xyz": [
+     0.92,
+     0.99,
+     0.01
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 6.3,
+    "corr_xyz": [
+     null,
+     null,
+     -0.3
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 7.9,
+    "corr_xyz": [
+     null,
+     null,
+     0.73
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 9.8,
+    "corr_xyz": [
+     null,
+     null,
+     -0.18
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 10.5,
+    "corr_xyz": [
+     null,
+     null,
+     -0.47
+    ]
+   }
+  }
+ },
+ "c1a_v2": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 36,
+    "mean_mm_per_frame": 2.52,
+    "p95_mm_per_frame": 6.35
+   },
+   "LeftToeBase": {
+    "planted_frames": 46,
+    "mean_mm_per_frame": 4.06,
+    "p95_mm_per_frame": 9.17
+   },
+   "RightFoot": {
+    "planted_frames": 43,
+    "mean_mm_per_frame": 2.1,
+    "p95_mm_per_frame": 7.44
+   },
+   "RightToeBase": {
+    "planted_frames": 52,
+    "mean_mm_per_frame": 3.21,
+    "p95_mm_per_frame": 10.35
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 5.18,
+   "joint": "LeftHand",
+   "frame": 4
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.925,
+   "max": 1.057,
+   "range": 0.132
+  },
+  "root_travel_xz_m": 0.285,
+  "contact_frac": {
+   "L_heel": 0.339,
+   "L_toe": 0.446,
+   "R_heel": 0.413,
+   "R_toe": 0.496
+  },
+  "sole_height_m": {
+   "min": -0.015,
+   "max": 0.018,
+   "planted_abs_mean": 0.0032,
+   "planted_abs_p95": 0.0129
+  },
+  "kp2d_conf_mean": {
+   "body": 0.96,
+   "face": 0.986,
+   "left_fingers": 0.929,
+   "right_fingers": 0.945
+  },
+  "bvh_vs_npz_max_mm": 0.0036,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 13,
+   "L_wrist": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.99,
+     0.99,
+     0.81
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 17.4,
+    "corr_xyz": [
+     0.97,
+     0.99,
+     0.85
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 13.5,
+    "corr_xyz": [
+     0.54,
+     0.96,
+     0.63
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 12.5,
+    "corr_xyz": [
+     0.96,
+     0.95,
+     0.87
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 7.6,
+    "corr_xyz": [
+     0.81,
+     null,
+     -0.25
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.71,
+     null,
+     0.25
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 11.3,
+    "corr_xyz": [
+     0.9,
+     0.75,
+     -0.26
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 13.2,
+    "corr_xyz": [
+     0.87,
+     0.74,
+     -0.55
+    ]
+   }
+  }
+ },
+ "c1b_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 117,
+    "mean_mm_per_frame": 0.52,
+    "p95_mm_per_frame": 1.94
+   },
+   "LeftToeBase": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 1.07,
+    "p95_mm_per_frame": 3.08
+   },
+   "RightFoot": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 0.49,
+    "p95_mm_per_frame": 1.92
+   },
+   "RightToeBase": {
+    "planted_frames": 120,
+    "mean_mm_per_frame": 1.13,
+    "p95_mm_per_frame": 3.21
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 2.46,
+   "joint": "RightHand",
+   "frame": 28
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.984,
+   "max": 1.027,
+   "range": 0.043
+  },
+  "root_travel_xz_m": 0.119,
+  "contact_frac": {
+   "L_heel": 0.983,
+   "L_toe": 1.0,
+   "R_heel": 1.0,
+   "R_toe": 1.0
+  },
+  "sole_height_m": {
+   "min": -0.003,
+   "max": 0.003,
+   "planted_abs_mean": 0.0005,
+   "planted_abs_p95": 0.0017
+  },
+  "kp2d_conf_mean": {
+   "body": 0.957,
+   "face": 0.975,
+   "left_fingers": 0.928,
+   "right_fingers": 0.913
+  },
+  "bvh_vs_npz_max_mm": 0.0028,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 9,
+   "L_wrist": {
+    "rms_cm": 23.7,
+    "corr_xyz": [
+     0.95,
+     0.95,
+     0.23
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 26.3,
+    "corr_xyz": [
+     0.99,
+     0.88,
+     0.35
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 23.9,
+    "corr_xyz": [
+     0.98,
+     0.92,
+     0.07
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 23.0,
+    "corr_xyz": [
+     0.99,
+     -0.66,
+     -0.04
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 4.9,
+    "corr_xyz": [
+     null,
+     null,
+     null
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 8.3,
+    "corr_xyz": [
+     null,
+     null,
+     0.69
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 10.8,
+    "corr_xyz": [
+     0.77,
+     null,
+     -0.28
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.73,
+     null,
+     -0.23
+    ]
+   }
+  }
+ },
+ "c1c_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 104,
+    "mean_mm_per_frame": 2.27,
+    "p95_mm_per_frame": 5.71
+   },
+   "LeftToeBase": {
+    "planted_frames": 113,
+    "mean_mm_per_frame": 3.36,
+    "p95_mm_per_frame": 8.53
+   },
+   "RightFoot": {
+    "planted_frames": 102,
+    "mean_mm_per_frame": 2.96,
+    "p95_mm_per_frame": 9.79
+   },
+   "RightToeBase": {
+    "planted_frames": 111,
+    "mean_mm_per_frame": 4.52,
+    "p95_mm_per_frame": 15.65
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 3.97,
+   "joint": "RightForeArm",
+   "frame": 69
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.957,
+   "max": 1.054,
+   "range": 0.097
+  },
+  "root_travel_xz_m": 0.14,
+  "contact_frac": {
+   "L_heel": 0.901,
+   "L_toe": 0.95,
+   "R_heel": 0.868,
+   "R_toe": 0.934
+  },
+  "sole_height_m": {
+   "min": -0.018,
+   "max": 0.014,
+   "planted_abs_mean": 0.0033,
+   "planted_abs_p95": 0.0108
+  },
+  "kp2d_conf_mean": {
+   "body": 0.959,
+   "face": 0.981,
+   "left_fingers": 0.937,
+   "right_fingers": 0.959
+  },
+  "bvh_vs_npz_max_mm": 0.0033,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 2,
+   "L_wrist": {
+    "rms_cm": 20.4,
+    "corr_xyz": [
+     0.95,
+     0.98,
+     -0.65
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 17.7,
+    "corr_xyz": [
+     0.96,
+     1.0,
+     -0.34
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 20.7,
+    "corr_xyz": [
+     0.95,
+     0.98,
+     -0.77
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 17.6,
+    "corr_xyz": [
+     0.87,
+     0.97,
+     -0.62
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 6.2,
+    "corr_xyz": [
+     0.98,
+     0.55,
+     0.86
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 11.4,
+    "corr_xyz": [
+     0.96,
+     null,
+     0.8
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.99,
+     0.77,
+     0.44
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 12.0,
+    "corr_xyz": [
+     0.97,
+     0.39,
+     0.69
+    ]
+   }
+  }
+ },
+ "c1s_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 66,
+    "mean_mm_per_frame": 3.22,
+    "p95_mm_per_frame": 8.08
+   },
+   "LeftToeBase": {
+    "planted_frames": 81,
+    "mean_mm_per_frame": 4.03,
+    "p95_mm_per_frame": 9.49
+   },
+   "RightFoot": {
+    "planted_frames": 69,
+    "mean_mm_per_frame": 2.28,
+    "p95_mm_per_frame": 7.51
+   },
+   "RightToeBase": {
+    "planted_frames": 84,
+    "mean_mm_per_frame": 3.79,
+    "p95_mm_per_frame": 7.92
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 1.16,
+   "joint": "LeftShin",
+   "frame": 73
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.952,
+   "max": 1.013,
+   "range": 0.062
+  },
+  "root_travel_xz_m": 0.07,
+  "contact_frac": {
+   "L_heel": 0.62,
+   "L_toe": 0.736,
+   "R_heel": 0.628,
+   "R_toe": 0.752
+  },
+  "sole_height_m": {
+   "min": -0.011,
+   "max": 0.011,
+   "planted_abs_mean": 0.0021,
+   "planted_abs_p95": 0.0089
+  },
+  "kp2d_conf_mean": {
+   "body": 0.953,
+   "face": 0.974,
+   "left_fingers": 0.792,
+   "right_fingers": 0.792
+  },
+  "bvh_vs_npz_max_mm": 0.0029,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 3,
+   "L_wrist": {
+    "rms_cm": 6.8,
+    "corr_xyz": [
+     0.55,
+     0.51,
+     0.41
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 12.5,
+    "corr_xyz": [
+     0.7,
+     0.62,
+     0.61
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 8.7,
+    "corr_xyz": [
+     0.78,
+     0.82,
+     0.46
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 8.7,
+    "corr_xyz": [
+     0.31,
+     0.43,
+     0.77
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 6.1,
+    "corr_xyz": [
+     0.63,
+     null,
+     0.84
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.83,
+     null,
+     0.46
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 10.1,
+    "corr_xyz": [
+     0.72,
+     0.42,
+     0.7
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.5,
+    "corr_xyz": [
+     0.77,
+     0.06,
+     0.75
+    ]
+   }
+  }
+ },
+ "c2b_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 51,
+    "mean_mm_per_frame": 3.58,
+    "p95_mm_per_frame": 9.27
+   },
+   "LeftToeBase": {
+    "planted_frames": 71,
+    "mean_mm_per_frame": 6.78,
+    "p95_mm_per_frame": 19.54
+   },
+   "RightFoot": {
+    "planted_frames": 63,
+    "mean_mm_per_frame": 2.83,
+    "p95_mm_per_frame": 9.3
+   },
+   "RightToeBase": {
+    "planted_frames": 100,
+    "mean_mm_per_frame": 6.48,
+    "p95_mm_per_frame": 19.18
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.15,
+   "joint": "RightForeArm",
+   "frame": 83
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.903,
+   "max": 1.033,
+   "range": 0.129
+  },
+  "root_travel_xz_m": 0.159,
+  "contact_frac": {
+   "L_heel": 0.504,
+   "L_toe": 0.661,
+   "R_heel": 0.612,
+   "R_toe": 0.868
+  },
+  "sole_height_m": {
+   "min": -0.017,
+   "max": 0.018,
+   "planted_abs_mean": 0.0059,
+   "planted_abs_p95": 0.0146
+  },
+  "kp2d_conf_mean": {
+   "body": 0.96,
+   "face": 0.978,
+   "left_fingers": 0.95,
+   "right_fingers": 0.945
+  },
+  "bvh_vs_npz_max_mm": 0.0032,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 3,
+   "L_wrist": {
+    "rms_cm": 18.7,
+    "corr_xyz": [
+     0.93,
+     0.97,
+     0.75
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 17.4,
+    "corr_xyz": [
+     0.97,
+     0.98,
+     0.56
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 11.6,
+    "corr_xyz": [
+     0.96,
+     0.98,
+     0.58
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 14.9,
+    "corr_xyz": [
+     0.98,
+     0.97,
+     0.55
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 5.8,
+    "corr_xyz": [
+     0.98,
+     0.75,
+     0.44
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.8,
+    "corr_xyz": [
+     0.88,
+     0.04,
+     0.57
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 8.4,
+    "corr_xyz": [
+     0.98,
+     0.65,
+     0.72
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.5,
+    "corr_xyz": [
+     0.98,
+     0.71,
+     0.86
+    ]
+   }
+  }
+ },
+ "curtsy_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 73,
+    "mean_mm_per_frame": 2.42,
+    "p95_mm_per_frame": 5.43
+   },
+   "LeftToeBase": {
+    "planted_frames": 85,
+    "mean_mm_per_frame": 2.86,
+    "p95_mm_per_frame": 9.37
+   },
+   "RightFoot": {
+    "planted_frames": 107,
+    "mean_mm_per_frame": 1.68,
+    "p95_mm_per_frame": 5.45
+   },
+   "RightToeBase": {
+    "planted_frames": 107,
+    "mean_mm_per_frame": 3.08,
+    "p95_mm_per_frame": 12.01
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.12,
+   "joint": "LeftHand",
+   "frame": 2
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.633,
+   "max": 1.005,
+   "range": 0.372
+  },
+  "root_travel_xz_m": 0.411,
+  "contact_frac": {
+   "L_heel": 0.62,
+   "L_toe": 0.719,
+   "R_heel": 0.893,
+   "R_toe": 0.901
+  },
+  "sole_height_m": {
+   "min": -0.002,
+   "max": 0.02,
+   "planted_abs_mean": 0.0005,
+   "planted_abs_p95": 0.0013
+  },
+  "kp2d_conf_mean": {
+   "body": 0.954,
+   "face": 0.969,
+   "left_fingers": 0.95,
+   "right_fingers": 0.947
+  },
+  "bvh_vs_npz_max_mm": 0.0035,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 238,
+   "L_wrist": {
+    "rms_cm": 13.5,
+    "corr_xyz": [
+     0.98,
+     0.91,
+     0.67
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 15.1,
+    "corr_xyz": [
+     0.93,
+     0.98,
+     0.81
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 12.1,
+    "corr_xyz": [
+     0.95,
+     0.85,
+     0.77
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 13.5,
+    "corr_xyz": [
+     0.88,
+     0.9,
+     0.75
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 14.7,
+    "corr_xyz": [
+     0.68,
+     0.49,
+     -0.48
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 14.6,
+    "corr_xyz": [
+     0.83,
+     0.6,
+     0.78
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 27.1,
+    "corr_xyz": [
+     0.51,
+     0.94,
+     -0.1
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 24.1,
+    "corr_xyz": [
+     -0.08,
+     0.96,
+     0.17
+    ]
+   }
+  }
+ },
+ "f1_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 62,
+    "mean_mm_per_frame": 3.06,
+    "p95_mm_per_frame": 7.57
+   },
+   "LeftToeBase": {
+    "planted_frames": 84,
+    "mean_mm_per_frame": 4.65,
+    "p95_mm_per_frame": 13.04
+   },
+   "RightFoot": {
+    "planted_frames": 65,
+    "mean_mm_per_frame": 2.2,
+    "p95_mm_per_frame": 6.31
+   },
+   "RightToeBase": {
+    "planted_frames": 91,
+    "mean_mm_per_frame": 4.34,
+    "p95_mm_per_frame": 12.33
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.48,
+   "joint": "RightHand",
+   "frame": 106
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.893,
+   "max": 1.004,
+   "range": 0.111
+  },
+  "root_travel_xz_m": 0.17,
+  "contact_frac": {
+   "L_heel": 0.562,
+   "L_toe": 0.744,
+   "R_heel": 0.595,
+   "R_toe": 0.802
+  },
+  "sole_height_m": {
+   "min": -0.01,
+   "max": 0.01,
+   "planted_abs_mean": 0.0029,
+   "planted_abs_p95": 0.0076
+  },
+  "kp2d_conf_mean": {
+   "body": 0.961,
+   "face": 0.981,
+   "left_fingers": 0.939,
+   "right_fingers": 0.92
+  },
+  "bvh_vs_npz_max_mm": 0.0033,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 0,
+   "L_wrist": {
+    "rms_cm": 14.7,
+    "corr_xyz": [
+     0.98,
+     0.98,
+     0.16
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 14.8,
+    "corr_xyz": [
+     0.97,
+     1.0,
+     0.5
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 14.9,
+    "corr_xyz": [
+     0.96,
+     0.97,
+     -0.21
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 15.9,
+    "corr_xyz": [
+     0.95,
+     0.99,
+     0.42
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 7.1,
+    "corr_xyz": [
+     0.63,
+     null,
+     0.13
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 10.9,
+    "corr_xyz": [
+     0.17,
+     null,
+     -0.0
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 7.0,
+    "corr_xyz": [
+     0.43,
+     0.41,
+     0.09
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 11.0,
+    "corr_xyz": [
+     0.44,
+     0.47,
+     0.23
+    ]
+   }
+  }
+ },
+ "f2_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 68,
+    "mean_mm_per_frame": 2.13,
+    "p95_mm_per_frame": 7.57
+   },
+   "LeftToeBase": {
+    "planted_frames": 87,
+    "mean_mm_per_frame": 3.63,
+    "p95_mm_per_frame": 11.63
+   },
+   "RightFoot": {
+    "planted_frames": 64,
+    "mean_mm_per_frame": 2.37,
+    "p95_mm_per_frame": 6.79
+   },
+   "RightToeBase": {
+    "planted_frames": 86,
+    "mean_mm_per_frame": 3.31,
+    "p95_mm_per_frame": 8.92
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.0,
+   "joint": "LeftFoot",
+   "frame": 83
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.907,
+   "max": 1.002,
+   "range": 0.095
+  },
+  "root_travel_xz_m": 0.472,
+  "contact_frac": {
+   "L_heel": 0.62,
+   "L_toe": 0.76,
+   "R_heel": 0.587,
+   "R_toe": 0.744
+  },
+  "sole_height_m": {
+   "min": -0.02,
+   "max": 0.023,
+   "planted_abs_mean": 0.0044,
+   "planted_abs_p95": 0.0121
+  },
+  "kp2d_conf_mean": {
+   "body": 0.962,
+   "face": 0.983,
+   "left_fingers": 0.958,
+   "right_fingers": 0.958
+  },
+  "bvh_vs_npz_max_mm": 0.0034,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 5,
+   "L_wrist": {
+    "rms_cm": 12.4,
+    "corr_xyz": [
+     0.92,
+     0.99,
+     0.26
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 19.8,
+    "corr_xyz": [
+     0.88,
+     0.98,
+     0.3
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 13.4,
+    "corr_xyz": [
+     0.95,
+     0.93,
+     -0.13
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 17.7,
+    "corr_xyz": [
+     0.94,
+     0.99,
+     0.33
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 7.2,
+    "corr_xyz": [
+     0.9,
+     null,
+     0.03
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.6,
+    "corr_xyz": [
+     0.94,
+     null,
+     -0.33
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 8.6,
+    "corr_xyz": [
+     0.96,
+     0.42,
+     0.7
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.4,
+    "corr_xyz": [
+     0.96,
+     0.24,
+     0.19
+    ]
+   }
+  }
+ },
+ "f3_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 54,
+    "mean_mm_per_frame": 2.09,
+    "p95_mm_per_frame": 6.12
+   },
+   "LeftToeBase": {
+    "planted_frames": 69,
+    "mean_mm_per_frame": 3.86,
+    "p95_mm_per_frame": 12.22
+   },
+   "RightFoot": {
+    "planted_frames": 37,
+    "mean_mm_per_frame": 1.46,
+    "p95_mm_per_frame": 5.35
+   },
+   "RightToeBase": {
+    "planted_frames": 70,
+    "mean_mm_per_frame": 4.52,
+    "p95_mm_per_frame": 15.33
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.55,
+   "joint": "RightHand",
+   "frame": 90
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.955,
+   "max": 1.054,
+   "range": 0.1
+  },
+  "root_travel_xz_m": 0.166,
+  "contact_frac": {
+   "L_heel": 0.479,
+   "L_toe": 0.62,
+   "R_heel": 0.355,
+   "R_toe": 0.636
+  },
+  "sole_height_m": {
+   "min": -0.013,
+   "max": 0.015,
+   "planted_abs_mean": 0.0019,
+   "planted_abs_p95": 0.0071
+  },
+  "kp2d_conf_mean": {
+   "body": 0.958,
+   "face": 0.973,
+   "left_fingers": 0.917,
+   "right_fingers": 0.906
+  },
+  "bvh_vs_npz_max_mm": 0.003,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 26,
+   "L_wrist": {
+    "rms_cm": 26.1,
+    "corr_xyz": [
+     0.95,
+     0.95,
+     0.47
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 28.2,
+    "corr_xyz": [
+     0.93,
+     0.94,
+     0.51
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 22.1,
+    "corr_xyz": [
+     0.93,
+     0.97,
+     0.46
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 19.6,
+    "corr_xyz": [
+     0.92,
+     0.96,
+     0.54
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 9.6,
+    "corr_xyz": [
+     0.09,
+     0.86,
+     0.16
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 11.4,
+    "corr_xyz": [
+     0.51,
+     0.9,
+     0.49
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 13.0,
+    "corr_xyz": [
+     0.04,
+     0.94,
+     -0.13
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 13.3,
+    "corr_xyz": [
+     0.26,
+     0.94,
+     -0.45
+    ]
+   }
+  }
+ },
+ "hook_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 74,
+    "mean_mm_per_frame": 1.88,
+    "p95_mm_per_frame": 4.93
+   },
+   "LeftToeBase": {
+    "planted_frames": 90,
+    "mean_mm_per_frame": 3.04,
+    "p95_mm_per_frame": 6.94
+   },
+   "RightFoot": {
+    "planted_frames": 70,
+    "mean_mm_per_frame": 1.9,
+    "p95_mm_per_frame": 4.69
+   },
+   "RightToeBase": {
+    "planted_frames": 78,
+    "mean_mm_per_frame": 2.46,
+    "p95_mm_per_frame": 5.75
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 2.99,
+   "joint": "LeftHand",
+   "frame": 19
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.943,
+   "max": 1.017,
+   "range": 0.074
+  },
+  "root_travel_xz_m": 0.07,
+  "contact_frac": {
+   "L_heel": 0.661,
+   "L_toe": 0.802,
+   "R_heel": 0.645,
+   "R_toe": 0.711
+  },
+  "sole_height_m": {
+   "min": -0.01,
+   "max": 0.009,
+   "planted_abs_mean": 0.002,
+   "planted_abs_p95": 0.0051
+  },
+  "kp2d_conf_mean": {
+   "body": 0.968,
+   "face": 0.982,
+   "left_fingers": 0.958,
+   "right_fingers": 0.956
+  },
+  "bvh_vs_npz_max_mm": 0.0049,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 7,
+   "L_wrist": {
+    "rms_cm": 12.0,
+    "corr_xyz": [
+     0.98,
+     0.99,
+     0.65
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 9.0,
+    "corr_xyz": [
+     0.8,
+     1.0,
+     0.87
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 11.4,
+    "corr_xyz": [
+     0.97,
+     0.69,
+     0.69
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 10.4,
+    "corr_xyz": [
+     0.92,
+     0.91,
+     0.88
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 7.4,
+    "corr_xyz": [
+     0.6,
+     null,
+     0.63
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.6,
+    "corr_xyz": [
+     null,
+     null,
+     -0.59
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 8.9,
+    "corr_xyz": [
+     0.9,
+     0.25,
+     0.43
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.4,
+    "corr_xyz": [
+     0.77,
+     null,
+     -0.53
+    ]
+   }
+  }
+ },
+ "v2a_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 94,
+    "mean_mm_per_frame": 0.47,
+    "p95_mm_per_frame": 1.31
+   },
+   "LeftToeBase": {
+    "planted_frames": 100,
+    "mean_mm_per_frame": 1.21,
+    "p95_mm_per_frame": 4.35
+   },
+   "RightFoot": {
+    "planted_frames": 110,
+    "mean_mm_per_frame": 0.32,
+    "p95_mm_per_frame": 0.99
+   },
+   "RightToeBase": {
+    "planted_frames": 110,
+    "mean_mm_per_frame": 1.16,
+    "p95_mm_per_frame": 3.29
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 2.36,
+   "joint": "RightHand",
+   "frame": 22
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.984,
+   "max": 1.012,
+   "range": 0.028
+  },
+  "root_travel_xz_m": 0.083,
+  "contact_frac": {
+   "L_heel": 0.802,
+   "L_toe": 0.851,
+   "R_heel": 0.926,
+   "R_toe": 0.926
+  },
+  "sole_height_m": {
+   "min": -0.006,
+   "max": 0.004,
+   "planted_abs_mean": 0.0007,
+   "planted_abs_p95": 0.0019
+  },
+  "kp2d_conf_mean": {
+   "body": 0.963,
+   "face": 0.982,
+   "left_fingers": 0.929,
+   "right_fingers": 0.953
+  },
+  "bvh_vs_npz_max_mm": 0.0032,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 356,
+   "L_wrist": {
+    "rms_cm": 20.6,
+    "corr_xyz": [
+     0.94,
+     0.85,
+     -0.3
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 9.1,
+    "corr_xyz": [
+     0.79,
+     0.99,
+     0.82
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 15.2,
+    "corr_xyz": [
+     0.69,
+     0.98,
+     0.23
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 8.5,
+    "corr_xyz": [
+     0.94,
+     0.97,
+     0.85
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 7.3,
+    "corr_xyz": [
+     0.98,
+     null,
+     0.06
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 11.1,
+    "corr_xyz": [
+     null,
+     null,
+     0.48
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 8.7,
+    "corr_xyz": [
+     0.99,
+     0.83,
+     0.62
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 9.3,
+    "corr_xyz": [
+     0.6,
+     null,
+     -0.13
+    ]
+   }
+  }
+ },
+ "v2b_v1": {
+  "frames": 121,
+  "fps": 24.0,
+  "seconds": 5.042,
+  "foot_slide": {
+   "LeftFoot": {
+    "planted_frames": 111,
+    "mean_mm_per_frame": 0.44,
+    "p95_mm_per_frame": 1.37
+   },
+   "LeftToeBase": {
+    "planted_frames": 117,
+    "mean_mm_per_frame": 1.6,
+    "p95_mm_per_frame": 3.68
+   },
+   "RightFoot": {
+    "planted_frames": 110,
+    "mean_mm_per_frame": 0.53,
+    "p95_mm_per_frame": 1.9
+   },
+   "RightToeBase": {
+    "planted_frames": 118,
+    "mean_mm_per_frame": 1.72,
+    "p95_mm_per_frame": 5.05
+   }
+  },
+  "max_body_joint_speed": {
+   "m_per_s": 4.17,
+   "joint": "LeftHand",
+   "frame": 79
+  },
+  "accel_spikes": {
+   "count": 0,
+   "top": []
+  },
+  "bone_length_std_mm_max": 0.0,
+  "root_height_m": {
+   "min": 0.933,
+   "max": 1.038,
+   "range": 0.105
+  },
+  "root_travel_xz_m": 0.074,
+  "contact_frac": {
+   "L_heel": 0.934,
+   "L_toe": 0.983,
+   "R_heel": 0.926,
+   "R_toe": 0.992
+  },
+  "sole_height_m": {
+   "min": -0.004,
+   "max": 0.003,
+   "planted_abs_mean": 0.0006,
+   "planted_abs_p95": 0.0015
+  },
+  "kp2d_conf_mean": {
+   "body": 0.96,
+   "face": 0.974,
+   "left_fingers": 0.926,
+   "right_fingers": 0.967
+  },
+  "bvh_vs_npz_max_mm": 0.0034,
+  "vs_mediapipe": {
+   "yaw_to_camera_deg": 7,
+   "L_wrist": {
+    "rms_cm": 11.4,
+    "corr_xyz": [
+     0.99,
+     0.98,
+     0.83
+    ]
+   },
+   "R_wrist": {
+    "rms_cm": 12.1,
+    "corr_xyz": [
+     0.91,
+     0.99,
+     0.72
+    ]
+   },
+   "L_elbow": {
+    "rms_cm": 11.3,
+    "corr_xyz": [
+     0.99,
+     0.97,
+     0.72
+    ]
+   },
+   "R_elbow": {
+    "rms_cm": 12.2,
+    "corr_xyz": [
+     0.95,
+     0.99,
+     0.71
+    ]
+   },
+   "L_knee": {
+    "rms_cm": 8.4,
+    "corr_xyz": [
+     null,
+     null,
+     -0.29
+    ]
+   },
+   "R_knee": {
+    "rms_cm": 9.5,
+    "corr_xyz": [
+     null,
+     null,
+     -0.26
+    ]
+   },
+   "L_ankle": {
+    "rms_cm": 8.5,
+    "corr_xyz": [
+     null,
+     0.49,
+     0.25
+    ]
+   },
+   "R_ankle": {
+    "rms_cm": 11.7,
+    "corr_xyz": [
+     -0.18,
+     0.77,
+     -0.4
+    ]
+   }
+  }
+ }
+}

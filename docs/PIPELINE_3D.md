@@ -65,7 +65,7 @@ cross-check only.
 
 | bank | what | terms | use |
 |---|---|---|---|
-| **BONES-SEED** | 288 h, 142k BVH on the SOMA skeleton: stunts, martial arts, dance, locomotion | free for entities under $1M annual revenue; credit "Motion Data by Bones Studio"; no training generative models on it | the main bank, **if we qualify** (to confirm) |
+| **BONES-SEED** | 288 h, 142k BVH on the SOMA skeleton: stunts, martial arts, dance, locomotion | free for entities under $1M annual revenue (we qualify, confirmed 2026-09-27); credit "Motion Data by Bones Studio"; no training generative models on it | the main bank |
 | CMU Graphics Lab | ~2,500 trials, some martial arts, acrobatics, dance | free for all uses incl. commercial products; no reselling the data | generic dynamics |
 | 100STYLE | 100 locomotion styles | CC BY 4.0 | walks and runs with character |
 | Rokoko free packs, Mixamo, Quaternius UAL | fight, weapon, dance loops | commercial use allowed; don't redistribute raw files (Quaternius is CC0) | stock moves |
@@ -177,6 +177,9 @@ This Mac (M2 Pro, 16 GB, macOS 13.5) runs Blender, three.js, MediaPipe and the C
 PyTorch 2.9, MPS needs macOS 14. **A macOS upgrade is the cheapest unlock available**: MPS back, MLX (trellis2mlx runs TRELLIS.2 on
 exactly this machine in about 21 minutes), and Maya/Marvelous/ZBrush/Unreal become installable. 16 GB stays tight either way.
 
+Until then, **torch 2.8.0 still has MPS on macOS 13.5** (measured: a 4096² matmul in 29 ms on MPS against 98 ms on CPU); only
+repos that need torch 2.9 or later are blocked.
+
 Everything CUDA runs on the GPU box (`infra/gcp/`): one L4 (24 GB) by default, bigger cards by changing the machine type. It sits
 on a VPC of its own with SSH only through IAP and no external IP, under a service account that can write only its own bucket,
 because research repos run arbitrary code. It stops itself after 30 idle minutes. `infra/gcp/gpu.sh up | ssh | push | pull | stop`.
@@ -185,9 +188,12 @@ because research repos run arbitrary code. It stops itself after 30 idle minutes
 
 Each phase ends in something to watch, reviewed the usual way (sheets, strips, full passes).
 
-1. **The mocap spine.** GEM-X on the GPU box on TSUZUKU's `hook_v1.mp4` and one CMU fight clip; the canonical clip format; SOMA →
-   BVH; retarget onto a VRM-humanoid mannequin in Blender; a strip beside the reference. Tools: `tools/mocap3d/` (run, clip,
-   contacts, retarget), `motion_audit.py` extended to 3D joints. *Proves the whole chain on real data.*
+1. **The mocap spine.** *Done, 2026-09-27 (projects/clawd3d).* GEM-X runs on the GPU box (`tools/mocap3d/`): all 13 of
+   TSUZUKU's directed references tracked, about 2 min and 9.3 GB of VRAM per 5 s clip on an L4, no left/right swaps, feet
+   within 1.5 cm of the floor after a floor lock (GEM-X's height wanders up to 14 cm in 5 s). Fingers are placed well but
+   articulate poorly: keep keyed hand shapes. The canonical clip is `<name>.clip.npz` (`soma_clip.py` documents it). Retarget
+   in armature space with a rest-pose calibration; the test shot (bars 58–66, two phrases time-warped by the 2D film's anchors)
+   is `projects/clawd3d/shots/dance_test.py`. Still to add: `motion_audit.py` on 3D joints, keyed accents over the mocap.
 2. **The camera conte.** Composition library + contact sheet, move composer + validators, baked track, three.js blockout in
    `render.mjs` with the phase-1 mannequins moving, Blender import, the round-trip test. *A drone-style one-shot of two dancers.*
 3. **The character kit.** Round 5's builder promoted into reusable modules (body from a joint table, decals, spring chains, toon
@@ -199,7 +205,9 @@ Each phase ends in something to watch, reviewed the usual way (sheets, strips, f
 
 ## 9. Open questions
 
-- **BONES-SEED eligibility:** the free tier is for entities under $1M annual revenue. Confirm before relying on it.
+- **BONES-SEED access:** we qualify, but the dataset is gated: a Hugging Face account, token and the access form (name,
+  affiliation, work email, intended use, the revenue checkbox), and the BVHs come only as 45 GB tarballs (SOMA layout, but
+  centimetres, 120 fps, bind-pose-relative: `soma_clip.py` needs a BVH input mode). Its raw files must never enter this repo.
 - Does GEM-X's hand and face output hold up on generated references? What are its speed and VRAM on an L4? (Phase 1 answers both.)
 - Does Cascadeur's API run AutoPhysics headless?
 - WebGPU in headless Chrome on macOS 13 (else WebGL2, which three.js falls back to).

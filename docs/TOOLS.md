@@ -85,6 +85,14 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 Game data (disc images, the game's executable, builds, captured plates, raw game audio) never enters the repo: it lives in
 `~/games/` or under gitignored paths.
 
+## 3D motion (the plan is docs/PIPELINE_3D.md; the first character is projects/clawd3d)
+
+| tool | what |
+|---|---|
+| `mocap3d/gemx_remote.sh` | NVIDIA GEM-X on the GPU box: push directed reference clips, run it static-camera, convert, pull back canonical clips (`--install` once per box). About 2 min and 9.3 GB of VRAM per 5 s clip on an L4 |
+| `mocap3d/soma_clip.py` | GEM-X output to the canonical clip (`<name>.clip.npz`: SOMA 77 joints, T-pose-relative rotations, metric root, foot contacts, floor locked) and a BVH; `--check` (npz FK vs BVH), `--qa DIR` (foot slide, swaps, bone lengths, root range) |
+| `projects/clawd3d/build/motion.py` | posing and retargeting in armature space: calibration in the source rest pose (hands by their knuckle line), anchor time-warps, springs for secondary motion, floor lock from contacts |
+
 ## GPU box (infra/gcp: CUDA-only models; the plan is docs/PIPELINE_3D.md)
 
 | tool | what |
