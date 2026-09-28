@@ -29,3 +29,8 @@ td.sub { color: #aaa; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; margin: 2px 0; }
 .badge.PASS { background: #2f4a22; } .badge.WARN { background: #5a4a1a; } .badge.FAIL { background: #5a2420; }
 .qaimg { width: 100%; margin-top: 6px; cursor: zoom-in; background: #fff; }
+table.trace td { font-size: 11px; }
+table.trace tr.span td:first-child { color: #aaa; white-space: pre; }
+table.trace .bar { display: inline-block; height: 8px; background: #7aa6da; border-radius: 2px; }
+table.trace .obj { margin: 1px 0; }
+table.trace .obj.bad { color: #f0c674; }
