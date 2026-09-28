@@ -6,9 +6,30 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from charkit import procs
 
 
+def test_slot_count_setting_and_memory_wait():
+    procs.SLOTS_DIR = tempfile.mkdtemp()
+    os.environ.pop('CHARKIT_BUILD_SLOTS', None)
+    assert procs.slots() == 2
+    procs.set_slots(['3'])
+    assert procs.slots() == 3
+    os.environ['CHARKIT_BUILD_SLOTS'] = '1'
+    assert procs.slots() == 1
+    free = procs.available_gb()
+    assert free is None or free > 0
+    real = procs.available_gb
+    seq = iter([0.5, 0.5, 8.0])
+    procs.available_gb = lambda: next(seq)
+    try:
+        f = procs.acquire_slot('m', poll=0.01, mem=3)                 # waits twice for memory, then takes a slot
+        f.close()
+    finally:
+        procs.available_gb = real
+
+
 def test_slots_queue_and_release():
     procs.SLOTS_DIR = tempfile.mkdtemp()
     os.environ['CHARKIT_BUILD_SLOTS'] = '2'
+    os.environ['CHARKIT_BUILD_MEM_GB'] = '0'
     a = procs.acquire_slot('a'); b = procs.acquire_slot('b')
     assert len(procs.slot_holders()) == 2
     # a third taker in another process waits until one is released
