@@ -76,8 +76,23 @@ def measure(rig, eye_x=0.168, hair=('hair_front', 'hair_side_L', 'hair_side_R'),
         xs = np.nonzero(fl[min(y, fl.shape[0] - 1)])[0]
         hw = ((xs.max() - xs.min()) / 2 - bleed) / ppl if len(xs) else 0.0
         prof.append(max(0.015, hw))
+    # feature landmarks from their layers (heights from the eye line, in L): the mouth line's lowest point (a smile dips in
+    # the middle), the nose tip, the brows' centre; the eye layers' size (lashes included)
+    feat = {}
+    if 'mouth' in lay:
+        mm = _alpha(rig, lay['mouth'], size)
+        ys, xs = np.nonzero(mm)
+        mid = np.abs(xs - cx) < 0.02 * ppl
+        feat['mouth_z'] = float((cy - (ys[mid].max() if mid.any() else ys.mean())) / ppl)
+    if 'nose' in lay:
+        l_ = lay['nose']; feat['nose_z'] = float((cy - (l_['y'] + l_['h'])) / ppl)
+    bz = [(cy - (lay[n]['y'] + lay[n]['h'] / 2)) / ppl for n in ('brow_L', 'brow_R') if n in lay]
+    if bz:
+        feat['brow_z'] = float(min(bz))
+    feat['eye_w'] = float(np.mean([lay[n]['w'] for n in ('eye_L', 'eye_R')]) / ppl)
+    feat['eye_h'] = float(np.mean([lay[n]['h'] for n in ('eye_L', 'eye_R')]) / ppl)
     return dict(ppl=ppl, chin=chin, hair_z=z, hair_wl=wl, hair_wr=wr, top=float(max(z)), bottom=float(min(z)),
-                fringe=[(float(-a), float(b)) for a, b in cont], fringe_tips=sorted(tips), face_wf=prof)
+                fringe=[(float(-a), float(b)) for a, b in cont], fringe_tips=sorted(tips), face_wf=prof, features=feat)
 
 
 if __name__ == '__main__':

@@ -162,6 +162,66 @@ class Volume:
         return n / ln if ln > 1e-12 else h / np.linalg.norm(h)
 
 
+class MeshVolume(Volume):
+    """The hair volume from a generated hair surface (charkit.i3d: a TRELLIS.2 mesh's hair part, in world): its outermost
+    radius along each direction from the hair centre (a ray-cast grid, cast inward from outside so inner layers don't
+    count), gently smoothed; directions that miss (the face, below the hair) fall back to the head-based volume. hem(az):
+    where the generated hair ends at each azimuth."""
+
+    def __init__(self, H, centre, S, target, hair_mesh, step=3.0, smooth=1):
+        super().__init__(H, centre, S, target)
+        from mathutils import Vector
+        from mathutils.bvhtree import BVHTree
+        V, F = hair_mesh
+        bvh = BVHTree.FromPolygons([Vector(v) for v in V], [tuple(f) for f in F])
+        self.m_az = np.arange(-180, 180 + step / 2, step)
+        self.m_el = np.arange(-86, 88 + step / 2, step)
+        R = 1.5 * self.L
+        grid = np.full((len(self.m_el), len(self.m_az)), np.nan)
+        for i, e in enumerate(self.m_el):
+            for j, a in enumerate(self.m_az):
+                d = _dir(a, e)
+                hit = bvh.ray_cast(Vector(self.c + d * R), Vector(-d), R)
+                if hit[0] is not None:
+                    grid[i, j] = R - hit[3]
+        for _ in range(smooth):                                   # a light blur where both neighbours exist
+            g = grid.copy()
+            g[:, 1:-1] = np.where(np.isnan(grid[:, 1:-1]), np.nan,
+                                  np.nanmean(np.stack([grid[:, :-2], grid[:, 1:-1], grid[:, 2:]]), 0))
+            grid = g
+        self.mr = grid
+        lowest = np.full(len(self.m_az), np.nan)
+        for j in range(len(self.m_az)):
+            hits = np.nonzero(~np.isnan(grid[:, j]))[0]
+            if len(hits):
+                lowest[j] = self.m_el[hits.min()]
+        self.m_hem = lowest
+
+    def _mesh_r(self, az, el):
+        az = ((az + 180) % 360) - 180
+        if el < self.m_el[0] or el > self.m_el[-1]:
+            return np.nan
+        i = np.interp(el, self.m_el, np.arange(len(self.m_el)))
+        j = np.interp(az, self.m_az, np.arange(len(self.m_az)))
+        i0, j0 = int(min(len(self.m_el) - 2, i)), int(min(len(self.m_az) - 2, j))
+        fi, fj = i - i0, j - j0
+        q = self.mr[i0:i0 + 2, j0:j0 + 2]
+        if np.isnan(q).any():
+            return q[round(fi), round(fj)]
+        return (1 - fi) * ((1 - fj) * q[0, 0] + fj * q[0, 1]) + fi * ((1 - fj) * q[1, 0] + fj * q[1, 1])
+
+    def point(self, az, el, r=1.0):
+        rr = self._mesh_r(az, el)
+        if rr is None or np.isnan(rr):
+            return super().point(az, el, r)
+        return self.c + _dir(az, el) * rr * r
+
+    def hem_el(self, az):
+        az = ((az + 180) % 360) - 180
+        h = np.interp(az, self.m_az, np.nan_to_num(self.m_hem, nan=-40.0))
+        return float(h)
+
+
 def catmull(P, n):
     """a uniform Catmull-Rom curve through control points P (k, d), sampled at n + 1 points."""
     P = np.asarray(P, float)

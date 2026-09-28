@@ -239,6 +239,16 @@ def key(V, M, F, K, L, mc, shape, jaw_w=None):
 
 
 # ------------------------------------------------------------------------------------------------------ teeth and tongue
+def line(F, K, L, mc, shape='neutral', n=32):
+    """the drawn mouth line: a thin ribbon along the upper lip's edge, fullest in the middle, tapering into the corners
+    (the anime mouth is a line; open shapes keep it as the opening's top edge). -> (verts, quads)."""
+    up_f, _ = curves(K, L, shape)
+    t = np.linspace(0.02, 0.98, n)
+    x, z = up_f(t)
+    th = K.get('line_w', 0.0075) * L * (0.35 + 0.65 * np.sin(np.pi * t) ** 0.6)
+    return eyelib._ribbon(F, 1.0, mc, np.stack([x, z], 1), th, 1.0, lift=-0.0004, tuck=0.6)
+
+
 def teeth(F, K, L, mc, shape='neutral', n=24):
     """the upper teeth: a white band just behind the upper lip's edge, following its curve. -> (verts, quads)."""
     up_f, _ = curves(K, L, shape)

@@ -19,7 +19,7 @@ DEFAULT_EYE = {
     'x': 0.168,          # eye centre from the midline, in L
     'z': 0.0,            # eye centre above the eye line, in L
     'width': 0.19,       # opening width, in L
-    'height': 0.74,      # opening height / width
+    'height': 0.62,      # opening height / width
     'lower': 0.42,       # share of the height below the corner line
     'tilt': 2.5,         # degrees, outer corner up
     'inner_drop': 0.05,  # inner corner below the corner line, in widths
@@ -27,13 +27,15 @@ DEFAULT_EYE = {
     'upper_full': 0.6,   # upper arc fullness (0 pointed .. 1 boxy)
     'lower_low': 0.55,   # where the lower lid is lowest (0 inner .. 1 outer)
     'lower_full': 0.45,  # lower arc fullness
-    'depth': 0.012,      # the eye plate behind the face surface, in L
+    'depth': 0.006,      # the eye plate behind the face surface, in L
     'lash': 0.028,       # upper lash thickness, in L
     'lash_inner': 0.35,  # lash thickness at the inner corner (share)
-    'flick': 0.24,       # outer flick length, in widths
+    'flick': 0.16,       # outer flick length, in widths
     'flick_angle': 22.0, # degrees above the lid line
-    'lower_lash': 0.4,   # lower lash extent from the outer corner (share of the width)
-    'lower_lash_w': 0.30,  # lower lash thickness (share of the upper)
+    'lower_lash': 0.6,   # lower lash extent from the outer corner (share of the width)
+    'lower_lash_w': 0.36,  # lower lash thickness (share of the upper)
+    'crease': 0.10,      # the double-lid crease line above the lash, in widths (0 = none)
+    'crease_w': 0.004,   # its thickness, in L
 }
 
 RINGS = 6                                   # outer lid rings that can follow the margin (spread() decides how far)
@@ -306,15 +308,15 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
 
 
 # ---------------------------------------------------------------------------------------------------------------- lashes
-def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006):
+def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35):
     """a ribbon along eye-local points (N,2) with per-point thickness, offset along the 2D normal (away from the eye); its
     inner edge tucked a little over the opening. -> (verts, quads)."""
     pts = np.asarray(pts)
     tan = np.gradient(pts, axis=0)
     tan /= np.maximum(np.linalg.norm(tan, axis=1, keepdims=True), 1e-12)
     nrm = np.stack([-tan[:, 1], tan[:, 0]], 1) * normal_sign
-    inner = pts - nrm * thick[:, None] * 0.18
-    outer = pts + nrm * thick[:, None] * 0.82
+    inner = pts - nrm * thick[:, None] * tuck
+    outer = pts + nrm * thick[:, None] * (1 - tuck)
     ex, ez = eye_c
     Vi = _world(F, ex, ez, side, inner[:, 0], inner[:, 1], depth=lift)
     Vo = _world(F, ex, ez, side, outer[:, 0], outer[:, 1], depth=lift)
@@ -341,7 +343,7 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     ang = math.radians(K['flick_angle'] + K['tilt'])
     s = np.linspace(0, 1, 11)[1:]
     fx = x[-1] + np.cos(ang) * K['flick'] * W * s
-    fz = z[-1] + np.sin(ang) * K['flick'] * W * s ** 1.3
+    fz = z[-1] + np.sin(ang) * K['flick'] * W * s ** 1.6          # curving up at its end
     fth = th[-1] * (1 - s) ** 1.2 + 1e-5
     up = _ribbon(F, side, eye_c, np.stack([np.concatenate([x, fx]), np.concatenate([z, fz])], 1),
                  np.concatenate([th, fth]), 1.0)
@@ -349,7 +351,16 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     x2, z2 = lower_fn(t2)
     th2 = K['lash'] * L * K['lower_lash_w'] * np.sin(np.pi * 0.5 * (t2 - t2[0]) / (t2[-1] - t2[0])) ** 0.8 + 1e-5
     lo = _ribbon(F, side, eye_c, np.stack([x2, z2], 1), th2, -1.0)
-    return [up, lo]
+    out = [up, lo]
+    if K.get('crease', 0) > 0:
+        # the double-lid crease: a thin line above the lash over its middle and outer part, following the lid
+        t3 = np.linspace(0.22, 0.92, 24)
+        x3, z3 = upper_fn(t3)
+        lift_ = K['lash'] * L + K['crease'] * W
+        th3 = K['crease_w'] * L * np.sin(np.pi * (t3 - t3[0]) / (t3[-1] - t3[0])) ** 0.7 + 1e-5
+        out.append(_ribbon(F, side, eye_c, np.stack([x3, z3 + lift_ * np.sin(np.pi * (0.2 + 0.8 * t3)) ** 0.3], 1), th3,
+                           1.0, tuck=0.5))
+    return out
 
 
 # ------------------------------------------------------------------------------------------------------------ shape keys

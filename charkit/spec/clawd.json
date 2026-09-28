@@ -3,7 +3,10 @@
  "ref": "projects/tsuzuku/rig/clawd/base.png",
  "body": {
   "height_m": 1.55,
-  "heads_tall": 6.2
+  "heads_tall": 6.2,
+  "proportions": {
+   "neck_w": 0.6
+  }
  },
  "head": {
   "low_wf": [
@@ -19,14 +22,16 @@
   "chin": 1.0,
   "cheek": 1.0,
   "jaw_w": 1.0,
-  "width": 1.0
+  "width": 1.0,
+  "mouth_z": 0.929,
+  "nose_z": 0.959
  },
  "eyes": {
   "width": 0.2,
-  "height": 0.8,
+  "height": 0.58,
   "tilt": 3.0,
-  "lash": 0.034,
-  "flick": 0.3,
+  "lash": 0.042,
+  "flick": 0.18,
   "flick_angle": 18.0,
   "peak": 0.45,
   "upper_full": 0.7
@@ -59,13 +64,14 @@
   ],
   "pupil_rx": 0.032,
   "pupil_rz": 0.2,
-  "rx": 0.27,
-  "rz": 0.33,
-  "glow": 0.9
+  "rx": 0.28,
+  "rz": 0.38,
+  "glow": 0.9,
+  "cz": -0.01
  },
  "brows": {
   "thick": 0.01,
-  "height": 0.36,
+  "height": 0.44,
   "arch": 0.08
  },
  "mouth": {

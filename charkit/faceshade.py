@@ -10,7 +10,7 @@ import numpy as np
 
 from . import shade
 
-FACE_WIN = (-0.16, 0.16, -0.45, 0.60)       # the 'face' UV's window in head space, in L: x0, x1, z0, z1
+FACE_WIN = (-0.42, 0.42, -0.45, 0.60)       # the 'face' UV's window in head space, in L: x0, x1, z0, z1
 
 
 def _grid(size, L):

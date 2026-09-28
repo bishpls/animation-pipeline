@@ -61,12 +61,18 @@ def assemble(spec):
     Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'])
     Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'])
     Mo['teeth_keys'] = {sh: mouthlib.teeth(F, MK, L, Mo['c'], sh)[0] - Mo['teeth'][0] for sh in Mo['keys']}
+    Mo['line'] = mouthlib.line(F, MK, L, Mo['c'])
+    Mo['line_keys'] = {sh: mouthlib.line(F, MK, L, Mo['c'], sh)[0] - Mo['line'][0] for sh in Mo['keys']}
     Mo['tongue_keys'] = {sh: mouthlib.tongue(F, MK, L, Mo['c'], sh)[0] - Mo['tongue'][0] for sh in Mo['keys']}
     hw = B['head_w']
     fmat = [1 if hw[list(f)].mean() > 0.5 else 0 for f in B['faces']]
     inside = set(Mo['m']['cavity'])
     ring0 = inside | set(Mo['m']['upper']) | set(Mo['m']['lower'])
     fmat = [2 if all(v in ring0 for v in f) and any(v in inside for v in f) else m_ for f, m_ in zip(B['faces'], fmat)]
+    # the eye pockets' walls (seen as the rim of the opening) draw as the eye line
+    for E in eyes:
+        pk = set(E['eye']['pocket']); rim = pk | set(E['eye']['margin'])
+        fmat = [3 if all(v in rim for v in f) and any(v in pk for v in f) else m_ for f, m_ in zip(B['faces'], fmat)]
     # joints in and around the head follow the reshaped surface
     J = dict(B['joints'])
     near = [k for k, p in J.items() if p[2] > B['marks']['chin'][2] - 0.35 * L]
@@ -100,7 +106,7 @@ def build(spec, clay=None, look=None):
         if A['fmat'][pi] == 1:
             for li in p.loop_indices:
                 q = V[me.loops[li].vertex_index] - c
-                fuv.data[li].uv = ((q[0] + 0.16 * L) / (0.32 * L), (q[2] + 0.45 * L) / (1.05 * L))
+                fuv.data[li].uv = ((q[0] + 0.42 * L) / (0.84 * L), (q[2] + 0.45 * L) / (1.05 * L))
     ob = bpy.data.objects.new(spec.get('name', 'char') + '_skin', me)
     bpy.context.scene.collection.objects.link(ob)
     if clay:
@@ -120,6 +126,30 @@ def build(spec, clay=None, look=None):
     mod = ob.modifiers.new('rig', 'ARMATURE'); mod.object = arm
     ob.parent = arm
     sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 2
+    import bpy as _b
+    cr = me.attributes.get('crease_edge') or me.attributes.new('crease_edge', 'FLOAT', 'EDGE')
+    loops = [E['eye']['margin'] for E in A['eyes']]
+    pairs = set()
+    for lp in loops:
+        for a_, b_ in zip(lp, lp[1:] + lp[:1]):
+            pairs.add((min(a_, b_), max(a_, b_)))
+    vals = [1.0 if (min(e.vertices[0], e.vertices[1]), max(e.vertices[0], e.vertices[1])) in pairs else 0.0 for e in me.edges]
+    cr.data.foreach_set('value', vals)
+    # where the outline shell may draw: not round the eye and mouth openings (their own lines draw them)
+    ow = np.ones(len(V))
+    for E in A['eyes']:
+        for v in list(E['eye']['pocket']) + list(E['eye']['margin']):
+            ow[v] = 0.0
+        for v, r in E['eye']['outer'].items():
+            ow[v] = min(ow[v], 0.0 if r <= 2 else 0.5 if r <= 4 else 1.0)
+    M_ = A['mouth']['m']
+    for v in list(M_['cavity']) + M_['upper'] + M_['lower']:
+        ow[v] = 0.0
+    for v, r in M_['outer'].items():
+        ow[v] = min(ow[v], 0.0 if r <= 2 else 0.5 if r <= 4 else 1.0)
+    g = ob.vertex_groups.new(name='outline_w')
+    for w_ in np.unique(ow):
+        g.add([int(i) for i in np.nonzero(ow == w_)[0]], float(w_), 'REPLACE')
     parts, mouth_parts = build_eyes(A, arm, ob, spec, look=look)
     return {'arm': arm, 'skin': ob, 'data': A, 'eyes': parts, 'mouth': mouth_parts}
 
@@ -171,6 +201,7 @@ def build_eyes(A, arm, skin, spec, look=None):
     comp = np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1)
     iris_m = look.get('iris') or shade.plate('iris', eyetex.to_blender_image('iris', comp))
     lash_m = look.get('lash') or shade.flat('lash', spec.get('lash_color', (0.16, 0.09, 0.10)))
+    crease_m = look.get('crease') or shade.flat('crease', spec.get('crease_color', (0.78, 0.52, 0.48)))
     brow_m = look.get('brow') or shade.flat('brow', spec.get('brow_color', (0.30, 0.20, 0.20)))
     out = []
     for E in A['eyes']:
@@ -186,10 +217,12 @@ def build_eyes(A, arm, skin, spec, look=None):
             back = np.zeros((len(o.data.vertices), 3)); back[:, 1] = 0.006
             for name in ('blink', 'happy'):
                 _key(o, f'eye_{name}', back)
-        lv, lq, off = [], [], 0
-        for rv, rq in E['lashes']:
-            lv.append(rv); lq += [tuple(i + off for i in f) for f in rq]; off += len(rv)
-        lob = _mesh(f'lash_{tag}', np.vstack(lv), lq, None, [lash_m])
+        lv, lq, lm, off = [], [], [], 0
+        for k_, (rv, rq) in enumerate(E['lashes']):
+            lv.append(rv); lq += [tuple(i + off for i in f) for f in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)
+        lob = _mesh(f'lash_{tag}', np.vstack(lv), lq, None, [lash_m, lash_m, crease_m])
+        for p_, mi in zip(lob.data.polygons, lm):
+            p_.material_index = mi
         for name, (D, lash_d) in E['keys'].items():
             _key(lob, f'eye_{name}', np.vstack(lash_d))
         bv, bq = E['brow']
@@ -206,10 +239,12 @@ def build_eyes(A, arm, skin, spec, look=None):
     while len(skin.data.materials) < 2:
         skin.data.materials.append(skin.data.materials[0] if skin.data.materials else None)
     skin.data.materials.append(cav_m)
+    skin.data.materials.append(look.get('eyeline') or shade.flat('eyeline', spec.get('eyeline_color', (0.22, 0.12, 0.10))))
     for sh, D in Mo['keys'].items():
         _key(skin, f'mouth_{sh}', D)
-    for part, col, keys in (('teeth', (0.97, 0.96, 0.97), Mo['teeth_keys']), ('tongue', (0.86, 0.46, 0.50), Mo['tongue_keys'])):
-        v, q = Mo[part]
+    for part, col, keys in (('teeth', (0.97, 0.96, 0.97), Mo['teeth_keys']), ('tongue', (0.86, 0.46, 0.50), Mo['tongue_keys']),
+                            ('mouth_line', spec.get('mouth_line_color', (0.36, 0.16, 0.14)), Mo['line_keys'])):
+        v, q = Mo['line' if part == 'mouth_line' else part]
         o = _mesh(part, v, q, None, [look.get(part) or shade.flat(part, col)])
         for sh, d in keys.items():
             _key(o, f'mouth_{sh}', d)

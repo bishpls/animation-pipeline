@@ -111,4 +111,6 @@ def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line'):
     sol = ob.modifiers.new('outline', 'SOLIDIFY')
     sol.thickness = -thick; sol.offset = 1.0; sol.use_flip_normals = True; sol.use_rim = False
     sol.material_offset = len(ob.data.materials) - 1
+    if 'outline_w' in ob.vertex_groups:
+        sol.vertex_group = 'outline_w'; sol.thickness_vertex_group = 0.0
     return sol

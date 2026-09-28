@@ -13,9 +13,9 @@ DEFAULT_IRIS = {
     'pupil': (0.04, 0.05, 0.14),
     'sclera': (0.97, 0.96, 0.98),
     'sclera_shadow': (0.72, 0.74, 0.86),
-    'rx': 0.255,                   # iris half-width, in eye widths
-    'rz': 0.315,                   # iris half-height
-    'cz': -0.015,                  # iris centre above the eye centre
+    'rx': 0.27,                    # iris half-width, in eye widths
+    'rz': 0.37,                    # iris half-height (taller than the opening: the lids clip it)
+    'cz': -0.01,                   # iris centre above the eye centre
     'pupil_rx': 0.085, 'pupil_rz': 0.135,
     'striation': 0.25,             # strength of the radial fibres
     'glow': 0.8,                   # the bottom crescent
