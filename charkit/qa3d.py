@@ -417,9 +417,13 @@ def _render(path, cam, az, show, override=None, transparent=True):
     vl = bpy.context.view_layer
     old_ov, old_ft = vl.material_override, sc.render.film_transparent
     old_cam = sc.camera
+    old_dither = sc.render.dither_intensity
     try:
         vl.material_override = override
         sc.render.film_transparent = transparent
+        # no dither: the measures below read flat toon tones, and +-0.5/255 of dither noise inside a tone splits it at
+        # a luminance percentile (hair_noise read 0.19-0.73 on renders that measure 0.006-0.014 without it)
+        sc.render.dither_intensity = 0.0
         sc.camera = cam.ob
         cam.aim(az)
         sc.render.resolution_x, sc.render.resolution_y = cam.res
@@ -427,6 +431,7 @@ def _render(path, cam, az, show, override=None, transparent=True):
         bpy.ops.render.render(write_still=True)
     finally:
         vl.material_override = old_ov; sc.render.film_transparent = old_ft; sc.camera = old_cam
+        sc.render.dither_intensity = old_dither
         for o in sc.objects:
             if o.name in saved:
                 o.hide_render = saved[o.name]

@@ -1,0 +1,9 @@
+# charkit.geom (docs/GEOM.md), in the venv (~/animation-pipeline/.venv, Python 3.14). Licences in THIRD_PARTY.md.
+# Already there before the kernel: numpy, scipy, scikit-image, numba (llvmlite), pillow. Added for it: manifold3d, pytest.
+numpy>=2.0            # BSD-3-Clause
+scipy>=1.11           # BSD-3-Clause
+scikit-image>=0.22    # BSD-3-Clause   marching cubes
+numba>=0.60           # BSD-2-Clause   BVH, remesh, raster kernels
+pillow>=10            # MIT-CMU        glTF texture decode
+manifold3d>=3.0       # Apache-2.0     exact booleans (optional: the volume path covers without it)
+pytest>=8             # MIT            tests only
