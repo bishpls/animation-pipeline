@@ -269,6 +269,33 @@
     "the top-down view is schematic: it puts stepped edging on every outer panel, where the back view shows a plain outer hem over stepped under-panels; use it for panel order and count, check the hem against the sheet's views"
    ],
    "sha256": "75f24c053865226dc4ce69b8e11875e46d3b54df70fca7b1b416941952fa8c37"
+  },
+  "body_turnaround": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-28",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "sheet",
+     "rig/base.png",
+     "head_turnaround",
+     "garment_breakdown"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "body_turnaround"
+   },
+   "path": "charkit/refs/clawd/gen/body_turnaround.png",
+   "role": "the full body for 3D modelling in one generation: front, three-quarter (turned to the viewer's left), true side profile (facing left) and back, one A-pose, one scale, one ground line and eye line, the complete outfit; the base for the body and hair silhouettes, the outfit's placement and the palette (Michael, 2026-09-28: idol_D is the source design, not a benchmark)",
+   "cautions": [
+    "the arms hang about 20-25 degrees out from vertical, not the 45 asked for: the rest-pose knobs fit it",
+    "check it against the head sheets (charkit refcheck) before it grades anything"
+   ],
+   "sha256": "e523aa3532b1092f2cae3647224f49e4aa0721c9d13c0cce00f28f24f0ee3881",
+   "layout": "figures"
   }
  },
  "authority": {

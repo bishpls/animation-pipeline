@@ -194,19 +194,51 @@ def _strip(M):
 CHIN_VIEWS = 0.02    # a sheet's front chin tip and its profile's chin are one point of one head: within this (L)
 
 
+def figures_at_scale(rgb, eye_x, spacing, facing=-1, guess=0.5):
+    """a full-body sheet (the manifest's layout 'figures': a body turnaround) resampled so its front figure's eyes are
+    `spacing` px apart, its figures found as a model sheet's are (sheetqa.detect_figures: eyes in each figure's head)
+    -> (rgb, factor, dict(ppl, heads {view: dict(box, eyes, eye_y, head)}, figures))."""
+    f = guess
+    for _ in range(6):
+        small = _resample(rgb, f)
+        try:
+            F = sheetqa.detect_figures(small, eye_x=eye_x, facing=facing)
+        except RuntimeError:
+            f *= 0.8
+            continue
+        cur = F['ppl'] * 2 * eye_x
+        if abs(cur - spacing) <= 0.3:
+            heads = {v: dict(box=g['box'], eyes=g['eyes'], eye_y=g['eye_y'], head=g['head'])
+                     for v, g in F['figures'].items()}
+            return small, f, dict(ppl=F['ppl'], heads=heads, figures=F['figures'])
+        f *= spacing / cur
+    raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
+
+
 def measure_ref(ref, S, log=print):
-    """one head sheet measured at the common scale -> dict(ref, path, factor, scale_vs_sheet, guides, chin (the
-    profile's drawn chin), O {view: measures}, _rgb, _heads)."""
+    """one head sheet (layout 'heads') or full-body sheet (layout 'figures') measured at the common scale
+    -> dict(ref, path, layout, factor, scale_vs_sheet, guides, chin (the profile's drawn chin), O {view: measures},
+    figures (a body sheet's: per view its eye line and ground line, L), _rgb, _heads)."""
     from PIL import Image
     facing = S.spec_sheet.get('facing', -1)
     rgb0 = np.asarray(Image.open(_p(ref['path'])).convert('RGB')).astype(float) / 255
-    rgb0, guides = without_guides(rgb0)
-    rgb, f, H = at_scale(rgb0, S.eye_x, S.ppl_eyes * 2 * S.eye_x, facing)
+    spacing = S.ppl_eyes * 2 * S.eye_x
+    figs = None
+    if ref.get('layout') == 'figures':
+        guides = []
+        rgb, f, H = figures_at_scale(rgb0, S.eye_x, spacing, facing)
+        figs = {v: {'eye_y': round(g['eye_y'] / S.ppl, 4), 'ground': round(g['box'][3] / S.ppl, 4),
+                    'top': round(g['box'][1] / S.ppl, 4), 'height': round((g['box'][3] - g['box'][1]) / S.ppl, 4)}
+                for v, g in H['figures'].items()}
+    else:
+        rgb0, guides = without_guides(rgb0)
+        rgb, f, H = at_scale(rgb0, S.eye_x, spacing, facing)
     O, chin = measure_heads(rgb, H['heads'], S.ppl, facing)
     log('%s: x%.3f (%.2fx the model sheet), heads %s, %d guide lines out, profile chin %s' % (
         ref['id'], f, 1 / f, ', '.join(H['heads']), len(guides), None if chin is None else round(chin, 3)))
-    return dict(ref=ref['id'], path=ref['path'], factor=round(f, 4), scale_vs_sheet=round(1 / f, 2), guides=guides,
-                chin=None if chin is None else round(chin, 4), O=O, _rgb=rgb, _heads=H['heads'])
+    return dict(ref=ref['id'], path=ref['path'], layout=ref.get('layout'), factor=round(f, 4),
+                scale_vs_sheet=round(1 / f, 2), guides=guides, chin=None if chin is None else round(chin, 4), O=O,
+                figures=figs, _rgb=rgb, _rgb0=rgb0, _heads=H['heads'])
 
 
 def _graded(C):
@@ -229,9 +261,21 @@ def compare_views(A, B):
     return out
 
 
+LINE_VIEWS = 0.02    # a body sheet's views share one eye line and one ground line: within this (L)
+
+
 def within(R):
-    """one sheet's views against each other -> {check: dict(value, status, note)}."""
+    """one sheet's views against each other -> {check: dict(value, status, note)}: the front's chin tip against the
+    profile's chin; on a body sheet, every view's eye line and ground line (the spread across views)."""
     O, out = R['O'], {}
+    F = R.get('figures') or {}
+    for key, name, note in (('eye_y', 'eye_line_views', 'the spread of the views\' eye lines, L: one standing figure'),
+                            ('ground', 'ground_views', 'the spread of the views\' feet, L: one ground line')):
+        vals = [g[key] for v, g in F.items() if v in VIEWS + ('back',) and (key != 'eye_y' or v != 'back')]
+        if len(vals) > 1:
+            d = max(vals) - min(vals)
+            out[name] = {'value': round(d, 4), 'status': 'PASS' if d <= LINE_VIEWS else 'WARN' if d <= 2 * LINE_VIEWS
+                         else 'FAIL', 'note': note}
     cf, cp = (O.get(v, {}).get('chin') for v in ('front', 'profile'))
     if cf is not None and cp is not None:
         d = cf - cp
@@ -241,6 +285,28 @@ def within(R):
     return out
 
 
+EYE_BOX = (0.15, 0.11)   # an eye's crop round its centre, half-width and half-height in L (clear of the nose and brow)
+
+
+def eye(R, S):
+    """a sheet's front-view eye (the viewer's left one) measured at the sheet's own resolution (charkit.eyeqa.measure: the
+    opening's aspect and width, the iris in it, the pupil's run, aspect and share of the iris, the lid line)
+    -> (measures, the crop) or (None, None)."""
+    from . import eyeqa
+    h = R['_heads'].get('front')
+    if not h or len(h['eyes']) < 2:
+        return None, None
+    f = R['factor']
+    ex, ey = min(h['eyes'])                                             # the viewer's left eye, at the common scale
+    cx, cy, ppl = ex / f, ey / f, S.ppl / f                             # at the sheet's own resolution
+    hw, hh = EYE_BOX[0] * ppl, EYE_BOX[1] * ppl
+    rgb = R['_rgb0'][int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
+    rgba = np.concatenate([rgb, np.ones(rgb.shape[:2] + (1,))], -1)
+    M = eyeqa.measure(rgba, ppl)
+    M.pop('_masks', None)
+    return M, rgb
+
+
 def run(spec, refs, S, log=print):
     """-> dict(sheets [measure_ref], pairs [dict(a, b, views)], within {ref: checks}, design {ref: views}): the pairs and
     each sheet's own views are the verdict; design (each sheet against the model sheet) is information."""
@@ -248,9 +314,19 @@ def run(spec, refs, S, log=print):
     sheets = [measure_ref(r, S, log) for r in refs]
     pairs = [dict(a=A['ref'], b=B['ref'], views=compare_views(A['O'], B['O']))
              for i, A in enumerate(sheets) for B in sheets[i + 1:]]
-    res = dict(sheets=sheets, pairs=pairs, within={R['ref']: within(R) for R in sheets},
+    from . import eyeqa
+    E = {R['ref']: eye(R, S) for R in sheets}
+    for pr in pairs:
+        a, b = E[pr['a']][0], E[pr['b']][0]
+        if a and b:
+            C = eyeqa.compare(b, a)
+            C['pupil_share'] = {'value': b.get('pupil_share'), 'design': a.get('pupil_share'), 'status': 'INFO',
+                                'note': "the pupil's share of the iris (area)"}
+            pr['eye'] = {'checks': C, 'status': _worst(C)}
+    res = dict(sheets=sheets, pairs=pairs, eyes={k: v[0] for k, v in E.items()}, _eye_crops={k: v[1] for k, v in E.items()},
+               within={R['ref']: within(R) for R in sheets},
                design={R['ref']: compare_views({v: D[v] for v in VIEWS if v in D}, R['O']) for R in sheets}, _D=D)
-    st = [v['status'] for p in pairs for v in p['views'].values()] + \
+    st = [v['status'] for p in pairs for v in list(p['views'].values()) + ([p['eye']] if 'eye' in p else [])] + \
          [c['status'] for w in res['within'].values() for c in w.values()]
     res['status'] = 'FAIL' if 'FAIL' in st else 'WARN' if 'WARN' in st else 'PASS'
     return res
@@ -294,7 +370,7 @@ def page(res, S, out, spec_name):
          'way the QA measures a drawn head. Overlays: grey both, <b style="color:#e33">red</b> the second only, '
          '<b style="color:#35f">blue</b> the first only. How each departs from the original model sheet (idol_D) is at '
          'the end, as information. %s</p>' % time.strftime('%Y-%m-%d %H:%M'),
-         '<h2>Between sheets</h2><table><tr><th>pair</th>%s</tr>' % ''.join('<th>%s</th>' % v.replace('_', '-') for v in VIEWS)]
+         '<h2>Between sheets</h2><table><tr><th>pair</th>%s<th>eye</th></tr>' % ''.join('<th>%s</th>' % v.replace('_', '-') for v in VIEWS)]
 
     def cell(V):
         if V is None:
@@ -302,8 +378,8 @@ def page(res, S, out, spec_name):
         bad = ['%s %s' % (k, c['status']) for k, c in V['checks'].items() if c.get('status') in ('WARN', 'FAIL')]
         return '<td class="%s">%s%s</td>' % (V['status'], V['status'], (': ' + html.escape(', '.join(bad))) if bad else '')
     for pr in res['pairs']:
-        L.append('<tr><td>%s vs %s</td>%s</tr>' % (html.escape(pr['a']), html.escape(pr['b']),
-                                                  ''.join(cell(pr['views'].get(v)) for v in VIEWS)))
+        L.append('<tr><td>%s vs %s</td>%s%s</tr>' % (html.escape(pr['a']), html.escape(pr['b']),
+                                                    ''.join(cell(pr['views'].get(v)) for v in VIEWS), cell(pr.get('eye'))))
     L.append('</table><h2>Within each sheet</h2><table><tr><th>sheet</th><th>scale</th><th>views</th><th>check</th>'
              '<th>value</th><th>status</th></tr>')
     for R in res['sheets']:
@@ -334,6 +410,15 @@ def page(res, S, out, spec_name):
             tiles('%s_vs_%s_%s' % (pr['a'], pr['b'], view), _crop(A['_rgb'], A['_heads'][view]['head']), pr['a'],
                   _crop(B['_rgb'], B['_heads'][view]['head']), pr['b'],
                   sheetqa.picture({view: B['O'][view]}, {view: A['O'][view]}, scale=2), V)
+        if 'eye' in pr:
+            ca, cb = res['_eye_crops'][pr['a']], res['_eye_crops'][pr['b']]
+            L.append('<h3>front eye (each at its sheet\'s own resolution): <span class="%s">%s</span></h3>' % (
+                pr['eye']['status'], pr['eye']['status']))
+            from PIL import Image
+            fit = lambda c: np.asarray(Image.fromarray((np.clip(c, 0, 1) * 255).astype(np.uint8)).resize(
+                (240, int(240 * c.shape[0] / c.shape[1])), Image.LANCZOS)).astype(float) / 255
+            blank = np.ones((10, 10, 3))
+            tiles('%s_vs_%s_eye' % (pr['a'], pr['b']), fit(ca), pr['a'], fit(cb), pr['b'], blank, pr['eye'])
     L.append('<h2>Departures from the model sheet (information)</h2><p class="note">Each sheet against idol_D, the '
              'original 2D design, with the same checks: where the 3D references differ from it, not a verdict.</p>')
     for R in res['sheets']:
@@ -366,13 +451,13 @@ def main(args):
     M = manifest.load(_p(spec['ref']['manifest']))
     refs = M['references'] if isinstance(M['references'], list) else [dict(id=k, **v) for k, v in M['references'].items()]
     want = opt('--refs')
-    want = want.split(',') if want else [r['id'] for r in refs if r.get('layout') == 'heads']
+    want = want.split(',') if want else [r['id'] for r in refs if r.get('layout') in ('heads', 'figures')]
     S = bodymeasure.Sheet(spec)
     res = run(spec, [next(r for r in refs if r['id'] == rid) for rid in want], S)
     plain = lambda x: {k: v for k, v in x.items() if not k.startswith('_')}
     json.dump({'spec': args[0], 'sheet_ppl': S.ppl, 'status': res['status'],
                'sheets': [dict(plain(R), O={v: _strip(m) for v, m in R['O'].items()}) for R in res['sheets']],
-               'pairs': res['pairs'], 'within': res['within'], 'design': res['design']},
+               'pairs': res['pairs'], 'within': res['within'], 'design': res['design'], 'eyes': res['eyes']},
               open(os.path.join(out, 'refcheck.json'), 'w'), indent=1, default=str)
     p = page(res, S, out, name)
     for pr in res['pairs']:
