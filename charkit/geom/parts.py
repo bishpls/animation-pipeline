@@ -84,13 +84,22 @@ class Case:
         cdir = os.path.join(ROOT, 'charkit', 'out', 'geom', 'cache')
         cpath = os.path.join(cdir, f'{spec.get("name", "char")}_{key}.pkl')
         t = time.time()
+        A = None
         if cache and os.path.exists(cpath):
-            A = pickle.load(open(cpath, 'rb'))
-        else:
+            try:
+                A = pickle.load(open(cpath, 'rb'))
+            except Exception:                              # a truncated or stale cache: assemble again
+                A = None
+        if A is None:
             A = character.assemble(spec)
             if cache:
                 os.makedirs(cdir, exist_ok=True)
-                pickle.dump(A, open(cpath, 'wb'))
+                try:
+                    blob = pickle.dumps(A)
+                except (TypeError, pickle.PicklingError):
+                    blob = None                        # (an assembly holding open files, e.g. the anime base: no cache)
+                if blob is not None:
+                    open(cpath, 'wb').write(blob)
         if verbose:
             print('assembled %s in %.1fs' % (spec.get('name'), time.time() - t))
         gc = gio.load(path, blender_compat=True)
