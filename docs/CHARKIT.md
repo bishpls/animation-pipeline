@@ -181,7 +181,32 @@ itself in place afterwards. The worker is recorded in `charkit/out/worker/.pid.j
 under the worker's pid (`python -m charkit ps`, `kill`); `stop` signals only that pid, after checking it is this
 checkout's worker. Each job takes a machine-wide build slot (`procs.acquire_slot`, with its memory check) and, after
 clearing its scene and collecting Python's garbage, gives it back: an idle worker holds no slot. It saves Blender's
-start-up and keeps its render state warm between builds; `worker status` shows its resident memory (IDLE_MEM).
+start-up and keeps its render state warm between builds. Memory: 0.2 GB idle when started; a job's scene is cleared and
+Python's garbage collected before its slot goes back, but Blender and Python keep 0.5 to 1.2 GB of what a Clawd build
+freed (measured after cold, warm and other-character jobs), so after a job that leaves it above
+`CHARKIT_WORKER_MAX_IDLE_MB` (600) the worker restarts in place (same pid and socket; a build that arrives meanwhile
+waits for it) and idles at 0.2 GB again. `worker status` shows its resident memory and restarts; stop it when done.
+
+Measured on Clawd (`--boards views`, QA on, `--no-blend`; wall clock on a machine shared with other builds, load
+average 30 to 60, so the ratios matter more than the seconds):
+
+| build | time | restored | ran |
+| --- | --- | --- | --- |
+| fresh, `--cache off` | 200.7 s | - | everything |
+| cold (cache on, empty) | 203.2 s | - | everything (the cache's own cost: 1%) |
+| warm, no change | 4.6 s (Blender 3.3 s) | every stage, the boards, the QA | nothing: 44x |
+| warm in the worker | 4.2 s | everything | nothing |
+| `--cache stages` | 104.8 s | the stages | the boards and QA, on the restored scene |
+| `eyes.width` 0.2 -> 0.22 | 150.5 s | fit, garments, 1 QA part | character, hair, face shading, boards, 7 QA parts |
+| `head.width` 1.0 -> 1.1 | 292.1 s | fit, 1 QA part | every stage (the neck's joints moved), boards, QA |
+| a skirt's colour | 145.8 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+| the GLB changed in place | 183.7 s | character, face shading, garments, 3 QA parts | fit, hair, boards, the rest of QA |
+| a comment in garments.py | 8.1 s | everything | nothing |
+| a code edit in garments.py | 133.0 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+
+Every one of those builds trace-diffs to `no differences` against a fresh build of the same spec, with identical
+`qa.json` values and pixel-identical boards and QA overlays (`charkit/tests/cache_builds.py`); the worker's builds, the
+same spec twice with another character between, likewise (`charkit/tests/worker_builds.py`).
 
 Tests: `charkit/tests/test_cache.py` (digests, recorded reads, the code closure, the file memo, invalidation by a code
 file, an input file or a spec key, and a restore onto a rebuilt upstream in Blender);

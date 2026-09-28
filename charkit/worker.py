@@ -54,19 +54,24 @@ def _is_ours(pid):
     return ENTRY in r.stdout
 
 
-def _connect(timeout=2.0):
-    I = info()
-    if not I or not _alive(I['pid']):
-        return None
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(timeout)
-    try:
-        s.connect(I.get('sock') or sock_path())
-    except OSError:
-        s.close()
-        return None
-    s.settimeout(None)
-    return s
+def _connect(timeout=2.0, wait=10.0):
+    """a connection to the running worker (waiting up to `wait` s while it restarts in place), or None."""
+    t = time.time()
+    while True:
+        I = info()
+        if not I or not _alive(I['pid']):
+            return None
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            s.connect(I.get('sock') or sock_path())
+            s.settimeout(None)
+            return s
+        except OSError:
+            s.close()
+            if time.time() - t > wait:
+                return None
+            time.sleep(0.25)
 
 
 def _lines(s):
@@ -203,6 +208,8 @@ def status():
         L = I['last']
         print('  last job: %s, %.1fs, %s%s' % (L.get('label'), L.get('seconds', 0), 'ok' if L.get('ok') else 'FAILED',
                                              ', LEAK' if L.get('leak') else ''))
+    if I.get('restarts'):
+        print('  restarted in place %d times (memory held idle, or state left over)' % I['restarts'])
     print('  socket %s, log %s' % (I['sock'], os.path.join(DIR, 'worker.log')))
     return I
 

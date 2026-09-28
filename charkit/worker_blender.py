@@ -1,7 +1,9 @@
 """Blender entry for the build worker (charkit/worker.py): serve build jobs on a Unix socket until asked to stop.
     blender -b --factory-startup --python charkit/worker_blender.py -- SOCKET INFO.json
 
-Each job takes a machine-wide build slot (charkit.procs.acquire_slot, waiting while all are held) and gives it back once
+After a job that leaves the worker holding more than CHARKIT_WORKER_MAX_IDLE_MB (600) it restarts in place too (same
+pid, a fresh process image: Blender and Python keep what a build freed mapped, 0.5 to 1.2 GB), so an idle worker holds
+about 0.2 GB. Each job takes a machine-wide build slot (charkit.procs.acquire_slot, waiting while all are held) and gives it back once
 the job's scene is cleared again, so an idle worker holds no slot. Each job: charkit's modules dropped and imported
 afresh, the scene reset to factory settings, the datablock counts and charkit's own app handlers checked against the
 first clean state (a difference is reported as CHARKIT_WORKER_LEAK and the worker restarts
@@ -18,7 +20,18 @@ import bpy
 ARGS = sys.argv[sys.argv.index('--') + 1:]
 SOCK, INFO = ARGS[0], ARGS[1]
 STATE = {'pid': os.getpid(), 'started': time.time(), 'sock': SOCK, 'root': ROOT, 'jobs': 0, 'busy': None, 'last': None,
-         'blender': bpy.app.version_string}
+         'blender': bpy.app.version_string, 'restarts': 0}
+STATE.update(json.loads(os.environ.pop('CHARKIT_WORKER_STATE', '{}')))    # carried over a restart in place
+MAX_IDLE_MB = float(os.environ.get('CHARKIT_WORKER_MAX_IDLE_MB', 600))
+
+
+def rss_mb():
+    import subprocess
+    r = subprocess.run(['ps', '-o', 'rss=', '-p', str(os.getpid())], capture_output=True, text=True)
+    try:
+        return int(r.stdout.strip()) / 1024
+    except ValueError:
+        return 0.0
 
 
 def save_info():
@@ -152,7 +165,12 @@ def serve():
                 conn.close()
                 break
             elif op == 'build':
-                restart = job(conn, msg, base)
+                restart = 'state left over after a job' if job(conn, msg, base) else None
+                m = rss_mb()
+                STATE['idle_mb'] = round(m)
+                if not restart and m > MAX_IDLE_MB:
+                    restart = 'holding %.0f MB idle (CHARKIT_WORKER_MAX_IDLE_MB %.0f)' % (m, MAX_IDLE_MB)
+                save_info()
         except Exception:
             traceback.print_exc()
         finally:
@@ -167,8 +185,10 @@ def serve():
     if os.path.exists(SOCK):
         os.remove(SOCK)
     if restart:
-        print('charkit worker: state left over after a job; restarting in place', flush=True)
+        print('charkit worker: %s; restarting in place' % restart, flush=True)
         sys.stdout.flush()
+        os.environ['CHARKIT_WORKER_STATE'] = json.dumps({k: STATE[k] for k in ('started', 'jobs', 'last')} |
+                                                        {'restarts': STATE['restarts'] + 1})
         os.execv(bpy.app.binary_path, [bpy.app.binary_path, '-b', '--factory-startup', '--python', __file__, '--'] + ARGS)
     if os.path.exists(INFO):
         os.remove(INFO)
