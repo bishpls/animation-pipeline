@@ -60,6 +60,12 @@ def test_diff():
     assert 'summary' not in d and 'stage character' in trace.summary(build(1, 'a'))
 
 
+def test_faults_sheets():
+    h = trace.health(CUBE_V, CUBE_F[1:])
+    assert trace.faults({'health': h}) == {'open_edges': 4}
+    assert trace.faults({'health': h, 'sheet': True}) == {}
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
