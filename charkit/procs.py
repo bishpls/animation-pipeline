@@ -11,6 +11,7 @@ up), else 2.
 
     python -m charkit ps                  # the slots, who holds them, the running builds (every worktree)
     python -m charkit kill OUT_DIR        # stop that build's recorded process
+    python -m charkit wait OUT_DIR [--timeout S]   # until that build ends (by its recorded pid)
     python -m charkit slots [N]           # show or set the machine's slot count
 
 The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
@@ -186,6 +187,26 @@ def ps(args=()):
         print('no charkit builds running'); return
     for pf, rec, alive in rs:
         print('%-7s %-6s %-8s %s  (%s)' % (rec['pid'], 'alive' if alive else 'stale', rec['label'], os.path.dirname(pf), rec['started']))
+
+
+def wait(args):
+    """block until the build recorded in an output folder ends (its pid gone), or --timeout seconds pass; exit 0 when it
+    ended, 2 on timeout. Waiting on the recorded pid can't match the waiting shell itself, as `pgrep -f` does."""
+    out = os.path.abspath(args[0])
+    t_max = float(args[args.index('--timeout') + 1]) if '--timeout' in args else 3600.0
+    pf = os.path.join(out, PIDFILE)
+    t0 = time.time()
+    while time.time() - t0 < t_max:
+        if not os.path.exists(pf):
+            print('ended', out); return
+        try:
+            pid = json.load(open(pf))['pid']
+        except (OSError, ValueError, KeyError):
+            pid = None
+        if pid is not None and not _alive(pid):
+            print('ended (stale record)', out); return
+        time.sleep(2)
+    print('still running after %.0f s' % t_max, out); raise SystemExit(2)
 
 
 def kill(args):
