@@ -62,7 +62,9 @@ Two bases build the same character (`python -m charkit build SPEC.json --base an
   mouth loops with their outer rings and the socket and cavity schedules, landmarks, joints, weights, UVs, and each vertex's
   source vertex in hm08. A build takes the body from MakeHuman's macro targets as before (same vertex indices), re-wraps
   the stored head to the spec's head knobs (`anime_head.rewrap`), and places the eyes and mouth from the stored labels
-  (`eyes.labels`, `mouth.labels`): nothing is re-detected. Re-derive after changing the wrap or the cleaning:
+  (`eyes.labels`, `mouth.labels`): nothing is re-detected. The joints follow the wrap as on `makehuman` (the removed realistic
+  interior is stored as ghost points they follow), so garments fitted along the bones fit the same. Re-derive after changing
+  the wrap or the cleaning:
   `python -m charkit.base_anime derive`. The QA check `face_folds` counts folded skin round the openings at rest and under
   every lid and mouth key (Clawd: 1014 on `makehuman`, 135 on `anime`).
 
