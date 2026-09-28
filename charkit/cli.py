@@ -22,7 +22,7 @@
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
     python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
     python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
-    python -m charkit bodyfit SPEC [--pieces body,skirt,...] [--palette] [--write-spec]   # fit them to the model sheet
+    python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
 

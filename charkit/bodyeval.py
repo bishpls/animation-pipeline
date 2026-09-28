@@ -463,6 +463,9 @@ class Part:
             V, polys, parent = self.V, self.polys, np.arange(len(self.polys))
             tex = getattr(self, 'tex', None)
             uvc = tex['uvc'] if tex else None
+            if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
+                polys, uvc = recalc_normals(V, polys, uvc)      # (the faces as garments._object winds them)
+                V, polys, parent, uvc = solidify(V, polys, self.solid, uvc)
             for _ in range(levels):
                 V, polys, par, uvc = subdivide(V, polys, uvc)
                 parent = parent[par]
@@ -546,6 +549,8 @@ def garment_piece(A, s, nrm=None, dom=None):
     lit, shade, tex = garment_tones(A, s, G)
     P = Part(nm, 'garments', G['verts'], G['faces'], lit, shade)
     P.tex = tex
+    if k in SOLID:                                             # the thickness the build's Solidify gives it (evaluated)
+        P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
     return P, hide
 
 
@@ -827,6 +832,7 @@ class Evaluator:
         self._layers = {}            # hair layers (see hair_parts) -> {key: value in the head frame}
         self._targets = {}           # (framing, align) key -> target masks
         self._garments = {}          # (assembly key, piece key) -> (Part, hide)
+        self.exact_geom = False      # mode geom's hair cut afresh for each body (see hair_parts), not carried
         self._gen = None
         self._ref = None
         self.t_resolve = time.time() - t
@@ -928,10 +934,21 @@ class Evaluator:
                     finish_mesh_hair(sel_w(), shape, L)))
                 objects.append(('hair_shape', hv, hf))
             elif mode == 'geom':
-                # keyed by the head and the hair's own knobs, kept in the head frame: a body knob moves it with the head
-                # (the extraction reads the body only round the neck), as the mesh mode's selection
-                gk = _h([head, {k: v for k, v in shape.items() if k not in ('mode', 'geom')}])
-                gv, gf = self._memo('geom', gk, lambda: (lambda r: (to_head(r[0], A), r[1]))(self.geom_hair(spec, A)))
+                # the extraction reads the body too (the hair is kept outside it, so the back and shoulders trim what
+                # hangs there), and takes 30-60 s. By default it is cut at the evaluator's own body and garments, keyed
+                # by the head and the hair's own knobs, and carried in the head frame: a body knob moves it with the head,
+                # as the mesh mode's selection. exact_geom cuts it for each spec (cached on disk by the spec): the
+                # measurements a fit is judged by
+                hk = {k: v for k, v in shape.items() if k not in ('mode', 'geom')}
+                if self.exact_geom:
+                    gk = _h([head, hk, {k: v for k, v in spec.items() if k != 'hair'}])
+                    cut = lambda: (lambda r: (to_head(r[0], A), r[1]))(self.geom_hair(spec, A))
+                else:
+                    gk = _h([head, hk])
+                    S0 = dict(spec, body=self.spec.get('body'), garments=self.spec.get('garments'))
+                    cut = lambda: (lambda A0: (lambda r: (to_head(r[0], A0), r[1]))(self.geom_hair(S0, A0)))(
+                        self.assembly(S0)[0])
+                gv, gf = self._memo('geom', gk, cut)
                 objects.append(('hair_shape', gv, gf))
             if mode in ('mesh', 'geom') and (mode == 'mesh' or shape.get('cap', False)):
                 objects.append(('hair_cap',) + self._memo('cap', _h([head, style]), lambda: (lambda r: (to_head(r[0], A), r[1]))(
@@ -1118,6 +1135,15 @@ def compare_dump(G, dump):
             r['trace_hash_match'] = h == str(D['o/%s/hash' % name])
         r['bbox_d'] = float(np.abs(np.r_[p.V.min(0) - b.min(0), p.V.max(0) - b.max(0)]).max())
         r['eval_bbox_d'] = float(np.abs(np.r_[p.V.min(0) - ev.min(0), p.V.max(0) - ev.max(0)]).max())
+        lv = SUBDIV['viewport'].get(p.group, 0)
+        if lv and p.group == 'garments':
+            # the evaluated mesh (Solidify, then the Subdivision Surface) against Blender's, each of our vertices to
+            # its nearest (Blender's vertex order differs; its Solidify also moves loose vertices, which draw nothing)
+            from scipy.spatial import cKDTree
+            Ve = p.subdivided(lv)[0]
+            d = cKDTree(ev).query(Ve)[0]
+            r['eval_verts'], r['blender_eval_verts'] = int(len(Ve)), int(len(ev))
+            r['eval_max_d'] = float(d.max())
         out[name] = r
     for name in ours:
         if name not in out:
@@ -1243,6 +1269,13 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
         fails.append('objects differ by %.2g m' % rep['objects_same_code_max_m'])
     if 'objects_mean_m' in tol and (rep['objects_mean_m'] or 0) > tol['objects_mean_m']:
         fails.append('objects differ by %.2g m on average' % rep['objects_mean_m'])
+    ev = {n: v for n, v in objs.items() if 'eval_max_d' in v}
+    rep['evaluated_max_m'] = max(v['eval_max_d'] for v in ev.values()) if ev else None
+    for n, v in ev.items():
+        if v['eval_verts'] != v['blender_eval_verts']:
+            fails.append('%s evaluates to %d verts, Blender %d' % (n, v['eval_verts'], v['blender_eval_verts']))
+    if 'objects_max_m' in tol and (rep['evaluated_max_m'] or 0) > tol['objects_max_m']:
+        fails.append('evaluated garments differ by %.2g m' % rep['evaluated_max_m'])
     hsr = objs.get('hair_shape', {})
     if hsr.get('bbox_d', 0) > tol['hair_bbox_m']:
         fails.append('hair_shape bbox off by %.4f m' % hsr['bbox_d'])
@@ -1288,8 +1321,8 @@ def main(args):
             knobs[p] = json.loads(v)
     if '--validate' in args:
         rep = validate(opt('--validate'), opt('--out'), base=opt('--from'), knobs=knobs or None)
-        print('objects (%s): max %.2g m, mean %.2g m; hair_shape bbox %.4f m, silhouette IoU %s' % (
-            rep['how'], rep['objects_same_code_max_m'] or 0, rep['objects_mean_m'] or 0,
+        print('objects (%s): max %.2g m, mean %.2g m, evaluated garments max %.2g m; hair_shape bbox %.4f m, silhouette IoU %s' % (
+            rep['how'], rep['objects_same_code_max_m'] or 0, rep['objects_mean_m'] or 0, rep.get('evaluated_max_m') or 0,
             rep['objects'].get('hair_shape', {}).get('bbox_d', 0), rep.get('hair_shape_iou')))
         for k, v in rep['qa'].items():
             print('  %-18s blender %-7s numpy %s' % (k, v['blender'], v['numpy']))
@@ -1322,6 +1355,131 @@ def main(args):
 
 
 # ------------------------------------------------------------------------------------------------------ subdivision
+SOLID = {'shell': 0.008, 'sleeve': 0.008, 'skirt': 0.01, 'collar': 0.012, 'panel': 0.01}
+"""garments.build's 'thick' Solidify per kind (L; a shell's own 'thick' first): offset -1, the rim filled."""
+
+
+def _loops_of(polys):
+    if isinstance(polys, np.ndarray) and polys.ndim == 2:
+        cnt = np.full(len(polys), polys.shape[1])
+        lv = polys.astype(np.int64).ravel()
+    else:
+        cnt = np.array([len(f) for f in polys])
+        lv = np.concatenate([np.asarray(f, np.int64) for f in polys]) if len(polys) else np.zeros(0, np.int64)
+    st = np.r_[0, np.cumsum(cnt)[:-1]].astype(np.int64)
+    return lv, st, cnt
+
+
+def vertex_normals(V, polys):
+    """Blender's vertex normals: each polygon's normal (Newell's; for a quad the cross of its diagonals, as Blender's)
+    weighted by the polygon's angle at the vertex, summed and normalised."""
+    V = np.asarray(V, float)
+    lv, st, cnt = _loops_of(polys)
+    fid = np.repeat(np.arange(len(cnt)), cnt)
+    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
+    prv = np.arange(len(lv)) - 1; prv[st] = st + cnt - 1
+    FN = np.zeros((len(cnt), 3)); np.add.at(FN, fid, np.cross(V[lv], V[lv[nxt]]))
+    FN /= np.maximum(np.linalg.norm(FN, axis=1, keepdims=True), 1e-30)
+    e1 = V[lv[prv]] - V[lv]; e2 = V[lv[nxt]] - V[lv]
+    e1 /= np.maximum(np.linalg.norm(e1, axis=1, keepdims=True), 1e-30)
+    e2 /= np.maximum(np.linalg.norm(e2, axis=1, keepdims=True), 1e-30)
+    ang = np.arccos(np.clip((e1 * e2).sum(1), -1, 1))
+    N = np.zeros_like(V); np.add.at(N, lv, FN[fid] * ang[:, None])
+    return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
+
+
+def recalc_normals(V, polys, uv=None):
+    """bmesh.ops.recalc_face_normals (garments._object runs it on every piece): each connected region's polygons wound
+    consistently, and the region turned so its outermost vertex's polygon faces away from the region's centre (the
+    polygons' area-weighted centres; at that vertex the edge most across the outward direction, and of its polygons the
+    one facing most along it). -> (polys, uv) with the flipped polygons (and their corner UVs) reversed."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    V = np.asarray(V, float)
+    lv, st, cnt = _loops_of(polys)
+    nf, n = len(cnt), len(V)
+    fid = np.repeat(np.arange(nf), cnt)
+    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
+    a, b = lv, lv[nxt]
+    key = np.minimum(a, b) * n + np.maximum(a, b)
+    order = np.argsort(key, kind='stable')
+    ks = key[order]
+    same = np.nonzero(ks[1:] == ks[:-1])[0]
+    i, j = order[same], order[same + 1]                       # loops sharing an edge (consecutive pairs)
+    flip_rel = (a[i] == a[j])                                 # the same direction in both: one of them is reversed
+    nc, comp = connected_components(coo_matrix((np.ones(len(i)), (fid[i], fid[j])), shape=(nf, nf)), directed=False)
+    flip = np.zeros(nf, bool); seen = np.zeros(nf, bool)
+    adj = [[] for _ in range(nf)]
+    for x, y, r in zip(fid[i], fid[j], flip_rel):
+        adj[x].append((y, r)); adj[y].append((x, r))
+    for f0 in range(nf):                                       # breadth first from each region's first polygon
+        if seen[f0]:
+            continue
+        seen[f0] = True; queue = [f0]
+        while queue:
+            f = queue.pop()
+            for g, r in adj[f]:
+                if not seen[g]:
+                    seen[g] = True; flip[g] = flip[f] ^ r; queue.append(g)
+    FN = np.zeros((nf, 3)); np.add.at(FN, fid, np.cross(V[lv], V[lv[nxt]]))
+    area = np.linalg.norm(FN, axis=1) / 2
+    FN = FN / np.maximum(2 * area, 1e-30)[:, None] * np.where(flip, -1, 1)[:, None]
+    FC = np.zeros((nf, 3)); np.add.at(FC, fid, V[lv]); FC /= cnt[:, None]
+    for c in range(nc):
+        fs = np.nonzero(comp == c)[0]
+        w = area[fs]
+        cent = (FC[fs] * w[:, None]).sum(0) / max(w.sum(), 1e-30)
+        m = np.isin(fid, fs)
+        loops = np.nonzero(m)[0]
+        v = lv[loops[np.argmax(((V[lv[loops]] - cent) ** 2).sum(1))]]
+        d = V[v] - cent; d /= max(np.linalg.norm(d), 1e-30)
+        at = loops[(lv[loops] == v) | (b[loops] == v)]         # the edges at the vertex, by the loops that run them
+        ev = V[b[at]] - V[a[at]]; ev /= np.maximum(np.linalg.norm(ev, axis=1, keepdims=True), 1e-30)
+        ed = np.abs(ev @ d)
+        best = at[ed <= ed.min() + 1e-6]                        # the edge most across the outward direction
+        k_ = key[best]
+        cand = np.nonzero(np.isin(key, k_) & m)[0]
+        f = fid[cand[np.argmax(np.abs(FN[fid[cand]] @ d))]]
+        if FN[f] @ d < 0:
+            flip[fs] = ~flip[fs]
+    P = [tuple(int(x) for x in (lv[s_:s_ + c_][::-1] if flip[q] else lv[s_:s_ + c_])) for q, (s_, c_) in enumerate(zip(st, cnt))]
+    if uv is None:
+        return P, None
+    Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c_, float) for c_ in uv])
+    return P, [Uc[s_:s_ + c_][::-1] if flip[q] else Uc[s_:s_ + c_] for q, (s_, c_) in enumerate(zip(st, cnt))]
+
+
+def solidify(V, polys, t, uv=None, rim=True):
+    """Blender's Solidify (simple, offset -1, even thickness off): the surface moved t against its vertex normals and a
+    copy left where it was (its polygons reversed), each open edge joined across by a rim quad. uv: per-corner UVs as
+    subdivide takes them. -> (V (2n, 3), polys, parent polygon per polygon, uv or None)."""
+    V = np.asarray(V, float)
+    n = len(V)
+    lv, st, cnt = _loops_of(polys)
+    fid = np.repeat(np.arange(len(cnt)), cnt)
+    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
+    NV = np.vstack([V - t * vertex_normals(V, polys), V])
+    P = [tuple(int(x) for x in lv[s_:s_ + c]) for s_, c in zip(st, cnt)]
+    out = P + [tuple(x + n for x in f[::-1]) for f in P]
+    parent = list(range(len(P))) * 2
+    U = None
+    if uv is not None:
+        Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
+        U = [Uc[s_:s_ + c] for s_, c in zip(st, cnt)]
+        U = U + [u[::-1] for u in U]
+    if rim:
+        a, b = lv, lv[nxt]
+        key = np.minimum(a, b) * n + np.maximum(a, b)
+        _, inv, c_ = np.unique(key, return_inverse=True, return_counts=True)
+        for i in np.nonzero(c_[inv] == 1)[0]:
+            out.append((int(b[i]), int(a[i]), int(a[i]) + n, int(b[i]) + n))
+            parent.append(int(fid[i]))
+            if U is not None:
+                ua, ub = Uc[i], Uc[nxt[i]]
+                U.append(np.array([ub, ua, ua, ub]))
+    return NV, out, np.asarray(parent), U
+
+
 def subdivide(V, polys, uv=None, limit=True):
     """one level of Catmull-Clark (Blender's Subdivision Surface at level 1: boundaries smooth, the result pushed to the
     limit surface), numpy. polys: index tuples of any size; uv: optional per-corner UVs [[(u, v), ...] per polygon],
@@ -1414,4 +1572,5 @@ def limit_positions(V, quads):
     out[on] = ((B @ V)[on] + 4 * V[on]) / 6
     odd = (nb_ > 0) & ~on
     out[odd] = V[odd]
+    out[val == 0] = V[val == 0]                                          # (a loose vertex stays where it is)
     return out

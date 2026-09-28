@@ -449,7 +449,8 @@ class BodyFitter(Fitter):
         """bodyfit.declare()'s knobs as the registry's table: the first spec path of each (a dotted path whose list items
         are named), its default, step, bounds and group as the block."""
         return {n: {'path': tuple(k['paths'][0].split('.')), 'paths': list(k['paths']), 'default': k['default'],
-                    'step': k['step'], 'bounds': tuple(k['bounds']), 'block': k.get('group')} for n, k in D['knobs'].items()}
+                    'step': k['step'], 'bounds': tuple(k['bounds']), 'block': k.get('group'),
+                    'derived': list(k.get('derived') or ())} for n, k in D['knobs'].items()}
 
     def run(self, spec_path, args, out, log=print):
         if not self.landed:
@@ -479,6 +480,12 @@ class BodyFitter(Fitter):
             if isinstance(x0, (int, float)) and isinstance(x1, (int, float)) and abs(x1 - x0) > 1e-6:
                 changed[n] = [x0, x1]
                 blocks.setdefault(k['block'], []).append(n)
+        # what the knobs set with each other (bodyfit.hold_head: the height and head count that hold the head)
+        for p, blk in {p: k['block'] for k in self.knobs.values() for p in k['derived']}.items():
+            x0, x1 = get_knob(a, p, None), get_knob(b, p, None)
+            if isinstance(x0, (int, float)) and isinstance(x1, (int, float)) and abs(x1 - x0) > 1e-6:
+                changed[p] = [x0, x1]
+                blocks.setdefault(blk, []).append(p)
         bounds = [{'knob': n, 'side': v['at_bound'], 'value': v.get('fitted'),
                    'bound': v['bounds'][0 if v['at_bound'] == 'lower' else 1]}
                   for n, v in (rep.get('knobs') or {}).items() if v.get('at_bound')]

@@ -468,11 +468,20 @@ triangle).
   own frame (head centre, L), because the anime head is a wrap onto an L-sized target. The hair layers (selection,
   finish, cap, accessories) are kept in the head frame by the knobs each reads, and garment pieces are cached by their
   own spec.
+- **Geom mode's hair and the body.** The geom hair cut also reads the body: the hair is kept outside the skin, so the
+  back and shoulders trim what hangs there. A cut takes 30 to 60 s. So by default it is cut once at the evaluator's
+  own body and carried in the head frame. With `Evaluator.exact_geom` it is cut for each spec (cached on disk by the
+  spec). The body fit judges with exact cuts: its before, after, repair and guard checks. On Clawd, carrying the
+  start's cut read body_profile_hair_width 0.914 WARN, and the fitted body's own cut reads 0.920 PASS.
 - **Checked against Blender.** Run `python -m charkit bodyeval --validate BUILD` on a finished build. It dumps the
   build's geometry (`charkit/bodyeval_blender.py`) and compares object by object, then compares the QA checks and each
   view's silhouette pixel by pixel (from qa3d's overlay). With `--from SPEC --knob PATH=VALUE ...`, it evaluates the base
   spec with those knobs, which tests the fast knob path against a build made from them. On Clawd:
-  - Every object built by the same code matches to 1e-7 m, and the float32 trace hashes match.
+  - Every object built by the same code matches to 1e-7 m, and the float32 trace hashes match. The evaluated
+    garments (Solidify, then the Subdivision Surface) match Blender's to 4e-7 m, vertex for vertex. Before the Solidify
+    was ported, the garments' inner shell and rims were missing. That changed nothing the base build measures, but on
+    the fitted Clawd it opened two-pixel gaps beside the neck: sheet_neck_to_jaw read 0.94 PASS here and 1.41 FAIL in
+    Blender.
   - The ported hair is within 1.1 mm (bbox) and at 0.98 silhouette IoU of Blender's.
   - The QA checks are within 0.005: shape_iou 0.577 against 0.579, hair 0.971 against 0.976, torso 0.631 against
     0.633, skirt 0.569, legs 0.299, ref_iou 0.546 against 0.549.
@@ -542,9 +551,14 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
     `unmasked`: the face measures read it without, as qa3d.sheet does);
   - the landmarks (L, the head centre, the chin, waist and knee heights, the iris centres);
   - the aligned generated shape.
-- **Producing one.** `bodyeval.Geometry.bundle(levels)` makes one from the fast evaluator. It subdivides the skin and
-  garments as the build evaluates them: Catmull-Clark to the limit surface (`bodyeval.subdivide`), each child quad
-  starting at the corner Blender's does, so a fan triangulation cuts it along the same diagonal. 'viewport' is what the
+- **Producing one.** `bodyeval.Geometry.bundle(levels)` makes one from the fast evaluator. It evaluates the skin and
+  garments as the build's modifier stacks do:
+  - the garments' thickness: `bodyeval.recalc_normals` (bmesh's recalc_face_normals, which `garments._object` runs),
+    then `bodyeval.solidify` (the Solidify modifier: offset -1, the rim filled, per kind as `garments.build` sets it);
+  - then Catmull-Clark to the limit surface (`bodyeval.subdivide`), each child quad starting at the corner Blender's
+    does, so a fan triangulation cuts it along the same diagonal.
+
+  'viewport' is what the
   in-Blender QA z-buffers, 'render' what its renders show. The classes and tones come from the build's own material
   rules: the skirt's and panels' stepped hems and the top's front panel sampled per subdivided face, the iris where its
   texture is opaque. A Blender export of the same bundle would be measured by the same functions:
@@ -564,8 +578,9 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
   shape silhouettes agree at 0.993 to 0.997 per view.
 
 **Fitting the body, garments and hair to the sheet** (`charkit/bodyfit.py`: `python -m charkit bodyfit SPEC [--pieces
-figure,details,hair] [--palette] [--no-outfit] [--workers N] [--baseline QA.json] [--write-spec]`). It uses the face
-fit's machinery (charkit.fitkit) and has its interface (`declare()`, `fit()`), so a tune loop can register it alike.
+figure,details,hair] [--palette] [--no-outfit] [--no-draft] [--workers N] [--baseline QA.json] [--free-head]
+[--write-spec]`). It uses the face fit's machinery (charkit.fitkit) and has its interface (`declare()`, `fit()`), so
+a tune loop can register it alike.
 - **The start.** The fit starts from the outfit graph's draft (§8):
   - it adds the pieces the spec's list lacks (on Clawd, the two stepped-hem back panels the list faked with the skirt's
     `back`);
@@ -595,7 +610,24 @@ fit's machinery (charkit.fitkit) and has its interface (`declare()`, `fit()`), s
   measure (the sheet for the body's and hair's silhouettes, the generated shape for the hair's shape, the outfit graph
   for the pieces), a quarter otherwise. Each knob is pulled toward its template default (fitkit's REG).
 - **Protection.** fitkit keeps every term in the status band it starts in, or has in `--baseline`'s QA (the merge
-  gate's build). fitkit.guard then scales a group's change back while a check no term aims at reads worse.
+  gate's build). That protection is soft, because many terms can outvote one. So after the groups:
+  - **the repair**: a check that reads worse than at the start (or in the baseline) has its terms weighed 16 times,
+    and its groups are fitted again from where they are (two rounds at most);
+  - **the line repair**: for what is still worse, a line search along the knobs that move it most (from the
+    sensitivity table), taking the smallest step that brings it back into its band while no other graded check reads
+    worse.
+
+  fitkit.guard then scales a group's change back while a check no term aims at reads worse.
+- **The head is held.** The body's knobs keep the head as the spec builds it (`bodyfit.hold_head`). Each sets
+  `body.height_m` and `body.heads_tall` so that MakeHuman's head keeps both its scale and L, and the head count then
+  follows from the proportions (height = L + k × the chin's height). `anime_head.reshape` has thresholds in metres, so a
+  head scaled any other way wraps a little differently.
+  - On Clawd, the first fit's head count (6.2 to 6.1) and legs (1.0 to 1.14) moved the face skin near the eyes by up
+    to 12 px at the eye QA's scale, about 0.6 px on average. The evaluator's measures didn't see it.
+  - In the Blender build, that was enough to cut the right eye's lash wing from its lash by one pixel. The lash line's
+    largest component then shrank, and eye_lid_span went from WARN 1.107 to FAIL 0.795.
+  - With the head held, the face skin near the eyes stays within 0.03 px.
+  - `--free-head` makes the head count a knob of its own again.
 - **The optimiser.** fitkit.optimise: a bounded trust region on soft-L1 residuals, a finite-difference Jacobian in
   worker processes (`--workers`, 2 by default: each holds an evaluator), then a pattern search, restarted while it
   helps. It is deterministic. A sensitivity table (fitkit's SCHEMA) feeds the triage of what still fails: needs a

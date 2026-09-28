@@ -341,6 +341,52 @@ def test_ties_follow_attachments():
     assert abs(spec['garments'][3]['t'] - 0.53) < 1e-9
 
 
+def test_hold_head_keeps_the_head():
+    """a body knob with the head held: MakeHuman's head keeps its scale and L; the head count follows the legs."""
+    from charkit import body, bodyfit
+    spec = {'body': {'height_m': 1.55, 'heads_tall': 6.2, 'proportions': {'leg': 1.0}}}
+    H = bodyfit.head_hold(spec)
+    K = {k.name: k for k in bodyfit.knobs(spec)}
+    assert 'body.heads_tall' not in K and K['body.leg'].derived == bodyfit.HELD
+    assert 'body.heads_tall' in {k.name for k in bodyfit.knobs(spec, hold=False)}
+    K['body.leg'].hold = H
+    K['body.leg'].put(spec, 1.15)
+    B = body.build_body_data(spec['body'], keep_head=True)
+    assert abs(B['head_len'] - H['L']) < 1e-5 and abs(B['scale'] - H['k']) < 1e-5
+    assert spec['body']['heads_tall'] > 6.3 and abs(spec['body']['height_m'] / spec['body']['heads_tall'] - H['L']) < 1e-5
+
+
+def _tube(n=12, rows=3, inward=False):
+    """an open cylinder of quads round the z axis (radius 1), wound outward or inward."""
+    V = np.array([(np.cos(2 * np.pi * i / n), np.sin(2 * np.pi * i / n), float(r)) for r in range(rows) for i in range(n)])
+    F = []
+    for r in range(rows - 1):
+        for i in range(n):
+            q = (r * n + i, r * n + (i + 1) % n, (r + 1) * n + (i + 1) % n, (r + 1) * n + i)
+            F.append(q[::-1] if inward else q)
+    return V, F
+
+
+def test_recalc_normals_and_solidify():
+    """bmesh's recalc_face_normals turns a tube's polygons outward whichever way they were wound; Solidify (offset -1)
+    then puts its copy t inside, joins the two open ends with rim quads, and the Subdivision Surface keeps a loose
+    vertex where it is."""
+    from charkit import bodyeval
+    for inward in (False, True):
+        V, F = _tube(inward=inward)
+        P, _ = bodyeval.recalc_normals(V, F)
+        N = bodyeval.vertex_normals(V, P)
+        assert (N[:, :2] * V[:, :2]).sum(1).min() > 0.99                         # outward, every vertex
+        V2, P2, parent, _ = bodyeval.solidify(V, P, 0.1)
+        assert len(V2) == 2 * len(V) and len(P2) == 2 * len(F) + 2 * 12 and len(parent) == len(P2)
+        r = np.hypot(V2[:, 0], V2[:, 1])
+        assert np.allclose(np.sort(r)[:len(V)], 0.9, atol=0.02) and np.allclose(np.sort(r)[len(V):], 1.0)
+    V, F = _tube()
+    V = np.vstack([V, [[5.0, 5.0, 5.0]]])                                           # a loose vertex
+    Vs, Q, par, _ = bodyeval.subdivide(V, F)
+    assert np.allclose(Vs[len(V) - 1], [5.0, 5.0, 5.0])
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

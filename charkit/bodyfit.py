@@ -3,8 +3,9 @@ shape's silhouettes choose the body's proportions and rest pose, each garment pi
 by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation instead of a Blender build.
 
     python -m charkit bodyfit SPEC [--out DIR] [--pieces figure,details,hair] [--palette] [--no-outfit] [--no-draft]
-                                   [--budget N] [--workers N] [--baseline QA.json] [--write-spec]
-        (--no-draft: the outfit graph's ties and extents without its draft as the start: to continue a fit)
+                                   [--budget N] [--workers N] [--baseline QA.json] [--free-head] [--write-spec]
+        (--no-draft: the outfit graph's ties and extents without its draft as the start: to continue a fit;
+         --free-head: the head count a knob of its own, the face let move with the body)
 
   1. resolve the spec as `build` does and measure it as the QA does (every shape_*, body_*, sheet_* and palette_*
      check, and each outfit piece's extent per view); start from the outfit graph's draft (charkit.outfit, the
@@ -18,7 +19,8 @@ by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation inst
      fix in one view that breaks another costs. Each term is weighted by the manifest's authority map, each knob pulled
      toward its template default, every term kept in the status band it starts in (or has in --baseline's QA), and the
      face's model-sheet checks held where they start (the face fit owns them). fitkit.guard then scales a group's change
-     back while a check no term aims at reads worse;
+     back while a check no term aims at reads worse. The head is held as the spec builds it (hold_head): the body's
+     knobs set the height so MakeHuman's head keeps its scale and L, and the head count follows the proportions;
   4. --palette: the colour knobs set to the sheet's palette (charkit.paletteqa's tones), each class's knobs solved in
      CIEDE2000, and the garments' shared shade multiplier;
   5. write DIR/NAME.bodyfit.json (the resolved spec with the fitted knobs), DIR/sensitivity.json and
@@ -50,11 +52,13 @@ class Knob(fitkit.Knob):
     by name, so garment pieces can be addressed). group: the piece it belongs to (body, skirt, boots, details, hair);
     fit() moves it to its fit group (FIT_GROUP) and keeps the piece."""
 
-    def __init__(self, name, paths, default, step, bounds, group, signs=None, offsets=None):
+    def __init__(self, name, paths, default, step, bounds, group, signs=None, offsets=None, derived=()):
         super().__init__(name, (), default, step, bounds, group)
         self.paths, self.piece = list(paths), group
         self.signs = list(signs) if signs else [1] * len(self.paths)     # a mirrored pair: -1 on the other side (azimuths)
         self.offsets = list(offsets) if offsets else [0.0] * len(self.paths)   # a tied piece: its offset from the knob
+        self.derived = list(derived)            # paths set from this knob's with the others' (hold_head's), not by it
+        self.hold = None                        # fit(): the head to hold (head_hold's), for the body's knobs
 
     def get(self, spec):
         from .bodyeval import get_knob
@@ -65,10 +69,53 @@ class Knob(fitkit.Knob):
         from .bodyeval import set_knob
         for p, sg, o in zip(self.paths, self.signs, self.offsets):
             set_knob(spec, p, round(float(value) * sg + o, 5))
+        if self.hold:
+            hold_head(spec, self.hold)
 
     def declare(self):
-        return {'paths': self.paths, 'default': self.default, 'step': self.step, 'bounds': list(self.bounds),
-                'group': self.group, 'piece': self.piece}
+        D = {'paths': self.paths, 'default': self.default, 'step': self.step, 'bounds': list(self.bounds),
+             'group': self.group, 'piece': self.piece}
+        if self.derived:
+            D['derived'] = self.derived
+        return D
+
+
+# ------------------------------------------------------------------------------------------------------------ the head
+HOLD_HEAD = True
+HELD = ['body.height_m', 'body.heads_tall']
+_CHIN = {}
+
+
+def _chin(b):
+    """the chin's height above the feet in MakeHuman's units (before body.build_body_data scales the body to the height)
+    for body knobs b, memoised by every body knob but the height and the head count (which only scale it)."""
+    key = json.dumps({k: v for k, v in (b or {}).items() if k not in ('height_m', 'heads_tall')}, sort_keys=True)
+    if key not in _CHIN:
+        from .body import build_body_data
+        B = build_body_data(b, keep_head=True)
+        _CHIN[key] = (B['params']['height_m'] - B['head_len']) / B['scale']
+    return _CHIN[key]
+
+
+def head_hold(spec):
+    """the head a spec's body builds, to hold while the body's knobs move: its length L (m) and the scale k on
+    MakeHuman's head (body.build_body_data's head_len and scale)."""
+    from .body import build_body_data
+    B = build_body_data(spec.get('body'), keep_head=True)
+    return {'L': float(B['head_len']), 'k': float(B['scale'])}
+
+
+def hold_head(spec, hold):
+    """body.height_m and body.heads_tall set so the body's knobs leave the head as it was: the same L and the same scale
+    on MakeHuman's head, so anime_head.reshape wraps the same head and the face comes out the same (its thresholds are in
+    metres: a head scaled otherwise moved Clawd's face skin by up to 12 px at the eye QA's scale, which flipped
+    eye_lid_span's lash component, while the evaluator's measures stayed put). The figure's length in heads follows from
+    the proportions: height = L + k * chin."""
+    b = spec.setdefault('body', {})
+    Hm = hold['L'] + hold['k'] * _chin(b)
+    b['height_m'] = round(Hm, 6)
+    b['heads_tall'] = round(Hm / hold['L'], 6)
+    return spec
 
 
 def _pairs(spec, kind):
@@ -85,17 +132,19 @@ def _pairs(spec, kind):
     return out
 
 
-def knobs(spec):
+def knobs(spec, hold=HOLD_HEAD):
     """the knobs the body fit owns for a spec, by piece. Defaults are the templates' (body.DEFAULT_BODY, the garment
-    builders', hair.shape's); steps and bounds are bodysens's. The neck's width and length are left to the face fit."""
+    builders', hair.shape's); steps and bounds are bodysens's. The neck's width and length are left to the face fit.
+    hold: the head held (hold_head): the head count follows the proportions and isn't a knob of its own."""
     from .body import DEFAULT_BODY
     from .bodysens import GARMENT, HAIR_SHAPE, PROPORTION
-    K = [Knob('body.heads_tall', ['body.heads_tall'], DEFAULT_BODY['heads_tall'], 0.1, (5.0, 7.5), 'body')]
+    held = HELD if hold else ()
+    K = [] if hold else [Knob('body.heads_tall', ['body.heads_tall'], DEFAULT_BODY['heads_tall'], 0.1, (5.0, 7.5), 'body')]
     for k in ('leg', 'shin', 'hip', 'leg_slim', 'arm', 'torso', 'waist'):
         K.append(Knob('body.' + k, ['body.proportions.' + k], DEFAULT_BODY['proportions'][k], PROPORTION[0],
-                      (0.7, 1.4), 'body'))
+                      (0.7, 1.4), 'body', derived=held))
     for k, st, hi in (('arm_down', 3.0, 35.0), ('leg_in', 1.5, 12.0), ('elbow', 3.0, 25.0)):
-        K.append(Knob('body.pose.' + k, ['body.pose.' + k], 0.0, st, (0.0, hi), 'body'))
+        K.append(Knob('body.pose.' + k, ['body.pose.' + k], 0.0, st, (0.0, hi), 'body', derived=held))
     for name, ps in _pairs(spec, 'skirt'):
         G = GARMENT['skirt']
         for k in ('flare', 'length', 'back', 'waist'):
@@ -256,10 +305,11 @@ FACE_HOLD = {'sheet_width': 1.0, 'sheet_neck_to_jaw': 1.0, 'sheet_profile': 0.0,
              'sheet_nose_reach': 0.0, 'sheet_chin_reach': 0.0, 'sheet_cheek': 0.0, 'sheet_cheek_chin': 0.0}
 
 
-def hold_terms(before, groups=('body', 'details', 'hair')):
+def hold_terms(before, groups=('body', 'details')):
     """the face's model-sheet checks (the face fit's; the body fit mustn't move them away from their targets): a
-    'hold' term per check at its start value, a tenth of its tolerance, in every group (the collar can cover the neck
-    row the neck-to-jaw check reads)."""
+    'hold' term per check at its start value, a tenth of its tolerance, in the groups that can move them: the figure
+    (the neck, the shoulders) and the details (the collar can cover the neck row the neck-to-jaw check reads). The hair
+    is only their cover."""
     from .sheetqa import LIMITS as S
     lim = {'sheet_width': 'width', 'sheet_neck_to_jaw': 'width', 'sheet_profile': 'profile', 'sheet_profile_chin': 'chin',
            'sheet_nose_reach': 'reach', 'sheet_chin_reach': 'reach', 'sheet_cheek': 'cheek', 'sheet_cheek_chin': 'chin'}
@@ -359,7 +409,10 @@ def outfit_start(spec, graph, log=print):
 class BodyChecks:
     """the fit's evaluator (fitkit's protocol): checks(spec, group, fine) -> {check name: check} as qa.json names them:
     shape_* and ref_iou (qa3d's silhouettes; fine: the render's subdivision, else the viewport's), body_* (the model
-    sheet's), for group 'palette' or 'all' palette_*, and for 'body' or 'all' the face's sheet_* (held, not fitted)."""
+    sheet's), for group 'palette' or 'all' palette_*, and for the figure, the details or 'all' the face's sheet_* (held,
+    not fitted: the neck and the collar move them).
+    Group 'all' (the before, after, repair and guard checks) cuts geom mode's hair for each body; a group's own
+    optimisation carries the start's cut with the head (bodyeval.Evaluator.exact_geom)."""
 
     def __init__(self, spec, graph=None):
         from . import bodyeval
@@ -368,6 +421,7 @@ class BodyChecks:
 
     def checks(self, spec, group='all', fine=False):
         from .qa3d import LIMITS
+        self.E.exact_geom = group == 'all'      # what the fit is judged by: geom's hair cut for this body, not carried
         G = self.E.geometry(spec=spec)
         Q = self.E.qa(G, levels='render' if fine else 'viewport')
         out = {}
@@ -378,7 +432,7 @@ class BodyChecks:
             else:
                 out[k] = {'value': v, 'status': 'INFO'}
         out.update(self.E.sheet_checks(G, palette=group in ('all', 'palette')))
-        if group in ('all', 'figure'):
+        if group in ('all', 'figure', 'details'):
             out.update(self.E.face_checks(G))
         if self.graph is not None and self.E.sheet() is not None and group != 'palette':
             from . import bodymeasure
@@ -406,11 +460,12 @@ def _grouped(items):
 
 
 def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseline=None, palette=False, outfit=True,
-        draft=True, log=print):
+        draft=True, hold=HOLD_HEAD, log=print):
     """fit a spec's body, garments and hair (see the module) and write the fitted spec and the reports into out; the
     interface of charkit.facefit.fit. spec: a path (resolved as `build` resolves it) or a resolved dict. budget: the
     most evaluations per group (None: fitkit's). baseline: a QA (qa.json path or its checks) whose statuses the fit
-    mustn't worsen (default: the start's). -> (fitted spec, report)."""
+    mustn't worsen (default: the start's). hold: the head held as the spec builds it (hold_head; False: the head count
+    is a knob and the face may move a little with the body). -> (fitted spec, report)."""
     from . import bodyeval, bodymeasure
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
@@ -426,7 +481,11 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
         before = pool.map([(spec, 'all', True)])[0]               # the spec as it is: what the fit is judged against
         protected = dict(before); protected.update({k: v for k, v in (baseline or {}).items() if k in before})
         start, drafted = outfit_start(spec, graph, log) if graph is not None and draft else (spec, {})
-        K, T = _grouped(tie(knobs(start), start, graph)), terms(start)
+        K, T = _grouped(tie(knobs(start, hold), start, graph)), terms(start)
+        if hold:
+            rep['hold'] = head_hold(start)
+            for k in K:
+                k.hold = rep['hold'] if k.derived else None
         at_start = pool.map([(start, 'all', True)])[0] if start is not spec else before
         if graph is not None:
             T += piece_terms({k[6:]: v for k, v in _extents(at_start).items()}, graph)
@@ -785,7 +844,7 @@ def main(args):
     fitted, rep = fit(spec_path, out, budget=int(opt('--budget')) if opt('--budget') else None, base=opt('--base'),
                       workers=int(opt('--workers')) if opt('--workers') else None, groups=pieces,
                       baseline=opt('--baseline'), palette='--palette' in args, outfit='--no-outfit' not in args,
-                      draft='--no-draft' not in args,
+                      draft='--no-draft' not in args, hold='--free-head' not in args,
                       log=lambda *a: print(*a, flush=True))
     if '--write-spec' in args:
         write_fitted(spec_path, fitted, rep, pieces)
@@ -798,7 +857,7 @@ def write_fitted(spec_path, fitted, rep, pieces=SCHEDULE):
     from . import bodyeval
     from . import bodymeasure
     graph = bodymeasure.load_graph(fitted)
-    paths = [p for k in _grouped(tie(knobs(fitted), fitted, graph)) if k.group in pieces for p in k.paths]
+    paths = [p for k in _grouped(tie(knobs(fitted), fitted, graph)) if k.group in pieces for p in k.paths + k.derived]
     paths += (rep.get('palette') or {}).get('paths', [])
     if rep.get('hair_mode'):
         paths.append('hair.shape.mode')
