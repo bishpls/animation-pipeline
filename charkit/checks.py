@@ -9,7 +9,10 @@
                 count  0 passes, anything else warns
                 status only the status is known (a check this table doesn't name yet, or one with a non-numeric value)
   severity    how far a value is from passing, in warn bands: 0 at the pass limit or better, 1 at the fail limit, and on
-              linearly past it (a FAIL is > 1). Warn-only checks stop at 1. A check graded by status alone: WARN 0.5, FAIL 1.5
+              linearly past it (a FAIL is > 1; a warn-only check never fails, but its severity still grows, so getting
+              worse shows). A check graded by status alone: WARN 0.5, FAIL 1.5
+  weight      a check measured against a reference that isn't the manifest's authority for its measure (the TRELLIS face,
+              where the sheet is the face's authority) counts a quarter in a score, as charkit.fitkit weighs its terms
   region      where the check looks (face, eyes, silhouette, hair, outfit, expressions, palette, internal) and how visible
               that is (1 = the face and silhouette a viewer reads first, down to ~0.1 for topology nobody sees)
   measure     the manifest's authority key the check measures (face_front, chin, eyes, hair_shape...) and the reference it
@@ -19,7 +22,7 @@
 
     from charkit import checks
     checks.severity('sheet_width', 0.825)      # -> 1.36 (FAIL: 1.36 warn bands past the pass limit)
-    checks.score(qa)                            # the sum of severities over the graded checks (capped per check)
+    checks.score(qa, authority=A)               # the sum of severities over the graded checks (capped, weighted)
 """
 import fnmatch
 
@@ -99,8 +102,7 @@ def severity(name, value, status=None):
         s = (abs(v) - p) / band
     else:                                  # count
         s = 0.5 * v
-    s = max(0.0, s)
-    return min(s, 1.0) if wo else s
+    return max(0.0, s)
 
 
 def graded(qa):
@@ -113,10 +115,19 @@ def sev_of(name, c):
     return 0.0 if s is None else s
 
 
-def score(qa, only=None):
-    """the QA's distance from passing: the sum of every graded check's severity (each capped at CAP). `only`: the check
-    names to count (the checks two builds share, when comparing them)."""
-    return round(sum(min(CAP, sev_of(k, c)) for k, c in graded(qa).items() if only is None or k in only), 4)
+def weight(name, authority=None):
+    """1, or 0.25 for a check measured against a reference that isn't its measure's authority (manifest `authority`)."""
+    m, src = measure(name)
+    if not authority or not m or not src or m not in authority:
+        return 1.0
+    return 1.0 if authority[m] == src else 0.25
+
+
+def score(qa, only=None, authority=None):
+    """the QA's distance from passing: the sum of every graded check's severity (each capped at CAP), weighted by
+    authority when the manifest's map is given. `only`: the check names to count (the checks two builds share)."""
+    return round(sum(weight(k, authority) * min(CAP, sev_of(k, c)) for k, c in graded(qa).items()
+                     if only is None or k in only), 4)
 
 
 # ------------------------------------------------------------------------------------------------------------ regions

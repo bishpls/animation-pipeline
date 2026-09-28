@@ -28,7 +28,8 @@ and a higher rank).
 Each item carries its evidence: the value and status, the severity (warn bands past the pass limit), the overlays, the
 reference it is measured against and the manifest's authority for its measure (with the reference's cautions), the knobs
 and conflicts behind its class. Rank: severity (capped at charkit.checks.CAP) times visibility (face, eyes and silhouette
-first, internals last), times 1.5 with a reviewer's note.
+first, internals last), times 1.5 with a reviewer's note, times 0.6 when it is measured against a reference that isn't
+its measure's authority.
 """
 import fnmatch, json, os
 
@@ -325,7 +326,8 @@ def items(qa, ctx, build_dir=None):
         reg, vis = checks.region(k)
         ov = [o for o in checks.overlays(k) if not build_dir or os.path.exists(os.path.join(build_dir, o))]
         tk = [t for t in notes.get(k, []) if t.get('kind') == 'work']
-        rank = min(sev, checks.CAP) * vis * (1.5 if tk else 1.0)
+        aw = checks.weight(k, (ctx['spec'].get('ref') or {}).get('authority') if isinstance(ctx['spec'].get('ref'), dict) else None)
+        rank = min(sev, checks.CAP) * vis * (1.5 if tk else 1.0) * (1.0 if aw == 1.0 else 0.6)
         it = {'check': k, 'status': c['status'], 'value': c.get('value'), 'severity': round(sev, 3), 'region': reg,
               'visibility': vis, 'rank_score': round(rank, 3), 'class': cls, 'detail': detail, 'also': also,
               'evidence': dict(ev, values={x: c[x] for x in ('ours', 'design', 'ratios', 'per_height', 'regions', 'at', 'heights', 'mean', 'rows', 'eye', 'note')
@@ -432,7 +434,8 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
         classes[it['class']] = classes.get(it['class'], 0) + 1
     inv = ctx['inventory']
     own = {k: next((f.name + ('' if f.landed else ' (stub)') for f in fitters if f.owner_of(k)), 'hand') for k in inv}
-    doc = {'character': spec['name'], 'build': _rel(bd), 'summary': qa.get('summary'), 'score': checks.score(qa),
+    A = (spec.get('ref') or {}).get('authority') if isinstance(spec.get('ref'), dict) else None
+    doc = {'character': spec['name'], 'build': _rel(bd), 'summary': qa.get('summary'), 'score': checks.score(qa, authority=A),
            'classes': classes, 'items': its,
            'fitters': [f.describe() for f in fitters],
            'knob_inventory': {'total': len(inv), 'by_owner': _count(own.values()), 'knobs': own}}
@@ -440,7 +443,7 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
     json.dump(doc, open(jp, 'w'), indent=1, default=str)
     md = markdown(its, 'Work items: %s' % spec['name'],
                   'Build `%s` (%s, score %.2f). Fitters: %s. Knobs: %d (%s).' % (
-                      _rel(bd), qa.get('summary'), checks.score(qa),
+                      _rel(bd), qa.get('summary'), checks.score(qa, authority=A),
                       ', '.join('%s%s' % (f.name, '' if f.landed else ' (STUB)') for f in fitters), len(inv),
                       ', '.join('%s %d' % kv for kv in _count(own.values()).items())))
     open(mp, 'w').write(md)

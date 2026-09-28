@@ -114,16 +114,17 @@ def tradeoff(row, prev, cand, rules):
     return None
 
 
-def accept(prev, cand, rules=(), remeasured=None, min_gain=1e-3):
+def accept(prev, cand, rules=(), remeasured=None, min_gain=1e-3, authority=None):
     """a candidate checkpoint's QA against the best so far -> {verdict accept|reject, why, gain, rows, regressed,
     traded, improved}. Rejected: a graded check regresses (status worse, or gone) with no trade-off rule allowing it, or
-    the score (over the graded checks both share) doesn't drop by more than min_gain."""
+    the score (over the graded checks both share, weighted by the manifest's authority) doesn't drop by more than
+    min_gain."""
     from . import gate
     rows = gate.compare_qa(prev, cand, remeasured)
     common = set(checks.graded(prev)) & set(checks.graded(cand))
     if remeasured:
         common = {k for k in common if not _match(k, list(remeasured))}
-    s0, s1 = checks.score(prev, common), checks.score(cand, common)
+    s0, s1 = checks.score(prev, common, authority), checks.score(cand, common, authority)
     gain = round(s0 - s1, 4)
     regressed, traded = [], []
     for r in rows:
@@ -225,6 +226,7 @@ class Builder:
         self.out, self.run_id, self.name, self.fresh, self.log = out, run_id, name, fresh, log
         self.builds = 0
         self.current = None
+        self.authority = None
         self.code = _code_state()
 
     def build(self, n, label, spec_path, args, boards=BOARDS_STEP, extra=()):
@@ -258,7 +260,7 @@ class Builder:
         return Checkpoint(id=n, label=label, spec=_rel(spec_path), resolved=_rel(rp) if os.path.exists(rp) else None,
                           args=list(args), out=_rel(d), boards=boards, ok=True,
                           reused=reused, seconds=round(time.time() - t, 1), git=begin.get('git'), summary=qa.get('summary'),
-                          score=checks.score(qa), counts=_counts(qa), cache=cache, _qa=qa)
+                          score=checks.score(qa, authority=self.authority), counts=_counts(qa), cache=cache, _qa=qa)
 
     def stop(self):
         """stop the build this run started (its python, and the Blender it recorded)."""
@@ -345,6 +347,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
     from . import manifest
     rspec = manifest.resolve(json.loads(json.dumps(spec)))
     cfg = load_config(spec, config)
+    auth = (rspec.get('ref') or {}).get('authority') if isinstance(rspec.get('ref'), dict) else None
     stop_cfg = cfg.get('stop', {})
     rounds = rounds or stop_cfg.get('rounds', 2)
     min_gain = stop_cfg.get('min_gain', 0.5) if min_gain is None else min_gain
@@ -352,6 +355,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
     run_id = time.strftime('%Y%m%d-%H%M%S')
     R = Record(os.path.join(out, 'tune.jsonl'))
     B = Builder(out, run_id, name, fresh, log)
+    B.authority = auth
     reg = FT.registry(cfg, budget=fit_budget, only=only, workers=workers)
     pidf = os.path.join(out, '.pid.json')
     json.dump({'pid': os.getpid(), 'label': 'tune ' + name, 'cmd': ['charkit', 'tune', _rel(spec_path)], 'cwd': os.getcwd(),
@@ -393,7 +397,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
 
         def compare(best, ck, fit=None):
             rem = history.remeasured(best.get('git'), ck.get('git'), list(checks.graded(ck.qa)))
-            d = accept(best.qa, ck.qa, cfg.get('tradeoffs', []), rem) if ck['ok'] else \
+            d = accept(best.qa, ck.qa, cfg.get('tradeoffs', []), rem, authority=auth) if ck['ok'] else \
                 {'verdict': 'reject', 'why': 'the build failed', 'gain': 0, 'rows': [], 'regressed': [], 'traded': [], 'improved': []}
             dis = disagreement(fit, ck, best) if fit and ck['ok'] else {}
             R.write('compare', checkpoint=ck['id'], against=best['id'], verdict=d['verdict'], why=d['why'], gain=d['gain'],

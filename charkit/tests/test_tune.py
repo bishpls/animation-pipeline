@@ -17,12 +17,16 @@ def test_severity_and_score():
     assert abs(checks.severity('sheet_width', 0.85) - 1.0) < 1e-9        # at the 0.15 fail limit: one warn band
     assert checks.severity('hair_noise', 0.02) == 0 and abs(checks.severity('hair_noise', 0.12) - 2.0) < 1e-9
     assert checks.severity('shape_iou', 0.5) > 1                         # higher is better
-    assert checks.severity('sheet_shown_front', 0.1) == 1.0              # warn-only: never past the fail limit
+    assert checks.severity('sheet_shown_front', 0.5) < checks.severity('sheet_shown_front', 0.4)   # warn-only: worse still shows
     assert checks.severity('no_such_check', None, 'FAIL') == 1.5         # graded by status alone
     assert checks.severity('sheet_width.d75', 0.85) == checks.severity('sheet_width', 0.85)
     q = qa(sheet_width=(0.85, 'WARN'), hair_noise=(0.12, 'FAIL'), mesh=(None, 'INFO'))
     assert abs(checks.score(q) - 3.0) < 1e-9
     assert checks.score(qa(face_folds=(99999, 'FAIL'))) == checks.CAP     # one wild check is capped
+    # a check measured against a reference that isn't its measure's authority counts a quarter
+    A = {'face_front': 'sheet'}
+    q = qa(sheet_width=(0.85, 'WARN'), face_shape_width=(0.85, 'WARN'))
+    assert abs(checks.score(q, authority=A) - 1.25) < 1e-9 and abs(checks.score(q) - 2.0) < 1e-9
 
 
 # ------------------------------------------------------------------------------------------------------------ accept

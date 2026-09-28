@@ -486,7 +486,7 @@ def page(build, spec, items=None, qa=None):
             x['rank'], html.escape(x['check']), x['status'], x['status'], html.escape(vs), html.escape(x['class']), html.escape(x['detail'])))
     qa = qa or {}
     doc = PAGE % {'name': html.escape(spec['name']), 'build': html.escape(_rel(b)), 'build_js': json.dumps(_rel(b)),
-                  'summary': qa.get('summary', '?'), 'score': checks.score(qa) if qa else '?', 'n_items': len(items or []),
+                  'summary': qa.get('summary', '?'), 'score': checks.score(qa, authority=(spec.get('ref') or {}).get('authority') if isinstance(spec.get('ref'), dict) else None) if qa else '?', 'n_items': len(items or []),
                   'sheets': ''.join(sh), 'overlays': ''.join(ov), 'items': ''.join(it)}
     p = os.path.join(rv, 'index.html')
     open(p, 'w').write(doc)
