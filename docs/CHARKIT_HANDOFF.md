@@ -283,10 +283,28 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
      `charkit/refs/clawd/clawd_3dstyle.png`), cropped by a fixed 30% head heuristic, not `idol_D`;
    - no code reads the six generated sheets, and the authority map is unchanged.
 
-   Do phase 4 item 1 (consistency check, authority map, single-authority grading, the review sheets rebuilt from
-   `idol_D`'s own figures per view and scale, with the generated heads for the profile close-ups). Register every
-   re-anchored check in `history.STEPS`. Measure it against `charkit/out/baseline`: the confirming tune after it is
-   the before and after. The review page (step 5) is built from the rebuilt sheets.
+   **Michael's decisions (2026-09-28, second session): the generated references are the base; idol_D is not a
+   benchmark.**
+   - idol_D is drawn in a different aesthetic and at a different scale from the turnarounds. It is the **source
+     design**: the input to the for-3D generation calls, and the authority for no measure.
+   - What decides whether generated references can be trusted is their **internal consistency**: pairs of sheets
+     view by view, and each sheet's views against each other. `charkit refcheck` (on `tool/refs`,
+     `~/animation-pipeline-refs`) does this. How each sheet departs from idol_D is reported as information.
+   - Authority (to wire into the QA):
+     - the face (front, 3/4 and profile), the chin, feature heights and the midline profile → `head_turnaround`;
+     - skull, ear and eye ratios → `head_construction`;
+     - body and hair silhouettes, placement and palette → a generated full-body turnaround (`body_turnaround`:
+       front, 3/4, side and back in one A-pose, one call, the views cut from the sheet);
+     - the outfit → pieces cut from `garment_breakdown` and the close-ups, tagged and rigged independently;
+     - expressions → a cross-character template library, with no reference comparison;
+     - off-midline face depth and 3D hair shape → TRELLIS (a later TRELLIS run could be conditioned on the new
+       turnarounds).
+   - Refcheck on Clawd: `head_turnaround` and `head_construction` agree on the front width and on the profile's edge
+     and reaches. The construction's chin is 0.034 L lower (its manifest caution), so the turnaround is the chin's
+     authority. Both are consistent within themselves.
+
+   Register every re-anchored check in `history.STEPS`, and measure against `charkit/out/baseline`: the confirming
+   tune after it is the before and after. The review page (step 5) is built from the generated references.
    - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
      - the body probe;
      - per-phase instrumentation;
