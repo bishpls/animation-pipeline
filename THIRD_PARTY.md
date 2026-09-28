@@ -13,3 +13,12 @@
 - `projects/open-all-night/assets/song.mp3`: generated with ElevenLabs Music from original lyrics; subject to ElevenLabs' terms.
 - `charkit/assets/makehuman/`: the MakeHuman base mesh (hm08), default skeleton and weights, and modelling targets from [MakeHuman](https://github.com/makehumancommunity) assets, CC0 1.0 (`charkit/assets/makehuman/LICENSE.md`). Only the CC0 assets are used; none of MakeHuman's AGPL code.
 - `charkit/assets/base_anime/`: charkit's anime base mesh, derived from the MakeHuman CC0 assets above by `charkit/base_anime.py`; CC0 1.0 (`charkit/assets/base_anime/LICENSE.md`).
+- `charkit/geom/` (the geometry kernel, docs/GEOM.md) runs on these Python packages in the venv. They are installed
+  with pip and not vendored; `charkit/geom/requirements.txt` pins them. All are permissive and commercial use is fine:
+  [manifold3d](https://github.com/elalish/manifold) 3.5.4 (Apache-2.0; its wheel builds on oneTBB, Apache-2.0, and
+  Clipper2, BSL-1.0) for exact booleans; [scikit-image](https://scikit-image.org) 0.26 (BSD-3-Clause) for marching
+  cubes; [SciPy](https://scipy.org) 1.18 (BSD-3-Clause) for sparse graphs, KD-trees and distance transforms;
+  [Numba](https://numba.pydata.org) 0.67 (BSD-2-Clause) with llvmlite 0.49 (BSD-2-Clause and Apache-2.0 with the LLVM
+  exception) for the BVH, remeshing and rasteriser kernels; [Pillow](https://python-pillow.org) 12.3 (MIT-CMU) to
+  decode glTF textures; and, for tests only, [pytest](https://pytest.org) 9.1 (MIT) with pluggy (MIT) and iniconfig
+  (MIT). The Blender side (`charkit/geom/io.py`, `charkit/geom/blender.py`) needs only numpy.
