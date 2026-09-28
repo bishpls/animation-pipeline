@@ -195,6 +195,64 @@ def test_invalidation():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_products_store_only_clean_runs():
+    """a product is restored by copy when nothing changed; a run that printed a traceback (a check that failed on an
+    error it caught), or one with too little disk left, isn't stored; a PNG's date stamp doesn't count as content."""
+    tmp = tempfile.mkdtemp()
+    env0 = os.environ.get('CHARKIT_CACHE_DIR')
+    os.environ['CHARKIT_CACHE_DIR'] = os.path.join(tmp, 'cache')
+    out = os.path.join(tmp, 'out'); os.makedirs(out)
+    try:
+        def build(run, name='probe'):
+            C = cache.Cache('on', 'probe', out)
+            C.chain, C.spec = [('stage', 'entry1')], {'name': 'probe'}
+            hit = C.product(name, run, [cache.content_digest])
+            C.finish()
+            return hit
+
+        def ok():
+            open(os.path.join(out, 'a.txt'), 'w').write('made')
+            print('CHARKIT_PROBE made')
+        assert build(ok) is False and build(ok) is True                     # stored, then restored
+        os.remove(os.path.join(out, 'a.txt'))
+        assert build(ok) is True and open(os.path.join(out, 'a.txt')).read() == 'made'
+
+        def caught():
+            try:
+                raise OSError(28, 'No space left on device')
+            except OSError:
+                import traceback
+                traceback.print_exc()                                        # (as qa3d does, then records SKIPPED)
+            open(os.path.join(out, 'b.txt'), 'w').write('half')
+        assert build(caught, 'probe2') is False and build(caught, 'probe2') is False
+        os.environ['CHARKIT_CACHE_MIN_FREE_GB'] = '1e9'
+        assert build(ok, 'probe3') is False and build(ok, 'probe3') is False
+        del os.environ['CHARKIT_CACHE_MIN_FREE_GB']
+        # PNG content: the text and time chunks left out
+        import struct, zlib
+
+        def png(date):
+            def chunk(t, d):
+                return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d))
+            raw = b'\x00\xff\x00\x00'
+            return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0)) +
+                    chunk(b'tEXt', b'Date\x00' + date) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
+        a, b = os.path.join(tmp, 'a.png'), os.path.join(tmp, 'b.png')
+        open(a, 'wb').write(png(b'2026/09/28 10:20:18')); open(b, 'wb').write(png(b'2026/09/28 11:00:00'))
+        assert cache.content_digest(a) == cache.content_digest(b) and open(a, 'rb').read() != open(b, 'rb').read()
+        # large state is stored compressed and reads back
+        big = os.urandom(16) * (1 << 19)
+        cache._write_state(os.path.join(tmp, 's.pkl'), big)
+        assert cache._read_state(os.path.join(tmp, 's.pkl')) == big and os.path.getsize(os.path.join(tmp, 's.pkl')) < len(big)
+    finally:
+        if env0 is None:
+            os.environ.pop('CHARKIT_CACHE_DIR', None)
+        else:
+            os.environ['CHARKIT_CACHE_DIR'] = env0
+        os.environ.pop('CHARKIT_CACHE_MIN_FREE_GB', None)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 # ------------------------------------------------------------------------------------------------------------- Blender
 def _in_blender():
     """(run inside Blender) an 'upstream' stage makes a mesh; a stage under test adds two objects, a material in
