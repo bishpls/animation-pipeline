@@ -889,6 +889,15 @@ def vrmc(W, names, idx, mesh_node, P, head, name, meta, rep):
             custom[kn] = {'morphTargetBinds': binds(kn[:-2], 1.0, kn[-1]), 'isBinary': False}
         else:
             custom[kn] = {'morphTargetBinds': binds(kn, 1.0), 'isBinary': False}
+    # the kit's combined expressions (charkit.scene.PRESETS: eyes, mouth and brows together), where a VRM preset doesn't
+    # already hold the name
+    from .scene import PRESETS as COMBINED
+    for ex, P in COMBINED.items():
+        if ex in preset:
+            continue
+        b = [x for part in ('eye', 'mouth', 'brow') if P.get(part) for x in binds('%s_%s' % (part, P[part]), 1.0)]
+        if b:
+            custom[ex] = {'morphTargetBinds': b, 'isBinary': False}
     rep['expressions'] = {'preset': sorted(preset), 'custom': sorted(custom)}
     # lookAt: the iris keys; the offset from the head bone to between the eyes
     eyes = [n for n in mesh_node if n.startswith('sclera_')]

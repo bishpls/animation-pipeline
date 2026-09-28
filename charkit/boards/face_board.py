@@ -15,12 +15,12 @@ VARIANTS = {
     'sharp': {'head': {'chin': 0.65, 'jaw_w': 0.92, 'cheek': 0.8, 'face_len': 1.06, 'width': 0.96, 'flat': 1.15}},
 }
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
-from charkit.scene import EXPR, MOUTH  # noqa: E402
+from charkit.scene import EXPR, MOUTH, PRESETS  # noqa: E402
 HAIR = os.environ.get('CHARKIT_HAIR', '1') == '1'
 
 
 def set_expr(C, name):
-    brow = {'angry': 'angry', 'sad': 'sad', 'wide': 'surprised', 'happy': 'relaxed'}.get(name)
+    brow = {'angry': 'angry', 'sad': 'sad', 'wide': 'surprised', 'happy': 'relaxed', 'shock': 'worried'}.get(name)
     for p in C['eyes']:
         for kb in (p['brow'].data.shape_keys.key_blocks[1:] if p['brow'].data.shape_keys else []):
             kb.value = 1.0 if kb.name == f'brow_{brow}' else 0.0
@@ -31,6 +31,20 @@ def set_expr(C, name):
         for kb in ks.key_blocks[1:]:
             if kb.name.startswith('eye_'):
                 kb.value = 1.0 if kb.name == f'eye_{name}' else 0.0
+
+
+def set_brow(C, name):
+    for p in C['eyes']:
+        for kb in (p['brow'].data.shape_keys.key_blocks[1:] if p['brow'].data.shape_keys else []):
+            kb.value = 1.0 if kb.name == f'brow_{name}' else 0.0
+
+
+def set_preset(C, name):
+    """a combined expression (charkit.scene.PRESETS): its eyes, mouth and brows; None: all neutral."""
+    P = PRESETS.get(name) or {}
+    set_expr(C, P.get('eye'))
+    set_mouth(C, P.get('mouth') or 'neutral')
+    set_brow(C, P.get('brow'))
 
 
 def set_mouth(C, name):

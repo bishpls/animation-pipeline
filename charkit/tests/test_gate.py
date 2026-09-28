@@ -10,8 +10,11 @@ def test_compare_qa_verdicts():
                     'd': {'value': 3, 'status': 'PASS'}, 'e': {'value': 1, 'status': 'INFO'}, 'f': {'value': 5, 'status': 'PASS'}}}
     b = {'checks': {'a': {'value': 0.5, 'status': 'FAIL'}, 'b': {'value': 0.9, 'status': 'PASS'}, 'c': {'value': 2.5, 'status': 'WARN'},
                     'e': {'value': 2, 'status': 'INFO'}, 'f': {'value': 5, 'status': 'PASS'}, 'g': {'value': 1, 'status': 'PASS'}}}
+    b['checks']['h'] = {'value': 1, 'status': 'INFO'}
+    a['checks']['i'] = {'value': 1, 'status': 'INFO'}
     v = {r['check']: r['verdict'] for r in gate.compare_qa(a, b)}
-    assert v == {'a': 'regressed', 'b': 'improved', 'c': 'value', 'd': 'gone', 'e': 'value', 'g': 'new'}, v
+    assert v == {'a': 'regressed', 'b': 'improved', 'c': 'value', 'd': 'gone', 'e': 'value', 'g': 'new', 'h': 'new',
+                 'i': 'removed'}, v
 
 
 def test_manifest_resolves_refs():
