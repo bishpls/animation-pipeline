@@ -40,9 +40,9 @@ GARMENT = {
              'radius': (None, 0.01, 0.01, 0.5, 'a fixed radius, L (unset: the limb\'s own plus offset)')},
     'shoe': {'offset': (0.02, 0.005, 0.0, 0.08, 'L'), 'sole': (0.03, 0.01, 0.0, 0.15, 'L'),
              'instep': (0.10, 0.02, 0.0, 0.3, 'L'), 'rows': (22, 4, 8, 40, 'resolution'), 'segs': (28, 4, 12, 48, 'resolution')},
-    'belt': {'waist': (0.55, 0.05, 0.0, 1.0, 'hips -> spine'), 'width': (0.12, 0.02, 0.02, 0.4, 'L'),
+    'belt': {'waist': (0.55, 0.05, 0.0, 1.8, 'hips -> spine (past 1: up the chest)'), 'width': (0.12, 0.02, 0.02, 0.4, 'L'),
              'offset': (0.03, 0.005, 0.0, 0.1, 'L'), 'thick': (0.02, 0.005, 0.0, 0.08, 'L'), 'cols': (96, 16, 32, 192, 'resolution')},
-    'skirt': {'waist': (0.55, 0.05, 0.0, 1.0, 'hips -> spine'), 'length': (0.9, 0.05, 0.3, 2.0, 'L'),
+    'skirt': {'waist': (0.55, 0.05, 0.0, 1.8, 'hips -> spine (past 1: up the chest)'), 'length': (0.9, 0.05, 0.3, 2.0, 'L'),
               'back': (0.0, 0.05, 0.0, 0.8, 'longer back, L'), 'flare': (38.0, 3.0, 0.0, 70.0, 'degrees'),
               'pleats': (24, 2, 0, 48, 'count'), 'pleat': (0.05, 0.01, 0.0, 0.15, 'depth, L'),
               'panel': (0.0, 0.1, 0.0, 1.5, 'front panel half-width, radians (colour only)'),
@@ -57,10 +57,15 @@ GARMENT = {
                'stripe.0': (0.72, 0.05, 0.0, 1.0, 'stripe start (colour only)'), 'stripe.1': (0.86, 0.05, 0.0, 1.0, 'stripe end (colour only)'),
                'cols': (96, 16, 32, 192, 'resolution'), 'rows': (12, 2, 4, 24, 'resolution')},
     'bow': {'size': (0.5, 0.05, 0.1, 1.5, 'L'), 'height': (0.72, 0.05, 0.0, 1.2, 'chest -> upper chest'),
-            'offset': (0.03, 0.01, 0.0, 0.15, 'L')},
+            'offset': (0.03, 0.01, 0.0, 0.15, 'L'), 'tail': (0.62, 0.05, 0.1, 1.5, 'the tails\' length, a share of size')},
+    'panel': {'az': (180.0, 6.0, -180.0, 180.0, 'degrees round the waist (0 the front, + her left)'),
+              'width': (0.4, 0.04, 0.05, 1.5, 'L round the ring'), 'length': (1.0, 0.05, 0.2, 2.5, 'L'),
+              'flare': (30.0, 3.0, 0.0, 70.0, 'degrees'), 'spread': (0.2, 0.05, 0.0, 1.0, 'widening at the hem'),
+              'offset': (0.02, 0.005, 0.0, 0.1, 'L'), 'waist': (0.5, 0.05, 0.0, 1.8, 'hips -> spine (past 1: up the chest)'),
+              'cols': (24, 4, 8, 48, 'resolution'), 'rows': (16, 4, 4, 32, 'resolution')},
 }
 COLOURS = ('color', 'panel_color', 'hem_color', 'stripe_color', 'sole_color')
-NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel', 'sole', 'repeat', 'line')
+NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel', 'sole', 'repeat', 'line', 'hem', 'steps')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {
@@ -92,12 +97,12 @@ HAIR_VOLUME = {'thick': (1.0, 0.1, 0.5, 2.0, 'volume thickness'), 'crown': (1.0,
 ACCESSORY = {'az': (0.0, 4.0, -180.0, 180.0, 'degrees'), 'el': (0.0, 4.0, -40.0, 90.0, 'degrees'),
              'size': (0.2, 0.03, 0.02, 0.8, 'L'), 'tilt': (0.0, 6.0, -90.0, 90.0, 'degrees'),
              'lean': (0.0, 6.0, -60.0, 60.0, 'degrees'), 'lift': (0.0, 0.01, -0.05, 0.1, 'L')}
-NOISE = {'iou': 0.0015, 'angle': 0.15, 'L': 0.003}            # below this a change is rasterisation noise
+NOISE = {'iou': 0.0015, 'angle': 0.15, 'L': 0.003, 'ratio': 0.004, 'sheet': 0.004}   # below: rasterisation noise
 UNBOUNDED = 5                                                  # steps a knob without a bound is trusted to go
 
 
 def _noise(m):
-    return NOISE['iou'] if 'iou' in m else NOISE['angle'] if 'angle' in m else NOISE['L']
+    return info(m)[2]
 
 
 # ------------------------------------------------------------------------------------------------------------ inventory
@@ -259,10 +264,43 @@ def builder_keys():
 
 
 # ---------------------------------------------------------------------------------------------------------- sensitivity
-def _eval(E, knobs):
+def _eval(E, knobs, sheet=True):
+    """the measurements at a knob setting: bodymeasure.MEASURES (against the generated shape) and the model sheet's body
+    checks' values (body_<view>_<check>, charkit.bodyqa)."""
     from . import bodyeval
     G = E.geometry(knobs)
-    return bodyeval.measures(G, E.qa(G, labels=True))
+    M = bodyeval.measures(G, E.qa(G, labels=True))
+    if sheet:
+        for k, v in E.sheet_checks(G, palette=False).items():
+            x = v.get('value')
+            if isinstance(x, (int, float)) and not isinstance(x, bool):
+                M[k] = float(x)
+    return M
+
+
+def info(m):
+    """a measurement's (target, tolerance, noise floor, description): ours minus the target's (MEASURES) toward 0, IoUs
+    toward 1; the sheet's checks as charkit.bodyqa grades them (lengths in L, width ratios, IoUs, the arms' angle)."""
+    from .bodymeasure import MEASURES
+    from .bodyqa import LIMITS as B
+    if m in MEASURES:
+        if 'iou' in m:
+            return 1.0, 0.02, NOISE['iou'], MEASURES[m]
+        if 'angle' in m:
+            return 0.0, 0.5, NOISE['angle'], MEASURES[m]
+        return 0.0, 0.02, NOISE['L'], MEASURES[m]
+    if m.startswith('body_'):
+        view = next((v for v in ('three_quarter', 'front', 'profile', 'back') if m.startswith('body_%s_' % v)), '?')
+        chk = m[len('body_%s_' % view):]
+        desc = 'model sheet, %s view: %s' % (view.replace('_', ' '), chk)
+        if chk.startswith('iou'):
+            return 1.0, 1 - B['iou' if chk == 'iou' else 'iou_part'][0], NOISE['iou'], desc + ' (IoU)'
+        if chk in ('skirt_width', 'hair_width', 'sleeves'):
+            return 1.0, B['width'][0], NOISE['ratio'], desc + ' (ours / the design\'s)'
+        if chk == 'arms':
+            return 0.0, 3.0, NOISE['angle'], desc + ' (degrees, ours - the design\'s)'
+        return 0.0, B['length'][0], NOISE['sheet'], desc + ' (L, ours - the design\'s)'
+    return 0.0, 0.02, NOISE['L'], m
 
 
 def _clip(v, lo, hi):
@@ -334,10 +372,10 @@ def sensitivity(E, knobs=None, only=None, pieces=None, log=lambda *a: print(*a, 
 
 
 def _tol(m):
-    return 0.02 if 'iou' in m else 0.5 if 'angle' in m else 0.02
+    return info(m)[1]
 
 
-POSE = ('arm_angle', 'leg_angle')           # limb directions: only the rest-pose knobs (body.pose) turn a limb
+POSE = ('arm_angle', 'leg_angle', 'body_front_arms', 'body_back_arms')   # limb directions: only body.pose turns a limb
 
 
 def capabilities(T, share=0.5):
@@ -348,13 +386,11 @@ def capabilities(T, share=0.5):
     direction moves only through what else they change); 'only at a cost' (closing `share` of the gap with the best knob pushes other measurements further out
     of tolerance than it brings this one in, each counted in its own tolerances); 'a knob reaches it'. The aggregate IoUs
     are left to the fit (every knob moves them a little)."""
-    from .bodymeasure import MEASURES
     base = T['base']
-    err = {m: v - (1.0 if 'iou' in m else 0.0) for m, v in base.items() if m in MEASURES and v is not None and np.isfinite(v)}
+    err = {m: v - info(m)[0] for m, v in base.items() if not m.endswith(('_ours', '_target')) and v is not None and
+           np.isfinite(v)}
     out = []
-    for m in MEASURES:
-        if m not in err:
-            continue
+    for m in err:
         gap = -err[m]
         best, reach, moved, bk = None, 0.0, False, None
         for k in T['knobs']:
@@ -371,7 +407,7 @@ def capabilities(T, share=0.5):
         if bk is not None and abs(bk['d'][m]) > 0:
             steps = share * gap / bk['d'][m]                         # signed steps closing `share` of the gap
             for j, dj in bk['d'].items():
-                if j in err and j != m and 'iou' not in j and j in MEASURES:
+                if j in err and j != m and 'iou' not in j:
                     e1 = err[j] + steps * dj
                     worse = (abs(e1) - max(abs(err[j]), _tol(j))) / _tol(j)
                     if worse > 0:
@@ -397,16 +433,15 @@ def capabilities(T, share=0.5):
 
 def report(T, spec_name=''):
     """a readable summary (markdown) of a sensitivity table."""
-    from .bodymeasure import MEASURES
     L = ['# Knob sensitivity: %s' % spec_name, '',
          'Each knob moved one step each way from the spec through the fast evaluator (charkit/bodyeval.py); the change '
-         'per step of each silhouette measurement (charkit.bodymeasure.MEASURES; widths and extents are ours minus the '
-         'generated shape\'s, in head lengths L). %d knobs, %.0f s.' % (len(T['knobs']), T['seconds']), '']
-    L += ['## Today\'s measurements', '', '| measure | value | what |', '| --- | --- | --- |']
-    for m, desc in MEASURES.items():
-        v = T['base'].get(m)
-        if v is not None:
-            L.append('| %s | %.3f | %s |' % (m, v, desc))
+         'per step of each silhouette measurement: against the generated shape (charkit.bodymeasure.MEASURES; widths '
+         'and extents are ours minus its, in head lengths L) and against the model sheet (body_<view>_<check>, '
+         'charkit.bodyqa). %d knobs, %.0f s.' % (len(T['knobs']), T['seconds']), '']
+    L += ['## Today\'s measurements', '', '| measure | value | target | what |', '| --- | --- | --- | --- |']
+    for m, v in T['base'].items():
+        if v is not None and not m.endswith(('_ours', '_target')):
+            L.append('| %s | %.3f | %s | %s |' % (m, v, info(m)[0], info(m)[3]))
     caps = capabilities(T)
     L += ['', '## Needs a capability', '',
           'Measurements off by more than their tolerance that no knob moves, that no single knob can move half way '

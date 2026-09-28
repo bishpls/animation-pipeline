@@ -2,22 +2,28 @@
 shape's silhouettes choose the body's proportions and rest pose, each garment piece's cut and the hair's extent, measured
 by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation instead of a Blender build.
 
-    python -m charkit bodyfit SPEC [--out DIR] [--pieces body,skirt,boots,sleeves,hair] [--palette] [--budget N]
-                                   [--write-spec]
+    python -m charkit bodyfit SPEC [--out DIR] [--pieces body+skirt+boots,details,hair] [--palette] [--no-outfit]
+                                   [--budget N] [--write-spec]
 
-  1. resolve the spec as `build` does, and measure the start: every shape_*, body_* and palette_* check, as the QA does;
-  2. piece by piece (the body, then the skirt, the boots, the sleeves and the hair), least squares over that piece's
-     knobs against all its terms at once: the sheet's four views and the generated shape's six, so a fix in one view
-     that breaks another costs. Each term is weighted by the manifest's authority map: full weight where its reference
-     is the authority for its measure, a quarter otherwise. Each knob is pulled toward its template default;
+  1. resolve the spec as `build` does and measure it as the QA does (every shape_*, body_*, sheet_* and palette_*
+     check, and each outfit piece's extent per view); start from the outfit graph's draft (charkit.outfit, the
+     manifest's `outfit_graph`): the pieces the spec's list lacks added, its measured first guesses for the fit's knobs;
+  2. piece by piece (the figure: the body with the skirt, its panels and the boots, as where the legs show depends on
+     the hem; then the details: sleeves, cuffs, waistband, collar, bow; then the hair; a+b fits pieces together), least
+     squares over the knobs against all their terms at once: the sheet's four views, the generated shape's six and the
+     pieces' extents against the outfit graph's, so a fix in one view that breaks another costs. Each term is weighted
+     by the manifest's authority map: full weight where its reference is the authority for its measure, a quarter
+     otherwise. Each knob is pulled toward its template default (a residual of one per PRIOR steps away), and the
+     face's model-sheet checks are held where they start (the face fit's). A check that reads worse than at the start
+     is weighed GUARD times and its pieces fitted again;
   3. --palette: the colour knobs set to the sheet's palette (charkit.paletteqa's tones), each class's knobs solved in
      CIEDE2000;
   4. write DIR/NAME.bodyfit.json (the resolved spec with the fitted knobs) and DIR/bodyfit_report.json and .md: every
      check before and after, the knobs per piece (and which ended at a bound), and what still fails and why.
-     --write-spec writes the fitted knobs back into SPEC.
+     --write-spec writes the fitted knobs (and the added pieces) back into SPEC.
 
 The terms follow charkit.fitkit's conventions (tool/fit): a residual in tolerances, a hinge beyond it and a pull to the
-template. Until fitkit is on the integration branch, `optimise` here is a small trust-region least-squares fit with a
+template default. Until fitkit is on the integration branch, `optimise` here is a small trust-region least-squares fit with a
 pattern-search polish.
 """
 import copy, json, os, time
@@ -26,7 +32,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HINGE = 2.0                     # beyond its tolerance a residual counts again, this many times (fitkit's)
-REG = 0.3                       # the pull toward the template default: REG * (x - default) / range (fitkit's)
+PRIOR = 4.0                     # the pull toward the template default: (x - default) / (PRIOR steps), one residual each
 LOSS_SCALE = 3.0                # soft-L1 above this many tolerances
 AUTHORITY = {'body_silhouette': 'sheet', 'hair_silhouette': 'sheet', 'hair_shape': 'trellis', 'palette': 'sheet'}
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
@@ -38,18 +44,19 @@ class Knob:
     step (the finite difference and the unit of the search), bounds and the piece it belongs to. fitkit.Knob's fields,
     with bodyeval's dotted paths (list items by name) so garment pieces can be addressed."""
 
-    def __init__(self, name, paths, default, step, bounds, group):
+    def __init__(self, name, paths, default, step, bounds, group, signs=None):
         self.name, self.paths, self.default, self.step, self.bounds, self.group = name, list(paths), default, step, tuple(bounds), group
+        self.signs = list(signs) if signs else [1] * len(self.paths)     # a mirrored pair: -1 on the other side (azimuths)
 
     def get(self, spec):
         from .bodyeval import get_knob
-        v = get_knob(spec, self.paths[0], self.default)
-        return float(self.default if v is None else v)
+        v = get_knob(spec, self.paths[0], None)
+        return float(self.default if v is None else v * self.signs[0])
 
     def put(self, spec, value):
         from .bodyeval import set_knob
-        for p in self.paths:
-            set_knob(spec, p, round(float(value), 5))
+        for p, sg in zip(self.paths, self.signs):
+            set_knob(spec, p, round(float(value) * sg, 5))
 
     def at_bound(self, x, eps=1e-6):
         lo, hi = self.bounds
@@ -98,10 +105,30 @@ def knobs(spec):
         bones = {next(x for x in spec['garments'] if x['name'] == p)['bone'] for p in ps}
         if all(b.endswith('LowerLeg') for b in bones):
             K.append(Knob(name + '.t', ['garments.%s.t' % p for p in ps], 0.5, 0.03, (0.05, 0.8), 'boots'))
+    # the overskirt panels (a mirror pair: the azimuth mirrored), with the skirt
+    for name, ps in _pairs(spec, 'panel'):
+        sg = [1 if next(x for x in spec['garments'] if x['name'] == p).get('az', 180.0) >= 0 else -1 for p in ps]
+        for k in ('length', 'flare', 'width', 'az', 'waist'):
+            d, st, lo, hi, _ = GARMENT['panel'][k]
+            K.append(Knob('%s.%s' % (name, k), ['garments.%s.%s' % (p, k) for p in ps], abs(d) if k == 'az' else d, st,
+                          (0.0, 180.0) if k == 'az' else (lo, hi), 'skirt', signs=sg if k == 'az' else None))
+    # the details: sleeves, the sleeves' and wrists' cuffs, the waistband, the collar, the bow
     for name, ps in _pairs(spec, 'sleeve'):
         for k in ('puff', 't1'):
             d, st, lo, hi, _ = GARMENT['sleeve'][k]
-            K.append(Knob('%s.%s' % (name, k), ['garments.%s.%s' % (p, k) for p in ps], d, st, (lo, hi), 'sleeves'))
+            K.append(Knob('%s.%s' % (name, k), ['garments.%s.%s' % (p, k) for p in ps], d, st, (lo, hi), 'details'))
+    for name, ps in _pairs(spec, 'band'):
+        bones = {next(x for x in spec['garments'] if x['name'] == p)['bone'] for p in ps}
+        if all(b.endswith(('UpperArm', 'LowerArm')) for b in bones):
+            for k in ('t', 'width'):
+                d, st, lo, hi, _ = GARMENT['band'][k]
+                K.append(Knob('%s.%s' % (name, k), ['garments.%s.%s' % (p, k) for p in ps], d, st, (lo, hi), 'details'))
+    for kind, ks in (('belt', ('waist', 'width')), ('collar', ('v_depth', 'side_depth', 'back_depth')),
+                     ('bow', ('size', 'height', 'tail'))):
+        for name, ps in _pairs(spec, kind):
+            for k in ks:
+                d, st, lo, hi, _ = GARMENT[kind][k]
+                K.append(Knob('%s.%s' % (name, k), ['garments.%s.%s' % (p, k) for p in ps], d, st, (lo, hi), 'details'))
     shape = (spec.get('hair') or {}).get('shape')
     if shape and shape.get('mode') in ('mesh', 'geom'):
         for k in ('below', 'shoulder_x'):
@@ -116,9 +143,10 @@ class Term:
     max(0, floor - v) / tol; the measure it belongs to and the reference that measured it (the authority map weights it),
     its view and the piece (group) it is fitted with."""
 
-    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None):
+    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None, scale=1.0):
         self.check, self.sub, self.kind, self.tol = check, sub, kind, tol
         self.measure, self.ref, self.view, self.group, self.floor = measure, ref, view, group, floor
+        self.scale = scale                                       # a share of the weight (a piece's views share one)
 
     @property
     def name(self):
@@ -133,6 +161,9 @@ class Term:
             return (v - 1) / self.tol, v
         if self.kind == 'floor':
             return max(0.0, self.floor - v) / self.tol, v
+        if self.kind == 'hold':                                  # no further from its target than at the start
+            t, v0 = self.floor
+            return max(0.0, abs(v - t) - abs(v0 - t)) / self.tol, v
         return v / self.tol, v
 
 
@@ -161,7 +192,7 @@ def terms(spec):
         if v in ('front', 'back'):
             T.append(Term('body_%s_boot' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'boots'))
         if v != 'profile':
-            T.append(Term('body_%s_sleeves' % v, None, 'ratio', B['width'][0], 'body_silhouette', 'sheet', v, 'sleeves'))
+            T.append(Term('body_%s_sleeves' % v, None, 'ratio', B['width'][0], 'body_silhouette', 'sheet', v, 'details'))
         for chk, kind, tol in (('hair_length', 'abs', B['length'][0]), ('hair_width', 'ratio', B['width'][0]),
                                ('iou_hair', 'floor', iou_floor('iou_part')), ('top', 'abs', B['length'][0])):
             fl, tl = tol if kind == 'floor' else (None, tol)
@@ -180,6 +211,86 @@ def terms(spec):
 GUARD = 4.0                     # the weight a term gets when its check read worse than at the start (the guard pass)
 
 
+FACE_HOLD = {'sheet_width': 1.0, 'sheet_neck_to_jaw': 1.0, 'sheet_profile': 0.0, 'sheet_profile_chin': 0.0,
+             'sheet_nose_reach': 0.0, 'sheet_chin_reach': 0.0, 'sheet_cheek': 0.0, 'sheet_cheek_chin': 0.0}
+
+
+def hold_terms(before):
+    """the face's model-sheet checks (the face fit's; the body fit mustn't move them away from their targets): a
+    'hold' term per check at its start value, a tenth of its tolerance, in the body's group."""
+    from .sheetqa import LIMITS as S
+    lim = {'sheet_width': 'width', 'sheet_neck_to_jaw': 'width', 'sheet_profile': 'profile', 'sheet_profile_chin': 'chin',
+           'sheet_nose_reach': 'reach', 'sheet_chin_reach': 'reach', 'sheet_cheek': 'cheek', 'sheet_cheek_chin': 'chin'}
+    T = []
+    for k, target in FACE_HOLD.items():
+        v0 = (before.get(k) or {}).get('value')
+        if isinstance(v0, (int, float)):
+            T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', 'body', (target, v0)))
+    return T
+
+
+PIECE_GROUP = {'skirt': 'skirt', 'overskirt panel': 'skirt', 'shorts': 'skirt', 'boot': 'boots', 'boot cuff': 'boots',
+               'waistband': 'details', 'collar': 'details', 'bow': 'details', 'sleeve': 'details', 'sleeve cuff': 'details',
+               'cuff': 'details'}
+PIECE_TOL = 0.10                # L: a piece's extent edge against the outfit graph's
+PIECE_MIN_PX = 150              # a view where the piece shows fewer pixels (either side) is left out
+
+
+def piece_terms(extents, graph):
+    """per-piece extent terms (bodymeasure.piece_checks' names): each mapped piece's four bbox edges in every view it
+    shows in, against the outfit graph (the authority for the outfit's pieces), the piece's views sharing one view's
+    weight. The arms' pieces (sleeves, cuffs) are also terms of the body (its rest pose moves them). The top is left out
+    (ours carries its bodice panel, the graph draws them apart)."""
+    from .bodymeasure import EDGES
+    types = {p['id']: p['type'] for p in graph['pieces']}
+    T = []
+    for pid, vs in extents.items():
+        g = PIECE_GROUP.get(types.get(pid))
+        if g is None:
+            continue
+        vs = {v: r for v, r in vs.items() if min(r['px']) >= PIECE_MIN_PX}
+        for v in vs:
+            for e in EDGES:
+                name = 'piece_%s_%s_%s' % (pid, v, e)
+                T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, g, scale=1.0 / len(vs)))
+                if types[pid] in ('sleeve', 'sleeve cuff', 'cuff') and e in ('left', 'right'):
+                    T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, 'body', scale=0.5 / len(vs)))
+    return T
+
+
+def outfit_start(spec, graph, log=print):
+    """the outfit graph's draft as the fit's start: the pieces the spec's list lacks added (the stepped-hem back panels),
+    and the draft's measured first guesses for the knobs the fit owns (the skirt's back hem, the bow's size, the cuffs'
+    widths, ...). -> (spec, {path: [hand value, draft value]})."""
+    import copy as _c
+    from .bodyeval import get_knob, set_knob
+    S = _c.deepcopy(spec)
+    T = graph.get('templates') or {}
+    draft = {g['name']: g for g in T.get('garments', [])}
+    marks = T.get('knobs') or {}
+    C = graph.get('comparison') or {}
+    changed = {}
+    names = {g['name'] for g in S.get('garments') or []}
+    for m in C.get('missed_by_hand', []):
+        g = draft.get(m['draft'])
+        if g is not None and g['name'] not in names:
+            S.setdefault('garments', []).append(_c.deepcopy(g))
+            changed['garments.' + g['name']] = [None, 'added']
+    owned = {p for k in knobs(S) for p in k.paths}
+    for m in C.get('matched', []):
+        g = draft.get(m['draft'])
+        if g is None or m['hand'] not in names:
+            continue
+        for k, v in g.items():
+            path = 'garments.%s.%s' % (m['hand'], k)
+            if path in owned and str(marks.get(m['draft'], {}).get(k, '')).startswith('measured') and \
+                    isinstance(v, (int, float)) and get_knob(S, path) != v:
+                changed[path] = [get_knob(S, path), v]
+                set_knob(S, path, v)
+    log('outfit graph: start from its draft: %s' % ', '.join('%s %s -> %s' % (k, a, b) for k, (a, b) in changed.items()))
+    return S, changed
+
+
 def residuals(checks, terms, authority=None, protect=()):
     """-> [dict(name, view, measure, ref, group, r (in tolerances), w (weight), value)]; a protected check's terms weigh
     GUARD times more."""
@@ -187,7 +298,7 @@ def residuals(checks, terms, authority=None, protect=()):
     out = []
     for t in terms:
         r, v = t.residual(checks)
-        w = (1.0 if A.get(t.measure, t.ref) == t.ref else 0.25) * (GUARD if t.check in protect else 1.0)
+        w = (1.0 if A.get(t.measure, t.ref) == t.ref else 0.25) * (GUARD if t.check in protect else 1.0) * t.scale
         out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, group=t.group, r=float(r), value=v,
                         tol=t.tol, w=w))
     return out
@@ -197,9 +308,10 @@ RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
 
 
 def regressions(before, after):
-    """graded checks whose status got worse (as the merge gate reads them): {check: [before, after]}."""
+    """graded checks whose status got worse, as the merge gate reads them (the QA's; the per-piece extents are the fit's
+    own): {check: [before, after]}."""
     return {k: [b['status'], after[k]['status']] for k, b in before.items()
-            if b.get('status') in RANK and (after.get(k) or {}).get('status') in RANK
+            if not k.startswith('piece_') and b.get('status') in RANK and (after.get(k) or {}).get('status') in RANK
             and RANK[after[k]['status']] > RANK[b['status']]}
 
 
@@ -207,7 +319,7 @@ def vector(res, x=None, ks=()):
     r = np.array([t['r'] for t in res]); w = np.sqrt([t['w'] for t in res])
     parts = [w * r, w * HINGE * np.sign(r) * np.maximum(0, np.abs(r) - 1)]
     if x is not None and len(ks):
-        parts.append(np.array([REG * (xi - k.default) / (k.bounds[1] - k.bounds[0]) for xi, k in zip(x, ks)]))
+        parts.append(np.array([(xi - k.default) / (PRIOR * k.step) for xi, k in zip(x, ks)]))
     return np.concatenate(parts)
 
 
@@ -221,11 +333,12 @@ def cost(res, x=None, ks=()):
 class BodyChecks:
     """the fit's evaluator (fitkit's protocol): checks(spec, group, fine) -> {check name: check} as qa.json names them:
     shape_* and ref_iou (qa3d's silhouettes; fine: the render's subdivision, else the viewport's), body_* (the model
-    sheet's) and, for group 'palette' or 'all', palette_*."""
+    sheet's), for group 'palette' or 'all' palette_*, and for 'body' or 'all' the face's sheet_* (held, not fitted)."""
 
-    def __init__(self, spec):
+    def __init__(self, spec, graph=None):
         from . import bodyeval
         self.E = bodyeval.Evaluator(spec)
+        self.graph = graph
 
     def checks(self, spec, group='all', fine=False):
         from .qa3d import LIMITS
@@ -239,6 +352,11 @@ class BodyChecks:
             else:
                 out[k] = {'value': v, 'status': 'INFO'}
         out.update(self.E.sheet_checks(G, palette=group in ('all', 'palette')))
+        if group in ('all', 'body') or 'body' in group.split('+'):
+            out.update(self.E.face_checks(G))
+        if self.graph is not None and self.E.sheet() is not None and group != 'palette':
+            from . import bodymeasure
+            out.update(bodymeasure.piece_checks(G.bundle('viewport'), self.E.sheet(), self.graph, spec))
         return out
 
 
@@ -252,8 +370,9 @@ def optimise(ev, spec, ks, T, group, authority=None, budget=None, protect=(), lo
     on a Jacobian by finite differences at one knob step, then a pattern search (each knob one and half a step either way
     while the cost drops). Deterministic. -> (spec with the fitted knobs, info)."""
     from scipy.optimize import least_squares
-    ks = [k for k in ks if k.group == group]
-    T = [t for t in T if t.group == group]
+    groups = set(group.split('+'))
+    ks = [k for k in ks if k.group in groups]
+    T = [t for t in T if t.group in groups]
     st = np.array([k.step for k in ks])
     lo = np.array([k.bounds[0] for k in ks]); hi = np.array([k.bounds[1] for k in ks])
     x0 = np.clip(np.array([k.get(spec) for k in ks]), lo, hi)
@@ -320,24 +439,35 @@ def optimise(ev, spec, ks, T, group, authority=None, budget=None, protect=(), lo
     return spec_at(u), info
 
 
-def fit(spec_path, out, pieces=('body', 'skirt', 'boots', 'sleeves', 'hair'), palette=False, budget=None, log=print):
+SCHEDULE = ('body+skirt+boots', 'details', 'hair')   # the figure's pieces together (where the legs show depends on the hem)
+
+
+def fit(spec_path, out, pieces=SCHEDULE, palette=False, budget=None, outfit=True, log=print):
     """fit a spec's body, garments and hair piece by piece (see the module); write the fitted spec and the report into
     out. -> (fitted spec, report)."""
     from . import bodyeval
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
+    from . import bodymeasure
     spec = bodyeval.resolve(spec_path)
-    ev = BodyChecks(spec)
+    graph = bodymeasure.load_graph(spec) if outfit else None
+    ev = BodyChecks(spec, graph)
     authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
-    K, T = knobs(spec), terms(spec)
-    before = ev.checks(spec, 'all', fine=True)
+    before = ev.checks(spec, 'all', fine=True)                    # the spec as it is: what the fit is judged against
+    start, drafted = (outfit_start(spec, graph, log) if graph is not None else (spec, {}))
+    K, T = knobs(start), terms(start)
+    if graph is not None:
+        T += piece_terms(bodymeasure.piece_extents(ev.E.geometry(spec=start).bundle('viewport'), ev.E.sheet(), graph, start),
+                         graph)
     # the terms whose checks the start measures (a cut figure on the sheet has no feet, a view no sleeves)
-    T = [t for t in T if (before.get(t.check) or {}).get('status') not in (None, 'SKIPPED')]
-    log('bodyfit: start measured (%d checks, %d terms)' % (len(before), len(T)))
-    rep = {'spec': spec_path, 'authority': authority, 'knobs_declared': {k.name: k.declare() for k in K}, 'pieces': {}}
-    fitted = spec
+    at_start = ev.checks(start, 'all', fine=True) if start is not spec else before
+    T = [t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] + hold_terms(before)
+    log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
+    rep = {'spec': spec_path, 'authority': authority, 'knobs_declared': {k.name: k.declare() for k in K}, 'pieces': {},
+           'outfit_start': drafted}
+    fitted = start
     for g in pieces:
-        if not any(k.group == g for k in K):
+        if not any(k.group in g.split('+') for k in K):
             continue
         fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget, log=log)
         rep['pieces'][g] = {k: v for k, v in info.items() if k != 'history'}
@@ -349,7 +479,7 @@ def fit(spec_path, out, pieces=('body', 'skirt', 'boots', 'sleeves', 'hair'), pa
     if reg:
         log('bodyfit: guard: %s' % reg)
         prot = set(reg)
-        for g in [g for g in pieces if any(t.group == g and t.check in prot for t in T)]:
+        for g in [g for g in pieces if any(t.group in g.split('+') and t.check in prot for t in T)]:
             fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget, protect=prot, log=log)
             rep['pieces'][g + '_guard'] = {k: v for k, v in info.items() if k != 'history'}
         rep['guard'] = {'regressed': reg}
@@ -363,7 +493,8 @@ def fit(spec_path, out, pieces=('body', 'skirt', 'boots', 'sleeves', 'hair'), pa
     rep['still_failing'] = triage(after, T, K, fitted, authority)
     rep['seconds'] = round(time.time() - t0, 1)
     fitted = copy.deepcopy(fitted)
-    fitted['bodyfit'] = {k.name: k.get(fitted) for k in K if k.group in pieces}
+    owned = {x for g in pieces for x in g.split('+')}
+    fitted['bodyfit'] = {k.name: k.get(fitted) for k in K if k.group in owned}
     name = spec.get('name', 'char')
     json.dump(fitted, open(os.path.join(out, name + '.bodyfit.json'), 'w'), indent=1)
     json.dump(rep, open(os.path.join(out, 'bodyfit_report.json'), 'w'), indent=1, default=str)
@@ -515,10 +646,16 @@ def _f(v):
     return ('%.3f' % v) if isinstance(v, float) else str(v)
 
 
-def write_spec(src, fitted, names):
-    """the fitted knobs written back into a spec file (only the knobs the fit owns; the rest of the file as it was)."""
+def write_spec(src, fitted, names, added=()):
+    """the fitted knobs written back into a spec file (only the knobs the fit owns, and the garment pieces it added;
+    the rest of the file as it was)."""
     from .bodyeval import get_knob, set_knob
     S = json.load(open(src))
+    have = {g['name'] for g in S.get('garments') or []}
+    for name in added:
+        g = next((g for g in fitted.get('garments') or [] if g['name'] == name), None)
+        if g is not None and name not in have:
+            S.setdefault('garments', []).append(copy.deepcopy(g))
     for p in names:
         v = get_knob(fitted, p)
         if v is not None:
@@ -535,12 +672,20 @@ def main(args):
     spec_path = args[0]
     name = json.load(open(bodyeval._abs(spec_path)))['name']
     out = bodyeval._abs(opt('--out', 'charkit/out/bodyfit/%s' % name))
-    pieces = opt('--pieces', 'body,skirt,boots,sleeves,hair').split(',')
-    fitted, rep = fit(spec_path, out, pieces, palette='--palette' in args,
+    pieces = opt('--pieces', ','.join(SCHEDULE)).split(',')
+    fitted, rep = fit(spec_path, out, pieces, palette='--palette' in args, outfit='--no-outfit' not in args,
                       budget=int(opt('--budget')) if opt('--budget') else None, log=lambda *a: print(*a, flush=True))
     if '--write-spec' in args:
-        paths = [p for k in knobs(fitted) if k.group in pieces for p in k.paths]
-        if '--palette' in args:
-            paths += (rep.get('palette') or {}).get('paths', [])
-        write_spec(bodyeval._abs(spec_path), fitted, paths)
+        write_fitted(spec_path, fitted, rep, pieces)
         print('wrote the fitted knobs into', spec_path)
+
+
+def write_fitted(spec_path, fitted, rep, pieces=SCHEDULE):
+    """a fit's result into its spec file: the knobs of the fitted pieces, the palette's colours, the pieces the outfit
+    graph added."""
+    from . import bodyeval
+    owned = {x for g in pieces for x in g.split('+')}
+    paths = [p for k in knobs(fitted) if k.group in owned for p in k.paths]
+    paths += (rep.get('palette') or {}).get('paths', [])
+    added = [k.split('.', 1)[1] for k, v in (rep.get('outfit_start') or {}).items() if v[1] == 'added']
+    return write_spec(bodyeval._abs(spec_path), fitted, paths, added)

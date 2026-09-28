@@ -4,7 +4,8 @@ later.
 
 A bundle:
     dict(objects=[dict(name, group, V (n, 3) world, F (m, 3) triangles, label (m,) charkit.bodyqa.CLASS per triangle,
-                       lit (m, 3), shade (m, 3) the sRGB tones its material renders unlit)],
+                       lit (m, 3), shade (m, 3) the sRGB tones its material renders unlit, role: None, or 'masked' /
+                       'unmasked' for the skin with and without the garments' mask (objects())],
          landmarks=dict(L, centre (3,), chin, waist, knee (world z), iris (2, 3) the iris plates' centres),
          target=(V, F) or None)                               # the generated shape aligned by its eyes
 
@@ -76,6 +77,13 @@ def zsplat(meshes, az, origin, L, pix, win):
     return depth, label
 
 
+def objects(bundle, face=False):
+    """the bundle's objects a measure reads: as rendered (the skin with the garments' mask on), or with face=True as
+    the face measures read them (the whole skin, qa3d.sheet's)."""
+    skip = 'masked' if face else 'unmasked'
+    return [o for o in bundle['objects'] if o.get('role') != skip]
+
+
 # ------------------------------------------------------------------------------------------------------------ the sheet
 def _png(path):
     """an image as floats 0..1 (row 0 = top), RGBA, rounded as Blender's float32 pixels hold it."""
@@ -95,6 +103,8 @@ class Sheet:
         if not sh or not ref.get('rig'):
             raise ValueError('no spec.ref.sheet / rig')
         p = lambda x: x if os.path.isabs(x) else os.path.join(ROOT, x)
+        self.spec_sheet = sh
+        self.face_design = None
         self.rgb = _png(p(sh['image']))[..., :3]
         rig_alpha = _png(os.path.join(p(ref['rig']), 'base.png'))[..., 3]
         R = refs.measure(p(ref['rig']), (spec.get('eyes') or {}).get('x', 0.168))
@@ -120,7 +130,7 @@ def views(bundle, sheet, which=None):
     """our bundle z-buffered on the design's grid per view (bodyqa.zbuffer_views, with zsplat): {view: (depth, label)}."""
     from . import bodyqa
     lm = bundle['landmarks']
-    meshes = [(o['V'], o['F'][o['label'] >= 0], o['label'][o['label'] >= 0]) for o in bundle['objects']]
+    meshes = [(o['V'], o['F'][o['label'] >= 0], o['label'][o['label'] >= 0]) for o in objects(bundle)]
     az = bodyqa.azimuths(sheet.az3)
     which = which or [v for v in bodyqa.AZ if v in sheet.design]
     out = {}
@@ -142,7 +152,7 @@ def sheet_body(bundle, sheet, labels=None):
 def colours(bundle):
     """the per-class colours paletteqa.ours reads: {class: [(lit, shade, area)]} over the bundle's triangles."""
     cols = {}
-    for o in bundle['objects']:
+    for o in objects(bundle):
         V, T, lab = o['V'], o['F'], o['label']
         area = 0.5 * np.linalg.norm(np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]]), axis=1)
         for c in np.unique(lab):
@@ -169,7 +179,7 @@ def frame(bundle):
     """qa3d's QA camera: orthographic through the z axis, framing the objects' z range * 1.08 (qa3d reads the base
     meshes: pass the unsubdivided bundle)."""
     from .geom.raster import Frame
-    zs = np.concatenate([o['V'][:, 2] for o in bundle['objects'] if len(o['V'])])
+    zs = np.concatenate([o['V'][:, 2] for o in objects(bundle) if len(o['V'])])
     zmin, zmax = float(zs.min()), float(zs.max())
     return Frame((0.0, 0.0, (zmin + zmax) / 2), (zmax - zmin) * 1.08, RES)
 
@@ -180,8 +190,9 @@ def label_image(bundle, az, fr, groups=None):
     from .geom.mesh import Mesh
     from .geom.raster import rasterize
     Vs, Fs, lab, off = [], [], [], 0
+    shown = objects(bundle)
     for i, o in enumerate(bundle['objects']):
-        if groups and o['group'] not in groups or not len(o['F']):
+        if groups and o['group'] not in groups or not len(o['F']) or not any(o is x for x in shown):
             continue
         Vs.append(o['V']); Fs.append(o['F'] + off); lab.append(np.full(len(o['F']), i)); off += len(o['V'])
     zb, fb, _ = rasterize(Mesh(np.vstack(Vs), np.vstack(Fs)), az, fr)
@@ -350,4 +361,213 @@ def measures(Q, lm):
             for k in po:
                 out[k] = float(po[k] - pg[k])
                 out[k + '_ours'] = float(po[k]); out[k + '_target'] = float(pg[k])
+    return out
+
+
+# ------------------------------------------------------------------------------------------------ the face on the sheet
+def face_region(depth, label, jump, seed_z=-0.15, pix=None, win=None):
+    """faceqa.face_region (the visible skin reached from the seed without crossing a depth jump over `jump`), as the
+    connected component of the seed in the graph of neighbouring skin pixels whose depths differ by less than `jump`:
+    the same pixels, vectorised."""
+    from scipy import sparse
+    from scipy.sparse.csgraph import connected_components
+    from . import faceqa
+    pix = faceqa.PIX if pix is None else pix
+    win = faceqa.WIN if win is None else win
+    H, W = label.shape
+    z = faceqa.row_z(H, pix, win)
+    r0 = int(np.argmin(np.abs(z - seed_z)))
+    cand = np.nonzero(label[r0] == 1)[0]
+    out = np.zeros(label.shape, bool)
+    if not len(cand):
+        return out
+    c0 = int(cand[np.argmin(depth[r0, cand])])
+    sk = label == 1
+    idx = np.arange(H * W).reshape(H, W)
+    a, b = [], []
+    for (sa, sb) in (((slice(None), slice(0, -1)), (slice(None), slice(1, None))),
+                     ((slice(0, -1), slice(None)), (slice(1, None), slice(None)))):
+        with np.errstate(invalid='ignore'):
+            ok = sk[sa] & sk[sb] & (np.abs(depth[sa] - depth[sb]) < jump)
+        a.append(idx[sa][ok]); b.append(idx[sb][ok])
+    a, b = np.concatenate(a), np.concatenate(b)
+    G = sparse.coo_matrix((np.ones(len(a), bool), (a, b)), shape=(H * W, H * W))
+    _, lab = connected_components(G, directed=False)
+    return (lab == lab[r0 * W + c0]).reshape(H, W) & sk
+
+def sheet_face(bundle, sheet):
+    """qa3d.sheet's checks on a bundle (the face against the model sheet's heads: front half-widths, the neck against
+    the jaw, the profile's edge and reaches, the chin, the far cheek; how much face the hair leaves): the same z-buffer
+    (zsplat), classes and chin cut. The body fit's guard reads it until the face fit's evaluator (charkit.faceeval,
+    tool/fit) is on the integration branch. -> (table, checks)."""
+    import math
+    from . import faceqa, sheetqa
+    from .bodyqa import CLASS as B
+    CL = sheetqa.CLASS
+    lm = bundle['landmarks']
+    L = lm['L']
+    if getattr(sheet, 'face_design', None) is None:
+        heads = {k: tuple(v) for k, v in (sheet.spec_sheet.get('heads') or {}).items()}
+        sheet.face_design = sheetqa.measure_sheet(sheet.rgb, heads, sheet.eye_x, ppl=sheet.ppl)
+    D = sheet.face_design
+    az3 = D.get('az_three_quarter', 35.0)
+    meshes, covers = [], []
+    for o in objects(bundle, face=True):
+        lab = o['label']
+        if o['group'] == 'hair':
+            covers.append((o['V'], o['F'], np.full(len(o['F']), CL['hair'])))
+            continue
+        if o['group'] == 'accessories':
+            covers.append((o['V'], o['F'], np.full(len(o['F']), CL['other'])))
+            continue
+        if o['name'].startswith('iris_'):
+            c = np.full(len(lab), CL['iris'])                         # (qa3d: the whole plate, not only its opaque texels)
+        else:
+            c = np.where(lab == B['skin'], CL['skin'], np.where(lab == B['line'], CL['line'], CL['other']))
+        meshes.append((o['V'], o['F'], c))
+    irc = np.asarray(lm['iris'], float)
+    cx, cy = lm['centre'][0], lm['centre'][1]
+    ez = float(np.mean(irc[:, 2]))
+    ppl = sheet.ppl
+    pix = 1.0 / ppl
+    win = faceqa.WIN
+    O, raw = {}, {}
+    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
+        a = math.radians(az)
+        org = (cx * math.cos(a) + cy * math.sin(a), ez)
+        depth, lab = zsplat(meshes, az, org, L, pix, win)
+        lab = np.where(lab < 0, CL['other'], lab)
+        face = face_region(depth, np.where(lab == CL['skin'], 1, 0), 0.035 * L, pix=pix)
+        _, lv = zsplat(meshes + covers, az, org, L, pix, win)
+
+        def px(P):
+            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
+            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
+        eyes = sorted(px(c) for c in irc)
+        if view == 'profile':
+            eyes = [px(max(irc, key=lambda c: c[0]))]
+        raw[view] = (lab, face, eyes, depth, lv)
+    lab, face, eyes, depth, lv = raw['profile']
+    M = sheetqa.measure_labels(lab, face, 'profile', ppl, eyes)
+    chin = faceqa.chin_bottom(-M['lead'], M['z'])
+    for view, (lab, face, eyes, depth, lv) in raw.items():
+        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
+        if chin is not None:
+            skin = (lab == CL['skin']) & (zr >= chin)[:, None]
+            face = face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
+        shown = face & (lv == CL['skin'])
+        O[view] = sheetqa.measure_labels(lab, face, view, ppl, eyes)
+        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+    C = sheetqa.compare(O, D)
+    for view in ('front', 'three_quarter', 'profile'):
+        if view in O and view in D:
+            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
+            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
+            r = round(osh / max(1.0, dsh), 3)
+            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN'}
+    strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
+    return {'ours': {v: strip(O[v]) for v in O}}, C
+
+
+# ------------------------------------------------------------------------------------------------ pieces (outfit graph)
+def load_graph(spec):
+    """the character's outfit component graph (charkit.outfit; the manifest's `outfit_graph` reference), or None."""
+    import json
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    mp = ref.get('manifest')
+    if not mp:
+        return None
+    p = lambda x: x if os.path.isabs(x) else os.path.join(ROOT, x)
+    M = json.load(open(p(mp)))
+    g = (M.get('references') or {}).get('outfit_graph')
+    return json.load(open(p(g['path']))) if g and os.path.exists(p(g['path'])) else None
+
+
+def piece_map(graph, spec):
+    """the graph's pieces to our objects: {graph piece id: [(object name, side filter)]}, from its comparison with the
+    spec's list (a draft name to a hand name) and the draft's own names where the spec holds them; a one-sided graph piece
+    drawn by a two-sided object of ours (the boots' shell) takes that object's side of the body (world x: + her left),
+    with the side's shoe. Pieces with no object of ours (the skirt's panel, the bow's tails: knobs of other pieces) are
+    left out."""
+    names = {g['name'] for g in spec.get('garments') or []}
+    hand = {m['draft']: m['hand'] for m in (graph.get('comparison') or {}).get('matched', [])}
+    out = {}
+    for pc in graph['pieces']:
+        pid, side = pc['id'], pc.get('side')
+        h = hand.get(pid, pid)
+        if h in names:
+            out[pid] = [(h, None)]
+        elif pc['type'] == 'boot' and 'boots' in names:
+            sgn = 1 if side == 'L' else -1
+            out[pid] = [('boots', sgn)] + ([('shoe_' + side, None)] if 'shoe_' + side in names else [])
+    return out
+
+
+def piece_views(bundle, sheet, which=None):
+    """our objects z-buffered on the design's grids per view, each pixel the index of the nearest object (a two-sided
+    object's triangles split by side: index + 1000 for her right). -> {view: label image}."""
+    from . import bodyqa
+    lm = bundle['landmarks']
+    obs = objects(bundle)
+    meshes = []
+    for o in obs:
+        i = bundle['objects'].index(o)
+        side = np.where(o['V'][o['F']].mean(1)[:, 0] >= 0, i, i + 1000)
+        meshes.append((o['V'], o['F'], side))
+    az = bodyqa.azimuths(sheet.az3)
+    which = which or [v for v in bodyqa.AZ if v in sheet.design]
+    out = {}
+    for v in which:
+        org = bodyqa.origin(v, az[v], np.asarray(lm['iris'], float), lm['centre'])
+        out[v] = zsplat(meshes, az[v], org, lm['L'], 1.0 / sheet.ppl, bodyqa.WIN)[1]
+    return out
+
+
+def piece_extents(bundle, sheet, graph, spec, labels=None, min_px=40):
+    """each mapped piece's visible extent per view against the graph's (its bbox in L from the view's origin, x to the
+    image's right, z up from the eye line: left, bottom, right, top). -> {piece: {view: dict(ours, graph, d (ours -
+    graph per edge), px)}}; views where either side shows fewer than min_px pixels are left out."""
+    from . import bodyqa
+    labels = labels or piece_views(bundle, sheet)
+    idx = {o['name']: i for i, o in enumerate(bundle['objects']) if o.get('role') != 'unmasked'}
+    ppl, win = sheet.ppl, bodyqa.WIN
+    out = {}
+    for pid, members in piece_map(graph, spec).items():
+        pc = next(p for p in graph['pieces'] if p['id'] == pid)
+        for view, lab in labels.items():
+            e = (pc.get('extent') or {}).get(view)
+            if not e or e.get('px', 0) < min_px:
+                continue
+            m = np.zeros(lab.shape, bool)
+            for name, sgn in members:
+                if name not in idx:
+                    continue
+                i = idx[name]
+                m |= (lab == i) if sgn is None else (lab == i) if sgn > 0 else (lab == i + 1000)
+                if sgn is None:
+                    m |= lab == i + 1000
+            if m.sum() < min_px:
+                continue
+            rows, cols = np.nonzero(m)
+            x0, x1 = (cols.min() + 0.5) / ppl - win['x'], (cols.max() + 0.5) / ppl - win['x']
+            z1, z0 = win['top'] - (rows.min() + 0.5) / ppl, win['top'] - (rows.max() + 0.5) / ppl
+            ours = [round(x0, 4), round(z0, 4), round(x1, 4), round(z1, 4)]
+            g = e['bbox']
+            out.setdefault(pid, {})[view] = dict(ours=ours, graph=g, d=[round(a - b, 4) for a, b in zip(ours, g)],
+                                                 px=[int(m.sum()), int(e['px'])])
+    return out
+
+
+EDGES = ('left', 'bottom', 'right', 'top')
+
+
+def piece_checks(bundle, sheet, graph, spec, tol=0.08):
+    """the per-piece extents as checks named piece_<id>_<view>_<edge> (value: ours - the graph's, L; PASS within tol,
+    WARN within twice, else FAIL), for the fit to answer to."""
+    out = {}
+    for pid, vs in piece_extents(bundle, sheet, graph, spec).items():
+        for view, r in vs.items():
+            for k, d in zip(EDGES, r['d']):
+                out['piece_%s_%s_%s' % (pid, view, k)] = {'value': d, 'status': 'PASS' if abs(d) <= tol else
+                                                          'WARN' if abs(d) <= 2 * tol else 'FAIL'}
     return out

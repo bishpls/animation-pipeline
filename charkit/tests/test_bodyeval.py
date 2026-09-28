@@ -252,6 +252,53 @@ def test_palette_members_by_family():
     assert ('garments.skirt.panel_color', 'garment') in M['cream'] and M['skin'] == [('skin', 'toon3')]
 
 
+def test_face_region_is_faceqa_face_region():
+    """the vectorised flood (connected components) against faceqa's stack flood on a z-buffered head and neck."""
+    from charkit import faceqa
+    V1, T1 = sphere(0.45, (0, 0, -0.2))                              # a face
+    V2, T2 = sphere(0.2, (0, 0.25, -0.8))                            # a neck behind it (a depth jump at the jaw)
+    V3, T3 = sphere(0.08, (0.2, -0.5, -0.1))                         # something in front of a cheek (not skin)
+    meshes = [(V1, T1, np.ones(len(T1), int)), (V2, T2, np.ones(len(T2), int)), (V3, T3, np.zeros(len(T3), int))]
+    d, lab = faceqa.zbuffer(meshes, 0, (0, 0), 1.0)
+    lab = np.where(lab < 0, 0, lab)
+    a = faceqa.face_region(d, lab, 0.035)
+    b = bodymeasure.face_region(d, lab, 0.035)
+    assert a.any() and np.array_equal(a, b)
+
+
+def test_outfit_graph_start_and_pieces():
+    """the fit's start from an outfit graph's draft (pieces added, measured knobs taken), and the graph's pieces mapped to
+    ours (a two-sided boots shell split by side, with the side's shoe)."""
+    from charkit import bodyfit, bodymeasure
+    spec = {'garments': [{'kind': 'skirt', 'name': 'skirt', 'back': 0.55, 'flare': 42},
+                         {'kind': 'shell', 'name': 'boots', 'region': [['leftLowerLeg', 0.3, 1.5], ['rightLowerLeg', 0.3, 1.5]]},
+                         {'kind': 'shoe', 'name': 'shoe_L', 'side': 'left'}]}
+    graph = {'pieces': [{'id': 'skirt', 'type': 'skirt', 'side': 'C'}, {'id': 'boot_L', 'type': 'boot', 'side': 'L'},
+                        {'id': 'panel_L', 'type': 'overskirt panel', 'side': 'L'}],
+             'templates': {'garments': [{'kind': 'skirt', 'name': 'skirt', 'back': 0.06, 'flare': 41.4},
+                                        {'kind': 'panel', 'name': 'panel_L', 'az': 146.0, 'length': 1.7}],
+                           'knobs': {'skirt': {'back': 'measured (the back hem)', 'flare': 'default'}}},
+             'comparison': {'matched': [{'draft': 'skirt', 'hand': 'skirt'}],
+                            'missed_by_hand': [{'draft': 'panel_L', 'kind': 'panel'}]}}
+    S, changed = bodyfit.outfit_start(spec, graph, log=lambda *a: None)
+    assert [g['name'] for g in S['garments']][-1] == 'panel_L' and changed['garments.panel_L'] == [None, 'added']
+    assert S['garments'][0]['back'] == 0.06 and S['garments'][0]['flare'] == 42          # measured taken, default not
+    assert spec['garments'][0]['back'] == 0.55                                           # the input is untouched
+    M = bodymeasure.piece_map(graph, S)
+    assert M['boot_L'] == [('boots', 1), ('shoe_L', None)] and M['skirt'] == [('skirt', None)]
+    assert M['panel_L'] == [('panel_L', None)]
+    K = {k.name: k for k in bodyfit.knobs(S)}
+    assert K['panel.az'].get(S) == 146.0 and K['panel.length'].group == 'skirt'
+    two = dict(S, garments=S['garments'] + [{'kind': 'panel', 'name': 'panel_R', 'az': -146.0}])
+    k = {k.name: k for k in bodyfit.knobs(two)}['panel.az']
+    assert k.get(two) == 146.0
+    k.put(two, 150.0)
+    assert [g.get('az') for g in two['garments'][-2:]] == [150.0, -150.0]                # a mirror pair
+    ext = {'skirt': {'front': {'d': [0.1, -0.2, 0.0, 0.05], 'px': [900, 800]}, 'back': {'d': [0, 0, 0, 0], 'px': [900, 100]}}}
+    T = bodyfit.piece_terms(ext, graph)
+    assert len(T) == 4 and {t.view for t in T} == {'front'} and T[0].scale == 1.0         # back: too few pixels
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

@@ -309,45 +309,63 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
 **One measurement code for every geometry source** (`charkit/bodymeasure.py`).
 - **The bundle.** The measures take a bundle, which is plain data:
   - per object: world vertices, triangles, and per triangle a model-sheet class (`bodyqa.CLASS`) and the lit and shade
-    tones its material renders unlit;
+    tones its material renders unlit; the skin twice, with and without the garments' mask (role `masked` or
+    `unmasked`: the face measures read it without, as qa3d.sheet does);
   - the landmarks (L, the head centre, the chin, waist and knee heights, the iris centres);
   - the aligned generated shape.
 - **Producing one.** `bodyeval.Geometry.bundle(levels)` makes one from the fast evaluator. It subdivides the skin and
-  garments as the build evaluates them (Catmull-Clark to the limit surface, `bodyeval.subdivide`; 'viewport' for what
-  the in-Blender QA z-buffers, 'render' for what its renders show). It takes the classes and tones from the build's own
-  material rules: the skirt's stepped hem and the top's front panel sampled per subdivided face, the iris where its
+  garments as the build evaluates them: Catmull-Clark to the limit surface (`bodyeval.subdivide`), each child quad
+  starting at the corner Blender's does, so a fan triangulation cuts it along the same diagonal. 'viewport' is what the
+  in-Blender QA z-buffers, 'render' what its renders show. The classes and tones come from the build's own material
+  rules: the skirt's and panels' stepped hems and the top's front panel sampled per subdivided face, the iris where its
   texture is opaque. A Blender export of the same bundle would be measured by the same functions:
   - `shape` (qa3d's shape and ref IoUs, charkit.geom.raster);
   - `sheet_body` (charkit.bodyqa's checks against the model sheet);
+  - `sheet_face` (qa3d.sheet's face checks; the body fit holds them until the face fit's evaluator lands);
   - `sheet_palette` (charkit.paletteqa's);
+  - `piece_extents` / `piece_checks` (each outfit piece's visible extent per view against the outfit graph's, §8);
   - `measures` (the band, extent and pose measurements).
-- **zsplat.** `bodymeasure.zsplat` is faceqa's point-splat z-buffer compiled with numba. It gives the same labels (38 of
-  456,000 pixels differ, on depth ties) and is about 20x faster.
+- **Fast parts.** `bodymeasure.zsplat` is faceqa's point-splat z-buffer compiled with numba: the same labels (38 of
+  456,000 pixels differ, on depth ties), about 20x faster. `bodymeasure.face_region` is faceqa's flood fill as a
+  connected-components pass: the same pixels (tested), in milliseconds.
 - **Against the merged build's QA.** All 81 body_* and palette_* checks grade the same, with values within 0.012
-  (lengths in L, width ratios) and 0.14 dE. The front arm angle, which is information only, is within 0.5 degrees.
-  The shape silhouettes agree at 0.993 to 0.997 per view.
+  (lengths in L, width ratios) and 0.14 dE. The front arm angle, which is information only, is within 0.5 degrees. The
+  face's sheet_* checks match to 0.0001 (the hair-coverage shares, warn only, to 0.011: our hair isn't decimated). The
+  shape silhouettes agree at 0.993 to 0.997 per view.
 
 **Fitting the body, garments and hair to the sheet** (`charkit/bodyfit.py`: `python -m charkit bodyfit SPEC [--pieces
-body,skirt,boots,sleeves,hair] [--palette] [--write-spec]`).
-- **Pieces.** The fit goes piece by piece:
-  - the body: head count, proportions and the rest pose (the neck's knobs are left to the face fit);
-  - the skirt: flare, length, back, waist;
-  - the boots: the shell's top on the shins, and the cuffs;
-  - the sleeves: puff and length;
+body+skirt+boots,details,hair] [--palette] [--no-outfit] [--write-spec]`).
+- **The start.** The fit starts from the outfit graph's draft (§8). It adds the pieces the spec's list lacks (on Clawd,
+  the two stepped-hem back panels the list faked with the skirt's `back`), and takes the draft's measured first guesses
+  for the knobs the fit owns: the skirt's back, the bow's size, the cuffs' widths, the collar's depths.
+- **Pieces.** Fitted in this order (a+b pieces are fitted together):
+  - the figure: the body (head count, proportions and the rest pose; the neck's knobs are left to the face fit), the
+    skirt (flare, length, back, waist) and its back panels (length, flare, width, azimuth, waist), and the boots (the
+    shell's top on the shins, and the cuffs). They go together because where the legs show depends on the hem;
+  - the details: the sleeves' puff and length, the sleeve and wrist cuffs' position and width, the waistband, the
+    collar's depths, and the bow's size, height and tails;
   - the hair: hair.shape's below and shoulder_x.
-- **Terms.** Each piece is a least-squares fit over its knobs against all its terms at once:
+- **Terms.** Each is a least-squares fit over its knobs against all its terms at once, every view together:
   - the sheet's four views: feet, legs, boots, hems, the skirt's and sleeves' widths, the hair's length and width, the
     top, the arms' angle, and the silhouette, skin, outfit and hair IoUs;
-  - the generated shape's bands.
-- **Weights.** Each term is weighted by the manifest's authority map: full where its reference is the authority for
-  its measure (the sheet for the body's and hair's silhouettes, the generated shape for the hair's shape), a quarter
-  otherwise. Each knob is pulled toward its template default. The terms and the knobs follow charkit.fitkit's
-  conventions (tool/fit).
+  - the generated shape's bands;
+  - each piece's visible extent (its bbox edges) per view against the outfit graph's, a piece's views sharing one
+    view's weight. The arms' pieces also count for the body, whose rest pose moves them;
+  - the face's model-sheet checks, held where they start (no further from their targets: the face fit owns them).
+- **Weights.** Each term is weighted by the manifest's authority map: full where its reference is the authority for its
+  measure (the sheet for the body's and hair's silhouettes, the generated shape for the hair's shape, the outfit graph
+  for the pieces), a quarter otherwise. Each knob is pulled toward its template default, one residual per four steps
+  away.
+- **The guard.** A graded check that reads worse than at the start has its terms weighed four times and its pieces
+  fitted again.
+- **The optimiser.** A bounded trust region on soft-L1 residuals with a finite-difference Jacobian at one knob step,
+  then a pattern search. It follows charkit.fitkit's conventions (tool/fit) and swaps to fitkit when that lands.
 - **The palette.** `--palette` sets the skin and hair colours to the sheet's lit and shade tones. Each class of
-  garment colours moves by the one shift that minimises its dE00, kept inside its colour family. A class that doesn't
-  read better, re-measured, keeps its colours.
+  garment colours moves by the one shift that minimises its dE00 (each tone in its own PASS limit), kept inside its
+  colour family. A class that doesn't read better, re-measured, keeps its colours.
 - **What it writes.** `DIR/NAME.bodyfit.json` is the fitted spec. `bodyfit_report.md` has every check before and after,
-  the knobs per piece and what still fails.
+  the knobs per piece, what the outfit graph set, and what still fails. `--write-spec` writes the fitted knobs (and
+  the added pieces) into SPEC.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

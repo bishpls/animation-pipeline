@@ -4,8 +4,9 @@ object by object.
     blender -b --factory-startup --python charkit/bodyeval_blender.py -- SPEC.json OUT.npz
 
 Per object (key prefix `o/NAME/`): base (world verts of the mesh as built, before modifiers), loops / starts / counts,
-evaluated (world verts with modifiers, the outline and garment mask off, as charkit.trace hashes them), hash (the trace's
-geometry hash of the evaluated mesh). Also: the landmarks the QA bands use, the generated shape's alignment, the hair
+evaluated (world verts with modifiers, the outline and garment mask off, as charkit.trace hashes them) with its
+ev_loops / ev_starts / ev_counts and ev_mats (material index per polygon; matnames), hash (the trace's geometry hash of
+the evaluated mesh). Also: the landmarks the QA bands use, the generated shape's alignment, the hair
 selection before Blender's smoothing (hair_sel_V / hair_sel_F) and the MeshVolume's radius grid.
 """
 import json, os, sys, time
@@ -35,9 +36,12 @@ for o in qa3d._character_objects(S):
     o.data.polygons.foreach_get('loop_start', st); o.data.polygons.foreach_get('loop_total', ct)
     lv = np.empty(len(o.data.loops), np.int64); o.data.loops.foreach_get('vertex_index', lv)
     out['o/%s/loops' % o.name], out['o/%s/starts' % o.name], out['o/%s/counts' % o.name] = lv, st, ct
-    V, F = trace.mesh_arrays(o)
+    V, F, mats = trace.mesh_arrays(o, materials=True)
     out['o/%s/evaluated' % o.name] = V
     out['o/%s/hash' % o.name] = np.array(trace.geometry_hash(V, F))
+    out['o/%s/ev_loops' % o.name], out['o/%s/ev_starts' % o.name], out['o/%s/ev_counts' % o.name] = F
+    out['o/%s/ev_mats' % o.name] = mats
+    out['o/%s/matnames' % o.name] = np.array([(m.name if m else '').split('.')[0] for m in o.data.materials] or [''])
     out['o/%s/base_hash' % o.name] = np.array(trace.geometry_hash(out['o/%s/base' % o.name], (lv, st, ct)))
 A = S.character['data']; Hd = A['head']
 lm = dict(L=Hd['L'], centre=list(Hd['centre']), chin=float(Hd['centre'][2] - Hd['H'].chin),

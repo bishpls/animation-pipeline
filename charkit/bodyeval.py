@@ -539,6 +539,8 @@ def garment_piece(A, s, nrm=None, dom=None):
         G = gm.collar(A, s, nrm)
     elif k == 'bow':
         G = gm.bow(A, s)
+    elif k == 'panel':
+        G = gm.panel(A, s)
     else:
         raise ValueError(k)
     lit, shade, tex = garment_tones(A, s, G)
@@ -610,6 +612,12 @@ def garment_tones(A, s, G):
         flat = np.asarray(G['sole'], bool); second = np.asarray(s.get('sole_color', (0.26, 0.21, 0.21)), float)
     elif k == 'collar':
         flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
+    elif k == 'panel' and s.get('hem') == 'stepped':
+        img = gm.stepped_hem(colors=(tuple(col), s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
+                             steps=s.get('steps', 6))
+        U = np.asarray(G['uv'], float)
+        uvc = [U[list(f)] for f in F]
+        fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
     elif k == 'skirt':
         flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
         pw = s.get('panel', 0.0) / (2 * np.pi)
@@ -675,14 +683,24 @@ def character_parts(A, hide=None, spec=None):
     F = A['faces']
     keep = np.ones(len(F), bool) if hide is None or not hide.any() else \
         np.array([not any(hide[v] for v in f) for f in F])
-    polys = [f for f, k in zip(F, keep) if k]
-    fm = np.asarray(A['fmat'])[keep]
     sk = {k: tuple(v) for k, v in spec.get('skin', {}).items()} or SKIN
     tone = {0: (sk['lit'], sk['shade'], CL['skin']), 1: (sk['lit'], sk['shade'], CL['skin']),
             2: (spec.get('cavity_color', (0.38, 0.12, 0.15)),) * 2 + (CL['line'],),
             3: (spec.get('eyeline_color', (0.22, 0.12, 0.10)),) * 2 + (CL['line'],)}
-    lit = np.array([tone[m][0] for m in fm], float); shd = np.array([tone[m][1] for m in fm], float)
-    out = [Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys, lit, shd, np.array([tone[m][2] for m in fm]))]
+    out = []
+    # the skin as it renders (the garments' mask on) and, for the face measures that read it without the mask (qa3d.sheet),
+    # the whole skin (roles 'masked' and 'unmasked': each measure reads one, charkit.bodymeasure.objects)
+    for sel, role in ((keep, 'masked'), (np.ones(len(F), bool), 'unmasked')):
+        if role and keep.all():
+            break
+        polys = [f for f, k in zip(F, sel) if k]
+        fm = np.asarray(A['fmat'])[sel]
+        lit = np.array([tone[m][0] for m in fm], float); shd = np.array([tone[m][1] for m in fm], float)
+        out.append(Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys, lit, shd,
+                        np.array([tone[m][2] for m in fm])))
+        out[-1].role = role
+    if len(out) == 1:
+        out[0].role = None
     IK = spec.get('iris')
     ir, sh = eyetex.iris(IK), eyetex.shine(IK)
     al = sh[..., 3:4]
@@ -768,7 +786,7 @@ class Geometry:
                 shd = shd if shd is not None else lit
                 cls = cls if cls is not None else family(lit) if p.lit is not None else np.full(len(lit), CL['other'])
                 objs.append(dict(name=p.name, group=p.group, V=V, F=T, label=np.asarray(cls)[pid], lit=lit[pid],
-                                 shade=shd[pid]))
+                                 shade=shd[pid], role=getattr(p, 'role', None)))
             iris = np.array([p.V.mean(0) for p in self.parts if p.name.startswith('iris_')])
             self._bundles[key] = dict(objects=objs, landmarks=dict(self.landmarks, iris=iris), target=self.target)
         return self._bundles[key]
@@ -1022,6 +1040,15 @@ class Evaluator:
                 self._sheet = None
         return self._sheet
 
+    def face_checks(self, G):
+        """qa3d's sheet_* checks (the face against the model sheet's heads) on the geometry (bodymeasure.sheet_face),
+        as qa.json names them."""
+        from . import bodymeasure
+        S = self.sheet()
+        if S is None:
+            return {}
+        return {'sheet_' + k: v for k, v in bodymeasure.sheet_face(G.bundle('viewport'), S)[1].items()}
+
     def sheet_checks(self, G, palette=True):
         """qa3d's body_* and palette_* checks against the model sheet on the geometry (bodymeasure.sheet_body and
         sheet_palette on its bundle, subdivided as the build evaluates it). -> {check: dict} named as qa.json names them."""
@@ -1052,7 +1079,7 @@ def compare_dump(G, dump):
     D = np.load(dump, allow_pickle=False)
     meta = json.loads(str(D['meta']))
     out = {}
-    ours = {p.name: p for p in G.parts}
+    ours = {p.name: p for p in G.parts if getattr(p, 'role', None) != 'unmasked'}
     for name in meta['objects']:
         b = D['o/%s/base' % name]
         ev = D['o/%s/evaluated' % name]
@@ -1110,7 +1137,6 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
     the silhouettes pixel by pixel (qa3d's overlay), and the time per evaluation. base, knobs: evaluate that spec with
     these knob overrides instead of the build's own spec (the build made from them), so the knob paths are checked (a body
     knob composes the body onto the base's head). -> report dict (also out/validate.json)."""
-    import subprocess
     from . import cli, trace
     build = _abs(build)
     qa = json.load(open(os.path.join(build, 'qa', 'qa.json')))
@@ -1120,9 +1146,9 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
     dump = os.path.join(out, 'dump.npz')
     if not os.path.exists(dump):
         log('dumping the Blender geometry ...')
-        r = subprocess.run([cli.BLENDER, '-b', '--factory-startup', '--python',
-                            os.path.join(ROOT, 'charkit', 'bodyeval_blender.py'), '--', spec_path, dump],
-                           capture_output=True, text=True)
+        from . import procs
+        r = procs.run([cli.BLENDER, '-b', '--factory-startup', '--python',
+                       os.path.join(ROOT, 'charkit', 'bodyeval_blender.py'), '--', spec_path, dump], out, 'bodyeval dump')
         if 'CHARKIT_BODYEVAL_DUMP' not in r.stdout:
             raise SystemExit('the Blender dump failed:\n' + (r.stdout + r.stderr)[-3000:])
     rep = {'build': build, 'tolerances': TOL, 'base': base, 'knobs': knobs}
@@ -1327,12 +1353,18 @@ def subdivide(V, polys, uv=None, limit=True):
     e_next = einv                                                         # the edge from this corner to the next
     e_prev = einv[prv]                                                    # the edge into this corner
     quads = np.stack([lv, nv + nf + e_next, nv + fid, nv + nf + e_prev], 1)
+    # each child quad starts where Blender's does (corner c of its polygon: rotated by -c), so a fan triangulation
+    # (faceqa.triangles) cuts it along the same diagonal as Blender's evaluated mesh
+    corner = np.arange(len(lv)) - st[fid]
+    rot = (-corner) % 4
+    quads = quads[np.arange(len(quads))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
     parent = fid
     UV = None
     if uv is not None:
         U = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
         fuv = np.zeros((nf, 2)); np.add.at(fuv, fid, U); fuv /= cnt[:, None]
         UV = np.stack([U, (U + U[nxt]) / 2, fuv[fid], (U + U[prv]) / 2], 1)
+        UV = UV[np.arange(len(UV))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
     if limit:
         NV = limit_positions(NV, quads)
     return NV, quads, parent, UV
