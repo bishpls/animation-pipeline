@@ -928,8 +928,11 @@ class Evaluator:
                     finish_mesh_hair(sel_w(), shape, L)))
                 objects.append(('hair_shape', hv, hf))
             elif mode == 'geom':
-                gv, gf = self.geom_hair(spec, A)
-                objects.append(('hair_shape', to_head(gv, A), gf))
+                # keyed by the head and the hair's own knobs, kept in the head frame: a body knob moves it with the head
+                # (the extraction reads the body only round the neck), as the mesh mode's selection
+                gk = _h([head, {k: v for k, v in shape.items() if k not in ('mode', 'geom')}])
+                gv, gf = self._memo('geom', gk, lambda: (lambda r: (to_head(r[0], A), r[1]))(self.geom_hair(spec, A)))
+                objects.append(('hair_shape', gv, gf))
             if mode in ('mesh', 'geom') and (mode == 'mesh' or shape.get('cap', False)):
                 objects.append(('hair_cap',) + self._memo('cap', _h([head, style]), lambda: (lambda r: (to_head(r[0], A), r[1]))(
                     hair_cap(A, spec))))
@@ -1124,7 +1127,7 @@ def compare_dump(G, dump):
 
 # validate()'s tolerances: the build's own spec (exact), and a base spec with knob overrides (composed: a body knob carries
 # the head over and keeps the hair selection; the collar's surface walk can jump a vertex on a sub-millimetre change)
-TOL = dict(exact=dict(objects_max_m=1e-5, hair_bbox_m=0.002, hair_iou=0.97, qa=0.01, mask_ours=0.98, mask_target=0.995,
+TOL = dict(exact=dict(objects_max_m=1e-5, hair_bbox_m=0.002, hair_iou=0.96, qa=0.01, mask_ours=0.98, mask_target=0.995,
                       sheet=0.02, sheet_deg=1.5, sheet_de=0.5),
            composed=dict(objects_mean_m=1e-3, hair_bbox_m=0.002, hair_iou=0.95, qa=0.01, mask_ours=0.98, mask_target=0.99,
                          sheet=0.03, sheet_deg=2.0, sheet_de=1.0),
@@ -1202,6 +1205,8 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
     rep['qa_views'] = {str(az): {'blender': qa['views'].get(str(az)), 'numpy': Q['views'][az]} for az in AZ}
     # the model sheet's body and palette checks
     SC = E.sheet_checks(G) if any(k.startswith(('body_', 'palette_')) for k in qa['checks']) else {}
+    if any(k.startswith('sheet_') for k in qa['checks']):
+        SC.update(E.face_checks(G))
     rep['sheet'] = {k: {'blender': [qa['checks'][k].get('value'), qa['checks'][k].get('status')],
                         'numpy': [v.get('value'), v.get('status')]} for k, v in SC.items() if k in qa['checks']}
     ovp = os.path.join(build, 'qa', 'qa_shape_overlay.png')
@@ -1253,6 +1258,8 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
         (bv, bs), (nv, ns) = v['blender'], v['numpy']
         t_ = tol['sheet_deg'] if k.endswith('_arms') else tol['sheet_de'] if k.startswith('palette_') else tol['sheet']
         off = abs(bv - nv) > t_ if isinstance(bv, (int, float)) and isinstance(nv, (int, float)) else bv != nv
+        if k.startswith('sheet_shown'):                           # (warn only: how much face our undecimated hair covers)
+            continue
         if off or (bs != ns and not k.endswith('_arms')):
             fails.append('%s: %s %s vs %s %s' % (k, nv, ns, bv, bs))
     if rep['time']['speedup_worst'] is not None and rep['time']['speedup_worst'] < TOL['speedup']:

@@ -2,51 +2,57 @@
 shape's silhouettes choose the body's proportions and rest pose, each garment piece's cut and the hair's extent, measured
 by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation instead of a Blender build.
 
-    python -m charkit bodyfit SPEC [--out DIR] [--pieces body+skirt+boots,details,hair] [--palette] [--no-outfit]
-                                   [--budget N] [--write-spec]
+    python -m charkit bodyfit SPEC [--out DIR] [--pieces figure,details,hair] [--palette] [--no-outfit] [--no-draft]
+                                   [--budget N] [--workers N] [--baseline QA.json] [--write-spec]
+        (--no-draft: the outfit graph's ties and extents without its draft as the start: to continue a fit)
 
   1. resolve the spec as `build` does and measure it as the QA does (every shape_*, body_*, sheet_* and palette_*
      check, and each outfit piece's extent per view); start from the outfit graph's draft (charkit.outfit, the
-     manifest's `outfit_graph`): the pieces the spec's list lacks added, its measured first guesses for the fit's knobs;
-  2. piece by piece (the figure: the body with the skirt, its panels and the boots, as where the legs show depends on
-     the hem; then the details: sleeves, cuffs, waistband, collar, bow; then the hair, its mode ('mesh' or 'geom')
-     chosen first by its terms' cost; a+b fits pieces together), least
-     squares over the knobs against all their terms at once: the sheet's four views, the generated shape's six and the
-     pieces' extents against the outfit graph's, so a fix in one view that breaks another costs. Each term is weighted
-     by the manifest's authority map: full weight where its reference is the authority for its measure, a quarter
-     otherwise. Each knob is pulled toward its template default (a residual of one per PRIOR steps away), and the
-     face's model-sheet checks are held where they start (the face fit's). A check that reads worse than at the start
-     is weighed GUARD times and its pieces fitted again;
-  3. --palette: the colour knobs set to the sheet's palette (charkit.paletteqa's tones), each class's knobs solved in
-     CIEDE2000;
-  4. write DIR/NAME.bodyfit.json (the resolved spec with the fitted knobs) and DIR/bodyfit_report.json and .md: every
-     check before and after, the knobs per piece (and which ended at a bound), and what still fails and why.
-     --write-spec writes the fitted knobs (and the added pieces) back into SPEC.
+     manifest's `outfit_graph`): the pieces the spec's list lacks added, its measured first guesses for the fit's knobs,
+     and the knobs of attached pieces tied (tie: a skirt hung from the waistband shares its waist line);
+  2. the sensitivity table (charkit.fitkit's SCHEMA) of every knob, for the triage;
+  3. group by group, charkit.fitkit.optimise: the figure (the body with the skirt, its panels and the boots, as where
+     the legs show depends on the hem), then the details (sleeves, cuffs, waistband, collar, bow), then the hair (its
+     mode, 'mesh' or 'geom', chosen first by its terms' cost). Least squares over the group's knobs against all its terms
+     at once: the sheet's four views, the generated shape's six and the pieces' extents against the outfit graph's, so a
+     fix in one view that breaks another costs. Each term is weighted by the manifest's authority map, each knob pulled
+     toward its template default, every term kept in the status band it starts in (or has in --baseline's QA), and the
+     face's model-sheet checks held where they start (the face fit owns them). fitkit.guard then scales a group's change
+     back while a check no term aims at reads worse;
+  4. --palette: the colour knobs set to the sheet's palette (charkit.paletteqa's tones), each class's knobs solved in
+     CIEDE2000, and the garments' shared shade multiplier;
+  5. write DIR/NAME.bodyfit.json (the resolved spec with the fitted knobs), DIR/sensitivity.json and
+     DIR/bodyfit_report.json and .md: every check before and after, the knobs per group (and which ended at a bound),
+     and the triage of what still fails (needs a knob / knob at bound / trade-off). --write-spec writes the fitted knobs
+     (and the added pieces) back into SPEC.
 
-The terms follow charkit.fitkit's conventions (tool/fit): a residual in tolerances, a hinge beyond it and a pull to the
-template default. Until fitkit is on the integration branch, `optimise` here is a small trust-region least-squares fit with a
-pattern-search polish.
+The knobs and terms are charkit.fitkit's (the face fit's machinery), with bodyeval's dotted paths so garment pieces and
+mirror pairs can be addressed; declare() and fit() have charkit.facefit's interface.
 """
 import copy, json, os, time
 
 import numpy as np
 
+from . import fitkit
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HINGE = 2.0                     # beyond its tolerance a residual counts again, this many times (fitkit's)
-PRIOR = 4.0                     # the pull toward the template default: (x - default) / (PRIOR steps), one residual each
-LOSS_SCALE = 3.0                # soft-L1 above this many tolerances
-AUTHORITY = {'body_silhouette': 'sheet', 'hair_silhouette': 'sheet', 'hair_shape': 'trellis', 'palette': 'sheet'}
+AUTHORITY = {'body_silhouette': 'sheet', 'hair_silhouette': 'sheet', 'hair_shape': 'trellis', 'palette': 'sheet',
+             'outfit_pieces': 'outfit_graph'}
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
+FIT_GROUP = {'body': 'figure', 'skirt': 'figure', 'boots': 'figure', 'details': 'details', 'hair': 'hair'}
+SCHEDULE = ('figure', 'details', 'hair')        # the figure's pieces together: where the legs show depends on the hem
+FIGURE = ('body', 'skirt', 'boots')
 
 
 # ------------------------------------------------------------------------------------------------------------ knobs
-class Knob:
-    """a knob the fit owns: its name, the spec paths it sets (a left/right pair moves together), the template default, a
-    step (the finite difference and the unit of the search), bounds and the piece it belongs to. fitkit.Knob's fields,
-    with bodyeval's dotted paths (list items by name) so garment pieces can be addressed."""
+class Knob(fitkit.Knob):
+    """fitkit.Knob over several spec paths (a left/right pair, a tied child piece), by bodyeval's dotted paths (list items
+    by name, so garment pieces can be addressed). group: the piece it belongs to (body, skirt, boots, details, hair);
+    fit() moves it to its fit group (FIT_GROUP) and keeps the piece."""
 
     def __init__(self, name, paths, default, step, bounds, group, signs=None, offsets=None):
-        self.name, self.paths, self.default, self.step, self.bounds, self.group = name, list(paths), default, step, tuple(bounds), group
+        super().__init__(name, (), default, step, bounds, group)
+        self.paths, self.piece = list(paths), group
         self.signs = list(signs) if signs else [1] * len(self.paths)     # a mirrored pair: -1 on the other side (azimuths)
         self.offsets = list(offsets) if offsets else [0.0] * len(self.paths)   # a tied piece: its offset from the knob
 
@@ -60,12 +66,9 @@ class Knob:
         for p, sg, o in zip(self.paths, self.signs, self.offsets):
             set_knob(spec, p, round(float(value) * sg + o, 5))
 
-    def at_bound(self, x, eps=1e-6):
-        lo, hi = self.bounds
-        return 'lower' if x <= lo + eps * (hi - lo) else 'upper' if x >= hi - eps * (hi - lo) else None
-
     def declare(self):
-        return {'paths': self.paths, 'default': self.default, 'step': self.step, 'bounds': list(self.bounds), 'group': self.group}
+        return {'paths': self.paths, 'default': self.default, 'step': self.step, 'bounds': list(self.bounds),
+                'group': self.group, 'piece': self.piece}
 
 
 def _pairs(spec, kind):
@@ -179,86 +182,69 @@ def tie(K, spec, graph):
                 pk.paths.append(p); pk.signs.append(sg)
                 pk.offsets.append(round(float(get_knob(spec, p, ck.default)) - v * sg, 5))
         if ck.group in FIGURE and pk.group not in FIGURE:
-            pk.group = ck.group                          # (the skirt's hem moves with the waist: fitted with the figure)
+            pk.group = pk.piece = ck.group               # (the skirt's hem moves with the waist: fitted with the figure)
         drop.add(ck.name)
     return [k for k in K if k.name not in drop]
 
 
-FIGURE = ('body', 'skirt', 'boots')
-
-
 # ------------------------------------------------------------------------------------------------------------ terms
-class Term:
-    """one graded check's residual (fitkit.Term's fields): 'abs' v / tol, 'ratio' (v - 1) / tol, 'floor' (an IoU):
-    max(0, floor - v) / tol; the measure it belongs to and the reference that measured it (the authority map weights it),
-    its view and the piece (group) it is fitted with."""
-
-    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None, scale=1.0):
-        self.check, self.sub, self.kind, self.tol = check, sub, kind, tol
-        self.measure, self.ref, self.view, self.group, self.floor = measure, ref, view, group, floor
-        self.scale = scale                                       # a share of the weight (a piece's views share one)
-
-    @property
-    def name(self):
-        return self.check + ('.' + self.sub if self.sub else '')
+class Term(fitkit.Term):
+    """fitkit.Term with one more reading, 'hold' (floor = (target, start value)): no further from its target than at the
+    start, max(0, |v - target| - |v0 - target|) / tol (a check another fit owns, kept)."""
 
     def residual(self, checks):
-        c = checks.get(self.check) or {}
-        v = c.get('value')
-        if c.get('status') in ('SKIPPED', None) or not isinstance(v, (int, float)) or isinstance(v, bool):
-            return 3.0, None
-        if self.kind == 'ratio':
-            return (v - 1) / self.tol, v
-        if self.kind == 'floor':
-            return max(0.0, self.floor - v) / self.tol, v
-        if self.kind == 'hold':                                  # no further from its target than at the start
-            t, v0 = self.floor
-            return max(0.0, abs(v - t) - abs(v0 - t)) / self.tol, v
-        return v / self.tol, v
+        if self.kind != 'hold':
+            return super().residual(checks)
+        v = self.value(checks)
+        if v is None:
+            return fitkit.MISSING, None
+        t, v0 = self.floor
+        return float(max(0.0, abs(v - t) - abs(v0 - t)) / self.tol), v
+
+
+def _iou_term(check, pw, measure, ref, view, group, weight=None):
+    """an IoU read as a residual toward 1: its tolerance the PASS line's distance from 1 (1 = PASS), its WARN line past
+    it."""
+    p, w = pw
+    return Term(check, None, 'floor', 1 - p, measure, ref, view, group, floor=1.0, warn=(1 - w) / (1 - p), weight=weight)
 
 
 def terms(spec):
     """the checks the body fit answers to, per piece: the sheet's body checks in every view (lengths to 0.08 L, widths
-    to 8 %, IoUs up to their PASS, the arms' angle to 3 degrees), the generated shape's IoUs per band (a quarter weight
-    for the body, whose silhouette the sheet decides; full for the hair's shape, which the generated shape decides)."""
+    to 8 %, IoUs toward 1 with their PASS line at 1, the arms' angle to 3 degrees), the generated shape's IoUs (a
+    quarter weight for the body, whose silhouette the sheet decides; full for the hair's shape, which the generated shape
+    decides), each with its WARN line (fitkit keeps every term in the status band it starts in)."""
     from .bodyqa import LIMITS as B
     from .qa3d import LIMITS as Q
     T = []
-    iou_floor = lambda key: (B[key][0], B[key][0] - B[key][1])
+    lw, ww = B['length'][1] / B['length'][0], B['width'][1] / B['width'][0]
     for v in VIEWS:
-        body = [('feet', 'abs', B['length'][0]), ('iou', 'floor', iou_floor('iou')), ('iou_skin', 'floor', iou_floor('iou_part'))]
+        T += [Term('body_%s_feet' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'body', warn=lw),
+              _iou_term('body_%s_iou' % v, B['iou'], 'body_silhouette', 'sheet', v, 'body'),
+              _iou_term('body_%s_iou_skin' % v, B['iou_part'], 'body_silhouette', 'sheet', v, 'body')]
         if v in ('front', 'back'):
-            body += [('leg', 'abs', B['length'][0]), ('arms', 'abs', 3.0)]
-        for chk, kind, tol in body:
-            fl, tl = tol if kind == 'floor' else (None, tol)
-            T.append(Term('body_%s_%s' % (v, chk), None, kind, tl, 'body_silhouette', 'sheet', v, 'body', fl))
-        skirt = [('skirt_width', 'ratio', B['width'][0]), ('hem', 'abs', B['length'][0]),
-                 ('iou_outfit', 'floor', iou_floor('iou_part'))]
+            T += [Term('body_%s_leg' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'body', warn=lw),
+                  Term('body_%s_arms' % v, None, 'abs', 3.0, 'body_silhouette', 'sheet', v, 'body', warn=2.0)]
+        T += [Term('body_%s_skirt_width' % v, None, 'ratio', B['width'][0], 'body_silhouette', 'sheet', v, 'skirt', warn=ww),
+              Term('body_%s_hem' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'skirt', warn=lw),
+              _iou_term('body_%s_iou_outfit' % v, B['iou_part'], 'body_silhouette', 'sheet', v, 'skirt')]
         if v != 'profile':
-            skirt.append(('hem_mid', 'abs', B['length'][0]))
-        for chk, kind, tol in skirt:
-            fl, tl = tol if kind == 'floor' else (None, tol)
-            T.append(Term('body_%s_%s' % (v, chk), None, kind, tl, 'body_silhouette', 'sheet', v, 'skirt', fl))
+            T.append(Term('body_%s_hem_mid' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'skirt', warn=lw))
+            T.append(Term('body_%s_sleeves' % v, None, 'ratio', B['width'][0], 'body_silhouette', 'sheet', v, 'details',
+                          warn=ww))
         if v in ('front', 'back'):
-            T.append(Term('body_%s_boot' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'boots'))
-        if v != 'profile':
-            T.append(Term('body_%s_sleeves' % v, None, 'ratio', B['width'][0], 'body_silhouette', 'sheet', v, 'details'))
-        for chk, kind, tol in (('hair_length', 'abs', B['length'][0]), ('hair_width', 'ratio', B['width'][0]),
-                               ('iou_hair', 'floor', iou_floor('iou_part')), ('top', 'abs', B['length'][0])):
-            fl, tl = tol if kind == 'floor' else (None, tol)
-            T.append(Term('body_%s_%s' % (v, chk), None, kind, tl, 'hair_silhouette', 'sheet', v, 'hair', fl))
+            T.append(Term('body_%s_boot' % v, None, 'abs', B['length'][0], 'body_silhouette', 'sheet', v, 'boots', warn=lw))
+        T += [Term('body_%s_hair_length' % v, None, 'abs', B['length'][0], 'hair_silhouette', 'sheet', v, 'hair', warn=lw),
+              Term('body_%s_hair_width' % v, None, 'ratio', B['width'][0], 'hair_silhouette', 'sheet', v, 'hair', warn=ww),
+              _iou_term('body_%s_iou_hair' % v, B['iou_part'], 'hair_silhouette', 'sheet', v, 'hair'),
+              Term('body_%s_top' % v, None, 'abs', B['length'][0], 'hair_silhouette', 'sheet', v, 'hair', warn=lw)]
     for band, grp in (('torso', 'body'), ('legs', 'body'), ('skirt', 'skirt')):
-        T.append(Term('shape_iou_' + band, None, 'floor', 0.15, 'body_silhouette', 'trellis', 'shape', grp, 0.8))
-    T.append(Term('shape_iou', None, 'floor', Q['shape_iou'][0] - Q['shape_iou'][1], 'body_silhouette', 'trellis', 'shape',
-                  'body', Q['shape_iou'][0]))
-    T.append(Term('ref_iou', None, 'floor', Q['ref_iou'][0] - Q['ref_iou'][1], 'body_silhouette', 'key3d', 'front', 'body',
-                  Q['ref_iou'][0]))
-    T.append(Term('shape_iou_hair', None, 'floor', Q['shape_iou_hair'][0] - Q['shape_iou_hair'][1], 'hair_shape', 'trellis',
-                  'shape', 'hair', Q['shape_iou_hair'][0]))
+        T.append(_iou_term('shape_iou_' + band, Q['shape_iou'], 'body_silhouette', 'trellis', 'shape', grp))
+    T.append(_iou_term('shape_iou', Q['shape_iou'], 'body_silhouette', 'trellis', 'shape', 'body'))
+    T.append(_iou_term('ref_iou', Q['ref_iou'], 'body_silhouette', 'key3d', 'front', 'body'))
+    T.append(_iou_term('shape_iou_hair', Q['shape_iou_hair'], 'hair_shape', 'trellis', 'shape', 'hair'))
     return T
 
-
-GUARD = 4.0                     # the weight a term gets when its check read worse than at the start (the guard pass)
 
 
 FACE_HOLD = {'sheet_width': 1.0, 'sheet_neck_to_jaw': 1.0, 'sheet_profile': 0.0, 'sheet_profile_chin': 0.0,
@@ -275,21 +261,24 @@ def hold_terms(before):
     for k, target in FACE_HOLD.items():
         v0 = (before.get(k) or {}).get('value')
         if isinstance(v0, (int, float)):
-            T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', 'body', (target, v0)))
+            T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', 'body', (target, v0),
+                          weight=1.0))
     return T
 
 
-def hair_mode(ev, spec, T, authority=None, log=print):
+def hair_mode(pool, spec, T, authority=None, log=print):
     """the generated hair's mode (hair.shape.mode, a categorical knob): 'mesh' (the generated surface selected and
     smoothed) or 'geom' (charkit.geom's closed hair), the one whose hair terms cost less at the spec. -> (spec, info)."""
     shape = (spec.get('hair') or {}).get('shape') or {}
     if shape.get('mode') not in ('mesh', 'geom'):
         return spec, None
     Th = [t for t in T if t.group == 'hair']
-    costs = {}
+    specs = []
     for mode in ('mesh', 'geom'):
         S = copy.deepcopy(spec); S['hair']['shape']['mode'] = mode
-        costs[mode] = round(cost(residuals(ev.checks(S, 'hair'), Th, authority)), 3)
+        specs.append(S)
+    cs = pool.map([(S, 'hair', True) for S in specs])
+    costs = {m: round(fitkit.cost(fitkit.residuals(c, Th, authority), loss='soft_l1'), 3) for m, c in zip(('mesh', 'geom'), cs)}
     best = min(costs, key=costs.get)
     log('bodyfit: hair mode %s' % costs)
     if best != shape.get('mode'):
@@ -320,9 +309,9 @@ def piece_terms(extents, graph):
         for v in vs:
             for e in EDGES:
                 name = 'piece_%s_%s_%s' % (pid, v, e)
-                T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, g, scale=1.0 / len(vs)))
+                T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, g, weight=1.0 / len(vs)))
                 if types[pid] in ('sleeve', 'sleeve cuff', 'cuff') and e in ('left', 'right'):
-                    T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, 'body', scale=0.5 / len(vs)))
+                    T.append(Term(name, None, 'abs', PIECE_TOL, 'outfit_pieces', 'outfit_graph', v, 'body', weight=0.5 / len(vs)))
     return T
 
 
@@ -359,45 +348,6 @@ def outfit_start(spec, graph, log=print):
     return S, changed
 
 
-def residuals(checks, terms, authority=None, protect=()):
-    """-> [dict(name, view, measure, ref, group, r (in tolerances), w (weight), value)]; a protected check's terms weigh
-    GUARD times more."""
-    A = authority or AUTHORITY
-    out = []
-    for t in terms:
-        r, v = t.residual(checks)
-        w = (1.0 if A.get(t.measure, t.ref) == t.ref else 0.25) * (GUARD if t.check in protect else 1.0) * t.scale
-        out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, group=t.group, r=float(r), value=v,
-                        tol=t.tol, w=w))
-    return out
-
-
-RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
-
-
-def regressions(before, after):
-    """graded checks whose status got worse, as the merge gate reads them (the QA's; the per-piece extents are the fit's
-    own): {check: [before, after]}."""
-    return {k: [b['status'], after[k]['status']] for k, b in before.items()
-            if not k.startswith('piece_') and b.get('status') in RANK and (after.get(k) or {}).get('status') in RANK
-            and RANK[after[k]['status']] > RANK[b['status']]}
-
-
-def vector(res, x=None, ks=()):
-    r = np.array([t['r'] for t in res]); w = np.sqrt([t['w'] for t in res])
-    parts = [w * r, w * HINGE * np.sign(r) * np.maximum(0, np.abs(r) - 1)]
-    if x is not None and len(ks):
-        parts.append(np.array([(xi - k.default) / (PRIOR * k.step) for xi, k in zip(x, ks)]))
-    return np.concatenate(parts)
-
-
-def cost(res, x=None, ks=()):
-    f = vector(res, x, ks)
-    c = LOSS_SCALE
-    return float(0.5 * np.sum(c * c * 2 * (np.sqrt(1 + (f / c) ** 2) - 1)))
-
-
-# ------------------------------------------------------------------------------------------------------------ checks
 class BodyChecks:
     """the fit's evaluator (fitkit's protocol): checks(spec, group, fine) -> {check name: check} as qa.json names them:
     shape_* and ref_iou (qa3d's silhouettes; fine: the render's subdivision, else the viewport's), body_* (the model
@@ -420,7 +370,7 @@ class BodyChecks:
             else:
                 out[k] = {'value': v, 'status': 'INFO'}
         out.update(self.E.sheet_checks(G, palette=group in ('all', 'palette')))
-        if group in ('all', 'body') or 'body' in group.split('+'):
+        if group in ('all', 'figure'):
             out.update(self.E.face_checks(G))
         if self.graph is not None and self.E.sheet() is not None and group != 'palette':
             from . import bodymeasure
@@ -429,149 +379,128 @@ class BodyChecks:
 
 
 # ------------------------------------------------------------------------------------------------------------ the fit
-class Budget(Exception):
-    pass
+def declare(spec=None):
+    """what the body fit owns and answers to (facefit.declare's shape): {'knobs': {name: {paths, default, step, bounds,
+    group, piece}}, 'terms': [...]} (for a spec: its garments' pieces and the outfit graph's ties and extents)."""
+    from . import bodymeasure
+    spec = spec or {}
+    graph = bodymeasure.load_graph(spec) if spec.get('ref') else None
+    K = _grouped(tie(knobs(spec), spec, graph))
+    return {'knobs': {k.name: k.declare() for k in K}, 'terms': [t.declare() for t in _grouped(terms(spec))]}
 
 
-def optimise(ev, spec, ks, T, group, authority=None, budget=None, protect=(), log=print):
-    """least squares over one piece's knobs and terms from the spec's values: a trust region (scipy, bounded, soft-L1)
-    on a Jacobian by finite differences at one knob step, then a pattern search (each knob one and half a step either way
-    while the cost drops). Deterministic. -> (spec with the fitted knobs, info)."""
-    from scipy.optimize import least_squares
-    groups = set(group.split('+'))
-    ks = [k for k in ks if k.group in groups]
-    T = [t for t in T if t.group in groups]
-    st = np.array([k.step for k in ks])
-    lo = np.array([k.bounds[0] for k in ks]); hi = np.array([k.bounds[1] for k in ks])
-    x0 = np.clip(np.array([k.get(spec) for k in ks]), lo, hi)
-    ulo, uhi = (lo - x0) / st, (hi - x0) / st
-    memo, hist = {}, []
-    budget = budget or 12 * len(ks) + 24
-
-    def spec_at(u):
-        S = copy.deepcopy(spec)
-        for k, v in zip(ks, x0 + np.asarray(u) * st):
-            k.put(S, v)
-        return S
-
-    def res(u):
-        key = tuple(np.round(u, 6))
-        if key not in memo:
-            if len(memo) >= budget:
-                raise Budget()
-            memo[key] = residuals(ev.checks(spec_at(u), group), T, authority, protect)
-            c = cost(memo[key], x0 + np.asarray(u) * st, ks)
-            hist.append({'x': (x0 + np.asarray(u) * st).round(4).tolist(), 'cost': round(c, 4)})
-            log('  %-8s cost %8.3f  %s' % (group, c, ' '.join('%s=%.4g' % (k.name.split('.')[-1], v)
-                                                             for k, v in zip(ks, x0 + np.asarray(u) * st))))
-        return memo[key]
-
-    def fun(u):
-        return vector(res(u), x0 + np.asarray(u) * st, ks)
-
-    def jac(u):
-        f0 = fun(u)
-        J = np.zeros((len(f0), len(u)))
-        for i in range(len(u)):
-            e = np.zeros(len(u)); e[i] = 1.0 if u[i] + 1 <= uhi[i] else -1.0
-            J[:, i] = (fun(u + e) - f0) / e[i]
-        return J
-
-    def c_at(u):
-        return cost(res(u), x0 + np.asarray(u) * st, ks)
-    u = np.zeros(len(ks))
-    stopped = None
-    try:
-        r = least_squares(fun, u, jac=jac, bounds=(ulo - 1e-9, uhi + 1e-9), method='trf', x_scale=1.0, loss='soft_l1',
-                          f_scale=LOSS_SCALE, max_nfev=max(3, 2 * len(ks)), xtol=1e-3, ftol=1e-3)
-        cands = [np.round(v, 6) for v in [r.x] + [np.array(k) for k in memo]]
-        u = min(cands, key=lambda v: c_at(np.clip(v, ulo, uhi)))
-        cur = c_at(u)
-        for d in (1.0, 0.5):                                             # the polish
-            moved = True
-            while moved:
-                moved = False
-                for i in range(len(u)):
-                    for sgn in (-1, 1):
-                        v = u.copy(); v[i] = np.clip(v[i] + sgn * d, ulo[i], uhi[i])
-                        if not np.allclose(v, u) and c_at(v) < cur - 1e-6:
-                            u, cur, moved = v, c_at(v), True
-    except Budget:
-        stopped = 'budget'
-        u = min((np.array(k) for k in memo), key=lambda v: c_at(v))
-    x = x0 + u * st
-    info = {'group': group, 'start': dict(zip([k.name for k in ks], x0.round(5).tolist())),
-            'fitted': dict(zip([k.name for k in ks], x.round(5).tolist())),
-            'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(ks, x) if k.at_bound(xi)},
-            'evaluations': len(memo), 'stopped': stopped, 'cost': [hist[0]['cost'], round(c_at(u), 4)], 'history': hist}
-    return spec_at(u), info
+def _grouped(items):
+    """knobs or terms moved from their piece to its fit group (FIT_GROUP), the piece kept."""
+    for x in items:
+        x.piece = getattr(x, 'piece', x.group)
+        x.group = FIT_GROUP.get(x.group, x.group)
+    return items
 
 
-SCHEDULE = ('body+skirt+boots', 'details', 'hair')   # the figure's pieces together (where the legs show depends on the hem)
-
-
-def fit(spec_path, out, pieces=SCHEDULE, palette=False, budget=None, outfit=True, log=print):
-    """fit a spec's body, garments and hair piece by piece (see the module); write the fitted spec and the report into
-    out. -> (fitted spec, report)."""
-    from . import bodyeval
+def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseline=None, palette=False, outfit=True,
+        draft=True, log=print):
+    """fit a spec's body, garments and hair (see the module) and write the fitted spec and the reports into out; the
+    interface of charkit.facefit.fit. spec: a path (resolved as `build` resolves it) or a resolved dict. budget: the
+    most evaluations per group (None: fitkit's). baseline: a QA (qa.json path or its checks) whose statuses the fit
+    mustn't worsen (default: the start's). -> (fitted spec, report)."""
+    from . import bodyeval, bodymeasure
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
-    from . import bodymeasure
-    spec = bodyeval.resolve(spec_path)
+    spec = bodyeval.resolve(spec, base) if isinstance(spec, str) else copy.deepcopy(spec)
     graph = bodymeasure.load_graph(spec) if outfit else None
-    ev = BodyChecks(spec, graph)
     authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
-    before = ev.checks(spec, 'all', fine=True)                    # the spec as it is: what the fit is judged against
-    start, drafted = (outfit_start(spec, graph, log) if graph is not None else (spec, {}))
-    K, T = tie(knobs(start), start, graph), terms(start)
-    if graph is not None:
-        T += piece_terms(bodymeasure.piece_extents(ev.E.geometry(spec=start).bundle('viewport'), ev.E.sheet(), graph, start),
-                         graph)
-    # the terms whose checks the start measures (a cut figure on the sheet has no feet, a view no sleeves)
-    at_start = ev.checks(start, 'all', fine=True) if start is not spec else before
-    T = [t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] + hold_terms(before)
-    log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
-    rep = {'spec': spec_path, 'authority': authority, 'knobs_declared': {k.name: k.declare() for k in K}, 'pieces': {},
-           'outfit_start': drafted}
-    fitted = start
-    for g in pieces:
-        if not any(k.group in g.split('+') for k in K):
-            continue
-        if 'hair' in g.split('+'):
-            fitted, rep['hair_mode'] = hair_mode(ev, fitted, T, authority, log)
-        fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget, log=log)
-        rep['pieces'][g] = {k: v for k, v in info.items() if k != 'history'}
-        log('bodyfit: %s %s' % (g, info['fitted']))
-    # the guard: a graded check that reads worse than at the start (the merge gate counts it against the fit) has its
-    # terms weighed GUARD times more and its pieces fitted again from where they are
-    after = ev.checks(fitted, 'all', fine=True)
-    reg = regressions(before, after)
-    if reg:
-        log('bodyfit: guard: %s' % reg)
-        prot = set(reg)
-        for g in [g for g in pieces if any(t.group in g.split('+') and t.check in prot for t in T)]:
-            n = sum(k.group in g.split('+') for k in K)
-            fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget or 6 * n + 12, protect=prot, log=log)
-            rep['pieces'][g + '_guard'] = {k: v for k, v in info.items() if k != 'history'}
-        rep['guard'] = {'regressed': reg}
+    workers = workers or WORKERS
+    if isinstance(baseline, str):
+        baseline = json.load(open(baseline))['checks']
+    pool = fitkit.Pool('charkit.bodyfit:BodyChecks', (spec, graph), workers)
+    rep = {'spec': spec.get('name'), 'authority': authority, 'groups': {}}
+    try:
+        before = pool.map([(spec, 'all', True)])[0]               # the spec as it is: what the fit is judged against
+        protected = dict(before); protected.update({k: v for k, v in (baseline or {}).items() if k in before})
+        start, drafted = outfit_start(spec, graph, log) if graph is not None and draft else (spec, {})
+        K, T = _grouped(tie(knobs(start), start, graph)), terms(start)
+        at_start = pool.map([(start, 'all', True)])[0] if start is not spec else before
+        if graph is not None:
+            T += piece_terms({k[6:]: v for k, v in _extents(at_start).items()}, graph)
+        T = _grouped([t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] +
+                     hold_terms(before))
+        rep.update(declare={'knobs': {k.name: k.declare() for k in K}, 'terms': [t.declare() for t in T]},
+                   outfit_start=drafted)
+        log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
+        table = fitkit.sensitivity(pool, start, [k for k in K if k.group in groups])
+        json.dump(table, open(os.path.join(out, 'sensitivity.json'), 'w'), indent=1)
+        log('bodyfit: sensitivity table (%d knobs)' % len(table['knobs']))
+        fitted = start
+        for g in groups:
+            if not any(k.group == g for k in K):
+                continue
+            if g == 'hair':
+                fitted, rep['hair_mode'] = hair_mode(pool, fitted, T, authority, log)
+                if ((fitted.get('hair') or {}).get('shape') or {}).get('mode') == 'geom':
+                    # geom's hair is cut from the generated solid by its own rules (charkit.geom.parts.hair): the mesh
+                    # mode's selection knobs re-run a 30-60 s extraction each and barely move it; left as they are
+                    log('bodyfit: hair knobs left (geom mode)')
+                    continue
+            fitted, info = fitkit.optimise(pool, fitted, K, T, g, authority, budget=budget, baseline=protected, log=log)
+            rep['groups'][g] = {k: v for k, v in info.items() if k != 'history'}
+            rep['groups'][g]['cost_history'] = [h['cost'] for h in info['history']]
+            log('bodyfit: %s %s' % (g, info['fitted']))
+        # the checks the fit doesn't aim at (the face's, the expressions, folds, scalp, ...) mustn't read worse: each
+        # group's change is scaled back while one does
+        aimed = {t.check for t in T if t.kind != 'hold'}
+        rep['guard'] = {}
+        for g in [g for g in groups if any(k.group == g for k in K)]:
+            ks = [k for k in K if k.group == g]
+            fitted, gi = fitkit.guard(pool, fitkit.with_knobs(fitted, [k.get(start) for k in ks], ks), fitted, ks, protected,
+                                      lambda c: c not in aimed and not c.startswith('piece_'), log=log)
+            rep['guard'][g] = {'kept': gi['kept'], 'regressions_at_full': gi['regressions_at_full']}
+        after = pool.map([(fitted, 'all', True)])[0]
+    finally:
+        pool.close()
     if palette:
+        ev = BodyChecks(spec, graph)
         fitted, rep['palette'] = fit_palette(ev, fitted, log=log)
-    after = ev.checks(fitted, 'all', fine=True)
-    rep['regressions'] = regressions(before, after)
-    rep['before'] = {k: [v.get('value'), v.get('status')] for k, v in before.items()}
-    rep['after'] = {k: [v.get('value'), v.get('status')] for k, v in after.items()}
-    rep['residuals'] = {'before': residuals(before, T, authority), 'after': residuals(after, T, authority)}
-    rep['still_failing'] = triage(after, T, K, fitted, authority)
-    rep['seconds'] = round(time.time() - t0, 1)
+        after = ev.checks(fitted, 'all', fine=True)
+    rep['regressions'] = fitkit.regressions(protected, after, lambda c: not c.startswith('piece_'))
+    rb, ra = fitkit.residuals(before, T, authority), fitkit.residuals(after, T, authority)
+    rep.update(before={k: [v.get('value'), v.get('status')] for k, v in before.items()},
+               after={k: [v.get('value'), v.get('status')] for k, v in after.items()},
+               residuals={'before': rb, 'after': ra},
+               knobs={k.name: {'start': k.get(start), 'fitted': k.get(fitted), 'default': k.default,
+                               'bounds': list(k.bounds), 'at_bound': k.at_bound(k.get(fitted))} for k in K},
+               triage=fitkit.triage(ra, table, K, fitted), sensitivity=os.path.join(out, 'sensitivity.json'),
+               seconds=round(time.time() - t0, 1), evaluations=sum(g['evaluations'] for g in rep['groups'].values()))
     fitted = copy.deepcopy(fitted)
-    owned = {x for g in pieces for x in g.split('+')}
-    fitted['bodyfit'] = {k.name: k.get(fitted) for k in K if k.group in owned}
+    fitted['bodyfit'] = {'by': 'charkit.bodyfit', 'knobs': {k.name: k.get(fitted) for k in K if k.group in groups}}
     name = spec.get('name', 'char')
-    json.dump(fitted, open(os.path.join(out, name + '.bodyfit.json'), 'w'), indent=1)
+    p = os.path.join(out, name + '.bodyfit.json')
+    json.dump(fitted, open(p, 'w'), indent=1)
+    rep['fitted_spec'] = p
     json.dump(rep, open(os.path.join(out, 'bodyfit_report.json'), 'w'), indent=1, default=str)
     open(os.path.join(out, 'bodyfit_report.md'), 'w').write(report_md(rep))
-    log('bodyfit: wrote %s (%.0f s)' % (os.path.join(out, name + '.bodyfit.json'), rep['seconds']))
+    log('bodyfit: wrote %s (%.0f s)' % (p, rep['seconds']))
     return fitted, rep
+
+
+WORKERS = 2                     # evaluator processes (each holds an evaluator: about 1.5 GB; the machine is shared)
+
+
+def _extents(checks):
+    """piece_checks' values back into piece_extents' shape: {piece: {view: dict(d, px)}} (px unknown: taken as enough;
+    the checks exist only where both sides showed min_px)."""
+    from .bodymeasure import EDGES
+    out = {}
+    for k, c in checks.items():
+        if not k.startswith('piece_'):
+            continue
+        for e in EDGES:
+            if k.endswith('_' + e):
+                head = k[:-len(e) - 1]
+                view = next(v for v in ('three_quarter', 'front', 'profile', 'back') if head.endswith('_' + v))
+                pid = head[len('piece_'):-len(view) - 1]
+                out.setdefault('piece_' + pid, {}).setdefault(view, {'d': [None] * 4, 'px': c.get('px', [PIECE_MIN_PX] * 2)})
+                out['piece_' + pid][view]['d'][EDGES.index(e)] = c['value']
+    return out
 
 
 # ------------------------------------------------------------------------------------------------------------ palette
@@ -707,38 +636,38 @@ def fit_palette(ev, spec, log=print):
 
 
 # ------------------------------------------------------------------------------------------------------------ report
-def triage(checks, T, K, spec, authority=None):
-    """each term still outside its tolerance: which piece owns it, its knobs' values (and bounds), the residual."""
-    out = []
-    for r in residuals(checks, T, authority):
-        if abs(r['r']) <= 1:
-            continue
-        ks = [k for k in K if k.group == r['group']]
-        out.append(dict(term=r['name'], r=round(r['r'], 3), value=r['value'], piece=r['group'],
-                        knobs={k.name: [round(k.get(spec), 4), k.at_bound(k.get(spec))] for k in ks}))
-    return out
-
-
 def report_md(rep):
-    L = ['# Body fit: %s' % rep['spec'], '', 'Seconds: %s. Authority: %s.' % (rep['seconds'], rep['authority']), '']
+    L = ['# Body fit: %s' % rep['spec'], '', 'Seconds: %s, evaluations: %s. Authority: %s.' % (
+        rep['seconds'], rep.get('evaluations'), rep['authority']), '']
+    if rep.get('outfit_start'):
+        L += ['The outfit graph\'s draft as the start: ' + ', '.join('%s %s -> %s' % (k, a, b) for k, (a, b) in
+                                                                    rep['outfit_start'].items()) + '.', '']
     L += ['## Checks before and after', '', '| check | before | after |', '| --- | --- | --- |']
     for k in sorted(rep['after']):
         b, a = rep['before'].get(k, [None, None]), rep['after'][k]
-        if b != a and a[1] in ('PASS', 'WARN', 'FAIL', 'INFO'):
+        if b != a and a[1] in ('PASS', 'WARN', 'FAIL', 'INFO') and not k.startswith('piece_'):
             L.append('| %s | %s %s | %s %s |' % (k, _f(b[0]), b[1], _f(a[0]), a[1]))
-    L += ['', '## Pieces', '']
-    for g, info in rep['pieces'].items():
-        L.append('- **%s** (%d evaluations, cost %s -> %s): %s%s' % (
-            g, info['evaluations'], info['cost'][0], info['cost'][1],
+    L += ['', '## Groups', '']
+    for g, info in rep['groups'].items():
+        L.append('- **%s** (%d evaluations%s): %s%s' % (
+            g, info['evaluations'], ', %s' % info['stopped'] if info.get('stopped') else '',
             ', '.join('%s %s -> %s' % (k, info['start'][k], v) for k, v in info['fitted'].items()),
             ('; at a bound: %s' % info['at_bound']) if info['at_bound'] else ''))
+    if rep.get('hair_mode'):
+        L.append('- hair mode: %s (costs %s)' % (rep['hair_mode']['mode'], rep['hair_mode']['costs']))
+    if rep.get('guard'):
+        L.append('- guard: %s' % rep['guard'])
+    if rep.get('palette'):
+        pal = rep['palette']
+        L.append('- palette: ' + '; '.join('%s %s -> %s%s' % (c, v['before'], v['after'], '' if v.get('kept') else ' (not kept)')
+                                           for c, v in pal.items() if isinstance(v, dict) and 'before' in v))
     if rep.get('regressions'):
         L += ['', '## Read worse than at the start', ''] + ['- %s: %s -> %s' % (k, a, b) for k, (a, b) in rep['regressions'].items()]
-    L += ['', '## Still failing', '', '| term | residual (tolerances) | piece | its knobs |', '| --- | --- | --- | --- |']
-    for t in rep['still_failing']:
-        L.append('| %s | %+.2f | %s | %s |' % (t['term'], t['r'], t['piece'],
-                                            ', '.join('%s %s%s' % (k, v[0], ' (%s bound)' % v[1] if v[1] else '')
-                                                      for k, v in t['knobs'].items())))
+    L += ['', '## Still outside tolerance (fitkit.triage)', '', '| term | residual (tolerances) | why | knobs |',
+          '| --- | --- | --- | --- |']
+    for t in rep['triage']:
+        L.append('| %s | %+.2f | %s | %s |' % (t['term'], t['r'], t['why'], ', '.join(
+            '%s %+.2f%s' % (k['knob'], k['per_step_tol'], ' (blocked)' if k.get('blocked') else '') for k in t['knobs'][:3])))
     return '\n'.join(L) + '\n'
 
 
@@ -772,9 +701,12 @@ def main(args):
     spec_path = args[0]
     name = json.load(open(bodyeval._abs(spec_path)))['name']
     out = bodyeval._abs(opt('--out', 'charkit/out/bodyfit/%s' % name))
-    pieces = opt('--pieces', ','.join(SCHEDULE)).split(',')
-    fitted, rep = fit(spec_path, out, pieces, palette='--palette' in args, outfit='--no-outfit' not in args,
-                      budget=int(opt('--budget')) if opt('--budget') else None, log=lambda *a: print(*a, flush=True))
+    pieces = [p for p in opt('--pieces', ','.join(SCHEDULE)).split(',') if p]
+    fitted, rep = fit(spec_path, out, budget=int(opt('--budget')) if opt('--budget') else None, base=opt('--base'),
+                      workers=int(opt('--workers')) if opt('--workers') else None, groups=pieces,
+                      baseline=opt('--baseline'), palette='--palette' in args, outfit='--no-outfit' not in args,
+                      draft='--no-draft' not in args,
+                      log=lambda *a: print(*a, flush=True))
     if '--write-spec' in args:
         write_fitted(spec_path, fitted, rep, pieces)
         print('wrote the fitted knobs into', spec_path)
@@ -784,8 +716,9 @@ def write_fitted(spec_path, fitted, rep, pieces=SCHEDULE):
     """a fit's result into its spec file: the knobs of the fitted pieces, the palette's colours, the pieces the outfit
     graph added."""
     from . import bodyeval
-    owned = {x for g in pieces for x in g.split('+')}
-    paths = [p for k in knobs(fitted) if k.group in owned for p in k.paths]
+    from . import bodymeasure
+    graph = bodymeasure.load_graph(fitted)
+    paths = [p for k in _grouped(tie(knobs(fitted), fitted, graph)) if k.group in pieces for p in k.paths]
     paths += (rep.get('palette') or {}).get('paths', [])
     if rep.get('hair_mode'):
         paths.append('hair.shape.mode')

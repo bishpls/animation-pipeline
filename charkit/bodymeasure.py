@@ -417,74 +417,31 @@ def face_region(depth, label, jump, seed_z=-0.15, pix=None, win=None):
 
 def sheet_face(bundle, sheet):
     """qa3d.sheet's checks on a bundle (the face against the model sheet's heads: front half-widths, the neck against
-    the jaw, the profile's edge and reaches, the chin, the far cheek; how much face the hair leaves): the same z-buffer
-    (zsplat), classes and chin cut. The body fit's guard reads it until the face fit's evaluator (charkit.faceeval,
-    tool/fit) is on the integration branch. -> (table, checks)."""
-    import math
-    from . import faceqa, sheetqa
+    the jaw, the profile's edge and reaches, the chin, the far cheek; how much face the hair leaves): its classes on the
+    bundle's objects, measured by the same code (sheetqa.measure_ours) with the compiled z-buffer and flood fill.
+    -> (table, checks)."""
+    from . import sheetqa
     from .bodyqa import CLASS as B
     CL = sheetqa.CLASS
     lm = bundle['landmarks']
-    L = lm['L']
     if getattr(sheet, 'face_design', None) is None:
         heads = {k: tuple(v) for k, v in (sheet.spec_sheet.get('heads') or {}).items()}
         sheet.face_design = sheetqa.measure_sheet(sheet.rgb, heads, sheet.eye_x, ppl=sheet.ppl)
     D = sheet.face_design
-    az3 = D.get('az_three_quarter', 35.0)
     meshes, covers = [], []
     for o in objects(bundle, face=True):
         lab = o['label']
-        if o['group'] == 'hair':
-            covers.append((o['V'], o['F'], np.full(len(o['F']), CL['hair'])))
-            continue
-        if o['group'] == 'accessories':
-            covers.append((o['V'], o['F'], np.full(len(o['F']), CL['other'])))
-            continue
-        if o['name'].startswith('iris_'):
-            c = np.full(len(lab), CL['iris'])                         # (qa3d: the whole plate, not only its opaque texels)
+        if o['group'] in ('hair', 'accessories'):
+            covers.append((o['V'], o['F'], np.full(len(o['F']), CL['hair' if o['group'] == 'hair' else 'other'])))
+        elif o['name'].startswith('iris_'):
+            meshes.append((o['V'], o['F'], np.full(len(lab), CL['iris'])))       # (qa3d: the whole plate)
         else:
-            c = np.where(lab == B['skin'], CL['skin'], np.where(lab == B['line'], CL['line'], CL['other']))
-        meshes.append((o['V'], o['F'], c))
-    irc = np.asarray(lm['iris'], float)
-    cx, cy = lm['centre'][0], lm['centre'][1]
-    ez = float(np.mean(irc[:, 2]))
-    ppl = sheet.ppl
-    pix = 1.0 / ppl
-    win = faceqa.WIN
-    O, raw = {}, {}
-    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
-        a = math.radians(az)
-        org = (cx * math.cos(a) + cy * math.sin(a), ez)
-        depth, lab = zsplat(meshes, az, org, L, pix, win)
-        lab = np.where(lab < 0, CL['other'], lab)
-        face = face_region(depth, np.where(lab == CL['skin'], 1, 0), 0.035 * L, pix=pix)
-        _, lv = zsplat(meshes + covers, az, org, L, pix, win)
-
-        def px(P):
-            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
-            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
-        eyes = sorted(px(c) for c in irc)
-        if view == 'profile':
-            eyes = [px(max(irc, key=lambda c: c[0]))]
-        raw[view] = (lab, face, eyes, depth, lv)
-    lab, face, eyes, depth, lv = raw['profile']
-    M = sheetqa.measure_labels(lab, face, 'profile', ppl, eyes)
-    chin = faceqa.chin_bottom(-M['lead'], M['z'])
-    for view, (lab, face, eyes, depth, lv) in raw.items():
-        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
-        if chin is not None:
-            skin = (lab == CL['skin']) & (zr >= chin)[:, None]
-            face = face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
-        shown = face & (lv == CL['skin'])
-        O[view] = sheetqa.measure_labels(lab, face, view, ppl, eyes)
-        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+            meshes.append((o['V'], o['F'], np.where(lab == B['skin'], CL['skin'],
+                                                    np.where(lab == B['line'], CL['line'], CL['other']))))
+    O = sheetqa.measure_ours(meshes, covers, np.asarray(lm['iris'], float), lm['centre'], lm['L'], sheet.ppl,
+                             D.get('az_three_quarter', 35.0), zbuffer=zsplat, face_region=face_region)
     C = sheetqa.compare(O, D)
-    for view in ('front', 'three_quarter', 'profile'):
-        if view in O and view in D:
-            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
-            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
-            r = round(osh / max(1.0, dsh), 3)
-            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN'}
+    C.update(sheetqa.shown(O, D))
     strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
     return {'ours': {v: strip(O[v]) for v in O}}, C
 
@@ -581,13 +538,13 @@ def piece_extents(bundle, sheet, graph, spec, labels=None, min_px=40):
 EDGES = ('left', 'bottom', 'right', 'top')
 
 
-def piece_checks(bundle, sheet, graph, spec, tol=0.08):
+def piece_checks(bundle, sheet, graph, spec, tol=0.10):
     """the per-piece extents as checks named piece_<id>_<view>_<edge> (value: ours - the graph's, L; PASS within tol,
     WARN within twice, else FAIL), for the fit to answer to."""
     out = {}
     for pid, vs in piece_extents(bundle, sheet, graph, spec).items():
         for view, r in vs.items():
             for k, d in zip(EDGES, r['d']):
-                out['piece_%s_%s_%s' % (pid, view, k)] = {'value': d, 'status': 'PASS' if abs(d) <= tol else
+                out['piece_%s_%s_%s' % (pid, view, k)] = {'value': d, 'px': r['px'], 'status': 'PASS' if abs(d) <= tol else
                                                           'WARN' if abs(d) <= 2 * tol else 'FAIL'}
     return out

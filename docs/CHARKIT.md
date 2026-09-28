@@ -555,42 +555,51 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
   shape silhouettes agree at 0.993 to 0.997 per view.
 
 **Fitting the body, garments and hair to the sheet** (`charkit/bodyfit.py`: `python -m charkit bodyfit SPEC [--pieces
-body+skirt+boots,details,hair] [--palette] [--no-outfit] [--write-spec]`).
-- **The start.** The fit starts from the outfit graph's draft (§8). It adds the pieces the spec's list lacks (on Clawd,
-  the two stepped-hem back panels the list faked with the skirt's `back`), and takes the draft's measured first guesses
-  for the knobs the fit owns: the skirt's back, the bow's size, the cuffs' widths, the collar's depths.
-- **Pieces.** Fitted in this order (a+b pieces are fitted together):
+figure,details,hair] [--palette] [--no-outfit] [--workers N] [--baseline QA.json] [--write-spec]`). It uses the face
+fit's machinery (charkit.fitkit) and has its interface (`declare()`, `fit()`), so a tune loop can register it alike.
+- **The start.** The fit starts from the outfit graph's draft (§8):
+  - it adds the pieces the spec's list lacks (on Clawd, the two stepped-hem back panels the list faked with the skirt's
+    `back`);
+  - it takes the draft's measured first guesses for the knobs the fit owns: the skirt's back, the bow's size, the
+    cuffs' widths, the collar's depths;
+  - it ties attached pieces' knobs (`tie`): a piece hung from the waistband shares its waist line (the skirt, its back
+    panels), a cuff sits at its sleeve's end, a boot's cuff at its top, each at its drafted offset.
+- **Groups.** Fitted in this order:
   - the figure: the body (head count, proportions and the rest pose; the neck's knobs are left to the face fit), the
-    skirt (flare, length, back, waist) and its back panels (length, flare, width, azimuth, waist), and the boots (the
-    shell's top on the shins, and the cuffs). They go together because where the legs show depends on the hem;
-  - the details: the sleeves' puff and length, the sleeve and wrist cuffs' position and width, the waistband, the
-    collar's depths, and the bow's size, height and tails;
+    skirt (flare, length, back, the shared waist line) and its back panels (length, flare, width, azimuth, a mirror
+    pair), and the boots (the shell's top on the shins, its cuffs tied). They go together because where the legs show
+    depends on the hem;
+  - the details: the sleeves' puff and length (the cuffs tied), the wrist cuffs' position and width, the waistband's
+    width, the collar's depths, and the bow's size, height and tails;
   - the hair: its mode first (`hair.shape.mode`, mesh or geom, whichever its terms cost less), then hair.shape's below
     and shoulder_x.
-- **Terms.** Each is a least-squares fit over its knobs against all its terms at once, every view together:
+- **Terms.** One per graded check, fitkit's readings (1 = the PASS line, a WARN line past it). Each group is a
+  least-squares fit over its knobs against all its terms at once, every view together:
   - the sheet's four views: feet, legs, boots, hems, the skirt's and sleeves' widths, the hair's length and width, the
-    top, the arms' angle, and the silhouette, skin, outfit and hair IoUs;
-  - the generated shape's bands;
+    top, the arms' angle, and the silhouette, skin, outfit and hair IoUs (toward 1);
+  - the generated shape's IoUs;
   - each piece's visible extent (its bbox edges) per view against the outfit graph's, a piece's views sharing one
     view's weight. The arms' pieces also count for the body, whose rest pose moves them;
-  - the face's model-sheet checks, held where they start (no further from their targets: the face fit owns them).
+  - the face's model-sheet checks, held where they start (a `hold` reading: no further from their targets; the face
+    fit owns them).
 - **Weights.** Each term is weighted by the manifest's authority map: full where its reference is the authority for its
   measure (the sheet for the body's and hair's silhouettes, the generated shape for the hair's shape, the outfit graph
-  for the pieces), a quarter otherwise. Each knob is pulled toward its template default, one residual per four steps
-  away.
-- **The guard.** A graded check that reads worse than at the start has its terms weighed four times and its pieces
-  fitted again.
-- **The optimiser.** A bounded trust region on soft-L1 residuals with a finite-difference Jacobian at one knob step,
-  then a pattern search. It follows charkit.fitkit's conventions (tool/fit) and swaps to fitkit when that lands.
+  for the pieces), a quarter otherwise. Each knob is pulled toward its template default (fitkit's REG).
+- **Protection.** fitkit keeps every term in the status band it starts in, or has in `--baseline`'s QA (the merge
+  gate's build). fitkit.guard then scales a group's change back while a check no term aims at reads worse.
+- **The optimiser.** fitkit.optimise: a bounded trust region on soft-L1 residuals, a finite-difference Jacobian in
+  worker processes (`--workers`, 2 by default: each holds an evaluator), then a pattern search, restarted while it
+  helps. It is deterministic. A sensitivity table (fitkit's SCHEMA) feeds the triage of what still fails: needs a
+  knob, knob at bound, or trade-off.
 - **The palette.** `--palette` sets the skin and hair colours to the sheet's lit and shade tones. Each class of
   garment colours moves by the one shift that minimises its lit tone's dE00, kept inside its colour family. Then one
   shade multiplier for every garment is fitted to the garment classes' shade tones. It is the garments' new `shade`
   knob (garments.SHADE_MUL, 0.86 0.80 0.84, when unset): the sheet's garments shade warmer and darker (0.74 0.64 0.65
   on the orange, 0.68 0.63 0.62 on the dark) than one fixed multiplier allows. A step that doesn't read better,
   re-measured, is not kept.
-- **What it writes.** `DIR/NAME.bodyfit.json` is the fitted spec. `bodyfit_report.md` has every check before and after,
-  the knobs per piece, what the outfit graph set, and what still fails. `--write-spec` writes the fitted knobs (and
-  the added pieces) into SPEC.
+- **What it writes.** `DIR/NAME.bodyfit.json` is the fitted spec. `DIR/sensitivity.json` is the table.
+  `bodyfit_report.md` has every check before and after, the knobs per group, what the outfit graph set, and the
+  triage. `--write-spec` writes the fitted knobs (and the added pieces) into SPEC.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

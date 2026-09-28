@@ -234,12 +234,17 @@ def test_fit_terms_and_paired_knobs():
     assert k.paths == ['garments.sleeve_L.puff', 'garments.sleeve_R.puff'] and k.get(spec) == k.default
     k.put(spec, 1.3)
     assert spec['garments'][0]['puff'] == 1.3 and spec['garments'][1]['puff'] == 1.3
-    t = bodyfit.Term('x', None, 'floor', 0.15, 'body_silhouette', 'sheet', 'front', 'body', floor=0.85)
-    assert t.residual({'x': {'value': 0.55, 'status': 'FAIL'}})[0] == (0.85 - 0.55) / 0.15
-    assert t.residual({'x': {'value': 0.9, 'status': 'PASS'}})[0] == 0.0
-    assert t.residual({})[0] == 3.0
-    R = bodyfit.residuals({'x': {'value': 0.55, 'status': 'FAIL'}}, [t, bodyfit.Term('x', None, 'floor', 0.15, 'body_silhouette',
-                                                                                   'trellis', 'shape', 'body', floor=0.85)])
+    from charkit import fitkit
+    t = bodyfit._iou_term('x', (0.85, 0.70), 'body_silhouette', 'sheet', 'front', 'body')
+    assert abs(t.residual({'x': {'value': 0.55, 'status': 'FAIL'}})[0] - 3.0) < 1e-9          # (1 - 0.55) / 0.15
+    assert abs(t.residual({'x': {'value': 0.85, 'status': 'PASS'}})[0] - 1.0) < 1e-9          # the PASS line at 1
+    assert abs(t.warn - 2.0) < 1e-9 and t.residual({})[0] == fitkit.MISSING
+    h = bodyfit.Term('y', None, 'hold', 0.01, 'face_front', 'sheet', 'face', 'body', (1.0, 0.8))
+    assert h.residual({'y': {'value': 0.85, 'status': 'FAIL'}})[0] == 0.0                    # nearer its target
+    assert abs(h.residual({'y': {'value': 0.78, 'status': 'FAIL'}})[0] - 2.0) < 1e-9          # 0.02 further away
+    R = fitkit.residuals({'x': {'value': 0.55, 'status': 'FAIL'}},
+                         [t, bodyfit._iou_term('x', (0.85, 0.70), 'body_silhouette', 'trellis', 'shape', 'body')],
+                         bodyfit.AUTHORITY)
     assert R[0]['w'] == 1.0 and R[1]['w'] == 0.25                 # the sheet decides the body's silhouette
 
 
@@ -296,7 +301,7 @@ def test_outfit_graph_start_and_pieces():
     assert [g.get('az') for g in two['garments'][-2:]] == [150.0, -150.0]                # a mirror pair
     ext = {'skirt': {'front': {'d': [0.1, -0.2, 0.0, 0.05], 'px': [900, 800]}, 'back': {'d': [0, 0, 0, 0], 'px': [900, 100]}}}
     T = bodyfit.piece_terms(ext, graph)
-    assert len(T) == 4 and {t.view for t in T} == {'front'} and T[0].scale == 1.0         # back: too few pixels
+    assert len(T) == 4 and {t.view for t in T} == {'front'} and T[0].weight == 1.0        # back: too few pixels
 
 
 def test_garment_shade_knob():
