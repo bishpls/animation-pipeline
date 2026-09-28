@@ -41,10 +41,15 @@ def configure(user, res, widescreen, png_level):
         'Settings': {'InternalResolution': str(res), 'DumpFramesAsImages': 'True', 'PNGCompressionLevel': str(png_level),
                      'ShowFPS': 'False', 'wideScreenHack': str(bool(widescreen)), 'AspectRatio': '1' if widescreen else '0'},
         'Enhancements': {'MaxAnisotropy': '4'},
+        # present each XFB copy as it is made (SO BACK). On VI timing, two copies could land inside one VI, the first was never
+        # shown, and duplicate-present skipping hid the repeat: a deterministic lost image (script frame 7 after the slate)
+        'Hacks': {'ImmediateXFBEnable': 'True'},
     }))
     open(os.path.join(cfg, 'Logger.ini'), 'w').write(ini({
         'Options': {'WriteToFile': 'True', 'WriteToConsole': 'False', 'Verbosity': '3'},
-        'Logs': {'OSREPORT': 'True', 'OSREPORT_HLE': 'True'},
+        # MASTER carries panic alerts (e.g. "Invalid read from 0x00000000"), which a batch run otherwise swallows: a
+        # windowed Dolphin stops on them (Geno's missing costume table read address 0 unseen in every lab)
+        'Logs': {'OSREPORT': 'True', 'OSREPORT_HLE': 'True', 'MASTER': 'True', 'MI': 'True', 'POWERPC': 'True', 'VIDEO': 'True'},
     }))
 
 

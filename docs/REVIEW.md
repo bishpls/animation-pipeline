@@ -47,9 +47,12 @@ Each finds things the others miss; the user's own frame-by-frame notes found the
   identity, meaning and the character's own rules. Brief it with pass sheets, full-resolution stills, strips and numbered questions.
   It verifies for itself and writes to its own output paths. The director's eye overrides; log overrides back to it "for the record".
 - **A cold director:** a fresh subagent that has never seen the process, given only the cut.
-- **Gemini** (`tools/gemini.py`): a noisy sensor. Blind, shuffled, repeated rankings with a Borda count for comparisons (it has
-  position bias); independent rubric scores for small sets. **Verify every claim at full resolution before acting**: about half
-  were real, and it has praised a worse cut over a better one.
+- **Gemini** (`tools/gemini.py`): a weak sensor, a pointer at most.
+  - On TSUZUKU about half its claims were real, and it once praised a worse cut over a better one.
+  - On SO BACK about one checkable claim in four held up. Its song rankings were pure position bias ("D > A > B > C"
+    whatever track was in D). It invented clicks and a hit at the wrong time, and called deliberate choices glitches.
+  - Use independent rubric scores rather than comparisons, never act on a note you haven't seen yourself at full
+    resolution, and don't relay its notes to the user as findings.
 - **The user:** full-length passes with sound, and their notes are the ones that decide.
 
 ## 5. Turning notes into changes

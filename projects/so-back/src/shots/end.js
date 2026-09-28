@@ -6,7 +6,7 @@
 //   27.00  his victory screen (the B pose, chosen in the lab): the flying kick lands into a low guard, palm out, facing the viewer
 //   28.80  the last frame goes white; frame 0 is the knee (the loop). No end-card text (Michael).
 const END = {
-  game: () => ({ rgb: plate('assets/plates/soback_end_game/v43', { n: 215, fps: 60, t0: 0, ext: 'jpg', keep: 12, ahead: 0 }) }),
+  game: () => keyedPlate('assets/plates/soback_end_game/v43', 215),
   taunt: () => vplate('sacred_taunt', 90),
   victory: () => vplate('end_victory', 160),
   slam: pf(104),                    // the end_game frame where Game! slams in

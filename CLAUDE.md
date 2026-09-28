@@ -22,7 +22,9 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
 - `engine/`: the shared engine: `core.js` (time, easing, beat clock, boil), `riso.js` (the print press), `type.js` (variable-font
   kinetic type), `studio.js` (timeline; riso mode or plain Canvas2D mode via `PROJECT.plain`), `render.mjs`, `pop.js` (the chibi kit
   for plain mode), `puppet.js` (cut-paper puppets), `warp.js` (mesh-warped canvases), `rig.js` (the mesh rig runtime), `moves.js`
-  (dance moves and choreography), `plate.js` (image-sequence plates, e.g. game captures), plus the vendored fontkit and fonts (all OFL;
+  (dance moves and choreography), `plate.js` (image-sequence plates, e.g. game captures), `edit.js` (plates in an edit: time maps,
+  keyed pairs, preloading what is drawn), `hardedit.js` (the hard-edit grammar: punches, splits, impact frames, grades),
+  `meleetype.js` (Melee's own text), plus the vendored fontkit and fonts (all OFL;
   check glyph coverage before using symbols like ✦ ☆).
 - `tools/`: every tool, with its usage, is indexed in `docs/TOOLS.md`. The ones used on every film:
   - `music.py`: ElevenLabs songs, with word timestamps and a stored song_id for inpainting
@@ -31,12 +33,14 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `songmap.py`: spectrogram and lyric map of a song
   - `tts.py`: narration, with word timestamps
   - `sfx.py`: sound effects; `sfxmix.py`: the SFX stem from the picture's cue list, mixed over the song
-  - `gemini.py`: media critic
+  - `gemini.py`: a media second opinion; as a critic usually wrong on specifics (`docs/REVIEW.md`): a pointer at most
   - `imagegen.py`: references and keys (`--size 2K`); `gptimage.py`: rig art and pose edits
   - `chroma.py`: flat-green keys to transparent PNG; `rigkit.py`: register, colour-match and composite drawings in rig builders
   - rigs, motion and checks: `segment.py`, `layers.py`, `rigbuild.py`, `variants.py`, `restcheck.py`, `romrun.py`, `motion_audit.py`,
     `dance_audit.py`, `posetrack.py`, `retarget_mocap.py`, `vocalenv.py`, `filmscan.py`
   - `seedance.py`: Higgsfield Seedance 2.5, text-to-video and image-to-video
+  - voice banks and songs: `vox.py` (sing with found speech: hard-tuned PSOLA, chops), `hf0.py` (F0 for shouted speech),
+    `mixkit.py` (tape stop, ducking, limiter), `songseat.py` (seat a take on a locked grid), `songscreen.py` (screen takes)
   - `machinima/`: decompiled games as a film backend (Melee via doldecomp + Dolphin; `tools/machinima/README.md`). Game data
     (disc images, builds, plates) never enters the repo.
 - `docs/`: `CRAFT.md` (the method and its lessons), `TOOLS.md`, `RIGGING.md`, `MOTION.md`, `REVIEW.md`, `SESSIONS.md`; `research/`

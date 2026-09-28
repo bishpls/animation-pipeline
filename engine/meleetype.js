@@ -1,5 +1,5 @@
-// SO BACK: Melee's own text (the game's word graphics, menu font, HUD digits and name plates, extracted from the disc by
-// projects/so-back/type/: sisfont.py, dumpall.py, build_type.py). Plain Canvas2D, global functions like plate.js/edit.js.
+// engine/meleetype.js: Melee's own text (the game's word graphics, menu font, HUD digits and name plates, extracted from the
+// disc by tools/machinima/melee/type/). Promoted from SO BACK. Plain Canvas2D, global functions like plate.js/edit.js.
 //   await MT.load()                       // once, before rendering (loads manifest.js and every image; ~120 small PNGs)
 //   mword('game', x, y, { h: 220 })       // the game's own graphic for a word, centred on (x, y), h px tall
 //   mtext("WE'RE SO BACK", x, y, { size: 180, style: 'game' })   // our words in the game's menu font, dressed like its
@@ -7,8 +7,9 @@
 //   mname('falcon', x, y, { h: 70, set: 'banner' | 'label', panel: true })   // the results screen's name plate
 //   mdigits('5.5', x, y, { h: 300 })      // the HUD's damage digits (the percent font); '.' and '%' included
 // (x, y) is the centre of the text's cap height; align: 'center' (default) | 'left' | 'right'.
-// Game-derived images live outside the repo in ~/games/melee/plates/soback_type (served as assets/plates/soback_type).
-const MT = { base: 'assets/plates/soback_type', img: {}, M: null, cache: new Map() };
+// Game-derived images live outside the repo (e.g. ~/games/melee/type, served through the film's assets/plates symlink):
+// pass their served path to MT.load(base).
+const MT = { base: 'assets/plates/melee_type', img: {}, M: null, cache: new Map() };
 
 // the word graphics' own fills (measured per row inside the letters of each IfAll word graphic: dark at the top, saturated,
 // bright at the bottom), plus their light diagonal streaks

@@ -45,8 +45,7 @@ function keyed(K, pt, o = {}) {
   drawKeyed(K, pt);
   X.restore();
 }
-// the impact frame (anime/hard-edit): ONE frame of the scene as a hard negative, on the big hits only. Call present(b, NEG).
-const NEG = 'invert(1) grayscale(1) contrast(2.2)';
+// (the impact frame, NEG, is engine/hardedit.js)
 // (a flat silhouette from the matte: glows make it a blob on shines and lasers, so it's only for clean bodies)
 function impactFrame(K, pt, fg = '#fff', bg = '#000', o = {}) {
   if (NEED) { _need(K, pt); return; }

@@ -224,7 +224,7 @@ aesthetics." Every word on screen is now the game's own:
 - Everything else is the menu font in the word graphics' dress: outline, white inner stroke, a gradient fill with the
   game's diagonal streaks, a drop shadow. Colour does the section work: the "Game!" red for the hook, the "Time!" violet
   for "it's so over", the "Success!" gold for "YOU!".
-- The extraction code is `type/`; the engine module is `src/meleetype.js`.
+- The extraction code is `type/`; the engine module is `engine/meleetype.js`.
 
 ## The edit
 

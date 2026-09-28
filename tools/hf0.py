@@ -1,4 +1,5 @@
-"""Robust F0 for the (processed, reverberant) announcer voice: harmonic-sum with half-harmonic penalty + Viterbi.
+"""hf0: a robust F0 tracker for shouted, processed, reverberant speech (harmonic sum with a half-harmonic penalty, then
+Viterbi), where Praat's autocorrelation and pyin octave-jump. Promoted from SO BACK (the Melee announcer).
 Validated by hand against harmonic-level checks (octave errors are the failure mode of ac/pyin on this voice)."""
 import numpy as np, soundfile as sf
 

@@ -1,4 +1,9 @@
-"""Parse and decode HAL .ssm sound banks (Melee). Header layout verified against file sizes."""
+"""Parse and decode HAL .ssm sound banks (Melee): mono or stereo DSP-ADPCM, every sound to a 16-bit WAV at its own rate.
+    .venv/bin/python tools/machinima/melee/ssm.py BANK.ssm OUT_DIR      # -> OUT_DIR/<bank>_<index>_id<sample id>.wav
+Header layout verified against file sizes (all 110 banks, US and JP): u32 entry-table length, data length, sound count,
+base sample id; per sound u32 channels, rate, then 0x40 bytes per channel (loop flag, format, loop/end/start nibble,
+16 coefficients, gain, predictor/scale, history); the data at align32(table + 0x10). Decoded audio is game-derived: keep
+it outside the repo. SO BACK decoded the announcer banks with it (projects/so-back/vocals/decode_banks.sh)."""
 import struct, numpy as np, sys, os, wave
 
 def parse(path):

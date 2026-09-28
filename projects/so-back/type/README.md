@@ -1,5 +1,8 @@
 # SO BACK's type: Melee's own text
 
+The extractors are `tools/machinima/melee/type/` (canonical; its README has the full map); the scripts here are thin
+wrappers that pass SO BACK's paths.
+
 Everything is extracted from the vanilla disc, and is game-derived: it lives in `~/games/melee/plates/soback_type/`, never in git.
 The film serves it as `assets/plates/soback_type`.
 
@@ -9,7 +12,7 @@ The film serves it as `assets/plates/soback_type`.
 .venv/bin/python projects/so-back/type/build_type.py         # words/, hud/, names/, sis/atlas_hi.png, manifest.js
 ```
 
-`dumpall.py` runs a copy of the Geno session's `datkit` (`mdump`, `mscan`), copied to `~/games/melee/work/soback/type/datkit_bin`.
+`dumpall.py` runs a copy of the Geno session's `datkit` (`mdump`, `mscan`), copied to `~/games/melee/work/soback/type/datkit_bin` (`dk` is its launcher).
 
 | what | where in the game | output |
 |---|---|---|

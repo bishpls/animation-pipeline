@@ -1,10 +1,11 @@
-"""vox: the announcer as a hyperpop vocalist. Every sound stays his own recording: PSOLA (Praat overlap-add, pulses from
-our hf0 tracker) for pitch and duration, resampling, gains, gates and crossfades. No synthesis, no voice conversion.
+"""vox: sing with a voice bank. Found or recorded speech (a game announcer, archive clips) becomes a vocal line, and every
+sound stays the original recording: PSOLA (Praat overlap-add, pulses from our harmonic-sum tracker, tools/hf0.py) for pitch
+and duration, resampling, gains, gates and crossfades. No synthesis, no voice conversion. (Promoted from SO BACK, where it
+made the Melee announcer sing: projects/so-back/vocals.)
 
-Rates: the bank is 12 kHz, so everything below takes and returns float64 mono numpy arrays at `sr` (default 12000)
-unless it says otherwise. Do the PSOLA work at 12 kHz, then lift the finished vocal to 48 kHz with `to48k` last.
+Rates: arrays are float64 mono numpy at `sr` (default SR = 12000, the Melee banks' rate); do the PSOLA work at the source
+rate, then lift the finished vocal to 48 kHz with `to48k` last.
 
-    y = vox.load_word('so_surv+no')                      # a built word or phrase from W (or vox.clip('name_37'))
     y = vox.sing(y, [69, 73, 76], syl=[(0, .3), ...])    # hard-tuned onto MIDI notes, one per syllable
     y = vox.sing(y, notes, syl, durs=[.2, .2, .4])       # ... and fitted to syllable lengths (seconds)
     y = vox.stutter(y, n=3, slice_s=.08)                 # "s-s-so"
@@ -12,20 +13,25 @@ unless it says otherwise. Do the PSOLA work at 12 kHz, then lift the finished vo
     y = vox.tape_stop(y, dur_s=.4)                       # the last .4 s slows to a stop (pitch falls with speed)
     y = vox.pitch_shift(y, 12, formant=1.25)             # octave up, formants up 25% (Praat Change Gender)
     y = vox.reverse(y); y = vox.gate(y, bpm=150, pattern='1011', div=16)
-    hi = vox.to48k(y, bright=.35)                        # 48 kHz, with a harmonic exciter above 6 kHz
+    hi = vox.to48k(y, bright=.1); hi = vox.shelf(hi, -3, 3500)   # 48 kHz, a gentle exciter, a high shelf
+    track = vox.place(track, hi, t_s); line = vox.line([(y48, t), ...])
 
-Upsampling a 12 kHz file to 48 kHz leaves nothing above 6 kHz: it sounds dull and "lo-fi phone" next to a modern
-instrumental. to48k(bright=...) adds a harmonic exciter: the 3-6 kHz band is soft-clipped (tanh), which makes its own
-harmonics, and only what lands above 6 kHz is mixed back in. It brightens without inventing a voice, and at bright=0 it's
-a plain resample. Octave-up shifts (a hyperpop staple) push energy upward too; both are judged by ear, by the user.
+What SO BACK learned (docs/CRAFT.md section 15):
+- Keep every syllable within about 5-7 semitones of where it was recorded, or the words stop reading.
+- Get the "processed" character from hard tuning (flat notes, short glides), not from pitch height. Octave-up doubles
+  and exciters made the hook "very shrill"; treat them as opt-in.
+- Upsampling a 12 kHz bank to 48 kHz leaves nothing above 6 kHz. to48k(bright=...) soft-clips the 3-6 kHz band and mixes
+  back only the harmonics above 6 kHz; at bright=0 it's a plain resample.
+- Speech-to-text can't hear harshness: judge by ear, and measure energy above 3 kHz alongside intelligibility.
 """
 import os, sys
 import numpy as np, parselmouth, librosa
 from parselmouth.praat import call
 from scipy.signal import butter, sosfiltfilt
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import load as _load, W, SR, write
-from hf0 import hf0
+import importlib.util
+_spec = importlib.util.spec_from_file_location('_hf0', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'hf0.py'))
+_hf = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_hf); hf0 = _hf.hf0     # tools/hf0.py
+SR = 12000
 
 SEED = 1
 def _seed():
@@ -35,12 +41,6 @@ def _seed():
 
 def midi2hz(m): return 440.0 * 2 ** ((m - 69) / 12)
 def hz2midi(f): return 69 + 12 * np.log2(f / 440.0)
-
-def clip(key): return _load(key)                       # a whole announcer clip (registry key, see INVENTORY.md)
-def load_word(name, sub='words'):
-    import soundfile as sf
-    x, sr = sf.read(os.path.join(W, sub, name + '.wav')); assert sr == SR
-    return x.astype(np.float64)
 
 def _manip(y, sr, floor, ceil):
     snd = parselmouth.Sound(np.asarray(y, float), sr)

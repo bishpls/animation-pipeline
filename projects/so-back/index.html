@@ -22,7 +22,9 @@
 <script src="../../engine/studio.js"></script>
 <script src="../../engine/plate.js"></script>
 <script src="../../engine/pop.js"></script>
-<script src="src/meleetype.js"></script>
+<script src="../../engine/hardedit.js"></script>
+<script src="../../engine/edit.js"></script>
+<script src="../../engine/meleetype.js"></script>
 <script src="src/fx.js"></script>
 <script src="src/edit.js"></script>
 <script src="src/captions.js"></script>
@@ -39,7 +41,7 @@
   try {
     plainSetup();
     await Promise.all(Object.entries(SB_FONTS).map(([k, f]) => loadFont(k, '../../engine/fonts/' + f)));
-    await MT.load();
+    await MT.load('assets/plates/soback_type');
     window.ready = true;
     studioUI();
   } catch (e) { console.error(e.stack || e); window.failed = true; }

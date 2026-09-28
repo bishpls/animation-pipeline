@@ -1,5 +1,9 @@
 # SO BACK's machinima kit: a pinned fork
 
+**`tools/machinima` is canonical.** This copy is pinned because it is exactly what made the film (the release repo mirrors
+it); its improvements have been reconciled into `tools/machinima` (the same director, language and tools, with generic default
+paths). Start new work there.
+
 This is a copy of the director kit from the **geno** branch (`~/animation-pipeline-geno`, commit `a93283a`), pinned so SO
 BACK builds don't move under a parallel session. It covers `tools/machinima/melee/{build.py,dsl.py,report.py,timeline.py,director/}`
 and `tools/machinima/{dolphin.py,plates.py}`. Reconcile it into `tools/machinima` once both branches land.

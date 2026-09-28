@@ -35,20 +35,6 @@ function coldMap(t) {
   return { ft: TS0 + D * (1 - (1 - u) ** 3) / 3, tape: u };
 }
 
-// draw a plate into the frame with a zoom about (cx, cy) and a shake, into the 'scene' buffer; returns that buffer
-function scene(fn) { const b = buf('scene'), X0 = X; X = b.x; try { fn(); } finally { X = X0; } return b; }
-function zoomAt(cx, cy, z, dx = 0, dy = 0) { X.translate(cx + dx, cy + dy); X.scale(z, z); X.translate(-cx, -cy); }
-// grade a buffer onto X: filter string (canvas CSS filters), an optional RGB split (px)
-function present(b, filter = 'none', split = 0) {
-  if (filter !== 'none') { const g = buf('graded'); g.x.filter = filter; g.x.drawImage(b.c, 0, 0); g.x.filter = 'none'; b = g; }
-  if (split) rgbSplit(b.c, split, 0); else X.drawImage(b.c, 0, 0);
-}
-function vignette(a = .5) {
-  const g = X.createRadialGradient(W / 2, H / 2, H * .25, W / 2, H / 2, H * .75);
-  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${a})`);
-  X.save(); X.setTransform(1, 0, 0, 1, 0, 0); X.fillStyle = g; X.fillRect(0, 0, W, H); X.restore();
-}
-
 function COLD(t) {
   const K = spine(), m = coldMap(t), pt = m.ft + SP.pre;
   // zoom punches: the knee (big), each beat (small), the takes (bigger each time)

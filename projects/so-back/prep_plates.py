@@ -1,32 +1,17 @@
-"""Edit-ready vertical plates from director captures (the format projects/so-back/src/edit.js loads).
-    .venv/bin/python projects/so-back/prep_plates.py OUT_DIR --stage CAPTURE [--mode aspect]          # stage-on
-    .venv/bin/python projects/so-back/prep_plates.py OUT_DIR --black CAP_B --grey CAP_G [--mode aspect]   # keyed pair
-Writes OUT_DIR/f00001.jpg (the frame, or the black pass = premultiplied colour) and, for a keyed pair, OUT_DIR/m00001.png
-(LA: luminance 255, alpha = coverage; a browser reads a grey 'L' PNG as opaque). Captures are plates.py-trimmed dirs of
-f00001.png... (or raw dumps; frames are taken in sorted order)."""
-import argparse, os, sys
+"""SO BACK's plates from raw capture folders: a thin wrapper over tools/machinima/prep_plates.py (its raw mode; the tool's
+slate mode is what the capture lanes' delivery used). `one` is re-exported for director/drop_run.py.
+    .venv/bin/python projects/so-back/prep_plates.py OUT_DIR --stage CAPTURE [--mode aspect]
+    .venv/bin/python projects/so-back/prep_plates.py OUT_DIR --black CAP_B --grey CAP_G [--mode aspect]"""
+import argparse, importlib.util, os, sys
 from concurrent.futures import ProcessPoolExecutor
-import numpy as np
-from PIL import Image
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'machinima'))
-from vplate import vplate
-from dmatte import matte
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_spec = importlib.util.spec_from_file_location('machinima_prep_plates', os.path.join(ROOT, 'tools', 'machinima', 'prep_plates.py'))
+_tool = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_tool)
+frames = _tool.frames
 
 
-def frames(d):
-    return sorted(f for f in os.listdir(d) if f.endswith('.png') and f[0] in 'f')
-
-
-def one(job):
-    i, out, mode, stage, black, grey = job
-    if stage:
-        vplate(Image.open(stage).convert('RGB'), mode).save(f'{out}/f{i:05d}.jpg', quality=95)
-        return
-    b, g = (vplate(Image.open(p).convert('RGB'), mode) for p in (black, grey))
-    pb, a = matte(np.asarray(b), np.asarray(g))
-    Image.fromarray(pb.astype(np.uint8)).save(f'{out}/f{i:05d}.jpg', quality=95)
-    la = np.dstack([np.full(a.shape, 255, np.uint8), (a * 255 + .5).astype(np.uint8)])
-    Image.fromarray(la, 'LA').save(f'{out}/m{i:05d}.png', optimize=False, compress_level=3)
+def one(job):                            # defined here (not aliased) so worker processes can unpickle it as prep_plates.one
+    return _tool.one(job)
 
 
 if __name__ == '__main__':

@@ -14,13 +14,13 @@ This is the working method for this repo. It distils three earlier projects (EMB
 ```
 song (ElevenLabs Music v2.5, composition plan)  ->  tools/music.py        takes + word timestamps
 pick the take on evidence                         ->  tools/audio_analyze.py (grid, seams), tools/lyric_check.py (STT),
-                                                      tools/gemini.py (blind shuffled rankings; Gemini is a noisy critic)
+                                                      the user's ear on in-context auditions (Gemini: a tie-breaker at most, §15)
 cue sheet                                         ->  assets/cues.json + cues.js (bpm, offset, sections, words, rms)
 storyboard                                        ->  STORYBOARD.md: shot table with times, reads, lyric slot, transition
 look development                                  ->  src/board.js loops (--loop=look), model sheets, reference images
 animatic                                          ->  src/timeline.js: every shot boundary, slates for unbuilt shots
 build shot by shot, review every one              ->  engine/render.mjs --sheet / --strip / --stills / --crop
-full-length passes                                ->  --frames + --encode, watch it, screenshot, Gemini watch-through
+full-length passes                                ->  --frames + --encode, watch it, screenshot, the user's notes
 ```
 
 **Choosing the song.** Generate several takes (about 10 s each, 2 concurrent). All takes sat on the grid within about 10 ms and were about 93% intelligible, so the differences were timbre and artifacts. A single Gemini pass gave everything 7–9.5 and contradicted itself between runs. **Blind, shuffled, repeated rankings with a Borda count** did discriminate (take6 won 3 of 4). Treat any AI critic as a noisy sensor: vary the order, anonymise and aggregate.
@@ -301,7 +301,10 @@ Distilled from one long session of director notes and in-character reviews (Fabl
 
 ## 15. More lessons (SO BACK, a Melee hard edit)
 
-The full account is `projects/so-back/MAKING-OF.md`.
+The full account is `projects/so-back/MAKING-OF.md`. The general pieces are promoted (`docs/TOOLS.md`):
+- `engine/edit.js`, `hardedit.js` and `meleetype.js`;
+- `tools/vox.py`, `hf0.py`, `mixkit.py`, `songseat.py` and `songscreen.py`;
+- the current director kit in `tools/machinima`.
 
 **Game capture**
 - **Portrait from the game's own projection.** A 9:16 projection aspect at internal res 4 gives native portrait plates.

@@ -9,6 +9,8 @@ import numpy as np, soundfile as sf
 warnings.filterwarnings('ignore')
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+import sys
+sys.path.append(os.path.join(HERE, '..', '..', '..', 'tools'))   # vox.py and hf0.py live in tools/ (the singing kit)
 A = os.path.expanduser('~/games/melee/work/announcer')      # read-only (the Geno session's area)
 W = os.path.expanduser('~/games/melee/work/soback/vocals')  # our audio outputs
 os.makedirs(W, exist_ok=True)
