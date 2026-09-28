@@ -6,7 +6,8 @@ import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 import bpy
-from charkit import character, hair, qa, shade
+import numpy as np
+from charkit import character, faceshade, hair, qa, shade
 
 VARIANTS = {
     'default': {},
@@ -55,8 +56,12 @@ def main(out, names):
         skin = shade.toon3('skin', **SKIN)
         C = character.build(dict(VARIANTS[name], name=name), clay=skin)
         shade.outline(C['skin'], thick=0.0011, color=(0.42, 0.26, 0.26))
+        bangs = None
         if HAIR:
-            hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
+            hobs = hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
+            hb = next(o for o in hobs if o.name.startswith('hair_bangs'))
+            bangs = (np.array([v.co for v in hb.data.vertices]), [tuple(p.vertices) for p in hb.data.polygons])
+        faceshade.apply(C, bangs=bangs, colors=SKIN)
         A = C['data']; eye_z = A['head']['eye_z']; L = A['head']['L']
         cd = bpy.data.cameras.new('cam'); cam = bpy.data.objects.new('cam', cd); sc.collection.objects.link(cam)
         sc.camera = cam
