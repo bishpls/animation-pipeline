@@ -429,7 +429,8 @@ def zbuffer_views(meshes, az3, iris, centre, L, ppl, views=AZ):
     {view: (depth, label)} (faceqa.zbuffer's: label -1 where nothing is)."""
     from .faceqa import zbuffer
     az = azimuths(az3)
-    return {v: zbuffer(meshes, az[v], origin(v, az[v], iris, centre), L, 1.0 / ppl, WIN) for v in views}
+    return {v: zbuffer(meshes, az[v], origin(v, az[v], iris, centre), L, 1.0 / ppl, WIN, thin=(CLASS['line'],))
+            for v in views}
 
 
 def ours(label, depth=None):

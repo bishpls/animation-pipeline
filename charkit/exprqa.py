@@ -47,6 +47,7 @@ LIMITS = {                                           # (pass within, warn within
 }
 OPEN_MIN = 0.02                                      # L: an inside shorter than this is a closed mouth's seam
 MISSING = 1.0                                        # a match this far (in LIMITS' warn units) or further: not in the library
+THIN = (CLASS['line'], CLASS['brow'])                # ours drawn at least a pixel wide, as the drawing's strokes are
 
 
 # ------------------------------------------------------------------------------------------------------------ classes
@@ -448,7 +449,7 @@ def render(data, combo, ppl, win=WIN):
                 idx, D = K[k]
                 P[idx] += D
         meshes.append((P, T, lab))
-    _, cls = zbuffer(meshes, 0.0, (0.0, data['eye_z']), data['L'], 1.0 / ppl, win)
+    _, cls = zbuffer(meshes, 0.0, (0.0, data['eye_z']), data['L'], 1.0 / ppl, win, thin=THIN)
     return np.where(cls < 0, 0, cls)
 
 

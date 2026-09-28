@@ -189,16 +189,22 @@ def test_subdivide_cube():
     assert np.linalg.norm(NL, axis=1).max() < np.linalg.norm(NV, axis=1).max()
 
 
-def test_zsplat_is_faceqa_zbuffer():
+def test_zbuffer_is_the_qas():
+    """bodymeasure measures with the QA's own z-buffer (faceqa.zbuffer), lines included: a line thinner than a pixel,
+    between pixel centres, is drawn only when its label is `thin`, as bodyqa.zbuffer_views and sheetqa draw lines."""
     from charkit import faceqa
     V1, T1 = sphere(0.3, (0, 0, 0))
     V2, T2 = sphere(0.12, (0.1, -0.4, 0.05))
-    meshes = [(V1, T1, np.full(len(T1), 1)), (V2, T2, np.full(len(T2), 2))]
+    line = np.array([[0.001, -0.5, -0.3], [0.004, -0.5, -0.3], [0.0025, -0.5, 0.3]])        # 0.003 wide, no pixel centre
+    meshes = [(V1, T1, np.full(len(T1), 1)), (V2, T2, np.full(len(T2), 2)), (line, np.array([[0, 1, 2]]), np.array([4]))]
     win = dict(x=0.5, top=0.5, bottom=-0.5)
     for az in (0.0, 37.0, 90.0):
-        d1, l1 = faceqa.zbuffer(meshes, az, (0.0, 0.0), 1.0, 0.01, win)
-        d2, l2 = bodymeasure.zsplat(meshes, az, (0.0, 0.0), 1.0, 0.01, win)
-        assert (l1 != l2).sum() <= 2 and np.allclose(np.where(np.isfinite(d1), d1, 0), np.where(np.isfinite(d2), d2, 0))
+        d1, l1 = faceqa.zbuffer(meshes, az, (0.0, 0.0), 1.0, 0.01, win, thin=(4,))
+        d2, l2 = bodymeasure.zbuffer(meshes, az, (0.0, 0.0), 1.0, 0.01, win, thin=(4,))
+        assert (l1 == l2).all() and np.array_equal(d1, d2)
+    _, drawn = bodymeasure.zbuffer(meshes, 0.0, (0.0, 0.0), 1.0, 0.01, win, thin=(4,))
+    _, missed = bodymeasure.zbuffer(meshes, 0.0, (0.0, 0.0), 1.0, 0.01, win)
+    assert (drawn == 4).sum() >= 40 and (missed == 4).sum() == 0
 
 
 def sphere(r, c, n=24):

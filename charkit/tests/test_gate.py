@@ -17,6 +17,19 @@ def test_compare_qa_verdicts():
                  'i': 'removed'}, v
 
 
+
+def test_load_steps_reads_another_trees_registry():
+    """the gate reads the merged tree's STEPS (a branch registers the steps it brings), without importing it."""
+    import tempfile
+    from charkit import history
+    here = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'history.py')
+    assert history.load_steps(here) == [tuple(x) for x in history.STEPS]
+    p = os.path.join(tempfile.mkdtemp(), 'history.py')
+    open(p, 'w').write("X = 1\nSTEPS = [\n    ('sheet_*', 'abc1234', 'a reason '\n     'split over lines'),\n]\n")
+    assert history.load_steps(p) == [('sheet_*', 'abc1234', 'a reason split over lines')]
+    assert history.load_steps(p + '.missing') is None
+
+
 def test_manifest_resolves_refs():
     d = tempfile.mkdtemp()
     mp = os.path.join(d, 'manifest.json')

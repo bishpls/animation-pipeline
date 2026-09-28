@@ -344,7 +344,7 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2, zbuffer=N
     Each view is z-buffered at the sheet's scale (charkit.faceqa), the face is the skin reached from under the eyes
     without crossing a depth jump, and every view's face is cut at the chin (where the profile's front edge turns back
     to the neck, searched from `below` L under the eye line: under the nose), as a drawn jaw line cuts the design's.
-    zbuffer, face_region: faceqa's by default, or drop-ins giving the same pixels (charkit.bodymeasure's compiled ones).
+    zbuffer, face_region: faceqa's by default, or drop-ins giving the same pixels (zbuffer takes faceqa.zbuffer's `thin`).
     -> {view: measure_labels(...) + 'shown'}."""
     import math
     from . import faceqa
@@ -359,11 +359,11 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2, zbuffer=N
         a = math.radians(az)
         org = (cx * math.cos(a) + cy * math.sin(a), ez)
         # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
-        depth, lab = zbuffer(meshes, az, org, L, pix, win)
+        depth, lab = zbuffer(meshes, az, org, L, pix, win, thin=(CLASS['line'],))
         lab = np.where(lab < 0, CLASS['other'], lab)
         face = face_region(depth, np.where(lab == CLASS['skin'], 1, 0), 0.035 * L, pix=pix)
         if covers:
-            dv, lv = zbuffer(meshes + covers, az, org, L, pix, win)
+            dv, lv = zbuffer(meshes + covers, az, org, L, pix, win, thin=(CLASS['line'],))
         else:
             lv = lab
         def px(P):
