@@ -19,6 +19,9 @@ items (docs/CHARKIT.md §4).
      its step (flips at a limit often vanish there; each is its own checkpoint, within the budget). A build option
      whose only losses are checks a landed fitter owns gets that fitter's re-fit first, and the two are compared as one
      move (anime-base's eye width is the face fitter's);
+     Before a landed fitter's full fit, a probe measures its sensitivity table at the start (two fast evaluations per
+     knob) and the drop in the fitter's own objective at the best single knob step; below the config's
+     probe.min_headroom (default 2%) the fit is skipped as converged (an already-fitted spec stays cheap to re-tune);
   4. the loop stops when every graded check passes (`pass`), when the best score improved by less than --min-gain over
      the last --rounds rounds (`stalled`), when no fitter has anything left to change (`converged`), or when the budget
      (full builds including the final one, default 8, or minutes with an `m` suffix) runs out (`budget`);
@@ -507,6 +510,25 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                     continue                                 # nothing it reads changed since it last ran
                 last_input[F.name] = best['id']
                 fdir = os.path.join(out, 'fit_r%d_%s' % (rnd, F.name))
+                # the probe: a full fit only where a single knob step shows the fitter's objective can drop
+                if F.landed and hasattr(F, 'probe'):
+                    th = (cfg.get('probe') or {}).get('min_headroom', 0.02)
+                    pr = F.probe(start(best), os.path.join(fdir, 'probe'), log)
+                    if pr:
+                        verdict = 'fit' if pr['headroom'] >= th else 'converged'
+                        R.write('probe', round=rnd, fitter=F.name, from_checkpoint=best['id'], cost=pr['cost'],
+                                best=pr['best'], headroom=pr['headroom'], threshold=th, evaluations=pr['evaluations'],
+                                seconds=pr['seconds'], verdict=verdict,
+                                path=_rel(os.path.join(fdir, 'probe', 'sensitivity.json')))
+                        log('  probe %s at ck%d: objective %.3f, best single step %s %s -> %.3f (%.1f%%, threshold %.1f%%): %s (%.0f s)' % (
+                            F.name, best['id'], pr['cost'], pr['best'][0], pr['best'][1], pr['best'][2],
+                            100 * pr['headroom'], 100 * th, verdict, pr['seconds']))
+                        if verdict == 'converged':
+                            fits[F.name] = {'fitter': F.name, 'status': 'converged', 'sensitivity': pr['table'],
+                                            'sensitivity_at': best['id'], 'from_checkpoint': best['id'], 'round': rnd}
+                            R.write('fit', round=rnd, from_checkpoint=best['id'], fitter=F.name, status='converged',
+                                    why='the probe: no single knob step lowers the objective by %.1f%%' % (100 * th))
+                            continue
                 log('  fit %s from ck%d%s' % (F.name, best['id'], '' if F.landed else ' (STUB)'))
                 res = F.run(start(best), best['args'], fdir, log)
                 res.setdefault('fitter', F.name)
@@ -572,6 +594,8 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
         # the fitters' sensitivity at the end state (a fit's own table is measured at its start)
         esp = os.path.join(_path(end_ck['out']), name + '.spec.json')
         for F in reg:
+            if (fits.get(F.name) or {}).get('sensitivity_at') == best['id'] and (fits[F.name] or {}).get('sensitivity'):
+                continue                                     # the probe measured it there already (final rebuilds best)
             if hasattr(F, 'sensitivity_at') and F.landed and os.path.exists(esp):
                 log('  sensitivity of the %s fitter at ck%d' % (F.name, end_ck['id']))
                 T_ = F.sensitivity_at(esp, os.path.join(out, 'sensitivity_%s' % F.name), log)

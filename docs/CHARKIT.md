@@ -469,6 +469,14 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    - **body, garments, hair and palette**: tool/bodyfit (the `shape_iou*`, `ref_iou`, model-sheet `body_*` and
      `palette_*` checks).
 
+   **The probe.** Before a landed fitter's full fit, the tune measures that fitter's sensitivity table at the start
+   (two fast evaluations per knob, 1 to 3 minutes). It then computes how far the fitter's own objective (fitkit's
+   cost over its terms, regulariser included) drops at the best single knob step. Below `probe.min_headroom` (2%) the
+   fit is skipped as `converged`, and the table serves the triage. The probe is recorded in tune.jsonl with its cost,
+   best step, headroom and verdict. It keeps re-tuning an already-fitted spec cheap: on Clawd's fitted spec the full
+   face fit took about 40 minutes and moved 21 knobs by under 1% each. (The fit's `REFRESH_BUDGET` rounds, with their
+   Blender cache rebuilds, aren't capped by `--budget`.)
+
    A fitter that hasn't landed is a stub, marked `STUB` everywhere. It declares its targets and knobs, and fits nothing.
    Each fitter declares the check patterns it targets and the knobs it owns (path, default, step, bounds, group: a
    fitkit fitter's `declare()`). The builds go through `python -m charkit build`, so each takes a machine build slot
@@ -499,7 +507,7 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    - With `--review`, the review board is written and the final build exports a VRM.
 
 Everything goes to `DIR/tune.jsonl`: begin, fit, checkpoint, compare (every check that moved, trades, the fast
-evaluator's disagreements with the build), round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
+evaluator's disagreements with the build), probe, round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
 the summary. Each checkpoint's history row carries `{tune, checkpoint, label}`. The run records its pid in DIR, so
 `python -m charkit kill DIR` stops it and the build it started. A checkpoint folder holding the same build (spec, options,
 boards, code) is reused; `--fresh` rebuilds.

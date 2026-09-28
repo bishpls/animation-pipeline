@@ -332,6 +332,23 @@ def test_knob_inventory():
                         'hair.hem'}, sorted(inv)
 
 
+def test_probe_headroom():
+    """the probe: the fit objective at the table's point against its best single knob step."""
+    from charkit import fitkit
+    K = [fitkit.Knob('head.cheek', ('head', 'cheek'), 1.0, 0.1, (0.5, 1.5), 'face')]
+    T = [fitkit.Term('sheet_width', 'd55', 'ratio', 0.08, 'face_front', 'sheet', 'front', 'face')]
+    spec = {'head': {'cheek': 1.0}}
+    # a step up widens the face from 0.80 toward 1: headroom
+    far = {'schema': 'charkit.sensitivity/1', 'knobs': {'head.cheek': {'value': 1.0, 'step': 0.1, 'group': 'face',
+           'measures': {'sheet_width.d55': {'at': 0.80, 'minus': 0.75, 'plus': 0.86}}}}}
+    r = fitters.probe_headroom(far, spec, T, K)
+    assert r['best'][:2] == ['head.cheek', 'plus'] and r['headroom'] > 0.2, r
+    # at the optimum both steps cost more: no headroom
+    opt = {'schema': 'charkit.sensitivity/1', 'knobs': {'head.cheek': {'value': 1.0, 'step': 0.1, 'group': 'face',
+           'measures': {'sheet_width.d55': {'at': 1.0, 'minus': 0.95, 'plus': 1.05}}}}}
+    assert fitters.probe_headroom(opt, spec, T, K)['headroom'] <= 0
+
+
 def test_merge_args():
     assert fitters.merge_args(['--base', 'anime', '--hair', 'mesh'], ['--hair', 'geom']) == ['--base', 'anime', '--hair', 'geom']
     assert fitters.merge_args([], ['--vrm']) == ['--vrm']

@@ -222,6 +222,22 @@ class FaceFitter(Fitter):
         res.update(fitter=self.name, seconds=round(time.time() - t, 1), args=list(args))
         return res
 
+    def probe(self, spec_path, out, log=print):
+        """a short look before a full fit: the sensitivity table at the spec (each knob a step either way: two fast
+        evaluations per knob) and how far the fitter's own objective (fitkit's cost over its terms, the regulariser
+        included) drops at the best single step -> {cost, best: [knob, side, cost], headroom (the relative drop),
+        evaluations, seconds, table}, or None when it can't be measured. A fit that starts at its optimum has none."""
+        t = time.time()
+        T = self.sensitivity_at(spec_path, out, log)
+        if not T:
+            return None
+        spec = json.load(open(spec_path))
+        A = dict(getattr(self.mod, 'AUTHORITY', {}))
+        A.update((spec.get('ref') or {}).get('authority') or {})
+        r = probe_headroom(T, spec, self.mod.terms(), self.mod.KNOBS, A)
+        r.update(seconds=round(time.time() - t, 1), table=T)
+        return r
+
     def validate(self, build, log=print):
         """the fast evaluator against a finished build's own QA (`python -m charkit fit --validate BUILD`) -> rows
         [{check, eval, blender, diff, same_status}] (BUILD/qa/faceeval_agreement.json), or None."""
@@ -316,6 +332,50 @@ def with_block(spec_path, fitted_path, knobs, block, out_path):
                 put(S, k['path'], v)
     json.dump(S, open(out_path, 'w'), indent=1)
     return out_path
+
+
+def probe_headroom(table, spec, terms, knobs, authority=None):
+    """from a sensitivity table (charkit.sensitivity/1), the fit objective at the table's point and at each knob's step
+    either way (fitkit.residuals and fitkit.cost over `terms`, with the regulariser over `knobs`, a list of fitkit.Knob)
+    -> {cost, best: [knob, side, cost], headroom: (cost - best) / cost, evaluations}."""
+    from . import fitkit
+    K = table.get('knobs', table)
+
+    def checks_of(flat):
+        C = {}
+        for m, v in flat.items():
+            if v is None:
+                continue
+            c, _, sub = m.partition('.')
+            e = C.setdefault(c, {'status': 'PASS'})
+            if sub:
+                if sub != 'ours':
+                    e.setdefault('ratios', {})[sub] = v
+            else:
+                e['value'] = v
+        return C
+    at = {}
+    for e in K.values():
+        for m, d in e['measures'].items():
+            at.setdefault(m, d.get('at'))
+    x0 = [k.get(spec) for k in knobs]
+    c0 = fitkit.cost(fitkit.residuals(checks_of(at), terms, authority), x0, knobs)
+    best = None
+    for i, k in enumerate(knobs):
+        e = K.get(k.name)
+        if not e:
+            continue
+        for side, sgn in (('minus', -1), ('plus', 1)):
+            flat = dict(at)
+            flat.update({m: d.get(side) for m, d in e['measures'].items() if d.get(side) is not None})
+            x = list(x0)
+            x[i] = min(k.bounds[1], max(k.bounds[0], x0[i] + sgn * k.step))
+            c = fitkit.cost(fitkit.residuals(checks_of(flat), terms, authority), x, knobs)
+            if best is None or c < best[2]:
+                best = [k.name, side, round(float(c), 4)]
+    head = (c0 - best[2]) / c0 if best and c0 > 0 else 0.0
+    return {'cost': round(float(c0), 4), 'best': best, 'headroom': round(float(head), 4),
+            'evaluations': 2 * len(K) + len({e.get('group') for e in K.values()})}
 
 
 def interpolate(spec_path, fitted_path, knobs, t, out_path):

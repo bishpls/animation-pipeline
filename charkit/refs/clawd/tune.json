@@ -25,5 +25,6 @@
    "why": "the framing gap left after the face fit: scene.cull_face takes the cheek side locks when the jaw widens; keep the locks in front of the cheeks, as the geom hair mode does (a hair capability)"}
  ],
  "stop": {"rounds": 2, "min_gain": 0.5},
+ "probe": {"min_headroom": 0.02},
  "uncertain": {"sheet": {"ratio": 0.03, "abs": 0.009}}
 }
