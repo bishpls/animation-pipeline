@@ -1,13 +1,16 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
-                                     [--base makehuman|anime] [--hair geom|mesh]
+                                     [--base makehuman|anime] [--hair geom|mesh] [--note JSON]
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
     python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
     python -m charkit history NAME [--check CHECK]                     # QA across builds
     python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
+    python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
+    python -m charkit triage DIR                                       # the residual checks as ranked work items
+    python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
@@ -136,7 +139,13 @@ def build(args):
             print(line)
     for p in sheets(spec, out):
         print('sheet', p)
-    history.append(out, name)
+    note = opt('--note')
+    if note:
+        try:
+            note = json.loads(note)
+        except ValueError:
+            pass
+    history.append(out, name, note)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
 
@@ -215,6 +224,15 @@ def main(argv=None):
     elif cmd == 'history':
         from . import history
         history.main(rest)
+    elif cmd == 'tune':
+        from . import tune
+        tune.main(rest)
+    elif cmd == 'triage':
+        from . import triage
+        triage.main(rest)
+    elif cmd == 'review':
+        from . import review
+        review.main(rest)
     elif cmd == 'ps':
         from . import procs
         procs.ps(rest)

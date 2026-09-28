@@ -1,0 +1,25 @@
+{
+ "about": "Clawd's tune config (charkit/tune.py): the trade-offs the loop may accept, the build options it tries, when it stops, and how far each reference can be trusted. The trade-off rules write out the manifest's authority table: the model sheet is the authority for the face's front, 3/4 and profile shape and the chin; the generated (TRELLIS) face is an interpretation, rounder and fuller than the sheet's (manifest: key3d's caution), so its shape checks may get worse when the sheet's matching check gets better, by at most `ratio` times the gain. Depth has no sheet counterpart (the trellis is its authority): face_shape_depth is never traded.",
+ "tradeoffs": [
+  {"allow": ["face_shape_width"], "when": ["sheet_width", "sheet_neck_to_jaw"], "floor": "FAIL", "ratio": 3.0,
+   "why": "face_front: the sheet is the authority; the TRELLIS face is fuller"},
+  {"allow": ["face_shape_cheek"], "when": ["sheet_cheek"], "floor": "FAIL", "ratio": 3.0,
+   "why": "face_three_quarter: the sheet is the authority"},
+  {"allow": ["face_shape_profile"], "when": ["sheet_profile", "sheet_nose_reach", "sheet_chin_reach"], "floor": "FAIL", "ratio": 3.0,
+   "why": "face_profile: the sheet is the authority"},
+  {"allow": ["face_shape_chin"], "when": ["sheet_profile_chin", "sheet_cheek_chin"], "floor": "FAIL", "ratio": 3.0,
+   "why": "chin: the sheet is the authority"},
+  {"allow": ["face_shape_coverage_*"], "when": ["sheet_shown_*"], "floor": "WARN",
+   "why": "hair_silhouette: the sheet is the authority for how much face the hair shows"},
+  {"allow": ["shape_iou", "shape_iou_*", "ref_iou"], "when": ["body_*"], "floor": "FAIL", "ratio": 2.0,
+   "why": "body_silhouette: the sheet is the authority; the generated shape and key are interpretations"}
+ ],
+ "options": [
+  {"name": "geom-hair", "set": {"hair.shape.mode": "geom"}, "targets": ["hair_noise", "shape_iou_hair", "scalp_px", "sheet_shown_*"],
+   "why": "charkit/geom's closed hair shell (docs/GEOM.md): hair_noise ~0.31 -> ~0.19, passes both gates"},
+  {"name": "anime-base", "set": {"base": "anime"}, "targets": ["face_folds"],
+   "why": "charkit's anime base mesh: clean lid and lip rings (face_folds 1014 -> 135 on Clawd)"}
+ ],
+ "stop": {"rounds": 2, "min_gain": 0.5},
+ "uncertain": {"sheet": {"ratio": 0.03, "abs": 0.009}}
+}

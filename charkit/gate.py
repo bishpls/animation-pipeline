@@ -10,6 +10,7 @@ The verdict:
          or disappears
   WARN   a graded check's value moves the wrong way without changing status, or the build takes 1.5x as long
   PASS   otherwise
+A check whose measurement the branch changes (charkit.history.STEPS) is `remeasured`, neither better nor worse.
 The report (markdown and json) is written to charkit/out/gate/: the checks that changed, the tests, the trace diff.
 """
 import glob, json, os, shlex, shutil, subprocess, sys, tempfile, time
@@ -51,8 +52,10 @@ def _build(wt, spec, out, args):
     return ok, round(time.time() - t, 1), (r.stdout + r.stderr)[-1500:]
 
 
-def compare_qa(a, b):
-    """per check: baseline -> candidate, with a verdict (regressed, improved, worse value, better value, new, gone)."""
+def compare_qa(a, b, remeasured=None):
+    """per check: baseline -> candidate, with a verdict (regressed, improved, value, new, gone, ungraded; remeasured for a
+    check in `remeasured`, whose measurement changed between the two builds: charkit.history.STEPS)."""
+    import fnmatch
     ca, cb = a.get('checks', {}), b.get('checks', {})
     rows = []
     for k in sorted(set(ca) | set(cb)):
@@ -61,7 +64,9 @@ def compare_qa(a, b):
         vx, vy = (x or {}).get('value'), (y or {}).get('value')
         if x == y:
             continue
-        if sx in RANK and (sy not in RANK):
+        if remeasured and x and y and any(fnmatch.fnmatchcase(k, p) for p in remeasured) and (sx, vx) != (sy, vy):
+            v = 'remeasured'
+        elif sx in RANK and (sy not in RANK):
             v = 'gone' if y is None or sy in ('SKIPPED', None) else 'ungraded'
         elif sy in RANK and sx not in RANK:
             v = 'new'
@@ -116,7 +121,9 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             return _write(rep, gdir, tag)
         qa_a = json.load(open(os.path.join(base_out, 'qa', 'qa.json')))
         qa_b = json.load(open(os.path.join(cand_out, 'qa', 'qa.json')))
-        rep['qa'] = compare_qa(qa_a, qa_b)
+        from . import history
+        rep['remeasured'] = history.steps_between(head, tip)          # measurement steps the branch brings
+        rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
         from . import trace
         rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')), trace.read(os.path.join(cand_out, 'trace.jsonl')))
         ta = next((r['total'] for r in trace.read(os.path.join(base_out, 'trace.jsonl')) if r['event'] == 'end'), None)
@@ -157,12 +164,14 @@ def _write(rep, gdir, tag):
         L.append('\nTests: ' + ', '.join('%s %s' % (k, 'ok' if v == 'ok' else 'FAILED') for k, v in rep['tests'].items()))
     if rep.get('qa') is not None:
         L.append('\n| check | base | candidate | verdict |\n| --- | --- | --- | --- |')
-        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'ungraded': 5}
+        order = {'regressed': 0, 'gone': 1, 'value': 2, 'new': 3, 'improved': 4, 'remeasured': 5, 'ungraded': 6}
         for r in sorted(rep['qa'], key=lambda r: order.get(r['verdict'], 9)):
             L.append('| %s | %s %s | %s %s | %s |' % (r['check'], str(r['base'][0])[:10], r['base'][1] or '',
                                                      str(r['cand'][0])[:10], r['cand'][1] or '', r['verdict']))
         if not rep['qa']:
             L.append('| (no check changed) | | | |')
+    for k, why in (rep.get('remeasured') or {}).items():
+        L.append('\nremeasured: %s: %s' % (k, why))
     if rep.get('blender_seconds'):
         L.append('\nBlender time: %s s -> %s s' % tuple(rep['blender_seconds']))
     if rep.get('trace'):
