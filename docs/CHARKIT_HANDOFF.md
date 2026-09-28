@@ -116,6 +116,68 @@ and 0 warnings. Triage produced 73 work items in `charkit/out/e2e/work_items.md`
 
 After bodyfit merges, rerun this exact command as the baseline for gating `tool/measure`.
 
+## Michael's review of the end-to-end run (2026-09-28): read before prioritising
+
+His verdict: a clear, significant improvement and a sound method, but still far from production-ready. **Get the face
+truly right before the hair rework**: hair needs strands, chunks and layering eventually, but it comes later.
+
+What he saw:
+- **Face front:** much better; the old T-shaped face is gone.
+- **Face profile:** depth and contour are still badly wrong. The profile reads as a flat mask plate with the eye on its
+  front edge, a tiny nose bump, and a pale boxy patch of skin where the hair was cut. `sheet_profile` reports only
+  ~0.04 L WARN, so **the metric understates it**.
+- **Eyes:** shape much improved, but **the pupils still read too small**. The pupil-to-iris-to-sclera area ratios aren't
+  measured.
+- **Eyes through hair:** eyes are drawn over the side locks in profile, which is questionable.
+- **Mouth expressions:** need a quality and detail pass.
+- **Garments:**
+  - the skirt is one stiff flared piece, where the design has zig-zag, stepped pleat panels;
+  - the puff sleeves are off.
+- **References:** `sheet_views` and `sheet_body` use the 3D-style key (made from the Live2D rig) as their reference
+  column, not the model sheet `idol_D`. Mixed references across the suite add measurement noise.
+
+What it means for the method (my read):
+1. **Mixed references.** Graded checks compare against different references: `ref_iou` against the 3D-style key,
+   `shape_iou` against TRELLIS, the sheet checks against idol_D, eyes against the rig. They pull fits in different
+   directions.
+   - Grade each concern only against its manifest authority. Make `ref_iou`, and `shape_iou` outside TRELLIS's
+     authority (depth and hair), INFO.
+   - Rebuild the review sheets from the model sheet's own figures, matched per view and scale.
+2. **Position-average metrics miss shape.**
+   - Profile: use feature-level measures instead of a mean gap. That means nose-tip projection, nasion depth, lip and
+     chin projection, the jaw angle, the forehead slope, **how far the eye sits back from the brow-nose line** (anime
+     profiles set the eye well behind it; ours sits on the front edge), slope and curvature along the profile, and the
+     worst deviation, not only the mean.
+   - Eyes: grade the area ratios (pupil to iris, iris to opening, visible sclera).
+   - Garments: shape per piece, using the outfit graph's per-view piece masks. That covers puff roundness and volume,
+     and the pleat zig-zag.
+3. **No perceptual weighting.** A 0.04 L profile error looks "catastrophic" while a 0.04 L skirt error looks mild.
+   Calibrate the weights and limits from review: when Michael calls something severe and the check says WARN, tighten
+   that check. Consider a learned perceptual similarity per view and region (DINOv3 features, already licensed for the
+   TRELLIS work) as a complement, calibrated against his judgements.
+4. **Resolution.** idol_D gives about 115 px per head length, so the nose and mouth are only 3–5 px. Higher-resolution
+   authority views of the head are needed (profile and 3/4; the rig covers only the front). Options are an artist
+   drawing, or image-model views derived from the sheet and checked against it; paid image calls need Michael's
+   go-ahead.
+5. **Capability, not just knobs.** The profile needs a head-shaping capability: fit the midline profile spline directly
+   to the design's profile, set the eye's depth, and give the nose, lips and chin real structure. The `nose_tip` knob is
+   capped at 0.04 L.
+6. **Features through hair:** limit it to fringe objects, and fade it with view angle. Measure it against whether the
+   design shows the eye in that view.
+7. **Better review input:** notes anchored to a region and view (click on the board), with a severity score, so a note
+   maps to a measurement and calibrates it.
+
+Suggested priority, face first:
+1. reference consistency (items 1 and 7);
+2. profile feature metrics, a high-resolution profile reference, then the profile head-shaping capability;
+3. eye area ratios and pupil size;
+4. review calibration and a perceptual metric;
+5. a mouth detail pass;
+6. garment pieces (puffs, pleated panels);
+7. hair components and rework later.
+
+These go before the secondary phase, but after the bodyfit and measure merges.
+
 ## Next steps, in order (the checkpoint)
 
 1. **Merge `tool/bodyfit`** through the gate.
