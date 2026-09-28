@@ -69,6 +69,24 @@ def test_child_quads_keep_the_parent_origin():
     assert all(len(set(map(int, c))) == 4 for c in q)
 
 
+def test_two_levels():
+    V, F = cube()
+    V2, q2, parent = subdiv.catmull_clark(V, F, levels=2)
+    assert len(q2) == 96 and (np.bincount(parent) == 16).all()
+    V1, q1, _ = subdiv.catmull_clark(V, F)
+    # the same limit surface, finer: every level-1 limit point is a level-2 vertex
+    d = np.linalg.norm(V1[:, None] - V2[None], axis=2).min(1)
+    assert d.max() < 1e-12
+    # a crease's children stay creased
+    n = 5
+    P = np.array([(x, y, -abs(x - 2.0)) for y in range(n) for x in range(n)], float)
+    Q = [(y * n + x, y * n + x + 1, (y + 1) * n + x + 1, (y + 1) * n + x) for y in range(n - 1) for x in range(n - 1)]
+    sharp = [(y * n + 2, (y + 1) * n + 2) for y in range(n - 1)]
+    S2, _, _ = subdiv.catmull_clark(P, Q, sharp, levels=2)
+    ridge = np.isclose(S2[:, 0], 2) & (S2[:, 1] > 0.5) & (S2[:, 1] < n - 1.5)
+    assert ridge.sum() > 4 and np.allclose(S2[ridge, 2], 0)
+
+
 def test_region():
     V, F = cube()
     keep = V[:, 2] > 0

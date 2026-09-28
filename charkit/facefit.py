@@ -67,6 +67,7 @@ VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
 VIEW_BUDGET = 120               # evaluations per view in --views
+REFRESH_BUDGET = 160            # evaluations for the face's fit again once the garments are rebuilt for a new body
 
 
 def terms():
@@ -116,6 +117,9 @@ class FaceChecks:
 
     def __init__(self, spec, R, cache):
         from . import faceeval
+        for f in ('target.npz', 'env.npz'):
+            if not os.path.exists(os.path.join(cache, f)):
+                raise FileNotFoundError('%s: no %s (charkit/fit_blender.py makes it: facefit.prepare_cache)' % (cache, f))
         self.E = faceeval.Evaluator(spec, R, cache)
 
     def checks(self, spec, group, fine=False):
@@ -191,6 +195,21 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
             rep['groups'][key]['cost_history'] = [h['cost'] for h in info['history']]
             if left is not None:
                 left = max(0, left - info['evaluations'])
+        # body knobs moved: the garments were moved with the skin, an approximation (the neckline reads the neck check).
+        # Build them for the fitted body in Blender and fit the face again from there
+        if 'face' in groups and any(k.path[0] == 'body' and abs(k.get(fitted) - k.get(spec)) > 1e-9 for k in KNOBS):
+            c2 = cache_dir(fitted)
+            if not os.path.exists(os.path.join(c2, 'env.npz')):
+                rp = os.path.join(out, spec['name'] + '.refresh.json')
+                json.dump(fitted, open(rp, 'w'), indent=1)
+                prepare_cache(rp, c2, log)
+            pool.close()
+            pool = fitkit.Pool('charkit.facefit:FaceChecks', (fitted, R, c2), workers)
+            log('fit: garments rebuilt for the fitted body; the face again')
+            fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, 'face', authority, budget=REFRESH_BUDGET,
+                                           loss=LOSS['face'], baseline=baseline, log=log)
+            rep['groups']['face_refresh'] = {k: v for k, v in info.items() if k != 'history'}
+            rep['cache'] = c2
         # the checks the fit doesn't aim at (expressions, folds, coverage...) mustn't read worse: each group's change is
         # scaled back while one does
         aimed = {t.check for t in T}

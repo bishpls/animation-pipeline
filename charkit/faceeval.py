@@ -5,7 +5,8 @@ What a build would make, made here:
   - the skin, eyes and mouth: charkit.character.assemble without the shape keys, the body and the wrap's knob-independent
     part kept between calls (a new head, eye or mouth knob set re-wraps the head and re-places the features, ~0.5 s);
   - the skin as Blender evaluates it: its Subdivision Surface modifier (level 1, limit surface, the eye margins creased)
-    in numpy (charkit/subdiv.py; within 1 um of Blender's) over the head and neck;
+    in numpy (charkit/subdiv.py; within 1 um of Blender's) over the head and neck; level 2 round the eyes for the eye
+    renders (a render draws the modifier's render level);
   - the cranium from the generated hair (charkit.scene.fit_cranium on the cached arrays);
   - the generated character (the TRELLIS target) aligned on our eyes as charkit.scene.hair_shape_volume aligns it;
   - the hair, accessories and garments: cached from one Blender build (charkit/fit_blender.py --env), since the face and
@@ -53,18 +54,23 @@ def _tris(faces):
 
 
 # ------------------------------------------------------------------------------------------------------------ geometry
-def skin_mesh(A, below=0.55):
+def skin_mesh(A, below=0.55, levels=1, box=None):
     """the skin as the QA sees it: the head and neck (from `below` L under the chin up) subdivided like Blender's modifier
-    (the eye margins creased). -> (V, tris, per-triangle material index (0 body, 1 head, 2 mouth cavity, 3 eye line))."""
+    (the eye margins creased): levels 1 as the QA reads meshes (the viewport level), 2 as a render draws it; box: only
+    the skin inside (x0, x1, z0, z1) world. -> (V, tris, per-triangle material (0 body, 1 head, 2 mouth cavity,
+    3 eye line))."""
     V = np.asarray(A['verts']); Hd = A['head']; L = Hd['L']
     keep = V[:, 2] > Hd['centre'][2] - Hd['H'].chin - below * L
+    if box is not None:
+        x0, x1, z0, z1 = box
+        keep &= (V[:, 0] > x0) & (V[:, 0] < x1) & (V[:, 2] > z0) & (V[:, 2] < z1)
     Vr, fr, fi, used = subdiv.region(V, A['faces'], keep)
     remap = np.full(len(V), -1, np.int64); remap[used] = np.arange(len(used))
     sharp = []
     for E in A['eyes']:
         lp = E['eye']['margin']
         sharp += [(remap[a], remap[b]) for a, b in zip(lp, lp[1:] + lp[:1]) if remap[a] >= 0 and remap[b] >= 0]
-    V1, quads, parent = subdiv.catmull_clark(Vr, fr, sharp)
+    V1, quads, parent = subdiv.catmull_clark(Vr, fr, sharp, levels=levels)
     T = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
     fm = np.asarray(A['fmat'])[fi][np.concatenate([parent, parent])]
     return V1, T, fm
@@ -450,9 +456,16 @@ class Evaluator:
         pix = EYE_SIZE * L / n / SSk
         N = n * SSk
         x0 = E['c'][0] - EYE_SIZE * L / 2; z0 = E['c'][1] + EYE_SIZE * L / 2
-        V, T, fm = G['skin']
+        # a render draws the skin at the modifier's render level (2), not the viewport's the other measures read
+        key = 'skin2_' + side
+        if key not in G:
+            m = 0.1 * L
+            G[key] = skin_mesh(A, levels=2, box=(x0 - m, x0 + EYE_SIZE * L + m, z0 - EYE_SIZE * L - m, z0 + m))
+        V, T, fm = G[key]
         P = G['parts']
         sc, ir, la = P[f'sclera_{side}'], P[f'iris_{side}'], P[f'lash_{side}']
+        # (the skin's outline shell isn't drawn: in a render it can hide a lash that lies closer to folded lid skin
+        # than its 1.1 mm; see docs/CHARKIT.md, the evaluator's known gaps)
         mesh_list = [(V, T), (sc[0], sc[1]), (ir[0], ir[1]), (la[0], la[1])]
         M, Ti, b1, b2 = raster(mesh_list, x0, z0, pix, N, N)
         IK = S.get('iris')
