@@ -108,6 +108,14 @@ def cull_face(S, hv, hf, shape):
     return hv, hf
 
 
+def eye_target(A, shape):
+    """where a generated character's eyes land on ours (charkit.i3d.align_by_eyes): the midpoint of our eyes, `eye_depth`
+    (head lengths) behind the front of the face, and our eye spacing times `spacing`. -> (eye_mid (3,), spacing)."""
+    Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
+    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    return eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)
+
+
 def hair_shape_volume(S, shape, hc):
     """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
     above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
@@ -118,9 +126,8 @@ def hair_shape_volume(S, shape, hc):
     eyes = i3d.find_eyes(V, C)
     if eyes is None:
         raise RuntimeError('no eyes found on the generated shape')
-    EK = Hd['eye_knobs']
-    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
-    V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
+    eye_mid, spacing = eye_target(A, shape)
+    V = i3d.align_by_eyes(V, eyes, eye_mid, spacing)
     S.shape_full = (V, F)                                   # the whole aligned shape (QA compares against it)
     cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
                                    hc.get('deep', (0.6, 0.22, 0.16))]
@@ -283,9 +290,11 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
           ('garments', stage_garments)]
 
 
-def fit_cranium(spec, root):
+def fit_cranium(spec, root, load=None):
     """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
-    the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair."""
+    the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair.
+    load: the GLB reader, path -> (V, F, C) (default charkit.i3d.load_glb, in Blender; charkit.geom.parts.load_generated
+    reads the same numbers in the venv)."""
     from . import i3d
     shape = (spec.get('hair') or {}).get('shape') or {}
     if not shape.get('glb') or not shape.get('fit_cranium', True):
@@ -293,7 +302,7 @@ def fit_cranium(spec, root):
     P = spec.get('body', {})
     L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
-    V, F, C = i3d.load_glb(path)
+    V, F, C = (load or i3d.load_glb)(path)
     eyes = i3d.find_eyes(V, C)
     if eyes is None:
         return spec
