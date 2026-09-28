@@ -1024,10 +1024,12 @@ def run(S, out, ref_image=None):
         import traceback; traceback.print_exc()
         rep['checks']['sheet'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the rest of the model sheet: its figures, the whole character, the expression heads, the palette
+    from . import trace
     for key, fn, pre in (('sheet_figures', sheet_figures, 'figures_'), ('sheet_body', sheet_body, 'body_'),
                          ('sheet_expr', sheet_expressions, ''), ('sheet_palette', sheet_palette, 'palette_')):
         try:
-            rep[key], sc_ = fn(S, out)
+            with trace.span('qa.' + key):
+                rep[key], sc_ = fn(S, out)
             rep['checks'].update({pre + k: v for k, v in sc_.items()})
         except Exception as e:
             import traceback; traceback.print_exc()
