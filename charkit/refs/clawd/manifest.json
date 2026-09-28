@@ -167,7 +167,7 @@
     "prompt_key": "head_construction"
    },
    "path": "charkit/refs/clawd/gen/head_construction.png",
-   "role": "the bald head with construction lines (skull top, brow, eye line, nose, mouth, chin), front and profile: the skull and the face shape under the hair, the ear, the eye's set-back in profile",
+   "role": "the bald head with construction lines (skull top, brow, eye line, nose, mouth, chin), front and profile: the skull and the face shape under the hair, the ear, the eye's set-back in profile; also the eye close-up: its front eye is ~1.6x the rig's eye layer and measures the same with charkit.eyeqa (opening aspect 0.922 vs 0.925, iris ratio 0.59 vs 0.61, pupil share of the iris 0.067 vs 0.071)",
    "cautions": [
     "a generated interpretation: its front chin is more pointed than the sheet's; trust it for the profile and the skull, check the front against the sheet"
    ],
@@ -218,6 +218,55 @@
     "layer families are reliable; individual locks within a family are only partly separated (close shades)"
    ],
    "sha256": "28ebb8ab4c28f29afada13bd404fc7a7ac4f40dc843c0d3de5f1df88f2ec9739"
+  },
+  "sleeve_closeup": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-28",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "sheet",
+     "rig/base.png",
+     "garment_breakdown"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "sleeve_closeup"
+   },
+   "path": "charkit/refs/clawd/gen/sleeve_closeup.png",
+   "role": "the puff sleeve's construction on a mannequin arm, front, outer side and back: the gathered sleeve cap at the armhole, the balloon volume, the gathers into the cream band above the elbow; a cross-section at the widest point (how far the fabric stands off the arm all round); the wrist cuff front and side with its stepped notch",
+   "cautions": [
+    "the mannequin is generic, not Clawd's body: use it for the sleeve's shape, gathers and stand-off relative to the arm, and take the puff's size on the body from the sheet"
+   ],
+   "sha256": "c75598916ca6093f9cc659f5c4e318f30adecb35bb7164ae291d2f707396407b"
+  },
+  "skirt_closeup": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-28",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "sheet",
+     "rig/base.png",
+     "garment_breakdown"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "skirt_closeup"
+   },
+   "path": "charkit/refs/clawd/gen/skirt_closeup.png",
+   "role": "the layered skirt's construction on a mannequin, front, side profile and back, plus a top-down view of the panel order round the waist: the knife-pleated orange outer skirt, the pleated cream front panel set into it, and the longer stepped zig-zag under-panels at the sides and back; the side view gives the hem flare and the longer back",
+   "cautions": [
+    "the mannequin is generic: take the skirt's length and flare on the body from the sheet",
+    "the top-down view is schematic: it puts stepped edging on every outer panel, where the back view shows a plain outer hem over stepped under-panels; use it for panel order and count, check the hem against the sheet's views"
+   ],
+   "sha256": "75f24c053865226dc4ce69b8e11875e46d3b54df70fca7b1b416941952fa8c37"
   }
  },
  "authority": {

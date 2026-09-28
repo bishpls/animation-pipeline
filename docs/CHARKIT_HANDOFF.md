@@ -180,7 +180,7 @@ These go before the secondary phase, but after the bodyfit and measure merges.
 
 ## Generated references (2026-09-28, GPT Image 2.5 from the model sheet and the rig)
 
-Four sheets are in `charkit/refs/clawd/gen/` (prompts in `prompts.json`), registered in the manifest with provenance and
+Six sheets are in `charkit/refs/clawd/gen/` (prompts in `prompts.json`), registered in the manifest with provenance and
 cautions. The authority map is unchanged until each is checked against the sheet.
 
 - **`head_turnaround`:** front, 3/4, profile and back of the head at about 4x the sheet's resolution. It's on-model, and
@@ -192,12 +192,22 @@ cautions. The authority map is unchanged until each is checked against the sheet
   lack: the puff volume and gathers, the pleated cream panel, the stepped back-panel hems, and the cuffs' step motif.
 - **`hair_breakdown`:** the hair's layers as colour families in three views, with a legend (bangs, side locks, upper and
   lower back, buns, ahoge, flyaways). Layers separate reliably; locks within a layer only partly.
+- **`sleeve_closeup`** (second round, with `garment_breakdown` as an extra input): the puff sleeve on a mannequin arm,
+  front, side and back. It shows the gathered cap at the armhole, the balloon volume, and the gathers into the cream band
+  above the elbow. A cross-section shows how far the fabric stands off the arm; the wrist cuff's notch is shown front and
+  side. The mannequin is generic: take the puff's size on the body from the sheet.
+- **`skirt_closeup`** (second round, same inputs): the skirt on a mannequin, front, side profile and back, plus a
+  top-down view of the panel order. It shows the knife-pleated orange outer skirt, the pleated cream front panel set
+  into it, and the longer stepped under-panels at the sides and back. The side view gives the flare and the longer back,
+  which is what our single stiff piece is missing. Caution: the top-down view is schematic (stepped edging on every outer
+  panel), so use it for panel order and count only.
 
 Use them in this order:
 1. Check `head_turnaround` and `head_construction` against the sheet at its scale, which is the generated-view
    consistency check.
 2. Make them the authority for face profile and skull (profile feature metrics, the midline profile target, eye depth).
-3. Use `garment_breakdown` for the piece-shape templates and checks.
+3. Use `garment_breakdown`, `sleeve_closeup` and `skirt_closeup` for the piece-shape templates and checks (the skirt as
+   separate pleated panels in layers, the puff's stand-off off the arm).
 4. Use `hair_breakdown` for the hair component graph later.
 
 Michael's decisions on further generation (2026-09-28):
@@ -205,7 +215,25 @@ Michael's decisions on further generation (2026-09-28):
   against them.
 - **Eyes:** `head_construction` already serves as the eye close-up reference, for the pupil, iris and sclera ratios.
 - **Hair:** the layer sheet is enough for now. Lock-level labelling is a stretch goal for a later checkpoint.
-- **Still open:** per-garment close-ups (puff sleeve, skirt panels) if the garment pass needs them.
+- **Garments:** the sleeve and skirt close-ups were generated in a second round.
+
+**Eye check against the construction sheet.** `charkit.eyeqa` measured three eyes the same way: the construction sheet's
+front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's `eye_L` layer, and ours from `e2e/ck3_final`.
+
+| measure | construction | rig | ours |
+|---|---|---|---|
+| opening aspect (h/w) | 0.922 | 0.925 | **0.685** |
+| iris width / opening | 0.591 | 0.613 | 0.607 |
+| pupil run (h / iris h) | 0.341 | 0.407 | 0.426 |
+| pupil aspect (w/h) | 0.362 | 0.286 | 0.231 |
+| pupil share of the iris (area) | 0.067 | 0.071 | **0.049** |
+
+- The two design sources agree, so the design eye is confirmed.
+- Our eye opening is about 26% too flat. `eye_aspect` already FAILs on this.
+- Our pupil covers about 31% less of the iris than the design's, which is Michael's "pupils read small". Nothing grades it:
+  `pupil_share` is measured but not in `eyeqa.compare`, and `pupil_aspect` passes at 0.81.
+- Next: grade `pupil_share`, the "eye area ratios" item in the face-first priorities. Do it after the checkpoint's
+  baseline, so the new check doesn't move the gate mid-sequence.
 
 ## Next steps, in order (the checkpoint)
 
