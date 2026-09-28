@@ -110,6 +110,18 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     eyes (where the two are aligned). How much face the hair leaves showing is a separate, warn-only check, and the feature
     heights against the design rig are informational. Overlays: `qa_face_contours.png` (both contours per view, the
     chins) and `qa_face_shape.png` (the two faces from the front, and the depth difference);
+  - the face against the design's model sheet (`charkit/sheetqa.py`; `spec.ref.sheet` holds the image and the head boxes of
+    its front, 3/4 and profile figures). The sheet is scaled by matching its front figure's height to the rig's, which
+    is the same drawing at a known scale, and each view is aligned on its eyes. The 3/4 angle comes from how much the
+    eye spacing shortens. In the drawing, the face is the skin reached from under the eyes with the drawn lines as
+    walls. Ours is `faceqa`'s z-buffer at the sheet's scale, each triangle labelled by class, without the hair. Its face
+    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck. Graded:
+    - the front half-widths at 55% and 75% of the way to each face's own chin;
+    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck);
+    - the profile's front edge, the nose's and chin's reach in front of the eye, and the chin's height;
+    - the far cheek at 3/4.
+
+    How much face the hair leaves showing against the design's warns only. Overlay: `qa_sheet.png`;
   - the eyes against the design rig's eye layers (`charkit/eyeqa.py`), which are drawn whole under the hair. Each of our eyes
     is rendered head-on at the rig's scale with no hair or brows, and both are segmented by colour into sclera, iris (an
     ellipse through its ring), pupil, highlight and lid line. Graded: the opening's aspect and width, the iris's width in
