@@ -1433,11 +1433,14 @@ def analyse(spec, field=None, use_field=True, log=print):
              labels=[p['id'] for p in pieces] + ['skin', 'hair'], views={}, eye_x=eye_x,
              adjacency=adjacency(limg, n + 2, max(2, int(0.012 * F['ppl']))), layer_contacts=layer_contacts(R, pieces))
     # --- the sheet: its figures and class images from charkit.sheetqa / charkit.bodyqa (the model-sheet QA's own)
+    # the design's full figures: the generated body sheet where the manifest names one (sheets.body, scaled by its own
+    # eyes), else the model sheet (scaled against the rig)
+    bs = ref.get('body_sheet')
     sh = R_.get('sheet') or {}
-    sheet_path = sh.get('path') or (ref.get('sheet') or {}).get('image')
+    sheet_path = (bs or {}).get('image') or sh.get('path') or (ref.get('sheet') or {}).get('image')
     if not sheet_path:
         return A
-    figs = sh.get('figures') or ref.get('sheet') or {}
+    figs = {'facing': bs.get('facing', -1)} if bs else (sh.get('figures') or ref.get('sheet') or {})
     rgb = load_image(sheet_path)
     base = os.path.join(_p(rig_path), 'base.png')
     if figs.get('front_figure') and os.path.exists(base):

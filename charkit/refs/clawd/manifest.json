@@ -5,7 +5,7 @@
    "kind": "model_sheet",
    "path": "projects/hello-world/refs/idol_D.png",
    "tracked": true,
-   "role": "the design's authority: full-body front, 3/4, profile and back, four expression heads, hands; the sheet the 2D rig was built from",
+   "role": "the source design (idol_D): the input to the generated references, and no measure's authority (Michael, 2026-09-28: drawn in another aesthetic and scale than the turnarounds). The authority map's 'sheet' role is filled by the generated sheets (the manifest's 'sheets': face, eyes, body)",
    "figures": {
     "front_figure": [
      0,
@@ -96,7 +96,7 @@
    "kind": "outfit_graph",
    "path": "charkit/refs/clawd/outfit_graph.json",
    "tracked": true,
-   "sha256": "49c2eaf932cd7a930491f55699d61fd7fae73891b6fad62d016930441ab18355",
+   "sha256": "308d5dcc960281a574bf9972bf1163dfd15e40432a596ca769431f13fd803788",
    "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
    "provenance": {
     "tool": "charkit.outfit",
@@ -123,9 +123,7 @@
      }
     }
    },
-   "cautions": [
-    "measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"
-   ]
+   "cautions": ["measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"]
   },
   "head_turnaround": {
    "kind": "generated_reference",
@@ -148,7 +146,8 @@
    "cautions": [
     "a generated interpretation of the design: check it against the sheet (silhouettes and landmarks at the sheet's scale) before letting it grade anything"
    ],
-   "sha256": "bf2e85f067120c0af33b06998ba5c628dd23c89dd3c5c7f915afe5b1779b5720"
+   "sha256": "bf2e85f067120c0af33b06998ba5c628dd23c89dd3c5c7f915afe5b1779b5720",
+   "layout": "heads"
   },
   "head_construction": {
    "kind": "generated_reference",
@@ -171,7 +170,8 @@
    "cautions": [
     "a generated interpretation: its front chin is more pointed than the sheet's; trust it for the profile and the skull, check the front against the sheet"
    ],
-   "sha256": "b5acb4ce4671ec81e16c16f79b8c2cc19177a9b3ea3a5d85faff94fc15dc7380"
+   "sha256": "b5acb4ce4671ec81e16c16f79b8c2cc19177a9b3ea3a5d85faff94fc15dc7380",
+   "layout": "heads"
   },
   "garment_breakdown": {
    "kind": "generated_reference",
@@ -267,6 +267,33 @@
     "the top-down view is schematic: it puts stepped edging on every outer panel, where the back view shows a plain outer hem over stepped under-panels; use it for panel order and count, check the hem against the sheet's views"
    ],
    "sha256": "75f24c053865226dc4ce69b8e11875e46d3b54df70fca7b1b416941952fa8c37"
+  },
+  "body_turnaround": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-28",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "sheet",
+     "rig/base.png",
+     "head_turnaround",
+     "garment_breakdown"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "body_turnaround"
+   },
+   "path": "charkit/refs/clawd/gen/body_turnaround.png",
+   "role": "the full body for 3D modelling in one generation: front, three-quarter (turned to the viewer's left), true side profile (facing left) and back, one A-pose, one scale, one ground line and eye line, the complete outfit; the base for the body and hair silhouettes, the outfit's placement and the palette (Michael, 2026-09-28: idol_D is the source design, not a benchmark)",
+   "cautions": [
+    "the arms hang about 20-25 degrees out from vertical, not the 45 asked for: the rest-pose knobs fit it",
+    "check it against the head sheets (charkit refcheck) before it grades anything"
+   ],
+   "sha256": "e523aa3532b1092f2cae3647224f49e4aa0721c9d13c0cce00f28f24f0ee3881",
+   "layout": "figures"
   }
  },
  "authority": {
@@ -276,15 +303,22 @@
   "chin": "sheet",
   "feature_heights": "sheet",
   "face_depth": "trellis",
-  "eyes": "rig",
+  "eyes": "sheet",
   "hair_shape": "trellis",
   "hair_silhouette": "sheet",
   "body_silhouette": "sheet",
-  "expressions": "sheet",
+  "expressions": null,
   "palette": "sheet",
-  "outfit_pieces": "outfit_graph"
+  "outfit_pieces": "outfit_graph",
+  "skull": "head_construction"
  },
  "notes": [
-  "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown."
- ]
+  "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown.",
+  "2026-09-28 (second session): the generated sheets are the base; idol_D is the source design only. 'sheets' names which reference fills the 'sheet' role per kind (face and eyes: head_turnaround; body, hair silhouettes and palette: body_turnaround); the eyes' authority moved from the rig to it; expressions have none (the template library's). charkit refcheck: the turnarounds agree with each other; head_construction is the outlier on the chin, neck, pupil aspect and lid line, so it holds the skull and ears only."
+ ],
+ "sheets": {
+  "face": "head_turnaround",
+  "eyes": "head_turnaround",
+  "body": "body_turnaround"
+ }
 }

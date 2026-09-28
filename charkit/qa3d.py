@@ -380,6 +380,19 @@ class Design:
             return got
         from . import sheetqa
         ref = self.ref()
+        gen = ref.get('body_sheet')
+        if gen:
+            # a generated full-body sheet (the manifest's sheets.body): scaled by its own front eyes (the kit's
+            # convention), no rig in the chain
+            rgb = self.rgba(gen['image'])[..., :3].astype(float)
+            ex = self.B.assembly['eye_knobs']['x']
+            D = self.memo(sheetqa.detect_figures, rgb, None, ex, gen.get('facing', -1))
+            ppl = D['ppl']
+            te = D['figures'].get('three_quarter', {}).get('eyes') or []
+            az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * ex * ppl), 0, 1)))) if len(te) == 2 else 35.0
+            heads = {v: tuple(D['figures'][v]['head']) for v in ('front', 'three_quarter', 'profile') if v in D['figures']}
+            return self._keep(key, dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
+                                        verify={}, generated=gen.get('id')), [_path(gen['image'])])
         sh = ref.get('sheet')
         R = self.R()
         if not sh or not ref.get('rig') or not R:
@@ -410,11 +423,21 @@ class Design:
         None."""
         from . import sheetqa
         ref = self.ref()
+        ex = self.B.assembly['eye_knobs']['x']
+        gen = ref.get('face_sheet')
+        if gen:
+            # a generated head sheet (the manifest's sheets.face), measured as a drawn head at refcheck.FACE_PPL
+            from . import refcheck
+            key = ('sheet', ex, 'gen', gen['image'])
+            got = self._kept(key)
+            if got is not None:
+                return got
+            D = self.memo(refcheck.face_design, self.rgba(gen['image'])[..., :3], ex, gen.get('facing', -1))
+            return self._keep(key, (D, D['ppl']), [_path(gen['image'])])
         sh = ref.get('sheet')
         R = self.R()
         if not sh or not ref.get('rig') or not R:
             return None
-        ex = self.B.assembly['eye_knobs']['x']
         key = ('sheet', ex, json.dumps(sh, sort_keys=True, default=str), R['ppl'])
         got = self._kept(key)
         if got is not None:
@@ -425,11 +448,33 @@ class Design:
         D = self.memo(sheetqa.measure_sheet, rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
         return self._keep(key, (D, ppl), [_path(sh['image']), os.path.join(_path(ref['rig']), 'base.png')])
 
+    def eye_ppl(self):
+        """the eye design's px per L: the generated eye sheet's own, else the design rig's; None without either."""
+        if self.ref().get('eyes_sheet'):
+            self.eye_layers()
+            return self._m['eye_ppl'][0]
+        R = self.R()
+        return R['ppl'] if R else None
+
     def eye_layers(self):
         """the design rig's eye layers measured: {our side: (rgba, eyeqa.measure)} (the rig's eye_L is on the picture's
         left: our eye at -x, 'R')."""
         from . import eyeqa
         ref = self.ref()
+        gen = ref.get('eyes_sheet')
+        if gen:
+            # a generated head sheet's front eyes (the manifest's sheets.eyes), at the sheet's own resolution
+            from . import refcheck
+            key = ('eyes', 'gen', gen['image'], self.B.assembly['eye_knobs']['x'], refcheck.EYE_BOX)
+            got = self._kept(key)
+            if got is not None:
+                return got
+            crops, own = self.memo(refcheck.eye_design, self.rgba(gen['image'])[..., :3],
+                                   self.B.assembly['eye_knobs']['x'], gen.get('facing', -1), refcheck.FACE_PPL,
+                                   refcheck.EYE_BOX)
+            self._m['eye_ppl'] = (own, [])
+            return self._keep(key, {side: (px, self.memo(eyeqa.measure, px, own)) for side, px in crops.items()},
+                              [_path(gen['image'])])
         R = self.R()
         out = {}
         if not ref.get('rig') or not R:
@@ -789,13 +834,13 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE):
 
 
 def eyes(B, design, out=None, ss=EYE_SS):
-    """our eyes against the design rig's eye layers (charkit.eyeqa), measured the same way -> (table, checks)."""
+    """our eyes against the eye design (the generated head sheet's front eyes, or the design rig's eye layers;
+    charkit.eyeqa), measured the same way at its scale -> (table, checks)."""
     from . import eyeqa
-    R = design.R()
     layers = design.eye_layers()
-    if not layers or not R:
-        return None, {'eye': {'status': 'SKIPPED', 'why': 'no design rig (spec.ref.rig) or ref_measure.json'}}
-    ppl = R['ppl']
+    ppl = design.eye_ppl()
+    if not layers or not ppl:
+        return None, {'eye': {'status': 'SKIPPED', 'why': 'no eye design (spec.ref.eyes_sheet, or a rig with ref_measure.json)'}}
     table, checks, pics = {}, {}, []
     for side_name in ('R', 'L'):
         if side_name not in layers or not B.skin().has('render_eye_' + side_name):
@@ -1304,7 +1349,8 @@ def evaluate(B, parts=('shape', 'sheet_body', 'sheet_palette'), design=None, ref
         if name in parts:
             _, C = fn(B, design, None, *((ref_image,) if name == 'shape' else ()))
             out.update({(k if name == 'face_shape' and k.startswith('face_shape') else pre + k): v for k, v in C.items()})
-    return out
+    from . import checks as checklib
+    return checklib.authorize(out, design.ref().get('authority') or {})
 
 
 def _strip(x):
@@ -1344,6 +1390,8 @@ def run(B, out, ref_image=None, mode='on', parts=None):
         for k, v in C.items():
             key = k if name == 'face_shape' and k.startswith('face_shape') else pre + k
             rep['checks'][key] = v
+    from . import checks as checklib
+    checklib.authorize(rep['checks'], design.ref().get('authority') or {})
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
     graded = [c['status'] for c in rep['checks'].values() if c.get('status') in order]
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'

@@ -50,6 +50,12 @@ def resolve(spec):
     if 'sheet' not in ref and 'sheet' in R:
         s = R['sheet']
         ref['sheet'] = dict(image=s['path'], **s.get('figures', {}))
+    # the generated sheets that fill the design's 'sheet' role, per kind (face, eyes, body): the QA and the fits read them
+    # (qa3d.Design, bodymeasure.Sheet); the model sheet above is then the source design, measured by nothing but refs.fit
+    for kind, rid in (M.get('sheets') or {}).items():
+        key = kind + '_sheet'
+        if key not in ref and rid in R:
+            ref[key] = dict(id=rid, image=R[rid]['path'], layout=R[rid].get('layout'), facing=-1)
     ref['authority'] = M.get('authority', {})
 
     def sub(x):

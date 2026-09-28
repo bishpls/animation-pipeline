@@ -18,6 +18,14 @@ def test_compare_qa_verdicts():
 
 
 
+
+def test_a_check_retired_by_a_measurement_step_is_removed_not_gone():
+    a = {'checks': {'expr_laugh_mouth': {'value': 0.11, 'status': 'PASS'}, 'sheet_width': {'value': 1.0, 'status': 'PASS'}}}
+    b = {'checks': {}}
+    rows = {r['check']: r['verdict'] for r in gate.compare_qa(a, b, {'expr_*': 'no expression reference'})}
+    assert rows == {'expr_laugh_mouth': 'removed', 'sheet_width': 'gone'}
+
+
 def test_load_steps_reads_another_trees_registry():
     """the gate reads the merged tree's STEPS (a branch registers the steps it brings), without importing it."""
     import tempfile

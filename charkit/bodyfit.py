@@ -496,7 +496,9 @@ class BodyChecks:
             from . import bodymeasure
             out.update(bodymeasure.piece_checks(G.bundle('viewport'), self.E.sheet(), self.graph, spec))
             lap('pieces')
-        return out
+        from . import checks as checklib                    # graded only against each measure's authority, as the QA
+        ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+        return checklib.authorize(out, ref.get('authority') or {})
 
 
 # ------------------------------------------------------------------------------------------------------------ the fit

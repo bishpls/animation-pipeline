@@ -41,6 +41,22 @@ STEPS = [
     ('hair_noise', '5394358', 'the hair drawn with its toon materials from the bundle, not EEVEE (tool/measure): within '
                              '2.5%'),
     ('scalp_px', '5394358', 'the scalp drawn from the bundle, not EEVEE (tool/measure)'),
+    # tool/refs: the generated references are the design (Michael, 2026-09-28: idol_D is the source design, not a
+    # benchmark); each check graded only against its measure's authority (checks.authorize)
+    ('sheet_*', '9307073', 'the face measured against head_turnaround (generated, 200 px/L, scaled by its own eyes), not '
+                          'idol_D at 115 px/L'),
+    ('eye_*', '9307073', 'the eyes measured against head_turnaround\'s front eyes at its own resolution, not the rig\'s '
+                        'eye layers'),
+    ('body_*', '9307073', 'the body measured against body_turnaround (generated, one A-pose, 212 px/L, scaled by its own '
+                         'eyes), not idol_D'),
+    ('palette_*', '9307073', 'the palette read from body_turnaround, not idol_D'),
+    ('figures_*', '9307073', 'the figures found on body_turnaround; no hand-typed head boxes to verify'),
+    ('expr_*', '9307073', 'no expression reference: the expressions are the template library\'s (the body sheet has no '
+                         'expression heads)'),
+    ('shape_iou*', '9307073', 'INFO unless the measure\'s authority (checks.authorize): the body silhouette\'s is the body '
+                             'turnaround, the hair shape\'s TRELLIS'),
+    ('ref_iou', '9307073', 'INFO: the 3D-style key is no measure\'s authority (checks.authorize)'),
+    ('face_shape_*', '9307073', 'INFO but the depth: TRELLIS is only the face depth\'s authority (checks.authorize)'),
 ]
 
 
