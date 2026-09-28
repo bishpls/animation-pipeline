@@ -64,3 +64,5 @@ projects/clawd3d/refs/mocap/*_overlay.mp4
 projects/clawd3d/refs/mocap/*.bvh
 # licensed motion banks (BONES-SEED etc.) never enter this public repo
 projects/*/refs/bones/
+# charkit review boards and builds (regenerable)
+charkit/out/
