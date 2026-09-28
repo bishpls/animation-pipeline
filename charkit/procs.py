@@ -176,6 +176,11 @@ def ps(args=()):
     print('build slots: %d of %d busy; %s GB available' % (len(held), slots(), '%.1f' % free if free is not None else '?'))
     for i, who in held:
         print('  slot %d: %s' % (i, who))
+    try:
+        from . import cache
+        print(cache.size_line())
+    except Exception:
+        pass
     rs = records()
     if not rs:
         print('no charkit builds running'); return

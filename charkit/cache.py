@@ -46,7 +46,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KIT = os.path.join(ROOT, 'charkit')
 SCHEMA = 1
 MODES = ('on', 'off', 'refresh', 'verify', 'stages')
-MAX_GB = float(os.environ.get('CHARKIT_CACHE_MAX_GB', 12))
+def max_gb():
+    """the cache's size cap (CHARKIT_CACHE_GB, default 5): past it the least recently used entries go."""
+    return float(os.environ.get('CHARKIT_CACHE_GB', 5))
 ALL, HAS = '\0*', '\0?'                 # path markers: the whole dict was read; only the key's presence was
 NONEMPTY, LEN = '\0#', '\0n'             # ...only whether the dict is empty; only how many keys it has
 MARKS = (ALL, HAS, NONEMPTY, LEN)
@@ -1172,6 +1174,7 @@ class Cache:
         self.t0 = t0 or time.time()      # when this build's code was loaded
         self._edited = None
         self.spec_file, self.refs, self.warned = None, None, set()      # the resolved spec (its ref.manifest)
+        prune(self.dir)                                                 # under its cap before this build adds to it
         global _CUR
         _CUR = self
         from . import shade
@@ -2440,11 +2443,11 @@ def entries(d=None):
     return out
 
 
-def prune(d=None, max_gb=None):
-    """drop the least recently used entries until the cache is under its size cap (CHARKIT_CACHE_MAX_GB, default 12)."""
+def prune(d=None, cap_gb=None):
+    """drop the least recently used entries until the cache is under its size cap (CHARKIT_CACHE_GB, default 5)."""
     es = sorted(entries(d), key=lambda e: e[4])
     total = sum(e[3] for e in es)
-    cap = (max_gb or MAX_GB) * 1e9
+    cap = (cap_gb or max_gb()) * 1e9
     while es and total > cap:
         e = es.pop(0)
         if os.path.isdir(e[2]):
@@ -2452,6 +2455,18 @@ def prune(d=None, max_gb=None):
         elif os.path.exists(e[2]):
             os.remove(e[2])
         total -= e[3]
+
+
+def size_line(d=None, es=None):
+    """'build cache: 1.23 GB of 5 GB, 40 entries (charkit/out/.cache); 8.4 GB free on the disk'."""
+    d = d or cache_dir()
+    es = entries(d) if es is None else es
+    try:
+        free = '; %.1f GB free on the disk' % (shutil.disk_usage(d if os.path.exists(d) else ROOT).free / 1e9)
+    except OSError:
+        free = ''
+    return 'build cache: %.2f GB of %g GB, %d entries (%s)%s' % (sum(e[3] for e in es) / 1e9, max_gb(), len(es),
+                                                                os.path.relpath(d, ROOT), free)
 
 
 def main(args):
@@ -2462,7 +2477,7 @@ def main(args):
         for kind, step, p, size, t in es:
             b = by.setdefault((kind, step), [0, 0, 0])
             b[0] += 1; b[1] += size; b[2] = max(b[2], t)
-        print('cache %s: %d entries, %.2f GB (cap %.0f GB)' % (d, len(es), sum(e[3] for e in es) / 1e9, MAX_GB))
+        print(size_line(d, es))
         for (kind, step), (n, size, t) in sorted(by.items()):
             print('  %-9s %-14s %3d entries %8.1f MB  last used %s' % (kind, step, n, size / 1e6,
                                                                        time.strftime('%Y-%m-%d %H:%M', time.localtime(t))))

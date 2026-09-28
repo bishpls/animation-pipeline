@@ -168,7 +168,7 @@ store that fails leaves the build running, uncached.
 
 Modes: `--cache on` (the default), `off` (or `--no-cache`), `refresh` (run and store everything), `stages` (restore the
 stages, run the products afresh on the restored scene), `verify`. `python -m charkit cache info | clear`; the cache
-keeps under `CHARKIT_CACHE_MAX_GB` (12) by dropping the least recently used entries; `CHARKIT_CACHE_DIR` moves it.
+keeps under `CHARKIT_CACHE_GB` (5) by dropping the least recently used entries (`python -m charkit ps` and `cache info` show its size); `CHARKIT_CACHE_DIR` moves it.
 
 ### The build worker
 
