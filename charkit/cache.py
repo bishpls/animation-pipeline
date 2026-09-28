@@ -2201,8 +2201,9 @@ def _record_diff(a, b):
                 out.append('%s.%s' % (n, k))
     if a.get('removed', []) != b.get('removed', []):
         out.append('removed %s -> %s' % (a.get('removed'), b.get('removed')))
-    if a.get('objects') != b.get('objects'):
-        out.append('objects %s -> %s' % (a.get('objects'), b.get('objects')))
+    # (not the scene's total object count: that is upstream's, e.g. the hair stage's cap exists in one hair mode and not
+    # the other, while this stage's own effect is pinned by what it added, changed and removed; a stray object a restore
+    # made would show as added)
     return out
 
 
