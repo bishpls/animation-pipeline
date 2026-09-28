@@ -66,6 +66,7 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `so-back`: a Melee hyperpop hard edit, 9:16 at 60 fps; plates from its own pinned machinima kit (portrait, two-pass keyed),
     announcer-spliced vocals, Melee's own type; the release slice is the `so-back` branch
   - `clawd3d`: TSUZUKU's Clawd as a 3D cel character (headless Blender) and the first 3D mocap dance test (docs/PIPELINE_3D.md phase 1)
+  - `charkit-look`: the charkit inspector (`--serve`) and the Blender-vs-WebGPU look boards (docs/CHARKIT.md §7)
 - `legacy/ember/`: reusable code from the EMBER shorts.
 
 ## Commands (from repo root; P = projects/<film>)

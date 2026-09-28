@@ -1,6 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
-    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa]
+    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
+    python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
 
@@ -8,7 +9,10 @@ build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's object
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
-out/sheet_body.png, out/sheet_face.png.
+out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py).
+
+export: a saved build (.blend) to our glTF 2.0 / VRM 1.0 with the OPENADS_charkit_look extension (charkit/gltf.py), checked
+on the way out; engine/three/charkit/look.js renders it, projects/charkit-look inspects it and boards it against Blender.
 """
 import json, os, subprocess, sys
 
@@ -104,18 +108,34 @@ def build(args):
     spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args)
     boards = opt('--boards', 'views,body,expressions,mouths')
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--',
-           resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa'])
+           resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
+          (['--vrm'] if '--vrm' in args else [])
     r = subprocess.run(cmd, capture_output=True, text=True)
     if 'CHARKIT_BUILD_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
     for line in r.stdout.splitlines():
-        if line.startswith('CHARKIT_QA'):
+        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF')):
             print(line)
     for p in sheets(spec, out):
         print('sheet', p)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def export(args):
+    blend = _path(args[0])
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    out = _path(opt('--out', os.path.splitext(blend)[0] + '.vrm'))
+    cmd = [BLENDER, '-b', '--factory-startup', blend, '--python', os.path.join(ROOT, 'charkit', 'gltf.py'), '--', out,
+           '--subdiv', str(opt('--subdiv', 2))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if 'CHARKIT_GLTF_DONE' not in r.stdout:
+        sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
+        raise SystemExit('export failed')
+    for line in r.stdout.splitlines():
+        if line.startswith(('[gltf]', 'CHARKIT_GLTF')):
+            print(line)
 
 
 def main(argv=None):
@@ -128,6 +148,8 @@ def main(argv=None):
     elif cmd == 'trace':
         from . import trace
         trace.main(rest)
+    elif cmd == 'export':
+        export(rest)
     elif cmd == 'refs':
         from . import refs
         R = refs.measure(rest[0], float(rest[rest.index('--eye-x') + 1]) if '--eye-x' in rest else 0.168)
