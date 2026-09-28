@@ -12,10 +12,9 @@ A bundle:
     ctx = bodymeasure.Sheet(spec)                            # the model sheet measured once (charkit.bodyqa's views)
     checks = bodymeasure.sheet_body(bundle, ctx)             # the qa3d body_* checks, numpy
     checks = bodymeasure.sheet_palette(bundle, ctx)          # the qa3d palette_* checks
-    depth, label = bodymeasure.zsplat(meshes, az, origin, L, pix, win)    # faceqa.zbuffer, compiled
+    depth, label = bodymeasure.zbuffer(meshes, az, origin, L, pix, win)   # faceqa.zbuffer, the QA's own
 
-zsplat is faceqa.zbuffer's point-splat z-buffer (the same barycentric samples, pixels and nearest-wins rule) in numba,
-so these checks read what the in-Blender QA reads, at a fraction of the time.
+The z-buffer is the QA's own (faceqa.zbuffer, the numba rasteriser), so these checks read the pixels qa3d reads.
 """
 import os
 
@@ -23,58 +22,13 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-try:
-    import numba as nb
-except ImportError:                                     # Blender's Python: faceqa's numpy version instead
-    nb = None
-
 
 # ------------------------------------------------------------------------------------------------------------ z-buffer
-if nb is not None:
-    @nb.njit(cache=True)
-    def _splat(U, Z, D, T, lab, W, H, pix, wx, top, bottom, depth, label):
-        for t in range(T.shape[0]):
-            a, b, c = T[t, 0], T[t, 1], T[t, 2]
-            u0, u1, u2 = U[a], U[b], U[c]
-            z0, z1, z2 = Z[a], Z[b], Z[c]
-            if max(u0, u1, u2) <= -wx or min(u0, u1, u2) >= wx or max(z0, z1, z2) <= bottom or min(z0, z1, z2) >= top:
-                continue
-            d0, d1, d2 = D[a], D[b], D[c]
-            e = max(np.hypot(u0 - u1, z0 - z1), np.hypot(u1 - u2, z1 - z2), np.hypot(u2 - u0, z2 - z0))
-            k = int(np.ceil(e / (0.6 * pix)))
-            k = min(64, max(1, k))
-            for i in range(k + 1):
-                for j in range(k + 1 - i):
-                    b1 = i / k
-                    b2 = j / k
-                    b0 = 1 - b1 - b2
-                    su = u0 * b0 + u1 * b1 + u2 * b2
-                    sz = z0 * b0 + z1 * b1 + z2 * b2
-                    sd = d0 * b0 + d1 * b1 + d2 * b2
-                    col = int(np.floor((su + wx) / pix))
-                    row = int(np.floor((top - sz) / pix))
-                    if 0 <= col < W and 0 <= row < H and sd < depth[row, col]:
-                        depth[row, col] = sd
-                        label[row, col] = lab[t]
-
-
-def zsplat(meshes, az, origin, L, pix, win):
-    """faceqa.zbuffer (same arguments and result: meshes [(V, tris, tri_label)] -> (depth, label), label -1 where
-    nothing), compiled; where numba is missing, faceqa.zbuffer itself. Ties in depth may break the other way."""
+def zbuffer(meshes, az, origin, L, pix, win, thin=()):
+    """the QA's own z-buffer (faceqa.zbuffer: the numba rasteriser in the venv, its point splat in Blender's Python), so
+    these checks read the pixels qa3d reads: meshes [(V, tris, tri_label)] -> (depth, label), label -1 where nothing."""
     from . import faceqa
-    if nb is None:
-        return faceqa.zbuffer(meshes, az, origin, L, pix, win)
-    ox, oz = origin
-    W = int(round(2 * win['x'] / pix)); H = int(round((win['top'] - win['bottom']) / pix))
-    depth = np.full((H, W), np.inf); label = np.full((H, W), -1, np.int64)
-    for V, T, lab in meshes:
-        if len(T) == 0:
-            continue
-        u, z, d = faceqa.view(np.asarray(V, float), az)
-        _splat(np.ascontiguousarray((u - ox) / L), np.ascontiguousarray((z - oz) / L), np.ascontiguousarray(d),
-               np.ascontiguousarray(T, np.int64), np.ascontiguousarray(np.asarray(lab, np.int64)), W, H, float(pix),
-               float(win['x']), float(win['top']), float(win['bottom']), depth, label)
-    return depth, label
+    return faceqa.zbuffer(meshes, az, origin, L, pix, win, thin=thin)
 
 
 def objects(bundle, face=False):
@@ -127,7 +81,7 @@ class Sheet:
 
 
 def views(bundle, sheet, which=None):
-    """our bundle z-buffered on the design's grid per view (bodyqa.zbuffer_views, with zsplat): {view: (depth, label)}."""
+    """our bundle z-buffered on the design's grid per view, as bodyqa.zbuffer_views does: {view: (depth, label)}."""
     from . import bodyqa
     lm = bundle['landmarks']
     meshes = [(o['V'], o['F'][o['label'] >= 0], o['label'][o['label'] >= 0]) for o in objects(bundle)]
@@ -136,7 +90,7 @@ def views(bundle, sheet, which=None):
     out = {}
     for v in which:
         org = bodyqa.origin(v, az[v], np.asarray(lm['iris'], float), lm['centre'])
-        out[v] = zsplat(meshes, az[v], org, lm['L'], 1.0 / sheet.ppl, bodyqa.WIN)
+        out[v] = zbuffer(meshes, az[v], org, lm['L'], 1.0 / sheet.ppl, bodyqa.WIN, thin=(bodyqa.CLASS['line'],))
     return out
 
 
@@ -439,7 +393,7 @@ def sheet_face(bundle, sheet):
             meshes.append((o['V'], o['F'], np.where(lab == B['skin'], CL['skin'],
                                                     np.where(lab == B['line'], CL['line'], CL['other']))))
     O = sheetqa.measure_ours(meshes, covers, np.asarray(lm['iris'], float), lm['centre'], lm['L'], sheet.ppl,
-                             D.get('az_three_quarter', 35.0), zbuffer=zsplat, face_region=face_region)
+                             D.get('az_three_quarter', 35.0), face_region=face_region)
     C = sheetqa.compare(O, D)
     C.update(sheetqa.shown(O, D))
     strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
@@ -496,7 +450,7 @@ def piece_views(bundle, sheet, which=None):
     out = {}
     for v in which:
         org = bodyqa.origin(v, az[v], np.asarray(lm['iris'], float), lm['centre'])
-        out[v] = zsplat(meshes, az[v], org, lm['L'], 1.0 / sheet.ppl, bodyqa.WIN)[1]
+        out[v] = zbuffer(meshes, az[v], org, lm['L'], 1.0 / sheet.ppl, bodyqa.WIN)[1]
     return out
 
 

@@ -177,8 +177,18 @@ def build(spec, clay=None, look=None):
             pairs.add((min(a_, b_), max(a_, b_)))
     vals = [1.0 if (min(e.vertices[0], e.vertices[1]), max(e.vertices[0], e.vertices[1])) in pairs else 0.0 for e in me.edges]
     cr.data.foreach_set('value', vals)
-    # where the outline shell may draw: not round the eye and mouth openings (their own lines draw them)
-    ow = np.ones(len(V))
+    ow = outline_weights(A)
+    g = ob.vertex_groups.new(name='outline_w')
+    for w_ in np.unique(ow):
+        g.add([int(i) for i in np.nonzero(ow == w_)[0]], float(w_), 'REPLACE')
+    parts, mouth_parts = build_eyes(A, arm, ob, spec, look=look)
+    return {'arm': arm, 'skin': ob, 'data': A, 'eyes': parts, 'mouth': mouth_parts}
+
+
+def outline_weights(A):
+    """where the skin's outline shell may draw (its thickness per vertex, 0..1): not round the eye and mouth openings
+    (their own lines draw them), fading in over the rings round them."""
+    ow = np.ones(len(A['verts']))
     for E in A['eyes']:
         for v in list(E['eye']['pocket']) + list(E['eye']['margin']):
             ow[v] = 0.0
@@ -189,11 +199,7 @@ def build(spec, clay=None, look=None):
         ow[v] = 0.0
     for v, r in M_['outer'].items():
         ow[v] = min(ow[v], 0.0 if r <= 2 else 0.5 if r <= 4 else 1.0)
-    g = ob.vertex_groups.new(name='outline_w')
-    for w_ in np.unique(ow):
-        g.add([int(i) for i in np.nonzero(ow == w_)[0]], float(w_), 'REPLACE')
-    parts, mouth_parts = build_eyes(A, arm, ob, spec, look=look)
-    return {'arm': arm, 'skin': ob, 'data': A, 'eyes': parts, 'mouth': mouth_parts}
+    return ow
 
 
 def _mesh(name, verts, faces, uvs=None, mats=(), smooth=True):

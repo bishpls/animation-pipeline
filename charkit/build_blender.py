@@ -1,9 +1,12 @@
-"""Blender entry for `python -m charkit build` (charkit/cli.py): build a resolved spec's scene, render its boards, save it.
-    blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend] [--qa] [--vrm]
-                                                                      [--cache on|off|refresh|verify]
-The stages go through the build cache (charkit/cache.py), and so do the boards, the QA and the VRM, keyed on the whole
-scene; --cache off builds without it. A restore that doesn't reproduce its stage starts the build over with every step
-run and stored anew. The persistent worker (charkit/worker.py) calls main() once per job in a live Blender.
+"""Blender entry for `python -m charkit build` (charkit/cli.py): build a resolved spec's scene, render its boards, export
+its geometry bundle for the QA, save it.
+    blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend] [--bundle] [--qa]
+                                                                      [--vrm] [--cache on|off|refresh|verify]
+--bundle writes OUT_DIR/bundle (charkit/bundle.py: everything the QA measures), which the venv measures afterwards
+(charkit/qa3d.py, `python -m charkit qa`); --qa runs the old Blender-side QA pass instead (charkit/qa3d_blender.py).
+The stages go through the build cache (charkit/cache.py), and so do the boards, the bundle, the QA and the VRM, keyed on
+the whole scene; --cache off builds without it. A restore that doesn't reproduce its stage starts the build over with
+every step run and stored anew. The persistent worker (charkit/worker.py) calls main() once per job in a live Blender.
 """
 import os, shutil, sys, time
 T0 = time.time()                        # before charkit is imported: a source edited after this isn't the code that runs
@@ -46,14 +49,27 @@ def main(a, worker=False, t0=None):
         C.spec = S.spec
     if which:
         product('boards', lambda: scene.boards(S, os.path.join(out, 'boards'), which), [scene.boards], opts=which)
+    # (the bundle's and the old QA's modules are imported by name: every product is keyed on this module's code, and
+    # each on its own functions' code, so a QA change doesn't re-run the boards or the bundle)
+    import importlib
+    if '--bundle' in a:
+        bundle = importlib.import_module('charkit.bundle')
+        rp = os.path.join(out, 'ref_measure.json')
+
+        def export():
+            with trace.span('bundle') as sp:
+                p = bundle.export(S, os.path.join(out, 'bundle'), json.load(open(rp)) if os.path.exists(rp) else None)
+                sp.update(bytes=os.path.getsize(os.path.join(os.path.dirname(p), bundle.ARRAYS)))
+            print('CHARKIT_BUNDLE', os.path.dirname(p))
+        product('bundle', export, [bundle.export])
     if '--qa' in a:
-        from charkit import qa3d
+        qa3d = importlib.import_module('charkit.qa3d_blender')
         ref = spec.get('ref', {}).get('image') if isinstance(spec.get('ref'), dict) else None
         if ref and not os.path.isabs(ref):
             ref = os.path.join(ROOT, ref)
 
         def qa():
-            with trace.span('qa'):
+            with trace.span('qa', where='blender'):
                 R = qa3d.run(S, os.path.join(out, 'qa'), ref)
             trace.event('qa', checks={k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'},
                         summary=R['summary'])

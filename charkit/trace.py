@@ -55,11 +55,18 @@ STAGE_KEYS = {
 
 # ------------------------------------------------------------------------------------------------------------ the record
 class Trace:
-    def __init__(self, path):
+    def __init__(self, path, append=False):
         self.path = path
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        self.f = open(path, 'w')
-        self.t0 = time.perf_counter()
+        t_last = 0.0
+        if append and os.path.exists(path):
+            for line in open(path):
+                try:
+                    t_last = max(t_last, json.loads(line).get('t', 0.0))
+                except ValueError:
+                    pass
+        self.f = open(path, 'a' if append else 'w')
+        self.t0 = time.perf_counter() - t_last          # (appended records continue the build's clock)
         self.prev = {}                  # object name -> its last snapshot (for added / changed / removed)
         self.last = None                # the last stage record
         self.taps = []                  # lists collecting every record written (capture())
@@ -96,6 +103,16 @@ def begin(path, spec=None, spec_path=None, **env):
     except ImportError:
         pass
     _T.write('begin', **info)
+    return _T
+
+
+def resume(path):
+    """reopen a build's trace to append to it (the venv's QA after the Blender stage): its records continue the clock,
+    and the closing `end` record carries the whole build's time (the Blender stage's `end` stays before it)."""
+    global _T
+    if _T is not None:
+        _T.close()
+    _T = Trace(path, append=True)
     return _T
 
 
@@ -405,6 +422,7 @@ def summary(recs):
     """a text table per stage: time, objects, and per object added/changed its verts, faces and health."""
     out = []
     b = next((r for r in recs if r['event'] == 'begin'), {})
+    ends = [r for r in recs if r['event'] == 'end']
     out.append('build  git %s  blender %s  spec %s' % (b.get('git'), b.get('blender'), b.get('spec_hash')))
     for r in recs:
         ev = r['event']
@@ -437,6 +455,9 @@ def summary(recs):
         elif ev == 'qa':
             out.append('\nqa    ' + ', '.join('%s %s (%s)' % (k, v[0], v[1]) for k, v in r.get('checks', {}).items()))
         elif ev == 'end':
+            if r is not ends[-1]:                           # the Blender stage's end, before the venv's QA
+                out.append('\nblender %.1fs' % r['total'])
+                continue
             cs = cache_summary(recs)
             if cs:
                 out.append('\n' + cs)

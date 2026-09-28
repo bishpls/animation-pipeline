@@ -148,17 +148,21 @@ def extract_views(design, eye_band=0.12, eye_reach=0.45):
 
 
 def ours(cols, names=CLASSES, painted=('iris',)):
-    """our tones per class from charkit.qa3d.scene_classes' colours {class id: [(lit, shade, area)]}: the area-weighted
-    median of the triangles' lit and shade colours; a painted class (the iris plate: its tones are in its texture, not
-    its shading) is split into lit and shade as the design's is (tones()), over the texels the sheet's colour rule gives
-    that class (charkit.bodyqa.family: the pupil and ring are line on the sheet). -> {name: dict(lit, shade, area)}."""
+    """our tones per class from charkit.qa3d.scene_classes' colours {class id: (lit (n, 3), shade (n, 3), area (n,))}
+    (or rows [(lit, shade, area)]): the area-weighted median of the triangles' lit and shade colours; a painted class (the
+    iris plate: its tones are in its texture, not its shading) is split into lit and shade as the design's is (tones()),
+    over the texels the sheet's colour rule gives that class (charkit.bodyqa.family: the pupil and ring are line on the
+    sheet). -> {name: dict(lit, shade, area)}."""
     out = {}
     for n, c in names.items():
-        rows = cols.get(c) or cols.get(str(c))
-        if not rows:
+        rows = cols.get(c) if cols.get(c) is not None else cols.get(str(c))
+        if rows is None or not len(rows) or isinstance(rows, tuple) and not len(rows[0]):
             continue
-        lit = np.array([r[0] for r in rows], float); shd = np.array([r[1] for r in rows], float)
-        w = np.maximum(np.array([r[2] for r in rows], float), 1e-12)
+        if isinstance(rows, tuple):
+            lit, shd, w = np.asarray(rows[0], float), np.asarray(rows[1], float), np.maximum(np.asarray(rows[2], float), 1e-12)
+        else:
+            lit = np.array([r[0] for r in rows], float); shd = np.array([r[1] for r in rows], float)
+            w = np.maximum(np.array([r[2] for r in rows], float), 1e-12)
         if n in painted:
             from .bodyqa import family
             keep = family(lit) == c                   # the texels the sheet's own colour rule calls this class (its

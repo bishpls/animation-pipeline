@@ -1,6 +1,6 @@
 """The fast face evaluator's numpy parts on synthetic inputs (venv: run this file): the rasteriser, texture lookup and
-pixel filter behind its eye renders, jittered check averaging, the vectorised head surface against the scalar one, and
-the binned ray cast against the brute force."""
+pixel filter behind its eye renders (charkit.qa3d's, which the evaluator measures with), jittered check averaging, the
+vectorised head surface against the scalar one, and the binned ray cast against the brute force."""
 import math, os, sys
 
 import numpy as np
@@ -10,22 +10,27 @@ from charkit import anime_head, faceeval, head
 
 
 def test_raster_nearest_and_barycentric():
-    # two triangles over one pixel grid: the nearer (smaller y) wins where both cover
-    far = (np.array([[0, 1.0, 0], [4, 1.0, 0], [0, 1.0, -4]]), np.array([[0, 1, 2]]))
-    near = (np.array([[0, 0.0, 0], [2, 0.0, 0], [0, 0.0, -2]]), np.array([[0, 1, 2]]))
-    M, T, b1, b2 = faceeval.raster([far, near], 0.0, 0.0, 0.5, 8, 8)
-    assert M[0, 0] == 1 and M[5, 1] == 0 and M[7, 7] == -1
-    # pixel (0, 0)'s centre (0.25, -0.25) in the near triangle: b1 = x / 2, b2 = -z / 2
-    assert abs(b1[0, 0] - 0.125) < 1e-9 and abs(b2[0, 0] - 0.125) < 1e-9
+    # two triangles over one pixel grid (charkit.geom.raster.window_zbuffer, as the eye renders use it): the nearer
+    # (smaller y) wins where both cover
+    from charkit.geom import raster
+    far = (np.array([[0, 1.0, 0], [4, 1.0, 0], [0, 1.0, -4]]), np.array([[0, 1, 2]]), 0)
+    near = (np.array([[0, 0.0, 0], [2, 0.0, 0], [0, 0.0, -2]]), np.array([[0, 1, 2]]), 1)
+    win = dict(x=2.0, top=0.0, bottom=-4.0)                     # pixel (r, c)'s centre at x = (c + 0.5) 0.5, z = -(r + 0.5) 0.5
+    zb, lab, M, T, bc = raster.window_zbuffer([far, near], 0.0, (2.0, 0.0), 1.0, 0.5, win, ids=True)
+    assert M[0, 0] == 1 and M[5, 1] == 0 and M[7, 7] == -1 and lab[0, 0] == 1 and lab[7, 7] == -1
+    # pixel (0, 0)'s centre (0.25, -0.25) in the near triangle: the second and third corners' weights x / 2, -z / 2
+    assert abs(bc[0, 0, 1] - 0.125) < 1e-9 and abs(bc[0, 0, 2] - 0.125) < 1e-9
 
 
 def test_sample_clip_and_blur():
+    from charkit import qa3d
     tex = np.zeros((4, 4, 1)); tex[:2] = 1.0                    # the top half (v > 0.5) white
-    v = faceeval._sample(tex, np.array([[0.5, 0.9], [0.5, 0.1], [1.5, 0.5]]))[:, 0]
+    v = qa3d._sample(tex, np.array([[0.5, 0.9], [0.5, 0.1], [1.5, 0.5]]))[:, 0]
     assert v[0] == 1.0 and v[1] == 0.0 and v[2] == 0.0          # outside [0, 1]: the plates' CLIP
     img = np.zeros((16, 16, 1)); img[:, 8:] = 1.0
-    out = faceeval._blur_down(img, 4, 0.5)
+    out = qa3d._blur_down(img, 4, 0.5)
     assert out.shape == (4, 4, 1) and out[0, 0, 0] < 0.05 and out[0, 3, 0] > 0.95 and 0.2 < out[0, 2, 0] < 0.95
+    assert abs(out[0, 1, 0] + out[0, 2, 0] - 1) < 1e-9          # an even supersampling reads the pixels' centres
 
 
 def test_mean_checks():

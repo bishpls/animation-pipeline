@@ -6,7 +6,7 @@ Blender and minutes per build: a script that prints its results, not a unit test
 
 Builds (each into its own out folder; `fresh` ones with --cache off):
   cold         everything runs and is stored                 warm      no change: everything restored
-  stages       the stages restored, boards and QA run on the restored scene (qa.json must equal the fresh build's)
+  stages       the stages restored, boards, bundle and QA run on the restored scene (qa.json must equal the fresh build's)
   eyes         eyes.width: character, hair, face shading run; garments restored
   head         head.width: garments run too (the head wrap drags the neck and shoulder joints the outfit hangs from)
   outfit       a garment's colour: character, hair, face shading restored; garments run; in the QA the parts that
@@ -148,9 +148,9 @@ def main(args):
         check(not bad, '%s: boards and QA overlays pixel-identical to fresh%s' % (n, '' if not bad else ': ' + ', '.join(bad)))
     if want('stages'):
         R['stages'] = build(root, spec, out('stages'), *B, '--cache', 'stages', env=env); show('stages', R['stages'])
-        check({'boards', 'qa'} <= set(ran(R['stages'])) and not {'fit_cranium', 'character', 'hair', 'face_shading',
-                                                                  'garments'} & set(ran(R['stages'])),
-              'stages: the stages restored, boards and QA run')
+        check({'boards', 'bundle', 'eyes', 'sheet_body'} <= set(ran(R['stages'])) and not {
+              'fit_cranium', 'character', 'hair', 'face_shading', 'garments'} & set(ran(R['stages'])),
+              'stages: the stages restored, the boards, the bundle and the QA parts run')
         same, which = qa_same(out('fresh'), out('stages'))
         check(same, 'stages: QA run on the restored scene equals the fresh build\'s%s' % ('' if same else ': ' + str(which)))
         check(diff(root, out('fresh'), out('stages')) == 'no differences', 'stages: trace diff: no differences')
