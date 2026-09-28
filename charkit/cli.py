@@ -20,6 +20,9 @@
                                     [--write-spec]                     # the face, eye and neck knobs from the QA
                                                                        # (charkit/facefit.py; build takes DIR/NAME.fit.json)
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
+    python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
+    python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
+    python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
 
@@ -278,6 +281,15 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'bodyeval':
+        from . import bodyeval
+        bodyeval.main(rest)
+    elif cmd == 'bodysens':
+        from . import bodysens
+        bodysens.main(rest)
+    elif cmd == 'bodyfit':
+        from . import bodyfit
+        bodyfit.main(rest)
     elif cmd == 'fit':
         from . import facefit
         facefit.main(rest)
