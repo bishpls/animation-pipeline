@@ -7,7 +7,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, ROOT)
 import bpy
 import numpy as np
-from charkit import accessories, character, faceshade, hair, qa, shade
+from charkit import accessories, character, faceshade, garments, hair, qa, shade
 from charkit.boards.face_board import EXPR, MOUTH, set_expr, set_mouth
 
 
@@ -34,6 +34,7 @@ def main(spec_path, out, fast=False, nohair=False):
         hb = next(o for o in hobs if o.name.startswith('hair_front'))
         bangs = (np.array([v.co for v in hb.data.vertices]), [tuple(p.vertices) for p in hb.data.polygons])
     faceshade.apply(C, bangs=bangs, colors=sk)
+    gobs = garments.build(C, spec.get('garments'))
     A = C['data']; eye_z = A['head']['eye_z']; L = A['head']['L']
     cd = bpy.data.cameras.new('cam'); cam = bpy.data.objects.new('cam', cd); sc.collection.objects.link(cam)
     sc.camera = cam
@@ -48,6 +49,12 @@ def main(spec_path, out, fast=False, nohair=False):
     tgt = (0, 0, eye_z + 0.06 * L)
     for az in (0, 30, 60, 90, 150):
         shot(os.path.join(out, f'{name}_face_{az:03d}.png'), tgt, az, 1.0 if not nohair else 0.8, 0.0, lens=85)
+    if os.environ.get('CHARKIT_BODY') == '1':
+        sc.render.resolution_x, sc.render.resolution_y = 600, 1000
+        H_ = spec.get('body', {}).get('height_m', 1.6)
+        for az in (0, 35, 90):
+            qa.render_view(cam, (0, 0, H_ * 0.52), az, 6.0, 0.0, os.path.join(out, f'{name}_body_{az:03d}.png'),
+                           ortho=H_ * 1.12)
     if fast:
         return
     sc.render.resolution_x, sc.render.resolution_y = 600, 600

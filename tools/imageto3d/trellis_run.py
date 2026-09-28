@@ -39,8 +39,10 @@ def main():
     t0 = time.time()
     pipe = Trellis2ImageTo3DPipeline.from_pretrained(local_pipeline_dir())
     pipe.cuda()
-    envmap = EnvMap(torch.tensor(cv2.cvtColor(cv2.imread(f'{T2}/assets/hdri/forest.exr', cv2.IMREAD_UNCHANGED),
-                                              cv2.COLOR_BGR2RGB), dtype=torch.float32, device='cuda'))
+    hdr = cv2.imread(f'{T2}/assets/hdri/forest.exr', cv2.IMREAD_UNCHANGED)
+    envmap = None
+    if hdr is not None:                                   # the repo's HDRI is optional (a git-LFS asset); without it, no mp4
+        envmap = EnvMap(torch.tensor(cv2.cvtColor(hdr, cv2.COLOR_BGR2RGB), dtype=torch.float32, device='cuda'))
     log = {'load_s': round(time.time() - t0, 1), 'runs': []}
     for path in imgs:
         name = os.path.splitext(os.path.basename(path))[0]
@@ -59,8 +61,9 @@ def main():
                                              aabb=[[-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]], decimation_target=400000,
                                              texture_size=2048, remesh=True, remesh_band=1, remesh_project=0, verbose=False)
             glb.export(os.path.join(out, tag + '.glb'), extension_webp=False)
-            frames = render_utils.make_pbr_vis_frames(render_utils.render_video(mesh, envmap=envmap, num_frames=60))
-            imageio.mimsave(os.path.join(out, tag + '.mp4'), frames, fps=15)
+            if envmap is not None:
+                frames = render_utils.make_pbr_vis_frames(render_utils.render_video(mesh, envmap=envmap, num_frames=60))
+                imageio.mimsave(os.path.join(out, tag + '.mp4'), frames, fps=15)
             r = dict(image=name, seed=seed, res=res, gen_s=round(t_gen, 1), total_s=round(time.time() - t, 1),
                      peak_gb=round(torch.cuda.max_memory_allocated() / 1e9, 2), verts=int(len(v)), faces=int(len(f)))
             print(r, flush=True)

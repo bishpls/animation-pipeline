@@ -5,7 +5,10 @@
   "height_m": 1.55,
   "heads_tall": 6.2,
   "proportions": {
-   "neck_w": 0.6
+   "neck_w": 0.6,
+   "leg_slim": 1.02,
+   "hip": 1.08,
+   "arm_slim": 0.9
   }
  },
  "head": {
@@ -320,6 +323,382 @@
     0.88,
     0.3,
     0.2
+   ]
+  }
+ ],
+ "garments": [
+  {
+   "kind": "shell",
+   "name": "top",
+   "region": [
+    [
+     "hips",
+     -1,
+     3
+    ],
+    [
+     "spine",
+     -1,
+     3
+    ],
+    [
+     "chest",
+     -1,
+     3
+    ],
+    [
+     "upperChest",
+     -1,
+     3
+    ],
+    [
+     "neck",
+     -1,
+     0.3
+    ],
+    [
+     "leftShoulder",
+     -1,
+     3
+    ],
+    [
+     "rightShoulder",
+     -1,
+     3
+    ],
+    [
+     "leftUpperArm",
+     -1,
+     0.12
+    ],
+    [
+     "rightUpperArm",
+     -1,
+     0.12
+    ]
+   ],
+   "offset": 0.012,
+   "thick": 0.01,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ],
+   "cuts": [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ]
+   ],
+   "panel": {
+    "color": [
+     0.97,
+     0.9,
+     0.72
+    ],
+    "from": [
+     "hips",
+     0.0
+    ],
+    "to": [
+     "upperChest",
+     0.25
+    ],
+    "half_top": 0.1,
+    "half_bottom": 0.17
+   }
+  },
+  {
+   "kind": "shell",
+   "name": "shorts",
+   "region": [
+    [
+     "hips",
+     -1,
+     3
+    ],
+    [
+     "spine",
+     -1,
+     3
+    ],
+    [
+     "leftUpperLeg",
+     -1,
+     0.4
+    ],
+    [
+     "rightUpperLeg",
+     -1,
+     0.4
+    ]
+   ],
+   "offset": 0.008,
+   "thick": 0.006,
+   "color": [
+    0.22,
+    0.18,
+    0.18
+   ],
+   "cuts": [
+    [
+     "hips",
+     0.0,
+     "below",
+     0.16
+    ]
+   ]
+  },
+  {
+   "kind": "shell",
+   "name": "boots",
+   "region": [
+    [
+     "leftLowerLeg",
+     0.34,
+     1.5
+    ],
+    [
+     "rightLowerLeg",
+     0.34,
+     1.5
+    ]
+   ],
+   "offset": 0.016,
+   "thick": 0.01,
+   "color": [
+    0.97,
+    0.97,
+    0.98
+   ]
+  },
+  {
+   "kind": "shoe",
+   "name": "shoe_L",
+   "side": "left",
+   "offset": 0.02,
+   "sole": 0.07,
+   "instep": 0.12,
+   "color": [
+    0.97,
+    0.97,
+    0.98
+   ],
+   "sole_color": [
+    0.26,
+    0.21,
+    0.21
+   ]
+  },
+  {
+   "kind": "shoe",
+   "name": "shoe_R",
+   "side": "right",
+   "offset": 0.02,
+   "sole": 0.07,
+   "instep": 0.12,
+   "color": [
+    0.97,
+    0.97,
+    0.98
+   ],
+   "sole_color": [
+    0.26,
+    0.21,
+    0.21
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "boot_cuff_L",
+   "bone": "leftLowerLeg",
+   "t": 0.33,
+   "width": 0.17,
+   "offset": 0.035,
+   "flare": 0.02,
+   "thick": 0.03,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "boot_cuff_R",
+   "bone": "rightLowerLeg",
+   "t": 0.33,
+   "width": 0.17,
+   "offset": 0.035,
+   "flare": 0.02,
+   "thick": 0.03,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "skirt",
+   "name": "skirt",
+   "waist": 0.5,
+   "length": 0.9,
+   "back": 0.55,
+   "flare": 42,
+   "pleats": 22,
+   "pleat": 0.07,
+   "panel": 0.55,
+   "offset": 0.03,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ],
+   "panel_color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "hem_color": [
+    0.3,
+    0.22,
+    0.2
+   ],
+   "repeat": 8
+  },
+  {
+   "kind": "sleeve",
+   "name": "sleeve_L",
+   "side": "left",
+   "puff": 0.85,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "sleeve",
+   "name": "sleeve_R",
+   "side": "right",
+   "puff": 0.85,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "cuff_L",
+   "bone": "leftUpperArm",
+   "t": 0.48,
+   "width": 0.11,
+   "offset": 0.03,
+   "thick": 0.02,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "cuff_R",
+   "bone": "rightUpperArm",
+   "t": 0.48,
+   "width": 0.11,
+   "offset": 0.03,
+   "thick": 0.02,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "wrist_L",
+   "bone": "leftLowerArm",
+   "t": 0.84,
+   "width": 0.15,
+   "offset": 0.035,
+   "thick": 0.025,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "wrist_R",
+   "bone": "rightLowerArm",
+   "t": 0.84,
+   "width": 0.15,
+   "offset": 0.035,
+   "thick": 0.025,
+   "color": [
+    0.86,
+    0.42,
+    0.24
+   ]
+  },
+  {
+   "kind": "collar",
+   "name": "collar",
+   "v_depth": 0.66,
+   "back_depth": 0.55,
+   "offset": 0.03,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "stripe_color": [
+    0.35,
+    0.24,
+    0.2
+   ],
+   "side_depth": 0.34,
+   "v_half": 36,
+   "rise": -0.01,
+   "stripe": [
+    0.74,
+    0.86
+   ]
+  },
+  {
+   "kind": "bow",
+   "name": "bow",
+   "size": 0.85,
+   "height": 0.62,
+   "offset": 0.06,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ]
+  },
+  {
+   "kind": "belt",
+   "name": "waistband",
+   "waist": 0.5,
+   "width": 0.13,
+   "offset": 0.045,
+   "thick": 0.025,
+   "color": [
+    0.86,
+    0.42,
+    0.24
    ]
   }
  ]

@@ -23,24 +23,25 @@ set -euxo pipefail
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libjpeg-dev ffmpeg
 cd /srv/work; [ -d trellis2 ] || git clone -b main https://github.com/microsoft/TRELLIS.2.git trellis2; cd trellis2
 git submodule update --init --recursive; git rev-parse HEAD
-rm -rf .venv; uv venv .venv --python 3.10; source .venv/bin/activate
+[ -x .venv/bin/python ] || uv venv .venv --python 3.10; source .venv/bin/activate
+have() { python -c "import $1" 2>/dev/null; }
 export UV_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cu124 UV_INDEX_STRATEGY=unsafe-best-match
 uv pip install torch==2.6.0+cu124 torchvision==0.21.0+cu124
 uv pip install imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh transformers tensorboard pandas \
-  lpips zstandard kornia timm pillow huggingface_hub setuptools wheel psutil
+  lpips zstandard kornia timm pillow huggingface_hub setuptools wheel psutil "transformers>=4.56,<4.58"   # 5.x moved DINOv3's layers
 uv pip install git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
-export CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.9 MAX_JOBS=8
-uv pip install flash-attn==2.7.3 --no-build-isolation || echo "flash-attn: no wheel/build; falling back to sdpa"
+export CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.9 MAX_JOBS=3   # 8 parallel nvcc jobs exhaust the 32 GB box
+have flash_attn || uv pip install flash-attn==2.7.3 --no-build-isolation || echo "flash-attn: no wheel/build"
 mkdir -p /tmp/ext
 [ -d /tmp/ext/nvdiffrast ] || git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/ext/nvdiffrast
-uv pip install /tmp/ext/nvdiffrast --no-build-isolation
+have nvdiffrast.torch || uv pip install /tmp/ext/nvdiffrast --no-build-isolation
 [ -d /tmp/ext/nvdiffrec ] || git clone -b renderutils https://github.com/JeffreyXiang/nvdiffrec.git /tmp/ext/nvdiffrec
-uv pip install /tmp/ext/nvdiffrec --no-build-isolation
+have renderutils || have nvdiffrec_render || uv pip install /tmp/ext/nvdiffrec --no-build-isolation
 [ -d /tmp/ext/CuMesh ] || git clone --recursive https://github.com/JeffreyXiang/CuMesh.git /tmp/ext/CuMesh
-uv pip install /tmp/ext/CuMesh --no-build-isolation
+have cumesh || uv pip install /tmp/ext/CuMesh --no-build-isolation
 [ -d /tmp/ext/FlexGEMM ] || git clone --recursive https://github.com/JeffreyXiang/FlexGEMM.git /tmp/ext/FlexGEMM
-uv pip install /tmp/ext/FlexGEMM --no-build-isolation
-rm -rf /tmp/ext/o-voxel; cp -r o-voxel /tmp/ext/o-voxel; uv pip install /tmp/ext/o-voxel --no-build-isolation
+have flex_gemm || uv pip install /tmp/ext/FlexGEMM --no-build-isolation
+have o_voxel || { rm -rf /tmp/ext/o-voxel; cp -r o-voxel /tmp/ext/o-voxel; uv pip install /tmp/ext/o-voxel --no-build-isolation; }
 python -c "import torch, o_voxel, cumesh, flex_gemm, nvdiffrast.torch; print('torch', torch.__version__, torch.cuda.is_available())"
 # weights: the MIT ones anonymously; DINOv3 with the token (gated) if access has been granted
 python - <<'PY'
@@ -78,7 +79,14 @@ box "mkdir -p $R/in"
 for f in "$@"; do "$GPU" push "$f" "$R/in/" >/dev/null 2>&1; done
 "$GPU" push "$ROOT/tools/imageto3d/trellis_run.py" "$W/trellis_run.py" >/dev/null 2>&1
 ins=$(for f in "$@"; do printf '%s ' "$R/in/$(basename "$f")"; done)
-box "tmux kill-session -t i3d 2>/dev/null; tmux new -d -s i3d 'cd $T2 && ( while true; do touch /srv/work/.keepalive; sleep 300; done ) & source $T2/.venv/bin/activate && python $W/trellis_run.py $R/out $RES $SEEDS $ins > $R/log.txt 2>&1; touch $R/DONE'"
+jobsh=$(mktemp); cat > "$jobsh" <<EOJ
+#!/usr/bin/env bash
+( while true; do touch /srv/work/.keepalive; sleep 300; done ) & KA=\$!
+cd $T2 && . $T2/.venv/bin/activate && PYTHONUNBUFFERED=1 python $W/trellis_run.py $R/out $RES $SEEDS $ins > $R/log.txt 2>&1
+kill \$KA; touch $R/DONE
+EOJ
+"$GPU" push "$jobsh" "$R/job.sh" >/dev/null 2>&1
+box "tmux kill-session -t i3d 2>/dev/null; tmux new -d -s i3d 'bash $R/job.sh'"
 echo "job $job running on the box (tmux i3d); polling"
 until box "test -f $R/DONE && echo done" | grep -q done; do sleep 30; box "tail -1 $R/log.txt" | tail -1; done
 box "tail -5 $R/log.txt"
