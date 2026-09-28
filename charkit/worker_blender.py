@@ -1,12 +1,14 @@
 """Blender entry for the build worker (charkit/worker.py): serve build jobs on a Unix socket until asked to stop.
     blender -b --factory-startup --python charkit/worker_blender.py -- SOCKET INFO.json
 
-Each job: charkit's modules dropped and imported afresh, the scene reset to factory settings, the datablock counts and
-charkit's own app handlers checked against the first clean state (a difference is reported as CHARKIT_WORKER_LEAK and the worker restarts
+Each job takes a machine-wide build slot (charkit.procs.acquire_slot, waiting while all are held) and gives it back once
+the job's scene is cleared again, so an idle worker holds no slot. Each job: charkit's modules dropped and imported
+afresh, the scene reset to factory settings, the datablock counts and charkit's own app handlers checked against the
+first clean state (a difference is reported as CHARKIT_WORKER_LEAK and the worker restarts
 itself in place after the job), then charkit.build_blender.main(job) with its output streamed back line by line.
 This file stays outside the purge: it holds the loop, and nothing of charkit between jobs.
 """
-import importlib, json, os, socket, sys, time, traceback
+import gc, importlib, json, os, socket, sys, time, traceback
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -32,9 +34,11 @@ def purge():
 
 
 def clean():
-    """charkit unloaded, the scene at factory settings. -> the counts a later job's clean state must match."""
+    """charkit unloaded, the scene at factory settings, Python's garbage collected. -> the counts a later job's clean
+    state must match."""
     purge()
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    gc.collect()
     n = {c: len(getattr(bpy.data, c)) for c in dir(bpy.data)
          if isinstance(getattr(bpy.data, c, None), bpy.types.bpy_prop_collection)}
     # charkit's own app handlers (Blender's bundled add-ons add theirs again at every factory reset, fresh builds too)
@@ -85,12 +89,16 @@ def job(conn, msg, base):
         del os.environ[k]
     os.environ.update(msg.get('env') or {})                  # the client's CHARKIT_* settings, for this job only
     sys.stdout, sys.stderr = out, err
-    ok = True
+    ok, slot = True, None
     try:
         if leak:
             print('CHARKIT_WORKER_LEAK', json.dumps(leak))
+        from charkit import procs
+        slot = procs.acquire_slot('worker ' + STATE['busy']['label'])
+        STATE['busy']['slot'] = True; save_info()
+        t0 = time.time()                                     # (before charkit's code is imported for this job)
         import charkit.build_blender as bb
-        bb.main(list(msg['argv']), worker=True, t0=t)
+        bb.main(list(msg['argv']), worker=True, t0=t0)
     except BaseException:
         ok = False
         traceback.print_exc()
@@ -99,6 +107,11 @@ def job(conn, msg, base):
         for k in [k for k in os.environ if k.startswith('CHARKIT_')]:
             del os.environ[k]
         os.environ.update(env0)
+        try:
+            clean()                                          # the job's scene and state let go before the slot is
+        finally:
+            if slot is not None:
+                slot.close()
     STATE['jobs'] += 1
     STATE['busy'] = None
     STATE['last'] = {'label': ' '.join(os.path.basename(a) for a in msg['argv'][:2]), 'seconds': round(time.time() - t, 2),

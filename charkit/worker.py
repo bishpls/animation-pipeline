@@ -194,14 +194,26 @@ def status():
         stop(quiet=True)
         return None
     busy = I.get('busy')
-    print('worker pid %d, up %s, %d jobs, %s' % (I['pid'], _age(I['started']), I.get('jobs', 0),
-                                                 'busy: %s (%s)' % (busy['label'], _age(busy['since'])) if busy else 'idle'))
+    m = rss_mb(I['pid'])
+    print('worker pid %d, up %s, %d jobs, %s, %s MB resident' % (
+        I['pid'], _age(I['started']), I.get('jobs', 0),
+        ('busy: %s (%s%s)' % (busy['label'], _age(busy['since']), '' if busy.get('slot') else ', waiting for a build slot'))
+        if busy else 'idle (no build slot held)', '%.0f' % m if m else '?'))
     if I.get('last'):
         L = I['last']
         print('  last job: %s, %.1fs, %s%s' % (L.get('label'), L.get('seconds', 0), 'ok' if L.get('ok') else 'FAILED',
                                              ', LEAK' if L.get('leak') else ''))
     print('  socket %s, log %s' % (I['sock'], os.path.join(DIR, 'worker.log')))
     return I
+
+
+def rss_mb(pid):
+    """a process's resident memory, MB (None when it can't be read)."""
+    r = subprocess.run(['ps', '-o', 'rss=', '-p', str(pid)], capture_output=True, text=True)
+    try:
+        return int(r.stdout.strip()) / 1024
+    except ValueError:
+        return None
 
 
 def _age(t):

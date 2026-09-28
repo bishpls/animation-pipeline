@@ -652,8 +652,11 @@ def _mod(name):
 
 def save_code_memo():
     if _DISK[1] and _DISK[0] is not None:
-        _write_json(os.path.join(cache_dir(), 'code.json'), _DISK[0])
-        _DISK[1] = False
+        try:
+            _write_json(os.path.join(cache_dir(), 'code.json'), _DISK[0])
+            _DISK[1] = False
+        except OSError:
+            pass
 
 
 def code_units(*fns, modules=()):
@@ -1543,11 +1546,15 @@ class Cache:
         state = None
         if self.edited():
             errors.append('%s changed during the build' % self.edited())
+        if not errors and not room(self.dir):
+            errors.append('less than CHARKIT_CACHE_MIN_FREE_GB free on the disk')
         if not errors:
             try:
                 state = self.store(kind, name, static, units, run, reads, key, trace_rec)
             except Uncacheable as e:
                 errors.append(str(e))
+            except OSError as e:                              # (a full disk: the build goes on, uncached)
+                errors.append('storing it failed: %s' % e)
         self.ran.append(name)
         if errors:
             info['stored'] = False
@@ -1622,8 +1629,7 @@ class Cache:
                 M['images'] = sorted(fl)
                 if fl:
                     np.savez(os.path.join(tmp, 'images.npz'), **fl)
-            with open(os.path.join(tmp, 'state.pkl'), 'wb') as f:
-                f.write(blob)
+            _write_state(os.path.join(tmp, 'state.pkl'), blob)
             vals = {json.dumps(_jpath(p)): v for p, v in getattr(run, 'values', {}).items()}
             if vals:
                 arrs = {'v%d' % i: v for i, v in enumerate(vals.values())}
@@ -1641,13 +1647,13 @@ class Cache:
         return state
 
     def load_state(self, E):
-        with open(E.file('state.pkl'), 'rb') as f:
-            try:
-                return _Unpickler(f).load()
-            except RestoreError:
-                raise
-            except Exception as e:
-                raise RestoreError('state: %s: %s' % (type(e).__name__, e))
+        import io
+        try:
+            return _Unpickler(io.BytesIO(_read_state(E.file('state.pkl')))).load()
+        except RestoreError:
+            raise
+        except Exception as e:
+            raise RestoreError('state: %s: %s' % (type(e).__name__, e))
 
     def restore(self, E, S):
         """put a stage's checkpoint into the scene and the Scene: its datablocks appended (what they point at re-bound to
@@ -1773,10 +1779,10 @@ class Cache:
         rec = Recorder(self, name, None, holder)
         rec.files_only = True
         global _REC
-        lines = []
+        lines, errs = [], []
         _REC = rec
         try:
-            with trace.capture() as got, _tee(lines):
+            with trace.capture() as got, _tee(lines, errs):
                 run()
         finally:
             _REC = None
@@ -1789,6 +1795,10 @@ class Cache:
         stdout = [l for l in lines if l.startswith('CHARKIT_')]
         if sk is not None and self.edited():
             sk, why = None, '%s changed during the build' % self.edited()
+        elif sk is not None and _caught(errs):
+            sk, why = None, 'an error was caught while it ran (see the log)'
+        elif sk is not None and not room(self.dir):
+            sk, why = None, 'less than CHARKIT_CACHE_MIN_FREE_GB free on the disk'
         if sk is not None and self.mode != 'off' and not os.path.exists(os.path.join(self.dir, 'products', name,
                                                                                          static[:20], key[:24])):
             tmp = tempfile.mkdtemp(prefix='.w-', dir=self.dir)
@@ -1799,7 +1809,7 @@ class Cache:
                     shutil.copyfile(os.path.join(self.out, rel), d)
                 M = dict(schema=SCHEMA, kind='products', step=name, static=static, id=key[:24], units=units, env=self.env,
                          reads=[[_jpath(p), h] for p, h in sorted(reads.items())], files=outs,
-                         digests={rel: self.files.get(os.path.join(self.out, rel), fresh=True) for rel in outs},
+                         digests={rel: content_digest(os.path.join(self.out, rel)) for rel in outs},
                          records=[{k: v for k, v in r.items() if k != 't'} for r in got if r['event'] != 'product'],
                          stdout=stdout, created=time.strftime('%Y-%m-%dT%H:%M:%S'), spec_name=self.name)
                 _write_json(os.path.join(tmp, 'manifest.json'), M)
@@ -1809,6 +1819,9 @@ class Cache:
                     os.rename(tmp, final)
                 except OSError:
                     shutil.rmtree(tmp, ignore_errors=True)
+            except OSError as e:
+                shutil.rmtree(tmp, ignore_errors=True)
+                sk, why = None, 'storing it failed: %s' % e
             except Exception:
                 shutil.rmtree(tmp, ignore_errors=True)
                 raise
@@ -1817,8 +1830,7 @@ class Cache:
             info['uncacheable'] = why
         if self.mode == 'verify' and E is not None:
             bad = [rel for rel in sorted(set(E.m['files']) | set(outs))
-                   if E.m['digests'].get(rel) != (self.files.get(os.path.join(self.out, rel), fresh=True) if rel in outs
-                                                  else None)]
+                   if E.m['digests'].get(rel) != (content_digest(os.path.join(self.out, rel)) if rel in outs else None)]
             info['verified'] = not bad
             if bad:
                 info['stale'] = bad[:6]
@@ -1867,9 +1879,10 @@ class Cache:
         obs0 = {o.as_pointer(): ob_parts(o, full=False) for o in _bpy().data.objects}
         attrs0 = dict(vars(S))
         before = _tree(self.out)
+        lines, errs = [], []
         _REC = rec
         try:
-            with trace.capture() as got:
+            with trace.capture() as got, _tee(lines, errs):
                 result = fn(Scoped(S, rec), *args)
         finally:
             _REC = None
@@ -1911,6 +1924,10 @@ class Cache:
         blob = None
         if self.edited():
             errors.append('%s changed during the build' % self.edited())
+        if _caught(errs):
+            errors.append('an error was caught while it ran (see the log)')
+        if not errors and not room(self.dir):
+            errors.append('less than CHARKIT_CACHE_MIN_FREE_GB free on the disk')
         if not errors:
             try:
                 blob = _dumps(state, {})
@@ -1926,23 +1943,27 @@ class Cache:
                     d = os.path.join(tmp, 'files', rel)
                     os.makedirs(os.path.dirname(d), exist_ok=True)
                     shutil.copyfile(os.path.join(self.out, rel), d)
-                open(os.path.join(tmp, 'state.pkl'), 'wb').write(blob)
+                _write_state(os.path.join(tmp, 'state.pkl'), blob)
                 _write_json(os.path.join(tmp, 'manifest.json'), dict(
                     schema=SCHEMA, kind='parts', step=name, static=static, id=key, units=units, env=self.env,
                     reads=[[_jpath(q), h] for q, h in sorted(reads.items(), key=lambda kv: json.dumps(_jpath(kv[0])))],
-                    files=outs, digests={rel: self.files.get(os.path.join(self.out, rel), fresh=True) for rel in outs},
+                    files=outs, digests={rel: content_digest(os.path.join(self.out, rel)) for rel in outs},
                     created=time.strftime('%Y-%m-%dT%H:%M:%S'), spec_name=self.name))
                 os.makedirs(os.path.dirname(final), exist_ok=True)
                 try:
                     os.rename(tmp, final)
                 except OSError:
                     shutil.rmtree(tmp, ignore_errors=True)
+            except OSError as e:
+                shutil.rmtree(tmp, ignore_errors=True)
+                errors.append('storing it failed: %s' % e)
+                info.update(stored=False, uncacheable=errors[-1])
             except Exception:
                 shutil.rmtree(tmp, ignore_errors=True)
                 raise
         if self.mode == 'verify' and E is not None:
             bad = [rel for rel in sorted(set(E.m['files']) | set(outs)) if E.m['digests'].get(rel) !=
-                   (self.files.get(os.path.join(self.out, rel), fresh=True) if rel in outs else None)]
+                   (content_digest(os.path.join(self.out, rel)) if rel in outs else None)]
             try:
                 if digest(self.load_state(E)['result'], 'name') != digest(result, 'name'):
                     bad.append('its result')
@@ -1964,8 +1985,12 @@ class Cache:
         global _CUR
         L = dict(self.last)
         L.update(self.now)
-        _write_json(os.path.join(self.dir, 'last', self.name + '.json'), L)
-        self.files.save()
+        try:
+            _write_json(os.path.join(self.dir, 'last', self.name + '.json'), L)
+            self.files.save()
+            save_code_memo()
+        except OSError:
+            pass
         prune(self.dir)
         if _CUR is self:
             _CUR = None
@@ -1995,8 +2020,7 @@ def memo(fn, *args, **kw):
     p = os.path.join(C.dir, 'memo', '%s.%s' % (fn.__module__, fn.__name__), key + '.pkl')
     if os.path.exists(p) and C.mode in ('on', 'stages'):
         try:
-            with open(p, 'rb') as f:
-                out = pickle.load(f)
+            out = pickle.loads(_read_state(p))
             os.utime(p)
             return out
         except Exception:
@@ -2006,10 +2030,15 @@ def memo(fn, *args, **kw):
         blob = pickle.dumps(out, protocol=pickle.HIGHEST_PROTOCOL)
     except Exception:
         return out
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    tmp = '%s.%d.tmp' % (p, os.getpid())
-    open(tmp, 'wb').write(blob)
-    os.replace(tmp, p)
+    if room(C.dir) and not C.edited():
+        tmp = '%s.%d.tmp' % (p, os.getpid())
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            _write_state(tmp, blob)
+            os.replace(tmp, p)
+        except OSError:                                     # (a full disk: computed, not kept)
+            if os.path.exists(tmp):
+                os.remove(tmp)
     return out
 
 
@@ -2081,10 +2110,10 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
                                          and not p.startswith(os.path.abspath(out) + os.sep)), name, None, None)
     rec.files_only = True
     before = _tree(out)
-    lines = []
+    lines, errs = [], []
     _REC = rec
     try:
-        with _tee(lines):
+        with _tee(lines, errs):
             run()
     finally:
         _REC = None
@@ -2095,6 +2124,10 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     if any(os.stat(os.path.join(dd, f)).st_mtime > t0 for dd, ds, fs in os.walk(KIT) for f in fs if f.endswith('.py')
            and not dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests')))):
         return 'miss: charkit changed during the step (not stored)'
+    if _caught(errs):
+        return 'miss: %s (an error was caught while it ran: not stored)' % why
+    if not room(d):
+        return 'miss: %s (the disk is nearly full: not stored)' % why
     tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
     try:
         for rel in outs:
@@ -2111,11 +2144,14 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
             os.rename(tmp, final)
         except OSError:
             shutil.rmtree(tmp, ignore_errors=True)
+        _write_json(last, dict(units=units, env=envv, key=digest(key)))
+        files.save()
+    except OSError as e:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return 'miss: %s (storing it failed: %s)' % (why, e)
     except Exception:
         shutil.rmtree(tmp, ignore_errors=True)
         raise
-    _write_json(last, dict(units=units, env=envv, key=digest(key)))
-    files.save()
     return 'miss: ' + why
 
 
@@ -2295,31 +2331,87 @@ def _tree(d):
 
 
 @contextlib.contextmanager
-def _tee(lines):
-    """copy stdout's lines into `lines` while still printing them."""
-    real = sys.stdout
+def _tee(lines, errs=None):
+    """copy stdout's lines into `lines` (and stderr's into `errs`) while still printing them."""
+    def tee(real, into):
+        class T:
+            buf = ''
 
-    class T:
-        buf = ''
+            def write(self, s):
+                real.write(s)
+                self.buf += s
+                while '\n' in self.buf:
+                    l, self.buf = self.buf.split('\n', 1)
+                    into.append(l)
+                return len(s)
 
-        def write(self, s):
-            real.write(s)
-            self.buf += s
-            while '\n' in self.buf:
-                l, self.buf = self.buf.split('\n', 1)
-                lines.append(l)
-            return len(s)
+            def flush(self):
+                real.flush()
 
-        def flush(self):
-            real.flush()
-
-        def __getattr__(self, k):
-            return getattr(real, k)
-    sys.stdout = T()
+            def __getattr__(self, k):
+                return getattr(real, k)
+        return T()
+    old = sys.stdout, sys.stderr
+    sys.stdout = tee(old[0], lines)
+    if errs is not None:
+        sys.stderr = tee(old[1], errs)
     try:
         yield lines
     finally:
-        sys.stdout = real
+        sys.stdout, sys.stderr = old
+
+
+def _caught(lines):
+    """a traceback printed while a step ran (an exception it caught and reported, a check SKIPPED on an error): what it
+    made then isn't stored (a full disk, a missing file, a crash in a check must not come back from the cache)."""
+    return any(l.startswith('Traceback (most recent call last)') for l in lines)
+
+
+def content_digest(p):
+    """a file's content digest; a PNG's without its text and time chunks (Blender stamps each render with the date)."""
+    if p.endswith('.png'):
+        try:
+            b = open(p, 'rb').read()
+            h, i = hashlib.sha256(b[:8]), 8
+            while i + 8 <= len(b):
+                n = struct.unpack('>I', b[i:i + 4])[0]
+                t = b[i + 4:i + 8]
+                if t not in (b'tEXt', b'zTXt', b'iTXt', b'tIME'):
+                    h.update(b[i + 4:i + 8 + n])
+                i += 12 + n
+            return 'png:' + h.hexdigest()
+        except (OSError, struct.error):
+            pass
+    try:
+        with open(p, 'rb') as f:
+            return hashlib.sha256(f.read()).hexdigest()
+    except OSError:
+        return 'absent'
+
+
+def room(d, need_gb=None):
+    """is there room to store an entry (CHARKIT_CACHE_MIN_FREE_GB, default 2, left free on the disk)?"""
+    need = float(os.environ.get('CHARKIT_CACHE_MIN_FREE_GB', 2)) if need_gb is None else need_gb
+    try:
+        return shutil.disk_usage(d).free > need * 1e9
+    except OSError:
+        return False
+
+
+def _write_state(path, blob):
+    """a state pickle, zlib-compressed (level 1) when large."""
+    import zlib
+    if len(blob) > 4 << 20:
+        blob = b'CKZ1' + zlib.compress(blob, 1)
+    with open(path, 'wb') as f:
+        f.write(blob)
+
+
+def _read_state(path):
+    import zlib
+    with open(path, 'rb') as f:
+        b = f.read()
+    return zlib.decompress(b[4:]) if b[:4] == b'CKZ1' else b
 
 
 # ------------------------------------------------------------------------------------------------------------ upkeep
