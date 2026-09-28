@@ -28,7 +28,7 @@ from . import io as gio, repair, smooth, volume
 from .mesh import Mesh, as_mesh, vertex_normals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-VERSION = 2                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
+VERSION = 3                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
 
 
 # ------------------------------------------------------------------------------------------------------------ the case
@@ -182,8 +182,8 @@ def dominant_class(C, hue_tol=None, margin=0.12, upper=False):
 
 # ------------------------------------------------------------------------------------------------------------ extraction
 def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliver=None, min_frac=0.02, seeds=None,
-            bounds=None, cover=None, seal=None, seal_zone=None, post=None, close_pits=None, verbose=True, name='part',
-            debug=None):
+            bounds=None, cover=None, seal=None, seal_zone=None, hidden=None, post=None, close_pits=None, verbose=True,
+            name='part', debug=None):
     """cut a part out of the generated character as a signed-distance grid (see the module doc).
     region: fn(points (N,3)) -> bool, where the part may be. keep_color: fn(colours (N,3)) -> bool (the part's colours).
     h: voxel size (default 0.006 L). clear: how far our body is grown before it is subtracted (default 0.012 L).
@@ -196,7 +196,10 @@ def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliv
     2 x this lying against our body are opened away (default 1.5 h). min_frac: parts smaller than this share of the
     biggest are dropped (seeds: world points whose parts are always kept). bounds: (lo, hi) of the work box (default: the
     generated character's points in the region). cover: dict(centre, depth, reach, thick, bin): close the holes our body
-    makes where it pokes out through the part (see _poke_cover). post: fn(occ, grid) -> occ, a last voxel filter before
+    makes where it pokes out through the part (see _poke_cover). hidden: dict(color, centre): drop part voxels the
+    generated character hides under its own skin (a ray from the voxel straight out from the vertical axis through
+    `centre` meets a surface coloured `color` first: hair tucked behind the generated face, which a narrower face of
+    ours would show). post: fn(occ, grid) -> occ, a last voxel filter before
     the parts pass (hair: hanging()). -> dict(sdf Grid, occ Grid, stats)."""
     from .bvh import BVH
     from scipy import ndimage as ndi
@@ -252,6 +255,26 @@ def extract(case, region, keep_color, h=None, clear=None, color_depth=None, sliv
     occ.flat[near[bad]] = False
     stats['color_removed_vox'] = int(bad.sum())
     log('colour mask (%d voxels out)' % bad.sum())
+    if hidden:
+        idx = np.flatnonzero(occ)
+        P = grid.points(idx)
+        c0 = np.asarray(hidden['centre'], float)
+        D = P - c0
+        D[:, 2] = 0.0
+        ln = np.linalg.norm(D, axis=1)
+        ok = ln > 1e-6
+        D[ok] /= ln[ok, None]
+        t, f, uv = gb.ray_cast(P[ok], D[ok], tmax=hidden.get('reach', 0.3 * L), tmin=0.5 * h, return_uv=True)
+        hit = f >= 0
+        col = np.zeros((len(f), 3))
+        if hit.any():
+            w = np.stack([1 - uv[hit].sum(1), uv[hit, 0], uv[hit, 1]], 1)
+            col[hit] = np.einsum('pk,pkd->pd', w, G.vc[G.F[f[hit]]])
+        under = np.zeros(len(idx), bool)
+        under[np.nonzero(ok)[0]] = hit & hidden['color'](col)
+        occ.flat[idx[under]] = False
+        stats['hidden_removed_vox'] = int(under.sum())
+        log('hidden under the skin (%d voxels out)' % under.sum())
     # slivers against the body: thin remnants within reach of our (grown) skin
     near_body = S_body.data < clear + 2 * sliver + h
     thin = np.zeros(grid.shape, bool)
@@ -526,6 +549,7 @@ def hair(case, h=None, verbose=True, **kw):
             return (P[:, 2] > zc) & ~face_cone(az, el)
         kw['seal_zone'] = (0.04 * case.L, cap)
     post = kw.pop('post', lambda occ, grid: hanging(occ, grid, case.chin_z))
+    kw.setdefault('hidden', dict(color=skin_color(case), centre=hc))
     E = extract(case, reg, cc, h=h, seeds=seeds, cover=cover, post=post, verbose=verbose, name='hair', **kw)
     R = finish(E['sdf'], verbose=verbose, name='hair', **fin)
     R.update(E)
