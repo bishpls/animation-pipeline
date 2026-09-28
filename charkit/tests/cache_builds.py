@@ -76,6 +76,19 @@ def qa_same(a, b):
     return va == vb, sorted(k for k in set(va) | set(vb) if va.get(k) != vb.get(k))
 
 
+def pixels_same(a, b):
+    """every board and QA overlay in b has a's pixels (PNG content without Blender's date stamp)."""
+    sys.path.insert(0, REPO)
+    from charkit import cache
+    bad = []
+    for sub in ('boards', 'qa'):
+        for f in sorted(os.listdir(os.path.join(a, sub))) if os.path.isdir(os.path.join(a, sub)) else []:
+            if f.endswith('.png') and cache.content_digest(os.path.join(a, sub, f)) != \
+                    cache.content_digest(os.path.join(b, sub, f)):
+                bad.append(sub + '/' + f)
+    return bad
+
+
 def ran(res):
     return sorted(k for k, c in res['steps'].items() if not c.get('hit'))
 
@@ -131,6 +144,8 @@ def main(args):
         check(diff(root, out('fresh'), out(n)) == 'no differences', '%s: trace diff against fresh: no differences' % n)
         same, which = qa_same(out('fresh'), out(n))
         check(same, '%s: qa.json values identical to fresh%s' % (n, '' if same else ': ' + ', '.join(which)))
+        bad = pixels_same(out('fresh'), out(n))
+        check(not bad, '%s: boards and QA overlays pixel-identical to fresh%s' % (n, '' if not bad else ': ' + ', '.join(bad)))
     if want('stages'):
         R['stages'] = build(root, spec, out('stages'), *B, '--cache', 'stages', env=env); show('stages', R['stages'])
         check({'boards', 'qa'} <= set(ran(R['stages'])) and not {'fit_cranium', 'character', 'hair', 'face_shading',
@@ -139,6 +154,9 @@ def main(args):
         same, which = qa_same(out('fresh'), out('stages'))
         check(same, 'stages: QA run on the restored scene equals the fresh build\'s%s' % ('' if same else ': ' + str(which)))
         check(diff(root, out('fresh'), out('stages')) == 'no differences', 'stages: trace diff: no differences')
+        bad = pixels_same(out('fresh'), out('stages'))
+        check(not bad, 'stages: boards and overlays rendered from the restored scene pixel-identical to fresh%s' %
+              ('' if not bad else ': ' + ', '.join(bad)))
 
     def changed(name, fn, expect_ran, expect_restored, *extra):
         p = variant(root, name, fn) if fn else spec
