@@ -116,7 +116,7 @@ def overlay(a, b):
     return img
 
 
-def render(items, az, frame, el=0.0, bg=(0.93, 0.93, 0.95), light=(-0.45, 0.55, 0.7), outline=True):
+def render(items, az, frame, el=0.0, bg=(0.93, 0.93, 0.95), light=(-0.45, 0.55, 0.7), outline=True, light_world=None):
     """shade meshes together (one z-buffer). items: [(mesh, opts)], opts: color (rgb or per-vertex (N,3)), normals (per
     vertex; default the mesh's vn or angle-weighted), shade 'toon' | 'lambert' | 'flat' | 'normal', line (outline colour).
     -> RGB float (H, W, 3)."""
@@ -151,11 +151,18 @@ def render(items, az, frame, el=0.0, bg=(0.93, 0.93, 0.95), light=(-0.45, 0.55, 
         else:
             c = np.broadcast_to(col, (len(f), 3))
         # the light is fixed to the camera: (right, up, toward the camera); default from the upper left front
-        Lw = right * L[0] + up * L[1] - d * L[2]
+        if light_world is not None:
+            Lw = np.asarray(light_world, float)
+        else:
+            Lw = right * L[0] + up * L[1] - d * L[2]
         Lw /= np.linalg.norm(Lw)
         ndl = n @ Lw
         if shade == 'normal':
             out = n * 0.5 + 0.5
+        elif shade == 'toon' and light_world is not None:
+            half = 0.5 * ndl + 0.5                                # charkit.shade.toon3's steps
+            tone = np.where(half > 0.5, 1.0, np.where(half > 0.27, 0.74, 0.55))
+            out = c * tone[:, None]
         elif shade == 'toon':
             tone = np.where(ndl > 0.15, 1.0, np.where(ndl > -0.35, 0.74, 0.55))
             out = c * tone[:, None]

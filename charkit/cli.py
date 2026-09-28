@@ -130,6 +130,11 @@ def build(args):
     print('built', out)
 
 
+def _geom_version():
+    from .geom import parts
+    return parts.VERSION
+
+
 def geom_hair(spec, resolved, out):
     """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz (reused
     while the resolved spec and the GLB are unchanged), and the resolved spec pointed at it."""
@@ -142,7 +147,7 @@ def geom_hair(spec, resolved, out):
     key = hashlib.sha1((json.dumps({k: v for k, v in spec.items() if k != 'hair'}, sort_keys=True) +
                         json.dumps({k: v for k, v in spec['hair'].items() if k != 'shape'}, sort_keys=True) +
                         json.dumps({k: v for k, v in shape.items() if k not in ('geom', 'mode')}, sort_keys=True) +
-                        f'{st.st_size}:{int(st.st_mtime)}').encode()).hexdigest()[:16]
+                        f'{st.st_size}:{int(st.st_mtime)}:v{_geom_version()}').encode()).hexdigest()[:16]
     path = os.path.join(out, 'geom', 'hair.npz')
     fresh = False
     if os.path.exists(path):

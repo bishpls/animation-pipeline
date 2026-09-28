@@ -28,6 +28,7 @@ from . import io as gio, repair, smooth, volume
 from .mesh import Mesh, as_mesh, vertex_normals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+VERSION = 2                     # bump when an extraction default changes (python -m charkit build re-cuts on a new version)
 
 
 # ------------------------------------------------------------------------------------------------------------ the case
@@ -508,8 +509,8 @@ def hair(case, h=None, verbose=True, **kw):
     cc = kw.pop('keep_color', None) or hair_color(case)
     kw.setdefault('color_depth', np.inf)                  # every voxel takes its nearest generated surface's colour
     fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
-    fin.setdefault('close', 0.16 * case.L)                  # envelope: the gaps between locks closed, big soft shapes
-    fin.setdefault('blur', 0.12 * case.L)
+    fin.setdefault('close', 0.30 * case.L)                  # envelope: the gaps between locks closed, one big soft mass
+    fin.setdefault('blur', 0.25 * case.L)
     seeds = np.array([[0.0, case.centre[1], case.centre[2] + 0.45 * case.L]])
     Hd = case.A['head']
     hc = case.centre + np.array([0.0, (Hd['H'].db - Hd['H'].df) / 2, 0.06 * case.L])     # charkit.hair.Volume's centre

@@ -151,7 +151,9 @@ def _outward(m):
             if vol < 0:
                 F[fi] = F[fi][:, ::-1]
             continue
-        # open part: the winding number just outside each (sampled) face should be lower than just inside
+        # open part: the winding number flips sign with the orientation, and an outward part has it positive on the side
+        # its faces turn away from (inside its would-be volume) and about zero on the other: the sum over both sides
+        # just off each (sampled) face, weighted by area, is positive when the part faces outward
         if bvh is None:
             from .bvh import BVH
             bvh = BVH(m.with_(F=F))
@@ -160,7 +162,7 @@ def _outward(m):
         ar = face_areas(m.V, F[s])
         eps = 1e-3 * np.sqrt(ar.sum() / max(1, len(s))) + 1e-9
         wo = bvh.winding_number(c_ + n * eps); wi = bvh.winding_number(c_ - n * eps)
-        if np.sum(ar * np.sign(wi - wo)) < 0:
+        if np.sum(ar * (wi + wo)) < 0:
             F[fi] = F[fi][:, ::-1]
     return m.with_(F=F)
 

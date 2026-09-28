@@ -296,12 +296,19 @@ def hair_geom_mesh(S, shape, hc):
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['geom'])
     C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72), line=(0.36, 0.34, 0.50)); C.update(hc)
     m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
-    ob, meta = load_part(path, 'hair_shape', material=m, normals=shape.get('normals', 'envelope'))
+    from .geom.blender import normals_proxy, transfer_normals
+    envelope = shape.get('normals', 'envelope') == 'envelope'
+    ob, meta = load_part(path, 'hair_shape', material=m, normals=None if envelope else 'geometric')
     from . import trace
     rep = (meta or {}).get('report') or {}
     trace.note('hair_geom', path=os.path.basename(path), faces=rep.get('faces'), open_edges=rep.get('open_edges'),
                shells=rep.get('shells', rep.get('parts')), self_intersecting=rep.get('self_intersecting_faces_est'))
     shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
+    if envelope:
+        # the envelope normals ride in after the outline (Solidify would re-derive custom normals set on the mesh)
+        proxy = normals_proxy(path, 'hair_shape_normals')
+        transfer_normals(ob, proxy)
+        character._to_head(proxy, S.character['arm'])
     character._to_head(ob, S.character['arm'])
     return ob
 
