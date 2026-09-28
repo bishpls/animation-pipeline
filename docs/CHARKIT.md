@@ -268,9 +268,17 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
   less its bleed. The QA's chin search (`faceqa.chin_bottom`) starts under the nose, where a projecting nose used to
   read as the chin. `faceqa`'s depth regions stop at the higher of the two chins, since below it the check read the
   target's neck against our under-chin.
-- **When body knobs move** (the neck's length and width), the cached garments are moved with the skin while searching.
-  That is only an approximation of refitting them (it misread the neckline by 0.1 in `neck_to_jaw`), so the fit then
-  rebuilds them in Blender for the fitted body and fits the face again from there.
+- **Every graded check keeps its status.** The merge gate fails any check that reads worse, so the fit protects them:
+  - its own terms are held in the status band they had at the start, or in `--baseline QA.json` (the gate's build),
+    by a steep extra residual;
+  - the hair's coverage checks are held the same way, with a token weight: they are the hair's to meet, not the face's;
+  - the checks it doesn't model as terms (expressions, folds) are held by `fitkit.guard`, which scales a group's change
+    back while one of them reads worse.
+- **The cached hair and garments follow the fit.** While searching, the garments move with the skin (only an
+  approximation of refitting them: it misread the neckline by 0.1 in `neck_to_jaw`). The hair stays as culled against
+  the start's face, but a fuller face culls more of the generated side locks, which moved Clawd's 3/4 coverage from
+  0.93 to 1.34. So the fit rebuilds both in Blender for the fitted head and body and fits the face again from there, up
+  to twice (`--refresh-only` runs just this from the spec's knobs).
 - **Known gaps**:
   - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
     its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
