@@ -327,11 +327,20 @@ When something can only be judged by eye, name the measurement that would close 
 
 **Every build is recorded, and every merge is measured first.**
 - `python -m charkit history NAME [--check CHECK]` shows QA across builds. Each build appends its checks to
-  `charkit/out/history/NAME.jsonl`, with the git commit, spec hash and base.
+  `charkit/out/history/NAME.jsonl`, with the git commit, spec hash, base, hair mode and a note (a tune run's rows say
+  which run and checkpoint made them).
+- **Measurement steps.** When a check's measurement changes rather than the character, its numbers step. `hair_noise`
+  read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `face_folds`
+  rose from 1014 to 1257 on the same skin when the expression library grew, because it sums over every key (8017ff3,
+  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). `history.STEPS`
+  lists each step (the check, the commit, what changed). A build is before or after a step by whether that commit is in
+  its history. `history --check` draws a line at each step, `history.trend` reads only the builds since the latest one,
+  and the gate's and the tune loop's comparisons call such a check `remeasured`, neither better nor worse. Add a step
+  whenever a QA change moves a check's numbers.
 - `python -m charkit gate BRANCH [--into REF] [--args "--base anime"]` shows what merging a branch would do, before it
   happens. A throwaway worktree at the integration head builds the baseline (cached per commit and options). It then takes
   the branch with `git merge --no-commit`, runs the tests and builds again. The report in `charkit/out/gate/` lists every
-  check that moved (regressed, improved, value, new, gone), the tests and the trace diff.
+  check that moved (regressed, improved, value, new, gone, remeasured), the tests and the trace diff.
   - FAIL: a conflict, a failing test, a failed build, or a graded check that got worse or disappeared.
   - WARN: the build is 1.5x slower.
   - No branch moves.
@@ -442,6 +451,154 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
     row, and `neck_run` above 0.1 L keeps that row off the collar.
   - The drawn profile's nose reach (0.157 L in front of the eye) is a drawing convention. A rigid 3D nose that long
     reads as a spike, so `nose_tip` stops at 0.04 L and the nose-reach term stays a trade-off.
+
+### The tune loop: from a spec to a fitted, checked build and a list of what's left
+
+`python -m charkit tune SPEC [--out DIR] [--budget N | Nm] [--review] [--args "..."]` (`charkit/tune.py`) is the outer
+loop. The fast fitters choose knobs, full builds check them, and the error they leave becomes ranked work items.
+
+1. **Checkpoint 0** builds the spec as it is, with full QA. Every checkpoint builds its own snapshot of its spec
+   (`ckN/input.spec.json`), so nothing a later fit writes can change what an accepted checkpoint was.
+2. **Rounds.** Each fitter in the registry (`charkit/fitters.py`) runs from the best checkpoint so far (the spec it
+   resolved to), if any of its target checks isn't passing. What it changes is built and QA'd as a new checkpoint. The
+   fitters, in order:
+   - **build options**, a discrete choice. The character's tune config lists them, e.g. `geom-hair` (hair.shape.mode
+     geom) and `anime-base`. Each is tried once as its own checkpoint. `set` writes the spec (so the fitters see it);
+     `args` go to the build. `--args` applies to every checkpoint.
+   - **face**: `charkit.facefit` (`python -m charkit fit`: tool/fit).
+   - **body, garments, hair and palette**: tool/bodyfit (the `shape_iou*`, `ref_iou`, model-sheet `body_*` and
+     `palette_*` checks).
+
+   **The probe.** Before a landed fitter's full fit, the tune measures that fitter's sensitivity table at the start
+   (two fast evaluations per knob, 1 to 3 minutes). From it the probe reads two things:
+   - how far the fitter's own objective (fitkit's cost over its terms, regulariser included) drops at the best single
+     knob step;
+   - what every knob's better step gains in the tune's weighted QA score, summed.
+
+   If the objective drops by less than `probe.min_headroom` (2%), or the QA score gains less than
+   `probe.min_score_gain` (1 warn band), the fit is skipped as `converged` and the table serves the triage. The probe
+   is recorded in tune.jsonl: both headrooms, the best steps and the verdict.
+
+   Both measures are needed. On Clawd's fitted spec with geom hair, the objective had 8.9% headroom, but the QA score
+   could gain only 0.68 warn bands (`body.neck_w` 0.38, `eyes.lash` 0.18, `iris.rz` 0.12). The full face fit then took
+   about 40 minutes and moved 21 knobs by under 1% each, and its checkpoint scored worse than its start. The fit's
+   `REFRESH_BUDGET` rounds, with their Blender cache rebuilds, aren't capped by `--budget`.
+
+   **The prescreen.** After a fit, the tune reads the fit's report. If the report predicts a status regression that no
+   trade-off rule allows, the whole move isn't built, since the fast evaluator agrees with the build. Only its blocks
+   and its half step are built.
+
+   A fitter that hasn't landed is a stub, marked `STUB` everywhere. It declares its targets and knobs, and fits nothing.
+   Each fitter declares the check patterns it targets and the knobs it owns (path, default, step, bounds, group: a
+   fitkit fitter's `declare()`). The builds go through `python -m charkit build`, so each takes a machine build slot
+   and uses the stage and QA cache: a face fit's checkpoint rebuilds only what the face knobs reach. Each checkpoint
+   records its cache hits. The tune starts the worker if none is running and stops it at the end (`--no-worker` uses
+   fresh Blenders). Fitters and builds run in their own process groups, so `python -m charkit kill DIR` stops the
+   whole run.
+3. **Accept or reject.** Each checkpoint is compared with the best by the gate's QA diff (`gate.compare_qa`). It is
+   accepted only if no graded check regresses (its status gets worse, or it disappears), unless a trade-off rule allows
+   it, and only if the total severity drops. `checks.score` sums, over the checks both builds share, how far each is from
+   passing in warn bands: 0 at the pass limit, 1 at the fail limit, capped at 5. A warn-only check's severity keeps
+   growing past 1, so getting worse still shows. A check measured against a reference that isn't its measure's
+   authority counts a quarter, as fitkit weighs its terms: the TRELLIS face's width counts a quarter of the sheet's. A
+   rejected fit with several knob groups is tried again one group at a time, then at half its step (flips at a limit
+   often vanish there). A build option whose only losses are checks a landed fitter owns gets that fitter's re-fit
+   first, and the option and fit are judged as one move. anime-base, for example, costs the eye width, which is the
+   face fitter's.
+4. **Stop** when:
+   - every graded check passes (`pass`);
+   - the best score improved by less than `min_gain` over the last `rounds` rounds (`stalled`);
+   - no fitter has anything left to change (`converged`);
+   - or the budget runs out (`budget`: full builds including the final one, or minutes).
+5. **The end.**
+   - The best checkpoint is built once more with every board (`final`), which also checks that its QA repeats.
+   - Each landed fitter measures its sensitivity table there. A fit's own table is measured at its start.
+   - Each landed fitter checks its fast evaluator against that build's QA (`python -m charkit fit --validate`).
+   - The residuals are triaged.
+   - With `--review`, the review board is written and the final build exports a VRM.
+
+Everything goes to `DIR/tune.jsonl`: begin, fit, checkpoint, compare (every check that moved, trades, the fast
+evaluator's disagreements with the build), probe, prescreen, round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
+the summary. Each checkpoint's history row carries `{tune, checkpoint, label}`. The run records its pid in DIR, so
+`python -m charkit kill DIR` stops it and the build it started. A checkpoint folder holding the same build (spec, options,
+boards, code) is reused; `--fresh` rebuilds.
+
+**The character's tune config** is `charkit/refs/NAME/tune.json`, beside the manifest. Its trade-off rules write out the
+manifest's authority table. For Clawd the sheet is the authority for the face's front, 3/4 and profile shape and for the
+chin. So `face_shape_width` (against the TRELLIS face, which the key's caution calls rounder and fuller) may get worse
+when `sheet_width` gets better, by at most 3x the gain. Depth has no sheet counterpart and is never traded. A `noise`
+rule lets a sheet, body or palette check cross its limit by at most 0.15 warn bands (never past WARN) when the
+checkpoint gains overall: a flip smaller than the sheet's own error is noise. Without it, geom hair was rejected for
+`body_profile_hair_width` moving 0.920 -> 0.914 while three hair lengths reached PASS. The config also holds the build
+options, the stop settings and each reference's stated error (`uncertain`: the sheet is good to about a pixel, 0.009 L,
+or 3% on a ratio). Its `decisions` record a class people decided for a check, with who and why. The triage puts that
+class first and keeps its own beside it: Clawd's `sheet_shown_*` gap after the face fit is a hair capability, because
+`scene.cull_face` takes the cheek side locks when the jaw widens.
+
+**Triage** (`charkit/triage.py`; `python -m charkit triage DIR` redoes it for a tune folder or any build). Every check
+still WARN or FAIL is classified by why the loop couldn't fix it. The first class that applies wins; the others are
+listed as `also`:
+- `measurement uncertain`: any of these holds:
+  - the fast evaluator predicted a severity the build doesn't reproduce, or disagrees with the final build;
+  - the final build didn't repeat;
+  - the check reports missing or thin data ("few pixels");
+  - the value is within the error the check itself states (a scale caution's percentage) or the reference's stated
+    error of passing.
+
+  A standing caution alone (every `body_*` check carries the sheet's scale caution) is listed, not the class.
+- `trade-off`: fixing it costs another check. Either:
+  - a checkpoint that improved it was rejected because another regressed (built and measured);
+  - a rule let it get worse to pay for another;
+  - or every knob that improves it worsens another check, per the sensitivity table (which, and how many warn bands
+    per step).
+- `knob at a bound`: the improving knobs are at their range's end (which, which bound, the value), or would reach it
+  before the check passes.
+- `needs a knob`: no fitted knob moves it, or every one that does is already at its best for it. The spec's hand knobs
+  that may move it (the knob inventory, `checks.SECTIONS`) and the stub fitter that will own them are listed.
+- `needs a capability`: it measures a template or geometry matter, not a parameter (`checks.CAPABILITY`). Examples:
+  the lid rings' topology, and a mouth cavity that doesn't follow tall openings (`face_folds`); the hair surface's
+  normals; garment fitting. An `expr_*` part the expression library has nothing close to (`missing`) is a template
+  addition.
+- `not in the objective`: a knob improves it at no cost, but no fitter's objective includes the check.
+
+Each item carries its evidence:
+- the value, status, sub-values and limits;
+- the severity;
+- the overlays that show it;
+- the reference it is measured against and the manifest's authority for its measure, with the reference's cautions;
+- the knobs and conflicts behind its class.
+
+Beside the items, **blocked moves** lists every rejected checkpoint that would have lowered the score: its gain, and
+which checks blocked it. Each blocking check is marked as inside a fitter's objective (the fitter traded it) or outside
+every objective (a side effect no fitter measures, such as the eye knobs changing the yawn's closed eye). The move is
+then decided by adding the check to that fitter's terms, or by writing a trade-off rule.
+
+The list is ranked by severity times visibility (`checks.REGIONS`: the eyes, the face's front and the silhouette first,
+face depth and topology last). A reviewer's note multiplies the rank by 1.5; a check measured against a reference
+that isn't its measure's authority, by 0.6. It is written to `DIR/work_items.json` (with the knob inventory: every
+numeric spec knob and its owner) and `DIR/work_items.md`.
+
+**Review** (`--review`, `charkit/review.py`). Every metric is a proxy: the face checks exist because a person saw what the
+numbers missed, so review feeds back into the checks.
+- **Board.** `python -m charkit review board BUILD` writes `BUILD/review/board.png` and `index.html`: the design's model
+  sheet beside our views, body and face sheets, the QA overlays, and the ranked work items.
+- **Notes.** `python -m charkit review serve BUILD` serves the page on 127.0.0.1 and saves notes from it to
+  `BUILD/review/notes.json` (and `notes.md`). Served that way, the inspector (`projects/charkit-look`) has a review panel
+  that saves a note with the camera it was written from. From the command line:
+  `python -m charkit review note BUILD "the face reads long" --view front`.
+- **Tickets.** `python -m charkit review ticket BUILD N001` turns a note into a ticket in
+  `charkit/refs/NAME/tickets.json` (tracked). The note's words are matched against `review.CONCERNS` ("long" with "face"
+  means the face's length over its width), which name the checks that measure it.
+  - **Work ticket.** If any of those checks is WARN or FAIL, the note joins their work items as evidence and ranks them
+    up.
+  - **Measure ticket.** If they all pass, the metrics missed it. The ticket carries a proposed check (its name, what to
+    measure, the views, and the reference that is the authority), the passing checks that should have caught it, and,
+    where the QA's tables already hold the numbers, the proposed measure's value now. For example, the face's length
+    over its width against the design's comes from sheetqa's chin and widths.
+  - The triage lists every open measure ticket as `needs a measurement` until a check of that name appears in a build's
+    QA. `python -m charkit review tickets NAME --sync` then marks it landed.
+  - Where the ticket has a prototype, every triage measures it again on that build (`PROVISIONAL PASS/WARN/FAIL`). A
+    reviewer's note is therefore a tracked number from the moment it is ticketed, until the real check replaces it.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

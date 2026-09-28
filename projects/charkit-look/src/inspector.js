@@ -2,6 +2,7 @@
 //   node engine/render.mjs projects/charkit-look --serve      then open the printed URL (Chrome, WebGPU)
 //   ?vrm=charkit/out/NAME/NAME.vrm (default clawd) &qa=charkit/out/NAME/qa/qa.json (default: next to the VRM's build)
 //   &trace=charkit/out/NAME/trace.jsonl (the build's state log, charkit/trace.py; default: next to the VRM)
+//   review notes: served by `python -m charkit review serve BUILD` the "review notes" panel saves notes (with the camera)
 // Mouse: drag orbits, shift-drag or right-drag pans, wheel zooms, click picks a part (its material and mesh data show
 // under "picked"), double-click also re-centres the orbit there. Keys: 0-9 / - = debug views, f face, b body,
 // o outlines, w wireframe, t T-pose / build pose, p save a PNG.
@@ -137,7 +138,7 @@ async function startInspector(q) {
 
   // ---------------------------------------------------------------- keys
   window.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
     const k = e.key;
     if (/^[0-9]$/.test(k)) setDebug(+k); else if (k === '-') setDebug(10); else if (k === '=') setDebug(11);
     else if (k === 'f') frame('face'); else if (k === 'b') frame('body');
@@ -330,6 +331,38 @@ async function startInspector(q) {
       im.onclick = () => window.open(im.src);
     }
   } catch (e) { qBox.append(el('div', { class: 'note' }, 'no QA report (' + e.message + '): charkit/qa3d.py writes out/NAME/qa/qa.json')); }
+
+  // ---------------------------------------------------------------- review notes (charkit/review.py)
+  // what the checks miss, written where it is seen: saved with this camera to BUILD/review/notes.json when the page is
+  // served by `python -m charkit review serve BUILD` (the plain --serve server is read only)
+  const Rv = sec('review notes', false);
+  const buildDir = qaPath.replace(/qa\/qa\.json$/, '').replace(/\/$/, '');
+  const notesPath = buildDir + '/review/notes.json';
+  const nBox = el('div'), nMsg = el('div', { class: 'note' }, `${notesPath} · save needs: python -m charkit review serve ${buildDir}`);
+  const nText = el('textarea', { rows: 3, style: 'width:100%', placeholder: "what the numbers miss: 'the face reads long'" });
+  const nView = el('select'); ['', 'front', 'three_quarter', 'profile', 'back', 'body', 'expressions'].forEach(v => nView.append(el('option', { value: v }, v || 'view')));
+  const nRegion = el('select'); ['', 'face', 'eyes', 'hair', 'silhouette', 'outfit', 'expressions', 'palette'].forEach(v => nRegion.append(el('option', { value: v }, v || 'region')));
+  const nSev = el('select'); [[1, '1 minor'], [2, '2 visible'], [3, '3 reads wrong']].forEach(([v, t]) => nSev.append(el('option', { value: v }, t))); nSev.value = 2;
+  Rv.append(nText); row(Rv, 'view · region', nView, nRegion); row(Rv, 'severity', nSev);
+  const loadNotes = async () => {
+    try {
+      const r = await fetch(root + notesPath, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status);
+      const N = await r.json(); nBox.textContent = '';
+      for (const n of N.notes.slice().reverse()) nBox.append(el('div', { class: 'obj' }, `${n.id} [${n.view || '-'}/${n.region || '-'} s${n.severity}] ${n.text}${n.ticket ? ' -> ' + n.ticket : ''}`));
+    } catch (e) { nBox.textContent = 'no notes yet'; }
+  };
+  buttons(Rv, [['save note (with this camera)', async () => {
+    if (!nText.value.trim()) return;
+    const camera = { az: +S.orbit.az.toFixed(1), el: +S.orbit.el.toFixed(1), dist: +S.orbit.dist.toFixed(3), lens: S.lens, ortho: S.ortho,
+      target: S.orbit.target.toArray().map(v => +v.toFixed(4)), debug: CK.DEBUG[CK.U.debug.value], pose: S.pose };
+    try {
+      const r = await fetch('/api/note', { method: 'POST', body: JSON.stringify({ build: buildDir, text: nText.value, view: nView.value || null,
+        region: nRegion.value || null, severity: +nSev.value, camera }) });
+      if (!r.ok) throw new Error(r.status);
+      nMsg.textContent = 'saved ' + (await r.json()).note.id; nText.value = ''; loadNotes();
+    } catch (e) { nMsg.textContent = `not saved (${e.message}): serve with python -m charkit review serve ${buildDir}`; }
+  }]]);
+  Rv.append(nMsg, nBox); loadNotes();
 
   // ---------------------------------------------------------------- the build's state log (charkit/trace.py)
   const Tr = sec('build trace', false);
