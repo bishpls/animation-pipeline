@@ -1,6 +1,7 @@
 """QA over time: every build appends its checks to charkit/out/history/NAME.jsonl (git commit, spec hash, base, hair mode,
-the out folder, each check's value and status, and a note: the tune run and checkpoint that made it), so a check's trend
-across builds and merges is one command away.
+the out folder, each check's value and status; the build's Blender time, whether a worker ran it, and what the build
+cache restored and ran, with why; and a note: the tune run and checkpoint that made it), so a check's trend across
+builds and merges is one command away.
 
     python -m charkit history NAME                    # the latest builds, one line per build with its failing checks
     python -m charkit history NAME --check eye_aspect # one check across builds (a line marks each measurement step)
@@ -31,14 +32,18 @@ def append(out, name, note=None):
     if not os.path.exists(qp):
         return None
     qa = json.load(open(qp))
-    begin = {}
+    begin, cache, total = {}, {}, None
     tp = os.path.join(out, 'trace.jsonl')
     if os.path.exists(tp):
         for line in open(tp):
             rec = json.loads(line)
             if rec.get('event') == 'begin':
                 begin = rec
-                break
+            elif rec.get('cache') and rec.get('event') in ('stage', 'span', 'product', 'part'):
+                c = rec['cache']
+                cache[rec['name']] = 'hit' if c.get('hit') else 'miss: %s' % (c.get('why') or '?')
+            elif rec.get('event') == 'end':
+                total = rec.get('total')
     spec = {}
     sp = os.path.join(out, name + '.spec.json')
     if os.path.exists(sp):
@@ -48,6 +53,9 @@ def append(out, name, note=None):
            'out': os.path.relpath(out, ROOT), 'summary': qa.get('summary'),
            'checks': {k: [c.get('value'), c.get('status')] for k, c in qa.get('checks', {}).items()
                       if c.get('status') in ('PASS', 'WARN', 'FAIL', 'INFO')}}
+    row.update(seconds=total, worker=bool(begin.get('worker')))
+    if cache:
+        row['cache'] = cache
     if note:
         row['note'] = note
     os.makedirs(DIR, exist_ok=True)
@@ -146,7 +154,11 @@ def main(args):
         return
     for r in rows[-int(args[args.index('--last') + 1]) if '--last' in args else -20:]:
         fails = [k for k, v in r['checks'].items() if v[1] == 'FAIL']
+        c = r.get('cache') or {}
+        how = ('%3.0fs%s' % (r['seconds'], ' w' if r.get('worker') else '') if r.get('seconds') else '') + \
+            (' cache %d/%d' % (sum(v == 'hit' for v in c.values()), len(c)) if c else '')
         note = r.get('note')
         tag = ('  [tune %s ck%s %s]' % (note.get('tune'), note.get('checkpoint'), note.get('label', ''))
                if isinstance(note, dict) and note.get('tune') else '')
-        print('%s  %-16s %-10s %-5s fail %2d: %s%s' % (r['t'], r['git'], r['base'], r['summary'], len(fails), ', '.join(fails), tag))
+        print('%s  %-16s %-10s %-5s %-16s fail %2d: %s%s' % (r['t'], r['git'], r['base'], r['summary'], how, len(fails),
+                                                            ', '.join(fails), tag))

@@ -2,27 +2,123 @@
 (`.pid.json`: pid, command, start time) while it runs, so a build can be listed and stopped by its own record, never by a
 pattern that would match another worktree's builds.
 
-    python -m charkit ps                  # the running charkit builds (every worktree under the same parent folder)
+Builds also share a machine-wide number of slots, and start only when the machine has memory to spare. A Clawd build
+with QA and export peaks at 2.2 GB of Blender (measured), and five worktrees building at once ran a 16 GB machine out
+of memory. A build takes a free slot (an flock on ~/.cache/charkit/slots/N, released by the OS when the process ends,
+crashed or not) once at least CHARKIT_BUILD_MEM_GB (default 3) is available, or waits. The slot count is the
+environment's CHARKIT_BUILD_SLOTS, else the machine setting `python -m charkit slots N` writes (waiting builds pick it
+up), else 2.
+
+    python -m charkit ps                  # the slots, who holds them, the running builds (every worktree)
     python -m charkit kill OUT_DIR        # stop that build's recorded process
+    python -m charkit wait OUT_DIR [--timeout S]   # until that build ends (by its recorded pid)
+    python -m charkit slots [N]           # show or set the machine's slot count
+
+The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
+in its output folder with the worker's pid: stopping that build stops the worker. The worker takes a slot per job
+(acquire_slot, with its memory check) and releases it between jobs.
 """
-import glob, json, os, signal, subprocess, sys, time
+import contextlib, fcntl, glob, json, os, signal, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIDFILE = '.pid.json'
 
 
-def run(cmd, out, label='build', **kw):
-    """run a command to completion with its pid recorded in `out`/.pid.json (removed when it ends) -> CompletedProcess."""
+SLOTS_DIR = os.path.expanduser('~/.cache/charkit/slots')
+
+
+def slots():
+    if os.environ.get('CHARKIT_BUILD_SLOTS'):
+        return max(1, int(os.environ['CHARKIT_BUILD_SLOTS']))
+    try:
+        return max(1, int(open(os.path.join(SLOTS_DIR, 'count')).read().strip()))
+    except (OSError, ValueError):
+        return 2
+
+
+def available_gb():
+    """memory the machine can hand out now (free + inactive + speculative pages; macOS vm_stat), or None elsewhere."""
+    try:
+        out = subprocess.run(['vm_stat'], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    page = 16384
+    vals = {}
+    for line in out.splitlines():
+        if 'page size of' in line:
+            page = int(line.split('page size of')[1].split()[0])
+        elif ':' in line:
+            k, v = line.split(':', 1)
+            try:
+                vals[k.strip()] = int(v.strip().rstrip('.'))
+            except ValueError:
+                pass
+    pages = sum(vals.get(k, 0) for k in ('Pages free', 'Pages inactive', 'Pages speculative'))
+    return pages * page / 2 ** 30 if vals else None
+
+
+def acquire_slot(label='build', poll=2.0, mem=None):
+    """take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short
+    -> the open lock file (keep it; closing releases)."""
+    os.makedirs(SLOTS_DIR, exist_ok=True)
+    need = float(os.environ.get('CHARKIT_BUILD_MEM_GB', '3')) if mem is None else mem
+    waited = False
+    while True:
+        free = available_gb()
+        if free is not None and free < need:
+            if not waited:
+                sys.stderr.write('charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
+                waited = True
+            time.sleep(poll)
+            continue
+        for i in range(slots()):
+            f = open(os.path.join(SLOTS_DIR, str(i)), 'a+')
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                f.close()
+                continue
+            f.seek(0); f.truncate(); f.write('%d %s %s\n' % (os.getpid(), label, ROOT)); f.flush()
+            if waited:
+                sys.stderr.write('charkit: got build slot %d\n' % i)
+            return f
+        if not waited:
+            sys.stderr.write('charkit: all %d build slots busy (CHARKIT_BUILD_SLOTS); waiting\n' % slots())
+            waited = True
+        time.sleep(poll)
+
+
+def write(out, pid, label, cmd):
+    """record a process in `out`/.pid.json. -> the record's path."""
     os.makedirs(out, exist_ok=True)
     pf = os.path.join(out, PIDFILE)
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
-    json.dump({'pid': p.pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
+    json.dump({'pid': pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
                'started': time.strftime('%Y-%m-%dT%H:%M:%S')}, open(pf, 'w'))
+    return pf
+
+
+@contextlib.contextmanager
+def record(out, pid, label, cmd):
+    """`out`/.pid.json names `pid` while the block runs."""
+    pf = write(out, pid, label, cmd)
     try:
-        so, se = p.communicate()
+        yield pf
     finally:
         if os.path.exists(pf):
             os.remove(pf)
+
+
+def run(cmd, out, label='build', slot=True, **kw):
+    """run a command to completion in a build slot, its pid recorded in `out`/.pid.json (removed when it ends)
+    -> CompletedProcess."""
+    lock = acquire_slot(label) if slot else None
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
+        with record(out, p.pid, label, cmd):
+            so, se = p.communicate()
+    finally:
+        if lock is not None:
+            lock.close()
     return subprocess.CompletedProcess(cmd, p.returncode, so, se)
 
 
@@ -48,12 +144,69 @@ def records(roots=None):
     return out
 
 
+def slot_holders():
+    """who holds the build slots now -> [(slot, 'pid label root')]."""
+    out = []
+    for i in range(slots()):
+        p = os.path.join(SLOTS_DIR, str(i))
+        if not os.path.exists(p):
+            continue
+        with open(p, 'a+') as f:
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(f, fcntl.LOCK_UN)
+            except BlockingIOError:
+                f.seek(0)
+                out.append((i, f.read().strip()))
+    return out
+
+
+def set_slots(args):
+    """show or set the machine's slot count (CHARKIT_BUILD_SLOTS in the environment still wins)."""
+    os.makedirs(SLOTS_DIR, exist_ok=True)
+    if args:
+        open(os.path.join(SLOTS_DIR, 'count'), 'w').write(str(max(1, int(args[0]))) + '\n')
+    free = available_gb()
+    print('build slots: %d%s; %s GB available' % (slots(), ' (from CHARKIT_BUILD_SLOTS)' if os.environ.get('CHARKIT_BUILD_SLOTS') else '',
+                                                   '%.1f' % free if free is not None else '?'))
+
+
 def ps(args=()):
+    held = slot_holders()
+    free = available_gb()
+    print('build slots: %d of %d busy; %s GB available' % (len(held), slots(), '%.1f' % free if free is not None else '?'))
+    for i, who in held:
+        print('  slot %d: %s' % (i, who))
+    try:
+        from . import cache
+        print(cache.size_line())
+    except Exception:
+        pass
     rs = records()
     if not rs:
         print('no charkit builds running'); return
     for pf, rec, alive in rs:
         print('%-7s %-6s %-8s %s  (%s)' % (rec['pid'], 'alive' if alive else 'stale', rec['label'], os.path.dirname(pf), rec['started']))
+
+
+def wait(args):
+    """block until the build recorded in an output folder ends (its pid gone), or --timeout seconds pass; exit 0 when it
+    ended, 2 on timeout. Waiting on the recorded pid can't match the waiting shell itself, as `pgrep -f` does."""
+    out = os.path.abspath(args[0])
+    t_max = float(args[args.index('--timeout') + 1]) if '--timeout' in args else 3600.0
+    pf = os.path.join(out, PIDFILE)
+    t0 = time.time()
+    while time.time() - t0 < t_max:
+        if not os.path.exists(pf):
+            print('ended', out); return
+        try:
+            pid = json.load(open(pf))['pid']
+        except (OSError, ValueError, KeyError):
+            pid = None
+        if pid is not None and not _alive(pid):
+            print('ended (stale record)', out); return
+        time.sleep(2)
+    print('still running after %.0f s' % t_max, out); raise SystemExit(2)
 
 
 def kill(args):

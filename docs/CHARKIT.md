@@ -45,6 +45,7 @@ component that reads them; `charkit/spec/schema.json` collects them.
 | **garments** (`charkit/garments.py`) | outfit pieces as templates fitted to the body (offset surfaces, then shaped): skirts (A-line, pleated, layered), jackets, blouses, sleeves (puff, fitted), collars (sailor, stand), bows and ribbons, cuffs, boots, gloves, shorts, tights; weights transferred from the body; springs on loose parts | per piece | templates + the body |
 | **materials** (`charkit/shading.py`) | the shader stack: three-tone ramps from ramp textures, the SDF face shadow, hair with gradient, strand strokes and highlight, rim light, coloured outlines with per-vertex width, the forehead hair shadow, inner-line and feature passes for post | palette, ramp softness, outline width | kit.py's shaders, promoted |
 | **paint** (`charkit/paint.py`) | painted textures: GPT Image paints matching views of the character (front, both three-quarters, profile, back; head close-ups), which are projected onto the UVs from calibrated cameras and blended by facing, then baked: skin gradients, blush, lip tint, eye-white shading, hair gradients and strands, cloth detail | which views, style prompt | tools/gptimage.py + Blender projection bake |
+| **outfit intake** (`charkit/outfit.py`, §8) | the outfit component graph from the references: each piece's type, side, attachment, layer order, colour, extents per view and in 3D, motion class; a draft garment list and spring chains | none: it measures | the rig's layers, the model sheet, the TRELLIS field, annotated notes |
 | **geometry** (`charkit/geom/`, docs/GEOM.md) | deterministic mesh operations venv-side instead of Blender's modifiers: repair, voxel solids and booleans, remeshing, smoothing, envelope normals; a generated character's hair or skirt cut into one closed surface for the Blender stage | voxel size, clearance, seal, colour family, envelope blur | numpy, scipy, scikit-image, numba, manifold3d |
 | **export and QA** (`charkit/qa.py`, `export.py`) | boards: turntable, head close-up turntable, expression sheet, viseme sheet, a lighting sweep, range of motion, overlay on the reference, topology stats; VRM 1.0 / glTF export for three.js | | |
 
@@ -83,6 +84,134 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
 
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
+
+In code (`charkit/scene.py`): `fit_cranium` (the skull's height from the generated hair) -> `character` (body, head,
+features, keys) -> `hair` (and accessories) -> `face_shading` -> `garments`; then the products: boards, QA, the VRM, the
+`.blend`. With `hair.shape.mode 'geom'` the hair is cut venv-side first (`charkit.geom`, `OUT/geom/hair.npz`).
+
+### The build cache
+
+`python -m charkit build` restores a stage from `charkit/out/.cache/` instead of running it when nothing the stage read
+has changed (`charkit/cache.py`), and restores the boards, the QA and the VRM the same way when the whole scene is
+unchanged. Inside the QA each part (eyes, sheet, figures, body, expressions, palette, face shape, face) is cached on its
+own, and the design-side measurements of the model sheet (figure detection, the sheet's scale and measures, the design's
+views and palette) are kept per reference and code. The trace says, per stage, product and part, what was restored and,
+for what ran, why (`python -m charkit trace OUT/trace.jsonl`; the summary line reads `cache: 12/14 restored; ran garments
+(spec.garments changed), qa (the scene changed ...)`). `history` rows carry the same.
+
+**A stage's key is what it read, recorded as it ran**, not a list kept by hand (the trace's `STAGE_KEYS` misses keys such
+as `lash_color` and `base`, which the character reads):
+- *code*: the stage function, the `scene.py` helpers it calls and `scene.py`'s top-level statements, and every charkit
+  module those import, transitively, compared as syntax trees (a comment or docstring edit doesn't count); the kit's data
+  (`charkit/assets`); `cache.py`; the Blender, numpy and Python versions.
+- *spec*: every key it read, at any depth (`spec.head.width`, `spec.eyes.x`), exactly.
+- *upstream*: every value it read of earlier stages, key by key through the Scene's dicts (`character.data.head.L`,
+  `character.data.joints.neck01____head`), `shade.MATS` entries, Blender objects (their full state), except where
+  `scene.DEPS` declares that a stage reads a value only in part (below).
+- *files*: every file it opened outside the kit (the TRELLIS GLB; `OUT/geom/hair.npz`) and every path named in the spec
+  keys it read, by sha256 (a stat-checked memo skips re-hashing an unchanged file; the reference manifest's own sha256 is
+  compared against, never trusted instead). A file under the output folder is keyed relative to it.
+
+A lookup evaluates each stored entry's recorded reads against the scene as it stands and restores the first that matches
+in full. Keys are exact: a float that moved by 1e-11 is a change.
+
+**The dependency map** (Clawd, as recorded in its entries' manifests):
+
+| step | spec keys read | what it reads of earlier steps | files |
+| --- | --- | --- | --- |
+| geom hair (venv, `mode: geom`) | the resolved spec without the outfit | (assembles the character itself) | the GLB; the venv's packages |
+| fit_cranium | `body.height_m`, `body.heads_tall`, `eyes.x`, `hair.shape.{glb, fit_cranium, under}`, whether `head.cranium` is set | - | the GLB |
+| character | `base`, `name`, `body`, `head`, `head_detail`, `eyes`, `iris`, `brows`, `mouth`, `skin`, `skin_line`, the lash, brow, crease, cavity, eyeline and mouth-line colours | which `shade.MATS` materials exist | (the MakeHuman or anime base: the kit's data, in the code key) |
+| hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs `x` and `z`, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure, `shade.MATS` | the GLB, or `OUT/geom/hair.npz` |
+| face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, the hair objects' names and the fringe (`hair_front*`) | - |
+| garments | `garments` | verts below the neck's middle, faces, 52 bones' weights, the 22 joints its bones run between (the neck's two among them), `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
+| boards, QA, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
+| QA parts | what each reads (`spec.ref.*`) | each reads through the Scene: eyes and face the head and its keys, figures the eye spacing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig, `OUT/ref_measure.json` |
+
+`scene.DEPS` holds the partial reads, each with its reason: garments read the body only below the neck's middle
+(`body_below_neck`: shell regions, the collar's neckline, bands, sections and nearest-vertex weights all lie there; an
+outfit reaching the head or past the neck's middle is keyed on the whole body); a stage that only parents to the rig, or
+adds a vertex group and a modifier to the skin, reads their *structure* (names, stack, transform, pose), not their
+geometry; face shading reads the fringe, not the rest of the hair.
+
+What the measured keys show about the build itself:
+- **head.width is not a face-only knob**: the head wrap drags the joints near the head with it (`anime_head.follow`
+  moves every joint within 0.35 L of the chin with the surface: 127 of them), among them the neck bone's two ends, which
+  the top's neckline, the collar and the neck's cut hang from, by 0.055 and 0.069 mm. A fresh build at `head.width` 1.1
+  moves the collar by 0.5 mm and the sleeves and cuffs a little, so garments rebuild, and the trace says why:
+  `garments: miss (character.data.joints.head____head moved 6.9e-05; character.data.joints.neck01____head moved
+  5.5e-05; ...)`. `eyes.width` moves no joint the outfit uses: garments are restored.
+- **Body knobs reach the head by float noise**: `body.proportions.leg_slim` moves every vertex, and the joints at the
+  head by about 2e-11 m (rounding through the body's proportion and height scaling), so the hair, which reads the head
+  and the body round it, rebuilds. Keys are exact on purpose; removing that noise at its source (and keying the hair on
+  the body near the head only) is what would let a body-only change keep the hair.
+
+**A checkpoint holds what the stage changed**, so it restores onto a rebuilt upstream (garments onto a new face): the
+datablocks it made (`data.blend`, written by `bpy.data.libraries.write`; what they point at from before, the rig or a
+shared material, is re-bound by name on append), and pickled (`state.pkl`, Blender references by name) the Scene
+attributes and the spec and dict entries it wrote, key by key, its `shade.MATS` entries, its notes, and its changes to
+objects made before it: new vertex groups, modifiers (settings and stack position), attributes and material slots,
+replayed on restore. Pickle holds numpy arrays and charkit's own classes as Python keeps them (a `.npz`/JSON schema would
+have to track every structure a stage keeps); entries are read only from this folder, which charkit alone writes.
+
+**Correctness before speed.** A stage that changes anything a restore can't replay (an earlier mesh's vertices, a
+material made before it, the scene's settings, an object it reached without reading it through the Scene, a value it read
+changed in place) is uncacheable: it runs every time, and the trace and `CHARKIT_CACHE_UNCACHEABLE` say why. After a
+restore the trace's own snapshot of the stage (the objects it added, their geometry hashes and health; the names and
+modifier stacks of those it changed) must equal the one stored with the entry, or the build starts over with every step
+run and the entry dropped (`CHARKIT_CACHE_RESTORE_FAILED`). `--cache verify` runs every step and compares it with the
+entry a lookup would have restored, flagging a key that missed an input (`CHARKIT_CACHE_STALE`; images are compared by
+their pixels' encoding, not the date Blender stamps into each PNG). Nothing is stored from a run that printed a traceback
+(a QA check that caught an error and reported SKIPPED: a full disk once did that to the model-sheet body check), from a
+build whose charkit sources changed while it ran, or with less than `CHARKIT_CACHE_MIN_FREE_GB` (2) left on the disk; a
+store that fails leaves the build running, uncached.
+
+Modes: `--cache on` (the default), `off` (or `--no-cache`), `refresh` (run and store everything), `stages` (restore the
+stages, run the products afresh on the restored scene), `verify`. `python -m charkit cache info | clear`; the cache
+keeps under `CHARKIT_CACHE_GB` (5) by dropping the least recently used entries (`python -m charkit ps` and `cache info` show its size); `CHARKIT_CACHE_DIR` moves it.
+
+### The build worker
+
+`python -m charkit worker start | stop | status` keeps one Blender running with charkit loaded (`charkit/worker.py`,
+`charkit/worker_blender.py`); `build` sends its job over a local socket when the worker runs, and starts a fresh Blender
+otherwise or with `--no-worker`. Each job drops and re-imports charkit's modules (edited code and module state never
+carry over), resets the scene to factory settings, and checks the datablock counts and charkit's own handlers against
+the worker's first clean state; a job that finds anything left over prints `CHARKIT_WORKER_LEAK` and the worker restarts
+itself in place afterwards. The worker is recorded in `charkit/out/worker/.pid.json` and each job in its output folder
+under the worker's pid (`python -m charkit ps`, `kill`); `stop` signals only that pid, after checking it is this
+checkout's worker. Each job takes a machine-wide build slot (`procs.acquire_slot`, with its memory check) and, after
+clearing its scene and collecting Python's garbage, gives it back: an idle worker holds no slot. It saves Blender's
+start-up and keeps its render state warm between builds. Memory: 0.2 GB idle when started; a job's scene is cleared and
+Python's garbage collected before its slot goes back, but Blender and Python keep 0.5 to 1.2 GB of what a Clawd build
+freed (measured after cold, warm and other-character jobs), so after a job that leaves it above
+`CHARKIT_WORKER_MAX_IDLE_MB` (600) the worker restarts in place (same pid and socket; a build that arrives meanwhile
+waits for it) and idles at 0.2 GB again. `worker status` shows its resident memory and restarts; stop it when done.
+
+Measured on Clawd (`--boards views`, QA on, `--no-blend`; wall clock on a machine shared with other builds, load
+average 30 to 60, so the ratios matter more than the seconds):
+
+| build | time | restored | ran |
+| --- | --- | --- | --- |
+| fresh, `--cache off` | 200.7 s | - | everything |
+| cold (cache on, empty) | 203.2 s | - | everything (the cache's own cost: 1%) |
+| warm, no change | 4.6 s (Blender 3.3 s) | every stage, the boards, the QA | nothing: 44x |
+| warm in the worker | 4.2 s | everything | nothing |
+| `--cache stages` | 104.8 s | the stages | the boards and QA, on the restored scene |
+| `eyes.width` 0.2 -> 0.22 | 150.5 s | fit, garments, 1 QA part | character, hair, face shading, boards, 7 QA parts |
+| `head.width` 1.0 -> 1.1 | 292.1 s | fit, 1 QA part | every stage (the neck's joints moved), boards, QA |
+| a skirt's colour | 145.8 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+| the GLB changed in place | 183.7 s | character, face shading, garments, 3 QA parts | fit, hair, boards, the rest of QA |
+| a comment in garments.py | 8.1 s | everything | nothing |
+| a code edit in garments.py | 133.0 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+
+Every one of those builds trace-diffs to `no differences` against a fresh build of the same spec, with identical
+`qa.json` values and pixel-identical boards and QA overlays (`charkit/tests/cache_builds.py`); the worker's builds, the
+same spec twice with another character between, likewise (`charkit/tests/worker_builds.py`).
+
+Tests: `charkit/tests/test_cache.py` (digests, recorded reads, the code closure, the file memo, invalidation by a code
+file, an input file or a spec key, and a restore onto a rebuilt upstream in Blender);
+`charkit/tests/cache_builds.py` and `charkit/tests/worker_builds.py` (real builds: what each change restores and runs,
+the times, and the trace and qa.json proofs against fresh builds).
 
 ## 4. Measurement and review (the quality gate)
 
@@ -213,12 +342,20 @@ When something can only be judged by eye, name the measurement that would close 
   - No branch moves.
 - Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
   worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
+- Builds share a machine-wide number of slots, and start only when memory is available.
+  - A Clawd build with QA and export peaks at 2.2 GB of Blender (measured). Five worktrees building at once ran a 16 GB
+    machine out of memory.
+  - A build takes a free slot once `CHARKIT_BUILD_MEM_GB` (default 3) is available, or waits. The OS releases a slot when
+    its process ends, crashed or not.
+  - `python -m charkit slots N` sets the machine's count, and waiting builds pick it up. `CHARKIT_BUILD_SLOTS` in the
+    environment wins over it. Use 3 on this 16 GB machine when it's dedicated to charkit, 2 otherwise.
+  - Anything that starts Blender goes through `procs.run` (or `procs.acquire_slot`). `ps` shows who holds the slots.
 
 **References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
-fit and QA read: the model sheet, the 2D rig, the generated 3D-style key and the TRELLIS mesh. For each it records its
-role, scale method and figures, provenance (the model and ledger entry, or the regeneration command for large files kept
-out of git, with their hash) and cautions (the rig's face layer is bled out under the hair, so its bottom isn't the
-chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
+fit and QA read: the model sheet, the 2D rig, the generated 3D-style key, the TRELLIS mesh and the outfit graph (§8).
+For each it records its role, scale method and figures, provenance (the model and ledger entry, or the regeneration
+command for large files kept out of git, with their hash) and cautions (the rig's face layer is bled out under the hair,
+so its bottom isn't the chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
 the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
@@ -393,3 +530,154 @@ writer (`charkit/gltf.py`, numpy + bpy, no add-on), clean under the Khronos vali
 space, so the SDF shadow follows the head), and `projects/charkit-look` inspects it (`--serve`) and boards it against the
 Blender build's own boards: every Clawd board (head views, body, expressions, mouths) and the analytic-hair variant
 (`charkit/spec/clawd_locks.json`) match to under 1.1/255 mean difference, the rest being edge anti-aliasing.
+
+## 8. Outfit intake: the references as pieces
+
+`python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]`
+(`charkit/outfit.py`, numpy and scipy, about 80 s on Clawd) turns a character's references into an **outfit component
+graph**. Layered and flowy attire then becomes separately built, rigged and measured pieces instead of knobs on one
+garment. It writes into `--out` (default `charkit/out/NAME/outfit/`):
+
+- `outfit_graph.json`: the graph;
+- `outfit.png`: each sheet view with every piece outlined and labelled (red boxes mark cells no piece took), the rig's
+  layer to piece mapping, and the field from four sides coloured by piece;
+- `outfit.md`: the table, the comparison with the spec's hand-written list, the template gaps, the springs and the flags;
+- `outfit_masks.npz`: each piece's exact mask in each view.
+
+It also writes the graph as the character's reference `refs/NAME/outfit_graph.json` and registers it in the manifest
+(kind `outfit_graph`, role, provenance with the inputs' hashes, authority `outfit_pieces`). The rest of the manifest's
+text is left as written. A run is deterministic: two runs give the same bytes.
+
+**Per piece:** `id`, `type`, `side` (L her left, R, C) and mirror `pair`; `colour` (the rig's drawn sRGB, plus the sheet's
+lit and shade tones by `paletteqa.tones`) and `trims` (a colour along an edge: its edge, stepped or plain, height and
+thickness);
+`attach` (bone and t along it, region, parent and where the parent came from, contacts); `layer` (number, over, under);
+`extent` per view (bbox, area and outline polygons in L from the eye line; x toward the image's right from the view's
+origin, as `bodyqa.design_views` grids, or her left in the rig's frame); `extent3d` (bbox `[x0, y0, z0, x1, y1, z1]` in
+the rig's frame, y toward her back, and the share of cells the sheet confirmed); `views` (seen in, pixel areas); `motion`
+(class, reason, coverage round the bone, 3D flare); `sources`; `flags`. At the top level: the sources (rig, sheet with each
+view's azimuth and field fit, field, notes), the 2D skeleton, unmatched cells, `templates` (the draft), `comparison` and
+`springs`.
+
+**Sources, combined and cross-checked:**
+
+1. **The rig** (front, precise). Each front pixel belongs to the top-most layer drawn there. A layer's pixels are split by
+   colour family: k-means tones per layer, merged when close in weighted Lab and of one hue, so a fold's shadow stays with
+   its cloth while cream and skin stay apart. Rules on shape then cut out the sub-pieces:
+   - the piece's own colour: the largest family that lies through the piece, not along its outline and not a stepped hem;
+   - a colour running the piece's length through its body is a **panel** (the skirt's cream front);
+   - a band at its top edge standing proud of it is a **cuff** (a boot's turned-down top);
+   - a colour along an edge is a **trim**. It is **stepped** when the line between it and the cloth is a stair: the treads
+     and risers of its slope, even on a slanted hem;
+   - cells of the piece's colour that hang free, long and thin, touching the rest only at their top, are **tails**
+     either side, or a centre **panel** (the bib the rig draws between the bow's tails);
+   - two major components far apart, the layer's own whole drawing absent from the gap, are a **mirror pair** (the back
+     panels). A bodice split by the bow over it stays one piece.
+
+   Types come from the layer names' words and these rules. Sides are hers, so the rig's `sleeve_L` (the image's left) is
+   `sleeve_R`. The 2D skeleton comes from `rig.json`'s joints, with the wrist where the hand's layer starts. `rig.json`'s
+   own grouping of layers (head, torso, each arm and leg) picks the bone.
+2. **The sheet.** The figures come from `sheetqa.detect_figures` and the class images from `bodyqa.design_views` (the
+   model-sheet QA's own: orange, cream, dark, white, hair, iris). Nothing is re-segmented. Faint drawn lines (a black
+   top-hat on the value) split the classes into cells, and the cells are matched to pieces:
+   - by the field's prediction: the nearest predicted piece its class allows, within 0.12 L. A cell two predictions
+     share is split pixel by pixel;
+   - by adjacency as a tie-breaker: a doubtful cell goes to the piece whose rig neighbours match its own;
+   - by landmarks for cells no prediction reached: heights from the eye line, side, class.
+
+   Without a field the prediction is by landmarks alone (`--no-field`: coarser; about twice the flags on Clawd).
+3. **The field** (TRELLIS.2, `trellis_ext/field.py`; `charkit/out/i3d/ext/*/<stem>_field.npz`). Surface cells on a 384³
+   grid are fitted by silhouette IoU to the rig's front and to each figure. The 3/4 azimuth is searched from the one the
+   eyes give. The cells are labelled by a geodesic competition that is aware of colour:
+   - the seeds are front-visible cells whose rig label agrees 0.02 L round, whose colour is nearest the field's own colour
+     for the rig family drawn there, and near their label's median;
+   - an edge costs its length × (1 + (ΔE/10)²);
+   - a piece reaches at most its drawn size from its seeds;
+   - a piece the front shows whole (no background, under a quarter occluded: a bow, its tails, the bib) goes no deeper than
+     0.1 L behind its seeds, so a bow can't run round the neck into the collar's back flap.
+
+   The labels projected into each view are the prediction. The sheet's own masks then vote back into every cell shown in
+   a view (Clawd: 76 k cells voted, 86% agreeing with the prediction). The final labels give `extent3d`, the coverage and
+   the springs.
+4. **The notes** (`refs/NAME/outfit_notes.json`, versioned, with provenance): an annotated vision pass, piece by piece
+   (names, types, rig layers, parents, bones, motion, views). Each note is matched to a measured piece (rig layer, side,
+   colour, type) and every field is compared. Disagreements go to `flags`. In the graph the notes give the id, type, name
+   and parent (`parent_from: notes`, `parent_measured` kept); the measurement gives everything else.
+
+**Attach and layers.** The bone is the limb bone the drawing covers most of, for pieces in an arm or leg group. On the
+head it is the head. On the torso it is the torso bone at the piece's height (3D centroid). Parents:
+- a sub-piece's own piece;
+- for a hanging piece, the garment touching its top edge from above;
+- for a wrapping limb piece, a wrapping garment on a nearer bone (sleeve on top, sleeve cuff on sleeve);
+- for torso wraps and head pieces, the body.
+
+Over and under come from the rig's drawing order between touching layers (whole drawings included). Within a layer a
+panel is level with its piece, a cuff over it, and a tail under its knot. `layer.n` is the depth of that chain.
+
+**Motion** (reasons are recorded). A piece **wraps** its bone when the confirmed cells cover 60% of the way round it, or
+35% and it is seen from front and back. Without a field it wraps when seen front and back and it crosses the body or lies
+on a limb. Then:
+- **rigid**: small (under 0.3 L), or wraps without flaring;
+- **cloth**: wraps and flares 1.5x over 0.4 L, not on a forearm, hand, shin or foot (a skirt: a ring of chains);
+- **rigid**: lies on the hair, or has its bottom edge tucked into a band that doesn't run up under it (the bib into the
+  waistband);
+- **spring**: hangs 0.3 L below its top edge and is 1.5x longer than wide;
+- **rigid** otherwise.
+
+**Templates** are additive: a type the library lacks is a gap, and the design never limits the library. The map
+(`outfit.TEMPLATES`):
+
+| type | template |
+|---|---|
+| top, shorts | shell |
+| boot | shell + shoe |
+| boot cuff, cuff, sleeve cuff | band |
+| sleeve | sleeve |
+| skirt | skirt |
+| collar | collar |
+| bow | bow |
+| waistband | belt |
+| overskirt panel | **panel** (new) |
+| hair accessory | accessories bun, star or crab (by the layer's name) |
+| skirt panel, bodice panel, bow tail | a knob of the skirt, the top and the bow |
+
+New here are `garments.panel`, a panel hung from the waist ring at an azimuth with a stepped hem, and the bow's `tail`
+length. The defaults are unchanged. The draft's first knob guesses come from the measured extents, each knob marked
+`measured` or `default`, with mirror pairs averaged. The comparison with the spec's list gives matched entries (with knob
+deltas), pieces the hand list has only as a knob, pieces it misses, and entries it has extra.
+
+**Springs** (`springs[]`) are data for the rig / VRM exporter:
+- the joints run down the confirmed cells from the attachment (from the parent's lower edge when the piece hangs under
+  it), one per 0.15 L;
+- cloth gets eight chains round its bone;
+- stiffness is 0.35 / length, drag is 0.3 + 0.5 width / length, with gravity and hit radius;
+- positions are in L in the rig's frame.
+
+They are not wired into `gltf.py` yet. That needs spring bones in the armature and the pieces' weights moved onto them.
+Each chain then becomes one `VRMC_springBone.springs[]` entry, its joints the chain's bones with these values.
+
+**Clawd** (`charkit/refs/clawd/outfit_graph.json`): 26 pieces. The comparison with the spec's list:
+- 21 match (every hand entry is found; none is extra);
+- 4 pieces exist in the hand list only as knobs: the cream skirt panel, the two bow tails and the bib;
+- 2 are missing from it: the stepped-hem back panels. The hand list fakes them with the skirt's `back` of 0.55, while
+  the skirt's own back hem measures 0.06.
+
+Motion:
+- spring: the skirt panel, both back panels and both bow tails;
+- cloth: the skirt;
+- rigid: everything else (cuffs, waistband, boots and their cuffs, sleeves, the collar, the bow, the bib, buns, clips).
+
+There are 12 flags:
+- the back panels' parent: skirt measured, waistband noted;
+- the collar's parent: body measured, top noted;
+- the bib's type and parent: the rig draws it in the bow's layer;
+- the tails' bone: chest against upperChest;
+- views: the crab clip is seen only on the front (a doodle elsewhere), the far bun is not found in profile.
+
+**Known limits.**
+- One test character.
+- Bone heights are the drawing's 2D skeleton, not the 3D body's, so torso cut knobs stay defaults.
+- The 3/4 fit picks 41° by silhouette against 26° from the eyes.
+- Pleat counts and repeats are rough.
+- The springs are not wired into the VRM.
+- Accessories only map by layer name.

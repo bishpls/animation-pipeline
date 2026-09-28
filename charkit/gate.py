@@ -5,6 +5,9 @@ compared.
 
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--keep]
 
+The worktree is a sparse checkout (charkit/sparse.py's charkit profile: the code, plus the paths the character's
+manifest names): a few hundred MB instead of every film's assets. The gate refuses to start with under 5 GB free.
+
 The verdict:
   FAIL   the merge conflicts, a test fails, a build fails, or a graded check gets worse (PASS -> WARN/FAIL, WARN -> FAIL)
          or disappears
@@ -25,6 +28,10 @@ def _git(*a, cwd=ROOT, check=True):
     if check and r.returncode:
         raise SystemExit('git %s: %s' % (' '.join(a), r.stderr.strip()))
     return r
+
+
+def _free_gb(path):
+    return shutil.disk_usage(path).free / 2 ** 30
 
 
 def _link_inputs(wt):
@@ -98,7 +105,12 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
     os.rmdir(wt)
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
            't': time.strftime('%Y-%m-%dT%H:%M:%S')}
-    _git('worktree', 'add', '--detach', wt, head)
+    if _free_gb(os.path.dirname(wt)) < 5:
+        raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(os.path.dirname(wt)))
+    _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
+    from . import sparse
+    _git('sparse-checkout', 'set', '--cone', *sparse.dirs('charkit', spec), cwd=wt)
+    _git('checkout', '--detach', head, cwd=wt)
     try:
         _link_inputs(wt)
         # the baseline: cached per integration commit, spec and options

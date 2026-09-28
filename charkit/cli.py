@@ -2,17 +2,23 @@
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
                                      [--base makehuman|anime] [--hair geom|mesh] [--note JSON]
+                                     [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
-    python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
+    python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl] [--no-time]  # a build's state log, or what changed
+    python -m charkit worker start | stop | status                  # a live Blender that takes build jobs
+    python -m charkit cache [info | clear]                          # the build cache (charkit/out/.cache)
     python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
     python -m charkit history NAME [--check CHECK]                     # QA across builds
-    python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
+    python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
+    python -m charkit slots [N]                                        # the machine's concurrent Blender builds
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
+    python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
+                                                 # the outfit component graph from the references (charkit/outfit.py)
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -21,8 +27,19 @@ out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.
 out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). --base overrides the spec's base
 mesh (spec['base']: 'makehuman', the default, wraps MakeHuman's own head; 'anime' builds on charkit's derived anime base,
 charkit/base_anime.py). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
-charkit.geom first (out/geom/hair.npz, cached by the resolved spec and the GLB) and the Blender stage loads that closed
-surface (docs/GEOM.md).
+charkit.geom first (out/geom/hair.npz) and the Blender stage loads that closed surface (docs/GEOM.md).
+
+The build cache (charkit/cache.py, docs/CHARKIT.md §3): each stage (the cranium fit, character, hair, face shading,
+garments) is restored instead of run when nothing it read has changed (the spec keys, the earlier stages' values and
+objects, the files and the code it read, recorded as it ran), and so are the boards, the QA and the VRM when the whole
+scene is. The trace says per stage what was restored and, for what ran, why (`python -m charkit trace OUT/trace.jsonl`).
+--cache off builds without it (--no-cache too); refresh runs and stores everything; stages restores the stages but renders
+the boards and runs the QA afresh; verify runs everything and flags any step that differs from the entry a lookup would
+have restored (CHARKIT_CACHE_STALE). The geom hair cut is cached the same way, venv-side.
+
+The build worker (charkit/worker.py): `worker start` keeps one Blender running with charkit loaded; build sends its job
+there when it runs (a clean scene and freshly imported code per job) and starts a fresh Blender otherwise or with
+--no-worker. Its process is recorded in charkit/out/worker (`ps`, `kill`), each job in its out folder.
 
 export: a saved build (.blend) to our glTF 2.0 / VRM 1.0 with the OPENADS_charkit_look extension (charkit/gltf.py), checked
 on the way out; engine/three/charkit/look.js renders it, projects/charkit-look inspects it and boards it against Blender.
@@ -125,18 +142,21 @@ def build(args):
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
-    spec = geom_hair(spec, resolved, out)
+    mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
+    spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
-    cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--',
-           resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
-          (['--vrm'] if '--vrm' in args else [])
-    from . import history, procs
-    r = procs.run(cmd, out, 'build ' + name)
+    job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
+        (['--vrm'] if '--vrm' in args else []) + ['--cache', mode]
+    cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
+    from . import history, procs, worker
+    r = worker.submit(job, out, 'build ' + name) if '--no-worker' not in args else None
+    if r is None:
+        r = procs.run(cmd, out, 'build ' + name)
     if 'CHARKIT_BUILD_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
     for line in r.stdout.splitlines():
-        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF')):
+        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER')):
             print(line)
     for p in sheets(spec, out):
         print('sheet', p)
@@ -151,39 +171,37 @@ def build(args):
     print('built', out)
 
 
-def _geom_version():
-    from .geom import parts
-    return parts.VERSION
-
-
-def geom_hair(spec, resolved, out):
-    """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz (reused
-    while the resolved spec and the GLB are unchanged), and the resolved spec pointed at it."""
-    import hashlib
+def geom_hair(spec, resolved, out, mode='on'):
+    """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz, and the
+    resolved spec pointed at it. A cached step (charkit.cache.file_step, restored by copy): the cut is given the resolved
+    spec without the outfit (out/geom/cut.spec.json), so an outfit change can't reach it, and it runs again when that spec,
+    the GLB's content, the charkit code it runs (charkit.geom, the character assembly) or the venv's packages change."""
     shape = (spec.get('hair') or {}).get('shape') or {}
     if shape.get('mode') != 'geom':
         return spec
-    glb = _path(shape['glb'])
-    st = os.stat(glb)
-    key = hashlib.sha1((json.dumps({k: v for k, v in spec.items() if k != 'hair'}, sort_keys=True) +
-                        json.dumps({k: v for k, v in spec['hair'].items() if k != 'shape'}, sort_keys=True) +
-                        json.dumps({k: v for k, v in shape.items() if k not in ('geom', 'mode')}, sort_keys=True) +
-                        f'{st.st_size}:{int(st.st_mtime)}:v{_geom_version()}').encode()).hexdigest()[:16]
-    path = os.path.join(out, 'geom', 'hair.npz')
-    fresh = False
-    if os.path.exists(path):
-        from .geom.io import load_npz
-        _, meta, _ = load_npz(path, with_meta=True)
-        fresh = meta.get('key') == key
-    if not fresh:
+    from . import cache
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'hair.npz')
+    cut = {k: v for k, v in spec.items() if k != 'garments'}
+    cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k != 'geom'})
+    cut_path = os.path.join(gdir, 'cut.spec.json')
+    json.dump(cut, open(cut_path, 'w'), indent=1)
+
+    def run():
         from .geom import parts
-        C = parts.Case.load(resolved, fit=False)
+        C = parts.Case.load(cut_path, fit=False)
         R = parts.hair(C, **shape.get('geom_opts', {}))
-        st_ = parts.measure(C, R, parts.hair_region(C), parts.hair_color(C), zmin=C.chin_z,
-                            out_dir=os.path.join(out, 'geom'), name='hair')
-        parts.save_part(R, path, meta=dict(key=key, align=C.align, measure=st_))
+        st_ = parts.measure(C, R, parts.hair_region(C), parts.hair_color(C), zmin=C.chin_z, out_dir=gdir, name='hair')
+        parts.save_part(R, path, meta=dict(align=C.align, measure=st_))
         print('geom hair', path, json.dumps({k: st_[k] for k in ('faces', 'parts', 'open_edges', 'nonmanifold_edges',
                                                                    'self_intersecting_faces', 'silhouette_iou_mean')}))
+    if mode == 'off':
+        run()
+    else:
+        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=[_path(shape['glb'])],
+                            modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec
@@ -254,9 +272,18 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'worker':
+        from . import worker
+        worker.main(rest)
+    elif cmd == 'cache':
+        from . import cache
+        cache.main(rest)
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)
+    elif cmd == 'outfit':
+        from . import outfit
+        outfit.main(rest)
     elif cmd == 'figures':
         figures(rest)
     elif cmd == 'gate':
@@ -280,6 +307,12 @@ def main(argv=None):
     elif cmd == 'kill':
         from . import procs
         procs.kill(rest)
+    elif cmd == 'wait':
+        from . import procs
+        procs.wait(rest)
+    elif cmd == 'slots':
+        from . import procs
+        procs.set_slots(rest)
     elif cmd == 'refs':
         from . import refs
         R = refs.measure(rest[0], float(rest[rest.index('--eye-x') + 1]) if '--eye-x' in rest else 0.168)

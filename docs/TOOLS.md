@@ -116,6 +116,7 @@ Game data (disc images, the game's executable, builds, captured plates, raw game
 
 | tool | what |
 |---|---|
+| `tools/worktree.sh` | a sparse worktree: `NAME [--branch B] [--from REF] [--profile core\|charkit\|full] [PATH ...]` (profiles in `charkit/sparse.py`), `--add PATH` to check out more, `--slim` to narrow an existing one |
 | `infra/gcp/gpu.sh` | `up` (start and wait for boot), `ssh [cmd]`, `push` / `pull` (to `/srv/work/`), `status`, `stop`; it stops itself after 30 idle minutes (`touch /srv/work/.keepalive` covers a long download) |
 | `infra/gcp/gpu-provision.sh` | creates the box once: its own VPC (IAP SSH in, NAT out, no external IP), a service account limited to its bucket and logs; prints the plan, `--execute` runs it |
 | `infra/gcp/gpu.env.example` | the config; copy to `gpu.env` (gitignored) |
