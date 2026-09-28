@@ -6,7 +6,7 @@ import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 import bpy
-from charkit import character, qa, shade
+from charkit import character, hair, qa, shade
 
 VARIANTS = {
     'default': {},
@@ -15,6 +15,7 @@ VARIANTS = {
 }
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
 EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint']
+HAIR = os.environ.get('CHARKIT_HAIR', '1') == '1'
 MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised']
 
 
@@ -54,13 +55,17 @@ def main(out, names):
         skin = shade.toon3('skin', **SKIN)
         C = character.build(dict(VARIANTS[name], name=name), clay=skin)
         shade.outline(C['skin'], thick=0.0011, color=(0.42, 0.26, 0.26))
+        if HAIR:
+            hair.build(C['data'], C['arm'], VARIANTS[name].get('hair'))
         A = C['data']; eye_z = A['head']['eye_z']; L = A['head']['L']
         cd = bpy.data.cameras.new('cam'); cam = bpy.data.objects.new('cam', cd); sc.collection.objects.link(cam)
         sc.camera = cam
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
-        tgt = (0, 0, eye_z - 0.06 * L)
-        for az in (0, 30, 60, 90):
-            qa.render_view(cam, tgt, az, 0.62, 0.0, os.path.join(out, f'{name}_face_{az:03d}.png'), lens=85)
+        tgt = (0, 0, eye_z + 0.02 * L)
+        for az in (0, 30, 60, 90, 150):
+            qa.render_view(cam, tgt, az, 0.78 if az < 100 else 0.95, 0.0, os.path.join(out, f'{name}_face_{az:03d}.png'), lens=85)
+        if os.environ.get('CHARKIT_FAST') == '1':
+            continue
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
         for e in EXPR:
             set_expr(C, e)

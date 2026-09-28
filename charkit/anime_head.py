@@ -297,7 +297,7 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     out[si] = final
     fi = np.nonzero(free)[0]
     out[fi] = V[fi] + idw(V[fi], src, dsp, power=4)
-    info = dict(pinned=pinned, region=region, eye_world=eye_pts, c_real=c_r, c_anime=c_a)
+    info = dict(pinned=pinned, region=region, eye_world=eye_pts, c_real=c_r, c_anime=c_a, target=(TV, TT))
     return out, H, centre, info
 
 
