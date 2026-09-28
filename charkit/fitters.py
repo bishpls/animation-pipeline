@@ -382,7 +382,7 @@ class OptionsFitter(Fitter):
         if not changed and new_args == list(args):
             return {'fitter': self.name, 'option': o['name'], 'status': 'no change', 'why': 'already set'}
         os.makedirs(out, exist_ok=True)
-        p = os.path.join(out, S['name'] + '.option.json')
+        p = os.path.join(out, '%s.option-%s.json' % (S['name'], o['name']))          # one file per option
         json.dump(S, open(p, 'w'), indent=1)
         return {'fitter': self.name, 'option': o['name'], 'status': 'fitted', 'spec': p, 'args': new_args,
                 'changed': changed, 'blocks': {}, 'bounds': [], 'why': o.get('why', '')}

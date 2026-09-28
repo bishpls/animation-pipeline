@@ -233,6 +233,11 @@ class Builder:
         d = os.path.join(self.out, 'ck%d_%s' % (n, label.replace(' ', '-').replace('/', '-')))
         os.makedirs(d, exist_ok=True)
         spec = json.load(open(spec_path))
+        # the checkpoint keeps its own copy of the spec it builds: later fits and options can't change what it was
+        snap = os.path.join(d, 'input.spec.json')
+        if os.path.abspath(spec_path) != os.path.abspath(snap):
+            json.dump(spec, open(snap, 'w'), indent=1)
+        spec_path = snap
         key = hashlib.sha1(json.dumps([spec, list(args), boards, list(extra), self.code], sort_keys=True, default=str).encode()).hexdigest()[:16]
         kp, qp = os.path.join(d, '.tune_key'), os.path.join(d, 'qa', 'qa.json')
         reused = not self.fresh and os.path.exists(qp) and os.path.exists(kp) and open(kp).read().strip() == key
