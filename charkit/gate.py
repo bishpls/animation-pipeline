@@ -138,7 +138,10 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         qa_a = json.load(open(os.path.join(base_out, 'qa', 'qa.json')))
         qa_b = json.load(open(os.path.join(cand_out, 'qa', 'qa.json')))
         from . import history
-        rep['remeasured'] = history.steps_between(head, tip)          # measurement steps the branch brings
+        # the measurement steps the branch brings, as the merged tree registers them (this code's STEPS lacks the
+        # branch's own)
+        steps = history.load_steps(os.path.join(wt, 'charkit', 'history.py'))
+        rep['remeasured'] = history.steps_between(head, tip, steps)
         rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
         from . import trace
         rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')), trace.read(os.path.join(cand_out, 'trace.jsonl')))

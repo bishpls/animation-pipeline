@@ -132,6 +132,19 @@ def remeasured(git_a, git_b, names=None, steps=None):
     return out
 
 
+def load_steps(path):
+    """STEPS as another tree's charkit/history.py lists them, read without importing it -> the list, or None. The gate
+    reads the merged tree's: a branch registers the measurement steps it brings in its own history.py, which the
+    integration branch's code (running the gate) doesn't have yet."""
+    import ast
+    if not os.path.exists(path):
+        return None
+    for node in ast.parse(open(path).read()).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, 'id', None) == 'STEPS' for t in node.targets):
+            return [tuple(x) for x in ast.literal_eval(node.value)]
+    return None
+
+
 def steps_between(ref_a, ref_b, steps=None):
     """the measurement steps in ref_b's history and not ref_a's (git refs) -> {check pattern: why}."""
     out = {}
