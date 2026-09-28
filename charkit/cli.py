@@ -9,6 +9,9 @@
     python -m charkit history NAME [--check CHECK]                     # QA across builds
     python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
+    python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
+                                    [--write-spec]                     # the face, eye and neck knobs from the QA
+                                                                       # (charkit/facefit.py; build takes DIR/NAME.fit.json)
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -40,6 +43,9 @@ def resolve(spec_path, out, do_fit=True, base=None):
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
+        c = refs.sheet_chin(spec, R)
+        if c is not None:
+            R['chin_sheet'] = c
         json.dump(R, open(os.path.join(out, 'ref_measure.json'), 'w'), indent=1)
         spec = refs.fit(spec, R, ref.get('fit', ('face', 'features', 'hair')))
     p = os.path.join(out, spec['name'] + '.spec.json')
@@ -162,6 +168,9 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'fit':
+        from . import facefit
+        facefit.main(rest)
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)

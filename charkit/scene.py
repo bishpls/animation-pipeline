@@ -290,9 +290,10 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
           ('garments', stage_garments)]
 
 
-def fit_cranium(spec, root):
+def fit_cranium(spec, root, loaded=None):
     """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
-    the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair."""
+    the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair.
+    loaded: the shape's (V, F, C) when already loaded (charkit.faceeval, without Blender)."""
     from . import i3d
     shape = (spec.get('hair') or {}).get('shape') or {}
     if not shape.get('glb') or not shape.get('fit_cranium', True):
@@ -300,7 +301,7 @@ def fit_cranium(spec, root):
     P = spec.get('body', {})
     L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
-    V, F, C = i3d.load_glb(path)
+    V, F, C = loaded if loaded is not None else i3d.load_glb(path)
     eyes = i3d.find_eyes(V, C)
     if eyes is None:
         return spec
@@ -321,7 +322,8 @@ def fit_cranium(spec, root):
     head = spec.setdefault('head', {})
     if 'cranium' not in head:
         head['cranium'] = round(max(0.6, min(1.1, (top - under) / 0.555)), 3)
-        print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
+        if loaded is None:
+            print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
         from . import trace
         trace.note('fit_cranium', hair_top_L=top, slices=len(tops), cranium=head['cranium'])
     return spec

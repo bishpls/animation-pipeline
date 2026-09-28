@@ -113,8 +113,9 @@ def row_z(H, pix=PIX, win=WIN):
 
 def chin_bottom(front, z, below=-0.1, turn=0.06):
     """the chin's bottom from a side profile's front edge (u per row, smaller = further forward): going down from `below`
-    (L from the eye line), the lowest row before the edge falls `turn` L behind the chin point (the most forward point
-    below `below`); rows where the edge is hidden (NaN) are skipped."""
+    (L from the eye line; start under the nose, or a projecting nose reads as the chin), the lowest row before the edge
+    falls `turn` L behind the chin point (the most forward point below `below`); rows where the edge is hidden (NaN) are
+    skipped."""
     ok = np.isfinite(front) & (z < below)
     if ok.sum() < 3:
         return None
@@ -175,12 +176,13 @@ def _at(curve, z, z0, band=0.012):
     return float(np.mean(curve[m])) if m.any() else None
 
 
-def measure(ours, target, lm, ref=None, pix=PIX):
+def measure(ours, target, lm, ref=None, pix=PIX, tcache=None):
     """ours: [(V world, tris, per-triangle is-skin bool, part of the face bool)] (the skin, the eyes and the mouth are the
     face; hair, accessories and clothes are not); target: (V world, tris, per-vertex colours); lm: dict(L, eye_z, centre
     (x, y) of the head, mouth_z, nose_z?, brow_z?) world; ref: the design rig's measure (charkit.refs) or None.
     Our face's shape is measured on the face alone (we know it under the hair); the target's only where it shows; how much
-    of each face the hair leaves showing is measured separately (coverage). -> dict (see the module)."""
+    of each face the hair leaves showing is measured separately (coverage). tcache: an optional dict keeping the target's
+    z-buffers between calls where it sits the same in the view's window (charkit.faceeval). -> dict (see the module)."""
     L, ez = lm['L'], lm['eye_z']
     cx, cy = lm.get('centre', (0.0, 0.0))[:2]
     TV, TT, TC = target
@@ -193,10 +195,24 @@ def measure(ours, target, lm, ref=None, pix=PIX):
         a = np.radians(az)
         org = (cx * np.cos(a) + cy * np.sin(a), ez)       # the head's centre, seen from this azimuth
         do, lo_ = zbuffer([(V, T, lab.astype(int)) for V, T, lab, face in ours if face], az, org, L, pix)
-        dv, lv = zbuffer([(V, T, lab.astype(int)) for V, T, lab, face in ours], az, org, L, pix)
-        dt, lt = zbuffer([(TV, TT, tlab.astype(int))], az, org, L, pix)
-        fo, ft = face_region(do, lo_, jump, pix=pix), face_region(dt, lt, jump, pix=pix)
-        fv = face_region(dv, lv, jump, pix=pix)
+        if all(face for *_, face in ours):
+            dv, lv = do, lo_
+        else:
+            dv, lv = zbuffer([(V, T, lab.astype(int)) for V, T, lab, face in ours], az, org, L, pix)
+        key = None
+        if tcache is not None:                            # the target's place in this window: two vertices fix it
+            u2, z2, d2 = view(TV[:2], az)
+            key = (name, pix, round(L, 9)) + tuple(np.round(np.r_[(u2 - org[0]) / L, (z2 - org[1]) / L, (d2[1] - d2[0]) / L], 9))
+        if key is not None and key in tcache:
+            dt0, lt, ft = tcache[key]
+            dt = dt0 + view(TV[:1], az)[2][0]
+        else:
+            dt, lt = zbuffer([(TV, TT, tlab.astype(int))], az, org, L, pix)
+            ft = face_region(dt, lt, jump, pix=pix)
+            if key is not None:
+                tcache[key] = (dt - view(TV[:1], az)[2][0], lt, ft)
+        fo = face_region(do, lo_, jump, pix=pix)
+        fv = fo if dv is do else face_region(dv, lv, jump, pix=pix)
         maps[name] = dict(do=do, lo=lo_, dt=dt, lt=lt, fo=fo, ft=ft, fv=fv & fo, lv=lv)
     z = row_z(maps['front']['fo'].shape[0], pix)
     W = maps['front']['fo'].shape[1]
@@ -209,7 +225,8 @@ def measure(ours, target, lm, ref=None, pix=PIX):
         M = maps[name]
         cont[name] = (extents(M['lo'] == 1, M['do'], M['lo'], pix)[0], extents(M['lt'] == 1, M['dt'], M['lt'], pix)[0])
     fo_, ft_ = cont['profile']
-    co, ct = chin_bottom(fo_, z), chin_bottom(ft_, z)
+    below = min(-0.1, mz + 0.06)                      # the search starts under the nose: a projecting nose is no chin
+    co, ct = chin_bottom(fo_, z, below), chin_bottom(ft_, z, below)
     R['chin'] = {'ours': co, 'target': ct, 'design': round(ref['chin'], 4) if ref and ref.get('chin') is not None else None}
     # widths from the front at the cheek, the mouth line and halfway to the chin (the mean of the sides that show)
     def half_widths(m):

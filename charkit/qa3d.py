@@ -277,50 +277,9 @@ def sheet(S, out):
                 v, f = trace.mesh_arrays(o); t, _ = faceqa.triangles(*f)
                 dst.append((v, t, np.full(len(t), c)))
     irc = [trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']]     # iris centres (world)
-    cx, cy = Hd['centre'][0], Hd['centre'][1]
-    ez = float(np.mean([c[2] for c in irc]))
-    pix = 1.0 / ppl
-    win = faceqa.WIN
-    O, raw = {}, {}
-    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
-        a = math.radians(az)
-        org = (cx * math.cos(a) + cy * math.sin(a), ez)
-        # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
-        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix)
-        lab = np.where(lab < 0, CL['other'], lab)
-        face = faceqa.face_region(depth, np.where(lab == CL['skin'], 1, 0), 0.035 * L, pix=pix)
-        dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix)
-        shown = face & (lv == CL['skin'])
-        def px(P):
-            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
-            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
-        eyes = sorted(px(c) for c in irc)
-        if view == 'profile':
-            eyes = [px(max(irc, key=lambda c: c[0]))]                  # the near eye from +x: the character's left
-        raw[view] = (lab, face, shown, eyes, depth, lv)
-    # our chin: where the profile's front edge turns back to the neck (the under-chin runs smoothly into the neck, so
-    # the face region alone doesn't stop there); every view's face is cut below it, as a drawn jaw line cuts the design's
-    lab, face, shown, eyes, depth, lv = raw['profile']
-    M = sheetqa.measure_labels(lab, face, 'profile', ppl, eyes)
-    chin = faceqa.chin_bottom(-M['lead'], M['z'])
-    for view, (lab, face, shown, eyes, depth, lv) in raw.items():
-        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
-        if chin is not None:
-            # the skin below the chin out first, then the fill again: the neck beside the chin can then only be reached
-            # across the jaw's depth jump
-            skin = (lab == CL['skin']) & (zr >= chin)[:, None]
-            face = faceqa.face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
-            shown = face & (lv == CL['skin'])
-        O[view] = sheetqa.measure_labels(lab, face, view, ppl, eyes)
-        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+    O = sheetqa.measure_ours(meshes, covers, irc, Hd['centre'], L, ppl, az3)
     C = sheetqa.compare(O, D)
-    for view in ('front', 'three_quarter', 'profile'):             # the design's face is drawn as it shows: all of it
-        if view in O and view in D:
-            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
-            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
-            r = round(osh / max(1.0, dsh), 3)
-            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN',
-                                  'note': 'our lower face left showing by the hair, against the design\'s (warns only)'}
+    C.update(sheetqa.shown(O, D))
     _save_rgb(os.path.join(out, 'qa_sheet.png'), sheetqa.picture(O, D))
     strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
     table = {'ppl': ppl, 'az_three_quarter': az3, 'design': {v: strip(D[v]) for v in ('front', 'three_quarter', 'profile') if v in D},

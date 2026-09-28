@@ -198,10 +198,10 @@ def _pose(V, M, F, K, L, mc, shape, outer=True):
             ch = chains[sd]
             ci = np.array([idx[v] for v in ch])
             mv = eyelib.spread(old[ci], d[ci], V[ov])
-            for v, m_ in zip(ov, mv):
-                off = V[v, 1] - F.y(V[v, 0], V[v, 2])
-                x2, z2 = V[v, 0] + m_[0], V[v, 2] + m_[2]
-                pos[v] = np.array([x2, F.y(x2, z2) + off, z2])
+            off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
+            x2, z2 = V[ov, 0] + mv[:, 0], V[ov, 2] + mv[:, 2]
+            for v, p in zip(ov, np.stack([x2, F.y(x2, z2) + off, z2], 1)):
+                pos[v] = p
     # the cavity: a funnel back from the loop toward a point behind the mouth's centre
     ctr = np.array([mc[0], 0.0, mc[1]])
     xs_open = new[:, [0, 2]]
@@ -209,23 +209,24 @@ def _pose(V, M, F, K, L, mc, shape, outer=True):
     depth = K['depth'] * L
     rmax = max(M['cavity'].values())
     csrc = M.get('cavity_src') or {}                   # an anime base's compact cavity: (loop vertex, depth share, pull) each
-    for v, r in M['cavity'].items():
+    cv, rows = list(M['cavity'].keys()), []
+    for v in cv:
+        r = M['cavity'][v]
         if v in csrc:
             src, f, pull = csrc[v]
             mp = new[idx[src]]
-            x2 = mp[0] + (oc[0] - mp[0]) * pull
-            z2 = mp[2] + (oc[1] - mp[2]) * pull
-            pos[v] = np.array([x2, F.y(x2, z2) + 0.0015 + depth * f ** 0.8, z2])
-            continue
-        sd = M['side'].get(v, 'u')
-        ci = np.array([idx[u] for u in chains['l' if sd == 'l' else 'u']])
-        j = ci[int(np.argmin(np.linalg.norm(old[ci] - V[v], axis=1)))]
-        mp = new[j]
-        f = min(1.0, r / max(3, rmax * 0.7))
-        pull = 0.15 + 0.55 * f
-        x2 = mp[0] + (oc[0] - mp[0]) * pull
-        z2 = mp[2] + (oc[1] - mp[2]) * pull
-        pos[v] = np.array([x2, F.y(x2, z2) + 0.0015 + depth * f ** 0.8, z2])
+        else:
+            sd = M['side'].get(v, 'u')
+            ci = np.array([idx[u] for u in chains['l' if sd == 'l' else 'u']])
+            j = ci[int(np.argmin(np.linalg.norm(old[ci] - V[v], axis=1)))]
+            mp = new[j]
+            f = min(1.0, r / max(3, rmax * 0.7))
+            pull = 0.15 + 0.55 * f
+        rows.append((mp[0] + (oc[0] - mp[0]) * pull, mp[2] + (oc[1] - mp[2]) * pull, depth * f ** 0.8))
+    if cv:
+        x2, z2, dd = np.array(rows).T
+        for v, p in zip(cv, np.stack([x2, F.y(x2, z2) + 0.0015 + dd, z2], 1)):
+            pos[v] = p
     return pos
 
 

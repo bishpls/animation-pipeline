@@ -24,7 +24,8 @@ DEFAULT_HEAD = {
     'socket': 1.0,     # eye socket depth
     'eye_x': 1.0,      # eye spacing (socket centres)
     'eye_z': 0.0,      # eye sockets up (+) / down, in L
-    'nose': 1.0,       # nose ridge and tip
+    'nose': 1.0,       # nose ridge and tip (the analytic features() bump; the wrap leaves it out)
+    'nose_tip': 0.0,   # the nose's projection in front of the face, in L: a relief on the wrapped face (nose_relief)
     'mouth_z': 1.0,    # mouth below the eye line, x 0.28 L
     'nose_z': 1.0,     # nose tip below the eye line, x 0.145 L
     'mouth_w': 1.0,    # mouth half-width, x 0.085 L
@@ -69,6 +70,17 @@ class Pchip:
         t2, t3 = t * t, t * t * t
         return float((2 * t3 - 3 * t2 + 1) * ys[k] + (t3 - 2 * t2 + t) * h[k] * m[k] + (-2 * t3 + 3 * t2) * ys[k + 1]
                      + (t3 - t2) * h[k] * m[k + 1])
+
+    def many(self, x):
+        """__call__ over an array (the same arithmetic)."""
+        xs, ys, h, m = self.xs, self.ys, self.h, self.m
+        x = np.asarray(x, float)
+        k = np.clip(np.searchsorted(xs, x) - 1, 0, len(xs) - 2)
+        t = (x - xs[k]) / h[k]
+        t2, t3 = t * t, t * t * t
+        v = ((2 * t3 - 3 * t2 + 1) * ys[k] + (t3 - 2 * t2 + t) * h[k] * m[k] + (-2 * t3 + 3 * t2) * ys[k + 1]
+             + (t3 - t2) * h[k] * m[k + 1])
+        return np.where(x <= xs[0], ys[0], np.where(x >= xs[-1], ys[-1], v))
 
 
 def pchip(xs, ys, x):
@@ -130,6 +142,46 @@ class Head:
         n = (2.35 - 0.85 * d ** 1.4) * K['flat']                 # the lower face narrows to a forward V in section
         return self._p[0](d), self._p[1](d), self._p[2](d), self._p[3](d), max(1.45, n)
 
+    def sections(self, z):
+        """section() over an array of heights -> five arrays."""
+        K = self.K
+        z = np.asarray(z, float)
+        o = np.ones_like(z)
+        # up to the cranium's widest (Z_C)
+        t = np.clip(z / self.zc, 0, 1)
+        e = t * t * (3 - 2 * t)
+        mid = [self.lwf[0] + (self.cr['wf'] - self.lwf[0]) * e, self.lwb[0] + (self.cr['wb'] - self.lwb[0]) * e,
+               self.ldf[0] + (self.cr['df'] - self.ldf[0]) * e, self.ldb[0] + (self.cr['db'] - self.ldb[0]) * e,
+               2.35 * K['flat'] * o]
+        # the dome
+        t = np.minimum(1.0, (z - self.zc) / (self.top - self.zc))
+        k = np.maximum(0.0, 1 - t * t) ** 0.5
+        top = [self.cr['wf'] * k, self.cr['wb'] * k, self.cr['df'] * k, self.cr['db'] * k, (2.35 - 0.3 * t) * K['flat']]
+        # the lower face
+        d = np.clip(-z / self.chin, 0, 1)
+        n = (2.35 - 0.85 * d ** 1.4) * K['flat']
+        low = [p.many(d) for p in self._p] + [np.maximum(1.45, n)]
+        return tuple(np.where(z < 0, lo_, np.where(z <= self.zc, mi, tp)) for lo_, mi, tp in zip(low, mid, top))
+
+    def _xy(self, a, sec):
+        """surface() over arrays of azimuths a with their sections sec (sections() of the heights) -> (x, y) without the
+        features."""
+        wf, wb, df, db, n = sec
+        s, c = np.sin(a), np.cos(a)
+        front = c > 0
+        w = np.where(front, wf, wf + (wb - wf) * np.minimum(1, -c * 2.2))
+        dep = np.where(front, df, db)
+        ex = 1.0 + (2 / n - 1.0) * np.where(front, np.maximum(c, 0.0) ** 0.5, 0.0)
+        return np.copysign(np.abs(s) ** ex, s) * w, -np.copysign(np.abs(c) ** ex, c) * dep
+
+    def surfaces(self, a, z):
+        """surface() over arrays of azimuths and heights -> (M, 3)."""
+        a, z = np.broadcast_arrays(np.asarray(a, float), np.asarray(z, float))
+        x, y = self._xy(a, self.sections(z))
+        if self.feat:
+            y = y + np.where(np.cos(a) > 0, self.features_many(x, z), 0.0)
+        return np.stack([x, y, z], -1)
+
     def surface(self, a, z):
         wf, wb, df, db, n = self.section(z)
         s, c = math.sin(a), math.cos(a)
@@ -154,6 +206,32 @@ class Head:
         off -= 0.007 * L * K['nose'] * math.exp(-(x / (0.018 * L)) ** 2) * (1 if nz < z < 0.0 else 0)
         off += 0.004 * L * math.exp(-(x / (0.06 * L)) ** 2 - ((z - self.mouth_z) / (0.03 * L)) ** 2)
         return off
+
+    def nose_relief(self, x, y, z):
+        """the anime nose as a relief on the wrapped face: how far (metres, forward) head-space points move for the
+        'nose_tip' knob (the tip's projection in L). A ridge from just under the eye line grows to the tip at the nose
+        height and turns back under it within ~0.03 L; narrow (about 0.02 L either side at the tip), on the front only."""
+        L, tip = self.L, self.K.get('nose_tip', 0.0)
+        x, y, z = (np.asarray(a, float) / L for a in (x, y, z))
+        if not tip:
+            return np.zeros_like(x)
+        nz, zb = self.nose_z / L, -0.035
+        ramp = np.clip((zb - z) / (zb - nz), 0, None) ** 1.6
+        cap = np.exp(-(np.maximum(0.0, nz - z) / 0.02) ** 2)
+        w = 0.010 + 0.016 * np.minimum(1.0, ramp)
+        front = np.clip((-y - 0.2) / 0.1, 0, 1)
+        return tip * L * ramp * cap * np.exp(-(x / w) ** 2) * front
+
+    def features_many(self, x, z):
+        """features() over arrays."""
+        L, K = self.L, self.K
+        off = 0.0
+        for sx in (-1, 1):
+            off = off + 0.012 * L * K['socket'] * np.exp(-((x - sx * self.eye_x) / (0.10 * L)) ** 2 - ((z - self.eye_z) / (0.075 * L)) ** 2)
+        nz = -0.115 * L
+        off = off - 0.020 * L * K['nose'] * np.exp(-(x / (0.022 * L)) ** 2 - ((z - nz) / (0.035 * L)) ** 2)
+        off = off - 0.007 * L * K['nose'] * np.exp(-(x / (0.018 * L)) ** 2) * ((nz < z) & (z < 0.0))
+        return off + 0.004 * L * np.exp(-(x / (0.06 * L)) ** 2 - ((z - self.mouth_z) / (0.03 * L)) ** 2)
 
 
 def jaw_z(H, a):
