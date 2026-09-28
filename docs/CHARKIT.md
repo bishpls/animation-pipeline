@@ -391,9 +391,48 @@ The filters were calibrated against EEVEE on Clawd (`FIG_FILTER`, `EYE_FILTER`, 
 is at EEVEE's own sampling noise (about 0.07% of the pixels, even both ways), the eye renders' measures within a pixel,
 hair noise within 1%.
 
-**Validation.** VALIDATION_TABLE
+**Validation.** Three builds of Clawd, each measured by the old Blender pass (`--qa blender`) and in the venv: the
+fitted default, `--hair geom` and `--base anime`, 142 checks each. First the port alone: the venv QA with the old splat
+z-buffer (`CHARKIT_ZBUFFER=splat`) reads the same bundle as the Blender pass read the scene, so everything but the
+renders must be identical, and is. Then the renders drawn from the bundle, and the raster's own step:
 
-**Time and memory.** TIMING_TABLE
+| checks | tolerance | default | geom hair | anime base | the difference |
+| --- | --- | --- | --- | --- | --- |
+| `face_*` (6), `face_folds`, `poke_share`, `palette_*` (14), `figures_*` (4), `mesh` | exact | identical | identical | identical | the same functions on the bundle |
+| `sheet_*` (12), `body_*` (67), `expr_*` (12), `face_shape_*` (8), splat z-buffer | exact | identical | identical | identical | the port alone |
+| `shape_iou*` (5), `ref_iou` | ±0.005 | 0.001 at most | 0.001 | 0.001 | EEVEE's anti-aliasing is stochastic |
+| `scalp_px` | ±5 px | 0 and 0 | 0 and 0 | 0 and 0 | (the hair cap covers the scalp) |
+| `hair_noise` | ±0.01 | 0.2929 -> 0.2911 | 0.2265 -> 0.2210 | 0.2910 -> 0.2923 | anti-aliasing at the tone edges |
+| `eye_*` (8) | ±0.03 in a ratio (a pixel of the eye render); the lid gap ±0.0003 L | 0.018 at most (pupil run) | 0.018 | 0.025 (iris ratio) | a pixel at the rig's 586 px/L |
+| the same four families, pixel-centre raster | remeasured | below | below | below | pixel accuracy |
+
+With the raster (the new measurement), the median shift is about a pixel: 0.0087 L for the body's heights and the
+sheet's lengths (one sheet pixel), 0.003 for the body's IoUs (0.02 at most: the hair's), 0.0035 for the face-shape
+measures (the width 0.024, the chin 0.012 L: two of its pixels), 0.014 to 0.034 for an expression match's distance. The
+largest are single-pixel measures: `sheet_neck_to_jaw` 1.123 -> 1.303 (its one row, 0.06 L under the chin, moves from
+the neck to the shirt: `neck_run` is under 0.1 L), `expr_fluster_eye` 0.12 -> 0.39 (a pixel of the shocked eye's small
+iris), and on the anime base `expr_angry_brow` 0.87 -> 0.56 (the brow's tilt, a 7-pixel stroke, 8.2 -> 13.2 degrees
+against the design's 22.1). Statuses that change: default `body_back_leg` and `body_profile_hair_width` PASS -> WARN,
+`sheet_neck_to_jaw` and `sheet_profile` WARN -> FAIL, `sheet_width` WARN -> PASS; geom hair the same but the hair
+width; anime base `body_back_leg`, `body_profile_hair_width` and `face_shape_depth` PASS -> WARN, `sheet_profile`
+WARN -> FAIL, `sheet_width` WARN -> PASS. No render check changes status. The evaluator (`charkit.faceeval`) reads
+every one of its 46 checks exactly as the venv QA does, on each base.
+
+**Time and memory** (Clawd, `--boards views --no-blend`, fresh Blenders; the machine shared, so the ratios matter):
+
+| | before: the QA in Blender | after: the bundle, then the QA in the venv |
+| --- | --- | --- |
+| the QA, first build of a scene (cache on) | 83 to 98 s | 8 to 13 s, plus 3 to 5.6 s to export the bundle |
+| the QA, `--cache off` | 46 s | 10.6 s, plus 4.5 s for the bundle |
+| the whole build, `--cache off` | 94 s | 66 s (Blender 55 s, the QA 10.6 s) |
+| no change (everything restored) | 4.6 s | 4.9 s |
+| a QA code change (a `bodyqa.py` edit) | the whole QA product ran again | the three parts that run it: 8.9 s for the build |
+| peak memory | Blender 2.8 to 3.4 GB, with its QA | Blender 2.2 to 2.5 GB; the QA 1.2 to 1.5 GB on its own, after Blender exits (the build's venv process 2.2 GB, with the reference fit) |
+
+Inside Blender the cached QA parts cost about as much again as the checks (46 s uncached, 83 to 98 s through the part
+cache, which keyed each part on the Blender objects' full state); in the venv a part's key is the hashes the bundle
+already carries. The venv QA's parts, cold: shape 3.6 s (twelve 3x3-supersampled full-figure views), scalp 1.4 s,
+eyes 1.3 s, body 1.3 s, hair noise 0.7 s, the rest under 0.5 s each.
 
 **The measurement steps it brings** (`history.STEPS`, so the gate and the tune call them `remeasured`): the sheet, body,
 expression and face-shape z-buffers at pixel centres (the splats read about half a pixel wider: body heights move by

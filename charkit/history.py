@@ -25,6 +25,22 @@ STEPS = [
     ('face_expr_range', '8017ff3', 'FACE_EXPECT gained the shock eye (tool/sheet)'),
     ('face_shape_coverage_*', '5652f64', 'framing against the generated shape is INFO: the sheet grades framing '
                                          '(sheet_shown_*), per the manifest'),
+    # tool/measure: the QA measures the build's geometry bundle in the venv (charkit/bundle.py, charkit/qa3d.py)
+    ('sheet_*', '5394358', 'the QA runs in the venv on the geometry bundle (tool/measure): the sheet\'s class z-buffer '
+                          'rasterises at pixel centres (numba) where the point splats read about half a pixel wider; '
+                          'lines stay a pixel wide. neck_to_jaw reads one row, which a pixel moves off the neck'),
+    ('body_*', '5394358', 'the body classes z-buffered at pixel centres (tool/measure): heights move by a sheet pixel '
+                         '(0.0087 L), IoUs by about 0.01'),
+    ('expr_*', '5394358', 'the expression heads z-buffered at pixel centres (tool/measure): a match distance moves with '
+                         'a pixel of the small iris (fluster 0.12 -> 0.39)'),
+    ('face_shape_*', '5394358', 'the face-shape z-buffers at pixel centres (tool/measure): widths about 0.02, the chin '
+                               'by two pixels (0.012 L)'),
+    ('eye_*', '5394358', 'the eye renders drawn from the bundle, not EEVEE (tool/measure): within a pixel'),
+    ('shape_iou*', '5394358', 'the silhouettes drawn from the bundle, anti-aliased like EEVEE (tool/measure): within 0.001'),
+    ('ref_iou', '5394358', 'the front silhouette drawn from the bundle (tool/measure)'),
+    ('hair_noise', '5394358', 'the hair drawn with its toon materials from the bundle, not EEVEE (tool/measure): within '
+                             '2.5%'),
+    ('scalp_px', '5394358', 'the scalp drawn from the bundle, not EEVEE (tool/measure)'),
 ]
 
 
