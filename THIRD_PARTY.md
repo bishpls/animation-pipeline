@@ -12,6 +12,7 @@
 - `docs/references/ClaudeAnimationBase_ANIMATION_GUIDE.md`: © John Heibel, MIT.
 - `projects/open-all-night/assets/song.mp3`: generated with ElevenLabs Music from original lyrics; subject to ElevenLabs' terms.
 - `charkit/assets/makehuman/`: the MakeHuman base mesh (hm08), default skeleton and weights, and modelling targets from [MakeHuman](https://github.com/makehumancommunity) assets, CC0 1.0 (`charkit/assets/makehuman/LICENSE.md`). Only the CC0 assets are used; none of MakeHuman's AGPL code.
+- `charkit/assets/base_anime/`: charkit's anime base mesh, derived from the MakeHuman CC0 assets above by `charkit/base_anime.py`; CC0 1.0 (`charkit/assets/base_anime/LICENSE.md`).
 - `charkit/geom/` (the geometry kernel, docs/GEOM.md) runs on these Python packages in the venv. They are installed
   with pip and not vendored; `charkit/geom/requirements.txt` pins them. All are permissive and commercial use is fine:
   [manifold3d](https://github.com/elalish/manifold) 3.5.4 (Apache-2.0; its wheel builds on oneTBB, Apache-2.0, and

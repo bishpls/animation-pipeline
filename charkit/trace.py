@@ -26,7 +26,17 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _T = None                               # the open trace
-OUTLINE_MODS = ('outline',)             # measured with these modifiers off (the inverted hull is a render trick, not surface)
+# measured with these modifiers off: render tricks, not surface (the inverted-hull outline; the mask hiding skin under clothes)
+OUTLINE_MODS = ('outline', 'under_garments')
+# parts that are open sheets by design (plates, ribbons, strips, proxies): their open edges are not a fault
+SHEETS = ('brow_', 'iris_', 'sclera_', 'lash_', 'mouth_line', 'teeth', 'tongue', 'hair_shape_normals')
+HEALTH_FLAGS = ('open_edges', 'nonmanifold_edges', 'inverted_shells', 'degenerate_faces', 'loose_verts')
+
+
+def faults(rec):
+    """an object record's health faults: {flag: count}, open edges left out for sheets."""
+    h = rec.get('health') or {}
+    return {k: h[k] for k in HEALTH_FLAGS if h.get(k) and not (k == 'open_edges' and rec.get('sheet'))}
 
 # the spec sections each stage reads (hashed per stage, so a diff names the knobs that moved)
 STAGE_KEYS = {
@@ -123,7 +133,8 @@ def stage(name, S=None, objects=None):
             dt = time.perf_counter() - t
             snap = scene_snapshot(objects, _T.prev)
             added = {k: v for k, v in snap.items() if k not in _T.prev}
-            changed = {k: v for k, v in snap.items() if k in _T.prev and _T.prev[k]['hash'] != v['hash']}
+            changed = {k: v for k, v in snap.items() if k in _T.prev and (_T.prev[k]['hash'] != v['hash'] or
+                                                                           _T.prev[k].get('modifiers') != v.get('modifiers'))}
             removed = sorted(k for k in _T.prev if k not in snap)
             rec = dict(dt=round(dt, 4), added=added, changed=changed, removed=removed, objects=len(snap))
             if S is not None:
@@ -217,9 +228,9 @@ def geometry_hash(V, F=None, decimals=5):
 
 
 # --------------------------------------------------------------------------------------------------- Blender snapshots
-def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS):
+def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS, materials=False):
     """world-space (V, (loop verts, starts, counts)) of a mesh object; evaluated (modifiers, shape keys at their values)
-    with the `skip` modifiers off."""
+    with the `skip` modifiers off. materials=True adds each polygon's material index as a third item."""
     import bpy
     off = []
     if evaluated:
@@ -242,11 +253,15 @@ def mesh_arrays(ob, evaluated=True, skip=OUTLINE_MODS):
         starts = np.empty(nf, np.int64); counts = np.empty(nf, np.int64)
         me.polygons.foreach_get('loop_start', starts); me.polygons.foreach_get('loop_total', counts)
         loopv = np.empty(len(me.loops), np.int64); me.loops.foreach_get('vertex_index', loopv)
+        if materials:
+            mats = np.empty(nf, np.int64); me.polygons.foreach_get('material_index', mats)
     finally:
         if evaluated:
             oe.to_mesh_clear()
             for m in off:
                 m.show_viewport = True
+    if materials:
+        return V, (loopv, starts, counts), mats
     return V, (loopv, starts, counts)
 
 
@@ -258,6 +273,8 @@ def object_snapshot(ob, prev=None):
         hsh = geometry_hash(V, F)
         hl = prev['health'] if prev and prev.get('hash') == hsh and 'health' in prev else health(V, F)
         rec.update(hash=hsh, health=hl, base_verts=len(ob.data.vertices))
+        if ob.name.startswith(SHEETS):
+            rec['sheet'] = True
         if len(V):
             rec['bbox'] = [np.round(V.min(0), 4).tolist(), np.round(V.max(0), 4).tolist()]
         rec['modifiers'] = [[m.name, m.type] for m in ob.modifiers]
@@ -314,8 +331,7 @@ def summary(recs):
                 for nm, o in sorted(group.items()):
                     h = o.get('health')
                     if h:
-                        flags = ' '.join('%s=%d' % (k, h[k]) for k in ('open_edges', 'nonmanifold_edges', 'inverted_shells',
-                                                                       'degenerate_faces', 'loose_verts') if h.get(k))
+                        flags = ' '.join('%s=%d' % kv for kv in faults(o).items()) + (' (sheet)' if o.get('sheet') else '')
                         out.append('  %s %-26s v%-7d f%-7d shells %-4d %s' % (tag, nm[:26], h['verts'], h['faces'],
                                                                            h['shells'], flags))
                     else:

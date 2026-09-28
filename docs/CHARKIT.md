@@ -48,6 +48,27 @@ component that reads them; `charkit/spec/schema.json` collects them.
 | **geometry** (`charkit/geom/`, docs/GEOM.md) | deterministic mesh operations venv-side instead of Blender's modifiers: repair, voxel solids and booleans, remeshing, smoothing, envelope normals; a generated character's hair or skirt cut into one closed surface for the Blender stage | voxel size, clearance, seal, colour family, envelope blur | numpy, scipy, scikit-image, numba, manifold3d |
 | **export and QA** (`charkit/qa.py`, `export.py`) | boards: turntable, head close-up turntable, expression sheet, viseme sheet, a lighting sweep, range of motion, overlay on the reference, topology stats; VRM 1.0 / glTF export for three.js | | |
 
+### The base mesh: `spec['base']`
+
+Two bases build the same character (`python -m charkit build SPEC.json --base anime`, or `"base": "anime"` in the spec):
+
+- **`makehuman`** (the default): MakeHuman's own realistic head wrapped onto the anime head on every build
+  (`charkit/anime_head.reshape`), its eye margins, mouth corners and cavities detected in the realistic topology each time.
+- **`anime`**: charkit's own anime base (`charkit/base_anime.py`, asset `charkit/assets/base_anime/base_anime.npz`, 0.6 MB,
+  CC0): derived once from MakeHuman through the neutral anime wrap and cleaned for anime use: shallow eye sockets behind the
+  plates instead of the realistic pockets, the lid rings round each opening re-laid into clean concentric loops (the wrap
+  folds them back over the big anime outline), a compact mouth cavity and flattened lip rolls, the nostrils cut out and
+  filled (a soft nose), the ears' folds flattened, the under-jaw/neck junction filleted. It stores its regions (face,
+  scalp, neck, ears, nose, lips, jaw, under_jaw, eye margins, sockets and lids, the mouth's loop and cavity), the eye and
+  mouth loops with their outer rings and the socket and cavity schedules, landmarks, joints, weights, UVs, and each vertex's
+  source vertex in hm08. A build takes the body from MakeHuman's macro targets as before (same vertex indices), re-wraps
+  the stored head to the spec's head knobs (`anime_head.rewrap`), and places the eyes and mouth from the stored labels
+  (`eyes.labels`, `mouth.labels`): nothing is re-detected. The joints follow the wrap as on `makehuman` (the removed realistic
+  interior is stored as ghost points they follow), so garments fitted along the bones fit the same. Re-derive after changing
+  the wrap or the cleaning:
+  `python -m charkit.base_anime derive`. The QA check `face_folds` counts folded skin round the openings at rest and under
+  every lid and mouth key (Clawd: 1014 on `makehuman`, 135 on `anime`).
+
 ## 3. Build flow
 
 ```
@@ -82,6 +103,19 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
   - scalp showing through the hair;
   - garment poke-through;
   - hair shading noise;
+  - the face's shape against the generated character's face (`charkit/faceqa.py`). Both faces are z-buffered from the front,
+    at 3/4 and in profile with every surface occluding; the generated mesh's skin is found by colour. Ours is measured
+    without its hair, since we know it underneath, and the target only where its face shows. The checks: the lower face's
+    half-width at the mouth line and halfway to the chin (as a ratio), the chin's height (where the profile turns back to
+    the neck), the profile's front edge, the far cheek's contour at 3/4, and depth over the cheeks and chin from under the
+    eyes (where the two are aligned). How much face the hair leaves showing is a separate, warn-only check, and the feature
+    heights against the design rig are informational. Overlays: `qa_face_contours.png` (both contours per view, the
+    chins) and `qa_face_shape.png` (the two faces from the front, and the depth difference);
+  - the eyes against the design rig's eye layers (`charkit/eyeqa.py`), which are drawn whole under the hair. Each of our eyes
+    is rendered head-on at the rig's scale with no hair or brows, and both are segmented by colour into sclera, iris (an
+    ellipse through its ring), pupil, highlight and lid line. Graded: the opening's aspect and width, the iris's width in
+    it, the pupil's run (height over the iris's) and aspect (a slit is thin), and the gap between the upper lid line and
+    the opening. The highlight's side warns only. Overlay: `qa_eyes.png`, each eye's picture above its segmentation;
   - the face, measured from the shape keys' geometry (no render, about 0.04 s): each expression's eye opening against
     neutral and against its intended range (`FACE_EXPECT`), the iris left visible (none in a blink), left/right symmetry,
     each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.

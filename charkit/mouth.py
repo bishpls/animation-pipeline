@@ -109,6 +109,12 @@ def detect(Vb, faces, lips, upper_w, lower_w):
     return dict(corners=corners, upper=upper, lower=lower, cavity=cavity, outer=outer, side=side)
 
 
+def labels(base):
+    """the mouth's topology from a derived base's stored labels (charkit/base_anime.py) instead of detect(): the same dict,
+    plus 'cavity_src' {vertex: (loop vertex, depth share, pull)} for its compact cavity."""
+    return base.mouth()
+
+
 # ------------------------------------------------------------------------------------------------------------------ shapes
 def _knobs(k):
     K = dict(DEFAULT_MOUTH); K.update(k or {})
@@ -202,7 +208,15 @@ def _pose(V, M, F, K, L, mc, shape, outer=True):
     oc = xs_open.mean(0)
     depth = K['depth'] * L
     rmax = max(M['cavity'].values())
+    csrc = M.get('cavity_src') or {}                   # an anime base's compact cavity: (loop vertex, depth share, pull) each
     for v, r in M['cavity'].items():
+        if v in csrc:
+            src, f, pull = csrc[v]
+            mp = new[idx[src]]
+            x2 = mp[0] + (oc[0] - mp[0]) * pull
+            z2 = mp[2] + (oc[1] - mp[2]) * pull
+            pos[v] = np.array([x2, F.y(x2, z2) + 0.0015 + depth * f ** 0.8, z2])
+            continue
         sd = M['side'].get(v, 'u')
         ci = np.array([idx[u] for u in chains['l' if sd == 'l' else 'u']])
         j = ci[int(np.argmin(np.linalg.norm(old[ci] - V[v], axis=1)))]

@@ -211,34 +211,25 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     # depth: fit the anime face's midline profile (eye line to chin, nose excluded) to the smooth realistic one
     centre_z = chin_real + H.chin
     mid = np.nonzero(head & (np.abs(S[:, 0]) < 0.006) & (S[:, 2] < eye_c[2]) & (S[:, 2] > mk['chin'][2]))[0]
-    fronts = []
+    samples = []                                                 # (share of eye line -> chin, the profile's front y)
     for zz in np.linspace(eye_c[2], mk['chin'][2], 12)[1:-1]:
         near_ = mid[np.abs(S[mid, 2] - zz) < 0.006]
         if len(near_) and abs(zz - mk['nose'][2]) > 0.015:
-            zr_ = -H.chin * (eye_c[2] - zz) / max(1e-6, eye_c[2] - mk['chin'][2])
-            fronts.append(S[near_, 1].min() - H.surface(0.0, zr_)[1])
-    cy = float(np.median(fronts)) if fronts else eye_c[1] + H.df
-    centre = np.array([0.0, cy, centre_z])
+            samples.append(((eye_c[2] - zz) / max(1e-6, eye_c[2] - mk['chin'][2]), float(S[near_, 1].min())))
+    centre = head_centre(H, chin_real, samples, eye_c[1] + H.df)
     c_a = centre + np.array([0.0, (H.db - H.df) / 2, 0.0])
     # the neck where the head bone lets go: its radius and centre (for the target's under-jaw skirt)
     ring = (head_w > 0.03) & (head_w < 0.2)
     nc = V[ring].mean(0)
     n_r = np.median(np.hypot(V[ring, 0] - nc[0], V[ring, 1] - nc[1]))
     TV, TT = target if target is not None else target_mesh(headlib.Head(L, knobs, features=False),
-                                                            neck_r=n_r * H.K['neck_r'] / L, neck_y=(nc[1] - cy) / L)
+                                                            neck_r=n_r * H.K['neck_r'] / L, neck_y=(nc[1] - centre[1]) / L)
     TVw = TV + centre
     # landmark directions: chin (the elevation remap), eyes and mouth (the feature warps)
-    def ang(p, c):
-        a, e = _dir_angles((np.asarray(p) - c)[None]); return float(a[0]), float(e[0])
-    e_rc = ang(mk['chin'], c_r)[1]
-    e_ac = ang(centre + H.surface(0.0, -H.chin), c_a)[1]
-    eye_r_ = [ang(mk['eye_l'], c_r), ang(mk['eye_r'], c_r)]
-    eye_pts = [centre + H.surface(surface_azimuth(H, s * H.eye_x, H.eye_z), H.eye_z) for s in (1, -1)]
-    eye_a_ = [ang(p, c_a) for p in eye_pts]
-    m_r = ang(mk['mouth'], c_r)
-    m_a = ang(centre + H.surface(0.0, H.mouth_z), c_a)
-    n_r_ = ang(mk['nose'], c_r)
-    n_a_ = ang(centre + H.surface(0.0, H.nose_z), c_a)
+    lm_r = dict(chin=_ang(mk['chin'], c_r)[1], eyes=[_ang(mk['eye_l'], c_r), _ang(mk['eye_r'], c_r)],
+                mouth=_ang(mk['mouth'], c_r), nose=_ang(mk['nose'], c_r))
+    lm_a = anime_marks(H, centre, c_a)
+    eye_pts = lm_a['eye_pts']
     # the shell: head-owned, facing outward from the centre, not the jaw's underside
     rad = S - c_r
     rad /= np.maximum(np.linalg.norm(rad, axis=1, keepdims=True), 1e-9)
@@ -247,15 +238,7 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     below_mouth = S[:, 2] < mk['mouth'][2]
     shell = head & (((nS * rad).sum(1) > 0.3) | nz)
     si = np.nonzero(shell)[0]
-    a, e = _dir_angles(rad[si])
-    front = np.maximum(0.0, np.cos(a))
-    ratio = 1 + (e_ac / e_rc - 1) * np.sqrt(front)
-    e = np.where(e < 0, e * ratio, e)
-    for (cu, cv), (tu, tv) in zip(eye_r_, eye_a_):
-        a, e = _warp(a, e, cu, cv * (e_ac / e_rc if cv < 0 else 1), tu, tv, EW['sx'], EW['sz'], EW['R'])
-    a, e = _warp(a, e, m_r[0], m_r[1] * e_ac / e_rc, m_a[0], m_a[1], MW['sx'], MW['sz'], MW['R'])
-    a, e = _warp(a, e, n_r_[0], n_r_[1] * e_ac / e_rc, n_a_[0], n_a_[1], NOSE_WARP['sx'], NOSE_WARP['sz'], NOSE_WARP['R'])
-    dirs = _angles_dir(a, e)
+    dirs = remap_dirs(rad[si], lm_r, lm_a, EW, MW)
     t = raycast(c_a, dirs, TVw, TT)
     hit = np.isfinite(t)
     si, dirs, t, a0 = si[hit], dirs[hit], t[hit], _dir_angles(rad[si[hit]])[0]
@@ -275,7 +258,7 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     k = np.where(inward & nz[si], D['nostril'], k)
     # the eye zone (the lids, the orbit, the lid creases and bags): flat, anime-smooth; by angle round each realistic eye
     a_s, e_s = _dir_angles(rad[si])
-    dz = np.min([np.hypot(a_s - cu, e_s - cv) for cu, cv in eye_r_], axis=0)
+    dz = np.min([np.hypot(a_s - cu, e_s - cv) for cu, cv in lm_r['eyes']], axis=0)
     ew = np.exp(-(dz / 0.2) ** 2)
     if eye_w is not None:
         ew = np.maximum(ew, np.clip(eye_w[si] * 1.6, 0, 1))
@@ -297,8 +280,50 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     out[si] = final
     fi = np.nonzero(free)[0]
     out[fi] = V[fi] + idw(V[fi], src, dsp, power=4)
-    info = dict(pinned=pinned, region=region, eye_world=eye_pts, c_real=c_r, c_anime=c_a, target=(TV, TT))
+    # what charkit/base_anime.py needs to re-wrap a derived base to other knobs: each shell vertex's realistic direction and
+    # its (detail-free) surface point, the realistic landmarks' directions and the face profile
+    info = dict(pinned=pinned, region=region, eye_world=eye_pts, c_real=c_r, c_anime=c_a, target=(TV, TT),
+                shell=si, shell_rad=rad[si], shell_P=P, lm_real=lm_r, profile=samples, warps=(EW, MW))
     return out, H, centre, info
+
+
+def _ang(p, c):
+    a, e = _dir_angles((np.asarray(p) - c)[None])
+    return float(a[0]), float(e[0])
+
+
+def head_centre(H, chin_z, samples, fallback_y):
+    """the anime head's origin in world: x 0, the chin on the realistic chin (chin_z), depth fitting the anime face's midline
+    profile to the realistic one's samples [(share of eye line -> chin, front y)] (the nose excluded)."""
+    fronts = [y - H.surface(0.0, -H.chin * d)[1] for d, y in samples]
+    cy = float(np.median(fronts)) if fronts else fallback_y
+    return np.array([0.0, cy, chin_z + H.chin])
+
+
+def anime_marks(H, centre, c_a):
+    """the anime head's landmark directions from c_a: chin elevation, the eyes, the mouth and the nose (the feature warps)."""
+    eye_pts = [centre + H.surface(surface_azimuth(H, s * H.eye_x, H.eye_z), H.eye_z) for s in (1, -1)]
+    return dict(chin=_ang(centre + H.surface(0.0, -H.chin), c_a)[1], eyes=[_ang(p, c_a) for p in eye_pts],
+                mouth=_ang(centre + H.surface(0.0, H.mouth_z), c_a), nose=_ang(centre + H.surface(0.0, H.nose_z), c_a),
+                eye_pts=eye_pts)
+
+
+def remap_dirs(rad, lm_r, lm_a, EW=None, MW=None):
+    """realistic directions (from the realistic centre) -> the directions to cast from the anime centre: elevations below the
+    eye line remapped so the chin lands on the chin (strongest at the front), then the eye, mouth and nose regions moved (and
+    the eyes grown) onto the anime ones."""
+    EW = EW or EYE_WARP; MW = MW or MOUTH_WARP
+    e_rc, e_ac = lm_r['chin'], lm_a['chin']
+    a, e = _dir_angles(rad)
+    front = np.maximum(0.0, np.cos(a))
+    ratio = 1 + (e_ac / e_rc - 1) * np.sqrt(front)
+    e = np.where(e < 0, e * ratio, e)
+    for (cu, cv), (tu, tv) in zip(lm_r['eyes'], lm_a['eyes']):
+        a, e = _warp(a, e, cu, cv * (e_ac / e_rc if cv < 0 else 1), tu, tv, EW['sx'], EW['sz'], EW['R'])
+    m_r, m_a, n_r_, n_a_ = lm_r['mouth'], lm_a['mouth'], lm_r['nose'], lm_a['nose']
+    a, e = _warp(a, e, m_r[0], m_r[1] * e_ac / e_rc, m_a[0], m_a[1], MW['sx'], MW['sz'], MW['R'])
+    a, e = _warp(a, e, n_r_[0], n_r_[1] * e_ac / e_rc, n_a_[0], n_a_[1], NOSE_WARP['sx'], NOSE_WARP['sz'], NOSE_WARP['R'])
+    return _angles_dir(a, e)
 
 
 def idw(X, src, disp, power=4, chunk=256):
@@ -323,3 +348,62 @@ def follow(points, V0, V1, k=8):
         w = 1 / np.maximum(dist[nn], 1e-5) ** 2
         out[j] = p + (d[nn] * w[:, None]).sum(0) / w.sum()
     return out
+
+
+def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, marks, neck, L, knobs=None, ear=None,
+           extra=None, body_rel=None):
+    """Re-wrap a derived anime base (charkit/base_anime.py) to a spec's head knobs: reshape()'s wrap without MakeHuman's head.
+    The base was wrapped at neutral knobs; each shell vertex keeps its realistic direction, so the knobs' anime surface is
+    ray-cast along the knobs' remapped directions and the vertex moves by the surface's change (its detail rides along);
+    everything else in the region (the sockets, the cavity, the under-jaw, the neck's top) follows the shell and the body in
+    3D (inverse-distance), as reshape() does.
+    q0 (N,3): the base in head space in units of its head length (origin: its head's centre); region (N,): the vertices the
+    wrap moves; shell (S,): indices, with shell_rad (S,3) their realistic directions and shell_P (S,3) their neutral surface
+    points (head space, units of L); lm_r: the realistic landmarks' directions; profile [(share of eye line -> chin, front y -
+    eye y, in L)]: the realistic face's midline; warps: (eye, mouth) warp settings; Vbody (N,3): the spec's body where the
+    base has a MakeHuman vertex (NaN elsewhere); marks: the spec's realistic marks (chin, eye_l); neck: (radius, centre) of
+    the neck where the head bone lets go; L the head length; ear: optional (indices, relief in L) for the 'ear' knob;
+    extra: optional points (M,3) in the same head space, carried by the same field (info['extra']); body_rel: optional
+    (indices, offsets (in L), weights): free vertices on the neck placed as reshape() places them, from the spec's own body
+    (so the neck keeps the body knobs' shape) plus their neutral offset from it and the knobs' field, blended by weight with
+    the base's placement.
+    -> (V, H, centre, info) as reshape()."""
+    H = headlib.Head(L, knobs)
+    ey = float(marks['eye_l'][1])
+    centre = head_centre(H, float(marks['chin'][2]), [(d, ey + y * L) for d, y in profile], ey + H.df)
+    c_a = centre + np.array([0.0, (H.db - H.df) / 2, 0.0])
+    n_r, nc = neck
+    TV, TT = target_mesh(headlib.Head(L, knobs, features=False), neck_r=n_r * H.K['neck_r'] / L, neck_y=(nc[1] - centre[1]) / L)
+    lm_a = anime_marks(H, centre, c_a)
+    shell = np.asarray(shell)
+    dirs = remap_dirs(np.asarray(shell_rad), lm_r, lm_a, *warps)
+    t = raycast(c_a, dirs, TV + centre, TT)
+    P0 = centre + L * np.asarray(shell_P)
+    P = np.where(np.isfinite(t)[:, None], c_a + dirs * np.where(np.isfinite(t), t, 0)[:, None], P0)
+    R = centre + L * np.asarray(q0)                                  # the neutral base, placed rigidly on this head
+    out = R.copy()
+    region = np.asarray(region, bool)
+    out[shell] = R[shell] + (P - P0)
+    body = ~region
+    out[body] = Vbody[body]
+    pinned = np.zeros(len(R), bool); pinned[shell] = True
+    free = np.nonzero(region & ~pinned)[0]
+    fixed = np.nonzero(body & (np.linalg.norm(R - centre, axis=1) < 1.0 * L))[0]
+    src = np.vstack([R[shell], R[fixed]])
+    dsp = np.vstack([out[shell] - R[shell], Vbody[fixed] - R[fixed]])
+    out[free] = R[free] + idw(R[free], src, dsp, power=4)
+    if body_rel is not None and len(body_rel[0]):
+        bi, bd, bw = (np.asarray(x) for x in body_rel)
+        kd = idw(R[bi], np.vstack([R[shell], R[fixed]]),
+                 np.vstack([out[shell] - R[shell], np.zeros((len(fixed), 3))]), power=4)
+        mb = Vbody[bi] + L * bd + kd
+        out[bi] = mb * bw[:, None] + out[bi] * (1 - bw[:, None])
+    ex = None
+    if extra is not None and len(extra):
+        Rx = centre + L * np.asarray(extra)
+        ex = Rx + idw(Rx, src, dsp, power=4)
+    if ear is not None and H.K.get('ear', 1.0) != 1.0:
+        ei, ed = ear
+        out[ei] += (H.K['ear'] - 1.0) * L * np.asarray(ed)
+    info = dict(pinned=pinned, region=region, eye_world=lm_a['eye_pts'], c_real=None, c_anime=c_a, target=(TV, TT), extra=ex)
+    return out, H, centre, info

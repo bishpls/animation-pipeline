@@ -1,7 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
-                                      [--hair geom|mesh]
+                                     [--base makehuman|anime] [--hair geom|mesh]
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
@@ -10,9 +10,11 @@ build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's object
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
-out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). With hair.shape.mode 'geom' (or
---hair geom) the generated hair is cut out venv-side by charkit.geom first (out/geom/hair.npz, cached by the resolved spec
-and the GLB) and the Blender stage loads that closed surface (docs/GEOM.md).
+out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). --base overrides the spec's base
+mesh (spec['base']: 'makehuman', the default, wraps MakeHuman's own head; 'anime' builds on charkit's derived anime base,
+charkit/base_anime.py). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
+charkit.geom first (out/geom/hair.npz, cached by the resolved spec and the GLB) and the Blender stage loads that closed
+surface (docs/GEOM.md).
 
 export: a saved build (.blend) to our glTF 2.0 / VRM 1.0 with the OPENADS_charkit_look extension (charkit/gltf.py), checked
 on the way out; engine/three/charkit/look.js renders it, projects/charkit-look inspects it and boards it against Blender.
@@ -27,9 +29,11 @@ def _path(p):
     return p if os.path.isabs(p) else os.path.join(ROOT, p)
 
 
-def resolve(spec_path, out, do_fit=True):
+def resolve(spec_path, out, do_fit=True, base=None):
     from . import refs
     spec = json.load(open(spec_path))
+    if base:
+        spec['base'] = base
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
@@ -108,7 +112,7 @@ def build(args):
     name = json.load(open(spec_path))['name']
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
-    spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args)
+    spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)

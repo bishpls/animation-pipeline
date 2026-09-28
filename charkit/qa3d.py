@@ -8,11 +8,18 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
   poke       share of garment pixels where the body shows through
   hair_noise the hair's shading noise: tone edges per hair pixel (clean anime shadow shapes are low; noisy normals high)
   mesh       open edges and loose parts per hair / garment object (information)
+  face_shape the face's shape against the generated character's face (charkit/faceqa.py: the lower face's width, the chin,
+             the profile, the cheek at three-quarter, depth from under the eyes; how much face the hair leaves showing) and
+             the feature heights against the design rig; overlays qa_face_shape.png, qa_face_contours.png
+  eye        each eye head-on against the design rig's eye layer (charkit/eyeqa.py): the opening's aspect and width, how
+             much of it the iris fills, the pupil's run and aspect; overlay qa_eyes.png
   face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
              opening (area between the lid margins, against neutral), the share of the iris the lids leave visible, left /
              right symmetry, each mouth shape's opening (area, width, height, left / right balance) and how distinct the
              visemes are from each other; graded: blink closes, no iris in a blink, eyes and mouth symmetric, visemes
              distinct, and each expression's openness inside the range it is meant to have (FACE_EXPECT, warn only)
+  face_folds skin faces round the eyes and the mouth facing away at rest or flipping under a lid or mouth key (folded lid
+             and lip rings: the realistic lids stretched onto the anime outline, the lip rolls), summed over the keys
 
     from charkit import qa3d; report = qa3d.run(S, out)       # S: charkit.scene.Scene, after scene.build
 """
@@ -23,7 +30,7 @@ import numpy as np
 AZ = (0, 45, 90, 135, 180, 270)
 LIMITS = {                     # (pass at or better, warn at or better); else fail
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
-    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08),
+    'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
     'viseme_gap': (0.010, 0.005),
 }
@@ -147,6 +154,127 @@ def face(S, expressions=None, mouths=None):
     return table, checks
 
 
+# --------------------------------------------------------------------------------------------------- eyes
+def _eye_render(S, E, parts, path, ppl, size=0.42):
+    """an orthographic head-on render of one eye (the skin and that eye's white, iris and lashes; no hair, no brows) at
+    `ppl` pixels per head length, `size` head lengths square. -> RGBA floats (H, W, 4)."""
+    import bpy
+    from mathutils import Vector
+    sc = bpy.context.scene
+    L = S.character['data']['head']['L']
+    cam = bpy.data.objects.get('qa_eye_cam') or bpy.data.objects.new('qa_eye_cam', bpy.data.cameras.new('qa_eye_cam'))
+    if cam.name not in sc.collection.objects:
+        sc.collection.objects.link(cam)
+    cam.data.type = 'ORTHO'; cam.data.ortho_scale = size * L
+    cam.location = Vector((E['c'][0], -3.0, E['c'][1])); cam.rotation_mode = 'XYZ'; cam.rotation_euler = (math.pi / 2, 0, 0)
+    show = [S.character['skin']] + [parts[k] for k in ('sclera', 'iris', 'lash') if parts.get(k) is not None]
+    saved = {o.name: o.hide_render for o in sc.objects}
+    for o in sc.objects:
+        o.hide_render = o not in show
+    old = (sc.camera, sc.render.resolution_x, sc.render.resolution_y, sc.render.film_transparent)
+    n = int(round(size * ppl))
+    sc.camera = cam; sc.render.resolution_x = sc.render.resolution_y = n; sc.render.film_transparent = True
+    sc.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    sc.camera, sc.render.resolution_x, sc.render.resolution_y, sc.render.film_transparent = old
+    for o in sc.objects:
+        o.hide_render = saved.get(o.name, o.hide_render)
+    img = bpy.data.images.load(path)
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(n, n, 4)[::-1]
+    bpy.data.images.remove(img)
+    return px
+
+
+def eyes(S, out, rig=None):
+    """our eyes against the design rig's eye layers (charkit.eyeqa), measured the same way -> (table, checks)."""
+    from . import eyeqa
+    rp = os.path.join(os.path.dirname(os.path.abspath(out)), 'ref_measure.json')
+    rig = rig or ((S.spec.get('ref') or {}).get('rig') if isinstance(S.spec.get('ref'), dict) else None)
+    if not rig or not os.path.exists(rp):
+        return None, {'eye': {'status': 'SKIPPED', 'why': 'no design rig (spec.ref.rig) or ref_measure.json'}}
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rig = rig if os.path.isabs(rig) else os.path.join(root, rig)
+    ppl = json.load(open(rp))['ppl']
+    table, checks, pics = {}, {}, []
+    # the rig's eye_L layer is on the picture's left: our eye at -x
+    for side_name, layer in (('R', 'eye_L'), ('L', 'eye_R')):
+        E, parts = next(((E, p) for E, p in zip(S.character['data']['eyes'], S.character['eyes'])
+                         if (E['side'] > 0) == (side_name == 'L')))
+        tmp = os.path.join(out, f'qa_eye_{side_name}.png')
+        ours_px = _eye_render(S, E, parts, tmp, ppl)
+        des_px = _load_rgba(os.path.join(rig, 'build', layer + '.png'))
+        mo, md = eyeqa.measure(ours_px, ppl), eyeqa.measure(des_px, ppl)
+        table[side_name] = {'ours': {k: v for k, v in mo.items() if not k.startswith('_')},
+                            'design': {k: v for k, v in md.items() if not k.startswith('_')}}
+        c = eyeqa.compare(mo, md)
+        for k, v in c.items():
+            prev = checks.get(k)
+            if prev is None or ['PASS', 'WARN', 'FAIL', 'SKIPPED'].index(v['status']) > ['PASS', 'WARN', 'FAIL', 'SKIPPED'].index(prev['status']):
+                checks[k] = dict(v, eye=side_name)
+        pics.append(eyeqa.picture(ours_px, des_px, mo, md))
+    Hm = max(p.shape[0] for p in pics)
+    _save_rgb(os.path.join(out, 'qa_eyes.png'), np.concatenate([np.pad(p, ((0, Hm - p.shape[0]), (0, 12), (0, 0)), constant_values=1.0) for p in pics], 1))
+    return table, checks
+
+
+def _load_rgba(path):
+    import bpy
+    img = bpy.data.images.load(path)
+    w, h = img.size
+    px = np.array(img.pixels[:], dtype=np.float32).reshape(h, w, img.channels)[::-1]
+    bpy.data.images.remove(img)
+    if px.shape[2] == 3:
+        px = np.concatenate([px, np.ones(px.shape[:2] + (1,), np.float32)], -1)
+    return px
+
+
+# --------------------------------------------------------------------------------------------------- face shape
+FACE_PARTS = ('sclera', 'iris', 'lash', 'brow', 'teeth', 'tongue', 'mouth_line', 'line')
+
+
+def face_shape(S, out):
+    """our face against the generated character's (charkit.faceqa), from the scene's meshes. -> (result, checks)."""
+    from . import faceqa, trace
+    full, cols = getattr(S, 'shape_full', None), getattr(S, 'shape_colors', None)
+    if full is None or cols is None:
+        return None, {'face_shape': {'status': 'SKIPPED', 'why': 'no generated shape in this build'}}
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    skin = S.character['skin']
+    V, F, mats = trace.mesh_arrays(skin, materials=True)
+    T, poly = faceqa.triangles(*F)
+    names = [m.name if m else '' for m in skin.data.materials]
+    is_skin = np.isin(mats[poly], [i for i, n in enumerate(names) if n in ('skin', 'face_skin')])
+    ours = [(V, T, is_skin, True)]
+    face_obs = [p[k] for p in S.character['eyes'] for k in ('sclera', 'iris', 'lash', 'brow') if p.get(k) is not None]
+    face_obs += [o for o in S.character['mouth'].values() if o is not None]
+    others = list(S.hair) + list(S.accessories) + list(S.garments)
+    for obs, face in ((face_obs, True), (others, False)):
+        for o in obs:
+            if o.type != 'MESH' or o.hide_render:
+                continue
+            v, f = trace.mesh_arrays(o)
+            t, _ = faceqa.triangles(*f)
+            ours.append((v, t, np.zeros(len(t), bool), face))
+    ez = float(np.mean([E['c'][1] for E in A['eyes']]))
+    Vb = A['verts']
+    mid = (np.abs(Vb[:, 0]) < 0.01 * L) & (Vb[:, 2] < ez - 0.05 * L) & (Vb[:, 2] > ez - 0.25 * L)
+    lm = dict(L=L, eye_z=ez, centre=list(Hd['centre']), mouth_z=float(A['mouth']['c'][1]))
+    if mid.any():
+        lm['nose_z'] = float(Vb[mid][np.argmin(Vb[mid][:, 1]), 2])
+    brows = [p['brow'] for p in S.character['eyes'] if p.get('brow') is not None]
+    if brows:
+        lm['brow_z'] = float(np.mean([trace.mesh_arrays(b)[0][:, 2].mean() for b in brows]))
+    ref = None
+    rp = os.path.join(os.path.dirname(os.path.abspath(out)), 'ref_measure.json')
+    if os.path.exists(rp):
+        ref = json.load(open(rp))
+    R = faceqa.measure(ours, (np.asarray(full[0]), np.asarray(full[1]), np.asarray(cols)), lm, ref)
+    _save_rgb(os.path.join(out, 'qa_face_shape.png'), faceqa.overlay(R))
+    _save_rgb(os.path.join(out, 'qa_face_contours.png'), faceqa.contours_image(R))
+    C = faceqa.checks(R)
+    return {k: v for k, v in R.items() if not k.startswith('_')}, C
+
+
 # -------------------------------------------------------------------------------------------------------------- rendering
 class Cam:
     """an orthographic camera round the character: azimuth, framing the whole figure."""
@@ -251,6 +379,32 @@ def _bbox_norm(mask, size=(200, 320)):
 
 
 # ------------------------------------------------------------------------------------------------------------------ checks
+def _face_normals(V, faces):
+    Q = np.array([tuple(f) + (f[-1],) * (4 - len(f)) for f in faces])      # triangles padded (their normal is unchanged)
+    n = np.cross(V[Q[:, 2]] - V[Q[:, 0]], V[Q[:, 3]] - V[Q[:, 1]])
+    return n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-15)
+
+
+def face_folds(A):
+    """skin faces round the eyes and the mouth (the openings' own walls, fmat 2 and 3, left out) facing away from the viewer
+    at rest, and flipped (turned past 90 degrees) or facing away under each lid and mouth key. numpy only.
+    -> dict(rest, keys {key: count}, total)."""
+    V = np.asarray(A['verts']); F = A['faces']; fm = np.asarray(A['fmat']); Hd = A['head']; L = Hd['L']
+    q = (np.array([V[list(f)].mean(0) for f in F]) - Hd['centre']) / L
+    mouth = (fm == 1) & (np.abs(q[:, 0]) < 0.16) & (np.abs(q[:, 2] + 0.28) < 0.1) & (q[:, 1] < -0.2)
+    eyes = (fm == 1) & (np.abs(np.abs(q[:, 0]) - 0.17) < 0.14) & (np.abs(q[:, 2]) < 0.12) & (q[:, 1] < -0.15)
+    n0 = _face_normals(V, F)
+    rest = int(((mouth | eyes) & (n0[:, 1] > 0.2)).sum())
+    keys = {}
+    for sh, D in A['mouth']['keys'].items():
+        n1 = _face_normals(V + D, F)
+        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+    for sh in A['eyes'][0]['keys']:
+        n1 = _face_normals(V + sum(E['keys'][sh][0] for E in A['eyes']), F)
+        keys['eye_' + sh] = int((eyes & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+    return dict(rest=rest, keys=keys, total=rest + sum(keys.values()))
+
+
 def _character_objects(S):
     return [S.character['skin']] + [o for p in S.character['eyes'] for o in p.values()] + \
         list(S.character['mouth'].values()) + list(S.hair) + list(S.accessories) + list(S.garments)
@@ -422,6 +576,10 @@ def run(S, out, ref_image=None):
             vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
         v = float(np.mean(vals))
         rep['checks']['hair_noise'] = {'value': round(v, 4), 'status': _grade('hair_noise', v, False)}
+    # --- face folds: the skin round the openings at rest and under the keys
+    ff = face_folds(A)
+    rep['checks']['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
+                                   'base': S.spec.get('base', 'makehuman'), 'status': _grade('face_folds', ff['total'], False)}
     # --- mesh health (information)
     import bmesh
     mh = {}
@@ -442,6 +600,20 @@ def run(S, out, ref_image=None):
         mh[o.name] = {'open_edges': open_e, 'parts': parts}
         bm.free()
     rep['checks']['mesh'] = {'status': 'INFO', 'objects': mh}
+    # --- the eyes against the design's
+    try:
+        rep['eyes'], ec = eyes(S, out)
+        rep['checks'].update({'eye_' + k: v for k, v in ec.items()})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        rep['checks']['eye'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+    # --- the face's shape against the generated character's
+    try:
+        rep['face_shape'], fc = face_shape(S, out)
+        rep['checks'].update({('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in fc.items()})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        rep['checks']['face_shape'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's expressions and mouth shapes (geometry)
     try:
         rep['face'], fc = face(S)

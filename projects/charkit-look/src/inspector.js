@@ -1,6 +1,7 @@
 // charkit-look inspector: look at any charkit character from any angle and see what each system is doing.
 //   node engine/render.mjs projects/charkit-look --serve      then open the printed URL (Chrome, WebGPU)
 //   ?vrm=charkit/out/NAME/NAME.vrm (default clawd) &qa=charkit/out/NAME/qa/qa.json (default: next to the VRM's build)
+//   &trace=charkit/out/NAME/trace.jsonl (the build's state log, charkit/trace.py; default: next to the VRM)
 // Mouse: drag orbits, shift-drag or right-drag pans, wheel zooms, click picks a part (its material and mesh data show
 // under "picked"), double-click also re-centres the orbit there. Keys: 0-9 / - = debug views, f face, b body,
 // o outlines, w wireframe, t T-pose / build pose, p save a PNG.
@@ -11,6 +12,7 @@ async function startInspector(q) {
   const vrmPath = q.get('vrm') || 'charkit/out/clawd/clawd.vrm';
   const name = vrmPath.split('/').pop().replace(/\.(vrm|glb)$/, '');
   const qaPath = q.get('qa') || vrmPath.replace(/[^/]+$/, 'qa/qa.json');
+  const tracePath = q.get('trace') || vrmPath.replace(/[^/]+$/, 'trace.jsonl');
   document.title = `${name} · charkit inspector`;
   document.body.classList.add('inspector');
   const view = el('div', { id: 'view' }); const side = el('div', { id: 'side' });
@@ -302,13 +304,75 @@ async function startInspector(q) {
       }
       qBox.append(tv);
     }
+    if (rep.face) {
+      // the face's expressions (eye opening against neutral, iris visible) and mouth shapes (opening, in head lengths)
+      const te = el('table', { class: 'views' });
+      const hd = el('tr'); ['expression', 'open L', 'open R', 'iris L', 'iris R'].forEach(c => hd.append(el('th', {}, c))); te.append(hd);
+      for (const [k, v] of Object.entries(rep.face.eyes || {})) {
+        if (!v || !v.L) continue;
+        const tr = el('tr'); tr.append(el('td', {}, k), el('td', {}, String(v.L.open)), el('td', {}, String(v.R.open)),
+          el('td', {}, String(v.L.iris)), el('td', {}, String(v.R.iris))); te.append(tr);
+      }
+      const tm = el('table', { class: 'views' });
+      const hm = el('tr'); ['mouth', 'area', 'width', 'height', 'asym'].forEach(c => hm.append(el('th', {}, c))); tm.append(hm);
+      for (const [k, v] of Object.entries(rep.face.mouth || {})) {
+        const tr = el('tr'); tr.append(el('td', {}, k), el('td', {}, String(v.area_L2)), el('td', {}, String(v.width_L)),
+          el('td', {}, String(v.height_L)), el('td', {}, String(v.asym))); tm.append(tr);
+      }
+      qBox.append(el('div', { class: 'note' }, 'face, from the shape keys (eyes: opening against neutral, share of iris visible; mouth: in head lengths)'), te, tm);
+    }
     const dir = qaPath.replace(/[^/]+$/, '');
-    for (const f of ['qa_shape_overlay.png', 'qa_ref_overlay.png', 'qa_scalp_front.png']) {
+    for (const f of ['qa_eyes.png', 'qa_face_contours.png', 'qa_face_shape.png', 'qa_shape_overlay.png', 'qa_ref_overlay.png', 'qa_scalp_front.png']) {
       const im = new Image(); im.className = 'qaimg'; im.title = f;
       im.onload = () => qBox.append(im); im.src = root + dir + f;
       im.onclick = () => window.open(im.src);
     }
   } catch (e) { qBox.append(el('div', { class: 'note' }, 'no QA report (' + e.message + '): charkit/qa3d.py writes out/NAME/qa/qa.json')); }
+
+  // ---------------------------------------------------------------- the build's state log (charkit/trace.py)
+  const Tr = sec('build trace', false);
+  const tBox = el('div'); Tr.append(el('div', { class: 'note' }, tracePath), tBox);
+  try {
+    const r = await fetch(root + tracePath);
+    if (!r.ok) throw new Error(r.status);
+    const recs = (await r.text()).split('\n').filter(l => l.trim()).map(l => JSON.parse(l));
+    const b = recs.find(x => x.event === 'begin') || {}, end = recs.find(x => x.event === 'end') || {};
+    tBox.append(el('div', { class: 'sub' }, `git ${b.git} · blender ${b.blender} · spec ${b.spec_hash} · total ${end.total}s`));
+    const timed = recs.filter(x => x.event === 'stage' || x.event === 'span');
+    const tmax = Math.max(...timed.map(x => x.dt), 1e-3);
+    const tb = el('table', { class: 'trace' });
+    const HEALTH = ['open_edges', 'nonmanifold_edges', 'inverted_shells', 'degenerate_faces', 'loose_verts'];
+    const solo = (s, nm) => { if (ck.parts[nm]) { s.classList.add('link'); s.title = 'solo this part'; s.onclick = () => { partNames.forEach(m => ck.setVisible(m, m === nm)); mark(); sync(); }; } };
+    for (const x of recs) {
+      if (x.event === 'stage' || x.event === 'span') {
+        const tr = el('tr', { class: x.event });
+        const label = x.event === 'stage' ? x.name : `  ${x.name}${x.path ? ' ' + x.path : ''}`;
+        const bar = el('td', { style: 'width:34%' }); bar.append(el('span', { class: 'bar', style: `width:${Math.max(1, 100 * x.dt / tmax)}%` }));
+        const what = x.event === 'stage' ? `${x.objects} obj (+${Object.keys(x.added).length} ~${Object.keys(x.changed).length} -${x.removed.length})` : '';
+        tr.append(el('td', {}, label), el('td', {}, x.dt.toFixed(2) + 's'), bar, el('td', { class: 'sub' }, what));
+        tb.append(tr);
+        if (x.event === 'stage') {
+          const objs = { ...x.added, ...x.changed };
+          const names = Object.keys(objs).sort();
+          if (names.length) {
+            const tr2 = el('tr'), td = el('td', { colspan: 4, class: 'sub' });
+            for (const nm of names) {
+              const o = objs[nm], hl = o.health;
+              const flags = hl ? HEALTH.filter(k => hl[k] && !(k === 'open_edges' && o.sheet)).map(k => `${k.replace('_edges', '').replace('_', ' ')} ${hl[k]}`) : [];
+              const s = el('div', { class: 'obj' + (flags.length ? ' bad' : '') },
+                hl ? `${x.changed[nm] ? '~' : '+'} ${nm}: v${hl.verts} f${hl.faces} shells ${hl.shells}${o.sheet ? ' (sheet)' : ''}${flags.length ? ' · ' + flags.join(', ') : ''}` : `+ ${nm} (${o.type.toLowerCase()})`);
+              solo(s, nm); td.append(s);
+            }
+            tr2.append(td); tb.append(tr2);
+          }
+        }
+      } else if (x.event === 'note') {
+        const { t, event, name, ...vals } = x;
+        const tr = el('tr', { class: 'note' }); tr.append(el('td', { colspan: 4, class: 'sub' }, `note ${name}: ${JSON.stringify(vals)}`)); tb.append(tr);
+      }
+    }
+    tBox.append(tb, el('div', { class: 'note' }, 'python -m charkit trace A/trace.jsonl B/trace.jsonl prints what changed between two builds'));
+  } catch (e) { tBox.append(el('div', { class: 'note' }, 'no trace (' + e.message + '): python -m charkit build writes out/NAME/trace.jsonl')); }
 
   const Ab = sec('file (' + CK.EXT + ')', false);
   Ab.append(el('pre', { class: 'json' }, JSON.stringify({ ...ck.root, bindPose: Object.keys(ck.root.bindPose || {}).length + ' bones' }, null, 1)));
