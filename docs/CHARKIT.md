@@ -379,8 +379,11 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
 
    A fitter that hasn't landed is a stub, marked `STUB` everywhere. It declares its targets and knobs, and fits nothing.
    Each fitter declares the check patterns it targets and the knobs it owns (path, default, step, bounds, group: a
-   fitkit fitter's `declare()`). The builds use the worker and stage cache when tool/speed has landed. The tune starts
-   the worker if none is running and stops it at the end.
+   fitkit fitter's `declare()`). The builds go through `python -m charkit build`, so each takes a machine build slot
+   and uses the stage and QA cache: a face fit's checkpoint rebuilds only what the face knobs reach. Each checkpoint
+   records its cache hits. The tune starts the worker if none is running and stops it at the end (`--no-worker` uses
+   fresh Blenders). Fitters and builds run in their own process groups, so `python -m charkit kill DIR` stops the
+   whole run.
 3. **Accept or reject.** Each checkpoint is compared with the best by the gate's QA diff (`gate.compare_qa`). It is
    accepted only if no graded check regresses (its status gets worse, or it disappears), unless a trade-off rule allows
    it, and only if the total severity drops. `checks.score` sums, over the checks both builds share, how far each is from

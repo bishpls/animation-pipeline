@@ -8,8 +8,9 @@ items (docs/CHARKIT.md §4).
   1. checkpoint 0: the spec built as it is (resolved: the manifest, refs.fit's first guess) with full QA;
   2. rounds: each fitter in the registry (charkit/fitters.py: build options, the face, the body) whose target checks
      aren't all passing runs from the best checkpoint so far (the spec it resolved to), and what it changes is built and
-     QA'd as a new checkpoint
-     (the build worker and stage cache are used when present: tool/speed);
+     QA'd as a new checkpoint. Builds go through `python -m charkit build`: a machine build slot, the stage and QA
+     cache (a face fit's checkpoint rebuilds only what the face knobs reach), and the worker, which the run starts
+     when none is running and stops at the end (--no-worker: fresh Blenders); each checkpoint records its cache hits;
   3. each checkpoint is compared with the best so far by the gate's QA diff (charkit.gate.compare_qa): it is accepted
      only when no graded check regresses (a status gets worse, or a check disappears) unless an explicit trade-off rule
      in the character's tune config allows that regression, and only when the total severity (charkit.checks.score, over
@@ -306,12 +307,22 @@ def _trace(d):
 
 
 def _cache_info(d):
-    """what the stage cache and the worker did for a build (tool/speed), from its log's CHARKIT_CACHE / _WORKER lines."""
-    p = os.path.join(d, 'build.log')
-    if not os.path.exists(p):
+    """what the stage and QA cache and the worker did for a build (tool/speed), from its trace: {hits, parts, missed
+    [(part, why)], worker, blender_seconds} or None when the build ran without the cache."""
+    hits, miss, total, worker = 0, [], None, False
+    for r in _trace(d):
+        if r.get('event') == 'begin':
+            worker = bool(r.get('worker'))
+        elif r.get('event') == 'end':
+            total = r.get('total')
+        elif r.get('cache') and r.get('event') in ('stage', 'span', 'product', 'part'):
+            if r['cache'].get('hit'):
+                hits += 1
+            else:
+                miss.append((r.get('name'), (r['cache'].get('why') or '?')[:80]))
+    if not hits and not miss:
         return None
-    lines = [l for l in open(p) if l.startswith(('CHARKIT_CACHE', 'CHARKIT_WORKER'))]
-    return [l.strip()[:200] for l in lines[:6]] or None
+    return {'hits': hits, 'parts': hits + len(miss), 'missed': miss[:8], 'worker': worker, 'blender_seconds': total}
 
 
 def _counts(qa):
@@ -409,9 +420,11 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
             cks.append(ck)
             R.write('checkpoint', **_public(ck))
             if ck['ok']:
-                log('  ck%d %-18s %s  score %.2f  pass %d warn %d fail %d%s' % (
+                c = ck.get('cache') or {}
+                log('  ck%d %-18s %s  score %.2f  pass %d warn %d fail %d  %.0f s%s%s' % (
                     ck['id'], label, ck['summary'], ck['score'], ck['counts']['PASS'], ck['counts']['WARN'],
-                    ck['counts']['FAIL'], '  (reused)' if ck.get('reused') else ''))
+                    ck['counts']['FAIL'], ck['seconds'], '  (reused)' if ck.get('reused') else '',
+                    '  cache %d/%d%s' % (c['hits'], c['parts'], ' worker' if c.get('worker') else '') if c else ''))
             else:
                 log('  ck%d %s: build FAILED' % (ck['id'], label))
             return ck
