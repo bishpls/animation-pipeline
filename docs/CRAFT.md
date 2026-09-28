@@ -14,13 +14,13 @@ This is the working method for this repo. It distils three earlier projects (EMB
 ```
 song (ElevenLabs Music v2.5, composition plan)  ->  tools/music.py        takes + word timestamps
 pick the take on evidence                         ->  tools/audio_analyze.py (grid, seams), tools/lyric_check.py (STT),
-                                                      tools/gemini.py (blind shuffled rankings; Gemini is a noisy critic)
+                                                      the user's ear on in-context auditions (Gemini: a tie-breaker at most, §15)
 cue sheet                                         ->  assets/cues.json + cues.js (bpm, offset, sections, words, rms)
 storyboard                                        ->  STORYBOARD.md: shot table with times, reads, lyric slot, transition
 look development                                  ->  src/board.js loops (--loop=look), model sheets, reference images
 animatic                                          ->  src/timeline.js: every shot boundary, slates for unbuilt shots
 build shot by shot, review every one              ->  engine/render.mjs --sheet / --strip / --stills / --crop
-full-length passes                                ->  --frames + --encode, watch it, screenshot, Gemini watch-through
+full-length passes                                ->  --frames + --encode, watch it, screenshot, the user's notes
 ```
 
 **Choosing the song.** Generate several takes (about 10 s each, 2 concurrent). All takes sat on the grid within about 10 ms and were about 93% intelligible, so the differences were timbre and artifacts. A single Gemini pass gave everything 7–9.5 and contradicted itself between runs. **Blind, shuffled, repeated rankings with a Borda count** did discriminate (take6 won 3 of 4). Treat any AI critic as a noisy sensor: vary the order, anonymise and aggregate.
@@ -298,3 +298,42 @@ Distilled from one long session of director notes and in-character reviews (Fabl
   scan of the whole film. Each round found things the others missed. The user's own frame-by-frame notes found the most.
 - **Two sessions in one tree:** stage by explicit path; send exact numbers (screen px, times) at every seam; confirm a match by
   measuring the other side's last frame; and never rewrite a shared file wholesale (re-read it and make surgical edits).
+
+## 15. More lessons (SO BACK, a Melee hard edit)
+
+The full account is `projects/so-back/MAKING-OF.md`. The general pieces are promoted (`docs/TOOLS.md`):
+- `engine/edit.js`, `hardedit.js` and `meleetype.js`;
+- `tools/vox.py`, `hf0.py`, `mixkit.py`, `songseat.py` and `songscreen.py`;
+- the current director kit in `tools/machinima`.
+
+**Game capture**
+- **Portrait from the game's own projection.** A 9:16 projection aspect at internal res 4 gives native portrait plates.
+  A 90° camera roll rotates camera-facing effects against the world, and a Melee player would see it.
+- **Key with two deterministic passes, not a colour.** Capture the same script on black and on grey 96; the difference
+  solves coverage exactly and keeps additive glows. On big hits the game's own translucent full-frame flash turns into a
+  pale wash over bright fields, so invert it.
+- **Capture lanes.** Parallel captures each get a disc folder and a Dolphin profile, and builds share a lock. Changes to
+  the shared kit must be additive, and every one is logged.
+- **A lost frame without lag is a presentation problem.** Immediate XFB fixed a deterministic lost frame.
+
+**Vocals**
+- **Spliced vocals are judged by ear.** Speech-to-text can't hear shrillness. Keep syllables within about 5–7 semitones
+  of their recording, and get the "processed" character from hard tuning, not pitch height. Consonants live or die by
+  their splice level: a /k/ 4 dB down was "bad" instead of "back" over a brighter song.
+
+**Song**
+- **Seat a take on the locked grid instead of chasing a perfect one.** When the picture is already locked to a grid,
+  remove or insert bars inside a quiet section so the new take's drop lands on the picture's downbeat.
+
+**Text**
+- **Use the medium's own text.** Six faces read as a template pack. The game's word graphics and menu font, extracted
+  from the disc, read as the game.
+- **Put text behind a keyed subject.** It gives big words room without covering the character.
+
+**Edit**
+- **Preload what will actually be drawn.** With time-remapped plates, run the frame once in record mode, note the plate
+  frames it would draw, load exactly those, then draw.
+
+**Review**
+- **Gemini as a critic was usually wrong here, not just noisy.** About one checkable claim in four held up, and its song
+  rankings were pure position bias. The director's notes and frame-level checks carried the review.

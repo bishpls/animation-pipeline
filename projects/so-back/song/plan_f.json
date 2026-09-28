@@ -1,0 +1,199 @@
+{
+ "chunks": [
+  {
+   "text": "[Cold open - the drop - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "150 BPM",
+    "C minor",
+    "instrumental hyperpop",
+    "starts instantly at full energy on the first beat",
+    "glossy, bright and euphoric",
+    "shimmering detuned supersaw chords",
+    "punchy clean kick",
+    "sparkling fast arpeggios",
+    "bubblegum pop shine, pitched-up synth plucks, bell-like sparkles",
+    "polished modern production",
+    "ends with a tape-stop slowdown into near silence"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "distortion",
+    "distorted",
+    "bitcrushed",
+    "harsh",
+    "noisy",
+    "clipping",
+    "blown-out",
+    "abrasive",
+    "lo-fi",
+    "screechy",
+    "intro",
+    "build-up",
+    "silence at the start"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[It's so over - sad breakdown - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "75 BPM half-time",
+    "C minor",
+    "instrumental",
+    "sudden sad breakdown",
+    "very sparse and quiet",
+    "a lonely detuned music-box melody",
+    "heavy reverb, soft vinyl crackle, muffled underwater low-pass",
+    "soft sub bass only, no drums",
+    "melancholy, wistful, empty, it's over"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "drums",
+    "hi-hats",
+    "loud",
+    "bright",
+    "happy",
+    "major key",
+    "supersaw"
+   ],
+   "context_adherence": "low"
+  },
+  {
+   "text": "[The turn - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental",
+    "the filter sweeps open",
+    "pitch riser climbing",
+    "snare roll accelerating",
+    "tension building fast",
+    "ends on one beat of total silence right before the drop"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out"
+   ],
+   "context_adherence": "medium"
+  },
+  {
+   "text": "[We're so back - drop - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "150 BPM",
+    "C minor",
+    "instrumental",
+    "the euphoric drop returns even bigger",
+    "a catchy, singable lead synth melody that repeats",
+    "glossy supersaw chords",
+    "bouncy clean 808 bass",
+    "sparkling arpeggios",
+    "crisp four-on-the-floor kick with trap hi-hats",
+    "bubblegum pop shine, pitched-up synth plucks, bell-like sparkles",
+    "triumphant, joyful, techno-optimist",
+    "polished, punchy, wide and clean"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "distortion",
+    "distorted",
+    "bitcrushed",
+    "harsh",
+    "noisy",
+    "clipping",
+    "blown-out",
+    "abrasive",
+    "lo-fi",
+    "screechy",
+    "sad",
+    "lo-fi"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Drop variation - instrumental]",
+   "duration_ms": 6400,
+   "positive_styles": [
+    "150 BPM",
+    "instrumental",
+    "same drop and the same lead melody, even bigger",
+    "extra countermelody and sparkle layers",
+    "a rapid drum fill across the final bar",
+    "joyful, euphoric"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out",
+    "distortion",
+    "distorted",
+    "bitcrushed",
+    "harsh",
+    "noisy",
+    "clipping",
+    "blown-out",
+    "abrasive",
+    "lo-fi",
+    "screechy",
+    "sad",
+    "breakdown"
+   ],
+   "context_adherence": "high"
+  },
+  {
+   "text": "[Ending - instrumental]",
+   "duration_ms": 3200,
+   "positive_styles": [
+    "instrumental",
+    "one final huge chord stab on the first beat",
+    "then a short shimmering ring-out to silence",
+    "clean ending"
+   ],
+   "negative_styles": [
+    "vocals",
+    "singing",
+    "rap",
+    "spoken words",
+    "choir",
+    "orchestral",
+    "acoustic guitar",
+    "fade out"
+   ],
+   "context_adherence": "high"
+  }
+ ]
+}

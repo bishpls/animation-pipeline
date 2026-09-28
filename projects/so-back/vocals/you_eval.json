@@ -1,0 +1,212 @@
+{
+ "young+two": {
+  "recipe": [
+   "YOung (j)",
+   "t-WO!"
+  ],
+  "dur": 0.548,
+  "stt_small.en": "YOU!",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "YOU",
+  "ctx_medium.en": "This game's winner is... YOU!",
+  "stt_turbo": "You!",
+  "ctx_turbo": "This game's winner is... YOU!",
+  "p_small.en": 0.992,
+  "miss_small.en": "Yeah! (0.00)",
+  "pctx_small.en": 0.999,
+  "missctx_small.en": "This game's winner is... Yoohoo! (0.00)",
+  "p_medium.en": 0.983,
+  "miss_medium.en": "Yeah! (0.00)",
+  "pctx_medium.en": 1.0,
+  "missctx_medium.en": "This game's winner is... Your! (0.00)",
+  "free_hits": "6/6",
+  "seams": [
+   {
+    "t": 0.059,
+    "pct": 99.6,
+    "f0_st": -0.47
+   }
+  ],
+  "f0_head": 261,
+  "f0_fall": 161,
+  "score": 1.994
+ },
+ "mew": {
+  "recipe": [
+   "m-YOU"
+  ],
+  "dur": 0.359,
+  "stt_small.en": "Thank you!",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "YOU",
+  "ctx_medium.en": "This game's winner is you!",
+  "stt_turbo": "You!",
+  "ctx_turbo": "This game's winner is you!",
+  "p_small.en": 0.987,
+  "miss_small.en": "Yeah! (0.01)",
+  "pctx_small.en": 1.0,
+  "missctx_small.en": "This game's winner is... Yo! (0.00)",
+  "p_medium.en": 0.981,
+  "miss_medium.en": "Yeah! (0.01)",
+  "pctx_medium.en": 1.0,
+  "missctx_medium.en": "This game's winner is... Your! (0.00)",
+  "free_hits": "6/6",
+  "seams": [],
+  "f0_head": 314,
+  "f0_fall": 205,
+  "score": 1.992
+ },
+ "mew+tail": {
+  "recipe": [
+   "m-YOU-(two)",
+   "mewt-OO tail"
+  ],
+  "dur": 0.766,
+  "stt_small.en": "You!",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "YOU!",
+  "ctx_medium.en": "This game's winner is... You!",
+  "stt_turbo": "You!",
+  "ctx_turbo": "This game's winner is... YOU!",
+  "p_small.en": 0.98,
+  "miss_small.en": "Yeah! (0.01)",
+  "pctx_small.en": 0.993,
+  "missctx_small.en": "This game's winner is... Yoohoo! (0.00)",
+  "p_medium.en": 0.985,
+  "miss_medium.en": "View! (0.00)",
+  "pctx_medium.en": 0.999,
+  "missctx_medium.en": "This game's winner is... Yoohoo! (0.00)",
+  "free_hits": "6/6",
+  "seams": [
+   {
+    "t": 0.329,
+    "pct": 97.4,
+    "f0_st": -0.57
+   }
+  ],
+  "f0_head": 314,
+  "f0_fall": 171,
+  "score": 1.989
+ },
+ "continue": {
+  "recipe": [
+   "conti-n-YOU (recontoured)"
+  ],
+  "dur": 0.434,
+  "stt_small.en": "you",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "Thank you for watching!",
+  "ctx_medium.en": "This game's winner is you!",
+  "stt_turbo": "You!",
+  "ctx_turbo": "This game's winner is you!",
+  "p_small.en": 0.913,
+  "miss_small.en": "Yeah! (0.04)",
+  "pctx_small.en": 0.996,
+  "missctx_small.en": "This game's winner is... Yo! (0.00)",
+  "p_medium.en": 0.904,
+  "miss_medium.en": "Yeah! (0.04)",
+  "pctx_medium.en": 0.999,
+  "missctx_medium.en": "This game's winner is...! (0.00)",
+  "free_hits": "6/6",
+  "seams": [],
+  "f0_head": 346,
+  "f0_fall": 254,
+  "score": 1.953
+ },
+ "yoshi+two": {
+  "recipe": [
+   "YO-shi (j)",
+   "t-WO!"
+  ],
+  "dur": 0.536,
+  "stt_small.en": "You!",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "YOU!",
+  "ctx_medium.en": "This game's winner is... YOU!",
+  "stt_turbo": "You!",
+  "ctx_turbo": "This game's winner is... YOU!",
+  "p_small.en": 0.97,
+  "miss_small.en": "Yeah! (0.01)",
+  "pctx_small.en": 0.998,
+  "missctx_small.en": "This game's winner is... Yo! (0.00)",
+  "p_medium.en": 0.836,
+  "miss_medium.en": "Boo! (0.11)",
+  "pctx_medium.en": 1.0,
+  "missctx_medium.en": "This game's winner is... Your! (0.00)",
+  "free_hits": "6/6",
+  "seams": [
+   {
+    "t": 0.05,
+    "pct": 99.7,
+    "f0_st": 11.9
+   }
+  ],
+  "f0_head": 350,
+  "f0_fall": 143,
+  "score": 1.951
+ },
+ "computer+tail": {
+  "recipe": [
+   "com-p-YOU-ter",
+   "mewt-OO tail"
+  ],
+  "dur": 0.572,
+  "stt_small.en": "Thank you.",
+  "ctx_small.en": "This game's winner is... You!",
+  "stt_medium.en": "Thank you.",
+  "ctx_medium.en": "This game's winner is... You!",
+  "stt_turbo": "You",
+  "ctx_turbo": "This game's winner is... You!",
+  "p_small.en": 0.668,
+  "miss_small.en": "Oh! (0.09)",
+  "pctx_small.en": 0.97,
+  "missctx_small.en": "This game's winner is... Ew! (0.01)",
+  "p_medium.en": 0.387,
+  "miss_medium.en": "Boo! (0.19)",
+  "pctx_medium.en": 0.963,
+  "missctx_medium.en": "This game's winner is... Two! (0.01)",
+  "free_hits": "6/6",
+  "seams": [
+   {
+    "t": 0.135,
+    "pct": 94.9,
+    "f0_st": -11.31
+   }
+  ],
+  "f0_head": 328,
+  "f0_fall": 162,
+  "score": 1.747
+ },
+ "your+tail": {
+  "recipe": [
+   "choose YOU-r",
+   "mewt-OO tail"
+  ],
+  "dur": 0.566,
+  "stt_small.en": "",
+  "ctx_small.en": "This game's winner is... OOO",
+  "stt_medium.en": "Thank you.",
+  "ctx_medium.en": "This game's winner is... ...2!",
+  "stt_turbo": "No!",
+  "ctx_turbo": "This game's winner is... Who?",
+  "p_small.en": 0.058,
+  "miss_small.en": "Oh! (0.50)",
+  "pctx_small.en": 0.421,
+  "missctx_small.en": "This game's winner is... Boo! (0.25)",
+  "p_medium.en": 0.265,
+  "miss_medium.en": "Yeah! (0.34)",
+  "pctx_medium.en": 0.433,
+  "missctx_medium.en": "This game's winner is... Two! (0.37)",
+  "free_hits": "1/6",
+  "seams": [
+   {
+    "t": 0.129,
+    "pct": 93.1,
+    "f0_st": -11.87
+   }
+  ],
+  "f0_head": 342,
+  "f0_fall": 151,
+  "score": 0.461
+ }
+}

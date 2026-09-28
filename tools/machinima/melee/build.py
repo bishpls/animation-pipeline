@@ -18,8 +18,11 @@ MARK = '/* director */'
 HOOKS = [
     ('src/melee/gm/gm_1A3F.c',
      '        state_machine.routing.curr_mode = GM_BOOT;\n',
-     '#ifndef MUST_MATCH ' + MARK + '\n        state_machine.routing.curr_mode = GM_DEBUG_VS;\n#else\n'
+     '#ifndef MUST_MATCH ' + MARK + '\n        state_machine.routing.curr_mode = director_boot();\n#else\n'
      '        state_machine.routing.curr_mode = GM_BOOT;\n#endif\n'),
+    ('src/melee/gm/gm_1A3F.c',
+     '#include <sysdolphin/baselib/video.h>\n',
+     '#include <sysdolphin/baselib/video.h>\n#ifndef MUST_MATCH ' + MARK + '\n#include <melee/director/director.h>\n#endif\n'),
     ('src/melee/gm/gmvsmode.c',
      '#include <melee/mn/types.h>\n',
      '#include <melee/mn/types.h>\n#ifndef MUST_MATCH ' + MARK + '\n#include <melee/director/director.h>\n#endif\n'),
@@ -52,6 +55,19 @@ HOOKS.append(('src/melee/gm/gmscene.c',
               '        while ((pad_queue_count = lb_80019894()) == 0) {\n            lb_800195D0();\n        }\n        lb_800195D0();\n'
               '#ifndef MUST_MATCH ' + MARK + '\n        if (pad_queue_count > 1) {\n'
               '            HSD_PadFlushQueue(HSD_PAD_FLUSH_QUEUE_LEAVE1);\n            pad_queue_count = 1;\n        }\n#endif\n'))
+HOOKS.append(('src/melee/gm/gmscene.c', '#include <sysdolphin/baselib/sobjlib.h>\n',
+              '#include <sysdolphin/baselib/sobjlib.h>\n#ifndef MUST_MATCH ' + MARK + '\n#include <melee/director/director.h>\n#endif\n'))
+# menu tests drive the game's own menus: pads go into the master status each loop frame, before menus and matches read it
+HOOKS.append(('src/melee/gm/gmscene.c',
+              '            HSD_PerfSetStartTime();\n            lb_800198E0();\n',
+              '            HSD_PerfSetStartTime();\n            lb_800198E0();\n#ifndef MUST_MATCH ' + MARK + '\n'
+              '            director_boot_frame();\n#endif\n'))
+# the director's menu tests steer a port's character-select token closed loop: they read the hand and token positions
+# (the only decomp-side addition the director needs beyond the call hooks above)
+HOOKS.append(('src/melee/mn/mncharsel.c', '}* mnCharSel_804A0BD0[4];\n\n',
+              '}* mnCharSel_804A0BD0[4];\n\n' + "#ifndef MUST_MATCH\n/* for the director's menu tests (tools/machinima/melee): a port's hand and token positions on the character select\n * screen, in icon-bound units. Only meaningful while the screen is running. */\nbool mnCharSel_DebugPositions(int port, float* hand, float* token)\n{\n    if (port < 0 || port > 3 || mnCharSel_804A0BC0[port] == NULL ||\n        mnCharSel_804A0BD0[port] == NULL)\n    {\n        return false;\n    }\n    hand[0] = mnCharSel_804A0BC0[port]->xC;\n    hand[1] = mnCharSel_804A0BC0[port]->x10;\n    token[0] = mnCharSel_804A0BD0[port]->x8;\n    token[1] = mnCharSel_804A0BD0[port]->xC;\n    return true;\n}\n#endif\n\n"))
+HOOKS.append(('src/melee/mn/mncharsel.h', '/* 2669F4 */ void mnCharSel_Scene_OnFrame(void);\n',
+              '/* 2669F4 */ void mnCharSel_Scene_OnFrame(void);\n' + '#ifndef MUST_MATCH\n#include <Runtime/platform.h>\nbool mnCharSel_DebugPositions(int port, float* hand, float* token);\n#endif\n'))
 LIB = ('    MeleeLib(\n        "director (machinima) ' + MARK + '",\n        [\n'
        '            Object(Equivalent, "melee/director/director.c"),\n'
        '            Object(Equivalent, "melee/director/script.c"),\n        ],\n    ),\n')
@@ -85,21 +101,27 @@ def build(proj, name='script'):
     out_c = os.path.join(proj, 'director', 'build', name + '.c')
     subprocess.run([sys.executable, script, out_c], check=True, cwd=ROOT,
                    env={**os.environ, 'PYTHONPATH': HERE + os.pathsep + os.environ.get('PYTHONPATH', '')})
-    hook()
-    dst = os.path.join(DECOMP, 'src', 'melee', 'director'); os.makedirs(dst, exist_ok=True)
-    for f in ('director.h', 'director.c'):
-        shutil.copy(os.path.join(HERE, 'director', f), dst)
-    shutil.copy(out_c, os.path.join(dst, 'script.c'))
-    run([sys.executable, 'configure.py', '--non-matching', '--wrapper', WIBO])
-    run(['ninja'])
-    dol = os.path.join(DECOMP, 'build', 'GALE01', 'main.dol')
-    shutil.copy(dol, os.path.join(DISC, 'sys', 'main.dol'))
+    # capture lanes (several scenes captured at once) share this one decomp worktree: a build holds an exclusive lock from
+    # writing script.c to installing its DOL in the lane's disc (MELEE_DISC). Dolphin reads the DOL at boot, so the next
+    # lane's build can go ahead while this one captures.
+    import fcntl
+    with open(os.path.join(DECOMP, '.machinima-build.lock'), 'w') as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        hook()
+        dst = os.path.join(DECOMP, 'src', 'melee', 'director'); os.makedirs(dst, exist_ok=True)
+        for f in ('director.h', 'director.c'):
+            shutil.copy(os.path.join(HERE, 'director', f), dst)
+        shutil.copy(out_c, os.path.join(dst, 'script.c'))
+        run([sys.executable, 'configure.py', '--non-matching', '--wrapper', WIBO])
+        run(['ninja', '-j', os.environ.get('MELEE_JOBS', '6')])
+        dol = os.path.join(DECOMP, 'build', 'GALE01', 'main.dol')
+        shutil.copy(dol, os.path.join(DISC, 'sys', 'main.dol'))
     print(f'built {os.path.getsize(dol)} byte main.dol -> {DISC}/sys/main.dol')
 
 
 def matching():
     run([sys.executable, 'configure.py', '--wrapper', WIBO])
-    print(run(['ninja']).strip().splitlines()[-1])
+    print(run(['ninja', '-j', os.environ.get('MELEE_JOBS', '6')]).strip().splitlines()[-1])
     shutil.copy(os.path.join(DECOMP, 'orig', 'GALE01', 'sys', 'main.dol'), os.path.join(DISC, 'sys', 'main.dol'))
 
 

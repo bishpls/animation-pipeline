@@ -22,6 +22,9 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `rig.js` | a Live2D-style mesh runtime for layered illustrations: head displacement tables, neck, body shear and bend, FK arms with depth order, pelvis and feet, drawn views, variants, springs, `RIG.perform` coupling |
 | `moves.js` | a dance vocabulary and choreography compiler over `rig.js` channels: `MOVES.choreo`, `follow` (springs), `lips`, `blinks`, `hands`, `hop` |
 | `plate.js` | image-sequence plates on the film clock (a game capture, footage rendered elsewhere), loaded on demand: `plate(dir, {n, fps, t0})`, `.draw(X, t, ...)`; headless renders await each frame (`window.PREFRAME`) and refuse to draw a neighbour (FRAME PERFECT) |
+| `edit.js` | plates in an edit (load after `plate.js`): `keyedPlate(dir, n, {keyed, pre})`, `drawPlate`, `drawKeyed` (a two-pass keyed pair over anything: out = colour + (1 - a) · X), `keyedOutline` (bodies only: the matte thresholded before dilation), `tmap` time maps (velocity ramps, freezes, replays), `stutter`; preloading follows what is drawn (the frame runs once in record mode, then exactly those plate frames load) (SO BACK) |
+| `hardedit.js` | the hard-edit grammar for plain mode: `scene`/`present` (draw a shot into a buffer, grade it once), `zoomAt`, `punch` (zoom punches), edge-safe `rgbSplit` (`HARDEDIT.split` scales a film's splits), `NEG` (the one-frame negative impact frame), `grain`, `vignette`, `lastHit` (SO BACK) |
+| `meleetype.js` | Melee's own text, extracted from the disc (`tools/machinima/melee/type/`): `MT.load(base)`, `mword` (the game's word graphics: Game!, Go!, Ready, Success!...), `mtext` (its menu font in the word graphics' dress: outline, inner stroke, streaked gradient, shadow), `mname` (results name plates), `mdigits` (HUD damage digits) (SO BACK) |
 
 ## Song, voice and sound
 | tool | what |
@@ -36,6 +39,11 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 | `sfx.py` | one ElevenLabs sound effect |
 | `sfxmix.py` | a film's SFX stem: the cue sheet dumped from the picture (`--eval`), each cue leveled against the song around it, no ducking; writes cues.json, the stem and the mix |
 | `vocalenv.py` | a vocal stem's loudness envelope in song time (held-note lip-sync: `MOVES.lips` reads it) |
+| `vox.py` | sing with a voice bank (found speech as a vocal line, every sound the original recording): `sing` (hard-tuned PSOLA onto notes per syllable, fitted to lengths), `stutter`, `repeat`, `tape_stop`, `pitch_shift` (plain or formant-shifted), `gate`, `to48k` (12 kHz banks lifted with a gentle exciter), `shelf`, `line`, `place`. Keep syllables within about 5–7 semitones of their recording (SO BACK) |
+| `hf0.py` | F0 for shouted, processed, reverberant speech (harmonic sum with a half-harmonic penalty, then Viterbi), where Praat and pyin octave-jump (SO BACK) |
+| `mixkit.py` | a final mix's helpers (48 kHz stereo): `tape_stop` (speed 1 → 0, pitch falling with it), `duck` (sidechain under a vocal), `carve` (a dynamic-EQ dip at given times), `sections` (music level by section), `limit` (lookahead peak limiter), `decode`, `stem` (SO BACK) |
+| `songseat.py` | seat a take on a picture already locked to a grid: align its first downbeat, then cut or pad inside a quiet section so its drop lands on the picture's drop; `--probe T` prints loudness and onsets to find the real downbeat (SO BACK) |
+| `songscreen.py` | screen takes before listening: grid phase per section, the drop onset, key per section, and a harshness proxy (energy above 4 kHz, flatness) (SO BACK) |
 
 ## Images and rigs
 | tool | what |
@@ -74,13 +82,18 @@ and `revoice.py` (GPL tool, never committed). **Keys:** `.env` and `.env.local` 
 
 | tool | what it's for |
 |---|---|
-| `machinima/dolphin.py` | Dolphin as a headless plate renderer: isolated pinned profile, one PNG per game frame, DSP audio, the game's OSReport log |
+| `machinima/dolphin.py` | Dolphin as a headless plate renderer: isolated pinned profile (`DOLPHIN_USER`, one per capture lane), immediate XFB (no lost frames), one PNG per game frame, DSP audio, the game's OSReport log |
 | `machinima/plates.py` | plates between the director's slates (refused if a frame is missing), display aspect, the game audio cut between the slate clicks |
-| `machinima/melee/build.py` | a film's choreography -> the director's tables -> the Melee decomp's non-matching build (hooks behind `#ifndef MUST_MATCH`) -> main.dol |
-| `machinima/melee/director/` | the director compiled into Melee: match setup, scripted pads, free camera, freeze, closed-loop approach and tech (fast fall, L-cancel, low laser), hit/laser/state logs |
-| `machinima/melee/dsl.py` | the choreography language: moves timed to their hit frame, waveshine and multishine, wavedash, DI, camera keys and tracking |
+| `machinima/melee/build.py` | a film's choreography -> the director's tables -> the Melee decomp's non-matching build (every hook applied to a stock decomp, behind `#ifndef MUST_MATCH`) -> main.dol; an exclusive lock serialises builds so several capture lanes (a disc folder each) can capture at once |
+| `machinima/melee/director/` | the director compiled into Melee: match setup (portrait projection via `aspect`, CPU players, stock matches with the HUD, GAME! and results), boot modes and menu pads (closed-loop CSS token steering), scripted pads, free camera, freeze, closed-loop approach and tech (fast fall, L-cancel, low laser), the `glass` (screen-KO camera), `gamecam` and `shield` cues, hit/laser/state/hitbox/attribute logs |
+| `machinima/melee/dsl.py` | the choreography language: moves timed to their hit frame, waveshine and multishine, wavedash, DI, camera keys and tracking, `menu_hold` (e.g. the victory pose by held button), `reset(fresh=True)` (clear stale moves: opt-in, so older films reproduce) |
 | `machinima/melee/report.py` | every intended hit against the logged one (frame and beat error); `--fix` the timing solve, `--calib` measured frame data |
 | `machinima/melee/timeline.py` | a run as per-fighter action timelines per labelled segment |
+| `machinima/prep_plates.py` | capture -> edit-ready plates: slate mode trims between the director's slates (refused if off by one), writes portrait or 16:9 JPEGs, keyed pairs with an LA alpha matte, the game audio cut to the plates, and `info.json` with each hit on the frame it is drawn; raw mode does any folder of frames |
+| `machinima/vplate.py`, `dmatte.py`, `key.py`, `vsheet.py` | portrait plates from a 9:16-projection capture (`aspect`; `crop` keeps the HUD); the exact difference matte from a black and a grey-96 pass (additive glows kept; composite `black + (1 - a) · BG`); a single-pass chroma key for comparison; contact sheets of raw captures |
+| `machinima/platesfx.py` | a film's game-sound stems from its picture's SFX cue list (`--eval`): each cue cut from its plate's own `audio.wav` and levelled against the song around it, one stem per bus |
+| `machinima/melee/ssm.py` | Melee's sound banks (DSP-ADPCM `.ssm`) to WAVs: the announcer, SFX, voices |
+| `machinima/melee/type/` | Melee's own text from the disc (the word graphics, the SIS menu font from `main.dol`, HUD digits, name plates) plus a manifest for `engine/meleetype.js` |
 
 Game data (disc images, the game's executable, builds, captured plates, raw game audio) never enters the repo: it lives in
 `~/games/` or under gitignored paths.
@@ -105,7 +118,7 @@ Game data (disc images, the game's executable, builds, captured plates, raw game
 | tool | what |
 |---|---|
 | `filmscan.py` | frame-difference scan of a rendered film: every unplanned pop or jump, minus the known cuts |
-| `gemini.py` | a second opinion on any media file; a noisy critic (docs/REVIEW.md) |
+| `gemini.py` | a second opinion on any media file. As a critic it has been usually wrong on specifics (SO BACK: about one claim in four held up; rankings showed pure position bias): a pointer at most (docs/REVIEW.md) |
 | `production_stats.py` | reproducible production numbers for a making-of: tokens, paid calls, commits, assets |
 
 ## Project kits worth promoting on their second use (CRAFT §11)
@@ -125,3 +138,6 @@ These live with the film that made them. Promote one to `engine/` or `tools/` wh
 | `projects/hello-world/src/film.js` | `cutin`, `loadSeq`, `seqDraw` (illustrated and video cut-ins time-remapped to the music), karaoke and call stamps |
 | `projects/hello-world/build_lyrics.py` | lyric lines aligned to sung word times, written as `lyrics.js` |
 | `legacy/ember/` | the EMBER shorts' synth and mastering engine, IK, follow-through, sakuga FX |
+| `projects/so-back/src/captions.js` | lyric captions built from the vocal build's own event list (one clock): words grouped into phrases by kind, one style per kind, a slot per shot (`{cap: {y, x, size, hide, skip, [kind]: {...}}}`), and `captionsIn` to draw words inside a shot's scene (behind a keyed subject) |
+| `projects/so-back/src/fields.js` | Y2K / hyperpop fields behind keyed subjects: a racing perspective checker floor, a chrome sky with sparkles, sunbursts, speed-line bursts |
+| `projects/so-back/vocals/` (`splice.py`, `words.py`, `judge.py`, `arrange.py`) | a voice bank's phone inventory and new words spliced from its phones (correlation-adaptive crossfades, PSOLA to a template contour), judged by Whisper free and forced choice and seam percentiles; an arrangement placed on beats with per-section levels and reverb sends |

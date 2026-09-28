@@ -1,0 +1,5 @@
+{"its_so_over": [["targets", "sudden+no", "gameover"], ["is+t", "sudden+no", "gameover"], ["targets", "single+no", "gameover"],
+                 ["this+ts", "sudden+no", "gameover"], ["is+t", "surv+no", "gameover"]],
+ "were_so_back": [["winner-n", "single+no", "break+hand+complete"], ["winner-n", "sudden+no", "bonus+hand+kirby"],
+                  ["wins+player", "sudden+no", "bonus+hand+kirby"], ["wins+winner", "sudden+no", "bonus+and+kirby"],
+                  ["wins+master", "surv+no", "break+hand+complete"], ["winner-n", "single+no", "button+smash+continue"]]}
