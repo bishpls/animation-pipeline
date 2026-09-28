@@ -21,7 +21,7 @@ What is measured, the same way the QA measures it:
     E = faceeval.Evaluator(resolved_spec, R, cache_dir)       # R: charkit.refs.measure of the rig; cache: fit_blender's
     res = E.run(spec)                                         # {'checks': {name: {value, status, ...}}, 'raw': ...}
 """
-import copy, json, math, os
+import contextlib, copy, io, json, math, os
 
 import numpy as np
 
@@ -262,7 +262,8 @@ class Evaluator:
         S = copy.deepcopy(spec)
         if self.target is not None:
             V, T, C = self.target
-            S = scene.fit_cranium(S, ROOT, loaded=(V, None, C))
+            with contextlib.redirect_stdout(io.StringIO()):
+                S = scene.fit_cranium(S, ROOT, load=lambda path: (V, None, C))
         return S
 
     def garments(self, A):

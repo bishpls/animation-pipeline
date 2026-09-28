@@ -76,10 +76,18 @@ def stage_hair(S):
         cap = hair_cap(S, hc)
         if cap is not None:
             S.hair.append(cap)
+    elif shape and shape.get('mode') == 'geom':
+        # the generated hair cut out venv-side by charkit.geom (python -m charkit build runs it): one closed surface
+        S.hair = [hair_geom_mesh(S, shape, hc)]
+        S.hair_volume = vol
+        if shape.get('cap', False):
+            cap = hair_cap(S, hc)
+            if cap is not None:
+                S.hair.append(cap)
     else:
         S.hair, S.hair_volume = hair.build(S.character['data'], S.character['arm'], S.spec.get('hair'), hc, volume=vol)
     acc = S.spec.get('accessories') or []
-    if shape and shape.get('mode') == 'mesh':
+    if shape and shape.get('mode') in ('mesh', 'geom'):
         acc = [a for a in acc if a['kind'] not in shape.get('carries', ['bun'])]
     S.accessories = accessories.build(S.character['data'], S.character['arm'], S.hair_volume, acc,
                                       {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')})
@@ -108,6 +116,14 @@ def cull_face(S, hv, hf, shape):
     return hv, hf
 
 
+def eye_target(A, shape):
+    """where a generated character's eyes land on ours (charkit.i3d.align_by_eyes): the midpoint of our eyes, `eye_depth`
+    (head lengths) behind the front of the face, and our eye spacing times `spacing`. -> (eye_mid (3,), spacing)."""
+    Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
+    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    return eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)
+
+
 def hair_shape_volume(S, shape, hc):
     """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
     above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
@@ -118,9 +134,8 @@ def hair_shape_volume(S, shape, hc):
     eyes = i3d.find_eyes(V, C)
     if eyes is None:
         raise RuntimeError('no eyes found on the generated shape')
-    EK = Hd['eye_knobs']
-    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
-    V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
+    eye_mid, spacing = eye_target(A, shape)
+    V = i3d.align_by_eyes(V, eyes, eye_mid, spacing)
     S.shape_full = (V, F)                                   # the whole aligned shape (QA compares against it)
     S.shape_colors = C                                      # its per-vertex colours (the face QA finds its skin by them)
     cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
@@ -272,6 +287,33 @@ def hair_shape_mesh(S, shape, hc):
     return ob
 
 
+def hair_geom_mesh(S, shape, hc):
+    """the hair charkit.geom extracted (shape['geom']: its .npz, written by `python -m charkit build` venv-side): a closed,
+    manifold surface in world space with envelope normals as custom split normals, given charkit's hair look and outline
+    and rigged to the head. No remesh, smoothing or culling here: the kernel did it."""
+    from . import character, shade
+    from .geom.blender import load_part
+    path = shape['geom'] if os.path.isabs(shape['geom']) else os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['geom'])
+    C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72), line=(0.36, 0.34, 0.50)); C.update(hc)
+    m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
+    from .geom.blender import normals_proxy, transfer_normals
+    envelope = shape.get('normals', 'envelope') == 'envelope'
+    ob, meta = load_part(path, 'hair_shape', material=m, normals=None if envelope else 'geometric')
+    from . import trace
+    rep = (meta or {}).get('report') or {}
+    trace.note('hair_geom', path=os.path.basename(path), faces=rep.get('faces'), open_edges=rep.get('open_edges'),
+               shells=rep.get('shells', rep.get('parts')), self_intersecting=rep.get('self_intersecting_faces_est'))
+    shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
+    if envelope:
+        # the envelope normals ride in after the outline (Solidify would re-derive custom normals set on the mesh)
+        proxy = normals_proxy(path, 'hair_shape_normals')
+        transfer_normals(ob, proxy)
+        character._to_head(proxy, S.character['arm'])
+    character._to_head(ob, S.character['arm'])
+    return ob
+
+
 def stage_face_shading(S):
     from . import faceshade
     bangs = None
@@ -290,10 +332,11 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
           ('garments', stage_garments)]
 
 
-def fit_cranium(spec, root, loaded=None):
+def fit_cranium(spec, root, load=None):
     """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
     the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair.
-    loaded: the shape's (V, F, C) when already loaded (charkit.faceeval, without Blender)."""
+    load: the GLB reader, path -> (V, F, C) (default charkit.i3d.load_glb, in Blender; charkit.geom.parts.load_generated
+    reads the same numbers in the venv)."""
     from . import i3d
     shape = (spec.get('hair') or {}).get('shape') or {}
     if not shape.get('glb') or not shape.get('fit_cranium', True):
@@ -301,7 +344,7 @@ def fit_cranium(spec, root, loaded=None):
     P = spec.get('body', {})
     L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
-    V, F, C = loaded if loaded is not None else i3d.load_glb(path)
+    V, F, C = (load or i3d.load_glb)(path)
     eyes = i3d.find_eyes(V, C)
     if eyes is None:
         return spec
@@ -322,8 +365,7 @@ def fit_cranium(spec, root, loaded=None):
     head = spec.setdefault('head', {})
     if 'cranium' not in head:
         head['cranium'] = round(max(0.6, min(1.1, (top - under) / 0.555)), 3)
-        if loaded is None:
-            print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
+        print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
         from . import trace
         trace.note('fit_cranium', hair_top_L=top, slices=len(tops), cranium=head['cranium'])
     return spec
