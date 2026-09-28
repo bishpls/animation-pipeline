@@ -17,7 +17,7 @@ import numpy as np
 
 from . import head as headlib
 
-DETAIL = {'face': 0.25, 'nose': 0.3, 'bridge': 0.1, 'ear': 1.0, 'back': 0.8, 'eye': 0.05, 'nostril': 0.05, 'lips': 0.18,
+DETAIL = {'face': 0.25, 'nose': 0.45, 'bridge': 0.1, 'ear': 0.8, 'back': 0.8, 'eye': 0.05, 'nostril': 0.05, 'lips': 0.18,
           'wings': 0.1}
 # realistic -> anime feature warp: the eye region grows and moves onto the anime eye; the mouth moves to the anime mouth line
 # and narrows. Directions from the head's centre: (sx, sz) scales in azimuth/elevation, R the falloff radius (radians).

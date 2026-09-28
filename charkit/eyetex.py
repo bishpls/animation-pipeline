@@ -1,0 +1,120 @@
+"""Eye textures drawn in numpy (resolution-independent knobs; exported as images so VRM/three.js get the same eyes): the sclera
+(with the upper lid's shadow), the iris (a HoYo-style layered iris: dark top, lit bottom, limbal ring, striations, pupil, the
+bottom glow) and the shine (fixed highlights). Texture space = the eye plate's UV: u = x / W + 0.5 (x outward), v = z / W + 0.5.
+"""
+import math
+import numpy as np
+
+DEFAULT_IRIS = {
+    'top': (0.10, 0.16, 0.42),     # sRGB: the iris's shadowed top
+    'mid': (0.20, 0.42, 0.80),
+    'bottom': (0.55, 0.85, 1.00),  # the lit bottom glow
+    'ring': (0.05, 0.07, 0.20),    # the limbal ring and the pupil
+    'pupil': (0.04, 0.05, 0.14),
+    'sclera': (0.97, 0.96, 0.98),
+    'sclera_shadow': (0.72, 0.74, 0.86),
+    'rx': 0.255,                   # iris half-width, in eye widths
+    'rz': 0.315,                   # iris half-height
+    'cz': -0.015,                  # iris centre above the eye centre
+    'pupil_rx': 0.085, 'pupil_rz': 0.135,
+    'striation': 0.25,             # strength of the radial fibres
+    'glow': 0.8,                   # the bottom crescent
+    'shine': [                     # (u offset, v offset, rx, rz, alpha) from the iris centre, in eye widths
+        (-0.085, 0.14, 0.075, 0.062, 1.0),
+        (0.10, -0.12, 0.030, 0.030, 0.9),
+        (0.02, 0.16, 0.022, 0.018, 0.7),
+    ],
+}
+
+
+def _knobs(k):
+    K = dict(DEFAULT_IRIS); K.update(k or {})
+    return K
+
+
+def _srgb_to_lin(c):
+    c = np.asarray(c, float)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
+def _grid(n):
+    u = (np.arange(n) + 0.5) / n
+    U, Vv = np.meshgrid(u, u[::-1])          # row 0 = top (v = 1)
+    return U - 0.5, Vv - 0.5                 # eye widths from the eye centre
+
+
+def _ss(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def _mix(a, b, t):
+    return a + (b - a) * t[..., None]
+
+
+def sclera(K=None, n=512, upper=0.20, soft=0.10):
+    """RGBA: white with a cool shadow under the upper lid (a band from `upper` - soft up)."""
+    K = _knobs(K)
+    x, z = _grid(n)
+    t = _ss(upper - soft, upper + 0.05, z)
+    rgb = _mix(np.array(K['sclera'], float) * np.ones(x.shape + (3,)), np.array(K['sclera_shadow'], float), t * 0.9)
+    # a faint corner shading toward the eye's ends
+    rgb = rgb * (1 - 0.08 * _ss(0.30, 0.55, np.abs(x)))[..., None]
+    return np.concatenate([rgb, np.ones(x.shape + (1,))], -1)
+
+
+def iris(K=None, n=512):
+    """RGBA (alpha = the iris), centred at (0, cz) in eye widths."""
+    K = _knobs(K)
+    x, z = _grid(n)
+    zc = z - K['cz']
+    r = np.sqrt((x / K['rx']) ** 2 + (zc / K['rz']) ** 2)
+    # vertical gradient: shadowed top -> mid -> glowing bottom
+    h = np.clip((zc / K['rz'] + 1) / 2, 0, 1)                    # 0 bottom .. 1 top
+    top, mid, bot = (np.array(K[k], float) for k in ('top', 'mid', 'bottom'))
+    rgb = np.where(h[..., None] > 0.5, _mix(mid, top, (h - 0.5) * 2), _mix(bot, mid, _ss(0.0, 0.5, h)))
+    # fibres: radial streaks
+    ang = np.arctan2(x, zc)
+    fib = 0.5 + 0.5 * np.sin(ang * 38 + np.sin(ang * 7) * 2.0) * np.sin(ang * 23 + 1.3)
+    rgb = rgb * (1 - K['striation'] * 0.35 * fib * _ss(0.35, 0.9, r))[..., None]
+    # the bottom crescent glow (inside the ring, lower half)
+    cres = _ss(0.55, 0.85, r) * (1 - _ss(0.88, 0.95, r)) * _ss(0.1, -0.5, zc / K['rz'])
+    rgb = _mix(rgb, np.minimum(1, bot * 1.15 + 0.1), cres * K['glow'])
+    # limbal ring
+    ring = _ss(0.80, 0.97, r)
+    rgb = _mix(rgb, np.array(K['ring'], float), ring)
+    # pupil
+    pr = np.sqrt((x / K['pupil_rx']) ** 2 + ((zc + 0.01) / K['pupil_rz']) ** 2)
+    rgb = _mix(rgb, np.array(K['pupil'], float), 1 - _ss(0.92, 1.05, pr))
+    # the lid's shadow over the top of the iris
+    rgb = rgb * (1 - 0.45 * _ss(0.05, 0.28, z))[..., None]
+    a = 1 - _ss(0.985, 1.03, r)
+    return np.concatenate([np.clip(rgb, 0, 1), a[..., None]], -1)
+
+
+def shine(K=None, n=512):
+    """RGBA: the highlights (white, alpha), placed from the iris centre."""
+    K = _knobs(K)
+    x, z = _grid(n)
+    a = np.zeros(x.shape)
+    for du, dv, rx, rz, al in K['shine']:
+        r = np.sqrt(((x - du) / rx) ** 2 + ((z - K['cz'] - dv) / rz) ** 2)
+        a = np.maximum(a, al * (1 - _ss(0.85, 1.0, r)))
+    rgb = np.ones(x.shape + (3,))
+    return np.concatenate([rgb, a[..., None]], -1)
+
+
+def to_blender_image(name, rgba, linear=False):
+    """a packed Blender image from an (n, n, 4) sRGB array (row 0 = top)."""
+    import bpy
+    n = rgba.shape[0]
+    img = bpy.data.images.get(name) or bpy.data.images.new(name, n, n, alpha=True)
+    px = rgba[::-1].astype(np.float32).copy()                 # Blender rows run bottom-up
+    img.pixels.foreach_set(px.ravel())
+    img.pack()
+    return img
+
+
+def save_png(path, rgba):
+    from PIL import Image
+    Image.fromarray((np.clip(rgba, 0, 1) * 255).astype(np.uint8), 'RGBA').save(path)

@@ -16,6 +16,7 @@ projects/*/assets/vo/audition/
 .env.local
 projects/*/assets/seq/
 vendor/
+!engine/vendor/
 projects/*/assets/world*/
 projects/*/assets/takes/
 projects/*/assets/song_stems/

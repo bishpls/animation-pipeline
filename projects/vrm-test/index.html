@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>VRM test · studio</title>
+<style>
+  html, body { margin: 0; background: #16151a; color: #ddd; font: 13px ui-monospace, monospace; }
+  #out { display: block; width: min(100vw, 1280px); height: auto; aspect-ratio: 16 / 9; }
+  .bar { display: flex; gap: 10px; align-items: center; max-width: 1280px; padding: 8px; }
+  .bar input { flex: 1; }
+</style>
+</head>
+<body>
+<!-- charkit's VRM export (charkit/export.py) in three.js + three-vrm, posed by the canonical hook clip (retargeted in
+     engine/three/vrm.js), rendered through engine/render.mjs. ?gl=auto|webgpu|webgl picks the renderer (default auto).
+       node engine/render.mjs projects/vrm-test --strip=0:5 --step=12            the hook, front | three-quarter
+       node engine/render.mjs projects/vrm-test --loop=views --stills=0,1,2,3    front, three-quarter, side, back (A-pose)
+       node engine/render.mjs projects/vrm-test --loop=faces --stills=0          the expression sheet
+       node engine/render.mjs projects/vrm-test --eval='INFO'                    backend, adapter, load stats
+       node engine/render.mjs projects/vrm-test --loop=hook@webgl --stills=3    any board under another renderer
+                                                         (@webgpu, @webgpu-gl: WebGPURenderer's WebGL2 backend, @webgl) -->
+<canvas id="out" width="1920" height="1080"></canvas>
+<script>window.PROJECT = { fps: 24, plain: true, w: 1920, h: 1080, duration: 120 / 24 };</script>
+<script src="../../engine/core.js"></script>
+<script src="../../engine/studio.js"></script>
+<script src="../../engine/vendor/three-vrm.js"></script>
+<script src="../../engine/three/vrm.js"></script>
+<script src="src/test.js"></script>
+<script>
+(async () => {
+  try {
+    plainSetup();
+    const q = new URLSearchParams(location.search), loop = q.get('loop') || '';
+    await setupTest(q.get('gl') || (loop.includes('@') ? loop.split('@')[1] : 'auto'));
+    window.ready = true;
+    studioUI();
+  } catch (e) { console.error(e.stack || e); window.failed = true; }
+})();
+</script>
+</body>
+</html>

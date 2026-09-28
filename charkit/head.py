@@ -43,26 +43,35 @@ Z_C = 0.13
 CR = dict(wf=0.350, wb=0.356, df=0.345, db=0.470)                # at Z_C
 
 
+class Pchip:
+    """monotone cubic interpolation (Fritsch-Carlson) of (xs, ys); clamped outside. Slopes precomputed."""
+
+    def __init__(self, xs, ys):
+        self.xs = xs = np.asarray(xs, float); self.ys = ys = np.asarray(ys, float)
+        self.h = h = np.diff(xs); dl = np.diff(ys) / h
+        m = np.zeros(len(xs))
+        m[0], m[-1] = dl[0], dl[-1]
+        for k in range(1, len(xs) - 1):
+            if dl[k - 1] * dl[k] > 0:
+                w1, w2 = 2 * h[k] + h[k - 1], h[k] + 2 * h[k - 1]
+                m[k] = (w1 + w2) / (w1 / dl[k - 1] + w2 / dl[k])
+        self.m = m
+
+    def __call__(self, x):
+        xs, ys, h, m = self.xs, self.ys, self.h, self.m
+        if x <= xs[0]:
+            return float(ys[0])
+        if x >= xs[-1]:
+            return float(ys[-1])
+        k = int(np.searchsorted(xs, x) - 1)
+        t = (x - xs[k]) / h[k]
+        t2, t3 = t * t, t * t * t
+        return float((2 * t3 - 3 * t2 + 1) * ys[k] + (t3 - 2 * t2 + t) * h[k] * m[k] + (-2 * t3 + 3 * t2) * ys[k + 1]
+                     + (t3 - t2) * h[k] * m[k + 1])
+
+
 def pchip(xs, ys, x):
-    """monotone cubic interpolation (Fritsch-Carlson) of (xs, ys) at x; clamped outside."""
-    xs = np.asarray(xs, float); ys = np.asarray(ys, float)
-    if x <= xs[0]:
-        return float(ys[0])
-    if x >= xs[-1]:
-        return float(ys[-1])
-    h = np.diff(xs); dl = np.diff(ys) / h
-    m = np.zeros(len(xs))
-    m[0], m[-1] = dl[0], dl[-1]
-    for k in range(1, len(xs) - 1):
-        if dl[k - 1] * dl[k] <= 0:
-            m[k] = 0
-        else:
-            w1, w2 = 2 * h[k] + h[k - 1], h[k] + 2 * h[k - 1]
-            m[k] = (w1 + w2) / (w1 / dl[k - 1] + w2 / dl[k])
-    k = int(np.searchsorted(xs, x) - 1)
-    t = (x - xs[k]) / h[k]
-    h00, h10, h01, h11 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
-    return float(h00 * ys[k] + h10 * h[k] * m[k] + h01 * ys[k + 1] + h11 * h[k] * m[k + 1])
+    return Pchip(xs, ys)(x)
 
 
 def _knobs(k):
@@ -83,7 +92,7 @@ class Head:
         self.mouth_z = -0.28 * L * K['mouth_z']
         self.nose_z = -0.145 * L * K['nose_z']
         self.mouth_w = 0.085 * L * K['mouth_w']
-        self.eye_x = 0.135 * L * K['eye_x']
+        self.eye_x = 0.168 * L * K['eye_x']
         self.eye_z = 0.012 * L + K['eye_z'] * L
         # the lower-face profiles with the knobs folded in
         c, j, ch = K['cheek'], K['jaw_w'], K['chin']
@@ -93,6 +102,7 @@ class Head:
         cf = K['chin_fwd']
         self.ldf = [d * L * K['depth'] * (1 + (cf - 1) * t ** 2) for d, t in zip(LOW_DF, LOW_D)]
         self.ldb = [d * L * K['depth'] * K['back'] for d in LOW_DB]
+        self._p = [Pchip(LOW_D, v) for v in (self.lwf, self.lwb, self.ldf, self.ldb)]
         self.zc = Z_C * L * K['cranium']
         self.cr = dict(wf=CR['wf'] * L * K['width'] * K['temple'], wb=CR['wb'] * L * K['width'] * K['temple'],
                        df=CR['df'] * L * K['depth'] * (1 - 0.3 * (1 - K['forehead'])),
@@ -116,8 +126,7 @@ class Head:
             return self.cr['wf'] * k, self.cr['wb'] * k, self.cr['df'] * k, self.cr['db'] * k, n
         d = min(1.0, -z / self.chin)
         n = (2.35 - 0.2 * d) * K['flat']
-        return (pchip(LOW_D, self.lwf, d), pchip(LOW_D, self.lwb, d), pchip(LOW_D, self.ldf, d), pchip(LOW_D, self.ldb, d),
-                max(1.6, n))
+        return self._p[0](d), self._p[1](d), self._p[2](d), self._p[3](d), max(1.6, n)
 
     def surface(self, a, z):
         wf, wb, df, db, n = self.section(z)

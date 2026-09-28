@@ -171,8 +171,12 @@ def build_body_data(spec_body=None, neck_below_top=0.86, keep_head=False):
                         w[i] = x
                 if w.max() > 0:
                     face_w[bone] = w
+        # the unmorphed base (topology analysis: the eye pockets) and its eyeball helpers' centres
+        vb = mh.to_blender(base.verts)
+        eyeballs = {s_: vb[np.array(sorted(base.groups[f'helper-{s_}-eye']))].mean(0) for s_ in ('l', 'r')}
         return dict(verts=verts, faces=faces, face_uv=face_uv, uvs=base.uvs, weights=weights, joints=joints, neck_ring=[],
-                    params=P, head_len=head_len, scale=k, marks=marks, head_w=head_w, face_w=face_w)
+                    params=P, head_len=head_len, scale=k, marks=marks, head_w=head_w, face_w=face_w, base_body=vb[:N],
+                    eyeballs=eyeballs)
     # drop the realistic head (and anything the head bone owns) at the neck
     keep_v = head_w < 0.5
     kept = [(i, f) for i, f in body_faces if all(keep_v[x] for x in f)]
