@@ -391,9 +391,9 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    growing past 1, so getting worse still shows. A check measured against a reference that isn't its measure's
    authority counts a quarter, as fitkit weighs its terms: the TRELLIS face's width counts a quarter of the sheet's. A
    rejected fit with several knob groups is tried again one group at a time, then at half its step (flips at a limit
-   often vanish there). A build option whose only losses are
-   checks a landed fitter owns gets that fitter's re-fit first, and the option and fit are judged as one move.
-   anime-base, for example, costs the eye width, which is the face fitter's.
+   often vanish there). A build option whose only losses are checks a landed fitter owns gets that fitter's re-fit
+   first, and the option and fit are judged as one move. anime-base, for example, costs the eye width, which is the
+   face fitter's.
 4. **Stop** when:
    - every graded check passes (`pass`);
    - the best score improved by less than `min_gain` over the last `rounds` rounds (`stalled`);
@@ -407,7 +407,7 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    - With `--review`, the review board is written and the final build exports a VRM.
 
 Everything goes to `DIR/tune.jsonl`: begin, fit, checkpoint, compare (every check that moved, trades, the fast
-evaluator's disagreements with the build), round, stop, repeat, sensitivity, triage, review and end. `DIR/tune.json` is
+evaluator's disagreements with the build), round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
 the summary. Each checkpoint's history row carries `{tune, checkpoint, label}`. The run records its pid in DIR, so
 `python -m charkit kill DIR` stops it and the build it started. A checkpoint folder holding the same build (spec, options,
 boards, code) is reused; `--fresh` rebuilds.
@@ -418,9 +418,9 @@ chin. So `face_shape_width` (against the TRELLIS face, which the key's caution c
 when `sheet_width` gets better, by at most 3x the gain. Depth has no sheet counterpart and is never traded. A `noise`
 rule lets a sheet, body or palette check cross its limit by at most 0.15 warn bands (never past WARN) when the
 checkpoint gains overall: a flip smaller than the sheet's own error is noise. Without it, geom hair was rejected for
-`body_profile_hair_width` moving 0.920 -> 0.914 while three hair lengths reached PASS. The config
-also holds the build options, the stop settings and each reference's stated error (`uncertain`: the sheet is good to
-about a pixel, 0.009 L, or 3% on a ratio).
+`body_profile_hair_width` moving 0.920 -> 0.914 while three hair lengths reached PASS. The config also holds the build
+options, the stop settings and each reference's stated error (`uncertain`: the sheet is good to about a pixel, 0.009 L,
+or 3% on a ratio).
 
 **Triage** (`charkit/triage.py`; `python -m charkit triage DIR` redoes it for a tune folder or any build). Every check
 still WARN or FAIL is classified by why the loop couldn't fix it. The first class that applies wins; the others are
@@ -462,8 +462,8 @@ then decided by adding the check to that fitter's terms, or by writing a trade-o
 
 The list is ranked by severity times visibility (`checks.REGIONS`: the eyes, the face's front and the silhouette first,
 face depth and topology last). A reviewer's note multiplies the rank by 1.5; a check measured against a reference
-that isn't its measure's authority, by 0.6. It is written to `DIR/work_items.json` (with the knob
-inventory: every numeric spec knob and its owner) and `DIR/work_items.md`.
+that isn't its measure's authority, by 0.6. It is written to `DIR/work_items.json` (with the knob inventory: every
+numeric spec knob and its owner) and `DIR/work_items.md`.
 
 **Review** (`--review`, `charkit/review.py`). Every metric is a proxy: the face checks exist because a person saw what the
 numbers missed, so review feeds back into the checks.
