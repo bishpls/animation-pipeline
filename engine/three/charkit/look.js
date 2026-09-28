@@ -132,8 +132,9 @@
     return { col: S.mix(toon.col, col, mask), sdf, t, mask, sh };
   }
 
-  function hairNodes(L, toon, col) {
-    const Hh = L.hair, R = Hh.ring, uvl = S.uv(Hh.lock || 1);
+  function hairNodes(L, toon, col, hasLock) {
+    // a mesh without the 'lock' UV (a bun sharing the hair material) reads (0, 0) there, as Blender's UV Map node does
+    const Hh = L.hair, R = Hh.ring, uvl = hasLock ? S.uv(Hh.lock || 1) : S.vec2(0.0, 1.0);
     const across = S.abs(uvl.x), along = S.float(1.0).sub(uvl.y);   // glTF v = 1 - Blender v
     const p = S.positionGeometry.sub(v3(R.centre));
     const el = S.atan(p.y, S.length(p.xz));
@@ -175,7 +176,7 @@
       toon = toon3Nodes(L);
       color = toon.col;
       if (L.kind === 'face' && L.face) { face = faceNodes(L, tex, toon); color = face.col; }
-      if (L.kind === 'hair' && L.hair && attrs.uv1) color = hairNodes(L, toon, color);
+      if (L.kind === 'hair' && L.hair) color = hairNodes(L, toon, color, attrs.uv1);
       if (L.texture) color = color.mul(sample(tex[L.texture.index], L.texture, uvOf(L.texture), L.texture.filter === 'cubic').xyz);
     }
     // debug views
@@ -338,7 +339,7 @@
       if (E) {
         for (const e of E.expressions) E.setValue(e.expressionName, 0);
         for (const [k, v] of Object.entries(ck.exprs)) E.setValue(k, v);
-        if (ck.gaze && vrm.lookAt) { vrm.lookAt.autoUpdate = false; vrm.lookAt.applier.applyYawPitch(ck.gaze[0], ck.gaze[1]); }
+        if (ck.gaze && (ck.gaze[0] || ck.gaze[1]) && vrm.lookAt) { vrm.lookAt.autoUpdate = false; vrm.lookAt.applier.applyYawPitch(ck.gaze[0], ck.gaze[1]); }
         E.update();
       }
       for (const [k, v] of Object.entries(ck.rawKeys)) for (const [m, i] of ck.keyIndex[k] || []) m.morphTargetInfluences[i] += v;

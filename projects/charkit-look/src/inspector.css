@@ -1,0 +1,31 @@
+html, body { margin: 0; height: 100%; background: #1b1a20; color: #ddd; font: 12px ui-monospace, Menlo, monospace; }
+body:not(.inspector) #out { display: block; }
+body.inspector { display: flex; overflow: hidden; }
+#view { position: relative; flex: 1; min-width: 0; height: 100vh; }
+#gl { width: 100%; height: 100%; display: block; cursor: grab; }
+#hud { position: absolute; left: 10px; bottom: 8px; right: 10px; color: #333; background: rgba(255, 255, 255, 0.72); padding: 4px 8px;
+  border-radius: 4px; pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#side { width: 360px; height: 100vh; overflow-y: auto; background: #232229; border-left: 1px solid #333; box-sizing: border-box; padding: 8px 10px 40px; }
+#side .title { font-size: 16px; color: #fff; margin: 4px 0 2px; }
+#side .sub, #side .note { color: #999; margin: 2px 0 6px; line-height: 1.35; }
+details { border-top: 1px solid #333; padding: 4px 0; }
+summary { cursor: pointer; color: #f0c674; padding: 3px 0; }
+.row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.row label { width: 132px; flex: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row input[type=range] { flex: 1; min-width: 60px; }
+.row select { flex: 1; background: #2e2d35; color: #ddd; border: 1px solid #444; }
+.row .val { width: 48px; text-align: right; color: #aaa; }
+.row .tag { color: #7aa6da; font-size: 11px; }
+.btns { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+button { background: #34333c; color: #ddd; border: 1px solid #4a4952; border-radius: 3px; padding: 2px 7px; cursor: pointer; font: inherit; }
+button:hover { background: #45444e; }
+pre.json { white-space: pre-wrap; word-break: break-all; max-height: 360px; overflow: auto; background: #1b1a20; padding: 6px; margin: 4px 0; font-size: 11px; }
+table { border-collapse: collapse; width: 100%; margin: 4px 0; }
+td, th { padding: 2px 4px; border-bottom: 1px solid #2f2e36; text-align: left; vertical-align: top; }
+tr.PASS .st { color: #8bc34a; } tr.WARN .st { color: #f0c674; } tr.FAIL .st { color: #ef6b5b; } tr.INFO .st, tr.SKIPPED .st { color: #999; }
+td.sub { color: #aaa; }
+.chip { display: inline-block; margin: 1px 4px 1px 0; }
+.link { color: #7aa6da; cursor: pointer; text-decoration: underline dotted; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 3px; margin: 2px 0; }
+.badge.PASS { background: #2f4a22; } .badge.WARN { background: #5a4a1a; } .badge.FAIL { background: #5a2420; }
+.qaimg { width: 100%; margin-top: 6px; cursor: zoom-in; background: #fff; }

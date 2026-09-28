@@ -406,10 +406,10 @@ class Eval:
             finally:
                 bpy.data.meshes.remove(me)
             n = len(self.co)
-            self.surf = self.co
+            self.surf, self.hull_n = self.co, None
             if om is not None:
                 om.show_viewport = True
-                self.surf = self._positions(n)
+                self.surf, self.hull_n = self._positions(n)
             self.keys = {}
             if ks:
                 for k in ks.key_blocks[1:]:
@@ -427,18 +427,25 @@ class Eval:
             bpy.context.view_layer.update()
 
     def _positions(self, n):
-        """the evaluated vertex positions (the first n: with the outline on, its surface; the hull follows)."""
+        """the evaluated vertex positions (the first n: with the outline on, its surface) and the hull direction per vertex
+        (with the outline on: hull - surface where it moved, else the surface's vertex normal)."""
         import bpy
         bpy.context.view_layer.update()
         dg = bpy.context.evaluated_depsgraph_get()
         oe = self.ob.evaluated_get(dg)
         tm = oe.to_mesh()
         co = np.empty(len(tm.vertices) * 3, np.float32); tm.vertices.foreach_get('co', co)
+        vn = np.empty(len(tm.vertices) * 3, np.float32); tm.vertex_normals.foreach_get('vector', vn)
         oe.to_mesh_clear()
-        co = co.reshape(-1, 3)
+        co = co.reshape(-1, 3); vn = vn.reshape(-1, 3)
         if len(co) not in (n, 2 * n):
             raise RuntimeError(f'{self.ob.name}: evaluated vertex count {len(co)} (expected {n} or {2 * n})')
-        return co[:n]
+        hn = vn[:n]
+        if len(co) == 2 * n:
+            d = co[n:] - co[:n]
+            ln = np.linalg.norm(d, axis=1)
+            hn = np.where((ln > 1e-7)[:, None], d / np.maximum(ln, 1e-12)[:, None], vn[:n])
+        return co[:n], hn
 
     def _read(self, me):
         nv, nl = len(me.vertices), len(me.loops)
@@ -675,7 +682,9 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
         uv0 = E.uv.get('uv', next(iter(E.uv.values())) if E.uv else None)
         uv1 = E.uv.get('face', E.uv.get('lock'))
         need_hull = outline is not None and np.abs(cn - hulln[L_]).max() > 2e-3
-        keys = {kn: xf(kc) for kn, kc in E.keys.items()}
+        keys = {kn: xf(kc) for kn, (kc, _) in E.keys.items()}
+        # the keyed hull directions (outlined meshes): NORMAL morph deltas, so the hull (and the shading) follow the keys
+        key_n = {kn: unit(kh @ Nm.T) for kn, (_, kh) in E.keys.items()} if outline else {}
         key_names = list(keys)
         # a keyed mesh splits in two: the part its keys move (with the morph targets) and the static rest (no targets),
         # so a runtime's morph buffers cover only the moving part; the seam's vertices never move, so nothing opens
@@ -726,7 +735,12 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                 ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
                 prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
                 if knames:
-                    prim['targets'] = [{'POSITION': W.sparse_vec3(g3(keys[kn][vi] - surf[vi]))} for kn in knames]
+                    prim['targets'] = []
+                    for kn in knames:
+                        t_ = {'POSITION': W.sparse_vec3(g3(keys[kn][vi] - surf[vi]))}
+                        if kn in key_n:
+                            t_['NORMAL'] = W.sparse_vec3(g3(key_n[kn][vi] - hulln[vi]), eps=1e-5)
+                        prim['targets'].append(t_)
                 prims.append(prim)
             if not prims:
                 continue
