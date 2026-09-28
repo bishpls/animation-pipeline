@@ -394,7 +394,7 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
             rem = history.remeasured(best.get('git'), ck.get('git'), list(checks.graded(ck.qa)))
             d = accept(best.qa, ck.qa, cfg.get('tradeoffs', []), rem) if ck['ok'] else \
                 {'verdict': 'reject', 'why': 'the build failed', 'gain': 0, 'rows': [], 'regressed': [], 'traded': [], 'improved': []}
-            dis = disagreement(fit, ck) if fit and ck['ok'] else {}
+            dis = disagreement(fit, ck, best) if fit and ck['ok'] else {}
             R.write('compare', checkpoint=ck['id'], against=best['id'], verdict=d['verdict'], why=d['why'], gain=d['gain'],
                     score=d.get('score'), regressed=d['regressed'], traded=d['traded'], improved=d['improved'],
                     remeasured=rem, disagree=dis,
@@ -540,18 +540,19 @@ def _fit_public(res):
     return r
 
 
-def disagreement(fit, ck, band=0.5):
-    """checks where the fitter's fast evaluator predicted a severity that the full build's QA doesn't reproduce (by more
-    than `band` warn bands) -> {check: [predicted, built]}."""
+def disagreement(fit, ck, start=None, band=0.5):
+    """checks where the fitter's fast evaluator measured a severity the full build's QA doesn't reproduce (by more than
+    `band` warn bands): its 'after' against the candidate's build and, when given, its 'before' against the build it
+    started from -> {check: [evaluator, build]} (the larger gap of the two)."""
     out = {}
-    for k, (_, after) in (fit.get('predicted') or {}).items():
-        c = ck.qa.get('checks', {}).get(k)
-        if after is None or not isinstance(c, dict) or c.get('status') not in checks.GRADED:
-            continue
-        a, b = checks.severity(k, after), checks.severity(k, c.get('value'), c.get('status'))
-        if a is not None and b is not None and abs(a - b) > band:
-            out[k] = [after, c.get('value')]
-    return out
+    for k, (before, after) in (fit.get('predicted') or {}).items():
+        for pred, c in ((after, ck.qa.get('checks', {}).get(k)), (before, (start.qa.get('checks', {}) if start else {}).get(k))):
+            if pred is None or not isinstance(c, dict) or c.get('status') not in checks.GRADED:
+                continue
+            a, b = checks.severity(k, pred), checks.severity(k, c.get('value'), c.get('status'))
+            if a is not None and b is not None and abs(a - b) > band and abs(a - b) > out.get(k, (0, 0, 0))[2]:
+                out[k] = (pred, c.get('value'), abs(a - b))
+    return {k: [a, b] for k, (a, b, _) in out.items()}
 
 
 def main(args):

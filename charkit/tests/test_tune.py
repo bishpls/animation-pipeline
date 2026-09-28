@@ -66,6 +66,15 @@ def test_accept_ignores_a_remeasured_check():
     assert d['verdict'] == 'accept' and not d['regressed'], d
 
 
+def test_disagreement_between_the_fast_evaluator_and_the_build():
+    fit = {'predicted': {'eye_aspect': [0.70, 0.95], 'sheet_width': [0.84, 0.95]}}
+    start = tune.Checkpoint(_qa=qa(eye_aspect=(0.70, 'FAIL'), sheet_width=(0.70, 'FAIL')))
+    cand = tune.Checkpoint(_qa=qa(eye_aspect=(0.80, 'FAIL'), sheet_width=(0.95, 'PASS')))
+    d = tune.disagreement(fit, cand, start)
+    # eye_aspect: predicted to pass, built still failing; sheet_width: the evaluator's start (0.84) isn't the build's (0.70)
+    assert d == {'eye_aspect': [0.95, 0.80], 'sheet_width': [0.84, 0.70]}, d
+
+
 # ------------------------------------------------------------------------------------------------------------ stop
 def test_stop_rules():
     assert tune.stop_reason([10, 5], all_pass=True) == 'pass'
