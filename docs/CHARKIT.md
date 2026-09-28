@@ -226,14 +226,17 @@ the 3D rebuild is settled in writing.
 `python -m charkit tune SPEC [--out DIR] [--budget N | Nm] [--review] [--args "..."]` (`charkit/tune.py`) is the outer
 loop. The fast fitters choose knobs, full builds check them, and the error they leave becomes ranked work items.
 
-1. **Checkpoint 0** builds the spec as it is, with full QA.
-2. **Rounds.** Each fitter in the registry (`charkit/fitters.py`) runs from the best checkpoint so far, if any of its
-   target checks isn't passing. What it changes is built and QA'd as a new checkpoint. The fitters, in order:
+1. **Checkpoint 0** builds the spec as it is, with full QA. Every checkpoint builds its own snapshot of its spec
+   (`ckN/input.spec.json`), so nothing a later fit writes can change what an accepted checkpoint was.
+2. **Rounds.** Each fitter in the registry (`charkit/fitters.py`) runs from the best checkpoint so far (the spec it
+   resolved to), if any of its target checks isn't passing. What it changes is built and QA'd as a new checkpoint. The
+   fitters, in order:
    - **build options**, a discrete choice. The character's tune config lists them, e.g. `geom-hair` (hair.shape.mode
      geom) and `anime-base`. Each is tried once as its own checkpoint. `set` writes the spec (so the fitters see it);
      `args` go to the build. `--args` applies to every checkpoint.
    - **face**: `charkit.facefit` (`python -m charkit fit`: tool/fit).
-   - **body, garments and hair**: tool/bodyfit.
+   - **body, garments, hair and palette**: tool/bodyfit (the `shape_iou*`, `ref_iou`, model-sheet `body_*` and
+     `palette_*` checks).
 
    A fitter that hasn't landed is a stub, marked `STUB` everywhere. It declares its targets and knobs, and fits nothing.
    Each fitter declares the check patterns it targets and the knobs it owns (path, default, step, bounds, group: a
@@ -242,8 +245,10 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
 3. **Accept or reject.** Each checkpoint is compared with the best by the gate's QA diff (`gate.compare_qa`). It is
    accepted only if no graded check regresses (its status gets worse, or it disappears), unless a trade-off rule allows
    it, and only if the total severity drops. `checks.score` sums, over the checks both builds share, how far each is from
-   passing in warn bands: 0 at the pass limit, 1 at the fail limit, capped at 5. A rejected fit with several knob groups
-   is tried again one group at a time.
+   passing in warn bands: 0 at the pass limit, 1 at the fail limit, capped at 5. A warn-only check's severity keeps
+   growing past 1, so getting worse still shows. A check measured against a reference that isn't its measure's
+   authority counts a quarter, as fitkit weighs its terms: the TRELLIS face's width counts a quarter of the sheet's. A
+   rejected fit with several knob groups is tried again one group at a time.
 4. **Stop** when:
    - every graded check passes (`pass`);
    - the best score improved by less than `min_gain` over the last `rounds` rounds (`stalled`);
@@ -252,6 +257,7 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
 5. **The end.**
    - The best checkpoint is built once more with every board (`final`), which also checks that its QA repeats.
    - Each landed fitter measures its sensitivity table there. A fit's own table is measured at its start.
+   - Each landed fitter checks its fast evaluator against that build's QA (`python -m charkit fit --validate`).
    - The residuals are triaged.
    - With `--review`, the review board is written and the final build exports a VRM.
 
@@ -272,10 +278,13 @@ about a pixel, 0.009 L, or 3% on a ratio).
 still WARN or FAIL is classified by why the loop couldn't fix it. The first class that applies wins; the others are
 listed as `also`:
 - `measurement uncertain`: any of these holds:
-  - the fast evaluator predicted a severity the build doesn't reproduce;
+  - the fast evaluator predicted a severity the build doesn't reproduce, or disagrees with the final build;
   - the final build didn't repeat;
-  - the check reports missing data or a caution;
-  - the value is within the reference's stated error of passing.
+  - the check reports missing or thin data ("few pixels");
+  - the value is within the error the check itself states (a scale caution's percentage) or the reference's stated
+    error of passing.
+
+  A standing caution alone (every `body_*` check carries the sheet's scale caution) is listed, not the class.
 - `trade-off`: fixing it costs another check. Either:
   - a checkpoint that improved it was rejected because another regressed (built and measured);
   - a rule let it get worse to pay for another;
@@ -285,8 +294,10 @@ listed as `also`:
   before the check passes.
 - `needs a knob`: no fitted knob moves it, or every one that does is already at its best for it. The spec's hand knobs
   that may move it (the knob inventory, `checks.SECTIONS`) and the stub fitter that will own them are listed.
-- `needs a capability`: it measures a template or geometry matter, not a parameter (`checks.CAPABILITY`: the lid rings'
-  topology, the hair surface's normals, garment fitting).
+- `needs a capability`: it measures a template or geometry matter, not a parameter (`checks.CAPABILITY`). Examples:
+  the lid rings' topology, and a mouth cavity that doesn't follow tall openings (`face_folds`); the hair surface's
+  normals; garment fitting. An `expr_*` part the expression library has nothing close to (`missing`) is a template
+  addition.
 - `not in the objective`: a knob improves it at no cost, but no fitter's objective includes the check.
 
 Each item carries its evidence:
@@ -297,7 +308,8 @@ Each item carries its evidence:
 - the knobs and conflicts behind its class.
 
 The list is ranked by severity times visibility (`checks.REGIONS`: the eyes, the face's front and the silhouette first,
-face depth and topology last), times 1.5 with a reviewer's note. It is written to `DIR/work_items.json` (with the knob
+face depth and topology last). A reviewer's note multiplies the rank by 1.5; a check measured against a reference
+that isn't its measure's authority, by 0.6. It is written to `DIR/work_items.json` (with the knob
 inventory: every numeric spec knob and its owner) and `DIR/work_items.md`.
 
 **Review** (`--review`, `charkit/review.py`). Every metric is a proxy: the face checks exist because a person saw what the
