@@ -8,35 +8,54 @@ import numpy as np
 from . import anime_head, body as bodylib, brows as browlib, eyes as eyelib, mouth as mouthlib
 
 
-def assemble(spec):
+def _kept(cache, key, make):
+    """make() once per cache key (no cache: every time)."""
+    if cache is None:
+        return make()
+    if key not in cache:
+        cache[key] = make()
+    return cache[key]
+
+
+def assemble(spec, keys=True, cache=None):
     """numpy assembly: -> dict(verts, faces, fmat (0 body, 1 head), weights {vrm bone: (N,)}, joints, face_w {MakeHuman face
     bone: (N,)}, body (the body data), head info).
     spec['base']: 'makehuman' (the default): MakeHuman's own head wrapped onto the anime head, its eyes and mouth detected in
     its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its eyes and mouth
-    from stored labels."""
+    from stored labels. keys=False leaves out the shape keys (the rest pose only); cache: an optional dict that keeps the body
+    and the wrap's knob-independent part between calls (charkit.faceeval: one body, many head knob sets)."""
+    import json as _json
     anime = spec.get('base', 'makehuman') == 'anime'
+    bkey = _json.dumps(spec.get('body'), sort_keys=True)
+    body = cache.get(('body', bkey)) if cache is not None else None
+    if body is None:
+        body = bodylib.build_body_data(spec.get('body'), keep_head=True)
+        if cache is not None:
+            cache[('body', bkey)] = body
     if anime:
         from . import base_anime
-        B, V, H, centre, info = base_anime.wrap(spec)
+        B, V, H, centre, info = base_anime.wrap(spec, body=body)
         L = B['head_len']
         V0 = B['verts']
     else:
-        B = bodylib.build_body_data(spec.get('body'), keep_head=True)
+        B = body
         L = B['head_len']
         V0 = B['verts']
         fw = B['face_w']
         eye_w = np.max([fw[b] for b in fw if b.startswith(('orbicularis', 'oculi'))], axis=0)
         lips_w = np.max([fw[b] for b in fw if b.startswith('oris')], axis=0)
         wings_w = np.max([fw[b] for b in fw if b.startswith('levator06')], axis=0)
+        prep = cache.setdefault(('reshape', bkey), {}) if cache is not None else None
         V, H, centre, info = anime_head.reshape(V0, B['faces'], B['head_w'], B['marks'], L, spec.get('head'),
-                                                detail=spec.get('head_detail'), eye_w=eye_w, lips_w=lips_w, wings_w=wings_w)
+                                                detail=spec.get('head_detail'), eye_w=eye_w, lips_w=lips_w, wings_w=wings_w,
+                                                prep=prep)
     # the eyes: the margins onto the anime outline, the lids and pockets after them; plates, lashes and lid keys
     EK = eyelib._knobs(spec.get('eyes'))
     F = eyelib.Face(H, centre)
     eyes = []
     for side, s_ in ((1, 'l'), (-1, 'r')):
         E = dict(side=side, eye=eyelib.labels(B['base'], side) if anime else
-                 eyelib.detect(B['base_body'], B['faces'], B['eyeballs'][s_]),
+                 _kept(cache, ('eye', bkey, s_), lambda: eyelib.detect(B['base_body'], B['faces'], B['eyeballs'][s_])),
                  c=(side * EK['x'] * L, centre[2] + EK['z'] * L))
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
@@ -46,14 +65,16 @@ def assemble(spec):
         W = EK['width'] * L
         E['sclera'] = eyelib.plate(F, EK, L, sd, c)
         E['iris'] = eyelib.plate(F, EK, L, sd, c, bias=0.0004)
-        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W, g[1] * W))[0] - E['iris'][0]
-                          for k, g in gaze.items()}
         E['lashes'] = eyelib.lashes(F, EK, L, sd, c)
         BK = browlib._knobs(spec.get('brows'))
         E['brow'] = browlib.ribbon(F, BK, EK, L, sd, c)
+        E['iris_keys'], E['brow_keys'], E['keys'] = {}, {}, {}
+        if not keys:
+            continue
+        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W, g[1] * W))[0] - E['iris'][0]
+                          for k, g in gaze.items()}
         E['brow_keys'] = {k: browlib.ribbon(F, BK, EK, L, sd, c, knobs=kn)[0] - E['brow'][0]
                           for k, kn in browlib.expressions(BK).items()}
-        E['keys'] = {}
         for name, (uf, lf) in eyelib.expressions(EK, L).items():
             if uf is None and lf is None:                 # the lids as they are (a shocked eye: its iris key only)
                 continue
@@ -70,10 +91,11 @@ def assemble(spec):
     else:
         lw8 = fw['oris05'] + fw['oris01']
         lips_b = (B['base_body'] * lw8[:, None]).sum(0) / lw8.sum()
-        Mo = dict(m=mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw), c=(0.0, centre[2] + H.mouth_z))
+        Mo = dict(m=_kept(cache, ('mouth', bkey), lambda: mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw)),
+                  c=(0.0, centre[2] + H.mouth_z))
     V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'])
     Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'))
-                  for sh in mouthlib.SHAPES if sh != 'neutral'}
+                  for sh in mouthlib.SHAPES if sh != 'neutral'} if keys else {}
     Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'])
     Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'])
     Mo['teeth_keys'] = {sh: mouthlib.teeth(F, MK, L, Mo['c'], sh)[0] - Mo['teeth'][0] for sh in Mo['keys']}

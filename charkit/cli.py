@@ -16,6 +16,9 @@
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
+    python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
+                                    [--write-spec]                     # the face, eye and neck knobs from the QA
+                                                                       # (charkit/facefit.py; build takes DIR/NAME.fit.json)
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
@@ -63,6 +66,9 @@ def resolve(spec_path, out, do_fit=True, base=None):
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
+        c = refs.sheet_chin(spec, R)
+        if c is not None:
+            R['chin_sheet'] = c
         json.dump(R, open(os.path.join(out, 'ref_measure.json'), 'w'), indent=1)
         spec = refs.fit(spec, R, ref.get('fit', ('face', 'features', 'hair')))
     p = os.path.join(out, spec['name'] + '.spec.json')
@@ -272,6 +278,9 @@ def main(argv=None):
         trace.main(rest)
     elif cmd == 'export':
         export(rest)
+    elif cmd == 'fit':
+        from . import facefit
+        facefit.main(rest)
     elif cmd == 'worker':
         from . import worker
         worker.main(rest)
