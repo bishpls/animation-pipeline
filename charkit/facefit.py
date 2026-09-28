@@ -3,7 +3,7 @@ machinery (knobs, terms, the pool, the optimiser, the sensitivity table, triage)
 which knobs the face owns, which checks it answers to, and how to measure them fast (charkit/faceeval.py).
 
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--workers N]
-                                    [--views] [--verify] [--write-spec]
+                                    [--baseline QA.json] [--views] [--verify] [--write-spec]
     python -m charkit fit --validate BUILD_DIR...     # the evaluator against builds' own QA (BUILD/qa/faceeval_agreement.json)
     from charkit import facefit; spec, report = facefit.fit('charkit/spec/clawd.json', 'charkit/out/clawd_fit')
 
@@ -17,6 +17,8 @@ which knobs the face owns, which checks it answers to, and how to measure them f
   5. DIR/NAME.fit.json: the resolved spec with the fitted knobs written in (`build` takes it as it is), DIR/fit_report.json
      and .md: every check before and after, the residuals per view, the knobs (and which ended at a bound), the triage
      of what still fails (needs a knob / knob at bound / trade-off).
+  Every graded check is kept in its status band (the start's, or --baseline's: the merge gate's build), the fit's own
+  terms by the objective, the rest (expressions, folds, coverage) by scaling a group's change back while one reads worse.
   --views also fits the face to each view's terms alone: when each view can pass alone but not together, one rigid
   face can't match them all (a case for view-dependent face keys). --verify builds the fitted spec in Blender (DIR/build)
   and puts its QA in the report. --write-spec writes the fitted knobs back into SPEC.
@@ -71,9 +73,10 @@ def terms():
     """the graded checks the face fit answers to, as fitkit terms (tolerances: each QA module's PASS limit)."""
     from . import eyeqa, faceqa, sheetqa
     E, S, F = eyeqa.LIMITS, sheetqa.LIMITS, faceqa.LIMITS
-    T = [Term('eye_' + k, None, 'ratio', E[k][0], 'eyes', 'rig', 'eyes', 'eyes')
+    T = [Term('eye_' + k, None, 'ratio', E[k][0], 'eyes', 'rig', 'eyes', 'eyes', warn=E[k][1] / E[k][0])
          for k in ('aspect', 'width', 'iris_ratio', 'pupil_run', 'pupil_aspect', 'lid_span')]
-    T.append(Term('eye_lid_gap', None, 'gap', eyeqa.LID_GAP[0], 'eyes', 'rig', 'eyes', 'eyes'))
+    T.append(Term('eye_lid_gap', None, 'gap', eyeqa.LID_GAP[0], 'eyes', 'rig', 'eyes', 'eyes',
+                  warn=2 * eyeqa.LID_GAP[1] / eyeqa.LID_GAP[0] - 1))
     for chk, sub, kind, tol, measure, ref, view in (
             ('sheet_width', 'd55', 'ratio', S['width'][0], 'face_front', 'sheet', 'front'),
             ('sheet_width', 'd75', 'ratio', S['width'][0], 'face_front', 'sheet', 'front'),
@@ -91,7 +94,11 @@ def terms():
             ('face_shape_chin', None, 'abs', F['chin'][0], 'chin', 'trellis', 'profile'),
             ('face_shape_depth', 'cheeks', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth'),
             ('face_shape_depth', 'chin', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth')):
-        T.append(Term(chk, sub, kind, tol, measure, ref, view, 'face'))
+        lim = (S if chk.startswith('sheet_') else F)[{'sheet_width': 'width', 'sheet_neck_to_jaw': 'width', 'sheet_cheek': 'cheek',
+                                                        'sheet_cheek_chin': 'chin', 'sheet_profile': 'profile',
+                                                        'sheet_nose_reach': 'reach', 'sheet_chin_reach': 'reach',
+                                                        'sheet_profile_chin': 'chin'}.get(chk, chk.replace('face_shape_', ''))]
+        T.append(Term(chk, sub, kind, tol, measure, ref, view, 'face', warn=lim[1] / lim[0]))
     # a guard: enough neck showing under the chin that neck_to_jaw's row (0.06 L down) lands on the neck, not the collar
     T.append(Term('sheet_neck_run', None, 'floor', S['chin'][0], 'face_front', 'sheet', 'front', 'face', floor=NECK_RUN))
     return T
@@ -104,7 +111,7 @@ def declare():
 
 class FaceChecks:
     """the fit's evaluator in each worker (fitkit's protocol): the face's checks for a spec, per group ('all': every
-    check, with the hair and clothes); fine=False smooths the sheet's measures over JITTER and renders the eyes at 3x
+    check, with the hair and clothes and the expression checks from the keys); fine=False smooths the sheet's measures over JITTER and renders the eyes at 3x
     supersampling instead of 4x."""
 
     def __init__(self, spec, R, cache):
@@ -112,7 +119,7 @@ class FaceChecks:
         self.E = faceeval.Evaluator(spec, R, cache)
 
     def checks(self, spec, group, fine=False):
-        what = GROUP_WHAT.get(group, ('eyes', 'sheet', 'face_shape'))
+        what = GROUP_WHAT.get(group, ('eyes', 'sheet', 'face_shape', 'expressions'))
         return self.E.run(spec, what=what, covers=(group == 'all'), jitter=None if fine else JITTER,
                           ss=None if fine else 3)['checks']
 
@@ -142,10 +149,11 @@ def prepare(spec_path, out, base=None, log=print):
 
 
 # ------------------------------------------------------------------------------------------------------------ the fit
-def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face'), views=False, log=print):
+def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face'), views=False, baseline=None, log=print):
     """fit the face, eye and neck knobs of a spec (a path, or a dict already resolved with out/ref_measure.json in place)
     to its QA; write the fitted spec and the reports into out. budget: the most evaluations (each a few seconds of one
-    core), None: each group's own limit. -> (fitted spec, report)."""
+    core), None: each group's own limit. baseline: a QA (qa.json path or its checks) whose statuses the fit mustn't
+    worsen, as the merge gate compares (default: the start's). -> (fitted spec, report)."""
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
     if isinstance(spec, str):
@@ -160,9 +168,12 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
     pool = fitkit.Pool('charkit.facefit:FaceChecks', (spec, R, cache), workers)
     rep = {'spec': spec['name'], 'base': spec.get('base', 'makehuman'), 'authority': authority, 'declare': declare(),
            'groups': {}}
+    if isinstance(baseline, str):
+        baseline = json.load(open(baseline))['checks']
     try:
         before = pool.map([(spec, 'all', True)])[0]         # the start, as the QA measures it (hair and clothes too)
         log('fit: start measured')
+        protected = dict(before); protected.update({k: v for k, v in (baseline or {}).items() if k in before})
         table = fitkit.sensitivity(pool, spec, [k for k in KNOBS if k.group in groups])
         json.dump(table, open(os.path.join(out, 'sensitivity.json'), 'w'), indent=1)
         open(os.path.join(out, 'sensitivity.md'), 'w').write(sensitivity_md(table, T))
@@ -174,13 +185,23 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
             share = None if left is None else max(20, int(left * sum(k.group == g for k in KNOBS) /
                                                           max(1, sum(k.group in order for k in KNOBS))))
             fitted, info = fitkit.optimise(pool, fitted, KNOBS, T, g, authority, budget=share, loss=LOSS.get(g, 'soft_l1'),
-                                           log=log)
+                                           baseline=baseline, log=log)
             key = g if g not in rep['groups'] else g + '_again'
             rep['groups'][key] = {k: v for k, v in info.items() if k != 'history'}
             rep['groups'][key]['cost_history'] = [h['cost'] for h in info['history']]
             if left is not None:
                 left = max(0, left - info['evaluations'])
+        # the checks the fit doesn't aim at (expressions, folds, coverage...) mustn't read worse: each group's change is
+        # scaled back while one does
+        aimed = {t.check for t in T}
+        rep['guard'] = {}
+        for g in [g for g in ('eyes', 'face') if g in groups]:
+            ks = [k for k in KNOBS if k.group == g]
+            fitted, gi = fitkit.guard(pool, fitkit.with_knobs(fitted, [k.get(spec) for k in ks], ks), fitted, ks, protected,
+                                      lambda k: k not in aimed, log=log)
+            rep['guard'][g] = {'kept': gi['kept'], 'regressions_at_full': gi['regressions_at_full']}
         after = pool.map([(fitted, 'all', True)])[0]
+        rep['regressions'] = fitkit.regressions(protected, after)
         if views:
             rep['views_alone'] = views_alone(pool, fitted, T, authority, budget=VIEW_BUDGET, log=log)
     finally:
@@ -275,7 +296,7 @@ def report_md(rep):
     b, a = rep['before'], rep['after']
     f = lambda c: '' if not c else '%s %s' % (json.dumps(c.get('value')), c.get('status', ''))
     for k in sorted(set(b) | set(a)):
-        if k.startswith(('eye_', 'sheet_', 'face_shape_')):
+        if k.startswith(('eye_', 'sheet_', 'face_', 'expr_')):
             L.append('| %s | %s | %s |' % (k, f(b.get(k)), f(a.get(k))))
     L += ['', '## Residuals per view (in tolerances; |r| <= 1 passes)', '']
     for v, d in rep['residuals'].items():
@@ -295,6 +316,8 @@ def report_md(rep):
     L += ['## Knobs', '', '| knob | start | fitted | default | bounds | at bound |', '|---|---|---|---|---|---|']
     for n, k in rep['knobs'].items():
         L.append('| %s | %.4g | %.4g | %.4g | %s | %s |' % (n, k['start'], k['fitted'], k['default'], k['bounds'], k['at_bound'] or ''))
+    if rep.get('regressions'):
+        L += ['', '## Checks reading worse than the protected statuses', ''] + ['- %s: %s -> %s' % (k, a, b) for k, (a, b) in rep['regressions'].items()]
     L += ['', '## Still outside tolerance', '']
     for t in rep['triage'] or []:
         L.append('- %s (r %+.2f): **%s**%s' % (t['term'], t['r'], t['why'], (' — ' + ', '.join(
@@ -392,7 +415,8 @@ def main(args):
     out = _p(opt('--out', 'charkit/out/%s_fit' % name))
     groups = (opt('--only'),) if opt('--only') else ('eyes', 'face')
     fitted, rep = fit(spec_path, out, budget=int(opt('--budget')) if opt('--budget') else None, base=opt('--base'),
-                      workers=int(opt('--workers')) if opt('--workers') else None, groups=groups, views='--views' in args)
+                      workers=int(opt('--workers')) if opt('--workers') else None, groups=groups, views='--views' in args,
+                      baseline=_p(opt('--baseline')) if opt('--baseline') else None)
     if '--verify' in args:
         from . import cli
         bout = os.path.join(out, 'build')

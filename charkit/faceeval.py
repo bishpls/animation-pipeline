@@ -96,6 +96,76 @@ def parts(A):
     return out
 
 
+def expression_data(A, spec):
+    """charkit.qa3d.expression_data's arrays from an assembly with its keys (character.assemble(keys=True)): the posed
+    base meshes (the skin's control mesh: the QA reads them with only the armature on), a class per triangle (the iris
+    where its texture's alpha, sampled at the polygon's UV centre, is at least 0.5) and each expression key's offsets."""
+    from . import exprqa
+    CL = exprqa.CLASS
+    Hd = A['head']; L = Hd['L']; c = np.asarray(Hd['centre'], float)
+    IK = spec.get('iris')
+    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
+    iris_a = np.maximum(ir[..., 3], sh[..., 3])
+    parts = []
+
+    def sparse(D):
+        D = np.asarray(D, float)
+        idx = np.nonzero(np.abs(D).max(1) > 1e-7)[0]
+        return idx, D[idx]
+
+    def put(name, V, faces, lab_fn, keys, keep=None, uvs=None):
+        T, poly = _tris(faces)
+        lab = lab_fn(poly, T, uvs)
+        ok = lab >= 0
+        if keep is not None:
+            ok &= keep(V[T].mean(1))
+        parts.append((name, np.asarray(V, float), T[ok], lab[ok], {k: sparse(D) for k, D in keys.items()}))
+
+    V = np.asarray(A['verts'])
+    by = np.array([CL['skin'], CL['skin'], CL['mouth'], CL['line']])
+    fm = np.asarray(A['fmat'])
+    head = lambda P: (P[:, 2] > c[2] - 0.85 * L) & (P[:, 2] < c[2] + 0.55 * L) & (P[:, 1] < c[1] + 0.1 * L)
+    names = list(A['eyes'][0]['keys'])
+    keys = {'eye_' + n: sum(E['keys'][n][0] for E in A['eyes']) for n in names}
+    keys.update({'mouth_' + sh_: D for sh_, D in A['mouth']['keys'].items()})
+    put('skin', V, A['faces'], lambda poly, T, uv: by[np.minimum(fm[poly], 3)], keys, head)
+    from . import eyes as eyelib
+    cz = eyetex._knobs(IK)['cz']
+    for E in A['eyes']:
+        tag = 'L' if E['side'] > 0 else 'R'
+        v, f, uv = E['iris']
+        uv = np.asarray(uv)
+        n = iris_a.shape[0]
+
+        def iris_lab(poly, T, _, f=f, uv=uv):
+            pu = np.array([uv[list(f[p])].mean(0) for p in range(len(f))])[poly]
+            pu = np.clip(pu, 0, 1 - 1e-6)
+            a = iris_a[n - 1 - (pu[:, 1] * n).astype(int), (pu[:, 0] * n).astype(int)]
+            return np.where(a >= 0.5, CL['iris'], -1)
+        back = np.zeros((len(v), 3)); back[:, 1] = 0.006
+        ik = {'eye_blink': back, 'eye_happy': back}
+        ik.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})
+        put('iris_' + tag, v, f, iris_lab, ik)
+        v, f, _ = E['sclera']
+        put('sclera_' + tag, v, f, lambda poly, T, uv: np.full(len(poly), CL['white']), {'eye_blink': back[:len(v)],
+                                                                                          'eye_happy': back[:len(v)]})
+        lv, lq, off = [], [], 0
+        for rv, rq in E['lashes']:
+            lv.append(rv); lq += [tuple(i + off for i in q) for q in rq]; off += len(rv)
+        put('lash_' + tag, np.vstack(lv), lq, lambda poly, T, uv: np.full(len(poly), CL['line']),
+            {'eye_' + nm: np.vstack(E['keys'][nm][1]) for nm in names})
+        bv, bq = E['brow']
+        put('brow_' + tag, bv, bq, lambda poly, T, uv: np.full(len(poly), CL['brow']),
+            {'brow_' + k: D for k, D in E['brow_keys'].items()})
+    Mo = A['mouth']
+    for nm, key, cl, kk in (('teeth', 'teeth', CL['white'], 'teeth_keys'), ('tongue', 'tongue', CL['mouth'], 'tongue_keys'),
+                            ('mouth_line', 'line', CL['line'], 'line_keys')):
+        v, q = Mo[key]
+        put(nm, v, q, lambda poly, T, uv, cl=cl: np.full(len(poly), cl), {'mouth_' + sh_: D for sh_, D in Mo[kk].items()})
+    iw = [np.asarray(E['iris'][0]).mean(0) for E in A['eyes']]
+    return dict(parts=parts, eye_z=float(np.mean([w[2] for w in iw])), L=L)
+
+
 # ------------------------------------------------------------------------------------------------------------ rasterising
 def raster(meshes, x0, z0, pix, W, H):
     """the nearest surface per pixel of an orthographic view from the front (looking +y), pixel (r, c)'s centre at world
@@ -437,8 +507,9 @@ class Evaluator:
         return (table, pics), {'eye_' + k: v for k, v in checks.items()}
 
     def expressions(self, spec):
-        """the expression checks the build's QA makes from the shape keys (charkit.qa3d.face_from: face_*) and the fold
-        count round the openings (qa3d.face_folds), on the numpy assembly with its keys (~3 s). -> checks."""
+        """the checks the build's QA makes from the shape keys, on the numpy assembly with its keys (~3 s): the expression
+        geometry (charkit.qa3d.face_from: face_*), the fold count round the openings (qa3d.face_folds), and the sheet's
+        expression heads against our expression library (charkit.exprqa: expr_*). -> checks."""
         from . import qa3d
         S = self.prepare(spec)
         A = character.assemble(S, keys=True, cache=self.cache)
@@ -447,7 +518,26 @@ class Evaluator:
         ff = qa3d.face_folds(A)
         C['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
                            'status': qa3d._grade('face_folds', ff['total'], False)}
+        ctx = self.sheet_context()
+        if ctx is not None and ctx['D'].get('expressions'):
+            from . import exprqa
+            _, ce, _ = exprqa.sheet_run(expression_data(A, S), ctx['rgb'], ctx['D'], ctx['eye_x'])
+            C.update(ce)
         return C
+
+    def sheet_context(self):
+        """qa3d._sheet_context's picture and detected figures (for the expression heads), once."""
+        if getattr(self, '_ctx', None) is None:
+            from . import sheetqa
+            ref = self.spec0.get('ref') if isinstance(self.spec0.get('ref'), dict) else {}
+            sh = ref.get('sheet')
+            if not sh or not ref.get('rig'):
+                return None
+            rgb = _rgba(_path(sh['image']))[..., :3].astype(np.float64)
+            ex = self.spec0.get('eyes', {}).get('x', 0.168)
+            self._ctx = dict(rgb=rgb, eye_x=ex, D=sheetqa.detect_figures(rgb, ppl=self.sheet_ppl, eye_x=ex,
+                                                                          facing=sh.get('facing')))
+        return self._ctx
 
     def run(self, spec, what=('eyes', 'sheet', 'face_shape'), covers=True, jitter=None, ss=None):
         """-> {'checks': {name: check}, 'raw': {'sheet': O, 'face_shape': R, 'eyes': table}, 'geometry': G}."""

@@ -4,7 +4,7 @@ body, garment or hair fitter can use for its own (docs/CHARKIT.md §4).
   Knob      a spec value the fit owns: its path in the spec, the template default, a finite-difference step, bounds, and
             the group it is fitted in (groups whose checks don't share knobs are fitted apart, each at its own cost)
   Term      one graded check's residual: which check (and which of its sub-values), how it's read ('ratio': (v - 1) / tol,
-            'abs': v / tol, 'gap': one-sided), its PASS tolerance, the measure it belongs to and which reference measured
+            'abs': v / tol, 'gap': one-sided, 0 under half the tolerance and 1 at it), its PASS tolerance, the measure it belongs to and which reference measured
             it (so the character's authority map (charkit/refs/NAME/manifest.json) weights it: full weight when that
             reference is the authority for the measure, a quarter otherwise), and the view it is seen in; 'floor':
             one-sided, max(0, floor - v) / tol (a guard that keeps another measure readable)
@@ -34,6 +34,8 @@ LOSS_SCALE = 3.0                # soft-L1 above this many tolerances (the smooth
 POLISH = (2.0, 1.0, 0.5)        # the pattern search's step sizes, in knob steps
 POLISH_MOVES = 12               # at most this many moves per step size
 CYCLES = 3                      # trust region then polish, restarted from the polished point while the fine cost drops
+PROTECT = 6.0                   # a term leaving the status band it started in (PASS, or WARN) costs this much more per
+                                # tolerance: the merge gate fails any graded check that gets worse
 
 
 class Knob:
@@ -62,9 +64,10 @@ class Knob:
 
 
 class Term:
-    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None):
+    def __init__(self, check, sub, kind, tol, measure, ref, view, group, floor=None, warn=2.0):
         self.check, self.sub, self.kind, self.tol = check, sub, kind, tol
         self.measure, self.ref, self.view, self.group, self.floor = measure, ref, view, group, floor
+        self.warn = warn                # the WARN limit in tolerances (the FAIL line)
 
     @property
     def name(self):
@@ -93,7 +96,7 @@ class Term:
         if self.kind == 'ratio':
             r = (v - 1) / self.tol
         elif self.kind == 'gap':
-            r = max(0.0, v / self.tol - 0.5)
+            r = max(0.0, 2 * v / self.tol - 1)
         elif self.kind == 'floor':
             r = max(0.0, self.floor - v) / self.tol
         else:
@@ -122,23 +125,31 @@ def residuals(checks, terms, authority=None):
     out = []
     for t in terms:
         r, v = t.residual(checks)
-        out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, r=r, value=v, tol=t.tol,
+        out.append(dict(name=t.name, view=t.view, measure=t.measure, ref=t.ref, r=r, value=v, tol=t.tol, warn=t.warn,
                         w=1.0 if A.get(t.measure, t.ref) == t.ref else 0.25))
     return out
 
 
-def vector(res, x=None, knobs=()):
-    """residuals (and the knob values, for the regulariser) -> the least-squares vector."""
+def bands(res):
+    """each residual's status band at the start: 1 (it passes: keep it inside 1), its WARN line (it warns), or None."""
+    return [1.0 if abs(t['r']) <= 1 else t['warn'] if abs(t['r']) <= t['warn'] else None for t in res]
+
+
+def vector(res, x=None, knobs=(), keep=None):
+    """residuals (and the knob values, for the regulariser; keep: bands(start) to protect) -> the least-squares vector."""
     r = np.array([t['r'] for t in res]); w = np.sqrt([t['w'] for t in res])
     parts = [w * r, w * HINGE * np.sign(r) * np.maximum(0, np.abs(r) - 1)]
+    if keep is not None:
+        lim = np.array([b if b is not None else np.inf for b in keep])
+        parts.append(PROTECT * np.sign(r) * np.maximum(0, np.abs(r) - lim))
     if x is not None and len(knobs):
         parts.append(np.array([REG * (xi - k.default) / (k.bounds[1] - k.bounds[0]) for xi, k in zip(x, knobs)]))
     return np.concatenate(parts)
 
 
-def cost(res, x=None, knobs=(), loss='linear'):
+def cost(res, x=None, knobs=(), loss='linear', keep=None):
     """0.5 sum of the loss over the vector, as scipy's least_squares counts it ('linear' or 'soft_l1' at LOSS_SCALE)."""
-    f = vector(res, x, knobs)
+    f = vector(res, x, knobs, keep)
     if loss == 'soft_l1':
         c = LOSS_SCALE
         return float(0.5 * np.sum(c * c * 2 * (np.sqrt(1 + (f / c) ** 2) - 1)))
@@ -260,8 +271,10 @@ class Budget(Exception):
     pass
 
 
-def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', log=print):
-    """least squares over one group's knobs and terms from the spec's values (see the module).
+def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', protect=True, baseline=None,
+             log=print):
+    """least squares over one group's knobs and terms from the spec's values (see the module). protect: each term kept
+    in the status band it started in (or had in `baseline`, a check set, where it has the check).
     -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, history, stopped})."""
     from scipy.optimize import least_squares
     knobs = [k for k in knobs if k.group == group]
@@ -285,14 +298,21 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                 memo[k] = residuals(c, terms, authority)
         return [memo[k] for k in keys]
 
+    keep = None
+    if protect:
+        keep = bands(evaluate([np.zeros(len(knobs))], True)[0])
+        if baseline:
+            kb = bands(residuals(baseline, terms, authority))
+            keep = [b if t.check in baseline else k for t, k, b in zip(terms, keep, kb)]
+
     def f(u, fine=False):
-        return vector(evaluate([u], fine)[0], x0 + np.asarray(u) * st, knobs)
+        return vector(evaluate([u], fine)[0], x0 + np.asarray(u) * st, knobs, keep)
 
     best = {'u': np.zeros(len(knobs)), 'c': None}
 
     def fun(u):
         v = f(u)
-        c = cost(evaluate([u])[0], x0 + np.asarray(u) * st, knobs, loss)
+        c = cost(evaluate([u])[0], x0 + np.asarray(u) * st, knobs, loss, keep)
         hist.append({'x': (x0 + u * st).round(5).tolist(), 'cost': round(c, 4)})
         if best['c'] is None or c < best['c']:
             best.update(u=np.array(u), c=c)
@@ -305,13 +325,13 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
             e = np.zeros(len(u)); e[i] = 1.0 if u[i] + 1 <= uhi[i] else -1.0
             pts.append(u + e)
         R = evaluate([u] + pts)
-        f0 = vector(R[0], x0 + u * st, knobs)
-        return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
+        f0 = vector(R[0], x0 + u * st, knobs, keep)
+        return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs, keep) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
     def polish(u):
         """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
         taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
-        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs, loss)
+        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs, loss, keep)
         for dstep in POLISH:
             for _ in range(POLISH_MOVES):
                 cands = []
@@ -320,7 +340,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                         v = u.copy(); v[i] = np.clip(v[i] + sgn * dstep, ulo[i], uhi[i])
                         if not np.allclose(v, u):
                             cands.append((i, v))
-                cs = [cost(r, x0 + v * st, knobs, loss) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
+                cs = [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
                 j = int(np.argmin(cs))
                 if cs[j] >= cur - 1e-6:
                     break
@@ -351,6 +371,36 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
             'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(knobs, x) if k.at_bound(xi)},
             'evaluations': used[0], 'stopped': stopped, 'history': hist}
     return with_knobs(spec, x, knobs), info
+
+
+RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
+
+
+def regressions(before, after, names=None):
+    """graded checks whose status got worse (or that disappeared), optionally only those `names` accepts."""
+    out = {}
+    for k, c in before.items():
+        if not isinstance(c, dict) or c.get('status') not in RANK or (names and not names(k)):
+            continue
+        a = (after.get(k) or {}).get('status')
+        if a not in RANK or RANK[a] > RANK[c['status']]:
+            out[k] = [c['status'], a]
+    return out
+
+
+def guard(pool, start, fitted, knobs, before, names, steps=(0.75, 0.5, 0.25, 0.0), log=print):
+    """checks the fit doesn't aim at but mustn't break (names(check) -> bool): while any reads a worse status than at
+    the start, the whole fitted change is scaled back (steps of the change). -> (spec, info {kept, regressions})."""
+    x0 = np.array([k.get(start) for k in knobs]); x1 = np.array([k.get(fitted) for k in knobs])
+    specs = [with_knobs(start, x0 + t * (x1 - x0), knobs) for t in (1.0,) + tuple(steps)]
+    cs = pool.map([(s_, 'all', True) for s_ in specs])
+    for t, s_, c in zip((1.0,) + tuple(steps), specs, cs):
+        reg = regressions(before, c, names)
+        if not reg:
+            if t < 1.0:
+                log('  guard: the change scaled to %.2f to keep %s' % (t, ', '.join(regressions(before, cs[0], names))))
+            return s_, {'kept': t, 'regressions_at_full': regressions(before, cs[0], names), 'checks': c}
+    return start, {'kept': 0.0, 'regressions_at_full': regressions(before, cs[0], names), 'checks': cs[-1]}
 
 
 # ------------------------------------------------------------------------------------------------------------ triage

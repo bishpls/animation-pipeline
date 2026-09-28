@@ -228,8 +228,9 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
   runs the QA's own measures: `sheetqa.measure_ours` (moved out of `qa3d.sheet` so both call the same code),
   `faceqa.measure`, and `eyeqa` on an eye render of its own. That render is a 4x-supersampled z-buffer: the skin coloured by
   material, the eye plates by their `eyetex` textures at their UVs (the iris over the white by its alpha), the lashes
-  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`) and `face_folds` come from the assembly's
-  keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
+  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`), `face_folds` and the sheet's expression
+  heads (`expr_*`, `faceeval.expression_data`: the posed control meshes and their key offsets, as `qa3d.expression_data`
+  reads them) come from the assembly with its keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
   `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair, accessories and
   garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
   `python -m charkit fit --validate BUILD_DIR` compares it with a build's own `qa.json`.
