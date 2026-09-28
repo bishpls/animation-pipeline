@@ -200,11 +200,12 @@ Use them in this order:
 3. Use `garment_breakdown` for the piece-shape templates and checks.
 4. Use `hair_breakdown` for the hair component graph later.
 
-Worth generating next, if useful:
-- a high-resolution eye close-up sheet (pupil, iris and sclera ratios, and expressions);
-- a high-resolution mouth expression sheet, for the mouth detail pass;
-- per-garment close-ups (puff sleeve, skirt panels);
-- a hair sheet with strongly distinct colours per lock.
+Michael's decisions on further generation (2026-09-28):
+- **Mouth expressions:** standardize them in the template (a quality and detail pass); don't bring a generated reference
+  against them.
+- **Eyes:** `head_construction` already serves as the eye close-up reference, for the pupil, iris and sclera ratios.
+- **Hair:** the layer sheet is enough for now. Lock-level labelling is a stretch goal for a later checkpoint.
+- **Still open:** per-garment close-ups (puff sleeve, skirt panels) if the garment pass needs them.
 
 ## Next steps, in order (the checkpoint)
 
