@@ -527,9 +527,10 @@ def keep_components(G, largest=None, min_voxels=None, min_frac=None, connectivit
 
 
 def weld(G, r, min_frac=0.02):
-    """bridge a part's separate pieces where they come within 2 r of the main one: the voxels within r of both become
-    solid (a local closing between pieces only; the gaps inside a piece, like pleats, are left alone). Pieces under
-    min_frac of the biggest are ignored. -> (Grid, pieces still apart)."""
+    """bridge a part's separate pieces where they come within 2 r of the main one: the voxels whose distances to the two
+    add up to at most 2 r become solid (the lens between them; a local closing between pieces only, the gaps inside a
+    piece, like pleats, are left alone). Pieces under min_frac of the biggest are ignored. -> (Grid, pieces still
+    apart)."""
     from scipy import ndimage as ndi
     from scipy.ndimage import distance_transform_edt as edt
     occ = G.occupancy()
@@ -546,7 +547,7 @@ def weld(G, r, min_frac=0.02):
         if sizes[j] < min_frac * sizes[order[0]]:
             break
         dj = edt(lab != j) * G.h
-        bridge = (dj <= r) & (d_main <= r) & ~occ
+        bridge = (dj + d_main <= 2 * r) & ~occ
         if bridge.any():
             add |= bridge
         else:
