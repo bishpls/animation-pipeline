@@ -148,7 +148,8 @@
    "cautions": [
     "a generated interpretation of the design: check it against the sheet (silhouettes and landmarks at the sheet's scale) before letting it grade anything"
    ],
-   "sha256": "bf2e85f067120c0af33b06998ba5c628dd23c89dd3c5c7f915afe5b1779b5720"
+   "sha256": "bf2e85f067120c0af33b06998ba5c628dd23c89dd3c5c7f915afe5b1779b5720",
+   "layout": "heads"
   },
   "head_construction": {
    "kind": "generated_reference",
@@ -171,7 +172,8 @@
    "cautions": [
     "a generated interpretation: its front chin is more pointed than the sheet's; trust it for the profile and the skull, check the front against the sheet"
    ],
-   "sha256": "b5acb4ce4671ec81e16c16f79b8c2cc19177a9b3ea3a5d85faff94fc15dc7380"
+   "sha256": "b5acb4ce4671ec81e16c16f79b8c2cc19177a9b3ea3a5d85faff94fc15dc7380",
+   "layout": "heads"
   },
   "garment_breakdown": {
    "kind": "generated_reference",

@@ -17,6 +17,7 @@
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
+    python -m charkit refcheck SPEC [--refs A,B] [--no-open]           # generated head sheets against the model sheet
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
                                     [--write-spec]                     # the face, eye and neck knobs from the QA
                                                                        # (charkit/facefit.py; build takes DIR/NAME.fit.json)
@@ -342,6 +343,9 @@ def main(argv=None):
     elif cmd == 'refs-check':
         from . import manifest
         manifest.main(rest)
+    elif cmd == 'refcheck':
+        from . import refcheck
+        refcheck.main(rest)
     elif cmd == 'outfit':
         from . import outfit
         outfit.main(rest)
