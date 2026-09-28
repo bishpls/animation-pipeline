@@ -21,7 +21,7 @@ surface, solidify or outline modifiers (the silhouette is the base mesh: the QA'
 hulls, and the subdivision's shrinkage is under a pixel), the generated hair is not decimated, and a body knob keeps the
 hair selection it had (the selection reads the body only round the neck).
 """
-import copy, hashlib, json, os, pickle, time
+import copy, functools, hashlib, json, os, pickle, time
 
 import numpy as np
 
@@ -618,16 +618,15 @@ def garment_tones(A, s, G):
     elif k == 'collar':
         flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
     elif k == 'panel' and s.get('hem') == 'stepped':
-        img = gm.stepped_hem(colors=(tuple(col), s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
-                             steps=s.get('steps', 6))
+        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6))
         U = np.asarray(G['uv'], float)
         uvc = [U[list(f)] for f in F]
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
     elif k == 'skirt':
         flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
         pw = s.get('panel', 0.0) / (2 * np.pi)
-        img = gm.stepped_hem(colors=(tuple(col), s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
-                             repeat=s.get('repeat', 8), pleats=s.get('pleats', 24))
+        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), panel=(0.5 - pw, 0.5 + pw), repeat=s.get('repeat', 8),
+                        pleats=s.get('pleats', 24))
         U = np.asarray(G['uv'], float)
         uvc = [U[list(f)] for f in F]
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
@@ -645,10 +644,29 @@ def garment_tones(A, s, G):
     return lit, shade, (dict(uvc=uvc, fn=tones) if uvc is not None else dict(uvc=None, fn=tones))
 
 
+def hem_image(col, hem_color, **kw):
+    """garments.stepped_hem's texture, shared: it depends on its colours and pattern, not on the body, and at 1024 x 1024
+    RGBA in float64 it is 32 MB, which the garment cache otherwise kept once per body a fit tried (read-only)."""
+    return _hem_image((tuple(float(c) for c in col), tuple(float(c) for c in hem_color)),
+                      tuple(sorted((k, tuple(v) if isinstance(v, (list, tuple)) else v) for k, v in kw.items())))
+
+
+@functools.lru_cache(maxsize=16)
+def _hem_image(colors, kw):
+    from . import garments as gm
+    img = gm.stepped_hem(colors=colors, **dict(kw))
+    img.setflags(write=False)
+    return img
+
+
+GARMENT_BODIES = 4       # the garment cache keeps the pieces of this many bodies (assemblies), the most recently used
+
+
 def garment_parts(A, specs, cache=None, akey=None):
     """every garment piece (garment_piece) and the skin vertices the tight shells and shoes hide, as garments.build's mask
-    does. cache: a dict reused across calls; a piece is rebuilt only when its spec or the assembly (akey) changed.
-    -> ([Part], hide (N,) bool)."""
+    does. cache: a dict reused across calls; a piece is rebuilt only when its spec or the assembly (akey) changed. The
+    cache keeps the pieces of the GARMENT_BODIES most recently used assemblies (a fit tries a new body every body-knob
+    step: unbounded, it grew by the pieces of every one). -> ([Part], hide (N,) bool)."""
     from . import garments as gm
     nrm = dom = None
     hide = np.zeros(len(A['verts']), bool)
@@ -662,8 +680,14 @@ def garment_parts(A, specs, cache=None, akey=None):
             if cache is not None:
                 cache[key] = r
         else:
-            r = cache[key]
+            r = cache.pop(key)
+            cache[key] = r                                   # most recently used last
         parts.append(r[0]); hide[r[1]] = True
+    if cache is not None and akey is not None:
+        bodies = list(dict.fromkeys(k[0] for k in cache))    # oldest first
+        for old in bodies[:-GARMENT_BODIES]:
+            for k in [k for k in cache if k[0] == old]:
+                del cache[k]
     return parts, hide
 
 
