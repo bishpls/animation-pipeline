@@ -13,6 +13,13 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
 - **One clock:** the picture locks to `projects/<film>/assets/cues.json` (from `tools/audio_analyze.py`).
 - **Look at your work:** render contact sheets, strips and crops, open them, and fix what you see. Then watch full-length
   passes. Verify any AI critic's claim at full resolution before acting on it.
+- **Measure, don't only look:** granular observability and tight feedback loops are the biggest unlock. The Melee work leans on
+  frame-data labbing and Dolphin's game-state log, and charkit leans on `qa3d`. Pictures are for eyeballing; the levers need
+  numbers. Before iterating, make each stage report them (metrics, per-part diffs, overlays, logs, JSON). When something is
+  judged only by eye, name the measurement that would close the loop.
+- **Own the toolstack:** when a library or tool keeps fighting you, ask whether we need to be coupled to it. Improving, forking
+  or replacing it (our own kernel, renderer, writer) has usually been worth it. Raise it, with what it unlocks and what it costs,
+  rather than stacking workarounds. Be ambitious. Licences are read as commercial.
 - **Keys:** `.env` holds ELEVENLABS_API_KEY, GEMINI_API_KEY and OPENAI_API_KEY; `.env.local` holds HF_KEY (Higgsfield). Both are
   gitignored. Never print or commit them. Log paid calls to `tools/ledger.jsonl`.
 - **Git:** commit with the user's identity. Never push or publish without asking. Scan the full history for keys before
@@ -59,6 +66,7 @@ To start a new film, use the `make-film` skill (`.claude/skills/make-film/`).
   - `so-back`: a Melee hyperpop hard edit, 9:16 at 60 fps; plates from its own pinned machinima kit (portrait, two-pass keyed),
     announcer-spliced vocals, Melee's own type; the release slice is the `so-back` branch
   - `clawd3d`: TSUZUKU's Clawd as a 3D cel character (headless Blender) and the first 3D mocap dance test (docs/PIPELINE_3D.md phase 1)
+  - `charkit-look`: the charkit inspector (`--serve`) and the Blender-vs-WebGPU look boards (docs/CHARKIT.md §7)
 - `legacy/ember/`: reusable code from the EMBER shorts.
 
 ## Commands (from repo root; P = projects/<film>)

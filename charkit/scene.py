@@ -229,7 +229,7 @@ def hair_shape_mesh(S, shape, hc):
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005 * L)
     # drop the small loose fragments the selection leaves (slivers and specks); keep the pieces that make the hair
     bm.faces.ensure_lookup_table()
-    seen, small = set(), []
+    seen, small, kept = set(), [], []
     min_faces = shape.get('min_part', 150)
     for f0 in bm.faces:
         if f0.index in seen:
@@ -243,6 +243,12 @@ def hair_shape_mesh(S, shape, hc):
                         seen.add(g.index); stack.append(g)
         if len(part) < min_faces:
             small += part
+        else:
+            kept.append(len(part))
+    from . import trace
+    ks = np.array(sorted(kept, reverse=True))
+    trace.note('hair_shape.parts', kept=len(ks), largest=ks[:8].tolist(), under_50=int((ks < 50).sum()),
+               faces_kept=int(ks.sum()), dropped_parts_faces=len(small), min_part=min_faces, faces_in=len(bm.faces))
     bmesh.ops.delete(bm, geom=small, context='FACES')
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -315,18 +321,23 @@ def fit_cranium(spec, root):
     if 'cranium' not in head:
         head['cranium'] = round(max(0.6, min(1.1, (top - under) / 0.555)), 3)
         print('fit_cranium: hair top %.3f L -> cranium %.3f' % (top, head['cranium']))
+        from . import trace
+        trace.note('fit_cranium', hair_top_L=top, slices=len(tops), cranium=head['cranium'])
     return spec
 
 
 def build(spec, until=None, skip=()):
     """run the stages in order (stop after `until`, leave out `skip`). -> Scene."""
+    from . import trace
     reset()
-    spec = fit_cranium(spec, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with trace.span('fit_cranium'):
+        spec = fit_cranium(spec, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     reset()
     S = Scene(spec)
     for name, fn in STAGES:
         if name not in skip:
-            fn(S)
+            with trace.stage(name, S):
+                fn(S)
         if name == until:
             break
     return S
@@ -336,7 +347,7 @@ def build(spec, until=None, skip=()):
 def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
     """render the review boards into out/: head views (front .. back), the expression and mouth sets, full-body views."""
     import bpy
-    from . import qa
+    from . import qa, trace
     from .boards.face_board import set_expr, set_mouth
     os.makedirs(out, exist_ok=True)
     sc = bpy.context.scene
@@ -348,9 +359,10 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
     covers = S.covers
 
     def shot(path, *a, **kw):
-        qa.render_view(cam, *a, path, **kw)
-        if covers:
-            qa.features_through(path, S.features, covers, [S.character['skin']])
+        with trace.span('board', path=os.path.basename(path)):
+            qa.render_view(cam, *a, path, **kw)
+            if covers:
+                qa.features_through(path, S.features, covers, [S.character['skin']])
     made = []
     if 'views' in which:
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
@@ -362,7 +374,8 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
         H_ = S.spec.get('body', {}).get('height_m', 1.6)
         for az in (0, 35, 90, 180):
             p = os.path.join(out, f'body_{az:03d}.png'); made.append(p)
-            qa.render_view(cam, (0, 0, H_ * 0.52), az, 6.0, 0.0, p, ortho=H_ * 1.12)
+            with trace.span('board', path=os.path.basename(p)):
+                qa.render_view(cam, (0, 0, H_ * 0.52), az, 6.0, 0.0, p, ortho=H_ * 1.12)
     if 'expressions' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
         for e in EXPR:
@@ -375,7 +388,8 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
         for m in MOUTH:
             set_mouth(S.character, m)
             p = os.path.join(out, f'mouth_{m}.png'); made.append(p)
-            qa.render_view(cam, (0, 0, eye_z - 0.28 * L), 0, 0.30, 0.0, p, lens=85)
+            with trace.span('board', path=os.path.basename(p)):
+                qa.render_view(cam, (0, 0, eye_z - 0.28 * L), 0, 0.30, 0.0, p, lens=85)
         set_mouth(S.character, 'neutral')
     return made
 

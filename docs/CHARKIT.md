@@ -81,9 +81,32 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
 
-## 4. Review boards (the quality gate)
+## 4. Measurement and review (the quality gate)
 
-Every change is judged on boards, not on one pretty frame: a front orthographic render over the reference drawing; a head
+Numbers first, pictures second. `python -m charkit build` writes two records into the output folder:
+
+- **`trace.jsonl`, the build's state log** (`charkit/trace.py`). This is the Dolphin game-state log of the character. After every
+  stage it records each object the stage added, changed or removed: counts, world bbox, a geometry hash, and mesh health
+  (open and non-manifold edges, shells, inside-out shells, degenerate faces, loose verts, measured on the evaluated mesh
+  without the outline hull). It also records the landmarks, hashes of the spec sections the stage read, and timings for every
+  stage, board and the QA pass. Stages add their own values with `trace.note(...)`.
+  - `python -m charkit trace OUT/trace.jsonl` prints it as a table per stage.
+  - `python -m charkit trace A/trace.jsonl B/trace.jsonl` prints what changed between two builds: knob sections, landmarks
+    moved, per-object geometry and health, stage times and QA values. Two builds of the same spec should print
+    `no differences` apart from the QA section.
+- **`qa/qa.json`, the graded checks** (`charkit/qa3d.py`: PASS, WARN or FAIL against `LIMITS`, with overlays):
+  - silhouette IoU against the generated shape, overall and per band;
+  - IoU against the reference image;
+  - scalp showing through the hair;
+  - garment poke-through;
+  - hair shading noise;
+  - the face, measured from the shape keys' geometry (no render, about 0.04 s): each expression's eye opening against
+    neutral and against its intended range (`FACE_EXPECT`), the iris left visible (none in a blink), left/right symmetry,
+    each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.
+
+When something can only be judged by eye, name the measurement that would close the loop and add it here.
+
+Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
 a lighting sweep of the face; a range-of-motion sheet (T-pose, arms up, deep bend, twist, crouch, kick); and topology stats
 (face count per part, poles, non-manifold edges, weights per vertex). The bar: side by side with HoYoverse-style references
@@ -106,3 +129,32 @@ not used. Everything else is ours. Painted textures come from GPT Image under Op
 5. **Garments:** the template set and fitting. Board: outfit turntable and range of motion.
 6. **Export and QA:** VRM export, the three.js preview, the automated boards.
 7. **Clawd v2** from the kit, re-rendered in the dance test; then a second character from a new spec.
+
+## 7. Export and the three.js look
+
+`python -m charkit export charkit/out/NAME/NAME.blend` (or `build ... --vrm`) writes `NAME.vrm`: our own glTF 2.0 / VRM 1.0
+writer (`charkit/gltf.py`, numpy + bpy, no add-on), clean under the Khronos validator (`node tools/gltf_validate.mjs`).
+
+- **Meshes** as Blender renders them: modifiers evaluated at the render subdivision (`--subdiv`, default 2: level 1 visibly
+  moves the creased eye margins), without armature and outline. POSITION is the surface Blender draws (the outline SOLIDIFY
+  moves it inward by the line width); `_HULL_NORMAL` where the hull's direction differs from NORMAL (the hair's envelope
+  normals, flat parts); `_OUTLINE_WIDTH` (the outline's per-vertex factor), `_FACE_MASK`; TEXCOORD_0 'uv' and TEXCOORD_1
+  'face' or 'lock', only where a material reads them. A keyed mesh splits into the part its keys move (sparse POSITION
+  targets, NORMAL targets from the keyed hull directions) and a static rest.
+- **Skeleton**: nodes with identity rotations in the VRM T-pose; the inverse bind matrices keep the build's A-pose, so no
+  mesh or key is re-baked. `bindPose` (normalized-bone rotations) brings the build pose back.
+- **VRMC_vrm**: humanoid, meta, expressions from our keys (aa ih ou ee oh from mouth_*, blink and per-eye blinks, happy angry
+  sad relaxed surprised, lookUp/Down/Left/Right from the iris keys, lookAt type expression), every other key as a custom
+  expression. **VRMC_materials_mtoon** fallbacks for other viewers (two tones, the step as shift and toony, world outlines).
+- **OPENADS_charkit_look** (version 1; glTF frame, linear colours): root `{character, light.direction, head {bone, centre, L},
+  height, features.through, bindPose}`; per material `{kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha,
+  lit, shade, deep, threshold, deepThreshold, softness, light, rim {color, amount, facing, range}, texture?, face {sdf
+  (rg16: R high byte, G low), fringe, blush, softness, fringeRange, lit, shade, mask}, hair {lock, ring {color, elevation,
+  centre, width, soft, facing, facingBlend, mid, amount}, gradient, strands}, color}` (texture infos add `wrap`, `filter`);
+  per mesh `{object, outline {width, color, widthAttribute, normalAttribute}, feature, holdout}`. The exporter reads the
+  parameters back from the node graphs `shade.py`, `faceshade.py`, `hair.py` and `garments.py` build.
+
+`engine/three/charkit/look.js` renders it in three.js WebGPU with TSL (every number from the file; the face light in head
+space, so the SDF shadow follows the head), and `projects/charkit-look` inspects it (`--serve`) and boards it against the
+Blender build's own boards: every Clawd board (head views, body, expressions, mouths) and the analytic-hair variant
+(`charkit/spec/clawd_locks.json`) match to under 1.1/255 mean difference, the rest being edge anti-aliasing.
