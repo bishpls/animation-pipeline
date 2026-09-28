@@ -276,7 +276,17 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    - Reports are in `charkit/out/archive/measure/`.
    - `bodyeval --validate` against a post-merge build passes (fixed on fitspeed: the Blender dump needed
      `qa3d_blender`).
-   - Still to do: the confirming tune, after fitspeed merges.
+   - Still to do: the confirming tune, after fitspeed merges **and after the reference work (3a)**.
+3a. **The references, now (moved up 2026-09-28): phase 4's item 1, before the confirming tune and the review page.**
+   The handoff put the face-first work after the bodyfit and measure merges, and both are done. As of the baseline:
+   - `sheet_views` and `sheet_body` still use the 3D-style key (`spec.ref.image` resolves to
+     `charkit/refs/clawd/clawd_3dstyle.png`), cropped by a fixed 30% head heuristic, not `idol_D`;
+   - no code reads the six generated sheets, and the authority map is unchanged.
+
+   Do phase 4 item 1 (consistency check, authority map, single-authority grading, the review sheets rebuilt from
+   `idol_D`'s own figures per view and scale, with the generated heads for the profile close-ups). Register every
+   re-anchored check in `history.STEPS`. Measure it against `charkit/out/baseline`: the confirming tune after it is
+   the before and after. The review page (step 5) is built from the rebuilt sheets.
    - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
      - the body probe;
      - per-phase instrumentation;
