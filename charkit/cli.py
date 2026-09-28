@@ -96,14 +96,99 @@ def _ref_image(spec):
     return bg.convert('RGB'), a
 
 
+def _trim(im, pad=12):
+    """a picture cut to what differs from its corner colour (the figure), with a margin."""
+    import numpy as np
+    a = np.asarray(im.convert('RGB')).astype(int)
+    bg = a[:4, :4].reshape(-1, 3).mean(0)
+    ys, xs = np.nonzero(np.abs(a - bg).sum(-1) > 30)
+    if not len(ys):
+        return im
+    return im.crop((max(0, xs.min() - pad), max(0, ys.min() - pad), min(im.width, xs.max() + pad), min(im.height, ys.max() + pad)))
+
+
+def _labelled_grid(rows, tile_h, labels):
+    """rows of PIL pictures, each scaled to tile_h high, under a label per column -> one picture."""
+    from PIL import Image, ImageDraw
+    rows = [[im.resize((max(1, int(im.width * tile_h / im.height)), tile_h)) if im is not None else None for im in r] for r in rows]
+    cols = max(len(r) for r in rows)
+    cw = [max((r[c].width for r in rows if c < len(r) and r[c] is not None), default=tile_h // 2) for c in range(cols)]
+    lab = 28
+    S = Image.new('RGB', (sum(cw) + 10 * (cols + 1), len(rows) * (tile_h + lab) + 10), 'white')
+    d = ImageDraw.Draw(S)
+    for ri, r in enumerate(rows):
+        x = 10
+        for c in range(cols):
+            y = 10 + ri * (tile_h + lab)
+            d.text((x, y), labels[ri][c] if c < len(labels[ri]) else '', fill=(60, 60, 60))
+            if c < len(r) and r[c] is not None:
+                S.paste(r[c], (x + (cw[c] - r[c].width) // 2, y + lab - 6))
+            x += cw[c] + 10
+    return S
+
+
+def generated_sheets(spec, out):
+    """the review sheets from the generated references (spec.ref.face_sheet, body_sheet: the design's sheets since
+    2026-09-28): out/sheet_views.png (the head turnaround's heads over our face boards at the matching angles) and
+    out/sheet_body.png (the body turnaround's figures over our body boards), each figure cut to its outline and scaled to
+    one height. -> the paths made."""
+    import numpy as np
+    from PIL import Image
+    from . import eyes as eyelib, refcheck, sheetqa
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    ex = eyelib._knobs(spec.get('eyes'))['x']
+    b = os.path.join(out, 'boards')
+    made = []
+    fs = ref.get('face_sheet')
+    views = {a: os.path.join(b, 'face_%03d.png' % a) for a in (0, 30, 60, 90, 150)}
+    if fs and all(os.path.exists(p) for p in views.values()):
+        rgb0 = refcheck._load(fs['image'])
+        clean, _ = refcheck.without_guides(rgb0)
+        rgb, f, H = refcheck.at_scale(clean, ex, 2 * ex * refcheck.FACE_PPL, fs.get('facing', -1))
+        az3 = refcheck.face_design(rgb0, ex).get('az_three_quarter', 35.0)
+        pick = {'front': 0, 'three_quarter': min((30, 60), key=lambda a: abs(a - az3)), 'profile': 90}
+        full = Image.fromarray((np.clip(rgb0, 0, 1) * 255).astype(np.uint8))
+        top, bottom, la, lb = [], [], [], []
+        for v, a in pick.items():
+            if v not in H['heads']:
+                continue
+            x0, y0, x1, y1 = (int(round(c / f)) for c in H['heads'][v]['head'])
+            top.append(full.crop((x0, y0, x1, y1))); la.append('%s: %s' % (fs['id'], v.replace('_', '-')))
+            bottom.append(Image.open(views[a]).convert('RGB')); lb.append('ours: face %d deg' % a)
+        p = os.path.join(out, 'sheet_views.png')
+        _labelled_grid([top, bottom], 420, [la, lb]).save(p); made.append(p)
+    bs = ref.get('body_sheet')
+    body = {'front': 0, 'three_quarter': 35, 'profile': 90, 'back': 180}
+    paths = {v: os.path.join(b, 'body_%03d.png' % a) for v, a in body.items()}
+    if bs and all(os.path.exists(p) for p in paths.values()):
+        rgb = refcheck._load(bs['image'])
+        D = sheetqa.detect_figures(rgb, None, ex, bs.get('facing', -1))
+        full = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8))
+        top, bottom, la, lb = [], [], [], []
+        for v, a in body.items():
+            if v not in D['figures']:
+                continue
+            x0, y0, x1, y1 = D['figures'][v]['box']
+            top.append(_trim(full.crop((x0, y0, x1, y1)))); la.append('%s: %s' % (bs['id'], v.replace('_', '-')))
+            bottom.append(_trim(Image.open(paths[v]).convert('RGB'))); lb.append('ours: body %d deg' % a)
+        p = os.path.join(out, 'sheet_body.png')
+        _labelled_grid([top, bottom], 900, [la, lb]).save(p); made.append(p)
+    return made
+
+
 def sheets(spec, out):
     import numpy as np
     from PIL import Image
+    ref0 = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if ref0.get('face_sheet') or ref0.get('body_sheet'):
+        made = generated_sheets(spec, out)
+        done = {os.path.basename(p) for p in made}
+    else:
+        made, done = [], set()
     b = os.path.join(out, 'boards')
     ref = _ref_image(spec)
-    made = []
     views = [os.path.join(b, f'face_{a:03d}.png') for a in (0, 30, 60, 90, 150)]
-    if all(os.path.exists(p) for p in views):
+    if 'sheet_views.png' not in done and all(os.path.exists(p) for p in views):
         ims = [Image.open(p).convert('RGB').resize((400, 400)) for p in views]
         head = None
         if ref:
@@ -120,7 +205,7 @@ def sheets(spec, out):
             S.paste(im, ((500 if head else 0) + i * 400, 0))
         p = os.path.join(out, 'sheet_views.png'); S.save(p); made.append(p)
     body = [os.path.join(b, f'body_{a:03d}.png') for a in (0, 35, 90, 180)]
-    if all(os.path.exists(p) for p in body):
+    if 'sheet_body.png' not in done and all(os.path.exists(p) for p in body):
         ims = [Image.open(p).convert('RGB') for p in body]
         left = None
         if ref:
