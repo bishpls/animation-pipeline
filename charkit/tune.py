@@ -21,7 +21,9 @@ items (docs/CHARKIT.md §4).
      move (anime-base's eye width is the face fitter's);
      Before a landed fitter's full fit, a probe measures its sensitivity table at the start (two fast evaluations per
      knob) and the drop in the fitter's own objective at the best single knob step; below the config's
-     probe.min_headroom (default 2%) the fit is skipped as converged (an already-fitted spec stays cheap to re-tune);
+     probe.min_headroom (default 2%) the fit is skipped as converged (an already-fitted spec stays cheap to re-tune).
+     After a fit, a prescreen: when the fit's own report predicts a status regression no rule allows, the whole move
+     isn't built (its evaluator agrees with the build); its blocks and half step are;
   4. the loop stops when every graded check passes (`pass`), when the best score improved by less than --min-gain over
      the last --rounds rounds (`stalled`), when no fitter has anything left to change (`converged`), or when the budget
      (full builds including the final one, default 8, or minutes with an `m` suffix) runs out (`budget`);
@@ -540,13 +542,21 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                 changed = True
                 log('    %s moved %d knobs: %s' % (F.name, len(res['changed']), ', '.join(
                     '%s %.4g->%.4g' % (k, a, b) for k, (a, b) in list(res['changed'].items())[:8])))
-                ck = checkpoint(F.name, res['spec'], res.get('args', best['args']))
-                d = compare(best, ck, res)
-                if d['verdict'] == 'accept':
-                    best = ck
-                    fits[F.name]['accepted'] = ck['id']
-                    last_input[F.name] = ck['id']             # its own output: it runs again only after another change
-                    continue
+                # the prescreen: a fit whose own evaluator says it worsens a status no rule allows isn't built whole
+                pre = unallowed(res.get('predicted_regressions') or {}, cfg.get('tradeoffs', []))
+                if pre:
+                    R.write('prescreen', round=rnd, fitter=F.name, from_checkpoint=best['id'], regressions=pre,
+                            verdict='skip the whole move; try its blocks and a half step')
+                    log('    prescreen: the fit itself predicts %s: not built whole' % ', '.join(
+                        '%s %s -> %s' % (k, a, b) for k, (a, b) in pre.items()))
+                else:
+                    ck = checkpoint(F.name, res['spec'], res.get('args', best['args']))
+                    d = compare(best, ck, res)
+                    if d['verdict'] == 'accept':
+                        best = ck
+                        fits[F.name]['accepted'] = ck['id']
+                        last_input[F.name] = ck['id']         # its own output: it runs again only after another change
+                        continue
                 accepted = False
                 if len(res.get('blocks') or {}) > 1:
                     for blk in sorted(res['blocks']):
@@ -654,6 +664,17 @@ def _fit_public(res):
         if r.get(k):
             r[k] = _rel(r[k])
     return r
+
+
+def unallowed(regs, rules):
+    """predicted status regressions {check: [from, to]} that no trade-off rule's `allow` covers (within its floor)."""
+    out = {}
+    for k, (a, b) in regs.items():
+        ok = any(_match(k, r.get('allow', [])) and b in STATUS_RANK and
+                 STATUS_RANK[b] <= STATUS_RANK.get(r.get('floor', 'FAIL'), 2) for r in rules or [])
+        if not ok:
+            out[k] = [a, b]
+    return out
 
 
 def agreement(rows, band=0.5):

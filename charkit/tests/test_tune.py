@@ -66,6 +66,12 @@ def test_accept_noise_rule():
     assert tune.accept(a, c, noise)['verdict'] == 'reject'
 
 
+def test_prescreen():
+    regs = {'eye_width': ['PASS', 'FAIL'], 'face_shape_width': ['PASS', 'WARN'], 'sheet_cheek_chin': ['PASS', 'WARN']}
+    assert tune.unallowed(regs, RULES) == {'eye_width': ['PASS', 'FAIL'], 'sheet_cheek_chin': ['PASS', 'WARN']}
+    assert tune.unallowed({}, RULES) == {}
+
+
 def test_accept_needs_a_gain_and_counts_gone_checks():
     a = qa(sheet_width=(0.85, 'WARN'), eye_width=(1.0, 'PASS'))
     assert tune.accept(a, a)['verdict'] == 'reject'                      # no change: no gain

@@ -477,6 +477,10 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    face fit took about 40 minutes and moved 21 knobs by under 1% each. (The fit's `REFRESH_BUDGET` rounds, with their
    Blender cache rebuilds, aren't capped by `--budget`.)
 
+   **The prescreen.** After a fit, the tune reads the fit's report. If the report predicts a status regression that no
+   trade-off rule allows, the whole move isn't built, since the fast evaluator agrees with the build. Only its blocks
+   and its half step are built.
+
    A fitter that hasn't landed is a stub, marked `STUB` everywhere. It declares its targets and knobs, and fits nothing.
    Each fitter declares the check patterns it targets and the knobs it owns (path, default, step, bounds, group: a
    fitkit fitter's `declare()`). The builds go through `python -m charkit build`, so each takes a machine build slot
@@ -507,7 +511,7 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    - With `--review`, the review board is written and the final build exports a VRM.
 
 Everything goes to `DIR/tune.jsonl`: begin, fit, checkpoint, compare (every check that moved, trades, the fast
-evaluator's disagreements with the build), probe, round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
+evaluator's disagreements with the build), probe, prescreen, round, stop, repeat, sensitivity, validate, triage, review and end. `DIR/tune.json` is
 the summary. Each checkpoint's history row carries `{tune, checkpoint, label}`. The run records its pid in DIR, so
 `python -m charkit kill DIR` stops it and the build it started. A checkpoint folder holding the same build (spec, options,
 boards, code) is reused; `--fresh` rebuilds.

@@ -13,7 +13,8 @@ and which knobs it owns, so the loop can run them in turn and the triage can say
          changed {knob: [from, to]}, blocks {block: [knob...]}, bounds [{knob, side, value, bound}],
          sensitivity (charkit.fitkit's table, schema charkit.sensitivity/1: {knobs: {knob: {value, step, bounds, group,
          at_bound, measures: {measure: {at, minus, plus, per_step, per_unit}}}}}),
-         predicted {check: [before, after]} (the fast evaluator's values), report, seconds, why}
+         predicted {check: [before, after]} (the fast evaluator's values), predicted_regressions {check: [from, to]}
+         (the statuses the fit itself says it worsens), report, seconds, why}
 
 The registry (`registry(config)`): build options first (a discrete choice per checkpoint, from the character's tune config),
 then the face fitter (charkit.facefit, `python -m charkit fit`: tool/fit), then the body, garment and hair fitter
@@ -292,13 +293,17 @@ def read_fit(out, spec_path, fitted, knobs):
     if os.path.exists(rp):
         rep = json.load(open(rp))
         predicted = predicted_checks(rep)
+        regs = rep.get('regressions') or {}          # the fit's own word on the statuses it worsens: {check: [from, to]}
         K = rep.get('knobs') or {}
         if K and any(isinstance(v, dict) and 'at_bound' in v for v in K.values()):     # the fit's own word on its bounds
             bounds = [{'knob': n, 'side': v['at_bound'], 'value': v.get('fitted'),
                        'bound': v['bounds'][0 if v['at_bound'] == 'lower' else 1]}
                       for n, v in K.items() if isinstance(v, dict) and v.get('at_bound')]
+    else:
+        regs = {}
     return {'status': 'fitted' if changed else 'no change', 'spec': fitted, 'changed': changed, 'blocks': blocks,
-            'bounds': bounds, 'sensitivity': sens, 'predicted': predicted, 'report': rp if os.path.exists(rp) else None}
+            'bounds': bounds, 'sensitivity': sens, 'predicted': predicted, 'predicted_regressions': regs,
+            'report': rp if os.path.exists(rp) else None}
 
 
 def predicted_checks(rep):
