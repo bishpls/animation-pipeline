@@ -13,7 +13,7 @@ import json, os, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import numpy as np
-from charkit import qa3d, scene, trace
+from charkit import qa3d_blender, scene, trace
 from charkit.garments import bone_seg
 
 a = sys.argv[sys.argv.index('--') + 1:]
@@ -23,7 +23,7 @@ S = scene.build(spec)
 dt = time.time() - t
 out = {}
 names = []
-for o in qa3d._character_objects(S):
+for o in qa3d_blender._character_objects(S):
     if o.type != 'MESH':
         continue
     names.append(o.name)
