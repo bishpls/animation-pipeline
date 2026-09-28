@@ -89,6 +89,11 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     eyes (where the two are aligned). How much face the hair leaves showing is a separate, warn-only check, and the feature
     heights against the design rig are informational. Overlays: `qa_face_contours.png` (both contours per view, the
     chins) and `qa_face_shape.png` (the two faces from the front, and the depth difference);
+  - the eyes against the design rig's eye layers (`charkit/eyeqa.py`), which are drawn whole under the hair. Each of our eyes
+    is rendered head-on at the rig's scale with no hair or brows, and both are segmented by colour into sclera, iris (an
+    ellipse through its ring), pupil, highlight and lid line. Graded: the opening's aspect and width, the iris's width in
+    it, the pupil's run (height over the iris's) and aspect (a slit is thin), and the gap between the upper lid line and
+    the opening. The highlight's side warns only. Overlay: `qa_eyes.png`, each eye's picture above its segmentation;
   - the face, measured from the shape keys' geometry (no render, about 0.04 s): each expression's eye opening against
     neutral and against its intended range (`FACE_EXPECT`), the iris left visible (none in a blink), left/right symmetry,
     each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.
