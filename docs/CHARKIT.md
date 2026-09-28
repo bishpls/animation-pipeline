@@ -196,8 +196,10 @@ When something can only be judged by eye, name the measurement that would close 
 - `python -m charkit history NAME [--check CHECK]` shows QA across builds. Each build appends its checks to
   `charkit/out/history/NAME.jsonl`, with the git commit, spec hash, base, hair mode and a note (a tune run's rows say
   which run and checkpoint made them).
-- **Measurement steps.** When a check's measurement changes rather than the character, its numbers step: `hair_noise`
-  read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `history.STEPS`
+- **Measurement steps.** When a check's measurement changes rather than the character, its numbers step. `hair_noise`
+  read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `face_folds`
+  rose from 1014 to 1257 on the same skin when the expression library grew, because it sums over every key (8017ff3,
+  tool/sheet). `history.STEPS`
   lists each step (the check, the commit, what changed). A build is before or after a step by whether that commit is in
   its history. `history --check` draws a line at each step, `history.trend` reads only the builds since the latest one,
   and the gate's and the tune loop's comparisons call such a check `remeasured`, neither better nor worse. Add a step
