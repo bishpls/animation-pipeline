@@ -351,7 +351,7 @@ def follow(points, V0, V1, k=8):
 
 
 def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, marks, neck, L, knobs=None, ear=None,
-           extra=None):
+           extra=None, body_rel=None):
     """Re-wrap a derived anime base (charkit/base_anime.py) to a spec's head knobs: reshape()'s wrap without MakeHuman's head.
     The base was wrapped at neutral knobs; each shell vertex keeps its realistic direction, so the knobs' anime surface is
     ray-cast along the knobs' remapped directions and the vertex moves by the surface's change (its detail rides along);
@@ -363,7 +363,10 @@ def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, m
     eye y, in L)]: the realistic face's midline; warps: (eye, mouth) warp settings; Vbody (N,3): the spec's body where the
     base has a MakeHuman vertex (NaN elsewhere); marks: the spec's realistic marks (chin, eye_l); neck: (radius, centre) of
     the neck where the head bone lets go; L the head length; ear: optional (indices, relief in L) for the 'ear' knob;
-    extra: optional points (M,3) in the same head space, carried by the same field (info['extra']).
+    extra: optional points (M,3) in the same head space, carried by the same field (info['extra']); body_rel: optional
+    (indices, offsets (in L), weights): free vertices on the neck placed as reshape() places them, from the spec's own body
+    (so the neck keeps the body knobs' shape) plus their neutral offset from it and the knobs' field, blended by weight with
+    the base's placement.
     -> (V, H, centre, info) as reshape()."""
     H = headlib.Head(L, knobs)
     ey = float(marks['eye_l'][1])
@@ -389,6 +392,12 @@ def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, m
     src = np.vstack([R[shell], R[fixed]])
     dsp = np.vstack([out[shell] - R[shell], Vbody[fixed] - R[fixed]])
     out[free] = R[free] + idw(R[free], src, dsp, power=4)
+    if body_rel is not None and len(body_rel[0]):
+        bi, bd, bw = (np.asarray(x) for x in body_rel)
+        kd = idw(R[bi], np.vstack([R[shell], R[fixed]]),
+                 np.vstack([out[shell] - R[shell], np.zeros((len(fixed), 3))]), power=4)
+        mb = Vbody[bi] + L * bd + kd
+        out[bi] = mb * bw[:, None] + out[bi] * (1 - bw[:, None])
     ex = None
     if extra is not None and len(extra):
         Rx = centre + L * np.asarray(extra)

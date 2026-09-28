@@ -55,6 +55,8 @@ EYE_OUTER, MOUTH_OUTER = 18, 12                          # rings stored as the e
                                                          # is not cut off)
 EAR_RIM = 3                  # the ear's outer rings kept as the helix; inside them the folds are flattened
 EAR_SMOOTH = 12              # Laplacian passes over the ear's inside
+NECK_BLEND = (0.15, 0.3)     # head weights over which the neck's top blends from body-relative to base placement at build
+JAW_HW = 0.3                 # the junction relaxed where the head's weight is above this (below it: the neck, garments')
 JAW_FILLET = 20              # Laplacian passes filleting the throat's corner (the under-jaw meeting the neck)
 JAW_SMOOTH = 40              # Taubin passes over the under-jaw/neck junction
 
@@ -512,13 +514,14 @@ def derive(path=ASSET, log=print):
         V = _relax(V, nb, inside, EAR_SMOOTH, lam=0.5)
         V = _relax(V, nb, sorted(set(ear) - set(edge)), 10, lam=0.5, mu=-0.53)
         ear_v |= ear
-    # --- the under-jaw/neck junction: everything the wrap moved below the jawline (the jaw's underside, the throat, the
-    # neck's top; not the lips) relaxed into one sheet from the jawline to the neck
+    # --- the under-jaw/neck junction: what the wrap moved below the jawline and the head still owns (the jaw's underside,
+    # the throat under the chin; not the lips; not the lower neck, head weight < 0.3, where the garments start and walk)
+    # relaxed into one sheet from the jawline to the neck
     q = (V - c0) / L
     az = np.arctan2(q[:, 0], -q[:, 1])
     zjaw = np.array([headlib.jaw_z(H, a_) / L for a_ in az])
     lipz = set(Mn['outer']) | lp_set
-    jw = [v for v in range(ed.n0) if v not in ed.dead and hw[v] > 0.02 and q[v, 2] < zjaw[v] - 0.015 and v not in lipz
+    jw = [v for v in range(ed.n0) if v not in ed.dead and hw[v] > JAW_HW and q[v, 2] < zjaw[v] - 0.015 and v not in lipz
           and v not in ear_v]
     # the throat's corner (away from the jawline, which stays crisp) filleted first, then the whole sheet smoothed
     corner = [v for v in jw if q[v, 2] < zjaw[v] - 0.06]
@@ -625,6 +628,12 @@ def derive(path=ASSET, log=print):
     # points the joints follow at build as they do on the makehuman base (the head, jaw and neck joints sit among them)
     ghost = np.array(sorted(ed.dead))
     ghost_q = (A['verts'][ghost] - c0) / L
+    # the neck's top (the wrap moved it, the cleaning did not): its neutral offset from MakeHuman's own body, so a build
+    # places it from the spec's body as the makehuman base does (fully below NECK_BLEND[0] head weight, none above [1])
+    from .anime_head import smoothstep
+    nk = np.nonzero(region & (src >= 0) & (head_w < NECK_BLEND[1]))[0]
+    neck_w = 1 - smoothstep(NECK_BLEND[0], NECK_BLEND[1], head_w[nk])
+    neck_d0 = (Vn[nk] - B['verts'][src[nk]]) / L
     # --- save
     bones = sorted(weights); fbones = sorted(face_w)
 
@@ -653,6 +662,7 @@ def derive(path=ASSET, log=print):
                wrap_region=region, shell=sv.astype(np.int32), shell_rad=info['shell_rad'][sk].astype(np.float64),
                shell_P=((info['shell_P'][sk] - c0) / L), profile=prof, ear_idx=ear_idx.astype(np.int32),
                ear_det=ear_det.astype(np.float32), ghost_src=ghost.astype(np.int32), ghost_q=ghost_q,
+               neck_idx=nk.astype(np.int32), neck_d0=neck_d0, neck_w=neck_w,
                **{k: v.astype(np.int32) for k, v in lab.items() if v.dtype.kind in 'iu'},
                **{k: v.astype(np.float64) for k, v in lab.items() if v.dtype.kind == 'f'})
     if path:
@@ -751,7 +761,8 @@ def wrap(spec):
     q0 = (base.verts - base.centre) / base.L
     V, H, centre, info = ah.rewrap(q0, d['wrap_region'], d['shell'], d['shell_rad'], d['shell_P'], base.meta['lm_real'],
                                    d['profile'], base.meta['warps'], pre, Bm['marks'], (n_r, nc), L, spec.get('head'),
-                                   ear=(d['ear_idx'], d['ear_det']), extra=d['ghost_q'])
+                                   ear=(d['ear_idx'], d['ear_det']), extra=d['ghost_q'],
+                                   body_rel=(d['neck_idx'], d['neck_d0'], d['neck_w']))
     # the joints follow the wrap as on the makehuman base: the removed interior's ghosts count among the vertices they follow
     ghosts = (Bm['verts'][d['ghost_src']], info.pop('extra'))
     B = dict(Bm, verts=pre, faces=base.faces, face_uv=base.face_uv, uvs=base.uvs, weights=dict(base.weights),
