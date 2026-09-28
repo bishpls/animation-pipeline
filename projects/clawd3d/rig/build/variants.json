@@ -1,0 +1,62 @@
+{
+ "eye_L": {
+  "surprised": {
+   "file": "eye_L@surprised.png",
+   "x": 888,
+   "y": 503,
+   "w": 149,
+   "h": 125
+  },
+  "determined": {
+   "file": "eye_L@determined.png",
+   "x": 888,
+   "y": 503,
+   "w": 149,
+   "h": 125
+  },
+  "soft": {
+   "file": "eye_L@soft.png",
+   "x": 888,
+   "y": 503,
+   "w": 149,
+   "h": 125
+  },
+  "wink": {
+   "file": "eye_L@wink.png",
+   "x": 888,
+   "y": 503,
+   "w": 149,
+   "h": 125
+  }
+ },
+ "eye_R": {
+  "surprised": {
+   "file": "eye_R@surprised.png",
+   "x": 1090,
+   "y": 503,
+   "w": 153,
+   "h": 125
+  },
+  "determined": {
+   "file": "eye_R@determined.png",
+   "x": 1090,
+   "y": 503,
+   "w": 153,
+   "h": 125
+  },
+  "soft": {
+   "file": "eye_R@soft.png",
+   "x": 1090,
+   "y": 503,
+   "w": 153,
+   "h": 125
+  },
+  "wink": {
+   "file": "eye_R@wink.png",
+   "x": 1090,
+   "y": 503,
+   "w": 153,
+   "h": 125
+  }
+ }
+}

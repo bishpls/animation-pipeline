@@ -2,7 +2,8 @@
 direction)}, plus the hands' twist references (the knuckle line), for motion.retarget / motion.calibrate."""
 
 BONE_MAP = {
-    'hips': ('Hips', 'Spine1'), 'spine': ('Spine1', 'Spine2'), 'chest': ('Spine2', 'Chest'),
+    'hips': ('Hips', 'Chest'),        # the pelvis calibrates on the whole lower torso: Hips->Spine1 is 4 cm and leans 10 deg in GEM-X's rest
+    'spine': ('Spine1', 'Spine2'), 'chest': ('Spine2', 'Chest'),
     'upperChest': ('Chest', 'Neck1'), 'neck': ('Neck1', 'Head'), 'head': ('Head', 'HeadEnd'),
 }
 for side, S in (('left', 'Left'), ('right', 'Right')):

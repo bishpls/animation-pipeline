@@ -1,0 +1,14 @@
+{
+  "note": "Clawd's extra eye expressions for the 3D face: GPT Image edits of the TSUZUKU base drawing, registered and cut like the 2D rig's variants (tools/variants.py). Eyes only: the brows sit under the bangs in the drawing.",
+  "image": "/Users/michaelbishop/animation-pipeline/projects/tsuzuku/rig/clawd/base.png",
+  "crop": [540, 0, 1056],
+  "out": "build",
+  "feather": 10,
+  "patches": {"eye_L": [962, 565, 74, 62], "eye_R": [1166, 565, 76, 62]},
+  "variants": {
+    "surprised": {"prompt": "Change ONLY her eyes: both eyes opened wide in surprise, the upper eyelids raised so a thin band of eye white shows above each iris, the irises a touch smaller; the same amber slit-pupil eyes and lashes.", "patches": ["eye_L", "eye_R"]},
+    "determined": {"prompt": "Change ONLY her eyes: a determined, focused look, the upper eyelids lowered a little and angled down toward the nose, the irises fully visible under them; the same amber slit-pupil eyes and lashes.", "patches": ["eye_L", "eye_R"]},
+    "soft": {"prompt": "Change ONLY her eyes: soft, gentle smiling eyes, the upper eyelids relaxed and slightly lowered and the lower lids lifted a little as in a warm smile, the irises still visible; the same amber slit-pupil eyes and lashes.", "patches": ["eye_L", "eye_R"]},
+    "wink": {"prompt": "Change ONLY her eyes: a playful idol wink. The eye on the RIGHT side of the image is closed in a happy upward-arched curve with its lashes; the eye on the LEFT side of the image stays open and exactly as it is.", "patches": ["eye_L", "eye_R"]}
+  }
+}

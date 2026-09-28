@@ -72,9 +72,19 @@ def poses():
     return out, S1.clip, contact
 
 
+EXPRESSIONS = [  # (from bar, to bar, eyes): Clawd's acting on this phrase
+    (59.75, 61.0, 'soft'),        # the held note of the lead-in
+    (62.0, 62.5, 'surprised'),    # the hook lands
+    (64.0, 64.5, 'wink'),         # the claw by the face
+    (65.0, 99.0, 'happy'),        # the finish
+]
+
+
 def face_track(shells):
-    env = json.load(open(os.path.join(TSU, 'assets/vocal_env.json')))
-    efps, ev = env['fps'], env['clawd']
+    """eyes: seeded blinks (half, closed, closed, half), happy on the hook's last bar; mouth: the 2D film's own lip-sync,
+    baked by build/lipsync.mjs from the song's word timestamps and the vocal's loudness."""
+    track = json.load(open(os.path.join(os.path.dirname(HERE), 'out', 'tex', 'mouth_track.json')))
+    M, mfps = track['mouth'], track['fps']
     R = random.Random(7)
     blinks = []
     t = 0.9
@@ -84,8 +94,7 @@ def face_track(shells):
     for f in range(NF):
         t = f / FPS
         ts = T0 + t
-        e = ev[min(len(ev) - 1, int(ts * efps))]
-        mouth = 'rest' if e < 0.10 else ('Is' if e < 0.22 else ('A2' if e < 0.45 else 'A'))
+        mouth = M[min(len(M) - 1, int(ts * mfps + 1e-6))]
         eyes = 'open'
         for b in blinks:
             d = (t - b) * FPS
@@ -94,8 +103,10 @@ def face_track(shells):
             elif -1 <= d < 0 or 2 <= d < 3:
                 eyes = 'half'
         bar = ts / BAR
-        if bar > 65.0 and eyes == 'open':
-            eyes = 'happy'                                     # the hook's last bar: the smile
+        for b0, b1, e in EXPRESSIONS:                           # the acting, by bar (blinks only fill the open stretches)
+            if b0 <= bar < b1:
+                eyes = e
+                break
         key = (eyes, mouth)
         if key != prev:
             clawd.set_face(shells, eyes, mouth, frame=f + 1)
@@ -152,6 +163,7 @@ def main(out, pct=100, frames=None):
     kit.set_rim(kit.hexc('ff9ad5'), 0.32)                       # the stage's pink on every rim
     cam = kit.camera('cam', lens=38)
     camera_move(cam)
+    clawd.look_at_camera(arm, cam, NF, fps=FPS)                  # eye contact
     sc.render.filepath = os.path.join(os.path.abspath(out), 'frames', '')
     json.dump({'frames': NF, 'fps': FPS, 'song_t0': T0, 'bars': [B0, B1]}, open(os.path.join(out, 'shot.json'), 'w'))
     def render(sub):
@@ -165,9 +177,40 @@ def main(out, pct=100, frames=None):
             bpy.ops.render.render(animation=True)
     render('stills' if frames else 'frames')
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(os.path.abspath(out), 'dance_test.blend'))
+    # the features pass: eyes and brows with the hair hidden and everything else held out, so post can show them through
+    # the bangs (never through a hand)
+    undo = features_pass(sc, C)
+    render('stills_feat' if frames else 'feat')
+    undo()
     # the line pass: camera-space normals and depth of the character alone, for post.py's inner lines
     aux_pass(sc, st)
     render('stills_aux' if frames else 'aux')
+
+
+def features_pass(sc, C):
+    eyes = [o for (kind, nm), o in C['face'].items() if kind == 'eyes']
+    hair = [o for o in bpy.data.objects if o.name.startswith('hair_') or o.name.startswith('bun.')]
+    hold = bpy.data.collections.new('holdout'); sc.collection.children.link(hold)
+    moved = []
+    for o in list(sc.collection.objects):
+        if o.type != 'MESH' or o in eyes or o in hair:
+            continue
+        sc.collection.objects.unlink(o); hold.objects.link(o); moved.append(o)
+    lc = bpy.context.view_layer.layer_collection.children['holdout']; lc.holdout = True
+    was_hidden = {o: o.hide_render for o in hair}
+    for o in hair:
+        o.hide_render = True
+    was_t = sc.render.film_transparent; sc.render.film_transparent = True
+    sc.render.image_settings.color_mode = 'RGBA'
+
+    def undo():
+        for o in moved:
+            hold.objects.unlink(o); sc.collection.objects.link(o)
+        bpy.data.collections.remove(hold)
+        for o, h in was_hidden.items():
+            o.hide_render = h
+        sc.render.film_transparent = was_t; sc.render.image_settings.color_mode = 'RGB'
+    return undo
 
 
 def aux_pass(sc, st):
@@ -186,7 +229,8 @@ def aux_pass(sc, st):
     L(sep.outputs['X'], rx.inputs[0]); L(sep.outputs['Y'], ry.inputs[0])
     c = N('ShaderNodeCombineColor'); L(rx.outputs[0], c.inputs[0]); L(ry.outputs[0], c.inputs[1]); L(dz.outputs[0], c.inputs[2])
     L(c.outputs[0], em.inputs['Color']); L(em.outputs[0], out.inputs['Surface'])
-    for o in [st['floor'], st['backdrop'], st.get('shadow')] + st['beams']:
+    for o in [st['floor'], st['backdrop'], st.get('shadow')] + st['beams'] + \
+             [o for o in bpy.data.objects if o.name.startswith('clip_')]:    # tiny faceted props: outline only, no inner lines
         if o:
             o.hide_render = True
     for o in bpy.data.objects:

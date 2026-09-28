@@ -217,7 +217,7 @@ def hair_material(name, lit, shade, deep, ring=(1.0, 0.80, 0.62), head_z=0.0, ri
     uv = N('ShaderNodeUVMap'); uv.uv_map = 'lock'
     sep = N('ShaderNodeSeparateXYZ'); L(uv.outputs[0], sep.inputs[0])
     across = N('ShaderNodeMath'); across.operation = 'ABSOLUTE'; L(sep.outputs['X'], across.inputs[0])
-    mid = N('ShaderNodeMapRange'); mid.inputs['From Min'].default_value = 0.5; mid.inputs['From Max'].default_value = 0.15
+    mid = N('ShaderNodeMapRange'); mid.inputs['From Min'].default_value = 0.95; mid.inputs['From Max'].default_value = 0.85
     L(across.outputs[0], mid.inputs['Value'])
     tc = N('ShaderNodeTexCoord')
     rel = N('ShaderNodeVectorMath'); rel.operation = 'SUBTRACT'; rel.inputs[1].default_value = (0, 0, head_z)
@@ -228,8 +228,13 @@ def hair_material(name, lit, shade, deep, ring=(1.0, 0.80, 0.62), head_z=0.0, ri
     el = N('ShaderNodeMath'); el.operation = 'ARCTAN2'; L(sp.outputs['Z'], el.inputs[0]); L(hl.outputs['Value'], el.inputs[1])
     dz = N('ShaderNodeMath'); dz.operation = 'SUBTRACT'; dz.inputs[1].default_value = math.radians(ring_el); L(el.outputs[0], dz.inputs[0])
     adz = N('ShaderNodeMath'); adz.operation = 'ABSOLUTE'; L(dz.outputs[0], adz.inputs[0])
-    band = N('ShaderNodeMapRange'); band.inputs['From Min'].default_value = math.radians(5.5); band.inputs['From Max'].default_value = math.radians(2.0)
-    L(adz.outputs[0], band.inputs['Value'])
+    # a lens per clump: the band is widest on the clump's centre line and pinches to a point at its edges
+    u2 = N('ShaderNodeMath'); u2.operation = 'POWER'; u2.inputs[1].default_value = 2.0; L(across.outputs[0], u2.inputs[0])
+    wid = N('ShaderNodeMath'); wid.operation = 'MULTIPLY_ADD'; wid.inputs[1].default_value = -math.radians(5.0)
+    wid.inputs[2].default_value = math.radians(5.0); L(u2.outputs[0], wid.inputs[0])            # 5 deg * (1 - u^2)
+    lens = N('ShaderNodeMath'); lens.operation = 'SUBTRACT'; L(wid.outputs[0], lens.inputs[0]); L(adz.outputs[0], lens.inputs[1])
+    band = N('ShaderNodeMapRange'); band.inputs['From Min'].default_value = 0.0; band.inputs['From Max'].default_value = math.radians(1.2)
+    L(lens.outputs[0], band.inputs['Value'])
     lw = N('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.5
     face = N('ShaderNodeMapRange'); face.inputs['From Min'].default_value = 0.55; face.inputs['From Max'].default_value = 0.25
     L(lw.outputs['Facing'], face.inputs['Value'])

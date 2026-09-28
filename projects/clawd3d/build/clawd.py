@@ -315,12 +315,42 @@ def build_face(head, arm):
                 for l in f.loops:
                     co = l.vert.co
                     l[uv].uv = ((co.x - u0) / (u1 - u0), (co.z - zb) / (zt - zb))
-            ob = mesh_from_bm(f'{kind}_{nm}', bm, [kit.decal(f'{kind}_{nm}', os.path.join(TEX, f'{kind}_{nm}.png'))])
+            mat = kit.eye_material('eyes_open', TEX) if (kind, nm) == ('eyes', 'open') else \
+                kit.decal(f'{kind}_{nm}', os.path.join(TEX, f'{kind}_{nm}.png'))
+            ob = mesh_from_bm(f'{kind}_{nm}', bm, [mat])
             bone_parent(ob, arm, 'head')
             shells[(kind, nm)] = ob
     bpy.data.meshes.remove(src)
     set_face(shells, 'open', 'rest')
     return shells
+
+
+def look_at_camera(arm, cam, frames, start=1, max_u=0.012, max_v=0.006, lag=0.35, fps=24.0):
+    """Key the open eyes' gaze so she looks into the lens: the camera's direction in her head's frame, as yaw and pitch,
+    mapped to an iris shift (UV of the face window; max_u ~ 2.3 mm), followed with a little lag (a critically damped
+    follow), stepped on the frame grid. Eye contact is the idol's whole job."""
+    sc = bpy.context.scene
+    g = kit.MATS['eyes_open'].node_tree.nodes['gaze']
+    Rh = arm.data.bones['head'].matrix_local.to_3x3()
+    cur = None; vel = Vector((0, 0))
+    w = 2.0 / max(lag, 1e-3)
+    for i in range(frames):
+        f = start + i
+        sc.frame_set(f)
+        pb = arm.pose.bones['head']
+        Mw = arm.matrix_world @ pb.matrix
+        R = Mw.to_3x3() @ Rh.inverted()                  # the head's rotation from rest: rest-aligned head space
+        v = R.inverted() @ (cam.matrix_world.translation - Mw.translation)
+        yaw = math.atan2(v.x, -v.y); pitch = math.atan2(v.z, math.hypot(v.x, v.y))
+        tgt = Vector((max(-max_u, min(max_u, yaw / math.radians(55) * max_u)),
+                      max(-max_v, min(max_v, pitch / math.radians(35) * max_v))))
+        if cur is None:
+            cur = tgt.copy()
+        dt = 1.0 / fps
+        acc = (tgt - cur) * w * w - vel * 2 * w
+        vel = vel + acc * dt; cur = cur + vel * dt
+        g.inputs[0].default_value = cur.x; g.inputs[1].default_value = cur.y
+        g.inputs[0].keyframe_insert('default_value', frame=f); g.inputs[1].keyframe_insert('default_value', frame=f)
 
 
 def set_face(shells, eyes, mouth, frame=None):

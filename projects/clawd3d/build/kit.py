@@ -156,6 +156,42 @@ def decal(name, path):
     return m
 
 
+def eye_material(name, tex_dir, prefix='eyes_open'):
+    """Drawn eyes that can look around: the white, the iris shifted by the 'gaze' node's (x, y) in UV and clipped to the
+    opening, the shine fixed, the lashes over all (faces.split_eye makes the layers). Key gaze with gaze_node(m).inputs."""
+    import os
+    if name in MATS:
+        return MATS[name]
+    m = bpy.data.materials.new(name); m.use_nodes = True; nt = m.node_tree; _clear(nt)
+    N, L = nt.nodes.new, nt.links.new
+    out = N('ShaderNodeOutputMaterial'); tc = N('ShaderNodeTexCoord')
+    gz = N('ShaderNodeCombineXYZ'); gz.name = 'gaze'
+    sub = N('ShaderNodeVectorMath'); sub.operation = 'SUBTRACT'; L(tc.outputs['UV'], sub.inputs[0]); L(gz.outputs[0], sub.inputs[1])
+
+    def tex(layer, vec):
+        t = N('ShaderNodeTexImage'); t.image = bpy.data.images.load(os.path.join(tex_dir, f'{prefix}_{layer}.png'))
+        t.extension = 'CLIP'; t.interpolation = 'Cubic'; L(vec, t.inputs['Vector'])
+        return t
+    white, iris, shine, lines, mask = (tex('white', tc.outputs['UV']), tex('iris', sub.outputs[0]), tex('shine', tc.outputs['UV']),
+                                       tex('lines', tc.outputs['UV']), tex('mask', tc.outputs['UV']))
+    ai = N('ShaderNodeMath'); ai.operation = 'MULTIPLY'; L(iris.outputs['Alpha'], ai.inputs[0]); L(mask.outputs['Alpha'], ai.inputs[1])
+
+    def over(base, top, alpha):
+        mx = N('ShaderNodeMix'); mx.data_type = 'RGBA'; L(alpha, mx.inputs['Factor']); L(base, mx.inputs['A']); L(top, mx.inputs['B'])
+        return mx.outputs['Result']
+    c = over(white.outputs['Color'], iris.outputs['Color'], ai.outputs[0])
+    c = over(c, shine.outputs['Color'], shine.outputs['Alpha'])
+    c = over(c, lines.outputs['Color'], lines.outputs['Alpha'])
+    a = N('ShaderNodeMath'); a.operation = 'MAXIMUM'; L(white.outputs['Alpha'], a.inputs[0]); L(lines.outputs['Alpha'], a.inputs[1])
+    em = N('ShaderNodeEmission'); L(c, em.inputs['Color'])
+    tr = N('ShaderNodeBsdfTransparent'); mx = N('ShaderNodeMixShader')
+    L(a.outputs[0], mx.inputs['Fac']); L(tr.outputs[0], mx.inputs[1]); L(em.outputs[0], mx.inputs[2])
+    L(mx.outputs[0], out.inputs['Surface'])
+    m.surface_render_method = 'BLENDED'; m.use_backface_culling = True
+    MATS[name] = m
+    return m
+
+
 def set_light(d):
     v = Vector(d).normalized()
     for m in MATS.values():
