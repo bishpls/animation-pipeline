@@ -407,6 +407,24 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
   the start's face, but a fuller face culls more of the generated side locks, which moved Clawd's 3/4 coverage from
   0.93 to 1.34. So the fit rebuilds both in Blender for the fitted head and body and fits the face again from there, up
   to twice (`--refresh-only` runs just this from the spec's knobs).
+- **Clawd** (`charkit/spec/clawd.json` carries the fitted knobs). Against the integration build, 18 graded checks move up a
+  status and 1 down; the rest keep theirs. Per view, the RMS residual against the design (in tolerances; 1 passes):
+  - front 3.65 -> 1.10: the sheet's widths FAIL -> WARN; `neck_to_jaw` FAIL -> WARN;
+  - 3/4 2.88 -> 1.43: the far cheek's chin WARN -> PASS;
+  - profile 3.55 -> 1.50: the front edge and chin reach FAIL -> WARN; the chin's height WARN -> PASS;
+  - depth against TRELLIS 7.96 -> 1.02: FAIL -> WARN;
+  - eyes 2.98 -> 1.15: pupil run and aspect, iris ratio, width and lid gap now PASS; lid span WARN; the opening's
+    aspect is still short of the design's tall oval (0.74, a trade-off with pupil run and lid gap).
+  The one move down is `face_shape_coverage_three_quarter` (PASS 0.93 -> WARN 1.34), a hair check. `scene.cull_face`
+  drops generated hair lying within the face's width below the eyes, so the sheet's wider jaw culls the side locks
+  that cover the cheeks. Scaling the face change back to half still reads 1.19; freezing the widths restores it, but
+  gives up the width, neck and depth gains. Keeping the side locks is the hair's to decide (the geom hair already
+  keeps them in front of the cheeks).
+  - The evaluator agrees with Blender's QA on four builds: the unfitted Clawd, the fitted Clawd twice (before and after
+    a merge), and the fitted knobs on the anime base. That is 46 checks each: 183 of 184 statuses match,
+    the miss being the anime base's `eye_lid_span` (WARN against PASS). The sheet, face-shape, expression and fold
+    values match exactly. The eye values match to 0.04 on the unfitted face and to 0.09 on the fitted ones (see the
+    lash gap below).
 - **Known gaps**:
   - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
     its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
