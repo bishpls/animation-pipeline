@@ -2163,6 +2163,168 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     return 'miss: ' + why
 
 
+# ------------------------------------------------------------------------------------------------------ venv QA parts
+_VMEMO = {}                              # this process's venv memo results by key (a fresh copy per call)
+_T0 = time.time()                        # when this process loaded charkit: a source edited after it isn't what runs
+
+
+def kit_edited(t0=None):
+    """a charkit source changed since t0 (default: since this process loaded charkit) -> its path, or None."""
+    t0 = _T0 if t0 is None else t0
+    for dd, ds, fs in os.walk(KIT):
+        if dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests'))):
+            ds[:] = []
+            continue
+        for f in fs:
+            if f.endswith('.py') and os.stat(os.path.join(dd, f)).st_mtime > t0:
+                return os.path.relpath(os.path.join(dd, f), ROOT)
+    return None
+
+
+def venv_memo(fn, *args, **kw):
+    """memo() for the venv (the QA on a bundle, charkit/qa3d.py): fn(*args, **kw) kept on disk under memo/ by its code,
+    the venv's packages and its arguments' digest; each call returns a fresh copy. CHARKIT_CACHE=off computes."""
+    if os.environ.get('CHARKIT_CACHE') == 'off':
+        return fn(*args, **kw)
+    units = code_units(fn)
+    key = digest([SCHEMA, 'venv', units, venv_env(), args, kw])[:24]
+    p = os.path.join(cache_dir(), 'memo', '%s.%s' % (fn.__module__, fn.__name__), key + '.pkl')
+    if key in _VMEMO:
+        return pickle.loads(_VMEMO[key])
+    if os.path.exists(p):
+        try:
+            blob = _read_state(p)
+            out = pickle.loads(blob)
+            os.utime(p)
+            _VMEMO[key] = blob
+            return out
+        except Exception:
+            pass
+    out = fn(*args, **kw)
+    try:
+        blob = pickle.dumps(out, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        return out
+    _VMEMO[key] = blob
+    if room(cache_dir()):
+        tmp = '%s.%d.tmp' % (p, os.getpid())
+        try:
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            _write_state(tmp, blob)
+            os.replace(tmp, p)
+        except OSError:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+    return out
+
+
+def qa_part(name, fn, B, design, out, args=(), mode='on'):
+    """a venv QA part, fn(B, design, out, *args) -> (table, checks), run or restored (with the files it wrote under
+    out). Its key is what it read, recorded as it ran: the bundle's arrays and metadata paths it touched (by the
+    hashes the bundle carries), the reference files the design side opened for it (by content), its code (fn and every
+    charkit module it imports) and the venv's packages. A lookup restores the first stored entry whose reads all match
+    the bundle and files as they are now; a run that printed a traceback isn't stored. mode: on, off, refresh, verify
+    (run it and compare with the entry a lookup would restore: CHARKIT_CACHE_STALE when they differ)."""
+    from . import trace
+    t = time.perf_counter()
+    d = cache_dir()
+    files = Files(d)
+    if (fn.__module__ or '').startswith('charkit'):
+        units = code_units(fn, modules=('charkit.bundle',))
+    else:                                               # (a function from outside charkit: its own source)
+        import inspect
+        units = dict(code_units(modules=('charkit.bundle',)), **{'<%s>' % fn.__qualname__: digest(inspect.getsource(fn))})
+    static = digest([SCHEMA, 'qa', name, units, venv_env(), args])
+    kd = os.path.join(d, 'qa', name, static[:20])
+    E, why = None, 'no entry' if mode in ('on', 'verify') else 'cache %s' % mode
+    if mode in ('on', 'verify'):
+        for c in _entries(kd):
+            try:
+                E_ = Entry(c)
+                R = E_.m['reads']
+                bad = next((k for k, h in R['arrays'] if not B.has(k) or B.hash_of(k) != h), None) or \
+                    next(('/'.join(p) for p, h in R['meta'] if B.hash_of(tuple(p)) != h), None) or \
+                    next((p for p, h in R['files'] if files.get(p) != h), None)
+                if bad is None:
+                    E = E_
+                    break
+                why = 'changed: %s' % bad
+            except (OSError, ValueError, KeyError):
+                continue
+        if E is None and why == 'no entry' and os.path.isdir(os.path.join(d, 'qa', name)) and not _entries(kd):
+            why = 'code or packages changed'
+    if E is not None and mode == 'on':
+        try:
+            for rel in E.m['files']:
+                dst = os.path.join(out, rel)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copyfile(os.path.join(E.dir, 'files', rel), dst)
+            result = pickle.loads(_read_state(E.file('state.pkl')))
+            os.utime(E.file('manifest.json'))
+            files.save()
+            trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache={'hit': True, 'key': E.id[:12]},
+                        where='venv')
+            return result
+        except (OSError, ValueError, KeyError, pickle.UnpicklingError, EOFError) as e:
+            why = 'its entry did not restore (%s)' % e
+            shutil.rmtree(E.dir, ignore_errors=True)
+            E = None
+    before = _tree(out) if out else {}
+    lines, errs = [], []
+    with B.recording() as rd, _tee(lines, errs):
+        result = fn(B, design, out, *args)
+    after = _tree(out) if out else {}
+    outs = sorted(k for k, v in after.items() if before.get(k) != v and k != 'qa.json')
+    info = {'hit': False, 'why': why}
+    if mode == 'verify' and E is not None:
+        bad = [rel for rel in sorted(set(E.m['files']) | set(outs)) if E.m['digests'].get(rel) !=
+               (content_digest(os.path.join(out, rel)) if rel in outs else None)]
+        try:
+            if digest(pickle.loads(_read_state(E.file('state.pkl')))) != digest(result):
+                bad.append('its result')
+        except Exception as e:
+            bad.append('its stored state does not load: %s' % e)
+        info['verified'] = not bad
+        if bad:
+            info['stale'] = bad[:6]
+            print('CHARKIT_CACHE_STALE %s: %s' % (name, ', '.join(bad[:6])))
+    edited = kit_edited() if mode != 'off' else None
+    if mode != 'off' and not _caught(errs) and room(d) and not edited:
+        reads = dict(arrays=sorted([k, B.hash_of(k)] for k in rd.arrays),
+                     meta=sorted([list(p), B.hash_of(p)] for p in rd.meta),
+                     files=sorted([p, files.get(p)] for p in rd.files))
+        key = digest([static, reads])[:24]
+        final = os.path.join(kd, key)
+        if not os.path.exists(final) or mode == 'refresh':
+            tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
+            try:
+                for rel in outs:
+                    dst = os.path.join(tmp, 'files', rel)
+                    os.makedirs(os.path.dirname(dst), exist_ok=True)
+                    shutil.copyfile(os.path.join(out, rel), dst)
+                _write_state(os.path.join(tmp, 'state.pkl'), pickle.dumps(result, protocol=pickle.HIGHEST_PROTOCOL))
+                _write_json(os.path.join(tmp, 'manifest.json'), dict(
+                    schema=SCHEMA, kind='qa', step=name, static=static, units=units, env=venv_env(), reads=reads,
+                    files=outs, digests={rel: content_digest(os.path.join(out, rel)) for rel in outs},
+                    created=time.strftime('%Y-%m-%dT%H:%M:%S')))
+                os.makedirs(kd, exist_ok=True)
+                if os.path.exists(final):
+                    shutil.rmtree(final, ignore_errors=True)
+                try:
+                    os.rename(tmp, final)
+                except OSError:
+                    shutil.rmtree(tmp, ignore_errors=True)
+            except (OSError, pickle.PicklingError, TypeError) as e:
+                shutil.rmtree(tmp, ignore_errors=True)
+                info.update(stored=False, uncacheable='storing it failed: %s' % e)
+        files.save()
+    elif mode != 'off':
+        info.update(stored=False, uncacheable='%s changed during the QA' % edited if edited else
+                    'an error was caught while it ran' if _caught(errs) else 'the disk is full')
+    trace.event('part', name, dt=round(time.perf_counter() - t, 4), cache=info, where='venv')
+    return result
+
+
 def _apply(S, writes):
     """set a step's recorded writes ({path: value or ABSENT}, the shorter paths first) under S (its spec, its dicts)."""
     for p, v in sorted(writes.items(), key=lambda kv: len(kv[0])):
@@ -2427,7 +2589,7 @@ def entries(d=None):
     """every entry: (kind, step, path, bytes, last used)."""
     d = d or cache_dir()
     out = []
-    for kind in ('stages', 'products', 'parts', 'venv'):
+    for kind in ('stages', 'products', 'parts', 'venv', 'qa'):
         base = os.path.join(d, kind)
         if not os.path.isdir(base):
             continue
@@ -2487,7 +2649,7 @@ def main(args):
             print('  %-9s %-14s %3d entries %8.1f MB  last used %s' % (kind, step, n, size / 1e6,
                                                                        time.strftime('%Y-%m-%d %H:%M', time.localtime(t))))
     elif args[0] == 'clear':
-        for k in ('stages', 'products', 'parts', 'venv', 'memo', 'last'):
+        for k in ('stages', 'products', 'parts', 'venv', 'qa', 'memo', 'last'):
             shutil.rmtree(os.path.join(d, k), ignore_errors=True)
         print('cleared', d)
     else:

@@ -142,8 +142,9 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
         from . import trace
         rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')), trace.read(os.path.join(cand_out, 'trace.jsonl')))
-        ta = next((r['total'] for r in trace.read(os.path.join(base_out, 'trace.jsonl')) if r['event'] == 'end'), None)
-        tb = next((r['total'] for r in trace.read(os.path.join(cand_out, 'trace.jsonl')) if r['event'] == 'end'), None)
+        # (the last end: a build whose QA runs in the venv after Blender appends its own, with the whole build's time)
+        ta = ([r['total'] for r in trace.read(os.path.join(base_out, 'trace.jsonl')) if r['event'] == 'end'] or [None])[-1]
+        tb = ([r['total'] for r in trace.read(os.path.join(cand_out, 'trace.jsonl')) if r['event'] == 'end'] or [None])[-1]
         rep['blender_seconds'] = [ta, tb]
         bad_tests = [k for k, v in rep['tests'].items() if v != 'ok']
         regressed = [r['check'] for r in rep['qa'] if r['verdict'] in ('regressed', 'gone')]
@@ -189,7 +190,7 @@ def _write(rep, gdir, tag):
     for k, why in (rep.get('remeasured') or {}).items():
         L.append('\nremeasured: %s: %s' % (k, why))
     if rep.get('blender_seconds'):
-        L.append('\nBlender time: %s s -> %s s' % tuple(rep['blender_seconds']))
+        L.append('\nBuild time (Blender and QA): %s s -> %s s' % tuple(rep['blender_seconds']))
     if rep.get('trace'):
         L.append('\n```\n' + rep['trace'][:6000] + '\n```')
     if rep.get('log'):

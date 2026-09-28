@@ -19,6 +19,8 @@ surface in the scene occluding (hair, eyes, clothes), the visible skin masked. M
     from charkit import faceqa
     R = faceqa.measure(ours, target, lm, ref=None)     # ours: [(V, tris, label)], target: (V, tris, colours)
 """
+import os
+
 import numpy as np
 
 WIN = dict(x=0.65, top=0.45, bottom=-0.75)        # the face window, in L round the head centre and the eye line
@@ -30,14 +32,22 @@ AZ = {'front': 0, 'three_quarter': 45, 'profile': 90}
 # ------------------------------------------------------------------------------------------------------------ geometry
 def triangles(loopv, starts, counts):
     """fan-triangulate flat polygons -> (m, 3) vertex indices, and each triangle's polygon."""
+    Tl, poly = triangle_loops(starts, counts)
+    return np.asarray(loopv)[Tl], poly
+
+
+def triangle_loops(starts, counts):
+    """triangles()' fan as loop (face corner) indices -> ((m, 3), each triangle's polygon): per-corner data (UVs,
+    normals) of triangle t is data[Tl[t]]."""
+    starts, counts = np.asarray(starts), np.asarray(counts)
     tris, poly = [], []
     for k in np.unique(counts):
         if k < 3:
             continue
         sel = np.nonzero(counts == k)[0]
-        base = starts[sel]
+        base = starts[sel].astype(np.int64)
         for j in range(1, k - 1):
-            tris.append(np.stack([loopv[base], loopv[base + j], loopv[base + j + 1]], 1))
+            tris.append(np.stack([base, base + j, base + j + 1], 1))
             poly.append(sel)
     if not tris:
         return np.zeros((0, 3), np.int64), np.zeros(0, np.int64)
@@ -58,10 +68,34 @@ def view(P, az):
     return P[:, 0] * np.cos(a) + P[:, 1] * np.sin(a), P[:, 2], -P[:, 0] * np.sin(a) + P[:, 1] * np.cos(a)
 
 
-def zbuffer(meshes, az, origin, L, pix=PIX, win=WIN):
+def _raster():
+    """charkit.geom.raster when numba is there (the venv), else None (Blender's Python)."""
+    try:
+        from .geom import raster
+        return raster
+    except ImportError:
+        return None
+
+
+def zbuffer(meshes, az, origin, L, pix=PIX, win=WIN, method=None, thin=()):
     """the nearest surface per pixel over the face window: meshes [(V, tris, tri_label)] -> (depth (H, W), label (H, W));
-    label -1 = nothing, else the label of the nearest surface. Triangles are sampled on a barycentric grid fine enough that
-    every pixel they cover gets a sample."""
+    label -1 = nothing, else the label of the nearest surface. method 'raster' (the default where numba is: the venv)
+    rasterises each triangle at the pixel centres it covers, as a renderer does (charkit.geom.raster.window_zbuffer);
+    'splat' (Blender's Python, and `build --qa blender`) samples triangles on a barycentric grid fine enough that every
+    pixel they touch gets a sample, which reads about 3.6% more pixels than a render and runs about 40x slower. thin: the
+    labels the raster draws at least a pixel wide (a thin line touches every pixel it crosses, as a drawn stroke does;
+    the splat path draws everything that way)."""
+    method = method or os.environ.get('CHARKIT_ZBUFFER') or None      # (splat: the old measurement, for comparing)
+    R = _raster() if method in (None, 'raster') else None
+    if R is not None:
+        return R.window_zbuffer(meshes, az, origin, L, pix, win, thin=thin)
+    if method == 'raster':
+        raise ImportError('the raster z-buffer needs numba (the venv)')
+    return zbuffer_splat(meshes, az, origin, L, pix, win)
+
+
+def zbuffer_splat(meshes, az, origin, L, pix=PIX, win=WIN):
+    """zbuffer's point-splat path (numpy only): each triangle sampled on a barycentric grid, each sample in its pixel."""
     ox, oz = origin                                     # the window's centre: x of the midline, z of the eye line
     W = int(round(2 * win['x'] / pix)); H = int(round((win['top'] - win['bottom']) / pix))
     px_all, d_all, l_all = [], [], []

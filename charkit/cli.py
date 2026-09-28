@@ -1,8 +1,9 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
-                                     [--base makehuman|anime] [--hair geom|mesh] [--note JSON]
+                                     [--base makehuman|anime] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
+    python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl] [--no-time]  # a build's state log, or what changed
@@ -39,6 +40,10 @@ scene is. The trace says per stage what was restored and, for what ran, why (`py
 --cache off builds without it (--no-cache too); refresh runs and stores everything; stages restores the stages but renders
 the boards and runs the QA afresh; verify runs everything and flags any step that differs from the entry a lookup would
 have restored (CHARKIT_CACHE_STALE). The geom hair cut is cached the same way, venv-side.
+
+The QA (docs/CHARKIT.md §4): Blender builds and exports the geometry bundle (out/bundle, charkit/bundle.py); the venv
+measures it (charkit/qa3d.py, numba z-buffers, no Blender): out/qa/qa.json and the overlays, each QA part cached on what
+it read of the bundle and its code. --qa blender runs the old Blender-side pass instead (charkit/qa3d_blender.py).
 
 The build worker (charkit/worker.py): `worker start` keeps one Blender running with charkit loaded; build sends its job
 there when it runs (a clean scene and freshly imported code per job) and starts a fresh Blender otherwise or with
@@ -151,8 +156,11 @@ def build(args):
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
     spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
-    job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + ([] if '--no-qa' in args else ['--qa']) + \
-        (['--vrm'] if '--vrm' in args else []) + ['--cache', mode]
+    qa = None if '--no-qa' in args else opt('--qa', 'venv')
+    if qa not in (None, 'venv', 'blender'):
+        raise SystemExit('--qa venv|blender')
+    job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + \
+        {'venv': ['--bundle'], 'blender': ['--qa'], None: []}[qa] + (['--vrm'] if '--vrm' in args else []) + ['--cache', mode]
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
     from . import history, procs, worker
     r = worker.submit(job, out, 'build ' + name) if '--no-worker' not in args else None
@@ -162,8 +170,9 @@ def build(args):
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
     for line in r.stdout.splitlines():
-        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER')):
+        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER', 'CHARKIT_BUNDLE')):
             print(line)
+    measure(out, mode, qa=qa == 'venv', blender_peak=None if str(r.args[0]) == 'worker' else _peak_mb('children'))
     for p in sheets(spec, out):
         print('sheet', p)
     note = opt('--note')
@@ -175,6 +184,34 @@ def build(args):
     history.append(out, name, note)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def _peak_mb(who='self'):
+    """the peak resident memory (MB) of this process, or of its largest finished child (the build's Blender)."""
+    import resource
+    ru = resource.getrusage(resource.RUSAGE_SELF if who == 'self' else resource.RUSAGE_CHILDREN).ru_maxrss
+    return round(ru / (1 << 20) if sys.platform == 'darwin' else ru / 1024, 1)
+
+
+def measure(out, mode='on', qa=True, blender_peak=None):
+    """after the Blender stage: the venv's QA on the build's bundle (out/bundle -> out/qa), appended to the build's
+    trace with the parts through the QA cache (the build's --cache mode; stages and verify run them afresh), and the
+    peak memory of the Blender process (a fresh one's, not a worker's) and of this one noted."""
+    from . import qa3d, trace
+    rep = None
+    trace.resume(os.path.join(out, 'trace.jsonl'))
+    try:
+        if qa:
+            rep = qa3d.measure(os.path.join(out, 'bundle'), os.path.join(out, 'qa'),
+                               mode={'on': 'on', 'off': 'off', 'verify': 'verify'}.get(mode, 'refresh'))
+        trace.note('build.memory', blender_peak_mb=blender_peak, venv_peak_mb=_peak_mb('self'))
+    finally:
+        trace.end()
+    if rep is not None:
+        print('CHARKIT_QA_SUMMARY', rep['summary'])
+        print('CHARKIT_CACHE_QA', trace.cache_summary([r for r in trace.read(os.path.join(out, 'trace.jsonl'))
+                                                        if r.get('where') == 'venv']))
+    return rep
 
 
 def geom_hair(spec, resolved, out, mode='on'):
@@ -273,6 +310,9 @@ def main(argv=None):
     cmd, rest = argv[0], argv[1:]
     if cmd == 'build':
         build(rest)
+    elif cmd == 'qa':
+        from . import qa3d
+        qa3d.main(rest)
     elif cmd == 'trace':
         from . import trace
         trace.main(rest)

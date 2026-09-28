@@ -1,39 +1,41 @@
 """The face measured without Blender, in a second or two: our face, eyes and neck for a spec's knobs, and the same graded
-checks the build's QA writes (charkit/qa3d.py: eye_*, sheet_*, face_shape_*), so charkit/facefit.py can search the knobs.
+checks the build's QA writes (charkit/qa3d.py: eye_*, sheet_*, face_shape_*, face_*, face_folds, expr_*), so
+charkit/facefit.py can search the knobs. It makes the geometry bundle a build would export (charkit/bundle.py, in
+memory) and measures it with the QA's own functions: the fit's objective is the QA itself.
 
 What a build would make, made here:
-  - the skin, eyes and mouth: charkit.character.assemble without the shape keys, the body and the wrap's knob-independent
-    part kept between calls (a new head, eye or mouth knob set re-wraps the head and re-places the features, ~0.5 s);
+  - the skin, eyes and mouth: charkit.character.assemble (without the shape keys unless the expression checks are asked
+    for), the body and the wrap's knob-independent part kept between calls (a new head, eye or mouth knob set re-wraps
+    the head and re-places the features, ~0.5 s);
   - the skin as Blender evaluates it: its Subdivision Surface modifier (level 1, limit surface, the eye margins creased)
     in numpy (charkit/subdiv.py; within 1 um of Blender's) over the head and neck; level 2 round the eyes for the eye
-    renders (a render draws the modifier's render level);
+    renders (a render draws the modifier's render level), pulled in by its outline (SKIN_OUTLINE along the vertex
+    normals) with the hull left on the surface, as the solidify outline renders;
   - the cranium from the generated hair (charkit.scene.fit_cranium on the cached arrays);
   - the generated character (the TRELLIS target) aligned on our eyes as charkit.scene.hair_shape_volume aligns it;
   - the hair, accessories and garments: cached from one Blender build (charkit/fit_blender.py --env), since the face and
-    eye knobs don't make them.
-What is measured, the same way the QA measures it:
-  - sheet       charkit.sheetqa.measure_ours on the z-buffer of those meshes, against the model sheet measured once;
-  - face_shape  charkit.faceqa.measure against the target;
-  - eyes        each eye rendered head-on at the rig's scale (a supersampled z-buffer: the skin by material, the eye plates
-                by their textures (charkit.eyetex, sampled at their UVs, the iris over the white by its alpha), the lashes
-                flat; filtered down like the renderer's pixel filter), then charkit.eyeqa as on Blender's render.
+    eye knobs don't make them;
+  - the eye plates' textures (charkit.eyetex) stored as Blender stores them (bytes), the materials' flat tones from the
+    spec's colours.
+Everything is measured by charkit.qa3d on that bundle: sheet (qa3d.sheet_measure), face_shape, eyes (qa3d.eye_image,
+supersampled like the renderer's pixel filter), and from the keys face, face_folds and the sheet's expression heads.
 
     from charkit import faceeval
     E = faceeval.Evaluator(resolved_spec, R, cache_dir)       # R: charkit.refs.measure of the rig; cache: fit_blender's
     res = E.run(spec)                                         # {'checks': {name: {value, status, ...}}, 'raw': ...}
 """
-import contextlib, copy, io, json, math, os
+import contextlib, copy, io, os
 
 import numpy as np
 
-from . import character, eyeqa, eyetex, faceqa, sheetqa, subdiv
+from . import bundle as bundlelib, character, eyetex, faceqa, qa3d, subdiv
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EYE_SIZE = 0.42                  # the eye render's window, in L (charkit.qa3d._eye_render)
-SS = 4                           # eye render supersampling per pixel side (3 agrees nearly as well at 40% the cost)
-FILTER = 0.55                    # the pixel filter's Gaussian sigma, in output pixels (EEVEE's 1.5 px filter)
-TEX_BLUR = 0.4                   # the eye textures' prefilter, sigma in texels per output pixel (the renderer's mipmaps)
-STATUS = ['PASS', 'WARN', 'FAIL', 'SKIPPED']
+EYE_SIZE = qa3d.EYE_SIZE         # the eye render's window, in L
+SS = qa3d.EYE_SS                 # eye render supersampling per pixel side (the fit's coarse passes use 3)
+SKIN_OUTLINE = 0.0011            # the skin's outline hull (charkit.scene.stage_character): how far it pulls the skin in
+STATUS = qa3d.STATUS
+SKIN_MATS = ('skin', 'face_skin', 'cavity', 'eyeline', 'line')
 
 
 def _path(p):
@@ -55,12 +57,15 @@ def _tris(faces):
 
 
 # ------------------------------------------------------------------------------------------------------------ geometry
-def skin_mesh(A, below=0.55, levels=1, box=None):
-    """the skin as the QA sees it: the head and neck (from `below` L under the chin up) subdivided like Blender's modifier
+def skin_quads(A, below=0.55, levels=1, box=None, carry=None):
+    """the skin as Blender evaluates it: the head and neck (from `below` L under the chin up) subdivided like its modifier
     (the eye margins creased): levels 1 as the QA reads meshes (the viewport level), 2 as a render draws it; box: only
-    the skin inside (x0, x1, z0, z1) world. -> (V, tris, per-triangle material (0 body, 1 head, 2 mouth cavity,
-    3 eye line))."""
+    the skin inside (x0, x1, z0, z1) world; carry: per-vertex values (N, k) subdivided alongside (vertex group weights,
+    as the modifier carries them). -> (V, quads, per-quad material (0 body, 1 head, 2 mouth cavity, 3 eye line)), and
+    the carried values when asked."""
     V = np.asarray(A['verts']); Hd = A['head']; L = Hd['L']
+    if carry is not None:
+        V = np.concatenate([V, np.asarray(carry, float).reshape(len(V), -1)], 1)
     keep = V[:, 2] > Hd['centre'][2] - Hd['H'].chin - below * L
     if box is not None:
         x0, x1, z0, z1 = box
@@ -72,217 +77,115 @@ def skin_mesh(A, below=0.55, levels=1, box=None):
         lp = E['eye']['margin']
         sharp += [(remap[a], remap[b]) for a, b in zip(lp, lp[1:] + lp[:1]) if remap[a] >= 0 and remap[b] >= 0]
     V1, quads, parent = subdiv.catmull_clark(Vr, fr, sharp, levels=levels)
+    fm = np.asarray(A['fmat'])[fi][parent]
+    if carry is not None:
+        return V1[:, :3], quads, fm, V1[:, 3:]
+    return V1, quads, fm
+
+
+def skin_mesh(A, below=0.55, levels=1, box=None):
+    """skin_quads as triangles (the fan the QA triangulates by) -> (V, tris, per-triangle material)."""
+    V1, quads, fm = skin_quads(A, below, levels, box)
+    return V1, np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]]), np.concatenate([fm, fm])
+
+
+def _shrink(V, quads, w, thick=SKIN_OUTLINE):
+    """the outline's pull on a surface (charkit.shade.outline's solidify): each vertex moved inward along its
+    (angle-weighted) normal by thick times its outline weight (charkit.character.outline_weights, subdivided)."""
+    from .geom.mesh import vertex_normals
     T = np.concatenate([quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]])
-    fm = np.asarray(A['fmat'])[fi][np.concatenate([parent, parent])]
-    return V1, T, fm
+    return (-thick * np.asarray(w).reshape(-1, 1) * vertex_normals(V, T)).astype(np.float32)
 
 
-def parts(A):
-    """the eye and mouth parts as the build makes them: {name: (V, tris, per-triangle material, uvs or None)}; eye parts
-    per side ('iris_L' ...), the lash ribbons' materials 0 lash, 1 lower lash, 2 crease."""
-    out = {}
+def materials(b, S):
+    """the materials the face's objects use, with the flat tones the build's would render (the spec's colours)."""
+    sk = (S.get('skin') or {})
+    lit = sk.get('lit', (1.0, 0.90, 0.86))
+    b.material('skin', lit=lit, shade=sk.get('shade', (0.95, 0.76, 0.74)), deep=sk.get('deep', (0.84, 0.60, 0.62)), kind='other')
+    b.material('face_skin', lit=lit, shade=sk.get('shade', (0.95, 0.76, 0.74)), deep=sk.get('deep', (0.84, 0.60, 0.62)),
+               kind='other')
+    b.material('cavity', lit=S.get('cavity_color', (0.38, 0.12, 0.15)))
+    b.material('eyeline', lit=S.get('eyeline_color', (0.22, 0.12, 0.10)))
+    b.material('line', lit=S.get('skin_line', (0.42, 0.24, 0.20)), cull=True)
+    b.material('lash', lit=S.get('lash_color', (0.16, 0.09, 0.10)))
+    b.material('crease', lit=S.get('crease_color', (0.78, 0.52, 0.48)))
+    b.material('brow', lit=S.get('brow_color', (0.30, 0.20, 0.20)))
+    b.material('teeth', lit=(0.97, 0.96, 0.97))
+    b.material('tongue', lit=(0.86, 0.46, 0.50))
+    b.material('mouth_line', lit=S.get('mouth_line_color', (0.36, 0.16, 0.14)))
+    IK = S.get('iris')
+    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
+    a = sh[..., 3:4]
+    b.image('sclera', eyetex.sclera(IK))
+    b.image('iris', np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1))
+    b.material('sclera', lit=(1, 1, 1), image='sclera', kind='plate')
+    b.material('iris', lit=(1, 1, 1), image='iris', kind='plate')
+
+
+def features(b, A, S, keys=False):
+    """the eye and mouth parts as the build makes them (charkit.character.build_eyes), into a bundle Builder: per side
+    the sclera and iris plates (with their UVs), the lash ribbons (materials lash, lash, crease), the brow; the teeth,
+    tongue and lip line. keys: their base variants with the expression keys too (the expression checks)."""
+    from . import eyes as eyelib
+    IK = S.get('iris')
+    cz = eyetex._knobs(IK)['cz']
     for E in A['eyes']:
         tag = 'L' if E['side'] > 0 else 'R'
         for k in ('sclera', 'iris'):
             v, f, uv = E[k]
-            t, poly = _tris(f)
-            out[f'{k}_{tag}'] = (np.asarray(v), t, np.zeros(len(t), int), np.asarray(uv))
+            G = dict(V=v, faces=f, uv=uv)
+            var = {'eval': G}
+            if keys:
+                back = np.zeros((len(v), 3)); back[:, 1] = 0.006
+                K = {'eye_blink': back, 'eye_happy': back}
+                if k == 'iris':
+                    K.update({kn: D for kn, D in (E.get('iris_keys') or {}).items()})
+                    K.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})
+                var['base'] = dict(G, keys=K)
+            b.add('%s_%s' % (k, tag), 'eye', var, part=k, side=tag, materials=[k])
         lv, lf, lm, off = [], [], [], 0
         for k_, (rv, rq) in enumerate(E['lashes']):
-            lv.append(rv); lf += [tuple(i + off for i in f) for f in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)
-        t, poly = _tris(lf)
-        out[f'lash_{tag}'] = (np.vstack(lv), t, np.asarray(lm)[poly], None)
+            lv.append(rv); lf += [tuple(i + off for i in q) for q in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)
+        G = dict(V=np.vstack(lv), faces=lf, pmat=lm)
+        var = {'eval': G}
+        if keys:
+            var['base'] = dict(G, keys={'eye_' + nm: np.vstack(E['keys'][nm][1]) for nm in E['keys']})
+        b.add('lash_' + tag, 'eye', var, part='lash', side=tag, materials=['lash', 'lash', 'crease'])
         bv, bq = E['brow']
-        t, _ = _tris(bq)
-        out[f'brow_{tag}'] = (np.asarray(bv), t, np.zeros(len(t), int), None)
+        G = dict(V=bv, faces=bq)
+        var = {'eval': G}
+        if keys:
+            var['base'] = dict(G, keys={'brow_' + k: D for k, D in E['brow_keys'].items()})
+        b.add('brow_' + tag, 'eye', var, part='brow', side=tag, materials=['brow'])
     Mo = A['mouth']
-    for name, key in (('teeth', 'teeth'), ('tongue', 'tongue'), ('mouth_line', 'line')):
+    for nm, key, kk in (('teeth', 'teeth', 'teeth_keys'), ('tongue', 'tongue', 'tongue_keys'), ('mouth_line', 'line', 'line_keys')):
         v, q = Mo[key]
-        t, _ = _tris(q)
-        out[name] = (np.asarray(v), t, np.zeros(len(t), int), None)
-    return out
+        G = dict(V=v, faces=q)
+        var = {'eval': G}
+        if keys:
+            var['base'] = dict(G, keys={'mouth_' + sh: D for sh, D in Mo[kk].items()})
+        b.add(nm, 'mouth', var, part=nm, materials=[nm])
 
 
-def expression_data(A, spec):
-    """charkit.qa3d.expression_data's arrays from an assembly with its keys (character.assemble(keys=True)): the posed
-    base meshes (the skin's control mesh: the QA reads them with only the armature on), a class per triangle (the iris
-    where its texture's alpha, sampled at the polygon's UV centre, is at least 0.5) and each expression key's offsets."""
-    from . import exprqa
-    CL = exprqa.CLASS
-    Hd = A['head']; L = Hd['L']; c = np.asarray(Hd['centre'], float)
-    IK = spec.get('iris')
-    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
-    iris_a = np.maximum(ir[..., 3], sh[..., 3])
-    parts = []
-
-    def sparse(D):
-        D = np.asarray(D, float)
-        idx = np.nonzero(np.abs(D).max(1) > 1e-7)[0]
-        return idx, D[idx]
-
-    def put(name, V, faces, lab_fn, keys, keep=None, uvs=None):
-        T, poly = _tris(faces)
-        lab = lab_fn(poly, T, uvs)
-        ok = lab >= 0
-        if keep is not None:
-            ok &= keep(V[T].mean(1))
-        parts.append((name, np.asarray(V, float), T[ok], lab[ok], {k: sparse(D) for k, D in keys.items()}))
-
-    V = np.asarray(A['verts'])
-    by = np.array([CL['skin'], CL['skin'], CL['mouth'], CL['line']])
-    fm = np.asarray(A['fmat'])
-    head = lambda P: (P[:, 2] > c[2] - 0.85 * L) & (P[:, 2] < c[2] + 0.55 * L) & (P[:, 1] < c[1] + 0.1 * L)
-    names = list(A['eyes'][0]['keys'])
-    keys = {'eye_' + n: sum(E['keys'][n][0] for E in A['eyes']) for n in names}
-    keys.update({'mouth_' + sh_: D for sh_, D in A['mouth']['keys'].items()})
-    put('skin', V, A['faces'], lambda poly, T, uv: by[np.minimum(fm[poly], 3)], keys, head)
-    from . import eyes as eyelib
-    cz = eyetex._knobs(IK)['cz']
-    for E in A['eyes']:
-        tag = 'L' if E['side'] > 0 else 'R'
-        v, f, uv = E['iris']
-        uv = np.asarray(uv)
-        n = iris_a.shape[0]
-
-        def iris_lab(poly, T, _, f=f, uv=uv):
-            pu = np.array([uv[list(f[p])].mean(0) for p in range(len(f))])[poly]
-            pu = np.clip(pu, 0, 1 - 1e-6)
-            a = iris_a[n - 1 - (pu[:, 1] * n).astype(int), (pu[:, 0] * n).astype(int)]
-            return np.where(a >= 0.5, CL['iris'], -1)
-        back = np.zeros((len(v), 3)); back[:, 1] = 0.006
-        ik = {'eye_blink': back, 'eye_happy': back}
-        ik.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})
-        put('iris_' + tag, v, f, iris_lab, ik)
-        v, f, _ = E['sclera']
-        put('sclera_' + tag, v, f, lambda poly, T, uv: np.full(len(poly), CL['white']), {'eye_blink': back[:len(v)],
-                                                                                          'eye_happy': back[:len(v)]})
-        lv, lq, off = [], [], 0
-        for rv, rq in E['lashes']:
-            lv.append(rv); lq += [tuple(i + off for i in q) for q in rq]; off += len(rv)
-        put('lash_' + tag, np.vstack(lv), lq, lambda poly, T, uv: np.full(len(poly), CL['line']),
-            {'eye_' + nm: np.vstack(E['keys'][nm][1]) for nm in names})
-        bv, bq = E['brow']
-        put('brow_' + tag, bv, bq, lambda poly, T, uv: np.full(len(poly), CL['brow']),
-            {'brow_' + k: D for k, D in E['brow_keys'].items()})
-    Mo = A['mouth']
-    for nm, key, cl, kk in (('teeth', 'teeth', CL['white'], 'teeth_keys'), ('tongue', 'tongue', CL['mouth'], 'tongue_keys'),
-                            ('mouth_line', 'line', CL['line'], 'line_keys')):
-        v, q = Mo[key]
-        put(nm, v, q, lambda poly, T, uv, cl=cl: np.full(len(poly), cl), {'mouth_' + sh_: D for sh_, D in Mo[kk].items()})
-    iw = [np.asarray(E['iris'][0]).mean(0) for E in A['eyes']]
-    return dict(parts=parts, eye_z=float(np.mean([w[2] for w in iw])), L=L)
+def skin_variants(A, keys=True):
+    """the skin's base and assembly variants (charkit.bundle's): `base` as Blender holds it (the assembly's vertices in
+    float32, each shape key's positions float32(basis + offset), as charkit.character._key writes them), `assembly`
+    the assembly's own (float64)."""
+    G = dict(bundlelib.assembly_variant(A), exact=True)
+    V32 = np.asarray(A['verts'], float).astype(np.float32).astype(np.float64)
+    base = dict(V=V32, loopv=G['loopv'], counts=G['counts'], pmat=G['pmat'], exact=True)
+    if keys and G['keys']:
+        K = {}
+        for kn, (idx, D) in G['keys'].items():
+            full = np.zeros_like(V32); full[idx] = D
+            K[kn] = (V32 + full).astype(np.float32).astype(np.float64) - V32
+        base['keys'] = K
+    return base, G
 
 
-# ------------------------------------------------------------------------------------------------------------ rasterising
-def raster(meshes, x0, z0, pix, W, H):
-    """the nearest surface per pixel of an orthographic view from the front (looking +y), pixel (r, c)'s centre at world
-    x = x0 + (c + 0.5) pix, z = z0 - (r + 0.5) pix. meshes: [(V, tris)]. -> (mesh index (H, W), -1 = nothing; triangle
-    index; barycentric weights b1, b2 of the triangle's second and third corners)."""
-    pix_all, dep, mid, tid, B1, B2 = [], [], [], [], [], []
-    for m, (V, T) in enumerate(meshes):
-        if len(T) == 0:
-            continue
-        cc = (V[:, 0] - x0) / pix - 0.5
-        rr = (z0 - V[:, 2]) / pix - 0.5
-        tc, tr = cc[T], rr[T]
-        near = (tc.max(1) >= 0) & (tc.min(1) <= W - 1) & (tr.max(1) >= 0) & (tr.min(1) <= H - 1)
-        T, tc, tr = T[near], tc[near], tr[near]
-        tmap = np.nonzero(near)[0]
-        c_lo = np.maximum(np.ceil(tc.min(1)), 0).astype(np.int64); c_hi = np.minimum(np.floor(tc.max(1)), W - 1).astype(np.int64)
-        r_lo = np.maximum(np.ceil(tr.min(1)), 0).astype(np.int64); r_hi = np.minimum(np.floor(tr.max(1)), H - 1).astype(np.int64)
-        nx, ny = np.maximum(c_hi - c_lo + 1, 0), np.maximum(r_hi - r_lo + 1, 0)
-        cnt = nx * ny
-        ok = np.nonzero(cnt > 0)[0]
-        if not len(ok):
-            continue
-        t_id = np.repeat(ok, cnt[ok])
-        local = np.arange(len(t_id)) - np.repeat(np.cumsum(cnt[ok]) - cnt[ok], cnt[ok])
-        px_c = c_lo[t_id] + local % nx[t_id]
-        px_r = r_lo[t_id] + local // nx[t_id]
-        ax, ay = tc[t_id, 0], tr[t_id, 0]
-        v0x, v0y = tc[t_id, 1] - ax, tr[t_id, 1] - ay
-        v1x, v1y = tc[t_id, 2] - ax, tr[t_id, 2] - ay
-        v2x, v2y = px_c - ax, px_r - ay
-        den = v0x * v1y - v1x * v0y
-        good = np.abs(den) > 1e-12
-        den = np.where(good, den, 1.0)
-        b1 = (v2x * v1y - v1x * v2y) / den
-        b2 = (v0x * v2y - v2x * v0y) / den
-        e = -1e-9
-        ins = good & (b1 >= e) & (b2 >= e) & (1 - b1 - b2 >= e)
-        yv = V[:, 1][T]
-        d = yv[t_id, 0] * (1 - b1 - b2) + yv[t_id, 1] * b1 + yv[t_id, 2] * b2
-        pix_all.append((px_r * W + px_c)[ins]); dep.append(d[ins]); mid.append(np.full(ins.sum(), m))
-        tid.append(tmap[t_id[ins]]); B1.append(b1[ins]); B2.append(b2[ins])
-    M = np.full(H * W, -1); Ti = np.zeros(H * W, np.int64); b1o = np.zeros(H * W); b2o = np.zeros(H * W)
-    if pix_all:
-        p, d = np.concatenate(pix_all), np.concatenate(dep)
-        zb = np.full(H * W, np.inf)
-        np.minimum.at(zb, p, d)
-        w = d <= zb[p]                                  # the nearest sample per pixel (a tie: either)
-        p = p[w]
-        M[p] = np.concatenate(mid)[w]; Ti[p] = np.concatenate(tid)[w]
-        b1o[p] = np.concatenate(B1)[w]; b2o[p] = np.concatenate(B2)[w]
-    return M.reshape(H, W), Ti.reshape(H, W), b1o.reshape(H, W), b2o.reshape(H, W)
-
-
-def _sample(tex, uv):
-    """bilinear texture lookup (tex (n, n, c), row 0 = top = v 1) at uv (m, 2); outside [0, 1] -> 0 (the plates' CLIP)."""
-    n = tex.shape[0]
-    x = uv[:, 0] * n - 0.5; y = (1 - uv[:, 1]) * n - 0.5
-    x0 = np.floor(x).astype(int); y0 = np.floor(y).astype(int)
-    fx, fy = (x - x0)[:, None], (y - y0)[:, None]
-    def at(yy, xx):
-        return tex[np.clip(yy, 0, n - 1), np.clip(xx, 0, n - 1)]
-    out = (at(y0, x0) * (1 - fx) * (1 - fy) + at(y0, x0 + 1) * fx * (1 - fy) + at(y0 + 1, x0) * (1 - fx) * fy
-           + at(y0 + 1, x0 + 1) * fx * fy)
-    inside = (uv[:, 0] >= 0) & (uv[:, 0] <= 1) & (uv[:, 1] >= 0) & (uv[:, 1] <= 1)
-    return np.where(inside[:, None], out, 0.0)
-
-
-def EK_width(A):
-    return A['head']['eye_knobs']['width'] * A['head']['L']
-
-
-def _blur_tex(tex, sigma):
-    """a Gaussian blur of a texture (sigma in texels), premultiplied by its alpha."""
-    if sigma < 0.3:
-        return tex
-    a = tex[..., 3:4]
-    img = np.concatenate([tex[..., :3] * a, a], -1)
-    r = int(math.ceil(3 * sigma))
-    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2); k /= k.sum()
-    pad = np.pad(img, ((r, r), (r, r), (0, 0)), mode='edge')
-    tmp = sum(k[i] * pad[i:i + img.shape[0], :, :] for i in range(2 * r + 1))
-    tmp = sum(k[i] * tmp[:, i:i + img.shape[1], :] for i in range(2 * r + 1))
-    al = tmp[..., 3:4]
-    return np.concatenate([np.where(al > 1e-6, tmp[..., :3] / np.maximum(al, 1e-6), tex[..., :3]), al], -1)
-
-
-def _blur_down(img, ss, sigma):
-    """a Gaussian pixel filter (sigma in output pixels) and decimation by ss: (H ss, W ss, c) -> (H, W, c)."""
-    s = sigma * ss
-    r = int(math.ceil(3 * s))
-    k = np.exp(-0.5 * (np.arange(-r, r + 1) / s) ** 2); k /= k.sum()
-    pad = np.pad(img, ((r, r), (r, r), (0, 0)), mode='edge')
-    tmp = sum(k[i] * pad[i:i + img.shape[0], :, :] for i in range(2 * r + 1))
-    tmp = sum(k[i] * tmp[:, i:i + img.shape[1], :] for i in range(2 * r + 1))
-    off = ss // 2
-    return tmp[off::ss, off::ss]
-
-
-def shifted(G, d):
-    """the geometry moved rigidly by d (world): the same scene on another pixel grid."""
-    A = dict(G['A']); Hd = dict(A['head'])
-    Hd['centre'] = np.asarray(Hd['centre']) + d
-    A['head'] = Hd
-    V, T, fm = G['skin']
-    P = {k: (v + d,) + tuple(rest) for k, (v, *rest) in G['parts'].items()}
-    out = dict(G, A=A, skin=(V + d, T, fm), parts=P)
-    if G.get('garments') is not None:
-        out['garments'] = (G['garments'][0] + d, G['garments'][1])
-    out['shift'] = d
-    return out
+def shifted(B, d):
+    """the bundle moved rigidly by d (world): the same scene on another pixel grid."""
+    return B.moved(d)
 
 
 def mean_checks(runs):
@@ -331,25 +234,7 @@ class Evaluator:
                 d, i = cKDTree(self.env_skin).query(gv[used], k=8)
                 w = 1 / np.maximum(d, 1e-5) ** 2
                 self._gfollow = (used, i, w / w.sum(1, keepdims=True))
-        self._design()
-        self._tmaps, self._tcache = {}, {}
-
-    # ---------------------------------------------------------------------------------------------- the design side
-    def _design(self):
-        ref = self.spec0.get('ref') if isinstance(self.spec0.get('ref'), dict) else {}
-        self.D, self.sheet_ppl, self.eye_design = None, None, {}
-        sh = ref.get('sheet')
-        if sh and ref.get('rig'):
-            rgb = _rgba(_path(sh['image']))[..., :3].astype(np.float64)
-            rig_alpha = _rgba(os.path.join(_path(ref['rig']), 'base.png'))[..., 3]
-            ex = self.spec0.get('eyes', {}).get('x', 0.168)
-            self.sheet_ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, self.R['ppl'])
-            self.D = sheetqa.measure_sheet(rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=self.sheet_ppl)
-        if ref.get('rig'):
-            for side, layer in (('R', 'eye_L'), ('L', 'eye_R')):
-                p = os.path.join(_path(ref['rig']), 'build', layer + '.png')
-                if os.path.exists(p):
-                    self.eye_design[side] = (_rgba(p), eyeqa.measure(_rgba(p).astype(np.float64), self.R['ppl']))
+        self._tmaps, self._tcache, self._design = {}, {}, {}
 
     # ---------------------------------------------------------------------------------------------- our side
     def prepare(self, spec):
@@ -374,218 +259,99 @@ class Evaluator:
         V[used] += (D[i] * w[..., None]).sum(1)
         return V, T
 
-    def geometry(self, spec):
-        """-> dict(A (the assembly), skin (V, tris, material per tri), parts, garments (V, tris), target (aligned V, tris,
-        colours) or None)."""
+    def bundle(self, spec, keys=False, eyes=True):
+        """the bundle a build of this knob set would export for the face's checks (charkit/bundle.py, in memory)."""
         S = self.prepare(spec)
-        A = character.assemble(S, keys=False, cache=self.cache)
-        G = dict(spec=S, A=A, skin=skin_mesh(A), parts=parts(A), target=None,
-                 garments=self.garments(A) if 'garment' in self.env else None)
+        A = character.assemble(S, keys=keys, cache=self.cache)
+        Hd = A['head']; L = Hd['L']
+        b = bundlelib.Builder({k: v for k, v in S.items() if k != '_dir'}, bundlelib.assembly_meta(A, S), self.R)
+        materials(b, S)
+        V1, quads, fm = skin_quads(A)
+        base, asm = skin_variants(A, keys)
+        variants = {'eval': dict(V=V1, faces=quads, pmat=fm), 'base': base, 'assembly': asm}
+        ow = character.outline_weights(A)
+        if eyes:
+            for E in A['eyes']:
+                tag = 'L' if E['side'] > 0 else 'R'
+                h = bundlelib.EYE_BOX / 2 + bundlelib.EYE_MARGIN
+                box = (E['c'][0] - h * L, E['c'][0] + h * L, E['c'][1] - h * L, E['c'][1] + h * L)
+                # (the subdivided region reaches 0.1 L further, so the patch's own surface is the limit surface's)
+                Vr, qr, fr, wr = skin_quads(A, levels=2, box=(box[0] - 0.07 * L, box[1] + 0.07 * L, box[2] - 0.07 * L,
+                                                              box[3] + 0.07 * L), carry=ow)
+                variants['render_eye_' + tag] = dict(V=Vr, faces=qr, pmat=fr, shrink=_shrink(Vr, qr, wr))
+        b.add('skin', 'skin', variants, materials=SKIN_MATS, outline=dict(slot=4, thickness=-SKIN_OUTLINE, offset=1.0))
+        features(b, A, S, keys)
+        for g in ('hair', 'accessory', 'garment'):
+            if g in self.env and len(self.env[g][1]):
+                v, t = self.garments(A) if g == 'garment' else self.env[g]
+                b.add(g + '_env', g, {'eval': dict(V=v, faces=np.asarray(t))})
         if self.target is not None:
-            from . import i3d
+            from . import i3d, scene
             V, T, C = self.target
-            Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
             shape = S['hair']['shape']
-            key = ('eyes',)
-            if key not in self._tmaps:
-                self._tmaps[key] = i3d.find_eyes(V, C)
-            eyes = self._tmaps[key]
-            mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
-            G['target'] = (i3d.align_by_eyes(V, eyes, mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)), T, C)
-        return G
+            if 'eyes' not in self._tmaps:
+                self._tmaps['eyes'] = i3d.find_eyes(V, C)
+            eye_mid, spacing = scene.eye_target(A, shape)
+            b.target(i3d.align_by_eyes(V, self._tmaps['eyes'], eye_mid, spacing), T, C)
+        B = b.build()
+        B.A = A
+        return B
+
+    def design(self, B):
+        """the design side (qa3d.Design) for a bundle of this character, its loaded pictures shared between calls."""
+        D = qa3d.Design(B)
+        D._m = self._design
+        return D
 
     # ---------------------------------------------------------------------------------------------- the measures
-    def sheet(self, G, covers=True, jitter=None):
-        """the model-sheet checks (charkit.qa3d.sheet's, the same code) -> (O, checks). jitter: sub-pixel offsets (pixels,
-        each (x, y, z)) to measure at and average (a smoother objective for the fit than one pixel grid; the QA's own
-        grid is offset (0, 0, 0))."""
-        if self.D is None:
+    def sheet(self, B, covers=True, jitter=None):
+        """the model-sheet checks (charkit.qa3d.sheet_measure: the QA's own) -> (table, checks). jitter: sub-pixel offsets
+        (pixels, each (x, y, z)) to measure at and average (a smoother objective for the fit than one pixel grid; the
+        QA's own grid is offset (0, 0, 0))."""
+        D = self.design(B)
+        got = D.sheet_measures()
+        if got is None:
             return None, {'sheet': {'status': 'SKIPPED', 'why': 'no spec.ref.sheet / rig'}}
         if jitter:
-            runs = [self.sheet(G, covers, None) if not any(j) else self.sheet(shifted(G, np.asarray(j) / self.sheet_ppl
-                                                                                     * G['A']['head']['L']), covers, None)
-                    for j in jitter]
+            ppl, L = got[1], B.assembly['L']
+            runs = [self.sheet(B if not any(j) else B.moved(np.asarray(j) / ppl * L), covers, None) for j in jitter]
             return runs[0][0], mean_checks([c for _, c in runs])
-        CL = sheetqa.CLASS
-        A = G['A']; Hd = A['head']; L = Hd['L']
-        V, T, fm = G['skin']
-        by = np.array([CL['skin'], CL['skin'], CL['line'], CL['line']])
-        meshes = [(V, T, by[np.minimum(fm, 3)])]
-        P = G['parts']
-        cls = {'iris': CL['iris'], 'lash': CL['line'], 'brow': CL['line'], 'sclera': CL['other']}
-        for tag in ('L', 'R'):
-            for k, c in cls.items():
-                v, t, _, _ = P[f'{k}_{tag}']
-                meshes.append((v, t, np.full(len(t), c)))
-        for nm in ('teeth', 'tongue', 'mouth_line'):
-            v, t, _, _ = P[nm]
-            meshes.append((v, t, np.full(len(t), CL['line'] if 'line' in nm else CL['other'])))
-        cov = []
-        for g, c, dst in (('hair', CL['hair'], cov), ('accessory', CL['other'], cov), ('garment', CL['other'], meshes)):
-            if g in self.env and len(self.env[g][1]):
-                v, t = G['garments'] if g == 'garment' else self.env[g]
-                if g != 'garment' and G.get('shift') is not None:
-                    v = v + G['shift']
-                dst.append((v, t, np.full(len(t), c)))
-        irc = [P[f'iris_{t}'][0].mean(0) for t in ('L', 'R')]
-        az3 = self.D.get('az_three_quarter', 35.0)
-        O = sheetqa.measure_ours(meshes, cov if covers else [], irc, Hd['centre'], L, self.sheet_ppl, az3)
-        C = sheetqa.compare(O, self.D)
-        if covers:
-            C.update(sheetqa.shown(O, self.D))
+        O, Dm, ppl, az3, C = qa3d.sheet_measure(B, D, covers)
         return O, C
 
-    def face_shape(self, G, covers=True):
-        """the face-shape checks against the generated character (charkit.qa3d.face_shape's) -> (R, checks)."""
-        if G['target'] is None:
-            return None, {'face_shape': {'status': 'SKIPPED', 'why': 'no generated shape'}}
-        A = G['A']; Hd = A['head']; L = Hd['L']
-        V, T, fm = G['skin']
-        ours = [(V, T, fm <= 1, True)]
-        P = G['parts']
-        for tag in ('L', 'R'):
-            for k in ('sclera', 'iris', 'lash', 'brow'):
-                v, t, _, _ = P[f'{k}_{tag}']
-                ours.append((v, t, np.zeros(len(t), bool), True))
-        for nm in ('teeth', 'tongue', 'mouth_line'):
-            v, t, _, _ = P[nm]
-            ours.append((v, t, np.zeros(len(t), bool), True))
-        if covers:
-            for g in ('hair', 'accessory', 'garment'):
-                if g in self.env and len(self.env[g][1]):
-                    v, t = G['garments'] if g == 'garment' else self.env[g]
-                    ours.append((v, t, np.zeros(len(t), bool), False))
-        ez = float(np.mean([E['c'][1] for E in A['eyes']]))
-        Vb = np.asarray(A['verts'])
-        mid = (np.abs(Vb[:, 0]) < 0.01 * L) & (Vb[:, 2] < ez - 0.05 * L) & (Vb[:, 2] > ez - 0.25 * L)
-        lm = dict(L=L, eye_z=ez, centre=list(Hd['centre']), mouth_z=float(A['mouth']['c'][1]))
-        if mid.any():
-            lm['nose_z'] = float(Vb[mid][np.argmin(Vb[mid][:, 1]), 2])
-        lm['brow_z'] = float(np.mean([P[f'brow_{t}'][0][:, 2].mean() for t in ('L', 'R')]))
-        Rm = faceqa.measure(ours, G['target'], lm, self.R, tcache=self._tcache)
-        C = faceqa.checks(Rm)
-        return Rm, {('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in C.items()}
+    def face_shape(self, B, covers=True):
+        """the face-shape checks against the generated character (charkit.qa3d.face_shape) -> (R, checks)."""
+        R, C = qa3d.face_shape(B, self.design(B), None, covers, tcache=self._tcache)
+        return R, {('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in C.items()}
 
-    def eye_image(self, G, side, ss=None):
-        """one eye rendered as charkit.qa3d._eye_render renders it: head-on, orthographic, EYE_SIZE L square round the eye
-        centre at the rig's scale; the skin and that eye's white, iris and lashes. -> RGBA floats (n, n, 4), row 0 = top."""
-        A = G['A']; S = G['spec']; L = A['head']['L']
-        SSk = ss or SS
-        E = next(E for E in A['eyes'] if (E['side'] > 0) == (side == 'L'))
-        n = int(round(EYE_SIZE * self.R['ppl']))
-        pix = EYE_SIZE * L / n / SSk
-        N = n * SSk
-        x0 = E['c'][0] - EYE_SIZE * L / 2; z0 = E['c'][1] + EYE_SIZE * L / 2
-        # a render draws the skin at the modifier's render level (2), not the viewport's the other measures read
-        key = 'skin2_' + side
-        if key not in G:
-            m = 0.1 * L
-            G[key] = skin_mesh(A, levels=2, box=(x0 - m, x0 + EYE_SIZE * L + m, z0 - EYE_SIZE * L - m, z0 + m))
-        V, T, fm = G[key]
-        P = G['parts']
-        sc, ir, la = P[f'sclera_{side}'], P[f'iris_{side}'], P[f'lash_{side}']
-        # (the skin's outline shell isn't drawn: in a render it can hide a lash that lies closer to folded lid skin
-        # than its 1.1 mm; see docs/CHARKIT.md, the evaluator's known gaps)
-        mesh_list = [(V, T), (sc[0], sc[1]), (ir[0], ir[1]), (la[0], la[1])]
-        M, Ti, b1, b2 = raster(mesh_list, x0, z0, pix, N, N)
-        IK = S.get('iris')
-        skin_c = np.array((S.get('skin') or {}).get('lit', (1.0, 0.90, 0.86)), float)
-        mats = np.array([skin_c, skin_c, S.get('cavity_color', (0.38, 0.12, 0.15)), S.get('eyeline_color', (0.22, 0.12, 0.10))],
-                        float)
-        lash_c = np.array([S.get('lash_color', (0.16, 0.09, 0.10))] * 2 + [S.get('crease_color', (0.78, 0.52, 0.48))], float)
-        rgb = np.zeros((N, N, 3)); al = np.zeros((N, N))
-        m = M == 0
-        rgb[m] = mats[np.minimum(fm[Ti[m]], 3)]; al[m] = 1
-        m = M == 3
-        rgb[m] = lash_c[la[2][Ti[m]]]; al[m] = 1
-        tex_s = eyetex.sclera(IK)
-        ir_t = eyetex.iris(IK); sh_t = eyetex.shine(IK)
-        a_ = sh_t[..., 3:4]
-        tex_i = np.concatenate([ir_t[..., :3] * (1 - a_) + sh_t[..., :3] * a_, np.maximum(ir_t[..., 3:4], a_)], -1)
-        if TEX_BLUR:                                # the renderer's mipmapped lookup: a texel footprint per pixel
-            tpp = tex_i.shape[0] / (EK_width(A) / (EYE_SIZE * L / n))
-            tex_i = _blur_tex(tex_i, TEX_BLUR * tpp); tex_s = _blur_tex(tex_s, TEX_BLUR * tpp)
-        for k, (v, t, _, uv) in ((1, sc), (2, ir)):
-            m = M == k
-            if not m.any():
-                continue
-            tt = t[Ti[m]]
-            w1, w2 = b1[m][:, None], b2[m][:, None]
-            u = uv[tt[:, 0]] * (1 - w1 - w2) + uv[tt[:, 1]] * w1 + uv[tt[:, 2]] * w2
-            s_rgb = _sample(tex_s, u)[:, :3]
-            if k == 1:
-                rgb[m] = s_rgb
-            else:
-                ci = _sample(tex_i, u)
-                rgb[m] = ci[:, :3] * ci[:, 3:4] + s_rgb * (1 - ci[:, 3:4])
-            al[m] = 1
-        img = _blur_down(np.concatenate([rgb * al[..., None], al[..., None]], -1), SSk, FILTER)
-        a = img[..., 3:4]
-        return np.concatenate([np.where(a > 1e-6, img[..., :3] / np.maximum(a, 1e-6), 0), a], -1)
-
-    def eyes(self, G, ss=None):
-        """the eye checks (charkit.qa3d.eyes': each eye against its design layer, the worse eye's status per check);
+    def eyes(self, B, ss=None):
+        """the eye checks (charkit.qa3d.eyes: each eye against its design layer, the worse eye's status per check);
         ss: the render's supersampling (default SS)."""
-        if not self.eye_design:
-            return None, {'eye': {'status': 'SKIPPED', 'why': 'no design rig'}}
-        table, checks, pics = {}, {}, {}
-        for side in ('R', 'L'):
-            des_px, md = self.eye_design[side]
-            px = self.eye_image(G, side, ss)
-            mo = eyeqa.measure(px, self.R['ppl'])
-            table[side] = {'ours': {k: v for k, v in mo.items() if not k.startswith('_')},
-                           'design': {k: v for k, v in md.items() if not k.startswith('_')}}
-            for k, v in eyeqa.compare(mo, md).items():
-                prev = checks.get(k)
-                if prev is None or STATUS.index(v['status']) > STATUS.index(prev['status']):
-                    checks[k] = dict(v, eye=side)
-            pics[side] = (px, des_px, mo, md)
-        return (table, pics), {'eye_' + k: v for k, v in checks.items()}
+        table, C = qa3d.eyes(B, self.design(B), None, ss or SS)
+        return table, {'eye_' + k: v for k, v in C.items()}
 
     def expressions(self, spec):
-        """the checks the build's QA makes from the shape keys, on the numpy assembly with its keys (~3 s): the expression
-        geometry (charkit.qa3d.face_from: face_*), the fold count round the openings (qa3d.face_folds), and the sheet's
-        expression heads against our expression library (charkit.exprqa: expr_*). -> checks."""
-        from . import qa3d
-        S = self.prepare(spec)
-        A = character.assemble(S, keys=True, cache=self.cache)
-        _, fc = qa3d.face_from(A, S, qa3d.key_xz_numpy(A))
+        """the checks the build's QA makes from the shape keys, on the bundle of the assembly with its keys (~3 s): the
+        expression geometry (face_*), the fold count round the openings (face_folds), and the sheet's expression heads
+        against our expression library (expr_*). -> checks."""
+        B = self.bundle(spec, keys=True, eyes=False)
+        _, fc = qa3d.face(B)
         C = {'face_' + k: v for k, v in fc.items()}
-        ff = qa3d.face_folds(A)
-        C['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
-                           'status': qa3d._grade('face_folds', ff['total'], False)}
-        ctx = self.sheet_context()
-        if ctx is not None and ctx['D'].get('expressions'):
-            from . import exprqa
-            _, ce, _ = exprqa.sheet_run(expression_data(A, S), ctx['rgb'], ctx['D'], ctx['eye_x'])
-            C.update(ce)
+        C.update(qa3d.folds(B)[1])
+        C.update(qa3d.sheet_expressions(B, self.design(B))[1])
         return C
 
-    def sheet_context(self):
-        """qa3d._sheet_context's picture and detected figures (for the expression heads), once."""
-        if getattr(self, '_ctx', None) is None:
-            from . import sheetqa
-            ref = self.spec0.get('ref') if isinstance(self.spec0.get('ref'), dict) else {}
-            sh = ref.get('sheet')
-            if not sh or not ref.get('rig'):
-                return None
-            rgb = _rgba(_path(sh['image']))[..., :3].astype(np.float64)
-            ex = self.spec0.get('eyes', {}).get('x', 0.168)
-            self._ctx = dict(rgb=rgb, eye_x=ex, D=sheetqa.detect_figures(rgb, ppl=self.sheet_ppl, eye_x=ex,
-                                                                          facing=sh.get('facing')))
-        return self._ctx
-
     def run(self, spec, what=('eyes', 'sheet', 'face_shape'), covers=True, jitter=None, ss=None):
-        """-> {'checks': {name: check}, 'raw': {'sheet': O, 'face_shape': R, 'eyes': table}, 'geometry': G}."""
-        G = self.geometry(spec)
-        out = {'checks': {}, 'raw': {}, 'geometry': G}
+        """-> {'checks': {name: check}, 'raw': {'sheet': O, 'face_shape': R, 'eyes': table}, 'geometry': the bundle}."""
+        B = self.bundle(spec, eyes='eyes' in what)
+        out = {'checks': {}, 'raw': {}, 'geometry': B}
         if 'eyes' in what:
-            r, c = self.eyes(G, ss); out['raw']['eyes'] = r; out['checks'].update(c)
+            r, c = self.eyes(B, ss); out['raw']['eyes'] = r; out['checks'].update(c)
         if 'sheet' in what:
-            r, c = self.sheet(G, covers, jitter); out['raw']['sheet'] = r
+            r, c = self.sheet(B, covers, jitter); out['raw']['sheet'] = r
             out['checks'].update({'sheet_' + k: v for k, v in c.items()})
         if 'face_shape' in what:
-            r, c = self.face_shape(G, covers); out['raw']['face_shape'] = r; out['checks'].update(c)
+            r, c = self.face_shape(B, covers); out['raw']['face_shape'] = r; out['checks'].update(c)
         if 'expressions' in what:
             out['checks'].update(self.expressions(spec))
         return out

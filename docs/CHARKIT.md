@@ -79,23 +79,32 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
      -> hair (volume fit -> clumps -> springs)
      -> garments (templates -> fit -> weights -> springs)
      -> materials (+ paint: generate views -> project -> bake)
-     -> QA boards; export
+     -> boards; the geometry bundle; export
+     => the QA, in the venv, on the bundle
 ```
 
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
 
 In code (`charkit/scene.py`): `fit_cranium` (the skull's height from the generated hair) -> `character` (body, head,
-features, keys) -> `hair` (and accessories) -> `face_shading` -> `garments`; then the products: boards, QA, the VRM, the
-`.blend`. With `hair.shape.mode 'geom'` the hair is cut venv-side first (`charkit.geom`, `OUT/geom/hair.npz`).
+features, keys) -> `hair` (and accessories) -> `face_shading` -> `garments`; then the products: boards, the geometry
+bundle (`OUT/bundle`, `charkit/bundle.py`: everything the QA measures), the VRM, the `.blend`. With `hair.shape.mode
+'geom'` the hair is cut venv-side first (`charkit.geom`, `OUT/geom/hair.npz`). Blender builds and exports; the venv
+measures: after Blender, `python -m charkit build` runs the QA on the bundle in its own process (`charkit/qa3d.py`,
+`python -m charkit qa OUT/bundle`), appending to the build's trace. `--qa blender` runs the old Blender-side QA pass
+instead (`charkit/qa3d_blender.py`), for comparison during the move (§4, the geometry bundle).
 
 ### The build cache
 
 `python -m charkit build` restores a stage from `charkit/out/.cache/` instead of running it when nothing the stage read
-has changed (`charkit/cache.py`), and restores the boards, the QA and the VRM the same way when the whole scene is
-unchanged. Inside the QA each part (eyes, sheet, figures, body, expressions, palette, face shape, face) is cached on its
-own, and the design-side measurements of the model sheet (figure detection, the sheet's scale and measures, the design's
-views and palette) are kept per reference and code. The trace says, per stage, product and part, what was restored and,
+has changed (`charkit/cache.py`), and restores the boards, the geometry bundle and the VRM the same way when the whole
+scene is unchanged. The QA runs venv-side on the bundle, and each of its parts (shape, scalp, poke, hair noise, folds,
+mesh, eyes, sheet, figures, body, expressions, palette, face shape, face) is cached on its own (`cache.qa_part`): on the
+bundle's arrays and metadata it read (recorded as it ran, by the hashes the bundle carries), the reference files it
+opened and its code. A QA-only code change reruns only the parts that run that code (a `bodyqa.py` edit: the body,
+expression and palette parts, 8.9 s for the whole build, the Blender side restored); an unchanged bundle restores
+all of it. The design-side measurements of the model sheet (figure detection, the sheet's scale and measures, the
+design's views and palette) are kept per reference and code (`cache.venv_memo`). The trace says, per stage, product and part, what was restored and,
 for what ran, why (`python -m charkit trace OUT/trace.jsonl`; the summary line reads `cache: 12/14 restored; ran garments
 (spec.garments changed), qa (the scene changed ...)`). `history` rows carry the same.
 
@@ -125,8 +134,8 @@ in full. Keys are exact: a float that moved by 1e-11 is a change.
 | hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs `x` and `z`, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure, `shade.MATS` | the GLB, or `OUT/geom/hair.npz` |
 | face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, the hair objects' names and the fringe (`hair_front*`) | - |
 | garments | `garments` | verts below the neck's middle, faces, 52 bones' weights, the 22 joints its bones run between (the neck's two among them), `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
-| boards, QA, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
-| QA parts | what each reads (`spec.ref.*`) | each reads through the Scene: eyes and face the head and its keys, figures the eye spacing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig, `OUT/ref_measure.json` |
+| boards, bundle, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
+| QA parts (venv) | what each reads of the bundle's metadata (`spec.ref`, `spec.iris`, `assembly.eye_knobs`, a material) | the bundle's arrays each reads, by the hashes the bundle carries: eyes and face the head and its keys, figures nothing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig's layers, the reference image, by content |
 
 `scene.DEPS` holds the partial reads, each with its reason: garments read the body only below the neck's middle
 (`body_below_neck`: shell regions, the collar's neckline, bands, sections and nearest-vertex weights all lie there; an
@@ -226,7 +235,8 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
   - `python -m charkit trace A/trace.jsonl B/trace.jsonl` prints what changed between two builds: knob sections, landmarks
     moved, per-object geometry and health, stage times and QA values. Two builds of the same spec should print
     `no differences` apart from the QA section.
-- **`qa/qa.json`, the graded checks** (`charkit/qa3d.py`: PASS, WARN or FAIL against `LIMITS`, with overlays):
+- **`qa/qa.json`, the graded checks** (`charkit/qa3d.py`, measured in the venv on the build's geometry bundle: see *The
+  geometry bundle* below; PASS, WARN or FAIL against `LIMITS`, with overlays):
   - silhouette IoU against the generated shape, overall and per band;
   - IoU against the reference image;
   - scalp showing through the hair;
@@ -325,6 +335,79 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+### The geometry bundle: Blender builds, the venv measures
+
+Every check runs in the venv, on one export of the build (`charkit/bundle.py`, schema `charkit.bundle/1`), with the
+geometry kernel's numba rasteriser (`charkit.geom.raster.window_zbuffer`). Nothing is measured inside Blender, and nothing
+needs a Blender render, a material override or the scene's state juggled for it. The fast evaluators make the same bundle
+in memory (`bundle.Builder`) and call the same functions, so a fit's objective is the QA itself.
+
+**The bundle** (`OUT/bundle/`: `bundle.json` and `arrays.npz`, about 18 MB for Clawd; a build product, cached like the
+boards) holds everything the checks read:
+- every object (the skin, the eye and mouth parts, the hair, accessories and garments) as its group, part, side,
+  visibility, material slots and outline hull, with one or more variants of its geometry, each as world vertices
+  (float64, as Blender evaluates them), polygons, a material slot per polygon and, where a check needs them, UVs and the
+  render's normals per corner, the outline's pull per vertex, the base polygon each came from, and shape keys (world
+  offsets, sparse):
+  - `eval`: evaluated without the outline hull or the garment mask (what the face and sheet measures read);
+  - `masked` (the skin): the garment mask on (what renders and what the body classes read);
+  - `base`: the armature-posed base mesh and its shape keys (`eye_*`, `mouth_*`, `brow_*`, `look_*`, the iris's and
+    teeth's); the skin's base is the assembly's own mesh and keys, exactly;
+  - `raw`: the mesh data itself (hair and garments: poke-through and open edges);
+  - `render_eye_L`, `render_eye_R`: the skin round each eye at the render's subdivision level (2), for the eye renders;
+- the assembly's landmarks the checks use (`bundle.assembly_meta`: L, the head's centre, chin, eye knobs, each eye's
+  centre and lid chains, the mouth's centre and lip chains, the waist and knee heights, the figure's height range);
+- each material's flat tones as it renders unlit (`bundle.material_tones`: toon3's lit, shade and deep, a flat emission,
+  a plate's texture), its back-face culling and, for a plain toon3, its shading (light, ramp steps, tones, rim);
+- the images a check samples (the eye plates, the textured garments), as Blender stores them (bytes, rows bottom-up);
+- the TRELLIS target aligned as the build aligned it, with its colours; the spec; the rig's measures.
+
+The outline matters: `shade.outline`'s solidify leaves its hull on the original surface and pulls the surface itself in
+by its thickness times the vertex's `outline_w` weight (`character.outline_weights`: none round the eye and mouth
+openings). A render draws that pulled-in surface and the hull (flipped, back-face culled), and where a surface curls the
+pulled-in side can reach past the hull; the bundle keeps the pull per vertex (`shrink`) so the venv draws both.
+
+**What moved, and how each is measured now** (`python -m charkit qa OUT/bundle`, run by `build` after Blender):
+- the class z-buffers of the sheet, body, expression and face-shape checks: `faceqa.zbuffer` keeps its API, backed by
+  the numba raster (pixel centres, as a renderer covers them); lines and brows (`thin`) are still drawn at least a pixel
+  wide, as the drawings' strokes are (the raster splats those triangles). The point-splat path (`faceqa.zbuffer_splat`)
+  stays for Blender's Python and `CHARKIT_ZBUFFER=splat`;
+- the silhouettes (`shape_iou*`, `ref_iou`): every visible surface as a flat render draws it (the pulled-in surface and
+  the hull, no culling), supersampled 3x3 and filtered like EEVEE's 1.5 px pixel filter (a Gaussian of 0.44 px),
+  covered where the filtered alpha passes 0.5;
+- the scalp: the scalp polygons (the skin's base polygons over the cranium and the back of the head, by `parent`) drawn
+  green, everything else in its materials' tones with its hull and culling, the world behind, filtered and read at 8 bits
+  as the PNG was; a view with no green at any pixel centre reads 0 without the picture;
+- hair noise: the hair drawn with its own materials (`qa3d.draw`: toon3 on the envelope normals the build transferred,
+  its soft steps, the rim, a back face shaded from its flipped normal, the hull in its line colour), supersampled and
+  filtered, 8 bits, then the same tone-edge count;
+- the eyes: each eye drawn head-on (`qa3d.eye_image`: the render-level skin pulled in by its outline with the hull
+  culled on the surface, the plates by their textures at their UVs, the iris over the white by its alpha, 5x5
+  supersampled, a 0.55 px filter), then `eyeqa` as before;
+- poke-through: `geom.bvh` ray casts instead of mathutils' BVH (in float32 as mathutils is);
+- open edges and parts, the face's expressions, the folds, the palette, the figures: the same functions on the bundle.
+
+The filters were calibrated against EEVEE on Clawd (`FIG_FILTER`, `EYE_FILTER`, `TEX_BLUR`): the silhouettes' mismatch
+is at EEVEE's own sampling noise (about 0.07% of the pixels, even both ways), the eye renders' measures within a pixel,
+hair noise within 1%.
+
+**Validation.** VALIDATION_TABLE
+
+**Time and memory.** TIMING_TABLE
+
+**The measurement steps it brings** (`history.STEPS`, so the gate and the tune call them `remeasured`): the sheet, body,
+expression and face-shape z-buffers at pixel centres (the splats read about half a pixel wider: body heights move by
+one sheet pixel, 0.0087 L; `sheet_neck_to_jaw` reads its one row, which a pixel moves from the neck to the shirt); the
+eye, silhouette, scalp and hair-noise renders drawn from the bundle.
+
+**Known gaps.**
+- The scalp and hair-noise renders shade toon3 and flat materials. A material the bundle can't read as either (the
+  analytic hair's angel-ring material, the face shading's SDF) is drawn in its flat lit tone; `hair_noise` then carries
+  a caution naming it. The eye renders draw the skin in its flat tone (the SDF face shading and blush aren't drawn: the
+  eye segmentation doesn't read skin tones).
+- EEVEE's anti-aliasing is stochastic; the calibrated filter matches it in the mean, not pixel for pixel.
+- `--qa blender` is kept for the transition; it measures inside Blender with the splat z-buffer and EEVEE, as before.
+
 **Every build is recorded, and every merge is measured first.**
 - `python -m charkit history NAME [--check CHECK]` shows QA across builds. Each build appends its checks to
   `charkit/out/history/NAME.jsonl`, with the git commit, spec hash, base, hair mode and a note (a tune run's rows say
@@ -366,19 +449,19 @@ the 3D rebuild is settled in writing.
 
 **The QA chooses the face's knobs: `python -m charkit fit SPEC`** (`charkit/facefit.py`). The face, eye and neck knobs
 are fitted to the graded eye, sheet and face-shape checks, then built (`build DIR/NAME.fit.json`).
-- **The fast evaluator** (`charkit/faceeval.py`, numpy only) measures a knob set the QA's way in a few seconds (a full
-  Blender build takes 90). It makes what the build would make: `character.assemble` without the shape keys, keeping the
-  body and the wrap's knob-independent part between calls (0.5 s). The skin is subdivided as Blender's modifier does it
-  (`charkit/subdiv.py`: level 1, limit surface, eye margins creased, OpenSubdiv's child order; within 1 µm of Blender's).
-  The cranium is fitted from the hair, and the TRELLIS target is aligned on our eyes, both as the build does. Then it
-  runs the QA's own measures: `sheetqa.measure_ours` (moved out of `qa3d.sheet` so both call the same code),
-  `faceqa.measure`, and `eyeqa` on an eye render of its own. That render is a 4x-supersampled z-buffer: the skin coloured by
-  material, the eye plates by their `eyetex` textures at their UVs (the iris over the white by its alpha), the lashes
-  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`), `face_folds` and the sheet's expression
-  heads (`expr_*`, `faceeval.expression_data`: the posed control meshes and their key offsets, as `qa3d.expression_data`
-  reads them) come from the assembly with its keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
-  `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair, accessories and
-  garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
+- **The fast evaluator** (`charkit/faceeval.py`, numpy only) measures a knob set the QA's way in about two seconds
+  (a full Blender build takes 50 to 90). It makes the geometry bundle a build would export, in memory
+  (`Evaluator.bundle`, `bundle.Builder`), and measures it with the QA's own functions (`qa3d.sheet_measure`,
+  `qa3d.face_shape`, `qa3d.eyes`, `qa3d.face`, `qa3d.folds`, `qa3d.sheet_expressions`): one code path, so the evaluator
+  and the QA agree by construction. The bundle holds what the build would make: `character.assemble` without the shape
+  keys (with them for the expression checks), keeping the body and the wrap's knob-independent part between calls
+  (0.5 s); the skin subdivided as Blender's modifier does it (`charkit/subdiv.py`: level 1, limit surface, eye margins
+  creased, OpenSubdiv's child order; within 1 µm of Blender's), and round the eyes at the render's level 2, pulled in by
+  its outline (the `outline_w` weights subdivided with it) with the hull left on the surface; the eye and mouth parts
+  and their keys; the eye plates' `eyetex` textures stored as Blender stores them (bytes); the cranium fitted from the
+  hair and the TRELLIS target aligned on our eyes, both as the build does. What only Blender makes is cached once per
+  spec by `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair,
+  accessories and garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
   `python -m charkit fit --validate BUILD_DIR` compares it with a build's own `qa.json`.
 - **The fit** (`charkit/fitkit.py`, generic; `facefit.py` declares the face's part). Knobs carry a spec path, template
   default, step, bounds and group. Terms are graded checks read as residuals in units of their PASS tolerance. The
@@ -437,16 +520,11 @@ are fitted to the graded eye, sheet and face-shape checks, then built (`build DI
     - profile: the drawn nose reach, which a rigid face can't follow (the one candidate for a profile-only face key).
     Depth against TRELLIS passes alone (0.04) but reads 1.02 with the sheet: the 3D restyle's rounder face disagrees
     with the drawing, and the sheet has the authority.
-  - The evaluator agrees with Blender's QA on four builds: the unfitted Clawd, the fitted Clawd twice (before and after
-    a merge), and the fitted knobs on the anime base. That is 46 checks each: 183 of 184 statuses match,
-    the miss being the anime base's `eye_lid_span` (WARN against PASS). The sheet, face-shape, expression and fold
-    values match exactly. The eye values match to 0.04 on the unfitted face and to 0.09 on the fitted ones (see the
-    lash gap below).
+  - The evaluator agrees with the build's QA on every one of its 46 checks, values and statuses, on the fitted Clawd
+    (tool/measure). Before the bundle, when it rendered the eyes its own way, 183 of 184 statuses matched over four
+    builds and the eye values were 0.04 to 0.09 apart: it didn't draw the skin's outline, which renders as the surface
+    pulled in by 1.1 mm with the hull left on it (a lash within that of folded lid skin hides behind the hull).
 - **Known gaps**:
-  - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
-    its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
-    and pupil aspect 0.81 against 0.94, with the same statuses. Neither a culled nor an unculled shell reproduces
-    what EEVEE draws, so fitted eyes are confirmed in a build.
   - The sheet is 115 px per head length, so one pixel is 0.009 L, half a chin tolerance. `neck_to_jaw` reads a single
     row, and `neck_run` above 0.1 L keeps that row off the collar.
   - The drawn profile's nose reach (0.157 L in front of the eye) is a drawing convention. A rigid 3D nose that long

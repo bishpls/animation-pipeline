@@ -356,11 +356,11 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
         a = math.radians(az)
         org = (cx * math.cos(a) + cy * math.sin(a), ez)
         # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
-        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix)
+        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix, thin=(CLASS['line'],))
         lab = np.where(lab < 0, CLASS['other'], lab)
         face = faceqa.face_region(depth, np.where(lab == CLASS['skin'], 1, 0), 0.035 * L, pix=pix)
         if covers:
-            dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix)
+            dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix, thin=(CLASS['line'],))
         else:
             lv = lab
         def px(P):
