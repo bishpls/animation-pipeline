@@ -327,7 +327,7 @@ LIMITS = {                      # (pass within, warn within); else fail
     'profile': (0.02, 0.04),    # mean |front-edge gap| in profile, L
     'cheek': (0.02, 0.04),      # mean |far-cheek contour gap| at 3/4, L
     'depth': (0.02, 0.04),      # mean |depth - target| over the cheeks and chin, from under the eyes, L
-    'coverage': (0.15, 0.30),   # |visible lower face / target's - 1| (hair framing; warns only)
+    'coverage': (0.15, 0.30),   # |visible lower face / target's - 1| (hair framing: reported INFO; the sheet grades it)
 }
 
 
@@ -361,7 +361,9 @@ def checks(R):
             C['depth'] = {'value': v, 'status': _grade('depth', v), 'regions': {k: dp[k] for k in ('cheeks', 'jaw', 'nose_mouth', 'chin')}}
     for view, c in R.get('coverage', {}).items():
         r = c['visible_vs_target']
-        C['coverage_' + view] = {'value': r, 'status': _grade('coverage', abs(r - 1), warn_only=True), **c}
+        # INFO, not graded: framing (how much face the hair shows) is the sheet's authority (manifest: hair_silhouette),
+        # graded by sheet_shown_*; against the generated shape it is a reference to read, not a target
+        C['coverage_' + view] = {'value': r, 'status': 'INFO', 'would_grade': _grade('coverage', abs(r - 1), warn_only=True), **c}
     if R.get('features'):
         C['features'] = {'status': 'INFO', 'against_design': R['features']}
     return C
