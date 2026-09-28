@@ -623,7 +623,8 @@ def sub_regions(fam, region, main, fams, ppl, dist=None):
                 stepped = (st >= 3 and share >= 0.25) or (edge == 'bottom' and _stepped_hem(gm, region, ppl, mm))
                 gr_ = np.nonzero(gm.any(1))[0]
                 rec.update(kind='trim', edge=edge, steps=st, pattern='stepped' if stepped else 'plain',
-                           height=round(float((gr_.max() - gr_.min() + 1) / ppl), 4))
+                           height=round(float((gr_.max() - gr_.min() + 1) / ppl), 4),
+                           thickness=round(float(np.median(gm.sum(0)[gm.any(0)]) / ppl), 4))
         out.append(rec)
     return out
 
@@ -760,7 +761,8 @@ def rig_pieces(R, F):
                             tm.y0 += by; tm.x0 += bx
                             yy_, xx_ = tm.pixels()
                             pc['trims'].append(dict(fam=tr['fam'], edge=tr['edge'], pattern=tr['pattern'],
-                                                    steps=tr['steps'], height=tr['height'], mask=tm,
+                                                    steps=tr['steps'], height=tr['height'],
+                                                    thickness=tr['thickness'], mask=tm,
                                                     rgb=np.median(rgb[yy_, xx_], 0)))
                 pieces.append(pc)
     for p in pieces:
@@ -2141,9 +2143,14 @@ def draft(G, A, st):
             bone = s['bone']
             t0, t1, half, ln = along_bone(p, F, sk[bone])
             lh = limb_halfwidth(A, bone, 0.6)
+            cf = [x for x in G['pieces'] if x['type'] == 'sleeve cuff' and x['attach']['parent'] == g['id']]
+            t1_src = 'measured (the drawn end)'
+            if cf:                                                  # the tube runs on under its cuff band
+                c0, c1, _, _ = along_bone(P[cf[0]['_k']], F, sk[bone])
+                t1, t1_src = max(t1, (c0 + c1) / 2), 'measured (to its cuff band)'
             e = dict(kind='sleeve', name=g['id'], side=side, puff=_r(np.clip(half / lh - 1, 0.2, 1.5) if lh else 0.85, 2),
                      t1=_r(t1, 2), color=col)
-            add(e, dict(side='measured', puff='measured' if lh else 'default', t1='measured'))
+            add(e, dict(side='measured', puff='measured' if lh else 'default', t1=t1_src))
         elif kind == 'belt':
             add(dict(kind='belt', name=g['id'], waist=0.5, width=_r(geo['height']), offset=0.045, thick=0.025, color=col),
                 dict(waist='default', width='measured', offset='default', thick='default'))
@@ -2203,7 +2210,7 @@ def draft(G, A, st):
                 add(dict(kind='shell', name='boots', region=[[b, _r(t0, 2), 1.5] for b in bones], offset=0.016, thick=0.01,
                          color=col), dict(region='measured (from the boot top down the shin)', offset='default', thick='default'))
             sole = [x for x in g['trims'] if x['edge'] == 'bottom']
-            e = dict(kind='shoe', name='shoe_' + g['side'], side=side, offset=0.02, sole=_r(sole[0]['height'] if sole else 0.07),
+            e = dict(kind='shoe', name='shoe_' + g['side'], side=side, offset=0.02, sole=_r(sole[0]['thickness'] if sole else 0.07),
                      instep=0.12, color=col)
             kn = dict(side='measured', sole='measured' if sole else 'default', offset='default', instep='default')
             if sole:
@@ -2589,7 +2596,8 @@ def graph(A, st, notes=None, notes_path=None):
             id=gid, _k=k, type=(a or {}).get('type', p['type']), name=(a or {}).get('name'), side=p['side'],
             pair=(p.get('pair') and fid.get(p['id'], gid)[:-2]) if p.get('pair') else None,
             colour=piece_colour(A, k),
-            trims=[dict(colour=_colour(t['rgb']), edge=t['edge'], pattern=t['pattern'], steps=t['steps'], height=t['height'])
+            trims=[dict(colour=_colour(t['rgb']), edge=t['edge'], pattern=t['pattern'], steps=t['steps'], height=t['height'],
+                        thickness=t['thickness'])
                    for t in p['trims']],
             attach=dict(bone=s['bone'], t=s['t'], region=s['region'], parent=par, parent_from=par_from, parent_measured=par_m,
                         parent_why=s['parent_why'], point=s['attach_point'],

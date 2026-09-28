@@ -290,7 +290,8 @@ It also writes the graph as the character's reference `refs/NAME/outfit_graph.js
 text is left as written. A run is deterministic: two runs give the same bytes.
 
 **Per piece:** `id`, `type`, `side` (L her left, R, C) and mirror `pair`; `colour` (the rig's drawn sRGB, plus the sheet's
-lit and shade tones by `paletteqa.tones`) and `trims` (a colour along an edge: its edge, stepped or plain, height);
+lit and shade tones by `paletteqa.tones`) and `trims` (a colour along an edge: its edge, stepped or plain, height and
+thickness);
 `attach` (bone and t along it, region, parent and where the parent came from, contacts); `layer` (number, over, under);
 `extent` per view (bbox, area and outline polygons in L from the eye line; x toward the image's right from the view's
 origin, as `bodyqa.design_views` grids, or her left in the rig's frame); `extent3d` (bbox `[x0, y0, z0, x1, y1, z1]` in
