@@ -562,7 +562,7 @@ def build_skirt(arm):
     zw = D(CX, 1372).z
     wx, wy = 0.074, 0.062
     out = []
-    for layer, (hx, hy, name) in enumerate(((0.285, 0.235, 'skirt'), (0.270, 0.222, 'underskirt'))):
+    for layer, (hx, hy, name) in enumerate(((0.285, 0.235, 'skirt'), (0.262, 0.215, 'underskirt'))):
         NR, NA = 18, 96
         bm = bmesh.new()
         grid = []
@@ -574,7 +574,12 @@ def build_skirt(arm):
                 ph = math.degrees(th)                          # 0 = front
                 f = math.sin(t * math.pi / 2) ** 0.85
                 rx, ry = wx + (hx - wx) * f, wy + (hy - wy) * f
-                pleat = 1 + 0.035 * t * math.cos(12 * th) if layer == 0 else 1.0
+                if layer == 0:                                  # box pleats: flat panels, sharp folds (a triangle wave)
+                    u = (th * 10 / (2 * math.pi)) % 1.0
+                    tri = 1 - 4 * abs(u - 0.5)                  # -1 at the fold in, +1 at the fold out
+                    pleat = 1 + 0.075 * t ** 1.1 * tri
+                else:
+                    pleat = 1 + 0.01 * t * math.sin(18 * th)     # a softer ruffle on the underskirt
                 if layer == 0:
                     zh = D(CX, 2000).z + 0.012 * min(1, abs(((ph + 180) % 360) - 180) / 180)
                 else:
@@ -587,8 +592,13 @@ def build_skirt(arm):
         for i in range(NR):
             for k in range(NA):
                 bm.faces.new((grid[i][k], grid[i + 1][k], grid[i + 1][(k + 1) % NA], grid[i][(k + 1) % NA]))
+        bm.normal_update()                                   # face outward (the lining and the outline depend on it)
+        inward = [f for f in bm.faces if f.normal.dot(Vector((f.calc_center_median().x, f.calc_center_median().y, 0))) < 0]
+        bmesh.ops.reverse_faces(bm, faces=inward)
         mats = [M('orange_skirt', rim_amt=0.25), M('brown_hem'), M('cream_panel')]
         ob = mesh_from_bm(name, bm, mats if layer == 0 else [M('brown_under')])
+        # the folds are hard edges: the cel ramp then lights the pleat panels in alternating tones
+        ob.data.set_sharp_from_angle(angle=math.radians(14))
         if layer == 0:
             for p in ob.data.polygons:
                 c = p.center; ph = phi_of(c); a = abs(ph)
@@ -609,6 +619,20 @@ def build_skirt(arm):
                     'rightUpperLeg': w_leg * (1 - wl)}
         kit.skin_to(ob, arm, weights)
         out.append(ob)
+        if layer == 0:
+            # the lining: the skirt's surface a few millimetres inside, facing in, darker (seen when the skirt lifts)
+            me = ob.data.copy(); me.name = 'skirt_lining'
+            for v in me.vertices:
+                v.co -= v.normal * 0.0035
+            me.flip_normals()
+            me.materials.clear(); me.materials.append(M('brown_lining'))
+            for pp in me.polygons:
+                pp.material_index = 0
+            lin_ob = link(bpy.data.objects.new('skirt_lining', me))
+            for g in ob.vertex_groups:
+                lin_ob.vertex_groups.new(name=g.name)
+            kit_mod = lin_ob.modifiers.new('rig', 'ARMATURE'); kit_mod.object = arm; lin_ob.parent = arm
+            out.append(lin_ob)
     # waistband
     bm = bmesh.new()
     kit.band(bm, Vector((0, 0.004, zw)), Vector((0, 0, 1)), 0.078, 0.076, 0.03, bulge=0.003)
