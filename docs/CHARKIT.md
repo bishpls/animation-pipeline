@@ -324,6 +324,7 @@ body,garments,hair]` writes `sensitivity.json` and `sensitivity.md` to `charkit/
   - `sheet_face` (qa3d.sheet's face checks; the body fit holds them until the face fit's evaluator lands);
   - `sheet_palette` (charkit.paletteqa's);
   - `piece_extents` / `piece_checks` (each outfit piece's visible extent per view against the outfit graph's, §8);
+  - `scalp` (qa3d's scalp check: the flagged scalp's pixels seen through everything, per view);
   - `measures` (the band, extent and pose measurements).
 - **Fast parts.** `bodymeasure.zsplat` is faceqa's point-splat z-buffer compiled with numba: the same labels (38 of
   456,000 pixels differ, on depth ties), about 20x faster. `bodymeasure.face_region` is faceqa's flood fill as a
@@ -344,7 +345,8 @@ body+skirt+boots,details,hair] [--palette] [--no-outfit] [--write-spec]`).
     shell's top on the shins, and the cuffs). They go together because where the legs show depends on the hem;
   - the details: the sleeves' puff and length, the sleeve and wrist cuffs' position and width, the waistband, the
     collar's depths, and the bow's size, height and tails;
-  - the hair: hair.shape's below and shoulder_x.
+  - the hair: its mode first (`hair.shape.mode`, mesh or geom, whichever its terms cost less), then hair.shape's below
+    and shoulder_x.
 - **Terms.** Each is a least-squares fit over its knobs against all its terms at once, every view together:
   - the sheet's four views: feet, legs, boots, hems, the skirt's and sleeves' widths, the hair's length and width, the
     top, the arms' angle, and the silhouette, skin, outfit and hair IoUs;
@@ -361,8 +363,11 @@ body+skirt+boots,details,hair] [--palette] [--no-outfit] [--write-spec]`).
 - **The optimiser.** A bounded trust region on soft-L1 residuals with a finite-difference Jacobian at one knob step,
   then a pattern search. It follows charkit.fitkit's conventions (tool/fit) and swaps to fitkit when that lands.
 - **The palette.** `--palette` sets the skin and hair colours to the sheet's lit and shade tones. Each class of
-  garment colours moves by the one shift that minimises its dE00 (each tone in its own PASS limit), kept inside its
-  colour family. A class that doesn't read better, re-measured, keeps its colours.
+  garment colours moves by the one shift that minimises its lit tone's dE00, kept inside its colour family. Then one
+  shade multiplier for every garment is fitted to the garment classes' shade tones. It is the garments' new `shade`
+  knob (garments.SHADE_MUL, 0.86 0.80 0.84, when unset): the sheet's garments shade warmer and darker (0.74 0.64 0.65
+  on the orange, 0.68 0.63 0.62 on the dark) than one fixed multiplier allows. A step that doesn't read better,
+  re-measured, is not kept.
 - **What it writes.** `DIR/NAME.bodyfit.json` is the fitted spec. `bodyfit_report.md` has every check before and after,
   the knobs per piece, what the outfit graph set, and what still fails. `--write-spec` writes the fitted knobs (and
   the added pieces) into SPEC.

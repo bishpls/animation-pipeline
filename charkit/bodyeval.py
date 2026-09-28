@@ -549,7 +549,7 @@ def garment_piece(A, s, nrm=None, dom=None):
     return P, hide
 
 
-SHADE_MUL = np.array([0.86, 0.80, 0.84])               # garments._toon's shade tone (and _toon_tex's)
+SHADE_MUL = np.array([0.86, 0.80, 0.84])               # garments.SHADE_MUL: a garment's shade tone (its 'shade' replaces it)
 
 
 def _texel(img, uv):
@@ -570,7 +570,7 @@ def _face_uv(faces, uv):
 
 def garment_tones(A, s, G):
     """per face of a garment piece, the sRGB tones its material renders unlit, as garments.build makes the materials: a
-    colour toon (lit, lit * SHADE_MUL), a second material by face (the skirt's panel, a shoe's or boot's sole, the collar's
+    colour toon (lit, lit * its 'shade' or SHADE_MUL), a second material by face (the skirt's panel, a shoe's or boot's sole, the collar's
     stripe), a textured toon (the skirt's stepped hem, a shell's front panel) sampled at the face's UV centre.
     -> (lit (nf, 3), shade (nf, 3), tex): tex, for a textured piece, dict(uvc (per face, its corners' UVs), fn (UV
     centres, parent faces) -> lit) so a subdivided face samples at its own centre, as Blender's evaluated mesh does."""
@@ -627,11 +627,13 @@ def garment_tones(A, s, G):
         uvc = [U[list(f)] for f in F]
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
 
+    mul = np.asarray(s.get('shade', SHADE_MUL), float)
+
     def tones(uv_centre, parent):
         lit = np.tile(col, (len(parent), 1)) if fn is None else fn(uv_centre, parent)
         if second is not None:
             lit = np.where(flat[parent][:, None], second, lit)
-        shade = lit * SHADE_MUL
+        shade = lit * mul
         return lit, shade
     base_uv = np.array([np.mean(c, 0) for c in uvc]) if uvc is not None else np.zeros((nf, 2))
     lit, shade = tones(base_uv, np.arange(nf))
@@ -776,20 +778,32 @@ class Geometry:
             for p in self.parts:
                 n_ = lv.get(p.group, 0)
                 if n_:
-                    V, polys, _, lit, shd, cls = p.subdivided(n_)
+                    V, polys, parent, lit, shd, cls = p.subdivided(n_)
                     T, pid = triangulate(polys, with_poly=True)
+                    origin = parent[pid]                                  # each triangle's polygon of the part
                 else:
                     V, T, pid = p.V, p.tris(), p.tri_poly()
                     lit, shd, cls = p.lit, p.shade, p.cls
+                    origin = pid
                 n = len(pid) and int(pid.max()) + 1
                 lit = lit if lit is not None else np.full((max(n, 1), 3), 0.5)
                 shd = shd if shd is not None else lit
                 cls = cls if cls is not None else family(lit) if p.lit is not None else np.full(len(lit), CL['other'])
                 objs.append(dict(name=p.name, group=p.group, V=V, F=T, label=np.asarray(cls)[pid], lit=lit[pid],
                                  shade=shd[pid], role=getattr(p, 'role', None)))
+                if p.group == 'skin':
+                    objs[-1]['scalp'] = self.scalp_polys(p)[origin]
             iris = np.array([p.V.mean(0) for p in self.parts if p.name.startswith('iris_')])
             self._bundles[key] = dict(objects=objs, landmarks=dict(self.landmarks, iris=iris), target=self.target)
         return self._bundles[key]
+
+    def scalp_polys(self, p):
+        """per polygon of a skin part: all its vertices on the scalp qa3d flags (the head's upper cranium and the back of
+        the head)."""
+        A = self.A; Hd = A['head']; L = Hd['L']
+        V = A['verts']; hw = A['body']['head_w']; cz = Hd['centre'][2]; cy = Hd['centre'][1]
+        region = (hw > 0.5) & ((V[:, 2] > cz + 0.30 * L) | ((V[:, 1] > cy + 0.10 * L) & (V[:, 2] > cz - 0.20 * L)))
+        return np.array([all(region[v] for v in f) for f in p.polys], bool)
 
     def part(self, name):
         return next(p for p in self.parts if p.name == name)

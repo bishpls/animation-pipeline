@@ -64,7 +64,7 @@ GARMENT = {
               'offset': (0.02, 0.005, 0.0, 0.1, 'L'), 'waist': (0.5, 0.05, 0.0, 1.8, 'hips -> spine (past 1: up the chest)'),
               'cols': (24, 4, 8, 48, 'resolution'), 'rows': (16, 4, 4, 32, 'resolution')},
 }
-COLOURS = ('color', 'panel_color', 'hem_color', 'stripe_color', 'sole_color')
+COLOURS = ('color', 'panel_color', 'hem_color', 'stripe_color', 'sole_color', 'shade')
 NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel', 'sole', 'repeat', 'line', 'hem', 'steps')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)

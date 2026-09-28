@@ -200,6 +200,26 @@ def label_image(bundle, az, fr, groups=None):
     return np.where(fb >= 0, lab[np.maximum(fb, 0)], -1), zb
 
 
+def scalp(bundle, fr, azs=(0, 90, 180, 270)):
+    """qa3d's scalp check: pixels of the flagged scalp (a skin object's 'scalp' triangles) seen through everything
+    else, per view (the QA camera, as rendered). -> {az: pixels}."""
+    from .geom.mesh import Mesh
+    from .geom.raster import rasterize
+    Vs, Fs, flag, off = [], [], [], 0
+    for o in objects(bundle):
+        if not len(o['F']):
+            continue
+        Vs.append(o['V']); Fs.append(o['F'] + off); off += len(o['V'])
+        flag.append(o['scalp'] if 'scalp' in o else np.zeros(len(o['F']), bool))
+    m = Mesh(np.vstack(Vs), np.vstack(Fs))
+    flag = np.concatenate(flag)
+    out = {}
+    for az in azs:
+        _, fb, _ = rasterize(m, az, fr)
+        out[az] = int((flag[np.maximum(fb, 0)] & (fb >= 0)).sum())
+    return out
+
+
 def target_masks(target, fr, azs=AZ):
     """the aligned generated shape's silhouettes per azimuth."""
     from .geom.mesh import Mesh

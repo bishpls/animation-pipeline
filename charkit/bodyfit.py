@@ -9,7 +9,8 @@ by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation inst
      check, and each outfit piece's extent per view); start from the outfit graph's draft (charkit.outfit, the
      manifest's `outfit_graph`): the pieces the spec's list lacks added, its measured first guesses for the fit's knobs;
   2. piece by piece (the figure: the body with the skirt, its panels and the boots, as where the legs show depends on
-     the hem; then the details: sleeves, cuffs, waistband, collar, bow; then the hair; a+b fits pieces together), least
+     the hem; then the details: sleeves, cuffs, waistband, collar, bow; then the hair, its mode ('mesh' or 'geom')
+     chosen first by its terms' cost; a+b fits pieces together), least
      squares over the knobs against all their terms at once: the sheet's four views, the generated shape's six and the
      pieces' extents against the outfit graph's, so a fix in one view that breaks another costs. Each term is weighted
      by the manifest's authority map: full weight where its reference is the authority for its measure, a quarter
@@ -44,19 +45,20 @@ class Knob:
     step (the finite difference and the unit of the search), bounds and the piece it belongs to. fitkit.Knob's fields,
     with bodyeval's dotted paths (list items by name) so garment pieces can be addressed."""
 
-    def __init__(self, name, paths, default, step, bounds, group, signs=None):
+    def __init__(self, name, paths, default, step, bounds, group, signs=None, offsets=None):
         self.name, self.paths, self.default, self.step, self.bounds, self.group = name, list(paths), default, step, tuple(bounds), group
         self.signs = list(signs) if signs else [1] * len(self.paths)     # a mirrored pair: -1 on the other side (azimuths)
+        self.offsets = list(offsets) if offsets else [0.0] * len(self.paths)   # a tied piece: its offset from the knob
 
     def get(self, spec):
         from .bodyeval import get_knob
         v = get_knob(spec, self.paths[0], None)
-        return float(self.default if v is None else v * self.signs[0])
+        return float(self.default if v is None else (v - self.offsets[0]) * self.signs[0])
 
     def put(self, spec, value):
         from .bodyeval import set_knob
-        for p, sg in zip(self.paths, self.signs):
-            set_knob(spec, p, round(float(value) * sg, 5))
+        for p, sg, o in zip(self.paths, self.signs, self.offsets):
+            set_knob(spec, p, round(float(value) * sg + o, 5))
 
     def at_bound(self, x, eps=1e-6):
         lo, hi = self.bounds
@@ -135,6 +137,54 @@ def knobs(spec):
             d, st, lo, hi, _ = HAIR_SHAPE[k]
             K.append(Knob('hair.shape.' + k, ['hair.shape.' + k], d, st, (lo, hi), 'hair'))
     return K
+
+
+TIES = {                          # a child piece's knob that follows its parent's (outfit graph attachments)
+    'waistband': ('waist', ('skirt', 'panel'), 'waist'),         # hung from the waistband: they share its waist line
+    'sleeve': ('t1', ('band',), 't'),                            # a cuff at the sleeve's end
+    'boot': ('top', ('band',), 't'),                             # a boot cuff at the boot's top
+}
+
+
+def tie(K, spec, graph):
+    """knobs tied by the outfit graph's attachments: a piece hung from the waistband shares its waist line (the skirt, its
+    back panels); a cuff sits where its parent ends (a sleeve's cuff at the sleeve's end, a boot's cuff at its top). The
+    child's knob goes; the parent's carries the child's paths at their current offset from it. -> knobs."""
+    if graph is None:
+        return K
+    from .bodyeval import get_knob
+    hand = {m['draft']: m['hand'] for m in (graph.get('comparison') or {}).get('matched', [])}
+    kind = {g['name']: g['kind'] for g in spec.get('garments') or []}
+    by_path = {p: k for k in K for p in k.paths}
+    drop = set()
+    for pc in graph['pieces']:
+        par = (pc.get('attach') or {}).get('parent')
+        if not par:
+            continue
+        ptype = next((p['type'] for p in graph['pieces'] if p['id'] == par), None)
+        rule = TIES.get(ptype)
+        child = hand.get(pc['id'], pc['id'])
+        if rule is None or kind.get(child) not in rule[1]:
+            continue
+        pname = hand.get(par, par)
+        if ptype == 'boot':
+            pname = 'boots'
+        pk = next((k for k in K if k.name.split('.')[-1] == rule[0] and any(p.startswith('garments.%s.' % pname) for p in k.paths)), None)
+        ck = by_path.get('garments.%s.%s' % (child, rule[2]))
+        if pk is None or ck is None or ck is pk or ck.name in drop:
+            continue
+        v = pk.get(spec)
+        for p, sg in zip(ck.paths, ck.signs):
+            if p not in pk.paths:
+                pk.paths.append(p); pk.signs.append(sg)
+                pk.offsets.append(round(float(get_knob(spec, p, ck.default)) - v * sg, 5))
+        if ck.group in FIGURE and pk.group not in FIGURE:
+            pk.group = ck.group                          # (the skirt's hem moves with the waist: fitted with the figure)
+        drop.add(ck.name)
+    return [k for k in K if k.name not in drop]
+
+
+FIGURE = ('body', 'skirt', 'boots')
 
 
 # ------------------------------------------------------------------------------------------------------------ terms
@@ -227,6 +277,24 @@ def hold_terms(before):
         if isinstance(v0, (int, float)):
             T.append(Term(k, None, 'hold', 0.1 * S[lim[k]][0], 'face_front', 'sheet', 'face', 'body', (target, v0)))
     return T
+
+
+def hair_mode(ev, spec, T, authority=None, log=print):
+    """the generated hair's mode (hair.shape.mode, a categorical knob): 'mesh' (the generated surface selected and
+    smoothed) or 'geom' (charkit.geom's closed hair), the one whose hair terms cost less at the spec. -> (spec, info)."""
+    shape = (spec.get('hair') or {}).get('shape') or {}
+    if shape.get('mode') not in ('mesh', 'geom'):
+        return spec, None
+    Th = [t for t in T if t.group == 'hair']
+    costs = {}
+    for mode in ('mesh', 'geom'):
+        S = copy.deepcopy(spec); S['hair']['shape']['mode'] = mode
+        costs[mode] = round(cost(residuals(ev.checks(S, 'hair'), Th, authority)), 3)
+    best = min(costs, key=costs.get)
+    log('bodyfit: hair mode %s' % costs)
+    if best != shape.get('mode'):
+        spec = copy.deepcopy(spec); spec['hair']['shape']['mode'] = best
+    return spec, {'costs': costs, 'mode': best}
 
 
 PIECE_GROUP = {'skirt': 'skirt', 'overskirt panel': 'skirt', 'shorts': 'skirt', 'boot': 'boots', 'boot cuff': 'boots',
@@ -455,7 +523,7 @@ def fit(spec_path, out, pieces=SCHEDULE, palette=False, budget=None, outfit=True
     authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
     before = ev.checks(spec, 'all', fine=True)                    # the spec as it is: what the fit is judged against
     start, drafted = (outfit_start(spec, graph, log) if graph is not None else (spec, {}))
-    K, T = knobs(start), terms(start)
+    K, T = tie(knobs(start), start, graph), terms(start)
     if graph is not None:
         T += piece_terms(bodymeasure.piece_extents(ev.E.geometry(spec=start).bundle('viewport'), ev.E.sheet(), graph, start),
                          graph)
@@ -469,6 +537,8 @@ def fit(spec_path, out, pieces=SCHEDULE, palette=False, budget=None, outfit=True
     for g in pieces:
         if not any(k.group in g.split('+') for k in K):
             continue
+        if 'hair' in g.split('+'):
+            fitted, rep['hair_mode'] = hair_mode(ev, fitted, T, authority, log)
         fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget, log=log)
         rep['pieces'][g] = {k: v for k, v in info.items() if k != 'history'}
         log('bodyfit: %s %s' % (g, info['fitted']))
@@ -480,7 +550,8 @@ def fit(spec_path, out, pieces=SCHEDULE, palette=False, budget=None, outfit=True
         log('bodyfit: guard: %s' % reg)
         prot = set(reg)
         for g in [g for g in pieces if any(t.group in g.split('+') and t.check in prot for t in T)]:
-            fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget, protect=prot, log=log)
+            n = sum(k.group in g.split('+') for k in K)
+            fitted, info = optimise(ev, fitted, K, T, g, authority, budget=budget or 6 * n + 12, protect=prot, log=log)
             rep['pieces'][g + '_guard'] = {k: v for k, v in info.items() if k != 'history'}
         rep['guard'] = {'regressed': reg}
     if palette:
@@ -529,16 +600,17 @@ def palette_members(spec):
 def fit_palette(ev, spec, log=print):
     """the colour knobs set to the sheet's palette, class by class (charkit.paletteqa's tones, CIEDE2000): a toon3 class
     (the skin, the hair) takes the design's lit and shade tones (its deep tone keeps its ratio to the shade); a class of
-    garment colours moves by one shift, the one that minimises the lit and shade dE00 together (the shade follows the lit
-    at garments' fixed multiplier), held inside the class's colour family so no piece changes class. The iris is painted
-    by its texture and left to the eye fit. A class that doesn't read better with the whole character re-measured keeps
-    its colours. -> (spec, info {class: {before, after, paths}})."""
+    garment colours moves by one shift, the one that minimises the lit tone's dE00, held inside the class's colour family
+    so no piece changes class; then one shade
+    multiplier for every garment (their 'shade', in garments.SHADE_MUL's place) is fitted to the garment classes' shade
+    tones. The iris is painted by its texture and left to the eye fit. A step that doesn't read better with the whole
+    character re-measured is not kept. -> (spec, info {class: {before, after, paths}, garment_shade})."""
     from scipy.optimize import minimize
     from .bodyeval import get_knob, set_knob
     from .bodyqa import CLASS, family
     from .paletteqa import LIMITS as PL, ciede2000, srgb_to_lab
     LIT_PASS, SHADE_PASS = PL['lit'][0], PL['shade'][0]
-    from .bodyeval import SHADE_MUL as MUL
+    from .garments import SHADE_MUL as MUL
     S = ev.E.sheet()
     if S is None:
         return spec, {'status': 'SKIPPED', 'why': 'no model sheet'}
@@ -576,15 +648,15 @@ def fit_palette(ev, spec, log=print):
                 set_knob(trial, '%s.%s' % (path, k), [round(float(x), 4) for x in v])
                 paths.append('%s.%s' % (path, k))
         else:
-            ol, osd = np.asarray(O[cls]['lit']), np.asarray(O[cls]['shade'])
+            ol = np.asarray(O[cls]['lit'])
             cols = {p: np.asarray(get_knob(fitted, p), float) for p, _ in members}
             code = CLASS[cls]
 
             def f(dv):
                 if any(int(family(np.clip(c + dv, 0, 1)[None])[0]) != code for c in cols.values()):
                     return 1e3
-                e = (dE(ol + dv, dl) / LIT_PASS) ** 2 if dl is not None else 0.0      # each tone in its own PASS limits
-                return e + ((dE(osd + dv * MUL, ds) / SHADE_PASS) ** 2 if ds is not None else 0.0)
+                # the lit tone (the shade is the garments' shared multiplier's, fitted next), in its PASS limits
+                return (dE(ol + dv, dl) / LIT_PASS) ** 2 if dl is not None else 0.0
             r = minimize(f, np.zeros(3), method='Nelder-Mead', options=dict(xatol=1e-4, fatol=1e-3, maxiter=600,
                                                                             initial_simplex=np.vstack([np.zeros(3), 0.05 * np.eye(3)])))
             dv = r.x if r.fun < f(np.zeros(3)) else np.zeros(3)
@@ -600,6 +672,34 @@ def fit_palette(ev, spec, log=print):
                      'after': {t: (after.get('%s_%s' % (cls, t)) or {}).get('value') for t in ('lit', 'shade')},
                      'kept': keep, 'paths': paths}
         log('palette: %-6s %s -> %s%s' % (cls, info[cls]['before'], info[cls]['after'], '' if keep else ' (not kept)'))
+        if keep:
+            fitted, cur = trial, after
+            info['paths'] += paths
+    # the garments' shade: one multiplier for every garment (garments.SHADE_MUL's place), fitted to the shade tones of
+    # the garment classes at their lit tones as they now are
+    G = ev.E.geometry(spec=fitted)
+    O = paletteqa.ours(bodymeasure.colours(G.bundle('viewport')))
+    gcls = [c for c, ms in M.items() if ms and ms[0][1] == 'garment' and c in O and c in D and D[c] and
+            D[c].get('shade') is not None]
+    if gcls:
+        def g(m):
+            return sum((dE(np.asarray(O[c]['lit']) * m, D[c]['shade']) / SHADE_PASS) ** 2 for c in gcls)
+        m0 = np.asarray(MUL, float)
+        r = minimize(g, m0, method='Nelder-Mead', options=dict(xatol=1e-4, fatol=1e-4, maxiter=800))
+        m = np.clip(r.x, 0.3, 1.0)
+        trial = copy.deepcopy(fitted)
+        paths = []
+        for gm in trial.get('garments') or []:
+            gm['shade'] = [round(float(x), 4) for x in m]
+            paths.append('garments.%s.shade' % gm['name'])
+        after = measured(trial)
+        tot = lambda C_: sum(((C_.get('%s_shade' % c) or {}).get('value') or 0) ** 2 for c in gcls)
+        keep = tot(after) < tot(cur) - 1e-6
+        info['garment_shade'] = {'mul': m.round(4).tolist(), 'classes': gcls, 'kept': keep,
+                                 'before': {c: (cur.get('%s_shade' % c) or {}).get('value') for c in gcls},
+                                 'after': {c: (after.get('%s_shade' % c) or {}).get('value') for c in gcls}}
+        log('palette: garment shade %s: %s -> %s%s' % (m.round(3).tolist(), info['garment_shade']['before'],
+                                                      info['garment_shade']['after'], '' if keep else ' (not kept)'))
         if keep:
             fitted, cur = trial, after
             info['paths'] += paths
@@ -687,5 +787,7 @@ def write_fitted(spec_path, fitted, rep, pieces=SCHEDULE):
     owned = {x for g in pieces for x in g.split('+')}
     paths = [p for k in knobs(fitted) if k.group in owned for p in k.paths]
     paths += (rep.get('palette') or {}).get('paths', [])
+    if rep.get('hair_mode'):
+        paths.append('hair.shape.mode')
     added = [k.split('.', 1)[1] for k, v in (rep.get('outfit_start') or {}).items() if v[1] == 'added']
     return write_spec(bodyeval._abs(spec_path), fitted, paths, added)

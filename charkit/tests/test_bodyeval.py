@@ -299,6 +299,42 @@ def test_outfit_graph_start_and_pieces():
     assert len(T) == 4 and {t.view for t in T} == {'front'} and T[0].scale == 1.0         # back: too few pixels
 
 
+def test_garment_shade_knob():
+    """a garment's 'shade' multiplier replaces the fixed one (the deep tone kept in the defaults' ratio); unset, the tones
+    are exactly the old ones."""
+    from charkit import garments as gm
+    assert gm._muls() == (gm.SHADE_MUL, gm.DEEP_MUL)
+    sm, dm = gm._muls((0.74, 0.64, 0.64))
+    assert np.allclose(sm, (0.74, 0.64, 0.64)) and np.allclose(np.array(dm) / np.array(sm), np.array(gm.DEEP_MUL) / gm.SHADE_MUL)
+    A = {'head': {'L': 0.25}}
+    G = {'faces': [(0, 1, 2)], 'verts': np.zeros((3, 3)), 'sole': [0]}
+    lit, shade, _ = bodyeval.garment_tones(A, {'kind': 'shoe', 'color': [0.5, 0.5, 0.5]}, G)
+    assert np.allclose(shade, lit * gm.SHADE_MUL)
+    lit, shade, _ = bodyeval.garment_tones(A, {'kind': 'shoe', 'color': [0.5, 0.5, 0.5], 'shade': [0.7, 0.6, 0.6]}, G)
+    assert np.allclose(shade, lit * np.array([0.7, 0.6, 0.6]))
+
+
+def test_ties_follow_attachments():
+    """a piece hung from the waistband shares its waist line (the tied knob moves both, at their offset); a cuff sits at
+    its sleeve's end."""
+    from charkit import bodyfit
+    spec = {'garments': [{'kind': 'skirt', 'name': 'skirt', 'waist': 0.5}, {'kind': 'belt', 'name': 'waistband', 'waist': 0.55},
+                         {'kind': 'sleeve', 'name': 'sleeve_L', 'side': 'left', 't1': 0.45},
+                         {'kind': 'band', 'name': 'cuff_L', 'bone': 'leftUpperArm', 't': 0.48}]}
+    graph = {'pieces': [{'id': 'waistband', 'type': 'waistband', 'attach': {}}, {'id': 'skirt', 'type': 'skirt', 'attach': {'parent': 'waistband'}},
+                        {'id': 'sleeve_L', 'type': 'sleeve', 'attach': {'parent': 'top'}},
+                        {'id': 'sleeve_cuff_L', 'type': 'sleeve cuff', 'attach': {'parent': 'sleeve_L'}}],
+             'comparison': {'matched': [{'draft': 'sleeve_cuff_L', 'hand': 'cuff_L'}]}}
+    K = {k.name: k for k in bodyfit.tie(bodyfit.knobs(spec), spec, graph)}
+    assert 'skirt.waist' not in K and 'cuff.t' not in K
+    w = K['waistband.waist']
+    assert w.group == 'skirt' and w.get(spec) == 0.55
+    w.put(spec, 0.8)
+    assert spec['garments'][1]['waist'] == 0.8 and abs(spec['garments'][0]['waist'] - 0.75) < 1e-9     # its offset kept
+    K['sleeve.t1'].put(spec, 0.5)
+    assert abs(spec['garments'][3]['t'] - 0.53) < 1e-9
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
