@@ -21,7 +21,8 @@ checks exist because someone saw a problem the metrics didn't, so review feeds t
            ticket: a proposed check (name, what to measure, views, the reference that is the authority), the passing
            checks that should have caught it, and, where the QA's own tables already hold the numbers, the proposed
            measure's value now (a prototype, e.g. the face's length over its width against the design's, from
-           sheetqa's chin and widths). The triage lists every open measure ticket as `needs a measurement` until a check
+           sheetqa's chin and widths). The triage measures that prototype again on every build it triages, so the
+           reviewer's note is a tracked (provisional) number from then on, until the real check lands. The triage lists every open measure ticket as `needs a measurement` until a check
            of that name appears in a build's QA; `tickets --sync` then marks it landed.
 """
 import html, json, os, re, time
@@ -86,6 +87,17 @@ def _proto_feature(key):
                 'limits': [0.02, 0.04], 'how': '%s under the eye line (faceqa features, informational today), ours minus the '
                                                'design rig\'s, in head lengths' % key}
     return f
+
+
+def prototype(name, qa):
+    """a proposed measure's value on a build's QA, graded against its own proposed limits -> {value, ours, design,
+    kind, limits, how, status} or None (no prototype by that name, or the tables lack its numbers)."""
+    fn = PROTOS.get(name or '')
+    v = fn(qa) if fn else None
+    if v:
+        x = abs(v['value'] - 1) if v['kind'] == 'ratio' else abs(v['value'])
+        v['status'] = 'PASS' if x <= v['limits'][0] else 'WARN' if x <= v['limits'][1] else 'FAIL'
+    return v
 
 
 PROTOS = {'face_length': _proto_face_length, 'jaw_taper': _proto_jaw_taper, 'eye_to_face': _proto_eye_to_face,
@@ -262,14 +274,12 @@ def ticket(build, note_id, kind=None, check=None):
             'what': note['text']}
         if check:
             prop['check'] = check
-        fn = PROTOS.get(prop.pop('proto', None) or '')
-        if fn:
-            v = fn(qa)
-            if v:
-                v['status'] = 'PASS' if abs((v['value'] - 1) if v['kind'] == 'ratio' else v['value']) <= v['limits'][0] else \
-                    'WARN' if abs((v['value'] - 1) if v['kind'] == 'ratio' else v['value']) <= v['limits'][1] else 'FAIL'
-                prop['prototype'] = v
-                prop['value'] = v['value']
+        v = prototype(prop.get('proto'), qa)
+        if v:
+            prop['prototype'] = v
+            prop['value'] = v['value']
+        else:
+            prop.pop('proto', None)
         t['proposed'] = prop
         t['missed_by'] = ok
         ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}

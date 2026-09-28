@@ -333,6 +333,8 @@ numbers missed, so review feeds back into the checks.
     over its width against the design's comes from sheetqa's chin and widths.
   - The triage lists every open measure ticket as `needs a measurement` until a check of that name appears in a build's
     QA. `python -m charkit review tickets NAME --sync` then marks it landed.
+  - Where the ticket has a prototype, every triage measures it again on that build (`PROVISIONAL PASS/WARN/FAIL`). A
+    reviewer's note is therefore a tracked number from the moment it is ticketed, until the real check replaces it.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

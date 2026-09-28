@@ -269,8 +269,13 @@ def test_review_note_to_tickets():
     # the triage lists the missing measurement, and the eye note ranks eye_aspect up
     ctx = _ctx(spec, {}, [], tickets=review.load_tickets(spec)['tickets'])
     its = triage.items(Q, ctx)
-    m = next(i for i in its if i['class'] == 'needs a measurement')
-    assert m['check'] == 'sheet_face_length' and m['status'] == 'MISSING'
+    m = next(i for i in its if i['check'] == 'sheet_face_length')
+    assert m['class'] == 'needs a measurement' and m['status'] == 'PROVISIONAL FAIL', m     # measured again on this build
+    # a later build whose face isn't long any more: the provisional number follows it
+    Q2 = json.loads(json.dumps(Q))
+    Q2['sheet']['ours']['front']['chin'] = -0.345
+    m2 = next(i for i in triage.items(Q2, ctx) if i['check'] == 'sheet_face_length')
+    assert m2['status'] == 'PROVISIONAL PASS' and m2['rank_score'] < m['rank_score'], m2
     e = next(i for i in its if i['check'] == 'eye_aspect')
     assert e['evidence']['review'][0]['ticket'] == t2['id']
     # once a check of that name exists, the ticket is landed

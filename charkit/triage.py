@@ -24,8 +24,9 @@ The classes (the first that applies; the others that also apply are listed as `a
 (A free knob that would improve a targeted check at no cost to another check, moving away from its template default,
 is a trade-off with the fit's pull toward the defaults.)
 Review tickets (charkit/refs/NAME/tickets.json, charkit/review.py) join the list: a measurement the metrics missed
-(`needs a measurement`, until a check of that name appears in the QA), and reviewer notes on existing checks (evidence,
-and a higher rank).
+(`needs a measurement`, until a check of that name appears in the QA; where the ticket has a prototype computed from
+the QA's own tables it is measured again on this build: status PROVISIONAL PASS/WARN/FAIL), and reviewer notes on
+existing checks (evidence, and a higher rank).
 
 Each item carries its evidence: the value and status, the severity (warn bands past the pass limit), the overlays, the
 reference it is measured against and the manifest's authority for its measure (with the reference's cautions), the knobs
@@ -370,13 +371,20 @@ def items(qa, ctx, build_dir=None):
         if t.get('region') in ('face', 'eyes', 'silhouette'):
             vis = max(vis, 0.9)
         rank = float(t.get('severity', 2)) * vis * 1.5
-        out.append({'check': name or t['id'], 'status': 'LANDED' if landed else 'MISSING', 'value': (t.get('proposed') or {}).get('value'),
+        # a proposed measure with a prototype is measured again on this build: the note is a tracked number now
+        from .review import prototype
+        pv = None if landed else prototype((t.get('proposed') or {}).get('proto'), qa)
+        if pv and pv['status'] == 'PASS':
+            rank *= 0.3
+        out.append({'check': name or t['id'], 'status': 'LANDED' if landed else ('PROVISIONAL %s' % pv['status']) if pv else 'MISSING',
+                    'value': pv['value'] if pv else (t.get('proposed') or {}).get('value'),
                     'severity': float(t.get('severity', 2)), 'region': t.get('region') or reg, 'visibility': vis,
                     'rank_score': round(0.2 * rank if landed else rank, 3), 'class': 'needs a measurement',
                     'detail': ('the check landed: grade it like the rest and close ticket %s' % t['id']) if landed else
-                              'a reviewer saw "%s" that no check measures%s' % (
+                              'a reviewer saw "%s" that no check measures%s%s' % (
                                   t.get('text'), '; checks that passed and should have caught it: %s' % ', '.join(t.get('missed_by') or [])
-                                  if t.get('missed_by') else ''),
+                                  if t.get('missed_by') else '',
+                                  '; its prototype reads %s (ours %s, design %s)' % (pv['value'], pv['ours'], pv['design']) if pv else ''),
                     'also': [], 'evidence': {'ticket': t['id'], 'note': t.get('text'), 'proposed': t.get('proposed'),
                                              'board': t.get('board'), 'reference': t.get('reference')}})
     out.sort(key=lambda i: -i['rank_score'])
