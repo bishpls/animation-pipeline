@@ -683,6 +683,7 @@ class Base:
         if not os.path.exists(path):
             raise FileNotFoundError(f'{path}: run `python -m charkit.base_anime derive` first')
         d = np.load(path, allow_pickle=False)
+        self.path = path
         self.d = d
         self.meta = json.loads(str(d['meta']))
         self.verts = d['verts'].astype(np.float64)
@@ -732,6 +733,9 @@ class Base:
                     cavity_src={int(v): (int(a), float(sched[k - 1][0]), float(sched[k - 1][1])) for v, a, k in d['mouth_cavity']},
                     outer={int(v): int(r) for v, r in d['mouth_outer']},
                     side={int(v): code[int(c)] for v, c in d['mouth_side']})
+
+    def __reduce__(self):
+        return (load, (self.path,))                        # pickled by reference (charkit.cache): the asset loads again
 
 
 _CACHE = {}

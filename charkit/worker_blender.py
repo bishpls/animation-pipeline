@@ -1,0 +1,197 @@
+"""Blender entry for the build worker (charkit/worker.py): serve build jobs on a Unix socket until asked to stop.
+    blender -b --factory-startup --python charkit/worker_blender.py -- SOCKET INFO.json
+
+After a job that leaves the worker holding more than CHARKIT_WORKER_MAX_IDLE_MB (600) it restarts in place too (same
+pid, a fresh process image: Blender and Python keep what a build freed mapped, 0.5 to 1.2 GB), so an idle worker holds
+about 0.2 GB. Each job takes a machine-wide build slot (charkit.procs.acquire_slot, waiting while all are held) and gives it back once
+the job's scene is cleared again, so an idle worker holds no slot. Each job: charkit's modules dropped and imported
+afresh, the scene reset to factory settings, the datablock counts and charkit's own app handlers checked against the
+first clean state (a difference is reported as CHARKIT_WORKER_LEAK and the worker restarts
+itself in place after the job), then charkit.build_blender.main(job) with its output streamed back line by line.
+This file stays outside the purge: it holds the loop, and nothing of charkit between jobs.
+"""
+import gc, importlib, json, os, socket, sys, time, traceback
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+import bpy
+
+ARGS = sys.argv[sys.argv.index('--') + 1:]
+SOCK, INFO = ARGS[0], ARGS[1]
+STATE = {'pid': os.getpid(), 'started': time.time(), 'sock': SOCK, 'root': ROOT, 'jobs': 0, 'busy': None, 'last': None,
+         'blender': bpy.app.version_string, 'restarts': 0}
+STATE.update(json.loads(os.environ.pop('CHARKIT_WORKER_STATE', '{}')))    # carried over a restart in place
+MAX_IDLE_MB = float(os.environ.get('CHARKIT_WORKER_MAX_IDLE_MB', 600))
+
+
+def rss_mb():
+    import subprocess
+    r = subprocess.run(['ps', '-o', 'rss=', '-p', str(os.getpid())], capture_output=True, text=True)
+    try:
+        return int(r.stdout.strip()) / 1024
+    except ValueError:
+        return 0.0
+
+
+def save_info():
+    tmp = INFO + '.tmp'
+    json.dump(STATE, open(tmp, 'w'), indent=1)
+    os.replace(tmp, INFO)
+
+
+def purge():
+    for k in [k for k in sys.modules if k == 'charkit' or k.startswith('charkit.')]:
+        del sys.modules[k]
+    importlib.invalidate_caches()
+
+
+def clean():
+    """charkit unloaded, the scene at factory settings, Python's garbage collected. -> the counts a later job's clean
+    state must match."""
+    purge()
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    gc.collect()
+    n = {c: len(getattr(bpy.data, c)) for c in dir(bpy.data)
+         if isinstance(getattr(bpy.data, c, None), bpy.types.bpy_prop_collection)}
+    # charkit's own app handlers (Blender's bundled add-ons add theirs again at every factory reset, fresh builds too)
+    n['handlers'] = sum(1 for k in dir(bpy.app.handlers) if isinstance(getattr(bpy.app.handlers, k), list)
+                        for f in getattr(bpy.app.handlers, k) if _ours(f))
+    return n
+
+
+def _ours(f):
+    code = getattr(f, '__code__', None)
+    return getattr(f, '__module__', '').startswith('charkit') or bool(code and code.co_filename.startswith(ROOT))
+
+
+class Stream:
+    """a job's stdout and stderr, line by line to the client (and to the worker's log)."""
+
+    def __init__(self, conn, kind):
+        self.conn, self.kind, self.buf = conn, kind, ''
+
+    def write(self, s):
+        sys.__stdout__.write(s)
+        self.buf += s
+        while '\n' in self.buf:
+            l, self.buf = self.buf.split('\n', 1)
+            self.send({self.kind: l})
+        return len(s)
+
+    def send(self, m):
+        try:
+            self.conn.sendall((json.dumps(m) + '\n').encode())
+        except OSError:
+            pass                                             # the client went away: finish the job anyway
+
+    def flush(self):
+        sys.__stdout__.flush()
+
+
+def job(conn, msg, base):
+    t = time.time()
+    now = clean()
+    leak = {k: [base.get(k), v] for k, v in now.items() if base.get(k) != v}
+    STATE['busy'] = {'label': ' '.join(os.path.basename(a) for a in msg['argv'][:2]), 'since': t}
+    save_info()
+    out, err = Stream(conn, 'out'), Stream(conn, 'out')
+    old = sys.stdout, sys.stderr
+    env0 = {k: v for k, v in os.environ.items() if k.startswith('CHARKIT_')}
+    for k in env0:
+        del os.environ[k]
+    os.environ.update(msg.get('env') or {})                  # the client's CHARKIT_* settings, for this job only
+    sys.stdout, sys.stderr = out, err
+    ok, slot = True, None
+    try:
+        if leak:
+            print('CHARKIT_WORKER_LEAK', json.dumps(leak))
+        from charkit import procs
+        slot = procs.acquire_slot('worker ' + STATE['busy']['label'])
+        STATE['busy']['slot'] = True; save_info()
+        t0 = time.time()                                     # (before charkit's code is imported for this job)
+        import charkit.build_blender as bb
+        bb.main(list(msg['argv']), worker=True, t0=t0)
+    except BaseException:
+        ok = False
+        traceback.print_exc()
+    finally:
+        sys.stdout, sys.stderr = old
+        for k in [k for k in os.environ if k.startswith('CHARKIT_')]:
+            del os.environ[k]
+        os.environ.update(env0)
+        try:
+            clean()                                          # the job's scene and state let go before the slot is
+        finally:
+            if slot is not None:
+                slot.close()
+    STATE['jobs'] += 1
+    STATE['busy'] = None
+    STATE['last'] = {'label': ' '.join(os.path.basename(a) for a in msg['argv'][:2]), 'seconds': round(time.time() - t, 2),
+                     'ok': ok, 'leak': bool(leak)}
+    save_info()
+    out.send({'done': True, 'ok': ok, 'seconds': round(time.time() - t, 2), 'job': STATE['jobs'], 'leak': leak or None})
+    return bool(leak)
+
+
+def serve():
+    base = clean()
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    if os.path.exists(SOCK):
+        os.remove(SOCK)
+    srv.bind(SOCK)
+    os.chmod(SOCK, 0o600)
+    srv.listen(8)
+    save_info()
+    print('charkit worker: pid %d on %s' % (os.getpid(), SOCK), flush=True)
+    restart = False
+    while True:
+        conn, _ = srv.accept()
+        try:
+            line = b''
+            while not line.endswith(b'\n'):
+                b = conn.recv(1 << 16)
+                if not b:
+                    break
+                line += b
+            if not line.strip():
+                continue
+            msg = json.loads(line)
+            op = msg.get('op')
+            if op == 'ping':
+                conn.sendall((json.dumps({'pong': True, 'pid': os.getpid(), 'jobs': STATE['jobs']}) + '\n').encode())
+            elif op == 'stop':
+                conn.sendall((json.dumps({'stopping': True}) + '\n').encode())
+                conn.close()
+                break
+            elif op == 'build':
+                restart = 'state left over after a job' if job(conn, msg, base) else None
+                m = rss_mb()
+                STATE['idle_mb'] = round(m)
+                if not restart and m > MAX_IDLE_MB:
+                    restart = 'holding %.0f MB idle (CHARKIT_WORKER_MAX_IDLE_MB %.0f)' % (m, MAX_IDLE_MB)
+                save_info()
+        except Exception:
+            traceback.print_exc()
+        finally:
+            try:
+                conn.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            conn.close()
+        if restart:
+            break
+    srv.close()
+    if os.path.exists(SOCK):
+        os.remove(SOCK)
+    if restart:
+        print('charkit worker: %s; restarting in place' % restart, flush=True)
+        sys.stdout.flush()
+        os.environ['CHARKIT_WORKER_STATE'] = json.dumps({k: STATE[k] for k in ('started', 'jobs', 'last')} |
+                                                        {'restarts': STATE['restarts'] + 1})
+        os.execv(bpy.app.binary_path, [bpy.app.binary_path, '-b', '--factory-startup', '--python', __file__, '--'] + ARGS)
+    if os.path.exists(INFO):
+        os.remove(INFO)
+
+
+serve()

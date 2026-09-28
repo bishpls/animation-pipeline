@@ -13,8 +13,12 @@ up), else 2.
     python -m charkit kill OUT_DIR        # stop that build's recorded process
     python -m charkit wait OUT_DIR [--timeout S]   # until that build ends (by its recorded pid)
     python -m charkit slots [N]           # show or set the machine's slot count
+
+The build worker (charkit/worker.py) is recorded the same way in charkit/out/worker/, and a build it runs is recorded
+in its output folder with the worker's pid: stopping that build stops the worker. The worker takes a slot per job
+(acquire_slot, with its memory check) and releases it between jobs.
 """
-import fcntl, glob, json, os, signal, subprocess, sys, time
+import contextlib, fcntl, glob, json, os, signal, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIDFILE = '.pid.json'
@@ -84,20 +88,35 @@ def acquire_slot(label='build', poll=2.0, mem=None):
         time.sleep(poll)
 
 
-def run(cmd, out, label='build', slot=True, **kw):
-    """run a command to completion in a build slot, its pid recorded in `out`/.pid.json (removed when it ends)
-    -> CompletedProcess."""
+def write(out, pid, label, cmd):
+    """record a process in `out`/.pid.json. -> the record's path."""
     os.makedirs(out, exist_ok=True)
     pf = os.path.join(out, PIDFILE)
-    lock = acquire_slot(label) if slot else None
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
-    json.dump({'pid': p.pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
+    json.dump({'pid': pid, 'label': label, 'cmd': cmd[:4] + ['...'], 'cwd': os.getcwd(), 'root': ROOT,
                'started': time.strftime('%Y-%m-%dT%H:%M:%S')}, open(pf, 'w'))
+    return pf
+
+
+@contextlib.contextmanager
+def record(out, pid, label, cmd):
+    """`out`/.pid.json names `pid` while the block runs."""
+    pf = write(out, pid, label, cmd)
     try:
-        so, se = p.communicate()
+        yield pf
     finally:
         if os.path.exists(pf):
             os.remove(pf)
+
+
+def run(cmd, out, label='build', slot=True, **kw):
+    """run a command to completion in a build slot, its pid recorded in `out`/.pid.json (removed when it ends)
+    -> CompletedProcess."""
+    lock = acquire_slot(label) if slot else None
+    try:
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kw)
+        with record(out, p.pid, label, cmd):
+            so, se = p.communicate()
+    finally:
         if lock is not None:
             lock.close()
     return subprocess.CompletedProcess(cmd, p.returncode, so, se)
@@ -158,6 +177,11 @@ def ps(args=()):
     print('build slots: %d of %d busy; %s GB available' % (len(held), slots(), '%.1f' % free if free is not None else '?'))
     for i, who in held:
         print('  slot %d: %s' % (i, who))
+    try:
+        from . import cache
+        print(cache.size_line())
+    except Exception:
+        pass
     rs = records()
     if not rs:
         print('no charkit builds running'); return
