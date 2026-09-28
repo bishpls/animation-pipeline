@@ -1,18 +1,12 @@
 {
  "name": "clawd",
  "ref": {
-  "rig": "projects/tsuzuku/rig/clawd",
-  "image": "charkit/out/i3d/in/clawd_3dstyle.png",
+  "manifest": "charkit/refs/clawd/manifest.json",
   "fit": [
    "face",
    "features",
    "hair"
-  ],
-  "sheet": {
-   "image": "projects/hello-world/refs/idol_D.png",
-   "front_figure": [0, 0, 380, 768],
-   "heads": {"front": [100, 60, 300, 260], "three_quarter": [440, 60, 640, 260], "profile": [740, 60, 940, 260]}
-  }
+  ]
  },
  "body": {
   "height_m": 1.55,
@@ -243,7 +237,7 @@
    ]
   ],
   "shape": {
-   "glb": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
+   "glb": "ref:trellis",
    "below": 0.33,
    "shoulder_x": 0.19,
    "mode": "mesh",

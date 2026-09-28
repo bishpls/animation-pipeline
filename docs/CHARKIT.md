@@ -133,6 +133,28 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+**Every build is recorded, and every merge is measured first.**
+- `python -m charkit history NAME [--check CHECK]` shows QA across builds. Each build appends its checks to
+  `charkit/out/history/NAME.jsonl`, with the git commit, spec hash and base.
+- `python -m charkit gate BRANCH [--into REF] [--args "--base anime"]` shows what merging a branch would do, before it
+  happens. A throwaway worktree at the integration head builds the baseline (cached per commit and options). It then takes
+  the branch with `git merge --no-commit`, runs the tests and builds again. The report in `charkit/out/gate/` lists every
+  check that moved (regressed, improved, value, new, gone), the tests and the trace diff.
+  - FAIL: a conflict, a failing test, a failed build, or a graded check that got worse or disappeared.
+  - WARN: the build is 1.5x slower.
+  - No branch moves.
+- Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
+  worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
+
+**References live in one manifest per character.** `charkit/refs/NAME/manifest.json` lists every reference the build,
+fit and QA read: the model sheet, the 2D rig, the generated 3D-style key and the TRELLIS mesh. For each it records its
+role, scale method and figures, provenance (the model and ledger entry, or the regeneration command for large files kept
+out of git, with their hash) and cautions (the rig's face layer is bled out under the hair, so its bottom isn't the
+chin). It also names which reference is the authority for each measurement, so a disagreement between the 2D design and
+the 3D rebuild is settled in writing.
+- A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
+- `python -m charkit refs-check SPEC` verifies the manifest.
+
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
 a lighting sweep of the face; a range-of-motion sheet (T-pose, arms up, deep bend, twist, crouch, kick); and topology stats
