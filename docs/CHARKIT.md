@@ -245,9 +245,13 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     is the same drawing at a known scale, and each view is aligned on its eyes. The 3/4 angle comes from how much the
     eye spacing shortens. In the drawing, the face is the skin reached from under the eyes with the drawn lines as
     walls. Ours is `faceqa`'s z-buffer at the sheet's scale, each triangle labelled by class, without the hair. Its face
-    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck. Graded:
+    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck (searched from
+    0.2 L under the eye line, below the nose: a projecting nose isn't the chin). Graded:
     - the front half-widths at 55% and 75% of the way to each face's own chin;
-    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck);
+    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck). It reads
+      one row, 0.06 L under the chin; `neck_run` (INFO) says how much neck shows there before the collar. Under about
+      0.1 L, a one-pixel chin move flips that row between the neck and the shirt: on Clawd the neck read 0.139 or
+      0.048 L;
     - the profile's front edge, the nose's and chin's reach in front of the eye, and the chin's height;
     - the far cheek at 3/4.
 
@@ -350,6 +354,94 @@ so its bottom isn't the chin). It also names which reference is the authority fo
 the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
+
+**The QA chooses the face's knobs: `python -m charkit fit SPEC`** (`charkit/facefit.py`). The face, eye and neck knobs
+are fitted to the graded eye, sheet and face-shape checks, then built (`build DIR/NAME.fit.json`).
+- **The fast evaluator** (`charkit/faceeval.py`, numpy only) measures a knob set the QA's way in a few seconds (a full
+  Blender build takes 90). It makes what the build would make: `character.assemble` without the shape keys, keeping the
+  body and the wrap's knob-independent part between calls (0.5 s). The skin is subdivided as Blender's modifier does it
+  (`charkit/subdiv.py`: level 1, limit surface, eye margins creased, OpenSubdiv's child order; within 1 µm of Blender's).
+  The cranium is fitted from the hair, and the TRELLIS target is aligned on our eyes, both as the build does. Then it
+  runs the QA's own measures: `sheetqa.measure_ours` (moved out of `qa3d.sheet` so both call the same code),
+  `faceqa.measure`, and `eyeqa` on an eye render of its own. That render is a 4x-supersampled z-buffer: the skin coloured by
+  material, the eye plates by their `eyetex` textures at their UVs (the iris over the white by its alpha), the lashes
+  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`), `face_folds` and the sheet's expression
+  heads (`expr_*`, `faceeval.expression_data`: the posed control meshes and their key offsets, as `qa3d.expression_data`
+  reads them) come from the assembly with its keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
+  `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair, accessories and
+  garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
+  `python -m charkit fit --validate BUILD_DIR` compares it with a build's own `qa.json`.
+- **The fit** (`charkit/fitkit.py`, generic; `facefit.py` declares the face's part). Knobs carry a spec path, template
+  default, step, bounds and group. Terms are graded checks read as residuals in units of their PASS tolerance. The
+  manifest's authority map weights them: full weight where that reference is the authority for the measure, a quarter
+  otherwise, so the sheet leads the face's 2D shape, the rig the eyes, and TRELLIS the depth. A residual beyond its
+  tolerance counts again (a hinge); a missing check costs 3; a regulariser pulls toward the template defaults. Each
+  group is fitted by scipy's trust-region least squares on a parallel finite-difference Jacobian (one knob step). The
+  sheet's 115-px/L grid is smoothed there over four sub-pixel offsets, with a soft-L1 loss so a term that flips between
+  two readings can't steer. A pattern search at the QA's own grid then polishes the result. It is deterministic.
+  The groups are `eyes` (the eye checks) and `face` (sheet and face-shape: front, 3/4, profile and depth at once).
+  - Interface: `facefit.fit(spec, out, budget=None) -> (fitted_spec, report)`; `facefit.declare()` lists the knobs
+    (bounds included) and the terms.
+  - `DIR/sensitivity.json` (schema `charkit.sensitivity/1`): knob -> measure -> {at, minus, plus, per_step, per_unit}.
+    `sensitivity.md` is the readable version.
+  - `DIR/fit_report.json|md`: every check before and after, residuals per view, each knob's start, fitted value, default
+    and whether it ended at a bound. What still fails is triaged (`fitkit.triage`) as *needs a knob*, *knob at bound* or
+    *trade-off*.
+  - `--views` also fits each view alone. If every view passes alone but not together, one rigid face can't match them
+    all, which is the case for view-dependent face keys.
+- **Knobs added for it**: `head.nose_tip` (the nose's projection in L: a relief on the wrapped face, both bases;
+  `Head.nose_relief`) and `head.low_flat` (the lower face's section, from a sharp V to a broad jaw, growing from the eye
+  line to the chin). The neck already had `body.proportions.neck_w`, `neck_len` and `head.neck_r`.
+- **Fixes it needed**: `refs.fit` takes the chin from the model sheet (`refs.sheet_chin`), or from the rig's face layer
+  less its bleed. The QA's chin search (`faceqa.chin_bottom`) starts under the nose, where a projecting nose used to
+  read as the chin. `faceqa`'s depth regions stop at the higher of the two chins, since below it the check read the
+  target's neck against our under-chin.
+- **Every graded check keeps its status.** The merge gate fails any check that reads worse, so the fit protects them:
+  - its own terms are held in the status band they had at the start, or in `--baseline QA.json` (the gate's build),
+    by a steep extra residual;
+  - the hair's coverage checks are held the same way, with a token weight: they are the hair's to meet, not the face's;
+  - the checks it doesn't model as terms (expressions, folds) are held by `fitkit.guard`, which scales a group's change
+    back while one of them reads worse.
+- **The cached hair and garments follow the fit.** While searching, the garments move with the skin (only an
+  approximation of refitting them: it misread the neckline by 0.1 in `neck_to_jaw`). The hair stays as culled against
+  the start's face, but a fuller face culls more of the generated side locks, which moved Clawd's 3/4 coverage from
+  0.93 to 1.34. So the fit rebuilds both in Blender for the fitted head and body and fits the face again from there, up
+  to twice (`--refresh-only` runs just this from the spec's knobs).
+- **Clawd** (`charkit/spec/clawd.json` carries the fitted knobs). Against the integration build, 18 graded checks move up a
+  status and 1 down; the rest keep theirs. Per view, the RMS residual against the design (in tolerances; 1 passes):
+  - front 3.65 -> 1.10: the sheet's widths FAIL -> WARN; `neck_to_jaw` FAIL -> WARN;
+  - 3/4 2.88 -> 1.43: the far cheek's chin WARN -> PASS;
+  - profile 3.55 -> 1.50: the front edge and chin reach FAIL -> WARN; the chin's height WARN -> PASS;
+  - depth against TRELLIS 7.96 -> 1.02: FAIL -> WARN;
+  - eyes 2.98 -> 1.15: pupil run and aspect, iris ratio, width and lid gap now PASS; lid span WARN; the opening's
+    aspect is still short of the design's tall oval (0.74, a trade-off with pupil run and lid gap).
+  The one move down is `face_shape_coverage_three_quarter` (PASS 0.93 -> WARN 1.34), a hair check. `scene.cull_face`
+  drops generated hair lying within the face's width below the eyes, so the sheet's wider jaw culls the side locks
+  that cover the cheeks. Scaling the face change back to half still reads 1.19; freezing the widths restores it, but
+  gives up the width, neck and depth gains. Keeping the side locks is the hair's to decide (the geom hair already
+  keeps them in front of the cheeks).
+  - Each view fitted alone from the joint result (`--views`), against the joint fit: front 1.19 (1.10 jointly), 3/4
+    1.45 (1.43), profile 1.45 (1.50). So one rigid face holds all three about as well as each could alone. What limits
+    them is the knob set, not a conflict between views:
+    - front: `neck_to_jaw`;
+    - 3/4: TRELLIS's fuller cheek;
+    - profile: the drawn nose reach, which a rigid face can't follow (the one candidate for a profile-only face key).
+    Depth against TRELLIS passes alone (0.04) but reads 1.02 with the sheet: the 3D restyle's rounder face disagrees
+    with the drawing, and the sheet has the authority.
+  - The evaluator agrees with Blender's QA on four builds: the unfitted Clawd, the fitted Clawd twice (before and after
+    a merge), and the fitted knobs on the anime base. That is 46 checks each: 183 of 184 statuses match,
+    the miss being the anime base's `eye_lid_span` (WARN against PASS). The sheet, face-shape, expression and fold
+    values match exactly. The eye values match to 0.04 on the unfitted face and to 0.09 on the fitted ones (see the
+    lash gap below).
+- **Known gaps**:
+  - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
+    its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
+    and pupil aspect 0.81 against 0.94, with the same statuses. Neither a culled nor an unculled shell reproduces
+    what EEVEE draws, so fitted eyes are confirmed in a build.
+  - The sheet is 115 px per head length, so one pixel is 0.009 L, half a chin tolerance. `neck_to_jaw` reads a single
+    row, and `neck_run` above 0.1 L keeps that row off the collar.
+  - The drawn profile's nose reach (0.157 L in front of the eye) is a drawing convention. A rigid 3D nose that long
+    reads as a spike, so `nose_tip` stops at 0.04 L and the nose-reach term stays a trade-off.
 
 Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);

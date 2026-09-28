@@ -36,7 +36,12 @@ def measure(rig, eye_x=0.168, hair=('hair_front', 'hair_side_L', 'hair_side_R'),
     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
     ppl = abs(x2 - x1) / (2 * eye_x)                     # pixels per head length
     face = lay['face']
-    chin = -(face['y'] + face['h'] - cy) / ppl
+    # the face plate runs a little under the hair and outline (measured against the visible skin on Clawd: ~15 px); its
+    # bottom is not the chin either: the chin is the bottom less that bleed (a sheet, when there is one, says it better:
+    # sheet_chin())
+    bleed = max(15, json.load(open(os.path.join(rig, 'build.json'))).get('bleed', 0))
+    chin_layer = -(face['y'] + face['h'] - cy) / ppl
+    chin = -(face['y'] + face['h'] - bleed - cy) / ppl
     mask = np.zeros(size[::-1], bool)
     for n in hair:
         if n in lay:
@@ -68,8 +73,6 @@ def measure(rig, eye_x=0.168, hair=('hair_front', 'hair_side_L', 'hair_side_R'),
     # the face's contour below the eyes (the face layer is bled out under the hair by `bleed` px; take it back), as the
     # kit's lower-face half-width profile: d = 0 at the eye line .. 1 at the chin
     fl = _alpha(rig, face, size)
-    # the face plate runs a little under the hair and outline (measured against the visible skin on Clawd: ~15 px)
-    bleed = max(15, json.load(open(os.path.join(rig, 'build.json'))).get('bleed', 0))
     prof = []
     for d in (0.0, 0.2, 0.4, 0.6, 0.8, 0.93, 1.0):
         y = int(round(cy - d * chin * ppl))
@@ -91,7 +94,7 @@ def measure(rig, eye_x=0.168, hair=('hair_front', 'hair_side_L', 'hair_side_R'),
         feat['brow_z'] = float(min(bz))
     feat['eye_w'] = float(np.mean([lay[n]['w'] for n in ('eye_L', 'eye_R')]) / ppl)
     feat['eye_h'] = float(np.mean([lay[n]['h'] for n in ('eye_L', 'eye_R')]) / ppl)
-    return dict(ppl=ppl, chin=chin, hair_z=z, hair_wl=wl, hair_wr=wr, top=float(max(z)), bottom=float(min(z)),
+    return dict(ppl=ppl, chin=chin, chin_layer=chin_layer, hair_z=z, hair_wl=wl, hair_wr=wr, top=float(max(z)), bottom=float(min(z)),
                 fringe=[(float(-a), float(b)) for a, b in cont], fringe_tips=sorted(tips), face_wf=prof, features=feat)
 
 
@@ -104,10 +107,30 @@ if __name__ == '__main__':
                                                                    [(round(a, 3), round(b, 3)) for a, b in R['fringe_tips']]))
 
 
+def sheet_chin(spec, R):
+    """the chin under the eye line (L, negative) of the design's model sheet (spec.ref.sheet: its front figure's face,
+    charkit.sheetqa), scaled from the rig as the QA scales it; None without a sheet. The rig's face layer runs on under
+    the hair, so the sheet's drawn chin is the better one."""
+    from . import sheetqa
+    from PIL import Image
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    sh = ref.get('sheet')
+    if not sh or not ref.get('rig'):
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    fp = lambda p: p if os.path.isabs(p) else os.path.join(root, p)
+    rgb = np.asarray(Image.open(fp(sh['image'])).convert('RGB'), float) / 255
+    alpha = np.asarray(Image.open(os.path.join(fp(ref['rig']), 'base.png')).convert('RGBA'), float)[..., 3] / 255
+    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], alpha, R['ppl'])
+    D = sheetqa.measure_sheet(rgb, {k: tuple(v) for k, v in sh['heads'].items()}, spec.get('eyes', {}).get('x', 0.168), ppl=ppl)
+    return D['front'].get('chin')
+
+
 def fit(spec, R, parts=('face', 'features', 'hair')):
     """a spec with knobs fitted to a design's measurements (measure()'s dict), where the spec doesn't set them itself:
     face: the lower-face width profile (the cheeks held at the cranium's width, since the design hides them under hair; the
-    drawn chin point softened for 3D) and the face length; features: the mouth and nose heights; hair: the silhouette."""
+    drawn chin point softened for 3D) and the face length (from the sheet's chin when R has it, 'chin_sheet', else the
+    rig's face layer less its bleed); features: the mouth and nose heights; hair: the silhouette."""
     import copy
     S = copy.deepcopy(spec)
     head = S.setdefault('head', {})
@@ -115,8 +138,8 @@ def fit(spec, R, parts=('face', 'features', 'hair')):
         wf = list(R['face_wf'])
         wf[0], wf[1] = min(wf[0], 0.345), min(wf[1], 0.35)
         wf[-2], wf[-1] = max(wf[-2], 0.06), max(wf[-1], 0.035)
-        head.setdefault('low_wf', [round(x, 4) for x in wf])
-        head.setdefault('face_len', round(abs(R['chin']) / 0.445, 4))
+        head.setdefault('low_wf', [round(float(x), 4) for x in wf])
+        head.setdefault('face_len', round(abs(R.get('chin_sheet') or R['chin']) / 0.445, 4))
     f = R.get('features', {})
     if 'features' in parts and f:
         if 'mouth_z' in f:

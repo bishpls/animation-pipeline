@@ -109,15 +109,14 @@ def target_mesh(H, cols=128, rows=100, neck_r=0.15, neck_y=0.05, skirt=10):
         zb = headlib.jaw_z(H, a) * 1.02
         c = math.cos(a)
         backness = min(1.0, max(0.0, 0.35 - c) / 1.35)
-        col = []
-        for t in w:
-            z = H.top - (H.top - zb) * t
-            p = H.surface(a, z) if t > 0 else np.array([0.0, 0.0, H.top])
-            u = max(0.0, (t - 0.6) / 0.4)
-            if backness > 0 and u > 0:
-                q = np.array([math.sin(a) * nr, ny - c * nr, z])
-                p = p + (q - p) * backness * u * u * 0.85
-            col.append(p)
+        z = H.top - (H.top - zb) * w
+        col = H.surfaces(np.full(rows, a), z)
+        col[w <= 0] = (0.0, 0.0, H.top)
+        u = np.maximum(0.0, (w - 0.6) / 0.4)
+        if backness > 0:
+            q = np.stack([np.full(rows, math.sin(a) * nr), np.full(rows, ny - c * nr), z], 1)
+            col = col + (q - col) * (backness * u * u * 0.85)[:, None]
+        col = list(col)
         # under the jaw: from the jawline in to where it meets the neck (front: just above the chin; sides: below the jaw
         # corner), easing so the jawline stays a crisp edge
         zn = (-0.34 + (-0.42 + 0.34) * c) * L if c >= 0 else (-0.34 - 0.02 * (-c)) * L
@@ -139,9 +138,8 @@ def target_mesh(H, cols=128, rows=100, neck_r=0.15, neck_y=0.05, skirt=10):
     return V, np.array(T)
 
 
-def raycast(O, D, TV, T, chunk=48):
-    """first hit distance of rays from one origin O along directions D (M,3) on triangles; inf where they miss."""
-    v0 = TV[T[:, 0]]; e1 = TV[T[:, 1]] - v0; e2 = TV[T[:, 2]] - v0
+def _hits(O, D, v0, e1, e2, chunk=48):
+    """Moller-Trumbore: the first hit distance of rays from O along D (M,3) on triangles (v0, e1, e2); inf where they miss."""
     s = O[None] - v0
     q = np.cross(s, e1)
     ok = np.linalg.norm(np.cross(e1, e2), axis=1) > 1e-14
@@ -158,6 +156,58 @@ def raycast(O, D, TV, T, chunk=48):
         hit = good & (u >= -1e-9) & (v >= -1e-9) & (u + v <= 1 + 1e-9) & (t > 1e-9)
         out[i:i + chunk] = np.where(hit, t, np.inf).min(1)
     return out
+
+
+def raycast(O, D, TV, T, chunk=48, bins=(64, 32), pad=0.03):
+    """first hit distance of rays from one origin O along directions D (M,3) on triangles; inf where they miss. Each ray
+    is tested only against the triangles whose directions from O (azimuth, elevation; padded, whole turns near the poles)
+    can hold it, which is the brute force's answer at a fraction of the cost."""
+    O = np.asarray(O, float); D = np.asarray(D, float); T = np.asarray(T)
+    v0 = TV[T[:, 0]]; e1 = TV[T[:, 1]] - v0; e2 = TV[T[:, 2]] - v0
+    if len(D) * len(T) < 2e6:
+        return _hits(O, D, v0, e1, e2, chunk)
+    na, ne = bins
+    def ang(P):
+        return np.arctan2(P[..., 0], -P[..., 1]), np.arctan2(P[..., 2], np.hypot(P[..., 0], P[..., 1]))
+    ta, te = ang(TV[T] - O)                                        # (T, 3) per corner
+    d1 = (ta[:, 1:] - ta[:, :1] + np.pi) % (2 * np.pi) - np.pi     # the corners' azimuths round the first one's
+    a_lo = ta[:, 0] + np.minimum(0, d1.min(1)) - pad
+    a_hi = ta[:, 0] + np.maximum(0, d1.max(1)) + pad
+    e_lo, e_hi = te.min(1) - pad, te.max(1) + pad
+    whole = (a_hi - a_lo > np.pi / 2) | (e_hi > 1.25) | (e_lo < -1.25)  # near a pole or wide: every azimuth
+    e_hi = np.where(e_hi > 1.25, np.pi / 2, e_hi); e_lo = np.where(e_lo < -1.25, -np.pi / 2, e_lo)
+    ra, re = ang(D)
+    wa, we = 2 * np.pi / na, np.pi / ne
+    ia = np.clip(((ra + np.pi) / wa).astype(int), 0, na - 1)
+    ie = np.clip(((re + np.pi / 2) / we).astype(int), 0, ne - 1)
+    rb = ia * ne + ie
+    out = np.full(len(D), np.inf)
+    for b in np.unique(rb):
+        ja, je = divmod(int(b), ne)
+        b0, b1 = -np.pi + ja * wa, -np.pi + (ja + 1) * wa
+        c0, c1 = -np.pi / 2 + je * we, -np.pi / 2 + (je + 1) * we
+        az = whole.copy()
+        for k in (-2 * np.pi, 0.0, 2 * np.pi):
+            az |= (a_lo + k <= b1) & (a_hi + k >= b0)
+        ti = np.nonzero(az & (e_lo <= c1) & (e_hi >= c0))[0]
+        if len(ti):
+            ri = np.nonzero(rb == b)[0]
+            out[ri] = _hits(O, D[ri], v0[ti], e1[ti], e2[ti], chunk)
+    return out
+
+
+def surface_azimuths(H, x, z, lo=0.0, hi=math.pi / 2):
+    """surface_azimuth() over arrays of x and z (the same bisection, all at once)."""
+    x, z = np.broadcast_arrays(np.asarray(x, float), np.asarray(z, float))
+    sg = np.where(x >= 0, 1.0, -1.0)
+    ax = np.abs(x)
+    sec = H.sections(z)
+    lo, hi = np.full(x.shape, float(lo)), np.full(x.shape, float(hi))
+    for _ in range(40):
+        m = (lo + hi) / 2
+        below = H._xy(m, sec)[0] < ax
+        lo, hi = np.where(below, m, lo), np.where(below, hi, m)
+    return sg * (lo + hi) / 2
 
 
 def surface_azimuth(H, x, z, lo=0.0, hi=math.pi / 2):
@@ -182,11 +232,14 @@ def _angles_dir(a, e):
     return np.stack([np.sin(a) * np.cos(e), -np.cos(a) * np.cos(e), np.sin(e)], -1)
 
 
-def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, mouth_warp=None, target=None, eye_w=None, lips_w=None, wings_w=None):
+def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, mouth_warp=None, target=None, eye_w=None, lips_w=None, wings_w=None,
+            prep=None):
     """Wrap MakeHuman's head onto the anime head.
     V (N,3) the stylised body with MakeHuman's head (Blender frame, metres); head_w (N,) the head bone's weight; marks:
     dict(eye_l, eye_r, chin, top, mouth) of the realistic head; L the anime head length; target: optional (verts, tris) in head
-    space to wrap onto instead of head.Head's surface (a sculpt, a generated head).
+    space to wrap onto instead of head.Head's surface (a sculpt, a generated head); prep: an optional dict holding the
+    knob-independent part (the smoothed head, its normals, the landmarks on it), filled on the first call and reused by
+    later calls with the same body (charkit.faceeval re-wraps one body to many knob sets).
     -> (new V, H (the anime head), centre (head-space origin in world: x 0, the face plane at the eyes, the eye line), info)."""
     D = dict(DETAIL); D.update(detail or {})
     EW = dict(EYE_WARP); EW.update(eye_warp or {})
@@ -194,14 +247,17 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
     H = headlib.Head(L, knobs)
     ear_k = D['ear'] * H.K.get('ear', 1.0)
     region = head_w > 0.02
-    nb = adjacency(len(V), faces)
-    S = laplacian_smooth(V, nb, region, iters=120, lam=0.6, mu=-0.64)
+    if prep is None or 'S' not in prep:
+        S = laplacian_smooth(V, adjacency(len(V), faces), region, iters=120, lam=0.6, mu=-0.64)
+        # the landmarks ride the smoothing (it shrinks the head), so directions are measured on the smooth head
+        mk = dict(zip(list(marks), follow([marks[k] for k in marks], V, S, k=6)))
+        if prep is not None:
+            prep.update(S=S, nS=vertex_normals(S, faces), mk=mk)
+    S = prep['S'] if prep is not None else S
     det = V - S
-    nS = vertex_normals(S, faces)
-    # the landmarks ride the smoothing (it shrinks the head), so directions are measured on the smooth head
-    keys = list(marks)
+    nS = prep['nS'] if prep is not None else vertex_normals(S, faces)
+    mk = prep['mk'] if prep is not None else mk
     chin_real = float(marks['chin'][2])
-    mk = dict(zip(keys, follow([marks[k] for k in keys], V, S, k=6)))
     eye_c = (np.asarray(mk['eye_l']) + np.asarray(mk['eye_r'])) / 2
     head = region & (head_w > 0.5)
     # the realistic centre: on the eye line, midway between the face and the back of the skull
@@ -268,6 +324,8 @@ def reshape(V, faces, head_w, marks, L, knobs=None, detail=None, eye_warp=None, 
             m_ = np.clip(w_[si] * 1.5, 0, 1)
             k = k + (D[key] - k) * m_
     final = P + det[si] * k[:, None]
+    q = P - centre
+    final[:, 1] -= H.nose_relief(q[:, 0], q[:, 1], q[:, 2])      # the 'nose_tip' knob's relief (none at 0)
     # everything else in the region (the lips' inner rolls, the mouth cavity, the jaw's underside, the neck's top) moves
     # with the shell around it in 3D (inverse-distance interpolation of the shell's displacement and of the fixed neck), so
     # interior parts keep their place behind the surface they sit under
@@ -384,6 +442,8 @@ def rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, m
     out = R.copy()
     region = np.asarray(region, bool)
     out[shell] = R[shell] + (P - P0)
+    q = P - centre
+    out[shell, 1] -= H.nose_relief(q[:, 0], q[:, 1], q[:, 2])    # the 'nose_tip' knob's relief (the base has none)
     body = ~region
     out[body] = Vbody[body]
     pinned = np.zeros(len(R), bool); pinned[shell] = True
