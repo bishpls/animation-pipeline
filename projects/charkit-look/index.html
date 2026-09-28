@@ -16,6 +16,7 @@
        node engine/render.mjs projects/charkit-look --loop=expr --stills=0,1,2,3,4,5,6   blink happy half wide angry sad squint
        node engine/render.mjs projects/charkit-look --loop=mouth --stills=0,1,...,9      the mouth set
        node engine/render.mjs projects/charkit-look --loop=debug --stills=0              one view in every debug mode
+       node engine/render.mjs projects/charkit-look --loop=faces --stills=0,1           the VRM expression presets
        node engine/render.mjs projects/charkit-look --loop=hook --strip=0:5 --step=12   the hook clip in our look (a pure
                                                                                           function of t: springs stepped
                                                                                           from 0, blinks from a seed)
@@ -28,7 +29,7 @@
   (() => {
     const q = new URLSearchParams(location.search), loop = (q.get('loop') || '').split('~')[0];
     const size = { views: [2700, 900], body: [1800, 1000], expr: [1800, 600], mouth: [1800, 600], debug: [2400, 1200],
-      hook: [1920, 1080], turn: [1080, 1080], mtoon: [2400, 1200] }[loop] || [1920, 1080];
+      hook: [1920, 1080], turn: [1080, 1080], mtoon: [2400, 1200], faces: [2400, 1200] }[loop] || [1920, 1080];
     window.PROJECT = { fps: 24, plain: true, w: size[0], h: size[1], duration: 5 };
     window.RENDER = q.has('render') || !!loop;
   })();

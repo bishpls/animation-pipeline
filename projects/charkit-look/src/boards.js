@@ -176,6 +176,24 @@ LOOPS.mtoon.setup = async () => {
   await V3.warm(BCTX, stage.scene, CK.camera({ target: [0, 1, 0], dist: 3 }));
 };
 
+// the VRM expression presets (VRMC_vrm, mapped from our keys by charkit/gltf.py), driven through three-vrm's expression
+// manager, in our look; t = 1: three-quarter
+const PRESETS = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'blink', 'blinkLeft', 'blinkRight', 'happy', 'angry', 'sad', 'relaxed',
+  'surprised', 'lookUp', 'lookDown', 'lookLeft', 'lookRight'];
+LOOPS.faces = t => {
+  const cols = 6, rows = 3, w = W / cols, h = H / rows, az = t < 0.5 ? 0 : 30;
+  X.fillStyle = '#26252b'; X.fillRect(0, 0, W, H);
+  PRESETS.forEach((name, i) => {
+    BCK.buildPose(); BCK.keys({}); BCK.expressions(name === 'neutral' ? {} : { [name]: 1 }); BCK.update();
+    const cam = CK.camera({ target: [0, BINFO.eyeZ - 0.08 * BINFO.L, 0], az, dist: 0.62, lens: 85, aspect: w / h });
+    BP.through = 0.55; BP.render(BSCENE, cam, BCK, [(i % cols) * w, Math.floor(i / cols) * h, w, h]);
+  });
+  X.drawImage(BCTX.canvas, 0, 0);
+  PRESETS.forEach((name, i) => label(name, (i % cols) * w + 10, Math.floor(i / cols) * h + 26, '#444'));
+  BCK.expressions({});
+};
+LOOPS.faces.len = 2;
+
 // a turntable of the head and body, 360 degrees over 5 s
 LOOPS.turn = t => {
   BCK.buildPose(); BCK.keys({}); BCK.expressions({}); BCK.update();
