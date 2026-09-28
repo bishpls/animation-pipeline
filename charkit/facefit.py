@@ -111,8 +111,8 @@ def declare():
 
 class FaceChecks:
     """the fit's evaluator in each worker (fitkit's protocol): the face's checks for a spec, per group ('all': every
-    check, with the hair and clothes and the expression checks from the keys); fine=False smooths the sheet's measures over JITTER and renders the eyes at 3x
-    supersampling instead of 4x."""
+    check, with the hair and clothes and the expression checks from the keys); fine=False smooths the sheet's measures
+    over JITTER and renders the eyes at 3x supersampling instead of 4x."""
 
     def __init__(self, spec, R, cache):
         from . import faceeval
@@ -303,11 +303,13 @@ def report_md(rep):
         L += ['**%s**: RMS %.2f -> %.2f, %d of %d within tolerance' % (v, d['rms_before'], d['rms_after'],
                                                                       d['within_tolerance_after'], d['terms']),
               '', '| term | ref | weight | before | after |', '|---|---|---|---|---|']
-        L += ['| %s | %s | %.2f | %+.2f | %+.2f |' % (r['term'], r['ref'], r['weight'], r['before'], r['after']) for r in d['rows']]
+        L += ['| %s | %s | %.2f | %+.2f | %+.2f |' % (r['term'], r['ref'], r['weight'], r['before'], r['after'])
+              for r in d['rows']]
         L.append('')
     if rep.get('views_alone'):
         L += ['## Each view fitted alone (from the joint fit)', '',
-              '| view | RMS alone | passing alone | worst alone | RMS jointly | knobs at bound alone |', '|---|---|---|---|---|---|']
+              '| view | RMS alone | passing alone | worst alone | RMS jointly | knobs at bound alone |',
+              '|---|---|---|---|---|---|']
         for v, d in rep['views_alone'].items():
             L.append('| %s | %.2f | %d of %d | %s %+.2f | %.2f | %s |' % (
                 v, d['rms'], d['within_tolerance'], d['terms'], d['worst'], d['max'], rep['residuals'][v]['rms_after'],
@@ -315,9 +317,11 @@ def report_md(rep):
         L.append('')
     L += ['## Knobs', '', '| knob | start | fitted | default | bounds | at bound |', '|---|---|---|---|---|---|']
     for n, k in rep['knobs'].items():
-        L.append('| %s | %.4g | %.4g | %.4g | %s | %s |' % (n, k['start'], k['fitted'], k['default'], k['bounds'], k['at_bound'] or ''))
+        L.append('| %s | %.4g | %.4g | %.4g | %s | %s |' % (n, k['start'], k['fitted'], k['default'], k['bounds'],
+                                                            k['at_bound'] or ''))
     if rep.get('regressions'):
-        L += ['', '## Checks reading worse than the protected statuses', ''] + ['- %s: %s -> %s' % (k, a, b) for k, (a, b) in rep['regressions'].items()]
+        L += ['', '## Checks reading worse than the protected statuses', '']
+        L += ['- %s: %s -> %s' % (k, a, b) for k, (a, b) in rep['regressions'].items()]
     L += ['', '## Still outside tolerance', '']
     for t in rep['triage'] or []:
         L.append('- %s (r %+.2f): **%s**%s' % (t['term'], t['r'], t['why'], (' — ' + ', '.join(

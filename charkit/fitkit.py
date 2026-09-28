@@ -3,11 +3,11 @@ body, garment or hair fitter can use for its own (docs/CHARKIT.md §4).
 
   Knob      a spec value the fit owns: its path in the spec, the template default, a finite-difference step, bounds, and
             the group it is fitted in (groups whose checks don't share knobs are fitted apart, each at its own cost)
-  Term      one graded check's residual: which check (and which of its sub-values), how it's read ('ratio': (v - 1) / tol,
-            'abs': v / tol, 'gap': one-sided, 0 under half the tolerance and 1 at it), its PASS tolerance, the measure it belongs to and which reference measured
-            it (so the character's authority map (charkit/refs/NAME/manifest.json) weights it: full weight when that
-            reference is the authority for the measure, a quarter otherwise), and the view it is seen in; 'floor':
-            one-sided, max(0, floor - v) / tol (a guard that keeps another measure readable)
+  Term      one graded check's residual: the check (and which of its sub-values); how it's read ('ratio': (v - 1) / tol,
+            'abs': v / tol, 'gap': one-sided, 0 under half the tolerance and 1 at it, 'floor': max(0, floor - v) / tol,
+            a guard keeping another measure readable); its PASS tolerance and WARN line; the measure it belongs to and
+            the reference that measured it (the character's authority map, charkit/refs/NAME/manifest.json, weights it:
+            full where that reference is the measure's authority, a quarter otherwise); the view it is seen in
   evaluator a picklable class, built once in each worker process, with checks(spec, group, fine) -> {name: check};
             fine=True measures exactly as the QA does, fine=False may smooth (charkit.facefit's jitters the sheet's grid)
 
@@ -15,7 +15,10 @@ The objective: every term's residual (1 = its tolerance), again beyond the toler
 more than two that nearly pass), a missing check at MISSING, and a regulariser pulling each knob toward its template
 default (its distance over its range, times REG). Least squares over all the group's terms at once (scipy's trust region,
 bounded), the Jacobian by finite differences at one knob step each (in parallel), then a polish at the QA's own grid
-(each knob a step and half a step either way while the fine cost drops). Deterministic: no randomness anywhere.
+(each knob two, one and half a step either way while the fine cost drops), restarted while it helps. Each term is also
+kept in the status band it started in (or had in a baseline QA): past it, a steep extra residual (PROTECT), since the
+merge gate fails any graded check that reads worse. Checks no term aims at are held by guard(): a group's change is
+scaled back while one of them reads worse. Deterministic: no randomness anywhere.
 
     pool = fitkit.Pool('charkit.facefit:FaceChecks', (spec, R, cache), workers=6)
     T = fitkit.sensitivity(pool, spec, knobs)                        # the stable table (SCHEMA)
@@ -40,7 +43,8 @@ PROTECT = 6.0                   # a term leaving the status band it started in (
 
 class Knob:
     def __init__(self, name, path, default, step, bounds, group):
-        self.name, self.path, self.default, self.step, self.bounds, self.group = name, tuple(path), default, step, tuple(bounds), group
+        self.name, self.path, self.default, self.step = name, tuple(path), default, step
+        self.bounds, self.group = tuple(bounds), group
 
     def get(self, spec):
         d = spec
@@ -316,7 +320,8 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
         hist.append({'x': (x0 + u * st).round(5).tolist(), 'cost': round(c, 4)})
         if best['c'] is None or c < best['c']:
             best.update(u=np.array(u), c=c)
-        log('  %s cost %8.3f  %s' % (group, c, ' '.join('%s=%.4g' % (k.name.split('.')[-1], v_) for k, v_ in zip(knobs, x0 + u * st))))
+        log('  %s cost %8.3f  %s' % (group, c, ' '.join('%s=%.4g' % (k.name.split('.')[-1], v_)
+                                                         for k, v_ in zip(knobs, x0 + u * st))))
         return v
 
     def jac(u):
@@ -431,6 +436,7 @@ def triage(res, table, knobs, spec, thresh=0.25):
             b = kn[n].at_bound(kn[n].get(spec))
             rows.append(dict(knob=n, per_step_tol=round(float(g), 3),
                              blocked=bool((b == 'upper' and want > 0) or (b == 'lower' and want < 0))))
-        out.append(dict(term=t['name'], r=round(t['r'], 3), why='knob at bound' if all(r['blocked'] for r in rows) else 'trade-off',
+        out.append(dict(term=t['name'], r=round(t['r'], 3),
+                        why='knob at bound' if all(r['blocked'] for r in rows) else 'trade-off',
                         knobs=sorted(rows, key=lambda r: -abs(r['per_step_tol']))))
     return out
