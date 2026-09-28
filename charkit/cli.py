@@ -2,8 +2,10 @@
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa]
     python -m charkit refs RIG_DIR OUT.json [--eye-x 0.168]
+    python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
 
-build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
+build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
+and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
 out/sheet_body.png, out/sheet_face.png.
@@ -112,6 +114,7 @@ def build(args):
             print(line)
     for p in sheets(spec, out):
         print('sheet', p)
+    print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
 
 
@@ -122,6 +125,9 @@ def main(argv=None):
     cmd, rest = argv[0], argv[1:]
     if cmd == 'build':
         build(rest)
+    elif cmd == 'trace':
+        from . import trace
+        trace.main(rest)
     elif cmd == 'refs':
         from . import refs
         R = refs.measure(rest[0], float(rest[rest.index('--eye-x') + 1]) if '--eye-x' in rest else 0.168)

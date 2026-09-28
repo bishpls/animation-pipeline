@@ -4,12 +4,14 @@
 import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from charkit import scene
+from charkit import scene, trace
 
 a = sys.argv[sys.argv.index('--') + 1:]
 spec = scene.load(a[0])
 out = a[1]
 which = [w for w in a[2].split(',') if w] if len(a) > 2 and not a[2].startswith('--') else []
+trace.begin(os.path.join(out, 'trace.jsonl'), spec={k: v for k, v in spec.items() if k != '_dir'}, spec_path=a[0],
+            boards=which)
 S = scene.build(spec)
 if which:
     scene.boards(S, os.path.join(out, 'boards'), which)
@@ -19,9 +21,13 @@ if '--qa' in a:
     ref = spec.get('ref', {}).get('image') if isinstance(spec.get('ref'), dict) else None
     if ref and not os.path.isabs(ref):
         ref = os.path.join(ROOT, ref)
-    R = qa3d.run(S, os.path.join(out, 'qa'), ref)
+    with trace.span('qa'):
+        R = qa3d.run(S, os.path.join(out, 'qa'), ref)
+    trace.event('qa', checks={k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'},
+                summary=R['summary'])
     print('CHARKIT_QA', json.dumps({k: (v.get('value'), v['status']) for k, v in R['checks'].items() if k != 'mesh'}))
     print('CHARKIT_QA_SUMMARY', R['summary'])
 if '--blend' in a:
     scene.save(os.path.join(out, spec['name'] + '.blend'))
+trace.end()
 print('CHARKIT_BUILD_DONE', out)

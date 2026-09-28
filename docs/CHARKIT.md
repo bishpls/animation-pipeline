@@ -62,9 +62,32 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
 
-## 4. Review boards (the quality gate)
+## 4. Measurement and review (the quality gate)
 
-Every change is judged on boards, not on one pretty frame: a front orthographic render over the reference drawing; a head
+Numbers first, pictures second. `python -m charkit build` writes two records into the output folder:
+
+- **`trace.jsonl`, the build's state log** (`charkit/trace.py`). This is the Dolphin game-state log of the character. After every
+  stage it records each object the stage added, changed or removed: counts, world bbox, a geometry hash, and mesh health
+  (open and non-manifold edges, shells, inside-out shells, degenerate faces, loose verts, measured on the evaluated mesh
+  without the outline hull). It also records the landmarks, hashes of the spec sections the stage read, and timings for every
+  stage, board and the QA pass. Stages add their own values with `trace.note(...)`.
+  - `python -m charkit trace OUT/trace.jsonl` prints it as a table per stage.
+  - `python -m charkit trace A/trace.jsonl B/trace.jsonl` prints what changed between two builds: knob sections, landmarks
+    moved, per-object geometry and health, stage times and QA values. Two builds of the same spec should print
+    `no differences` apart from the QA section.
+- **`qa/qa.json`, the graded checks** (`charkit/qa3d.py`: PASS, WARN or FAIL against `LIMITS`, with overlays):
+  - silhouette IoU against the generated shape, overall and per band;
+  - IoU against the reference image;
+  - scalp showing through the hair;
+  - garment poke-through;
+  - hair shading noise;
+  - the face, measured from the shape keys' geometry (no render, about 0.04 s): each expression's eye opening against
+    neutral and against its intended range (`FACE_EXPECT`), the iris left visible (none in a blink), left/right symmetry,
+    each mouth shape's opening (area, width, height, balance), and the distance between the closest two visemes.
+
+When something can only be judged by eye, name the measurement that would close the loop and add it here.
+
+Boards are still how a change gets seen: a front orthographic render over the reference drawing; a head
 turntable at 85 mm (0 to 360 in 30-degree steps); an expression sheet (every eye state and viseme at front and three-quarter);
 a lighting sweep of the face; a range-of-motion sheet (T-pose, arms up, deep bend, twist, crouch, kick); and topology stats
 (face count per part, poles, non-manifold edges, weights per vertex). The bar: side by side with HoYoverse-style references
