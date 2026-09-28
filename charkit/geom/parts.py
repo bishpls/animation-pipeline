@@ -66,8 +66,8 @@ class Case:
         """resolve the spec as `python -m charkit build` does (refs fit, then the cranium fitted to the generated hair),
         assemble our character (numpy, cached under charkit/out/geom/cache by the resolved spec's hash) and align the
         generated character by its eyes."""
-        from .. import character, cli, i3d, refs, scene
-        spec = json.load(open(spec_path))
+        from .. import character, cli, i3d, manifest, refs, scene
+        spec = manifest.resolve(json.load(open(spec_path)))          # ref.manifest: the rig, the image, "ref:KEY" paths
         shape = (spec.get('hair') or {}).get('shape') or {}
         if glb:
             shape['glb'] = os.path.abspath(glb)
