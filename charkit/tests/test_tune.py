@@ -54,6 +54,18 @@ def test_accept_rule_bounds_the_cost():
     assert d['verdict'] == 'reject', d
 
 
+def test_accept_noise_rule():
+    """a flip at the limit inside the measurement's error, paid for by a net gain elsewhere."""
+    noise = [{'allow': ['body_*'], 'noise': True, 'max_cost': 0.15, 'floor': 'WARN', 'why': 'noise'}]
+    a = qa(body_profile_hair_width=(0.920, 'PASS'), body_front_hair_length=(-0.18, 'FAIL'))
+    b = qa(body_profile_hair_width=(0.914, 'WARN'), body_front_hair_length=(-0.07, 'PASS'))
+    assert tune.accept(a, b)['verdict'] == 'reject'
+    d = tune.accept(a, b, noise)
+    assert d['verdict'] == 'accept' and d['traded'][0]['for'] == 'noise', d
+    c = qa(body_profile_hair_width=(0.80, 'FAIL'), body_front_hair_length=(-0.07, 'PASS'))     # past WARN: not noise
+    assert tune.accept(a, c, noise)['verdict'] == 'reject'
+
+
 def test_accept_needs_a_gain_and_counts_gone_checks():
     a = qa(sheet_width=(0.85, 'WARN'), eye_width=(1.0, 'PASS'))
     assert tune.accept(a, a)['verdict'] == 'reject'                      # no change: no gain

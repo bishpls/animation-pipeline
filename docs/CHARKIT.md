@@ -272,7 +272,10 @@ boards, code) is reused; `--fresh` rebuilds.
 **The character's tune config** is `charkit/refs/NAME/tune.json`, beside the manifest. Its trade-off rules write out the
 manifest's authority table. For Clawd the sheet is the authority for the face's front, 3/4 and profile shape and for the
 chin. So `face_shape_width` (against the TRELLIS face, which the key's caution calls rounder and fuller) may get worse
-when `sheet_width` gets better, by at most 3x the gain. Depth has no sheet counterpart and is never traded. The config
+when `sheet_width` gets better, by at most 3x the gain. Depth has no sheet counterpart and is never traded. A `noise`
+rule lets a sheet, body or palette check cross its limit by at most 0.15 warn bands (never past WARN) when the
+checkpoint gains overall: a flip smaller than the sheet's own error is noise. Without it, geom hair was rejected for
+`body_profile_hair_width` moving 0.920 -> 0.914 while three hair lengths reached PASS. The config
 also holds the build options, the stop settings and each reference's stated error (`uncertain`: the sheet is good to
 about a pixel, 0.009 L, or 3% on a ratio).
 

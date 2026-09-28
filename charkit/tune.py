@@ -34,7 +34,9 @@ trade-off rules write out):
      "options": [{"name": "geom hair", "set": {"hair.shape.mode": "geom"}, "targets": ["hair_noise"], "why": "..."}],
      "stop": {"rounds": 2, "min_gain": 0.5}, "uncertain": {"sheet": 0.04}}
 A trade-off rule lets a check matching `allow` get worse (not below `floor`) in a checkpoint where a check matching `when`
-improves by at least `min_gain` warn bands (default 0.1), and by no more than `ratio` times that gain when given.
+improves by at least `min_gain` warn bands (default 0.1), and by no more than `ratio` times that gain when given. A
+`noise` rule ({"allow": [...], "noise": true, "max_cost": 0.15, "floor": "WARN"}) lets a check cross its limit by less
+than max_cost warn bands (a flip inside the measurement's own error), the checkpoint's net gain paying for it.
 """
 import fnmatch, hashlib, json, os, shlex, signal, subprocess, sys, time
 
@@ -95,6 +97,11 @@ def tradeoff(row, prev, cand, rules):
         if not _match(k, r.get('allow', [])):
             continue
         if st not in STATUS_RANK or STATUS_RANK[st] > STATUS_RANK.get(r.get('floor', 'FAIL'), 2):
+            continue
+        if r.get('noise'):
+            # a status flip at the limit smaller than max_cost warn bands, paid for by the checkpoint's net gain
+            if cost is not None and cost <= r.get('max_cost', 0.15):
+                return r, 'noise', 0.0, round(cost, 3)
             continue
         best = None
         for g in checks.graded(cand):

@@ -12,7 +12,9 @@
   {"allow": ["face_shape_coverage_*"], "when": ["sheet_shown_*"], "floor": "WARN",
    "why": "hair_silhouette: the sheet is the authority for how much face the hair shows"},
   {"allow": ["shape_iou", "shape_iou_*", "ref_iou"], "when": ["body_*"], "floor": "FAIL", "ratio": 2.0,
-   "why": "body_silhouette: the sheet is the authority; the generated shape and key are interpretations"}
+   "why": "body_silhouette: the sheet is the authority; the generated shape and key are interpretations"},
+  {"allow": ["body_*", "sheet_*", "palette_*"], "noise": true, "max_cost": 0.15, "floor": "WARN",
+   "why": "a flip at the limit smaller than the sheet's own error (its scale reads 3.5% off; a pixel is 0.009 L): noise, when the checkpoint gains overall"}
  ],
  "options": [
   {"name": "geom-hair", "set": {"hair.shape.mode": "geom"}, "targets": ["hair_noise", "shape_iou_hair", "scalp_px", "sheet_shown_*"],

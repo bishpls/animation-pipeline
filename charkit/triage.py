@@ -226,8 +226,13 @@ def classify(check, c, ctx):
         ev['built_conflicts'] = conflicts
     if traded:
         t = traded[-1]
-        cands.append(('trade-off', 'allowed to get worse in ck%d (%s -> %s) to pay for %s (%.2f warn bands better): %s' % (
-            t['checkpoint'], t['base'][0], t['cand'][0], t['for'], t['gain'], t['rule'])))
+        if t['for'] == 'noise':
+            cands.append(('trade-off', 'allowed across its limit in ck%d (%s -> %s, %.2f warn bands: a flip within the '
+                          'measurement\'s error, paid for by the checkpoint\'s net gain): %s' % (
+                              t['checkpoint'], t['base'][0], t['cand'][0], t['cost'] or 0, t['rule'])))
+        else:
+            cands.append(('trade-off', 'allowed to get worse in ck%d (%s -> %s) to pay for %s (%.2f warn bands better): %s' % (
+                t['checkpoint'], t['base'][0], t['cand'][0], t['for'], t['gain'], t['rule'])))
         ev['traded'] = traded
     owners = [f for f in fitters if f.targets_of([check])]
     ev['fitters'] = [{'name': f.name, 'stub': not f.landed} for f in owners]
