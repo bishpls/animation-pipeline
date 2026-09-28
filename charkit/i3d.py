@@ -140,3 +140,121 @@ def load_glb(path):
         if ob not in before:
             bpy.data.objects.remove(ob, do_unlink=True)
     return np.vstack(V), F, np.vstack(C)
+
+
+def find_eyes(V, C, head_frac=0.3, depth=0.03, dark=0.3):
+    """the two eye centres of a generated character: the darkest texels (lash lines, pupils) on the very front of the head
+    (the top `head_frac` of its height, within `depth` of its frontmost point), split left and right. (Amber or iris colours
+    are ambiguous: hair highlights and yellow clips share them.) -> (left (+x) centre, right centre) or None."""
+    h, s_, v = hsv(C)
+    z0, z1 = V[:, 2].min(), V[:, 2].max()
+    head = V[:, 2] > z1 - (z1 - z0) * head_frac
+    yf = np.percentile(V[head, 1], 3)
+    m = head & (V[:, 1] < yf + depth * (z1 - z0)) & (v < dark)
+    if m.sum() < 20:
+        return None
+    P = V[m]
+    cx = np.median(P[:, 0])
+    L_, R_ = P[P[:, 0] > cx + 0.005 * (z1 - z0)], P[P[:, 0] < cx - 0.005 * (z1 - z0)]
+    if len(L_) < 5 or len(R_) < 5:
+        return None
+    return np.median(L_, 0), np.median(R_, 0)
+
+
+def align_by_eyes(V, eyes, eye_mid, spacing):
+    """scale and move a mesh so its eyes' midpoint lands on eye_mid (world) and their spacing equals `spacing`."""
+    el, er = eyes
+    s = spacing / max(1e-9, abs(el[0] - er[0]))
+    mid = (el + er) / 2
+    return (V - mid) * s + np.asarray(eye_mid)
+
+
+def hair_part(V, C, F, hair_colors, chin_z, shoulder_x, below=0.10, max_d=0.2):
+    """the hair of an aligned generated character: faces coloured like the hair (nearest to hair_colors within max_d),
+    above chin_z - `below` (world) and within the shoulders' width at the lowest part (so same-coloured sleeves and dress
+    don't count). -> (verts, faces) of the hair part (re-indexed)."""
+    lab, _ = classify(C, {'hair': hair_colors}, max_d=max_d)
+    keep_v = (lab == 0) & (V[:, 2] > chin_z - below)
+    low = V[:, 2] < chin_z + 0.02
+    keep_v &= ~(low & (np.abs(V[:, 0]) > shoulder_x))
+    fk = [f for f in F if sum(keep_v[v] for v in f) >= len(f) - 1]
+    used = sorted({v for f in fk for v in f})
+    remap = {o: n for n, o in enumerate(used)}
+    return V[used], [tuple(remap[v] for v in f) for f in fk]
+
+
+def hsv(C):
+    """(N,3) sRGB -> hue (degrees), saturation, value."""
+    C = np.asarray(C, float)
+    mx, mn = C.max(1), C.min(1)
+    d = mx - mn
+    h = np.zeros(len(C))
+    r, g, b = C[:, 0], C[:, 1], C[:, 2]
+    m = d > 1e-6
+    rr = m & (mx == r); gg = m & (mx == g) & ~rr; bb = m & ~rr & ~gg
+    h[rr] = ((g - b)[rr] / d[rr]) % 6
+    h[gg] = (b - r)[gg] / d[gg] + 2
+    h[bb] = (r - g)[bb] / d[bb] + 4
+    return h * 60, np.where(mx > 1e-6, d / np.maximum(mx, 1e-6), 0), mx
+
+
+def hair_by_hue(V, C, F, hue, chin_z, shoulder_x, below=0.1, sat=0.38, hue_tol=22.0):
+    """the hair of an aligned generated character by hue and saturation (robust to its baked shading and highlights: the
+    pale skin, whites and dark clothes fall out), above chin_z - `below`, within the shoulders low down. -> (verts, faces)."""
+    h, s_, v_ = hsv(C)
+    dh = np.abs(((h - hue) + 180) % 360 - 180)
+    keep_v = (dh < hue_tol) & (s_ > sat) & (v_ > 0.25) & (V[:, 2] > chin_z - below)
+    low = V[:, 2] < chin_z + 0.02
+    keep_v &= ~(low & (np.abs(V[:, 0]) > shoulder_x))
+    fk = [f for f in F if sum(keep_v[v] for v in f) >= len(f) - 1]
+    used = sorted({v for f in fk for v in f})
+    remap = {o: n for n, o in enumerate(used)}
+    return V[used], [tuple(remap[v] for v in f) for f in fk]
+
+
+def hair_by_exclusion(V, C, F, chin_z, shoulder_x, below=0.1, skin_sat=0.32, skin_val=0.6):
+    """the hair of an aligned generated character as everything in the head region that isn't skin (pale, low-saturation
+    warm texels: the face, ears, neck), cream or white (a collar, eye whites): hair keeps its baked highlights and
+    shadows this way, so no holes. Above chin_z - `below`, within the shoulders low down. -> (verts, faces)."""
+    h, s_, v_ = hsv(C)
+    pale = (s_ < skin_sat) & (v_ > skin_val)
+    keep_v = ~pale & (V[:, 2] > chin_z - below)
+    low = V[:, 2] < chin_z + 0.02
+    keep_v &= ~(low & (np.abs(V[:, 0]) > shoulder_x))
+    fk = [f for f in F if sum(keep_v[v] for v in f) >= len(f) - 1]
+    used = sorted({v for f in fk for v in f})
+    remap = {o: n for n, o in enumerate(used)}
+    return V[used], [tuple(remap[v] for v in f) for f in fk]
+
+
+def hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clear=0.006, grow=2):
+    """the hair of an aligned generated character by geometry: its surface lying clearly outside our own body (signed
+    distance to our skin > `clear`) in the head region; the generated face and neck sit on our skin and fall away whatever
+    their colour; below the chin, pale texels (a collar) are left out; then `grow` rings of neighbours close pinholes.
+    Blender only (BVH). -> (verts, faces)."""
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    bvh = BVHTree.FromPolygons([Vector(v) for v in body_v], [tuple(f) for f in body_f])
+    sd = np.full(len(V), 1.0)
+    for i, p in enumerate(V):
+        loc, nrm, _, dist = bvh.find_nearest(Vector(p))
+        if loc is not None:
+            sd[i] = (Vector(p) - loc).dot(nrm)
+    h, s_, v_ = hsv(C)
+    keep_v = (sd > clear) & (V[:, 2] > chin_z - below)
+    low = V[:, 2] < chin_z + 0.02
+    keep_v &= ~(low & (np.abs(V[:, 0]) > shoulder_x))
+    keep_v &= ~(low & (s_ < 0.3) & (v_ > 0.6))
+    region = (V[:, 2] > chin_z - below) & (sd > -clear)
+    from collections import defaultdict
+    nb = defaultdict(set)
+    for f in F:
+        for a, b in zip(f, tuple(f[1:]) + (f[0],)):
+            nb[a].add(b); nb[b].add(a)
+    for _ in range(grow):
+        add = [w for v in np.nonzero(keep_v)[0] for w in nb[v] if region[w] and not keep_v[w]]
+        keep_v[add] = True
+    fk = [f for f in F if all(keep_v[v] for v in f)]
+    used = sorted({v for f in fk for v in f})
+    remap = {o: n for n, o in enumerate(used)}
+    return V[used], [tuple(remap[v] for v in f) for f in fk]

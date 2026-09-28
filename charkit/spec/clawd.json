@@ -236,7 +236,22 @@
     66,
     62
    ]
-  ]
+  ],
+  "shape": {
+   "glb": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
+   "below": 0.33,
+   "shoulder_x": 0.19,
+   "mode": "mesh",
+   "voxel": 0,
+   "decimate": 0.4,
+   "hue": 14,
+   "sat": 0.3,
+   "carries": [
+    "bun"
+   ],
+   "select": "outside",
+   "clear_skin": 0.01
+  }
  },
  "hair_colors": {
   "lit": [

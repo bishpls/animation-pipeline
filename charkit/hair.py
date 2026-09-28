@@ -168,7 +168,7 @@ class MeshVolume(Volume):
     count), gently smoothed; directions that miss (the face, below the hair) fall back to the head-based volume. hem(az):
     where the generated hair ends at each azimuth."""
 
-    def __init__(self, H, centre, S, target, hair_mesh, step=3.0, smooth=1):
+    def __init__(self, H, centre, S, target, hair_mesh, step=3.0, smooth=6):
         super().__init__(H, centre, S, target)
         from mathutils import Vector
         from mathutils.bvhtree import BVHTree
@@ -184,11 +184,32 @@ class MeshVolume(Volume):
                 hit = bvh.ray_cast(Vector(self.c + d * R), Vector(-d), R)
                 if hit[0] is not None:
                     grid[i, j] = R - hit[3]
-        for _ in range(smooth):                                   # a light blur where both neighbours exist
-            g = grid.copy()
-            g[:, 1:-1] = np.where(np.isnan(grid[:, 1:-1]), np.nan,
-                                  np.nanmean(np.stack([grid[:, :-2], grid[:, 1:-1], grid[:, 2:]]), 0))
-            grid = g
+        # the mass, not its curls: bound each radius by the head-based volume (no spikes through gaps, no caves), hold the
+        # crown near the analytic dome (buns and clips are built as accessories), fill gaps, then blur (wrapping round)
+        base = np.array([[np.linalg.norm(Volume._point(self, a, e) - self.c) for a in self.m_az] for e in self.m_el])
+        lo_, hi_ = S.get('shape_min', 0.97), S.get('shape_max', 1.9)
+        grid = np.where(np.isnan(grid), np.nan, np.clip(grid, base * lo_, base * hi_))
+        crown = self.m_el[:, None] > S.get('crown_el', 52)
+        grid = np.where(crown & ~np.isnan(grid), np.minimum(grid, base * 1.10), grid)
+        for _ in range(8):                                          # fill small gaps from their neighbours
+            nanm = np.isnan(grid)
+            if not nanm.any():
+                break
+            pad = np.pad(grid, ((1, 1), (0, 0)), constant_values=np.nan)
+            pad = np.concatenate([pad[:, -1:], pad, pad[:, :1]], 1)
+            nbs = np.stack([pad[:-2, 1:-1], pad[2:, 1:-1], pad[1:-1, :-2], pad[1:-1, 2:]])
+            with np.errstate(all='ignore'):
+                fill = np.nanmean(nbs, 0)
+            grid = np.where(nanm & ~np.isnan(fill) & (self.m_el[:, None] > -40), fill, grid)
+        for _ in range(smooth):
+            valid = ~np.isnan(grid)
+            g0 = np.where(valid, grid, 0.0); w0 = valid.astype(float)
+            def blur(a):
+                a = (np.roll(a, 1, 1) + 2 * a + np.roll(a, -1, 1)) / 4
+                b = a.copy(); b[1:-1] = (a[:-2] + 2 * a[1:-1] + a[2:]) / 4
+                return b
+            gs, ws = blur(g0), blur(w0)
+            grid = np.where(valid, gs / np.maximum(ws, 1e-9), np.nan)
         self.mr = grid
         lowest = np.full(len(self.m_az), np.nan)
         for j in range(len(self.m_az)):
@@ -286,20 +307,23 @@ class Builder:
         return (np.vstack(self.v) if self.v else np.zeros((0, 3))), self.f, self.uv
 
 
-def hem(S, az):
-    """the silhouette's tip elevation at an azimuth (degrees from the front, either side)."""
+def hem(S, az, V=None):
+    """the silhouette's tip elevation at an azimuth (degrees from the front, either side); from a generated shape where the
+    volume has one (a little inside its lowest point)."""
+    if V is not None and hasattr(V, 'hem_el'):
+        return V.hem_el(az) + 4.0
     a = abs(((az + 180) % 360) - 180)
     xs, ys = zip(*S['hem'])
     return float(np.interp(a, xs, ys))
 
 
-def generate(H, centre, target, style=None):
+def generate(H, centre, target, style=None, volume=None):
     """the hairstyle's meshes by layer (numpy): {name: (verts, faces, uvs)}, and the volume (for the normals proxy).
     Layers: hair_cap (under everything), hair_inner (darker, fills), hair_main (the back and sides), hair_front (bangs,
     face-framing locks, flyaways, ahoge)."""
     S = _style(style)
     L = H.L
-    V = Volume(H, centre, S, target)
+    V = volume if volume is not None else Volume(H, centre, S, target)
     part = S['part']
     rhythm = S['hem_var']
     wv = S['wave']
@@ -321,7 +345,7 @@ def generate(H, centre, target, style=None):
     ni = S['back']['inner']
     for k in range(ni):
         az0 = part + 60 + 240 * (k + 0.5) / ni
-        el_t = hem(S, az0) + rhythm[(k + 3) % len(rhythm)] + 4
+        el_t = hem(S, az0, V) + rhythm[(k + 3) % len(rhythm)] + 4
         B.add(*sweep(V, long_lock(az0, 70, az0 + 3, el_t, r0=0.975, bow=0.01, flick=S['flick'] * 0.6, k=k),
                      S['back']['width'] * 1.25 * L, th=0.4, tip=0.4))
     out['hair_inner'] = B.data()
@@ -334,7 +358,7 @@ def generate(H, centre, target, style=None):
         az0 = part + 52 + 256 * t
         el_r = 86 - 6 * abs(math.sin(math.radians(az0 - part)))
         az_t = az0 + 4 * math.sin(k * 1.7)
-        el_t = hem(S, az_t) + rhythm[k % len(rhythm)]
+        el_t = hem(S, az_t, V) + rhythm[k % len(rhythm)]
         wid = S['back']['width'] * L * (0.9 + 0.2 * ((k * 7) % 5) / 4)
         B.add(*sweep(V, long_lock(az0, el_r, az_t, el_t, k=k), wid, th=0.36, tip=0.42, twist=8 * math.sin(k * 2.3)))
     out['hair_main'] = B.data()
@@ -360,7 +384,7 @@ def generate(H, centre, target, style=None):
     for sx in (-1, 1):
         for j in range(Sd['count']):
             az = Sd['az'][0] + (Sd['az'][1] - Sd['az'][0]) * j / max(1, Sd['count'] - 1)
-            el_t = hem(S, az) - Sd['drop'] + rhythm[(j * 3) % len(rhythm)]
+            el_t = hem(S, az, V) - Sd['drop'] + rhythm[(j * 3) % len(rhythm)]
             pts = [(sx * az * 0.8, 58, 1.0), (sx * az * 0.93, 22, 1.03), (sx * az * 0.9, -20, 1.02),
                    (sx * (az - 6), el_t, 1.02 + S['flick'] * 0.5 / 0.4)]
             B.add(*sweep(V, pts, Sd['width'] * L * (1.1 - 0.15 * j), th=0.36, tip=0.45, twist=-10 * sx))
@@ -480,7 +504,7 @@ def material(name, lit, shade_c, deep, ring=(1.0, 0.86, 0.80), head_z=0.0, ring_
     return m
 
 
-def build(A, arm, style=None, colors=None):
+def build(A, arm, style=None, colors=None, volume=None):
     """Blender objects for the hairstyle on an assembled character A (charkit.character.assemble), parented to the head
     bone. colors: dict(lit, shade, deep, ring, inner, line, strand). -> [objects]."""
     import bmesh
@@ -490,7 +514,7 @@ def build(A, arm, style=None, colors=None):
     C.update(colors or {})
     Hd = A['head']
     H, centre = Hd['H'], Hd['centre']
-    meshes, V = generate(H, centre, Hd['info']['target'], style)
+    meshes, V = generate(H, centre, Hd['info']['target'], style, volume)
     pv, pf = proxy_mesh(V)
     proxy = character._mesh('hair_normals_proxy', pv, pf, None, [])
     proxy.hide_render = True; proxy.hide_viewport = True

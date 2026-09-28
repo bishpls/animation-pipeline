@@ -65,9 +65,138 @@ def stage_hair(S):
     if S.spec.get('hair') is None:
         return
     hc = {k: tuple(v) for k, v in S.spec.get('hair_colors', {}).items()}
-    S.hair, S.hair_volume = hair.build(S.character['data'], S.character['arm'], S.spec.get('hair'), hc)
-    S.accessories = accessories.build(S.character['data'], S.character['arm'], S.hair_volume, S.spec.get('accessories'),
-                                      {'hair': shade.MATS.get('hair')})
+    vol = None
+    shape = S.spec['hair'].get('shape')
+    if shape:
+        vol = hair_shape_volume(S, shape, hc)
+    if shape and shape.get('mode') == 'mesh':
+        S.hair_volume_for_normals = vol
+        S.hair = [hair_shape_mesh(S, shape, hc)]
+        S.hair_volume = vol
+        cap = hair_cap(S, hc)
+        if cap is not None:
+            S.hair.append(cap)
+    else:
+        S.hair, S.hair_volume = hair.build(S.character['data'], S.character['arm'], S.spec.get('hair'), hc, volume=vol)
+    acc = S.spec.get('accessories') or []
+    if shape and shape.get('mode') == 'mesh':
+        acc = [a for a in acc if a['kind'] not in shape.get('carries', ['bun'])]
+    S.accessories = accessories.build(S.character['data'], S.character['arm'], S.hair_volume, acc,
+                                      {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')})
+
+
+def hair_shape_volume(S, shape, hc):
+    """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
+    above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
+    from . import hair, i3d
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['glb'])
+    V, F, C = i3d.load_glb(path)
+    eyes = i3d.find_eyes(V, C)
+    if eyes is None:
+        raise RuntimeError('no eyes found on the generated shape')
+    EK = Hd['eye_knobs']
+    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    V = i3d.align_by_eyes(V, eyes, eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0))
+    cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
+                                   hc.get('deep', (0.6, 0.22, 0.16))]
+    chin_z = Hd['centre'][2] - Hd['H'].chin
+    if shape.get('select') == 'outside':
+        hv, hf = i3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
+                                     below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
+    elif shape.get('select') == 'exclude':
+        hv, hf = i3d.hair_by_exclusion(V, C, F, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
+    elif 'hue' in shape:
+        hv, hf = i3d.hair_by_hue(V, C, F, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
+                                 below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
+    else:
+        hv, hf = i3d.hair_part(V, C, F, cols, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L,
+                               max_d=shape.get('max_d', 0.22))
+    # cull what lies on or behind our face (the generated face's own lips and brows share the hair's hue)
+    from .eyes import Face
+    Fc = Face(Hd['H'], Hd['centre'])
+    cz = Hd['centre'][2]
+    keep = np.ones(len(hv), bool)
+    for i, p in enumerate(hv):
+        zr = p[2] - cz
+        if -Hd['H'].chin * 1.05 < zr < 0.22 * L and abs(p[0]) < 0.30 * L:
+            if zr < -0.06 * L:
+                # below the eyes nothing lies over the face (only the side locks, outside its width)
+                if abs(p[0]) < Hd['H'].section(zr)[0] * 0.92 and p[1] < Fc.y(p[0], p[2]) + 0.04 * L:
+                    keep[i] = False
+            elif p[1] > Fc.y(p[0], p[2]) - shape.get('clear', 0.02) * L:
+                keep[i] = False
+    hf = [f for f in hf if all(keep[v] for v in f)]
+    used = sorted({v for f in hf for v in f}); remap = {o: n for n, o in enumerate(used)}
+    hv = hv[used]; hf = [tuple(remap[v] for v in f) for f in hf]
+    S.hair_shape = (hv, hf)
+    style = hair._style(S.spec['hair'])
+    return hair.MeshVolume(Hd['H'], Hd['centre'], style, Hd['info']['target'], (hv, hf))
+
+
+def hair_cap(S, hc):
+    """the analytic hair volume's cap as a backstop under generated hair: no scalp shows through its gaps."""
+    from . import character, hair, shade
+    A = S.character['data']; Hd = A['head']
+    plain = {k: v for k, v in S.spec.get('hair', {}).items() if k not in ('silhouette', 'shape')}
+    plain['thick'] = min(plain.get('thick', 1.0), 1.0)
+    meshes, Vol = hair.generate(Hd['H'], Hd['centre'], Hd['info']['target'], plain)
+    v, f, uv = meshes['hair_cap']
+    v = Vol.c + (v - Vol.c) * 0.97                          # just inside the hair
+    C = dict(shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72)); C.update(hc)
+    m = shade.toon3('hair_cap', C['shade'], C['deep'], tuple(np.array(C['deep']) * 0.85))
+    ob = character._mesh('hair_cap', v * 0.0 + v, f, None, [m])
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    character._to_head(ob, S.character['arm'])
+    return ob
+
+
+def hair_shape_mesh(S, shape, hc):
+    """the generated hair itself as the hair: remeshed into clean even topology (voxel remesh), smoothed, reduced, shaded
+    with charkit's hair look (toon ramp and outline, normals from a blurred copy of itself for big clean shadow shapes),
+    rigged to the head."""
+    import bpy
+    from . import character, hair, shade
+    hv, hf = S.hair_shape
+    L = S.character['data']['head']['L']
+    ob = character._mesh('hair_shape', hv, hf, None, [])
+    bpy.context.view_layer.objects.active = ob
+    # TRELLIS already outputs clean remeshed surfaces; a voxel remesh coarser than the hair's shell tears it into lace, so
+    # it is optional (voxel > 0, and then fine)
+    mods = []
+    if shape.get('voxel', 0) > 0:
+        rm = ob.modifiers.new('remesh', 'REMESH'); rm.mode = 'VOXEL'; rm.voxel_size = shape['voxel'] * L
+        rm.use_smooth_shade = True; mods.append('remesh')
+    # (plain smoothing: the Laplacian modifier explodes on the generated mesh's degenerate faces)
+    sm = ob.modifiers.new('smooth', 'SMOOTH'); sm.factor = shape.get('smooth_factor', 0.5); sm.iterations = shape.get('smooth', 6)
+    mods.append('smooth')
+    dec = ob.modifiers.new('decimate', 'DECIMATE'); dec.ratio = shape.get('decimate', 0.5); mods.append('decimate')
+    with bpy.context.temp_override(object=ob):
+        for m in mods:
+            bpy.ops.object.modifier_apply(modifier=m)
+    # consistent outward winding (the generated surface's isn't), then merge coincident vertices
+    import bmesh
+    bm = bmesh.new(); bm.from_mesh(ob.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0005 * L)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(ob.data); bm.free()
+    # normals from the hair's smooth envelope (the ray-cast mass, charkit.hair.MeshVolume): big clean shadow shapes, the
+    # anime way (a blurred copy of the thin two-sided shell collapses on itself and gives no clean outward direction)
+    pv, pf = hair.proxy_mesh(S.hair_volume_for_normals)
+    proxy = character._mesh('hair_shape_normals', pv, pf, None, [])
+    proxy.hide_render = True; proxy.hide_viewport = True
+    C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72), line=(0.36, 0.34, 0.50)); C.update(hc)
+    m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
+    m.use_backface_culling = True                        # the generated hair is a thin two-sided shell: hide its inner side
+    ob.data.materials.append(m)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    dt = ob.modifiers.new('volume_normals', 'DATA_TRANSFER'); dt.object = proxy; dt.use_loop_data = True
+    dt.data_types_loops = {'CUSTOM_NORMAL'}; dt.loop_mapping = 'POLYINTERP_NEAREST'; dt.mix_factor = shape.get('normal_mix', 1.0)
+    shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
+    character._to_head(ob, S.character['arm']); character._to_head(proxy, S.character['arm'])
+    return ob
 
 
 def stage_face_shading(S):
