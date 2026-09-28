@@ -105,7 +105,8 @@
      "edge": "bottom",
      "pattern": "stepped",
      "steps": 2,
-     "height": 0.6072
+     "height": 0.6072,
+     "thickness": 0.1842
     }
    ],
    "attach": {
@@ -237,7 +238,8 @@
      "edge": "bottom",
      "pattern": "stepped",
      "steps": 1,
-     "height": 0.7453
+     "height": 0.7453,
+     "thickness": 0.2277
     }
    ],
    "attach": {
@@ -385,7 +387,8 @@
      "edge": "bottom",
      "pattern": "plain",
      "steps": 0,
-     "height": 0.1416
+     "height": 0.1416,
+     "thickness": 0.0597
     }
    ],
    "attach": {
@@ -615,7 +618,8 @@
      "edge": "bottom",
      "pattern": "plain",
      "steps": 0,
-     "height": 0.1382
+     "height": 0.1382,
+     "thickness": 0.0597
     }
    ],
    "attach": {
@@ -953,7 +957,8 @@
      "edge": "bottom",
      "pattern": "stepped",
      "steps": 4,
-     "height": 0.3923
+     "height": 0.3923,
+     "thickness": 0.133
     }
    ],
    "attach": {
@@ -1481,7 +1486,8 @@
      "edge": "bottom",
      "pattern": "plain",
      "steps": 0,
-     "height": 0.104
+     "height": 0.104,
+     "thickness": 0.0443
     }
    ],
    "attach": {
@@ -2564,7 +2570,8 @@
      "edge": "top",
      "pattern": "plain",
      "steps": 0,
-     "height": 0.1961
+     "height": 0.1961,
+     "thickness": 0.0426
     }
    ],
    "attach": {
@@ -2685,7 +2692,8 @@
      "edge": "top",
      "pattern": "plain",
      "steps": 1,
-     "height": 0.1791
+     "height": 0.1791,
+     "thickness": 0.0426
     }
    ],
    "attach": {
@@ -3390,7 +3398,7 @@
     "name": "shoe_L",
     "side": "left",
     "offset": 0.02,
-    "sole": 0.14,
+    "sole": 0.06,
     "instep": 0.12,
     "color": [0.965, 0.965, 0.965],
     "sole_color": [0.31, 0.251, 0.235]
@@ -3410,7 +3418,7 @@
     "name": "shoe_R",
     "side": "right",
     "offset": 0.02,
-    "sole": 0.14,
+    "sole": 0.06,
     "instep": 0.12,
     "color": [0.965, 0.965, 0.965],
     "sole_color": [0.31, 0.251, 0.235]
@@ -3497,7 +3505,7 @@
     "name": "sleeve_L",
     "side": "left",
     "puff": 0.675,
-    "t1": 0.25,
+    "t1": 0.395,
     "color": [0.875, 0.475, 0.314]
    },
    {
@@ -3505,7 +3513,7 @@
     "name": "sleeve_R",
     "side": "right",
     "puff": 0.675,
-    "t1": 0.25,
+    "t1": 0.395,
     "color": [0.878, 0.475, 0.314]
    },
    {
@@ -3836,9 +3844,9 @@
       "delta": 0.0
      },
      "sole": {
-      "draft": 0.14,
+      "draft": 0.06,
       "hand": 0.07,
-      "delta": 0.07
+      "delta": -0.01
      },
      "sole_color": {
       "draft": [0.31, 0.251, 0.235],
@@ -3903,9 +3911,9 @@
       "delta": 0.0
      },
      "sole": {
-      "draft": 0.14,
+      "draft": 0.06,
       "hand": 0.07,
-      "delta": 0.07
+      "delta": -0.01
      },
      "sole_color": {
       "draft": [0.31, 0.251, 0.235],
