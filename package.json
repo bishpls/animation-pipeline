@@ -17,5 +17,8 @@
     "esbuild": "^0.28.2",
     "fontkit": "^2.0.4",
     "puppeteer-core": "^25.12.0"
+  },
+  "devDependencies": {
+    "gltf-validator": "^2.0.0-dev.3.10"
   }
 }

@@ -8,6 +8,11 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
   poke       share of garment pixels where the body shows through
   hair_noise the hair's shading noise: tone edges per hair pixel (clean anime shadow shapes are low; noisy normals high)
   mesh       open edges and loose parts per hair / garment object (information)
+  face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
+             opening (area between the lid margins, against neutral), the share of the iris the lids leave visible, left /
+             right symmetry, each mouth shape's opening (area, width, height, left / right balance) and how distinct the
+             visemes are from each other; graded: blink closes, no iris in a blink, eyes and mouth symmetric, visemes
+             distinct, and each expression's openness inside the range it is meant to have (FACE_EXPECT, warn only)
 
     from charkit import qa3d; report = qa3d.run(S, out)       # S: charkit.scene.Scene, after scene.build
 """
@@ -19,7 +24,13 @@ AZ = (0, 45, 90, 135, 180, 270)
 LIMITS = {                     # (pass at or better, warn at or better); else fail
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
     'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08),
+    'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
+    'viseme_gap': (0.010, 0.005),
 }
+# each eye expression's opening as a share of neutral: (low, high); outside it the check warns
+FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
+               'angry': (0.5, 1.05), 'sad': (0.5, 1.05)}
+VISEMES = ('aa', 'ih', 'ou', 'ee', 'oh')
 
 
 def _grade(key, v, higher_better=True):
@@ -27,6 +38,113 @@ def _grade(key, v, higher_better=True):
     if higher_better:
         return 'PASS' if v >= p else 'WARN' if v >= w else 'FAIL'
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
+
+
+# --------------------------------------------------------------------------------------------------- face (geometry)
+def _profile(P, xs):
+    """a lid or lip chain's height over x (front view): P (n, 2) as (x, z), sorted by x, sampled at xs."""
+    o = np.argsort(P[:, 0])
+    return np.interp(xs, P[o, 0], P[o, 1], left=np.nan, right=np.nan)
+
+
+def opening(upper, lower, xs):
+    """the opening between an upper and a lower chain ((n, 2) x-z each) over the x samples: -> (gap per x, area)."""
+    g = _profile(upper, xs) - _profile(lower, xs)
+    g = np.where(np.isfinite(g), np.maximum(g, 0), 0)
+    return g, float(np.trapezoid(g, xs) if hasattr(np, 'trapezoid') else np.trapz(g, xs))
+
+
+def visible_share(upper, lower, pts):
+    """the share of points (m, 2) lying between the chains (below the upper, above the lower)."""
+    up, lo = _profile(upper, pts[:, 0]), _profile(lower, pts[:, 0])
+    ok = np.isfinite(up) & np.isfinite(lo) & (pts[:, 1] < up) & (pts[:, 1] > lo)
+    return float(ok.mean()) if len(pts) else 0.0
+
+
+def ellipse_points(cx, cz, rx, rz, n=41):
+    u = np.linspace(-1, 1, n)
+    X, Z = np.meshgrid(u, u)
+    m = X ** 2 + Z ** 2 <= 1
+    return np.stack([cx + X[m] * rx, cz + Z[m] * rz], 1)
+
+
+def _key_xz(ob, name):
+    """world (x, z) of a mesh's vertices at a shape key (value 1), or the basis when the key is missing."""
+    ks = ob.data.shape_keys
+    kb = ks.key_blocks.get(name) if ks and name else None
+    if kb is None:
+        kb = ks.key_blocks[0] if ks else None
+    n = len(ob.data.vertices)
+    co = np.empty(n * 3, np.float64)
+    (kb.data if kb is not None else ob.data.vertices).foreach_get('co', co)
+    M = np.array(ob.matrix_world)
+    W = co.reshape(-1, 3) @ M[:3, :3].T + M[:3, 3]
+    return W[:, [0, 2]]
+
+
+def face(S, expressions=None, mouths=None):
+    """the face's measured expressions and mouth shapes (see the module docstring) -> (table, checks)."""
+    from .eyetex import DEFAULT_IRIS
+    skin = S.character['skin']; A = S.character['data']; Hd = A['head']; L = Hd['L']
+    expressions = expressions or FACE_EXPECT.keys()
+    EK = Hd['eye_knobs']; W = EK['width'] * L
+    IK = dict(DEFAULT_IRIS); IK.update(S.spec.get('iris') or {})
+    base = _key_xz(skin, None)
+    table = {'eyes': {}, 'mouth': {}}
+    eyes = []
+    for E in A['eyes']:
+        up, lo = E['eye']['upper'], E['eye']['lower']
+        xs = np.linspace(base[up + lo, 0].min(), base[up + lo, 0].max(), 96)
+        iris = ellipse_points(E['c'][0], E['c'][1] + IK['cz'] * W, IK['rx'] * W, IK['rz'] * W)
+        _, a0 = opening(base[up], base[lo], xs)
+        eyes.append((E['side'], up, lo, xs, iris, a0))
+    for name in ['neutral'] + list(expressions):
+        P = base if name == 'neutral' else _key_xz(skin, 'eye_' + name)
+        row = {}
+        for side, up, lo, xs, iris, a0 in eyes:
+            _, a = opening(P[up], P[lo], xs)
+            row['L' if side > 0 else 'R'] = {'open': round(a / a0, 4) if a0 > 0 else None,
+                                              'iris': round(visible_share(P[up], P[lo], iris), 4)}
+        table['eyes'][name] = row
+    table['eyes']['neutral_area_L2'] = round(eyes[0][5] / L ** 2, 5)
+    m = A['mouth']['m']
+    up, lo = list(m['upper']), list(m['lower'])
+    xs = np.linspace(base[up, 0].min(), base[up, 0].max(), 96)
+    mid = 0.5 * (xs.min() + xs.max())
+    mouths = mouths or [k.name[6:] for k in (skin.data.shape_keys.key_blocks if skin.data.shape_keys else [])
+                        if k.name.startswith('mouth_')]
+    for name in ['neutral'] + [k for k in mouths if k != 'neutral']:
+        P = base if name == 'neutral' else _key_xz(skin, 'mouth_' + name)
+        g, a = opening(P[up], P[lo], xs)
+        on = g > 0.002 * L
+        left, right = float(np.trapezoid(g[xs < mid], xs[xs < mid])), float(np.trapezoid(g[xs >= mid], xs[xs >= mid]))
+        table['mouth'][name] = {'area_L2': round(a / L ** 2, 5), 'width_L': round(float(np.ptp(xs[on])) / L, 4) if on.any() else 0.0,
+                                'height_L': round(float(g.max()) / L, 4), 'asym': round(abs(left - right) / a, 4) if a > 1e-9 else 0.0}
+    # grades
+    E_ = table['eyes']; M_ = table['mouth']
+    checks = {}
+    if 'blink' in E_:
+        v = max(E_['blink'][s]['open'] or 0 for s in ('L', 'R'))
+        checks['blink_open'] = {'value': round(v, 4), 'status': _grade('blink_open', v, False)}
+        v = max(E_['blink'][s]['iris'] for s in ('L', 'R'))
+        checks['blink_iris'] = {'value': round(v, 4), 'status': _grade('blink_iris', v, False)}
+    asym = {k: abs((r['L']['open'] or 0) - (r['R']['open'] or 0)) for k, r in E_.items() if isinstance(r, dict) and 'L' in r}
+    k = max(asym, key=asym.get)
+    checks['eye_asym'] = {'value': round(asym[k], 4), 'worst': k, 'status': _grade('eye_asym', asym[k], False)}
+    out = {k: E_[k]['L']['open'] for k, (lo_, hi_) in FACE_EXPECT.items()
+           if k in E_ and not (lo_ <= (E_[k]['L']['open'] or 0) <= hi_)}
+    checks['expr_range'] = {'value': len(out), 'outside': out, 'status': 'PASS' if not out else 'WARN'}
+    ma = {k: r['asym'] for k, r in M_.items() if r['area_L2'] > 1e-4}
+    if ma:
+        k = max(ma, key=ma.get)
+        checks['mouth_asym'] = {'value': ma[k], 'worst': k, 'status': _grade('mouth_asym', ma[k], False)}
+    vs = [k for k in VISEMES if k in M_]
+    if len(vs) > 1:
+        best = min(((np.hypot(M_[a]['width_L'] - M_[b]['width_L'], M_[a]['height_L'] - M_[b]['height_L']), a, b)
+                    for i, a in enumerate(vs) for b in vs[i + 1:]))
+        checks['viseme_gap'] = {'value': round(float(best[0]), 4), 'closest': [best[1], best[2]],
+                                'status': _grade('viseme_gap', float(best[0]))}
+    return table, checks
 
 
 # -------------------------------------------------------------------------------------------------------------- rendering
@@ -319,6 +437,12 @@ def run(S, out, ref_image=None):
         mh[o.name] = {'open_edges': open_e, 'parts': parts}
         bm.free()
     rep['checks']['mesh'] = {'status': 'INFO', 'objects': mh}
+    # --- the face's expressions and mouth shapes (geometry)
+    try:
+        rep['face'], fc = face(S)
+        rep['checks'].update({'face_' + k: v for k, v in fc.items()})
+    except Exception as e:                                         # a face check that can't run says so, the rest stands
+        rep['checks']['face'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     if os.path.exists(tmp):
         os.remove(tmp)
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
