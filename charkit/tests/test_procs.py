@@ -51,6 +51,23 @@ def test_slots_queue_and_release():
     assert procs.slot_holders() == []
 
 
+def test_wait_ends_with_the_build():
+    d = tempfile.mkdtemp()
+    p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(1.5)'])
+    import json
+    json.dump({'pid': p.pid}, open(os.path.join(d, procs.PIDFILE), 'w'))
+    t = time.time()
+    try:
+        procs.wait([d, '--timeout', '1'])
+        assert False, 'should time out'
+    except SystemExit as e:
+        assert e.code == 2
+    p.wait()
+    procs.wait([d, '--timeout', '5'])                             # the pid is gone: a stale record ends the wait
+    os.remove(os.path.join(d, procs.PIDFILE))
+    procs.wait([d])                                               # no record: ended
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

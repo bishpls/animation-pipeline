@@ -7,7 +7,7 @@
     python -m charkit trace OUT/trace.jsonl [OTHER/trace.jsonl]     # a build's state log, or what changed between two
     python -m charkit gate BRANCH [--into REF] [--args "--base anime"] # what merging BRANCH would do, measured first
     python -m charkit history NAME [--check CHECK]                     # QA across builds
-    python -m charkit ps | kill OUT_DIR                                # running builds, by their own records
+    python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
@@ -268,6 +268,9 @@ def main(argv=None):
     elif cmd == 'kill':
         from . import procs
         procs.kill(rest)
+    elif cmd == 'wait':
+        from . import procs
+        procs.wait(rest)
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)
