@@ -250,7 +250,9 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    passing in warn bands: 0 at the pass limit, 1 at the fail limit, capped at 5. A warn-only check's severity keeps
    growing past 1, so getting worse still shows. A check measured against a reference that isn't its measure's
    authority counts a quarter, as fitkit weighs its terms: the TRELLIS face's width counts a quarter of the sheet's. A
-   rejected fit with several knob groups is tried again one group at a time.
+   rejected fit with several knob groups is tried again one group at a time. A build option whose only losses are
+   checks a landed fitter owns gets that fitter's re-fit first, and the option and fit are judged as one move.
+   anime-base, for example, costs the eye width, which is the face fitter's.
 4. **Stop** when:
    - every graded check passes (`pass`);
    - the best score improved by less than `min_gain` over the last `rounds` rounds (`stalled`);

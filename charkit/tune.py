@@ -13,7 +13,10 @@ items (docs/CHARKIT.md §4).
   3. each checkpoint is compared with the best so far by the gate's QA diff (charkit.gate.compare_qa): it is accepted
      only when no graded check regresses (a status gets worse, or a check disappears) unless an explicit trade-off rule
      in the character's tune config allows that regression, and only when the total severity (charkit.checks.score, over
-     the checks both share) drops. A rejected fit with more than one knob block is tried again one block at a time;
+     the checks both share, a check measured against a reference that isn't its measure's authority counting a
+     quarter) drops. A rejected fit with more than one knob block is tried again one block at a time. A build option
+     whose only losses are checks a landed fitter owns gets that fitter's re-fit first, and the two are compared as one
+     move (anime-base's eye width is the face fitter's);
   4. the loop stops when every graded check passes (`pass`), when the best score improved by less than --min-gain over
      the last --rounds rounds (`stalled`), when no fitter has anything left to change (`converged`), or when the budget
      (full builds including the final one, default 8, or minutes with an `m` suffix) runs out (`budget`);
@@ -450,8 +453,31 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                             continue
                         changed = True
                         ck = checkpoint('option-' + o['name'], res['spec'], res['args'])
-                        if compare(best, ck)['verdict'] == 'accept':
+                        d = compare(best, ck)
+                        if d['verdict'] == 'accept':
                             best = ck
+                            continue
+                        # an option whose only losses are checks a landed fitter owns gets that fitter's re-fit before
+                        # it is judged: the option and the fit are compared with the best as one move
+                        fixers = [G for G in reg if G.landed and G.name != 'options' and d['regressed'] and
+                                  all(G.targets_of([x['check']]) for x in d['regressed'])]
+                        for G in fixers[:1]:
+                            bl, sl = left()
+                            if not ck['ok'] or (bl is not None and bl <= 0) or (sl is not None and sl <= 0):
+                                break
+                            log('  fit %s after option %s (its losses are the %s fitter\'s: %s)' % (
+                                G.name, o['name'], G.name, ', '.join(x['check'] for x in d['regressed'])))
+                            gdir = os.path.join(out, 'fit_r%d_%s_after_%s' % (rnd, G.name, o['name']))
+                            r2 = G.run(start(ck), ck['args'], gdir, log)
+                            r2.setdefault('fitter', G.name)
+                            R.write('fit', round=rnd, from_checkpoint=ck['id'], after_option=o['name'], **_fit_public(r2))
+                            if r2['status'] != 'fitted':
+                                continue
+                            ck2 = checkpoint('option-%s+%s' % (o['name'], G.name), r2['spec'], r2.get('args', ck['args']))
+                            if compare(best, ck2, r2)['verdict'] == 'accept':
+                                best = ck2
+                                fits[G.name] = dict(r2, from_checkpoint=ck['id'], round=rnd, accepted=ck2['id'])
+                                last_input[G.name] = ck2['id']
                     continue
                 if last_input.get(F.name) == best['id']:
                     continue                                 # nothing it reads changed since it last ran
