@@ -12,7 +12,16 @@ ssh_() { $G compute ssh "$VM" $Z --tunnel-through-iap "$@"; }
 case "${1:-status}" in
   status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
   up)
-    [ "$($G compute instances describe "$VM" $Z --format='value(status)')" = RUNNING ] || $G compute instances start "$VM" $Z
+    if [ "$($G compute instances describe "$VM" $Z --format='value(status)')" != RUNNING ]; then
+      if ! err=$($G compute instances start "$VM" $Z 2>&1); then
+        if echo "$err" | grep -q RESOURCE_POOL_EXHAUSTED; then
+          echo "no GPU capacity in $ZONE right now (a stockout, not a fault): retry in a few minutes" >&2
+        else
+          echo "$err" >&2
+        fi
+        exit 2
+      fi
+    fi
     for _ in $(seq 1 40); do
       ssh_ --command="test -f /opt/anim-gpu/READY" -- -o ConnectTimeout=10 -o StrictHostKeyChecking=no 2>/dev/null && { echo ready; exit 0; }
       sleep 15
