@@ -231,6 +231,20 @@ def test_triage_uncertain_and_built_evidence():
     assert cls == 'trade-off' and 'eye_width PASS -> WARN' in detail and '(face)' in detail and ev['built_conflicts'], (cls, detail)
 
 
+def test_blocked_moves():
+    face = F('face', ('sheet_*',), {})
+    recs = [{'event': 'checkpoint', 'id': 4, 'label': 'face'},
+            {'event': 'compare', 'checkpoint': 4, 'against': 1, 'verdict': 'reject', 'score': [142.3, 134.8],
+             'regressed': [{'check': 'sheet_profile_chin', 'base': [-0.006, 'PASS'], 'cand': [-0.03, 'WARN']},
+                           {'check': 'expr_yawn_eye', 'base': [0.1, 'PASS'], 'cand': [0.3, 'WARN']}]},
+            {'event': 'compare', 'checkpoint': 5, 'against': 1, 'verdict': 'reject', 'score': [142.3, 150.0], 'regressed': []}]
+    M = triage.blocked_moves(recs, [face])
+    assert len(M) == 1 and M[0]['gain'] == 7.5 and M[0]['label'] == 'face'
+    assert [b['objective'] for b in M[0]['blocked_by']] == [['face'], None]
+    md = triage.markdown([], 't', moves=M)
+    assert 'outside every objective' in md and 'in face' in md
+
+
 def test_triage_ranks_visible_and_far_first():
     spec = {'name': 'x'}
     ctx = _ctx(spec, {}, [])

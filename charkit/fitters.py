@@ -318,6 +318,19 @@ def with_block(spec_path, fitted_path, knobs, block, out_path):
     return out_path
 
 
+def interpolate(spec_path, fitted_path, knobs, t, out_path):
+    """the spec with every fitted knob moved a fraction t of the way from its start to the fit (a shorter step along
+    the fit's move) -> out_path."""
+    a, b = json.load(open(spec_path)), json.load(open(fitted_path))
+    S = copy.deepcopy(a)
+    for n, k in knobs.items():
+        x0, x1 = get(a, k['path'], k['default']), get(b, k['path'], k['default'])
+        if isinstance(x0, (int, float)) and isinstance(x1, (int, float)) and x0 != x1:
+            put(S, k['path'], round(x0 + t * (x1 - x0), 5))
+    json.dump(S, open(out_path, 'w'), indent=1)
+    return out_path
+
+
 # ------------------------------------------------------------------------------------------------------------ body
 class BodyFitter(Fitter):
     """STUB for tool/bodyfit: the body, garments, hair and palette fitted to the silhouette, model-sheet body and palette

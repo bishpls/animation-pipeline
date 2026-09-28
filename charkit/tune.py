@@ -15,7 +15,8 @@ items (docs/CHARKIT.md §4).
      only when no graded check regresses (a status gets worse, or a check disappears) unless an explicit trade-off rule
      in the character's tune config allows that regression, and only when the total severity (charkit.checks.score, over
      the checks both share, a check measured against a reference that isn't its measure's authority counting a
-     quarter) drops. A rejected fit with more than one knob block is tried again one block at a time. A build option
+     quarter) drops. A rejected fit with more than one knob block is tried again one block at a time, then at half
+     its step (flips at a limit often vanish there; each is its own checkpoint, within the budget). A build option
      whose only losses are checks a landed fitter owns gets that fitter's re-fit first, and the two are compared as one
      move (anime-base's eye width is the face fitter's);
   4. the loop stops when every graded check passes (`pass`), when the best score improved by less than --min-gain over
@@ -523,7 +524,9 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                     best = ck
                     fits[F.name]['accepted'] = ck['id']
                     last_input[F.name] = ck['id']             # its own output: it runs again only after another change
-                elif len(res.get('blocks') or {}) > 1:
+                    continue
+                accepted = False
+                if len(res.get('blocks') or {}) > 1:
                     for blk in sorted(res['blocks']):
                         bl, sl = left()
                         if (bl is not None and bl <= 0) or (sl is not None and sl <= 0):
@@ -534,9 +537,19 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                         # the fit's 'after' is for all its blocks: only its 'before' can be held against this build
                         part = dict(res, predicted={k: [b, None] for k, (b, a) in (res.get('predicted') or {}).items()})
                         if compare(best, ck, part)['verdict'] == 'accept':
-                            best = ck
+                            best, accepted = ck, True
                             fits[F.name]['accepted'] = ck['id']
                             last_input[F.name] = ck['id']
+                # a shorter step along the whole move: flips at a limit often vanish at half the step
+                bl, sl = left()
+                if not accepted and not ((bl is not None and bl <= 0) or (sl is not None and sl <= 0)):
+                    sp = FT.interpolate(start(best), res['spec'], F.knobs, 0.5, os.path.join(fdir, '%s.half.json' % name))
+                    ck = checkpoint('%s-half' % F.name, sp, res.get('args', best['args']))
+                    part = dict(res, predicted={k: [b, None] for k, (b, a) in (res.get('predicted') or {}).items()})
+                    if compare(best, ck, part)['verdict'] == 'accept':
+                        best = ck
+                        fits[F.name]['accepted'] = ck['id']
+                        last_input[F.name] = ck['id']
             scores.append(best['score'])
             bl, sl = left()
             reason = stop_reason(scores, all_pass(best.qa), bl, sl, changed, rounds, min_gain)

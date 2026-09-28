@@ -390,7 +390,8 @@ loop. The fast fitters choose knobs, full builds check them, and the error they 
    passing in warn bands: 0 at the pass limit, 1 at the fail limit, capped at 5. A warn-only check's severity keeps
    growing past 1, so getting worse still shows. A check measured against a reference that isn't its measure's
    authority counts a quarter, as fitkit weighs its terms: the TRELLIS face's width counts a quarter of the sheet's. A
-   rejected fit with several knob groups is tried again one group at a time. A build option whose only losses are
+   rejected fit with several knob groups is tried again one group at a time, then at half its step (flips at a limit
+   often vanish there). A build option whose only losses are
    checks a landed fitter owns gets that fitter's re-fit first, and the option and fit are judged as one move.
    anime-base, for example, costs the eye width, which is the face fitter's.
 4. **Stop** when:
@@ -453,6 +454,11 @@ Each item carries its evidence:
 - the overlays that show it;
 - the reference it is measured against and the manifest's authority for its measure, with the reference's cautions;
 - the knobs and conflicts behind its class.
+
+Beside the items, **blocked moves** lists every rejected checkpoint that would have lowered the score: its gain, and
+which checks blocked it. Each blocking check is marked as inside a fitter's objective (the fitter traded it) or outside
+every objective (a side effect no fitter measures, such as the eye knobs changing the yawn's closed eye). The move is
+then decided by adding the check to that fitter's terms, or by writing a trade-off rule.
 
 The list is ranked by severity times visibility (`checks.REGIONS`: the eyes, the face's front and the silhouette first,
 face depth and topology last). A reviewer's note multiplies the rank by 1.5; a check measured against a reference

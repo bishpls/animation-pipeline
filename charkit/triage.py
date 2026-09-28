@@ -28,6 +28,9 @@ Review tickets (charkit/refs/NAME/tickets.json, charkit/review.py) join the list
 the QA's own tables it is measured again on this build: status PROVISIONAL PASS/WARN/FAIL), and reviewer notes on
 existing checks (evidence, and a higher rank).
 
+Beside the items, `blocked_moves`: every rejected checkpoint that would have lowered the score, what it gained and which
+checks blocked it, each marked inside a fitter's objective (the fitter traded it) or outside every one (a side effect).
+
 Each item carries its evidence: the value and status, the severity (warn bands past the pass limit), the overlays, the
 reference it is measured against and the manifest's authority for its measure (with the reference's cautions), the knobs
 and conflicts behind its class. Rank: severity (capped at charkit.checks.CAP) times visibility (face, eyes and silhouette
@@ -415,7 +418,29 @@ def items(qa, ctx, build_dir=None):
     return out
 
 
-def markdown(items_, title, meta=None):
+def blocked_moves(recs, fitters):
+    """the rejected checkpoints that would have lowered the score: what each gained, and what blocked it, each blocking
+    check marked inside a fitter's objective (the fitter traded it) or outside every one (a side effect no fitter sees)."""
+    labels = {r['id']: r['label'] for r in recs if r.get('event') == 'checkpoint'}
+    out = []
+    for r in recs:
+        if r.get('event') != 'compare' or r['verdict'] != 'reject' or not r.get('score'):
+            continue
+        s0, s1 = r['score']
+        if s1 >= s0:
+            continue
+        lab = labels.get(r['checkpoint'], '')
+        blocks = []
+        for g in r.get('regressed') or []:
+            own = [f.name for f in fitters if f.targets_of([g['check']])]
+            blocks.append({'check': g['check'], 'from': g['base'], 'to': g['cand'],
+                           'objective': own or None})
+        out.append({'checkpoint': r['checkpoint'], 'label': lab, 'against': r['against'], 'score': [s0, s1],
+                    'gain': round(s0 - s1, 3), 'blocked_by': blocks})
+    return sorted(out, key=lambda m: -m['gain'])
+
+
+def markdown(items_, title, meta=None, moves=None):
     L = ['# %s' % title, '']
     if meta:
         L += ['%s' % meta, '']
@@ -430,6 +455,18 @@ def markdown(items_, title, meta=None):
         L.append('| %d | %s | %s | %s | %.2f | %s %.2f | %s | %s |' % (it['rank'], it['check'], it['status'], vs, it['severity'],
                                                                    it['region'], it['visibility'], it['class'],
                                                                    it['detail'].replace('|', '/')[:220]))
+    if moves:
+        L += ['', '## Blocked moves', '',
+              'Checkpoints that lowered the score but were rejected: what blocked each. A blocking check inside a fitter\'s '
+              'objective is one the fitter traded; one outside every objective is a side effect no fitter measures (add it '
+              'to the fitter\'s terms, or write a trade-off rule if the gain is worth it).', '',
+              '| move | score | gain | blocked by |', '| --- | --- | --- | --- |']
+        for m in moves:
+            L.append('| ck%d %s | %.2f -> %.2f | %.2f | %s |' % (
+                m['checkpoint'], m['label'], m['score'][0], m['score'][1], m['gain'], '; '.join(
+                    '%s %s -> %s (%s)' % (b['check'], b['from'][1], b['to'][1] or 'gone',
+                                          'in %s' % '/'.join(b['objective']) if b['objective'] else 'outside every objective')
+                    for b in m['blocked_by'])))
     L += ['', '## Evidence', '']
     for it in items_:
         e = it['evidence']
@@ -487,8 +524,9 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
     inv = ctx['inventory']
     own = {k: next((f.name + ('' if f.landed else ' (stub)') for f in fitters if f.owner_of(k)), 'hand') for k in inv}
     A = (spec.get('ref') or {}).get('authority') if isinstance(spec.get('ref'), dict) else None
+    moves = blocked_moves(recs, fitters)
     doc = {'character': spec['name'], 'build': _rel(bd), 'summary': qa.get('summary'), 'score': checks.score(qa, authority=A),
-           'classes': classes, 'items': its,
+           'classes': classes, 'items': its, 'blocked_moves': moves,
            'fitters': [f.describe() for f in fitters],
            'knob_inventory': {'total': len(inv), 'by_owner': _count(own.values()), 'knobs': own}}
     jp, mp = os.path.join(out_dir, 'work_items.json'), os.path.join(out_dir, 'work_items.md')
@@ -497,7 +535,7 @@ def run(end_ck, fits, fitters, cks, recs, cfg, spec, out_dir, nondeterministic=(
                   'Build `%s` (%s, score %.2f). Fitters: %s. Knobs: %d (%s).' % (
                       _rel(bd), qa.get('summary'), checks.score(qa, authority=A),
                       ', '.join('%s%s' % (f.name, '' if f.landed else ' (STUB)') for f in fitters), len(inv),
-                      ', '.join('%s %d' % kv for kv in _count(own.values()).items())))
+                      ', '.join('%s %d' % kv for kv in _count(own.values()).items())), moves)
     open(mp, 'w').write(md)
     parent = os.path.dirname(out_dir)
     for p in (jp, mp):
