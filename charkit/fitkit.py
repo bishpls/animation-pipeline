@@ -25,7 +25,7 @@ scaled back while one of them reads worse. Deterministic: no randomness anywhere
     spec2, info = fitkit.optimise(pool, spec, knobs, terms, group, authority, budget=200)
     rows = fitkit.triage(after_residuals, T, knobs, spec2)           # needs a knob / knob at bound / trade-off
 """
-import copy, importlib, math
+import copy, importlib, math, os, sys, time
 
 import numpy as np
 
@@ -37,6 +37,9 @@ LOSS_SCALE = 3.0                # soft-L1 above this many tolerances (the smooth
 POLISH = (2.0, 1.0, 0.5)        # the pattern search's step sizes, in knob steps
 POLISH_MOVES = 12               # at most this many moves per step size
 CYCLES = 3                      # trust region then polish, restarted from the polished point while the fine cost drops
+FAST = True                     # optimise(fast=): Broyden updates between full Jacobians, and a model-guided polish
+BROYDEN_REFRESH = 4             # fast: a full finite-difference Jacobian at least every this many trust-region steps
+POLISH_SHARE = 0.25             # fast: the polish first tries this share of its moves, those the Jacobian predicts best
 PROTECT = 6.0                   # a term leaving the status band it started in (PASS, or WARN) costs this much more per
                                 # tolerance: the merge gate fails any graded check that gets worse
 
@@ -154,7 +157,11 @@ def vector(res, x=None, knobs=(), keep=None):
 
 def cost(res, x=None, knobs=(), loss='linear', keep=None):
     """0.5 sum of the loss over the vector, as scipy's least_squares counts it ('linear' or 'soft_l1' at LOSS_SCALE)."""
-    f = vector(res, x, knobs, keep)
+    return loss_of(vector(res, x, knobs, keep), loss)
+
+
+def loss_of(f, loss='linear'):
+    """cost's loss over a least-squares vector."""
     if loss == 'soft_l1':
         c = LOSS_SCALE
         return float(0.5 * np.sum(c * c * 2 * (np.sqrt(1 + (f / c) ** 2) - 1)))
@@ -172,8 +179,15 @@ def _init(factory, args):
 
 
 def _run(job):
+    """one evaluation in a worker -> (checks, meta {seconds, stages (the evaluator's `timing`, if it keeps one), pid,
+    peak_mb (the worker's peak resident memory)})."""
+    import resource
     spec, group, fine = job
-    return plain(_W.checks(spec, group, fine))
+    t = time.time()
+    c = plain(_W.checks(spec, group, fine))
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss                 # bytes on macOS, KB on Linux
+    return c, {'seconds': time.time() - t, 'stages': dict(getattr(_W, 'timing', None) or {}), 'pid': os.getpid(),
+               'peak_mb': rss / (1 << 20) if sys.platform == 'darwin' else rss / 1024}
 
 
 def plain(x):
@@ -190,21 +204,50 @@ def plain(x):
 
 
 class Pool:
-    """evaluations in worker processes, each holding its own evaluator (factory 'module:Class', built with args)."""
+    """evaluations in worker processes, each holding its own evaluator (factory 'module:Class', built with args).
+    map(jobs, phase) labels what the evaluations were for; report() gives, per phase, how many there were, the wall time
+    they took and the time the workers spent (their ratio is the parallelism the phase got: more workers help only a
+    phase whose parallelism is near the worker count), the evaluator's own stage times, and each worker's peak memory."""
 
     def __init__(self, factory, args, workers=1):
         import multiprocessing as mp
         self.n = max(1, int(workers))
         self.calls = 0
+        self.stats, self.peak, self.t0 = {}, {}, time.time()
         if self.n > 1:
             self.p = mp.get_context('spawn').Pool(self.n, initializer=_init, initargs=(factory, args))
         else:
             self.p = None
             _init(factory, args)
 
-    def map(self, jobs):
+    def map(self, jobs, phase='other'):
+        t = time.time()
         self.calls += len(jobs)
-        return self.p.map(_run, jobs) if self.p else [_run(j) for j in jobs]
+        R = self.p.map(_run, jobs) if self.p else [_run(j) for j in jobs]
+        s = self.stats.setdefault(phase, {'calls': 0, 'evaluations': 0, 'seconds': 0.0, 'eval_seconds': 0.0, 'stages': {}})
+        s['calls'] += 1
+        s['evaluations'] += len(jobs)
+        s['seconds'] += time.time() - t
+        for _, m in R:
+            s['eval_seconds'] += m['seconds']
+            for k, v in m['stages'].items():
+                s['stages'][k] = s['stages'].get(k, 0.0) + v
+            self.peak[m['pid']] = max(self.peak.get(m['pid'], 0.0), m['peak_mb'])
+        return [c for c, _ in R]
+
+    def report(self):
+        """-> {workers, seconds (since the pool started), phases {phase: {calls, evaluations, seconds (wall),
+        eval_seconds (summed over the workers), per_eval, parallelism (eval_seconds / seconds), stages {stage: seconds
+        per evaluation}}}, peak_mb (the largest worker's), peak_mb_total (all workers')}."""
+        ph = {}
+        for k, s in sorted(self.stats.items(), key=lambda kv: -kv[1]['seconds']):
+            n = max(1, s['evaluations'])
+            ph[k] = {'calls': s['calls'], 'evaluations': s['evaluations'], 'seconds': round(s['seconds'], 1),
+                     'eval_seconds': round(s['eval_seconds'], 1), 'per_eval': round(s['eval_seconds'] / n, 3),
+                     'parallelism': round(s['eval_seconds'] / max(1e-9, s['seconds']), 2),
+                     'stages': {st: round(v / n, 3) for st, v in sorted(s['stages'].items(), key=lambda kv: -kv[1])}}
+        return {'workers': self.n, 'seconds': round(time.time() - self.t0, 1), 'phases': ph,
+                'peak_mb': round(max(self.peak.values(), default=0.0)), 'peak_mb_total': round(sum(self.peak.values()))}
 
     def close(self):
         if self.p:
@@ -246,7 +289,7 @@ def sensitivity(pool, spec, knobs, fine=False):
         for sgn in (-1, 1):
             jobs.append((with_knobs(spec, [min(k.bounds[1], max(k.bounds[0], x0 + sgn * k.step))], [k]), k.group, fine))
             index.append((k, k.group, sgn))
-    out = pool.map(jobs)
+    out = pool.map(jobs, phase='sensitivity')
     base = {g: measures(c) for (k, g, s), c in zip(index, out) if k is None}
     T = {}
     for (k, g, sgn), c in zip(index, out):
@@ -277,11 +320,16 @@ class Budget(Exception):
 
 
 def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', protect=True, baseline=None,
-             log=print):
+             fast=None, log=print):
     """least squares over one group's knobs and terms from the spec's values (see the module). protect: each term kept
-    in the status band it started in (or had in `baseline`, a check set, where it has the check).
-    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, history, stopped})."""
+    in the status band it started in (or had in `baseline`, a check set, where it has the check). fast (default FAST):
+    the trust region's Jacobian is updated from each step's own evaluation (Broyden) between full finite-difference ones
+    (at least every BROYDEN_REFRESH steps), one evaluation a step instead of one per knob; and the polish tries the moves
+    the Jacobian predicts best first (POLISH_SHARE of them), sweeping them all only to confirm it has stopped at its
+    finest step, where the plain polish sweeps every move every time.
+    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, phases, fast, history, stopped})."""
     from scipy.optimize import least_squares
+    fast = FAST if fast is None else fast
     knobs = [k for k in knobs if k.group == group]
     terms = [t for t in terms if t.group == group]
     st = np.array([k.step for k in knobs])
@@ -289,23 +337,26 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     x0 = np.clip(np.array([k.get(spec) for k in knobs]), lo, hi)
     x0 = np.clip(x0, lo + 0.5 * st, hi - 0.5 * st)          # half a step inside its bounds: a trust region can move
     ulo, uhi = (lo - x0) / st, (hi - x0) / st
-    memo, hist, used = {}, [], [0]
+    memo, hist, used, phases = {}, [], [0], {}
 
-    def evaluate(us, fine=False):
+    def evaluate(us, fine=False, phase='step'):
         keys = [(tuple(np.round(u, 6)), fine) for u in us]
         todo = list(dict.fromkeys(k for k in keys if k not in memo))
         if todo:
             if budget is not None and used[0] + len(todo) > budget:
                 raise Budget()
             used[0] += len(todo)
-            cs = pool.map([(with_knobs(spec, x0 + np.array(k[0]) * st, knobs), group, fine) for k in todo])
+            t = time.time()
+            cs = pool.map([(with_knobs(spec, x0 + np.array(k[0]) * st, knobs), group, fine) for k in todo], phase=phase)
+            P = phases.setdefault(phase, {'evaluations': 0, 'calls': 0, 'seconds': 0.0})
+            P['evaluations'] += len(todo); P['calls'] += 1; P['seconds'] = round(P['seconds'] + time.time() - t, 2)
             for k, c in zip(todo, cs):
                 memo[k] = residuals(c, terms, authority)
         return [memo[k] for k in keys]
 
     keep = None
     if protect:
-        keep = bands(evaluate([np.zeros(len(knobs))], True)[0])
+        keep = bands(evaluate([np.zeros(len(knobs))], True, 'start')[0])
         if baseline:
             kb = bands(residuals(baseline, terms, authority))
             keep = [b if t.check in baseline else k for t, k, b in zip(terms, keep, kb)]
@@ -325,20 +376,42 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                                                          for k, v_ in zip(knobs, x0 + u * st))))
         return v
 
-    def jac(u):
+    model = {'J': None, 'u': None, 'f': None, 'age': 0}        # the latest Jacobian, where it was taken, and its age
+
+    def jac_fd(u):
         pts = []
         for i in range(len(u)):
             e = np.zeros(len(u)); e[i] = 1.0 if u[i] + 1 <= uhi[i] else -1.0
             pts.append(u + e)
-        R = evaluate([u] + pts)
+        R = evaluate([u] + pts, phase='gradient')
         f0 = vector(R[0], x0 + u * st, knobs, keep)
         return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs, keep) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
+    def jac(u):
+        u = np.asarray(u, float)
+        fu = f(u)                                    # trf evaluated fun(u) before asking for its Jacobian: no evaluation
+        if fast and model['J'] is not None and model['age'] < BROYDEN_REFRESH:
+            s_ = u - model['u']
+            ss = float(s_ @ s_)
+            if ss > 1e-12:                           # Broyden's update: the secant through the step just taken
+                Jn = model['J'] + np.outer(fu - model['f'] - model['J'] @ s_, s_) / ss
+                model.update(J=Jn, u=u.copy(), f=fu, age=model['age'] + 1)
+                return Jn
+        Jm = jac_fd(u)
+        model.update(J=Jm, u=u.copy(), f=fu, age=0)
+        return Jm
+
+    def costs(cands):
+        return [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True, 'polish'), cands)]
+
     def polish(u):
         """a pattern search at the QA's own grid: every knob two steps, one, then half a step either way, the best move
-        taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). -> (u, fine cost)."""
-        cur = cost(evaluate([u], True)[0], x0 + u * st, knobs, loss, keep)
-        for dstep in POLISH:
+        taken while it lowers the fine cost (it also crosses what the smooth phase couldn't). fast: the moves the
+        Jacobian predicts best are tried first; past the finest step size a miss ends that step size, and at the finest
+        the other moves are swept before it stops. -> (u, fine cost)."""
+        cur = cost(evaluate([u], True, 'polish')[0], x0 + u * st, knobs, loss, keep)
+        for si, dstep in enumerate(POLISH):
+            finest = si == len(POLISH) - 1
             for _ in range(POLISH_MOVES):
                 cands = []
                 for i in range(len(u)):
@@ -346,13 +419,28 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
                         v = u.copy(); v[i] = np.clip(v[i] + sgn * dstep, ulo[i], uhi[i])
                         if not np.allclose(v, u):
                             cands.append((i, v))
-                cs = [cost(r, x0 + v * st, knobs, loss, keep) for r, (_, v) in zip(evaluate([v for _, v in cands], True), cands)]
+                if not cands:
+                    break
+                if fast and model['J'] is not None and len(cands) > 4:
+                    f0 = f(u, True)
+                    pred = [loss_of(f0 + model['J'] @ (v - u), loss) for _, v in cands]
+                    order = list(np.argsort(pred, kind='stable'))
+                    k = max(2, int(np.ceil(POLISH_SHARE * len(cands))))
+                    tried = [cands[i] for i in order[:k]]
+                    cs = costs(tried)
+                    if min(cs) >= cur - 1e-6:
+                        if not finest:
+                            break                    # the model's best don't help at this step size: go finer
+                        rest = [cands[i] for i in order[k:]]
+                        tried, cs = tried + rest, cs + costs(rest)
+                else:
+                    tried, cs = cands, costs(cands)
                 j = int(np.argmin(cs))
                 if cs[j] >= cur - 1e-6:
                     break
-                i = cands[j][0]
-                log('  polish %s %+.1f step -> %.3f' % (knobs[i].name, cands[j][1][i] - u[i], cs[j]))
-                cur, u = cs[j], cands[j][1]
+                i = tried[j][0]
+                log('  polish %s %+.1f step -> %.3f' % (knobs[i].name, tried[j][1][i] - u[i], cs[j]))
+                cur, u = cs[j], tried[j][1]
         return u, cur
 
     stopped, u, done = None, np.zeros(len(knobs)), None
@@ -375,7 +463,7 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     info = {'group': group, 'start': dict(zip([k.name for k in knobs], x0.round(5).tolist())),
             'fitted': dict(zip([k.name for k in knobs], x.round(5).tolist())),
             'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(knobs, x) if k.at_bound(xi)},
-            'evaluations': used[0], 'stopped': stopped, 'history': hist}
+            'evaluations': used[0], 'phases': phases, 'fast': fast, 'stopped': stopped, 'history': hist}
     return with_knobs(spec, x, knobs), info
 
 
@@ -399,7 +487,7 @@ def guard(pool, start, fitted, knobs, before, names, steps=(0.75, 0.5, 0.25, 0.0
     the start, the whole fitted change is scaled back (steps of the change). -> (spec, info {kept, regressions})."""
     x0 = np.array([k.get(start) for k in knobs]); x1 = np.array([k.get(fitted) for k in knobs])
     specs = [with_knobs(start, x0 + t * (x1 - x0), knobs) for t in (1.0,) + tuple(steps)]
-    cs = pool.map([(s_, 'all', True) for s_ in specs])
+    cs = pool.map([(s_, 'all', True) for s_ in specs], phase='guard')
     for t, s_, c in zip((1.0,) + tuple(steps), specs, cs):
         reg = regressions(before, c, names)
         if not reg:

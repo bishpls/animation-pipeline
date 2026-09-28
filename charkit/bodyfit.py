@@ -4,6 +4,7 @@ by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation inst
 
     python -m charkit bodyfit SPEC [--out DIR] [--pieces figure,details,hair] [--palette] [--no-outfit] [--no-draft]
                                    [--budget N] [--workers N] [--baseline QA.json] [--free-head] [--write-spec]
+    python -m charkit bodyfit SPEC --probe [--out DIR] [--workers N]   # the tune's look before a full fit (probe())
         (--no-draft: the outfit graph's ties and extents without its draft as the start: to continue a fit;
          --free-head: the head count a knob of its own, the face let move with the body)
 
@@ -334,7 +335,7 @@ def hair_mode(pool, spec, T, authority=None, log=print):
     for mode in ('mesh', 'geom'):
         S = copy.deepcopy(spec); S['hair']['shape']['mode'] = mode
         specs.append(S)
-    cs = pool.map([(S, 'hair', True) for S in specs])
+    cs = pool.map([(S, 'hair', True) for S in specs], phase='hair mode')
     costs = {m: round(fitkit.cost(fitkit.residuals(c, Th, authority), loss='soft_l1'), 3) for m, c in zip(('mesh', 'geom'), cs)}
     best = min(costs, key=costs.get)
     log('bodyfit: hair mode %s' % costs)
@@ -406,6 +407,54 @@ def outfit_start(spec, graph, log=print):
     return S, changed
 
 
+def choose_draft(pool, spec, before, drafted_spec, drafted, graph, hold=HOLD_HEAD, authority=None, log=print):
+    """the outfit graph's draft is a start, not a change: the pieces the spec lacks are added, and each piece's measured
+    first guesses are kept only where they beat the spec's own values on the fit's objective (fitkit.cost over the fit's
+    terms, the piece extents' included, and the regulariser). A hand-written spec takes the draft where it helps; a
+    fitted one keeps its fit, where drafting it again would make the fit re-derive it (and its result then couldn't match
+    the start it's judged against). One round of evaluations: each piece's draft on its own.
+    -> (start, the draft's changes kept {path: [spec value, draft value]}, gain: the kept pieces' summed cost drop over
+    the spec's cost, each measured alone)."""
+    from .bodyeval import set_knob
+    added = {p: v for p, v in drafted.items() if v[1] == 'added'}
+    moved = {p: v for p, v in drafted.items() if v[1] != 'added'}
+    base = copy.deepcopy(spec)
+    for p in added:
+        name = p.split('.', 1)[1]
+        base.setdefault('garments', []).append(copy.deepcopy(next(g for g in drafted_spec['garments'] if g['name'] == name)))
+    pieces = sorted({p.split('.')[1] for p in moved})
+    if not pieces:
+        return base, added, 0.0
+    trials = []
+    for pc in pieces:
+        S = copy.deepcopy(base)
+        for p, (a, b) in moved.items():
+            if p.split('.')[1] == pc:
+                set_knob(S, p, b)
+        trials.append(S)
+    cs = pool.map(([(base, 'all', True)] if added else []) + [(S, 'all', True) for S in trials], phase='draft')
+    at_base = before if not added else cs.pop(0)
+    K = knobs(base, hold)
+    T = terms(base) + (piece_terms({k[6:]: v for k, v in _extents(at_base).items()}, graph) if graph is not None else [])
+
+    def cost(checks, S):
+        return fitkit.cost(fitkit.residuals(checks, T, authority), [k.get(S) for k in K], K)
+    c0 = cost(at_base, base)
+    cp = {pc: cost(c, S) for pc, c, S in zip(pieces, cs, trials)}
+    keep = [pc for pc in pieces if cp[pc] < c0]
+    start = copy.deepcopy(base)
+    for p, (a, b) in moved.items():
+        if p.split('.')[1] in keep:
+            set_knob(start, p, b)
+    kept = dict(added, **{p: v for p, v in moved.items() if p.split('.')[1] in keep})
+    log('outfit graph: the draft against the spec\'s own values (cost %.2f): %s' % (c0, ', '.join(
+        '%s %.2f %s' % (pc, cp[pc], 'kept' if pc in keep else 'not kept') for pc in pieces)))
+    gain = sum(c0 - cp[pc] for pc in keep) / max(1e-9, c0)
+    if not keep:
+        return (base if added else spec), added, 0.0     # the spec itself: prepare then reuses its measurement
+    return start, kept, gain
+
+
 class BodyChecks:
     """the fit's evaluator (fitkit's protocol): checks(spec, group, fine) -> {check name: check} as qa.json names them:
     shape_* and ref_iou (qa3d's silhouettes; fine: the render's subdivision, else the viewport's), body_* (the model
@@ -421,9 +470,16 @@ class BodyChecks:
 
     def checks(self, spec, group='all', fine=False):
         from .qa3d import LIMITS
+        self.timing, t = {}, time.time()
+
+        def lap(stage):
+            nonlocal t
+            now = time.time(); self.timing[stage] = now - t; t = now
         self.E.exact_geom = group == 'all'      # what the fit is judged by: geom's hair cut for this body, not carried
         G = self.E.geometry(spec=spec)
+        lap('geometry')
         Q = self.E.qa(G, levels='render' if fine else 'viewport')
+        lap('silhouettes')
         out = {}
         for k, v in Q['checks'].items():
             if k in LIMITS:
@@ -432,11 +488,14 @@ class BodyChecks:
             else:
                 out[k] = {'value': v, 'status': 'INFO'}
         out.update(self.E.sheet_checks(G, palette=group in ('all', 'palette')))
+        lap('sheet')
         if group in ('all', 'figure', 'details'):
             out.update(self.E.face_checks(G))
+            lap('face')
         if self.graph is not None and self.E.sheet() is not None and group != 'palette':
             from . import bodymeasure
             out.update(bodymeasure.piece_checks(G.bundle('viewport'), self.E.sheet(), self.graph, spec))
+            lap('pieces')
         return out
 
 
@@ -459,6 +518,58 @@ def _grouped(items):
     return items
 
 
+def prepare(pool, spec, graph, baseline=None, draft=True, hold=HOLD_HEAD, authority=None, log=print):
+    """the fit's start (see fit): the spec measured as it is, the outfit graph's draft where it beats the spec's own
+    values (choose_draft), the knobs (tied, the head held) and the terms (the piece extents at the start, the holds of
+    what already passes) -> dict(before, protected, start, drafted, K, T, hold)."""
+    before = pool.map([(spec, 'all', True)], phase='start')[0]      # the spec as it is: what the fit is judged against
+    protected = dict(before); protected.update({k: v for k, v in (baseline or {}).items() if k in before})
+    start, drafted = outfit_start(spec, graph, log) if graph is not None and draft else (spec, {})
+    gain = 0.0
+    if drafted:
+        start, drafted, gain = choose_draft(pool, spec, before, start, drafted, graph, hold, authority, log)
+    K, T = _grouped(tie(knobs(start, hold), start, graph)), terms(start)
+    held = None
+    if hold:
+        held = head_hold(start)
+        for k in K:
+            k.hold = held if k.derived else None
+    at_start = pool.map([(start, 'all', True)], phase='start')[0] if start is not spec else before
+    if graph is not None:
+        T += piece_terms({k[6:]: v for k, v in _extents(at_start).items()}, graph)
+    T = _grouped([t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] +
+                 hold_terms(protected))
+    return dict(before=before, protected=protected, start=start, drafted=drafted, draft_gain=gain, K=K, T=T, hold=held)
+
+
+def probe(spec, out, base=None, workers=None, outfit=True, draft=True, hold=HOLD_HEAD, log=print):
+    """the tune's look before a full fit (charkit.fitters.BodyFitter.probe): the fit's own start (prepare), its
+    sensitivity table, and how far the fit's objective drops at the best single knob step (fitters.probe_headroom).
+    -> out/sensitivity.json, out/probe.json {cost, best, headroom, score_headroom, score_steps, evaluations, drafted (the
+    outfit graph's draft kept at the start: a change of its own), draft_gain (its cost drop), seconds, timing}."""
+    from . import bodyeval, bodymeasure, fitters
+    t0 = time.time()
+    os.makedirs(out, exist_ok=True)
+    spec = bodyeval.resolve(spec, base) if isinstance(spec, str) else copy.deepcopy(spec)
+    graph = bodymeasure.load_graph(spec) if outfit else None
+    authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
+    pool = fitkit.Pool('charkit.bodyfit:BodyChecks', (spec, graph), workers or WORKERS)
+    try:
+        P = prepare(pool, spec, graph, None, draft, hold, authority, log)
+        table = fitkit.sensitivity(pool, P['start'], P['K'])
+        timing = pool.report()
+    finally:
+        pool.close()
+    json.dump(table, open(os.path.join(out, 'sensitivity.json'), 'w'), indent=1)
+    r = fitters.probe_headroom(table, P['start'], P['T'], P['K'], authority)
+    r.update(drafted=P['drafted'], draft_gain=round(P['draft_gain'], 4), seconds=round(time.time() - t0, 1), timing=timing)
+    json.dump(r, open(os.path.join(out, 'probe.json'), 'w'), indent=1, default=str)
+    log('bodyfit probe: objective %.3f, best step %s %s -> %.3f (%.1f%%); QA score headroom %.2f; %d evaluations, %.0f s' % (
+        r['cost'], r['best'][0], r['best'][1], r['best'][2], 100 * r['headroom'], r['score_headroom'], r['evaluations'],
+        r['seconds']))
+    return r
+
+
 def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseline=None, palette=False, outfit=True,
         draft=True, hold=HOLD_HEAD, log=print):
     """fit a spec's body, garments and hair (see the module) and write the fitted spec and the reports into out; the
@@ -478,21 +589,12 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
     pool = fitkit.Pool('charkit.bodyfit:BodyChecks', (spec, graph), workers)
     rep = {'spec': spec.get('name'), 'authority': authority, 'groups': {}}
     try:
-        before = pool.map([(spec, 'all', True)])[0]               # the spec as it is: what the fit is judged against
-        protected = dict(before); protected.update({k: v for k, v in (baseline or {}).items() if k in before})
-        start, drafted = outfit_start(spec, graph, log) if graph is not None and draft else (spec, {})
-        K, T = _grouped(tie(knobs(start, hold), start, graph)), terms(start)
+        P = prepare(pool, spec, graph, baseline, draft, hold, authority, log)
+        before, protected, start, K, T = P['before'], P['protected'], P['start'], P['K'], P['T']
         if hold:
-            rep['hold'] = head_hold(start)
-            for k in K:
-                k.hold = rep['hold'] if k.derived else None
-        at_start = pool.map([(start, 'all', True)])[0] if start is not spec else before
-        if graph is not None:
-            T += piece_terms({k[6:]: v for k, v in _extents(at_start).items()}, graph)
-        T = _grouped([t for t in T if (at_start.get(t.check) or {}).get('status') not in (None, 'SKIPPED')] +
-                     hold_terms(protected))
+            rep['hold'] = P['hold']
         rep.update(declare={'knobs': {k.name: k.declare() for k in K}, 'terms': [t.declare() for t in T]},
-                   outfit_start=drafted)
+                   outfit_start=P['drafted'])
         log('bodyfit: start measured (%d checks, %d terms, %d knobs)' % (len(before), len(T), len(K)))
         table = fitkit.sensitivity(pool, start, K)
         json.dump(table, open(os.path.join(out, 'sensitivity.json'), 'w'), indent=1)
@@ -517,7 +619,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
         # one)
         rep['repair'] = {}
         for rnd in range(REPAIR_ROUNDS):
-            now = pool.map([(fitted, 'all', True)])[0]
+            now = pool.map([(fitted, 'all', True)], phase='check')[0]
             reg = fitkit.regressions(protected, now, lambda c: not c.startswith('piece_'))
             if not reg:
                 break
@@ -541,7 +643,8 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
             fitted, gi = fitkit.guard(pool, fitkit.with_knobs(fitted, [k.get(start) for k in ks], ks), fitted, ks, protected,
                                       lambda c: c not in aimed and not c.startswith('piece_'), log=log)
             rep['guard'][g] = {'kept': gi['kept'], 'regressions_at_full': gi['regressions_at_full']}
-        after = pool.map([(fitted, 'all', True)])[0]
+        after = pool.map([(fitted, 'all', True)], phase='check')[0]
+        rep['timing'] = pool.report()
     finally:
         pool.close()
     if palette:
@@ -578,7 +681,7 @@ def line_repair(pool, spec, K, T, protected, table, log=print):
     brings it back into its band without any other graded check reading worse than it does now.
     -> (spec, {check: {knob, steps, value} or 'unrepaired'})."""
     names = lambda c: not c.startswith('piece_')
-    now = pool.map([(spec, 'all', True)])[0]
+    now = pool.map([(spec, 'all', True)], phase='line repair')[0]
     reg = fitkit.regressions(protected, now, names)
     out = {}
     for chk in list(reg):
@@ -599,7 +702,7 @@ def line_repair(pool, spec, K, T, protected, table, log=print):
             x0 = k.get(spec)
             xs = [min(k.bounds[1], max(k.bounds[0], x0 + sgn * st * k.step)) for st in LINE_STEPS]
             specs = [fitkit.with_knobs(spec, [x], [k]) for x in xs]
-            cs = pool.map([(s_, 'all', True) for s_ in specs])
+            cs = pool.map([(s_, 'all', True) for s_ in specs], phase='line repair')
             for st, x, s_, c in zip(LINE_STEPS, xs, specs, cs):
                 r2 = fitkit.regressions(protected, c, names)
                 if chk not in r2 and set(r2) <= set(reg) - {chk}:
@@ -800,6 +903,15 @@ def report_md(rep):
         pal = rep['palette']
         L.append('- palette: ' + '; '.join('%s %s -> %s%s' % (c, v['before'], v['after'], '' if v.get('kept') else ' (not kept)')
                                            for c, v in pal.items() if isinstance(v, dict) and 'before' in v))
+    if rep.get('timing'):
+        L += ['', '## Where the time went', '', 'Evaluations by what asked for them; wall seconds; the workers\' summed '
+              'seconds per evaluation; parallelism (summed over wall: at most %d, the workers). Worker peak memory %s MB '
+              '(all %s MB).' % (rep['timing']['workers'], rep['timing']['peak_mb'], rep['timing']['peak_mb_total']), '',
+              '| phase | evaluations | wall s | s per evaluation | parallelism | per evaluation by stage |',
+              '| --- | --- | --- | --- | --- | --- |']
+        for ph, v in rep['timing']['phases'].items():
+            L.append('| %s | %d | %.0f | %.2f | %.1f | %s |' % (ph, v['evaluations'], v['seconds'], v['per_eval'],
+                     v['parallelism'], ', '.join('%s %.2f' % kv for kv in v['stages'].items())))
     if rep.get('regressions'):
         L += ['', '## Read worse than at the start', ''] + ['- %s: %s -> %s' % (k, a, b) for k, (a, b) in rep['regressions'].items()]
     L += ['', '## Still outside tolerance (fitkit.triage)', '', '| term | residual (tolerances) | why | knobs |',
@@ -840,6 +952,11 @@ def main(args):
     spec_path = args[0]
     name = json.load(open(bodyeval._abs(spec_path)))['name']
     out = bodyeval._abs(opt('--out', 'charkit/out/bodyfit/%s' % name))
+    if '--probe' in args:
+        probe(spec_path, out, base=opt('--base'), workers=int(opt('--workers')) if opt('--workers') else None,
+              outfit='--no-outfit' not in args, draft='--no-draft' not in args, hold='--free-head' not in args,
+              log=lambda *a: print(*a, flush=True))
+        return
     pieces = [p for p in opt('--pieces', ','.join(SCHEDULE)).split(',') if p]
     fitted, rep = fit(spec_path, out, budget=int(opt('--budget')) if opt('--budget') else None, base=opt('--base'),
                       workers=int(opt('--workers')) if opt('--workers') else None, groups=pieces,

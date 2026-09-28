@@ -214,6 +214,35 @@ def test_options_and_partial_specs():
     assert res['changed'] == {'head.chin': [1.0, 1.3], 'eyes.width': [0.2, 0.22]} and set(res['blocks']) == {'face', 'eyes'}
 
 
+
+def test_blocks_and_half_steps_reach_list_items():
+    """the body fit's knobs address garments by name (garments.skirt.flare): a block and a half step must write them,
+    a piece the fit added comes along whole with its block, and a block that writes nothing isn't a checkpoint."""
+    import copy
+    d = tempfile.mkdtemp()
+    a = {'name': 'x', 'body': {'proportions': {'leg': 1.0}},
+         'garments': [{'name': 'skirt', 'flare': 40.0}, {'name': 'bow', 'size': 0.7}]}
+    b = copy.deepcopy(a)
+    b['garments'][0]['flare'] = 30.0
+    b['body']['proportions']['leg'] = 1.1
+    b['garments'].append({'name': 'panel', 'kind': 'shell', 'length': 1.5})
+    sp, fp = os.path.join(d, 'a.json'), os.path.join(d, 'b.json')
+    json.dump(a, open(sp, 'w')); json.dump(b, open(fp, 'w'))
+    K = {'skirt.flare': {'path': ('garments', 'skirt', 'flare'), 'default': 40.0, 'block': 'figure'},
+         'panel.length': {'path': ('garments', 'panel', 'length'), 'default': 1.0, 'block': 'figure'},
+         'body.leg': {'path': ('body', 'proportions', 'leg'), 'default': 1.0, 'block': 'body'},
+         'bow.size': {'path': ('garments', 'bow', 'size'), 'default': 0.7, 'block': 'details'}}
+    assert fitters.get(b, ('garments', 'skirt', 'flare')) == 30.0 and fitters.get(a, ('garments', 'panel', 'length')) is None
+    S = json.load(open(fitters.with_block(sp, fp, K, 'figure', os.path.join(d, 'fig.json'))))
+    assert fitters.get(S, ('garments', 'skirt', 'flare')) == 30.0 and S['body']['proportions']['leg'] == 1.0
+    assert fitters.get(S, ('garments', 'panel')) == {'name': 'panel', 'kind': 'shell', 'length': 1.5}
+    assert fitters.with_block(sp, fp, K, 'details', os.path.join(d, 'det.json')) is None       # the bow didn't move
+    H = json.load(open(fitters.interpolate(sp, fp, K, 0.5, os.path.join(d, 'half.json'))))
+    assert fitters.get(H, ('garments', 'skirt', 'flare')) == 35.0 and H['body']['proportions']['leg'] == 1.05
+    assert fitters.get(H, ('garments', 'panel')) is None                                  # no start to step from
+    assert fitters.interpolate(sp, sp, K, 0.5, os.path.join(d, 'same.json')) is None
+
+
 def test_triage_decisions():
     spec = {'name': 'x'}
     cfg = {'decisions': [{'checks': ['sheet_shown_*'], 'class': 'needs a capability', 'by': 'a reviewer',

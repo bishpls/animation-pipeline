@@ -572,6 +572,10 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                             break
                         sp = FT.with_block(start(best), res['spec'], F.knobs, blk,
                                            os.path.join(fdir, '%s.%s.json' % (name, blk)))
+                        if sp is None:
+                            log('    %s block %s writes nothing into the spec: not built' % (F.name, blk))
+                            R.write('noop', fitter=F.name, block=blk)
+                            continue
                         ck = checkpoint('%s-%s' % (F.name, blk), sp, res.get('args', best['args']))
                         # the fit's 'after' is for all its blocks: only its 'before' can be held against this build
                         part = dict(res, predicted={k: [b, None] for k, (b, a) in (res.get('predicted') or {}).items()})
@@ -583,9 +587,12 @@ def tune(spec_path, out=None, budget=None, review=False, args=(), only=None, con
                 bl, sl = left()
                 if not accepted and not ((bl is not None and bl <= 0) or (sl is not None and sl <= 0)):
                     sp = FT.interpolate(start(best), res['spec'], F.knobs, 0.5, os.path.join(fdir, '%s.half.json' % name))
-                    ck = checkpoint('%s-half' % F.name, sp, res.get('args', best['args']))
+                    if sp is None:
+                        log('    %s half step writes nothing into the spec: not built' % F.name)
+                        R.write('noop', fitter=F.name, block='half')
+                    ck = checkpoint('%s-half' % F.name, sp, res.get('args', best['args'])) if sp else None
                     part = dict(res, predicted={k: [b, None] for k, (b, a) in (res.get('predicted') or {}).items()})
-                    if compare(best, ck, part)['verdict'] == 'accept':
+                    if ck is not None and compare(best, ck, part)['verdict'] == 'accept':
                         best = ck
                         fits[F.name]['accepted'] = ck['id']
                         last_input[F.name] = ck['id']
