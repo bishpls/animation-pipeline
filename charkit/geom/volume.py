@@ -238,6 +238,22 @@ def sdf(m, h=None, grid=None, band=3.0, occ=None, beta=2.0, pad=3):
     return G.like(D)
 
 
+def thicken(m, r, h=None, grid=None, pad=3):
+    """a closed solid around a surface (open sheets, single or double-walled, any orientation): everything within r of
+    it, as an exact signed distance (unsigned distance - r) in a narrow band. The robust 'solidify'. -> SDF Grid."""
+    from scipy import ndimage as ndi
+    from .bvh import BVH
+    m = as_mesh(m)
+    G = grid if grid is not None else grid_for(m, h, pad=pad + int(np.ceil(r / h)))
+    k = int(np.ceil(r / G.h)) + 2
+    near = ndi.binary_dilation(_surface_voxels(m, G), iterations=k)
+    D = np.full(G.shape, np.float32(k * G.h), np.float32)
+    idx = np.flatnonzero(near)
+    d, _, _ = BVH(m).nearest(G.points(idx))
+    D.flat[idx] = (d - r).astype(np.float32)
+    return G.like(D)
+
+
 def as_sdf(G, blur=0.0):
     """an SDF grid from an occupancy grid (signed EDT, optionally Gaussian-blurred by `blur` voxels); SDFs pass through."""
     if G.is_sdf:

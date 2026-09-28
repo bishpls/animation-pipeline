@@ -355,21 +355,31 @@ def fix_self_intersections(m, iters=16, rings=1, lam=0.5, steps=3):
     return m, int(self_intersecting(m, np.arange(m.nf)).sum())
 
 
-def cut_intersections(m, iters=6, grow=1, smooth_steps=4):
-    """remove self-crossings that smoothing can't untangle (folds in features thinner than an edge): the crossing faces and
-    `grow` rings round them are cut out, the holes filled with fans, the patches relaxed; loose bits the cut frees are
-    dropped. Repeats up to `iters` times. -> (Mesh, faces still crossing)."""
+def _bad_faces(m):
+    """faces that cross another, or sit on a non-manifold edge."""
+    hit = self_intersecting(m, np.arange(m.nf))
+    E, inv, cnt = unique_edges(m.F)
+    nm = cnt[inv] > 2
+    if nm.any():
+        hit[np.nonzero(nm)[0] // 3] = True
+    return hit
+
+
+def cut_intersections(m, iters=8, grow=1, smooth_steps=4):
+    """remove self-crossings that smoothing can't untangle (folds in features thinner than an edge): the crossing faces
+    (and any on a non-manifold edge) and `grow` rings round them are cut out, the holes filled with fans, the patches
+    relaxed; loose bits the cut frees are dropped. Repeats up to `iters` times. -> (Mesh, faces still bad)."""
     from .smooth import laplacian
     from .mesh import vertex_adjacency
     m = as_mesh(m)
-    for _ in range(iters):
-        hit = self_intersecting(m, np.arange(m.nf))
+    for i in range(iters):
+        hit = _bad_faces(m)
         if not hit.any():
             return m, 0
         vm = np.zeros(m.nv, bool)
         vm[np.unique(m.F[hit])] = True
         A = vertex_adjacency(m.F, m.nv)
-        for _ in range(grow):
+        for _ in range(grow + i // 3):
             vm |= (A @ vm.astype(float)) > 0
         drop = vm[m.F].any(1)
         cut, _ = compact(m, ~drop)
@@ -383,4 +393,4 @@ def cut_intersections(m, iters=6, grow=1, smooth_steps=4):
             A2 = vertex_adjacency(cut.F, cut.nv)
             mask = np.maximum(mask, (A2 @ mask > 0).astype(float))
         m = laplacian(cut, iters=smooth_steps, lam=0.5, mask=mask, pin_boundary=False)
-    return m, int(self_intersecting(m, np.arange(m.nf)).sum())
+    return m, int(_bad_faces(m).sum())

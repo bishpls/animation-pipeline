@@ -52,6 +52,13 @@ class Case:
         self.eye_z = float(self.centre[2] + Hd['eye_knobs']['z'] * self.L)
         from ..garments import bone_seg
         self.bone = lambda b: bone_seg(A, b)
+        self._welded = None
+
+    def gen_welded(self, tol=1e-7):
+        """the generated surface with its UV-seam duplicates welded (for connectivity)."""
+        if self._welded is None:
+            self._welded = repair.merge_close(self.gen, tol)
+        return self._welded
 
     @classmethod
     def load(cls, spec_path, glb=None, cache=True, fit=True, verbose=True):
@@ -154,18 +161,22 @@ class ColorClass:
         return lambda C: np.any([c(C) for c in classes], axis=0)
 
 
-def dominant_class(C, hue_tol=None, margin=0.12):
+def dominant_class(C, hue_tol=None, margin=0.12, upper=False):
     """a ColorClass fitted to a sample of colours (e.g. the crown of a generated head, which is all hair): the circular
-    median hue, and saturation / value ranges from the 2nd..99.5th percentiles widened by `margin`."""
+    median hue (tolerance: twice the 95th percentile deviation, at least 12 degrees), saturation and value from their 2nd
+    and 1st percentiles less `margin`, and with upper=True also capped at their 95th percentiles plus `margin` (for a
+    family bounded on both sides, like skin between the pale whites and the saturated clothes)."""
     h, s, v = hsv(C)
-    good = s > 0.15
+    good = s > 0.05
     a = np.radians(h[good])
     hue = float(np.degrees(np.arctan2(np.median(np.sin(a)), np.median(np.cos(a)))) % 360)
     dh = np.abs(((h[good] - hue) + 180) % 360 - 180)
     tol = hue_tol if hue_tol is not None else float(max(12.0, 2.0 * np.percentile(dh, 95)))
     s_lo = float(max(0.0, np.percentile(s[good], 2) - margin))
     v_lo = float(max(0.0, np.percentile(v[good], 1) * 0.6))
-    return ColorClass(hue, tol, (s_lo, 1.0), (v_lo, 1.0))
+    s_hi = float(min(1.0, np.percentile(s[good], 95) + margin)) if upper else 1.0
+    v_hi = 1.0
+    return ColorClass(hue, tol, (s_lo, s_hi), (v_lo, v_hi))
 
 
 # ------------------------------------------------------------------------------------------------------------ extraction
@@ -495,20 +506,91 @@ def hair(case, h=None, verbose=True, **kw):
 
 
 def skirt_region(case, top=None, bottom=None):
-    """between the waist and mid-thigh: top = the skirt spec's waist height (hips..spine joint, `waist` of the way) plus a
-    little; bottom = halfway from the hip joints to the knees minus `bottom` (head lengths)."""
+    """between the waist and mid-thigh: top = the skirt spec's waist height (hips..spine joint, `waist` of the way) plus
+    `top` head lengths (default 0.08); bottom = halfway from the hip joints to the knees minus `bottom` head lengths
+    (default 0)."""
     hj = case.bone('hips')[0]; sj = case.bone('spine')[1]
     sk = next((g for g in case.spec.get('garments', []) if g.get('kind') == 'skirt'), {})
     zw = hj[2] + (sj[2] - hj[2]) * sk.get('waist', 0.55)
     hipL = case.bone('leftUpperLeg')[0]; knee = case.bone('leftLowerLeg')[0]
     zmid = (hipL[2] + knee[2]) / 2
-    z1 = zw + (0.02 * case.L if top is None else top * case.L)
-    z0 = zmid - (0.0 if bottom is None else bottom * case.L)
+    z1 = zw + (0.08 if top is None else top) * case.L
+    z0 = zmid - (0.0 if bottom is None else bottom) * case.L
 
     def region(P):
         return (P[:, 2] > z0) & (P[:, 2] < z1)
     region.z = (z0, z1)
     return region
+
+
+def skin_color(case, hue_tol=15.0):
+    """the generated character's skin colour family, fitted to its nose and the cheeks right beside it (between the eyes
+    and the mouth, within 0.12 L of the midline, at the front: no lips, eyes, brows or locks in the sample)."""
+    G = case.gen
+    c = case.centre; L = case.L
+    m = (np.abs(G.V[:, 0]) < 0.12 * L) & (G.V[:, 2] < case.eye_z - 0.12 * L) & (G.V[:, 2] > case.eye_z - 0.28 * L) & \
+        (G.V[:, 1] < c[1] - 0.2 * L)
+    return dominant_class(G.vc[m], hue_tol=hue_tol, margin=0.08, upper=True)
+
+
+def surface_parts(case, region, drop_color, max_drop=0.4, min_frac=0.01, weld=1e-7):
+    """the generated surface's own pieces in a region: its faces there, split into edge-connected parts (after welding
+    the UV seams), keeping the parts with less than `max_drop` of their area coloured like drop_color (skin: the legs and
+    hands) and at least min_frac of the biggest's area. -> (Mesh of the kept faces, info list per part)."""
+    from .mesh import compact, components, face_areas
+    G = case.gen_welded(weld)
+    fc = G.V[G.F].mean(1)
+    sub, _ = compact(G, region(fc))
+    lab, k = components(sub.F, by='face')
+    ar = face_areas(sub.V, sub.F)
+    bad_v = drop_color(sub.vc)
+    bad_f = bad_v[sub.F].mean(1)
+    area = np.bincount(lab, weights=ar, minlength=k)
+    badf = np.bincount(lab, weights=ar * bad_f, minlength=k) / np.maximum(area, 1e-12)
+    keep = (badf < max_drop) & (area >= min_frac * area.max())
+    info = [dict(part=int(i), area_m2=round(float(area[i]), 5), drop_share=round(float(badf[i]), 3), kept=bool(keep[i]))
+            for i in np.argsort(-area)]
+    out, _ = compact(sub, keep[lab])
+    return out, info
+
+
+def skirt(case, h=None, top=None, bottom=None, thick=None, verbose=True, **kw):
+    """the skirt of the case as one closed surface: the generated surface between the waist and mid-thigh split into its
+    own pieces (the skirt panels come apart from the legs-and-shorts piece and the hands once cut to the band; with
+    top=None the band's top is searched, waist +0.10 .. -0.12 L, for the cut that frees the most skirt), the
+    pieces that aren't skin kept, and that sheet thickened into a solid `thick` across (default 0.016 L: TRELLIS makes
+    cloth as a hair-thin double wall) before the same finishing as the hair. kw: finish()'s options."""
+    t0 = time.time()
+    L = case.L
+    h = h or 0.006 * L
+    skin = skin_color(case)
+    if top is None:
+        # the highest cut below which the skirt comes apart from the body: the one keeping the most non-skin area
+        best = None
+        for t in np.arange(0.10, -0.121, -0.02):
+            reg_t = skirt_region(case, t, bottom)
+            sh, inf = surface_parts(case, reg_t, skin)
+            area = sum(p['area_m2'] for p in inf if p['kept'])
+            if best is None or area > best[0] * 1.02:
+                best = (area, t, sh, inf)
+        _, top, sheet, info = best
+        reg = skirt_region(case, top, bottom)
+    else:
+        reg = skirt_region(case, top, bottom)
+        sheet, info = surface_parts(case, reg, skin)
+    r = 0.5 * (0.016 * L if thick is None else thick)
+    S = volume.thicken(sheet, r, h=h)
+    if verbose:
+        print('  [skirt] %d parts kept of %d, sheet %d tris, grid %s  %.1fs' % (
+            sum(p['kept'] for p in info), len(info), sheet.nf, S.shape, time.time() - t0))
+    fin = {k: kw.pop(k) for k in list(kw) if k in FINISH_KW}
+    fin.setdefault('close', 0.10 * L)
+    fin.setdefault('blur', 0.08 * L)
+    fin.setdefault('target_edge', min(2.5 * h, 1.6 * r))      # edges no longer than the cloth is thick: no folds across it
+    R = finish(S, verbose=verbose, name='skirt', **fin)
+    R.update(sdf=S, sheet=sheet, stats=dict(h=h, grid=list(S.shape), thick=2 * r, z_band=list(reg.z), top=round(float(top), 3), parts=info,
+                                            time_s=round(time.time() - t0, 1)))
+    return R
 
 
 # ----------------------------------------------------------------------------------------------------------- measuring
