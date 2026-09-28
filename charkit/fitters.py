@@ -203,7 +203,7 @@ class FaceFitter(Fitter):
             cmd += ['--budget', str(self.budget)]
         if self.workers:
             cmd += ['--workers', str(self.workers)]
-        r = procs.run(cmd, out, 'fit face', cwd=ROOT)
+        r = procs.run(cmd, out, 'fit face', cwd=ROOT, start_new_session=True)
         open(os.path.join(out, 'fit.log'), 'w').write(r.stdout + r.stderr)
         name = json.load(open(spec_path))['name']
         fitted = os.path.join(out, name + '.fit.json')
@@ -220,7 +220,7 @@ class FaceFitter(Fitter):
         if not self.landed or not hasattr(self.mod, 'validate'):
             return None
         from . import procs
-        r = procs.run([PY, '-m', 'charkit', 'fit', '--validate', build], build, 'validate face', cwd=ROOT)
+        r = procs.run([PY, '-m', 'charkit', 'fit', '--validate', build], build, 'validate face', cwd=ROOT, start_new_session=True)
         p = os.path.join(build, 'qa', 'faceeval_agreement.json')
         return json.load(open(p)) if r.returncode == 0 and os.path.exists(p) else None
 
@@ -236,7 +236,7 @@ class FaceFitter(Fitter):
                 'pool = fitkit.Pool("charkit.facefit:FaceChecks", (spec, R, cache), %d); '
                 'T = fitkit.sensitivity(pool, spec, facefit.KNOBS); pool.close(); '
                 'json.dump(T, open(sys.argv[2] + "/sensitivity.json", "w"), indent=1)' % (self.workers or max(1, min(8, (os.cpu_count() or 2) - 2))))
-        r = procs.run([PY, '-c', code, spec_path, out], out, 'sensitivity face', cwd=ROOT)
+        r = procs.run([PY, '-c', code, spec_path, out], out, 'sensitivity face', cwd=ROOT, start_new_session=True)
         open(os.path.join(out, 'sensitivity.log'), 'w').write(r.stdout + r.stderr)
         p = os.path.join(out, 'sensitivity.json')
         return json.load(open(p)) if r.returncode == 0 and os.path.exists(p) else None
@@ -339,7 +339,7 @@ class BodyFitter(Fitter):
         from . import procs
         os.makedirs(out, exist_ok=True)
         t = time.time()
-        r = procs.run([PY, '-m', 'charkit', 'bodyfit', spec_path, '--out', out], out, 'fit body', cwd=ROOT)
+        r = procs.run([PY, '-m', 'charkit', 'bodyfit', spec_path, '--out', out], out, 'fit body', cwd=ROOT, start_new_session=True)
         open(os.path.join(out, 'fit.log'), 'w').write(r.stdout + r.stderr)
         name = json.load(open(spec_path))['name']
         fitted = os.path.join(out, name + '.fit.json')

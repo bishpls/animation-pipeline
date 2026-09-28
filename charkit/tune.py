@@ -259,7 +259,8 @@ class Builder:
             cmd = [PY, '-m', 'charkit', 'build', spec_path, '--out', d, '--boards', boards, '--no-blend', '--note', note] + \
                 list(args) + list(extra)
             self.log('  build ck%d %s: %s' % (n, label, ' '.join(shlex.quote(c) for c in cmd[3:])))
-            self.current = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.current = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                            start_new_session=True)          # its own process group: stop() ends all of it
             so, _ = self.current.communicate()
             rc, self.current = self.current.returncode, None
             open(os.path.join(d, 'build.log'), 'w').write(so)
@@ -278,16 +279,25 @@ class Builder:
                           score=checks.score(qa, authority=self.authority), counts=_counts(qa), cache=cache, _qa=qa)
 
     def stop(self):
-        """stop the build this run started (its python, and the Blender it recorded)."""
+        """stop what this run started: the build (its process group: the python and its Blender) and every process
+        recorded under the run's folder (a fitter's, with the process group it leads: its workers, its Blender)."""
         if self.current and self.current.poll() is None:
-            self.current.terminate()
+            _stop_group(self.current.pid)
         from . import procs
         for pf, rec, alive in procs.records([ROOT]):
             if alive and os.path.dirname(pf).startswith(self.out) and os.path.dirname(pf) != self.out:
-                try:
-                    os.kill(rec['pid'], signal.SIGTERM)
-                except OSError:
-                    pass
+                _stop_group(rec['pid'])
+
+
+def _stop_group(pid):
+    """SIGTERM a process and, when it leads its own process group (started with start_new_session), the whole group."""
+    try:
+        if os.getpgid(pid) == pid:
+            os.killpg(pid, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass
 
 
 def _trace(d):
