@@ -8,6 +8,9 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
   poke       share of garment pixels where the body shows through
   hair_noise the hair's shading noise: tone edges per hair pixel (clean anime shadow shapes are low; noisy normals high)
   mesh       open edges and loose parts per hair / garment object (information)
+  face_shape the face's shape against the generated character's face (charkit/faceqa.py: the lower face's width, the chin,
+             the profile, the cheek at three-quarter, depth from under the eyes; how much face the hair leaves showing) and
+             the feature heights against the design rig; overlays qa_face_shape.png, qa_face_contours.png
   face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
              opening (area between the lid margins, against neutral), the share of the iris the lids leave visible, left /
              right symmetry, each mouth shape's opening (area, width, height, left / right balance) and how distinct the
@@ -145,6 +148,53 @@ def face(S, expressions=None, mouths=None):
         checks['viseme_gap'] = {'value': round(float(best[0]), 4), 'closest': [best[1], best[2]],
                                 'status': _grade('viseme_gap', float(best[0]))}
     return table, checks
+
+
+# --------------------------------------------------------------------------------------------------- face shape
+FACE_PARTS = ('sclera', 'iris', 'lash', 'brow', 'teeth', 'tongue', 'mouth_line', 'line')
+
+
+def face_shape(S, out):
+    """our face against the generated character's (charkit.faceqa), from the scene's meshes. -> (result, checks)."""
+    from . import faceqa, trace
+    full, cols = getattr(S, 'shape_full', None), getattr(S, 'shape_colors', None)
+    if full is None or cols is None:
+        return None, {'face_shape': {'status': 'SKIPPED', 'why': 'no generated shape in this build'}}
+    A = S.character['data']; Hd = A['head']; L = Hd['L']
+    skin = S.character['skin']
+    V, F, mats = trace.mesh_arrays(skin, materials=True)
+    T, poly = faceqa.triangles(*F)
+    names = [m.name if m else '' for m in skin.data.materials]
+    is_skin = np.isin(mats[poly], [i for i, n in enumerate(names) if n in ('skin', 'face_skin')])
+    ours = [(V, T, is_skin, True)]
+    face_obs = [p[k] for p in S.character['eyes'] for k in ('sclera', 'iris', 'lash', 'brow') if p.get(k) is not None]
+    face_obs += [o for o in S.character['mouth'].values() if o is not None]
+    others = list(S.hair) + list(S.accessories) + list(S.garments)
+    for obs, face in ((face_obs, True), (others, False)):
+        for o in obs:
+            if o.type != 'MESH' or o.hide_render:
+                continue
+            v, f = trace.mesh_arrays(o)
+            t, _ = faceqa.triangles(*f)
+            ours.append((v, t, np.zeros(len(t), bool), face))
+    ez = float(np.mean([E['c'][1] for E in A['eyes']]))
+    Vb = A['verts']
+    mid = (np.abs(Vb[:, 0]) < 0.01 * L) & (Vb[:, 2] < ez - 0.05 * L) & (Vb[:, 2] > ez - 0.25 * L)
+    lm = dict(L=L, eye_z=ez, centre=list(Hd['centre']), mouth_z=float(A['mouth']['c'][1]))
+    if mid.any():
+        lm['nose_z'] = float(Vb[mid][np.argmin(Vb[mid][:, 1]), 2])
+    brows = [p['brow'] for p in S.character['eyes'] if p.get('brow') is not None]
+    if brows:
+        lm['brow_z'] = float(np.mean([trace.mesh_arrays(b)[0][:, 2].mean() for b in brows]))
+    ref = None
+    rp = os.path.join(os.path.dirname(os.path.abspath(out)), 'ref_measure.json')
+    if os.path.exists(rp):
+        ref = json.load(open(rp))
+    R = faceqa.measure(ours, (np.asarray(full[0]), np.asarray(full[1]), np.asarray(cols)), lm, ref)
+    _save_rgb(os.path.join(out, 'qa_face_shape.png'), faceqa.overlay(R))
+    _save_rgb(os.path.join(out, 'qa_face_contours.png'), faceqa.contours_image(R))
+    C = faceqa.checks(R)
+    return {k: v for k, v in R.items() if not k.startswith('_')}, C
 
 
 # -------------------------------------------------------------------------------------------------------------- rendering
@@ -437,6 +487,13 @@ def run(S, out, ref_image=None):
         mh[o.name] = {'open_edges': open_e, 'parts': parts}
         bm.free()
     rep['checks']['mesh'] = {'status': 'INFO', 'objects': mh}
+    # --- the face's shape against the generated character's
+    try:
+        rep['face_shape'], fc = face_shape(S, out)
+        rep['checks'].update({('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in fc.items()})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        rep['checks']['face_shape'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's expressions and mouth shapes (geometry)
     try:
         rep['face'], fc = face(S)
