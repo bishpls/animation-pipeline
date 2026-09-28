@@ -683,6 +683,7 @@ class Base:
         if not os.path.exists(path):
             raise FileNotFoundError(f'{path}: run `python -m charkit.base_anime derive` first')
         d = np.load(path, allow_pickle=False)
+        self.path = path
         self.d = d
         self.meta = json.loads(str(d['meta']))
         self.verts = d['verts'].astype(np.float64)
@@ -733,6 +734,9 @@ class Base:
                     outer={int(v): int(r) for v, r in d['mouth_outer']},
                     side={int(v): code[int(c)] for v, c in d['mouth_side']})
 
+    def __reduce__(self):
+        return (load, (self.path,))                        # pickled by reference (charkit.cache): the asset loads again
+
 
 _CACHE = {}
 
@@ -744,14 +748,15 @@ def load(path=ASSET):
 
 
 # ----------------------------------------------------------------------------------------------------------------- build
-def wrap(spec):
+def wrap(spec, body=None):
     """the build-time path for spec['base'] == 'anime': MakeHuman's body for the spec's body knobs (same vertex indices, so
-    its macro targets and proportions still shape it), the stored head re-wrapped to the spec's head knobs.
+    its macro targets and proportions still shape it), the stored head re-wrapped to the spec's head knobs. body: the
+    body data (body.build_body_data) when already built for the spec's body knobs.
     -> (B: the body data on the base's topology (as body.build_body_data returns, 'verts' the pre-wrap positions for the
     joints to follow; new vertices have none: NaN), V, H, centre, info)."""
     from . import anime_head as ah, body as bodylib
     base = load()
-    Bm = bodylib.build_body_data(spec.get('body'), keep_head=True)
+    Bm = body or bodylib.build_body_data(spec.get('body'), keep_head=True)
     L = Bm['head_len']
     src = base.src
     kept = src >= 0

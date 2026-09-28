@@ -111,12 +111,36 @@ def _key_xz(ob, name):
 
 def face(S, expressions=None, mouths=None):
     """the face's measured expressions and mouth shapes (see the module docstring) -> (table, checks)."""
+    skin = S.character['skin']
+    mouths = mouths or [k.name[6:] for k in (skin.data.shape_keys.key_blocks if skin.data.shape_keys else [])
+                        if k.name.startswith('mouth_')]
+    return face_from(S.character['data'], S.spec, lambda name: _key_xz(skin, name), expressions, mouths)
+
+
+def key_xz_numpy(A):
+    """face_from's key reader for an assembly (charkit.character.assemble with keys): the skin's world (x, z) under a
+    shape key as the build names them ('eye_blink': both eyes' offsets, 'mouth_aa'), or at rest (None)."""
+    V = np.asarray(A['verts'])
+    def get(name):
+        if name is None:
+            return V[:, [0, 2]]
+        if name.startswith('eye_') and name[4:] in A['eyes'][0]['keys']:
+            return (V + sum(E['keys'][name[4:]][0] for E in A['eyes']))[:, [0, 2]]
+        if name.startswith('mouth_') and name[6:] in A['mouth']['keys']:
+            return (V + A['mouth']['keys'][name[6:]])[:, [0, 2]]
+        return V[:, [0, 2]]
+    return get
+
+
+def face_from(A, spec, key_xz, expressions=None, mouths=None):
+    """face()'s measures from the assembly A and a key reader key_xz(name) -> the skin's (x, z) under that shape key
+    (the basis for None or a missing key): Blender's shape keys, or key_xz_numpy(A). -> (table, checks)."""
     from .eyetex import DEFAULT_IRIS
-    skin = S.character['skin']; A = S.character['data']; Hd = A['head']; L = Hd['L']
+    Hd = A['head']; L = Hd['L']
     expressions = expressions or FACE_EXPECT.keys()
     EK = Hd['eye_knobs']; W = EK['width'] * L
-    IK = dict(DEFAULT_IRIS); IK.update(S.spec.get('iris') or {})
-    base = _key_xz(skin, None)
+    IK = dict(DEFAULT_IRIS); IK.update(spec.get('iris') or {})
+    base = key_xz(None)
     table = {'eyes': {}, 'mouth': {}}
     eyes = []
     for E in A['eyes']:
@@ -126,7 +150,7 @@ def face(S, expressions=None, mouths=None):
         _, a0 = opening(base[up], base[lo], xs)
         eyes.append((E['side'], up, lo, xs, iris, a0))
     for name in ['neutral'] + list(expressions):
-        P = base if name == 'neutral' else _key_xz(skin, 'eye_' + name)
+        P = base if name == 'neutral' else key_xz('eye_' + name)
         row = {}
         for side, up, lo, xs, iris, a0 in eyes:
             _, a = opening(P[up], P[lo], xs)
@@ -138,10 +162,9 @@ def face(S, expressions=None, mouths=None):
     up, lo = list(m['upper']), list(m['lower'])
     xs = np.linspace(base[up, 0].min(), base[up, 0].max(), 96)
     mid = 0.5 * (xs.min() + xs.max())
-    mouths = mouths or [k.name[6:] for k in (skin.data.shape_keys.key_blocks if skin.data.shape_keys else [])
-                        if k.name.startswith('mouth_')]
+    mouths = mouths or list(A['mouth'].get('keys') or [])
     for name in ['neutral'] + [k for k in mouths if k != 'neutral']:
-        P = base if name == 'neutral' else _key_xz(skin, 'mouth_' + name)
+        P = base if name == 'neutral' else key_xz('mouth_' + name)
         g, a = opening(P[up], P[lo], xs)
         on = g > 0.002 * L
         left, right = float(np.trapezoid(g[xs < mid], xs[xs < mid])), float(np.trapezoid(g[xs >= mid], xs[xs >= mid]))
@@ -264,8 +287,8 @@ def sheet(S, out):
     rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
     A = S.character['data']; Hd = A['head']; L = Hd['L']
     ex = Hd['eye_knobs']['x']
-    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
-    D = sheetqa.measure_sheet(rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
+    ppl = _memo(sheetqa.sheet_ppl, rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = _memo(sheetqa.measure_sheet, rgb, {k: tuple(v) for k, v in sh['heads'].items()}, ex, ppl=ppl)
     az3 = D.get('az_three_quarter', 35.0)
     # ours: every visible surface z-buffered at the sheet's scale, each triangle labelled by class
     from . import faceqa, trace
@@ -295,50 +318,9 @@ def sheet(S, out):
                 v, f = trace.mesh_arrays(o); t, _ = faceqa.triangles(*f)
                 dst.append((v, t, np.full(len(t), c)))
     irc = [trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']]     # iris centres (world)
-    cx, cy = Hd['centre'][0], Hd['centre'][1]
-    ez = float(np.mean([c[2] for c in irc]))
-    pix = 1.0 / ppl
-    win = faceqa.WIN
-    O, raw = {}, {}
-    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
-        a = math.radians(az)
-        org = (cx * math.cos(a) + cy * math.sin(a), ez)
-        # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
-        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix)
-        lab = np.where(lab < 0, CL['other'], lab)
-        face = faceqa.face_region(depth, np.where(lab == CL['skin'], 1, 0), 0.035 * L, pix=pix)
-        dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix)
-        shown = face & (lv == CL['skin'])
-        def px(P):
-            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
-            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
-        eyes = sorted(px(c) for c in irc)
-        if view == 'profile':
-            eyes = [px(max(irc, key=lambda c: c[0]))]                  # the near eye from +x: the character's left
-        raw[view] = (lab, face, shown, eyes, depth, lv)
-    # our chin: where the profile's front edge turns back to the neck (the under-chin runs smoothly into the neck, so
-    # the face region alone doesn't stop there); every view's face is cut below it, as a drawn jaw line cuts the design's
-    lab, face, shown, eyes, depth, lv = raw['profile']
-    M = sheetqa.measure_labels(lab, face, 'profile', ppl, eyes)
-    chin = faceqa.chin_bottom(-M['lead'], M['z'])
-    for view, (lab, face, shown, eyes, depth, lv) in raw.items():
-        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
-        if chin is not None:
-            # the skin below the chin out first, then the fill again: the neck beside the chin can then only be reached
-            # across the jaw's depth jump
-            skin = (lab == CL['skin']) & (zr >= chin)[:, None]
-            face = faceqa.face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
-            shown = face & (lv == CL['skin'])
-        O[view] = sheetqa.measure_labels(lab, face, view, ppl, eyes)
-        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+    O = sheetqa.measure_ours(meshes, covers, irc, Hd['centre'], L, ppl, az3)
     C = sheetqa.compare(O, D)
-    for view in ('front', 'three_quarter', 'profile'):             # the design's face is drawn as it shows: all of it
-        if view in O and view in D:
-            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
-            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
-            r = round(osh / max(1.0, dsh), 3)
-            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN',
-                                  'note': 'our lower face left showing by the hair, against the design\'s (warns only)'}
+    C.update(sheetqa.shown(O, D))
     _save_rgb(os.path.join(out, 'qa_sheet.png'), sheetqa.picture(O, D))
     strip = lambda M: {k: v for k, v in M.items() if not isinstance(v, np.ndarray) and k not in ('face', 'lab', 'z', 'lead')}
     table = {'ppl': ppl, 'az_three_quarter': az3, 'design': {v: strip(D[v]) for v in ('front', 'three_quarter', 'profile') if v in D},
@@ -489,8 +471,8 @@ def _sheet_context(S, out=None):
     rgb = _load_rgba(fp(sh['image']))[..., :3].astype(float)
     rig_alpha = _load_rgba(os.path.join(fp(ref['rig']), 'base.png'))[..., 3]
     ex = S.character['data']['head']['eye_knobs']['x']
-    ppl = sheetqa.sheet_ppl(rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
-    D = sheetqa.detect_figures(rgb, ppl=ppl, eye_x=ex, facing=sh.get('facing'))
+    ppl = _memo(sheetqa.sheet_ppl, rgb, sh['front_figure'], rig_alpha, json.load(open(rp))['ppl'])
+    D = _memo(sheetqa.detect_figures, rgb, ppl=ppl, eye_x=ex, facing=sh.get('facing'))
     fe = D['figures'].get('front', {}).get('eyes') or []
     ppl_eyes = abs(fe[1][0] - fe[0][0]) / (2 * ex) if len(fe) == 2 else None
     te = D['figures'].get('three_quarter', {}).get('eyes') or []
@@ -500,6 +482,27 @@ def _sheet_context(S, out=None):
     S._sheet_ctx = dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl_eyes, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
                         verify=sheetqa.verify_figures(D, sh))
     return S._sheet_ctx
+
+
+def _design(ctx):
+    """the design's full figures cut and classified (charkit.bodyqa.design_views): memoized by the build cache, so the
+    parts that use it don't each carry a copy."""
+    from . import bodyqa
+    return _memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
+
+
+def _memo(fn, *a, **kw):
+    """a design-side measurement (a pure function of the sheet's pixels): kept by the build cache per its arguments'
+    digest and its code (charkit.cache.memo), computed when there is no cache."""
+    from . import cache
+    return cache.memo(fn, *a, **kw)
+
+
+def _part(name, fn, S, *args):
+    """a QA part through the build cache (charkit.cache.part): restored with its overlays while everything it reads
+    (our meshes as rendered, the references, its code) is unchanged; called directly without a cache."""
+    from . import cache
+    return cache.part(name, fn, S, *args)
 
 
 def _scale_caution(ctx):
@@ -588,7 +591,7 @@ def sheet_body(S, out):
     S._sheet_colours = cols
     Hd = S.character['data']['head']
     iw = np.array([trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']])       # iris centres (world)
-    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    design = _design(ctx)
     labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, Hd['centre'], Hd['L'], ctx['ppl'], list(design))
     table, C, views = bodyqa.evaluate(labels, design, _scale_caution(ctx))
     table.update(ppl=round(ctx['ppl'], 2), az=bodyqa.azimuths(ctx['az3']))
@@ -607,9 +610,9 @@ def sheet_palette(S, out):
     ctx = _sheet_context(S, out)
     if 'why' in ctx:
         return None, {'palette': {'status': 'SKIPPED', 'why': ctx['why']}}
-    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    design = _design(ctx)
     cols = getattr(S, '_sheet_colours', None) or scene_classes(S)[1]
-    D, O = paletteqa.extract_views(design), paletteqa.ours(cols)
+    D, O = _memo(paletteqa.extract_views, design), paletteqa.ours(cols)
     _save_rgb(os.path.join(out, 'qa_sheet_palette.png'), np.repeat(np.repeat(paletteqa.picture(O, D), 2, 0), 2, 1))
     hx = lambda T: {k: paletteqa._hex(v) if v is not None and not isinstance(v, (int, float)) else v for k, v in T.items()}
     table = {'design': {n: hx(t) for n, t in D.items() if t}, 'ours': {n: hx(t) for n, t in O.items()}}
@@ -1011,14 +1014,14 @@ def run(S, out, ref_image=None):
     rep['checks']['mesh'] = {'status': 'INFO', 'objects': mh}
     # --- the eyes against the design's
     try:
-        rep['eyes'], ec = eyes(S, out)
+        rep['eyes'], ec = _part('eyes', eyes, S, out)
         rep['checks'].update({'eye_' + k: v for k, v in ec.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['eye'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face against the design's model sheet
     try:
-        rep['sheet'], sc_ = sheet(S, out)
+        rep['sheet'], sc_ = _part('sheet', sheet, S, out)
         rep['checks'].update({'sheet_' + k: v for k, v in sc_.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
@@ -1029,21 +1032,21 @@ def run(S, out, ref_image=None):
                          ('sheet_expr', sheet_expressions, ''), ('sheet_palette', sheet_palette, 'palette_')):
         try:
             with trace.span('qa.' + key):
-                rep[key], sc_ = fn(S, out)
+                rep[key], sc_ = _part(key, fn, S, out)
             rep['checks'].update({pre + k: v for k, v in sc_.items()})
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's shape against the generated character's
     try:
-        rep['face_shape'], fc = face_shape(S, out)
+        rep['face_shape'], fc = _part('face_shape', face_shape, S, out)
         rep['checks'].update({('face_shape_' + k if not k.startswith('face_shape') else k): v for k, v in fc.items()})
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['face_shape'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's expressions and mouth shapes (geometry)
     try:
-        rep['face'], fc = face(S)
+        rep['face'], fc = _part('face', face, S)
         rep['checks'].update({'face_' + k: v for k, v in fc.items()})
     except Exception as e:                                         # a face check that can't run says so, the rest stands
         rep['checks']['face'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}

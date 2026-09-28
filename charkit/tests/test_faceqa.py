@@ -69,6 +69,10 @@ def test_chin_bottom():
     z = np.linspace(0, -0.6, 61)
     front = np.where(z > -0.4, -0.3 - 0.1 * (z / -0.4), 0.0)           # forward to the chin at -0.4, then back to the neck
     assert abs(faceqa.chin_bottom(front, z) - (-0.4)) < 0.011
+    # a nose projecting 0.1 L at -0.14: searched from under it, the chin is still the chin
+    nose = front - 0.1 * np.exp(-((z + 0.14) / 0.02) ** 2)
+    assert abs(faceqa.chin_bottom(nose, z, below=-0.2) - (-0.4)) < 0.011
+    assert faceqa.chin_bottom(nose, z) > -0.2                          # (from 0.1 L it takes the nose for the chin)
 
 
 if __name__ == '__main__':

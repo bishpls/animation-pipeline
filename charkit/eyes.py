@@ -172,13 +172,20 @@ class Face:
         self.H = headlib.Head(H.L, H.K, features=False)
         self.c = np.asarray(centre)
 
+    def points(self, x, z):
+        """point() over arrays of world x and z -> (M, 3)."""
+        zr = np.asarray(z, float) - self.c[2]
+        a = ah.surface_azimuths(self.H, x, zr, hi=math.pi * 0.62)
+        return self.H.surfaces(a, zr) + self.c
+
     def point(self, x, z):
-        zr = z - self.c[2]
-        a = ah.surface_azimuth(self.H, x, zr, hi=math.pi * 0.62)
-        return self.H.surface(a, zr) + self.c
+        return self.points(np.atleast_1d(float(x)), np.atleast_1d(float(z)))[0]
 
     def y(self, x, z):
-        return self.point(x, z)[1]
+        """the surface's y at world x, z (scalars or arrays)."""
+        if np.ndim(x) == 0 and np.ndim(z) == 0:
+            return float(self.point(x, z)[1])
+        return self.points(*np.broadcast_arrays(np.asarray(x, float), np.asarray(z, float)))[:, 1]
 
     def normal(self, x, z, e=1e-4):
         p = self.point(x, z)
@@ -203,7 +210,7 @@ def spread(src_old, disp, pts, floor=0.003, k=1.6):
 def _world(F, ex, ez, side, x, z, depth=0.0):
     """eye-local (x, z) -> world, on the face surface, pushed back by depth along the view (y)."""
     X = ex + side * np.asarray(x); Z = ez + np.asarray(z)
-    P = np.array([F.point(a, b) for a, b in zip(np.atleast_1d(X), np.atleast_1d(Z))])
+    P = F.points(*np.broadcast_arrays(np.atleast_1d(X).astype(float), np.atleast_1d(Z).astype(float)))
     P[:, 1] += depth
     return P
 
@@ -238,10 +245,9 @@ def place(V, eye, F, K, L, side, eye_c):
     # outer rings: the margin's in-surface motion, fading; re-seated on the face at their old depth offset
     ov = np.array(list(eye['outer'].keys()))
     mvs = spread(old[:, [0, 2]], dxz, V[ov][:, [0, 2]])
-    for v, mv in zip(ov, mvs):
-        off = V[v, 1] - F.y(V[v, 0], V[v, 2])
-        x2, z2 = V[v, 0] + mv[0], V[v, 2] + mv[1]
-        V[v] = [x2, F.y(x2, z2) + off, z2]
+    off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
+    x2, z2 = V[ov, 0] + mvs[:, 0], V[ov, 2] + mvs[:, 1]
+    V[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1)
     for v, p in tgt.items():
         V[v] = p
     # the pocket: a funnel from the margin back behind the plate (the lid's thickness, then the back wall). An anime base's
@@ -250,7 +256,9 @@ def place(V, eye, F, K, L, side, eye_c):
     cen = np.array([ex, ez])
     sock = eye.get('socket') or {}
     mi = {v: j for j, v in enumerate(m)}
-    for v, r in eye['pocket'].items():
+    pv, rows = list(eye['pocket'].keys()), []
+    for v in pv:
+        r = eye['pocket'][v]
         if v in sock:
             src, pull, dz = sock[v]
             mp = new[mi[src]]
@@ -259,9 +267,10 @@ def place(V, eye, F, K, L, side, eye_c):
             mp = new[j]
             pull = min(0.92, 0.05 + 0.13 * (r - 1))
             dz = 0.0012 + 0.0022 * (r - 1) ** 0.8
-        x2 = mp[0] + (cen[0] - mp[0]) * pull
-        z2 = mp[2] + (cen[1] - mp[2]) * pull
-        V[v] = [x2, F.y(x2, z2) + depth + dz, z2]
+        rows.append((mp[0] + (cen[0] - mp[0]) * pull, mp[2] + (cen[1] - mp[2]) * pull, dz))
+    if pv:
+        x2, z2, dz = np.array(rows).T
+        V[np.array(pv)] = np.stack([x2, F.y(x2, z2) + depth + dz, z2], 1)
     return V, tgt
 
 
@@ -300,9 +309,9 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
     loc = np.array(loc)
     rho_of = np.concatenate([[0.0], np.repeat(reach * np.arange(1, nr + 1) / nr, na)])
     depth = D0 + 0.004 * L * np.clip((rho_of - 0.92) / (reach - 0.92), 0, 1) ** 2
-    for (x, z), d in zip(loc, depth):
-        pts.append(_world(F, ex, ez, side, [x + shift[0]], [z + shift[1]], depth=d)[0])
-        uvs.append((x / W + 0.5, z / W + 0.5))
+    pts = _world(F, ex, ez, side, loc[:, 0] + shift[0], loc[:, 1] + shift[1])
+    pts[:, 1] += depth
+    uvs = [(x / W + 0.5, z / W + 0.5) for x, z in loc]
     faces = []
     for k in range(na):                                         # the centre fan
         f = (0, 1 + k, 1 + (k + 1) % na)
@@ -395,10 +404,10 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
         D[v] = d
     src = V[mv]
     ov = np.array(list(eye['outer'].keys()))
-    for v, d in zip(ov, spread(src, md, V[ov])):
-        x2, z2 = V[v, 0] + d[0], V[v, 2] + d[2]
-        off = V[v, 1] - F.y(V[v, 0], V[v, 2])
-        D[v] = np.array([x2, F.y(x2, z2) + off, z2]) - V[v]
+    d = spread(src, md, V[ov])
+    x2, z2 = V[ov, 0] + d[:, 0], V[ov, 2] + d[:, 2]
+    off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
+    D[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1) - V[ov]
     sock = eye.get('socket') or {}
     dm = D[np.array(eye['margin'])].mean(0)
     for v, r in eye['pocket'].items():

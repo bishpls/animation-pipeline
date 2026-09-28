@@ -85,6 +85,134 @@ spec -> body (MakeHuman base + targets + stylise + skeleton + weights)
 Each stage is its own module with a function that takes the spec and the scene so far, so a stage can be rebuilt alone,
 and each writes its review board, looked at before the next is trusted.
 
+In code (`charkit/scene.py`): `fit_cranium` (the skull's height from the generated hair) -> `character` (body, head,
+features, keys) -> `hair` (and accessories) -> `face_shading` -> `garments`; then the products: boards, QA, the VRM, the
+`.blend`. With `hair.shape.mode 'geom'` the hair is cut venv-side first (`charkit.geom`, `OUT/geom/hair.npz`).
+
+### The build cache
+
+`python -m charkit build` restores a stage from `charkit/out/.cache/` instead of running it when nothing the stage read
+has changed (`charkit/cache.py`), and restores the boards, the QA and the VRM the same way when the whole scene is
+unchanged. Inside the QA each part (eyes, sheet, figures, body, expressions, palette, face shape, face) is cached on its
+own, and the design-side measurements of the model sheet (figure detection, the sheet's scale and measures, the design's
+views and palette) are kept per reference and code. The trace says, per stage, product and part, what was restored and,
+for what ran, why (`python -m charkit trace OUT/trace.jsonl`; the summary line reads `cache: 12/14 restored; ran garments
+(spec.garments changed), qa (the scene changed ...)`). `history` rows carry the same.
+
+**A stage's key is what it read, recorded as it ran**, not a list kept by hand (the trace's `STAGE_KEYS` misses keys such
+as `lash_color` and `base`, which the character reads):
+- *code*: the stage function, the `scene.py` helpers it calls and `scene.py`'s top-level statements, and every charkit
+  module those import, transitively, compared as syntax trees (a comment or docstring edit doesn't count); the kit's data
+  (`charkit/assets`); `cache.py`; the Blender, numpy and Python versions.
+- *spec*: every key it read, at any depth (`spec.head.width`, `spec.eyes.x`), exactly.
+- *upstream*: every value it read of earlier stages, key by key through the Scene's dicts (`character.data.head.L`,
+  `character.data.joints.neck01____head`), `shade.MATS` entries, Blender objects (their full state), except where
+  `scene.DEPS` declares that a stage reads a value only in part (below).
+- *files*: every file it opened outside the kit (the TRELLIS GLB; `OUT/geom/hair.npz`) and every path named in the spec
+  keys it read, by sha256 (a stat-checked memo skips re-hashing an unchanged file; the reference manifest's own sha256 is
+  compared against, never trusted instead). A file under the output folder is keyed relative to it.
+
+A lookup evaluates each stored entry's recorded reads against the scene as it stands and restores the first that matches
+in full. Keys are exact: a float that moved by 1e-11 is a change.
+
+**The dependency map** (Clawd, as recorded in its entries' manifests):
+
+| step | spec keys read | what it reads of earlier steps | files |
+| --- | --- | --- | --- |
+| geom hair (venv, `mode: geom`) | the resolved spec without the outfit | (assembles the character itself) | the GLB; the venv's packages |
+| fit_cranium | `body.height_m`, `body.heads_tall`, `eyes.x`, `hair.shape.{glb, fit_cranium, under}`, whether `head.cranium` is set | - | the GLB |
+| character | `base`, `name`, `body`, `head`, `head_detail`, `eyes`, `iris`, `brows`, `mouth`, `skin`, `skin_line`, the lash, brow, crease, cavity, eyeline and mouth-line colours | which `shade.MATS` materials exist | (the MakeHuman or anime base: the kit's data, in the code key) |
+| hair | `hair`, `hair_colors`, `accessories` | the head (`H`, `L`, centre, eye knobs `x` and `z`, the wrap's target), the body's verts and faces (the generated hair is cut against our skin), the rig's structure, `shade.MATS` | the GLB, or `OUT/geom/hair.npz` |
+| face_shading | - | the head (`H`, centre), verts, faces, the head weights, the skin colours, the skin's structure, the hair objects' names and the fringe (`hair_front*`) | - |
+| garments | `garments` | verts below the neck's middle, faces, 52 bones' weights, the 22 joints its bones run between (the neck's two among them), `L`, the head's centre, the body's UVs, the rig's and the skin's structure | - |
+| boards, QA, VRM | the whole spec and every file it names | every stage's entry, and the products before them | what they open |
+| QA parts | what each reads (`spec.ref.*`) | each reads through the Scene: eyes and face the head and its keys, figures the eye spacing, body, palette, sheet and face shape the whole character and the clothes | the sheet, the rig, `OUT/ref_measure.json` |
+
+`scene.DEPS` holds the partial reads, each with its reason: garments read the body only below the neck's middle
+(`body_below_neck`: shell regions, the collar's neckline, bands, sections and nearest-vertex weights all lie there; an
+outfit reaching the head or past the neck's middle is keyed on the whole body); a stage that only parents to the rig, or
+adds a vertex group and a modifier to the skin, reads their *structure* (names, stack, transform, pose), not their
+geometry; face shading reads the fringe, not the rest of the hair.
+
+What the measured keys show about the build itself:
+- **head.width is not a face-only knob**: the head wrap drags the joints near the head with it (`anime_head.follow`
+  moves every joint within 0.35 L of the chin with the surface: 127 of them), among them the neck bone's two ends, which
+  the top's neckline, the collar and the neck's cut hang from, by 0.055 and 0.069 mm. A fresh build at `head.width` 1.1
+  moves the collar by 0.5 mm and the sleeves and cuffs a little, so garments rebuild, and the trace says why:
+  `garments: miss (character.data.joints.head____head moved 6.9e-05; character.data.joints.neck01____head moved
+  5.5e-05; ...)`. `eyes.width` moves no joint the outfit uses: garments are restored.
+- **Body knobs reach the head by float noise**: `body.proportions.leg_slim` moves every vertex, and the joints at the
+  head by about 2e-11 m (rounding through the body's proportion and height scaling), so the hair, which reads the head
+  and the body round it, rebuilds. Keys are exact on purpose; removing that noise at its source (and keying the hair on
+  the body near the head only) is what would let a body-only change keep the hair.
+
+**A checkpoint holds what the stage changed**, so it restores onto a rebuilt upstream (garments onto a new face): the
+datablocks it made (`data.blend`, written by `bpy.data.libraries.write`; what they point at from before, the rig or a
+shared material, is re-bound by name on append), and pickled (`state.pkl`, Blender references by name) the Scene
+attributes and the spec and dict entries it wrote, key by key, its `shade.MATS` entries, its notes, and its changes to
+objects made before it: new vertex groups, modifiers (settings and stack position), attributes and material slots,
+replayed on restore. Pickle holds numpy arrays and charkit's own classes as Python keeps them (a `.npz`/JSON schema would
+have to track every structure a stage keeps); entries are read only from this folder, which charkit alone writes.
+
+**Correctness before speed.** A stage that changes anything a restore can't replay (an earlier mesh's vertices, a
+material made before it, the scene's settings, an object it reached without reading it through the Scene, a value it read
+changed in place) is uncacheable: it runs every time, and the trace and `CHARKIT_CACHE_UNCACHEABLE` say why. After a
+restore the trace's own snapshot of the stage (the objects it added, their geometry hashes and health; the names and
+modifier stacks of those it changed) must equal the one stored with the entry, or the build starts over with every step
+run and the entry dropped (`CHARKIT_CACHE_RESTORE_FAILED`). `--cache verify` runs every step and compares it with the
+entry a lookup would have restored, flagging a key that missed an input (`CHARKIT_CACHE_STALE`; images are compared by
+their pixels' encoding, not the date Blender stamps into each PNG). Nothing is stored from a run that printed a traceback
+(a QA check that caught an error and reported SKIPPED: a full disk once did that to the model-sheet body check), from a
+build whose charkit sources changed while it ran, or with less than `CHARKIT_CACHE_MIN_FREE_GB` (2) left on the disk; a
+store that fails leaves the build running, uncached.
+
+Modes: `--cache on` (the default), `off` (or `--no-cache`), `refresh` (run and store everything), `stages` (restore the
+stages, run the products afresh on the restored scene), `verify`. `python -m charkit cache info | clear`; the cache
+keeps under `CHARKIT_CACHE_GB` (5) by dropping the least recently used entries (`python -m charkit ps` and `cache info` show its size); `CHARKIT_CACHE_DIR` moves it.
+
+### The build worker
+
+`python -m charkit worker start | stop | status` keeps one Blender running with charkit loaded (`charkit/worker.py`,
+`charkit/worker_blender.py`); `build` sends its job over a local socket when the worker runs, and starts a fresh Blender
+otherwise or with `--no-worker`. Each job drops and re-imports charkit's modules (edited code and module state never
+carry over), resets the scene to factory settings, and checks the datablock counts and charkit's own handlers against
+the worker's first clean state; a job that finds anything left over prints `CHARKIT_WORKER_LEAK` and the worker restarts
+itself in place afterwards. The worker is recorded in `charkit/out/worker/.pid.json` and each job in its output folder
+under the worker's pid (`python -m charkit ps`, `kill`); `stop` signals only that pid, after checking it is this
+checkout's worker. Each job takes a machine-wide build slot (`procs.acquire_slot`, with its memory check) and, after
+clearing its scene and collecting Python's garbage, gives it back: an idle worker holds no slot. It saves Blender's
+start-up and keeps its render state warm between builds. Memory: 0.2 GB idle when started; a job's scene is cleared and
+Python's garbage collected before its slot goes back, but Blender and Python keep 0.5 to 1.2 GB of what a Clawd build
+freed (measured after cold, warm and other-character jobs), so after a job that leaves it above
+`CHARKIT_WORKER_MAX_IDLE_MB` (600) the worker restarts in place (same pid and socket; a build that arrives meanwhile
+waits for it) and idles at 0.2 GB again. `worker status` shows its resident memory and restarts; stop it when done.
+
+Measured on Clawd (`--boards views`, QA on, `--no-blend`; wall clock on a machine shared with other builds, load
+average 30 to 60, so the ratios matter more than the seconds):
+
+| build | time | restored | ran |
+| --- | --- | --- | --- |
+| fresh, `--cache off` | 200.7 s | - | everything |
+| cold (cache on, empty) | 203.2 s | - | everything (the cache's own cost: 1%) |
+| warm, no change | 4.6 s (Blender 3.3 s) | every stage, the boards, the QA | nothing: 44x |
+| warm in the worker | 4.2 s | everything | nothing |
+| `--cache stages` | 104.8 s | the stages | the boards and QA, on the restored scene |
+| `eyes.width` 0.2 -> 0.22 | 150.5 s | fit, garments, 1 QA part | character, hair, face shading, boards, 7 QA parts |
+| `head.width` 1.0 -> 1.1 | 292.1 s | fit, 1 QA part | every stage (the neck's joints moved), boards, QA |
+| a skirt's colour | 145.8 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+| the GLB changed in place | 183.7 s | character, face shading, garments, 3 QA parts | fit, hair, boards, the rest of QA |
+| a comment in garments.py | 8.1 s | everything | nothing |
+| a code edit in garments.py | 133.0 s | fit, character, hair, face shading, 4 QA parts | garments, boards, 4 QA parts |
+
+Every one of those builds trace-diffs to `no differences` against a fresh build of the same spec, with identical
+`qa.json` values and pixel-identical boards and QA overlays (`charkit/tests/cache_builds.py`); the worker's builds, the
+same spec twice with another character between, likewise (`charkit/tests/worker_builds.py`).
+
+Tests: `charkit/tests/test_cache.py` (digests, recorded reads, the code closure, the file memo, invalidation by a code
+file, an input file or a spec key, and a restore onto a rebuilt upstream in Blender);
+`charkit/tests/cache_builds.py` and `charkit/tests/worker_builds.py` (real builds: what each change restores and runs,
+the times, and the trace and qa.json proofs against fresh builds).
+
 ## 4. Measurement and review (the quality gate)
 
 Numbers first, pictures second. `python -m charkit build` writes two records into the output folder:
@@ -117,9 +245,13 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
     is the same drawing at a known scale, and each view is aligned on its eyes. The 3/4 angle comes from how much the
     eye spacing shortens. In the drawing, the face is the skin reached from under the eyes with the drawn lines as
     walls. Ours is `faceqa`'s z-buffer at the sheet's scale, each triangle labelled by class, without the hair. Its face
-    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck. Graded:
+    is bounded by depth jumps and cut at the chin, where the profile's front edge turns back to the neck (searched from
+    0.2 L under the eye line, below the nose: a projecting nose isn't the chin). Graded:
     - the front half-widths at 55% and 75% of the way to each face's own chin;
-    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck);
+    - the neck's width under the chin against the jaw's (no jaw line reads as a face running into the neck). It reads
+      one row, 0.06 L under the chin; `neck_run` (INFO) says how much neck shows there before the collar. Under about
+      0.1 L, a one-pixel chin move flips that row between the neck and the shirt: on Clawd the neck read 0.139 or
+      0.048 L;
     - the profile's front edge, the nose's and chin's reach in front of the eye, and the chin's height;
     - the far cheek at 3/4.
 
@@ -222,6 +354,94 @@ so its bottom isn't the chin). It also names which reference is the authority fo
 the 3D rebuild is settled in writing.
 - A spec points at it with `ref.manifest`, and any spec value `ref:KEY` becomes that reference's path.
 - `python -m charkit refs-check SPEC` verifies the manifest.
+
+**The QA chooses the face's knobs: `python -m charkit fit SPEC`** (`charkit/facefit.py`). The face, eye and neck knobs
+are fitted to the graded eye, sheet and face-shape checks, then built (`build DIR/NAME.fit.json`).
+- **The fast evaluator** (`charkit/faceeval.py`, numpy only) measures a knob set the QA's way in a few seconds (a full
+  Blender build takes 90). It makes what the build would make: `character.assemble` without the shape keys, keeping the
+  body and the wrap's knob-independent part between calls (0.5 s). The skin is subdivided as Blender's modifier does it
+  (`charkit/subdiv.py`: level 1, limit surface, eye margins creased, OpenSubdiv's child order; within 1 µm of Blender's).
+  The cranium is fitted from the hair, and the TRELLIS target is aligned on our eyes, both as the build does. Then it
+  runs the QA's own measures: `sheetqa.measure_ours` (moved out of `qa3d.sheet` so both call the same code),
+  `faceqa.measure`, and `eyeqa` on an eye render of its own. That render is a 4x-supersampled z-buffer: the skin coloured by
+  material, the eye plates by their `eyetex` textures at their UVs (the iris over the white by its alpha), the lashes
+  flat, filtered like EEVEE's pixel filter. The expression checks (`face_*`), `face_folds` and the sheet's expression
+  heads (`expr_*`, `faceeval.expression_data`: the posed control meshes and their key offsets, as `qa3d.expression_data`
+  reads them) come from the assembly with its keys (`qa3d.face_from`, `qa3d.key_xz_numpy`). What only Blender makes is cached once per spec by
+  `charkit/fit_blender.py` (`charkit/out/fit_cache/`): the loaded TRELLIS mesh, and the scene's hair, accessories and
+  garments. The garments follow the skin they were fitted on, so neck knobs move the neckline.
+  `python -m charkit fit --validate BUILD_DIR` compares it with a build's own `qa.json`.
+- **The fit** (`charkit/fitkit.py`, generic; `facefit.py` declares the face's part). Knobs carry a spec path, template
+  default, step, bounds and group. Terms are graded checks read as residuals in units of their PASS tolerance. The
+  manifest's authority map weights them: full weight where that reference is the authority for the measure, a quarter
+  otherwise, so the sheet leads the face's 2D shape, the rig the eyes, and TRELLIS the depth. A residual beyond its
+  tolerance counts again (a hinge); a missing check costs 3; a regulariser pulls toward the template defaults. Each
+  group is fitted by scipy's trust-region least squares on a parallel finite-difference Jacobian (one knob step). The
+  sheet's 115-px/L grid is smoothed there over four sub-pixel offsets, with a soft-L1 loss so a term that flips between
+  two readings can't steer. A pattern search at the QA's own grid then polishes the result. It is deterministic.
+  The groups are `eyes` (the eye checks) and `face` (sheet and face-shape: front, 3/4, profile and depth at once).
+  - Interface: `facefit.fit(spec, out, budget=None) -> (fitted_spec, report)`; `facefit.declare()` lists the knobs
+    (bounds included) and the terms.
+  - `DIR/sensitivity.json` (schema `charkit.sensitivity/1`): knob -> measure -> {at, minus, plus, per_step, per_unit}.
+    `sensitivity.md` is the readable version.
+  - `DIR/fit_report.json|md`: every check before and after, residuals per view, each knob's start, fitted value, default
+    and whether it ended at a bound. What still fails is triaged (`fitkit.triage`) as *needs a knob*, *knob at bound* or
+    *trade-off*.
+  - `--views` also fits each view alone. If every view passes alone but not together, one rigid face can't match them
+    all, which is the case for view-dependent face keys.
+- **Knobs added for it**: `head.nose_tip` (the nose's projection in L: a relief on the wrapped face, both bases;
+  `Head.nose_relief`) and `head.low_flat` (the lower face's section, from a sharp V to a broad jaw, growing from the eye
+  line to the chin). The neck already had `body.proportions.neck_w`, `neck_len` and `head.neck_r`.
+- **Fixes it needed**: `refs.fit` takes the chin from the model sheet (`refs.sheet_chin`), or from the rig's face layer
+  less its bleed. The QA's chin search (`faceqa.chin_bottom`) starts under the nose, where a projecting nose used to
+  read as the chin. `faceqa`'s depth regions stop at the higher of the two chins, since below it the check read the
+  target's neck against our under-chin.
+- **Every graded check keeps its status.** The merge gate fails any check that reads worse, so the fit protects them:
+  - its own terms are held in the status band they had at the start, or in `--baseline QA.json` (the gate's build),
+    by a steep extra residual;
+  - the hair's coverage checks are held the same way, with a token weight: they are the hair's to meet, not the face's;
+  - the checks it doesn't model as terms (expressions, folds) are held by `fitkit.guard`, which scales a group's change
+    back while one of them reads worse.
+- **The cached hair and garments follow the fit.** While searching, the garments move with the skin (only an
+  approximation of refitting them: it misread the neckline by 0.1 in `neck_to_jaw`). The hair stays as culled against
+  the start's face, but a fuller face culls more of the generated side locks, which moved Clawd's 3/4 coverage from
+  0.93 to 1.34. So the fit rebuilds both in Blender for the fitted head and body and fits the face again from there, up
+  to twice (`--refresh-only` runs just this from the spec's knobs).
+- **Clawd** (`charkit/spec/clawd.json` carries the fitted knobs). Against the integration build, 18 graded checks move up a
+  status and 1 down; the rest keep theirs. Per view, the RMS residual against the design (in tolerances; 1 passes):
+  - front 3.65 -> 1.10: the sheet's widths FAIL -> WARN; `neck_to_jaw` FAIL -> WARN;
+  - 3/4 2.88 -> 1.43: the far cheek's chin WARN -> PASS;
+  - profile 3.55 -> 1.50: the front edge and chin reach FAIL -> WARN; the chin's height WARN -> PASS;
+  - depth against TRELLIS 7.96 -> 1.02: FAIL -> WARN;
+  - eyes 2.98 -> 1.15: pupil run and aspect, iris ratio, width and lid gap now PASS; lid span WARN; the opening's
+    aspect is still short of the design's tall oval (0.74, a trade-off with pupil run and lid gap).
+  The one move down is `face_shape_coverage_three_quarter` (PASS 0.93 -> WARN 1.34), a hair check. `scene.cull_face`
+  drops generated hair lying within the face's width below the eyes, so the sheet's wider jaw culls the side locks
+  that cover the cheeks. Scaling the face change back to half still reads 1.19; freezing the widths restores it, but
+  gives up the width, neck and depth gains. Keeping the side locks is the hair's to decide (the geom hair already
+  keeps them in front of the cheeks).
+  - Each view fitted alone from the joint result (`--views`), against the joint fit: front 1.19 (1.10 jointly), 3/4
+    1.45 (1.43), profile 1.45 (1.50). So one rigid face holds all three about as well as each could alone. What limits
+    them is the knob set, not a conflict between views:
+    - front: `neck_to_jaw`;
+    - 3/4: TRELLIS's fuller cheek;
+    - profile: the drawn nose reach, which a rigid face can't follow (the one candidate for a profile-only face key).
+    Depth against TRELLIS passes alone (0.04) but reads 1.02 with the sheet: the 3D restyle's rounder face disagrees
+    with the drawing, and the sheet has the authority.
+  - The evaluator agrees with Blender's QA on four builds: the unfitted Clawd, the fitted Clawd twice (before and after
+    a merge), and the fitted knobs on the anime base. That is 46 checks each: 183 of 184 statuses match,
+    the miss being the anime base's `eye_lid_span` (WARN against PASS). The sheet, face-shape, expression and fold
+    values match exactly. The eye values match to 0.04 on the unfitted face and to 0.09 on the fitted ones (see the
+    lash gap below).
+- **Known gaps**:
+  - The evaluator doesn't draw the skin's outline shell. In a render that shell can hide part of a lash lying within
+    its 1.1 mm of folded lid skin. On the fitted Clawd, Blender's eye aspect read 0.74 against the evaluator's 0.78,
+    and pupil aspect 0.81 against 0.94, with the same statuses. Neither a culled nor an unculled shell reproduces
+    what EEVEE draws, so fitted eyes are confirmed in a build.
+  - The sheet is 115 px per head length, so one pixel is 0.009 L, half a chin tolerance. `neck_to_jaw` reads a single
+    row, and `neck_run` above 0.1 L keeps that row off the collar.
+  - The drawn profile's nose reach (0.157 L in front of the eye) is a drawing convention. A rigid 3D nose that long
+    reads as a spike, so `nose_tip` stops at 0.04 L and the nose-reach term stays a trade-off.
 
 **The fast evaluator: the body, garments and hair without Blender** (`charkit/bodyeval.py`). A fit needs many
 evaluations, and a Blender build with its QA takes about 100 s. `bodyeval.Evaluator(spec)` makes every object the build

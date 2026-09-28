@@ -166,6 +166,19 @@ def measure_labels(lab, face, view, ppl, eyes, facing=-1):
                 vals = [np.nanmean(a[sel]) for a in (left, right) if np.isfinite(a[sel]).any()]
                 m[k] = round(float(max(vals)), 4) if vals else None
         out['widths'] = m
+        # how much skin shows down the midline under the chin (a drawn jaw line skipped) before anything else: the neck's
+        # visible run (the neck check below reads one row of it, so a short run puts that row on the collar)
+        if chin is not None:
+            r0 = int(np.argmin(np.abs(z - chin))) + 1
+            c0 = int(round(ex))
+            col = (lab[:, c0] == 1) | (lab[:, c0] == 5) if 0 <= c0 < W else np.zeros(H, bool)
+            k = r0
+            while k < min(H, r0 + 5) and not col[k]:
+                k += 1
+            e = k
+            while e < H and col[e]:
+                e += 1
+            out['neck_run'] = round((e - r0) / ppl, 4) if e > k else 0.0
         # the neck just under the chin: the skin connected to the midline 0.06 L below the chin, its half-width (a drawn
         # jaw sits clearly wider than the neck; a face that runs into the neck with no jaw line doesn't)
         if chin is not None:
@@ -275,6 +288,9 @@ def compare(O, D):
             C['neck_to_jaw'] = {'value': round(ro / rd, 3), 'ours': round(ro, 3), 'design': round(rd, 3),
                                 'status': grade('width', abs(ro / rd - 1)),
                                 'note': "the neck's half-width under the chin over the face's at 75%: near 1 = no jaw line"}
+        if O['front'].get('neck_run') is not None:
+            C['neck_run'] = {'value': O['front']['neck_run'], 'design': D['front'].get('neck_run'), 'status': 'INFO',
+                             'note': 'skin showing down the midline under the chin, L; neck_to_jaw reads its row at 0.06'}
     for view, key in (('profile', 'profile'), ('three_quarter', 'cheek')):
         if view not in O or view not in D:
             continue
@@ -318,6 +334,72 @@ def picture(O, D, scale=2):
         return np.ones((10, 10, 3))
     im = np.concatenate(tiles[:-1], 1)
     return np.repeat(np.repeat(im, scale, 0), scale, 1)
+
+
+def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2):
+    """our face measured as the design's is (charkit/qa3d.py hands over the scene's arrays; charkit/faceeval.py its own):
+    meshes [(V world, tris, class per triangle)]: the skin, eyes, mouth and clothes (not the hair); covers: the hair and
+    what it carries, the same way (only for how much face shows); irc: the iris plates' centres (world); centre: the head
+    centre (world x, y); L the head length; ppl: the sheet's pixels per head length; az3: the three-quarter azimuth.
+    Each view is z-buffered at the sheet's scale (charkit.faceqa), the face is the skin reached from under the eyes
+    without crossing a depth jump, and every view's face is cut at the chin (where the profile's front edge turns back
+    to the neck, searched from `below` L under the eye line: under the nose), as a drawn jaw line cuts the design's.
+    -> {view: measure_labels(...) + 'shown'}."""
+    import math
+    from . import faceqa
+    cx, cy = centre[0], centre[1]
+    ez = float(np.mean([c[2] for c in irc]))
+    pix = 1.0 / ppl
+    win = faceqa.WIN
+    O, raw = {}, {}
+    for view, az in (('profile', 90.0), ('front', 0.0), ('three_quarter', az3)):
+        a = math.radians(az)
+        org = (cx * math.cos(a) + cy * math.sin(a), ez)
+        # the face's shape without the hair (we know it underneath); how much of it the hair leaves showing apart
+        depth, lab = faceqa.zbuffer(meshes, az, org, L, pix)
+        lab = np.where(lab < 0, CLASS['other'], lab)
+        face = faceqa.face_region(depth, np.where(lab == CLASS['skin'], 1, 0), 0.035 * L, pix=pix)
+        if covers:
+            dv, lv = faceqa.zbuffer(meshes + covers, az, org, L, pix)
+        else:
+            lv = lab
+        def px(P):
+            u, z, _ = faceqa.view(np.asarray(P, float)[None], az)
+            return (float(((u[0] - org[0]) / L + win['x']) / pix), float((win['top'] - (z[0] - org[1]) / L) / pix))
+        eyes = sorted(px(c) for c in irc)
+        if view == 'profile':
+            eyes = [px(max(irc, key=lambda c: c[0]))]                  # the near eye from +x: the character's left
+        raw[view] = (lab, face, eyes, depth, lv)
+    # our chin: where the profile's front edge turns back to the neck (the under-chin runs smoothly into the neck, so
+    # the face region alone doesn't stop there); every view's face is cut below it, as a drawn jaw line cuts the design's
+    lab, face, eyes, depth, lv = raw['profile']
+    M = measure_labels(lab, face, 'profile', ppl, eyes)
+    chin = faceqa.chin_bottom(-M['lead'], M['z'], below)
+    for view, (lab, face, eyes, depth, lv) in raw.items():
+        zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
+        if chin is not None:
+            # the skin below the chin out first, then the fill again: the neck beside the chin can then only be reached
+            # across the jaw's depth jump
+            skin = (lab == CLASS['skin']) & (zr >= chin)[:, None]
+            face = faceqa.face_region(depth, skin.astype(int), 0.035 * L, pix=pix)
+        shown = face & (lv == CLASS['skin'])
+        O[view] = measure_labels(lab, face, view, ppl, eyes)
+        O[view]['shown'] = round(float(shown.sum() / max(1, face.sum())), 3)
+    return O
+
+
+def shown(O, D):
+    """how much of our lower face the hair leaves showing against the design's (drawn as it shows: all of it); warns
+    only. -> {'shown_' + view: check}."""
+    C = {}
+    for view in ('front', 'three_quarter', 'profile'):
+        if view in O and view in D:
+            dsh = float((D[view]['face'] & (D[view]['z'][:, None] < -0.02)).sum())
+            osh = float((O[view]['face'] & (O[view]['z'][:, None] < -0.02)).sum()) * O[view]['shown']
+            r = round(osh / max(1.0, dsh), 3)
+            C['shown_' + view] = {'value': r, 'status': 'PASS' if abs(r - 1) <= 0.2 else 'WARN',
+                                  'note': 'our lower face left showing by the hair, against the design\'s (warns only)'}
+    return C
 
 
 def sheet_ppl(sheet_rgb, front_box, rig_alpha, rig_ppl):
