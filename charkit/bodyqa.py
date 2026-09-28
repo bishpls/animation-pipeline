@@ -4,9 +4,9 @@ measured the same way from a class image (pure numpy; ours is the scene z-buffer
 The drawing is segmented by colour into skin, hair, iris, line and the garment colour families (orange dress, cream bow /
 panel / cuffs, dark brown hems and shorts, white boots). Hair and the dress share their orange, so an orange region (the
 drawn lines are its walls) is hair when its centre lies above HAIR_SPLIT (the shoulders), else dress; a cream fold's
-shadow has skin's hue, so a pale region is skin or cream by its majority. Dark regions thick
-enough to survive an erosion are garment (shorts, hems, soles); thin ones are line. Lines are then absorbed into the
-classes they separate, as ours has none.
+shadow has skin's hue, so a pale region is skin or cream by its majority. Dark regions thick enough to survive an erosion
+are garment (shorts, hems, soles); thin ones are line. Lines are then absorbed into the classes they separate, as ours has
+none.
 
 Both sides share one grid: the sheet's scale (pixels per head length L) and an origin on the eyes, so heights run from the
 eye line. Aligned on the eyes, not the feet: every other sheet check is measured from the eye line, and a proportion error
@@ -365,6 +365,12 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
                              'note': "each arm's angle off the vertical, shoulder to hand (degrees); the build pose is "
                                      "not the sheet's, so the skin and silhouette IoUs carry the difference"})
         length('boot', g(O, 'boot'), g(D, 'boot'), "the boot's top to the sole")
+    hb = (D.get('hair') or {}).get('bottom')
+    if hb is not None and hb < HAIR_SPLIT + 0.12:
+        for k in ('iou_hair', 'hair_length', 'hair_width'):
+            if k in C:
+                C[k]['caution'] = (C[k].get('caution', '') + '; ' if C[k].get('caution') else '') + \
+                    "the drawing's hair reaches the hair/dress split (%.2f L): its lowest rows are hair by position" % HAIR_SPLIT
     for k in ('hem', 'skirt_width'):
         if k in C and ((O.get('skirt') or {}).get('clipped') or (D.get('skirt') or {}).get('clipped')):
             C[k]['caution'] = (C[k].get('caution', '') + '; ' if C[k].get('caution') else '') + \

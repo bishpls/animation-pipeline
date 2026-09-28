@@ -20,7 +20,13 @@ Measured (head lengths L, from the eye line; x toward the face's front):
                  of the eye; the chin's height (the face's lowest row on its leading side)
   three_quarter  the leading (far-cheek) contour per row, and the chin's height
 
+The sheet's figures are found from the picture (detect_figures): blobs off the paper; a figure is at least half as tall as
+the tallest, its view from its eyes (a level pair centred in the head: front; off-centre: three-quarter; one: profile;
+none under hair: back); a shorter blob in the hair's colour is an expression head; the rest (hand studies) is skipped.
+Head boxes follow HEAD_BOX, the manifest's framing.
+
     from charkit import sheetqa
+    F = sheetqa.detect_figures(rgb, ppl)                             # the figures, their head boxes, the expression heads
     D = sheetqa.measure_sheet(rgb, figures, eye_x)                   # the design
     O = sheetqa.measure_labels(lab, face, view, ppl, eyes)           # ours: a z-buffer's classes and its face (qa3d)
     C = sheetqa.compare(O, D)

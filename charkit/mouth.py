@@ -140,7 +140,7 @@ SHAPES = {
     'laugh': dict(width=2.0, open=2.0, up=0.2, corner=0.05, smile=0.06, upper_round=0.05, lower_round=1.0),    # a wide D
     'wavy': dict(width=1.9, open=0.6, up=0.45, corner=0.0, smile=-0.02, upper_round=0.3, lower_round=0.45, wave=0.08,
                  waves=2.5),                                                                                  # flustered
-    'yawn': dict(width=1.25, open=1.8, up=0.65, corner=0.0, smile=0.0, upper_round=0.85, lower_round=0.95),    # a tall O
+    'yawn': dict(width=1.25, open=1.8, up=0.3, corner=-0.12, smile=0.0, upper_round=0.85, lower_round=0.95),    # a tall O
 }
 
 

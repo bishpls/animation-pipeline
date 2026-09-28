@@ -55,6 +55,8 @@ def assemble(spec):
                           for k, kn in browlib.expressions(BK).items()}
         E['keys'] = {}
         for name, (uf, lf) in eyelib.expressions(EK, L).items():
+            if uf is None and lf is None:                 # the lids as they are (a shocked eye: its iris key only)
+                continue
             D = eyelib.lid_key(V, E['eye'], F, EK, L, sd, c, uf, lf)
             lash = eyelib.lashes(F, EK, L, sd, c, uf, lf)
             E['keys'][name] = (D, [lv - bv for (lv, _), (bv, _) in zip(lash, E['lashes'])])

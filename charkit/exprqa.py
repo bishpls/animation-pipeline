@@ -23,7 +23,9 @@ library has nothing close to fails with `missing`, which means: add it to the te
 
     from charkit import exprqa
     M = exprqa.measure(cls, ppl, eye_y, axis)            # a face's class image, its scale, eye row and midline column
-    best = exprqa.match(M, library)                       # library: {part: {name: measure}}
+    best = exprqa.match(exprqa.summary(M), library)       # library: {part: {name: summary}}
+    img = exprqa.render(data, {'eye': 'happy', 'mouth': 'laugh'}, ppl)    # ours (charkit.qa3d.expression_data)
+    table, checks, picture = exprqa.sheet_run(data, rgb, figures)         # the whole pass over a sheet's heads
 """
 import numpy as np
 

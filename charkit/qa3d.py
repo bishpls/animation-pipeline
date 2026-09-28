@@ -13,6 +13,15 @@ with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and wh
              the feature heights against the design rig; overlays qa_face_shape.png, qa_face_contours.png
   sheet      the face against the design's model sheet (charkit/sheetqa.py): front half-widths, the profile's front
              edge and reach (nose, chin), the chin's height, the far cheek at three-quarter; overlay qa_sheet.png
+  figures    the model sheet's figures found from the picture (charkit/sheetqa.py detect_figures) against the spec's
+             hand-typed head boxes; overlay qa_sheet_figures.png
+  body       the whole character against the sheet's front, 3/4, profile and back figures (charkit/bodyqa.py): silhouette,
+             hair, skin and outfit IoU aligned on the eyes, the feet, hair length and width, the skirt's flare and hem,
+             sleeves, leg and boot; z-buffered by class (scene_classes); overlay qa_sheet_body.png
+  expr       the sheet's expression heads matched part by part to the kit's library and graded (charkit/exprqa.py; our
+             keys applied to the posed base meshes, z-buffered); overlay qa_sheet_expr.png
+  palette    the design's colours per class (the sheet's pixels) against our materials' unlit tones, CIEDE2000
+             (charkit/paletteqa.py); overlay qa_sheet_palette.png
   eye        each eye head-on against the design rig's eye layer (charkit/eyeqa.py): the opening's aspect and width, how
              much of it the iris fills, the pupil's run and aspect; overlay qa_eyes.png
   face       per expression and mouth shape, from the shape keys' geometry (front projection, no render): each eye's
@@ -40,6 +49,15 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
                'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
 VISEMES = ('aa', 'ih', 'ou', 'ee', 'oh')
+
+
+def _json(o):
+    """numpy values in the report as plain JSON."""
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    if isinstance(o, np.generic):
+        return o.item()
+    return str(o)
 
 
 def _grade(key, v, higher_better=True):
@@ -570,10 +588,52 @@ def sheet_body(S, out):
     S._sheet_colours = cols
     Hd = S.character['data']['head']
     iw = np.array([trace.mesh_arrays(p['iris'])[0].mean(0) for p in S.character['eyes']])       # iris centres (world)
-    table, C, views = bodyqa.sheet_views(meshes, ctx['rgb'], ctx['D'], ctx['ppl'], ctx['az3'], iw, Hd['centre'], Hd['L'],
-                                         _scale_caution(ctx))
+    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, Hd['centre'], Hd['L'], ctx['ppl'], list(design))
+    table, C, views = bodyqa.evaluate(labels, design, _scale_caution(ctx))
+    table.update(ppl=round(ctx['ppl'], 2), az=bodyqa.azimuths(ctx['az3']))
+    for v in bodyqa.AZ:
+        if v not in design:
+            C[v] = {'status': 'SKIPPED', 'why': 'no %s figure on the sheet' % v}
     if views:
         _save_rgb(os.path.join(out, 'qa_sheet_body.png'), bodyqa.picture(views))
+    return table, C
+
+
+def sheet_palette(S, out):
+    """the design's colours per class (the sheet's own pixels, charkit.paletteqa) against the flat tones our materials
+    render unlit -> (table, checks)."""
+    from . import bodyqa, paletteqa
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'palette': {'status': 'SKIPPED', 'why': ctx['why']}}
+    design = ctx.setdefault('design', bodyqa.design_views(ctx['rgb'], ctx['D'], ctx['ppl']))
+    cols = getattr(S, '_sheet_colours', None) or scene_classes(S)[1]
+    D, O = paletteqa.extract_views(design), paletteqa.ours(cols)
+    _save_rgb(os.path.join(out, 'qa_sheet_palette.png'), np.repeat(np.repeat(paletteqa.picture(O, D), 2, 0), 2, 1))
+    hx = lambda T: {k: paletteqa._hex(v) if v is not None and not isinstance(v, (int, float)) else v for k, v in T.items()}
+    table = {'design': {n: hx(t) for n, t in D.items() if t}, 'ours': {n: hx(t) for n, t in O.items()}}
+    return table, paletteqa.compare(O, D)
+
+
+def sheet_figures(S, out):
+    """what figure detection found on the sheet (charkit.sheetqa.detect_figures) against the spec's hand-typed head boxes
+    -> (table, checks); overlay qa_sheet_figures.png."""
+    from . import sheetqa
+    ctx = _sheet_context(S, out)
+    if 'why' in ctx:
+        return None, {'figures': {'status': 'SKIPPED', 'why': ctx['why']}}
+    D = ctx['D']
+    _save_rgb(os.path.join(out, 'qa_sheet_figures.png'), sheetqa.figures_picture(ctx['rgb'], D))
+    C = {}
+    for v, r in ctx['verify'].items():
+        C['head_' + v] = {'value': r.get('off'), 'status': 'PASS' if r['ok'] else 'WARN', 'detected': r['detected'],
+                          'typed': r['typed'], 'note': 'max |detected - typed| px over the head box'}
+    table = {'ppl': round(D['ppl'], 2), 'facing': D['facing'],
+             'figures': {v: {k: f[k] for k in ('box', 'head', 'eyes', 'eye_y', 'partial', 'bottom_L')} for v, f in D['figures'].items()},
+             'expressions': [{k: e[k] for k in ('box', 'head', 'eyes', 'eye_y', 'eye_y_from', 'ppl')} for e in D['expressions']],
+             'skipped': D['skipped'], 'manifest': sheetqa.manifest_figures(D)}
+    C['found'] = {'value': sorted(D['figures']), 'expressions': len(D['expressions']), 'status': 'INFO'}
     return table, C
 
 
@@ -963,13 +1023,15 @@ def run(S, out, ref_image=None):
     except Exception as e:
         import traceback; traceback.print_exc()
         rep['checks']['sheet'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
-    # --- the whole character against the sheet's full figures
-    try:
-        rep['sheet_body'], sc_ = sheet_body(S, out)
-        rep['checks'].update({'body_' + k: v for k, v in sc_.items()})
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        rep['checks']['body'] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+    # --- the rest of the model sheet: its figures, the whole character, the expression heads, the palette
+    for key, fn, pre in (('sheet_figures', sheet_figures, 'figures_'), ('sheet_body', sheet_body, 'body_'),
+                         ('sheet_expr', sheet_expressions, ''), ('sheet_palette', sheet_palette, 'palette_')):
+        try:
+            rep[key], sc_ = fn(S, out)
+            rep['checks'].update({pre + k: v for k, v in sc_.items()})
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            rep['checks'][key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
     # --- the face's shape against the generated character's
     try:
         rep['face_shape'], fc = face_shape(S, out)
@@ -988,5 +1050,5 @@ def run(S, out, ref_image=None):
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
     graded = [c['status'] for c in rep['checks'].values() if c.get('status') in order]
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
-    json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1)
+    json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     return rep
