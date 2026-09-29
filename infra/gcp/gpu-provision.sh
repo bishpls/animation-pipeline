@@ -5,10 +5,32 @@
 # Prints the gcloud commands; --execute runs them. Re-runnable: a step whose resource exists is skipped.
 #   infra/gcp/gpu-provision.sh              # read the plan
 #   infra/gcp/gpu-provision.sh --execute
+# Recreating the box elsewhere (a zone out of GPUs) from its disk snapshot (gpu.sh snapshot), then set ZONE in gpu.env
+# and render.env to the new zone:
+#   infra/gcp/gpu-provision.sh --zone Z --from-snapshot NAME [--machine-type M] [--subnet-range R] [--execute]
+#   (another region needs its own --subnet-range: subnets in one VPC can't overlap; M = FALLBACK_MACHINE_TYPE adds
+#   FALLBACK_GPU)
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 source "$HERE/gpu.env"
-EXEC=0; [ "${1:-}" = "--execute" ] && EXEC=1
+EXEC=0; SNAP=; RANGE_SET=0; HOME_REGION=$REGION
+while [ $# -gt 0 ]; do
+  case $1 in
+    --execute) EXEC=1;;
+    --zone) ZONE=$2; REGION=${2%-*}; shift;;
+    --from-snapshot) SNAP=$2; shift;;
+    --machine-type) MACHINE_TYPE=$2; shift;;
+    --subnet-range) SUBNET_RANGE=$2; RANGE_SET=1; shift;;
+    *) sed -n '2,13p' "$0"; exit 1;;
+  esac; shift
+done
+if [ "$REGION" != "$HOME_REGION" ] && [ $RANGE_SET = 0 ]; then
+  echo "$REGION isn't $HOME_REGION: pass --subnet-range (not $SUBNET_RANGE, which $HOME_REGION's subnet has)" >&2; exit 1
+fi
+BOOT=(--image-family="$IMAGE_FAMILY" --image-project=deeplearning-platform-release)
+[ -n "$SNAP" ] && BOOT=(--source-snapshot="$SNAP")
+GPU=()
+[ "$MACHINE_TYPE" = "${FALLBACK_MACHINE_TYPE:-}" ] && GPU=(--accelerator="type=$FALLBACK_GPU,count=1")
 SA="$SA_NAME@$PROJECT.iam.gserviceaccount.com"
 G="gcloud --project=$PROJECT --quiet"
 SUBNET="$NETWORK-$REGION"; ROUTER="$NETWORK-router"; TAG=anim-gpu
@@ -47,7 +69,7 @@ step "SA: its bucket" "" \
   gcloud storage buckets add-iam-policy-binding "$BUCKET" --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
 step "VM" "$G compute instances describe $VM --zone=$ZONE" \
   $G compute instances create "$VM" --zone="$ZONE" --machine-type="$MACHINE_TYPE" \
-  --image-family="$IMAGE_FAMILY" --image-project=deeplearning-platform-release \
+  "${BOOT[@]}" ${GPU[@]+"${GPU[@]}"} \
   --boot-disk-size="${DISK_GB}GB" --boot-disk-type=pd-balanced \
   --network="$NETWORK" --subnet="$SUBNET" --no-address --tags="$TAG" \
   --service-account="$SA" --scopes=cloud-platform \

@@ -738,7 +738,21 @@ gating on the build box (below). The integrator (the main session) reviews and m
 | cut-piece hair | `tool/hair-pieces` | **merged at `5206150`**: `docs/workstreams/hair.md` (taste calls for Michael there) |
 | eye and mouth engine | `tool/eyes-mouth` | **merged at `dd7eb32`**: `docs/workstreams/eyes.md` (taste calls for Michael there; the authored-head spec is `charkit/spec/clawd_code.json`) |
 | garments as pieces | `tool/garments` | **merged at `8f2ec5d`**: `docs/workstreams/garments.md` |
-| the authored body | `tool/body`, `~/animation-pipeline-body` | torso and limbs fitted; build integration in progress: `docs/workstreams/body.md` |
+| the authored body | `tool/body`, `~/animation-pipeline-body` | **round 2 merged at `76d5bdc`** (default-spec gate PASS). `clawd_body.json` isn't the default yet: its gate FAILs on `body_three_quarter_hem` (the overskirt panels, awaiting Michael's call on what they are) and `poke_share` (wrist cuffs with no clearance). Cuffs, back skirt width and chest/waist checks are in progress: `docs/workstreams/garments.md` |
+| hair detail | `tool/hair-detail` | lock relief and the buns as drawn loops, not hull blobs: `docs/workstreams/hair.md` |
+| face: eye hollow, neck, chin | `tool/face` | in progress |
+| better references | `tool/refs2` | extra design views (three-quarter back, top) by anchored edit; drift measured; one call versus several A/B |
+| shading and lines | `tool/look` | face shadow map, outlines, highlights |
+| motion groundwork | `tool/motion` | motion QA sweeps (with UniMate's pose normalisation and foot sliding) and spring bones |
+| render batching | `tool/render-batch` | board stills batched into animation renders: 2.24 → 0.53 s a frame, bit-identical (measured on a saved Clawd scene) |
+
+**Render box facts (2026-09-29).**
+- A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
+  laptop. It's CPU-bound, because each still re-evaluates every modifier: 51 armature, 47 solidify, 20 subdivision
+  and 9 data-transfer. The render box adds parallel slots and takes load off the laptop; it doesn't make a frame faster.
+- When L4s are stocked out, `up` switches the stopped box to n1-standard-8 with a T4 (`infra/gcp/gpu-start.sh`,
+  `reshape.py`), and switches back once they're in stock.
+- `gpu.sh snapshot` and `gpu-provision.sh --zone Z --from-snapshot NAME` recreate the box in any zone.
 
 Merged this session, besides the build box:
 - `tool/stamp` (`d71e2ba`): a produced reference's stamp follows its producer function one import deep (it had

@@ -143,12 +143,17 @@ def fit_sections(meas, Rc, th_c, ay, x0, anchors=(), depth=None, n=None, w_smoot
     return sol.x.reshape(nz, 5)
 
 
-def _behind(H, ax, ts, th_c, nz, nth, grow=1):
+def _behind(H, ax, ts, th_c, nz, nth, grow=1, drawn=None):
     """per cell, how far out the torso may reach behind the pieces in front of it (IN_FRONT): the smallest radius of a
-    piece's points in the cell less the piece's depth, spread `grow` cells round (inf where none)."""
+    piece's points in the cell less the piece's depth, spread `grow` cells round (inf where none). drawn: the pieces'
+    drawn front extents {piece: (x0, z0, x1, z1) L}: only the points inside count (the hull labels some of the collar's
+    lapels as bow, both cream, and the chest under them had been pulled in 0.07 L)."""
     B = np.full((nz, nth), np.inf)
     for name, depth in IN_FRONT.items():
         Q = H.points(name)
+        if drawn and name in drawn and len(Q):
+            x0, z0, x1, z1 = drawn[name]
+            Q = Q[(Q[:, 0] >= x0) & (Q[:, 0] <= x1) & (Q[:, 2] >= z0) & (Q[:, 2] <= z1)]
         if not len(Q):
             continue
         t, th, r = ax.coords(Q)
@@ -175,7 +180,7 @@ def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
     return fit_sections(meas, Rc, th_c, ay, X0, anchors)
 
 
-def torso(H, sk, nz=56, nth=72, hip_z=None):
+def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None):
     """the torso: one superellipse section per row (section_r) between the neck cut and the crotch, round a vertical
     axis, all fitted at once (fit_torso) to the cells the hull measures (tight pieces pulled in by their thickness, bare
     skin as it is, mirrored across the midline), anchored at the neck ring and the hips, then held inside the hull's
@@ -252,7 +257,7 @@ def torso(H, sk, nz=56, nth=72, hip_z=None):
     Pi = fit_torso(meas, Rc, th_c, ay, neck, hw, hy)
     R = np.stack([section_r(Pi[k], th_c, ay) for k in range(nz)])
     R = np.minimum(R, env.R - CLEAR)
-    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth))
+    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth, drawn=drawn))
     return dict(ax=ax, F=loft.Field(ts, th_c, R, meas), params=Pi, rows=rows, measured=share, env=env, src=src)
 
 
@@ -450,9 +455,9 @@ def foot(H, side, ankle, step=0.03, nth=48):
                 back=float(Q[:, 1].max() - FOOT_PULL))
 
 
-def body(H, sk):
+def body(H, sk, drawn=None):
     """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)})."""
-    T_ = torso(H, sk)
+    T_ = torso(H, sk, drawn=drawn)
     hy = float(T_['params'][-1, 4])
     limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
