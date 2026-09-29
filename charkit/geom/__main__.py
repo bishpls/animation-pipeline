@@ -114,6 +114,9 @@ def main(argv=None):
         col = m.vc if m.vc is not None and '--no-color' not in r else (0.93, 0.55, 0.40)
         ims = [raster.render([(m, dict(color=col, normals=N, shade=_opt(r, '--shade', 'toon')))], x, fr) for x in az]
         print('wrote', raster.save_png(raster.sheet(ims, cols=len(ims)), r[1]))
+    elif cmd == 'hull':
+        from . import hull
+        hull.main(r)
     elif cmd == 'extract':
         extract(r)
     else:

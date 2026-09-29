@@ -98,6 +98,39 @@ hair-thin double walls. So the skirt comes from the generated surface itself:
 
 `--skirt-bottom 0.6` extends the band toward the knees to take in the generated skirt's back tails.
 
+## Hull (`hull`, `python -m charkit.geom hull SPEC`)
+
+The character's 3D shape carved from its generated full-body turnaround (the manifest's `sheets.body`), the way a
+modeller blocks a figure out from orthographic drawings. See the module's doc for the frame and the calibration.
+
+- **Calibration** comes from the eyes, exactly for the axis-aligned views. The front's eyes give the midline; the
+  profile's eye gives the eyes' depth; the three-quarter's axis follows from that. The three-quarter is then refined by
+  its silhouette (`refine`: 0.04 L on Clawd), because its far eye's visible centroid sits toward the nose.
+- **The shape prior** is the style profile's (`charkit/styles`, `hull`). Each height's section is superellipses inscribed
+  in the front-run x side-run rectangles. A skin run takes its depth from the side view's skin. Sections are smoothed
+  across heights on the signed distance, and the drawn silhouettes are restored with one median-depth voxel per
+  missing pixel, so smoothing only acts where no view says anything.
+- **Validation** is leave one out. On Clawd, the three-quarter predicted from front, side and back scores:
+
+  | method | held-out 3/4 IoU |
+  |---|---|
+  | our build | 0.68 |
+  | the plain hull | 0.715 |
+  | TRELLIS (its own best alignment per view) | 0.79 |
+  | ellipses | 0.797 |
+  | class-aware pairing | 0.818 |
+  | silhouette-refined axis | 0.832 |
+  | smoothed 0.09 L | 0.856 |
+
+  The drawn views stay at 0.961 to 0.985. The held-out profile scores 0.35: nothing else carries depth.
+- **The surface** is `volume.to_mesh`, decimated to 150k faces, watertight, coloured from the view that faces each
+  vertex. Outputs go to `charkit/out/hull/NAME/`: `hull.ply`, `hull.npz`, `hull.json` and the review page `index.html`.
+- **Known limits:**
+  - the hair is a smooth mass, not locks;
+  - where a hand overlaps the skirt in profile, the two merge (per-piece carving with the outfit graph's per-view
+    masks is next);
+  - the skirt's longer back reads as a plate.
+
 ## How the Blender stage consumes a part
 
 `save_part` writes `PART.npz`:
