@@ -108,7 +108,7 @@ What changed:
 |---|---|
 | `hairpieces.bun_block`, `fit_block` | A block bun template: two rounded boxes (superellipsoids, `bun_e` 0.3: flat faces, bevelled edges), the main block and the fold's slab. Its pose, size and slab are fitted by Nelder-Mead to the drawn bun's front, profile and back silhouettes (the hull's views, `view_px`). It shades with its own normals. Chosen per design: `hair.shape.pieces_opts.bun: "block"` (default `round`). |
 | `hairpieces.carve_under_buns` | A mass point that the front or back view draws inside a bun, and beyond the head's outline, becomes `BUN_BASE`, out of the envelope. The head's outline is the convex hull of the drawn mass above the eye line (the buns hide the head's top). The envelope fills over it from its column. On Clawd, 723 points. |
-| `i3d.eye_target` | `hair.shape.eye_anchor: "iris"` aligns the generated shape to our irises' height. Opt-in; the default stays on the knobs' line. |
+| `i3d.eye_target` | `eye_anchor: "iris"` aligns the generated shape to our irises' height. The pieces take it from `hair.shape.pieces_opts.eye_anchor`, which only the pieces stage's case uses. Set on all of `hair.shape`, it also moved the authored body's and the garments' fits to the hull. The spec gate then regressed sheet_neck_to_jaw (0.99 to 0.69), body_back_hem_mid, body_front_leg and body_front_iou_skin. Opt-in; the default stays on the knobs' line. |
 | `hairpieces.drawn_tips`, `fine_tips` | The drawn lower edge at any phi. With `fine_tips` (default `('bangs',)`), a lock's edge is the drawing's at its own 1.5 degree columns (median of 3). |
 | `hairpieces.clamp_to_view`, `skin_front` | Opt-in (`clamp_side_locks`). It holds the side locks behind the drawn profile's front edge, as a shear per height, and never behind the cheek the front view draws them over. It is off because moving a built lock folds it. The first renders crumpled at the cheeks: 150-200 outer folds per side lock, per vertex; 40-130 sheared. The builder counted its folds before the clamp, so the QA missed them (they are now counted after it). |
 | `hairpieces.crown_cap` | The cap's inner face clears the skin, as a lock's does. It was the upper back's penetration. |
@@ -116,7 +116,7 @@ What changed:
 | `qa3d` | Added `hair_bun_outline` (outline agreement at 0.012 L, graded 0.7 / 0.5), `hair_bun_corners` (INFO, ours against drawn) and `hair_tips_front`/`_back` (INFO, the lock tips along the lower edge). |
 | `hairlab` | The measurement loop above, as a command. `--labels PNG` draws the QA scene's family labels per view with the drawn outlines. `--noise` gives hair_noise's measure for the rebuilt pieces, drawn as the build's hair objects with the pieces' meshes and shading normals. |
 | `hairpage` | A renders section: the design's turnaround figures beside the before and after boards, with close-ups of the top (buns, fringe, locks). With `--against`, the hair pieces' checks are remeasured on both builds by the current QA. |
-| `charkit/spec/clawd_body_pieces.json` | clawd_body with the hair in pieces, block buns and the iris anchor. |
+| `charkit/spec/clawd_body_pieces.json` | clawd_body with the hair in pieces, block buns and the pieces' iris anchor (`pieces_opts: {bun: block, eye_anchor: iris}`). |
 
 Measured by `hairlab` over the same build (`charkit/out/hd_base`, a box build of clawd_body in pieces at 849b9a7),
 so the skin and the QA are the same. "Before" is the hair as built there. "After" is `--opts bun=block --shape

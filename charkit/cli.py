@@ -447,6 +447,10 @@ def pieces_hair(spec, resolved, out, mode='on'):
     sheet = _path(M['references']['body_turnaround']['path'])
     cut = {k: v for k, v in spec.items() if k != 'garments'}
     cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces')})
+    # the pieces' own eye anchor (pieces_opts.eye_anchor, i3d.eye_target): the hair aligned to our irises without
+    # moving the body's and the garments' fits to the hull, which align by hair.shape's own
+    if (shape.get('pieces_opts') or {}).get('eye_anchor'):
+        cut['hair']['shape']['eye_anchor'] = shape['pieces_opts']['eye_anchor']
     cut_path = os.path.join(gdir, 'pieces.spec.json')
     json.dump(cut, open(cut_path, 'w'), indent=1)
 

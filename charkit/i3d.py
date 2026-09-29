@@ -195,7 +195,8 @@ def eye_target(A, shape):
     """where a generated character's eyes land on ours (align_by_eyes): the midpoint of our eyes, `eye_depth` (head
     lengths) behind the front of the face, and our eye spacing times `spacing`. eye_anchor 'iris': at our irises'
     height (their plates' mean, as the QA and the drawings' eye line (the drawn irises' centroid) take it: an eye whose
-    opening sits above its knob line holds its iris higher), else the knobs' line. -> (eye_mid (3,), spacing)."""
+    opening sits above its knob line holds its iris higher), else the knobs' line (the hair pieces set it through
+    hair.shape.pieces_opts.eye_anchor, so the body's and garments' fits keep theirs). -> (eye_mid (3,), spacing)."""
     Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
     df = getattr(Hd['H'], 'eye_df', Hd['H'].df)            # the face's front at the eyes (a head that sets them back)
     z = Hd['centre'][2] + EK['z'] * L

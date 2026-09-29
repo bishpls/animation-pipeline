@@ -288,9 +288,9 @@
    "vox": 0.008,
    "inflate": 0.02,
    "min_part": 20,
-   "eye_anchor": "iris",
    "pieces_opts": {
-    "bun": "block"
+    "bun": "block",
+    "eye_anchor": "iris"
    }
   },
   "silhouette": {
