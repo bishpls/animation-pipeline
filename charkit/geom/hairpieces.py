@@ -40,7 +40,7 @@ FAMILY_PHI = {'bangs': (0, 100), 'upper_back': (50, 180), 'lower_back': (50, 180
 # stray one from carrying a family round the head
 LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5, 'lower_back': 2.5}
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
-OPTS = dict(pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
+OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
             chain=6)
 
 
@@ -271,7 +271,7 @@ def mass_fields(case, hullV_world, fam, opts):
     Rf, reach = _fill(np.where(valid, Rmax, 0.0), valid)
     # hanging hair: below each column's reach the envelope continues flat (the pieces stop at their own tips)
     R = _pole(_smooth(Rf, 1.0, 1.0), G, opts['pole'])
-    Rn = _pole(_smooth(Rf, 2.5, 2.5), G, opts['pole'])
+    Rn = _pole(_smooth(Rf, opts['shade_smooth'], opts['shade_smooth']), G, opts['pole'])   # the shading's envelope
     # families per cell: the majority of the labelled hair in it (the side locks split by side)
     fcell = np.zeros((G.nph, G.nth, len(FAMILIES) + 1))
     np.add.at(fcell, (i[ok], j[ok], fam[mass][ok]), 1)
@@ -478,9 +478,11 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
         d = np.gradient(Po, axis=0) if len(th) > 1 else np.zeros_like(Po)
         strand.append(d / (np.linalg.norm(d, axis=1, keepdims=True) + 1e-12))
         # the envelope's normal (the smoother field) by finite differences on the chart
+        # the envelope's normal: the shading's one smooth mass (no layer's inset, no push over the skin: the locks of every
+        # piece shade as one surface, as an anime head of hair does)
         e = 0.5
         ep = e / np.maximum(np.sin(np.radians(th)), 0.05)             # (the same arc round the pole as down it)
-        P = lambda a, b: ch.point(wrap(a), b, G.sample(F['Rn'], wrap(a), b) - inset + push)
+        P = lambda a, b: ch.point(wrap(a), b, G.sample(F['Rn'], wrap(a), b))
         nrm = np.cross(P(phk + ep, th) - P(phk - ep, th), P(phk, th + e) - P(phk, np.maximum(th - e, 0.01)))
         nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12
         if np.einsum('ij,ij->i', nrm, Po - ch.c).mean() < 0:
@@ -522,7 +524,7 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
     chain = (Vo[c[sel]] + Vi[c[sel]]) / 2
     return dict(V=V, T=T, outer=np.r_[np.ones(no, bool), np.zeros(no, bool)],
                 strand=np.concatenate([np.concatenate(strand)] * 2), vn_env=np.concatenate([vn, -vn]), chain=chain,
-                push=float(push_g.max() / L))
+                push=float(push_g.max() / L), vn_shade=np.concatenate([vn, vn]))
 
 
 def crown_cap(F, style, opts, L):
@@ -551,8 +553,9 @@ def crown_cap(F, style, opts, L):
         T = T[:, [0, 2, 1]]
     d = V - ch.c
     vn = d / np.linalg.norm(d, axis=1, keepdims=True)
+    outer = np.r_[np.ones(n + 1, bool), np.zeros(n + 1, bool)]
     strand = np.zeros_like(V); strand[:, 2] = -1
-    return dict(V=V, T=T, outer=np.r_[np.ones(n + 1, bool), np.zeros(n + 1, bool)], strand=strand, vn_env=vn,
+    return dict(V=V, T=T, outer=outer, strand=strand, vn_env=np.where(outer[:, None], vn, -vn), vn_shade=vn,
                 chain=np.array([po]), push=0.0)
 
 
@@ -802,6 +805,12 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4):
             continue
         line = np.array(line)
         W3 = to_world(line[:, 0], line[:, 1])
+        # one plane: the root's depth held along the strand (the mass's mid-plane jitters point to point), the line
+        # smoothed along itself
+        W3[:, 1] = W3[0, 1]
+        if len(W3) >= 4:
+            from scipy.ndimage import gaussian_filter1d
+            W3 = np.r_[W3[:1], gaussian_filter1d(W3, 0.8, axis=0, mode='nearest')[1:]]
         px = np.linalg.norm(to_world(np.array([0.0, 1.0]), np.array([0.0, 0.0]))[1] - to_world(np.array([0.0]),
                                                                                                  np.array([0.0]))[0])
         wd = np.array(width) * px * np.linspace(1.0, 0.2, len(width))
@@ -823,13 +832,15 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     pieces, report = {}, {'pieces': {}}
 
     def add(name, family, parts):
-        Vs, Ts, vn, st, lk, chains, off, pushes, nf = [], [], [], [], [], [], 0, [], 0
+        Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf = [], [], [], [], [], [], [], 0, [], 0
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
+            vs.append(p.get('vn_shade', p['vn_env']))
             lk.append(np.full(len(p['V']), k)); chains.append(np.asarray(p['chain']).tolist())
             pushes.append(p.get('push', 0.0)); off += len(p['V'])
             nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
+                            vn_shade=np.concatenate(vs),
                             strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains)
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
@@ -890,6 +901,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         bl = flyaways(fm, to_world, anchor_fn)
         if bl:
             add('flyaways', 'flyaways', bl)
+    if style.get('normals', 'envelope') == 'envelope':
+        shade_normals(pieces, L, style)
     report['fields'] = dict(columns_with_hair=int((F['reach'] >= 0).sum()), cells=int(F['valid'].sum()),
                             crown_tilt=o['crown_tilt'])
     log('hair pieces: %s' % ', '.join('%s %d locks' % (k, r['locks']) for k, r in report['pieces'].items()))
@@ -904,7 +917,7 @@ def save(R, path, meta=None):
     for name, p in R['pieces'].items():
         arrays[name + '/V'] = p['V'].astype(np.float32)
         arrays[name + '/F'] = p['T'].astype(np.int32)
-        arrays[name + '/vn'] = p['vn_env'].astype(np.float32)
+        arrays[name + '/vn'] = p['vn_shade'].astype(np.float32)
         arrays[name + '/strand'] = p['strand'].astype(np.float32)
         arrays[name + '/lock'] = p['lock'].astype(np.int16)
         info['pieces'][name] = dict(family=p['family'], chains=p['chains'])
@@ -940,6 +953,23 @@ def folds(V, T, outer, vn_env):
     return int((surf & (against | flipped)).sum())
 
 
+def shade_normals(pieces, L, style):
+    """every piece's shading normals from the whole hair's envelope (charkit.geom.smooth.envelope_normals, as the geom
+    hair's are): the union of the pieces as a solid, closed by the style's shade_close and blurred by shade_blur (L), the
+    normal at each vertex the blurred field's gradient. The locks, the buns and the strands then shade as one mass, as
+    anime hair does; their outlines tell them apart. In place (vn_shade)."""
+    from .mesh import Mesh
+    from .smooth import envelope_normals
+    names = list(pieces)
+    V = np.concatenate([pieces[n]['V'] for n in names])
+    off = np.cumsum([0] + [len(pieces[n]['V']) for n in names])
+    T = np.concatenate([np.asarray(pieces[n]['T']) + off[k] for k, n in enumerate(names)])
+    close, blur = style.get('shade_close', 0.30) * L, style.get('shade_blur', 0.25) * L
+    N = envelope_normals(Mesh(V, T), h=max(0.008, blur / 6.0) if L > 0.1 else blur / 6.0, close=close, blur=blur)
+    for k, n in enumerate(names):
+        pieces[n]['vn_shade'] = N[off[k]:off[k + 1]]
+
+
 def geometric_normals(V, T):
     fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
     N = np.zeros_like(V)
@@ -950,7 +980,9 @@ def geometric_normals(V, T):
 
 def save_parts(R, out, meta=None):
     """the pieces as the Blender stage loads parts (charkit.geom.blender.load_part): out/NAME.npz per piece (V, F, vn:
-    the envelope's normals for its custom normals, vn_geom, strand, lock; meta: family, chains, report) and
+    the shading normals for its custom normals (a lock shades its outside, inside and walls with the mass's outward
+    normal: one cel-shaded mass, its locks told apart by their outlines), vn_geom, strand, lock; meta: family, chains,
+    report) and
     out/pieces.json (the pieces in order, their families and files). -> pieces.json's path."""
     from .io import save_npz
     from .mesh import Mesh
@@ -958,7 +990,7 @@ def save_parts(R, out, meta=None):
     index = dict(meta or {}, pieces=[], report=R['report'])
     for name, p in R['pieces'].items():
         path = os.path.join(out, name + '.npz')
-        save_npz(Mesh(p['V'], p['T'], vn=p['vn_env']), path,
+        save_npz(Mesh(p['V'], p['T'], vn=p['vn_shade']), path,
                  meta=dict(family=p['family'], chains=p['chains'], report=R['report']['pieces'].get(name)),
                  vn_geom=geometric_normals(p['V'], np.asarray(p['T'])), strand=p['strand'], lock=p['lock'])
         index['pieces'].append(dict(name=name, family=p['family'], file=name + '.npz', locks=len(p['chains'])))

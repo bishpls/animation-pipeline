@@ -8,7 +8,9 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
   hair_pieces  charkit.geom.hairpieces' construction: notch (deg: the V between two locks deepened at their seam, how
            sharp the tips read), thick and tip_thick (L: a lock's depth at its root and at its tip), inset (L per layer:
            how far a piece under another sits inside it), lock_min (deg: the narrowest lock), normals ('envelope': the
-           mass's smoothed normals as custom normals, one clean shadow shape; 'geometric': each lock shades on its own)
+           mass's smoothed normals as custom normals, one clean shadow shape; 'geometric': each lock shades on its own),
+           shade_close and shade_blur (L: the envelope those normals come from, closed across the gaps between locks and
+           blurred to the shadow shapes' scale)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
            gravity, cloth stiffness and damping, hair spring stiffness and damping, gravity scale. Declared here so the
            solvers are written against a profile from the start
@@ -21,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT = {
     'hull': {'p': 2.0, 'class_share': 0.6, 'smooth': 0.09},
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
-                    'normals': 'geometric'},
+                    'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06},
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
 }

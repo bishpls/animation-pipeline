@@ -19,6 +19,8 @@
   "tip_thick": 0.012,
   "inset": 0.008,
   "lock_min": 4.0,
-  "normals": "geometric"
+  "normals": "geometric",
+  "shade_close": 0.1,
+  "shade_blur": 0.06
  }
 }

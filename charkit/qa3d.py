@@ -1400,18 +1400,33 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
     return np.floor(np.clip(out, 0, 1) * 255 + 0.5) / 255.0
 
 
+def _to_shape(m, shape):
+    """a boolean image at another resolution (nearest): a z-buffer's labels onto a drawn (filtered) picture's grid."""
+    if m.shape == tuple(shape):
+        return m
+    r = (np.arange(shape[0]) * m.shape[0] // shape[0]); c = (np.arange(shape[1]) * m.shape[1] // shape[1])
+    return m[r][:, c]
+
+
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise: the hair drawn alone with its own materials from 0, 90 and 180 degrees, each hair
-    pixel's luminance cut into three tones at its 33rd and 66th percentiles, the tone edges per hair pixel."""
+    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
+    drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
+    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at their
+    33rd and 66th percentiles, the tone edges per visible hair pixel."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
     fr = figure_frame(B, ss=FIG_SS)
     vals, per = [], {}
-    surfs = [x for o in hair for x in surfaces(B, o)]
+    surfs = [x for o in hair for x in surfaces(B, o, outline=False)]
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
     for az in (0, 90, 180):
-        px = draw(B, surfs, az, fr)
-        a = px[..., 3] > 0.5
+        px = draw(B, surfs + occ, az, fr)
+        items = [(s_['V'], s_['T'], np.full(len(s_['T']), 1 if k < len(surfs) else 2), s_['cull'])
+                 for k, s_ in enumerate(surfs + occ)]
+        lab = fr.zbuffer(items, az)[1]
+        a = (px[..., 3] > 0.5) & _to_shape(lab == 1, px.shape[:2])
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
         q = np.digitize(lum, np.percentile(lum[a], [33, 66])) if a.sum() > 50 else np.zeros_like(lum)
         e = (np.abs(np.diff(q, axis=1)) > 0)[:, :] & a[:, 1:] & a[:, :-1]
@@ -1419,7 +1434,8 @@ def hair_noise(B, design=None, out=None):
         vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
         per[az] = round(float(vals[-1]), 4)
         if out and az == 0:
-            _save_rgb(os.path.join(out, 'qa_hair_front.png'), px[..., :3] * px[..., 3:4] + 0.93 * (1 - px[..., 3:4]))
+            pic = np.where(a[..., None], px[..., :3], 0.93)
+            _save_rgb(os.path.join(out, 'qa_hair_front.png'), pic)
     unsupported = sorted({m for o in hair for m in o.materials if m and (B.materials.get(m) or {}).get('kind') == 'other'})
     v = float(np.mean(vals))
     C = {'hair_noise': {'value': round(v, 4), 'per_view': per, 'status': _grade('hair_noise', v, False)}}

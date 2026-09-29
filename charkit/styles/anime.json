@@ -19,6 +19,8 @@
   "tip_thick": 0.006,
   "inset": 0.012,
   "lock_min": 9.0,
-  "normals": "envelope"
+  "normals": "envelope",
+  "shade_close": 0.5,
+  "shade_blur": 0.45
  }
 }
