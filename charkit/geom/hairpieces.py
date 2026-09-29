@@ -377,6 +377,56 @@ def piece_regions(F, opts):
     return out
 
 
+def refine_tips(F, regions, masks, views, hull_frame, step=0.5, reach=18.0):
+    """each piece's lower edge at the drawing's resolution: per column, the view that faces it (the front within 50
+    degrees of phi 0, the profile (mirrored for her right) to 130, the back beyond), and down the column's envelope the
+    lowest point that still shows inside that family's drawn mask there, searched from `reach` degrees above the cell
+    edge to `reach` below it. A column whose edge the drawing doesn't show (hidden by another family) keeps its cell
+    edge. In place (tip); -> {piece: columns refined}."""
+    from charkit.bodyqa import WIN
+    ch, G = F['chart'], F['grid']
+    s_, tr = hull_frame
+    grids = {}
+    for name in ('front', 'profile', 'back'):
+        v = views[name]
+        grids[name] = (v, int(round(v.grid_eye[0] - WIN['x'] * v.ppl)), int(round(v.grid_eye[1] - WIN['top'] * v.ppl)))
+    fam_of = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R': 'side_locks', 'upper_back': 'upper_back',
+              'lower_back': 'lower_back'}
+    done = {}
+    for piece, Rg in regions.items():
+        n = 0
+        for k, ph in enumerate(Rg['ph']):
+            a = abs(((ph + 180) % 360) - 180)
+            view, mirror = ('front', False) if a < 50 else ('back', False) if a > 130 else ('profile', ph < 0)
+            m = masks.get('%s__%s' % (view, fam_of[piece]))
+            if m is None:
+                continue
+            v, x0, y0 = grids[view]
+            th = np.arange(max(Rg['top'][k], Rg['tip'][k] - reach), Rg['tip'][k] + reach, step)
+            if not len(th):
+                continue
+            P = ch.point(np.full(len(th), ph), th, G.sample(F['R'], np.full(len(th), ph), th))
+            H = (P - tr) / s_
+            if mirror:                                                 # her right: the profile seen from -x, mirrored
+                H = H * np.array([-1.0, 1.0, 1.0])
+            az = np.radians(v.az)
+            u = H[:, 0] * np.cos(az) + H[:, 1] * np.sin(az)
+            col = np.round(u * v.ppl + v.axis - x0).astype(int)
+            row = np.round(v.eye_y - H[:, 2] * v.ppl - y0).astype(int)
+            ok = (row >= 0) & (row < m.shape[0]) & (col >= 0) & (col < m.shape[1])
+            inside = np.zeros(len(th), bool)
+            inside[ok] = m[row[ok], col[ok]]
+            if not inside.any() or not inside[:max(1, int(reach / step) // 2)].any():
+                continue                                               # the drawing doesn't show this column's edge
+            last = np.nonzero(inside)[0].max()
+            # never past the column's reach (below it the envelope is only continued, and the skin isn't cleared)
+            cap = (F['reach'][Rg['cols'][k]] + 1.5) * G.dth if F['reach'][Rg['cols'][k]] >= 0 else Rg['tip'][k]
+            Rg['tip'][k] = min(th[last] + step / 2, max(cap, Rg['tip'][k]))
+            n += 1
+        done[piece] = n
+    return done
+
+
 def locks(ph, tip, lock_min, notch):
     """a piece's locks from its lower edge: notches at the edge's local minima of reach at least lock_min apart; each lock
     (ph0, ph1, its tip's phi); the edge with every notch deepened by `notch` degrees tapering to 0 at the tips.
@@ -829,7 +879,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     V = np.asarray(case.gen.V, float)
     F = mass_fields(case, V, fam, o)
     regions = piece_regions(F, o)
-    pieces, report = {}, {'pieces': {}}
+    refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
+    pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined}
 
     def add(name, family, parts):
         Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf = [], [], [], [], [], [], [], 0, [], 0
