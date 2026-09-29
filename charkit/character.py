@@ -251,10 +251,15 @@ def build_eyes(A, arm, skin, spec, look=None):
     look = look or {}
     IK = spec.get('iris')
     sclera_m = look.get('sclera') or shade.plate('sclera', eyetex.to_blender_image('sclera', eyetex.sclera(IK)), alpha=False)
-    ir = eyetex.iris(IK); sh = eyetex.shine(IK)
-    a = sh[..., 3:4]
-    comp = np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1)
-    iris_m = look.get('iris') or shade.plate('iris', eyetex.to_blender_image('iris', comp))
+    ir = eyetex.iris(IK)
+    iris_ms = {}
+    for sd in ((1, -1) if not eyetex._knobs(IK).get('shine_mirror', True) else (1,)):
+        sh = eyetex.shine(IK, side=sd)
+        a = sh[..., 3:4]
+        comp = np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1)
+        name = 'iris' if sd > 0 else 'iris_R'
+        iris_ms[sd] = look.get('iris') or shade.plate(name, eyetex.to_blender_image(name, comp))
+    iris_m = iris_ms[1]
     lash_m = look.get('lash') or shade.flat('lash', spec.get('lash_color', (0.16, 0.09, 0.10)))
     crease_m = look.get('crease') or shade.flat('crease', spec.get('crease_color', (0.78, 0.52, 0.48)))
     brow_m = look.get('brow') or shade.flat('brow', spec.get('brow_color', (0.30, 0.20, 0.20)))
@@ -264,7 +269,7 @@ def build_eyes(A, arm, skin, spec, look=None):
         v, q, uv = E['sclera']
         sc = _mesh(f'sclera_{tag}', v, q, uv, [sclera_m])
         v, q, uv = E['iris']
-        iob = _mesh(f'iris_{tag}', v, q, uv, [iris_m])
+        iob = _mesh(f'iris_{tag}', v, q, uv, [iris_ms.get(E['side'], iris_m)])
         for k, d in E['iris_keys'].items():
             _key(iob, k, d)
         # closed eyes: the plates sink back so nothing shows through the lids' seam

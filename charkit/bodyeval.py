@@ -733,16 +733,21 @@ def character_parts(A, hide=None, spec=None):
     if len(out) == 1:
         out[0].role = None
     IK = spec.get('iris')
-    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
-    al = sh[..., 3:4]
-    comp = np.concatenate([ir[..., :3] * (1 - al) + sh[..., :3] * al, np.maximum(ir[..., 3:4], al)], -1)
+    ir = eyetex.iris(IK)
+
+    def comp_(sd):
+        sh = eyetex.shine(IK, side=sd)
+        al = sh[..., 3:4]
+        return np.concatenate([ir[..., :3] * (1 - al) + sh[..., :3] * al, np.maximum(ir[..., 3:4], al)], -1)
+    comps = {1: comp_(1)}
+    comps[-1] = comp_(-1) if not eyetex._knobs(IK).get('shine_mirror', True) else comps[1]
     scl = eyetex.sclera(IK)
     lash_c = spec.get('lash_color', (0.16, 0.09, 0.10)); brow_c = spec.get('brow_color', (0.30, 0.20, 0.20))
     for E in A['eyes']:
         tag = 'L' if E['side'] > 0 else 'R'
         c, _ = _plate(E, 'sclera', scl)
         out.append(Part('sclera_' + tag, 'eyes', E['sclera'][0], E['sclera'][1], c, c, np.full(len(c), CL['white'])))
-        c, a = _plate(E, 'iris', comp)
+        c, a = _plate(E, 'iris', comps[1 if E['side'] > 0 else -1])
         out.append(Part('iris_' + tag, 'eyes', E['iris'][0], E['iris'][1], c, c, np.where(a >= 0.5, CL['iris'], -1)))
         lv, lq, off = [], [], 0
         for rv, rq in E['lashes']:

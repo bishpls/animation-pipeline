@@ -4,8 +4,9 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
 
     python -m charkit remote build SPEC [build args]     sync, build there, fetch its --out
     python -m charkit remote tune SPEC [tune args]       sync, tune there, fetch its --out
-    python -m charkit remote gate BRANCH --into BASE     the gate there, in a clone kept current by git bundles, its
-                                                         report fetched into charkit/out/gate
+    python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS]
+                                                         the gate there, in a clone kept current by git bundles, its
+                                                         report fetched into charkit/out/gate (SPEC a path on the box)
     python -m charkit remote run CMD...                  anything, in the synced copy
     python -m charkit remote up | status | stop
 """
@@ -105,8 +106,9 @@ def gate(args):
             'git config user.name charkit-gate && git config user.email gate@localhost && '
             '{ [ ! -f %(b)s ] || git fetch -q -f %(b)s "refs/heads/*:refs/heads/*" --update-head-ok; } && '
             '%(refs)s && git checkout -q -f %(into)s && rm -f %(b)s && '
-            'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s'
-            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=BOX_SLOTS))
+            'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s%(more)s'
+            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=BOX_SLOTS,
+                   more=''.join(' %s %s' % (k, shlex.quote(_opt(args, k))) for k in ('--spec', '--args') if k in args)))
     # over plain ssh with the box's environment: `run` would first cd into this worktree's synced copy, which a worktree
     # that has only ever gated doesn't have
     code = _sh('ssh', 'source /opt/anim-build/env && flock /srv/work/.gate.lock bash -c %s' % shlex.quote(step), check=False)

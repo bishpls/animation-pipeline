@@ -114,12 +114,17 @@ def materials(b, S):
     b.material('tongue', lit=(0.86, 0.46, 0.50))
     b.material('mouth_line', lit=S.get('mouth_line_color', (0.36, 0.16, 0.14)))
     IK = S.get('iris')
-    ir, sh = eyetex.iris(IK), eyetex.shine(IK)
-    a = sh[..., 3:4]
+    ir = eyetex.iris(IK)
     b.image('sclera', eyetex.sclera(IK))
-    b.image('iris', np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1))
     b.material('sclera', lit=(1, 1, 1), image='sclera', kind='plate')
-    b.material('iris', lit=(1, 1, 1), image='iris', kind='plate')
+    # the iris with its shine: one image for both eyes, or the right eye's own when the shine isn't mirrored
+    # (character.build_eyes')
+    for sd in ((1, -1) if not eyetex._knobs(IK).get('shine_mirror', True) else (1,)):
+        sh = eyetex.shine(IK, side=sd)
+        a = sh[..., 3:4]
+        name = 'iris' if sd > 0 else 'iris_R'
+        b.image(name, np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1))
+        b.material(name, lit=(1, 1, 1), image=name, kind='plate')
 
 
 def features(b, A, S, keys=False):
@@ -142,7 +147,8 @@ def features(b, A, S, keys=False):
                     K.update({kn: D for kn, D in (E.get('iris_keys') or {}).items()})
                     K.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})
                 var['base'] = dict(G, keys=K)
-            b.add('%s_%s' % (k, tag), 'eye', var, part=k, side=tag, materials=[k])
+            own = k == 'iris' and tag == 'R' and not eyetex._knobs(IK).get('shine_mirror', True)
+            b.add('%s_%s' % (k, tag), 'eye', var, part=k, side=tag, materials=['iris_R' if own else k])
         lv, lf, lm, off = [], [], [], 0
         for k_, (rv, rq) in enumerate(E['lashes']):
             lv.append(rv); lf += [tuple(i + off for i in q) for q in rq]; lm += [min(k_, 2)] * len(rq); off += len(rv)
