@@ -41,9 +41,11 @@ split (the wrist cuffs no longer take the skirt's depth). TRELLIS scores 0.79 th
 --head carves the head turnaround instead (views_from_heads: the heads at about twice the body sheet's scale, down to the
 neck), the target the code-authored head is fitted to.
 """
-import json, os
+import json, math, os
 
 import numpy as np
+
+from . import det
 
 SKIN, HAIR, OTHER = 1, 2, 0         # charkit.bodyqa.CLASS's skin and hair (its classes label the views)
 
@@ -73,8 +75,8 @@ class View:
         return out
 
     def u_of(self, x, y):
-        a = np.radians(self.az)
-        return x * np.cos(a) + y * np.sin(a)
+        c, s = det.cs(self.az)
+        return x * c + y * s
 
 
 def views_from_sheet(rgb, eye_x, facing=-1):
@@ -101,9 +103,10 @@ def views_from_sheet(rgb, eye_x, facing=-1):
     info = {'ppl': ppl, 'y_e': round(y_e, 4)}
     if 'three_quarter' in F and len(F['three_quarter']['eyes']) == 2:
         te = F['three_quarter']['eyes']
-        az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (abs(fe[1][0] - fe[0][0])), 0, 1))))
+        az3 = float(det.snap(math.degrees(math.acos(min(max(abs(te[1][0] - te[0][0]) / abs(fe[1][0] - fe[0][0]), 0.0), 1.0))),
+                             det.ANGLE_Q))
         mid = float(np.mean([e[0] for e in te]))
-        ax3 = mid - y_e * np.sin(np.radians(az3)) * ppl
+        ax3 = mid - y_e * det.cs(az3)[1] * ppl
         views['three_quarter'] = View('three_quarter', az3, F['three_quarter']['_mask'], ppl, ax3,
                                       float(np.mean([e[1] for e in te])), cls, rgb)
         info['az3'] = round(az3, 2)
@@ -172,8 +175,9 @@ def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR, ears=True):
     info['y_e'] = round(y_e, 4)
     if 'three_quarter' in F and len(F['three_quarter']['eyes']) == 2:
         t = F['three_quarter']; te = t['eyes']
-        az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / abs(fe[1][0] - fe[0][0]), 0, 1))))
-        ax3 = float(np.mean([e[0] for e in te])) - y_e * np.sin(np.radians(az3)) * ppl
+        az3 = float(det.snap(math.degrees(math.acos(min(max(abs(te[1][0] - te[0][0]) / abs(fe[1][0] - fe[0][0]), 0.0), 1.0))),
+                             det.ANGLE_Q))
+        ax3 = float(np.mean([e[0] for e in te])) - y_e * det.cs(az3)[1] * ppl
         views['three_quarter'] = View('three_quarter', az3, masked(t['_mask'], t['eye_y']), ppl, ax3, t['eye_y'], cls, rgb)
         info['az3'] = round(az3, 2)
     if 'back' in F:
@@ -262,16 +266,16 @@ def limb_image(v, P):
     and back (where the skeleton's x shows as drawn), FREE_SKIN on the other views; anything else CORE. -> int8 image."""
     out = P.limb[v.pieces]
     free = (v.pieces == 0) & (v.labels == SKIN) & v.mask
-    a = np.radians(v.az)
-    if abs(np.sin(a)) < 1e-9 and P.skeleton:
+    ca, sa = det.cs(v.az)
+    if sa == 0.0 and P.skeleton:
         r, c = np.nonzero(free)
-        x = (c - v.axis) / v.ppl * np.cos(a); z = (v.eye_y - r) / v.ppl
-        pts = np.stack([x, z], 1)
-        best, lim = np.full(len(pts), np.inf), np.zeros(len(pts), np.int8)
+        x = (c - v.axis) / v.ppl * ca; z = (v.eye_y - r) / v.ppl
+        best, lim = np.full(len(x), np.inf), np.zeros(len(x), np.int8)
         for bone, (p0, p1) in P.skeleton.items():
-            d = p1 - p0
-            t = np.clip(((pts - p0) @ d) / max(d @ d, 1e-12), 0, 1)
-            dist = np.linalg.norm(pts - (p0 + t[:, None] * d), axis=1)
+            dx, dz = float(p1[0] - p0[0]), float(p1[1] - p0[1])
+            t = np.clip(((x - p0[0]) * dx + (z - p0[1]) * dz) / max(dx * dx + dz * dz, 1e-12), 0, 1)
+            ex, ez = x - (p0[0] + t * dx), z - (p0[1] + t * dz)
+            dist = np.sqrt(ex * ex + ez * ez)
             take = dist < best
             best[take], lim[take] = dist[take], limb_of(bone)
         out[r, c] = lim
@@ -315,10 +319,23 @@ def axes_for(views, h=0.01, pad=0.05):
     up, zp = extent(views['profile'], 'y')
     zlo = min(zf[0], zp[0]) - pad; zhi = max(zf[1], zp[1]) + pad
     ext = max(abs(uf).max(), abs(extent(views['back'], 'x')[0]).max() if 'back' in views else 0) + pad
-    xs = np.arange(-ext, ext + h / 2, h)
-    ys = np.arange(up[0] - pad, up[1] + pad + h / 2, h)
-    zs = np.arange(zhi, zlo - h / 2, -h)
-    return Axes(xs, ys, zs, h)
+    return Axes(_steps(-ext, ext + h / 2, h), _steps(up[0] - pad, up[1] + pad + h / 2, h), _steps(zhi, zlo - h / 2, -h), h)
+
+
+def _steps(start, stop, step):
+    """np.arange(start, stop, step)'s values as start + i * step, a multiply and an add of their own: numpy's float
+    arange fills with a fused multiply-add on arm64, an ulp off x86's."""
+    n = len(np.arange(start, stop, step))
+    return float(start) + np.arange(n, dtype=float) * float(step)
+
+
+def _inside(X, Y, cx, cy, rx, ry, p):
+    """|x/rx|^p + |y/ry|^p <= 1 on the grid: squares for p = 2 (exact everywhere); another p through np.power, whose
+    SIMD code differs per CPU, so its sum is snapped before the comparison."""
+    a, b = np.abs((X - cx) / rx), np.abs((Y - cy) / ry)
+    if p == 2.0:
+        return a * a + b * b <= 1
+    return det.snap(a ** p + b ** p, det.DECIDE_Q) <= 1
 
 
 def carve(views, A, use):
@@ -326,13 +343,13 @@ def carve(views, A, use):
     V = np.ones(A.shape, bool)
     for n in use:
         v = views[n]
-        a = np.radians(v.az)
-        if abs(np.sin(a)) < 1e-9:                                          # front / back: u = +-x
-            V &= v.sample(v.mask, np.cos(a) * A.xs, A.zs)[:, None, :]
-        elif abs(np.cos(a)) < 1e-9:                                        # the profiles: u = +-y
-            V &= v.sample(v.mask, np.sin(a) * A.ys, A.zs)[None, :, :]
+        ca, sa = det.cs(v.az)
+        if sa == 0.0:                                                      # front / back: u = +-x
+            V &= v.sample(v.mask, ca * A.xs, A.zs)[:, None, :]
+        elif ca == 0.0:                                                    # the profiles: u = +-y
+            V &= v.sample(v.mask, sa * A.ys, A.zs)[None, :, :]
         else:                                                              # an oblique view: per (x, y) column
-            U = A.xs[:, None] * np.cos(a) + A.ys[None, :] * np.sin(a)
+            U = A.xs[:, None] * ca + A.ys[None, :] * sa
             c, r = v.pixel(U, A.zs)
             H, W = v.mask.shape
             ok = (c >= 0) & (c < W)
@@ -412,12 +429,12 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
                 for y0, y1 in ys:
                     cx, rx = (A.xs[x0] + A.xs[x1]) / 2, (A.xs[x1] - A.xs[x0]) / 2 + A.h / 2
                     cy, ry = (A.ys[y0] + A.ys[y1]) / 2, (A.ys[y1] - A.ys[y0]) / 2 + A.h / 2
-                    V[:, :, k] |= (np.abs((X - cx) / rx) ** p + np.abs((Y - cy) / ry) ** p) <= 1
+                    V[:, :, k] |= _inside(X, Y, cx, cy, rx, ry, p)
     V &= plain
     if smooth > 0:
-        from scipy.ndimage import distance_transform_edt, gaussian_filter
+        from scipy.ndimage import distance_transform_edt
         d = distance_transform_edt(~V) - distance_transform_edt(V)          # signed distance in voxels (+ outside)
-        d = gaussian_filter(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h))
+        d = det.gaussian(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h))
         Vs = (d < 0) & plain
         if not restore:
             return Vs
@@ -426,12 +443,12 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
         # where no view says anything
         for n in use:
             v = views[n]
-            a = np.radians(v.az)
+            ca, sa = det.cs(v.az)
             Ps, us = project(Vs, A, v.az)
             Dm = v.sample(v.mask, us, A.zs)
             miss = Dm & ~Ps
             ix, iy, iz = np.nonzero(V & ~Vs)
-            iu = np.clip(np.round((A.xs[ix] * np.cos(a) + A.ys[iy] * np.sin(a) - us[0]) / A.h).astype(int), 0, len(us) - 1)
+            iu = np.clip(np.round((A.xs[ix] * ca + A.ys[iy] * sa - us[0]) / A.h).astype(int), 0, len(us) - 1)
             back = miss[iu, iz]
             ix, iy, iz, iu = ix[back], iy[back], iz[back], iu[back]
             if not len(ix):
@@ -439,7 +456,7 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
             # one voxel per missing pixel, the one at the median depth on its ray: enough to show there, without
             # giving back the depth a slab had (which the unseen views would show)
             key = iu.astype(np.int64) * len(A.zs) + iz
-            dep = -A.xs[ix] * np.sin(a) + A.ys[iy] * np.cos(a)
+            dep = -A.xs[ix] * sa + A.ys[iy] * ca
             o = np.lexsort((dep, key))
             k_sorted = key[o]
             starts = np.flatnonzero(np.r_[True, k_sorted[1:] != k_sorted[:-1]])
@@ -452,10 +469,10 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
 
 def project(V, A, az, u0=-3.0, u1=3.0):
     """a hull's silhouette at azimuth `az` on a (u, z) grid of the voxel spacing -> (bool (nu, nz), us)."""
-    a = np.radians(az)
+    ca, sa = det.cs(az)
     ix, iy, iz = np.nonzero(V)
-    u = A.xs[ix] * np.cos(a) + A.ys[iy] * np.sin(a)
-    us = np.arange(u0, u1, A.h)
+    u = A.xs[ix] * ca + A.ys[iy] * sa
+    us = _steps(u0, u1, A.h)
     iu = np.clip(np.round((u - u0) / A.h).astype(int), 0, len(us) - 1)
     M = np.zeros((len(us), len(A.zs)), bool)
     M[iu, iz] = True
@@ -488,8 +505,7 @@ def _shell(V):
 
 def _normals(V, ix, iy, iz, sigma=1.5):
     """outward unit normals at voxels, from the gradient of the occupancy blurred `sigma` voxels -> (N, 3)."""
-    from scipy.ndimage import gaussian_filter
-    G = gaussian_filter(V.astype(np.float32), sigma)
+    G = det.gaussian(V.astype(np.float32), sigma)
     I = [ix, iy, iz]
     n = []
     for ax in range(3):
@@ -498,16 +514,16 @@ def _normals(V, ix, iy, iz, sigma=1.5):
         n.append(G[tuple(lo)] - G[tuple(hi)])
     n = np.stack(n, 1)
     n[:, 2] *= -1                                                          # the grid's z index runs down
-    return n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+    return n / np.maximum(det.norm3(n), 1e-9)[:, None]
 
 
 def _visible(ix, iy, iz, A, az, u0=-3.0, tol=None):
     """of shell voxels, those a view sees: within `tol` (default 1.5 voxels) of the nearest to its camera on each ray,
     rays binned on the voxel spacing as project's pixels (a z-buffer test with a bias: at an oblique view a slanted
     surface's voxels share bins, and only the single nearest would leave stripes unseen) -> (bool (N,), their u bins)."""
-    a = np.radians(az)
-    u = A.xs[ix] * np.cos(a) + A.ys[iy] * np.sin(a)
-    dep = A.xs[ix] * np.sin(a) - A.ys[iy] * np.cos(a)                     # toward the camera
+    ca, sa = det.cs(az)
+    u = A.xs[ix] * ca + A.ys[iy] * sa
+    dep = A.xs[ix] * sa - A.ys[iy] * ca                                    # toward the camera
     iu = np.round((u - u0) / A.h).astype(np.int64)
     key = iu * len(A.zs) + iz
     uk, inv = np.unique(key, return_inverse=True)
@@ -528,8 +544,8 @@ def label_volume(V, A, views, names, normals=None):
     lab = np.zeros(len(ix), np.int32); cls = np.zeros(len(ix), np.int16)
     for n in names:
         v = views[n]
-        a = np.radians(v.az)
-        w = N @ np.array([np.sin(a), -np.cos(a), 0.0])
+        ca, sa = det.cs(v.az)
+        w = det.dot3(N, (sa, -ca, 0.0))
         vis, _ = _visible(ix, iy, iz, A, v.az)
         c, r = v.pixel(v.u_of(A.xs[ix], A.ys[iy]), A.zs[iz])
         H, W = v.mask.shape
@@ -552,7 +568,7 @@ def label_volume(V, A, views, names, normals=None):
 
 def render_labels(L, A, az, u0=-3.0, u1=3.0):
     """a labelled surface's front-most label per pixel of a view at az, on project's (u, z) grid -> (int (nu, nz), us)."""
-    us = np.arange(u0, u1, A.h)
+    us = _steps(u0, u1, A.h)
     vis, iu = _visible(L['ix'], L['iy'], L['iz'], A, az, u0, tol=0.0)
     img = np.zeros((len(us), len(A.zs)), np.int32)
     ok = vis & (iu >= 0) & (iu < len(us))
@@ -671,11 +687,12 @@ def surface(V, A, views=None, blur=1.0):
     from . import mesh as meshlib, volume
     G = volume.Grid((A.xs[0], A.ys[0], A.zs[-1]), A.h, V[:, :, ::-1])     # z ascending for the grid
     m = volume.to_mesh(G, blur=blur)
+    # marching cubes' positions snapped (VERTEX_Q): a C extension's interpolation, fused differently on arm64, can't
+    # then steer the decimation's greedy choices
+    m = m.with_(V=det.snap(m.V, VERTEX_Q))
     if views and len(m.V):
-        N = meshlib.vertex_normals(m.V, m.F)
-        cams = {n: np.array([np.sin(np.radians(v.az)), -np.cos(np.radians(v.az)), 0.0]) for n, v in views.items()}
         names = list(views)
-        best = np.argmax(np.stack([N @ cams[n] for n in names], 1), 1)
+        best = _facing(m, views)
         col = np.zeros((len(m.V), 3))
         for i, n in enumerate(names):
             sel = best == i
@@ -689,13 +706,22 @@ def surface(V, A, views=None, blur=1.0):
     return m
 
 
+VERTEX_Q = 2.0 ** -20        # L: a millionth of L, a ten-thousandth of a voxel; ulp noise (1e-16) crosses a step of it
+                              # about once in 10^10 coordinates
+
+
+def _facing(m, views):
+    """per vertex, the index (in views' order) of the view whose camera faces it most: area-weighted normals and
+    dot products in a fixed order (det), the first view winning a tie -> int (N,)."""
+    N = det.normals_area(m.V, m.F)
+    W = np.stack([det.dot3(N, (sa, -ca, 0.0)) for ca, sa in (det.cs(v.az) for v in views.values())], 1)
+    return np.argmax(W, 1)
+
+
 def label_vertices(m, views):
     """each vertex's class (charkit.bodyqa.CLASS) from the view whose camera faces it most -> int array (N,)."""
-    from .mesh import vertex_normals
-    N = vertex_normals(m.V, m.F)
     names = list(views)
-    cams = np.stack([[np.sin(np.radians(views[n].az)), -np.cos(np.radians(views[n].az)), 0.0] for n in names])
-    best = np.argmax(N @ cams.T, 1)
+    best = _facing(m, views)
     lab = np.zeros(len(m.V), np.int16)
     for i, n in enumerate(names):
         sel = best == i
@@ -733,12 +759,12 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
                 LV[n + '_mirror'] = mirrored(v, None)
     from scipy.ndimage import maximum_filter
     for n, v in LV.items():
-        a = np.radians(v.az)
+        ca, sa = det.cs(v.az)
         u0 = -3.0
         nu, nz = int(6.0 / A.h), len(A.zs)
         # the face's depth map (toward the camera) on the voxel grid's rays, nearest the camera
-        u = Vm[:, 0] * np.cos(a) + Vm[:, 1] * np.sin(a)
-        d = Vm[:, 0] * np.sin(a) - Vm[:, 1] * np.cos(a)
+        u = Vm[:, 0] * ca + Vm[:, 1] * sa
+        d = Vm[:, 0] * sa - Vm[:, 1] * ca
         iu = np.round((u - u0) / A.h).astype(int)
         jz = np.round((A.zs[0] - Vm[:, 2]) / A.h).astype(int)
         ok = (iu >= 0) & (iu < nu) & (jz >= 0) & (jz < nz)
@@ -750,8 +776,8 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
         us = u0 + np.arange(nu) * A.h
         cls = v.sample(v.labels, us, A.zs)
         face = np.isin(cls, FACE_CLASSES) & v.sample(v.mask, us, A.zs)
-        vu = np.round((X * np.cos(a) + Y * np.sin(a) - u0) / A.h).astype(int)
-        vd = X * np.sin(a) - Y * np.cos(a)
+        vu = np.round((X * ca + Y * sa - u0) / A.h).astype(int)
+        vd = X * sa - Y * ca
         okv = near & (vu >= 0) & (vu < nu)
         hit = np.zeros(len(ix), bool)
         hit[okv] = face[vu[okv], iz[okv]] & (D[vu[okv], iz[okv]] > -1e8) & (vd[okv] > D[vu[okv], iz[okv]] + FACE_MARGIN)

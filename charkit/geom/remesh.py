@@ -474,18 +474,38 @@ def _qcost(q, p):
 
 
 @nb.njit(**_OPT)
+def _solve3(a, b, c, d, e, f, r0, r1, r2):
+    """the symmetric system [[a, b, c], [b, d, e], [c, e, f]] p = r by cofactors, every product and sum in a fixed order:
+    np.linalg.det / solve call LAPACK, whose kernels differ per CPU, and the decimation's greedy collapse order then
+    diverged between two machines from a bit-identical mesh (2026-09-29). -> (det, p)."""
+    c00 = d * f - e * e
+    c01 = c * e - b * f
+    c02 = b * e - c * d
+    det = a * c00 + b * c01 + c * c02
+    p = np.empty(3)
+    if det == 0.0:
+        p[:] = 0.0
+        return det, p
+    c11 = a * f - c * c
+    c12 = b * c - a * e
+    c22 = a * d - b * b
+    p[0] = (c00 * r0 + c01 * r1 + c02 * r2) / det
+    p[1] = (c01 * r0 + c11 * r1 + c12 * r2) / det
+    p[2] = (c02 * r0 + c12 * r1 + c22 * r2) / det
+    return det, p
+
+
+@nb.njit(**_OPT)
 def _qbest(q, pa, pb):
     """the quadric's minimiser if well conditioned, else the best of the endpoints and midpoint."""
-    A = np.array([[q[0], q[1], q[2]], [q[1], q[4], q[5]], [q[2], q[5], q[7]]])
-    rhs = np.array([-q[3], -q[6], -q[8]])
-    det = np.linalg.det(A)
-    tr = q[0] + q[4] + q[7]
-    if abs(det) > 1e-9 * max(tr, 1e-30) ** 3:
-        p = np.linalg.solve(A, rhs)
+    det, p = _solve3(q[0], q[1], q[2], q[4], q[5], q[7], -q[3], -q[6], -q[8])
+    tr = max(q[0] + q[4] + q[7], 1e-30)
+    if abs(det) > 1e-9 * (tr * tr * tr):
         # stay near the edge (a minimiser far away means a flat, badly conditioned region)
         mid = 0.5 * (pa + pb)
-        el = math.sqrt(((pa - pb) ** 2).sum())
-        if math.sqrt(((p - mid) ** 2).sum()) <= 2.0 * el:
+        dx, dy, dz = pa[0] - pb[0], pa[1] - pb[1], pa[2] - pb[2]
+        mx, my, mz = p[0] - mid[0], p[1] - mid[1], p[2] - mid[2]
+        if math.sqrt(mx * mx + my * my + mz * mz) <= 2.0 * math.sqrt(dx * dx + dy * dy + dz * dz):
             return p, _qcost(q, p)
     best = pa.copy(); bc = _qcost(q, pa)
     c = _qcost(q, pb)
