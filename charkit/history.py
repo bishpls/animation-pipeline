@@ -18,6 +18,16 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
+    ('body_*_leg_gap', 'd35fbaf', "new: rows over the lower legs and boots where the design's legs stand apart and ours join (a bridge)"),
+    ('body_*_boot_step_*', 'd35fbaf', "new: each boot's outline's largest row-to-row jump beyond the design's (the shaft/foot seam)"),
+    ('body_*_skirt_aline', 'd35fbaf', "new: the skirt's width near its hem over its widest row against the design's (a bubble)"),
+    ('body_profile_chest', 'd35fbaf', "new: the chest's front edge in profile against the design's"),
+    ('body_*_waist_skin', 'd35fbaf', "new: the waist's skin across the body beyond the design's (a bare band)"),
+    ('piece_*_extent', 'd35fbaf', "new: a spring piece's lowest row, outer edge and area per view against the drawing's"),
+    ('piece_*_hang', 'd35fbaf', "new: a chained piece's top and lowest point against its drawn chain's root and tip"),
+    ('garment_coverage', 'd35fbaf', 'new (INFO): garments lofted from marginal hull coverage'),
+    ('piece_skirt', 'd35fbaf', "same-colour layers: pixels where a piece lies over another of its colour count for neither (the overskirt panels over the skirt); the flaps' geometry changed at the same time"),
+    ('piece_overskirt_panel_*', 'd35fbaf', "same-colour layers (as piece_skirt); the flaps' geometry changed at the same time"),
     ('body_*_skirt_width', '4053ecd', "the skirt's width measured on the design's rows free of hands when no row is free in both (the back view had fallen back to each figure's own widest free row)"),
     ('body_*_skirt_width', 'ecd4d79', "the skirt's width compared on the rows neither figure has a hand against (each figure's widest free row had sat at different heights)"),
     ('hair_noise', 'c500f21', 'QA renders undithered (charkit/geom merge): hair_noise reads ~0.31 on the default hair and '
