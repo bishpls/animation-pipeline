@@ -195,6 +195,7 @@ def _near(mask, nb, off, k):
     return out
 
 EYE_GAP = 0.035          # L between an eye's outline and its block's edge: room for its rings (0.012 L apart at 3)
+EYE_GAP_BELOW = 0.025    # ... under it, where the mouth's block needs the room
 EYE_BLOCK = (0.135, 0.09)   # the eye block's least half-width and half-height (L), round the eye centre
 
 
@@ -216,8 +217,8 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         eye_outline = np.stack([eye_w / 2 * np.cos(a), eye_h / 2 * np.sin(a) * (1 + 0.15 * np.cos(a))], 1)
     eo = np.asarray(eye_outline, float)
     bw = max(EYE_BLOCK[0], np.abs(eo[:, 0]).max() + EYE_GAP)
-    bt, bb = max(EYE_BLOCK[1], eo[:, 1].max() + EYE_GAP), max(EYE_BLOCK[1], -eo[:, 1].min() + EYE_GAP)
-    mt = max(0.045, min(mt, -bb - dz - mz))      # the mouth block's top a row clear of the eyes' (no sliver row between)
+    bt, bb = max(EYE_BLOCK[1], eo[:, 1].max() + EYE_GAP), max(EYE_BLOCK[1], -eo[:, 1].min() + EYE_GAP_BELOW)
+    mt = max(0.045, min(mt, -bb - dz / 2 - mz))  # the mouth block's top half a row clear of the eyes' (no sliver between)
     zs = hm.lines(z_bottom, z_top, dz, must=[-bb, bt, mz - mb, mz + mt])[::-1]
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
