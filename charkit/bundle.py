@@ -294,6 +294,8 @@ def export(S, out, ref_measure=None):
             rec = dict(name=ob.name, group=group, part=part, side=side, hidden=bool(ob.hide_render),
                        materials=[m.name if m else None for m in ob.data.materials],
                        outline=None, variants=[])
+            if 'charkit_coverage' in ob:                     # a garment lofted from marginal hull coverage
+                rec['coverage'] = float(ob['charkit_coverage'])
             for m in ob.data.materials:
                 if m is not None and m.name not in mats:
                     mats[m.name] = m

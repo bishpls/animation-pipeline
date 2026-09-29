@@ -113,22 +113,36 @@ def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15):
     for a, b in zip(starts, ends):
         R.flat[cell[a]] = np.quantile(rr[a:b], q)
     measured = np.isfinite(R)
-    rows_ok = measured.mean(1) >= min_row
+    cov = measured.mean(1)
+    rows_ok = cov >= min_row
+    if not rows_ok.any():
+        # marginal coverage (a hull's labels wobble at the pieces' boundaries from machine to machine): the rows
+        # measured on at least half the best row's share stand in, with a warning and the share kept (LOW_COVERAGE)
+        if not measured.any():
+            raise ValueError('no cell of the piece is measured')
+        import warnings
+        warnings.warn('loft: no row of the piece is measured on %.0f%% of its circle (the best on %.0f%%): its '
+                      'best-measured rows stand in' % (100 * min_row, 100 * cov.max()))
+        LOW_COVERAGE.append(round(float(cov.max()), 3))
+        rows_ok = cov >= 0.5 * cov.max()
     for k in range(len(ts)):
         if rows_ok[k]:
             R[k] = _fill_periodic(R[k])
         else:
             R[k] = np.nan
     good = np.nonzero(rows_ok)[0]
-    if not len(good):
-        raise ValueError('no row of the piece is measured on %.0f%% of its circle' % (100 * min_row))
     for jj in range(nth):
         R[:, jj] = np.interp(np.arange(len(ts)), good, R[good, jj])
     if smooth[1]:
         R = gauss1d(R, smooth[1], axis=1, mode='wrap')
     if smooth[0]:
         R = gauss1d(R, smooth[0], axis=0, mode='nearest')
-    return Field(ts, th_c, R, measured)
+    F = Field(ts, th_c, R, measured)
+    F.coverage = round(float(cov.max()), 3)
+    return F
+
+
+LOW_COVERAGE = []      # the best row's share for each field built from marginal coverage (garments.build reads it)
 
 
 def loft(ax, F, R=None, ts=None):

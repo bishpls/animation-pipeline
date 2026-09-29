@@ -122,6 +122,24 @@ def test_the_hull_builders_run_without_scipy():
     assert r.returncode == 0 and 'ok' in r.stdout, r.stderr[-1500:]
 
 
+
+def test_field_degrades_on_marginal_coverage():
+    """a piece measured on less than min_row of its circle in every row (a hull's labels wobbling at a boundary) lofts
+    from its best rows with a warning and its coverage kept, instead of failing the build."""
+    import warnings
+    rng = np.random.default_rng(0)
+    th = rng.uniform(-0.3, 0.3, 400)                       # a 10% arc
+    t = rng.uniform(0, 1, 400)
+    r = np.full(400, 0.1)
+    del loft.LOW_COVERAGE[:]
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        F = loft.field(t, th, r, np.linspace(0, 1, 8), nth=48, min_row=0.15)
+    assert np.isfinite(F.R).all() and abs(F.R.mean() - 0.1) < 0.02
+    assert loft.LOW_COVERAGE and loft.LOW_COVERAGE[0] < 0.15 and F.coverage < 0.15
+    assert any('stand in' in str(x.message) for x in w)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
