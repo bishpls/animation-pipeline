@@ -65,6 +65,26 @@ def test_hair_in_front_hides_the_edge():
     assert np.isfinite(lo[r]) and np.isnan(hi[r])
 
 
+def test_a_receding_chin_is_read_where_the_face_turns_under():
+    """an anime profile's lower face slopes back from the lips to the chin: chin_bottom stops once the edge falls 0.06 L
+    behind the lips, halfway down; drawn_chin (the design's rule, and the QA's for ours) finds the turn under the chin.
+    A chin jutting 0.05 L hides the difference: both rules then agree."""
+    z = np.arange(0.1, -0.6, -0.005)
+
+    def profile(chin=-0.355, jut=0.0):
+        lead = np.full(len(z), np.nan)
+        face = (z <= 0) & (z >= chin)
+        lead[face] = np.interp(z[face], [chin, -0.2, -0.16, -0.095, -0.02, 0.0], [0.03 + jut, 0.11, 0.12, 0.158, 0.08, 0.075])
+        under = (z < chin) & (z > chin - 0.1)
+        lead[under] = (0.03 + jut) - (chin - z[under]) * 8.0
+        return lead
+    lead = profile()
+    assert abs(faceqa.drawn_chin(lead, z) - (-0.355)) < 0.006
+    assert faceqa.chin_bottom(-lead, z, -0.2) > -0.33                  # the old rule: halfway down the slope
+    jut = profile(jut=0.05)
+    assert abs(faceqa.drawn_chin(jut, z) - (-0.355)) < 0.006 and abs(faceqa.chin_bottom(-jut, z, -0.2) - (-0.355)) < 0.006
+
+
 def test_chin_bottom():
     z = np.linspace(0, -0.6, 61)
     front = np.where(z > -0.4, -0.3 - 0.1 * (z / -0.4), 0.0)           # forward to the chin at -0.4, then back to the neck

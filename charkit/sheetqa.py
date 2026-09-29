@@ -342,8 +342,9 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2, zbuffer=N
     what it carries, the same way (only for how much face shows); irc: the iris plates' centres (world); centre: the head
     centre (world x, y); L the head length; ppl: the sheet's pixels per head length; az3: the three-quarter azimuth.
     Each view is z-buffered at the sheet's scale (charkit.faceqa), the face is the skin reached from under the eyes
-    without crossing a depth jump, and every view's face is cut at the chin (where the profile's front edge turns back
-    to the neck, searched from `below` L under the eye line: under the nose), as a drawn jaw line cuts the design's.
+    without crossing a depth jump, and every view's face is cut at the chin (faceqa.drawn_chin, the design's rule: where
+    the front edge turns back steeply to the neck, searched from `below` L under the eye line: under the nose), as a
+    drawn jaw line cuts the design's.
     zbuffer, face_region: faceqa's by default, or drop-ins giving the same pixels (zbuffer takes faceqa.zbuffer's `thin`).
     -> {view: measure_labels(...) + 'shown'}."""
     import math
@@ -373,11 +374,12 @@ def measure_ours(meshes, covers, irc, centre, L, ppl, az3, below=-0.2, zbuffer=N
         if view == 'profile':
             eyes = [px(max(irc, key=lambda c: c[0]))]                  # the near eye from +x: the character's left
         raw[view] = (lab, face, eyes, depth, lv)
-    # our chin: where the profile's front edge turns back to the neck (the under-chin runs smoothly into the neck, so
-    # the face region alone doesn't stop there); every view's face is cut below it, as a drawn jaw line cuts the design's
+    # our chin: where the profile's front edge turns back steeply to the neck (the under-chin runs smoothly into the neck,
+    # so the face region alone doesn't stop there), read with the design's own rule; every view's face is cut below it,
+    # as a drawn jaw line cuts the design's
     lab, face, eyes, depth, lv = raw['profile']
     M = measure_labels(lab, face, 'profile', ppl, eyes)
-    chin = faceqa.chin_bottom(-M['lead'], M['z'], below)
+    chin = faceqa.drawn_chin(M['lead'], M['z'], below)                # the design's rule (refcheck.measure_heads)
     for view, (lab, face, eyes, depth, lv) in raw.items():
         zr = (np.mean([e[1] for e in eyes]) - np.arange(face.shape[0])) / ppl
         if chin is not None:
