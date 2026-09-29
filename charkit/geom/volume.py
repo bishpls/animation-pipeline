@@ -261,8 +261,8 @@ def as_sdf(G, blur=0.0):
     else:
         D = signed_edt(G.data, G.h)
     if blur > 0:
-        from scipy.ndimage import gaussian_filter
-        D = gaussian_filter(D, blur, mode='nearest')
+        from . import det                   # the same bits on every machine: marching cubes thresholds this
+        D = det.gaussian(D, blur)
     return G.like(D.astype(np.float32))
 
 
