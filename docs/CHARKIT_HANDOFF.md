@@ -369,7 +369,41 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        place of TRELLIS, is the lever.
      - The review page is `~/animation-pipeline-hull/charkit/out/hull/clawd/index.html`. It shows the held-out label
        maps next to the drawn ones, per-piece IoUs, the surface coloured by piece, and the limb maps.
+   - **Checkpoint review page built (2026-09-28), `charkit/out/checkpoint/index.html`.** It compares before, reviewed,
+     baseline, tune and now, with the decisions in `charkit/out/checkpoint/decisions.md`.
+     - The confirming tune: 68.4 → 65.5 (41 / 29 / 23); the body fit was rejected for hair widths.
+     - "Now" is the tune's best with the hull as the hair source (`charkit/out/checkpoint/now.spec.json`):
+       **50 / 26 / 17**, 11 checks better and 2 worse. The worse ones are knock-ons of the cranium refitted from
+       the hair: `eye_lid_span` and `face_shape_depth`, which is still graded against TRELLIS and should become INFO.
+     - Per-piece carving is merged (`aa996f2`). Its outputs were copied in from the hull worktree; the old ones are in
+       `charkit/out/archive/hull_prepieces`.
    - **Next: the code-authored head (`tool/head`, same worktree, branched from `a383c6b`).**
+     State at `4c4f7d2`, `python -m charkit.geom headfit SPEC --against charkit/out/now/qa/qa.json` (page
+     `charkit/out/head/clawd/index.html` in the hull worktree):
+     - **The approach:**
+       - the skull is `head_construction`'s front and profile carved (guide lines painted out, ears opened off, no
+         silhouette restoration), as polar sections per row, aligned to the face by the forehead;
+       - the face is corrections on the skull's front that vanish at the outline: the turnaround's midline, a cheek
+         term fitted per row to the three-quarter (below the eyes), and the nose and lips as relief;
+       - the jaw rows are scaled to the design's outline, and the chin rows warped to its chin.
+     - **Graded by the QA's own sheet comparison:** `sheet_profile` PASS 0.003 (the build: FAIL 0.042),
+       `nose_reach` PASS −0.001 (build −0.053), `cheek` PASS 0.004 (build WARN 0.026), `chin_reach` WARN 0.034.
+     - **The QA's chin rule is wrong for a receding anime chin** (it reads the chin, and places the width and neck rows
+       from it). `sheetqa.measure_ours` reads our chin with `faceqa.chin_bottom`, which stops 0.06 L behind the
+       lips. On this design that is −0.295; the drawn chin is −0.355. Our geometry matches the design's profile to
+       within 0.002 L down to −0.34, yet `profile_chin`, `width` and `neck_to_jaw` FAIL. Today's head passes only
+       because its chin juts (+0.042).
+       - Fix, on its own branch and gate, since it re-measures every build: read ours with the design's rule. Move
+         `refcheck.drawn_chin` into `faceqa` (refcheck imports sheetqa, so sheetqa can't import refcheck), and add a
+         synthetic receding-chin test.
+     - **Visible faults the checks don't measure** (so measure them first):
+       - horizontal banding across the face. `banding()` is per-row second differences and is dominated by voxel
+         noise; use a band-pass instead (the radius against a height-smoothed copy, over the face);
+       - the jaw–neck junction: the neck reads as a separate cylinder under a flat under-jaw;
+       - a groove at the eye line.
+     - Then fit `headmesh.cage` onto the surface: the front face through its height map, the rest by rays from the
+       axis (from above for the jaw's underside, horizontal for the neck), subdivided, then projected again. Then swap
+       it into the build as the head (`spec['base']`), stitching the neck ring to the body's.
      - `python -m charkit.geom hull SPEC --head` carves `head_turnaround` (`views_from_heads`: 401 px/L, each view at
        its own eye row, which drift by up to 8 px; stopped at z = −0.66 L above the bust's vignette). Held-out
        three-quarter: 0.894 (plain 0.727). It is a silhouette and volume target (cranium, hair, the three-quarter),
