@@ -304,6 +304,20 @@ def measure(out, mode='on', qa=True, blender_peak=None):
     return rep
 
 
+def _glb_inputs(glb):
+    """a generated GLB and what it carries beside it (charkit.i3d.glb_eyes' sidecar and the per-vertex labels it names):
+    everything the geom hair step reads, for its cache key."""
+    p = _path(glb)
+    out = [p]
+    side = p + '.json'
+    if os.path.exists(side):
+        out.append(side)
+        lab = json.load(open(side)).get('labels')
+        if lab:
+            out.append(os.path.join(os.path.dirname(p), lab))
+    return out
+
+
 def geom_hair(spec, resolved, out, mode='on'):
     """venv-side, for hair.shape.mode == 'geom': charkit.geom.parts.hair on the resolved spec -> out/geom/hair.npz, and the
     resolved spec pointed at it. A cached step (charkit.cache.file_step, restored by copy): the cut is given the resolved
@@ -332,7 +346,7 @@ def geom_hair(spec, resolved, out, mode='on'):
     if mode == 'off':
         run()
     else:
-        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=[_path(shape['glb'])],
+        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=_glb_inputs(shape['glb']),
                             modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path

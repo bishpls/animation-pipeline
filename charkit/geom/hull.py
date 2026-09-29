@@ -31,7 +31,7 @@ import json, os
 
 import numpy as np
 
-SKIN, HAIR, OTHER = 1, 2, 0
+SKIN, HAIR, OTHER = 1, 2, 0         # charkit.bodyqa.CLASS's skin and hair (its classes label the views)
 
 
 class View:
@@ -64,12 +64,14 @@ class View:
 def views_from_sheet(rgb, eye_x, facing=-1):
     """a full-body turnaround's views, found as a model sheet's are (charkit.sheetqa.detect_figures) and calibrated from
     their eyes (see the module) -> ({view: View}, info {ppl, az3, y_e, axes})."""
-    from charkit import sheetqa
+    from charkit import bodyqa, sheetqa
     D = sheetqa.detect_figures(rgb, None, eye_x, facing)
     ppl, F = D['ppl'], D['figures']
-    lab = sheetqa.classes(rgb)
-    cls = np.where((lab == 1) | (lab == 5), SKIN, np.where(lab == 2, HAIR, OTHER)).astype(np.uint8)
     fe = F['front']['eyes']
+    # the QA's classes (charkit.bodyqa: colour families; the orange split into hair and dress by where each drawn region
+    # lies, above the shoulders or below), over every figure at once: the sheet's figures share one eye line
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    cls = bodyqa.classes(rgb, fg, float(np.mean([e[1] for e in fe])), ppl)[0].astype(np.uint8)
     ax_front = float(np.mean([e[0] for e in fe]))
     eye_front = float(np.mean([e[1] for e in fe]))
     m = F['profile']['_mask']
@@ -299,6 +301,24 @@ def surface(V, A, views=None, blur=1.0):
     return m
 
 
+def label_vertices(m, views):
+    """each vertex's class (charkit.bodyqa.CLASS) from the view whose camera faces it most -> int array (N,)."""
+    from .mesh import vertex_normals
+    N = vertex_normals(m.V, m.F)
+    names = list(views)
+    cams = np.stack([[np.sin(np.radians(views[n].az)), -np.cos(np.radians(views[n].az)), 0.0] for n in names])
+    best = np.argmax(N @ cams.T, 1)
+    lab = np.zeros(len(m.V), np.int16)
+    for i, n in enumerate(names):
+        sel = best == i
+        if sel.any():
+            v = views[n]
+            c, r = v.pixel(v.u_of(m.V[sel, 0], m.V[sel, 1]), m.V[sel, 2])
+            H, W = v.labels.shape
+            lab[sel] = v.labels[np.clip(r, 0, H - 1), np.clip(c, 0, W - 1)]
+    return lab
+
+
 def main(args):
     """python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--no-open]"""
     import subprocess, time
@@ -329,8 +349,9 @@ def main(args):
     io.save(m, os.path.join(out, 'hull.ply'))
     io.save(m, os.path.join(out, 'hull.glb'))            # a coloured 'generated character' for charkit.geom.parts
     ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
-    json.dump({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'units': 'L', 'by': 'charkit.geom.hull'},
-              open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
+    np.save(os.path.join(out, 'hull_labels.npy'), label_vertices(m, views))     # per vertex, bodyqa.CLASS
+    json.dump({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'labels': 'hull_labels.npy', 'units': 'L',
+               'by': 'charkit.geom.hull'}, open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs)
     rep = {'spec': args[0], 'sheet': bs['image'], 'style': opt('--style', spec.get('style', 'anime')), 'prior': prior,
            'grid': list(A.shape), 'h_L': A.h, 'calibration': info, 'leave_one_out': loo, 'plain_leave_one_out': plain,

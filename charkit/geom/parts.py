@@ -116,8 +116,29 @@ class Case:
                      translate=(np.asarray(mid) - (eyes[0] + eyes[1]) / 2 * s).tolist(), glb=path)
         gen = Mesh(V, gt.F, vc=gt.vc)
         gen_c = Mesh(V, gt.F, vc=gc.vc)
+        lab = generated_labels(path, len(V))
+        if lab is not None:
+            # the generated shape carries its classes (a visual hull's, charkit.geom.hull): what the drawings show as
+            # clothes is recoloured out of the hair's colour family, so the colour tests keep hair and not the top
+            # (the same orange); skin and hair keep their colours
+            from ..bodyqa import CLASS
+            clothes = ~np.isin(lab, [CLASS['hair'], CLASS['skin'], CLASS['iris'], CLASS['line'], CLASS['none']])
+            gen.vc = np.asarray(gen.vc, float).copy(); gen.vc[clothes] = (0.25, 0.35, 0.8)
+            gen_c.vc = np.asarray(gen_c.vc, float).copy(); gen_c.vc[clothes] = (0.25, 0.35, 0.8)
         body = Mesh.from_polys(A['verts'], A['faces'])
         return cls(spec, A, gen, gen_c, body, align)
+
+
+def generated_labels(path, n):
+    """per-vertex classes a generated GLB's sidecar names (PATH.json 'labels': an .npy beside it), or None."""
+    side = str(path) + '.json'
+    if not os.path.exists(side):
+        return None
+    f = json.load(open(side)).get('labels')
+    if not f:
+        return None
+    lab = np.load(os.path.join(os.path.dirname(str(path)), f))
+    return lab if len(lab) == n else None
 
 
 # ------------------------------------------------------------------------------------------------------------- colour
