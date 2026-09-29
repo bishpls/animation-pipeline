@@ -9,7 +9,7 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
     python -m charkit remote run CMD...                  anything, in the synced copy
     python -m charkit remote up | status | stop
 """
-import json, os, shlex, subprocess, sys
+import json, os, re, shlex, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_SH = os.path.join(ROOT, 'infra', 'gcp', 'build.sh')
@@ -68,22 +68,46 @@ def build(args, kind='build'):
 
 
 def gate(args):
-    """the gate on the box: a git bundle of the branch and its base brought into a clone there, the gitignored inputs the
-    builds read (charkit/out/i3d) beside it, the gate run in the clone, its report fetched."""
+    """the gate on the box: a git bundle of what the box's clone lacks brought into it, the gitignored inputs the builds
+    read (charkit/out/i3d) beside it, the gate run in the clone, its report fetched. Gates from several worktrees queue
+    on a lock there (they share the clone), so parallel workstreams can each gate when ready."""
     branch, into = args[0], _opt(args, '--into', 'pipeline-3d')
-    bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo.bundle')
+    tag = re.sub(r'[^A-Za-z0-9._-]', '_', branch)
+    bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % tag)
+    boxed = '/srv/work/repo-%s.bundle' % tag
     os.makedirs(os.path.dirname(bundle), exist_ok=True)
-    subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch], check=True, capture_output=True)
     up()
-    _sh('push', bundle, '/srv/work/repo.bundle')
-    _sh('run', ROOT, 'cd /srv/work && ( [ -d repo/.git ] || git clone -q repo.bundle repo ) && cd repo && '
-        'git fetch -q -f ../repo.bundle "refs/heads/*:refs/heads/*" --update-head-ok && git checkout -q -f %s' % shlex.quote(into))
+    # only what the box's clone lacks: its refs' commits (known here, since they came from here) are left out
+    have = _sh('ssh', 'git -C /srv/work/repo for-each-ref --format="%(objectname)" 2>/dev/null; true', capture=True,
+               check=False).split()
+    known = [c for c in have if subprocess.run(['git', '-C', ROOT, 'cat-file', '-e', c + '^{commit}'],
+                                              capture_output=True).returncode == 0]
+    r = subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch] + ['^' + c for c in known],
+                       capture_output=True, text=True)
+    if r.returncode != 0 and 'empty bundle' not in r.stderr:
+        raise SystemExit(r.stderr)
+    if r.returncode == 0:
+        put(bundle, boxed)
+        os.remove(bundle)
     i3d = os.path.join(ROOT, 'charkit', 'out', 'i3d')
     if os.path.isdir(i3d):
-        _sh('run', ROOT, 'mkdir -p /srv/work/repo/charkit/out')
+        # seeded on the box from its synced copy of this worktree when there is one, so the tunnel carries only changes
+        seed = '/srv/work/%s/charkit/out/i3d/' % os.path.basename(ROOT)
+        _sh('ssh', 'mkdir -p /srv/work/repo/charkit/out/i3d && { [ ! -d %s ] || rsync -a %s /srv/work/repo/charkit/out/i3d/; }'
+            % (seed, seed))
         _sh('push', i3d + '/', '/srv/work/repo/charkit/out/i3d/')
-    code = _sh('run', ROOT, 'cd /srv/work/repo && python -m charkit slots %d >/dev/null && python -m charkit gate %s --into %s' % (
-        BOX_SLOTS, shlex.quote(branch), shlex.quote(into)), check=False)
+    # under the lock: the refs set to this worktree's commits exactly (an empty bundle means the clone has them all; the
+    # bundle is removed once read, so a later run never fetches a stale one), then the gate
+    sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True).stdout.strip()
+           for b in (into, branch)}
+    refs = ' && '.join('git update-ref refs/heads/%s %s' % (shlex.quote(b), sha[b]) for b in (into, branch))
+    step = ('cd /srv/work && ( [ -d repo/.git ] || git clone -q %(b)s repo ) && cd repo && '
+            'git config user.name charkit-gate && git config user.email gate@localhost && '
+            '{ [ ! -f %(b)s ] || git fetch -q -f %(b)s "refs/heads/*:refs/heads/*" --update-head-ok; } && '
+            '%(refs)s && git checkout -q -f %(into)s && rm -f %(b)s && '
+            'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s'
+            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=BOX_SLOTS))
+    code = _sh('run', ROOT, 'flock /srv/work/.gate.lock bash -c %s' % shlex.quote(step), check=False)
     _sh('ssh', 'mkdir -p /srv/work/_gate && cp -r /srv/work/repo/charkit/out/gate/. /srv/work/_gate/ 2>/dev/null; true')
     local = os.path.join(ROOT, 'charkit', 'out', 'gate')
     os.makedirs(local, exist_ok=True)
@@ -93,11 +117,28 @@ def gate(args):
     return code
 
 
-def _box_name():
+BUCKET_OVER = 100 << 20           # bytes: a bigger file goes through the bucket (the IAP tunnel carries ~2-3 MB/s)
+
+
+def _env(key):
     for line in open(os.path.join(ROOT, 'infra', 'gcp', 'build.env')):
-        if line.startswith('VM='):
+        if line.startswith(key + '='):
             return line.split('=', 1)[1].split('#')[0].strip()
-    return 'anim-build-1'
+    return None
+
+
+def put(local, remote):
+    """a file onto the box: through its bucket when big (the box's service account reads it), else rsync."""
+    if os.path.getsize(local) > BUCKET_OVER and _env('BUCKET'):
+        url = '%s/remote/%s' % (_env('BUCKET').rstrip('/'), os.path.basename(local))
+        subprocess.run(['gcloud', 'storage', 'cp', '--quiet', local, url, '--project', _env('PROJECT')], check=True)
+        _sh('ssh', 'gcloud storage cp --quiet %s %s' % (shlex.quote(url), shlex.quote(remote)))
+    else:
+        _sh('push', local, remote)
+
+
+def _box_name():
+    return _env('VM') or 'anim-build-1'
 
 
 def main(args):
