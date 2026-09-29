@@ -546,7 +546,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
     elif k == 'bow':
         G = gm.bow(A, s)
     elif k == 'panel':
-        G = gm.panel(A, s)
+        G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
     else:
         raise ValueError(k)
     lit, shade, tex = garment_tones(A, s, G)

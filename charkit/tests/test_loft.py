@@ -54,6 +54,40 @@ def test_loft_is_a_closed_quad_grid():
     assert len(border) == 2 * 32                                            # open only at the top and bottom rows
 
 
+def _cone_hull(seed=1):
+    """a skirt-like hull: a cone from z 0 (radius 0.3) down to z -1 (radius 0.6), the back 0.2 longer; a band above it
+    (z 0 .. 0.15, radius 0.28); a panel on her left side (theta 1.2 .. 2.0) hanging outside the skirt to z -1.3."""
+    g = np.random.default_rng(seed)
+    th = g.uniform(-np.pi, np.pi, 30000)
+    back = (1 - np.cos(th)) / 2
+    hem = 1.0 + 0.2 * back
+    t = g.uniform(0, 1, len(th)) * hem
+    r = 0.3 + 0.3 * t
+    skirt = np.c_[r * np.sin(th), -r * np.cos(th), -t]
+    thb = g.uniform(-np.pi, np.pi, 4000); zb = g.uniform(0, 0.15, 4000)
+    band = np.c_[0.28 * np.sin(thb), -0.28 * np.cos(thb), zb]
+    thp = g.uniform(1.2, 2.0, 5000); tp = g.uniform(0.2, 1.3, 5000); rp = 0.36 + 0.3 * tp
+    panel = np.c_[rp * np.sin(thp), -rp * np.cos(thp), -tp]
+    return {'skirt': skirt, 'waistband': band, 'overskirt_panel_L': panel}
+
+
+def test_garments_lofted_from_the_hull_follow_its_points():
+    from charkit import garments as gm
+    H = _cone_hull()
+    A = {'head': {'L': 1.0}, 'verts': np.zeros((1, 3)), 'weights': {'hips': np.ones(1)}}
+    S = gm.skirt_hull(A, {'name': 'skirt', 'pleat': 0.0, 'under': 'waistband', 'tuck': 0.0}, H)
+    V = S['verts']
+    th = np.arctan2(V[:, 0], -V[:, 1]); r = np.hypot(V[:, 0], V[:, 1])
+    assert np.percentile(np.abs(r - (0.3 + 0.3 * -V[:, 2])), 90) < 0.03                 # on the cone
+    lo_front, lo_back = V[np.abs(th) < 0.3, 2].min(), V[np.abs(th) > np.pi - 0.3, 2].min()
+    assert -1.05 < lo_front < -0.9 and -1.25 < lo_back < -1.1, (lo_front, lo_back)       # the back hangs longer
+    B = gm.belt_hull(A, {'name': 'waistband'}, H)
+    assert abs(np.hypot(B['verts'][:, 0], B['verts'][:, 1]).mean() - 0.28) < 0.02
+    P = gm.panel_hull(A, {'name': 'overskirt_panel_L'}, H)
+    thp = np.arctan2(P['verts'][:, 0], -P['verts'][:, 1])
+    assert 1.1 < thp.min() and thp.max() < 2.1 and P['verts'][:, 2].min() < -1.2        # its own span and length
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

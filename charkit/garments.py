@@ -455,6 +455,58 @@ def panel(A, spec):
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=zw)
 
 
+def panel_hull(A, spec, hull):
+    """an open panel lofted through the hull's points of its piece (an overskirt panel): the angles its points span
+    round the skirt's axis (between the `span` percentiles, relative to their circular mean, so a panel across the back
+    doesn't wrap), per column its own top and bottom edge (where its points start and end), and the measured section
+    between (geom.loft), `offset` L out. UV and weights as panel()'s. -> dict(verts, faces, weights, uv, z_waist)."""
+    from scipy.ndimage import gaussian_filter1d
+    from .geom import loft
+    L = A['head']['L']
+    P = _hull_points(hull, spec)
+    around = [hull[k] for k in ('skirt', 'skirt_panel') if hull and k in hull and len(hull[k])]
+    Q = np.concatenate(around) if around else P
+    top = P[:, 2].max()
+    ax = _vertical_axis(Q[Q[:, 2] > np.percentile(Q[:, 2], 90)], top)
+    t, th, r = ax.coords(P)
+    mid = np.angle(np.exp(1j * th).mean())
+    rel = np.angle(np.exp(1j * (th - mid)))
+    lo, hi = np.percentile(rel, spec.get('span', (2, 98)))
+    cols, rows = spec.get('cols', 24), spec.get('rows', 16)
+    a = np.linspace(lo, hi, cols + 1)
+    # per column its top and bottom: where the points in its sector start and end
+    nb = 2 * cols
+    edges = np.linspace(lo, hi, nb + 1)
+    tt0, tt1 = np.full(nb, np.nan), np.full(nb, np.nan)
+    for k in range(nb):
+        m = (rel >= edges[k]) & (rel < edges[k + 1])
+        if m.sum() >= 5:
+            tt0[k], tt1[k] = np.percentile(t[m], 3), np.percentile(t[m], spec.get('hem_q', 97))
+    ok = np.isfinite(tt0)
+    if ok.sum() < 2:
+        raise ValueError('%s: too few hull points across the panel' % spec['name'])
+    cen = 0.5 * (edges[:-1] + edges[1:])
+    sm = spec.get('hem_smooth', 1.0)
+    t0 = gaussian_filter1d(np.interp(a, cen[ok], tt0[ok]), sm, mode='nearest')
+    t1 = gaussian_filter1d(np.interp(a, cen[ok], tt1[ok]), sm, mode='nearest')
+    v = np.clip((t - np.interp(rel, a, t0)) / np.maximum(1e-9, np.interp(rel, a, t1) - np.interp(rel, a, t0)), -0.2, 1.2)
+    vs = np.linspace(0, 1, rows + 1)
+    F = loft.field(v, th, r, vs, nth=spec.get('nth', 144), smooth=(1.0, 1.0), min_row=0.02)   # (a panel spans part of
+    TH = mid + a[None, :]                                                                     # the circle: its own)
+    R = F.at(np.broadcast_to(vs[:, None], (rows + 1, cols + 1)), np.broadcast_to(TH, (rows + 1, cols + 1)))
+    R = R + spec.get('offset', 0.0) * L
+    T = t0[None, :] + vs[:, None] * (t1 - t0)[None, :]
+    verts = ax.point(T, np.broadcast_to(TH, T.shape), R).reshape(-1, 3)
+    faces = [(j * (cols + 1) + i, j * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i)
+             for j in range(rows) for i in range(cols)]
+    uvs = [(i / cols, j / rows) for j in range(rows + 1) for i in range(cols + 1)]
+    vv = np.repeat(vs, cols + 1)
+    sx = np.clip(verts[:, 0] / (0.08 * L), -1, 1)
+    leg = 0.65 * vv ** 1.4
+    Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
+    return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=float(top - np.median(t0)))
+
+
 def stepped_hem(n=1024, band=0.16, steps=6, step_h=0.045, repeat=10, panel=None, colors=((0.86, 0.42, 0.24),
                 (0.28, 0.20, 0.18)), pleats=0):
     """RGBA texture for a skirt: the body colour with a dark band along the hem (v = 1) whose top edge rises and falls in
@@ -896,7 +948,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             G = bow(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'panel':
-            G = panel(A, s)
+            G = panel_hull(A, s, hull) if s.get('source') == 'hull' else panel(A, s)
             if s.get('hem') == 'stepped':
                 tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
                                   steps=s.get('steps', 6))
