@@ -416,9 +416,21 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
          noise; use a band-pass instead (the radius against a height-smoothed copy, over the face);
        - the jaw–neck junction: the neck reads as a separate cylinder under a flat under-jaw;
        - a groove at the eye line.
-     - Then fit `headmesh.cage` onto the surface: the front face through its height map, the rest by rays from the
-       axis (from above for the jaw's underside, horizontal for the neck), subdivided, then projected again. Then swap
-       it into the build as the head (`spec['base']`), stitching the neck ring to the body's.
+     - **Banding fixed at its sources** (`59edcdf`), measured by a band-pass (`banding()`: the radius against itself
+       smoothed over 0.02 L of height). The construction profile's drawn lashes, nose and lips were spread across the
+       skull's rows (`without_features` now smooths them off before carving), and the jaw's per-row scaling jittered
+       with the pixel-quantised widths. 0.0049 → 0.0031, the carved skull's own level.
+     - **The cage fitted without folds** (`465fbb8`, `headmesh.cylinder` + `headfit.cylinder_cage`). A box cage
+       projected by rays folded 110–171 of 4680 faces where the box front was wider than the jaw. On the head's own
+       chart (columns round it, rows down it, a dome of rays with a Coons cap at the crown) Clawd's cage (2737 vertices)
+       has 0 flipped faces and 0 folded corners (`quality()`). The eyes' and mouth's loops land at their front-view
+       outlines. The page shows it coloured by group.
+     - **Next: into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
+       - the eyes' and mouth's labels from the cage's loops, in `eyelib.labels` / `mouthlib.labels` format;
+       - an `H` backed by the sections (`surfaces`, `sections`, `_xy`, `section`, the landmark attributes), with
+         `eyes.Face` taking it as is: it rebuilds a `head.Head` from knobs today;
+       - the neck's ring stitched to the body's neck (the body stays MakeHuman's until the body base is authored);
+       - skin weights (head, neck, jaw), UVs (a front projection for the face), and the head's joints.
      - `python -m charkit.geom hull SPEC --head` carves `head_turnaround` (`views_from_heads`: 401 px/L, each view at
        its own eye row, which drift by up to 8 px; stopped at z = −0.66 L above the bust's vignette). Held-out
        three-quarter: 0.894 (plain 0.727). It is a silhouette and volume target (cranium, hair, the three-quarter),
