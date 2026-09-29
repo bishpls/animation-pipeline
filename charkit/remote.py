@@ -107,7 +107,9 @@ def gate(args):
             '%(refs)s && git checkout -q -f %(into)s && rm -f %(b)s && '
             'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s'
             % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=BOX_SLOTS))
-    code = _sh('run', ROOT, 'flock /srv/work/.gate.lock bash -c %s' % shlex.quote(step), check=False)
+    # over plain ssh with the box's environment: `run` would first cd into this worktree's synced copy, which a worktree
+    # that has only ever gated doesn't have
+    code = _sh('ssh', 'source /opt/anim-build/env && flock /srv/work/.gate.lock bash -c %s' % shlex.quote(step), check=False)
     _sh('ssh', 'mkdir -p /srv/work/_gate && cp -r /srv/work/repo/charkit/out/gate/. /srv/work/_gate/ 2>/dev/null; true')
     local = os.path.join(ROOT, 'charkit', 'out', 'gate')
     os.makedirs(local, exist_ok=True)
