@@ -335,6 +335,41 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+### The boards' renders: one animation per set
+
+A still render (`bpy.ops.render.render`) evaluates a fresh depsgraph, so every modifier in the file runs again for each
+view. For Clawd that means 51 armatures, 47 solidify outlines, 20 subdivisions and 9 data transfers, about 2 s a frame
+on any GPU (L4 2.4 s, T4 2.2 s, M2 Pro 2.0 s). The frame is CPU-bound. An animation render keeps its depsgraph and
+re-evaluates only what a frame changed.
+
+`qa.render_views(cam, views, view=None, features=None)` renders each board set this way. Consecutive `qa.View`s that
+share a camera type and scale (metres per pixel) become the frames of one animation render. A `frame_change_pre`
+handler sets each frame's state (an expression, a mouth), its camera, and the per-view hook `view(az, m_per_px, res_y)`
+(the look's `shade.set_view`). The features-through-the-hair pass (`features_pass`, `features_blend`) batches the same
+way, as a second animation render.
+
+The frames match stills exactly: `charkit/tests/test_render_views.py`, and `python -m charkit.boarddiff A B` on two
+builds (every board, QA overlay and sheet, and every QA check). A scene with anything frame-dependent (an action, NLA, a
+frame driver, motion blur), a lone view, or a handler that missed a frame renders stills as before.
+
+The hook must write only the values it changes. A write to a modifier re-evaluates that object on the next frame:
+rewriting every outline's unchanged width per frame cost 2.4–2.8 s a frame against 0.8–1.1 s when it skipped them.
+Changing the light's node inputs per frame is a uniform update, with no shader compile.
+
+Measured on `clawd.json` with all four sets (34 boards; the boards match to the bit):
+
+| | stills | one animation per set |
+| --- | --- | --- |
+| boards, render box (T4) | 131.9 s (3.86 s a view) | 55.2 s (1.62 s a view) |
+| boards, laptop (M2 Pro) | 123.4 s (3.52 s a view) | 54.2 s (1.52 s a view) |
+| the Blender build, box / laptop | 172.9 s / 152.6 s | 95.6 s / 76.0 s |
+
+What's left is:
+- each animation render's first frame, a full evaluation: 8 of them here, 5 sets and 3 feature passes;
+- the subdivided skin, re-evaluated in each of the 25 frames whose expression or mouth changes.
+
+A set that moves only the camera (the body views, a turntable) runs about 3–4× faster.
+
 ### The geometry bundle: Blender builds, the venv measures
 
 Every check runs in the venv, on one export of the build (`charkit/bundle.py`, schema `charkit.bundle/1`), with the
