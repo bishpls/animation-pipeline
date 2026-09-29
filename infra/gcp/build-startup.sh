@@ -38,8 +38,9 @@ if [ ! -x /opt/anim-build/venv/bin/python ] || ! readlink -f /opt/anim-build/ven
     opencv-python-headless pytest
 fi
 
+# no GPU here: EEVEE would render in software, minutes a board (charkit skips the boards; the QA doesn't read them)
 printf '%s\n' 'export BLENDER=/opt/blender/blender' 'export VIRTUAL_ENV=/opt/anim-build/venv' \
-  'export PATH=/opt/anim-build/venv/bin:$PATH' > /opt/anim-build/env
+  'export PATH=/opt/anim-build/venv/bin:$PATH' 'export CHARKIT_NO_RENDER=1' > /opt/anim-build/env
 chmod 644 /opt/anim-build/env
 
 # Idle stop: no login session, 5-min load under 1, no charkit process, and no keepalive touched in the last 2 h

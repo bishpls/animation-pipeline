@@ -248,6 +248,11 @@ def build(args):
     spec = code_head(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
+    if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
+        # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
+        # bundle, not the boards, so fits, tunes and gates lose nothing; review renders go to the laptop or the GPU box
+        print('CHARKIT_NO_RENDER: boards skipped (%s)' % boards)
+        boards = ''
     qa = None if '--no-qa' in args else opt('--qa', 'venv')
     if qa not in (None, 'venv', 'blender'):
         raise SystemExit('--qa venv|blender')
