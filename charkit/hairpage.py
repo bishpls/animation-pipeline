@@ -171,6 +171,21 @@ def page(build, out, against=None):
             b1 = copy(os.path.join(build, 'boards', board + '.png'), '%s.png' % board)
             if b1 or b0:
                 cells.append((label, d, b0, b1))
+        if sheet == 'head_turnaround':
+            # the close-ups: each picture's top (the buns, the fringe, the locks' relief) at twice the size
+            top = []
+            for label, d, b0, b1 in cells:
+                row = []
+                for x in (d, b0, b1):
+                    if x is None:
+                        row.append(None); continue
+                    im = Image.open(os.path.join(out, x)).convert('RGB')
+                    w, h = im.size
+                    name = x.replace('img/', 'img/top_')
+                    im.crop((0, 0, w, int(h * 0.55))).save(os.path.join(out, name))
+                    row.append(name)
+                top.append(('%s, top' % label, *row))
+            render_rows.append(('head top', top, None))
         if sheet == 'body_turnaround' and figs:
             for k, f in enumerate(figs):
                 f.save(os.path.join(img, 'design_body_%d.png' % k))
@@ -264,12 +279,14 @@ def _renders(rows):
     body's boards under the body turnaround's figures."""
     H = []
     for kind, cells, design in rows:
-        if kind == 'head' and cells:
-            H.append('<h2>Renders against the design: head</h2><table><tr><th></th><th>design</th><th>before</th>'
-                     '<th>this build</th></tr>%s</table>' % ''.join(
+        if kind in ('head', 'head top') and cells:
+            H.append('<h2>%s</h2><table><tr><th></th><th>design</th><th>before</th>'
+                     '<th>this build</th></tr>%s</table>' % (
+                         'Renders against the design: head' if kind == 'head' else
+                         'Close-ups: the buns, the fringe and the locks (the top of each picture)', ''.join(
                          '<tr><td>%s</td>%s</tr>' % (html.escape(label), ''.join(
                              '<td>%s</td>' % ('<img src="%s" height="360">' % x if x else '') for x in (d, b0, b1)))
-                         for label, d, b0, b1 in cells))
+                         for label, d, b0, b1 in cells)))
         elif kind == 'body' and cells:
             H.append('<h2>Renders: body</h2>')
             if design:
