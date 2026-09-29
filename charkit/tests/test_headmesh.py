@@ -80,6 +80,18 @@ def test_the_cylinder_cage_fits_a_head_without_folds():
     assert abs(mid[2]) < 0.01, mid
 
 
+def test_the_fairness_measure_sees_a_bump_and_not_a_sphere():
+    from charkit.geom import headfit
+    S = ellipsoid_sections()
+    r, ang = headfit.normal_fairness(S)
+    assert all(v['rms_deg'] < 0.6 for k, v in r.items() if k != 'jaw_neck'), r      # (the neck's join is a real crease)
+    j = np.abs(S.th - np.radians(55)) < 0.12                           # a 0.004 L bump on the cheek at z = -0.1
+    k = np.abs(S.zs + 0.1) < 0.02
+    S.r[np.ix_(k, j)] += 0.004 * np.outer(np.hanning(k.sum()), np.hanning(j.sum()))
+    r2, _ = headfit.normal_fairness(S)
+    assert r2['cheeks']['max_deg'] > 3 * r['cheeks']['max_deg'] and r2['forehead']['rms_deg'] < 0.6, (r, r2)
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

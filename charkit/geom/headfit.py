@@ -246,6 +246,94 @@ class Sections:
         return V
 
 
+def bridge_ears(half, dz, window=0.3, bump=0.01, pad=0.02):
+    """a front silhouette's half-width per row with the ears taken out: the rows where it stands out of its own
+    opening (a running minimum then maximum over `window` L) by more than `bump` L, grown by `pad` L, are bridged by a
+    monotone cubic from the rows either side. The opening itself flattens the skull's broad widest band into a plateau
+    with kinked ends; used only to find the ear, it doesn't. -> half-widths."""
+    from scipy.interpolate import PchipInterpolator
+    from scipy.ndimage import binary_dilation, maximum_filter1d, minimum_filter1d
+    ok = np.isfinite(half)
+    h = np.where(ok, half, 0.0)
+    k = max(3, int(window / dz))
+    opened = maximum_filter1d(minimum_filter1d(h, k), k)
+    ear = binary_dilation(ok & (h - opened > bump), iterations=max(1, int(pad / dz)))
+    keep = ok & ~ear
+    i = np.arange(len(half))
+    kept = np.nonzero(keep)[0]
+    if not ear.any() or len(kept) < 4:
+        return half
+    inside = ear & ok & (i > kept[0]) & (i < kept[-1])     # only runs with kept rows either side: never extrapolated
+    out = half.copy()
+    out[inside] = PchipInterpolator(i[keep], half[keep])(i[inside])
+    return out
+
+
+def _smooth_crown(half, sigma):
+    """a half-width over rows (the crown first) smoothed by a Gaussian, padded at the crown by its odd reflection about a
+    zero just above the first row, so it still runs to zero there; NaNs (rows off the head) kept."""
+    from scipy.ndimage import gaussian_filter1d
+    ok = np.isfinite(half)
+    if not ok.any():
+        return half
+    first = np.nonzero(ok)[0][0]
+    h = np.where(ok, half, 0.0)[first:]
+    n = int(3 * sigma) + 2
+    pad = np.concatenate([-h[:n][::-1], h])
+    sm = gaussian_filter1d(pad, sigma, mode='nearest')[n:]
+    out = np.full(len(half), np.nan)
+    out[first:] = np.where(ok[first:], np.maximum(sm, 0.0), np.nan)
+    return out
+
+
+def skull_analytic(spec, dz=0.004, smooth=0.015, log=print):
+    """the bald head from head_construction without voxels: per row, the superellipse (the style's exponent) inscribed
+    in the front silhouette's width (ears opened off) and the profile's depth (its drawn features smoothed off), read
+    to a pixel at the sheet's ~900 px/L, each extent smoothed over `smooth` L of rows; its eyes at y = 0. The carve's
+    own sections without its voxel grain. -> Sections."""
+    from charkit import manifest, refcheck, styles
+    from . import hull
+    M = manifest.load(spec['ref']['manifest'])['references']
+    rgb, _ = refcheck.without_guides(refcheck._load(M['head_construction']['path']))
+    ex = spec.get('eyes', {}).get('x', 0.168)
+    facing = spec['ref'].get('face_sheet', {}).get('facing', -1)
+    views, info = hull.views_from_heads(rgb, ex, facing, ears=True)
+    without_features(views['profile'], facing=facing)
+    p = styles.load(spec.get('style', 'anime'))['hull']['p']
+    f, pr = views['front'], views['profile']
+    top = min((f.eye_y - np.nonzero(f.mask.any(1))[0].min()) / f.ppl, (pr.eye_y - np.nonzero(pr.mask.any(1))[0].min()) / pr.ppl)
+    zs = np.arange(top - dz / 2, hull.HEAD_FLOOR, -dz)
+
+    def extents(v, z):
+        r = int(round(v.eye_y - z * v.ppl))
+        if not (0 <= r < v.mask.shape[0]) or not v.mask[r].any():
+            return np.nan, np.nan
+        c = np.nonzero(v.mask[r])[0]
+        runs = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1)
+        run = min(runs, key=lambda q: 0 if q[0] <= v.axis <= q[-1] else min(abs(q[0] - v.axis), abs(q[-1] - v.axis)))
+        return (run[0] - 0.5 - v.axis) / v.ppl, (run[-1] + 0.5 - v.axis) / v.ppl
+    E = np.array([extents(f, z) + extents(pr, z) for z in zs])          # x left, x right, y front, y back
+    E[:, 2:] -= info['y_e']                                             # the eyes at y = 0
+    # below the neck's narrowest row the construction's bust flares into the shoulders, which are the body's: the neck
+    # holds its width and depth down to the floor
+    band = (zs < -0.45) & (zs > -0.62) & np.isfinite(E[:, 1] - E[:, 0])        # under the jaw: the chin's V is narrower
+    if band.any():
+        kn = np.nonzero(band)[0][np.argmin((E[:, 1] - E[:, 0])[band])]
+        E[kn + 1:] = E[kn]
+    E[:, 0], E[:, 1] = -bridge_ears(-E[:, 0], dz), bridge_ears(E[:, 1], dz)
+    # smoothed over rows: the centres plainly, the half-widths reflected oddly about the crown (they run to zero there;
+    # a one-sided smoothing would widen the top rows into a flat top)
+    rx = _smooth_crown((E[:, 1] - E[:, 0]) / 2, smooth / dz)
+    ry = _smooth_crown((E[:, 3] - E[:, 2]) / 2, smooth / dz)
+    cy = _smooth_rows((E[:, 2] + E[:, 3]) / 2, smooth / dz)
+    th = np.linspace(-np.pi, np.pi, Sections.N, endpoint=False)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        r = 1.0 / (np.abs(np.sin(th)[None, :] / rx[:, None]) ** p + np.abs(np.cos(th)[None, :] / ry[:, None]) ** p) ** (1 / p)
+    ok = np.isfinite(rx) & np.isfinite(ry) & (rx > 0) & (ry > 0)
+    log('skull: head_construction analytic, %d rows of superellipses (p %.1f) from %.3f to %.2f L' % (ok.sum(), p, zs[0], zs[-1]))
+    return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], r, np.nan))
+
+
 def skull_sections(V, A, smooth_z=0.012, smooth_th=0.01):
     """a solid's rows as polar sections round each row's centroid, centres and radii smoothed over `smooth_z` L of rows
     and the radii over `smooth_th` rad (the carving's voxel noise)."""
@@ -282,6 +370,15 @@ CHEEK_FIT = (-0.06, 0.08)        # the cheek term is fitted below the first z (a
                                  # eye's lashes) and fades out over the second (L) above it
 
 
+def _smoothstep(t):
+    t = np.clip(t, 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+BROAD = 0.05                     # L of height: the midline's correction that spreads across the face is this smooth; the
+                                 # rest (the nose, the lips, the bridge) stays at the midline, narrow
+
+
 def _falloff(s):
     """1 at the midline, 0 at the outline, flat at both: (1 - s^2)^2 on [0, 1]."""
     s = np.clip(np.abs(s), 0, 1)
@@ -310,7 +407,8 @@ CHIN_BIAS = -0.02                # L: the chin's rows warped this far past the d
                                  # so the turn starts ~0.015-0.02 L above it (unbiased, Clawd's reads -0.34 against -0.355)
 
 
-def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_bias=CHIN_BIAS):
+def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, chin_bias=CHIN_BIAS,
+             terms=('corr', 'rel', 'cheek', 'scale', 'warp')):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
       - below CHEEK_TOP each row's x scaled so its half-width is the face's own outline (blended up to JAW_ROWS[1]);
@@ -319,8 +417,9 @@ def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_
         lips' relief;
     then smoothed as one field over angle and height."""
     from scipy.ndimage import gaussian_filter
-    S0 = skull_sections(V, A)
+    S0 = V if isinstance(V, Sections) else skull_sections(V, A)
     zs, th = S0.zs, S0.th
+    A = A if A is not None else type('Rows', (), {'h': abs(zs[1] - zs[0])})()
     j0 = int(np.argmin(np.abs(th)))
     # the chin: the skull's rows re-sampled so its chin lands on the design's (a z warp from the nose down)
     zc_s, zc_d, top = skull_chin(S0), F.C['chin'] + chin_bias, F.C['nose_z']      # bias < 0: past the design's, for the
@@ -339,21 +438,35 @@ def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_
     cy = cy0 + dy
     a = np.radians(F.C['az3'])
     wf = np.interp(-zs, -F.z, F.w, left=np.nan, right=np.nan)
-    rel = np.interp(-zs, -F.z, F.relief, left=0.0, right=0.0)
     sig = np.interp(-zs, -F.z, F.sigma)
     l3 = np.interp(-zs, -F.z, F.C['lead3'], left=np.nan, right=np.nan)
-    corr = np.where(np.isfinite(face_mid), face_mid - (cy - R0[:, j0]), np.nan)     # NaN off the face's rows: the
-                                                                                     # smoothing mustn't average in 0s
-    corr = np.nan_to_num(_smooth_rows(np.where(zs <= FACE_TOP, corr, np.nan), smooth_terms / A.h), nan=0.0)
-    corr *= np.clip((FACE_TOP + 0.03 - zs) / 0.03, 0, 1)
-    tj = np.clip((zs - JAW_ROWS[0]) / (JAW_ROWS[1] - JAW_ROWS[0]), 0, 1)
+    # the midline onto the design's, in two parts: a broad correction, smooth over BROAD L of height, spread across the
+    # face by the falloff; and the exact remainder (the nose, the lips, the bridge), kept narrow at the midline. A
+    # correction that changes quickly with height and spreads across the face bands it
+    mid_d = _smooth_rows(np.interp(-zs, -F.z, F.C['mid'], left=np.nan, right=np.nan), 0.006 / A.h)
+    diff = np.where(np.isfinite(mid_d) & (zs <= FACE_TOP), mid_d - (cy - R0[:, j0]), np.nan)   # NaN off the face's
+    fade = _smoothstep((FACE_TOP + 0.04 - zs) / 0.08)                                         # rows: the smoothing
+    corr = np.nan_to_num(_smooth_rows(diff, BROAD / A.h), nan=0.0) * fade                       # mustn't average 0s in
+    rel = np.nan_to_num(diff - _smooth_rows(diff, BROAD / A.h), nan=0.0) * fade
+    corr, rel = corr * ('corr' in terms), rel * ('rel' in terms)          # (terms: switched off to measure each alone)
+    tj = _smoothstep((zs - JAW_ROWS[0]) / (JAW_ROWS[1] - JAW_ROWS[0]))
     front = np.cos(th) > 0
     # the jaw's scaling per row (the design's outline over the skull's half-width), smoothed over rows: both widths are
     # quantised a pixel at a time, and a scale that jitters row to row stripes the whole section
     half_all = np.nanmax(np.abs(np.sin(th)[None, :] * R0), 1)
     wk_all = np.where(np.isfinite(wf) & (zs <= CHEEK_TOP + 0.03), wf, half_all)
+    # under the chin: the neck's own half-width, the design's (head_turnaround's front: the neck 0.06 L under its chin),
+    # eased in over the jaw's underside
+    neck_d = F.C['design']['front'].get('neck')
+    if neck_d:
+        under = zs < zc_d
+        ease = np.clip((zc_d - zs) / 0.06, 0, 1) ** 2 * (3 - 2 * np.clip((zc_d - zs) / 0.06, 0, 1))
+        wk_all = np.where(under, (1 - ease) * np.where(np.isfinite(wk_all), wk_all, half_all) + ease * neck_d, wk_all)
+        tj = np.where(under, 0.0, tj)
     scale = np.where(half_all > 0, (1 - tj) * wk_all / np.where(half_all > 0, half_all, 1) + tj, 1.0)
     scale = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), scale, np.nan), smooth_terms / A.h), nan=1.0)
+    if 'scale' not in terms:
+        scale = np.ones_like(scale)
     wc_all = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), (1 - tj) * wk_all + tj * np.minimum(half_all, 0.3), np.nan),
                                         smooth_terms / A.h), nan=0.3)
 
@@ -381,8 +494,8 @@ def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_
     top = np.nonzero(np.isfinite(cheek))[0]
     if len(top):                                        # held at the top fitted row's value, faded out above it
         k0 = top.min()
-        cheek[:k0] = cheek[k0] * np.clip(1 - (zs[:k0] - zs[k0]) / CHEEK_FIT[1], 0, 1)
-    cheek = np.nan_to_num(cheek, nan=0.0)
+        cheek[:k0] = cheek[k0] * _smoothstep(1 - (zs[:k0] - zs[k0]) / CHEEK_FIT[1])
+    cheek = np.nan_to_num(cheek, nan=0.0) * ('cheek' in terms)
     R = np.full_like(R0, np.nan)
     for k in valid:
         x, shaped = row(k)
@@ -494,9 +607,11 @@ def build(spec, out, against=None, log=print):
     fs = spec['ref']['face_sheet']
     C = contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
     F = Face(C)
-    V, A = skull(spec, log=log)
+    V, A = skull_analytic(spec, log=log), None
     S, rep = assemble(F, V, A)
     covers = hair_covers(spec)
+    fair, ang = normal_fairness(S)
+    rep['fairness_deg'] = fair
     checks, O = grade(S, spec, C['design'], covers)
     m = sections_mesh(S)
     Cg, ctr = cylinder_cage(S, C)
@@ -517,12 +632,12 @@ def build(spec, out, against=None, log=print):
         rep['against'] = {'path': against, 'checks': {k[len('sheet_'):]: (v.get('value'), v.get('status')) if isinstance(v, dict)
                                                       else tuple(v) for k, v in q.items() if k.startswith('sheet_')}}
     json.dump(rep, open(os.path.join(out, 'head.json'), 'w'), indent=1, default=str)
-    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out, Cg)
+    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out, Cg, ang)
     log('headfit: %s (%.0fs)' % (rep['page'], time.time() - t0))
     return rep
 
 
-def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None):
+def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None, ang=None):
     """the head's review page: the checks beside a build's, the QA's face regions, the contours ours against the
     design's, the sections face against skull, renders in clay and with the hull's hair."""
     import html
@@ -563,7 +678,24 @@ def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None):
         L.append('<tr><td>%s</td><td>%s</td><td class="%s">%s</td><td>%s</td>%s</tr>' % (
             k, v.get('value'), v['status'], v['status'], v.get('design', ''),
             '<td class="%s">%s %s</td>' % (a[1], a[0], a[1]) if a else ('<td></td>' if ag else '')))
-    L.append('</table><h2>The QA\'s face regions: grey both, red ours only, blue the design only</h2>')
+    L.append('</table>')
+    if ang is not None:
+        fz = rep['fairness_deg']
+        L.append('<h2>Fairness: what shading sees</h2><p class="note">The angle between the surface\'s normal and its '
+                 'normals smoothed by a local quadratic fit over 0.04 L (normal_fairness): a fair surface stays within a '
+                 'degree or so; a lump, crease, ridge or grain shows as a band or streak. The face region holds the nose '
+                 'and lips (real, sharp); face_sides leaves them out. The map is the (angle, height) chart, the front in '
+                 'the middle, white 0 to red 6 degrees.</p><table><tr><th>region</th><th>RMS, deg</th><th>95th pct</th>'
+                 '<th>max</th></tr>')
+        for k, v in fz.items():
+            L.append('<tr><td>%s</td><td class="%s">%.2f</td><td>%.1f</td><td>%.1f</td></tr>' % (
+                k, 'PASS' if v['rms_deg'] <= 1.0 else 'WARN' if v['rms_deg'] <= 2.5 else 'FAIL', v['rms_deg'], v['p95_deg'],
+                v['max_deg']))
+        t = np.clip(ang / 6.0, 0, 1)
+        im = np.stack([np.ones_like(t), 1 - t, 1 - t], -1)
+        L.append('</table><div class="row"><div class="tile"><img src="%s" height="360" style="image-rendering:pixelated">'
+                 'angle map</div></div>' % save(np.repeat(np.repeat(im, 2, 0), 2, 1), 'fairness.png'))
+    L.append('<h2>The QA\'s face regions: grey both, red ours only, blue the design only</h2>')
     L.append('<div class="row"><div class="tile"><img src="%s" height="300">front, three-quarter, profile</div></div>' %
              save(sheetqa.picture(O, D), 'regions.png'))
     fig, ax = plt.subplots(1, 3, figsize=(15, 5.5))
@@ -579,7 +711,7 @@ def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None):
     fig.tight_layout(); fig.savefig(os.path.join(img, 'contours.png'), dpi=70); plt.close(fig)
     L.append('<h2>Contours, ours (red) against the design\'s (black), as the QA reads them</h2><div class="row"><div '
              'class="tile"><img src="img/contours.png" height="380"></div></div>')
-    S0 = skull_sections(V, A)
+    S0 = V if isinstance(V, Sections) else skull_sections(V, A)
     fig, axs = plt.subplots(1, 6, figsize=(18, 3.6))
     for ax, z in zip(axs, (0.1, 0.0, -0.1, -0.2, -0.28, -0.34)):
         k = int(np.argmin(np.abs(S.zs - z)))
@@ -942,3 +1074,77 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
                   np.minimum(Cg.V[:, 2], z_top)], 1)
     Cg.origins = O
     return Cg, ctr
+
+
+# ------------------------------------------------------------------------------------------------------------ fairness
+REGIONS = {                       # (z range, |angle| range in degrees): where a lump shows
+    'face': ((-0.36, 0.1), (0, 35)), 'face_sides': ((-0.3, 0.1), (12, 35)), 'cheeks': ((-0.3, 0.05), (35, 80)),
+    'forehead': ((0.1, 0.35), (0, 60)),
+    'skull': ((0.1, 0.7), (60, 180)), 'jaw_neck': ((-0.6, -0.3), (0, 180)),
+}
+
+
+def fairness(S, scale=0.04, arc=0.04):
+    """the surface's fairness: its radius against a local quadratic fit (Savitzky-Golay, `scale` L of height by about
+    `arc` L of arc at the face's radius), which a smooth surface matches exactly whatever its curvature; what's left
+    is lumps, dents, ridges and grain finer than the window. RMS and worst per region (L) -> (dict, the residual map
+    (valid rows, angles), valid rows)."""
+    from scipy.signal import savgol_filter
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    R = S.r[ok]
+    dz = abs(S.zs[1] - S.zs[0])
+    wz = max(5, int(round(scale / dz)) | 1)
+    wt = max(5, int(round(arc / 0.3 / (2 * np.pi / R.shape[1]))) | 1)
+    fit = savgol_filter(savgol_filter(R, wz, 2, axis=0, mode='nearest'), wt, 2, axis=1, mode='wrap')
+    res = R - fit
+    zs = S.zs[ok]
+    ang = np.degrees(np.abs(S.th))
+    rep = {}
+    for name, ((z0, z1), (a0, a1)) in REGIONS.items():
+        sel = res[(zs >= z0) & (zs <= z1)][:, (ang >= a0) & (ang <= a1)]
+        if sel.size:
+            rep[name] = {'rms_L': round(float(np.sqrt(np.mean(sel ** 2))), 5), 'max_L': round(float(np.abs(sel).max()), 4)}
+    return rep, res, ok
+
+
+def fairness_image(S, res, ok, span=1.2e-3):
+    """the residual as a heat map on the (angle, height) chart, the front in the middle: blue dents, red lumps, white
+    within the span's tenth -> float image (rows, angles, 3)."""
+    t = np.clip(res / span, -1, 1)
+    img = np.ones(t.shape + (3,))
+    img[..., 0] = np.where(t < 0, 1 + t, 1.0); img[..., 1] = 1 - np.abs(t); img[..., 2] = np.where(t > 0, 1 - t, 1.0)
+    return img
+
+
+def normal_fairness(S, scale=0.04):
+    """what shading sees: the angle (degrees) between the surface's normal and its normal field smoothed by a local
+    quadratic fit over `scale` L of height and of arc. A fair surface stays within a degree or so; a crease, a ridge,
+    grain or a lump shows as a band or streak of several. -> (per region {rms_deg, p95_deg, max_deg}, the angle map
+    (valid rows, angles))."""
+    from scipy.signal import savgol_filter
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    zs, R, cy = S.zs[ok], S.r[ok], S.cy[ok]
+    X = np.sin(S.th)[None, :] * R
+    Y = cy[:, None] - np.cos(S.th)[None, :] * R
+    Z = np.repeat(zs[:, None], R.shape[1], 1)
+    P = np.stack([X, Y, Z], -1)
+    du = np.roll(P, -1, 1) - np.roll(P, 1, 1)                        # along the angle
+    dv = np.zeros_like(P); dv[1:-1] = P[:-2] - P[2:]; dv[0] = P[0] - P[1]; dv[-1] = P[-2] - P[-1]   # up the rows
+    N = np.cross(du, dv)
+    N /= np.maximum(np.linalg.norm(N, axis=-1, keepdims=True), 1e-12)
+    out = P - np.stack([np.zeros_like(cy), cy, zs], 1)[:, None, :]
+    N *= np.sign(np.einsum('ijk,ijk->ij', N, out))[..., None]           # outward
+    dz = abs(zs[1] - zs[0])
+    wz = max(5, int(round(scale / dz)) | 1)
+    wt = max(5, int(round(scale / 0.3 / (2 * np.pi / R.shape[1]))) | 1)
+    Ns = savgol_filter(savgol_filter(N, wz, 2, axis=0, mode='nearest'), wt, 2, axis=1, mode='wrap')
+    Ns /= np.maximum(np.linalg.norm(Ns, axis=-1, keepdims=True), 1e-12)
+    ang = np.degrees(np.arccos(np.clip(np.einsum('ijk,ijk->ij', N, Ns), -1, 1)))
+    deg = np.degrees(np.abs(S.th))
+    rep = {}
+    for name, ((z0, z1), (a0, a1)) in REGIONS.items():
+        sel = ang[(zs >= z0) & (zs <= z1)][:, (deg >= a0) & (deg <= a1)]
+        if sel.size:
+            rep[name] = {'rms_deg': round(float(np.sqrt(np.mean(sel ** 2))), 2),
+                         'p95_deg': round(float(np.percentile(sel, 95)), 2), 'max_deg': round(float(sel.max()), 1)}
+    return rep, ang
