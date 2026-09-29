@@ -1,0 +1,78 @@
+# Garments as pieces (tool/garments)
+
+## What changed
+
+Each outfit piece can take its shape from the visual hull (`source: "hull"` on a garment spec), rather than from the
+MakeHuman body's section at a knob's height. The design's 3D shape comes from the hull, the piece's topology from its
+template, and the body supplies only weights (and, for a tight shell, the surface under it).
+
+- `garments.hull_pieces`: the hull aligned by its eyes, as the build aligns its target, split by the hull's
+  per-vertex outfit pieces.
+- `charkit.geom.loft`: a piece as a radius field r(t, θ) around its own axis. It's measured from the hull's points,
+  filled where no view shows the piece, smoothed with a numpy Gaussian (the builders run in Blender's Python, which
+  has no scipy), and lofted into a closed quad grid.
+- **Builders:**
+  - `belt_hull`: the waistband. It hides the torso across its height, because the body stands out of the design's
+    waist by up to 0.12 L at the sides.
+  - `skirt_hull`: a waist line and a hem per angle. The waist is tucked under the band and the back hem is longer.
+    Knife pleats go on top.
+  - `panel_hull`: an open overskirt panel over its own angle span.
+  - `bow_hull`: sized and placed from the hull, then wrapped onto the hull's front (`front_surface`).
+  - A hull-sourced shell (the top) is cut at the hull's lower edge per angle.
+  - `conform`: lays a thin piece onto its hull points. It's available, but off for the collar; see "Blocked".
+- The bundle carries the target's per-vertex pieces (`bundle.target_pieces`).
+
+## Measurement
+
+- **QA part `sheet_pieces`** (checks `piece_<id>`): every object is z-buffered with its own index, and each outfit
+  piece is compared with the drawn piece mask per view.
+  - Graded: `iou_tol`, the overlap with a drawn line's width either side of the drawn outline left out, in the
+    piece's worst view. PASS ≥ 0.75, WARN ≥ 0.5.
+  - Beside it: the plain IoU, the outline agreement, and where the drawn piece's pixels land in ours (confusion).
+  - A piece we don't build (the bodice panel, the bow's tails) is compared as part of its parent.
+  - `piece_built` counts the pieces we do build.
+- **QA part `pieces_3d`** (checks `piece3d_<id>`, INFO): each piece against the hull's points of that piece. It
+  reports reach (where the design has the piece, how far ours is), excess, and the height offset.
+- **Review page:** `python -m charkit pieces BUILD [--against OTHER]` gives, per piece and view, crops with the drawn
+  piece tinted, its outline red and ours white, plus the numbers.
+
+## Results (box builds: knob garments against hull-sourced waistband, skirt, top hem and bow)
+
+| check | knob garments | hull-sourced |
+|---|---|---|
+| PASS / WARN / FAIL | 49 / 28 / 33 | 50 / 31 / 29 |
+| body_back_hem_mid | −0.207 FAIL | 0.028 PASS |
+| body_back_leg | −0.249 FAIL | 0.038 PASS |
+| body_front_hem_mid | −0.089 WARN | 0.061 PASS |
+| body_profile_skirt_width | 1.291 FAIL | 0.879 WARN |
+| body_front_skirt_width | 1.077 PASS | 0.91 WARN |
+| piece_skirt (worst view) | 0.27 | 0.59 |
+| piece_waistband | 0.0 | 0.34 |
+| piece3d waistband / skirt reach (L) | 0.264 / 0.092 | 0.008 / 0.009 |
+
+The evaluator figures for the conformed bow (front, three-quarter, profile): knob bow 0.26 / 0.21 / 0.17; hull bow
+0.66 / 0.60 / 0.29, with a 3D reach of 0.036 L.
+
+## Blocked: the body
+
+A piece lying on the body at the design's surface ends up inside our body. The MakeHuman body isn't the design's:
+- its waist sits about 0.3 L low;
+- it's up to 0.12 L wider at the sides;
+- its back stands out.
+
+Conforming the collar to its hull points halved its 3D distance, but it vanished from the back view (0.72 → 0.01),
+buried in the top, which is a shell of the body.
+
+The loose pieces (skirt, waistband, bow) work because they sit outside the body or hide it. The collar, a hull-true
+top, the sleeves and the cuffs need the authored body fitted to the hull first, the body's counterpart of the code
+head. `geom.loft` is the tool for it: the torso as a field around a vertical axis, and the limbs around their bones.
+
+## Not done yet
+
+- **Overskirt panels:** in 3D they reach the design within 0.04–0.05 L (from 0.27–0.33), but the front and
+  three-quarter views read worse than the knob panels. They're under review; see the panels build.
+- **Shorts:** the hull's "shorts" points aren't the shorts' shape. The hull fills the hollow under the skirt, and the
+  drawings' dark shorts below the hem label that filled surface. Only their lower edge (−2.72 L) is trustworthy, so
+  the shorts need the 2D target.
+- Sleeves and cuffs lofted around their bones, the collar, and the boots.
+- The drape solver on the style profiles.

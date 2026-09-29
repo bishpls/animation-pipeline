@@ -32,6 +32,7 @@ import hashlib, json, os, time
 
 import numpy as np
 
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCHEMA = 'charkit.bundle/1'
 META, ARRAYS = 'bundle.json', 'arrays.npz'
 GROUPS = ('skin', 'eye', 'mouth', 'hair', 'accessory', 'garment')
@@ -431,6 +432,9 @@ def export(S, out, ref_measure=None):
         arrays['target/T'] = np.asarray(F, np.int32) if isinstance(F, np.ndarray) else np.array(F, np.int32)
         arrays['target/C'] = np.asarray(cols, np.float32)
         target = dict(glb=((S.spec.get('hair') or {}).get('shape') or {}).get('glb'))
+        tp = target_pieces(target['glb'], len(arrays['target/V']))
+        if tp is not None:
+            arrays['target/pieces'], target['piece_names'] = tp
     meta = dict(schema=SCHEMA, source='blender', created=time.strftime('%Y-%m-%dT%H:%M:%S'),
                 spec={k: v for k, v in dict(S.spec).items() if k != '_dir'}, ref_measure=ref_measure, assembly=asm,
                 landmarks=trace._plain(trace.landmarks(S)), materials=mrec,
@@ -717,6 +721,12 @@ class Bundle:
             return None
         return self.array('target/V'), self.array('target/T'), self.array('target/C').astype(np.float64)
 
+    def target_pieces(self):
+        """the target's per-vertex outfit piece labels and their names ({k: piece id}; bundle.target_pieces) or None."""
+        if not self.has('target/pieces'):
+            return None
+        return self.array('target/pieces'), {int(k): v for k, v in (self._meta['target'].get('piece_names') or {}).items()}
+
     def moved(self, d):
         """the same bundle rigidly moved by d (world): every object's geometry, the head's centre and eye centres, the
         target (the same scene on another pixel grid: the fit's jitter)."""
@@ -891,9 +901,36 @@ class Builder:
         self.arrays['target/T'] = np.asarray(T, np.int32)
         self.arrays['target/C'] = np.asarray(C, np.float32)
         self.meta['target'] = dict(glb=glb)
+        tp = target_pieces(glb, len(V))
+        if tp is not None:
+            self.arrays['target/pieces'], self.meta['target']['piece_names'] = tp
 
     def build(self):
         return Bundle(_plain(self.meta), dict(self.arrays))
+
+
+def target_pieces(glb, n):
+    """the outfit piece of each vertex of a generated shape, when its sidecar (GLB.json, charkit.geom.hull's) names a
+    per-vertex piece file for it: -> (labels (n,) int16: k for the sidecar's piece_names[k], 1000 + a bodyqa class where
+    no piece claims it, 0 none; {k: piece id}) or None. None too when the file's length isn't the shape's (it was made
+    for another shape)."""
+    import json as _json
+    if not glb:
+        return None
+    p = glb if os.path.isabs(glb) else os.path.join(ROOT, glb)
+    side = p + '.json'
+    if not os.path.exists(side):
+        return None
+    J = _json.load(open(side))
+    if not J.get('pieces'):
+        return None
+    lp = os.path.join(os.path.dirname(p), J['pieces'])
+    if not os.path.exists(lp):
+        return None
+    lab = np.load(lp)
+    if len(lab) != n:
+        return None
+    return lab.astype(np.int16), {str(k): v for k, v in (J.get('piece_names') or {}).items()}
 
 
 def load(path):
