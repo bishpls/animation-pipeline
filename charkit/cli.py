@@ -13,6 +13,7 @@
     python -m charkit history NAME [--check CHECK]                     # QA across builds
     python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
+    python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -479,6 +480,9 @@ def main(argv=None):
     elif cmd == 'wait':
         from . import procs
         procs.wait(rest)
+    elif cmd == 'remote':
+        from . import remote
+        raise SystemExit(remote.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)

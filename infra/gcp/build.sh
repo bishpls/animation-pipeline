@@ -5,6 +5,7 @@
 #   infra/gcp/build.sh sync WORKTREE             rsync a worktree's code and inputs to /srv/work/<its name> (only changes)
 #   infra/gcp/build.sh run WORKTREE cmd...       run a command in that copy, with Blender and the venv (/opt/anim-build/env)
 #   infra/gcp/build.sh fetch WORKTREE PATH       rsync PATH (a build's out dir) back into the worktree
+#   infra/gcp/build.sh push LOCAL [REMOTE]       rsync a file or directory to the box (default /srv/work/)
 #   infra/gcp/build.sh status | stop             it also stops itself after IDLE_MINUTES idle
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); source "$HERE/build.env"
@@ -43,8 +44,9 @@ case "${1:-status}" in
       --include 'charkit/out/' --include 'charkit/out/i3d/***' --exclude 'charkit/out/*' \
       "$WT/" "$VM:/srv/work/$(name "$WT")/";;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
+  push) [ -f "$CFG" ] || config; rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;
   fetch) WT=$2; P=$3; [ -f "$CFG" ] || config
     mkdir -p "$WT/$P"; rsync -az -e "ssh -F $CFG" "$VM:/srv/work/$(name "$WT")/$P/" "$WT/$P/";;
   stop) $G compute instances stop "$VM" $Z;;
-  *) sed -n '2,9p' "$0"; exit 1;;
+  *) sed -n '2,10p' "$0"; exit 1;;
 esac
