@@ -41,7 +41,8 @@ case "${1:-status}" in
   sync)
     WT=$2; [ -f "$CFG" ] || config
     rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
-      --include 'charkit/out/' --include 'charkit/out/i3d/***' --exclude 'charkit/out/*' \
+      --include 'charkit/out/' --include 'charkit/out/i3d/***' --include 'charkit/out/remote/' \
+      --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' \
       "$WT/" "$VM:/srv/work/$(name "$WT")/";;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
   push) [ -f "$CFG" ] || config; rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;

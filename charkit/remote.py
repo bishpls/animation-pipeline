@@ -45,7 +45,6 @@ def _opt(args, k, d=None):
 
 def up():
     _sh('up')
-    _sh('run', ROOT, 'mkdir -p /srv/work && true')
 
 
 def charkit(cmd):
