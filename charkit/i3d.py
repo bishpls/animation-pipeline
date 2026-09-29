@@ -5,6 +5,8 @@ into parts by colour (hair, skin, ...). The hair part becomes charkit.hair's vol
 target for charkit.anime_head.
 """
 import math
+import os
+
 import numpy as np
 
 
@@ -133,6 +135,21 @@ def load_glb(path):
             yi = np.clip((uv[:, 1] % 1) * (h - 1), 0, h - 1).astype(int)
             lin = px[yi, xi]
             col = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(np.maximum(lin, 0), 1 / 2.4) - 0.055)
+        elif img is None and len(me.color_attributes):
+            # no base-colour texture: the mesh's own vertex colours (COLOR_0, as charkit.geom.io writes them: the
+            # visual hull's, charkit.geom.hull), read as sRGB, per vertex or averaged over a vertex's corners
+            ca = me.color_attributes.active_color or me.color_attributes[0]
+            vals = np.empty(len(ca.data) * 4, np.float32)
+            ca.data.foreach_get('color_srgb', vals)
+            vals = vals.reshape(-1, 4)[:, :3]
+            if ca.domain == 'POINT':
+                col = vals.astype(float)
+            else:
+                vi = np.empty(len(me.loops), np.int64)
+                me.loops.foreach_get('vertex_index', vi)
+                acc = np.zeros((len(v), 3)); cnt = np.zeros(len(v))
+                np.add.at(acc, vi, vals); np.add.at(cnt, vi, 1)
+                col = acc / np.maximum(cnt, 1)[:, None]
         V.append(v); C.append(col)
         F += [tuple(off + i for i in p.vertices) for p in me.polygons]
         off += len(v)
@@ -140,6 +157,19 @@ def load_glb(path):
         if ob not in before:
             bpy.data.objects.remove(ob, do_unlink=True)
     return np.vstack(V), F, np.vstack(C)
+
+
+def glb_eyes(path, V, C):
+    """a generated character's eye centres -> (left (+x), right) or None: known ones from a sidecar next to the GLB
+    (PATH.json {"eyes": [left, right]}, in the frame the GLB loads in: charkit.geom.hull writes its own, since it knows
+    them exactly and colour finds them only roughly on a smooth surface), else found by colour (find_eyes)."""
+    import json as _json
+    side = str(path) + '.json'
+    if os.path.exists(side):
+        E = _json.load(open(side)).get('eyes')
+        if E:
+            return np.asarray(E[0], float), np.asarray(E[1], float)
+    return find_eyes(V, C)
 
 
 def find_eyes(V, C, head_frac=0.3, depth=0.03, dark=0.3):

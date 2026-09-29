@@ -1,0 +1,16 @@
+{
+ "_note": "Realistic 3D. hull: the same round sections and smoothing as anime (bodies are round in any style; unmeasured on a realistic turnaround yet). physics: garments drape as cloth under gravity; values to be tuned when the solvers land.",
+ "hull": {
+  "p": 2.0,
+  "class_share": 0.6,
+  "smooth": 0.09
+ },
+ "physics": {
+  "hold_shape": 0.1,
+  "cloth_stiffness": 0.3,
+  "cloth_damping": 0.15,
+  "hair_stiffness": 0.35,
+  "hair_damping": 0.15,
+  "gravity": 1.0
+ }
+}
