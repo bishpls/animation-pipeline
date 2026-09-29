@@ -40,14 +40,14 @@ The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linea
              front view's; screen lines are frac of the picture's height times their region's factor)
   material  {kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha: opaque | blend,
              toon3/face/hair: lit, shade, deep, threshold, deepThreshold, softness, rim: {color, amount, facing, range}, texture?,
-             highlight?: {kind: 'streaks', centre, elevation, width, jitter, keep, amount, color, facing, facingBlend,
-                          attribute: '_LOCK'} (shade.hair_toon: the cut hair's drawn streaks),
+             highlight?: {kind: 'streaks', centre, elevation, length, jitter, count, duty, keep, amount, color, facing,
+                          facingBlend} (shade.hair_toon: the cut hair's drawn streaks),
              face: {sdf, fringe, blush, ink? (textureInfo), softness, fringeRange, mask: '_FACE_MASK', inkWeight?: '_INK_W'},
              hair: {lock: texCoord, ring: {color, elevation, centre, width, soft, facing, mid, amount}, gradient, strands},
              flat: color; plate: texture}
   mesh      {object, outline?: {width (m), color, region, widthAttribute?, normalAttribute?}, feature?: true, holdout?: true}
-  (the skin's proxy normals, charkit.faceshade, are its NORMAL: they are the render's corner normals; _LOCK is the cut
-  hair's per-vertex lock index)
+  (the skin's proxy normals, charkit.faceshade, are its NORMAL: they are the render's corner normals; _INK_W is where
+  the face's drawn lines may show)
 """
 import json, math, os, struct, sys, zlib
 
@@ -271,9 +271,9 @@ def material_look(m):
     if 'ck_highlight' in N and m.get('ck_highlight'):            # shade.hair_toon's drawn streaks (the cut pieces)
         P = json.loads(m['ck_highlight'])
         d['highlight'] = {'kind': 'streaks', 'centre': r6(g3(P['centre'])), 'elevation': P['elevation'],
-                          'width': P['width'], 'jitter': P['jitter'], 'keep': P['keep'], 'amount': P['amount'],
-                          'color': r6(np.array(_lin3(P['color']))), 'facing': P['facing'], 'facingBlend': 0.5,
-                          'attribute': '_LOCK'}
+                          'length': P['length'], 'jitter': P['jitter'], 'count': P['count'], 'duty': P['duty'],
+                          'keep': P['keep'], 'amount': P['amount'], 'color': r6(np.array(_lin3(P['color']))),
+                          'facing': P['facing'], 'facingBlend': 0.5}
     if 'ldir_head' in N:                                           # faceshade.material
         tex = [n for n in N if n.type == 'TEX_IMAGE']
         sdf = next(n for n in tex if any(l.to_node.type == 'MATH' and l.to_node.operation == 'SUBTRACT'
@@ -763,8 +763,6 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                     attrs['_FACE_MASK'] = W.accessor(E.attrs['face_mask'][vi].astype(np.float32), 'SCALAR', target=34962)
                 if 'ck_ink_w' in E.attrs:                        # where the face's drawn lines may show
                     attrs['_INK_W'] = W.accessor(E.attrs['ck_ink_w'][vi].astype(np.float32), 'SCALAR', target=34962)
-                if 'ck_lock' in E.attrs:                         # the pieces' lock index (the highlight's streaks)
-                    attrs['_LOCK'] = W.accessor(E.attrs['ck_lock'][vi].astype(np.float32), 'SCALAR', target=34962)
                 ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
                 prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
                 if knames:

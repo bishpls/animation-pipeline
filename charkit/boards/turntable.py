@@ -24,6 +24,7 @@ def main(out, n=24, look=None, only=None):
     sc = bpy.context.scene
     if look:
         shade.set_look(styles.merge(shade.get_look(), look))
+        shade.line_colors()
     skin = next(o for o in bpy.data.objects if o.type == 'MESH' and o.name.endswith('_skin'))
     zs = np.array([(skin.matrix_world @ v.co).z for v in skin.data.vertices])
     H = float(zs.max())

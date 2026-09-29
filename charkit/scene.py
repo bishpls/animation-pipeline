@@ -343,15 +343,11 @@ def hair_pieces_objects(S, shape, hc):
                               inner=hl.get('lock_shade', 0.0)) if under else m
     envelope = index.get('normals', 'envelope') == 'envelope'
     obs = []
-    for i, p in enumerate(index['pieces']):
+    for p in index['pieces']:
         path = os.path.join(pdir, p['file'])
         ob, meta = load_part(path, 'hair_' + p['name'], material=m_under if p['family'] in under else m,
                              normals=None if envelope else 'geometric')
         ob['charkit_family'] = p['family']
-        if hl.get('highlight'):
-            Z = np.load(path)
-            if 'lock' in Z.files:
-                shade.lock_attribute(ob, Z['lock'], base=1000 * i)
         shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
         if envelope:
             proxy = normals_proxy(path, 'hair_%s_normals' % p['name'])
@@ -368,13 +364,20 @@ def stage_face_shading(S):
     from . import faceshade, shade
     look = shade.look_of(S.spec)
     bangs = None
-    # the fringe: the analytic hair's hair_front, the cut pieces' bangs (hair_bangs, family 'bangs')
-    fr = next((o for o in S.hair if o.name.startswith('hair_front') or o.name == 'hair_bangs'
-               or o.get('charkit_family') == 'bangs'), None)
-    if fr is not None and (look.get('face') or {}).get('fringe', True):
-        M = np.array(fr.matrix_world)
-        co = np.array([v.co for v in fr.data.vertices])
-        bangs = (co @ M[:3, :3].T + M[:3, 3], [tuple(p.vertices) for p in fr.data.polygons])
+    # the hair that shades the face: the analytic hair's hair_front, the cut pieces' bangs (and with the look's
+    # face.fringe_sides their side locks too), as one mesh
+    fam = ('bangs', 'side_locks') if (look.get('face') or {}).get('fringe_sides') else ('bangs',)
+    frs = [o for o in S.hair if o.name.startswith('hair_front') or o.name == 'hair_bangs'
+           or o.get('charkit_family') in fam]
+    if frs and (look.get('face') or {}).get('fringe', True):
+        Vs, Fs, off = [], [], 0
+        for fr in frs:
+            M = np.array(fr.matrix_world)
+            co = np.array([v.co for v in fr.data.vertices])
+            Vs.append(co @ M[:3, :3].T + M[:3, 3])
+            Fs += [tuple(i + off for i in p.vertices) for p in fr.data.polygons]
+            off += len(co)
+        bangs = (np.concatenate(Vs), Fs)
     ln = look.get('lines') or {}
     look = dict(look, face=dict(look.get('face') or {}, ink_color=tuple(
         ln['ink'] if ln.get('color') == 'ink' else S.spec.get('skin_line', (0.42, 0.24, 0.20)))))

@@ -39,7 +39,13 @@
     "hair": 1.0,
     "garment": 1.0,
     "accessory": 0.8
-   }
+   },
+   "color": "ink",
+   "ink": [
+    0.059,
+    0.024,
+    0.024
+   ]
   },
   "face": {
    "normals": "proxy",
@@ -49,20 +55,25 @@
    "fringe": true,
    "jaw_line": true,
    "jaw_width": 0.0045,
-   "jaw_reach": 0.9
+   "jaw_reach": 0.9,
+   "fringe_drop": 0.07,
+   "fringe_sides": true
   },
   "hair": {
    "highlight": "streaks",
-   "elevation": 38.0,
-   "width": 4.0,
-   "jitter": 6.0,
-   "keep": 0.6,
-   "amount": 0.8,
+   "elevation": 40.0,
+   "length": 9.0,
+   "jitter": 8.0,
+   "count": 40,
+   "duty": 0.35,
+   "keep": 0.5,
+   "amount": 0.85,
    "color": [
-    1.0,
-    0.86,
-    0.74
+    0.973,
+    0.859,
+    0.776
    ],
+   "deep_at": 0.15,
    "lock_shade": 0.0,
    "under": [
     "lower_back"

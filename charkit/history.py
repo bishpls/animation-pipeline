@@ -70,6 +70,9 @@ STEPS = [
     ('hair_noise', '51a87aa', 'the hair drawn without its outlines (a drawn line between two locks is not shading) and behind '
      'the rest of the character (the hair\'s inside through the face is hidden, as in a render) (tool/hair-pieces): '
      'the geom hair reads 0.047, was 0.104'),
+    # tool/look: the QA draws what the boards light
+    ('hair_noise', '37ff417', 'the hair drawn under each view\'s board light (the style\'s look: the anime key turns with '
+     'the camera), not its material\'s one fixed light: the back view is lit as the front is (tool/look)'),
 ]
 
 

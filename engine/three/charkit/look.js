@@ -20,8 +20,8 @@
 //           _INK_W) over the result
 //   hair    toon3 plus (analytic hair, 'lock' UV) the angel ring (a band at an elevation above the hair centre, on each
 //           lock's middle, facing the camera, on the lit side), the root-to-tip gradient and drawn strand lines
-//   streaks toon3's `highlight` (the cut hair, charkit.shade.hair_toon): a band at an elevation above the head centre,
-//           each lock (_LOCK) keeping a streak by a hash of its index and shifting it by another, facing the camera, lit
+//   streaks toon3's `highlight` (the cut hair, charkit.shade.hair_toon): short streaks down the hair about an elevation
+//           above the head centre, one per kept column of azimuth (hashes of its index keep it and shift it), lit, facing
 //   light   the root's light.direction (world), or with light.mode 'camera' a key [deg left of the camera, deg up] that
 //           turns with the camera (ck.update(dt, camera)), as charkit.shade.set_view lights the boards
 //   lines   the root's lines.mode 'screen': every outline frac x the picture's height at the head's distance (times its
@@ -114,19 +114,23 @@
     return { h, sLit, sDeep, col, rimF };
   }
 
-  // charkit.shade.hair_toon's streaks: fract(sin(i k) 43758.5453) hashes of the lock index pick and shift each streak
+  // charkit.shade.hair_toon's streaks: the hair cut into `count` columns of azimuth round the head centre; a
+  // fract(sin(i k) 43758.5453) hash of each column's index keeps it and shifts its streak's elevation
   function streakNodes(Hl, col, sLit) {
     const rad = Math.PI / 180;
-    const lock = S.attribute('_lock', 'float');
-    const hash = k => S.fract(S.sin(lock.mul(k)).mul(43758.5453));
-    const keep = S.float(1.0).sub(S.step(Hl.keep, hash(12.9898)));            // hash < keep
-    const el0 = S.mix(S.float((Hl.elevation - Hl.jitter) * rad), S.float((Hl.elevation + Hl.jitter) * rad), hash(78.233));
-    const p = S.positionGeometry.sub(v3(Hl.centre));
+    const p = S.positionGeometry.sub(v3(Hl.centre));             // glTF: y up, her front +z, her left +x
     const el = S.atan(p.y, S.length(p.xz));
-    const half = Hl.width / 2 * rad;
-    const band = mapRange(S.abs(el.sub(el0)), half, half * 0.6);
+    const az = S.atan(p.x, p.z);                                  // 0 in front, + to her left (Blender's atan2(x, -y))
+    const c = az.add(Math.PI).mul(Hl.count / (2 * Math.PI));
+    const idx = S.floor(c);
+    const hash = k => S.fract(S.sin(idx.mul(k)).mul(43758.5453));
+    const keep = S.float(1.0).sub(S.step(Hl.keep, hash(12.9898)));            // hash < keep
+    const el0 = S.float((Hl.elevation - Hl.jitter) * rad).add(hash(78.233).mul(2 * Hl.jitter * rad));
+    const along = S.float(1.0).sub(S.abs(el.sub(el0)).div(Hl.length / 2 * rad));
+    const across = S.float(1.0).sub(S.abs(S.fract(c).sub(0.5)).div(Hl.duty / 2));
+    const shape = sat(S.min(along.mul(3.0), 1.0).mul(S.min(across.mul(3.0), 1.0)));
     const face = mapRange(facing(Hl.facingBlend), Hl.facing[0], Hl.facing[1]);
-    return S.mix(col, v3(Hl.color), band.mul(keep).mul(face).mul(sLit).mul(Hl.amount).mul(U.ring));
+    return S.mix(col, v3(Hl.color), shape.mul(keep).mul(face).mul(sLit).mul(Hl.amount).mul(U.ring));
   }
 
   function faceNodes(L, tex, toon) {

@@ -76,79 +76,74 @@ def toon3(name, lit, shade, deep, thresh=0.5, deep_thresh=0.27, soft=0.015, rim=
 
 
 def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
-    """toon3 for the cut hair pieces (the look's hair section `hl`): an under layer's lit tone moved `inner` of the way
-    to its shade (the layers under others read a step darker, as drawn), and the drawn highlight: short streaks on the
-    crown's lit side, a band `width` degrees wide at `elevation` above the head's centre, each lock's streak shifted by up
-    to `jitter` degrees and a share `keep` of the locks carrying one (the per-vertex 'ck_lock' attribute; without it an
-    unbroken ring), fading where the surface turns from the camera. Its parameters ride on the material
-    ('ck_highlight', JSON) for the bundle and the export."""
+    """toon3 for the cut hair pieces (the look's hair section `hl`): its deep step at hl['deep_at'] (lower: the deep
+    tone only where the hair turns right away from the light), an under layer's lit tone moved `inner` of the way to its
+    shade (the layers under others a step darker, as drawn), and the drawn highlight: short streaks along the hair on
+    the crown's lit side, as the design draws them. Round the head centre the hair is cut into `count` columns of azimuth;
+    a hash of each column's index keeps a share `keep` of them and shifts its streak's elevation by up to `jitter`
+    degrees about `elevation`; a streak is `length` degrees of elevation long and `duty` of its column wide, tapered at
+    both ends, and fades where the surface turns from the camera. Its parameters ride on the material ('ck_highlight',
+    JSON) for the bundle and the export."""
     if name in MATS:
         return MATS[name]
-    lit_ = tuple(np.asarray(lit, float) * (1 - inner) + np.asarray(shade, float) * inner)
-    m = toon3(name, lit_, shade, deep, rim_amt=rim_amt)
     hl = dict(hl or {})
+    lit_ = tuple(np.asarray(lit, float) * (1 - inner) + np.asarray(shade, float) * inner)
+    m = toon3(name, lit_, shade, deep, deep_thresh=hl.get('deep_at', 0.27), rim_amt=rim_amt)
     if hl.get('highlight') != 'streaks':
         return m
-    import bpy
     nt = m.node_tree; N, Lk = nt.nodes.new, nt.links.new
     em = next(n for n in nt.nodes if n.type == 'EMISSION')
     src = em.inputs['Color'].links[0].from_socket
     s_lit = next(n for n in nt.nodes if n.type == 'VALTORGB' and abs(n.color_ramp.elements[0].position - (0.5 - 0.015)) < 1e-6)
-    P = dict(centre=[float(x) for x in centre], elevation=float(hl.get('elevation', 38.0)), width=float(hl.get('width', 4.0)),
-             jitter=float(hl.get('jitter', 6.0)), keep=float(hl.get('keep', 0.6)), amount=float(hl.get('amount', 0.8)),
-             color=[float(x) for x in hl.get('color', (1.0, 0.86, 0.74))], facing=[0.55, 0.25], attribute='ck_lock')
+    P = dict(centre=[float(x) for x in centre], elevation=float(hl.get('elevation', 40.0)),
+             length=float(hl.get('length', 9.0)), jitter=float(hl.get('jitter', 8.0)), count=int(hl.get('count', 40)),
+             duty=float(hl.get('duty', 0.35)), keep=float(hl.get('keep', 0.5)), amount=float(hl.get('amount', 0.8)),
+             color=[float(x) for x in hl.get('color', (1.0, 0.86, 0.74))], facing=[0.55, 0.25])
+
+    def op(o, a=None, b=None, name=None):
+        n = N('ShaderNodeMath'); n.operation = o
+        for i, x in enumerate((a, b)):
+            if x is None:
+                continue
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = float(x)
+            else:
+                Lk(x, n.inputs[i])
+        if name:
+            n.name = name
+        return n.outputs[0]
     geo = N('ShaderNodeNewGeometry')
     rel = N('ShaderNodeVectorMath'); rel.operation = 'SUBTRACT'; rel.name = 'ck_hl_centre'
     rel.inputs[1].default_value = tuple(P['centre'])
     Lk(geo.outputs['Position'], rel.inputs[0])
     sp = N('ShaderNodeSeparateXYZ'); Lk(rel.outputs[0], sp.inputs[0])
     hx = N('ShaderNodeCombineXYZ'); Lk(sp.outputs['X'], hx.inputs[0]); Lk(sp.outputs['Y'], hx.inputs[1])
-    hl_ = N('ShaderNodeVectorMath'); hl_.operation = 'LENGTH'; Lk(hx.outputs[0], hl_.inputs[0])
-    el = N('ShaderNodeMath'); el.operation = 'ARCTAN2'; Lk(sp.outputs['Z'], el.inputs[0]); Lk(hl_.outputs['Value'], el.inputs[1])
-    # per lock: a hash of its id picks whether it carries a streak and shifts the streak's elevation
-    at = N('ShaderNodeAttribute'); at.attribute_name = P['attribute']; at.attribute_type = 'GEOMETRY'
+    hlen = N('ShaderNodeVectorMath'); hlen.operation = 'LENGTH'; Lk(hx.outputs[0], hlen.inputs[0])
+    el = op('ARCTAN2', sp.outputs['Z'], hlen.outputs['Value'])
+    az = op('ARCTAN2', sp.outputs['X'], op('MULTIPLY', sp.outputs['Y'], -1.0))       # 0 in front, + to her left
+    col = op('MULTIPLY', op('ADD', az, math.pi), P['count'] / (2 * math.pi))           # the column coordinate
+    idx = op('FLOOR', col)
 
     def hashed(k):
-        a = N('ShaderNodeMath'); a.operation = 'MULTIPLY'; a.inputs[1].default_value = k
-        Lk(at.outputs['Fac'], a.inputs[0])
-        b = N('ShaderNodeMath'); b.operation = 'SINE'; Lk(a.outputs[0], b.inputs[0])
-        c = N('ShaderNodeMath'); c.operation = 'MULTIPLY'; c.inputs[1].default_value = 43758.5453; Lk(b.outputs[0], c.inputs[0])
-        d = N('ShaderNodeMath'); d.operation = 'FRACT'; Lk(c.outputs[0], d.inputs[0])
-        return d
-    h1, h2 = hashed(12.9898), hashed(78.233)
-    keep = N('ShaderNodeMath'); keep.operation = 'LESS_THAN'; keep.inputs[1].default_value = P['keep']; keep.name = 'ck_hl_keep'
-    Lk(h1.outputs[0], keep.inputs[0])
-    sh = N('ShaderNodeMapRange'); sh.inputs['To Min'].default_value = math.radians(P['elevation'] - P['jitter'])
-    sh.inputs['To Max'].default_value = math.radians(P['elevation'] + P['jitter'])
-    Lk(h2.outputs[0], sh.inputs['Value'])
-    dz = N('ShaderNodeMath'); dz.operation = 'SUBTRACT'; Lk(el.outputs[0], dz.inputs[0]); Lk(sh.outputs['Result'], dz.inputs[1])
-    adz = N('ShaderNodeMath'); adz.operation = 'ABSOLUTE'; Lk(dz.outputs[0], adz.inputs[0])
-    band = N('ShaderNodeMapRange'); band.name = 'ck_hl_band'
-    band.inputs['From Min'].default_value = math.radians(P['width'] / 2)
-    band.inputs['From Max'].default_value = math.radians(P['width'] / 2) * 0.6
-    Lk(adz.outputs[0], band.inputs['Value'])
+        return op('FRACT', op('MULTIPLY', op('SINE', op('MULTIPLY', idx, k)), 43758.5453))
+    keep = op('LESS_THAN', hashed(12.9898), P['keep'], name='ck_hl_keep')
+    el0 = op('ADD', math.radians(P['elevation'] - P['jitter']), op('MULTIPLY', hashed(78.233), math.radians(2 * P['jitter'])))
+    # along: 1 at the streak's middle elevation, 0 at +-length/2; across: 1 at the column's middle, 0 at +-duty/2
+    along = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', el, el0)), math.radians(P['length'] / 2)))
+    across = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', op('FRACT', col), 0.5)), P['duty'] / 2))
+    shape = op('MULTIPLY', op('MINIMUM', op('MULTIPLY', along, 3.0), 1.0), op('MINIMUM', op('MULTIPLY', across, 3.0), 1.0))
+    shape = op('MAXIMUM', op('MINIMUM', shape, 1.0), 0.0)
     lw = N('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.5
     fc = N('ShaderNodeMapRange'); fc.inputs['From Min'].default_value = 0.55; fc.inputs['From Max'].default_value = 0.25
     Lk(lw.outputs['Facing'], fc.inputs['Value'])
-    f1 = N('ShaderNodeMath'); f1.operation = 'MULTIPLY'; Lk(band.outputs['Result'], f1.inputs[0]); Lk(keep.outputs[0], f1.inputs[1])
-    f2 = N('ShaderNodeMath'); f2.operation = 'MULTIPLY'; Lk(f1.outputs[0], f2.inputs[0]); Lk(fc.outputs['Result'], f2.inputs[1])
-    f3 = N('ShaderNodeMath'); f3.operation = 'MULTIPLY'; Lk(f2.outputs[0], f3.inputs[0]); Lk(s_lit.outputs['Color'], f3.inputs[1])
-    f4 = N('ShaderNodeMath'); f4.operation = 'MULTIPLY'; f4.inputs[1].default_value = P['amount']; f4.name = 'ck_hl_amount'
-    Lk(f3.outputs[0], f4.inputs[0])
+    f = op('MULTIPLY', op('MULTIPLY', shape, keep), fc.outputs['Result'])
+    f = op('MULTIPLY', op('MULTIPLY', f, s_lit.outputs['Color']), P['amount'], name='ck_hl_amount')
     mx = N('ShaderNodeMix'); mx.data_type = 'RGBA'; mx.name = 'ck_highlight'
     mx.inputs['B'].default_value = (*lin(P['color']), 1)
-    Lk(f4.outputs[0], mx.inputs['Factor']); Lk(src, mx.inputs['A'])
+    Lk(f, mx.inputs['Factor']); Lk(src, mx.inputs['A'])
     Lk(mx.outputs['Result'], em.inputs['Color'])
     m['ck_highlight'] = json.dumps(P)
     return m
-
-
-def lock_attribute(ob, lock, base=0):
-    """the pieces' per-vertex lock index as the float point attribute 'ck_lock' (offset by `base`, so every piece's locks
-    hash apart) for hair_toon's streaks."""
-    me = ob.data
-    at = me.attributes.get('ck_lock') or me.attributes.new('ck_lock', 'FLOAT', 'POINT')
-    at.data.foreach_set('value', (np.asarray(lock, float) + base).astype(np.float32))
 
 
 def flat(name, color):
@@ -193,6 +188,8 @@ def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None
     ob['ck_line_w'] = float(thick)
     ob['ck_line_region'] = region or _region(ob, name)
     m = flat(name, color)
+    ob['ck_line_mat'] = m.name                       # its build colour, kept for line_colors('build')
+    m.use_fake_user = True
     m.use_backface_culling = True
     ob.data.materials.append(m)
     sol = ob.modifiers.new('outline', 'SOLIDIFY')
@@ -228,12 +225,15 @@ def line_colors(look=None):
     import bpy
     ln = (look if look is not None else get_look()).get('lines') or {}
     mode = ln.get('color', 'build')
-    if mode == 'build':
-        return
     for ob in bpy.data.objects:
         mod = next((m for m in ob.modifiers if m.type == 'SOLIDIFY' and m.name == 'outline'), None) \
             if 'ck_line_w' in ob else None
         if mod is None or mod.material_offset >= len(ob.data.materials):
+            continue
+        if mode == 'build':
+            m0 = bpy.data.materials.get(ob.get('ck_line_mat', ''))
+            if m0 is not None and ob.data.materials[mod.material_offset] is not m0:
+                ob.data.materials[mod.material_offset] = m0
             continue
         if mode == 'ink':
             m = flat('line_ink', tuple(ln.get('ink', (0.06, 0.024, 0.024))))

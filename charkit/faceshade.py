@@ -354,7 +354,8 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
     img.colorspace_settings.name = 'Non-Color'
     img.pixels.foreach_set(np.dstack([thr, thr, thr, np.ones_like(thr)])[::-1].astype(np.float32).ravel())
     img.pack()
-    fr = fringe_shadow(H, centre, bangs, size) if bangs is not None else np.zeros((size, size))
+    fr = fringe_shadow(H, centre, bangs, size, drop=fl.get('fringe_drop', 0.03)) if bangs is not None \
+        else np.zeros((size, size))
     fimg = bpy.data.images.new('face_fringe', size, size, alpha=False, float_buffer=True)
     fimg.colorspace_settings.name = 'Non-Color'
     fimg.pixels.foreach_set(np.dstack([fr, fr, fr, np.ones_like(fr)])[::-1].astype(np.float32).ravel())
