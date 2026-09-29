@@ -210,10 +210,27 @@ def band(A, spec):
     return dict(verts=np.array(verts), faces=faces, weights={bone: np.ones(len(verts))}, uv=uvs)
 
 
+LIMB = ('UpperArm', 'LowerArm', 'Hand', None, 'UpperLeg', 'LowerLeg', 'Foot', 'Toes')   # the humanoid limbs' chains
+
+
+def limb_neighbours(bone):
+    """a humanoid limb bone and the ones before and after it in its chain (leftLowerArm -> leftUpperArm, leftLowerArm,
+    leftHand); another bone alone."""
+    for side in ('left', 'right'):
+        if bone.startswith(side) and bone[len(side):] in LIMB:
+            i = LIMB.index(bone[len(side):])
+            return [side + LIMB[j] for j in (i - 1, i, i + 1) if 0 <= j < len(LIMB) and LIMB[j]]
+    return [bone]
+
+
 def band_hull(A, spec, hull):
     """a band lofted round its bone's axis through the hull's points of its `piece` (a cuff, a sleeve's end, a boot's
-    cuff), between their `span` percentiles along the bone, `offset` L out, its first and last rows pulled in by
-    `round` of its thickness. Rigid on its bone; a Solidify gives it its thickness. -> dict(verts, faces, weights, uv)."""
+    cuff), between their `span` percentiles along the bone, `offset` L out. Each section is drawn `round_xs` of the way
+    to the ellipse fitted to it (a visual hull's sections are polygons: the cuffs read as blocks), its ends rolled in
+    over `roll` of its rows by `round` of its thickness (a quarter circle), and it clears the skin under it (its limb's
+    vertices there, as a field on the same rows and angles) by `clear` L plus its thickness, which the Solidify grows
+    inward: the hull's section can sit inside the limb, and the skin showed through. Rigid on its bone.
+    -> dict(verts, faces, weights, uv, clear (per cell: the inner surface's distance out from the skin, m))."""
     from .geom import loft
     L = A['head']['L']
     bone = spec['bone']
@@ -223,12 +240,36 @@ def band_hull(A, spec, hull):
     t, th, r = ax.coords(P)
     lo, hi = np.percentile(t, spec.get('span', (2, 98)))
     rows = max(3, int(round((hi - lo) / (spec.get('step', 0.015) * L))) + 1)
-    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 48), min_row=0.2)
+    ts = np.linspace(lo, hi, rows)
+    nth = spec.get('cols', 48)
+    F = loft.field(t, th, r, ts, nth=nth, min_row=0.2)
     R = F.R + spec.get('offset', 0.0) * L
-    pull = spec.get('round', 0.4) * spec.get('thick', 0.02) * L
-    R[0] -= pull; R[-1] -= pull
+    k = spec.get('round_xs', 0.3)
+    if k > 0:                                          # toward each row's ellipse: 1/r^2 = cos^2/a^2 + sin^2/b^2
+        M = np.stack([np.cos(F.th) ** 2, np.sin(F.th) ** 2], 1)
+        for i in range(len(R)):
+            c = np.maximum(np.linalg.lstsq(M, 1.0 / np.maximum(R[i], 1e-6) ** 2, rcond=None)[0], 1e-9)
+            R[i] = (1 - k) * R[i] + k / np.sqrt(M @ c)
+    thick = spec.get('thick', 0.02) * L
+    n_roll = max(1, int(round(spec.get('roll', 0.25) * rows)))
+    pull = spec.get('round', 0.8) * thick
+    for i in range(n_roll):
+        u = (n_roll - i) / n_roll                          # 1 at the end row, toward 0 inward
+        d = pull * (1 - math.sqrt(max(0.0, 1 - u * u)))
+        R[i] -= d; R[-1 - i] -= d
+    dom, _ = dominant(A)
+    Q = A['verts'][np.isin(dom, limb_neighbours(bone))]
+    tq, thq, rq = ax.coords(Q)
+    near = (tq >= lo - 0.01 * L) & (tq <= hi + 0.01 * L) & (rq < 3 * np.median(R))
+    gap = np.full(R.shape, np.inf)
+    if near.sum() >= 12:
+        # the skin's outermost point per cell, spread a cell round (the thumb's base at a wrist cuff's end)
+        S = loft.field(tq[near], thq[near], rq[near], ts, nth=nth, q=1.0, smooth=(0.3, 0.3), min_row=0.2).R
+        S = np.maximum.reduce([S, np.roll(S, 1, 1), np.roll(S, -1, 1), np.r_[S[:1], S[:-1]], np.r_[S[1:], S[-1:]]])
+        R = np.maximum(R, S + thick + spec.get('clear', 0.006) * L)
+        gap = R - thick - S
     V, quads, uv = loft.loft(ax, F, R)
-    return dict(verts=V, faces=quads, weights={bone: np.ones(len(V))}, uv=[tuple(x) for x in uv])
+    return dict(verts=V, faces=quads, weights={bone: np.ones(len(V))}, uv=[tuple(x) for x in uv], clear=gap)
 
 
 def shoe_hull(A, spec, hull):
