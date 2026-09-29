@@ -21,6 +21,9 @@ import numpy as np
 
 CUT = -0.52                   # L from the eye line: the neck is cut level here (under the chin, above the shoulders' flare)
 NECK_BLEND = 0.1              # L above the cut over which the head's neck eases into the body's
+ZIP_GAP = 0.03                # L: the head's mesh ends this far above the body's ring, so the zip between them is a band
+                              # of the neck (it was a flat annulus at the cut, both loops at one height: a hairline ledge
+                              # whose faces and outline showed as a dotted ring round the neck)
 ZIP = 'triangles'
 
 
@@ -629,7 +632,7 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     nc = Vb[ring_b].mean(0)
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r, curve=curve)
-    Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec), mouth_block(spec))
+    Hmesh = head_mesh(Sb, C, CUT + ZIP_GAP, eye_outline(spec), mouth_block(spec))
     Vh = np.array([Ox, Oy, Oz]) + L * Hmesh['V']
     # assemble: the kept body, the head, the zip
     used = sorted({v for f in Fk for v in f})
