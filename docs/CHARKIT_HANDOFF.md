@@ -377,7 +377,22 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        the hair: `eye_lid_span` and `face_shape_depth`, which is still graded against TRELLIS and should become INFO.
      - Per-piece carving is merged (`aa996f2`). Its outputs were copied in from the hull worktree; the old ones are in
        `charkit/out/archive/hull_prepieces`.
-   - **Next: the code-authored head (`tool/head`, same worktree, branched from `a383c6b`).**
+   - **Merged after the review (2026-09-28):**
+     - `tool/review` (`0ddeb0b`). Michael: the hull is the hair's source, and the generated 3D character grades nothing:
+       `face_depth` and `hair_shape` have no authority, so `face_shape_depth` and `shape_iou_hair` are INFO. The
+       checkpoint page cuts design tiles to their own silhouettes and lists the checks that moved within their status.
+       The hull hair took `sheet_shown_profile` from 0.18 to 0.016 inside WARN, which a status count hid.
+     - `tool/chin` (`1660dbb`): our chin read with the design's rule (`faceqa.drawn_chin`). On today's build,
+       `neck_to_jaw` goes FAIL → PASS and `width` WARN → FAIL: its jaw is wide once measured at the right rows.
+     - The hull hair walls off the face in three-quarter and profile: no view shows the gap between the side locks
+       and the cheek empty. Fix, after the head is in the build: class-consistent carving, where no hair lies in front
+       of pixels a view draws as skin (the authored head gives the skin's depth).
+     - Michael: the "now" build is the old methodology (MakeHuman head and body, knob-fitted garments, hull hair only),
+       so it is no visual review of the new direction. The next review is a build with the authored head in it.
+   - **Next: the code-authored head (`tool/head`, same worktree, branched from `a383c6b`).** At `5ef7423`, with the chin
+     rule fixed, every sheet check passes but width (WARN 1.112): profile 0.003, profile_chin 0.005, nose_reach
+     −0.001, chin_reach −0.001, cheek 0.005, cheek_chin 0.002, neck_to_jaw 1.05. The chin is warped 0.02 L past the
+     design's (`CHIN_BIAS`: the QA reads the turn's start, which the rounding lifts).
      State at `4c4f7d2`, `python -m charkit.geom headfit SPEC --against charkit/out/now/qa/qa.json` (page
      `charkit/out/head/clawd/index.html` in the hull worktree):
      - **The approach:**
