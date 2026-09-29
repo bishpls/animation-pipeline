@@ -583,6 +583,21 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    5. **Generated-view consistency** for single-image input.
    6. **Hair as components:** ponytails, twintails, buns and locks, each rigged with its own physics.
 
+**Motion-phase research (2026-09-29).**
+- **UniMate** (github.com/Friedrich-M/UniMate): skip it as a tool.
+  - It's a text-to-motion model for any skeleton, giving 2 s clips. It has no physics, cloth, spring bones or
+    collision handling, which are our motion problems.
+  - Its code is MIT, but its weights aren't cleared for commercial use: part of the training data is Mixamo, and
+    Adobe's terms forbid using it to train AI. One dependency also has no licence.
+- **Borrowed from UniMate** for motion QA:
+  - normalise each pose (facing, grounding, scale) before the checks run;
+  - add a foot-sliding check.
+- **Candidates for the motion phase:**
+  - **NVIDIA Kimodo:** humanoid motion from text plus keyframe constraints. The code is Apache-2.0, and its non-SMPL
+    weights allow commercial use. It fits on the L4.
+  - **Newton on NVIDIA Warp:** GPU cloth simulation driven from Python, Apache-2.0.
+  - **Spring bones:** a numpy port of pixiv three-vrm's reference VRMC_springBone implementation (MIT).
+
 ## Functionality buildout (after the checkpoint review)
 
 The plan's sequencing had four phases, each ending at a gate:
