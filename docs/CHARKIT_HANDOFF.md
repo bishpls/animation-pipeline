@@ -459,7 +459,23 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        - Known to follow: the zip shows a faint seam at the neck's base, and the neck reads long in profile.
        - The fast body evaluator (`bodyeval`) still rebuilds a knob head when the body changes, so it needs a
          SectionsHead path before body fits run on this base.
-     - **Into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
+     - **In a real build** (`4ef3b34`). `cli.code_head` computes the head venv-side into `out/geom/head_code.npz`
+       (Blender's Python can't read the reference images). The eyes get sockets: the QA measures profile leads from the
+       eye plates, which sat 0.028 L in front of the design's eye, and that read as a flat nose and an off profile. The
+       cage is fitted to its Catmull-Clark limit surface. `hull.carve_face` clears the hull hair from in front of the
+       drawn face (119k voxels on Clawd).
+       - On the tuned spec with only the head swapped (`charkit/out/code_now` in the hull worktree): **55/25/11**
+         against MakeHuman's 49/25/17. Every face check PASS (profile 0.009, nose −0.011, chin 0.004, width 1.07,
+         cheek 0.012); eye_width PASS; face folds 1332 → 132; the face showing in profile 0.014 → 0.286.
+       - Worse: eye_aspect 0.84 → 0.68 (the eye knobs were tuned on MakeHuman's head).
+       - The review page is `charkit/out/checkpoint_code/index.html` in the hull worktree.
+       - **Next:**
+         - the hair as components (the hull hair is a helmet of slabs, the weakest part now);
+         - the eyes on the new head;
+         - face_folds 24 → 132 after the sockets and the limit fit: look;
+         - the carve leaves a window in the hair at the temple and steps in the side locks;
+         - the body authored like the head;
+         - gate and merge `tool/head`, with `base: code` still opt-in until the review.
        - the eyes' and mouth's labels from the cage's loops, in `eyelib.labels` / `mouthlib.labels` format;
        - an `H` backed by the sections (`surfaces`, `sections`, `_xy`, `section`, the landmark attributes), with
          `eyes.Face` taking it as is: it rebuilds a `head.Head` from knobs today;
