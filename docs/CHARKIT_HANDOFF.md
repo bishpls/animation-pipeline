@@ -711,6 +711,37 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Remote builds: the build box (2026-09-29)
+
+Builds, tunes and gates run on a CPU box in the research project, not the laptop. Michael approved it on 2026-09-29.
+- 32 vCPU and 128 GB, with Blender at the laptop's version, headless. It shares the GPU box's isolated network, service
+  account and bucket.
+- The real names are in the gitignored `infra/gcp/build.env`: copy `build.env.example` and fill it in.
+- It stops itself after 30 idle minutes; any `remote` command starts it again.
+- It skips the boards (`CHARKIT_NO_RENDER=1`): software EEVEE takes minutes a board, and the QA doesn't read them.
+  Render boards locally or on the GPU box when a human needs them.
+- A remote build matched a local one on 33 of 36 checks; the three hair checks differ by at most 0.002 (x86 against
+  arm64). Compare remote gate reports against remote baselines only.
+
+```
+python -m charkit remote build SPEC --out charkit/out/X [build flags]  # syncs this worktree, builds there, fetches --out
+python -m charkit remote tune SPEC [...]                               # the same for a tune
+python -m charkit remote gate BRANCH [--into pipeline-3d]              # the gate there; the report lands in charkit/out/gate
+python -m charkit remote run CHARKIT_ARGS...                           # any charkit command in the box's copy
+infra/gcp/build.sh sync . && infra/gcp/build.sh run . 'python -m charkit.geom headfit ...'   # any command
+infra/gcp/build.sh status | up | ssh | stop
+```
+
+How the gate gets its code:
+- The box keeps one clone (`/srv/work/repo`). A gate sends a git bundle of only the commits that clone lacks. The
+  first bundle is the whole history, 1.8 GB; later ones are small.
+- A file over 100 MB goes through the bucket, not the IAP tunnel, which carries about 1–3 MB/s.
+- `charkit/out/i3d` (526 MB, gitignored) is seeded from the box's synced copy of the worktree, then rsynced.
+- Gates from several worktrees queue on a lock there, so parallel workstreams can gate whenever they're ready.
+
+The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
+sessions share its 16 GB.
+
 ## Known issues and work items
 
 - **Tune triage (73 items):** 45 need body-fitter knobs; 9 need a capability (hair noise, framing/cull, fold-free
@@ -745,11 +776,11 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - **Template libraries are additive:** a reference's items (expressions, pieces) become targets. Missing ones get
     added to the template; the input never limits the library.
   - **Authority per measure** is in the manifest: the model sheet for 2D shape, framing, silhouettes, expressions and
-    palette; TRELLIS for face depth and hair shape; the rig for eyes.
+    palette; the rig for eyes. Face depth and hair shape have none since the hull replaced TRELLIS (2026-09-28).
   - **Human review at checkpoints** and for taste calls. Metrics are proxies; Michael's eye is the ground truth.
 - **Machine:**
-  - The Mac has 16 GB. One Clawd build peaks at 2.2 GB of Blender. Use `charkit slots 3` when the machine is dedicated
-    to this, 2 otherwise.
+  - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
+    (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
   - Run at most about 3 agents at once.
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
@@ -764,6 +795,7 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
 python -m charkit build charkit/spec/clawd.json --out charkit/out/X --boards views --no-blend [--hair geom] [--base anime] [--vrm]
 python -m charkit trace charkit/out/A/trace.jsonl [charkit/out/B/trace.jsonl]
 python -m charkit gate BRANCH [--into pipeline-3d] [--args "--hair geom"]
+python -m charkit remote build|tune|gate|run ...              # the same on the build box (see "Remote builds")
 python -m charkit tune charkit/spec/clawd.json [--review]   |   python -m charkit triage DIR   |   python -m charkit review serve BUILD
 python -m charkit fit charkit/spec/clawd.json --out DIR      |   python -m charkit outfit charkit/spec/clawd.json
 python -m charkit history clawd [--check CHECK]              |   python -m charkit ps / slots / wait OUT_DIR

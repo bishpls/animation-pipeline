@@ -1150,6 +1150,21 @@ def _resolve(path, S):
     return v
 
 
+def _sources():
+    """the kit's source files' stats {path: (mtime_ns, size)}. Linux stamps mtimes from a coarse clock that can trail
+    time.time() by a tick, so an mtime alone can't tell an edit just after a build loaded its code from one just before;
+    a changed stat can."""
+    out = {}
+    for d, dirs, files in os.walk(KIT):
+        dirs[:] = [x for x in dirs if x not in ('out', '__pycache__', 'tests')]
+        for f in files:
+            if f.endswith('.py'):
+                p = os.path.join(d, f)
+                st = os.stat(p)
+                out[p] = (st.st_mtime_ns, st.st_size)
+    return out
+
+
 class Cache:
     """one build's use of the cache: `stage` runs or restores a scene stage, `spec_step` the spec-only cranium fit,
     `product` a build product; each step's entry id joins `chain`, which keys the products on the whole scene."""
@@ -1178,6 +1193,7 @@ class Cache:
         self.spec = None                 # the build's spec, for the products (set once the scene is built)
         self.t0 = t0 or time.time()      # when this build's code was loaded
         self._edited = None
+        self._src0 = _sources()          # the sources' stats now: an edit in the same clock tick as t0 still shows
         self.spec_file, self.refs, self.warned = None, None, set()      # the resolved spec (its ref.manifest)
         prune(self.dir)                                                 # under its cap before this build adds to it
         global _CUR
@@ -1192,13 +1208,9 @@ class Cache:
         """a charkit source file changed since this build loaded its code? Its entries would be keyed on code it didn't
         run (the keys read the files on disk), so it stores none from then on."""
         if not self._edited:
-            for d, dirs, files in os.walk(KIT):
-                dirs[:] = [x for x in dirs if x not in ('out', '__pycache__', 'tests')]
-                for f in files:
-                    if f.endswith('.py') and os.stat(os.path.join(d, f)).st_mtime > self.t0:
-                        self._edited = os.path.relpath(os.path.join(d, f), ROOT)
-                        break
-                if self._edited:
+            for p, st in _sources().items():
+                if st != self._src0.get(p) or st[0] > self.t0 * 1e9:
+                    self._edited = os.path.relpath(p, ROOT)
                     break
         return self._edited
 
