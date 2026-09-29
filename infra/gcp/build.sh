@@ -40,6 +40,14 @@ case "${1:-status}" in
   ssh) shift; ssh_ "$@";;
   sync)
     WT=$2; [ -f "$CFG" ] || config
+    # a worktree's first sync: seeded by hard links from the most recently synced worktree copy on the box (the tracked
+    # files, ~0.3 GB, and charkit/out/i3d, ~0.5 GB, are mostly the same across worktrees), so the tunnel (~1-3 MB/s)
+    # carries only what differs; rsync replaces a changed file rather than writing through the shared link. Of the
+    # source's outputs only charkit/out/i3d is kept: its builds, caches and produced references are its own
+    D="/srv/work/$(name "$WT")"
+    ssh_ "[ -d $D ] || { S=\$(ls -td /srv/work/*/charkit 2>/dev/null | grep -v '^/srv/work/repo/' | head -1); \
+      [ -z \"\$S\" ] || { cp -al \"\$(dirname \$S)\" $D && \
+      find $D/charkit/out -mindepth 1 -maxdepth 1 ! -name i3d -exec rm -rf {} +; }; }"
     rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
       --include 'charkit/out/' --include 'charkit/out/i3d/***' --include 'charkit/out/remote/' \
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' \
