@@ -152,6 +152,45 @@ JAW_ROWS = (-0.12, 0.0)          # z (L): below the first, the head's front outl
 BLEND = 0.03                     # the face's edge band (L) where its surface hands over to the skull's
 
 
+FEATURE_WINDOW = 0.10            # L of rows: the profile's drawn features (the lashes, the nose, the lips) narrower than this
+                                 # come off its front edge before the skull is carved; the face's own relief puts them back
+
+
+def without_features(v, window=FEATURE_WINDOW, zlo=-0.45, zhi=0.25, facing=-1):
+    """a profile view's silhouette with its face's drawn features smoothed off its front edge: per row the edge's
+    reach forward, opened then closed over `window` L of rows (a forward bump or a notch narrower than that goes: the
+    nose, the lips, the lashes, the eye's set-in), between zlo and zhi L from the eye line. In place -> the rows changed."""
+    from scipy.ndimage import grey_closing, grey_opening
+    m = v.mask
+    H, W = m.shape
+    rows = np.arange(H)
+    z = (v.eye_y - rows) / v.ppl
+    sel = (z >= zlo) & (z <= zhi) & m.any(1)
+    edge = np.full(H, np.nan)
+    for r in np.nonzero(sel)[0]:
+        c = np.nonzero(m[r])[0]
+        edge[r] = c[0] if facing < 0 else c[-1]
+    idx = np.nonzero(np.isfinite(edge))[0]
+    if len(idx) < 5:
+        return 0
+    reach = -edge[idx] if facing < 0 else edge[idx]                  # larger = further forward
+    k = max(3, int(window * v.ppl))
+    smooth = grey_closing(grey_opening(reach, size=k), size=k)
+    new = -smooth if facing < 0 else smooth
+    changed = 0
+    for r, e0, e1 in zip(idx, edge[idx], new):
+        e1 = int(round(e1))
+        c = np.nonzero(m[r])[0]
+        if facing < 0:
+            m[r, :e1] = False
+            m[r, e1:c[-1] + 1] |= np.arange(e1, c[-1] + 1) <= c[-1]
+        else:
+            m[r, e1 + 1:] = False
+            m[r, c[0]:e1 + 1] = True
+        changed += int(e1 != e0)
+    return changed
+
+
 def skull(spec, h=0.004, log=print):
     """the bald head from head_construction (the skull's authority): its front and profile carved with the style's
     prior, the ears cut off, no silhouette restoration; shifted so the eyes sit at y = 0 -> (V bool, Axes)."""
@@ -160,12 +199,15 @@ def skull(spec, h=0.004, log=print):
     M = manifest.load(spec['ref']['manifest'])['references']
     rgb, _ = refcheck.without_guides(refcheck._load(M['head_construction']['path']))
     ex = spec.get('eyes', {}).get('x', 0.168)
-    views, info = hull.views_from_heads(rgb, ex, spec['ref'].get('face_sheet', {}).get('facing', -1), ears=False)
+    facing = spec['ref'].get('face_sheet', {}).get('facing', -1)
+    views, info = hull.views_from_heads(rgb, ex, facing, ears=False)
+    info['profile_rows_smoothed'] = without_features(views['profile'], facing=facing)
     A = hull.axes_for(views, h)
     prior = dict(styles.load(spec.get('style', 'anime'))['hull'], restore=False)
     V = hull.rounded(views, A, ['front', 'profile'], **prior)
     A.ys = A.ys - info['y_e']
-    log('skull: head_construction at %.0f px/L, grid %s, eyes %.3f L in front of the neck' % (info['ppl'], A.shape, -info['y_e']))
+    log('skull: head_construction at %.0f px/L, grid %s, eyes %.3f L in front of the neck, %d profile rows smoothed' % (
+        info['ppl'], A.shape, -info['y_e'], info['profile_rows_smoothed']))
     return V, A
 
 
@@ -302,19 +344,23 @@ def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_
     l3 = np.interp(-zs, -F.z, F.C['lead3'], left=np.nan, right=np.nan)
     corr = np.where(np.isfinite(face_mid), face_mid - (cy - R0[:, j0]), np.nan)     # NaN off the face's rows: the
                                                                                      # smoothing mustn't average in 0s
-    corr = np.nan_to_num(_smooth_rows(np.where(zs <= FACE_TOP, corr, np.nan), 2), nan=0.0)
+    corr = np.nan_to_num(_smooth_rows(np.where(zs <= FACE_TOP, corr, np.nan), smooth_terms / A.h), nan=0.0)
     corr *= np.clip((FACE_TOP + 0.03 - zs) / 0.03, 0, 1)
     tj = np.clip((zs - JAW_ROWS[0]) / (JAW_ROWS[1] - JAW_ROWS[0]), 0, 1)
     front = np.cos(th) > 0
+    # the jaw's scaling per row (the design's outline over the skull's half-width), smoothed over rows: both widths are
+    # quantised a pixel at a time, and a scale that jitters row to row stripes the whole section
+    half_all = np.nanmax(np.abs(np.sin(th)[None, :] * R0), 1)
+    wk_all = np.where(np.isfinite(wf) & (zs <= CHEEK_TOP + 0.03), wf, half_all)
+    scale = np.where(half_all > 0, (1 - tj) * wk_all / np.where(half_all > 0, half_all, 1) + tj, 1.0)
+    scale = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), scale, np.nan), smooth_terms / A.h), nan=1.0)
+    wc_all = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), (1 - tj) * wk_all + tj * np.minimum(half_all, 0.3), np.nan),
+                                        smooth_terms / A.h), nan=0.3)
 
     def row(k):
         """row k's section points (x, y) after the jaw's scaling, its falloff coordinate, and a shaper by cheek term."""
-        x, y = np.sin(th) * R0[k], cy[k] - np.cos(th) * R0[k]
-        half = np.abs(x).max()
-        wk = wf[k] if np.isfinite(wf[k]) and zs[k] <= CHEEK_TOP + 0.03 else half
-        if half > 0:
-            x = x * ((1 - tj[k]) * wk / half + tj[k])
-        s_ = x / max((1 - tj[k]) * wk + tj[k] * min(half, 0.3), 1e-3)
+        x, y = np.sin(th) * R0[k] * scale[k], cy[k] - np.cos(th) * R0[k]
+        s_ = x / max(wc_all[k], 1e-3)
         base = y + front * (corr[k] * _falloff(s_) + rel[k] * np.exp(-0.5 * (x / sig[k]) ** 2))
         return x, lambda c: base + front * c * _cheek(s_)
 
@@ -378,14 +424,30 @@ def sections_mesh(S, step=2):
     return m
 
 
-def banding(S, span=np.radians(60), zlo=None, zhi=0.1):
-    """the face's banding: RMS of the radius' second difference over rows (L per row pair) across the face's angles
-    (|angle| < span) and rows -> float. Smooth faces score about the voxel noise; ridges score several times it."""
-    zlo = S.zs[np.isfinite(S.cy)].min() if zlo is None else zlo
-    sel = (S.zs >= zlo) & (S.zs <= zhi)
-    R = S.r[sel][:, np.abs(S.th) < span]
-    d2 = R[2:] - 2 * R[1:-1] + R[:-2]
-    return float(np.sqrt(np.nanmean(d2 ** 2)))
+def banding(S, span=np.radians(60), zlo=None, zhi=0.1, scale=0.02):
+    """the face's banding: RMS (L) of the radius against itself smoothed over `scale` L of height, across the face's
+    angles (|angle| < span) and rows: ridges and grooves running across the face, a few rows wide. The voxel noise is
+    finer than `scale` and mostly smoothed already; a smooth face scores a few 1e-4."""
+    from scipy.ndimage import gaussian_filter1d
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    zlo = S.zs[ok].min() if zlo is None else zlo
+    rows = ok & (S.zs >= zlo) & (S.zs <= zhi)
+    dz = abs(S.zs[1] - S.zs[0])
+    R = S.r[ok]
+    low = gaussian_filter1d(R, scale / dz, axis=0, mode='nearest')
+    sel = rows[ok]
+    d = (R - low)[sel][:, np.abs(S.th) < span]
+    return float(np.sqrt(np.mean(d ** 2)))
+
+
+def banding_rows(S, span=np.radians(60), scale=0.02):
+    """the banding per row (RMS over the face's angles) -> (zs, values): where the ridges are."""
+    from scipy.ndimage import gaussian_filter1d
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    dz = abs(S.zs[1] - S.zs[0])
+    R = S.r[ok]
+    d = (R - gaussian_filter1d(R, scale / dz, axis=0, mode='nearest'))[:, np.abs(S.th) < span]
+    return S.zs[ok], np.sqrt(np.mean(d ** 2, 1))
 
 
 def hair_covers(spec, dy=0.0):
