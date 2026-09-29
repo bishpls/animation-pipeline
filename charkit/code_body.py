@@ -385,23 +385,76 @@ def limb_mesh(L_):
     return _tube(ch.point(S, TH, R), len(th))
 
 
+FOOT_PULL = 0.03                # L: the foot inside the boot's surface (the boot's thickness and its shoe's offset)
+
+
+def foot(H, side, ankle, step=0.03, nth=48):
+    """a foot as sections stacked from the ankle down to the sole round a vertical axis (fit_sections, a foot's
+    proportions: longer than wide), from the boot's hull points below the ankle pulled in by FOOT_PULL. -> dict(axis,
+    rows (z), params, th, front, back (the foot's y extent: the toes' end and the heel))."""
+    from .geom import loft
+    suf = '_L' if side == 'left' else '_R'
+    Q = np.concatenate([H.points(n) for n in ('boot' + suf,) if len(H.points(n))])
+    Q = Q[Q[:, 2] < ankle[2] - 0.02]
+    if len(Q) < 50:
+        raise ValueError('foot %s: %d boot points below the ankle' % (side, len(Q)))
+    top, sole = ankle[2], float(Q[:, 2].min())
+    c = np.median(Q, 0)
+    ax = loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
+    t, th, r = ax.coords(Q)
+    r = r - FOOT_PULL
+    rows = np.linspace(0, top - sole - FOOT_PULL, max(6, int((top - sole) / step)))
+    nz = len(rows)
+    th_c = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
+    ii = np.clip(np.rint(np.interp(t, rows, np.arange(nz))).astype(int), 0, nz - 1)
+    jj = np.clip(((th + np.pi) / (2 * np.pi) * nth).astype(int), 0, nth - 1)
+    meas = np.zeros((nz, nth), bool)
+    Rc = np.full((nz, nth), np.nan)
+    cells = {}
+    for a, b, v in zip(ii, jj, r):
+        cells.setdefault((a, b), []).append(v)
+    for (a, b), vs in cells.items():
+        meas[a, b] = True
+        Rc[a, b] = np.median(vs)
+    r0 = float(np.median(r))
+    X0 = np.tile([0.6 * r0, r0, 0.6 * r0, 2.4, 0.0], (nz, 1))
+    P = fit_sections(meas, Rc, th_c, 0.0, X0, depth=1.5, n=2.4, w_centre=0.2)
+    return dict(axis=ax, rows=rows, params=P, th=th_c, front=float(Q[:, 1].min() + FOOT_PULL),
+                back=float(Q[:, 1].max() - FOOT_PULL))
+
+
 def body(H, sk):
     """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)})."""
     T_ = torso(H, sk)
     hy = float(T_['params'][-1, 4])
     limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
+    feet = {'foot_' + s_: foot(H, s_, limbs['leg_' + s_]['chain'].J[-1]) for s_ in ('left', 'right')}
     meshes = {'torso': torso_mesh(T_)}
     meshes.update({n: limb_mesh(L_) for n, L_ in limbs.items()})
-    return dict(torso=T_, limbs=limbs, meshes=meshes)
+    meshes.update({n: foot_mesh(F_) for n, F_ in feet.items()})
+    return dict(torso=T_, limbs=limbs, feet=feet, meshes=meshes)
+
+
+def foot_rings(F_):
+    """a foot's rings (rows, nth, 3) in the hull's frame."""
+    R = np.stack([section_r(F_['params'][k], F_['th'], 0.0) for k in range(len(F_['rows']))])
+    TT, TH = np.meshgrid(F_['rows'], F_['th'], indexing='ij')
+    return F_['axis'].point(TT, TH, R)
+
+
+def foot_mesh(F_):
+    return _tube(foot_rings(F_), len(F_['th']))
 
 
 
 
 # ------------------------------------------------------------------------------------------------ into the build
-PARTS = ('torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right')
-UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.0, 0.33, 1.0), 'leg_right': (0.33, 0.0, 0.41, 1.0),
-            'arm_left': (0.41, 0.0, 0.46, 1.0), 'arm_right': (0.46, 0.0, 0.5, 1.0)}
+PARTS = ('torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right', 'foot_left', 'foot_right')
+UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.2, 0.33, 1.0), 'leg_right': (0.33, 0.2, 0.41, 1.0),
+            'arm_left': (0.41, 0.2, 0.46, 1.0), 'arm_right': (0.46, 0.2, 0.5, 1.0),
+            'foot_left': (0.25, 0.0, 0.375, 0.2), 'foot_right': (0.375, 0.0, 0.5, 0.2)}
+TOE_SHARE = 0.35                  # the front of the foot, as a share of its length, is the toes'
 HEAD_UV_BOX = (0.5, 0.0, 1.0, 1.0)
 BLEND = 0.06                      # L: a bone's weight eases into the next over this either side of their joint
 TORSO_BONES = ('neck', 'upperChest', 'chest', 'spine', 'hips')     # top to bottom, by the graph skeleton's heights
@@ -480,6 +533,15 @@ def build_body_data(spec, chin, log=print):
             Wp = _blend(-z, [-e for e in edges], len(TORSO_BONES))
             for i, b in enumerate(TORSO_BONES):
                 W.setdefault(b, []).append((nv, Wp[:, i]))
+        elif name.startswith('foot_'):
+            side = name.split('_')[1]
+            y = Pp.reshape(-1, 3)[:, 1]
+            y = np.r_[y, [Pp[0].mean(0)[1], Pp[-1].mean(0)[1]]][:len(V_)]
+            front, back = float(Z[name + '_front']), float(Z[name + '_back'])
+            ytoe = front + TOE_SHARE * (back - front)
+            Wp = _blend(-y, [-ytoe], 2)                         # (toward the front: -y) the foot, then the toes
+            W.setdefault(side + 'Foot', []).append((nv, Wp[:, 0]))      # (the heel side: larger y)
+            W.setdefault(side + 'Toes', []).append((nv, Wp[:, 1]))
         else:
             kind, side = name.split('_')
             bones = [side + b for b in LIMBS[kind][0]]
@@ -546,6 +608,7 @@ def _joints(Z, sk, world, L):
         J['lowerleg01.%s____head' % S_] = world(leg[1])
         J['foot.%s____head' % S_] = world(leg[2])
         sole = float(Z['sole_z'])
-        J['toe1-1.%s____head' % S_] = world((leg[2][0], leg[2][1] - 0.35, sole + 0.06))
-        J['toe1-1.%s____tail' % S_] = world((leg[2][0], leg[2][1] - 0.5, sole + 0.04))
+        front, back = float(Z['foot_%s_front' % side]), float(Z['foot_%s_back' % side])
+        J['toe1-1.%s____head' % S_] = world((leg[2][0], front + TOE_SHARE * (back - front), sole + 0.06))
+        J['toe1-1.%s____tail' % S_] = world((leg[2][0], front, sole + 0.04))
     return J

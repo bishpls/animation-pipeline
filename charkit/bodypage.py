@@ -37,6 +37,11 @@ def save_body(spec, path, log=print):
         arrays[n + '_s'] = rows
         arrays[n + '_J'] = ch.J
         arrays[n + '_s0'] = np.r_[ch.s0, ch.total]
+    from .code_body import foot_rings
+    for n, F_ in B['feet'].items():
+        arrays[n + '_P'] = foot_rings(F_)
+        arrays[n + '_front'] = np.array(F_['front'])
+        arrays[n + '_back'] = np.array(F_['back'])
     arrays['skeleton'] = np.array(json.dumps({k: [list(a), list(b)] for k, (a, b) in sk.items()}))
     np.savez_compressed(path, **arrays)
     log('code body: %s' % path)
