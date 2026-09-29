@@ -13,6 +13,7 @@
     python -m charkit history NAME [--check CHECK]                     # QA across builds
     python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
+    python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -248,6 +249,11 @@ def build(args):
     spec = code_head(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
+    if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
+        # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
+        # bundle, not the boards, so fits, tunes and gates lose nothing; review renders go to the laptop or the GPU box
+        print('CHARKIT_NO_RENDER: boards skipped (%s)' % boards)
+        boards = ''
     qa = None if '--no-qa' in args else opt('--qa', 'venv')
     if qa not in (None, 'venv', 'blender'):
         raise SystemExit('--qa venv|blender')
@@ -514,6 +520,9 @@ def main(argv=None):
     elif cmd == 'wait':
         from . import procs
         procs.wait(rest)
+    elif cmd == 'remote':
+        from . import remote
+        raise SystemExit(remote.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)
