@@ -448,10 +448,11 @@ CHEEK_FIT = (-0.06, 0.08)        # the cheek term is fitted below the first z (a
 
 SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and up (the 'socket' eye region)
 EYE_REGION = {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
-              'hold': True, 'curve': 2.0, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
+              'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
                                                              # section overrides it: styles.DEFAULT says what each is)
-WINDOW_RELEASE = (0.02, 0.2)     # L: toward the midline the window's hold lets go, from half the window in to this x,
-                                 # by up to this much (the nose's side is the profile's midline, not the eye's plane)
+WINDOW_RELEASE = (0.02, 0.2)     # L: toward the midline the window's hold lets go, from `release` of the window's
+                                 # half-width in from the eye (the style's) to this x, by up to this much (the nose's
+                                 # side is the profile's midline, not the eye's plane)
 EYE_OPENING = (0.18, 0.15)       # L: the front eye opening's width and height when the design's can't be measured
 
 
@@ -482,7 +483,7 @@ def eye_window(C, face=None):
     return dict(mode=st['eye_region'], a=fw / 2 + st['margin'], b=fh / 2 + st['margin'], zc=float(fr.get('dz') or 0.0),
                 tan=float(np.tan(np.radians(yaw))), yaw=round(yaw, 2), reach=two(st['reach']),
                 margin=float(st['margin']), hold=bool(st['hold']), curve=float(st['curve']),
-                cheek_peak=float(st['cheek_peak']))
+                release=float(st['release']), cheek_peak=float(st['cheek_peak']))
 
 
 def eye_fill(zs, X, Y, eye_x, W, iters=12):
@@ -526,7 +527,7 @@ def eye_fill(zs, X, Y, eye_x, W, iters=12):
     fixed |= core; val[core] = (plane - Yr)[core]
     rho = np.hypot((Xr - eye_x) / W['a'], (Zr - W['zc']) / W['b'])
     allow = W.get('curve', 2.0) * (np.maximum(0.0, rho - 1) * np.sqrt(W['a'] * W['b'])) ** 2
-    x0, x1 = WINDOW_RELEASE[0], max(eye_x - W['a'] / 2, WINDOW_RELEASE[0] + 0.01)
+    x0, x1 = WINDOW_RELEASE[0], max(eye_x - W.get('release', 0.5) * W['a'], WINDOW_RELEASE[0] + 0.01)
     allow = allow + WINDOW_RELEASE[1] * (1 - _smoothstep((Xr - x0) / (x1 - x0)))  # toward the midline: let go
     hold = ~fixed & bool(W.get('hold', True))
     for _ in range(iters):

@@ -16,7 +16,8 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            yawed back toward its outer corner by the design's own yaw (yaw 'design', or degrees), with the brow and the
            cheek no further forward than it; max_yaw caps it), margin (L: the window past the eye's opening), reach (L,
            up and down: how far above and below the window the correction reaches), hold and curve (the brow and the
-           cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window),
+           cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window; toward the
+           nose it lets go from `release` of the window's half-width in from the eye),
            cheek_peak (where across the face, as a share of its half-width, the cheek term that meets the three-quarter's
            far contour is fullest: 0.5 under the eye, larger toward the cheekbone)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
@@ -33,7 +34,7 @@ DEFAULT = {
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
                     'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06},
     'face': {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
-             'hold': True, 'curve': 2.0, 'cheek_peak': 0.5},
+             'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5},
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
 }
