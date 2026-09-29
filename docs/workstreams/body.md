@@ -94,3 +94,27 @@ analytic skull has, with width, depth and exponent profiles set by the style pro
 
 It's bounded above everywhere by the hull's full envelope less a clearance: the body can't stand out of the design
 anywhere, which is the property the garments need. The limbs are better observed (bare forearms, thighs and shins).
+
+## The torso, v1 (charkit/code_body.py, `python -m charkit.code_body SPEC`)
+
+One superellipse section per row (half-width, front depth, back depth, exponent, centre depth). All rows are fitted
+at once:
+- the data is the hull's measured cells, mirrored across the midline;
+- the parameters are smooth down the rows;
+- weak priors hold a torso's proportions;
+- anchors at the neck ring (from its bare skin) and at the hips (the leg joints apart plus the thighs' radius, at the
+  thighs' centre depth).
+
+It's then clamped inside the hull's torso envelope less 0.012 L. Fitting row by row had let sparse rows flatten a front
+or balloon a back; the joint fit doesn't.
+
+Against the hull (where our torso stands out of each tight piece after its pull-in):
+
+| piece | MakeHuman body | authored torso |
+|---|---|---|
+| the top | median +0.077, p90 +0.155, 86% out > 0.02 L | median −0.003, p90 +0.009, 1% |
+| the waistband | | median −0.001, p90 +0.021, 11% |
+| the neckline's bare skin | | median −0.019, p90 +0.007, 6% |
+
+The review page is `charkit/out/body/clawd/index.html` (sections from above: the hull, the measured points, ours).
+Next: the limbs along the graph's skeleton; the weights; the build integration; then the garments on it.
