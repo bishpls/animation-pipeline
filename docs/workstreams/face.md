@@ -99,4 +99,43 @@ mesh is. It reads the box build's figure to within 2° (49.2 against 49.3), in s
 
 ## Numbers
 
-(filled in from the box builds: see below)
+The authored head and body with the hair as pieces (`clawd_body_pieces`: `clawd_body.json` with `hair.mode` pieces),
+built on the render box at 712e736. It is set against the checkpoint Michael reviewed (`ckpt_full`, 35525d1), whose face
+and neck measure the same as tool/body's (hollow 0.054, crease 42.6). `face_region` is measured by
+`python -m charkit.faceregion` on both.
+
+| check | checkpoint | now |
+|---|---|---|
+| eye_hollow (L) | 0.054 FAIL | 0.016 PASS |
+| cheek_lead (L) | 0.076 FAIL | 0.005 PASS |
+| eye_bowl (L) | 0.041 FAIL (under the eye: the socket) | 0.023 WARN (at the nose bridge, the design's profile) |
+| eye_width_three_quarter (x design) | 1.236 WARN | 1.083 PASS |
+| eye_width_profile (x design) | 1.778 FAIL | 0.889 PASS |
+| neck_crease, visible skin (deg) | 41.1 FAIL | 29.6 WARN |
+| neck_crease_all, whole skin (deg) | 42.6 | 42.7 (INFO: the flare under the collar) |
+| profile_edge, chin to chest (rms L) | 0.052 WARN | 0.052 WARN (worst row: the chin, the two sheets 0.02 L apart) |
+| eye_* (the eye engine's checks) | all PASS | all PASS |
+| sheet_* (the head against the head sheet) | cheek 0.020 WARN, rest PASS | cheek 0.023 WARN, rest PASS |
+| face_folds | 4 | 4 |
+
+Two gate regressions are the hull's, reached through the head: `hair_fringe_low` 0.014 PASS → 0.033 WARN and
+`body_back_leg` 0.066 PASS → 0.108 WARN.
+- The hull carves away what stands in front of the authored face wherever a view draws skin or iris
+  (`hull.carve_face`, which calls `code_base.head_sections`).
+- The window sets the eye region back to the design's depth, so the fringe lock over her left eye, which hung partly
+  inside the old surface, now stands in front of an eye the side views draw clear, and is carved.
+- The legs, fitted to the same hull, shift with it.
+
+The fix is the hull's (keep hair within a margin of the face) or the hair's (pieces keep their drawn length). A cap on
+how far the window may bring the face forward (`face.forward` 0) was tried and doesn't change it.
+
+## What's left
+
+- The collar. The body workstream's collar is raised to the torso's top ring, now the slender neck's width, and
+  wraps it like a turtleneck. The garments should lay it on the flare below.
+- The fringe and hull carve interaction above: the hair and hull owners.
+- `eye_bowl`'s remaining WARN is the nose bridge's vertical concavity, at the grid's inner edge. It is the design's own
+  profile.
+- `poke_share` 0.020 (FAIL) is at the wrists, from the body code.
+- Hull building isn't deterministic across box copies. The fork-point baseline, built fresh in its own copy, failed in
+  `garments.sleeve_hull` ("no row of the piece is measured on 15% of its circle").
