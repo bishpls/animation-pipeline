@@ -157,3 +157,11 @@ forearm. The fix: take the larger of the loft and the skin's own field plus a ma
 
 The review page is `charkit/out/review_body2/index.html`, with renders at matching scale, the design above each, the
 table and the pieces pages.
+
+Gates, round 2:
+- The default spec, tool/body 51c0733 into pipeline-3d ead7d5f: **PASS**. So does the merged head fb9d89c into
+  ae55904 (`charkit/out/gate/gate_tool-body_fb9d89c_into_ae55904.md`).
+- clawd_body.json, tool/body 51c0733 into ckpt/2026-09-29 35525d1 (pipeline-3d has no clawd_body.json): **FAIL**.
+  Two checks got worse: body_three_quarter_hem (PASS → WARN, the panels) and poke_share (WARN → FAIL, the wrist cuffs).
+  Nineteen checks improved a grade (`charkit/out/gate/gate_tool-body_51c0733_into_35525d1.md`). The gate lists
+  body_front_skirt_width WARN → FAIL as "remeasured", but the panels caused it.
