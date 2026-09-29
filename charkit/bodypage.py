@@ -14,6 +14,16 @@ from .code_body import (CUT, TIGHT, TORSO_SKIN_X, Hull, arm_mask, body, section_
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+def drawn_extents(graph, view='front'):
+    """the outfit graph's drawn extents per piece in one view: {piece: (x0, z0, x1, z1)} in L from the eye line."""
+    out = {}
+    for p in graph.get('pieces') or []:
+        e = ((p.get('extent') or {}).get(view) or {}).get('bbox')
+        if e:
+            out[p['id']] = tuple(e)
+    return out
+
+
 def save_body(spec, path, log=print):
     """venv-side (the fit needs scipy): the authored body's rings in the hull's frame, per part, with what the build
     needs to rig it -> path (.npz), which build_body_data reads in Blender."""
@@ -23,7 +33,7 @@ def save_body(spec, path, log=print):
     H = Hull(os.path.dirname(hull_path))
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
     sk = skeleton(graph)
-    B = body(H, sk)
+    B = body(H, sk, drawn=drawn_extents(graph))
     T_ = B['torso']
     ax, F = T_['ax'], T_['F']
     TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
@@ -176,8 +186,9 @@ def main(args):
     hull_path = manifest.produced(spec, 'hull')
     masks = manifest.produced(spec, 'outfit_masks')
     H = Hull(os.path.dirname(hull_path))
-    sk = skeleton(json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json'))))
-    B = body(H, sk)
+    graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
+    sk = skeleton(graph)
+    B = body(H, sk, drawn=drawn_extents(graph))
     T = B['torso']
     rep = {'out': measure(H, T, sk), 'measured_rows': [round(float(x), 3) for x in T['measured']],
            'rows': [round(float(z), 3) for z in T['rows']],

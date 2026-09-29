@@ -1430,7 +1430,9 @@
     0.6891,
     0.6762
    ],
-   "source": "hull"
+   "source": "hull",
+   "knot": 0.6,
+   "lift": 0.03
   },
   {
    "kind": "belt",
