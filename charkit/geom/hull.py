@@ -707,8 +707,62 @@ def label_vertices(m, views):
     return lab
 
 
+FACE_CLASSES = (1, 3)                # bodyqa.CLASS skin and iris: where a view draws the face, nothing stands in front of it
+FACE_MARGIN = 0.006                  # L: the hull's voxels this close in front of the face's surface stay (its own skin)
+
+
+def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
+    """the hull without what stands in front of the face: where a view draws skin or iris (at the head's heights), every
+    voxel between its camera and the face's surface on that pixel's ray goes. No view's silhouette shows the gap between
+    a side lock and the cheek, so the carve fills it; the face drawn there says it's empty. head: the face's surface,
+    charkit.geom.headfit.Sections in the head's eye frame (the eyes at y = 0; the hull's are at y_e). The views'
+    mirrors (the far side) carve too. In place -> voxels removed."""
+    from .headfit import sections_mesh
+    m = sections_mesh(head, step=1)
+    Vm = m.V + np.array([0.0, y_e, 0.0])
+    ix, iy, iz = np.nonzero(V)
+    if not len(ix):
+        return 0
+    X, Y, Z = A.xs[ix], A.ys[iy], A.zs[iz]
+    near = (Z >= zlo) & (Z <= zhi)
+    gone = np.zeros(len(ix), bool)
+    LV = label_views(views, P) if P is not None else dict(views)
+    if P is None:
+        for n, v in views.items():
+            if abs(np.sin(np.radians(v.az))) > 1e-9:
+                LV[n + '_mirror'] = mirrored(v, None)
+    from scipy.ndimage import maximum_filter
+    for n, v in LV.items():
+        a = np.radians(v.az)
+        u0 = -3.0
+        nu, nz = int(6.0 / A.h), len(A.zs)
+        # the face's depth map (toward the camera) on the voxel grid's rays, nearest the camera
+        u = Vm[:, 0] * np.cos(a) + Vm[:, 1] * np.sin(a)
+        d = Vm[:, 0] * np.sin(a) - Vm[:, 1] * np.cos(a)
+        iu = np.round((u - u0) / A.h).astype(int)
+        jz = np.round((A.zs[0] - Vm[:, 2]) / A.h).astype(int)
+        ok = (iu >= 0) & (iu < nu) & (jz >= 0) & (jz < nz)
+        D = np.full((nu, nz), -np.inf)
+        np.maximum.at(D, (iu[ok], jz[ok]), d[ok])
+        D = np.where(np.isfinite(D), D, -np.inf)
+        D = np.where(np.isfinite(D), D, maximum_filter(np.where(np.isfinite(D), D, -1e9), 3))
+        # the view's face pixels on the same rays
+        us = u0 + np.arange(nu) * A.h
+        cls = v.sample(v.labels, us, A.zs)
+        face = np.isin(cls, FACE_CLASSES) & v.sample(v.mask, us, A.zs)
+        vu = np.round((X * np.cos(a) + Y * np.sin(a) - u0) / A.h).astype(int)
+        vd = X * np.sin(a) - Y * np.cos(a)
+        okv = near & (vu >= 0) & (vu < nu)
+        hit = np.zeros(len(ix), bool)
+        hit[okv] = face[vu[okv], iz[okv]] & (D[vu[okv], iz[okv]] > -1e8) & (vd[okv] > D[vu[okv], iz[okv]] + FACE_MARGIN)
+        gone |= hit
+    V[ix[gone], iy[gone], iz[gone]] = False
+    log('hull: %d voxels in front of the drawn face carved' % gone.sum())
+    return int(gone.sum())
+
+
 def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, sheet='body',
-          log=print):
+          face=True, log=print):
     """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, the
     per-vertex classes hull_labels.npy and, with the outfit's piece masks, the per-vertex pieces hull_pieces.npy),
     hull.ply, hull.npz (the occupancy and its labelled shell), hull.json (calibration, the leave-one-out scores when
@@ -748,6 +802,11 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
             rep['leave_one_out_no_limbs'], _ = validate(views, A, 'rounded', **dict(prior, limbs=False))
     else:
         V = rounded(views, A, list(views), **prior)
+    if face and sheet == 'body':
+        # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
+        from charkit import code_base
+        Sh, Ch, _ = code_base.head_sections(spec, log)
+        rep['face_carved'] = carve_face(V, A, views, Sh, info['y_e'], P=P, log=log)
     L = None
     if P is not None:
         if validate_views:

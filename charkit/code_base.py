@@ -96,9 +96,25 @@ class SectionsHead:
 _HEADS = {}
 
 
+def save_head(spec, path, log=print):
+    """the authored head's sections and the contours' landmarks computed venv-side (they read the reference images) into
+    `path` (.npz), for the build's Blender side, which loads them (spec['head_code'])."""
+    S, C, rep = head_sections(dict(spec, head_code=None), log)
+    np.savez_compressed(path, zs=S.zs, cy=S.cy, r=S.r, th=S.th,
+                        C=json.dumps({k: float(C[k]) for k in ('chin', 'eye_x', 'nose_z', 'az3')}),
+                        rep=json.dumps(rep, default=str))
+    return path
+
+
 def head_sections(spec, log=print):
-    """the authored head's sections and the design's contours for a resolved spec (in L, the eye frame), kept per set
-    of references and style (a build asks once; a fit asks many times with the same references)."""
+    """the authored head's sections and the design's contours for a resolved spec (in L, the eye frame): from the file
+    spec['head_code'] names when there is one (save_head: the Blender side can't read images), else computed; kept per
+    set of references and style (a build asks once; a fit asks many times with the same references)."""
+    from charkit.geom.headfit import Sections
+    if spec.get('head_code') and os.path.exists(spec['head_code']):
+        z = np.load(spec['head_code'])
+        S = Sections(z['zs'], z['cy'], z['r'])
+        return S, json.loads(str(z['C'])), json.loads(str(z['rep']))
     from charkit import refcheck
     from charkit.geom import headfit
     fs = spec['ref']['face_sheet']
@@ -234,6 +250,26 @@ def _grow_rings(F, start, rings, exclude, n):
     return out
 
 
+LIMIT_ITERS = 10                 # rounds of fitting the cage to its own subdivision's limit surface
+
+
+def fit_limit(V, faces, movable, sharp=(), iters=LIMIT_ITERS):
+    """the cage moved so its Catmull-Clark limit surface (level 1, the build's viewport modifier, which the QA measures)
+    passes through where the cage's vertices were placed: subdivision pulls a surface inside its cage, most on narrow
+    convex features (the nose, the chin), so each round moves every movable vertex by the gap between its target and its
+    limit position -> (V, the remaining gap per round, L)."""
+    from charkit import subdiv
+    T = np.asarray(V, float)
+    P = T.copy()
+    gaps = []
+    for _ in range(iters):
+        V1, Q, par = subdiv.catmull_clark(P, faces, sharp)
+        d = T - V1[:len(P)]
+        gaps.append(round(float(np.abs(d[movable]).max()), 5))
+        P[movable] += d[movable]
+    return P, gaps
+
+
 def head_mesh(S, C, cut):
     """the authored head's mesh on its sections (L, eye frame): the cage with the eyes and the mouth open, each eye's
     socket and the mouth's cavity added (their positions a first guess: charkit/eyes.py and charkit/mouth.py place them),
@@ -296,7 +332,16 @@ def head_mesh(S, C, cut):
         more = _grow_rings(quads, set(Cg.loops[name][0]), 6 - (len(Cg.loops[name]) - 1), inside, len(Va))
         for v, k in more.items():
             E['outer'].setdefault(v, k + len(Cg.loops[name]) - 1)
-    return dict(V=Va, faces=faces, groups=groups, eyes=eyes, mouth=mouth, neck=list(Cg.loops['neck'][0]), cage=Cg)
+    # the cage fitted to its limit surface: the face's surface stays where it was placed after subdivision; the eyes'
+    # sockets, the mouth's cavity (placed later by eyes.py and mouth.py) and the neck's rim (zipped to the body) held
+    held = set(range(Cg.V.shape[0], len(Va))) | set(Cg.loops['neck'][0])
+    for E in eyes.values():
+        held |= set(E['margin'])
+    movable = np.array([i not in held for i in range(len(Va))])
+    sharp = [(a, b) for E in eyes.values() for a, b in zip(E['margin'], E['margin'][1:] + E['margin'][:1])]
+    Va, gaps = fit_limit(Va, faces, movable, sharp)
+    return dict(V=Va, faces=faces, groups=groups, eyes=eyes, mouth=mouth, neck=list(Cg.loops['neck'][0]), cage=Cg,
+                limit_gaps=gaps)
 
 
 # ------------------------------------------------------------------------------------------------------------ the join

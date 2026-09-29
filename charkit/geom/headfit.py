@@ -444,6 +444,7 @@ def _smoothstep(t):
     return t * t * (3 - 2 * t)
 
 
+SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and up
 SCALE_SMOOTH = 0.025             # L of rows: the jaw's and neck's width scaling is smoothed over this
 BROAD = 0.05                     # L of height: the midline's correction that spreads across the face is this smooth; the
                                  # rest (the nose, the lips, the bridge) stays at the midline, narrow
@@ -478,7 +479,7 @@ CHIN_BIAS = -0.01                # L: the chin's rows warped this far past the d
 
 
 def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, chin_bias=CHIN_BIAS,
-             terms=('corr', 'rel', 'cheek', 'scale', 'warp')):
+             terms=('corr', 'rel', 'cheek', 'scale', 'warp', 'socket')):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
       - below CHEEK_TOP each row's x scaled so its half-width is the face's own outline (blended up to JAW_ROWS[1]);
@@ -578,10 +579,20 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         k0 = top.min()
         cheek[:k0] = cheek[k0] * _smoothstep(1 - (zs[:k0] - zs[k0]) / CHEEK_FIT[1])
     cheek = np.nan_to_num(cheek, nan=0.0) * ('cheek' in terms)
+    # the eyes' sockets: where the design draws the eye in profile (the eye frame's y = 0, set back from the nose's
+    # bridge by the profile's lead) is where the build's eye plate must sit, on the surface; a smooth dip at each eye takes
+    # the surface there back to it (the construction's own set-in went with its drawn features)
+    ke = int(np.argmin(np.abs(zs)))
+    xe, ye = row(ke)[0], row(ke)[1](cheek[ke])
+    fr = np.cos(th) > 0
+    y_eye = float(np.interp(F.C['eye_x'], xe[fr][np.argsort(xe[fr])], ye[fr][np.argsort(xe[fr])]))
+    sock = max(0.0, -y_eye) * ('socket' in terms)
     R = np.full_like(R0, np.nan)
     for k in valid:
         x, shaped = row(k)
         yy = shaped(cheek[k])
+        if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
+            yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
         tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
         R[k] = np.interp(th, tn[o], np.hypot(x, yy - cy[k])[o], period=2 * np.pi)
     # under the chin the front onto the design's drawn skin edge (head_turnaround's profile: the jaw's underside, then
@@ -620,7 +631,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     ok = np.isfinite(R).all(1) & np.isfinite(cy)
     Rs = R.copy()
     Rs[ok] = gaussian_filter(R[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
-    rep = {'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
+    rep = {'socket_L': round(sock, 4), 'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
            'cheek_range_L': [round(float(np.min(cheek)), 4), round(float(np.max(cheek)), 4)],
            'cheek_fit_noise_L': round(float(np.nanstd(raw_cheek - cheek)), 4) if np.isfinite(raw_cheek).any() else None}
     return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan)), rep
@@ -705,8 +716,11 @@ def grade(S, spec, D, covers=None):
     ex = spec.get('eyes', {}).get('x', 0.168)
     covers = hair_covers(spec) if covers is None else covers
     k0 = int(np.argmin(np.abs(S.zs)))
+    # the eyes where the build's iris plates sit: on the surface at the eyes' (x, z) (charkit/eyes.py places them there),
+    # which is what the QA measures the leads from
+    irc = [tuple(p) for p in front_point(S, np.array([ex, -ex]), np.array([0.0, 0.0]))]
     O = sheetqa.measure_ours([(m.V, m.F, np.full(len(m.F), sheetqa.CLASS['skin']))], covers,
-                             [(ex, 0.0, 0.0), (-ex, 0.0, 0.0)], (0.0, float(S.cy[k0])), 1.0, D['ppl'], D['az_three_quarter'])
+                             irc, (0.0, float(S.cy[k0])), 1.0, D['ppl'], D['az_three_quarter'])
     return sheetqa.compare(O, D), O
 
 

@@ -244,6 +244,7 @@ def build(args):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
+    spec = code_head(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     qa = None if '--no-qa' in args else opt('--qa', 'venv')
@@ -317,6 +318,35 @@ def _glb_inputs(glb):
             if S.get(k):
                 out.append(os.path.join(os.path.dirname(p), S[k]))
     return out
+
+
+def code_head(spec, resolved, out, mode='on'):
+    """venv-side, for spec['base'] == 'code': the authored head (charkit/code_base.py, from the reference images) ->
+    out/geom/head_code.npz, and the resolved spec pointed at it (spec['head_code']) for the Blender side. A cached step:
+    it runs again when the references it reads, the spec's eyes or style, or the code change."""
+    if spec.get('base') != 'code':
+        return spec
+    from . import cache, code_base, manifest
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'head_code.npz')
+    M = manifest.load(spec['ref']['manifest'])['references']
+    imgs = [_path(spec['ref']['face_sheet']['image']), _path(M['head_construction']['path'])]
+    key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime')}
+
+    def run():
+        code_base.save_head(spec, path)
+        print('code head', path)
+    if mode == 'off':
+        run()
+    else:
+        r = cache.file_step('code_head', run, [code_head], key, gdir, inputs=imgs,
+                            modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull'),
+                            name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE code_head', r)
+    spec['head_code'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
 
 
 def geom_hair(spec, resolved, out, mode='on'):
