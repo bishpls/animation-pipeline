@@ -528,9 +528,9 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
         border[lv[np.repeat((c > 0) & (c < ct), ct)]] = True
         hide = src[~border[src]]
     elif k == 'band':
-        G = gm.band(A, s)
+        G = gm.band_hull(A, s, hull) if s.get('source') == 'hull' else gm.band(A, s)
     elif k == 'shoe':
-        G = gm.shoe(A, s)
+        G = gm.shoe_hull(A, s, hull) if s.get('source') == 'hull' else gm.shoe(A, s)
         dom = gm.dominant(A)[0] if dom is None else dom
         hide = np.nonzero(np.isin(dom, [f"{s['side']}Foot", f"{s['side']}Toes"]))[0]
     elif k == 'belt':
@@ -556,6 +556,8 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
         P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
     elif k == 'belt' and s.get('source') == 'hull':
         P.solid = s.get('thick', 0.025) * A['head']['L']
+    elif k == 'band' and s.get('source') == 'hull':
+        P.solid = s.get('thick', 0.02) * A['head']['L']
     return P, hide
 
 

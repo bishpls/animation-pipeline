@@ -210,6 +210,66 @@ def band(A, spec):
     return dict(verts=np.array(verts), faces=faces, weights={bone: np.ones(len(verts))}, uv=uvs)
 
 
+def band_hull(A, spec, hull):
+    """a band lofted round its bone's axis through the hull's points of its `piece` (a cuff, a sleeve's end, a boot's
+    cuff), between their `span` percentiles along the bone, `offset` L out, its first and last rows pulled in by
+    `round` of its thickness. Rigid on its bone; a Solidify gives it its thickness. -> dict(verts, faces, weights, uv)."""
+    from .geom import loft
+    L = A['head']['L']
+    bone = spec['bone']
+    P = _hull_points(hull, spec)
+    h, tl = bone_seg(A, bone)
+    ax = loft.Axis(h, tl - h, (0, -1, 0))
+    t, th, r = ax.coords(P)
+    lo, hi = np.percentile(t, spec.get('span', (2, 98)))
+    rows = max(3, int(round((hi - lo) / (spec.get('step', 0.015) * L))) + 1)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 48), min_row=0.2)
+    R = F.R + spec.get('offset', 0.0) * L
+    pull = spec.get('round', 0.4) * spec.get('thick', 0.02) * L
+    R[0] -= pull; R[-1] -= pull
+    V, quads, uv = loft.loft(ax, F, R)
+    return dict(verts=V, faces=quads, weights={bone: np.ones(len(V))}, uv=[tuple(x) for x in uv])
+
+
+def shoe_hull(A, spec, hull):
+    """a boot's foot lofted through the hull's points of the boot below the ankle (its `piece`, default boot_<side>):
+    sections stacked from `overlap` L above the ankle down to the sole round a vertical axis (geom.loft), capped
+    underneath; its bottom `sole` band (by height, the sole's) on the second material. Weighted to the foot, its
+    front to the toes. The template shoe sized itself round the body's foot plus an instep and read as a balloon; the
+    drawn boot is a straight shaft on a close foot. -> dict(verts, faces, weights, uv, sole (per face))."""
+    from .geom import loft
+    L = A['head']['L']
+    side = spec['side']
+    suf = '_L' if side == 'left' else '_R'
+    P = hull[spec.get('piece', 'boot' + suf)]
+    ank, ball = bone_seg(A, side + 'Foot')
+    top = ank[2] + spec.get('overlap', 0.04) * L
+    P = P[P[:, 2] <= top + 0.02 * L]
+    sole_z = float(P[:, 2].min())
+    c = np.median(P[P[:, 2] < top - 0.05 * L], 0)
+    ax = loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
+    t, th, r = ax.coords(P)
+    rows = max(4, int(round((top - sole_z) / (spec.get('step', 0.02) * L))) + 1)
+    ts = np.linspace(0.0, top - sole_z, rows)
+    F = loft.field(t, th, r, ts, nth=spec.get('cols', 48), min_row=0.2)
+    R = F.R + spec.get('offset', 0.0) * L
+    V, quads, uv = loft.loft(ax, F, R)
+    nth = len(F.th)
+    # the underside: a fan to the bottom ring's centre (the sole)
+    ci = len(V)
+    V = np.vstack([V, V[-nth:].mean(0)[None]])
+    base = (rows - 1) * nth
+    faces = [tuple(reversed(q)) for q in quads]                  # (rows run down: reversed, the faces face out)
+    faces += [(ci, base + j, base + (j + 1) % nth) for j in range(nth)]
+    uv = [tuple(x) for x in uv] + [(0.5, 1.0)]
+    zf = np.array([V[list(f), 2].mean() for f in faces])
+    sole = [1 if z < sole_z + spec.get('sole', 0.06) * L else 0 for z in zf]
+    d = ball - ank; d[2] = 0; d /= max(1e-9, np.linalg.norm(d))
+    u = (V - ank) @ d
+    toe = np.clip((u - 0.55 * u.max()) / max(1e-9, 0.2 * u.max()), 0, 1)
+    return dict(verts=V, faces=faces, weights={side + 'Foot': 1 - toe, side + 'Toes': toe}, uv=uv, sole=sole)
+
+
 def belt(A, spec):
     """a band round the torso following its section at a height (between the hips and spine joints by `waist`, like the
     skirt's), `width` tall, lifted by `offset`, with a rounded face. Weighted to the hips. -> dict(verts, faces, weights,
@@ -1112,10 +1172,13 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 if v not in border:
                     hide[v] = True
         elif k == 'band':
-            G = band(A, s)
+            G = band_hull(A, s, hull) if s.get('source') == 'hull' else band(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            if s.get('source') == 'hull':                            # the loft is the band's outside: its thickness
+                sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
+                sol.use_rim = True
         elif k == 'shoe':
-            G = shoe(A, s)
+            G = shoe_hull(A, s, hull) if s.get('source') == 'hull' else shoe(A, s)
             mats = [_toon(nm, col, sh), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['sole'])
             # the body's foot is inside it: mask it
