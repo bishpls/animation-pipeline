@@ -816,7 +816,10 @@ sessions share its 16 GB.
 - **Machine:**
   - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
     (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
-  - Run at most about 3 agents at once.
+  - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
+    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
+    --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
+    build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29).
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
   - Create worktrees with `tools/worktree.sh` (sparse).
