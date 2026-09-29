@@ -77,7 +77,6 @@ def region(A, parts):
 def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
     """a piece's lower (or upper) edge per angle round an axis, from its hull points: per sector the q-th percentile of
     height (100 - q for the upper), filled round the circle and smoothed -> fn(theta) -> height (world z)."""
-    from scipy.ndimage import gaussian_filter1d
     from .geom import loft
     _, th, _ = ax.coords(P)
     j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
@@ -89,7 +88,7 @@ def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
     z = loft._fill_periodic(z)
     if z is None:
         raise ValueError('too few hull points for an edge')
-    z = gaussian_filter1d(z, smooth, mode='wrap')
+    z = loft.gauss1d(z, smooth, mode='wrap')
     th_c = -np.pi + (np.arange(n) + 0.5) * 2 * np.pi / n
     return lambda a: np.interp(a, th_c, z, period=2 * np.pi)
 
@@ -354,7 +353,6 @@ def skirt_hull(A, spec, hull):
     deepening toward the hem on top (the hull's section can't show them: a visual hull fills folds); the front panel's
     half-width measured from the panel's points (else the spec's `panel`). UV and weights as skirt()'s.
     -> dict(verts, faces, weights, uv, panel, z_waist)."""
-    from scipy.ndimage import gaussian_filter1d
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec, fold=('skirt_panel',))
@@ -372,7 +370,7 @@ def skirt_hull(A, spec, hull):
     hem = loft._fill_periodic(hem)
     if hem is None:
         raise ValueError('%s: too few hull points to find its hem' % spec['name'])
-    hem = gaussian_filter1d(hem, spec.get('hem_smooth', 2.0), mode='wrap')
+    hem = loft.gauss1d(hem, spec.get('hem_smooth', 2.0), mode='wrap')
     th_c = -np.pi + (np.arange(n) + 0.5) * 2 * np.pi / n
     hem_at = lambda a: np.interp(a, th_c, hem, period=2 * np.pi)
     # the waist line per angle: where the skirt's points start, or tucked `tuck` L under a hull-sourced band's lower edge
@@ -460,7 +458,6 @@ def panel_hull(A, spec, hull):
     round the skirt's axis (between the `span` percentiles, relative to their circular mean, so a panel across the back
     doesn't wrap), per column its own top and bottom edge (where its points start and end), and the measured section
     between (geom.loft), `offset` L out. UV and weights as panel()'s. -> dict(verts, faces, weights, uv, z_waist)."""
-    from scipy.ndimage import gaussian_filter1d
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec)
@@ -487,8 +484,8 @@ def panel_hull(A, spec, hull):
         raise ValueError('%s: too few hull points across the panel' % spec['name'])
     cen = 0.5 * (edges[:-1] + edges[1:])
     sm = spec.get('hem_smooth', 1.0)
-    t0 = gaussian_filter1d(np.interp(a, cen[ok], tt0[ok]), sm, mode='nearest')
-    t1 = gaussian_filter1d(np.interp(a, cen[ok], tt1[ok]), sm, mode='nearest')
+    t0 = loft.gauss1d(np.interp(a, cen[ok], tt0[ok]), sm, mode='nearest')
+    t1 = loft.gauss1d(np.interp(a, cen[ok], tt1[ok]), sm, mode='nearest')
     v = np.clip((t - np.interp(rel, a, t0)) / np.maximum(1e-9, np.interp(rel, a, t1) - np.interp(rel, a, t0)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
     F = loft.field(v, th, r, vs, nth=spec.get('nth', 144), smooth=(1.0, 1.0), min_row=0.02)   # (a panel spans part of

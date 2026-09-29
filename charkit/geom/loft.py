@@ -17,6 +17,24 @@ origin (L or metres, as the points are).
 import numpy as np
 
 
+def gauss1d(a, sigma, axis=-1, mode='nearest', truncate=4.0):
+    """scipy.ndimage.gaussian_filter1d in numpy (the garment builders run in Blender's Python, which has no scipy):
+    mode 'nearest' (edge values repeat) or 'wrap' (periodic), the kernel cut at `truncate` sigmas."""
+    a = np.asarray(a, float)
+    if sigma <= 0:
+        return a.copy()
+    r = int(truncate * sigma + 0.5)
+    x = np.arange(-r, r + 1)
+    w = np.exp(-0.5 * (x / sigma) ** 2)
+    w /= w.sum()
+    a = np.moveaxis(a, axis, -1)
+    n = a.shape[-1]
+    pad = [(0, 0)] * (a.ndim - 1) + [(r, r)]
+    P = np.pad(a, pad, mode='wrap' if mode == 'wrap' else 'edge')
+    out = sum(wi * P[..., i:i + n] for i, wi in enumerate(w))
+    return np.moveaxis(out, -1, axis)
+
+
 class Axis:
     """a piece's axis: origin o, unit direction d (the piece's length runs along it: down a skirt, along an arm), and
     the front f (unit, perpendicular to d) where theta is 0. left = f x d (for a skirt: d down, f toward -y, left +x)."""
@@ -79,7 +97,6 @@ def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15):
     their radii; a row whose cells are measured on at least min_row of the circle filled round it; rows without enough
     filled from their neighbours in t (clamped at the ends); then a Gaussian (smooth: sigma in rows, sigma in sectors;
     periodic round the circle). -> Field."""
-    from scipy.ndimage import gaussian_filter1d
     ts = np.asarray(ts, float)
     th_c = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
     i = np.clip(np.rint(np.interp(t, ts, np.arange(len(ts)))).astype(int), 0, len(ts) - 1)
@@ -108,9 +125,9 @@ def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15):
     for jj in range(nth):
         R[:, jj] = np.interp(np.arange(len(ts)), good, R[good, jj])
     if smooth[1]:
-        R = gaussian_filter1d(R, smooth[1], axis=1, mode='wrap')
+        R = gauss1d(R, smooth[1], axis=1, mode='wrap')
     if smooth[0]:
-        R = gaussian_filter1d(R, smooth[0], axis=0, mode='nearest')
+        R = gauss1d(R, smooth[0], axis=0, mode='nearest')
     return Field(ts, th_c, R, measured)
 
 

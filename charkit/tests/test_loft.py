@@ -88,6 +88,40 @@ def test_garments_lofted_from_the_hull_follow_its_points():
     assert 1.1 < thp.min() and thp.max() < 2.1 and P['verts'][:, 2].min() < -1.2        # its own span and length
 
 
+def test_gauss1d_is_scipys():
+    from scipy.ndimage import gaussian_filter1d
+    a = np.random.default_rng(0).normal(size=(7, 40))
+    for mode in ('nearest', 'wrap'):
+        for axis, sig in ((1, 1.5), (0, 1.0)):
+            assert np.allclose(loft.gauss1d(a, sig, axis=axis, mode=mode), gaussian_filter1d(a, sig, axis=axis, mode=mode))
+
+
+def test_the_hull_builders_run_without_scipy():
+    """Blender's Python has no scipy: the garment builders (they run in the build) mustn't need it."""
+    import subprocess, textwrap
+    code = textwrap.dedent('''
+        import sys, builtins
+        real = builtins.__import__
+        def guard(name, *a, **k):
+            if name == 'scipy' or name.startswith('scipy.'):
+                raise ImportError('no scipy here (as in Blender)')
+            return real(name, *a, **k)
+        builtins.__import__ = guard
+        sys.path.insert(0, %r)
+        import numpy as np
+        from charkit.tests.test_loft import _cone_hull
+        from charkit import garments as gm
+        H = _cone_hull()
+        A = {'head': {'L': 1.0}, 'verts': np.zeros((1, 3)), 'weights': {'hips': np.ones(1)}}
+        gm.skirt_hull(A, {'name': 'skirt', 'under': 'waistband'}, H)
+        gm.belt_hull(A, {'name': 'waistband'}, H)
+        gm.panel_hull(A, {'name': 'overskirt_panel_L'}, H)
+        print('ok')
+    ''') % os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True)
+    assert r.returncode == 0 and 'ok' in r.stdout, r.stderr[-1500:]
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
