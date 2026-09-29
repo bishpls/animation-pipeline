@@ -82,11 +82,34 @@ def produce(spec):
     R = load(ref['manifest'])['references']
     text = json.dumps({k: v for k, v in spec.items() if k != 'ref'})
     for rid, r in R.items():
-        if r.get('produced_by') != 'charkit.geom.hull' or os.path.exists(_p(r['path'])) or r['path'] not in text:
-            continue
-        from .geom import hull
-        hull.build(spec, os.path.dirname(_p(r['path'])), validate_views=False, page=False)
+        if r.get('produced_by') and r['path'] in text:
+            produced(spec, rid)
     return spec
+
+
+def produced(spec, rid, log=print):
+    """a code-produced reference's path, built first if it is missing: the visual hull by charkit.geom.hull's fast path,
+    anything else by running its manifest 'command' from the repo root. None when the manifest has no such reference."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else None
+    if not ref or not ref.get('manifest'):
+        return None
+    r = load(ref['manifest'])['references'].get(rid)
+    if not r:
+        return None
+    p = _p(r['path'])
+    if os.path.exists(p) or not r.get('produced_by'):
+        return p
+    if r['produced_by'] == 'charkit.geom.hull':
+        from .geom import hull
+        hull.build(spec, os.path.dirname(p), validate_views=False, page=False)
+    else:
+        import shlex, subprocess, sys
+        args = shlex.split(r['command'])
+        if args[0].startswith('python'):
+            args[0] = sys.executable
+        log('%s: missing, building: %s' % (rid, r['command']))
+        subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    return p
 
 
 def check(path):

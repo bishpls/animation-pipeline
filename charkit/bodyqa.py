@@ -385,6 +385,16 @@ def azimuths(az3):
     return {v: (az3 if a is None else a) for v, a in AZ.items()}
 
 
+def view_eye(view, f):
+    """the sheet pixel a figure's design_views grid is centred on: the eyes' middle (the profile's near eye, the back's
+    head axis) at the eye line."""
+    if view == 'profile':
+        return (f['eyes'][0][0], f['eye_y'])
+    if view == 'back':
+        return (f['axis_x'], f['eye_y'])
+    return (float(np.mean([e[0] for e in f['eyes']])), f['eye_y'])
+
+
 def design_views(rgb, D, ppl):
     """the sheet's full figures as data on the shared grid, one per view found: {view: dict(cls (classes, lines
     absorbed), raw (lines kept), fg (the figure), rgb (the picture), ppl, eye (the sheet pixel the grid's origin sits on:
@@ -395,12 +405,7 @@ def design_views(rgb, D, ppl):
         f = D['figures'].get(view)
         if f is None:
             continue
-        if view == 'profile':
-            eye = (f['eyes'][0][0], f['eye_y'])
-        elif view == 'back':
-            eye = (f['axis_x'], f['eye_y'])
-        else:
-            eye = (float(np.mean([e[0] for e in f['eyes']])), f['eye_y'])
+        eye = view_eye(view, f)
         cr = crop(rgb, eye, ppl)
         fg = crop(f['_mask'], eye, ppl, fill=False)
         cls, raw = classes(cr, fg, WIN['top'] * ppl, ppl)
