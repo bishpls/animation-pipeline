@@ -48,7 +48,35 @@ It had failed on base `code`: Blender's Python has no PIL. `charkit remote gate`
 
 ## Numbers
 
-(filled at the end of the workstream)
+The authored-head spec (`charkit/spec/clawd_code.json`) against the pipeline-3d baseline (80df340's code, code_now's
+tuned spec). The eyes are fitted to the eyes sheet: the outline's shape by least squares on the drawn front opening's
+contour (0.005 L RMS), then width, iris, pupil and flick checked in faceeval.
+
+| check | baseline | now |
+|---|---|---|
+| eye_aspect | 0.679 FAIL | 0.954 PASS |
+| eye_width | 1.071 PASS | 1.000 PASS |
+| eye_iris_ratio | 0.845 WARN | 1.023 PASS |
+| eye_pupil_run / eye_pupil_aspect | 0.898 / 1.017 PASS | 0.865 / 1.156 PASS |
+| eye_lid_gap | 0.0013 PASS | 0.0013 PASS |
+| eye_lid_span | 0.891 WARN | 1.022 PASS |
+| eye_highlight_side | WARN (mirrored) | PASS (one light) |
+| sheet_profile / width | 0.0097 / 1.073 PASS | 0.0128 / 1.073 PASS |
+| sheet_cheek | 0.0119 PASS | 0.0204 WARN (0.0004 over; 0.0199 before the mouth block's nose cap) |
+| sheet_nose_reach / chin_reach | -0.0106 / 0.0044 PASS | -0.0113 / 0.0037 PASS |
+| face_folds (total) | 26 (laugh 12, yawn 12, happy 2) | 4 (angry 2, sad 2; every mouth shape 0) |
+| face_blink_open | 0 PASS | 0 PASS |
+| face_expr_range | WARN (half 0.705) | PASS |
+| face_mouth_cover (new) | 0.983 (laugh) | 0.958 WARN (wavy; every other open mouth 1.0) |
+
+Before the rebuild, the design's round eye on this head folded 72 (the almond cage and the spread: 30 on 'wide'
+alone). The new face_mouth_cover check caught the mouth block reaching under the nose: the upper lip's rings lapped over
+every open mouth (cover 0.02). Its top is now held a row under the nose's tip.
+
+The eyes per view (the review page; the design's / ours):
+- front: aspect 0.94 / 0.95; iris across the opening +-0.10 / 0 (the sheet's irises converge);
+- three-quarter, near eye: width 0.18 / about 0.24 L (the eye wraps round the face); iris -0.15 / -0.05;
+- profile: width 0.09 / 0.17 L, aspect 1.61 / 0.70.
 
 ## Found, not done
 

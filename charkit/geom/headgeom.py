@@ -218,8 +218,16 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
     eo = np.asarray(eye_outline, float)
     bw = max(EYE_BLOCK[0], np.abs(eo[:, 0]).max() + EYE_GAP)
     bt, bb = max(EYE_BLOCK[1], eo[:, 1].max() + EYE_GAP), max(EYE_BLOCK[1], -eo[:, 1].min() + EYE_GAP_BELOW)
-    mt = max(0.045, min(mt, -bb - dz / 2 - mz))  # the mouth block's top half a row clear of the eyes' (no sliver between)
-    zs = hm.lines(z_bottom, z_top, dz, must=[-bb, bt, mz - mb, mz + mt])[::-1]
+    # the mouth block's top half a row clear of the eyes' (no sliver between) and a row under the nose's tip (reaching
+    # its underside, the upper lip's rings ran over it and lapped over the open mouth: face_mouth_cover 0.02)
+    mt = max(0.045, min(mt, -bb - dz / 2 - mz, C['nose_z'] - dz - mz))
+    # the blocks' edges, and the rows the face is sampled on whatever the features' sizes: the nose's tip, and the lines
+    # the default blocks put there (a feature's size mustn't move the rows through the nose and the jaw's silhouette),
+    # each kept only a third of a row clear of an edge (no sliver row)
+    edges = [-bb, bt, mz - mb, mz + mt]
+    keep = [z for z in (C['nose_z'], -EYE_BLOCK[1], EYE_BLOCK[1], mz - 0.045, mz + 0.045)
+            if min(abs(z - e) for e in edges) > dz / 3]
+    zs = hm.lines(z_bottom, z_top, dz, must=edges + keep)[::-1]
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
     row = lambda z: int(np.argmin(np.abs(zs - z)))
