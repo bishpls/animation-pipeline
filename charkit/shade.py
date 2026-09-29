@@ -221,15 +221,17 @@ def _deep_tone(m):
 def line_colors(look=None):
     """the look's outline colours on every outlined object (after the build's stages): 'build' leaves each its own,
     'ink' gives every outline the look's one ink (a drawing's pen: the design's lines are one near-black brown), and
-    'material' each object its own line, its main material's deep tone darkened by `darken`."""
+    'material' each object its own line, its main material's deep tone darkened by `darken`; `ink_regions` limits the
+    mode to those regions (skin, hair, garment, accessory), the rest keeping their build colour."""
     import bpy
     ln = (look if look is not None else get_look()).get('lines') or {}
-    mode = ln.get('color', 'build')
-    for ob in bpy.data.objects:
+    regions = ln.get('ink_regions')                  # the regions the mode applies to (None: all); the rest keep
+    for ob in bpy.data.objects:                      # their build colour
         mod = next((m for m in ob.modifiers if m.type == 'SOLIDIFY' and m.name == 'outline'), None) \
             if 'ck_line_w' in ob else None
         if mod is None or mod.material_offset >= len(ob.data.materials):
             continue
+        mode = ln.get('color', 'build') if regions is None or ob.get('ck_line_region') in regions else 'build'
         if mode == 'build':
             m0 = bpy.data.materials.get(ob.get('ck_line_mat', ''))
             if m0 is not None and ob.data.materials[mod.material_offset] is not m0:

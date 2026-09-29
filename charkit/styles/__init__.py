@@ -17,7 +17,9 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            lines: mode 'world' (each outline its build width in metres) or 'screen' (every view's outlines `frac` of the
            picture's height wide, times `regions`' factor per object kind: skin, hair, garment, accessory), `color`
            'build' (each object's own line colour), 'ink' (one `ink` colour everywhere, as a drawing's pen) or
-           'material' (each object's deep tone times `darken`);
+           'material' (each object's deep tone times `darken`), `ink_regions` the regions it applies to (the rest
+           keep their build colour; anime leaves the skin's line its warm brown: inked, the face's contour reads as
+           lash to the eye QA's crops, eye_aspect 0.83 -> 0.75 on the default spec);
            face: normals 'geometric' or 'proxy' (the head and neck shade on a smooth stand-in's normals: an ellipsoid
            round the head, a cylinder round the neck tilted down under the jaw by up to `chin_tilt` degrees; the face
            mask taken from it too, so the eye hollows and cheeks never band), fringe (the bangs' shadow on the forehead,

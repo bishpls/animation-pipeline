@@ -45,6 +45,11 @@
     0.059,
     0.024,
     0.024
+   ],
+   "ink_regions": [
+    "hair",
+    "garment",
+    "accessory"
    ]
   },
   "face": {
