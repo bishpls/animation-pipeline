@@ -270,6 +270,38 @@ def front_surface(P, cell, fill=3):
     return fn
 
 
+def _knn_mean(Q, P, k, chunk=2048):
+    """for each point of Q, the mean of its k nearest points of P and the distance to the nearest (numpy, chunked: the
+    build's Python has no scipy)."""
+    mean, near = np.empty((len(Q), 3)), np.empty(len(Q))
+    for a in range(0, len(Q), chunk):
+        q = Q[a:a + chunk]
+        d2 = ((q[:, None, :] - P[None, :, :]) ** 2).sum(-1)
+        kk = min(k, len(P))
+        idx = np.argpartition(d2, kk - 1, axis=1)[:, :kk]
+        mean[a:a + chunk] = P[idx].mean(1)
+        near[a:a + chunk] = np.sqrt(d2.min(1))
+    return mean, near
+
+
+def conform(V, faces, P, L, reach=0.12, k=8, smooth=3):
+    """a thin piece laid onto its hull points: each vertex moved along its normal by how far the local hull surface (the
+    mean of its k nearest points) is from it, fully within `reach` L of the points and fading out by twice that; the
+    moves smoothed over the mesh `smooth` times so the points' spacing doesn't show. -> the moved vertices."""
+    V = np.asarray(V, float)
+    N = vertex_normals(V, faces)
+    mean, near = _knn_mean(V, P, k)
+    w = np.clip(2 - near / (reach * L), 0, 1)
+    d = ((mean - V) * N).sum(1) * w
+    nb = [set() for _ in range(len(V))]
+    for f in faces:
+        for a in f:
+            nb[a].update(f)
+    for _ in range(smooth):
+        d = np.array([d[list(n)].mean() if n else d[i] for i, n in enumerate(nb)])
+    return V + N * d[:, None]
+
+
 def _vertical_axis(P, top):
     """a vertical axis down through a piece's points (its median x and y), from height `top`, front toward -y."""
     from .geom import loft
@@ -851,6 +883,18 @@ def collar(A, spec, normals=None):
     return dict(verts=verts, faces=faces, weights=W, uv=uvs, edge=edge)
 
 
+def collar_hull(A, spec, normals, hull):
+    """collar() laid onto the hull's collar (conform): the sailor collar walked on the body as before, then each vertex
+    moved along its normal onto the design's collar surface where the hull shows it (the back flap lies flat on the
+    back, the lapels follow the neckline); `offset` L out from it."""
+    G = collar(A, spec, normals)
+    P = _hull_points(hull, spec)
+    L = A['head']['L']
+    V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12))
+    G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
+    return G
+
+
 # ----------------------------------------------------------------------------------------------------------------- Blender
 SHADE_MUL = (0.86, 0.80, 0.84)      # a garment's shade tone: its colour times this (a spec's 'shade' replaces it)
 DEEP_MUL = (0.70, 0.62, 0.70)       # the deep tone, kept in this ratio to the shade's
@@ -1008,6 +1052,11 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             mats = [_toon_tex(nm, img, sh), _toon(nm + '_panel', s.get('panel_color', col), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['panel'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
+        elif k == 'collar' and s.get('source') == 'hull':
+            G = collar_hull(A, s, nrm, hull)
+            mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
+            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
         elif k == 'collar':
             G = collar(A, s, nrm)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]

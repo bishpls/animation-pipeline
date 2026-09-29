@@ -542,7 +542,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
     elif k == 'skirt':
         G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
-        G = gm.collar(A, s, nrm)
+        G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
     elif k == 'bow':
         G = gm.bow_hull(A, s, hull) if s.get('source') == 'hull' else gm.bow(A, s)
     elif k == 'panel':
