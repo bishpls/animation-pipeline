@@ -73,7 +73,7 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
                 nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny)
 
 
-def neck_front(rgb, eye_x, facing=-1, z0=-0.62, dz=0.005):
+def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
     """the design's neck in profile: per row under the chin, the front edge of the drawn skin (head_turnaround's
     profile; its back is under the hair), in the eye frame (y back, 0 at the eyes) -> (z (descending), y)."""
     from charkit import bodyqa
@@ -297,6 +297,22 @@ def bridge_ears(half, dz, window=0.3, bump=0.01, pad=0.02):
     return out
 
 
+NAPE = (-0.05, -0.37)            # z: the back of the head narrows from the skull's width (above the first) to the neck's (by
+                                 # the second, the jaw's underside)
+
+
+def _smooth_piecewise(v, sigma, jump=0.03, smooth=None):
+    """a series smoothed on each side of its jumps separately (a change over `jump` L between rows: the chin's underside
+    in profile, where the front edge steps back to the neck): the smoothing keeps a drawn corner a corner."""
+    smooth = smooth or _smooth_rows
+    ok = np.isfinite(v)
+    cut = np.nonzero(ok[1:] & ok[:-1] & (np.abs(np.diff(np.where(ok, v, 0.0))) > jump))[0] + 1
+    out = np.full(len(v), np.nan)
+    for a, b in zip(np.r_[0, cut], np.r_[cut, len(v)]):
+        out[a:b] = smooth(v[a:b], sigma)
+    return out
+
+
 def _smooth_crown(half, sigma):
     """a half-width over rows (the crown first) smoothed by a Gaussian, padded at the crown by its odd reflection about a
     zero just above the first row, so it still runs to zero there; NaNs (rows off the head) kept."""
@@ -351,13 +367,38 @@ def skull_analytic(spec, dz=0.004, smooth=0.015, log=print):
     E[:, 0], E[:, 1] = -bridge_ears(-E[:, 0], dz), bridge_ears(E[:, 1], dz)
     # smoothed over rows: the centres plainly, the half-widths reflected oddly about the crown (they run to zero there;
     # a one-sided smoothing would widen the top rows into a flat top)
+    # the sections from smoothly varying extents; then the front alone onto the profile's front edge smoothed piecewise
+    # (it steps back under the chin, a drawn corner kept), so the chin turns sharply while the jaw's sides and back,
+    # which don't step, stay smooth (one ellipse per row would carry half the step round to the sides)
     rx = _smooth_crown((E[:, 1] - E[:, 0]) / 2, smooth / dz)
     ry = _smooth_crown((E[:, 3] - E[:, 2]) / 2, smooth / dz)
     cy = _smooth_rows((E[:, 2] + E[:, 3]) / 2, smooth / dz)
+    front_sharp = _smooth_piecewise(E[:, 2], smooth / dz)
     th = np.linspace(-np.pi, np.pi, Sections.N, endpoint=False)
+    # the back half's half-width: the front silhouette's above the ears; below them it narrows to the neck's by the
+    # jaw's underside (the front view sees the jaw, the widest; the nape behind it is the neck's back). One width for
+    # both halves hung the head on the neck like a cap on a stem
+    rx_b = rx.copy()
+    okx = np.isfinite(rx)
+    neck = (zs < NAPE[1]) & okx
+    if neck.any() and (okx & (zs >= NAPE[0])).any():
+        rn = float(np.nanmedian(rx[neck & (zs > NAPE[1] - 0.1)]))
+        t = _smoothstep((zs - NAPE[1]) / (NAPE[0] - NAPE[1]))
+        rx_b = np.where(okx & (zs < NAPE[0]), np.minimum(rx, rn + (rx - rn) * t), rx)
+    w = np.where(np.cos(th) >= 0, 1.0, 1.0 - np.cos(th) ** 2)[None, :]   # 1 in front, 0 straight back, smooth at the sides
+    rxe = rx_b[:, None] + (rx - rx_b)[:, None] * w
     with np.errstate(divide='ignore', invalid='ignore'):
-        r = 1.0 / (np.abs(np.sin(th)[None, :] / rx[:, None]) ** p + np.abs(np.cos(th)[None, :] / ry[:, None]) ** p) ** (1 / p)
+        r = 1.0 / (np.abs(np.sin(th)[None, :] / rxe) ** p + np.abs(np.cos(th)[None, :] / ry[:, None]) ** p) ** (1 / p)
     ok = np.isfinite(rx) & np.isfinite(ry) & (rx > 0) & (ry > 0)
+    j0 = int(np.argmin(np.abs(th)))
+    g = np.where(np.cos(th) > 0, np.cos(th) ** 2, 0.0)
+    for k in np.nonzero(ok & np.isfinite(front_sharp))[0]:
+        d = front_sharp[k] - (cy[k] - r[k, j0])
+        if abs(d) < 1e-5:
+            continue
+        x, y = np.sin(th) * r[k], cy[k] - np.cos(th) * r[k] + d * g
+        tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
+        r[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
     log('skull: head_construction analytic, %d rows of superellipses (p %.1f) from %.3f to %.2f L' % (ok.sum(), p, zs[0], zs[-1]))
     return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], r, np.nan))
 
@@ -431,9 +472,9 @@ def skull_chin(S):
     return float(S.zs[np.nanargmax(np.where(np.isfinite(front), -S.zs * 0 + np.arange(len(S.zs)), np.nan))])
 
 
-CHIN_BIAS = -0.02                # L: the chin's rows warped this far past the design's chin. The QA reads a chin where the
-                                 # front edge starts turning under (faceqa.drawn_chin), and the smoothing rounds the corner
-                                 # so the turn starts ~0.015-0.02 L above it (unbiased, Clawd's reads -0.34 against -0.355)
+CHIN_BIAS = -0.01                # L: the chin's rows warped this far past the design's chin: the QA reads a chin where the
+                                 # front edge starts turning under (faceqa.drawn_chin), a row or two above the corner's
+                                 # own (swept on Clawd: -0.01 reads the chin exactly and keeps the outline within 0.021 L)
 
 
 def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, chin_bias=CHIN_BIAS,
@@ -555,9 +596,17 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         # the design), ramped in over the jaw's underside so the back moves smoothly; then the front alone for the rest
         neck_rows = (zs < zc_d - 0.06) & np.isfinite(target) & np.isfinite(front_now)
         if neck_rows.any():
+            # the neck's offset: its front moves by it under the chin; its back, the nape, moves gradually from the ears
+            # down, so the back of the head runs on into the neck's back without a ledge
             off = float(np.median((target - front_now)[neck_rows]))
-            cy = cy + off * _smoothstep((zc_d - zs) / 0.06)
-            front_now = front_now + off * _smoothstep((zc_d - zs) / 0.06)
+            w_front = _smoothstep((zc_d - zs) / 0.06)
+            w_back = _smoothstep((NAPE[0] - zs) / (NAPE[0] - (zc_d - 0.06)))
+            for k in np.nonzero(np.isfinite(R).all(1) & (w_back > 1e-4))[0]:
+                x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
+                y = y + off * (w_back[k] * (1 - g_front) + w_front[k] * g_front)
+                tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
+                R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
+            front_now = front_now + off * w_front
         d = np.where(below & np.isfinite(target) & np.isfinite(front_now), target - front_now, np.nan)
         last = np.nonzero(np.isfinite(d))[0]
         if len(last):
@@ -661,6 +710,42 @@ def grade(S, spec, D, covers=None):
     return sheetqa.compare(O, D), O
 
 
+def outline(S, rgb, eye_x, facing=-1, zs=np.arange(-0.2, -0.505, -0.02)):
+    """the head's outline against the design's drawn skin below the face, where the sheet checks stop (the jaw, the
+    chin's underside, the neck), front and profile: per row our silhouette's edge against the skin's (the profile's
+    back is under the hair in the design; its front only) -> dict(rows [...], front_max_L, profile_max_L, views)."""
+    from charkit import bodyqa
+    from . import hull
+    views, info = hull.views_from_heads(rgb, eye_x, facing, floor=-0.9)
+    out = {'rows': [], 'views': {}}
+    for vn, az in (('front', 0.0), ('profile', 90.0)):
+        v = views[vn]
+        cls = bodyqa.classes(rgb, v.mask, v.eye_y, v.ppl)[0]
+        ours = []
+        for k in range(len(S.zs)):
+            if np.isfinite(S.cy[k]) and np.isfinite(S.r[k]).all():
+                x, y = S.xy(k)
+                u = x * np.cos(np.radians(az)) + y * np.sin(np.radians(az)) + (info['y_e'] if vn == 'profile' else 0.0)
+                ours.append((S.zs[k], u.min(), u.max()))
+        ours = np.array(ours)
+        out['views'][vn] = dict(view=v, ours=ours)
+        for z in zs:
+            r = int(round(v.eye_y - z * v.ppl))
+            skin = np.nonzero((cls[r] == bodyqa.CLASS['skin']) & v.mask[r])[0]
+            if not len(skin):
+                continue
+            k = int(np.argmin(np.abs(ours[:, 0] - z)))
+            d0, d1 = (skin.min() - v.axis) / v.ppl, (skin.max() - v.axis) / v.ppl
+            e = (ours[k, 1] - d0, ours[k, 2] - d1) if vn == 'front' else (ours[k, 1] - d0, None)
+            out['rows'].append(dict(view=vn, z=round(float(z), 3), design=[round(d0, 4), round(d1, 4)],
+                                    ours=[round(float(ours[k, 1]), 4), round(float(ours[k, 2]), 4)],
+                                    off=[round(float(q), 4) if q is not None else None for q in e]))
+    for vn in ('front', 'profile'):
+        offs = [abs(q) for r_ in out['rows'] if r_['view'] == vn for q in r_['off'] if q is not None]
+        out[vn + '_max_L'] = round(max(offs), 4) if offs else None
+    return out
+
+
 def build(spec, out, against=None, log=print):
     """the head from a resolved spec's references into `out`: head.ply (the sections' mesh), head.npz (the sections),
     head.json (the checks, the assembly's report, the banding) and the review page -> the report. against: a build's
@@ -678,6 +763,8 @@ def build(spec, out, against=None, log=print):
     covers = hair_covers(spec)
     fair, ang = normal_fairness(S)
     rep['fairness_deg'] = fair
+    ol = outline(S, refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
+    rep['outline'] = {k: v for k, v in ol.items() if k != 'views'}
     checks, O = grade(S, spec, C['design'], covers)
     m = sections_mesh(S)
     Cg, ctr = cylinder_cage(S, C)
@@ -698,12 +785,12 @@ def build(spec, out, against=None, log=print):
         rep['against'] = {'path': against, 'checks': {k[len('sheet_'):]: (v.get('value'), v.get('status')) if isinstance(v, dict)
                                                       else tuple(v) for k, v in q.items() if k.startswith('sheet_')}}
     json.dump(rep, open(os.path.join(out, 'head.json'), 'w'), indent=1, default=str)
-    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out, Cg, ang)
+    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out, Cg, ang, ol, refcheck._load(fs['image']))
     log('headfit: %s (%.0fs)' % (rep['page'], time.time() - t0))
     return rep
 
 
-def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None, ang=None):
+def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None, ang=None, ol=None, sheet=None):
     """the head's review page: the checks beside a build's, the QA's face regions, the contours ours against the
     design's, the sections face against skull, renders in clay and with the hull's hair."""
     import html
@@ -761,6 +848,29 @@ def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None, ang=None):
         im = np.stack([np.ones_like(t), 1 - t, 1 - t], -1)
         L.append('</table><div class="row"><div class="tile"><img src="%s" height="360" style="image-rendering:pixelated">'
                  'angle map</div></div>' % save(np.repeat(np.repeat(im, 2, 0), 2, 1), 'fairness.png'))
+    if ol is not None and sheet is not None:
+        from PIL import ImageDraw
+        L.append('<h2>Below the face: the jaw, the chin\'s underside, the neck</h2><p class="note">Where the sheet checks '
+                 'stop. Our silhouette (red) over head_turnaround\'s drawing; per row, our edge against the drawn skin\'s '
+                 '(L, + further out or back). The profile\'s back is under the hair in the design: its front only. The '
+                 'design\'s neck flares into the shoulders below -0.5 L: the body\'s. Worst: front %.4f L, profile %.4f L.'
+                 '</p><div class="row">' % (ol['front_max_L'] or 0, ol['profile_max_L'] or 0))
+        for vn in ('front', 'profile'):
+            v, ours = ol['views'][vn]['view'], ol['views'][vn]['ours']
+            r0, r1 = int(v.eye_y + 0.05 * v.ppl), int(v.eye_y + 0.7 * v.ppl)
+            c0, c1 = int(v.axis - 0.55 * v.ppl), int(v.axis + 0.55 * v.ppl)
+            im = Image.fromarray((np.clip(sheet[r0:r1, c0:c1], 0, 1) * 255).astype(np.uint8)).convert('RGB')
+            d = ImageDraw.Draw(im)
+            sel = (ours[:, 0] <= -0.05) & (ours[:, 0] >= -0.7)
+            for side in (1, 2):
+                d.line([(v.axis + ours[i, side] * v.ppl - c0, v.eye_y - ours[i, 0] * v.ppl - r0) for i in np.nonzero(sel)[0]],
+                       fill=(230, 20, 20), width=3)
+            L.append('<div class="tile"><img src="%s" height="360">%s</div>' % (save(np.asarray(im), 'outline_%s.png' % vn), vn))
+        L.append('</div><table><tr><th>view</th><th>z, L</th><th>design</th><th>ours</th><th>off</th></tr>')
+        for r_ in ol['rows']:
+            L.append('<tr><td>%s</td><td>%.2f</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
+                r_['view'], r_['z'], r_['design'], r_['ours'], r_['off']))
+        L.append('</table>')
     L.append('<h2>The QA\'s face regions: grey both, red ours only, blue the design only</h2>')
     L.append('<div class="row"><div class="tile"><img src="%s" height="300">front, three-quarter, profile</div></div>' %
              save(sheetqa.picture(O, D), 'regions.png'))
