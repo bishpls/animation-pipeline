@@ -22,17 +22,24 @@ def assemble(spec, keys=True, cache=None):
     bone: (N,)}, body (the body data), head info).
     spec['base']: 'makehuman' (the default): MakeHuman's own head wrapped onto the anime head, its eyes and mouth detected in
     its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its eyes and mouth
-    from stored labels. keys=False leaves out the shape keys (the rest pose only); cache: an optional dict that keeps the body
+    from stored labels; 'code': the head authored in code from the references on MakeHuman's body (charkit/code_base.py),
+    its eyes and mouth from its own loops. keys=False leaves out the shape keys (the rest pose only); cache: an optional dict that keeps the body
     and the wrap's knob-independent part between calls (charkit.faceeval: one body, many head knob sets)."""
     import json as _json
-    anime = spec.get('base', 'makehuman') == 'anime'
+    anime = spec.get('base', 'makehuman') in ('anime', 'code')            # a derived base: labels, not detection
+    code = spec.get('base', 'makehuman') == 'code'
     bkey = _json.dumps(spec.get('body'), sort_keys=True)
     body = cache.get(('body', bkey)) if cache is not None else None
     if body is None:
         body = bodylib.build_body_data(spec.get('body'), keep_head=True)
         if cache is not None:
             cache[('body', bkey)] = body
-    if anime:
+    if code:
+        from . import code_base
+        B, V, H, centre, info = code_base.wrap(spec, body=body)
+        L = B['head_len']
+        V0 = B['verts']
+    elif anime:
         from . import base_anime
         B, V, H, centre, info = base_anime.wrap(spec, body=body)
         L = B['head_len']
