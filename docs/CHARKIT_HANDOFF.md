@@ -353,11 +353,46 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        first), then the drape and spring solvers on the style profiles, then the eyes.
      - **MakeHuman is retired.** The code-authored base replaces it, and the MakeHuman-derived anime base is dropped.
        Skeleton and weights come from our own rig code or are transferred once.
-   - Next:
-     - per-class and per-piece carving (hair from the views' hair class, the pieces from the outfit graph's per-view
-       masks) fixes the hair length and the arm/sleeve depth;
-     - our cranium is deeper than the design's head (it pokes through the hull hair at the back);
-     - then the code-authored base fitted to the hull, and the drape solver on the style profile.
+   - **Per-piece carving: done, gate PASS** (`tool/hull` at `a383c6b`; no check changed, all 20 test files ok).
+     **Merge it into pipeline-3d once the confirming tune has finished**, not under it: the tune builds from that
+     worktree.
+     - The outfit's per-view piece masks are a produced reference (`outfit_masks`, built by its manifest command where
+       missing: `manifest.produced`). A front run splits where an arm or a leg meets the body, and each limb part
+       takes its depth from the side view's pixels of that limb, so the wrist cuffs stop taking the skirt's depth.
+       The held-out three-quarter goes from 0.862 to 0.876.
+     - The surface is labelled per piece: each shell voxel takes its label from the view facing it most squarely
+       among those that see it, and the side views' mirrors label the far side. Written to `hull_pieces.npy` (per
+       vertex, named in the sidecar), with the labelled shell in `hull.npz`.
+     - Held out, the labels agree with the drawing 0.76–0.86 within 2 px; on the views used, 0.87–0.97. The limit is
+       the input masks: the outfit field's votes are 0.77–0.85 IoU per view, and where two views' masks disagree about
+       one surface, one of them loses. Improving those masks, for instance by making the hull the outfit's field in
+       place of TRELLIS, is the lever.
+     - The review page is `~/animation-pipeline-hull/charkit/out/hull/clawd/index.html`. It shows the held-out label
+       maps next to the drawn ones, per-piece IoUs, the surface coloured by piece, and the limb maps.
+   - **Next: the code-authored head (`tool/head`, same worktree, branched from `a383c6b`).**
+     - `python -m charkit.geom hull SPEC --head` carves `head_turnaround` (`views_from_heads`: 401 px/L, each view at
+       its own eye row, which drift by up to 8 px; stopped at z = −0.66 L above the bust's vignette). Held-out
+       three-quarter: 0.894 (plain 0.727). It is a silhouette and volume target (cranium, hair, the three-quarter),
+       **not a face surface**: the section model takes each row's front from the profile's midline, so the nose, the
+       lips and the drawn lashes push the whole row forward as ridges across the face.
+     - `charkit/geom/headmesh.py`: the topology, authored in code. It is a box lattice whose front face is the front
+       view's (x, z) plane. Each eye's and the mouth's block of cells becomes concentric loops, stepping in to the
+       feature's outline, with a Coons-patch cap. A neck of rings comes out of the bottom face. It is all quads,
+       manifold, open only at the neck's bottom (Euler characteristic 1), and every face is grouped (`eye_L_r0`…,
+       `mouth_cap`, `neck`) for rigging.
+     - **Next, `headfit`:** the face surface from the design's measured contours, the ones the QA grades:
+       - the profile's leading contour, taken as the midline;
+       - the front's face half-widths per row;
+       - the three-quarter's leading contour, which fits each row's falloff from the midline to the side.
+
+       The nose, lips and chin are local relief: the profile contour's residual against its smoothed base, spread
+       across by a narrow falloff per region. The cranium sits inside the head hull's hair with a margin, with
+       `head_construction` as the skull's authority.
+
+       The cage's front face maps straight onto the face surface; the rest projects onto the cranium and neck. Then
+       come the direct contour diffs, and the base swapped into the build (`spec['base'] = 'code'`, the head first,
+       with the neck ring stitched to the body's) and graded by the QA.
+     - Then the drape solver on the style profile, then the eyes.
    - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
      - the body probe;
      - per-phase instrumentation;
