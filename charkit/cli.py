@@ -247,6 +247,7 @@ def build(args):
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
     spec = code_head(spec, resolved, out, mode)
+    spec = code_body(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
@@ -352,6 +353,35 @@ def code_head(spec, resolved, out, mode='on'):
                             name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_head', r)
     spec['head_code'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
+def code_body(spec, resolved, out, mode='on'):
+    """venv-side, for spec['body']['source'] == 'code': the authored body fitted to the hull (charkit/code_body.py; the
+    fit needs scipy) -> out/geom/body_code.npz, and the resolved spec pointed at it (spec['body_code']). A cached step:
+    it runs again when the hull, the outfit graph or the code change."""
+    if (spec.get('body') or {}).get('source') != 'code':
+        return spec
+    from . import cache, code_body as cb, manifest
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'body_code.npz')
+    hull = manifest.produced(spec, 'hull')
+    masks = manifest.produced(spec, 'outfit_masks')
+    ins = [hull, os.path.join(os.path.dirname(hull), 'hull.ply'), os.path.join(os.path.dirname(hull), 'hull_pieces.npy'),
+           os.path.join(os.path.dirname(masks), 'outfit_graph.json')]
+
+    def run():
+        cb.save_body(spec, path)
+    if mode == 'off':
+        run()
+    else:
+        r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
+                            modules=('charkit.code_body', 'charkit.geom.loft'), name_key=spec['name'],
+                            refresh=mode == 'refresh')
+        print('CHARKIT_CACHE code_body', r)
+    spec['body_code'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec
 

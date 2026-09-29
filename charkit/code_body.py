@@ -554,3 +554,184 @@ def main(args):
 if __name__ == '__main__':
     import sys
     sys.exit(main(sys.argv[1:]))
+
+
+# ------------------------------------------------------------------------------------------------ into the build
+PARTS = ('torso', 'leg_left', 'leg_right', 'arm_left', 'arm_right')
+UV_SLOTS = {'torso': (0.0, 0.0, 0.25, 1.0), 'leg_left': (0.25, 0.0, 0.33, 1.0), 'leg_right': (0.33, 0.0, 0.41, 1.0),
+            'arm_left': (0.41, 0.0, 0.46, 1.0), 'arm_right': (0.46, 0.0, 0.5, 1.0)}
+HEAD_UV_BOX = (0.5, 0.0, 1.0, 1.0)
+BLEND = 0.06                      # L: a bone's weight eases into the next over this either side of their joint
+TORSO_BONES = ('neck', 'upperChest', 'chest', 'spine', 'hips')     # top to bottom, by the graph skeleton's heights
+
+
+def save_body(spec, path, log=print):
+    """venv-side (the fit needs scipy): the authored body's rings in the hull's frame, per part, with what the build
+    needs to rig it -> path (.npz), which build_body_data reads in Blender."""
+    from . import manifest
+    hull_path = manifest.produced(spec, 'hull', log)
+    masks = manifest.produced(spec, 'outfit_masks', log)
+    H = Hull(os.path.dirname(hull_path))
+    graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
+    sk = skeleton(graph)
+    B = body(H, sk)
+    T_ = B['torso']
+    ax, F = T_['ax'], T_['F']
+    TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
+    arrays = {'torso_P': ax.point(TT, TH, F.R), 'torso_z': T_['rows'], 'torso_cy': T_['params'][:, 4],
+              'sole_z': np.array(float(H.V[:, 2].min()))}
+    for n, L_ in B['limbs'].items():
+        ch, P, rows, th = L_['chain'], L_['params'], L_['rows'], L_['th']
+        R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
+        S, THl = np.meshgrid(rows, th, indexing='ij')
+        arrays[n + '_P'] = ch.point(S, THl, R)
+        arrays[n + '_s'] = rows
+        arrays[n + '_J'] = ch.J
+        arrays[n + '_s0'] = np.r_[ch.s0, ch.total]
+    arrays['skeleton'] = np.array(json.dumps({k: [list(a), list(b)] for k, (a, b) in sk.items()}))
+    np.savez_compressed(path, **arrays)
+    log('code body: %s' % path)
+    return path
+
+
+def _blend(x, edges, n):
+    """weights of n consecutive bones along x (increasing), bone i owning [edges[i-1], edges[i]], eased over BLEND
+    either side of each edge -> (len(x), n)."""
+    W = np.zeros((len(x), n))
+    for i in range(n):
+        lo = -np.inf if i == 0 else edges[i - 1]
+        hi = np.inf if i == n - 1 else edges[i]
+        a = np.clip((x - (lo - BLEND)) / (2 * BLEND), 0, 1) if np.isfinite(lo) else np.ones(len(x))
+        b = np.clip(((hi + BLEND) - x) / (2 * BLEND), 0, 1) if np.isfinite(hi) else np.ones(len(x))
+        W[:, i] = np.minimum(a, b)
+    return W / np.maximum(W.sum(1, keepdims=True), 1e-9)
+
+
+def _grid(P, uv_slot, cap_start, cap_end):
+    """a part's rings (rows, nth, 3) as quads (and fan caps) with a UV per ring and column (the seam column doubled)
+    -> (V, faces, face_uv (per face, its corners' UV indices), uvs, ring rows per vertex (the caps' centres: -1 / rows))."""
+    nr, nth = P.shape[:2]
+    V = [P.reshape(-1, 3)]
+    rowof = [np.repeat(np.arange(nr), nth)]
+    u0, v0, u1, v1 = uv_slot
+    uvs = [(u0 + (u1 - u0) * j / nth, v1 - (v1 - v0) * i / max(1, nr - 1)) for i in range(nr) for j in range(nth + 1)]
+    uvi = lambda i, j: i * (nth + 1) + j
+    faces, fuv = [], []
+    for i in range(nr - 1):
+        for j in range(nth):
+            j2 = (j + 1) % nth
+            faces.append((i * nth + j, i * nth + j2, (i + 1) * nth + j2, (i + 1) * nth + j))
+            fuv.append((uvi(i, j), uvi(i, j + 1), uvi(i + 1, j + 1), uvi(i + 1, j)))
+    n0 = nr * nth
+    for flag, ring in ((cap_start, 0), (cap_end, nr - 1)):
+        if not flag:
+            continue
+        V.append(P[ring].mean(0)[None]); rowof.append(np.array([ring]))
+        c = n0; n0 += 1
+        cu = len(uvs); uvs.append(((u0 + u1) / 2, v1 if ring == 0 else v0))
+        for j in range(nth):
+            a, b = ring * nth + j, ring * nth + (j + 1) % nth
+            faces.append((c, b, a) if ring == 0 else (c, a, b))
+            fuv.append((cu, uvi(ring, j + 1), uvi(ring, j)) if ring == 0 else (cu, uvi(ring, j), uvi(ring, j + 1)))
+    return np.concatenate(V), faces, fuv, uvs, np.concatenate(rowof)
+
+
+def build_body_data(spec, chin, log=print):
+    """the authored body as the build's body data (charkit.body.build_body_data's contract, for code_base.wrap): verts in
+    metres (the eye line where the code head's chin puts it: z = height - L - chin L, feet near 0), faces (quads, fan caps),
+    per-face UVs (a slot per part; the head's box left free: head_uv_box), weights per VRM bone (the torso by height
+    between the graph skeleton's joints, each limb along its chain), joints under MakeHuman's names (every VRM bone:
+    the fingers laid in the mitten, weightless), the torso's open top ring as the neck ring. Blender-safe (numpy)."""
+    from . import body as bodylib, mh
+    Z = np.load(spec['body_code'])
+    sk = {k: (tuple(a), tuple(b)) for k, (a, b) in json.loads(str(Z['skeleton'])).items()}
+    P = bodylib._merge(bodylib.DEFAULT_BODY, spec.get('body'))
+    Hm = float(P['height_m'])
+    L = Hm / float(P['heads_tall'])
+    Oz = Hm - L - chin * L
+    world = lambda X: np.asarray(X, float) * L + np.array([0.0, 0.0, Oz])
+    Vs, Fs, FUV, UVs, W = [], [], [], [], {}
+    nv = nuv = 0
+    neck_ring = None
+    parts = {}
+    for name in PARTS:
+        Pp = Z[name + '_P']
+        cap_start = name != 'torso'                        # the torso's top ring stays open: the neck ring
+        V_, F_, fuv_, uv_, row = _grid(Pp, UV_SLOTS[name], cap_start, True)
+        nr, nth = Pp.shape[:2]
+        if name == 'torso':
+            neck_ring = list(range(nv, nv + nth))
+            z = Z['torso_z'][np.clip(row, 0, nr - 1)]
+            edges = [sk['upperChest'][1][1], sk['chest'][1][1], sk['spine'][1][1], sk['hips'][1][1]]
+            Wp = _blend(-z, [-e for e in edges], len(TORSO_BONES))
+            for i, b in enumerate(TORSO_BONES):
+                W.setdefault(b, []).append((nv, Wp[:, i]))
+        else:
+            kind, side = name.split('_')
+            bones = [side + b for b in LIMBS[kind][0]]
+            s = Z[name + '_s'][np.clip(row, 0, nr - 1)]
+            s0 = Z[name + '_s0']
+            Wp = _blend(s, list(s0[1:len(bones)]), len(bones))
+            for i, b in enumerate(bones):
+                W.setdefault(b, []).append((nv, Wp[:, i]))
+        parts[name] = (nv, nv + len(V_))
+        Vs.append(world(V_))
+        Fs += [tuple(v + nv for v in f) for f in F_]
+        FUV += [tuple(u + nuv for u in q) for q in fuv_]
+        UVs += uv_
+        nv += len(V_); nuv += len(uv_)
+    V = np.concatenate(Vs)
+    weights = {}
+    for b, chunks in W.items():
+        a = np.zeros(nv)
+        for start, w in chunks:
+            a[start:start + len(w)] = w
+        weights[b] = a
+    J = _joints(Z, sk, world, L)
+    missing = [j for pair in mh.VRM_JOINTS.values() for j in pair if j not in J]
+    if missing:
+        raise ValueError('authored body: no joint for %s' % missing[:5])
+    log('code body: %d verts, %d faces, %d bones weighted' % (nv, len(Fs), len(weights)))
+    return dict(verts=V, faces=Fs, face_uv=FUV, uvs=np.array(UVs), weights=weights, joints=J, neck_ring=neck_ring,
+                params=P, head_len=L, scale=1.0, head_w=np.zeros(nv), marks={}, authored=True,
+                head_uv_box=HEAD_UV_BOX, parts=parts)
+
+
+def _joints(Z, sk, world, L):
+    """MakeHuman-named joints for every VRM bone, from the graph skeleton's front-view joints, the torso's centre depth
+    at each height and the limbs' fitted chains; the fingers laid across the hand (weightless), the toes forward of the
+    ankle on the sole."""
+    zc, cy = Z['torso_z'], Z['torso_cy']
+    ty = lambda z: float(np.interp(-z, -zc, cy))
+    J = {}
+    spine = [('spine05____head', sk['hips'][0][1]), ('spine04____head', sk['hips'][1][1]),
+             ('spine03____head', sk['spine'][1][1]), ('spine01____head', sk['chest'][1][1]),
+             ('neck01____head', sk['upperChest'][1][1]), ('head____head', sk['neck'][1][1]),
+             ('head____tail', sk['head'][1][1])]
+    for name, z in spine:
+        J[name] = world((0.0, ty(z), z))                     # (above the cut: the neck ring's depth)
+    for side, S_ in (('left', 'L'), ('right', 'R')):
+        arm = Z['arm_%s_J' % side]; leg = Z['leg_%s_J' % side]
+        cz = sk[side + 'Shoulder'][0][1]
+        J['clavicle.%s____head' % S_] = world((0.3 * arm[0][0], ty(cz), cz))
+        J['shoulder01.%s____head' % S_] = world(arm[0])
+        J['lowerarm01.%s____head' % S_] = world(arm[1])
+        J['wrist.%s____head' % S_] = world(arm[2])
+        hand = arm[3] - arm[2]
+        hl = np.linalg.norm(hand); hd = hand / max(hl, 1e-9)
+        across = np.array([0.0, -1.0, 0.0])                  # the fingers side by side front to back (palms inward)
+        for f in range(1, 6):
+            off = (f - 3) * 0.035                            # L: finger spacing across the hand
+            base = arm[2] + hd * hl * (0.2 if f == 1 else 0.5) + across * off
+            for seg in range(1, 4):
+                a = base + hd * hl * 0.5 * (seg - 1) / 3
+                b = base + hd * hl * 0.5 * seg / 3
+                J['finger%d-%d.%s____head' % (f, seg, S_)] = world(a)
+                J['finger%d-%d.%s____tail' % (f, seg, S_)] = world(b)
+        J['upperleg01.%s____head' % S_] = world(leg[0])
+        J['lowerleg01.%s____head' % S_] = world(leg[1])
+        J['foot.%s____head' % S_] = world(leg[2])
+        sole = float(Z['sole_z'])
+        J['toe1-1.%s____head' % S_] = world((leg[2][0], leg[2][1] - 0.35, sole + 0.06))
+        J['toe1-1.%s____tail' % S_] = world((leg[2][0], leg[2][1] - 0.5, sole + 0.04))
+    return J
