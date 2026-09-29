@@ -51,10 +51,13 @@ case "${1:-status}" in
     ssh_ "[ -d $D ] || { S=\$(ls -td /srv/work/*/charkit 2>/dev/null | grep -v '^/srv/work/repo/' | head -1); \
       [ -z \"\$S\" ] || { cp -al \"\$(dirname \$S)\" $D && \
       find $D/charkit/out -mindepth 1 -maxdepth 1 ! -name i3d -exec rm -rf {} +; }; }"
+    # what git ignores stays home (a full worktree's projects/*/out, node_modules, the mocap and bone refs, the env
+    # files: 1.7 GB, 15+ min through the tunnel), except the outputs kept above; excluded paths on the box are left alone
+    IGN=$(mktemp); { git -C "$WT" ls-files -o -i --exclude-standard --directory | grep -v '^charkit/out' | sed 's|^|/|' || true; } > "$IGN"
     rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
       --include 'charkit/out/' --include 'charkit/out/i3d/***' --include 'charkit/out/remote/' \
-      --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' \
-      "$WT/" "$VM:/srv/work/$(name "$WT")/";;
+      --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
+      "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
   push) [ -f "$CFG" ] || config; rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;
   fetch) WT=$2; P=$3; [ -f "$CFG" ] || config

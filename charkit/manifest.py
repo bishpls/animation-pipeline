@@ -143,6 +143,10 @@ def produced(spec, rid, log=print):
         return p
     log('%s: %s, building' % (rid, 'missing' if not os.path.exists(p) else 'stale (its producer or inputs changed)'
                               if have else 'unstamped (made before stamps, or by hand)'))
+    from . import cache
+    n = cache.unshare(os.path.dirname(p))       # rebuilt in place: never through a link into another worktree
+    if n:
+        log('%s: %d files were hard-linked to another worktree; unshared before rebuilding' % (rid, n))
     if r['produced_by'] == 'charkit.geom.hull':
         from .geom import hull
         hull.build(spec, os.path.dirname(p), validate_views=False, page=False)
