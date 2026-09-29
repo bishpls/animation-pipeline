@@ -377,7 +377,8 @@ def geom_hair(spec, resolved, out, mode='on'):
     if mode == 'off':
         run()
     else:
-        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir, inputs=_glb_inputs(shape['glb']),
+        r = cache.file_step('geom_hair', run, [geom_hair], cut, gdir,
+                            inputs=_glb_inputs(shape['glb']) + ([spec['head_code']] if spec.get('head_code') else []),
                             modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path

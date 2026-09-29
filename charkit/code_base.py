@@ -32,7 +32,6 @@ class SectionsHead:
     eye_x, eye_z, mouth_z, nose_z."""
 
     def __init__(self, S, C, L, y0, mouth_z=None):
-        from charkit.geom import headfit
         self.S, self.C, self.L, self.y0 = S, C, float(L), float(y0)
         self.K = {}
         ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
@@ -110,13 +109,17 @@ def head_sections(spec, log=print):
     """the authored head's sections and the design's contours for a resolved spec (in L, the eye frame): from the file
     spec['head_code'] names when there is one (save_head: the Blender side can't read images), else computed; kept per
     set of references and style (a build asks once; a fit asks many times with the same references)."""
-    from charkit.geom.headfit import Sections
+    from charkit.geom.headgeom import Sections
     if spec.get('head_code') and os.path.exists(spec['head_code']):
         z = np.load(spec['head_code'])
         S = Sections(z['zs'], z['cy'], z['r'])
         return S, json.loads(str(z['C'])), json.loads(str(z['rep']))
-    from charkit import refcheck
-    from charkit.geom import headfit
+    # computed from the reference images: venv-side only (a build's Blender side loads the file cli.code_head wrote).
+    # Imported at run time, not named in an import statement: the build stages' code closure (charkit.cache) follows
+    # import statements, and the fitting reaches the QA's modules, which a build stage mustn't depend on
+    import importlib
+    refcheck = importlib.import_module('charkit.refcheck')
+    headfit = importlib.import_module('charkit.geom.headfit')
     fs = spec['ref']['face_sheet']
     key = json.dumps([spec['ref'].get('manifest'), fs.get('image'), spec.get('style', 'anime'),
                       spec.get('eyes', {}).get('x', 0.168)])
@@ -140,7 +143,7 @@ def _ring_polar(P, centre, th):
 def blend_neck(S, cut, ring_cy, ring_r, width=NECK_BLEND):
     """the head's sections with their lowest rows eased into the body's neck section (its centre ring_cy, radii ring_r
     at S.th, in the eye frame's L) from `width` above the cut down to it; rows under the cut dropped."""
-    from charkit.geom.headfit import Sections, _smoothstep
+    from charkit.geom.headgeom import Sections, _smoothstep
     cy, r = S.cy.copy(), S.r.copy()
     w = _smoothstep((cut + width - S.zs) / width)[:, None]
     ok = np.isfinite(cy)
@@ -236,7 +239,7 @@ class CodeBase:
 
 def _grow_rings(F, start, rings, exclude, n):
     """vertices by their graph distance (1..rings) from a set, not crossing `exclude` -> {vertex: ring}."""
-    from charkit.geom.headfit import _neighbours
+    from charkit.geom.headgeom import _neighbours
     nb, off = _neighbours(F, n)
     out, front = {}, set(start)
     seen = set(start) | set(exclude)
@@ -275,8 +278,8 @@ def head_mesh(S, C, cut):
     socket and the mouth's cavity added (their positions a first guess: charkit/eyes.py and charkit/mouth.py place them),
     the labels -> dict(V, faces (lists), eyes {side: labels}, mouth labels, neck (the bottom ring, ordered round),
     groups per face)."""
-    from charkit.geom import headfit, headmesh
-    Cg, ctr = headfit.cylinder_cage(S, C, z_bottom=cut, caps=False)
+    from charkit.geom import headgeom
+    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False)
     V = list(Cg.V)
     faces = [list(f) for f in Cg.F]
     groups = [Cg.groups[g] for g in Cg.group]
@@ -405,7 +408,7 @@ def wrap(spec, body=None, log=print):
     the body data on this base's topology ('verts' the body's positions, NaN for the head's new vertices; 'ghosts' the
     MakeHuman head's points and where they land, for the joints to follow), V the positions, H the head's surface."""
     from charkit import body as bodylib
-    from charkit.geom.headfit import Sections
+    from charkit.geom.headgeom import Sections
     Bm = body or bodylib.build_body_data(spec.get('body'), keep_head=True)
     L = float(Bm['head_len'])
     Hm = float(Bm['params']['height_m'])
@@ -504,7 +507,7 @@ def wrap(spec, body=None, log=print):
     face_uv = face_uv + fuv
     # weights: the body's own; the head's on 'head', easing to 'neck' down the neck
     n_all = len(V)
-    from charkit.geom.headfit import _smoothstep
+    from charkit.geom.headgeom import _smoothstep
     zl = Hmesh['V'][:, 2]
     w_head = _smoothstep((zl - CUT) / (C['chin'] - 0.02 - CUT))
     weights = {}
