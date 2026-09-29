@@ -10,6 +10,8 @@
     python -m charkit.geom thicken IN OUT --r R [--h H]                  a sheet to a closed solid R either side
     python -m charkit.geom boolean A B OUT --op union|difference|intersection [--h H] [--volume]
     python -m charkit.geom render IN OUT.png [--az 0,45,90,180] [--res 480] [--normals envelope|geometric]
+    python -m charkit.geom headfit SPEC.json [--out DIR] [--against BUILD/qa/qa.json] [--no-open]
+                                                                          the code-authored head from the design's contours
     python -m charkit.geom extract SPEC.json [--part hair,skirt] [--glb PATH] [--out DIR] [--h H]
                                                                           cut parts from the spec's generated character
 
@@ -117,6 +119,9 @@ def main(argv=None):
     elif cmd == 'hull':
         from . import hull
         hull.main(r)
+    elif cmd == 'headfit':
+        from . import headfit
+        headfit.main(r)
     elif cmd == 'extract':
         extract(r)
     else:

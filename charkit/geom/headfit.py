@@ -204,8 +204,9 @@ class Sections:
         return V
 
 
-def skull_sections(V, A, smooth_z=0.012):
-    """a solid's rows as polar sections round each row's centroid (smoothed over `smooth_z` L of rows)."""
+def skull_sections(V, A, smooth_z=0.012, smooth_th=0.01):
+    """a solid's rows as polar sections round each row's centroid, centres and radii smoothed over `smooth_z` L of rows
+    and the radii over `smooth_th` rad (the carving's voxel noise)."""
     nx, ny, nz = V.shape
     th = np.linspace(-np.pi, np.pi, Sections.N, endpoint=False)
     cy = np.full(nz, np.nan)
@@ -226,11 +227,17 @@ def skull_sections(V, A, smooth_z=0.012):
         # the section's boundary along each ray: the last inside sample (star-shaped round the centroid)
         last = np.where(inside.any(1), inside.shape[1] - 1 - np.argmax(inside[:, ::-1], 1), 0)
         r[k] = steps[last]
+    ok = np.isfinite(r).all(1)
+    if smooth_z > 0 and ok.any():
+        from scipy.ndimage import gaussian_filter
+        r[ok] = gaussian_filter(r[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
     return Sections(A.zs, cy, r)
 
 
 FACE_TOP = 0.10                  # z (L): the turnaround's midline corrects the skull up to here (the forehead under the bangs)
-CHEEK_TOP = 0.0                  # z: the cheek term and the outline are the face's own below here (above, the hair bounds them)
+CHEEK_TOP = 0.0                  # z: the outline is the face's own below here (above, the hair bounds it)
+CHEEK_FIT = (-0.06, 0.08)        # the cheek term is fitted below the first z (above, the three-quarter's contour is the far
+                                 # eye's lashes) and fades out over the second (L) above it
 
 
 def _falloff(s):
@@ -256,7 +263,7 @@ def skull_chin(S):
     return float(S.zs[np.nanargmax(np.where(np.isfinite(front), -S.zs * 0 + np.arange(len(S.zs)), np.nan))])
 
 
-def assemble(F, V, A, smooth_th=0.012, smooth_z=0.012, smooth_terms=0.025):
+def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
       - below CHEEK_TOP each row's x scaled so its half-width is the face's own outline (blended up to JAW_ROWS[1]);
@@ -287,7 +294,8 @@ def assemble(F, V, A, smooth_th=0.012, smooth_z=0.012, smooth_terms=0.025):
     rel = np.interp(-zs, -F.z, F.relief, left=0.0, right=0.0)
     sig = np.interp(-zs, -F.z, F.sigma)
     l3 = np.interp(-zs, -F.z, F.C['lead3'], left=np.nan, right=np.nan)
-    corr = np.where(np.isfinite(face_mid), face_mid - (cy - R0[:, j0]), 0.0)
+    corr = np.where(np.isfinite(face_mid), face_mid - (cy - R0[:, j0]), np.nan)     # NaN off the face's rows: the
+                                                                                     # smoothing mustn't average in 0s
     corr = np.nan_to_num(_smooth_rows(np.where(zs <= FACE_TOP, corr, np.nan), 2), nan=0.0)
     corr *= np.clip((FACE_TOP + 0.03 - zs) / 0.03, 0, 1)
     tj = np.clip((zs - JAW_ROWS[0]) / (JAW_ROWS[1] - JAW_ROWS[0]), 0, 1)
@@ -307,7 +315,7 @@ def assemble(F, V, A, smooth_th=0.012, smooth_z=0.012, smooth_terms=0.025):
     valid = [k for k in range(len(zs)) if np.isfinite(cy[k]) and np.isfinite(R0[k]).all()]
     cheek = np.full(len(zs), np.nan)
     for k in valid:                                # the cheek term: the far cheek onto the three-quarter's contour
-        if not (np.isfinite(l3[k]) and zs[k] <= CHEEK_TOP):
+        if not (np.isfinite(l3[k]) and zs[k] <= CHEEK_FIT[0]):
             continue
         x, shaped = row(k)
         lo_c, hi_c = -0.12, 0.12
@@ -317,7 +325,12 @@ def assemble(F, V, A, smooth_th=0.012, smooth_z=0.012, smooth_terms=0.025):
             lo_c, hi_c = (m, hi_c) if lead > l3[k] else (lo_c, m)
         cheek[k] = (lo_c + hi_c) / 2
     raw_cheek = cheek.copy()
-    cheek = np.nan_to_num(_smooth_rows(cheek, smooth_terms / A.h), nan=0.0) * np.clip((CHEEK_TOP + 0.03 - zs) / 0.03, 0, 1)
+    cheek = _smooth_rows(cheek, smooth_terms / A.h)
+    top = np.nonzero(np.isfinite(cheek))[0]
+    if len(top):                                        # held at the top fitted row's value, faded out above it
+        k0 = top.min()
+        cheek[:k0] = cheek[k0] * np.clip(1 - (zs[:k0] - zs[k0]) / CHEEK_FIT[1], 0, 1)
+    cheek = np.nan_to_num(cheek, nan=0.0)
     R = np.full_like(R0, np.nan)
     for k in valid:
         x, shaped = row(k)
@@ -399,3 +412,135 @@ def grade(S, spec, D, covers=None):
     O = sheetqa.measure_ours([(m.V, m.F, np.full(len(m.F), sheetqa.CLASS['skin']))], covers,
                              [(ex, 0.0, 0.0), (-ex, 0.0, 0.0)], (0.0, float(S.cy[k0])), 1.0, D['ppl'], D['az_three_quarter'])
     return sheetqa.compare(O, D), O
+
+
+def build(spec, out, against=None, log=print):
+    """the head from a resolved spec's references into `out`: head.ply (the sections' mesh), head.npz (the sections),
+    head.json (the checks, the assembly's report, the banding) and the review page -> the report. against: a build's
+    qa.json whose sheet_* checks to show beside ours."""
+    import time
+    from charkit import refcheck
+    from . import io
+    t0 = time.time()
+    os.makedirs(out, exist_ok=True)
+    fs = spec['ref']['face_sheet']
+    C = contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
+    F = Face(C)
+    V, A = skull(spec, log=log)
+    S, rep = assemble(F, V, A)
+    covers = hair_covers(spec)
+    checks, O = grade(S, spec, C['design'], covers)
+    m = sections_mesh(S)
+    io.save(m, os.path.join(out, 'head.ply'))
+    np.savez_compressed(os.path.join(out, 'head.npz'), zs=S.zs, cy=S.cy, r=S.r, th=S.th)
+    rep.update(checks={k: {kk: vv for kk, vv in v.items() if kk in ('value', 'status', 'ours', 'design', 'mean', 'ratios')}
+                       for k, v in checks.items()}, banding=round(banding(S), 5), seconds=round(time.time() - t0, 1))
+    if against and os.path.exists(against):
+        q = json.load(open(against))
+        q = q.get('checks', q)
+        rep['against'] = {'path': against, 'checks': {k[len('sheet_'):]: (v.get('value'), v.get('status')) if isinstance(v, dict)
+                                                      else tuple(v) for k, v in q.items() if k.startswith('sheet_')}}
+    json.dump(rep, open(os.path.join(out, 'head.json'), 'w'), indent=1, default=str)
+    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out)
+    log('headfit: %s (%.0fs)' % (rep['page'], time.time() - t0))
+    return rep
+
+
+def _page(rep, S, F, V, A, m, O, C, covers, out):
+    """the head's review page: the checks beside a build's, the QA's face regions, the contours ours against the
+    design's, the sections face against skull, renders in clay and with the hull's hair."""
+    import html
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    from PIL import Image
+    from charkit import sheetqa
+    from . import raster
+    from .mesh import Mesh
+    img = os.path.join(out, 'img')
+    os.makedirs(img, exist_ok=True)
+
+    def save(a, name):
+        Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8) if a.dtype != np.uint8 else a).save(os.path.join(img, name))
+        return 'img/' + name
+    D = C['design']
+    L = ['<!doctype html><meta charset="utf-8"><title>code-authored head</title><style>body{font:14px/1.45 -apple-system,'
+         'system-ui,sans-serif;margin:24px;background:#fafafa;color:#222}h2{font-size:17px;margin-top:30px}.row{display:flex;'
+         'gap:12px;flex-wrap:wrap;align-items:flex-end}.tile{text-align:center;font-size:12px;color:#555}.tile img{display:'
+         'block;border:1px solid #ddd;background:#fff}table{border-collapse:collapse;font-size:13px}td,th{border:1px solid '
+         '#ddd;padding:3px 8px;text-align:right}th{background:#f0f0f0}td:first-child{text-align:left}.PASS{color:#070}'
+         '.WARN{color:#b60}.FAIL{color:#c00}.note{color:#666;font-size:12px}</style>',
+         '<h1>The code-authored head: %s</h1>' % html.escape(str(rep.get('spec', ''))),
+         '<p class="note">The skull is head_construction\'s front and profile, carved. The face is corrections on its front '
+         'that vanish at the outline: the turnaround\'s midline, a cheek term fitted per row to the three-quarter\'s '
+         'contour, and the nose and lips as relief. The jaw rows are scaled to the design\'s outline, and the chin rows '
+         'warped to its chin. It is graded by the QA\'s own sheet comparison (sheetqa.measure_ours + compare, as the '
+         'build\'s sheet_* checks), with the head hull\'s hair as covers. Assembly: %s; banding %.5f L.</p>' % (
+             html.escape(json.dumps({k: v for k, v in rep.items() if k in ('align_dy_L', 'skull_chin', 'design_chin',
+                                                                           'cheek_range_L', 'cheek_fit_noise_L')})),
+             rep['banding'])]
+    ag = (rep.get('against') or {}).get('checks', {})
+    L.append('<table><tr><th>check</th><th>ours</th><th>status</th><th>design</th>%s</tr>' % (
+        '<th>%s</th>' % html.escape(os.path.relpath(rep['against']['path'])) if ag else ''))
+    for k, v in rep['checks'].items():
+        a = ag.get(k)
+        L.append('<tr><td>%s</td><td>%s</td><td class="%s">%s</td><td>%s</td>%s</tr>' % (
+            k, v.get('value'), v['status'], v['status'], v.get('design', ''),
+            '<td class="%s">%s %s</td>' % (a[1], a[0], a[1]) if a else ('<td></td>' if ag else '')))
+    L.append('</table><h2>The QA\'s face regions: grey both, red ours only, blue the design only</h2>')
+    L.append('<div class="row"><div class="tile"><img src="%s" height="300">front, three-quarter, profile</div></div>' %
+             save(sheetqa.picture(O, D), 'regions.png'))
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5.5))
+    for i, (view, key, title) in enumerate((('profile', 'lead', 'profile: lead, L forward of the eye'),
+                                            ('front', 'half', 'front: half-width, L'),
+                                            ('three_quarter', 'lead', 'three-quarter: lead, L'))):
+        for src, M, col in (('design', D[view], 'k'), ('ours', O[view], 'r')):
+            if key == 'half':
+                ax[i].plot(np.fmax(M['half_left'], M['half_right']), M['z'], '.', color=col, ms=2, label=src)
+            else:
+                ax[i].plot(M[key], M['z'], '.', color=col, ms=2, label=src)
+        ax[i].set_ylim(-0.45, 0.25); ax[i].grid(True); ax[i].set_title(title); ax[i].legend()
+    fig.tight_layout(); fig.savefig(os.path.join(img, 'contours.png'), dpi=70); plt.close(fig)
+    L.append('<h2>Contours, ours (red) against the design\'s (black), as the QA reads them</h2><div class="row"><div '
+             'class="tile"><img src="img/contours.png" height="380"></div></div>')
+    S0 = skull_sections(V, A)
+    fig, axs = plt.subplots(1, 6, figsize=(18, 3.6))
+    for ax, z in zip(axs, (0.1, 0.0, -0.1, -0.2, -0.28, -0.34)):
+        k = int(np.argmin(np.abs(S.zs - z)))
+        x, y = S0.xy(k); ax.plot(x, y + rep['align_dy_L'], color='0.6', lw=1)
+        x, y = S.xy(k); ax.plot(x, y, 'r-', lw=1)
+        ax.plot([0.168, -0.168], [0, 0], 'bo', ms=3)
+        ax.set_aspect('equal'); ax.invert_yaxis(); ax.set_xlim(-0.45, 0.45); ax.set_ylim(0.75, -0.25); ax.grid(True)
+        ax.set_title('z = %.2f' % z, fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(img, 'sections.png'), dpi=70); plt.close(fig)
+    L.append('<h2>Sections: the skull as carved (grey) and the head (red); the eyes blue</h2><div class="row"><div '
+             'class="tile"><img src="img/sections.png" height="240"></div></div>')
+    fr = raster.Frame.around([m], res=520, aspect=0.85)
+    hair = [Mesh(c[0], c[1]) for c in covers]
+    L.append('<h2>The head in clay, and with the head hull\'s hair</h2><div class="row">')
+    for az in (0, 35, 90, 180):
+        im = raster.render([(m, dict(color=(0.86, 0.8, 0.76), shade='lambert'))], az, fr)
+        L.append('<div class="tile"><img src="%s" height="360">%d deg</div>' % (save(im, 'clay_%03d.png' % az), az))
+    L.append('</div><div class="row">')
+    for az in (0, 35, 90):
+        im = raster.render([(m, dict(color=(0.96, 0.84, 0.76), shade='lambert'))] +
+                           [(h, dict(color=(0.85, 0.45, 0.28), shade='lambert')) for h in hair], az, fr)
+        L.append('<div class="tile"><img src="%s" height="360">%d deg, with hair</div>' % (save(im, 'hair_%03d.png' % az), az))
+    L.append('</div>')
+    p = os.path.join(out, 'index.html')
+    open(p, 'w').write('\n'.join(L))
+    return p
+
+
+def main(args):
+    """python -m charkit.geom headfit SPEC [--out DIR] [--against BUILD/qa/qa.json] [--no-open]"""
+    import subprocess
+    from charkit import manifest, refcheck
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    spec = manifest.resolve(json.load(open(refcheck._p(args[0]))))
+    out = refcheck._p(opt('--out', 'charkit/out/head/%s' % spec.get('name', 'char')))
+    rep = build(spec, out, refcheck._p(opt('--against')) if opt('--against') else None)
+    for k, v in rep['checks'].items():
+        print('%-14s %-5s %s' % (k, v['status'], v.get('value')))
+    if '--no-open' not in args:
+        subprocess.run(['open', rep['page']])
