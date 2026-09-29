@@ -499,6 +499,14 @@ def build(spec, out, against=None, log=print):
     covers = hair_covers(spec)
     checks, O = grade(S, spec, C['design'], covers)
     m = sections_mesh(S)
+    Cg, ctr = cylinder_cage(S, C)
+    from . import headmesh
+    q = quality(Cg.V, Cg.F, Cg.origins)
+    rep['cage'] = dict(headmesh.check(Cg), **{k: v for k, v in q.items() if k != 'flipped_idx'},
+                       loops={k: [len(r) for r in v] for k, v in Cg.loops.items()})
+    np.savez_compressed(os.path.join(out, 'head_cage.npz'), V=Cg.V, F=Cg.F, group=Cg.group, groups=np.array(Cg.groups),
+                        origins=Cg.origins, **{'loop_%s_%d' % (k, i): np.array(r) for k, v in Cg.loops.items()
+                                               for i, r in enumerate(v)})
     io.save(m, os.path.join(out, 'head.ply'))
     np.savez_compressed(os.path.join(out, 'head.npz'), zs=S.zs, cy=S.cy, r=S.r, th=S.th)
     rep.update(checks={k: {kk: vv for kk, vv in v.items() if kk in ('value', 'status', 'ours', 'design', 'mean', 'ratios')}
@@ -509,12 +517,12 @@ def build(spec, out, against=None, log=print):
         rep['against'] = {'path': against, 'checks': {k[len('sheet_'):]: (v.get('value'), v.get('status')) if isinstance(v, dict)
                                                       else tuple(v) for k, v in q.items() if k.startswith('sheet_')}}
     json.dump(rep, open(os.path.join(out, 'head.json'), 'w'), indent=1, default=str)
-    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out)
+    rep['page'] = _page(rep, S, F, V, A, m, O, C, covers, out, Cg)
     log('headfit: %s (%.0fs)' % (rep['page'], time.time() - t0))
     return rep
 
 
-def _page(rep, S, F, V, A, m, O, C, covers, out):
+def _page(rep, S, F, V, A, m, O, C, covers, out, Cg=None):
     """the head's review page: the checks beside a build's, the QA's face regions, the contours ours against the
     design's, the sections face against skull, renders in clay and with the hull's hair."""
     import html
@@ -595,9 +603,58 @@ def _page(rep, S, F, V, A, m, O, C, covers, out):
                            [(h, dict(color=(0.85, 0.45, 0.28), shade='lambert')) for h in hair], az, fr)
         L.append('<div class="tile"><img src="%s" height="360">%d deg, with hair</div>' % (save(im, 'hair_%03d.png' % az), az))
     L.append('</div>')
+    if Cg is not None:
+        from charkit import subdiv
+        cq = rep['cage']
+        L.append('<h2>The authored cage on it (charkit.geom.headmesh.cylinder)</h2><p class="note">%d vertices, %d quads, '
+                 'manifold (%d non-manifold, %d mis-wound edges), open only at the neck (%d edges, Euler %d); fitted with '
+                 '%d flipped faces and %d folded corners, worst corner sine %.3f. Loops: %s. Eyes blue, mouth red, crown '
+                 'violet; the second row is its Catmull-Clark subdivision (level 2), as the build draws it.</p><div class="row">' % (
+                     cq['verts'], cq['quads'], cq['nonmanifold_edges'], cq['misoriented_edges'], cq['boundary_edges'],
+                     cq['euler'], cq['flipped'], cq['folded_corners'], cq['corner_min'],
+                     html.escape(', '.join('%s %s' % (k, v) for k, v in cq['loops'].items()))))
+        wire = cage_wire(Cg)
+        frc = raster.Frame.around([wire[0][0]], res=520, aspect=0.85)
+        for az in (0, 35, 90, 180):
+            L.append('<div class="tile"><img src="%s" height="380">%d deg</div>' % (
+                save(raster.render(wire, az, frc, outline=False), 'cage_%03d.png' % az), az))
+        L.append('</div><div class="row">')
+        V1, Q, _ = subdiv.catmull_clark(Cg.V, [list(f) for f in Cg.F], levels=2)
+        ms = Mesh(V1, np.concatenate([Q[:, [0, 1, 2]], Q[:, [0, 2, 3]]]))
+        for az in (0, 35, 90):
+            L.append('<div class="tile"><img src="%s" height="380">%d deg, subdivided</div>' % (
+                save(raster.render([(ms, dict(color=(0.86, 0.8, 0.76), shade='lambert'))], az, frc), 'cage_sub_%03d.png' % az), az))
+        L.append('</div>')
     p = os.path.join(out, 'index.html')
     open(p, 'w').write('\n'.join(L))
     return p
+
+
+GROUP_COLOURS = {'face': (0.9, 0.84, 0.78), 'skull': (0.8, 0.8, 0.84), 'crown': (0.7, 0.74, 0.86), 'neck': (0.85, 0.8, 0.7),
+                 'eye': (0.35, 0.55, 0.95), 'eye_cap': (0.2, 0.3, 0.7), 'mouth': (0.95, 0.4, 0.4), 'mouth_cap': (0.6, 0.2, 0.2)}
+
+
+def cage_wire(Cg, shrink=0.14):
+    """the cage drawn to show its quads: each quad on its own vertices, shrunk toward its centre and coloured by its
+    group (eyes blue, mouth red, crown violet), over a dark copy set a little inside -> [(Mesh, render opts)]."""
+    from .mesh import Mesh
+    grp = np.array(Cg.groups)[Cg.group]
+    P = Cg.V[Cg.F]
+    c = P.mean(1, keepdims=True)
+    Q = (c + (P - c) * (1 - shrink)).reshape(-1, 3)
+    col = []
+    for g in grp:
+        key = g if g in GROUP_COLOURS else ('eye_cap' if g.startswith('eye') and g.endswith('cap') else 'eye' if g.startswith('eye')
+                                            else 'mouth_cap' if g.startswith('mouth') and g.endswith('cap') else 'mouth'
+                                            if g.startswith('mouth') else 'face')
+        col.append(GROUP_COLOURS[key])
+    col = np.repeat(np.array(col), 4, 0)
+    n = np.arange(len(Cg.F) * 4).reshape(-1, 4)
+    quads = Mesh(Q, np.concatenate([n[:, [0, 1, 2]], n[:, [0, 2, 3]]]))
+    O = getattr(Cg, 'origins', None)
+    Vin = Cg.V + ((O - Cg.V) * 0.01 if O is not None else 0)
+    back = Mesh(Vin, np.concatenate([Cg.F[:, [0, 1, 2]], Cg.F[:, [0, 2, 3]]]))
+    return [(quads, dict(color=col, shade='lambert')), (back, dict(color=(0.15, 0.15, 0.18), shade='flat'))]
 
 
 def main(args):
