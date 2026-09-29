@@ -648,7 +648,35 @@ def bow(A, spec):
     V = A['verts']
     near = (np.abs(V[:, 2] - z) < 0.012) & (np.abs(V[:, 0]) < 0.03)
     y = V[near, 1].min() - spec.get('offset', 0.03) * L if near.any() else -0.12
-    c = np.array([0.0, y, z])
+    return _bow_mesh(np.array([0.0, y, z]), sz, spec.get('tail', 0.62), L)
+
+
+LOBE = 0.52                     # a lobe's far end: this share of the bow's size out from its centre (_bow_mesh)
+TAIL0 = 0.08                    # the tails start this share of the size under the centre
+
+
+def bow_hull(A, spec, hull):
+    """the bow placed and sized from the hull's points of it and its tails (fold: bow_tail_L, bow_tail_R): its size
+    from the lobes' width (2 LOBE sizes), its centre at their middle (x at the midline, depth where the lobes' front
+    is, less a lobe's depth), the tails' length from how low their points reach; the mesh is bow()'s."""
+    L = A['head']['L']
+    B = _hull_points(hull, {'name': spec['name'], 'piece': spec.get('piece', spec['name'])}, fold=())
+    tails = [hull[k] for k in spec.get('fold', ('bow_tail_L', 'bow_tail_R')) if k in hull and len(hull[k])]
+    lo, hi = np.percentile(B[:, 0], [2, 98])
+    sz = (hi - lo) / (2 * LOBE)
+    z = float(np.median(B[:, 2]))
+    y = float(np.percentile(B[:, 1], 5)) + 0.09 * sz
+    tail = spec.get('tail', 0.62)
+    if tails:
+        zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
+        tail = max(0.1, (z - zmin) / sz - TAIL0 - 0.10)        # (the notch reaches 0.10 sizes past the tail's end)
+    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L)
+    G['fit'] = dict(size=sz / L, tail=tail, centre=[0.5 * (lo + hi), y, z])
+    return G
+
+
+def _bow_mesh(c, sz, tail, L):
+    """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long."""
     verts, faces, uvs = [], [], []
 
     def add(vs, fs, us):
@@ -663,7 +691,7 @@ def bow(A, spec):
                 ph = 2 * math.pi * j / nu
                 u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
                 taper = 0.35 + 0.65 * math.sin(min(math.pi, th * 1.15)) ** 0.8
-                x = sx * (0.05 + 0.47 * u_) * sz
+                x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                 zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
                 yy = -math.cos(ph) * 0.09 * sz * taper
                 fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
@@ -679,7 +707,7 @@ def bow(A, spec):
         vs, us = [], []
         for i in range(M + 1):
             s_ = i / M
-            p = c + np.array([sx * sz * (0.05 + 0.2 * s_), -0.01 * L * s_, -sz * (0.08 + spec.get('tail', 0.62) * s_)])
+            p = c + np.array([sx * sz * (0.05 + 0.2 * s_), -0.01 * L * s_, -sz * (TAIL0 + tail * s_)])
             w = sz * (0.13 + 0.09 * s_)
             notch = sz * 0.10 if i == M else 0.0
             for (dx, dz, dy) in ((-w / 2, 0, -0.01 * L), (0, notch, -0.01 * L), (w / 2, 0, -0.01 * L),
@@ -944,6 +972,9 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
+        elif k == 'bow' and s.get('source') == 'hull':
+            G = bow_hull(A, s, hull)
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'bow':
             G = bow(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
