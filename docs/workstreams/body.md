@@ -145,3 +145,39 @@ Next, the build integration, with its costs:
 - The neck join to the code head: code_base's zip, onto the torso's cut ring.
 - The rig and weights: per part along its chain, a torso split by height.
 - The garments' shells, which read body regions by bone and the body's UVs.
+
+## First full builds (2026-09-29, the box)
+
+The code head on the authored body, rigged by our own code (joints for every VRM bone; weights along each part), with
+the hull-sourced garments. Measured against the same authored head on the MakeHuman body (clawd_code.json):
+
+| | clawd_code.json (MakeHuman body) | clawd_body.json (authored body) | + hair pieces |
+|---|---|---|---|
+| PASS / WARN / FAIL | 65 / 29 / 17 | 70 / 25 / 16 | 79 / 23 / 17 |
+
+Better (16):
+- the feet and boots in every view: FAIL/WARN → PASS;
+- body_profile_iou: 0.786 → 0.886, PASS;
+- the skin IoUs in the back, profile and three-quarter views: FAIL → WARN;
+- the profile and three-quarter outfit IoUs: → PASS;
+- the sleeves: → PASS (0.91 and 0.79, hull-lofted);
+- the right panel: 0.36 → 0.67.
+
+Worse (9):
+- the back and three-quarter hems at the middle, and the back leg (the back panels);
+- the profile skirt width: 1.229 FAIL;
+- the bow: 0.52 → 0.30;
+- the collar: 0.50 → 0.41;
+- the front hair length, marginally.
+
+Found and fixed on the way:
+- The parts' faces were wound inward.
+- The code head's eye plane was its nose bridge (SectionsHead.eye_df).
+- The head sheet sets the eyes 0.11 L further forward of the neck than the body sheet does. On the authored body the
+  head goes where the body sheet's eyes are.
+- The hull's stamp reached all of charkit; merged separately as tool/stamp.
+
+Next:
+- the back panels (the hull labels them across 90 degrees of the back);
+- the bow and collar on this body;
+- a gate for tool/body (the default spec doesn't take the authored body; gate it with --spec clawd_body.json too).
