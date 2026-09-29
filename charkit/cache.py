@@ -666,10 +666,10 @@ def save_code_memo():
             pass
 
 
-def code_units(*fns, modules=()):
+def code_units(*fns, modules=(), depth=None):
     """the code the functions run, as {unit: digest}: each function and the top-level names it uses in its own module,
     function by function (with that module's other top-level statements), and every charkit module they import, whole
-    and transitively; `modules` adds whole modules."""
+    and transitively; `modules` adds whole modules. depth: follow imports only this many modules deep (None: all)."""
     units, mods = {}, set(modules)
     for fn in fns:
         M = _mod(fn.__module__)
@@ -686,6 +686,7 @@ def code_units(*fns, modules=()):
             todo += names
             mods |= set(imps) | {M.bound[x] for x in names if x in M.bound}
     seen = set()
+    level = {m: 1 for m in mods}
     while mods:
         m = mods.pop()
         if m in seen:
@@ -693,7 +694,10 @@ def code_units(*fns, modules=()):
         seen.add(m)
         P = _mod(m)
         units[P.rel] = P.digest
-        mods |= P.imports
+        if depth is None or level[m] < depth:
+            for q in P.imports:
+                level.setdefault(q, level[m] + 1)
+                mods.add(q)
     save_code_memo()
     return dict(sorted(units.items()))
 
