@@ -364,6 +364,13 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
         width('skirt_width', round(max(ro[r][0] for r in common), 4), round(max(rd[r][0] for r in common), 4),
               'the widest garment row through the axis between waist and knee, on the rows neither figure has a hand '
               'against')
+    elif [r for r in rd if not rd[r][1] and r in ro]:
+        # no row free in both (ours' hands hang against every row the design's leave free): ours' run on the design's
+        # free rows, where a hand of ours may touch it
+        fd = [r for r in rd if not rd[r][1] and r in ro]
+        width('skirt_width', round(max(ro[r][0] for r in fd), 4), round(max(rd[r][0] for r in fd), 4),
+              "the widest garment row through the axis between waist and knee, on the design's rows free of hands (no "
+              'row is free in both: ours measured there with a hand against it)')
     else:
         width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the '
               'axis between waist and knee, rows with a hand against it left out (no row free in both)')
