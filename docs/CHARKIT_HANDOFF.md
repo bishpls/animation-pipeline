@@ -720,10 +720,10 @@ gating on the build box (below). The integrator (the main session) reviews and m
 
 | workstream | branch / worktree | state |
 |---|---|---|
-| cut-piece hair | `tool/hair-pieces`, `~/animation-pipeline-hair` | a fork; in progress |
+| cut-piece hair | `tool/hair-pieces` | **merged at `5206150`**: `docs/workstreams/hair.md` (taste calls for Michael there) |
 | eye and mouth engine | `tool/eyes-mouth`, `~/animation-pipeline-eyes` | a fork; in progress |
 | garments as pieces | `tool/garments` | **merged at `8f2ec5d`**: `docs/workstreams/garments.md` |
-| the authored body | `tool/body`, `~/animation-pipeline-body` | started: `docs/workstreams/body.md` |
+| the authored body | `tool/body`, `~/animation-pipeline-body` | torso and limbs fitted; build integration in progress: `docs/workstreams/body.md` |
 
 Merged this session, besides the build box:
 - `tool/produced` (`56e1375`): produced references (the hull, the outfit masks) are stamped with their producer's code
