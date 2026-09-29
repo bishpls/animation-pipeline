@@ -75,19 +75,21 @@ def assemble(spec, keys=True, cache=None):
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
     gaze = {'look_left': (0.13, 0.0), 'look_right': (-0.13, 0.0), 'look_up': (0.0, 0.07), 'look_down': (0.0, -0.06)}
+    from .eyetex import _knobs as iris_knobs
+    conv = iris_knobs(spec.get('iris'))['converge']
     for E in eyes:
         sd, c = E['side'], E['c']
         W = EK['width'] * L
         E['sclera'] = eyelib.plate(F, EK, L, sd, c)
-        E['iris'] = eyelib.plate(F, EK, L, sd, c, bias=0.0004)
+        E['iris'] = eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(-conv * W, 0.0))     # (eye-local: - is the nose)
         E['lashes'] = eyelib.lashes(F, EK, L, sd, c)
         BK = browlib._knobs(spec.get('brows'))
         E['brow'] = browlib.ribbon(F, BK, EK, L, sd, c)
         E['iris_keys'], E['brow_keys'], E['keys'] = {}, {}, {}
         if not keys:
             continue
-        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W, g[1] * W))[0] - E['iris'][0]
-                          for k, g in gaze.items()}
+        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W - conv * W, g[1] * W))[0] -
+                          E['iris'][0] for k, g in gaze.items()}
         E['brow_keys'] = {k: browlib.ribbon(F, BK, EK, L, sd, c, knobs=kn)[0] - E['brow'][0]
                           for k, kn in browlib.expressions(BK).items()}
         for name, (uf, lf) in eyelib.expressions(EK, L).items():
@@ -108,8 +110,8 @@ def assemble(spec, keys=True, cache=None):
         lips_b = (B['base_body'] * lw8[:, None]).sum(0) / lw8.sum()
         Mo = dict(m=_kept(cache, ('mouth', bkey), lambda: mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw)),
                   c=(0.0, centre[2] + H.mouth_z))
-    V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'])
-    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'))
+    V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'], faces=B['faces'])
+    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'])
                   for sh in mouthlib.SHAPES if sh != 'neutral'} if keys else {}
     Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'])
     Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'])
@@ -259,10 +261,15 @@ def build_eyes(A, arm, skin, spec, look=None):
     look = look or {}
     IK = spec.get('iris')
     sclera_m = look.get('sclera') or shade.plate('sclera', eyetex.to_blender_image('sclera', eyetex.sclera(IK)), alpha=False)
-    ir = eyetex.iris(IK); sh = eyetex.shine(IK)
-    a = sh[..., 3:4]
-    comp = np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1)
-    iris_m = look.get('iris') or shade.plate('iris', eyetex.to_blender_image('iris', comp))
+    ir = eyetex.iris(IK)
+    iris_ms = {}
+    for sd in ((1, -1) if not eyetex._knobs(IK).get('shine_mirror', True) else (1,)):
+        sh = eyetex.shine(IK, side=sd)
+        a = sh[..., 3:4]
+        comp = np.concatenate([ir[..., :3] * (1 - a) + sh[..., :3] * a, np.maximum(ir[..., 3:4], a)], -1)
+        name = 'iris' if sd > 0 else 'iris_R'
+        iris_ms[sd] = look.get('iris') or shade.plate(name, eyetex.to_blender_image(name, comp))
+    iris_m = iris_ms[1]
     lash_m = look.get('lash') or shade.flat('lash', spec.get('lash_color', (0.16, 0.09, 0.10)))
     crease_m = look.get('crease') or shade.flat('crease', spec.get('crease_color', (0.78, 0.52, 0.48)))
     brow_m = look.get('brow') or shade.flat('brow', spec.get('brow_color', (0.30, 0.20, 0.20)))
@@ -272,7 +279,7 @@ def build_eyes(A, arm, skin, spec, look=None):
         v, q, uv = E['sclera']
         sc = _mesh(f'sclera_{tag}', v, q, uv, [sclera_m])
         v, q, uv = E['iris']
-        iob = _mesh(f'iris_{tag}', v, q, uv, [iris_m])
+        iob = _mesh(f'iris_{tag}', v, q, uv, [iris_ms.get(E['side'], iris_m)])
         for k, d in E['iris_keys'].items():
             _key(iob, k, d)
         # closed eyes: the plates sink back so nothing shows through the lids' seam

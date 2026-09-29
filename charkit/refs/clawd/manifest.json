@@ -301,6 +301,7 @@
    "kind": "generated_mesh",
    "tracked": false,
    "produced_by": "charkit.geom.hull",
+   "produced_fn": "charkit.geom.hull:build",
    "reads": ["outfit_masks"],
    "path": "charkit/out/hull/clawd/hull.glb",
    "command": "python -m charkit.geom hull charkit/spec/clawd.json",
@@ -310,10 +311,25 @@
     "limbs are carved apart from the body where the outfit's pieces say so (a cuff, a sleeve); a limb whose front run the pieces don't split still takes the body's depth"
    ]
   },
+  "hair_layers": {
+   "kind": "piece_masks",
+   "tracked": false,
+   "produced_by": "charkit.hairlayers",
+   "reads": ["outfit_masks"],
+   "path": "charkit/out/clawd/hair/hair_layers.npz",
+   "command": "python -m charkit hairlayers charkit/spec/clawd.json --no-page",
+   "role": "the hair's families (hair_breakdown's legend: bangs, side locks, upper and lower back, buns, ahoge, flyaways) on body_turnaround's hair, per view (front, profile, back; bodyqa.design_views grids, keys VIEW__FAMILY): the targets of the hair's pieces (charkit.geom.hairpieces). Built where missing (manifest.produced)",
+   "cautions": [
+    "the breakdown is another generation of the design: registered onto the body sheet at hair IoU 0.68-0.80, so only which family a body-sheet hair pixel belongs to comes from it; the body sheet is the silhouettes' authority",
+    "no three-quarter view: the hair's pieces predict it in 3D",
+    "the buns are the outfit's bun pieces (outfit_masks), not the breakdown's"
+   ]
+  },
   "outfit_masks": {
    "kind": "piece_masks",
    "tracked": false,
    "produced_by": "charkit.outfit",
+   "produced_fn": "charkit.outfit:main",
    "path": "charkit/out/clawd/outfit/outfit_masks.npz",
    "command": "python -m charkit outfit charkit/spec/clawd.json --out charkit/out/clawd/outfit --no-manifest",
    "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced)",

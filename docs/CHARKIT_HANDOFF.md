@@ -720,12 +720,14 @@ gating on the build box (below). The integrator (the main session) reviews and m
 
 | workstream | branch / worktree | state |
 |---|---|---|
-| cut-piece hair | `tool/hair-pieces`, `~/animation-pipeline-hair` | a fork; in progress |
-| eye and mouth engine | `tool/eyes-mouth`, `~/animation-pipeline-eyes` | a fork; in progress |
+| cut-piece hair | `tool/hair-pieces` | **merged at `5206150`**: `docs/workstreams/hair.md` (taste calls for Michael there) |
+| eye and mouth engine | `tool/eyes-mouth` | **merged at `dd7eb32`**: `docs/workstreams/eyes.md` (taste calls for Michael there; the authored-head spec is `charkit/spec/clawd_code.json`) |
 | garments as pieces | `tool/garments` | **merged at `8f2ec5d`**: `docs/workstreams/garments.md` |
-| the authored body | `tool/body`, `~/animation-pipeline-body` | started: `docs/workstreams/body.md` |
+| the authored body | `tool/body`, `~/animation-pipeline-body` | torso and limbs fitted; build integration in progress: `docs/workstreams/body.md` |
 
 Merged this session, besides the build box:
+- `tool/stamp` (`d71e2ba`): a produced reference's stamp follows its producer function one import deep (it had
+  reached all of charkit, so any edit rebuilt the hull in every worktree).
 - `tool/produced` (`56e1375`): produced references (the hull, the outfit masks) are stamped with their producer's code
   and inputs, and rebuilt when stale. pipeline-3d's hull had predated the face carve.
 - `tool/garments` (`8f2ec5d`):

@@ -66,6 +66,9 @@ STEPS = [
     ('sheet_*', '5843d44', 'our chin read with the design\'s rule (faceqa.drawn_chin: the turn under the chin), not '
                           'chin_bottom (0.06 L behind the lips); the chin, the widths\' rows, the neck\'s row and the '
                           'contours\' extent move with it on a receding chin'),
+    ('hair_noise', '51a87aa', 'the hair drawn without its outlines (a drawn line between two locks is not shading) and behind '
+     'the rest of the character (the hair\'s inside through the face is hidden, as in a render) (tool/hair-pieces): '
+     'the geom hair reads 0.047, was 0.104'),
 ]
 
 

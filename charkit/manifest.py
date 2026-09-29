@@ -89,8 +89,8 @@ def produce(spec):
 
 
 def stamp(spec, r):
-    """what a produced reference depends on, as a digest: its producer's code (the module and every charkit module it
-    imports, charkit.cache.code_units), the manifest's tracked references (their sha256s), the stamps of the produced
+    """what a produced reference depends on, as a digest: its producer's code (_producer_code: its function and what it
+    imports, one import deep), the manifest's tracked references (their sha256s), the stamps of the produced
     references it reads (its 'reads': the hull reads the outfit's masks), the spec's ref and style. Not the spec's knobs:
     a tune changes those every step, and the references don't read them."""
     from . import cache
@@ -98,8 +98,24 @@ def stamp(spec, r):
     R = M['references']
     refs = {k: v.get('sha256') for k, v in sorted(R.items()) if v.get('sha256')}
     reads = [stamp(spec, R[k]) for k in r.get('reads', ()) if k in R and R[k].get('produced_by')]
-    return cache.digest([cache.code_units(modules=(r['produced_by'],)), refs, reads, spec['ref'].get('manifest'),
-                         spec.get('style')])
+    return cache.digest([_producer_code(r), refs, reads, spec['ref'].get('manifest'), spec.get('style')])
+
+
+STAMP_DEPTH = 1             # the producer's code one import deep: its own module's functions it runs and the modules
+                            # they import, not theirs in turn (those reach all of charkit, so any edit anywhere would
+                            # rebuild the hull: 2-3 minutes a build in every worktree)
+
+
+def _producer_code(r):
+    """the code a produced reference depends on: its 'produced_fn' (module:function) with what it uses, else its
+    'produced_by' module, one import deep (STAMP_DEPTH)."""
+    import importlib
+    from . import cache
+    fn = r.get('produced_fn')
+    if fn:
+        mod, name = fn.split(':')
+        return cache.code_units(getattr(importlib.import_module(mod), name), depth=STAMP_DEPTH)
+    return cache.code_units(modules=(r['produced_by'],), depth=STAMP_DEPTH)
 
 
 def produced(spec, rid, log=print):

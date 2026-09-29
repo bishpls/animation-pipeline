@@ -53,8 +53,9 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
     'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
-    'viseme_gap': (0.010, 0.005),
+    'viseme_gap': (0.010, 0.005), 'mouth_cover': (0.97, 0.90),
 }
+COVER = (11, 9, 4)             # exprqa classes an open mouth may show: its inside and tongue, teeth, the lip line
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
                'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
@@ -769,15 +770,21 @@ def render_surfaces(B, o, variant):
     return out
 
 
-def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE):
+def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE, az=0.0):
     """one eye rendered as the build rendered it (head-on, orthographic, `size` L square round the eye centre at the
     rig's scale ppl; the skin at the render's subdivision level, pulled in by its outline with the hull on the original
     surface, and that eye's white, iris and lashes; no hair, no brows): the skin and lashes in their materials' flat
     tones, the plates by their textures at their UVs (the iris over the white by its alpha), supersampled and filtered
-    like the renderer's pixel filter. -> RGBA floats (n, n, 4), row 0 = top."""
+    like the renderer's pixel filter. az: seen from that azimuth instead (charkit.faceqa.view: 35 a three-quarter, 90 the
+    profile), the window round the iris's centre as that view projects it. -> RGBA floats (n, n, 4), row 0 = top."""
     from .geom import raster
     As = B.assembly; L = As['L']
     E = next(E for E in As['eyes'] if (E['side'] > 0) == (side == 'L'))
+    org = (E['c'][0], E['c'][1])
+    if az:
+        from .faceqa import view
+        ic = next(c for c in iris_centres(B) if (c[0] > 0) == (side == 'L'))
+        org = (float(view(np.asarray([ic], float), az)[0][0]), E['c'][1])
     n = int(round(size * ppl))
     pix = size * L / n / ss
     N = n * ss
@@ -793,7 +800,7 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE):
             continue
         V, T, tm, _ = o.mesh('eval')
         items.append((V, T, tm)); kinds.append((part, o, o.tris('eval')[2]))
-    zb, lab, mi, ti, bc = raster.window_zbuffer(items, 0.0, (E['c'][0], E['c'][1]), 1.0, pix, win, ids=True)
+    zb, lab, mi, ti, bc = raster.window_zbuffer(items, az, org, 1.0, pix, win, ids=True)
     rgb = np.zeros((N, N, 3)); al = np.zeros((N, N))
     for k, (kind, o, Tl) in enumerate(kinds):
         m = mi == k
@@ -936,6 +943,211 @@ def sheet_body(B, design, out=None):
             C[v] = {'status': 'SKIPPED', 'why': 'no %s figure on the sheet' % v}
     if views and out:
         _save_rgb(os.path.join(out, 'qa_sheet_body.png'), bodyqa.picture(views))
+    return table, C
+
+
+HAIR_FAMILIES = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'buns', 'ahoge', 'flyaways')   # charkit.hairlayers'
+HAIR_PIECE_FAMILY = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R': 'side_locks', 'upper_back': 'upper_back',
+                     'lower_back': 'lower_back', 'bun_L': 'buns', 'bun_R': 'buns', 'ahoge': 'ahoge', 'flyaways': 'flyaways'}
+HAIR_GRADED = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'buns')    # the ahoge and flyaways: INFO (a few pixels)
+HAIR_IOU = (0.6, 0.4)          # a family's IoU pooled over the views against the hair layers: pass at, warn at (their boundaries are a
+                               # transfer from another generation of the design: charkit.hairlayers' cautions)
+HAIR_FRINGE = (0.03, 0.06)     # L: the fringe's lowest point over each eye against the drawing's: pass within, warn within
+HAIR_PENETRATION = (0.004, 0.012)   # L: the deepest hair vertex inside the skin
+HAIR_FOLDS = (0, 40)           # edges folded back sharply (their faces' normals over 110 degrees apart), all pieces
+
+
+def hair_layers_masks(B, design):
+    """the produced hair_layers masks (charkit.hairlayers; VIEW__FAMILY on the design grids) or None (none made: the QA
+    builds nothing)."""
+    from . import manifest
+    ref = B.spec.get('ref') if isinstance(B.spec.get('ref'), dict) else {}
+    if not ref.get('manifest'):
+        return None
+    r = manifest.load(ref['manifest'])['references'].get('hair_layers')
+    if not r:
+        return None
+    path = _path(r['path'])
+    if not os.path.exists(path):
+        return None
+    design._rec(path)
+    Z = np.load(path)
+    return {k: Z[k] for k in Z.files}
+
+
+def hair_pieces_report(B, design):
+    """the hair pieces' build report (the spec's hair.shape.pieces: pieces.json) or None."""
+    p = ((B.spec.get('hair') or {}).get('shape') or {}).get('pieces')
+    if not p:
+        return None
+    path = os.path.join(_path(p), 'pieces.json')
+    if not os.path.exists(path):
+        return None
+    design._rec(path)
+    return json.load(open(path))
+
+
+def _fold_edges(V, T, cos_max=-0.34):
+    """edges whose two faces' normals are more than ~110 degrees apart (cos below cos_max)."""
+    if not len(T):
+        return 0
+    fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-18
+    E = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+    f = np.tile(np.arange(len(T)), 3)
+    key = np.sort(E, 1)
+    o = np.lexsort((key[:, 1], key[:, 0]))
+    key, f = key[o], f[o]
+    same = np.all(key[1:] == key[:-1], axis=1)
+    a, b = f[:-1][same], f[1:][same]
+    return int((np.einsum('ij,ij->i', fn[a], fn[b]) < cos_max).sum())
+
+
+def hair_pieces(B, design, out=None):
+    """the hair's pieces (hair.shape.mode 'pieces': objects hair_NAME, charkit.geom.hairpieces) against the design's
+    families: every visible surface z-buffered on the design's grids with each hair object labelled by its family,
+    each family's IoU against the hair layers (charkit.hairlayers) in the front, profile and back; how deep the hair
+    reaches inside the skin; the fringe's lowest point over each eye against the drawing's; sharp folds per piece.
+    -> (table, checks hair_piece_<family>, hair_fringe_low, hair_penetration, hair_folds)."""
+    objs = {o.name[5:]: o for o in _visible(B, ('hair',)) if o.name.startswith('hair_') and
+            o.name[5:] in HAIR_PIECE_FAMILY}
+    if not objs:
+        return None, {'hair_pieces': {'status': 'SKIPPED', 'why': 'the hair is not built in pieces'}}
+    hair = {n: (o.mesh('eval')[:2], o.mesh('raw' if o.has('raw') else 'eval')[:2]) for n, o in objs.items()}
+    return hair_pieces_measure(B, design, hair, out)
+
+
+def hair_pieces_measure(B, design, hair, out=None):
+    """hair_pieces' measures with the hair given as {piece: ((V, T) as rendered, (V, T) raw)} over the bundle's
+    character (a fit's candidate pieces, measured without a Blender build)."""
+    from . import bodyqa
+    ctx = design.sheet_context()
+    masks = hair_layers_masks(B, design)
+    if 'why' in ctx or masks is None:
+        return None, {'hair_pieces': {'status': 'SKIPPED', 'why': ctx.get('why') or 'no hair_layers produced'}}
+    As = B.assembly
+    L = As['L']
+    fam_k = {f: k + 1 for k, f in enumerate(HAIR_FAMILIES)}
+    BROW = 50
+    meshes = []
+    sk = B.skin()
+    V, T = sk.mesh('masked')[:2]
+    meshes.append((V, T, np.zeros(len(T), int)))
+    for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
+        if o.has('eval'):
+            V, T = o.mesh('eval')[:2]
+            meshes.append((V, T, np.full(len(T), BROW if o.part == 'brow' else 0)))
+    for name, (ev, _) in hair.items():
+        V, T = ev
+        meshes.append((V, T, np.full(len(T), fam_k[HAIR_PIECE_FAMILY[name]])))
+    iw = np.array(iris_centres(B))
+    dv = design.design_views()
+    views = [v for v in ('front', 'profile', 'back', 'three_quarter') if v in dv]
+    labels = bodyqa.zbuffer_views(meshes, ctx['az3'], iw, As['centre'], L, ctx['ppl'], views)
+    table = {'iou': {}, 'pixels': {}}
+    C = {}
+    for f in HAIR_FAMILIES:
+        per = {}
+        for v in ('front', 'profile', 'back'):
+            m = masks.get('%s__%s' % (v, f))
+            if v not in labels or m is None or m.sum() < 20:
+                continue
+            ours = labels[v][1] == fam_k[f]
+            if ours.shape != m.shape:
+                continue
+            per[v] = round(float((ours & m).sum() / max(1, (ours | m).sum())), 4)
+            table['pixels'].setdefault(f, {})[v] = [int(ours.sum()), int(m.sum())]
+        if not per:
+            continue
+        table['iou'][f] = per
+        px = table['pixels'][f]
+        inter = sum((labels[v][1] == fam_k[f]).__and__(masks['%s__%s' % (v, f)]).sum() for v in per)
+        union = sum((labels[v][1] == fam_k[f]).__or__(masks['%s__%s' % (v, f)]).sum() for v in per)
+        pooled = float(inter / max(1, union))                      # over the views: a family a view barely shows
+        C['hair_piece_' + f] = {'value': round(pooled, 3), 'views': per, 'status': (   # doesn't decide it alone
+            'PASS' if pooled >= HAIR_IOU[0] else 'WARN' if pooled >= HAIR_IOU[1] else 'FAIL') if f in HAIR_GRADED else 'INFO'}
+    # the fringe's lowest point over each eye (columns within 0.1 L of it), ours and the drawing's, in the front view
+    if 'front' in labels and masks.get('front__bangs') is not None:
+        lab = labels['front'][1]
+        ppl = ctx['ppl']
+        W = bodyqa.WIN
+        H_, W_ = lab.shape
+        zrow = W['top'] - (np.arange(H_) + 0.5) / ppl
+        ucol = (np.arange(W_) + 0.5) / ppl - W['x']
+        ex = As['eye_knobs']['x'] if 'eye_knobs' in As else 0.168
+        d, lows = [], {}
+        for side, sx in (('R', -1), ('L', 1)):                     # (her right shows on the picture's left)
+            cols = np.abs(ucol - sx * ex) < 0.1
+            ours = lab[:, cols] == fam_k['bangs']
+            drawn = masks['front__bangs'][:, cols]
+            zo = zrow[np.nonzero(ours.any(1))[0].max()] if ours.any() else None
+            zd = zrow[np.nonzero(drawn.any(1))[0].max()] if drawn.any() else None
+            lows[side] = [None if zo is None else round(float(zo), 4), None if zd is None else round(float(zd), 4)]
+            if zo is not None and zd is not None:
+                d.append(zo - zd)
+        if d:
+            worst = max(d, key=abs)
+            C['hair_fringe_low'] = {'value': round(float(worst), 4), 'ours_drawn_L': lows, 'status': 'PASS' if abs(worst) <=
+                                    HAIR_FRINGE[0] else 'WARN' if abs(worst) <= HAIR_FRINGE[1] else 'FAIL'}
+            # ours: the fringe's lowest point less the brows' top in the same columns (INFO: a gap under 0 covers the brow)
+            br = [zrow[np.nonzero((lab[:, np.abs(ucol - sx * ex) < 0.1] == BROW).any(1))[0].min()]
+                  for sx in (-1, 1) if (lab[:, np.abs(ucol - sx * ex) < 0.1] == BROW).any()]
+            if br and all(v[0] is not None for v in lows.values()):
+                C['hair_fringe_gap'] = {'value': round(float(min(v[0] for v in lows.values()) - max(br)), 4),
+                                        'status': 'INFO'}
+    # penetration: hair vertices behind the planes of the nearest skin triangles (by centroid), raw geometry (no outline)
+    from scipy.spatial import cKDTree
+    Vs, Ts = sk.mesh('eval')[:2]
+    fn = np.cross(Vs[Ts[:, 1]] - Vs[Ts[:, 0]], Vs[Ts[:, 2]] - Vs[Ts[:, 0]])
+    fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-18
+    cen = Vs[Ts].mean(1)
+    tree = cKDTree(cen)
+    deepest, where, inside = 0.0, None, 0
+    for name, (_, raw) in hair.items():
+        V, T = raw
+        dd, j = tree.query(V, 4)
+        near = dd[:, 0] < 0.05 * L
+        # the median over the four nearest triangles' planes: a thin feature (an ear) can put one plane on its far side
+        sd = np.median(np.einsum('ikj,ikj->ik', V[near][:, None] - cen[j[near]], fn[j[near]]), axis=1) / L
+        if len(sd):
+            inside += int((sd < -HAIR_PENETRATION[0]).sum())
+            if -sd.min() > deepest:
+                deepest, where = float(-sd.min()), name
+    C['hair_penetration'] = {'value': round(deepest, 4), 'piece': where, 'vertices': inside, 'status': 'PASS' if deepest <=
+                             HAIR_PENETRATION[0] else 'WARN' if deepest <= HAIR_PENETRATION[1] else 'FAIL'}
+    # folds: the builder's own count (it knows each face's surface: charkit.geom.hairpieces.folds) when its report is
+    # there, else the sharp dihedrals
+    rep_p = hair_pieces_report(B, design)
+    if rep_p is not None:
+        folds = {n: r.get('folds', 0) for n, r in rep_p['report']['pieces'].items()}
+    else:
+        folds = {name: _fold_edges(*raw) for name, (_, raw) in hair.items()}
+    nf = sum(folds.values())
+    C['hair_folds'] = {'value': nf, 'per_piece': folds, 'source': 'builder' if rep_p is not None else 'dihedral',
+                       'status': 'PASS' if nf <= HAIR_FOLDS[0] else 'WARN' if nf <= HAIR_FOLDS[1] else 'FAIL'}
+    table['pieces'] = sorted(hair)
+    if out:
+        pal = np.array([[1, 1, 1], [.85, .2, .2], [1, .8, .2], [.55, .3, .9], [1, .5, .7], [.2, .4, 1], [.1, .8, .7],
+                        [.5, .9, .1]])
+        pics = []
+        for v in ('front', 'profile', 'back'):
+            if v not in labels:
+                continue
+            lab = labels[v][1]
+            ours = np.zeros(lab.shape, int)
+            drawn = np.zeros(lab.shape, int)
+            for f, k in fam_k.items():
+                ours[lab == k] = k
+                m = masks.get('%s__%s' % (v, f))
+                if m is not None and m.shape == lab.shape:
+                    drawn[m] = k
+            rows = np.nonzero((ours > 0).any(1) | (drawn > 0).any(1))[0]
+            r0, r1 = (rows.min(), rows.max() + 1) if len(rows) else (0, lab.shape[0])
+            pics.append(np.concatenate([pal[drawn[r0:r1]], np.ones((r1 - r0, 6, 3)), pal[ours[r0:r1]]], 1))
+        if pics:
+            H = max(p.shape[0] for p in pics)
+            _save_rgb(os.path.join(out, 'qa_hair_pieces.png'), np.concatenate(
+                [np.pad(p, ((0, H - p.shape[0]), (0, 12), (0, 0)), constant_values=1.0) for p in pics], 1))
     return table, C
 
 
@@ -1332,18 +1544,33 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
     return np.floor(np.clip(out, 0, 1) * 255 + 0.5) / 255.0
 
 
+def _to_shape(m, shape):
+    """a boolean image at another resolution (nearest): a z-buffer's labels onto a drawn (filtered) picture's grid."""
+    if m.shape == tuple(shape):
+        return m
+    r = (np.arange(shape[0]) * m.shape[0] // shape[0]); c = (np.arange(shape[1]) * m.shape[1] // shape[1])
+    return m[r][:, c]
+
+
 def hair_noise(B, design=None, out=None):
-    """the hair's shading noise: the hair drawn alone with its own materials from 0, 90 and 180 degrees, each hair
-    pixel's luminance cut into three tones at its 33rd and 66th percentiles, the tone edges per hair pixel."""
+    """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
+    drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
+    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at their
+    33rd and 66th percentiles, the tone edges per visible hair pixel."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
     fr = figure_frame(B, ss=FIG_SS)
     vals, per = [], {}
-    surfs = [x for o in hair for x in surfaces(B, o)]
+    surfs = [x for o in hair for x in surfaces(B, o, outline=False)]
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
     for az in (0, 90, 180):
-        px = draw(B, surfs, az, fr)
-        a = px[..., 3] > 0.5
+        px = draw(B, surfs + occ, az, fr)
+        items = [(s_['V'], s_['T'], np.full(len(s_['T']), 1 if k < len(surfs) else 2), s_['cull'])
+                 for k, s_ in enumerate(surfs + occ)]
+        lab = fr.zbuffer(items, az)[1]
+        a = (px[..., 3] > 0.5) & _to_shape(lab == 1, px.shape[:2])
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
         q = np.digitize(lum, np.percentile(lum[a], [33, 66])) if a.sum() > 50 else np.zeros_like(lum)
         e = (np.abs(np.diff(q, axis=1)) > 0)[:, :] & a[:, 1:] & a[:, :-1]
@@ -1351,7 +1578,8 @@ def hair_noise(B, design=None, out=None):
         vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
         per[az] = round(float(vals[-1]), 4)
         if out and az == 0:
-            _save_rgb(os.path.join(out, 'qa_hair_front.png'), px[..., :3] * px[..., 3:4] + 0.93 * (1 - px[..., 3:4]))
+            pic = np.where(a[..., None], px[..., :3], 0.93)
+            _save_rgb(os.path.join(out, 'qa_hair_front.png'), pic)
     unsupported = sorted({m for o in hair for m in o.materials if m and (B.materials.get(m) or {}).get('kind') == 'other'})
     v = float(np.mean(vals))
     C = {'hair_noise': {'value': round(v, 4), 'per_view': per, 'status': _grade('hair_noise', v, False)}}
@@ -1462,9 +1690,48 @@ def mesh_info(B, design=None, out=None):
 
 
 # ------------------------------------------------------------------------------------------------------------------ run
+def mouth_cover(B, ppl=200.0, shapes=None):
+    """how much of each open mouth shows its inside: the lips' loop under the shape's key, seen head-on (exprqa's class
+    render at ppl), and the share of what it encloses that is the mouth's inside, tongue, teeth or lip line; skin there
+    is the lips' rings lapped over the opening, nothing a hole through the head. -> {shape: dict(cover, skin, none, px,
+    cls)} for the shapes open by 20 px or more."""
+    from matplotlib.path import Path
+    from . import exprqa
+    data = expression_data(B)
+    A = assembly(B, 'base')
+    L, win = A['head']['L'], exprqa.WIN
+    V = np.asarray(A['verts'], float)
+    m = A['mouth']['m']
+    loop = list(m['upper']) + list(m['lower'])[::-1][1:-1]
+    out = {}
+    for name in shapes or [k for k in A['mouth']['keys']]:
+        cls = exprqa.render(data, {'mouth': name}, ppl)
+        xz = (V + A['mouth']['keys'][name])[loop][:, [0, 2]]
+        col = xz[:, 0] / L * ppl + win['x'] * ppl
+        row = (win['top'] - (xz[:, 1] - data['eye_z']) / L) * ppl
+        H, W = cls.shape
+        yy, xx = np.mgrid[0:H, 0:W]
+        inside = Path(np.stack([col, row], 1)).contains_points(
+            np.stack([xx.ravel() + 0.5, yy.ravel() + 0.5], 1)).reshape(H, W)
+        n = int(inside.sum())
+        if n < 20:
+            continue
+        c = cls[inside]
+        out[name] = dict(cover=round(float(np.isin(c, COVER).mean()), 3), skin=round(float((c == 1).mean()), 3),
+                         none=round(float((c == 0).mean()), 3), px=n, cls=cls)
+    return out
+
+
 def face_part(B, design=None, out=None):
-    """the face's expressions and mouth shapes (face()) as a part."""
-    return face(B)
+    """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover)."""
+    table, C = face(B)
+    mc = mouth_cover(B)
+    if mc:
+        k = min(mc, key=lambda s: mc[s]['cover'])
+        C['mouth_cover'] = {'value': mc[k]['cover'], 'worst': k, 'skin': mc[k]['skin'], 'none': mc[k]['none'],
+                            'status': _grade('mouth_cover', mc[k]['cover'])}
+        table['mouth_cover'] = {s: {k_: v for k_, v in r.items() if k_ != 'cls'} for s, r in mc.items()}
+    return table, C
 
 
 PARTS = [                       # (part, function, check prefix, table key)
@@ -1473,6 +1740,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('eyes', eyes, 'eye_', 'eyes'), ('sheet', sheet, 'sheet_', 'sheet'),
     ('sheet_figures', sheet_figures, 'figures_', 'sheet_figures'), ('sheet_body', sheet_body, 'body_', 'sheet_body'),
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
+    ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
 ]
