@@ -223,7 +223,7 @@ def mouth_labels(V, rings, cavity_start, extra_outer=None):
     for v in list(outer) + lips:
         side[v] = 'c' if v in (lips[left], lips[right]) else ('u' if V[v, 2] >= mz else 'l')
     return dict(corners=[lips[left], lips[right]], upper=upper, lower=lower, cavity=cavity, cavity_src=src,
-                outer=outer, side=side)
+                outer=outer, side=side, loops=[list(r) for r in rings])
 
 
 class CodeBase:
@@ -284,13 +284,46 @@ def eye_outline(spec, n=32):
     return np.stack([P[:, 0], P[:, 1] + EK['z']], 1)
 
 
-def head_mesh(S, C, cut, eye_outline=None):
+MOUTH_GAP = 0.03             # L past the lips' widest and tallest reach to the mouth block's edge (room for its rings)
+MOUTH_RINGS = 3
+MOUTH_BELOW = 0.09           # L the mouth block reaches under the mouth's centre (the lower lip's drop is the jaw's)
+
+
+MOUTH_LENS = 0.012           # L: the lip loop's half-opening in the cage (the neutral line's own, opened a little for its
+                             # rings; charkit/mouth.py closes it onto the line)
+
+
+def mouth_block(spec):
+    """the mouth's cage block and lip loop for the spec's mouth: (half-width, above, below) in L round the mouth's centre,
+    holding every shape's corners and upper lip (charkit.mouth.SHAPES; the lower lip's drop is the jaw's) with MOUTH_GAP;
+    and the lip loop: the neutral mouth's own lines (its smile), opened MOUTH_LENS at the middle and meeting at the corners,
+    so placing the neutral mouth barely moves it -> (block, loop (K, 2) in L round the mouth's centre)."""
+    from charkit import mouth as mouthlib
+    K = mouthlib._knobs(spec.get('mouth'))
+    t = np.linspace(0, 1, 101)
+    hw, top = 0.0, 0.0
+    for sh in mouthlib.SHAPES:
+        up, _ = mouthlib.curves(K, 1.0, sh)
+        x, z = up(t)
+        hw, top = max(hw, float(np.abs(x).max())), max(top, float(z.max()))
+    up, lo = mouthlib.curves(K, 1.0, 'neutral')
+    s = np.linspace(0, 1, 33)
+    xu, zu = up(s)
+    xl, zl = lo(s[::-1])
+    bulge = MOUTH_LENS * np.sin(np.pi * s) ** 0.8
+    loop = np.concatenate([np.stack([xu, zu + bulge], 1), np.stack([xl, zl - bulge[::-1]], 1)[1:-1]])
+    return (hw + MOUTH_GAP, max(0.045, top + MOUTH_GAP), MOUTH_BELOW), loop
+
+
+def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     """the authored head's mesh on its sections (L, eye frame): the cage with the eyes and the mouth open, each eye's
     socket and the mouth's cavity added (their positions a first guess: charkit/eyes.py and charkit/mouth.py place them),
     the labels -> dict(V, faces (lists), eyes {side: labels}, mouth labels, neck (the bottom ring, ordered round),
-    groups per face). eye_outline: the lid loop's outline (eye_outline()), else the cage's default almond."""
+    groups per face). eye_outline: the lid loop's outline (eye_outline()), else the cage's default almond. mouth:
+    mouth_block()'s (block, lip loop), else the cage's default mouth."""
     from charkit.geom import headgeom
-    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline)
+    kw = dict(mouth_block=mouth[0], mouth_outline=mouth[1], rings=(3, MOUTH_RINGS)) if mouth else {}
+    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline, **kw)
     V = list(Cg.V)
     faces = [list(f) for f in Cg.F]
     groups = [Cg.groups[g] for g in Cg.group]
@@ -476,7 +509,7 @@ def wrap(spec, body=None, log=print):
     Ox = nc[0]
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r)
-    Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec))
+    Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec), mouth_block(spec))
     Vh = np.array([Ox, Oy, Oz]) + L * Hmesh['V']
     # assemble: the kept body, the head, the zip
     used = sorted({v for f in Fk for v in f})
@@ -550,6 +583,7 @@ def wrap(spec, body=None, log=print):
     mouth = dict(corners=[v + nbv for v in M_['corners']], upper=[v + nbv for v in M_['upper']],
                  lower=[v + nbv for v in M_['lower']], cavity=off(M_['cavity']),
                  cavity_src={int(k) + nbv: (a + nbv, p, d) for k, (a, p, d) in M_['cavity_src'].items()},
+                 loops=[[v + nbv for v in r] for r in M_['loops']],
                  outer=off(M_['outer']), side=off(M_['side']))
     base = CodeBase(eyes, mouth)
     # the head's frame for H: origin at the eye line on the head's axis (the section's centre there)

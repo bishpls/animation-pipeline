@@ -100,8 +100,8 @@ def assemble(spec, keys=True, cache=None):
         lips_b = (B['base_body'] * lw8[:, None]).sum(0) / lw8.sum()
         Mo = dict(m=_kept(cache, ('mouth', bkey), lambda: mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw)),
                   c=(0.0, centre[2] + H.mouth_z))
-    V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'])
-    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'))
+    V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'], faces=B['faces'])
+    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'])
                   for sh in mouthlib.SHAPES if sh != 'neutral'} if keys else {}
     Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'])
     Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'])
