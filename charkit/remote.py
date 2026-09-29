@@ -9,16 +9,19 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
                                                          report fetched into charkit/out/gate (SPEC a path on the box)
     python -m charkit remote run CMD...                  anything, in the synced copy
     python -m charkit remote up | status | stop
+    python -m charkit remote --box render build SPEC --boards views,body ...   # the GPU box (infra/gcp/render.env): boards render
 """
 import json, os, re, shlex, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_SH = os.path.join(ROOT, 'infra', 'gcp', 'build.sh')
+BOX = {'env': os.path.join(ROOT, 'infra', 'gcp', 'build.env')}   # which box: --box NAME reads infra/gcp/NAME.env
 BOX_SLOTS = 8                     # concurrent builds on the box (32 vCPU, 128 GB)
 
 
 def _sh(*args, check=True, capture=False):
-    r = subprocess.run([BUILD_SH, *args], check=check, text=True, capture_output=capture)
+    r = subprocess.run([BUILD_SH, *args], check=check, text=True, capture_output=capture,
+                       env=dict(os.environ, CHARKIT_BOX_ENV=BOX['env']))
     return r.stdout if capture else r.returncode
 
 
@@ -45,14 +48,41 @@ def _opt(args, k, d=None):
 
 
 def up():
+    """the box started if stopped, and kept awake: its idle stop honours /srv/work/.keepalive for two hours (a long upload
+    to the box otherwise looks idle there, and the box stopped under a seed's transfer)."""
     _sh('up')
+    _sh('ssh', 'touch /srv/work/.keepalive', check=False)
+
+
+def seed():
+    """a box with no copy of any worktree yet (the render box's first sync) gets this one through the bucket: a tarball
+    of its tracked files and charkit/out/i3d, rather than ~0.8 GB through the IAP tunnel; rsync then sends what differs."""
+    name = os.path.basename(ROOT)
+    have = _sh('ssh', 'ls -d /srv/work/*/charkit 2>/dev/null | head -1; true', capture=True, check=False).strip()
+    if have:
+        return
+    import tarfile, tempfile
+    tmp = os.path.join(tempfile.mkdtemp(), 'seed-%s.tar' % name)
+    files = subprocess.run(['git', '-C', ROOT, 'ls-files'], capture_output=True, text=True, check=True).stdout.split()
+    with tarfile.open(tmp, 'w') as tf:
+        for f in files:
+            if os.path.isfile(os.path.join(ROOT, f)):
+                tf.add(os.path.join(ROOT, f), arcname=f)
+        i3d = os.path.join(ROOT, 'charkit', 'out', 'i3d')
+        if os.path.isdir(i3d):
+            tf.add(i3d, arcname='charkit/out/i3d')
+    put(tmp, '/srv/work/.seed.tar')
+    _sh('ssh', 'mkdir -p /srv/work/%s && tar -xf /srv/work/.seed.tar -C /srv/work/%s && rm -f /srv/work/.seed.tar'
+        % (name, name))
+    os.remove(tmp)
 
 
 def charkit(cmd):
     """a charkit command in the box's copy of this worktree (synced first)."""
     up()
+    seed()
     _sh('sync', ROOT)
-    line = 'python -m charkit slots %d >/dev/null && python -m charkit %s' % (BOX_SLOTS, ' '.join(shlex.quote(c) for c in cmd))
+    line = 'python -m charkit slots %d >/dev/null && python -m charkit %s' % (_slots(), ' '.join(shlex.quote(c) for c in cmd))
     return _sh('run', ROOT, line, check=False)
 
 
@@ -107,7 +137,7 @@ def gate(args):
             '{ [ ! -f %(b)s ] || git fetch -q -f %(b)s "refs/heads/*:refs/heads/*" --update-head-ok; } && '
             '%(refs)s && git checkout -q -f %(into)s && rm -f %(b)s && '
             'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s%(more)s'
-            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=BOX_SLOTS,
+            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=_slots(),
                    more=''.join(' %s %s' % (k, shlex.quote(_opt(args, k))) for k in ('--spec', '--args') if k in args)))
     # over plain ssh with the box's environment: `run` would first cd into this worktree's synced copy, which a worktree
     # that has only ever gated doesn't have
@@ -115,7 +145,7 @@ def gate(args):
     _sh('ssh', 'mkdir -p /srv/work/_gate && cp -r /srv/work/repo/charkit/out/gate/. /srv/work/_gate/ 2>/dev/null; true')
     local = os.path.join(ROOT, 'charkit', 'out', 'gate')
     os.makedirs(local, exist_ok=True)
-    subprocess.run(['rsync', '-az', '-e', 'ssh -F %s' % os.path.expanduser('~/.ssh/anim-build.config'),
+    subprocess.run(['rsync', '-az', '-e', 'ssh -F %s' % os.path.expanduser('~/.ssh/charkit-%s.config' % _box_name()),
                     '%s:/srv/work/_gate/' % _box_name(), local + '/'], check=False)
     print('remote gate: exit %d, reports in %s' % (code, local))
     return code
@@ -124,8 +154,14 @@ def gate(args):
 BUCKET_OVER = 100 << 20           # bytes: a bigger file goes through the bucket (the IAP tunnel carries ~2-3 MB/s)
 
 
+def _slots():
+    """the box's build slots: its env file's SLOTS, else BOX_SLOTS (the build box's)."""
+    v = _env('SLOTS')
+    return int(v) if v else BOX_SLOTS
+
+
 def _env(key):
-    for line in open(os.path.join(ROOT, 'infra', 'gcp', 'build.env')):
+    for line in open(BOX['env']):
         if line.startswith(key + '='):
             return line.split('=', 1)[1].split('#')[0].strip()
     return None
@@ -146,6 +182,10 @@ def _box_name():
 
 
 def main(args):
+    if '--box' in args:                     # another box: infra/gcp/NAME.env (render: the GPU box, where boards render)
+        i = args.index('--box')
+        BOX['env'] = os.path.join(ROOT, 'infra', 'gcp', args[i + 1] + '.env')
+        args = args[:i] + args[i + 2:]
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
     cmd, rest = args[0], args[1:]
