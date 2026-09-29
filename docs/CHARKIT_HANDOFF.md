@@ -348,6 +348,11 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        top, which is the hair's orange.
 
      This is a decision for the review; the spec still uses TRELLIS.
+   - **Michael's decisions (2026-09-28, after the hull):**
+     - Order: per-piece carving, then a code-authored anime base fitted to the hull (the head and face structure
+       first), then the drape and spring solvers on the style profiles, then the eyes.
+     - **MakeHuman is retired.** The code-authored base replaces it, and the MakeHuman-derived anime base is dropped.
+       Skeleton and weights come from our own rig code or are transferred once.
    - Next:
      - per-class and per-piece carving (hair from the views' hair class, the pieces from the outfit graph's per-view
        masks) fixes the hair length and the arm/sleeve depth;
