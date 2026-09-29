@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # The CPU build box, from the laptop (config: infra/gcp/build.env; SSH and rsync go through IAP, the box has no external IP).
+# CHARKIT_BOX_ENV names another box's config (infra/gcp/render.env: the GPU box, where boards render); the commands are
+# the same.
 #   infra/gcp/build.sh up                        start it if stopped and wait until the boot script is done
 #   infra/gcp/build.sh ssh [cmd...]              a shell, or one command
 #   infra/gcp/build.sh sync WORKTREE             rsync a worktree's code and inputs to /srv/work/<its name> (only changes)
@@ -8,9 +10,9 @@
 #   infra/gcp/build.sh push LOCAL [REMOTE]       rsync a file or directory to the box (default /srv/work/)
 #   infra/gcp/build.sh status | stop             it also stops itself after IDLE_MINUTES idle
 set -euo pipefail
-HERE=$(cd "$(dirname "$0")" && pwd); source "$HERE/build.env"
+HERE=$(cd "$(dirname "$0")" && pwd); source "${CHARKIT_BOX_ENV:-$HERE/build.env}"
 G="gcloud --project=$PROJECT"; Z="--zone=$ZONE"
-CFG="$HOME/.ssh/anim-build.config"
+CFG="$HOME/.ssh/charkit-$VM.config"
 config() {  # an ssh config whose ProxyCommand opens the IAP tunnel, so plain ssh and rsync work
   local user; user=$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null)
   mkdir -p "$HOME/.ssh"
@@ -19,7 +21,7 @@ Host $VM
   User $user
   IdentityFile ~/.ssh/google_compute_engine
   StrictHostKeyChecking no
-  UserKnownHostsFile ~/.ssh/anim-build.known_hosts
+  UserKnownHostsFile ~/.ssh/charkit-$VM.known_hosts
   ServerAliveInterval 30
   ProxyCommand gcloud compute start-iap-tunnel $VM 22 --listen-on-stdin --project=$PROJECT --zone=$ZONE --verbosity=warning
 EOC
@@ -29,7 +31,8 @@ name() { basename "$(cd "$1" && pwd)"; }
 case "${1:-status}" in
   status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
   up)
-    [ "$($G compute instances describe "$VM" $Z --format='value(status)')" = RUNNING ] || $G compute instances start "$VM" $Z
+    source "$HERE/gpu-start.sh"
+    box_start || { rc=$?; [ $rc = 2 ] && echo "no capacity in $ZONE for any shape (a stockout, not a fault): retry in a few minutes" >&2; exit $rc; }
     [ -f "$HOME/.ssh/google_compute_engine" ] || $G compute ssh "$VM" $Z --tunnel-through-iap --command=true
     config
     for _ in $(seq 1 60); do

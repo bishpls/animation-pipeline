@@ -583,6 +583,21 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
    5. **Generated-view consistency** for single-image input.
    6. **Hair as components:** ponytails, twintails, buns and locks, each rigged with its own physics.
 
+**Motion-phase research (2026-09-29).**
+- **UniMate** (github.com/Friedrich-M/UniMate): skip it as a tool.
+  - It's a text-to-motion model for any skeleton, giving 2 s clips. It has no physics, cloth, spring bones or
+    collision handling, which are our motion problems.
+  - Its code is MIT, but its weights aren't cleared for commercial use: part of the training data is Mixamo, and
+    Adobe's terms forbid using it to train AI. One dependency also has no licence.
+- **Borrowed from UniMate** for motion QA:
+  - normalise each pose (facing, grounding, scale) before the checks run;
+  - add a foot-sliding check.
+- **Candidates for the motion phase:**
+  - **NVIDIA Kimodo:** humanoid motion from text plus keyframe constraints. The code is Apache-2.0, and its non-SMPL
+    weights allow commercial use. It fits on the L4.
+  - **Newton on NVIDIA Warp:** GPU cloth simulation driven from Python, Apache-2.0.
+  - **Spring bones:** a numpy port of pixiv three-vrm's reference VRMC_springBone implementation (MIT).
+
 ## Functionality buildout (after the checkpoint review)
 
 The plan's sequencing had four phases, each ending at a gate:
@@ -816,7 +831,12 @@ sessions share its 16 GB.
 - **Machine:**
   - The Mac has 16 GB, shared with other sessions. One Clawd build peaks at 2.2 GB of Blender. Build on the build box
     (`charkit remote ...`, above) and keep the laptop at `charkit slots 1`.
-  - Run at most about 3 agents at once.
+  - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
+    machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
+    --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
+    build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
+    hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
+    provisioning changes that need Michael's approval first.
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
   - Create worktrees with `tools/worktree.sh` (sparse).
