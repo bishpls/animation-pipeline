@@ -165,3 +165,50 @@ Gates, round 2:
   Two checks got worse: body_three_quarter_hem (PASS → WARN, the panels) and poke_share (WARN → FAIL, the wrist cuffs).
   Nineteen checks improved a grade (`charkit/out/gate/gate_tool-body_51c0733_into_35525d1.md`). The gate lists
   body_front_skirt_width WARN → FAIL as "remeasured", but the panels caused it.
+
+## Round 3 (2026-09-29): flaps over the skirt, boots, cuffs, the new checks
+
+**The overskirt panels are flaps over the skirt** (Michael's call: separate pieces with their own physics).
+- `flap()` (a `panel` with `source: flap`):
+  - It lies on the built skirt from its waist (under the band) to its hem, 0.03 L plus its thickness off the pleats'
+    crests.
+  - Below the hem it carries on as a longer section of the skirt's cone. Each column continues the skirt's slope,
+    tilted out and toward the centre back, and runs longer at the back edge. That gives a stepped diagonal in front
+    and a train in profile.
+  - Six bones run along its middle column (`overskirt_panel_L_0` … `_5`, the first from the waist to the hem with
+    parent `hips`), weighted by arc length.
+  - The tails stay 0.44 L from the legs.
+- Fitted in the evaluator to the drawn panels in all four views, weighted equally: az 135°, width 0.8 L at the hem,
+  narrow 0.1, length 0.4 L, train 1.0, out −0.4, sweep 0.3. The flap's pixels on the drawn skirt are left out, since
+  the drawing can't separate them.
+- Per view (L / R): front 0.58 / 0.57, back 0.43 / 0.48, profile 0.14.
+- **Three-quarter stays weak (0.16 / 0.23).** From that camera the drawn tails show broadly beside the legs, while
+  ours lie behind the skirt and legs. The views don't agree on one sheet shape. Next: let the tail twist outward
+  (a flag's roll) and refit.
+- The outfit graph now has the panels over the skirt, from the notes (`apply_notes`, also run by
+  `python -m charkit outfit relayer`). Each spring chain names its bones.
+- The piece checks leave out same-coloured layers: where a piece lies over another of its colour, those pixels count
+  for neither (`px_same_colour`).
+
+**The skirt as an A-line:** `aline` stops a column's radius narrowing toward the hem. A visual hull rounds the hem's
+corners in, so the skirt read as a bubble. Front A-line FAIL → PASS. Three-quarter is still −0.22 FAIL: all its
+rows have a hand against them, and at the hem the drawn tails widen the design's rows while ours are hidden.
+
+**Boots** (`shoe_hull`):
+- Each foot keeps 0.03 L off the midline. The hull had closed the gap between the feet at the sole.
+- The top 0.12 L eases from the shaft's radius (the leg's skin plus the shell's offset) into the hull's section. The
+  outline had stepped at the seam.
+- Evaluator: leg gap 0 (round 2's box build: 0.108 / 0.127 L FAIL), boot steps ≤ 0.005 L, boots 0.86 / 0.89.
+
+**Cuffs** (`band_hull`):
+- They clear the skin by 0.006 L plus their thickness, taking the outermost skin point per cell (the thumb's base).
+- Sections are drawn 0.3 of the way to their fitted ellipse, and the ends roll in.
+- Wrist-cuff pokes 415 / 417 → 0 / 0 (evaluator).
+
+**Loft robustness:** when no row reaches `min_row`, the best-covered rows stand in, with a warning. The garment
+carries `charkit_coverage`, and QA reports `garment_coverage` (INFO).
+
+**New checks** (registered in `history.STEPS`): `body_*_leg_gap`, `body_*_boot_step_{L,R}`, `body_*_skirt_aline`,
+`body_profile_chest`, `body_*_waist_skin`, `piece_*_extent`, `piece_*_hang`, `garment_coverage`.
+- `boot_step` compares against the design's cleaner side, because the drawing's shading splits one side's white.
+- The skirt width's fallback now measures on the design's free rows.

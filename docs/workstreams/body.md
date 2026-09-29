@@ -190,3 +190,11 @@ Next:
   hidden the bow behind the top.
 - The chest's profile under the bow (−0.70..−0.80 L) now meets the design's within 0.01 L; see garments.md.
 - Owned elsewhere from 849b9a7: the torso's top rows (the neck join) belong to tool/face.
+
+## Round 3 (2026-09-29)
+
+- `body_profile_chest` measures the chest's front edge in profile: round 2 is 0.036 L behind (WARN; the checkpoint
+  was 0.049). What remains is the bow's very top and bottom rows.
+- `body_*_waist_skin` catches the checkpoint's bare waist (0.09 FAIL); round 2 and later read 0.
+- The hull and outfit under `charkit/out` were hard-linked with other worktrees until 18:08. They're private now,
+  rebuilt here from this worktree's code (18:18).
