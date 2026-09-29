@@ -22,7 +22,7 @@
   "normals": "envelope",
   "shade_close": 0.5,
   "shade_blur": 0.45,
-  "relief": 0.015,
+  "relief": 0.008,
   "lock_shading": 0.2
  }
 }

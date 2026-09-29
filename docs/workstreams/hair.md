@@ -112,7 +112,7 @@ What changed:
 | `hairpieces.drawn_tips`, `fine_tips` | The drawn lower edge at any phi. With `fine_tips` (default `('bangs',)`), a lock's edge is the drawing's at its own 1.5 degree columns (median of 3). |
 | `hairpieces.clamp_to_view`, `skin_front` | Opt-in (`clamp_side_locks`). It holds the side locks behind the drawn profile's front edge, as a shear per height, and never behind the cheek the front view draws them over. It is off because moving a built lock folds it. The first renders crumpled at the cheeks: 150-200 outer folds per side lock, per vertex; 40-130 sheared. The builder counted its folds before the clamp, so the QA missed them (they are now counted after it). |
 | `hairpieces.crown_cap` | The cap's inner face clears the skin, as a lock's does. It was the upper back's penetration. |
-| `lock_shell` relief, `shade_normals` lock_shading | Each lock gets a ridge across it (`relief` L), with grooves between locks. Its shading blends in the lock's outer normal, smoothed within the lock `lock_shading_smooth` times (`lock_shading`). Anime: 0.015 L and 0.2. The raw facets at 0.35 put the p95 angle between adjacent shading normals at 30 degrees. Smoothed at 0.2 it is 3-7 degrees (the envelope alone gives 3), and it adds under 0.002 to hair_noise. The anime notch is now 3 (was 7), because the drawn edge already carries the notches. |
+| `lock_shell` relief, `shade_normals` lock_shading | Each lock gets a ridge across it (`relief` L), with grooves between locks. Its shading blends in the lock's outer normal, smoothed within the lock `lock_shading_smooth` times (`lock_shading`). The relief fades out again over the lock's last 30%: out along the chart's radius, a hanging tip dipped into the shoulders. On the default spec that gave the lower back 0.004 L of penetration, 1 vertex, the gate's one regression. Anime: relief 0.008 L and lock_shading 0.2. The raw facets at 0.35 put the p95 angle between adjacent shading normals at 30 degrees. Smoothed at 0.2 it is 3-7 degrees (the envelope alone gives 3), and it adds under 0.002 to hair_noise. The anime notch is now 3 (was 7), because the drawn edge already carries the notches. |
 | `qa3d` | Added `hair_bun_outline` (outline agreement at 0.012 L, graded 0.7 / 0.5), `hair_bun_corners` (INFO, ours against drawn) and `hair_tips_front`/`_back` (INFO, the lock tips along the lower edge). |
 | `hairlab` | The measurement loop above, as a command. `--labels PNG` draws the QA scene's family labels per view with the drawn outlines. `--noise` gives hair_noise's measure for the rebuilt pieces, drawn as the build's hair objects with the pieces' meshes and shading normals. |
 | `hairpage` | A renders section: the design's turnaround figures beside the before and after boards, with close-ups of the top (buns, fringe, locks). With `--against`, the hair pieces' checks are remeasured on both builds by the current QA. |
@@ -124,17 +124,17 @@ eye_anchor=iris` with the new defaults:
 
 | Check | Before | After | Step that moved it |
 |---|---|---|---|
-| hair_piece_bangs | 0.611 | 0.760 | carve (+0.13), iris anchor (+0.04) |
-| hair_piece_buns | 0.687 | 0.829 | carve, block fit with its slab |
-| hair_bun_outline (0.012 L) | 0.212 FAIL | 0.385 FAIL | block fit |
+| hair_piece_bangs | 0.611 | 0.757 | carve (+0.13), iris anchor (+0.04) |
+| hair_piece_buns | 0.687 | 0.831 | carve, block fit with its slab |
+| hair_bun_outline (0.012 L) | 0.212 FAIL | 0.400 FAIL | block fit |
 | hair_bun_corners (ours / drawn) | 20 / 35 | 17 / 35 | the round buns' lumps counted as corners; the bevels round ours off |
-| hair_piece_side_locks | 0.505 | 0.530 | iris anchor (the clamp's 0.557 is off, see above) |
-| hair_piece_upper_back / lower_back | 0.780 / 0.692 | 0.778 / 0.726 | notch 3, iris anchor |
+| hair_piece_side_locks | 0.505 | 0.537 | iris anchor (the clamp's 0.557 is off, see above) |
+| hair_piece_upper_back / lower_back | 0.780 / 0.692 | 0.780 / 0.723 | notch 3, iris anchor |
 | hair_fringe_low (L, + short) | 0.014 | 0.009 | fine tips (the iris anchor alone made it 0.038) |
 | hair_tips front / back (drawn 4 / 8) | 4 / 4 | 4 / 4 | |
 | hair_penetration (L) | 0.038 | 0.015 (2 vertices) | crown cap |
-| face shown / design: front, 3/4, profile | 1.12, 1.02, 0.53 | 1.12, 1.03, 0.61 | iris anchor (the clamp reached 0.82 in profile) |
-| hair_noise (`hairlab --noise`) | 0.046 | 0.070 | the block buns (round: 0.047), see below |
+| face shown / design: front, 3/4, profile | 1.12, 1.02, 0.53 | 1.12, 1.04, 0.63 | iris anchor (the clamp reached 0.82 in profile) |
+| hair_noise (`hairlab --noise`) | 0.046 | 0.068 | the block buns (round: 0.047), see below |
 
 Ablations with `hairlab` were the evidence for each default:
 - **Round buns.** With the carve they score 0.772 IoU and 0.303 outline; the fitted block scores 0.829 and 0.385.
@@ -149,10 +149,10 @@ Ablations with `hairlab` were the evidence for each default:
 
 ## Left
 
-- **Side locks: face shown in profile** is 0.61 of the design's (IoU 0.53, WARN). The hull fills the gap between lock
+- **Side locks: face shown in profile** is 0.63 of the design's (IoU 0.54, WARN). The hull fills the gap between lock
   and cheek. Pushing built locks back folds them (above), so the profile constraint has to go into the chart's
   envelope before lofting, from the drawn profile edge per row. The drawn locks also curl in at the chin.
-- **Buns** outline 0.385 at 0.012 L (FAIL against 0.7), IoU 0.83. The drawn bun has two loops with a visible step
+- **Buns** outline 0.40 at 0.012 L (FAIL against 0.7), IoU 0.83. The drawn bun has two loops with a visible step
   between them. Ours is a block plus a slab, so the next template would be real loop geometry: a ribbon swept around
   the knot. Corners are 17 against the drawn 35, because our bevels round them off.
 - **hair_penetration** 0.015 L (2 vertices, the upper back near the pole): the chart's coarse skin sampling at the pole.

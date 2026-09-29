@@ -579,7 +579,9 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
         if relief > 0 and ph1 > ph0:
             u = (ph - ph0) / (ph1 - ph0)
             grow = np.clip((th - top[k]) / max(1e-6, 0.3 * (tip[k] - top[k])), 0, 1)   # from the crown, where locks merge
-            Ro = Ro + relief * np.sin(np.pi * u) ** 0.6 * grow
+            # and gone again by the tip: out along the chart's radius a hanging tip would dip into the shoulders
+            fade = np.clip((tip[k] - th) / max(1e-6, 0.3 * (tip[k] - top[k])), 0, 1)
+            Ro = Ro + relief * np.sin(np.pi * u) ** 0.6 * grow * fade
         Ri = np.minimum(np.interp(th, gth, Rig[k]), Ro - tt)
         Po, Pi = ch.point(phk, th, Ro), ch.point(phk, th, Ri)
         d = np.gradient(Po, axis=0) if len(th) > 1 else np.zeros_like(Po)
