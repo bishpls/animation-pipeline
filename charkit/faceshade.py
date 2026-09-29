@@ -4,6 +4,13 @@ forehead, a blush, and a per-vertex face mask (rest pose, head space) that blend
 sides and back of the head. Maps live in the 'face' UV (front projection in head space, charkit.character.build).
 
 The light goes in head space through the 'ldir_head' node; set_light() fills it (call per frame when the head turns).
+
+With the style's look.face.normals 'proxy' the head and neck shade on a smooth stand-in's normals (proxy_normals: the
+head's own normals blurred to its large shapes, the neck's round its axis and tilted down under the jaw), carried onto
+the rendered skin after its outline by a Data Transfer from a hidden, rigged copy (as the hair's envelope normals are):
+the toon terminator round the sides of the head and on the neck is one clean shape that moves with the light and never
+follows the eye hollows, cheek bumps or neck bands, the jaw's underside and the neck under it fall into shade as drawn,
+and the face mask is taken from the same normals (no holes at the eye sockets).
 """
 import math
 import numpy as np
@@ -91,10 +98,11 @@ def fringe_shadow(H, centre, bangs, size=512, drop=0.03, soft=1.5):
     return np.clip(_blur(img, soft * size / 512), 0, 1)
 
 
-def face_mask(V, faces, head_w, centre, H):
-    """per vertex (rest pose): 1 on the face (facing forward, between the chin and the hairline), 0 round the sides and back."""
+def face_mask(V, faces, head_w, centre, H, normals=None):
+    """per vertex (rest pose): 1 on the face (facing forward, between the chin and the hairline), 0 round the sides and
+    back. normals: the shading normals to judge facing by (default the mesh's own)."""
     from . import anime_head as ah
-    n = ah.vertex_normals(V, faces)
+    n = ah.vertex_normals(V, faces) if normals is None else normals
     fwd = -n[:, 1]
     q = V - np.asarray(centre)
     L = H.L
@@ -102,6 +110,140 @@ def face_mask(V, faces, head_w, centre, H):
     m *= np.clip((q[:, 2] + H.chin * 1.02) / (0.04 * L), 0, 1) * np.clip((0.30 * L - q[:, 2]) / (0.06 * L), 0, 1)
     m *= np.clip((head_w - 0.3) / 0.4, 0, 1)
     return m
+
+
+def _blur_normals(V, n, sel, sigma, chunk=2048):
+    """the normals of the vertices in sel averaged with their neighbours' by a Gaussian of distance (sigma, m): the
+    surface's large shapes without its small ones (numpy only: Blender's Python has no scipy)."""
+    idx = np.nonzero(sel)[0]
+    P, Nn = V[idx], n[idx]
+    out = n.copy()
+    for a in range(0, len(idx), chunk):
+        d2 = ((P[a:a + chunk, None, :] - P[None, :, :]) ** 2).sum(-1)
+        w = np.exp(-0.5 * d2 / sigma ** 2)
+        m = w @ Nn
+        out[idx[a:a + chunk]] = m / np.maximum(np.linalg.norm(m, axis=1, keepdims=True), 1e-9)
+    return out
+
+
+def proxy_normals(V, faces, head_w, centre, L, chin, neck, blur=0.22, chin_tilt=60.0, tilt_power=0.6):
+    """the skin's shading normals from a smooth stand-in (rest pose, world): over the head and neck (head_w > 0 or above
+    the neck's base) the mesh's normals blurred by a Gaussian of `blur` L (the eye hollows, cheek and lip bumps and the
+    neck's folds gone, the head's turn kept); on the neck (within 1.25 times its radius of its axis: the jaw and chin
+    stand out past it) turned round its axis and tilted down by
+    up to chin_tilt degrees under the jaw (tapering as (height up the neck)^tilt_power to 0 at its base), so a light
+    from above leaves the neck under the chin in shade, as a drawn neck is. Elsewhere the mesh's own.
+    neck: (base, head) joint positions. -> (normals (N, 3), weight (N,): 0 own .. 1 stand-in, the neck (N,): 0 .. 1)."""
+    from . import anime_head as ah
+    V = np.asarray(V, float)
+    n = ah.vertex_normals(V, faces)
+    c = np.asarray(centre, float)
+    p0, p1 = (np.asarray(x, float) for x in neck)
+    u = (p1 - p0) / np.linalg.norm(p1 - p0)
+    s = (V - p0) @ u / np.linalg.norm(p1 - p0)                   # 0 at the neck's base, 1 at the head joint
+    hw = np.asarray(head_w, float)
+    # the region: the head and neck, fading in over the neck's lower fifth (the shoulders and chest keep their own)
+    w = np.clip((s + 0.1) / 0.3, 0, 1)
+    w = np.maximum(w, np.clip(hw * 3, 0, 1)) * (np.linalg.norm((V - p0) - np.outer((V - p0) @ u, u), axis=1) < 1.2 * L)
+    sm = _blur_normals(V, n, w > 0, blur * L)
+    # the neck: the skin within its own radius of its axis (the jaw and chin stand out past it; the nape joins it),
+    # below the head joint; turned round the axis and tilted down under the jaw
+    z_chin = c[2] - chin
+    s_chin = (np.array([c[0], c[1], z_chin]) - p0) @ u / np.linalg.norm(p1 - p0)
+    rv = (V - p0) - np.outer((V - p0) @ u, u)
+    dist = np.linalg.norm(rv, axis=1)
+    mid = (s > 0.25) & (s < 0.6) & (dist < 0.6 * L)
+    rn = float(np.median(dist[mid])) if mid.sum() > 10 else 0.2 * L
+    r = rv / np.maximum(dist, 1e-9)[:, None]
+    t = np.clip(s / max(s_chin, 1e-6), 0, 1) ** tilt_power
+    tau = np.radians(chin_tilt) * t
+    cyl = np.cos(tau)[:, None] * r - np.sin(tau)[:, None] * u
+    k = (np.clip((1.25 * rn - dist) / (0.15 * rn), 0, 1) * np.clip((1.15 - s) / 0.15, 0, 1)
+         * np.clip((s + 0.1) / 0.3, 0, 1))[:, None]
+    out = sm * (1 - k) + cyl * k
+    out = n * (1 - w[:, None]) + out * w[:, None]
+    return out / np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-9), w, k[:, 0]
+
+
+def neck_weight(V, centre, L, chin, neck):
+    """proxy_normals' neck (the skin within 1.25 times the neck's radius of its axis, below the head joint): 0 .. 1."""
+    V = np.asarray(V, float)
+    p0, p1 = (np.asarray(x, float) for x in neck)
+    u = (p1 - p0) / np.linalg.norm(p1 - p0)
+    s = (V - p0) @ u / np.linalg.norm(p1 - p0)
+    dist = np.linalg.norm((V - p0) - np.outer((V - p0) @ u, u), axis=1)
+    mid = (s > 0.25) & (s < 0.6) & (dist < 0.6 * L)
+    rn = float(np.median(dist[mid])) if mid.sum() > 10 else 0.2 * L
+    return (np.clip((1.25 * rn - dist) / (0.15 * rn), 0, 1) * np.clip((1.15 - s) / 0.15, 0, 1)
+            * np.clip((s + 0.1) / 0.3, 0, 1)), rn
+
+
+def ink(H, V, centre, neck_w, size=512, width=0.0045, reach=0.9, color=(0.42, 0.24, 0.20)):
+    """the drawn lines the outline can't give, in the 'face' UV (RGBA, alpha = coverage): the jaw's lower edge where it
+    crosses the neck (from the front the chin and jaw don't turn away from the camera there, so no hull shows; the
+    drawing inks it). The edge is the lowest point of the head's front (not the neck: neck_w < 0.5) per column, a band
+    `width` L above it, fading out past `reach` of the jaw's half-width (the ears, where the hull draws the jaw).
+    Applied only off the neck (the 'ck_ink_w' attribute), so the front projection doesn't paint the neck behind."""
+    L = H.L
+    q = np.asarray(V, float) - np.asarray(centre, float)
+    x0, x1, z0, z1 = (w * L for w in FACE_WIN)
+    sel = (np.asarray(neck_w) < 0.5) & (q[:, 1] < 0.35 * L) & (q[:, 2] < 0.0) & (q[:, 2] > z0)
+    X, Z = _grid(size, L)
+    xs = X[0]
+    low = np.full(size, np.nan)
+    col = np.clip(((q[sel, 0] - x0) / (x1 - x0) * size).astype(int), 0, size - 1)
+    for c_, z_ in zip(col, q[sel, 2]):
+        if not z_ >= low[c_]:
+            low[c_] = z_
+    ok = np.isfinite(low)
+    if ok.sum() < 10:
+        return np.zeros((size, size, 4))
+    low = np.interp(xs, xs[ok], low[ok])
+    k = np.exp(-0.5 * (np.arange(-6, 7) / 3.0) ** 2); k /= k.sum()
+    low = np.convolve(np.pad(low, 6, mode='edge'), k, mode='valid')
+    hw = np.abs(xs[ok]).max()
+    px = (z1 - z0) / size
+    d = Z - low[None, :]                                            # height above the edge
+    a = np.clip((d + px) / px, 0, 1) * np.clip((width * L - d) / px + 0.5, 0, 1)
+    a *= np.clip((reach * hw - np.abs(X)) / (0.1 * hw), 0, 1)
+    rgb = np.broadcast_to(np.asarray(color, float), (size, size, 3))
+    return np.dstack([rgb, a])
+
+
+def apply_proxy_normals(skin, N, name='skin_normals'):
+    """the stand-in's normals onto the rendered skin: a hidden copy of its base mesh (rigged as it is, without its shape
+    keys) carrying N as custom normals, transferred after the outline (Solidify re-derives corner normals; see
+    charkit.geom.blender.transfer_normals) by interpolation from the nearest face (the skin renders subdivided)."""
+    import bpy
+    me = skin.data.copy()
+    me.name = name
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(ob)
+    if me.shape_keys is not None:
+        ob.shape_key_clear()
+    for vg in skin.vertex_groups:                        # the same groups in the same order: the rig deforms it alike
+        ob.vertex_groups.new(name=vg.name)
+    ob.parent = skin.parent
+    ob.matrix_world = skin.matrix_world.copy()
+    arm = next((m for m in skin.modifiers if m.type == 'ARMATURE'), None)
+    if arm is not None:
+        a2 = ob.modifiers.new('rig', 'ARMATURE'); a2.object = arm.object
+    if hasattr(me, 'use_auto_smooth'):
+        me.use_auto_smooth = True
+    me.polygons.foreach_set('use_smooth', np.ones(len(me.polygons), bool))
+    me.normals_split_custom_set_from_vertices([tuple(v) for v in np.asarray(N, float)])
+    ob.hide_render = True
+    ob.hide_viewport = True
+    dt = skin.modifiers.new('proxy_normals', 'DATA_TRANSFER')
+    dt.object = ob
+    dt.use_loop_data = True
+    dt.data_types_loops = {'CUSTOM_NORMAL'}
+    dt.loop_mapping = 'POLYINTERP_NEAREST'
+    i = next((k for k, m in enumerate(skin.modifiers) if m.name == 'outline'), None)
+    j = len(skin.modifiers) - 1
+    if i is not None and j != i + 1:                     # right after the outline (before the garment mask)
+        skin.modifiers.move(j, i + 1)
+    return ob
 
 
 def material(name, lit, shade_c, deep, maps, rim=(1.0, 0.94, 0.92), soft=0.012, shadow_amt=0.85):
@@ -157,7 +299,17 @@ def material(name, lit, shade_c, deep, maps, rim=(1.0, 0.94, 0.92), soft=0.012, 
     Lk(at.outputs['Fac'], fm.inputs['Factor']); Lk(toon, fm.inputs['A']); Lk(last, fm.inputs['B'])
     for lnk in list(em.inputs['Color'].links):
         nt.links.remove(lnk)
-    Lk(fm.outputs['Result'], em.inputs['Color'])
+    out = fm.outputs['Result']
+    if maps.get('ink') is not None:                     # the drawn lines (ink()), off the neck
+        it = N('ShaderNodeTexImage'); it.image = maps['ink']; it.extension = 'CLIP'; it.name = 'ck_ink'
+        Lk(uvn.outputs[0], it.inputs['Vector'])
+        iw = N('ShaderNodeAttribute'); iw.attribute_name = 'ck_ink_w'; iw.attribute_type = 'GEOMETRY'
+        ia = N('ShaderNodeMath'); ia.operation = 'MULTIPLY'
+        Lk(it.outputs['Alpha'], ia.inputs[0]); Lk(iw.outputs['Fac'], ia.inputs[1])
+        im = N('ShaderNodeMix'); im.data_type = 'RGBA'; im.name = 'ck_ink_mix'
+        Lk(ia.outputs[0], im.inputs['Factor']); Lk(out, im.inputs['A']); Lk(it.outputs['Color'], im.inputs['B'])
+        out = im.outputs['Result']
+    Lk(out, em.inputs['Color'])
     return m
 
 
@@ -173,11 +325,28 @@ def set_light(ldir_world, head_matrix=None):
                 nd.inputs[i].default_value = float(d[i])
 
 
-def apply(C, bangs=None, colors=None, size=512):
-    """give an assembled, built character (charkit.character.build's dict) the face shading on its head faces."""
+def apply(C, bangs=None, colors=None, size=512, look=None):
+    """give an assembled, built character (charkit.character.build's dict) the face shading on its head faces, and with
+    the look's face.normals 'proxy' the stand-in's normals over the head and neck (proxy_normals)."""
     import bpy
     from . import eyetex
     A = C['data']; Hd = A['head']; H = Hd['H']; centre = Hd['centre']
+    fl = (look or {}).get('face') or {}
+    from . import mh
+    J = A['joints']
+    neck = [np.asarray(J[k], float) for k in mh.VRM_JOINTS['neck']]
+    Np = None
+    if fl.get('normals') == 'proxy':
+        Np, _, _ = proxy_normals(A['verts'], A['faces'], A['body']['head_w'], centre, H.L, H.chin, neck,
+                                 blur=fl.get('blur', 0.22), chin_tilt=fl.get('chin_tilt', 60.0),
+                                 tilt_power=fl.get('tilt_power', 0.6))
+    ink_img, ink_w = None, None
+    if fl.get('jaw_line'):
+        nk, _ = neck_weight(A['verts'], centre, H.L, H.chin, neck)
+        ink_w = 1.0 - nk
+        px = ink(H, A['verts'], centre, nk, size, width=fl.get('jaw_width', 0.0045), reach=fl.get('jaw_reach', 0.9),
+                 color=fl.get('ink_color', (0.42, 0.24, 0.20)))
+        ink_img = eyetex.to_blender_image('face_ink', px)
     col = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
     col.update(colors or {})
     thr = sdf(H, size)
@@ -191,10 +360,15 @@ def apply(C, bangs=None, colors=None, size=512):
     fimg.pixels.foreach_set(np.dstack([fr, fr, fr, np.ones_like(fr)])[::-1].astype(np.float32).ravel())
     fimg.pack()
     bl = eyetex.to_blender_image('face_blush', blush(H, size))
-    mat = material('face_skin', col['lit'], col['shade'], col['deep'], dict(sdf=img, fringe=fimg, blush=bl))
+    mat = material('face_skin', col['lit'], col['shade'], col['deep'], dict(sdf=img, fringe=fimg, blush=bl, ink=ink_img))
     skin = C['skin']; me = skin.data
-    fmk = face_mask(A['verts'], A['faces'], A['body']['head_w'], centre, H)
+    fmk = face_mask(A['verts'], A['faces'], A['body']['head_w'], centre, H, normals=Np)
     at = me.color_attributes.new('face_mask', 'FLOAT_COLOR', 'POINT')
     at.data.foreach_set('color', np.repeat(fmk[:, None], 4, 1).astype(np.float32).ravel())
+    if ink_w is not None:
+        at = me.color_attributes.new('ck_ink_w', 'FLOAT_COLOR', 'POINT')
+        at.data.foreach_set('color', np.repeat(ink_w[:, None], 4, 1).astype(np.float32).ravel())
     me.materials[1] = mat
+    if Np is not None:
+        apply_proxy_normals(skin, Np)
     return mat

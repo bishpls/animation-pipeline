@@ -16,9 +16,16 @@
 //           screen-blended; an optional texture multiplied over the result (garments)
 //   face    toon3 blended (by _FACE_MASK) with the SDF face: t = atan2(|l.x|, l.z) / pi of the head-space light, the
 //           threshold map sampled in the 'face' UV (mirrored for light from her right), a +-softness step, the fringe's
-//           shadow, the blush (multiply by its alpha); two tones (lit, shade)
+//           shadow, the blush (multiply by its alpha); two tones (lit, shade); the drawn jaw line (ink, off the neck by
+//           _INK_W) over the result
 //   hair    toon3 plus (analytic hair, 'lock' UV) the angel ring (a band at an elevation above the hair centre, on each
 //           lock's middle, facing the camera, on the lit side), the root-to-tip gradient and drawn strand lines
+//   streaks toon3's `highlight` (the cut hair, charkit.shade.hair_toon): a band at an elevation above the head centre,
+//           each lock (_LOCK) keeping a streak by a hash of its index and shifting it by another, facing the camera, lit
+//   light   the root's light.direction (world), or with light.mode 'camera' a key [deg left of the camera, deg up] that
+//           turns with the camera (ck.update(dt, camera)), as charkit.shade.set_view lights the boards
+//   lines   the root's lines.mode 'screen': every outline frac x the picture's height at the head's distance (times its
+//           region's factor), as charkit.shade.set_view widens them per view; else each mesh's build width
 //   plate   the eye textures (cubic B-spline filtering and CLIP, like Blender's image nodes); flat: one colour
 //   outline an inverted hull per outlined mesh: back faces pushed out along _HULL_NORMAL (or NORMAL) by width x
 //           _OUTLINE_WIDTH (POSITION is already Blender's surface, drawn inward by the same amount)
@@ -43,6 +50,7 @@
     ortho: S.uniform(0),
     camBack: S.uniform(new T.Vector3(0, 0, 1)),                        // toward the camera (orthographic)
     outline: S.uniform(1),                                            // outline width scale (0 hides them)
+    lineScreen: S.uniform(0),                                         // screen lines: frac x the visible height (m), 0 off
     rim: S.uniform(1), sdf: S.uniform(1), ring: S.uniform(1),         // system toggles (1 on)
     time: S.uniform(0),
   };
@@ -102,7 +110,23 @@
       rimF = mapRange(facing(L.rim.facing), L.rim.range[0], L.rim.range[1]).mul(L.rim.amount).mul(sLit).mul(U.rim);
       col = screen(base, v3(L.rim.color), rimF);
     }
+    if (L.highlight && L.highlight.kind === 'streaks') col = streakNodes(L.highlight, col, sLit);
     return { h, sLit, sDeep, col, rimF };
+  }
+
+  // charkit.shade.hair_toon's streaks: fract(sin(i k) 43758.5453) hashes of the lock index pick and shift each streak
+  function streakNodes(Hl, col, sLit) {
+    const rad = Math.PI / 180;
+    const lock = S.attribute('_lock', 'float');
+    const hash = k => S.fract(S.sin(lock.mul(k)).mul(43758.5453));
+    const keep = S.float(1.0).sub(S.step(Hl.keep, hash(12.9898)));            // hash < keep
+    const el0 = S.mix(S.float((Hl.elevation - Hl.jitter) * rad), S.float((Hl.elevation + Hl.jitter) * rad), hash(78.233));
+    const p = S.positionGeometry.sub(v3(Hl.centre));
+    const el = S.atan(p.y, S.length(p.xz));
+    const half = Hl.width / 2 * rad;
+    const band = mapRange(S.abs(el.sub(el0)), half, half * 0.6);
+    const face = mapRange(facing(Hl.facingBlend), Hl.facing[0], Hl.facing[1]);
+    return S.mix(col, v3(Hl.color), band.mul(keep).mul(face).mul(sLit).mul(Hl.amount).mul(U.ring));
   }
 
   function faceNodes(L, tex, toon) {
@@ -129,7 +153,12 @@
       col = S.mix(col, col.mul(b.xyz), b.w);
     }
     const mask = S.attribute('_face_mask', 'float');
-    return { col: S.mix(toon.col, col, mask), sdf, t, mask, sh };
+    let out = S.mix(toon.col, col, mask);
+    if (F.ink) {                                                  // faceshade.ink: drawn lines, off the neck (_INK_W)
+      const k = sample(tex[F.ink.index], F.ink, uvOf(F.ink), F.ink.filter === 'cubic');
+      out = S.mix(out, k.xyz, k.w.mul(S.attribute('_ink_w', 'float')));
+    }
+    return { col: out, sdf, t, mask, sh };
   }
 
   function hairNodes(L, toon, col, hasLock) {
@@ -208,7 +237,9 @@
     m.name = 'ck:outline';
     m.colorNode = v3(M.outline.color);
     const w = attrs.outlineW ? S.attribute('_outline_width', 'float') : S.float(1);
-    m.positionNode = S.positionLocal.add(S.normalLocal.mul(w.mul(M.outline.width).mul(U.outline)));
+    // screen lines (the root's lines.mode 'screen'): U.lineScreen x the region's factor, else the build width
+    const width = S.mix(S.float(M.outline.width), U.lineScreen.mul(M.outline.regionFactor || 1), S.step(1e-9, U.lineScreen));
+    m.positionNode = S.positionLocal.add(S.normalLocal.mul(w.mul(width).mul(U.outline)));
     return m;
   };
 
@@ -298,6 +329,8 @@
         hg.setIndex(g.index); hg.morphAttributes = g.morphAttributes; hg.morphTargetsRelative = g.morphTargetsRelative;
       }
       if (M.outline) {
+        const R = info.root.lines;
+        if (R && R.regions) M.outline.regionFactor = R.regions[M.outline.region] || 1;
         const h = clone(hg, CK.hullMaterial(M, attrs), CK.LAYER.main);
         h.userData.ck = { name, hull: true }; h.renderOrder = -1;
         ck.hulls.push(h); ck.parts[name].hulls.push(h);
@@ -333,7 +366,8 @@
     ck.look = (yaw = 0, pitch = 0) => { ck.gaze = [yaw, pitch]; };
     ck.setVisible = (name, on) => { const p = ck.parts[name]; if (!p) return; p.visible = on; for (const m of [...p.meshes, ...p.hulls, ...p.holdouts]) m.visible = on; };
     // apply the face (expressions, then raw keys on top), and the head-space light
-    ck.update = (dt = 0) => {
+    ck.update = (dt = 0, camera = null) => {
+      if (camera) ck.camera = camera;
       const E = vrm.expressionManager;
       for (const m of ck.meshes) if (m.morphTargetInfluences) m.morphTargetInfluences.fill(0);
       if (E) {
@@ -346,7 +380,25 @@
       vrm.scene.updateMatrixWorld(true);
       ck.updateLight();
     };
+    ck.camera = null;
+    const LT = info.root.light || {}, LN = info.root.lines || {};
+    const cameraLight = cam => {                             // charkit.shade.view_light's camera key, in the glTF frame
+      const t = ck.head().centre, up = new T.Vector3(0, 1, 0);
+      const b = cam.getWorldPosition(new T.Vector3()).sub(t); b.y = 0;
+      if (b.lengthSq() < 1e-12) b.set(0, 0, 1);
+      b.normalize();
+      const r = new T.Vector3().crossVectors(up, b);
+      const a0 = LT.key[0] * Math.PI / 180, el = LT.key[1] * Math.PI / 180;
+      return b.multiplyScalar(Math.cos(a0) * Math.cos(el)).addScaledVector(r, -Math.sin(a0) * Math.cos(el)).addScaledVector(up, Math.sin(el));
+    };
+    const visibleHeight = cam => {                            // at the head's distance (charkit.qa.render_view's target)
+      if (cam.isOrthographicCamera) return (cam.top - cam.bottom) / cam.zoom;
+      const d = cam.getWorldPosition(new T.Vector3()).distanceTo(ck.head().centre);
+      return 2 * d * Math.tan(cam.fov * Math.PI / 360) / (cam.zoom || 1);
+    };
     ck.updateLight = () => {
+      if (LT.mode === 'camera' && LT.key && ck.camera) ck.light.copy(cameraLight(ck.camera)).normalize();
+      U.lineScreen.value = LN.mode === 'screen' && ck.camera ? LN.frac * visibleHeight(ck.camera) : 0;
       U.light.value.copy(ck.light);
       const q = ck.headNode.getWorldQuaternion(new T.Quaternion()).multiply(ck.headRest.clone().invert());
       U.headLight.value.copy(ck.light).applyQuaternion(q.invert());
@@ -418,6 +470,7 @@
       }
       U.ortho.value = cam.isOrthographicCamera ? 1 : 0;
       cam.getWorldDirection(U.camBack.value).negate();
+      if (ck && ck.updateLight) { ck.camera = cam; ck.updateLight(); }   // the view's light and line widths (the look)
       if (ck) ck.updateLight();
       const bg0 = scene.background; scene.background = null;
       r.setScissorTest(false);
