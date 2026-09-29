@@ -24,6 +24,7 @@ DEFAULT_IRIS = {
         (0.10, -0.12, 0.030, 0.030, 0.9),
         (0.02, 0.16, 0.022, 0.018, 0.7),
     ],
+    'converge': 0.0,               # the irises' rest place toward the nose, in eye widths (a drawing's gaze at the viewer)
     'shine_mirror': True,          # u runs outward in each eye, so the shine mirrors (both toward the nose); False: both
                                    # eyes lit from one side, the right eye's shine flipped (shine(K, side=-1))
 }

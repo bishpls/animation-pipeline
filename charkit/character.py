@@ -67,19 +67,21 @@ def assemble(spec, keys=True, cache=None):
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
     gaze = {'look_left': (0.13, 0.0), 'look_right': (-0.13, 0.0), 'look_up': (0.0, 0.07), 'look_down': (0.0, -0.06)}
+    from .eyetex import _knobs as iris_knobs
+    conv = iris_knobs(spec.get('iris'))['converge']
     for E in eyes:
         sd, c = E['side'], E['c']
         W = EK['width'] * L
         E['sclera'] = eyelib.plate(F, EK, L, sd, c)
-        E['iris'] = eyelib.plate(F, EK, L, sd, c, bias=0.0004)
+        E['iris'] = eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(-conv * W, 0.0))     # (eye-local: - is the nose)
         E['lashes'] = eyelib.lashes(F, EK, L, sd, c)
         BK = browlib._knobs(spec.get('brows'))
         E['brow'] = browlib.ribbon(F, BK, EK, L, sd, c)
         E['iris_keys'], E['brow_keys'], E['keys'] = {}, {}, {}
         if not keys:
             continue
-        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W, g[1] * W))[0] - E['iris'][0]
-                          for k, g in gaze.items()}
+        E['iris_keys'] = {k: eyelib.plate(F, EK, L, sd, c, bias=0.0004, shift=(sd * g[0] * W - conv * W, g[1] * W))[0] -
+                          E['iris'][0] for k, g in gaze.items()}
         E['brow_keys'] = {k: browlib.ribbon(F, BK, EK, L, sd, c, knobs=kn)[0] - E['brow'][0]
                           for k, kn in browlib.expressions(BK).items()}
         for name, (uf, lf) in eyelib.expressions(EK, L).items():

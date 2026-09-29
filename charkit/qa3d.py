@@ -53,8 +53,9 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
     'shape_iou': (0.80, 0.65), 'shape_iou_hair': (0.75, 0.60), 'ref_iou': (0.85, 0.70),
     'scalp_px': (30, 300), 'poke_share': (0.005, 0.02), 'hair_noise': (0.04, 0.08), 'face_folds': (40, 300),
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
-    'viseme_gap': (0.010, 0.005),
+    'viseme_gap': (0.010, 0.005), 'mouth_cover': (0.97, 0.90),
 }
+COVER = (11, 9, 4)             # exprqa classes an open mouth may show: its inside and tongue, teeth, the lip line
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
                'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
@@ -1468,9 +1469,48 @@ def mesh_info(B, design=None, out=None):
 
 
 # ------------------------------------------------------------------------------------------------------------------ run
+def mouth_cover(B, ppl=200.0, shapes=None):
+    """how much of each open mouth shows its inside: the lips' loop under the shape's key, seen head-on (exprqa's class
+    render at ppl), and the share of what it encloses that is the mouth's inside, tongue, teeth or lip line; skin there
+    is the lips' rings lapped over the opening, nothing a hole through the head. -> {shape: dict(cover, skin, none, px,
+    cls)} for the shapes open by 20 px or more."""
+    from matplotlib.path import Path
+    from . import exprqa
+    data = expression_data(B)
+    A = assembly(B, 'base')
+    L, win = A['head']['L'], exprqa.WIN
+    V = np.asarray(A['verts'], float)
+    m = A['mouth']['m']
+    loop = list(m['upper']) + list(m['lower'])[::-1][1:-1]
+    out = {}
+    for name in shapes or [k for k in A['mouth']['keys']]:
+        cls = exprqa.render(data, {'mouth': name}, ppl)
+        xz = (V + A['mouth']['keys'][name])[loop][:, [0, 2]]
+        col = xz[:, 0] / L * ppl + win['x'] * ppl
+        row = (win['top'] - (xz[:, 1] - data['eye_z']) / L) * ppl
+        H, W = cls.shape
+        yy, xx = np.mgrid[0:H, 0:W]
+        inside = Path(np.stack([col, row], 1)).contains_points(
+            np.stack([xx.ravel() + 0.5, yy.ravel() + 0.5], 1)).reshape(H, W)
+        n = int(inside.sum())
+        if n < 20:
+            continue
+        c = cls[inside]
+        out[name] = dict(cover=round(float(np.isin(c, COVER).mean()), 3), skin=round(float((c == 1).mean()), 3),
+                         none=round(float((c == 0).mean()), 3), px=n, cls=cls)
+    return out
+
+
 def face_part(B, design=None, out=None):
-    """the face's expressions and mouth shapes (face()) as a part."""
-    return face(B)
+    """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover)."""
+    table, C = face(B)
+    mc = mouth_cover(B)
+    if mc:
+        k = min(mc, key=lambda s: mc[s]['cover'])
+        C['mouth_cover'] = {'value': mc[k]['cover'], 'worst': k, 'skin': mc[k]['skin'], 'none': mc[k]['none'],
+                            'status': _grade('mouth_cover', mc[k]['cover'])}
+        table['mouth_cover'] = {s: {k_: v for k_, v in r.items() if k_ != 'cls'} for s, r in mc.items()}
+    return table, C
 
 
 PARTS = [                       # (part, function, check prefix, table key)

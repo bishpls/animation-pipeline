@@ -16,7 +16,6 @@ import numpy as np
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KEYS = ('aspect', 'open_w', 'iris_ratio', 'iris_fill', 'iris_cx', 'pupil_run', 'pupil_share', 'lid_span', 'lid_gap', 'tilt')
 BG_TOL = 0.035                      # a design crop's pixel this close to the sheet's background colour is background
-COVER = (11, 9, 4)                  # exprqa classes an open mouth may show: its inside and tongue, teeth, the lip line
 
 
 def design_eyes(spec, ppl_face=None):
@@ -73,48 +72,20 @@ def measure(build, az3=None):
     lib = exprqa.library(data)
     eppl = 200.0
     ey, ax = exprqa._at(eppl)
-    A = qa3d.assembly(B, 'base')
-    L = A['head']['L']
-    m = A['mouth']['m']
     ex = {}
+    cover = qa3d.mouth_cover(B, eppl)
     for part in ('eye', 'mouth'):
         for name in lib[part]:
             cls = exprqa.render(data, {part: name}, eppl)
             M = exprqa.measure(cls, eppl, ey, ax, ours=True)
             rec = dict(cls=cls, m=exprqa.summary(M))
-            if part == 'mouth':
-                rec['cover'] = mouth_cover(cls, A, name, eppl, data['eye_z'], L)
+            if part == 'mouth' and name in cover:
+                rec['cover'] = {k: v for k, v in cover[name].items() if k != 'cls'}
             ex['%s_%s' % (part, name)] = rec
     face_t, face_c = qa3d.face(B)
     folds = qa3d.face_folds(qa3d.assembly(B))
     qa = json.load(open(os.path.join(build, 'qa', 'qa.json')))['checks']
     return dict(build=build, eyes=eyes, ppl=ppl, az3=az3, ex=ex, face=face_t, face_checks=face_c, folds=folds, qa=qa)
-
-
-def mouth_cover(cls, A, name, ppl, eye_z, L, win=None):
-    """the share of an open mouth's opening (the lips' loop under the shape's key, seen head-on) that shows its inside,
-    tongue, teeth or lip line, rather than skin (the lips' rings lapped over the opening) or nothing (a hole) -> dict(
-    cover, skin, none, px) or None for a closed mouth (under 20 px open)."""
-    from matplotlib.path import Path
-    from . import exprqa
-    win = win or exprqa.WIN
-    V = np.asarray(A['verts'], float)
-    D = A['mouth']['keys'].get(name) if name != 'neutral' else None
-    P = V + D if D is not None else V
-    m = A['mouth']['m']
-    loop = list(m['upper']) + list(m['lower'])[::-1][1:-1]
-    xz = P[loop][:, [0, 2]]
-    col = xz[:, 0] / L * ppl + win['x'] * ppl
-    row = (win['top'] - (xz[:, 1] - eye_z) / L) * ppl
-    H, W = cls.shape
-    yy, xx = np.mgrid[0:H, 0:W]
-    inside = Path(np.stack([col, row], 1)).contains_points(np.stack([xx.ravel() + 0.5, yy.ravel() + 0.5], 1)).reshape(H, W)
-    n = int(inside.sum())
-    if n < 20:
-        return None
-    c = cls[inside]
-    return dict(cover=round(float(np.isin(c, COVER).mean()), 3), skin=round(float((c == 1).mean()), 3),
-                none=round(float((c == 0).mean()), 3), px=n)
 
 
 def _rgb(a):
