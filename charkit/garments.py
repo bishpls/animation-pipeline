@@ -277,13 +277,22 @@ def shoe_hull(A, spec, hull):
     sections stacked from `overlap` L above the ankle down to the sole round a vertical axis (geom.loft), capped
     underneath; its bottom `sole` band (by height, the sole's) on the second material. Weighted to the foot, its
     front to the toes. The template shoe sized itself round the body's foot plus an instep and read as a balloon; the
-    drawn boot is a straight shaft on a close foot. -> dict(verts, faces, weights, uv, sole (per face))."""
+    drawn boot is a straight shaft on a close foot.
+    Each foot keeps to its own side of the body's midline, `gap` L off it: the hull's resolution closes the narrow gap
+    between the feet at the sole, and lofted through it the two feet (and their soles) joined. Its top `blend` L meets
+    the shaft (the shell over the lower leg, from the whole spec in `_spec`: the leg's skin plus the shell's offset)
+    radius for radius, easing into the hull's section below: the two lofts' radii differed at the seam and the boot's
+    outline stepped halfway down. -> dict(verts, faces, weights, uv, sole (per face))."""
     from .geom import loft
     L = A['head']['L']
     side = spec['side']
     suf = '_L' if side == 'left' else '_R'
+    sgn = 1.0 if side == 'left' else -1.0
     P = hull[spec.get('piece', 'boot' + suf)]
     ank, ball = bone_seg(A, side + 'Foot')
+    mid = float(bone_seg(A, 'hips')[0][0])
+    gap = spec.get('gap', 0.03) * L
+    P = P[sgn * (P[:, 0] - mid) >= gap]
     top = ank[2] + spec.get('overlap', 0.04) * L
     P = P[P[:, 2] <= top + 0.02 * L]
     sole_z = float(P[:, 2].min())
@@ -294,7 +303,22 @@ def shoe_hull(A, spec, hull):
     ts = np.linspace(0.0, top - sole_z, rows)
     F = loft.field(t, th, r, ts, nth=spec.get('cols', 48), min_row=0.2)
     R = F.R + spec.get('offset', 0.0) * L
+    # the seam with the shaft: the shell's radius at the top, eased into the hull's over `blend` L
+    shaft = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g.get('kind') == 'shell' and
+                  any(rg[0] == side + 'LowerLeg' for rg in g.get('region', []))), None)
+    blend = spec.get('blend', 0.12) * L
+    if shaft is not None and blend > 0:
+        dom, _ = dominant(A)
+        Q = A['verts'][np.isin(dom, [side + 'LowerLeg', side + 'Foot'])]
+        tq, thq, rq = ax.coords(Q)
+        near = (tq >= -0.02 * L) & (tq <= blend + 0.02 * L)
+        if near.sum() >= 12:
+            S = loft.field(tq[near], thq[near], rq[near], ts, nth=len(F.th), q=1.0, smooth=(0.5, 1.0), min_row=0.2).R
+            w = np.clip(1 - ts / blend, 0, 1)[:, None]
+            w = w * w * (3 - 2 * w)                                # smoothstep: 1 at the top, 0 at `blend` down
+            R = np.where(w > 0, w * (S + shaft.get('offset', 0.016) * L) + (1 - w) * R, R)
     V, quads, uv = loft.loft(ax, F, R)
+    V[:, 0] = mid + sgn * np.maximum(sgn * (V[:, 0] - mid), gap)          # its own side of the midline
     nth = len(F.th)
     # the underside: a fan to the bottom ring's centre (the sole)
     ci = len(V)
@@ -581,7 +605,8 @@ def skirt_hull(A, spec, hull):
     the points' top, a hem per angle where they end (the back longer, as drawn), and between them the measured section
     row by row (geom.loft, in v = 0 at the waist .. 1 at the hem, per column); `pleats` knife folds of depth `pleat` L
     deepening toward the hem on top (the hull's section can't show them: a visual hull fills folds); the front panel's
-    half-width measured from the panel's points (else the spec's `panel`). UV and weights as skirt()'s.
+    half-width measured from the panel's points (else the spec's `panel`); with `aline`, each column never narrowing
+    toward the hem. UV and weights as skirt()'s.
     -> dict(verts, faces, weights, uv, panel, z_waist)."""
     from .geom import loft
     L = A['head']['L']
@@ -629,6 +654,10 @@ def skirt_hull(A, spec, hull):
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
     F = loft.field(v, th, r, vs, nth=n, q=spec.get('q', 0.5), smooth=(1.0, 1.0))
+    if spec.get('aline'):
+        # an A-line flares to its hem: each column's radius never narrows going down (a visual hull rounds the
+        # hem's corners in, where the views' silhouettes cut it, and the skirt read as a bubble)
+        F.R = np.maximum.accumulate(F.R, axis=0)
     off = spec.get('offset', 0.0) * L
     pleats = spec.get('pleats', 24); depth = spec.get('pleat', 0.05) * L
     TH = F.th[None, :]; VV = vs[:, None]
@@ -653,7 +682,7 @@ def skirt_hull(A, spec, hull):
     leg = 0.65 * vv ** 1.4
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=float(top - np.median(t0_at(F.th))),
-                panel_half=half)
+                panel_half=half, axis=ax, grid=(rows + 1, n))
 
 
 def panel(A, spec):
@@ -697,6 +726,124 @@ def panel(A, spec):
     leg = 0.65 * vv ** 1.4
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=zw)
+
+
+def flap(A, spec, hull):
+    """a flap over the skirt, its own piece with its own spring chain (an overskirt panel): laid on the skirt's outside
+    from its waist (tucked under the band, as the skirt is) to its hem, `clear` L plus its thickness off the pleats'
+    crests, then carried on below the hem as a longer section of the skirt's cone: each column continues the skirt's
+    own slope there, tilted `out` further out and `sweep` toward the centre back, for `length` L at its front edge and
+    `train` more at its back edge (a stepped diagonal in front, a train sweeping back in profile). Centred on azimuth
+    `az` (degrees, 0 the front, + her left), `width` L wide at the skirt's hem and `narrow` of that angle at the waist.
+    Needs the hull skirt it lies on (`over`, default skirt, from the whole spec in `_spec`). A chain of `bones` bones
+    along its middle column: the first from the waist to the skirt's hem (parent hips), the rest along the tail, named
+    NAME_0, NAME_1, ...; each vertex weighted between the two nearest by its row's arc length. UV: u across 0 .. 1; v 0
+    at the waist .. 1 at the tail's end, the last `trim` L of each column on the stepped hem texture's band (`band` of
+    v). -> dict(verts, faces, weights, uv, z_waist, chain=dict(parent, bones, joints), reach (lowest point, m))."""
+    L = A['head']['L']
+    whole = spec.get('_spec') or {}
+    sk = next((g for g in whole.get('garments', []) if g['name'] == spec.get('over', 'skirt')), None)
+    if not sk or sk.get('source') != 'hull':
+        raise ValueError('%s: a flap lies on a hull skirt (%s)' % (spec['name'], spec.get('over', 'skirt')))
+    Gs = skirt_hull(A, sk, hull)
+    ax = Gs['axis']
+    nr, n = Gs['grid']
+    t, th, r = ax.coords(np.asarray(Gs['verts']))
+    T, R = t.reshape(nr, n), r.reshape(nr, n)
+    th_c = th.reshape(nr, n)[0]
+    order = np.argsort(th_c)
+    th_s = th_c[order]
+    pw = max(1, int(round(n / max(1, sk.get('pleats', 24)))))
+    Rc = np.maximum.reduce([np.roll(R, k, 1) for k in range(-pw, pw + 1)])       # the pleats' crests
+    lift = (spec.get('clear', 0.03) + spec.get('thick', 0.01)) * L
+    a0 = math.radians(spec.get('az', 120.0))
+    cols = spec.get('cols', 16)
+    at = lambda Z, i, a: np.interp(np.mod(a + math.pi, 2 * math.pi) - math.pi, th_s, Z[i][order], period=2 * math.pi)
+    half1 = spec.get('width', 0.4) * L / 2 / max(1e-6, float(at(Rc, nr - 1, a0)))
+    half0 = half1 * spec.get('narrow', 0.6)
+    u = np.linspace(-1, 1, cols + 1)
+    over = []
+    for i in range(nr):
+        v = i / (nr - 1)
+        a = a0 + u * (half0 + (half1 - half0) * v)
+        over.append(ax.point(at(T, i, a), a, at(Rc, i, a) + lift))
+    over = np.array(over)                                                        # (nr, cols + 1, 3)
+    # the tail: each column carries on along the skirt's slope at its hem, longer toward the back edge
+    hem, prev = over[-1], over[-2]
+    slope = hem - prev
+    slope /= np.maximum(1e-9, np.linalg.norm(slope, axis=1))[:, None]
+    ah = a0 + u * half1
+    sgn = 1.0 if a0 >= 0 else -1.0
+    e_out = np.stack([np.sin(ah), -np.cos(ah), np.zeros_like(ah)], 1)
+    e_back = sgn * np.stack([np.cos(ah), np.sin(ah), np.zeros_like(ah)], 1)
+    dirs = slope + spec.get('out', 0.3) * e_out + spec.get('sweep', 0.3) * e_back
+    dirs /= np.linalg.norm(dirs, axis=1)[:, None]
+    back = (u * sgn + 1) / 2                                                  # 0 at the front edge .. 1 at the back
+    lens = spec.get('length', 0.6) * L * (1 + spec.get('train', 1.0) * back)
+    m = spec.get('tail_rows', 12)
+    rows_t = [hem + (s_ * lens)[:, None] * dirs for s_ in np.linspace(0, 1, m + 1)[1:]]
+    S = float(lens[cols // 2])
+    G = np.concatenate([over, np.array(rows_t)], 0)                              # (nr + m, cols + 1, 3)
+    NR = len(G)
+    verts = G.reshape(-1, 3)
+    faces = [(j * (cols + 1) + i, j * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i + 1, (j + 1) * (cols + 1) + i)
+             for j in range(NR - 1) for i in range(cols)]
+    # arc length along the centre, per row
+    cen = G[:, cols // 2]
+    arc = np.r_[0, np.cumsum(np.linalg.norm(np.diff(cen, axis=0), axis=1))]
+    tot = float(arc[-1])
+    trim = min(spec.get('trim', 0.15) * L, 0.9 * S)          # (on the middle column; the others' in proportion)
+    band = spec.get('band', 0.16)
+    vv = np.where(arc <= tot - trim, arc / max(1e-9, tot - trim) * (1 - band),
+                  1 - band + band * (arc - (tot - trim)) / max(1e-9, trim))
+    uvs = [((u_ + 1) / 2, float(vv[j])) for j in range(NR) for u_ in u]
+    # the chain: the waist, the skirt's hem, then the tail at equal arc lengths
+    nb = max(2, spec.get('bones', 5))
+    s_j = np.r_[0.0, arc[nr - 1], arc[nr - 1] + np.linspace(0, S, nb)[1:]]
+    joints = np.stack([np.interp(s_j, arc, cen[:, k]) for k in range(3)], 1)
+    names = ['%s_%d' % (spec['name'], i) for i in range(nb)]
+    mid = 0.5 * (s_j[:-1] + s_j[1:])
+    Wt = {b: np.zeros(len(verts)) for b in names}
+    for j in range(NR):
+        sv = arc[j]
+        if sv <= mid[0]:
+            w = {0: 1.0}
+        elif sv >= mid[-1]:
+            w = {nb - 1: 1.0}
+        else:
+            i = int(np.searchsorted(mid, sv)) - 1
+            f = (sv - mid[i]) / max(1e-9, mid[i + 1] - mid[i])
+            w = {i: 1 - f, i + 1: f}
+        for i, x in w.items():
+            Wt[names[i]][j * (cols + 1):(j + 1) * (cols + 1)] = x
+    return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=float(over[0, cols // 2, 2]),
+                chain=dict(parent='hips', bones=names, joints=joints), reach=float(verts[:, 2].min()))
+
+
+def add_chain(arm, chain):
+    """a flap's spring chain as bones in the armature: NAME_i from joint i to i + 1, the first parented to `parent`."""
+    import bpy
+    from mathutils import Vector
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    bpy.context.view_layer.objects.active = arm
+    arm.select_set(True)
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = arm.data.edit_bones
+    J = chain['joints']
+    prev = eb.get(chain['parent'])
+    for i, b in enumerate(chain['bones']):
+        e = eb.new(b)
+        e.head = Vector(J[i]); e.tail = Vector(J[i + 1])
+        if (e.tail - e.head).length < 1e-4:
+            e.tail = e.head + Vector((0, 0, -0.02))
+        e.parent = prev
+        e.use_connect = i > 0
+        e.align_roll(Vector((0, -1, 0)))
+        prev = e
+    bpy.ops.object.mode_set(mode='OBJECT')
+    for b in chain['bones']:
+        arm.pose.bones[b].rotation_mode = 'QUATERNION'
 
 
 def dense_arc(th, mass=0.8):
@@ -1192,6 +1339,8 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
 
 
 def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
+    from .geom import loft as _loft
+    _loft.LOW_COVERAGE.clear()
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
     whose `source` is 'hull'. -> [objects]."""
@@ -1258,7 +1407,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
                 sol.use_rim = True
         elif k == 'shoe':
-            G = shoe_hull(A, s, hull) if s.get('source') == 'hull' else shoe(A, s)
+            G = shoe_hull(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'hull' else shoe(A, s)
             mats = [_toon(nm, col, sh), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['sole'])
             # the body's foot is inside it: mask it
@@ -1303,10 +1452,14 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             G = bow(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'panel':
-            G = panel_hull(A, s, hull) if s.get('source') == 'hull' else panel(A, s)
+            if s.get('source') == 'flap':
+                G = flap(A, dict(s, _spec=spec_all), hull)
+                add_chain(arm, G['chain'])
+            else:
+                G = panel_hull(A, s, hull) if s.get('source') == 'hull' else panel(A, s)
             if s.get('hem') == 'stepped':
                 tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), repeat=s.get('repeat', 1),
-                                  steps=s.get('steps', 6))
+                                  steps=s.get('steps', 6), **{k_: s[k_] for k_ in ('band', 'step_h') if k_ in s})
                 mats = [_toon_tex(nm, eyetex.to_blender_image(nm + '_tex', tex), sh)]
             else:
                 mats = [_toon(nm, col, sh)]
@@ -1316,6 +1469,11 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             raise ValueError(k)
         sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
         shade.outline(ob, thick=s.get('line', 0.0012), color=line, name='garment_line')
+        if _loft.LOW_COVERAGE:                                   # built from marginal hull coverage: kept as a number
+            ob['charkit_coverage'] = min(_loft.LOW_COVERAGE)
+            print('garments: %s built from marginal hull coverage (its best row measured on %.0f%% of its circle)'
+                  % (nm, 100 * min(_loft.LOW_COVERAGE)))
+            _loft.LOW_COVERAGE.clear()
         obs.append(ob)
     if hide.any():
         g = skin.vertex_groups.new(name='under_garments')
