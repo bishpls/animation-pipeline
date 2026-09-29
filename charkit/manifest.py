@@ -74,7 +74,8 @@ def resolve(spec):
 
 def produce(spec):
     """the references the manifest says code produces ('produced_by'), built where the resolved spec uses them and they
-    are missing: they live in gitignored outputs, so a fresh worktree (the merge gate's) has none. The visual hull
+    are missing or stale (produced()): they live in gitignored outputs, so a fresh worktree (the merge gate's) has none,
+    and a merge can change the code that made an existing one. The visual hull
     (charkit.geom.hull) takes its fast path: no leave-one-out sweep, no page. -> spec."""
     ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else None
     if not ref or not ref.get('manifest'):
@@ -87,9 +88,25 @@ def produce(spec):
     return spec
 
 
+def stamp(spec, r):
+    """what a produced reference depends on, as a digest: its producer's code (the module and every charkit module it
+    imports, charkit.cache.code_units), the manifest's tracked references (their sha256s), the stamps of the produced
+    references it reads (its 'reads': the hull reads the outfit's masks), the spec's ref and style. Not the spec's knobs:
+    a tune changes those every step, and the references don't read them."""
+    from . import cache
+    M = load(spec['ref']['manifest'])
+    R = M['references']
+    refs = {k: v.get('sha256') for k, v in sorted(R.items()) if v.get('sha256')}
+    reads = [stamp(spec, R[k]) for k in r.get('reads', ()) if k in R and R[k].get('produced_by')]
+    return cache.digest([cache.code_units(modules=(r['produced_by'],)), refs, reads, spec['ref'].get('manifest'),
+                         spec.get('style')])
+
+
 def produced(spec, rid, log=print):
-    """a code-produced reference's path, built first if it is missing: the visual hull by charkit.geom.hull's fast path,
-    anything else by running its manifest 'command' from the repo root. None when the manifest has no such reference."""
+    """a code-produced reference's path, built first if it is missing or stale: the visual hull by charkit.geom.hull's
+    fast path, anything else by running its manifest 'command' from the repo root. Stale: its stamp (PATH.stamp, from
+    stamp()) differs, as when the producer's code changed after it was made (a merge), or it has none. None when the
+    manifest has no such reference."""
     ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else None
     if not ref or not ref.get('manifest'):
         return None
@@ -97,8 +114,15 @@ def produced(spec, rid, log=print):
     if not r:
         return None
     p = _p(r['path'])
-    if os.path.exists(p) or not r.get('produced_by'):
+    if not r.get('produced_by'):
         return p
+    st = stamp(spec, r)
+    sp = p + '.stamp'
+    have = open(sp).read().strip() if os.path.exists(sp) else None
+    if os.path.exists(p) and have == st:
+        return p
+    log('%s: %s, building' % (rid, 'missing' if not os.path.exists(p) else 'stale (its producer or inputs changed)'
+                              if have else 'unstamped (made before stamps, or by hand)'))
     if r['produced_by'] == 'charkit.geom.hull':
         from .geom import hull
         hull.build(spec, os.path.dirname(p), validate_views=False, page=False)
@@ -107,8 +131,11 @@ def produced(spec, rid, log=print):
         args = shlex.split(r['command'])
         if args[0].startswith('python'):
             args[0] = sys.executable
-        log('%s: missing, building: %s' % (rid, r['command']))
+        log('%s: %s' % (rid, r['command']))
         subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    with open(sp + '.tmp', 'w') as f:
+        f.write(st + '\n')
+    os.replace(sp + '.tmp', sp)
     return p
 
 
