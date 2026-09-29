@@ -36,22 +36,32 @@ template, and the body supplies only weights (and, for a tight shell, the surfac
 - **Review page:** `python -m charkit pieces BUILD [--against OTHER]` gives, per piece and view, crops with the drawn
   piece tinted, its outline red and ours white, plus the numbers.
 
-## Results (box builds: knob garments against hull-sourced waistband, skirt, top hem and bow)
+## Results (box builds, merged at 8f2ec5d: knob garments vs the waistband, skirt, top hem and bow from the hull)
 
 | check | knob garments | hull-sourced |
 |---|---|---|
-| PASS / WARN / FAIL | 49 / 28 / 33 | 50 / 31 / 29 |
+| PASS / WARN / FAIL | 49 / 28 / 33 | 54 / 32 / 24 |
 | body_back_hem_mid | −0.207 FAIL | 0.028 PASS |
 | body_back_leg | −0.249 FAIL | 0.038 PASS |
 | body_front_hem_mid | −0.089 WARN | 0.061 PASS |
 | body_profile_skirt_width | 1.291 FAIL | 0.879 WARN |
-| body_front_skirt_width | 1.077 PASS | 0.91 WARN |
-| piece_skirt (worst view) | 0.27 | 0.59 |
-| piece_waistband | 0.0 | 0.34 |
-| piece3d waistband / skirt reach (L) | 0.264 / 0.092 | 0.008 / 0.009 |
+| body_front_skirt_width | 1.077 PASS | 0.953 PASS |
 
-The evaluator figures for the conformed bow (front, three-quarter, profile): knob bow 0.26 / 0.21 / 0.17; hull bow
-0.66 / 0.60 / 0.29, with a 3D reach of 0.036 L.
+The piece checks (iou_tol weighted over the views), both builds graded the same way by `charkit pieces`:
+
+| piece | knob | hull |
+|---|---|---|
+| skirt | 0.50 WARN | 0.77 PASS |
+| bow | 0.24 FAIL | 0.58 WARN |
+| collar (knobs in both) | 0.53 | 0.61 |
+| top | 0.29 | 0.47 |
+| waistband | 0.00 | 0.40 |
+| shorts (they now show below the hem) | 0.00 | 0.20 |
+| overskirt panels (knobs in both) | 0.26 / 0.26 | 0.37 / 0.37 |
+
+In 3D (piece3d, the median reach to the hull's piece), the waistband is 0.008 L, the skirt 0.009, the bow 0.036, the
+sleeves 0.04, the boots 0.035. The cuffs (0.25), the shorts (0.35) and the overskirt panels (0.27–0.33) are the far
+ones.
 
 ## Blocked: the body
 
@@ -69,8 +79,9 @@ head. `geom.loft` is the tool for it: the torso as a field around a vertical axi
 
 ## Not done yet
 
-- **Overskirt panels:** in 3D they reach the design within 0.04–0.05 L (from 0.27–0.33), but the front and
-  three-quarter views read worse than the knob panels. They're under review; see the panels build.
+- **Overskirt panels:** lofted from the hull (`panel_hull`, not on in the spec), they reach within 0.045 L in 3D, but
+  their 2D views are mixed. The hull labels the panels over about 90° round the back sides: the skirt's back shares
+  their colour and stepped hem, so the labelling can't split them.
 - **Shorts:** the hull's "shorts" points aren't the shorts' shape. The hull fills the hollow under the skirt, and the
   drawings' dark shorts below the hem label that filled surface. Only their lower edge (−2.72 L) is trustworthy, so
   the shorts need the 2D target.
