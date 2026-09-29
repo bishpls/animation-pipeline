@@ -26,6 +26,7 @@ import html, json, os, subprocess, sys, time
 import numpy as np
 
 from . import sheetqa
+from .faceqa import drawn_chin          # the chin rule, shared with the QA's reading of ours
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GUIDE = dict(k=4, diff=0.12, share=0.35)   # a guide line: a thin horizontal feature across much of the sheet
@@ -126,24 +127,6 @@ def at_scale(rgb, eye_x, spacing, facing=-1, guess=0.25):
             return small, f, H
         f *= spacing / cur
     raise RuntimeError('could not bring the sheet to the model sheet\'s scale')
-
-
-def drawn_chin(lead, z, below=-0.2, rate=2.0, jump=0.08, span=0.03):
-    """a drawn profile's chin: going down from `below` (L from the eye line), the last face row before the front edge
-    turns back steeply to the neck: it recedes faster than `rate` L per L to the next row, and more than `jump` L within
-    `span` L below (not a pixel's noise). The face above recedes at about 0.4 L per L, the under-chin at 10 or more.
-    faceqa.chin_bottom (the QA's, for our 3D face) takes the chin as the most forward point and stops once the edge falls
-    0.06 L behind it; an anime profile's lower face slopes back all the way from the nose, so on a drawing that stops
-    halfway down the slope (-0.28 L on head_turnaround, whose drawn chin is at -0.36). -> z, or None."""
-    ok = np.isfinite(lead) & (z < below)
-    idx = np.nonzero(ok)[0]                                              # rows top -> bottom
-    for a in range(len(idx) - 1):
-        r, q = idx[a], idx[a + 1]
-        if lead[r] - lead[q] > rate * (z[r] - z[q]):
-            near = [n for n in idx[a + 1:] if z[r] - z[n] <= span]
-            if lead[r] - min(lead[n] for n in near) > jump:
-                return float(z[r])
-    return float(z[idx[-1]]) if len(idx) else None
 
 
 def measure_heads(rgb, heads, ppl, facing=-1, below=-0.2, leak=0.06):
