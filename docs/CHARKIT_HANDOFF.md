@@ -819,7 +819,9 @@ sessions share its 16 GB.
   - Agents: the old cap (about 3 at once) was about laptop memory, not agents. Blender and heavy Python ran the 16 GB
     machine out. With builds, fits, gates and renders on the boxes (the build box: 8 slots; the GPU render box, `remote
     --box render`: 3), run as many agents as the work warrants. Keep each agent's local heavy work to the laptop's one
-    build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29).
+    build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
+    hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
+    provisioning changes that need Michael's approval first.
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
   - Create worktrees with `tools/worktree.sh` (sparse).
