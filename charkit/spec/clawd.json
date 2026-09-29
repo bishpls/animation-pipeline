@@ -259,7 +259,7 @@
    "glb": "ref:hull",
    "below": 0.33,
    "shoulder_x": 0.19,
-   "mode": "geom",
+   "mode": "pieces",
    "voxel": 0,
    "decimate": 0.4,
    "hue": 14,
