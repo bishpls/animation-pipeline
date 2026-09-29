@@ -952,6 +952,10 @@ HAIR_PIECE_FAMILY = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R
 HAIR_GRADED = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'buns')    # the ahoge and flyaways: INFO (a few pixels)
 HAIR_IOU = (0.6, 0.4)          # a family's IoU pooled over the views against the hair layers: pass at, warn at (their boundaries are a
                                # transfer from another generation of the design: charkit.hairlayers' cautions)
+HAIR_BUN_TOL = 0.012         # L: an outline pixel within this of the other bun outline agrees (a tight tolerance: a blob
+                             # filled out to the drawn block's outline still misses its corners)
+HAIR_BUN_OUTLINE = (0.7, 0.5)  # the buns' outline agreement (bodymeasure.outline_f) pooled over the views: pass at, warn at
+HAIR_TIP_PROM = 0.03         # L: how far a lock's tip must hang below its neighbours to count (hair_tips)
 HAIR_FRINGE = (0.03, 0.06)     # L: the fringe's lowest point over each eye against the drawing's: pass within, warn within
 HAIR_PENETRATION = (0.004, 0.012)   # L: the deepest hair vertex inside the skin
 HAIR_FOLDS = (0, 40)           # edges folded back sharply (their faces' normals over 110 degrees apart), all pieces
@@ -1001,6 +1005,73 @@ def _fold_edges(V, T, cos_max=-0.34):
     same = np.all(key[1:] == key[:-1], axis=1)
     a, b = f[:-1][same], f[1:][same]
     return int((np.einsum('ij,ij->i', fn[a], fn[b]) < cos_max).sum())
+
+
+def silhouette_corners(mask, ppl, tol=0.02, angle=35.0):
+    """the corners of a mask's outlines: each outline simplified to a polygon within tol L (skimage's
+    approximate_polygon) and its vertices turning by more than `angle` degrees counted: a drawn block shows its corners,
+    a smooth blob none."""
+    from skimage import measure
+    n = 0
+    for c in measure.find_contours(mask.astype(float), 0.5):
+        if len(c) < 12:
+            continue
+        p = measure.approximate_polygon(c, tolerance=tol * ppl)
+        if len(p) < 4:
+            continue
+        p = p[:-1] if np.allclose(p[0], p[-1]) else p
+        a, b = np.roll(p, 1, 0) - p, np.roll(p, -1, 0) - p
+        cosang = np.einsum('ij,ij->i', a, b) / (np.linalg.norm(a, axis=1) * np.linalg.norm(b, axis=1) + 1e-9)
+        turn = 180.0 - np.degrees(np.arccos(np.clip(cosang, -1, 1)))
+        n += int((turn > angle).sum())
+    return n
+
+
+def hair_bun_measures(labels, masks, code, ppl):
+    """the buns against the drawing's buns in the front, three-quarter and profile: the outline agreement at
+    HAIR_BUN_TOL (bodymeasure.outline_f, pooled over the views' outline pixels) and the silhouettes' corners, ours and
+    the drawing's. -> checks hair_bun_outline, hair_bun_corners."""
+    from . import bodymeasure
+    agree, total, per, corners = 0.0, 0, {}, {}
+    for v in ('front', 'three_quarter', 'profile'):
+        m = masks.get('%s__buns' % v)
+        if v not in labels or m is None or m.sum() < 40 or m.shape != labels[v][1].shape:
+            continue
+        ours = labels[v][1] == code
+        o = bodymeasure.outline_f(ours, m, HAIR_BUN_TOL * ppl)
+        npx = int(bodymeasure.outline(m).sum()) + int(bodymeasure.outline(ours).sum())
+        per[v] = round(o['f'], 3)
+        agree += o['f'] * npx; total += npx
+        corners[v] = [silhouette_corners(ours, ppl), silhouette_corners(m, ppl)]
+    if not per:
+        return {}
+    f = agree / max(1, total)
+    return {'hair_bun_outline': {'value': round(f, 3), 'views': per, 'status': 'PASS' if f >= HAIR_BUN_OUTLINE[0] else
+                                 'WARN' if f >= HAIR_BUN_OUTLINE[1] else 'FAIL'},
+            'hair_bun_corners': {'value': sum(c[0] for c in corners.values()),
+                                 'drawn': sum(c[1] for c in corners.values()), 'views': corners, 'status': 'INFO'}}
+
+
+def hair_tips(mask, ppl, prom=None):
+    """the lock tips along a hair mask's lower edge: per column its lowest hair pixel, the edge lightly smoothed, and the
+    points lower than everything within 0.05 L either side by at least HAIR_TIP_PROM L counted."""
+    from scipy.ndimage import gaussian_filter1d, maximum_filter1d
+    prom = HAIR_TIP_PROM if prom is None else prom
+    cols = np.nonzero(mask.any(0))[0]
+    if len(cols) < 5:
+        return 0
+    low = np.full(mask.shape[1], np.nan)
+    rows = np.arange(mask.shape[0])
+    for c in cols:
+        low[c] = rows[mask[:, c]].max()
+    ok = np.isfinite(low)
+    x = np.interp(np.arange(len(low)), np.nonzero(ok)[0], low[ok])
+    x = gaussian_filter1d(x, 1.0)
+    w = max(3, int(0.05 * ppl))
+    peak = (x == maximum_filter1d(x, 2 * w + 1)) & ok
+    base = -maximum_filter1d(-x, 4 * w + 1)                      # the edge's highest point near each column
+    tip = peak & (x - base > prom * ppl)
+    return int(((tip[1:] & ~tip[:-1]).sum()) + int(tip[0]))       # a flat tip's columns count once
 
 
 def hair_pieces(B, design, out=None):
@@ -1095,6 +1166,22 @@ def hair_pieces_measure(B, design, hair, out=None):
             if br and all(v[0] is not None for v in lows.values()):
                 C['hair_fringe_gap'] = {'value': round(float(min(v[0] for v in lows.values()) - max(br)), 4),
                                         'status': 'INFO'}
+    # the buns' shape (blocky or a blob): their outline against the drawing's at a tight tolerance, and their corners
+    ppl = ctx['ppl']
+    C.update(hair_bun_measures(labels, masks, fam_k['buns'], ppl))
+    # the locks' tips along the hair's lower edge, ours against the drawing's, per view
+    hair_codes = [fam_k[f] for f in HAIR_FAMILIES]
+    for v in ('front', 'back'):
+        if v not in labels:
+            continue
+        drawn = np.zeros(labels[v][1].shape, bool)
+        for f in HAIR_FAMILIES:
+            m = masks.get('%s__%s' % (v, f))
+            if m is not None and m.shape == drawn.shape:
+                drawn |= m
+        ours = np.isin(labels[v][1], hair_codes)
+        td, to = hair_tips(drawn, ppl), hair_tips(ours, ppl)
+        C['hair_tips_' + v] = {'value': to, 'drawn': td, 'status': 'INFO'}
     # penetration: hair vertices behind the planes of the nearest skin triangles (by centroid), raw geometry (no outline)
     from scipy.spatial import cKDTree
     Vs, Ts = sk.mesh('eval')[:2]

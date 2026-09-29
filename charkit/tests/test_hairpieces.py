@@ -87,6 +87,36 @@ def test_a_blade_is_closed_and_points_out():
     assert (np.einsum('ij,ij->i', fn[:len(side)], V[side].mean(1) - cen) > 0).mean() > 0.95
 
 
+def test_a_block_bun_is_two_closed_outward_rounded_boxes():
+    P = np.random.default_rng(0).uniform(-1, 1, (400, 3)) * [0.1, 0.08, 0.09] + [0.3, 0.0, 0.5]
+    B = hp.bun_block(P, np.zeros(3), dict(bun_e=0.3, bun_q=0.02, bun_slab=0.38))
+    V, T = B['V'], B['T']
+    assert (_edges(T) == 2).all()                                       # closed
+    fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    half = len(T) // 2                                                  # (each box's faces point out of its own centre)
+    for part, c in ((slice(0, half), V[:len(V) // 2].mean(0)), (slice(half, None), V[len(V) // 2:].mean(0))):
+        assert (np.einsum('ij,ij->i', fn[part], V[T[part]].mean(1) - c) > 0).mean() > 0.99
+    assert B['own_normals']
+    # flat faces: most of a box's vertices lie within 5% of its bounding box's faces (an ellipsoid's don't)
+    for e, want in ((0.3, lambda f: f > 0.5), (1.0, lambda f: f < 0.3)):
+        Vs, _ = hp.superellipsoid(np.array([0.1, 0.07, 0.09]), e)
+        assert want((np.abs(Vs) > 0.95 * np.abs(Vs).max(0)).any(1).mean()), e
+
+
+def test_the_hair_qa_counts_tips_and_corners():
+    from charkit import qa3d
+    m = np.zeros((200, 300), bool)
+    x = np.arange(300)
+    low = 100 + (40 * np.abs(((x / 100.0) % 1) - 0.5) * -2 + 40).astype(int)   # three V tips along the lower edge
+    for c in x:
+        m[20:low[c], c] = True
+    assert qa3d.hair_tips(m, ppl=200.0) == 3
+    sq = np.zeros((200, 200), bool); sq[50:150, 50:150] = True
+    yy, xx = np.mgrid[:200, :200]
+    disc = (yy - 100) ** 2 + (xx - 100) ** 2 < 60 ** 2
+    assert qa3d.silhouette_corners(sq, ppl=200.0) == 4 and qa3d.silhouette_corners(disc, ppl=200.0) == 0
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
