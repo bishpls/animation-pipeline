@@ -88,12 +88,12 @@ def page(build, out, against=None):
          '<p class="note">Each piece of ours against the design\'s drawn piece: the outfit\'s per-view masks (the produced '
          '<code>outfit_masks</code>, cut from body_turnaround by the outfit graph; they agree with the sheet\'s figures at '
          '0.77&ndash;0.85 IoU, the ceiling here). Graded: <b>iou_tol</b>, the overlap with a drawn line\'s width (%.2f L) '
-         'either side of the drawn outline left out, in the piece\'s worst view: PASS &ge; 0.75, WARN &ge; 0.5. Also the '
+         'either side of the drawn outline left out, over the piece\'s views weighted by how much of it each shows: PASS &ge; 0.75, WARN &ge; 0.5. Also the '
          'plain IoU and the outline agreement (the share of each outline within that width of the other). A piece we '
          'don\'t build is compared as part of the one it attaches to. In the crops: the drawn piece tinted, its outline '
          'red, ours white. Built: <b>%s</b>; not built: %s.</p>' % (
              0.02, C['built']['value'], html.escape(', '.join(C['built'].get('missing', []))))]
-    L.append('<table><tr><th>piece</th><th>iou_tol (worst)</th><th>status</th>%s<th>per view: iou_tol / iou / outline'
+    L.append('<table><tr><th>piece</th><th>iou_tol (weighted)</th><th>status</th>%s<th>per view: iou_tol / iou / outline'
              '</th><th>ours are</th></tr>' % ('<th>against</th>' if A else ''))
     for pid in order:
         c = C[pid]

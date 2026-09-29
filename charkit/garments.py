@@ -432,6 +432,20 @@ def skirt_hull(A, spec, hull):
         tk = t[j == k]
         if len(tk) >= 5:
             hem[k] = np.percentile(tk, spec.get('hem_q', 97))
+    # where a piece hangs over the skirt (the overskirt panels), the skirt's points stop at its edge, not at the hem: those
+    # sectors' hems are hidden, and filled round the circle from the ones the design shows
+    for occ in spec.get('occluders', ('overskirt_panel_L', 'overskirt_panel_R')):
+        Po = hull.get(occ) if hull else None
+        if Po is None or not len(Po):
+            continue
+        to, tho, _ = ax.coords(Po)
+        jo = np.clip(((tho + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
+        lo_, hi_ = (math.radians(a) for a in spec.get('occluded_span', (70, 110)))   # the sides (from the front)
+        for k in np.unique(jo):
+            tk = to[jo == k]
+            ak = abs(-math.pi + (k + 0.5) * 2 * math.pi / n)
+            if len(tk) >= 5 and np.isfinite(hem[k]) and np.percentile(tk, 90) > hem[k] and lo_ <= ak <= hi_:
+                hem[k] = np.nan
     hem = loft._fill_periodic(hem)
     if hem is None:
         raise ValueError('%s: too few hull points to find its hem' % spec['name'])
@@ -448,7 +462,7 @@ def skirt_hull(A, spec, hull):
     t0_at = lambda a: top - top_z(a)
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
-    F = loft.field(v, th, r, vs, nth=n, smooth=(1.0, 1.0))
+    F = loft.field(v, th, r, vs, nth=n, q=spec.get('q', 0.5), smooth=(1.0, 1.0))
     off = spec.get('offset', 0.0) * L
     pleats = spec.get('pleats', 24); depth = spec.get('pleat', 0.05) * L
     TH = F.th[None, :]; VV = vs[:, None]
@@ -518,11 +532,25 @@ def panel(A, spec):
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=zw)
 
 
+def dense_arc(th, mass=0.8):
+    """the smallest arc of the circle holding `mass` of the angles th -> (centre, half-width): a piece's span round an
+    axis robust to its stray labels (the hull labels a panel's voxels from several views, and some land round the
+    hem)."""
+    a = np.sort(np.mod(th, 2 * np.pi))
+    n = len(a)
+    k = max(1, int(np.ceil(mass * n)) - 1)
+    ext = np.r_[a, a + 2 * np.pi]
+    widths = ext[k:k + n] - ext[:n]
+    i = int(np.argmin(widths))
+    lo, hi = ext[i], ext[i + k]
+    return float(np.angle(np.exp(1j * (lo + hi) / 2))), float((hi - lo) / 2)
+
+
 def panel_hull(A, spec, hull):
-    """an open panel lofted through the hull's points of its piece (an overskirt panel): the angles its points span
-    round the skirt's axis (between the `span` percentiles, relative to their circular mean, so a panel across the back
-    doesn't wrap), per column its own top and bottom edge (where its points start and end), and the measured section
-    between (geom.loft), `offset` L out. UV and weights as panel()'s. -> dict(verts, faces, weights, uv, z_waist)."""
+    """an open panel lofted through the hull's points of its piece (an overskirt panel): the densest arc its points span
+    round the skirt's axis (dense_arc: `mass` of them; stray labels round the hem left out), per column its own top and
+    bottom edge (where its points start and end), and the measured section between (geom.loft), `offset` L out. UV and
+    weights as panel()'s. -> dict(verts, faces, weights, uv, z_waist)."""
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec)
@@ -531,9 +559,11 @@ def panel_hull(A, spec, hull):
     top = P[:, 2].max()
     ax = _vertical_axis(Q[Q[:, 2] > np.percentile(Q[:, 2], 90)], top)
     t, th, r = ax.coords(P)
-    mid = np.angle(np.exp(1j * th).mean())
+    mid, half = dense_arc(th, spec.get('mass', 0.8))
     rel = np.angle(np.exp(1j * (th - mid)))
-    lo, hi = np.percentile(rel, spec.get('span', (2, 98)))
+    keep = np.abs(rel) <= half
+    t, th, r, rel = t[keep], th[keep], r[keep], rel[keep]
+    lo, hi = -half, half
     cols, rows = spec.get('cols', 24), spec.get('rows', 16)
     a = np.linspace(lo, hi, cols + 1)
     # per column its top and bottom: where the points in its sector start and end

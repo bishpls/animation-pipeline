@@ -939,8 +939,9 @@ def sheet_body(B, design, out=None):
     return table, C
 
 
-PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's worst view's overlap (bodymeasure.iou_tol); the masks reach 0.77-0.85
-                                       # IoU against the sheet's own figures, so a PASS asks for what they can show
+PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's overlap (bodymeasure.iou_tol) over its views, each weighted by how much
+                                       # of it the drawing shows there; the masks reach 0.77-0.85 IoU against the sheet's
+                                       # own figures, so a PASS asks for what they can show
 
 
 def sheet_pieces(B, design, out=None):
@@ -1009,8 +1010,9 @@ def pieces_3d(B, design, out=None):
 
 
 def grade_pieces(S):
-    """bodymeasure.piece_shapes' records as checks: <piece id> (its worst view's iou_tol; INFO for a piece no object of
-    ours builds) and built (the drawn pieces we build as their own objects)."""
+    """bodymeasure.piece_shapes' records as checks: <piece id> (its iou_tol over the views, weighted by the drawn
+    piece's pixels in each: a sliver a view barely shows doesn't decide it; the worst view beside it; INFO for a piece
+    no object of ours builds) and built (the drawn pieces we build as their own objects)."""
     C = {}
     built = [p for p, r in S.items() if r['views'] and r['members']]
     shown = [p for p, r in S.items() if r['views']]
@@ -1021,10 +1023,11 @@ def grade_pieces(S):
             C[pid] = {'value': None, 'status': 'INFO', 'views': fs, 'why': 'no object of ours builds it' + (
                 ' (compared as part of %s)' % r['part_of'] if r['part_of'] else '')}
             continue
-        worst = min(fs.values())
-        C[pid] = {'value': round(worst, 3), 'status': 'PASS' if worst >= PIECE_PASS else 'WARN' if worst >= PIECE_WARN
-                  else 'FAIL', 'views': fs, 'iou': {v: x['iou'] for v, x in r['views'].items()},
-                  'outline': {v: x['f'] for v, x in r['views'].items()}}
+        w = {v: x['px'][1] for v, x in r['views'].items()}
+        val = sum(fs[v] * w[v] for v in fs) / max(1, sum(w.values()))
+        C[pid] = {'value': round(val, 3), 'status': 'PASS' if val >= PIECE_PASS else 'WARN' if val >= PIECE_WARN
+                  else 'FAIL', 'worst': round(min(fs.values()), 3), 'views': fs,
+                  'iou': {v: x['iou'] for v, x in r['views'].items()}, 'outline': {v: x['f'] for v, x in r['views'].items()}}
     C['built'] = {'value': '%d/%d' % (len(built), len(shown)), 'status': 'PASS' if len(built) == len(shown) else 'WARN',
                   'missing': sorted(set(shown) - set(built))}
     return C
