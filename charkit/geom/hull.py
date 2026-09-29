@@ -762,14 +762,18 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
 
 
 def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, sheet='body',
-          face=True, log=print):
+          face=True, log=print, stages=None):
     """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, the
     per-vertex classes hull_labels.npy and, with the outfit's piece masks, the per-vertex pieces hull_pieces.npy),
     hull.ply, hull.npz (the occupancy and its labelled shell), hull.json (calibration, the leave-one-out scores when
     validate_views, the mesh's health) and the review page. validate_views=False: the fast path a build takes (no
     leave-one-out sweeps, no page). pieces: carve and label per piece from the manifest's outfit_masks (built where
     missing). sheet 'head': the head turnaround's hull instead (the manifest's sheets.face; views_from_heads), for the
-    head's shape, without pieces. -> the report."""
+    head's shape, without pieces. stages: a list the intermediates are appended to as (stage, {name: array}), for
+    comparing machines stage by stage (main's --stages). -> the report."""
+    def stage(name, **arrays):
+        if stages is not None:
+            stages.append((name, {k: np.asarray(v) for k, v in arrays.items()}))
     import time
     from charkit import eyes as eyelib, manifest, refcheck, styles
     from . import io, remesh, repair
@@ -787,11 +791,17 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
     else:
         views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
     A = axes_for(views, h)
+    for n, v in views.items():
+        stage('view_' + n, mask=v.mask, labels=v.labels, calib=[v.az, v.ppl, v.axis, v.eye_y])
+    stage('axes', xs=A.xs, ys=A.ys, zs=A.zs)
     os.makedirs(out, exist_ok=True)
     rep = {'spec': spec.get('name'), 'sheet': bs['image'], 'style': style, 'prior': prior, 'grid': list(A.shape), 'h_L': A.h}
     masks = manifest.produced(spec, 'outfit_masks', log) if pieces else None
     P = attach_pieces(views, masks) if masks and os.path.exists(masks) else None
     rep['pieces'] = {'masks': masks and os.path.relpath(masks, manifest.ROOT), 'n': len(P.ids) if P else 0}
+    if P is not None:
+        for n, v in views.items():
+            stage('pieces_' + n, pieces=v.pieces)
     if validate_views:
         rep['leave_one_out_eyes_only'], _ = validate(views, A, 'rounded', **prior)      # the eyes' calibration alone
     info['refined_L'] = refine(views, A, prior)
@@ -802,11 +812,14 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
             rep['leave_one_out_no_limbs'], _ = validate(views, A, 'rounded', **dict(prior, limbs=False))
     else:
         V = rounded(views, A, list(views), **prior)
+    stage('rounded', V=V)
     if face and sheet == 'body':
         # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
         from charkit import code_base
         Sh, Ch, _ = code_base.head_sections(spec, log)
+        stage('head_sections', zs=Sh.zs, cy=Sh.cy, r=Sh.r)
         rep['face_carved'] = carve_face(V, A, views, Sh, info['y_e'], P=P, log=log)
+        stage('face_carved', V=V)
     L = None
     if P is not None:
         if validate_views:
@@ -814,16 +827,22 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
         else:
             LV = label_views(views, P)
             L = label_volume(V, A, LV, list(LV))
+        stage('label_volume', label=L['label'], cls=L['cls'], normals=L['normals'])
     m = surface(V, A, views)
+    stage('surface', V=m.V, F=m.F, vc=m.vc if m.vc is not None else np.zeros(0))
     full = len(m.F)
     m = remesh.decimate(m, faces)
+    stage('decimated', V=m.V, F=m.F, vc=m.vc if m.vc is not None else np.zeros(0))
     io.save(m, os.path.join(out, 'hull.ply'))
     io.save(m, os.path.join(out, 'hull.glb'))            # a coloured 'generated character' for charkit.geom.parts
-    np.save(os.path.join(out, 'hull_labels.npy'), label_vertices(m, views))     # per vertex, bodyqa.CLASS
+    vc = label_vertices(m, views)
+    stage('vertex_classes', labels=vc)
+    np.save(os.path.join(out, 'hull_labels.npy'), vc)                            # per vertex, bodyqa.CLASS
     side = {'labels': 'hull_labels.npy'}
     shell = {}
     if L is not None:
         vl, _ = vertex_labels(m, L, A)
+        stage('vertex_pieces', pieces=vl)
         np.save(os.path.join(out, 'hull_pieces.npy'), vl)                       # per vertex, Pieces labels
         side.update(pieces='hull_pieces.npy', piece_names={int(l): P.name(int(l)) for l in np.unique(vl)})
         shell = dict(shell=np.stack([L['ix'], L['iy'], L['iz']], 1).astype(np.int16), shell_label=L['label'])
@@ -905,16 +924,40 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
     return out
 
 
+OUTPUTS = ('hull.npz', 'hull_pieces.npy', 'hull_labels.npy', 'hull.ply', 'hull.glb', 'hull.glb.json')
+
+
+def save_stages(stages, d, out=None):
+    """a build's intermediates (build's stages) into d: each stage's arrays (STAGE.npz) and stages.json, their sha256s
+    (floats hashed bitwise) and, with out, the output files' - so two machines' runs compare stage by stage."""
+    import hashlib
+    os.makedirs(d, exist_ok=True)
+    rows = {}
+    for name, arrays in stages:
+        np.savez_compressed(os.path.join(d, name + '.npz'), **arrays)
+        rows[name] = {k: '%s %s %s' % (hashlib.sha256(np.ascontiguousarray(a).tobytes()).hexdigest()[:16], a.dtype,
+                                       'x'.join(map(str, a.shape))) for k, a in arrays.items()}
+    if out:
+        rows['outputs'] = {f: hashlib.sha256(open(os.path.join(out, f), 'rb').read()).hexdigest()[:16]
+                           for f in OUTPUTS if os.path.exists(os.path.join(out, f))}
+    json.dump(rows, open(os.path.join(d, 'stages.json'), 'w'), indent=1)
+    return rows
+
+
 def main(args):
-    """python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
+    """python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+    [--stages DIR] (each stage's intermediates and sha256s, save_stages)"""
     import subprocess
     from charkit import bodyeval, refcheck
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = bodyeval.resolve(args[0])
     head = '--head' in args
     out = refcheck._p(opt('--out', 'charkit/out/hull/%s%s' % (spec.get('name', 'char'), '_head' if head else '')))
+    stages = [] if '--stages' in args else None
     rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'), int(opt('--faces', 150000)),
-                validate_views='--fast' not in args, sheet='head' if head else 'body')
+                validate_views='--fast' not in args, sheet='head' if head else 'body', stages=stages)
+    if stages is not None:
+        save_stages(stages, refcheck._p(opt('--stages')), out)
     loo, nol = rep.get('leave_one_out'), rep.get('leave_one_out_no_limbs')
     if loo:
         for n in [k for k in loo if k != 'used']:
