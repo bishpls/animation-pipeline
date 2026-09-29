@@ -87,3 +87,81 @@ head. `geom.loft` is the tool for it: the torso as a field around a vertical axi
   the shorts need the 2D target.
 - Sleeves and cuffs lofted around their bones, the collar, and the boots.
 - The drape solver on the style profiles.
+
+## On the authored body (tool/body, 2026-09-29, second round)
+
+Found in the checkpoint render (1c57bb0) and by measuring. Evaluator numbers are on `clawd_body.json`, checkpoint →
+now:
+
+| piece | checkpoint | now | what changed |
+|---|---|---|---|
+| bow | 0.305 (hidden behind the top) | 0.646 | See the bow notes below. |
+| collar | 0.407 | 0.756 | Raised to the drawn neckline (rise 0.15, v_depth 0.5, v_half 40). It had started at the neck bone's head, 0.23 L low. |
+| top | 0.425 | 0.63 | The front panel is a second material by face, from the hull's bodice-panel footprint (symmetric, stray labels dropped). It had been a texture through the MakeHuman UVs, which broke into a cross. |
+| wrist cuffs | 0.32 | 0.43 | `band_hull`: a band lofted round its bone through its hull piece. |
+| sleeves' cream ends | 0.24 | 0.63 | `band_hull`. |
+| boot cuffs | 0.52 | 0.87 | `band_hull`. |
+| boots | 0.72 | 0.81 / 0.83 | `shoe_hull`: the boot's foot lofted from above the ankle to the sole. The template shoe had ballooned. |
+| overskirt panels | 0.405 / 0.675 (scraps) | 0.45 / 0.52 | See the panel notes below. |
+| skirt | 0.864 | 0.814 | Its hem is filled where the panels hide it, across the back (70–180°). |
+
+The bow:
+- The torso stays behind the bow and its tails by their measured depth (the hull shows them 0.02–0.06 L proud of the
+  chest). Only the bow points inside the drawn bow's extent count, because the hull labels part of the lapels as bow.
+- The bow takes its size from its drawn extent (`drawn_extent`, from the outfit graph).
+- Its lobes are flatter (0.06 of its size), fuller at the knot (0.6), and lifted 0.03 L. The profile's front at
+  −0.70..−0.80 L is now within 0.01 L of the drawing.
+
+The overskirt panels:
+- The hull labels them across ~90° of the back, and lofted they came out as twisted scraps.
+- They're now the panel template, its knobs fitted to the drawn panel masks in the evaluator (iou_tol per view, plus
+  the front view's reach: the lowest row and the outermost column).
+- **Not fixed.** Rendered (body2_render), they read as dark, flat wedges hanging under the skirt. The design has orange
+  flares with a narrow stepped hem, sweeping into a long train in profile. They also cost two grades on the authored
+  spec: front skirt width 0.896 WARN → 0.795 FAIL, three-quarter hem PASS → WARN. What they should be is a taste call
+  (one skirt with a longer stepped back and sides; flaps over the skirt; or flaps under it), set out on the review page.
+
+Other fixes:
+- **The waist.** The skin showing below the waistband was between the band and the skirt, not the top and the band.
+  The skirt now starts under the band all round, where its own points had started lower at the front.
+- **The skirt's front panel** takes the densest arc of its points (34°, not 58°).
+
+Measurement: `body_*_skirt_width` now compares the rows neither figure has a hand against (registered in
+`history.STEPS`). Each figure's widest free row had sat at a different height, because the hands hang differently.
+The results, first in the evaluator, then in the box build (body2):
+- profile: 1.23 FAIL → 1.00 PASS in the evaluator; 1.013 PASS in the build.
+- back: 1.02 PASS in the evaluator, but **1.995 FAIL in the build**. There, no row is free of hands in both figures, so
+  the check falls back to the old measure. The fix: when no row is free in both, measure ours on the design's free
+  rows.
+- front: 0.77 FAIL in the evaluator; 0.795 FAIL in the build. On the rows free in both, the drawn panels join the
+  skirt's run and ours leave a gap. The panel change caused this (0.804 FAIL before the remeasure), not the measure.
+
+## Box builds, round 2 (clawd_body_pieces.json; checkpoint `body_pieces` → now `body2_pieces`)
+
+| check | MakeHuman (code_mh) | checkpoint | now |
+|---|---|---|---|
+| piece_bow | 0.521 WARN | 0.302 FAIL | 0.635 WARN |
+| piece_collar | 0.504 WARN | 0.407 FAIL | 0.731 WARN |
+| piece_top | 0.457 FAIL | 0.423 FAIL | 0.623 WARN |
+| piece_waistband | 0.439 FAIL | 0.443 FAIL | 0.435 FAIL |
+| piece_skirt | 0.784 PASS | 0.864 PASS | 0.803 PASS |
+| overskirt panel L / R | 0.358 / 0.361 FAIL | 0.404 FAIL / 0.674 WARN | 0.451 FAIL / 0.526 WARN |
+| sleeve's cream end L / R | 0.168 / 0.046 FAIL | 0.24 / 0.002 FAIL | 0.637 / 0.585 WARN |
+| wrist cuff L / R | 0.175 / 0.177 FAIL | 0.321 / 0.332 FAIL | 0.443 FAIL / 0.85 PASS |
+| boot L / R | 0.722 / 0.744 WARN | 0.722 / 0.567 WARN | 0.804 / 0.838 PASS |
+| boot cuff L / R | 0.027 / 0.031 FAIL | 0.519 WARN / 0.446 FAIL | 0.875 / 0.823 PASS |
+| poke_share | 0.02 WARN | 0.0165 WARN | 0.0203 FAIL |
+
+The poke rise is all the hull wrist cuffs (wrist_L 14 → 44 px, wrist_R 0 → 37): `band_hull` has no clearance over the
+forearm. The fix: take the larger of the loft and the skin's own field plus a margin, per row and angle.
+
+The review page is `charkit/out/review_body2/index.html`, with renders at matching scale, the design above each, the
+table and the pieces pages.
+
+Gates, round 2:
+- The default spec, tool/body 51c0733 into pipeline-3d ead7d5f: **PASS**. So does the merged head fb9d89c into
+  ae55904 (`charkit/out/gate/gate_tool-body_fb9d89c_into_ae55904.md`).
+- clawd_body.json, tool/body 51c0733 into ckpt/2026-09-29 35525d1 (pipeline-3d has no clawd_body.json): **FAIL**.
+  Two checks got worse: body_three_quarter_hem (PASS → WARN, the panels) and poke_share (WARN → FAIL, the wrist cuffs).
+  Nineteen checks improved a grade (`charkit/out/gate/gate_tool-body_51c0733_into_35525d1.md`). The gate lists
+  body_front_skirt_width WARN → FAIL as "remeasured", but the panels caused it.

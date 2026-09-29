@@ -23,6 +23,7 @@ def assemble(spec, keys=True, cache=None):
     spec['base']: 'makehuman' (the default): MakeHuman's own head wrapped onto the anime head, its eyes and mouth detected in
     its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its eyes and mouth
     from stored labels; 'code': the head authored in code from the references on MakeHuman's body (charkit/code_base.py),
+    or on the authored body when spec['body']['source'] is 'code' (charkit/code_body.py),
     its eyes and mouth from its own loops. keys=False leaves out the shape keys (the rest pose only); cache: an optional dict that keeps the body
     and the wrap's knob-independent part between calls (charkit.faceeval: one body, many head knob sets)."""
     import json as _json
@@ -30,6 +31,13 @@ def assemble(spec, keys=True, cache=None):
     code = spec.get('base', 'makehuman') == 'code'
     bkey = _json.dumps(spec.get('body'), sort_keys=True)
     body = cache.get(('body', bkey)) if cache is not None else None
+    authored = code and (spec.get('body') or {}).get('source') == 'code'
+    if body is None and authored:
+        # the authored body fitted to the hull (charkit.code_body), its eye line where the code head's chin puts it
+        from . import code_base, code_body
+        body = code_body.build_body_data(spec, code_base.head_sections(spec)[1]['chin'])
+        if cache is not None:
+            cache[('body', bkey)] = body
     if body is None:
         body = bodylib.build_body_data(spec.get('body'), keep_head=True)
         if cache is not None:

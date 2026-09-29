@@ -44,6 +44,12 @@ class SectionsHead:
         self.df = float(y0 - (self._cy[k0] - self._r[k0, j0])) * L
         self.db = float(self._cy[k0] + self._r[k0, jb] - y0) * L
         self.eye_x = float(C['eye_x']) * L
+        # the face's front at the eyes' column (not the midline's, the nose's bridge: this head sets its eyes back in
+        # their sockets, as an anime profile draws them), what the generated target's eyes align to (i3d.eye_target)
+        ex = float(C['eye_x'])
+        row = self._r[k0]
+        k = int(np.argmin(np.abs(row * np.sin(S.th) - ex) + 10 * (np.cos(S.th) < 0)))
+        self.eye_df = float(y0 - (self._cy[k0] - row[k] * np.cos(S.th[k]))) * L
         self.eye_z = 0.0
         self.nose_z = float(C['nose_z']) * L
         self.mouth_z = (mouth_z if mouth_z is not None else float(C['nose_z']) - 0.11) * L
@@ -461,6 +467,33 @@ def wrap(spec, body=None, log=print):
     Oz = Hm - L - C['chin'] * L
     z_cut = Oz + CUT * L
     Vb, Fb = Bm['verts'], Bm['faces']
+    if Bm.get('authored'):
+        # the authored body (charkit.code_body) ends at the cut: its torso's open top ring is the neck ring, nothing goes
+        keep, gone_set = list(range(len(Fb))), set()
+        Fk = list(Fb)
+        ring_b = list(Bm['neck_ring'])
+    else:
+        keep, Fk, ring_b = _cut_body(Bm, Vb, Fb, z_cut, L)
+        gone_set = set(range(len(Fb))) - set(keep)
+    Vb = Vb.copy()
+    Vb[ring_b, 2] = z_cut                                                   # the body's rim flattened onto the cut
+    nc = Vb[ring_b].mean(0)
+    return _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ring_b, nc)
+
+
+def eye_front(S, C):
+    """the face's front at the eyes' column on the eye line, in the head's frame (L): what the generated target's eyes
+    align to (SectionsHead.eye_df, i3d.eye_target)."""
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    zs, cy, r = S.zs[ok], S.cy[ok], S.r[ok]
+    k0 = int(np.argmin(np.abs(zs)))
+    ex = float(C['eye_x'])
+    k = int(np.argmin(np.abs(r[k0] * np.sin(S.th) - ex) + 10 * (np.cos(S.th) < 0)))
+    return float(cy[k0] - r[k0, k] * np.cos(S.th[k]))
+
+
+def _cut_body(Bm, Vb, Fb, z_cut, L):
+    """MakeHuman's body cut level at the neck -> (the kept faces' indices, those faces, the neck ring)."""
     # the cut: above it, within the neck's column (the shoulders' tops can reach it beside the neck, and stay)
     hv = np.asarray(Bm['head_w']) > 0.5
     axis = Vb[hv, :2].mean(0) if hv.any() else np.zeros(2)
@@ -499,14 +532,22 @@ def wrap(spec, body=None, log=print):
         loops = _boundary_loops(Fk, len(Vb))
         near = [lp for lp in loops if abs(np.mean(Vb[lp, 2]) - z_cut) < 0.1 * L]
         ring_b = max(near, key=len)
-    Vb = Vb.copy()
-    Vb[ring_b, 2] = z_cut                                                   # the body's rim flattened onto the cut
-    nc = Vb[ring_b].mean(0)
+    return keep, Fk, ring_b
+
+
+def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ring_b, nc):
+    """the code head joined to a body cut at the neck (wrap's second half)."""
     # the head's neck centre at the cut meets the body's; the head's lowest rows ease into the body's neck section
     ok = np.isfinite(S.cy)
     cy_cut = float(np.interp(-CUT, -S.zs[ok], S.cy[ok]))
     Oy = nc[1] - cy_cut * L
     Ox = nc[0]
+    if Bm.get('eye_y') is not None:
+        # an authored body built from the full-body design knows where its eyes are: the head goes there (the body sheet
+        # places the head on the figure; the head sheet can carry its eyes further forward of its neck), and the neck's
+        # blend takes up the difference down to the body's ring
+        Oy = float(Bm['eye_y']) - (eye_front(S, C) + float(((spec.get('hair') or {}).get('shape') or {}).get(
+            'eye_depth', 0.01))) * L
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r)
     Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec), mouth_block(spec))
@@ -523,9 +564,12 @@ def wrap(spec, body=None, log=print):
     faces += hf + [tuple(t) for t in zipped]
     # UVs: the head's cylinder chart into MakeHuman's head island (the removed faces' UV box)
     uvs = np.asarray(Bm['uvs'])
-    gone = [i for i in range(len(Fb)) if i not in set(keep)]
-    box_src = np.array([uvs[u] for i in gone for u in Bm['face_uv'][i]]) if gone else uvs
-    u0, v0 = box_src.min(0); u1, v1 = box_src.max(0)
+    if Bm.get('head_uv_box'):
+        u0, v0, u1, v1 = Bm['head_uv_box']
+    else:
+        gone = sorted(gone_set)
+        box_src = np.array([uvs[u] for i in gone for u in Bm['face_uv'][i]]) if gone else uvs
+        u0, v0 = box_src.min(0); u1, v1 = box_src.max(0)
     Pl = Hmesh['V']
     ctr_y = float(np.nanmean(Sb.cy))
     th = np.arctan2(Pl[:, 0], -(Pl[:, 1] - ctr_y))
@@ -599,12 +643,15 @@ def wrap(spec, body=None, log=print):
     for k in ('chin', 'mouth', 'nose'):
         p = H.surface(0.0, marks[k][2] - centre[2]) + centre
         marks[k] = np.array([Ox, p[1], marks[k][2]])
-    src = np.array([Bm['marks'][k] for k in lm_ours])
-    dst = np.array([marks[k] for k in lm_ours])
-    Aff = np.linalg.lstsq(np.c_[src, np.ones(len(src))], dst, rcond=None)[0]
-    hv = np.nonzero(np.asarray(Bm['head_w']) > 0.5)[0]
-    pick = hv[:: max(1, len(hv) // 800)]
-    ghosts = (Bm['verts'][pick], np.c_[Bm['verts'][pick], np.ones(len(pick))] @ Aff)
+    if Bm.get('authored'):
+        ghosts = (np.zeros((0, 3)), np.zeros((0, 3)))        # no realistic head inside: nothing to carry the joints by
+    else:
+        src = np.array([Bm['marks'][k] for k in lm_ours])
+        dst = np.array([marks[k] for k in lm_ours])
+        Aff = np.linalg.lstsq(np.c_[src, np.ones(len(src))], dst, rcond=None)[0]
+        hv = np.nonzero(np.asarray(Bm['head_w']) > 0.5)[0]
+        pick = hv[:: max(1, len(hv) // 800)]
+        ghosts = (Bm['verts'][pick], np.c_[Bm['verts'][pick], np.ones(len(pick))] @ Aff)
     pre = np.full((n_all, 3), np.nan)
     pre[:nbv] = Bm['verts'][used]
     TV = Hmesh['V'] * L + np.array([Ox, Oy, Oz]) - centre

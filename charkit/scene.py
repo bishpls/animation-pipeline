@@ -367,7 +367,7 @@ def stage_garments(S):
     specs = S.spec.get('garments')
     hull = garments.hull_pieces(S.spec, S.character['data']) if any(g.get('source') == 'hull' for g in specs or []) \
         else None
-    S.garments = garments.build(S.character, specs, hull=hull)
+    S.garments = garments.build(S.character, specs, hull=hull, spec_all=S.spec)
 
 
 STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading', stage_face_shading),

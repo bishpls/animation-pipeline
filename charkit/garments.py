@@ -93,6 +93,38 @@ def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
     return lambda a: np.interp(a, th_c, z, period=2 * np.pi)
 
 
+def _grow(M, n, grow=True):
+    """a boolean grid dilated (or eroded) n cells (4-neighbours), numpy only (the build's Python has no scipy)."""
+    for _ in range(n):
+        nb = [np.roll(M, 1, 0), np.roll(M, -1, 0), np.roll(M, 1, 1), np.roll(M, -1, 1)]
+        M = (M | nb[0] | nb[1] | nb[2] | nb[3]) if grow else (M & nb[0] & nb[1] & nb[2] & nb[3])
+    return M
+
+
+def panel_faces(V, faces, P, L, cell=0.03, close=2, facing=-0.3):
+    """a shell's faces that are its front panel as the hull draws it: the face's centre, seen from the front, inside the
+    panel's points' footprint (a grid of `cell` L, closed `close` cells), and the face turned toward the front (its
+    normal's y under `facing`). Per face 1 or 0; no texture, so no dependence on the body's UVs."""
+    c = cell * L
+    # the design is symmetric: stray labels out to one side dropped (past 2.5 MADs of x), the rest mirrored
+    mx = np.median(P[:, 0]); mad = np.median(np.abs(P[:, 0] - mx)) + 1e-9
+    P = P[np.abs(P[:, 0] - mx) < 2.5 * 1.4826 * mad]
+    P = np.concatenate([P, P * np.array([-1.0, 1.0, 1.0])])
+    x0, z0 = P[:, 0].min() - 3 * c, P[:, 2].min() - 3 * c
+    nx, nz = int((P[:, 0].max() - x0) / c) + 4, int((P[:, 2].max() - z0) / c) + 4
+    M = np.zeros((nx, nz), bool)
+    M[np.clip(((P[:, 0] - x0) / c).astype(int), 0, nx - 1), np.clip(((P[:, 2] - z0) / c).astype(int), 0, nz - 1)] = True
+    M = _grow(_grow(M, close, True), close, False)
+    N = vertex_normals(V, faces)
+    out = np.zeros(len(faces), np.int32)
+    for i, f in enumerate(faces):
+        q = V[list(f)].mean(0)
+        ix, iz = int((q[0] - x0) / c), int((q[2] - z0) / c)
+        if 0 <= ix < nx and 0 <= iz < nz and M[ix, iz] and N[list(f), 1].mean() < facing:
+            out[i] = 1
+    return out
+
+
 def shell(A, spec, normals=None, hull=None):
     """a tight garment: the region's faces lifted by `offset` along the body's normals. With `source` 'hull', its hem
     follows the hull's own piece: cut below the lower edge of its points (and its folded pieces', `fold`) per angle
@@ -133,7 +165,12 @@ def shell(A, spec, normals=None, hull=None):
     W = {b: w[used] for b, w in A['weights'].items() if w[used].max() > 1e-4}
     B = A['body']
     uvs = [[B['uvs'][ui] for ui in B['face_uv'][i]] for i in keep]
-    return dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+    G = dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+    if spec.get('source') == 'hull' and 'panel' in spec and hull:
+        pp = hull.get(spec['panel'].get('piece', 'bodice_panel'))
+        if pp is not None and len(pp) >= 10:
+            G['panel_faces'] = panel_faces(sv, sf, pp, L)
+    return G
 
 
 # -------------------------------------------------------------------------------------------------------------------- bands
@@ -171,6 +208,66 @@ def band(A, spec):
             j2 = (j + 1) % m
             faces.append((k * m + j, k2 * m + j, k2 * m + j2, k * m + j2))
     return dict(verts=np.array(verts), faces=faces, weights={bone: np.ones(len(verts))}, uv=uvs)
+
+
+def band_hull(A, spec, hull):
+    """a band lofted round its bone's axis through the hull's points of its `piece` (a cuff, a sleeve's end, a boot's
+    cuff), between their `span` percentiles along the bone, `offset` L out, its first and last rows pulled in by
+    `round` of its thickness. Rigid on its bone; a Solidify gives it its thickness. -> dict(verts, faces, weights, uv)."""
+    from .geom import loft
+    L = A['head']['L']
+    bone = spec['bone']
+    P = _hull_points(hull, spec)
+    h, tl = bone_seg(A, bone)
+    ax = loft.Axis(h, tl - h, (0, -1, 0))
+    t, th, r = ax.coords(P)
+    lo, hi = np.percentile(t, spec.get('span', (2, 98)))
+    rows = max(3, int(round((hi - lo) / (spec.get('step', 0.015) * L))) + 1)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 48), min_row=0.2)
+    R = F.R + spec.get('offset', 0.0) * L
+    pull = spec.get('round', 0.4) * spec.get('thick', 0.02) * L
+    R[0] -= pull; R[-1] -= pull
+    V, quads, uv = loft.loft(ax, F, R)
+    return dict(verts=V, faces=quads, weights={bone: np.ones(len(V))}, uv=[tuple(x) for x in uv])
+
+
+def shoe_hull(A, spec, hull):
+    """a boot's foot lofted through the hull's points of the boot below the ankle (its `piece`, default boot_<side>):
+    sections stacked from `overlap` L above the ankle down to the sole round a vertical axis (geom.loft), capped
+    underneath; its bottom `sole` band (by height, the sole's) on the second material. Weighted to the foot, its
+    front to the toes. The template shoe sized itself round the body's foot plus an instep and read as a balloon; the
+    drawn boot is a straight shaft on a close foot. -> dict(verts, faces, weights, uv, sole (per face))."""
+    from .geom import loft
+    L = A['head']['L']
+    side = spec['side']
+    suf = '_L' if side == 'left' else '_R'
+    P = hull[spec.get('piece', 'boot' + suf)]
+    ank, ball = bone_seg(A, side + 'Foot')
+    top = ank[2] + spec.get('overlap', 0.04) * L
+    P = P[P[:, 2] <= top + 0.02 * L]
+    sole_z = float(P[:, 2].min())
+    c = np.median(P[P[:, 2] < top - 0.05 * L], 0)
+    ax = loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
+    t, th, r = ax.coords(P)
+    rows = max(4, int(round((top - sole_z) / (spec.get('step', 0.02) * L))) + 1)
+    ts = np.linspace(0.0, top - sole_z, rows)
+    F = loft.field(t, th, r, ts, nth=spec.get('cols', 48), min_row=0.2)
+    R = F.R + spec.get('offset', 0.0) * L
+    V, quads, uv = loft.loft(ax, F, R)
+    nth = len(F.th)
+    # the underside: a fan to the bottom ring's centre (the sole)
+    ci = len(V)
+    V = np.vstack([V, V[-nth:].mean(0)[None]])
+    base = (rows - 1) * nth
+    faces = [tuple(reversed(q)) for q in quads]                  # (rows run down: reversed, the faces face out)
+    faces += [(ci, base + j, base + (j + 1) % nth) for j in range(nth)]
+    uv = [tuple(x) for x in uv] + [(0.5, 1.0)]
+    zf = np.array([V[list(f), 2].mean() for f in faces])
+    sole = [1 if z < sole_z + spec.get('sole', 0.06) * L else 0 for z in zf]
+    d = ball - ank; d[2] = 0; d /= max(1e-9, np.linalg.norm(d))
+    u = (V - ank) @ d
+    toe = np.clip((u - 0.55 * u.max()) / max(1e-9, 0.2 * u.max()), 0, 1)
+    return dict(verts=V, faces=faces, weights={side + 'Foot': 1 - toe, side + 'Toes': toe}, uv=uv, sole=sole)
 
 
 def belt(A, spec):
@@ -224,6 +321,33 @@ def hull_pieces(spec, A):
     eye_mid, spacing = i3d.eye_target(A, shape)
     W = i3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
     return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
+
+
+def drawn_extent(spec, A, pid, view='front'):
+    """a piece's drawn extent in one view from the outfit graph (the produced outfit masks' graph: its bbox per view, L
+    from the eye line) as world (x0, z0, x1, z1), or None. Read as JSON through the spec's manifest (importing the
+    manifest module would pull the QA into the build's code)."""
+    import json, os
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    mp = ref.get('manifest')
+    if not mp:
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ab = lambda p: p if os.path.isabs(p) else os.path.join(root, p)
+    r = (json.load(open(ab(mp))).get('references') or {}).get('outfit_masks')
+    if not r:
+        return None
+    gp = os.path.join(os.path.dirname(ab(r['path'])), 'outfit_graph.json')
+    if not os.path.exists(gp):
+        return None
+    pc = next((p for p in json.load(open(gp))['pieces'] if p['id'] == pid), None)
+    e = ((pc or {}).get('extent') or {}).get(view)
+    if not e:
+        return None
+    L = A['head']['L']
+    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    x0, z0, x1, z1 = e['bbox']
+    return (x0 * L, ez + z0 * L, x1 * L, ez + z1 * L)
 
 
 def _hull_points(hull, s, fold=()):
@@ -456,9 +580,10 @@ def skirt_hull(A, spec, hull):
     top_z = hull_edge(P, ax, q=spec.get('waist_q', 3.0), low=False)
     band = spec.get('under')
     if band and hull and band in hull and len(hull[band]):
+        # tucked under the band all round: its own points start lower in places (the front panel's top), which left
+        # skin showing between the band and the skirt
         low = hull_edge(hull[band], ax, q=5.0)
-        top_z_ = top_z
-        top_z = lambda a: np.minimum(top_z_(a), low(a) + spec.get('tuck', 0.03) * L)
+        top_z = lambda a: low(a) + spec.get('tuck', 0.01) * L
     t0_at = lambda a: top - top_z(a)
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
@@ -477,7 +602,8 @@ def skirt_hull(A, spec, hull):
     # the front panel: the skirt_panel's points' angular spread, else the knob
     pan_pts = hull.get('skirt_panel') if hull else None
     if pan_pts is not None and len(pan_pts) > 20:
-        half = float(np.percentile(np.abs(ax.coords(pan_pts)[1]), 95))
+        half = dense_arc(ax.coords(pan_pts)[1], spec.get('panel_mass', 0.8))[1]    # its densest arc (stray labels
+                                                                                     # widened a percentile to 58 deg)
     else:
         half = spec.get('panel', 0.0)
     pan = [1 if abs(F.th[k]) < half else 0 for i in range(rows) for k in range(n)]
@@ -729,6 +855,24 @@ def sleeve(A, spec):
 
 
 # ---------------------------------------------------------------------------------------------------------------------- bow
+def sleeve_hull(A, spec, hull):
+    """a sleeve lofted through the hull's points of its piece round the upper arm's axis (geom.loft): rows from where its
+    points start (over the shoulder's cap, before the joint: t < 0) to where they end, the measured section between,
+    `offset` L out; weighted to the upper arm. -> dict(verts, faces, weights, uv)."""
+    from .geom import loft
+    L = A['head']['L']
+    side = spec.get('side', 'left')
+    P = _hull_points(hull, spec)
+    h, t_ = bone_seg(A, side + 'UpperArm')
+    ax = loft.Axis(h, t_ - h, (0, -1, 0))
+    t, th, r = ax.coords(P)
+    lo, hi = np.percentile(t, spec.get('span', (1, 99)))
+    rows = max(4, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 64), min_row=0.15)
+    V, quads, uv = loft.loft(ax, F, F.R + spec.get('offset', 0.0) * L)
+    return dict(verts=V, faces=quads, weights={side + 'UpperArm': np.ones(len(V))}, uv=[tuple(x) for x in uv])
+
+
 def bow(A, spec):
     """a big ribbon bow on the chest: two puffy lobes (squashed, tapering into the knot, a soft fold down their face), a
     rounded knot, two tails hanging out and down with notched ends (`tail`: their length, a share of the size; 0.62).
@@ -756,19 +900,32 @@ def bow_hull(A, spec, hull):
     B = _hull_points(hull, {'name': spec['name'], 'piece': spec.get('piece', spec['name'])}, fold=())
     tails = [hull[k] for k in spec.get('fold', ('bow_tail_L', 'bow_tail_R')) if k in hull and len(hull[k])]
     lo, hi = np.percentile(B[:, 0], [2, 98])
-    sz = (hi - lo) / (2 * LOBE)
     z = float(np.median(B[:, 2]))
-    depth = spec.get('depth', 0.09) * sz                          # the lobes' half-depth, sizes
+    ext = drawn_extent(spec.get('_spec') or {}, A, spec.get('piece', spec['name'])) if spec.get('drawn', True) else None
+    if ext is not None:
+        # the drawn bow's width and height, not its hull points': the hull labels part of the collar's lapels as bow
+        # (both cream), which made the bow too big and set it over the lapels
+        lo, hi = ext[0], ext[2]
+        z = 0.5 * (ext[1] + ext[3])
+    z += spec.get('lift', 0.0) * L
+    sz = (hi - lo) / (2 * LOBE)
+    depth = spec.get('depth', 0.06) * sz                          # the lobes' half-depth, sizes (the drawn bow is flat)
     y = float(np.percentile(B[:, 1], 2)) + depth                  # (conform then puts the front on the hull's)
     tail = spec.get('tail', 0.62)
-    if tails:
+    tail_ext = [drawn_extent(spec.get('_spec') or {}, A, k) for k in ('bow_tail_L', 'bow_tail_R')] \
+        if spec.get('drawn', True) else []
+    tail_ext = [e for e in tail_ext if e is not None]
+    if tail_ext:
+        tail = max(0.1, (z - min(e[1] for e in tail_ext)) / sz - TAIL0)
+    elif tails:
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
-    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth)
+    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
         S = np.concatenate([B] + tails)
+        S = S[S[:, 1] < np.percentile(S[:, 1], 2) + spec.get('front_band', 0.3) * L]   # its front (stray labels behind)
         fy = front_surface(S, spec.get('cell', 0.04) * L)
         V = G['verts']
         V[:, 1] += (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
@@ -776,9 +933,9 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
-    centre (default 0.09 sizes)."""
+    centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height."""
     depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
 
@@ -793,7 +950,7 @@ def _bow_mesh(c, sz, tail, L, depth=None):
             for j in range(nu):
                 ph = 2 * math.pi * j / nu
                 u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
-                taper = 0.35 + 0.65 * math.sin(min(math.pi, th * 1.15)) ** 0.8
+                taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
                 x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                 zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
                 yy = -math.cos(ph) * depth * taper
@@ -993,7 +1150,7 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
-def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
+def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
     whose `source` is 'hull'. -> [objects]."""
@@ -1016,7 +1173,10 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 zmin = G['verts'][:, 2].min()
                 midx = [1 if G['verts'][list(f), 2].max() < zmin + s['sole']['height'] * L else 0 for f in G['faces']]
             uvc = G['uvs']
-            if 'panel' in s:                                          # a front panel in another colour (a bib, a placket)
+            if 'panel_faces' in G:                                    # the hull's panel: a second material by face
+                mats.append(_toon(nm + '_panel', s['panel']['color'], sh))
+                midx = [int(v) for v in G['panel_faces']]
+            elif 'panel' in s:                                        # a front panel in another colour (a bib, a placket)
                 # a front-projected UV and a mask texture: a smooth-edged panel on the front, the plain colour elsewhere
                 P_ = s['panel']
                 z0_ = bone_seg(A, P_['from'][0])[0][2] + P_['from'][1] * L
@@ -1051,10 +1211,13 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 if v not in border:
                     hide[v] = True
         elif k == 'band':
-            G = band(A, s)
+            G = band_hull(A, s, hull) if s.get('source') == 'hull' else band(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            if s.get('source') == 'hull':                            # the loft is the band's outside: its thickness
+                sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
+                sol.use_rim = True
         elif k == 'shoe':
-            G = shoe(A, s)
+            G = shoe_hull(A, s, hull) if s.get('source') == 'hull' else shoe(A, s)
             mats = [_toon(nm, col, sh), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['sole'])
             # the body's foot is inside it: mask it
@@ -1070,7 +1233,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
                 sol.use_rim = True
         elif k == 'sleeve':
-            G = sleeve(A, s)
+            G = sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':
@@ -1093,7 +1256,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
         elif k == 'bow' and s.get('source') == 'hull':
-            G = bow_hull(A, s, hull)
+            G = bow_hull(A, dict(s, _spec=spec_all), hull)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'bow':
             G = bow(A, s)

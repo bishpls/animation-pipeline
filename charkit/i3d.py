@@ -195,7 +195,8 @@ def eye_target(A, shape):
     """where a generated character's eyes land on ours (align_by_eyes): the midpoint of our eyes, `eye_depth` (head
     lengths) behind the front of the face, and our eye spacing times `spacing`. -> (eye_mid (3,), spacing)."""
     Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
-    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    df = getattr(Hd['H'], 'eye_df', Hd['H'].df)            # the face's front at the eyes (a head that sets them back)
+    eye_mid = np.array([0.0, Hd['centre'][1] - df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
     return eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)
 
 
