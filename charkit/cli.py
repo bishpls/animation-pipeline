@@ -244,6 +244,10 @@ def build(args):
     name = json.load(open(spec_path))['name']
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
+    from . import cache
+    n = cache.unshare(out)                      # the build rewrites its outputs: not through links to another worktree
+    if n:
+        print('build: %d files in %s were hard-linked elsewhere; unshared' % (n, out))
     spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
