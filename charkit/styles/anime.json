@@ -12,5 +12,13 @@
   "hair_stiffness": 0.6,
   "hair_damping": 0.3,
   "gravity": 1.0
+ },
+ "hair_pieces": {
+  "notch": 7.0,
+  "thick": 0.22,
+  "tip_thick": 0.006,
+  "inset": 0.012,
+  "lock_min": 9.0,
+  "normals": "envelope"
  }
 }

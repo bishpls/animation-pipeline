@@ -84,6 +84,10 @@ def stage_hair(S):
         cap = hair_cap(S, hc)
         if cap is not None:
             S.hair.append(cap)
+    elif shape and shape.get('mode') == 'pieces':
+        # the hair as authored pieces, built venv-side by charkit.geom.hairpieces (python -m charkit build runs it)
+        S.hair = hair_pieces_objects(S, shape, hc)
+        S.hair_volume = vol
     elif shape and shape.get('mode') == 'geom':
         # the generated hair cut out venv-side by charkit.geom (python -m charkit build runs it): one closed surface
         S.hair = [hair_geom_mesh(S, shape, hc)]
@@ -95,7 +99,7 @@ def stage_hair(S):
     else:
         S.hair, S.hair_volume = hair.build(S.character['data'], S.character['arm'], S.spec.get('hair'), hc, volume=vol)
     acc = S.spec.get('accessories') or []
-    if shape and shape.get('mode') in ('mesh', 'geom'):
+    if shape and shape.get('mode') in ('mesh', 'geom', 'pieces'):
         acc = [a for a in acc if a['kind'] not in shape.get('carries', ['bun'])]
     S.accessories = accessories.build(S.character['data'], S.character['arm'], S.hair_volume, acc,
                                       {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')})
@@ -320,6 +324,35 @@ def hair_geom_mesh(S, shape, hc):
         character._to_head(proxy, S.character['arm'])
     character._to_head(ob, S.character['arm'])
     return ob
+
+
+def hair_pieces_objects(S, shape, hc):
+    """the hair's pieces (shape['pieces']: charkit.geom.hairpieces' parts and pieces.json, written venv-side) as one
+    object each (hair_NAME), with charkit's hair look and outline, rigged to the head; the style's 'envelope' normals ride
+    in after the outline from a hidden proxy (as the geom hair's do), so the pieces shade as one mass."""
+    from . import character, shade, trace
+    from .geom.blender import load_part, normals_proxy, transfer_normals
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pdir = shape['pieces'] if os.path.isabs(shape['pieces']) else os.path.join(root, shape['pieces'])
+    index = json.load(open(os.path.join(pdir, 'pieces.json')))
+    C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72), line=(0.36, 0.34, 0.50)); C.update(hc)
+    m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
+    envelope = index.get('normals', 'envelope') == 'envelope'
+    obs = []
+    for p in index['pieces']:
+        path = os.path.join(pdir, p['file'])
+        ob, meta = load_part(path, 'hair_' + p['name'], material=m, normals=None if envelope else 'geometric')
+        ob['charkit_family'] = p['family']
+        shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
+        if envelope:
+            proxy = normals_proxy(path, 'hair_%s_normals' % p['name'])
+            transfer_normals(ob, proxy)
+            character._to_head(proxy, S.character['arm'])
+        character._to_head(ob, S.character['arm'])
+        obs.append(ob)
+    trace.note('hair_pieces', pieces=[p['name'] for p in index['pieces']],
+               locks={p['name']: p['locks'] for p in index['pieces']})
+    return obs
 
 
 def stage_face_shading(S):
