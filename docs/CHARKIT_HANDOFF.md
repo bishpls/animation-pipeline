@@ -711,6 +711,37 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Parallel workstreams (2026-09-29): read this first when resuming
+
+Michael's next steps after the code-authored head: cut-piece hair and garments, the eye and mouth engine overhaul,
+aesthetic quality tuning, more expressions. They run in parallel, each in its own worktree and branch, building and
+gating on the build box (below). The integrator (the main session) reviews and merges them. Each keeps its notes in
+`docs/workstreams/NAME.md`, and they're folded in here at merge.
+
+| workstream | branch / worktree | state |
+|---|---|---|
+| cut-piece hair | `tool/hair-pieces`, `~/animation-pipeline-hair` | a fork; in progress |
+| eye and mouth engine | `tool/eyes-mouth`, `~/animation-pipeline-eyes` | a fork; in progress |
+| garments as pieces | `tool/garments` | **merged at `8f2ec5d`**: `docs/workstreams/garments.md` |
+| the authored body | `tool/body`, `~/animation-pipeline-body` | started: `docs/workstreams/body.md` |
+
+Merged this session, besides the build box:
+- `tool/produced` (`56e1375`): produced references (the hull, the outfit masks) are stamped with their producer's code
+  and inputs, and rebuilt when stale. pipeline-3d's hull had predated the face carve.
+- `tool/garments` (`8f2ec5d`):
+  - the outfit measured piece by piece in 2D (`piece_*`) and in 3D (`piece3d_*`), with the `charkit pieces` review
+    page;
+  - the waistband, skirt, top hem and bow taking their shape from the visual hull (`geom.loft`, `source: "hull"`).
+  - Box builds: PASS/WARN/FAIL 49/28/33 → 54/32/24.
+
+**The finding that sets the next step:** a piece lying on the body at the design's surface ends up inside the
+MakeHuman body, which isn't the design's. Under the top, our torso stands out of the hull by 0.077 L (median; 86% of
+points by more than 0.02 L). The collar, a hull-true top, the sleeves and the cuffs need the authored body fitted to
+the hull first. The hull shows only 29% of the torso (the lower bodice and the waist), so the plan is a parametric
+torso anchored to what it shows and bounded by its envelope, plus limb tubes on the graph's skeleton. On Clawd every
+join is hidden under a garment (puffs, shorts, cuffs, boots), so the parts can start separate. See
+`docs/workstreams/body.md`.
+
 ## Remote builds: the build box (2026-09-29)
 
 Builds, tunes and gates run on a CPU box in the research project, not the laptop. Michael approved it on 2026-09-29.
@@ -736,6 +767,8 @@ How the gate gets its code:
 - The box keeps one clone (`/srv/work/repo`). A gate sends a git bundle of only the commits that clone lacks. The
   first bundle is the whole history, 1.8 GB; later ones are small.
 - A file over 100 MB goes through the bucket, not the IAP tunnel, which carries about 1–3 MB/s.
+- A worktree's first sync is seeded on the box by hard links from the most recently synced copy there (its builds and
+  caches dropped), so it takes about 5 s rather than 4–9 minutes.
 - `charkit/out/i3d` (526 MB, gitignored) is seeded from the box's synced copy of the worktree, then rsynced.
 - Gates from several worktrees queue on a lock there, so parallel workstreams can gate whenever they're ready.
 
