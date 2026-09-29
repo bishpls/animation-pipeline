@@ -212,3 +212,119 @@ def check(C):
     return {'verts': len(V), 'quads': len(F), 'unused_verts': int(len(V) - len(used)),
             'nonmanifold_edges': int((cnt > 2).sum()), 'misoriented_edges': int((dcnt > 1).sum()),
             'boundary_edges': int(len(boundary)), 'euler': int(len(used) - len(key) + len(F)), 'volume': float(vol)}
+
+
+def cylinder(nth, zs, dome, place, dome_place, features=(), cap=True):
+    """the head's cage on a cylinder chart: columns at nth angles round the head (theta_j = 2 pi j / nth - pi, 0 = the
+    front, periodic), rows at heights zs (descending, the top first), then `dome` rows of elevation (0 < phi < pi/2)
+    above the top row, and a cap closing the crown (nth divisible by 4: the crown's ring is the rim of an (nth/4)^2
+    grid, filled by a Coons patch). The bottom row stays open (the neck joins the body there).
+      place(theta, z) -> (N, 3): the surface at chart points of the rows; dome_place(theta, phi) -> (N, 3) the dome's.
+      features: [dict(name, block (j0, j1, k0, k1): columns j0..j1 and rows k0..k1 (row indices into zs, k0 < k1: k0
+        the higher), outline_tz (K, 2) the feature's outline in chart (theta, z), rings, cap, theta_scale (the surface's
+        radius there: theta times it is a length, as z is))], loops like cage()'s.
+    -> Cage (V placed, groups 'face' for rows, 'skull' for the dome, 'crown', the features' rings and caps, 'neck' for
+    rows under the lowest feature...)."""
+    C = Cage()
+    th = 2 * np.pi * np.arange(nth) / nth - np.pi
+    nz = len(zs)
+    grid = {}
+    P = place(np.repeat(th[None, :], nz, 0).ravel(), np.repeat(np.asarray(zs)[:, None], nth, 1).ravel()).reshape(nz, nth, 3)
+    for k in range(nz):
+        for j in range(nth):
+            grid[j, k] = C.vert(P[k, j])
+    phis = np.linspace(0, np.pi / 2, dome + 2)[1:-1]
+    D = dome_place(np.tile(th, len(phis)), np.repeat(phis, nth)).reshape(len(phis), nth, 3)
+    for m in range(len(phis)):
+        for j in range(nth):
+            grid[j, -1 - m] = C.vert(D[m, j])          # dome rows as negative row indices above the top row
+    centre = np.asarray(P.reshape(-1, 3).mean(0))
+    holes = [f['block'] for f in features]
+
+    def in_hole(j, k):
+        return any(h[0] <= j < h[1] and h[2] <= k < h[3] for h in holes)
+    rows = list(range(-len(phis), nz))                  # top (the dome's last) to bottom
+    for a, b in zip(rows, rows[1:]):
+        for j in range(nth):
+            j1 = (j + 1) % nth
+            if a >= 0 and in_hole(j, a):
+                continue
+            q = [grid[j, b], grid[j1, b], grid[j1, a], grid[j, a]]
+            g = 'skull' if a < 0 else 'face'
+            C.face(q, g, ('from', np.array([0.0, centre[1], (C.V[q[0]][2] + C.V[q[2]][2]) / 2])))
+    for f in features:
+        j0, j1, k0, k1 = f['block']
+        wa, wb = j1 - j0, k1 - k0
+        # the block's rim counter-clockwise seen from the front: along the bottom row left to right (theta rising is her
+        # left, the picture's right), up the right side, back along the top, down the left
+        rim = ([(j, k1) for j in range(j0, j1)] + [(j1, k) for k in range(k1, k0, -1)] +
+               [(j, k0) for j in range(j1, j0, -1)] + [(j0, k) for k in range(k0, k1)])
+        ring0 = [grid[j % nth, k] for j, k in rim]
+        B = np.array([(th[j % nth], zs[k]) for j, k in rim])
+        c = B.mean(0)
+        ts_ = f.get('theta_scale', 1.0)                   # theta in lengths (the row's radius), comparable to z
+        ang = np.arctan2(B[:, 1] - c[1], (B[:, 0] - c[0]) * ts_)
+        O = np.asarray(f['outline_tz'], float)
+        inner = _outline_at(np.stack([(O[:, 0] - c[0]) * ts_, O[:, 1] - c[1]], 1), np.zeros(2), ang)
+        inner = np.stack([inner[:, 0] / ts_ + c[0], inner[:, 1] + c[1]], 1)
+        R = int(f.get('rings', 3))
+        ts = f.get('spacing') or [r / R for r in range(1, R + 1)]
+        rings = [ring0]
+        for t in ts:
+            Pt = (1 - t) * B + t * inner
+            rings.append([C.vert(p) for p in place(Pt[:, 0], Pt[:, 1])])
+        for r in range(R):
+            o, n = rings[r], rings[r + 1]
+            for i in range(len(o)):
+                i1 = (i + 1) % len(o)
+                C.face([o[i], o[i1], n[i1], n[i]], '%s_r%d' % (f['name'], r), (0, -1, 0))
+        C.loops[f['name']] = rings
+        if f.get('cap', True):                          # the opening filled in the chart, then placed
+            G = _coons(list((1 - ts[-1]) * B + ts[-1] * inner), wa, wb)
+            rim_i = {p: rings[-1][n] for n, p in enumerate(_loop((0, wa), (0, wb)))}
+            gi = {}
+            for i in range(wa + 1):
+                for jj in range(wb + 1):
+                    gi[i, jj] = rim_i[i, jj] if (i, jj) in rim_i else \
+                        C.vert(place(np.array([G[i, jj][0]]), np.array([G[i, jj][1]]))[0])
+            for i in range(wa):
+                for jj in range(wb):
+                    C.face([gi[i, jj], gi[i + 1, jj], gi[i + 1, jj + 1], gi[i, jj + 1]], f['name'] + '_cap', (0, -1, 0))
+    if cap:
+        # the crown's ring laid out as the rim of a k x k grid (its four quarters the grid's four sides), filled in the
+        # dome's azimuthal chart (u, v) = (pi/2 - phi) (cos theta, sin theta), then placed on the dome
+        k = nth // 4
+        start = int(np.argmin(np.abs(th - (-3 * np.pi / 4))))
+        idx = [(start + i) % nth for i in range(nth)]
+        order = [grid[j, -len(phis)] for j in idx]
+        rho = np.pi / 2 - phis[-1]
+        G = _coons([(rho * np.cos(th[j]), rho * np.sin(th[j])) for j in idx], k, k)
+        rim_i = {p: order[n] for n, p in enumerate(_loop((0, k), (0, k)))}
+        gi = {}
+        for i in range(k + 1):
+            for jj in range(k + 1):
+                if (i, jj) in rim_i:
+                    gi[i, jj] = rim_i[i, jj]
+                else:
+                    u, v = G[i, jj]
+                    gi[i, jj] = C.vert(dome_place(np.array([np.arctan2(v, u)]), np.array([np.pi / 2 - np.hypot(u, v)]))[0])
+        for i in range(k):
+            for jj in range(k):
+                C.face([gi[i, jj], gi[i + 1, jj], gi[i + 1, jj + 1], gi[i, jj + 1]], 'crown', ('from', centre))
+        C.crown = [v for v in gi.values() if v not in set(order)]
+    C.loops['neck'] = [[grid[j, nz - 1] for j in range(nth)]]
+    C.centre = centre
+    C.th, C.zs = th, np.asarray(zs)
+    return compact(C.arrays())
+
+
+def compact(C):
+    """a cage without the vertices no face uses (a feature block's inner lattice points), its loops remapped."""
+    used = np.zeros(len(C.V), bool)
+    used[C.F.ravel()] = True
+    new = np.cumsum(used) - 1
+    C.V, C.F = C.V[used], new[C.F]
+    C.loops = {k: [[int(new[i]) for i in r] for r in rings] for k, rings in C.loops.items()}
+    if hasattr(C, 'crown'):
+        C.crown = [int(new[i]) for i in C.crown if used[i]]
+    return C
