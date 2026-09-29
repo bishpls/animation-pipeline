@@ -500,6 +500,10 @@ def _grid(P, uv_slot, cap_start, cap_end):
             a, b = ring * nth + j, ring * nth + (j + 1) % nth
             faces.append((c, b, a) if ring == 0 else (c, a, b))
             fuv.append((cu, uvi(ring, j + 1), uvi(ring, j)) if ring == 0 else (cu, uvi(ring, j), uvi(ring, j + 1)))
+    # rows run down (or along the limb) and columns round toward her left: (right, down) crosses inward, so each face
+    # is reversed for outward normals (the shells lift along them, the collar's ray finds the surface, outlines see out)
+    faces = [tuple(reversed(f)) for f in faces]
+    fuv = [tuple(reversed(q)) for q in fuv]
     return np.concatenate(V), faces, fuv, uvs, np.concatenate(rowof)
 
 
