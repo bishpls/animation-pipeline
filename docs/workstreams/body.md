@@ -74,3 +74,23 @@ Acceptance for the authored body:
 - under tight pieces, the body sits inside the hull by the piece's thickness (median −0.02 to −0.01 L, p90 ≤ 0);
 - where skin shows, within ±0.02 L (median) and ±0.04 L (p90);
 - the hands and arms placed as drawn (the rest pose from the hull).
+
+## First look: how much of the torso the hull shows
+
+A radius field for the torso, fitted to the hull's skin (neckline), the top and the waistband (each pulled in by its
+thickness) around a vertical axis:
+- only 29% of the cells are measured;
+- the rows from −1.0 to −1.36 L (the lower bodice and the waistband) are 53–89% measured;
+- the chest under the bow, collar and sleeves (−0.69 to −0.85) is 0–6%;
+- below the waistband, under the skirt, it's 0%.
+
+Where it's measured the torso is 0.58–0.73 L wide and 0.54–0.70 L deep.
+
+So the torso can't be a pure loft. It needs a parametric torso: superellipse sections per height, as the head's
+analytic skull has, with width, depth and exponent profiles set by the style profile. It's anchored to:
+- the head's neck ring at the cut;
+- the graph skeleton's shoulders (±0.545 L at −0.886) and hips (legs at ±0.28 L, −2.55);
+- the measured bodice and waist rows.
+
+It's bounded above everywhere by the hull's full envelope less a clearance: the body can't stand out of the design
+anywhere, which is the property the garments need. The limbs are better observed (bare forearms, thighs and shins).
