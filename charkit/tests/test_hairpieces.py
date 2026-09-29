@@ -117,6 +117,19 @@ def test_the_hair_qa_counts_tips_and_corners():
     assert qa3d.silhouette_corners(sq, ppl=200.0) == 4 and qa3d.silhouette_corners(disc, ppl=200.0) == 0
 
 
+def test_hair_noise_cuts_each_tone_group_apart():
+    from charkit import qa3d
+    lum = np.tile(np.linspace(0.2, 0.6, 60), (40, 1))                  # the mass: one smooth gradient
+    grp = np.ones(lum.shape, int)
+    lum2, grp2 = lum.copy(), grp.copy()
+    lum2[:, 40:] = 0.95; grp2[:, 40:] = 2                               # a flat bright block beside it, its own group
+    e, n = qa3d.tone_edges(lum, grp)
+    e2, n2 = qa3d.tone_edges(lum2, grp2)
+    mass = grp2 == 1
+    # the mass keeps its two tone edges per row wherever its own percentiles fall, whatever the block does
+    assert (e2 & mass).sum(1).min() == 2 and (e2 & ~mass).sum() == 0 and n2 == n
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

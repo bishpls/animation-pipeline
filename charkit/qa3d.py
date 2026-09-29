@@ -1639,30 +1639,61 @@ def _to_shape(m, shape):
     return m[r][:, c]
 
 
+HAIR_NOISE_GROUPS = ('buns',)   # hair families whose tones are cut apart from the rest's (hair_noise): a block bun's
+                                # large flat faces moved the shared cuts, and with them the rest's tone edges
+
+
+def hair_noise_group(o):
+    """an object's tone group for hair_noise: 1 the hair's mass, 2 + k for HAIR_NOISE_GROUPS[k] (a piece of that
+    family: charkit.geom.hairpieces' objects hair_NAME)."""
+    f = HAIR_PIECE_FAMILY.get(o.name[5:]) if o.name.startswith('hair_') else None
+    return 2 + HAIR_NOISE_GROUPS.index(f) if f in HAIR_NOISE_GROUPS else 1
+
+
+def tone_edges(lum, grp, min_px=50):
+    """the tone edges of a picture's hair: per group (grp: 0 none, else the pixel's tone group) its pixels' luminance cut
+    into three tones at the group's own 33rd and 66th percentiles, and an edge wherever two neighbouring pixels of one
+    group differ in tone. -> (edge map (H, W) bool: the pixel or its left/upper neighbour, pixels counted)."""
+    e = np.zeros(grp.shape, bool)
+    n = 0
+    for g in np.unique(grp[grp > 0]):
+        a = grp == g
+        n += int(a.sum())
+        if a.sum() <= min_px:
+            continue
+        q = np.digitize(lum, np.percentile(lum[a], [33, 66]))
+        e[:, 1:] |= (np.abs(np.diff(q, axis=1)) > 0) & a[:, 1:] & a[:, :-1]
+        e[1:] |= (np.abs(np.diff(q, axis=0)) > 0) & a[1:] & a[:-1]
+    return e, n
+
+
 def hair_noise(B, design=None, out=None):
     """the hair's shading noise as a render shows it: the hair drawn with its own materials, without its outlines (a
     drawn line between two locks is not shading) and behind the rest of the character (which hides the hair's inside
-    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at their
-    33rd and 66th percentiles, the tone edges per visible hair pixel."""
+    through the face), from 0, 90 and 180 degrees; each visible hair pixel's luminance cut into three tones at its
+    group's 33rd and 66th percentiles (the buns apart from the rest: tone_edges), the tone edges per visible hair
+    pixel."""
     hair = _visible(B, ('hair',))
     if not hair:
         return None, {}
     fr = figure_frame(B, ss=FIG_SS)
     vals, per = [], {}
-    surfs = [x for o in hair for x in surfaces(B, o, outline=False)]
+    surfs, groups = [], []
+    for o in hair:
+        for x in surfaces(B, o, outline=False):
+            surfs.append(x); groups.append(hair_noise_group(o))
     occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
            for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
     for az in (0, 90, 180):
         px = draw(B, surfs + occ, az, fr)
-        items = [(s_['V'], s_['T'], np.full(len(s_['T']), 1 if k < len(surfs) else 2), s_['cull'])
+        items = [(s_['V'], s_['T'], np.full(len(s_['T']), groups[k] if k < len(surfs) else -1), s_['cull'])
                  for k, s_ in enumerate(surfs + occ)]
-        lab = fr.zbuffer(items, az)[1]
-        a = (px[..., 3] > 0.5) & _to_shape(lab == 1, px.shape[:2])
+        lab = _to_shape(fr.zbuffer(items, az)[1], px.shape[:2])
+        grp = np.where((px[..., 3] > 0.5) & (lab >= 1), lab, 0)
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
-        q = np.digitize(lum, np.percentile(lum[a], [33, 66])) if a.sum() > 50 else np.zeros_like(lum)
-        e = (np.abs(np.diff(q, axis=1)) > 0)[:, :] & a[:, 1:] & a[:, :-1]
-        e2 = (np.abs(np.diff(q, axis=0)) > 0) & a[1:] & a[:-1]
-        vals.append((e.sum() + e2.sum()) / max(1, a.sum()))
+        e, n = tone_edges(lum, grp)
+        a = grp > 0
+        vals.append(float((e & a).sum()) / max(1, n))
         per[az] = round(float(vals[-1]), 4)
         if out and az == 0:
             pic = np.where(a[..., None], px[..., :3], 0.93)

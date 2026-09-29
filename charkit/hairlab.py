@@ -148,9 +148,9 @@ class _Piece:
 
 
 def noise(ctx, R):
-    """qa3d.hair_noise's measure (tone edges per visible hair pixel, the hair drawn without outlines behind the rest,
-    from 0, 90 and 180 degrees) for rebuilt pieces, each drawn as the build's object of the same name with the piece's
-    mesh and shading normals. -> (mean, {az: value}, {piece: {az: value}})."""
+    """qa3d.hair_noise's measure (tone edges per visible hair pixel, the hair drawn without outlines behind the rest, from
+    0, 90 and 180 degrees, each tone group cut at its own percentiles) for rebuilt pieces, each drawn as the build's
+    object of the same name with the piece's mesh and shading normals. -> (mean, {az: value}, {piece: {az: value}})."""
     from . import qa3d
     B = ctx['B']
     objs = {o.name: o for o in qa3d._visible(B, ('hair',))}
@@ -163,19 +163,17 @@ def noise(ctx, R):
             surfs.append(x); owner.append(i)
     occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
            for x in qa3d.surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
+    group = np.array([qa3d.hair_noise_group(o) for o in hair])
     per, by = {}, {}
     for az in (0, 90, 180):
         px = qa3d.draw(B, surfs + occ, az, fr)
-        items = [(s_['V'], s_['T'], np.full(len(s_['T']), owner[k] + 1 if k < len(surfs) else 0), s_['cull'])
+        items = [(s_['V'], s_['T'], np.full(len(s_['T']), owner[k] + 1 if k < len(surfs) else -1), s_['cull'])
                  for k, s_ in enumerate(surfs + occ)]
         lab = qa3d._to_shape(fr.zbuffer(items, az)[1], px.shape[:2])
         a = (px[..., 3] > 0.5) & (lab >= 1)
-        lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
-        q = np.digitize(lum, np.percentile(lum[a], [33, 66])) if a.sum() > 50 else np.zeros_like(lum)
-        e = np.zeros(a.shape, bool)
-        e[:, 1:] |= (np.abs(np.diff(q, axis=1)) > 0) & a[:, 1:] & a[:, :-1]
-        e[1:] |= (np.abs(np.diff(q, axis=0)) > 0) & a[1:] & a[:-1]
-        per[az] = round(float(e.sum() / max(1, a.sum())), 4)
+        grp = np.where(a, group[np.clip(lab - 1, 0, len(group) - 1)], 0)
+        e, n = qa3d.tone_edges(px[..., :3] @ np.array([0.3, 0.59, 0.11]), grp)
+        per[az] = round(float((e & a).sum() / max(1, n)), 4)
         for i, o in enumerate(hair):
             m = a & (lab == i + 1)
             if m.sum() > 30:
