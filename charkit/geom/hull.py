@@ -121,10 +121,31 @@ NECK_BAND = (-0.62, -0.50)          # L from the eye line: a head sheet's neck, 
 HEAD_FLOOR = -0.66                  # a head sheet's hull stops here: below, the bust is cut by the sheet's vignette
 
 
-def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR):
+def without_ears(mask, ppl, axis, window=0.3):
+    """a front view's silhouette with the ears cut off: each side's half-width per row opened (a running minimum then
+    maximum over `window` L of rows), which flattens a bump shorter than the window (an ear) and keeps the skull's and
+    the jaw's broad curves -> mask."""
+    from scipy.ndimage import maximum_filter1d, minimum_filter1d
+    rows = np.nonzero(mask.any(1))[0]
+    k = max(3, int(window * ppl))
+    out = mask.copy()
+    cols = np.arange(mask.shape[1])
+    for side in (-1, 1):
+        half = np.zeros(mask.shape[0])
+        for r in rows:
+            c = np.nonzero(mask[r])[0]
+            half[r] = (axis - c[0]) if side < 0 else (c[-1] - axis)
+        opened = maximum_filter1d(minimum_filter1d(half, k), k)
+        off = (axis - cols) if side < 0 else (cols - axis)
+        out &= ~(off[None, :] > opened[:, None])
+    return out
+
+
+def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR, ears=True):
     """a head turnaround's views (charkit.refcheck.detect_heads), calibrated from their eyes as views_from_sheet's, each
     at its own eye line (a generated sheet's rows drift a few pixels). The profile's free axis and the back's axis are
-    the neck's centre (NECK_BAND); every mask stops at `floor` L. -> ({view: View}, info)."""
+    the neck's centre (NECK_BAND); every mask stops at `floor` L. ears=False: the front's and back's ears cut off
+    (without_ears), for a skull. -> ({view: View}, info)."""
     from charkit import bodyqa, refcheck, sheetqa
     D = refcheck.detect_heads(rgb, eye_x, facing)
     ppl, F = D['ppl'], D['heads']
@@ -161,6 +182,8 @@ def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR):
                              b['eye_y'], cls, rgb)
     for n, v in views.items():
         v.grid_eye = (v.axis, v.eye_y)
+        if not ears and n in ('front', 'back'):
+            v.mask = without_ears(v.mask, ppl, v.axis)
     info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
     info['front_neck_offset_L'] = round((neck_axis(f['_mask'], f['eye_y']) - views['front'].axis) / ppl, 4)
     return views, info
@@ -346,13 +369,15 @@ def _split(g, min_w):
     return [tuple(r) for r in R]
 
 
-def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04):
+def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04, restore=True):
     """the shape prior's hull (see the module): superellipse sections |x/rx|^p + |y/ry|^p <= 1 per (front run x side
     run), class-aware, smoothed across heights by `smooth` L (a Gaussian on its signed distance), inside the plain hull
     of `use`. With the views' pieces (attach_pieces) and `limbs`, a front run splits where an arm or a leg meets the
     body (sub-runs under `split_min` L join a neighbour), and each limb part takes its depth from the side view's pixels
     of that limb (its pieces and the free skin): a wrist cuff from the forearm drawn over the skirt, not the skirt's
-    depth. Needs the front and a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
+    depth. restore=False skips putting back the silhouette pixels the smoothing eroded (a voxel per pixel at its ray's
+    median depth: right for silhouettes, a fin on a surface; the profile's lands on the midline). Needs the front and
+    a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
     plain = carve(views, A, use)
     if 'front' not in use or 'profile' not in use:
         return plain
@@ -394,6 +419,8 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
         d = distance_transform_edt(~V) - distance_transform_edt(V)          # signed distance in voxels (+ outside)
         d = gaussian_filter(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h))
         Vs = (d < 0) & plain
+        if not restore:
+            return Vs
         # the silhouettes restored: where a given view's drawing shows figure the smoothed hull no longer covers (a
         # finger, a hair tip the blur eroded), the unsmoothed voxels on those rays come back; the smoothing acts only
         # where no view says anything
