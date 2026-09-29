@@ -60,6 +60,7 @@ projects/tsuzuku/rig/fable_room/preview/
 # the GPU box config names a real project; only the example is committed
 infra/gcp/gpu.env
 infra/gcp/build.env
+infra/gcp/render.env
 # 3D mocap: GEM-X's raw output (~100 MB) and regenerable review/interchange files; the canonical clips and QA are committed
 projects/*/refs/mocap/gemx/
 projects/clawd3d/refs/mocap/*_overlay.mp4
