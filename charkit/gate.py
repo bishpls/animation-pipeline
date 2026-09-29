@@ -102,12 +102,16 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
     tag = '%s_%s' % (branch.replace('/', '-'), tip)
     opts = '_'.join(a.strip('-') for a in args) or 'default'
     gdir = os.path.join(ROOT, 'charkit', 'out', 'gate')
-    base_out = os.path.join(gdir, 'base_%s_%s_%s' % (head, os.path.basename(spec).split('.')[0], opts))
-    cand_out = os.path.join(gdir, 'cand_%s_into_%s_%s' % (tag, head, opts))
+    stem = os.path.basename(spec).split('.')[0]
+    # a spec other than the default is in the candidate's and report's names: gates of one commit on two specs ran one
+    # after the other and the second overwrote the first's; run in parallel they would collide
+    suffix = '' if stem == 'clawd' else '_' + stem
+    base_out = os.path.join(gdir, 'base_%s_%s_%s' % (head, stem, opts))
+    cand_out = os.path.join(gdir, 'cand_%s_into_%s%s_%s' % (tag, head, suffix, opts))
     wt = tempfile.mkdtemp(prefix='charkit-gate-')
     os.rmdir(wt)
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
-           't': time.strftime('%Y-%m-%dT%H:%M:%S')}
+           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S')}
     if _free_gb(os.path.dirname(wt)) < 5:
         raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(os.path.dirname(wt)))
     _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
@@ -116,15 +120,20 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
     _git('checkout', '--detach', head, cwd=wt)
     try:
         _link_inputs(wt)
-        # the baseline: cached per integration commit, spec and options
-        if not os.path.exists(os.path.join(base_out, 'qa', 'qa.json')):
-            ok, dt, log = _build(wt, spec, base_out, list(args))
-            rep['base_build'] = {'ok': ok, 'seconds': dt}
-            if not ok:
-                rep['verdict'] = 'FAIL'; rep['why'] = 'the baseline build failed'; rep['log'] = log
-                return _write(rep, gdir, tag)
-        else:
-            rep['base_build'] = {'ok': True, 'cached': True}
+        # the baseline: cached per integration commit, spec and options; built under its own lock, so gates running in
+        # parallel into one commit build it once and the others wait for it and reuse it
+        import fcntl
+        os.makedirs(gdir, exist_ok=True)
+        with open(base_out + '.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if not os.path.exists(os.path.join(base_out, 'qa', 'qa.json')):
+                ok, dt, log = _build(wt, spec, base_out, list(args))
+                rep['base_build'] = {'ok': ok, 'seconds': dt}
+                if not ok:
+                    rep['verdict'] = 'FAIL'; rep['why'] = 'the baseline build failed'; rep['log'] = log
+                    return _write(rep, gdir, tag)
+            else:
+                rep['base_build'] = {'ok': True, 'cached': True}
         m = _git('merge', '--no-commit', '--no-ff', branch, cwd=wt, check=False)
         if m.returncode:
             conf = _git('diff', '--name-only', '--diff-filter=U', cwd=wt, check=False).stdout.split()
@@ -176,7 +185,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
 
 def _write(rep, gdir, tag):
     os.makedirs(gdir, exist_ok=True)
-    base = os.path.join(gdir, 'gate_%s_into_%s' % (tag, rep['head']))
+    base = os.path.join(gdir, 'gate_%s_into_%s%s' % (tag, rep['head'], rep.get('suffix', '')))
     json.dump(rep, open(base + '.json', 'w'), indent=1, default=str)
     L = ['# gate: %s (%s) into %s (%s): **%s**' % (rep['branch'], rep['tip'], rep['into'], rep['head'], rep['verdict'])]
     if rep.get('why'):
