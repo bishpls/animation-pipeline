@@ -298,7 +298,9 @@ def set_light(d, head_matrix=None):
             nd = nt.nodes.get(key)
             if nd is not None:
                 for i in range(3):
-                    nd.inputs[i].default_value = float(v[i])
+                    x = float(np.float32(v[i]))              # written only when it changes (a write re-tags the
+                    if nd.inputs[i].default_value != x:      # material for evaluation)
+                        nd.inputs[i].default_value = x
 
 
 def line_width(ob, m_per_px=None, res_y=None, look=None):
@@ -323,5 +325,7 @@ def set_view(az, m_per_px=None, res_y=None, look=None):
             continue
         mod = next((m for m in ob.modifiers if m.type == 'SOLIDIFY' and m.name == 'outline'), None)
         if mod is not None:
-            mod.thickness = -line_width(ob, m_per_px, res_y, look)
+            t32 = float(np.float32(-line_width(ob, m_per_px, res_y, look)))
+            if mod.thickness != t32:                     # only when it changes: a write re-evaluates the object's
+                mod.thickness = t32                      # modifier stack (~1.5 s a frame over 47 outlined objects)
     return d
