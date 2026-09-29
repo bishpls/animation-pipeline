@@ -169,7 +169,8 @@ class Face:
     """the anime face surface in world: surf(x, z) -> the point on it at world x, z (front half), for placing features."""
 
     def __init__(self, H, centre):
-        self.H = headlib.Head(H.L, H.K, features=False)
+        # the analytic head is rebuilt without its features; another surface (charkit.code_base.SectionsHead) as it is
+        self.H = headlib.Head(H.L, H.K, features=False) if isinstance(H, headlib.Head) else H
         self.c = np.asarray(centre)
 
     def points(self, x, z):

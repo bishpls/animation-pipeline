@@ -36,7 +36,10 @@ Clawd's body_turnaround (2026-09-28): the three-quarter predicted from front, si
 0.797 with ellipses, 0.818 with class-aware pairing, 0.862 with the axis refined and the smoothing, 0.876 with the limb
 split (the wrist cuffs no longer take the skirt's depth). TRELLIS scores 0.79 there, our build 0.68.
 
-    python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+    python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+
+--head carves the head turnaround instead (views_from_heads: the heads at about twice the body sheet's scale, down to the
+neck), the target the code-authored head is fitted to.
 """
 import json, os
 
@@ -111,6 +114,78 @@ def views_from_sheet(rgb, eye_x, facing=-1):
     for n, v in views.items():
         v.grid_eye = bodyqa.view_eye(n, F[n])
     info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
+    return views, info
+
+
+NECK_BAND = (-0.62, -0.50)          # L from the eye line: a head sheet's neck, under the chin, above the bust's vignette
+HEAD_FLOOR = -0.66                  # a head sheet's hull stops here: below, the bust is cut by the sheet's vignette
+
+
+def without_ears(mask, ppl, axis, window=0.3):
+    """a front view's silhouette with the ears cut off: each side's half-width per row opened (a running minimum then
+    maximum over `window` L of rows), which flattens a bump shorter than the window (an ear) and keeps the skull's and
+    the jaw's broad curves -> mask."""
+    from scipy.ndimage import maximum_filter1d, minimum_filter1d
+    rows = np.nonzero(mask.any(1))[0]
+    k = max(3, int(window * ppl))
+    out = mask.copy()
+    cols = np.arange(mask.shape[1])
+    for side in (-1, 1):
+        half = np.zeros(mask.shape[0])
+        for r in rows:
+            c = np.nonzero(mask[r])[0]
+            half[r] = (axis - c[0]) if side < 0 else (c[-1] - axis)
+        opened = maximum_filter1d(minimum_filter1d(half, k), k)
+        off = (axis - cols) if side < 0 else (cols - axis)
+        out &= ~(off[None, :] > opened[:, None])
+    return out
+
+
+def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR, ears=True):
+    """a head turnaround's views (charkit.refcheck.detect_heads), calibrated from their eyes as views_from_sheet's, each
+    at its own eye line (a generated sheet's rows drift a few pixels). The profile's free axis and the back's axis are
+    the neck's centre (NECK_BAND); every mask stops at `floor` L. ears=False: the front's and back's ears cut off
+    (without_ears), for a skull. -> ({view: View}, info)."""
+    from charkit import bodyqa, refcheck, sheetqa
+    D = refcheck.detect_heads(rgb, eye_x, facing)
+    ppl, F = D['ppl'], D['heads']
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    fe = F['front']['eyes']
+    cls = bodyqa.classes(rgb, fg, F['front']['eye_y'], ppl)[0].astype(np.uint8)
+
+    def neck_axis(m, ey):
+        rows = range(int(ey - NECK_BAND[1] * ppl), int(ey - NECK_BAND[0] * ppl))
+        return float(np.median([np.nonzero(m[r])[0][[0, -1]].mean() for r in rows if m[r].any()]))
+
+    def masked(m, ey):
+        m = m.copy()
+        m[int(round(ey - floor * ppl)):] = False
+        return m
+    views, info = {}, {'ppl': ppl, 'eye_rows': {k: h['eye_y'] for k, h in F.items()}}
+    f = F['front']
+    views['front'] = View('front', 0.0, masked(f['_mask'], f['eye_y']), ppl, float(np.mean([e[0] for e in fe])),
+                          f['eye_y'], cls, rgb)
+    p = F['profile']
+    ax_prof = neck_axis(p['_mask'], p['eye_y'])
+    y_e = (p['eyes'][0][0] - ax_prof) / ppl
+    views['profile'] = View('profile', 90.0, masked(p['_mask'], p['eye_y']), ppl, ax_prof, p['eye_y'], cls, rgb)
+    info['y_e'] = round(y_e, 4)
+    if 'three_quarter' in F and len(F['three_quarter']['eyes']) == 2:
+        t = F['three_quarter']; te = t['eyes']
+        az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / abs(fe[1][0] - fe[0][0]), 0, 1))))
+        ax3 = float(np.mean([e[0] for e in te])) - y_e * np.sin(np.radians(az3)) * ppl
+        views['three_quarter'] = View('three_quarter', az3, masked(t['_mask'], t['eye_y']), ppl, ax3, t['eye_y'], cls, rgb)
+        info['az3'] = round(az3, 2)
+    if 'back' in F:
+        b = F['back']
+        views['back'] = View('back', 180.0, masked(b['_mask'], b['eye_y']), ppl, neck_axis(b['_mask'], b['eye_y']),
+                             b['eye_y'], cls, rgb)
+    for n, v in views.items():
+        v.grid_eye = (v.axis, v.eye_y)
+        if not ears and n in ('front', 'back'):
+            v.mask = without_ears(v.mask, ppl, v.axis)
+    info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
+    info['front_neck_offset_L'] = round((neck_axis(f['_mask'], f['eye_y']) - views['front'].axis) / ppl, 4)
     return views, info
 
 
@@ -294,13 +369,15 @@ def _split(g, min_w):
     return [tuple(r) for r in R]
 
 
-def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04):
+def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04, restore=True):
     """the shape prior's hull (see the module): superellipse sections |x/rx|^p + |y/ry|^p <= 1 per (front run x side
     run), class-aware, smoothed across heights by `smooth` L (a Gaussian on its signed distance), inside the plain hull
     of `use`. With the views' pieces (attach_pieces) and `limbs`, a front run splits where an arm or a leg meets the
     body (sub-runs under `split_min` L join a neighbour), and each limb part takes its depth from the side view's pixels
     of that limb (its pieces and the free skin): a wrist cuff from the forearm drawn over the skirt, not the skirt's
-    depth. Needs the front and a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
+    depth. restore=False skips putting back the silhouette pixels the smoothing eroded (a voxel per pixel at its ray's
+    median depth: right for silhouettes, a fin on a surface; the profile's lands on the midline). Needs the front and
+    a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
     plain = carve(views, A, use)
     if 'front' not in use or 'profile' not in use:
         return plain
@@ -342,6 +419,8 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
         d = distance_transform_edt(~V) - distance_transform_edt(V)          # signed distance in voxels (+ outside)
         d = gaussian_filter(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h))
         Vs = (d < 0) & plain
+        if not restore:
+            return Vs
         # the silhouettes restored: where a given view's drawing shows figure the smoothed hull no longer covers (a
         # finger, a hair tip the blur eroded), the unsmoothed voxels on those rays come back; the smoothing acts only
         # where no view says anything
@@ -628,24 +707,85 @@ def label_vertices(m, views):
     return lab
 
 
-def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, log=print):
+FACE_CLASSES = (1, 3)                # bodyqa.CLASS skin and iris: where a view draws the face, nothing stands in front of it
+FACE_MARGIN = 0.006                  # L: the hull's voxels this close in front of the face's surface stay (its own skin)
+
+
+def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
+    """the hull without what stands in front of the face: where a view draws skin or iris (at the head's heights), every
+    voxel between its camera and the face's surface on that pixel's ray goes. No view's silhouette shows the gap between
+    a side lock and the cheek, so the carve fills it; the face drawn there says it's empty. head: the face's surface,
+    charkit.geom.headfit.Sections in the head's eye frame (the eyes at y = 0; the hull's are at y_e). The views'
+    mirrors (the far side) carve too. In place -> voxels removed."""
+    from .headfit import sections_mesh
+    m = sections_mesh(head, step=1)
+    Vm = m.V + np.array([0.0, y_e, 0.0])
+    ix, iy, iz = np.nonzero(V)
+    if not len(ix):
+        return 0
+    X, Y, Z = A.xs[ix], A.ys[iy], A.zs[iz]
+    near = (Z >= zlo) & (Z <= zhi)
+    gone = np.zeros(len(ix), bool)
+    LV = label_views(views, P) if P is not None else dict(views)
+    if P is None:
+        for n, v in views.items():
+            if abs(np.sin(np.radians(v.az))) > 1e-9:
+                LV[n + '_mirror'] = mirrored(v, None)
+    from scipy.ndimage import maximum_filter
+    for n, v in LV.items():
+        a = np.radians(v.az)
+        u0 = -3.0
+        nu, nz = int(6.0 / A.h), len(A.zs)
+        # the face's depth map (toward the camera) on the voxel grid's rays, nearest the camera
+        u = Vm[:, 0] * np.cos(a) + Vm[:, 1] * np.sin(a)
+        d = Vm[:, 0] * np.sin(a) - Vm[:, 1] * np.cos(a)
+        iu = np.round((u - u0) / A.h).astype(int)
+        jz = np.round((A.zs[0] - Vm[:, 2]) / A.h).astype(int)
+        ok = (iu >= 0) & (iu < nu) & (jz >= 0) & (jz < nz)
+        D = np.full((nu, nz), -np.inf)
+        np.maximum.at(D, (iu[ok], jz[ok]), d[ok])
+        D = np.where(np.isfinite(D), D, -np.inf)
+        D = np.where(np.isfinite(D), D, maximum_filter(np.where(np.isfinite(D), D, -1e9), 3))
+        # the view's face pixels on the same rays
+        us = u0 + np.arange(nu) * A.h
+        cls = v.sample(v.labels, us, A.zs)
+        face = np.isin(cls, FACE_CLASSES) & v.sample(v.mask, us, A.zs)
+        vu = np.round((X * np.cos(a) + Y * np.sin(a) - u0) / A.h).astype(int)
+        vd = X * np.sin(a) - Y * np.cos(a)
+        okv = near & (vu >= 0) & (vu < nu)
+        hit = np.zeros(len(ix), bool)
+        hit[okv] = face[vu[okv], iz[okv]] & (D[vu[okv], iz[okv]] > -1e8) & (vd[okv] > D[vu[okv], iz[okv]] + FACE_MARGIN)
+        gone |= hit
+    V[ix[gone], iy[gone], iz[gone]] = False
+    log('hull: %d voxels in front of the drawn face carved' % gone.sum())
+    return int(gone.sum())
+
+
+def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, sheet='body',
+          face=True, log=print):
     """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, the
     per-vertex classes hull_labels.npy and, with the outfit's piece masks, the per-vertex pieces hull_pieces.npy),
     hull.ply, hull.npz (the occupancy and its labelled shell), hull.json (calibration, the leave-one-out scores when
     validate_views, the mesh's health) and the review page. validate_views=False: the fast path a build takes (no
     leave-one-out sweeps, no page). pieces: carve and label per piece from the manifest's outfit_masks (built where
-    missing). -> the report."""
+    missing). sheet 'head': the head turnaround's hull instead (the manifest's sheets.face; views_from_heads), for the
+    head's shape, without pieces. -> the report."""
     import time
     from charkit import eyes as eyelib, manifest, refcheck, styles
     from . import io, remesh, repair
     t0 = time.time()
-    bs = spec['ref'].get('body_sheet')
+    bs = spec['ref'].get('face_sheet' if sheet == 'head' else 'body_sheet')
     if not bs:
-        raise ValueError("hull: the spec has no generated body sheet (the manifest's sheets.body)")
+        raise ValueError("hull: the spec has no generated %s sheet (the manifest's sheets.%s)" % (
+            sheet, 'face' if sheet == 'head' else 'body'))
     style = style or spec.get('style', 'anime')
     prior = styles.load(style)['hull']
     ex = eyelib._knobs(spec.get('eyes'))['x']
-    views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+    if sheet == 'head':
+        views, info = views_from_heads(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+        pieces = False
+    else:
+        views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
     A = axes_for(views, h)
     os.makedirs(out, exist_ok=True)
     rep = {'spec': spec.get('name'), 'sheet': bs['image'], 'style': style, 'prior': prior, 'grid': list(A.shape), 'h_L': A.h}
@@ -662,6 +802,11 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
             rep['leave_one_out_no_limbs'], _ = validate(views, A, 'rounded', **dict(prior, limbs=False))
     else:
         V = rounded(views, A, list(views), **prior)
+    if face and sheet == 'body':
+        # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
+        from charkit import code_base
+        Sh, Ch, _ = code_base.head_sections(spec, log)
+        rep['face_carved'] = carve_face(V, A, views, Sh, info['y_e'], P=P, log=log)
     L = None
     if P is not None:
         if validate_views:
@@ -761,14 +906,15 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
 
 
 def main(args):
-    """python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
+    """python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
     import subprocess
     from charkit import bodyeval, refcheck
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = bodyeval.resolve(args[0])
-    out = refcheck._p(opt('--out', 'charkit/out/hull/%s' % spec.get('name', 'char')))
-    rep = build(spec, out, float(opt('--h', 0.01)), opt('--style'), int(opt('--faces', 150000)),
-                validate_views='--fast' not in args)
+    head = '--head' in args
+    out = refcheck._p(opt('--out', 'charkit/out/hull/%s%s' % (spec.get('name', 'char'), '_head' if head else '')))
+    rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'), int(opt('--faces', 150000)),
+                validate_views='--fast' not in args, sheet='head' if head else 'body')
     loo, nol = rep.get('leave_one_out'), rep.get('leave_one_out_no_limbs')
     if loo:
         for n in [k for k in loo if k != 'used']:
