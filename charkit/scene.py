@@ -334,12 +334,19 @@ def hair_pieces_objects(S, shape, hc):
     pdir = shape['pieces'] if os.path.isabs(shape['pieces']) else os.path.join(root, shape['pieces'])
     index = json.load(open(os.path.join(pdir, 'pieces.json')))
     C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72), line=(0.36, 0.34, 0.50)); C.update(hc)
-    m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
+    # the look's hair materials (charkit.shade.hair_toon): the drawn highlight, the under layers a step darker
+    hl = shade.look_of(S.spec).get('hair') or {}
+    centre = S.character['data']['head']['centre']
+    m = shade.hair_toon('hair_shape', C['lit'], C['shade'], C['deep'], centre, hl)
+    under = set(hl.get('under', ())) if hl.get('lock_shade') else set()
+    m_under = shade.hair_toon('hair_under', C['lit'], C['shade'], C['deep'], centre, dict(hl, highlight=None),
+                              inner=hl.get('lock_shade', 0.0)) if under else m
     envelope = index.get('normals', 'envelope') == 'envelope'
     obs = []
     for p in index['pieces']:
         path = os.path.join(pdir, p['file'])
-        ob, meta = load_part(path, 'hair_' + p['name'], material=m, normals=None if envelope else 'geometric')
+        ob, meta = load_part(path, 'hair_' + p['name'], material=m_under if p['family'] in under else m,
+                             normals=None if envelope else 'geometric')
         ob['charkit_family'] = p['family']
         shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
         if envelope:
@@ -354,12 +361,27 @@ def hair_pieces_objects(S, shape, hc):
 
 
 def stage_face_shading(S):
-    from . import faceshade
+    from . import faceshade, shade
+    look = shade.look_of(S.spec)
     bangs = None
-    fr = next((o for o in S.hair if o.name.startswith('hair_front')), None)
-    if fr is not None:
-        bangs = (np.array([v.co for v in fr.data.vertices]), [tuple(p.vertices) for p in fr.data.polygons])
-    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors)
+    # the hair that shades the face: the analytic hair's hair_front, the cut pieces' bangs (and with the look's
+    # face.fringe_sides their side locks too), as one mesh
+    fam = ('bangs', 'side_locks') if (look.get('face') or {}).get('fringe_sides') else ('bangs',)
+    frs = [o for o in S.hair if o.name.startswith('hair_front') or o.name == 'hair_bangs'
+           or o.get('charkit_family') in fam]
+    if frs and (look.get('face') or {}).get('fringe', True):
+        Vs, Fs, off = [], [], 0
+        for fr in frs:
+            M = np.array(fr.matrix_world)
+            co = np.array([v.co for v in fr.data.vertices])
+            Vs.append(co @ M[:3, :3].T + M[:3, 3])
+            Fs += [tuple(i + off for i in p.vertices) for p in fr.data.polygons]
+            off += len(co)
+        bangs = (np.concatenate(Vs), Fs)
+    ln = look.get('lines') or {}
+    look = dict(look, face=dict(look.get('face') or {}, ink_color=tuple(
+        ln['ink'] if ln.get('color') == 'ink' else S.spec.get('skin_line', (0.42, 0.24, 0.20)))))
+    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors, look=look)
 
 
 def stage_garments(S):
@@ -467,6 +489,8 @@ def build(spec, until=None, skip=(), cache=None):
     else:
         spec = cache.spec_step('fit_cranium', fit_cranium, spec, root)
     reset()
+    from . import shade
+    shade.set_look(shade.look_of(spec))              # the style's look: each board view's light and line widths
     S = Scene(spec)
     for name, fn in STAGES:
         if name not in skip:
@@ -477,6 +501,7 @@ def build(spec, until=None, skip=(), cache=None):
                 cache.stage(name, fn, S, DEPS.get(name))
         if name == until:
             break
+    shade.line_colors()                              # the look's outline colours (after the stages: not cached)
     return S
 
 
@@ -533,7 +558,9 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
             with trace.span('board', path=os.path.basename(p)):
                 qa.render_view(cam, (0, 0, eye_z - 0.28 * L), 0, 0.30, 0.0, p, lens=85)
         set_mouth(S.character, 'neutral')
-    return made
+    from . import shade
+    shade.set_view(0)                                # the front's light and the build's line widths back (the bundle and
+    return made                                      # the export read them)
 
 
 def save(path):

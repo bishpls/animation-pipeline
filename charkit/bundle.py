@@ -77,15 +77,20 @@ def material_tones(m):
     return out
 
 
-def _toon3(m):
+def _toon3(m, rm=None):
     """a charkit.shade.toon3 material's shading (the emission fed by its rim screen, or by the screen multiplied by a
-    texture: a textured toon), else None: dict(ldir, lit, shade, deep (linear), lit_at, deep_at (ramp element
-    positions), rim, rim_amt, blend, rim_from, strength, texture (the image multiplied in, or None))."""
+    texture: a textured toon; or from the node `rm` feeding a larger graph), else None: dict(ldir, lit, shade, deep
+    (linear), lit_at, deep_at (ramp element positions), rim, rim_amt, blend, rim_from, strength, texture (the image
+    multiplied in, or None))."""
     nodes = m.node_tree.nodes
     em = next((n for n in nodes if n.type == 'EMISSION'), None)
     if em is None or not em.inputs['Color'].is_linked:
         return None
-    rm = em.inputs['Color'].links[0].from_node
+    rm = rm if rm is not None else em.inputs['Color'].links[0].from_node
+    highlight = None
+    if rm.name == 'ck_highlight' and rm.inputs['A'].is_linked:                        # shade.hair_toon's streaks
+        highlight = json.loads(m.get('ck_highlight', '{}')) or None
+        rm = rm.inputs['A'].links[0].from_node
     texture = None
     if rm.type == 'MIX' and rm.blend_type == 'MULTIPLY' and not rm.inputs['Factor'].is_linked and \
             rm.inputs['B'].is_linked and rm.inputs['B'].links[0].from_node.type == 'TEX_IMAGE' and rm.inputs['A'].is_linked:
@@ -111,7 +116,43 @@ def _toon3(m):
                 lit_at=pos(s_lit), deep_at=pos(s_deep), rim=list(rm.inputs['B'].default_value)[:3],
                 rim_amt=float(lm.inputs[1].default_value), blend=float(lw.inputs['Blend'].default_value),
                 rim_from=[float(rr.inputs['From Min'].default_value), float(rr.inputs['From Max'].default_value)],
-                strength=float(em.inputs['Strength'].default_value), texture=texture.name if texture is not None else None)
+                strength=float(em.inputs['Strength'].default_value), texture=texture.name if texture is not None else None,
+                **({'highlight': highlight} if highlight else {}))
+
+
+def _face(m):
+    """a charkit.faceshade material (toon3 blended by the 'face_mask' attribute with the SDF face): dict(toon (_toon3's),
+    ldir_head, lit, shade (linear), soft, sdf, fringe, blush, ink (image names), fringe_at, mask, uv, ink_w), else
+    None."""
+    nodes = m.node_tree.nodes
+    if 'ldir_head' not in nodes:
+        return None
+    em = next((n for n in nodes if n.type == 'EMISSION'), None)
+    fm = em.inputs['Color'].links[0].from_node if em is not None and em.inputs['Color'].is_linked else None
+    if fm is None or fm.type != 'MIX' or not fm.inputs['Factor'].is_linked or not fm.inputs['A'].is_linked:
+        return None
+    toon = _toon3(m, fm.inputs['A'].links[0].from_node)
+    tex = [n for n in nodes if n.type == 'TEX_IMAGE' and n.image is not None]
+    sdf = next((n for n in tex if any(l.to_node.type == 'MATH' and l.to_node.operation == 'SUBTRACT'
+                                      for l in n.outputs['Color'].links)), None)
+    fr = next((n for n in tex if any(l.to_node.type == 'MAP_RANGE' for l in n.outputs['Color'].links)), None)
+    bl = next((n for n in tex if n.outputs['Alpha'].is_linked and n.name != 'ck_ink'), None)
+    edge = next((n for n in nodes if n.type == 'MAP_RANGE' and n.inputs['From Min'].default_value < 0), None)
+    col = next((n for n in nodes if n.type == 'MIX' and getattr(n, 'data_type', '') == 'RGBA' and n.blend_type == 'MIX'
+                and n.inputs['Factor'].is_linked and n.inputs['Factor'].links[0].from_node.type == 'MATH'
+                and not n.inputs['A'].is_linked and not n.inputs['B'].is_linked), None)
+    if toon is None or sdf is None or edge is None or col is None:
+        return None
+    frr = next((l.to_node for l in fr.outputs['Color'].links), None) if fr is not None else None
+    ld = nodes['ldir_head']
+    ink = nodes.get('ck_ink')
+    return dict(toon=toon, ldir_head=[float(ld.inputs[i].default_value) for i in range(3)],
+                lit=list(col.inputs['A'].default_value)[:3], shade=list(col.inputs['B'].default_value)[:3],
+                soft=float(edge.inputs['From Max'].default_value), sdf=sdf.image.name,
+                fringe=fr.image.name if fr is not None else None, blush=bl.image.name if bl is not None else None,
+                fringe_at=[float(frr.inputs['From Min'].default_value), float(frr.inputs['From Max'].default_value)]
+                if frr is not None else None, mask='face_mask', uv='face',
+                ink=ink.image.name if ink is not None and ink.image is not None else None, ink_w='ck_ink_w')
 
 
 def material_record(m):
@@ -125,8 +166,11 @@ def material_record(m):
     if m is not None and m.use_nodes:
         em = next((n for n in m.node_tree.nodes if n.type == 'EMISSION'), None)
         shading = _toon3(m)
+        face = _face(m) if shading is None else None
         if shading is not None:
             kind = 'toon3'
+        elif face is not None:
+            kind, shading = 'face', face
         elif em is not None and not em.inputs['Color'].is_linked:
             kind = 'flat'
             shading = dict(color=list(em.inputs['Color'].default_value)[:3], strength=float(em.inputs['Strength'].default_value))
@@ -176,11 +220,17 @@ def _read(ob, uv=False, normals=False):
         pmat = np.empty(nf, np.int64); me.polygons.foreach_get('material_index', pmat)
         out = dict(V=V, loopv=loopv.astype(np.int32), counts=counts.astype(np.int32), pmat=pmat.astype(np.int16))
         if uv:
-            lay = me.uv_layers.get('uv')
-            if lay is not None and len(me.loops):
-                luv = np.empty(len(me.loops) * 2, np.float32); lay.data.foreach_get('uv', luv)
-                luv = luv.reshape(-1, 2)
-                out['luv'] = luv[order] if order is not None else luv
+            for lname, key in (('uv', 'luv'), ('face', 'fuv')):
+                lay = me.uv_layers.get(lname)
+                if lay is not None and len(me.loops):
+                    luv = np.empty(len(me.loops) * 2, np.float32); lay.data.foreach_get('uv', luv)
+                    luv = luv.reshape(-1, 2)
+                    out[key] = luv[order] if order is not None else luv
+            for aname, key in (('face_mask', 'fmask'), ('ck_ink_w', 'finkw')):
+                fm = me.color_attributes.get(aname)
+                if fm is not None and fm.domain == 'POINT' and n:
+                    c = np.empty(n * 4, np.float32); fm.data.foreach_get('color', c)
+                    out[key] = c[0::4].copy()
         if normals and len(me.loops):
             cn = np.empty(len(me.loops) * 3, np.float32)
             me.corner_normals.foreach_get('vector', cn)
@@ -299,7 +349,7 @@ def export(S, out, ref_measure=None):
                     mats[m.name] = m
             if ol is not None:
                 rec['outline'] = dict(slot=int(ol.material_offset), thickness=float(ol.thickness), offset=float(ol.offset))
-            uv = bool(ob.data.uv_layers.get('uv'))
+            uv = bool(ob.data.uv_layers.get('uv') or ob.data.uv_layers.get('face'))
             hair = group == 'hair'
             # eval: no outline, no garment mask
             oln = ol.name if ol is not None else None
@@ -322,15 +372,16 @@ def export(S, out, ref_measure=None):
                 # its hull on the original surface: the render's shrink and normals come from the evaluation with it on
                 key = 'masked' if ob.name == skin.name else 'eval'
                 prev = _mods(ob, lambda m: m.show_viewport and (m.name != 'under_garments' or ob.name == skin.name))
-                try:
-                    Go = _read(ob, normals=hair)
+                shaded = hair or ob.name == skin.name       # (the render's normals: the hair's envelope, the skin's
+                try:                                         # proxy normals where the look gives it them)
+                    Go = _read(ob, normals=shaded)
                 finally:
                     _restore(prev)
                 Gv = variants[key]
                 n, nl = len(Gv['V']), len(Gv['loopv'])
                 if len(Go['V']) >= 2 * n and np.array_equal(Go['loopv'][:nl], Gv['loopv']):
                     Gv['shrink'] = (Go['V'][:n] - Gv['V']).astype(np.float32)
-                    if hair:
+                    if shaded:
                         Gv['lnor'] = Go['lnor'][:nl]
                 else:
                     rec['outline']['unmatched'] = True
@@ -420,7 +471,12 @@ def export(S, out, ref_measure=None):
         mrec[name] = material_record(m)
         t = material_tones(m)
         if t['image'] is not None and t['image'].name not in images:        # (what a check samples: plates, textured
-            images[t['image'].name] = _image(t['image'])                    # toons; not the face shading's maps)
+            images[t['image'].name] = _image(t['image'])                    # toons, and the face shading's maps)
+        if mrec[name]['kind'] == 'face':
+            for k in ('sdf', 'fringe', 'blush', 'ink'):
+                nm = mrec[name]['shading'].get(k)
+                if nm and nm not in images and nm in bpy.data.images:
+                    images[nm] = _image(bpy.data.images[nm])
     for name, px in images.items():
         arrays['img/' + name] = px
     # the generated character, aligned as the build aligned it
@@ -435,7 +491,8 @@ def export(S, out, ref_measure=None):
         tp = target_pieces(target['glb'], len(arrays['target/V']))
         if tp is not None:
             arrays['target/pieces'], target['piece_names'] = tp
-    meta = dict(schema=SCHEMA, source='blender', created=time.strftime('%Y-%m-%dT%H:%M:%S'),
+    from . import shade
+    meta = dict(schema=SCHEMA, source='blender', created=time.strftime('%Y-%m-%dT%H:%M:%S'), look=dict(shade.get_look()),
                 spec={k: v for k, v in dict(S.spec).items() if k != '_dir'}, ref_measure=ref_measure, assembly=asm,
                 landmarks=trace._plain(trace.landmarks(S)), materials=mrec,
                 images={k: dict(shape=list(v.shape), dtype=str(v.dtype), rows='bottom-up') for k, v in images.items()},

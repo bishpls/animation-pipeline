@@ -78,6 +78,10 @@ def resolve(spec_path, out, do_fit=True, base=None):
     spec = manifest.produce(manifest.resolve(json.load(open(spec_path))))
     if base:
         spec['base'] = base
+    from . import styles
+    # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
+    # the stage cache keys on it)
+    spec['look'] = styles.merge(styles.load(spec.get('style', 'anime'))['look'], spec.get('look'))
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
