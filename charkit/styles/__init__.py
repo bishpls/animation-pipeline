@@ -11,8 +11,8 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            mass's smoothed normals as custom normals, one clean shadow shape; 'geometric': each lock shades on its own),
            shade_close and shade_blur (L: the envelope those normals come from, closed across the gaps between locks and
            blurred to the shadow shapes' scale), relief (L: each lock's ridge across it, the grooves between locks),
-           lock_shading (0..1: how much of each lock's own normal is blended into the mass's, so its relief and grooves
-           shade), bun_e, bun_q, bun_slab (a block bun's squareness (0 a box, 1 an ellipsoid), the share of the hull's bun
+           lock_shading (0..1: how much of each lock's own outer normal, smoothed within the lock lock_shading_smooth
+           times, is blended into the mass's, so its relief and grooves shade), bun_e, bun_q, bun_slab (a block bun's squareness (0 a box, 1 an ellipsoid), the share of the hull's bun
            points its extent ignores at either end, its folded slab's share of its width)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
            gravity, cloth stiffness and damping, hair spring stiffness and damping, gravity scale. Declared here so the
@@ -27,7 +27,7 @@ DEFAULT = {
     'hull': {'p': 2.0, 'class_share': 0.6, 'smooth': 0.09},
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
                     'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06,
-                    'relief': 0.0, 'lock_shading': 0.0, 'bun_e': 0.3, 'bun_q': 0.06, 'bun_slab': 0.38},
+                    'relief': 0.0, 'lock_shading': 0.0, 'lock_shading_smooth': 8, 'bun_e': 0.3, 'bun_q': 0.06, 'bun_slab': 0.38},
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
 }

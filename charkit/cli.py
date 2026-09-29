@@ -31,6 +31,8 @@
                                                  # the outfit component graph from the references (charkit/outfit.py)
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
+    python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
+                                                 # the hair pieces rebuilt over a build with overrides and measured
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
 
@@ -589,6 +591,9 @@ def main(argv=None):
     elif cmd == 'hairpage':
         from . import hairpage
         hairpage.main(rest)
+    elif cmd == 'hairlab':
+        from . import hairlab
+        hairlab.main(rest)
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)

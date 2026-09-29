@@ -1131,16 +1131,17 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
 
     def add(name, family, parts):
-        Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf = [], [], [], [], [], [], [], 0, [], 0
+        Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou = [], [], [], [], [], [], [], 0, [], 0, []
         own = any(p.get('own_normals') for p in parts)
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
             vs.append(p.get('vn_shade', p['vn_env']))
             lk.append(np.full(len(p['V']), k)); chains.append(np.asarray(p['chain']).tolist())
             pushes.append(p.get('push', 0.0)); off += len(p['V'])
+            ou.append(np.asarray(p.get('outer', np.ones(len(p['V']), bool)), bool))
             nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
-                            vn_shade=np.concatenate(vs), own_normals=own,
+                            vn_shade=np.concatenate(vs), own_normals=own, outer=np.concatenate(ou),
                             strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains)
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
@@ -1377,10 +1378,20 @@ def shade_normals(pieces, L, style):
         if p.get('own_normals'):                 # a template part (a block bun) shades with its own flat faces
             continue
         Ne = N[off[k]:off[k + 1]]
-        if w > 0:
-            G_ = geometric_normals(p['V'], np.asarray(p['T']))
-            G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)     # (the inner surface: outward)
-            Ne = (1 - w) * Ne + w * G_
+        if w > 0 and p.get('outer') is not None:
+            # each lock's outer surface's own normal, smoothed within it (across outer edges only, so the walls' and
+            # the ladder's facets don't crinkle the cel shading: its ridge and grooves are what's left), blended in
+            out = p['outer']
+            T_ = np.asarray(p['T'])
+            G_ = geometric_normals(p['V'], T_)
+            E = np.concatenate([T_[:, [0, 1]], T_[:, [1, 2]], T_[:, [2, 0]]])
+            E = E[out[E[:, 0]] & out[E[:, 1]] & (p['lock'][E[:, 0]] == p['lock'][E[:, 1]])]
+            for _ in range(style.get('lock_shading_smooth', 8)):
+                acc = G_.copy()
+                np.add.at(acc, E[:, 0], G_[E[:, 1]]); np.add.at(acc, E[:, 1], G_[E[:, 0]])
+                G_ = acc / (np.linalg.norm(acc, axis=1, keepdims=True) + 1e-12)
+            G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
+            Ne = np.where(out[:, None], (1 - w) * Ne + w * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
         p['vn_shade'] = Ne
 
