@@ -134,18 +134,23 @@ eye_anchor=iris` with the new defaults:
 | hair_tips front / back (drawn 4 / 8) | 4 / 4 | 4 / 4 | |
 | hair_penetration (L) | 0.038 | 0.015 (2 vertices) | crown cap |
 | face shown / design: front, 3/4, profile | 1.12, 1.02, 0.53 | 1.12, 1.04, 0.63 | iris anchor (the clamp reached 0.82 in profile) |
-| hair_noise (`hairlab --noise`) | 0.046 | 0.068 | the block buns (round: 0.047), see below |
+| hair_noise (builds, per-group cuts) | 0.060 | 0.068 | see below |
 
 Ablations with `hairlab` were the evidence for each default:
 - **Round buns.** With the carve they score 0.772 IoU and 0.303 outline; the fitted block scores 0.829 and 0.385.
 - **Knobs anchor** (final config otherwise): bangs 0.698, side locks 0.521, buns 0.811 and tips 2 / 4. The face shown
   in front is 1.06.
-- **hair_noise.** hair_noise rises with the block buns and not with the lock detail:
+- **hair_noise.** hair_noise rose with the block buns, not with the lock detail. `hairlab` with the old shared cuts:
   - final 0.070; with round buns 0.047; without the carve 0.054; without the lock detail 0.069; without fine tips 0.069.
-  - The bangs' own tone-edge density doubles with block buns (0.06 to 0.12) although the bangs' mesh is the same.
-  - The measure cuts tones at percentiles of all the hair's pixels, so the blocks' large flat faces move the cuts.
-  - Taking the buns out of the shading envelope only reaches 0.068.
-  - Per-piece tone cuts would separate a real shading change from this.
+  - The measure cut tones at percentiles of all the hair's pixels, so the blocks' large flat faces moved the mass's cuts.
+  - It now cuts each tone group at its own percentiles (`qa3d.tone_edges`, `HAIR_NOISE_GROUPS`: the buns apart from
+    the mass). This is registered in `history.STEPS` (cc79d07), so gates call it remeasured.
+  - Remeasured builds: before (849b9a7) 0.0597; after (e4c5d18) 0.0879 FAIL becomes 0.068 WARN; the default spec's
+    candidate 0.048 becomes 0.055.
+  - **The real cost of block buns**, the mass's front tone edges on its own cuts, block against round with all else
+    equal: 0.128 to 0.139 per pixel (+9%). Between the two builds, where everything changed: front 0.125 to 0.148;
+    profile 0.034 to 0.031; back 0.044 to 0.037. The buns' own edges went from 0.02 to 0.06; that is the blocks'
+    faces and bevels.
 
 ## Left
 

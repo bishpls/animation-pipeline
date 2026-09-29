@@ -70,6 +70,10 @@ STEPS = [
     ('hair_noise', '51a87aa', 'the hair drawn without its outlines (a drawn line between two locks is not shading) and behind '
      'the rest of the character (the hair\'s inside through the face is hidden, as in a render) (tool/hair-pieces): '
      'the geom hair reads 0.047, was 0.104'),
+    # tool/hair-detail: the buns' tones cut apart from the mass's
+    ('hair_noise', 'cc79d07', 'each tone group cut at its own percentiles, the buns apart from the mass (qa3d.tone_edges; '
+     'tool/hair-detail): a block bun\'s flat faces had moved the shared cuts. The clawd_body pieces build reads 0.068, '
+     'was 0.088; the default spec 0.055, was 0.048'),
 ]
 
 
