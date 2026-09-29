@@ -63,7 +63,7 @@ What the renders showed and what changed:
   0.22% of the picture's height in every view. Ink: the design's lines are one near-black brown (#0f0504); ours were
   per-object browns (dE00 ~26).
 
-### The numbers (look_base -> look_v4; the QA doesn't draw the streaks, so v5's are v4's)
+### The numbers (look_base -> the proposal: look_v5, its skin outline in its build colour as c479043 builds it)
 
 | Measure | before | after | design |
 |---|---|---|---|
@@ -74,7 +74,7 @@ What the renders showed and what changed:
 | neck shadow share: front / 3/4 / profile | 0.12 / 0.51 / 0.87 | 0.73 / 0.80 / 1.00 | 0.75 / 0.61 / 0.70 |
 | line width, median px on the design's page | 1.25 | 1.81 | 1.99 |
 | line width p10 / p90 | 0.25 / 1.99 | 0.25 / 2.91 | 1.75 / 2.79 |
-| line colour, dE00 to the design's ink (worst region) | 27.0 | 15.9 | |
+| line colour, dE00 to the design's ink: skin / hair / garment / accessory | 26.4 / 25.6 / 21.9 / 27.0 | 24.9 / 4.5 / 8.2 / 15.9 | |
 | hair_noise (remeasured under the view's light) | 0.060 | 0.066 | |
 | palette hair lit / shade, skin lit / shade (dE00) | 0.94 / 3.61 / 3.12 / 6.16 | the same | |
 
@@ -92,6 +92,9 @@ Reading them:
   didn't band in either build under these lights (the SDF covers it). The SDF's nose shadow shows as a hexagonal blob
   on the far cheek when the light is 50-70 degrees to the side (no board view puts it there): its shape wants
   redrawing as a thin triangle along the nose.
+- The eye checks hold (eye_aspect 0.954, eye_lid_span 1.022 on this spec). The default spec's gate at 0ed9e4e, with
+  the skin's outline inked, read the face's contour as lash in the eye crops (eye_aspect 0.829 -> 0.745): the skin
+  keeps its warm brown line (c479043) and inking it is a taste call once the eye QA masks the contour by geometry.
 - Line width is 0.91 of the design's median; their spread is dominated by 1-subpixel slivers (p10 0.25 px) where one
   hair piece's hull peeks past another's and at thin lock tips: geometry, not the line width setting. The fix is either
   hull geometry (hair-detail) or a screen-space line pass.
@@ -105,3 +108,20 @@ Reading them:
 - look.js lights each view from its camera and widens screen lines from the camera's distance to the head (Blender's
   `render_view` uses the target's distance); not yet checked against the Blender boards in the charkit-look board
   harness.
+
+## Review
+
+`python -m charkit.lookpage charkit/out/look_review --before charkit/out/look_base --after charkit/out/look_final
+--options charkit/out/look_v5/optpages/light --options charkit/out/look_v5/optpages/lines`: the design's heads
+beside before and after at 399 px per L, turntables, body boards, close-ups, the numbers, and the two taste calls
+(the board light; the outline colour and weight) rendered from the proposal's scene with `lookboard.py --look`.
+
+## Next
+
+- The hair's shadow on the face from the side (the design's profile shades the temple and cheek under the side hair;
+  ours is a front projection): a side projection, or a shadow map from the light.
+- The chin's line over the neck: a line mesh bound to the skin, or a depth-edge pass shared by Blender and look.js.
+- The outlines' slivers (hull geometry at piece overlaps and thin tips), with hair-detail.
+- The SDF's nose shadow: a thin triangle along the nose instead of the hexagonal cheek patch.
+- look.js against the Blender boards in `projects/charkit-look` (camera key, screen lines, streaks).
+- Grades for the look checks after a few builds of history.
