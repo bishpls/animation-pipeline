@@ -609,14 +609,20 @@ def scene_classes(B):
     the eye line as line), the eye plates (iris where its texture is opaque, the sclera white), lashes and brows as line,
     the teeth white, the hair, accessories and garments by their colour family (an orange accessory sits in the hair).
     -> ([(V, T, labels)], {class: (lit (n, 3), shade (n, 3), area (n,))}) (the colours per class for the palette).
-    Made once per bundle (the body and the palette both read it)."""
-    return B.memo('scene_classes', lambda: _scene_classes(B))
+    Made once per bundle (the body, the palette and the pieces read it)."""
+    return B.memo('scene_classes', lambda: _scene_classes(B))[:2]
+
+
+def scene_objects(B):
+    """scene_classes' meshes with the name of the object each came from -> ([(V, T, labels)], [name])."""
+    got = B.memo('scene_classes', lambda: _scene_classes(B))
+    return got[0], got[2]
 
 
 def _scene_classes(B):
     from . import bodyqa
     CL = bodyqa.CLASS
-    meshes, cols = [], {}
+    meshes, cols, names = [], {}, []
 
     def put(o, labels_fn, variant='eval'):
         V, T, _, poly = o.mesh(variant)
@@ -628,6 +634,7 @@ def _scene_classes(B):
         keep = lab >= 0
         T, lab, poly = T[keep], lab[keep], poly[keep]
         meshes.append((V, T, lab))
+        names.append(o.name)
         area = _tri_area(V, T)
         for c in np.unique(lab):
             s = lab == c
@@ -651,7 +658,7 @@ def _scene_classes(B):
         put(o, lambda mi, c, a: np.where(bodyqa.family(c) == CL['orange'], CL['hair'], bodyqa.family(c)))
     for o in _visible(B, ('garment',)):
         put(o, lambda mi, c, a: bodyqa.family(c))
-    return meshes, {c: tuple(np.concatenate([r[i] for r in rows]) for i in range(3)) for c, rows in cols.items()}
+    return meshes, {c: tuple(np.concatenate([r[i] for r in rows]) for i in range(3)) for c, rows in cols.items()}, names
 
 
 def expression_data(B):
@@ -930,6 +937,97 @@ def sheet_body(B, design, out=None):
     if views and out:
         _save_rgb(os.path.join(out, 'qa_sheet_body.png'), bodyqa.picture(views))
     return table, C
+
+
+PIECE_PASS, PIECE_WARN = 0.75, 0.5     # a piece's worst view's overlap (bodymeasure.iou_tol); the masks reach 0.77-0.85
+                                       # IoU against the sheet's own figures, so a PASS asks for what they can show
+
+
+def sheet_pieces(B, design, out=None):
+    """the outfit piece by piece against the design's (the outfit's per-view piece masks, cut from the body sheet):
+    every object z-buffered on the design's grids with its own index, so a piece shows only where nothing of ours is in
+    front of it, as the drawing's masks do; then per piece and view the outline agreement within
+    bodymeasure.OUTLINE_TOL (bodymeasure.iou_tol: the graded value is its worst view) and, in the table and the check,
+    the plain IoU and the outline agreement (bodymeasure.outline_f).
+    -> (table, checks <piece id> and built: the graph's pieces we build as their own objects)."""
+    from . import bodyqa, bodymeasure
+    ctx = design.sheet_context()
+    if 'why' in ctx:
+        return None, {'pieces': {'status': 'SKIPPED', 'why': ctx['why']}}
+    got = bodymeasure.piece_masks(B.spec)
+    if got is None:
+        return None, {'pieces': {'status': 'SKIPPED', 'why': 'no outfit_masks produced for this spec'}}
+    masks, graph, paths = got
+    for p in paths:
+        design._rec(p)
+    meshes, names = scene_objects(B)
+    obj = []
+    for i, (V, T, _) in enumerate(meshes):
+        # a two-sided object's right half (world x < 0: her right) as index + 1000 (bodymeasure.piece_views')
+        obj.append((V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)))
+    dv = design.design_views()
+    az = bodyqa.azimuths(ctx['az3'])
+    iw = np.array(iris_centres(B))
+    As = B.assembly
+    labels = {v: bodyqa_zbuffer(obj, az[v], bodyqa.origin(v, az[v], iw, As['centre']), As['L'], ctx['ppl'])
+              for v in dv}
+    S = bodymeasure.piece_shapes(labels, names, masks, graph, B.spec, ctx['ppl'])
+    C, table = {}, {'tol_L': bodymeasure.OUTLINE_TOL, 'pieces': S}
+    built = [p for p, r in S.items() if r['views'] and r['members']]
+    shown = [p for p, r in S.items() if r['views']]
+    for pid in shown:
+        r = S[pid]
+        fs = {v: x['iou_tol'] for v, x in r['views'].items()}
+        if not r['members']:
+            C[pid] = {'value': None, 'status': 'INFO', 'views': fs, 'why': 'no object of ours builds it' + (
+                ' (compared as part of %s)' % r['part_of'] if r['part_of'] else '')}
+            continue
+        worst = min(fs.values())
+        C[pid] = {'value': round(worst, 3), 'status': 'PASS' if worst >= PIECE_PASS else 'WARN' if worst >= PIECE_WARN
+                  else 'FAIL', 'views': fs, 'iou': {v: x['iou'] for v, x in r['views'].items()},
+                  'outline': {v: x['f'] for v, x in r['views'].items()}}
+    C['built'] = {'value': '%d/%d' % (len(built), len(shown)), 'status': 'PASS' if len(built) == len(shown) else 'WARN',
+                  'missing': sorted(set(shown) - set(built))}
+    table['confusion'] = {v: bodymeasure.piece_confusion(labels, names, masks, graph, B.spec, v) for v in labels}
+    if out:
+        _save_rgb(os.path.join(out, 'qa_sheet_pieces.png'), pieces_picture(labels, names, masks, graph, B.spec, dv))
+    return table, C
+
+
+def bodyqa_zbuffer(meshes, az, org, L, ppl):
+    """the body checks' z-buffer (bodyqa.zbuffer_views') for one view, by label: -> the label image (-1 nothing)."""
+    from . import bodyqa
+    from .faceqa import zbuffer
+    return zbuffer(meshes, az, org, L, 1.0 / ppl, bodyqa.WIN)[1]
+
+
+def pieces_picture(labels, names, masks, graph, spec, dv):
+    """per view: the drawing dimmed, each drawn piece's pixels green where our same piece covers them, red where it
+    doesn't, blue where ours puts a piece the drawing doesn't have there; both outlines on top (ours white)."""
+    from . import bodymeasure
+    idx = {n: i for i, n in enumerate(names)}
+    pm = bodymeasure.piece_map(graph, spec)
+    cols = []
+    for v, lab in labels.items():
+        img = 0.35 * np.asarray(dv[v]['rgb'], float)
+        drawn_any = np.zeros(lab.shape, bool)
+        ours_any = np.zeros(lab.shape, bool)
+        agree = np.zeros(lab.shape, bool)
+        for pc in graph['pieces']:
+            d = masks.get('%s__%s' % (v, pc['id']))
+            if d is None:
+                continue
+            m = bodymeasure.member_mask(lab, idx, pm[pc['id']]) if pm.get(pc['id']) else np.zeros(lab.shape, bool)
+            drawn_any |= d
+            ours_any |= m
+            agree |= d & m
+        img[drawn_any & ~agree] = (0.85, 0.2, 0.2)
+        img[ours_any & ~drawn_any] = (0.2, 0.35, 0.9)
+        img[agree] = (0.25, 0.7, 0.3)
+        img[bodymeasure.outline(ours_any)] = (1.0, 1.0, 1.0)
+        cols.append(img)
+    H = max(c.shape[0] for c in cols)
+    return np.concatenate([np.pad(c, ((0, H - c.shape[0]), (0, 8), (0, 0)), constant_values=1.0) for c in cols], 1)
 
 
 def sheet_palette(B, design, out=None):
@@ -1336,6 +1434,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('eyes', eyes, 'eye_', 'eyes'), ('sheet', sheet, 'sheet_', 'sheet'),
     ('sheet_figures', sheet_figures, 'figures_', 'sheet_figures'), ('sheet_body', sheet_body, 'body_', 'sheet_body'),
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
+    ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
 ]
 

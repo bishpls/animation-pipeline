@@ -492,14 +492,7 @@ def piece_extents(bundle, sheet, graph, spec, labels=None, min_px=40):
             e = (pc.get('extent') or {}).get(view)
             if not e or e.get('px', 0) < min_px:
                 continue
-            m = np.zeros(lab.shape, bool)
-            for name, sgn in members:
-                if name not in idx:
-                    continue
-                i = idx[name]
-                m |= (lab == i) if sgn is None else (lab == i) if sgn > 0 else (lab == i + 1000)
-                if sgn is None:
-                    m |= lab == i + 1000
+            m = member_mask(lab, idx, members)
             if m.sum() < min_px:
                 continue
             rows, cols = np.nonzero(m)
@@ -510,6 +503,20 @@ def piece_extents(bundle, sheet, graph, spec, labels=None, min_px=40):
             out.setdefault(pid, {})[view] = dict(ours=ours, graph=g, d=[round(a - b, 4) for a, b in zip(ours, g)],
                                                  px=[int(m.sum()), int(e['px'])])
     return out
+
+
+def member_mask(lab, idx, members):
+    """the pixels of a label image (piece_views': object index, + 1000 for a two-sided object's right side) that belong
+    to a piece's members [(object name, side filter: None both, +1 her left, -1 her right)]."""
+    m = np.zeros(lab.shape, bool)
+    for name, sgn in members:
+        if name not in idx:
+            continue
+        i = idx[name]
+        m |= (lab == i) if sgn is None else (lab == i) if sgn > 0 else (lab == i + 1000)
+        if sgn is None:
+            m |= lab == i + 1000
+    return m
 
 
 EDGES = ('left', 'bottom', 'right', 'top')
@@ -524,4 +531,160 @@ def piece_checks(bundle, sheet, graph, spec, tol=0.10):
             for k, d in zip(EDGES, r['d']):
                 out['piece_%s_%s_%s' % (pid, view, k)] = {'value': d, 'px': r['px'], 'status': 'PASS' if abs(d) <= tol else
                                                           'WARN' if abs(d) <= 2 * tol else 'FAIL'}
+    return out
+
+
+# ------------------------------------------------------------------------------------------------------ piece shapes
+OUTLINE_TOL = 0.02       # L: an outline pixel this close to the other outline agrees (about a drawn line's width)
+
+
+def piece_masks(spec):
+    """the outfit's per-view piece masks (the manifest's produced `outfit_masks`: keys VIEW__PIECE on bodyqa.design_views
+    grids) and the graph they were cut with (outfit_graph.json beside them) -> (masks {key: bool image}, graph, paths),
+    or None when the spec's manifest has none or it hasn't been produced (nothing is built here)."""
+    import json
+    from . import manifest
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if not ref.get('manifest'):
+        return None
+    r = manifest.load(ref['manifest'])['references'].get('outfit_masks')
+    if not r:
+        return None
+    p = r['path'] if os.path.isabs(r['path']) else os.path.join(ROOT, r['path'])
+    g = os.path.join(os.path.dirname(p), 'outfit_graph.json')
+    if not (os.path.exists(p) and os.path.exists(g)):
+        return None
+    Z = np.load(p)
+    return {k: Z[k] for k in Z.files}, json.load(open(g)), (p, g)
+
+
+def outline(m):
+    """a mask's outline: its pixels with a 4-neighbour outside it."""
+    from scipy import ndimage
+    return m & ~ndimage.binary_erosion(m, border_value=0)
+
+
+def outline_f(ours, drawn, tol_px):
+    """how two shapes' outlines agree (the boundary F-score): the share of our outline within tol_px of the drawn one
+    (p), of the drawn outline within tol_px of ours (r), their harmonic mean (f), and each outline's mean distance to the
+    other (px). Scale-free enough for a cuff and a skirt alike, where an IoU punishes the small piece."""
+    from scipy import ndimage
+    a, b = outline(ours), outline(drawn)
+    if not a.any() or not b.any():
+        return dict(f=0.0, p=0.0, r=0.0, d_ours=None, d_drawn=None)
+    to_b = ndimage.distance_transform_edt(~b)
+    to_a = ndimage.distance_transform_edt(~a)
+    p, r = float((to_b[a] <= tol_px).mean()), float((to_a[b] <= tol_px).mean())
+    return dict(f=2 * p * r / (p + r) if p + r else 0.0, p=p, r=r, d_ours=float(to_b[a].mean()),
+                d_drawn=float(to_a[b].mean()))
+
+
+def iou_tol(ours, drawn, tol_px):
+    """the area overlap with a band tol_px either side of the drawn outline left out: the drawn line's width is where
+    the masks themselves are unsure, and a thin piece (a cuff) loses most of a plain IoU to it. The band is at most half
+    the drawn piece's inscribed half-width, so a piece thinner than the band still has a middle to compare."""
+    from scipy import ndimage
+    b = outline(drawn)
+    if not b.any():
+        keep = np.ones(drawn.shape, bool)
+    else:
+        band = min(tol_px, 0.5 * float(ndimage.distance_transform_edt(drawn).max()))
+        keep = ndimage.distance_transform_edt(~b) > band
+    u = ((ours | drawn) & keep).sum()
+    if not u:                                   # all of it within the band (a line-thin piece): the plain overlap
+        u = (ours | drawn).sum()
+        return float((ours & drawn).sum() / u) if u else 0.0
+    return float(((ours & drawn) & keep).sum() / u)
+
+
+def built_parent(graph, pm):
+    """each piece no object of ours builds -> the nearest piece up its attach chain that one does (the bodice's panel ->
+    the top, the bow's tails -> the bow), or None: what it is part of in our build."""
+    by = {p['id']: p for p in graph['pieces']}
+    out = {}
+    for pid in by:
+        if pm.get(pid):
+            continue
+        q, seen = (by[pid].get('attach') or {}).get('parent'), set()
+        while q and q in by and not pm.get(q) and q not in seen:
+            seen.add(q)
+            q = (by[q].get('attach') or {}).get('parent')
+        out[pid] = q if q and pm.get(q) else None
+    return out
+
+
+def folded(masks, graph, pm):
+    """the drawn masks with each piece we don't build folded into the piece of ours it is part of (built_parent), so
+    our top is compared with the drawn top and its panel; the unbuilt piece keeps its own mask for the count."""
+    up = built_parent(graph, pm)
+    out = dict(masks)
+    for pid, parent in up.items():
+        if not parent:
+            continue
+        for k, m in masks.items():
+            view, q = k.split('__', 1)
+            if q == pid:
+                key = '%s__%s' % (view, parent)
+                out[key] = (out[key] | m) if key in out else m
+    return out
+
+
+def piece_shapes(labels, names, masks, graph, spec, ppl, min_px=40, tol=OUTLINE_TOL):
+    """each outfit piece's visible shape against its drawn mask, per view. labels: {view: object-index image
+    (piece_views')}; names: the objects' names by index; masks: piece_masks()'s. -> {piece id: {'members': our objects
+    or None (no object of ours builds it), 'views': {view: dict(iou, iou_tol (iou_tol at tol), f, p, r (outline_f at
+    tol), d_ours, d_drawn (L), px (ours, drawn))}}}.
+    A view where the drawing shows fewer than min_px of the piece is left out (a piece a view hides has an empty mask).
+    A piece we don't build is compared as part of the piece of ours it belongs to (folded); its record says which."""
+    idx = {n: i for i, n in enumerate(names)}
+    pm = piece_map(graph, spec)
+    up = built_parent(graph, pm)
+    masks = folded(masks, graph, pm)
+    out = {}
+    for pc in graph['pieces']:
+        pid = pc['id']
+        members = pm.get(pid)
+        rec = out[pid] = {'members': [m[0] for m in members] if members else None, 'views': {},
+                          'part_of': up.get(pid), 'with': sorted(q for q, par in up.items() if par == pid)}
+        for view, lab in labels.items():
+            d = masks.get('%s__%s' % (view, pid))
+            if d is None or d.sum() < min_px:
+                continue
+            if d.shape != lab.shape:
+                raise ValueError('%s: mask %s against labels %s' % (view, d.shape, lab.shape))
+            m = member_mask(lab, idx, members) if members else np.zeros(lab.shape, bool)
+            inter, union = (m & d).sum(), (m | d).sum()
+            o = outline_f(m, d, tol * ppl)
+            rec['views'][view] = dict(iou=round(float(inter / union), 4) if union else 0.0,
+                                      iou_tol=round(iou_tol(m, d, tol * ppl), 4), f=round(o['f'], 4),
+                                      p=round(o['p'], 4), r=round(o['r'], 4),
+                                      d_ours=None if o['d_ours'] is None else round(o['d_ours'] / ppl, 4),
+                                      d_drawn=None if o['d_drawn'] is None else round(o['d_drawn'] / ppl, 4),
+                                      px=[int(m.sum()), int(d.sum())])
+    return out
+
+
+def piece_confusion(labels, names, masks, graph, spec, view):
+    """where each drawn piece's pixels land in ours for one view: {drawn piece: {our piece, 'other' (an object of ours
+    that builds no piece: the skin, the hair) or 'none' (nothing of ours): pixels}}: the skirt drawn where we put the
+    overskirt panel, the collar under our hair."""
+    lab = labels[view]
+    idx = {n: i for i, n in enumerate(names)}
+    ours = np.full(lab.shape, -1, np.int32)
+    ids = [pc['id'] for pc in graph['pieces']]
+    pm = piece_map(graph, spec)
+    for k, pid in enumerate(ids):
+        if pm.get(pid):
+            ours[member_mask(lab, idx, pm[pid])] = k
+    out = {}
+    for pid in ids:
+        d = masks.get('%s__%s' % (view, pid))
+        if d is None or not d.any():
+            continue
+        got, anything = ours[d], lab[d] >= 0
+        row = {ids[j]: int(n) for j, n in zip(*np.unique(got[got >= 0], return_counts=True))}
+        for k, sel in (('other', (got < 0) & anything), ('none', ~anything)):
+            if sel.any():
+                row[k] = int(sel.sum())
+        out[pid] = row
     return out
