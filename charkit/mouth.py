@@ -263,15 +263,17 @@ def _pose(V, M, F, K, L, mc, shape, outer=True, jaw_drop=0.0):
 
 
 def place(V, M, F, K, L, mc, faces=None):
-    """the neutral mouth. An authored base (M['loops'], with the mesh's faces) places its rings as its keys move them:
-    harmonic between the lips and the skin past the rings (key()). -> new V."""
+    """the neutral mouth. An authored base (M['loops'], with the mesh's faces): the lips onto the neutral curves and the
+    cage's own mouth rings harmonic between them and the block's rim (key()'s solve, the rest held). -> new V."""
     V = V.copy()
     if M.get('loops') and faces is not None:
         pos = _pose(V, M, F, K, L, mc, 'neutral', outer=False)
         D = np.zeros_like(V)
         for v, p in pos.items():
             D[v] = p - V[v]
-        free = np.array(sorted(set(M['outer']) - set(pos)), int)
+        # at rest the lips only close the loop's lens: the mouth's own rings follow, the skin past its block stays on the
+        # head's sections where the cage put it
+        free = np.array(sorted({v for r in M['loops'][1:-1] for v in r} - set(pos)), int)
         if len(free):
             D[free] = harmonic(V, faces, free, lambda w: D[w])
         return V + D
