@@ -106,7 +106,7 @@ class Case:
             print('assembled %s in %.1fs' % (spec.get('name'), time.time() - t))
         gc = gio.load(path, blender_compat=True)
         gt = gio.load(path)
-        eyes = i3d.find_eyes(gc.V, gc.vc)
+        eyes = i3d.glb_eyes(path, gc.V, gc.vc)
         if eyes is None:
             raise RuntimeError('no eyes found on the generated shape')
         mid, spacing = scene.eye_target(A, shape)

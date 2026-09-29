@@ -52,6 +52,18 @@ def test_refine_recovers_a_three_quarter_axis_error():
     assert abs(views['three_quarter'].axis - 300.0) <= 0.02 * PPL, (off, views['three_quarter'].axis)
 
 
+
+def test_a_glb_sidecar_gives_its_eyes_exactly():
+    import json, tempfile
+    from charkit import i3d
+    d = tempfile.mkdtemp()
+    glb = os.path.join(d, 'x.glb')
+    open(glb, 'wb').write(b'')
+    json.dump({'eyes': [[0.168, -0.23, 0.0], [-0.168, -0.23, 0.0]]}, open(glb + '.json', 'w'))
+    L, R = i3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
+    assert np.allclose(L, [0.168, -0.23, 0]) and np.allclose(R, [-0.168, -0.23, 0])
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

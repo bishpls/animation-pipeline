@@ -327,6 +327,10 @@ def main(args):
     m = remesh.decimate(m, int(opt('--faces', 150000)))
     from . import io, raster, repair
     io.save(m, os.path.join(out, 'hull.ply'))
+    io.save(m, os.path.join(out, 'hull.glb'))            # a coloured 'generated character' for charkit.geom.parts
+    ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
+    json.dump({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'units': 'L', 'by': 'charkit.geom.hull'},
+              open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs)
     rep = {'spec': args[0], 'sheet': bs['image'], 'style': opt('--style', spec.get('style', 'anime')), 'prior': prior,
            'grid': list(A.shape), 'h_L': A.h, 'calibration': info, 'leave_one_out': loo, 'plain_leave_one_out': plain,

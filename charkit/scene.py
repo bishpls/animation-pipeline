@@ -139,7 +139,7 @@ def hair_shape_volume(S, shape, hc):
     A = S.character['data']; Hd = A['head']; L = Hd['L']
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['glb'])
     V, F, C = i3d.load_glb(path)
-    eyes = i3d.find_eyes(V, C)
+    eyes = i3d.glb_eyes(path, V, C)
     if eyes is None:
         raise RuntimeError('no eyes found on the generated shape')
     eye_mid, spacing = eye_target(A, shape)
@@ -395,7 +395,7 @@ def fit_cranium(spec, root, load=None):
     L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
     V, F, C = (load or i3d.load_glb)(path)
-    eyes = i3d.find_eyes(V, C)
+    eyes = i3d.glb_eyes(path, V, C)
     if eyes is None:
         return spec
     ex = spec.get('eyes', {}).get('x', 0.168)

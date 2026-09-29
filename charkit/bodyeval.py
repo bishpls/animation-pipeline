@@ -871,7 +871,7 @@ class Evaluator:
             if not p:
                 return None
             V, F, C = load_generated(p, compat=True)
-            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), i3d.find_eyes(np.asarray(V), np.asarray(C)))
+            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), i3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
         return self._gen
 
     @staticmethod
