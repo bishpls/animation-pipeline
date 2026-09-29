@@ -156,7 +156,8 @@ def blend_neck(S, cut, ring_cy, ring_r, width=NECK_BLEND):
 
 def eye_labels(V, rings, side, socket_start):
     """an eye's labels from its loops (outer to inner; the innermost the lid's margin) and its socket's vertices
-    (socket_start: ring 1's first index; ring 2 next; then the centre) -> the dict charkit/eyes.py places."""
+    (socket_start: ring 1's first index; ring 2 next; then the centre) -> the dict charkit/eyes.py places, with the
+    loops themselves ('loops': the block's rim first, the margin last, index-aligned along spokes) for its lid keys."""
     margin = list(rings[-1])
     P = V[margin]
     n = len(margin)
@@ -183,7 +184,8 @@ def eye_labels(V, rings, side, socket_start):
     for k, ring in enumerate(rings[-2::-1], 1):
         for v in ring:
             outer_rings[v] = k
-    return dict(margin=loop, upper=upper, lower=lower, pocket=pocket, outer=outer_rings, socket=sock)
+    return dict(margin=loop, upper=upper, lower=lower, pocket=pocket, outer=outer_rings, socket=sock,
+                loops=[list(r) for r in rings])
 
 
 def mouth_labels(V, rings, cavity_start, extra_outer=None):
@@ -273,13 +275,22 @@ def fit_limit(V, faces, movable, sharp=(), iters=LIMIT_ITERS):
     return P, gaps
 
 
-def head_mesh(S, C, cut):
+def eye_outline(spec, n=32):
+    """her left eye's opening as the spec's eye knobs draw it (charkit.eyes.outline_polygon), in L round the eye line at
+    the eye's x (x outward, z up, the eye's z knob added): the outline the cage's lid loop is authored on."""
+    from charkit import eyes as eyelib
+    EK = eyelib._knobs(spec.get('eyes'))
+    P = eyelib.outline_polygon(EK, 1.0, n=n)
+    return np.stack([P[:, 0], P[:, 1] + EK['z']], 1)
+
+
+def head_mesh(S, C, cut, eye_outline=None):
     """the authored head's mesh on its sections (L, eye frame): the cage with the eyes and the mouth open, each eye's
     socket and the mouth's cavity added (their positions a first guess: charkit/eyes.py and charkit/mouth.py place them),
     the labels -> dict(V, faces (lists), eyes {side: labels}, mouth labels, neck (the bottom ring, ordered round),
-    groups per face)."""
+    groups per face). eye_outline: the lid loop's outline (eye_outline()), else the cage's default almond."""
     from charkit.geom import headgeom
-    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False)
+    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline)
     V = list(Cg.V)
     faces = [list(f) for f in Cg.F]
     groups = [Cg.groups[g] for g in Cg.group]
@@ -465,7 +476,7 @@ def wrap(spec, body=None, log=print):
     Ox = nc[0]
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r)
-    Hmesh = head_mesh(Sb, C, CUT)
+    Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec))
     Vh = np.array([Ox, Oy, Oz]) + L * Hmesh['V']
     # assemble: the kept body, the head, the zip
     used = sorted({v for f in Fk for v in f})
@@ -533,7 +544,8 @@ def wrap(spec, body=None, log=print):
     for side, E in Hmesh['eyes'].items():
         eyes[side] = dict(margin=[v + nbv for v in E['margin']], upper=[v + nbv for v in E['upper']],
                           lower=[v + nbv for v in E['lower']], pocket=off(E['pocket']), outer=off(E['outer']),
-                          socket={int(k) + nbv: (a + nbv, p, d) for k, (a, p, d) in E['socket'].items()})
+                          socket={int(k) + nbv: (a + nbv, p, d) for k, (a, p, d) in E['socket'].items()},
+                          loops=[[v + nbv for v in r] for r in E['loops']])
     M_ = Hmesh['mouth']
     mouth = dict(corners=[v + nbv for v in M_['corners']], upper=[v + nbv for v in M_['upper']],
                  lower=[v + nbv for v in M_['lower']], cavity=off(M_['cavity']),

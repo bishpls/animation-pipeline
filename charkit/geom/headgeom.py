@@ -194,15 +194,27 @@ def _near(mask, nb, off, k):
         out |= grow
     return out
 
+EYE_GAP = 0.035          # L between an eye's outline and its block's edge: room for its rings (0.012 L apart at 3)
+EYE_BLOCK = (0.135, 0.09)   # the eye block's least half-width and half-height (L), round the eye centre
+
+
 def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_w=0.21, eye_h=0.13, mouth_w=0.12,
-                  mouth_h=0.03, rings=(3, 2), caps=True):
+                  mouth_h=0.03, rings=(3, 2), caps=True, eye_outline=None):
     """the authored cage on the head's own chart (charkit.geom.headmesh.cylinder): rows of the sections from z_top down
     the neck, a dome of rays from the head's centre above, the eyes' and the mouth's blocks where the front view draws
-    them. -> (Cage, the dome's centre)."""
+    them. eye_outline: her left eye's opening (K, 2) in L round its centre (x outward, z up; charkit.eyes.
+    outline_polygon), the right's mirrored: the lid margin's loop is authored on it, and each eye's block grows to
+    hold it with EYE_GAP for the rings; None: an almond eye_w x eye_h. -> (Cage, the dome's centre)."""
     from . import headmesh as hm
     ex, mz = C['eye_x'], C['nose_z'] - 0.11
-    bh, mh = 0.09, 0.045
-    zs = hm.lines(z_bottom, z_top, dz, must=[-bh, bh, mz - mh, mz + mh])[::-1]
+    mh = 0.045
+    if eye_outline is None:
+        a = np.linspace(0, 2 * np.pi, 64, endpoint=False)
+        eye_outline = np.stack([eye_w / 2 * np.cos(a), eye_h / 2 * np.sin(a) * (1 + 0.15 * np.cos(a))], 1)
+    eo = np.asarray(eye_outline, float)
+    bw = max(EYE_BLOCK[0], np.abs(eo[:, 0]).max() + EYE_GAP)
+    bt, bb = max(EYE_BLOCK[1], eo[:, 1].max() + EYE_GAP), max(EYE_BLOCK[1], -eo[:, 1].min() + EYE_GAP)
+    zs = hm.lines(z_bottom, z_top, dz, must=[-bb, bt, mz - mh, mz + mh])[::-1]
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
     row = lambda z: int(np.argmin(np.abs(zs - z)))
@@ -223,9 +235,9 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         cy, r = _row_at(S, z)
         return float(r[int(np.argmin(np.abs(S.th)))])
     feats = []
-    for name, cx in (('eye_L', ex), ('eye_R', -ex)):
-        j0, j1 = sorted((col(theta_of(S, cx - 0.135, 0.0)), col(theta_of(S, cx + 0.135, 0.0))))
-        feats.append(dict(name=name, block=(j0, j1, row(bh), row(-bh)), outline_tz=chart(almond(cx, 0.0, eye_w, eye_h)),
+    for name, cx, sd in (('eye_L', ex, 1.0), ('eye_R', -ex, -1.0)):
+        j0, j1 = sorted((col(theta_of(S, cx - bw, 0.0)), col(theta_of(S, cx + bw, 0.0))))
+        feats.append(dict(name=name, block=(j0, j1, row(bt), row(-bb)), outline_tz=chart(np.stack([cx + sd * eo[:, 0], eo[:, 1]], 1)),
                           rings=rings[0], theta_scale=radius(0.0), cap=caps))
     j0, j1 = col(theta_of(S, -0.09, mz)), col(theta_of(S, 0.09, mz))
     feats.append(dict(name='mouth', block=(j0, j1, row(mz + mh), row(mz - mh)), outline_tz=chart(almond(0.0, mz, mouth_w, mouth_h)),
