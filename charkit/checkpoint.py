@@ -20,6 +20,8 @@ KEY_CHECKS = [                                                     # (check, wha
     ('sheet_profile', 'profile front edge vs the design, L'), ('sheet_nose_reach', 'nose projection, L'),
     ('sheet_chin_reach', 'chin projection, L'), ('sheet_profile_chin', 'chin height, L'),
     ('sheet_width', 'face width (worst ratio)'), ('sheet_neck_to_jaw', 'neck against jaw'),
+    ('sheet_shown_front', 'face showing past the hair, front'), ('sheet_shown_three_quarter', 'face showing, 3/4'),
+    ('sheet_shown_profile', 'face showing, profile'),
     ('eye_aspect', 'eye opening height / width'), ('eye_width', 'eye opening width'), ('eye_iris_ratio', 'iris in the opening'),
     ('eye_pupil_run', 'pupil height in the iris'), ('eye_pupil_aspect', 'pupil shape'),
     ('body_front_iou', 'front silhouette IoU'), ('body_profile_iou', 'profile silhouette IoU'),
@@ -47,6 +49,23 @@ def _trim(im, pad=10):
     return im.crop((max(0, xs.min() - pad), max(0, ys.min() - pad), min(im.width, xs.max() + pad), min(im.height, ys.max() + pad)))
 
 
+def _cut(full, box, mask, f=1.0):
+    """a figure's box cut from a sheet at full resolution, everything outside its own silhouette (`mask`, at the sheet
+    scaled by f) painted the sheet's background: no neighbour's hair or hand in the tile."""
+    from PIL import Image
+    x0, y0, x1, y1 = [int(round(c / f)) for c in box]
+    im = np.asarray(full.crop((x0, y0, x1, y1))).copy()
+    a = np.asarray(full)
+    bg = np.median(np.concatenate([a[:4].reshape(-1, 3), a[-4:].reshape(-1, 3)]), 0).astype(np.uint8)
+    H, W = mask.shape
+    ys = np.clip(((np.arange(y0, y1) + 0.5) * f).astype(int), 0, H - 1)
+    xs = np.clip(((np.arange(x0, x1) + 0.5) * f).astype(int), 0, W - 1)
+    from scipy.ndimage import binary_dilation
+    m = binary_dilation(mask, iterations=2)[np.ix_(ys, xs)]
+    im[~m] = bg
+    return Image.fromarray(im)
+
+
 def _fit(im, h):
     return im.resize((max(1, int(im.width * h / im.height)), h))
 
@@ -67,7 +86,7 @@ def design_views(spec):
         full = Image.fromarray((np.clip(rgb0, 0, 1) * 255).astype(np.uint8))
         for v in FACE:
             if v in H['heads']:
-                out['face'][v] = full.crop(tuple(int(round(c / f)) for c in H['heads'][v]['head']))
+                out['face'][v] = _cut(full, H['heads'][v]['head'], H['heads'][v]['_mask'], f)
         out['az3'] = refcheck.face_design(rgb0, ex).get('az_three_quarter', 35.0)
     if es:
         crops, own = refcheck.eye_design(refcheck._load(es['image']), ex)
@@ -78,7 +97,7 @@ def design_views(spec):
         full = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8))
         for v in BODY:
             if v in D['figures']:
-                out['body'][v] = _trim(full.crop(tuple(D['figures'][v]['box'])))
+                out['body'][v] = _trim(_cut(full, D['figures'][v]['box'], D['figures'][v]['_mask']))
     return out
 
 
@@ -179,6 +198,7 @@ def page(spec, builds, out, decisions=None, links=()):
             cells.append('<td class="%s">%s %s</td>' % (c.get('status', ''), html.escape(v), c.get('status', '')))
         L.append('<tr><td><code>%s</code></td><td>%s</td>%s</tr>' % (k, html.escape(what), ''.join(cells)))
     L.append('</table>')
+    L += _moved(builds, Q)
     if decisions and os.path.exists(_p(decisions)):
         L.append('<h2>Decisions for this review</h2>' + _md(open(_p(decisions)).read()))
 
@@ -239,6 +259,39 @@ def page(spec, builds, out, decisions=None, links=()):
     path = os.path.join(out, 'index.html')
     open(path, 'w').write('\n'.join(L))
     return path
+
+
+MOVED = 0.25                    # warn bands: a check that moves this far without changing its status is listed
+
+
+def _moved(builds, Q):
+    """the checks the newest build moved by MOVED warn bands or more (charkit.checks.severity) without changing their
+    status: a WARN that slid to the edge of FAIL reads the same in a status count."""
+    from . import checks
+    if len(builds) < 2:
+        return []
+    (la, _), (lb, _) = builds[-2], builds[-1]
+    rows = []
+    for k in sorted(set(Q[la]) & set(Q[lb])):
+        a, b = Q[la][k], Q[lb][k]
+        if a.get('status') != b.get('status') or a.get('status') not in ('WARN', 'FAIL'):
+            continue
+        sa, sb = checks.severity(k, a.get('value')), checks.severity(k, b.get('value'))
+        if sa is None or sb is None or abs(sb - sa) < MOVED:
+            continue
+        rows.append((sb - sa, k, a, b))
+    if not rows:
+        return []
+    L = ['<h3>Moved within their status: %s against %s</h3><p class="note">%d checks moved %.2f warn bands or more '
+         'without changing status (a status count hides them). + is worse.</p><table><tr><th>check</th><th>status</th>'
+         '<th>%s</th><th>%s</th><th>warn bands</th></tr>' % (html.escape(lb), html.escape(la), len(rows), MOVED,
+                                                           html.escape(la), html.escape(lb))]
+    for d, k, a, b in sorted(rows, key=lambda r: -r[0]):
+        L.append('<tr><td><code>%s</code></td><td class="%s">%s</td><td>%s</td><td>%s</td><td class="%s">%+.2f</td></tr>' % (
+            k, b['status'], b['status'], html.escape(json.dumps(a.get('value'))), html.escape(json.dumps(b.get('value'))),
+            'FAIL' if d > 0 else 'PASS', d))
+    L.append('</table>')
+    return L
 
 
 def main(args):
