@@ -1,5 +1,5 @@
 {
- "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. face: the eye region is a window (charkit.geom.headfit.eye_fill): the eye's opening on a plane through the design's eye depth, yawed back by the design's own profile/front eye widths, the brow and cheek held behind it, the cheek term fullest at the cheekbone (0.75). Measured on Clawd's head sections against the socket: the hollow down the eye's column 0.053 -> 0.026 L, the cheek's lead over the eye 0.075 -> 0.017, the largest local concavity 0.038 -> 0.008; the eye's predicted width against the design's 1.42 -> 1.00 in profile, 1.21 -> 1.09 in three-quarter; the head's sheet checks all PASS either way. curve 2 against 4 and 8: 4 and 8 leave the cheek 0.03-0.04 L forward of the eye. release 0 (the hold lets go toward the nose from the eye's own column) against 0.5: the groove where the held cheek met the muzzle, the largest local hollow across, 0.024 -> 0.016 L; the rest unchanged. The brow is held more loosely than the cheek (curve [8, 2] above and below, reach up 0.12): it sits under the fringe, may keep a slight recess over the eye (the hollow 0.005 -> 0.021 L), and setting it back 0.05 L let the hull's face carve (charkit.geom.hull.carve_face) take the fringe's tips. forward (a cap on how far the window may bring the face out of its own surface) is left off: set to 0 it was meant to keep the outer eye behind the fringe's tip, but the box builds read hair_fringe_low 0.033 either way (the tip goes to the hull's face carve, charkit.geom.hull.carve_face, which uses this head), while the eye's width against the design's went 1.08 -> 1.14 in three-quarter and 0.89 -> 1.11 in profile and sheet_width 1.078 -> 1.083 (WARN).",
+ "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. look: a key light that turns with the camera (the design's turnarounds are lit from the viewer's side in every view), outlines a constant share of the picture, the head and neck shaded on a smooth stand-in's normals, the hair's drawn highlight streaks; values set against charkit/lookqa's measures (docs/workstreams/look.md). face: the eye region is a window (charkit.geom.headfit.eye_fill): the eye's opening on a plane through the design's eye depth, yawed back by the design's own profile/front eye widths, the brow and cheek held behind it, the cheek term fullest at the cheekbone (0.75). Measured on Clawd's head sections against the socket: the hollow down the eye's column 0.053 -> 0.026 L, the cheek's lead over the eye 0.075 -> 0.017, the largest local concavity 0.038 -> 0.008; the eye's predicted width against the design's 1.42 -> 1.00 in profile, 1.21 -> 1.09 in three-quarter; the head's sheet checks all PASS either way. curve 2 against 4 and 8: 4 and 8 leave the cheek 0.03-0.04 L forward of the eye. release 0 (the hold lets go toward the nose from the eye's own column) against 0.5: the groove where the held cheek met the muzzle, the largest local hollow across, 0.024 -> 0.016 L; the rest unchanged. The brow is held more loosely than the cheek (curve [8, 2] above and below, reach up 0.12): it sits under the fringe, may keep a slight recess over the eye (the hollow 0.005 -> 0.021 L), and setting it back 0.05 L let the hull's face carve (charkit.geom.hull.carve_face) take the fringe's tips. forward (a cap on how far the window may bring the face out of its own surface) is left off: set to 0 it was meant to keep the outer eye behind the fringe's tip, but the box builds read hair_fringe_low 0.033 either way (the tip goes to the hull's face carve, charkit.geom.hull.carve_face, which uses this head), while the eye's width against the design's went 1.08 -> 1.14 in three-quarter and 0.89 -> 1.11 in profile and sheet_width 1.078 -> 1.083 (WARN).",
  "hull": {
   "p": 2.0,
   "class_share": 0.6,
@@ -22,6 +22,68 @@
   "normals": "envelope",
   "shade_close": 0.5,
   "shade_blur": 0.45
+ },
+ "look": {
+  "light": {
+   "mode": "camera",
+   "key": [
+    30.0,
+    40.0
+   ]
+  },
+  "lines": {
+   "mode": "screen",
+   "frac": 0.0022,
+   "regions": {
+    "skin": 1.0,
+    "hair": 1.0,
+    "garment": 1.0,
+    "accessory": 0.8
+   },
+   "color": "ink",
+   "ink": [
+    0.059,
+    0.024,
+    0.024
+   ],
+   "ink_regions": [
+    "hair",
+    "garment",
+    "accessory"
+   ]
+  },
+  "face": {
+   "normals": "proxy",
+   "blur": 0.22,
+   "chin_tilt": 85.0,
+   "tilt_power": 0.25,
+   "fringe": true,
+   "jaw_line": false,
+   "jaw_width": 0.0045,
+   "jaw_reach": 0.9,
+   "fringe_drop": 0.07,
+   "fringe_sides": true
+  },
+  "hair": {
+   "highlight": "streaks",
+   "elevation": 47.0,
+   "length": 5.0,
+   "jitter": 4.0,
+   "count": 36,
+   "duty": 0.25,
+   "keep": 0.3,
+   "amount": 0.85,
+   "color": [
+    0.973,
+    0.859,
+    0.776
+   ],
+   "deep_at": 0.15,
+   "lock_shade": 0.0,
+   "under": [
+    "lower_back"
+   ]
+  }
  },
  "face": {
   "eye_region": "window",

@@ -36,6 +36,11 @@ materials, and nothing here needs Blender. `python -m charkit build --qa blender
              distinct, and each expression's openness inside the range it is meant to have (FACE_EXPECT, warn only)
   face_folds skin faces round the eyes and the mouth facing away at rest or flipping under a lid or mouth key (folded lid
              and lip rings: the realistic lids stretched onto the anime outline, the lip rolls), summed over the keys
+  look       the render look (charkit/lookqa.py): the head and neck skin's shading noise under the boards' light and a
+             sweep of lights (face_noise, face_noise_sweep, face_islands), its shadows against the design's
+             (face_shadow_*), the outlines' widths and spread against the design's (line_width, line_spread); overlays
+             qa_face_shading.png, qa_face_shadow.png, qa_lines.png. Views are drawn as the boards light them: the style's
+             look (a camera key turns with each view), the face's SDF shading from its maps
 
 Each part is cached (charkit.cache.qa_part) on what it read of the bundle (arrays and metadata, by hash), the reference
 files it opened (by content) and its code: a QA-only change reruns the QA, an unchanged bundle restores it.
@@ -1443,32 +1448,85 @@ def shape(B, design, out=None, ref_image=None):
 
 
 # --------------------------------------------------------------------------------------------------- shaded views
-def _shade(B, o, m, N, view_d):
+def view_light(B, az):
+    """toward the key light (world) for a view from azimuth az as the boards light it (charkit.shade.view_light on the
+    bundle's look: a camera key turns with the view), or None: each material's own light (a bundle without a look)."""
+    look = B.meta('look')
+    if not look:
+        return None
+    from . import shade
+    return shade.view_light(az, dict(look))
+
+
+def _toon(sh, N, view_d, ldir=None):
+    """toon3's linear colour and tone (0 lit .. 1 shade .. 2 deep) for shading normals N under ldir (else its own)."""
+    Ld = np.asarray(ldir if ldir is not None else sh['ldir'], float)
+    half = (N @ Ld) * 0.5 + 0.5
+
+    def ramp(at):
+        p0, p1 = at
+        return np.clip((half - p0) / max(p1 - p0, 1e-9), 0, 1)[:, None]
+    rd = ramp(sh['deep_at'])
+    m1 = np.asarray(sh['deep']) * (1 - rd) + np.asarray(sh['shade']) * rd
+    fl = ramp(sh['lit_at'])
+    col = m1 * (1 - fl) + np.asarray(sh['lit']) * fl
+    if sh.get('rim_amt'):
+        f = np.abs(N @ (-np.asarray(view_d)))
+        b = min(max(sh['blend'], 0.0), 0.99999)
+        b = 2 * b if b < 0.5 else 0.5 / (1 - b)
+        f = 1 - (f ** b if sh['blend'] != 0.5 else f)
+        r0, r1 = sh['rim_from']
+        rr = np.clip((f - r0) / max(r1 - r0, 1e-9), 0, 1)
+        fac = (rr * sh['rim_amt'])[:, None] * fl
+        col = 1 - (1 - fac * np.asarray(sh['rim'])) * (1 - col)
+    return col * sh.get('strength', 1.0), (1 - fl[:, 0]) * (2 - rd[:, 0]) + fl[:, 0] * 0.0
+
+
+def _face(B, o, variant, sh, N, view_d, t, w, ldir=None):
+    """charkit.faceshade's material for pixels of triangles t (barycentric weights w): toon3 blended by the face mask
+    with the SDF face (the threshold map at the light's angle, mirrored for light from her right; the fringe's shadow;
+    the blush multiplied in) -> (linear colour, tone 0 lit .. 1 shade (.. 2 deep off the face))."""
+    col, tone = _toon(sh['toon'], N, view_d, ldir)
+    fuv, fm = o.a(variant, 'fuv'), o.a(variant, 'fmask')
+    if fuv is None or fm is None:
+        return col, tone
+    Tv, _, Tl = o.tris(variant)
+    uv = (fuv[Tl[t]] * w[:, :, None]).sum(1)
+    mk = (fm[Tv[t]] * w).sum(1)[:, None]
+    lh = np.asarray(ldir if ldir is not None else sh['ldir_head'], float)       # at rest the head's frame is the world's
+    ang = np.arctan2(abs(lh[0]), -lh[1]) / np.pi
+    u = 1 - uv[:, 0] if lh[0] < 0 else uv[:, 0]
+    thr = _sample(B.image(sh['sdf']), np.clip(np.stack([u, uv[:, 1]], 1), 0, 1))[:, 0]
+    s_ = np.clip((ang - thr + sh['soft']) / (2 * sh['soft']), 0, 1)
+    if sh.get('fringe'):
+        a0, a1 = sh['fringe_at']
+        s_ = np.maximum(s_, np.clip((_sample(B.image(sh['fringe']), uv)[:, 0] - a0) / (a1 - a0), 0, 1))
+    fc = np.asarray(sh['lit']) * (1 - s_[:, None]) + np.asarray(sh['shade']) * s_[:, None]
+    if sh.get('blush'):
+        bt = _sample(B.image(sh['blush']), uv)
+        fc = fc * (1 - bt[:, 3:4]) + fc * _lin(bt[:, :3]) * bt[:, 3:4]
+    col = col * (1 - mk) + fc * mk
+    tone = tone * (1 - mk[:, 0]) + s_ * mk[:, 0]
+    iw = o.a(variant, 'finkw')
+    if sh.get('ink') and iw is not None:                # the drawn lines (faceshade.ink), off the neck: not shading
+        it = _sample(B.image(sh['ink']), uv)
+        a = it[:, 3:4] * (iw[Tv[t]] * w).sum(1)[:, None]
+        col = col * (1 - a) + _lin(it[:, :3]) * a
+        tone = np.where(a[:, 0] > 0.5, np.nan, tone)
+    return col, tone
+
+
+def _shade(B, o, m, N, view_d, ldir=None):
     """a material's linear colour for pixels with shading normals N (unit, world), as the renderer shades it: toon3's
-    three tones on half-lambert N.L with its soft steps and lit-side rim, a flat emission, else its flat lit tone."""
+    three tones on half-lambert N.L with its soft steps and lit-side rim (under ldir, else its own light), a flat
+    emission, else its flat lit tone."""
     if m is None:
         return np.full((len(N), 3), 0.5)
     sh = m.get('shading') or {}
     if m.get('kind') == 'toon3':
-        Ld = np.asarray(sh['ldir'], float)
-        half = (N @ Ld) * 0.5 + 0.5
-
-        def ramp(at):
-            p0, p1 = at
-            return np.clip((half - p0) / max(p1 - p0, 1e-9), 0, 1)[:, None]
-        m1 = np.asarray(sh['deep']) * (1 - ramp(sh['deep_at'])) + np.asarray(sh['shade']) * ramp(sh['deep_at'])
-        fl = ramp(sh['lit_at'])
-        col = m1 * (1 - fl) + np.asarray(sh['lit']) * fl
-        if sh.get('rim_amt'):
-            f = np.abs(N @ (-np.asarray(view_d)))
-            b = min(max(sh['blend'], 0.0), 0.99999)
-            b = 2 * b if b < 0.5 else 0.5 / (1 - b)
-            f = 1 - (f ** b if sh['blend'] != 0.5 else f)
-            r0, r1 = sh['rim_from']
-            rr = np.clip((f - r0) / max(r1 - r0, 1e-9), 0, 1)
-            fac = (rr * sh['rim_amt'])[:, None] * fl
-            col = 1 - (1 - fac * np.asarray(sh['rim'])) * (1 - col)
-        return col * sh.get('strength', 1.0)
+        return _toon(sh, N, view_d, ldir)[0]
+    if m.get('kind') == 'face':
+        return _toon(sh['toon'], N, view_d, ldir)[0]
     if m.get('kind') == 'flat':
         return np.broadcast_to(np.asarray(sh['color'], float) * sh.get('strength', 1.0), (len(N), 3))
     return np.broadcast_to(_lin(_flat_tone(m)), (len(N), 3))
@@ -1487,17 +1545,22 @@ def surfaces(B, o, variant='eval', outline=True, paint=None):
                  paint=paint if not hull else None) for V, T, tm, cull, Tl, hull in got]
 
 
-def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
+def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS, ldir=None, aux=None):
     """surfaces drawn as the renderer draws them, from azimuth az on frame fr (built at ss): back-face culling per
-    material, toon materials on the render's normals (a back face shaded from its flipped normal), flat emissions, the
-    world behind an opaque render; supersampled and filtered -> RGBA floats (H, W, 4): sRGB colour and straight alpha
-    at 8 bits, as a saved PNG reads back."""
+    material, toon materials on the render's normals (a back face shaded from its flipped normal) under the view's light
+    (ldir, else the boards' for this view: view_light), the face's SDF shading, flat emissions, the world behind an
+    opaque render; supersampled and filtered -> RGBA floats (H, W, 4): sRGB colour and straight alpha at 8 bits, as a
+    saved PNG reads back. aux (a dict) gets the supersampled buffers: 'tone' (0 lit .. 1 shade .. 2 deep; NaN off the
+    toon materials), 'mesh' (the surface index per pixel, -1 empty), 'depth'."""
     items = [(s['V'], s['T'], s['slots'], s['cull']) for s in surfs]
     zb, lab, mi, ti, bc = fr.zbuffer(items, az, ids=True)
     a = np.radians(az)
     view_d = np.array([-np.sin(a), np.cos(a), 0.0])
+    if ldir is None:
+        ldir = view_light(B, az)
     H, W = zb.shape
     rgb = np.zeros((H, W, 3))
+    tone = np.full((H, W), np.nan) if aux is not None else None
     if not transparent:
         rgb[:] = WORLD
     for k, s in enumerate(surfs):
@@ -1522,10 +1585,16 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
         slots = s['slots'][t]
         col = np.zeros((len(t), 3))
         luv = o.a(s['variant'], 'luv') if not s['hull'] else None
+        tn = np.full(len(t), np.nan)
         for k_ in np.unique(slots):
             sel = slots == k_
             mat = o.material(int(k_))[1]
-            col[sel] = _shade(B, o, mat, N[sel], view_d)
+            if mat and mat.get('kind') == 'face' and not s['hull']:
+                col[sel], tn[sel] = _face(B, o, s['variant'], mat['shading'], N[sel], view_d, t[sel], bc[m][sel], ldir)
+            elif mat and mat.get('kind') == 'toon3':
+                col[sel], tn[sel] = _toon(mat['shading'], N[sel], view_d, ldir)
+            else:
+                col[sel] = _shade(B, o, mat, N[sel], view_d, ldir)
             img = mat and ((mat.get('shading') or {}).get('texture') or (mat.get('kind') == 'plate' and mat.get('image')))
             if img and luv is not None:                       # a texture multiplied in (a plate: the texture is the colour)
                 tl, w = Tl[t[sel]], bc[m][sel]
@@ -1537,6 +1606,10 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS):
             ok = np.isfinite(p[:, 0])
             col[ok] = p[ok]
         rgb[m] = col
+        if tone is not None:
+            tone[m] = tn
+    if aux is not None:
+        aux.update(tone=tone, mesh=mi, depth=zb)
     alpha = (mi >= 0).astype(float) if transparent else np.ones((H, W))
     img = _blur_down(np.concatenate([rgb * alpha[..., None], alpha[..., None]], -1), ss, FIG_FILTER)
     al = img[..., 3:4]
@@ -1742,6 +1815,13 @@ def face_region(B, design=None, out=None):
     return faceregion.measure(B)
 
 
+def look(B, design=None, out=None):
+    """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
+    widths."""
+    from . import lookqa
+    return lookqa.measure(B, design, out)
+
+
 PARTS = [                       # (part, function, check prefix, table key)
     ('shape', shape, '', 'views'), ('scalp', scalp, '', None), ('poke', poke, '', None), ('hair_noise', hair_noise, '', None),
     ('face_folds', folds, '', None), ('mesh', mesh_info, '', None),
@@ -1752,6 +1832,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
     ('face_region', face_region, '', 'face_region'),
+    ('look', look, '', 'look'),
 ]
 
 
