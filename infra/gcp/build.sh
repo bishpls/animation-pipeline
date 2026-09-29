@@ -31,7 +31,8 @@ name() { basename "$(cd "$1" && pwd)"; }
 case "${1:-status}" in
   status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
   up)
-    [ "$($G compute instances describe "$VM" $Z --format='value(status)')" = RUNNING ] || $G compute instances start "$VM" $Z
+    source "$HERE/gpu-start.sh"
+    box_start || { rc=$?; [ $rc = 2 ] && echo "no capacity in $ZONE for any shape (a stockout, not a fault): retry in a few minutes" >&2; exit $rc; }
     [ -f "$HOME/.ssh/google_compute_engine" ] || $G compute ssh "$VM" $Z --tunnel-through-iap --command=true
     config
     for _ in $(seq 1 60); do
