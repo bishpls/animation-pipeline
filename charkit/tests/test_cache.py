@@ -109,6 +109,17 @@ def test_code_closure():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_step_closure_is_depth_limited():
+    """a venv step's code key follows its imports STEP_DEPTH deep: the authored head's step covers the code base, not the
+    QA (whole and transitive, every step reached all of charkit and any edit re-ran the fits)."""
+    from charkit import cli
+    deep = cache.code_units(cli.code_head, modules=('charkit.cache',))
+    near = cache.code_units(cli.code_head, modules=('charkit.cache',), depth=cache.STEP_DEPTH)
+    mods = lambda u: {k for k in u if ':' not in k}
+    assert 'charkit/qa3d.py' in mods(deep) and 'charkit/qa3d.py' not in mods(near)
+    assert 'charkit/code_base.py' in mods(near) and len(mods(near)) < len(mods(deep)) / 3
+
+
 def test_file_memo():
     tmp = tempfile.mkdtemp()
     try:
