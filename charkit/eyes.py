@@ -480,7 +480,7 @@ def expressions(K, L):
         # closed: the upper lid comes down a touch past the lower one (the lash line covers the seam)
         'blink': (lambda t: (closed_line(K, L, t)[0], closed_line(K, L, t)[1] - 0.003 * L), closed()),
         'happy': (lambda t: (closed_line(K, L, t, True)[0], closed_line(K, L, t, True)[1] - 0.003 * L), closed(True)),
-        'half': (up({'height': K['height'] * 0.72, 'lower': K['lower'] / 0.72 * 1.0}), None),
+        'half': (up({'height': K['height'] * 0.66, 'lower': K['lower'] / 0.66}), None),
         'wide': (up({'height': K['height'] * 1.14, 'lower': K['lower'] / 1.14}), lo({'height': K['height'] * 1.06})),
         'angry': (up({'peak': min(0.85, K['peak'] + 0.3), 'tilt': K['tilt'] + 9, 'height': K['height'] * 0.86,
                       'lower': K['lower'] / 0.86}), None),
