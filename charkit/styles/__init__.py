@@ -16,7 +16,8 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            yawed back toward its outer corner by the design's own yaw (yaw 'design', or degrees), with the brow and the
            cheek no further forward than it; max_yaw caps it), margin (L: the window past the eye's opening), reach (L,
            up and down: how far above and below the window the correction reaches), hold and curve (the brow and the
-           cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window; toward the
+           cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window (a pair:
+           above and below the window's centre, the brow and the cheek); toward the
            nose it lets go from `release` of the window's half-width in from the eye),
            cheek_peak (where across the face, as a share of its half-width, the cheek term that meets the three-quarter's
            far contour is fullest: 0.5 under the eye, larger toward the cheekbone)

@@ -482,7 +482,7 @@ def eye_window(C, face=None):
     two = lambda v: [float(v), float(v)] if np.isscalar(v) else [float(u) for u in v]
     return dict(mode=st['eye_region'], a=fw / 2 + st['margin'], b=fh / 2 + st['margin'], zc=float(fr.get('dz') or 0.0),
                 tan=float(np.tan(np.radians(yaw))), yaw=round(yaw, 2), reach=two(st['reach']),
-                margin=float(st['margin']), hold=bool(st['hold']), curve=float(st['curve']),
+                margin=float(st['margin']), hold=bool(st['hold']), curve=two(st['curve']),
                 release=float(st['release']), cheek_peak=float(st['cheek_peak']))
 
 
@@ -526,7 +526,8 @@ def eye_fill(zs, X, Y, eye_x, W, iters=12):
     core = (rho_c <= 1) & ~fixed
     fixed |= core; val[core] = (plane - Yr)[core]
     rho = np.hypot((Xr - eye_x) / W['a'], (Zr - W['zc']) / W['b'])
-    allow = W.get('curve', 2.0) * (np.maximum(0.0, rho - 1) * np.sqrt(W['a'] * W['b'])) ** 2
+    cu, cd = (W.get('curve', 2.0),) * 2 if np.isscalar(W.get('curve', 2.0)) else W['curve']
+    allow = np.where(Zr > W['zc'], cu, cd) * (np.maximum(0.0, rho - 1) * np.sqrt(W['a'] * W['b'])) ** 2
     x0, x1 = WINDOW_RELEASE[0], max(eye_x - W.get('release', 0.5) * W['a'], WINDOW_RELEASE[0] + 0.01)
     allow = allow + WINDOW_RELEASE[1] * (1 - _smoothstep((Xr - x0) / (x1 - x0)))  # toward the midline: let go
     hold = ~fixed & bool(W.get('hold', True))
