@@ -7,7 +7,8 @@ against the design and against a build before it.
              board and this build's (BUILD/boards: build with --boards views,body)
   checks     every hair check of the QA, this build against BASE (the per-family IoUs against the hair layers, the
              fringe, penetration and folds, and the whole-hair checks: IoU, width, length, top, noise, scalp, shown);
-             with BASE, the hair pieces' checks also remeasured on both builds by this code's QA (like for like)
+             with BASE, the hair pieces' checks and hair_noise also remeasured on both builds by this code's QA (like
+             for like)
   families   per view the drawing's families (the hair layers, charkit.hairlayers) beside ours (qa_hair_pieces.png)
   sheet      the QA's body comparison, the head's rows: the design, ours, the overlap (qa_sheet_body.png)
   noise      the hair drawn alone with its toon materials (qa_hair_front.png), BASE's beside it
@@ -300,20 +301,22 @@ def _renders(rows):
 
 
 def _remeasured(build, against):
-    """the hair pieces' checks on both builds by this code's QA (qa3d.hair_pieces over each bundle's hair objects)."""
+    """the hair pieces' checks and hair_noise on both builds by this code's QA (qa3d.hair_pieces, qa3d.hair_noise over
+    each bundle's hair objects)."""
     from . import bundle as bl, qa3d
     res = {}
     for tag, b in (('before', against), ('this build', build)):
         try:
             B = bl.load(os.path.join(b, 'bundle'))
             _, C = qa3d.hair_pieces(B, qa3d.Design(B))
+            C.update(qa3d.hair_noise(B)[1])
             res[tag] = C
         except Exception as e:                                    # (a build without pieces, or an older bundle)
             res[tag] = {'error': {'status': 'SKIPPED', 'why': repr(e)[:200]}}
     keys = sorted(set(res['before']) | set(res['this build']))
     cell = lambda c: '<td class="%s">%s %s%s</td>' % (c.get('status', ''), c.get('value', ''), c.get('status', ''),
                                                       ' (drawn %s)' % c['drawn'] if 'drawn' in c else '') if c else '<td></td>'
-    return ('<h2>Hair pieces, remeasured by this QA on both builds</h2><table><tr><th>check</th><th>before</th><th>this '
+    return ('<h2>Hair pieces and hair_noise, remeasured by this QA on both builds</h2><table><tr><th>check</th><th>before</th><th>this '
             'build</th></tr>%s</table>' % ''.join('<tr><td>%s</td>%s%s</tr>' % (k, cell(res['before'].get(k)),
                                                                               cell(res['this build'].get(k)))
                                                   for k in keys))
