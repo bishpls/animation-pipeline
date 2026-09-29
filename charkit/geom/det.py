@@ -54,8 +54,9 @@ def kernel(sigma, truncate=4.0):
 
 def gaussian(x, sigma, mode='nearest', dtype=np.float32):
     """a separable Gaussian blur of an N-d array (sigma a number or one per axis; 0 skips an axis), computed in `dtype`
-    as elementwise multiply-adds in a fixed order -> dtype array. Only 'nearest' edges (scipy's default for the hull's
-    uses). Within a float32 ulp of scipy.ndimage.gaussian_filter, and the same bits on every machine."""
+    as elementwise operations in a fixed order (the centre tap, then each symmetric pair summed and weighted, outward)
+    -> dtype array. Only 'nearest' edges (scipy's default for the hull's uses). Within a float32 ulp or two of
+    scipy.ndimage.gaussian_filter, and the same bits on every machine."""
     if mode != 'nearest':
         raise ValueError("det.gaussian: only mode='nearest'")
     x = np.asarray(x, dtype)
@@ -69,11 +70,17 @@ def gaussian(x, sigma, mode='nearest', dtype=np.float32):
         pad[ax] = (r, r)
         xp = np.pad(x, pad, mode='edge')
         n = x.shape[ax]
-        out = np.zeros_like(x)
-        for k in range(len(w)):
+
+        def tap(k):
             sl = [slice(None)] * x.ndim
             sl[ax] = slice(k, k + n)
-            out += w[k] * xp[tuple(sl)]
+            return xp[tuple(sl)]
+        out = np.multiply(tap(r), w[r])
+        pair = np.empty_like(out)
+        for k in range(1, r + 1):
+            np.add(tap(r - k), tap(r + k), out=pair)
+            np.multiply(pair, w[r - k], out=pair)
+            np.add(out, pair, out=out)
         x = out
     return x
 
