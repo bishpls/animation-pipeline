@@ -1734,6 +1734,14 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
+def face_region(B, design=None, out=None):
+    """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
+    eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
+    crease where the head meets the body: what the head's own sheet checks, graded on the head alone, can't see."""
+    from . import faceregion
+    return faceregion.measure(B)
+
+
 PARTS = [                       # (part, function, check prefix, table key)
     ('shape', shape, '', 'views'), ('scalp', scalp, '', None), ('poke', poke, '', None), ('hair_noise', hair_noise, '', None),
     ('face_folds', folds, '', None), ('mesh', mesh_info, '', None),
@@ -1743,6 +1751,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
+    ('face_region', face_region, '', 'face_region'),
 ]
 
 

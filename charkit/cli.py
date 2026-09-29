@@ -344,7 +344,9 @@ def code_head(spec, resolved, out, mode='on'):
     path = os.path.join(gdir, 'head_code.npz')
     M = manifest.load(spec['ref']['manifest'])['references']
     imgs = [_path(spec['ref']['face_sheet']['image']), _path(M['head_construction']['path'])]
-    key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime')}
+    from . import styles
+    key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime'),
+           'face': styles.load(spec.get('style', 'anime'))['face']}          # (the profile's own settings, not just its name)
 
     def run():
         code_base.save_head(spec, path)

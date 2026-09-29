@@ -131,7 +131,7 @@ def head_sections(spec, log=print):
                       spec.get('eyes', {}).get('x', 0.168)])
     if key not in _HEADS:
         C = headfit.contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
-        S, rep = headfit.assemble(headfit.Face(C), headfit.skull_analytic(spec, log=log))
+        S, rep = headfit.assemble(headfit.Face(C), headfit.skull_analytic(spec, log=log), face=headfit.face_style(spec))
         _HEADS[key] = (S, C, rep)
     return _HEADS[key]
 
@@ -146,19 +146,51 @@ def _ring_polar(P, centre, th):
     return np.interp(th, np.r_[a[-1] - 2 * np.pi, a, a[0] + 2 * np.pi], np.r_[r[-1], r, r[0]])
 
 
-def blend_neck(S, cut, ring_cy, ring_r, width=NECK_BLEND):
+def neck_curve(S, z_top, low):
+    """one curve per column from the head's row at z_top down to a lower body ring: low = (z, r, dr/dz) of that ring at
+    S.th (the eye frame's L, round the neck's axis). A cubic meeting both with their own slopes, monotone (Fritsch-
+    Carlson: a slope against the secant goes flat, both scaled into the monotone region), so the neck turns into the
+    body's flare without a waist, a bulge or a ring. -> f(z) -> r at S.th."""
+    from charkit.geom.headgeom import _row_at
+    h = abs(S.zs[1] - S.zs[0])
+    top, above = _row_at(S, z_top), _row_at(S, z_top + h)
+    r_top = top[1]
+    s_top = (above[1] - r_top) / h if above is not None else np.zeros_like(r_top)
+    z_low, r_low, s_low = low
+    span = z_top - z_low
+    m = (r_top - r_low) / span
+    with np.errstate(divide='ignore', invalid='ignore'):
+        a_, b_ = np.where(m != 0, s_low / m, 0.0), np.where(m != 0, s_top / m, 0.0)
+    s_low = np.where(a_ < 0, 0.0, s_low); s_top = np.where(b_ < 0, 0.0, s_top)
+    k = np.hypot(np.maximum(a_, 0), np.maximum(b_, 0))
+    sc = np.where(k > 3, 3 / np.maximum(k, 1e-9), 1.0)
+    s_low, s_top = s_low * sc, s_top * sc
+
+    def f(z):
+        t = float(np.clip((z - z_low) / span, 0.0, 1.0))
+        h00, h10, h01, h11 = 2 * t ** 3 - 3 * t ** 2 + 1, t ** 3 - 2 * t ** 2 + t, -2 * t ** 3 + 3 * t ** 2, t ** 3 - t ** 2
+        return h00 * r_low + h10 * span * s_low + h01 * r_top + h11 * span * s_top
+    f.z_top = z_top
+    return f
+
+
+def blend_neck(S, cut, ring_cy, ring_r, width=NECK_BLEND, curve=None):
     """the head's sections with their lowest rows eased into the body's neck section (its centre ring_cy, radii ring_r
-    at S.th, in the eye frame's L) from `width` above the cut down to it; rows under the cut dropped."""
+    at S.th, in the eye frame's L) from `width` above the cut down to it; rows under the cut dropped. curve: neck_curve's
+    (the join lofted as one surface down into the body): those rows take it instead of the flat easing."""
     from charkit.geom.headgeom import Sections, _smoothstep
     cy, r = S.cy.copy(), S.r.copy()
     w = _smoothstep((cut + width - S.zs) / width)[:, None]
     ok = np.isfinite(cy)
-    r[ok] = (1 - w[ok]) * r[ok] + w[ok] * ring_r[None, :]
+    if curve is None:
+        r[ok] = (1 - w[ok]) * r[ok] + w[ok] * ring_r[None, :]
+    else:
+        for i in np.nonzero(ok & (S.zs <= curve.z_top))[0]:
+            r[i] = curve(S.zs[i])
     cy[ok] = (1 - w[ok, 0]) * cy[ok] + w[ok, 0] * ring_cy
     under = S.zs < cut - 2 * abs(S.zs[1] - S.zs[0])                  # one row past the cut kept: the ring interpolates
     cy[under] = np.nan; r[under] = np.nan
     return Sections(S.zs, cy, r)
-
 
 def eye_labels(V, rings, side, socket_start):
     """an eye's labels from its loops (outer to inner; the innermost the lid's margin) and its socket's vertices
@@ -492,6 +524,49 @@ def eye_front(S, C):
     return float(cy[k0] - r[k0, k] * np.cos(S.th[k]))
 
 
+NECK_BASE = 0.12                 # L under the cut: the join is lofted from the head's neck down to the authored torso's
+                                 # ring this far below (under the collar, where the torso is its fitted self)
+
+
+def _torso_rings(Bm, ring_b, Vb):
+    """an authored torso's rings from its top (neck) ring down: its rings are consecutive blocks of the ring's size ->
+    [indices per ring], or [] (a body whose neck ring isn't a torso's top)."""
+    part = (Bm.get('parts') or {}).get('torso')
+    if not (Bm.get('authored') and part):
+        return []
+    n = len(ring_b)
+    rings = [list(ring_b)]
+    while True:
+        nxt = [v + n for v in rings[-1]]
+        if not (part[0] <= min(nxt) and max(nxt) < part[1]) or Vb[nxt, 2].mean() >= Vb[rings[-1], 2].mean():
+            return rings
+        rings.append(nxt)
+
+
+def _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L):
+    """the neck's join lofted as one surface: the head's own neck (the head sheet's, slender) kept down to the cut, then
+    each column one monotone cubic (neck_curve) from it down to the authored torso's ring NECK_BASE under the cut, meeting
+    both with their own slopes: the neck flares into the shoulders under the collar, as drawn, with no ring or crease.
+    The torso's rings between are re-seated on it (its top ring, a circle as wide as the neck's skin, stood out from the
+    head's neck and from the rows under it). -> (Vb, curve) or (Vb, None) for a body without an authored torso."""
+    rings = _torso_rings(Bm, ring_b, Vb)
+    zr = [(Vb[rg, 2].mean() - Oz) / L for rg in rings]
+    k = next((i for i, z in enumerate(zr) if zr[0] - z >= NECK_BASE), None)
+    if k is None or k + 1 >= len(rings):
+        return Vb, None
+    axis = np.array([Ox, Oy + cy_cut * L])
+    polar = lambda rg: _ring_polar((Vb[rg, :2] - axis) / L, (0.0, 0.0), S.th)
+    r_low, r_next = polar(rings[k]), polar(rings[k + 1])
+    s_low = (r_low - r_next) / (zr[k] - zr[k + 1])
+    curve = neck_curve(S, CUT, (zr[k], r_low, s_low))
+    Vb = np.array(Vb, float, copy=True)
+    for rg, z in zip(rings[:k], zr[:k]):
+        q = Vb[rg, :2] - axis
+        th = np.arctan2(q[:, 0], -q[:, 1])
+        rr = np.interp(th, S.th, curve(z), period=2 * np.pi) * L
+        Vb[rg, :2] = axis + np.stack([np.sin(th) * rr, -np.cos(th) * rr], 1)
+    return Vb, curve
+
 def _cut_body(Bm, Vb, Fb, z_cut, L):
     """MakeHuman's body cut level at the neck -> (the kept faces' indices, those faces, the neck ring)."""
     # the cut: above it, within the neck's column (the shoulders' tops can reach it beside the neck, and stay)
@@ -548,8 +623,12 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
         # blend takes up the difference down to the body's ring
         Oy = float(Bm['eye_y']) - (eye_front(S, C) + float(((spec.get('hair') or {}).get('shape') or {}).get(
             'eye_depth', 0.01))) * L
+    # an authored torso: the join lofted as one surface from the head's neck down into the torso (no crease where the
+    # head's rows met the torso's top ring)
+    Vb, curve = _join_neck(S, Bm, ring_b, Vb, Ox, Oy, Oz, cy_cut, L)
+    nc = Vb[ring_b].mean(0)
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
-    Sb = blend_neck(S, CUT, cy_cut, ring_r)
+    Sb = blend_neck(S, CUT, cy_cut, ring_r, curve=curve)
     Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec), mouth_block(spec))
     Vh = np.array([Ox, Oy, Oz]) + L * Hmesh['V']
     # assemble: the kept body, the head, the zip

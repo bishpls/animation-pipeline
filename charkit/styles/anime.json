@@ -1,5 +1,5 @@
 {
- "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land.",
+ "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. face: the eye region is a window (charkit.geom.headfit.eye_fill): the eye's opening on a plane through the design's eye depth, yawed back by the design's own profile/front eye widths, the brow and cheek held behind it, the cheek term fullest at the cheekbone (0.75). Measured on Clawd's head sections against the socket: the hollow down the eye's column 0.053 -> 0.026 L, the cheek's lead over the eye 0.075 -> 0.017, the largest local concavity 0.038 -> 0.008; the eye's predicted width against the design's 1.42 -> 1.00 in profile, 1.21 -> 1.09 in three-quarter; the head's sheet checks all PASS either way. curve 2 against 4 and 8: 4 and 8 leave the cheek 0.03-0.04 L forward of the eye.",
  "hull": {
   "p": 2.0,
   "class_share": 0.6,
@@ -22,5 +22,10 @@
   "normals": "envelope",
   "shade_close": 0.5,
   "shade_blur": 0.45
+ },
+ "face": {
+  "eye_region": "window",
+  "curve": 2.0,
+  "cheek_peak": 0.75
  }
 }

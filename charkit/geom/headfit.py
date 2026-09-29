@@ -38,6 +38,41 @@ def _smooth(v, k=3):
     return out
 
 
+def eye_views(rgb, eye_x, facing=-1):
+    """the head sheet's eyes measured per view (charkit.eyeqa on each eye's crop, as charkit.eyepage cuts them): -> {view:
+    dict(w, h (the opening's width and height, L), dz (its centre's height over the eye's, L))}; the front's is the two
+    eyes' mean, the three-quarter's and the profile's the near eye's."""
+    from charkit import eyeqa, refcheck
+    rgb0, _ = refcheck.without_guides(np.asarray(rgb, float))
+    ppl = refcheck.FACE_PPL
+    _, f, H = refcheck.at_scale(rgb0, eye_x, 2 * eye_x * ppl, facing)
+    own = ppl / f
+    hw, hh = refcheck.EYE_BOX[0] * own, refcheck.EYE_BOX[1] * own
+    edge = np.concatenate([rgb0[:4].reshape(-1, 3), rgb0[-4:].reshape(-1, 3), rgb0[:, :4].reshape(-1, 3)])
+    bg = np.median(edge, 0)
+    out = {}
+    for view, n in (('front', 2), ('three_quarter', 2), ('profile', 1)):
+        eyes = sorted((H['heads'].get(view) or {}).get('eyes') or [])
+        if len(eyes) != n:
+            continue
+        pick = eyes if view == 'front' else eyes[-1:]
+        ms = []
+        for x, y in pick:
+            cx, cy = x / f, y / f
+            crop = rgb0[int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
+            alpha = (np.abs(crop - bg).max(-1) > 0.035).astype(float)[..., None]
+            m = eyeqa.measure(np.concatenate([crop, alpha], -1), own)
+            if not m.get('found'):
+                continue
+            rows = np.nonzero(m['_masks']['opening'].any(1))[0]
+            dz = ((crop.shape[0] / 2) - (rows.min() + rows.max()) / 2) / own if len(rows) else 0.0
+            ms.append((m['open_w'], m['open_h'], dz))
+        if ms:
+            w, h, dz = np.mean(ms, 0)
+            out[view] = dict(w=round(float(w), 4), h=round(float(h), 4), dz=round(float(dz), 4))
+    return out
+
+
 def contours(rgb, eye_x, facing=-1, dz=0.005):
     """the design's face contours on a common z grid (rows every dz L, from the forehead to the chin) -> dict(z, mid
     (y of the midline), w (the outline's half-width), lead3 (the three-quarter's leading contour, forward of its far eye),
@@ -72,8 +107,12 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
     below = (z < -0.02) & (z > -0.2)
     nose_z = float(z[below][np.nanargmax(lead_p[below])]) if np.isfinite(lead_p[below]).any() else -0.1
     nz, ny = neck_front(rgb, eye_x, facing)
+    try:
+        ev = eye_views(rgb, eye_x, facing)
+    except Exception:                         # (a sheet whose eyes can't be cut: the window falls back to its defaults)
+        ev = {}
     return dict(z=z, mid=-lead_p, w=_smooth(w, 2), lead3=lead3, az3=float(D['az_three_quarter']), chin=chin,
-                nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny)
+                nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny, eyes=ev)
 
 
 def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
@@ -407,7 +446,103 @@ CHEEK_FIT = (-0.06, 0.08)        # the cheek term is fitted below the first z (a
                                  # eye's lashes) and fades out over the second (L) above it
 
 
-SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and up
+SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and up (the 'socket' eye region)
+EYE_REGION = {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
+              'hold': True, 'curve': 2.0, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
+                                                             # section overrides it: styles.DEFAULT says what each is)
+WINDOW_RELEASE = (0.02, 0.2)     # L: toward the midline the window's hold lets go, from half the window in to this x,
+                                 # by up to this much (the nose's side is the profile's midline, not the eye's plane)
+EYE_OPENING = (0.18, 0.15)       # L: the front eye opening's width and height when the design's can't be measured
+
+
+def face_style(spec):
+    """the spec's style profile's face section (charkit/styles): how its eye region is built."""
+    from charkit import styles
+    return styles.load(spec.get('style', 'anime'))['face']
+
+
+def eye_window(C, face=None):
+    """the eye region's construction from the design's eyes (C['eyes']: eye_views) and the style's face section (charkit/
+    styles: EYE_REGION's keys) -> dict(mode, a, b (the window's half-width and half-height, L: the front opening's plus
+    the margin), zc (its centre's height), tan (the plane's slope back toward the outer corner, y per |x|: the tangent
+    of the yaw, the profile opening's width over the front's; a plane's opening shows its width times that in profile),
+    yaw (degrees), reach (L: how far above and below the window the correction reaches), margin, hold, curve and
+    cheek_peak (the style's))."""
+    st = dict(EYE_REGION, **(face or {}))
+    ev = C.get('eyes') or {}
+    fr = ev.get('front') or {}
+    fw, fh = fr.get('w') or EYE_OPENING[0], fr.get('h') or EYE_OPENING[1]
+    if st['yaw'] == 'design':
+        pw = (ev.get('profile') or {}).get('w')
+        yaw = float(np.degrees(np.arctan(pw / fw))) if pw else 25.0
+    else:
+        yaw = float(st['yaw'])
+    yaw = min(yaw, st['max_yaw'])
+    two = lambda v: [float(v), float(v)] if np.isscalar(v) else [float(u) for u in v]
+    return dict(mode=st['eye_region'], a=fw / 2 + st['margin'], b=fh / 2 + st['margin'], zc=float(fr.get('dz') or 0.0),
+                tan=float(np.tan(np.radians(yaw))), yaw=round(yaw, 2), reach=two(st['reach']),
+                margin=float(st['margin']), hold=bool(st['hold']), curve=float(st['curve']),
+                cheek_peak=float(st['cheek_peak']))
+
+
+def eye_fill(zs, X, Y, eye_x, W, iters=12):
+    """the anime eye region as a correction of the face's front, on the sections' own grid: rows zs (descending, evenly
+    spaced), and per row the front's points from the midline (column 0) round to the side (the last column, a quarter
+    turn): X, Y (len(zs), n) in the eye frame. The smoothest correction of y (least thin-plate energy; the other side is
+    the mirror) that lays the eye's opening (the window less half its margin) on the window's plane (y = 0 at the eye's
+    centre, turned back toward the outer corner: W['tan']), holds the brow and the cheek round it behind that plane
+    (allowed forward of it by W['curve'] * d^2 at d L out of the window, and let go toward the midline, whose nose and
+    muzzle are the profile's), and vanishes at the midline (the profile's silhouette stays the design's), round the side
+    and past the region's reach above and below. -> delta (len(zs), n), to add to Y."""
+    from scipy import sparse
+    from scipy.sparse.linalg import spsolve
+    up, down = W['reach']
+    nz, n = X.shape
+    inside = (zs >= W['zc'] - W['b'] - down) & (zs <= W['zc'] + W['b'] + up)
+    D = np.zeros((nz, n))
+    if inside.sum() < 5:
+        return D
+    ks = np.nonzero(inside)[0]
+    Xr, Yr, Zr = np.abs(X[ks]), Y[ks], np.repeat(zs[ks][:, None], n, 1)
+    m = len(ks)
+    hz = abs(zs[1] - zs[0])
+    hx = float(np.nanmedian(np.hypot(np.diff(Xr, axis=1), np.diff(Yr, axis=1))))     # the arc between columns
+    idx = np.arange(m * n).reshape(m, n)
+    rr, cc, vv = [], [], []
+    e = 0
+    for i in range(1, m - 1):
+        for j in range(0, n - 1):
+            left = idx[i, j - 1] if j > 0 else idx[i, 1]                                # the midline: mirrored
+            for c, v in ((idx[i, j + 1], 1 / hx ** 2), (left, 1 / hx ** 2), (idx[i + 1, j], 1 / hz ** 2),
+                         (idx[i - 1, j], 1 / hz ** 2), (idx[i, j], -2 / hx ** 2 - 2 / hz ** 2)):
+                rr.append(e); cc.append(c); vv.append(v)
+            e += 1
+    Lap = sparse.csr_matrix((vv, (rr, cc)), shape=(e, m * n))
+    plane = (Xr - eye_x) * W['tan']
+    fixed = np.zeros((m, n), bool); val = np.zeros((m, n))
+    fixed[0] = fixed[-1] = True; fixed[:, 0] = fixed[:, -1] = True          # above, below, the midline, the side
+    rho_c = np.hypot((Xr - eye_x) / (W['a'] - W['margin'] / 2), (Zr - W['zc']) / (W['b'] - W['margin'] / 2))
+    core = (rho_c <= 1) & ~fixed
+    fixed |= core; val[core] = (plane - Yr)[core]
+    rho = np.hypot((Xr - eye_x) / W['a'], (Zr - W['zc']) / W['b'])
+    allow = W.get('curve', 2.0) * (np.maximum(0.0, rho - 1) * np.sqrt(W['a'] * W['b'])) ** 2
+    x0, x1 = WINDOW_RELEASE[0], max(eye_x - W['a'] / 2, WINDOW_RELEASE[0] + 0.01)
+    allow = allow + WINDOW_RELEASE[1] * (1 - _smoothstep((Xr - x0) / (x1 - x0)))  # toward the midline: let go
+    hold = ~fixed & bool(W.get('hold', True))
+    for _ in range(iters):
+        F_ = ~fixed.ravel()
+        A = Lap[:, F_]; Bc = Lap[:, ~F_]
+        d = val.ravel().copy()
+        d[F_] = spsolve((A.T @ A).tocsc(), -(A.T @ (Bc @ d[~F_])))
+        d = d.reshape(m, n)
+        ahead = hold & ~fixed & (Yr + d < plane - allow - 1e-4)            # still in front of the plane: hold it there
+        if not ahead.any():
+            break
+        fixed |= ahead; val[ahead] = (plane - allow - Yr)[ahead]
+    D[ks] = d
+    return D
+
+
 SCALE_SMOOTH = 0.025             # L of rows: the jaw's and neck's width scaling is smoothed over this
 BROAD = 0.05                     # L of height: the midline's correction that spreads across the face is this smooth; the
                                  # rest (the nose, the lips, the bridge) stays at the midline, narrow
@@ -419,10 +554,13 @@ def _falloff(s):
     return (1 - s * s) ** 2
 
 
-def _cheek(s):
-    """0 at the midline and the outline, most in between: the cheek's shape term."""
+def _cheek(s, peak=0.5):
+    """0 at the midline and the outline, most at `peak` (a share of the half-width) between: the cheek's shape term,
+    s^p (1 - s)^2 scaled to 1 there (peak 0.5: 16 s^2 (1 - s)^2). Out toward the side (the cheekbone), the far cheek's
+    three-quarter contour is met without bringing the cheek under the eye forward."""
     s = np.clip(np.abs(s), 0, 1)
-    return 16 * s * s * (1 - s) ** 2
+    p = 2 * peak / (1 - peak)
+    return s ** p * (1 - s) ** 2 / (peak ** p * (1 - peak) ** 2)
 
 
 def skull_chin(S):
@@ -442,7 +580,7 @@ CHIN_BIAS = -0.01                # L: the chin's rows warped this far past the d
 
 
 def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, chin_bias=CHIN_BIAS,
-             terms=('corr', 'rel', 'cheek', 'scale', 'warp', 'socket')):
+             terms=('corr', 'rel', 'cheek', 'scale', 'warp', 'socket'), face=None):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
       - below CHEEK_TOP each row's x scaled so its half-width is the face's own outline (blended up to JAW_ROWS[1]);
@@ -514,6 +652,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     wc_all = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), (1 - tj) * wk_all + tj * np.minimum(half_all, 0.3), np.nan),
                                         SCALE_SMOOTH / A.h), nan=0.3)
     g_front = np.where(np.cos(th) > 0, np.cos(th) ** 2, 0.0)          # 1 at the front, 0 from the sides back
+    win = eye_window(F.C, face)                    # the style's eye region: the socket below, or the anime window
 
     def row(k):
         """row k's section points (x, y) after the jaw's scaling, its falloff coordinate, and a shaper by cheek term."""
@@ -521,7 +660,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         y = cy[k] - np.cos(th) * R0[k]
         s_ = x / max(wc_all[k], 1e-3)
         base = y + front * (corr[k] * _falloff(s_) + rel[k] * np.exp(-0.5 * (x / sig[k]) ** 2))
-        return x, lambda c: base + front * c * _cheek(s_)
+        return x, lambda c: base + front * c * _cheek(s_, win['cheek_peak'])
 
     valid = [k for k in range(len(zs)) if np.isfinite(cy[k]) and np.isfinite(R0[k]).all()]
     cheek = np.full(len(zs), np.nan)
@@ -549,11 +688,30 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     xe, ye = row(ke)[0], row(ke)[1](cheek[ke])
     fr = np.cos(th) > 0
     y_eye = float(np.interp(F.C['eye_x'], xe[fr][np.argsort(xe[fr])], ye[fr][np.argsort(xe[fr])]))
-    sock = max(0.0, -y_eye) * ('socket' in terms)
+    window = win['mode'] == 'window' and 'socket' in terms
+    sock = max(0.0, -y_eye) * ('socket' in terms) * (not window)
     R = np.full_like(R0, np.nan)
+    dfill = None
+    if window:
+        # the anime eye region (eye_fill): the smoothest correction that lays the eye's opening on the design's plane
+        # and holds the brow and the cheek behind it, in place of the socket; on the right half's front columns, mirrored
+        jr = np.nonzero((th >= -1e-9) & (th <= np.pi / 2 + 1e-9))[0]
+        jr = jr[np.argsort(th[jr])]
+        jl = np.array([int(np.argmin(np.abs(np.angle(np.exp(1j * (th + th[j])))))) for j in jr])   # their mirrors
+        Xg = np.full((len(zs), len(jr)), np.nan); Yg = np.full((len(zs), len(jr)), np.nan)
+        for k in valid:
+            x, shaped = row(k)
+            Xg[k], Yg[k] = x[jr], shaped(cheek[k])[jr]
+        rows_ok = np.isfinite(Xg).all(1)
+        dfill = np.zeros_like(Xg)
+        run = np.nonzero(rows_ok)[0]
+        dfill[run] = eye_fill(zs[run], Xg[run], Yg[run], F.C['eye_x'], win)
     for k in valid:
         x, shaped = row(k)
         yy = shaped(cheek[k])
+        if dfill is not None:
+            yy = yy.copy()
+            yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
         if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
             yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
         tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
@@ -594,7 +752,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     ok = np.isfinite(R).all(1) & np.isfinite(cy)
     Rs = R.copy()
     Rs[ok] = gaussian_filter(R[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
-    rep = {'socket_L': round(sock, 4), 'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
+    rep = {'socket_L': round(sock, 4), 'eye_window': win if window else None, 'align_dy_L': round(dy, 4), 'skull_chin': round(zc_s, 4), 'design_chin': round(zc_d, 4),
            'cheek_range_L': [round(float(np.min(cheek)), 4), round(float(np.max(cheek)), 4)],
            'cheek_fit_noise_L': round(float(np.nanstd(raw_cheek - cheek)), 4) if np.isfinite(raw_cheek).any() else None}
     return Sections(zs, np.where(ok, cy, np.nan), np.where(ok[:, None], Rs, np.nan)), rep
@@ -710,7 +868,7 @@ def build(spec, out, against=None, log=print):
     C = contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
     F = Face(C)
     V, A = skull_analytic(spec, log=log), None
-    S, rep = assemble(F, V, A)
+    S, rep = assemble(F, V, A, face=face_style(spec))
     covers = hair_covers(spec)
     fair, ang = normal_fairness(S)
     rep['fairness_deg'] = fair
