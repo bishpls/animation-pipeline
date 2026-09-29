@@ -927,7 +927,9 @@ def vrmc(W, names, idx, mesh_node, P, head, name, meta, rep):
             custom[kn] = {'morphTargetBinds': binds(kn, 1.0), 'isBinary': False}
     # the kit's combined expressions (charkit.scene.PRESETS: eyes, mouth and brows together), where a VRM preset doesn't
     # already hold the name
-    from .scene import PRESETS as COMBINED
+    if ROOT not in sys.path:                             # (run as a script by `python -m charkit export`: absolute)
+        sys.path.insert(0, ROOT)
+    from charkit.scene import PRESETS as COMBINED
     for ex, P in COMBINED.items():
         if ex in preset:
             continue
