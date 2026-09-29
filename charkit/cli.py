@@ -29,6 +29,8 @@
     python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
+    python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
+    python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
@@ -248,6 +250,7 @@ def build(args):
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
     spec = code_head(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
+    spec = pieces_hair(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
         # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
@@ -393,6 +396,64 @@ def geom_hair(spec, resolved, out, mode='on'):
     return spec
 
 
+def pieces_hair(spec, resolved, out, mode='on'):
+    """venv-side, for hair.shape.mode == 'pieces': charkit.geom.hairpieces on the resolved spec -> out/geom/hair_pieces/
+    (a part .npz per piece and pieces.json), and the resolved spec pointed at it. The hull's vertices take the hair
+    layers' families (the manifest's produced hair_layers, charkit.hairlayers) and the pieces are built on our assembled
+    character (charkit.geom.parts.Case, the hull aligned by its eyes). Cached as geom_hair is (file_step): its inputs are
+    the hull, its sidecar and labels, the layers, the body sheet (the views' calibration) and the code head."""
+    shape = (spec.get('hair') or {}).get('shape') or {}
+    if shape.get('mode') != 'pieces':
+        return spec
+    from . import cache, manifest
+    gdir = os.path.join(out, 'geom')
+    pdir = os.path.join(gdir, 'hair_pieces')
+    os.makedirs(gdir, exist_ok=True)
+    layers = manifest.produced(spec, 'hair_layers')
+    M = manifest.load(spec['ref']['manifest'])
+    sheet = _path(M['references']['body_turnaround']['path'])
+    cut = {k: v for k, v in spec.items() if k != 'garments'}
+    cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces')})
+    cut_path = os.path.join(gdir, 'pieces.spec.json')
+    json.dump(cut, open(cut_path, 'w'), indent=1)
+
+    def run():
+        import numpy as np
+        from PIL import Image
+        from . import styles
+        from .geom import hairpieces as hp, hull, io as gio, parts
+        C = parts.Case.load(cut_path, fit=False)
+        glb = C.align['glb']
+        side = json.load(open(glb + '.json'))
+        Vh = gio.load(glb)
+        lab = np.load(os.path.join(os.path.dirname(glb), side['labels']))
+        pcs = np.load(os.path.join(os.path.dirname(glb), side['pieces']))
+        rgb = np.asarray(Image.open(sheet).convert('RGB')).astype(float) / 255
+        views, info = hull.views_from_sheet(rgb, (spec.get('eyes') or {}).get('x', 0.168), -1)
+        Z = np.load(layers)
+        masks = {k: Z[k] for k in Z.files}
+        fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views, masks,
+                                    info['ppl'])
+        style = styles.load(spec.get('style', 'anime'))['hair_pieces']
+        R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
+                     opts=shape.get('pieces_opts'))
+        R['report']['labelled'] = counts
+        hp.save_parts(R, pdir, meta=dict(style=spec.get('style', 'anime'), normals=style['normals']))
+        print('pieces hair', pdir, json.dumps({k: (r['locks'], r['tris']) for k, r in R['report']['pieces'].items()}))
+    if mode == 'off':
+        run()
+    else:
+        r = cache.file_step('pieces_hair', run, [pieces_hair], cut, gdir,
+                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] +
+                            ([spec['head_code']] if spec.get('head_code') else []),
+                            modules=('charkit.geom.parts', 'charkit.geom.hairpieces', 'charkit.geom.hull',
+                                     'charkit.styles'), name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE pieces_hair', r)
+    shape['pieces'] = pdir
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
 def export(args):
     blend = _path(args[0])
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
@@ -491,6 +552,12 @@ def main(argv=None):
     elif cmd == 'outfit':
         from . import outfit
         outfit.main(rest)
+    elif cmd == 'hairlayers':
+        from . import hairlayers
+        hairlayers.main(rest)
+    elif cmd == 'hairpage':
+        from . import hairpage
+        hairpage.main(rest)
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)
