@@ -5,7 +5,7 @@ charkit.lookqa.design_heads' native_ppl), `win` L across and down round the eye 
 line and the head's axis land.
 
     blender -b OUT/NAME.blend --python charkit/boards/lookboard.py -- OUTDIR [--ppl 399.4] [--az3 35.7] [--L 0.25]
-        [--look JSON]
+        [--look JSON] [--views front,three_quarter,profile,back]
 """
 import json, os, sys
 
@@ -16,7 +16,7 @@ import numpy as np
 WIN = (1.6, 1.25, 1.35)            # L: width, above the eye line, below it
 
 
-def main(out, ppl=399.4, az3=35.7, look=None, L=None):
+def main(out, ppl=399.4, az3=35.7, look=None, L=None, only=None):
     import bpy
     from charkit import qa, shade, styles
     os.makedirs(out, exist_ok=True)
@@ -44,6 +44,8 @@ def main(out, ppl=399.4, az3=35.7, look=None, L=None):
     target = (0.0, 0.0, eye_z + (up - down) / 2 * L)
     views = {}
     for name, az in (('front', 0.0), ('three_quarter', az3), ('profile', 90.0), ('back', 180.0)):
+        if only and name not in only:
+            continue
         p = os.path.join(out, '%s.png' % name)
         qa.render_view(cam, target, az, 3.0, 0.0, p, ortho=max(w, up + down) * L)
         if covers and feats and name != 'back':
@@ -59,4 +61,4 @@ if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:]
     opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
     main(argv[0], float(opt('--ppl', 399.4)), float(opt('--az3', 35.7)), json.loads(opt('--look')) if opt('--look') else None,
-         opt('--L'))
+         opt('--L'), opt('--views', '').split(',') if opt('--views') else None)
