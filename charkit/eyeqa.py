@@ -14,6 +14,7 @@ Measured, in head lengths L and as ratios:
   highlight  the largest highlight's share of the iris and where it sits (in iris radii from its centre)
   lid        the upper lid line's thickness above the opening's middle, and the mean gap (skin) between it and the
              opening's top edge across the middle 80% of the opening; its span against the opening's width
+  tilt       the corner line's angle (degrees, the picture's right corner up), from the opening's end columns
 
     from charkit import eyeqa
     M = eyeqa.measure(rgba, ppl)             # rgba (H, W, 4) floats 0..1, ppl: pixels per head length
@@ -165,6 +166,10 @@ def measure(rgba, ppl, iris_hue=IRIS_HUE):
     lb = _box(up)
     out['lid_span'] = round((lb[1] - lb[0] + 1) / (ob[1] - ob[0] + 1), 3) if lb else None
     out['iris_ratio'] = round(iw / ow, 3)
+    # the corner line's tilt (degrees, + = the picture's right corner up): the opening's end columns' middle rows
+    rows = np.nonzero(S['opening'][:, ob[0]])[0], np.nonzero(S['opening'][:, ob[1]])[0]
+    if len(rows[0]) and len(rows[1]):
+        out['tilt'] = round(float(np.degrees(np.arctan2(rows[0].mean() - rows[1].mean(), max(1, ob[1] - ob[0])))), 1)
     out['_masks'] = S
     return out
 

@@ -762,15 +762,21 @@ def render_surfaces(B, o, variant):
     return out
 
 
-def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE):
+def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE, az=0.0):
     """one eye rendered as the build rendered it (head-on, orthographic, `size` L square round the eye centre at the
     rig's scale ppl; the skin at the render's subdivision level, pulled in by its outline with the hull on the original
     surface, and that eye's white, iris and lashes; no hair, no brows): the skin and lashes in their materials' flat
     tones, the plates by their textures at their UVs (the iris over the white by its alpha), supersampled and filtered
-    like the renderer's pixel filter. -> RGBA floats (n, n, 4), row 0 = top."""
+    like the renderer's pixel filter. az: seen from that azimuth instead (charkit.faceqa.view: 35 a three-quarter, 90 the
+    profile), the window round the iris's centre as that view projects it. -> RGBA floats (n, n, 4), row 0 = top."""
     from .geom import raster
     As = B.assembly; L = As['L']
     E = next(E for E in As['eyes'] if (E['side'] > 0) == (side == 'L'))
+    org = (E['c'][0], E['c'][1])
+    if az:
+        from .faceqa import view
+        ic = next(c for c in iris_centres(B) if (c[0] > 0) == (side == 'L'))
+        org = (float(view(np.asarray([ic], float), az)[0][0]), E['c'][1])
     n = int(round(size * ppl))
     pix = size * L / n / ss
     N = n * ss
@@ -786,7 +792,7 @@ def eye_image(B, side, ppl, ss=EYE_SS, size=EYE_SIZE):
             continue
         V, T, tm, _ = o.mesh('eval')
         items.append((V, T, tm)); kinds.append((part, o, o.tris('eval')[2]))
-    zb, lab, mi, ti, bc = raster.window_zbuffer(items, 0.0, (E['c'][0], E['c'][1]), 1.0, pix, win, ids=True)
+    zb, lab, mi, ti, bc = raster.window_zbuffer(items, az, org, 1.0, pix, win, ids=True)
     rgb = np.zeros((N, N, 3)); al = np.zeros((N, N))
     for k, (kind, o, Tl) in enumerate(kinds):
         m = mi == k

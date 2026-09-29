@@ -152,6 +152,7 @@ def prepare(spec_path, out, base=None, log=print):
     from . import cli
     os.makedirs(out, exist_ok=True)
     spec, resolved = cli.resolve(spec_path, out, base=base)
+    spec = cli.code_head(spec, resolved, out)       # an authored head (base 'code'): made venv-side, as build makes it
     R = json.load(open(os.path.join(out, 'ref_measure.json')))
     cache = cache_dir(spec)
     if not (os.path.exists(os.path.join(cache, 'target.npz')) and os.path.exists(os.path.join(cache, 'env.npz'))):
