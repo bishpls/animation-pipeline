@@ -208,6 +208,35 @@ def spread(src_old, disp, pts, floor=0.003, k=1.6):
     return out
 
 
+def spokes(V, eye, F, moved):
+    """an authored base's eye loops (eye['loops']: the block's rim first, the lid's margin last, index-aligned) following
+    the margin: each ring vertex takes the share of its spoke's margin move that its place along the spoke has at rest
+    (0 at the rim, which stays, 1 at the margin), in the face's plane, re-seated on the face at its old depth offset. The
+    rings stay nested (a lid closing stretches them, it can't fold them), and nothing past the rim moves.
+    moved: {margin vertex: its move (3,)} -> {ring vertex: its move (3,)}."""
+    loops = eye['loops']
+    rim, mar = loops[0], loops[-1]
+    out = {}
+    xs, zs, offs, vs = [], [], [], []
+    for k in range(1, len(loops) - 1):
+        for i, v in enumerate(loops[k]):
+            m, b = mar[i], rim[i]
+            d = moved.get(m)
+            if d is None:
+                continue
+            sp = V[m, [0, 2]] - V[b, [0, 2]]
+            t = float(np.clip((V[v, [0, 2]] - V[b, [0, 2]]) @ sp / max(sp @ sp, 1e-18), 0.0, 1.0))
+            xs.append(V[v, 0] + t * d[0]); zs.append(V[v, 2] + t * d[2]); vs.append(v)
+    if vs:
+        vs = np.array(vs)
+        off = V[vs, 1] - F.y(V[vs, 0], V[vs, 2])
+        x2, z2 = np.array(xs), np.array(zs)
+        P = np.stack([x2, F.y(x2, z2) + off, z2], 1)
+        for v, p in zip(vs, P):
+            out[int(v)] = p - V[v]
+    return out
+
+
 def _world(F, ex, ez, side, x, z, depth=0.0):
     """eye-local (x, z) -> world, on the face surface, pushed back by depth along the view (y)."""
     X = ex + side * np.asarray(x); Z = ez + np.asarray(z)
@@ -243,12 +272,17 @@ def place(V, eye, F, K, L, side, eye_c):
     old = V[m].copy()
     new = np.array([tgt[v] for v in m])
     dxz = (new - old)[:, [0, 2]]
-    # outer rings: the margin's in-surface motion, fading; re-seated on the face at their old depth offset
-    ov = np.array(list(eye['outer'].keys()))
-    mvs = spread(old[:, [0, 2]], dxz, V[ov][:, [0, 2]])
-    off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
-    x2, z2 = V[ov, 0] + mvs[:, 0], V[ov, 2] + mvs[:, 1]
-    V[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1)
+    if eye.get('loops'):
+        # an authored base's own loops: along their spokes (spokes()), nothing past the block's rim moves
+        for v, d in spokes(V, eye, F, {v: tgt[v] - V[v] for v in m}).items():
+            V[v] = V[v] + d
+    else:
+        # outer rings: the margin's in-surface motion, fading; re-seated on the face at their old depth offset
+        ov = np.array(list(eye['outer'].keys()))
+        mvs = spread(old[:, [0, 2]], dxz, V[ov][:, [0, 2]])
+        off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
+        x2, z2 = V[ov, 0] + mvs[:, 0], V[ov, 2] + mvs[:, 1]
+        V[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1)
     for v, p in tgt.items():
         V[v] = p
     # the pocket: a funnel from the margin back behind the plate (the lid's thickness, then the back wall). An anime base's
@@ -404,11 +438,15 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
     for v, d in zip(mv, md):
         D[v] = d
     src = V[mv]
-    ov = np.array(list(eye['outer'].keys()))
-    d = spread(src, md, V[ov])
-    x2, z2 = V[ov, 0] + d[:, 0], V[ov, 2] + d[:, 2]
-    off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
-    D[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1) - V[ov]
+    if eye.get('loops'):
+        for v, d in spokes(V, eye, F, moved).items():            # the loops follow their spokes (nothing past the rim)
+            D[v] = d
+    else:
+        ov = np.array(list(eye['outer'].keys()))
+        d = spread(src, md, V[ov])
+        x2, z2 = V[ov, 0] + d[:, 0], V[ov, 2] + d[:, 2]
+        off = V[ov, 1] - F.y(V[ov, 0], V[ov, 2])
+        D[ov] = np.stack([x2, F.y(x2, z2) + off, z2], 1) - V[ov]
     sock = eye.get('socket') or {}
     dm = D[np.array(eye['margin'])].mean(0)
     for v, r in eye['pocket'].items():
@@ -442,7 +480,7 @@ def expressions(K, L):
         # closed: the upper lid comes down a touch past the lower one (the lash line covers the seam)
         'blink': (lambda t: (closed_line(K, L, t)[0], closed_line(K, L, t)[1] - 0.003 * L), closed()),
         'happy': (lambda t: (closed_line(K, L, t, True)[0], closed_line(K, L, t, True)[1] - 0.003 * L), closed(True)),
-        'half': (up({'height': K['height'] * 0.72, 'lower': K['lower'] / 0.72 * 1.0}), None),
+        'half': (up({'height': K['height'] * 0.66, 'lower': K['lower'] / 0.66}), None),
         'wide': (up({'height': K['height'] * 1.14, 'lower': K['lower'] / 1.14}), lo({'height': K['height'] * 1.06})),
         'angry': (up({'peak': min(0.85, K['peak'] + 0.3), 'tilt': K['tilt'] + 9, 'height': K['height'] * 0.86,
                       'lower': K['lower'] / 0.86}), None),

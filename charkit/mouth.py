@@ -19,9 +19,11 @@ DEFAULT_MOUTH = {
     'depth': 0.05,      # the cavity's depth behind the lips, in L
     'teeth': 0.13,      # the upper teeth's visible height when open, in widths
     'jaw': 0.45,        # how much the jaw follows the lower lip when open
+    'jaw_follow': 0.6,  # the same on an authored base, whose jaw region moves whole (the lips' rings take the rest)
 }
 
 RINGS = 9                                  # outer rings that can follow the lips (the spread decides how far)
+JAW_CORE = 0.98                            # an authored base's jaw weight from which the skin moves with the jaw whole
 
 
 # ---------------------------------------------------------------------------------------------------------------- topology
@@ -185,13 +187,31 @@ def _params(V, chain):
     return np.clip(np.maximum.accumulate((xs - xs[0]) / max(1e-9, xs[-1] - xs[0])), 0, 1)
 
 
-def _pose(V, M, F, K, L, mc, shape, outer=True):
-    """positions for the loop, the outer rings and the cavity for a shape. -> {v: position}."""
+def _arc_params(V, chain, fn, n=400):
+    """each chain vertex's place on a curve by arc length: its share of the chain's length at rest (in the face's plane)
+    -> the curve's parameter t with the same share of the curve's length. An open mouth's steep sides (a D, an O) keep
+    their share of the lip's vertices, where spacing by x leaves them one long edge the rings beside it can't follow."""
+    P = V[chain][:, [0, 2]]
+    s = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+    s /= max(s[-1], 1e-12)
+    t = np.linspace(0, 1, n)
+    x, z = fn(t)
+    a = np.r_[0.0, np.cumsum(np.hypot(np.diff(x), np.diff(z)))]
+    return np.interp(s, a / max(a[-1], 1e-12), t)
+
+
+def _pose(V, M, F, K, L, mc, shape, outer=True, jaw_drop=0.0):
+    """positions for the loop, the outer rings and the cavity for a shape. jaw_drop: the lower lip rides a jaw that
+    dropped this far (an authored base's key): its curve is placed on the face in the jaw's frame (as high again), then
+    carried down with it, so it keeps its depth instead of sinking onto the rest face under the mouth. An authored base
+    (M['loops']) spaces its lips along the curves by arc length (_arc_params), the others by x.
+    -> {v: position}."""
     up_f, lo_f = curves(K, L, shape)
     pos = {}
-    for chain, fn in ((M['upper'], up_f), (M['lower'], lo_f)):
-        x, z = fn(_params(V, chain))
-        P = eyelib._world(F, mc[0], mc[1], 1.0, x, z)
+    for chain, fn, dj in ((M['upper'], up_f, 0.0), (M['lower'], lo_f, jaw_drop)):
+        x, z = fn(_arc_params(V, chain, fn) if M.get('loops') else _params(V, chain))
+        P = eyelib._world(F, mc[0], mc[1], 1.0, x, z + dj)
+        P[:, 2] -= dj
         for v, p in zip(chain, P):
             if v not in pos:
                 pos[v] = p
@@ -242,17 +262,77 @@ def _pose(V, M, F, K, L, mc, shape, outer=True):
     return pos
 
 
-def place(V, M, F, K, L, mc):
-    """the neutral mouth. -> new V."""
+def place(V, M, F, K, L, mc, faces=None):
+    """the neutral mouth. An authored base (M['loops'], with the mesh's faces): the lips onto the neutral curves and the
+    cage's own mouth rings harmonic between them and the block's rim (key()'s solve, the rest held). -> new V."""
     V = V.copy()
+    if M.get('loops') and faces is not None:
+        pos = _pose(V, M, F, K, L, mc, 'neutral', outer=False)
+        D = np.zeros_like(V)
+        for v, p in pos.items():
+            D[v] = p - V[v]
+        # at rest the lips only close the loop's lens: the mouth's own rings follow, the skin past its block stays on the
+        # head's sections where the cage put it
+        free = np.array(sorted({v for r in M['loops'][1:-1] for v in r} - set(pos)), int)
+        if len(free):
+            D[free] = harmonic(V, faces, free, lambda w: D[w])
+        return V + D
     for v, p in _pose(V, M, F, K, L, mc, 'neutral').items():
         V[v] = p
     return V
 
 
-def key(V, M, F, K, L, mc, shape, jaw_w=None):
-    """offsets (N, 3) from the placed neutral V to a shape (the jaw following the lower lip when it opens)."""
+def harmonic(V, faces, free, fixed):
+    """the move of the `free` vertices that is harmonic over the mesh (each the mean of its neighbours', each edge weighted
+    by its inverse length, so vertices close together move together, as they would by distance), given
+    every other vertex's: fixed(v) -> its move (3,). Numpy only (the build's Blender has no scipy); a dense solve, for a
+    few hundred vertices. A harmonic map doesn't fold the way a spread by distance can: every vertex stays inside its
+    neighbours' hull. -> (len(free), 3)."""
+    free = list(free)
+    ix = {v: i for i, v in enumerate(free)}
+    n = len(free)
+    A = np.zeros((n, n))
+    b = np.zeros((n, 3))
+    for f in faces:
+        for a, c in zip(f, list(f[1:]) + [f[0]]):
+            if a not in ix and c not in ix:
+                continue
+            k = 1.0 / max(float(np.linalg.norm(V[a] - V[c])), 1e-9)
+            for u, w in ((a, c), (c, a)):
+                i = ix.get(u)
+                if i is None:
+                    continue
+                A[i, i] += k
+                j = ix.get(w)
+                if j is None:
+                    b[i] += k * fixed(w)
+                else:
+                    A[i, j] -= k
+    return np.linalg.solve(A, b)
+
+
+def key(V, M, F, K, L, mc, shape, jaw_w=None, faces=None):
+    """offsets (N, 3) from the placed neutral V to a shape (the jaw following the lower lip when it opens). An authored
+    base (M['loops'], with the mesh's faces): the lips onto the shape's curves and the cavity after them, the jaw's core
+    (its weight from JAW_CORE) moved whole by jaw_follow of the lower lip's drop, the skin with no jaw weight kept, and
+    between them (the lips' rings, the jaw's edge) the move harmonic over the mesh in all three axes (harmonic()): the
+    skin rides the jaw as it opens, rather than sliding over the rest face. Other bases: the rings by a spread from the
+    lips, the rest of the jaw by the jaw."""
     D = np.zeros_like(V)
+    if M.get('loops') and jaw_w is not None and faces is not None:
+        _, lo_n = curves(K, L, 'neutral'); _, lo_s = curves(K, L, shape)
+        drop = max(0.0, lo_n(0.5)[1] - lo_s(0.5)[1])
+        D[:, 2] = -np.asarray(jaw_w, float) * drop * K['jaw_follow']
+        pos = _pose(V, M, F, K, L, mc, shape, outer=False, jaw_drop=drop * K['jaw_follow'])
+        for v, p in pos.items():
+            D[v] = p - V[v]
+        # free: the lips' rings and the jaw's edge (its weight between none and whole); the jaw's core moves whole
+        jw = np.asarray(jaw_w, float)
+        edge = np.nonzero((jw > 1e-3) & (jw < JAW_CORE))[0]
+        free = np.array(sorted((set(M['outer']) | set(edge.tolist())) - set(pos)), int)
+        if len(free):
+            D[free] = harmonic(V, faces, free, lambda w: D[w])
+        return D
     for v, p in _pose(V, M, F, K, L, mc, shape).items():
         D[v] = p - V[v]
     if jaw_w is not None:

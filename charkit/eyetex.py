@@ -24,6 +24,9 @@ DEFAULT_IRIS = {
         (0.10, -0.12, 0.030, 0.030, 0.9),
         (0.02, 0.16, 0.022, 0.018, 0.7),
     ],
+    'converge': 0.0,               # the irises' rest place toward the nose, in eye widths (a drawing's gaze at the viewer)
+    'shine_mirror': True,          # u runs outward in each eye, so the shine mirrors (both toward the nose); False: both
+                                   # eyes lit from one side, the right eye's shine flipped (shine(K, side=-1))
 }
 
 
@@ -92,12 +95,16 @@ def iris(K=None, n=512):
     return np.concatenate([np.clip(rgb, 0, 1), a[..., None]], -1)
 
 
-def shine(K=None, n=512):
-    """RGBA: the highlights (white, alpha), placed from the iris centre."""
+def shine(K=None, n=512, side=1):
+    """RGBA: the highlights (white, alpha), placed from the iris centre. side: the eye (1 her left, -1 her right): with
+    K['shine_mirror'] off, the right eye's shine is flipped across the iris, so both eyes' sit on the same side of the
+    face (one light), as a drawing lights them."""
     K = _knobs(K)
     x, z = _grid(n)
     a = np.zeros(x.shape)
+    flip = -1.0 if (side < 0 and not K.get('shine_mirror', True)) else 1.0
     for du, dv, rx, rz, al in K['shine']:
+        du = flip * du
         r = np.sqrt(((x - du) / rx) ** 2 + ((z - K['cz'] - dv) / rz) ** 2)
         a = np.maximum(a, al * (1 - _ss(0.85, 1.0, r)))
     rgb = np.ones(x.shape + (3,))
