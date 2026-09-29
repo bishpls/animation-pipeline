@@ -599,7 +599,9 @@ def garment_tones(A, s, G):
             zmin = V[:, 2].min()
             flat = np.array([V[list(f), 2].max() < zmin + s['sole']['height'] * L for f in F])
             second = np.asarray(s['sole']['color'], float)
-        if 'panel' in s:
+        if 'panel_faces' in G:                                     # the hull's panel: a second material by face
+            flat = np.asarray(G['panel_faces'], bool); second = np.asarray(s['panel']['color'], float)
+        elif 'panel' in s:
             P_ = s['panel']
             z0_ = gm.bone_seg(A, P_['from'][0])[0][2] + P_['from'][1] * L
             z1_ = gm.bone_seg(A, P_['to'][0])[0][2] + P_['to'][1] * L

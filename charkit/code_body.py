@@ -20,6 +20,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CUT = -0.52                      # L: the neck cut (code_base.CUT)
 TIGHT = {'top': 0.022, 'waistband': 0.035, 'skin': 0.0}     # L: what the body sits under, by the piece's thickness
 CLEAR = 0.012                    # L: the body stays this far inside the hull's envelope where nothing measures it
+ENVELOPE_SKIP = ('bow', 'bow_tail_L', 'bow_tail_R', 'collar')   # pieces in front of the chest, not bounding the torso
+IN_FRONT = {'bow': 0.08, 'bow_tail_L': 0.04, 'bow_tail_R': 0.04}
+# L: a piece that stands in front of the body, and how deep it is: the torso stays behind its surface less that depth
+# where the piece shows (the chest behind the bow: a torso reaching its surface leaves the bow inside the top). The
+# design's bow and tails lie flat, 0.02-0.06 L proud of the chest (measured on the hull); the collar lies on the skin
 CROTCH = 0.08                    # L: the torso ends this far under the hip joints
 NECK_R = 0.13                    # L: the neck's radius at the cut when the hull shows too little of it
 ARM_R = 0.22                     # L: hull points this close to an arm's bone (in the front view) are the arm's
@@ -138,6 +143,24 @@ def fit_sections(meas, Rc, th_c, ay, x0, anchors=(), depth=None, n=None, w_smoot
     return sol.x.reshape(nz, 5)
 
 
+def _behind(H, ax, ts, th_c, nz, nth, grow=1):
+    """per cell, how far out the torso may reach behind the pieces in front of it (IN_FRONT): the smallest radius of a
+    piece's points in the cell less the piece's depth, spread `grow` cells round (inf where none)."""
+    B = np.full((nz, nth), np.inf)
+    for name, depth in IN_FRONT.items():
+        Q = H.points(name)
+        if not len(Q):
+            continue
+        t, th, r = ax.coords(Q)
+        keep = (t >= ts[0] - 0.02) & (t <= ts[-1] + 0.02)
+        ii = np.clip(np.rint(np.interp(t[keep], ts, np.arange(nz))).astype(int), 0, nz - 1)
+        jj = np.clip(((th[keep] + np.pi) / (2 * np.pi) * nth).astype(int), 0, nth - 1)
+        np.minimum.at(B, (ii, jj), r[keep] - depth)
+    for _ in range(grow):
+        B = np.minimum.reduce([B, np.roll(B, 1, 1), np.roll(B, -1, 1), np.r_[B[:1], B[:-1]], np.r_[B[1:], B[-1:]]])
+    return B
+
+
 def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
     """the torso's sections (fit_sections): its cut's row pinned to the neck ring, its bottom row to the hips' half-width
     and centre depth."""
@@ -164,9 +187,12 @@ def torso(H, sk, nz=56, nth=72, hip_z=None):
     rows = np.linspace(CUT, z_bot, nz)
     ts = CUT - rows
     lab = H.piece
-    hair = lab == H.ids.get('hair', -1)
+    # the envelope leaves out what stands in front of the body without shaping it: the hair, and the accessories on the
+    # chest (the bow, its tails, the collar): under them the torso takes its fitted shape, not their outer surface (a
+    # torso grown into the bow's space hides the bow behind the top)
+    off = np.isin(lab, [H.ids[k] for k in ('hair',) + ENVELOPE_SKIP if k in H.ids])
     band = (H.V[:, 2] <= CUT + 0.02) & (H.V[:, 2] >= z_bot - 0.05)
-    E = H.V[band & ~hair]
+    E = H.V[band & ~off]
     E = E[~arm_mask(E, sk)]
     src = []
     for name, dt in TIGHT.items():
@@ -226,6 +252,7 @@ def torso(H, sk, nz=56, nth=72, hip_z=None):
     Pi = fit_torso(meas, Rc, th_c, ay, neck, hw, hy)
     R = np.stack([section_r(Pi[k], th_c, ay) for k in range(nz)])
     R = np.minimum(R, env.R - CLEAR)
+    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth))
     return dict(ax=ax, F=loft.Field(ts, th_c, R, meas), params=Pi, rows=rows, measured=share, env=env, src=src)
 
 

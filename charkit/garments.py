@@ -93,6 +93,38 @@ def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
     return lambda a: np.interp(a, th_c, z, period=2 * np.pi)
 
 
+def _grow(M, n, grow=True):
+    """a boolean grid dilated (or eroded) n cells (4-neighbours), numpy only (the build's Python has no scipy)."""
+    for _ in range(n):
+        nb = [np.roll(M, 1, 0), np.roll(M, -1, 0), np.roll(M, 1, 1), np.roll(M, -1, 1)]
+        M = (M | nb[0] | nb[1] | nb[2] | nb[3]) if grow else (M & nb[0] & nb[1] & nb[2] & nb[3])
+    return M
+
+
+def panel_faces(V, faces, P, L, cell=0.03, close=2, facing=-0.3):
+    """a shell's faces that are its front panel as the hull draws it: the face's centre, seen from the front, inside the
+    panel's points' footprint (a grid of `cell` L, closed `close` cells), and the face turned toward the front (its
+    normal's y under `facing`). Per face 1 or 0; no texture, so no dependence on the body's UVs."""
+    c = cell * L
+    # the design is symmetric: stray labels out to one side dropped (past 2.5 MADs of x), the rest mirrored
+    mx = np.median(P[:, 0]); mad = np.median(np.abs(P[:, 0] - mx)) + 1e-9
+    P = P[np.abs(P[:, 0] - mx) < 2.5 * 1.4826 * mad]
+    P = np.concatenate([P, P * np.array([-1.0, 1.0, 1.0])])
+    x0, z0 = P[:, 0].min() - 3 * c, P[:, 2].min() - 3 * c
+    nx, nz = int((P[:, 0].max() - x0) / c) + 4, int((P[:, 2].max() - z0) / c) + 4
+    M = np.zeros((nx, nz), bool)
+    M[np.clip(((P[:, 0] - x0) / c).astype(int), 0, nx - 1), np.clip(((P[:, 2] - z0) / c).astype(int), 0, nz - 1)] = True
+    M = _grow(_grow(M, close, True), close, False)
+    N = vertex_normals(V, faces)
+    out = np.zeros(len(faces), np.int32)
+    for i, f in enumerate(faces):
+        q = V[list(f)].mean(0)
+        ix, iz = int((q[0] - x0) / c), int((q[2] - z0) / c)
+        if 0 <= ix < nx and 0 <= iz < nz and M[ix, iz] and N[list(f), 1].mean() < facing:
+            out[i] = 1
+    return out
+
+
 def shell(A, spec, normals=None, hull=None):
     """a tight garment: the region's faces lifted by `offset` along the body's normals. With `source` 'hull', its hem
     follows the hull's own piece: cut below the lower edge of its points (and its folded pieces', `fold`) per angle
@@ -133,7 +165,12 @@ def shell(A, spec, normals=None, hull=None):
     W = {b: w[used] for b, w in A['weights'].items() if w[used].max() > 1e-4}
     B = A['body']
     uvs = [[B['uvs'][ui] for ui in B['face_uv'][i]] for i in keep]
-    return dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+    G = dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+    if spec.get('source') == 'hull' and 'panel' in spec and hull:
+        pp = hull.get(spec['panel'].get('piece', 'bodice_panel'))
+        if pp is not None and len(pp) >= 10:
+            G['panel_faces'] = panel_faces(sv, sf, pp, L)
+    return G
 
 
 # -------------------------------------------------------------------------------------------------------------------- bands
@@ -456,9 +493,10 @@ def skirt_hull(A, spec, hull):
     top_z = hull_edge(P, ax, q=spec.get('waist_q', 3.0), low=False)
     band = spec.get('under')
     if band and hull and band in hull and len(hull[band]):
+        # tucked under the band all round: its own points start lower in places (the front panel's top), which left
+        # skin showing between the band and the skirt
         low = hull_edge(hull[band], ax, q=5.0)
-        top_z_ = top_z
-        top_z = lambda a: np.minimum(top_z_(a), low(a) + spec.get('tuck', 0.03) * L)
+        top_z = lambda a: low(a) + spec.get('tuck', 0.01) * L
     t0_at = lambda a: top - top_z(a)
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
@@ -477,7 +515,8 @@ def skirt_hull(A, spec, hull):
     # the front panel: the skirt_panel's points' angular spread, else the knob
     pan_pts = hull.get('skirt_panel') if hull else None
     if pan_pts is not None and len(pan_pts) > 20:
-        half = float(np.percentile(np.abs(ax.coords(pan_pts)[1]), 95))
+        half = dense_arc(ax.coords(pan_pts)[1], spec.get('panel_mass', 0.8))[1]    # its densest arc (stray labels
+                                                                                     # widened a percentile to 58 deg)
     else:
         half = spec.get('panel', 0.0)
     pan = [1 if abs(F.th[k]) < half else 0 for i in range(rows) for k in range(n)]
@@ -776,7 +815,7 @@ def bow_hull(A, spec, hull):
     lo, hi = np.percentile(B[:, 0], [2, 98])
     sz = (hi - lo) / (2 * LOBE)
     z = float(np.median(B[:, 2]))
-    depth = spec.get('depth', 0.09) * sz                          # the lobes' half-depth, sizes
+    depth = spec.get('depth', 0.06) * sz                          # the lobes' half-depth, sizes (the drawn bow is flat)
     y = float(np.percentile(B[:, 1], 2)) + depth                  # (conform then puts the front on the hull's)
     tail = spec.get('tail', 0.62)
     if tails:
@@ -1035,7 +1074,10 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 zmin = G['verts'][:, 2].min()
                 midx = [1 if G['verts'][list(f), 2].max() < zmin + s['sole']['height'] * L else 0 for f in G['faces']]
             uvc = G['uvs']
-            if 'panel' in s:                                          # a front panel in another colour (a bib, a placket)
+            if 'panel_faces' in G:                                    # the hull's panel: a second material by face
+                mats.append(_toon(nm + '_panel', s['panel']['color'], sh))
+                midx = [int(v) for v in G['panel_faces']]
+            elif 'panel' in s:                                        # a front panel in another colour (a bib, a placket)
                 # a front-projected UV and a mask texture: a smooth-edged panel on the front, the plain colour elsewhere
                 P_ = s['panel']
                 z0_ = bone_seg(A, P_['from'][0])[0][2] + P_['from'][1] * L
