@@ -128,7 +128,7 @@
     const el0 = S.float((Hl.elevation - Hl.jitter) * rad).add(hash(78.233).mul(2 * Hl.jitter * rad));
     const along = S.float(1.0).sub(S.abs(el.sub(el0)).div(Hl.length / 2 * rad));
     const across = S.float(1.0).sub(S.abs(S.fract(c).sub(0.5)).div(Hl.duty / 2));
-    const shape = sat(S.min(along.mul(3.0), 1.0).mul(S.min(across.mul(3.0), 1.0)));
+    const shape = sat(along.mul(3.0)).mul(sat(across.mul(3.0)));   // each clamped first: outside both is not inside
     const face = mapRange(facing(Hl.facingBlend), Hl.facing[0], Hl.facing[1]);
     return S.mix(col, v3(Hl.color), shape.mul(keep).mul(face).mul(sLit).mul(Hl.amount).mul(U.ring));
   }

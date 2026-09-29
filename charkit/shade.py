@@ -131,8 +131,8 @@ def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
     # along: 1 at the streak's middle elevation, 0 at +-length/2; across: 1 at the column's middle, 0 at +-duty/2
     along = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', el, el0)), math.radians(P['length'] / 2)))
     across = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', op('FRACT', col), 0.5)), P['duty'] / 2))
-    shape = op('MULTIPLY', op('MINIMUM', op('MULTIPLY', along, 3.0), 1.0), op('MINIMUM', op('MULTIPLY', across, 3.0), 1.0))
-    shape = op('MAXIMUM', op('MINIMUM', shape, 1.0), 0.0)
+    sat = lambda x: op('MAXIMUM', op('MINIMUM', op('MULTIPLY', x, 3.0), 1.0), 0.0)     # each clamped before the product:
+    shape = op('MULTIPLY', sat(along), sat(across))                                  # outside both is not inside
     lw = N('ShaderNodeLayerWeight'); lw.inputs['Blend'].default_value = 0.5
     fc = N('ShaderNodeMapRange'); fc.inputs['From Min'].default_value = 0.55; fc.inputs['From Max'].default_value = 0.25
     Lk(lw.outputs['Facing'], fc.inputs['Value'])
