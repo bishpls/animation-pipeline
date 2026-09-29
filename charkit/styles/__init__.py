@@ -18,7 +18,8 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            up and down: how far above and below the window the correction reaches), hold and curve (the brow and the
            cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window (a pair:
            above and below the window's centre, the brow and the cheek); toward the
-           nose it lets go from `release` of the window's half-width in from the eye),
+           nose it lets go from `release` of the window's half-width in from the eye), forward (L: how far the window may
+           bring the face out of its own surface, None: as far as the plane asks),
            cheek_peak (where across the face, as a share of its half-width, the cheek term that meets the three-quarter's
            far contour is fullest: 0.5 under the eye, larger toward the cheekbone)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against

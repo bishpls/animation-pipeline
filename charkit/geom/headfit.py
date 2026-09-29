@@ -448,7 +448,7 @@ CHEEK_FIT = (-0.06, 0.08)        # the cheek term is fitted below the first z (a
 
 SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and up (the 'socket' eye region)
 EYE_REGION = {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
-              'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
+              'hold': True, 'curve': 2.0, 'release': 0.5, 'forward': None, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
                                                              # section overrides it: styles.DEFAULT says what each is)
 WINDOW_RELEASE = (0.02, 0.2)     # L: toward the midline the window's hold lets go, from `release` of the window's
                                  # half-width in from the eye (the style's) to this x, by up to this much (the nose's
@@ -483,7 +483,8 @@ def eye_window(C, face=None):
     return dict(mode=st['eye_region'], a=fw / 2 + st['margin'], b=fh / 2 + st['margin'], zc=float(fr.get('dz') or 0.0),
                 tan=float(np.tan(np.radians(yaw))), yaw=round(yaw, 2), reach=two(st['reach']),
                 margin=float(st['margin']), hold=bool(st['hold']), curve=two(st['curve']),
-                release=float(st['release']), cheek_peak=float(st['cheek_peak']))
+                release=float(st['release']), forward=np.inf if st.get('forward') is None else float(st['forward']),
+                cheek_peak=float(st['cheek_peak']))
 
 
 def eye_fill(zs, X, Y, eye_x, W, iters=12):
@@ -524,7 +525,7 @@ def eye_fill(zs, X, Y, eye_x, W, iters=12):
     fixed[0] = fixed[-1] = True; fixed[:, 0] = fixed[:, -1] = True          # above, below, the midline, the side
     rho_c = np.hypot((Xr - eye_x) / (W['a'] - W['margin'] / 2), (Zr - W['zc']) / (W['b'] - W['margin'] / 2))
     core = (rho_c <= 1) & ~fixed
-    fixed |= core; val[core] = (plane - Yr)[core]
+    fixed |= core; val[core] = np.maximum(plane - Yr, -W.get('forward', np.inf))[core]   # (forward: at most this far out)
     rho = np.hypot((Xr - eye_x) / W['a'], (Zr - W['zc']) / W['b'])
     cu, cd = (W.get('curve', 2.0),) * 2 if np.isscalar(W.get('curve', 2.0)) else W['curve']
     allow = np.where(Zr > W['zc'], cu, cd) * (np.maximum(0.0, rho - 1) * np.sqrt(W['a'] * W['b'])) ** 2
