@@ -64,18 +64,37 @@ blurred as the style says), as the geom hair does. The locks read as one cel-sha
 
 ## Measurements
 
-Local loop (`--hair pieces` pieces measured over a build's body): see the build numbers below for the Blender build.
+These are from the merge gate: **PASS**. The report is `charkit/out/gate/gate_tool-hair-pieces_14dd9f0_into_6a576ce.md`.
+The gate builds Clawd's default spec (the MakeHuman head) with the geom hair before and the pieces after. The review
+page is `charkit/out/hair_review/index.html` (`python -m charkit hairpage`).
 
-(numbers: see the report in the session and `charkit/out/pieces_mh3/hair/index.html`)
+| Check | Geom hair (base) | Pieces |
+|---|---|---|
+| body hair width front / 3/4 / back | 0.877 / 0.905 / 0.890 WARN | 0.971 / 0.956 / 0.986 PASS |
+| body hair width profile | 0.976 PASS | 0.962 PASS |
+| body hair IoU front / profile / 3/4 / back | 0.829 / 0.783 / 0.762 / 0.920 PASS | 0.835 / 0.752 / 0.741 / 0.897 PASS |
+| hair_noise | 0.1036 FAIL (old measure; 0.047 WARN as re-measured) | 0.0444 WARN (remeasured: no outlines, occluded) |
+| scalp_px | 0 PASS | 5 PASS |
+| sheet_shown front / profile / 3/4 | 0.584 / 0.331 / 0.504 WARN | 0.672 / 0.181 / 0.524 WARN |
+| hair_piece_* (pooled IoU against the hair layers) | none | bangs 0.605, upper back 0.725, lower back 0.645, buns 0.655 PASS; side locks 0.482 WARN; ahoge 0.22, flyaways 0.21 INFO |
+| hair_penetration / hair_folds / hair_fringe_low | none | 0 PASS / 9 WARN / 0.057 L WARN |
+
+- No graded check lost its status.
+- On the code head (`--base code`, built before the last two commits), no PASS was lost either, and hair_noise went
+  0.057 to 0.050. But the lower back reaches into the neck and shoulders (hair_penetration 0.049 L FAIL, 201
+  vertices), and the fringe ends 0.07 L short over the eyes (FAIL).
 
 ## Left
 
 - **Side locks** (IoU 0.46, WARN). Ours follow the hull's envelope, which fills the gap between the lock and the cheek
   that no view shows. The drawn locks hang closer to the face and curl in at the chin. That needs per-view silhouette
   constraints on the side locks (the drawn masks in front and profile), not just the envelope.
-- **The fringe's tips** read flatter than the drawn ones: 4 x 3 degree cells and a mode filter erode narrow tips. Take
-  each piece's lower edge from the drawing that faces it, at pixel resolution. `hair_fringe_low` is 0.057 L on her left
-  (WARN).
+- **Code head.**
+  - The lower back penetrates the neck and shoulders. Below the chin, the skin field only counts skin inside the
+    envelope. Clear the neck's and shoulders' own surface instead.
+  - The fringe ends short over the eyes.
+- **The fringe's tips** end 0.05-0.07 L above the drawn ones over the eyes. The lower edges now come from the drawing
+  that faces each column, but a 4 degree column can fall between narrow drawn tips.
 - **Folds.** 11 faces remain (WARN; bangs, side locks and the upper back's crown).
 - **Springs.** The chains are stored in the parts' meta, but no bones or VRMC_springBone export yet.
 - **hair_noise.** The front still reads 0.066: the lit fringe against the side locks turned away, a real shadow shape
