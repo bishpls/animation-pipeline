@@ -263,7 +263,12 @@ def skull_chin(S):
     return float(S.zs[np.nanargmax(np.where(np.isfinite(front), -S.zs * 0 + np.arange(len(S.zs)), np.nan))])
 
 
-def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025):
+CHIN_BIAS = -0.02                # L: the chin's rows warped this far past the design's chin. The QA reads a chin where the
+                                 # front edge starts turning under (faceqa.drawn_chin), and the smoothing rounds the corner
+                                 # so the turn starts ~0.015-0.02 L above it (unbiased, Clawd's reads -0.34 against -0.355)
+
+
+def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025, chin_bias=CHIN_BIAS):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
       - below CHEEK_TOP each row's x scaled so its half-width is the face's own outline (blended up to JAW_ROWS[1]);
@@ -276,7 +281,8 @@ def assemble(F, V, A, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.025):
     zs, th = S0.zs, S0.th
     j0 = int(np.argmin(np.abs(th)))
     # the chin: the skull's rows re-sampled so its chin lands on the design's (a z warp from the nose down)
-    zc_s, zc_d, top = skull_chin(S0), F.C['chin'], F.C['nose_z']
+    zc_s, zc_d, top = skull_chin(S0), F.C['chin'] + chin_bias, F.C['nose_z']      # bias < 0: past the design's, for the
+                                                                                    # corner the smoothing rounds
     src = zs.copy()
     mid = (zs < top) & (zs >= zc_d)
     src[mid] = top + (zs[mid] - top) * (top - zc_s) / (top - zc_d)      # nose to chin: stretched or squeezed
