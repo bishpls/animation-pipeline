@@ -688,3 +688,57 @@ def piece_confusion(labels, names, masks, graph, spec, view):
                 row[k] = int(sel.sum())
         out[pid] = row
     return out
+
+
+# ------------------------------------------------------------------------------------------------- pieces in 3D
+OUTER = 0.03             # L: a point of ours this close to the target's surface is on the outside (the rest is inside it)
+
+
+def _piece_points(meshes, names, members):
+    """a piece's surface as points (vertices and triangle centres) of its member objects, a two-sided object's by its
+    side (world x: + her left)."""
+    pts = []
+    for name, sgn in members:
+        if name not in names:
+            continue
+        V, T = meshes[names.index(name)][:2]
+        q = np.concatenate([V, V[T].mean(1)]) if len(T) else V
+        if sgn is not None:
+            q = q[(q[:, 0] >= 0) == (sgn > 0)]
+        pts.append(q)
+    return np.concatenate(pts) if pts else np.zeros((0, 3))
+
+
+def piece_depths(meshes, names, target_V, labels, piece_names, graph, spec, L):
+    """each outfit piece of ours against the target's points of that piece in 3D (the visual hull's per-vertex pieces,
+    bundle.target_pieces): reach, the distance from each target point to our piece (where the design has it, how far
+    ours is: the median and 90th percentile, L); excess, from our piece's outer points (within OUTER of the target's
+    surface) to the target's piece; dz, our piece's median height less the target's (L). A piece we don't build is
+    folded into the built piece it attaches to, as in 2D. -> {piece id: dict(n, reach, reach90, excess, excess90, dz)
+    or dict(n, members=None)}."""
+    from scipy.spatial import cKDTree
+    pm = piece_map(graph, spec)
+    up = built_parent(graph, pm)
+    by_name = {v: int(k) for k, v in piece_names.items()}
+    allT = cKDTree(target_V)
+    out = {}
+    for pc in graph['pieces']:
+        pid = pc['id']
+        ks = [by_name[q] for q in [pid] + [q for q, par in up.items() if par == pid] if q in by_name]
+        tp = target_V[np.isin(labels, ks)] if ks else np.zeros((0, 3))
+        if not pm.get(pid):
+            out[pid] = dict(n=int((labels == by_name.get(pid, -1)).sum()), members=None, part_of=up.get(pid))
+            continue
+        O = _piece_points(meshes, names, pm[pid])
+        if not len(tp) or not len(O):
+            out[pid] = dict(n=int(len(tp)), ours=int(len(O)))
+            continue
+        reach = cKDTree(O).query(tp)[0] / L
+        outer = O[allT.query(O)[0] / L < OUTER]
+        exc = cKDTree(tp).query(outer)[0] / L if len(outer) else None
+        out[pid] = dict(n=int(len(tp)), reach=round(float(np.median(reach)), 4),
+                        reach90=round(float(np.percentile(reach, 90)), 4),
+                        excess=None if exc is None else round(float(np.median(exc)), 4),
+                        excess90=None if exc is None else round(float(np.percentile(exc, 90)), 4),
+                        dz=round(float((np.median(O[:, 2]) - np.median(tp[:, 2])) / L), 4))
+    return out

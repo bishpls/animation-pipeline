@@ -979,6 +979,35 @@ def sheet_pieces(B, design, out=None):
     return table, C
 
 
+PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
+
+
+def pieces_3d(B, design, out=None):
+    """the outfit piece by piece against the visual hull's pieces in 3D (the target's per-vertex pieces, carried in the
+    bundle: bodymeasure.piece_depths): checks <piece id> valued by its median reach (L), with the 90th percentile, the
+    excess and the height offset beside it. INFO: the hull's pieces are carved from the same drawn masks the 2D checks
+    grade against, so these locate a fault (too low, too far out) rather than add a verdict; a fit reads them."""
+    from . import bodymeasure
+    tp = B.target_pieces()
+    t = B.target()
+    if tp is None or t is None:
+        return None, {'pieces': {'status': 'SKIPPED', 'why': 'the target carries no per-vertex pieces'}}
+    got = bodymeasure.piece_masks(B.spec)
+    if got is None:
+        return None, {'pieces': {'status': 'SKIPPED', 'why': 'no outfit graph beside the produced masks'}}
+    graph = got[1]
+    meshes, names = scene_objects(B)
+    R = bodymeasure.piece_depths(meshes, names, t[0], tp[0], tp[1], graph, B.spec, B.assembly['L'])
+    C = {}
+    for pid, r in R.items():
+        if 'reach' not in r:
+            continue
+        v = r['reach']
+        C[pid] = dict(r, value=v, status='INFO', grade='PASS' if v <= PIECE3D_PASS else 'WARN' if v <= PIECE3D_WARN
+                      else 'FAIL')
+    return {'pieces': R}, C
+
+
 def grade_pieces(S):
     """bodymeasure.piece_shapes' records as checks: <piece id> (its worst view's iou_tol; INFO for a piece no object of
     ours builds) and built (the drawn pieces we build as their own objects)."""
@@ -1441,7 +1470,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('eyes', eyes, 'eye_', 'eyes'), ('sheet', sheet, 'sheet_', 'sheet'),
     ('sheet_figures', sheet_figures, 'figures_', 'sheet_figures'), ('sheet_body', sheet_body, 'body_', 'sheet_body'),
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
-    ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'),
+    ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
 ]
 

@@ -73,6 +73,24 @@ def test_piece_shapes_on_an_exact_build():
     assert conf['bodice_panel'] == {'top': 200}
 
 
+def test_piece_depths_find_a_piece_sitting_low():
+    """a band of ours 0.2 L below the target's band: reach and dz say so; the top matches exactly."""
+    th = np.linspace(0, 2 * np.pi, 60, endpoint=False)
+    ring = lambda z, r=0.3: np.c_[r * np.cos(th), r * np.sin(th), np.full(len(th), z)]
+    target = np.concatenate([ring(z) for z in np.linspace(1.0, 1.2, 5)] + [ring(z) for z in np.linspace(1.3, 1.6, 7)])
+    labels = np.r_[np.full(5 * 60, 1), np.full(7 * 60, 2)].astype(np.int16)
+    tri = lambda n: np.array([[i, (i + 1) % n, (i + 2) % n] for i in range(n)])
+    band = np.concatenate([ring(z) for z in np.linspace(0.8, 1.0, 5)])
+    top = np.concatenate([ring(z) for z in np.linspace(1.3, 1.6, 7)])
+    graph = {'pieces': [{'id': 'waistband', 'type': 'waistband', 'attach': {}}, {'id': 'top', 'type': 'top', 'attach': {}}],
+             'comparison': {'matched': []}}
+    spec = {'garments': [{'name': 'waistband'}, {'name': 'top'}]}
+    R = bm.piece_depths([(band, tri(len(band)), None), (top, tri(len(top)), None)], ['waistband', 'top'], target, labels,
+                        {'1': 'waistband', '2': 'top'}, graph, spec, L=1.0)
+    assert abs(R['waistband']['dz'] + 0.2) < 1e-6 and R['waistband']['reach'] > 0.04, R['waistband']
+    assert R['top']['reach'] < 1e-6 and abs(R['top']['dz']) < 1e-6, R['top']
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
