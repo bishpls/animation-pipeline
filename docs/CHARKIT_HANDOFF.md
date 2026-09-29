@@ -435,6 +435,17 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        0.93°; every graded sheet check PASS.
        - Carry fairness into the build's QA once the head is there, as a mesh-based `face_fairness_*`: vertex normals
          against their smoothed field over about 0.04 L. It would have caught this before a person did.
+     - **Chin and neck** (`18b926c`, `c6b0fa7`; Michael: the chin read pointy and the chin-to-neck line wrong).
+       Nothing graded below the chin, so `outline()` now overlays our silhouette on head_turnaround's drawn skin, front
+       and profile, per row down the jaw, the chin's underside and the neck, and puts it on the page.
+       - The fixes: each section's front narrows to the chin's V while its back keeps the neck's width. The chin's step
+         under is kept sharp: the profile's front is smoothed piecewise and applied to the front only.
+       - The back of the head narrows below the ears to the neck's width (`NAPE`), where it was hung on the neck like a
+         cap on a stem.
+       - The nape moves gradually and the neck's front only under the chin (a whole-neck move left a ledge).
+       - The face outline bridges rows a drawn line cuts short, where a running maximum ran 0.012 L wide on the jaw.
+       - Now within 0.023 L of the drawing everywhere below the face (it was 0.072), every graded sheet check PASS;
+         fairness 4.0° on the jaw and neck, which is the corner under the chin that the design draws.
      - **Next: into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
        - the eyes' and mouth's labels from the cage's loops, in `eyelib.labels` / `mouthlib.labels` format;
        - an `H` backed by the sections (`surfaces`, `sections`, `_xy`, `section`, the landmark attributes), with
