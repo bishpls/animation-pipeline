@@ -1186,10 +1186,57 @@ def sheet_pieces(B, design, out=None):
               for v in dv}
     S = bodymeasure.piece_shapes(labels, names, masks, graph, B.spec, ctx['ppl'])
     C, table = grade_pieces(S), {'tol_L': bodymeasure.OUTLINE_TOL, 'pieces': S}
+    C.update(spring_pieces(S, graph, B, meshes, names))
     table['confusion'] = {v: bodymeasure.piece_confusion(labels, names, masks, graph, B.spec, v) for v in labels}
     if out:
         _save_rgb(os.path.join(out, 'qa_sheet_pieces.png'), pieces_picture(labels, names, masks, graph, B.spec, dv))
     return table, C
+
+
+HANG_PASS, HANG_WARN = 0.1, 0.2             # L: a spring piece's attach height and reach against its drawn chain's
+EXT_PASS, EXT_WARN = 0.08, 0.16             # L: a spring piece's lowest row against the drawing's (bodyqa's lengths)
+
+
+def spring_pieces(S, graph, B, meshes, names):
+    """the pieces that swing on a spring chain (the graph's springs) and that we build, beside their iou: <id>_extent,
+    per view its lowest row, its outer edge (L, + ours lower / further out) and its visible area over the drawn one
+    (valued by the worst |lowest row| over the views showing at least a quarter of its largest drawing, graded as a
+    length); for a piece built on its own chain (a flap), <id>_hang: where it hangs from and to (its top and lowest
+    point, L from the eye line) against its drawn chain's root and tip (valued by the larger difference)."""
+    from . import bodymeasure
+    C = {}
+    L = B.assembly['L']
+    ez = float(np.mean(np.array(iris_centres(B))[:, 2]))
+    pm = bodymeasure.piece_map(graph, B.spec)
+    for sp in graph.get('springs') or []:
+        pid = sp['piece']
+        r = S.get(pid)
+        if not r or not r['members'] or not r['views']:
+            continue
+        ext = {v: {k: x.get(k) for k in ('bottom', 'outer', 'area')} for v, x in r['views'].items() if 'bottom' in x}
+        big = max((x['px'][1] for x in r['views'].values()), default=0)
+        decide = [v for v in ext if r['views'][v]['px'][1] >= 0.25 * big]      # (a sliver a view barely shows: not)
+        if decide:
+            worst = max(abs(ext[v]['bottom']) for v in decide)
+            C[pid + '_extent'] = {'value': round(worst, 4), 'status': 'PASS' if worst <= EXT_PASS else 'WARN'
+                                  if worst <= EXT_WARN else 'FAIL', 'views': ext,
+                                  'note': "per view: the lowest row and the outer edge against the drawing's (L, + "
+                                          'ours lower / further out), the visible area over the drawn'}
+        own = [i for i, n in enumerate(names) if any(n == m[0] for m in pm.get(pid) or [])]
+        J = np.array((sp.get('chains') or [{}])[0].get('joints') or [])
+        chained = any(g.get('source') == 'flap' for g in B.spec.get('garments') or []
+                      if g['name'] in {m[0] for m in pm.get(pid) or []})     # built on its own chain (a flap)
+        if own and len(J) and chained:
+            V = np.concatenate([meshes[i][0] for i in own])
+            top, low = (float(V[:, 2].max()) - ez) / L, (float(V[:, 2].min()) - ez) / L
+            da, dr = top - float(J[0, 2]), low - float(J[:, 2].min())
+            v = max(abs(da), abs(dr))
+            C[pid + '_hang'] = {'value': round(v, 4), 'status': 'PASS' if v <= HANG_PASS else 'WARN' if v <= HANG_WARN
+                                else 'FAIL', 'attach': [round(top, 3), round(float(J[0, 2]), 3)],
+                                'reach': [round(low, 3), round(float(J[:, 2].min()), 3)],
+                                'note': 'where it hangs from (its top) and to (its lowest point), ours and the drawn '
+                                        "chain's root and tip, L from the eye line"}
+    return C
 
 
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
@@ -1686,7 +1733,11 @@ def mesh_info(B, design=None, out=None):
         from .trace import _components
         lab = _components(nv, e[:, 0], e[:, 1]) if len(e) else np.arange(nv)
         mh[o.name] = {'open_edges': int((uses == 1).sum()), 'parts': int(len(np.unique(lab)))}
-    return None, {'mesh': {'status': 'INFO', 'objects': mh}}
+    low = {o.name: o.rec['coverage'] for o in B.objects(groups=('garment',), visible=False) if 'coverage' in o.rec}
+    return None, {'mesh': {'status': 'INFO', 'objects': mh},
+                  'garment_coverage': {'value': min(low.values()) if low else 1.0, 'status': 'INFO', 'pieces': low,
+                                       'note': "the garments lofted from marginal hull coverage: the best row's share "
+                                               'of its circle the hull measured (1.0: none marginal)'}}
 
 
 # ------------------------------------------------------------------------------------------------------------------ run
