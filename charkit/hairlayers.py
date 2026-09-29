@@ -110,6 +110,7 @@ def register(fam_img, rgb, views, figs, s_range=(430, 640), s_step=3):
     tgt = {}
     for name in figs:
         Lb = views[name].sample(views[name].labels, us, zs).T
+        Lb = np.where(views[name].sample(views[name].mask.astype(np.uint8), us, zs).T > 0, Lb, 0)   # its own figure
         tgt[name] = ((Lb == 2) & (zz < BUN_ZONE), (Lb == 1) & (zz > NECK))
 
     def corr(k, t):
@@ -181,7 +182,9 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None):
     for name in VIEWS:
         v, r = views[name], reg[name]
         us, zs, shape, _ = design_grid(v, v.ppl)
-        hair = (v.sample(v.labels, us, zs).T == 2)                    # rows z, cols u, on the design grid
+        # rows z, cols u, on the design grid; the view's own figure only (the grid is wide enough to take in a
+        # neighbouring figure's hair)
+        hair = (v.sample(v.labels, us, zs).T == 2) & (v.sample(v.mask.astype(np.uint8), us, zs).T > 0)
         c0, c1 = figs[name]
         sub = fam_img[:, c0:c1].copy()
         sub[sub == BUNS] = 0

@@ -34,9 +34,13 @@ import numpy as np
 
 FAMILIES = ('bangs', 'side_locks', 'upper_back', 'lower_back', 'buns', 'ahoge', 'flyaways')   # charkit.hairlayers'
 MASS = ('bangs', 'side_locks', 'upper_back', 'lower_back')
+FAMILY_PHI = {'bangs': (0, 100), 'upper_back': (50, 180), 'lower_back': (50, 180)}
+# |phi| a family may reach (what its name means: a fringe hangs in front, a back layer behind; the side locks are sided).
+# The labels at the crown and far round a view's edge are the least sure (no view faces them squarely): these keep a
+# stray one from carrying a family round the head
 LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5, 'lower_back': 2.5}
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
-OPTS = dict(crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
+OPTS = dict(pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
             chain=6)
 
 
@@ -158,6 +162,30 @@ class Grid:
         return ((1 - fx) * ((1 - fy) * A[i0, j0] + fy * A[i0, j1]) + fx * ((1 - fy) * A[i1, j0] + fy * A[i1, j1]))
 
 
+def surface_points(V, faces, spacing):
+    """a mesh's surface as points no further apart than about `spacing`: its vertices and, per triangle (polygons fanned),
+    a barycentric grid fine enough for its longest edge."""
+    tris = []
+    for f in faces:
+        for k in range(1, len(f) - 1):
+            tris.append((f[0], f[k], f[k + 1]))
+    T = np.array(tris, np.int64)
+    P = [V]
+    e = np.maximum.reduce([np.linalg.norm(V[T[:, a]] - V[T[:, b]], axis=1) for a, b in ((0, 1), (1, 2), (2, 0))])
+    n = np.clip(np.ceil(e / spacing).astype(int), 1, 32)
+    for k in np.unique(n):
+        if k < 2:
+            continue
+        sel = T[n == k]
+        ii, jj = np.meshgrid(np.arange(k + 1), np.arange(k + 1))
+        m = ii + jj <= k
+        b1, b2 = ii[m] / k, jj[m] / k
+        b0 = 1 - b1 - b2
+        P.append((V[sel[:, 0]][:, None] * b0[None, :, None] + V[sel[:, 1]][:, None] * b1[None, :, None] +
+                  V[sel[:, 2]][:, None] * b2[None, :, None]).reshape(-1, 3))
+    return np.concatenate(P)
+
+
 def _max_field(G, i, j, ok, r):
     A = np.full((G.nph, G.nth), -np.inf)
     np.maximum.at(A, (i[ok], j[ok]), r[ok])
@@ -190,6 +218,17 @@ def _smooth(A, s_ph, s_th):
     return gaussian_filter(A, (s_ph, s_th), mode=('wrap', 'nearest'))
 
 
+def _pole(A, G, deg):
+    """a field made round near the chart's pole: each row within `deg` of it blended toward its mean, fully at the pole
+    (its columns there are nearly one direction, filled apart)."""
+    A = A.copy()
+    for j in range(G.nth):
+        w = G.th[j] / deg
+        if w < 1:
+            A[:, j] = w * A[:, j] + (1 - w) * A[:, j].mean()
+    return A
+
+
 def _mode_filter(L, nlab, size=3):
     """the majority label in each size x size neighbourhood (periodic in phi), empty cells voting for nothing."""
     from scipy.ndimage import uniform_filter
@@ -199,47 +238,75 @@ def _mode_filter(L, nlab, size=3):
 
 # ---------------------------------------------------------------------------------------------------------- the mass
 def mass_fields(case, hullV_world, fam, opts):
-    """the crown chart's envelope, skin and family fields. -> dict(chart, grid, R (smoothed envelope), Rn (the normals'
-    smoother envelope), S (skin, -inf where none), L (family per cell), reach (per column the envelope's last row))."""
+    """the crown chart's envelope, skin and family fields, over the hair's region (charkit.geom.parts.hair_region: above
+    the chin's cut, within the shoulders). A cell whose outermost hull point is not hair (the face, the neck, the collar)
+    is not hair: the pieces never cover it, whatever family its neighbours have. -> dict(chart, grid, R (smoothed
+    envelope), Rn (the normals' smoother envelope), S (skin, -inf where none), L (family per cell), reach (per column
+    the envelope's last row), nothair (cells whose outermost point is something else))."""
+    from scipy.ndimage import maximum_filter
+    from .parts import hair_region
     Hd = case.A['head']
     L = case.L
     c = case.centre + np.array([0.0, (Hd['H'].db - Hd['H'].df) / 2, 0.06 * L])      # charkit.hair.Volume's centre
     ch = Chart(c, opts['crown_tilt'])
     G = Grid(opts['dphi'], opts['dth'], opts['th_max'])
-    mass = np.isin(fam, [fam_id(f) for f in MASS])
+    inreg = hair_region(case)(hullV_world)
+    # every hull point of the region: the outermost one per cell says whether the cell is hair
+    aph, ath, ar = ch.coords(hullV_world[inreg])
+    ai, aj, aok = G.cell(aph, ath)
+    cell = np.where(aok, ai * G.nth + aj, -1)
+    o = np.lexsort((ar, cell))
+    cell_o = cell[o]
+    last = np.r_[cell_o[1:] != cell_o[:-1], True] & (cell_o >= 0)
+    top_fam = np.zeros(G.nph * G.nth, np.int16)
+    seen = np.zeros(G.nph * G.nth, bool)
+    top_fam[cell_o[last]] = fam[inreg][o][last]
+    seen[cell_o[last]] = True
+    nothair = (seen & (top_fam == 0)).reshape(G.nph, G.nth)
+    mass = np.isin(fam, [fam_id(f) for f in MASS]) & inreg
     ph, th, r = ch.coords(hullV_world[mass])
     i, j, ok = G.cell(ph, th)
     Rmax = _max_field(G, i, j, ok, r)
     valid = np.isfinite(Rmax)
     Rf, reach = _fill(np.where(valid, Rmax, 0.0), valid)
     # hanging hair: below each column's reach the envelope continues flat (the pieces stop at their own tips)
-    R = _smooth(Rf, 1.0, 1.0)
-    Rn = _smooth(Rf, 2.5, 2.5)
+    R = _pole(_smooth(Rf, 1.0, 1.0), G, opts['pole'])
+    Rn = _pole(_smooth(Rf, 2.5, 2.5), G, opts['pole'])
     # families per cell: the majority of the labelled hair in it (the side locks split by side)
     fcell = np.zeros((G.nph, G.nth, len(FAMILIES) + 1))
     np.add.at(fcell, (i[ok], j[ok], fam[mass][ok]), 1)
     Lc = np.where(fcell.sum(2) > 0, fcell.argmax(2), 0)
     Lc = _mode_filter(Lc, len(FAMILIES))
-    # the skin inside the envelope: our body's outermost radius per cell among vertices inside it
-    B = np.asarray(case.A['verts'], float)
+    Lc[nothair] = 0
+    # the skin inside the envelope: our body's outermost radius per cell among vertices inside it, grown by a cell
+    # (conservative: the inner surfaces clear the skin's bumps within a cell's reach)
+    B = surface_points(np.asarray(case.A['verts'], float), case.A['faces'], 0.008 * L)
     bph, bth, br = ch.coords(B)
     bi, bj, bok = G.cell(bph, bth)
-    bok &= br < G.sample(R, bph, bth) + 0.02 * L
+    # (the head whole, above the chin: where it bulges past the hull the pieces are pushed out over it; below, only what
+    # lies inside the envelope: not the shoulders the hanging hair falls in front of or behind)
+    bok &= (B[:, 2] > case.chin_z) | (br < G.sample(R, bph, bth) + 0.02 * L)
     S = _max_field(G, bi, bj, bok, br)
-    S = np.maximum(S, -np.inf)
-    return dict(chart=ch, grid=G, R=R, Rn=Rn, S=S, L=Lc, reach=reach, valid=valid)
+    S = maximum_filter(np.where(np.isfinite(S), S, -1e3), size=3, mode=('wrap', 'nearest'))
+    have = S > -1e2
+    Ss = _smooth(np.where(have, S, 0.0), 1.2, 1.2) / np.maximum(_smooth(have.astype(float), 1.2, 1.2), 1e-6)
+    S = np.where(have, np.maximum(Ss, S - 0.01 * L), -np.inf)    # smoothed, never more than 0.01 L under its bumps
+    return dict(chart=ch, grid=G, R=R, Rn=Rn, S=S, L=Lc, reach=reach, valid=valid, nothair=nothair)
 
 
-def fill_families(Lc, reach):
+def fill_families(Lc, reach, nothair=None):
     """the family of every cell of the hair (a column's cells down to its reach) that no hull point labels (under the
-    buns, behind the ears): its nearest labelled cell's (periodic in phi)."""
+    buns, behind the ears): its nearest labelled cell's (periodic in phi). Cells in `nothair` stay empty."""
     from scipy import ndimage
     nph, nth = Lc.shape
     inside = np.arange(nth)[None, :] <= reach[:, None]
     P = np.concatenate([Lc, Lc, Lc])                                   # (phi wraps: three copies, the middle one kept)
     idx = ndimage.distance_transform_edt(P == 0, return_distances=False, return_indices=True)
     full = P[idx[0], idx[1]][nph:2 * nph]
-    return np.where(inside, np.where(Lc > 0, Lc, full), 0)
+    out = np.where(inside, np.where(Lc > 0, Lc, full), 0)
+    if nothair is not None:
+        out[nothair] = 0
+    return out
 
 
 def _largest(m):
@@ -266,7 +333,7 @@ def piece_regions(F, opts):
     columns in order round phi (contiguous: the columns between two it has take their interpolated top and tip) and per
     column the theta of its top (the crown, or `up` above its first cell) and of its tip (its last cell's far edge)."""
     G = F['grid']
-    Lc = fill_families(F['L'], F['reach'])
+    Lc = fill_families(F['L'], F['reach'], F.get('nothair'))
     # the crown's rows: every column converges there and the buns hide it, so a column's crown takes the family it has
     # just below (the part line follows the measured partition, not the few labels at the pole)
     cr = int(round(opts['crown_rows'] / G.dth))
@@ -283,7 +350,13 @@ def piece_regions(F, opts):
         m = Lc == fam_id(fam)
         if sgn is not None:
             m &= (np.sign(G.ph) == sgn)[:, None]
-        m = _largest(m)
+        if fam in FAMILY_PHI:
+            lo_, hi_ = FAMILY_PHI[fam]
+            m &= ((np.abs(G.ph) >= lo_) & (np.abs(G.ph) <= hi_))[:, None]
+        from scipy import ndimage
+        core = ndimage.binary_opening(np.concatenate([m, m, m]), np.ones((3, 3)))[G.nph:2 * G.nph]
+        m = _largest(core if core.any() else m) | (ndimage.binary_dilation(
+            np.concatenate([_largest(core if core.any() else m)] * 3), np.ones((3, 3)))[G.nph:2 * G.nph] & m)
         cols = np.nonzero(m.any(1))[0]
         if len(cols) < 2:
             continue
@@ -341,81 +414,115 @@ def _unwrap(ph):
     return out
 
 
+def _ladder(a, b, ta, tb, out, flip=False):
+    """triangles between two columns of vertices a (indices) and b, sampled at increasing thetas ta and tb from a shared
+    start: advance along whichever column is behind, so no triangle spans more than one step of either."""
+    i = j = 0
+    while i < len(a) - 1 or j < len(b) - 1:
+        if j == len(b) - 1 or (i < len(a) - 1 and ta[i + 1] <= tb[j + 1]):
+            t = (a[i], b[j], a[i + 1]); i += 1
+        else:
+            t = (a[i], b[j], b[j + 1]); j += 1
+        out.append(t[::-1] if flip else t)
+
+
 def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, opts, L):
-    """one lock's closed shell (see the module). -> dict(V, T (triangles), outer (bool per vertex), strand (unit, per
-    vertex), chain (joints, root to tip), vn_env (the envelope's normal per vertex), push (L: how far the outer surface had
-    to move out to clear the skin, max))."""
+    """one lock's closed shell (see the module): columns every `step` degrees of phi, each sampled every `step` degrees
+    of theta from its top down to its tip (the last sample exactly at the tip), neighbouring columns stitched by
+    ladder, so a jagged tip edge shears no triangle. The outer surface is the envelope less the piece's inset (pushed
+    out, smoothly, wherever it would come within gap + tip_thick of the skin); the inner one `thick` below it, tapering
+    to tip_thick over the last `taper` of the lock's length, and never within `gap` of the skin. -> dict(V, T, outer,
+    strand, chain, vn_env, push (L, the most the outer surface moved out))."""
+    from scipy.ndimage import gaussian_filter, maximum_filter
     ch, G = F['chart'], F['grid']
     step = opts['step']
-    nu = max(3, int(np.ceil((ph1 - ph0) / step)))
+    nu = max(2, int(np.ceil((ph1 - ph0) / step)))
     phs = np.linspace(ph0, ph1, nu + 1)
-    top = np.interp(phs, ph_cols, top_cols)
-    tip = np.interp(phs, ph_cols, edge_cols)
-    top = np.maximum(top, opts['crown_cap'] * 0.75)                # (the crown's cap covers the pole)
-    nv = max(4, int(np.ceil((tip.max() - top.min()) / step)))
-    v = np.linspace(0, 1, nv + 1)
-    PH = np.repeat(phs[:, None], nv + 1, 1)
-    TH = top[:, None] + v[None] * (tip - top)[:, None]
-    phw = ((PH + 180) % 360) - 180
+    top = np.maximum(np.interp(phs, ph_cols, top_cols), opts['crown_cap'] * 0.75)   # (the crown's cap covers the pole)
+    tip = np.maximum(np.interp(phs, ph_cols, edge_cols), top + step)
     inset = LAYER.get(piece, 1.0) * style['inset'] * L
-    R = G.sample(F['R'], phw, TH) - inset
-    S = G.sample(np.where(np.isfinite(F['S']), F['S'], -1e3), phw, TH)
     gap = opts['gap'] * L
-    thick = style['thick'] * L * (1 - v[None]) ** 0.6 + style['tip_thick'] * L
-    need = S + gap + style['tip_thick'] * L
-    push = np.maximum(need - R, 0.0)
-    Ro = R + push
-    Ri = np.maximum(Ro - thick, np.minimum(S + gap, Ro - style['tip_thick'] * L))
-    Po = ch.point(phw, TH, Ro)
-    Pi = ch.point(phw, TH, Ri)
-    n0 = Po.reshape(-1, 3)
-    n1 = Pi.reshape(-1, 3)
-    V = np.concatenate([n0, n1])
-    idx = lambda a, b, inner=False: (a * (nv + 1) + b) + (len(n0) if inner else 0)
+    tt = style['tip_thick'] * L
+    wrap = lambda p: ((p + 180) % 360) - 180
+    # the push-out, on a regular grid over the lock (smoothed, grown first so it still clears the skin)
+    gth = np.arange(top.min(), tip.max() + step, step / 2)
+    PHg, THg = np.meshgrid(phs, gth, indexing='ij')
+    Rg = G.sample(F['R'], wrap(PHg), THg) - inset
+    Sg = G.sample(np.where(np.isfinite(F['S']), F['S'], -1e3), wrap(PHg), THg)
+    push_g = np.maximum(Sg + gap + tt - Rg, 0.0)
+    if push_g.any():
+        push_g = np.maximum(push_g, gaussian_filter(maximum_filter(push_g, size=5, mode='nearest'), 1.5, mode='nearest'))
+    taper = style.get('taper', 0.45)
+    length = float((tip - top).max())
+    Rog = Rg + push_g
+    s_g = np.clip((np.interp(PHg, phs, tip) - THg) / max(1e-9, taper * length), 0, 1)
+    thick_g = style['thick'] * L * s_g ** 0.6 + tt
+    # the skin as the inner surface meets it: a smooth upper envelope (grown, then blurred), so an ear or a brow ridge
+    # makes a gentle bump in the hidden surface, not a fold
+    Su = gaussian_filter(maximum_filter(Sg, size=7, mode='nearest'), 2.0, mode='nearest')
+    Rig = np.maximum(Rog - thick_g, np.minimum(Su + gap, Rog - tt))
+    Rig = np.minimum(np.maximum(gaussian_filter(Rig, 1.5, mode='nearest'), Sg + gap), Rog - tt)   # smoothed, clear of
+                                                                    # the skin, inside the outer surface
+    cols, colth, Vo, Vi, strand, vn = [], [], [], [], [], []
+    n = 0
+    for k, ph in enumerate(phs):
+        th = np.arange(top[k], tip[k], step)
+        th = np.r_[th, tip[k]] if tip[k] - th[-1] > 1e-6 else th
+        phk = np.full(len(th), wrap(ph))
+        R = G.sample(F['R'], phk, th) - inset
+        S = G.sample(np.where(np.isfinite(F['S']), F['S'], -1e3), phk, th)
+        push = np.interp(th, gth, push_g[k])
+        Ro = R + push
+        Ri = np.minimum(np.interp(th, gth, Rig[k]), Ro - tt)
+        Po, Pi = ch.point(phk, th, Ro), ch.point(phk, th, Ri)
+        d = np.gradient(Po, axis=0) if len(th) > 1 else np.zeros_like(Po)
+        strand.append(d / (np.linalg.norm(d, axis=1, keepdims=True) + 1e-12))
+        # the envelope's normal (the smoother field) by finite differences on the chart
+        e = 0.5
+        ep = e / np.maximum(np.sin(np.radians(th)), 0.05)             # (the same arc round the pole as down it)
+        P = lambda a, b: ch.point(wrap(a), b, G.sample(F['Rn'], wrap(a), b) - inset + push)
+        nrm = np.cross(P(phk + ep, th) - P(phk - ep, th), P(phk, th + e) - P(phk, np.maximum(th - e, 0.01)))
+        nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12
+        if np.einsum('ij,ij->i', nrm, Po - ch.c).mean() < 0:
+            nrm = -nrm
+        vn.append(nrm)
+        Vo.append(Po); Vi.append(Pi)
+        cols.append(np.arange(n, n + len(th))); colth.append(th)
+        n += len(th)
+    no = n
+    Vo, Vi = np.concatenate(Vo), np.concatenate(Vi)
+    V = np.concatenate([Vo, Vi])
     T = []
-    for a in range(nu):
-        for b in range(nv):
-            q = (idx(a, b), idx(a + 1, b), idx(a + 1, b + 1), idx(a, b + 1))
-            T += [(q[0], q[2], q[1]), (q[0], q[3], q[2])]              # outer: faces outward (checked below)
-            qi = tuple(x + len(n0) for x in q)
-            T += [(qi[0], qi[1], qi[2]), (qi[0], qi[2], qi[3])]
-    def wall(pairs):
-        for (a0, b0), (a1, b1) in pairs:
-            o0, o1, i0, i1 = idx(a0, b0), idx(a1, b1), idx(a0, b0, True), idx(a1, b1, True)
-            T.extend([(o0, o1, i1), (o0, i1, i0)])
-    wall([((a, 0), (a + 1, 0)) for a in range(nu)])                    # the top edge
-    wall([((a + 1, nv), (a, nv)) for a in range(nu)])                  # the tip edge
-    wall([((0, b + 1), (0, b)) for b in range(nv)])                    # the sides
-    wall([((nu, b), (nu, b + 1)) for b in range(nv)])
+    for k in range(nu):
+        _ladder(cols[k], cols[k + 1], colth[k], colth[k + 1], T)                   # outer
+        _ladder(cols[k] + no, cols[k + 1] + no, colth[k], colth[k + 1], T, flip=True)   # inner
+    def quad(o0, o1):
+        T.extend([(o0, o1, o1 + no), (o0, o1 + no, o0 + no)])
+    for k in range(nu):
+        quad(cols[k][0], cols[k + 1][0])                                      # the top edge
+        quad(cols[k + 1][-1], cols[k][-1])                                    # the tip edge
+    for c in (cols[0],):                                                      # the sides
+        for a, b in zip(c[1:], c[:-1]):
+            quad(a, b)
+    for c in (cols[-1],):
+        for a, b in zip(c[:-1], c[1:]):
+            quad(a, b)
     T = np.array(T, np.int64)
     # orientation: the outer surface's normals away from the chart's centre
-    tri = V[T[:len(T) // 1]]
+    outer_f = np.all(T < no, axis=1)
+    tri = V[T[outer_f]]
     fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-    outer_f = np.all(T < len(n0), axis=1)
-    cen = tri.mean(1) - ch.c
-    if (np.einsum('ij,ij->i', fn[outer_f], cen[outer_f]) < 0).mean() > 0.5:
+    if (np.einsum('ij,ij->i', fn, tri.mean(1) - ch.c) < 0).mean() > 0.5:
         T = T[:, [0, 2, 1]]
-    # strand direction: down the lock (d/dv), the envelope's normal (the smoother field) for custom normals
-    dP = np.gradient(Po, axis=1)
-    strand = dP / (np.linalg.norm(dP, axis=2, keepdims=True) + 1e-12)
-    Rn = G.sample(F['Rn'], phw, TH) - inset + push
-    Pn = ch.point(phw, TH, Rn)
-    du = np.gradient(Pn, axis=0); dv = np.gradient(Pn, axis=1)
-    nrm = np.cross(du, dv)
-    nrm /= np.linalg.norm(nrm, axis=2, keepdims=True) + 1e-12
-    if np.einsum('ijk,ijk->ij', nrm, Pn - ch.c).mean() < 0:
-        nrm = -nrm
-    vn = np.concatenate([nrm.reshape(-1, 3), -nrm.reshape(-1, 3)])
-    # the chain: the lock's middle (at its tip's phi) halfway through its depth, root to tip
-    ut = np.clip((ph_tip - ph0) / max(1e-9, ph1 - ph0), 0, 1)
-    vs = np.linspace(0, 1, opts['chain'])
-    pht = ((ph0 + ut * (ph1 - ph0) + 180) % 360) - 180
-    ttop, ttip = np.interp(ph_tip, phs, top), np.interp(ph_tip, phs, tip)
-    thc = ttop + vs * (ttip - ttop)
-    rc = G.sample(F['R'], np.full_like(vs, pht), thc) - inset
-    chain = ch.point(np.full_like(vs, pht), thc, rc - 0.5 * (style['thick'] * L * (1 - vs) ** 0.6))
-    return dict(V=V, T=T, outer=np.r_[np.ones(len(n0), bool), np.zeros(len(n1), bool)],
-                strand=np.concatenate([strand.reshape(-1, 3)] * 2), vn_env=vn, chain=chain, push=float(push.max() / L))
+    vn = np.concatenate(vn)
+    # the chain: at its tip's phi, halfway through its depth, root to tip
+    kt = int(np.argmin(np.abs(phs - ph_tip)))
+    c = cols[kt]
+    sel = np.unique(np.linspace(0, len(c) - 1, opts['chain']).round().astype(int))
+    chain = (Vo[c[sel]] + Vi[c[sel]]) / 2
+    return dict(V=V, T=T, outer=np.r_[np.ones(no, bool), np.zeros(no, bool)],
+                strand=np.concatenate([np.concatenate(strand)] * 2), vn_env=np.concatenate([vn, -vn]), chain=chain,
+                push=float(push_g.max() / L))
 
 
 def crown_cap(F, style, opts, L):
@@ -526,12 +633,14 @@ def blade(line, width, depth_ratio=0.45, n_ring=8):
     t = np.gradient(P, axis=0)
     t /= np.linalg.norm(t, axis=1, keepdims=True) + 1e-12
     ref = np.cross(P[-1] - P[0], P[n // 2] - P[0])
-    if np.linalg.norm(ref) < 1e-9:
-        ref = np.array([0.0, -1.0, 0.0])
+    if np.linalg.norm(ref) < 1e-9 * max(1e-9, np.linalg.norm(P[-1] - P[0]) ** 2):
+        ref = np.cross(t[0], [0.0, 0.0, 1.0]) if abs(t[0][2]) < 0.9 else np.cross(t[0], [1.0, 0.0, 0.0])
     ref /= np.linalg.norm(ref)
     V, strand = [], []
+    a = ref - t[0] * (ref @ t[0]); a /= np.linalg.norm(a) + 1e-12
     for k in range(n):
-        a = ref - t[k] * (ref @ t[k]); a /= np.linalg.norm(a) + 1e-12        # the depth axis (out of the curl's plane)
+        if k:                                                                  # parallel transport: no flips
+            a = a - t[k] * (a @ t[k]); a /= np.linalg.norm(a) + 1e-12
         b = np.cross(t[k], a)                                                   # the broad axis
         w = width[k] / 2
         for s in range(n_ring):
@@ -586,6 +695,84 @@ def ahoge(P, anchor, n=10):
     return blade(line, width)
 
 
+def centreline_2d(comp, root_dist, n):
+    """a drawn stroke's centreline: its two ends (the farthest pair by path), the root the end with the smaller
+    root_dist(cols, rows) (where it grows from); its pixels ordered by path from there, in n bins, each bin's centroid and
+    width (twice its 85th percentile spread). -> (points (m, 2) as (col, row), widths (m,) px) or None."""
+    rr, cc = np.nonzero(comp)
+    if len(rr) < 6:
+        return None
+    pts = np.c_[cc, rr].astype(float)
+    d0 = _order_by_path(pts, 0, k=6)
+    a = int(np.nanargmax(np.where(np.isfinite(d0), d0, -1)))
+    da = _order_by_path(pts, a, k=6)
+    b = int(np.nanargmax(np.where(np.isfinite(da), da, -1)))
+    rd = root_dist(cc, rr)
+    root = a if rd[a] <= rd[b] else b
+    dist = da if root == a else _order_by_path(pts, b, k=6)
+    ok = np.isfinite(dist)
+    pts, dist = pts[ok], dist[ok]
+    edges = np.linspace(0, dist.max() + 1e-9, n + 1)
+    line, width = [], []
+    for a, b in zip(edges[:-1], edges[1:]):
+        m = (dist >= a) & (dist < b)
+        if m.sum() < 2:
+            continue
+        c = pts[m].mean(0)
+        line.append(c)
+        width.append(2 * np.percentile(np.linalg.norm(pts[m] - c, axis=1), 85))
+    return (np.array(line), np.array(width)) if len(line) >= 3 else None
+
+
+def _resample(P, n):
+    """a polyline resampled to n points evenly in arc length."""
+    s = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+    t = np.linspace(0, s[-1], n)
+    return np.stack([np.interp(t, s, P[:, k]) for k in range(P.shape[1])], 1)
+
+
+def ahoge_2d(masks, views, hull_frame, n=12):
+    """the ahoge from the drawings: its front stroke gives x(s), its profile stroke y(s), both z(s) (averaged), s the
+    arc length from where each grows out of the rest of the hair; its width is the front stroke's, tapering to the tip.
+    -> a blade dict, or None without both strokes."""
+    from scipy import ndimage
+    from charkit.bodyqa import WIN
+    lines = {}
+    for name in ('front', 'profile'):
+        m = masks.get('%s__ahoge' % name)
+        if m is None or m.sum() < 20:
+            return None
+        # the topmost stroke of 50 px or more: the breakdown's ahoge teal also colours the buns' ribbon tails below
+        lab, k = ndimage.label(m)
+        sizes = np.bincount(lab.ravel())
+        cand = [i for i in range(1, k + 1) if sizes[i] >= 50]
+        if not cand:
+            return None
+        tops = {i: np.nonzero(lab == i)[0].min() for i in cand}
+        near = [i for i in cand if tops[i] <= min(tops.values()) + 0.1 * views[name].ppl]
+        comp = lab == max(near, key=lambda i: sizes[i])            # the largest stroke at the very top
+        rest = np.zeros_like(m)
+        for f in MASS + ('buns',):
+            q = masks.get('%s__%s' % (name, f))
+            if q is not None:
+                rest |= q
+        dt = ndimage.distance_transform_edt(~rest)
+        got = centreline_2d(comp, lambda c, r: dt[r, c], n)
+        if got is None:
+            return None
+        v = views[name]
+        x0 = int(round(v.grid_eye[0] - WIN['x'] * v.ppl)); y0 = int(round(v.grid_eye[1] - WIN['top'] * v.ppl))
+        P, w = got
+        u = (x0 + P[:, 0] - v.axis) / v.ppl
+        z = (v.eye_y - (y0 + P[:, 1])) / v.ppl
+        lines[name] = (np.c_[u, z], w / v.ppl)
+    F_, P_ = _resample(lines['front'][0], n), _resample(lines['profile'][0], n)
+    w = np.interp(np.linspace(0, 1, n), np.linspace(0, 1, len(lines['front'][1])), lines['front'][1])
+    Ph = np.c_[F_[:, 0], P_[:, 0], (F_[:, 1] + P_[:, 1]) / 2]
+    s_, tr = hull_frame
+    return blade(Ph * s_ + tr, w * s_ * np.linspace(1.0, 0.15, n))
+
+
 def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4):
     """the flyaways of the front view's family mask (a design grid): each connected piece a blade whose centreline runs by
     path from its pixel nearest the mass (anchor_fn: pixel -> distance to the mass) to its far end; to_world: (cols,
@@ -636,15 +823,16 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     pieces, report = {}, {'pieces': {}}
 
     def add(name, family, parts):
-        Vs, Ts, vn, st, lk, chains, off, pushes = [], [], [], [], [], [], 0, []
+        Vs, Ts, vn, st, lk, chains, off, pushes, nf = [], [], [], [], [], [], 0, [], 0
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
             lk.append(np.full(len(p['V']), k)); chains.append(np.asarray(p['chain']).tolist())
             pushes.append(p.get('push', 0.0)); off += len(p['V'])
+            nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
                             strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains)
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
-                                      tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4))
+                                      tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
     for piece, R in regions.items():
         ph = _unwrap(R['ph'])
         L_, edge = locks(ph, R['tip'], style['lock_min'], style['notch'])
@@ -664,9 +852,12 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                 d = np.linalg.norm(P - c, axis=1)
                 P = P[d < BUN_CORE * np.median(d)]
                 add(side, 'buns', [bun(P)])
-    # the ahoge: its hull points, a blade from the crown
+    # the ahoge: from the drawings' strokes (the hull carves so thin a crescent poorly), else its hull points
+    ah = ahoge_2d(masks, views, hull_frame) if views is not None and hull_frame is not None else None
     ap = V[fam == fam_id('ahoge')]
-    if len(ap) > 20:
+    if ah is not None:
+        add('ahoge', 'ahoge', [ah])
+    elif len(ap) > 20:
         ch, G = F['chart'], F['grid']
         aph, ath, _ = ch.coords(ap)
         k = int(np.argmin(ath))
@@ -720,6 +911,33 @@ def save(R, path, meta=None):
     arrays['meta'] = np.frombuffer(json.dumps(info).encode(), np.uint8)
     np.savez_compressed(path, **arrays)
     return path
+
+
+def folds(V, T, outer, vn_env):
+    """faces folded over: on the outer or the inner surface (the walls between them left out), a face turned against
+    the normal its corners should have (vn_env: the envelope's, reversed on the inner surface) by more than 120 degrees,
+    or one whose neighbours on average face the other way. A steep face (the inner surface dipping past an ear) is not
+    a fold. -> count."""
+    T = np.asarray(T)
+    fo = outer[T]
+    surf = fo.all(1) | ~fo.any(1)
+    fn = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-18
+    ref = vn_env[T].mean(1)
+    ref /= np.linalg.norm(ref, axis=1, keepdims=True) + 1e-18
+    against = np.einsum('ij,ij->i', fn, ref) < -0.5
+    E = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+    f = np.tile(np.arange(len(T)), 3)
+    key = np.sort(E, 1)
+    o = np.lexsort((key[:, 1], key[:, 0]))
+    key, f = key[o], f[o]
+    same = np.all(key[1:] == key[:-1], axis=1)
+    a, b = f[:-1][same], f[1:][same]
+    d = np.einsum('ij,ij->i', fn[a], fn[b])
+    tot = np.bincount(a, d, len(T)) + np.bincount(b, d, len(T))
+    cnt = np.bincount(a, None, len(T)) + np.bincount(b, None, len(T))
+    flipped = (cnt > 0) & (tot / np.maximum(cnt, 1) < 0)
+    return int((surf & (against | flipped)).sum())
 
 
 def geometric_normals(V, T):
