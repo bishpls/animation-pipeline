@@ -446,7 +446,20 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        - The face outline bridges rows a drawn line cuts short, where a running maximum ran 0.012 L wide on the jaw.
        - Now within 0.023 L of the drawing everywhere below the face (it was 0.072), every graded sheet check PASS;
          fairness 4.0° on the jaw and neck, which is the corner under the chin that the design draws.
-     - **Next: into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
+     - **The code base** (`cad6574`, `charkit/code_base.py`, `spec['base'] = 'code'`): the authored head on
+       MakeHuman's body, with base_anime.wrap's contract.
+       - The eyes get sockets and the mouth a cavity, labelled in eyes.py and mouth.py's form.
+       - The body is cut level through the neck at `CUT` (−0.52 L). Faces over the cut that are joined to the head go.
+         The head's neck eases into the body's section, and the rims zip by arc length in loop order: ordering them by
+         angle skipped edges where MakeHuman's rim doubles back.
+       - Weights ease from head to neck; the jaw region takes MakeHuman's `jaw` face bone.
+       - `SectionsHead` gives the build `H` (eyes.Face takes it as is), and an affine landmark fit carries the joints.
+       - Clawd assembles to one closed manifold skin. The first Blender build is `charkit/out/code_build` in the hull
+         worktree, from `charkit/out/code_base.spec.json`.
+       - Known to follow: the zip shows a faint seam at the neck's base, and the neck reads long in profile.
+       - The fast body evaluator (`bodyeval`) still rebuilds a knob head when the body changes, so it needs a
+         SectionsHead path before body fits run on this base.
+     - **Into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
        - the eyes' and mouth's labels from the cage's loops, in `eyelib.labels` / `mouthlib.labels` format;
        - an `H` backed by the sections (`surfaces`, `sections`, `_xy`, `section`, the landmark attributes), with
          `eyes.Face` taking it as is: it rebuilds a `head.Head` from knobs today;
