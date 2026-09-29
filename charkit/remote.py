@@ -99,20 +99,27 @@ def build(args, kind='build'):
 
 
 def gate(args):
-    """the gate on the box: a git bundle of what the box's clone lacks brought into it, the gitignored inputs the builds
-    read (charkit/out/i3d) beside it, the gate run in the clone, its report fetched. Gates from several worktrees queue
-    on a lock there (they share the clone), so parallel workstreams can each gate when ready."""
+    """the gate on the box, run in parallel with other workstreams' gates. A git bundle of what the box's clone
+    (/srv/work/repo) lacks is fetched into it under a short lock, into refs of this gate's own, and the gate gets a clone
+    of its own (git clone --shared: the objects are the clone's, the refs, checkout and inputs are this gate's), where
+    `charkit gate` runs with the exact commits named here. Gates into one commit share its baseline through
+    /srv/work/gate-out (gate.py builds each baseline once, under a lock of its own), and the box's build slots bound how
+    many builds run at once. Only this gate's report comes back. The old way held one lock for the whole gate, so gates
+    queued for hours on a box two-thirds idle (2026-09-29)."""
+    import uuid
     branch, into = args[0], _opt(args, '--into', 'pipeline-3d')
     tag = re.sub(r'[^A-Za-z0-9._-]', '_', branch)
-    bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % tag)
-    boxed = '/srv/work/repo-%s.bundle' % tag
+    gid = '%s-%s' % (tag, uuid.uuid4().hex[:8])
+    bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % gid)
+    boxed = '/srv/work/repo-%s.bundle' % gid
+    G, GI = '/srv/work/gates/%s' % gid, '/srv/work/gates/%s.i3d' % gid
     os.makedirs(os.path.dirname(bundle), exist_ok=True)
     up()
     # only what the box's clone lacks: its refs' commits (known here, since they came from here) are left out
     have = _sh('ssh', 'git -C /srv/work/repo for-each-ref --format="%(objectname)" 2>/dev/null; true', capture=True,
                check=False).split()
-    known = [c for c in have if subprocess.run(['git', '-C', ROOT, 'cat-file', '-e', c + '^{commit}'],
-                                              capture_output=True).returncode == 0]
+    known = sorted({c for c in have if subprocess.run(['git', '-C', ROOT, 'cat-file', '-e', c + '^{commit}'],
+                                                      capture_output=True).returncode == 0})
     r = subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch] + ['^' + c for c in known],
                        capture_output=True, text=True)
     if r.returncode != 0 and 'empty bundle' not in r.stderr:
@@ -120,34 +127,43 @@ def gate(args):
     if r.returncode == 0:
         put(bundle, boxed)
         os.remove(bundle)
+    # this gate's inputs (charkit/out/i3d): seeded by links from this worktree's synced copy, or the clone's, then this
+    # worktree's changes sent (rsync replaces a changed file, never writing through a link)
     i3d = os.path.join(ROOT, 'charkit', 'out', 'i3d')
+    seed = '/srv/work/%s/charkit/out/i3d' % os.path.basename(ROOT)
+    _sh('ssh', 'mkdir -p /srv/work/gates && S=%s; [ -d $S ] || S=/srv/work/repo/charkit/out/i3d; '
+        '[ -d $S ] && cp -al $S %s || mkdir -p %s' % (seed, GI, GI))
     if os.path.isdir(i3d):
-        # seeded on the box from its synced copy of this worktree when there is one, so the tunnel carries only changes
-        seed = '/srv/work/%s/charkit/out/i3d/' % os.path.basename(ROOT)
-        _sh('ssh', 'mkdir -p /srv/work/repo/charkit/out/i3d && { [ ! -d %s ] || rsync -a %s /srv/work/repo/charkit/out/i3d/; }'
-            % (seed, seed))
-        _sh('push', i3d + '/', '/srv/work/repo/charkit/out/i3d/')
-    # under the lock: the refs set to this worktree's commits exactly (an empty bundle means the clone has them all; the
-    # bundle is removed once read, so a later run never fetches a stale one), then the gate
+        _sh('push', i3d + '/', GI + '/')
     sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True).stdout.strip()
            for b in (into, branch)}
-    refs = ' && '.join('git update-ref refs/heads/%s %s' % (shlex.quote(b), sha[b]) for b in (into, branch))
-    step = ('cd /srv/work && ( [ -d repo/.git ] || git clone -q %(b)s repo ) && cd repo && '
+    q = shlex.quote
+    fetch = ('cd /srv/work && ( [ -d repo/.git ] || git clone -q %(b)s repo ) && '
+             '{ [ ! -f %(b)s ] || git -C repo fetch -q -f %(b)s "refs/heads/*:refs/gates/%(gid)s/*"; } && rm -f %(b)s && '
+             'git clone -q --shared --no-checkout /srv/work/repo %(G)s'
+             % dict(b=boxed, gid=gid, G=G))
+    more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec', '--args') if k in args)
+    step = ('rc=1; flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
             'git config user.name charkit-gate && git config user.email gate@localhost && '
-            '{ [ ! -f %(b)s ] || git fetch -q -f %(b)s "refs/heads/*:refs/heads/*" --update-head-ok; } && '
-            '%(refs)s && git checkout -q -f %(into)s && rm -f %(b)s && '
-            'python -m charkit slots %(slots)d >/dev/null && python -m charkit gate %(branch)s --into %(into)s%(more)s'
-            % dict(b=boxed, refs=refs, into=shlex.quote(into), branch=shlex.quote(branch), slots=_slots(),
-                   more=''.join(' %s %s' % (k, shlex.quote(_opt(args, k))) for k in ('--spec', '--args') if k in args)))
+            'git sparse-checkout set --cone charkit && '
+            'git update-ref refs/heads/%(into)s %(si)s && git update-ref refs/heads/%(branch)s %(sb)s && '
+            'git checkout -q -f %(into)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/_gate/%(gid)s && '
+            'ln -s %(GI)s charkit/out/i3d && ln -s /srv/work/gate-out charkit/out/gate && '
+            'python -m charkit slots %(slots)d >/dev/null && '
+            '{ python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; rc=${PIPESTATUS[0]}; } ; '
+            'for r in $(sed -n "s/^report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" /srv/work/_gate/%(gid)s/ '
+            '2>/dev/null; done; cd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log; '
+            'find /srv/work/gate-out -maxdepth 1 -name "cand_*" -mtime +3 -exec rm -rf {} + 2>/dev/null; exit $rc'
+            % dict(fetch=q(fetch), G=G, GI=GI, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
+                   slots=_slots(), more=more))
     # over plain ssh with the box's environment: `run` would first cd into this worktree's synced copy, which a worktree
     # that has only ever gated doesn't have
-    code = _sh('ssh', 'source /opt/anim-build/env && flock /srv/work/.gate.lock bash -c %s' % shlex.quote(step), check=False)
-    _sh('ssh', 'mkdir -p /srv/work/_gate && cp -r /srv/work/repo/charkit/out/gate/. /srv/work/_gate/ 2>/dev/null; true')
+    code = _sh('ssh', 'source /opt/anim-build/env && bash -c %s' % q(step), check=False)
     local = os.path.join(ROOT, 'charkit', 'out', 'gate')
     os.makedirs(local, exist_ok=True)
     subprocess.run(['rsync', '-az', '-e', 'ssh -F %s' % os.path.expanduser('~/.ssh/charkit-%s.config' % _box_name()),
-                    '%s:/srv/work/_gate/' % _box_name(), local + '/'], check=False)
-    print('remote gate: exit %d, reports in %s' % (code, local))
+                    '%s:/srv/work/_gate/%s/' % (_box_name(), gid), local + '/'], check=False)
+    print('remote gate: exit %d, report in %s' % (code, local))
     return code
 
 
