@@ -972,7 +972,17 @@ def sheet_pieces(B, design, out=None):
     labels = {v: bodyqa_zbuffer(obj, az[v], bodyqa.origin(v, az[v], iw, As['centre']), As['L'], ctx['ppl'])
               for v in dv}
     S = bodymeasure.piece_shapes(labels, names, masks, graph, B.spec, ctx['ppl'])
-    C, table = {}, {'tol_L': bodymeasure.OUTLINE_TOL, 'pieces': S}
+    C, table = grade_pieces(S), {'tol_L': bodymeasure.OUTLINE_TOL, 'pieces': S}
+    table['confusion'] = {v: bodymeasure.piece_confusion(labels, names, masks, graph, B.spec, v) for v in labels}
+    if out:
+        _save_rgb(os.path.join(out, 'qa_sheet_pieces.png'), pieces_picture(labels, names, masks, graph, B.spec, dv))
+    return table, C
+
+
+def grade_pieces(S):
+    """bodymeasure.piece_shapes' records as checks: <piece id> (its worst view's iou_tol; INFO for a piece no object of
+    ours builds) and built (the drawn pieces we build as their own objects)."""
+    C = {}
     built = [p for p, r in S.items() if r['views'] and r['members']]
     shown = [p for p, r in S.items() if r['views']]
     for pid in shown:
@@ -988,10 +998,7 @@ def sheet_pieces(B, design, out=None):
                   'outline': {v: x['f'] for v, x in r['views'].items()}}
     C['built'] = {'value': '%d/%d' % (len(built), len(shown)), 'status': 'PASS' if len(built) == len(shown) else 'WARN',
                   'missing': sorted(set(shown) - set(built))}
-    table['confusion'] = {v: bodymeasure.piece_confusion(labels, names, masks, graph, B.spec, v) for v in labels}
-    if out:
-        _save_rgb(os.path.join(out, 'qa_sheet_pieces.png'), pieces_picture(labels, names, masks, graph, B.spec, dv))
-    return table, C
+    return C
 
 
 def bodyqa_zbuffer(meshes, az, org, L, ppl):
