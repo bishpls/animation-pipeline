@@ -55,13 +55,41 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
     lead_p = on_grid(P['z'], P['lead'])
     half = on_grid(F['z'], np.fmax(F['half_left'], F['half_right']))
     lead3 = on_grid(T['z'], T['lead'])
-    # the outline: a running envelope (a drawn line inside the face cuts some rows' region short), then smoothed
-    w = np.array([np.nanmax(half[max(0, i - 3):i + 4]) if np.isfinite(half[max(0, i - 3):i + 4]).any() else np.nan
-                  for i in range(len(z))])
+    # the outline: a drawn line inside the face cuts some rows' region short; those rows (well under their neighbours'
+    # median) are dropped and bridged. (A running maximum would handle them too, but on a tapering jaw it always takes
+    # the wider row above: 0.012 L too wide at the jaw.)
+    med = np.array([np.nanmedian(half[max(0, i - 3):i + 4]) if np.isfinite(half[max(0, i - 3):i + 4]).any() else np.nan
+                    for i in range(len(z))])
+    good = np.isfinite(half) & (half >= med - 0.01)
+    w = np.full(len(z), np.nan)
+    if good.sum() > 2:
+        idx = np.arange(len(z))
+        span = (idx >= idx[good][0]) & (idx <= idx[good][-1])
+        w[span] = np.interp(idx[span], idx[good], half[good])
     below = (z < -0.02) & (z > -0.2)
     nose_z = float(z[below][np.nanargmax(lead_p[below])]) if np.isfinite(lead_p[below]).any() else -0.1
+    nz, ny = neck_front(rgb, eye_x, facing)
     return dict(z=z, mid=-lead_p, w=_smooth(w, 2), lead3=lead3, az3=float(D['az_three_quarter']), chin=chin,
-                nose_z=nose_z, eye_x=eye_x, design=D)
+                nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny)
+
+
+def neck_front(rgb, eye_x, facing=-1, z0=-0.62, dz=0.005):
+    """the design's neck in profile: per row under the chin, the front edge of the drawn skin (head_turnaround's
+    profile; its back is under the hair), in the eye frame (y back, 0 at the eyes) -> (z (descending), y)."""
+    from charkit import bodyqa
+    from . import hull
+    views, info = hull.views_from_heads(rgb, eye_x, facing, floor=z0 - 0.02)
+    v = views['profile']
+    cls = bodyqa.classes(rgb, v.mask, v.eye_y, v.ppl)[0]
+    zs = np.arange(-0.3, z0, -dz)
+    ys = np.full(len(zs), np.nan)
+    for i, z in enumerate(zs):
+        r = int(round(v.eye_y - z * v.ppl))
+        skin = np.nonzero((cls[r] == bodyqa.CLASS['skin']) & v.mask[r])[0]
+        if len(skin):
+            u = ((skin.min() if facing < 0 else skin.max()) - v.axis) / v.ppl
+            ys[i] = (u if facing < 0 else -u) - info['y_e']
+    return zs, ys
 
 
 def relief_split(z, mid, nose_z, top=-0.02, bottom=None):
@@ -375,6 +403,7 @@ def _smoothstep(t):
     return t * t * (3 - 2 * t)
 
 
+SCALE_SMOOTH = 0.025             # L of rows: the jaw's and neck's width scaling is smoothed over this
 BROAD = 0.05                     # L of height: the midline's correction that spreads across the face is this smooth; the
                                  # rest (the nose, the lips, the bridge) stays at the midline, narrow
 
@@ -458,21 +487,33 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     # under the chin: the neck's own half-width, the design's (head_turnaround's front: the neck 0.06 L under its chin),
     # eased in over the jaw's underside
     neck_d = F.C['design']['front'].get('neck')
+    wk_back = wk_all.copy()
     if neck_d:
+        # under the chin the face's outline gives way to the neck's half-width (the design's, head_turnaround's front),
+        # eased in over the jaw's underside
         under = zs < zc_d
-        ease = np.clip((zc_d - zs) / 0.06, 0, 1) ** 2 * (3 - 2 * np.clip((zc_d - zs) / 0.06, 0, 1))
+        ease = _smoothstep((zc_d - zs) / 0.06)
         wk_all = np.where(under, (1 - ease) * np.where(np.isfinite(wk_all), wk_all, half_all) + ease * neck_d, wk_all)
+        # round the chin the face's outline runs to its point while the neck shows behind it (the front view's silhouette
+        # there is the neck's): the section's back keeps the neck's width, its front narrows to the chin's V
+        near = zs < zc_d + 0.1
+        wk_back = np.where(near & np.isfinite(wk_all), np.maximum(wk_all, neck_d), wk_all)
         tj = np.where(under, 0.0, tj)
-    scale = np.where(half_all > 0, (1 - tj) * wk_all / np.where(half_all > 0, half_all, 1) + tj, 1.0)
-    scale = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), scale, np.nan), smooth_terms / A.h), nan=1.0)
+
+    def scaled(w):
+        sc = np.where(half_all > 0, (1 - tj) * w / np.where(half_all > 0, half_all, 1) + tj, 1.0)
+        return np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), sc, np.nan), SCALE_SMOOTH / A.h), nan=1.0)
+    scale, scale_b = scaled(wk_all), scaled(wk_back)
     if 'scale' not in terms:
-        scale = np.ones_like(scale)
+        scale, scale_b = np.ones_like(scale), np.ones_like(scale)
     wc_all = np.nan_to_num(_smooth_rows(np.where(np.isfinite(cy), (1 - tj) * wk_all + tj * np.minimum(half_all, 0.3), np.nan),
-                                        smooth_terms / A.h), nan=0.3)
+                                        SCALE_SMOOTH / A.h), nan=0.3)
+    g_front = np.where(np.cos(th) > 0, np.cos(th) ** 2, 0.0)          # 1 at the front, 0 from the sides back
 
     def row(k):
         """row k's section points (x, y) after the jaw's scaling, its falloff coordinate, and a shaper by cheek term."""
-        x, y = np.sin(th) * R0[k] * scale[k], cy[k] - np.cos(th) * R0[k]
+        x = np.sin(th) * R0[k] * (scale_b[k] + (scale[k] - scale_b[k]) * g_front)
+        y = cy[k] - np.cos(th) * R0[k]
         s_ = x / max(wc_all[k], 1e-3)
         base = y + front * (corr[k] * _falloff(s_) + rel[k] * np.exp(-0.5 * (x / sig[k]) ** 2))
         return x, lambda c: base + front * c * _cheek(s_)
@@ -502,6 +543,31 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         yy = shaped(cheek[k])
         tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
         R[k] = np.interp(th, tn[o], np.hypot(x, yy - cy[k])[o], period=2 * np.pi)
+    # under the chin the front onto the design's drawn skin edge (head_turnaround's profile: the jaw's underside, then
+    # the neck), row by row, as a correction on the section's front that fades out by its sides: the back of the neck
+    # (under the hair in the design) stays the construction's
+    if F.C.get('neck_y') is not None and np.isfinite(F.C['neck_y']).any():
+        okn = np.isfinite(F.C['neck_y'])
+        target = np.interp(-zs, -F.C['neck_z'][okn], _smooth_rows(F.C['neck_y'], 1)[okn], left=np.nan, right=np.nan)
+        below = zs < zc_d
+        front_now = np.array([cy[k] - R[k, j0] if np.isfinite(R[k]).all() else np.nan for k in range(len(zs))])
+        # first the neck whole, by its offset from the design's neck (its depth is the construction's, under the hair in
+        # the design), ramped in over the jaw's underside so the back moves smoothly; then the front alone for the rest
+        neck_rows = (zs < zc_d - 0.06) & np.isfinite(target) & np.isfinite(front_now)
+        if neck_rows.any():
+            off = float(np.median((target - front_now)[neck_rows]))
+            cy = cy + off * _smoothstep((zc_d - zs) / 0.06)
+            front_now = front_now + off * _smoothstep((zc_d - zs) / 0.06)
+        d = np.where(below & np.isfinite(target) & np.isfinite(front_now), target - front_now, np.nan)
+        last = np.nonzero(np.isfinite(d))[0]
+        if len(last):
+            d = np.where(below & (np.arange(len(zs)) > last[-1]), d[last[-1]], d)   # under the drawn neck: held
+            d = np.nan_to_num(_smooth_rows(d, 0.006 / A.h), nan=0.0) * _smoothstep((zc_d - zs) / 0.01)
+            for k in np.nonzero(below & (np.abs(d) > 1e-6) & np.isfinite(R).all(1))[0]:
+                x, y = np.sin(th) * R[k], cy[k] - np.cos(th) * R[k]
+                y = y + d[k] * g_front
+                tn = np.arctan2(x, -(y - cy[k])); o = np.argsort(tn)
+                R[k] = np.interp(th, tn[o], np.hypot(x, y - cy[k])[o], period=2 * np.pi)
     ok = np.isfinite(R).all(1) & np.isfinite(cy)
     Rs = R.copy()
     Rs[ok] = gaussian_filter(R[ok], (smooth_z / A.h, smooth_th * Sections.N / (2 * np.pi)), mode=('nearest', 'wrap'))
