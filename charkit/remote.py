@@ -48,7 +48,10 @@ def _opt(args, k, d=None):
 
 
 def up():
+    """the box started if stopped, and kept awake: its idle stop honours /srv/work/.keepalive for two hours (a long upload
+    to the box otherwise looks idle there, and the box stopped under a seed's transfer)."""
     _sh('up')
+    _sh('ssh', 'touch /srv/work/.keepalive', check=False)
 
 
 def seed():
