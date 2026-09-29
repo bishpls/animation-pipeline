@@ -2089,15 +2089,22 @@ def venv_env():
     return out
 
 
-def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False):
+STEP_DEPTH = 2      # a venv step's code: its functions and `modules`, two imports deep. Whole and transitive, every step
+                    # reached all of charkit, so any edit anywhere re-ran the head, body and hair fits (minutes a
+                    # build in every worktree). Deeper changes can restore a stale product: the gate's builds are
+                    # cold, and `--cache verify` re-runs everything and flags a difference.
+
+
+def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=STEP_DEPTH):
     """a venv-side step whose product is files under `out` (the geom hair cut, before Blender): restored by copying them
-    when its code (fns and every charkit module they import), the venv's packages, `key` (what it is given, exactly), the
-    content of `inputs` and of every file it opened are unchanged. -> 'hit' | 'miss: why'."""
+    when its code (fns and `modules` with what they import, `depth` imports deep: STEP_DEPTH), the venv's packages, `key`
+    (what it is given, exactly), the content of `inputs` and of every file it opened are unchanged.
+    -> 'hit' | 'miss: why'."""
     global _REC
     d = cache_dir()
     files = Files(d)
     t0 = time.time()
-    units = code_units(*fns, modules=('charkit.cache',) + tuple(modules))
+    units = code_units(*fns, modules=('charkit.cache',) + tuple(modules), depth=depth)
     units['charkit/assets'] = files.get(os.path.join(KIT, 'assets'))
     units = dict(sorted(units.items()))
     envv = venv_env()
