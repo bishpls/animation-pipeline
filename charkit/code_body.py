@@ -88,46 +88,40 @@ W_PRIOR = 0.25
 W_ANCHOR = 20.0
 
 
-def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
-    """every row's superellipse at once: the measured cells as data, smooth down the rows (second differences,
-    W_SMOOTH), held weakly to a torso's proportions (PRIOR), the cut's row to the neck ring and the bottom row's
-    half-width to the hips' (W_ANCHOR). One least-squares solve with a sparse Jacobian (a row's cells depend only on its
-    own section) -> (nz, 5)."""
+def fit_sections(meas, Rc, th_c, ay, x0, anchors=(), depth=None, n=None, w_smooth=W_SMOOTH, w_centre=0.4):
+    """every row's superellipse (section_r) at once: the measured cells (meas, Rc: rows x sectors at angles th_c) as
+    data, the parameters smooth down the rows (second differences, w_smooth), held weakly (W_PRIOR) to front and back
+    depths of `depth` times the half-width, an exponent n and a centre at ay (w_centre), and pinned by anchors
+    [(row, parameter index, value)] (W_ANCHOR). One least-squares solve with a sparse Jacobian: a row's cells depend
+    only on its own section. -> (rows, 5)."""
     from scipy.optimize import least_squares
     from scipy.sparse import lil_matrix
+    depth = PRIOR['depth'] if depth is None else depth
+    n = PRIOR['n'] if n is None else n
     nz = len(meas)
     rows = [np.nonzero(meas[k])[0] for k in range(nz)]
-    X0 = np.tile([0.33, 0.28, 0.28, PRIOR['n'], ay], (nz, 1))
-    X0[0] = neck
-    lo = np.tile([0.05, 0.05, 0.05, 1.8, ay - 0.6], nz)
+    X0 = np.array(x0, float).reshape(nz, 5)
+    lo = np.tile([0.02, 0.02, 0.02, 1.8, ay - 0.6], nz)
     hi = np.tile([1.2, 1.2, 1.2, 4.0, ay + 0.6], nz)
     nd = sum(len(r) for r in rows)
     ns = 5 * (nz - 2)
     npr = 4 * nz
-    na = 5 + (1 if hw else 0) + (1 if hy is not None else 0)
+    anchors = list(anchors)
 
     def res(x):
         X = x.reshape(nz, 5)
         out = [section_r(X[k], th_c[rows[k]], ay) - Rc[k, rows[k]] for k in range(nz) if len(rows[k])]
-        d2 = (X[2:] - 2 * X[1:-1] + X[:-2]) * np.array(W_SMOOTH)
-        out.append(d2.ravel())
+        out.append(((X[2:] - 2 * X[1:-1] + X[:-2]) * np.array(w_smooth)).ravel())
         a = X[:, 0]
-        out.append(W_PRIOR * np.r_[X[:, 1] / a - PRIOR['depth'], X[:, 2] / a - PRIOR['depth'], X[:, 3] - PRIOR['n'],
-                                   0.4 * (X[:, 4] - ay)])
-        anc = [W_ANCHOR * (X[0] - neck)]
-        if hw:
-            anc.append([W_ANCHOR * (X[-1, 0] - hw)])
-        if hy is not None:
-            anc.append([W_ANCHOR * (X[-1, 4] - hy)])
-        out.append(np.concatenate(anc))
+        out.append(W_PRIOR * np.r_[X[:, 1] / a - depth, X[:, 2] / a - depth, X[:, 3] - n, w_centre * (X[:, 4] - ay)])
+        out.append(np.array([W_ANCHOR * (X[k, q] - v) for k, q, v in anchors]))
         return np.concatenate(out)
-    J = lil_matrix((nd + ns + npr + na, 5 * nz), dtype=int)
+    J = lil_matrix((nd + ns + npr + len(anchors), 5 * nz), dtype=int)
     r0 = 0
     for k in range(nz):
-        n_ = len(rows[k])
-        if n_:
-            J[r0:r0 + n_, 5 * k:5 * k + 5] = 1
-            r0 += n_
+        if len(rows[k]):
+            J[r0:r0 + len(rows[k]), 5 * k:5 * k + 5] = 1
+            r0 += len(rows[k])
     for k in range(nz - 2):
         for q in range(5):
             J[r0 + 5 * k + q, [5 * k + q, 5 * (k + 1) + q, 5 * (k + 2) + q]] = 1
@@ -137,15 +131,24 @@ def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
             J[r0 + q * nz + k, 5 * k] = 1
             J[r0 + q * nz + k, 5 * k + col] = 1
     r0 += npr
-    J[r0:r0 + 5, 0:5] = 1
-    r0 += 5
-    if hw:
-        J[r0, 5 * (nz - 1)] = 1
-        r0 += 1
-    if hy is not None:
-        J[r0, 5 * (nz - 1) + 4] = 1
+    for i_, (k, q, v) in enumerate(anchors):
+        J[r0 + i_, 5 * k + q] = 1
     sol = least_squares(res, np.clip(X0.ravel(), lo, hi), bounds=(lo, hi), jac_sparsity=J, x_scale='jac')
     return sol.x.reshape(nz, 5)
+
+
+def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
+    """the torso's sections (fit_sections): its cut's row pinned to the neck ring, its bottom row to the hips' half-width
+    and centre depth."""
+    nz = len(meas)
+    X0 = np.tile([0.33, 0.28, 0.28, PRIOR['n'], ay], (nz, 1))
+    X0[0] = neck
+    anchors = [(0, q, float(v)) for q, v in enumerate(neck)]
+    if hw:
+        anchors.append((nz - 1, 0, float(hw)))
+    if hy is not None:
+        anchors.append((nz - 1, 4, float(hy)))
+    return fit_sections(meas, Rc, th_c, ay, X0, anchors)
 
 
 def torso(H, sk, nz=56, nth=72, hip_z=None):
@@ -225,6 +228,205 @@ def torso(H, sk, nz=56, nth=72, hip_z=None):
     return dict(ax=ax, F=loft.Field(ts, th_c, R, meas), params=Pi, rows=rows, measured=share, env=env, src=src)
 
 
+LIMBS = {'leg': (('UpperLeg', 'LowerLeg'), {'skin': 0.0, 'boot': 0.016}, 0.32),
+         'arm': (('UpperArm', 'LowerArm', 'Hand'), {'skin': 0.0, 'sleeve_cuff': 0.02, 'cuff': 0.03}, 0.24)}
+# a limb: its bones in order, what measures it (by piece, with the pull-in; a side's pieces take the side's suffix), and
+# how far (front view, L) from its bones a point may be to count as its
+
+
+def _piece_names(kind, side):
+    """a limb's measuring pieces with their pull-in, the side's own ('boot_L' for her left leg)."""
+    suf = '_L' if side == 'left' else '_R'
+    return {(k if k == 'skin' else k + suf): v for k, v in LIMBS[kind][1].items()}
+
+
+class Chain:
+    """a limb's bone chain in 3D: joints (n, 3) in order (hip, knee, ankle), each segment an axis (loft.Axis, front
+    toward -y) and its arc length from the chain's start."""
+
+    def __init__(self, joints):
+        from .geom import loft
+        self.J = np.asarray(joints, float)
+        self.axes = [loft.Axis(a, b - a, (0, -1, 0)) for a, b in zip(self.J[:-1], self.J[1:])]
+        self.len = np.linalg.norm(np.diff(self.J, axis=0), axis=1)
+        self.s0 = np.r_[0.0, np.cumsum(self.len)[:-1]]
+        self.total = float(self.len.sum())
+
+    def coords(self, P):
+        """points -> (s along the chain, theta round the nearest segment, r from it, segment index)."""
+        best = None
+        for k, ax in enumerate(self.axes):
+            t, th, r = ax.coords(P)
+            tc = np.clip(t, 0, self.len[k])
+            d = np.hypot(r, t - tc)
+            cand = (d, self.s0[k] + t, th, r, np.full(len(P), k))
+            if best is None:
+                best = cand
+            else:
+                m = d < best[0]
+                best = tuple(np.where(m, c, b) for c, b in zip(cand, best))
+        return best[1], best[2], best[3], best[4].astype(int)
+
+    def point(self, s, th, r):
+        """(s along the chain, theta, r) -> points, each on the segment holding s."""
+        s = np.asarray(s, float)
+        k = np.clip(np.searchsorted(self.s0, s, side='right') - 1, 0, len(self.axes) - 1)
+        out = np.empty(s.shape + (3,))
+        for q, ax in enumerate(self.axes):
+            m = k == q
+            if m.any():
+                out[m] = ax.point(s[m] - self.s0[q], np.broadcast_to(th, s.shape)[m], np.broadcast_to(r, s.shape)[m])
+        return out
+
+
+def limb_joints(H, sk, side, kind, hy=None):
+    """a limb's joints in 3D: the graph skeleton's front-view joints, each at the depth of the middle of the limb's
+    points about it (their front and back), or hy (the hip, inside the skirt: the torso's hips' depth)."""
+    bones = [side + b for b in LIMBS[kind][0]]
+    pts2 = [sk[bones[0]][0]] + [sk[b][1] for b in bones]
+    names = _piece_names(kind, side)
+    P = np.concatenate([H.points(n) for n in names])
+    ys = []
+    for i, (x, z) in enumerate(pts2):
+        near = P[(np.hypot(P[:, 0] - x, P[:, 2] - z) < 0.15)]
+        if i == 0 and hy is not None:
+            ys.append(hy)
+        elif len(near) >= 10:
+            ys.append(0.5 * (np.percentile(near[:, 1], 5) + np.percentile(near[:, 1], 95)))
+        else:
+            ys.append(np.nan)
+    ys = np.array(ys, float)
+    ok = np.isfinite(ys)
+    if not ok.any():
+        ys[:] = hy if hy is not None else 0.0
+    else:
+        # a joint whose depth nothing measured (a shoulder under its puff) takes its nearest measured neighbour's
+        idx = np.arange(len(ys))
+        ys = np.interp(idx, idx[ok], ys[ok])
+    return np.array([(x, y, z) for (x, z), y in zip(pts2, ys)])
+
+
+def limb(H, sk, side, kind, hy=None, step=0.04, nth=48):
+    """a limb as sections along its bone chain (fit_sections, near-circular priors), from the points the design shows
+    of it (bare skin as it is, a boot or cuff pulled in by its thickness), within reach of its bones in the front view.
+    -> dict(chain, rows (s), params, measured, src)."""
+    J = limb_joints(H, sk, side, kind, hy)
+    ch = Chain(J)
+    names = _piece_names(kind, side)
+    reach = LIMBS[kind][2]
+    bones = [side + b for b in LIMBS[kind][0]]
+    src = []
+    for n, dt in names.items():
+        Q = H.points(n)
+        if not len(Q):
+            continue
+        d = np.min([_seg_dist(Q, *sk[b]) for b in bones], axis=0)
+        Q = Q[(d < reach) & (Q[:, 2] <= J[0, 2] + 0.02) & (Q[:, 2] >= J[-1, 2] - 0.02)]
+        if len(Q):
+            src.append((Q, dt))
+    s_, th, r, seg = [], [], [], []
+    for Q, dt in src:
+        a, b, c, k = ch.coords(Q)
+        s_.append(a); th.append(b); r.append(c - dt)
+    s_, th, r = np.concatenate(s_), np.concatenate(th), np.concatenate(r)
+    rows = np.linspace(0, ch.total, max(8, int(ch.total / step)))
+    nz = len(rows)
+    ii = np.clip(np.rint(np.interp(s_, rows, np.arange(nz))).astype(int), 0, nz - 1)
+    jj = np.clip(((th + np.pi) / (2 * np.pi) * nth).astype(int), 0, nth - 1)
+    th_c = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
+    keep = (s_ >= -0.02) & (s_ <= ch.total + 0.02) & (r > 0)
+    meas = np.zeros((nz, nth), bool)
+    Rc = np.full((nz, nth), np.nan)
+    cells = {}
+    for a, b, v in zip(ii[keep], jj[keep], r[keep]):
+        cells.setdefault((a, b), []).append(v)
+    for (a, b), vs in cells.items():
+        meas[a, b] = True
+        Rc[a, b] = np.median(vs)
+    r0 = float(np.median(r[keep])) if keep.any() else 0.12
+    X0 = np.tile([r0, r0, r0, 2.0, 0.0], (nz, 1))
+    P = fit_sections(meas, Rc, th_c, 0.0, X0, depth=1.0, n=2.0, w_centre=2.0)
+    return dict(chain=ch, rows=rows, params=P, measured=meas.mean(1), src=src, th=th_c)
+
+
+def limb_out(L_, H):
+    """where a limb stands out of the design's points that measure it (L; + out), after each one's pull-in."""
+    out = {}
+    ch, P, rows = L_['chain'], L_['params'], L_['rows']
+    for Q, dt in L_['src']:
+        s_, th, r, _ = ch.coords(Q)
+        k = np.clip(np.rint(np.interp(s_, rows, np.arange(len(rows)))).astype(int), 0, len(rows) - 1)
+        mine = np.array([section_r(P[kk], np.array([t_]), 0.0)[0] for kk, t_ in zip(k, th)])
+        d = mine - (r - dt) - dt
+        out.setdefault('all', []).append(d)
+    d = np.concatenate(out['all'])
+    return dict(n=int(len(d)), median=round(float(np.median(d)), 4), p90=round(float(np.percentile(d, 90)), 4),
+                out=round(float((d > 0.02).mean()), 3))
+
+
+def _tube(P, nth, caps=(True, True)):
+    """a grid of rings (rows, nth, 3) as triangles, capped at either end by a fan to the ring's centre -> (V, T)."""
+    nr = len(P)
+    V = [P.reshape(-1, 3)]
+    T = []
+    for i in range(nr - 1):
+        for j in range(nth):
+            a, b = i * nth + j, i * nth + (j + 1) % nth
+            c, d = (i + 1) * nth + (j + 1) % nth, (i + 1) * nth + j
+            T += [(a, b, c), (a, c, d)]
+    n0 = nr * nth
+    for end, ring in ((0, 0), (1, nr - 1)):
+        if caps[end]:
+            V.append(P[ring].mean(0)[None])
+            cidx = n0
+            n0 += 1
+            for j in range(nth):
+                a, b = ring * nth + j, ring * nth + (j + 1) % nth
+                T.append((cidx, b, a) if end == 0 else (cidx, a, b))
+    return np.concatenate(V), np.array(T)
+
+
+def torso_mesh(T_):
+    ax, F = T_['ax'], T_['F']
+    TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
+    return _tube(ax.point(TT, TH, F.R), len(F.th))
+
+
+def limb_mesh(L_):
+    ch, P, rows, th = L_['chain'], L_['params'], L_['rows'], L_['th']
+    R = np.stack([section_r(P[k], th, 0.0) for k in range(len(rows))])
+    S, TH = np.meshgrid(rows, th, indexing='ij')
+    return _tube(ch.point(S, TH, R), len(th))
+
+
+def body(H, sk):
+    """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)})."""
+    T_ = torso(H, sk)
+    hy = float(T_['params'][-1, 4])
+    limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
+             for k in ('leg', 'arm') for s_ in ('left', 'right')}
+    meshes = {'torso': torso_mesh(T_)}
+    meshes.update({n: limb_mesh(L_) for n, L_ in limbs.items()})
+    return dict(torso=T_, limbs=limbs, meshes=meshes)
+
+
+def views(meshes, H, spec):
+    """our parts z-buffered on the design's full-figure grids (the QA's projection: bodyqa.origin, faceqa.zbuffer),
+    in the hull's frame and units -> ({view: label image (part index, -1 none)}, the design's views, names)."""
+    from . import bodyqa, bodymeasure
+    from .faceqa import zbuffer
+    sheet = bodymeasure.Sheet(spec)
+    names = list(meshes)
+    M = [(meshes[n][0], meshes[n][1], np.full(len(meshes[n][1]), i)) for i, n in enumerate(names)]
+    iris = np.array(H.eyes, float)
+    az = bodyqa.azimuths(sheet.az3)
+    out = {}
+    for v in sheet.design:
+        org = bodyqa.origin(v, az[v], iris, np.array([0.0, float(iris[:, 1].mean()) + 0.35, 0.0]))
+        out[v] = zbuffer(M, az[v], org, 1.0, 1.0 / sheet.ppl, bodyqa.WIN)[1]
+    return out, sheet.design, names
+
+
 def signed_out(B, ax, F):
     """per point of the design (B, on its surface), how far our torso stands out of it (L; + out: it would bury a piece
     lying there)."""
@@ -301,6 +503,11 @@ def page(H, T, sk, out, rep):
         L.append('<tr><td>%s</td><td>%d</td><td>%+.3f</td><td>%+.3f</td><td>%.0f%%</td></tr>' % (
             html.escape(k), v['n'], v['median'], v['p90'], 100 * v['out']))
     L.append('</table><h2>Sections</h2><img src="img/sections.png">')
+    if rep.get('views'):
+        L.append('<h2>The body against the drawing</h2><p class="note">Our authored body (torso and limbs, separate parts: '
+                 'their joins sit under the puffs, shorts, cuffs and boots) outlined in white over the design; the body '
+                 'tinted where it shows. It should sit inside the clothes and meet the skin where skin shows.</p>'
+                 '<img src="img/views.png">')
     open(os.path.join(out, 'index.html'), 'w').write('\n'.join(L))
     json.dump(rep, open(os.path.join(out, 'torso.json'), 'w'), indent=1)
     return os.path.join(out, 'index.html')
@@ -316,9 +523,28 @@ def main(args):
     masks = manifest.produced(spec, 'outfit_masks')
     H = Hull(os.path.dirname(hull_path))
     sk = skeleton(json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json'))))
-    T = torso(H, sk)
+    B = body(H, sk)
+    T = B['torso']
     rep = {'out': measure(H, T, sk), 'measured_rows': [round(float(x), 3) for x in T['measured']],
-           'rows': [round(float(z), 3) for z in T['rows']]}
+           'rows': [round(float(z), 3) for z in T['rows']],
+           'limbs': {n: limb_out(L_, H) for n, L_ in B['limbs'].items()}}
+    for n, v in rep['limbs'].items():
+        rep['out'][n] = v
+    lab, dv, names = views(B['meshes'], H, spec)
+    os.makedirs(os.path.join(out, 'img'), exist_ok=True)
+    cols = []
+    for v, lb in lab.items():
+        img = 0.55 * np.asarray(dv[v]['rgb'], float) + 0.15
+        m = lb >= 0
+        img[m] = 0.55 * img[m] + 0.45 * np.array([0.35, 0.75, 0.95])
+        from .bodymeasure import outline
+        img[outline(m)] = (1.0, 1.0, 1.0)
+        cols.append(img)
+    Hh = max(c.shape[0] for c in cols)
+    from PIL import Image
+    pic = np.concatenate([np.pad(c, ((0, Hh - c.shape[0]), (0, 6), (0, 0)), constant_values=1.0) for c in cols], 1)
+    Image.fromarray((np.clip(pic, 0, 1) * 255).astype(np.uint8)).save(os.path.join(out, 'img', 'views.png'))
+    rep['views'] = list(lab)
     for k, v in rep['out'].items():
         print('%-10s n %5d  median %+.3f  p90 %+.3f  out>0.02 %.0f%%' % (k, v['n'], v['median'], v['p90'], 100 * v['out']))
     print(page(H, T, sk, out, rep))

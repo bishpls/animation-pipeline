@@ -118,3 +118,30 @@ Against the hull (where our torso stands out of each tight piece after its pull-
 
 The review page is `charkit/out/body/clawd/index.html` (sections from above: the hull, the measured points, ours).
 Next: the limbs along the graph's skeleton; the weights; the build integration; then the garments on it.
+
+## Limbs, v1
+
+Each limb is sections along its bone chain from the graph skeleton (the leg hip → knee → ankle; the arm shoulder →
+elbow → wrist → hand), fitted like the torso with near-circular priors. The points are its bare skin, its boots and
+cuffs pulled in by their thickness, within reach of its bones in the front view. The joints' depths come from the
+middle of the limb's points about each joint; a joint nothing measures (a shoulder under its puff, a hip inside the
+skirt) takes its neighbour's or the torso's hips.
+
+| part | points | median | p90 | out > 0.02 L |
+|---|---|---|---|---|
+| left leg | 5222 | −0.006 | +0.027 | 14% |
+| right leg | 5215 | −0.005 | +0.017 | 8% |
+| left arm (with the hand) | 2732 | −0.008 | +0.017 | 9% |
+| right arm | 2571 | −0.009 | +0.022 | 10% |
+
+Radii along the leg: thigh 0.26, knee 0.165, calf 0.20, ankle 0.12 L. Along the arm: 0.17 at the shoulder, 0.10 at
+the wrist.
+
+On the page (`img/views.png`) the body is z-buffered on the design's grids through the QA's projection, outlined over
+the drawing in every view. It sits inside the clothes and meets the bare thighs, knees, arms and hands.
+
+Next, the build integration, with its costs:
+- The feet: the boots are shells of the body's feet today; hull-loft the boots, or loft the feet from the boots pulled in.
+- The neck join to the code head: code_base's zip, onto the torso's cut ring.
+- The rig and weights: per part along its chain, a torso split by height.
+- The garments' shells, which read body regions by bone and the body's UVs.
