@@ -323,6 +323,33 @@ def hull_pieces(spec, A):
     return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
 
 
+def drawn_extent(spec, A, pid, view='front'):
+    """a piece's drawn extent in one view from the outfit graph (the produced outfit masks' graph: its bbox per view, L
+    from the eye line) as world (x0, z0, x1, z1), or None. Read as JSON through the spec's manifest (importing the
+    manifest module would pull the QA into the build's code)."""
+    import json, os
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    mp = ref.get('manifest')
+    if not mp:
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ab = lambda p: p if os.path.isabs(p) else os.path.join(root, p)
+    r = (json.load(open(ab(mp))).get('references') or {}).get('outfit_masks')
+    if not r:
+        return None
+    gp = os.path.join(os.path.dirname(ab(r['path'])), 'outfit_graph.json')
+    if not os.path.exists(gp):
+        return None
+    pc = next((p for p in json.load(open(gp))['pieces'] if p['id'] == pid), None)
+    e = ((pc or {}).get('extent') or {}).get(view)
+    if not e:
+        return None
+    L = A['head']['L']
+    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    x0, z0, x1, z1 = e['bbox']
+    return (x0 * L, ez + z0 * L, x1 * L, ez + z1 * L)
+
+
 def _hull_points(hull, s, fold=()):
     """a garment's points from the hull: its `piece` (default its name) with the pieces it carries (`fold`)."""
     if not hull:
@@ -873,12 +900,23 @@ def bow_hull(A, spec, hull):
     B = _hull_points(hull, {'name': spec['name'], 'piece': spec.get('piece', spec['name'])}, fold=())
     tails = [hull[k] for k in spec.get('fold', ('bow_tail_L', 'bow_tail_R')) if k in hull and len(hull[k])]
     lo, hi = np.percentile(B[:, 0], [2, 98])
-    sz = (hi - lo) / (2 * LOBE)
     z = float(np.median(B[:, 2]))
+    ext = drawn_extent(spec.get('_spec') or {}, A, spec.get('piece', spec['name'])) if spec.get('drawn', True) else None
+    if ext is not None:
+        # the drawn bow's width and height, not its hull points': the hull labels part of the collar's lapels as bow
+        # (both cream), which made the bow too big and set it over the lapels
+        lo, hi = ext[0], ext[2]
+        z = 0.5 * (ext[1] + ext[3])
+    sz = (hi - lo) / (2 * LOBE)
     depth = spec.get('depth', 0.06) * sz                          # the lobes' half-depth, sizes (the drawn bow is flat)
     y = float(np.percentile(B[:, 1], 2)) + depth                  # (conform then puts the front on the hull's)
     tail = spec.get('tail', 0.62)
-    if tails:
+    tail_ext = [drawn_extent(spec.get('_spec') or {}, A, k) for k in ('bow_tail_L', 'bow_tail_R')] \
+        if spec.get('drawn', True) else []
+    tail_ext = [e for e in tail_ext if e is not None]
+    if tail_ext:
+        tail = max(0.1, (z - min(e[1] for e in tail_ext)) / sz - TAIL0)
+    elif tails:
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth)
@@ -1111,7 +1149,7 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
-def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
+def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
     whose `source` is 'hull'. -> [objects]."""
@@ -1217,7 +1255,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
         elif k == 'bow' and s.get('source') == 'hull':
-            G = bow_hull(A, s, hull)
+            G = bow_hull(A, dict(s, _spec=spec_all), hull)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
         elif k == 'bow':
             G = bow(A, s)

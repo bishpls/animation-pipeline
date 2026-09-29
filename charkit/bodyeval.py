@@ -513,7 +513,7 @@ def _loops(A):
     return A['_loops']
 
 
-def garment_piece(A, s, nrm=None, dom=None, hull=None):
+def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     """one garment piece as garments.build makes it (numpy) and the skin vertices it hides; hull: garments.hull_pieces'
     points, for a garment whose `source` is 'hull'. -> (Part, hide indices)."""
     from . import garments as gm
@@ -544,7 +544,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
     elif k == 'collar':
         G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
     elif k == 'bow':
-        G = gm.bow_hull(A, s, hull) if s.get('source') == 'hull' else gm.bow(A, s)
+        G = gm.bow_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.bow(A, s)
     elif k == 'panel':
         G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
     else:
@@ -671,7 +671,7 @@ def _hem_image(colors, kw):
 GARMENT_BODIES = 4       # the garment cache keeps the pieces of this many bodies (assemblies), the most recently used
 
 
-def garment_parts(A, specs, cache=None, akey=None, hull=None):
+def garment_parts(A, specs, cache=None, akey=None, hull=None, spec_all=None):
     """every garment piece (garment_piece) and the skin vertices the tight shells and shoes hide, as garments.build's mask
     does. cache: a dict reused across calls; a piece is rebuilt only when its spec or the assembly (akey) changed. The
     cache keeps the pieces of the GARMENT_BODIES most recently used assemblies (a fit tries a new body every body-knob
@@ -685,7 +685,7 @@ def garment_parts(A, specs, cache=None, akey=None, hull=None):
         if cache is None or key not in cache:
             if nrm is None:
                 nrm = gm.vertex_normals(A['verts'], A['faces']); dom = gm.dominant(A)[0]
-            r = garment_piece(A, s, nrm, dom, hull)
+            r = garment_piece(A, s, nrm, dom, hull, spec_all)
             if cache is not None:
                 cache[key] = r
         else:
@@ -1061,7 +1061,7 @@ class Evaluator:
             hull = self._garments[hk]
         if len(self._garments) > 400:
             self._garments = {k: v for k, v in self._garments.items() if k[0] == akey}
-        garm, hide = garment_parts(A, spec.get('garments'), self._garments, akey, hull)
+        garm, hide = garment_parts(A, spec.get('garments'), self._garments, akey, hull, spec)
         t3 = time.time()
         hair_tones(hair, spec)
         ckey = (akey, hashlib.sha1(np.packbits(hide).tobytes()).hexdigest()[:12],

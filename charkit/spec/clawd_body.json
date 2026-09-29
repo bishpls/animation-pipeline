@@ -1386,7 +1386,7 @@
   {
    "kind": "collar",
    "name": "collar",
-   "v_depth": 0.44485,
+   "v_depth": 0.5,
    "back_depth": 0.51081,
    "offset": 0.03,
    "color": [
@@ -1400,8 +1400,8 @@
     0.2888
    ],
    "side_depth": 0.45498,
-   "v_half": 36,
-   "rise": -0.01,
+   "v_half": 40,
+   "rise": 0.15,
    "stripe": [
     0.74,
     0.86
