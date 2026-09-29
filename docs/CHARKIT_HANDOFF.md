@@ -738,7 +738,22 @@ gating on the build box (below). The integrator (the main session) reviews and m
 | cut-piece hair | `tool/hair-pieces` | **merged at `5206150`**: `docs/workstreams/hair.md` (taste calls for Michael there) |
 | eye and mouth engine | `tool/eyes-mouth` | **merged at `dd7eb32`**: `docs/workstreams/eyes.md` (taste calls for Michael there; the authored-head spec is `charkit/spec/clawd_code.json`) |
 | garments as pieces | `tool/garments` | **merged at `8f2ec5d`**: `docs/workstreams/garments.md` |
-| the authored body | `tool/body`, `~/animation-pipeline-body` | torso and limbs fitted; build integration in progress: `docs/workstreams/body.md` |
+| the authored body | `tool/body`, `~/animation-pipeline-body` | **round 2 merged at `76d5bdc`** (default-spec gate PASS). `clawd_body.json` isn't the default yet: its gate FAILs on `body_three_quarter_hem` (the overskirt panels, awaiting Michael's call on what they are) and `poke_share` (wrist cuffs with no clearance). Cuffs, back skirt width and chest/waist checks are in progress: `docs/workstreams/garments.md` |
+| hair detail | `tool/hair-detail` | lock relief and the buns as drawn loops, not hull blobs: `docs/workstreams/hair.md` |
+| face: eye hollow, neck, chin | `tool/face` | in progress |
+| better references | `tool/refs2` | extra design views (three-quarter back, top) by anchored edit; drift measured; one call versus several A/B |
+| shading and lines | `tool/look` | face shadow map, outlines, highlights |
+| motion groundwork | `tool/motion` | motion QA sweeps (with UniMate's pose normalisation and foot sliding) and spring bones |
+| render batching | `tool/render-batch` | board stills batched into animation renders: 2.24 → 0.53 s a frame, bit-identical (measured on a saved Clawd scene) |
+| vertical slice | not started | scoped in `docs/SLICE.md`: one action beat end to end, with physics dials; starts after its rig gate R1–R6 |
+
+**Render box facts (2026-09-29).**
+- A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
+  laptop. It's CPU-bound, because each still re-evaluates every modifier: 51 armature, 47 solidify, 20 subdivision
+  and 9 data-transfer. The render box adds parallel slots and takes load off the laptop; it doesn't make a frame faster.
+- When L4s are stocked out, `up` switches the stopped box to n1-standard-8 with a T4 (`infra/gcp/gpu-start.sh`,
+  `reshape.py`), and switches back once they're in stock.
+- `gpu.sh snapshot` and `gpu-provision.sh --zone Z --from-snapshot NAME` recreate the box in any zone.
 
 Merged this session, besides the build box:
 - `tool/stamp` (`d71e2ba`): a produced reference's stamp follows its producer function one import deep (it had
@@ -806,6 +821,38 @@ sessions share its 16 GB.
 - **Geom hair** keeps the generated side locks, so it shows less face than the design. `hair(face=True)` or the cull
   fix addresses this.
 
+## Production principles (Michael, 2026-09-29): the RWBY bar
+
+The quality bar is the early RWBY trailers. Monty Oum made them with a bespoke pipeline bent to one vision, which is
+what we're building too (his write-up: "The 3D secrets behind hip anime series RWBY", 3D World #172, 2013). These
+principles apply to the whole pipeline, not only to motion:
+
+1. **Physics is the baseline; liberties are dials.** Motion starts physically consistent. Each departure for emphasis
+   (hang time, a gravity scale, momentum carried past the physical, impact holds, smears, camera cheats) is a named,
+   deterministic, per-beat parameter, measured as a departure. Monty's liberties are an asset. Our version tunes them
+   in code, not by feel.
+2. **Spend detail where the eye goes.** Monty spent years finding "what the eye will accept as the minimum for a
+   believable performance" and warned against detail nobody sees. Weight QA toward what's seen: the face, hands and
+   silhouette in the shots used. The perceptual metric, calibrated on Michael's calls (phase 4 item 4), is the tool.
+3. **Design for the shot.** Grade from the cameras a sequence uses, not only the turnaround. Per-shot and per-frame
+   overrides (pose, line, visibility, shape keys, light) layer over the character without changing it.
+4. **Direct control over every automated result.** Monty drew lines as geometry because he distrusted toon shaders
+   ("an artist having direct control"). Our outlines are the same trick. Anything a fit or procedure produces must be
+   overridable at the finest grain it's used at.
+5. **The viewport is the final frame; keep the loop fast.** RWBY rendered from playblasts. We render with EEVEE, and a
+   change should reach a picture in minutes (render batching, the boxes).
+6. **Stir-fry to explore, bake to merge.** Explore with cheap variants: spec overrides, dial sweeps, contact sheets,
+   "shoot wide, cut tight". Gates only guard merges.
+7. **A design call is also a rig and motion call.** "If I don't have access to a certain type of rigging, then I simply
+   don't design characters that need that rig." The overskirt flaps are an example: separate pieces with their own
+   springs.
+8. **Stay legible.** Monty's pipeline lived largely in his head, and it caused friction at the studio. Keep ours
+   documented (this file, `docs/workstreams/`), gated, and on standard formats in and out (VRM, glTF, BVH). Turn
+   Michael's taste calls into calibrated measurements, so the taste is encoded rather than held in one person's head.
+
+The vertical slice, one action beat end to end, is scoped in `docs/SLICE.md`. It starts when the rig is adequate: its
+start gate R1–R6.
+
 ## Rules and decisions to keep (Michael's)
 
 - **Publishing and licences:**
@@ -837,6 +884,9 @@ sessions share its 16 GB.
     build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
     hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
     provisioning changes that need Michael's approval first.
+  - Agents stop at 200 turns. Four of six forks hit it mid-task on 2026-09-29; each resumed fine with a message.
+    Brief each fork to commit and report at milestones (about every 100–150 turns) rather than in one long run, and
+    to put its state in `docs/workstreams/NAME.md` before long jobs.
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
   - Create worktrees with `tools/worktree.sh` (sparse).
