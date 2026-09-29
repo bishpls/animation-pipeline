@@ -87,3 +87,44 @@ head. `geom.loft` is the tool for it: the torso as a field around a vertical axi
   the shorts need the 2D target.
 - Sleeves and cuffs lofted around their bones, the collar, and the boots.
 - The drape solver on the style profiles.
+
+## On the authored body (tool/body, 2026-09-29, second round)
+
+Found in the checkpoint render (1c57bb0) and by measuring. Evaluator numbers are on `clawd_body.json`, checkpoint →
+now:
+
+| piece | checkpoint | now | what changed |
+|---|---|---|---|
+| bow | 0.305 (hidden behind the top) | 0.646 | See the bow notes below. |
+| collar | 0.407 | 0.756 | Raised to the drawn neckline (rise 0.15, v_depth 0.5, v_half 40). It had started at the neck bone's head, 0.23 L low. |
+| top | 0.425 | 0.63 | The front panel is a second material by face, from the hull's bodice-panel footprint (symmetric, stray labels dropped). It had been a texture through the MakeHuman UVs, which broke into a cross. |
+| wrist cuffs | 0.32 | 0.43 | `band_hull`: a band lofted round its bone through its hull piece. |
+| sleeves' cream ends | 0.24 | 0.63 | `band_hull`. |
+| boot cuffs | 0.52 | 0.87 | `band_hull`. |
+| boots | 0.72 | 0.81 / 0.83 | `shoe_hull`: the boot's foot lofted from above the ankle to the sole. The template shoe had ballooned. |
+| overskirt panels | 0.405 / 0.675 (scraps) | 0.45 / 0.52 | See the panel notes below. |
+| skirt | 0.864 | 0.814 | Its hem is filled where the panels hide it, across the back (70–180°). |
+
+The bow:
+- The torso stays behind the bow and its tails by their measured depth (the hull shows them 0.02–0.06 L proud of the
+  chest). Only the bow points inside the drawn bow's extent count, because the hull labels part of the lapels as bow.
+- The bow takes its size from its drawn extent (`drawn_extent`, from the outfit graph).
+- Its lobes are flatter (0.06 of its size), fuller at the knot (0.6), and lifted 0.03 L. The profile's front at
+  −0.70..−0.80 L is now within 0.01 L of the drawing.
+
+The overskirt panels:
+- The hull labels them across ~90° of the back, and lofted they came out as twisted scraps.
+- They're now the panel template, its knobs fitted to the drawn panel masks in the evaluator (iou_tol per view, plus
+  the front view's reach: the lowest row and the outermost column).
+
+Other fixes:
+- **The waist.** The skin showing below the waistband was between the band and the skirt, not the top and the band.
+  The skirt now starts under the band all round, where its own points had started lower at the front.
+- **The skirt's front panel** takes the densest arc of its points (34°, not 58°).
+
+Measurement: `body_*_skirt_width` now compares the rows neither figure has a hand against (registered in
+`history.STEPS`). Each figure's widest free row had sat at a different height, because the hands hang differently.
+The results:
+- profile: 1.23 FAIL → 1.00 PASS;
+- back: 1.98 FAIL → 1.02 PASS (a long-standing failure of every build);
+- front: 0.77 FAIL. On the rows free in both, the drawn panels join the skirt's run and ours leave a gap.
