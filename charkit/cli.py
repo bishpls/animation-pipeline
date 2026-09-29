@@ -363,7 +363,7 @@ def code_body(spec, resolved, out, mode='on'):
     it runs again when the hull, the outfit graph or the code change."""
     if (spec.get('body') or {}).get('source') != 'code':
         return spec
-    from . import cache, code_body as cb, manifest
+    from . import bodypage, cache, manifest
     gdir = os.path.join(out, 'geom')
     os.makedirs(gdir, exist_ok=True)
     path = os.path.join(gdir, 'body_code.npz')
@@ -373,12 +373,12 @@ def code_body(spec, resolved, out, mode='on'):
            os.path.join(os.path.dirname(masks), 'outfit_graph.json')]
 
     def run():
-        cb.save_body(spec, path)
+        bodypage.save_body(spec, path)
     if mode == 'off':
         run()
     else:
         r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
-                            modules=('charkit.code_body', 'charkit.geom.loft'), name_key=spec['name'],
+                            modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft'), name_key=spec['name'],
                             refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_body', r)
     spec['body_code'] = path
