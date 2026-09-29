@@ -18,6 +18,7 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
+    ('body_*_skirt_width', 'ecd4d79', "the skirt's width compared on the rows neither figure has a hand against (each figure's widest free row had sat at different heights)"),
     ('hair_noise', 'c500f21', 'QA renders undithered (charkit/geom merge): hair_noise reads ~0.31 on the default hair and '
                               '~0.19 on geom hair, where dither noise split the toon tones before'),
     ('face_folds', '8017ff3', 'the expression library grew (tool/sheet: shock eyes; laugh, yawn and wavy mouths), and '
