@@ -237,6 +237,39 @@ def _hull_points(hull, s, fold=()):
     return np.concatenate(P)
 
 
+def front_surface(P, cell, fill=3):
+    """a piece's front (its least y, toward the viewer) over a grid of (x, z) cells of size `cell`, from its hull points,
+    empty cells filled from their neighbours `fill` times and then from the nearest -> fn(x, z) -> y."""
+    x0, z0 = P[:, 0].min() - cell, P[:, 2].min() - cell
+    nx = int((P[:, 0].max() - x0) / cell) + 3
+    nz = int((P[:, 2].max() - z0) / cell) + 3
+    ix = np.clip(((P[:, 0] - x0) / cell).astype(int), 0, nx - 1)
+    iz = np.clip(((P[:, 2] - z0) / cell).astype(int), 0, nz - 1)
+    Y = np.full((nx, nz), np.inf)
+    np.minimum.at(Y, (ix, iz), P[:, 1])
+    Y[~np.isfinite(Y)] = np.nan
+    for _ in range(fill):
+        nb = np.stack([np.roll(Y, s_, a) for a in (0, 1) for s_ in (-1, 1)])
+        with np.errstate(all='ignore'):
+            fillv = np.nanmean(nb, 0)
+        Y = np.where(np.isnan(Y), fillv, Y)
+    ok = np.isfinite(Y)
+    if not ok.all():
+        gi, gj = np.nonzero(ok)
+        bi, bj = np.nonzero(~ok)
+        near = ((bi[:, None] - gi[None]) ** 2 + (bj[:, None] - gj[None]) ** 2).argmin(1)
+        Y[bi, bj] = Y[gi[near], gj[near]]
+
+    def fn(x, z):
+        u = np.clip((np.asarray(x) - x0) / cell - 0.5, 0, nx - 1.001)
+        v = np.clip((np.asarray(z) - z0) / cell - 0.5, 0, nz - 1.001)
+        i, j = u.astype(int), v.astype(int)
+        fu, fv = u - i, v - j
+        return ((1 - fu) * (1 - fv) * Y[i, j] + fu * (1 - fv) * Y[i + 1, j] + (1 - fu) * fv * Y[i, j + 1] +
+                fu * fv * Y[i + 1, j + 1])
+    return fn
+
+
 def _vertical_axis(P, top):
     """a vertical axis down through a piece's points (its median x and y), from height `top`, front toward -y."""
     from .geom import loft
@@ -654,26 +687,37 @@ TAIL0 = 0.08                    # the tails start this share of the size under t
 
 def bow_hull(A, spec, hull):
     """the bow placed and sized from the hull's points of it and its tails (fold: bow_tail_L, bow_tail_R): its size
-    from the lobes' width (2 LOBE sizes), its centre at their middle (x at the midline, depth where the lobes' front
-    is, less a lobe's depth), the tails' length from how low their points reach; the mesh is bow()'s."""
+    from the lobes' width (2 LOBE sizes), its centre at their middle, the tails' length from how low their points
+    reach; the mesh is bow()'s, then (conform, default on) wrapped onto the hull's front there (front_surface), so the
+    lobes follow the chest round as the design's do: flat, a bow wide enough from the front sticks out in profile."""
     L = A['head']['L']
     B = _hull_points(hull, {'name': spec['name'], 'piece': spec.get('piece', spec['name'])}, fold=())
     tails = [hull[k] for k in spec.get('fold', ('bow_tail_L', 'bow_tail_R')) if k in hull and len(hull[k])]
     lo, hi = np.percentile(B[:, 0], [2, 98])
     sz = (hi - lo) / (2 * LOBE)
     z = float(np.median(B[:, 2]))
-    y = float(np.percentile(B[:, 1], 5)) + 0.09 * sz
+    depth = spec.get('depth', 0.09) * sz                          # the lobes' half-depth, sizes
+    y = float(np.percentile(B[:, 1], 2)) + depth                  # (conform then puts the front on the hull's)
     tail = spec.get('tail', 0.62)
     if tails:
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
-        tail = max(0.1, (z - zmin) / sz - TAIL0 - 0.10)        # (the notch reaches 0.10 sizes past the tail's end)
-    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L)
-    G['fit'] = dict(size=sz / L, tail=tail, centre=[0.5 * (lo + hi), y, z])
+        tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
+    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth)
+    if spec.get('conform', True):
+        # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
+        # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
+        S = np.concatenate([B] + tails)
+        fy = front_surface(S, spec.get('cell', 0.04) * L)
+        V = G['verts']
+        V[:, 1] += (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
+    G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
 
 
-def _bow_mesh(c, sz, tail, L):
-    """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long."""
+def _bow_mesh(c, sz, tail, L, depth=None):
+    """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
+    centre (default 0.09 sizes)."""
+    depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
 
     def add(vs, fs, us):
@@ -690,7 +734,7 @@ def _bow_mesh(c, sz, tail, L):
                 taper = 0.35 + 0.65 * math.sin(min(math.pi, th * 1.15)) ** 0.8
                 x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                 zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
-                yy = -math.cos(ph) * 0.09 * sz * taper
+                yy = -math.cos(ph) * depth * taper
                 fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
                 vs.append(c + np.array([x, yy - fold, zz])); us.append((j / nu, u_))
         fs = []

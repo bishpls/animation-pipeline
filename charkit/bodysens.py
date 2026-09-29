@@ -69,7 +69,7 @@ NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel'
              # a hull-sourced piece's settings (garments.hull_pieces): where its shape comes from and how it's read off
              # the hull, not what a fit moves
              'source', 'piece', 'fold', 'under', 'tuck', 'hem_q', 'hem_drop', 'hem_smooth', 'waist_q', 'span', 'step',
-             'round', 'nth')
+             'round', 'nth', 'conform', 'conform_k', 'cell')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {
