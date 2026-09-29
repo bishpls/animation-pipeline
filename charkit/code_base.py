@@ -335,8 +335,8 @@ def head_mesh(S, C, cut):
     # the cage fitted to its limit surface: the face's surface stays where it was placed after subdivision; the eyes'
     # sockets, the mouth's cavity (placed later by eyes.py and mouth.py) and the neck's rim (zipped to the body) held
     held = set(range(Cg.V.shape[0], len(Va))) | set(Cg.loops['neck'][0])
-    for E in eyes.values():
-        held |= set(E['margin'])
+    for name in ('eye_L', 'eye_R'):             # the eyes' loops whole: fitted next to the creased margin and the socket
+        held |= {v for r in Cg.loops[name] for v in r}          # (placed later), they folded 13 faces at rest
     movable = np.array([i not in held for i in range(len(Va))])
     sharp = [(a, b) for E in eyes.values() for a, b in zip(E['margin'], E['margin'][1:] + E['margin'][:1])]
     Va, gaps = fit_limit(Va, faces, movable, sharp)
