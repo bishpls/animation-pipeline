@@ -729,6 +729,24 @@ def sleeve(A, spec):
 
 
 # ---------------------------------------------------------------------------------------------------------------------- bow
+def sleeve_hull(A, spec, hull):
+    """a sleeve lofted through the hull's points of its piece round the upper arm's axis (geom.loft): rows from where its
+    points start (over the shoulder's cap, before the joint: t < 0) to where they end, the measured section between,
+    `offset` L out; weighted to the upper arm. -> dict(verts, faces, weights, uv)."""
+    from .geom import loft
+    L = A['head']['L']
+    side = spec.get('side', 'left')
+    P = _hull_points(hull, spec)
+    h, t_ = bone_seg(A, side + 'UpperArm')
+    ax = loft.Axis(h, t_ - h, (0, -1, 0))
+    t, th, r = ax.coords(P)
+    lo, hi = np.percentile(t, spec.get('span', (1, 99)))
+    rows = max(4, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 64), min_row=0.15)
+    V, quads, uv = loft.loft(ax, F, F.R + spec.get('offset', 0.0) * L)
+    return dict(verts=V, faces=quads, weights={side + 'UpperArm': np.ones(len(V))}, uv=[tuple(x) for x in uv])
+
+
 def bow(A, spec):
     """a big ribbon bow on the chest: two puffy lobes (squashed, tapering into the knot, a soft fold down their face), a
     rounded knot, two tails hanging out and down with notched ends (`tail`: their length, a share of the size; 0.62).
@@ -769,6 +787,7 @@ def bow_hull(A, spec, hull):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
         S = np.concatenate([B] + tails)
+        S = S[S[:, 1] < np.percentile(S[:, 1], 2) + spec.get('front_band', 0.3) * L]   # its front (stray labels behind)
         fy = front_surface(S, spec.get('cell', 0.04) * L)
         V = G['verts']
         V[:, 1] += (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
@@ -1070,7 +1089,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
                 sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
                 sol.use_rim = True
         elif k == 'sleeve':
-            G = sleeve(A, s)
+            G = sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':

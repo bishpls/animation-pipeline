@@ -572,9 +572,10 @@ def build_body_data(spec, chin, log=print):
     if missing:
         raise ValueError('authored body: no joint for %s' % missing[:5])
     log('code body: %d verts, %d faces, %d bones weighted' % (nv, len(Fs), len(weights)))
+    eye_y = float(np.mean(Z['eyes'][:, 1])) * L if 'eyes' in Z.files else None     # (world y: x and z need no move)
     return dict(verts=V, faces=Fs, face_uv=FUV, uvs=np.array(UVs), weights=weights, joints=J, neck_ring=neck_ring,
                 params=P, head_len=L, scale=1.0, head_w=np.zeros(nv), marks={}, authored=True,
-                head_uv_box=HEAD_UV_BOX, parts=parts)
+                head_uv_box=HEAD_UV_BOX, parts=parts, eye_y=eye_y)
 
 
 def _joints(Z, sk, world, L):

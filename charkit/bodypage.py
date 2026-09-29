@@ -42,6 +42,7 @@ def save_body(spec, path, log=print):
         arrays[n + '_P'] = foot_rings(F_)
         arrays[n + '_front'] = np.array(F_['front'])
         arrays[n + '_back'] = np.array(F_['back'])
+    arrays['eyes'] = np.asarray(H.eyes, float)
     arrays['skeleton'] = np.array(json.dumps({k: [list(a), list(b)] for k, (a, b) in sk.items()}))
     np.savez_compressed(path, **arrays)
     log('code body: %s' % path)

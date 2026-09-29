@@ -44,6 +44,12 @@ class SectionsHead:
         self.df = float(y0 - (self._cy[k0] - self._r[k0, j0])) * L
         self.db = float(self._cy[k0] + self._r[k0, jb] - y0) * L
         self.eye_x = float(C['eye_x']) * L
+        # the face's front at the eyes' column (not the midline's, the nose's bridge: this head sets its eyes back in
+        # their sockets, as an anime profile draws them), what the generated target's eyes align to (i3d.eye_target)
+        ex = float(C['eye_x'])
+        row = self._r[k0]
+        k = int(np.argmin(np.abs(row * np.sin(S.th) - ex) + 10 * (np.cos(S.th) < 0)))
+        self.eye_df = float(y0 - (self._cy[k0] - row[k] * np.cos(S.th[k]))) * L
         self.eye_z = 0.0
         self.nose_z = float(C['nose_z']) * L
         self.mouth_z = (mouth_z if mouth_z is not None else float(C['nose_z']) - 0.11) * L
@@ -475,6 +481,17 @@ def wrap(spec, body=None, log=print):
     return _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ring_b, nc)
 
 
+def eye_front(S, C):
+    """the face's front at the eyes' column on the eye line, in the head's frame (L): what the generated target's eyes
+    align to (SectionsHead.eye_df, i3d.eye_target)."""
+    ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+    zs, cy, r = S.zs[ok], S.cy[ok], S.r[ok]
+    k0 = int(np.argmin(np.abs(zs)))
+    ex = float(C['eye_x'])
+    k = int(np.argmin(np.abs(r[k0] * np.sin(S.th) - ex) + 10 * (np.cos(S.th) < 0)))
+    return float(cy[k0] - r[k0, k] * np.cos(S.th[k]))
+
+
 def _cut_body(Bm, Vb, Fb, z_cut, L):
     """MakeHuman's body cut level at the neck -> (the kept faces' indices, those faces, the neck ring)."""
     # the cut: above it, within the neck's column (the shoulders' tops can reach it beside the neck, and stay)
@@ -525,6 +542,12 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     cy_cut = float(np.interp(-CUT, -S.zs[ok], S.cy[ok]))
     Oy = nc[1] - cy_cut * L
     Ox = nc[0]
+    if Bm.get('eye_y') is not None:
+        # an authored body built from the full-body design knows where its eyes are: the head goes there (the body sheet
+        # places the head on the figure; the head sheet can carry its eyes further forward of its neck), and the neck's
+        # blend takes up the difference down to the body's ring
+        Oy = float(Bm['eye_y']) - (eye_front(S, C) + float(((spec.get('hair') or {}).get('shape') or {}).get(
+            'eye_depth', 0.01))) * L
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r)
     Hmesh = head_mesh(Sb, C, CUT, eye_outline(spec), mouth_block(spec))

@@ -538,7 +538,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
         if 'hide' in G:
             hide = np.asarray(G['hide'], np.int64)
     elif k == 'sleeve':
-        G = gm.sleeve(A, s)
+        G = gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
     elif k == 'skirt':
         G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
