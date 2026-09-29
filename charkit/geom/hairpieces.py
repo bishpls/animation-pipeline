@@ -45,8 +45,9 @@ BUN_CORE = 1.6          # a bun's points further than this many times their medi
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
             chain=6, fine_tips=('bangs',))
 # (build's opts also: bun 'round' | 'block' (the design's bun template: a round shell or fitted block loops), bun_fit,
-# carve_buns, clamp_side_locks, clamp_margin, clamp_keep_cheek; fine_tips: the pieces whose lower edge is the drawing's
-# at the locks' own columns (the fringe's points over the eyes), not the chart's columns interpolated)
+# carve_buns, clamp_side_locks (off: it folds the locks, see build), clamp_margin, clamp_keep_cheek; fine_tips: the
+# pieces whose lower edge is the drawing's at the locks' own columns (the fringe's points over the eyes), not the
+# chart's columns interpolated)
 
 
 def fam_id(name):
@@ -1217,9 +1218,11 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         if bl:
             add('flyaways', 'flyaways', bl)
     # the side locks held behind the drawing's front edge in profile: the hull fills the gap between a lock and the cheek
-    # (no view shows it), so they stood in front of the face; each side's own view (her right: the mirrored profile)
+    # (no view shows it), so they stood in front of the face; each side's own view (her right: the mirrored profile).
+    # Opt-in: moving a built lock folds it (per vertex 150-200 outer folds a side lock, sheared per height 40-130, and
+    # the render crumples); the constraint belongs in the chart's envelope before the locks are lofted
     if views is not None and hull_frame is not None and masks.get('profile__side_locks') is not None and \
-            o.get('clamp_side_locks', True):
+            o.get('clamp_side_locks', False):
         fr = skin_front(surface_points(np.asarray(case.A['verts'], float), case.A['faces'], 0.006 * L), 0.008 * L) \
             if o.get('clamp_keep_cheek', True) else None
         for name, az, mirror in (('side_lock_L', 90.0, False), ('side_lock_R', 270.0, True)):
@@ -1229,6 +1232,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                        skin=fr, gap=o['gap'] * L)
                 pieces[name]['V'] = V2
                 report['pieces'][name]['clamped_L'] = round(mv, 4)
+                report['pieces'][name]['folds'] = folds(V2, pieces[name]['T'], pieces[name]['outer'],
+                                                        pieces[name]['vn_env'])      # (counted again once moved)
     if style.get('normals', 'envelope') == 'envelope':
         shade_normals(pieces, L, style)
     report['fields'] = dict(columns_with_hair=int((F['reach'] >= 0).sum()), cells=int(F['valid'].sum()),
@@ -1257,10 +1262,11 @@ def skin_front(P, cell):
     return f
 
 
-def clamp_to_view(V, T, mask, view, az, mirror, hull_frame, margin=0.01, smooth=8, skin=None, gap=0.0):
+def clamp_to_view(V, T, mask, view, az, mirror, hull_frame, margin=0.01, smooth=2.0, skin=None, gap=0.0,
+                  band=0.01):
     """a piece held behind the drawing's front edge in one view: its vertices that project in front of the drawn mask's
-    front-most column in their row (toward the face) are moved back along the view's horizontal to it, less `margin` L,
-    the moves smoothed over the mesh `smooth` times so the lock bends rather than tears. The view's frame and pixels
+    front-most column in their row (toward the face) are moved back along the view's horizontal to it, less `margin` L:
+    the piece sheared, one move per `band` L of height (smoothed over `smooth` bands), so the lock bends as a whole. The view's frame and pixels
     are label_hull's (the hull's views, a mirrored profile for her right side). skin: skin_front's function: when a
     side view's move is backward (+y): a vertex in front of the skin there stays `gap` (world) in front of it, since
     the front view draws the lock over the cheek (a face wider than the drawing's keeps it forward rather than behind
@@ -1299,18 +1305,24 @@ def clamp_to_view(V, T, mask, view, az, mirror, hull_frame, margin=0.01, smooth=
         dy = step[1] * np.sign(du) * s_                          # world y per hull unit of |du| (+: backward)
         room = np.where(np.isfinite(fy) & (Vw[:, 1] < fy - gap) & (dy > 0), (fy - gap - Vw[:, 1]) / np.maximum(dy, 1e-12),
                         np.inf)
-        du = np.sign(du) * np.minimum(np.abs(du), room)
-        ahead &= np.abs(du) > 0
-    nb = [set() for _ in range(len(h))]
-    for t in np.asarray(T):
-        for i in t:
-            nb[i].update(t)
-    must = du.copy()
-    for _ in range(smooth):                     # the moves spread to their neighbours; the required ones stay whole
-        du = np.array([du[list(n)].mean() if n else du[i] for i, n in enumerate(nb)])
-        du = np.where(ahead, must, du)
+        ahead &= room > 0
+        if not ahead.any():
+            return np.asarray(V, float), 0.0
+    # one move per height (a shear of the whole piece, rows of `band` L): the most any vertex in the row needs, never
+    # more than the row's least room in front of the cheek, smoothed down the piece. Per-vertex moves folded the lock
+    # over itself (150-200 outer folds a side lock), since a lock's front and back vertices then moved apart.
+    zb = np.floor(h[:, 2] / band).astype(int)
+    z0 = zb.min()
+    nbins = zb.max() - z0 + 1
+    need = np.zeros(nbins)
+    np.maximum.at(need, zb[ahead] - z0, np.abs(du[ahead]))
     if skin is not None:
-        du = np.sign(du) * np.minimum(np.abs(du), room)
+        cap = np.full(nbins, np.inf)
+        np.minimum.at(cap, zb - z0, room)
+        need = np.minimum(need, cap)
+    from scipy.ndimage import gaussian_filter1d, maximum_filter1d
+    need = gaussian_filter1d(maximum_filter1d(need, 3), smooth, mode='nearest')
+    du = np.sign(du[ahead].mean()) * need[zb - z0]
     h = h + np.outer(du, step)
     return h * s_ + tr, float(np.abs(du).max())
 

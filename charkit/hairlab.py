@@ -3,13 +3,14 @@ shape overrides, and measured by the QA's own hair checks (qa3d.hair_pieces_meas
 variant. The loop behind each hair piece default (docs/workstreams/hair.md).
 
     python -m charkit hairlab BUILD [--style KEY=VALUE ...] [--opts KEY=VALUE ...] [--shape KEY=VALUE ...]
-                                    [--labels OUT.png]
+                                    [--labels OUT.png] [--noise]
 
   BUILD    a build with its hair in pieces (its bundle, geom/pieces.spec.json and the hull it read)
   --style  the style profile's hair_pieces keys (e.g. notch=3 relief=0.015)
   --opts   hairpieces.build's opts (e.g. bun=block fine_tips=bangs,side_lock_L carve_buns=false)
   --shape  the spec's hair.shape keys, before the case is aligned (e.g. eye_anchor=iris)
   --labels the QA scene's family labels per view (front, profile, back) with the drawn families' outlines over them
+  --noise  hair_noise's measure for the rebuilt pieces (drawn with the build's hair materials and their shading normals)
 
 Prints the hair checks (value, drawn or piece, status), the face shown against the design's per view (our skin above
 the chin over the drawing's: the hair hiding or showing the face), the builder's folds and the bun fit's IoU.
@@ -123,6 +124,65 @@ def run(ctx, style_over=None, opts=None):
     return R, Cq, face_shown(ctx, hair), hair
 
 
+class _Piece:
+    """a bundle hair object with a rebuilt piece's mesh and shading normals in place of its eval variant (the QA's
+    drawing then shades the candidate as the build would: its toon material, its custom normals)."""
+
+    def __init__(self, o, V, T, vn):
+        self._o, self._V, self._T, self._vn = o, np.asarray(V, float), np.asarray(T, np.int64), np.asarray(vn, float)
+
+    def __getattr__(self, k):
+        return getattr(self._o, k)
+
+    def mesh(self, variant='eval'):
+        return self._V, self._T, np.zeros(len(self._T), np.int64), np.arange(len(self._T))
+
+    def tris(self, variant='eval'):
+        return self._T, np.arange(len(self._T)), self._T
+
+    def a(self, variant, field):
+        return self._vn if field == 'lnor' else self._o.a(variant, field)
+
+    def has(self, variant):
+        return True
+
+
+def noise(ctx, R):
+    """qa3d.hair_noise's measure (tone edges per visible hair pixel, the hair drawn without outlines behind the rest,
+    from 0, 90 and 180 degrees) for rebuilt pieces, each drawn as the build's object of the same name with the piece's
+    mesh and shading normals. -> (mean, {az: value}, {piece: {az: value}})."""
+    from . import qa3d
+    B = ctx['B']
+    objs = {o.name: o for o in qa3d._visible(B, ('hair',))}
+    hair = [_Piece(objs['hair_' + n], p['V'], p['T'], p['vn_shade']) for n, p in R['pieces'].items()
+            if 'hair_' + n in objs]
+    fr = qa3d.figure_frame(B, ss=qa3d.FIG_SS)
+    surfs, owner = [], []
+    for i, o in enumerate(hair):
+        for x in qa3d.surfaces(B, o, outline=False):
+            surfs.append(x); owner.append(i)
+    occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
+           for x in qa3d.surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
+    per, by = {}, {}
+    for az in (0, 90, 180):
+        px = qa3d.draw(B, surfs + occ, az, fr)
+        items = [(s_['V'], s_['T'], np.full(len(s_['T']), owner[k] + 1 if k < len(surfs) else 0), s_['cull'])
+                 for k, s_ in enumerate(surfs + occ)]
+        lab = qa3d._to_shape(fr.zbuffer(items, az)[1], px.shape[:2])
+        a = (px[..., 3] > 0.5) & (lab >= 1)
+        lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
+        q = np.digitize(lum, np.percentile(lum[a], [33, 66])) if a.sum() > 50 else np.zeros_like(lum)
+        e = np.zeros(a.shape, bool)
+        e[:, 1:] |= (np.abs(np.diff(q, axis=1)) > 0) & a[:, 1:] & a[:, :-1]
+        e[1:] |= (np.abs(np.diff(q, axis=0)) > 0) & a[1:] & a[:-1]
+        per[az] = round(float(e.sum() / max(1, a.sum())), 4)
+        for i, o in enumerate(hair):
+            m = a & (lab == i + 1)
+            if m.sum() > 30:
+                by.setdefault(o.name[5:], {})[az] = round(float(e[m].sum() / m.sum()), 3)
+    return round(float(np.mean(list(per.values()))), 4), per, by
+
+
 def label_image(ctx, hair, path, views=('front', 'profile', 'back'), rows=(0, 260), scale=2):
     """the QA scene's family labels per view (bangs orange, side locks blue, upper back green, lower back purple, buns
     yellow, ahoge white, flyaways grey; skin dark), the drawn families' outlines over them darker, cropped to rows."""
@@ -174,6 +234,9 @@ def main(args):
     print('%-24s %s' % ('folds (builder)', {k: r.get('folds') for k, r in R['report']['pieces'].items()}))
     if 'bun_fit' in R['report']:
         print('%-24s %s' % ('bun fit IoU', json.dumps(R['report']['bun_fit'])))
+    if '--noise' in args:
+        v, per, by = noise(ctx, R)
+        print('%-24s %s %s %s' % ('hair_noise', v, per, by))
     if '--labels' in args:
         print('labels', label_image(ctx, hair, os.path.abspath(args[args.index('--labels') + 1])))
     print('(%.0f s)' % (time.time() - t))
