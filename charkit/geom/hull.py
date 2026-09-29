@@ -559,9 +559,8 @@ def label_volume(V, A, views, names, normals=None):
         best[take] = w[take]
     seen = np.isfinite(best)
     if (~seen).any() and seen.any():
-        from scipy.spatial import cKDTree
         P = np.stack([ix, iy, iz], 1)
-        _, j = cKDTree(P[seen]).query(P[~seen])
+        j = det.nearest(P[seen], P[~seen])
         lab[~seen] = lab[seen][j]; cls[~seen] = cls[seen][j]
     return dict(ix=ix, iy=iy, iz=iz, label=lab, cls=cls, seen=seen, normals=N)
 
@@ -640,9 +639,8 @@ def validate_labels(V, A, views, P):
 
 def vertex_labels(m, L, A):
     """each mesh vertex's label and class: its nearest shell voxel's -> (int16 (N,), int16 (N,))."""
-    from scipy.spatial import cKDTree
     C = np.stack([A.xs[L['ix']], A.ys[L['iy']], A.zs[L['iz']]], 1)
-    _, j = cKDTree(C).query(m.V)
+    j = det.nearest(C, m.V)
     return L['label'][j].astype(np.int16), L['cls'][j].astype(np.int16)
 
 

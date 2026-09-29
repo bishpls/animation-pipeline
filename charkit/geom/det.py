@@ -15,6 +15,7 @@ power-of-two grid far coarser than an ulp:
     snap(x, q)              x rounded to multiples of q (a power of two, so the result is exact)
     dot3(P, v)              rows of P dotted with a 3-vector, term by term (not BLAS)
     normals_area(V, F)      unit vertex normals, area weighted (no transcendental functions)
+    nearest(P, Q)           each query's nearest point, a tie going to the lowest index (not cKDTree's own order)
 """
 import math
 
@@ -102,3 +103,33 @@ def normals_area(V, F):
     for k in range(3):
         np.add.at(out, F[:, k], n)
     return out / np.maximum(norm3(out), 1e-300)[:, None]
+
+
+def nearest(P, Q, k=8):
+    """the index into P of each Q's nearest point, the same on every machine. cKDTree finds k candidates, but among
+    equidistant points it answers in its tree's order, and the tree is built with the C++ library's nth_element
+    (libstdc++ on Linux, libc++ on macOS): on a voxel lattice, where ties are everywhere, the two machines picked
+    different neighbours. Here the candidates' squared distances are recomputed termwise and a tie goes to the lowest
+    index. Where the k-th candidate still ties the nearest (the tie may go on past k), k doubles. -> int (M,)."""
+    from scipy.spatial import cKDTree
+    P = np.asarray(P, float)
+    Q = np.asarray(Q, float)
+    tree = cKDTree(P)
+    out = np.empty(len(Q), np.int64)
+    todo = np.arange(len(Q))
+    kk = min(k, len(P))
+    while len(todo):
+        _, j = tree.query(Q[todo], k=kk)
+        j = np.asarray(j).reshape(len(todo), kk)
+        q = Q[todo]
+        D = np.zeros(j.shape)
+        for a in range(P.shape[1]):
+            d = q[:, a, None] - P[j, a]
+            D = D + d * d
+        o = np.lexsort((j, D), axis=-1)
+        rows = np.arange(len(todo))
+        out[todo] = j[rows, o[:, 0]]
+        more = (D[rows, o[:, -1]] == D[rows, o[:, 0]]) & (kk < len(P))
+        todo = todo[more]
+        kk = min(kk * 2, len(P))
+    return out
