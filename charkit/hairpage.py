@@ -20,6 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAL = {'bangs': (.85, .2, .2), 'side_lock_L': (1, .8, .2), 'side_lock_R': (.95, .65, .1), 'upper_back': (.55, .3, .9),
        'lower_back': (1, .5, .7), 'bun_L': (.2, .4, 1), 'bun_R': (.3, .5, 1), 'ahoge': (.1, .8, .7),
        'flyaways': (.5, .9, .1)}
+EXPLODE = 0.35                  # L: how far the exploded view moves each piece out
 HAIR_KEYS = ('hair', 'scalp', 'sheet_shown', '_top', 'shape_iou_hair', 'palette_hair')
 
 
@@ -143,6 +144,15 @@ def page(build, out, against=None):
     tiles = {}
     for az in (0, 90, 180, 270):
         tiles[az] = save(render(pieces, az, c, L), 'pieces_%d.png' % az)
+    # exploded: each piece moved out along its centroid's direction from the head's centre
+    exploded = {}
+    for n, P in pieces.items():
+        d = P['V'].mean(0) - c
+        d = d / max(1e-9, np.linalg.norm(d))
+        exploded[n] = dict(P, V=P['V'] + d * EXPLODE * L, chains=[(np.asarray(ch_) + d * EXPLODE * L).tolist()
+                                                                   for ch_ in P['chains']])
+    exp_tiles = [save(render(exploded, az, c, L, win=dict(x=1.8, top=1.9, bottom=-1.7)), 'exploded_%d.png' % az)
+                 for az in (0, 90, 180)]
     ex = []
     for n in pieces:
         ex.append((n, save(np.concatenate([render(pieces, 0, c, L, [n], win=dict(x=1.1, top=1.4, bottom=-1.1)),
@@ -171,7 +181,10 @@ def page(build, out, against=None):
          '<th>push over the skin (L)</th><th>fairness rms / p95 (deg)</th></tr>%s</table>' % ''.join(prow),
          '<div class="row">%s</div>' % ''.join('<div class="tile"><img src="%s" height="360">az %d</div>' % (t, a)
                                               for a, t in tiles.items()),
-         '<p class="note">Each lock outlined; its chain (root to tip, for the spring bones) drawn dark.</p>']
+         '<p class="note">Each lock outlined; its chain (root to tip, for the spring bones) drawn dark.</p>',
+         '<h2>Exploded (each piece moved %.2f L out from the head\'s centre)</h2><div class="row">%s</div>' % (
+             EXPLODE, ''.join('<div class="tile"><img src="%s" height="360">az %d</div>' % (t, a)
+                              for a, t in zip((0, 90, 180), exp_tiles)))]
     if fam:
         H.append('<h2>Families: the drawing (left) and ours (right), front, profile, back</h2><img src="%s" '
                  'style="max-width:100%%">' % fam)
