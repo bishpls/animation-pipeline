@@ -746,6 +746,24 @@ gating on the build box (below). The integrator (the main session) reviews and m
 | motion groundwork | `tool/motion` | motion QA sweeps (with UniMate's pose normalisation and foot sliding) and spring bones |
 | render batching | `tool/render-batch` | board stills batched into animation renders: 2.24 → 0.53 s a frame, bit-identical (measured on a saved Clawd scene) |
 | vertical slice | not started | scoped in `docs/SLICE.md`: one action beat end to end, with physics dials; starts after its rig gate R1–R6 |
+| hull determinism | `tool/hull-det` | bit-identical hulls on the build box (AVX-512), render box (AVX2) and laptop (ARM). The carved volume already matches; decimation order and the labels' view choice diverge on last-bit float ties (3% of vertex labels) |
+| rig adequacy | `tool/rig` | the slice's start gate R1–R2 by motion QA: spine rest, weights (sleeves, collar, fingers), elbow and knee volume (twist bones and constraints, correctives) |
+
+**Box infrastructure (2026-09-29, later).**
+- **Parallel gates** (`f3e8747`). Each gate runs in its own `git clone --shared` of `/srv/work/repo`, with the lock held
+  only while fetching. Outputs go to the shared `/srv/work/gate-out`, and gates into one commit build its baseline once,
+  under a lock of its own. Only the gate's own report comes back: fetching all of `_gate` had been 673 MB a gate.
+- **Gate code comes from `into`.** A gate runs the target branch's `gate.py`, not the gated branch's, so a change to
+  gate.py only takes effect once it's merged.
+- **Syncs leave gitignored paths at home** (`6c78048`): a full worktree's first sync went from 2.7 to 0.87 GB.
+- **Hard links:**
+  - Worktrees seeded with `cp -al` shared the hull and outfit masks, and rebuilds wrote through the links: the face
+    fork's carve landed in four other worktrees.
+  - `cache.unshare` (`tool/unshare`) makes produced references and build outputs unshare before they're rewritten.
+  - Never seed charkit/out with hard links except `i3d`, which builds only read.
+- **Cross-machine hulls:** same code, different CPU gives different hull labels (see `tool/hull-det`). Each box is
+  deterministic run to run. Compare only builds from one machine until hull-det lands.
+- **New worktrees** need `infra/gcp/build.env` and `render.env` copied in (gitignored).
 
 **Render box facts (2026-09-29).**
 - A Clawd board frame (540x900, EEVEE, 64 samples) takes 2.4 s on the L4, 2.2 s on a T4 and 2.0 s on the M2 Pro
