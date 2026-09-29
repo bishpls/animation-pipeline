@@ -29,6 +29,7 @@
     python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
+    python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
@@ -491,6 +492,9 @@ def main(argv=None):
     elif cmd == 'outfit':
         from . import outfit
         outfit.main(rest)
+    elif cmd == 'pieces':
+        from . import piecepage
+        piecepage.main(rest)
     elif cmd == 'eyes':
         from . import eyepage
         eyepage.main(rest)

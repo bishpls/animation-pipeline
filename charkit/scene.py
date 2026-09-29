@@ -125,11 +125,9 @@ def cull_face(S, hv, hf, shape):
 
 
 def eye_target(A, shape):
-    """where a generated character's eyes land on ours (charkit.i3d.align_by_eyes): the midpoint of our eyes, `eye_depth`
-    (head lengths) behind the front of the face, and our eye spacing times `spacing`. -> (eye_mid (3,), spacing)."""
-    Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
-    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
-    return eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)
+    """i3d.eye_target (where a generated character's eyes land on ours)."""
+    from . import i3d
+    return i3d.eye_target(A, shape)
 
 
 def hair_shape_volume(S, shape, hc):
@@ -333,7 +331,10 @@ def stage_face_shading(S):
 
 def stage_garments(S):
     from . import garments
-    S.garments = garments.build(S.character, S.spec.get('garments'))
+    specs = S.spec.get('garments')
+    hull = garments.hull_pieces(S.spec, S.character['data']) if any(g.get('source') == 'hull' for g in specs or []) \
+        else None
+    S.garments = garments.build(S.character, specs, hull=hull)
 
 
 STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading', stage_face_shading),

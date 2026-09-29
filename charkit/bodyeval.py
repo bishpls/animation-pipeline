@@ -513,13 +513,14 @@ def _loops(A):
     return A['_loops']
 
 
-def garment_piece(A, s, nrm=None, dom=None):
-    """one garment piece as garments.build makes it (numpy) and the skin vertices it hides. -> (Part, hide indices)."""
+def garment_piece(A, s, nrm=None, dom=None, hull=None):
+    """one garment piece as garments.build makes it (numpy) and the skin vertices it hides; hull: garments.hull_pieces'
+    points, for a garment whose `source` is 'hull'. -> (Part, hide indices)."""
     from . import garments as gm
     k, nm = s['kind'], s['name']
     hide = np.zeros(0, np.int64)
     if k == 'shell':
-        G = gm.shell(A, s, nrm)
+        G = gm.shell(A, s, nrm, hull)
         src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
         lv, st, ct = _loops(A)
         c = np.add.reduceat(inside[lv].astype(int), st)
@@ -533,17 +534,19 @@ def garment_piece(A, s, nrm=None, dom=None):
         dom = gm.dominant(A)[0] if dom is None else dom
         hide = np.nonzero(np.isin(dom, [f"{s['side']}Foot", f"{s['side']}Toes"]))[0]
     elif k == 'belt':
-        G = gm.belt(A, s)
+        G = gm.belt_hull(A, s, hull) if s.get('source') == 'hull' else gm.belt(A, s)
+        if 'hide' in G:
+            hide = np.asarray(G['hide'], np.int64)
     elif k == 'sleeve':
         G = gm.sleeve(A, s)
     elif k == 'skirt':
-        G = gm.skirt(A, s)
+        G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
-        G = gm.collar(A, s, nrm)
+        G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
     elif k == 'bow':
-        G = gm.bow(A, s)
+        G = gm.bow_hull(A, s, hull) if s.get('source') == 'hull' else gm.bow(A, s)
     elif k == 'panel':
-        G = gm.panel(A, s)
+        G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
     else:
         raise ValueError(k)
     lit, shade, tex = garment_tones(A, s, G)
@@ -551,6 +554,8 @@ def garment_piece(A, s, nrm=None, dom=None):
     P.tex = tex
     if k in SOLID:                                             # the thickness the build's Solidify gives it (evaluated)
         P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
+    elif k == 'belt' and s.get('source') == 'hull':
+        P.solid = s.get('thick', 0.025) * A['head']['L']
     return P, hide
 
 
@@ -624,7 +629,7 @@ def garment_tones(A, s, G):
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
     elif k == 'skirt':
         flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
-        pw = s.get('panel', 0.0) / (2 * np.pi)
+        pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * np.pi)
         img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), panel=(0.5 - pw, 0.5 + pw), repeat=s.get('repeat', 8),
                         pleats=s.get('pleats', 24))
         U = np.asarray(G['uv'], float)
@@ -662,7 +667,7 @@ def _hem_image(colors, kw):
 GARMENT_BODIES = 4       # the garment cache keeps the pieces of this many bodies (assemblies), the most recently used
 
 
-def garment_parts(A, specs, cache=None, akey=None):
+def garment_parts(A, specs, cache=None, akey=None, hull=None):
     """every garment piece (garment_piece) and the skin vertices the tight shells and shoes hide, as garments.build's mask
     does. cache: a dict reused across calls; a piece is rebuilt only when its spec or the assembly (akey) changed. The
     cache keeps the pieces of the GARMENT_BODIES most recently used assemblies (a fit tries a new body every body-knob
@@ -676,7 +681,7 @@ def garment_parts(A, specs, cache=None, akey=None):
         if cache is None or key not in cache:
             if nrm is None:
                 nrm = gm.vertex_normals(A['verts'], A['faces']); dom = gm.dominant(A)[0]
-            r = garment_piece(A, s, nrm, dom)
+            r = garment_piece(A, s, nrm, dom, hull)
             if cache is not None:
                 cache[key] = r
         else:
@@ -1041,9 +1046,18 @@ class Evaluator:
         hair, target, align = self.hair_parts(spec, A)
         t2 = time.time()
         akey = (self.char_key(spec), _h(spec.get('body')))
+        hull = None
+        if any(g.get('source') == 'hull' for g in spec.get('garments') or []):
+            from . import garments as gm
+            glb = ((spec.get('hair') or {}).get('shape') or {}).get('glb')
+            akey = akey + (glb,)
+            hk = (akey, 'hull')
+            if hk not in self._garments:
+                self._garments[hk] = gm.hull_pieces(spec, A)
+            hull = self._garments[hk]
         if len(self._garments) > 400:
             self._garments = {k: v for k, v in self._garments.items() if k[0] == akey}
-        garm, hide = garment_parts(A, spec.get('garments'), self._garments, akey)
+        garm, hide = garment_parts(A, spec.get('garments'), self._garments, akey, hull)
         t3 = time.time()
         hair_tones(hair, spec)
         ckey = (akey, hashlib.sha1(np.packbits(hide).tobytes()).hexdigest()[:12],
