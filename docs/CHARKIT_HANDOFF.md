@@ -330,6 +330,34 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
      - the buns sit 0.24 L low and the boot tops are off.
    - Known fragility: the fast evaluator and the QA can place our chin one pixel apart at 200 px/L. On the steep
      V-shaped jaw that moves `sheet_width` about 2%, which crosses its FAIL line (1.151 against 1.125).
+3b. **The visual hull (`tool/hull`, `~/animation-pipeline-hull`; Michael, 2026-09-28: "much more promising than
+   hacking detail into pre-provided single-shell meshes").**
+   - `charkit/geom/hull.py` (`python -m charkit.geom hull SPEC`) carves Clawd's 3D shape from `body_turnaround`'s
+     calibrated orthographic views. Details are in `docs/GEOM.md`, "Hull".
+   - On the three-quarter view held out: 0.856 IoU. TRELLIS scores 0.79 and our build 0.68. The drawn views are
+     0.96–0.985, and the surface is watertight.
+   - **Style profiles** (`charkit/styles`, anime and realistic): Michael wants the kit usable for any 3D style. Stages
+     read their priors from the character's profile. The hull does now; the planned drape and spring solvers' settings
+     are declared there.
+   - **The hull as the hair source:** the hull GLB, plus a sidecar with its exact eyes (`i3d.glb_eyes`; colour-found
+     eyes on its smooth face shrank it). Compared with TRELLIS hair under the same QA:
+     - the head's top (the buns) goes from FAIL −0.24 L to PASS in all four views;
+     - hair IoU: front 0.49 → 0.77, three-quarter 0.49 → 0.71, back 0.64 → 0.91;
+     - PASS / WARN / FAIL: 45 / 31 / 17 against 40 / 29 / 24;
+     - hair length is 0.1–0.2 L short. The region cut stops at 0.33 L under the chin, and a deeper cut takes the
+       top, which is the hair's orange.
+
+     This is a decision for the review; the spec still uses TRELLIS.
+   - **Michael's decisions (2026-09-28, after the hull):**
+     - Order: per-piece carving, then a code-authored anime base fitted to the hull (the head and face structure
+       first), then the drape and spring solvers on the style profiles, then the eyes.
+     - **MakeHuman is retired.** The code-authored base replaces it, and the MakeHuman-derived anime base is dropped.
+       Skeleton and weights come from our own rig code or are transferred once.
+   - Next:
+     - per-class and per-piece carving (hair from the views' hair class, the pieces from the outfit graph's per-view
+       masks) fixes the hair length and the arm/sleeve depth;
+     - our cranium is deeper than the design's head (it pokes through the hull hair at the back);
+     - then the code-authored base fitted to the hull, and the drape solver on the style profile.
    - **Fit speed (`tool/fitspeed`, `~/animation-pipeline-fitspeed`), in progress.** Done so far:
      - the body probe;
      - per-phase instrumentation;
