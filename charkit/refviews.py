@@ -213,7 +213,7 @@ def evaluate(spec, path, views, extends=False, loo=False, S=None, out_dir=None, 
     imgs = {}
     for n, v in ev.items():
         e = ei[n]
-        sole = float(np.nonzero(v.mask.any(1))[0][-1])
+        sole = float(np.nonzero(figs[e['figure']][1].any(1))[0][-1])        # the figure's, not its band's
         reg = dict(scale=e['scale'], ground_sheet_dL=round((sole - ground_s) / ppl, 4),
                    top_dL=round(float(e['top_L'] - S['lines']['back']['top_L']), 4))
         if ground_c is not None:

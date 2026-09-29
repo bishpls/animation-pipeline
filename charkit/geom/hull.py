@@ -213,7 +213,8 @@ def fit_view(v, V0, A, az0, span=None, log=None):
 def extra_views(ref, lines, ppl, V0, A, like='back'):
     """the extra views a manifest reference draws ({path, views: {name: {figure (index left to right among the picture's
     full figures), az (nominal), like (the sheet's view of that kind, for the figure height: default the back), bands
-    (optional: {band: [lo, hi] L from the eye line, null open})}}}), calibrated to the sheet's frame (see above). With
+    (optional: {band: [lo, hi] L from the eye line, null open}), pieces (false: it carves and colours, and the pieces'
+    labels stay the sheet's)}}}), calibrated to the sheet's frame (see above). With
     bands, each band of the figure is a view of its own (NAME.BAND), its azimuth and axis fitted on its heights alone: a
     generated view can be drawn twisted (Clawd's three-quarter backs turn the head and bodice ~20 degrees further than
     the legs), which no one azimuth fits -> ({name: View}, {name: registration and fit})."""
@@ -240,6 +241,7 @@ def extra_views(ref, lines, ppl, V0, A, like='back'):
                 v.zband = (zb[0], zb[1])
                 v.mask = m & v.band(z)[:, None]
             fit = fit_view(v, V0, A, d['az'])
+            v.labels_pieces = d.get('pieces', True)                         # False: it shapes, the sheet labels
             out[vn] = v
             info[vn] = dict(figure=d['figure'], box=box, scale=round(float(s), 4), ppl=round(float(vppl), 2),
                             eye_row=round(float(eye), 1), top_L=round(float((eye - top) / vppl), 4),
@@ -249,14 +251,14 @@ def extra_views(ref, lines, ppl, V0, A, like='back'):
 
 def extras_for(spec, bs):
     """the manifest's references that extend the body sheet `bs` (their 'extends' is its id, 'views' say which figures),
-    accepted ones only (no 'rejected') -> [reference dict with its path absolute]."""
+    those the hull takes (not 'hull': false, not 'rejected') -> [reference dict with its path absolute]."""
     from charkit import manifest
     mp = (spec.get('ref') or {}).get('manifest')
     if not mp or not bs.get('id'):
         return []
     R = manifest.load(mp)['references']
     return [dict(r, id=k, path=manifest._p(r['path'])) for k, r in R.items()
-            if r.get('extends') == bs['id'] and r.get('views') and not r.get('rejected')]
+            if r.get('extends') == bs['id'] and r.get('views') and r.get('hull', True) and not r.get('rejected')]
 
 
 NECK_BAND = (-0.62, -0.50)          # L from the eye line: a head sheet's neck, under the chin, above the bust's vignette
@@ -1020,8 +1022,9 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
             rep['leave_one_out_no_limbs'], _ = validate(views, A, 'rounded', **dict(prior, limbs=False))
         if extra:                           # with and without each: an extra view is kept if the others hold or improve
             rep['leave_one_out_sheet_only'], _ = validate(base, A, 'rounded', **prior)
-            rep['leave_one_out_without'] = {n: validate({k: v for k, v in views.items() if k != n}, A, 'rounded',
-                                                        **prior)[0] for n in views if n not in base}
+            groups = sorted({n.split('.')[0] for n in views if n not in base})          # a view's bands go together
+            rep['leave_one_out_without'] = {g: validate({k: v for k, v in views.items() if k.split('.')[0] != g}, A,
+                                                        'rounded', **prior)[0] for g in groups}
     else:
         V = rounded(views, A, list(views), **prior)
     if face and sheet == 'body':
@@ -1030,7 +1033,7 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
         Sh, Ch, _ = code_base.head_sections(spec, log)
         rep['face_carved'] = carve_face(V, A, base, Sh, info['y_e'], P=P, log=log)
     L = None
-    ext = {n: v for n, v in views.items() if n not in base}
+    ext = {n: v for n, v in views.items() if n not in base and getattr(v, 'labels_pieces', True)}
     if P is not None:
         if validate_views:
             rep['pieces']['labels'], L = validate_labels(V, A, base, P, ext or None)

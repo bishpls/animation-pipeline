@@ -91,13 +91,17 @@ def produce(spec):
 def stamp(spec, r):
     """what a produced reference depends on, as a digest: its producer's code (_producer_code: its function and what it
     imports, one import deep), the manifest's tracked references (their sha256s), the stamps of the produced
-    references it reads (its 'reads': the hull reads the outfit's masks), the spec's ref and style. Not the spec's knobs:
+    references it reads (its 'reads': the hull reads the outfit's masks) and the view settings of the others it reads
+    (the extra views' bands), the spec's ref and style. Not the spec's knobs:
     a tune changes those every step, and the references don't read them."""
     from . import cache
     M = load(spec['ref']['manifest'])
     R = M['references']
     refs = {k: v.get('sha256') for k, v in sorted(R.items()) if v.get('sha256')}
-    reads = [stamp(spec, R[k]) for k in r.get('reads', ()) if k in R and R[k].get('produced_by')]
+    # what it reads: a produced reference's stamp, else the settings the producer takes off that entry (the extra views'
+    # bands: the file's own hash is among `refs` already)
+    reads = [stamp(spec, R[k]) if R[k].get('produced_by') else [R[k].get('views'), R[k].get('hull')]
+             for k in r.get('reads', ()) if k in R]
     return cache.digest([_producer_code(r), refs, reads, spec['ref'].get('manifest'), spec.get('style')])
 
 
