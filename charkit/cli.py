@@ -312,9 +312,10 @@ def _glb_inputs(glb):
     side = p + '.json'
     if os.path.exists(side):
         out.append(side)
-        lab = json.load(open(side)).get('labels')
-        if lab:
-            out.append(os.path.join(os.path.dirname(p), lab))
+        S = json.load(open(side))
+        for k in ('labels', 'pieces'):
+            if S.get(k):
+                out.append(os.path.join(os.path.dirname(p), S[k]))
     return out
 
 

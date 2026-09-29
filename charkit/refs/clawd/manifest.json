@@ -306,7 +306,19 @@
    "role": "the character's 3D shape carved from body_turnaround's calibrated orthographic views (charkit.geom.hull): the hair's source (hair.shape.glb) and the aligned 3D target in place of TRELLIS; coloured from the views, its vertices labelled with the QA's classes, its eyes known exactly (the sidecar hull.glb.json). Built where missing (manifest.produce)",
    "cautions": [
     "a visual hull: concavities no view shows are filled (the eye sockets, between the locks); the hair is one mass, not locks",
-    "where a hand overlaps the skirt in profile the two merge (per-piece carving is next)"
+    "limbs are carved apart from the body where the outfit's pieces say so (a cuff, a sleeve); a limb whose front run the pieces don't split still takes the body's depth"
+   ]
+  },
+  "outfit_masks": {
+   "kind": "piece_masks",
+   "tracked": false,
+   "produced_by": "charkit.outfit",
+   "path": "charkit/out/clawd/outfit/outfit_masks.npz",
+   "command": "python -m charkit outfit charkit/spec/clawd.json --out charkit/out/clawd/outfit --no-manifest",
+   "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing (manifest.produced)",
+   "cautions": [
+    "the masks are the outfit field's votes (a TRELLIS field fitted to the 2D rig): 0.77-0.85 IoU per view against the sheet's figures",
+    "a piece a view hides has an empty mask there"
    ]
   }
  },
