@@ -74,12 +74,39 @@ def region(A, parts):
     return inside
 
 
-def shell(A, spec, normals=None):
-    """a tight garment: the region's faces lifted by `offset` along the body's normals. -> dict(verts, faces, weights, uvs
-    (per face corner, the body's), src (body vertex per shell vertex), faces_src (body face index per face))."""
+def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
+    """a piece's lower (or upper) edge per angle round an axis, from its hull points: per sector the q-th percentile of
+    height (100 - q for the upper), filled round the circle and smoothed -> fn(theta) -> height (world z)."""
+    from scipy.ndimage import gaussian_filter1d
+    from .geom import loft
+    _, th, _ = ax.coords(P)
+    j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
+    z = np.full(n, np.nan)
+    for k in range(n):
+        zk = P[j == k, 2]
+        if len(zk) >= 5:
+            z[k] = np.percentile(zk, q if low else 100 - q)
+    z = loft._fill_periodic(z)
+    if z is None:
+        raise ValueError('too few hull points for an edge')
+    z = gaussian_filter1d(z, smooth, mode='wrap')
+    th_c = -np.pi + (np.arange(n) + 0.5) * 2 * np.pi / n
+    return lambda a: np.interp(a, th_c, z, period=2 * np.pi)
+
+
+def shell(A, spec, normals=None, hull=None):
+    """a tight garment: the region's faces lifted by `offset` along the body's normals. With `source` 'hull', its hem
+    follows the hull's own piece: cut below the lower edge of its points (and its folded pieces', `fold`) per angle
+    round the body (hull_edge), lowered by `hem_drop` L. -> dict(verts, faces, weights, uvs (per face corner, the
+    body's), src (body vertex per shell vertex), faces_src (body face index per face))."""
     L = A['head']['L']
     V, F = A['verts'], A['faces']
     ins = region(A, spec['region'])
+    if spec.get('source') == 'hull':
+        P = _hull_points(hull, spec)
+        ax = _vertical_axis(P, P[:, 2].max())
+        edge = hull_edge(P, ax, q=spec.get('hem_q', 2.0))
+        ins &= V[:, 2] >= edge(ax.coords(V)[1]) - spec.get('hem_drop', 0.0) * L
     # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
     for bone, t, side, o in spec.get('cuts', []):
         h, tl = bone_seg(A, bone)
@@ -235,7 +262,19 @@ def belt_hull(A, spec, hull):
     pull = spec.get('round', 0.4) * spec.get('thick', 0.025) * L
     R[0] -= pull; R[-1] -= pull
     V, quads, uv = loft.loft(ax, F, R)
-    return dict(verts=V, faces=quads, weights={'hips': np.ones(len(V))}, uv=[tuple(x) for x in uv])
+    return dict(verts=V, faces=quads, weights={'hips': np.ones(len(V))}, uv=[tuple(x) for x in uv],
+                hide=wrapped(A, V[:, 2].min(), V[:, 2].max()))
+
+
+TORSO = ('hips', 'spine', 'chest', 'upperChest')
+
+
+def wrapped(A, z0, z1, bones=TORSO):
+    """the body's vertices a band wrapping the torso between heights z0 and z1 covers (their dominant bone in `bones`):
+    hidden, since the band follows the design's section and the body, not the design's, can stand out of it."""
+    dom, _ = dominant(A)
+    V = A['verts']
+    return np.nonzero((V[:, 2] >= z0) & (V[:, 2] <= z1) & np.isin(dom, bones))[0]
 
 
 # -------------------------------------------------------------------------------------------------------------------- skirt
@@ -306,6 +345,71 @@ def skirt(A, spec):
     leg = 0.65 * vv ** 1.4
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=zw)
+
+
+def skirt_hull(A, spec, hull):
+    """a pleated skirt lofted through the hull's points of the skirt and its front panel (fold: skirt_panel): the waist at
+    the points' top, a hem per angle where they end (the back longer, as drawn), and between them the measured section
+    row by row (geom.loft, in v = 0 at the waist .. 1 at the hem, per column); `pleats` knife folds of depth `pleat` L
+    deepening toward the hem on top (the hull's section can't show them: a visual hull fills folds); the front panel's
+    half-width measured from the panel's points (else the spec's `panel`). UV and weights as skirt()'s.
+    -> dict(verts, faces, weights, uv, panel, z_waist)."""
+    from scipy.ndimage import gaussian_filter1d
+    from .geom import loft
+    L = A['head']['L']
+    P = _hull_points(hull, spec, fold=('skirt_panel',))
+    top = np.percentile(P[:, 2], 99.5)
+    ax = _vertical_axis(P[P[:, 2] > top - 0.1 * L], top)
+    t, th, r = ax.coords(P)
+    n = spec.get('cols', 144); rows = spec.get('rows', 16)
+    # the hem: per sector, where the points end (a high percentile of t), filled round and smoothed
+    j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
+    hem = np.full(n, np.nan)
+    for k in range(n):
+        tk = t[j == k]
+        if len(tk) >= 5:
+            hem[k] = np.percentile(tk, spec.get('hem_q', 97))
+    hem = loft._fill_periodic(hem)
+    if hem is None:
+        raise ValueError('%s: too few hull points to find its hem' % spec['name'])
+    hem = gaussian_filter1d(hem, spec.get('hem_smooth', 2.0), mode='wrap')
+    th_c = -np.pi + (np.arange(n) + 0.5) * 2 * np.pi / n
+    hem_at = lambda a: np.interp(a, th_c, hem, period=2 * np.pi)
+    # the waist line per angle: where the skirt's points start, or tucked `tuck` L under a hull-sourced band's lower edge
+    top_z = hull_edge(P, ax, q=spec.get('waist_q', 3.0), low=False)
+    band = spec.get('under')
+    if band and hull and band in hull and len(hull[band]):
+        low = hull_edge(hull[band], ax, q=5.0)
+        top_z_ = top_z
+        top_z = lambda a: np.minimum(top_z_(a), low(a) + spec.get('tuck', 0.03) * L)
+    t0_at = lambda a: top - top_z(a)
+    v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
+    vs = np.linspace(0, 1, rows + 1)
+    F = loft.field(v, th, r, vs, nth=n, smooth=(1.0, 1.0))
+    off = spec.get('offset', 0.0) * L
+    pleats = spec.get('pleats', 24); depth = spec.get('pleat', 0.05) * L
+    TH = F.th[None, :]; VV = vs[:, None]
+    ph = (TH + np.pi) / (2 * np.pi) * pleats
+    zig = np.abs((ph % 1.0) - 0.5) * 2 - 0.5
+    R = F.R + off + depth * zig * VV ** 0.7
+    T = t0_at(TH) + VV * (hem_at(TH) - t0_at(TH))
+    verts = ax.point(T, np.broadcast_to(TH, T.shape), R).reshape(-1, 3)
+    faces = [(i * n + k, i * n + (k + 1) % n, (i + 1) * n + (k + 1) % n, (i + 1) * n + k)
+             for i in range(rows) for k in range(n)]
+    uvs = [((k + 0.5) / n, i / rows) for i in range(rows + 1) for k in range(n)]
+    # the front panel: the skirt_panel's points' angular spread, else the knob
+    pan_pts = hull.get('skirt_panel') if hull else None
+    if pan_pts is not None and len(pan_pts) > 20:
+        half = float(np.percentile(np.abs(ax.coords(pan_pts)[1]), 95))
+    else:
+        half = spec.get('panel', 0.0)
+    pan = [1 if abs(F.th[k]) < half else 0 for i in range(rows) for k in range(n)]
+    vv = np.repeat(vs, n)
+    sx = np.clip(verts[:, 0] / (0.08 * L), -1, 1)
+    leg = 0.65 * vv ** 1.4
+    Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
+    return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=float(top - np.median(t0_at(F.th))),
+                panel_half=half)
 
 
 def panel(A, spec):
@@ -709,7 +813,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
         col = s.get('color', (0.8, 0.8, 0.8))
         sh = s.get('shade')                                         # its own shade multiplier (else SHADE_MUL)
         if k == 'shell':
-            G = shell(A, s, nrm)
+            G = shell(A, s, nrm, hull)
             mats = [_toon(nm, col, sh)]
             midx = None
             if 'sole' in s:                                           # boots: the bottom as a dark sole
@@ -765,6 +869,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
         elif k == 'belt':
             G = belt_hull(A, s, hull) if s.get('source') == 'hull' else belt(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            if 'hide' in G:
+                hide[G['hide']] = True
             if s.get('source') == 'hull':                            # the loft is the band's outside: give it a thickness
                 sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
                 sol.use_rim = True
@@ -773,8 +879,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':
-            G = skirt(A, s)
-            pw = s.get('panel', 0.0) / (2 * math.pi)
+            G = skirt_hull(A, s, hull) if s.get('source') == 'hull' else skirt(A, s)
+            pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * math.pi)
             tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
                               repeat=s.get('repeat', 8), pleats=s.get('pleats', 24))
             img = eyetex.to_blender_image(nm + '_tex', tex)

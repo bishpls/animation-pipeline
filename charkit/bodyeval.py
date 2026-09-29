@@ -520,7 +520,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
     k, nm = s['kind'], s['name']
     hide = np.zeros(0, np.int64)
     if k == 'shell':
-        G = gm.shell(A, s, nrm)
+        G = gm.shell(A, s, nrm, hull)
         src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
         lv, st, ct = _loops(A)
         c = np.add.reduceat(inside[lv].astype(int), st)
@@ -535,10 +535,12 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None):
         hide = np.nonzero(np.isin(dom, [f"{s['side']}Foot", f"{s['side']}Toes"]))[0]
     elif k == 'belt':
         G = gm.belt_hull(A, s, hull) if s.get('source') == 'hull' else gm.belt(A, s)
+        if 'hide' in G:
+            hide = np.asarray(G['hide'], np.int64)
     elif k == 'sleeve':
         G = gm.sleeve(A, s)
     elif k == 'skirt':
-        G = gm.skirt(A, s)
+        G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
         G = gm.collar(A, s, nrm)
     elif k == 'bow':
@@ -627,7 +629,7 @@ def garment_tones(A, s, G):
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
     elif k == 'skirt':
         flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
-        pw = s.get('panel', 0.0) / (2 * np.pi)
+        pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * np.pi)
         img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), panel=(0.5 - pw, 0.5 + pw), repeat=s.get('repeat', 8),
                         pleats=s.get('pleats', 24))
         U = np.asarray(G['uv'], float)
