@@ -54,6 +54,15 @@ def test_a_reads_input_makes_its_reader_stale():
         shutil.rmtree(d)
 
 
+def test_the_hulls_stamp_follows_its_own_code_not_all_of_charkit():
+    """the hull's stamp covers its build function and what it imports, one import deep: an edit to the garments or the
+    QA doesn't make it stale (it had reached all 74 modules, so any edit rebuilt the hull)."""
+    units = manifest._producer_code({'produced_by': 'charkit.geom.hull', 'produced_fn': 'charkit.geom.hull:build'})
+    mods = {k for k in units if ':' not in k}
+    assert 'charkit/geom/volume.py' in mods and 'charkit/refcheck.py' in mods
+    assert 'charkit/garments.py' not in mods and 'charkit/qa3d.py' not in mods and len(mods) < 30, sorted(mods)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
