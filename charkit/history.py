@@ -57,6 +57,11 @@ STEPS = [
                              'turnaround, the hair shape\'s TRELLIS'),
     ('ref_iou', '9307073', 'INFO: the 3D-style key is no measure\'s authority (checks.authorize)'),
     ('face_shape_*', '9307073', 'INFO but the depth: TRELLIS is only the face depth\'s authority (checks.authorize)'),
+    # tool/review: the generated 3D character grades nothing (Michael, 2026-09-28)
+    ('face_shape_depth', 'b8307af', 'the face\'s depth against the generated character is INFO: face_depth has no '
+                                 'authority (the hull is the hair\'s source, not a face target)'),
+    ('shape_iou_hair', 'b8307af', 'the hair against the generated character is INFO: hair_shape has no authority (our '
+                               'hair is cut from it; the sheet grades the hair)'),
 ]
 
 
