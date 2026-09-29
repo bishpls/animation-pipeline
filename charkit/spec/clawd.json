@@ -256,7 +256,7 @@
    ]
   ],
   "shape": {
-   "glb": "ref:trellis",
+   "glb": "ref:hull",
    "below": 0.33,
    "shoulder_x": 0.19,
    "mode": "geom",

@@ -70,7 +70,7 @@ def _path(p):
 def resolve(spec_path, out, do_fit=True, base=None):
     from . import refs
     from . import manifest
-    spec = manifest.resolve(json.load(open(spec_path)))
+    spec = manifest.produce(manifest.resolve(json.load(open(spec_path))))
     if base:
         spec['base'] = base
     ref = spec.get('ref', {})

@@ -123,7 +123,9 @@
      }
     }
    },
-   "cautions": ["measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"]
+   "cautions": [
+    "measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"
+   ]
   },
   "head_turnaround": {
    "kind": "generated_reference",
@@ -294,6 +296,18 @@
    ],
    "sha256": "e523aa3532b1092f2cae3647224f49e4aa0721c9d13c0cce00f28f24f0ee3881",
    "layout": "figures"
+  },
+  "hull": {
+   "kind": "generated_mesh",
+   "tracked": false,
+   "produced_by": "charkit.geom.hull",
+   "path": "charkit/out/hull/clawd/hull.glb",
+   "command": "python -m charkit.geom hull charkit/spec/clawd.json",
+   "role": "the character's 3D shape carved from body_turnaround's calibrated orthographic views (charkit.geom.hull): the hair's source (hair.shape.glb) and the aligned 3D target in place of TRELLIS; coloured from the views, its vertices labelled with the QA's classes, its eyes known exactly (the sidecar hull.glb.json). Built where missing (manifest.produce)",
+   "cautions": [
+    "a visual hull: concavities no view shows are filled (the eye sockets, between the locks); the hair is one mass, not locks",
+    "where a hand overlaps the skirt in profile the two merge (per-piece carving is next)"
+   ]
   }
  },
  "authority": {
@@ -314,7 +328,8 @@
  },
  "notes": [
   "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown.",
-  "2026-09-28 (second session): the generated sheets are the base; idol_D is the source design only. 'sheets' names which reference fills the 'sheet' role per kind (face and eyes: head_turnaround; body, hair silhouettes and palette: body_turnaround); the eyes' authority moved from the rig to it; expressions have none (the template library's). charkit refcheck: the turnarounds agree with each other; head_construction is the outlier on the chin, neck, pupil aspect and lid line, so it holds the skull and ears only."
+  "2026-09-28 (second session): the generated sheets are the base; idol_D is the source design only. 'sheets' names which reference fills the 'sheet' role per kind (face and eyes: head_turnaround; body, hair silhouettes and palette: body_turnaround); the eyes' authority moved from the rig to it; expressions have none (the template library's). charkit refcheck: the turnarounds agree with each other; head_construction is the outlier on the chin, neck, pupil aspect and lid line, so it holds the skull and ears only.",
+  "2026-09-28: the hull (charkit.geom.hull) replaces TRELLIS as the hair's source (hair.shape.glb = ref:hull): against TRELLIS hair, 12 checks better and none worse (the buns' height PASS in every view, hair IoU front 0.49 -> 0.77). TRELLIS stays for the outfit graph's field."
  ],
  "sheets": {
   "face": "head_turnaround",

@@ -98,7 +98,7 @@ def resolve(spec_path, base=None):
     the numpy GLB reader), without writing anything."""
     from . import cli, manifest, refs, scene
     from .geom.parts import load_generated
-    spec = manifest.resolve(json.load(open(cli._path(spec_path))))
+    spec = manifest.produce(manifest.resolve(json.load(open(cli._path(spec_path)))))
     if base:
         spec['base'] = base
     ref = spec.get('ref', {})

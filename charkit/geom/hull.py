@@ -25,7 +25,7 @@ A turnaround drawn at one scale with one eye line (charkit refcheck checks this)
 Clawd's body_turnaround (spike, 2026-09-28): the three-quarter predicted from front, side and back only scores IoU 0.715
 plain, 0.797 with ellipses, 0.818 with class-aware pairing. TRELLIS scores 0.79 there, our build 0.68.
 
-    python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--no-open]
+    python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
 """
 import json, os
 
@@ -319,54 +319,72 @@ def label_vertices(m, views):
     return lab
 
 
-def main(args):
-    """python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--no-open]"""
-    import subprocess, time
-    from charkit import bodyeval, eyes as eyelib, refcheck, styles
-    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, log=print):
+    """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, and the
+    per-vertex classes hull_labels.npy), hull.ply, hull.npz (the occupancy), hull.json (calibration, the leave-one-out
+    scores when validate_views, the mesh's health) and the review page. validate_views=False: the fast path a build takes
+    (no leave-one-out sweep, no page). -> the report."""
+    import time
+    from charkit import eyes as eyelib, refcheck, styles
+    from . import io, remesh, repair
     t0 = time.time()
-    spec = bodyeval.resolve(args[0])
-    ref = spec['ref']
-    bs = ref.get('body_sheet')
+    bs = spec['ref'].get('body_sheet')
     if not bs:
-        raise SystemExit('hull: the spec has no generated body sheet (the manifest\'s sheets.body)')
-    prior = styles.load(opt('--style', spec.get('style', 'anime')))['hull']
+        raise ValueError("hull: the spec has no generated body sheet (the manifest's sheets.body)")
+    style = style or spec.get('style', 'anime')
+    prior = styles.load(style)['hull']
     ex = eyelib._knobs(spec.get('eyes'))['x']
-    rgb = refcheck._load(bs['image'])
-    views, info = views_from_sheet(rgb, ex, bs.get('facing', -1))
-    A = axes_for(views, float(opt('--h', 0.01)))
-    out = refcheck._p(opt('--out', 'charkit/out/hull/%s' % spec.get('name', 'char')))
+    views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+    A = axes_for(views, h)
     os.makedirs(out, exist_ok=True)
-    loo_eyes, _ = validate(views, A, 'rounded', **prior)                # the eyes' calibration alone
+    rep = {'spec': spec.get('name'), 'sheet': bs['image'], 'style': style, 'prior': prior, 'grid': list(A.shape), 'h_L': A.h}
+    if validate_views:
+        rep['leave_one_out_eyes_only'], _ = validate(views, A, 'rounded', **prior)      # the eyes' calibration alone
     info['refined_L'] = refine(views, A, prior)
-    loo, V = validate(views, A, 'rounded', **prior)
-    plain, _ = validate(views, A, 'carve')
+    if validate_views:
+        rep['leave_one_out'], V = validate(views, A, 'rounded', **prior)
+        rep['plain_leave_one_out'], _ = validate(views, A, 'carve')
+    else:
+        V = rounded(views, A, list(views), **prior)
     m = surface(V, A, views)
-    from . import remesh
     full = len(m.F)
-    m = remesh.decimate(m, int(opt('--faces', 150000)))
-    from . import io, raster, repair
+    m = remesh.decimate(m, faces)
     io.save(m, os.path.join(out, 'hull.ply'))
     io.save(m, os.path.join(out, 'hull.glb'))            # a coloured 'generated character' for charkit.geom.parts
-    ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
     np.save(os.path.join(out, 'hull_labels.npy'), label_vertices(m, views))     # per vertex, bodyqa.CLASS
+    ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
     json.dump({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'labels': 'hull_labels.npy', 'units': 'L',
                'by': 'charkit.geom.hull'}, open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs)
-    rep = {'spec': args[0], 'sheet': bs['image'], 'style': opt('--style', spec.get('style', 'anime')), 'prior': prior,
-           'grid': list(A.shape), 'h_L': A.h, 'calibration': info, 'leave_one_out': loo, 'plain_leave_one_out': plain,
-           'leave_one_out_eyes_only': loo_eyes,
-           'mesh': {'vertices': len(m.V), 'faces': len(m.F), 'faces_before_decimation': full, 'health': repair.report(m)},
-           'seconds': round(time.time() - t0, 1)}
+    rep.update(calibration=info, mesh={'vertices': len(m.V), 'faces': len(m.F), 'faces_before_decimation': full,
+                                       'health': repair.report(m)}, seconds=round(time.time() - t0, 1))
     json.dump(rep, open(os.path.join(out, 'hull.json'), 'w'), indent=1, default=str)
-    page = _page(rep, views, A, V, m, out)
-    for n in views:
-        print('%-14s held out: IoU %.4f (eyes only %.4f, plain %.4f)   used: %.4f   offset left %+.3f L' % (
-            n, loo[n]['iou'], loo_eyes[n]['iou'], plain[n]['iou'], loo['used'][n]['iou'], loo[n]['best_offset_L']))
-    print('refined axes (L):', info['refined_L'])
-    print('mesh %d vertices, %d faces; page %s (%.0fs)' % (len(m.V), len(m.F), page, time.time() - t0))
-    if '--no-open' not in args:
-        subprocess.run(['open', page])
+    if page and validate_views:
+        rep['page'] = _page(rep, views, A, V, m, out)
+    log('hull: %s, %d faces, three-quarter axis refined %+.3f L (%.0fs)' % (
+        out, len(m.F), info['refined_L'].get('three_quarter', 0.0), time.time() - t0))
+    return rep
+
+
+def main(args):
+    """python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
+    import subprocess
+    from charkit import bodyeval, refcheck
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    spec = bodyeval.resolve(args[0])
+    out = refcheck._p(opt('--out', 'charkit/out/hull/%s' % spec.get('name', 'char')))
+    rep = build(spec, out, float(opt('--h', 0.01)), opt('--style'), int(opt('--faces', 150000)),
+                validate_views='--fast' not in args)
+    loo = rep.get('leave_one_out')
+    if loo:
+        for n in [k for k in loo if k != 'used']:
+            print('%-14s held out: IoU %.4f (eyes only %.4f, plain %.4f)   used: %.4f   offset left %+.3f L' % (
+                n, loo[n]['iou'], rep['leave_one_out_eyes_only'][n]['iou'], rep['plain_leave_one_out'][n]['iou'],
+                loo['used'][n]['iou'], loo[n]['best_offset_L']))
+    if rep.get('page'):
+        print('page:', rep['page'])
+        if '--no-open' not in args:
+            subprocess.run(['open', rep['page']])
 
 
 def _page(rep, views, A, V, m, out):

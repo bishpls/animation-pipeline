@@ -72,6 +72,23 @@ def resolve(spec):
     return spec
 
 
+def produce(spec):
+    """the references the manifest says code produces ('produced_by'), built where the resolved spec uses them and they
+    are missing: they live in gitignored outputs, so a fresh worktree (the merge gate's) has none. The visual hull
+    (charkit.geom.hull) takes its fast path: no leave-one-out sweep, no page. -> spec."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else None
+    if not ref or not ref.get('manifest'):
+        return spec
+    R = load(ref['manifest'])['references']
+    text = json.dumps({k: v for k, v in spec.items() if k != 'ref'})
+    for rid, r in R.items():
+        if r.get('produced_by') != 'charkit.geom.hull' or os.path.exists(_p(r['path'])) or r['path'] not in text:
+            continue
+        from .geom import hull
+        hull.build(spec, os.path.dirname(_p(r['path'])), validate_views=False, page=False)
+    return spec
+
+
 def check(path):
     """-> list of (key, status, detail): present, hash matching for untracked files, the cautions."""
     M = load(path)
