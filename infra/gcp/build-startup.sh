@@ -29,7 +29,10 @@ if [ ! -x /opt/blender/blender ] || ! /opt/blender/blender --version 2>/dev/null
     && tar -xJf /tmp/blender.tar.xz -C /opt/blender --strip-components=1 && rm -f /tmp/blender.tar.xz
 fi
 
-if [ ! -x /opt/anim-build/venv/bin/python ]; then
+# uv's managed Python under /opt (its default is root's home, which a login user can't read through the venv's link)
+export UV_PYTHON_INSTALL_DIR=/opt/anim-build/python
+if [ ! -x /opt/anim-build/venv/bin/python ] || ! readlink -f /opt/anim-build/venv/bin/python | grep -q '^/opt/'; then
+  rm -rf /opt/anim-build/venv
   uv venv --python "$PV" /opt/anim-build/venv
   VIRTUAL_ENV=/opt/anim-build/venv uv pip install numpy scipy scikit-image numba pillow manifold3d matplotlib \
     opencv-python-headless pytest
