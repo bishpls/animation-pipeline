@@ -15,6 +15,7 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KEYS = ('aspect', 'open_w', 'iris_ratio', 'iris_fill', 'iris_cx', 'pupil_run', 'pupil_share', 'lid_span', 'lid_gap', 'tilt')
+BG_TOL = 0.035                      # a design crop's pixel this close to the sheet's background colour is background
 COVER = (11, 9, 4)                  # exprqa classes an open mouth may show: its inside and tongue, teeth, the lip line
 
 
@@ -33,6 +34,10 @@ def design_eyes(spec, ppl_face=None):
     _, f, H = refcheck.at_scale(rgb0, ex, 2 * ex * ppl, r.get('facing', -1))
     own = ppl / f
     hw, hh = refcheck.EYE_BOX[0] * own, refcheck.EYE_BOX[1] * own
+    # the sheet's flat background (its border's median) made transparent: pale and grey, eyeqa would read it as sclera
+    # where a crop runs past the face (the profile's front edge)
+    edge = np.concatenate([rgb0[:4].reshape(-1, 3), rgb0[-4:].reshape(-1, 3), rgb0[:, :4].reshape(-1, 3)])
+    bg = np.median(edge, 0)
     out = {}
     for view, sides in (('front', ('R', 'L')), ('three_quarter', ('R', 'L')), ('profile', ('L',))):
         eyes = sorted((H['heads'].get(view) or {}).get('eyes') or [])
@@ -41,7 +46,8 @@ def design_eyes(spec, ppl_face=None):
         for side, (x, y) in zip(sides, eyes):
             cx, cy = x / f, y / f
             crop = rgb0[int(cy - hh):int(cy + hh), int(cx - hw):int(cx + hw)]
-            out.setdefault(view, []).append((side, np.concatenate([crop, np.ones(crop.shape[:2] + (1,))], -1)))
+            alpha = (np.abs(crop - bg).max(-1) > BG_TOL).astype(float)[..., None]
+            out.setdefault(view, []).append((side, np.concatenate([crop, alpha], -1)))
     return out, own
 
 
