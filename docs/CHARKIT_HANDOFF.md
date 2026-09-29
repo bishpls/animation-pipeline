@@ -425,6 +425,16 @@ front eye (the viewer's-left eye, at about 1.6x the rig's resolution), the rig's
        chart (columns round it, rows down it, a dome of rays with a Coons cap at the crown) Clawd's cage (2737 vertices)
        has 0 flipped faces and 0 folded corners (`quality()`). The eyes' and mouth's loops land at their front-view
        outlines. The page shows it coloured by group.
+     - **Fairness** (`2cd7943`; Michael saw lumpy cheeks, which no check measured). `normal_fairness`: the angle
+       between each normal and its locally smoothed field, per region, with a map on the page. It's what shading sees;
+       the outline and contour checks can't. The lumps were the cheek term, fitted row by row (amplitude −0.044 to
+       +0.055 L between rows), now smoothed over 0.08 L. The midline correction is split into a broad part (smooth,
+       spread across) and a narrow exact remainder (the nose, lips, bridge). The skull is analytic (`skull_analytic`:
+       superellipses in the construction's silhouettes at 909 px/L, ears bridged, neck held, crown odd-reflected), with
+       no voxel grain. Clawd: face 1.8° (the nose and lips), face sides 0.43°, cheeks 0.07°, skull 0.14°, jaw and neck
+       0.93°; every graded sheet check PASS.
+       - Carry fairness into the build's QA once the head is there, as a mesh-based `face_fairness_*`: vertex normals
+         against their smoothed field over about 0.04 L. It would have caught this before a person did.
      - **Next: into the build**, as `spec['base'] = 'code'` beside `character.assemble`'s 'makehuman' and 'anime':
        - the eyes' and mouth's labels from the cage's loops, in `eyelib.labels` / `mouthlib.labels` format;
        - an `H` backed by the sections (`surfaces`, `sections`, `_xy`, `section`, the landmark attributes), with
