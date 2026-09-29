@@ -30,6 +30,7 @@
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
+    python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -553,6 +554,9 @@ def main(argv=None):
     elif cmd == 'hairlayers':
         from . import hairlayers
         hairlayers.main(rest)
+    elif cmd == 'hairpage':
+        from . import hairpage
+        hairpage.main(rest)
     elif cmd == 'figures':
         figures(rest)
     elif cmd == 'gate':
