@@ -851,6 +851,9 @@ sessions share its 16 GB.
     build slot, and watch the boxes' capacity and the merge coordination (Michael, 2026-09-29). Box capacity isn't a
     hard limit either: slots are a setting (tune them from measured load); more boxes, bigger machines or GPUs are
     provisioning changes that need Michael's approval first.
+  - Agents stop at 200 turns. Four of six forks hit it mid-task on 2026-09-29; each resumed fine with a message.
+    Brief each fork to commit and report at milestones (about every 100–150 turns) rather than in one long run, and
+    to put its state in `docs/workstreams/NAME.md` before long jobs.
   - Wait on long jobs with `run_in_background` and notifications, or `charkit wait OUT_DIR`, never a foreground `until`
     loop.
   - Create worktrees with `tools/worktree.sh` (sparse).
