@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# The CPU build box, from the laptop (config: infra/gcp/build.env; SSH and rsync go through IAP, the box has no external IP).
+#   infra/gcp/build.sh up                        start it if stopped and wait until the boot script is done
+#   infra/gcp/build.sh ssh [cmd...]              a shell, or one command
+#   infra/gcp/build.sh sync WORKTREE             rsync a worktree's code and inputs to /srv/work/<its name> (only changes)
+#   infra/gcp/build.sh run WORKTREE cmd...       run a command in that copy, with Blender and the venv (/opt/anim-build/env)
+#   infra/gcp/build.sh fetch WORKTREE PATH       rsync PATH (a build's out dir) back into the worktree
+#   infra/gcp/build.sh status | stop             it also stops itself after IDLE_MINUTES idle
+set -euo pipefail
+HERE=$(cd "$(dirname "$0")" && pwd); source "$HERE/build.env"
+G="gcloud --project=$PROJECT"; Z="--zone=$ZONE"
+CFG="$HOME/.ssh/anim-build.config"
+config() {  # an ssh config whose ProxyCommand opens the IAP tunnel, so plain ssh and rsync work
+  local user; user=$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null)
+  mkdir -p "$HOME/.ssh"
+  cat > "$CFG" <<EOC
+Host $VM
+  User $user
+  IdentityFile ~/.ssh/google_compute_engine
+  StrictHostKeyChecking no
+  UserKnownHostsFile ~/.ssh/anim-build.known_hosts
+  ServerAliveInterval 30
+  ProxyCommand gcloud compute start-iap-tunnel $VM 22 --listen-on-stdin --project=$PROJECT --zone=$ZONE --verbosity=warning
+EOC
+}
+ssh_() { [ -f "$CFG" ] || config; ssh -F "$CFG" "$VM" "$@"; }
+name() { basename "$(cd "$1" && pwd)"; }
+case "${1:-status}" in
+  status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
+  up)
+    [ "$($G compute instances describe "$VM" $Z --format='value(status)')" = RUNNING ] || $G compute instances start "$VM" $Z
+    [ -f "$HOME/.ssh/google_compute_engine" ] || $G compute ssh "$VM" $Z --tunnel-through-iap --command=true
+    config
+    for _ in $(seq 1 60); do
+      ssh_ -o ConnectTimeout=15 "test -f /opt/anim-build/READY" 2>/dev/null && { echo ready; exit 0; }
+      sleep 15
+    done
+    echo "not ready after 15 min: infra/gcp/build.sh ssh 'sudo tail -40 /var/log/anim-build-startup.log'"; exit 1;;
+  ssh) shift; ssh_ "$@";;
+  sync)
+    WT=$2; [ -f "$CFG" ] || config
+    rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
+      --include 'charkit/out/' --include 'charkit/out/i3d/***' --exclude 'charkit/out/*' \
+      "$WT/" "$VM:/srv/work/$(name "$WT")/";;
+  run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
+  fetch) WT=$2; P=$3; [ -f "$CFG" ] || config
+    mkdir -p "$WT/$P"; rsync -az -e "ssh -F $CFG" "$VM:/srv/work/$(name "$WT")/$P/" "$WT/$P/";;
+  stop) $G compute instances stop "$VM" $Z;;
+  *) sed -n '2,9p' "$0"; exit 1;;
+esac
