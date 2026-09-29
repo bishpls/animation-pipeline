@@ -181,3 +181,12 @@ Next:
 - the back panels (the hull labels them across 90 degrees of the back);
 - the bow and collar on this body;
 - a gate for tool/body (the default spec doesn't take the authored body; gate it with --spec clawd_body.json too).
+
+## Second round (2026-09-29)
+
+- **Behind the chest's accessories.** The torso's envelope leaves out the bow, its tails and the collar, which stand
+  in front of the chest without bounding it. The torso stays behind the bow and its tails by their depth
+  (`IN_FRONT`), counting only the bow's hull points inside its drawn extent. A torso grown into the bow's space had
+  hidden the bow behind the top.
+- The chest's profile under the bow (−0.70..−0.80 L) now meets the design's within 0.01 L; see garments.md.
+- Owned elsewhere from 849b9a7: the torso's top rows (the neck join) belong to tool/face.

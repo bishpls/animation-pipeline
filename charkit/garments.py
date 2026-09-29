@@ -907,6 +907,7 @@ def bow_hull(A, spec, hull):
         # (both cream), which made the bow too big and set it over the lapels
         lo, hi = ext[0], ext[2]
         z = 0.5 * (ext[1] + ext[3])
+    z += spec.get('lift', 0.0) * L
     sz = (hi - lo) / (2 * LOBE)
     depth = spec.get('depth', 0.06) * sz                          # the lobes' half-depth, sizes (the drawn bow is flat)
     y = float(np.percentile(B[:, 1], 2)) + depth                  # (conform then puts the front on the hull's)
@@ -919,7 +920,7 @@ def bow_hull(A, spec, hull):
     elif tails:
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
-    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth)
+    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -932,9 +933,9 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
-    centre (default 0.09 sizes)."""
+    centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height."""
     depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
 
@@ -949,7 +950,7 @@ def _bow_mesh(c, sz, tail, L, depth=None):
             for j in range(nu):
                 ph = 2 * math.pi * j / nu
                 u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
-                taper = 0.35 + 0.65 * math.sin(min(math.pi, th * 1.15)) ** 0.8
+                taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
                 x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                 zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
                 yy = -math.cos(ph) * depth * taper

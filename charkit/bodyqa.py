@@ -221,23 +221,29 @@ def measure(cls, fg, ppl, view, cut=None, win=WIN):
     skin = cls == 1
     dy, dx = int(0.25 * ppl), int(0.15 * ppl)
 
-    def widest(band, clear=False):
+    def widest(band, clear=False, rows_out=None):
         best = None
         for r in _rows(z, band):
             run = _run(gar[r], ax)
             if not run:
                 continue
-            if clear and (skin[max(0, r - dy):r + dy + 1, max(0, run[0] - dx):max(0, run[0] - 1)].any() or
-                          skin[max(0, r - dy):r + dy + 1, run[1] + 2:run[1] + dx + 1].any()):
+            blocked = clear and (skin[max(0, r - dy):r + dy + 1, max(0, run[0] - dx):max(0, run[0] - 1)].any() or
+                                 skin[max(0, r - dy):r + dy + 1, run[1] + 2:run[1] + dx + 1].any())
+            if rows_out is not None:
+                rows_out[int(r)] = ((run[1] - run[0] + 1) / ppl, bool(blocked))
+            if blocked:
                 continue
             if best is None or run[1] - run[0] > best[1] - best[0]:
                 best = (run[0], run[1], r)
         return best
     for name, band, clear in (('sleeves', BANDS['sleeves'], False), ('skirt', BANDS['skirt'], True)):
-        b = widest(band, clear)
+        rows_out = {} if name == 'skirt' else None
+        b = widest(band, clear, rows_out)
         if b:
             M[name] = {'width': round(float((b[1] - b[0] + 1) / ppl), 4), 'left': round(float(u[b[0]]), 4),
                        'right': round(float(u[b[1]]), 4), 'z': round(float(z[b[2]]), 4)}
+        if rows_out:
+            M.setdefault(name, {})['_rows'] = rows_out           # per row: its run's width and whether a hand blocks it
     # the hem: the fabric's lowest row in the skirt band, and at the middle
     fab = np.isin(cls, FABRIC)
     rr = _rows(z, BANDS['skirt'])
@@ -350,8 +356,17 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
     length('top', g(O, 'top'), g(D, 'top'))
     length('hair_length', g(O, 'hair', 'bottom'), g(D, 'hair', 'bottom'), "the hair's lowest row; - = ours longer")
     width('hair_width', g(O, 'hair', 'width'), g(D, 'hair', 'width'))
-    width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the axis '
-          'between waist and knee, rows with a hand against it left out')
+    # the skirt's width on the rows neither figure's hand touches: where the hands hang differently (ours are the
+    # hull's, the drawing's where the artist put them), the widest free row of each could sit at different heights
+    ro, rd = (O.get('skirt') or {}).get('_rows') or {}, (D.get('skirt') or {}).get('_rows') or {}
+    common = [r for r in ro if r in rd and not ro[r][1] and not rd[r][1]]
+    if common:
+        width('skirt_width', round(max(ro[r][0] for r in common), 4), round(max(rd[r][0] for r in common), 4),
+              'the widest garment row through the axis between waist and knee, on the rows neither figure has a hand '
+              'against')
+    else:
+        width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the '
+              'axis between waist and knee, rows with a hand against it left out (no row free in both)')
     length('hem', g(O, 'skirt', 'hem'), g(D, 'skirt', 'hem'), "the skirt fabric's lowest row; - = ours longer")
     if view in ('front', 'back', 'three_quarter'):
         length('hem_mid', g(O, 'skirt', 'hem_mid'), g(D, 'skirt', 'hem_mid'), 'the hem at the middle')
@@ -465,6 +480,8 @@ def evaluate(labels, design, caution=None):
             cv = ((cv + '; ') if cv else '') + 'the drawing stops at %.2f L (the figure is cut): compared above it' % cut
         for k, v in compare(Mo, Md, ocls, dcls, ofg, dfg, view, cv).items():
             C['%s_%s' % (view, k)] = v
+        for M_ in (Mo, Md):                                  # (the per-row widths are the comparison's, not the report's)
+            (M_.get('skirt') or {}).pop('_rows', None)
         table['views'][view] = {'ours': {k: v for k, v in Mo.items() if k != 'ppl'},
                                 'design': {k: v for k, v in Md.items() if k != 'ppl'}}
         views.append((view, Mo, Md, ocls, dcls, ofg, dfg))
