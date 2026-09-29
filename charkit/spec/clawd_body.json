@@ -1257,7 +1257,11 @@
     0.6762
    ],
    "source": "hull",
-   "under": "waistband"
+   "under": "waistband",
+   "occluded_span": [
+    70,
+    180
+   ]
   },
   {
    "kind": "sleeve",
@@ -1450,17 +1454,17 @@
   {
    "kind": "panel",
    "name": "overskirt_panel_R",
-   "waist": 0.70734,
+   "waist": 0.55734,
    "color": [
     0.6424,
     0.3567,
     0.2896
    ],
-   "offset": -0.012,
-   "flare": 22.20511,
+   "offset": 0.02,
+   "flare": 30.20511,
    "az": -107.59733,
-   "width": 0.64732,
-   "length": 1.5418,
+   "width": 0.43482,
+   "length": 1.3168,
    "hem_color": [
     0.367,
     0.304,
@@ -1473,22 +1477,22 @@
     0.6891,
     0.6762
    ],
-   "source": "hull"
+   "spread": -0.1375
   },
   {
    "kind": "panel",
    "name": "overskirt_panel_L",
-   "waist": 0.70734,
+   "waist": 0.55734,
    "color": [
     0.6424,
     0.3527,
     0.2896
    ],
-   "offset": -0.012,
-   "flare": 22.20511,
+   "offset": 0.02,
+   "flare": 30.20511,
    "az": 107.59733,
-   "width": 0.64732,
-   "length": 1.5418,
+   "width": 0.43482,
+   "length": 1.3168,
    "hem_color": [
     0.367,
     0.308,
@@ -1501,7 +1505,7 @@
     0.6891,
     0.6762
    ],
-   "source": "hull"
+   "spread": -0.1375
   }
  ],
  "base": "code"
