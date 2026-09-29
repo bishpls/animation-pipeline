@@ -36,7 +36,10 @@ Clawd's body_turnaround (2026-09-28): the three-quarter predicted from front, si
 0.797 with ellipses, 0.818 with class-aware pairing, 0.862 with the axis refined and the smoothing, 0.876 with the limb
 split (the wrist cuffs no longer take the skirt's depth). TRELLIS scores 0.79 there, our build 0.68.
 
-    python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+    python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
+
+--head carves the head turnaround instead (views_from_heads: the heads at about twice the body sheet's scale, down to the
+neck), the target the code-authored head is fitted to.
 """
 import json, os
 
@@ -111,6 +114,55 @@ def views_from_sheet(rgb, eye_x, facing=-1):
     for n, v in views.items():
         v.grid_eye = bodyqa.view_eye(n, F[n])
     info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
+    return views, info
+
+
+NECK_BAND = (-0.62, -0.50)          # L from the eye line: a head sheet's neck, under the chin, above the bust's vignette
+HEAD_FLOOR = -0.66                  # a head sheet's hull stops here: below, the bust is cut by the sheet's vignette
+
+
+def views_from_heads(rgb, eye_x, facing=-1, floor=HEAD_FLOOR):
+    """a head turnaround's views (charkit.refcheck.detect_heads), calibrated from their eyes as views_from_sheet's, each
+    at its own eye line (a generated sheet's rows drift a few pixels). The profile's free axis and the back's axis are
+    the neck's centre (NECK_BAND); every mask stops at `floor` L. -> ({view: View}, info)."""
+    from charkit import bodyqa, refcheck, sheetqa
+    D = refcheck.detect_heads(rgb, eye_x, facing)
+    ppl, F = D['ppl'], D['heads']
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    fe = F['front']['eyes']
+    cls = bodyqa.classes(rgb, fg, F['front']['eye_y'], ppl)[0].astype(np.uint8)
+
+    def neck_axis(m, ey):
+        rows = range(int(ey - NECK_BAND[1] * ppl), int(ey - NECK_BAND[0] * ppl))
+        return float(np.median([np.nonzero(m[r])[0][[0, -1]].mean() for r in rows if m[r].any()]))
+
+    def masked(m, ey):
+        m = m.copy()
+        m[int(round(ey - floor * ppl)):] = False
+        return m
+    views, info = {}, {'ppl': ppl, 'eye_rows': {k: h['eye_y'] for k, h in F.items()}}
+    f = F['front']
+    views['front'] = View('front', 0.0, masked(f['_mask'], f['eye_y']), ppl, float(np.mean([e[0] for e in fe])),
+                          f['eye_y'], cls, rgb)
+    p = F['profile']
+    ax_prof = neck_axis(p['_mask'], p['eye_y'])
+    y_e = (p['eyes'][0][0] - ax_prof) / ppl
+    views['profile'] = View('profile', 90.0, masked(p['_mask'], p['eye_y']), ppl, ax_prof, p['eye_y'], cls, rgb)
+    info['y_e'] = round(y_e, 4)
+    if 'three_quarter' in F and len(F['three_quarter']['eyes']) == 2:
+        t = F['three_quarter']; te = t['eyes']
+        az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / abs(fe[1][0] - fe[0][0]), 0, 1))))
+        ax3 = float(np.mean([e[0] for e in te])) - y_e * np.sin(np.radians(az3)) * ppl
+        views['three_quarter'] = View('three_quarter', az3, masked(t['_mask'], t['eye_y']), ppl, ax3, t['eye_y'], cls, rgb)
+        info['az3'] = round(az3, 2)
+    if 'back' in F:
+        b = F['back']
+        views['back'] = View('back', 180.0, masked(b['_mask'], b['eye_y']), ppl, neck_axis(b['_mask'], b['eye_y']),
+                             b['eye_y'], cls, rgb)
+    for n, v in views.items():
+        v.grid_eye = (v.axis, v.eye_y)
+    info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
+    info['front_neck_offset_L'] = round((neck_axis(f['_mask'], f['eye_y']) - views['front'].axis) / ppl, 4)
     return views, info
 
 
@@ -628,24 +680,31 @@ def label_vertices(m, views):
     return lab
 
 
-def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, log=print):
+def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, sheet='body',
+          log=print):
     """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, the
     per-vertex classes hull_labels.npy and, with the outfit's piece masks, the per-vertex pieces hull_pieces.npy),
     hull.ply, hull.npz (the occupancy and its labelled shell), hull.json (calibration, the leave-one-out scores when
     validate_views, the mesh's health) and the review page. validate_views=False: the fast path a build takes (no
     leave-one-out sweeps, no page). pieces: carve and label per piece from the manifest's outfit_masks (built where
-    missing). -> the report."""
+    missing). sheet 'head': the head turnaround's hull instead (the manifest's sheets.face; views_from_heads), for the
+    head's shape, without pieces. -> the report."""
     import time
     from charkit import eyes as eyelib, manifest, refcheck, styles
     from . import io, remesh, repair
     t0 = time.time()
-    bs = spec['ref'].get('body_sheet')
+    bs = spec['ref'].get('face_sheet' if sheet == 'head' else 'body_sheet')
     if not bs:
-        raise ValueError("hull: the spec has no generated body sheet (the manifest's sheets.body)")
+        raise ValueError("hull: the spec has no generated %s sheet (the manifest's sheets.%s)" % (
+            sheet, 'face' if sheet == 'head' else 'body'))
     style = style or spec.get('style', 'anime')
     prior = styles.load(style)['hull']
     ex = eyelib._knobs(spec.get('eyes'))['x']
-    views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+    if sheet == 'head':
+        views, info = views_from_heads(refcheck._load(bs['image']), ex, bs.get('facing', -1))
+        pieces = False
+    else:
+        views, info = views_from_sheet(refcheck._load(bs['image']), ex, bs.get('facing', -1))
     A = axes_for(views, h)
     os.makedirs(out, exist_ok=True)
     rep = {'spec': spec.get('name'), 'sheet': bs['image'], 'style': style, 'prior': prior, 'grid': list(A.shape), 'h_L': A.h}
@@ -761,14 +820,15 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
 
 
 def main(args):
-    """python -m charkit.geom hull SPEC [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
+    """python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]"""
     import subprocess
     from charkit import bodyeval, refcheck
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = bodyeval.resolve(args[0])
-    out = refcheck._p(opt('--out', 'charkit/out/hull/%s' % spec.get('name', 'char')))
-    rep = build(spec, out, float(opt('--h', 0.01)), opt('--style'), int(opt('--faces', 150000)),
-                validate_views='--fast' not in args)
+    head = '--head' in args
+    out = refcheck._p(opt('--out', 'charkit/out/hull/%s%s' % (spec.get('name', 'char'), '_head' if head else '')))
+    rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'), int(opt('--faces', 150000)),
+                validate_views='--fast' not in args, sheet='head' if head else 'body')
     loo, nol = rep.get('leave_one_out'), rep.get('leave_one_out_no_limbs')
     if loo:
         for n in [k for k in loo if k != 'used']:
