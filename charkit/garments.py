@@ -171,6 +171,73 @@ def belt(A, spec):
     return dict(verts=verts, faces=faces, weights={'hips': np.ones(len(verts))}, uv=uvs)
 
 
+# ---------------------------------------------------------------------------------------------------- the hull's pieces
+def hull_pieces(spec, A):
+    """the visual hull's outfit pieces as world points on this character: the generated shape (the spec's hair.shape.glb,
+    charkit.geom.hull's), aligned by its eyes as the build aligns its target (i3d.eye_target, i3d.align_by_eyes),
+    split by the per-vertex pieces its sidecar names -> {piece id: (n, 3)}, or None when the shape carries no pieces."""
+    import json, os
+    from . import i3d
+    from .geom import io as gio
+    shape = ((spec.get('hair') or {}).get('shape') or {})
+    glb = shape.get('glb')
+    if not glb:
+        return None
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = glb if os.path.isabs(glb) else os.path.join(root, glb)
+    side = path + '.json'
+    if not os.path.exists(side):
+        return None
+    J = json.load(open(side))
+    if not J.get('pieces') or not J.get('eyes'):
+        return None
+    V = np.asarray(gio.load(path).V, float)
+    lab = np.load(os.path.join(os.path.dirname(path), J['pieces']))
+    if len(lab) != len(V):
+        raise ValueError('%s: %d piece labels for %d vertices' % (J['pieces'], len(lab), len(V)))
+    eye_mid, spacing = i3d.eye_target(A, shape)
+    W = i3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
+    return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
+
+
+def _hull_points(hull, s, fold=()):
+    """a garment's points from the hull: its `piece` (default its name) with the pieces it carries (`fold`)."""
+    if not hull:
+        raise ValueError('%s: source hull, but the shape carries no pieces' % s['name'])
+    ids = [s.get('piece', s['name'])] + list(s.get('fold', fold))
+    P = [hull[i] for i in ids if i in hull and len(hull[i])]
+    if not P:
+        raise ValueError('%s: no hull points for %s' % (s['name'], ids))
+    return np.concatenate(P)
+
+
+def _vertical_axis(P, top):
+    """a vertical axis down through a piece's points (its median x and y), from height `top`, front toward -y."""
+    from .geom import loft
+    c = np.median(P, 0)
+    return loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
+
+
+def belt_hull(A, spec, hull):
+    """a band round the torso lofted through the hull's points of its piece (charkit.geom.loft): rows every `step` L
+    between the points' `span` percentiles of height, the section measured per angle and filled where no view shows it;
+    its top and bottom rows pulled in by `round` of its thickness so the edge reads rounded; `offset` L out from the hull's
+    surface. Weighted to the hips. -> dict(verts, faces, weights, uv)."""
+    from .geom import loft
+    L = A['head']['L']
+    P = _hull_points(hull, spec)
+    ax = _vertical_axis(P, P[:, 2].max())
+    t, th, r = ax.coords(P)
+    lo, hi = np.percentile(t, spec.get('span', (2, 98)))
+    rows = max(3, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 96))
+    R = F.R + spec.get('offset', 0.0) * L
+    pull = spec.get('round', 0.4) * spec.get('thick', 0.025) * L
+    R[0] -= pull; R[-1] -= pull
+    V, quads, uv = loft.loft(ax, F, R)
+    return dict(verts=V, faces=quads, weights={'hips': np.ones(len(V))}, uv=[tuple(x) for x in uv])
+
+
 # -------------------------------------------------------------------------------------------------------------------- skirt
 def body_section(A, z, band=0.012, n=72):
     """the body's horizontal section at height z (torso only): its radius by azimuth from the torso axis. -> (centre xy,
@@ -627,9 +694,10 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
-def build(C, specs, line=(0.30, 0.18, 0.16)):
+def build(C, specs, line=(0.30, 0.18, 0.16), hull=None):
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
-    toon-shaded and outlined; the body under the tight shells masked away. -> [objects]."""
+    toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
+    whose `source` is 'hull'. -> [objects]."""
     from . import eyetex, shade
     A, arm, skin = C['data'], C['arm'], C['skin']
     L = A['head']['L']
@@ -695,8 +763,11 @@ def build(C, specs, line=(0.30, 0.18, 0.16)):
             for b_ in (f"{s['side']}Foot", f"{s['side']}Toes"):
                 hide[np.nonzero(dom_ == b_)[0]] = True
         elif k == 'belt':
-            G = belt(A, s)
+            G = belt_hull(A, s, hull) if s.get('source') == 'hull' else belt(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
+            if s.get('source') == 'hull':                            # the loft is the band's outside: give it a thickness
+                sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
+                sol.use_rim = True
         elif k == 'sleeve':
             G = sleeve(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])

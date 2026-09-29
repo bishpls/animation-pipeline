@@ -191,6 +191,14 @@ def find_eyes(V, C, head_frac=0.3, depth=0.03, dark=0.3):
     return np.median(L_, 0), np.median(R_, 0)
 
 
+def eye_target(A, shape):
+    """where a generated character's eyes land on ours (align_by_eyes): the midpoint of our eyes, `eye_depth` (head
+    lengths) behind the front of the face, and our eye spacing times `spacing`. -> (eye_mid (3,), spacing)."""
+    Hd = A['head']; L = Hd['L']; EK = Hd['eye_knobs']
+    eye_mid = np.array([0.0, Hd['centre'][1] - Hd['H'].df + shape.get('eye_depth', 0.01) * L, Hd['centre'][2] + EK['z'] * L])
+    return eye_mid, 2 * EK['x'] * L * shape.get('spacing', 1.0)
+
+
 def align_by_eyes(V, eyes, eye_mid, spacing):
     """scale and move a mesh so its eyes' midpoint lands on eye_mid (world) and their spacing equals `spacing`."""
     el, er = eyes
