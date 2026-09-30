@@ -311,6 +311,18 @@ def _carry_cases():
     assert json.load(open(r['report'][:-3] + '.summary.json'))['verdict'] == 'FAIL'
     assert subprocess.run(['git', 'worktree', 'list'], cwd=root, capture_output=True, text=True).stdout.count('\n') == 1
     g('reset', '-q', '--hard', 'HEAD~2')
+    # the branch adds a notes commit after its gate: the earlier tip's report carries (the docs reach nothing)
+    g('checkout', '-q', 'br'); open(os.path.join(root, 'docs/br.md'), 'w').write('branch notes\n')
+    g('add', '-A'); g('commit', '-qm', 'notes'); g('checkout', '-q', 'main')
+    r = gate.carry('br', **kw)
+    assert r['carried'] and r['verdict'] == 'PASS' and r['report'], r
+    assert json.load(open(r['report'][:-3] + '.summary.json'))['carried']['from_tip'] != r['tip']
+    # then a code commit the candidate reads: not carried
+    g('checkout', '-q', 'br'); open(os.path.join(root, 'kit/clawd.json'), 'w').write('{"b": 1}\n')
+    g('commit', '-qam', 'code'); g('checkout', '-q', 'main')
+    r = gate.carry('br', write=False, **kw)
+    assert not r['carried'] and 'candidate' in r['hits'], r
+    g('checkout', '-q', 'br'); g('reset', '-q', '--hard', 'HEAD~2'); g('checkout', '-q', 'main')
     # main edits the branch's line: the merge conflicts
     open(os.path.join(root, 'kit/core.py'), 'w').write('X = 3\n'); g('commit', '-qam', 'clash')
     r = gate.carry('br', write=False, **kw)
