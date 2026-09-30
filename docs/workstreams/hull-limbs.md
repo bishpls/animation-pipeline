@@ -1,0 +1,72 @@
+# Hull limbs: each limb takes its own depth (tool/hull-limbs)
+
+Branch `tool/hull-limbs`, worktree `~/animation-pipeline-hulllimbs`, built on `tool/hull-det` (not yet merged).
+
+## The report that started it (Michael, 2026-09-29)
+
+The hull page's "Limbs" diagnostic: in the front view the legs are green and the arms blue; in the profile the bare
+legs, forearms and hands are pink ("free skin placed by the side view"), only the boot cuffs green, and blue on what
+looked like the sleeves and cuffs.
+
+## What the measurement found (before, tool/hull-det 24fa199, the box)
+
+`rounded()` gives each front limb part the depth of the profile's runs of `(limb == t) | FREE_SKIN`. Per height, which
+profile pixels each part took, against a hand-made truth for Clawd's profile (the arm: puff, forearm, wrist cuff,
+hand; the legs and boots below the shorts):
+
+- **The legs were fine.** The thighs take the profile's thigh skin (the only free skin at their heights); the boots
+  take the whole side run, which at those heights is the boot. One height (z −2.72, the right leg) fell back to the
+  whole side run (0.96 L deep). The front's thighs start where the profile's do (−2.72), so no thigh is hidden under
+  the skirt on this sheet, and no hand shares a height with a thigh (the hands end at −2.57 in front, −2.66 in profile).
+- **The arms were wrecked**, 150 heights of each arm borrowing the body's depth:
+  - z −0.50 to −0.69 (the shoulder): the neck's free skin (y 0.13 to 0.33), 0.01 to 0.09 L deep: a paper-thin puff.
+  - z −0.90 to −1.21 (the puff): the bow's tail, which the profile's masks label `sleeve_cuff_R` (11% of the pixels
+    the arm's).
+  - z −1.51 to −2.44 (the forearm, cuff and hand): the skirt's cream front panel, which the profile's masks label
+    `cuff_R` (12,579 px; the front's cuff is 3,469), running right up to the forearm: 45% of the pixels the arm's,
+    sections up to 0.66 L deep against the drawn 0.22. The wrist cuff (−1.9 to −2.05) took only the panel: 0.3 L in
+    front of the drawn cuff.
+- **The profile's limb pieces are mostly on the wrong garments** (outfit masks, not this branch's code): `sleeve_R`
+  on the bow's loop, `sleeve_cuff_R` on the bow's tail, `cuff_R` on the skirt's front panel, `sleeve_L` on the sailor
+  collar's stripe. Only `cuff_L` (the wrist cuff's cream stripe) and `boot_cuff_L` are right; the puff, the sleeve's
+  cream end, the cuff's orange band and the boot carry no piece. That is the blue Michael saw.
+- The hull: detached forearm fragments, puffs nearly gone, arm blobs fused to the skirt's sides. The limb split cost
+  the three-quarter 0.029 of held-out IoU (0.8335, against 0.8624 with no limb split).
+
+## The fix
+
+1. **`limb_image` on the side and oblique views (`free_limbs`).** Free skin is split into connected components by the
+   drawing's line class (`View.raw`, now kept by `views_from_sheet`). Each takes the limb of the pieces within
+   `SEED_REACH` (0.02 L) of it: a limb's pieces seed that limb, pieces on `SEED_BONES` (head, neck, upperChest: the
+   collar, the bow, the pins) and the drawn hair and irises seed the body. Torso pieces (skirt, top, shorts) seed
+   nothing: limbs are drawn over them. No seed: one step through the unlabelled drawn cells beside it (a cuff's band
+   the masks missed). Seeds of two limbs (under `SEED_SHARE` 0.8 for one): FREE_SKIN. Slivers (under 0.005 L²) and
+   the outlines' pixels take the nearest component's. On Clawd: the profile's legs, forearm and hand, and the
+   three-quarter's forearms, hands and legs, all take their limb; the face and neck the body.
+2. **The depth selection (`sections`, `LimbTrack`).** A limb part takes, per height:
+   - `only`: the whole side row where the front shows nothing but this limb (the boots; a body fragment enclosed by
+     one limb's parts on one side, a hole in the boot's mask, counts as the limb: `_enclosed`);
+   - `limb`: the limb's skin runs in the profile, with its piece runs that overlap the skin (`TRACK_OVERLAP` 0.5);
+   - `piece`: its piece runs within the skin's track (interpolated from the skin above and below), joined with the
+     interpolated section;
+   - `interp` (the skirt fallback's replacement): the section's centre and its depth over the limb's front width,
+     interpolated between the nearest `only`/`limb` heights above and below (each the median over `TRACK_WINDOW`
+     0.15 L of that sighting, away from the gap, since a sighting's edge row is cut short, e.g. skin going into a
+     cuff); beyond the last one, that one's. Never the whole side run.
+   - A limb the side view never shows keeps the old fallback (skin, else the side run).
+   Piece runs off the skin's track are rejected, which removes the mislabelled panel, bow and tail.
+3. **Diagnostic.** The page's Limbs row shows every view in one colour scheme, and a new "Limb depth" map shows the
+   profile's rows with each limb's chosen interval per height (solid from skin, lighter from pieces, pale
+   interpolated) and the rejected piece runs in red, with a table of heights per source.
+4. **Determinism.** Integer image ops (scipy `label`, `binary_dilation`, the EDT's feature transform), IEEE `+ − × ÷`
+   in a fixed order, `_round` (floor of x + 0.5) for interpolated grid indices, `det.cs` untouched.
+
+## Results
+
+(filled in below as the box runs land)
+
+## Measurement tools
+
+The per-row source table, the truth for Clawd's profile and the before/after pages were made with scripts in the
+session's scratchpad (not tracked): `sections(..., tracks=T)` gives every limb part's source, runs and the rejected
+piece runs, which is what they read.

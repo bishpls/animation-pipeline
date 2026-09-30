@@ -89,7 +89,8 @@ def views_from_sheet(rgb, eye_x, facing=-1):
     # the QA's classes (charkit.bodyqa: colour families; the orange split into hair and dress by where each drawn region
     # lies, above the shoulders or below), over every figure at once: the sheet's figures share one eye line
     fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
-    cls = bodyqa.classes(rgb, fg, float(np.mean([e[1] for e in fe])), ppl)[0].astype(np.uint8)
+    cls, raw = bodyqa.classes(rgb, fg, float(np.mean([e[1] for e in fe])), ppl)
+    cls, raw = cls.astype(np.uint8), raw.astype(np.uint8)
     ax_front = float(np.mean([e[0] for e in fe]))
     eye_front = float(np.mean([e[1] for e in fe]))
     m = F['profile']['_mask']
@@ -116,6 +117,7 @@ def views_from_sheet(rgb, eye_x, facing=-1):
                              eye_front, cls, rgb)
     for n, v in views.items():
         v.grid_eye = bodyqa.view_eye(n, F[n])
+        v.raw = raw                                   # the classes with the drawn lines kept (limb_image's cells)
     info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
     return views, info
 
@@ -217,6 +219,7 @@ class Pieces:
         P = graph['pieces']
         self.ids = [p['id'] for p in P]
         self.limb = np.array([CORE] + [limb_of((p.get('attach') or {}).get('bone')) for p in P], np.int8)
+        self.seed = np.array([False] + [(p.get('attach') or {}).get('bone') in SEED_BONES for p in P])   # seeds the body
         self.mirror = np.arange(len(P) + 1)
         by = {(p.get('pair'), p.get('side')): k + 1 for k, p in enumerate(P)}
         for k, p in enumerate(P):
@@ -263,7 +266,8 @@ def attach_pieces(views, masks_path):
 
 def limb_image(v, P):
     """each pixel's limb: a piece's by its bone; free skin's by the nearest bone of the graph's skeleton on the front
-    and back (where the skeleton's x shows as drawn), FREE_SKIN on the other views; anything else CORE. -> int8 image."""
+    and back (where the skeleton's x shows as drawn), and on the other views by the pieces it touches (free_limbs);
+    anything else CORE. -> int8 image."""
     out = P.limb[v.pieces]
     free = (v.pieces == 0) & (v.labels == SKIN) & v.mask
     ca, sa = det.cs(v.az)
@@ -280,7 +284,77 @@ def limb_image(v, P):
             best[take], lim[take] = dist[take], limb_of(bone)
         out[r, c] = lim
     else:
-        out[free] = FREE_SKIN
+        out[free] = free_limbs(v, P, free)[free]
+    return out
+
+
+SEED_BONES = ('head', 'neck', 'upperChest')   # a piece on these seeds free skin as the body's (the collar, the bow, pins)
+SEED_REACH = 0.02                   # L: the pieces this close to a free skin component (across its drawn outline) seed it
+SEED_SHARE = 0.8                    # the share of a component's seed pixels one limb needs; below it, FREE_SKIN (ambiguous)
+SEED_MIN = 5                        # px: fewer seed pixels than this seed nothing
+SLIVER = 0.005                      # L^2: an unseeded free skin component smaller than this (skin between two close lines)
+                                    # takes the nearest component's limb
+
+
+def free_limbs(v, P, free):
+    """free skin's limbs on a view the front-view skeleton can't place (the profile, the three-quarter): each connected
+    component of the free skin, split by the drawing's lines (View.raw), takes the limb of the pieces it touches: a
+    limb's pieces seed that limb (boots a leg, sleeves and cuffs an arm), pieces on SEED_BONES and the drawn hair and
+    irises seed the body (the face and neck). Pieces on the torso (the skirt, the top) seed nothing: a limb is drawn over
+    them. A component no piece touches takes what the undrawn-piece cells beside it touch (a cuff's band the masks
+    missed, between a hand and its cuff), one step; a sliver takes its nearest component's. Seeds of more than one limb
+    (SEED_SHARE) leave it FREE_SKIN. -> int8 image (valid on `free`)."""
+    from scipy.ndimage import binary_dilation, distance_transform_edt, label
+    from charkit.bodyqa import CLASS
+    out = np.full(v.mask.shape, FREE_SKIN, np.int8)
+    raw = getattr(v, 'raw', None)
+    line = (raw == CLASS['line']) if raw is not None else np.zeros(v.mask.shape, bool)
+    comp, n = label(free & ~line)
+    if not n:
+        return out
+    has = v.pieces > 0
+    seed = np.full(v.mask.shape, -2, np.int8)                          # -2: seeds nothing
+    lim = P.limb[v.pieces]
+    seed[has & (lim != CORE)] = lim[has & (lim != CORE)]
+    seed[has & P.seed[v.pieces]] = CORE
+    seed[v.mask & ~has & np.isin(v.labels, (CLASS['hair'], CLASS['iris']))] = CORE
+    reach = max(2, int(round(SEED_REACH * v.ppl)))                   # past a line a pixel wide
+    ball = np.ones((2 * reach + 1, 2 * reach + 1), bool)
+
+    def votes(src, labels, m):
+        """per label (1..m) of `labels`, how many of its pixels lie within reach of each seed limb -> (m + 1, 3)."""
+        V = np.zeros((m + 1, 3), np.int64)
+        for t in (CORE, ARM, LEG):
+            near = binary_dilation(src == t, ball) & (labels > 0)
+            V[:, t] = np.bincount(labels[near], minlength=m + 1)
+        return V
+
+    def decide(V):
+        tot = V.sum(1)
+        top = np.argmax(V, 1)
+        ok = (tot >= SEED_MIN) & (V[np.arange(len(V)), top] >= SEED_SHARE * tot)
+        return np.where(ok, top, FREE_SKIN).astype(np.int8), tot
+    res, tot = decide(votes(seed, comp, n))
+    # one step through the cells no piece claims (drawn regions of one class between the lines): each takes what seeds it
+    cells_m = v.mask & ~has & ~line & ~np.isin(v.labels, (SKIN, CLASS['hair'], CLASS['iris']))
+    cells, nc = label(cells_m)
+    if nc and (tot < SEED_MIN).any():
+        cres, _ = decide(votes(seed, cells, nc))
+        cseed = np.where(cells > 0, cres[cells], -2).astype(np.int8)
+        res2, _ = decide(votes(cseed, comp, n))
+        res = np.where(tot < SEED_MIN, res2, res)
+        tot = np.where(tot < SEED_MIN, 0, tot)
+    size = np.bincount(comp.ravel(), minlength=n + 1)
+    settled = (res != FREE_SKIN) | (size >= SLIVER * v.ppl * v.ppl)
+    settled[0] = False
+    known = settled[comp]
+    out[known] = res[comp[known]]
+    # the rest of the free skin (its outlines' pixels, the slivers): the nearest settled component's, within reach
+    rest = free & ~known
+    if rest.any() and known.any():
+        d, (ir, ic) = distance_transform_edt(~known, return_indices=True)
+        take = rest & (d <= reach)
+        out[take] = out[ir[take], ic[take]]
     return out
 
 
@@ -386,18 +460,153 @@ def _split(g, min_w):
     return [tuple(r) for r in R]
 
 
-def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04, restore=True):
-    """the shape prior's hull (see the module): superellipse sections |x/rx|^p + |y/ry|^p <= 1 per (front run x side
-    run), class-aware, smoothed across heights by `smooth` L (a Gaussian on its signed distance), inside the plain hull
-    of `use`. With the views' pieces (attach_pieces) and `limbs`, a front run splits where an arm or a leg meets the
-    body (sub-runs under `split_min` L join a neighbour), and each limb part takes its depth from the side view's pixels
-    of that limb (its pieces and the free skin): a wrist cuff from the forearm drawn over the skirt, not the skirt's
-    depth. restore=False skips putting back the silhouette pixels the smoothing eroded (a voxel per pixel at its ray's
-    median depth: right for silhouettes, a fin on a surface; the profile's lands on the midline). Needs the front and
-    a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
-    plain = carve(views, A, use)
+TRACK_OVERLAP = 0.5                 # a limb piece's side run counts where this share of it overlaps the limb's skin track
+TRACK_WINDOW = 0.15                 # L: an interpolated section starts from the median of this much of the limb seen on
+                                    # either side (a row at the edge of a sighting is cut short: skin going into a cuff)
+
+
+def _round(x):
+    """a float to the nearest int, half up (x + 0.5 floored: the same everywhere)."""
+    return int(math.floor(x + 0.5))
+
+
+def _merge(runs):
+    """runs (a, b inclusive) sorted and merged where they touch or overlap."""
+    out = []
+    for a, b in sorted(runs):
+        if out and a <= out[-1][1] + 1:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+class LimbTrack:
+    """one limb's section in the side view, per height (grid index k), for sections(): its runs of side pixels, and
+    where it has none, a section interpolated from the heights where it has.
+
+    E, skin: the side view's pixels of the limb, and of its free skin (limb_image), (ny, nz). side_runs: the side view's
+    runs per height. only: the heights where the front shows nothing but this limb (so everything the side shows there
+    is it). width: the widest front part of the limb per height (cells; 0 where it has none).
+      - 'only': the whole side row.
+      - 'limb': a height where the side view shows the limb's skin: its skin's runs, with the runs of its pieces that
+        overlap the skin (TRACK_OVERLAP of the piece run within the skin's extent). Skin is the limb's best evidence in
+        a side view: free_limbs places it by the pieces it touches, where a piece mask can sit on the wrong garment
+        (Clawd's profile has the arm pieces on the skirt's front panel, the bow and its tails, running up to the
+        forearm).
+      - 'piece': a height with the limb's pieces and no skin: the piece runs within the skin's track (its extent
+        interpolated from the nearest heights with skin above and below; the nearest one's beyond them), joined with
+        the interpolated section (a piece seen is part of the limb, not all of it: a cuff's stripe the masks caught).
+      - 'interp' (the thighs under a skirt, a sleeve's puff the masks missed): the section's centre, and its depth over
+        the limb's front width, interpolated between the nearest 'only' or 'limb' heights above and below (each the
+        median over `window` heights of that sighting, away from the gap; the one side's beyond them), the depth
+        scaled by the limb's front width here.
+    A limb whose side view shows no skin takes its pieces' runs as they are ('limb')."""
+
+    def __init__(self, E, skin, side_runs, only, width, window=15):
+        ny, nz = E.shape
+        self.ny, self.width = ny, np.asarray(width, float)
+        self.runs, self.src = [None] * nz, [None] * nz
+        self.rejected = [[] for _ in range(nz)]
+        has = skin.any(0)
+        ks = np.flatnonzero(has)
+        ext = np.full((nz, 2), np.nan)
+        for k in ks:
+            yy = np.flatnonzero(skin[:, k])
+            ext[k] = (yy[0], yy[-1])
+        pieces = E & ~skin
+        for k in range(nz):
+            if only[k] and side_runs[k]:
+                self.runs[k], self.src[k] = side_runs[k], 'only'
+                continue
+            if not E[:, k].any():
+                continue
+            if not len(ks):                                     # no skin to check against: the pieces as they are
+                self.runs[k], self.src[k] = _runs(E[:, k]), 'limb'
+                continue
+            lo, hi = ext[k] if has[k] else self._between(ks, ext, k)
+            keep = _runs(skin[:, k])
+            for y0, y1 in _runs(pieces[:, k]):
+                if min(y1, hi) - max(y0, lo) + 1 >= TRACK_OVERLAP * (y1 - y0 + 1):
+                    keep.append((y0, y1))
+                else:
+                    self.rejected[k].append((y0, y1))
+            if keep:
+                self.runs[k], self.src[k] = _merge(keep), ('limb' if has[k] else 'piece')
+        # the complete sections ('only', 'limb'; every counted height when the limb shows no skin) for interpolation:
+        # centre, and depth over the limb's front width
+        full = ('only', 'limb') if len(ks) else ('only', 'limb', 'piece')
+        known = np.array([self.src[k] in full and width[k] > 0 for k in range(nz)])
+        self.kk = np.flatnonzero(known)
+        sec = np.full((nz, 2), np.nan)
+        for k in self.kk:
+            lo, hi = self.runs[k][0][0], self.runs[k][-1][1]
+            sec[k] = ((lo + hi) / 2, (hi - lo + 1) / width[k])
+        # per counted height, the medians over the window of its sighting (its run of consecutive counted heights)
+        # upward (for a gap below it) and downward (for a gap above it)
+        self.up, self.down = np.full((nz, 2), np.nan), np.full((nz, 2), np.nan)
+        for a, b in _runs(known):
+            for k in range(a, b + 1):
+                self.up[k] = np.median(sec[max(a, k - window + 1):k + 1], 0)
+                self.down[k] = np.median(sec[k:min(b, k + window - 1) + 1], 0)
+
+    @staticmethod
+    def _between(ks, V, k, U=None):
+        """a value per height at height k, linear between the nearest of ks above (its value in U, default V) and
+        below (in V), else the nearest one's."""
+        U = V if U is None else U
+        j = int(np.searchsorted(ks, k))
+        a_, b_ = (ks[j - 1] if j > 0 else None), (ks[j] if j < len(ks) else None)
+        if a_ is None or b_ is None:
+            return U[a_] if b_ is None else V[b_]
+        return U[a_] + (V[b_] - U[a_]) * ((k - a_) / (b_ - a_))
+
+    def interpolated(self, k):
+        """the limb's side section at height k from the complete ones -> (y0, y1) or None."""
+        if not len(self.kk) or self.width[k] <= 0:
+            return None
+        c, asp = self._between(self.kk, self.down, k, self.up)
+        half = (asp * self.width[k] - 1) / 2
+        y0 = min(max(_round(c - half), 0), self.ny - 1)
+        return y0, min(max(_round(c + half), y0), self.ny - 1)
+
+    def at(self, k):
+        """the side runs for the limb's front parts at height k -> ([(y0, y1)], src), or (None, None) where the side
+        view never shows the limb."""
+        src = self.src[k]
+        if src in ('only', 'limb'):
+            return self.runs[k], src
+        sec = self.interpolated(k)
+        if src == 'piece':
+            return _merge(self.runs[k] + ([sec] if sec else [])), src
+        return ([sec], 'interp') if sec else (None, None)
+
+
+def _enclosed(parts, xs):
+    """a front run's parts with a body part between two parts of one limb on one side of the midline taken as that
+    limb's (a hole in a boot's mask), neighbours of one limb then merged -> [(a, b, limb)]."""
+    P = [list(q) for q in parts]
+    for i in range(1, len(P) - 1):
+        a, b = P[i - 1], P[i + 1]
+        if P[i][2] == CORE and a[2] == b[2] != CORE and len({bool(xs[a[0]] > 0), bool(xs[b[1]] > 0)}) == 1:
+            P[i][2] = a[2]
+    out = []
+    for q in P:
+        if out and out[-1][2] == q[2]:
+            out[-1][1] = q[1]
+        else:
+            out.append(q)
+    return [tuple(q) for q in out]
+
+
+def sections(views, A, use, class_share=0.6, limbs=True, split_min=0.04, tracks=None):
+    """the rectangles rounded() inscribes its sections in, and where each took its depth: per height k, each front
+    run's parts (split by limb, see rounded) with the side view's runs it pairs with -> [(k, x0, x1, limb, [(y0, y1)],
+    src)], grid indices inclusive. A limb part's side runs are its LimbTrack's (src 'only', 'limb', 'piece' or 'interp'); a body
+    part's, or a limb's the side view never shows, are the side's skin for a skin part ('skin'), else the whole side
+    run ('side'). tracks: a dict the LimbTracks are put in, by limb. Needs the front and a profile among `use`; else []."""
     if 'front' not in use or 'profile' not in use:
-        return plain
+        return []
     f, s = views['front'], views['profile']
     Fxz = f.sample(f.mask, A.xs, A.zs)
     if 'back' in use:
@@ -406,30 +615,61 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
     Fskin = f.sample(f.labels, A.xs, A.zs) == SKIN
     Syz = s.sample(s.mask, A.ys, A.zs)
     Sskin = (s.sample(s.labels, A.ys, A.zs) == SKIN) & Syz
-    Flimb, Slimb = None, {}
+    Flimb = None
     if limbs and f.limbs is not None and s.limbs is not None:
         Flimb = f.sample(f.limbs, A.xs, A.zs)
-        Sl = s.sample(s.limbs, A.ys, A.zs)
-        Slimb = {t: ((Sl == t) | (Sl == FREE_SKIN)) & Syz for t in (ARM, LEG)}
     min_w = max(1, int(round(split_min / A.h)))
+    nz = len(A.zs)
+    parts = []
+    for k in range(nz):
+        row = []
+        for r0, r1 in _runs(Fxz[:, k]):
+            row += _enclosed([(r0 + a, r0 + b, t) for a, b, t in _split(Flimb[r0:r1 + 1, k], min_w)], A.xs) \
+                if Flimb is not None else [(r0, r1, CORE)]
+        parts.append(row)
+    side_runs = [_runs(Syz[:, k]) for k in range(nz)]
+    T = {} if tracks is None else tracks
+    if Flimb is not None:
+        Sl = s.sample(s.limbs, A.ys, A.zs)
+        Sp = s.sample(s.pieces, A.ys, A.zs) if s.pieces is not None else np.zeros(Sl.shape, np.int16)
+        for t in (ARM, LEG):
+            E = (Sl == t) & Syz
+            only = [bool(p) and all(q == t for _, _, q in p) for p in parts]
+            width = [max([x1 - x0 + 1 for x0, x1, q in p if q == t], default=0) for p in parts]
+            T[t] = LimbTrack(E, E & (Sp == 0), side_runs, only, width, max(1, int(round(TRACK_WINDOW / A.h))))
+    out = []
+    for k in range(nz):
+        side, side_skin = side_runs[k], None
+        for x0, x1, t in parts[k]:
+            ys, src = T[t].at(k) if t in T else (None, None)
+            if ys is None:
+                if side_skin is None:
+                    side_skin = _runs(Sskin[:, k])
+                skin = Fskin[x0:x1 + 1, k].mean() > class_share
+                ys, src = (side_skin, 'skin') if skin and side_skin else (side, 'side')
+            out.append((k, x0, x1, t, ys, src))
+    return out
+
+
+def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04, restore=True):
+    """the shape prior's hull (see the module): superellipse sections |x/rx|^p + |y/ry|^p <= 1 per (front run x side
+    run), class-aware, smoothed across heights by `smooth` L (a Gaussian on its signed distance), inside the plain hull
+    of `use`. With the views' pieces (attach_pieces) and `limbs`, a front run splits where an arm or a leg meets the
+    body (sub-runs under `split_min` L join a neighbour), and each limb part takes its depth from the side view's pixels
+    of that limb (its pieces and the free skin): a wrist cuff from the forearm drawn over the skirt, not the skirt's
+    depth (sections()). restore=False skips putting back the silhouette pixels the smoothing eroded (a voxel per pixel
+    at its ray's median depth: right for silhouettes, a fin on a surface; the profile's lands on the midline). Needs the
+    front and a profile among `use`; else the plain hull. -> bool (nx, ny, nz)."""
+    plain = carve(views, A, use)
+    if 'front' not in use or 'profile' not in use:
+        return plain
     V = np.zeros(A.shape, bool)
     X, Y = np.meshgrid(A.xs, A.ys, indexing='ij')
-    for k in range(len(A.zs)):
-        side, side_skin = _runs(Syz[:, k]), _runs(Sskin[:, k])
-        side_limb = {t: _runs(m[:, k]) for t, m in Slimb.items()}
-        for r0, r1 in _runs(Fxz[:, k]):
-            parts = [(r0 + a, r0 + b, t) for a, b, t in _split(Flimb[r0:r1 + 1, k], min_w)] if Flimb is not None \
-                else [(r0, r1, CORE)]
-            for x0, x1, t in parts:
-                if t in side_limb and side_limb[t]:
-                    ys = side_limb[t]
-                else:
-                    skin = Fskin[x0:x1 + 1, k].mean() > class_share
-                    ys = side_skin if skin and side_skin else side
-                for y0, y1 in ys:
-                    cx, rx = (A.xs[x0] + A.xs[x1]) / 2, (A.xs[x1] - A.xs[x0]) / 2 + A.h / 2
-                    cy, ry = (A.ys[y0] + A.ys[y1]) / 2, (A.ys[y1] - A.ys[y0]) / 2 + A.h / 2
-                    V[:, :, k] |= _inside(X, Y, cx, cy, rx, ry, p)
+    for k, x0, x1, t, ys, src in sections(views, A, use, class_share, limbs, split_min):
+        for y0, y1 in ys:
+            cx, rx = (A.xs[x0] + A.xs[x1]) / 2, (A.xs[x1] - A.xs[x0]) / 2 + A.h / 2
+            cy, ry = (A.ys[y0] + A.ys[y1]) / 2, (A.ys[y1] - A.ys[y0]) / 2 + A.h / 2
+            V[:, :, k] |= _inside(X, Y, cx, cy, rx, ry, p)
     V &= plain
     if smooth > 0:
         from scipy.ndimage import distance_transform_edt
@@ -934,10 +1174,14 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
     for az in (0, 35, 90, 135, 180, 225, 270, 315):
         im = raster.render([(m, dict(color=vc, normals=N, shade='lambert'))], az, fr)
         out.append('<div class="tile"><img src="%s" height="460">%d deg</div>' % (save(im, 'pieces_render_%03d.png' % az), az))
-    out.append('</div><h3>Limbs: where a front run splits (grey body, blue arm, green leg, pink free skin placed by '
-               'the side view)</h3><div class="row">')
-    for n in ('front', 'profile'):
-        v = views[n]
+    out.append('</div><h3>Limbs: each pixel\'s limb (grey body, blue arm, green leg, pink free skin no piece places)'
+               '</h3><p class="note">A piece\'s limb is its attach bone\'s. Free skin: on the front and back by the '
+               'nearest bone of the graph\'s skeleton; on the other views by the pieces its drawn outline touches '
+               '(free_limbs). Where a piece mask sits on the wrong garment, its colour is wrong here too: the depth '
+               'map below shows which of its pixels the carve took.</p><div class="row">')
+    for n, v in views.items():
+        if v.limbs is None:
+            continue
         rows, cols = np.nonzero(v.mask)
         im = np.full(v.mask.shape + (3,), 0.96)
         for t, c in LIMB_COLOURS.items():
@@ -945,6 +1189,60 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
         im = im[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
         out.append('<div class="tile"><img src="%s" height="520">%s</div>' % (save(im, 'limbs_%s.png' % n), n))
     out.append('</div>')
+    out += _depth_section(rep, views, A, save)
+    return out
+
+
+SRC_NOTE = {'limb': "the limb's skin in the side view, with its pieces that overlap it",
+            'only': 'the front shows nothing else at this height: the whole side row',
+            'piece': "its pieces only (no skin): those within the skin's track, joined with the interpolated section",
+            'interp': 'nothing of it drawn: interpolated from the nearest heights above and below',
+            'skin': "the side's skin (a limb the side view never shows)", 'side': 'the whole side run'}
+
+
+def _depth_section(rep, views, A, save):
+    """the page's depth sources (sections()): the profile's rows, each limb's side interval per height (blue arm,
+    green leg; darker from its skin or the whole row, lighter from its pieces, pale interpolated), the limb piece runs
+    the track rejected in red; and the heights per source."""
+    if 'front' not in views or 'profile' not in views or views['profile'].limbs is None:
+        return []
+    prior = rep.get('prior') or {}
+    T = {}
+    S = sections(views, A, list(views), **{k: prior[k] for k in ('class_share', 'limbs', 'split_min') if k in prior},
+                 tracks=T)
+    s = views['profile']
+    Syz = s.sample(s.mask, A.ys, A.zs)
+    im = np.where(Syz[..., None], 0.86, 0.97) * np.ones(3)
+    shade = {'limb': 1.0, 'only': 1.0, 'piece': 0.65, 'interp': 0.35}
+    count = {}
+    for k, x0, x1, t, ys, src in S:
+        if t == CORE:
+            continue
+        count.setdefault(t, {}).setdefault(src, set()).add(k)
+        a = shade.get(src, 0.2)
+        for y0, y1 in ys:
+            im[y0:y1 + 1, k] = (1 - a) * im[y0:y1 + 1, k] + a * np.array(LIMB_COLOURS[t])
+    for t, tr in T.items():
+        for k, R in enumerate(tr.rejected):
+            for y0, y1 in R:
+                im[y0:y1 + 1, k] = (0.9, 0.15, 0.15)
+    ycols = np.nonzero(Syz.any(1))[0]
+    im = np.transpose(im[max(0, ycols[0] - 5):ycols[-1] + 6], (1, 0, 2))
+    out = ['<h3>Limb depth: where each limb part took its depth in the profile</h3><p class="note">The profile\'s '
+           'silhouette (grey) on the hull\'s grid; per height, the side interval the front\'s arm parts (blue) and leg '
+           'parts (green) took: solid from the limb\'s own skin (or the whole row where the front shows nothing '
+           'else), lighter from its pieces, pale where interpolated; red: limb piece runs outside the limb\'s skin '
+           'track, not used.</p><div class="row"><div class="tile"><img src="%s" height="640">profile, y across</div>'
+           % save(np.repeat(np.repeat(im, 2, 0), 2, 1), 'limb_depth.png'),
+           '<table><tr><th>limb</th><th>source</th><th>heights</th><th>what it is</th></tr>']
+    for t in sorted(count):
+        for src in ('only', 'limb', 'piece', 'interp', 'skin', 'side'):
+            if src in count[t]:
+                out.append('<tr><td>%s</td><td>%s</td><td>%d</td><td>%s</td></tr>' % (
+                    {ARM: 'arm', LEG: 'leg'}.get(t, t), src, len(count[t][src]), SRC_NOTE[src]))
+    rej = {t: sum(1 for R in tr.rejected if R) for t, tr in T.items()}
+    out.append('<tr><td colspan="4">heights with limb piece runs rejected: %s</td></tr></table></div>' % ', '.join(
+        '%s %d' % ({ARM: 'arm', LEG: 'leg'}[t], n) for t, n in sorted(rej.items())))
     return out
 
 
@@ -1054,11 +1352,11 @@ def _page(rep, views, A, V, m, out, P=None, L=None):
     for n, v in views.items():
         use = [k for k in views if k != n]
         Vh = rounded(views, A, use, **rep['prior'])
-        P, us = project(Vh, A, v.az)
+        Ph, us = project(Vh, A, v.az)
         Dm = v.sample(v.mask, us, A.zs)
-        im = np.full(P.shape + (3,), 0.96)
-        im[P & Dm] = (0.55, 0.55, 0.6); im[P & ~Dm] = (0.9, 0.2, 0.2); im[Dm & ~P] = (0.2, 0.35, 0.95)
-        cols = np.nonzero((P | Dm).any(1))[0]
+        im = np.full(Ph.shape + (3,), 0.96)
+        im[Ph & Dm] = (0.55, 0.55, 0.6); im[Ph & ~Dm] = (0.9, 0.2, 0.2); im[Dm & ~Ph] = (0.2, 0.35, 0.95)
+        cols = np.nonzero((Ph | Dm).any(1))[0]
         im = im[max(0, cols[0] - 10):cols[-1] + 10]
         L.append('<div class="tile"><img src="%s" height="520">%s: IoU %.4f</div>' % (
             save(np.transpose(im, (1, 0, 2)), 'held_%s.png' % n), n, loo[n]['iou']))
