@@ -47,6 +47,7 @@ DEFAULT_EYE = {
     'fold_reach': 0.035, # L: how far outside the opening the skin follows the surface (fading to the face's own)
     'fold_follow': 0.0,  # each row's fold at one depth (0: the profile's front edge upright) or at the face's depth
                          # there (1: the edge follows the iris's outline as the face recedes)
+    'fold_back': 0.0,    # L: the anchored surface moved back by this much
     'anchor': 'min',     # the surface's depth: 'min' never in front of `depth`; 'mean' its mean over the opening
                          # there; 'corners' the opening's two corners there (their mean); 'fold' the fold there
     'flick_turn': None,  # 'turned': the flick's own angle from facing front (degrees; None: the surface's at the corner)
@@ -274,6 +275,7 @@ class Surface:
             self.c0 = -float((self._raw(fx, fz) - self._face(fx, fz))[0])
         else:
             self.c0 = -(off.min() if a == 'min' else off.mean())
+        self.c0 += float(K.get('fold_back', 0.0)) * L / W       # then the whole of it this far back (L)
         self.info = dict(fold_mid=round(e0, 3), fold_min=round(float((off.min() + self.c0) * W / L), 4),
                          fold_max=round(float((off.max() + self.c0) * W / L), 4))
 
@@ -549,7 +551,9 @@ def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35, su
     Vi = _world(F, ex, ez, side, inner[:, 0], inner[:, 1], depth=lift, surf=None if at is not None else surf)
     Vo = _world(F, ex, ez, side, outer[:, 0], outer[:, 1], depth=lift, surf=None if at is not None else surf)
     if at is not None:
-        Vi[:, 1] += at; Vo[:, 1] += at
+        Vi[:, 1] += at
+        # the outer edge never behind the skin under it (where the eye is set back, the lid's skin fades forward)
+        Vo[:, 1] += np.minimum(at, surf(outer[:, 0], outer[:, 1])) if surf is not None and surf.on else at
     n = len(pts)
     verts = np.vstack([Vi, Vo])
     quads = []
@@ -592,7 +596,8 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     if S.on:
         # on a turned surface the lash stands at its lid line's depth, and the flick goes on along the surface's own
         # slope at the corner (not the face's steep turn behind it)
-        at = np.concatenate([S(x, z), _flick_depth(F, S, eye_c, side, x[-1], z[-1], fx, fz, turn=K.get('flick_turn'))])
+        fl = _flick_depth(F, S, eye_c, side, x[-1], z[-1], fx, fz, turn=K.get('flick_turn'))
+        at = np.concatenate([S(x, z), np.minimum(fl, S(fx, fz))])        # (the flick never behind the skin either)
     up = _ribbon(F, side, eye_c, np.stack([np.concatenate([x, fx]), np.concatenate([z, fz])], 1),
                  np.concatenate([th, fth]), 1.0, surf=S, at=at)
     t2 = np.linspace(1 - K['lower_lash'], 1.0, 16)
