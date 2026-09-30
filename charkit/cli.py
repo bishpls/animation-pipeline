@@ -294,7 +294,7 @@ def _build(args):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
-    for step in (code_head, code_body, geom_hair, pieces_hair, garments_geom):
+    for step in (code_head, code_body, hair_select, geom_hair, pieces_hair, garments_geom):
         with phase(step.__name__):
             spec = step(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
@@ -535,6 +535,48 @@ def geom_hair(spec, resolved, out, mode='on'):
                             modules=('charkit.geom.parts',), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE geom_hair', r)
     shape['geom'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
+def hair_select(spec, resolved, out, mode='on'):
+    """venv-side, for a generated hair shape: the selection its volume is made on (charkit.bodyeval.hair_selection, the
+    evaluator's own function: the hull aligned by its eyes, its surface outside our skin by a tie-free signed distance,
+    culled off the face) -> out/geom/hair_select.npz, and the resolved spec pointed at it (hair.shape.selection):
+    scene.hair_shape_volume reads it in place of Blender's BVH selection, so the build and the evaluator share one
+    selection (crab_1's stage drift, evalmesh R3). Skipped for a selection only Blender makes (hair_part).
+    CHARKIT_HAIR_SELECT=blender keeps the old path. Cached (file_step) on the spec without the outfit, the GLB and the
+    code head and body."""
+    shape = (spec.get('hair') or {}).get('shape') or {}
+    if not shape.get('glb') or os.environ.get('CHARKIT_HAIR_SELECT') == 'blender':
+        return spec
+    if shape.get('select') not in ('outside', 'exclude') and 'hue' not in shape:
+        return spec
+    import copy
+    from . import cache
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'hair_select.npz')
+    key = copy.deepcopy({k: v for k, v in spec.items() if k not in ('garments', 'garments_geom')})
+    key['hair'] = dict(key['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces', 'selection')})
+
+    def run():
+        import numpy as np
+        from . import bodyeval
+        got = bodyeval.hair_selection(key)
+        hv, hf = got
+        np.savez(path, V=hv, F=np.asarray(hf, np.int64))
+        print('hair selection', path, len(hv), 'vertices', len(hf), 'faces')
+    if mode == 'off':
+        run()
+    else:
+        ins = [spec[k] for k in ('head_code', 'body_code') if spec.get(k)]
+        r = cache.file_step('hair_select', run, [hair_select], key, gdir, inputs=ins + _glb_inputs(shape['glb']),
+                            modules=('charkit.bodyeval', 'charkit.geomstage', 'charkit.character', 'charkit.code_base',
+                                     'charkit.code_body', 'charkit.geom.bvh', 'charkit.geom.parts', 'charkit.i3d',
+                                     'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE hair_select', r)
+    shape['selection'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec
 
