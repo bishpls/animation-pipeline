@@ -134,10 +134,19 @@ The control socket path must be short (macOS limit 104 bytes: `~/.ssh/cm/%C`).
   PYTHONHASHSEED fixed and with `-t 1`. The fix is then either that modifier's settings or rounding the masked read
   (e.g. to 1e-6 m) where the bundle stores it.
 
-**Gates.** See "Round 2 gates" below.
+**Round 2 gates** (build box, through the detached path):
+- default spec: **PASS**, `gate_tool-infra2_01a48e3_into_00a29b4.md`: 48 test files ok (test_boxjob, test_flags and
+  test_preview's hook test among them, on the box's Linux Python), no check changed, no 2x2 needed. Its trace shows
+  "knobs hair changed" and a spec_hash change: the resolved spec's absolute hair_pieces path ((c) cause 1), not content.
+- 01a48e3 is 9d73108 merged with pipeline-3d deb2e02; the only conflict was charkit/cli.py's usage lines (both kept).
+  A first gate of 933efc8 was stopped with `remote kill` (it would have hit that conflict): its command exited 143,
+  the job's own exit code. A killed gate skips its cleanup, so it leaves its clone in /srv/work/gates (a trap in the
+  gate step would fix this).
+- tool/infra2 merges cleanly into pipeline-3d 71c647f (tool/artifacts merged since).
+- **Not run:** the `--spec charkit/spec/clawd_mh.json` gate (no new gates at the checkpoint).
 
 **Next steps (a lean relaunch):**
-1. Record the round's gates (below); gate `--spec charkit/spec/clawd_mh.json` if not yet done.
+1. Gate `--spec charkit/spec/clawd_mh.json` (the default spec's gate PASSed); merge pipeline-3d first if it moved.
 2. (c): the probe above, then the fix; and the hair path in the resolved spec (with its owner).
 3. (a) bucket GC: list `cas/m/*` manifests and `cas/n/*` names, keep what the last N days' manifests reference, dry
    run first (count and bytes), then delete; the bucket's soft delete keeps deletes 7 days.
