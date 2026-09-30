@@ -2448,7 +2448,8 @@ def bow_hull(A, spec, hull):
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
-                  wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0))
+                  wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0),
+                  end_p=spec.get('end_p', 2.0))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -2479,7 +2480,7 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
     centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
     lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
@@ -2531,7 +2532,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
         else:
             # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold. With `end` (a share
             # of its length) its far end is closed round: the section shrinks by a quarter ellipse over that share to a
-            # point (a fan), where the old open ring read as a straight cut with no line (Michael, 2026-09-30)
+            # point (a fan), where the old open ring read as a straight cut with no line (Michael, 2026-09-30). `end_p`:
+            # the cap's superellipse power (2 a quarter ellipse; higher, a flatter end with rounder corners, as drawn)
             u_rows = [(1 - math.cos(math.pi * i / nv)) / 2 for i in range(nv + 1)]
             if end:
                 # the old rows up to the cap, then rows closing it (denser toward its tip)
@@ -2542,7 +2544,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
                 k_ = 1.0
                 if end and u_ > 1 - end:
                     e_ = (u_ - (1 - end)) / end
-                    k_ = math.sqrt(max(0.0, 1 - e_ * e_))
+                    k_ = max(0.0, 1 - e_ ** end_p) ** (1.0 / end_p)
                 for j in range(nu):
                     ph = 2 * math.pi * j / nu
                     taper = (knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8) * k_
