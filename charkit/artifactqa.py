@@ -67,6 +67,8 @@ FRAG = 0.002                # L^2: a component of a region under this is a fragm
 SLIVER = 0.012              # L: a part of a region thinner than this is a sliver
 SPECK = 0.0004              # L^2: a speck in the skin is under this ...
 SPECK_MIN = 0.00001         # L^2: ... and over this
+MIN_SKIN = 0.01             # L^2: a view shows less face or neck skin than this: not measured there (the back view's neck
+                            # is slivers between the hair and the collar, 0.003-0.005 L^2, where specks per L^2 read 740)
 EDGE_BAND = 0.006           # L: tone patches within this of a region's outline are the outline's fringe
 TONE_BLUR = 0.9             # px: our tone buffer softened as a render's pixel filter (~0.5) and a drawing's cut (0.7)
 
@@ -846,6 +848,8 @@ def view_regions(kinds, chin_row=None, neck_rows=None, line=None, dots=None, ppl
             filled = ndimage.binary_fill_holes(sk | feat)
             zone = np.broadcast_to((rows < chin_row) if r == 'face' else (rows >= chin_row) & (rows < chin_row + neck_rows),
                                    (H, W))
+            if ppl and (sk & zone).sum() < MIN_SKIN * ppl ** 2:
+                continue                        # (slivers of skin: a rate over them is noise)
             holes = filled & ~sk
             near = ndimage.binary_dilation(holes, iterations=max(1, int(round(0.03 * (ppl or 400))))) if holes.any() \
                 else holes
@@ -1239,7 +1243,6 @@ CALIBRATED = {
     'peeks_hair': 'the fragments at the lock tips (look_v5)',
     'spikes_boots': "the boots' jagged protrusion (round 4)",
     'bumps_boots': "the boots' knobs: the twisted ankle, the heelless doubled toe (round 4)",
-    'points_boots': "the boots' pointed corners (round 4)",
     'mirror_self_boots': 'the boots uneven between the feet (round 4)',
     'mirror_waist': 'the midriff distorted on one side (round 5; round 4)',
     'points_sleeves': "the puff sleeves' pointed caps (the hull sleeves)",
@@ -1568,7 +1571,9 @@ def save_overlays(out, pics, name='qa_artifacts.png'):
 
 if __name__ == '__main__':
     import sys
-    from charkit import artifactqa as _self             # (the module by its name: the stamp keys on its code units)
+    from charkit import registry
+    registry._PARTS.pop('artifacts', None)              # (run as __main__ it registered __main__.measure: the module
+    from charkit import artifactqa as _self             # by its name registers its own; the stamp keys on its code)
     if len(sys.argv) > 2 and sys.argv[1] == 'design':
         _self.store_design(sys.argv[2])
     else:
