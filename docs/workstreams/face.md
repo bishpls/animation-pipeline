@@ -797,3 +797,42 @@ build's cut-piece hair) isn't it either. It enters in the evaluator's inputs: th
 the measure (its skin's per-face classes, `lab == skin`, against qa3d's material names skin/face_skin, cavity and
 eyeline as line) or the geometry `bodyeval` rebuilds (its cranium fit and assembly). `evaldrift SPEC --build DIR --here
 --stages` on a fresh build pins which: owner infra / body (bodyeval, bodymeasure).
+
+**Numbers** (lab: jaw_7's head code, local assembly, the graded boards' camera with the level camera's in brackets,
+and the level camera at 4x; before = jaw_7's constants, after = this branch's defaults; `charkit/out/face4/
+chin_lab_{before,after}.json`):
+
+| check | design | before | after |
+|---|---|---|---|
+| chin_angle (deg) | 129.7 | 116.4 WARN (level 126.1; 4x 126.3) | 119.1 WARN (level 128.5; 4x 128.9) |
+| chin_tip | 0.833 | 0.612 WARN (level 0.951) | 0.897 PASS (level 0.833) |
+| jaw_line_bend (deg) | 4.2 | 4.6 PASS | 4.6 PASS (level 4x 2.9) |
+| tq_jaw_notch (L) | 0 | 0 PASS | 0 PASS |
+| jaw_taper_shape | 0 | 0.0385 WARN (level 0.0168) | 0.0398 WARN (level 0.0188): 0.0002 under FAIL |
+| tq_cheek_hollow / chin_point_z / chin_v | | 0.0048 / 0 / 1.127 | unchanged |
+| chin_underside (deg) | 13.7 | 12.8 | 14.1 |
+| crown: faces turned over by the fit | 0 | 60 quads (120 tris) | 0 |
+
+The boards' chin_angle is 0.6 short of PASS (119.7): what's left is the boards' 6-degree look down on the design's
+own recession, not the V's shape (level 128.5-128.9 against 129.7).
+
+**Jobs at this checkpoint** (both launched from 3e8d8bc, pipeline-3d b43c15e merged in):
+- gate (build box, default spec): `gate-face-0930-075757-5090`; report into `charkit/out/gate/` (`remote attach
+  gate-face-0930-075757-5090` to follow it again).
+- render build with face boards (render box): `build-face-0930-075753-ff76`, out `charkit/out/face4_after`.
+
+**Next steps** (the next agent):
+1. Read the gate's report under K; watch jaw_taper_shape (0.0398 in the lab, the box read jaw_7 0.0003 higher) and
+   hair_penetration (the crown fix: should drop from its false 0.0124 FAIL).
+2. The review page: `python tools/face_labs/level_slot.py charkit/out/face4_after` and `... charkit/out/jaw_7` (the
+   head orthographic and level in a laptop build slot: face_level.py), then `python tools/face_labs/face4_page.py
+   charkit/out/face_review/round4 charkit/out/jaw_7 charkit/out/face4_after --labels before,after` (design | before |
+   after in the design's projection, the traces, the numbers, the crown count). jaw_7 is round 3's build of the same
+   head, before hair4's merge: its hair-shown pictures carry the older hair.
+3. The ramus: the head sheet's side locks cover the jaw behind its angle in every view (the three-quarter's jaw line
+   leaves view at z -0.27), so there is no design silhouette to fit it to; not built. For Michael: whether a ramus is
+   wanted for bare or hair-in-motion shots, and from which reference.
+4. For Michael / the coordinator: whether the chin's V is graded in the level camera (the design's projection; the
+   boards' value beside it). Under it the rim loop (`SIDE_RIM_ROW` with the refit) reads the design's V exactly
+   (130.2, tip 0.79) but the boards' tip 0.42; it stays off.
+5. sheet_width's drift: `evaldrift SPEC --build DIR --here --stages` (owner infra / body).
