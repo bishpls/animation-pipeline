@@ -6,6 +6,14 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
+**Run 3 (subset 3 on), first the coordinator's 2x2 gap** (cabfcf5): the 2x2's crossed old-measure cells read
+"unmeasured" in tool/hairtag 37c09cf's gate (a cached baseline's worktree never built, so it had no produced hair
+layers; the old measure's QA skipped hair_pieces) and the gate passed. Now each tree's produced references are made by
+its own code before its crossed QA (gate.produce_inputs), and under K a crossed cell a remeasured check can't get (the
+old measure has the check) or a crossed QA that can't run blocks (gate.unmeasured_cells; --accept by name reports it).
+Rejudged, the hairtag report is FAIL on its 10 cells. Validating on the real pair: tmp/infra3-hairtag (37c09cf) into
+tmp/infra3-into (4de65ab), gate code cabfcf5.
+
 Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
 pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
 676 s; the candidate's resolve 225 s is the one-off key change). pipeline-3d then moved to f2ec090; merges cleanly;
