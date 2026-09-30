@@ -138,3 +138,11 @@ merges tool/outfit-source's sheet-only masks (read-only from `~/animation-pipeli
 The sheet-only masks cost the hair's buns in profile (profile buns called upper_back 1,258 px: outfit-source's known
 miss, the buns' undersides) and there is no profile bun_R at all (the field's masks had 2 px of it). The structure
 method's gain holds under both (+0.066 / +0.065).
+
+## Merges and gates
+
+- `ecc1358` the truth and scorer; `97d9449` the method; `018f297` pipeline-3d `b43c15e` merged in (tool/infra3's gate
+  under K, tool/toonrender2's QA drawing), cleanly; test_hairtruth, test_manifest, test_registry, test_hairpieces,
+  test_outfit pass. This branch adds no QA part or step (the hair layers' keys are unchanged; the QA's hair checks read
+  them as before).
+- Gate (default spec): running, `python -m charkit remote gate tool/hairtag --into pipeline-3d`.
