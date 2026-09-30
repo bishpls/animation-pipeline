@@ -1,8 +1,8 @@
 # Workstream: our own toon renderer (`tool/toonrender`)
 
 State: phase 1 done (boards from a build's export, measured against EEVEE, three machines). Phase 2 on
-`tool/toonrender2` (`~/animation-pipeline-toonrender2`): **the QA draws with charkit.render by default** ("Phase 2, round
-2" below; the checkpoint before it for what was built).
+`tool/toonrender2` (`~/animation-pipeline-toonrender2`, pipeline-3d a3073f5 merged): **the QA draws with charkit.render by
+default** ("Phase 2, round 2" below; the checkpoint before it for what was built).
 
 Gate: `python -m charkit remote gate tool/toonrender --into pipeline-3d`: **PASS** at 75fe37b into e11fadb (no check
 changed; `test_render.py` ok on the build box's llvmpipe). Later commits touch only `charkit/render/page.py`,
@@ -278,10 +278,11 @@ film): render 0.40-0.45 levels from EEVEE's, >8 levels 0.56-0.69%; numpy 1.9-2.2
 **Noise and limits.** The round-1 zeros for face_noise, face_noise_sweep and face_islands were the placements (whole
 samples of the 3x grid); off the grid, face_noise's noise is 0.0002 under both drawings and face_islands' count holds
 over all 6. No limit needs to move for the switch: no graded check changes status. One status flips with the
-placement: **art_mirror_waist reads 1.19-1.735 over the 6 placements on unchanged garments (limit 1.5), under both
-drawings alike**. tr3_a reads PASS and tr3_b WARN at the frame's own placement. It's a flag check due for promotion to
-FAIL (handoff, integrator item 6), and as measured it would be a coin toss. It needs its noise handled first (the
-placements' mean, or a limit clear of it).
+placement: **art_mirror_waist reads 1.19-1.735 over the 6 placements on unchanged garments (WARN past 1.5, FAIL past
+2.5), under both drawings alike**. tr3_a reads PASS and tr3_b WARN at the frame's own placement. look4 promoted it to
+FAIL (a3073f5). Its FAIL limit sits 0.77 above the highest reading, so the promotion holds, but its PASS/WARN is noise
+at the frame's placement: a gate can read it PASS -> WARN on geometry that didn't change. Worth the placements' mean,
+or a WARN limit clear of the noise.
 
 ### Cost
 
