@@ -96,7 +96,7 @@
    "kind": "outfit_graph",
    "path": "charkit/refs/clawd/outfit_graph.json",
    "tracked": true,
-   "sha256": "308d5dcc960281a574bf9972bf1163dfd15e40432a596ca769431f13fd803788",
+   "sha256": "084e4d5b12695f072bbd4d4d6972e8b03a25c281845bbd23f9a0201994f3ba49",
    "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
    "provenance": {
     "tool": "charkit.outfit",
@@ -123,9 +123,7 @@
      }
     }
    },
-   "cautions": [
-    "measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"
-   ]
+   "cautions": ["measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"]
   },
   "head_turnaround": {
    "kind": "generated_reference",
