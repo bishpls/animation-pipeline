@@ -510,3 +510,39 @@ over the neck in profile), `frontprobe.py` (inside a build: lock 0 against the d
   (within 0.004); terminator_hair / fragments_hair read 2.08 / 1.43 there against the box's 1.966 / 1.235 (the swap's
   corner normals), so variants are compared with that swap, not the box. hair_folds without the builder's report is
   the dihedral count (1368): the builder's fold count (pieces.json) is used instead (6 on both hulls).
+- **What the regression is** (`comps.py`: every foreign component by the clear neck skin in profile, small or not):
+  base (tr3_a) side lock 12 + 5 px, **lower back edge strip 69 px** (66 + 3 px of its outline, rows 643-695), collar
+  outline 139 px; ours (g3_render3) side lock 12 + 10 px, **lock 0's edge strip 58 px** (rows 643-687), collar outline
+  124 px, and **two dots at the junction** where lock 0's lowest point meets the collar's back corner: 1 px of lock 0
+  (row 697, col 460) and 3 px of the collar's outline (rows 701-703, cols 458-460). Lock 0's tip covers the collar's
+  top line from col 444 to 457 but stops 1-3 px short of its back corner, so the corner's outline and the tip's last
+  pixel stand alone in the skin: partial shards. They count as specks and take the clear skin round them (12 px), which
+  cuts the strip short (58 < 64 px). The TRELLIS-hull rebuild reads the base's components exactly (69 px strip, 141 px
+  collar outline to col 460: its lower back's outline runs down into the collar's line). R1 and the forced TRELLIS
+  cuts keep the dots: the envelope at lock 0's lowest point decides it, not the partition.
+- **Against the design:** our lock 0's front over the neck sits on the drawn profile's hair edge (sheet grid, rows
+  361-365 where the drawn side lock ends: drawn 582-583, ours 580-584, the TRELLIS hull's 587-591), so pulling it back
+  to the TRELLIS-hull shape would move it off the drawing. `frontprobe.py`.
+- **Not fixed this round.** No small change in the hair builder clears the junction without moving other pieces: the
+  two general partition rules move every piece (above), and the builder doesn't see the collar. Options for the next
+  round, in order: (a) the lowest locks over a garment edge they meet hang clearly over it or clear of it (the design's
+  profile draws the back hair over the collar's back): needs the collar's outline in the hair stage or a pass after
+  the garments; (b) the hull's carve at the back of the neck from the sheet-only masks (the TRELLIS hull's envelope
+  gives the base's components exactly, but a hull change moves everything downstream). (c) For Michael: a clean hair
+  edge over the neck reads as a speck when its 1 px strip is under SPECK (64 px): the base passes by 5 px. Not changed.
+
+### The review page (round 4)
+
+`charkit/out/g3_review/index.html` regenerated with `g5/review6.py OUT g4/before charkit/out/g3_render3
+gate_...e66abc8_into_4de65ab.json` (review5 plus a section on the neck specks: lock-coloured QA maps of the base,
+ours and the TRELLIS-hull hair, the junction zoomed, the component counts; the flap options linked). The before is
+tr3_a (it reads the round-3 gate's base value 1.289); the after g3_render3 (e66abc8). No newer render: no geometry
+changed this round, and the box's auth lapsed at 09:50.
+
+### Box and gate (round 4)
+
+gcloud auth lapsed at 09:50 (coordinator): every box call fails with "Reauthentication failed". **No box job is
+running from this round** (none was launched), and the gate was not run. After re-login: gate once,
+`python -m charkit remote gate tool/garments3 --into pipeline-3d`. Expected under K: art_speckle_neck ~2.6 (not fixed)
+and the three flap 2x2 checks (Michael's call, A default); test_bow_tails.py now passes as a script (63 files ok
+locally, the gate's way).
