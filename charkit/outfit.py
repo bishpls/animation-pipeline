@@ -2912,10 +2912,18 @@ def set_member(text, parent, key, value, indent=2):
 def apply_notes(G, notes):
     """what the notes decide over the drawing, applied to a graph in place: a piece noted `over` others lies on them in
     the layer order (the drawing's stack can't tell same-coloured layers apart: the overskirt panels lie over the skirt,
-    Michael's call, 2026-09-29), each change flagged; and each spring chain's bone names, the names a build gives the
-    chain's bones when it rigs the piece (PIECE_0 .. from the root; PIECE_c_i for a piece with several chains)."""
+    Michael's call, 2026-09-29), each change flagged; a piece's noted `chain` (joints, L in the graph's frame: the path
+    the built garment hangs along, written by charkit.flapchains) replaces its spring chain; and each spring chain's
+    bone names, the names the rig stage gives the chain's bones (PIECE_0 .. from the root; PIECE_c_i for a piece with
+    several chains)."""
     ids = {g['id']: g for g in G.get('pieces', [])}
+    sp_of = {sp['piece']: sp for sp in G.get('springs') or []}
     for a in (notes or {}).get('pieces', []):
+        if a.get('chain') and a['id'] in sp_of:          # a chain the build's garment defines (charkit.flapchains)
+            sp = sp_of[a['id']]
+            J = [list(map(float, j)) for j in a['chain']]
+            sp['chains'] = [dict(joints=J, root='at %s' % a.get('parent', 'its parent'), source='notes (the built flap)')]
+            sp['length'] = round(float(sum(np.linalg.norm(np.subtract(b, c)) for b, c in zip(J[1:], J[:-1]))), 3)
         g = ids.get(a['id'])
         for q in a.get('over') or []:
             h = ids.get(q)
@@ -2955,11 +2963,18 @@ def relayer(spec_path, log=print):
         apply_notes(G, N)
         open(_p(gp), 'w').write(dumps(G) + '\n')
         log('relayered', gp)
-    ref = dict(M['references']['outfit_graph'], sha256=manifest.sha256(paths[0]))
+    rehash(mref)
+    return paths
+
+
+def rehash(mref):
+    """the manifest's outfit_graph reference's hash refreshed after the graph changed in place."""
+    from . import manifest
+    M = json.load(open(_p(mref)))
+    ref = dict(M['references']['outfit_graph'], sha256=manifest.sha256(M['references']['outfit_graph']['path']))
     text = set_member(open(_p(mref)).read(), 'references', 'outfit_graph', ref)
     json.loads(text)
     open(_p(mref), 'w').write(text)
-    return paths
 
 
 def register(manifest_path, graph_path, G, inputs):

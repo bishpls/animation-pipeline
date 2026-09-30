@@ -735,11 +735,13 @@ def flap(A, spec, hull):
     own slope there, tilted `out` further out and `sweep` toward the centre back, for `length` L at its front edge and
     `train` more at its back edge (a stepped diagonal in front, a train sweeping back in profile). Centred on azimuth
     `az` (degrees, 0 the front, + her left), `width` L wide at the skirt's hem and `narrow` of that angle at the waist.
-    Needs the hull skirt it lies on (`over`, default skirt, from the whole spec in `_spec`). A chain of `bones` bones
-    along its middle column: the first from the waist to the skirt's hem (parent hips), the rest along the tail, named
-    NAME_0, NAME_1, ...; each vertex weighted between the two nearest by its row's arc length. UV: u across 0 .. 1; v 0
-    at the waist .. 1 at the tail's end, the last `trim` L of each column on the stepped hem texture's band (`band` of
-    v). -> dict(verts, faces, weights, uv, z_waist, chain=dict(parent, bones, joints), reach (lowest point, m))."""
+    Needs the hull skirt it lies on (`over`, default skirt, from the whole spec in `_spec`). Its chain as data: `bones`
+    bones joint to joint along its middle column, the first from the waist to the skirt's hem (parent hips), the rest
+    along the tail, named NAME_0, NAME_1, ... (charkit.flapchains writes the path into the outfit graph; the rig stage
+    makes the bones and the weights, tool/rig). Until it does the flap rides the hips. UV: u across 0 .. 1; v 0 at the
+    waist .. 1 at the tail's end, the last `trim` L of each column on the stepped hem texture's band (`band` of v).
+    -> dict(verts, faces, weights, uv, z_waist, chain=dict(parent, bones, joints, arc (per vertex: its row's arc length
+    along the middle, m)), reach (lowest point, m))."""
     L = A['head']['L']
     whole = spec.get('_spec') or {}
     sk = next((g for g in whole.get('garments', []) if g['name'] == spec.get('over', 'skirt')), None)
@@ -802,48 +804,9 @@ def flap(A, spec, hull):
     s_j = np.r_[0.0, arc[nr - 1], arc[nr - 1] + np.linspace(0, S, nb)[1:]]
     joints = np.stack([np.interp(s_j, arc, cen[:, k]) for k in range(3)], 1)
     names = ['%s_%d' % (spec['name'], i) for i in range(nb)]
-    mid = 0.5 * (s_j[:-1] + s_j[1:])
-    Wt = {b: np.zeros(len(verts)) for b in names}
-    for j in range(NR):
-        sv = arc[j]
-        if sv <= mid[0]:
-            w = {0: 1.0}
-        elif sv >= mid[-1]:
-            w = {nb - 1: 1.0}
-        else:
-            i = int(np.searchsorted(mid, sv)) - 1
-            f = (sv - mid[i]) / max(1e-9, mid[i + 1] - mid[i])
-            w = {i: 1 - f, i + 1: f}
-        for i, x in w.items():
-            Wt[names[i]][j * (cols + 1):(j + 1) * (cols + 1)] = x
-    return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, z_waist=float(over[0, cols // 2, 2]),
-                chain=dict(parent='hips', bones=names, joints=joints), reach=float(verts[:, 2].min()))
-
-
-def add_chain(arm, chain):
-    """a flap's spring chain as bones in the armature: NAME_i from joint i to i + 1, the first parented to `parent`."""
-    import bpy
-    from mathutils import Vector
-    for o in bpy.context.view_layer.objects:
-        o.select_set(False)
-    bpy.context.view_layer.objects.active = arm
-    arm.select_set(True)
-    bpy.ops.object.mode_set(mode='EDIT')
-    eb = arm.data.edit_bones
-    J = chain['joints']
-    prev = eb.get(chain['parent'])
-    for i, b in enumerate(chain['bones']):
-        e = eb.new(b)
-        e.head = Vector(J[i]); e.tail = Vector(J[i + 1])
-        if (e.tail - e.head).length < 1e-4:
-            e.tail = e.head + Vector((0, 0, -0.02))
-        e.parent = prev
-        e.use_connect = i > 0
-        e.align_roll(Vector((0, -1, 0)))
-        prev = e
-    bpy.ops.object.mode_set(mode='OBJECT')
-    for b in chain['bones']:
-        arm.pose.bones[b].rotation_mode = 'QUATERNION'
+    return dict(verts=verts, faces=faces, weights={'hips': np.ones(len(verts))}, uv=uvs,
+                z_waist=float(over[0, cols // 2, 2]), reach=float(verts[:, 2].min()),
+                chain=dict(parent='hips', bones=names, joints=joints, arc=np.repeat(arc, cols + 1)))
 
 
 def dense_arc(th, mass=0.8):
@@ -1454,7 +1417,6 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
         elif k == 'panel':
             if s.get('source') == 'flap':
                 G = flap(A, dict(s, _spec=spec_all), hull)
-                add_chain(arm, G['chain'])
             else:
                 G = panel_hull(A, s, hull) if s.get('source') == 'hull' else panel(A, s)
             if s.get('hem') == 'stepped':
