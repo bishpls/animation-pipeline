@@ -116,6 +116,26 @@ class _ObRef(_Ref):
         self._rec.events.append(['item', self._id, k, self._rec.enc(v)])
 
 
+OBJECT_ARGS = ('name', 'verts', 'faces', 'weights', 'arm', 'mats', 'uv', 'uv_corner', 'mat_idx', 'smooth', 'wound')
+
+
+def _wound(args, kw):
+    """garments._object's faces (and corner UVs) wound as charkit.geom.wind.orient decides, venv-side: the product
+    carries them and Blender takes them as given (wound=True), instead of re-deriving the winding there."""
+    from .geom import wind
+    d = dict(zip(OBJECT_ARGS, args)); d.update(kw)
+    if d.get('wound'):
+        return args, kw
+    F, U = wind.orient(d['verts'], d['faces'], d.get('uv_corner'))[:2]
+    if isinstance(d['faces'], np.ndarray):
+        F = np.asarray(F, d['faces'].dtype)
+    d.update(faces=F, wound=True)
+    if d.get('uv_corner') is not None:
+        d['uv_corner'] = U
+    args = [d.pop(k) for k in OBJECT_ARGS[:len(args)]]
+    return args, d
+
+
 def _recorder(rec, fn, make=_Ref):
     def call(*args, **kw):
         i = rec.name('c')
@@ -125,6 +145,8 @@ def _recorder(rec, fn, make=_Ref):
                 args[1] = _intern(args[1])
             elif 'rgba' in kw:
                 kw = dict(kw, rgba=_intern(kw['rgba']))
+        if fn == '_object':                                  # the winding decided here, passed through (wound=True)
+            args, kw = _wound(args, kw)
         rec.events.append(['call', i, fn, rec.enc(list(args)), rec.enc(dict(kw))])
         return make(rec, i, fn)
     return call
@@ -335,8 +357,7 @@ def pieces(P):
                 made[i] = dict(fn='toon_tex', name=a[0], image=made[im['$r']]['rgba'],
                                shade=a[2] if len(a) > 2 else k.get('shade_mul'))
             elif fn == '_object':
-                names = ('name', 'verts', 'faces', 'weights', 'arm', 'mats', 'uv', 'uv_corner', 'mat_idx', 'smooth')
-                d = dict(zip(names, a)); d.update(k)
+                d = dict(zip(OBJECT_ARGS, a)); d.update(k)
                 o = dict(name=d['name'], V=np.asarray(d['verts'], float), polys=d['faces'], weights=d['weights'],
                          uv=d.get('uv'), uv_corner=d.get('uv_corner'), mat_idx=d.get('mat_idx'), smooth=d.get('smooth', True),
                          materials=[made[m['$r']] for m in d['mats']], mods={}, props={}, outline=None)
