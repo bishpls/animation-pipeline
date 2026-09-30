@@ -6,8 +6,10 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A (a-f) implemented and unit-tested; validation gates on the box in flight (see "Validation"). Milestone B
-(g-l) not started: it waits for the coordinator's go-ahead after the merge.
+Milestone A (a-f) done, unit-tested and validated on the box (see "Numbers" and "Validation"); the branch's own gate
+(`remote gate tool/infra3 --into pipeline-3d`, pipeline-3d's old gate code) is the last step. Milestone B (g-l) not
+started: it waits for the coordinator's go-ahead after the merge. Throwaway test branches: tmp/infra3-* and
+tmp/hair4-gated (local only; delete freely).
 
 Gate code comes from the `into` branch: none of this helps a gate until pipeline-3d has it. To try gate changes before
 that: `python -m charkit remote gate BRANCH --into pipeline-3d --code tool/infra3` (the clone checks out the gate's own
@@ -89,7 +91,26 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
 - Verdict WARN: "the build takes 2.3x the CPU time" (579 -> 1,331 s) on identical code. Under K that would block.
 - Without a cached baseline, a gate is baseline + tests + candidate: about 1,115 s (18.6 min).
 
-**After:** (validation in flight; filled in below)
+**After (this branch's gate code, the same shared box):**
+- **A docs-only branch, the baseline cached** (`gate_tmp-infra3-docs3_cdd613c_into_82c8094`): **72 s** in the gate
+  (setup 14 s: two sparse worktrees; tests 58 s, 51 files 8 at a time, 287 s of test time; no build), 89 s end to end
+  from the laptop. Before: 778 s, and a spurious CPU WARN.
+- **A docs-only branch into a commit with no baseline of its own** (`gate_tmp-infra3-docs2_ac7a220_into_4d0d9b5`: the
+  target is 82c8094 plus a docs commit): the baseline is base_82c8094 (no change since reaches its closure; linked),
+  the candidate isn't built: **69 s** in the gate, 86 s end to end. Before: a baseline build, tests and a candidate
+  build, about 1,115 s.
+- **An already-gated branch, re-gated** (`gate_tmp-hair4-gated_14d9e42_into_08f93e2`: tool/hair4's gated tip; the
+  baseline cached from before the closure, so the candidate builds): 521 s (setup 17 s, tests 50 s beside the build,
+  candidate 504 s wall). Before: the same gate took 319 s for the build plus about 195 s of tests one after the other.
+  All 14 changed checks are identical to the old report's rows (values and statuses). K's verdict: FAIL on
+  art_terminator_hair's grade (WARN -> FAIL, 2.376 -> 2.607), which `--rejudge` also reads from the old report
+  (then PASS), and on the CPU (2.23x: 579 -> 1,291 s; the old run measured 379 s for the same build: see Findings).
+- **Both sides built, side by side** (`gate_tmp-infra3-docs_42353c2_into_82c8094`, before the numba-cache fix): 749 s;
+  the baseline and candidate built at once (730 and 709 s wall; 1,663 and 1,643 s CPU, 0.99x), the tests alongside
+  (53 s). Each build's resolve took about 255 s: this branch changes charkit/cache.py, so the produced references
+  (hull, outfit masks, hair layers), keyed on their producers' code two imports deep, missed the shared cache and
+  were rebuilt (a one-off per such change). The candidate was built only because numba's cache files
+  (`__pycache__/*.nbi`) counted as inputs: fixed (c8cdb4c), and the docs gates above then skipped it.
 
 ## Validation
 
@@ -107,10 +128,15 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
 
 ## Findings for the coordinator and Michael
 
-- **K's CPU rule is noisy under load.** The same code measured 579 s and 1,331 s of CPU (2.3x) in two builds on the
-  shared box: numba's OpenMP layer (no TBB on the box) and OpenBLAS spin while waiting, and spinning grows with load.
-  Milestone B's thread caps (i) should fix it; until then a CPU FAIL wants a look at the box's load before it's
-  believed. Side-by-side builds (both built by one gate) are more comparable than a cached baseline.
+- **Uncapped builds burn most of their CPU spinning, which made K's CPU rule noise; a gate's builds are now capped.**
+  The same build measured 379 s and 1,291 s of CPU in two gates (tool/hair4 14d9e42, identical checks), and a
+  docs-only candidate 2.3x its baseline. The A/B (two builds of clawd.json side by side on the loaded box, --cache off):
+  uncapped 490 s wall, 1,313 s CPU; capped at 4 threads with OMP_WAIT_POLICY=PASSIVE 485 s wall, **527 s CPU**; outputs
+  bit-identical (733 bundle arrays, 351 checks). So gate builds now run capped (gate.THREAD_VARS, 4 threads on the
+  32-core box), each build records its cap in cpu_seconds.json, and K compares CPU only between builds with the same
+  cap: a cached baseline from before this (uncapped) gets a note, not a block. The same caps for every build on the box
+  (`remote build`, tunes) would cut the box's CPU by about 60% at no cost in wall time: that's item (i), next.
+- **Tests run 8 at a time:** 51 files, about 280 s of test time, 50-58 s wall (test_geom.py alone is 46-49 s).
 - **Flag checks: the grade counts.** Under K a flag check blocks when its calibrated grade gets worse even though its
   (capped) status doesn't: tool/hair4's PASS becomes a FAIL on art_terminator_hair. That's my reading of "regressions in
   the checks built from Michael's flags"; if Michael means status only, it's one line in gate.judge.

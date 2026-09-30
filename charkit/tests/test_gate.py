@@ -156,6 +156,10 @@ def test_k_blocks_only_new_fails_flag_regressions_and_cpu():
     assert v == 'PASS' and not block and [r['check'] for r in R['improved']] == ['art_bumps_legs']
     v, block, R = _judge(a, b2, cpu_seconds=[100, 151])
     assert v == 'FAIL' and [x['kind'] for x in block] == ['build CPU']
+    v, block, R = _judge(a, b2, cpu_seconds=[100, 151], cpu_threads=[4, 4])
+    assert v == 'FAIL'
+    v, block, R = _judge(a, b2, cpu_seconds=[100, 251], cpu_threads=[None, 4])     # an uncapped baseline: reported
+    assert v == 'PASS' and 'different thread caps' in R['notes'][0]
     # the hard failures still block
     v, block, R = _judge(a, a, hard=[{'kind': 'tests failing', 'files': ['test_x.py']}])
     assert v == 'FAIL' and gate._why(block[0]) == 'tests failing: test_x.py'

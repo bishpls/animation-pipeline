@@ -36,6 +36,8 @@ gets worse under either measure alike (the old on both geometries, or the new on
 FAIL there or is a flag check, unless it's accepted by name (--accept PATTERN[,PATTERN]); otherwise it's reported.
 The report (markdown, json, summary json) is written to charkit/out/gate/: what blocks, the report, the build decision,
 the gate's phases (each with its start and length, the builds' own steps), the tests, the trace diff.
+A gate's builds run with their thread pools capped (THREAD_VARS, _threads(): 4 on the 32-core box) and OpenMP's waits
+passive: the same wall time, a third of the CPU, bit-identical outputs, and a CPU figure the box's load doesn't inflate.
 """
 import concurrent.futures, contextlib, fnmatch, glob, json, os, shlex, shutil, signal, subprocess, sys, tempfile, \
     threading, time
@@ -48,6 +50,18 @@ CPU_LIMIT = 1.5                     # policy K: the candidate's build CPU over t
 # export (no --vrm: about 80 s, most of it evaluating shape keys) unless the branch changes it; then the candidate builds
 # with --vrm, and the export checks itself on the way out (a failed check fails the build)
 EXPORT_CODE = ('charkit/gltf.py',)
+# a gate build's thread pools (BLAS, OpenMP, numba), and its OpenMP threads sleep rather than spin while they wait.
+# Measured on the build box under load (2026-09-30, one build of clawd.json each, side by side): 490 s wall and 1,313 s
+# CPU uncapped, 485 s and 527 s capped at 4, the outputs bit-identical (733 arrays, 351 checks). Uncapped, the CPU
+# a build burns spinning grows with the box's load (the same build measured 379 s and 1,291 s), which made policy K's
+# CPU rule noise. CHARKIT_GATE_THREADS overrides (0: uncapped).
+THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS', 'BLIS_NUM_THREADS',
+               'VECLIB_MAXIMUM_THREADS')
+
+
+def _threads():
+    v = os.environ.get('CHARKIT_GATE_THREADS')
+    return int(v) if v else max(2, min(8, (os.cpu_count() or 4) // 8))
 
 
 def _git(*a, cwd=ROOT, check=True):
@@ -126,6 +140,8 @@ def _build(wt, spec, out, args, record=True, procs=None):
     env = {k: v for k, v in os.environ.items() if k != 'CHARKIT_CLOSURE'}
     if record:
         env['CHARKIT_CLOSURE'] = log
+    if _threads():
+        env.update({k: str(_threads()) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
     t = time.time()
     p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', 'views', '--no-blend'] + list(args),
                          cwd=wt, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
@@ -146,10 +162,11 @@ def _build(wt, spec, out, args, record=True, procs=None):
             except ValueError:
                 pass
     res = dict(ok=ok, seconds=round(time.time() - t, 1), cpu=cpu, steps=steps, killed=getattr(p, 'killed', False),
+               threads=_threads() or None,
                cache=[l.strip()[:200] for l in lines if l.startswith(('CHARKIT_CACHE', 'CHARKIT_PRODUCED'))][:40],
                log=''.join(lines)[-1500:])
     if ok:
-        json.dump({'cpu_seconds': cpu}, open(os.path.join(out, 'cpu_seconds.json'), 'w'))
+        json.dump({'cpu_seconds': cpu, 'threads': _threads() or None}, open(os.path.join(out, 'cpu_seconds.json'), 'w'))
         if record and os.path.exists(log):
             C = closure.summarise(log, wt)
             C['commit'] = _git('rev-parse', 'HEAD', cwd=wt).stdout.strip()
@@ -168,9 +185,10 @@ def _stop(procs):
                 pass
 
 
-def _cpu(out):
+def _cpu(out, key='cpu_seconds'):
+    """a build's CPU seconds (key 'threads': its thread cap, None uncapped or from before the caps)."""
     p = os.path.join(out, 'cpu_seconds.json')
-    return json.load(open(p))['cpu_seconds'] if os.path.exists(p) else None
+    return json.load(open(p)).get(key) if os.path.exists(p) else None
 
 
 def _closure_of(out):
@@ -457,7 +475,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
         base_r = base_f.result() if base_f is not None else None
         if base_r is not None:
-            rep['base_build'] = {k: base_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache')}
+            rep['base_build'] = {k: base_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['base_build']['parts'] = build_steps(base_out, base_r['seconds'])
             if not base_r['ok']:
                 _stop(running)
@@ -488,7 +506,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['build']['why'] = why or 'nothing the merge changes reaches the baseline build (%d files changed, none among ' \
             'the %d it read, its scans or its data)' % (len(changed), len((C or {}).get('reads') or ()))
         if cand_r is not None:
-            rep['cand_build'] = {k: cand_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache')}
+            rep['cand_build'] = {k: cand_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['cand_build']['parts'] = build_steps(cand_out, cand_r['seconds'])
             if not cand_r['ok']:
                 rep['hard'].append({'kind': 'the candidate build failed'})
@@ -530,6 +548,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                     for o in (base_out, cand_out)]
             rep['blender_seconds'] = ends
             rep['cpu_seconds'] = [_cpu(base_out), _cpu(cand_out)]
+            rep['cpu_threads'] = [_cpu(base_out, 'threads'), _cpu(cand_out, 'threads')]
         return _finish(rep, gdir, tag, clock, tests_f, tests_r, qa_a, qa_b)
     finally:
         _stop(running)
@@ -628,9 +647,14 @@ def judge(rep, qa_a, qa_b):
     for k in sorted(tb.get('errors') or {}):
         R['notes'].append('the 2x2 could not run the %s: its remeasured checks are unverified there' % k)
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
+    ta, tb_ = (rep.get('cpu_threads') or [None, None])[:2]
     if ca_ and cb_:
         rep['cpu_ratio'] = round(cb_ / ca_, 2)
-        if cb_ > CPU_LIMIT * ca_:
+        if ta != tb_:
+            R['notes'].append('build CPU %.2fx (%s -> %s s) not judged: the builds ran with different thread caps (%s -> '
+                              '%s), and an uncapped build burns CPU spinning as the box gets busier' % (
+                                  rep['cpu_ratio'], ca_, cb_, ta or 'uncapped', tb_ or 'uncapped'))
+        elif cb_ > CPU_LIMIT * ca_:
             block.append({'kind': 'build CPU', 'base': ca_, 'cand': cb_, 'ratio': rep['cpu_ratio']})
     elif (rep.get('cand_build') or {}).get('skipped'):
         rep['cpu_ratio'] = None
@@ -823,8 +847,10 @@ def _write(rep, gdir, tag):
     if rep.get('blender_seconds'):
         L.append('- build time (Blender and QA, from the traces): %s s -> %s s' % tuple(rep['blender_seconds']))
     if rep.get('cpu_seconds') and all(rep['cpu_seconds']):
-        L.append('- build CPU time (all processes): %s s -> %s s (%.2fx)' % (
-            tuple(rep['cpu_seconds']) + (rep['cpu_seconds'][1] / rep['cpu_seconds'][0],)))
+        L.append('- build CPU time (all processes): %s s -> %s s (%.2fx); threads %s -> %s' % (
+            tuple(rep['cpu_seconds']) + (rep['cpu_seconds'][1] / rep['cpu_seconds'][0],
+                                         bb.get('threads') or ('uncapped' if not bb.get('cached') else 'cached'),
+                                         cb.get('threads') or 'uncapped')))
     L.append('\n## Phases\n')
     L += _table(rep.get('phases') or [], [('phase', lambda r: r['phase']), ('start (s)', lambda r: r['start']),
                                           ('seconds', lambda r: r['seconds']), ('note', lambda r: r.get('note', ''))])
