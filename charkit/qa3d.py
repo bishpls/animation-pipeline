@@ -2051,6 +2051,14 @@ def details(B, design=None, out=None):
     return detailqa.measure(B, design, out)
 
 
+def piece_details(B, design=None, out=None):
+    """the outfit pieces' details against the design (charkit.pieceqa): the puff sleeves' spikes, outline and width along
+    the arm and their stand-off from it (sleeve_closeup's cross-section); the waistband's edges, width and the top's
+    overhang in profile; the shorts' hem and width."""
+    from . import pieceqa
+    return pieceqa.measure(B, design, out)
+
+
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2066,7 +2074,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
-    ('details', details, '', 'details'),
+    ('details', details, '', 'details'), ('piece_details', piece_details, '', 'piece_details'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
     ('look', look, '', 'look'),
 ]
