@@ -172,6 +172,14 @@ def scanning(folder, marker):
         yield
 
 
+def note(path, kind='R'):
+    """record path as this build's (a read by default: 'R', or 'L' a listed folder) without opening it: a cache
+    restore depends on what the step it stands for would have read (charkit.cache.file_step's hits)."""
+    emit = _STATE.get('emit')
+    if emit is not None and _STATE.get('on') and not getattr(_TLS, 'paused', 0):
+        emit(kind, path)
+
+
 def stop():
     """(tests) stop recording in this process; the hook stays installed (they can't be removed) but writes nothing."""
     _STATE['on'] = False
