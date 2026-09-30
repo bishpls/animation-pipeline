@@ -235,3 +235,33 @@ First runs (the lab over hl_base; lock IoU all / front / three-quarter / profile
 truth's boundaries 0.349. Readings: the drawn lock lines on the chart span only theta 35-55 (the hairline to where the
 tips separate; below, the eye-holes); free line detection doubles lines on one stroke and misses the notches; the
 views' strokes land a few degrees apart on the chart (the drawing's inconsistency and our surface's depth).
+
+**Checkpoint (round 2, about 70 tool calls).** The lab batches over hl_base (`charkit/out/hairlocks/m1.json`, `m2.json`;
+lock IoU all (front / three-quarter / profile), hair_piece_bangs, the bangs' builder folds, bangs locks built):
+
+| variant | lock IoU | bangs | folds | locks |
+|---|---|---|---|---|
+| wedge (default) | 0.439 (0.420 / 0.415 / 0.501) | 0.792 | 1 | 7 |
+| anchored at the wedge's notches, strokes, prior 0.02 | 0.436 (0.406 / 0.384 / 0.555) | 0.783 | 1 | 7 |
+| anchored, no prior (m1, lines could cross) | 0.452 (0.524 / 0.317 / 0.511) | 0.779 | 0 | 7 |
+| anchored, no prior, crossings refused (m2) | 0.441 (0.508 / 0.305 / 0.511) | 0.786 | 0 | 7 |
+| the same, front's strokes only | 0.438 (0.518 / 0.317 / 0.465) | 0.776 | 4 | 7 |
+| anchored, truth-lines probe | 0.447-0.461 | 0.78 | 15-27 | 7 |
+| anchored + free lines, truth-lines probe | 0.475 (0.518 / 0.372 / 0.539) | 0.779 | 15 | 8 |
+| free lines, strokes / truth-lines / front's truth only | 0.198 / 0.210 / 0.403 | 0.77-0.79 | 1-18 | 5-7 |
+
+Readings:
+- **The ribbons lift the front and cost the three-quarter.** Anchored ribbons from the strokes: front 0.42 -> 0.51-0.52
+  (c 0.51 -> 0.73, l 0.49 -> 0.67, l_clip 0.26 -> 0.45: the locks sweep as drawn), three-quarter 0.415 -> 0.31
+  (its l 0.32 -> 0.16), profile about level. One chart partition can't follow both: the views' lines land several
+  degrees apart on the chart (the drawing's inconsistency and our surface's depth). Overall level with the wedge.
+- **Even the truth's own boundaries as the evidence reach only 0.45-0.475**, under the sheared wedges fitted to the truth
+  (0.515): the line fit (a Hough-style search over curves) is not the partition's optimum, and the anchors (the
+  wedge's notches from 4-degree chart columns, median-filtered: -54, -22, -2, 14, 42, 74) sit off the drawn lines
+  (the truth's lift: about -70, -20, -7 and 27 in front; 45-50 and 65-70 in profile). Free lines double up on one
+  stroke and extend badly outside the drawn span.
+- The truth-lines probe's lines give 15-27 builder folds (tight bends); the strokes' lines 0-4.
+
+Next (running): anchors from the drawn lower edge at 0.5 deg (`ribbon_anchors 'drawn'`, `drawn_notches`), a facing
+threshold of 0.5, shear-only lines; and the ribbon form's capacity against the truth (`bendprobe.py`: quadratic cuts
+descended from the sheared wedges' 0.515).

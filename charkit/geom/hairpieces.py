@@ -50,7 +50,7 @@ OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi
             bun_outline_w=0.0, lock_model='wedge', ribbon_pieces=('bangs',),
             ribbon_views=('front', 'three_quarter', 'profile'), ribbon_face=0.3, ribbon_rel=0.4, ribbon_kmax=8,
             ribbon_th0=30.0, ribbon_erode=3, ribbon_bend=8.0, ribbon_lines='anchored', ribbon_slide=3.0, ribbon_prior=0.02,
-            ribbon_keep=0.0)
+            ribbon_keep=0.0, ribbon_anchors='wedge', ribbon_prom=3.0, ribbon_nsep=4.0)
 # (tool/hairlocks round 2: lock_model 'ribbon' builds ribbon_pieces' locks between the drawing's lock lines lifted onto the
 # chart (lock_lines, ribbon_bounds), not the wedge's phi cuts at the lower edge's notches; measured against the lock
 # truth (charkit.hairlocks) in docs/workstreams/hairlocks.md)
@@ -1164,14 +1164,22 @@ def lock_lines(F, piece, Rg, masks, views, hull_frame, opts, lock_min, log=print
     th_all = np.arange(crown_top(opts), TH[-1] + 12.0, dt)            # (the whole lock: crown to below the tips)
     mode = opts.get('ribbon_lines', 'free')
     lines, curves = [], []
+    def clash(cur):
+        # (over the drawn span only: above it the lines are held, below it lies under the tips)
+        for q in curves:
+            d = cur - q
+            if np.abs(d).mean() < lock_min or (d.min() < 0 < d.max()):
+                return True
+        return False
     if mode.startswith('anchored'):
         slide, pen = opts.get('ribbon_slide', 3.0), opts.get('ribbon_prior', 0.02)
+        per = []
         for pa, ta in anchors:
-            best_ = None
             up = TH <= ta
             if up.sum() < 4:
                 continue
             sa = (TH[up] - ta) / RIBBON_S
+            cand_ = []
             for d in np.arange(-slide, slide + 0.1, 1.0):
                 for b in np.arange(-40, 40.1, 2.0):
                     for c in np.arange(-bend, bend + 0.1, 2.0):
@@ -1179,15 +1187,22 @@ def lock_lines(F, piece, Rg, masks, views, hull_frame, opts, lock_min, log=print
                         i = np.round((cur - PH[0]) / dp).astype(int)
                         g = (i >= 0) & (i < len(PH))
                         ev = float(Eb[i[g], jj[up][g]].sum() * dt)
-                        sc = ev - pen * (abs(b) + abs(c)) * ev
-                        if best_ is None or sc > best_[0]:
-                            best_ = (sc, ev, pa + d, b, c)
-            if best_ is None or best_[1] < opts.get('ribbon_keep', 0.0):
-                continue
-            q = dict(a=round(best_[2], 2), b=best_[3], c=best_[4], score=round(best_[1], 2),
-                     th=[float(TH[0]), float(ta)], mid=float(ta), anchor=[round(float(pa), 1), round(float(ta), 1)])
-            lines.append(q)
-            curves.append(line_phi(q, th_all, mid, q['th']))
+                        cand_.append((ev - pen * (abs(b) + abs(c)) * ev, ev, pa + d, b, c))
+            cand_.sort(key=lambda q: -q[0])
+            per.append((pa, ta, cand_))
+        # the best-supported anchors first; each takes its best line that crosses none taken
+        for pa, ta, cand_ in sorted(per, key=lambda r: -r[2][0][0]):
+            for sc_, ev, a_, b, c in cand_:
+                if ev < opts.get('ribbon_keep', 0.0):
+                    break
+                q = dict(a=round(a_, 2), b=b, c=c, score=round(ev, 2), th=[float(TH[0]), float(ta)], mid=float(ta),
+                         anchor=[round(float(pa), 1), round(float(ta), 1)])
+                cur = line_phi(q, TH, mid, q['th'])
+                if any((cur - q_).min() < 0 < (cur - q_).max() for q_ in curves):
+                    continue
+                lines.append(q)
+                curves.append(cur)
+                break
         if lines:
             best = max(q['score'] for q in lines)
     for sc, a, b, c in (cands if mode in ('free', 'anchored+free') else ()):
@@ -1195,17 +1210,11 @@ def lock_lines(F, piece, Rg, masks, views, hull_frame, opts, lock_min, log=print
             best = sc
         if sc < rel * best or len(lines) >= kmax:
             break
-        cur = line_phi(dict(a=a, b=b, c=c), th_all, mid, (TH[0], TH[-1]))
-        # (the span both lie in the piece: a line along the piece's side is the family's edge, not a lock line)
+        cur = line_phi(dict(a=a, b=b, c=c), TH, mid, (TH[0], TH[-1]))
+        # (a line along the piece's side is the family's edge, not a lock line)
         if cur.min() < ph[0] + lock_min / 2 or cur.max() > ph[-1] - lock_min / 2:
             continue
-        clash = False
-        for q in curves:
-            d = cur - q
-            if np.abs(d).mean() < lock_min or (d.min() < 0 < d.max()):
-                clash = True
-                break
-        if clash:
+        if clash(cur):
             continue
         lines.append(dict(a=round(a, 2), b=b, c=c, score=round(sc, 2), th=[float(TH[0]), float(TH[-1])]))
         curves.append(cur)
@@ -1224,6 +1233,40 @@ def line_phi(q, th, mid, span):
     t0, t1 = span
     slope = (q['b'] + 2 * q['c'] * (t1 - mid) / RIBBON_S) / RIBBON_S
     return np.where(th < t0, f(t0), np.where(th > t1, f(t1) + slope * (th - t1), f(np.clip(th, t0, t1))))
+
+
+def drawn_notches(F, piece, Rg, masks, views, hull_frame, prom=3.0, sep=4.0, step=0.5):
+    """the notches of a piece's drawn lower edge at the drawing's resolution: drawn_tips every `step` degrees of phi
+    (not the chart's columns, median-filtered: those place a notch to within a column or two), its local minima of
+    theta at least `prom` degrees shallower than the tips on both sides (the skin between two locks' tips), at least
+    `sep` apart. -> [(phi, theta)] (phi unwrapped as the piece's)."""
+    ph = _unwrap(Rg['ph'])
+    P = np.arange(ph[0], ph[-1] + 1e-9, step)
+    top = np.interp(P, ph, Rg['top']); tip = np.interp(P, ph, Rg['tip'])
+    e, done = drawn_tips(F, piece, ((P + 180) % 360) - 180, top, tip, masks, views, hull_frame)
+    out = []
+    n = len(P)
+    for k in range(1, n - 1):
+        if not done[k] or e[k] > e[k - 1] or e[k] > e[k + 1]:
+            continue
+        lm = e[:k][done[:k]].max() if done[:k].any() else -np.inf
+        rm = e[k + 1:][done[k + 1:]].max() if done[k + 1:].any() else -np.inf
+        # (the prominence: the highest tip reached before the edge comes back up past this notch, each side)
+        j = k - 1
+        while j >= 0 and e[j] >= e[k] - 1e-9 and e[j] < e[k] + prom:
+            j -= 1
+        l_ok = j >= 0 and e[j] >= e[k] + prom
+        j = k + 1
+        while j < n and e[j] >= e[k] - 1e-9 and e[j] < e[k] + prom:
+            j += 1
+        r_ok = j < n and e[j] >= e[k] + prom
+        if l_ok and r_ok and lm > -np.inf and rm > -np.inf:
+            if out and P[k] - out[-1][0] < sep:
+                if e[k] < out[-1][1]:
+                    out[-1] = (float(P[k]), float(e[k]))
+                continue
+            out.append((float(P[k]), float(e[k])))
+    return out
 
 
 def ribbon_bounds(ph, lines, mid, sep=1.0):
@@ -2318,10 +2361,14 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                 views is not None and hull_frame is not None:
             # (the ribbon lock model: the locks between the drawing's lock lines lifted onto the chart, not wedges cut
             # at the lower edge's notches; tool/hairlocks round 2)
-            e_ = median_filter(R['tip'], 3, mode='nearest')
-            ks = [int(np.argmin(np.abs(ph - a))) for a, _, _ in L_[1:]]      # (the wedge's cuts: the edge's notches)
-            LL = lock_lines(F, piece, R, masks, views, hull_frame, o, style['lock_min'], log,
-                            anchors=[(float(ph[k]), float(e_[k])) for k in ks])
+            if o.get('ribbon_anchors', 'wedge') == 'drawn':        # (the drawn lower edge's notches, fine)
+                anc = drawn_notches(F, piece, R, masks, views, hull_frame, o.get('ribbon_prom', 3.0),
+                                    o.get('ribbon_nsep', 4.0))
+            else:                                                     # (the wedge's cuts: the chart edge's notches)
+                e_ = median_filter(R['tip'], 3, mode='nearest')
+                ks = [int(np.argmin(np.abs(ph - a))) for a, _, _ in L_[1:]]
+                anc = [(float(ph[k]), float(e_[k])) for k in ks]
+            LL = lock_lines(F, piece, R, masks, views, hull_frame, o, style['lock_min'], log, anchors=anc)
             F.setdefault('lock_lines', {})[piece] = LL
             B_ = ribbon_bounds(ph, LL['lines'], LL['mid'])
             parts = [lock_shell(F, piece, None, None, None, ph, R['top'], edge, style, o, L, efn, bounds=bd)
