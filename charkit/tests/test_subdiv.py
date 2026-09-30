@@ -98,3 +98,18 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_carried_data_is_linear_as_blenders():
+    """subdiv is charkit.geom.subsurf (one subdivision in the kit, face round 5): the positions are subsurf's, and the
+    data columns are carried as Blender carries vertex data, not through the limit: kept at the vertices, the mean of
+    the ends at an edge's point, the mean of the corners at a face's."""
+    from charkit.geom import subsurf
+    V = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [2, 0, 0.3], [2, 1, 0.3]], float)
+    F = [(0, 1, 2, 3), (1, 4, 5, 2)]
+    w = np.array([0.0, 1.0, 0.5, 0.2, 0.9, 0.1])
+    V1, Q, par = subdiv.catmull_clark(np.c_[V, w], F)
+    R = subsurf.subdivide(V, F)
+    assert np.allclose(V1[:, :3], R['V']) and np.array_equal(Q, R['quads'])
+    assert np.allclose(V1[:6, 3], w)                                       # the vertices keep theirs
+    assert np.isclose(V1[-2, 3], w[[0, 1, 2, 3]].mean()) and np.isclose(V1[-1, 3], w[[1, 4, 5, 2]].mean())
