@@ -14,6 +14,7 @@ targets the way the outfit's pieces do (charkit.outfit's `outfit_masks`).
              family of the nearest breakdown family pixel at the registered position; the buns are the outfit's bun
              pieces (outfit_masks' bun_L / bun_R), not the breakdown's. The three-quarter has no breakdown view: a 3D
              labelling predicts it (charkit.geom.hairpieces).
+  bun sides  per view, the three-quarter too, each bun apart (VIEW__bun_L, VIEW__bun_R): the bun fit's targets.
 
 The body sheet stays the authority for the hair's silhouettes; the breakdown decides only which family a hair pixel
 belongs to. Its registration overlap (hair about 0.67-0.79, face 0.57-0.69 on Clawd) is reported: two generations of
@@ -212,7 +213,43 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None):
                 out['%s__%s' % (name, f)] = m
                 counts[f] = int(m.sum())
         rep[name] = dict(hair_px=int(hair.sum()), families=counts)
+    out.update(bun_sides(views, outfit_masks, out))
     return out, rep
+
+
+def bun_sides(views, outfit_masks, fams):
+    """each bun apart, in every view the sheet draws (front, three-quarter, profile, back): VIEW__bun_L / VIEW__bun_R,
+    the outfit's bun pieces rimmed into the view's hair as the buns are (BUN_RIM), each rim pixel to the nearer piece;
+    where the view has a buns family (front, profile, back) the two sides partition it exactly. The bun fit's targets
+    (charkit.geom.hairpieces.bun_targets): the sides without splitting at the head's axis, and the three-quarter, which
+    has no breakdown view (hair round 4). No VIEW__buns is added for the three-quarter: the QA's hair_bun_outline keeps
+    its views. -> {VIEW__bun_S: bool image}."""
+    from scipy import ndimage
+    out = {}
+    if outfit_masks is None:
+        return out
+    for name in ('front', 'three_quarter', 'profile', 'back'):
+        if name not in views:
+            continue
+        v = views[name]
+        us, zs, shape, _ = design_grid(v, v.ppl)
+        side = {b: outfit_masks.get('%s__%s' % (name, b)) for b in ('bun_L', 'bun_R')}
+        side = {b: m for b, m in side.items() if m is not None and m.shape == shape and m.any()}
+        if not side:
+            continue
+        buns = fams.get('%s__buns' % name)
+        if buns is None:
+            hair = (v.sample(v.labels, us, zs).T == 2) & (v.sample(v.mask.astype(np.uint8), us, zs).T > 0)
+            anyb = np.zeros(shape, bool)
+            for m in side.values():
+                anyb |= m
+            buns = ndimage.binary_dilation(anyb, iterations=BUN_RIM) & hair
+        # each pixel to the nearer piece's own pixels
+        d = {b: ndimage.distance_transform_edt(~m) for b, m in side.items()}
+        for b in side:
+            other = [d[o] for o in d if o != b]
+            out['%s__%s' % (name, b)] = buns & ((d[b] <= other[0]) if other else True)
+    return out
 
 
 def produce(spec, out, page=True, log=print):
