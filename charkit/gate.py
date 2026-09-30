@@ -398,10 +398,36 @@ def _newest_closure(gdir, stem, opts):
     return None, None
 
 
+_OLD_GIT = []
+
+
 def _merge_tree(wt, a, b):
-    """the tree `git merge` of b into a makes (a clean merge) -> its id, or None (a conflict, or a commit missing)."""
-    r = _git('merge-tree', '--write-tree', a, b, cwd=wt, check=False)
-    return r.stdout.split()[0] if r.returncode == 0 and r.stdout.strip() else None
+    """the tree `git merge` of b into a makes (a clean merge) -> its id, or None (a conflict, or a commit missing).
+    `git merge-tree --write-tree` (git 2.38); an older git (the build box's 2.34) merges in a throwaway sparse worktree
+    instead (a few seconds) and writes its index as a tree."""
+    if not _OLD_GIT:
+        r = _git('merge-tree', '--write-tree', a, b, cwd=wt, check=False)
+        if r.returncode in (0, 1):
+            return r.stdout.split()[0] if r.returncode == 0 and r.stdout.strip() else None
+        if 'write-tree' not in r.stderr and 'usage' not in r.stderr:
+            return None                                 # (a missing commit)
+        _OLD_GIT.append(True)
+    tmp = tempfile.mkdtemp(prefix='charkit-mergetree-')
+    os.rmdir(tmp)
+    try:
+        if _git('worktree', 'add', '--no-checkout', '--detach', tmp, a, cwd=wt, check=False).returncode:
+            return None
+        _git('sparse-checkout', 'set', '--cone', 'charkit', cwd=tmp, check=False)
+        _git('checkout', '--detach', a, cwd=tmp, check=False)
+        m = subprocess.run(['git', '-c', 'user.name=gate', '-c', 'user.email=gate@localhost', 'merge', '--no-commit',
+                            '--no-ff', b], cwd=tmp, capture_output=True, text=True)
+        if m.returncode:
+            return None
+        r = _git('write-tree', cwd=tmp, check=False)
+        return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
+    finally:
+        _git('worktree', 'remove', '--force', tmp, cwd=wt, check=False)
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 def _cand_reference(gdir, tip, suffix, opts, head, wc):

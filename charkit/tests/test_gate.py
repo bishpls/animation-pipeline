@@ -268,6 +268,19 @@ def _carry_repo():
 
 
 def test_a_gate_carries_over_when_the_target_moves_without_reaching_it():
+    _carry_cases()
+
+
+def test_the_carry_on_a_git_without_merge_tree_write_tree():
+    """the build box's git (2.34) has no `merge-tree --write-tree`: the merge runs in a throwaway worktree instead."""
+    gate._OLD_GIT.append(True)
+    try:
+        _carry_cases()
+    finally:
+        gate._OLD_GIT.clear()
+
+
+def _carry_cases():
     import subprocess
     root, g, gd = _carry_repo()
     kw = dict(into='main', spec='kit/clawd.json', reports=gd, root=root)

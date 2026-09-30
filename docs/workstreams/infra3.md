@@ -35,6 +35,20 @@ Subset 1 (g, the baseline finding, the boards), code done, unit-tested, being ga
   not even the baseline. When the baseline must be built, the candidate starts beside it only if the newest baseline
   closure (a nearby commit's) is reached by the merge; otherwise it waits for the baseline's own closure.
 - **Boards:** gate builds pass `--boards ''` (the toon boards took 16 s a build, nothing in the gate reads them).
+- **The box's git is 2.34** (no `merge-tree --write-tree`, 2.38): `_merge_tree` falls back to merging in a throwaway
+  sparse worktree and writing its index as a tree (the same tree id on a real pair: b5dac2b for 611cc58 into b43c15e).
+  The first gates of 611cc58 failed test_gate on the box for this (`gate_tool-infra3_611cc58_into_b43c15e`,
+  `gate_tmp-infra3-self_611cc58_into_b43c15e`); both carry tests now also run through the fallback.
+- Measured: the static rule, `gate_tmp-infra3-docs_30fb226_into_c3d0bd1` (a docs line into a commit with no baseline
+  whose move reaches the build): **87.9 s**, nothing built (the smoke-docs gate of the same shape: 705 s). The
+  closure recording costs the tests nothing measurable (0.41 s vs 0.41 s, 1.15 vs 1.15 s a file). No boards: the
+  candidate's steps have no toon_boards row (16 s before).
+- Findings for subset 2: (1) **the hull's shared-cache key covers garments.py through a name collision**: `Owners`
+  (charkit/geom/hull.py) has a local `main`, which cache.code_units resolves to the module's top-level `main`; that
+  imports bodyeval, which imports garments. The stamp (depth 1) doesn't cover garments.py; code2 (depth 2, the shared
+  cache's key) does, so a fresh gate clone misses and rebuilds the hull (196 s). Fix: locals out of a def's names
+  (one-off key change). (2) **The build reads charkit/gate.py** (the closure says so): a code walk follows cli.py's
+  function-level `from . import gate`; every gate-code change builds a candidate.
 
 ## What changed (milestone A)
 
