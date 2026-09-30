@@ -375,5 +375,8 @@ the corrected check (below) on both.
   13 mouth keys the underside flips no face; all 488 counted were the underside's own. jaw_0 4 -> 4, jaw_4 530 -> 4.
 - hair_folds (41 of the 46 in the flyaways piece) and the hull-built garments' moves are the hull's: an A/B build of
   the MakeHuman spec with the carve margin off read hair_folds 46 against the candidate's 47, so the margin isn't it;
-  the likely cause is tool/hull-det's hull (facing view, decimation) with or without the eye window's carve (an A/B
-  with the socket eye region is in `charkit/out/ab_socket` when it lands).
+  and an A/B with the eye region back to the socket (pipeline-3d's; `CK_EYE_REGION=socket`) read hair_folds 49
+  (flyaways 41), three-quarter hair width 0.896, back skirt 0.882, A-line 0.086: the candidate's numbers exactly. So
+  neither the margin nor the eye window's carve moves them; what's left between this branch and pipeline-3d on the
+  hull is tool/hull-det (its facing view and decimation) and this branch's reconciling of it with refs2's banded views
+  (`_facing` masked by `View.band`). hull-det's owner should gate it alone into pipeline-3d to confirm.
