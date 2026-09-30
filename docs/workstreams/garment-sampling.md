@@ -101,21 +101,31 @@ Worse, and where it comes from:
    On the shell it is +0.050; the body's midline is 0.000 and an ellipse fit gives -0.011. Round 4 fitted the flaps'
    knobs on the biased frame; its open item 2 ("the right flap sits 0.14–0.3 L further back: the skirt's hull axis
    is off-centre") is this bias.
-2. **The hem family (default spec).** On the shell, the flaps hang where their drawn chains do: R attaches at -1.474
-   and reaches -3.065, both within 0.02 L; the old flaps were 0.08 and 0.13 L off. But the lowest orange row rises:
-   body_front_hem 0.0377 PASS -> 0.1365 WARN, back 0.0236 -> 0.1271 WARN, three-quarter 0.0518 -> 0.1506 WARN.
-   A flap's last `trim` 0.15 L is its dark stepped band, so its lowest orange sits ~0.15 L above its tip. The old
-   flaps passed these checks only by hanging ~0.12 L below the drawn tip, which hang caught at hull-det's gate (0.111
-   WARN). With every principled axis (shell median, ellipse, circle, hips) the flaps hang as drawn and these checks
-   WARN. Probe on the shell: flap `length` 0.36 -> 0.42 gives hems 0.0565 / 0.0471 / 0.08 PASS with hangs 0.089 /
-   0.098 PASS and panels R/L 0.496 / 0.492; adding `trim` 0.08 gives -0.005 / -0.019 / 0.038. That is a spec refit on
-   flaps tool/body round 5 is rebuilding (`flap_mirror`), so it isn't on this branch.
-3. **body_back_hem_mid** (default) 0.1412 WARN -> 0.2306 FAIL, independent of the flaps' length. The skirt's back hem
-   is hidden under the flaps (`occluded_span` 70–180 deg) and filled linearly between the single sectors at ±70 deg.
-   Those sit where the hands cut the skirt's points: 0.97 L there against 1.19 one sector over. On the mesh, the fill
-   ran 1.00 -> 1.18 across the back (asymmetric, one end on the notch); on the shell it is a flat 0.98 (both ends on
-   notches). Robust anchors (the median of the nearest measured sectors, ~1.19) would fix it, but the flaps start at
-   the skirt's hem at their azimuth, so that change goes with a flap refit.
+2. **The hem family and the flaps' extent (default spec) follow the skirt's hidden back hem.** A flap is laid on the
+   skirt from its waist to the skirt's hem at the flap's azimuth (±144 deg), then its tail. That hem is hidden under
+   the flaps (`occluded_span` 70–180 deg) and filled linearly between the single sectors at ±69–71 deg, where the hands
+   cut the skirt's points short: 0.97–0.98 L against 1.17–1.20 in the sectors beyond. On the mesh (with its biased
+   axis) the fill ran asymmetrically, 1.00 -> 1.18 across the back, putting the flaps' start at 1.06 / 1.13. On the
+   shell both ends land on the notch, so the fill is a flat 0.98. The flaps start and end about 0.12 L higher.
+   - The lowest rows show it (box): body_front_hem 0.0471 PASS -> 0.1647 FAIL, back 0.033 -> 0.1506 WARN, three-quarter
+     0.08 -> 0.1741 FAIL, back hem_mid 0.1364 WARN -> 0.2306 FAIL, piece_overskirt_panel_L/R_extent 0.042 / 0.057
+     PASS -> 0.141 / 0.137 WARN.
+   - Hang improves (0.0947 -> 0.0176) because it compares the flap's lowest vertex with the drawn *middle* chain's
+     end. The flap's V tip sits below that, so hang and extent disagree about the flaps' length. The extent (the
+     flap's own lowest visible row against the drawn flap's) is the direct measure, and it says the new flaps are
+     short. Also, a flap's last `trim` 0.15 L is its dark stepped band, so the lowest orange row sits ~0.15 L above
+     its tip.
+   - Probes, all on the shell (evaluator; not applied):
+     - flap `length` 0.36 -> 0.42: hems 0.0565 / 0.0471 / 0.08 PASS, hangs 0.089 / 0.098 PASS; back hem_mid stays
+       0.23 FAIL (the skirt's, not the flaps').
+     - The fill's anchors as the median of the k measured sectors nearest each end: k 3 brings every hem and both
+       extents back to PASS and back hem_mid to 0.1364 WARN, but three-quarter hem_mid goes 0.019 PASS -> -0.339 FAIL
+       and R hang to 0.106 WARN. k 6 is worse (flat ~1.19 all round the back).
+   - The hidden back hem is unconstrained, and the views pull it different ways; the mesh's asymmetric fill happened to
+     satisfy them. It needs fitting together with the flaps (tool/body round 5 rebuilds them as `flap_mirror`), so
+     neither probe is on this branch.
+3. **The axis moves the flaps' frame too.** With every principled axis (shell median, ellipse, circle, hips) the
+   flaps' checks move; the old knobs were fitted on the biased one.
 4. **clawd_mh body_back_skirt_width** 0.941 PASS -> 0.866 WARN is a measurement artefact. No row is free of hands in
    both figures, so the check falls back to the design's free rows, the waist (z -1.40..-1.56). Row by row the
    shell's skirt is closer to the design: at z -1.40, mesh 0.828, shell 0.673, design 0.635. But the check divides
@@ -123,23 +133,36 @@ Worse, and where it comes from:
    (0.880 at -1.56).
 5. **clawd_mh body_front_skirt_aline** -0.040 PASS -> -0.055 WARN (the line is 0.05). At the sides the skirt's label
    wraps the hands' bulge. The mesh crowds vertices on that curve, so its per-cell median sat on the bulge (r 0.97–1.00
-   L at t 0.5); the shell weights the flatter skirt (0.85–0.90). Probe: skirt `q` 0.6 gives -0.021 PASS (not applied:
-   it is a knob choice, not a sampling one).
+   L at t 0.5); the shell weights the flatter skirt (0.85–0.90). Probe: skirt `q` 0.6 gives -0.021 PASS on clawd_mh and
+   is neutral on the default spec (every check's grade unchanged). Not applied: it is a knob, not sampling.
 
-## Gates
+## Gates (build box, 1820d56 into pipeline-3d 5cb5256; all tests ok)
 
-(see below: filled in when the box gates return)
+| gate | verdict | regressed | improved |
+|---|---|---|---|
+| default (`gate_tool-garment-sampling_1820d56_into_5cb5256.md`) | **FAIL** | body_front_hem 0.0471 PASS -> 0.1647 FAIL, body_back_hem 0.033 PASS -> 0.1506 WARN, body_three_quarter_hem 0.08 PASS -> 0.1741 FAIL, body_back_hem_mid 0.1364 WARN -> 0.2306 FAIL, piece_overskirt_panel_L_extent 0.0424 PASS -> 0.1412 WARN, piece_overskirt_panel_R_extent 0.0565 PASS -> 0.1365 WARN | body_back_skirt_width 1.091 WARN -> 0.979 PASS, body_back_iou_skin 0.696 WARN -> 0.704 PASS, body_profile_iou_skin 0.696 WARN -> 0.71 PASS, piece_cuff_L 0.375 FAIL -> 0.67 WARN, piece_waistband 0.451 FAIL -> 0.527 WARN, piece_skirt_extent 0.113 WARN -> 0.0518 PASS |
+| clawd_mh (`..._clawd_mh.md`) | **FAIL** | body_back_skirt_width 0.941 PASS -> 0.866 WARN, body_front_skirt_aline -0.04 PASS -> -0.055 WARN | (none graded) |
+
+The three checks on the box, pipeline-3d -> this branch: body_front_skirt_aline -0.016 PASS -> **0.002 PASS**;
+body_back_leg 0.0659 PASS -> **0.0753 PASS**; piece_overskirt_panel_R_hang 0.0947 PASS -> **0.0176 PASS**. The
+evaluator predicted both gates' regressions exactly (clawd_mh to the third decimal).
+
+**With the body refitted to each decimation too** (code_body reads the decimated mesh). Shell source: the largest check
+change is 0.006 (piece_sleeve_R); every other is at most 0.002. The garments built on the body still move: collar 0.089
+L, top 0.065, shorts 0.023, shoe_R 0.023; the hull-lofted ones move under 0.008 L. Mesh source: the same 0.112 /
+0.042 / 0.016 swings as with the body fixed.
 
 ## Open items
 
-- **Flap refit (tool/body).** The flaps' knobs were fitted to the biased skirt frame. The hem family (item 2) needs
-  `length` / `trim` (or the stepped band's colours) refitted on the shell's skirt. `flap_mirror` in round 5 builds on
-  the same skirt.
-- **The skirt's hidden back hem** (item 3): robust fill anchors together with the flap refit.
+- **Fit the skirt's hidden back hem and the flaps together (tool/body round 5).** This is what the default gate
+  needs; item 2 has the numbers. The knobs: skirt_hull's fill anchors (the ±70 deg sectors are the hands' notch), the
+  flaps' `length` / `train` / `trim`, and the axis. `flap_mirror` builds on the same skirt.
+- **clawd_mh:** skirt `q` 0.6 (item 5) and the back-width measure (item 4).
 - **The skirt's axis estimator:** the median of a partial ring. The shell makes it decimation-independent, not
   coverage-independent. An ellipse fit or the body's midline are the candidates; the flaps' frame depends on it.
 - **The body is still decimation-sensitive:** `code_body.Hull` reads hull.ply and hull_pieces.npy (the decimated
-  mesh); see the body-refit table below. `shell_points` is the drop-in; code_body is tool/body's.
+  mesh): with it refitted per decimation the collar still moves 0.089 L and the top 0.065 (Gates, above). `shell_points`
+  is the drop-in; code_body is tool/body's.
 - **Also on the mesh:** the QA's piece3d_* checks (INFO) read the target's per-vertex pieces, and the hull hair reads
   the glb.
 - **back_skirt_width's max-over-rows** (item 4) compares different heights when no row is free in both figures.
