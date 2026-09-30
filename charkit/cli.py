@@ -18,6 +18,7 @@
     python -m charkit remote jobs | attach JID | kill JID | load         # detached box jobs; the boxes' load (charkit/boxjob.py)
     python -m charkit preview [REF] | hook install | serve               # after a merge: the combined preview (charkit/preview.py); serve: click-to-flag (charkit/flags.py)
     python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
+    python -m charkit evalmesh lab | build BUILD [--render]           # our Subdivision Surface and Solidify against Blender's (charkit/evalmesh.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -830,6 +831,9 @@ def main(argv=None):
     elif cmd == 'evaldrift':
         from . import evaldrift
         raise SystemExit(evaldrift.main(rest))
+    elif cmd == 'evalmesh':
+        from . import evalmesh
+        raise SystemExit(evalmesh.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)
