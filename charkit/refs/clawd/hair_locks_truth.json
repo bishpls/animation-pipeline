@@ -408,22 +408,23 @@
     [
      455,
      200,
-     "bangs/c"
+     "bangs/l"
     ],
     [
      495,
      195,
-     "bangs/l"
+     "bangs/l_clip"
     ],
     [
      522,
      170,
-     "bangs/l_clip"
+     "bangs/l_back"
     ]
    ],
    "tips": {
-    "bangs/l_clip": "hidden"
-   }
+    "bangs/l_back": "hidden"
+   },
+   "note": "call C revised (tool/hairlocks round 2): the profile's locks renamed by the cross-view probe (tools/hairlocks/corr.py over hl_base's bangs surface): its front fringe lock is the front's l (was c), its lock with the crab the front's l_clip (was l), its lock under the part by the star l_back, a lock the front doesn't label (was l_clip)"
   }
  },
  "provenance": {
@@ -438,12 +439,12 @@
   "4. A lock whose lower part the clips hide (the crab, the star) is scored for area and boundary, its tip marked 'hidden'.",
   "5. The strip between the outermost bang line near the star and the outline, which runs under the star into the side lock, is unscored ('x'): the star hides the join.",
   "6. Scope per view: the families whose locks are labelled (the bangs first). A hair cell whose family-truth majority is a scope family must be labelled (a lock or 'x'); the rest is out of the lock truth, and a lock of ours spilling onto it counts against its IoU.",
-  "7. Lock names are the same physical lock across views where the drawing's correspondence is read (front r, c, l, l_clip; the three-quarter's r, c, l, l_clip; the profile's c, l, l_clip): see the calls."
+  "7. Lock names are the same physical lock across views where the drawing's correspondence is read (front r, c, l, l_clip; the three-quarter's r, c, l, l_clip; the profile's l, l_clip, l_back): see the calls."
  ],
  "calls": [
-  "A. The bangs are five locks in front (r_out, r, c, l, l_clip), four in three-quarter (r, c, l, l_clip) and three in profile (c, l, l_clip). The front's r_out is the thin temple strip between the outermost line and the outline on her right, below the flyaway's root; it is its own lock (two strokes bound it).",
+  "A. The bangs are five locks in front (r_out, r, c, l, l_clip), four in three-quarter (r, c, l, l_clip) and three in profile (l, l_clip, l_back). The front's r_out is the thin temple strip between the outermost line and the outline on her right, below the flyaway's root; it is its own lock (two strokes bound it).",
   "B. The central lock c's short inner stroke near its tip (front 471,216-476,236; three-quarter 465,215-467,235) is a split tip, not a lock line (rule 1).",
-  "C. Correspondence: the front's c (the central lock, tip between the eyes) is the profile's front fringe lock (tip at the forehead); the front's l (over her left eye) is the profile's lock over the eye; l_clip is the lock above the crab and star in all three. Her right bangs (r, r_out) are hidden in profile. The three-quarter's outer sweep on her right (the lock with the flick at 388,202) is unscored: it could be the front's r_out or the side hair.",
+  "C. Correspondence (revised, tool/hairlocks round 2, from the cross-view probe): the profile shows her left side, so its front fringe lock (tip at the forehead) is the front's l (over her left eye), not the central c; its lock with the crab is the front's l_clip; its lock under the part by the star is l_back, round her left beyond what the front labels (in front it sits behind the star, in the unscored strip of call E). The three-quarter keeps the front's names. Evidence (tools/hairlocks/corr.py: the drawn locks read back onto hl_base's bangs surface, each triangle the lock most of its pixels lie in per view): with the old names the views agree on 990 of 2,318 shared triangles (front~three-quarter 690/1,261, front~profile 28/399, three-quarter~profile 272/658); the best of every assignment of the three-quarter's and profile's names (brute force) is this one, 1,259 (690, 216, 353); shifting the three-quarter's names too scores lower (front~three-quarter 569). The drawn clips disagree with it: the crab sits on l in front (about 27 degrees round her left) and on the profile's l_clip (about 70 degrees): the sheet's views don't place the clips consistently, so they don't anchor the names. Our surface's misfit still confounds the probe; per-view scores don't depend on the names, only a cross-view reading does. Her right bangs (r, r_out) are hidden in profile. The three-quarter's outer sweep on her right (the lock with the flick at 388,202) is unscored: it could be the front's r_out or the side hair.",
   "D. The line between c and l (front x 505) runs straight down the gap between the eyes; the eye-holes (skin) part the lock tips below the lines.",
   "E. The strip beside the star (front 588,184; three-quarter 588,180) is unscored (rule 5)."
  ]
