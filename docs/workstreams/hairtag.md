@@ -193,3 +193,15 @@ the target's own accuracy (0.892 -> 0.958); the pieces' fits are the geometry's.
 4. The profile's far-bun peek (bun_R side 0.003; none at all with the sheet-only outfit masks) and, with them, the
    buns' undersides in profile (1.3 k px): outfit-source's open item.
 5. Stretch not done: lock-level labels within the bangs and side locks.
+
+## Round 2 (2026-09-30 night): the 2x2 for the hair pieces, the folds, the refits
+
+Relaunched lean from the notes above. pipeline-3d still b43c15e.
+
+**The 2x2 in the lab** (`tools/hairtag/twobytwo.py BUILD OUT OLD.npz NEW.npz`): hairlab's context over
+`charkit/out/h4n_nocrown` (a build-box build whose every hair check equals the gate baseline's: bangs 0.762, side locks
+0.545, lower back 0.703, bun outline 0.397, folds 6), once with the old hair layers (`charkit/out/hairtag/masks_base.npz`,
+pipeline-3d's, truth 0.892) and once with the new (`charkit/out/hairtag/produced/hair_layers.npz`, this branch's, 0.958);
+the pieces built from each set (the geometry) and each scored by the QA's own `hair_pieces_measure` against each set (the
+measure). Why not the gate's 2x2 alone: its crossed cell runs the baseline worktree's QA, which reads the hair layers the
+baseline worktree produced, and a cached baseline worktree produces none (the hair_pieces part SKIPs there).
