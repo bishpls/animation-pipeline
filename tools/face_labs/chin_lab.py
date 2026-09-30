@@ -101,9 +101,11 @@ def main(argv):
         F = front(V, T, iris, ez, L, ppl * scale, az, z0)
         for cam, M in F.items():
             arms = M.get('arms') or {}
+            dr = np.asarray(M['r']) - np.asarray(D['front']['taper']['r'])
             out['%s_x%d' % (cam, scale)] = dict(chin_angle=M.get('chin_angle'), chin_arms=M.get('chin_arms'),
                                                 tip_share=M.get('tip_share'), w90=M.get('w90'), chin=M.get('chin'),
-                                                bend=max([a['bend'] for a in arms.values()] or [None]))
+                                                bend=max([a['bend'] for a in arms.values()] or [None]),
+                                                taper=round(float(np.sqrt(np.nanmean(dr ** 2))), 4))
     out['rims'] = rims(geom, spec)
     print("the graded checks (the sheet's scale; the level camera's beside):")
     for kk, v in out['checks'].items():
@@ -111,13 +113,15 @@ def main(argv):
     for cam in ('board', 'level'):
         t = O['front']['taper' if cam == 'board' else 'taper_level']
         arms = t.get('arms') or {}
+        dr = np.asarray(t['r']) - np.asarray(D['front']['taper']['r'])
         out['%s_x1' % cam] = dict(chin_angle=t.get('chin_angle'), chin_arms=t.get('chin_arms'), tip_share=t.get('tip_share'),
-                                  w90=t.get('w90'), chin=t.get('chin'), bend=max([a['bend'] for a in arms.values()] or [None]))
-    print('%-10s %8s %14s %6s %7s %6s' % ('', 'angle', 'arms', 'tip', 'w90', 'bend'))
+                                  w90=t.get('w90'), chin=t.get('chin'), bend=max([a['bend'] for a in arms.values()] or [None]),
+                                  taper=round(float(np.sqrt(np.nanmean(dr ** 2))), 4))
+    print('%-10s %8s %14s %6s %7s %6s %7s' % ('', 'angle', 'arms', 'tip', 'w90', 'bend', 'taper'))
     for key in ['design'] + sorted(kk for kk in out if kk.startswith(('board', 'level'))):
         m = out[key]
-        print('%-10s %8s %14s %6s %7s %6s' % (key, m.get('chin_angle'), m.get('chin_arms'), m.get('tip_share'),
-                                             m.get('w90'), m.get('bend', '')))
+        print('%-10s %8s %14s %6s %7s %6s %7s' % (key, m.get('chin_angle'), m.get('chin_arms'), m.get('tip_share'),
+                                                  m.get('w90'), m.get('bend', ''), m.get('taper', '')))
     print('rim per column (theta, x, z, target, z - target, row):')
     for r in out['rims']:
         print('  %6.3f %7.4f %7.4f %7.4f %+.4f %5.2f' % (r['theta'], r['x'], r['z'], r['target'], r['z'] - r['target'],

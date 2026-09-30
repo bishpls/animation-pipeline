@@ -581,7 +581,12 @@ class UnderJaw:
             z_t = float(np.interp(abs(r_r * st_), self.jx, self.jz))
             if abs(z_t - z_r) < 1e-4:
                 break
-            hang[0] += z_t - z_r
+            if it:                                        # (a secant step: the rim moves less than the hang)
+                gain = float(np.clip((z_r - prev[1]) / (hang[0] - prev[0]) if hang[0] != prev[0] else 1.0, 0.2, 2.0))
+            else:
+                gain = 1.0
+            prev = (hang[0], z_r)
+            hang[0] += (z_t - z_r) / gain
         rho_u = np.arange(r_r, 0.0, -self.dz)
         lo, hi = np.full(len(rho_u), z_r - 0.02), np.full(len(rho_u), zt)     # (its height per radius: bisection)
         for _ in range(32):
