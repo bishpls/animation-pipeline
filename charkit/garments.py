@@ -1015,6 +1015,8 @@ def arm_points(A, spec=None, hull=None, w_min=0.3):
     for g in (whole.get('garments', []) if (spec or {}).get('clear_bands', True) else []):
         if g.get('kind') == 'band' and 'LowerArm' in g.get('bone', '') and g.get('source') == 'hull' and hull:
             P.append(np.asarray(band_hull(A, g, hull)['verts']))
+        elif g.get('kind') == 'band' and 'LowerArm' in g.get('bone', '') and g.get('source') == 'template':
+            P.append(np.asarray(cuff(A, g)['verts']))
     return np.concatenate(P)
 
 
@@ -1964,7 +1966,8 @@ def bow_hull(A, spec, hull):
     elif tails:
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
-    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35))
+    G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
+                  wing=spec.get('wing'), ribbon=spec.get('ribbon'))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -1987,9 +1990,14 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
-    centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height."""
+    centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
+    lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
+    height `knot` at the knot growing to `end` at the far end (`power` shapes the growth), the end closed over its last
+    `cap` share by a quarter ellipse (a flat end with round corners), the end's middle raised by `rise`; else the old
+    pillow (fattest mid-lobe). `ribbon` (dict, sizes): the tails' width `w` [at the knot, at the end], their spread
+    `out` (how far out their ends swing) and the ends' cut `slant` (the outer corner lower); else the old tails."""
     depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
 
@@ -1997,35 +2005,74 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35):
         o = len(verts); verts.extend(vs); uvs.extend(us); faces.extend([tuple(i + o for i in f) for f in fs])
     nu, nv = 24, 14
     for sx in (-1, 1):
-        # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold
         vs, us = [], []
-        for i in range(nv + 1):
-            th = math.pi * i / nv                       # 0 .. pi along the lobe
-            for j in range(nu):
-                ph = 2 * math.pi * j / nu
-                u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
-                taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
-                x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
-                zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
-                yy = -math.cos(ph) * depth * taper
-                fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
-                vs.append(c + np.array([x, yy - fold, zz])); us.append((j / nu, u_))
-        fs = []
-        for i in range(nv):
-            for j in range(nu):
-                j2 = (j + 1) % nu
-                fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
-        add(vs, fs, us)
-        # a tail: a flat ribbon with thickness, out and down, widening, a V notch at the end
+        if wing:
+            # a bow tie's wing: sections along x from the knot (u 0) to the end (u 1), each an ellipse in (depth,
+            # height), its half-height growing from the knot's to the end's, closed at the end by a quarter ellipse
+            nw = 18
+            capw = wing.get('cap', 0.12)
+            hk, he = wing.get('knot', 0.09), wing.get('end', 0.2)
+            pw_, rise = wing.get('power', 1.0), wing.get('rise', 0.02)
+            for i in range(nw + 1):
+                u = i / nw
+                x = sx * (0.05 + (LOBE - 0.05) * u) * sz
+                hh = hk + (he - hk) * min(1.0, u / (1 - capw)) ** pw_
+                if u > 1 - capw:
+                    e = (u - (1 - capw)) / capw
+                    k_ = math.sqrt(max(0.0, 1 - e * e))
+                else:
+                    k_ = 1.0
+                dd = depth * (0.7 + 0.3 * math.sin(math.pi * min(1.0, u)))
+                for j in range(nu):
+                    ph = 2 * math.pi * j / nu
+                    zz = math.sin(ph) * hh * sz * k_ + rise * sz * u
+                    yy = -math.cos(ph) * dd * max(k_, 0.25)
+                    vs.append(c + np.array([x, yy, zz])); us.append((j / nu, u))
+            fs = []
+            for i in range(nw):
+                for j in range(nu):
+                    j2 = (j + 1) % nu
+                    fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+            add(vs, fs, us)
+        else:
+            # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold
+            for i in range(nv + 1):
+                th = math.pi * i / nv                       # 0 .. pi along the lobe
+                for j in range(nu):
+                    ph = 2 * math.pi * j / nu
+                    u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
+                    taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
+                    x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
+                    zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
+                    yy = -math.cos(ph) * depth * taper
+                    fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
+                    vs.append(c + np.array([x, yy - fold, zz])); us.append((j / nu, u_))
+            fs = []
+            for i in range(nv):
+                for j in range(nu):
+                    j2 = (j + 1) % nu
+                    fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+            add(vs, fs, us)
+        # a tail: a flat ribbon with thickness, out and down, widening, a V notch at the end (or, with `ribbon`, its
+        # own width and spread and a slanted cut)
         M = 10
         vs, us = [], []
+        rb = ribbon or {}
+        w0, w1 = rb.get('w', (0.13, 0.22))
+        out_, slant = rb.get('out', 0.2), rb.get('slant', None)
         for i in range(M + 1):
             s_ = i / M
-            p = c + np.array([sx * sz * (0.05 + 0.2 * s_), -0.01 * L * s_, -sz * (TAIL0 + tail * s_)])
-            w = sz * (0.13 + 0.09 * s_)
-            notch = sz * 0.10 if i == M else 0.0
-            for (dx, dz, dy) in ((-w / 2, 0, -0.01 * L), (0, notch, -0.01 * L), (w / 2, 0, -0.01 * L),
-                                 (w / 2, 0, 0.004 * L), (0, notch, 0.004 * L), (-w / 2, 0, 0.004 * L)):
+            p = c + np.array([sx * sz * (0.05 + out_ * s_), -0.01 * L * s_, -sz * (TAIL0 + tail * s_)])
+            w = sz * (w0 + (w1 - w0) * s_)
+            if slant is None:
+                notch = sz * 0.10 if i == M else 0.0
+                cut = ((-w / 2, 0), (0, notch), (w / 2, 0))
+            else:
+                # the end cut on a slant: its outer corner `slant` sizes lower than its inner one
+                d_ = slant * sz if i == M else 0.0
+                cut = ((-w / 2, -d_ / 2 * sx), (0, 0.0), (w / 2, d_ / 2 * sx))
+            for (dx, dz), dy in ((cut[0], -0.01 * L), (cut[1], -0.01 * L), (cut[2], -0.01 * L),
+                                 (cut[2], 0.004 * L), (cut[1], 0.004 * L), (cut[0], 0.004 * L)):
                 vs.append(p + np.array([dx, dy, dz])); us.append((0.5, s_))
         fs = []
         for i in range(M):
@@ -2034,7 +2081,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35):
                 fs.append((i * 6 + k, i * 6 + k2, (i + 1) * 6 + k2, (i + 1) * 6 + k))
         add(vs, fs, us)
     from .accessories import rounded_box
-    kv, kf = rounded_box(0.19, 0.16, 0.24, 0.07, segs=2)
+    kb = (wing or {}).get('box', (0.19, 0.16, 0.24))                 # the knot (sizes: wide, deep, tall)
+    kv, kf = rounded_box(kb[0], kb[1], kb[2], 0.07, segs=2)
     add(list(kv * sz + c + np.array([0, -0.012 * L, 0.01 * sz])), kf, [(0.5, 0.5)] * len(kv))
     verts = np.array(verts)
     return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs)

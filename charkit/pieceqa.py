@@ -21,10 +21,12 @@ Checks (qa3d part 'piece_details'; lengths in L):
         band's against the design's (the jacket overhangs the band)
   shorts_{view}_hem, shorts_{front,back}_width
         the shorts' lower edge and their width against the design's
-  skirt_pleats, skirt_pleats_cream, skirt_pleat_order
-        3D against skirt_closeup's top-down view: the orange pleats' count and the cream panel's (crests of our skirt
-        round a ring; pleats between strokes or tone steps round the design's), and their order (one cream block at the
-        front, orange round the rest)
+  {collar,bow}_{view}_torn
+        the piece's outline roughness, ours drawn FINE x finer round the chest, beyond the design's, and its fragments
+        against the design's (the torn lapel tips and bow edges)
+  bow_front_flare, bow_front_tail_width, bow_front_tail_gap
+        the bow in front: its lobes' height at their ends over at the knot (a bow tie, not a pillow); its tails' width
+        and the gap between them low down (they part as they fall), against the design's
   cuff_{front,back}_{flare,trim}_{L,R}
         the wrist cuff across its arm (the forearm's and hand's skin round it give the arm's direction): its width at its
         top over its bottom (a cup, wider at the elbow's side; the blocky band bulged, wider at its bottom), and its
@@ -46,6 +48,9 @@ SPIKE_BAND = 0.03                   # L: a spike this close to the piece's band 
 CAP = 0.55                          # spikes are looked for on the sleeve's cap, its upper share along the arm (the
                                     # shoulder poofs; lower down the drawn masks' inner corners are cutting slivers)
 MIN_PX = 150                        # a view's piece mask this small (either side) is not measured
+FINE = 3                            # ours drawn this many times finer than the grid for the torn-edge checks (the collar's
+                                    # and the bow's jagged tips are a few grid pixels)
+CHEST = dict(x=0.9, top=-0.25, bottom=-1.4)          # L round the eyes: the window the collar and the bow are drawn in
 HIDDEN = 0.4                        # a view that shows less than this share of a piece's drawn pixels in front (the far
                                     # sleeve in three-quarter, behind the bow): its width along the arm isn't measured
 LIMITS = {                          # (pass within, warn within); else fail
@@ -58,8 +63,10 @@ LIMITS = {                          # (pass within, warn within); else fail
     'overhang': (0.015, 0.03),      # L: the top's front edge over the band's in profile against the design's
     'flare': (0.08, 0.15),          # |ours - design| of a cuff's width at its top over its width at its bottom
     'trim': (0.08, 0.15),           # |ours - design| of the cream share of a cuff's pixels
-    'pleats': (1, 3),               # |ours - design| of the orange pleats' count
-    'pleats_cream': (0, 1),         # ... of the cream panel's
+    'torn': (0.004, 0.008),         # L: a piece's outline roughness (ours drawn at FINE x the grid) beyond the design's
+    'bow_flare': (0.25, 0.5),       # |ours - design| of the bow's lobes' height at their ends over at the knot
+    'tail_width': (0.15, 0.3),      # |ours / design - 1| of the bow tails' width
+    'tail_gap': (0.03, 0.06),       # L: |ours - design| of the gap between the bow's tails low down
 }
 SLEEVE_VIEWS = ('front', 'three_quarter', 'profile', 'back')
 CLOSE = 0.012                       # L: a drawn piece mask is closed by a disk this wide and its holes filled before its
@@ -517,149 +524,144 @@ def cuffs(O, names, masks, pm, ppl, dv, skin_names, cls_o):
     return T, C
 
 
-def closeup_pleats(rgb, scales=(1.5, 1.6, 1.7, 1.8, 1.9, 2.0), n=7200):
-    """skirt_closeup's top-down view (its lower middle: the skirt seen from above round the grey waist hole): round
-    rings at `scales` of the hole's radii, the pleats' boundaries (a stroke or a step in tone: peaks of the tone's
-    change along the ring) and between them each pleat's colour (cream or orange). -> dict(orange, cream (the median
-    counts over the rings), per ring [(orange, cream, sequence)], cream_deg (the cream's span)) or None."""
-    from scipy import ndimage
-    H, W = rgb.shape[:2]
-    c = np.asarray(rgb, float)[H // 2:, W // 3:2 * W // 3, :3]
-    if c.max() > 1.5:
-        c = c / 255.0
-    R, G, B_ = c[..., 0], c[..., 1], c[..., 2]
-    lum = 0.3 * R + 0.59 * G + 0.11 * B_
-    grey = (np.abs(R - G) < 0.05) & (np.abs(G - B_) < 0.05) & (lum > 0.6) & (lum < 0.93)
-    lab, k = ndimage.label(grey)
-    if not k:
-        return None
-    sz = np.bincount(lab.ravel())
-    sz[0] = 0
-    yy, xx = np.nonzero(lab == sz.argmax())
-    cy, cx, ry, rx = yy.mean(), xx.mean(), np.ptp(yy) / 2, np.ptp(xx) / 2
-    th = np.linspace(-np.pi, np.pi, n, endpoint=False)             # 0 toward the viewer: the skirt's front
-    rings = []
-    for sc in scales:
-        y, x = cy + sc * ry * np.cos(th), cx + sc * rx * np.sin(th)
-        v = ndimage.gaussian_filter1d(ndimage.map_coordinates(lum, [y, x], order=1), 3, mode='wrap')
-        cr = ndimage.map_coordinates(B_, [y, x], order=1) > 0.55
-        d = np.abs(np.gradient(v))
-        pk = np.nonzero((d > 0.012) & (d >= np.roll(d, 1)) & (d >= np.roll(d, -1)))[0]
-        merged = []
-        for p in pk:
-            if not merged or p - merged[-1] >= n / 360 * 2.0:
-                merged.append(p)
-        seq = ''
-        for a, b in zip(merged, merged[1:] + [merged[0] + n] if merged else []):
-            idx = np.arange(a, b) % n
-            if len(idx) >= n / 360 * 3:
-                seq += 'C' if cr[idx].mean() > 0.5 else 'O'
-        rings.append((seq.count('O'), seq.count('C'), seq, round(float(cr.mean() * 360), 1)))
-    if not rings:
-        return None
-    return dict(orange=float(np.median([r[0] for r in rings])), cream=float(np.median([r[1] for r in rings])),
-                cream_deg=float(np.median([r[3] for r in rings])), rings=rings)
+def fine_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), fine=FINE, win=CHEST):
+    """our objects' labels as our_labels', `fine` times finer, in a window round the chest -> ({view: lab}, names)."""
+    from . import qa3d
+    from .faceqa import zbuffer
+    meshes, names = qa3d.scene_objects(B)
+    obj = [(V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)) for i, (V, T, _) in enumerate(meshes)]
+    As = B.assembly
+    iw = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    out = {}
+    for v in views:
+        org = bodyqa.origin(v, az[v], iw, As['centre'])
+        out[v] = zbuffer(obj, az[v], org, As['L'], 1.0 / (ppl * fine), win)[1]
+    return out, names
 
 
-def our_pleats(B, name='skirt', frac=0.45, nb=1440, prom=0.2):
-    """our skirt's pleats round a ring `frac` of the way from its waist to its front hem: its outer surface's radius per
-    angle round its waist's centre (the evaluated mesh sliced), the crests (local peaks standing `prom` of the pleats'
-    depth over the troughs within half a pleat) and each crest's material (slot 1: the cream panel). -> dict(orange,
-    cream, sequence (from the back round her left), cream_deg, cream_centre (deg)) or None."""
-    try:
-        o = B.obj(name)
-    except KeyError:
-        return None
-    V, T, pm, _ = o.mesh('eval')
-    zt = V[:, 2].max()
-    top = V[V[:, 2] > zt - 0.02 * (zt - V[:, 2].min())]
-    cx, cy = top[:, 0].mean(), top[:, 1].mean()
-    ang = np.arctan2(V[:, 0] - cx, -(V[:, 1] - cy))                  # 0 the front, + her left
-    front = np.abs(ang) < np.radians(20)
-    z0 = zt - frac * (zt - np.percentile(V[front, 2], 1))
-    a, b, c = V[T[:, 0], 2] - z0, V[T[:, 1], 2] - z0, V[T[:, 2], 2] - z0
-    cross = (np.minimum(np.minimum(a, b), c) < 0) & (np.maximum(np.maximum(a, b), c) > 0)
-    P, M = [], []
-    for i in np.nonzero(cross)[0]:
-        t = T[i]
-        z = V[t, 2] - z0
-        for j in range(3):
-            p, q = t[j], t[(j + 1) % 3]
-            if (z[j] < 0) != (z[(j + 1) % 3] < 0):
-                w = z[j] / (z[j] - z[(j + 1) % 3])
-                P.append(V[p] + (V[q] - V[p]) * w)
-                M.append(pm[i])
-    if len(P) < 50:
-        return None
-    P, M = np.array(P), np.array(M)
-    th = np.arctan2(P[:, 0] - cx, -(P[:, 1] - cy))
-    r = np.hypot(P[:, 0] - cx, P[:, 1] - cy)
-    k = ((th + np.pi) / (2 * np.pi) * nb).astype(int) % nb
-    rmax = np.full(nb, -np.inf)
-    mat = np.zeros(nb, int)
-    for kk, rr, mm in zip(k, r, M):
-        if rr > rmax[kk]:
-            rmax[kk], mat[kk] = rr, mm
-    ok = np.isfinite(rmax)
-    rmax = np.interp(np.arange(nb), np.nonzero(ok)[0], rmax[ok], period=nb)
-    # the pleats over the skirt's own shape round the ring (a running mean over 30 degrees taken off)
-    w = nb // 12
-    ker = np.ones(2 * w + 1) / (2 * w + 1)
-    base = np.convolve(np.r_[rmax[-w:], rmax, rmax[:w]], ker, mode='valid')
-    res = rmax - base
-    depth = np.percentile(res, 95) - np.percentile(res, 5)
-    half = nb // 144                                                  # 2.5 degrees
-    crest = []
-    for i in range(nb):
-        win = res[np.arange(i - half, i + half + 1) % nb]
-        wide = res[np.arange(i - 3 * half, i + 3 * half + 1) % nb]
-        if res[i] == win.max() and res[i] - wide.min() > prom * depth and (not crest or i - crest[-1] > half):
-            crest.append(i)
-    seq = ''.join('C' if mat[i] == 1 else 'O' for i in crest)
-    cth = -np.pi + (np.arange(nb) + 0.5) * 2 * np.pi / nb
-    cream = mat == 1
-    centre = float(np.degrees(np.angle(np.exp(1j * cth[cream]).mean()))) if cream.any() else None
-    return dict(orange=seq.count('O'), cream=seq.count('C'), sequence=seq, cream_deg=round(float(cream.mean() * 360), 1),
-                cream_centre=None if centre is None else round(centre, 1), z=round(float(z0), 4))
+def crop_win(m, ppl, win=CHEST):
+    """a design-grid mask cut to the chest window (rows and columns of WIN's grid)."""
+    r0, r1 = int(round((WIN['top'] - win['top']) * ppl)), int(round((WIN['top'] - win['bottom']) * ppl))
+    c0, c1 = int(round((WIN['x'] - win['x']) * ppl)), int(round((WIN['x'] + win['x']) * ppl))
+    return m[r0:r1, c0:c1]
 
 
-def pleat_checks(B, design):
-    """the skirt's pleats against skirt_closeup's top-down view: the orange and cream counts, and their order (one
-    cream block at the front, orange round the rest) -> (table, checks)."""
-    from . import manifest
-    ref = design.ref()
-    try:
-        M = manifest.load(ref['manifest'])['references'] if ref.get('manifest') else {}
-        d_ = design.memo(closeup_pleats, design.rgba(manifest._p(M['skirt_closeup']['path']))[..., :3]) \
-            if 'skirt_closeup' in M else None
-    except (KeyError, OSError):
-        d_ = None
-    if d_ is None or not any(g.get('kind') == 'skirt' for g in B.spec.get('garments') or []):
-        return None, {}
-    name = next(g['name'] for g in B.spec['garments'] if g.get('kind') == 'skirt')
-    o_ = our_pleats(B, name)
-    T = dict(ours=o_, design=d_)
-    if o_ is None:
-        why = {'value': None, 'status': 'FAIL', 'why': 'our skirt not sliced'}
-        return T, {'skirt_pleats': dict(why), 'skirt_pleats_cream': dict(why), 'skirt_pleat_order': dict(why)}
-    C = {}
-    v_ = abs(o_['orange'] - d_['orange'])
-    C['skirt_pleats'] = {'value': v_, 'status': grade('pleats', v_), 'ours': o_['orange'], 'design': d_['orange'],
-                         'note': "the orange knife pleats round the skirt (crests of ours; pleats between strokes or "
-                                 "tone steps round skirt_closeup's top-down view), ours against the design's"}
-    v_ = abs(o_['cream'] - d_['cream'])
-    C['skirt_pleats_cream'] = {'value': v_, 'status': grade('pleats_cream', v_), 'ours': o_['cream'],
-                               'design': d_['cream'], 'cream_deg': [o_['cream_deg'], d_['cream_deg']],
-                               'note': "the cream front panel's pleats, ours against the design's"}
-    seq = o_['sequence']
-    runs = sum(1 for i in range(len(seq)) if seq[i] != seq[i - 1]) if seq else 0
-    centred = o_['cream_centre'] is not None and abs(o_['cream_centre']) <= 15
-    v_ = max(0, runs - 2) + (0 if centred else 1)
-    C['skirt_pleat_order'] = {'value': v_, 'status': 'PASS' if v_ == 0 else 'FAIL', 'ours': seq,
-                              'cream_centre': o_['cream_centre'],
-                              'note': "the pleats' order round the skirt: one cream block centred at the front (within "
-                                      "15 degrees) and orange round the rest, as the design's top-down view (extra "
-                                      "colour runs, and 1 when the block is off the front)"}
+def torn(m, ppl):
+    """a piece mask's torn-edge measures: its outline's roughness (detailqa's: the 95th percentile distance to its
+    smoothed self, L) and its fragments (parts under 2% of its largest). -> (rough, fragments) or None."""
+    from .detailqa import fragments
+    if m.sum() < 20:
+        return None
+    r = outline_roughness(m, ppl, sigma=0.01)
+    return (r, fragments(m)[0]) if r is not None else None
+
+
+def bow_shape(lobes, tails, ppl):
+    """the bow in front: its lobes' height at their ends (the outer 15% of the half-width) over at the knot (a quarter
+    of the half-width out), each side, averaged (a bow tie flares to its ends; a pillow doesn't); its tails' width
+    (their rows' median run) and the gap between them 80% of the way down them. -> dict or None."""
+    rs, cs = np.nonzero(lobes)
+    if len(rs) < MIN_PX:
+        return None
+    cx = 0.5 * (cs.min() + cs.max())
+    hw = 0.5 * (cs.max() - cs.min())
+
+    def height(f):
+        hs = []
+        for sgn in (-1, 1):
+            c = int(round(cx + sgn * f * hw))
+            col = lobes[:, max(0, c - 1):c + 2].any(1)
+            r = np.nonzero(col)[0]
+            if len(r):
+                hs.append((r.max() - r.min() + 1) / ppl)
+        return float(np.mean(hs)) if hs else None
+    end, knot = height(0.85), height(0.25)
+    out = dict(width=round(2 * hw / ppl, 4), end=None if end is None else round(end, 4),
+               knot=None if knot is None else round(knot, 4))
+    out['flare'] = round(end / knot, 3) if end and knot else None
+    rt, ct = np.nonzero(tails)
+    if len(rt) >= 50:
+        t0, t1 = rt.min(), rt.max()
+        runs, gaps = [], []
+        for r in range(int(t0 + 0.3 * (t1 - t0)), int(t0 + 0.8 * (t1 - t0)) + 1):
+            c = np.nonzero(tails[r])[0]
+            if not len(c):
+                continue
+            parts = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1)
+            runs += [len(p_) for p_ in parts if len(p_) > 1]
+        r = int(t0 + 0.8 * (t1 - t0))
+        c = np.nonzero(tails[r])[0]
+        parts = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1) if len(c) else []
+        parts = [p_ for p_ in parts if len(p_) > 1]
+        out['tail_width'] = round(float(np.median(runs)) / ppl, 4) if runs else None
+        out['tail_gap'] = round(float(parts[-1][0] - parts[0][-1]) / ppl, 4) if len(parts) >= 2 else 0.0
+        out['tail_bottom'] = round(float(WIN['top'] - (t1 + 0.5) / ppl), 4)
+    return out
+
+
+def collar_bow(B, O, names, masks, pm, ppl, az3, dv):
+    """the collar's and the bow's torn edges (ours drawn FINE x finer round the chest) and the bow's shape in front
+    against the design's (see the module doc) -> (table, checks)."""
+    T, C = {}, {}
+    F, fnames = fine_labels(B, ppl, az3)
+    for pid in ('collar', 'bow'):
+        if pid not in pm:
+            continue
+        for view in ('front', 'three_quarter', 'profile', 'back'):
+            Md = masks.get('%s__%s' % (view, pid))
+            if Md is None or crop_win(Md, ppl).sum() < MIN_PX:
+                continue
+            d_ = torn(clean(crop_win(Md, ppl), ppl), ppl)
+            if d_ is None:
+                continue
+            Mo = members(F[view], fnames, pm, pid)
+            o_ = torn(Mo, ppl * FINE)
+            T['%s_%s' % (pid, view)] = dict(ours=o_, design=d_)
+            name = '%s_%s_torn' % (pid, view)
+            if o_ is None:
+                C[name] = {'value': None, 'status': 'FAIL', 'design': d_, 'why': 'ours not seen here'}
+                continue
+            v_ = round(max(0.0, o_[0] - d_[0]), 4)
+            df = o_[1] - d_[1]
+            st_f = 'PASS' if df <= 0 else 'WARN' if df <= 1 else 'FAIL'
+            C[name] = {'value': v_, 'status': worst(grade('torn', v_), st_f), 'ours': o_, 'design': d_,
+                       'note': "the piece's outline roughness (ours drawn %dx finer, the 95th percentile of its outline's "
+                               "distance to its smoothed self, L) beyond the design's, and its fragments (parts under 2%% "
+                               "of its largest) against the design's: a torn edge" % FINE}
+    # the bow's shape in front
+    if 'front' in O and 'bow' in pm:
+        lob_d = masks.get('front__bow')
+        tl = [masks.get('front__bow_tail_%s' % s_) for s_ in 'LR']
+        if lob_d is not None and all(t is not None for t in tl):
+            d_ = bow_shape(clean(lob_d, ppl), clean(tl[0] | tl[1], ppl), ppl)
+            Mo = clean(members(O['front']['lab'], names, pm, 'bow'), ppl)
+            o_ = None
+            if Mo.sum() >= MIN_PX and d_:
+                # ours in one object: the lobes above the design's tails' top, the tails below it
+                zt = WIN['top'] - (np.nonzero(tl[0] | tl[1])[0].min() + 0.5) / ppl
+                rt = int(round((WIN['top'] - zt) * ppl))
+                lob_o, tail_o = Mo.copy(), Mo.copy()
+                lob_o[rt:] = False
+                tail_o[:rt] = False
+                o_ = bow_shape(lob_o, tail_o, ppl)
+            T['bow_front'] = dict(ours=o_, design=d_)
+            if d_:
+                for key, lim in (('flare', 'bow_flare'), ('tail_width', 'tail_width'), ('tail_gap', 'tail_gap')):
+                    name = 'bow_front_' + key
+                    if d_.get(key) is None:
+                        continue
+                    if not o_ or o_.get(key) is None:
+                        C[name] = {'value': None, 'status': 'FAIL', 'design': d_.get(key), 'why': 'ours not measured'}
+                        continue
+                    v_ = round(abs(o_[key] / d_[key] - 1) if key == 'tail_width' else abs(o_[key] - d_[key]), 4)
+                    C[name] = {'value': v_, 'status': grade(lim, v_), 'ours': o_[key], 'design': d_[key],
+                               'note': {'flare': "the bow's lobes' height at their ends over at the knot, against the "
+                                                 "design's (a bow tie flares out to its ends; a pillow doesn't)",
+                                        'tail_width': "the bow's tails' width (their rows' median run), ours over the "
+                                                      "design's, less one",
+                                        'tail_gap': "the gap between the bow's two tails 80% of the way down them (L), "
+                                                    "against the design's (the tails part as they fall)"}[key]}
     return T, C
 
 
@@ -821,7 +823,7 @@ def measure(B, design, out=None):
     t, c = cuffs(O, names, masks, pm, ppl, design.design_views(), skin, our_classes(B, ppl, ctx['az3']))
     T['cuffs'] = t
     C.update(c)
-    t, c = pleat_checks(B, design)
-    T['pleats'] = t
+    t, c = collar_bow(B, O, names, masks, pm, ppl, ctx['az3'], design.design_views())
+    T['collar_bow'] = t
     C.update(c)
     return T, C

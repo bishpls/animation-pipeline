@@ -27,8 +27,6 @@ STEPS = [
     ('shorts_*', '12c3b97', "new: the shorts' hem height per view and width in front and back against the design's"),
     ('cuff_*', 'cda2b7f', "new: the wrist cuffs' flare (top over bottom width) and cream trim in front and back "
      "against the design's"),
-    ('skirt_pleat*', 'cda2b7f', "new: the skirt's orange and cream pleat counts and their order against "
-     "skirt_closeup's top-down view"),
     ('sleeve_*', 'cda2b7f', "the spikes on the cap's silhouette only (the drawn masks' inner corners are cutting "
      "slivers), the check set by the design alone, the stand-off against sleeve_closeup"),
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5

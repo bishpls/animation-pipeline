@@ -62,7 +62,18 @@ are 0.77-0.80 L wide against the drawn band's 0.60-0.64), and the band took that
 
 ## Coordination with tool/body (the midriff junction)
 
-(below, as found)
+What the waistband needs from tool/body (the top's hem, `shell`'s `ease` and the midriff checks are theirs):
+- The drawn band stands from z -1.338 (its top, front) to -1.493 (its bottom); ours from -1.28 (the hull's span).
+  With the band's `rows` at [-1.33, -1.505] (fit rows [-1.40, -1.47]) the band is right (piece_waistband 0.448 FAIL
+  -> 0.888-0.892 PASS, its rows and widths PASS/WARN) but the top's hem then covers the band's upper 0.03-0.05 L in
+  front (the ease holds the top at the band's face 0.03 L under its top edge, and the band's rounded top row lets it
+  show) and a see-through gap opens in profile: body_profile_midriff_gap 0.0 PASS -> 0.028-0.047 FAIL (variants: the
+  top's `ease.hold` 0, `hem_drop` 0; the band's top at -1.31 or -1.33). With `hem_drop` 0 the gap opens in front too.
+- So the band's height is left at the hull's span on this branch (only its width: `fit_rows`): piece_waistband 0.448
+  FAIL -> 0.652 WARN, widths FAIL -> WARN/PASS, the midriff checks unchanged.
+- Needed: the top's hem ending at the band's top edge outside it, overhanging it a little (the design's jacket stands
+  0.019 L in front of the band in profile: `waistband_profile_overhang`), with nothing see-through under it; then
+  `rows: [-1.33, -1.505]` on the band.
 
 ## Harness (scratchpad, not tracked)
 
