@@ -116,6 +116,101 @@ Reading them:
 beside before and after at 399 px per L, turntables, body boards, close-ups, the numbers, and the two taste calls
 (the board light; the outline colour and weight) rendered from the proposal's scene with `lookboard.py --look`.
 
+## Round 2 plan (`tool/look2`, from pipeline-3d 0122617; tool/look is merged)
+
+Work in order. Report at each milestone; commit on `tool/look2` only, never push or merge; gate with
+`python -m charkit remote gate tool/look2 --into pipeline-3d` and again with `--spec charkit/spec/clawd_body.json` (the
+parallel gate path: it doesn't queue). Judge on `charkit/out/remote/clawd_body_pieces.json` (clawd_body.json with
+`hair.shape.mode: "pieces"`; `cli.resolve` puts the anime look into the spec). Build and render on the GPU render box:
+`python -m charkit remote --box render build SPEC --out charkit/out/NAME --boards views,body`; turntables and the
+design-matched head views from the saved scene:
+`infra/gcp/build.sh run $PWD '$BLENDER -b charkit/out/NAME/clawd.blend --python charkit/boards/lookboard.py -- charkit/out/NAME/lookboard --L 0.25'`
+(with `CHARKIT_BOX_ENV=$PWD/infra/gcp/render.env`; `turntable.py` likewise, then `python charkit/boards/turntable.py --gifs DIR`),
+fetched with `infra/gcp/build.sh fetch $PWD charkit/out/NAME/lookboard`. The review page: `python -m charkit.lookpage`
+(see Review). The look's QA alone on a bundle: `lookqa.measure(bundle.load(DIR), qa3d.Design(B), OUT)`.
+
+1. **The QA speedup** (the default build went 129.7 -> 265.7 s at the tool/look gate; target 1.2x of pre-look, about
+   156 s, or less). The cost is the look part's own venv draws, not Blender: on the v5 bundle `line_width` 59 s (three
+   views at the design's 399 px per L, 4x supersampled), `face_noise` 29 s (3 views + 12 sweep lights), `face_shadow`
+   7 s; the Blender stages add ~7 s (face_shading 1.0 -> 4.8 s, garments 3.7 -> 7.2 s: the skin's proxy-normal
+   transfer is evaluated on every mesh read).
+   - Lines at 200 px per L (`FACE_PPL`) with 3x supersampling, converted to the design page's px as now (scale =
+     native_ppl / 200); ~9x fewer pixels.
+   - face_noise: tool/render-batch's profile of 15 `qa3d.draw` calls (21 s): 10.9 s draw's own Python per-surface
+     shading (fancy indexing, a cross product per surface), 5.6 s `raster.window_zbuffer` (0.37 s a call), 1.3 s
+     `_blur_down`, 1.2 s `_toon`. Sharing the z-buffer across a view's lights saves at most ~4.5 s; the lever is
+     caching each surface's per-view data once per view (the z-buffer, the pixel -> triangle -> corner indices, the
+     interpolated normals, the slots, the face UV and mask samples, the SDF/fringe/blush texture samples at those
+     UVs) so each extra light re-runs only `_toon` / `_face` on the cached arrays; the sweep needs no picture (skip
+     `_blur_down`) and only the skin shaded. `face_shadow` can share face_noise's views (0 and 90) through `B.memo`.
+   - Show the cheaper measure measures the same thing: for line_width / line_spread and face_noise, the old and new
+     values against their sampling noise (re-run each at 3 sub-pixel offsets of the frame's origin at both
+     resolutions; the change must be inside that spread). Put the table here.
+   - Measure the Blender side too (trace spans): if the proxy transfer's re-evaluation matters, try
+     `loop_mapping='NEAREST_POLYNOR'` or a proxy at the skin's render subdivision with `NEAREST_NORMAL`, and check
+     the normals against today's (mean and p99 angle).
+2. **The chin's shadow as the jaw's cast shadow** (Michael: today's under-chin shadow reads as a smeared horizontal
+   band low on the neck; the design has a clean V directly under the chin, following the jaw). Today it comes from
+   `faceshade.proxy_normals` tilting the neck's normals down by up to `chin_tilt` 85 degrees (`tilt_power` 0.25):
+   replace that with a shadow shaped from the jaw, e.g. per neck vertex the height of the jaw's silhouette above it
+   along the key light's direction (a cast-shadow threshold map, SDF-style, in the neck's own UV or computed per
+   vertex and stored as an attribute the shader compares with the light's elevation), so the shadow's upper edge is
+   the jaw and it moves with the light. Grade it: extend `lookqa.face_shadow` with the design's shadow region under
+   the chin in the front and three-quarter views (head_turnaround via `skin_classes`: its shaded skin between the
+   jaw and 0.5 L below) against ours, IoU and the edge's distance from the jaw, and make it a graded check. tool/face
+   is fixing the chin's geometry: coordinate before changing anything under the jaw.
+3. **The hair's shadow on the temple and cheek from the key light** (the design's profile shades 22% of the face
+   under the side hair; ours 2%; three-quarter 18% against 10%). `faceshade.fringe_shadow` projects the bangs and
+   side locks from the front only (a planar map in the 'face' UV). Project the hair's silhouette along the key light's
+   direction instead: at the boards' camera key the light turns with the camera, so either bake shadow maps for a
+   few light azimuths and pick/blend by `ldir_head` in the shader, or compute the shadow from the light each view
+   (Blender: EEVEE shadows can't reach an emission material; a depth map from the light, rendered once per view,
+   sampled in the shader). The measure is `face_shadow_face_*` against the design per view.
+4. **Smooth proxy normals for the hair's terminators** once tool/artifacts' per-region numbers exist (Michael flagged
+   torn dark patches with sawtooth terminators on the hair locks in the three-quarter and side views). Likely the
+   toon terminator following faceted per-lock normals plus the deep step: transfer smooth normals from a proxy (as
+   `faceshade.apply_proxy_normals` does for the skin) and/or raise the look's `hair.deep_at` threshold; measure with
+   tool/artifacts' numbers and hair_noise. tool/hair-detail owns the hair's geometry and normals: agree who changes
+   what first.
+5. **Taste calls A (the board light) and B (outline colour and weight) are with Michael**; apply his answers in
+   `charkit/styles/anime.json` (`look.light.key`, `look.lines.color` / `ink_regions` / `frac`). Inking the skin line
+   waits on the eye QA masking the face contour by geometry (queued for tool/face).
+
+### Ownership
+
+Yours: `charkit/shade.py`, `charkit/faceshade.py`, `charkit/lookqa.py`, the look parts of `charkit/gltf.py` (the
+OPENADS_charkit_look extension; motion owns springBone export there, in separate functions),
+`engine/three/charkit/look.js`, `charkit/boards/turntable.py`, `charkit/boards/lookboard.py`, `charkit/lookpage.py`,
+the `look` section of `charkit/styles/*.json` and `styles.DEFAULT['look']`. Shared, touch minimally: `qa3d.draw`
+(render-batch batches board renders through `qa.render_view` -> `shade.set_view`; keep that hook and set_view's
+write-only-when-changed guard), `scene.py` (`stage_face_shading`, `hair_pieces_objects`' material lines, the
+`line_colors` call after the stages), `bundle.py` (the face material and look records). Not yours: head geometry and
+`eyes.py` (tool/face), hair geometry and normals (tool/hair-detail), `qa.render_view`'s callers' loops
+(tool/render-batch).
+
+### Gotchas
+
+- Keep QA imports out of build stages: `shade.py` once imported `bundle.py`, which pulled `faceqa.py` into every
+  stage's cache closure (`charkit/tests/test_cache.py::test_code_closure` catches it).
+- Anything a build stage reads from the look must come through `S.spec['look']` (the stage cache keys on spec reads;
+  `charkit/styles/*.json` opened inside a stage is not keyed).
+- `set_view` / `set_light` write a node input or a SOLIDIFY thickness only when its float32 changes (a write re-tags
+  the modifier stack: ~1.5 s a frame over 47 outlined objects).
+- The outline SOLIDIFY re-derives corner normals: custom normals ride in from a hidden rigged copy by a Data
+  Transfer after it (`apply_proxy_normals`), never set on the mesh itself.
+- A thin line drawn in the 'face' UV wanders: the UV is interpolated on the subdivided skin, not re-projected (the
+  jaw ink line, `face.jaw_line`, is off for this reason).
+- The skin's outline in ink reads as lash to the eye QA's crops (eye_aspect 0.829 -> 0.745 on the default spec): the
+  skin keeps its build colour (`lines.ink_regions`).
+- The QA's venv memo keys on a function's code: memoize module-level functions (`lookqa.design_cut`), not closures.
+- The design's lines are measured at v < 0.5 (half way from ink to paper), its skin split lit/shaded by Otsu; the
+  eye's `sheetqa.LINE_V` (0.38) is a different threshold for a different job.
+- `python -m charkit export BLEND` runs gltf.py as a script: import charkit modules absolutely there.
+- Render box: `build.sh up` doesn't check that the VM started (it once stayed stopped and the wait ran 15 min);
+  gcloud auth can expire mid-round (every box call fails with "Reauthentication failed": Michael re-logs in);
+  the box can come up as a T4 fallback (same speed for boards).
+- No foreground sleeps; long jobs with `run_in_background`; the laptop's own heavy work through its one build slot.
+
 ## Next
 
 - The hair's shadow on the face from the side (the design's profile shades the temple and cheek under the side hair;
