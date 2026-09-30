@@ -497,6 +497,24 @@
     "valid for the grids it records only: a new sheet, a new eye spacing or a new window needs it redrawn, and outfit.score refuses a grid that differs"
    ]
   },
+  "hair_truth": {
+   "kind": "family_truth",
+   "path": "charkit/refs/clawd/hair_truth.npz",
+   "source": "charkit/refs/clawd/hair_truth.json",
+   "tracked": true,
+   "role": "a hand-checked labelling of body_turnaround's hair by family (hairlayers.FAMILIES, the buns by side) on the hair layers' grids (bodyqa.design_views at the sheet's 212.5 px/L): what `python -m charkit hairlayers score` grades the produced hair_layers against (hairlayers.score). Built from its source by `python -m charkit hairlayers truth`: the sheet's hair cells cut along annotated polylines (snapped to the drawn lines), each piece labelled by a seed",
+   "provenance": {
+    "by": "annotated by Claude (claude-opus-5-5) for tool/hairtag",
+    "date": "2026-09-30",
+    "method": "every hair cell of 25 px or more (outfit.cells) labelled by eye from zoomed crops; cells holding several families cut along the drawn lines where they run and straight across their gaps; the shadow tone below the head splits the under layer; docs/workstreams/hairtag.md lists the split rules and the calls"
+   },
+   "cautions": [
+    "one reading by eye of another generation's families (hair_breakdown) on the body sheet's drawing: where the drawing doesn't decide (the outer masses behind the side locks, the flick tips, the temple), a set is accepted",
+    "the three-quarter resolves the buns (by side), the ahoge, the clips and the side lock under the star only: its mass accepts any mass family (no family masks are made in that view)",
+    "valid for the grids it records only: a new sheet or window needs it redrawn, and hairlayers.score refuses a grid that differs",
+    "no sha256: it grades and no produced reference reads it (so it stays out of their stamps); charkit/tests/test_hairtruth.py checks it matches its source"
+   ]
+  },
   "outfit_masks": {
    "kind": "piece_masks",
    "tracked": false,
