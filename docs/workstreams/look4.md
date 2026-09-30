@@ -13,3 +13,9 @@ A small round, one gate (default spec only, policy K):
 ## State
 
 - Before build (pipeline-3d 08f93e2, render box): `charkit/out/look4_before` (`--boards views,body --vrm`), running.
+- Call M code: 423e831 (shade.outline cap='measured', garments LINE_CAP_MEASURED = bow, boot; lookprobe --thickness;
+  tests test_line_cap_measured (Blender stand-ins) and test_geomstage's boots). Not yet built.
+- The known-bad builds re-measured with this tree's artifactqa (outfit masks from the local produced cache): body4b
+  spikes_boots 0.0628, bumps_boots 63.1, bumps_legs 42.4, mirror_waist 6.425; body5b bumps_legs 42.4, mirror_waist
+  6.915 (artifacts.md's numbers reproduce).
+- bodyeval --knob-path (d7c8333): the measuring tool for item 3.
