@@ -13,4 +13,10 @@ MEASUREMENT_STEPS = [
      "build's outlines, against the design's"),
     ('bow_profile_ribbon', 'a12f99d', "new: in profile, the ribbons' width seen in front of the jacket against the "
      "design's"),
+    # tool/pieceref: Michael's call C (2026-09-30) on the close-hung ribbons
+    ('bow_profile_ribbon', '2dc325a', "remeasured as what the flag meant, the ribbons merging into the jacket: per row "
+     "over 30-80% of the drawn tails' height in profile, whether the widest ribbon run is at least 0.03 L and touches no "
+     "jacket or sleeve pixel (an ink line between), drawn with the build's outlines; the share of rows that don't, "
+     "beyond the design's (was: the ribbons' width seen in profile over the design's, which asked for a depth the "
+     "close-hung ribbons can't give)"),
 ]
