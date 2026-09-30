@@ -1503,8 +1503,7 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
         side.update(pieces='hull_pieces.npy', piece_names={int(l): P.name(int(l)) for l in np.unique(vl)})
         shell = dict(shell=np.stack([L['ix'], L['iy'], L['iz']], 1).astype(np.int16), shell_label=L['label'])
     ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
-    json.dump(dict({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'units': 'L', 'by': 'charkit.geom.hull'}, **side),
-              open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
+    json.dump(sidecar(ex, ey, **side), open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs, **shell)
     rep.update(calibration=info, mesh={'vertices': len(m.V), 'faces': len(m.F), 'faces_before_decimation': full,
                                        'health': repair.report(m)}, seconds=round(time.time() - t0, 1))
@@ -1702,6 +1701,24 @@ def _depth_section(rep, views, A, save, T=None, S=None):
 
 
 OUTPUTS = ('hull.npz', 'hull_pieces.npy', 'hull_labels.npy', 'hull.ply', 'hull.glb', 'hull.glb.json')
+CONTRACT = 1                        # docs/HULL_CONTRACT.md: the outputs' files, arrays, labels and frame. Raised only for a
+                                    # change a consumer can't read as before (a key, dtype, frame or label code); a hull
+                                    # with no 'contract' in its sidecar is 1
+
+
+def sidecar(ex, ey, **side):
+    """hull.glb.json: the eyes (x toward her left first, y_e their depth, on the eye line z = 0), the units, the maker,
+    the contract's version and the per-vertex arrays it names (labels, pieces, piece_names) -> dict."""
+    return dict({'eyes': [[ex, ey, 0.0], [-ex, ey, 0.0]], 'units': 'L', 'by': 'charkit.geom.hull', 'contract': CONTRACT},
+                **side)
+
+
+def contract_of(side):
+    """a hull's contract version from its sidecar (the dict, or hull.glb.json's path) -> int (1 when it predates the
+    field)."""
+    if isinstance(side, str):
+        side = json.load(open(side))
+    return int(side.get('contract', 1))
 
 
 def save_stages(stages, d, out=None):

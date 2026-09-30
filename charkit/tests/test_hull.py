@@ -344,6 +344,23 @@ def test_the_refined_axis_does_not_move_with_the_limb_labels():
         got.append(hull.refine(views, A, dict(p=2.0, smooth=0.0)))
     assert got[0] == got[1] and abs(got[0]['three_quarter'] - 0.04) <= 0.02, got
 
+
+def test_the_sidecar_carries_the_contract_version():
+    """docs/HULL_CONTRACT.md: the sidecar names its contract version; one written before the field reads as 1."""
+    import json, tempfile
+    from charkit import i3d
+    J = hull.sidecar(0.168, -0.23, labels='hull_labels.npy')
+    assert J['contract'] == hull.CONTRACT and hull.contract_of(J) == hull.CONTRACT and J['units'] == 'L', J
+    assert J['eyes'][0][0] > 0 and J['eyes'][0][2] == 0.0 and J['labels'] == 'hull_labels.npy', J
+    assert hull.contract_of({'eyes': J['eyes']}) == 1
+    d = tempfile.mkdtemp()
+    glb = os.path.join(d, 'hull.glb')
+    json.dump(J, open(glb + '.json', 'w'))
+    assert hull.contract_of(glb + '.json') == hull.CONTRACT
+    L, R = i3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
+    assert L[0] > 0 > R[0]
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
