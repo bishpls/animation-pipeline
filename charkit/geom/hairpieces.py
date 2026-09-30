@@ -1817,6 +1817,15 @@ def bun_tails(mid, R, half, head_c, style, tails):
 
 
 BUN_OUTLINE_TOL = 0.012    # L: an outline pixel within this of the other's agrees (qa3d.HAIR_BUN_TOL, hair_bun_outline's)
+# the buns' fit's optimiser (tool/hull-local, 2026-09-30). 'nm' (until then): Nelder-Mead on pixel counts, a staircase in
+# the pose, so the simplex's path forks at the first pixel that flips: a 1 um move of the head's centre or of the bun
+# points (4e-6 L) moved a bun up to 0.06-0.19 L (tools/hull_local/bunstab.py), and a face edit moved the back view's
+# terminator 0.45 through it. 'soft' (_fit_block_soft): the same loss on soft silhouettes smooth in the pose
+# (_support_cover), plus a pull toward the start (BUN_SOFT_PRIOR: the silhouettes leave the pose under-determined), by
+# L-BFGS-B on its exact gradient, coarse to fine (BUN_SOFT px). (charkit.render.softras was tried first: its contour's
+# edge set changes as the mesh moves, the loss steps by about 3.5e-5 there, and L-BFGS stops on those steps.)
+BUN_METHOD = 'soft'
+BUN_SOFT = (4.0, 2.0, 1.0)  # px: the soft stages' softness, each an L-BFGS-B started from the one before's optimum
 
 
 def _outline(m):
@@ -1825,7 +1834,7 @@ def _outline(m):
 
 
 def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25, loop_starts=1,
-              scene=None, tails=False, tail_iters=500, outline_w=0.0):
+              scene=None, tails=False, tail_iters=500, outline_w=0.0, method=None):
     """a block bun's pose and size fitted to the drawn bun: from bun_block's frame and extents (the hull's points), the
     centre, a rotation and the three half-sizes that best cover each view's drawn bun, then with the fold's slab free
     too (its place and size in the bun's frame), then (tails) the tails' fan (bun_tails) with the rest held
@@ -1836,7 +1845,16 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
     much of the outlines' disagreement (1 - the boundary F-score at BUN_OUTLINE_TOL, hair_bun_outline's measure): the
     shape (the area in every view) and the check it serves, each view alike. Without a scene (round 3), the silhouette
     is the boxes' outline and ours over the drawing's other hair counts `over` (a number or per view).
-    -> (bun_block's fit {c, R, half, slab, tails}, per-view IoU before/after, and outline F after)."""
+    method (BUN_METHOD by default): 'nm' minimises those pixel counts by Nelder-Mead; 'soft' (_fit_block_soft) the same
+    terms on soft silhouettes with a pull toward the start, by L-BFGS-B: stable under tiny input moves. The soft path
+    covers the default construction (no scene, no outline term, no tails); with any of those the fit is Nelder-Mead's.
+    -> (bun_block's fit {c, R, half, slab, tails}, per-view IoU before/after (the hard silhouettes'), the method that
+    ran, and outline F after; the soft path adds its losses and stages)."""
+    method = method or BUN_METHOD
+    if method not in ('nm', 'soft'):
+        raise ValueError('fit_block: method %r (nm or soft)' % method)
+    if method == 'soft' and (scene is not None or outline_w or (tails and int(style.get('bun_tails', 3)) > 0)):
+        method = 'nm'
     from scipy.ndimage import distance_transform_edt
     from scipy.optimize import minimize
     from scipy.spatial.transform import Rotation as Rot
@@ -1927,6 +1945,12 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
             return {k_: round(v_, 3) for k_, v_ in fs.items()}
         return per if detail else tot
     before = loss(np.zeros(9), True)
+    if method == 'soft':
+        x, soft = _fit_block_soft(targets, views, hull_frame, unpack, meshes, len(U1), nx, w_over, kind, loop_starts,
+                                  o0)
+        c, R, half, slab, tl = unpack(x)
+        return dict(c=c, R=R, half=half, slab=slab, tails=None), dict(before=before, after=loss(x, True), soft=soft,
+                                                                        method='soft', tails=None)
     x = np.zeros(0)
     last = np.r_[[0.05] * 3, [0.08] * 3, [0.08] * 3, [0.3] * 3, [0.25] * 3] if kind != 'ribbon' else \
         np.r_[[0.05] * 3, [0.08] * 3, [0.08] * 3, [0.12] * 3, [0.25] * 3, [0.3]]
@@ -1962,10 +1986,203 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
                 best = (v, q)
         xt = best[1]
     c, R, half, slab, tl = unpack(x, xt)
-    rep_ = dict(before=before, after=loss(x, True, xt), tails=None if tl is None else [round(float(v), 3) for v in tl])
+    rep_ = dict(before=before, after=loss(x, True, xt), method='nm',
+                tails=None if tl is None else [round(float(v), 3) for v in tl])
     if scene is not None:
         rep_['outline'] = loss(x, 'outline', xt)
     return dict(c=c, R=R, half=half, slab=slab, tails=tl), rep_
+
+
+_NB = {}
+BUN_SOFT_DIRS = 64        # the soft silhouettes' supporting half-planes: one every 360 / this degrees
+BUN_SOFT_TAU = 0.1        # px: the support function's smoothing (a log-sum-exp over the points, not their max)
+
+
+def _support_kernels():
+    """the numba kernels (compiled once, cached): a pixel's coverage by the soft intersection of the half-planes
+    n_k . p <= h_k (the product of k(x) = 1 / (1 + exp(-4 x)) of their signed distances over s), and its gradient
+    in the h_k."""
+    if 'f' not in _NB:
+        import numba as nb
+
+        @nb.njit(cache=True)
+        def f(px, py, N, h, s):
+            n, K = len(px), len(h)
+            c = np.empty(n)
+            for i in range(n):
+                lc = 0.0
+                for k in range(K):
+                    x = 4.0 * (h[k] - N[k, 0] * px[i] - N[k, 1] * py[i]) / s
+                    if x > 32.0:
+                        continue
+                    if x < -32.0:
+                        lc = -1e300
+                        break
+                    lc -= np.log1p(np.exp(-x))
+                c[i] = np.exp(lc) if lc > -700.0 else 0.0
+            return c
+
+        @nb.njit(cache=True)
+        def b(px, py, N, h, s, gc):
+            n, K = len(px), len(h)
+            gh = np.zeros(K)
+            for i in range(n):
+                if gc[i] == 0.0:
+                    continue
+                for k in range(K):
+                    x = 4.0 * (h[k] - N[k, 0] * px[i] - N[k, 1] * py[i]) / s
+                    if x > 32.0 or x < -32.0:
+                        continue
+                    gh[k] += gc[i] * (4.0 / s) / (1.0 + np.exp(x))          # c (1 - k(x)) 4 / s, c in gc
+            return gh
+        _NB['f'], _NB['b'] = f, b
+    return _NB['f'], _NB['b']
+
+
+def _support_cover(P2s, shape, s, box=None, stride=1):
+    """soft coverage of a union of convex parts on a view's pixels (centres at integer (col, row), as _hull_fill's):
+    each part the soft intersection of its supporting half-planes in BUN_SOFT_DIRS directions (the support function
+    h(n) = max over its projected points P2s[i] of n . p, smoothed by a log-sum-exp over BUN_SOFT_TAU px): a pixel's
+    coverage the product over the directions of k(4 (h(n) - n . p) / s) (softras's step; 1 deep inside, 0 outside, a
+    ramp s px wide across the outline), the parts' union 1 - prod(1 - c_i). Smooth in the points everywhere: no
+    nearest-edge or hull-membership switches. box: the crop (r0, r1, c0, c1), else round the points 8 s + 2 px out;
+    stride: every stride-th pixel of it (each standing for stride^2).
+    -> (coverage on the (strided) crop, box, backward(g) -> [d sum(g C) / d P2s[i] (N_i, 2)])."""
+    H, W = shape
+    if box is None:
+        lo = np.min([p.min(0) for p in P2s], 0); hi = np.max([p.max(0) for p in P2s], 0)
+        pad = 8 * s + 2
+        box = (max(0, int(np.floor(lo[1] - pad))), min(H, int(np.ceil(hi[1] + pad)) + 1),
+               max(0, int(np.floor(lo[0] - pad))), min(W, int(np.ceil(hi[0] + pad)) + 1))
+    r0, r1, c0, c1 = box
+    yy, xx = np.mgrid[r0:r1:stride, c0:c1:stride]
+    px, py = xx.ravel().astype(float), yy.ravel().astype(float)
+    th = np.arange(BUN_SOFT_DIRS) * (2 * np.pi / BUN_SOFT_DIRS)
+    N = np.ascontiguousarray(np.stack([np.cos(th), np.sin(th)], 1))
+    kf, kb = _support_kernels()
+    parts = []
+    for P2 in P2s:
+        pr = P2 @ N.T                                               # (points, directions)
+        mx = pr.max(0)
+        ex = np.exp((pr - mx) / BUN_SOFT_TAU)
+        Z = ex.sum(0)
+        h = mx + BUN_SOFT_TAU * np.log(Z)
+        # (only the pixels within 8 s + 1 of the part's own box: beyond, its coverage is under 1e-13)
+        lo, hi = P2.min(0) - 8 * s - 1, P2.max(0) + 8 * s + 1
+        near = np.nonzero((px >= lo[0]) & (px <= hi[0]) & (py >= lo[1]) & (py <= hi[1]))[0]
+        c = np.zeros(len(px))
+        c[near] = kf(px[near], py[near], N, h, s)
+        parts.append((h, ex / Z, c, near))
+    keep = np.ones(len(px))
+    for q_ in parts:
+        keep *= 1.0 - q_[2]
+    C = (1.0 - keep).reshape(yy.shape)
+
+    def backward(g):
+        g = np.asarray(g, float).ravel()
+        out = []
+        for i, (h, Wsm, c, near) in enumerate(parts):
+            others = np.ones(len(near))
+            for i2, q_ in enumerate(parts):
+                if i2 != i:
+                    others = others * (1.0 - q_[2][near])
+            # d C / d c_i = prod of the others' (1 - c); d h_k / d p_v = the softmax weight x n_k
+            gh = kb(px[near], py[near], N, h, s, g[near] * others * c[near])
+            out.append((Wsm * gh[None]) @ N)
+        return out
+    return C, box, backward
+
+
+BUN_SOFT_UNIT = (0.15, 0.25, 0.2, 0.3, 0.25, 0.3)   # the soft fit's unit per parameter group (Nelder-Mead's first
+                                                   # simplex): centre (x |half|), rotation (rad), log size, the slab's or
+                                                   # loops' place and log size (shares), the loops' asymmetry (log)
+BUN_SOFT_BOUND = 6.0      # the soft fit's box: each parameter within this many units of its start
+BUN_SOFT_PRIOR = 0.003    # the soft fit's pull toward its start (block_frame's pose, the default slab or loops): this
+                          # times the squared distance in units. The silhouettes leave the pose under-determined
+                          # (poses 25 degrees apart fit within 0.01 of each other), so without it the fit's optimum
+                          # is whichever of those the path finds, and a 1 um input move finds another. On Clawd's
+                          # buns (bunstab.py): 0.001 / 0.003 / 0.01 / 0.03 move them at most 2e-7 / 1.6e-7 / 1.2e-6 /
+                          # 9e-7 L for 4e-6 L in; 0.003 fits best (IoUs within 0.03 of Nelder-Mead's or above)
+
+
+def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_over, kind, loop_starts, o0):
+    """fit_block's 'soft' path (no scene, no tails): its loss (per view, the drawn bun missed, ours outside it, and ours
+    over the drawing's other hair weighted w_over, over the drawn bun's area) on _support_cover's soft silhouettes of
+    our bun's parts (each its projected points' convex outline, as the hard loss fills them; npart points each), plus
+    BUN_SOFT_PRIOR x the squared distance from the start in the fit's units (BUN_SOFT_UNIT), minimised by L-BFGS-B on
+    the analytic gradient (through the parameters' vertex Jacobian by central differences: the mesh is smooth in them).
+    Stages: the block's 9 (centre, rotation, size), then all nx (the slab's or the loops' too), each through BUN_SOFT's
+    softnesses coarse to fine, each from the one before's optimum; a ribbon with loop_starts > 1 also from the loops set
+    forward, the lower final value kept.
+    -> (x, report {loss (the soft loss at s = BUN_SOFT[-1]), prior, stages [(n, softness, evaluations, value, status)]})."""
+    from scipy.optimize import minimize
+    tv = []
+    for name, az, mirror, m, other in targets:
+        k = views[name].ppl / hull_frame[0]
+        a = np.radians(az)
+        jc, jr = k * np.array([np.cos(a), np.sin(a), 0.0]), k * np.array([0.0, 0.0, -1.0])   # view_px's Jacobian
+        wv = w_over.get(name, 0.25) if isinstance(w_over, dict) else w_over
+        tv.append((name, az, mirror, m.astype(float), other.astype(float), wv, float(max(1, m.sum())), jc, jr))
+
+    def value(x, s, grad=True):
+        """the soft loss at x (and its gradient in x)."""
+        V, _ = meshes(*unpack(x))
+        tot, gV = 0.0, np.zeros_like(V)
+        for name, az, mirror, mm, oo, wv, n, jc, jr in tv:
+            cc, rr = view_px(V, views[name], az, mirror, hull_frame)
+            P2 = np.stack([cc, rr], 1)
+            st = max(1, int(s // 2))                                   # (a soft outline sampled every s / 2 px)
+            C, (r0, r1, c0, c1), back = _support_cover([P2[i:i + npart] for i in range(0, len(P2), npart)],
+                                                       mm.shape, s, stride=st)
+            mc, oc = mm[r0:r1:st, c0:c1:st], oo[r0:r1:st, c0:c1:st]
+            gc = (-mc + (1 - mc) * (1 - oc) + wv * oc) * (st * st / n)
+            tot += 1.0 + float((gc * C).sum())                         # (1: the drawn bun, all of it, missed)
+            if grad:
+                G = np.concatenate(back(gc))
+                gV += G[:, :1] * jc[None] + G[:, 1:] * jr[None]
+        if not grad:
+            return tot
+        g = np.zeros(len(x))
+        for i in range(len(x)):
+            d = np.zeros(len(x)); d[i] = 1e-6
+            g[i] = float((gV * (meshes(*unpack(x + d))[0] - meshes(*unpack(x - d))[0])).sum() / 2e-6)
+        return tot, g
+
+    stages = []
+
+    def run(x0, unit, softs):
+        """L-BFGS-B on value + the prior, in `unit`s, bounded, through the softnesses -> (x, final value)."""
+        z = np.asarray(x0, float) / unit
+        bounds = list(zip(z - BUN_SOFT_BOUND, z + BUN_SOFT_BOUND))
+        zp = np.zeros_like(z)                          # (the prior's centre: the start, block_frame's pose)
+        v = None
+        for s in softs:
+            cnt = [0]
+
+            def fz(zz):
+                cnt[0] += 1
+                val, g = value(zz * unit, s)
+                return val + BUN_SOFT_PRIOR * float((zz - zp) @ (zz - zp)), g * unit + 2 * BUN_SOFT_PRIOR * (zz - zp)
+            r = minimize(fz, z, jac=True, method='L-BFGS-B', bounds=bounds,
+                         options=dict(maxiter=1000, maxfun=2000, ftol=1e-15, gtol=1e-10))
+            z, v = r.x, float(r.fun)
+            stages.append((len(z), s, cnt[0], round(v, 7), int(r.status)))
+        return z * unit, v
+
+    u = BUN_SOFT_UNIT
+    unit9 = np.r_[[u[0]] * 3, [u[1]] * 3, [u[2]] * 3]
+    unit = np.r_[unit9, [u[3]] * 3, [u[4]] * 3, [u[5]] * (nx - 15)]
+    x, _ = run(np.zeros(9), unit9, BUN_SOFT)
+    x0 = np.r_[x, np.zeros(nx - 9)]
+    x, v = run(x0, unit, BUN_SOFT[1:] or BUN_SOFT)
+    if kind == 'ribbon' and loop_starts > 1:
+        x1 = x0.copy()
+        x1[10] = -2 * o0[1]
+        x1, v1 = run(x1, unit, BUN_SOFT[1:] or BUN_SOFT)
+        if v1 < v:
+            x, v = x1, v1
+    data = value(x, BUN_SOFT[-1], False)
+    return x, dict(loss=round(data, 6), prior=round(v - data, 6), stages=stages)
 
 
 def slab_default(mid, R, head_c, style):
@@ -2414,7 +2631,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                              tuple(o.get('bun_iters', (600, 900))), kind, o['bun_over'],
                                              o.get('bun_loop_starts', 1), scene=scene,
                                              tails=o.get('bun_tails', False), tail_iters=o.get('bun_tail_iters', 300),
-                                             outline_w=o.get('bun_outline_w', 0.0))
+                                             outline_w=o.get('bun_outline_w', 0.0), method=o.get('bun_method'))
                         report.setdefault('bun_fit', {})[side] = iou
                 parts_ = [bun_block(P, case.centre, style, sgn, fit, kind)]
                 if fit is not None and fit.get('tails') is not None:

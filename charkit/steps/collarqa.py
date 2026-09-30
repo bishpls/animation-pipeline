@@ -19,4 +19,10 @@ MEASUREMENT_STEPS = [
      "jacket or sleeve pixel (an ink line between), drawn with the build's outlines; the share of rows that don't, "
      "beyond the design's (was: the ribbons' width seen in profile over the design's, which asked for a depth the "
      "close-hung ribbons can't give)"),
+    # tool/calib round 2 (2026-09-30): the grading recalibrated so the check passes on the design moved 1-2 px and fails
+    # its known-bad (charkit/calib/records/)
+    ('collar_back_iou', '9d5f649', "grading: IoU limits 0.80 / 0.65 -> 0.87 / 0.81 (the design moved 1-2 px reads "
+     "0.925-0.957, the flagged g3_render3 0.754: WARN -> FAIL; the current build 0.747 WARN -> FAIL)"),
+    ('collar_back_lay', '9d5f649', "grading: limits 0.01 / 0.02 -> 0.025 / 0.036 L (the design as ours reads 0.0141 "
+     "at every move, its side closed and ours not; g3_render3 0.0471 FAIL)"),
 ]

@@ -1,0 +1,10 @@
+{
+ "name": "look5_before",
+ "why": "round 1's band under the chin (chin_tilt 85, no cast): Michael's chin-shadow flag (look.md rounds 5-6)",
+ "flag": "the chin shadow (Michael)",
+ "commit": null,
+ "source": "~/animation-pipeline-look4/charkit/out/look5_before",
+ "stored": "2026-09-30",
+ "bundle": "3ef188c2a2d9f5f3",
+ "qa_checks": 378
+}

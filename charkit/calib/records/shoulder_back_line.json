@@ -1,0 +1,115 @@
+{
+ "check": "shoulder_back_line",
+ "part": "collar_flags",
+ "adapter": "Garments",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:01:38",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_top",
+  "piece_collar",
+  "piece_sleeve_L",
+  "piece_sleeve_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0094,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0094,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0094,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0094,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0094,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0141,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0141,
+  "spread": 0.0141,
+  "median": 0.0094
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.0565,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    4.0312,
+    1.4355,
+    1.6473,
+    1.5673,
+    0.2589
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 1.5673,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.0424,
+    0.0471,
+    0.0329,
+    0.08,
+    0.0141
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "PASS"
+   ],
+   "median": 0.0424,
+   "status": "FAIL",
+   "passing": 1
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0565,
+  "status": "FAIL",
+  "margin": 0.941
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0141), g3_render3 reads 0.0565 FAIL, the floor voronoi_pieces FAIL, affine_pieces FAIL",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 23.3
+}

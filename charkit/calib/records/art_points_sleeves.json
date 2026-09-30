@@ -1,0 +1,71 @@
+{
+ "check": "art_points_sleeves",
+ "part": "artifacts",
+ "adapter": "Art",
+ "module": "charkit.calib.art",
+ "at": "2026-09-30T18:10:57",
+ "better": null,
+ "kind": "defect",
+ "shape": [
+  "piece_sleeve_L",
+  "piece_sleeve_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 31.7,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), body6_render reads 31.7 FAIL; a random stand-in fails it; shape guarded by piece_sleeve_L, piece_sleeve_R",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 101.8
+}

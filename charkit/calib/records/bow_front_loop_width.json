@@ -1,0 +1,111 @@
+{
+ "check": "bow_front_loop_width",
+ "part": "collar_flags",
+ "adapter": "Garments",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:01:38",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0184,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0184,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0184,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0184,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0184,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0184,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0184,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0184,
+    "PASS"
+   ]
+  },
+  "min": 0.0184,
+  "max": 0.0184,
+  "spread": 0.0,
+  "median": 0.0184
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a guard: the bow is sized to the drawn span, so the flagged build reads 0",
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    null,
+    0.1227,
+    0.0184,
+    null,
+    0.3558
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "PASS",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.1227,
+   "status": "FAIL",
+   "passing": 1
+  },
+  "affine_pieces": {
+   "values": [
+    0.0798,
+    0.0,
+    0.1288,
+    0.135,
+    0.0307
+   ],
+   "statuses": [
+    "WARN",
+    "PASS",
+    "FAIL",
+    "FAIL",
+    "PASS"
+   ],
+   "median": 0.0798,
+   "status": "WARN",
+   "passing": 2
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.002,
+  "status": "PASS",
+  "margin": 1.198
+ },
+ "verdict": "guard",
+ "why": "a defect detector with no known-bad (a guard: the bow is sized to the drawn span, so the flagged build reads 0); the design passes; shape guarded by piece_bow",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 23.3
+}
