@@ -35,6 +35,7 @@
                                                  # the hair pieces rebuilt over a build with overrides and measured
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
+    python -m charkit mouth BUILD_DIR [--against OTHER] [--boards DIR]         # the mouth keys and expressions measured
 
 build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's objects, geometry hashes, mesh health, landmarks
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
@@ -612,6 +613,9 @@ def main(argv=None):
     elif cmd == 'eyes':
         from . import eyepage
         eyepage.main(rest)
+    elif cmd == 'mouth':
+        from . import mouthlab
+        raise SystemExit(mouthlab.main(rest))
     elif cmd == 'figures':
         figures(rest)
     elif cmd == 'gate':

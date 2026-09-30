@@ -60,7 +60,7 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
     'blink_open': (0.03, 0.10), 'blink_iris': (0.01, 0.05), 'eye_asym': (0.03, 0.08), 'mouth_asym': (0.05, 0.15),
     'viseme_gap': (0.010, 0.005), 'mouth_cover': (0.97, 0.90),
 }
-COVER = (11, 9, 4)             # exprqa classes an open mouth may show: its inside and tongue, teeth, the lip line
+COVER = (11, 13, 9, 4)         # exprqa classes an open mouth may show: its inside, tongue, teeth, the lip line
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
                'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
@@ -399,10 +399,18 @@ class Design:
             heads = {v: tuple(D['figures'][v]['head']) for v in ('front', 'three_quarter', 'profile') if v in D['figures']}
             return self._keep(key, dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
                                         verify={}, generated=gen.get('id')), [_path(gen['image'])])
+        got, files = self._source_sheet()
+        return self._keep(key, got, files)
+
+    def _source_sheet(self):
+        """the source model sheet (the spec's ref.sheet: idol_D on Clawd), scaled by its front figure against the rig and
+        its figures found -> (the sheet_context dict, the files read) or ({'why'}, ())."""
+        from . import sheetqa
+        ref = self.ref()
         sh = ref.get('sheet')
         R = self.R()
         if not sh or not ref.get('rig') or not R:
-            return self._keep(key, {'why': 'no spec.ref.sheet / rig / ref_measure.json'}, ())
+            return {'why': 'no spec.ref.sheet / rig / ref_measure.json'}, ()
         rgb = self.rgba(sh['image'])[..., :3].astype(float)
         rig_alpha = self.rgba(os.path.join(_path(ref['rig']), 'base.png'))[..., 3]
         ex = self.B.assembly['eye_knobs']['x']
@@ -414,9 +422,27 @@ class Design:
         az3 = float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * ex * ppl), 0, 1)))) if len(te) == 2 else 35.0
         heads = {k: tuple(v) for k, v in (sh.get('heads') or {}).items()} or \
             {v: tuple(D['figures'][v]['head']) for v in ('front', 'three_quarter', 'profile') if v in D['figures']}
-        return self._keep(key, dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl_eyes, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
-                                    verify=sheetqa.verify_figures(D, sh)),
-                          [_path(sh['image']), os.path.join(_path(ref['rig']), 'base.png')])
+        return (dict(rgb=rgb, ppl=ppl, ppl_eyes=ppl_eyes, D=D, az3=round(az3, 1), heads=heads, eye_x=ex,
+                     verify=sheetqa.verify_figures(D, sh)),
+                [_path(sh['image']), os.path.join(_path(ref['rig']), 'base.png')])
+
+    def expression_sheet(self):
+        """the sheet that draws the character's expressions: the design sheet's (sheet_context) when it has expression
+        heads, else the source model sheet's (the spec's ref.sheet: on Clawd idol_D, the only drawing of her expressions;
+        the generated body sheet has none). The manifest gives the expressions no authority, so the checks against it
+        read INFO (checks.authorize). -> sheet_context's dict with 'source' (the sheet's path), or {'why'}."""
+        ctx = self.sheet_context()
+        if 'why' not in ctx and ctx['D']['expressions']:
+            return dict(ctx, source=self.ref().get('body_sheet', self.ref().get('sheet', {})).get('image'))
+        if not self.ref().get('body_sheet'):
+            return ctx if 'why' in ctx else dict(ctx, source=self.ref().get('sheet', {}).get('image'))
+        key = ('ctx_expr', self.B.assembly['eye_knobs']['x'], json.dumps(self.ref().get('sheet'), sort_keys=True,
+                                                                      default=str), self.ref().get('rig'))
+        got = self._kept(key)
+        if got is not None:
+            return got
+        got, files = self._source_sheet()
+        return self._keep(key, got if 'why' in got else dict(got, source=self.ref()['sheet']['image']), files)
 
     def design_views(self):
         """the design's full figures cut and classified (charkit.bodyqa.design_views)."""
@@ -705,7 +731,7 @@ def expression_data(B):
                 put(o.name, o, lambda mi, a, cl=cl, k=k: np.where(a >= 0.5, cl, -1) if k == 'iris' else np.full(len(mi), cl))
     for o in B.objects(groups=('mouth',), visible=False):
         if o.has('base'):
-            cl = CL['white'] if o.part == 'teeth' else CL['mouth'] if o.part == 'tongue' else CL['line']
+            cl = CL['white'] if o.part == 'teeth' else CL['tongue'] if o.part == 'tongue' else CL['line']
             put(o.part, o, lambda mi, a, cl=cl: np.full(len(mi), cl))
     iw = iris_centres(B)
     return dict(parts=parts, eye_z=float(np.mean([w[2] for w in iw])), L=L)
@@ -917,12 +943,15 @@ def sheet(B, design, out=None, covers=True):
 def sheet_expressions(B, design, out=None):
     """the sheet's expression heads against the kit's expression library (charkit.exprqa) -> (table, checks)."""
     from . import exprqa
-    ctx = design.sheet_context()
+    ctx = design.expression_sheet()
     if 'why' in ctx:
         return None, {'expr': {'status': 'SKIPPED', 'why': ctx['why']}}
     if not ctx['D']['expressions']:
         return None, {'expr': {'status': 'SKIPPED', 'why': 'no expression heads found on the sheet'}}
     table, C, pic = exprqa.sheet_run(expression_data(B), ctx['rgb'], ctx['D'], ctx['eye_x'])
+    table['source'] = os.path.relpath(_path(ctx['source']), ROOT) if ctx.get('source') else None
+    for c in C.values():
+        c.setdefault('against', table['source'])
     if out:
         _save_rgb(os.path.join(out, 'qa_sheet_expr.png'), pic)
     return table, C
