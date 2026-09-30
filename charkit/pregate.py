@@ -27,21 +27,27 @@ PY = sys.executable
 SPEC = 'charkit/spec/clawd.json'
 # (run in the tree, with its own code: the build's resolve and venv steps, cached, into OUT, then the evaluator on the
 # resolved spec, as evaldrift reads a build's; a spec file alone lacks the code head's and body's geometry files)
+# (only what older commits have too: a target from before evaldrift or the garments step still evaluates)
 _EVAL = """import json, os, sys, time
-from charkit import cli, evaldrift
+from charkit import cli, bodyeval, bodyfit, bodymeasure
 spec_path, res, out = sys.argv[1:4]
 os.makedirs(out, exist_ok=True)
 T = {}
 t = time.time()
 spec, resolved = cli.resolve(spec_path, out)
 T['resolve'] = round(time.time() - t, 1)
-for step in (cli.code_head, cli.code_body, cli.geom_hair, cli.pieces_hair, cli.garments_geom):
-    t = time.time()
-    spec = step(spec, resolved, out, 'on')
-    T[step.__name__] = round(time.time() - t, 1)
-C, s = evaldrift.evaluator_checks(resolved)
-T['evaluator'] = s
-json.dump({'checks': C, 'seconds': s, 'steps': T}, open(res, 'w'), default=float)
+for n in ('code_head', 'code_body', 'geom_hair', 'pieces_hair', 'garments_geom'):
+    if hasattr(cli, n):
+        t = time.time()
+        spec = getattr(cli, n)(spec, resolved, out, 'on')
+        T[n] = round(time.time() - t, 1)
+t = time.time()
+S = bodyeval.resolve(resolved)
+graph = bodymeasure.load_graph(S) if S.get('ref') else None
+C = bodyfit.BodyChecks(S, graph).checks(S, 'all', fine=True)
+T['evaluator'] = round(time.time() - t, 1)
+C = {k: {'value': v.get('value'), 'status': v.get('status')} for k, v in C.items()}
+json.dump({'checks': C, 'seconds': T['evaluator'], 'steps': T}, open(res, 'w'), default=float)
 """
 
 
