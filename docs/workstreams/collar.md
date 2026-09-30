@@ -280,3 +280,17 @@ the jacket, as drawn, but our jacket's front under them sits up to 0.10 L forwar
 drawn jacket's visible front below them 0.04-0.05 L behind ours), so they stand forward of the drawn ones. The fix is
 the jacket's front in profile under the ribbons (a decision; not this milestone). piece_bodice_panel's profile view
 0.139 (the panel behind the ribbons in profile; the check overall 0.927 PASS, base 0.899).
+
+**Gate 2 (cbca3ad into pipeline-3d 3ebc3fb): PASS under K** (`charkit/out/gate/gate_tool-bow_cbca3ad_into_3ebc3fb.md`;
+pre-gate PASS, 21 moved, 0 blocking). Flag checks: art_outline_collar 0.743 -> 0.742 PASS, art_fragments_collar 4.69
+-> 4.741 WARN (grade FAIL both). Improved: bow_front_tail_width 0.308 FAIL -> 0.0 PASS, bow_front_tail_gap 0.033 WARN ->
+0.014 PASS, body_profile_chest 0.045 WARN -> 0.013 PASS, piece_bow 0.696 -> 0.735 WARN, piece_bodice_panel 0.899 ->
+0.927. New: bow_front_loop_end 0.121 PASS (old geometry 0.593 FAIL), bow_profile_ribbon 0.079 PASS (0.868 FAIL),
+bow_front_bleed 0.0325 WARN (0.3775 FAIL); collar_back_lay/_square and shoulder_back_line FAIL as on pipeline-3d
+(M2/M3's). PASS -> WARN: collar_three_quarter_torn (roughness 0.0; one collar fragment in three-quarter beside the
+ribbons, design 0). INFO: art_points_bow 0 -> 25.2 and art_spikes_bow 0.014 -> 0.024 (the caps' corners and the
+ribbons' ends), art_terminator_bow 8.4 -> 0, art_fragments_bow 1.8 -> 0.13. CPU 1.11x.
+
+Open after M1: the jacket's front in profile under the ribbons (the bow's profile IoU 0.52 -> 0.34); the collar
+fragment in three-quarter; bow_front_flare 1.005 FAIL (unchanged: the drawn loops flare to tall ends, ours are pillows;
+the `wing` template exists, not taken).
