@@ -246,7 +246,26 @@ The drawn checks under both drawings (tr_base, the default spec; one run, laptop
 QA time on the laptop: the drawn parts 22 s numpy, 11 s render (Metal). On the box (llvmpipe) not measured yet; watch
 its CPU seconds (llvmpipe threads on every core: the gate WARNs at 1.5x the build's CPU; LP_NUM_THREADS bounds it).
 
-Calibration (each drawn check under both drawings, its noise over 6 sub-pixel placements, the 2x2 over tr_base -> tr2_base): `charkit/out/calib1/calibrate.md` (running at the checkpoint; recorded below when done).
+Calibration (`python -m charkit.render calibrate charkit/out/tr_base charkit/out/tr2_base`, laptop, report
+`charkit/out/calib1/calibrate.md`): each drawn check under both drawings, its noise (std over 6 sub-pixel placements),
+and the 2x2 (two geometries: tr_base, phase 1's render-box build, and tr2_base, the build box's at cfcdc3a).
+
+| check | tr_base old / new (noise) | tr2_base old / new (noise) | 2x2: the geometry's change, old / new | EEVEE evidence |
+|---|---|---|---|---|
+| hair_noise | 0.0721 / 0.0726 (0.0005) | 0.0739 / 0.0746 (0.0006-0.0008) | +0.0018 / +0.0020 | hair pixels 0.42 -> 0.33 levels from EEVEE's, >8 levels 0.29% -> 0.06% |
+| face_shadow_neck_3q | 0.4539 / 0.4579 (0.006) | 0.4589 / 0.4647 (0.004-0.005) | +0.0050 / +0.0068 | neck shade share: ours = EEVEE's (0.9240), numpy 0.9216 |
+| face_shadow_face_3q | -0.0690 / -0.0686 (0.0025) | -0.0725 / -0.0719 (0.002) | -0.0035 / -0.0033 | face shade share: ours = EEVEE's to 1e-4 |
+| face_shadow_3q | 0.3419 / 0.3419 (0.006) | 0.3417 / 0.3408 (0.005) | -0.0002 / -0.0011 | as above |
+| face_noise | 0.0542 / 0.0537 | 0.0541 / 0.0539 | -0.0001 / +0.0002 (opposite, both tiny) | tone agreement 99.80% -> 99.91%; edges both ~0.001 under EEVEE's |
+| face_noise_sweep | 0.0548 / 0.0545 | 0.0543 / 0.0543 | -0.0005 / -0.0002 | sweep agreement 99.78% -> 99.91% |
+| face_islands | 12 / 12 | 13 / 13 | +1 / +1 | the same on EEVEE's classified maps |
+| scalp_px, line_width, line_spread, line_ink, boot_profile_double_*, boot_profile_scrunch_* | identical | identical | identical | geometry alone at build widths (part buffers agree) |
+
+Reading it: every move is within about one noise (the largest, face_shadow_neck_3q at 0.6 and 1.1 noise, moves to
+EEVEE's value); every geometry change reads the same way under both drawings except face_noise's, where both changes
+are under 0.0003. **The noise of face_noise, face_noise_sweep and face_islands reads 0** because the placements were
+multiples of 1/3 px, i.e. whole samples of their 3x grid: the next calibration must use placements that aren't (e.g.
+1/6 and 1/2 of a sample). Not yet: clawd_mh.json, a post-look3 build, the box's llvmpipe drawing.
 
 ### Next steps (in order)
 
