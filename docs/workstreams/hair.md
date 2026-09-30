@@ -202,3 +202,194 @@ The before-round hair had front 30 / 206 px, three-quarter 23 / 125 px and profi
 - `fine_tips`' per-column drawn edge, where a 3-column median leaves single-column spikes;
 - the notch's V meeting the drawn edge;
 - the lower back's edge sampled at 4 degree columns.
+
+## Round 3 (`tool/hair3`, `~/animation-pipeline-hair3`): paused 2026-09-29, state and next steps
+
+Paused on the coordinator's request (usage limits). Resume from here.
+
+**Setup done.** Worktree from pipeline-3d `6ca18da`; `infra/gcp/{build,render}.env` copied; `charkit/out/i3d` cloned
+(`cp -c`); `charkit/out/hull` and `charkit/out/clawd/hair` fetched from the build box's copy (the laptop copies are
+`charkit/out/{hull,clawd}.laptop`, stale stamps). Working spec: `charkit/spec/clawd_body_pieces.json` (tool/default-spec
+makes clawd.json identical to it).
+
+**Baseline builds (both finished, outputs local):**
+- `charkit/out/h3_base`: build box, clawd_body_pieces at 6ca18da, no boards (fetched in full).
+- `charkit/out/h3_base_r`: render box, same spec, boards `views,body` (face_000..150, body_000..180).
+
+**The measure (task 1), in `charkit/hairlab.py`** (tool/artifacts' detectors have not landed: its `artifactqa.py` is
+uncommitted; these follow its plan's definitions so it can take over):
+- At the head sheet's own scale (`HEAD_PPL` 400 px/L; the body sheet's ~212 px/L put the flags at 1-2 px). The design
+  is `head_turnaround` (the spec's `ref.face_sheet`) through `refcheck.at_scale`, its hair the orange mass with the
+  lines absorbed and anything further than 0.01 L from the mass dropped (iris and collarbone strokes). Ours is the QA
+  scene z-buffered round the head (`HEAD_WIN`), **each lock apart** (a piece's connected shells).
+- `hair_fragments_<view>`: loose hair components plus **lock shards**: every visible part of a lock between
+  `FRAG_MIN` 0.00002 and `FRAG` 0.002 L^2 (a blade's own one stroke excepted). In the render each is a shard ringed by
+  its lock's outline. Graded as the excess over the design's count (0 in every view): PASS 0, WARN 2.
+- `hair_rough_<view>` / `_back_lower` / `_profile_front` / `_profile_lower` / `_three_quarter_lower`: the hair outline
+  band-passed (smoothed at S1 0.004 against S2 0.02 L); **steps** = lobes deeper than 0.003 L and shorter than 0.04 L
+  along the outline, per L. Graded as the excess over the design's: PASS 0.25/L, WARN 0.75/L. (All teeth per L didn't
+  separate: the design's drawn curls score as high; the short ones do.)
+- `hair_lines_<view>` (INFO): the same on the lines inside the hair (each lock's outline where it is the nearer side).
+- CLI: `hairlab BUILD --built --edges-json J --edges-png P` (a build as built, any build, ~20 s) and
+  `hairlab BUILD [--style/--opts ...] --edges ...` (rebuilt variants). The picture: the design beside ours per view,
+  each lock its own tone, shards ringed red, silhouette steps blue, inner lines black with their steps green.
+
+**Numbers so far** (design / flagged look_v5 as built / current baseline h3_base as built):
+
+| check | design | look_v5 (flagged) | h3_base |
+|---|---|---|---|
+| fragments front / 3q / profile / back | 0 / 0 / 0 / 0 | 11 / 20 / 7 / 9 FAIL | 11 / 19 / 15 / 10 FAIL |
+| steps/L profile_front (the fringe) | 0.38 | 1.84 FAIL | 1.47 FAIL |
+| steps/L profile_lower | 0.41 | 2.85 FAIL | 2.33 FAIL |
+| steps/L three_quarter_lower | 0.26 | 1.57 FAIL | 2.22 FAIL |
+| steps/L back_lower | 0.30 | 0.76 WARN | 0.00 PASS |
+| hair_bun_outline (rebuilt) | 0.7 target | | 0.393 FAIL |
+| face shown / design, profile | 1.0 | | 0.633 |
+| builder folds | | | 9 (bangs 4, side locks 4, upper back 1) |
+
+Where h3_base's shards are (per piece, summed over views): the crown (upper_back 28, bangs 11: every lock that reaches
+the crown converges to a sliver at the pole), the side locks' edges in three-quarter, bun_R in profile, and the
+flyaways (blades at the front view's mid-plane, poking through the side locks in profile: the "ʃ" marks in the
+renders). The zigzag lines on the side lock in profile renders are the fringe's lock tips seen from the side.
+
+**Code in progress (committed, defaults unchanged):**
+- `hairpieces.side_lock_trim` (task 3): with `clamp_side_locks` and `clamp_mode: envelope` (the default mode when the
+  clamp is on), the side-lock cells whose envelope point projects in front of the drawn side lock's front edge in her
+  own profile are cut from the family field before the regions and locks are made, with every cell below them in the
+  column; `drawn_tips` never refines a side lock's tip below that cut. `clamp_share` 0.5 cuts half way. The old
+  shear is `clamp_mode: shear`. Not yet run.
+- `hairpieces.crown_cap` with `crown_blend` > 0 (opt, default 0 = the old fan): the crown's cap outermost to
+  crown_cap - crown_blend, its rim tucked under every layer, the locks that reach the crown starting under it
+  (`crown_top`). Meant for the crown shards; try `--opts crown_cap=20 crown_blend=8`. Not yet run.
+
+**Next steps, in order:**
+1. `hairlab charkit/out/h3_base --opts crown_cap=20 crown_blend=8 --edges` (crown shards), then
+   `--opts clamp_side_locks=true` (face shown profile, folds, shards) and `clamp_share=0.5`.
+2. Flyaways: root under the envelope and the blade kept outside it (no poke-through), or lying on the rim.
+3. Lock tips and lower edges: back-layer tips that end within a step of the front layer's (slivers); `fine_tips`'
+   single-column spikes; the front/profile view switch at |phi| 50 in `drawn_tips` (a step in the edge).
+4. Buns: the two-loop ribbon template (knot block, two loops set back and lower, per `bun_detail.png`), fitted as
+   `fit_block` fits, then compared on hair_bun_outline (0.393 now).
+5. Decision renders on the render box into `charkit/out/decisions/hair/{relief,side_lock_clamp}/<option>.png` + json;
+   look2 interface notes; gates (`remote gate tool/hair3 --into pipeline-3d`, and `--spec
+   charkit/spec/clawd_body_pieces.json`); the before/after HTML page.
+
+**Box jobs running at pause:** none (both builds done and fetched).
+
+## Round 3, relaunched (2026-09-30): progress
+
+pipeline-3d merged (`2e3bdd5`: clawd.json is the authored character, identical to clawd_body_pieces.json, so h3_base
+stays the baseline). The loop is `hairlab` variants over `charkit/out/h3_base` (rebuilt, about 40 s each once the
+context is loaded; a scratch driver loads it once and runs a list).
+
+**New measures (`hairlab`):**
+- `hair_islands_<view>`: a lock's visible part that one other lock encloses (its rim at least 80% that lock), above
+  shard size. A drawn head of hair has none. Classed by the depth step along its rim: `poke` (under 0.004 L: the
+  surfaces intersect) or `over`; a blade (ahoge, flyaway) lying over a lock is a `flick`, counted apart (the design's
+  profile draws one flick over the side lock).
+- `step_where`: each step located (row, col, depth, length, family), and shards carry their lock's index. This showed
+  that `hair_rough_profile_front`'s steps are not on the fringe: they are at rows 794-810, the side locks' and the
+  lower back's tips by the neck (the outline turned toward the face includes the hair's front at the jaw).
+
+**What the variants showed (numbers against the rebuilt baseline: fragments 11/16/15/10, steps profile front/lower
+and three-quarter lower 1.47/2.33/1.85, face in profile 0.633):**
+- **`crown_blend`** (cap 20, blend 8): profile fragments 15 -> 6 (the pole's slivers gone), three-quarter 16 -> 14,
+  back 10 -> 8. It first raised hair_penetration 0.015 -> 0.047 (the rim, tucked 0.04 L under the envelope, reached
+  into the scalp where the envelope lies close): the cover's outer face is now never nearer the skin than gap and half
+  a tip. As one upper-back piece it cost upper_back 0.013 IoU (it covers the fringe's crown in profile), so the cover is
+  split round phi by the part lines (`cap_sectors`: each sector to the piece whose family the crown's rows take).
+- **`side_lock_trim` as committed** (cut cells ahead of the drawn edge, and all below them) overshoots: face in profile
+  0.633 -> 1.14, but front 1.26 and three-quarter 1.45, side locks IoU 0.537 -> 0.38, lower back 0.723 -> 0.63. Two
+  causes: the cut cells (phi 50-75 at the cheek) are the ones the front view needs over the face's sides; and the
+  drawn side lock's front edge is hidden under the fringe in the upper rows (now the whole drawn hair's front there,
+  `drawn_front`).
+- **The pull** (`trim_pull`, default on with the trim): a cell ahead of the drawn edge has its envelope radius pulled in
+  along its ray until it projects onto the edge, never below the skin's clearance; cut only where even that is ahead
+  (`trim_cut`: true, false = pull to the floor, or a distance in L). Pull everywhere (`trim_cut: false`,
+  `trim_smooth: 2`): face in profile 0.633 -> 0.708, side locks 0.537 -> 0.544, bangs 0.758 -> 0.765, side-lock folds
+  4 -> 1; the lower back 0.723 -> 0.717 (it shows past the pulled side locks in front). Cutting beyond 0.1 L: profile
+  0.907, side locks 0.585, but bangs 0.744, lower back 0.716, front 1.21 and three-quarter 1.21.
+- **The design's three-quarter and profile disagree** on a rigid head: a lock can cover a cheek point in three-quarter
+  only from lateral and in front of it, so every cheek point it covers there lies behind its own front edge in
+  profile; the design's three-quarter covers the near cheek from the eye's outer corner, which its profile shows bare.
+  Face shown also counts our eyes as skin (the design's classes don't): about +0.1 in front and three-quarter.
+- **Flyaways**: the drawn ones are flicks at the side locks' outer edge (five strokes in front, four in back, one
+  crescent over the side lock in profile). Ours were blades at the front view's mid-plane crossing the lock surface.
+  `tuck_blade` (default on, `tuck_flyaways`): the root's run dropped, the blade starting just under the surface where
+  it clears it, later points lifted clear of it. A dive from deeper in, or a finer resampling, folded the tube.
+- **Buns**: `bun: "ribbon"`, bun_detail's construction (a knot block, a loop either side of it set back and lower,
+  their offset and size fitted with an asymmetry, as `fit_block` fits the block): hair_bun_outline 0.393 -> 0.447
+  (front 0.443 -> 0.52, profile 0.308 -> 0.32), IoU 0.831 -> 0.834. The fit's 0.25 weight on our bun over the
+  drawing's other hair let the box hang over the head in profile, where the bun is in front: `bun_over` per view
+  (profile 1.0) raised profile to 0.42 (over 1 in front too cost the front and the IoU). The drawn front bun also has
+  tails (strands flaring from its base into the hair) that no box covers.
+
+**Defaults chosen (`586d7b6`)**, from nine batches of `hairlab` variants over h3_base (same bundle, same hull):
+- `hairpieces.OPTS`: `crown_cap` 20, `crown_blend` 8, `cap_top` 0.006 L (the cover sits 0.006 L under the envelope at
+  the pole, the locks' tops held just under it where it is outermost: at -0.002 it stood 2-10 px over the drawn crown
+  in profile, at 400 px/L); `side_lock_trim` on with `trim_cut` false, `trim_smooth` 3, `trim_margin` 0.01 L, above
+  the chin only; `tuck_flyaways` on. `cap_sectors` stays off (each sector is its own shell: shards along the crown in
+  every view, fragments 9/13/6/10 -> 14/26/8/13). The ribbon fit's second start (loops set forward,
+  `bun_loop_starts` 2) lowers the fit's loss but not the outline (0.423 against 0.447): off.
+- The anime style's `notch` 3 -> 0: the drawn edge carries the notches; the deepening made the V's between tips that
+  the steps measure counts (profile lower edge 2.28 -> 1.77 per L; hair_fringe_low 0.0094 -> 0.0047 L).
+- Clawd's specs (clawd.json and its alias clawd_body_pieces.json): `bun: "ribbon"`.
+- Call F (relief strength, the side-lock clamp) is untouched: `clamp_side_locks` stays off, `side_lock_trim` is its own
+  switch.
+
+| check (hairlab, h3_base) | design | before (old defaults) | after |
+|---|---|---|---|
+| fragments front / 3q / profile / back | 0 / 0 / 0 / 0 | 11 / 16 / 15 / 10 | 6 / 13 / 8 / 7 |
+| islands (a lock inside another) | 0 | 0 (flicks 0/2/3/0) | 0 (flicks 0/2/3/0) |
+| steps/L profile front (the hair's front at the jaw) | 0.38 | 1.47 | 1.52 |
+| steps/L profile lower | 0.41 | 2.33 | 1.76 |
+| steps/L three-quarter lower | 0.26 | 1.85 | 2.28 |
+| steps/L back lower | 0.30 | 0.00 | 0.00 |
+| hair_bun_outline (front, profile) | 0.7 target | 0.393 (0.443, 0.308) | 0.448 (0.52, 0.32) |
+| hair_piece bangs / side locks / upper back / lower back / buns | | 0.758 / 0.537 / 0.780 / 0.723 / 0.831 | 0.764 / 0.541 / 0.776 / 0.719 / 0.834 |
+| hair_fringe_low (L) | | 0.0094 | 0.0047 |
+| hair_penetration (L) | | 0.0148 | 0.0148 |
+| builder folds | | 9 | 5 |
+| face shown / design: front, 3q, profile | 1 | 1.124, 1.040, 0.633 | 1.119, 1.046, 0.689 |
+
+Regressions, by cause:
+- **upper back -0.004**: the crown's cover in profile (a band where the fringe's slivers were, over a crown that
+  stands above the drawn one) and the ribbon buns (their loops occlude the crown differently in profile).
+- **lower back -0.004**: the trim's pull in the front view: the side locks drawn back at the cheek show the lower
+  back behind them where the drawing has side lock.
+- **three-quarter lower edge +1 step**: a lower-back tip (row 791) crosses the 0.003 L tooth threshold with notch 0.
+  The step counts are single lobes at these lengths (1.7-2.7 L of edge): one lobe is 0.4-0.6 per L.
+
+**Final state (round 3, `0bba271` + notes; pipeline-3d merged at db718ae).** Gates, into 9397578: default spec **PASS**
+(`charkit/out/gate/gate_tool-hair3_0bba271_into_9397578.md`), clawd_mh **PASS** (`..._clawd_mh.md`).
+- The first default gate (586d7b6 into b8097cf) FAILed on body_three_quarter_iou 0.851 -> 0.849 WARN. Ablated in the
+  lab (`tools/hair3/ablate.py`, the body QA's own zbuffer): the trim on her right side (mirrored from the left
+  profile, it moved the far side lock's front edge in from where the three-quarter view draws it, at the silhouette)
+  and the ribbon's loops, 0.001 each. Fixed by `trim_sides: "drawn"` (only her left side, the one the sheet's profile
+  draws) and `bun_over: {profile: 1}` (the bun fit weighing our bun over the head's hair whole in profile, where the
+  bun is in front of it): lab 0.8511 against 0.8507 before; gate 0.855 -> 0.854 PASS.
+- Gate deltas on the default spec (9397578): bangs 0.736 -> 0.761, side locks 0.533 -> 0.541, hair_folds 6 -> 4,
+  hair_fringe_low 0.0141 -> 0.0094 L (the fringe on the new carve), sheet_shown_profile 0.356 -> 0.371; regressions:
+  upper back 0.771 -> 0.756 (the crown cover, over a crown higher than the drawn one, and the profile-weighted bun
+  uncovering crown), hair_bun_outline 0.397 -> 0.371 and buns 0.826 -> 0.824 (the profile weight: on b8097cf's hull
+  the ribbon alone gave 0.403 -> 0.452, with the weight 0.420; on 9397578's it costs more), hair_noise 0.0721 ->
+  0.0738 (WARN both).
+- MakeHuman spec (round buns, no fit): side locks 0.479 -> 0.506, upper back +0.009, lower back +0.008, folds 5 -> 4,
+  sheet_shown_profile 0.195 -> 0.235; bangs 0.718 -> 0.702 (the crown cover, upper-back family, over the crown the
+  front view draws as fringe: that head shows more crown from the front), penetration 0.0007 -> 0.0015 (PASS).
+- Lab, final defaults over b8097cf's bundle (`h3n_after_r`, one hull): fragments 13/17/12/12 -> 11/14/9/8; steps/L
+  profile lower 1.77 -> 1.19, profile front 0.96 -> 1.00, three-quarter lower 1.12 -> 1.54 (one lobe); face in
+  profile 0.632 -> 0.687; folds 9 -> 6. Trimming both sides gave fragments 5/10/9/6 but failed the three-quarter gate.
+- The review page: `charkit/out/hair3_review/index.html` (design | before | after per view, the boards of
+  `h3n_before_r` and `h3n_after_r` on the render box; the after render is 586d7b6's defaults, both-sided trim).
+- The cover's front/back split (`cap_sectors: "half"`): upper back +0.003 for +2 front fragments; left off.
+
+**Open, next:**
+1. The bun: the profile weight trades outline for the three-quarter silhouette. A three-quarter target for the fit
+   (no hair_layers three-quarter mask yet), or the drawn tails (strands from the bun's base) as blades.
+2. The crown stands above the drawn crown in profile (the envelope's pole), which the cover makes a solid band: the
+   upper back's loss. Lower the pole to the drawn crown, or give the cover the fringe's family where the front view
+   draws fringe without shedding shards.
+3. Her right side lock: untrimmed, it keeps its edge shards (front fragments 5 -> 11 against both-sided). Trim it to
+   the three-quarter view's edge, not the mirrored profile's.
+4. Three-quarter lower-edge steps: tips at the collar (lower back) and the side-lock tips; each is one lobe.
