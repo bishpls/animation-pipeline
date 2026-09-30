@@ -19,10 +19,15 @@ BOX = {'env': os.path.join(ROOT, 'infra', 'gcp', 'build.env')}   # which box: --
 BOX_SLOTS = 8                     # concurrent builds on the box (32 vCPU, 128 GB)
 
 
-def _sh(*args, check=True, capture=False):
-    r = subprocess.run([BUILD_SH, *args], check=check, text=True, capture_output=capture,
+def _sh(*args, check=True, capture=False, input=None):
+    r = subprocess.run([BUILD_SH, *args], check=check, text=True, capture_output=capture, input=input,
                        env=dict(os.environ, CHARKIT_BOX_ENV=BOX['env']))
     return r.stdout if capture else r.returncode
+
+
+def _bucket():
+    """bulk data goes through the box's bucket (charkit/bucketsync.py), unless CHARKIT_SYNC=rsync (the IAP tunnel)."""
+    return os.environ.get('CHARKIT_SYNC', 'bucket') != 'rsync' and bool(_env('BUCKET'))
 
 
 def _rel(a):
@@ -56,7 +61,10 @@ def up():
 
 def seed():
     """a box with no copy of any worktree yet (the render box's first sync) gets this one through the bucket: a tarball
-    of its tracked files and charkit/out/i3d, rather than ~0.8 GB through the IAP tunnel; rsync then sends what differs."""
+    of its tracked files and charkit/out/i3d, rather than ~0.8 GB through the IAP tunnel; rsync then sends what differs.
+    The bucket sync needs no seed: the box fetches the blobs it lacks from the bucket itself."""
+    if _bucket():
+        return
     name = os.path.basename(ROOT)
     have = _sh('ssh', 'ls -d /srv/work/*/charkit 2>/dev/null | head -1; true', capture=True, check=False).strip()
     if have:
@@ -77,13 +85,21 @@ def seed():
     os.remove(tmp)
 
 
-def charkit(cmd):
-    """a charkit command in the box's copy of this worktree (synced first)."""
+def charkit(cmd, publish=None):
+    """a charkit command in the box's copy of this worktree (synced first). publish=(PATH, NAME): PATH in the copy is
+    published to the bucket under NAME at the end of the same ssh (charkit/bucketsync.py), for `build.sh pull`."""
     up()
     seed()
     _sh('sync', ROOT)
     line = 'python -m charkit slots %d >/dev/null && python -m charkit %s' % (_slots(), ' '.join(shlex.quote(c) for c in cmd))
-    return _sh('run', ROOT, line, check=False)
+    script = None
+    if publish and _bucket():
+        from charkit import bucketsync
+        install, runner, script = bucketsync.box_install(_env('BUCKET'))
+        line = '%s && { %s; rc=$?; %s publish %s --name %s >/dev/null 2>&1; exit $rc; }' % (
+            install, line, runner, shlex.quote(publish[0]), shlex.quote(publish[1]))
+        script = script.decode()
+    return _sh('run', ROOT, line, check=False, input=script)
 
 
 def build(args, kind='build'):
@@ -92,8 +108,12 @@ def build(args, kind='build'):
     rest = [_rel(a) for a in args[1:]]
     name = json.load(open(os.path.join(ROOT, spec))).get('name', 'char')
     out = _opt(rest, '--out', 'charkit/out/%s' % name)
-    code = charkit([kind, spec] + rest)
-    _sh('fetch', ROOT, out)
+    import uuid
+    pub = 'build-%s-%s' % (re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(ROOT)), uuid.uuid4().hex[:8])
+    code = charkit([kind, spec] + rest, publish=(out, pub))
+    # the outputs were published in the build's own ssh: pulled from the bucket, else fetched
+    if not (_bucket() and _sh('pull', pub, os.path.join(ROOT, out), check=False) == 0):
+        _sh('fetch', ROOT, out)
     print('remote %s: exit %d, %s fetched' % (kind, code, out))
     return code
 
@@ -134,10 +154,16 @@ def gate(args):
     _sh('ssh', 'mkdir -p /srv/work/gates && S=%s; [ -d $S ] || S=/srv/work/repo/charkit/out/i3d; '
         '[ -d $S ] && cp -al $S %s || mkdir -p %s' % (seed, GI, GI))
     if os.path.isdir(i3d):
-        _sh('push', i3d + '/', GI + '/')
+        _sh('push', i3d + '/', GI + '/', '--link')
     sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True).stdout.strip()
            for b in (into, branch)}
     q = shlex.quote
+    install, publish, script = '', '', None
+    if _bucket():                               # the report goes back through the bucket (charkit/bucketsync.py)
+        from charkit import bucketsync
+        install, runner, script = bucketsync.box_install(_env('BUCKET'))
+        script = script.decode()
+        publish = '%s publish /srv/work/_gate/%s --name gate-%s >/dev/null 2>&1; ' % (runner, gid, gid)
     fetch = ('cd /srv/work && ( [ -d repo/.git ] || git clone -q %(b)s repo ) && '
              '{ [ ! -f %(b)s ] || git -C repo fetch -q -f %(b)s "refs/heads/*:refs/gates/%(gid)s/*"; } && rm -f %(b)s && '
              'git clone -q --shared --no-checkout /srv/work/repo %(G)s'
@@ -152,17 +178,20 @@ def gate(args):
             'python -m charkit slots %(slots)d >/dev/null && '
             '{ python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; rc=${PIPESTATUS[0]}; } ; '
             'for r in $(sed -n "s/^report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" /srv/work/_gate/%(gid)s/ '
-            '2>/dev/null; done; cd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log; '
+            '2>/dev/null; done; %(publish)scd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log; '
             'find /srv/work/gate-out -maxdepth 1 -name "cand_*" -mtime +3 -exec rm -rf {} + 2>/dev/null; exit $rc'
             % dict(fetch=q(fetch), G=G, GI=GI, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
-                   slots=_slots(), more=more))
+                   slots=_slots(), more=more, publish=publish))
     # over plain ssh with the box's environment: `run` would first cd into this worktree's synced copy, which a worktree
     # that has only ever gated doesn't have
-    code = _sh('ssh', 'source /opt/anim-build/env && bash -c %s' % q(step), check=False)
+    code = _sh('ssh', '%ssource /opt/anim-build/env && bash -c %s' % (install and install + '; ', q(step)), check=False,
+               input=script)
     local = os.path.join(ROOT, 'charkit', 'out', 'gate')
     os.makedirs(local, exist_ok=True)
-    subprocess.run(['rsync', '-az', '-e', 'ssh -F %s' % os.path.expanduser('~/.ssh/charkit-%s.config' % _box_name()),
-                    '%s:/srv/work/_gate/%s/' % (_box_name(), gid), local + '/'], check=False)
+    # the report was published to the bucket inside the gate's own ssh: no second connection through the tunnel
+    if not (_bucket() and _sh('pull', 'gate-' + gid, local, check=False) == 0):
+        subprocess.run(['rsync', '-az', '-e', 'ssh -F %s' % os.path.expanduser('~/.ssh/charkit-%s.config' % _box_name()),
+                        '%s:/srv/work/_gate/%s/' % (_box_name(), gid), local + '/'], check=False)
     print('remote gate: exit %d, report in %s' % (code, local))
     return code
 
@@ -184,8 +213,11 @@ def _env(key):
 
 
 def put(local, remote):
-    """a file onto the box: through its bucket when big (the box's service account reads it), else rsync."""
-    if os.path.getsize(local) > BUCKET_OVER and _env('BUCKET'):
+    """a file onto the box: through its bucket (build.sh push: charkit/bucketsync.py); with CHARKIT_SYNC=rsync, through
+    the bucket when big (the box's service account reads it), else rsync."""
+    if _bucket():
+        _sh('push', local, remote)
+    elif os.path.getsize(local) > BUCKET_OVER and _env('BUCKET'):
         url = '%s/remote/%s' % (_env('BUCKET').rstrip('/'), os.path.basename(local))
         subprocess.run(['gcloud', 'storage', 'cp', '--quiet', local, url, '--project', _env('PROJECT')], check=True)
         _sh('ssh', 'gcloud storage cp --quiet %s %s' % (shlex.quote(url), shlex.quote(remote)))

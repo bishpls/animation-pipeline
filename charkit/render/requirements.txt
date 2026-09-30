@@ -1,0 +1,6 @@
+# charkit.render (the toon renderer), in the venv. Licences checked for commercial use (docs/workstreams/toonrender.md).
+# numpy, pillow, scipy, scikit-image: already in charkit/geom/requirements.txt.
+wgpu>=0.32            # BSD-2-Clause (pygfx/wgpu-py); bundles wgpu-native (gfx-rs), MIT OR Apache-2.0
+#   its dependencies: cffi (MIT), rendercanvas (BSD-2-Clause; not used headless), rubicon-objc (BSD-3-Clause, macOS only)
+# The CPU fallback is the system's Mesa (MIT): llvmpipe through GL/EGL (libegl-mesa0, already on both boxes) or lavapipe
+# through Vulkan (mesa-vulkan-drivers + libvulkan1: on the render box; not installed on the build box).
