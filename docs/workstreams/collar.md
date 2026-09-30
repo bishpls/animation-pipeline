@@ -294,3 +294,57 @@ ribbons' ends), art_terminator_bow 8.4 -> 0, art_fragments_bow 1.8 -> 0.13. CPU 
 Open after M1: the jacket's front in profile under the ribbons (the bow's profile IoU 0.52 -> 0.34); the collar
 fragment in three-quarter; bow_front_flare 1.005 FAIL (unchanged: the drawn loops flare to tall ends, ours are pillows;
 the `wing` template exists, not taken).
+
+### Handoff after M1 (tool/bow merged into pipeline-3d cf8994d; the second agent stops here)
+
+**Harness** (untracked, copied from the session scratchpad): `charkit/out/collar_round2/harness/` (var.py splices the
+evaluator's garments into a box bundle: `python var.py OUT --base charkit/out/co_render --set garments.bow.KEY=JSON
+--parts collar_flags,sheet_pieces,piece_details [--pics]`, 60-90 s; it reproduces the box's piece, bow-shape and
+collar_flags checks but NOT bow_front_bleed or art_* (no Blender outline shrink, a pre-M4 base bundle): measure those on
+box builds, `python -m charkit remote build SPEC --out charkit/out/NAME --boards '' --no-blend`, ~6 min, several at
+once staggered 75 s). corners.py BUILD... (art_outline_collar's corners, positions and a picture), bleedpic.py BUILD...
+(where the bow touches the jacket with no line), prof.py VARIANT... (profile depths per row: drawn ribbons, ours, the
+jacket). Pictures of this round beside it. Box builds of the round: charkit/out/bw_{e0,p3,p4,v1,v2} (v1 = the merged
+bow).
+
+**M1 result** (gate `charkit/out/gate/gate_tool-bow_cbca3ad_into_3ebc3fb.md`, PASS under K): above. Lessons for M3:
+art_outline_collar is a corner count on a short outline (front: 1.34 L, 0.745 per corner; PASS <= 2 corners), so any
+change where another piece meets the collar's visible edge moves it a whole step; locate corners with corners.py
+before guessing. The harness can't see art_* or the bleed.
+
+**M2: the eye-line frame, scoped (not started).** The body QA registers our irises' mean z on the design's eye row:
+`bodyqa.origin(view, az, iris, centre)` takes `ez = mean(iris[:, 2])`, and every piece, skirt, detail, flap and
+collar_flags check goes through it (pieceqa.our_labels, lib.our_labels). The builders take the head's eye line from the
+assembly, `A['eye_z']` (= eye_knobs.z): garments.py (8 uses: the drawn outline heights, drawn_extent's placement), the
+hull's placement, code_body, hair (3), geom/parts (3), bodyeval (3); the face QA (qa3d.eye_anchor) and the art frames
+(lookqa.HeadFrame) also use eye_z. Offset: iris mean z - eye_z = 0.02354 L (g3_render3). The one-place fix the
+coordinator asked for: the garment builders' frame on the irises (one assembly value, e.g. the irises' mean z, read
+where the garments place drawn heights), not per garment. Expect (round 1's qaframe.py table, read in reverse): the
+hull-built pieces improve (piece_sleeve_cuff_*, piece_sleeve_R, the shorts' hems, body_profile_chest,
+skirt_back_outline, shoulder_back_line: ~0.0235 of its 0.0565), and whatever was tuned by hand in the iris frame to
+compensate regresses by the offset and needs refitting (the waistband's rows and its profile overhang, the bow's
+`lift` 0.03, the jacket's hang and top_front_opening, the bodice panel, the skirt fit, flap_profile_iou_L). The torso
+can't rise above the neck ring (tool/face's join at the neck cut, -0.52 L): decide whether the body moves with the
+garments (the neck 0.0235 L shorter) or only the garments do. Measure every garment check before and after (a
+build of pipeline-3d as it stands is the before); refit with each piece's shape IoU in all views; gate alone.
+
+**M3: plan (on M2).** Code for it lives on tool/collar, not in pipeline-3d: code_body's shoulders template
+(`body.shoulder`, 73e2d03's code_body/bodypage/cli part and tests/test_shoulders.py), the template collar (ed2ddbd,
+garments kind 'collar' source 'template'), the jacket's V opening (variant D), hairpieces' body_clear_garments
+(15fd2cd, default 0). Don't merge tool/collar whole: its specs carry the old bow lines and the puffs' extra station, and
+its steps file names 89bb724 (pipeline-3d's names a12f99d); branch from pipeline-3d after M2 and cherry-pick those
+code commits. Variant D's knobs: round 1's table above and mkspec.py. Then:
+- D's new FAILs: neck_crease (26.9 -> 92.6: the shelf under the neck ring; a larger `round`, the ring's own rows),
+  hair_noise (now 0.0785 WARN on pipeline-3d with 0.0015 of margin, tool/hairtag's masks; only the lowest lock-0
+  junction is ours), collar_front_torn / collar_profile_torn (the lapels over the shoulders need a surface above the
+  neck cut), piece_collar front/three-quarter; art_outline_collar under D (count its corners).
+- art_speckle_neck: 1.34 PASS on pipeline-3d (tool/hairtag's masks; box build bw_v1): verify under D.
+- The puffs' raised station (tool/collar 5ffd446's sleeve_L.profile first row, t -0.30) meeting the square collar.
+- **The jacket's front in profile under the ribbons**: prof.py on the bow: the drawn ribbons' back edges reach 0.10 L
+  behind our jacket's front at z -0.94..-1.17, and the drawn jacket's visible front below them (z -1.17..-1.22) sits
+  0.04-0.05 L behind ours: the jacket (hull-built) fills the ribbons' drawn depth. A profile refit of the jacket's front
+  there restores the bow's profile IoU (0.52 -> 0.34 with the ribbons standing clear, as drawn) and should not cost
+  piece_top's profile (0.534 now); measure top_front_opening and body_profile_* with it.
+- The collar fragment in three-quarter beside the ribbons (collar_three_quarter_torn PASS -> WARN in M1's gate).
+- Review page for Michael: design | before | after, the back view, the bow close-up, the profile (round 1's
+  review.py in charkit/out/collar_review/ builds one).
