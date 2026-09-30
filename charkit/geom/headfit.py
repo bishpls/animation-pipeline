@@ -111,8 +111,13 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
         ev = eye_views(rgb, eye_x, facing)
     except Exception:                         # (a sheet whose eyes can't be cut: the window falls back to its defaults)
         ev = {}
+    try:
+        jd = jaw_line(D)
+        jd['rise'] = underside_rise(rgb, eye_x, facing)
+    except Exception:                         # (a sheet whose chin can't be read: the chin stays the rows' own)
+        jd = None
     return dict(z=z, mid=-lead_p, w=_smooth(w, 2), lead3=lead3, az3=float(D['az_three_quarter']), chin=chin,
-                nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny, eyes=ev)
+                nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny, eyes=ev, jaw_design=jd)
 
 
 def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
@@ -132,6 +137,55 @@ def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
             u = ((skin.min() if facing < 0 else skin.max()) - v.axis) / v.ppl
             ys[i] = (u if facing < 0 else -u) - info['y_e']
     return zs, ys
+
+
+JAW_UNDER = {'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0]}   # the style's face section
+                                 # overrides these (charkit/styles: DEFAULT says what each is)
+
+
+def jaw_line(D, dx=0.005):
+    """the design's jaw line in front (refcheck.face_design's front: the face region's half-width per row down to its own
+    chin point): the height at which the face's outline reaches each half-width x, from the chin point (x 0) out to the
+    widest row under the cheek; the lower face's outline read as a curve over x (the V under the chin) ->
+    dict(x, z (L, the eye frame), chin, neck (the neck's half-width under it))."""
+    F = D['front']
+    z = np.asarray(F['z'], float)
+    half = 0.5 * (np.asarray(F['half_left'], float) + np.asarray(F['half_right'], float))
+    chin = float(F.get('chin', np.nanmin(np.where(np.isfinite(half), z, np.nan))))
+    sel = np.isfinite(half) & (z < -0.12) & (z >= chin - 1e-6)
+    zs, hs = z[sel], half[sel]
+    o = np.argsort(zs)                                   # from the chin up
+    zs, hs = zs[o], np.maximum.accumulate(hs[o])         # the outline widening from the chin up (a row cut short by a
+    hs[0] = 0.0                                          # drawn line inside the face doesn't narrow it)
+    xs = np.arange(0.0, hs[-1] + 1e-9, dx)
+    zx = np.interp(xs, hs, zs)
+    return dict(x=[round(float(v), 4) for v in xs], z=[round(float(v), 4) for v in zx], chin=round(chin, 4),
+                neck=float(F['neck']) if F.get('neck') else None)
+
+
+def underside_rise(rgb, eye_x, facing=-1):
+    """the design's chin underside in profile: its angle (degrees, + rising from the chin toward the throat), read on the
+    head sheet's profile as the QA reads it (charkit.faceregion.jaw_profile) -> degrees or None."""
+    import importlib
+    fr = importlib.import_module('charkit.faceregion')
+    views, ppl = fr.design_jaw_views(rgb, eye_x, facing, which=('profile',))
+    return fr.jaw_profile(views['profile']['cls'], ppl).get('underside_deg') if 'profile' in views else None
+
+
+def jaw_under(C, face=None):
+    """the jaw's underside for the head's mesh (charkit.code_base.UnderJaw), from the design's jaw line (C['jaw_design'])
+    and the style's face section (JAW_UNDER's keys): None when the style builds the chin as rows alone (jaw_under off) or
+    the design's jaw can't be read -> dict(x, z (the jaw line in front), rise (degrees: the underside's rise from the jaw
+    line toward the throat, the design's measured in profile or the style's, within jaw_rise_range), neck)."""
+    st = dict(JAW_UNDER, **(face or {}))
+    J = C.get('jaw_design')
+    if not st['jaw_under'] or not J or len(J.get('x') or ()) < 5:
+        return None
+    lo, hi = st['jaw_rise_range']
+    rise = J.get('rise') if st['jaw_rise'] == 'design' else st['jaw_rise']
+    rise = float(np.clip(12.0 if rise is None else rise, lo, hi))
+    return dict(x=J['x'], z=J['z'], chin=J['chin'], neck=J['neck'], rise=round(rise, 1),
+                rise_design=J.get('rise'))
 
 
 def relief_split(z, mid, nose_z, top=-0.02, bottom=None):

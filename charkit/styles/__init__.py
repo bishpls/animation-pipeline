@@ -21,7 +21,10 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            nose it lets go from `release` of the window's half-width in from the eye), forward (L: how far the window may
            bring the face out of its own surface, None: as far as the plane asks),
            cheek_peak (where across the face, as a share of its half-width, the cheek term that meets the three-quarter's
-           far contour is fullest: 0.5 under the eye, larger toward the cheekbone)
+           far contour is fullest: 0.5 under the eye, larger toward the cheekbone); jaw_under (the chin overhangs the
+           neck: the head's mesh carries the jaw's underside, rising from the design's jaw line toward the throat,
+           charkit.geom.headgeom.UnderJaw; off, the chin is the rows' own step), jaw_rise ('design': the underside's angle
+           read in the head sheet's profile, or degrees) within jaw_rise_range (degrees; Clawd's design reads 13.7)
   look     the render look (charkit.shade, faceshade; the boards, turntables and the glTF export's look extension):
            light: mode 'world' (one fixed art-directed light, `dir` toward it) or 'camera' (a key that turns with the
            camera: `key` = [degrees to the camera's left, degrees above], so a turntable's back is lit as its front is);
@@ -56,7 +59,8 @@ DEFAULT = {
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
                     'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06},
     'face': {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
-             'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5},
+             'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5,
+             'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0]},
     'look': {'light': {'mode': 'world', 'dir': [-0.45, -0.55, 0.70], 'key': [39.3, 44.6]},
              'lines': {'mode': 'world', 'frac': 0.0025, 'regions': {'skin': 1.0, 'hair': 1.0, 'garment': 1.0, 'accessory': 1.0},
                        'color': 'build', 'ink': [0.24, 0.13, 0.11]},

@@ -194,13 +194,263 @@ def _near(mask, nb, off, k):
         out |= grow
     return out
 
+JAW_BAND_DZ = 0.0075     # L of chart height per cage row in the jaw's band (its columns run over the chin, back along
+                         # the underside and down the neck to the band's foot: in front three times its height)
+JAW_BAND_END = 0.11      # L under the mouth block: the band ends at the first cage row this far down (the neck under
+                         # the throat; the rows under it, to the join, stay the cage's own)
+JAW_TOP_GAP = 0.012      # L: the underside kept this far under the band's top row (the mouth block's bottom)
+POCKET_FADE = 0.02       # L: the pocket under the jaw, whole over the neck's width, fades out over this past it
+TIP_BIAS = (0.006, 0.06) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
+                         # subdivision rounds the V's point across the cage's columns (0.033 L apart there), which
+                         # raises it that much (headfit.CHIN_BIAS does the same in profile)
+UNDER_ROUND = (0.75, 1.15, 0.12)  # the underside's slope: this share of the rise at the rim, this share UNDER_ROUND[2] L in
+                                  # (the start kept steeper than the boards' camera looks down at the chin, 6.5 degrees)
+POCKET_MIN = 0.005       # L: the least depth of the pocket at a column's rim (less: the column is the envelope's)
+POCKET_DROP = 0.1        # L: where the pocket fades out the underside sinks this far (a gentle wall, not a cliff the
+                         # columns' solve can't follow; the cap keeps it off the jaw's sides anyway)
+
+
+class UnderJaw:
+    """the jaw's underside, which one closed section per row can't hold (the chin overhangs the neck: between the chin
+    point and the throat a row crosses the chin, then air, then the neck). The sections S stay the envelope (each row's
+    outline, the air under the chin filled); the solid is the envelope less a pocket:
+      - the underside: z = U(x, y), from the design's jaw line in front (jaw['x'], jaw['z']: the V, the lower face's
+        outline over x) laid on the envelope's front (the rim), rising from it at jaw['rise'] degrees along lines in
+        plan toward the neck's axis (straight back at the midline, round toward the neck at the sides), kept
+        JAW_TOP_GAP under z_top (so it never reaches the jaw's sides over the neck's width: their outline is the
+        envelope's own, a silhouette against what's behind);
+      - the pocket: under U, outside the neck, over the neck (whole within its half-width, fading out over POCKET_FADE past it)
+        and in front of its axis; a column holds it where it is POCKET_MIN deep at least, its underside continuous and its
+        throat no lower than its rim (round the neck's sides the envelope closes on the neck and the pocket with it). The neck above its top row (z_n0, the first row under the chin that is the neck's
+        alone) is that row continued up.
+    Each cage column (a sheet of the sections' own rays at one angle, theta round each row's centre) then runs down
+    the envelope to the rim (where it meets U), back along U to the neck (the throat) and down the neck: meridian().
+    place(theta, z) puts chart rows under z_top along it by arc length, so the cage's rows follow the surface round the
+    chin and the chin's underside is its own band of quads (no step for the limit fit to ring on)."""
+
+    def __init__(self, S, jaw, z_top, z_bottom, dz=0.001):
+        ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
+        self.S, self.th = S, S.th
+        self.zs, self.cy, self.r = S.zs[ok], S.cy[ok], S.r[ok]
+        self.z_top, self.z_bottom, self.dz = float(z_top), float(z_bottom), dz
+        self.jx, self.jz = np.asarray(jaw['x'], float), np.asarray(jaw['z'], float)
+        self.tan = float(np.tan(np.radians(jaw['rise'])))
+        j0 = int(np.argmin(np.abs(S.th)))
+        front = self.cy - self.r[:, j0]
+        below = self.zs < float(jaw['chin']) - 0.01
+        ref = float(np.median(front[below & (self.zs > float(jaw['chin']) - 0.12)])) if below.any() else np.nan
+        k0 = np.nonzero(below & (np.abs(front - ref) < 0.01))[0]
+        self.k0 = int(k0[0]) if len(k0) else int(np.nonzero(below)[0][0])
+        self.z_n0 = float(self.zs[self.k0])
+        xn = np.sin(S.th) * self.r[self.k0]
+        yn = self.cy[self.k0] - np.cos(S.th) * self.r[self.k0]
+        self.neck_poly = (xn, yn)
+        self.x_neck = max(float(jaw.get('neck') or 0.0), float(np.abs(xn).max()))       # (the design's, or our neck's if wider)
+        self.y_axis = float(0.5 * (yn.min() + yn.max()))
+        # the rim no lower than the envelope's own chin at each x (its front there before it steps back to the neck: a
+        # head whose rows stop short of the drawn jaw line still gets its rim on the chin), and its depth: the envelope's
+        # front a hair over the rim
+        self.jz = np.array([max(z, self._chin_bottom(x, z) + 0.003) for x, z in zip(self.jx, self.jz)])
+        self.jz = self.jz - TIP_BIAS[0] * np.clip(1 - self.jx / TIP_BIAS[1], 0, 1)
+        self.y0 = np.array([self._front_y(x, z + 0.003) for x, z in zip(self.jx, self.jz)])
+        # the rim in polar form round the neck's axis (U's lines run toward it): its angle (kept rising: the rim seen
+        # from the axis sweeps round one way) and distance
+        self.rim_phi = np.maximum.accumulate(np.arctan2(self.jx, self.y_axis - self.y0))
+        self.rim_r = np.hypot(self.jx, self.y_axis - self.y0)
+        self._mer = {}
+
+    def rise(self, d):
+        """the underside's height over the rim d L in from it: rounding off the chin, its slope from UNDER_ROUND[0] of the
+        rise at the rim to UNDER_ROUND[1] of it UNDER_ROUND[2] L in (the design's underside runs flat under the chin's
+        round bottom, then climbs to the throat; a line fitted over its middle reads the rise)."""
+        a, b, d1 = UNDER_ROUND
+        s0, s1 = a * self.tan, b * self.tan
+        d = np.asarray(d, float)
+        dp = np.maximum(d, 0.0)
+        return np.where(d < 0, s0 * d, s0 * dp + (s1 - s0) * np.where(dp < d1, dp * dp / (2 * d1), dp - d1 / 2))
+
+    def _rows(self, z):
+        """the envelope's rows at heights z (array) -> (cy (n,), r (n, N))."""
+        zl = np.clip(z, self.zs[-1], self.zs[0])
+        i = np.clip(np.searchsorted(-self.zs, -zl), 1, len(self.zs) - 1)
+        t = (self.zs[i - 1] - zl) / (self.zs[i - 1] - self.zs[i])
+        return (1 - t) * self.cy[i - 1] + t * self.cy[i], (1 - t)[:, None] * self.r[i - 1] + t[:, None] * self.r[i]
+
+    def _chin_bottom(self, x, z, span=0.04, step=0.001):
+        """the lowest height near z (within span) at which the envelope's front at lateral x is still the chin's: under
+        it the front steps back past the neck's (the neck's top row's front, continued up)."""
+        xn, yn = self.neck_poly
+        fr_ = yn < self.y_axis
+        o = np.argsort(xn[fr_])
+        neck_front = float(np.interp(x, xn[fr_][o], yn[fr_][o], left=np.inf, right=np.inf))
+        zz = np.arange(z + span, z - span, -step)
+        ys = np.array([self._front_y(x, q) for q in zz])
+        chin = ys < neck_front - POCKET_MIN
+        if not chin.any():
+            return z
+        k = int(np.nonzero(chin)[0][-1]) if chin.all() else int(np.argmin(chin)) - 1
+        return float(zz[max(k, 0)])
+
+    def _front_y(self, x, z):
+        """the envelope's front at lateral x on the row at height z: the front-most crossing of its outline with the line
+        at x (the outline can turn back in x round its sides)."""
+        cy, r = self._rows(np.array([z]))
+        xs, ys = np.sin(self.th) * r[0], cy[0] - np.cos(self.th) * r[0]
+        x0, x1, y0, y1 = xs, np.roll(xs, -1), ys, np.roll(ys, -1)
+        hit = (x0 - x) * (x1 - x) <= 0
+        if not hit.any():
+            return float(ys[np.argmin(np.abs(xs - x))])
+        t = np.where(np.abs(x1 - x0) > 1e-12, (x - x0) / np.where(np.abs(x1 - x0) > 1e-12, x1 - x0, 1.0), 0.0)
+        return float(np.min((y0 + t * (y1 - y0))[hit]))
+
+    def U(self, x, y):
+        """the underside's height at (x, y) (arrays): a ruled surface, from each point of the rim a line in plan toward
+        the neck's axis (0, y_axis), rising at the jaw's rise: in polar form round the axis, the rim's height at the
+        point's angle plus the rise over how far inside the rim it lies. So it passes through the drawn jaw line exactly,
+        rises at the rise straight back down the midline (the profile's underside) and toward the neck round its sides,
+        and is continuous; far under the band where there is no pocket."""
+        ax, y = np.abs(np.asarray(x, float)), np.asarray(y, float)
+        phi = np.arctan2(ax, self.y_axis - y)
+        r = np.hypot(ax, self.y_axis - y)
+        u = np.interp(phi, self.rim_phi, self.jz) + self.rise(np.interp(phi, self.rim_phi, self.rim_r) - r)
+        cap = self.z_top - JAW_TOP_GAP
+        u = cap - np.logaddexp(0.0, (cap - u) / 0.004) * 0.004          # a soft min with the cap (0.004 L round it)
+        w = _smoothstep((self.x_neck + POCKET_FADE - ax) / POCKET_FADE) * _smoothstep((self.y_axis - y) / 0.05)
+        return u - POCKET_DROP * (1 - w)
+
+    def centre(self, z):
+        """the band's columns hang from a centre line straight from the top row's centre to the bottom row's (the
+        sections' own centres jump back at the chin's step, which would twist the columns' sheets)."""
+        c0, c1 = self._rows(np.array([self.z_top, self.z_bottom]))[0]
+        t = np.clip((self.z_top - np.asarray(z, float)) / (self.z_top - self.z_bottom), 0, 1)
+        return c0 + (c1 - c0) * t
+
+    @staticmethod
+    def _ray(theta, xs, ys, c):
+        """a closed outline's (points xs, ys) radius at angle theta from (0, c): its polar form round that point."""
+        a = np.arctan2(xs, -(ys - c)); rr = np.hypot(xs, ys - c)
+        o = np.argsort(a)
+        return np.interp(theta, a[o], rr[o], period=2 * np.pi)
+
+    def rho(self, theta, z):
+        """the envelope's and the neck's radius along column theta (from the band's centre line) at heights z ->
+        (envelope (n,), neck (n,)): the neck is the envelope under z_n0 and its top row continued up above."""
+        z = np.asarray(z, float)
+        cy, r = self._rows(z)
+        cb = self.centre(z)
+        st, ct = np.sin(self.th), np.cos(self.th)
+        env = np.array([self._ray(theta, st * rr, c - ct * rr, b) for c, rr, b in zip(cy, r, cb)])
+        xn, yn = self.neck_poly
+        neck = np.array([self._ray(theta, xn, yn, b) if zz > self.z_n0 else e for zz, b, e in zip(z, cb, env)])
+        return env, neck
+
+    def meridian(self, theta):
+        """column theta's path from z_top to z_bottom -> (points (M, 3), arc length (M,), info dict(rim, throat: (radius,
+        z) or None))."""
+        key = round(float(theta), 9)
+        if key in self._mer:
+            return self._mer[key]
+        zg = np.arange(self.z_top, self.z_bottom - 1e-9, -self.dz)
+        zg[-1] = self.z_bottom
+        rS, rN = self.rho(theta, zg)
+        cb = self.centre(zg)
+        st, ct = np.sin(theta), np.cos(theta)
+        g = zg - self.U(rS * st, cb - rS * ct)
+        cand = np.nonzero((g < 0) & (rS > rN + POCKET_MIN))[0]
+        info = dict(rim=None, throat=None)
+        rho, zz = rS, zg
+        if len(cand) and cand[0] > 0:
+            i = int(cand[0])
+            f = g[i - 1] / (g[i - 1] - g[i])
+            z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
+            # the underside: inward from the rim, its height solved per radius (bisection in z: z - U rises with z)
+            rho_u = np.arange(r_r, 0.0, -self.dz)
+            lo, hi = np.full(len(rho_u), z_r - 0.02), np.full(len(rho_u), self.z_top)   # (it rises from its rim)
+            for _ in range(32):
+                m = 0.5 * (lo + hi)
+                h = m - self.U(rho_u * st, self.centre(m) - rho_u * ct)
+                lo, hi = np.where(h < 0, m, lo), np.where(h < 0, hi, m)
+            zu = 0.5 * (lo + hi)
+            rn_u = self.rho(theta, zu)[1]
+            hit = np.nonzero(rho_u <= rn_u)[0]
+            j = int(hit[0]) if len(hit) else 0
+            if j > 0 and np.abs(np.diff(zu[:j + 1])).max() < 0.01 and zu[j] >= z_r - 0.005:
+                d0, d1 = rho_u[j - 1] - rn_u[j - 1], rho_u[j] - rn_u[j]
+                f = d0 / (d0 - d1)
+                z_j, r_j = zu[j - 1] + f * (zu[j] - zu[j - 1]), rho_u[j - 1] + f * (rho_u[j] - rho_u[j - 1])
+                below = zg < z_j
+                rho = np.concatenate([rS[:i], [r_r], rho_u[1:j], [r_j], rN[below]])
+                zz = np.concatenate([zg[:i], [z_r], zu[1:j], [z_j], zg[below]])
+                info = dict(rim=(float(r_r), float(z_r)), throat=(float(r_j), float(z_j)))
+        P = np.stack([rho * st, self.centre(zz) - rho * ct, zz], 1)
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
+        if info['rim'] is not None:                   # the arc lengths at the rim and the throat
+            info['s_rim'], info['s_throat'] = float(s[i]), float(s[i + j])
+        self._mer[key] = (P, s, info)
+        return self._mer[key]
+
+    def place(self, theta, z, part=None):
+        """chart points (theta, z) -> (N, 3): at or over z_top the sections' own (place); under it along the column's
+        meridian by arc length (z_top at its start, z_bottom at its end). part: an array (N,) filled with where each point
+        fell: 0 the envelope (over the rim, or a column without the pocket), 1 the underside (strictly between the rim and
+        the throat), 2 the neck under the throat."""
+        theta, z = np.asarray(theta, float), np.asarray(z, float)
+        out = place(self.S, theta, z)
+        if part is not None:
+            part[:] = 0
+        band = z < self.z_top - 1e-9
+        span = self.z_top - self.z_bottom
+        for t in np.unique(theta[band]):
+            sel = band & (theta == t)
+            P, s, info = self.meridian(t)
+            q = np.clip((self.z_top - z[sel]) / span, 0, 1) * s[-1]
+            out[sel] = np.stack([np.interp(q, s, P[:, k]) for k in range(3)], 1)
+            if part is not None and info['rim'] is not None:
+                part[sel] = np.where(q >= info['s_throat'] - 1e-9, 2, np.where(q > info['s_rim'] + 1e-9, 1, 0))
+        return out
+
+
+def orient_faces(V, F):
+    """a manifold mesh's faces wound consistently (every shared edge run opposite ways by its two faces), from the face
+    furthest forward on the forehead's midline, turned to face forward: the cage's own rule (each quad faces away from
+    the head's axis at its height) doesn't hold where the surface faces down, as under the jaw -> F (a copy)."""
+    from collections import deque
+    F = [list(f) for f in F]
+    by = {}
+    for i, f in enumerate(F):
+        for a, b in zip(f, f[1:] + f[:1]):
+            by.setdefault((min(a, b), max(a, b)), []).append(i)
+    C = np.array([np.mean([V[k] for k in f], 0) for f in F])
+    fore = np.nonzero((np.abs(C[:, 0]) < 0.05) & (np.abs(C[:, 2] - 0.15) < 0.05))[0]
+    seed = int(fore[np.argmin(C[fore, 1])]) if len(fore) else int(np.argmin(C[:, 1]))
+    P = np.array([V[k] for k in F[seed]])
+    if np.cross(P[2] - P[0], P[3 % len(P)] - P[1])[1] > 0:
+        F[seed] = F[seed][::-1]
+    done = np.zeros(len(F), bool)
+    done[seed] = True
+    q = deque([seed])
+    while q:
+        i = q.popleft()
+        f = F[i]
+        for a, b in zip(f, f[1:] + f[:1]):
+            for j in by[(min(a, b), max(a, b))]:
+                if done[j]:
+                    continue
+                g = F[j]
+                if any(x == a and y == b for x, y in zip(g, g[1:] + g[:1])):     # the same way round: flip it
+                    F[j] = g[::-1]
+                done[j] = True
+                q.append(j)
+    return F
+
+
 EYE_GAP = 0.035          # L between an eye's outline and its block's edge: room for its rings (0.012 L apart at 3)
 EYE_GAP_BELOW = 0.025    # ... under it, where the mouth's block needs the room
 EYE_BLOCK = (0.135, 0.09)   # the eye block's least half-width and half-height (L), round the eye centre
 
 
 def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_w=0.21, eye_h=0.13, mouth_w=0.12,
-                  mouth_h=0.03, rings=(3, 2), caps=True, eye_outline=None, mouth_block=None, mouth_outline=None):
+                  mouth_h=0.03, rings=(3, 2), caps=True, eye_outline=None, mouth_block=None, mouth_outline=None, jaw=None):
     """the authored cage on the head's own chart (charkit.geom.headmesh.cylinder): rows of the sections from z_top down
     the neck, a dome of rays from the head's centre above, the eyes' and the mouth's blocks where the front view draws
     them. eye_outline: her left eye's opening (K, 2) in L round its centre (x outward, z up; charkit.eyes.
@@ -208,7 +458,9 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
     hold it with EYE_GAP for the rings; None: an almond eye_w x eye_h. mouth_block: (half-width, above, below) in L round
     the mouth's centre, for the lips' reach (the widest and tallest of its shapes: the rings between them need the room),
     else +-0.09 x +-0.045. mouth_outline: the lip loop (K, 2) in L round the mouth's centre (x her left, z up), else an
-    almond mouth_w x mouth_h. -> (Cage, the dome's centre)."""
+    almond mouth_w x mouth_h. jaw: the jaw's underside (headfit.jaw_under's dict): the rows under the mouth block are
+    laid JAW_BAND_DZ apart in the chart and placed along UnderJaw's meridians (Cg.under: the UnderJaw; Cg.chart_z: each
+    vertex's chart height, for the UVs); None: every row on the sections. -> (Cage, the dome's centre)."""
     from . import headmesh as hm
     ex, mz = C['eye_x'], C['nose_z'] - 0.11
     mw, mt, mb = mouth_block or (0.09, 0.045, 0.045)
@@ -228,6 +480,17 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
     keep = [z for z in (C['nose_z'], -EYE_BLOCK[1], EYE_BLOCK[1], mz - 0.045, mz + 0.045)
             if min(abs(z - e) for e in edges) > dz / 3]
     zs = hm.lines(z_bottom, z_top, dz, must=edges + keep)[::-1]
+    under = None
+    if jaw:
+        # the jaw's band: from the mouth block's bottom row down to the first row JAW_BAND_END under it, whose rows are
+        # laid finer and placed along UnderJaw's meridians; the rows under it (the neck down to the join) are the cage's
+        # own, on the sections as without the jaw
+        z_a = mz - mb
+        low = zs[zs <= z_a - JAW_BAND_END + 1e-9]
+        z_n = float(low.max()) if len(low) else float(z_bottom)
+        n = max(2, int(round((z_a - z_n) / JAW_BAND_DZ)))
+        zs = np.concatenate([zs[zs >= z_a - 1e-9], z_a - (z_a - z_n) * np.arange(1, n) / n, zs[zs <= z_n + 1e-9]])
+        under = UnderJaw(S, jaw, z_a, z_n)
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
     row = lambda z: int(np.argmin(np.abs(zs - z)))
@@ -256,7 +519,24 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
     mo = almond(0.0, mz, mouth_w, mouth_h) if mouth_outline is None else np.asarray(mouth_outline, float) + np.array([0.0, mz])
     feats.append(dict(name='mouth', block=(j0, j1, row(mz + mt), row(mz - mb)), outline_tz=chart(mo),
                       rings=rings[1], theta_scale=radius(mz), cap=caps))
-    Cg = hm.cylinder(nth, zs, dome, lambda t, z: place(S, t, z), dome_place, feats)
+    chart = {}
+
+    def place_fn(t, z):
+        if under is None:
+            return place(S, t, z)
+        part = np.zeros(len(np.atleast_1d(z)), int)
+        P = under.place(t, z, part)
+        for p, tc, zc, pt in zip(P, np.broadcast_to(np.asarray(t, float), np.shape(z)), np.asarray(z, float), part):
+            chart[tuple(np.round(p, 7))] = (float(zc), int(pt), float(tc))
+        return P
+    Cg = hm.cylinder(nth, zs, dome, place_fn, dome_place, feats)
+    if under is not None:
+        Cg.F = np.array(orient_faces(Cg.V, Cg.F), np.int64)
+    Cg.under = under
+    got = [chart.get(tuple(np.round(p, 7)), (p[2], 0, np.nan)) for p in Cg.V]
+    Cg.chart_z = np.array([g[0] for g in got])
+    Cg.under_part = np.array([g[1] for g in got], int)          # (UnderJaw.place's parts: 1 the underside)
+    Cg.chart_th = np.array([g[2] for g in got])
     # each vertex's way out, for checking the fit: from the head's axis at its height, or the dome's centre above it
     O = np.stack([np.zeros(len(Cg.V)), np.interp(-np.minimum(Cg.V[:, 2], z_top), -S.zs[okr], S.cy[okr]),
                   np.minimum(Cg.V[:, 2], z_top)], 1)

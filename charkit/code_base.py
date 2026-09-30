@@ -109,7 +109,7 @@ def save_head(spec, path, log=print):
     `path` (.npz), for the build's Blender side, which loads them (spec['head_code'])."""
     S, C, rep = head_sections(dict(spec, head_code=None), log)
     np.savez_compressed(path, zs=S.zs, cy=S.cy, r=S.r, th=S.th,
-                        C=json.dumps({k: float(C[k]) for k in ('chin', 'eye_x', 'nose_z', 'az3')}),
+                        C=json.dumps(dict({k: float(C[k]) for k in ('chin', 'eye_x', 'nose_z', 'az3')}, jaw=C.get('jaw'))),
                         rep=json.dumps(rep, default=str))
     return path
 
@@ -135,6 +135,10 @@ def head_sections(spec, log=print):
     if key not in _HEADS:
         C = headfit.contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
         S, rep = headfit.assemble(headfit.Face(C), headfit.skull_analytic(spec, log=log), face=headfit.face_style(spec))
+        # the jaw's underside (the mesh's own: the sections stay the envelope, so the hull's face carve and every
+        # reader of the sections are unchanged): the design's jaw line and its rise, as the style builds it
+        C['jaw'] = headfit.jaw_under(C, headfit.face_style(spec))
+        rep['jaw'] = C['jaw'] and {k: C['jaw'][k] for k in ('chin', 'neck', 'rise', 'rise_design')}
         _HEADS[key] = (S, C, rep)
     return _HEADS[key]
 
@@ -364,7 +368,7 @@ def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     mouth_block()'s (block, lip loop), else the cage's default mouth."""
     from charkit.geom import headgeom
     kw = dict(mouth_block=mouth[0], mouth_outline=mouth[1], rings=(3, MOUTH_RINGS)) if mouth else {}
-    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline, **kw)
+    Cg, ctr = headgeom.cylinder_cage(S, C, z_bottom=cut, caps=False, eye_outline=eye_outline, jaw=C.get('jaw'), **kw)
     V = list(Cg.V)
     faces = [list(f) for f in Cg.F]
     groups = [Cg.groups[g] for g in Cg.group]
@@ -425,11 +429,15 @@ def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     held = set(range(Cg.V.shape[0], len(Va))) | set(Cg.loops['neck'][0])
     for name in ('eye_L', 'eye_R'):             # the eyes' loops whole: fitted next to the creased margin and the socket
         held |= {v for r in Cg.loops[name] for v in r}          # (placed later), they folded 13 faces at rest
+    # the jaw's underside held as placed (headgeom.UnderJaw): fitting the cage to its limit pushes it out round the
+    # rim, tilting the cage's underside faces back past the underside's own rise
+    held |= set(np.nonzero(Cg.under_part == 1)[0].tolist())
     movable = np.array([i not in held for i in range(len(Va))])
     sharp = [(a, b) for E in eyes.values() for a, b in zip(E['margin'], E['margin'][1:] + E['margin'][:1])]
     Va, gaps = fit_limit(Va, faces, movable, sharp)
+    chart_z = np.concatenate([Cg.chart_z, Va[len(Cg.chart_z):, 2]])     # (the sockets and the cavity: their own)
     return dict(V=Va, faces=faces, groups=groups, eyes=eyes, mouth=mouth, neck=list(Cg.loops['neck'][0]), cage=Cg,
-                limit_gaps=gaps)
+                limit_gaps=gaps, chart_z=chart_z)
 
 
 # ------------------------------------------------------------------------------------------------------------ the join
@@ -655,7 +663,11 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     Pl = Hmesh['V']
     ctr_y = float(np.nanmean(Sb.cy))
     th = np.arctan2(Pl[:, 0], -(Pl[:, 1] - ctr_y))
-    zn = (Pl[:, 2] - Pl[:, 2].min()) / max(np.ptp(Pl[:, 2]), 1e-6)
+    # the chart's height: under the mouth, where the cage's columns run back along the jaw's underside and up to the
+    # throat, the rows' own chart height (a vertex's z there runs back up: the UVs would fold); above, the vertex's z
+    un = Hmesh['cage'].under
+    zu = np.where(Hmesh['chart_z'] < un.z_top - 1e-9, Hmesh['chart_z'], Pl[:, 2]) if un is not None else Pl[:, 2]
+    zn = (zu - zu.min()) / max(np.ptp(zu), 1e-6)
     new_uv = []
     for f in Hmesh['faces']:
         t = th[f].copy()

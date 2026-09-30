@@ -249,3 +249,27 @@ Garments and the rest of `code_body` are tool/body's, hair is the hair workstrea
 - `hair_fringe_low`'s "ours" is the lowest visible bangs pixel in the front class map, so skin, lashes or a carved
   tip in front of the bangs all move it.
 
+
+## The chin and jaw (2026-09-29, in progress: see the next section when it lands)
+
+State before the final build and gates, for a resumer:
+- **Measures:** `faceregion.jaw` (a `face_region` part): 8 checks, the design side from the head sheet
+  (`hull.views_from_heads` + `bodyqa.classes`, lines kept), ours from the scene in two cameras (the boards' own for
+  "does the jaw line draw", the outline emulated as an inverted hull; a level one far out for the shape). Lab:
+  `tools/face_labs/jaw_lab.py OUT.png BUILD` or `--geom GEOM_DIR` (a local assembly, 30 s).
+- **Construction:** `headgeom.UnderJaw` (the mesh's own: the sections stay the envelope, so the hull, eyes, hair and
+  shading read the same sections as before, to 1e-12). The cage's rows from the mouth block down to -0.404 follow each
+  column's meridian: the envelope to the rim, the underside back up to the throat, the neck down. Wired through
+  `cylinder_cage(jaw=...)`, `code_base.head_mesh` (the underside held out of the limit fit), the UVs (the chart's
+  height in the band). The style's `face.jaw_*` keys; the design's rise is read in the head sheet's profile (13.7).
+- **Baseline jaw_0 FAILs 7 of 8** (neck_to_face PASSes: the widths were right, the line was missing); the lab's local
+  assembly of the new head PASSes all 8, in anime and realistic.
+- **Open: `qa3d.face_folds` counts the chin's underside.** Its mouth box reaches 0.38 L under the eyes and counts a skin
+  face whose normal leans back more than 0.2 as folded. The underside faces down and back (a V rim that climbs toward
+  the ears leans it back 0.2 to 0.3 wherever it is laid), so 20 to 36 faces count at rest and again under every mouth
+  key. Not my file; the fix is to leave out faces facing down at rest (normal z < -0.7 and y > 0).
+- **Carve margin (decision 4a):** `hull.carve_face` keeps hair the front view draws over the face (a hair pixel with
+  face either side in its row: the fringe) within `HAIR_KEEP` 0.03 L of the face. Measured with
+  `tools/face_labs/carve_lab.py` on the build box: every carved voxel is hair in some view, so "hair in any view" would
+  have kept a layer over the side locks' gap too; the carve never took a lock over the eyes, it took the bangs' inner
+  layer over the forehead (z 0.1-0.3, 0.006-0.24 L in front of it).
