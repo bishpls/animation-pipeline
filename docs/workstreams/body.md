@@ -1,5 +1,25 @@
 # The authored body, fitted to the hull (plan)
 
+## Checkpoint: end of round 3 (2026-09-29). Start here.
+
+The branch, gates, numbers, open items and gotchas are in `docs/workstreams/garments.md` (its checkpoint section);
+the body and the garments share `tool/body`.
+
+Round 4 (2026-09-30), body-side: the collar now seats on the design's neckline per azimuth (below tool/face's cut, so
+it holds on their slender neck); the skirt clears the hands, forearms and wrist bands at bind (`clear_hands`, tool/rig's
+finding). Details in garments.md's round 4 checkpoint.
+
+The body-side state:
+- **Chest in profile:** `body_profile_chest` is 0.036 L flatter than the design (WARN). What remains is the bow's
+  very top and bottom rows (z −0.65 and −0.90 L).
+- **Waist:** `waist_skin` is 0 in every view (the checkpoint's bare waist read 0.09 FAIL).
+- **Torso bounds:** the torso stays behind the bow and its tails by their measured depth (`code_body.IN_FRONT`,
+  counting only the bow's hull points inside its drawn extent).
+- **Owned elsewhere:** tool/face owns the torso's top rows and the neck join (its new slender neck isn't merged
+  yet; the collar will need re-seating on it). tool/rig owns the skin and garment weights, joints and twist bones.
+- **Hull and outfit:** private to this worktree since 18:08, rebuilt from its own code at 18:18.
+
+
 Why: garments lying on the body (the collar, a hull-true top, sleeves, cuffs) end up inside the MakeHuman body, which
 isn't the design's. Its waist sits about 0.3 L low, it's up to 0.12 L wider at the sides, and its back stands out.
 The loose pieces (skirt, waistband, bow) work only because they sit outside the body or hide it.
@@ -190,3 +210,11 @@ Next:
   hidden the bow behind the top.
 - The chest's profile under the bow (−0.70..−0.80 L) now meets the design's within 0.01 L; see garments.md.
 - Owned elsewhere from 849b9a7: the torso's top rows (the neck join) belong to tool/face.
+
+## Round 3 (2026-09-29)
+
+- `body_profile_chest` measures the chest's front edge in profile: round 2 is 0.036 L behind (WARN; the checkpoint
+  was 0.049). What remains is the bow's very top and bottom rows.
+- `body_*_waist_skin` catches the checkpoint's bare waist (0.09 FAIL); round 2 and later read 0.
+- The hull and outfit under `charkit/out` were hard-linked with other worktrees until 18:08. They're private now,
+  rebuilt here from this worktree's code (18:18).
