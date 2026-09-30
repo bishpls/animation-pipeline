@@ -1,0 +1,10 @@
+{
+ "name": "body5b_render",
+ "why": "tool/body round 5: the bump behind the thigh in profile, the midriff (artifactqa.PROMOTED's calibration)",
+ "flag": "round 5 (Michael)",
+ "commit": null,
+ "source": "~/animation-pipeline-body/charkit/out/body5b_render",
+ "stored": "2026-09-30",
+ "bundle": "9f8d04f752d25e3d",
+ "qa_checks": 233
+}

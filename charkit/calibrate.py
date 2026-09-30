@@ -95,13 +95,21 @@ def _files(root, rel):
 
 
 def _git_files(repo, rev, rel):
-    """the files under rel in a git revision or tree id -> {relative path: text} (nothing checked out)."""
-    r = subprocess.run(['git', 'ls-tree', '--name-only', '%s:%s' % (rev, rel)], cwd=repo, capture_output=True, text=True)
-    out = {}
-    for n in r.stdout.split() if r.returncode == 0 else ():
-        s = subprocess.run(['git', 'show', '%s:%s/%s' % (rev, rel, n)], cwd=repo, capture_output=True, text=True)
-        if s.returncode == 0:
-            out[os.path.join(rel, n)] = s.stdout
+    """the files under rel in a git revision or tree id -> {relative path: text} (nothing checked out; one git process
+    for all the blobs)."""
+    r = subprocess.run(['git', 'ls-tree', '%s:%s' % (rev, rel)], cwd=repo, capture_output=True, text=True)
+    ents = [l.split(None, 3) for l in r.stdout.splitlines()] if r.returncode == 0 else []
+    ents = [(e[2], e[3]) for e in ents if len(e) == 4 and e[1] == 'blob']
+    if not ents:
+        return {}
+    b = subprocess.run(['git', 'cat-file', '--batch'], cwd=repo, capture_output=True,
+                       input=''.join(sha + '\n' for sha, _ in ents).encode())
+    out, buf, i = {}, b.stdout, 0
+    for sha, name in ents:
+        head_end = buf.index(b'\n', i)
+        size = int(buf[i:head_end].split()[2])
+        out[os.path.join(rel, name)] = buf[head_end + 1:head_end + 1 + size].decode('utf-8', 'replace')
+        i = head_end + 1 + size + 1
     return out
 
 

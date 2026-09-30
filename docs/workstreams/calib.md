@@ -63,3 +63,24 @@ Readings:
 - The guard's own noise: piece_bow's profile moves up to 11% with the design moved 2 px (0.865-0.972); the guard's 15%
   sits just above it. piece_collar's profile reads 0.09-0.12 on the design itself: the guard skips a view whose design
   reading is under 0.5 (calibrate.SHAPE_FLOOR).
+
+## The gate (charkit/gate.py; the gate code comes from the `into` branch)
+
+`calibration_step` runs after the compare (and the 2x2) when any check moved, reading the merged tree:
+- **Records (item 2).** A graded check the merge adds needs `charkit/calib/records/CHECK.json`; a graded check it
+  remeasures (a registered step's row, a 2x2 row, or a measure the gate found changed unregistered) needs a record the
+  merge adds or changes (the same file as the integration head's is `stale`); a record whose verdict isn't
+  calibrated or guard blocks too. One line each: `no calibration record: X (a new check; python -m charkit calibrate
+  X)`, `the calibration record not refreshed: X`, `the calibration record says blind: X (...)`. INFO checks need none.
+- **The anti-gaming guard (item 3).** `calibrate.guard`: a check the merge improves that is its own new check (the 2x2's
+  new measure reads it better on the new geometry than the old; or new with no old-geometry reading and not FAIL) or a
+  flag check (status better, or its value toward the design per its record's `better`), whose registry `shape` (else
+  `piece_<first word>`) drops more than 15% in any view (`views` of piece_*); a view whose design reading (the shape
+  check's own record) is under 0.5 is skipped. One block per check, its worst view named. Every moved check's pieces'
+  shape per view is reported beside it ("the pieces' shape beside the checks that moved").
+- **Acceptances (item 4).** `python -m charkit gate --accept-fail CHECK --by Michael --why TEXT [--branch B] [--value V]`
+  writes `charkit/accepted/CHECK.json` (who, when, why, the branch; the coordinator commits it on the branch, on
+  Michael's call; git keeps the history). A new FAIL or a guard block on that check is then reported under "Accepted by
+  name" with who, when and why, not blocking. An acceptance naming another branch doesn't cover this one.
+- Cost: the records and the registry are read in ~0.1-0.2 s (git cat-file for the head's side); the phase is
+  `calibration` in the report's phases.
