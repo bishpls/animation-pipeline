@@ -433,6 +433,8 @@ def method(S, name, style='anime', hold_shape=None, log=print, **over):
         return Skinned(S)
     if name == 'springs_tuned':                 # (the chains with a tuning's settings: over['tuned'] {piece: {...}})
         return Springs(S, colliders=True, caps='body', settings=over.get('tuned'))
+    if name == 'springs_body':                  # (the graph's settings against the body colliders: the tuning's before)
+        return Springs(S, colliders=True, caps='body')
     if name.startswith('springs'):
         return Springs(S, colliders=name == 'springs_col')
     if name == 'pelvis_rigid':
