@@ -1877,7 +1877,11 @@ def mesh_info(B, design=None, out=None):
         from .trace import _components
         lab = _components(nv, e[:, 0], e[:, 1]) if len(e) else np.arange(nv)
         mh[o.name] = {'open_edges': int((uses == 1).sum()), 'parts': int(len(np.unique(lab)))}
-    return None, {'mesh': {'status': 'INFO', 'objects': mh}}
+    low = {o.name: o.rec['coverage'] for o in B.objects(groups=('garment',), visible=False) if 'coverage' in o.rec}
+    return None, {'mesh': {'status': 'INFO', 'objects': mh},
+                  'garment_coverage': {'value': min(low.values()) if low else 1.0, 'status': 'INFO', 'pieces': low,
+                                       'note': "the garments lofted from marginal hull coverage: the best row's share "
+                                               'of its circle the hull measured (1.0: none marginal)'}}
 
 
 # ------------------------------------------------------------------------------------------------------------------ run
