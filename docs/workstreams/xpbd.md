@@ -65,3 +65,11 @@ shorts (closed shells). Each vertex's collision radius is capped at its rest cle
 ## Log
 - 2026-09-30: started; a baseline box build of 2f42155 (`charkit/out/xpbd/base`) for the products the pilots read;
   the produced refs (outfit masks, hull) fetched from the box for the local QA.
+- The opt-in hook (f6bac5b): `geomstage.garments_product` calls `charkit.sim.hook.apply` only when a garment's spec has
+  a `drape` dict; `drape: {"solver": "xpbd", ...}` settles that garment's coarse vertices before finalize (style, rest
+  'template' or 'pattern', colliders, seconds, dials). No spec sets it: no build changes. charkit/sim is imported only
+  then (not in a default build's closure); geomstage.py is the one shared file touched. Test:
+  test_sim.test_the_hook_is_off_unless_asked (the product's digest unchanged without it; settled onto a sphere with).
+- Merged pipeline-3d 8b5ecae (collar3 M2: the eye-line frame and the flap tails refit; softras) at 4d2ccc2: clean;
+  test_sim and test_geomstage ok. Launched: the gate (policy K, once, for the hook) and a base build of the merged tree
+  (`charkit/out/xpbd/base2`) for the pilots' final numbers (the first rest pilot ran on 2f42155's build).
