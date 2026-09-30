@@ -26,6 +26,7 @@
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
     python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
     python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
+    python -m charkit stagedrift BUILD                                 # the evaluator against a build, stage by stage
     python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
@@ -265,6 +266,7 @@ def build(args):
     spec = code_body(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     spec = pieces_hair(spec, resolved, out, mode)
+    spec = garments_geom(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
         # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
@@ -503,6 +505,46 @@ def pieces_hair(spec, resolved, out, mode='on'):
     return spec
 
 
+def garments_geom(spec, resolved, out, mode='on'):
+    """venv-side, the garments stage's geometry (charkit/geomstage.py, docs/GEOM_TRUTH.md): the character assembled as
+    the Blender side assembles it, the hull's pieces aligned onto it, and garments.build run with its Blender calls
+    recorded -> out/geom/garments.npz, and the resolved spec pointed at it (spec['garments_geom']): the Blender side
+    replays it, and the evaluator (charkit.bodyeval) makes the same product. The character is assembled with the
+    cranium the Blender side fits first (scene.fit_cranium, with the venv's GLB reader as the other venv steps use it);
+    the product keeps the body it was built on, and the Blender side notes how far its own is from it (the trace's
+    garments_body). CHARKIT_GARMENTS=blender keeps the old path (garments computed inside Blender). A cached step
+    (file_step): it runs again when the resolved spec, a file it reads (the hull, the code head and body, the outfit
+    graph) or the code change."""
+    if not spec.get('garments') or os.environ.get('CHARKIT_GARMENTS') == 'blender':
+        return spec
+    from . import cache, geomstage, scene
+    from .geom.parts import load_generated
+    import contextlib, copy, io
+    key = copy.deepcopy({k: v for k, v in spec.items() if k != 'garments_geom'})
+    with contextlib.redirect_stdout(io.StringIO()):
+        key = scene.fit_cranium(key, ROOT, load=lambda p: load_generated(p, compat=True))
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'garments.npz')
+
+    def run():
+        geomstage.garments_step(key, path)
+    if mode == 'off':
+        run()
+    else:
+        ins = [spec[k] for k in ('head_code', 'body_code') if spec.get(k)]
+        glb = ((spec.get('hair') or {}).get('shape') or {}).get('glb')
+        r = cache.file_step('garments_geom', run, [garments_geom], key, gdir,
+                            inputs=ins + (_glb_inputs(glb) if glb else []),
+                            modules=('charkit.geomstage', 'charkit.garments', 'charkit.character', 'charkit.code_base',
+                                     'charkit.code_body', 'charkit.geom.loft', 'charkit.scene'),
+                            name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE garments_geom', r)
+    spec['garments_geom'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
 def export(args):
     blend = _path(args[0])
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
@@ -577,6 +619,9 @@ def main(argv=None):
     elif cmd == 'bodysens':
         from . import bodysens
         bodysens.main(rest)
+    elif cmd == 'stagedrift':
+        from . import stagedrift
+        stagedrift.main(rest)
     elif cmd == 'flapchains':
         from . import flapchains
         flapchains.main(rest)
