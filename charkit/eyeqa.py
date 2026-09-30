@@ -49,7 +49,7 @@ LID_GAP = (0.004, 0.010)                         # L between the upper lid line 
 
 
 def _hsv(rgb):
-    from .i3d import hsv
+    from .target3d import hsv
     h, s, v = hsv(rgb.reshape(-1, 3))
     return h.reshape(rgb.shape[:2]), s.reshape(rgb.shape[:2]), v.reshape(rgb.shape[:2])
 

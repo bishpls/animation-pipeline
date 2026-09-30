@@ -18,7 +18,7 @@ and its stamp (stamp()) covers exactly that, so two copies holding one stamp hol
                    the build's own spec cut down to these (with those of the produced references it reads), so what it
                    doesn't declare it can't read, and a knob outside them (a body or face tune) doesn't rebuild it
     "reads_files": files it reads that no reference hashes (globs; each match by its sha256, none if absent): the
-                   outfit's notes, and its TRELLIS field, gitignored, which some copies have and some don't
+                   outfit's notes and the rig's files (until decision 8 also a gitignored TRELLIS field)
     "command":     how it is made, {spec} and {out} standing for the cut-down spec's file and the reference's folder
 
     python -m charkit refs-check SPEC        # every reference present, hashes matching, roles and authorities listed
@@ -229,8 +229,8 @@ def stamp(spec, r, parts=False):
     imports, one import deep), its own entry (entry(): its command and declarations), the manifest's tracked references
     (their sha256s), what it reads ('reads': a produced reference by its stamp, the hull reading the outfit's masks;
     another by its entry, so its scale, layout or views' bands count, not only its picture), the spec sections it
-    declares ('reads_spec': sections()) and the files it declares ('reads_files': read_files(); the outfit's gitignored
-    TRELLIS field above all). Nothing else of the spec: a body or face tune changes its knobs every step, and the
+    declares ('reads_spec': sections()) and the files it declares ('reads_files': read_files(); the outfit's notes and the
+    rig's files). Nothing else of the spec: a body or face tune changes its knobs every step, and the
     references don't read them. parts: -> (digest, {part: value}), the parts as written beside the reference
     (PATH.stamp.json), so two copies' stamps can be told apart."""
     from . import cache
@@ -497,8 +497,8 @@ def produced(spec, rid, log=print):
     fast path, anything else by running its manifest 'command' from the repo root, each on this spec cut down to the
     sections it and what it reads declare (sections(spec_reads), written to PATH.spec.json: the command's {spec}).
     Stale: its stamp (PATH.stamp, from stamp()) differs, as when the producer's code changed after it was made (a
-    merge), the spec's declared sections differ (another spec's garments), a declared file came or went (the TRELLIS
-    field), or it has none. One copy holds one version at a time: a spec that differs in those sections rebuilds it in
+    merge), the spec's declared sections differ (another spec's garments), a declared file came or went, or it has
+    none. One copy holds one version at a time: a spec that differs in those sections rebuilds it in
     place (charkit/out is a copy's own; the rebuild is under a lock, PATH.lock, so parallel builds in one copy build it
     once). Before building, the shared cache (cache_root(); the module's notes): a hit is restored, a build is stored.
     What it reads is produced first, so its build (and the time the cache records for it) is its own. None when the

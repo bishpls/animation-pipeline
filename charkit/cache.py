@@ -14,11 +14,11 @@ A stage's key is what the stage read, recorded while it ran, so a read nobody li
             (`character.data.head.L`, `character.data.joints.neck01____head`), shade.MATS entries, Blender objects (their
             full state, or the part scene.DEPS declares the stage reads: garments read the body below the neck, and only the
             names of the skin's modifiers and groups)
-  files     every file it opened outside the kit (the TRELLIS GLB) and every path named in the spec sections it read, by
+  files     every file it opened outside the kit (the hull's GLB) and every path named in the spec sections it read, by
             sha256 (a stat-checked memo skips re-hashing unchanged files; a manifest's sha256 is compared, not trusted)
 A lookup evaluates each stored entry's recorded reads against the scene as it now stands and restores the first entry
 whose reads all match. A miss says what changed: `spec.hair`, `character.data.joints.neck01____head moved 5.5e-05`,
-`file charkit/out/i3d/clawd/clawd_3dstyle_s1.glb`, `code charkit/garments.py`.
+`file charkit/out/hull/clawd/hull.glb`, `code charkit/garments.py`.
 
 A checkpoint holds what the stage changed and only that, so it restores onto a rebuilt upstream (garments onto a new face):
   data.blend   the datablocks it made (bpy.data.libraries.write); what they point at from before (the rig, a shared
@@ -2438,7 +2438,7 @@ def step_depth():
 
 def _port_prefixes(build_out):
     """(absolute prefix, portable prefix), longest first: the build's out folder as '<out>/', the worktree (as named
-    and resolved) and each link in its charkit/out (the gate's i3d and gate folders, resolved) relative to it."""
+    and resolved) and each link in its charkit/out (the gate's gate folder, resolved) relative to it."""
     from . import closure
     with closure.paused():                          # (a look at the worktree's links, not an input)
         pre = [(p, r) for p, r in closure._prefixes(ROOT)]

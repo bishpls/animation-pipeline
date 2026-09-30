@@ -61,7 +61,7 @@
    "path": "charkit/refs/clawd/clawd_3dstyle.png",
    "tracked": true,
    "sha256": "98dd83a3d3a2a348881dae0a7e95105021ebce89b6e1196bb1f9449133343c2d",
-   "role": "a 3D-style restyle of the design (front, full body): the TRELLIS input and the ref_iou silhouette",
+   "role": "a 3D-style restyle of the design (front, full body): the ref_iou silhouette (and TRELLIS.2's input, until decision 8)",
    "provenance": {
     "model": "gpt-image-2.5-sunburst",
     "ts": "2026-09-28T02:37:47",
@@ -72,24 +72,6 @@
    },
    "cautions": [
     "an interpretation of the design, not the design: its face is rounder and fuller than the sheet's"
-   ]
-  },
-  "trellis": {
-   "kind": "generated_mesh",
-   "path": "charkit/out/i3d/clawd/clawd_3dstyle_s1.glb",
-   "tracked": false,
-   "sha256": "4e6ff5a0dca00c50a34dadad252d5bc11fbd2e87e56bcfb4f6f1778717634b0f",
-   "role": "the 3D target: the hair's shape, the face's depth where the drawings have none, the silhouette per band",
-   "provenance": {
-    "tool": "TRELLIS.2 (tools/imageto3d)",
-    "input": "key3d",
-    "seed": 1,
-    "res": "1024_cascade",
-    "command": "tools/imageto3d/trellis_remote.sh --res 1024_cascade --seeds 1 charkit/refs/clawd/clawd_3dstyle.png",
-    "note": "the command is reconstructed from the output's name and the run's settings, not logged at the time"
-   },
-   "cautions": [
-    "48 MB, kept out of git: regenerate with the command, or copy it into charkit/out/i3d/clawd/"
    ]
   },
   "outfit_graph": {
@@ -556,7 +538,8 @@
   "2026-09-28: four generated references added (gen/). The authority map is unchanged until each is checked against the sheet; candidates: face_profile and skull -> head_construction / head_turnaround, garment piece shapes -> garment_breakdown, hair layers -> hair_breakdown.",
   "2026-09-28 (second session): the generated sheets are the base; idol_D is the source design only. 'sheets' names which reference fills the 'sheet' role per kind (face and eyes: head_turnaround; body, hair silhouettes and palette: body_turnaround); the eyes' authority moved from the rig to it; expressions have none (the template library's). charkit refcheck: the turnarounds agree with each other; head_construction is the outlier on the chin, neck, pupil aspect and lid line, so it holds the skull and ears only.",
   "2026-09-28: the hull (charkit.geom.hull) replaces TRELLIS as the hair's source (hair.shape.glb = ref:hull): against TRELLIS hair, 12 checks better and none worse (the buns' height PASS in every view, hair IoU front 0.49 -> 0.77). TRELLIS stays for the outfit graph's field.",
-  "2026-09-28 (Michael): the generated 3D character grades nothing: face_depth and hair_shape have no authority, so face_shape_depth and shape_iou_hair are INFO. The hull is the hair's source; its face is no face target (its rows' sections ridge across it), and the hair cut from it is measured against the sheet (body_*_hair_*, sheet_shown_*)."
+  "2026-09-28 (Michael): the generated 3D character grades nothing: face_depth and hair_shape have no authority, so face_shape_depth and shape_iou_hair are INFO. The hull is the hair's source; its face is no face target (its rows' sections ridge across it), and the hair cut from it is measured against the sheet (body_*_hair_*, sheet_shown_*).",
+  "2026-09-30 (the TRELLIS cleanup, decision 8): the 'trellis' reference (TRELLIS.2's mesh of key3d, charkit/out/i3d/clawd/clawd_3dstyle_s1.glb, sha256 4e6ff5a0dca00c50a34dadad252d5bc11fbd2e87e56bcfb4f6f1778717634b0f, gitignored) is retired: no build, QA or producer reads it since the sheet-only outfit masks (tool/outfit-source), and charkit/out/i3d is no longer synced to the boxes or copied into worktrees and gate clones. The checks' reference label 'trellis' (checks.MEASURES, the fits' terms) is now 'hull', the 3D target they read (hair.shape.glb = ref:hull); no value or grade moves. The fork's code stays in tools/imageto3d as research history, unwired; the outfit graph's provenance still names the field it was made with."
  ],
  "sheets": {
   "face": "head_turnaround",

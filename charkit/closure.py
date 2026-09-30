@@ -17,12 +17,12 @@ per process, to LOG:
                reads left out; a change there counts when the marker is in the file's old or new text
 Code that looks at files without depending on them (the cache's check for sources edited mid-build) runs under
 `paused()`: nothing it opens or lists is recorded, in its own thread.
-Paths are relative to the worktree; a path through a link in charkit/out (the gate's charkit/out/i3d and
-charkit/out/gate) is recorded as the link's. Paths outside the worktree (the venv, Blender, the shared caches) are the
+Paths are relative to the worktree; a path through a link in charkit/out (the gate's charkit/out/gate) is recorded
+as the link's. Paths outside the worktree (the venv, Blender, the shared caches) are the
 environment's, which the gate doesn't compare.
 
     closure.summarise(LOG, root, skip=(out,)) -> the closure (what OUT/closure.json holds): tracked paths read, untracked
-        inputs by sha256 (charkit/out/i3d), folders listed, the counts
+        inputs by sha256, folders listed, the counts
     closure.affected(C, changes, root) -> [(path, why)]: the changes that can reach a build whose closure is C
 
 What can change a build, given its closure (affected()):
@@ -54,7 +54,7 @@ _TLS = threading.local()                    # this thread's pause depth
 # ---------------------------------------------------------------------------------------------------------- recording
 def _prefixes(root):
     """(absolute prefix, worktree-relative prefix): the worktree itself (as named and resolved) and each link in
-    charkit/out (the gate's i3d and gate folders), resolved."""
+    charkit/out (the gate's gate folder), resolved."""
     out = [(root + os.sep, ''), (os.path.realpath(root) + os.sep, '')]
     d = os.path.join(root, 'charkit', 'out')
     try:

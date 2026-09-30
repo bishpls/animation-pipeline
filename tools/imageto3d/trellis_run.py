@@ -1,4 +1,6 @@
-"""TRELLIS.2 runner on the GPU box (tools/imageto3d/trellis_remote.sh writes the job, pushes it with trellis_ext/ and calls it).
+"""TRELLIS.2 runner on the GPU box. Research history, unwired (the TRELLIS cleanup, decision 8, 2026-09-30): no build reads
+TRELLIS's output since the sheet-only outfit masks, and its launcher, tools/imageto3d/trellis_remote.sh (which wrote the
+job, pushed it with trellis_ext/ and called this), is retired; it is in git history before tool/infra5.
     python trellis_run.py JOB.json
 JOB = {"out": DIR, "pipeline_type": "512" | "1024" | "1024_cascade" | "1536_cascade", "seeds": [1, 2], "repeat": 1,
        "outputs": {"glb": true, "field": true, "preview": true, "video": false, "raw_ply": false},

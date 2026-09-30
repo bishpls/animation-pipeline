@@ -28,7 +28,7 @@ def similarity(X, Y):
 
 def chains(spec_path, build=None):
     """{flap name: joints (L, the graph's frame)} for the spec's flaps, built as the build builds them."""
-    from . import bodyeval, garments as gm, i3d, manifest
+    from . import bodyeval, garments as gm, target3d, manifest
     from .geom import io as gio
     spec = manifest.resolve(json.load(open(spec_path)))
     geom = os.path.join(build or os.path.join(ROOT, 'charkit', 'out', 'body3'), 'geom')
@@ -42,7 +42,7 @@ def chains(spec_path, build=None):
     J = json.load(open(path + '.json'))
     V = np.asarray(gio.load(path).V, float)
     eye_mid, spacing = gm.hull_target(A, shape)          # (the garments' frame, as hull_pieces aligns the hull)
-    W = i3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
+    W = target3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
     s, R, t = similarity(W, V)                              # the world into the hull's frame (the graph's)
     out = {}
     for g in E.spec['garments']:

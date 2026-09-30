@@ -426,10 +426,10 @@ def test_a_venv_step_hits_across_out_folders_and_notes_its_closure():
 
 
 def test_port_and_unport():
-    pre = [('/w/clone1/', ''), ('/srv/gi/', 'charkit/out/i3d/'), ('/o/cand/', '<out>/')]
+    pre = [('/w/clone1/', ''), ('/srv/gi/', 'charkit/out/gate/'), ('/o/cand/', '<out>/')]
     v = {'a': '/o/cand/geom/head.npz', 'b': ['/w/clone1/charkit/refs/x.png', '/srv/gi/c.glb', '/elsewhere/y', 'rel/z'],
          'n': 3}
-    assert cache._port(v, pre) == {'a': '<out>/geom/head.npz', 'b': ['charkit/refs/x.png', 'charkit/out/i3d/c.glb',
+    assert cache._port(v, pre) == {'a': '<out>/geom/head.npz', 'b': ['charkit/refs/x.png', 'charkit/out/gate/c.glb',
                                                                     '/elsewhere/y', 'rel/z'], 'n': 3}
     assert cache._unport('<out>/geom/head.npz', '/o/other') == '/o/other/geom/head.npz'
     assert cache._unport('charkit/refs/x.png', '/o/other') == os.path.join(cache.ROOT, 'charkit/refs/x.png')

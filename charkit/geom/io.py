@@ -184,8 +184,8 @@ def load_gltf(path, z_up=True, colors='bilinear', blender_compat=False):
     """a glTF/GLB's triangle primitives joined into one Mesh in world space (node transforms applied), with per-vertex
     colour vc (sRGB 0..1): the base-colour texture sampled at each vertex's UV ('bilinear' or 'nearest') times the
     material's baseColorFactor and COLOR_0 when present; vn from NORMAL; uv from TEXCOORD_0.
-    blender_compat: reproduce charkit.i3d.load_glb's colours exactly (its nearest texel, and the extra linear->sRGB
-    encoding it applies to Blender's already-sRGB pixels), so i3d.find_eyes and friends see the same numbers."""
+    blender_compat: reproduce charkit.target3d.load_glb's colours exactly (its nearest texel, and the extra linear->sRGB
+    encoding it applies to Blender's already-sRGB pixels), so target3d.find_eyes and friends see the same numbers."""
     J, bufs, base = _read_gltf(path)
     cache = {}
     Vs, Fs, Cs, Ns, Us = [], [], [], [], []
@@ -241,7 +241,7 @@ def load_gltf(path, z_up=True, colors='bilinear', blender_compat=False):
                 tuv = _accessor(J, bufs, at['TEXCOORD_%d' % tex.get('texCoord', 0)]).astype(np.float64)
                 if blender_compat:
                     h, w = img.shape[:2]
-                    # Blender flips v and stores rows bottom-up; i3d.load_glb takes the texel at floor(v' * (h-1))
+                    # Blender flips v and stores rows bottom-up; target3d.load_glb takes the texel at floor(v' * (h-1))
                     xi = np.clip((tuv[:, 0] % 1) * (w - 1), 0, w - 1).astype(np.int64)
                     yi = np.clip(((1 - tuv[:, 1]) % 1) * (h - 1), 0, h - 1).astype(np.int64)
                     col = linear_to_srgb(img[h - 1 - yi, xi].astype(np.float64))
