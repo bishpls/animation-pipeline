@@ -1129,3 +1129,13 @@ the head's sides and back, the crown, the neck, the torso (24) and the legs (21)
 (round 5's trace: the body moves 1.6e-4 to 1.4e-3 L per row, the collar 0.035 L) and the hair envelope's.
 tool/hull-local decimates to a quadric error instead. The neck, torso, legs, crown and the head's back are then
 bit-identical, and what differs is the face and the sides it reaches.
+
+**The re-gate at pipeline-3d ba51e43** (merged pipeline-3d 3a0ad37 at 2e4c1d6; the gate took pipeline-3d's head
+ba51e43; `charkit/out/gate/gate_tool-face5_2e4c1d6_into_ba51e43.md`): FAIL, **one blocker**, the flag check
+art_terminator_hair 2.308 -> 2.751. sleeve_profile_rough_L no longer blocks: tool/collar3 M2 moved the garments, and
+it is unchanged at ba51e43. CPU 1.34x (591.4 -> 790.7 s). jaw_taper_shape's 2x2 accepted.
+
+**The terminator's attribution** (tool/hull-local's B2/B3 builds: face5 on a local hull, so only face5's own change
+moves anything): the back view carries the value (the worst view's ratio), and hair_bun_L carries the back view's
+move (0.39 of 0.45; hair_bun_R 0.05). The buns move 0.02 L with no hull change under them: an input of the bun fit the
+face changes. The same swap on the gate's own pair (old decimation) is running.
