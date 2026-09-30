@@ -1,11 +1,64 @@
 {
- "about": "Marks read off body_turnaround for the skirt QA (charkit/skirtqa.py), in L on the design grid (x from the grid's origin, z from the eye line). flap_faces: per view, seeds inside each overskirt flap's face where it lies over the skirt: the outfit masks cut that face as the skirt (the same colour), and skirtqa fills it between the drawn lines (their gaps closed by close_px) and adds the outfit mask's tail. walls: segments [x0, z0, x1, z1] bridging a drawn line that fades out (the back's right flap's inner edge, z -1.60..-1.70). Read by eye on the design grid at 3-6x (tool/skirt, 2026-09-30).",
+ "about": "Marks read off body_turnaround for the skirt QA (charkit/skirtqa.py), in L on the design grid (x from the grid's origin, z from the eye line). flap_faces: per view, seeds inside each overskirt flap's face where it lies over the skirt: the outfit masks cut that face as the skirt (the same colour), and skirtqa fills it between the drawn lines (their gaps closed by close_px) and adds the outfit mask's tail. walls: segments [x0, z0, x1, z1] bridging a drawn line that fades out or breaks (the back's right flap's inner edge, z -1.60..-1.70; the profile's flap front edge at the waist and where its two strokes meet, z -2.05). Read by eye on the design grid at 3-6x (tool/skirt, 2026-09-30).",
  "close_px": 2,
  "flap_faces": {
-  "back": {"overskirt_panel_L": [[-0.6, -2.2]], "overskirt_panel_R": [[0.6, -2.2]]},
-  "profile": {"overskirt_panel_L": [[1.2, -2.5]]}
+  "back": {
+   "overskirt_panel_L": [
+    [
+     -0.6,
+     -2.2
+    ]
+   ],
+   "overskirt_panel_R": [
+    [
+     0.6,
+     -2.2
+    ]
+   ]
+  },
+  "profile": {
+   "overskirt_panel_L": [
+    [
+     1.2,
+     -2.5
+    ]
+   ]
+  }
  },
  "walls": {
-  "back": [[0.083, -1.575, 0.132, -1.73]]
+  "back": [
+   [
+    0.083,
+    -1.575,
+    0.132,
+    -1.73
+   ]
+  ],
+  "profile": [
+   [
+    0.455,
+    -1.465,
+    0.535,
+    -1.625
+   ],
+   [
+    0.535,
+    -1.625,
+    0.79,
+    -2.1
+   ],
+   [
+    0.79,
+    -2.1,
+    0.8,
+    -2.0
+   ],
+   [
+    0.8,
+    -2.0,
+    0.835,
+    -2.11
+   ]
+  ]
  }
 }
