@@ -16,6 +16,7 @@ its stage cache keys would equal the baseline's, so it would be the same build. 
 says so (--build builds anyway). The baseline itself is taken from an earlier baseline (another commit's, of the same
 spec and options) when no change since that commit reaches its closure. When both sides must be built they build side
 by side, each in its worktree, with the tests alongside (on a machine with 16 or more cores; CHARKIT_GATE_PARALLEL=0/1).
+The builds skip the VRM export unless the branch changes its code (EXPORT_CODE: then the candidate exports and checks it).
 
 The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only by
   - the merge conflicting, a test failing, a build failing;
@@ -43,6 +44,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
 RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
 CPU_LIMIT = 1.5                     # policy K: the candidate's build CPU over this times the baseline's blocks
+# the VRM export's code (build_blender's product('vrm', ..., [gltf.export_scene, gltf.check])): a gate's builds skip the
+# export (no --vrm: about 80 s, most of it evaluating shape keys) unless the branch changes it; then the candidate builds
+# with --vrm, and the export checks itself on the way out (a failed check fails the build)
+EXPORT_CODE = ('charkit/gltf.py',)
 
 
 def _git(*a, cwd=ROOT, check=True):
@@ -389,6 +394,9 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['files'] = _git('diff', '--cached', '--stat', cwd=wc).stdout.strip().splitlines()[-1:]
         changed = closure.changes(wc, head)
         rep['build']['changed_files'] = len(changed)
+        export = sorted(p for _, p in changed if p in EXPORT_CODE)
+        cand_args = list(args) + (['--vrm'] if export and '--vrm' not in args else [])
+        rep['build']['vrm'] = bool(export)
 
         def tests():
             with clock('tests', '%d at a time' % _test_jobs()):
@@ -396,7 +404,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
 
         def build(side, wt, out, **kw):
             with clock('%s build' % side) as ph:
-                r = _build(wt, spec, out, args, procs=running, **kw)
+                r = _build(wt, spec, out, cand_args if side == 'candidate' else args, procs=running, **kw)
                 ph['note'] = 'CPU %s s%s' % (r['cpu'], ', stopped' if r['killed'] else '')
                 return r
         # the tests: beside the builds on a machine with the cores for them, else first, on their own
@@ -434,6 +442,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         cand_f, why = None, None
         if force_build:
             why = '--build'
+        elif export:
+            why = 'the branch changes the VRM export (%s): the candidate builds with --vrm' % ', '.join(export)
         elif base_f is None and C is None:
             why = 'the baseline has no closure record (built before charkit/closure.py)'
         elif base_f is None:
@@ -455,16 +465,17 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                 rep['log'] = base_r['log']
                 return _finish(rep, gdir, tag, clock, tests_f, tests_r)
             C = _closure_of(base_out)
-            if C is None and not force_build:
+            if force_build or export:
+                pass
+            elif C is None:
                 why = 'the baseline recorded no closure (its code predates charkit/closure.py)'
-            elif C is not None and not force_build:
+            else:
                 hits = decide(C)
                 rep['build']['affected'] = hits[:50]
                 if not hits:
                     why = None
                     if cand_f is not None and not cand_f.done():
                         _stop(running)                 # the candidate can't differ: its build stops
-                        rep['build']['stopped'] = True
                 else:
                     why = 'the merge changes what the build reads: ' + ', '.join('%s (%s)' % h for h in hits[:8])
             if why and cand_f is None:
@@ -472,6 +483,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         cand_r = cand_f.result() if cand_f is not None else None
         if cand_r is not None and cand_r['killed'] and why is None:
             cand_r = None                               # stopped: the baseline's closure showed it the same build
+            rep['build']['stopped'] = True
         rep['build']['candidate'] = 'built' if cand_r is not None else 'skipped'
         rep['build']['why'] = why or 'nothing the merge changes reaches the baseline build (%d files changed, none among ' \
             'the %d it read, its scans or its data)' % (len(changed), len((C or {}).get('reads') or ()))
