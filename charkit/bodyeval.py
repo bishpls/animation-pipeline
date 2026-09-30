@@ -538,6 +538,8 @@ def garment_part(o):
     sol = o['mods'].get('thick')
     if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
         P.solid = float(sol['settings']['thickness'])
+    if not any(m['type'] == 'SUBSURF' for m in o['mods'].values()):   # (a piece built without one: its corners crisp)
+        P.subdiv = 0
     return P
 
 
@@ -705,7 +707,7 @@ class Geometry:
             from .bodyqa import CLASS as CL, family
             objs = []
             for p in self.parts:
-                n_ = lv.get(p.group, 0)
+                n_ = min(lv.get(p.group, 0), getattr(p, 'subdiv', 99))
                 if n_:
                     V, polys, parent, lit, shd, cls = p.subdivided(n_)
                     T, pid = triangulate(polys, with_poly=True)

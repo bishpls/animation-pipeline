@@ -21,3 +21,7 @@ rims (Michael's call L), the skirt's fit G written into the specs, one gate unde
    geom-truth replaced that dispatch with the build's own garments stage (`geomstage`), and garments2's
    `garments.build` already carries the same routing and materials. The shorts keep one `hem_drop` (0.03) in all
    three specs. Tests: 53 files ok (127 s).
+3. **tool/skirt (73fe12c):** clean (tool/skirt already had geom-truth). Its bodyeval edit (a piece built without a
+   Subdivision modifier evaluates unsubdivided: the template flaps' crisp corners) comes along. One registry clash:
+   the skirt's QA part and tool/artifacts' both took order 2200; the skirt's moves to 2300 (after the artifacts, which
+   test_artifactqa wants after the look). Tests: 55 files ok.
