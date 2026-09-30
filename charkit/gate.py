@@ -431,29 +431,44 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         # its own lock, so gates running in parallel into one commit build it once and the others wait and reuse it
         import fcntl
         lock = open(base_out + '.lock', 'w')
-        with clock('baseline lock'):
-            fcntl.flock(lock, fcntl.LOCK_EX)
-        base_f = None
-        if os.path.exists(os.path.join(base_out, 'qa', 'qa.json')):
-            rep['base_build'] = {'ok': True, 'cached': True}
-            if os.path.islink(base_out):
-                rep['base_build']['same_as'] = os.readlink(base_out)
-            lock.close()
-        else:
+
+        def settle():
+            """(the lock held) the baseline cached, or an earlier one standing for it -> base_build, or None: build it"""
+            if os.path.exists(os.path.join(base_out, 'qa', 'qa.json')):
+                return dict({'ok': True, 'cached': True}, **(
+                    {'same_as': os.readlink(base_out)} if os.path.islink(base_out) else {}))
             ref = None if force_build else _reference(gdir, stem, opts, head, wc)
             if ref:
                 _link_base(ref[0], base_out)
-                rep['base_build'] = {'ok': True, 'cached': True, 'same_as': os.path.basename(ref[0]),
-                                     'why': 'no change since %s reaches its build (%d files changed)' % (
-                                         ref[1], len(ref[2]))}
+                return {'ok': True, 'cached': True, 'same_as': os.path.basename(ref[0]),
+                        'why': 'no change since %s reaches its build (%d files changed)' % (ref[1], len(ref[2]))}
+            return None
+
+        def base_job(wait=False):
+            """the baseline built (the lock held; released when done), or, after waiting for another gate building
+            it (wait), taken from that one."""
+            try:
+                if wait:
+                    with clock('baseline lock', 'another gate was building this baseline'):
+                        fcntl.flock(lock, fcntl.LOCK_EX)
+                    bb = settle()
+                    if bb:
+                        return dict(bb, waited=True)
+                return build('baseline', wb, base_out)
+            finally:
+                lock.close()
+        base_f = None
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            bb = settle()
+            if bb:
+                rep['base_build'] = bb
                 lock.close()
             else:
-                def base_job():
-                    try:
-                        return build('baseline', wb, base_out)
-                    finally:
-                        lock.close()
                 base_f = ex.submit(base_job)
+        except BlockingIOError:
+            # another gate into this commit is building the baseline: this one waits for it beside the candidate
+            base_f = ex.submit(base_job, True)
         # the candidate: built unless the baseline's closure says nothing the merge changes reaches its build
         C = _closure_of(base_out) if base_f is None else None
         decide = lambda C: closure.affected(C, changed, wc, closure.cone(wc), rev=head)
@@ -474,6 +489,20 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         if why and (parallel or base_f is None):
             cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
         base_r = base_f.result() if base_f is not None else None
+        if base_r is not None and base_r.get('cached'):
+            rep['base_build'], base_r = base_r, None
+            C = _closure_of(base_out)
+            if not (force_build or export):
+                if C is None:
+                    why = 'the baseline has no closure record (built before charkit/closure.py)'
+                else:
+                    hits = decide(C)
+                    rep['build']['affected'] = hits[:50]
+                    why = hits and 'the merge changes what the build reads: ' + ', '.join('%s (%s)' % h for h in hits[:8])
+                    if not hits and cand_f is not None and not cand_f.done():
+                        _stop(running)
+            if why and cand_f is None:
+                cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
         if base_r is not None:
             rep['base_build'] = {k: base_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['base_build']['parts'] = build_steps(base_out, base_r['seconds'])
@@ -499,7 +528,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             if why and cand_f is None:
                 cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
         cand_r = cand_f.result() if cand_f is not None else None
-        if cand_r is not None and cand_r['killed'] and why is None:
+        if cand_r is not None and cand_r['killed'] and not why:
             cand_r = None                               # stopped: the baseline's closure showed it the same build
             rep['build']['stopped'] = True
         rep['build']['candidate'] = 'built' if cand_r is not None else 'skipped'
