@@ -1315,7 +1315,7 @@ def spring_pieces(S, graph, B, meshes, names):
                                   'note': "per view: the lowest row and the outer edge against the drawing's (L, + "
                                           'ours lower / further out), the visible area over the drawn'}
         own = [i for i, n in enumerate(names) if any(n == m[0] for m in pm.get(pid) or [])]
-        J = np.array((sp.get('chains') or [{}])[0].get('joints') or [])
+        J = np.array((sp.get('drawn_chains') or sp.get('chains') or [{}])[0].get('joints') or [])   # (the drawing's)
         chained = any(g.get('source') == 'flap' for g in B.spec.get('garments') or []
                       if g['name'] in {m[0] for m in pm.get(pid) or []})     # built on its own chain (a flap)
         if own and len(J) and chained:

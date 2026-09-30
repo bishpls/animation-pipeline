@@ -4958,11 +4958,12 @@
    "piece": "overskirt_panel_R",
    "motion": "spring",
    "root_bone": "hips",
-   "length": 1.621,
+   "length": 2.137,
    "chains": [
     {
-     "joints": [[-0.652, 0.445, -1.459], [-0.652, 0.445, -2.416], [-0.69, 0.532, -2.535], [-0.458, 0.327, -2.684], [-0.704, 0.739, -2.815], [-0.717, 0.836, -2.957], [-0.701, 0.914, -3.08]],
+     "joints": [[0.069, 0.36, -1.406], [-0.683, 1.008, -2.545], [-0.71, 1.029, -2.665], [-0.737, 1.05, -2.786], [-0.764, 1.071, -2.906], [-0.791, 1.092, -3.026], [-0.818, 1.113, -3.147]],
      "root": "at waistband",
+     "source": "notes (the built flap)",
      "bones": ["overskirt_panel_R_0", "overskirt_panel_R_1", "overskirt_panel_R_2", "overskirt_panel_R_3", "overskirt_panel_R_4", "overskirt_panel_R_5"]
     }
    ],
@@ -4971,17 +4972,25 @@
    "gravity": 0.2,
    "gravity_dir": [0, 0, -1],
    "hit_radius": 0.09,
-   "why": "stiffness 0.35 / length (1.62 L), drag 0.3 + 0.5 width / length (width 0.33 L)"
+   "why": "stiffness 0.35 / length (1.62 L), drag 0.3 + 0.5 width / length (width 0.33 L)",
+   "drawn_chains": [
+    {
+     "joints": [[-0.652, 0.445, -1.459], [-0.652, 0.445, -2.416], [-0.69, 0.532, -2.535], [-0.458, 0.327, -2.684], [-0.704, 0.739, -2.815], [-0.717, 0.836, -2.957], [-0.701, 0.914, -3.08]],
+     "root": "at waistband",
+     "bones": ["overskirt_panel_R_0", "overskirt_panel_R_1", "overskirt_panel_R_2", "overskirt_panel_R_3", "overskirt_panel_R_4", "overskirt_panel_R_5"]
+    }
+   ]
   },
   {
    "piece": "overskirt_panel_L",
    "motion": "spring",
    "root_bone": "hips",
-   "length": 1.614,
+   "length": 1.91,
    "chains": [
     {
-     "joints": [[0.748, 0.396, -1.459], [0.748, 0.396, -2.402], [0.708, 0.497, -2.517], [0.718, 0.613, -2.66], [0.718, 0.736, -2.801], [0.727, 0.835, -2.949], [0.717, 0.909, -3.073]],
+     "joints": [[0.226, 0.302, -1.427], [0.803, 0.756, -2.481], [0.815, 0.759, -2.605], [0.827, 0.762, -2.73], [0.838, 0.765, -2.854], [0.85, 0.768, -2.979], [0.862, 0.771, -3.104]],
      "root": "at waistband",
+     "source": "notes (the built flap)",
      "bones": ["overskirt_panel_L_0", "overskirt_panel_L_1", "overskirt_panel_L_2", "overskirt_panel_L_3", "overskirt_panel_L_4", "overskirt_panel_L_5"]
     }
    ],
@@ -4990,7 +4999,14 @@
    "gravity": 0.2,
    "gravity_dir": [0, 0, -1],
    "hit_radius": 0.09,
-   "why": "stiffness 0.35 / length (1.61 L), drag 0.3 + 0.5 width / length (width 0.32 L)"
+   "why": "stiffness 0.35 / length (1.61 L), drag 0.3 + 0.5 width / length (width 0.32 L)",
+   "drawn_chains": [
+    {
+     "joints": [[0.748, 0.396, -1.459], [0.748, 0.396, -2.402], [0.708, 0.497, -2.517], [0.718, 0.613, -2.66], [0.718, 0.736, -2.801], [0.727, 0.835, -2.949], [0.717, 0.909, -3.073]],
+     "root": "at waistband",
+     "bones": ["overskirt_panel_L_0", "overskirt_panel_L_1", "overskirt_panel_L_2", "overskirt_panel_L_3", "overskirt_panel_L_4", "overskirt_panel_L_5"]
+    }
+   ]
   },
   {
    "piece": "skirt",

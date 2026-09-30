@@ -2922,6 +2922,8 @@ def apply_notes(G, notes):
         if a.get('chain') and a['id'] in sp_of:          # a chain the build's garment defines (charkit.flapchains)
             sp = sp_of[a['id']]
             J = [list(map(float, j)) for j in a['chain']]
+            if 'drawn_chains' not in sp and not any('notes' in (c.get('source') or '') for c in sp.get('chains') or []):
+                sp['drawn_chains'] = sp.get('chains') or []  # the drawing's, kept: what the QA's hang check measures by
             sp['chains'] = [dict(joints=J, root='at %s' % a.get('parent', 'its parent'), source='notes (the built flap)')]
             sp['length'] = round(float(sum(np.linalg.norm(np.subtract(b, c)) for b, c in zip(J[1:], J[:-1]))), 3)
         g = ids.get(a['id'])
