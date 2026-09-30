@@ -94,14 +94,8 @@
    0.08,
    0.02
   ],
-  "pupil_rx": 0.0435,
-  "pupil_rz": 0.185,
-  "pupil_cz": 0.1,
-  "shine": [
-   [-0.16, 0.14, 0.075, 0.062, 1.0],
-   [0.1, -0.12, 0.03, 0.03, 0.9],
-   [0.09, 0.2, 0.022, 0.018, 0.7]
-  ],
+  "pupil_rx": 0.03,
+  "pupil_rz": 0.122,
   "rx": 0.285,
   "rz": 0.53966,
   "glow": 0.9,
@@ -281,7 +275,7 @@
    "glb": "charkit/out/hull/clawd/hull.glb",
    "below": 0.33,
    "shoulder_x": 0.19,
-   "mode": "geom",
+   "mode": "pieces",
    "voxel": 0,
    "decimate": 0.4,
    "hue": 14,
@@ -293,7 +287,18 @@
    "clear_skin": 0.01,
    "vox": 0.008,
    "inflate": 0.02,
-   "min_part": 20
+   "min_part": 20,
+   "pieces_opts": {
+    "bun": "block",
+    "eye_anchor": "iris",
+    "crown_cap": 8.0,
+    "crown_blend": 0.0,
+    "side_lock_trim": false,
+    "tuck_flyaways": false,
+    "style": {
+     "notch": 3.0
+    }
+   }
   },
   "silhouette": {
    "hair_z": [
@@ -1119,7 +1124,6 @@
   {
    "kind": "shell",
    "name": "shorts",
-   "hem_drop": 0.03,
    "region": [
     [
      "hips",
@@ -1886,7 +1890,7 @@
    "stair": 4,
    "az_waist": 175.4,
    "tip": 0.5,
-   "trim": 0.12
+   "trim": 0.1
   }
  ],
  "base": "code"
