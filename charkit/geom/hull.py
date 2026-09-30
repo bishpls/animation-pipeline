@@ -323,10 +323,12 @@ def axes_for(views, h=0.01, pad=0.05):
 
 
 def _steps(start, stop, step):
-    """np.arange(start, stop, step)'s values as start + i * step, a multiply and an add of their own: numpy's float
-    arange fills with a fused multiply-add on arm64, an ulp off x86's."""
+    """np.arange(start, stop, step), as x86 numpy fills it (start + i * delta, delta = (start + step) - start), with the
+    multiply and the add rounded separately: on arm64 numpy's fill fuses them (an ulp off on 8% of values), and a
+    sample on an exact half pixel then rounds the other way in View.pixel."""
     n = len(np.arange(start, stop, step))
-    return float(start) + np.arange(n, dtype=float) * float(step)
+    start = float(start)
+    return start + np.arange(n, dtype=float) * ((start + float(step)) - start)
 
 
 def _inside(X, Y, cx, cy, rx, ry, p):
