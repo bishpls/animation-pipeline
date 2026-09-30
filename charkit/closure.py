@@ -39,6 +39,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = 'CHARKIT_CLOSURE'
 DOCS = ('.md', '.rst', '.txt')
 NEVER = ('docs/', 'charkit/tests/')          # (prefixes) nothing a build reads lives here
+CACHES = ('charkit/out/.cache/',)            # (prefixes) derived from what the build reads: never an input
 _STATE = {}
 _TLS = threading.local()                    # this thread's pause depth
 
@@ -97,8 +98,8 @@ def start(log=None, root=ROOT):
 
     def emit(kind, path):
         p = _rel(path, pre, kind == 'R')
-        if p is None or (kind, p) in seen or (kind != 'R' and '__pycache__/' in p):
-            return                                              # (the import system's own byte-code writes)
+        if p is None or (kind, p) in seen or '__pycache__/' in p or p.startswith(CACHES):
+            return                  # (byte code, numba's caches and the build cache: derived from the code and inputs)
         seen.add((kind, p))
         try:
             os.write(fd, ('%s %s\n' % (kind, p)).encode('utf-8', 'replace'))
@@ -217,13 +218,14 @@ def summarise(log, root, skip=()):
             d, _, m = p.partition('\t')
             S.setdefault(d.rstrip('/'), set()).add(m)
     tracked = set((_git(root, 'ls-files', '-z') or '').split('\0')) - {''}
-    skip = tuple(s.rstrip('/') + '/' for s in skip) + ('charkit/out/.cache/',)
+    skip = tuple(s.rstrip('/') + '/' for s in skip) + CACHES
     reads = sorted(p for p in R - W if p in tracked)
     untracked = {}
     for p in sorted(R - W - tracked):
-        if p.startswith(skip) or not os.path.isfile(os.path.join(root, p)):
+        if p.startswith(skip) or '__pycache__/' in p or not os.path.isfile(os.path.join(root, p)):
             continue
         untracked[p] = sha256(os.path.join(root, p))
+    L = {d for d in L if not (d + '/').startswith(skip) and '__pycache__' not in d}
     return {'schema': 1, 'reads': reads, 'untracked': untracked, 'listed': sorted(L),
             'scans': {d: sorted(m) for d, m in sorted(S.items())}, 'wrote': len(W), 'lines': n}
 
@@ -292,6 +294,8 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None):
         else:
             out.append((p, 'a data file (Blender reads some unseen: counted whether or not it was recorded)'))
     for p, h in sorted((C.get('untracked') or {}).items()):
+        if '__pycache__/' in p or p.startswith(CACHES):
+            continue                                     # (a record from before these were left out)
         if sha256(os.path.join(root, p)) != h:
             out.append((p, 'an untracked input whose content differs'))
     return out

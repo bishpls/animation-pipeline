@@ -43,6 +43,8 @@ def _repo():
                         open(os.path.join('kit', f)).read()
             subprocess.run([sys.executable, 'kit/tool.py'], capture_output=True)
             open('gen/input.npz').read()                 # an untracked input
+            os.makedirs('kit/__pycache__', exist_ok=True)   # numba's cache beside the code: derived, not an input
+            open('kit/__pycache__/core.f-1.py314.nbi', 'w').write('x'); open('kit/__pycache__/core.f-1.py314.nbi').read()
         '''),
     }
     for p, t in files.items():
@@ -77,7 +79,8 @@ def test_the_record_holds_what_the_build_read_wrote_listed_scanned_and_ran():
     assert not any('unused' in l for l in lines)
     C = closure.summarise(os.path.join(root, 'closure.log'), root)
     assert 'kit/core.py' in C['reads'] and 'out.bin' not in C['reads'] and 'closure.log' not in C['reads']
-    assert list(C['untracked']) == ['gen/input.npz'] and C['scans'] == {'kit': ['^@mark\\(']}
+    assert list(C['untracked']) == ['gen/input.npz'] and C['scans'] == {'kit': ['^@mark\\(']}, C
+    assert not any('__pycache__' in l for l in lines)
     assert C['listed'] == ['kit/steps']
 
 
