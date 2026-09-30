@@ -77,6 +77,57 @@ restarts. The crab is scored where the star doesn't cover it. Per view: the fit'
 The free fit bought 0.001 of loss by dropping the drawn legs (ours pointed the wrong way); bounded, the legs stay and
 turn down-left as drawn at no real cost, so the bounded fit ships (a model feature, not a number).
 
+### 3. The placement fit (`acc_work/fit3d2.py`, resumed by `fit3d2b.py`; the harness `fitlib.py`)
+On the 3ebc3fb baseline's hair (bundle `acc_base2`), the fitted templates placed by at / facing / tilt / size: the
+star alone (466 evaluations), the crab under it (the star resting on it), the star again on the crab. Loss per view
+(front, 3/4 weight 1, profile 0.6): (1 - shape IoU) + 1.5 |log size ratio| + 4 pos (L), + 1 when shown in the back,
++ 20 x seat beyond 0.004 L. The first run was stopped at 30 min in the crab phase (loss 1.980) and resumed from its
+best. Final loss: star 4.02 (3.00 alone: the +1 is the back view), crab 1.978.
+
+| clip | view | iou | size | pos (L) | angle |
+|---|---|---|---|---|---|
+| star | front | 0.542 FAIL | 0.944 | 0.085 FAIL | 4.0 |
+| star | 3/4 | 0.797 | 1.127 WARN | 0.030 | 3.4 |
+| star | profile | 0.798 | 0.998 | 0.279 FAIL | 3.4 |
+| crab | front | 0.741 | 1.000 | 0.120 FAIL | 13.1 WARN |
+| crab | 3/4 | 0.754 | 1.094 | 0.010 | -2.7 |
+| crab | profile | 0.627 WARN | 0.939 | 0.227 FAIL | 10.4 WARN |
+
+Seats: star +0.046 L FAIL (it rests on the crab's body), crab -0.0014 PASS. Back view: the crab hidden, the star shows
+1,501 px (FAIL).
+
+**Tried and dropped: the star on the hair alone** (a `rests_on: hair` knob, `fit3d2c.py`): seat 0.005, but the front
+iou 0.445, the back still 778 px, and the crab's hidden claw pokes through the star (crab 3/4 iou 0.581). Worse; the
+knob is not shipped.
+
+**Why the front and profile positions still fail.** The drawings put each clip face-on in every view and at places no
+one 3D point satisfies (round 1: triangulation residual ~0.045 L; our hair at the clips' height is narrower than the
+drawing's, so the drawn 3D place is inside our hair and seating pushes the clips out). A flat star facing 66 deg to
+the side reads face-on in profile (iou 0.80) and foreshortened in front (0.54); the fit trades the views by the
+weights above. This is a decision for Michael (below), not a tuning gap.
+
+### 4. The specs
+`clawd.json`, `clawd_body.json`, `clawd_body_pieces.json`, `clawd_code.json`, `clawd_locks.json`, `clawd_mh.json`:
+crab then star, `at` (L from the head's centre), `facing` [az, el], `tilt`, `size` (the star's height tip to tip
+0.466 L, the crab's body width 0.153 L), the fitted shapes, the measured colours (star #fada7d, crab #d26544); the
+placeholders' az / el / lift and the star's golden `line` dropped (the drawing inks both clips dark: the default
+outline). Only the accessories block's text changes in each file. Only clawd.json is verified on the box (policy K).
+
+### 5. One hair selection for the build and the evaluator (crab_1's stage drift)
+- `bodyeval.hair_selection(spec)`: the evaluator's own `select_hair` on its own assembly (after the cranium fit), the
+  gridded face cull. `cli.hair_select`, a cached venv step before the hair steps, writes it to
+  `geom/hair_select.npz` and points `hair.shape.selection` at it; `scene.hair_shape_volume` reads it in place of
+  Blender's BVH selection (`CHARKIT_HAIR_SELECT=blender` keeps the old path).
+- The sign is tie-free: `bodyeval.hair_by_outside` signs by the angle-weighted pseudo-normal at the nearest feature
+  (`BVH.signed_distance(sign='normal')`), not the face the BVH reached first. On the 3ebc3fb hull it decides 1,499 of
+  75,006 vertices' `clear` test differently from the old face-normal sign (1,270 sign flips); the selection keeps
+  19,919 vertices (19,917 on the box), 30 s with the assembly, 11.7 s as the build's step.
+- **Measured** (`evaldrift --stages` on the placeholders' spec, the clips still on the volume; box,
+  `charkit/out/acc_drift_old`): crab_1 **2.05e-4 L -> 4.06e-7 L** (mean 2.7e-7), star_0 2.6e-7; no stage drifts
+  (GEOM_TOL 1e-5); 0 of 110 checks drift. With the fitted specs the clips no longer read the volume at all (placed by
+  `at`, seated on the built pieces).
+- Test: `test_hair_by_outside_sign_is_tie_free` (a cube's edge and corner).
+
 ## Round 1 (tool/accessories, d45f27e): PAUSED (2026-09-29, coordinator's request to cut concurrency)
 
 Nothing is running: no box jobs, no local jobs (the local placement fit was stopped; its best-so-far is below).
