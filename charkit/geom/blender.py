@@ -57,6 +57,50 @@ def normals_proxy(path, name):
     return ob
 
 
+SET_NORMALS_GROUP = 'ck_set_normals'
+SET_NORMALS_ATTR = 'ck_vn'
+
+
+def set_normals(ob, N, name='volume_normals'):
+    """custom normals onto `ob`, exactly one per vertex: N (the mesh's vertices in order) kept as a point attribute and set
+    by a Geometry Nodes modifier (Set Mesh Normal in tangent space: they follow an armature after it, as custom normals
+    do). Add it after an inverted-hull outline (Solidify), as transfer_normals: the Solidify copies the attribute to the
+    hull's vertices, so the surface's corners get their own vertex's normal and the hull's its source vertex's.
+    transfer_normals maps by position, which can't tell apart vertices that coincide or lie within the outline's inward
+    move of each other: a hair lock's inner and outer surfaces meet at its edges (on the Clawd hair's side locks 210
+    vertices coincide with a twin whose normal differs by 7.6 degrees (median)), and 400 of a side lock's 5,280
+    vertices took a neighbour's normal (up to 12.7 degrees off), which any sub-millimetre change to the hair re-seeds
+    (face round 4: the crown's skin moved the side locks <= 0.3 mm and art_terminator_hair's front 8.90 -> 9.55 kinks
+    per L, all of it these corners). Here: 0.003 degrees mean, 0.35 at most (Blender 5.2). -> the modifier, or None
+    where Blender has no Set Mesh Normal node (the caller falls back to transfer_normals)."""
+    import bpy
+    if not hasattr(bpy.types, 'GeometryNodeSetMeshNormal'):
+        return None
+    N = np.asarray(N, np.float32)
+    if N.shape != (len(ob.data.vertices), 3):
+        raise ValueError('set_normals: %s normals for %d vertices' % (N.shape, len(ob.data.vertices)))
+    at = ob.data.attributes.get(SET_NORMALS_ATTR) or ob.data.attributes.new(SET_NORMALS_ATTR, 'FLOAT_VECTOR', 'POINT')
+    at.data.foreach_set('vector', N.ravel())
+    ng = bpy.data.node_groups.get(SET_NORMALS_GROUP)
+    if ng is None:
+        ng = bpy.data.node_groups.new(SET_NORMALS_GROUP, 'GeometryNodeTree')
+        ng.interface.new_socket('Geometry', in_out='INPUT', socket_type='NodeSocketGeometry')
+        ng.interface.new_socket('Geometry', in_out='OUTPUT', socket_type='NodeSocketGeometry')
+        gi, go = ng.nodes.new('NodeGroupInput'), ng.nodes.new('NodeGroupOutput')
+        sn = ng.nodes.new('GeometryNodeSetMeshNormal')
+        sn.mode = 'TANGENT_SPACE'
+        sn.domain = 'POINT'
+        na = ng.nodes.new('GeometryNodeInputNamedAttribute')
+        na.data_type = 'FLOAT_VECTOR'
+        na.inputs['Name'].default_value = SET_NORMALS_ATTR
+        ng.links.new(gi.outputs[0], sn.inputs['Mesh'])
+        ng.links.new(na.outputs['Attribute'], sn.inputs['Custom Normal'])
+        ng.links.new(sn.outputs[0], go.inputs[0])
+    md = ob.modifiers.new(name, 'NODES')
+    md.node_group = ng
+    return md
+
+
 def transfer_normals(ob, proxy, name='volume_normals', mapping='NEAREST_NORMAL'):
     """custom normals onto `ob` from `proxy` (the same surface) by a Data Transfer modifier. Add it after an
     inverted-hull outline (Solidify): Solidify re-derives the surface's corner normals and loses custom ones set on the
