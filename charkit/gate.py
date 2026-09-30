@@ -262,7 +262,14 @@ def cross_qa(tree, bundle_dir, out):
     p = os.path.join(out, 'qa.json')
     if r.returncode or not os.path.exists(p):
         return {'error': 'exit %d: %s' % (r.returncode, (r.stdout + r.stderr)[-800:])}
-    return json.load(open(p))
+    q = json.load(open(p))
+    # a tree whose QA draws with charkit.render, on a bundle whose build wrote no export for it (a baseline older than
+    # the look export): every frame fell back to the numpy drawing, so this cell isn't that tree's measure
+    d = (q.get('measured') or {}).get('draw') or {}
+    fr = d.get('frames') or {}
+    if d.get('setting') == 'render' and not fr.get('render') and any(k.startswith('numpy (') for k in fr):
+        return {'error': "the render drawing fell back to numpy on every frame: %s" % ', '.join(sorted(fr))}
+    return q
 
 
 def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):

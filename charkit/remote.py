@@ -11,7 +11,7 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
                                                          It stops the branch's older gate still running (same spec;
                                                          --keep-older doesn't). --code REF: the gate's own code from REF,
                                                          not BASE's (to try a change to the gate itself)
-    python -m charkit remote run CMD...                  anything, in the synced copy
+    python -m charkit remote run [--fetch DIR] CMD...    anything, in the synced copy (DIR fetched back when it ends)
     python -m charkit remote jobs [--days N]             every box's jobs: running, finished (N days, default 1), lost
     python -m charkit remote attach JID                  follow a job again (its log from the start) and collect its outputs
     python -m charkit remote kill JID                    stop a job on its box (its processes only)
@@ -603,6 +603,16 @@ def main(args):
     if cmd == 'gate':
         return gate(rest)
     if cmd == 'run':
+        if rest and rest[0] == '--fetch':            # run --fetch DIR CMD...: DIR (worktree-relative) fetched when it ends
+            d = _rel(rest[1])
+            import uuid
+            pub = 'run-%s-%s' % (re.sub(r'[^A-Za-z0-9._-]', '_', os.path.basename(ROOT)), uuid.uuid4().hex[:8])
+            what = dict(pull=pub, to=d, fetch=d)
+            code = charkit(rest[2:], publish=(d, pub), collect=what)
+            if code != STILL_RUNNING:
+                collect(what)
+                print('remote run: exit %d, %s fetched' % (code, d))
+            return code
         return charkit(rest)
     if cmd == 'jobs':
         return jobs(rest)

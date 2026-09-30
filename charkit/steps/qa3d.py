@@ -76,4 +76,6 @@ MEASUREMENT_STEPS = [
                           'which the head is built on), not the iris plates\' vertex mean 0.0235 L over it: every height '
                           'under the eyes had read that much low (jaw_4: cheek_chin -0.0277 -> -0.0027, profile_chin '
                           '-0.0247 -> 0.0003, profile 0.0136 -> 0.0053)'),
+    # tool/toonrender2: the default drawing
+    ('hair_noise', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); hair pictures 0.15 levels from EEVEE's on the hair, numpy 0.25 (0.70 with streaks); tr3_a 0.0739 -> 0.0744, noise 0.0007"),
 ]

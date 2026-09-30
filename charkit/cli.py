@@ -1,6 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
-    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
+    python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--boards-renderer eevee|toon]
+                                     [--no-blend] [--no-fit] [--no-qa] [--vrm] [--no-look]
                                      [--base code|anime|makehuman] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
@@ -44,7 +45,11 @@ build writes out/trace.jsonl as it goes (charkit/trace.py): every stage's object
 and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D rig's layers) and fits knobs into a resolved spec
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
-out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). --base overrides the spec's base
+out/sheet_body.png, out/sheet_face.png. Every build writes what charkit's toon renderer draws: out/NAME.look.glb (the
+export without shape keys or weights; --no-look leaves it out) or, with --vrm, the full out/NAME.vrm (charkit/gltf.py).
+The QA draws with the renderer from it when its drawing is set so (charkit.qa3d.DRAW, CHARKIT_QA_DRAW; charkit/qarender.py),
+and so do the boards with --boards-renderer toon, the default where CHARKIT_NO_RENDER=1 (the CPU build box: the views,
+body and design sets; expressions and mouths need the shape keys and are skipped there). --base overrides the spec's base
 mesh. A spec declares its base (spec['base']: 'code' authors the head from the references, charkit/code_base.py; 'anime'
 builds on charkit's derived anime base, charkit/base_anime.py; 'makehuman' wraps MakeHuman's own head) and its body
 (spec['body']['source']: 'code' or 'makehuman'); one without them fails before any build work (character.check_spec:
@@ -275,16 +280,23 @@ def build(args):
         with phase(step.__name__):
             spec = step(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
-    if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
-        # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
-        # bundle, not the boards, so fits, tunes and gates lose nothing; review renders go to the laptop or the GPU box
-        print('CHARKIT_NO_RENDER: boards skipped (%s)' % boards)
-        boards = ''
+    # the boards' renderer: EEVEE in the build's Blender, or charkit's toon renderer from the build's export afterwards
+    # (charkit.render.buildboards: the views, body and design sets). A machine without a GPU (the CPU build box,
+    # CHARKIT_NO_RENDER=1) renders EEVEE in software, minutes a board: there the toon renderer draws them
+    renderer = opt('--boards-renderer', 'toon' if os.environ.get('CHARKIT_NO_RENDER') == '1' else 'eevee')
+    if renderer not in ('eevee', 'toon'):
+        raise SystemExit('--boards-renderer eevee|toon')
+    toon_boards = ''
+    if renderer == 'toon' and boards:
+        toon_boards, boards = boards, ''
     qa = None if '--no-qa' in args else opt('--qa', 'venv')
     if qa not in (None, 'venv', 'blender'):
         raise SystemExit('--qa venv|blender')
+    # every build exports what charkit.render draws (the QA's drawing, the toon boards): the full VRM with --vrm, else
+    # NAME.look.glb (the export without shape keys or weights: gltf.export look_only); --no-look leaves it out
+    export = ['--vrm'] if '--vrm' in args else [] if '--no-look' in args else ['--look']
     job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + \
-        {'venv': ['--bundle'], 'blender': ['--qa'], None: []}[qa] + (['--vrm'] if '--vrm' in args else []) + ['--cache', mode]
+        {'venv': ['--bundle'], 'blender': ['--qa'], None: []}[qa] + export + ['--cache', mode]
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
     from . import history, procs, worker
     with phase('blender'):
@@ -295,10 +307,13 @@ def build(args):
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
     for line in r.stdout.splitlines():
-        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER', 'CHARKIT_BUNDLE')):
+        if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER', 'CHARKIT_BUNDLE', 'CHARKIT_LOOK')):
             print(line)
     with phase('qa'):
         measure(out, mode, qa=qa == 'venv', blender_peak=None if str(r.args[0]) == 'worker' else _peak_mb('children'))
+    if toon_boards:
+        with phase('toon_boards'):
+            toon(out, toon_boards.split(','))
     with phase('sheets'):
         for p in sheets(spec, out):
             print('sheet', p)
@@ -326,6 +341,27 @@ def _phases():
         finally:
             print('CHARKIT_PHASE %s %.1f' % (name, time.time() - t), flush=True)
     return phase
+
+
+def toon(out, which):
+    """the boards drawn by charkit.render (charkit.render.buildboards) into out/boards, recorded in the build's trace
+    ('boards_toon'); a set it can't draw (expressions, mouths: the shape keys) is said and skipped."""
+    from . import trace
+    from .render import buildboards
+    trace.resume(os.path.join(out, 'trace.jsonl'))
+    try:
+        with trace.span('boards_toon') as sp:
+            rep = buildboards.draw(out, which)
+            sp.update(boards=rep['boards'], adapter=rep['adapter'].get('device'), cpu_s=rep['cpu_s'],
+                      skipped=sorted(rep['skipped']))
+    except Exception as e:                                  # (no export, no adapter: the build stands without boards)
+        print('CHARKIT_BOARDS_TOON failed: %s: %s' % (type(e).__name__, e))
+        return None
+    finally:
+        trace.end()
+    print('CHARKIT_BOARDS_TOON %s' % json.dumps({'boards': len(rep['boards']), 'seconds': rep['seconds'],
+                                                 'adapter': rep['adapter'].get('device'), 'skipped': sorted(rep['skipped'])}))
+    return rep
 
 
 def _peak_mb(who='self'):
@@ -510,11 +546,20 @@ def pieces_hair(spec, resolved, out, mode='on'):
         views, info = hull.views_from_sheet(rgb, (spec.get('eyes') or {}).get('x', 0.168), -1)
         Z = np.load(layers)
         masks = {k: Z[k] for k in Z.files}
-        fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views, masks,
-                                    info['ppl'])
+        o = dict(hp.OPTS, **(shape.get('pieces_opts') or {}))
+        S = hp.hull_samples(glb, flat='drop' if o.get('samples') == 'shell_smooth' else 'keep') \
+            if o.get('samples') in ('shell', 'shell_smooth') else None
+        pts = None
+        if S is not None:       # (the labelled shell, not the decimated mesh's vertices: docs/HULL_CONTRACT.md)
+            fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views,
+                                        masks, info['ppl'], P=S[0], NP=S[3])
+            pts = S[0] * C.align['scale'] + np.asarray(C.align['translate'])
+        else:
+            fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views,
+                                        masks, info['ppl'])
         style = styles.load(spec.get('style', 'anime'))['hair_pieces']
         R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
-                     opts=shape.get('pieces_opts'))
+                     opts=shape.get('pieces_opts'), points=pts)
         R['report']['labelled'] = counts
         hp.save_parts(R, pdir, meta=dict(style=spec.get('style', 'anime'), normals=style['normals']))
         print('pieces hair', pdir, json.dumps({k: (r['locks'], r['tris']) for k, r in R['report']['pieces'].items()}))
@@ -522,10 +567,13 @@ def pieces_hair(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('pieces_hair', run, [pieces_hair], cut, gdir,
-                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] +
+                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + [
+                                p_ for p_ in [os.path.join(os.path.dirname(_path(shape['glb'])), 'hull.npz')]
+                                if os.path.exists(p_)] +
                             ([spec['head_code']] if spec.get('head_code') else []),
                             modules=('charkit.geom.parts', 'charkit.geom.hairpieces', 'charkit.geom.hull',
-                                     'charkit.styles'), name_key=spec['name'], refresh=mode == 'refresh')
+                                     'charkit.styles', 'charkit.garments'), name_key=spec['name'],
+                            refresh=mode == 'refresh')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
     json.dump(spec, open(resolved, 'w'), indent=1)

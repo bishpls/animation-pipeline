@@ -176,6 +176,71 @@ def test_islands_count_a_lock_showing_inside_another():
     assert I['n'] == 0 and I['flicks'] == 1                             # a blade lying over it: a flick
 
 
+def test_the_bun_fit_window_is_view_px_and_its_crop():
+    from charkit.geom import hull, raster
+    v = hull.View('three_quarter', 35.5, np.zeros((10, 10), bool), 212.0, 1000.0, 400.0)
+    v.grid_eye = (1003.0, 398.0)
+    frame = (1.07, np.array([0.02, -0.03, 0.9]))
+    P = np.random.default_rng(1).normal(size=(50, 3)) * 0.3 + [0, 0, 1.2]
+    for az, mirror in ((0.0, False), (35.5, False), (270.0, True)):
+        cc, rr = hp.view_px(P, v, az, mirror, frame)
+        for box in (None, (100, 400, 250, 700)):
+            origin, L, pix, win = hp.view_window(v, az, mirror, frame, box)
+            P2, _ = raster.window_project(P, az, origin, L, pix, win)
+            dr, dc = (box[0], box[2]) if box else (0, 0)
+            assert np.allclose(P2[:, 0] + dc, cc, atol=1e-6) and np.allclose(P2[:, 1] + dr, rr, atol=1e-6)
+            if box:
+                assert raster.window_shape(pix, win) == (box[3] - box[2], box[1] - box[0])
+
+
+def test_bun_tails_flare_down_and_out_from_under_the_knot():
+    R = np.eye(3)
+    mid, half, head = np.array([0.5, 0.0, 1.0]), np.array([0.2, 0.18, 0.2]), np.zeros(3)
+    tl = hp.bun_tails(mid, R, half, head, dict(bun_tails=3, bun_knot=0.6), (45.0, 0.8, 40.0, 30.0, 0.45, 0.0))
+    assert len(tl) == 3
+    s_out = np.sign((mid - head) @ R[:, 0])
+    for b in tl:
+        assert (_edges(b['T']) == 2).all()                              # each a closed blade
+        root, tip = b['chain'][0], b['chain'][-1]
+        assert root[2] < mid[2] and root[2] > mid[2] - 0.95 * half[2]   # rooted inside the knot, under its middle
+        assert tip[2] < root[2] and (tip - root) @ R[:, 0] * s_out > 0   # down and out, away from the head
+    assert hp.bun_tails(mid, R, half, head, dict(bun_tails=0), (45.0, 0.8, 40.0, 30.0, 0.45, 0.0)) == []
+
+
+def test_the_body_clearance_lifts_the_skin_where_the_hair_lies_inside_the_body():
+    class Case:
+        pass
+    # a body below the chin: a sphere of radius 0.25 down and to the side of the chart's centre (a shoulder), the
+    # envelope a unit sphere passing through it
+    ico, F = hp.icosphere(3)
+    o = np.array([0.6, 0.0, -0.8])
+    c = Case()
+    c.A = dict(verts=ico * 0.25 + o, faces=F.tolist())
+    c.chin_z = -0.5
+    ch, G = hp.Chart(np.zeros(3), 0.0), hp.Grid(4.0, 3.0, 168.0)
+    R = np.full((G.nph, G.nth), 1.0)
+    S = np.full(R.shape, -np.inf)
+    S2, cut, rep = hp.body_clearance(c, ch, G, R, S, 0.02, 1.0, push_max=0.5)
+    PH, TH = np.meshgrid(G.ph, G.th, indexing='ij')
+    d = ch.dirs(PH, TH)
+    # the ray's exit from the sphere: |t d - o| = 0.2, the larger root
+    b = d @ o
+    disc = b * b - (1.0 - 0.25 ** 2)
+    t_exit = np.where(disc > 0, b + np.sqrt(np.maximum(disc, 0)), np.nan)
+    t_in = np.where(disc > 0, b - np.sqrt(np.maximum(disc, 0)), np.nan)
+    inside = (disc > 0) & (t_in < 0.98) & (t_exit > 0.98)
+    assert rep['pushed'] >= 0.9 * inside.sum() > 0 and not cut.any()
+    # where the deepest layer lies inside the body, the skin is where the ray leaves it (within the march's step)
+    got = S2[inside]
+    assert np.all(np.abs(got - t_exit[inside]) < 0.02) or np.all(got >= t_exit[inside] - 0.01)
+    far = disc < -0.1                                                    # well away from the sphere: unchanged
+    assert (S2[far] == -np.inf).all()
+    # a body further out than the push allows: the cells are cut, the skin left as it was
+    S3, cut, rep = hp.body_clearance(c, ch, G, R, S, 0.02, 1.0, push_max=0.03)
+    deep = inside & (t_exit - 1.0 > 0.05)
+    assert cut[deep].all() and rep['cut'] >= deep.sum()
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
