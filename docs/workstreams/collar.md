@@ -39,3 +39,195 @@ and the art_* frames (lookqa.HeadFrame) register on eye_z.
   shorter at tool/face's join). Both reach well beyond this round. This round builds and measures in the QA's current
   frame; the shoulders are raised by the geometry share (0.033 L plus the dip), not the frame's.
 
+### The new checks (charkit/collarqa.py, part `collar_flags`, order 1760; 89bb724, steps d3205d5)
+
+Each flag check carries its flag (registry.flag_check: the gate blocks its regressions). Calibration: every measure
+compares ours with the design measured the same way, so the design reads 0 (IoU 1) against itself; the flagged build is
+g3_render3 (pipeline-3d's garments merge, e66abc8's render):
+
+| check | what | limits (pass / warn) | g3_render3 |
+|---|---|---|---|
+| shoulder_back_line | the upper garments' top edge over |x| 0.25-0.55, median vs the design's | 0.015 / 0.03 L | 0.0565 FAIL (ours -0.566, design -0.510) |
+| shoulder_back_slope | its fitted slope vs the design's: a guard, not a flag check (the dip and the puffs' rise cancel on the flagged build) | 0.10 / 0.20 | 0.079 PASS |
+| collar_back_iou | the back panel vs the drawn one, both closed | >= 0.80 / 0.65 | 0.754 WARN |
+| collar_back_square | the panel's width 90% down over 50% vs the design's | 0.08 / 0.15 | 0.345 FAIL (0.588 vs 0.933) |
+| collar_back_lay | the trough in the garments' top edge beside the panel | 0.01 / 0.02 L | 0.047 FAIL |
+| bow_front_loop_end | the straight share of each loop's outer end | 0.15 / 0.30 | 0.593 FAIL (0.81 vs 0.22) |
+| bow_front_loop_width | the loops' span: a guard (the bow is sized to the drawn span) | 0.06 / 0.12 | 0.0 PASS |
+| bow_front_bleed | L of the bow's edge on the jacket with no line, drawn with the build's outlines | 0.03 / 0.06 L | 0.378 FAIL (design 0.0) |
+| bow_profile_ribbon | the ribbons' width seen in profile vs the design's | 0.25 / 0.5 | 0.868 FAIL (0.024 vs 0.179 L) |
+
+The puffs (flag 3): on g3_render3 art_points_sleeves 0 PASS, art_bumps_sleeves 0 PASS and every sleeve_*_spikes 0 PASS:
+the spiky shoulders were the hull sleeves (fixed by garments2's template puffs). What remains at the shoulders is the dip
+and the height (above).
+
+### What forms the shoulder line (back view, g3_render3)
+
+Per column, the topmost garment: |x| 0.25-0.35 the collar (its rounded flap's edge falling -0.52 -> -0.62), 0.40-0.55
+the puff (its top -0.557..-0.594). The jacket never reaches the silhouette there. So raising the body alone moves
+nothing (variant s1: the torso's top rows widened to 0.43-0.47 L, every check within 0.01): the collar must lie flat
+out to the shoulder, and the puffs' tops rise ~0.05 L.
+
+### The segmentation (flag 4), measured
+
+The authored body is a torso (a radial loft from the neck cut) and limb tubes; each arm tube starts at its shoulder joint
+(x 0.544, z -0.886), capped there by a fan, and meets the torso's side (half-width 0.41 at z -0.64..-0.83) under the
+puff. Visible skin within z -0.45..-1.0 at |x| > 0.3 on g3_render3's QA labels (seg.py): front 0 px, back 0 px (the
+jacket and the puffs cover the join in both), three-quarter 81 px and profile 385 px (the upper arm below the cuff and
+the neck's back, not the join). So the join itself is not what reads as segmented: the look is the garments' shoulder
+(the collar's flap falling to -0.62, the dip, then the puff standing up to -0.56: collar_back_lay 0.047), which the
+template shoulders, collar and puffs address. Restructuring the body (a continuous torso-and-arm cage through the
+shoulder, as the head's neck zip joins the head) is not needed for these flags; it would be for a posed arm (raised
+arms open the join under the puff), about a round's work: a zip between the torso's side rings and the arm's top ring
+(code_base's arc-length zip), the weights blended across it.
+
+### Variants (on the evaluator, spliced into g3_render3's bundle: var.py)
+
+The harness reproduces the box's checks on the unchanged spec (v_base: every piece, sleeve, collar and bow check equal)
+except bow_front_bleed (1.34 against the box's 0.378: the splice drops Blender's outline shrink, so the bleed's line
+hull differs; compare variants with v_base there, not with the box).
+
+| variant (evaluator, spliced) | shoulder_back_line | collar_back_iou | _square | _lay | collar_front_torn | sleeve_back_profile_L |
+|---|---|---|---|---|---|---|
+| v_base (as built) | 0.0565 FAIL | 0.754 WARN | 0.345 FAIL | 0.047 FAIL | 0.0023 PASS | 0.068 FAIL |
+| s1: body.shoulder {z -0.525, x 0.47, round 0.05, hold 0.05, fall 0.15} | 0.0565 | 0.758 | 0.349 | 0.038 | 0.0072 | 0.068 |
+| c1: s1 + the template collar (outline + stripe) | 0.0612 FAIL | 0.799 WARN | 0.113 WARN | 0.019 WARN | 0.0427 FAIL | 0.069 |
+| **c1p2: c1 + the puffs' table one station up (t -0.30, the first station's extents)** | **0.0235 WARN** | 0.790 WARN | 0.113 WARN | **0.0094 PASS** | 0.0719 FAIL | 0.065 FAIL |
+
+The puffs' tops, 0.05 L under the drawn line, and the collar's rounded flap made the line; the body's shoulder top
+under them makes the collar lie flat out to the puffs. The remaining 0.0235 L is the eye-line frame (above): the
+shoulders' top sits at the neck cut (-0.525 L against the cut's -0.52: the torso can't rise above its neck ring,
+tool/face's join), and the drawn line is 0.0235 L higher in the QA's iris frame than in the builders'.
+collar_front_torn regressed (a new FAIL): in front the template collar shows as a thin band along the shoulders' top
+and a patch of the jacket stands at the neck between the lapels (the design shows skin in the V there). Next (spec D):
+the collar's region up the neck as the jacket's (0.6 of the neck bone), cut at eye -0.43 L, and the jacket's opening
+carrying the collar's V above the bib's (the V shows the skin).
+
+**The template collar** (garments.build: kind 'collar', `source: template`; COLLAR_TEMPLATE's region and offset): a
+shell of the neck's base, shoulders and upper back and chest, cut to garments2's outline (outline_dist: the lapels
+between the V and an outer edge in front, the square back panel to its bottom) with its stripe a second material. The
+spec keeps kind 'collar' and names no region: the outfit masks' and hull's stamps read the garments' kinds and region
+bones, and a kind 'shell' restamped them (the box rebuilt both: killed). Outline heights are the builders' (eye_knobs),
+the drawn ones +0.0235 L.
+
+**Box variants (build box, specs `charkit/spec/_v_*.json`, untracked):** A = c1p2 + the bow's loops closed (end 0.2) +
+the ribbons stood 0.05 L off and turned 40 degrees; B = A with the puff's cap 0.17 instead of the extra station; C = A
+without the template collar; D = A with the collar up the neck and the jacket's V (above). Outputs charkit/out/cv_*.
+
+## Box variants (build box, g3_render3 = before)
+
+| check | g3_render3 | A | B | C | D | E |
+|---|---|---|---|---|---|---|
+| shoulder_back_line | 0.0565 FAIL | 0.0235 WARN | 0.0329 FAIL | **0.0188 WARN** | 0.0235 WARN | 0.0235 WARN |
+| collar_back_iou / _square / _lay | 0.754 / 0.345 / 0.047 | 0.791 / 0.113 / **0.009** | 0.795 / 0.113 / 0.014 | 0.747 / 0.349 / 0.047 | 0.793 / 0.12 / 0.009 | = D |
+| bow_front_loop_end / bleed / ribbon | 0.593 / 0.378 / 0.868 | 0.059 / 0.033 / 0.526 | = A | = A | 0.059 / **0.0** / 0.526 | = D |
+| piece_collar | 0.771 PASS | 0.646 WARN | 0.644 | 0.771 | 0.638 | 0.638 |
+| collar_front_torn / _profile_torn | 0.002 / 0.0 PASS | 0.039 / 0.035 FAIL | 0.008 WARN / 0.012 FAIL | 0.004 / 0.0 | 0.037 / 0.025 FAIL | = D |
+| art_outline_collar (flag) | 0.743 PASS | 3.589 WARN | 3.509 WARN | 1.366 PASS | 2.321 WARN | = D |
+| art_speckle_neck (flag) | 2.602 WARN | 1.954 | 1.904 | 2.636 | 2.245 | 2.245 |
+| neck_crease | 26.9 WARN | 39.1 FAIL | 39.1 FAIL | 32.7 FAIL | 92.6 FAIL | 92.6 FAIL |
+| hair_noise | 0.0767 WARN | 0.0804 FAIL | | 0.0808 FAIL | | 0.0807 FAIL |
+
+A = the shoulders template {z -0.525, x 0.47} + the template collar (region: the neck to 0.3 of its bone) + the puffs one
+station up + the bow's loops closed (end 0.2) + its ribbons (stand 0.05, turn 40); B = A with the puff's cap 0.17 for the
+station; C = A with the hull collar; D = A with the template collar up the neck (0.6, cut eye -0.43) and the jacket's
+opening carrying its V; E = D with the hair's body_clear_garments 0.035 (identical to D: the specks are lock 0's tip at
+the collar's corner, not the hair inside a garment; 15fd2cd, default 0, left in).
+
+Read: the bow and the puffs are clean wins (every variant). The shoulders template raises neck_crease to FAIL (a
+shelf 0.21 L wide right under the neck ring: the crease between the neck and the shoulders' top) and the hair's noise
+over 0.08 (the hair rebuilt over the new shoulders); the template collar fixes the back (square, the lay) but FAILs the
+front and profile torn checks and regresses art_outline_collar (a flag check) and piece_collar (its front and
+three-quarter: in front the shoulders' top sits at the neck cut, so the drawn lapels over the shoulders, 0.0235 L higher
+still in the QA's frame, have no body to lie on; the collar shows as a thin band there). Under K each of those blocks.
+
+**Taken into the specs (5ffd446):** the bow's `end` 0.2 and ribbon {stand 0.05, turn 40}; the puffs' table one station up.
+**Built, not in the spec:** body.shoulder (code_body.shoulders), the template collar (kind collar, source template),
+the jacket's V opening; their variants' specs are reproducible with the scratch mkspec.py from the knobs above.
+
+## The gate (5ffd446 into pipeline-3d 25b1936): FAIL under K, one blocker
+
+Report `charkit/out/gate/gate_tool-collar_5ffd446_into_25b1936.md`. pipeline-3d 25b1936 merged first (a4e84b4: clean;
+tool/infra-auth's service account, tool/evalmesh M2+M3). **Blocking:** art_outline_collar 0.743 PASS -> 3.873 WARN (a
+flag check: the torn collar tips, look_v5). The collar is the hull collar, unchanged; what moved is round it: the
+puffs one station up meet its flap's side over the steep shoulders (variant C, the same garments on the shoulders
+template, read 1.366 PASS; look4 measured this check's cross-box noise at 4.44-5.68 for one commit). Reported, not
+blocking: sleeve_front_profile_R and sleeve_three_quarter_profile_L PASS -> WARN (the puffs' new top), the new checks
+that FAIL (collar_back_lay 0.0565, collar_back_square 0.345, bow_profile_ribbon 0.526: measuring the known faults the
+template collar would fix), bow_front_tail_width 0.308 -> 0.462 (FAIL both: the ribbons turned 40 degrees), art_*_bow
+INFO moves (the closed loops: terminator 8.4 -> 0, fragments 1.8 -> 0.8, points/bumps 0 -> 16/15). Better:
+bow_front_loop_end 0.593 -> 0.059, bow_front_bleed 0.378 -> ~0.03, shoulder_back_line 0.0565 -> ~0.03 (the puffs),
+bow_front_tail_gap WARN -> PASS, sleeve_profile_profile_L FAIL -> WARN, piece_bodice_panel 0.899 -> 0.939,
+body_profile_chest 0.045 -> 0.035.
+
+**For the coordinator:** accept art_outline_collar (the collar untouched; the check noisy across boxes), or drop the
+puffs' extra station (one spec line: sleeve_L.profile's first row) and re-gate: the bow's fixes alone don't touch the
+collar's outline region's corners... (unverified: not rebuilt this round).
+
+## Open, in order (next round)
+
+1. The eye-line frame (Michael's decision, above): with the QA on the head's eye line the shoulders template's line
+   reads within 0.015 L; in the iris frame it can't pass without the torso rising above the neck cut.
+2. The template collar (built, variant D): fix its front (the lapels over the shoulders need a surface above the cut:
+   the collar standing off the body there, or the shoulders' top above the neck ring, tool/face's join) and the
+   neck crease under it (the shelf under the neck ring: a larger `round`, the neck ring's own rows); then its
+   art_outline_collar and piece_collar front/three-quarter.
+3. The shoulders template's neck_crease (26.9 -> 32.7 FAIL) and hair_noise (0.077 -> 0.081 FAIL, the hair rebuilt
+   over the new shoulders).
+4. art_speckle_neck (flag 5): unchanged on the hull collar (2.60); the template collar moves it to 1.90-2.25 (still
+   WARN). The hair's body_clear_garments (15fd2cd) doesn't reach it: the specks are lock 0's tip at the collar's
+   corner in profile, not the hair inside a garment.
+5. bow_profile_ribbon 0.526 FAIL: the ribbons need their faces turned further to the side (turn 60-90) with the front
+   width kept (`w`), fitted against bow_front_tail_width and piece_bow per view.
+
+## End of round: the render build and the review page
+
+Render-box build of the head (5ffd446, boards body): `charkit/out/co_render`. Against g3_render3: shoulder_back_line
+0.0565 FAIL -> 0.0188 WARN, bow_front_loop_end 0.593 FAIL -> 0.059 PASS, bow_front_bleed 0.378 FAIL -> 0.0325 WARN,
+bow_profile_ribbon 0.868 -> 0.526 FAIL, collar_back_square 0.345 FAIL (unchanged: the hull collar), **collar_back_lay
+0.047 -> 0.0565 FAIL (worse: the puffs' tops rose beside the unchanged flap, deepening the trough; the lay needs the
+template collar and the shoulders together, variant A/D 0.009 PASS)**, art_speckle_neck 2.606 (unchanged),
+art_outline_collar 3.873 WARN (the gate's blocker, the render box agrees), neck_crease 26.9 (unchanged),
+art_points_sleeves 0 PASS.
+
+Review page: `charkit/out/collar_review/index.html` (design | before g3_render3 | after co_render | option D, close-ups
+by charkit.render at the QA's registration, the back, the bow zoomed, the profile, the neck junction; every check whose
+status moved; the generator and harness copied beside it).
+
+## Round 2 (second agent): milestones M1 bow, M2 eye-line frame, M3 template collar
+
+The coordinator's plan: M1 lands the bow alone (branch `tool/bow` from pipeline-3d 25b1936, without the puffs' extra
+station that broke art_outline_collar), with the ribbons in profile fitted to PASS; M2 fixes the eye-line frame in one
+place; M3 the template collar D and the squared shoulders on M2. Harness (session scratchpad `co/`, untracked):
+`var.py` (as round 1; zsh doesn't split a `$VAR` of flags, pass them literally), `pics1lib.py` (the drawn bow and tails
+against ours per view: red drawn only, blue ours only, purple both, grey our jacket), `prof.py` (per profile row over the
+drawn tails: their front and back, ours, and the drawn jacket's front, against our jacket's front), `tab.py`.
+
+### M1: tool/bow
+
+b581df9, c176f07 (collarqa, its steps: cherry-picked), dbcdd1c (the bow half of 73e2d03: `end`; code_body's
+shoulders left on tool/collar), then the specs' bow lines (end 0.2, ribbon stand 0.05 turn 40; no puff station). The
+harness reproduces the box on the bow's checks on this spec (bow_profile_ribbon 0.5263, bow_front_tail_width 0.4619,
+piece_bow 0.672: front 0.755, three-quarter 0.637, profile 0.521); shoulder_back_line back to 0.0565 (the puffs as on
+pipeline-3d), collar_back_lay 0.0471 (pipeline-3d's value).
+
+**The ribbons in profile, fitted (harness, co_render's bundle; the ribbon's `w` sizes, `stand` L, `turn` degrees):**
+the drawn ribbons read 0.184 L wide in front and 0.179 L in profile, ours 0.099 and 0.085 (turn 40): a flat ribbon
+matching both is about twice as wide at about 45 degrees. prof.py: the conform puts the ribbons' mid-plane on our
+jacket's front, so a turned ribbon's back half sinks into the jacket unless it stands off by about half its turned
+depth; and the drawn ribbons span from 0.10 L behind our jacket's front to 0.06-0.10 L in front of it (the drawn
+jacket's visible front, below them at z -1.17..-1.22, sits 0.04-0.05 L behind ours: our jacket fills part of the
+ribbons' drawn depth). So a ribbon wide enough in profile trades the bow's profile IoU: ours can only show in front of
+our jacket.
+
+| variant | ribbon | profile_ribbon | front_tail_width | tail_gap | piece_bow (front / 3q / profile) |
+|---|---|---|---|---|---|
+| vb (spec as committed) | stand .05, turn 40 | 0.526 FAIL | 0.462 FAIL | 0.005 PASS | 0.672 WARN (0.755 / 0.637 / 0.521) |
+| r1 | .05, 44, w [.25,.425] | 0.276 WARN | 0.231 WARN | 0.089 FAIL | 0.675 (0.779 / 0.660 / 0.422) |
+| r3 | .10, 44, w [.25,.425], out .285 | 0.013 PASS | 0.039 PASS | 0.005 | 0.736 (0.873 / 0.743 / 0.342) |
+| s0.00 / s0.03 / s0.06 (r3's, stand) | 0 / .03 / .06 | 0.579 / 0.408 / 0.211 | 0.539 / 0.385 / 0.180 | 0.005 | 0.652 / 0.689 / 0.731 (profile 0.531 / 0.481 / 0.437) |
+| **gb (taken)** | **.07, 40, w [.27,.45], out .30** | **0.092 PASS** | **0.0125 PASS** | **0.0 PASS** | **0.754 PASS (0.856 / 0.764 / 0.446)** |
+| gc | .08, 44, w [.25,.425], out .285 | 0.053 PASS | 0.077 PASS | 0.005 | 0.751 (0.867 / 0.761 / 0.404) |
+
+`out` 0.30 keeps the gap between the tails (a wider ribbon's inner edges move in). The bow's profile IoU 0.521 -> 0.446
+is the cost; restoring it is the jacket's front under the ribbons (profile), not the bow.
