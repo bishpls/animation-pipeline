@@ -42,8 +42,14 @@ def test_record_and_read_back():
     obs, hide = geomstage.pieces(Q)
     assert len(obs) == 1 and np.nonzero(hide)[0].tolist() == [3, 5, 8]
     o = obs[0]
-    assert o['name'] == 'skirt' and np.array_equal(o['V'], V) and o['polys'] == faces       # exact, as tuples
-    assert o['uv_corner'] == uvc and o['mat_idx'] == [0, 1] * 5
+    # the faces as charkit.geom.wind winds them (decided here, passed to Blender with wound=True), exact, as tuples
+    from charkit.geom import wind
+    F, U = wind.orient(V, faces, uvc)[:2]
+    assert o['name'] == 'skirt' and np.array_equal(o['V'], V) and o['polys'] == F
+    assert [[tuple(map(float, c)) for c in u] for u in o['uv_corner']] == [[tuple(map(float, c)) for c in u] for u in U]
+    assert o['mat_idx'] == [0, 1] * 5
+    ev = [e for e in P['meta']['events'] if e[0] == 'call' and e[2] == '_object']
+    assert len(ev) == 1 and ev[0][4].get('wound') is True
     assert [m['fn'] for m in o['materials']] == ['toon_tex', 'toon']
     assert o['materials'][1]['color'] == (0.2, 0.3, 0.4) and o['materials'][1]['shade'] == [0.7, 0.6, 0.6]
     assert o['materials'][0]['image'].dtype == np.float32

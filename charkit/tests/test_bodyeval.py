@@ -399,14 +399,15 @@ def _tube(n=12, rows=3, inward=False):
     return V, F
 
 
-def test_recalc_normals_and_solidify():
-    """bmesh's recalc_face_normals turns a tube's polygons outward whichever way they were wound; Solidify (offset -1)
-    then puts its copy t inside, joins the two open ends with rim quads, and the Subdivision Surface keeps a loose
-    vertex where it is."""
+def test_winding_and_solidify():
+    """the garments' winding (charkit.geom.wind.orient, which the recording passes to Blender) turns a tube's polygons
+    outward whichever way they were wound; Solidify (offset -1) then puts its copy t inside, joins the two open ends
+    with rim quads, and the Subdivision Surface keeps a loose vertex where it is."""
     from charkit import bodyeval
+    from charkit.geom import wind
     for inward in (False, True):
         V, F = _tube(inward=inward)
-        P, _ = bodyeval.recalc_normals(V, F)
+        P = wind.orient(V, F)[0]
         N = bodyeval.vertex_normals(V, P)
         assert (N[:, :2] * V[:, :2]).sum(1).min() > 0.99                         # outward, every vertex
         V2, P2, parent, _ = bodyeval.solidify(V, P, 0.1)
