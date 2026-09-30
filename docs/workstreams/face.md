@@ -410,3 +410,66 @@ the corrected check (below) on both.
 4. The look (tool/look2): the jaw line is the skin's outline (warm brown, thin); the design's is near-black and heavier
    toward the point, with a dark wedge under it: the chin now overhangs the neck (0.19-0.23 L at the midline) for a
    cast shadow. The cage's per-vertex part (`Cg.under_part`, 1 the underside) isn't exported as a vertex group yet.
+
+## The chin's taper (2026-09-30): a V, not a U
+
+Michael, on jaw_4: a "BIG improvement on the neck and jaw", but the chin's taper is shaped wrong. In front the design's
+jaw lines run nearly straight from the cheekbones to a sharp V chin with a dark wedge under it; ours stays wide too far
+down, then rounds into a broad, blunt, shallow chin (a U). In three-quarter (bare) a hollow under the cheek along the jaw
+line, and a notch where the jaw meets the neck behind the chin. jaw_taper and chin_point_z compare widths row by row and
+the chin's height, so the shape didn't show.
+
+**The eye anchor first (measurement only, e9a6753).** The QA registered ours on the iris plates' vertex mean, 0.0235 L
+over the head's eye line (the design's eye row, which the head is built on; the visible iris centroid is 0.018 L over
+it). `faceregion.eye_anchor` and `qa3d.eye_anchor` set the eyes' point on the head's eye line (x, y kept) for the jaw
+checks, `profile_edge` and the sheet's face measures (`qa3d.sheet_measure`). Registered in `history.STEPS` (sheet_*,
+profile_edge, jaw_*, chin_*, neck_to_face, neck_front_wiggle). On jaw_4: jaw_taper 0.0271 -> 0.0095, chin_point_z
+-0.0224 -> 0, sheet_cheek_chin -0.0277 -> -0.0027, sheet_profile_chin -0.0247 -> 0.0003, sheet_profile 0.0136 -> 0.0053,
+profile_edge 0.0622 FAIL -> 0.0278 PASS. Whether the eye itself sits high is open (the design's iris class catches only
+its lit lower part, so its blob centroid sits low in the drawn iris).
+
+**The measures (`faceregion.taper_front`, `tq_jaw`, `taper_compare`; in `face_region`).** The outline as a curve,
+graded in the boards' camera (what the boards show), each with the level camera's value beside it; the defects (bends,
+the notch, the hollow) on the worse of the two:
+
+| check | what | limits |
+|---|---|---|
+| `jaw_taper_shape` | rms of w(t)/w(0), t 0 at the design's cheekbone row (its widest under -0.05, hair-lock tips bridged: -0.113), 1 at each chin; start: where it falls under 0.9 | 0.025 / 0.04 |
+| `jaw_line_bend` | the jaw lines' (t 0.4-0.95) sharpest local bend: the direction by arc length, smoothed 0.006 L, less its smoothing over 0.03 L (deg); per side a line fit's rms and bow | 6 / 10 |
+| `chin_angle` | the V's opening between its arms fitted 0.06-0.12 L of arc from the chin point, against the design's (deg); w90 alongside | 10 / 20 |
+| `chin_tip` | the share of the V's turn made within 0.02 L of arc of its point (1 a sharp V; a U turns all the way round) | >= 0.7 / 0.55 |
+| `tq_cheek_hollow` | the three-quarter's far cheek contour, its deepest point inside its local chord (+-0.05 L of arc) | 0.005 / 0.008 |
+| `tq_jaw_notch` | the three-quarter's near jaw line (the face's foot per column from the chin), its largest drop under its own rise | 0.008 / 0.016 |
+
+The design against itself: all PASS (bend 4.4, tip 0.84, hollow 0.0035, notch 0). jaw_4: taper 0.035 WARN, bend 24.4,
+chin_angle 107.6 (design 129.7), tip 0.30, hollow 0.0097, notch 0.057, all FAIL. Two of the review's readings don't hold
+as numbers: ours is narrower than the design at t 0.9 (w90 0.055 against 0.067), and its arms are straighter (line rms
+0.002 against 0.004), not bowed. The level camera's row widths match the design's to 0.006 L from z -0.14 down. Lab:
+`tools/face_labs/taper_lab.py` (a build, `--geom` a local assembly, `--design`); tests in `test_jaw.py`.
+
+**What the U is.** Three things, measured:
+- the boards' camera sits 6 degrees over the chin and lifts whatever lies further back. Our chin's rim had a flat front
+  near its point, then swung back fast (0.12 L between x 0.04 and 0.10), so the arms read 37-40 degrees over the
+  horizontal near the chin against the design's 22-27 (the level camera: 26). A camera at the chin's height 1 m out
+  reads 127 / 0.73 (angle / tip) against 119 / 0.53 at the eye line: it is the look down, not perspective depth;
+- the subdivision rounds the V's point: the outline's bottom sits 0.004 L over the rim's point in the level camera,
+  0.008 L in the boards' (steeper arms, the same rounding cuts a flatter bottom);
+- past the neck's width the jaw was the sections' side: the front silhouette jumped from the rim (0.13 L behind the
+  chin) to the side (0.22 L) where the V crosses the neck's edge, a kink in the boards' camera and, in three-quarter,
+  the notch (the near jaw line rose to z -0.308, ran flat, and dropped to -0.340 at the neck).
+
+The design's jaw edge in 3D, triangulated from its front V and its three-quarter jaw line (`headfit.jaw_depth`), recedes
+about as fast as it widens (0.9-1.1 L back per L out) up to where the hair covers it (z -0.27).
+
+**The construction (`headgeom.jaw_envelope`, UnderJaw; the mesh only: the sections are bit-identical, so the hull's face
+carve, the eyes and the hair read the same).**
+- the rim's depth: per row, the outline made to pass through the design's edge point (x_V, y_J), y_J the design's
+  recession placed at our chin's own depth: brought out radially where the point is outside, held behind a prow
+  (y from the midline's front to the edge as s^1.5, a soft max) where inside. A straight wedge put a ridge down the
+  chin that the cage crumpled; a radial pull-in pinched the front into a beak (both dropped);
+- the side: UnderJaw's band top per column, raised outside the mouth block's columns (+-33 degrees) to 0.04 L over the
+  jaw's angle (-0.215), so the lateral columns run down the face's side to the rim, back along the underside, down the
+  neck, as the chin's columns do; the pocket reaches round the sides to the jaw's angle (`phi_end`). A per-row carve of
+  the sections behind the edge (tried first) left fins where the neck met the jaw and folds along the junction: the
+  underside there needs the band's rows;
+- style key `face.jaw_edge` ('design' in DEFAULT: both profiles).
