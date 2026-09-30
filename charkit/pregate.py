@@ -25,10 +25,24 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'charkit', 'out', 'pregate')
 PY = sys.executable
 SPEC = 'charkit/spec/clawd.json'
-_EVAL = ("import json, sys\n"
-         "from charkit import evaldrift\n"
-         "C, s = evaldrift.evaluator_checks(sys.argv[1])\n"
-         "json.dump({'checks': C, 'seconds': s}, open(sys.argv[2], 'w'), default=float)\n")
+# (run in the tree, with its own code: the build's resolve and venv steps, cached, into OUT, then the evaluator on the
+# resolved spec, as evaldrift reads a build's; a spec file alone lacks the code head's and body's geometry files)
+_EVAL = """import json, os, sys, time
+from charkit import cli, evaldrift
+spec_path, res, out = sys.argv[1:4]
+os.makedirs(out, exist_ok=True)
+T = {}
+t = time.time()
+spec, resolved = cli.resolve(spec_path, out)
+T['resolve'] = round(time.time() - t, 1)
+for step in (cli.code_head, cli.code_body, cli.geom_hair, cli.pieces_hair, cli.garments_geom):
+    t = time.time()
+    spec = step(spec, resolved, out, 'on')
+    T[step.__name__] = round(time.time() - t, 1)
+C, s = evaldrift.evaluator_checks(resolved)
+T['evaluator'] = s
+json.dump({'checks': C, 'seconds': s, 'steps': T}, open(res, 'w'), default=float)
+"""
 
 
 def _git(*a, cwd=ROOT, check=True):
@@ -42,7 +56,8 @@ def evaluate(tree, spec=SPEC):
     os.close(fd)
     t = time.time()
     try:
-        r = subprocess.run([PY, '-c', _EVAL, spec, p], cwd=tree, capture_output=True, text=True)
+        r = subprocess.run([PY, '-c', _EVAL, spec, p, os.path.join(tree, 'charkit', 'out', 'pregate', 'prep')],
+                           cwd=tree, capture_output=True, text=True, env=_env())
         if r.returncode:
             raise SystemExit('pregate: the evaluator failed in %s:\n%s' % (tree, (r.stdout + r.stderr)[-2000:]))
         out = json.load(open(p))
@@ -50,6 +65,13 @@ def evaluate(tree, spec=SPEC):
         os.remove(p)
     out['wall'] = round(time.time() - t, 1)
     return out
+
+
+def _env():
+    """the venv steps' entries in one folder the pre-gate's trees share (the target's worktree and this one: an
+    unchanged step restores), keyed on all the code a step reaches, as the gate's builds are (gate._step_cache_env)."""
+    from . import gate
+    return dict(os.environ, **gate._step_cache_env())
 
 
 def _tree(rev, spec, merge=None):
