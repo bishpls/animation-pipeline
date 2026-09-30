@@ -2242,6 +2242,16 @@ def look(B, design=None, out=None):
     return lookqa.measure(B, design, out)
 
 
+@qa_part('skirt', order=2300, table='skirt')
+def skirt(B, design=None, out=None):
+    """the skirt and the overskirt flaps against the design (charkit.skirtqa): the flaps' shape per view (IoU, width
+    down their length, attach, hang angle, the profile's sweep, the clearance behind the leg), the stepped band's steps
+    and height per piece, the back's outline, the gap between the flaps and what shows in it, the tuck under the band
+    (3D), the pleats against skirt_closeup's top-down view."""
+    from . import skirtqa
+    return skirtqa.measure(B, design, out)
+
+
 # The QA parts: each registered where it is defined (@qa_part(name, order=...), charkit.registry), no central list; run()
 # and evaluate() take them in their order from registry.parts().
 

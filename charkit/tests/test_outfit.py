@@ -106,20 +106,75 @@ def test_match_view_cells_and_splits():
     assert res[2]['split'] and set(np.unique(A[cl == 2])) == {1, 2}
 
 
-def test_field_labels_follow_colour():
-    """a flat field, red on the left, blue on the right; one seed patch each in the rig: each colour takes its label."""
-    xs, zs = np.meshgrid(np.arange(-0.2, 0.2, 1 / 128), np.arange(-0.2, 0.2, 1 / 128))
-    P = np.stack([xs.ravel(), np.zeros(xs.size), zs.ravel()], 1)
-    C = np.where(P[:, :1] < 0, np.array([[0.9, 0.2, 0.2]]), np.array([[0.2, 0.3, 0.9]]))
-    R = 128
-    Fd = dict(P=P, C=C, ijk=np.clip(((P + 0.5) * R).astype(int), 0, R - 1), R=R, h=1 / R)
-    img = np.full((100, 100), -1, np.int16)
-    img[40:60, 10:25] = 0; img[40:60, 75:90] = 1
-    Frig = dict(ppl=100.0, eye=(50.0, 50.0), skeleton={})
-    lab, seeds = O.field_labels(Fd, dict(az=0.0, s=0.4, tx=0.0, tz=0.0), img, Frig, 2)
-    left, right = P[:, 0] < -0.01, P[:, 0] > 0.01
-    assert seeds.sum() > 20
-    assert (lab[left] == 0).mean() > 0.95 and (lab[right] == 1).mean() > 0.95
+def test_dtw_follows_a_stretch():
+    """the height warp's alignment: rows of a drawing against the same rows with a band stretched to twice its height
+    (the sheet's skirt hanging lower than the rig's): the path maps each stretched row back to its source."""
+    rows = np.array([0] * 20 + [1] * 10 + [2] * 30 + [3] * 20)
+    other = np.array([0] * 20 + [1] * 20 + [2] * 20 + [3] * 20)       # band 1 twice as tall, band 2 shorter
+    cost = (rows[:, None] != other[None]).astype(float)
+    path = O.dtw(cost, 30, 0.05)
+    assert path[0] == (0, 0) and path[-1] == (79, 79)
+    assert all(rows[i] == other[j] for i, j in path)                    # every step pairs rows of one band
+    assert all(i2 >= i1 and j2 >= j1 for (i1, j1), (i2, j2) in zip(path, path[1:]))
+
+
+def test_a_cell_no_drawn_line_divides_is_one_piece():
+    """a cell predicted as two pieces is split only along a drawn line (the back's sleeves and bodice, one cell whose
+    seams don't close); else it is one piece, the one lying over the other (the back panels over the skirt: one cell
+    from the waistband into the tails), or the larger."""
+    O.SHEET_FIELD['line_tol'] = 0.02                                     # 2 px at 100 px/L
+    cl = np.zeros((40, 80), np.int32)
+    cl[5:35, 5:75] = 1
+    cells = [dict(id=1, cls=7, area=2100, box=(5, 5, 75, 35), cx=40, cy=20)]
+    pred = np.full((40, 80), -1)
+    pred[5:35, 5:45] = 0; pred[5:35, 45:75] = 1                         # 0 the larger, 1 over it where they meet
+    A, res = O.match_view(cl, cells, pred, {7: {0, 1}}, ppl=100.0, lines=np.zeros((40, 80), bool),
+                          over=lambda a, b, box: -1 if (a, b) == (0, 1) else 1 if (a, b) == (1, 0) else 0)
+    assert not res[1]['split'] and res[1]['label'] == 1 and (A[cl == 1] == 1).all() and 'one piece' in res[1]['why']
+    A, res = O.match_view(cl, cells, pred, {7: {0, 1}}, ppl=100.0, lines=np.zeros((40, 80), bool), over=None)
+    assert res[1]['label'] == 0 and (A[cl == 1] == 0).all()             # nothing over the other: the larger
+    ln = np.zeros((40, 80), bool)
+    ln[5:30, 45] = True                                                  # a seam most of the way down
+    A, res = O.match_view(cl, cells, pred, {7: {0, 1}}, ppl=100.0, lines=ln, over=None)
+    assert res[1]['split'] and set(np.unique(A[cl == 1])) == {0, 1}
+    O.SHEET_FIELD['line_tol'] = 0.03
+
+
+def test_score_accepts_a_set_and_refuses_another_grid():
+    t = np.full((10, 10), -1, np.int16)
+    t[0:5] = 0; t[5:10, 0:5] = 1; t[5:10, 5:10] = 2
+    sets = [['skirt'], ['bow_tail_L', 'bow_tail_R'], ['none']]
+    m = {'front__skirt': np.zeros((10, 10), bool), 'front__bow_tail_R': np.zeros((10, 10), bool)}
+    m['front__skirt'][0:5] = True; m['front__bow_tail_R'][5:10, 0:5] = True
+    r = O.score(m, ({'front': t}, sets, {}))
+    assert r['front']['accuracy'] == 1.0 and r['front']['iou'] == {'bow_tail_R': 1.0, 'skirt': 1.0}
+    m['front__skirt'][5:10, 5:10] = True                                  # a piece where the truth has none
+    r = O.score(m, ({'front': t}, sets, {}))
+    assert r['front']['wrong'] == 25 and r['all']['confusions'][0]['got'] == 'skirt'
+    try:
+        O.score({'front__skirt': np.zeros((9, 10), bool)}, ({'front': t}, sets, {}))
+        assert False, 'another grid scored'
+    except ValueError:
+        pass
+
+
+def test_clawds_masks_against_the_truth():
+    """Clawd's produced outfit masks (built from the rig and body_turnaround alone) against the hand-checked truth:
+    0.972 of the garment pixels at 2026-09-30, where the TRELLIS-steered masks scored 0.865 and the no-field ones 0.729.
+    Calibrated: the same masks with every piece's sides swapped (a known-bad) fail it. Builds the masks when this copy
+    has none (about 45 s)."""
+    from charkit import manifest
+    spec = manifest.resolve(json.load(open(os.path.join(O.ROOT, 'charkit', 'spec', 'clawd.json'))))
+    p = manifest.produced(spec, 'outfit_masks', log=lambda *a: None)
+    Z = np.load(p)
+    M = {k: Z[k] for k in Z.files}
+    truth = O.load_truth(manifest.load(spec['ref']['manifest'])['references']['outfit_truth']['path'])
+    r = O.score(M, truth)
+    views = {v: r[v]['accuracy'] for v in O.VIEWS}
+    assert r['all']['accuracy'] >= 0.96 and min(views.values()) >= 0.9 and r['all']['mean_iou'] >= 0.9, (r['all'], views)
+    swap = lambda k: k[:-2] + {'_L': '_R', '_R': '_L'}[k[-2:]] if k.endswith(('_L', '_R')) else k
+    bad = O.score({swap(k): v for k, v in M.items()}, truth)
+    assert bad['all']['accuracy'] < 0.9, bad['all']['accuracy']
 
 
 def test_coverage_round_a_bone():

@@ -445,10 +445,12 @@ class Part:
             V, polys, parent = self.V, self.polys, np.arange(len(self.polys))
             tex = getattr(self, 'tex', None)
             uvc = tex['uvc'] if tex else None
+            sharp = None
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
-                V, polys, parent, uvc = solidify(V, polys, self.solid, uvc)   # (the faces wound as recorded: geom.wind)
+                V, polys, parent, uvc, sharp = solidify(V, polys, self.solid, uvc, crease=getattr(self, 'solid_crease',
+                                                        None), with_sharp=True)   # (the faces wound as recorded: geom.wind)
             for _ in range(levels):
-                V, polys, par, uvc = subdivide(V, polys, uvc)
+                V, polys, par, uvc, sharp = subdivide(V, polys, uvc, sharp=sharp, with_sharp=True)
                 parent = parent[par]
             if tex:
                 uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
@@ -538,6 +540,11 @@ def garment_part(o):
     sol = o['mods'].get('thick')
     if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
         P.solid = float(sol['settings']['thickness'])
+        st = sol['settings']                                     # its creases (garments._thick: the flat, square rims)
+        P.solid_crease = tuple(float(st.get(k, 0.0) or 0.0) for k in ('edge_crease_outer', 'edge_crease_inner',
+                                                                      'edge_crease_rim'))
+    if not any(m['type'] == 'SUBSURF' for m in o['mods'].values()):   # (a piece built without one: its corners crisp)
+        P.subdiv = 0
     return P
 
 
@@ -705,7 +712,7 @@ class Geometry:
             from .bodyqa import CLASS as CL, family
             objs = []
             for p in self.parts:
-                n_ = lv.get(p.group, 0)
+                n_ = min(lv.get(p.group, 0), getattr(p, 'subdiv', 99))
                 if n_:
                     V, polys, parent, lit, shd, cls = p.subdivided(n_)
                     T, pid = triangulate(polys, with_poly=True)
@@ -1430,10 +1437,13 @@ def vertex_normals(V, polys):
     return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
 
 
-def solidify(V, polys, t, uv=None, rim=True):
+def solidify(V, polys, t, uv=None, rim=True, crease=None, with_sharp=False):
     """Blender's Solidify (simple, offset -1, even thickness off): the surface moved t against its vertex normals and a
     copy left where it was (its polygons reversed), each open edge joined across by a rim quad. uv: per-corner UVs as
-    subdivide takes them. -> (V (2n, 3), polys, parent polygon per polygon, uv or None)."""
+    subdivide takes them. crease: its (outer, inner, rim) edge creases (Blender's edge_crease_outer: the surface's open
+    border, _inner: the moved layer's, _rim: the rim's cross edges); a crease of 1 is a sharp edge for subdivide (the
+    garments' flat, square rims, garments._thick). -> (V (2n, 3), polys, parent polygon per polygon, uv or None
+    [, the sharp edges as vertex pairs (k, 2)])."""
     V = np.asarray(V, float)
     n = len(V)
     lv, st, cnt = _loops_of(polys)
@@ -1448,6 +1458,8 @@ def solidify(V, polys, t, uv=None, rim=True):
         Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
         U = [Uc[s_:s_ + c] for s_, c in zip(st, cnt)]
         U = U + [u[::-1] for u in U]
+    sharp = []
+    cr = [c_ >= 1.0 for c_ in (crease or (0.0, 0.0, 0.0))]
     if rim:
         a, b = lv, lv[nxt]
         key = np.minimum(a, b) * n + np.maximum(a, b)
@@ -1458,13 +1470,23 @@ def solidify(V, polys, t, uv=None, rim=True):
             if U is not None:
                 ua, ub = Uc[i], Uc[nxt[i]]
                 U.append(np.array([ub, ua, ua, ub]))
-    return NV, out, np.asarray(parent), U
+            ia, ib = int(a[i]), int(b[i])
+            if cr[0]:
+                sharp.append((ia + n, ib + n))                   # the surface's border (the copy left in place)
+            if cr[1]:
+                sharp.append((ia, ib))                           # the moved layer's border
+            if cr[2]:
+                sharp += [(ia, ia + n), (ib, ib + n)]
+    S = np.unique(np.sort(np.asarray(sharp, np.int64).reshape(-1, 2), 1), axis=0)
+    return (NV, out, np.asarray(parent), U, S) if with_sharp else (NV, out, np.asarray(parent), U)
 
 
-def subdivide(V, polys, uv=None, limit=True):
+def subdivide(V, polys, uv=None, limit=True, sharp=None, with_sharp=False):
     """one level of Catmull-Clark (Blender's Subdivision Surface at level 1: boundaries smooth, the result pushed to the
     limit surface), numpy. polys: index tuples of any size; uv: optional per-corner UVs [[(u, v), ...] per polygon],
-    interpolated linearly. -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
+    interpolated linearly; sharp: creased edges (vertex pairs, crease 1: the rules of an open boundary: the edge point
+    its midpoint, a vertex on two of them (a + 6 v + b) / 8, on more a corner kept). -> (V (n, 3), quads (m, 4), parent
+    polygon per quad (m,), uv per corner (m, 4, 2) or None [, the sharp edges' children (k, 2)])."""
     from scipy import sparse
     V = np.asarray(V, float)
     nv = len(V)
@@ -1490,6 +1512,9 @@ def subdivide(V, polys, uv=None, limit=True):
     ea, eb = ukey // nv, ukey % nv
     efs = np.zeros((ne, 3)); np.add.at(efs, einv, FP[fid])
     bnd = ecnt == 1
+    if sharp is not None and len(sharp):
+        S_ = np.asarray(sharp, np.int64)
+        bnd = bnd | np.isin(ukey, np.minimum(S_[:, 0], S_[:, 1]) * nv + np.maximum(S_[:, 0], S_[:, 1]))
     EP = np.where(bnd[:, None], (V[ea] + V[eb]) / 2, (V[ea] + V[eb] + efs) / 4)      # (two faces' points summed)
     EP = np.where((ecnt > 2)[:, None], (V[ea] + V[eb]) / 2, EP)             # (non-manifold: the midpoint)
     # vertices: interior (Q + 2R + (n - 3) S) / n; boundary (prev + 6 v + next) / 8
@@ -1525,14 +1550,19 @@ def subdivide(V, polys, uv=None, limit=True):
         fuv = np.zeros((nf, 2)); np.add.at(fuv, fid, U); fuv /= cnt[:, None]
         UV = np.stack([U, (U + U[nxt]) / 2, fuv[fid], (U + U[prv]) / 2], 1)
         UV = UV[np.arange(len(UV))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
+    se = np.nonzero(bnd & (ecnt <= 2))[0]                                 # the sharp edges' (and borders') children
+    child = np.concatenate([np.stack([ea[se], nv + nf + se], 1), np.stack([nv + nf + se, eb[se]], 1)]) if len(se) else \
+        np.zeros((0, 2), np.int64)
+    creased = child if sharp is not None and len(sharp) else None
     if limit:
-        NV = limit_positions(NV, quads)
-    return NV, quads, parent, UV
+        NV = limit_positions(NV, quads, sharp=creased)
+    return (NV, quads, parent, UV, creased) if with_sharp else (NV, quads, parent, UV)
 
 
-def limit_positions(V, quads):
+def limit_positions(V, quads, sharp=None):
     """Catmull-Clark limit positions of an all-quad mesh's vertices: interior (n^2 v + 4 sum(edge neighbours) + sum(face
-    diagonals)) / (n (n + 5)); on a boundary the cubic B-spline's (prev + 4 v + next) / 6."""
+    diagonals)) / (n (n + 5)); on a boundary or a creased edge (sharp: vertex pairs) the cubic B-spline's
+    (prev + 4 v + next) / 6."""
     from scipy import sparse
     nv = len(V)
     Qd = np.asarray(quads, np.int64)
@@ -1547,6 +1577,9 @@ def limit_positions(V, quads):
     n = np.maximum(val, 1)[:, None]
     out = (n * n * V + 4 * (E @ V) + Dg @ V) / (n * (n + 5))
     bnd = cnt_e == 1
+    if sharp is not None and len(sharp):
+        S_ = np.asarray(sharp, np.int64)
+        bnd = bnd | np.isin(ukey, np.minimum(S_[:, 0], S_[:, 1]) * nv + np.maximum(S_[:, 0], S_[:, 1]))
     B = sparse.coo_matrix((np.ones(2 * bnd.sum()), (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
     nb_ = np.asarray(B.sum(1)).ravel()
     on = nb_ == 2

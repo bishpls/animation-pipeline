@@ -14,6 +14,8 @@ MEASUREMENT_STEPS = [
      "0.108 L bump) (tool/hull-limbs)"),
     ('body_profile_leg_outline', '2479a22', "new (INFO): the dressed outline behind the leg against the design's, a "
      "garment hugging the thigh (tool/hull-limbs, for tool/skirt)"),
+    ('body_profile_leg_outline', 'd977ce8', "graded (was INFO): the step outward within 0.05 L, the rows hugging the leg "
+     "within 10 of the design's (tool/skirt: the flaps' clearance target)"),
     # tool/body round 5 (charkit/detailqa.py): Michael's review of round 4's midriff and boots
     ('body_*_torso_jump_*', '843922c', "new: the torso outline's largest step from under the bust to the skirt, "
      "outward and inward, beyond the design's (the top and the band sliced and shifted)"),

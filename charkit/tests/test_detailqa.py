@@ -159,9 +159,9 @@ def test_leg_outline_sees_a_garment_hugging_the_thigh():
     fig = _legs(win, H, W)
     design = fig(flap=40, gap=60)                          # the design's flap hangs clear of the leg
     O = dq.leg_outline_check(fig(flap=40), design, PPL, win=win)
-    assert O['status'] == 'INFO' and O['value'] == 0.4 and O['hugging'] >= 30 and O['hugging_design'] == 0, O
+    assert O['status'] == 'FAIL' and O['value'] == 0.4 and O['hugging'] >= 30 and O['hugging_design'] == 0, O
     clear = dq.leg_outline_check(design, design, PPL, win=win)
-    assert clear['value'] == 0.0 and clear['hugging'] == 0, clear
+    assert clear['value'] == 0.0 and clear['hugging'] == 0 and clear['status'] == 'PASS', clear
 
 
 def test_outline_roughness_staircase_against_straight():

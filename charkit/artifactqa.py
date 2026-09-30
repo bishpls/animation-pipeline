@@ -1254,8 +1254,11 @@ CALIBRATED = {
 # calibrated checks the integrator has promoted: their grade is their status. tool/look4 (2026-09-30), on the tree
 # with call M, this module's code: known-bad against the current build (clawd.json), each >= 2x and the current PASS:
 # spikes_boots body4b 0.0628 vs 0.0133; bumps_boots body4b 63.1 vs 11.0; bumps_legs body4b and body5b 42.4 vs 0;
-# mirror_waist body4b 6.43, body5b 6.92 vs 1.19. points_sleeves, bumps_sleeves and band_lower wait for the garments round.
-PROMOTED = ('spikes_boots', 'bumps_boots', 'bumps_legs', 'mirror_waist')
+# mirror_waist body4b 6.43, body5b 6.92 vs 1.19. tool/garments3 (2026-09-30), this module's code on the bundles:
+# points_sleeves body6 31.7, pipeline-3d (look4_after) 27.9 vs 0.0; bumps_sleeves body6 63.7, pipeline-3d 45.6 vs 0.0;
+# band_lower body6 3.259 (round 6's zigzag band) vs 1.201 (2.7x; pipeline-3d's round-6 skirt 2.276, 1.9x); each PASS on
+# the template sleeves and the stepped band (g3_c).
+PROMOTED = ('spikes_boots', 'bumps_boots', 'bumps_legs', 'mirror_waist', 'points_sleeves', 'bumps_sleeves', 'band_lower')
 
 
 def promote(C):
