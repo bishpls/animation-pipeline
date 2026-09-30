@@ -224,3 +224,30 @@ Looking at the boards: every preset reads as meant; the brows sit under the frin
 brow-led presets (focus, sad, angry) lean on the lids. The squeeze (effort) reads close to the happy closed eye: an
 anime effort eye is often a `>` `<` chevron, which a lid curve over x can't draw (it needs the lid loop folded at the
 inner corner). A decision for Michael.
+
+### The gate
+
+`python -m charkit remote gate tool/mouth2 --into pipeline-3d`: **PASS under K** (45c43ce into b43c15e; report
+`charkit/out/gate/gate_tool-mouth2_45c43ce_into_b43c15e.md`). Nothing blocks: no new FAIL, no flag-check regression,
+build CPU 1.10x. Tests: 54 files, 0 failing. Not blocking, for the morning report:
+- remeasured (the library grew): face_folds 4 -> 8 PASS (squeeze 2, wince 2), face_mouth_cover 0.929 -> 0.942 WARN
+  (better);
+- the 2x2's one drop: face_mouth_asym under the old measure 0.0 PASS -> 0.101 WARN (round 1's smirk, asymmetric by
+  design); under the new measure (skewed shapes left out) 0.0 PASS on both geometries;
+- 24 new checks: expr_* (12, INFO: measured against idol_D again; laugh mouth 0.822 -> 0.203, yawn mouth 0.900 ->
+  0.157 against pipeline-3d's shapes under the new measure) and face_preset_* (12, all 0.0 PASS; on pipeline-3d's
+  library the new measure reads effort 9.0, shout 6.7, pain 5.3, focus 4.7, smug 2.0 FAIL, angry 0.117 and laugh 0.18
+  WARN: the checks separate);
+- value moves: art_fragments_face 0.385 -> 0.42 INFO (+9%), the face's shading and shape coverage within 0.3%.
+
+### Next steps
+
+1. Michael: the effort eye as a `>` `<` chevron (the lid loop folded at the inner corner) or keep the arched squeeze;
+   jaw_follow (0.3 now; the sweep above) as the chin's dial.
+2. The brows sit under the fringe on the boards: brow-led presets could lift them into view (a look call, with
+   tool/hair).
+3. A `face` component (blush, cheek raise) and gaze presets (`look`): the API takes them; expression_data reads only
+   eye, mouth and brow keys today.
+4. Cover: wavy and grimace lap 5.7% skin over their corners (the lips' rings); try a corner-ring pull in mouth.key.
+5. The fills sit above the drawing's (their outline is heavier than our lip line): measure the drawn line's width and
+   compare line weight separately from the shape.
