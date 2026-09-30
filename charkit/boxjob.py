@@ -21,12 +21,15 @@ Box side (python3 JOBS/<jid>/boxjob.py CMD ...):
                                 heartbeat every HEARTBEAT s), then "E <rc>\\n" (or "E lost\\n": no exit and no supervisor)
     list [--days N]             every job as a JSON line (running, done, lost), finished ones from the last N days
     kill JID                    SIGTERM to the job's processes (its process group and descendants; nothing else)
-    sample                      one load sample into LOAD/load-YYYYMMDD.jsonl (cron, once a minute; see below)
+    sample [--boot]             one load sample into LOAD/load-YYYYMMDD.jsonl (cron, once a minute and at boot; see below)
     supervise JID charkit-job   (internal) the detached supervisor; its command line names charkit so the build box's
                                 idle stop (`pgrep -f charkit`) counts a running job as busy
 
 The load sampler (task: a data-driven call on build-box capacity). Once a minute (a user crontab line installed by the
-first job; its command line doesn't name charkit, so it never keeps a box awake) it appends to LOAD/load-<UTC day>.jsonl:
+first job; its command line doesn't name charkit, so it never keeps a box awake), and once at boot (an @reboot line beside
+it: a `boot` event, so a stop reads as a stop and the first minute after a start has its CPU share), it appends to
+LOAD/load-<UTC day>.jsonl, each sample with the kernel's boot time (`boot`: a gap between two samples of one boot is the
+sampler missing minutes, across two boots the box was down):
 the 1/5/15-minute load, CPU busy share since the last sample (user, system, iowait), memory used and available, the
 build slots (~/.cache/charkit/slots: count and holders, read from /proc/locks without touching the locks), builds waiting
 for a slot (charkit.procs writes slots/wait/<pid>.json while it waits and slots/waits.jsonl when it gets one), running
@@ -37,7 +40,7 @@ to the bucket when the job ends (bucketsync publish --name load-<host>), and `py
 """
 import glob, json, os, signal, subprocess, sys, time
 
-VERSION = 2
+VERSION = 3
 JOBS = os.environ.get('BOXJOB_ROOT', '/srv/work/.jobs')
 LOAD = os.environ.get('BOXJOB_LOAD', '/srv/work/.load')
 WORK = os.environ.get('BOXJOB_WORK', '/srv/work')
@@ -360,8 +363,27 @@ def prune(days=KEEP_DAYS):
 
 
 # ------------------------------------------------------------------------------------------------------------- the load
+def cron_lines(dst):
+    """the sampler's user crontab lines: once a minute, and at boot (a `boot` event)."""
+    return ['* * * * * python3 %s sample >/dev/null 2>&1 %s' % (dst, CRON_MARK),
+            '@reboot python3 %s sample --boot >/dev/null 2>&1 %s' % (dst, CRON_MARK)]
+
+
+def cron_merge(cur, dst):
+    """the crontab text `cur` with the sampler's lines (cron_lines) added where missing; another line of ours (another
+    path, an older form) is replaced, everything else kept as it was -> the new text, or None when nothing changes."""
+    want = cron_lines(dst)
+    lines = cur.splitlines()
+    ours = [l for l in lines if l.rstrip().endswith(CRON_MARK)]
+    if sorted(ours) == sorted(want):
+        return None
+    keep = [l for l in lines if not l.rstrip().endswith(CRON_MARK)]
+    return '\n'.join(keep + want) + '\n'
+
+
 def install_sampler(d):
-    """this file into JOBS/bin (when newer than what's there) and a user crontab line running its `sample` each minute."""
+    """this file into JOBS/bin (when newer than what's there) and the user crontab lines running its `sample` each
+    minute and at boot (cron_lines; the jobs run as the box's owner, so it's the owner's crontab)."""
     if os.environ.get('BOXJOB_NO_CRON') or not os.path.exists('/proc/stat'):   # tests; not a Linux box
         return
     b = os.path.join(JOBS, 'bin')
@@ -377,14 +399,26 @@ def install_sampler(d):
     if have != mine and version(mine) >= version(have):
         _write(dst, mine)
     try:
-        cur = subprocess.run(['crontab', '-l'], capture_output=True, text=True).stdout
+        r = subprocess.run(['crontab', '-l'], capture_output=True, text=True)
     except OSError:
         return
-    if CRON_MARK in cur:
+    if r.returncode and r.stdout.strip():                   # an error with output: don't overwrite what we can't read
         return
-    line = '* * * * * python3 %s sample >/dev/null 2>&1 %s\n' % (dst, CRON_MARK)
-    subprocess.run(['crontab', '-'], input=(cur if cur.endswith('\n') or not cur else cur + '\n') + line, text=True,
-                   check=False)
+    new = cron_merge(r.stdout if not r.returncode else '', dst)
+    if new is not None:
+        subprocess.run(['crontab', '-'], input=new, text=True, check=False)
+
+
+def _btime():
+    """the kernel's boot time (epoch s), from /proc/stat."""
+    try:
+        with open('/proc/stat') as f:
+            for line in f:
+                if line.startswith('btime '):
+                    return int(line.split()[1])
+    except OSError:
+        pass
+    return None
 
 
 def _cpu():
@@ -508,8 +542,8 @@ def running_jobs():
     return sorted(out)
 
 
-def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None):
-    """one sample appended to load_dir/load-<UTC day>.jsonl -> the sample."""
+def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None, boot=False):
+    """one sample appended to load_dir/load-<UTC day>.jsonl -> the sample. boot: the @reboot line's (event 'boot')."""
     os.makedirs(load_dir, exist_ok=True)
     now = time.time() if now is None else now
     cpu = _cpu()
@@ -544,7 +578,9 @@ def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None):
                       used=round(m.get('MemTotal', 0) - m.get('MemAvailable', 0), 2),
                       swap_used=round(m.get('SwapTotal', 0) - m.get('SwapFree', 0), 2)),
              slots=slots_now(slots_dir), jobs=running_jobs(), blender=blender, charkit=charkit,
-             procs={k: v for k, v in sorted(nproc.items()) if k != 'other'}, disk_free_gb=disk)
+             procs={k: v for k, v in sorted(nproc.items()) if k != 'other'}, disk_free_gb=disk, boot=_btime())
+    if boot:
+        s['event'] = 'boot'
     g = _gpu()
     if g:
         s['gpu'] = g
@@ -591,7 +627,7 @@ def main(argv):
     if cmd == 'kill':
         return kill(a[0])
     if cmd == 'sample':
-        sample()
+        sample(boot='--boot' in a)
         return 0
     if cmd == 'version':
         print(VERSION)
