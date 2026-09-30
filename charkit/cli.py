@@ -38,6 +38,7 @@
     python -m charkit outfit score [SPEC] [--masks MASKS.npz]   # the outfit masks against the hand-labelled truth
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
     python -m charkit calibrate CHECK [--build DIR] # the calibration triple: design moved 1-2 px, known-bad, random floor
+    python -m charkit hairlocks truth | score BUILD [--json OUT]   # the hair's locks against the lock-level truth
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
                                                  # the hair pieces rebuilt over a build with overrides and measured
@@ -787,6 +788,9 @@ def main(argv=None):
     elif cmd == 'calibrate':
         from . import calibrate
         sys.exit(calibrate.main(rest) or 0)
+    elif cmd == 'hairlocks':
+        from . import hairlocks
+        sys.exit(hairlocks.main(rest) or 0)
     elif cmd == 'hairpage':
         from . import hairpage
         hairpage.main(rest)
