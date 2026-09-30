@@ -39,10 +39,13 @@ DARK_V = 0.42                          # max channel: a line
 GROUP_L = 0.12                         # L: a clip's components within this of its largest belong to it
 EYE_CLEAR = 0.09                       # L: components centred this close to an eye are the eye
 MIN_AREA_L2 = 0.0006                   # L^2: a component smaller than this is noise (about 0.025 L square)
-LIMITS = {                             # (pass within, warn within); else fail
-    'iou': (0.75, 0.60),               # higher is better
+LIMITS = {                             # (pass within, warn within); else fail. Calibrated on the design against itself
+    # (round 2, before any fit: the body turnaround's clips, an independent drawing, as 'ours' against the head
+    # turnaround's): its worst iou 0.736 (the crab's profile), size 1.064, pos 0.033 L (the star's profile), angle 6.5 deg
+    # all pass; the 3ebc3fb placeholders fail 26 of the 30 graded (docs/workstreams/accessories.md, Round 2)
+    'iou': (0.72, 0.60),               # higher is better
     'size': (0.12, 0.25),              # |ours / design - 1|
-    'pos': (0.03, 0.06),               # L
+    'pos': (0.035, 0.06),              # L
     'angle': (10.0, 20.0),             # degrees
     'seat': (0.006, 0.015),            # |gap| L
     'pos3d': (0.04, 0.08),             # L

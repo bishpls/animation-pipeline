@@ -118,4 +118,15 @@ MEASUREMENT_STEPS = [
      "sits t inside the surface and read skin under it as poking through; a bundle without the layer reads every face, "
      "as before. The 2x2 (by hand, M4's gate): old measure 0.0028 on the old meshes, 0.020 on the final ones; new "
      "measure 0.0028 on the old, 0.003 on the final (tool/evalmesh)"),
+    # tool/accessories2 (charkit.accqa, qa3d.Design.design_views, qa3d._scene_classes, bodymeasure.Sheet): the hair clips
+    # their own class on both sides. Measured alone on the 3ebc3fb baseline's bundle (the same geometry): 16 checks move
+    ('body_*_iou_*', 'fc6269c', "the drawn hair clips in the accessory class (charkit.accqa.reclass: found as the outfit "
+     "graph's pieces), ours by object, not hair, iris or outfit by their colour: on 3ebc3fb's geometry iou_hair -0.013 "
+     "to -0.020 (the placeholders sit where the design draws hair), iou_outfit +0.002 to +0.004, iou_cream +0.005 to "
+     "+0.011"),
+    ('palette_iris_*', 'fc6269c', "the design's iris without the drawn star's pale facets (the accessory class): "
+     "palette_iris_lit 7.06 -> 1.65 on 3ebc3fb's geometry"),
+    ('hair_piece_*', 'fc6269c', "the hair layers without the drawn clips (qa3d.hair_layers_masks: ours are occluders): "
+     "bangs 0.792 -> 0.772, side_locks 0.534 -> 0.526 on 3ebc3fb's geometry"),
+    ('hair_bun_*', 'fc6269c', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),
 ]
