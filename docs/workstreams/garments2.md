@@ -5,7 +5,39 @@ shorts, the skirt's pleat detail, the collar and bow, the wrist cuffs. Worktree 
 branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling 47b401f merged) plus pipeline-3d
 2e3bdd5.
 
-## Round 3: the jacket over the band (2026-09-30, resumed). Start here.
+## Round 3 state (2026-09-30, end). Start here.
+
+- **Branch** `tool/garments2` at the merge of pipeline-3d cfcdc3a (tool/infra: self-registering QA parts and steps;
+  `piece_details` registers in `pieceqa.py`, order 1750; the steps are in `charkit/steps/pieceqa.py`).
+- **Builds:** before `~/animation-pipeline-g2before/charkit/out/g2_before` (pipeline-3d 62b0556), after
+  `charkit/out/g2_after` (343a147: the garments as at the head). Review page: `charkit/out/g2_review/index.html`
+  (design | before | after per view, the numbers from both builds; the piece checks measured by this branch's code
+  on both). Generator: scratch `page.py`.
+- **Done:** Michael's flag. The jacket hangs over the band (over_band 0.974/0.986 FAIL -> 0.0 PASS), open in front with
+  the bib its own garment behind it (opening 0.144 FAIL -> 0.007 PASS, hem step 0.031 FAIL -> 0.007 PASS,
+  piece_bodice_panel 0.78 PASS), the fronts hung from the bust and hanging lower than the bib over the band; the
+  band's height at the drawn rows (piece_waistband 0.453 FAIL -> 0.894 PASS; rows PASS in front, three-quarter,
+  back); piece_top 0.595 -> 0.632.
+- **Worse than pipeline-3d:** `body_front_skirt_overhang_{L,R}` PASS -> FAIL (the skirt's top, tool/skirt: see
+  Coordination), `body_front_torso_jump_L` PASS -> WARN 0.014 (the jacket's side corner; steeper side hems made it
+  worse: 0.028-0.033), `bow_profile_torn` 0.0 -> 0.018 (a new check: the jacket's fronts now stand forward in profile
+  where the bow's lower edge was the outline), piece_sleeve_L/R 0.929/0.82 -> 0.91/0.79 (milestone 1's puff
+  template: spikes and stand-off PASS, the IoU a little lower).
+- **Gates at 3d81679 into pipeline-3d cfcdc3a:** clawd_mh **PASS**; default **FAIL** on `body_front_skirt_overhang_L/R`
+  (0 -> 0.118/0.115, the skirt), `body_front_torso_jump_L` (0 -> 0.014 WARN), and in the 2x2 (worse on the new geometry
+  under the new measure; the coordinator's call, no --accept used): `bow_front_tail_gap` 0.0 -> 0.033 WARN,
+  `bow_profile_torn` 0.0 -> 0.018 FAIL, `sleeve_profile_rough_L` 0.0056 -> 0.0098 WARN. Improved in the 2x2: both
+  over_band checks, the opening, the hem step, the waistband's rows in front, three-quarter and back, its back width,
+  the profile overhang, and six sleeve checks. pipeline-3d has since moved to 8a7d4ea (tool/geom-truth: garments built
+  in the venv and replayed in Blender); not merged here (the coordinator merges; this branch's `bodyeval` edits, the
+  stripe colour in `garment_tones`, are part of the dispatch geom-truth removes).
+- **Not done this round:** the collar (blocked on the shoulders' height, below), the bow's wing/ribbon and the cuff
+  template (mixed results, below).
+- **Next:** the skirt tuck (tool/skirt); the shoulders' height and the builders' eye line (tool/body, integrator);
+  then the collar template onto raised shoulders; the bow's tails' parting and wing edge; the cuffs' flare with the
+  hand's base; the three-quarter's near-side hem (0.028 L high against the drawing's).
+
+## Round 3: the jacket over the band (2026-09-30): the work
 
 **Branch** `tool/garments2` with pipeline-3d 9397578 merged (face, eyes2, produced-cache, the process decisions and
 `docs/OWNERSHIP.md`). The "before" build: `~/animation-pipeline-g2before` (branch `tmp/g2before` at pipeline-3d),
