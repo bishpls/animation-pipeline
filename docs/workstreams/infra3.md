@@ -311,15 +311,18 @@ collect them. Options, least provisioning first:
 
 ## Next steps
 
-Milestone B after the coordinator's go-ahead:
-- (g) carry a result over when pipeline-3d moves: the same test as the no-build path, the intervening commits'
-  changes against the candidate's closure (the candidate records one now); a command for the integrator's queue.
-- (h) shared stage caches across clones: the venv steps' keys need portable paths first (pieces_hair's `cut` holds
-  head_code and body_code as absolute out paths; file_step keys `inputs` by absolute path).
-- (i) a slot for the whole build, with the thread caps every build gets (not only the gate's): the A/B says about 60%
-  of the box's build CPU is spinning. Add llvmpipe (LP_NUM_THREADS) now that the QA draws with charkit.render, measured
-  bit-identical first.
-- (j) the sampler at boot: the crontab line exists on the build box; check why it stopped, and the render box.
-- (k) the masked-skin last bit (infra.md (c) cause 2), (l) the local pre-gate check.
-- Smaller: create the baseline worktree only when it's needed (the tests-only path spends 7 of its 14 s of setup on
-  it); a leftover clone from infra2's killed gate (/srv/work/gates/tool_infra2-2a85a869, from before the trap).
+Run 3 left off here (box out on gcloud auth from 09:50; tool/infra3 not gated since 7b2f9c8):
+1. After Michael re-logs in: `python -m charkit remote attach JID` for gate-infra3-0930-093759-d094 (the 2x2 pair),
+   gate-infra3-0930-094153-f251 (h1), build-infra3-0930-094531-cfcf (i_before), build-infra3-0930-094541-9a90
+   (i_after). Read them as the State section says.
+2. h's measure: gate tmp/infra3-h2 into tmp/infra3-into with `--code tmp/infra3-gatecode-h`; its candidate's cache
+   lines must say pieces_hair (and code_head, code_body, garments_geom) `hit`.
+3. i's measure: the A/B from the two builds (CPU, wall, bit-identical bundles and checks, LP_NUM_THREADS included);
+   then 4-6 capped builds at once and `remote load --hours 1 --fresh` (slot occupancy, queue, CPU busy, load).
+4. Gate tool/infra3's tip into pipeline-3d (the normal gate) and report. The 2x2 fix alone is cabfcf5..f7429ef if
+   the coordinator wants it first (gate.py and its test only: a tests-only gate).
+5. k: from the i A/B's bundles (masked skin arrays equal or not on the default spec), then infra.md's probe.
+6. j: why the build box's per-minute crontab stopped (it's a user crontab: it should survive a stop/start), add an
+   `@reboot` line in boxjob.install_sampler if needed, and the render box; plus Michael's auth decision above.
+7. l: a warm-iteration timing (this run's last measure, below), more real pairs (tool/hull-limbs cddbd12 into e11fadb,
+   tool/garments2), and the drawing: the evaluator has no charkit.render path yet.
