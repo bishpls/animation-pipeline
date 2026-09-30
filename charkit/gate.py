@@ -327,18 +327,30 @@ def rebased_bundle(bundle_dir, tmp):
         return bundle_dir
     # (a mirror of the build's folder, every entry linked, the bundle's own metadata rewritten: the QA finds the build's
     # export beside its bundle, OUT/NAME.look.glb, for the render drawing)
-    src = os.path.dirname(os.path.abspath(bundle_dir))
+    # (the links name the real folders: a gate reaches gate-out through its own clone's charkit/out/gate link, which
+    # goes with the clone; and a mirror an earlier gate of the same pair left in the candidate's folder is repointed:
+    # its links named that gate's clone, and the 2x2 couldn't load arrays.npz, tool/calib's re-gates 2026-09-30)
+    src = os.path.realpath(os.path.dirname(os.path.abspath(bundle_dir)))
+    real = os.path.realpath(bundle_dir)
     mirror = os.path.join(tmp, os.path.basename(src))
-    dst = os.path.join(mirror, os.path.basename(os.path.abspath(bundle_dir)))
+    dst = os.path.join(mirror, os.path.basename(real))
     os.makedirs(dst, exist_ok=True)
     for f in os.listdir(src):
-        if f != os.path.basename(dst) and not os.path.lexists(os.path.join(mirror, f)):
-            os.symlink(os.path.join(src, f), os.path.join(mirror, f))
-    for f in os.listdir(bundle_dir):
-        if f != 'bundle.json' and not os.path.lexists(os.path.join(dst, f)):
-            os.symlink(os.path.join(os.path.abspath(bundle_dir), f), os.path.join(dst, f))
+        if f != os.path.basename(dst):
+            _link(os.path.join(src, f), os.path.join(mirror, f))
+    for f in os.listdir(real):
+        if f != 'bundle.json':
+            _link(os.path.join(real, f), os.path.join(dst, f))
     json.dump(meta, open(os.path.join(dst, 'bundle.json'), 'w'))
     return dst
+
+
+def _link(target, link):
+    """link made a symlink to target, replacing a link that names anything else."""
+    if os.path.islink(link) and os.readlink(link) != target:
+        os.remove(link)
+    if not os.path.lexists(link):
+        os.symlink(target, link)
 
 
 def cross_qa(tree, bundle_dir, out):
@@ -509,7 +521,7 @@ def _reference(gdir, stem, opts, head, wt):
     for d in sorted(dirs, key=os.path.getmtime, reverse=True)[:12]:
         c = os.path.basename(d)[len('base_'):-len(suffix)]
         C = _closure_of(d)
-        if c == head or C is None or not _whole(d):
+        if c == head or C is None or not os.path.exists(os.path.join(d, 'qa', 'qa.json')):
             continue
         if _git('cat-file', '-e', c + '^{commit}', cwd=wt, check=False).returncode:
             continue
@@ -517,14 +529,6 @@ def _reference(gdir, stem, opts, head, wt):
         if not closure.affected(C, ch, wt, cone, rev=c, new=head):
             return d, c, ch
     return None
-
-
-def _whole(out):
-    """a finished build a gate can stand on: its qa.json and its bundle's arrays (the 2x2 reads a baseline's bundle; the
-    box's cached base_3ebc3fb had kept its qa.json and lost bundle/arrays.npz, so the 2x2 couldn't run on it and every
-    remeasured check read unmeasured: tool/calib's real-pair gates, 2026-09-30)."""
-    return os.path.exists(os.path.join(out, 'qa', 'qa.json')) and \
-        os.path.exists(os.path.join(out, 'bundle', 'arrays.npz'))
 
 
 def _link_base(ref, base_out):
@@ -595,7 +599,7 @@ def _cand_reference(gdir, tip, suffix, opts, head, wc):
     for d in sorted(dirs, key=os.path.getmtime, reverse=True)[:8]:
         h0 = pat.match(os.path.basename(d)).group(1)
         C = _closure_of(d)
-        if h0 == head or C is None or not _whole(d):
+        if h0 == head or C is None or not os.path.exists(os.path.join(d, 'qa', 'qa.json')):
             continue
         t0 = _merge_tree(wc, h0, tip)
         if t0 is None:
@@ -690,14 +694,8 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         lock = open(base_out + '.lock', 'w')
 
         def settle():
-            """(the lock held) the baseline cached, or an earlier one standing for it -> base_build, or None: build it.
-            A cached one missing its bundle's arrays is moved aside (.stale-PID) and built again."""
-            if os.path.lexists(base_out) and os.path.exists(os.path.join(base_out, 'qa', 'qa.json')) and \
-                    not _whole(base_out):
-                os.replace(base_out, base_out + '.stale-%d' % os.getpid())
-                rep.setdefault('notes', []).append('the cached baseline had lost its bundle arrays: moved aside and '
-                                                   'built again')
-            if _whole(base_out):
+            """(the lock held) the baseline cached, or an earlier one standing for it -> base_build, or None: build it"""
+            if os.path.exists(os.path.join(base_out, 'qa', 'qa.json')):
                 return dict({'ok': True, 'cached': True}, **(
                     {'same_as': os.readlink(base_out)} if os.path.islink(base_out) else {}))
             ref = None if force_build else _reference(gdir, stem, opts, head, wc)
