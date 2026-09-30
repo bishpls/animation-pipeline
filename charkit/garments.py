@@ -2469,7 +2469,8 @@ def bow_hull(A, spec, hull):
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
                   wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0),
-                  end_p=spec.get('end_p', 2.0), drop=spec.get('drop', 0.0), drop_p=spec.get('drop_p', 1.5))
+                  end_p=spec.get('end_p', 2.0), drop=spec.get('drop', 0.0), drop_p=spec.get('drop_p', 1.5),
+                  pleat=spec.get('pleat'), knot_box=spec.get('knot_box'))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -2477,7 +2478,12 @@ def bow_hull(A, spec, hull):
         S = S[S[:, 1] < np.percentile(S[:, 1], 2) + spec.get('front_band', 0.3) * L]   # its front (stray labels behind)
         fy = front_surface(S, spec.get('cell', 0.04) * L, smooth=spec.get('front_smooth', 1.0))
         V = G['verts']
-        dy = (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
+        ze = V[:, 2].copy()
+        if (spec.get('pleat') or {}).get('wrap') == 'row' and G.get('lobe_v') is not None:
+            # pleat.wrap 'row': pleated lobes wrapped by their centre row only (stiff up and down; tried in p3 against
+            # the crease's missing line: it didn't bring it, and the profile fell 0.58 -> 0.46)
+            ze[G['lobe_v']] = z
+        dy = (fy(V[:, 0], ze) - (y - depth)) * spec.get('conform_k', 1.0)
         # the shift smoothed over the mesh (neighbours' mean): the grid's cells stepped the lobes' edges, which read
         # torn in profile, and pushed the lobes' backs into the collar under them
         nb = [set() for _ in range(len(V))]
@@ -2496,11 +2502,30 @@ def bow_hull(A, spec, hull):
         ts = G['tail_s']
         k_ = np.clip(np.nan_to_num(ts, nan=0.0) / (spec.get('ribbon') or {}).get('stand_in', 0.3), 0.0, 1.0)
         G['verts'][:, 1] -= stand * L * k_ * k_ * (3 - 2 * k_)
+    kst = (spec.get('pleat') or {}).get('stand')
+    if kst is not None and G.get('knot_v') is not None:
+        # the knot stood in front of the lobes (after the wrap: the chest's round moved the lobes' middles forward of
+        # their pinch): its back in front of the lobes' surface at its sides, so its outline (the hull's back faces,
+        # round its edge) draws against the lobes as the design's line does, and in profile it shows in front
+        V = G['verts']
+        kv = G['knot_v']
+        lv = G['lobe_v']
+        zk0, zk1 = V[kv, 2].min(), V[kv, 2].max()
+        xk = np.abs(V[kv, 0]).max()
+        near = lv[(V[lv, 2] > zk0) & (V[lv, 2] < zk1) & (np.abs(V[lv, 0]) < xk + 0.03 * L)]
+        allz = lv[(V[lv, 2] > zk0) & (V[lv, 2] < zk1)]
+        side = V[near, 1].min() if len(near) else V[kv, 1].max()      # the lobes' front at the knot's sides
+        front = V[allz, 1].min() if len(allz) else side                # ... and anywhere at its height (profile)
+        # its back `stand` L behind the lobes' frontmost at its height (so in profile it stands in front of them by
+        # its depth less that, with no gap between), but at least 0.004 L in front of them by its sides (its outline)
+        dyk = min(front + kst * L, side - 0.004 * L) - V[kv, 1].max()
+        V[kv, 1] += dyk
     G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0, drop=0.0, drop_p=1.5):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0, drop=0.0, drop_p=1.5,
+              pleat=None, knot_box=None):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
     centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
     lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
@@ -2516,8 +2541,19 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     `drop` (sizes, default 0): the pillow lobes' lower edge lowered toward their outer ends by drop u^drop_p (u 0 at the
     knot .. 1 at the end; the top edge kept), shrinking with the end cap: the drawn loops flare to tall ends, their
     lower corners hanging (in profile they hang fullest low; the pillows sat high and read as tipped disks).
+    `pleat` (dict, sizes; tool/pieceref, Michael 2026-09-30: the lobes read as pillows): each lobe a trapezoid in front
+    (the design's: pinched at the knot, its top rising to a square upper outer corner, its bottom falling to a rounder
+    lower one) folded along its crease, a straight line from the knot's lower corner to the lower outer corner: the
+    panel above it stands in front of a strip below it (the fold's underside, sagging `sag` below the line mid-lobe),
+    `step` of the panel's half-depth behind, so the panel's lower edge is a silhouette its outline draws (inverted hulls
+    draw silhouettes only). Its keys: knot (the half-height at the knot), top, bottom (the outer end's top above and
+    bottom below the centre), sag, rise, cap and end_p (the outer end's cap share and [upper, lower] powers), pinch (the
+    half-depth at the knot over the fullest), step, thin (the strip's half-depth over the panel's), overlap (the panel
+    reaching under the line), x0 (the lobes' inner end), stand (bow_hull: the knot's back this far (L) in front of the
+    lobes by its sides), cup (the lobes' outer ends this far forward of their pinch: in profile they reach past the
+    knot's back, as drawn, while by its sides they stay behind it). `knot_box` (sizes: wide, deep, tall): the knot (else the wing's box or the old one).
     The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
-    'tail_s'."""
+    'tail_s', and the knot's and the lobes' vertex indices ('knot_v', 'lobe_v')."""
     depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
     tail_s = {}
@@ -2525,9 +2561,17 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     def add(vs, fs, us):
         o = len(verts); verts.extend(vs); uvs.extend(us); faces.extend([tuple(i + o for i in f) for f in fs])
     nu, nv = 24, 14
+    lobe_v = []
     for sx in (-1, 1):
         vs, us = [], []
-        if wing:
+        if pleat:
+            l0 = len(verts)
+            for kind in ('panel', 'strip'):
+                vs, us, fs = _pleat_band(pleat, kind, sx, sz, depth, nu)
+                add([c + v for v in vs], fs, us)
+            lobe_v.extend(range(l0, len(verts)))
+            vs, us = [], []
+        elif wing:
             # a bow tie's wing: sections along x from the knot (u 0) to the end (u 1), each an ellipse in (depth,
             # height), its half-height growing from the knot's to the end's, closed at the end by a quarter ellipse
             nw = 18
@@ -2633,14 +2677,74 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
         add(vs, fs, us)
         tail_s.update(zip(range(t0_, len(verts)), np.repeat(np.arange(M + 1) / M, 6)))
     from .accessories import rounded_box
-    kb = (wing or {}).get('box', (0.19, 0.16, 0.24))                 # the knot (sizes: wide, deep, tall)
-    kv, kf = rounded_box(kb[0], kb[1], kb[2], 0.07, segs=2)
+    kb = knot_box or (wing or {}).get('box', (0.19, 0.16, 0.24))     # the knot (sizes: wide, deep, tall)
+    kv, kf = rounded_box(kb[0], kb[1], kb[2], kb[3] if len(kb) > 3 else 0.07, segs=2)   # (4th: the corners' radius)
+    k0 = len(verts)
     add(list(kv * sz + c + np.array([0, -0.012 * L, 0.01 * sz])), kf, [(0.5, 0.5)] * len(kv))
+    knot_v = np.arange(k0, len(verts))
     verts = np.array(verts)
     ts = np.full(len(verts), np.nan)
     for k, v in tail_s.items():
         ts[k] = v
-    return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs, tail_s=ts)
+    return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs, tail_s=ts, knot_v=knot_v,
+                lobe_v=np.array(lobe_v, int) if lobe_v else None)
+
+
+def _pleat_band(P, kind, sx, sz, depth, nu, nw=20):
+    """one band of a pleated lobe (_bow_mesh's `pleat`), round the origin: 'panel' (above the crease line, in front) or
+    'strip' (the fold's underside below it, behind), a ring of nu points per row along the lobe (u 0 at the knot .. 1 at
+    the outer end), closed at both ends by a fan -> (verts, uvs, quad and triangle faces)."""
+    x0 = P.get('x0', 0.05)
+    hk, ht, hb = P.get('knot', 0.07), P.get('top', 0.22), P.get('bottom', 0.2)
+    rise, sag, ov = P.get('rise', 0.0), P.get('sag', 0.05), P.get('overlap', 0.015)
+    capw = P.get('cap', 0.15)
+    pu, pl = P.get('end_p', (4.0, 1.4))
+    pinch, step, thin = P.get('pinch', 0.4), P.get('step', 0.7), P.get('thin', 0.5)
+    tp = P.get('top_p', 1.0)
+    crease = lambda u: -(hk + (hb - hk) * u)
+    if kind == 'panel':
+        zt = lambda u: hk + (ht - hk) * u ** tp + rise * u
+        zb = lambda u: crease(u) - ov
+    else:
+        zt = lambda u: crease(u) + ov
+        zb = lambda u: crease(u) - sag * math.sin(math.pi * u) ** 0.8
+    rows = [0.5 * (1 - math.cos(math.pi * i / nw)) * (1 - capw) for i in range(nw)]
+    if kind == 'panel':
+        rows += [1 - capw + capw * math.sin(0.5 * math.pi * q / 8) for q in range(9)]
+    else:
+        rows += [1 - capw]                  # the strip ends where the panel's end cap starts (no spur past its corner)
+    vs, us = [], []
+    for u in rows:
+        e = max(0.0, (u - (1 - capw)) / capw) if kind == 'panel' else 0.0
+        k_up = max(0.0, 1 - e ** pu) ** (1.0 / pu)
+        k_lo = max(0.0, 1 - e ** pl) ** (1.0 / pl)
+        t, b = zt(u), zb(u)
+        zm, hh = 0.5 * (t + b), 0.5 * (t - b)
+        # the half-depth: pinched at the knot, fullest past mid-lobe, thinning into the end's cap
+        dd = depth * (pinch + (1 - pinch) * math.sin(math.pi * min(0.999, 0.15 + 0.85 * u)) ** 0.5)
+        yc = (0.0 if kind == 'panel' else step * dd) - P.get('cup', 0.0) * sz * u ** 0.7   # cup: the ends forward
+        if kind == 'strip':
+            dd *= thin
+        x = sx * (x0 + (LOBE - x0) * u) * sz
+        for j in range(nu):
+            ph = 2 * math.pi * j / nu
+            k_ = k_lo + (k_up - k_lo) * 0.5 * (1 + math.sin(ph))
+            zz = (zm + math.sin(ph) * hh * k_) * sz
+            yy = yc - math.cos(ph) * dd * max(k_, 0.25)
+            vs.append(np.array([x, yy, zz])); us.append((j / nu, u))
+    nr = len(rows)
+    fs = []
+    for i in range(nr - 1):
+        for j in range(nu):
+            j2 = (j + 1) % nu
+            fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+    for i, u in ((0, 0.0), (nr - 1, rows[-1])):
+        ring = np.array(vs[i * nu:(i + 1) * nu])
+        tip = len(vs)
+        vs.append(ring.mean(0)); us.append((0.5, u))
+        fs += [((i * nu + (j + 1) % nu), i * nu + j, tip) if i == 0 else (i * nu + j, i * nu + (j + 1) % nu, tip)
+               for j in range(nu)]
+    return vs, us, fs
 
 
 # ------------------------------------------------------------------------------------------------------------------- collar

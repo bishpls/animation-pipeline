@@ -358,8 +358,10 @@ def measure(B, design):
                           dline, ppl)
         pic = line_picture(B, 0.0, ppl)
         P = pic['part']
+        # (the knot's outline share reaching the line's width: the build's outlines are 3-5 px at LINE_PPL, and an
+        # outlined knot read None at 2 px, no knot pixel near a lobe's)
         Om = part_measures(P == CODES['knot'], {'L': P == CODES['lobe_L'], 'R': P == CODES['lobe_R']}, pic['line'],
-                           LINE_PPL)
+                           LINE_PPL, reach=max(2, int(np.ceil(line_width(pic['line'])))))
         T['lines'] = dict(ours=Om, design=D)
         kl_o, kl_d = Om['knot_line'], D['knot_line']
         C['bow_part_knot_line'] = _check('knot_line', None if kl_o is None or kl_d is None else max(0.0, kl_d - kl_o),
