@@ -457,9 +457,10 @@ def _cut_path(val, pts, snap=True):
     return np.concatenate(rr), np.concatenate(cc)
 
 
-def truth_regions(dv, src):
+def truth_regions(dv, src, valid=TRUTH_LABELS):
     """one view's truth from its source (dict(cuts=[{p: [[x, y], ...], snap}], seeds=[[x, y, 'a|b'], ...])) ->
-    (region label image (0 unscored), [(region id, label set, area)], cut mask, problems [str])."""
+    (region label image (0 unscored), [(region id, label set, area)], cut mask, problems [str]). valid: the labels a
+    seed may use (the family truth's; charkit.hairlocks passes its lock labels' test)."""
     from scipy import ndimage
     from .outfit import cells
     from .bodyqa import CLASS
@@ -508,7 +509,7 @@ def truth_regions(dv, src):
                 i = np.argmin((ys + max(0, y - 3) - y) ** 2 + (xs + max(0, x - 3) - x) ** 2)
                 rid = reg[ys[i] + max(0, y - 3), xs[i] + max(0, x - 3)]
         st = tuple(s.split('|'))
-        bad = [q for q in st if q not in TRUTH_LABELS]
+        bad = [q for q in st if not (valid(q) if callable(valid) else q in valid)]
         if bad:
             problems.append('seed (%d, %d): unknown label %s' % (x, y, bad))
         if rid == 0:
