@@ -22,7 +22,19 @@ clawd_body gate's builds may hit it too. If they do, it's tool/body's (the sleev
 the box, not this workstream's: report it to the integrator, and take the per-view table from a default-spec build instead
 (`python -m charkit remote build charkit/spec/clawd.json --out charkit/out/art_default --no-blend`).
 
+**Default-spec gate (`0db2e9b` into `01f2cdd`): PASS.** Tests all ok, every art_* check new (INFO). Build CPU seconds
+793.0 -> 803.2 (+1.3%), wall 271.7 -> 293.6 s (+8%, the box was running two gates and a build at once). Its
+`art_design` note (value None, INFO) means **the stored design measures were stale on the box and re-measured (~20 s)**:
+the stamp hashes the outfit graph *beside the produced masks* (`_graph_path`), and that produced copy differs from the
+tracked one (locally `db557989...` against the tracked `charkit/refs/clawd/outfit_graph.json`, `308d5dcc...`, the
+manifest's sha). Worst views on that build: outline neck 11.8, collar 3.9, top 2.2; terminator hair 4.8, bow 8.6,
+skirt 3.2; fragments boots 2.9, top 2.9; speckle neck 1.7; peeks hair 17.
+
 **Next steps, in order:**
+0. **Fix the stamp first:** in `artifactqa.design_inputs`, hash the tracked outfit graph (the manifest's
+   `outfit_graph` reference, as `bodymeasure.piece_masks` names its graph, or the masks' `.stamp`), not the produced
+   copy; re-store `artifacts_design.json`, test, commit, and re-gate both specs. The `art_design` note must be gone
+   and the CPU seconds within ~1% (the part itself is ~4 s).
 1. Read the two gate reports (expect PASS: the art_* checks are new and INFO; watch the CPU-seconds slowness line, the
    budget is +3%: the part costs 3.5-4.0 s idle on the laptop). If a gate is missing, re-run it (commands above).
 2. If `charkit/out/art_body/qa/qa.json` exists: rebuild the review page with it and the final table:
