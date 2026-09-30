@@ -14,6 +14,22 @@ old measure has the check) or a crossed QA that can't run blocks (gate.unmeasure
 Rejudged, the hairtag report is FAIL on its 10 cells. Validating on the real pair: tmp/infra3-hairtag (37c09cf) into
 tmp/infra3-into (4de65ab), gate code cabfcf5.
 
+**Box work stopped 2026-09-30 ~09:50 local: gcloud "Reauthentication failed"** (the laptop's gcloud token; Michael
+must `gcloud auth login`). Four detached box jobs were running then and are to be collected with
+`python -m charkit remote attach JID` once it's back:
+- `gate-infra3-0930-093759-d094`: the 2x2's real pair (tmp/infra3-hairtag 37c09cf into tmp/infra3-into 4de65ab, gate
+  code f7429ef). It ended on the box with exit 0 (PASS: the old-measure cells measured); its report wasn't fetched.
+  Expected in charkit/out/gate as gate_tmp-infra3-hairtag_37c09cf_into_4de65ab.md.
+- `gate-infra3-0930-094153-f251`: h's first validation gate (tmp/infra3-h1 into tmp/infra3-into, gate code c14b0ab,
+  also tmp/infra3-gatecode-h): fills ~/.cache/charkit/steps. Then gate tmp/infra3-h2 the same way with
+  `--code tmp/infra3-gatecode-h`: its candidate's pieces_hair (and code_head, code_body, garments_geom) must read
+  `hit` in the report's cache lines, where before every clone rebuilt them (pieces_hair 138-198 s).
+- `build-infra3-0930-094531-cfcf` (--out charkit/out/i_before: `--threads off --slot blender`, the old way) and
+  `build-infra3-0930-094541-9a90` (--out charkit/out/i_after: capped, whole-build slot), both `--cache off`, side by
+  side: i's A/B. Read each build_cpu.json (CPU, wall, cap) and compare bundle/bundle.json's array hashes and
+  qa/qa.json's checks (bit-identical, llvmpipe capped included). Then k: if the two bundles differ only in
+  o/clawd_skin/masked/*, that's the last-bit skin case on the default spec.
+
 **h, the rest** (ec00b3a): the venv steps' keys portable (cache._port: the build's out folder as '<out>/', the
 worktree and its charkit/out links relative; reads the same; a hit notes the step's reads, inputs and code files in the
 build's closure via closure.note, else a restored step would drop them from the closure and the gate could skip a
@@ -22,6 +38,15 @@ reaches (CHARKIT_STEP_DEPTH=all: a shared entry must not restore a stale product
 against 39 at depth 2). The measure: tmp/infra3-h1 and -h2 (4de65ab plus a comment in qa3d.py's poke / hair_tips:
 the candidate builds, no step's key moves) gated one after the other into tmp/infra3-into with this gate code; the
 second's pieces_hair must hit.
+
+**i** (c864fc6, 6384864; not yet measured): a whole build in one machine-wide slot (procs.build_slot; what it starts
+sees CHARKIT_SLOT_HELD and takes none: its Blender, a worker's job, a nested build, so the laptop's one slot can't
+deadlock; `--slot blender` the old way), and the build-like commands (build, qa, tune, worker, bodyeval, bodyfit, fit,
+bodysens, flapchains) capped before numpy loads on a machine of 16+ cores (procs.cap_threads: numba, BLAS, OpenMP and
+llvmpipe's LP_NUM_THREADS at max(2, min(8, cores // 8)) = 4 on the box, OMP waits passive; `--threads N|off`,
+CHARKIT_THREADS; a variable already set wins, so a gate's own caps hold; the laptop, 12 cores, stays uncapped). Every
+build now writes OUT/build_cpu.json and prints CHARKIT_BUILD_CPU (CPU with the Blender it waited for, wall, cap, slot).
+Tests: test_procs (one slot for all a build starts, nesting, caps), 22 passed with test_gate.
 
 Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
 pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
