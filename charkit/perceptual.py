@@ -949,15 +949,35 @@ def _result(build, rescore=False, log=print):
     return run(build, calib=None, log=log)
 
 
-def _dist(res, scale, view, region, layer=None):
+GEO_RANK = {'PASS': 0, 'INFO': 0, 'SKIPPED': 0, None: 0, 'WARN': 1, 'FAIL': 2}
+BOOT = 2000                      # paired bootstrap draws over the labels (the decision rule's interval)
+BEAT = 0.2                       # the metric "clearly beats" the geometric checks: LOO rho ahead by this, and the
+                                 # bootstrap's 90% interval of the difference above 0 (pre-registered, docs/workstreams)
+
+
+def _field(layer=None, stat='dist'):
+    """a region entry's field: the metric's own (layer None: dist or p90), else dist_l18, p90_l12, dist_aligned, ..."""
+    if layer is None:
+        return stat
+    return '%s_%s' % (stat, layer if isinstance(layer, str) else 'l%d' % layer)
+
+
+def _scale_of(region, body_scale='body'):
+    """the scale a region is graded at (the body's regions at body_scale: body, or body_hi for the 224 px per L grid)."""
+    sc = PRIMARY.get(region, 'body')
+    return body_scale if sc == 'body' else sc
+
+
+def _dist(res, scale, view, region, layer=None, stat='dist'):
     e = ((res.get('scales') or {}).get(scale) or {}).get(view)
     r = (e or {}).get('regions', {}).get(region)
     if not r or r['patches'] < MIN_PATCHES:
         return None
-    return r['dist'] if layer is None else r.get('dist_l%d' % layer)
+    v = r.get(_field(layer, stat))
+    return v['dist' if stat == 'dist' else stat] if isinstance(v, dict) else v
 
 
-def floors(results, q=FLOOR_Q, layer=None):
+def floors(results, q=FLOOR_Q, layer=None, stat='dist'):
     """per (scale, view, region): the q-quantile of the region's distance over the builds (the drawn-against-rendered
     gap every build pays), and per (scale, region) over all views as the fallback."""
     got = {}
@@ -965,21 +985,21 @@ def floors(results, q=FLOOR_Q, layer=None):
         for sc, vs in (res.get('scales') or {}).items():
             for v, e in vs.items():
                 for reg in e['regions']:
-                    d = _dist(res, sc, v, reg, layer)
+                    d = _dist(res, sc, v, reg, layer, stat)
                     if d is not None:
                         got.setdefault('%s/%s/%s' % (sc, v, reg), []).append(d)
                         got.setdefault('%s/*/%s' % (sc, reg), []).append(d)
     return {k: round(float(np.quantile(v, q)), 4) for k, v in got.items()}
 
 
-def label_values(lab, res, F, layer=None):
+def label_values(lab, res, F, layer=None, stat='dist', body_scale='body'):
     """a label's distance less its floor at its region's graded scale, per view it names ('*': every view measured)
     -> {view: value}."""
-    sc = PRIMARY.get(lab['region'], 'body')
+    sc = _scale_of(lab['region'], body_scale)
     views = list(SCALES[sc]['views']) if lab['view'] == '*' else [lab['view']]
     out = {}
     for v in views:
-        d = _dist(res, sc, v, lab['region'], layer)
+        d = _dist(res, sc, v, lab['region'], layer, stat)
         if d is None:
             continue
         fl = F.get('%s/%s/%s' % (sc, v, lab['region']), F.get('%s/*/%s' % (sc, lab['region']), 0.0))
@@ -1002,11 +1022,11 @@ def fit_weights(X, sev, idx, ng, ridge=RIDGE):
         return np.zeros(ng)
     base = _scores(X, idx, np.zeros(ng))
     tau = max(float(np.std(base)), 1e-3)
+    I, J = np.array(P).T
 
     def loss(th):
         y = _scores(X, idx, th)
-        m = np.array([(y[i] - y[j]) / tau for i, j in P])
-        return float(np.mean(np.logaddexp(0, -m))) + ridge * float(np.sum(th ** 2)) / ng
+        return float(np.mean(np.logaddexp(0, -(y[I] - y[J]) / tau))) + ridge * float(np.sum(th ** 2)) / ng
     r = minimize(loss, np.zeros(ng), method='Nelder-Mead', options=dict(maxiter=4000, xatol=1e-4, fatol=1e-7))
     return r.x
 
@@ -1043,6 +1063,14 @@ def _caught(sev, g):
     return {3: g == 'FAIL', 2: g in ('WARN', 'FAIL'), 1: g in ('WARN', 'FAIL'), 0: g == 'PASS'}[sev]
 
 
+def _rho(a, b):
+    from scipy.stats import spearmanr
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    if len(a) < 3 or np.all(a == a[0]) or np.all(b == b[0]):
+        return None
+    return float(spearmanr(a, b).correlation)
+
+
 def _spearman(a, b):
     from scipy.stats import spearmanr
     a, b = np.asarray(a, float), np.asarray(b, float)
@@ -1052,11 +1080,106 @@ def _spearman(a, b):
     return dict(rho=round(float(r.correlation), 3), p=round(float(r.pvalue), 4), n=int(len(a)))
 
 
+def boot_diff(y, g, sev, n=BOOT, seed=0):
+    """a paired bootstrap over labels of rho(y, sev) - rho(g, sev) -> dict(lo, hi (the 90% interval), mean, draws)."""
+    y, g, sev = (np.asarray(a, float) for a in (y, g, sev))
+    rng = np.random.default_rng(seed)
+    D = []
+    for _ in range(n):
+        i = rng.integers(0, len(y), len(y))
+        a, b = _rho(y[i], sev[i]), _rho(g[i], sev[i])
+        if a is not None and b is not None:
+            D.append(a - b)
+    if not D:
+        return None
+    D = np.array(D)
+    return dict(lo=round(float(np.quantile(D, 0.05)), 3), hi=round(float(np.quantile(D, 0.95)), 3),
+                mean=round(float(D.mean()), 3), draws=len(D))
+
+
+# the geometric suite's own verdict on a label's region, read mechanically off the build's qa.json: the worst status of
+# the checks whose names belong to the region (and, where the label names a view, don't name another view)
+GEO_REGION = {
+    'face': r'^(sheet_(width|profile|cheek|chin|nose|face|jaw|shown)|face_(?!folds)|jaw_|chin_|profile_edge|tq_|nose|mouth|lip)',
+    'eyes': r'^eye', 'neck': r'neck', 'hair': r'hair|bang|bun|lock|fringe|ahoge|scalp', 'accessories': r'pin_|star|crab|acc',
+    'boots': r'boot|shoe', 'legs': r'_leg|thigh|shorts|knee', 'arms': r'sleeve|cuff|_arm|hand|wrist|finger',
+    'skirt': r'skirt|_hem|pleat|overhang', 'flaps': r'overskirt|flap', 'top': r'_top|waist|midriff|torso|panel_edge|bodice|chest',
+    'bow': r'_bow|^bow', 'collar': r'collar'}
+VIEW_TOKENS = ('front', 'back', 'profile', 'three_quarter')
+
+
+def geo_region(lab, qa):
+    """(the worst status, the check that set it) of the region's checks in a build's qa.json checks, or (None, None)."""
+    import re
+    pat = re.compile(GEO_REGION.get(lab['region'], '^$'))
+    worst, name = None, None
+    for k, v in (qa or {}).items():
+        if not isinstance(v, dict) or not pat.search(k):
+            continue
+        if lab['view'] != '*' and any(t in k for t in VIEW_TOKENS if t != lab['view']) and lab['view'] not in k:
+            continue
+        s = v.get('status')
+        if s in ('PASS', 'WARN', 'FAIL') and (worst is None or GEO_RANK[s] > GEO_RANK[worst]):
+            worst, name = s, k
+    return worst, name
+
+
+def _qa(labels, name):
+    d = _build_dir(labels, name)
+    p = os.path.join(d, 'qa', 'qa.json') if d else None
+    if p and os.path.exists(p):
+        return json.load(open(p)).get('checks') or {}
+    return None
+
+
+def _pair_geo(q):
+    """a pair's geometric check: does its status improve (strict), does its value move the right way (loose)."""
+    c = q.get('check')
+    if not c:
+        return None, None
+    (wv, ws), (bv, bs) = c['worse'], c['better']
+    strict = GEO_RANK[bs] < GEO_RANK[ws]
+    if isinstance(wv, (int, float)) and isinstance(bv, (int, float)):
+        if 'higher_is_better' in c:
+            loose = bv > wv if c['higher_is_better'] else bv < wv
+        else:
+            loose = abs(bv - c.get('target', 0.0)) < abs(wv - c.get('target', 0.0))
+    else:
+        loose = None
+    return strict, loose
+
+
+# the variants: (tag, layer, stat, floors, body scale, which labels); the first is the pre-registered primary
+VARIANTS = (
+    ('primary', None, 'dist', True, 'body', 'all'),
+    ('no_floors', None, 'dist', False, 'body', 'all'),
+    ('layer18', 18, 'dist', True, 'body', 'all'),
+    ('layer12', 12, 'dist', True, 'body', 'all'),
+    ('p90', None, 'p90', True, 'body', 'all'),
+    ('aligned', 'aligned', 'dist', True, 'body', 'all'),
+    ('body_hi', None, 'dist', True, 'body_hi', 'all'),
+    ('body_hi_layer12', 12, 'dist', True, 'body_hi', 'all'),
+    ('michael_only', None, 'dist', True, 'body', 'michael'),
+    ('no_relative_praise', None, 'dist', True, 'body', 'absolute'),
+    ('first17', None, 'dist', True, 'body', 'first17'),
+)
+
+
+def _keep(lab, which, first):
+    if which == 'michael':
+        return lab.get('who', 'michael') == 'michael'
+    if which == 'absolute':
+        return not lab.get('relative')
+    if which == 'first17':
+        return lab['id'] in first
+    return True
+
+
 def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/perceptual_calibration', write=None,
-              rescore=False, log=print):
+              rescore=False, variants=VARIANTS, log=print):
     """score every labelled build (and the pool's, for the floors), fit the weights and limits, validate by leave-one-
-    out -> the report dict (out/calibration.json, out/index.html); write: also save the calibration there (the
-    tracked charkit/refs/clawd/perceptual_calibration.json)."""
+    out, set against the geometric checks -> the report dict (out/calibration.json, out/index.html); write: also save
+    the primary variant's calibration there (the tracked charkit/refs/clawd/perceptual_calibration.json)."""
     labels = json.load(open(_p(labels_path)))
     dirs = {k: _build_dir(labels, k) for k in labels['builds']}
     dirs.update(builds or {})
@@ -1064,32 +1187,34 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
     os.makedirs(os.path.join(out, 'img'), exist_ok=True)
     R, missing = {}, []
     for k, d in dirs.items():
-        if d and os.path.isdir(_p(d)):
-            log('scoring %s (%s)' % (k, d))
+        if d and os.path.exists(os.path.join(_p(d), 'perceptual', 'perceptual.json')) or (d and os.path.isdir(_p(d)) and rescore):
             R[k] = _result(d, rescore, log)
         else:
             missing.append(k)
-    pool_res = []
-    for d in pool:
-        if os.path.isdir(_p(d)):
-            log('scoring pool build %s' % d)
-            pool_res.append(_result(d, rescore, log))
-    allres = list(R.values()) + pool_res
+    pool_res = [_result(d, rescore, log) for d in pool if os.path.exists(os.path.join(_p(d), 'perceptual', 'perceptual.json'))]
+    allres = list(R.values()) + [r for r in pool_res if r.get('build') not in {x.get('build') for x in R.values()}]
+    QA = {k: _qa(labels, k) for k in labels['builds']}
+    first = [l['id'] for l in labels['labels'][:17]]
     report = dict(labels=labels_path, model=MODEL, licence=LICENCE, layer=LAYERS[0], builds={k: dirs[k] for k in R},
-                  missing_builds=missing, pool=list(pool), floor_quantile=FLOOR_Q, ridge=RIDGE, variants={})
+                  missing_builds=missing, pool=list(pool), pool_n=len(allres), floor_quantile=FLOOR_Q, ridge=RIDGE,
+                  rule=dict(beat=BEAT, boot=BOOT), variants={})
     names = sorted(set(GROUPS.values()))
 
-    def evaluate(layer, use_floors, tag):
-        F = floors(allres, layer=layer) if use_floors else {}
+    def evaluate(tag, layer, stat, use_floors, body_scale, which):
+        F = floors(allres, layer=layer, stat=stat) if use_floors else {}
         rows, X, sev, idx = [], [], [], []
         for lab in labels['labels']:
-            res = R.get(lab['build'])
-            vals = label_values(lab, res, F, layer) if res else {}
-            if not vals:
-                rows.append(dict(lab, usable=False, why='no %s measure of %s on %s' % (
-                    PRIMARY.get(lab['region'], 'body'), lab['region'], lab['build'])))
+            if not _keep(lab, which, first):
                 continue
-            rows.append(dict(lab, usable=True, values={v: round(x, 4) for v, x in vals.items()}))
+            res = R.get(lab['build'])
+            vals = label_values(lab, res, F, layer, stat, body_scale) if res else {}
+            gw, gname = geo_region(lab, QA.get(lab['build']))
+            base = dict(lab, geo_region=gw, geo_region_check=gname)
+            if not vals:
+                rows.append(dict(base, usable=False, why='no %s measure of %s on %s' % (
+                    _scale_of(lab['region'], body_scale), lab['region'], lab['build'])))
+                continue
+            rows.append(dict(base, usable=True, values={v: round(x, 4) for v, x in vals.items()}))
             X.append(list(vals.values())); sev.append(lab['severity']); idx.append(names.index(GROUPS[lab['region']]))
         n = len(X)
         th = fit_weights(X, sev, idx, len(names))
@@ -1111,123 +1236,183 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
             r.update(raw=round(float(max(r['values'].values())), 4), score=round(float(y_in[k]), 4),
                      score_unweighted=round(float(y0[k]), 4), grade=_grade_of(y_in[k], lim), score_loo=round(float(y_loo[k]), 4),
                      grade_loo=g_loo[k], caught=_caught(r['severity'], _grade_of(y_in[k], lim)),
-                     caught_loo=_caught(r['severity'], g_loo[k]),
-                     worst_view=max(r['values'], key=r['values'].get))
+                     caught_loo=_caught(r['severity'], g_loo[k]), worst_view=max(r['values'], key=r['values'].get))
             k += 1
-        geo = {'PASS': 0, 'INFO': 0, 'WARN': 1, 'FAIL': 2}
         use = [r for r in rows if r['usable']]
-        V = dict(floors=F, weights={g: round(float(np.exp(t)), 3) for g, t in zip(names, th)}, limits=lim,
-                 rho_unweighted=_spearman(y0, sev), rho_in=_spearman(y_in, sev), rho_loo=_spearman(y_loo, sev),
-                 rho_geometric=_spearman([geo.get(r['check']['status'], 0) for r in use], [r['severity'] for r in use]),
-                 caught=sum(r['caught'] for r in use), caught_loo=sum(r['caught_loo'] for r in use), n=n, rows=rows)
-        # the pairs: a praised improvement must lower the distance
+        sv = [r['severity'] for r in use]
+        geo = [GEO_RANK[r['check']['status']] for r in use]
+        geo_now = [GEO_RANK[(r.get('check_now') or r['check'])['status']] for r in use]
+        geo_reg = [GEO_RANK[r['geo_region']] for r in use]
+        caught_geo = sum(_caught(r['severity'], r['check']['status'] if r['check']['status'] in ('PASS', 'WARN', 'FAIL') else 'PASS')
+                         for r in use)
+        V = dict(layer=layer, stat=stat, use_floors=use_floors, body_scale=body_scale, which=which, floors=F,
+                 weights={g: round(float(np.exp(t)), 3) for g, t in zip(names, th)}, limits=lim,
+                 rho_unweighted=_spearman(y0, sv), rho_in=_spearman(y_in, sv), rho_loo=_spearman(y_loo, sv),
+                 rho_geometric=_spearman(geo, sv), rho_geometric_now=_spearman(geo_now, sv),
+                 rho_geometric_region=_spearman(geo_reg, sv),
+                 boot_loo_vs_geometric=boot_diff(y_loo, geo, sv) if n >= 5 else None,
+                 caught=sum(r['caught'] for r in use), caught_loo=sum(r['caught_loo'] for r in use), caught_geometric=caught_geo,
+                 n=n, rows=rows)
+        # the pairs: Michael's better build must read lower in the region; the geometric check's status must improve
         PR = []
         for pq in labels.get('pairs', []):
             a, b = R.get(pq['better']), R.get(pq['worse'])
             if not a or not b:
                 continue
             lab = dict(region=pq['region'], view=pq['view'])
-            va, vb = label_values(lab, a, F, layer), label_values(lab, b, F, layer)
+            va, vb = label_values(lab, a, F, layer, stat, body_scale), label_values(lab, b, F, layer, stat, body_scale)
             if va and vb:
+                common = [v for v in va if v in vb]
+                strict, loose = _pair_geo(pq)
                 PR.append(dict(pq, better_value=round(max(va.values()), 4), worse_value=round(max(vb.values()), 4),
-                               agrees=max(va.values()) < max(vb.values())))
+                               per_view={v: [round(vb[v], 4), round(va[v], 4)] for v in common},
+                               view_worse=max(vb, key=vb.get), agrees=max(va.values()) < max(vb.values()),
+                               geo_strict=strict, geo_loose=loose))
         V['pairs'] = PR
         report['variants'][tag] = V
         return V
-    main_v = evaluate(None, True, 'layer24_floors')
-    evaluate(None, False, 'layer24_raw')
-    evaluate(LAYERS[1], True, 'layer18_floors')
-    extra = [l for l in labels['labels'] if l.get('extra')]
-    if extra:
-        keep = dict(labels)
-        labels = dict(labels, labels=[l for l in labels['labels'] if not l.get('extra')])
-        evaluate(None, True, 'layer24_floors_brief_only')
-        labels = keep
+    for spec in variants:
+        evaluate(*spec)
+    main_v = report['variants'][variants[0][0]]
+    b = main_v['boot_loo_vs_geometric']
+    rl, rg = (main_v['rho_loo'] or {}).get('rho'), (main_v['rho_geometric'] or {}).get('rho')
+    report['decision'] = dict(rho_loo=rl, rho_geometric=rg, diff=None if rl is None or rg is None else round(rl - rg, 3),
+                              boot=b, beats=bool(rl is not None and rg is not None and rl - rg >= BEAT and b and b['lo'] > 0))
     cal = dict(model=MODEL, layer=LAYERS[0], radius=RADIUS, floors=main_v['floors'],
                weights={reg: main_v['weights'][GROUPS[reg]] for reg in REGIONS}, groups=GROUPS, limits=main_v['limits'],
                fitted=dict(when=time.strftime('%Y-%m-%d'), labels=main_v['n'], rho_in=main_v['rho_in'],
-                           rho_loo=main_v['rho_loo'], labels_file=labels_path))
+                           rho_loo=main_v['rho_loo'], rho_geometric=main_v['rho_geometric'], labels_file=labels_path))
     report['calibration'] = cal
-    json.dump(report, open(os.path.join(out, 'calibration.json'), 'w'), indent=1)
+    json.dump(report, open(os.path.join(out, 'calibration.json'), 'w'), indent=1, default=str)
     if write:
         json.dump(cal, open(_p(write), 'w'), indent=1)
     calibration_page(report, R, dirs, out)
     for tag, V in report['variants'].items():
-        log('%-26s n=%d  rho unweighted %s  in-sample %s  LOO %s  geometric %s  caught %d / LOO %d' % (
-            tag, V['n'], (V['rho_unweighted'] or {}).get('rho'), (V['rho_in'] or {}).get('rho'),
-            (V['rho_loo'] or {}).get('rho'), (V['rho_geometric'] or {}).get('rho'), V['caught'], V['caught_loo']))
+        g = lambda k: (V[k] or {}).get('rho')
+        log('%-20s n=%2d  rho unweighted %6s  in %6s  LOO %6s | geometric %6s  now %6s  region %6s | caught %d LOO %d geo %d' % (
+            tag, V['n'], g('rho_unweighted'), g('rho_in'), g('rho_loo'), g('rho_geometric'), g('rho_geometric_now'),
+            g('rho_geometric_region'), V['caught'], V['caught_loo'], V['caught_geometric']))
+    log('decision: %s' % report['decision'])
     return report
 
 
+def _heat_src(dirs, build, scale, view):
+    p = os.path.join(_p(dirs[build]), 'perceptual', 'heat_%s_%s.png' % (scale, view))
+    return p if os.path.exists(p) else None
+
+
 def calibration_page(report, R, dirs, out):
-    """out/index.html: the labels with their scores and the geometric checks' verdicts, the fit's numbers, and each
-    flag's heat map (our render under the distance beside the design)."""
+    """out/index.html: the decision, the variants, the pairs (the worse and the better build's heat maps side by side),
+    the labels with the metric's and the geometric checks' verdicts, and each flag's heat map."""
     e = html.escape
-    V = report['variants']['layer24_floors']
-    G = {'PASS': '#2e7d32', 'WARN': '#b26a00', 'FAIL': '#c62828', 'INFO': '#666'}
+    V = report['variants']['primary']
+    G = {'PASS': '#2e7d32', 'WARN': '#b26a00', 'FAIL': '#c62828', 'INFO': '#666', None: '#666'}
+    f = lambda r: '' if not r else '%.3f <small>(p %.3f)</small>' % (r['rho'], r['p'])
     H = ['<!doctype html><meta charset="utf-8"><title>Perceptual calibration</title><style>',
          'body{font:14px/1.45 -apple-system,system-ui,sans-serif;margin:24px;background:#f4f3f1;color:#222}',
          'h1{font-size:22px}h2{font-size:18px;margin-top:30px}table{border-collapse:collapse;font-size:13px;margin:6px 0}',
          'td,th{border:1px solid #ccc;padding:3px 7px;text-align:right;vertical-align:top}th:first-child,td:first-child,td.l{text-align:left}',
          'img{border:1px solid #ccc;background:#fff;display:block;max-width:100%}.note{max-width:1100px;color:#444}',
          'figure{display:inline-block;margin:0 14px 18px 0;vertical-align:top}figcaption{font-size:12px;color:#555;max-width:1000px}',
+         '.big{font-size:16px;padding:10px 14px;background:#fff;border:1px solid #ccc;max-width:1100px}',
          '</style><h1>The perceptual metric against Michael\'s severity calls</h1>']
-    H.append('<p class="note">%d labels (%s). Severity 0 praised, 1 mild, 2 moderate, 3 severe. Raw: the region\'s DINOv3 '
-             'distance less its floor (the pool\'s %d%% quantile for that scale, view and region: the drawn-against-'
-             'rendered gap every build pays), at the region\'s graded scale, the worst view where the flag names none. '
-             'Score: raw x the region group\'s fitted weight. LOO: each label scored by weights and limits fitted without '
-             'it. The geometric column is what the QA said of the same thing on that build.</p>' % (
-                 V['n'], e(report['labels']), int(report['floor_quantile'] * 100)))
-    H.append('<table><tr><th>variant</th><th>n</th><th>rho unweighted</th><th>rho in-sample</th><th>rho LOO</th>'
-             '<th>rho geometric checks</th><th>caught</th><th>caught LOO</th><th>weights</th><th>limits</th></tr>')
+    D = report['decision']
+    b = D.get('boot') or {}
+    H.append('<p class="big">Primary variant (pre-registered: layer 24, floors, mean, body at 112 px per L, all labels): '
+             '<b>LOO rho %s</b> against the geometric checks\' <b>%s</b> (their own QA, blind); difference %s, paired '
+             'bootstrap 90%% interval [%s, %s]. Rule: ahead by %.1f or more with the interval above 0. <b>%s</b></p>' % (
+                 D['rho_loo'], D['rho_geometric'], D['diff'], b.get('lo'), b.get('hi'), report['rule']['beat'],
+                 'The metric clearly beats the geometric checks.' if D['beats'] else
+                 'The metric does not clearly beat the geometric checks.'))
+    H.append('<p class="note">%d labels (%s), %d builds scored for the floors. Severity 0 praised, 1 mild, 2 moderate, 3 '
+             'severe. Raw: the region\'s DINOv3 distance less its floor (the pool\'s %d%% quantile for that scale, view '
+             'and region), at the region\'s graded scale, the worst view where the flag names none. Score: raw x the '
+             'region group\'s fitted weight. LOO: each label scored by weights and limits fitted without it. Geometric: '
+             '"blind" is what the build\'s own QA said of the flagged thing (the QA of the time); "now" uses the check '
+             'added after the flag where there is one (fitted to the flag: an upper bound); "region" is the worst status '
+             'of every check on the region, read mechanically. Geometric ranks: PASS 0, WARN 1, FAIL 2.</p>' % (
+                 V['n'], e(report['labels']), report.get('pool_n', 0), int(report['floor_quantile'] * 100)))
+    H.append('<h2>Variants</h2><table><tr><th>variant</th><th>n</th><th>rho unweighted</th><th>rho in-sample</th>'
+             '<th>rho LOO</th><th>geometric blind</th><th>geometric now</th><th>geometric region</th><th>LOO - blind '
+             '(90%)</th><th>caught</th><th>caught LOO</th><th>caught geometric</th><th>weights</th><th>limits</th></tr>')
     for tag, W in report['variants'].items():
-        f = lambda r: '' if not r else '%.3f (p %.3f)' % (r['rho'], r['p'])
-        H.append('<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td class="l">%s</td>'
-                 '<td class="l">%s</td></tr>' % (tag, W['n'], f(W['rho_unweighted']), f(W['rho_in']), f(W['rho_loo']),
-                                                 f(W['rho_geometric']), W['caught'], W['caught_loo'],
-                                                 e(json.dumps(W['weights'])), e(json.dumps(W['limits']))))
-    H.append('</table><h2>The labels</h2><table><tr><th>flag</th><th>build</th><th>view</th><th>region</th><th>severity</th>'
-             '<th>raw</th><th>score</th><th>grade</th><th>LOO score</th><th>LOO grade</th><th>geometric check</th>'
-             '<th>Michael</th></tr>')
+        bb = W.get('boot_loo_vs_geometric') or {}
+        H.append('<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>'
+                 '<td>%d</td><td>%d</td><td>%d</td><td class="l"><small>%s</small></td><td class="l"><small>%s</small></td></tr>' % (
+                     tag, W['n'], f(W['rho_unweighted']), f(W['rho_in']), f(W['rho_loo']), f(W['rho_geometric']),
+                     f(W['rho_geometric_now']), f(W['rho_geometric_region']),
+                     '' if not bb else '%.2f [%.2f, %.2f]' % (bb['mean'], bb['lo'], bb['hi']), W['caught'], W['caught_loo'],
+                     W['caught_geometric'], e(json.dumps(W['weights'])), e(json.dumps(W['limits']))))
+    H.append('</table><h2>Before and after (Michael\'s pairs)</h2><p class="note">The metric agrees when the region reads '
+             'lower on the build he called better (its worst view); the geometric check agrees when its status improves '
+             '(strict) or its value moves toward the design (loose). Values: raw (distance less floor), primary variant; '
+             'per view worse -&gt; better.</p><table><tr><th>pair</th><th>kind</th><th>region</th><th>worse</th>'
+             '<th>better</th><th>metric worse</th><th>metric better</th><th>metric agrees</th><th>per view</th>'
+             '<th>geometric check</th><th>geo strict</th><th>geo loose</th><th>Michael</th></tr>')
+    for q in V['pairs']:
+        c = q.get('check') or {}
+        H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td><td>%.3f</td><td><b>%s</b></td>'
+                 '<td class="l"><small>%s</small></td><td class="l">%s %s -&gt; %s</td><td>%s</td><td>%s</td><td class="l">%s</td></tr>' % (
+                     q['id'], q['kind'], q['region'], q['worse'], q['better'], q['worse_value'], q['better_value'],
+                     q['agrees'], e(', '.join('%s %.3f->%.3f' % (v, a, bq) for v, (a, bq) in q['per_view'].items())),
+                     e(c.get('name', '')), e(json.dumps(c.get('worse'))), e(json.dumps(c.get('better'))), q['geo_strict'],
+                     q['geo_loose'], e(q['source'])))
+    H.append('</table><h2>The labels (primary variant)</h2><table><tr><th>flag</th><th>who</th><th>build</th><th>view</th>'
+             '<th>region</th><th>Michael</th><th>raw</th><th>score</th><th>grade</th><th>LOO score</th><th>LOO grade</th>'
+             '<th>geometric blind</th><th>geometric now</th><th>geometric region</th><th>quote</th></tr>')
     for r in V['rows']:
         if not r['usable']:
-            H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td colspan="5" class="l">%s</td><td></td>'
-                     '<td class="l">%s</td></tr>' % (r['id'], r['build'], r['view'], r['region'], r['severity'],
-                                                     e(r['why']), e(r['quote'])))
+            H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td colspan="9" class="l">%s</td>'
+                     '<td class="l">%s</td></tr>' % (r['id'], r.get('who', 'michael'), r['build'], r['view'], r['region'],
+                                                     r['severity'], e(r['why']), e(r['quote'])))
             continue
-        ck = r['check']
-        H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%d</td><td>%.3f</td><td>%.3f</td><td style="color:%s">%s</td>'
-                 '<td>%.3f</td><td style="color:%s">%s%s</td><td class="l">%s %s <b style="color:%s">%s</b></td><td class="l">%s</td></tr>' % (
-                     r['id'], r['build'], r['view'] + ('' if r['view'] != '*' else ' (%s)' % r['worst_view']), r['region'],
-                     r['severity'], r['raw'], r['score'], G[r['grade']], r['grade'], r['score_loo'], G[r['grade_loo']],
-                     r['grade_loo'], '' if r['caught_loo'] else ' (miss)', e(ck['name']), e(json.dumps(ck['value'])),
-                     G.get(ck['status'], '#666'), ck['status'], e(r['quote'])))
+        ck, cn = r['check'], r.get('check_now')
+        H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td><b>%d</b></td><td>%.3f</td><td>%.3f</td>'
+                 '<td style="color:%s">%s</td><td>%.3f</td><td style="color:%s">%s%s</td>'
+                 '<td class="l"><small>%s %s</small> <b style="color:%s">%s</b></td><td class="l">%s</td>'
+                 '<td class="l"><small>%s</small> <b style="color:%s">%s</b></td><td class="l"><small>%s</small></td></tr>' % (
+                     r['id'], r.get('who', 'michael'), r['build'], r['view'] + ('' if r['view'] != '*' else ' (%s)' % r['worst_view']),
+                     r['region'], r['severity'], r['raw'], r['score'], G[r['grade']], r['grade'], r['score_loo'],
+                     G[r['grade_loo']], r['grade_loo'], '' if r['caught_loo'] else ' (miss)', e(ck['name']),
+                     e(json.dumps(ck['value'])), G.get(ck['status'], '#666'), ck['status'],
+                     '' if not cn else '<small>%s %s</small> <b style="color:%s">%s</b>' % (
+                         e(cn['name']), e(json.dumps(cn['value'])), G.get(cn['status'], '#666'), cn['status']),
+                     e(r.get('geo_region_check') or ''), G.get(r['geo_region'], '#666'), r['geo_region'] or '',
+                     e(r['quote'])))
     H.append('</table>')
-    if V['pairs']:
-        H.append('<h2>Praised improvements</h2><table><tr><th>pair</th><th>region</th><th>better build</th><th>value</th>'
-                 '<th>worse build</th><th>value</th><th>agrees</th></tr>')
-        for q in V['pairs']:
-            H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td><td>%s</td><td>%.3f</td><td>%s</td></tr>' % (
-                q['id'], q['region'], q['better'], q['better_value'], q['worse'], q['worse_value'], q['agrees']))
-        H.append('</table>')
-    H.append('<h2>Each flag: the design | ours | ours under the distance</h2><img src="img/legend.png">')
+    H.append('<h2>Each pair: the worse build | the better build (the design | ours | ours under the distance)</h2>'
+             '<img src="img/legend.png">')
+    for q in V['pairs']:
+        sc = _scale_of(q['region'])
+        v = q['view'] if q['view'] != '*' else q['view_worse']
+        srcs = [(k, _heat_src(dirs, q[k], sc, v)) for k in ('worse', 'better')]
+        if not all(s for _, s in srcs):
+            continue
+        H.append('<h3>%s: %s, %s %s (%s)</h3>' % (e(q['id']), q['region'], sc, v, e(q['source'])))
+        for k, s in srcs:
+            dst = 'img/%s_%s_%s.png' % (q[k], sc, v)
+            shutil.copy(s, os.path.join(out, dst))
+            H.append('<figure><a href="%s"><img src="%s" style="max-height:560px"></a><figcaption>%s: %s, raw %.3f</figcaption>'
+                     '</figure>' % (dst, dst, k, q[k], q['%s_value' % k]))
+    H.append('<h2>Each flag: the design | ours | ours under the distance</h2>')
     for r in V['rows']:
         if not r['usable']:
             continue
-        sc = PRIMARY.get(r['region'], 'body')
+        sc = _scale_of(r['region'])
         v = r['view'] if r['view'] != '*' else r['worst_view']
-        src = os.path.join(_p(dirs[r['build']]), 'perceptual', 'heat_%s_%s.png' % (sc, v))
-        if not os.path.exists(src):
+        src = _heat_src(dirs, r['build'], sc, v)
+        if not src:
             continue
         dst = 'img/%s_%s_%s.png' % (r['build'], sc, v)
         shutil.copy(src, os.path.join(out, dst))
-        H.append('<figure><a href="%s"><img src="%s" style="max-height:640px"></a><figcaption>%s: %s (severity %d), %s %s '
-                 'at the %s scale; raw %.3f, score %.3f %s; LOO %s. Geometric: %s %s %s</figcaption></figure>' % (
+        H.append('<figure><a href="%s"><img src="%s" style="max-height:560px"></a><figcaption>%s: %s (Michael: severity %d), '
+                 '%s %s at the %s scale; raw %.3f, score %.3f %s; LOO %s. Geometric: %s %s %s</figcaption></figure>' % (
                      dst, dst, e(r['id']), e(r['quote']), r['severity'], r['region'], v, sc, r['raw'], r['score'],
                      r['grade'], r['grade_loo'], e(r['check']['name']), e(json.dumps(r['check']['value'])),
                      r['check']['status']))
     _save(os.path.join(out, 'img', 'legend.png'), legend())
     open(os.path.join(out, 'index.html'), 'w').write('\n'.join(H))
+    return os.path.join(out, 'index.html')
 
 
 # ------------------------------------------------------------------------------------------------------------ remote
