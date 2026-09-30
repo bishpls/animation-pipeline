@@ -1158,8 +1158,9 @@ art_terminator_hair 2.514 against 2.308 by the same route, most likely.
   build tree only, delete when done).
 - running when this agent stopped: the piece swaps on the gate's own pair (old decimation, B0 = gate-out
   base_ba51e43_clawd_default, B1 = cand_tool-face5_2e4c1d6_into_ba51e43_default) -> tool/hull-local's
-  `charkit/out/hl_term/term_b0_b1.json` (fetched by the laptop command when it ends; else fetch it with `infra/gcp/build.sh fetch`).
-  Expect the buns again.
+  `charkit/out/hl_term/term_b0_b1.json` (done, fetched). **The buns again, both**: B0 with B1's bun_L 2.308 -> 2.569,
+  with B1's bun_R -> 2.502; B1 with B0's bun_L 2.751 -> 2.503, with B0's bun_R -> 2.57. Every other piece moves it by
+  0.03 at most.
 1. Make the bun fit stable under tiny input moves, at its source (hairpieces.fit_block / block_frame): measure bun_L's
    move under +-1e-6 L of head_c and of the bun points first; that's the regression test. Candidates: the bun's frame
    from the hull's eye frame instead of Case.centre (a head edit then can't reach it); a fit whose optimum doesn't
