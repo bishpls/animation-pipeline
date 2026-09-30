@@ -46,10 +46,10 @@ def test_spikes_only_where_the_outline_is_the_silhouette():
     m = disk(200, 100, 100, 40)
     m[20:62, 97:103] = True
     fg = np.ones_like(m)                                  # the horn lies against another piece, not the background
-    where = pq.silhouette(m, fg)
+    where = pq.silhouette(m, fg, PPL)
     assert pq.spikes(m, PPL, where=where)['n'] == 0
     fg = m.copy()
-    assert pq.spikes(m, PPL, where=pq.silhouette(m, fg))['n'] == 1
+    assert pq.spikes(m, PPL, where=pq.silhouette(m, fg, PPL))['n'] == 1
 
 
 def test_clean_closes_the_drawings_fold_strokes():
@@ -92,6 +92,26 @@ def test_edges_of_a_band():
     m[75:80, 40:50] = True                                # its ends curve up (left out: the middle columns decide)
     e = pq.edges(m)
     assert e['top'] == 80 and e['bottom'] == 109 and e['width'] == 120
+
+
+def cup(n=300, top=60, bottom=48):
+    """a wrist cuff down an arm along +rows (its top the elbow's side), the forearm above it and the hand below."""
+    y, x = np.mgrid[:n, :n]
+    f = np.clip((y - 120) / 60.0, 0, 1)
+    half = top + (bottom - top) * f
+    M = (y >= 120) & (y <= 180) & (np.abs(x - 150) <= half)
+    skin = ((y >= 40) & (y < 120) | (y > 180) & (y < 260)) & (np.abs(x - 150) <= 30)
+    cream = M & (y < 135)
+    return M, skin, cream
+
+
+def test_cuff_shape_reads_the_flare_and_the_trim():
+    M, skin, cream = cup()
+    c = pq.cuff_shape(M, skin, cream, PPL)
+    assert c['flare'] > 1.15 and abs(c['trim'] - 0.25) < 0.05, c
+    M2, skin2, cream2 = cup(top=50, bottom=56)                 # a band wider at its bottom, no trim
+    c2 = pq.cuff_shape(M2, skin2, np.zeros_like(M2), PPL)
+    assert c2['flare'] < 1.0 and c2['trim'] == 0.0
 
 
 if __name__ == '__main__':

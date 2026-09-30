@@ -25,6 +25,8 @@ STEPS = [
     ('waistband_*', '12c3b97', "new: the waistband's top and bottom edges and width per view, and the top's overhang "
      "over it in profile, against the design's"),
     ('shorts_*', '12c3b97', "new: the shorts' hem height per view and width in front and back against the design's"),
+    ('cuff_*', 'GARMENTS2B', "new: the wrist cuffs' flare (top over bottom width) and cream trim in front and back "
+     "against the design's"),
     # tool/body round 5 (charkit/detailqa.py): Michael's review of round 4's midriff and boots
     ('body_*_torso_jump_*', '843922c', "new: the torso outline's largest step from under the bust to the skirt, "
      "outward and inward, beyond the design's (the top and the band sliced and shifted)"),

@@ -134,11 +134,18 @@ def shell(A, spec, normals=None, hull=None):
     L = A['head']['L']
     V, F = A['verts'], A['faces']
     ins = region(A, spec['region'])
+    cut = None
     if spec.get('source') == 'hull':
         P = _hull_points(hull, spec)
         ax = _vertical_axis(P, P[:, 2].max())
         edge = hull_edge(P, ax, q=spec.get('hem_q', 2.0))
-        ins &= V[:, 2] >= edge(ax.coords(V)[1]) - spec.get('hem_drop', 0.0) * L
+        cut = lambda X: edge(ax.coords(X)[1]) - spec.get('hem_drop', 0.0) * L
+        if spec.get('hem_level'):
+            # one height all round (the hull's lower edge wanders by azimuth, most round the inner thighs): the median
+            # of its edge, less the drop
+            zl = float(np.median(edge(np.linspace(-np.pi, np.pi, 72, endpoint=False)))) - spec.get('hem_drop', 0.0) * L
+            cut = lambda X: np.full(len(X), zl)
+        ins &= V[:, 2] >= cut(V)
     # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
     for bone, t, side, o in spec.get('cuts', []):
         h, tl = bone_seg(A, bone)
@@ -160,6 +167,8 @@ def shell(A, spec, normals=None, hull=None):
     off = spec.get('offset', 0.012) * L
     sv = V[used] + nrm[used] * off
     sf = [tuple(remap[v] for v in F[i]) for i in keep]
+    if spec.get('hem_snap') and cut is not None:
+        sv = hem_snap(V, F, used, keep, sv, cut, ins)
     sm = spec.get('smooth')
     if sm:
         # smooth the shell below a height (boots: the toes merge into one smooth toe box), then push back out to the body
@@ -183,6 +192,30 @@ def shell(A, spec, normals=None, hull=None):
         if pp is not None and len(pp) >= 10:
             G['panel_faces'] = panel_faces(sv, sf, pp, L)
     return G
+
+
+def hem_snap(V, F, used, keep, sv, cut, ins):
+    """a shell's hem cut clean: whole faces kept above the cut left a staircase of the body's faces (the shorts' hem
+    read notched); each vertex on the kept faces' lower border moved down its edges to the body's outside neighbours,
+    to where they cross the cut (their mean), carrying the shell's offset. -> the moved shell vertices."""
+    kept = np.zeros(len(V), bool)
+    for i in keep:
+        kept[list(F[i])] = True
+    zc = cut(V)
+    moves = {}
+    for f in F:
+        for a, b in zip(f, list(f[1:]) + [f[0]]):
+            for u, w in ((a, b), (b, a)):
+                if kept[u] and not ins[w] and V[w, 2] < zc[w] and V[u, 2] >= zc[u]:
+                    du, dw = V[u, 2] - zc[u], V[w, 2] - zc[w]
+                    k = du / max(1e-12, du - dw)
+                    moves.setdefault(u, []).append(V[u] + (V[w] - V[u]) * k)
+    idx = {o: n for n, o in enumerate(used)}
+    sv = sv.copy()
+    for u, ps in moves.items():
+        if u in idx:
+            sv[idx[u]] += np.mean(ps, 0) - V[u]
+    return sv
 
 
 def ease_to_band(A, sv, ez, band):
@@ -654,33 +687,54 @@ def _vertical_axis(P, top):
 
 def belt_hull(A, spec, hull):
     """a band round the torso lofted through the hull's points of its piece (charkit.geom.loft): rows every `step` L
-    between the points' `span` percentiles of height, the section measured per angle and filled where no view shows it;
-    its top and bottom rows pulled in by `round` of its thickness so the edge reads rounded; `offset` L out from the hull's
-    surface. Weighted to the hips. -> dict(verts, faces, weights, uv)."""
+    between the points' `span` percentiles of height, or (`rows` [top, bottom], L from the eye line) the drawn band's
+    edges, the section measured per angle and filled where no view shows it; its top and bottom rows pulled in by
+    `round` of its thickness so the edge reads rounded; `offset` L out from the hull's surface. With `straight`, each
+    column stands upright; with `fit_rows` [top, bottom] (L from the eye line) at the median of the field over those
+    rows (the hull's rows where only the band shows: above them the top's flared hem overhangs the band, and the hull,
+    which can't see under it, took its width for the band's), else at the radius a straight line through the column has
+    a quarter of the way down. Weighted to the hips. -> dict(verts, faces, weights, uv, axis, ts, th, R)."""
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec)
-    ax = _vertical_axis(P, P[:, 2].max())
+    top_z = P[:, 2].max()
+    ax = _vertical_axis(P, top_z)
     t, th, r = ax.coords(P)
-    lo, hi = np.percentile(t, spec.get('span', (2, 98)))
+    # L from the eye line -> t along the axis (read only when the spec gives rows by height)
+    tz = lambda z: top_z - (A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + z * L)
+    if spec.get('rows'):
+        lo, hi = tz(spec['rows'][0]), tz(spec['rows'][1])
+    else:
+        lo, hi = np.percentile(t, spec.get('span', (2, 98)))
     rows = max(3, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
-    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 96), name=spec['name'],
-                    prior=float(np.median(r)) if len(r) else None)
-    R = F.R + spec.get('offset', 0.0) * L
+    fr = spec.get('fit_rows')
+    flo, fhi = (tz(fr[0]), tz(fr[1])) if fr else (lo, hi)
+    tf = np.linspace(min(lo, flo), max(hi, fhi), max(rows, int(round((max(hi, fhi) - min(lo, flo)) /
+                                                                       (spec.get('step', 0.02) * L))) + 1))
+    F = loft.field(t, th, r, tf, nth=spec.get('cols', 96), name=spec['name'],
+                   prior=float(np.median(r)) if len(r) else None)
+    ts = np.linspace(lo, hi, rows)
+    R = np.stack([np.array([np.interp(x, F.ts, F.R[:, j]) for x in ts]) for j in range(F.R.shape[1])], 1)
+    R = R + spec.get('offset', 0.0) * L
     if spec.get('straight'):
-        # each column upright at the radius a straight line through it has a quarter of the way down, smoothed round:
-        # the hull's rows flared its top edge into a lip standing off the top, and narrowed it 0.07 L to its lower edge,
-        # where the drawn band is a belt with upright sides (round 4's midriff)
-        tt = F.ts - F.ts.mean()
-        tq = tt[0] + spec.get('straight_at', 0.25) * (tt[-1] - tt[0])
-        for j in range(R.shape[1]):
-            R[:, j] = np.polyval(np.polyfit(tt, R[:, j], 1), tq)
+        if fr:
+            k = (F.ts >= flo - 1e-9) & (F.ts <= fhi + 1e-9)
+            R[:] = np.median(F.R[k], 0)[None, :] + spec.get('offset', 0.0) * L
+        else:
+            # each column upright at the radius a straight line through it has a quarter of the way down, smoothed
+            # round: the hull's rows flared its top edge into a lip standing off the top, and narrowed it 0.07 L to its
+            # lower edge, where the drawn band is a belt with upright sides (round 4's midriff)
+            tt = ts - ts.mean()
+            tq = tt[0] + spec.get('straight_at', 0.25) * (tt[-1] - tt[0])
+            for j in range(R.shape[1]):
+                R[:, j] = np.polyval(np.polyfit(tt, R[:, j], 1), tq)
         R = loft.gauss1d(R, spec.get('smooth_round', 1.5), axis=1, mode='wrap')
     pull = spec.get('round', 0.4) * spec.get('thick', 0.025) * L
     R[0] -= pull; R[-1] -= pull
-    V, quads, uv = loft.loft(ax, F, R)
+    F2 = loft.Field(ts, F.th, R, None)
+    V, quads, uv = loft.loft(ax, F2, R)
     return dict(verts=V, faces=quads, weights={'hips': np.ones(len(V))}, uv=[tuple(x) for x in uv],
-                hide=wrapped(A, V[:, 2].min(), V[:, 2].max()), axis=ax, ts=F.ts, th=F.th, R=R)
+                hide=wrapped(A, V[:, 2].min(), V[:, 2].max()), axis=ax, ts=ts, th=F.th, R=R)
 
 
 TORSO = ('hips', 'spine', 'chest', 'upperChest')
@@ -1501,6 +1555,272 @@ def sleeve_hull(A, spec, hull):
     return dict(verts=V, faces=quads, weights={side + 'UpperArm': np.ones(len(V))}, uv=[tuple(x) for x in uv])
 
 
+# ------------------------------------------------------------------------------------------ the wrist cuff (template)
+def cuff(A, spec):
+    """a flared wrist cuff as a template (the design's: a cup wider at its top, the elbow's side, with a cream top band
+    and a tab hanging from it at the front: sleeve_closeup's cuffs, garment_breakdown's; the hull-lofted band read as a
+    blocky, bulging ring): a frustum round its bone from `span` [t0, t1] (L along the bone from its head) with radii
+    `top` and `bottom` [out, front, in, back] (L), superellipse sections (`round`), its centre moved `shift` [out,
+    front] (L) off the bone's axis, each row grown as a whole where it comes within `clear` L plus its `thick` of the
+    limb's skin (the wrist, the hand's base); its ends rolled in over `roll` L by `bevel` L (a crisp rim); a second
+    material (`trim`: per face) on the top `band` share of its height and on the front tab (`tab` [width L, length
+    share]), whose edges lie on the mesh's columns and rows, so they stay straight. Rigid on its bone.
+    -> dict(verts, faces, weights, uv, trim)."""
+    L = A['head']['L']
+    bone = spec['bone']
+    h, tl = bone_seg(A, bone)
+    d = (tl - h) / np.linalg.norm(tl - h)
+    sgn = 1.0 if h[0] >= 0 else -1.0
+    o = np.array([sgn, 0.0, 0.0]) - d * (d[0] * sgn)
+    o /= np.linalg.norm(o)
+    f = np.cross(d, o)
+    if f[1] > 0:
+        f = -f
+    t0, t1 = spec['span']
+    top, bot = np.asarray(spec['top'], float), np.asarray(spec['bottom'], float)
+    band, (tab_w, tab_len) = spec.get('band', 0.25), spec.get('tab', (0.1, 0.55))
+    sh = np.asarray(spec.get('shift', (0.0, 0.0)), float)
+    n = spec.get('round', 2.2)
+    nth = spec.get('cols', 48)
+    a_tab = tab_w / 2 / max(1e-6, 0.5 * (top[1] + bot[1]))           # the tab's half-angle round the front
+    th = np.linspace(-np.pi, np.pi, nth, endpoint=False) + np.pi / nth
+    th = np.sort(np.concatenate([th[np.abs(np.angle(np.exp(1j * (th - np.pi / 2)))) > a_tab + 0.5 * np.pi / nth],
+                                 np.pi / 2 + np.array([-a_tab, a_tab]),
+                                 np.pi / 2 + np.linspace(-a_tab, a_tab, 5)[1:-1]]))
+    roll, bevel = spec.get('roll', 0.02), spec.get('bevel', 0.008)
+    step = spec.get('step', 0.02)
+    us = set(np.linspace(0, 1, max(3, int(round((t1 - t0) / step)) + 1)))
+    us |= {band, tab_len, roll / (t1 - t0), 1 - roll / (t1 - t0), 0.5 * roll / (t1 - t0), 1 - 0.5 * roll / (t1 - t0)}
+    us = np.array(sorted(u for u in us if 0 <= u <= 1))
+    ts = t0 + us * (t1 - t0)
+    E = top[None, :] + us[:, None] * (bot - top)[None, :]            # (rows, 4): out, front, in, back
+    # the rims rolled in: a quarter circle over `roll` at each end
+    dist = np.minimum(ts - t0, t1 - ts)
+    pull = bevel * (1 - np.sqrt(np.clip(1 - (1 - np.clip(dist / roll, 0, 1)) ** 2, 0, 1)))
+    TT, TH = np.meshgrid(ts, th, indexing='ij')
+    cs, sn = np.cos(TH), np.sin(TH)
+    ax_ = np.where(cs >= 0, E[:, 0:1], E[:, 2:3]) - pull[:, None]
+    ay_ = np.where(sn >= 0, E[:, 1:2], E[:, 3:4]) - pull[:, None]
+    X = ax_ * np.sign(cs) * np.abs(cs) ** (2 / n)
+    Y = ay_ * np.sign(sn) * np.abs(sn) ** (2 / n)
+    # clear of the skin inside it (the wrist, the hand's base): a row whose section comes within `clear` L plus its
+    # thickness of the limb's skin at some angle grows as a whole (its shape kept, so the sides stay straight)
+    dom, _ = dominant(A)
+    Q = A['verts'][np.isin(dom, limb_neighbours(bone))] - h
+    if len(Q):
+        tq = Q @ d / L
+        xq, yq = Q @ o / L - sh[0], Q @ f / L - sh[1]
+        need = spec.get('thick', 0.02) + spec.get('clear', 0.006)
+        for i in range(len(ts)):
+            k = np.abs(tq - ts[i]) < 0.5 * step + 1e-9
+            if not k.any():
+                continue
+            a_q = np.arctan2(yq[k], xq[k])
+            r_q = np.hypot(xq[k], yq[k])
+            r_row = np.interp(a_q, th, np.hypot(X[i], Y[i]), period=2 * np.pi)
+            g = float(np.max((r_q + need) / np.maximum(r_row, 1e-9)))
+            if g > 1:
+                X[i] *= g; Y[i] *= g
+    X, Y = X + sh[0], Y + sh[1]
+    P = h[None, None, :] + (TT[..., None] * d + X[..., None] * o + Y[..., None] * f) * L
+    nr, nc = P.shape[:2]
+    V = P.reshape(-1, 3)
+    faces, trim = [], []
+    for i in range(nr - 1):
+        um = 0.5 * (us[i] + us[i + 1])
+        for j in range(nc):
+            j2 = (j + 1) % nc
+            faces.append((i * nc + j, i * nc + j2, (i + 1) * nc + j2, (i + 1) * nc + j))
+            am = np.angle(np.exp(1j * (0.5 * (th[j] + (th[j2] if j2 else th[j2] + 2 * np.pi)) - np.pi / 2)))
+            trim.append(1 if um < band or (um < tab_len and abs(am) < a_tab) else 0)
+    C_ = V[[f_[0] for f_ in faces]]
+    Fn = np.cross(V[[f_[1] for f_ in faces]] - C_, V[[f_[2] for f_ in faces]] - C_)
+    rad = C_ - h - ((C_ - h) @ d)[:, None] * d
+    if (Fn * rad).sum(1).mean() < 0:
+        faces = [tuple(reversed(f_)) for f_ in faces]
+    uv = [((j + 0.5) / nc, us[i]) for i in range(nr) for j in range(nc)]
+    return dict(verts=V, faces=faces, weights={bone: np.ones(len(V))}, uv=uv, trim=trim)
+
+
+# ------------------------------------------------------------------------------------------ the puff sleeve (template)
+def puff_frame(A, side):
+    """a puff sleeve's frame on its upper arm: the shoulder joint (origin), d down the arm, o out across it (away from
+    the body's midline), f toward her front. The two sides' frames are mirror images when their joints are, so one knot
+    table makes mirror-image sleeves. -> (origin, d, o, f)."""
+    h, e = bone_seg(A, side + 'UpperArm')
+    d = (e - h) / np.linalg.norm(e - h)
+    sgn = 1.0 if h[0] >= 0 else -1.0
+    o = np.array([sgn, 0.0, 0.0]) - d * (d[0] * sgn)
+    o /= np.linalg.norm(o)
+    f = np.cross(d, o)
+    if f[1] > 0:
+        f = -f
+    return h, d, o, f
+
+
+def puff_extents(s, t):
+    """the puff's section extents at stations t (L down the arm from the shoulder joint): (out, front, in, back) L, from
+    the knot table `profile` [[t, out, front, in, back], ...] (a cubic through the knots); above the table's first
+    station the cap, a quarter ellipse `cap` L long closing to the apex (a round dome: a knot at zero would end in a
+    point). -> (len(t), 4)."""
+    K = np.asarray(s['profile'], float)
+    t = np.atleast_1d(np.asarray(t, float))
+    E = np.maximum(hermite(K, t), 0.0)
+    cap = s.get('cap', 0.12)
+    tc = K[0, 0]
+    k = t < tc
+    if k.any():
+        u = np.clip((tc - t[k]) / cap, 0, 1)
+        E[k] = K[0, 1:] * np.sqrt(1 - u * u)[:, None]
+    return E
+
+
+def puff_sections(s, th, t):
+    """the puff's section offsets (along o, along f; L) at angles th (0 out, pi/2 front, pi in, -pi/2 back) and stations
+    t: superellipse quadrants whose extents are puff_extents' (exponent `round`, 2 an ellipse), scalloped by `lobes`
+    [n, amp] (the balloon's panels, as sleeve_closeup's cross-section: its outline 0.77 .. 1 of its radius) and gathered
+    by `gathers` [n, amp_cap, amp_band, reach L] (fine folds fading in over `reach` from the cap's seam and the band).
+    -> (x, y) arrays of th's broadcast shape with t."""
+    th, t = np.broadcast_arrays(np.asarray(th, float), np.asarray(t, float))
+    sh = th.shape
+    th, t = th.ravel(), t.ravel()
+    E = puff_extents(s, t)
+    n = s.get('round', 2.0)
+    cs, sn = np.cos(th), np.sin(th)
+    ax_ = np.where(cs >= 0, E[:, 0], E[:, 2])
+    ay_ = np.where(sn >= 0, E[:, 1], E[:, 3])
+    x = ax_ * np.sign(cs) * np.abs(cs) ** (2 / n)
+    y = ay_ * np.sign(sn) * np.abs(sn) ** (2 / n)
+    K = np.asarray(s['profile'], float)
+    t0, t1 = K[0, 0] - s.get('cap', 0.12), K[-1, 0]
+    mod = np.ones_like(t)
+    lo = s.get('lobes')
+    if lo:
+        body = np.sin(np.pi * np.clip((t - t0) / max(1e-9, t1 - t0), 0, 1))        # 0 at the ends, 1 mid-puff
+        mod *= 1 - lo[1] * body * (0.5 - 0.5 * np.cos(lo[0] * th))
+    g = s.get('gathers')
+    if g:
+        reach = g[3]
+        w = g[1] * np.exp(-np.maximum(0, t - t0) / reach) + g[2] * np.exp(-np.maximum(0, t1 - t) / reach)
+        mod *= 1 - w * (0.5 - 0.5 * np.cos(g[0] * th))
+    return (x * mod).reshape(sh), (y * mod).reshape(sh)
+
+
+def puff(A, spec, hull=None):
+    """a puff sleeve as a template (Michael's direct control; the sleeve lofted through the hull was an open tube cut
+    across the arm at the cap, whose rim stood up as a pointed corner over the shoulder, and whose lower rim poked out
+    past the cuff): one closed balloon from a knot table in the spec (puff_sections), on its upper arm's frame
+    (puff_frame), from a round dome over the shoulder (the cap, its apex on the arm's axis `cap` L above the table's
+    first station) down to its band (spec `band`: the cream sleeve cuff, its garment name); `mirror` (a garment name)
+    takes that sleeve's knots in this side's frame. Past the table's last
+    station each column rounds under (a quarter ellipse) to the band's outside at the band's top, `over` L proud of it,
+    then runs `tuck` L on inside the band's inner surface, `clear` L in, so its lower rim hides under the band (the
+    gathers into the band). The cap's inner side runs into the torso under the top. `cols` columns, rows every `step`
+    L (and `cap_rows` round the dome). Rigid on its upper arm. -> dict(verts, faces, weights, uv)."""
+    L = A['head']['L']
+    side = spec.get('side', 'left')
+    if spec.get('mirror'):
+        # the other sleeve's knots (one table for both: mirror images, as the two frames are)
+        src = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g['name'] == spec['mirror']), None)
+        if src is None:
+            raise ValueError('%s: mirror %s not in the outfit' % (spec['name'], spec['mirror']))
+        spec = dict(src, **{k: spec[k] for k in ('name', 'side', 'band', '_spec') if k in spec})
+    h, d, o, f = puff_frame(A, side)
+    K = np.asarray(spec['profile'], float)
+    cap = spec.get('cap', 0.12)
+    nth = spec.get('cols', 64)
+    th = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
+    t_last = K[-1, 0]
+    t_b0, t_end, rout = None, t_last, None
+    bname = spec.get('band')
+    bs = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g['name'] == bname), None) if bname else None
+    if bs is not None and hull is not None:
+        # the band round the arm: its top along the arm and its outside per column (its lofted surface)
+        Gb = band_hull(A, bs, hull) if bs.get('source') == 'hull' else band(A, bs)
+        Vb = np.asarray(Gb['verts'], float) - h
+        tb = Vb @ d / L
+        thb = np.arctan2(Vb @ f, Vb @ o)
+        rb = np.hypot(Vb @ o, Vb @ f) / L
+        t_b0 = float(tb.min())
+        upper = tb <= t_b0 + 0.35 * (tb.max() - t_b0)
+        dth = np.abs(np.angle(np.exp(1j * (thb[upper][None, :] - th[:, None]))))
+        near = dth < 2 * np.pi / nth + 0.05
+        rout = np.array([rb[upper][k].max() if k.any() else np.nan for k in near])
+        rout = np.where(np.isfinite(rout), rout, np.nanmedian(rout))
+        t_end = t_b0 + spec.get('tuck', 0.03)
+    step = spec.get('step', 0.015)
+    t_top = K[0, 0]
+    nb = max(2, int(round((t_end - t_top) / step)))
+    ncap = spec.get('cap_rows', 8)
+    phis = np.pi / 2 * np.arange(1, ncap) / ncap                     # the dome's rows by angle (0 the apex)
+    ts = np.array([t_top - cap * math.cos(p_) for p_ in phis] + list(t_top + (t_end - t_top) * np.arange(nb + 1) / nb))
+    TT, TH = np.meshgrid(ts, th, indexing='ij')
+    X, Y = puff_sections(spec, TH, np.minimum(TT, t_last))
+    if rout is not None:
+        R = np.hypot(X, Y)
+        tgt = (rout + spec.get('over', 0.004))[None, :]
+        u = np.clip((TT - t_last) / max(1e-6, t_b0 - t_last), 0, 1)
+        Rn = np.where(R > tgt, tgt + (R - tgt) * np.sqrt(np.maximum(0.0, 1 - u * u)), R)
+        inside = rout[None, :] - bs.get('thick', 0.02) - spec.get('clear', 0.006)
+        w = _smoothstep(t_b0, t_b0 + min(0.012, 0.5 * spec.get('tuck', 0.03)), TT)
+        Rn = np.where(TT > t_b0, (1 - w) * np.minimum(Rn, tgt) + w * np.minimum(Rn, inside), Rn)
+        k = np.where(R > 1e-9, Rn / np.maximum(R, 1e-9), 1.0)
+        X, Y = X * k, Y * k
+    P = (h[None, None, :] + (TT[..., None] * d + X[..., None] * o + Y[..., None] * f) * L)
+    nr = len(ts)
+    V = np.concatenate([(h + (t_top - cap) * L * d)[None], P.reshape(-1, 3)])
+    faces = [(0, 1 + (j + 1) % nth, 1 + j) for j in range(nth)]                 # the apex fan
+    for i in range(nr - 1):
+        for j in range(nth):
+            j2 = (j + 1) % nth
+            faces.append((1 + i * nth + j, 1 + i * nth + j2, 1 + (i + 1) * nth + j2, 1 + (i + 1) * nth + j))
+    # outward: the faces' normals away from the arm's axis
+    C_ = V[np.array([f_[0] for f_ in faces[nth:]])]
+    Fn = np.cross(V[[f_[1] for f_ in faces[nth:]]] - C_, V[[f_[2] for f_ in faces[nth:]]] - C_)
+    rad = C_ - h - ((C_ - h) @ d)[:, None] * d
+    if (Fn * rad).sum(1).mean() < 0:
+        faces = [tuple(reversed(f_)) for f_ in faces]
+    uv = [(0.5, 0.0)] + [((j + 0.5) / nth, i / max(1, nr - 1)) for i in range(nr) for j in range(nth)]
+    return dict(verts=V, faces=faces, weights={side + 'UpperArm': np.ones(len(V))}, uv=uv,
+                frame=dict(origin=h, d=d, o=o, f=f), t_band=t_b0, t_end=t_end)
+
+
+def puff_knots(A, hull, side, t_step=0.05, cap=0.12, q=90, smooth=1.0):
+    """a puff's knot table measured from the hull's points of its sleeve, for a spec (the numbers then live in the spec,
+    as the boots' do): per station every `t_step` L along the arm, the `q` percentile of the points' distance from the
+    axis in each quadrant (out, front, in, back), smoothed along the arm; the inner quadrant, which the torso hides near
+    the cap, takes the arm's radius there plus 0.03 L. The first station sits `cap` L below the points' top (the dome
+    above it). -> [[t, out, front, in, back], ...] (L)."""
+    from .geom import loft
+    L = A['head']['L']
+    sid = 'L' if side == 'left' else 'R'
+    h, d, o, f = puff_frame(A, side)
+    P = hull['sleeve_' + sid] - h
+    t, x, y = P @ d / L, P @ o / L, P @ f / L
+    th, r = np.arctan2(y, x), np.hypot(x, y)
+    top, bot = np.percentile(t, 1), np.percentile(t, 99)
+    ts = np.arange(top + cap, bot + 1e-9, t_step)
+    dom, _ = dominant(A)
+    Va = A['verts'][np.isin(dom, [side + 'UpperArm'])] - h
+    ta, ra = Va @ d / L, np.hypot(Va @ o, Va @ f) / L
+    E = np.full((len(ts), 4), np.nan)
+    for i, a in enumerate(ts):
+        k = np.abs(t - a) <= t_step / 2
+        for qd, c in enumerate((0.0, np.pi / 2, np.pi, -np.pi / 2)):
+            m = k & (np.abs(np.angle(np.exp(1j * (th - c)))) < np.pi / 4)
+            if m.sum() >= 5:
+                E[i, qd] = np.percentile(r[m], q)
+        near = np.abs(ta - a) < 0.03
+        arm = float(np.median(ra[near])) if near.any() else 0.12
+        if not np.isfinite(E[i, 2]) or E[i, 2] < arm + 0.03:
+            E[i, 2] = arm + 0.03
+    for qd in range(4):
+        ok = np.isfinite(E[:, qd])
+        E[:, qd] = np.interp(np.arange(len(ts)), np.nonzero(ok)[0], E[ok, qd])
+    E = loft.gauss1d(E, smooth, axis=0)
+    return [[round(float(a), 4)] + [round(float(v), 4) for v in e] for a, e in zip(ts, E)]
+
+
 def bow(A, spec):
     """a big ribbon bow on the chest: two puffy lobes (squashed, tapering into the knot, a soft fold down their face), a
     rounded knot, two tails hanging out and down with notched ends (`tail`: their length, a share of the size; 0.62).
@@ -1892,6 +2212,12 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             for v in src:
                 if v not in border:
                     hide[v] = True
+        elif k == 'band' and s.get('source') == 'template':
+            G = cuff(A, s)
+            mats = [_toon(nm, col, sh), _toon(nm + '_trim', s.get('trim_color', (0.97, 0.9, 0.72)), sh)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['trim'])
+            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
+            sol.use_rim = True
         elif k == 'band':
             G = band_hull(A, s, hull) if s.get('source') == 'hull' else band(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
@@ -1920,7 +2246,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
                 sol.use_rim = True
         elif k == 'sleeve':
-            G = sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
+            G = puff(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'template' else \
+                sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':

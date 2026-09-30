@@ -6,10 +6,29 @@ Checks (qa3d part 'piece_details'; lengths in L):
   sleeve_{front,three_quarter,back}_rough_{L,R}
         the puff sleeve's outline roughness (detailqa.outline_roughness: the 95th percentile of its outline's distance
         to its own smoothed outline) beyond the design's: a torn or stepped cap
-  sleeve_{front,three_quarter,back}_spikes_{L,R}
-        spikes on the sleeve's outline: the parts of its mask an opening by a disk of radius SPIKE_R L cuts off that
-        stand out of the opened mask by SPIKE_MIN L or more (a thin horn or a pointed cap corner), counted beyond the
-        design's; the value is the deepest one's depth beyond the design's deepest (L) and the count beside it
+  sleeve_{front,three_quarter,profile,back}_spikes_{L,R}
+        spikes on the sleeve's cap (its upper CAP along the arm) where its outline is the silhouette: the parts of its
+        mask an opening by a disk of radius SPIKE_R L cuts off that stand out of the opened mask by SPIKE_MIN L or more
+        (a thin horn or a pointed cap corner), counted beyond the design's; the value is the deepest one's depth beyond
+        the design's deepest (L), the counts beside it
+  sleeve_{view}_profile_{L,R}
+        the puff's width across its arm at tenths from its cap to its cuff: the RMS against the design's (the pear)
+  sleeve_standoff_{L,R}
+        3D: the puff seen along its arm, its radius over the arm's under its band, against sleeve_closeup's
+        cross-section (segmented from the reference)
+  waistband_{view}_rows, waistband_{view}_width, waistband_profile_overhang
+        the band's top and bottom edges and its width against the design's; in profile, the top's front edge over the
+        band's against the design's (the jacket overhangs the band)
+  shorts_{view}_hem, shorts_{front,back}_width
+        the shorts' lower edge and their width against the design's
+  skirt_pleats, skirt_pleats_cream, skirt_pleat_order
+        3D against skirt_closeup's top-down view: the orange pleats' count and the cream panel's (crests of our skirt
+        round a ring; pleats between strokes or tone steps round the design's), and their order (one cream block at the
+        front, orange round the rest)
+  cuff_{front,back}_{flare,trim}_{L,R}
+        the wrist cuff across its arm (the forearm's and hand's skin round it give the arm's direction): its width at its
+        top over its bottom (a cup, wider at the elbow's side; the blocky band bulged, wider at its bottom), and its
+        cream share (the top band and the front tab), against the design's
 The design is measured the same way wherever it has the view; a view where either side shows too little of the piece
 (MIN_PX drawn or ours) is skipped.
 
@@ -22,21 +41,32 @@ from . import bodyqa
 WIN = bodyqa.WIN
 SPIKE_R = 0.03                      # L: the opening's disk radius (a protrusion thinner than twice this is a spike candidate)
 SPIKE_MIN = 0.012                   # L: ... that stands this far out of the opened mask
+SPIKE_BAND = 0.03                   # L: a spike this close to the piece's band (the sleeve's cuff) is the corner where
+                                    # the puff meets it, drawn in the design too: not counted
+CAP = 0.55                          # spikes are looked for on the sleeve's cap, its upper share along the arm (the
+                                    # shoulder poofs; lower down the drawn masks' inner corners are cutting slivers)
 MIN_PX = 150                        # a view's piece mask this small (either side) is not measured
+HIDDEN = 0.4                        # a view that shows less than this share of a piece's drawn pixels in front (the far
+                                    # sleeve in three-quarter, behind the bow): its width along the arm isn't measured
 LIMITS = {                          # (pass within, warn within); else fail
-    'rough': (0.004, 0.008),        # L beyond the design's
+    'rough': (0.007, 0.014),        # L beyond the design's (1.5 and 3 px: under that is the grid's pixel)
     'spike': (0.006, 0.015),        # L: the deepest spike beyond the design's deepest
     'standoff': (0.10, 0.20),       # |ours / design - 1| of the puff's radius over the arm's, seen along the arm
     'profile': (0.02, 0.04),        # L: the RMS of the puff's width along its arm against the design's
     'rows': (0.02, 0.04),           # L: a band's top and bottom edges (or the shorts' hem) against the design's
     'width': (0.05, 0.10),          # |ours / design - 1| of a band's width
     'overhang': (0.015, 0.03),      # L: the top's front edge over the band's in profile against the design's
+    'flare': (0.08, 0.15),          # |ours - design| of a cuff's width at its top over its width at its bottom
+    'trim': (0.08, 0.15),           # |ours - design| of the cream share of a cuff's pixels
+    'pleats': (1, 3),               # |ours - design| of the orange pleats' count
+    'pleats_cream': (0, 1),         # ... of the cream panel's
 }
 SLEEVE_VIEWS = ('front', 'three_quarter', 'profile', 'back')
 CLOSE = 0.012                       # L: a drawn piece mask is closed by a disk this wide and its holes filled before its
                                     # outline is measured: the drawing's fold strokes inside a piece are cut out of its
                                     # mask as slits (ours are closed the same way)
-FREE = 2                            # px: an outline pixel within this of the background (nothing drawn) is the silhouette
+FREE = 0.025                        # L: an outline pixel within this of the background (nothing drawn) is the silhouette
+                                    # (the drawing's outline stroke, about 0.02 L wide, lies between its mask and it)
 
 
 def grade(key, v):
@@ -58,10 +88,11 @@ def disk(r):
     return x * x + y * y <= r * r + 1e-9
 
 
-def spikes(m, ppl, r=SPIKE_R, min_depth=SPIKE_MIN, where=None):
+def spikes(m, ppl, r=SPIKE_R, min_depth=SPIKE_MIN, where=None, away=None):
     """a mask's spikes: the components of what an opening by a disk of radius r L cuts off that reach min_depth L or
-    more out of the opened mask (with `where`: only those touching it, the silhouette). -> dict(n, depth (the deepest,
-    L; 0 without one), depths [L...], at [(row, col)...])."""
+    more out of the opened mask (with `where`: only those touching it, the silhouette; with `away`: not those touching
+    it, the corners where a piece meets its band). -> dict(n, depth (the deepest, L; 0 without one), depths [L...],
+    at [(row, col)...])."""
     from scipy import ndimage
     if not m.any():
         return dict(n=0, depth=0.0, depths=[], at=[])
@@ -75,10 +106,13 @@ def spikes(m, ppl, r=SPIKE_R, min_depth=SPIKE_MIN, where=None):
     d = ndimage.distance_transform_edt(~op)
     lab, n = ndimage.label(cut, structure=np.ones((3, 3)))
     W = np.pad(where, pad) if where is not None else None
+    X = np.pad(away, pad) if away is not None else None
     depths, at = [], []
     for k in range(1, n + 1):
         sel = lab == k
         if W is not None and not (sel & W).any():
+            continue
+        if X is not None and (sel & X).any():
             continue
         dk = d[sel]
         i = int(np.argmax(dk))
@@ -104,11 +138,11 @@ def clean(m, ppl, r=CLOSE):
     return ndimage.binary_fill_holes(M)[pad:-pad, pad:-pad]
 
 
-def silhouette(m, fg, free=FREE):
-    """a mask's outline pixels within `free` px of the background (fg False): where it is the figure's silhouette."""
+def silhouette(m, fg, ppl, free=FREE):
+    """a mask's outline pixels within `free` L of the background (fg False): where it is the figure's silhouette."""
     from scipy import ndimage
     edge = m & ~ndimage.binary_erosion(m)
-    bg = ndimage.binary_dilation(~fg, iterations=free + 1)
+    bg = ndimage.distance_transform_edt(fg) <= free * ppl
     return edge & bg
 
 
@@ -126,6 +160,26 @@ def outline_roughness(m, ppl, sigma=0.01, where=None):
         return None
     d = ndimage.distance_transform_edt(~b)
     return round(float(np.percentile(d[a], 95)) / ppl, 4)
+
+
+def cap_region(Ms, Mc, share=CAP):
+    """the pixels of a sleeve's upper `share` along its arm (the sleeve and its cuff's long axis, from the sleeve's top
+    toward the cuff) -> bool image, or None."""
+    rs, cs = np.nonzero(Ms)
+    rc, cc = np.nonzero(Mc) if Mc is not None else (np.zeros(0, int), np.zeros(0, int))
+    if len(rs) < 20 or len(rc) < 5:
+        return None
+    P = np.c_[np.r_[cs, cc], np.r_[rs, rc]].astype(float)
+    m = P.mean(0)
+    w, U = np.linalg.eigh(np.cov((P - m).T))
+    u = U[:, np.argmax(w)]
+    if (np.array([cc.mean(), rc.mean()]) - np.array([cs.mean(), rs.mean()])) @ u < 0:
+        u = -u
+    yy, xx = np.mgrid[:Ms.shape[0], :Ms.shape[1]]
+    s_ = (xx - m[0]) * u[0] + (yy - m[1]) * u[1]
+    ss = s_[Ms]
+    lo, hi = np.percentile(ss, 1), np.percentile(ss, 99)
+    return s_ <= lo + share * (hi - lo)
 
 
 def arm_profile(Ms, Mc, skin, ppl, above=(0.01, 0.04), below=(0.03, 0.08)):
@@ -281,6 +335,22 @@ def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'))
     return out, names
 
 
+def our_classes(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
+    """our model-sheet classes on the design's grids per view (bodyqa.ours: lines absorbed) -> {view: cls}."""
+    from . import qa3d
+    from .faceqa import zbuffer
+    meshes, _ = qa3d.scene_objects(B)
+    As = B.assembly
+    iw = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    out = {}
+    for v in views:
+        org = bodyqa.origin(v, az[v], iw, As['centre'])
+        _, cl = zbuffer(meshes, az[v], org, As['L'], 1.0 / ppl, WIN, thin=(bodyqa.CLASS['line'],))
+        out[v] = bodyqa.ours(cl)[0]
+    return out
+
+
 def members(lab, names, pm, pid):
     from .bodymeasure import member_mask
     idx = {n: i for i, n in enumerate(names)}
@@ -289,7 +359,10 @@ def members(lab, names, pm, pid):
 
 # ------------------------------------------------------------------------------------------------------------ the parts
 def sleeves(O, names, masks, pm, ppl, dv, skin_names=('clawd_skin',)):
-    """the puff sleeves' outline and shape checks per view and side (see the module doc) -> (table, checks)."""
+    """the puff sleeves' outline and shape checks per view and side (see the module doc) -> (table, checks). Which
+    checks there are depends on the design alone (the views that show the piece), so a build that loses a piece reads
+    FAIL, not a missing check."""
+    from scipy import ndimage
     from .bodyqa import CLASS as CL
     T, C = {}, {}
     for view in SLEEVE_VIEWS:
@@ -298,21 +371,42 @@ def sleeves(O, names, masks, pm, ppl, dv, skin_names=('clawd_skin',)):
         for side in ('L', 'R'):
             pid = 'sleeve_' + side
             Md = masks.get('%s__%s' % (view, pid))
-            Mo = members(O[view]['lab'], names, pm, pid)
-            if Md is None or Md.sum() < MIN_PX or Mo.sum() < MIN_PX:
+            if Md is None or Md.sum() < MIN_PX or pid not in pm:
                 continue
-            Md, Mo = clean(Md, ppl), clean(Mo, ppl)
-            wd, wo = silhouette(Md, dv[view]['fg']), silhouette(Mo, O[view]['lab'] >= 0)
-            ro, rd = outline_roughness(Mo, ppl, where=wo), outline_roughness(Md, ppl, where=wd)
-            so, sd = spikes(Mo, ppl, where=wo), spikes(Md, ppl, where=wd)
-            T['%s_%s' % (view, side)] = dict(ours=dict(rough=ro, spikes=so), design=dict(rough=rd, spikes=sd),
-                                             px=[int(Mo.sum()), int(Md.sum())])
-            if ro is not None and rd is not None:
-                v_ = round(max(0.0, ro - rd), 4)
-                C['sleeve_%s_rough_%s' % (view, side)] = {
-                    'value': v_, 'status': grade('rough', v_), 'ours': ro, 'design': rd,
-                    'note': "the sleeve's silhouette's roughness (the 95th percentile of its outline's distance to its "
-                            "own smoothed outline, L) beyond the design's: a torn or stepped cap"}
+            front = masks.get('front__' + pid)
+            seen = Md.sum() / max(1, front.sum()) if front is not None else 1.0
+            Md = clean(Md, ppl)
+            Mo = clean(members(O[view]['lab'], names, pm, pid), ppl)
+            wd = silhouette(Md, dv[view]['fg'], ppl)
+            cd_ = masks.get('%s__sleeve_cuff_%s' % (view, side))
+            co_ = members(O[view]['lab'], names, pm, 'sleeve_cuff_' + side)
+            near = lambda c: (ndimage.distance_transform_edt(~c) <= SPIKE_BAND * ppl) if c is not None and c.any() \
+                else None
+            capd = cap_region(Md, cd_)
+            rd = outline_roughness(Md, ppl, where=wd)
+            sd = spikes(Md, ppl, where=wd & capd if capd is not None else wd, away=near(cd_))
+            if rd is None:                                        # the design shows no silhouette of it here
+                continue
+            key = '%s_%s' % (view, side)
+            if Mo.sum() < MIN_PX:
+                why = {'value': None, 'status': 'FAIL', 'why': "ours shows %d px of the piece here" % int(Mo.sum())}
+                C['sleeve_%s_rough_%s' % (view, side)] = dict(why)
+                C['sleeve_%s_spikes_%s' % (view, side)] = dict(why)
+                if seen >= HIDDEN:
+                    C['sleeve_%s_profile_%s' % (view, side)] = dict(why)
+                continue
+            wo = silhouette(Mo, O[view]['lab'] >= 0, ppl)
+            capo = cap_region(Mo, co_)
+            ro = outline_roughness(Mo, ppl, where=wo)
+            so = spikes(Mo, ppl, where=wo & capo if capo is not None else wo, away=near(co_))
+            ro = 0.0 if ro is None else ro                    # (no silhouette of ours here: nothing rough)
+            T[key] = dict(ours=dict(rough=ro, spikes=so), design=dict(rough=rd, spikes=sd),
+                          px=[int(Mo.sum()), int(Md.sum())])
+            v_ = round(max(0.0, ro - rd), 4)
+            C['sleeve_%s_rough_%s' % (view, side)] = {
+                'value': v_, 'status': grade('rough', v_), 'ours': ro, 'design': rd,
+                'note': "the sleeve's silhouette's roughness (the 95th percentile of its outline's distance to its "
+                        "own smoothed outline, L) beyond the design's: a torn or stepped cap"}
             v_ = round(max(0.0, so['depth'] - sd['depth']), 4)
             dn = so['n'] - sd['n']
             st_n = 'PASS' if dn <= 0 else 'WARN' if dn == 1 else 'FAIL'
@@ -322,21 +416,250 @@ def sleeves(O, names, masks, pm, ppl, dv, skin_names=('clawd_skin',)):
                 'note': "spikes on the sleeve's silhouette (what an opening by a disk of radius %.3f L cuts off that "
                         "stands %.3f L or more out of it): the deepest one's depth beyond the design's deepest (L); the "
                         "counts, ours and the design's, beside it" % (SPIKE_R, SPIKE_MIN)}
-            # the puff's shape across the arm: its stand-off and its gathers into the band
-            cd_ = masks.get('%s__sleeve_cuff_%s' % (view, side))
-            co_ = members(O[view]['lab'], names, pm, 'sleeve_cuff_' + side)
-            if cd_ is not None and cd_.sum() >= 20 and co_.sum() >= 20:
-                sk_o = np.isin(O[view]['lab'], [i + k for i, n in enumerate(names) if n in skin_names for k in (0, 1000)])
-                po = arm_profile(Mo, clean(co_, ppl), sk_o, ppl)
-                pd = arm_profile(Md, clean(cd_, ppl), dv[view]['cls'] == CL['skin'], ppl)
-                T['%s_%s' % (view, side)]['profile'] = dict(ours=po, design=pd)
-                if po and pd and po.get('widths') and pd.get('widths'):
-                    dw = np.array(po['widths'][1:-1]) - np.array(pd['widths'][1:-1])
-                    v_ = round(float(np.sqrt((dw ** 2).mean())), 4)
-                    C['sleeve_%s_profile_%s' % (view, side)] = {
-                        'value': v_, 'status': grade('profile', v_), 'ours': po['widths'], 'design': pd['widths'],
-                        'note': "the puff's width across its arm from its top to its cuff (tenths of its length): the RMS "
-                                "of ours against the design's (L): the pear, narrow at the cap and widest low"}
+            # the puff's width along its arm: the pear, narrow at the cap, widest low, gathered into its band
+            if seen < HIDDEN:
+                continue
+            if cd_ is None or cd_.sum() < 20:
+                continue
+            sk_o = np.isin(O[view]['lab'], [i + k for i, n in enumerate(names) if n in skin_names for k in (0, 1000)])
+            pd = arm_profile(Md, clean(cd_, ppl), dv[view]['cls'] == CL['skin'], ppl)
+            po = arm_profile(Mo, clean(co_, ppl), sk_o, ppl) if co_.sum() >= 20 else None
+            if not pd:
+                continue
+            T[key]['profile'] = dict(ours=po, design=pd)
+            if not po:
+                C['sleeve_%s_profile_%s' % (view, side)] = {'value': None, 'status': 'FAIL',
+                                                             'why': 'our sleeve or its cuff is too small here'}
+                continue
+            dw = np.array(po['widths'][1:-1]) - np.array(pd['widths'][1:-1])
+            v_ = round(float(np.sqrt((dw ** 2).mean())), 4)
+            C['sleeve_%s_profile_%s' % (view, side)] = {
+                'value': v_, 'status': grade('profile', v_), 'ours': po['widths'], 'design': pd['widths'],
+                'note': "the puff's width across its arm from its top to its cuff (tenths of its length): the RMS "
+                        "of ours against the design's (L): the pear, narrow at the cap and widest low"}
+    return T, C
+
+
+def cuff_shape(M, skin, cream, ppl, reach=0.35):
+    """a wrist cuff's shape in one view: the arm's direction from the skin within `reach` L of the cuff (the forearm
+    above it and the hand below: their long axis), and across it the cuff's width at its top (the elbow's side, 15%
+    along), its bottom (85%) and its widest; its cream share. -> dict(top, bottom, widest (L), flare = top / bottom,
+    bulge = widest / mean(top, bottom), trim) or None."""
+    from scipy import ndimage
+    rs, cs = np.nonzero(M)
+    if len(rs) < MIN_PX:
+        return None
+    c = np.array([cs.mean(), rs.mean()])
+    near = skin & (ndimage.distance_transform_edt(~M) <= reach * ppl)
+    ra, ca = np.nonzero(near)
+    if len(ra) < 50:
+        return None
+    P = np.c_[ca, ra].astype(float)
+    w, U = np.linalg.eigh(np.cov((P - P.mean(0)).T))
+    u = U[:, np.argmax(w)]
+    if u[1] < 0:                                              # pointing down the arm (toward the hand, lower in the view)
+        u = -u
+    v = np.array([-u[1], u[0]])
+    Q = np.c_[cs, rs].astype(float) - c
+    s_, t_ = Q @ u / ppl, Q @ v / ppl
+    lo, hi = np.percentile(s_, 2), np.percentile(s_, 98)
+    st = np.round(s_ * ppl).astype(int)
+
+    def width_at(f, half=0.05):
+        a = lo + f * (hi - lo)
+        k = np.abs(s_ - a) <= half * (hi - lo)
+        ws = [np.ptp(t_[k][st[k] == q]) for q in np.unique(st[k]) if (st[k] == q).sum() >= 2]
+        return float(np.median(ws)) if ws else None
+    top, bot = width_at(0.15), width_at(0.85)
+    wid = max(filter(None, [width_at(f) for f in np.linspace(0.15, 0.85, 8)]), default=None)
+    if not top or not bot or not wid:
+        return None
+    return dict(top=round(top, 4), bottom=round(bot, 4), widest=round(wid, 4), flare=round(top / bot, 3),
+                bulge=round(wid / (0.5 * (top + bot)), 3), trim=round(float((cream & M).sum() / M.sum()), 3),
+                length=round(float(hi - lo), 4))
+
+
+def cuffs(O, names, masks, pm, ppl, dv, skin_names, cls_o):
+    """the wrist cuffs' shape per view and side: flare, bulge and cream trim against the design's (see the module doc)
+    -> (table, checks)."""
+    from .bodyqa import CLASS as CL
+    T, C = {}, {}
+    for view in ('front', 'back'):                           # (in three-quarter and profile the hand and the skirt cut
+        if view not in O or view not in dv:                   # the drawn cuffs' lower ends)
+            continue
+        for side in ('L', 'R'):
+            pid = 'cuff_' + side
+            Md = masks.get('%s__%s' % (view, pid))
+            if Md is None or Md.sum() < MIN_PX or pid not in pm:
+                continue
+            front = masks.get('front__' + pid)
+            if front is not None and Md.sum() < HIDDEN * front.sum():
+                continue
+            Md = clean(Md, ppl)
+            d_ = cuff_shape(Md, dv[view]['cls'] == CL['skin'], dv[view]['cls'] == CL['cream'], ppl)
+            if d_ is None:
+                continue
+            Mo = clean(members(O[view]['lab'], names, pm, pid), ppl)
+            sk_o = np.isin(O[view]['lab'], [i + k for i, n in enumerate(names) if n in skin_names for k in (0, 1000)])
+            o_ = cuff_shape(Mo, sk_o, cls_o[view] == CL['cream'], ppl) if Mo.sum() >= MIN_PX else None
+            T['%s_%s' % (view, side)] = dict(ours=o_, design=d_)
+            for key in ('flare', 'trim'):
+                name = 'cuff_%s_%s_%s' % (view, key, side)
+                if o_ is None:
+                    C[name] = {'value': None, 'status': 'FAIL', 'design': d_, 'why': 'our cuff not measured here'}
+                    continue
+                v_ = round(abs(o_[key] - d_[key]), 3)
+                C[name] = {'value': v_, 'status': grade(key, v_), 'ours': o_[key], 'design': d_[key], 'table': o_,
+                           'note': {'flare': "the cuff's width at its top (the elbow's side) over its width at its "
+                                             "bottom, against the design's (a cup wider at its top)",
+                                    'trim': "the cream share of the cuff's pixels (its top band and front tab) "
+                                            "against the design's"}[key]}
+    return T, C
+
+
+def closeup_pleats(rgb, scales=(1.5, 1.6, 1.7, 1.8, 1.9, 2.0), n=7200):
+    """skirt_closeup's top-down view (its lower middle: the skirt seen from above round the grey waist hole): round
+    rings at `scales` of the hole's radii, the pleats' boundaries (a stroke or a step in tone: peaks of the tone's
+    change along the ring) and between them each pleat's colour (cream or orange). -> dict(orange, cream (the median
+    counts over the rings), per ring [(orange, cream, sequence)], cream_deg (the cream's span)) or None."""
+    from scipy import ndimage
+    H, W = rgb.shape[:2]
+    c = np.asarray(rgb, float)[H // 2:, W // 3:2 * W // 3, :3]
+    if c.max() > 1.5:
+        c = c / 255.0
+    R, G, B_ = c[..., 0], c[..., 1], c[..., 2]
+    lum = 0.3 * R + 0.59 * G + 0.11 * B_
+    grey = (np.abs(R - G) < 0.05) & (np.abs(G - B_) < 0.05) & (lum > 0.6) & (lum < 0.93)
+    lab, k = ndimage.label(grey)
+    if not k:
+        return None
+    sz = np.bincount(lab.ravel())
+    sz[0] = 0
+    yy, xx = np.nonzero(lab == sz.argmax())
+    cy, cx, ry, rx = yy.mean(), xx.mean(), np.ptp(yy) / 2, np.ptp(xx) / 2
+    th = np.linspace(-np.pi, np.pi, n, endpoint=False)             # 0 toward the viewer: the skirt's front
+    rings = []
+    for sc in scales:
+        y, x = cy + sc * ry * np.cos(th), cx + sc * rx * np.sin(th)
+        v = ndimage.gaussian_filter1d(ndimage.map_coordinates(lum, [y, x], order=1), 3, mode='wrap')
+        cr = ndimage.map_coordinates(B_, [y, x], order=1) > 0.55
+        d = np.abs(np.gradient(v))
+        pk = np.nonzero((d > 0.012) & (d >= np.roll(d, 1)) & (d >= np.roll(d, -1)))[0]
+        merged = []
+        for p in pk:
+            if not merged or p - merged[-1] >= n / 360 * 2.0:
+                merged.append(p)
+        seq = ''
+        for a, b in zip(merged, merged[1:] + [merged[0] + n] if merged else []):
+            idx = np.arange(a, b) % n
+            if len(idx) >= n / 360 * 3:
+                seq += 'C' if cr[idx].mean() > 0.5 else 'O'
+        rings.append((seq.count('O'), seq.count('C'), seq, round(float(cr.mean() * 360), 1)))
+    if not rings:
+        return None
+    return dict(orange=float(np.median([r[0] for r in rings])), cream=float(np.median([r[1] for r in rings])),
+                cream_deg=float(np.median([r[3] for r in rings])), rings=rings)
+
+
+def our_pleats(B, name='skirt', frac=0.45, nb=1440, prom=0.2):
+    """our skirt's pleats round a ring `frac` of the way from its waist to its front hem: its outer surface's radius per
+    angle round its waist's centre (the evaluated mesh sliced), the crests (local peaks standing `prom` of the pleats'
+    depth over the troughs within half a pleat) and each crest's material (slot 1: the cream panel). -> dict(orange,
+    cream, sequence (from the back round her left), cream_deg, cream_centre (deg)) or None."""
+    try:
+        o = B.obj(name)
+    except KeyError:
+        return None
+    V, T, pm, _ = o.mesh('eval')
+    zt = V[:, 2].max()
+    top = V[V[:, 2] > zt - 0.02 * (zt - V[:, 2].min())]
+    cx, cy = top[:, 0].mean(), top[:, 1].mean()
+    ang = np.arctan2(V[:, 0] - cx, -(V[:, 1] - cy))                  # 0 the front, + her left
+    front = np.abs(ang) < np.radians(20)
+    z0 = zt - frac * (zt - np.percentile(V[front, 2], 1))
+    a, b, c = V[T[:, 0], 2] - z0, V[T[:, 1], 2] - z0, V[T[:, 2], 2] - z0
+    cross = (np.minimum(np.minimum(a, b), c) < 0) & (np.maximum(np.maximum(a, b), c) > 0)
+    P, M = [], []
+    for i in np.nonzero(cross)[0]:
+        t = T[i]
+        z = V[t, 2] - z0
+        for j in range(3):
+            p, q = t[j], t[(j + 1) % 3]
+            if (z[j] < 0) != (z[(j + 1) % 3] < 0):
+                w = z[j] / (z[j] - z[(j + 1) % 3])
+                P.append(V[p] + (V[q] - V[p]) * w)
+                M.append(pm[i])
+    if len(P) < 50:
+        return None
+    P, M = np.array(P), np.array(M)
+    th = np.arctan2(P[:, 0] - cx, -(P[:, 1] - cy))
+    r = np.hypot(P[:, 0] - cx, P[:, 1] - cy)
+    k = ((th + np.pi) / (2 * np.pi) * nb).astype(int) % nb
+    rmax = np.full(nb, -np.inf)
+    mat = np.zeros(nb, int)
+    for kk, rr, mm in zip(k, r, M):
+        if rr > rmax[kk]:
+            rmax[kk], mat[kk] = rr, mm
+    ok = np.isfinite(rmax)
+    rmax = np.interp(np.arange(nb), np.nonzero(ok)[0], rmax[ok], period=nb)
+    # the pleats over the skirt's own shape round the ring (a running mean over 30 degrees taken off)
+    w = nb // 12
+    ker = np.ones(2 * w + 1) / (2 * w + 1)
+    base = np.convolve(np.r_[rmax[-w:], rmax, rmax[:w]], ker, mode='valid')
+    res = rmax - base
+    depth = np.percentile(res, 95) - np.percentile(res, 5)
+    half = nb // 144                                                  # 2.5 degrees
+    crest = []
+    for i in range(nb):
+        win = res[np.arange(i - half, i + half + 1) % nb]
+        wide = res[np.arange(i - 3 * half, i + 3 * half + 1) % nb]
+        if res[i] == win.max() and res[i] - wide.min() > prom * depth and (not crest or i - crest[-1] > half):
+            crest.append(i)
+    seq = ''.join('C' if mat[i] == 1 else 'O' for i in crest)
+    cth = -np.pi + (np.arange(nb) + 0.5) * 2 * np.pi / nb
+    cream = mat == 1
+    centre = float(np.degrees(np.angle(np.exp(1j * cth[cream]).mean()))) if cream.any() else None
+    return dict(orange=seq.count('O'), cream=seq.count('C'), sequence=seq, cream_deg=round(float(cream.mean() * 360), 1),
+                cream_centre=None if centre is None else round(centre, 1), z=round(float(z0), 4))
+
+
+def pleat_checks(B, design):
+    """the skirt's pleats against skirt_closeup's top-down view: the orange and cream counts, and their order (one
+    cream block at the front, orange round the rest) -> (table, checks)."""
+    from . import manifest
+    ref = design.ref()
+    try:
+        M = manifest.load(ref['manifest'])['references'] if ref.get('manifest') else {}
+        d_ = design.memo(closeup_pleats, design.rgba(manifest._p(M['skirt_closeup']['path']))[..., :3]) \
+            if 'skirt_closeup' in M else None
+    except (KeyError, OSError):
+        d_ = None
+    if d_ is None or not any(g.get('kind') == 'skirt' for g in B.spec.get('garments') or []):
+        return None, {}
+    name = next(g['name'] for g in B.spec['garments'] if g.get('kind') == 'skirt')
+    o_ = our_pleats(B, name)
+    T = dict(ours=o_, design=d_)
+    if o_ is None:
+        why = {'value': None, 'status': 'FAIL', 'why': 'our skirt not sliced'}
+        return T, {'skirt_pleats': dict(why), 'skirt_pleats_cream': dict(why), 'skirt_pleat_order': dict(why)}
+    C = {}
+    v_ = abs(o_['orange'] - d_['orange'])
+    C['skirt_pleats'] = {'value': v_, 'status': grade('pleats', v_), 'ours': o_['orange'], 'design': d_['orange'],
+                         'note': "the orange knife pleats round the skirt (crests of ours; pleats between strokes or "
+                                 "tone steps round skirt_closeup's top-down view), ours against the design's"}
+    v_ = abs(o_['cream'] - d_['cream'])
+    C['skirt_pleats_cream'] = {'value': v_, 'status': grade('pleats_cream', v_), 'ours': o_['cream'],
+                               'design': d_['cream'], 'cream_deg': [o_['cream_deg'], d_['cream_deg']],
+                               'note': "the cream front panel's pleats, ours against the design's"}
+    seq = o_['sequence']
+    runs = sum(1 for i in range(len(seq)) if seq[i] != seq[i - 1]) if seq else 0
+    centred = o_['cream_centre'] is not None and abs(o_['cream_centre']) <= 15
+    v_ = max(0, runs - 2) + (0 if centred else 1)
+    C['skirt_pleat_order'] = {'value': v_, 'status': 'PASS' if v_ == 0 else 'FAIL', 'ours': seq,
+                              'cream_centre': o_['cream_centre'],
+                              'note': "the pleats' order round the skirt: one cream block centred at the front (within "
+                                      "15 degrees) and orange round the rest, as the design's top-down view (extra "
+                                      "colour runs, and 1 when the block is off the front)"}
     return T, C
 
 
@@ -375,11 +698,20 @@ def waist(O, names, masks, pm, ppl):
             continue
         for pid in ('waistband', 'shorts'):
             Md = masks.get('%s__%s' % (view, pid))
-            Mo = members(O[view]['lab'], names, pm, pid)
-            if Md is None:
+            if Md is None or pid not in pm:
                 continue
-            ed, eo = edges(clean(Md, ppl)), edges(clean(Mo, ppl))
-            if ed is None or eo is None:
+            ed = edges(clean(Md, ppl))
+            if ed is None:
+                continue
+            eo = edges(clean(members(O[view]['lab'], names, pm, pid), ppl))
+            if eo is None:
+                why = {'value': None, 'status': 'FAIL', 'why': 'ours shows too little of the piece here'}
+                if pid == 'waistband':
+                    C['waistband_%s_rows' % view] = dict(why); C['waistband_%s_width' % view] = dict(why)
+                else:
+                    C['shorts_%s_hem' % view] = dict(why)
+                    if view in ('front', 'back'):
+                        C['shorts_%s_width' % view] = dict(why)
                 continue
             zo = dict(top=z_of(eo['top'], ppl), bottom=z_of(eo['bottom'], ppl), width=eo['width'] / ppl)
             zd = dict(top=z_of(ed['top'], ppl), bottom=z_of(ed['bottom'], ppl), width=ed['width'] / ppl)
@@ -406,35 +738,34 @@ def waist(O, names, masks, pm, ppl):
                     'note': "the piece's median row width over its middle columns' rows, ours over the design's, less "
                             "one"}
     # the top's front edge over the band's in profile (the design's jacket overhangs the band)
-    if 'profile' in O:
-        res = {}
-        for who in ('ours', 'design'):
-            if who == 'ours':
-                band = clean(members(O['profile']['lab'], names, pm, 'waistband'), ppl)
-                top = members(O['profile']['lab'], names, pm, 'top')
-            else:
-                band = masks.get('profile__waistband'); top = masks.get('profile__top')
-                if band is None or top is None:
-                    break
-                band = clean(band, ppl)
+    if 'profile' in O and 'waistband' in pm and 'top' in pm:
+        def overhang(band, top):
             e = edges(band)
             if e is None or not top.any():
-                break
+                return None
             r0 = int(round(e['top']))
             bf = [np.nonzero(band[r])[0].min() for r in range(r0 + 2, int(e['bottom']) - 1) if band[r].any()]
             above = range(max(0, r0 - int(0.05 * ppl)), max(0, r0 - int(0.01 * ppl)))
             tf = [np.nonzero(top[r])[0].min() for r in above if top[r].any()]
             if not bf or not tf:
-                break
-            res[who] = round((float(np.median(bf)) - float(np.min(tf))) / ppl, 4)
-        if len(res) == 2:
-            v_ = round(abs(res['ours'] - res['design']), 4)
-            T['overhang'] = res
-            C['waistband_profile_overhang'] = {
-                'value': v_, 'status': grade('overhang', v_), 'ours': res['ours'], 'design': res['design'],
-                'note': "in profile, how far the top's front edge (just above the band) stands in front of the band's "
-                        "(L; + the top overhangs), against the design's: the band's front proud of the top where the "
-                        "design's jacket overhangs it"}
+                return None
+            return round((float(np.median(bf)) - float(np.min(tf))) / ppl, 4)
+        bd, td = masks.get('profile__waistband'), masks.get('profile__top')
+        d_ = overhang(clean(bd, ppl), td) if bd is not None and td is not None else None
+        if d_ is not None:
+            o_ = overhang(clean(members(O['profile']['lab'], names, pm, 'waistband'), ppl),
+                          members(O['profile']['lab'], names, pm, 'top'))
+            T['overhang'] = dict(ours=o_, design=d_)
+            if o_ is None:
+                C['waistband_profile_overhang'] = {'value': None, 'status': 'FAIL', 'design': d_,
+                                                   'why': 'our band or the top above it not seen in profile'}
+            else:
+                v_ = round(abs(o_ - d_), 4)
+                C['waistband_profile_overhang'] = {
+                    'value': v_, 'status': grade('overhang', v_), 'ours': o_, 'design': d_,
+                    'note': "in profile, how far the top's front edge (just above the band) stands in front of the "
+                            "band's (L; + the top overhangs), against the design's: the band's front proud of the top "
+                            "where the design's jacket overhangs it"}
     return T, C
 
 
@@ -476,6 +807,8 @@ def measure(B, design, out=None):
             continue
         o_ = our_section(B, so[0], cu[0], skin_name)
         if o_ is None:
+            C['sleeve_standoff_%s' % side] = {'value': None, 'status': 'FAIL', 'design': cl,
+                                              'why': 'our puff, band or arm round it not found'}
             continue
         v_ = round(abs(o_['standoff'] / cl['standoff'] - 1), 3)
         C['sleeve_standoff_%s' % side] = {
@@ -484,5 +817,11 @@ def measure(B, design, out=None):
                     "band (the balloon's stand-off), ours over the design's, less one (area-equivalent radii)"}
     t, c = waist(O, names, masks, pm, ppl)
     T['waist'] = t
+    C.update(c)
+    t, c = cuffs(O, names, masks, pm, ppl, design.design_views(), skin, our_classes(B, ppl, ctx['az3']))
+    T['cuffs'] = t
+    C.update(c)
+    t, c = pleat_checks(B, design)
+    T['pleats'] = t
     C.update(c)
     return T, C

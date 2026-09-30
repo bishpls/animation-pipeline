@@ -528,7 +528,8 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
         border[lv[np.repeat((c > 0) & (c < ct), ct)]] = True
         hide = src[~border[src]]
     elif k == 'band':
-        G = gm.band_hull(A, s, hull) if s.get('source') == 'hull' else gm.band(A, s)
+        G = gm.cuff(A, s) if s.get('source') == 'template' else \
+            gm.band_hull(A, s, hull) if s.get('source') == 'hull' else gm.band(A, s)
     elif k == 'shoe':
         G = gm.shoe_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.shoe(A, s)
         dom = gm.dominant(A)[0] if dom is None else dom
@@ -541,7 +542,8 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
         if 'hide' in G:
             hide = np.asarray(G['hide'], np.int64)
     elif k == 'sleeve':
-        G = gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
+        G = gm.puff(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'template' else \
+            gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
     elif k == 'skirt':
         G = gm.skirt_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
@@ -562,7 +564,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
         P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
     elif k == 'belt' and s.get('source') == 'hull':
         P.solid = s.get('thick', 0.025) * A['head']['L']
-    elif k == 'band' and s.get('source') == 'hull':
+    elif k == 'band' and s.get('source') in ('hull', 'template'):
         P.solid = s.get('thick', 0.02) * A['head']['L']
     return P, hide
 
@@ -628,6 +630,8 @@ def garment_tones(A, s, G):
         flat = np.asarray(G['sole'], bool); second = np.asarray(s.get('sole_color', (0.26, 0.21, 0.21)), float)
     elif k == 'collar':
         flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
+    elif k == 'band' and 'trim' in G:
+        flat = np.asarray(G['trim'], bool); second = np.asarray(s.get('trim_color', (0.97, 0.9, 0.72)), float)
     elif k == 'panel' and s.get('hem') == 'stepped':
         img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6),
                         **{k_: s[k_] for k_ in ('band', 'step_h') if k_ in s})
