@@ -1,6 +1,139 @@
 # Hull limbs: each limb takes its own depth (tool/hull-limbs)
 
-Branch `tool/hull-limbs`, worktree `~/animation-pipeline-hulllimbs`, built on `tool/hull-det` (not yet merged).
+Branch `tool/hull-limbs`, worktree `~/animation-pipeline-hulllimbs`. It merges tool/hull-det 3267aea, then
+tool/garment-sampling 47b401f, then pipeline-3d 2e3bdd5. tool/body round 6 merges the first two; this branch goes on top.
+
+## State (2026-09-30, relaunch): read first
+
+**Why relaunched.** Michael saw a protrusion at the back of the leg in profile. tool/body traced it to the hull: at
+z -2.72 to -2.76 L the hull labels skin all along the profile's side run behind the leg, where the flap train hangs, and
+code_body's thigh fit bulged back to it. The thigh's back edge sat 0.07-0.11 L behind the design's from z -2.74 to
+-2.91 (0.113 at -2.80). tool/body added `body_profile_leg_back` (tool/body 854776f, `detailqa.py`).
+
+**The before.** `~/animation-pipeline-hlbase` on `tmp/hull-limbs-base` = 2111d12: 47b401f (garment-sampling on hull-det
+3267aea) with pipeline-3d merged, i.e. this branch's bases without its commits. `git diff tmp/hull-limbs-base
+tool/hull-limbs` touches only hull.py, test_hull.py and this file. Both worktrees have the TRELLIS field
+(`charkit/out/i3d/ext/runA/clawd_3dstyle_s1_field.npz`) and outfit masks `074d9a3f`.
+
+**The cause was not the LimbTrack.** The LimbTrack had already kept the thighs' own parts on their skin (z -2.73: y
+0.26..0.32; from -2.76: the thigh's whole skin run). The slab came from the *body* parts at the same heights:
+- The profile shows the flap train as a side run of its own behind the hips (y 0.84 to 1.22 from z -2.56 down).
+- Every body part took every side run over its whole width. That includes the skirt and shorts spanning the hips
+  (-2.56 to -2.71) and the shorts' hem over the thighs (-2.72 to -2.75).
+- So a slab stood behind the thighs' columns down to the shorts' hem, with a flat floor there. Front and back both draw
+  the flap panels only at |x| 0.47 to 1.07 L.
+- No view sees the floor's underside, so `label_volume` gave it the nearest seen label: the thighs' skin, 136
+  skin-labelled shell voxels behind the thighs (|x| < 0.55, y > 0.36). The smoothing (0.09 L in z) rounds it into the
+  point code_body fitted.
+
+**The fix (`Owners`, in `sections()`, 8e74059).** The widest side run at a height is the body and pairs with every body
+part. A run detached from it, made of the body's pieces (at most 5% skin, hair, iris or a limb's pieces), goes only to
+the columns where a view shows those pieces (a piece or its mirror partner, one section per piece):
+- a run behind the body is read on the back view, which sees it whole;
+- a run in front of the body is read on the front view;
+- where that view doesn't show the pieces at this height, every part keeps the run, as before;
+- a part left with no run keeps all of them.
+
+On Clawd this changes the flap train from z -2.56 to -3.15, the skirt panel's flared hem in front (-2.60 to -2.62, from
+the whole width to |x| < 0.34) and the bow at -0.63 (one column). The Limbs diagnostic's depth map shows these runs in
+violet. 05f1c1f adds each view's limb image and a sections table to the build's `--stages`.
+
+Variants measured and rejected (the laptop, Clawd's sheet, validated as the page does):
+
+| hull | skin shell voxels behind the thighs | voxels behind the thighs | held out 3/4 | held out back | used front |
+|---|---|---|---|---|---|
+| before (2111d12) | 423 | 64,136 | 0.8764 | 0.9469 | 0.9608 |
+| LimbTrack only (b6f122a) | 136 | 63,461 | 0.8784 | 0.9467 | 0.9612 |
+| **Owners (8e74059)** | **0** | **16,164** | **0.8777** | **0.9476** | **0.9605** |
+| drop a run only where the part shows none of its pieces | 25 | 57,459 | 0.8785 | 0.9467 | 0.9612 |
+| body parts also drop a run that is one limb's | 143 | 63,462 | 0.8679 | 0.9334 | 0.9461 |
+| every piece run to the front's columns, plus that | 0 | 15,748 | 0.8613 | 0.9322 | 0.9435 |
+
+- Reading a rear run's columns on the front view loses the flaps' inner halves, which the hips hide from the front. On a
+  synthetic flapped figure (test_hull), held-out three-quarter IoU: whole width 0.838, front's columns 0.822, back's
+  columns 0.842.
+- Dropping the thigh's run from the flap parts empties the front silhouette where the three-quarter carves the flap
+  ellipses alone (1,238 px).
+
+**The thigh's back edge in profile** (tool/body's `leg_back`, copied verbatim into the scratchpad): L behind the
+design's, the median offset over the leg taken out.
+
+| | before | LimbTrack only | after (Owners) | after on tool/body 25d8d48 |
+|---|---|---|---|---|
+| evaluator, thigh and knee (z >= -3.5) | 0.108 at -2.81 | 0.061 at -2.80 | **0.005** | **0.005** |
+| evaluator, check as coded | 0.202 at -3.922 | 0.132 at -3.917 | 0.132 at -3.917 | 0.132 at -3.917 |
+| box build, thigh and knee | 0.108 at -2.81 | | **0.005** | |
+| box build, check as coded | 0.202 at -3.922 | | 0.132 at -3.917 | |
+
+- The check as coded peaks on the two rows above the boot cuff (-3.913, -3.917). There the design's sloped cuff line cuts
+  its skin row short at the back, while our cuff top is level. That is the boot's (tool/body), and the same before and
+  after.
+- `leg_back`'s face-direction test flipped on the before evaluator build (ours +1): its as-coded value there (0.099 at
+  -2.745) is the front edge's. The table measures every build with the design's direction.
+- tool/body: skip the rows within about 0.02 L of either figure's cuff, or require a bump to hold over 0.02 L. Take the
+  face direction from the design.
+
+**Per-height borrowing, the real masks** (front limb parts x height against the hand-made profile truth; the truth's
+puff now starts at its drawn top under the collar, z -0.57, not -0.70):
+
+| | arm before | arm after | leg before | leg after |
+|---|---|---|---|---|
+| parts | 440 | 431 | 556 | 531 |
+| borrowing | 40 | 10 | 3 | 2 |
+| foreign / own cells | 2,350 / 11,992 | 104 / 10,096 | 106 / 22,252 | 8 / 21,884 |
+| whole side run | 22 | 0 | 4 | 0 |
+
+- Before: the shoulder (z -0.50 to -0.56, the neck's skin and the collar, the whole side run at -0.52/-0.53), the wrist
+  cuff (-1.98 to -2.06: the whole side run, 102-113 skirt cells each), and the right thigh's top (-2.72: the whole side
+  run, the flap train included, 96 cells).
+- After: z -0.54 to -0.56 (6 parts, 6-11 cells: the sleeve's piece run where the collar covers the shoulder's top), and
+  2-3 outline cells at -1.36, -2.49 (arm) and -2.73 (the thigh at the shorts' hem).
+- The leg rows never saw the slab: it was the body parts'.
+
+**Determinism** (hull-det's `--stages`, `python -m charkit.geom hull charkit/spec/clawd.json --fast --stages DIR`, at
+05f1c1f). Machines: the build box (Xeon, AVX-512), the render box (Xeon, AVX2) and the laptop (arm64).
+- 44 of 46 arrays are bit-identical on all three: every hull stage and every output. That includes the new stages (each
+  view's limb image, the sections table with its sources, rejected runs and Owners' changes, `rounded`'s V).
+  hull.npz is `5f9ceff5…` and hull_pieces.npy `90945005…` everywhere.
+- Only `head_sections` (cy, r) differ, three ways for r. That is `code_base.head_sections`, the authored head's
+  analytic sections, not hull.py. It doesn't reach `face_carved` or anything after it here, but it is a latent
+  cross-machine risk for code_base's owner (tool/face) and hull-det.
+- Owners uses only integer image operations and IEEE comparisons (np.isin, flatnonzero, min/max of columns). The widest
+  run's tie goes to the lowest y.
+
+**Box builds of charkit/spec/clawd.json, before (2111d12) → after (8e74059)**, QA 105/23/9 → 105/25/7 (PASS/WARN/FAIL):
+- Better: `body_front_hem` 0.165 FAIL → 0.113 WARN; `body_three_quarter_hem` 0.174 FAIL → 0.137 WARN; `piece_shorts`
+  0.403 FAIL → 0.679 WARN; `body_three_quarter_iou_skin` 0.695 WARN → 0.700 PASS; `piece_overskirt_panel_R_extent`
+  0.137 WARN → 0.080 PASS; `body_back_hem_mid` 0.231 → 0.174 (FAIL); `body_back_hem` 0.151 → 0.099 (WARN);
+  `shape_iou_legs` 0.896 → 0.915.
+- Worse:
+  - `hair_folds` 9 WARN → 47 FAIL, all on the flyaways (0 → 41). The limb carve moves the three-quarter's refined axis
+    one pixel (+0.040 → +0.035 L), because `refine` fits it against the rounded hull. The whole carve shifts by that
+    much, the head included (2,708 voxels above the eye line). `hairpieces.flyaways` sets each blade's plane to the
+    median y of the 24 nearest hull hair-mass vertices, which split between the mass's front and back. So the planes
+    jump (lock 2: 0.108 → 0.040, lock 3: 0.060 → 0.000, lock 4: 0.010 → 0.060 world), and the blades turn against the
+    envelope's normal. That fragility is the hair builder's (tool/hair): take the mid-plane as the midpoint of the
+    mass's front and back at the root. This is the "hair_folds 7 → 47" of the paused gate: it was this branch's (the
+    LimbTrack), not hull-det's.
+  - `body_back_leg` 0.075 PASS → 0.118 WARN: a lens of skin shows through the shorts' back at the seat in the back view,
+    and `leg_top` reads it as the legs' top. Before, the back view labelled the slab's rear face `shorts`, and the
+    shorts' back was sampled there (garment-sampling). Now it is sampled at the hull's true back, level with
+    code_body's hips. That clearance is the garments' and body's (tool/body).
+  - `piece_collar` 0.753 PASS → 0.736 WARN.
+  - `hair_penetration` 0.0148 FAIL is the same in both (not this branch's).
+
+GATES
+
+**Open items**
+- tool/body: `body_profile_leg_back` as coded fails on the boot cuff's top rows in every build of ours (above), and its
+  face test can flip.
+- The flap train below the shorts' hem is in the hull only at the flaps' own columns (|x| > 0.54). Behind the thighs it
+  was never there; now the rows above agree.
+- The boots' soles (z -5.22 to -5.28): 1-5 cell body runs at the boots' edges in front break `only` for a few heights,
+  and the leg takes the interpolated section there (up to 0.1 L shallower). Smoothing hides it. A fix: ignore body
+  runs narrower than `split_min` in the `only` test.
+- From before: the outfit masks' profile labels (the collar's stripe). `band_hull` should keep only points within
+  reach of its bone.
 
 ## The report that started it (Michael, 2026-09-29)
 
@@ -130,9 +263,9 @@ outline the truth gives to the skirt. Legs: z −2.73 (×2), the thigh's outline
 - The hull-det stages hook stores `rounded`'s V by reference, so its hash is the face-carved V's (`carve_face` edits
   it in place); copy it at the stage.
 
-## PAUSED (2026-09-30, coordinator's request): state and next steps
+## PAUSED (2026-09-30, morning): superseded by the relaunch at the top
 
-**Read this first when resuming.** Head `tool/hull-limbs` (the SHA in the pause reply). Worktrees: this one and
+**History.** Head `tool/hull-limbs` (the SHA in the pause reply). Worktrees: this one and
 `~/animation-pipeline-hlbase` on `tmp/hull-limbs-base` = 562bfe2, the exact before (this branch at de6c007 with the
 three hull commits 6626176, f2cfa0f, de6c007 reverted; it lacks e803c34 too, which only touches the fix).
 
