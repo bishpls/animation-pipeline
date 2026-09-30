@@ -63,7 +63,7 @@ def armed():
     return lab, xs, ys, zs
 
 
-def labelled_view(lab, xs, ys, zs, name, az, P, axis=300.0, eye_y=40.0):
+def labelled_view(lab, xs, ys, zs, name, az, P, axis=300.0, eye_y=40.0, shape=(200, 600)):
     """a view of a labelled figure: its mask and, per pixel, the label nearest the camera."""
     a = np.radians(az)
     ix, iy, iz = np.nonzero(lab)
@@ -71,7 +71,7 @@ def labelled_view(lab, xs, ys, zs, name, az, P, axis=300.0, eye_y=40.0):
     dep = xs[ix] * np.sin(a) - ys[iy] * np.cos(a)
     c = np.round(axis + u * PPL).astype(int); r = np.round(eye_y - zs[iz] * PPL).astype(int)
     o = np.argsort(dep)                                    # nearest the camera written last
-    pieces = np.zeros((200, 600), np.int16)
+    pieces = np.zeros(shape, np.int16)
     pieces[r[o], c[o]] = lab[ix, iy, iz][o]
     v = hull.View(name, az, pieces > 0, PPL, axis, eye_y, np.zeros(pieces.shape, np.uint8), np.zeros(pieces.shape + (3,)))
     v.pieces = pieces
@@ -251,10 +251,6 @@ def test_a_piece_on_the_wrong_garment_does_not_move_the_limb():
     split = hull.score(hull.rounded(views, A, use, smooth=0.0), A, views['three_quarter'])['iou']
     assert split > 0.93, split
 
-if __name__ == '__main__':
-    for k, f in list(globals().items()):
-        if k.startswith('test_'):
-            f(); print('ok', k)
 
 
 def test_a_banded_view_carves_only_its_heights_and_fits_its_azimuth():
@@ -275,3 +271,63 @@ def test_a_banded_view_carves_only_its_heights_and_fits_its_azimuth():
     drawn.az = 125.0                                               # its nominal angle, 15 degrees off
     fit = hull.fit_view(drawn, hull.rounded(views, A, list(views), p=2.0, smooth=0.0), A, 125.0)
     assert abs(fit['az'] - 140.0) <= 2.5 and fit['iou'] > 0.9, fit
+
+
+def flapped():
+    """hips in shorts on two bare legs, with a flap hanging behind each hip at the side, clear of the body in profile
+    (Clawd's flap train), and boots: labels 1 flap_L (her left, +x), 2 flap_R, 3 shorts, 4 boots, 5 the legs' skin."""
+    xs = np.arange(-1.0, 1.0, 0.01); ys = np.arange(-0.8, 0.8, 0.01); zs = np.arange(0.4, -3.2, -0.01)
+    X, Y, Z = np.meshgrid(xs, ys, zs, indexing='ij')
+    hips = ((X / 0.45) ** 2 + ((Y - 0.05) / 0.28) ** 2 <= 1) & (Z <= 0.3) & (Z >= -1.6)
+    legs = ((((X - 0.18) / 0.12) ** 2 + (Y / 0.12) ** 2 <= 1) | (((X + 0.18) / 0.12) ** 2 + (Y / 0.12) ** 2 <= 1)) & \
+        (Z < -1.6) & (Z >= -3.0)
+    flap = (np.abs(X) >= 0.3) & (np.abs(X) <= 0.6) & (Y >= 0.45) & (Y <= 0.6) & (Z <= -1.0) & (Z >= -2.2)
+    lab = np.where(flap, np.where(X > 0, 1, 2), np.where(hips, 3, np.where(legs, np.where(Z < -2.6, 4, 5), 0)))
+    return lab, xs, ys, zs
+
+
+def test_a_flap_behind_the_hips_pairs_only_with_its_own_columns():
+    """a flap hanging behind each hip at the side, clear of the body in profile: the front shows the flaps only at the
+    sides, so the flaps' side run pairs with those columns (Owners), not the whole width. Paired with the whole width
+    (as before) it made a slab behind the shorts and the thighs, whose underside the labels called skin (Clawd's thigh
+    bulged back to it: tool/body's body_profile_leg_back)."""
+    from charkit.bodyqa import CLASS
+    lab, xs, ys, zs = flapped()
+    P = hull.Pieces({'pieces': [{'id': 'flap_L', 'side': 'L', 'pair': 'flap', 'attach': {'bone': 'hips'}},
+                                {'id': 'flap_R', 'side': 'R', 'pair': 'flap', 'attach': {'bone': 'hips'}},
+                                {'id': 'shorts', 'side': 'C', 'attach': {'bone': 'hips'}},
+                                {'id': 'boots', 'side': 'C', 'attach': {'bone': 'leftLowerLeg'}}],
+                     'skeleton': {'leftUpperLeg': [[0.18, -1.6], [0.18, -3.0]], 'rightUpperLeg': [[-0.18, -1.6], [-0.18, -3.0]],
+                                  'spine': [[0.0, 0.3], [0.0, -1.5]]}})
+    P5 = hull.Pieces({'pieces': [{'id': str(i)} for i in range(5)]})       # the legs drawn as a label, then skin
+    views = {}
+    for n, az in (('front', 0), ('profile', 90), ('back', 180), ('three_quarter', 35)):
+        v = labelled_view(lab, xs, ys, zs, n, az, P5, shape=(260, 600))
+        skin = v.pieces == 5
+        v.labels = np.where(skin, CLASS['skin'], np.where(v.mask, CLASS['orange'], 0)).astype(np.uint8)
+        v.raw = v.labels.copy()
+        v.pieces = np.where(skin, 0, v.pieces).astype(np.int16)
+        v.limbs = hull.limb_image(v, P)
+        v.partner = P.mirror
+        views[n] = v
+    assert (views['profile'].limbs[views['profile'].labels == CLASS['skin']] == hull.LEG).all()
+    A = hull.axes_for(views, H)
+    use = ['front', 'profile', 'back']
+    T = {}
+    S = hull.sections(views, A, use, tracks=T)
+    assert T['owners'].log, 'the flaps\' run is kept to their columns'
+    V = hull.rounded(views, A, use, smooth=0.0)
+    ix = lambda x: int(np.argmin(np.abs(A.xs - x))); iy = lambda y: int(np.argmin(np.abs(A.ys - y)))
+    for z in (-1.2, -1.5, -1.8):                                        # the hips, and the thighs under the flaps
+        k = int(np.argmin(np.abs(A.zs - z)))
+        assert not V[ix(-0.2):ix(0.2) + 1, iy(0.42):, k].any(), z       # nothing behind the middle
+        assert V[ix(0.5), iy(0.52), k] and V[ix(-0.5), iy(0.52), k], z  # each flap where it hangs
+    held = hull.score(V, A, views['three_quarter'])['iou']
+    assert held > 0.84, held            # paired with the whole width: 0.838; with the front's columns (the flaps' inner
+                                        # halves hidden behind the hips): 0.822; the back sees them whole: 0.842
+
+
+if __name__ == '__main__':
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f(); print('ok', k)
