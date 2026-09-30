@@ -78,4 +78,18 @@ MEASUREMENT_STEPS = [
                           '-0.0247 -> 0.0003, profile 0.0136 -> 0.0053)'),
     # tool/toonrender2: the default drawing
     ('hair_noise', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); hair pictures 0.15 levels from EEVEE's on the hair, numpy 0.25 (0.70 with streaks); tr3_a 0.0739 -> 0.0744, noise 0.0007"),
+    # tool/mouth (round 1, dee61e7) and tool/mouth2: the expressions measured against the source sheet again, the library
+    # grew (docs/workstreams/mouth.md)
+    ('expr_*', 'dee61e7', "measured against the source sheet's heads again (qa3d.Design.expression_sheet: idol_D when the "
+     "body sheet draws none; INFO by authority): since tool/refs the part was one `expr` SKIPPED"),
+    ('face_folds', 'dee61e7', 'the expression library grew (tool/mouth: shout, clench, grimace, smirk, firm, wobble '
+     'mouths) and face_folds sums its folds over every key'),
+    ('face_mouth_cover', 'dee61e7', 'the library grew (the open shout, clench, grimace and wobble; cover is the worst '
+     'key) and COVER counts the tongue, a new class (tool/mouth)'),
+    ('face_mouth_asym', 'dee61e7', 'the library grew (tool/mouth: the smirk is asymmetric by design; the worst key)'),
+    ('face_folds', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy) and face_folds sums every key'),
+    ('face_expr_range', 'bf797d4', 'FACE_EXPECT gained focus, squeeze, wince, shy (tool/mouth2)'),
+    ('face_eye_asym', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy; the worst key)'),
+    ('face_preset_*', 'bf797d4', 'new: the combined expressions (charkit.expressions.PRESETS) against exprqa.TARGETS, '
+     'the furthest feature past its target in WARN margins (tool/mouth2)'),
 ]

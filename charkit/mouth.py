@@ -149,18 +149,20 @@ SHAPES = {
     'surprised': dict(width=0.5, open=0.5, up=0.35, corner=0.0, upper_round=0.9, lower_round=0.9),
     'pout': dict(width=0.62, open=0.0, smile=-0.04),
     # the model sheet's heads, at their drawn sizes (idol_D measured by charkit.exprqa, in the neutral's widths; the
-    # authored head's lips follow these curves, where MakeHuman's lapped over about half of an open mouth). laugh: a wide D
-    # (0.26 x 0.15 L, a flat top with the corners at it, the upper teeth across it, the tongue below)
-    'laugh': dict(width=2.0, open=1.18, up=0.1, corner=0.0, smile=0.06, upper_round=0.05, lower_round=0.25),
+    # authored head's lips follow these curves, where MakeHuman's lapped over about half of an open mouth). laugh: a wide
+    # bowl (0.26 x 0.15 L: the top a smile's curve with the upper teeth along it, the bottom a round U, the tongue in it;
+    # fitted to the drawn head with its shape, mouthlab.fit_shape: IoU 0.75 -> 0.92, round 2)
+    'laugh': dict(width=2.0, open=1.0, up=0.0, corner=0.0, smile=0.06, upper_round=0.35, lower_round=1.0),
     # fluster: wide, low and wavy, both rows of teeth showing (0.27 x 0.07 L)
     'wavy': dict(width=2.0, open=0.55, up=0.45, corner=-0.03, smile=-0.02, upper_round=0.3, lower_round=0.45, wave=0.08,
                  waves=2.5, teeth=0.3, teeth_lo=0.3, tongue=0.0),
-    # yawn: a tall O (0.17 x 0.18 L), its corners at its middle's height. Its upper lip rises 0.54 widths (open x up), the
+    # yawn: a tall oval (0.17 x 0.18 L), its corners at its middle's height, its sides round (fitted with its shape: IoU
+    # 0.92 -> 0.97, round 2). Its upper lip rises 0.54 widths (open x up), the
     # old yawn's to the last bit: the mouth block's top. code_base.mouth_block sizes the head's cage by the library's
     # extremes (this top, the laugh's half-width): keep them, or the head's mesh moves round the mouth
     # (tests/test_mouth.py holds the block)
-    'yawn': dict(width=1.32, open=1.38, up=0.391304347826087, corner=-0.1, smile=0.0, upper_round=0.5,
-                 lower_round=0.5, teeth=0.1),
+    'yawn': dict(width=1.28, open=1.38, up=0.391304347826087, corner=-0.07, smile=0.0, upper_round=0.6,
+                 lower_round=0.95, teeth=0.1),
     # the action set (docs/workstreams/mouth.md; exprqa.TARGETS), each with its own smile (a shape without one takes the
     # spec's, Clawd's 0.22: a grin's curve). shout: wide open, a flatter top, the upper teeth and the tongue showing
     'shout': dict(width=1.6, open=1.3, up=0.3, corner=-0.04, smile=0.0, upper_round=0.35, lower_round=0.7, teeth=0.18,
@@ -379,13 +381,27 @@ def harmonic(V, faces, free, fixed):
     return Ainv @ b
 
 
-def key(V, M, F, K, L, mc, shape, jaw_w=None, faces=None):
+def held(eyes):
+    """the vertices another component's keys move that a mouth key holds still (charkit.expressions: the components add,
+    so their keys mustn't share vertices): the eyes' lid loops, margins, pockets and sockets (an authored base's; its
+    mouth's outer rings reach them) -> a set."""
+    out = set()
+    for E in eyes:
+        e = E['eye'] if 'eye' in E else E
+        for k in ('margin', 'upper', 'lower', 'pocket', 'socket'):
+            out.update(int(v) for v in (e.get(k) or ()))
+        for r in e.get('loops') or ():
+            out.update(int(v) for v in r)
+    return out
+
+
+def key(V, M, F, K, L, mc, shape, jaw_w=None, faces=None, hold=None):
     """offsets (N, 3) from the placed neutral V to a shape (the jaw following the lower lip when it opens). An authored
     base (M['loops'], with the mesh's faces): the lips onto the shape's curves and the cavity after them, the jaw's core
     (its weight from JAW_CORE) moved whole by jaw_follow of the lower lip's drop, the skin with no jaw weight kept, and
     between them (the lips' rings, the jaw's edge) the move harmonic over the mesh in all three axes (harmonic()): the
     skin rides the jaw as it opens, rather than sliding over the rest face. Other bases: the rings by a spread from the
-    lips, the rest of the jaw by the jaw."""
+    lips, the rest of the jaw by the jaw. hold: vertices kept still (held(): the eyes' loops, which the eye keys move)."""
     D = np.zeros_like(V)
     if M.get('loops') and jaw_w is not None and faces is not None:
         _, lo_n = curves(K, L, 'neutral'); _, lo_s = curves(K, L, shape)
@@ -397,7 +413,9 @@ def key(V, M, F, K, L, mc, shape, jaw_w=None, faces=None):
         # free: the lips' rings and the jaw's edge (its weight between none and whole); the jaw's core moves whole
         jw = np.asarray(jaw_w, float)
         edge = np.nonzero((jw > 1e-3) & (jw < JAW_CORE))[0]
-        free = np.array(sorted((set(M['outer']) | set(edge.tolist())) - set(pos)), int)
+        free = np.array(sorted((set(M['outer']) | set(edge.tolist())) - set(pos) - set(hold or ())), int)
+        if hold:
+            D[np.array(sorted(set(hold) - set(pos)), int)] = 0.0
         if len(free):
             D[free] = harmonic(V, faces, free, D)
         return D

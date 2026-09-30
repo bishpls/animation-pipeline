@@ -175,7 +175,8 @@ def features(G, keys=True, cache=None):
         Mo = dict(m=_kept(cache, ('mouth', bkey), lambda: mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw)),
                   c=(0.0, centre[2] + H.mouth_z))
     V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'], faces=B['faces'])
-    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'])
+    hold = mouthlib.held(eyes)                          # (the eye keys' vertices: the components' keys don't overlap)
+    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'], hold=hold)
                   for sh in mouthlib.SHAPES if sh != 'neutral'} if keys else {}
     au = dict(authored=bool(Mo['m'].get('loops')))     # an authored base's lower lip rides the jaw's frame (mouth.jaw_drop)
     Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'], **au)

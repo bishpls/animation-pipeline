@@ -165,7 +165,16 @@ def test_lab_on_head():
         print('  (skipped: no CHARKIT_MOUTH_HEAD)')
         return
     from charkit import mouthlab
-    M = mouthlab.measure(mouthlab.head_bundle(path))
+    B = mouthlab.head_bundle(path)
+    # the components add: no vertex moved by both an eye key and a mouth key (mouth.held)
+    A = B.A
+    eye = np.zeros(len(A['verts']), bool)
+    for E in A['eyes']:
+        for D, _ in E['keys'].values():
+            eye |= np.abs(D).max(1) > 0
+    for sh, D in A['mouth']['keys'].items():
+        assert not (eye & (np.abs(D).max(1) > 0)).any(), sh
+    M = mouthlab.measure(B)
     for k, r in M['keys'].items():
         assert r['folds'] == 0, (k, r['folds'])
         assert r['cover'] is None or r['cover'] >= 0.9, (k, r['cover'])
