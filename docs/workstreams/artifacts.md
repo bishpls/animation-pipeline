@@ -1,5 +1,11 @@
 # Workstream: artifact QA, measuring "obvious jaggedness" (`tool/artifacts`)
 
+**State (2026-09-29, evening).** Built and committed: `charkit/artifactqa.py`, the QA part `artifacts` (checks
+`art_<detector>_<region>`, INFO with a proposed `grade`), `charkit/tests/test_artifactqa.py`, the stored design measures
+`charkit/refs/clawd/artifacts_design.json` (refresh: `python -m charkit.artifactqa design BUNDLE_DIR` after changing the
+detectors or the sheets), `history.STEPS` entries. Calibration and gates: below, when done. The plan and findings that
+led here follow.
+
 Checkpointed 2026-09-29 before any code: findings and the plan. Worktree `~/animation-pipeline-artifacts`, branch
 `tool/artifacts` from pipeline-3d `0122617` (the look is merged). `infra/gcp/build.env` and `render.env` are copied in
 (gitignored).
