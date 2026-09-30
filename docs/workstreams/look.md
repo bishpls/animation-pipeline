@@ -702,3 +702,44 @@ Base build: `charkit/out/look6_base` (render box, charkit/spec/clawd.json at d60
   shadow in jaw coordinates (columns from the chin point, rows under the jaw). The design's shadow moved 1-2 px against
   its own jaw: IoU 0.81-0.94, lower-edge error 0.003-0.012 L. Round 1's band (look5_before, board light): IoU 0.75
   front / 0.60 3/4, edge 0.039 / 0.088 L. The cast (look5_after, board light): IoU 0.73 / 0.62, edge 0.041 / 0.084.
+
+### Progress (checkpoint 2)
+
+- **The chin on the jaw** (lookqa `jaw_drawn`, `jaw_depth`, `jaw_frame`, `chin_on_jaw`; `face_shadow_chin`,
+  `face_shadow_chin_edge` keep their names, remeasured). Calibration (`designlight.chin_calibration`), look6's frame:
+
+  | | IoU front / 3q | edge front / 3q (L) |
+  |---|---|---|
+  | the design's shadow moved 1-2 px against its jaw (8 moves) | >= 0.848 / >= 0.814 | <= 0.012 / <= 0.009 |
+  | round 1's band (look5_before), boards' light | 0.759 / 0.626 | 0.036 / 0.085 (mean 0.060) |
+  | round 1's band, design light (0, 55) | 0.762 / 0.640 | 0.037 / 0.085 (mean 0.061) |
+  | the cast (look5_after), boards' light | 0.747 / 0.644 | 0.038 / 0.081 |
+  | the cast, design light | 0.712 / 0.675 | 0.048 / 0.088 |
+
+  `face_shadow_chin_edge` is calibrated (PASS <= 0.02 L, WARN <= 0.04, FAIL over): the design passes with margin, the
+  band fails (0.060). Graded now. `face_shadow_chin` (the IoU on the jaw) is not: the band reads 0.69-0.70 against a FAIL
+  line of 0.7 (its front 0.76, near the design's worst move 0.81), so it stays INFO with its proposed grade.
+  The picture measure of softness (the design's 0.002-0.0025 L) read ours 0.009-0.039 with no order between the band
+  and the cast: not used.
+- **The hair's cast on the face** (`designlight.cast_lab`: the cast rebaked with options, the face share in shade per
+  view, ours / the design's 0.076 front, 0.192 3/4, 0.207 profile; look6_base):
+
+  | option | design light (0, 55): front / 3q / profile, mean abs error | boards' light (30, 40): front / 3q / profile, mean abs error |
+  |---|---|---|
+  | the look (look5's cast) | 0.404 / 0.466 / 0.962, 0.452 | 0.341 / 0.259 / 0.302, 0.153 |
+  | face off (the fringe map alone) | 0.168 / 0.127 / 0.088, 0.092 | 0.194 / 0.131 / 0.083, 0.098 |
+  | the bangs and side locks only | 0.400 / 0.470 / 0.975 | 0.341 / 0.262 / 0.304 |
+  | lift 6 (face and neck) | 0.296 / 0.321 / 0.411 | 0.280 / 0.173 / 0.161 |
+  | lift 15 (face and neck) | 0.170 / 0.143 / 0.261, 0.066; chin IoU 0.53 | |
+  | soft 4 | 0.406 / 0.460 / 0.968 | 0.335 / 0.249 / 0.299 |
+  | face_el 15 / 25 (the face's bake from a lower light) | 0.216 / 0.181 / 0.339, 0.094 / 0.129 | 0.275 / 0.153 / 0.128, 0.105 / 0.087 |
+  | **face_lift 15 (the face alone)** | **0.171 / 0.148 / 0.269, 0.067** | **0.195 / 0.136 / 0.138, 0.081** |
+  | face_lift 12 / 20 | 0.094 / 0.056 | 0.080 / 0.087 |
+
+  Under the design light the hair's shadow covers the profile's whole face (0.96): the side lock stands between a
+  light from the viewer's side and the cheek. The drawing doesn't shade it: its face is lit as if from a lower light than
+  its neck (the bangs' shadow thin, the jaw's long). The lever is the face's receivers lifted off the hair (`face_lift`:
+  only hair standing well off the face shades it); the neck keeps lift 1, so the chin is unchanged. Softness and the
+  occluder set don't move it. Set: anime `look.face.cast.face_lift` 15 (faceshade.cast_maps `face_lift`, and
+  `face_el` as an option, off). The front's remaining 0.17 is the fringe map (face off reads the same): its
+  `fringe_drop` (0.07 L) is the next lever, a build change.

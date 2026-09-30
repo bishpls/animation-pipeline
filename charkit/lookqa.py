@@ -531,7 +531,13 @@ CHIN_VIEWS = ('front', 'three_quarter')
 # 0.064 L under the boards' light (FAIL); under the design light see CHIN_CAL
 CHIN_IOU = (0.8, 0.7)            # face_shadow_chin: PASS at or over, WARN at or over (the IoU in jaw coordinates)
 CHIN_EDGE = (0.02, 0.04)         # face_shadow_chin_edge, L: PASS at or under, WARN at or under
-CHIN_CAL = {'iou': None, 'edge': None}          # (set below: whether each grade separates the design from the band)
+CHIN_CAL = {                     # whether each grade separates the design from the band (look.md round 6); None: INFO
+    'iou': None,                 # not calibrated: the band reads 0.69-0.70 (0.76 front) against the design's own moves'
+                                 # 0.81: too close to its FAIL line (0.7) to separate
+    'edge': 'calibrated (look.md round 6): the design\'s own shadow moved 1-2 px against its jaw reads 0.003-0.012 L '
+            '(PASS <= 0.02); round 1\'s band (look5_before: chin_tilt 85, no cast) reads 0.060 L under the boards\' '
+            'light and 0.061 under the design light (FAIL > 0.04)',
+}
 CHIN_PIC = (0.25, 0.55, 0.45)    # the chin close-up round our chin, L: above, below, either side
 JAW_WIN = (0.3, 0.15, 0.45)      # where the jaw is looked for: L over and under our chin's row, either side of the eyes
 JAW_RUN = 0.08                   # L: the thickest ink run a drawn jaw may be (the wedge under the chin's point)
