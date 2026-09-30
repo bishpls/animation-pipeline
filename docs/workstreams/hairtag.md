@@ -387,3 +387,27 @@ every cell now (old geometry old measure / new geometry old measure / old geomet
 0.534, upper back 0.768 / 0.721 / 0.701 / 0.768, bangs 0.760 / 0.758 / 0.785 / 0.792, buns 0.862 / 0.864 / 0.862 /
 0.864. On the merged base the folds and hair_noise premises changed: pipeline-3d's own build reads folds 5 (not round 2's
 6 -> 11 on the field's outfit masks) and the method lowers hair_noise under its line.
+
+**The terminator, attributed** (box builds of the merged head, default spec: `charkit/out/h6_m` as committed, and
+`h6_off` with the plain transfer, `STRUCT_OFF`, which reproduces pipeline-3d 25b1936's gate baseline exactly: 2.286,
+hair_noise 0.0807, folds 5, art_speckle_neck 2.606). The back view's hair terminator: 7 kinks in 3.60 L -> 14 in 3.56 L
+(ratio to the design's 1.355 kinks per L: 1.433 -> 2.905); the front's 40 -> 34. `tools/hairtag/termlab.py BEFORE AFTER
+OUT` runs the QA's artifacts part on one bundle with one hair object at a time taken whole from the other
+(`charkit/out/hairtag/r3/term1.json`): back ratio with the flyaways swapped 2.905 -> 2.080 (and pipeline-3d's with ours
+1.433 -> 2.042), side_lock_L 2.492 / 1.664, bun_L 2.553 / 1.735, upper back 2.832 / 1.708; the rest within 0.03. The
+flyaway blades barely moved (five, the same places, one 0.02 L deeper): their shading did. Each vertex takes the whole
+hair's blurred envelope normal, which turns along a blade standing out of the mass, so a cel terminator crosses each
+thin strand (the kinks on the side flicks at mid height and low on both sides, qa_artifacts back).
+
+**Fix, the builder's:** `strand_tone` (a style key; anime 'root', the default profile 'surface'): each flyaway strand
+shades in one tone, its root's normal. On the bundles (the flyaways' corner normals alone replaced): h6_m 2.905 FAIL
+grade -> **2.308 WARN** (back 3.936 -> 3.128 kinks per L, front 7.378 -> 7.108, three-quarter 9.41 -> 8.809), and
+pipeline-3d's own hair 2.286 -> 2.173. Under K a flag check blocks when its status or grade gets worse: 2.286 WARN ->
+2.308 WARN is a value move.
+
+**hair_noise, where it sits** (`tools/hairtag/noiselab.py BUILD OUT 'name|{...}'`: hairlab's rebuild, qa3d.hair_noise's
+drawing, each piece's pixels and tone-edge pixels per view; the lab reads 0.0791 on h6_m, the build 0.0793): front
+0.124 (1,157 edges in 9,304 px: bangs 333 round the star clip, side locks 209 + 205, lower back 197, bun_L 142, bun_R
+50, flyaways 21), profile 0.065 (bun_L 175, upper back 156, bangs 113), back 0.048 (upper back 173, lower back 137,
+bun_L 133, bun_R 64). bun_L's block facets carry 2-3x bun_R's edges in every view (its fit, not the light: the light is
+camera-relative). h6_off (pipeline-3d's hair) reads 0.0807 (front 0.1223, profile 0.0689, back 0.0508).
