@@ -97,6 +97,39 @@ outline the truth gives to the skirt. Legs: z −2.73 (×2), the thigh's outline
   17% of the circle round the upper arm, a median 0.43 L from it. With this fix: 58%, 0.15 L. The body's before is
   therefore pipeline-3d (0122617), the gate's baseline.
 
+### The authored body (clawd_body, the box)
+
+| build (its hull) | thigh r median / top ring | thigh max depth | upper arm r median / top ring | upper arm max depth x width |
+|---|---|---|---|---|
+| pipeline-3d 6ca18da | 0.203 / 0.280 | 0.618 | 0.151 / 0.431 | 0.870 x 0.810 |
+| tool/hull-det 3da2530 (before) | 0.203 / 0.283 | 0.608 | 0.151 / 0.431 | 0.870 x 0.810 |
+| this branch e7b21e9 (after) | 0.204 / 0.307 | 0.604 | 0.136 / 0.193 | 0.385 x 0.355 |
+
+- The upper arm had a 0.43 L balloon at the shoulder (the ring fitted to hull points on the bow's tail); now a tapered
+  tube, 0.19 at the shoulder to 0.10 at the elbow. The thigh's depth just under the shorts (z −2.79) went 0.61 → 0.54
+  (drawn 0.55); its top ring at the hip, which no view shows, is the fitter's extrapolation (0.55 → 0.60 deep).
+- **Only this branch builds clawd_body.** pipeline-3d 6ca18da fails at `sleeve_L` (`sleeve_hull`), tool/hull-det at
+  `cuff_L` (`band_hull`), both "no row of the piece is measured on 15/20% of its circle": the arm's hull points they
+  loft round sit on the bow and the skirt panel.
+- The after build's QA (111 checks): PASS 75 / WARN 27 / FAIL 9. poke_share 0.0284 FAIL (skirt 203 px, wrist_R 49).
+- **The wrist cuffs run the whole forearm** (`wrist_L` z −1.06..−2.12; drawn cuff −1.74..−2.09); piece_cuff_L/R
+  0.099 / 0.037. 235 of the hull's 761 `cuff_L` points (31%) lie on the other arm (x median −0.87): the profile's
+  `cuff_R` mask on the skirt panel, mirrored by `label_volume` onto her right side as `cuff_L`. `band_hull` spans all
+  of its piece's points along the bone; with only those within 0.35 L of it, the span is −1.66..−2.08. Not changed
+  here (garments.py and the outfit masks belong to other workstreams); the one-line fix is a reach filter in
+  `band_hull`, as `code_body.limb` has.
+- The skirt, in 3D: its profile depth is an A-line (near hem over widest 0.995); its front width is widest at
+  z −2.01 and 0.832 at the hem.
+
+## Open items
+
+- The outfit masks' profile: `cuff_R` on the skirt's front panel, `sleeve_R` and `sleeve_cuff_R` on the bow and its
+  tail, `sleeve_L` on the sailor collar's stripe; the puff, the sleeve's cream end, the cuff's orange band and the
+  boot have no piece. The limb carve now works round them; the labels (label_volume, the mirrors) still spread them.
+- `band_hull` (and likely `sleeve_hull`) should take only points within reach of their bone.
+- The hull-det stages hook stores `rounded`'s V by reference, so its hash is the face-carved V's (`carve_face` edits
+  it in place); copy it at the stage.
+
 ## Measurement tools
 
 The per-row source table, the truth for Clawd's profile and the before/after pages were made with scripts in the

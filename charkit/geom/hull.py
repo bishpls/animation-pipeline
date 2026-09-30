@@ -1416,11 +1416,14 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
     for az in (0, 35, 90, 135, 180, 225, 270, 315):
         im = raster.render([(m, dict(color=vc, normals=N, shade='lambert'))], az, fr)
         out.append('<div class="tile"><img src="%s" height="460">%d deg</div>' % (save(im, 'pieces_render_%03d.png' % az), az))
-    out.append('</div><h3>Limbs: each pixel\'s limb (grey body, blue arm, green leg, pink free skin no piece places)'
-               '</h3><p class="note">A piece\'s limb is its attach bone\'s. Free skin: on the front and back by the '
-               'nearest bone of the graph\'s skeleton; on the other views by the pieces its drawn outline touches '
-               '(free_limbs). Where a piece mask sits on the wrong garment, its colour is wrong here too: the depth '
-               'map below shows which of its pixels the carve took.</p><div class="row">')
+    out.append('</div><h3>Limbs: each pixel\'s limb (grey body, blue arm, green leg, pink free skin no piece places; '
+               'hatched red on grey, a limb piece\'s mask the carve set aside; pale, a height where the front shows '
+               'nothing but that limb)</h3><p class="note">A piece\'s limb is its '
+               'attach bone\'s. Free skin: on the front and back by the nearest bone of the graph\'s skeleton; on the '
+               'other views by the pieces its drawn outline touches (free_limbs). A limb piece\'s mask on the wrong '
+               'garment (off its limb\'s skin track in the profile, LimbTrack) is drawn as the body with red hatching: '
+               'the carve doesn\'t take its depth. The depth map below shows it per height.</p><div class="row">')
+    T, S = _tracks(rep, views, A)
     for n, v in views.items():
         if v.limbs is None:
             continue
@@ -1428,10 +1431,56 @@ def _pieces_section(rep, views, A, m, P, Lab, save, N, fr):
         im = np.full(v.mask.shape + (3,), 0.96)
         for t, c in LIMB_COLOURS.items():
             im[v.mask & (v.limbs == t)] = c
+        if n == 'profile' and T:
+            for t, only in _only_rows(v, A, T).items():
+                im[only] = 0.5 + 0.5 * np.array(LIMB_COLOURS[t])
+            aside = _set_aside(v, A, T)
+            rr, cc = np.nonzero(aside)
+            im[rr, cc] = LIMB_COLOURS[CORE]
+            hatch = (rr + cc) % 6 < 2
+            im[rr[hatch], cc[hatch]] = (0.85, 0.2, 0.2)
         im = im[rows.min():rows.max() + 1, cols.min():cols.max() + 1]
         out.append('<div class="tile"><img src="%s" height="520">%s</div>' % (save(im, 'limbs_%s.png' % n), n))
     out.append('</div>')
-    out += _depth_section(rep, views, A, save)
+    out += _depth_section(rep, views, A, save, T, S)
+    return out
+
+
+def _tracks(rep, views, A):
+    """the page's limb tracks and sections (sections() with the style's prior) -> (tracks {limb: LimbTrack}, sections)."""
+    if 'front' not in views or 'profile' not in views or views['profile'].limbs is None:
+        return {}, []
+    prior = rep.get('prior') or {}
+    T = {}
+    S = sections(views, A, list(views), **{k: prior[k] for k in ('class_share', 'limbs', 'split_min') if k in prior},
+                 tracks=T)
+    return T, S
+
+
+def _only_rows(v, A, T):
+    """per limb, the profile's pixels at the heights where the front shows nothing but that limb (LimbTrack 'only': the
+    whole side row is it), those no piece or skin already gives it -> {limb: bool image}."""
+    out = {}
+    iz = np.clip(np.round((A.zs[0] - (v.eye_y - np.arange(v.mask.shape[0])) / v.ppl) / A.h).astype(int), 0, len(A.zs) - 1)
+    for t, tr in T.items():
+        rows = np.array([tr.src[k] == 'only' for k in iz])
+        out[t] = v.mask & rows[:, None] & (v.limbs != t)
+    return out
+
+
+def _set_aside(v, A, T):
+    """the profile's limb piece pixels in runs its LimbTrack rejected (each pixel at its nearest grid cell) -> bool image."""
+    out = np.zeros(v.mask.shape, bool)
+    for t, tr in T.items():
+        R = np.zeros((len(A.ys), len(A.zs)), bool)
+        for k, runs in enumerate(tr.rejected):
+            for y0, y1 in runs:
+                R[y0:y1 + 1, k] = True
+        rr, cc = np.nonzero(v.mask & (v.limbs == t) & (v.pieces > 0))
+        iy = np.clip(np.round(((cc - v.axis) / v.ppl - A.ys[0]) / A.h).astype(int), 0, len(A.ys) - 1)
+        iz = np.clip(np.round((A.zs[0] - (v.eye_y - rr) / v.ppl) / A.h).astype(int), 0, len(A.zs) - 1)
+        hit = R[iy, iz]
+        out[rr[hit], cc[hit]] = True
     return out
 
 
@@ -1442,16 +1491,14 @@ SRC_NOTE = {'limb': "the limb's skin in the side view, with its pieces that over
             'skin': "the side's skin (a limb the side view never shows)", 'side': 'the whole side run'}
 
 
-def _depth_section(rep, views, A, save):
+def _depth_section(rep, views, A, save, T=None, S=None):
     """the page's depth sources (sections()): the profile's rows, each limb's side interval per height (blue arm,
     green leg; darker from its skin or the whole row, lighter from its pieces, pale interpolated), the limb piece runs
     the track rejected in red; and the heights per source."""
     if 'front' not in views or 'profile' not in views or views['profile'].limbs is None:
         return []
-    prior = rep.get('prior') or {}
-    T = {}
-    S = sections(views, A, list(views), **{k: prior[k] for k in ('class_share', 'limbs', 'split_min') if k in prior},
-                 tracks=T)
+    if T is None:
+        T, S = _tracks(rep, views, A)
     s = views['profile']
     Syz = s.sample(s.mask, A.ys, A.zs)
     im = np.where(Syz[..., None], 0.86, 0.97) * np.ones(3)
