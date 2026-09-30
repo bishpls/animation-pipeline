@@ -85,6 +85,19 @@ def test_shape_width_angle_and_gap():
     assert all(v < 0 for v in over.values())
 
 
+def test_tuck_jut_in_3d():
+    a = np.radians(np.arange(0, 360, 2.0))
+    ring = lambda r, z: np.c_[r * np.sin(a), -r * np.cos(a), np.full(len(a), z)]
+    band = np.concatenate([ring(0.30, z) for z in np.linspace(-0.10, 0.0, 6)])
+    inside = np.concatenate([ring(0.28 + 0.5 * (-0.10 - z), z) for z in np.linspace(-0.08, -0.4, 20)])
+    assert sq.tuck_jut3d(band, inside, 1.0)['value'] <= 0.005
+    out = inside.copy()
+    back = out[:, 1] > 0.1                                        # the back pushed 0.05 out: a rim past the band
+    out[back, :2] *= (1 + 0.05 / np.hypot(*out[back, :2].T))[:, None]
+    r = sq.tuck_jut3d(band, out, 1.0)
+    assert r['value'] > 0.02 and abs(r['at']) > 90 and r['back'] > 0.02, r
+
+
 # ------------------------------------------------------------------------------------------------------ calibration
 def _design():
     """the design's views and the produced outfit masks, or None when they aren't produced here."""

@@ -943,6 +943,16 @@ def skirt_hull(A, spec, hull):
         band = [int(hb[k] > 0 and VVg[i, k] >= vb[k] - 1e-9 and abs(F.th[k]) >= half)
                 for i in range(VVg.shape[0] - 1) for k in range(n)]
     nrow = VVg.shape[0] - 1
+    tuck = None
+    under = spec.get('under')
+    if spec.get('tuck_fit') not in (None, False) and under and hull and under in hull:
+        # the skirt comes out from under the band: at the band's lower edge no further out than `inset` of the band's
+        # thickness inside its outer surface, easing back to its own shape over `blend` L below; above that edge inside
+        # the band's inner surface (Michael's review of round 6: at the back the skirt came out 0.04-0.05 L past the
+        # band, its top rim and pleats standing outside the band: "a strangely warping tuck-in")
+        tuck = tuck_under(A, spec, hull, ax, F.th, T, L)
+        if tuck:
+            R = tuck_pull(R, T, tuck)
     clear_info = None
     if spec.get('clear_hands'):
         R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(TH, T.shape), R)
@@ -959,7 +969,52 @@ def skirt_hull(A, spec, hull):
                panel_half=half, axis=ax, grid=(nrow + 1, n), clear=clear_info)
     if band is not None:
         out['band'] = band
+    if tuck:
+        out['tuck'] = tuck
     return out
+
+
+def tuck_under(A, spec, hull, ax, th, T, L):
+    """the band a skirt tucks under (`under`), read in the skirt's frame per column th: its lower edge's t and outer
+    radius (its three lowest vertices within 5 deg), with the pull's knobs (`tuck_fit`: inset (of the band's thickness,
+    0.5), clear (L, 0.005), blend (L, 0.25)). -> dict or None (the band isn't a hull belt)."""
+    whole = spec.get('_spec') or {}
+    bs = next((g for g in whole.get('garments', []) if g['name'] == spec.get('under')), None)
+    if not bs or bs.get('kind') != 'belt' or bs.get('source') != 'hull':
+        return None
+    tf = spec['tuck_fit'] if isinstance(spec['tuck_fit'], dict) else {}
+    Gb = belt_hull(A, bs, hull)
+    tb, thb, rb = ax.coords(np.asarray(Gb['verts']))
+    n = len(th)
+    t_lo, r_lo = np.zeros(n), np.zeros(n)
+    for k in range(n):
+        m = np.nonzero(np.abs(np.angle(np.exp(1j * (thb - th[k])))) < np.radians(5))[0]
+        i = m[np.argsort(tb[m])[-3:]]
+        t_lo[k], r_lo[k] = tb[i].mean(), rb[i].mean()
+    thick = bs.get('thick', 0.025) * L
+    return dict(th=np.asarray(th, float), t_lo=t_lo, r_lo=r_lo, thick=thick, inset=tf.get('inset', 0.5) * thick,
+                cap=r_lo - thick - tf.get('clear', 0.005) * L, blend=tf.get('blend', 0.25) * L)
+
+
+def tuck_pull(R, T, tk, dr=0.0, A=None):
+    """a radius grid (rows down) pulled in under a band (tuck_under): by its excess at the band's lower edge over the
+    edge's radius less the inset (plus `dr`: a flap lying over the skirt), easing to nothing over blend below; capped
+    inside the band's inner surface (plus dr) above the edge. Its columns are tk's th, or with A (azimuths per vertex,
+    the grid's shape) the band's values are read at each vertex's own azimuth (a flap's columns turn going down)."""
+    if A is None:
+        t_lo, r_lo, cap = (tk[k][None, :] * np.ones_like(R) for k in ('t_lo', 'r_lo', 'cap'))
+    else:
+        o = np.argsort(tk['th'])
+        at_ = lambda k: np.interp(np.mod(A + np.pi, 2 * np.pi) - np.pi, tk['th'][o], tk[k][o], period=2 * np.pi)
+        t_lo, r_lo, cap = at_('t_lo'), at_('r_lo'), at_('cap')
+    n = R.shape[1]
+    at = np.array([np.interp(t_lo[0, k], T[:, k], R[:, k]) for k in range(n)])
+    excess = np.maximum(0.0, at - (r_lo[0] - tk['inset'] + dr))
+    d = T - t_lo
+    x = np.clip(d / max(1e-9, tk['blend']), 0, 1)
+    w = 1 - x * x * (3 - 2 * x)
+    R = R - excess[None, :] * w
+    return np.where(d < 0, np.minimum(R, cap + dr), R)
 
 
 def band_rows(bs, th, half, lenc, vs, L):
@@ -1312,6 +1367,10 @@ def flap_template(A, spec, hull):
     Aaz = np.radians(knot(E, S.ravel(), 1) * (1 - U.ravel()) + knot(E, S.ravel(), 2) * U.ravel())
     Tt = skirt_at(T, S.ravel(), Aaz)
     Rr = skirt_at(Rc, S.ravel(), Aaz) + lift + knot(spec.get('stand', [[0, 0.0], [1, 0.0]]), S.ravel()) * L
+    tk = Gs.get('tuck')
+    if tk:                                                    # its top tucked under the band, just over the skirt's
+        Rr = tuck_pull(Rr.reshape(len(sv), len(us)), Tt.reshape(len(sv), len(us)), tk,
+                       dr=tk['inset'] - 0.2 * tk['thick'], A=Aaz.reshape(len(sv), len(us))).ravel()
     over = ax.point(Tt, Aaz, Rr).reshape(len(sv), len(us), 3)
     # the tail: from each column's hem point along its hang
     hem, prev = over[-1], over[-2]

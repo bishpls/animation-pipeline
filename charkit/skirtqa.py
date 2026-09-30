@@ -41,6 +41,11 @@ Checks (QA part 'skirt'; lengths in L, angles in degrees; SIDE L or R):
                               offset of its left and right edges against the drawing's (rows a hand touches left out)
   skirt_back_flap_gap         the gap between the flaps in the back view row by row (the right one's inner edge less the
                               left one's; negative where they overlap), against the drawing's: its mean difference
+  skirt_tuck_jut              3D: where the skirt and flaps come out from under the band, per 5 deg round it: how far they
+                              stand past the band's outer surface at its lower edge (tuck_jut3d; the largest, L). Round 6
+                              at the back 0.04-0.05 L: the skirt's top rim and pleats outside the band ("a strangely
+                              warping tuck-in"); the silhouette can't show it (the design's skirt flares out right from
+                              the band's corner), so it is taken on the geometry, graded against 0
   skirt_back_gap_dark         what shows in that gap above the skirt's hem: the share of dark pixels (the band, the
                               shorts) against the drawing's, where the skirt's orange centre-back panel is drawn
 
@@ -86,6 +91,7 @@ LIMITS = {                    # (pass within, warn within); else fail
     'gap': (0.04, 0.08),
     'gap_dark': (0.05, 0.12),
     'clear': (0.10, 0.25),
+    'tuck': (0.005, 0.015),
 }
 
 
@@ -496,6 +502,36 @@ def gap_region(left, right, ppl, z0=GAP_ROWS[0], z1=GAP_ROWS[1]):
     return m
 
 
+def tuck_jut3d(band, garments, L, sector=5.0, below=0.01, above=0.005):
+    """3D: where the skirt and flaps come out from under the band, per `sector` degrees round the band's vertical axis
+    (through its vertices' centroid): the band's lower edge (its lowest vertices, the 5th percentile of their heights)
+    and its outer radius there; the garments' largest radius from `above` L over that edge to `below` L under it, less
+    the band's (L, + standing past the band: its top rim and pleats outside the band). -> dict(value (the largest),
+    at (deg, 0 the front, + her left), back (the largest over the back half), sectors) or None."""
+    if band is None or not len(band) or garments is None or not len(garments):
+        return None
+    c = band[:, :2].mean(0)
+    ab = np.degrees(np.arctan2(band[:, 0] - c[0], -(band[:, 1] - c[1])))
+    ag = np.degrees(np.arctan2(garments[:, 0] - c[0], -(garments[:, 1] - c[1])))
+    rb, rg = np.hypot(*(band[:, :2] - c).T), np.hypot(*(garments[:, :2] - c).T)
+    out = {}
+    for a0 in np.arange(-180, 180, sector):
+        mb = (ab >= a0) & (ab < a0 + sector)
+        if mb.sum() < 3:
+            continue
+        zlo = np.percentile(band[mb, 2], 5)
+        edge = mb & (band[:, 2] <= zlo + 0.01 * L)
+        mg = (ag >= a0) & (ag < a0 + sector) & (garments[:, 2] <= zlo + above * L) & (garments[:, 2] >= zlo - below * L)
+        if not mg.any():
+            continue
+        out[float(a0 + sector / 2)] = round(float((rg[mg].max() - rb[edge].max()) / L), 4)
+    if not out:
+        return None
+    k = max(out, key=out.get)
+    back = [v for a_, v in out.items() if abs(a_) >= 90]
+    return dict(value=round(max(0.0, out[k]), 4), at=k, back=round(max(back), 4) if back else None, sectors=out)
+
+
 # ------------------------------------------------------------------------------------------------------ the checks
 def evaluate(O, names, dv, masks, marks, ppl, only=None, memo=None):
     """every check from our views (our_views) and the design's (bodyqa.design_views) with the outfit masks and the
@@ -718,6 +754,7 @@ def measure(B, design, out=None):
     As = B.assembly
     O = our_views(meshes, names, ctx['ppl'], ctx['az3'], np.array(qa3d.iris_centres(B)), As['centre'], As['L'])
     T, C = evaluate(O, names, design.design_views(), masks, marks, ctx['ppl'])
+    C.update(tuck_check({n: np.asarray(m[0], float) for n, m in zip(names, meshes)}, float(As['L'])))
     if out:
         from .qa3d import _save_rgb
         _save_rgb(os.path.join(out, 'qa_skirt.png'), picture(O, names, design.design_views(), masks, marks, ctx['ppl']))
@@ -739,7 +776,21 @@ def measure_geometry(bundle, sheet, spec):
     names = [o['name'] for o in objs]
     lm = bundle['landmarks']
     O = our_views(meshes, names, sheet.ppl, sheet.az3, np.asarray(lm['iris'], float), lm['centre'], lm['L'])
-    return evaluate(O, names, sheet.design, masks, marks, sheet.ppl)
+    T, C = evaluate(O, names, sheet.design, masks, marks, sheet.ppl)
+    C.update(tuck_check({o['name']: o['V'] for o in objs}, float(lm['L'])))
+    return T, C
+
+
+def tuck_check(verts, L):
+    """skirt_tuck_jut from the objects' vertices by name (world)."""
+    g = [verts[n] for n in ('skirt',) + FLAPS if n in verts]
+    r = tuck_jut3d(verts.get('waistband'), np.concatenate(g) if g else None, L)
+    if not r:
+        return {}
+    return {'skirt_tuck_jut': dict(r, status=grade('tuck', r['value']), sectors={k: v for k, v in list(r['sectors'].items())[::3]},
+                                   note="3D: how far the skirt and flaps stand past the band's outer surface where they "
+                                        "come out from under its lower edge, per 5 deg round it (L, the largest; back: the "
+                                        "back half's)")}
 
 
 # ------------------------------------------------------------------------------------------------------ picture
