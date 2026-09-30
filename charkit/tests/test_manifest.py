@@ -54,6 +54,34 @@ def test_a_reads_input_makes_its_reader_stale():
         shutil.rmtree(d)
 
 
+def test_a_read_references_view_settings_make_its_reader_stale():
+    """the hull reads the extra views' reference: its bands, its pieces switch and its 'hull' switch change what the
+    hull carves without changing the picture's hash, so each of them changes the hull's stamp; a reference nobody reads
+    changes only its readers'."""
+    d, mp, out, spec = _setup()
+    try:
+        M = json.load(open(mp))
+        M['references']['extra'] = {'kind': 'generated_reference', 'tracked': True, 'path': os.path.join(d, 'x.png'),
+                                    'sha256': 'c' * 64, 'extends': 'art', 'hull': False,
+                                    'views': {'v': {'figure': 4, 'az': 150.0, 'bands': {'b': [-1.4, -0.8]}}}}
+        M['references']['reader'] = dict(M['references']['made'], reads=['extra'])
+        json.dump(M, open(mp, 'w'))
+        st = lambda: {k: manifest.stamp(spec, manifest.load(mp)['references'][k]) for k in ('reader', 'made')}
+        s0 = st()
+        for change in (lambda e: e['views']['v']['bands'].update(c=[-2.3, -1.4]),
+                       lambda e: e['views']['v'].update(pieces=False),
+                       lambda e: e.update(hull=True)):
+            M = json.load(open(mp))
+            change(M['references']['extra'])
+            json.dump(M, open(mp, 'w'))
+            s1 = st()
+            assert s1['reader'] != s0['reader']                         # the reader rebuilds
+            assert s1['made'] == s0['made']                             # what doesn't read it doesn't
+            s0 = s1
+    finally:
+        shutil.rmtree(d)
+
+
 def test_the_hulls_stamp_follows_its_own_code_not_all_of_charkit():
     """the hull's stamp covers its build function and what it imports, one import deep: an edit to the garments or the
     QA doesn't make it stale (it had reached all 74 modules, so any edit rebuilt the hull)."""

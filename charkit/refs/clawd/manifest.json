@@ -297,12 +297,171 @@
    "sha256": "e523aa3532b1092f2cae3647224f49e4aa0721c9d13c0cce00f28f24f0ee3881",
    "layout": "figures"
   },
+  "body_turnaround_back34": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-29",
+    "size": "3840x1440",
+    "quality": "high",
+    "inputs": [
+     "body_turnaround (edited in place: the sheet on a canvas widened by 1280 px of its grey)"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "body_turnaround_back34_extend_rigid",
+    "candidates": 3,
+    "kept": 3
+   },
+   "path": "charkit/refs/clawd/gen/body_turnaround_back34.png",
+   "extends": "body_turnaround",
+   "hull": false,
+   "layout": "figures",
+   "views": {
+    "back_l": {
+     "figure": 4,
+     "az": 150.0,
+     "bands": {
+      "bodice": [
+       -1.4,
+       -0.8
+      ],
+      "skirt_upper": [
+       -2.3,
+       -1.4
+      ]
+     }
+    },
+    "back_r": {
+     "figure": 5,
+     "az": 210.0,
+     "bands": {
+      "bodice": [
+       -1.4,
+       -0.8
+      ],
+      "skirt_upper": [
+       -2.3,
+       -1.4
+      ]
+     }
+    }
+   },
+   "role": "two more full-body views of the body sheet's figure, drawn by extending body_turnaround itself (its four views kept: registered IoU 0.983-0.987, scale within 0.15%, eye and ground lines within 0.016 L): three-quarter backs from behind her left (5th figure) and right (6th), the only views between the profile and the back. charkit.geom.hull carves with them per height band when 'hull' is true, each band's azimuth and axis fitted by silhouette; off by default (see the cautions)",
+   "cautions": [
+    "off for the hull ('hull': false): with the bodice and upper-skirt bands on, the build's back skirt width goes FAIL 1.995 -> PASS 0.963, but the overskirt panels drop (R 0.526 WARN -> 0.330 FAIL, L 0.451 -> 0.326) and the front skirt width 0.795 -> 0.679: the carve narrows the skirt's sides, which leave-one-out (silhouettes) doesn't see. Turn it on to re-measure once the panels are flaps (tool/body); docs/workstreams/refs2.md",
+    "not a rigid turn: the head and bodice are drawn 10-25 degrees further round than the legs, so it calibrates per band, never as one view",
+    "leave-one-out kept head, bodice, upper skirt and legs; the build drops head (the buns come out rounder: hair_piece_buns 0.686 -> 0.632) and legs (the soles carved: feet 0.05 L high); the stepped hem panels (-3.5..-2.3 L) fail leave-one-out in every candidate",
+    "no outfit masks draw these views: their pieces come from the sheet's labels voted per drawn cell (hull.extra_pieces); 'pieces': false keeps the sheet's labels",
+    "the buns are drawn rounder than the sheet's blocky loops in places; take the buns' shape from bun_detail"
+   ],
+   "checks": {
+    "drift_worst": {
+     "iou": 0.9828,
+     "scale": 0.0015,
+     "eye_L": 0.0157,
+     "ground_L": 0.0141
+    },
+    "loo_sheet_only": {
+     "front": 0.9449,
+     "profile": 0.3536,
+     "three_quarter": 0.8764,
+     "back": 0.9469
+    },
+    "loo_with": {
+     "front": 0.9425,
+     "profile": 0.4394,
+     "three_quarter": 0.8864,
+     "back": 0.9474
+    },
+    "by": "charkit.refviews (the box, 2026-09-29)"
+   },
+   "sha256": "60ff28ac170deda3677a074032580b53ef05d224829f6e849e986cc72febfd3a"
+  },
+  "bun_detail": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-29",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "bun_detail",
+    "candidates": 2,
+    "kept": 1
+   },
+   "path": "charkit/refs/clawd/gen/bun_detail.png",
+   "role": "the buns' construction for the hair's bun template: top row the head from the buns to the chin at the sheet's four angles (front, three-quarter, profile, back; against the sheet's heads above the eye line, registered by the front's eye spacing: IoU 0.929-0.952, the buns' top 0.4 L 0.89-0.94); bottom row one bun alone from the front, the side, behind, above and three-quarter: the loop's opening, the band's thickness, its flat faces and squared corners, where it ties into the hair",
+   "cautions": [
+    "the bottom row is unchecked: no sheet view draws a bun alone; the loop's construction there is the model's reading of the design (the view from above is the most schematic)",
+    "the top row is drawn about 1.86x the sheet's scale"
+   ],
+   "checks": {
+    "head_top_iou": {
+     "front": 0.933,
+     "three_quarter": 0.929,
+     "profile": 0.9524,
+     "back": 0.9453
+    },
+    "buns_iou": {
+     "front": 0.9095,
+     "three_quarter": 0.8917,
+     "profile": 0.943,
+     "back": 0.9436
+    },
+    "by": "charkit.refviews --detail buns"
+   },
+   "sha256": "edaf42a2bfb2a5cceb7776a6952632dd96c7cc9570248b6fa2b18d542bfbc85a"
+  },
+  "skirt_back_sides_detail": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-29",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": [
+     "body_turnaround"
+    ],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "ledger": "tools/ledger.jsonl (the main checkout)",
+    "prompt_key": "skirt_back_sides_detail",
+    "candidates": 2,
+    "kept": 2
+   },
+   "path": "charkit/refs/clawd/gen/skirt_back_sides_detail.png",
+   "role": "the layered skirt on a mannequin, waist to knees, in six views: top row front, three-quarter, profile; bottom row three-quarter back (her left), back, three-quarter back (her right): the back and side panels, where each starts at the waist, how the steps run and how far the hem flares, for the skirt's and panels' builders",
+   "cautions": [
+    "checked against the sheet's skirt (the garment classes below the waistband, scale fitted): front 0.927, three-quarter 0.844, profile 0.799, back 0.913",
+    "its three-quarter backs are unverified: 0.61 against body_turnaround_back34's, whose hem band the hull rejected; use them for construction (panel order, overlaps), not for widths",
+    "the mannequin is generic: take the skirt's length and flare on the body from the sheet"
+   ],
+   "checks": {
+    "iou": {
+     "front": 0.9268,
+     "three_quarter": 0.8443,
+     "profile": 0.7993,
+     "back": 0.9128,
+     "back_l_vs_extension": 0.6146,
+     "back_r_vs_extension": 0.6135
+    },
+    "by": "charkit.refviews --detail skirt"
+   },
+   "sha256": "005768b30a8f7f550f2d47ecdbb7ad8f6be7622513e16271a929d5fa427a7441"
+  },
   "hull": {
    "kind": "generated_mesh",
    "tracked": false,
    "produced_by": "charkit.geom.hull",
    "produced_fn": "charkit.geom.hull:build",
-   "reads": ["outfit_masks"],
+   "reads": ["outfit_masks", "body_turnaround_back34"],
    "path": "charkit/out/hull/clawd/hull.glb",
    "command": "python -m charkit.geom hull charkit/spec/clawd.json",
    "role": "the character's 3D shape carved from body_turnaround's calibrated orthographic views (charkit.geom.hull): the hair's source (hair.shape.glb) and the aligned 3D target in place of TRELLIS; coloured from the views, its vertices labelled with the QA's classes, its eyes known exactly (the sidecar hull.glb.json). Built where missing or stale (manifest.produced)",
