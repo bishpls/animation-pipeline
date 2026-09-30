@@ -335,6 +335,68 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+### Registering a QA part or a measurement step
+
+There are no central lists: a branch that adds a part or a step edits only its own files, so two branches never
+conflict on a registry (`charkit/registry.py`; before 2026-09-30 every merge conflicted on `qa3d.PARTS` and
+`history.STEPS`).
+
+**A QA part** is a venv function `(B, design, out, ...) -> (table, checks)`. Register it with a decorator where it's
+defined, in the module you own:
+
+```python
+from .registry import qa_part
+
+@qa_part('pieces_2d', order=1550, prefix='piece_', table='pieces_2d')
+def pieces_2d(B, design=None, out=None):
+    ...
+    return table, {'skirt': {'value': 0.81, 'status': 'PASS'}}      # -> qa.json's 'piece_skirt'
+```
+
+- `order` sets where it runs in the QA pass: ascending, so qa.json's checks come out in a fixed order however the
+  modules are imported. The existing parts are 100 apart (shape 100 … look 2100; `registry.parts()` lists them):
+  pick a free number between the parts yours should follow and precede. Two parts can't share an order.
+- `prefix` goes before each check name. `keep` leaves names that already start with it alone (face_shape's).
+  `table` is the key its table goes under in qa.json (`None`: not reported). `ref_image=True` passes the spec's
+  reference image as a fourth argument. `skip_key` names the SKIPPED check when the part raises (default: its name).
+- `registry.parts()` finds a part by `@qa_part(` at the start of a line in any `charkit/*.py` (or a subpackage) and
+  imports that module, so the module must import in the venv without Blender.
+- The existing parts are still defined in `qa3d.py`, decorated in place. A new part belongs in its owner's module.
+
+**A measurement step** says that a check's measurement changed (not the character), so the gate and the tune loop call
+it `remeasured` rather than better or worse. Add it to `charkit/steps/<module>.py`, the file for the module whose
+measurement changed (create it if it doesn't exist; `charkit/steps/bodyqa.py` holds bodyqa's):
+
+```python
+MEASUREMENT_STEPS = [
+    # (check pattern, the commit that changed the measurement, what changed)
+    ('body_*_skirt_width', '26c6bbb', "the design's widest free row against ours on that same row"),
+]
+```
+
+- The list must be a literal: `registry.steps()` reads it with `ast` and never imports it. The gate reads the merged
+  tree's steps without running its code (`history.load_steps`), and nothing importing it keeps the build's code keys
+  (every stage's, the hull's stamp) unchanged when a step is added.
+- The commit is the one that changes the measurement: add the step in a follow-up commit once you have that SHA, as
+  before.
+- Keep one pattern's steps in one file, in the order they happened: where two steps match one check, the later one's
+  reason is reported. Files are read in their module names' order (`charkit.steps.bodyqa`, `charkit.steps.detailqa`, …).
+- `history.registered()` (or `history.STEPS`) is the full list; `python -m charkit history NAME --check CHECK` marks
+  each step a check's trend crosses.
+- A remeasured check whose geometry also changed is scored under the old measure too (the gate's 2×2, below): a step
+  can't hide a regression.
+
+**Merging a branch from before self-registration** into one after it: git reports conflicts in `charkit/qa3d.py` (the
+removed `PARTS` list) and `charkit/history.py` (the removed `STEPS` list). Resolve them this way:
+1. Take the new side of both hunks: no `PARTS` list in qa3d.py, no `STEPS` list in history.py.
+2. For each part the branch added to `PARTS` as `('name', fn, 'prefix', 'table')`, put
+   `@qa_part('name', order=N, prefix='prefix', table='table')` above `def fn`, with N placing it where it stood in
+   the list.
+3. Move each step the branch added to `STEPS` into `charkit/steps/<the module it measures>.py`, keeping its text.
+4. Run `python charkit/tests/test_registry.py`. It checks that the pre-migration parts keep their order and that no
+   legacy step is lost. Then run `python -c "from charkit import registry; print([p.name for p in registry.parts()])"`
+   and check your part is where you meant it.
+
 ### The boards' renders: one animation per set
 
 A still render (`bpy.ops.render.render`) evaluates a fresh depsgraph, so every modifier in the file runs again for each

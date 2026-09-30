@@ -14,6 +14,8 @@
     python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
     python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
+    python -m charkit preview [REF] | hook install                       # after a merge: the combined preview (charkit/preview.py)
+    python -m charkit evaldrift [SPEC]                                 # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -648,6 +650,12 @@ def main(argv=None):
     elif cmd == 'remote':
         from . import remote
         raise SystemExit(remote.main(rest))
+    elif cmd == 'preview':
+        from . import preview
+        raise SystemExit(preview.main(rest))
+    elif cmd == 'evaldrift':
+        from . import evaldrift
+        raise SystemExit(evaldrift.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)

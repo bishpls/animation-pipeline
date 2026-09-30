@@ -4,7 +4,7 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
 
     python -m charkit remote build SPEC [build args]     sync, build there, fetch its --out
     python -m charkit remote tune SPEC [tune args]       sync, tune there, fetch its --out
-    python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS]
+    python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS] [--accept PATTERN,...]
                                                          the gate there, in a clone kept current by git bundles, its
                                                          report fetched into charkit/out/gate (SPEC a path on the box)
     python -m charkit remote run CMD...                  anything, in the synced copy
@@ -142,7 +142,7 @@ def gate(args):
              '{ [ ! -f %(b)s ] || git -C repo fetch -q -f %(b)s "refs/heads/*:refs/gates/%(gid)s/*"; } && rm -f %(b)s && '
              'git clone -q --shared --no-checkout /srv/work/repo %(G)s'
              % dict(b=boxed, gid=gid, G=G))
-    more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec', '--args') if k in args)
+    more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec', '--args', '--accept') if k in args)
     step = ('rc=1; flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
             'git config user.name charkit-gate && git config user.email gate@localhost && '
             'git sparse-checkout set --cone charkit && '
