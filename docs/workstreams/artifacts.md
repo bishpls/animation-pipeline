@@ -15,6 +15,12 @@ agent's background tasks and may have died with it: if a report is missing, re-r
   (`qa/qa.json`, `qa/qa_artifacts.png`; log `charkit/out/art_body.log`): the current pipeline with this branch, for the
   review page's per-view table.
 The first gates (`25e6679`) failed only on the merge conflict, before any build.
+**The remote build failed** (after the pause) in Blender's garments stage, not this branch's code:
+`garments.sleeve_hull` -> `loft.field`: "no row of the piece is measured on 15% of its circle" (log
+`charkit/out/art_body.log`). It ran from this worktree's synced copy on the box (pipeline-3d `01f2cdd` merged); the
+clawd_body gate's builds may hit it too. If they do, it's tool/body's (the sleeves from the hull) or the hull's inputs on
+the box, not this workstream's: report it to the integrator, and take the per-view table from a default-spec build instead
+(`python -m charkit remote build charkit/spec/clawd.json --out charkit/out/art_default --no-blend`).
 
 **Next steps, in order:**
 1. Read the two gate reports (expect PASS: the art_* checks are new and INFO; watch the CPU-seconds slowness line, the
