@@ -48,9 +48,10 @@ def checks(build, drawing, off=(0.0, 0.0), details=False, art=True):
     design = qa3d.Design(B)
     out, status, secs = {}, {}, {}
 
-    def take(C, keep=lambda k: True):
+    def take(C, keep=lambda k: True, prefix=''):
         for k, v in C.items():
             if keep(k) and isinstance(v, dict):
+                k = k if k.startswith(prefix) else prefix + k          # (qa3d._check_name: the part's prefix)
                 out[k] = v.get('value')
                 status[k] = v.get('status')
     orig, shifted = _figure_offset(off)
@@ -77,7 +78,7 @@ def checks(build, drawing, off=(0.0, 0.0), details=False, art=True):
         frame = artifactqa._frame
         artifactqa._frame = lambda B_, ppl, win: lookqa.HeadFrame(B_, ppl=ppl, ss=1, win=win, off=off)
         try:
-            take(artifactqa.measure(B, design, None)[1], lambda k: k.startswith('art_'))
+            take(artifactqa.measure(B, design, None)[1], lambda k: k != 'design', prefix='art_')
         finally:
             artifactqa._frame = frame
         secs['art'] = round(time.time() - t, 2)
