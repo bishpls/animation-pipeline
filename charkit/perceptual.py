@@ -1080,6 +1080,15 @@ def _spearman(a, b):
     return dict(rho=round(float(r.correlation), 3), p=round(float(r.pvalue), 4), n=int(len(a)))
 
 
+def auc(y, sev, cut=2):
+    """how often a flag of severity >= cut outscores a praised or mild label (ties half): 0.5 is chance."""
+    y, sev = np.asarray(y, float), np.asarray(sev)
+    pos, neg = y[sev >= cut], y[sev < cut]
+    if not len(pos) or not len(neg):
+        return None
+    return round(float(np.mean((pos[:, None] > neg[None]) + 0.5 * (pos[:, None] == neg[None]))), 3)
+
+
 def boot_diff(y, g, sev, n=BOOT, seed=0):
     """a paired bootstrap over labels of rho(y, sev) - rho(g, sev) -> dict(lo, hi (the 90% interval), mean, draws)."""
     y, g, sev = (np.asarray(a, float) for a in (y, g, sev))
@@ -1162,7 +1171,14 @@ VARIANTS = (
     ('michael_only', None, 'dist', True, 'body', 'michael'),
     ('no_relative_praise', None, 'dist', True, 'body', 'absolute'),
     ('first17', None, 'dist', True, 'body', 'first17'),
+    ('new18', None, 'dist', True, 'body', 'new18'),
+    # exploratory, added after the primary's numbers were seen (not pre-registered): per-patch floors and the region's
+    # worst patches, for local defects a region mean dilutes (the boots' bridge is one patch of ~30)
+    ('x_local_top3_l24', None, 'top3_l24', False, 'body', 'all'),
+    ('x_local_top3_l12', None, 'top3_l12', False, 'body', 'all'),
+    ('x_local_top3_l12_hi', None, 'top3_l12', False, 'body_hi', 'all'),
 )
+LOCAL_K = 3                      # the local statistic: the mean of the region's k worst patches' excess over their floor
 
 
 def _keep(lab, which, first):
@@ -1172,7 +1188,103 @@ def _keep(lab, which, first):
         return not lab.get('relative')
     if which == 'first17':
         return lab['id'] in first
+    if which == 'new18':
+        return lab['id'] not in first
     return True
+
+
+def local_stats(pairs_, layers=(24, 12), q=FLOOR_Q, k=LOCAL_K):
+    """the local statistic, in place: per (scale, view, layer) a floor per patch (the q-quantile of that patch's distance
+    over the builds: the grids are the same cells on every build, registered on the eyes), and per region the mean of
+    its k highest excesses over it (the region's patches at MIN_COVER) -> region['top%d_l%d']. pairs_: [(result,
+    maps.npz path)]."""
+    M = [(r, np.load(p)) for r, p in pairs_ if os.path.exists(p)]
+    keys = sorted({f.split('__')[0] for _, Z in M for f in Z.files})
+    for key in keys:
+        sc, v = next((sc, key[len(sc) + 1:]) for sc in sorted(SCALES, key=len, reverse=True) if key.startswith(sc + '_'))
+        for l in layers:
+            name = '%s__dmap_l%d' % (key, l)
+            got = [(r, Z) for r, Z in M if name in Z.files]
+            if not got:
+                continue
+            floor = np.quantile(np.stack([Z[name].astype(float) for _, Z in got]), q, axis=0)
+            for r, Z in got:
+                ex = Z[name].astype(float) - floor
+                regs = (((r.get('scales') or {}).get(sc) or {}).get(v) or {}).get('regions') or {}
+                for reg, st in regs.items():
+                    cn = '%s__cov_%s' % (key, reg)
+                    if cn not in Z.files:
+                        continue
+                    sel = np.sort(ex[Z[cn].astype(float) >= MIN_COVER])[::-1]
+                    if len(sel):
+                        st['top%d_l%d' % (k, l)] = round(float(sel[:k].mean()), 4)
+
+
+# why the metric does or doesn't track the severities, measured on the pool (build names as staged on the render box)
+UNCHANGED = (('jaw_4', 'jaw_5', 'body'), ('body4b_render', 'body5b_render', 'head'))   # builds whose regions at that scale share geometry
+HAIR_ONLY = (('ckpt_full', 'var_locks_blunt'), ('ckpt_full', 'var_shade_smooth'))       # spec diff: the hair pieces' style only
+LOCAL_FLAGS = ('body2_boots_front', 'r4_boots', 'look_neck_front', 'look_hair_3q', 'r5_midriff', 'r5_puffs', 'r5_leg_bump',
+               'r6_band_zigzag', 'r6_midriff_layering', 'jaw4_chin_taper', 'jaw5_neck_nick', 'facei_pupils')
+
+
+def diagnostics(named, report):
+    """the numbers behind the verdict -> dict: the noise (a region whose geometry didn't change: |delta| between two
+    builds), the hair's bleed into the face at each layer (a hair-only change; the cross-build rank correlation of the
+    hair's distance with the face's), the local flags against that noise (region mean and the local statistic), the
+    severities' spread by era (the first 17 labels against the 2026-09-30 ones), the domain gap (the floors)."""
+    from scipy.stats import spearmanr
+    D = {}
+    noise = []
+    for a, b, sc in UNCHANGED:
+        if a in named and b in named:
+            d = [abs(_dist(named[b], sc, v, r) - _dist(named[a], sc, v, r)) for v in SCALES[sc]['views'] for r in REGIONS
+                 if PRIMARY.get(r, 'body') == sc and _dist(named[a], sc, v, r) is not None and _dist(named[b], sc, v, r) is not None]
+            if d:
+                noise.append(dict(pair='%s -> %s' % (a, b), scale=sc, n=len(d), median=round(float(np.median(d)), 4),
+                                  max=round(float(np.max(d)), 4)))
+    D['noise'] = noise
+    D['noise_max'] = max((x['max'] for x in noise), default=None)
+    bleed = []
+    for a, b in HAIR_ONLY:
+        if a in named and b in named:
+            for layer in (None, 18, 12):
+                row = dict(pair='%s -> %s' % (a, b), layer=layer or LAYERS[0])
+                for v in ('front', 'three_quarter', 'profile'):
+                    for r in ('hair', 'face', 'eyes', 'neck'):
+                        x, y = _dist(named[a], 'head', v, r, layer), _dist(named[b], 'head', v, r, layer)
+                        if x is not None and y is not None:
+                            row['%s/%s' % (v, r)] = round(y - x, 4)
+                bleed.append(row)
+    D['hair_only'] = bleed
+    corr = []
+    for layer in (None, 18, 12):
+        row = dict(layer=layer or LAYERS[0])
+        for v in ('front', 'three_quarter', 'profile'):
+            for r in ('face', 'eyes', 'neck'):
+                ab = [(_dist(x, 'head', v, 'hair', layer), _dist(x, 'head', v, r, layer)) for x in named.values()]
+                ab = [t for t in ab if None not in t]
+                if len(ab) > 3:
+                    row['%s/%s' % (v, r)] = round(float(spearmanr(*zip(*ab)).correlation), 2)
+        corr.append(row)
+    D['hair_face_rank_corr'] = corr
+    V, X = report['variants']['primary'], report['variants'].get('x_local_top3_l12_hi')
+    xr = {r['id']: r for r in (X or {}).get('rows', []) if r.get('usable')}
+    D['local_flags'] = [dict(id=r['id'], severity=r['severity'], raw=r['raw'], local=(xr.get(r['id']) or {}).get('raw'))
+                        for r in V['rows'] if r['id'] in LOCAL_FLAGS and r['usable']]
+    D['local_by_severity'] = {sv: dict(n=len(v), median=round(float(np.median(v)), 4)) for sv in (0, 1, 2, 3)
+                              for v in [[r['raw'] for r in xr.values() if r['severity'] == sv]] if v}
+    use = [r for r in V['rows'] if r['usable']]
+    first = set(report.get('first17') or [])
+    era = {}
+    for tag, rs in (('first17', [r for r in use if r['id'] in first]), ('new18', [r for r in use if r['id'] not in first])):
+        for sv in (0, 3):
+            v = [r['raw'] for r in rs if r['severity'] == sv]
+            if v:
+                era['%s severity %d' % (tag, sv)] = dict(n=len(v), median=round(float(np.median(v)), 4))
+    D['era'] = era
+    F = V['floors']
+    D['floors'] = {k: F[k] for k in sorted(F) if '/*/' in k and not k.startswith('body_hi')}
+    return D
 
 
 def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/perceptual_calibration', write=None,
@@ -1191,8 +1303,14 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
             R[k] = _result(d, rescore, log)
         else:
             missing.append(k)
-    pool_res = [_result(d, rescore, log) for d in pool if os.path.exists(os.path.join(_p(d), 'perceptual', 'perceptual.json'))]
-    allres = list(R.values()) + [r for r in pool_res if r.get('build') not in {x.get('build') for x in R.values()}]
+    pool_dirs = [d for d in pool if os.path.exists(os.path.join(_p(d), 'perceptual', 'perceptual.json'))]
+    pool_res = [_result(d, rescore, log) for d in pool_dirs]
+    seen = {x.get('build') for x in R.values()}
+    allres = list(R.values()) + [r for r in pool_res if r.get('build') not in seen]
+    if any(str(v[2]).startswith('top') for v in variants):
+        mp = lambda d: os.path.join(_p(d), 'perceptual', 'maps.npz')
+        local_stats([(R[k], mp(dirs[k])) for k in R] + [(r, mp(d)) for r, d in zip(pool_res, pool_dirs)
+                                                        if r.get('build') not in seen])
     QA = {k: _qa(labels, k) for k in labels['builds']}
     first = [l['id'] for l in labels['labels'][:17]]
     report = dict(labels=labels_path, model=MODEL, licence=LICENCE, layer=LAYERS[0], builds={k: dirs[k] for k in R},
@@ -1251,6 +1369,7 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
                  rho_geometric=_spearman(geo, sv), rho_geometric_now=_spearman(geo_now, sv),
                  rho_geometric_region=_spearman(geo_reg, sv),
                  boot_loo_vs_geometric=boot_diff(y_loo, geo, sv) if n >= 5 else None,
+                 auc_raw=auc([r['raw'] for r in use], sv), auc_loo=auc(y_loo, sv), auc_geometric=auc(geo, sv),
                  caught=sum(r['caught'] for r in use), caught_loo=sum(r['caught_loo'] for r in use), caught_geometric=caught_geo,
                  n=n, rows=rows)
         # the pairs: Michael's better build must read lower in the region; the geometric check's status must improve
@@ -1283,6 +1402,10 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
                fitted=dict(when=time.strftime('%Y-%m-%d'), labels=main_v['n'], rho_in=main_v['rho_in'],
                            rho_loo=main_v['rho_loo'], rho_geometric=main_v['rho_geometric'], labels_file=labels_path))
     report['calibration'] = cal
+    report['first17'] = first
+    named = {os.path.basename(_p(d).rstrip('/')): r for r, d in [(R[k], dirs[k]) for k in R] + list(zip(pool_res, pool_dirs))}
+    named.update({k: R[k] for k in R})
+    report['diagnostics'] = diagnostics(named, report)
     json.dump(report, open(os.path.join(out, 'calibration.json'), 'w'), indent=1, default=str)
     if write:
         json.dump(cal, open(_p(write), 'w'), indent=1)
@@ -1292,6 +1415,8 @@ def calibrate(labels_path=LABELS, builds=None, pool=(), out='charkit/out/percept
         log('%-20s n=%2d  rho unweighted %6s  in %6s  LOO %6s | geometric %6s  now %6s  region %6s | caught %d LOO %d geo %d' % (
             tag, V['n'], g('rho_unweighted'), g('rho_in'), g('rho_loo'), g('rho_geometric'), g('rho_geometric_now'),
             g('rho_geometric_region'), V['caught'], V['caught_loo'], V['caught_geometric']))
+    log('AUC (severity >= 2 against praised and mild): %s' % ', '.join('%s %s/%s (geometric %s)' % (
+        t, W.get('auc_raw'), W.get('auc_loo'), W.get('auc_geometric')) for t, W in report['variants'].items()))
     log('decision: %s' % report['decision'])
     return report
 
@@ -1334,15 +1459,47 @@ def calibration_page(report, R, dirs, out):
                  V['n'], e(report['labels']), report.get('pool_n', 0), int(report['floor_quantile'] * 100)))
     H.append('<h2>Variants</h2><table><tr><th>variant</th><th>n</th><th>rho unweighted</th><th>rho in-sample</th>'
              '<th>rho LOO</th><th>geometric blind</th><th>geometric now</th><th>geometric region</th><th>LOO - blind '
-             '(90%)</th><th>caught</th><th>caught LOO</th><th>caught geometric</th><th>weights</th><th>limits</th></tr>')
+             '(90%)</th><th>AUC raw / LOO / geometric</th><th>caught</th><th>caught LOO</th><th>caught geometric</th>'
+             '<th>weights</th><th>limits</th></tr>')
+    sep = False
     for tag, W in report['variants'].items():
         bb = W.get('boot_loo_vs_geometric') or {}
+        if tag.startswith('x_') and not sep:
+            sep = True
+            H.append('<tr><td colspan="15" class="l"><b>Exploratory</b>, added after the primary\'s numbers were seen (not '
+                     'pre-registered, not eligible for the decision): a floor per patch (its 10%% quantile over the pool) '
+                     'and the mean of the region\'s %d worst patches\' excess over it.</td></tr>' % LOCAL_K)
         H.append('<tr><td>%s</td><td>%d</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td>'
-                 '<td>%d</td><td>%d</td><td>%d</td><td class="l"><small>%s</small></td><td class="l"><small>%s</small></td></tr>' % (
+                 '<td>%s</td><td>%d</td><td>%d</td><td>%d</td><td class="l"><small>%s</small></td><td class="l"><small>%s</small></td></tr>' % (
                      tag, W['n'], f(W['rho_unweighted']), f(W['rho_in']), f(W['rho_loo']), f(W['rho_geometric']),
                      f(W['rho_geometric_now']), f(W['rho_geometric_region']),
-                     '' if not bb else '%.2f [%.2f, %.2f]' % (bb['mean'], bb['lo'], bb['hi']), W['caught'], W['caught_loo'],
+                     '' if not bb else '%.2f [%.2f, %.2f]' % (bb['mean'], bb['lo'], bb['hi']),
+                     '%s / %s / %s' % (W.get('auc_raw'), W.get('auc_loo'), W.get('auc_geometric')), W['caught'], W['caught_loo'],
                      W['caught_geometric'], e(json.dumps(W['weights'])), e(json.dumps(W['limits']))))
+    Dg = report.get('diagnostics')
+    if Dg:
+        H.append('</table><h2>Why: the numbers behind the verdict</h2><ul class="note">')
+        H.append('<li><b>Noise</b> (a region whose geometry didn\'t change between two builds): %s. Registration is not the '
+                 'problem: the board against our z-buffer reads IoU 0.97-1.00 in every view.</li>' % e('; '.join(
+                     '%s at the %s scale: median |delta| %.4f, max %.4f over %d regions' % (x['pair'], x['scale'], x['median'],
+                                                                                           x['max'], x['n']) for x in Dg['noise'])))
+        H.append('<li><b>Local flags at the region-mean floor</b>: %s. With the local statistic (layer 12, 224 px per L) they leave the floor: %s; but so does every region, praised ones '
+                 'included (its medians by severity: %s).</li>' % (
+            e(', '.join('%s (sev %d) %.3f' % (x['id'], x['severity'], x['raw']) for x in Dg['local_flags'])),
+            e(', '.join('%s %.3f' % (x['id'], x['local']) for x in Dg['local_flags'] if x['local'] is not None)),
+            e(', '.join('%s: %.3f (n %d)' % (k, v['median'], v['n']) for k, v in Dg.get('local_by_severity', {}).items()))))
+        H.append('<li><b>The hair bleeds into the face at layer 24</b>, a hair-only change: %s. Across the pool, the rank '
+                 'correlation of the head\'s hair distance with face, eyes and neck: %s.</li>' % (
+                     e(' | '.join('%s layer %d: %s' % (x['pair'], x['layer'], ', '.join('%s %+.3f' % (k, v) for k, v in x.items()
+                                                                                     if k.startswith('profile/')))
+                                  for x in Dg['hair_only'])),
+                     e(' | '.join('layer %d: %s' % (x['layer'], ', '.join('%s %.2f' % (k, v) for k, v in x.items() if k != 'layer'))
+                                  for x in Dg['hair_face_rank_corr']))))
+        H.append('<li><b>Severity is relative to the build under review</b> (medians of the raw value): %s.</li>' % e(', '.join(
+            '%s: %.3f (n %d)' % (k, v['median'], v['n']) for k, v in Dg['era'].items())))
+        H.append('<li><b>The domain gap</b> (the floors: the drawn design against any render, per scale and region): %s.</li></ul>' % e(
+            ', '.join('%s %.3f' % (k.replace('/*/', ' '), v) for k, v in Dg['floors'].items())))
+        H.append('<table style="display:none">')
     H.append('</table><h2>Before and after (Michael\'s pairs)</h2><p class="note">The metric agrees when the region reads '
              'lower on the build he called better (its worst view); the geometric check agrees when its status improves '
              '(strict) or its value moves toward the design (loose). Values: raw (distance less floor), primary variant; '

@@ -147,6 +147,24 @@ def test_label_values_take_the_worst_view_less_its_floor():
     assert P.label_values(dict(region='boots', view='*'), res, {}, None, 'dist', 'body_hi') == {}
 
 
+def test_auc_and_the_local_statistic():
+    assert P.auc([0.9, 0.8, 0.1, 0.2], [3, 2, 0, 1]) == 1.0
+    assert P.auc([0.5, 0.5], [3, 0]) == 0.5
+    # three builds on one 2x3 grid; build c has one bad patch in the boots, the others none: its local statistic (k 1)
+    # is that patch's excess over the per-patch floor, the others ~0
+    with tempfile.TemporaryDirectory() as d:
+        cov = np.array([[1, 1, 0], [0, 0, 0]], np.float16)
+        pairs = []
+        for name, bad in (('a', 0.0), ('b', 0.0), ('c', 0.3)):
+            dm = np.full((2, 3), 0.2); dm[0, 1] += bad
+            p = os.path.join(d, name + '.npz')
+            np.savez(p, **{'body_front__dmap_l24': dm, 'body_front__cov_boots': cov})
+            pairs.append((dict(scales=dict(body=dict(front=dict(regions=dict(boots=dict(dist=0.2, patches=2)))))), p))
+        P.local_stats(pairs, layers=(24,), k=1)
+        got = [r['scales']['body']['front']['regions']['boots']['top1_l24'] for r, _ in pairs]
+        assert abs(got[0]) < 1e-6 and abs(got[1]) < 1e-6 and abs(got[2] - 0.3) < 0.07, got
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
