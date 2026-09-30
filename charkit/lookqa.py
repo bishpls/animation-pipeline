@@ -14,8 +14,8 @@ as the QA reads them (charkit.refcheck at FACE_PPL).
                  shadows' IoU. The three-quarter is the headline view (the design shades it most). `chin` (graded):
                  the shadow under the chin in the front and three-quarter views, over the neck window: its IoU with
                  the design's, and how far under the chin it reaches per column against the design's (the V drawn as
-                 a profile: `chin_edge`, L). Both flag checks (Michael's under-chin band), graded, capped at WARN until
-                 promoted (CHIN_PROMOTED)
+                 a profile: `chin_edge`, L). Both INFO with a proposed grade beside: not calibrated (the design's own
+                 shadow moved a pixel or two reads WARN; round 1's band reads as the cast does)
   line_width     the outlines' drawn widths in the design's framing (a head sheet 1440 px tall at the design's px per L:
                  the style's 'screen' lines at that page, or each object's build width), from 0, 30 and 90 degrees: the
                  hull's pixels' widths (twice the distance to the line's edge, along its skeleton) per region (skin,
@@ -420,18 +420,16 @@ CHIN_EDGE = (0.03, 0.06)         # face_shadow_chin_edge, L: PASS at or under, W
 CHIN_PIC = (0.25, 0.55, 0.45)    # the chin close-up round our chin, L: above, below, either side
 
 
-CHIN_FLAG = ("the under-chin shadow a smeared horizontal band low on the neck; the design's a clean V directly under the "
-             "chin, following the jaw (look round 1)")
-CHIN_PROMOTED = False            # the integrator's call: then the grade is the status (else capped at WARN)
+CHIN_UNCALIBRATED = ("INFO: not calibrated (tool/look5, docs/workstreams/look.md round 5): the design's own shadow moved "
+                     "1-2 px reads IoU 0.55-0.87, and round 1's band (chin_tilt 85) reads as the cast does")
 
 
 def _flag(c):
-    """a chin check built from Michael's flag (charkit.registry.flag_check: the gate blocks on its regressions): its
-    grade capped at WARN until promoted (CHIN_PROMOTED), as charkit.artifactqa's calibrated checks are."""
-    from . import registry
-    g = c['grade']
-    c['status'] = g if CHIN_PROMOTED else 'PASS' if g == 'PASS' else 'WARN'
-    return registry.flag_check(c, CHIN_FLAG)
+    """a chin check: INFO with its proposed grade beside (charkit.artifactqa's way), until it separates Michael's flag
+    (round 1's band) from the design: it does not yet (CHIN_UNCALIBRATED)."""
+    c['status'] = 'INFO'
+    c['why'] = CHIN_UNCALIBRATED
+    return c
 
 
 def _grade_chin(v, lim, higher_better):

@@ -4,9 +4,10 @@ line), before and after; the turntables, the body boards, zoomed outlines and hi
 (charkit.lookqa, OUT/qa_look/look.json) side by side; and any option renders (taste calls). Venv-side.
 
     python -m charkit.lookpage OUT_PAGE --before OUT_A --after OUT_B [--options DIR ...] [--note TEXT]
-        [--board lookboard_bare] [--shadows]
+        [--board lookboard_bare] [--shadows] [--extra NAME=OUT_C ...]
 
 --board: the builds' lookboard folder to show (lookboard.py --bare: the neck bare, as head_turnaround draws it).
+--extra: another build shown beside before and after everywhere (an option: e.g. castneck=charkit/out/look5_castneck).
 --shadows: the cast shadows' close-ups (the chin's V on the neck, the hair's shadow on the temple and cheek) and the
 QA's chin overlays (qa_look/qa_chin_shadow.png) first.
 """
@@ -20,8 +21,8 @@ CHECKS = [('face_noise', 'face tone edges / skin px (design shown)'), ('face_isl
           ('face_shadow_3q', 'shadow IoU with the design, 3/4'), ('face_shadow_face_3q', 'face shadow share, ours - design, 3/4'),
           ('face_shadow_neck_3q', 'neck shadow share, ours - design, 3/4'), ('line_width', 'line width, ours / design'),
           ('line_spread', 'line width spread p90/p10 (design shown)'), ('line_ink', 'line colour vs design ink, dE00'),
-          ('face_shadow_chin', 'the chin\'s shadow on the neck: IoU with the design, front and 3/4 (graded)'),
-          ('face_shadow_chin_edge', 'its depth under the jaw per column vs the design\'s, L (graded)'),
+          ('face_shadow_chin', 'the chin\'s shadow on the neck: IoU with the design, front and 3/4 (INFO, proposed grade)'),
+          ('face_shadow_chin_edge', 'its reach under the chin per column vs the design\'s, L (INFO, proposed grade)'),
           ('face_shadow_chin_soft', 'its tone steps\' soft width on the neck, L'),
           ('hair_noise', 'hair shading noise'), ('palette_hair_lit', 'palette: hair lit dE'),
           ('palette_skin_lit', 'palette: skin lit dE'), ('palette_skin_shade', 'palette: skin shade dE')]
@@ -96,7 +97,7 @@ SHADOW_ZOOMS = [                  # (caption, view, crop box as fractions of the
 
 
 def build(page, before, after, options=(), note='', title='The look: shading and lines', board='lookboard',
-          shadows=False):
+          shadows=False, extra=()):
     os.makedirs(page, exist_ok=True)
     spec = json.load(open(os.path.join(after, [f for f in os.listdir(after) if f.endswith('.spec.json')][0])))
     from . import bundle
@@ -104,7 +105,7 @@ def build(page, before, after, options=(), note='', title='The look: shading and
     vj = json.load(open(os.path.join(after, board, 'view.json')))
     from .boards.lookboard import WIN
     dp, D = design_panels(spec['ref'], B.assembly['eye_knobs']['x'], vj['ppl'], WIN, page)
-    runs = [('before', before), ('after', after)]
+    runs = [('before', before), ('after', after)] + list(extra)
     for tag, d in runs:
         for v in VIEWS:
             s = os.path.join(d, board, v + '.png')
@@ -142,11 +143,12 @@ def build(page, before, after, options=(), note='', title='The look: shading and
         return ' · face shadow %s (design %s) · neck %s (design %s) · IoU %s' % (
             f_['ours'], f_['design'], n_['ours'], n_['design'], t['iou'])
     if shadows:
-        H.append('<h2>0. The cast shadows, close up (2x, the design beside ours at the same scale)</h2><p class="note">'
-                 'The design (head_turnaround), ours before (%s) and after (%s), cut from the same framing at %.0f px per L '
-                 'and doubled. Then the QA\'s view of the chin: the design, ours, and the two shadows overlaid (both '
-                 'dark red, ours only orange, the design\'s only blue), round our chin in the front and three-quarter '
-                 'views (charkit.lookqa.face_shadow at 200 px per L).</p>' % (e(before), e(after), vj['ppl']))
+        more = ''.join(' and %s (%s)' % (e(t), e(d)) for t, d in extra).replace('%', '%%')
+        H.append(('<h2>0. The cast shadows, close up (2x, the design beside ours at the same scale)</h2><p class="note">'
+                  'The design (head_turnaround), ours before (%s) and after (%s)' + more + ', cut from the same framing at '
+                  '%.0f px per L and doubled. Then the QA\'s view of the chin: the design, ours, and the two shadows '
+                  'overlaid (both dark red, ours only orange, the design\'s only blue), round our chin in the front and '
+                  'three-quarter views (charkit.lookqa.face_shadow at 200 px per L).</p>') % (e(before), e(after), vj['ppl']))
         for cap, v, (a, b, c, d) in SHADOW_ZOOMS:
             H.append('<div class="row">')
             for tag, src in [('design', os.path.join(page, dp.get(v, '')))] + \
@@ -164,7 +166,7 @@ def build(page, before, after, options=(), note='', title='The look: shading and
                 ch = (((L.get(tag) or {}).get('checks') or {}).get('face_shadow_chin') or {})
                 ce = (((L.get(tag) or {}).get('checks') or {}).get('face_shadow_chin_edge') or {})
                 H.append('<div class="row">' + fig('%s_qa_chin.png' % tag, '%s · the QA\'s chin: design, ours, overlay '
-                         '(front, then 3/4) · IoU %s %s · depth error %s L %s' % (
+                         '(front, then 3/4) · IoU %s %s · reach error %s L %s' % (
                              tag, ch.get('per_view'), ch.get('status', ''), ce.get('per_view'), ce.get('status', '')), 900)
                          + '</div>')
     H.append('<h2>1. The face at the design\'s scale and angles</h2><p class="note">Each row: head_turnaround\'s panel, '
@@ -203,18 +205,19 @@ def build(page, before, after, options=(), note='', title='The look: shading and
                 H.append(fig(_crop(src, box, os.path.join(page, 'zoom_%s_%s.png' % (tag, v))), '%s · %s' % (tag, cap), 420))
         H.append('</div>')
     # the numbers
-    H.append('<h2>5. The numbers</h2><table><tr><th>measure</th><th>before</th><th>after</th><th>design</th></tr>')
+    H.append('<h2>5. The numbers</h2><table><tr><th>measure</th>%s<th>design</th></tr>' % ''.join(
+        '<th>%s</th>' % e(t) for t, _ in runs))
 
     def val(tag, k):
         c = ((L.get(tag) or {}).get('checks') or {}).get(k) or ((Q.get(tag) or {}).get('checks') or {}).get(k) or {}
         return c
     for k, cap in CHECKS:
-        a_, b_ = val('before', k), val('after', k)
-        if not a_ and not b_:
+        vs = [val(t, k) for t, _ in runs]
+        if not any(vs):
             continue
-        des = b_.get('design', a_.get('design', ''))
-        H.append('<tr><td>%s <small>(%s)</small></td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
-            e(cap), e(k), a_.get('value', ''), b_.get('value', ''), des if not isinstance(des, dict) else ''))
+        des = next((v['design'] for v in vs[::-1] if 'design' in v), '')
+        H.append('<tr><td>%s <small>(%s)</small></td>%s<td>%s</td></tr>' % (
+            e(cap), e(k), ''.join('<td>%s</td>' % v.get('value', '') for v in vs), des if not isinstance(des, dict) else ''))
     H.append('</table>')
     lines = {tag: (L.get(tag) or {}).get('table', {}).get('lines') for tag, _ in runs}
     if lines.get('after'):
@@ -241,5 +244,6 @@ if __name__ == '__main__':
     a = sys.argv[1:]
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     opts = [a[i + 1] for i, x in enumerate(a) if x == '--options']
+    extra = [tuple(a[i + 1].split('=', 1)) for i, x in enumerate(a) if x == '--extra']
     print(build(a[0], opt('--before'), opt('--after'), opts, opt('--note', ''), board=opt('--board', 'lookboard'),
-                shadows='--shadows' in a))
+                shadows='--shadows' in a, extra=extra))

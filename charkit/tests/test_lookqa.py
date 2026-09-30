@@ -103,9 +103,9 @@ def test_smooth_vertex_keeps_constants():
 
 
 def test_chin_separates_the_v_from_the_band():
-    """face_shadow_chin's calibration on shapes: a V under the chin (the design's) against itself and moved by the
-    placement's noise PASS; Michael's flag, a band low on the neck, FAILs both, even a band as thick as the V's mean
-    (the pixel count per column alone reads it as the V: why the reach is graded)."""
+    """face_shadow_chin's measures on shapes: a V under the chin against itself and moved 0.01 L grade PASS; a band low
+    on the neck FAILs both, even a band as thick as the V's mean (the pixel count per column alone reads it as the V:
+    why the reach is graded). (On the real design the shadow is thinner: a pixel's move costs more; look.md round 5.)"""
     from charkit import lookqa
     ppl, H, W = 200, 140, 200
     rows, cols = np.mgrid[:H, :W]

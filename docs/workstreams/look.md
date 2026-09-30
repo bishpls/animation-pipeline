@@ -589,3 +589,35 @@ removes the lit haze under the jaw (three-quarter: the shade starts at the jaw l
 cast shades the forehead under the bangs from the front (34% of the face against the design's 8%).
 Option build next: `look5_castneck` (`look.face.cast.face` false: the neck takes the cast, the face keeps the fringe
 map).
+
+### Calibration of the chin checks: not calibrated, shipped INFO
+
+The rule: a new check passes on the design and fails on a known-bad example (round 1's band). Measured on the real
+masks (the design's shadow in our chin window, look5_after's frame):
+
+| the design's own shadow moved | front: IoU, reach error L | three-quarter: IoU, reach error L |
+|---|---|---|
+| 0 | 1.0, 0 | 1.0, 0 |
+| 1 px down (0.005 L) | 0.765, 0.004 | 0.659, 0.003 |
+| 1 px across | 0.872, 0.043 | 0.770, 0.052 |
+| 2 px down | 0.660, 0.008 | 0.547, 0.006 |
+| 2 px across | 0.796, 0.060 | 0.655, 0.063 |
+| 4 px down | 0.577, 0.015 | 0.455, 0.013 |
+
+The design's shadow in the window is thin, so a pixel or two of placement (the eye alignment rounds to a pixel)
+costs as much as the PASS line (IoU 0.6, reach 0.03 L). And the known-bad reads as the cast does (0.528 / 0.508;
+reach 0.148 / 0.146). So face_shadow_chin and face_shadow_chin_edge report INFO with the proposed grade beside
+(`lookqa.CHIN_UNCALIBRATED`), not flag checks; never loosened, never gating. What would calibrate: a window aligned on
+the jaw (not the eyes), and the shadow's top edge's distance from the jaw line per column (the flag's "directly under
+the chin, following the jaw"), or the soft width (face_shadow_chin_soft, 0.0056 -> 0.0037 L) measured the same way on
+the design's picture. The synthetic test (`test_chin_separates_the_v_from_the_band`) keeps the measures' behaviour:
+the pixel count per column was blind to a band's position, so the reach is what chin_edge reports.
+
+### charkit.render against EEVEE with the cast (render box EEVEE boards, laptop M2 ours)
+
+`python -m charkit.render compare`: the face boards 0.60-0.62 lv mean, 0.14-0.24% over 8 lv, tones agree
+0.9996-0.9998, silhouettes 0.9997-0.9999: as before the cast (0.50-0.63 lv). What changed between the builds (the cast
+and the untilted neck, > 8 lv), per face board: EEVEE 9172-17601 px, ours 9159-17581, the two change masks' IoU
+0.990-0.994; inside them the after boards differ by 0.42-0.49 lv (0.14-0.32% over 8). Body boards: 24-1506 px changed,
+IoU 0.88-0.99. The QA's two drawings agree on the bare head: face_shadow_chin 0.5282 / 0.528 (render / numpy) before,
+0.508 / 0.5073 after; chin_soft 0.0056 / 0.0055, 0.0037 / 0.0036.
