@@ -892,6 +892,80 @@ def page(out=OUT, open_it=True, template='flap'):
     return path
 
 
+def occ_page(out=OUT, summary='', open_it=True, templates=(('sleeve', 'g'), ('flap', 'a'))):
+    """the soft-occlusion review (OUT/occ.html): the summary box, then per template the measurement (occ_*_g.json:
+    where each term's outline runs, soft against hard occlusion's agreement with the QA's z-buffered masks, the chain
+    against differences per knob) and the fits (fit_*.json: J, evaluations, wall time, the piece IoUs in every view),
+    linking each template's view-by-view page (page()). -> path."""
+    import glob, html
+    css = PAGE_CSS + ('.box{background:#fff;border:2px solid #0072b2;padding:8px 14px;margin:0 0 14px;max-width:1100px}'
+                      '.box h2{margin:4px 0}td.l,th.l{text-align:left}.good{background:#dff3e4}.bad{background:#fbe3e0}')
+    parts = ['<div class="box">%s</div>' % summary]
+    for tmpl, w in templates:
+        mp = os.path.join(out, 'occ_%s_g.json' % tmpl)
+        if not os.path.exists(mp):
+            continue
+        M = json.load(open(mp))
+        F = TEMPLATES[tmpl][0](os.path.join(out, '%s_scene.pkl' % tmpl), weights=w)
+        wt = {t[0]: t[5] for t in F.terms}
+        rows = []
+        for name, r in M['terms'].items():
+            k = r['kinds']; tot = max(1, sum(k.values()))
+            h, sft = r['s0.5_hard'], r['s0.5_soft']
+            rows.append('<tr><td class="l">%s</td><td>%g</td><td>%d</td>%s<td>%.4f / %.4f</td><td>%.3f / %.3f</td>'
+                        '<td>%+.2f%% / %+.2f%%</td><td>%d</td><td>%+.4f / %+.4f</td></tr>' % (
+                            name, wt.get(name, 0), tot, ''.join('<td>%.0f%%</td>' % (100 * k[q] / tot) for q in (
+                                'free', 'depth_order', 'occluder_edge', 'other_piece')),
+                            h['iou'], sft['iou'], h['edge_px'], sft['edge_px'], 100 * h['bias'], 100 * sft['bias'],
+                            sft['occ_band'], h['soft_iou'] - r['hard_iou'], sft['soft_iou'] - r['hard_iou']))
+        G = M['grad']
+        grows = []
+        for i, p in enumerate(F.params):
+            rh = G['chain_hard'][i] / G['soft_fd0.01_hard'][i] if G['soft_fd0.01_hard'][i] else float('nan')
+            rs = G['chain_soft'][i] / G['soft_fd0.01_soft'][i] if G['soft_fd0.01_soft'][i] else float('nan')
+            cls = lambda r_: 'good' if abs(r_ - 1) <= 0.1 else 'bad'
+            grows.append('<tr><td class="l">%s</td><td>%+.4f</td><td>%+.4f</td><td class="%s">%.2fx</td><td>%+.4f</td>'
+                         '<td>%+.4f</td><td class="%s">%.2fx</td><td>%+.4f</td><td>%+.4f</td><td>%+.4f</td></tr>' % (
+                             p[0], G['chain_hard'][i], G['soft_fd0.01_hard'][i], cls(rh), rh, G['chain_soft'][i],
+                             G['soft_fd0.01_soft'][i], cls(rs), rs, G['hard_fd0.1'][i], G['hard_fd0.3'][i],
+                             G['hard_fd1'][i]))
+        recs = [json.load(open(q)) for q in sorted(glob.glob(os.path.join(out, 'fit_*.json')))]
+        recs = [r for r in recs if r.get('template', 'flap') == tmpl]
+        frows = []
+        for r in sorted(recs, key=lambda r: (r['start'], r['method'] != 'cd', r.get('occlusion', 'hard'), r['s'])):
+            pc = '<br>'.join('%s %.3f %s: %s' % (pn, v[0], v[1], ' '.join('%s %.3f' % kv for kv in sorted(v[2].items())))
+                             for pn, v in sorted(r['pieces'].items()))
+            pc0 = {pn: v[0] for pn, v in r['pieces0'].items()}
+            frows.append('<tr><td>%s</td><td class="l">%s</td><td>%.1f</td><td>%d</td><td>%d</td><td>%.4f</td>'
+                         '<td><b>%.4f</b></td><td class="l" style="font-size:11px">%s<br>(start %s)</td></tr>' % (
+                             r['start'], html.escape(fit_label(r)), r['wall'], r['counts']['hard'] + r['counts']['grad'],
+                             r['counts']['builds'], r['J0'], r['J'], pc,
+                             ', '.join('%s %.3f' % kv for kv in sorted(pc0.items()))))
+        link = 'index.html' if tmpl == 'flap' else 'index_%s.html' % tmpl
+        parts.append(
+            '<h2>%s</h2><h3>1. The measurement at the start (g): where the outline runs, and soft occlusion against the '
+            'QA\'s hard z-buffered masks (s 0.5; hard / soft occlusion)</h3><table><tr><th class="l">term</th><th>weight'
+            '</th><th>outline pairs</th><th>free</th><th>depth-order</th><th>occluder edge</th><th>other piece</th>'
+            '<th>IoU(cov &ge; 0.5, hard)</th><th>outline distance px</th><th>area bias</th><th>soft-occlusion band px'
+            '</th><th>soft IoU - hard IoU</th></tr>%s</table>'
+            '<h3>2. dJ/dstep at g: the chain against differences of the soft J (0.01 step), hard and soft occlusion, and '
+            'of the QA\'s hard J (0.1, 0.3, 1 step)</h3><table><tr><th class="l">knob</th><th>chain, hard occl.</th>'
+            '<th>soft J fd</th><th>ratio</th><th>chain, soft occl.</th><th>soft J fd</th><th>ratio</th><th>hard J 0.1'
+            '</th><th>hard J 0.3</th><th>hard J 1</th></tr>%s</table>'
+            '<h3>3. The fits (J on the QA\'s hard pixels; piece IoUs in every view beside each)</h3><table><tr><th>start'
+            '</th><th class="l">fit</th><th>wall s</th><th>evaluations</th><th>builds</th><th>J start</th><th>J end</th>'
+            '<th class="l">piece IoU (qa3d) and per view</th></tr>%s</table><p>View by view (drawn only blue, ours only '
+            'red, both dark): <a href="%s">%s</a>. Data: %s, fit_*.json.</p>' % (
+                tmpl, ''.join(rows), ''.join(grows), ''.join(frows), link, link, os.path.basename(mp)))
+    doc = ('<!doctype html><meta charset="utf-8"><title>Soft occlusion review</title><style>%s</style>'
+           '<h1>Soft occlusion: the edge where a piece passes behind the body, differentiated</h1>%s' % (css, ''.join(parts)))
+    path = os.path.join(out, 'occ.html')
+    open(path, 'w').write(doc)
+    if open_it:
+        os.system('open "%s"' % path)
+    return path
+
+
 if __name__ == '__main__':
     import argparse
     ap = argparse.ArgumentParser()
