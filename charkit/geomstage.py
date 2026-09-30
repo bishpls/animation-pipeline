@@ -344,7 +344,7 @@ def pieces(P):
                 obs.append(o)
             elif fn == 'outline':
                 ob = a[0]['$r']
-                names = ('ob', 'thick', 'color', 'name', 'region')
+                names = ('ob', 'thick', 'color', 'name', 'region', 'cap')
                 d = dict(zip(names, a)); d.update(k)
                 made[ob]['outline'] = {x: d[x] for x in names[1:] if x in d}
             elif fn == 'mask_skin':

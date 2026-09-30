@@ -1930,6 +1930,10 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
+LINE_CAP_MEASURED = ('bow', 'boot')   # closed thin pieces (no shell modifier) whose outline's inward move is capped at
+                                      # half their measured thickness (shade.outline's cap='measured'; Michael's call M)
+
+
 def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
@@ -2060,7 +2064,8 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
         else:
             raise ValueError(k)
         sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
-        shade.outline(ob, thick=s.get('line', 0.0012), color=line, name='garment_line')
+        shade.outline(ob, thick=s.get('line', 0.0012), color=line, name='garment_line',
+                      **({'cap': 'measured'} if k in LINE_CAP_MEASURED else {}))
         if _loft.LOW_COVERAGE:                                   # built from marginal hull coverage: kept as a number
             ob['charkit_coverage'] = min(_loft.LOW_COVERAGE)
             print('garments: %s lofted from marginal hull coverage (its best row measured on %.0f%% of its circle)'
