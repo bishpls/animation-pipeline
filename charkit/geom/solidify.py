@@ -18,7 +18,9 @@ import numpy as np
 
 def vertex_normals(V, lv, st, cnt):
     """Blender's vertex normals: each polygon's unit normal (Newell's, which for a quad is the cross of its diagonals, as
-    Blender's), weighted by the polygon's angle at the vertex, summed and normalised."""
+    Blender's), weighted by the polygon's angle at the vertex, summed and normalised. Where the sum has no length (a
+    loose vertex, on no polygon), Blender's fallback: the vertex's position normalised (measured: the template flaps'
+    loose vertices, to 1.2e-7 L)."""
     V = np.asarray(V, float)
     nf = len(cnt)
     fid = np.repeat(np.arange(nf), cnt)
@@ -34,7 +36,10 @@ def vertex_normals(V, lv, st, cnt):
     e2 /= np.maximum(np.linalg.norm(e2, axis=1, keepdims=True), 1e-30)
     ang = np.arccos(np.clip((e1 * e2).sum(1), -1, 1))
     N = np.zeros_like(V); np.add.at(N, lv, FN[fid] * ang[:, None])
-    return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
+    ln = np.linalg.norm(N, axis=1)
+    zero = ln == 0
+    N[zero], ln[zero] = V[zero], np.linalg.norm(V[zero], axis=1)
+    return N / np.maximum(ln, 1e-30)[:, None]
 
 
 def _loops(polys):

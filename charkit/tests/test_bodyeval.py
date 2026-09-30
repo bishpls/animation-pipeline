@@ -453,6 +453,24 @@ def test_creased_rims_stay_flat_and_square():
     assert ((zs > 1e-6) & (zs < t / 2 - 1e-6)).any()                                # uncreased: a rounded bead
 
 
+def test_mask_loose_edges():
+    """Blender's Mask (vertex group mode) keeps an edge whose ends it keeps even when it drops every face on it; the
+    Subdivision Surface then makes that edge's ends corners (the lab's grid_loose_edge against Blender). Brute force on a
+    6 x 5 grid with two vertices hidden: the edge between them, 14-15, is loose."""
+    from charkit import bodyeval
+    nx, ny = 6, 5
+    F = [(y * nx + x, y * nx + x + 1, (y + 1) * nx + x + 1, (y + 1) * nx + x) for y in range(ny - 1) for x in range(nx - 1)]
+    hide = np.zeros(nx * ny, bool); hide[[8, 21]] = True
+    got = {tuple(e) for e in bodyeval.mask_loose_edges(F, hide).tolist()}
+    kept_f = [f for f in F if not hide[list(f)].any()]
+    on_kept = {tuple(sorted((f[i], f[(i + 1) % 4]))) for f in kept_f for i in range(4)}
+    every = {tuple(sorted((f[i], f[(i + 1) % 4]))) for f in F for i in range(4)}
+    want = {e for e in every if not hide[list(e)].any() and e not in on_kept}
+    assert got == want and (14, 15) in got, (got, want)
+    assert set(bodyeval.mask_corners(F, hide).tolist()) == {v for e in want for v in e}
+    assert len(bodyeval.mask_loose_edges(F, np.zeros(nx * ny, bool))) == 0
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

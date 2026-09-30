@@ -144,6 +144,27 @@ Residuals, explained:
 - The lab gained a garment shell (`grid_shell`, `grid_shell_rim_creased`: Solidify 0.08, then Subsurf, UVs with a
   seam). Against local Blender: 1.0e-6 / 9.9e-7 L, all 232 faces, windings and first corners equal, UVs 3.3e-7.
   garments3's port gives the same positions there (9.9e-7 L: crease 1 is level-independent); it differed in winding.
+- **Gate on the merge: PASS under K** (f35db5a into d60486a; `charkit/out/gate/gate_tool-evalmesh_f35db5a_into_d60486a.md`):
+  0 items, no check changed, 64 test files ok, build CPU 717.8 -> 827.2 s (1.15x). Superseded by the fixes below.
+- **evaldrift --stages on the merge** (box build `charkit/out/evalmesh/merged_clawd`, f35db5a): 0 of 110 checks drift,
+  but three stage rows new with garments3 (the first report kept as `drift_oldmeasure.md`):
+  - overskirt_panel_L/R evaluated: n 7526 against 2072. The panels have no Subsurf (garments3's `Part.subdiv = 0`);
+    evaldrift subdivided every garment once. Fixed in evaldrift (each Part at its own level, as the QA's Geometry
+    does). Then 0.01 L, n equal: a real miss, below.
+  - the masked skin: n 49156 against 49251, 0.199 L. Blender's Mask keeps kept vertices whose faces it drops, and
+    Subsurf carries them: 95 loose vertices (44 isolated, 51 loose-edge points) under the jacket, 0.02-0.2 L from any
+    drawn vertex. evaldrift compared all of Blender's vertices with only our on-face ones. Remeasured on-face on both
+    sides, the loose count and the all-vertex measure still in the row. Then 0.0107 L, n equal: a real miss, below.
+- **Solidify, a loose vertex** (the template flaps' panels have 126): Blender's vertex normal has a fallback. Where the
+  angle-weighted sum has no length, the normalised position. The copy moves t along it (measured to 1.2e-7 L; ours
+  left it in place: exactly t = 0.01 L off). `geom.solidify.vertex_normals` takes the fallback: the panels 0.01 ->
+  5.7e-7 L, vertex order identical, every face, winding and first corner equal.
+- **Subsurf after the Mask, loose edges** (51 on the masked skin): Blender's subdiv converter marks both ends of a loose
+  edge infinitely sharp, so a face vertex with a dangling edge subdivides as a corner. The evaluator's masked skin takes
+  them as vertex creases (`bodyeval.mask_loose_edges`, `mask_corners`; `Part.corners`): 0.0107 L -> 3.1e-6 L (mean
+  3.4e-7) against the bundle. The lab: pieces take `loose_edges` (Blender gets them through bmesh: `edges.add` crashes
+  5.2 on the skin), compared on-face; `grid_loose_edge` 9.2e-7 L (0.039 L without the rule), level 2 1.3e-6,
+  `grid_shell_loose_vertex` 9.8e-7; `skin_masked` with the Mask's loose edges 3.1e-6 L against local Blender.
 
 ## Next
 - **The M2+M3 gate is pending.** It is job `gate-evalmesh-0930-094156-a574` on the build box, gating 0f2f4cf (M2

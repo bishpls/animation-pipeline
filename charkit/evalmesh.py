@@ -23,9 +23,10 @@ BLENDER = os.environ.get('BLENDER', '/Applications/Blender.app/Contents/MacOS/Bl
 
 
 # ------------------------------------------------------------------------------------------------------------ pieces
-def piece(name, V, polys, uv=None, creases=None, mods=(), L=1.0):
+def piece(name, V, polys, uv=None, creases=None, mods=(), L=1.0, loose_edges=None):
     """a mesh for the lab. polys: index tuples (the winding as given; Blender keeps it); uv: per-corner UVs (a list per
-    polygon, or (loops, 2)); creases: {(a, b): crease 0..1}; mods: [(type, {setting: value})] in stack order."""
+    polygon, or (loops, 2)); creases: {(a, b): crease 0..1}; mods: [(type, {setting: value})] in stack order;
+    loose_edges: (k, 2) edges on no polygon (what a Mask leaves: Blender's Subsurf makes their ends corners)."""
     lv = np.concatenate([np.asarray(f, np.int64) for f in polys]) if len(polys) else np.zeros(0, np.int64)
     cnt = np.array([len(f) for f in polys], np.int64)
     U = None
@@ -34,8 +35,9 @@ def piece(name, V, polys, uv=None, creases=None, mods=(), L=1.0):
             np.concatenate([np.asarray(c, float).reshape(-1, 2) for c in uv])
     ce = np.array(sorted(creases), np.int64).reshape(-1, 2) if creases else np.zeros((0, 2), np.int64)
     cw = np.array([creases[tuple(e)] for e in ce.tolist()], float) if creases else np.zeros(0)
+    le = np.asarray(loose_edges, np.int64).reshape(-1, 2) if loose_edges is not None and len(loose_edges) else None
     return dict(name=name, V=np.asarray(V, float), loopv=lv, counts=cnt, luv=U, crease_e=ce, crease_w=cw,
-                mods=[(t, dict(s)) for t, s in mods], L=float(L))
+                mods=[(t, dict(s)) for t, s in mods], L=float(L), loose_e=le)
 
 
 def polys_of(p):
@@ -53,7 +55,7 @@ def corner_uv(p):
 def _save(path, pieces):
     arrays, meta = {}, []
     for i, p in enumerate(pieces):
-        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'groups'):
+        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'groups', 'loose_e'):
             if p.get(k) is not None:
                 arrays['%d/%s' % (i, k)] = np.asarray(p[k])
         meta.append(dict(name=p['name'], mods=p['mods'], L=p.get('L', 1.0)))
@@ -67,7 +69,7 @@ def _load(path):
     out = []
     for i, m in enumerate(meta):
         p = dict(m)
-        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'parent', 'groups'):
+        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'parent', 'groups', 'loose_e'):
             key = '%d/%s' % (i, k)
             p[k] = Z[key] if key in Z.files else None
         out.append(p)
@@ -103,6 +105,12 @@ def _bl_mesh(p):
     me.polygons.add(len(cnt))
     me.polygons.foreach_set('loop_start', np.r_[0, np.cumsum(cnt)[:-1]].astype(np.int32))
     me.update(calc_edges=True)
+    if p.get('loose_e') is not None and len(p['loose_e']):     # (through bmesh: edges.add crashes 5.2 on a large mesh;
+        import bmesh                                               # vertex, face and loop order kept)
+        bm = bmesh.new(); bm.from_mesh(me); bm.verts.ensure_lookup_table()
+        for a_, b_ in np.asarray(p['loose_e'], np.int64).tolist():
+            bm.edges.new((bm.verts[a_], bm.verts[b_]))
+        bm.to_mesh(me); bm.free()
     if p.get('luv') is not None:
         lay = me.uv_layers.new(name='uv')
         lay.data.foreach_set('uv', np.asarray(p['luv'], np.float32).ravel())
@@ -187,11 +195,27 @@ def match(ours, theirs):
     return idx, d, len(np.unique(idx)) == len(idx) == len(ours)
 
 
+def on_face(m):
+    """a mesh dict (V, loopv, counts, luv?) with only the vertices its polygons use (renumbered in order)."""
+    lv = np.asarray(m['loopv'], np.int64)
+    used = np.zeros(len(m['V']), bool); used[lv] = True
+    remap = np.cumsum(used) - 1
+    return dict(m, V=np.asarray(m['V'])[used], loopv=remap[lv])
+
+
 def compare(ours, theirs, L=1.0):
     """ours (dict V, loopv, counts, luv?) against Blender's evaluation of the same piece -> dict(n, n_blender, faces,
-    faces_blender, max_L, mean_L, p99_L, one_to_one, [uv_max, uv_mean], [winding: faces wound as Blender's])."""
+    faces_blender, max_L, mean_L, p99_L, one_to_one, [uv_max, uv_mean], [winding: faces wound as Blender's]).
+    ours['on_face_only'] (a piece with loose edges): both compared on their polygons' vertices (Blender's loose
+    geometry, its edges' points, is never drawn; loose_blender counts it)."""
+    extra = {}
+    if ours.get('on_face_only'):
+        n0 = len(theirs['V'])
+        ours, theirs = on_face(ours), on_face(theirs)
+        extra['loose_blender'] = n0 - len(theirs['V'])
     Vo, Vb = np.asarray(ours['V'], float), np.asarray(theirs['V'], float)
-    r = dict(n=len(Vo), n_blender=len(Vb), faces=int(len(ours['counts'])), faces_blender=int(len(theirs['counts'])))
+    r = dict(n=len(Vo), n_blender=len(Vb), faces=int(len(ours['counts'])), faces_blender=int(len(theirs['counts'])),
+             **extra)
     if not len(Vo) or not len(Vb):
         return r
     idx, d, bij = match(Vo, Vb)
@@ -232,14 +256,21 @@ def ours(p):
     from .geom import solidify as solid, subsurf
     V, lv, cnt, luv = p['V'], p['loopv'], p['counts'], p.get('luv')
     cre = (p['crease_e'], p['crease_w']) if p.get('crease_e') is not None and len(p['crease_e']) else None
+    le = p.get('loose_e')
+    vcr = None
+    if le is not None and len(le):                               # (Blender's converter: a loose edge's ends are corners)
+        vcr = np.zeros(len(V)); vcr[np.asarray(le, np.int64).ravel()] = 1.0
     for t, s in p['mods']:
         if t == 'SUBSURF':
-            R = subsurf.subdivide(V, (lv, cnt), levels=int(s.get('levels', 1)), creases=cre, uv=luv,
+            R = subsurf.subdivide(V, (lv, cnt), levels=int(s.get('levels', 1)), creases=cre, uv=luv, vcreases=vcr,
                                   uv_smooth=s.get('uv_smooth', 'PRESERVE_BOUNDARIES'))
+            vcr = None
             V, lv, cnt = R['V'], R['quads'].ravel(), np.full(len(R['quads']), 4)
             luv = R['uv'].reshape(-1, 2) if R['uv'] is not None else None
             cre = None
         elif t == 'SOLIDIFY':
+            if le is not None and len(le):
+                raise NotImplementedError('%s: Solidify of loose edges' % p['name'])
             n = len(V)
             R = solid.solidify(V, (lv, cnt), float(s['thickness']), offset=s.get('offset', -1.0),
                                use_rim=s.get('use_rim', True), uv=luv, crease_outer=s.get('edge_crease_outer', 0.0),
@@ -254,7 +285,8 @@ def ours(p):
         else:
             raise NotImplementedError(t)
     return dict(V=V, loopv=lv, counts=cnt, luv=luv,
-                crease_e=cre[0] if cre is not None else None, crease_w=cre[1] if cre is not None else None)
+                crease_e=cre[0] if cre is not None else None, crease_w=cre[1] if cre is not None else None,
+                on_face_only=le is not None and len(le) > 0)
 
 
 # ------------------------------------------------------------------------------------------------------------ shapes
@@ -323,6 +355,14 @@ def shapes():
     sol = lambda **k: [('SOLIDIFY', dict(thickness=0.08, offset=-1.0, use_rim=True, **k))] + sub()
     out.append(piece('grid_shell', G, GF, uv=uvc, mods=sol()))
     out.append(piece('grid_shell_rim_creased', G, GF, uv=uvs, mods=sol(edge_crease_outer=1.0, edge_crease_inner=1.0)))
+    # what the build's Mask leaves: the two quads either side of an interior edge dropped, the edge kept (loose, its
+    # ends on kept faces); a loose vertex of a dropped face; a Solidify's loose vertices (the template flaps')
+    GFm = [f for i, f in enumerate(GF) if i not in (7, 12)]            # (8, 9, 15, 14) and (14, 15, 21, 20)
+    out.append(piece('grid_loose_edge', G, GFm, uv=[uvc[i] for i in range(len(GF)) if i not in (7, 12)],
+                     loose_edges=[(14, 15)], mods=sub()))
+    out.append(piece('grid_loose_edge_l2', G, GFm, loose_edges=[(14, 15)], mods=sub(2)))
+    Gl = np.vstack([G, G.mean(0) + (0.3, -0.2, 1.0)])
+    out.append(piece('grid_shell_loose_vertex', Gl, GF, mods=sol(edge_crease_outer=1.0, edge_crease_inner=1.0)))
     return out
 
 
@@ -362,7 +402,9 @@ def build_pieces(build, render=False):
         Um = [uvc[i] for i in fk] if uvc is not None else None
         cm = {(int(min(remap[a_], remap[b_])), int(max(remap[a_], remap[b_]))): w for (a_, b_), w in cre.items()
               if keep[a_] and keep[b_]}
-        out.append(piece('skin_masked', V[keep], Pm, uv=Um, creases=cm, mods=[('SUBSURF', dict(levels=1))], L=L))
+        from .bodyeval import mask_loose_edges                  # (what the Mask leaves besides: loose edges)
+        out.append(piece('skin_masked', V[keep], Pm, uv=Um, creases=cm, mods=[('SUBSURF', dict(levels=1))], L=L,
+                         loose_edges=remap[mask_loose_edges(polys, hide)]))
         truth['skin_masked'] = dict(V=sk.V('masked'), loopv=sk.a('masked', 'loopv'), counts=sk.a('masked', 'counts'),
                                     luv=sk.a('masked', 'luv'))
     if render:

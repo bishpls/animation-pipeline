@@ -446,6 +446,10 @@ class Part:
             tex = getattr(self, 'tex', None)
             uvc = tex['uvc'] if tex else None
             creases = getattr(self, 'creases', None)          # (the skin's eye margins, as character.build creases them)
+            corners = getattr(self, 'corners', None)          # (the masked skin's loose edges' ends: mask_corners)
+            vcr = None
+            if corners is not None and len(corners):
+                vcr = np.zeros(len(V)); vcr[corners] = 1.0
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
                 from .geom import solidify as solid           # (the faces wound as recorded: geom.wind)
                 st = getattr(self, 'solid_settings', None) or {}
@@ -453,7 +457,7 @@ class Part:
                 V, polys, parent, uvc = R['V'], (R['loopv'], R['counts']), R['parent'], R['uv']
                 creases = R['creases'] if len(R['creases'][0]) else None
             if levels:
-                V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases)
+                V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases, vcreases=vcr)
                 parent = parent[par]
             if tex:
                 uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
@@ -619,6 +623,32 @@ def skin_creases(A):
     return out
 
 
+def mask_loose_edges(F, hide):
+    """the loose edges Blender's Mask leaves (vertex group mode): both ends kept, every face on the edge dropped (a face
+    goes when any of its vertices does). -> (k, 2) vertex pairs."""
+    hide = np.asarray(hide, bool)
+    cnt = np.array([len(f) for f in F], np.int64)
+    if not len(cnt):
+        return np.zeros((0, 2), np.int64)
+    lv = np.concatenate([np.asarray(f, np.int64) for f in F])
+    st = np.r_[0, np.cumsum(cnt)[:-1]]
+    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
+    n = len(hide)
+    key = np.minimum(lv, lv[nxt]) * n + np.maximum(lv, lv[nxt])
+    fkeep = np.logical_and.reduceat(~hide[lv], st)
+    ek = np.unique(key)
+    ek = ek[~hide[ek // n] & ~hide[ek % n]]
+    loose = np.setdiff1d(ek, key[np.repeat(fkeep, cnt)])
+    return np.stack([loose // n, loose % n], 1)
+
+
+def mask_corners(F, hide):
+    """the vertices Blender's Subdivision Surface makes infinitely sharp corners after the build's Mask: the ends of the
+    loose edges it leaves (Blender's subdiv converter marks a loose edge's vertices infinitely sharp; the lab's
+    grid_loose_edge). Measured: the masked skin 0.0107 L -> 3.1e-6 L against Blender. -> vertex indices."""
+    return np.unique(mask_loose_edges(F, hide).ravel())
+
+
 def character_parts(A, hide=None, spec=None):
     """the skin (minus the vertices the garments hide, as the build's mask modifier does), the eyes and the mouth, with
     their materials' unlit tones and model-sheet classes per polygon (qa3d.scene_classes' rules: the skin by material,
@@ -647,6 +677,8 @@ def character_parts(A, hide=None, spec=None):
                         np.array([tone[m][2] for m in fm])))
         out[-1].role = role
         out[-1].creases = skin_creases(A)
+        if role == 'masked' and hide is not None:
+            out[-1].corners = mask_corners(F, hide)
     if len(out) == 1:
         out[0].role = None
     IK = spec.get('iris')
@@ -1465,11 +1497,12 @@ def solidify(V, polys, t, uv=None, rim=True, **settings):
     return R['V'], P, R['parent'], U
 
 
-def subdivide(V, polys, uv=None, limit=True, levels=1, creases=None):
+def subdivide(V, polys, uv=None, limit=True, levels=1, creases=None, vcreases=None):
     """Blender's Subdivision Surface (charkit.geom.subsurf: OpenSubdiv's Catmark rules as Blender 5.2 evaluates them,
     creases, open borders, UVs smoothed inside their seams, the limit at the isolation level). polys: index tuples of
-    any size; uv: per-corner UVs [[(u, v), ...] per polygon]; creases: {(a, b): crease 0..1} or (pairs, creases).
-    -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
+    any size; uv: per-corner UVs [[(u, v), ...] per polygon]; creases: {(a, b): crease 0..1} or (pairs, creases);
+    vcreases: per-vertex crease (n,) (1: an infinitely sharp corner). -> (V (n, 3), quads (m, 4), parent polygon per
+    quad (m,), uv per corner (m, 4, 2) or None)."""
     from .geom import subsurf
-    R = subsurf.subdivide(V, polys, levels=levels, creases=creases, uv=uv, limit_surface=limit)
+    R = subsurf.subdivide(V, polys, levels=levels, creases=creases, vcreases=vcreases, uv=uv, limit_surface=limit)
     return R['V'], R['quads'], R['parent'], R['uv']
