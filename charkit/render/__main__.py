@@ -87,6 +87,43 @@ def eevee_times(build):
     return out, batches
 
 
+NOTES = [
+    'The hair streaks are measured apart: charkit.shade.hair_toon places them by fract(sin(i k) 43758.5453) of a '
+    'column index in the thousands of radians, which each GPU evaluates differently (NVIDIA scales the argument to '
+    'revolutions in float32 first). Ours evaluates it exactly (gpu.streak_table), so the kept columns differ from EEVEE '
+    'on the T4 as they would between two GPUs running EEVEE.',
+    'EEVEE dithers its 8-bit output (1 level on about 80% of flat pixels), so a mean difference under 1 level is the floor.',
+    'The hair and skin are shaded with normals Blender transfers after the outline, re-sampled at each view\'s moved '
+    'surface (p99 1-12 degrees from the export\'s at the body boards\' width); the export carries them at the outline-off '
+    'surface, so the hair keeps a few tone patches that differ (the side locks).',
+    'Garments are shaded with their moved surface\'s normals, recomputed per line width from Blender\'s quads '
+    '(charkit/render/normals.py), as Blender recomputes them after the outline SOLIDIFY.',
+]
+
+
+def speed_rows(build, et, batches):
+    """seconds per board: EEVEE from the build's trace, ours from any bench_*.json (python -m charkit.render bench
+    --json) beside it."""
+    rows = []
+    for b in batches:
+        rows.append({'what': 'EEVEE, batched (%s set, %d boards%s)' % (b['first'].split('_')[0], b['n'],
+                     ', features pass included' if b['first'].startswith('face') else ''),
+                     'where': 'the build\'s machine (its trace)', 's_per_board': b['per_frame']})
+    if et:
+        rows.append({'what': 'EEVEE, stills', 'where': 'the build\'s machine (its trace)',
+                     's_per_board': round(float(np.mean(list(et.values()))), 3)})
+    for f in sorted(os.listdir(build)):
+        if f.startswith('bench_') and f.endswith('.json'):
+            r = json.load(open(os.path.join(build, f)))
+            a = r['adapter']
+            for k, lab in (('face_mean_s', 'face'), ('body_mean_s', 'body')):
+                rows.append({'what': 'ours, %s boards (ss %d)' % (lab, r['ss']),
+                             'where': '%s (%s) [%s]' % (a['device'], a['backend'], f[6:-5]), 's_per_board': r[k],
+                             'note': 'warm median of %d; setup %.1f s, first frame %.2f s' % (r['reps'], r['setup_s'],
+                                                                                           r['first_frame_s'])})
+    return rows
+
+
 def compare_build(args):
     from PIL import Image
     from . import compare, gpu, model, page, views
@@ -131,6 +168,8 @@ def compare_build(args):
               f'{m.get("diff_excl", d)["mean"]:.3f} | IoU {m["silhouette"]["iou"]:.4f} | tones '
               f'{m.get("tones", {}).get("agree")} | {dt:.3f} s')
     C['eevee_batches'] = batches
+    C['speed'] = speed_rows(build, et, batches)
+    C['notes'] = NOTES
     json.dump(C, open(os.path.join(out, 'compare.json'), 'w'), indent=1, default=str)
     p = page.write(out)
     print('page', p)
