@@ -539,13 +539,19 @@ def main(args):
 
 # ------------------------------------------------------------------------------------------------------------ M4
 FINAL_MODS = ('SOLIDIFY', 'SUBSURF')     # what the venv applies at rest (call J); Armature and the outline stay in Blender
+# how a final mesh's skin weights go through the subdivision (geom.subsurf carry_rule). 'limit': the positions' own
+# refinement and limit stencil (R3a, measured: motion QA at 7 extreme poses against Blender's per-frame modifiers, the
+# skirt's kick 0.040 L linear -> 0.019 L, the collar's twist 0.020 -> 0.016; every other piece unchanged at 1e-5 L).
+# 'linear' is Blender's own vertex-data rule (what the build shipped at M4).
+WEIGHT_RULE = 'limit'
 
 
-def finalize(o):
+def finalize(o, weight_rule=None):
     """a recorded garment object (charkit.geomstage.pieces) with its Solidify and Subdivision Surface applied at rest,
     venv-side (M4): -> dict(V, polys (m, k) or (loopv, counts), uv_corner [(k, 2)] or None, mat_idx (m,), weights
     {bone: (n,)}, shell (the Solidify's thickness, for the outline's cap) or None, levels). The weights are copied to
-    the Solidify's copies and carried through the subdivision as Blender carries vertex data (linearly)."""
+    the Solidify's copies and carried through the subdivision by weight_rule (default WEIGHT_RULE: the limit stencil;
+    'linear' as Blender carries vertex data)."""
     from .geom import solidify as solid, subsurf
     V = np.asarray(o['V'], float)
     polys = o['polys']
@@ -580,12 +586,13 @@ def finalize(o):
             if int(st.get('render_levels', levels)) != levels:
                 raise ValueError('%s: viewport and render levels differ (%s): one final mesh cannot serve both'
                                  % (o['name'], st))
-            R = subsurf.subdivide(V, (lv, cnt), levels=levels, creases=cre, uv=luv, carry=W)
+            R = subsurf.subdivide(V, (lv, cnt), levels=levels, creases=cre, uv=luv, carry=W,
+                                  carry_rule=weight_rule or WEIGHT_RULE)
             V, lv, cnt = R['V'], R['quads'].ravel(), np.full(len(R['quads']), 4)
             luv = R['uv'].reshape(-1, 2) if R['uv'] is not None else None
             mat = mat[R['parent']]
             layer = layer[R['parent']]
-            W = R['carry']
+            W = np.clip(R['carry'], 0.0, 1.0)                # (the stencil is non-negative and affine: no-op to 1e-16)
             cre = None
     st_ = np.r_[0, np.cumsum(cnt)[:-1]]
     return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat, layer=layer,
@@ -671,13 +678,15 @@ def motion(build, out, names=None, poses=None, log=print):
     """motion QA (call J, M4's exit): each garment at extreme poses, three ways, in a local Blender with the build's
     armature: 'blender' the coarse mesh with Blender's per-frame stack (Armature, then its Solidify and Subsurf, as the
     build had them); 'linear' the venv's final mesh at rest with the Armature alone and the weights carried linearly
-    (what the build now ships, the game-engine way); 'stencil' the same with the weights through the limit stencil
-    instead (the other candidate). Per piece and pose, each final variant's distance from 'blender' per vertex (the
-    correspondence matched at rest, one to one). -> the report dict (out/motion.json, out/motion.md)."""
+    (Blender's vertex-data rule, the game-engine way); 'stencil' the same with the weights through the positions' limit
+    stencil (WEIGHT_RULE since R3a). Per piece and pose, each final variant's distance from 'blender' per vertex (the
+    correspondence matched at rest, one to one); which candidate the build shipped (its final weights equal to 1e-6;
+    'either' where the two agree, as on a piece bound to one bone);
+    and each candidate's weight health as the VRM takes it (weight_stats). -> the report dict (out/motion.json,
+    out/motion.md)."""
     import tempfile
     from . import bundle as bundlelib, geomstage
     from .garments import group_weights
-    from .geom import solidify as solid, subsurf
     poses = poses or POSES
     B = bundlelib.load(os.path.join(build, 'bundle'))
     L = float(B.meta('assembly')['L'])
@@ -695,27 +704,24 @@ def motion(build, out, names=None, poses=None, log=print):
         lv = np.concatenate([np.asarray(x, np.int64) for x in c['polys']]); cnt = np.array([len(x) for x in c['polys']])
         mods = [(m['type'], {k: v for k, v in m['settings'].items() if k not in SKIP_SETTINGS and k != 'render_levels'})
                 for m in c['mods'].values()]
-        # the stencil candidate: the weights through the same Solidify and Subsurf as positions are (the limit)
-        Ws, lvs, cnts, cre = Wc, lv, cnt, None
-        for t, st in mods:
-            if t == 'SOLIDIFY':
-                R = solid.solidify(c['V'], (lvs, cnts), float(st['thickness']),
-                                   **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
-                Ws, lvs, cnts = np.concatenate([Ws, Ws]), R['loopv'], R['counts']
-                cre = R['creases'] if len(R['creases'][0]) else None
-            else:
-                Ws = subsurf.subdivide(Ws, (lvs, cnts), levels=int(st.get('levels', 1)), creases=cre)['V']
+        # the two candidates, each through finalize (the same Solidify and Subsurf the build ran): linear (Blender's
+        # vertex-data rule) and stencil (the positions' limit stencil); which the build shipped is read off its weights
+        cand = {k: finalize(c, weight_rule=r) for k, r in (('linear', 'linear'), ('stencil', 'limit'))}
+        Wk = {k: np.stack([np.asarray(F['weights'][b], float) for b in bones], 1) for k, F in cand.items()}
         Wf = np.stack([np.asarray(f['weights'][b], float) for b in bones], 1)
+        dw = {k: float(np.abs(W_ - Wf).max()) if W_.shape == Wf.shape and W_.size else 0.0 for k, W_ in Wk.items()}
+        ships = 'either' if max(dw.values()) < 1e-6 else min(dw, key=dw.get) if min(dw.values()) < 1e-6 else None
         flv = np.concatenate([np.asarray(x, np.int64) for x in f['polys']]); fcnt = np.array([len(x) for x in f['polys']])
+        wstat = {k: weight_stats(W_) for k, W_ in Wk.items()}
         base = len(variants)
         for kind, V_, lv_, cnt_, W_, md in (('blender', c['V'], lv, cnt, Wc, mods),
-                                            ('linear', f['V'], flv, fcnt, Wf, []),
-                                            ('stencil', f['V'], flv, fcnt, np.clip(Ws, 0, 1), [])):
+                                            ('linear', f['V'], flv, fcnt, Wk['linear'], []),
+                                            ('stencil', f['V'], flv, fcnt, Wk['stencil'], [])):
             i = len(variants)
             variants.append(dict(name='%s:%s' % (c['name'], kind), bones=bones, mods=md, final=kind != 'blender'))
             arrays.update({'%d/V' % i: np.asarray(V_, float), '%d/loopv' % i: lv_, '%d/counts' % i: cnt_,
                            '%d/W' % i: W_})
-        rows.append(dict(piece=c['name'], base=base))
+        rows.append(dict(piece=c['name'], base=base, ships=ships, weights=wstat))
     work = tempfile.mkdtemp(prefix='evalmesh_motion_')
     inp, res = os.path.join(work, 'in.npz'), os.path.join(work, 'out.npz')
     np.savez(inp, meta=np.array(json.dumps(dict(joints=joints, variants=variants, poses=poses))), **arrays)
@@ -733,7 +739,7 @@ def motion(build, out, names=None, poses=None, log=print):
     for row in rows:
         b = row['base']
         Vb0 = Z['rest/%d' % b]
-        rr = dict(piece=row['piece'], n=int(len(Vb0)), poses={})
+        rr = dict(piece=row['piece'], n=int(len(Vb0)), poses={}, ships=row['ships'], weights=row['weights'])
         for j, kind in ((1, 'linear'), (2, 'stencil')):
             idx, d0, bij = match(Z['rest/%d' % (b + j)], Vb0)
             rr['rest_%s' % kind] = dict(one_to_one=bool(bij), max_L=float(d0.max() / L))
@@ -750,6 +756,20 @@ def motion(build, out, names=None, poses=None, log=print):
     open(os.path.join(out, 'motion.md'), 'w').write(motion_markdown(rep))
     log('report %s' % os.path.join(out, 'motion.md'))
     return rep
+
+
+def weight_stats(W, slots=4):
+    """a final mesh's skin weights (n, bones) as the VRM writer takes them (gltf: the top `slots`, renormalised):
+    the most bones on a vertex, vertices over the slots, the largest share the slots drop, the largest |sum - 1| as
+    carried, the smallest weight."""
+    W = np.asarray(W, float)
+    if not W.size:
+        return dict(max_influences=0, over_slots=0, dropped=0.0, sum_dev=0.0, min=0.0)
+    nz = (W > 0).sum(1)
+    s = W.sum(1)
+    top = -np.sort(-W / np.maximum(s[:, None], 1e-12), 1)[:, :slots].sum(1)
+    return dict(max_influences=int(nz.max()), over_slots=int((nz > slots).sum()), dropped=float(np.max(1 - top)),
+                sum_dev=float(np.abs(s - 1).max()), min=float(W.min()))
 
 
 def motion_markdown(rep):
@@ -769,4 +789,13 @@ def motion_markdown(rep):
                                               ' | '.join(cells)))
     worst = {k: max(r['poses'][p][k]['max_L'] for r in rep['rows'] for p in poses) for k in ('linear', 'stencil')}
     L += ['', 'Worst max over pieces and poses: linear %.3g L, stencil %.3g L.' % (worst['linear'], worst['stencil'])]
+    ships = sorted({str(r.get('ships')) for r in rep['rows']})
+    L += ['', 'The build ships: %s.' % ', '.join(ships), '',
+          '## Skin weights as the VRM takes them (top 4, renormalised)', '',
+          '| piece | ships | linear: most bones, over 4, dropped, max abs(sum - 1) | stencil: the same |', '|---|---|---|---|']
+    g = lambda w: '%d, %d, %.2g, %.1e' % (w['max_influences'], w['over_slots'], w['dropped'], w['sum_dev'])
+    for r in rep['rows']:
+        if 'weights' in r:
+            L.append('| %s | %s | %s | %s |' % (r['piece'], r.get('ships'), g(r['weights']['linear']),
+                                               g(r['weights']['stencil'])))
     return '\n'.join(L) + '\n'

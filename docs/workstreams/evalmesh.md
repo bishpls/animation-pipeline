@@ -1,6 +1,6 @@
 # evalmesh: subdivision and Solidify in the venv (tool/evalmesh)
 
-Worktree `~/animation-pipeline-evalmesh`, branch `tool/evalmesh` (fast-forwarded to pipeline-3d ae7fd45). Michael's
+Worktree `~/animation-pipeline-evalmesh`, branch `tool/evalmesh` (round 3 from pipeline-3d 9eba0b0). Michael's
 call J: Subdivision Surface and Solidify leave Blender. They are computed at rest in the venv and then skinned (the
 game-engine way; the VRM export needs the final meshes anyway). Motion QA checks the bends at extreme poses against
 Blender's per-frame modifiers. The outline's inverted hull stays render-time (call I). This is docs/GEOM_TRUTH.md
@@ -220,6 +220,21 @@ Residuals, explained:
   geometry 0.0028 PASS; old code on the final meshes 0.020 FAIL (the inner layer read as skin through clothes); new
   code on the old geometry 0.0028 PASS (no layer attribute: every face, as before); new code, new geometry 0.003 PASS.
   **M4 mergeable at 0c9eb95.**
+
+## Round 3 (R3a: limit-stencil weights; R3b: the skin's subdivision, after tool/face5)
+- Merged pipeline-3d 9eba0b0 (fast-forward: it already held M4).
+- **R3a, the switch to stencil weights** (the coordinator's call on motion QA's numbers: the skirt's kick 0.040 L linear,
+  0.019 L stencil; the collar's twist 0.020 -> 0.016). `geom.subsurf.subdivide(carry_rule='limit')` puts the carried
+  data through the positions' own refinement and limit stencil (the columns ride with V); `evalmesh.WEIGHT_RULE =
+  'limit'`, `finalize(o, weight_rule=)`, the product's meta records it (`final.weight_rule`). The stencil is affine
+  and non-negative: weights summing to 1 still do (test_carry_rules, creases, semi-sharp, open borders).
+- Weight health, measured on m4_clawd's recording (both rules): at most 3 bones per vertex on any garment (the collar
+  2 -> 3 through the subdivision, either rule), so the VRM's four slots never truncate; |sum - 1| <= 1e-3, the coarse
+  groups' 3-decimal rounding (the writer renormalises). Motion QA now computes both candidates through `finalize`,
+  says which the build ships, and tabulates each one's weights as the VRM takes them (`weight_stats`).
+- The VRM checks its own skin weights (`gltf.check` -> `skin_weights`): per skinned primitive, weights >= 0, the sum
+  within 1e-5 of 1, every weighted joint inside its skin; faults are errors (the export fails). On existing exports:
+  0 errors, sums within 1.4e-7. gltf.py is EXPORT_CODE, so the gate's candidate builds with --vrm and runs it.
 
 ## Next
 - The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
