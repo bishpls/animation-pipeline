@@ -781,17 +781,26 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
     tip = _git('rev-parse', '--short', branch, cwd=root).stdout.strip()
     stem = os.path.basename(spec).split('.')[0]
     suffix = '' if stem == 'clawd' else '_' + stem
-    pat = re.compile(r'gate_.+_%s_into_([0-9a-f]{7,40})%s\.json$' % (re.escape(tip), re.escape(suffix)))
-    found = []
+    # a report of this tip under any branch name, or of this branch at an earlier tip (an ancestor: notes committed
+    # after the gate are the common case; what those commits change is in the merged trees' difference below)
+    pat = re.compile(r'gate_(.+)_([0-9a-f]{7,40})_into_([0-9a-f]{7,40})%s\.json$' % re.escape(suffix))
+    found, anc = [], {}
     for d in ([reports] if isinstance(reports, str) else reports or _report_dirs()):
-        for p in glob.glob(os.path.join(d, 'gate_*_%s_into_*.json' % tip)):
-            if pat.search(os.path.basename(p)):
-                try:
-                    r = json.load(open(p))
-                except ValueError:
-                    continue
-                if r.get('spec') == spec and list(r.get('args') or ()) == list(args) and r.get('tip') == tip:
-                    found.append((r.get('t') or '', p, r))
+        for p in glob.glob(os.path.join(d, 'gate_*_into_*.json')):
+            m = pat.search(os.path.basename(p))
+            if not m or m.group(1) != branch.replace('/', '-') and m.group(2) != tip:
+                continue
+            t0 = m.group(2)
+            if t0 != tip and t0 not in anc:
+                anc[t0] = not _git('merge-base', '--is-ancestor', t0, tip, cwd=root, check=False).returncode
+            if t0 != tip and not anc[t0]:
+                continue
+            try:
+                r = json.load(open(p))
+            except ValueError:
+                continue
+            if r.get('spec') == spec and list(r.get('args') or ()) == list(args) and r.get('tip') == t0:
+                found.append((r.get('t') or '', p, r))
     res = dict(branch=branch, tip=tip, into=into, head=head, carried=False, verdict=None, why=None, report=None)
     if not found:
         res['why'] = 'no gate report of %s (%s) with this spec and options in %s' % (branch, tip, ', '.join(
@@ -807,8 +816,8 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
         cone = None
     reasons = []
     for _, p, old in sorted(found, key=lambda x: x[0], reverse=True):
-        h0, name = old['head'], os.path.basename(p)
-        if h0 == head:
+        h0, tip0, name = old['head'], old['tip'], os.path.basename(p)
+        if h0 == head and tip0 == tip:
             res.update(carried=True, verdict=old['verdict'], why='already gated into %s' % head, report=p[:-5] + '.md',
                        **{'from': name})
             return res
@@ -818,7 +827,7 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
         if _git('merge-base', '--is-ancestor', h0, head, cwd=root, check=False).returncode:
             reasons.append('%s: %s is not an ancestor of %s' % (name, h0, head))
             continue
-        t0 = _merge_tree(root, h0, tip)
+        t0 = _merge_tree(root, h0, tip0)
         Cs = old.get('closures') or {}
         if t0 is None or 'tests' not in Cs:
             reasons.append('%s: %s' % (name, 'its merge tree is missing here' if t0 is None else
@@ -851,8 +860,9 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
                 '%s (%s)' % h for h in v[:4]) + (' and %d more' % (len(v) - 4) if len(v) > 4 else ''))
                 for k, v in hits.items() if v)))
             continue
-        why = '%s moved %d files since %s and the merged trees differ in %d; none reaches the baseline or the ' \
-              'candidate build' % (into, len(moved), h0, len(diff))
+        why = '%s moved %d files since %s%s and the merged trees differ in %d; none reaches the baseline or the ' \
+              'candidate build' % (into, len(moved), h0, '' if tip0 == tip else ' (and the branch since %s: %d files)'
+                                   % (tip0, len(closure.changes(root, tip0, tip))), len(diff))
         tests = dict(old.get('tests') or {})
         res.update(rerun={t: h[:4] for t, h in rerun.items()})
         if rerun and not run_tests:
@@ -873,8 +883,9 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
         verdict = old['verdict'] if not (res.get('tests_run') or {}).get('failed') else 'FAIL'
         res.update(carried=True, verdict=verdict, why=why, hits={}, **{'from': name})
         if write:
-            new = dict(old, into=into, head=head, t=time.strftime('%Y-%m-%dT%H:%M:%S'), phases=[], seconds=None,
-                       tests=tests, carried={'report': name, 'from_head': h0, 'why': why, 'moved': len(moved),
+            new = dict(old, into=into, head=head, tip=tip, t=time.strftime('%Y-%m-%dT%H:%M:%S'), phases=[],
+                       seconds=None, tests=tests,
+                       carried={'report': name, 'from_head': h0, 'from_tip': tip0, 'why': why, 'moved': len(moved),
                                              'differ': len(diff), 'tests_run': res.get('tests_run')})
             if (res.get('tests_run') or {}).get('failed'):
                 bad = {'kind': 'tests failing', 'files': res['tests_run']['failed']}

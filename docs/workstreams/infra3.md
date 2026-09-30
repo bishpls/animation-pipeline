@@ -6,15 +6,33 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A merged (pipeline-3d b43c15e). Milestone B, subset 1 (g, the baseline finding, the boards): done and gated,
-waiting for the coordinator.
-- Gated: **3aaa9b7 into pipeline-3d ae7fd45: PASS** with pipeline-3d's gate code (`gate_tool-infra3_3aaa9b7_into_ae7fd45`:
-  no check changed, 54 test files ok, CPU 0.98x, 510 s). pipeline-3d then moved to 23492b6 (tool/face4-crown); the
-  branch merges into it cleanly (git merge-tree). Not re-gated (K: the coordinator decides). Commits after 3aaa9b7 are
-  notes only.
-- Throwaway branches tmp/infra3-* deleted. Their reports stay in this worktree's charkit/out/gate (untracked).
-- Next: subset 2, h + i (below: "Findings for subset 2" first: the function-precise code walk is the lever for both
-  h and g), then l, then k + j.
+Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
+pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
+676 s; the candidate's resolve 225 s is the one-off key change). pipeline-3d then moved to f2ec090; merges cleanly;
+not re-gated. Commits after c5cafcc: notes only. i not started (next run).
+- **Real pairs (this gate code):** a garments.py-only code edit (`gate_tmp-infra3-garm_2ef04a4_into_c5cafcc`, PASS):
+  both sides restored the hull from the shared cache under one key (49cab93a-bf003dc1, 1.8-2.0 s instead of a
+  173 s build; resolve 8.2 s against 242.6 s one gate earlier and look4's 196 s). The builds' closure no longer holds
+  remote.py or gate.py (548 files; cli.py stays: it's the build's entry). `gate --carry` from that report across a
+  remote.py code edit (a function added): **carried, PASS, 8 s** on the laptop, the 4 test files that read remote.py
+  rerun here, all ok.
+- **cache.code_units follows definitions, not modules** (charkit/cache.py `_Mod`, `code_units`; memo SCHEMA 3, so
+  every cache key changes once, approved by the coordinator): names resolve as Python scopes them (hull.Owners' local
+  `main` no longer means hull.main), `m.f` and `from m import f` follow f alone, a module used bare, `import *`,
+  a dotted import or a side-effect import (nothing names it) is taken whole, each reached module's top-level
+  statements are a unit ('path:<top>'), and from the top level a same-module function is followed only when called
+  there (scene.py's table of stages ran none of them). Measured on the real code: the hull's shared-cache key (depth
+  2) 25 files, garments.py not among them (before: garments.py via hull.main -> bodyeval); artifactqa's design key
+  52 files, cli.py:_path in it, gate/remote/tune not (before: 101 modules); code_head's step key 10 files at any depth;
+  stage_hair's key no garments.py.
+- First gate (7fe4fcc into a4f91a3, `gate_tool-infra3_7fe4fcc_into_a4f91a3`): FAIL on test_manifest (it pinned the old
+  whole-module unit names; fixed, as test_cache and test_produced_cache were). The one-off key change showed: the
+  candidate's resolve 242.6 s (the hull rebuilt under its new key), pieces_hair 198 s, CPU 1.42x, 785 s end to end.
+- `gate --carry` also takes a report of an earlier tip of the branch (1916e4e: notes after a gate, the coordinator's
+  tool/face4 case: its bd671ea report is found now, but predates closures).
+- i (next): a slot for the whole build and THREAD_VARS for every box build (remote build/tune), then l, then k + j.
+- Also left in h: the venv file steps' keys aren't portable across clones (pieces_hair's `cut` holds absolute out
+  paths; file_step keys `inputs` by absolute path), so gate clones still rebuild pieces_hair (about 120 s).
 
 ## Milestone B (2026-09-30 night)
 
