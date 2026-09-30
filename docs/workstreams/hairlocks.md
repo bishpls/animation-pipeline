@@ -326,3 +326,11 @@ capacity probes, the chart's evidence with the lines, the QA table). Round 1's p
    -> 0.022 L), purity 0.96, K PASS; but the three-quarter falls (0.415 -> 0.325) and hair_noise's margin shrinks to
    0.0003. The recommendation is to keep them off until 1b or 1c.
 3. **Call C is revised** (the profile's locks renamed). Accept, or keep the per-view names.
+
+**Gate (round 2): PASS** under K. tool/hairlocks `18cd5f7` (with pipeline-3d `07fa3c2`, tool/xpbd, merged) into
+pipeline-3d `07fa3c2`: the candidate rebuilt (the merge changes hairpieces.py, hairlayers.py, cli.py and the manifest
+the build reads), 0 items reported (no check moved: the default is bit-identical), CPU 685.1 -> 703.2 s (1.03x), every
+test file ok. Report: `charkit/out/gate/gate_tool-hairlocks_18cd5f7_into_07fa3c2.md`. The pre-gate: PASS, 0 moved
+(`charkit/out/pregate/pregate_tool-hairlocks_18cd5f7_into_07fa3c2.md`). Commits after 18cd5f7 are these notes only.
+tool/face5's hull-locality fix hadn't landed on pipeline-3d; when it does, the lock scores need remeasuring (the
+envelope's depth decides the cross-view correspondence).
