@@ -35,8 +35,9 @@ Checks (qa3d part 'details'; lengths in L, angles in degrees):
         doubled outline strokes on the boot in profile: two line strokes within DOUBLE_GAP of each other across a thin
         strip of surface (two surfaces drawing their outlines an outline's width apart), L of stroke beyond the design's
   boot_sole_flat_{L,R}, boot_sole_twist_{L,R}
-        3D: the ground-contact underside's worst deviation from its plane; the twist is the larger of its front and back
-        halves' roll difference and its long axis' yaw off the foot's direction
+        3D: the bottom face (its triangles facing down near its lowest point): their worst distance from their plane;
+        the twist is the largest of its front and back halves' roll difference, its long axis' yaw off the foot's
+        direction and its tilt off level
   boot_mirror_{front,back}, boot_sole_mirror
         the left boot against the right mirrored about the legs' midline: the front and back views' masks (aligned by
         their centroids) and the soles' outlines from below (in place). IoU; the design's front and back beside it
@@ -437,45 +438,48 @@ def underside(V, T, cell, box=None):
     return z, x0, y0
 
 
-def sole(V, T, L, fwd, cell=0.01):
-    """a boot's underside from below: the ground contact (within CONTACT of its lowest point), its worst deviation from
-    its fitted plane (flat), the roll of its front and back halves (about the foot's axis `fwd`, xy), and its long
-    axis' yaw off `fwd`. -> dict(flat (L), roll_front, roll_back, twist (deg), yaw (deg), footprint (bool grid), x0, y0,
-    cell)."""
-    c = cell * L
-    z, x0, y0 = underside(V, T, c)
-    ok = np.isfinite(z)
-    if ok.sum() < 20:
+def sole(V, T, L, fwd, down=0.985):
+    """a boot's bottom face: its triangles facing down (normal within 10 degrees of straight down: the arch's slope and
+    the subdivision's rounded rim are out) within CONTACT of its lowest point, area-weighted. The worst distance of
+    their centres from their fitted plane (flat); that plane's tilt off level; the roll of its front and back halves
+    (about the foot's axis `fwd`, xy); its long axis' yaw off `fwd`; twist the largest of the roll difference, the yaw
+    and the tilt. -> dict(flat (L), tilt, roll_front, roll_back, yaw, twist (deg), faces) or None."""
+    V, T = np.asarray(V, float), np.asarray(T)
+    N = np.cross(V[T[:, 1]] - V[T[:, 0]], V[T[:, 2]] - V[T[:, 0]])
+    area = 0.5 * np.linalg.norm(N, axis=1)
+    N = N / np.maximum(2 * area, 1e-18)[:, None]
+    C = V[T].mean(1)
+    sel = (N[:, 2] < -down) & (C[:, 2] < V[:, 2].min() + CONTACT * L) & (area > 0)
+    if sel.sum() < 2:
         return None
-    zmin = np.nanmin(z)
-    con = ok & (z <= zmin + CONTACT * L)
-    iy, ix = np.nonzero(con)
-    X, Y, Z = x0 + (ix + 0.5) * c, y0 + (iy + 0.5) * c, z[con]
-    A = np.stack([X, Y, np.ones_like(X)], 1)
-    p = np.linalg.lstsq(A, Z, rcond=None)[0]
-    flat = float(np.abs(Z - A @ p).max()) / L
+    X, Y, Z, w = C[sel, 0], C[sel, 1], C[sel, 2], area[sel]
+    sw = np.sqrt(w)
+
+    def plane(m):
+        A = np.stack([X[m], Y[m], np.ones(m.sum())], 1)
+        return np.linalg.lstsq(A * sw[m, None], Z[m] * sw[m], rcond=None)[0]
+    allm = np.ones(len(X), bool)
+    p = plane(allm)
+    flat = float(np.abs(Z - (p[0] * X + p[1] * Y + p[2])).max()) / L
+    tilt = float(np.degrees(np.arctan(np.hypot(p[0], p[1]))))
     f = np.asarray(fwd, float)[:2]
     f = f / np.linalg.norm(f)
     lat = np.array([-f[1], f[0]])
-    uu = np.stack([X, Y], 1) @ f
-    vv = np.stack([X, Y], 1) @ lat
-    mid = np.median(uu)
+    uu, vv = np.stack([X, Y], 1) @ f, np.stack([X, Y], 1) @ lat
+    mid = np.average(uu, weights=w)
 
-    def roll(s):
-        if s.sum() < 6:
+    def roll(m):
+        if m.sum() < 3 or np.ptp(vv[m]) < 0.03 * L:
             return np.nan
-        q = np.linalg.lstsq(np.stack([vv[s], uu[s], np.ones(s.sum())], 1), Z[s], rcond=None)[0]
-        return float(np.degrees(np.arctan(q[0])))
+        q = plane(m)
+        return float(np.degrees(np.arctan(q[0] * lat[0] + q[1] * lat[1])))
     rf, rb = roll(uu > mid), roll(uu <= mid)
-    fy, fx = np.nonzero(ok)
-    Q = np.stack([x0 + (fx + 0.5) * c, y0 + (fy + 0.5) * c], 1)
-    Q = Q - Q.mean(0)
-    w, vec = np.linalg.eigh(Q.T @ Q)
-    ax = vec[:, -1]
-    yaw = float(np.degrees(np.arccos(min(1.0, abs(ax @ f)))))
-    tw = max(abs(rf - rb) if np.isfinite(rf) and np.isfinite(rb) else 0.0, yaw)
-    return dict(flat=round(flat, 4), roll_front=round(rf, 2), roll_back=round(rb, 2), yaw=round(yaw, 2),
-                twist=round(tw, 2), footprint=ok, x0=x0, y0=y0, cell=c)
+    Q = np.stack([X, Y], 1) - np.average(np.stack([X, Y], 1), axis=0, weights=w)
+    _, vec = np.linalg.eigh((Q * w[:, None]).T @ Q)
+    yaw = float(np.degrees(np.arccos(min(1.0, abs(vec[:, -1] @ f)))))
+    tw = max(abs(rf - rb) if np.isfinite(rf) and np.isfinite(rb) else 0.0, yaw, tilt)
+    return dict(flat=round(flat, 4), tilt=round(tilt, 2), roll_front=round(rf, 2), roll_back=round(rb, 2),
+                yaw=round(yaw, 2), twist=round(tw, 2), faces=int(sel.sum()))
 
 
 def mirror_iou(a, b, align=True):
@@ -770,12 +774,15 @@ def measure(B, design, out=None):
             continue
         S3[side] = (s, V, Tt)
         C['boot_sole_flat_' + side] = {'value': s['flat'], 'status': grade('sole_flat', s['flat']),
-                                       'note': "the underside's ground contact (within %.2f L of its lowest point): "
-                                               'its worst deviation from its plane (L)' % CONTACT}
+                                       'tilt': s['tilt'], 'faces': s['faces'],
+                                       'note': "the bottom face (its triangles facing down within 10 degrees, within %.2f "
+                                               'L of its lowest point): their worst distance from their plane (L)' % CONTACT}
         C['boot_sole_twist_' + side] = {'value': s['twist'], 'status': grade('sole_twist', s['twist']),
                                         'roll_front': s['roll_front'], 'roll_back': s['roll_back'], 'yaw': s['yaw'],
-                                        'note': "the sole's twist (deg): the larger of its front and back halves' "
-                                                "roll difference and its long axis' yaw off the foot's direction"}
+                                        'tilt': s['tilt'],
+                                        'note': "the bottom face's twist (deg): the largest of its front and back halves' "
+                                                "roll difference, its long axis' yaw off the foot's direction and its "
+                                                'tilt off level'}
     if 'L' in S3 and 'R' in S3:
         top = lambda V: V[V[:, 2] > V[:, 2].max() - 0.05 * L]
         mid = float((top(S3['L'][1])[:, 0].mean() + top(S3['R'][1])[:, 0].mean()) / 2)

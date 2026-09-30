@@ -149,15 +149,30 @@ def box(x0, x1, y0, y1, z0, z1):
     return V, T
 
 
+def sole_grid(roll_toe):
+    """a foot's bottom, 0.3 wide and 0.8 long along y, as two halves of triangles; the toe's half rolled `roll_toe`
+    degrees about the foot's axis."""
+    g = np.linspace(0.0, 0.3, 7)
+    Vs, Ts = [], []
+    for y0, y1, rl in ((0.0, 0.4, 0.0), (-0.4, 0.0, roll_toe)):
+        base = len(Vs)
+        for yy in np.linspace(y0, y1, 5):
+            for xx in g:
+                Vs.append([xx, yy, np.tan(np.radians(rl)) * (xx - 0.15)])
+        for j in range(4):
+            for i in range(len(g) - 1):
+                a, b = base + j * len(g) + i, base + (j + 1) * len(g) + i
+                Ts += [[a, b, a + 1], [a + 1, b, b + 1]]
+    return np.array(Vs, float), np.array(Ts)
+
+
 def test_sole_flat_and_twisted():
-    V, T = box(0.0, 0.3, -0.4, 0.4, 0.0, 0.5)     # a flat-bottomed foot, long along y
+    V, T = sole_grid(0.0)                              # a flat bottom, long along y
     s = dq.sole(V, T, 1.0, (0.0, -1.0))
     assert s['flat'] < 1e-6 and s['twist'] < 0.5, s
-    W = V.copy()                                   # the toe's bottom corners rolled: one lowered, one raised
-    W[(W[:, 1] < 0) & (W[:, 2] == 0) & (W[:, 0] == 0)] += (0, 0, -0.02)
-    W[(W[:, 1] < 0) & (W[:, 2] == 0) & (W[:, 0] > 0)] += (0, 0, 0.02)
-    t = dq.sole(W, T, 1.0, (0.0, -1.0))
-    assert t['twist'] > 3, t
+    V2, T2 = sole_grid(6.0)                            # the toe's half rolled 6 degrees: twisted
+    s2 = dq.sole(V2, T2, 1.0, (0.0, -1.0))
+    assert s2['twist'] > 4 and s2['flat'] > 0.005, s2
 
 
 def test_mirrors():
