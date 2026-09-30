@@ -6,11 +6,45 @@ the last-bit masked-skin nondeterminism; (7) j, the load sampler at boot on both
 
 ## State (read first when resuming)
 
-- j (9f5d6f1): done, installed on both boxes, tested. Not gated yet.
-- 5 (a08bac4) and k (897c987): code done, unit tests pass locally. The verification builds (before: b3c5abf's code with
-  charkit/out/i3d present; after: this branch with it absent; both `--cache off`, producers from scratch, the closure
-  recorded) run on the build box in this worktree's copy (`charkit/out/v5_before`, `v5_after`). Then the gate.
-- 4: not started.
+Checkpointed at the coordinator's call (tool-call limit). Commits: j 9f5d6f1, the TRELLIS cleanup a08bac4, k 897c987,
+notes after. **Gated tip: 897c987** (the commits after it are notes only).
+
+Running when this was written (collect them):
+- **The gate** `gate-infra3-0930-161626-6360`: tool/infra5 897c987 into pipeline-3d 0744ffe (pipeline-3d moved from
+  b3c5abf to tool/bow's merge; `git merge-tree` merges cleanly). `python -m charkit remote attach
+  gate-infra3-0930-161626-6360`; report in charkit/out/gate/gate_tool-infra5_897c987_into_0744ffe.md. Expected under
+  K: the candidate builds (garments.py, the manifest and many modules changed); the produced references rebuild once
+  (the manifest's `refs` digest changed); the measure-change check flags every QA part (checks.MEASURES is the QA's
+  shared code) and runs the 2x2; no value or status should move (only INFO checks' `why` text reads "hull").
+- **The after verification build** `build-infra3-0930-161514-424f` (this branch at 897c987, charkit/out/i3d moved away,
+  producers and stages from scratch, the closure recorded) into the box copy's `charkit/out/v5_after`. The before build
+  (b3c5abf's code, i3d present) finished: 672 s wall, 936 s CPU; **its closure reads no file under charkit/out/i3d**
+  (0 read, 0 listed); the produced references' stamps name none (the hull and hair layers read no files, the outfit
+  masks the notes and the rig's files); its build log never names i3d. Fetched to
+  charkit/out/v5_box/before/{qa/qa.json, bundle/bundle.json, closure.json, build.log}.
+- A laptop exploration of the evaluator's parts (scratchpad p4_explore.py; item 4, harmless if lost).
+
+**Next steps, in order:**
+1. Attach the gate; read it under K. If pipeline-3d moved again, `gate --carry` (the coordinator decides).
+2. When build-infra3-0930-161514-424f ends: its log prints the closure (i3d paths read: must be 0) and the stamps.
+   Fetch `charkit/out/v5_after/{qa/qa.json,bundle/bundle.json,closure.json}` as for before and compare: bundle.json's
+   `hashes` (every array equal: the rename, the labels and k's no_loose move nothing on the default spec), qa.json's
+   checks (values and statuses equal; `why` differs on the INFO checks measured against 'hull'), the produced
+   references' content (v5_before/produced vs v5_after/produced: hull.glb, outfit_masks.npz, hair_layers.npz sha256).
+   If equal, record the label rename in history (no remeasure: no value changes) as the brief says.
+3. Item 4 (pregate coverage), not started beyond a draft: `charkit/evalbundle.py` (uncommitted, untested) turns the
+   evaluator's Geometry into a charkit.bundle.Bundle (skin masked/eval at level 1 with the build's skin materials,
+   faceeval.features for eyes and mouth, a flat material per tone for hair/accessories/garments, skin/under_garments)
+   so `qa3d.evaluate(B, parts=('piece_details', 'face_region', 'details'))` can run. To do: check the evaluator part
+   names match the build's object names (pieceqa.piece_map maps pieces to object names), time each part, compare each
+   check against the build's own value (v5_before's qa.json: same commit), then wire into pregate's _EVAL (load
+   evalbundle.py from this worktree with runpy so an older target tree can run it with its own QA code), and measure
+   the agreement with `pregate --against` on today's pairs: tool/face5 36908d0 into 9eba0b0 (gate FAIL on
+   sleeve_profile_rough_L 0.0107 WARN -> 0.0146 FAIL; its pre-gates passed), tool/bow cbca3ad into 3ebc3fb, and the
+   evalmesh / look6 pairs in infra4.md. Gate-only by construction: the render drawing (art_*, look, face_shadow_*),
+   hair_* from the Blender hair, poke/mesh (the build's own meshes), eye renders, the 2x2, tests, CPU.
+4. Docs: CHARKIT_HANDOFF.md decision 8's first three bullets are done here (the coordinator's file); its fourth (the
+   perceptual metric's own venv on the render box) is provisioning, left.
 
 ## 7. j: the load sampler at boot
 
