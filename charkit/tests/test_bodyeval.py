@@ -206,8 +206,9 @@ def test_subdivide_cube():
     NV, Q, parent, _ = bodyeval.subdivide(V, F, limit=False)
     assert Q.shape == (24, 4) and len(NV) == 8 + 6 + 12 and sorted(set(parent.tolist())) == list(range(6))
     assert np.allclose(NV[0], [-5 / 9] * 3)
-    edge = NV[8 + 6:]
+    edge = NV[8:8 + 12]                                                   # (Blender's order: vertices, edges, faces)
     assert np.any(np.all(np.isclose(edge, [-0.75, -0.75, 0.0]), 1))
+    assert np.allclose(np.sort(np.abs(NV[8 + 12:]), 1), [[0, 0, 1]] * 6)            # the face points
     NL, _, _, _ = bodyeval.subdivide(V, F, limit=True)                    # the limit surface lies further in
     assert np.linalg.norm(NL, axis=1).max() < np.linalg.norm(NV, axis=1).max()
 

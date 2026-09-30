@@ -112,6 +112,15 @@ Residuals, explained:
   No check changed, all 56 test files ok, build CPU 819.9 -> 934.6 s (1.14x), Blender and QA 315.7 -> 283.1 s.
   **M1 is mergeable at 73be408**; the commits after it are notes only.
 
+- **M2 in the evaluator** (box: a build of the merged tree `charkit/out/evalmesh/m2_clawd`, evaldrift --stages with
+  the M2 evaluator). 0 of 110 checks drift. The masked skin's subdivision went from 0.00879 L nearest-vertex (mean
+  1.4e-5) to **3.42e-6 L (mean 3.6e-7)**. The garments are unchanged, ≤ 1.1e-5 L. One new stage drift, crab_1 2.05e-4
+  L, isn't this branch's: the M1 evaluator on the same build shows it too (`m2_drift_M1evaluator.md`). It came with
+  face4's merge (the accessories sit on the hair volume, step 2's two volume ports).
+- **M3 in the evaluator** (local, the evaluator's own garment Parts against m2_clawd's bundle, per vertex one to
+  one): every piece ≤ 1.1e-5 L (the collar), all faces, windings and first corners Blender's (the old port had every
+  shell's winding inside out).
+
 ## Next
 - M2 and M3 in the evaluator: `bodyeval.subdivide` delegates to `charkit/geom/subsurf.py` (Part.subdivided runs all
   levels at once, the skin's eye margins creased: `skin_creases`). `bodyeval.solidify` and Part.subdivided go through

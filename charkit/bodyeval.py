@@ -445,10 +445,11 @@ class Part:
             V, polys, parent = self.V, self.polys, np.arange(len(self.polys))
             tex = getattr(self, 'tex', None)
             uvc = tex['uvc'] if tex else None
+            creases = getattr(self, 'creases', None)          # (the skin's eye margins, as character.build creases them)
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
                 V, polys, parent, uvc = solidify(V, polys, self.solid, uvc)   # (the faces wound as recorded: geom.wind)
-            for _ in range(levels):
-                V, polys, par, uvc = subdivide(V, polys, uvc)
+            if levels:
+                V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases)
                 parent = parent[par]
             if tex:
                 uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
@@ -597,6 +598,16 @@ def _plate(E, key, tex):
     return px[:, :3].astype(float), px[:, 3].astype(float)
 
 
+def skin_creases(A):
+    """the skin's creased edges as character.build creases them (crease 1: each eye's margin loop) -> {(a, b): 1.0}."""
+    out = {}
+    for E in A['eyes']:
+        lp = list(E['eye']['margin'])
+        for a_, b_ in zip(lp, lp[1:] + lp[:1]):
+            out[(min(a_, b_), max(a_, b_))] = 1.0
+    return out
+
+
 def character_parts(A, hide=None, spec=None):
     """the skin (minus the vertices the garments hide, as the build's mask modifier does), the eyes and the mouth, with
     their materials' unlit tones and model-sheet classes per polygon (qa3d.scene_classes' rules: the skin by material,
@@ -624,6 +635,7 @@ def character_parts(A, hide=None, spec=None):
         out.append(Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys, lit, shd,
                         np.array([tone[m][2] for m in fm])))
         out[-1].role = role
+        out[-1].creases = skin_creases(A)
     if len(out) == 1:
         out[0].role = None
     IK = spec.get('iris')
@@ -1461,97 +1473,11 @@ def solidify(V, polys, t, uv=None, rim=True):
     return NV, out, np.asarray(parent), U
 
 
-def subdivide(V, polys, uv=None, limit=True):
-    """one level of Catmull-Clark (Blender's Subdivision Surface at level 1: boundaries smooth, the result pushed to the
-    limit surface), numpy. polys: index tuples of any size; uv: optional per-corner UVs [[(u, v), ...] per polygon],
-    interpolated linearly. -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
-    from scipy import sparse
-    V = np.asarray(V, float)
-    nv = len(V)
-    if isinstance(polys, np.ndarray) and polys.ndim == 2:
-        cnt = np.full(len(polys), polys.shape[1])
-        lv = polys.astype(np.int64).ravel()
-    else:
-        cnt = np.array([len(f) for f in polys])
-        lv = np.concatenate([np.asarray(f, np.int64) for f in polys])
-    st = np.r_[0, np.cumsum(cnt)[:-1]]
-    nf = len(polys)
-    fid = np.repeat(np.arange(nf), cnt)
-    nxt = np.arange(len(lv)) + 1
-    nxt[st + cnt - 1] = st
-    prv = np.arange(len(lv)) - 1
-    prv[st] = st + cnt - 1
-    FP = np.zeros((nf, 3)); np.add.at(FP, fid, V[lv]); FP /= cnt[:, None]
-    # edges: one per unordered pair; each loop's edge runs to the next corner
-    a, b = lv, lv[nxt]
-    key = np.minimum(a, b) * nv + np.maximum(a, b)
-    ukey, einv, ecnt = np.unique(key, return_inverse=True, return_counts=True)
-    ne = len(ukey)
-    ea, eb = ukey // nv, ukey % nv
-    efs = np.zeros((ne, 3)); np.add.at(efs, einv, FP[fid])
-    bnd = ecnt == 1
-    EP = np.where(bnd[:, None], (V[ea] + V[eb]) / 2, (V[ea] + V[eb] + efs) / 4)      # (two faces' points summed)
-    EP = np.where((ecnt > 2)[:, None], (V[ea] + V[eb]) / 2, EP)             # (non-manifold: the midpoint)
-    # vertices: interior (Q + 2R + (n - 3) S) / n; boundary (prev + 6 v + next) / 8
-    ones = np.ones(ne)
-    VE = sparse.coo_matrix((np.r_[ones, ones], (np.r_[ea, eb], np.r_[np.arange(ne), np.arange(ne)])), shape=(nv, ne)).tocsr()
-    val = np.asarray(VE.sum(1)).ravel()
-    R = (VE @ ((V[ea] + V[eb]) / 2)) / np.maximum(val, 1)[:, None]
-    VF = sparse.coo_matrix((np.ones(len(lv)), (lv, fid)), shape=(nv, nf)).tocsr()
-    nfv = np.asarray(VF.sum(1)).ravel()
-    Q = (VF @ FP) / np.maximum(nfv, 1)[:, None]
-    n_ = np.maximum(val, 1)[:, None]
-    VP = (Q + 2 * R + (n_ - 3) * V) / n_
-    VB = sparse.coo_matrix((np.r_[ones[bnd], ones[bnd]], (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
-    nb_ = np.asarray(VB.sum(1)).ravel()
-    onb = nb_ == 2
-    VP[onb] = ((VB @ V)[onb] + 6 * V[onb]) / 8
-    VP[(nb_ > 0) & ~onb] = V[(nb_ > 0) & ~onb]                             # (a corner of several boundaries: kept)
-    VP[val == 0] = V[val == 0]
-    # the new mesh: vertices, then face points, then edge points; a quad per corner
-    NV = np.vstack([VP, FP, EP])
-    e_next = einv                                                         # the edge from this corner to the next
-    e_prev = einv[prv]                                                    # the edge into this corner
-    quads = np.stack([lv, nv + nf + e_next, nv + fid, nv + nf + e_prev], 1)
-    # each child quad starts where Blender's does (corner c of its polygon: rotated by -c), so a fan triangulation
-    # (faceqa.triangles) cuts it along the same diagonal as Blender's evaluated mesh
-    corner = np.arange(len(lv)) - st[fid]
-    rot = (-corner) % 4
-    quads = quads[np.arange(len(quads))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
-    parent = fid
-    UV = None
-    if uv is not None:
-        U = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
-        fuv = np.zeros((nf, 2)); np.add.at(fuv, fid, U); fuv /= cnt[:, None]
-        UV = np.stack([U, (U + U[nxt]) / 2, fuv[fid], (U + U[prv]) / 2], 1)
-        UV = UV[np.arange(len(UV))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
-    if limit:
-        NV = limit_positions(NV, quads)
-    return NV, quads, parent, UV
-
-
-def limit_positions(V, quads):
-    """Catmull-Clark limit positions of an all-quad mesh's vertices: interior (n^2 v + 4 sum(edge neighbours) + sum(face
-    diagonals)) / (n (n + 5)); on a boundary the cubic B-spline's (prev + 4 v + next) / 6."""
-    from scipy import sparse
-    nv = len(V)
-    Qd = np.asarray(quads, np.int64)
-    a = Qd.ravel(); b = np.roll(Qd, -1, 1).ravel(); d = np.roll(Qd, -2, 1).ravel()
-    key = np.minimum(a, b) * nv + np.maximum(a, b)
-    ukey, cnt_e = np.unique(key, return_counts=True)
-    ea, eb = ukey // nv, ukey % nv
-    ne = len(ukey)
-    E = sparse.coo_matrix((np.ones(2 * ne), (np.r_[ea, eb], np.r_[eb, ea])), shape=(nv, nv)).tocsr()
-    val = np.asarray(E.sum(1)).ravel()
-    Dg = sparse.coo_matrix((np.ones(len(a)), (a, d)), shape=(nv, nv)).tocsr()
-    n = np.maximum(val, 1)[:, None]
-    out = (n * n * V + 4 * (E @ V) + Dg @ V) / (n * (n + 5))
-    bnd = cnt_e == 1
-    B = sparse.coo_matrix((np.ones(2 * bnd.sum()), (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
-    nb_ = np.asarray(B.sum(1)).ravel()
-    on = nb_ == 2
-    out[on] = ((B @ V)[on] + 4 * V[on]) / 6
-    odd = (nb_ > 0) & ~on
-    out[odd] = V[odd]
-    out[val == 0] = V[val == 0]                                          # (a loose vertex stays where it is)
-    return out
+def subdivide(V, polys, uv=None, limit=True, levels=1, creases=None):
+    """Blender's Subdivision Surface (charkit.geom.subsurf: OpenSubdiv's Catmark rules as Blender 5.2 evaluates them,
+    creases, open borders, UVs smoothed inside their seams, the limit at the isolation level). polys: index tuples of
+    any size; uv: per-corner UVs [[(u, v), ...] per polygon]; creases: {(a, b): crease 0..1} or (pairs, creases).
+    -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
+    from .geom import subsurf
+    R = subsurf.subdivide(V, polys, levels=levels, creases=creases, uv=uv, limit_surface=limit)
+    return R['V'], R['quads'], R['parent'], R['uv']
