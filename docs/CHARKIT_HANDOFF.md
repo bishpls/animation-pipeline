@@ -726,6 +726,47 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Checkpoint 2026-09-30, morning (read first; paused near the usage limit)
+
+**Merged into pipeline-3d today** (each gated on both specs):
+- hair round 3 (e11fadb);
+- hull limb labels + the bare-leg check + docs/HULL_CONTRACT.md (a524c3b);
+- bucket sync (11f95b6);
+- our toon renderer phase 1 (charkit/render, wgpu; 6be2b39);
+- the perceptual metric (8ae6ce9; failed its calibration, kept as INFO heat maps);
+- infra: preview, registries, 2x2, evaldrift (cfcdc3a);
+- single geometry source, pilot (8a7d4ea).
+
+Michael's calls H, I and J are in "Michael's calls" below. The first combined preview is
+charkit/out/previews/cfcdc3a/review.html (179 PASS / 27 WARN / 7 FAIL; the previous one, at 9397578, was 176 / 29 / 8).
+
+**The post-merge preview hook is REMOVED.** Git exports GIT_DIR to hooks, and preview._git inherited it. The hook's
+preview therefore ran `checkout -f --detach` in the pipeline-3d worktree, not in ../animation-pipeline-autopreview, and
+built stale code. tool/infra2 has the fix (strip GIT_* from the env). Reinstall the hook
+(`python -m charkit preview hook install`) only after it merges; until then run `python -m charkit preview` by hand
+after merges.
+
+**Branches at checkpoint:** each has its notes in docs/workstreams/NAME.md; relaunch lean from them. Integrator
+decisions already made:
+- **tool/face** (face round 3): the three-quarter notch 0.057 -> 0 and the jaw_line_bend 41 -> 4.6. Accepted 2x2 drops:
+  chin_angle 119.7 -> 116.7 (design 129.7: next face round recovers it), chin_tip 0.59 -> 0.56, jaw_taper_shape.
+  Merge on gates whose only failures are those.
+- **tool/garments2** (jacket over band): MakeHuman gate PASS. Merge needs geom-truth's evaluator-dispatch conflict
+  resolved (drop garments2's dispatch edits) and a single `hem_drop` in the shorts entry.
+- **tool/artifacts**: flag-calibrated checks capped at WARN, the rest INFO. MakeHuman gate PASS.
+- **tool/hair4** (buns, crown, MakeHuman shoulder clearance, placement off the decimated mesh). Accepted at the
+  hull-limbs merge, fixed here: clawd_mh hair_penetration 0.0484 FAIL, and hair_folds 4 -> 11.
+- **tool/skirt**: the flap train touches the back of the thigh (body_profile_leg_outline 0.57, 82 rows against the
+  design's 3); clawd_mh body_three_quarter_skirt_aline 0.078 WARN is accepted and belongs here.
+- **tool/outfit-source**: masks without the TRELLIS field (or the field made a required produced reference).
+- **tool/look3**: calls H and I.
+- **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
+- **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
+- **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
+  docs/GEOM_TRUTH.md step 7.
+- **Sonnet checkpoint** (side quest, uncommitted): the worktree is tmp/sonnet-checkpoint and the page is
+  charkit/out/sonnet_checkpoint/. The anthology project is unpublished, so nothing Sonnet-specific is ever committed.
+
 ## State at the end of 2026-09-29 (read first)
 
 - **The default spec is the authored character** (`8e2797e`): `charkit/spec/clawd.json` is the code-built head and
