@@ -15,9 +15,9 @@ Blender (charkit/render/eevee_frames.py: the same window, light and outlines). T
   pictures  the head frames' pictures (the boards' film) against EEVEE's: mean and share over 8 levels
   body      artifactqa's body frame (the body sheet's px per L, one sample a pixel, the design's framing's line widths:
             what the art_* checks of the collar, bow, top, skirt and boots and the silhouette checks read) from the
-            front, three-quarter, profile and back: each drawing's picture against EEVEE's point-sampled one (the
-            figure's IoU, mean levels and share over 8 levels on the figure), and each drawing's part buffer against the
-            other's
+            front, three-quarter, profile and back: each drawing's unfiltered samples against EEVEE's point-sampled
+            frame (the silhouette's IoU and pixels off, mean levels and share over 8 levels on the figure and on its
+            lines), and each drawing's part buffer against the other's
 
     python -m charkit.render qaref BUILD [--out DIR] [--no-eevee] [--blender PATH]     # DIR/qaref.json, DIR/*.png
 """
@@ -270,31 +270,40 @@ def run(build, out=None, eevee=True, blender=None, streaks=(False, True)):
         hrows[az] = row
         print('hair', az, row, flush=True)
     rep['hair'] = hrows
-    # ---- artifactqa's body frame
+    # ---- artifactqa's body frame: each drawing's unfiltered samples (its part buffer and colour at each pixel's centre,
+    # what the art_* checks read) against EEVEE's point-sampled frame (a filtered picture against point samples would
+    # measure the film filter, not the drawing)
     brows = {}
     for name, az, fr, surfs in body:
-        pics, mesh = {}, {}
+        pics, mesh, cols = {}, {}, {}
         for d in ('numpy', 'render'):
             os.environ[qarender.ENV] = d
             aux = {}
-            pics[d] = qa3d.draw(B, surfs, az, fr, ss=1, aux=aux)
+            v = qa3d.draw_view(B, surfs, az, fr)
+            pics[d] = qa3d.draw_lit(B, v, ss=1, aux=aux)
             mesh[d] = aux['mesh']
-        row = {'az': az, 'parts_agree': round(float((mesh['numpy'] == mesh['render']).mean()), 5),
-               'parts_agree_figure': round(float((mesh['numpy'] == mesh['render'])[(mesh['numpy'] >= 0) |
-                                                                                 (mesh['render'] >= 0)].mean()), 5)}
+            if d == 'numpy':
+                cols[d] = lin_to_srgb8(aux['rgb'])
+            else:
+                col = v._frame(None, picture=False, colour=True)['colour'].astype(np.float64)
+                cols[d] = lin_to_srgb8(np.where(col[..., 3:4] > 1e-6, col[..., :3] / np.maximum(col[..., 3:4], 1e-6), 0))
+        fig = (mesh['numpy'] >= 0) | (mesh['render'] >= 0)
+        row = {'az': az, 'parts_agree_figure': round(float((mesh['numpy'] == mesh['render'])[fig].mean()), 5)}
         pe = os.path.join(out, 'eevee', name + '_point.png')
         if have(pe):
             e = _read_png(pe)
             pics['eevee'] = e
+            fe, ce = e[..., 3] > 0.5, np.floor(e[..., :3] * 255 + 0.5)
             for k in ('numpy', 'render'):
-                p = pics[k]
-                fa, fb = p[..., 3] > 0.5, e[..., 3] > 0.5
-                fg = fa | fb
-                d = np.abs(p[..., :3] - e[..., :3]).max(-1) * 255
-                row['iou_' + k] = round(float((fa & fb).sum() / max(fg.sum(), 1)), 5)
-                row['mean_' + k] = round(float(d[fg].mean()), 3)
-                row['over8_' + k] = round(float((d[fg] > 8).mean()), 5)
-                row['over24_' + k] = round(float((d[fg] > 24).mean()), 5)
+                fo = mesh[k] >= 0
+                both = fo & fe
+                hull = np.array([s_['hull'] for s_ in surfs] + [False])[np.where(fo, mesh[k], len(surfs))]
+                dd = np.abs(cols[k] - ce).max(-1)
+                row['sil_iou_' + k] = round(float(both.sum() / max((fo | fe).sum(), 1)), 5)
+                row['sil_off_px_' + k] = int((fo ^ fe).sum())
+                row['mean_' + k] = round(float(dd[both].mean()), 3)
+                row['over8_' + k] = round(float((dd[both] > 8).mean()), 5)
+                row['over8_lines_' + k] = round(float((dd[both & hull] > 8).mean()), 5)
         _strip(os.path.join(out, name + '.png'), list(pics.values()), list(pics))
         brows[name] = row
         print(name, row, flush=True)
