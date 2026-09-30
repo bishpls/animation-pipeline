@@ -46,6 +46,8 @@ The design is measured the same way wherever it has the view; a view where eithe
 """
 import numpy as np
 
+from .registry import qa_part
+
 from . import bodyqa
 
 WIN = bodyqa.WIN
@@ -944,6 +946,14 @@ def waist(O, names, masks, pm, ppl, dv=None):
                             "tails, above the band) stands in front of the band's (the figure's median, z %.2f..%.2f), "
                             "L, against the design's" % (OVERHANG_TOP + OVERHANG_BAND)}
     return T, C
+
+
+@qa_part('piece_details', order=1750, table='piece_details')
+def piece_details(B, design=None, out=None):
+    """the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and their
+    stand-off from it (sleeve_closeup's cross-section); the waistband's edges, width and the jacket's overhang in
+    profile; the shorts' hem and width; the cuffs; the collar and bow; the jacket over the band and its open front."""
+    return measure(B, design, out)
 
 
 def measure(B, design, out=None):
