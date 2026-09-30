@@ -399,3 +399,29 @@ art_fragments_collar 4.741 -> 6.338 WARN (flag; grade FAIL both), hair_noise 0.0
 pregate PASS, 188 moved, 0 blocking): no new FAIL, no flag-check regression, CPU 0.97x; PASS -> WARN: piece_cuff_L
 0.779 -> 0.733, shoulder_back_slope 0.08 -> 0.102 (a guard). shoulder_back_line stays 0.0565 FAIL: its top edge is the
 puffs (template, on the body's bones) and the hull collar's flap; M3's.
+
+**Merged pipeline-3d 2f42155 (tool/infra5)** into tool/collar3 (b361654): conflicts in garments.hull_pieces and
+flapchains.chains resolved keeping both (hull_target for the frame, target3d for i3d's rename; no_loose untouched).
+Not carried (`gate --carry`: the baseline's manifest and the candidate's code moved); gated on the box (below).
+
+### M3: variant D on M2's frame (box builds c3_D3 = D, c3_D3np = D without the puffs' station)
+
+mkD.py (harness) writes D on the new frame: body.shoulder {z -0.525, x 0.47, round 0.05, hold 0.05, fall 0.15}; the
+template collar with every outline height round 1 raised by 0.0235 back at the drawn one (front V -0.48..-0.68, back
+bottom -0.905 = the design's), its cut up the neck at eye -0.4535 (the same world height); the jacket's opening with the
+collar's V above its own rows; the puffs' station (sleeve profile t -0.30). D3 reproduces round 1's D (same geometry):
+against c3_m2, better shoulder_back_line 0.0565 FAIL -> 0.0235 WARN, collar_back_lay 0.0424 FAIL -> 0.0094 PASS,
+collar_back_square 0.345 FAIL -> 0.12 WARN, collar_back_iou 0.747 -> 0.793, piece_top 0.714 WARN -> 0.771 PASS,
+art_fragments_collar 6.34 -> 3.62, art_speckle_neck 0.833 -> 1.08 PASS, hair_noise 0.0791 -> 0.0782; blocking under K:
+neck_crease 26.9 WARN -> 92.6 FAIL, collar_front_torn 0.0031 -> 0.0197 FAIL, collar_profile_torn 0 -> 0.0252 FAIL,
+shoulder_back_slope 0.102 WARN -> 0.249 FAIL, art_outline_collar 1.381 PASS -> 3.818 WARN (flag); also piece_collar
+0.756 -> 0.639 WARN, sleeve_front_profile_R / sleeve_three_quarter_profile_L PASS -> WARN. Without the station (D3np)
+shoulder_back_line 0.0612 FAIL, collar_back_lay 0.0188 WARN, art_outline_collar 2.227 WARN: the station is needed.
+
+**neck_crease located (crease.py):** not a crease in the surface. On D3 the masked skin has no vertices from the cut to
++0.04 L round the front (columns +-15 degrees): the neck there is hidden under the template collar, and the measure's
+per-height maximum radius jumps from the jaw's underside (r 0.30 L) to the chest in the V (0.31-0.42 L), a 92.6 degree
+"bend". Why the neck is hidden: outline_dist splits front from back at the chest bone's head (`front_of` 'chest'); the
+whole neck lies behind that plane, so it reads as the back panel (half-width 0.4) and the collar (and its skin mask)
+wraps the neck. Variants c3_D4 (collar outline `front_of` 'neck') and c3_D5 (D4 + the jacket's opening `front_of`
+'neck') test the split at the neck's own plane.
