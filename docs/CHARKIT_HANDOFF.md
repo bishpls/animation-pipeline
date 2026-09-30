@@ -790,6 +790,15 @@ decisions already made:
 - **tool/skirt**: the flap train touches the back of the thigh (body_profile_leg_outline 0.57, 82 rows against the
   design's 3); clawd_mh body_three_quarter_skirt_aline 0.078 WARN is accepted and belongs here.
 - **tool/outfit-source**: masks without the TRELLIS field (or the field made a required produced reference).
+- **tool/outfit-source (3d9f456): the masks come from the design sheets alone, merge held.** Scored against a hand-labelled
+  truth (charkit/refs/clawd/outfit_truth.npz, `charkit outfit score`): 0.972, against 0.865 with the TRELLIS field and
+  0.729 for the old code without it. Both gates FAIL because the garments were fitted to the old masks' errors:
+  - the waistband took part of the bodice (IoU with the truth 0.46 -> 0.96);
+  - the collar took part of the bow (its V now stops at -0.65 L as drawn, so piece_collar 0.754 -> 0.336);
+  - the skirt label now reaches its dark hem.
+  **Next round, combined:** the masks, then tool/garments2 (collar V, waistband) and tool/skirt (A-line, tuck) adapted
+  on top, through one gate. Integrator cleanups: cli.py still lists `--field`; decide whether remote.py and worktree.sh
+  still ship charkit/out/i3d; outfit_graph.json was made with the field.
 - **tool/artifacts: MERGED (815c836).** Twelve of Michael's flags are calibrated checks, capped at WARN. **Promote to FAIL
   next** (the bad build reads at least 2x the clean one, and the current build passes): spikes_boots, bumps_boots,
   bumps_legs, mirror_waist. Hold points_sleeves/bumps_sleeves at WARN until garments2's template sleeves merge (the
