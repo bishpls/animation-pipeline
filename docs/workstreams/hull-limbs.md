@@ -3,7 +3,113 @@
 Branch `tool/hull-limbs`, worktree `~/animation-pipeline-hulllimbs`. It merges tool/hull-det 3267aea, then
 tool/garment-sampling 47b401f, then pipeline-3d 2e3bdd5. tool/body round 6 merges the first two; this branch goes on top.
 
-## State (2026-09-30, relaunch): read first
+## Round 4 (2026-09-30): read first
+
+**Head** `tool/hull-limbs` 529d2bc. It merges pipeline-3d db718ae (751bddf). The gates merged it into pipeline-3d
+9397578, which adds docs only. The commits this round:
+- 227616e: `history.STEPS` registers body_profile_leg_back's measurement step, 1fd1c63;
+- 529d2bc: `docs/HULL_CONTRACT.md`, and the sidecar's `contract` (hull.CONTRACT 1, `hull.sidecar`, `hull.contract_of`),
+  with a test.
+
+The full suite passes: 39 files, local.
+
+**Gates of 529d2bc into pipeline-3d 9397578:**
+- **Default spec: PASS.**
+  - `body_profile_leg_back` 0.2071 FAIL → 0.0235 PASS (remeasured).
+  - `body_back_leg` 0.0565 → 0.0001 PASS.
+  - `piece_collar` 0.740 → 0.749 WARN.
+  - `hair_folds` 6 → 10 WARN, value only: side_lock_L 2 → 4, side_lock_R 0 → 1, lower_back 0 → 1; the flyaways stay 0.
+  - `body_profile_iou_skin` WARN → PASS.
+  - Skin and outfit IoU are up in all four views; no check changed grade for the worse.
+- **clawd_mh: FAIL** on two checks.
+  - `hair_penetration` 0.0007 PASS → 0.0484 FAIL.
+    - It is the one attributed before (below): the `lower_back` hair sits 0.048 L into the MakeHuman skin at the
+      shoulder's top, x 0.32..0.40, z -0.57..-0.59.
+    - The MakeHuman shoulder stands outside the design's hull there. The hull's shoulder lost the arm's
+      whole-side-run slab, which the smoothing had spread over it.
+    - The authored body (default spec) doesn't collide. This is for the hair's clearance against the body
+      (tool/hair3), or for clawd_mh's body.
+  - `body_three_quarter_skirt_aline` 0.026 PASS → 0.078 WARN.
+    - The evaluator reproduces 0.078. clawd_mh's skirt with the default spec's settings (aline, symmetric, hem_cut,
+      midline axis) reads 0.088, so those settings don't explain it.
+    - The check reads 12-13 rows at the skirt's hem, because the MakeHuman hands cover every other row in the
+      three-quarter. The design's value is over all its rows (every design row has a hand against it).
+    - Ours moves with one row, z -2.49: 1.845 L wide on pipeline-3d, 1.70 here. There the old skirt was fuller at the
+      back, the flap train's slab.
+    - The ratio went 0.936 → 0.988 against the design's 0.910. The default spec's value is unchanged. This is for
+      tool/skirt (the skirt's back and the flaps) and the check's row choice.
+  - Otherwise: `hair_folds` 5 → 6 WARN, `piece_collar` 0.60 → 0.61 WARN, `body_profile_leg_back` 0.2024 FAIL → 0.0188
+    PASS (remeasured), `body_front_skirt_overhang_mirror` WARN → PASS.
+
+Reports are in `charkit/out/gate/gate_tool-hull-limbs_529d2bc_into_9397578[_clawd_mh].md`.
+
+**Determinism at 529d2bc:** 44 of 46 arrays are bit-identical on the build box, the render box and the laptop. That
+includes all six outputs:
+- hull.npz `42a8586a`;
+- hull_pieces `37c28ecd`;
+- hull_labels `3b91045d`;
+- hull.ply `ef3f76e2`;
+- hull.glb `90c4f2bd`;
+- hull.glb.json `9a54eeae`.
+
+Only `head_sections` (cy, r) differ, as before: `code_base`'s, and it doesn't reach the outputs. The runs are in
+`charkit/out/hl4_stages_{build,render,laptop}`.
+
+**The leg: what the check can and can't see (the 2×2, evaluator = box).**
+The evaluator reads the same numbers as the box gate: pipeline-3d 0.2071, this branch 0.0235.
+
+| measure | pipeline-3d db718ae | this branch |
+|---|---|---|
+| body_profile_leg_back dressed, as pipeline-3d codes it (every row) | 0.2071 FAIL at -3.922 | 0.2118 FAIL at -3.922 |
+| body_profile_leg_back dressed, as 1fd1c63 codes it (leg ends' rows out) | 0.0188 PASS at -3.898 | 0.0235 PASS at -3.898 |
+| **the bare leg** (the body alone against the design's drawn skin) | **0.1083 FAIL at -2.797** | **0.0188 PASS at -3.898** |
+
+- **The fix is real, and only the bare leg shows it.**
+  - The body's thigh on pipeline-3d stands 0.108 L behind the design's at z -2.80. It was fitted to the slab.
+    code_body's leg rings reach y 0.418 at -2.79, against this branch's 0.321.
+  - Here it tracks the design's edge within 0.005 L down to the knee.
+  - The design, measured against itself, reads 0.
+- **The dressed check can't see the thigh on either tree.** The overskirt flaps (`source: flap`, refitted in 3d0d5f2:
+  `out` -0.3, `sweep` 0.364) hang against the back of the thigh on 82 of 114 rows from z -2.76 to -3.3. The design's
+  hang 0.55-1.0 L behind the thigh's back (median 0.75), with nothing touching it. The figure's outline behind the thigh
+  reaches up to 0.57 L past the design's on both trees.
+  - So on pipeline-3d the flap hides the thigh's bump, and the dressed check passes there too once the boot cuff's
+    rows are left out. Its PASS in the gate is the remeasure, not the fix.
+  - The flaps are tool/skirt's, not the hull's: the two trees' skirt and flap shells match.
+  - **The protrusion Michael sees in a dressed profile is now that flap.**
+- **For detailqa's owner:**
+  - Read `body_profile_leg_back` on the bare leg, the skin's unmasked variant (scratchpad `bareleg.py` +
+    `barecheck.py`).
+  - Add an outline check behind the leg that sees a garment hugging it (`outline.py`).
+- **For tool/skirt:** the flaps' tail should hang clear of the legs as drawn.
+
+**Outside this workstream's areas** (docs/OWNERSHIP.md, published after they were made), to confirm with the owners at
+merge:
+- detailqa.py's `leg_back_check`, 1fd1c63 (body's);
+- the `history.STEPS` entry (shared);
+- the shorts' `hem_drop` 0.03 in clawd, clawd_body and clawd_body_pieces, 56b480a (garments2's).
+  - tool/garments2 carries the identical `hem_drop` 0.03 on the shorts, at another line with `hem_level` and
+    `hem_snap`.
+  - Merging both gives the shorts two `hem_drop` keys; json keeps the last, and the values are equal. Drop this
+    branch's line at the second merge.
+  - Without it, body_back_leg goes back to WARN: the seat shows through the leg gap.
+
+**Review page:** `charkit/out/hl4/review/index.html`. It has the leg in profile beside the design (bare and dressed,
+before and after), the 2×2, the Limbs diagnostic before and after (pipeline-3d against this branch), the gates and the
+stage hashes. The generator and the measurements are in the scratchpad (`hl3/mkpage4.py`, `bareleg.py`, `barecheck.py`,
+`checkall.py`, `outline.py`).
+
+The throwaway worktrees `~/animation-pipeline-hlpin` and `~/animation-pipeline-hlbody` are removed; their branches (tmp/hull-limbs-pin, tmp/hull-limbs-on-body) are kept, never to merge. `~/animation-pipeline-hlbase` (the before, 2111d12) stays.
+
+**Open items:**
+- The dressed protrusion is the flaps (tool/skirt), and the leg check reads the dressed figure (body/integrator).
+  Details above.
+- `hair_folds` +4 on the side locks and lower back, still WARN. The hair builder reads the hull's decimated hair-mass
+  vertices, which HULL_CONTRACT.md lists as "may not rely on"; tool/hair3.
+- clawd_mh's gate FAILs on `hair_penetration` and `body_three_quarter_skirt_aline` (above): both come from the hull losing
+  a wrong slab that downstream fits had leaned on. Their fixes are the hair's and the skirt's.
+
+## Round 3 state (2026-09-30, relaunch)
 
 **Latest (after pipeline-3d b8097cf, tool/body round 6 with hull-det and garment-sampling).** Merged at 4815115. The
 round-6 merge fixed the hem regressions that were hull-det's and garment-sampling's. This branch's own three, fixed:
@@ -22,7 +128,7 @@ round-6 merge fixed the hem regressions that were hull-det's and garment-samplin
   The thigh bump still reads: before 0.108 FAIL at -2.806, LimbTrack alone 0.061 FAIL, after 0.014 PASS (box),
   0.019 PASS (b8097cf + this branch, evaluator).
 
-## Paused (2026-09-30, usage limit): read this first when resuming
+## Paused (2026-09-30, usage limit): done in round 4 (above)
 
 - **Head** `tool/hull-limbs` 39da743: pipeline-3d 53a557f merged (tool/face's carve_face hair margin, tool/eyes2). It
   merged cleanly, `clawd_body_pieces.json` still equals `clawd.json` (test_spec_alias ok) and all three authored specs
