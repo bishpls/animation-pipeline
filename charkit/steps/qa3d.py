@@ -124,8 +124,13 @@ MEASUREMENT_STEPS = [
      "graph's pieces), ours by object, not hair, iris or outfit by their colour: on 3ebc3fb's geometry iou_hair -0.013 "
      "to -0.020 (the placeholders sit where the design draws hair), iou_outfit +0.002 to +0.004, iou_cream +0.005 to "
      "+0.011"),
-    ('palette_iris_*', 'fc6269c', "the design's iris without the drawn star's pale facets (the accessory class): "
-     "palette_iris_lit 7.06 -> 1.65 on 3ebc3fb's geometry"),
+    ('palette_iris_*', 'fc6269c', "ours' iris without our clips (qa3d._scene_classes: an accessory its own class, by "
+     "object; the old code classed it by its colour family, and a yellow star is the iris's): on 3ebc3fb's geometry "
+     "ours' iris lit #ffd638 -> #f4ce67, palette_iris_lit 7.06 -> 1.65, palette_iris_shade 4.63 -> 4.65; the design's "
+     "iris is the same under both (481 px, #f8d173 / #dbab54). The old measure can't read the fitted star's geometry: "
+     "it pools the star (#fada7d, ~10x the iris plate's area) into ours' iris, whose shade share falls to 0.065 (under "
+     "paletteqa.SHADE_MIN), and paletteqa.compare drops palette_iris_shade with no entry (docs/workstreams/"
+     "accessories.md, Round 3)"),
     ('hair_piece_*', 'fc6269c', "the hair layers without the drawn clips (qa3d.hair_layers_masks: ours are occluders): "
      "bangs 0.792 -> 0.772, side_locks 0.534 -> 0.526 on 3ebc3fb's geometry"),
     ('hair_bun_*', 'fc6269c', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),

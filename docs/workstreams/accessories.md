@@ -5,12 +5,47 @@ placeholders in `charkit/accessories.py` were a thin stretched four-point star a
 them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
 remodels and places them.
 
-## State: Round 2 (`tool/accessories2`), gated: FAIL under K (3 blockers, below); decisions for Michael
+## State: Round 3 (`tool/accessories2`): the three blockers of Round 2's gate (below), in progress
 
 Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
 pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
 selection for the build and the evaluator. Harness, logs and pictures (gitignored): `charkit/out/acc_work/`; the
 3ebc3fb baseline box build `charkit/out/acc_base2` (its own QA `qa/`, the new code's QA on its bundle `qa_new/`).
+
+## Round 3 (`tool/accessories2`, continued): the gate's three blockers
+
+### Michael's decisions (2026-09-30, through the coordinator)
+1. **Which view the clips honour:** the clips balance between the front and side views, the current compromise: the
+   placement fit keeps its view weighting (front and three-quarter 1, profile 0.6).
+2. **The star's outline:** the default dark brown outline is fine for the star (the golden `line` stays dropped).
+
+### Blocker 2: `palette_iris_shade` (the 2x2's crossed cell, unmeasured)
+**The cause is the palette's classes, not the crab's reclass.** Measured with each tree's own code on the box builds'
+bundles (`acc_work/r3`, `pal_probe.py`; the old code from a detached worktree at 3a0ad37):
+
+| cell | ours' iris texels (kept by the colour rule) | ours' iris lit / shade | shade share | iris_lit | iris_shade |
+|---|---|---|---|---|---|
+| old measure, old geometry (3ebc3fb placeholders) | 1276 (276) | #ffd638 / #ecaf39 | 0.214 | 7.06 WARN | 4.63 PASS |
+| old measure, new geometry (the fitted clips) | 1500 (500) | #fada7d / none | 0.065 | 2.68 PASS | **no entry** |
+| new measure, either geometry | 1244 (244) | #f4ce67 / #ecad38 | 0.609 | 1.65 PASS | 4.65 PASS |
+
+- The design's iris is the same under both measures (481 px, lit #f8d173, shade #dbab54): the reclass of the drawn
+  clips doesn't touch it (the iris is taken in the eye band only). What changed is ours: the old `_scene_classes` put an
+  accessory in its colour family, and a yellow star is the iris's. The placeholder star (#ffd638) joined our iris too
+  (hence iris_lit 7.06), but it was small: the shade share stayed 0.214. The fitted star (#fada7d, the drawing's own
+  colour) is about 10x the iris plate's area, so the old measure's iris is the star: one tone (share 0.065, under
+  `paletteqa.SHADE_MIN` 0.08), and `paletteqa.compare` skips a class's shade tone when ours has none and the design has
+  one, with no entry at all (not even SKIPPED).
+- So the check is registered correctly (`palette_iris_*`, the step at fc6269c: its text was wrong, it said the design's
+  star facets; now it says what moves) and the geometry doesn't move it under the new measure (4.65 on both; the
+  iris plate's texels are the same 244). Its old-measure cell on the new geometry can't be measured by construction:
+  the old measure reads the new star as the iris. No change on this branch can make the base's code read it.
+- Not a gate bug: the gate does what policy K says (a crossed cell that can't be measured blocks). Two things for infra,
+  with this as the evidence: (1) `paletteqa.compare` drops a check silently when ours loses a tone the design has (it
+  should report it, graded or SKIPPED with why), so the gate can only say "unmeasured", not why; (2) a remeasure that
+  fixes a measure the new geometry breaks (here: the old classes can't tell the new star from the iris) can never fill
+  its old-measure cell. The clean route is to land the measure change on its own first (the QA's reclass alone, with
+  the geometry unchanged: no 2x2), then the geometry under one measure. See "The split" below.
 
 ## Round 2
 

@@ -16,6 +16,9 @@ An accessory spec:
                          until its lowest point rests on the outermost hair under it (and on the clips listed before
                          it: list the one drawn underneath first), plus 'lift' L; buns are the hair volume's pads and
                          keep the volume's placement
+  conform                a clip drawn over another (the star over the crab): it rests on the hair alone and bends
+                         over the clips listed before it where they lie under its outline (conform()): True, or
+                         {'reach': L (how far the bend spreads round what it covers), 'clear': L (its back over them)}
   color, eye_color, material, line
 """
 import math
@@ -23,7 +26,9 @@ import numpy as np
 
 # a kind's shape knobs (the neutral defaults: a character's spec carries its measured ones)
 STAR = dict(points=4, up=0.5, down=0.5, side=0.4, minor=0.0, inner=0.14, curve=0.3, depth=0.09, thick=0.03, segs=4,
-            minor_at=45.0)
+            minor_at=45.0, rings=1)
+CONFORM = dict(reach=0.1, clear=0.004, rings=8, curve=False)   # conform's defaults (L; a conformed star's rings, so it
+#                                                                 can bend; curve: to the hair's curvature first)
 CRAB = dict(body_h=0.72, body_d=0.42, claw=0.3, claw_at=(0.62, 0.52), claw_notch=55.0, claw_up=35.0, arm=0.07,
             eyes=0.055, eye_at=(0.13, 0.36), stalk=0.1, legs=3, leg=0.28, leg_r=0.035, leg_span=(-10.0, -60.0))
 
@@ -155,19 +160,32 @@ def star_outline(shape=None):
 def star(shape=None):
     """a star clip, its back on the z = 0 plane, facing +z: the outline (star_outline) as a rim `thick` deep, the
     middle raised `depth` over it in facets from the rim to an apex (two per point: a drawn star's lit and shaded halves).
-    -> (verts, faces), height (up + down) as in the shape (1 for the defaults)."""
+    `rings` > 1 splits the back and each facet into that many bands from the rim in (the same flat surface, vertices
+    inside it for conform() to bend). -> (verts, faces), height (up + down) as in the shape (1 for the defaults). The
+    vertices: the back's outline (m), the front's (m), the rings' (back then front, each ring m, the rim's first), the
+    back's centre, the apex."""
     S = dict(STAR, **(shape or {}))
     R = star_outline(S)
     m = len(R)
     th, dp = S['thick'], S['depth']
-    V = [(x, y, 0.0) for x, y in R] + [(x, y, th) for x, y in R] + [(0.0, 0.0, 0.0), (0.0, 0.0, th + dp)]
-    cb, cf = 2 * m, 2 * m + 1
+    nr = max(1, int(S.get('rings', 1)))
+    fr = [1.0 - j / nr for j in range(1, nr)]                  # the rings' share of the outline, the rim's first
+    V = [(x, y, 0.0) for x, y in R] + [(x, y, th) for x, y in R]
+    V += [(f * x, f * y, 0.0) for f in fr for x, y in R]
+    V += [(f * x, f * y, th + dp * (1 - f)) for f in fr for x, y in R]
+    V += [(0.0, 0.0, 0.0), (0.0, 0.0, th + dp)]
+    cb, cf = len(V) - 2, len(V) - 1
+    back = [list(range(m))] + [list(range(2 * m + j * m, 2 * m + (j + 1) * m)) for j in range(nr - 1)]
+    front = [list(range(m, 2 * m))] + [list(range(2 * m + (nr - 1 + j) * m, 2 * m + (nr + j) * m)) for j in range(nr - 1)]
     F = []
     for k in range(m):
         k2 = (k + 1) % m
-        F.append((cb, k, k2))                                  # the back (faces -z: its outline's winding is clockwise)
-        F.append((cf, m + k2, m + k))                          # the front facets
+        F.append((cb, back[-1][k], back[-1][k2]))              # the back (faces -z: its outline's winding is clockwise)
+        F.append((cf, front[-1][k2], front[-1][k]))            # the front facets (their innermost band: to the apex)
         F.append((k, m + k, m + k2, k2))                       # the rim
+        for j in range(nr - 1):                                # the bands, rim inward (each in its facet's plane)
+            F.append((back[j + 1][k], back[j][k], back[j][k2], back[j + 1][k2]))
+            F.append((front[j + 1][k2], front[j][k2], front[j][k], front[j + 1][k]))
     return np.array(V, float), F
 
 
@@ -320,10 +338,10 @@ def anchor(s, L, V=None, centre=None):
     return p, (p - o) / max(1e-12, np.linalg.norm(p - o))
 
 
-def place(v, s, L, V=None, centre=None, ground=None):
+def place(v, s, L, V=None, centre=None, ground=None, frame=False):
     """a clip's local geometry (its back on z = 0, facing +z, in L) placed: anchored on the hair (anchor()), facing
     s['facing'] or the surface's normal, spun by 'tilt', and with the ground given, pushed out along its facing until
-    its lowest point rests on the ground, plus 'lift'. -> world verts."""
+    its lowest point rests on the ground, plus 'lift'. -> world verts (and its axes, columns x, y, z, with frame)."""
     p, out = anchor(s, L, V, centre)
     size = s.get('size', 0.2) * L
     if s.get('facing') is not None:
@@ -352,7 +370,85 @@ def place(v, s, L, V=None, centre=None, ground=None):
             w = w + fz * (s.get('lift', 0.0) * L - h[ok].min())
     else:
         w = w + Rm[:, 2] * s.get('lift', 0.0) * L
-    return w
+    return (w, Rm) if frame else w
+
+
+def _inside(P, poly):
+    """points (n, 2) inside a closed polygon (k, 2) (even-odd) -> bool (n,)."""
+    x, y = P[:, 0][:, None], P[:, 1][:, None]
+    a, b = poly, np.roll(poly, -1, 0)
+    cross = (a[:, 1] > y) != (b[:, 1] > y)
+    xi = a[:, 0] + (y - a[:, 1]) * (b[:, 0] - a[:, 0]) / np.where(b[:, 1] == a[:, 1], 1e-12, b[:, 1] - a[:, 1])
+    return ((cross & (x < xi)).sum(1) % 2) == 1
+
+
+def curve_to(w, Rm, hair, L, clear=0.004, near=0.12):
+    """a placed clip curved to the hair under it (a big flat clip on a round head floats at its tips and, from behind,
+    shows past the hair): the hair's height under each vertex (cast down along the facing; only hair within `near` L of
+    its back: a ray past the head's edge finds hair far behind it), a quadratic about its middle least-squares fitted to
+    them, every vertex moved along the facing by that quadratic's curvature (its constant and slope dropped: the
+    placement's plane and facing stay), then the whole moved along the facing so the vertex nearest the hair under it
+    is `clear` over it (its thickness kept: back and front move together). -> (world verts, the bend in L)."""
+    w = np.asarray(w, float)
+    q = (w - w.mean(0)) @ Rm
+    G = Ground(); G.meshes = list(hair)
+    H = 4.0 * L
+    back = q[:, 2].min()
+    hz = back + H - G.cast(w + Rm[:, 2][None] * (H - (q[:, 2] - back))[:, None], -Rm[:, 2], 2 * H)
+    hit = np.isfinite(hz) & (np.abs(hz - back) < near * L)
+    if hit.sum() < 12:
+        return w, 0.0
+    X = lambda P: np.c_[np.ones(len(P)), P[:, 0], P[:, 1], P[:, 0] ** 2, P[:, 0] * P[:, 1], P[:, 1] ** 2]
+    cf = np.linalg.lstsq(X(q[hit, :2]), hz[hit], rcond=None)[0]
+    cf[:3] = 0.0                                                    # the curvature only
+    dz = X(q[:, :2]) @ cf
+    gap = (q[hit, 2] + dz[hit]) - hz[hit]                           # each vertex's height over the hair under it
+    return w + Rm[:, 2][None] * (dz + clear * L - gap.min())[:, None], float(np.ptp(dz) / L)
+
+
+def conform(w, Rm, outline, under, L, reach=0.1, clear=0.004):
+    """a placed clip bent over what lies under it (the star over the crab, Michael's call: shaped to the clip under
+    it, so it neither floats on it nor lets it poke through): w its world verts (seated on the hair), Rm its axes
+    (columns x, y, z = its facing), outline the indices of its back's outline, under [(verts, faces)] the clips it is
+    drawn over. Each point of those clips inside the outline (or within `clear` of it) that rises above the clip's back
+    needs the back `clear` L over it there; every vertex is lifted along the facing by the smooth envelope of those
+    needs, each spread over `reach` L round its point ((1 - s^2)^2), so the back and the front move together (its
+    thickness kept) and the rest stays on the hair. -> (world verts, the largest lift in L)."""
+    q = (np.asarray(w, float) - w[outline[0]]) @ Rm                  # the clip's own frame (z along its facing)
+    back = q[outline, 2].min()
+    poly = q[outline, :2]
+    pts = []
+    for V, F in under:
+        V = np.asarray(V, float)
+        T = [f for f in F if len(f) >= 3]
+        cen = np.array([V[list(f)].mean(0) for f in T]) if T else np.zeros((0, 3))
+        pts.append(np.vstack([V, cen]))
+    if not pts:
+        return w, 0.0
+    c = (np.vstack(pts) - w[outline[0]]) @ Rm
+    near = _inside(c[:, :2], poly)
+    if not near.all():                                              # within `clear` of the outline: the rim too
+        d = np.min(np.linalg.norm(c[~near, None, :2] - poly[None], axis=2), 1)
+        near[np.nonzero(~near)[0][d < clear * L]] = True
+    # and exactly under each of the clip's own vertices: the top of what lies under it, cast down along the facing
+    G = Ground(); G.meshes = [(np.asarray(V, float), F) for V, F in under]
+    H = 4.0 * L
+    top = (H - G.cast(np.asarray(w, float) + Rm[:, 2] * (H - (q[:, 2] - back)[:, None]), -Rm[:, 2], 2 * H)) + back
+    hit = np.isfinite(top)
+    c = np.vstack([c, np.c_[q[hit, :2], top[hit]]])
+    near = np.r_[near, np.ones(hit.sum(), bool)]
+    need = c[:, 2] - back + clear * L
+    sel = near & (need > 0)
+    if not sel.any():
+        return w, 0.0
+    c, need = c[sel], need[sel]
+    r = reach * L
+    lift = np.zeros(len(q))
+    for i0 in range(0, len(c), 256):
+        dd = np.linalg.norm(q[:, None, :2] - c[None, i0:i0 + 256, :2], axis=2) / r
+        k = np.clip(1 - dd ** 2, 0, None) ** 2
+        lift = np.maximum(lift, (k * need[None, i0:i0 + 256]).max(1))
+    return w + Rm[:, 2][None] * lift[:, None], float(lift.max() / L)
 
 
 def generate(V, L, specs, ground=None, centre=None, with_mats=False):
@@ -362,6 +458,7 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
     centre: the head's centre ('at' placements)."""
     out = []
     G = Ground(ground) if ground is not None else None
+    nh = len(G.meshes) if G is not None else 0                   # the hair's surfaces (then the clips placed so far)
     for i, s in enumerate(specs or []):
         k = s['kind']
         size = s.get('size', 0.2) * L
@@ -380,12 +477,31 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
             v = v * size + np.array([0, 0, 0.28 * size])
             w = p + v @ R.T
         elif k in ('star', 'crab'):
+            cf = s.get('conform')
+            cf = dict(CONFORM, **(cf if isinstance(cf, dict) else {})) if cf else None
             if k == 'star':
-                v, f = star(s.get('shape'))
+                sh = dict(s.get('shape') or {})
+                if cf and 'rings' not in sh:
+                    sh['rings'] = cf['rings']
+                v, f = star(sh)
                 v = v / max(1e-9, v[:, 1].max() - v[:, 1].min())       # the height tip to tip: 1 (then size L)
+                rim = np.arange(len(star_outline(sh)))
             else:
                 v, f, mats = crab(s.get('shape'))                         # the body 1 wide (size L)
-            w = place(v, s, L, V, centre, G)
+                rim = None
+            if cf and k == 'star' and G is not None and nh:
+                # resting on the hair alone (curved to it with 'curve'), then bent over the clips placed before it
+                gh = Ground(); gh.meshes = G.meshes[:nh]
+                w, Rm = place(v, s, L, V, centre, gh, frame=True)
+                bend = 0.0
+                if cf.get('curve'):
+                    w, bend = curve_to(w, Rm, gh.meshes, L, cf['clear'])
+                lift = 0.0
+                if len(G.meshes) > nh:
+                    w, lift = conform(w, Rm, rim, G.meshes[nh:], L, cf['reach'], cf['clear'])
+                s = dict(s, conform_lift=round(lift, 4), conform_curve=round(bend, 4))   # (L: for the QA's table)
+            else:
+                w = place(v, s, L, V, centre, G)
             if G is not None:
                 G.add(w, f)
         else:
