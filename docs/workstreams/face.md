@@ -909,3 +909,10 @@ build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow
   chin_underside 12.8 -> 14.2, hair_penetration FAIL -> PASS, art_terminator_hair 2.376 -> 2.433.
 - pipeline-3d moved to ae7fd45 (tool/mouth2); merged into both branches (clean).
 - Gate: tool/face4-crown (0790749) into pipeline-3d ae7fd45: `gate-face-0930-084209-4180`.
+- **Gate tool/face4-crown** (0790749 into pipeline-3d ae7fd45): **PASS under K**
+  (`charkit/out/gate/gate_tool-face4-crown_0790749_into_ae7fd45.md`). Nothing blocks. hair_penetration 0.0124 FAIL -> 0
+  PASS; flag check art_terminator_hair 2.376 -> 2.433 (WARN grade both, +2.4%); values: expr_*_brow 0.3-13% (INFO),
+  hair_noise 0.0748 -> 0.0745, the face's shading within 0.5%. CPU 1.11x. The jaw checks don't move (ae7fd45's are
+  b43c15e's: mouth2's gate moved only art_fragments_face on the rest face).
+- Gate tool/face4 (crown, exact normals, the chin at share 0.59) into pipeline-3d ae7fd45 next; the review page:
+  `charkit/out/face_review/round4/index.html`.

@@ -6,7 +6,7 @@ jaw checks' own traces, ours with the hair hidden). Then the lower outline and t
 build: the jaw's checks as graded (the boards' camera) with the level camera's beside, the crown (skin faces facing
 in over the head's top), hair_penetration and the face's folds from each build's QA.
 
-    python face4_page.py OUT_DIR BUILD [BUILD ...] [--labels a,b] [--level DIR,DIR] [--also LABEL=BUILD,...]
+    python face4_page.py OUT_DIR BUILD [BUILD ...] [--labels a,b] [--level DIR,DIR] [--also LABEL=BUILD,...] [--head SNIPPET.html]
 
 BUILD: a build folder (bundle/, qa/qa.json, boards/). --level: each build's face_level.py output (default BUILD/level).
 --also: more builds whose art_terminator_hair goes in the hair's table (e.g. the crown alone). Prints the page's path."""
@@ -29,8 +29,9 @@ SHOW = ('chin_angle', 'chin_tip', 'jaw_line_bend', 'jaw_taper_shape', 'tq_jaw_no
         'chin_point_z', 'chin_v', 'chin_underside', 'neck_front_wiggle', 'jaw_line_front', 'jaw_line_three_quarter')
 QA = ('hair_penetration', 'art_terminator_hair', 'hair_noise', 'face_folds', 'neck_crease', 'profile_edge', 'sheet_width',
       'body_profile_iou_skin')
+LOCK_BOXES = (('her left', (540, 260, 880, 760)), ('her right', (20, 260, 360, 760)))   # face_000's side locks
 BOARDS = (('face_000', 'front'), ('face_030', '30 degrees'), ('face_090', 'profile'))
-CHIN_BOX = (250, 430, 650, 830)                    # the boards' face pictures (900 px): the chin and jaw, 1:1
+CHIN_BOX = (290, 540, 610, 770)                    # the boards' face pictures (900 px): the chin and jaw, 1.5x
 
 
 def level_crop(level_dir, view, B, top, bot, half, tag='hair'):
@@ -85,7 +86,7 @@ def cell(v):
 def main(args):
     out, rest = args[0], args[1:]
     opt = lambda k: rest[rest.index(k) + 1] if k in rest else None
-    flags = {'--labels', '--level', '--also'}
+    flags = {'--labels', '--level', '--also', '--head'}
     also = [a.split('=', 1) for a in opt('--also').split(',')] if opt('--also') else []
     builds = [a for i, a in enumerate(rest) if a not in flags and (i == 0 or rest[i - 1] not in flags)]
     labels = (opt('--labels') or ','.join(os.path.basename(b.rstrip('/')) for b in builds)).split(',')
@@ -135,6 +136,8 @@ def main(args):
          'Red: the design\'s traced outline (its rows over the dashed line are where its side locks cover the face\'s '
          'edge); blue: each build\'s own, traced in the level camera with the hair hidden. The checks grade the boards\' '
          'camera (85 mm, 1 m, 6 degrees over the chin); the level camera\'s value is beside each.</p>' % PPL]
+    if opt('--head'):                                  # (the round's summary and open decisions, an HTML snippet)
+        P.insert(2, open(opt('--head')).read())
     for view, _ in VIEWS:
         top, bot, half = CROP[view]
         for tag in ('hair', 'bare'):
@@ -159,7 +162,7 @@ def main(args):
                     html.escape(os.path.abspath(os.path.join(lv, 'level_%s_%s.png' % (view, tag)))), view, tag))
             P.append('</div>')
     P.append('<h2>The boards\' camera (the one the jaw checks grade: 85 mm, 1 m, 6 degrees over the chin)</h2>'
-             '<p class="note">Each build\'s own boards (EEVEE, the render box), whole at half size and the chin 1:1. The hair '
+             '<p class="note">Each build\'s own boards (EEVEE, the render box), whole at half size and the chin at 1.5x. The hair '
              'is in these: the side locks\' shading is the terminator section\'s.</p>')
     for board, name in BOARDS:
         P.append('<div class="row">')
@@ -171,7 +174,7 @@ def main(args):
             P.append('<div class="tile"><img src="%s" width="450">%s, %s <a href="%s">%s.png</a></div>' % (
                 save(im, '%s_%s.png' % (lab, board)), html.escape(lab), name, html.escape(os.path.abspath(fp)), board))
             if board == 'face_000':
-                P.append('<div class="tile"><img src="%s" width="400">%s, the chin 1:1</div>' % (
+                P.append('<div class="tile"><img src="%s" width="480">%s, the chin 1.5x</div>' % (
                     save(im.crop(CHIN_BOX), '%s_%s_chin.png' % (lab, board)), html.escape(lab)))
         P.append('</div>')
     P.append('<h2>The hair\'s shading: art_terminator_hair (the torn hair shadow patches, look_v5)</h2>'
@@ -188,7 +191,17 @@ def main(args):
         P.append('<tr><td>%s</td><td>%s</td><td class="%s">%s</td>%s</tr>' % (
             html.escape(lab), q.get('value'), q.get('grade', ''), q.get('grade', ''),
             ''.join('<td>%s</td>' % pv.get(v) for v in ('front', 'three_quarter', 'profile', 'back'))))
-    P.append('</table><div class="row">')
+    P.append('</table>')
+    for side, box in LOCK_BOXES:
+        P.append('<div class="row">')
+        for b, lab in zip(builds, labels):
+            fp = os.path.join(b, 'boards', 'face_000.png')
+            if os.path.exists(fp):
+                im = Image.open(fp).convert('RGB').crop(box)
+                P.append('<div class="tile"><img src="%s" width="%d">%s, %s side lock (the boards\' front, 1:1)</div>' % (
+                    save(im, '%s_lock_%s.png' % (lab, side)), im.size[0], html.escape(lab), side))
+        P.append('</div>')
+    P.append('<div class="row">')
     for b, lab in zip(builds, labels):
         fp = os.path.join(b, 'qa', 'qa_artifacts.png')
         if os.path.exists(fp):
