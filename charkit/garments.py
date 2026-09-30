@@ -700,13 +700,14 @@ ARM_BONES = ('LowerArm', 'Hand', 'Thumb', 'Index', 'Middle', 'Ring', 'Little')
 
 
 def arm_points(A, spec=None, hull=None, w_min=0.3):
-    """the hands', fingers' and forearms' skin at bind (their bones' weight over w_min), and the wrist bands built on the
-    forearms (band_hull, from the whole spec in `_spec`): what a skirt hanging beside the arms must clear."""
+    """the hands', fingers' and forearms' skin at bind (their bones' weight over w_min), and (clear_bands, default) the
+    wrist bands built on the forearms (band_hull, from the whole spec in `_spec`): what a skirt hanging beside the arms
+    must clear."""
     W = A['weights']
     w = sum((np.asarray(W[b]) for b in W if any(k in b for k in ARM_BONES)), np.zeros(len(A['verts'])))
     P = [A['verts'][w > w_min]]
     whole = (spec or {}).get('_spec') or {}
-    for g in whole.get('garments', []):
+    for g in (whole.get('garments', []) if (spec or {}).get('clear_bands', True) else []):
         if g.get('kind') == 'band' and 'LowerArm' in g.get('bone', '') and g.get('source') == 'hull' and hull:
             P.append(np.asarray(band_hull(A, g, hull)['verts']))
     return np.concatenate(P)

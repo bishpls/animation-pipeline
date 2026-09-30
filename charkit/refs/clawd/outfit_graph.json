@@ -1102,7 +1102,7 @@
    "layer": {
     "n": 3,
     "over": ["shorts"],
-    "under": ["overskirt_panel_L", "overskirt_panel_R", "waistband"]
+    "under": ["cuff_L", "cuff_R", "overskirt_panel_L", "overskirt_panel_R", "waistband"]
    },
    "extent": {
     "rig": {
@@ -2811,7 +2811,7 @@
    },
    "layer": {
     "n": 1,
-    "over": [],
+    "over": ["skirt"],
     "under": []
    },
    "extent": {
@@ -2948,7 +2948,7 @@
    },
    "layer": {
     "n": 1,
-    "over": [],
+    "over": ["skirt"],
     "under": []
    },
    "extent": {
