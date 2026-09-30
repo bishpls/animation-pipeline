@@ -286,3 +286,11 @@ from another, key by key; `charkit/out/hairtag/r2/a1`, `a2`):
 carry-over gates, mouth2); only the qa3d steps list conflicted (both kept). Box builds of the merged head, default
 spec, `crown_trim` off (`charkit/out/h5_off`) and on (`h5_crown`, spec `charkit/out/h5spec/clawd_crown.json`): the
 coordinator's question, whether the crown trim holds art_terminator_hair under 2.5 on the exact normals.
+
+**The side locks' loss (new measure 0.536 -> 0.528, profile 0.501 -> 0.475)** is the profile's lower-back labels
+(`charkit/out/hairtag/r2/a3`): with the old profile lower back on the hull (everything else new), the new geometry reads
+side locks 0.538, upper back 0.772, lower back 0.605 (all at or above the old geometry's), but folds 12. The new
+profile lower back is the shadow tone below the head (the truth's rule 2, call B), and the hull's labeller gives each
+point the view that faces it most squarely: at the jaw that is the profile, so points the front view draws as side
+lock become lower back. A labeller that weighs the views' agreement (not only the squarest view) is the next step.
+Not a mask error: the new masks' remaining profile error runs the other way (lower back called side locks, 1,050 px).
