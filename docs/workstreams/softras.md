@@ -382,8 +382,8 @@ Reading it:
 The gradient is now unbiased on both pilots (the chain within 0.99-1.07x of the soft J's own differences on every
 knob), so what's left between it and coordinate descent is cost, and the cost is the builder: 85-90% of the sleeve's
 gradient fit, ~50% of the flap's. An analytic dV/dknob (or a builder Jacobian by forward-mode / complex step through
-the builder) removes 14 of the 15 builds a gradient; the sleeve's fit from g would take ~3.5 s against CD's 6.6, from
-far ~3 s against 22.3. Cheaper stopgaps: one-sided differences (7 builds, half; the limiter needs both sides at
+the builder) removes 14 of the 15 builds a gradient; with the Jacobian itself cheap, the sleeve's fit from g would take
+~5 s (its renders 3.2 s plus one build an evaluation) against CD's 6.6, from far (s 1) ~4 s against 22.3. Cheaper stopgaps: one-sided differences (7 builds, half; the limiter needs both sides at
 re-sampling events, which the sleeve's knobs don't have) or the builds in parallel (fitkit's Pool).
 
 ## Log
