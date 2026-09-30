@@ -726,6 +726,58 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## State at the end of 2026-09-29 (read first)
+
+- **The default spec is the authored character** (`8e2797e`): `charkit/spec/clawd.json` is the code-built head and
+  body with hair pieces. The MakeHuman base is `clawd_mh.json`, and `clawd_body_pieces.json` is an identical alias
+  (edit both until the notes stop naming it). On the default spec: 91 PASS, 20 WARN, 9 FAIL.
+- **Merged today:**
+  - body rounds 2 and 4 (Michael: "much better"; the pleated skirt a "massive improvement");
+  - the look (camera key, ink lines, face shadow) and its QA speedup;
+  - hair detail (block buns, fringe);
+  - render batching (boards 2.3× faster, bit-identical);
+  - references extension (off);
+  - stamps covering file inputs;
+  - loft robustness;
+  - parallel gates (CPU-time slowness check);
+  - unshare;
+  - the sync fixes.
+- **Two root causes found today; don't reintroduce them:**
+  - A sync from a worktree without `charkit/out/i3d` wiped the box copy's. The outfit masks were then built without
+    the TRELLIS field: a wrong hull, and `garments.sleeve_hull` failing. Sync now leaves `i3d` alone and seeds it, and
+    new worktrees clone it.
+  - The masks' stamp didn't cover that field (tool/stamp-spec fixes this). Worktrees seeded with `cp -al` rewrote
+    produced files through hard links (cache.unshare fixes this).
+- **Concurrency:** about 5 lean agents at once. The five-hour usage limit is shared with Michael's other sessions,
+  and 13 at once used 63% of it in 100 minutes. Pause to notes and relaunch lean, per the memory note.
+- **Running at the end of the day:**
+  - tool/face: the chin and jaw overhang;
+  - tool/eyes2: profile gaze and pupil shape;
+  - tool/hull-det: bit-identical hulls on three machines;
+  - tool/body round 5: the midriff seam, and boots rebuilt as a template (heel, scrunch, flat symmetric sole, no
+    doubled toe line).
+- **Paused, each with a notes file with state and next steps:**
+  - tool/look2: cast shadows built but not validated; `docs/workstreams/look.md` "Paused";
+  - tool/rig: R1 and all volumes PASS; sleeves at a raised arm and a cache test left; `rig.md`;
+  - tool/hull-limbs: side-view limb labels; a gate regression to attribute; `hull-limbs.md`;
+  - tool/artifacts: jaggedness detectors; both gates PASS; fix the design-measure stamp first; `artifacts.md`;
+  - tool/accessories: an 8-point star and the crab, placement fit unfinished; `accessories.md`;
+  - tool/perceptual: DINOv3 review metric, calibration not yet run; `perceptual.md`;
+  - tool/hair3: fragments and edge measures done, fixes next; `hair.md` "Round 3";
+  - tool/mouth: a mouth lab, laugh and yawn refit, new mouths started; `mouth.md`;
+  - tool/motion: ring constraints and foot IK, ungated; `motion.md`.
+- **Waiting on Michael:**
+  - board light (A) and outline ink (B), with renders on tool/look's review page;
+  - hair relief and side-lock clamp, and eye flatness and brow (option renders coming into
+    `charkit/out/decisions/`);
+  - the flap train, hang or sweep (round 5 renders it);
+  - the Kimodo licence (its text encoder is Llama 3).
+- **Follow-ups not assigned:**
+  - key gate baselines on the produced references' stamps;
+  - make a missing TRELLIS field fail loudly;
+  - benchmark the render box's SLOTS;
+  - prune the box's temporary copies (bis*, stampspec-*, render-*).
+
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
 Michael's next steps after the code-authored head: cut-piece hair and garments, the eye and mouth engine overhaul,
