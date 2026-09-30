@@ -5,6 +5,10 @@
 The branch, gates, numbers, open items and gotchas are in `docs/workstreams/garments.md` (its checkpoint section);
 the body and the garments share `tool/body`.
 
+Round 4 (2026-09-30), body-side: the collar now seats on the design's neckline per azimuth (below tool/face's cut, so
+it holds on their slender neck); the skirt clears the hands, forearms and wrist bands at bind (`clear_hands`, tool/rig's
+finding). Details in garments.md's round 4 checkpoint.
+
 The body-side state:
 - **Chest in profile:** `body_profile_chest` is 0.036 L flatter than the design (WARN). What remains is the bow's
   very top and bottom rows (z −0.65 and −0.90 L).

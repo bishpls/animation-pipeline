@@ -1,6 +1,83 @@
 # Garments as pieces (tool/garments)
 
-## Checkpoint: end of round 3 (2026-09-29). Start here.
+## Checkpoint: end of round 4 (2026-09-30). Start here.
+
+**Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`); it contains `pipeline-3d` f2d0ea7 (the sync
+that keeps i3d) and `tool/loft-robust`. Both specs, `clawd_body.json` and the now-tracked `clawd_body_pieces.json`,
+carry the same garments.
+
+**Gates** (tool/body into pipeline-3d, on the build box):
+
+| gate | verdict | detail |
+|---|---|---|
+| 6d1ca99 (the round 3 refit) default | WARN | build time only (the two gates ran at once; gate-cpu now times CPU) |
+| 6d1ca99 clawd_body | FAIL | body_three_quarter_hem_mid 0.009 PASS -> -0.348 FAIL: the refit's inward tails crossed the middle |
+| 510e6ae default | **PASS** | `charkit/out/gate/gate_tool-body_510e6ae_into_f2d0ea7.md` |
+| 510e6ae clawd_body | **FAIL** | one check: body_three_quarter_iou 0.864 PASS -> 0.839 WARN (the flaps' tails in three-quarter; round 3's flaps read 0.859 in the evaluator but fail hem_mid, and no tail direction reached 0.85 with the rest held). hem_mid 0.014 PASS; poke_share 0.0203 FAIL -> 0.0008 PASS; profile skin, three-quarter hem, collar improved. `..._clawd_body.md` |
+| tool/loft-robust a0b66a3, both specs | **PASS** | reports in `~/animation-pipeline-loft/charkit/out/gate` |
+
+**What round 4 did** (numbers: the evaluator on body3's codes unless marked *box*):
+- **Flaps.** `garments.flap` has a V hem (`tip`), a stepped silhouette (`stair` treads a side), and a waist centre
+  (`az_waist`; `narrow` above 1 is wider at the waist). The spec's flaps are fitted on the build box's hull with the
+  skin IoUs, hems and hem_mid as constraints (profile and back weighted 1.5): az 143.8, az_waist 170.4, width 0.688,
+  narrow 1.03, length 0.36, train 0.81, tip 0.91, out -0.22, sweep 0.36, stair 4, 32 columns, hem texture steps 3.
+  Their colour is now the skirt's (the drawing's lit #d47a55; the spec had held the shade tone, hence "dark wedges").
+  The render (`charkit/out/body4_render`) reads as the design: panels over the back sides, a train in profile.
+- **The 2 x 2** (evaluator, only the flaps swapped, everything else round 3's; iou_tol L / R):
+
+  | flap geometry | old measure (panels under the skirt) | new measure (over it) |
+  |---|---|---|
+  | round 2 (849b9a7, template panels) | 0.525 / 0.582 | 0.456 / 0.526 |
+  | round 3 (696f957, first flaps) | 0.312 / 0.381 | 0.348 / 0.449 |
+  | round 3 refit (be410e0) | 0.333 / 0.475 | 0.389 / 0.592 |
+  | round 4 | 0.335 / 0.321 | 0.465 / 0.448 |
+
+  On the old measure round 3 was a regression on both sides that "remeasured" hid; on the render comparison it's
+  the other way (see the review page).
+- **Collar on the neckline** (`collar_hull`, `neckline: hull`, default): each azimuth starts at the hull collar's
+  upper edge round the neck (-0.51..-0.55 L at the back and sides against the level ring's -0.46, which rode up the
+  neck like a turtleneck); `keep_edge` shortens each walk by its drop so the outer edge stays. Below tool/face's cut
+  (-0.52) the body is the same on both branches, so the seat holds on their slender neck. piece_collar 0.763 -> 0.768.
+- **Torn tips** (the new `torn` measure: per piece and view, components, fragments under 2% of the largest, outline
+  roughness; fine z-buffer 250 px/L round the chest): the collar's V was cut by whole quads (a staircase: the torn lapel
+  tip) and is now resampled edge to edge per row (`v_edge: exact`); the bow's conform shift is smoothed
+  (`front_smooth`, `conform_smooth`: its grid stepped the lobes' edges and pushed a lobe into the collar). Collar
+  fragments 4 -> 2 (share 0.0023 -> 0.0006), the top's 2 -> 0 (at 667 px/L).
+- **Hands clear of the skirt** (tool/rig's finding): `skirt_hull` `clear_hands` 0.05 L caps the skirt's radius clear
+  of the hands, fingers, forearms and wrist bands at bind (a cone round each point). Points inside the skirt: 410 skin +
+  627 band -> 0 (nearest 0.036 L); *box* poke_share 0.0134 WARN -> 0.0008 PASS; skirt widths unchanged. Cost: the
+  drawing lays the (same-orange) skirt over the cuffs' inner edges, so the notes now put the cuffs over the skirt
+  (same-colour rule, registered in history).
+- **Loft robustness** (task 5): `tool/loft-robust` (bbc9247), merged here. See the handoff's note on i3d: the fresh
+  copies' sleeve failure was masks built without the TRELLIS field.
+- **flapchains**: parses the notes whole (multi-line entries); the chains are written. The graph keeps the drawing's
+  chain as `drawn_chains` and `piece_*_hang` measures against it (the built chain would compare the flap with itself).
+  tool/rig: the built chains are in `refs/clawd/outfit_graph.json` springs (source 'notes (the built flap)').
+
+**Review page:** `charkit/out/review_body4/index.html` (the design over round 3 and round 4 at 0/35/90/180, close-ups of
+the flaps, collar and boots, the box and evaluator numbers, the 2 x 2, the flaps against the drawn masks). The render
+box's boards came back complete this round (`charkit/out/body4b_render/boards`).
+
+**Open items:**
+0. The clawd_body gate's one FAIL (body_three_quarter_iou 0.839 WARN) goes with item 1.
+1. Taste call for Michael: the flaps' tails fitted to the drawn masks hang down over the outer thighs; a stronger
+   train (sweep 1.2, out 0.3) reads more like the drawn profile but scores lower in front and back. The page shows it.
+2. The right flap isn't the left's mirror: it sits 0.14-0.3 L further back (the skirt's hull axis is off-centre), and
+   the drawn right flap is a sliver in profile and three-quarter (its iou there is 0).
+3. back_iou_skin sits at the PASS line (0.70); the flaps cover the thighs' backs about as the drawing does.
+4. Waistband (0.45 FAIL) and shorts (0.41 FAIL): not started.
+5. The evaluator's garment cache keys a flap by its own spec, not the skirt under it: after changing the skirt,
+   rebuild the Evaluator before scoring flaps.
+
+**Gotchas (round 4):**
+- A box copy without `charkit/out/i3d` builds its masks without the TRELLIS field (sleeve_L 0.08). pipeline-3d f2d0ea7
+  keeps i3d on sync; a new worktree needs `cp -Rc ~/animation-pipeline-3d/charkit/out/i3d charkit/out/`.
+- `flapchains` and `outfit relayer` rewrite the masks' graph, which is an input of the hull: the next local evaluator
+  run rebuilds the hull (135 s) and its labels move a little.
+- Scratch harness for this round (fast flap scoring by compositing z-buffers, the 2 x 2, torn, hand/skirt) is in the
+  session scratchpad, not tracked; `bodyeval.Evaluator` + `bodymeasure.piece_shapes` as in round 3's gotchas.
+
+## Checkpoint: end of round 3 (2026-09-29), superseded by round 4 above
 
 **Branch** `tool/body` in `~/animation-pipeline-body`. The head is the commit that adds this section (see
 `git log -1`). It contains `pipeline-3d` f3e8747 (merged at a456834). Round 2 is merged into `pipeline-3d` at 76d5bdc.
