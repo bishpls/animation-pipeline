@@ -236,6 +236,22 @@ def test_the_cage_carries_the_template():
     assert np.abs(Vb[:, 1] - (V[:, 1] + 0.2 * V[:, 2] ** 2)).max() < 0.01
 
 
+def test_the_cage_of_a_ring_stays_closed():
+    """a periodic grid (a skirt's ring: a face joins its last column to its first) gets a closed cage: two boundary
+    rings, the seam kept, exact at rest."""
+    from charkit.geom import mesh as gm
+    NR, NC = 6, 40
+    V = np.array([(math.cos(2 * math.pi * i / NC) * (0.3 + 0.05 * j), math.sin(2 * math.pi * i / NC) * (0.3 + 0.05 * j),
+                   -0.1 * j + 0.01 * (i % 2)) for j in range(NR) for i in range(NC)])
+    o = dict(name='ring', V=V, polys=[(j * NC + i, j * NC + (i + 1) % NC, (j + 1) * NC + (i + 1) % NC, (j + 1) * NC + i)
+                                      for j in range(NR - 1) for i in range(NC)])
+    K = cage.of_piece(o, 0.1)
+    assert K.periodic and len(K.cols) < NC
+    C = xpbd.Cloth(K.V, K.faces)
+    assert len(gm.boundary_edges(C.F)) == 2 * len(K.cols)
+    assert np.abs(K.carry(K.V) - V).max() < 1e-12
+
+
 def test_the_hook_is_off_unless_asked():
     """charkit.sim.hook on a recorded stand-in (a level grid panel held by one edge over a sphere 'body'): with no
     garment asking, the product is untouched (same digest); asked, the panel is settled: its pinned rows stay, the rest

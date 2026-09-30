@@ -12,7 +12,8 @@ import numpy as np
 
 from .xpbd import rotation
 
-LEG_BONES = ('hips', 'leftUpperLeg', 'leftLowerLeg', 'rightUpperLeg', 'rightLowerLeg')
+LEG_BONES = ('leftUpperLeg', 'leftLowerLeg', 'rightUpperLeg', 'rightLowerLeg')   # (the pelvis as one capsule
+# across the hip joints fits badly: 0.24 L at p90 on Clawd; left out)
 AXES = {'X': (1.0, 0.0, 0.0), 'Y': (0.0, 1.0, 0.0), 'Z': (0.0, 0.0, 1.0)}
 
 

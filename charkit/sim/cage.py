@@ -27,57 +27,62 @@ def _keep(gaps, spacing, always=()):
 
 
 class Cage:
-    """the cage of a grid (NR, NC) of vertices V with face blocks Fm (NR-1, NC-1)."""
+    """the cage of a grid (NR, NC) of vertices V with face blocks Fm (NR-1, NC-1; periodic: (NR-1, NC), the last
+    block joining column NC-1 to column 0, a ring like the skirt)."""
 
-    def __init__(self, V, NR, NC, Fm, spacing, keep_rows=(), keep_cols=()):
+    def __init__(self, V, NR, NC, Fm, spacing, keep_rows=(), keep_cols=(), periodic=False):
         G = np.asarray(V, float).reshape(NR, NC, 3)
-        self.NR, self.NC = NR, NC
-        used_r = Fm.any(1)
-        used_c = Fm.any(0)
-        rg = np.linalg.norm(np.diff(G, axis=0), axis=2)          # (NR-1, NC): row gaps per column
-        cg = np.linalg.norm(np.diff(G, axis=1), axis=2)          # (NR, NC-1)
-        cmask = np.zeros((NR - 1, NC), bool)
+        self.NR, self.NC, self.periodic = NR, NC, periodic
+        Gw = np.concatenate([G, G[:, :1]], 1) if periodic else G       # (a periodic grid's column 0 again at the end)
+        NCw = Gw.shape[1]
+        Fm = np.asarray(Fm, bool)[:, :NCw - 1]
+        rg = np.linalg.norm(np.diff(Gw, axis=0), axis=2)          # (NR-1, NCw): row gaps per column
+        cg = np.linalg.norm(np.diff(Gw, axis=1), axis=2)          # (NR, NCw-1)
+        cmask = np.zeros((NR - 1, NCw), bool)
         cmask[:, :-1] |= Fm; cmask[:, 1:] |= Fm
-        rmask = np.zeros((NR, NC - 1), bool)
+        rmask = np.zeros((NR, NCw - 1), bool)
         rmask[:-1] |= Fm; rmask[1:] |= Fm
         row_gap = np.array([rg[j][cmask[j]].mean() if cmask[j].any() else rg[j].mean() for j in range(NR - 1)])
         col_gap = np.array([cg[:, i][rmask[:, i]].mean() if rmask[:, i].any() else cg[:, i].mean()
-                            for i in range(NC - 1)])
+                            for i in range(NCw - 1)])
         self.rows, rs = _keep(row_gap, spacing, set(keep_rows))
-        self.cols, cs = _keep(col_gap, spacing, set(keep_cols))
+        colsw, cs = _keep(col_gap, spacing, set(keep_cols))          # (extended indices; periodic: ends at NC = 0)
+        self.cols = colsw[:-1] if periodic else colsw
         nr, nc = len(self.rows), len(self.cols)
+        nb = len(colsw) - 1                                          # blocks across
         self.V = G[self.rows][:, self.cols].reshape(-1, 3).copy()
-        # cage faces: a block exists where any template face inside it does
-        blocks = np.zeros((nr - 1, nc - 1), bool)
+        right = lambda b: (b + 1) % nc if periodic else b + 1
+        blocks = np.zeros((nr - 1, nb), bool)
         for a in range(nr - 1):
-            for b in range(nc - 1):
-                blocks[a, b] = Fm[self.rows[a]:self.rows[a + 1], self.cols[b]:self.cols[b + 1]].any()
+            for b in range(nb):
+                blocks[a, b] = Fm[self.rows[a]:self.rows[a + 1], colsw[b]:colsw[b + 1]].any()
         self.blocks = blocks
-        self.faces = [(a * nc + b, a * nc + b + 1, (a + 1) * nc + b + 1, (a + 1) * nc + b)
-                      for a in range(nr - 1) for b in range(nc - 1) if blocks[a, b]]
-        # each template vertex's block (one that is a cage face when it can be) and its bilinear weights
+        self.faces = [(a * nc + b, a * nc + right(b), (a + 1) * nc + right(b), (a + 1) * nc + b)
+                      for a in range(nr - 1) for b in range(nb) if blocks[a, b]]
         n = NR * NC
         self.idx = np.zeros((n, 4), np.int64)
         self.w = np.zeros((n, 4))
         ra = np.clip(np.searchsorted(self.rows, np.arange(NR), side='right') - 1, 0, nr - 2)
-        ca = np.clip(np.searchsorted(self.cols, np.arange(NC), side='right') - 1, 0, nc - 2)
+        ca = np.clip(np.searchsorted(colsw, np.arange(NC), side='right') - 1, 0, nb - 1)
         for j in range(NR):
             for i in range(NC):
                 a, b = ra[j], ca[i]
                 cand = [(a, b)]
                 if j == self.rows[a] and a > 0:
                     cand.append((a - 1, b))
-                if i == self.cols[b] and b > 0:
-                    cand.append((a, b - 1))
+                if i == colsw[b] and (b > 0 or periodic):
+                    bl = (b - 1) % nb
+                    cand.append((a, bl))
                     if j == self.rows[a] and a > 0:
-                        cand.append((a - 1, b - 1))
+                        cand.append((a - 1, bl))
                 a, b = next((c for c in cand if blocks[c]), cand[0])
                 r0, r1 = self.rows[a], self.rows[a + 1]
-                c0, c1 = self.cols[b], self.cols[b + 1]
+                c0, c1 = colsw[b], colsw[b + 1]
+                ii = i if i >= c0 else i + NC                        # (the wrap block seen from its left: i = 0 -> NC)
                 tr = (rs[j] - rs[r0]) / max(1e-15, rs[r1] - rs[r0])
-                tc = (cs[i] - cs[c0]) / max(1e-15, cs[c1] - cs[c0])
+                tc = (cs[ii] - cs[c0]) / max(1e-15, cs[c1] - cs[c0])
                 k = j * NC + i
-                self.idx[k] = (a * nc + b, a * nc + b + 1, (a + 1) * nc + b, (a + 1) * nc + b + 1)
+                self.idx[k] = (a * nc + b, a * nc + right(b), (a + 1) * nc + b, (a + 1) * nc + right(b))
                 self.w[k] = ((1 - tr) * (1 - tc), (1 - tr) * tc, tr * (1 - tc), tr * tc)
         self.used = np.zeros(len(self.V), bool)
         if self.faces:
@@ -107,12 +112,21 @@ class Cage:
 
 
 def of_piece(o, spacing, keep_rows=(0, 1)):
-    """the cage of a recorded grid-built garment (charkit.sim.drape.grid_of's layout)."""
+    """the cage of a recorded grid-built garment (charkit.sim.drape.grid_of's layout; a ring when a face joins its last
+    column to its first)."""
     from .drape import grid_of
     NR, NC = grid_of(o)
-    Fm = np.zeros((NR - 1, NC - 1), bool)
+    Fm = np.zeros((NR - 1, NC), bool)
+    periodic = False
     for f in o['polys']:
         f = np.asarray(f, np.int64)
-        j, i = f.min() // NC, f.min() % NC
-        Fm[j, i] = True
-    return Cage(o['V'], NR, NC, Fm, spacing, keep_rows=keep_rows)
+        cols = set((f % NC).tolist())
+        j = f.min() // NC
+        if 0 in cols and NC - 1 in cols and NC > 2:
+            Fm[j, NC - 1] = True                                     # the wrap block
+            periodic = True
+        else:
+            Fm[j, f.min() % NC] = True
+    if not periodic:
+        Fm = Fm[:, :NC - 1]
+    return Cage(o['V'], NR, NC, Fm, spacing, keep_rows=keep_rows, periodic=periodic)

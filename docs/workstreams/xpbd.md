@@ -73,3 +73,14 @@ shorts (closed shells). Each vertex's collision radius is capped at its rest cle
 - Merged pipeline-3d 8b5ecae (collar3 M2: the eye-line frame and the flap tails refit; softras) at 4d2ccc2: clean;
   test_sim and test_geomstage ok. Launched: the gate (policy K, once, for the hook) and a base build of the merged tree
   (`charkit/out/xpbd/base2`) for the pilots' final numbers (the first rest pilot ran on 2f42155's build).
+- **Gate PASS under K** (5a33f4d into pipeline-3d 8b5ecae; `charkit/out/gate/gate_tool-xpbd_5a33f4d_into_8b5ecae.md`):
+  nothing blocks, 0 items, no check changed; 71 test files ok; the candidate rebuilt (geomstage.py is read by the build),
+  build CPU 591.4 -> 643.6 s (1.09x).
+- Motion pilot, first run (kick, on 2f42155's build): the shipped garments have 0.7% (skirt) and 1.5% (flaps) of their
+  surface vertices inside the skin at rest (their tops tucked under the band), so penetration is counted as new against
+  that baseline. The pelvis capsule fitted badly (0.24 L at p90) and is left out (legs only: p90 0.058 L). **The
+  skinned skirt's kick is a stretch failure, not a skin one**: 0 new vertices inside, but its coarse edges stretch 197%
+  at p99 (535% max): the front panel is skinned to the lifted thigh. The skirt's grid is a ring: the cage now keeps it
+  closed (a first run split it at the back seam, 8x there).
+- Base build of the merged tree `charkit/out/xpbd/base2` (4d2ccc2 + notes); the harness reproduces its QA (160 of 161,
+  the arms' known 0.1; the flaps' finalize round trip moves flap_profile_iou_R by 1e-4).

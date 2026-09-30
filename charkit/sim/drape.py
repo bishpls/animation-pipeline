@@ -236,6 +236,8 @@ REST_VARIANTS = {                     # name: (style, rest, dials)
     'physics': ('anime', 'template', dict(hold_shape=0.0)),              # no hold: the drawn shape as rest, gravity
     'pattern': ('anime', 'pattern', dict(hold_shape=0.0)),               # a flat pattern, the template's lengths
     'pattern_soft': ('realistic', 'pattern', dict(hold_shape=0.0)),      # the same, realistic stiffness
+    'stiff': ('anime', 'template', dict(hold_shape=0.0, cloth_stiffness=1.5)),   # a stiff cloth (bending length
+    'stiff_pattern': ('anime', 'pattern', dict(hold_shape=0.0, cloth_stiffness=1.5)),  # 0.75 L), no hold
 }
 
 

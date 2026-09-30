@@ -8,12 +8,15 @@ from a production rig" item 3, the skirt's penetration during a kick), moved fou
   springs_col  the same with capsule colliders fitted to the skin (VRM's collider shapes: uniform-radius capsules)
   xpbd_*       charkit.sim.xpbd cloth on the garments' cages, the skirt and the flaps in one system (the flaps kept
                outside the skirt by a two-way layer constraint), pinned where they hang from, against the same capsules;
-               'anime' with the profile's hold (toward the skinned template), 'physics' with none
+               'anime' with the profile's hold toward the template as shipped (skinned), 'hips' the same hold
+               toward the drawn shape carried by the pelvis alone (the legs push the skirt, as anime rigs do with
+               skirt bones and colliders), 'physics' with no hold
 Every method starts from the build's rest pose, settles 1 s there, then goes into the pose over RAMP s and holds it
 HOLD s at 60 fps. Measured every few frames and at the end on the final meshes (the build's own finalize for moved
 coarse meshes): the garment's surface vertices inside the posed skin (the build's skin, subdivided with its weights
-carried, skinned the same way; signed by winding number): their share and depth; the coarse mesh's stretch; how far each
-method departs from the skinned result.
+carried, skinned the same way; signed by winding number): their share and depth, and the new ones (not inside at rest as
+shipped: the tops tucked under the band are); the coarse mesh's stretch; how far each method departs from the skinned
+result.
 
     python -m charkit.sim motion BUILD [--out DIR] [--poses kick,squat,split] [--methods ...]
 """
@@ -25,7 +28,7 @@ from . import cage as cagelib, drape, rig as riglib, settings as simset, springb
 
 PIECES = ('skirt', 'overskirt_panel_L', 'overskirt_panel_R')
 LEG_POSES = ('kick', 'squat', 'split')
-METHODS = ('skinned', 'springs', 'springs_col', 'xpbd_anime', 'xpbd_physics')
+METHODS = ('skinned', 'springs', 'springs_col', 'xpbd_anime', 'xpbd_hips', 'xpbd_physics')
 FPS, SETTLE, RAMP, HOLD = 60, 1.0, 0.4, 0.6
 
 
@@ -70,29 +73,39 @@ class Scene:
             for f in np.nonzero(np.asarray(F['layer']) == 0)[0]:
                 keep[F['loopv'][st[f]:st[f] + F['counts'][f]]] = True
             self.surf[n] = keep
+        # the shipped garments' surface vertices already inside the skin at rest (the tops tucked under the band):
+        # the baseline the motion's new penetration is counted against
+        D0 = self.rig.skinning({}, 0.0)
+        self.rest_inside = self._inside(D0, {n: self.fin[n]['V'] for n in PIECES})
         self.graph = json.load(open(os.path.join(drape.ROOT_DIR, 'charkit', 'refs', 'clawd', 'outfit_graph.json')))
         log('scene %s: skin %d verts (subdivided, weights carried), %d capsules (fit p90 err %.3f L), %.1f s' % (
             build, len(self.skin_V), len(self.caps), max(c['err_p90'] for c in self.caps) / L, time.time() - t0))
 
     # ---------------------------------------------------------------- measuring
-    def measure(self, D, finals, coarse):
-        """penetration of each garment's surface into the posed skin, and its coarse stretch."""
+    def _inside(self, D, finals):
         from ..geom.bvh import BVH
         Xs = riglib.lbs(self.skin_V, self.skin_W, D)
         Bv = BVH((Xs, self.skin_F))
+        return {n: Bv.signed_distance(finals[n][self.surf[n]], sign='winding') / self.L for n in PIECES}
+
+    def measure(self, D, finals, coarse):
+        """penetration of each garment's surface into the posed skin (all, and new: not inside at rest as shipped),
+        and its coarse stretch."""
+        dd = self._inside(D, finals)
         out = {}
         for n in PIECES:
-            X = finals[n][self.surf[n]]
-            d = Bv.signed_distance(X, sign='winding') / self.L
+            d = dd[n]
             ins = d < 0
+            new = ins & (self.rest_inside[n] >= 0)
             o = self.co[n]
             E = _edges(o['polys'])
             l0 = np.linalg.norm(o['V'][E[:, 0]] - o['V'][E[:, 1]], axis=1)
             l = np.linalg.norm(coarse[n][E[:, 0]] - coarse[n][E[:, 1]], axis=1)
             sn = np.abs(l / np.maximum(l0, 1e-12) - 1)
             out[n] = dict(inside=int(ins.sum()), share=float(ins.mean()), depth_max=float(max(0.0, -d.min())),
-                          depth_p99=float(max(0.0, -np.percentile(d, 1))), stretch_max=float(sn.max()),
-                          stretch_p99=float(np.percentile(sn, 99)))
+                          new=int(new.sum()), new_share=float(new.mean()),
+                          new_depth=float(max(0.0, -d[new].min())) if new.any() else 0.0,
+                          stretch_max=float(sn.max()), stretch_p99=float(np.percentile(sn, 99)))
         return out
 
     def schedule(self, pose):
@@ -219,8 +232,10 @@ def _used_rows(o, NR, NC):
 class Cloth:
     """the skirt and the flaps as one XPBD cloth on their cages."""
 
-    def __init__(self, S, style='anime', spacing=(0.05, 0.03), log=print, **dials):
+    def __init__(self, S, style='anime', spacing=(0.05, 0.03), hold_frame='skin', log=print, **dials):
         self.S = S
+        self.hold_frame = hold_frame              # the hold's targets: 'skin' (the template as shipped, skinned) or
+                                                  # 'hips' (the drawn shape carried by the pelvis; the legs push it)
         L = S.L
         parts, off = [], 0
         V, faces, pins, rest_rad = [], [], [], []
@@ -281,17 +296,19 @@ class Cloth:
             style, C.n, ', '.join('%s %d' % (n, self.span[n][1] - self.span[n][0]) for n in PIECES), self.nlayer,
             st['physics'].get('hold_shape')))
 
-    def targets(self, D):
+    def targets(self, D, frame='skin'):
         S = self.S
         T = np.zeros_like(self.solver.c.V)
         for n in PIECES:
             a, b = self.span[n]
-            T[a:b] = riglib.lbs(self.K[n].V, self.cw[n], D)
+            W = self.cw[n] if frame == 'skin' else {'hips': np.ones(b - a)}
+            T[a:b] = riglib.lbs(self.K[n].V, W, D)
         return T
 
     def frame(self, D, dt):
         S = self.S
         T = self.targets(D)
+        H = self.targets(D, self.hold_frame) if self.hold and self.hold_frame != 'skin' else T
         caps = riglib.capsule_rows(S.caps, D)
         if not self.started:
             self.capsules = xpbd.Capsules(caps)
@@ -299,7 +316,7 @@ class Cloth:
             self.started = True
         else:
             self.capsules.move(caps)
-        self.solver.set_frame(pins=T[self.solver.c.pins], hold=T if self.hold else None)
+        self.solver.set_frame(pins=T[self.solver.c.pins], hold=H if self.hold else None)
         self.solver.step(dt)
         co, fin = {}, {}
         for n in PIECES:
@@ -352,6 +369,7 @@ def run(build, out, poses=LEG_POSES, methods=METHODS, every=6, log=print):
             t0 = time.time()
             M = (Skinned(S) if m == 'skinned' else Springs(S, colliders=m == 'springs_col') if m.startswith('springs')
                  else Cloth(S, style='anime', log=log) if m == 'xpbd_anime'
+                 else Cloth(S, style='anime', hold_frame='hips', log=log) if m == 'xpbd_hips'
                  else Cloth(S, style='anime', hold_shape=0.0, log=log))
             rows, last = [], None
             skin_ref = None
@@ -370,8 +388,8 @@ def run(build, out, poses=LEG_POSES, methods=METHODS, every=6, log=print):
             rep['poses'][pose][m] = dict(frames=rows, seconds=round(time.time() - t0, 1),
                                          layer=getattr(M, 'nlayer', None))
             e = rows[-1]['pieces']
-            log('%s %s: end %s; %.1f s' % (pose, m, ', '.join('%s %.3f / %.3f L' % (n[-6:], e[n]['share'],
-                                                                                  e[n]['depth_max'])
+            log('%s %s: end new %s; %.1f s' % (pose, m, ', '.join('%s %.3f / %.3f L' % (n[-6:], e[n]['new_share'],
+                                                                                  e[n]['new_depth'])
                                                             for n in PIECES), time.time() - t0))
             json.dump(rep, open(os.path.join(out, 'motion.json'), 'w'), indent=1)
     open(os.path.join(out, 'motion.md'), 'w').write(markdown(rep))
@@ -385,18 +403,18 @@ def markdown(rep):
          'motion, and at the end; the coarse stretch (p99 / max); the mean departure from the skinned result.' % (
              rep['build'], rep['fps'], rep['settle'], rep['ramp'], rep['hold']), '']
     for pose, M in rep['poses'].items():
-        L += ['## %s' % pose, '', '| method | piece | rest: inside, depth | worst: inside, depth | end: inside, depth '
-              '| end stretch p99 / max | end departure (L) |', '|---|---|---|---|---|---|---|']
+        L += ['## %s' % pose, '', '| method | piece | settled at rest: new inside, depth | worst: new inside, depth | '
+              'end: new inside, depth | end stretch p99 / max | end departure (L) |', '|---|---|---|---|---|---|---|']
         for m, r in M.items():
             fr = r['frames']
             for n in PIECES:
                 p0, pe = fr[0]['pieces'][n], fr[-1]['pieces'][n]
-                ws = max(x['pieces'][n]['share'] for x in fr)
-                wd = max(x['pieces'][n]['depth_max'] for x in fr)
+                ws = max(x['pieces'][n]['new_share'] for x in fr)
+                wd = max(x['pieces'][n]['new_depth'] for x in fr)
                 dep = fr[-1].get('departure_mean', {}).get(n)
                 L.append('| %s | %s | %.3f, %.3f | %.3f, %.3f | %.3f, %.3f | %.3f / %.3f | %s |' % (
-                    m, n, p0['share'], p0['depth_max'], ws, wd, pe['share'], pe['depth_max'], pe['stretch_p99'],
-                    pe['stretch_max'], '—' if dep is None else '%.3f' % dep))
+                    m, n, p0['new_share'], p0['new_depth'], ws, wd, pe['new_share'], pe['new_depth'],
+                    pe['stretch_p99'], pe['stretch_max'], '—' if dep is None else '%.3f' % dep))
         L.append('')
     return '\n'.join(L) + '\n'
 
