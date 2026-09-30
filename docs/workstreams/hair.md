@@ -170,3 +170,35 @@ Ablations with `hairlab` were the evidence for each default:
   depth step for the inverted-hull outline to catch.
 - **Folds.** 9 on clawd_body (WARN): the bangs and the side locks.
 - **Springs.** The chains are stored in the parts' meta, but no bones or VRMC_springBone export yet.
+
+## Next round: torn tips and jagged edges
+
+These are from Michael, on the look_v5 boards, which carry this branch's pre-merge hair. Measure each one before
+fixing it. Shading terminators on the locks are the look's matter, unless they come from the lock normals
+(`lock_shading`).
+
+- **Torn fragments at lock tips.** Small loose shards near the neck and the side locks.
+- **Stepped, jagged edges.** Along the back hair's lower edge, and along the fringe in profile.
+
+Target: clean lock tips with no shards, and lock edges smooth at the silhouette.
+
+**Measure (to add to `hairlab`)** until tool/artifacts' shared detectors land (outline roughness, fragments and
+slivers, terminator roughness per region, calibrated on the design):
+- **Fragments.** The small disconnected components of the hair class per view (front, three-quarter, profile, back),
+  from `labels_for`: count, and pixels under about 60 px. Also per family, which tells which piece sheds them.
+- **Edge roughness.** The hair silhouette's lower edge per column (as `qa3d.hair_tips` reads it), against its own
+  smoothed copy: RMS and p95 in L, per view. The fringe in profile and the back's lower edge are the two to watch.
+
+A scratch version of the fragment count, run on hd_base with this round's defaults and the clamp off, as a starting
+baseline:
+- front 16 components, 109 px;
+- three-quarter 10, 67 px;
+- profile 5, 47 px.
+
+The before-round hair had front 30 / 206 px, three-quarter 23 / 125 px and profile 6 / 75 px.
+
+**Likely sources, to check first:**
+- the lock shells' tips, where the ladder stitches columns whose tips differ by more than a step (thin slivers);
+- `fine_tips`' per-column drawn edge, where a 3-column median leaves single-column spikes;
+- the notch's V meeting the drawn edge;
+- the lower back's edge sampled at 4 degree columns.
