@@ -1054,3 +1054,30 @@ Jobs:
   geometry -> the subdivision move).
 - review page command: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
   --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
+
+**Gate** (2d3f594 into pipeline-3d 25b1936, build box; `charkit/out/gate/gate_tool-face5_2d3f594_into_25b1936.md`):
+**FAIL under K, three blockers**, none of them a face check getting worse in the design's projection:
+1. new FAIL sleeve_profile_rough_L 0.0107 WARN -> 0.0146 FAIL: 3 px at the top of the near sleeve in profile, where the
+   collar covers its cap; the collar moved (up to 0.032 L; it reads the neck and jaw). The base sat 0.0034 under FAIL.
+2. the 2x2: jaw_taper_shape under the old measure (the boards' camera) 0.0399 WARN -> 0.0411 FAIL on the new geometry;
+   under the new (level) 0.0193 -> 0.0157 PASS on both geometries. Michael's call 1 is the level measure.
+3. CPU 1.53x (577.3 -> 885.3 s): the baseline was a cached (warm) build; the candidate rebuilt resolve (155.9 s: the
+   design-side measures read faceregion) and pieces_hair (129.4 s: the head moved). Blender and QA 323.6 -> 333.0 s
+   (1.03x); face4's gate, both sides cold, read 1.09x.
+Reported: flag values art_terminator_hair 2.286 -> 2.438 (WARN both), art_speckle_neck 2.606 -> 1.956, art_peeks_hair
+22 -> 18, art_fragments_collar 4.69 -> 4.75; new jaw_outline_hidden 0.0025 PASS; improved hair_noise 0.0807 FAIL ->
+0.0796 WARN; remeasured chin_angle 118.8 WARN -> 128.2 PASS, jaw_taper_shape 0.0399 WARN -> 0.0157 PASS,
+tq_cheek_hollow 0.005 PASS -> 0.0056 WARN (the 2x2: 0.0052 WARN under the old measure too); values: hair_folds 5 ->
+8 (WARN), art_terminator_face 0.83 -> 1.344 (INFO), face_shadow_face_3q 0.068 -> 0.100 (INFO), sheet_cheek 0.0193 ->
+0.0164. Tests: 66 files, 0 failing.
+
+**For Michael / the coordinator:**
+1. Accept jaw_taper_shape's 2x2 drop (the boards' camera, which call 1 retires from grading)?
+2. sleeve_profile_rough_L: accept (the collar's occlusion over the cap, 3 px; a collar/sleeve round), or hold the
+   branch for one?
+3. The CPU ratio: the gate's cold candidate against a warm baseline (Blender and QA 1.03x): re-gate on a warm cache, or
+   accept.
+4. tq_cheek_hollow PASS -> WARN (0.0056; the three-quarter's far cheek at z -0.289): the three-quarter's own contour
+   over its lock (-0.154) is still the sheet's hair edge; `HIDDEN_TQ` (fit it from under the lock only) broke the jaw
+   in the lab. A three-quarter reference without hair would settle it.
+5. The rim loop stays off (under level grading it loses the tip and the three-quarter hollow).
