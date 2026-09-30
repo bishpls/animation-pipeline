@@ -158,7 +158,7 @@ def shell(A, spec, normals=None, hull=None):
     # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
     for bone, t, side, o in spec.get('cuts', []):
         if bone == 'eye':                                        # a height from the eye line (L)
-            zc = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + o * L
+            zc = _eye_z(A) + o * L
         else:
             h, tl = bone_seg(A, bone)
             zc = (h + (tl - h) * t)[2] + o * L
@@ -363,7 +363,7 @@ def opening_cut(A, op):
     front (y before the chest's head), else 1 L (kept). op: `half` [[z, half], ...] (L from the eye line; held past its
     ends). -> fn(world points) -> (n,) (>= 0 outside the opening)."""
     L = A['head']['L']
-    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    ez = _eye_z(A)
     K = np.asarray(sorted(op['half']), float)
     yc = bone_seg(A, op.get('front_of', 'chest'))[0][1]
 
@@ -375,7 +375,16 @@ def opening_cut(A, op):
 
 
 def _eye_z(A):
+    """the garments' eye line (world z), the one frame every height the builders read from the drawing is placed in
+    (the cuts at 'eye', the opening, the collar's outline, the drape, the lofts' rows, the drawn extents, the hull's
+    alignment): the QA's. The body QA (bodyqa.origin) registers our iris plates' mean on the design's eye row (the
+    drawn irises' centroid), so the drawn heights are the irises' too; the head's knob line (eye_knobs.z, the face's
+    and the body's frame) sits 0.0235 L under it on the authored head, and every garment landed that much low in the
+    checks. Without irises (a bare assembly): the knob line."""
     L = A['head']['L']
+    I = [np.asarray(E['iris'][0], float) for E in (A.get('eyes') or []) if E.get('iris') is not None]
+    if I:
+        return float(np.mean([i[:, 2].mean() for i in I]))
     return A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
 
 
@@ -480,7 +489,7 @@ def ease_over_band(A, sv, ez, band, source=None):
         # it reaches above, per column across the body (its forward depth's running maximum down the axis, in columns
         # of `step` L sideways): a jacket's front panels fall from the bust, forward of the midriff (in profile they
         # stand before the bib, as drawn), and stay where they are across (the opening keeps its width in front)
-        ez_ = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+        ez_ = _eye_z(A)
         t_from = float(ax.o[2] - (ez_ + dr['from'] * L))
         step = dr.get('step', 0.02) * L
         fwd, side = r * np.cos(th), r * np.sin(th)
@@ -601,7 +610,9 @@ def band_hull(A, spec, hull):
     to the ellipse fitted to it (a visual hull's sections are polygons: the cuffs read as blocks), its ends rolled in
     over `roll` of its rows by `round` of its thickness (a quarter circle), and it clears the skin under it (its limb's
     vertices there, as a field on the same rows and angles) by `clear` L plus its thickness, which the Solidify grows
-    inward: the hull's section can sit inside the limb, and the skin showed through. Rigid on its bone.
+    inward: the hull's section can sit inside the limb, and the skin showed through. `bell` (L, default 0) grows its
+    top rows out, tapering to its bottom (the drawn wrist cuffs flare toward the elbow; the hull's are near straight).
+    Rigid on its bone.
     -> dict(verts, faces, weights, uv, clear (per cell: the inner surface's distance out from the skin, m))."""
     from .geom import loft
     L = A['head']['L']
@@ -616,6 +627,8 @@ def band_hull(A, spec, hull):
     nth = spec.get('cols', 48)
     F = loft.field(t, th, r, ts, nth=nth, min_row=0.2, name=spec['name'], prior=float(np.median(r)) if len(r) else None)
     R = F.R + spec.get('offset', 0.0) * L
+    if spec.get('bell'):                               # grown by `bell` L at its top (the bone's head end), to 0 at its
+        R = R + spec['bell'] * L * np.linspace(1.0, 0.0, len(R))[:, None]       # bottom: a wrist cuff's flare, as drawn
     k = spec.get('round_xs', 0.3)
     if k > 0:                                          # toward each row's ellipse: 1/r^2 = cos^2/a^2 + sin^2/b^2
         M = np.stack([np.cos(F.th) ** 2, np.sin(F.th) ** 2], 1)
@@ -733,9 +746,16 @@ def belt(A, spec):
 
 
 # ---------------------------------------------------------------------------------------------------- the hull's pieces
+def hull_target(A, shape):
+    """where the hull's eyes land on ours for the garments (target3d.eye_target): at our irises' height, _eye_z's frame,
+    so the hull's pieces, the drawn heights and the QA agree. -> (eye_mid (3,), spacing)."""
+    from . import target3d
+    return target3d.eye_target(A, dict(shape, eye_anchor='iris'))
+
+
 def hull_pieces(spec, A, source='shell'):
     """the visual hull's outfit pieces as world points on this character: the generated shape (the spec's hair.shape.glb,
-    charkit.geom.hull's), aligned by its eyes as the build aligns its target (i3d.eye_target, i3d.align_by_eyes)
+    charkit.geom.hull's), aligned by its eyes as the build aligns its target (target3d.eye_target, target3d.align_by_eyes)
     -> {piece id: (n, 3)}, or None when the shape carries no pieces. The points are its labelled shell (hull.npz beside
     it: shell_points, one per surface voxel of the occupancy, on a regular grid), not the mesh's vertices: the mesh is
     decimated, and which vertices a decimation keeps (denser at curvature, fewer on flat stretches) moved the lofts'
@@ -744,7 +764,7 @@ def hull_pieces(spec, A, source='shell'):
     the decimated mesh's vertices split by the per-vertex pieces the sidecar names, as before. Names come from the
     sidecar either way."""
     import json, os
-    from . import i3d
+    from . import target3d
     shape = ((spec.get('hair') or {}).get('shape') or {})
     glb = shape.get('glb')
     if not glb:
@@ -767,8 +787,8 @@ def hull_pieces(spec, A, source='shell'):
         lab = np.load(os.path.join(os.path.dirname(path), J['pieces']))
         if len(lab) != len(V):
             raise ValueError('%s: %d piece labels for %d vertices' % (J['pieces'], len(lab), len(V)))
-    eye_mid, spacing = i3d.eye_target(A, shape)
-    W = i3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
+    eye_mid, spacing = hull_target(A, shape)
+    W = target3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
     return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
 
 
@@ -797,7 +817,7 @@ def drawn_extent(spec, A, pid, view='front'):
     if not e:
         return None
     L = A['head']['L']
-    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    ez = _eye_z(A)
     x0, z0, x1, z1 = e['bbox']
     return (x0 * L, ez + z0 * L, x1 * L, ez + z1 * L)
 
@@ -979,7 +999,7 @@ def belt_hull(A, spec, hull):
     ax = _vertical_axis(P, top_z)
     t, th, r = ax.coords(P)
     # L from the eye line -> t along the axis (read only when the spec gives rows by height)
-    tz = lambda z: top_z - (A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + z * L)
+    tz = lambda z: top_z - (_eye_z(A) + z * L)
     if spec.get('rows'):
         lo, hi = tz(spec['rows'][0]), tz(spec['rows'][1])
     else:
@@ -2448,7 +2468,8 @@ def bow_hull(A, spec, hull):
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
-                  wing=spec.get('wing'), ribbon=spec.get('ribbon'))
+                  wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0),
+                  end_p=spec.get('end_p', 2.0))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -2479,7 +2500,7 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
     centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
     lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
@@ -2489,6 +2510,9 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
     `out` (how far out their ends swing) and the ends' cut `slant` (the outer corner lower); else the old tails. Its
     `turn` (degrees, default 0): each tail's section turned about its length, its outer edge back and its inner edge
     forward (a ribbon falling over the bust's round shows its face in profile, as the design's do; 0 flat to the front).
+    Its `hinge` (0 .. 1, default 0): each row brought forward by that share of its turned half-depth, so at 1 the outer
+    edge stays on the wrap (the jacket's front) where a turn about the middle sank it into the jacket with no line
+    between; `stand` is then the outer edge's clearance.
     The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
     'tail_s'."""
     depth = 0.09 * sz if depth is None else depth
@@ -2529,23 +2553,46 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
                     fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
             add(vs, fs, us)
         else:
-            # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold
-            for i in range(nv + 1):
-                th = math.pi * i / nv                       # 0 .. pi along the lobe
+            # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold. With `end` (a share
+            # of its length) its far end is closed round: the section shrinks by a quarter ellipse over that share to a
+            # point (a fan), where the old open ring read as a straight cut with no line (Michael, 2026-09-30). `end_p`:
+            # the cap's superellipse power (2 a quarter ellipse; higher, a flatter end with rounder corners, as drawn), or
+            # [upper, lower]: the powers at the section's top and bottom, blended round it (the drawn loops' upper outer
+            # corners are square, their lower ones round)
+            u_rows = [(1 - math.cos(math.pi * i / nv)) / 2 for i in range(nv + 1)]
+            if end:
+                # the old rows up to the cap, then rows closing it (denser toward its tip)
+                u_rows = [u for u in u_rows if u < 1 - end]
+                u_rows += [1 - end + end * math.sin(0.5 * math.pi * q / 8) for q in range(8)]
+            p_up, p_lo = (end_p, end_p) if np.isscalar(end_p) else end_p
+            for i, u_ in enumerate(u_rows):
+                th = math.acos(max(-1.0, min(1.0, 1 - 2 * u_)))      # 0 .. pi along the lobe
+                k_up = k_lo = 1.0
+                if end and u_ > 1 - end:
+                    e_ = (u_ - (1 - end)) / end
+                    k_up = max(0.0, 1 - e_ ** p_up) ** (1.0 / p_up)
+                    k_lo = max(0.0, 1 - e_ ** p_lo) ** (1.0 / p_lo)
                 for j in range(nu):
                     ph = 2 * math.pi * j / nu
-                    u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
-                    taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
+                    k_ = k_lo + (k_up - k_lo) * 0.5 * (1 + math.sin(ph))
+                    taper = (knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8) * k_
                     x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                     zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
                     yy = -math.cos(ph) * depth * taper
-                    fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
+                    fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) * k_ \
+                        if math.cos(ph) > 0 else 0.0
                     vs.append(c + np.array([x, yy - fold, zz])); us.append((j / nu, u_))
+            nr_ = len(u_rows) - 1
             fs = []
-            for i in range(nv):
+            for i in range(nr_):
                 for j in range(nu):
                     j2 = (j + 1) % nu
                     fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+            if end:
+                # the tip: a fan from the last ring to one point on the lobe's end
+                tip = len(vs)
+                vs.append(c + np.array([sx * (0.05 + (LOBE - 0.05)) * sz, 0.0, 0.05 * sz])); us.append((0.5, 1.0))
+                fs += [(nr_ * nu + j, nr_ * nu + (j + 1) % nu, tip) for j in range(nu)]
             add(vs, fs, us)
         # a tail: a flat ribbon with thickness, out and down, widening, a V notch at the end (or, with `ribbon`, its
         # own width and spread and a slanted cut)
@@ -2555,6 +2602,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
         w0, w1 = rb.get('w', (0.13, 0.22))
         out_, slant = rb.get('out', 0.2), rb.get('slant', None)
         ct, st = math.cos(math.radians(rb.get('turn', 0.0))), math.sin(math.radians(rb.get('turn', 0.0)))
+        hinge = rb.get('hinge', 0.0)
         t0_ = len(verts)
         for i in range(M + 1):
             s_ = i / M
@@ -2570,7 +2618,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
             for (dx, dz), dy in ((cut[0], -0.01 * L), (cut[1], -0.01 * L), (cut[2], -0.01 * L),
                                  (cut[2], 0.004 * L), (cut[1], 0.004 * L), (cut[0], 0.004 * L)):
                 u_, y_ = dx * sx, dy + 0.003 * L                  # outward across the tail; depth from its mid-plane
-                dx, dy = sx * (u_ * ct - y_ * st), u_ * st + y_ * ct - 0.003 * L
+                dx, dy = sx * (u_ * ct - y_ * st), u_ * st + y_ * ct - 0.003 * L - hinge * 0.5 * w * st
                 vs.append(p + np.array([dx, dy, dz])); us.append((0.5, s_))
         fs = []
         for i in range(M):
@@ -2819,6 +2867,10 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
+COLLAR_TEMPLATE = dict(       # the template collar's shell (build: kind 'collar', source 'template'), under its own knobs
+    region=[['neck', -1, 0.6], ['upperChest', -1, 3], ['chest', -1, 3], ['spine', -1, 3], ['leftShoulder', -1, 3],
+            ['rightShoulder', -1, 3]],
+    offset=0.03, thick=0.005)
 RIM_CREASE = 1.0    # a thin shell's open rim kept flat and square under the Subdivision (Michael's call L; 0: rounded)
 
 
@@ -2945,6 +2997,24 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 midx = [2 if b_ else p_ for p_, b_ in zip(G['panel'], G['band'])]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
             _thick(ob, 0.01 * L)
+        elif k == 'collar' and s.get('source') == 'template':
+            # the sailor collar as a template (tool/collar): a shell over the neck's base, the shoulders and the upper
+            # back and chest, cut to its outline (outline_dist: the lapels' V in front, the square back panel), its
+            # stripe a band in from the outline's edge in a second material; it lies over the jacket (`offset`)
+            G = shell(A, dict(COLLAR_TEMPLATE, **s), nrm, hull)
+            st_ = s.get('stripe') or {}
+            mats = [_toon(nm, col, sh), _toon(nm + '_stripe', st_.get('color', s.get('stripe_color', (0.3, 0.2, 0.18))), sh)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv_corner=G['uvs'],
+                         mat_idx=[int(v) for v in G.get('panel_faces', np.zeros(len(G['faces']), int))])
+            _thick(ob, s.get('thick', 0.005) * L)
+            src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
+            border = set()
+            for f in A['faces']:
+                if any(inside[v] for v in f) and not all(inside[v] for v in f):
+                    border.update(f)
+            for v in src:
+                if v not in border:
+                    hide[v] = True
         elif k == 'collar' and s.get('source') == 'hull':
             G = collar_hull(A, s, nrm, hull)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
@@ -2991,8 +3061,26 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             _loft.LOW_COVERAGE.clear()
         obs.append(ob)
     if hide.any():
-        mask_skin(skin, hide)
+        mask_skin(skin, no_loose(hide, A['faces']))
     return obs
+
+
+def no_loose(hide, faces):
+    """the hidden vertices plus those the mask would leave in no face (every face on them dropped: a face goes when any
+    of its vertices does): Blender's Mask keeps them, with the edges between them, as loose geometry, and its
+    Subdivision Surface evaluates loose vertices and edges on a threaded path whose last bit varies from one evaluation
+    to the next (k, docs/workstreams/infra5.md: clawd_mh's 65 loose vertices, 1 float32 ulp, 7-18 of them per read; with
+    -t 1 or no loose geometry, bit-identical). Nothing renders there. The default spec's mask leaves none (unchanged).
+    -> (N,) bool."""
+    hide = np.asarray(hide, bool)
+    if not len(faces):
+        return hide
+    cnt = np.array([len(f) for f in faces], np.int64)
+    lv = np.concatenate([np.asarray(f, np.int64) for f in faces])
+    fkeep = np.logical_and.reduceat(~hide[lv], np.r_[0, np.cumsum(cnt)[:-1]])
+    used = np.zeros(len(hide), bool)
+    used[lv[np.repeat(fkeep, cnt)]] = True
+    return hide | ~used
 
 
 def mask_skin(skin, hide):

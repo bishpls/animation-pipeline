@@ -90,8 +90,7 @@ def test_sync_paths_match_build_sh_rules(tmp_path):
     subprocess.run(['git', '-C', root, 'add', 'charkit/link.py'], check=True)
     rels, keep = bs.sync_paths(root)
     assert rels == sorted(['.gitignore', 'charkit/a.py', 'charkit/link.py', 'charkit/same.txt', 'tools/same.txt',
-                           'tools/run.sh', 'tools/plain.sh', 'notes.txt', 'charkit/out/i3d/field.npz',
-                           'charkit/out/remote/spec.json'])
+                           'tools/run.sh', 'tools/plain.sh', 'notes.txt', 'charkit/out/remote/spec.json'])
     assert 'projects/p/out/' in keep and not any(k.startswith('charkit/out') for k in keep)
 
 
@@ -100,8 +99,7 @@ def sync(root, work, name='wt'):
     files, links, where = bs.scan(root, rels)
     bk, known = bs.Bucket('gs://test'), bs.known_set()
     bs.upload_blobs(bk, {f[1] for f in files}, known, where)
-    no_i3d = not os.path.lexists(os.path.join(root, 'charkit', 'out', 'i3d'))
-    m = dict(v=1, kind='sync', files=files, links=links, keep=keep, no_i3d=no_i3d)
+    m = dict(v=1, kind='sync', files=files, links=links, keep=keep)
     msha = bs.put_manifest(bk, m, known)
     return bs.box_materialize(msha, str(work / name))
 
@@ -151,15 +149,19 @@ def test_a_second_copy_links_the_same_blobs_and_never_writes_through(env):
     assert a.read_text() == 'A = 3\n' and b.read_text() == 'A = 1\n'
 
 
-def test_no_i3d_keeps_the_copys_own(env):
+def test_i3d_is_not_sent_and_a_copys_own_is_left_alone(env):
+    """decision 8: charkit/out/i3d (TRELLIS's output) isn't sent any more; a box copy's own, from the syncs that sent
+    it, is left alone like the rest of charkit/out (nothing reads it; the sync doesn't delete what it doesn't manage)."""
     bucket, work, tmp = env
     root = str(tmp / 'wt')
     repo(root)
     assert sync(root, work) == 0
+    assert not (work / 'wt' / 'charkit' / 'out' / 'i3d').exists()             # the laptop's isn't sent
+    write(str(work / 'wt' / 'charkit' / 'out' / 'i3d' / 'old.glb'), 'old\n')   # a copy's own, sent by an older sync
     import shutil
     shutil.rmtree(os.path.join(root, 'charkit', 'out', 'i3d'))
     assert sync(root, work) == 0
-    assert (work / 'wt' / 'charkit' / 'out' / 'i3d' / 'field.npz').exists()
+    assert (work / 'wt' / 'charkit' / 'out' / 'i3d' / 'old.glb').read_text() == 'old\n'
 
 
 def test_missing_blobs_are_reported(env):
@@ -199,13 +201,13 @@ def test_publish_and_pull_write_new_files_never_through_links(env, tmp_path):
 
 def test_managed():
     kf, kd = {'x/ignored.txt'}, {'projects/p/out'}
-    assert bs.managed('charkit/a.py', kf, kd, False)
-    assert bs.managed('charkit/out/i3d/f', kf, kd, False) and not bs.managed('charkit/out/i3d/f', kf, kd, True)
-    assert bs.managed('charkit/out/remote/s.json', kf, kd, False)
-    assert not bs.managed('charkit/out/remote/r.bundle', kf, kd, False)
-    assert not bs.managed('charkit/out/clawd', kf, kd, False)
-    assert not bs.managed('x/ignored.txt', kf, kd, False) and not bs.managed('projects/p/out/a', kf, kd, False)
-    assert not bs.managed('a/__pycache__/m.pyc', kf, kd, False) and not bs.managed('.git', kf, kd, False)
+    assert bs.managed('charkit/a.py', kf, kd)
+    assert not bs.managed('charkit/out/i3d/f', kf, kd) and not bs.managed('charkit/out/i3d', kf, kd)
+    assert bs.managed('charkit/out/remote/s.json', kf, kd)
+    assert not bs.managed('charkit/out/remote/r.bundle', kf, kd)
+    assert not bs.managed('charkit/out/clawd', kf, kd)
+    assert not bs.managed('x/ignored.txt', kf, kd) and not bs.managed('projects/p/out/a', kf, kd)
+    assert not bs.managed('a/__pycache__/m.pyc', kf, kd) and not bs.managed('.git', kf, kd)
 
 
 def test_push_copies_one_off_files_without_caching_them(env, tmp_path):
@@ -220,37 +222,38 @@ def test_push_copies_one_off_files_without_caching_them(env, tmp_path):
     assert bs.box_materialize(msha, str(dest), copy=True, delete=False) == 0
     assert dest.read_bytes() == b'bundle bytes' and os.stat(dest).st_mode & stat.S_IWUSR
     assert not (work / '.cas' / 'blobs').exists()
-    # a directory's contents, linked as inputs (the gate's i3d), into an existing directory
-    d = tmp_path / 'i3d'
+    # a directory's contents, linked as inputs, into an existing directory
+    d = tmp_path / 'inputs'
     write(str(d / 'a.npz'), 'a\n')
     write(str(d / 'sub' / 'b.glb'), 'b\n')
     files, links, where = bs.scan(str(d), bs.walk_paths(str(d)))
     bs.upload_blobs(bk, {x[1] for x in files}, known, where)
     msha = bs.put_manifest(bk, dict(v=1, kind='push', files=files, links=links), known)
-    assert bs.box_materialize(msha, str(work / 'g.i3d'), delete=False) == 0
-    assert (work / 'g.i3d' / 'sub' / 'b.glb').read_text() == 'b\n'
-    assert os.stat(work / 'g.i3d' / 'a.npz').st_nlink == 2
+    assert bs.box_materialize(msha, str(work / 'g.inputs'), delete=False) == 0
+    assert (work / 'g.inputs' / 'sub' / 'b.glb').read_text() == 'b\n'
+    assert os.stat(work / 'g.inputs' / 'a.npz').st_nlink == 2
 
 
 def test_blobs_the_bucket_lacks_are_adopted_from_the_boxs_copies(env, tmp_path, capsys):
     bucket, work, tmp = env
     root = str(tmp / 'wt')
     repo(root)
-    # an rsync-era copy of another worktree on the box, writable, with the same i3d
-    write(str(work / 'old' / 'charkit' / 'out' / 'i3d' / 'field.npz'), 'field\n')
+    # an rsync-era copy of another worktree on the box, writable, with the same untracked notes
+    write(str(work / 'old' / 'notes.txt'), 'untracked\n')
+    os.makedirs(str(work / 'old' / 'charkit'))                                  # (a worktree copy: it has charkit/)
     rels, keep = bs.sync_paths(root)
     files, links, where = bs.scan(root, rels)
     bk, known = bs.Bucket('gs://test'), bs.known_set()
-    field = next(f[1] for f in files if f[0].endswith('field.npz'))
+    field = next(f[1] for f in files if f[0] == 'notes.txt')
     others = {f[1] for f in files} - {field}
     bs.upload_blobs(bk, others, known, where)
     msha = bs.put_manifest(bk, dict(v=1, kind='sync', files=files, links=links, keep=keep), known)
     assert bs.box_materialize(msha, str(work / 'wt')) == 0
     assert 'BUCKETSYNC-ADOPTED %s' % field in capsys.readouterr().out
     assert bucket.exists(bs.blob(field))
-    new = work / 'wt' / 'charkit' / 'out' / 'i3d' / 'field.npz'
-    assert new.read_text() == 'field\n'
-    assert os.stat(new).st_ino != os.stat(work / 'old' / 'charkit' / 'out' / 'i3d' / 'field.npz').st_ino
+    new = work / 'wt' / 'notes.txt'
+    assert new.read_text() == 'untracked\n'
+    assert os.stat(new).st_ino != os.stat(work / 'old' / 'notes.txt').st_ino
 
 
 def test_check_finds_what_a_copy_gets_wrong(env, capsys):

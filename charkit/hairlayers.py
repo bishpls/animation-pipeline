@@ -20,9 +20,10 @@ The body sheet stays the authority for the hair's silhouettes; the breakdown dec
 belongs to. Its registration overlap (hair about 0.67-0.79, face 0.57-0.69 on Clawd) is reported: two generations of
 one design, not one drawing.
 
-    python -m charkit hairlayers SPEC [--out DIR] [--struct]
+    python -m charkit hairlayers SPEC [--out DIR] [--no-struct]
                                                       -> DIR/hair_layers.npz (VIEW__FAMILY), hair_layers.json, index.html
-                                                         (--struct: the drawing's structure, STRUCT_ON; needs --out)
+                                                         (the drawing's structure by default, STRUCT; --no-struct:
+                                                          the plain transfer, STRUCT_OFF; needs --out)
 """
 import json, os, sys
 
@@ -45,10 +46,11 @@ VIEWS = ('front', 'profile', 'back')
 # rule; hairtag round 2: the field's outfit masks call 52 px of the profile's left bun pin_star, which the hair truth
 # and the sheet-only outfit masks call bun, and the bun fit moved to another optimum without them).
 STRUCT_ON = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False, clip_rim=True)
-# the produced hair layers' default: off (tool/hairtag-truth lands the truth and its scorer alone; the pieces fitted to
-# the method's masks moved both ways, docs/workstreams/hairtag.md's 2x2). `hairlayers SPEC --struct` makes the method's
-# masks (off the manifest's path: `--out DIR`), and `hairlayers score --masks DIR/hair_layers.npz` grades them.
-STRUCT = dict(STRUCT_ON, vote=0, clips=False)
+# the produced hair layers' default: on (Michael, 2026-09-30: 0.892 -> 0.958 against the truth). STRUCT_OFF is the plain
+# transfer (the breakdown's nearest family per pixel, clips kept as hair): `hairlayers SPEC --no-struct --out DIR` makes
+# it (off the manifest's path), for the 2x2's old measure and comparisons.
+STRUCT_OFF = dict(STRUCT_ON, vote=0, clips=False)
+STRUCT = dict(STRUCT_ON)
 
 
 def _p(path):
@@ -703,9 +705,9 @@ def main(args):
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = manifest.resolve(json.load(open(_p(args[0]))))
     out = _p(opt('--out', os.path.join('charkit', 'out', spec.get('name', 'char'), 'hair')))
-    if '--struct' in args and '--out' not in args:
-        raise SystemExit('hairlayers --struct: give --out DIR (the manifest\'s produced layers stay the default method\'s)')
-    produce(spec, out, page='--no-page' not in args, struct=STRUCT_ON if '--struct' in args else None)
+    if '--no-struct' in args and '--out' not in args:
+        raise SystemExit('hairlayers --no-struct: give --out DIR (the manifest\'s produced layers stay the default method\'s)')
+    produce(spec, out, page='--no-page' not in args, struct=STRUCT_OFF if '--no-struct' in args else None)
     print(os.path.join(out, 'index.html'))
     return 0
 

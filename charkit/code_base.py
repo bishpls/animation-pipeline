@@ -48,7 +48,7 @@ class SectionsHead:
         self.db = float(self._cy[k0] + self._r[k0, jb] - y0) * L
         self.eye_x = float(C['eye_x']) * L
         # the face's front at the eyes' column (not the midline's, the nose's bridge: this head sets its eyes back in
-        # their sockets, as an anime profile draws them), what the generated target's eyes align to (i3d.eye_target)
+        # their sockets, as an anime profile draws them), what the generated target's eyes align to (target3d.eye_target)
         ex = float(C['eye_x'])
         row = self._r[k0]
         k = int(np.argmin(np.abs(row * np.sin(S.th) - ex) + 10 * (np.cos(S.th) < 0)))
@@ -575,7 +575,7 @@ def wrap(spec, body=None, log=print):
 
 def eye_front(S, C):
     """the face's front at the eyes' column on the eye line, in the head's frame (L): what the generated target's eyes
-    align to (SectionsHead.eye_df, i3d.eye_target)."""
+    align to (SectionsHead.eye_df, target3d.eye_target)."""
     ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
     zs, cy, r = S.zs[ok], S.cy[ok], S.r[ok]
     k0 = int(np.argmin(np.abs(zs)))

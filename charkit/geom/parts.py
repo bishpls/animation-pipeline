@@ -1,6 +1,7 @@
-"""Part extraction from a generated character (the real case): a TRELLIS.2 GLB aligned onto our assembled body the way the
-Blender build aligns it (charkit.scene.eye_target + charkit.i3d.align_by_eyes), and a part of it (the hair, the skirt)
-cut out as one clean closed surface:
+"""Part extraction from a generated character (the real case): a generated GLB (TRELLIS.2's when this was written; the 3D
+target is the visual hull now) aligned onto our assembled body the way the Blender build aligns it
+(charkit.scene.eye_target + charkit.target3d.align_by_eyes), and a part of it (the hair, the skirt) cut out as one clean
+closed surface:
 
     solid(generated)                      the generated surface is a thin double-walled shell: its enclosed solid, flooded
                                           from outside over the whole character (so the hollow head and body fill)
@@ -33,7 +34,7 @@ VERSION = 5                     # bump when an extraction default changes (pytho
 
 # ------------------------------------------------------------------------------------------------------------ the case
 def load_generated(path, compat=True):
-    """(V, F, C) of a generated GLB in Blender's frame, the same numbers charkit.i3d.load_glb gives in Blender
+    """(V, F, C) of a generated GLB in Blender's frame, the same numbers charkit.target3d.load_glb gives in Blender
     (compat=True: its colours too). A drop-in `load` for charkit.scene.fit_cranium."""
     m = gio.load(path, blender_compat=compat)
     return m.V, [tuple(f) for f in m.F], m.vc
@@ -41,7 +42,7 @@ def load_generated(path, compat=True):
 
 class Case:
     """a generated character aligned onto our assembled character. gen: Mesh (world, vc = true sRGB base colour),
-    gen_compat: i3d-compatible colours (what the spec's colour knobs were tuned on), body: our skin (triangulated), A: the
+    gen_compat: target3d.load_glb's colours (what the spec's colour knobs were tuned on), body: our skin (triangulated), A: the
     assembly dict (charkit.character.assemble), spec: the resolved spec."""
 
     def __init__(self, spec, A, gen, gen_compat, body, align):
@@ -66,7 +67,7 @@ class Case:
         """resolve the spec as `python -m charkit build` does (refs fit, then the cranium fitted to the generated hair),
         assemble our character (numpy, charkit.geomstage.assemble's memo, shared with the build's other venv steps) and
         align the generated character by its eyes."""
-        from .. import character, cli, i3d, manifest, refs, scene
+        from .. import character, cli, target3d, manifest, refs, scene
         spec = manifest.resolve(json.load(open(spec_path)))          # ref.manifest: the rig, the image, "ref:KEY" paths
         shape = (spec.get('hair') or {}).get('shape') or {}
         if glb:
@@ -87,11 +88,11 @@ class Case:
             print('assembled %s in %.1fs' % (spec.get('name'), time.time() - t))
         gc = gio.load(path, blender_compat=True)
         gt = gio.load(path)
-        eyes = i3d.glb_eyes(path, gc.V, gc.vc)
+        eyes = target3d.glb_eyes(path, gc.V, gc.vc)
         if eyes is None:
             raise RuntimeError('no eyes found on the generated shape')
         mid, spacing = scene.eye_target(A, shape)
-        V = i3d.align_by_eyes(gc.V, eyes, mid, spacing)
+        V = target3d.align_by_eyes(gc.V, eyes, mid, spacing)
         s = spacing / max(1e-9, abs(eyes[0][0] - eyes[1][0]))
         align = dict(eyes=[e.tolist() for e in eyes], eye_mid=mid.tolist(), spacing=float(spacing), scale=float(s),
                      translate=(np.asarray(mid) - (eyes[0] + eyes[1]) / 2 * s).tolist(), glb=path)
@@ -124,7 +125,7 @@ def generated_labels(path, n):
 
 # ------------------------------------------------------------------------------------------------------------- colour
 def hsv(C):
-    from ..i3d import hsv as _hsv
+    from ..target3d import hsv as _hsv
     return _hsv(C)
 
 

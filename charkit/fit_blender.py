@@ -1,7 +1,7 @@
 """The Blender side of `python -m charkit fit` (charkit/facefit.py): what the numpy face evaluator (charkit/faceeval.py)
 can't make itself, saved once as arrays.
 
-  target   the generated character (the spec's hair.shape.glb, a TRELLIS.2 mesh) as loaded: vertices, triangles and
+  target   the 3D target (the spec's hair.shape.glb: the visual hull) as loaded: vertices, triangles and
            per-vertex colours, before any alignment (the evaluator aligns it on each head as the build does)
   env      with --env: the scene's hair, accessories and garments (evaluated, world), the triangles near the head. The face
            and eye knobs don't make them, so they stand as occluders (garments) and cover (hair) for the face measures;
@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 import numpy as np
 
-from charkit import faceqa, i3d, scene, trace
+from charkit import faceqa, target3d, scene, trace
 
 a = sys.argv[sys.argv.index('--') + 1:]
 spec = scene.load(a[0])
@@ -26,7 +26,7 @@ shape = (spec.get('hair') or {}).get('shape') or {}
 if shape.get('glb'):
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(ROOT, shape['glb'])
     scene.reset()
-    V, F, C = i3d.load_glb(path)
+    V, F, C = target3d.load_glb(path)
     T = np.array([f for f in F if len(f) == 3], np.int32)
     quads = [f for f in F if len(f) == 4]
     if quads:

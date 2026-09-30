@@ -120,12 +120,12 @@ def test_a_mirrored_view_swaps_sides():
 
 def test_a_glb_sidecar_gives_its_eyes_exactly():
     import json, tempfile
-    from charkit import i3d
+    from charkit import target3d
     d = tempfile.mkdtemp()
     glb = os.path.join(d, 'x.glb')
     open(glb, 'wb').write(b'')
     json.dump({'eyes': [[0.168, -0.23, 0.0], [-0.168, -0.23, 0.0]]}, open(glb + '.json', 'w'))
-    L, R = i3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
+    L, R = target3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
     assert np.allclose(L, [0.168, -0.23, 0]) and np.allclose(R, [-0.168, -0.23, 0])
 
 
@@ -348,7 +348,7 @@ def test_the_refined_axis_does_not_move_with_the_limb_labels():
 def test_the_sidecar_carries_the_contract_version():
     """docs/HULL_CONTRACT.md: the sidecar names its contract version; one written before the field reads as 1."""
     import json, tempfile
-    from charkit import i3d
+    from charkit import target3d
     J = hull.sidecar(0.168, -0.23, labels='hull_labels.npy')
     assert J['contract'] == hull.CONTRACT and hull.contract_of(J) == hull.CONTRACT and J['units'] == 'L', J
     assert J['eyes'][0][0] > 0 and J['eyes'][0][2] == 0.0 and J['labels'] == 'hull_labels.npy', J
@@ -357,7 +357,7 @@ def test_the_sidecar_carries_the_contract_version():
     glb = os.path.join(d, 'hull.glb')
     json.dump(J, open(glb + '.json', 'w'))
     assert hull.contract_of(glb + '.json') == hull.CONTRACT
-    L, R = i3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
+    L, R = target3d.glb_eyes(glb, np.zeros((3, 3)), np.zeros((3, 3)))
     assert L[0] > 0 > R[0]
 
 

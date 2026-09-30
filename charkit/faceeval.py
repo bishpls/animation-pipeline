@@ -12,7 +12,7 @@ What a build would make, made here:
     renders (a render draws the modifier's render level), pulled in by its outline (SKIN_OUTLINE along the vertex
     normals) with the hull left on the surface, as the solidify outline renders;
   - the cranium from the generated hair (charkit.scene.fit_cranium on the cached arrays);
-  - the generated character (the TRELLIS target) aligned on our eyes as charkit.scene.hair_shape_volume aligns it;
+  - the 3D target (the visual hull) aligned on our eyes as charkit.scene.hair_shape_volume aligns it;
   - the hair, accessories and garments: cached from one Blender build (charkit/fit_blender.py --env), since the face and
     eye knobs don't make them;
   - the eye plates' textures (charkit.eyetex) stored as Blender stores them (bytes), the materials' flat tones from the
@@ -143,7 +143,7 @@ def features(b, A, S, keys=False):
             var = {'eval': G}
             if keys:
                 back = np.zeros((len(v), 3)); back[:, 1] = 0.006
-                K = {'eye_blink': back, 'eye_happy': back}
+                K = {'eye_' + nm: back for nm in eyelib.CLOSED}
                 if k == 'iris':
                     K.update({kn: D for kn, D in (E.get('iris_keys') or {}).items()})
                     K.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})
@@ -293,13 +293,13 @@ class Evaluator:
                 v, t = self.garments(A) if g == 'garment' else self.env[g]
                 b.add(g + '_env', g, {'eval': dict(V=v, faces=np.asarray(t))})
         if self.target is not None:
-            from . import i3d, scene
+            from . import target3d, scene
             V, T, C = self.target
             shape = S['hair']['shape']
             if 'eyes' not in self._tmaps:
-                self._tmaps['eyes'] = i3d.find_eyes(V, C)
+                self._tmaps['eyes'] = target3d.find_eyes(V, C)
             eye_mid, spacing = scene.eye_target(A, shape)
-            b.target(i3d.align_by_eyes(V, self._tmaps['eyes'], eye_mid, spacing), T, C)
+            b.target(target3d.align_by_eyes(V, self._tmaps['eyes'], eye_mid, spacing), T, C)
         B = b.build()
         B.A = A
         return B

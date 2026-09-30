@@ -5,7 +5,7 @@ FAIL per check (a check that couldn't run says SKIPPED and why) and overlay imag
 materials, and nothing here needs Blender. `python -m charkit build --qa blender` still runs the old Blender pass
 (charkit/qa3d_blender.py) for comparison.
 
-  shape      silhouette overlap (IoU) with the generated shape (a TRELLIS.2 GLB, aligned as the build aligned it) from six
+  shape      silhouette overlap (IoU) with the 3D target (the visual hull's GLB, aligned as the build aligned it) from six
              azimuths, overall and per height band (hair, torso, skirt, legs)
   ref        front silhouette overlap with the reference image (both cropped to their bounding boxes)
   scalp      pixels of scalp showing through the hair (the upper cranium and the back of the head, flagged), per view
@@ -67,7 +67,7 @@ COVER = (11, 13, 9, 4)         # exprqa classes an open mouth may show: its insi
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
                'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05), 'focus': (0.55, 0.92),
-               'squeeze': (0.0, 0.05), 'wince': (0.3, 0.75), 'shy': (0.55, 0.95)}
+               'squeeze': (0.0, 0.05), 'wince': (0.3, 0.75), 'shy': (0.55, 0.95), 'chevron': (0.0, 0.05)}
 VISEMES = ('aa', 'ih', 'ou', 'ee', 'oh')
 FRAME = (360, 560)             # the full-figure views: width, height (pixels), the figure's height x 1.08 across
 EYE_SIZE = 0.42                # the eye render's window, in L
@@ -156,6 +156,51 @@ def visible_share(upper, lower, pts):
     up, lo = _profile(upper, pts[:, 0]), _profile(lower, pts[:, 0])
     ok = np.isfinite(up) & np.isfinite(lo) & (pts[:, 1] < up) & (pts[:, 1] > lo)
     return float(ok.mean()) if len(pts) else 0.0
+
+
+# ------------------------------------------------------------------------------------ a lid folded back on itself
+# The lids above are read as heights over x (_profile). A lid whose margin runs back on itself (charkit.eyes' chevron:
+# out along its stroke and back) has no height over x: read over x, the chevron's two folded lids leave the wedge between
+# their strokes as an opening (0.32 of neutral, the iris 0.32 visible) where the margin loop encloses nothing. Such a
+# lid's opening is the loop's: the points the loop (upper inner -> outer, lower back) winds round as an open eye's
+# does. Lids that don't fold are read as before.
+FOLD_BACK = 0.05               # a chain folds back when its x runs back this share of its x range
+
+
+def folds_back(P):
+    """a chain (n, 2) whose x runs back on itself (its travel against its main direction) past FOLD_BACK of its range."""
+    dx = np.diff(np.asarray(P, float)[:, 0])
+    back = min(dx[dx > 0].sum(), -dx[dx < 0].sum())
+    return bool(back > FOLD_BACK * max(float(np.ptp(P[:, 0])), 1e-12))
+
+
+def _winding(pts, poly):
+    """the winding number of a closed polygon (n, 2) round each point (m, 2)."""
+    x, y = pts[:, 0][:, None], pts[:, 1][:, None]
+    a, b = poly[None], np.roll(poly, -1, 0)[None]
+    cross = (b[..., 0] - a[..., 0]) * (y - a[..., 1]) - (x - a[..., 0]) * (b[..., 1] - a[..., 1])
+    up = (a[..., 1] <= y) & (b[..., 1] > y) & (cross > 0)
+    down = (a[..., 1] > y) & (b[..., 1] <= y) & (cross < 0)
+    return up.sum(1) - down.sum(1)
+
+
+def loop_sign(upper, lower):
+    """the winding an open loop (upper, then lower back) has round its inside: its signed area's sign."""
+    P = np.concatenate([upper, lower[::-1]])
+    return 1 if 0.5 * float(np.sum(P[:, 0] * np.roll(P[:, 1], -1) - np.roll(P[:, 0], -1) * P[:, 1])) > 0 else -1
+
+
+def loop_opening(upper, lower, xs, sign, pts=None):
+    """a folded lid's opening: the area (the cells of the xs grid, as many rows over the loop's height, read at their
+    centres) the loop winds round with `sign` (loop_sign at rest: where the lids overlap the winding is the other sign,
+    where they fold onto each other 0) -> (area, the share of points pts (m, 2) inside, or None)."""
+    P = np.concatenate([upper, lower[::-1]])
+    z = np.linspace(P[:, 1].min(), P[:, 1].max(), len(xs))
+    X, Z = np.meshgrid(0.5 * (xs[1:] + xs[:-1]), 0.5 * (z[1:] + z[:-1]))
+    w = _winding(np.stack([X.ravel(), Z.ravel()], 1), P)
+    area = float((w == sign).sum() * (xs[1] - xs[0]) * (z[1] - z[0]))
+    share = float((_winding(pts, P) == sign).mean()) if pts is not None and len(pts) else None
+    return area, share
 
 
 def ellipse_points(cx, cz, rx, rz, n=41):
@@ -250,14 +295,17 @@ def face_from(A, spec, key_xz, expressions=None, mouths=None):
         xs = np.linspace(base[up + lo, 0].min(), base[up + lo, 0].max(), 96)
         iris = ellipse_points(E['c'][0], E['c'][1] + IK['cz'] * W, IK['rx'] * W, IK['rz'] * W)
         _, a0 = opening(base[up], base[lo], xs)
-        eyes.append((E['side'], up, lo, xs, iris, a0))
+        eyes.append((E['side'], up, lo, xs, iris, a0, loop_sign(base[up], base[lo])))
     for name in ['neutral'] + list(expressions):
         P = base if name == 'neutral' else key_xz('eye_' + name)
         row = {}
-        for side, up, lo, xs, iris, a0 in eyes:
-            _, a = opening(P[up], P[lo], xs)
-            row['L' if side > 0 else 'R'] = {'open': round(a / a0, 4) if a0 > 0 else None,
-                                              'iris': round(visible_share(P[up], P[lo], iris), 4)}
+        for side, up, lo, xs, iris, a0, sg in eyes:
+            if folds_back(P[up]) or folds_back(P[lo]):          # (a folded lid, the chevron's: its loop's opening)
+                a, vis = loop_opening(P[up], P[lo], xs, sg, iris)
+            else:
+                _, a = opening(P[up], P[lo], xs)
+                vis = visible_share(P[up], P[lo], iris)
+            row['L' if side > 0 else 'R'] = {'open': round(a / a0, 4) if a0 > 0 else None, 'iris': round(vis, 4)}
         table['eyes'][name] = row
     table['eyes']['neutral_area_L2'] = round(eyes[0][5] / L ** 2, 5)
     m = A['mouth']['m']
@@ -2302,6 +2350,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     rep = {'checks': {}, 'views': {}}
     t0, c0 = time.perf_counter(), time.process_time()
     timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
+    owner = {}                      # per part: the checks it reported (the gate's measure-change check: charkit.codediff)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
             continue
@@ -2315,6 +2364,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+            owner[P.name] = [P.skip_key]
             continue
         if P.table == 'views':
             rep['views'] = table
@@ -2322,6 +2372,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
             rep[P.table] = _strip(table)
         for k, v in C.items():
             rep['checks'][_check_name(P, k)] = v
+        owner[P.name] = [_check_name(P, k) for k in C]
     from . import checks as checklib
     checklib.authorize(rep['checks'], design.ref().get('authority') or {})
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
@@ -2329,8 +2380,9 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
-                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing,
-                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B))}
+                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
+                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
+                                    export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
         cache.prune()                                           # (the cache's size cap, once per pass)

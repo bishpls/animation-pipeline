@@ -21,7 +21,7 @@ HAIR = os.environ.get('CHARKIT_HAIR', '1') == '1'
 
 def set_expr(C, name):
     brow = {'angry': 'angry', 'sad': 'sad', 'wide': 'surprised', 'happy': 'relaxed', 'shock': 'worried', 'focus': 'focus',
-            'squeeze': 'knit', 'wince': 'pained', 'shy': 'worried'}.get(name)
+            'squeeze': 'knit', 'wince': 'pained', 'shy': 'worried', 'chevron': 'knit'}.get(name)
     for p in C['eyes']:
         for kb in (p['brow'].data.shape_keys.key_blocks[1:] if p['brow'].data.shape_keys else []):
             kb.value = 1.0 if kb.name == f'brow_{brow}' else 0.0

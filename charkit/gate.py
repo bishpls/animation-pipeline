@@ -6,7 +6,7 @@ candidate; the tests run, each side is built when it has to be, and the two buil
                                   [--build]
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
     python -m charkit gate --carry BRANCH [--into pipeline-3d] [--spec SPEC] [--args ".."] [--no-tests] [--dry-run]
-                                  [--json]
+                                  [--json] [--rule definitions|files]
         # an earlier gate of BRANCH's tip carried to INTO's head without a build: the tests the move reaches rerun
         # here (exit 0 PASS, 1 FAIL, 3 not carried: gate it)
 
@@ -76,15 +76,6 @@ def _git(*a, cwd=ROOT, check=True):
 
 def _free_gb(path):
     return shutil.disk_usage(path).free / 2 ** 30
-
-
-def _link_inputs(wt):
-    """the gitignored generated inputs a build reads (charkit/out/i3d), shared read-only from this worktree."""
-    src = os.path.join(ROOT, 'charkit', 'out', 'i3d')
-    dst = os.path.join(wt, 'charkit', 'out', 'i3d')
-    if os.path.isdir(src) and not os.path.exists(dst):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        os.symlink(src, dst)
 
 
 class Clock:
@@ -296,11 +287,57 @@ def produce_inputs(tree, spec):
     return None
 
 
+def rebased_bundle(bundle_dir, tmp):
+    """a bundle whose spec's paths into its build's out folder (the hair pieces' report, the code head and body, the
+    garments) point where that folder is now -> the bundle's folder (itself when they all resolve; else a copy in tmp,
+    its arrays linked). A cached baseline was built in another gate's clone, since removed, so a crossed QA on it lost
+    what those paths hold: hair_folds read 1342 FAIL (the dihedral fallback) where the build read 5 WARN from the
+    builder's report (tool/infra4's real-pair gates, 2026-09-30)."""
+    p = os.path.join(bundle_dir, 'bundle.json')
+    if not os.path.exists(p):
+        return bundle_dir
+    meta = json.load(open(p))
+    here = os.path.realpath(os.path.dirname(os.path.abspath(bundle_dir)))
+    names = {os.path.basename(here), os.path.basename(os.path.dirname(os.path.abspath(bundle_dir)))}
+    moved = [0]
+
+    def fix(x):
+        if isinstance(x, dict):
+            return {k: fix(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [fix(v) for v in x]
+        if isinstance(x, str) and os.path.isabs(x) and not os.path.exists(x):
+            for n in names:
+                i = x.find('/' + n + '/')
+                if i >= 0 and os.path.exists(os.path.join(here, x[i + len(n) + 2:])):
+                    moved[0] += 1
+                    return os.path.join(here, x[i + len(n) + 2:])
+        return x
+    meta['spec'] = fix(meta.get('spec'))
+    if not moved[0]:
+        return bundle_dir
+    # (a mirror of the build's folder, every entry linked, the bundle's own metadata rewritten: the QA finds the build's
+    # export beside its bundle, OUT/NAME.look.glb, for the render drawing)
+    src = os.path.dirname(os.path.abspath(bundle_dir))
+    mirror = os.path.join(tmp, os.path.basename(src))
+    dst = os.path.join(mirror, os.path.basename(os.path.abspath(bundle_dir)))
+    os.makedirs(dst, exist_ok=True)
+    for f in os.listdir(src):
+        if f != os.path.basename(dst) and not os.path.lexists(os.path.join(mirror, f)):
+            os.symlink(os.path.join(src, f), os.path.join(mirror, f))
+    for f in os.listdir(bundle_dir):
+        if f != 'bundle.json' and not os.path.lexists(os.path.join(dst, f)):
+            os.symlink(os.path.join(os.path.abspath(bundle_dir), f), os.path.join(dst, f))
+    json.dump(meta, open(os.path.join(dst, 'bundle.json'), 'w'))
+    return dst
+
+
 def cross_qa(tree, bundle_dir, out):
     """one tree's QA code on another build's geometry bundle (the 2x2's crossed cells): `python -m charkit qa` run in
-    tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's) -> the
-    report (qa.json's) or {'error': why}."""
+    tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's), on the
+    bundle rebased to where its build's folder is now (rebased_bundle) -> the report (qa.json's) or {'error': why}."""
     os.makedirs(out, exist_ok=True)
+    bundle_dir = rebased_bundle(bundle_dir, os.path.join(out, 'rebased'))
     r = subprocess.run([PY, '-m', 'charkit', 'qa', bundle_dir, '--out', out, '--cache', 'off'], cwd=tree,
                        capture_output=True, text=True)
     p = os.path.join(out, 'qa.json')
@@ -316,13 +353,15 @@ def cross_qa(tree, bundle_dir, out):
     return q
 
 
-def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
+def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=(), detected=()):
     """the 2x2 for each remeasured check: its value and status in base (the old geometry, the old measure), old_on_new
     (the new geometry, the old measure), new_on_old (the old geometry, the new measure) and cand (the new geometry, the
     new measure) -> rows, each with `old` (the new geometry against the old under the old measure: regressed, improved,
     value, same, unmeasured) and `new` (the same under the new measure), and `accepted` (a pattern in accept covers it).
-    A check the old measure doesn't have is new with its step: it has no old-measure row."""
+    A check the old measure doesn't have is new with its step: it has no old-measure row. detected: checks whose
+    measure changed with no registered step (measure_moved); their rows carry `detected`."""
     import fnmatch
+    detected = set(detected or ())
 
     def cell(q, k):
         c = (q or {}).get('checks', {}).get(k)
@@ -342,10 +381,13 @@ def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
         names |= set((q or {}).get('checks', {}))
     rows = []
     for k in sorted(names):
-        if not any(fnmatch.fnmatchcase(k, p) for p in remeasured or {}):
+        stepped = any(fnmatch.fnmatchcase(k, p) for p in remeasured or {})
+        if not stepped and k not in detected:
             continue
         r = dict(check=k, base=cell(base, k), old_on_new=cell(old_on_new, k), new_on_old=cell(new_on_old, k),
                  cand=cell(cand, k))
+        if not stepped:
+            r['detected'] = True
         r['old'] = verdict(r['base'], r['old_on_new'])
         r['new'] = verdict(r['new_on_old'], r['cand'])
         r['unmeasured'] = unmeasured_cells(r)
@@ -373,6 +415,46 @@ def unmeasured_cells(r):
     return out
 
 
+def part_owners(meas, *reports):
+    """the checks each changed QA part owns -> {part: [checks] or None (unknown)}: the part's own record in a build's
+    qa.json (measured.part_checks; the candidate's first), else its registration's naming (a prefix, or a kept name
+    start) over the checks the reports have; a part with neither is unknown (any check may be its)."""
+    from . import codediff
+    names = set()
+    for q in reports:
+        names |= set((q or {}).get('checks', {}))
+    out = {}
+    for part, m in meas.items():
+        got = next((c for c in (codediff.part_checks(q, part) for q in reports) if c is not None), None)
+        if got is None:
+            P = m.get('part') or {}
+            pre = [x for x in (P.get('prefix'), P.get('keep')) if x]
+            got = sorted(k for k in names if k.startswith(tuple(pre)) or k == P.get('skip_key')) if pre else None
+        out[part] = got
+    return out
+
+
+def measure_moved(base, cand, old_on_new, new_on_old, names):
+    """the checks (of names) that the two measures read differently on the same geometry, on the old or the new one
+    -> sorted names: the measure changed for them, whatever the registry says."""
+    def cell(q, k):
+        c = (q or {}).get('checks', {}).get(k)
+        return [c.get('value'), c.get('status')] if c else None
+    return sorted(k for k in names if cell(base, k) != cell(new_on_old, k) or cell(old_on_new, k) != cell(cand, k))
+
+
+def draw_exports(qa_a, qa_b):
+    """both QAs must draw from the same kind of export (the look export): a --vrm candidate that had none drew from its
+    VRM, and 7 face_shadow values moved with no change (tool/evalmesh ed0f91a, 2026-09-30; builds now write the look
+    export beside the VRM) -> a note when the two reports (measured.draw.export) name different kinds, else None."""
+    dx = [(((q or {}).get('measured') or {}).get('draw') or {}).get('export') for q in (qa_a, qa_b)]
+    kind = lambda f: 'look' if f.endswith('.look.glb') else os.path.splitext(f)[1].lstrip('.')
+    if all(dx) and kind(dx[0]) != kind(dx[1]):
+        return "the two QAs drew from different exports (%s -> %s): the drawn checks' moves may be the export's, not " \
+               "the branch's" % tuple(dx)
+    return None
+
+
 def geometry(out):
     """a build's geometry, for the 2x2's "did the geometry change": its bundle's array hashes (charkit/bundle.py's
     bundle.json), not the bundle's content hash, which also covers the metadata (the resolved spec's absolute output
@@ -397,14 +479,14 @@ def twobytwo_drops(rows):
 
 
 def _worktree(head, spec, label):
-    """a sparse worktree at head, its generated inputs linked."""
+    """a sparse worktree at head (no generated inputs linked: charkit/out/i3d, TRELLIS's output, was the only one, and no
+    build reads it since the sheet-only outfit masks, decision 8)."""
     from . import sparse
     wt = tempfile.mkdtemp(prefix='charkit-gate-%s-' % label)
     os.rmdir(wt)
     _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
     _git('sparse-checkout', 'set', '--cone', *sparse.dirs('charkit', spec), cwd=wt)
     _git('checkout', '--detach', head, cwd=wt)
-    _link_inputs(wt)
     return wt
 
 
@@ -722,12 +804,38 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             steps = history.load_steps(os.path.join(wc, 'charkit', 'history.py'))
             rep['remeasured'] = history.steps_between(head, tip, steps, repo=wc)
             rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
+        # a check whose measuring code the merge changes, registered or not (charkit.codediff: each QA part's code, the
+        # baseline's tree against the merged; tool/evalmesh 0c9eb95 changed qa3d.poke with the geometry and registered
+        # nothing, and the gate compared poke_share across both changes at once)
+        meas = {}
+        if cand_q != base_out:
+            from . import codediff
+            with clock('measure code', "each QA part's measuring code, the baseline's tree against the merged") as ph:
+                try:
+                    meas = codediff.measure_changes(wb, wc)
+                except Exception as e:                  # (never the gate's failure: the note says it wasn't looked at)
+                    rep.setdefault('notes', []).append("the QA's code wasn't compared (%s: %s)" % (type(e).__name__, e))
+                ph['note'] = '%d part%s changed' % (len(meas), 's' * (len(meas) != 1))
+        owners = part_owners(meas, qa_b, qa_a)
+        n = draw_exports(qa_a, qa_b)
+        if n:
+            rep.setdefault('notes', []).append(n)
         # the 2x2: a remeasured check on changed geometry scored under both measures: the candidate's code (the merged
         # worktree) measures the baseline's bundle, the baseline's measures the candidate's
         (ga, ha), (gb, hb) = geometry(base_out), geometry(cand_q)
         stepped = [k for k in set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
                    if any(fnmatch.fnmatchcase(k, p) for p in rep["remeasured"])]
-        if stepped and ga != gb:
+        every = set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
+        owned = every if any(v is None for v in owners.values()) else {k for v in owners.values() for k in v}
+        owned = {k for k in owned if not any(fnmatch.fnmatchcase(k, p) for p in rep['remeasured'])}
+        if meas:
+            rep['unregistered'] = {'parts': {p: v['units'][:12] for p, v in meas.items()},
+                                   'owners': {p: (v[:40] if v is not None else None) for p, v in owners.items()},
+                                   'geometry': 'changed' if ga != gb else 'unchanged', 'checks': []}
+            if ga == gb:
+                # the same geometry: every move of these checks is the measure's (judged as usual: nothing registered)
+                rep['unregistered']['checks'] = sorted(r['check'] for r in rep['qa'] if r['check'] in owned)
+        if (stepped or (meas and owned)) and ga != gb:
             with clock('2x2', 'both QA codes on both bundles'):
                 # each tree's produced references first: a tree that didn't build (a cached baseline's, a carried
                 # candidate's) has none, and its QA would skip the checks that read them
@@ -740,8 +848,12 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                 new_on_old, old_on_new = f1.result(), f2.result()
             errs = {k: q['error'] for k, q in (('new measure on the old geometry', new_on_old),
                                                ('old measure on the new geometry', old_on_new)) if 'error' in q}
+            # the checks whose measure changed with no registered step: the two measures read them differently
+            detected = [] if errs or not meas else measure_moved(qa_a, qa_b, old_on_new, new_on_old, owned)
+            if meas:
+                rep['unregistered']['checks'] = detected
             rep['twobytwo'] = {'rows': twobytwo(qa_a, qa_b, None if errs else old_on_new, None if errs else new_on_old,
-                                                rep['remeasured'], accept), 'errors': errs,
+                                                rep['remeasured'], accept, detected), 'errors': errs,
                                'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
         elif stepped:
             rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
@@ -795,7 +907,6 @@ def _tests_at(root, tree, head, tip, spec, names):
         except (Exception, SystemExit):
             pass                                       # (no manifest: the whole tree)
         _git('checkout', '--detach', c.stdout.strip(), cwd=wt)
-        _link_inputs(wt)
         return _tests(wt, jobs=min(4, _test_jobs()), only=set(names))
     finally:
         _git('worktree', 'remove', '--force', wt, cwd=root, check=False)
@@ -820,8 +931,59 @@ def _report_dirs():
     return out
 
 
+def _kit_py(p):
+    """charkit's own Python, as the code walk compares it (its tests and outputs aside)."""
+    return p.startswith('charkit/') and p.endswith('.py') and not p.startswith(('charkit/tests/', 'charkit/out/'))
+
+
+def _carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff, later=()):
+    """what stops an earlier gate (tip into h0, merged tree t0) carrying to head (t1): the definition rule -> {kind:
+    [(what, why)]}.
+      - charkit's Python: the move's changed definitions (h0 -> head) and the branch's (h0 -> t0) meet: one side's among
+        what the other's reach, in either tree (charkit.codediff.interacts). A file both touch, or one the builds read,
+        no longer stops it by itself: an infra-only move (gate.py, cache.py, remote.py) reaches nothing the branch
+        changed.
+      - the QA's boundary, where data rather than calls joins the two: the move changes a QA part's measuring code (or
+        adds a part) while the branch changes what the QA reads (its candidate was built); or the branch changes a
+        measure (registered or not) while the move changes a file the baseline read.
+      - anything else (data files, Python outside charkit), and every file the branch itself changed since the gated
+        tip (later): as before, the files the two builds read."""
+    from . import cache, closure, codediff
+    trees = {}
+    T = lambda r: trees.setdefault(r, cache.Tree(repo=root, rev=r))
+    other = lambda ch: [(st, p) for st, p in ch if not _kit_py(p)]
+    own = [(st, p) for st, p in diff if p in later]
+    hits = {'baseline': closure.affected(Cs['base'], other(moved), root, cone, rev=h0, new=head, untracked=False),
+            'candidate': closure.affected(Cs['cand'], other([x for x in diff if x not in own]) + own, root, cone,
+                                          rev=t0, new=t1, untracked=False)}
+    mv = sorted(p for _, p in moved if _kit_py(p))
+    br = sorted(p for _, p in closure.changes(root, h0, t0) if _kit_py(p))
+    if mv and br:
+        M = codediff.changed(T(h0), T(head), paths=mv, repo=root)
+        B = codediff.changed(T(h0), T(t0), paths=br, repo=root)
+        if M and B:
+            hits['definitions'] = codediff.interacts(M, B, [T(head), T(t1)], [T(t0), T(t1)])
+    built = (old.get('build') or {}).get('candidate') in ('built', 'carried')
+    if mv and built:
+        mq = codediff.measure_changes(T(h0), T(head))
+        new_parts = sorted({P['name'] for P in codediff.part_defs(T(head))} -
+                           {P['name'] for P in codediff.part_defs(T(h0))})
+        hits['measure'] = [(p, 'the move changes its measuring code (%s) and the branch changes what the QA reads' % (
+            ', '.join(v['units'][:3]))) for p, v in mq.items()] + [
+            (p, 'the move adds this QA part and the branch changes what the QA reads') for p in new_parts]
+    if br and moved:
+        bq = codediff.measure_changes(T(h0), T(t0)) if built else {}
+        if bq or old.get('remeasured'):
+            reach = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
+            if reach:
+                hits.setdefault('measure', []).extend(
+                    (p, 'the branch changes a measure (%s) and the move changes what the baseline build read' % (
+                        ', '.join(sorted(bq) or sorted(old.get('remeasured') or ()))[:120])) for p, _ in reach[:4])
+    return hits
+
+
 def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), write=True, reports=None, root=ROOT,
-          run_tests=True):
+          run_tests=True, rule='definitions'):
     """the newest gate of the branch's tip (any branch name) into an ancestor H0 of INTO, carried over to INTO with no
     build and no box, when the verdict can't differ there (ROADMAP "Reuse a gate when pipeline-3d moves"):
       - the branch still merges into INTO cleanly (git merge-tree);
@@ -831,6 +993,10 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
         deleted counts);
       - or, for a gate that built nothing because the branch changes only docs and tests, the merge into INTO still
         changes only those, and the tests' closure is untouched.
+    rule 'definitions' (the default since tool/infra4): charkit's Python counts at the level of definitions (the move's
+    changed definitions against the branch's and what they reach; _carry_hits), data and other files as before; 'files':
+    every file either build read (the first rule: an infra-only move or a shared file with no shared definition stopped
+    it).
     The report's json holds the three closures (reports from before this can't carry). -> dict: carried (bool),
     verdict (the old one, when carried), why, from (the report), hits ({baseline, candidate, tests: [(path, why)]}),
     report (the new report's .md, written as gate_TAG_into_HEAD when write)."""
@@ -907,21 +1073,29 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
             hits['candidate'] = [] if closure.unreadable(mine) else [
                 (p_, 'the merge now changes more than docs and tests') for _, p_ in mine[:8]]
         elif Cs.get('base') and Cs.get('cand'):
-            hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
-            hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
+            if rule == 'files':
+                hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
+                hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
+            else:
+                hits.update(_carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff,
+                                        {p_ for _, p_ in closure.changes(root, tip0, tip)} if tip0 != tip else set()))
         else:
             reasons.append('%s: its builds recorded no closure' % name)
             continue
         if any(hits.values()):
             res.setdefault('hits', {k: v[:20] for k, v in hits.items() if v})
             res.setdefault('from', name)
-            reasons.append('%s (into %s): %s' % (name, h0, '; '.join('%s reads %s' % (k, ', '.join(
+            head_ = {'baseline': 'the baseline reads', 'candidate': 'the candidate reads',
+                     'definitions': 'the move and the branch meet at', 'measure': 'the QA boundary:'}
+            reasons.append('%s (into %s): %s' % (name, h0, '; '.join('%s %s' % (head_.get(k, k), ', '.join(
                 '%s (%s)' % h for h in v[:4]) + (' and %d more' % (len(v) - 4) if len(v) > 4 else ''))
                 for k, v in hits.items() if v)))
             continue
         why = '%s moved %d files since %s%s and the merged trees differ in %d; none reaches the baseline or the ' \
-              'candidate build' % (into, len(moved), h0, '' if tip0 == tip else ' (and the branch since %s: %d files)'
-                                   % (tip0, len(closure.changes(root, tip0, tip))), len(diff))
+              'candidate build%s' % (into, len(moved), h0, '' if tip0 == tip else ' (and the branch since %s: %d files)'
+                                     % (tip0, len(closure.changes(root, tip0, tip))), len(diff),
+                                     ' (charkit\'s Python by definition: the move\'s changes and the branch\'s don\'t '
+                                     'meet)' if rule != 'files' and any(_kit_py(p_) for _, p_ in moved) else '')
         tests = dict(old.get('tests') or {})
         res.update(rerun={t: h[:4] for t, h in rerun.items()})
         if rerun and not run_tests:
@@ -1000,7 +1174,16 @@ def judge(rep, qa_a, qa_b):
     is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
     block = [dict(h) for h in rep.get('hard') or ()]
     R = {k: [] for k in ('warn', 'new_failing', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed',
-                         'remeasured', 'twobytwo', 'notes')}
+                         'remeasured', 'unregistered', 'twobytwo', 'notes')}
+    R['notes'] += list(rep.get('notes') or ())
+    # a QA part whose measuring code changed with no registered step (charkit.codediff): its checks' moves are judged
+    # as any others (nothing is relaxed), and on changed geometry the 2x2 scores them under each measure too
+    ur = rep.get('unregistered') or {}
+    for part, units in sorted((ur.get('parts') or {}).items()):
+        own = (ur.get('owners') or {}).get(part)
+        checks = [k for k in ur.get('checks') or () if own is None or k in own]
+        R['unregistered'].append(dict(part=part, units=units, checks=checks, geometry=ur.get('geometry'),
+                                      owners_known=own is not None))
     for r in rep.get('qa') or ():
         k, v = r['check'], r['verdict']
         (vx, sx), (vy, sy) = r['base'], r['cand']
@@ -1034,7 +1217,8 @@ def judge(rep, qa_a, qa_b):
             if r.get('accepted'):
                 R['twobytwo'].append(dict(row, note='unmeasured: %s; accepted (--accept)' % ', '.join(cells)))
             else:
-                block.append(dict(row, kind="the 2x2 couldn't measure it"))
+                block.append(dict(row, kind="the 2x2 couldn't measure it" + (
+                    ' (its measure changed with no registered step)' if r.get('detected') else '')))
     for k in sorted(tb.get('errors') or {}):
         if all(r.get('accepted') for r in tb.get('rows') or ()) and tb.get('rows'):
             R['notes'].append('the 2x2 could not run the %s: its remeasured checks (all accepted) are unverified '
@@ -1051,12 +1235,15 @@ def judge(rep, qa_a, qa_b):
                    new_on_old=r.get('new_on_old'), cand=r.get('cand'),
                    **{'from': r.get('base' if m0 == 'old' else 'new_on_old'),
                       'to': r.get('old_on_new' if m0 == 'old' else 'cand')})
+        why = '; its measure changed with no registered step: register a remeasure' if r.get('detected') else ''
+        if r.get('detected'):
+            row['detected'] = True
         if r.get('accepted'):
             R['twobytwo'].append(dict(row, note='accepted (--accept)'))
         elif any(after[m] == 'FAIL' for m in worse):
-            block.append(dict(row, kind='new FAIL under one measure on both geometries (the 2x2)'))
+            block.append(dict(row, kind='new FAIL under one measure on both geometries (the 2x2%s)' % why))
         elif is_flag(r['check']):
-            block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2)'))
+            block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2%s)' % why))
         else:
             R['twobytwo'].append(row)
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
@@ -1211,11 +1398,24 @@ def _write(rep, gdir, tag):
                                                                                       'grade unchanged)'),
                        ('values', 'Values moved (status unchanged), the biggest first'), ('gone', 'Checks gone or ungraded'),
                        ('new', 'New checks'), ('improved', 'Improved'), ('removed', 'Retired by a measurement step'),
-                       ('remeasured', 'Remeasured'), ('twobytwo', "The 2x2's drops (not blocking)")):
+                       ('remeasured', 'Remeasured'),
+                       ('unregistered', 'Measuring code changed with no registered step (register a remeasure in '
+                                        'charkit/steps/ if intended)'),
+                       ('twobytwo', "The 2x2's drops (not blocking)")):
         rows = R.get(key) or []
         if not rows:
             continue
         L.append('**%s** (%d):\n' % (title, len(rows)))
+        if key == 'unregistered':
+            L += _table(rows, [('QA part', lambda r: r['part']),
+                               ('its code that changed', lambda r: ', '.join(r['units'][:6]) + (
+                                   ' and %d more' % (len(r['units']) - 6) if len(r['units']) > 6 else '')),
+                               ('checks read differently' if rows[0].get('geometry') == 'changed' else 'checks that moved'
+                                ' (the geometry is the same)', lambda r: ', '.join(r['checks'][:8]) + (
+                                    ' and %d more' % (len(r['checks']) - 8) if len(r['checks']) > 8 else '') or '-'),
+                               ('', lambda r: '' if r['owners_known'] else "(the part's checks unrecorded: any)")])
+            L.append('')
+            continue
         if key == 'twobytwo':
             L += _table(rows, [('check', lambda r: r['check']), ('worse under', lambda r: ', '.join(r['measures'])),
                                ('old geometry, old measure', cell('base')), ('new geometry, old measure', cell('old_on_new')),
@@ -1252,7 +1452,7 @@ def _write(rep, gdir, tag):
                 else r[m] or '-'
             for r in sorted(tb['rows'], key=lambda r: ('regressed' not in (r['old'], r['new']), r['check'])):
                 L.append('| %s | %s | %s | %s | %s | %s | %s |' % (
-                    r['check'], c2(r['base']), c2(r['old_on_new']), c2(r['new_on_old']), c2(r['cand']),
+                    r['check'] + (' (unregistered)' if r.get('detected') else ''), c2(r['base']), c2(r['old_on_new']), c2(r['new_on_old']), c2(r['cand']),
                     mark(r, 'old'), mark(r, 'new')))
     L.append('\n## Build\n')
     bb, cb = rep.get('base_build') or {}, rep.get('cand_build') or {}
@@ -1345,7 +1545,7 @@ def main(args):
         # (then gate it: `python -m charkit remote gate BRANCH --into INTO`)
         r = carry(args[1], into=opt('--into', 'pipeline-3d'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                   args=shlex.split(opt('--args', '')), write='--dry-run' not in args, reports=opt('--reports'),
-                  run_tests='--no-tests' not in args)
+                  run_tests='--no-tests' not in args, rule=opt('--rule', 'definitions'))
         if '--json' in args:
             print(json.dumps(r, default=str))
         else:

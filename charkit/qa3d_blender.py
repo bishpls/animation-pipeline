@@ -4,7 +4,7 @@ silhouettes, the scalp, the hair's shading and the eyes, and the point-splat z-b
 Blender's Python has no numba). The checks' rules, limits and the pure measures are qa3d's own; this module only reads
 the scene. Numbers first, pictures second: PASS / WARN / FAIL per check (SKIPPED and why), with overlay images.
 
-  shape      silhouette overlap (IoU) with the generated shape (a TRELLIS.2 GLB, aligned as the build aligned it) from six
+  shape      silhouette overlap (IoU) with the 3D target (the visual hull's GLB, aligned as the build aligned it) from six
              azimuths, overall and per height band (hair, torso, skirt, legs)
   ref        front silhouette overlap with the reference image (both cropped to their bounding boxes)
   scalp      pixels of scalp showing through the hair (the upper cranium and the back of the head, flagged), per view

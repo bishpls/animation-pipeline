@@ -285,11 +285,11 @@ def _vertex_adjacency(F, n):
 
 
 def hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clear=0.006, grow=2):
-    """i3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin (signed along the nearest
+    """target3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin (signed along the nearest
     face's normal, as Blender's BVH find_nearest gives it) in the head region; low pale texels out; `grow` rings back."""
     from .geom.bvh import BVH
     from .geom.mesh import Mesh, face_normals
-    from .i3d import hsv
+    from .target3d import hsv
     bm = Mesh.from_polys(np.asarray(body_v, float), [tuple(f) for f in body_f])
     _, f, q = BVH(bm).nearest(V)
     fn = face_normals(bm.V, bm.F)
@@ -349,21 +349,21 @@ def select_hair(A, spec, gen, eyes_gen, grid=None):
     """the generated hair as scene.hair_shape_volume selects it (numpy): the generated character aligned by its eyes
     (scene.eye_target), its hair selected (hair.shape.select) and culled off our face. -> dict(sel (V, F) the selection the
     volume and the mesh-mode hair are built on, full (V, F) the aligned shape, align (eye_mid, spacing))."""
-    from . import i3d, scene
+    from . import target3d, scene
     shape = spec['hair']['shape']
     Hd = A['head']; L = Hd['L']
     GV, GF, GC = gen
     mid, spacing = scene.eye_target(A, shape)
-    V = i3d.align_by_eyes(GV, eyes_gen, mid, spacing)
+    V = target3d.align_by_eyes(GV, eyes_gen, mid, spacing)
     chin_z = Hd['centre'][2] - Hd['H'].chin
     sel = shape.get('select')
     if sel == 'outside':
         hv, hf = hair_by_outside(V, GC, GF, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
                                  below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
     elif sel == 'exclude':
-        hv, hf = i3d.hair_by_exclusion(V, GC, GF, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
+        hv, hf = target3d.hair_by_exclusion(V, GC, GF, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
     elif 'hue' in shape:
-        hv, hf = i3d.hair_by_hue(V, GC, GF, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
+        hv, hf = target3d.hair_by_hue(V, GC, GF, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
                                  below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
     else:
         raise NotImplementedError('bodyeval: hair.shape.select %r needs Blender' % sel)
@@ -831,15 +831,15 @@ class Evaluator:
 
     # ---- the heavy inputs
     def generated(self):
-        """the generated character (GLB frame, i3d-compatible colours as the build's find_eyes sees them) and its eyes."""
+        """the generated character (GLB frame, target3d.load_glb's colours, as the build's find_eyes sees them) and its eyes."""
         if self._gen is None:
-            from . import i3d
+            from . import target3d
             from .geom.parts import load_generated
             p = _glb(self.spec)
             if not p:
                 return None
             V, F, C = load_generated(p, compat=True)
-            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), i3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
+            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), target3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
         return self._gen
 
     @staticmethod
@@ -978,10 +978,10 @@ class Evaluator:
             base_shape = (self.spec.get('hair') or {}).get('shape')
             if base_shape and self.generated() is not None:
                 # (the build's QA skips the shape check without hair.shape; the generated character still measures us)
-                from . import i3d, scene
+                from . import target3d, scene
                 gen = self.generated()
                 mid, spacing = scene.eye_target(A, base_shape)
-                full = (i3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
+                full = (target3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
                 align = dict(eye_mid=mid, spacing=spacing)
         accs = self._memo('accessories', _h([vkey, acc]), lambda: [(n, to_head(v, A), f, a) for n, v, f, a in
                                                                    accessories.generate(vol(), L, acc)])

@@ -63,9 +63,9 @@ def test_color_classes():
 
 
 def test_real_clawd_if_asked():
-    if os.environ.get('CHARKIT_GEOM_REAL') != '1':
+    glb = os.environ.get('CHARKIT_GEOM_GLB')            # a generated character's GLB (TRELLIS.2's, kept by hand)
+    if os.environ.get('CHARKIT_GEOM_REAL') != '1' or not glb:
         return
-    glb = os.environ.get('CHARKIT_GEOM_GLB', os.path.join(_common.ROOT, 'charkit/out/i3d/clawd/clawd_3dstyle_s1.glb'))
     C = parts.Case.load(os.path.join(_common.ROOT, 'charkit/spec/clawd.json'), glb=glb, verbose=False)
     R = parts.hair(C, verbose=False)
     st = parts.measure(C, R, parts.hair_region(C), parts.hair_color(C), zmin=C.chin_z)

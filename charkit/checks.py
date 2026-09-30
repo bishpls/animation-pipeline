@@ -11,12 +11,13 @@
   severity    how far a value is from passing, in warn bands: 0 at the pass limit or better, 1 at the fail limit, and on
               linearly past it (a FAIL is > 1; a warn-only check never fails, but its severity still grows, so getting
               worse shows). A check graded by status alone: WARN 0.5, FAIL 1.5
-  weight      a check measured against a reference that isn't the manifest's authority for its measure (the TRELLIS face,
+  weight      a check measured against a reference that isn't the manifest's authority for its measure (the hull's face,
               where the sheet is the face's authority) counts a quarter in a score, as charkit.fitkit weighs its terms
   region      where the check looks (face, eyes, silhouette, hair, outfit, expressions, palette, internal) and how visible
               that is (1 = the face and silhouette a viewer reads first, down to ~0.1 for topology nobody sees)
   measure     the manifest's authority key the check measures (face_front, chin, eyes, hair_shape...) and the reference it
-              is measured against (sheet, rig, trellis, key3d, or none for self-consistency checks); the manifest names
+              is measured against (sheet, rig, hull, key3d, or none for self-consistency checks: 'hull' is the 3D
+              target, the visual hull's GLB, named 'trellis' until the TRELLIS cleanup, decision 8); the manifest names
               which reference is the authority for the measure
   overlays    the QA pictures that show it (paths relative to the build's output folder)
 
@@ -186,12 +187,12 @@ MEASURES = [
     ('sheet_cheek', 'face_three_quarter', 'sheet'), ('sheet_profile', 'face_profile', 'sheet'),
     ('sheet_*_reach', 'face_profile', 'sheet'), ('sheet_*_chin', 'chin', 'sheet'),
     ('sheet_shown_*', 'hair_silhouette', 'sheet'),
-    ('face_shape_width', 'face_front', 'trellis'), ('face_shape_cheek', 'face_three_quarter', 'trellis'),
-    ('face_shape_profile', 'face_profile', 'trellis'), ('face_shape_chin', 'chin', 'trellis'),
-    ('face_shape_depth', 'face_depth', 'trellis'), ('face_shape_coverage_*', 'hair_silhouette', 'trellis'),
+    ('face_shape_width', 'face_front', 'hull'), ('face_shape_cheek', 'face_three_quarter', 'hull'),
+    ('face_shape_profile', 'face_profile', 'hull'), ('face_shape_chin', 'chin', 'hull'),
+    ('face_shape_depth', 'face_depth', 'hull'), ('face_shape_coverage_*', 'hair_silhouette', 'hull'),
     ('face_shape_features', 'feature_heights', 'rig'),
     ('eye_*', 'eyes', 'sheet'),
-    ('shape_iou_hair', 'hair_shape', 'trellis'), ('shape_iou*', 'body_silhouette', 'trellis'),
+    ('shape_iou_hair', 'hair_shape', 'hull'), ('shape_iou*', 'body_silhouette', 'hull'),
     ('ref_iou', 'body_silhouette', 'key3d'), ('scalp_px', 'hair_shape', None), ('hair_noise', 'hair_shape', None),
     ('body_*_iou_hair', 'hair_silhouette', 'sheet'), ('body_*_hair_*', 'hair_silhouette', 'sheet'),
     ('body_*', 'body_silhouette', 'sheet'), ('hair_*', 'hair_silhouette', 'sheet'), ('expr_*', 'expressions', 'sheet'),

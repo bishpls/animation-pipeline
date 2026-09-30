@@ -1066,7 +1066,59 @@ def check(path):
             if bv['byteOffset'] + bv['byteLength'] > len(bin_) or a['count'] * size > bv['byteLength']:
                 rep['errors'].append(f'accessor {i} overruns its view')
     rep['outlined_meshes'] = [m['name'] for m in js['meshes'] if m.get('extensions', {}).get(EXT, {}).get('outline')]
+    rep['skin_weights'] = skin_weights(js, bin_, rep['errors'])
     return rep
+
+
+WEIGHT_SUM_TOL = 1e-5                   # a vertex's WEIGHTS_0 sum from 1 (float32, four terms: ~1e-7 as written)
+
+
+def _read_accessor(js, bin_, i):
+    import numpy as np
+    a = js['accessors'][i]
+    bv = js['bufferViews'][a['bufferView']]
+    k = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4, 'MAT4': 16}[a['type']]
+    dt = {5126: np.float32, 5125: np.uint32, 5123: np.uint16, 5121: np.uint8}[a['componentType']]
+    off = bv.get('byteOffset', 0) + a.get('byteOffset', 0)
+    stride = bv.get('byteStride') or k * np.dtype(dt).itemsize
+    raw = np.frombuffer(bin_, np.uint8, count=stride * (a['count'] - 1) + k * np.dtype(dt).itemsize, offset=off)
+    rows = np.lib.stride_tricks.as_strided(raw, (a['count'], k * np.dtype(dt).itemsize), (stride, 1))
+    out = np.ascontiguousarray(rows).view(dt).reshape(a['count'], k)
+    if a.get('normalized'):
+        out = out / float(np.iinfo(dt).max)
+    return out
+
+
+def skin_weights(js, bin_, errors):
+    """each skinned primitive's JOINTS_0/WEIGHTS_0 as a player reads them: weights non-negative and summing to 1
+    (WEIGHT_SUM_TOL), each weighted joint within its skin's joints. -> {mesh: (vertices, most bones on a vertex,
+    max abs(sum - 1), min weight)}; faults go to errors."""
+    import numpy as np
+    out = {}
+    for n in js.get('nodes', []):
+        if 'mesh' not in n or 'skin' not in n:
+            continue
+        mesh = js['meshes'][n['mesh']]
+        nj = len(js['skins'][n['skin']]['joints'])
+        for pi, prim in enumerate(mesh['primitives']):
+            at = prim['attributes']
+            if 'WEIGHTS_0' not in at:
+                continue
+            if 'JOINTS_0' not in at:
+                errors.append('%s/%d: WEIGHTS_0 without JOINTS_0' % (mesh.get('name'), pi)); continue
+            W = _read_accessor(js, bin_, at['WEIGHTS_0']).astype(float)
+            J = _read_accessor(js, bin_, at['JOINTS_0']).astype(np.int64)
+            dev = float(np.abs(W.sum(1) - 1).max()) if len(W) else 0.0
+            name = '%s/%d' % (mesh.get('name'), pi)
+            out[name] = dict(vertices=int(len(W)), max_bones=int((W > 0).sum(1).max()) if len(W) else 0, sum_dev=dev,
+                             min=float(W.min()) if len(W) else 0.0)
+            if len(W) and W.min() < 0:
+                errors.append('%s: negative skin weight %.3g' % (name, W.min()))
+            if dev > WEIGHT_SUM_TOL:
+                errors.append('%s: skin weights sum off 1 by %.3g' % (name, dev))
+            if len(W) and ((J >= nj) & (W > 0)).any():
+                errors.append('%s: a weighted joint beyond the skin\'s %d' % (name, nj))
+    return out
 
 
 if __name__ == '__main__':

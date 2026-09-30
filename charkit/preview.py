@@ -77,8 +77,8 @@ def _short(sha):
 
 # ------------------------------------------------------------------------------------------------------------ the build
 def build_worktree(sha, spec=SPEC):
-    """the preview's own worktree, detached at sha (created on first use: sparse like a gate's, with the box configs and
-    charkit/out/i3d copied from this worktree). -> its path."""
+    """the preview's own worktree, detached at sha (created on first use: sparse like a gate's, with the box configs
+    copied from this worktree). -> its path."""
     from . import sparse
     wt = BUILD_WT
     if not os.path.exists(os.path.join(wt, '.git')):
@@ -88,11 +88,6 @@ def build_worktree(sha, spec=SPEC):
     for f in glob.glob(os.path.join(ROOT, 'infra', 'gcp', '*.env')):
         os.makedirs(os.path.join(wt, 'infra', 'gcp'), exist_ok=True)
         shutil.copyfile(f, os.path.join(wt, 'infra', 'gcp', os.path.basename(f)))
-    src, dst = os.path.join(ROOT, 'charkit', 'out', 'i3d'), os.path.join(wt, 'charkit', 'out', 'i3d')
-    if os.path.isdir(src) and not os.path.isdir(dst):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        if subprocess.run(['cp', '-Rc', src, dst], capture_output=True).returncode:      # APFS clone: no space
-            shutil.copytree(src, dst)
     return wt
 
 

@@ -204,6 +204,49 @@ def closed_line(K, L, t, happy=False, arch=None, sharp=1.0, drop=0.0):
     return x, base + np.sin(np.pi * np.asarray(t)) ** sharp * 0.10 * W * arch - drop * W
 
 
+# the chevron (the effort face's > <; Michael, 2026-09-30): the closed lids folded into a chevron pointing to the nose,
+# in eye widths round the eye's centre (eye-local: x outward, z up). A lid curve over x can't draw it (a closed line is
+# one z per x): each lid's margin runs out along its stroke's outer side to the stroke's end, then back along the inner
+# side (the wedge's) to the apex, where the outer corner meets the inner one. The loop stays nested: every margin vertex
+# lands on its stroke from the side its rim (the eye block's outer loop) is on, so the rings between them don't cross.
+#   apex    the point, (x, z): by the inner corner
+#   tip     the strokes' ends' x
+#   spread  the ends' height over (the upper stroke) and under (the lower) the apex
+#   bow     the strokes bowed outward, a share of their length (0: straight)
+#   fold    the t (0 inner .. 1 outer corner) where each lid's margin turns back at its stroke's end, (upper, lower): set
+#           between the last margin vertex whose rim is on the stroke's outer side and the first on its inner side
+#           (the authored eye block: upper 0.913 | 0.935, lower 0.954 | 0.991; tests/test_mouth.py checks it on a
+#           dumped head)
+#   weight  the strokes' width (the lash ribbons re-laid: chevron_lashes)
+#   point   how far behind the apex the strokes' outer edges meet, in stroke widths
+CHEVRON = dict(apex=(-0.42, 0.06), tip=0.38, spread=0.27, bow=0.0, fold=(0.924, 0.972), weight=0.11, point=1.1)
+
+
+def chevron_stroke(K, L, u, which, C=None):
+    """a point u (0 the apex .. 1 the end; below 0 on past the apex) along the chevron's upper or lower stroke -> eye-local
+    (x, z) in metres."""
+    C = dict(CHEVRON, **(C or {}))
+    W = K['width'] * L
+    s = 1.0 if which == 'upper' else -1.0
+    ax, az = C['apex']
+    dx, dz = C['tip'] - ax, s * C['spread']
+    n = math.hypot(dx, dz)
+    nx, nz = -dz / n * s, dx / n * s                              # the stroke's outward normal (away from the wedge)
+    u = np.asarray(u, float)
+    b = C['bow'] * n * np.sin(np.pi * np.clip(u, 0, 1))
+    return (ax + u * dx + b * nx) * W, (az + u * dz + b * nz) * W
+
+
+def chevron(K, L, t, which, C=None):
+    """the chevron's lid margin at t (0 inner .. 1 outer corner): out along its stroke to the fold, then back to the apex
+    -> eye-local (x, z)."""
+    C = dict(CHEVRON, **(C or {}))
+    f = C['fold'][0 if which == 'upper' else 1]
+    t = np.clip(np.asarray(t, float), 0, 1)
+    u = np.where(t > f, (1 - t) / (1 - f), t / f)
+    return chevron_stroke(K, L, u, which, C)
+
+
 # ------------------------------------------------------------------------------------------------------------ surface
 def _smooth(e0, e1, x):
     t = np.clip((np.asarray(x, float) - e0) / (e1 - e0), 0, 1)
@@ -541,16 +584,19 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
 
 
 # ---------------------------------------------------------------------------------------------------------------- lashes
-def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35, surf=None, at=None):
+def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35, surf=None, at=None, tip=None):
     """a ribbon along eye-local points (N,2) with per-point thickness, offset along the 2D normal (away from the eye); its
     inner edge tucked a little over the opening; on the eye's Surface when given, or `at` (N,): each point's extra
-    depth, both edges alike (a lash stands off its lid line, it doesn't sink into the skin behind). -> (verts, quads)."""
+    depth, both edges alike (a lash stands off its lid line, it doesn't sink into the skin behind). tip: an eye-local
+    (x, z) for the first point's outer edge (a pointed start). -> (verts, quads)."""
     pts = np.asarray(pts)
     tan = np.gradient(pts, axis=0)
     tan /= np.maximum(np.linalg.norm(tan, axis=1, keepdims=True), 1e-12)
     nrm = np.stack([-tan[:, 1], tan[:, 0]], 1) * normal_sign
     inner = pts - nrm * thick[:, None] * tuck
     outer = pts + nrm * thick[:, None] * (1 - tuck)
+    if tip is not None:
+        outer[0] = tip
     ex, ez = eye_c
     Vi = _world(F, ex, ez, side, inner[:, 0], inner[:, 1], depth=lift, surf=None if at is not None else surf)
     Vo = _world(F, ex, ez, side, outer[:, 0], outer[:, 1], depth=lift, surf=None if at is not None else surf)
@@ -620,10 +666,40 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     return out
 
 
+def chevron_lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40, C=None):
+    """the chevron's strokes drawn by the lash ribbons: lashes()' ribbons (the same vertices, re-laid for the shape key),
+    the upper lash (its flick too) along the upper stroke, the lower lash along the lower one, each centred on its
+    stroke, C['weight'] eye widths wide, tapering over its last quarter; they join in a point C['point'] stroke widths
+    behind the apex (their outer edges' mitre would be 0.5 / sin(half-angle): 1.54 at CHEVRON's; the ribbons' own square
+    ends crossed in a notch); the crease folded away under the upper stroke. upper_fn, lower_fn: unused (lashes()'
+    signature). -> lashes()' list of (verts, quads)."""
+    C = dict(CHEVRON, **(C or {}))
+    W = K['width'] * L
+    S = surface(F, K, L, side, eye_c)
+    ax, az = C['apex']
+    tip = ((ax - C['point'] * C['weight']) * W, az * W)
+
+    def stroke(which, m, sign, taper=0.25):
+        u = np.linspace(0.0, 1.0, m)
+        x, z = chevron_stroke(K, L, u, which, C)
+        th = C['weight'] * W * np.clip((1.0 - u) / taper, 0.12, 1.0) ** 0.6
+        return _ribbon(F, side, eye_c, np.stack([x, z], 1), th, sign, tuck=0.5, surf=S, at=S(x, z) if S.on else None,
+                       tip=tip)
+    out = [stroke('upper', n + 10, 1.0), stroke('lower', 16, -1.0)]
+    if K.get('crease', 0) > 0:                      # (behind the skin: at the strokes' depth it z-fought with the
+        x, z = chevron_stroke(K, L, np.linspace(0.1, 0.9, 24), 'upper', C)       # upper one, a dashed line on the board)
+        out.append(_ribbon(F, side, eye_c, np.stack([x, z], 1), np.full(24, 1e-5), 1.0, lift=0.002, tuck=0.5, surf=S,
+                           at=S(x, z) if S.on else None))
+    return out
+
+
 # ------------------------------------------------------------------------------------------------------------ shape keys
-def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
+def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None, seat=False):
     """offsets (N,3) moving the upper and/or lower margin to target curves (functions t -> (x, z) eye-local), the outer rings
-    and the near pocket after them, on the face surface. The base pose is V (already placed)."""
+    and the near pocket after them, on the face surface. The base pose is V (already placed). seat: the pocket kept at
+    least as far behind the eye's surface as it is at rest, where it lands (a key whose margin crosses the eye, the
+    chevron's outer corner going to the apex, carries the deep outer pocket forward into the shallow inner part: it
+    showed through the skin between the strokes)."""
     ex, ez = eye_c
     S = surface(F, K, L, side, eye_c)
     D = np.zeros_like(V)
@@ -663,6 +739,11 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
         dd = np.linalg.norm(src - V[v], axis=1)
         w = 1 / np.maximum(dd, 1e-5) ** 4
         D[v] = (w[:, None] * md).sum(0) / w.sum() * max(0.0, 1.0 - 0.18 * (r - 1))
+    if seat and eye['pocket']:
+        pv = np.array(list(eye['pocket'].keys()))
+        front = lambda P: F.y(P[:, 0], P[:, 2]) + S.world(P[:, 0], P[:, 2])     # the eye's surface's depth there
+        P0, P1 = V[pv], V[pv] + D[pv]
+        D[pv, 1] = np.maximum(P1[:, 1], front(P1) + (P0[:, 1] - front(P0))) - P0[:, 1]
     return D
 
 
@@ -713,7 +794,19 @@ def expressions(K, L):
         # shy (embarrassed): the upper lid softly lowered, drooping to the outside
         'shy': (up({'height': K['height'] * 0.8, 'lower': K['lower'] / 0.8, 'tilt': K['tilt'] - 5,
                     'peak': max(0.15, K['peak'] - 0.1)}), None),
+        # chevron (effort, Michael 2026-09-30): shut, the lids folded into a > < pointing to the nose (CHEVRON); its
+        # strokes drawn by the lash ribbons (LASHES)
+        'chevron': (lambda t: chevron(K, L, t, 'upper'), lambda t: chevron(K, L, t, 'lower')),
     }
+
+
+# expressions whose lash ribbons aren't laid along their lid curves (lashes()): the chevron draws its strokes
+LASHES = {'chevron': chevron_lashes}
+# lid_key's options per expression: the chevron's pocket seated behind the skin where it lands
+KEY_OPTS = {'chevron': dict(seat=True)}
+# the closed expressions: the eye plates sink back under them so nothing shows through the lids' seam (the squeeze's
+# showed its iris and sclera through the skin under and over the eye on the boards until it was listed, tool/mouth3)
+CLOSED = ('blink', 'happy', 'squeeze', 'chevron')
 
 
 # expressions that also scale the iris about its centre, as a share of its size (a shocked eye's shrunken iris)

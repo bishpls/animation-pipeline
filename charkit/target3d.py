@@ -1,8 +1,10 @@
-"""Image-to-3D results as kit data (docs/CHARKIT.md §5): a TRELLIS.2 GLB (tools/imageto3d) imported, turned to face the kit's
-front (the view whose outline best matches the input image's alpha), scaled and placed in head space from the design's own
-measurements (charkit.refs: pixels per head length, the eyes), its vertices coloured from the base-colour texture, and split
-into parts by colour (hair, skin, ...). The hair part becomes charkit.hair's volume (MeshVolume); the head can be a wrap
-target for charkit.anime_head.
+"""The 3D target as kit data: a generated character's GLB (the spec's hair.shape.glb: today the visual hull,
+charkit.geom.hull, carved from the design's views; until 2026-09-28 a TRELLIS.2 image-to-3D mesh, tools/imageto3d) loaded
+with its vertices coloured from the base-colour texture (load_glb), its eyes read (glb_eyes: the sidecar a producer
+writes, else find_eyes by colour), aligned onto ours by the eyes (eye_target, align_by_eyes), and split into parts by
+colour (hair_part, hair_by_hue, hair_by_exclusion, hair_by_outside; hsv). The hair part becomes charkit.hair's volume
+(MeshVolume); the face-shape QA and the fits read the aligned mesh. (Named charkit.i3d, "image to 3D", until the
+TRELLIS cleanup, decision 8; orient/align are that era's silhouette-based placement, kept for the research code.)
 """
 import math
 import os

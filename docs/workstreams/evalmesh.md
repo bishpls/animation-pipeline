@@ -1,6 +1,6 @@
 # evalmesh: subdivision and Solidify in the venv (tool/evalmesh)
 
-Worktree `~/animation-pipeline-evalmesh`, branch `tool/evalmesh` (fast-forwarded to pipeline-3d ae7fd45). Michael's
+Worktree `~/animation-pipeline-evalmesh`, branch `tool/evalmesh` (round 3 from pipeline-3d 9eba0b0). Michael's
 call J: Subdivision Surface and Solidify leave Blender. They are computed at rest in the venv and then skinned (the
 game-engine way; the VRM export needs the final meshes anyway). Motion QA checks the bends at extreme poses against
 Blender's per-frame modifiers. The outline's inverted hull stays render-time (call I). This is docs/GEOM_TRUTH.md
@@ -221,7 +221,77 @@ Residuals, explained:
   code on the old geometry 0.0028 PASS (no layer attribute: every face, as before); new code, new geometry 0.003 PASS.
   **M4 mergeable at 0c9eb95.**
 
+## Round 3 (R3a: limit-stencil weights; R3b: the skin's subdivision, after tool/face5)
+- Merged pipeline-3d 9eba0b0 (fast-forward: it already held M4).
+- **R3a, the switch to stencil weights** (the coordinator's call on motion QA's numbers: the skirt's kick 0.040 L linear,
+  0.019 L stencil; the collar's twist 0.020 -> 0.016). `geom.subsurf.subdivide(carry_rule='limit')` puts the carried
+  data through the positions' own refinement and limit stencil (the columns ride with V); `evalmesh.WEIGHT_RULE =
+  'limit'`, `finalize(o, weight_rule=)`, the product's meta records it (`final.weight_rule`). The stencil is affine
+  and non-negative: weights summing to 1 still do (test_carry_rules, creases, semi-sharp, open borders).
+- Weight health, measured on m4_clawd's recording (both rules): at most 3 bones per vertex on any garment (the collar
+  2 -> 3 through the subdivision, either rule), so the VRM's four slots never truncate; |sum - 1| <= 1e-3, the coarse
+  groups' 3-decimal rounding (the writer renormalises). Motion QA now computes both candidates through `finalize`,
+  says which the build ships, and tabulates each one's weights as the VRM takes them (`weight_stats`).
+- The VRM checks its own skin weights (`gltf.check` -> `skin_weights`): per skinned primitive, weights >= 0, the sum
+  within 1e-5 of 1, every weighted joint inside its skin; faults are errors (the export fails). On existing exports:
+  0 errors, sums within 1.4e-7. gltf.py is EXPORT_CODE, so the gate's candidate builds with --vrm and runs it.
+- pregate: PASS (0 moved, 0 blocking, 268 s; `charkit/out/pregate/pregate_tool-evalmesh_ed0f91a_into_9eba0b0.md`).
+- **R3a gate: PASS under K** (ed0f91a into pipeline-3d 9eba0b0; `charkit/out/gate/gate_tool-evalmesh_ed0f91a_into_9eba0b0.md`).
+  Nothing blocks; 66 test files ok; build CPU 721.1 -> 814.2 s (1.13x, the candidate with --vrm: gltf.py is
+  EXPORT_CODE). 7 values moved, statuses unchanged: face_shadow_neck_3q 0.0986 -> 0.0398 INFO, face_shadow_chin_edge
+  0.0568 -> 0.0479 (FAIL both, better), face_shadow_3q 0.313 -> 0.342, face_shadow_face_3q -0.0558 -> -0.0596,
+  face_shadow_chin 0.694 -> 0.676 (FAIL both), face_noise(_sweep) 1e-4 to 2e-4. **All 7 are the export the QA draws
+  from, not the weights:** the candidate drew from its .vrm, the baseline from look.glb. The same code built without
+  --vrm (`charkit/out/evalmesh/r3a_novrm`) gives the baseline's values to the digit (face_shadow_neck_3q 0.0986, ...),
+  and it differs from the --vrm build (`r3a_clawd`) in exactly these 7 of 487 checks. So the stencil weights move no
+  QA check. For infra: a gate whose branch touches gltf.py compares a VRM-drawn candidate with a look.glb-drawn
+  baseline, and the face shadows read the two exports differently (up to 0.059 on face_shadow_neck_3q).
+- **Carried to 6f2e1a4** (`python -m charkit gate --carry`: after ed0f91a only notes and the steps literal, which reach
+  neither build; test_cache, test_gate, test_lookqa and test_registry ran again, all ok):
+  `charkit/out/gate/gate_tool-evalmesh_6f2e1a4_into_9eba0b0.md`, PASS. **R3a mergeable at 6f2e1a4.**
+- **The R3a build** (box, `charkit/out/evalmesh/r3a_clawd`, ed0f91a with --vrm): its QA equals the gate candidate's
+  to the digit. The VRM carries valid, normalised weights: 58 skinned primitives, `skin_weights` 0 errors, sums
+  within 1.25e-7 of 1, at most 3 bones per vertex; all 19 garments.
+- **Motion QA on it** (`r3a_clawd/motion/motion.md`; 19 pieces, 7 poses): every multi-bone piece ships stencil (the
+  single-bone ones are identical under either rule). Worst max per pose, linear -> stencil:
+
+  | piece | arms_up | elbows_bent | arms_fwd | kick | squat | twist_bend | split |
+  |---|---|---|---|---|---|---|---|
+  | skirt | 1e-6 | 1e-6 | 1e-6 | **0.040 -> 0.019** | 0.019 -> 0.019 | 1e-6 | **0.014 -> 0.0066** |
+  | collar | 1.2e-5 | 1.2e-5 | 1.2e-5 | 1.2e-5 | 1.2e-5 | **0.020 -> 0.016** (mean 1.3e-3 -> 7.7e-4) | 1.2e-5 |
+  | bodice_panel | 1.4e-6 | 1.4e-6 | 1.4e-6 | 1.4e-6 | 1.9e-6 | 0.0016 -> 0.0010 | 1.4e-6 |
+  | top | 4.8e-6 | 4.3e-6 | 4.8e-6 | 4.8e-6 | 4.3e-6 | 0.0091 -> 0.0092 (mean 1.6e-4 -> 1.4e-4) | 4.8e-6 |
+  | the other 15 | <= 1e-5 at every pose, identical under both rules | | | | | | |
+
+  Worst over all pieces and poses: 0.040 L -> 0.019 L. The top's twist is the one max that grows (1%); its mean falls.
+- poke_share's M4 remeasure registered in `charkit/steps/qa3d.py` (the coordinator's bookkeeping for infra4's rule;
+  3569e1b).
+- **crab_1's stage drift (2.05e-4 L, since face4), attributed** (local, m4_clawd's own code products, scripts in
+  `charkit/out/evalmesh/crab/`). The crab moves rigidly: rotated 0.24 deg and shifted 9.8e-5 L, residual 2.5e-7 L.
+  Its anchor is nearly the same; the hair volume's slope under it isn't. The star, 14 deg away, is 2.4e-7 L. Ruled out:
+  - the volume's ray cast (mathutils float32 against charkit.geom): the same 7,139 rays, 0 hit/miss flips, the grid
+    within 3.5e-7 L, the crab within 6e-8 L between the two;
+  - the gridded `bodyeval.cull_face` against the build's exact `Face.y`: 1 vertex decided differently (az 28, el -62),
+    the crab unchanged;
+  - the analytic clipping: no cell round either accessory is clipped.
+  **The cause: the selection's signed distance** (`i3d.hair_by_outside` in Blender, `bodyeval.hair_by_outside` in
+  the venv: (p - nearest) . normal). Blender's `find_nearest` returns the polygon's normal (Newell's to 0.03 deg), and
+  on a tie (the nearest point on a shared edge or vertex, usual 0.5 L out) whichever polygon its float32 BVH reaches
+  first. The port takes its own triangle. On the same inputs, 1,804 of 75,006 generated vertices get the other sign at
+  `clear` (normals a median 103 deg apart at the same nearest point, 2.2e-7 L apart). 117 survive the masks (24 only
+  ours, 93 only Blender's, one at az 12, el 27 beside the crab). **With Blender's selection the evaluator's crab is
+  2.7e-7 L from the bundle's.** face4 moved the head's vertices and exposed a latent tie near the crab; it isn't a
+  face4 fault.
+  Not fixed here: matching Blender means its BVH traversal order, which isn't a small change. The fix is structural:
+  one selection for both sides (GEOM_TRUTH step 2, the hair volume venv-side), ideally with a tie-free sign (the
+  angle-weighted pseudo-normal at the nearest feature). That's hair3's round.
+
 ## Next
+- R3b, the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2) once tool/face5 has merged
+  into pipeline-3d (it moves charkit/subdiv.py onto geom/subsurf.py). Not started. geom.subsurf's carry_rule='limit'
+  is ready for the skin's weights if motion QA says so.
+- crab_1: one selection for build and evaluator (hair3's round, above).
+- infra: the gate's VRM-vs-look.glb drawing difference (above).
 - The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
   the 2x2 not triggered for a QA change that comes with a geometry change (infra); the stencil weights as an option
   for the skirt and collar if the bends matter in motion.

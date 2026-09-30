@@ -67,13 +67,13 @@ def write_hull(d, Z, faces):
 
 def pieces(glb, source='shell'):
     """hull_pieces on a synthetic hull, its eyes aligned onto themselves (no assembly: the transform is the identity)."""
-    from charkit import i3d
-    real = i3d.eye_target
-    i3d.eye_target = lambda A, shape: (np.zeros(3), 0.2)
+    from charkit import target3d
+    real = target3d.eye_target
+    target3d.eye_target = lambda A, shape: (np.zeros(3), 0.2)
     try:
         return gm.hull_pieces({'hair': {'shape': {'glb': glb}}}, None, source=source)
     finally:
-        i3d.eye_target = real
+        target3d.eye_target = real
 
 
 A1 = {'head': {'L': 1.0}, 'verts': np.zeros((1, 3)), 'weights': {'hips': np.ones(1)}}
@@ -157,8 +157,8 @@ def test_shell_sampling_runs_without_scipy():
             builtins.__import__ = guard
             sys.path.insert(0, %r)
             import numpy as np
-            from charkit import garments as gm, i3d
-            i3d.eye_target = lambda A, shape: (np.zeros(3), 0.2)
+            from charkit import garments as gm, target3d
+            target3d.eye_target = lambda A, shape: (np.zeros(3), 0.2)
             Hd = gm.hull_pieces({'hair': {'shape': {'glb': %r}}}, None)
             A = {'head': {'L': 1.0}, 'verts': np.zeros((1, 3)), 'weights': {'hips': np.ones(1)}}
             gm.skirt_hull(A, {'name': 'skirt', 'under': 'waistband'}, Hd)

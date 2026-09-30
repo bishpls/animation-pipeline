@@ -471,12 +471,13 @@ def mass_fields(case, hullV_world, fam, opts):
     clear, bcut = {}, None
     if opts.get('body_clear', OPTS['body_clear']):
         S, bcut, clear = body_clearance(case, ch, G, R, S, opts.get('body_clear_depth', 0.04) * L, L,
-                                        opts.get('body_push_max', 0.03))
+                                        opts.get('body_push_max', 0.03),
+                                        garments=opts.get('body_clear_garments', 0.0) * L)
     return dict(chart=ch, grid=G, R=R, Rn=Rn, S=S, L=Lc, reach=reach, valid=valid, nothair=nothair, clear=clear,
                 body_cut=bcut)
 
 
-def body_clearance(case, ch, G, R, S, depth, L, push_max=0.03, step=0.004, reach=0.3):
+def body_clearance(case, ch, G, R, S, depth, L, push_max=0.03, step=0.004, reach=0.3, garments=0.0):
     """the body the build uses, below the chin, where the hair would lie inside it (hair round 4: on clawd_mh the
     MakeHuman shoulder's top stands outside the design's hull, and the lower back hung 0.048 L inside it once the hull
     lost the slab that had held it out). mass_fields' skin below the chin keeps only the body inside the envelope (the
@@ -491,6 +492,9 @@ def body_clearance(case, ch, G, R, S, depth, L, push_max=0.03, step=0.004, reach
       cut   further (the ray runs on into the shoulder or the chest: pushing out along it would bulge the hair out a
             quarter L, and still not clear it): the cell is cut, and every cell below it in its column (piece_regions:
             the lock's tip ends above the body, as side_lock_trim's cut ends one above the cheek).
+    garments (m, pieces_opts.body_clear_garments in L; tool/collar): the body below the chin counted that much thicker,
+    for the garments lying on it (the sailor collar stands 0.035 L off the neck's base and the upper back): the lowest
+    locks then lie over the collar rather than inside it (art_speckle_neck's junction). 0: the skin alone, as before.
     -> (S, cut (nph, nth) bool, report {pushed, cut, most (L)})."""
     from scipy.spatial import cKDTree
     Vb = np.asarray(case.A['verts'], float)
@@ -507,7 +511,7 @@ def body_clearance(case, ch, G, R, S, depth, L, push_max=0.03, step=0.004, reach
         out = np.full(len(P), np.inf)
         if near.any():
             out[near] = np.median(np.einsum('ikj,ikj->ik', P[near][:, None] - cen[j[near]], fn[j[near]]), axis=1)
-        return out
+        return out - garments
     PH, TH = np.meshgrid(G.ph, G.th, indexing='ij')
     # the radii the layers' outer surfaces may take in a cell: from `depth` under the envelope out to where the locks'
     # push over the skin they already clear takes them (S + gap + a tip), whichever is further out
@@ -2367,6 +2371,16 @@ def shade_normals(pieces, L, style):
             G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
             Ne = np.where(out[:, None], (1 - w) * Ne + w * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
+        if p.get('family') == 'flyaways' and style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
+            # each strand one tone, its root's (the mass's normal where it grows from, the vertex nearest the chain's
+            # first point): the envelope's normal turns along a blade standing out of the mass, and a cel terminator
+            # across a thin strand draws as a torn shadow patch (hairtag round 3: the back view's kinks, 7 -> 14)
+            Ne = Ne.copy()
+            for k, ch in enumerate(p.get('chains') or ()):
+                m = np.nonzero(p['lock'] == k)[0]
+                if len(m) and len(ch):
+                    r = m[np.argmin(np.linalg.norm(p['V'][m] - np.asarray(ch[0]), axis=1))]
+                    Ne[m] = Ne[r]
         p['vn_shade'] = Ne
 
 

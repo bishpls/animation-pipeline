@@ -66,29 +66,19 @@ case "${1:-status}" in
     # cache and deletes what the worktree no longer has, under the same excludes as the rsync below
     if bucket; then bs sync "$WT" "/srv/work/$(name "$WT")"; exit $?; fi
     # a worktree's first sync: seeded by hard links from the most recently synced worktree copy on the box (the tracked
-    # files, ~0.3 GB, and charkit/out/i3d, ~0.5 GB, are mostly the same across worktrees), so the tunnel (~1-3 MB/s)
-    # carries only what differs; rsync replaces a changed file rather than writing through the shared link. Of the
-    # source's outputs only charkit/out/i3d is kept: its builds, caches and produced references are its own
+    # files, ~0.3 GB, are mostly the same across worktrees), so the tunnel (~1-3 MB/s) carries only what differs; rsync
+    # replaces a changed file rather than writing through the shared link. None of the source's outputs is kept: its
+    # builds, caches and produced references are its own (charkit/out/i3d, TRELLIS's output, isn't sent any more: no
+    # build reads it since the sheet-only outfit masks, decision 8; a copy's own is left alone)
     D="/srv/work/$(name "$WT")"
     ssh_ "[ -d $D ] || { S=\$(ls -td /srv/work/*/charkit 2>/dev/null | grep -v '^/srv/work/repo/' | head -1); \
       [ -z \"\$S\" ] || { cp -al \"\$(dirname \$S)\" $D && \
-      find $D/charkit/out -mindepth 1 -maxdepth 1 ! -name i3d -exec rm -rf {} +; }; }"
+      find $D/charkit/out -mindepth 1 -maxdepth 1 -exec rm -rf {} +; }; }"
     # what git ignores stays home (a full worktree's projects/*/out, node_modules, the mocap and bone refs, the env
-    # files: 1.7 GB, 15+ min through the tunnel), except the outputs kept above; excluded paths on the box are left alone
-    # a worktree without charkit/out/i3d (tools/worktree.sh's sparse ones had none) must not wipe the box copy's: the
-    # outfit masks built without its TRELLIS field are wrong (11 copies were, 2026-09-29), so the copy keeps or is
-    # seeded with one, and the sync then leaves it alone
-    NOI3D=()
-    if [ ! -d "$WT/charkit/out/i3d" ]; then
-      NOI3D=(--exclude 'charkit/out/i3d/')
-      # the fullest copy on the box (a partial one, e.g. an earlier seed from a partial copy, is replaced)
-      ssh_ "B=\$(for d in /srv/work/*/charkit/out/i3d; do [ \$d = $D/charkit/out/i3d ] || echo \"\$(find \$d -type f | wc -l) \$d\"; done | sort -rn | head -1); \
-        have=\$(find $D/charkit/out/i3d -type f 2>/dev/null | wc -l); \
-        [ -z \"\$B\" ] || [ \$have -ge \${B%% *} ] || { rm -rf $D/charkit/out/i3d; mkdir -p $D/charkit/out && cp -al \${B#* } $D/charkit/out/i3d; }"
-    fi
+    # files: 1.7 GB, 15+ min through the tunnel); excluded paths on the box are left alone
     IGN=$(mktemp); { git -C "$WT" ls-files -o -i --exclude-standard --directory | grep -v '^charkit/out' | sed 's|^|/|' || true; } > "$IGN"
-    rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' ${NOI3D[@]+"${NOI3D[@]}"} \
-      --include 'charkit/out/' --include 'charkit/out/i3d/***' --include 'charkit/out/remote/' \
+    rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
+      --include 'charkit/out/' --include 'charkit/out/remote/' \
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
       "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;

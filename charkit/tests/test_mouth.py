@@ -129,6 +129,79 @@ def test_closed_lines_held():
     assert np.all(up(t)[1] <= lo(t)[1] + 1e-12) and lo(t)[1][4] > lo(t)[1][0]
 
 
+def test_chevron():
+    """the chevron (effort's > <): both lids' margins out along their strokes and back, both corners at the apex, the
+    apex inward of the strokes' ends (it points to the nose); only its chains fold back over x; its lash ribbons keep
+    lashes()' vertices (a shape key); it's closed (the plates sink) and the effort preset's eye."""
+    EK = eyes._knobs({})
+    W = EK['width']
+    C = eyes.CHEVRON
+    up, lo = eyes.expressions(EK, 1.0)['chevron']
+    t = np.linspace(0, 1, 201)
+    for fn, which, f in ((up, 'upper', C['fold'][0]), (lo, 'lower', C['fold'][1])):
+        x, z = fn(np.array([0.0, f, 1.0]))
+        ax, az = eyes.chevron_stroke(EK, 1.0, 0.0, which)
+        ex, ez = eyes.chevron_stroke(EK, 1.0, 1.0, which)
+        assert np.allclose([x[0], x[2]], ax) and np.allclose([z[0], z[2]], az)      # the corners at the apex
+        assert abs(x[1] - ex) < 1e-12 and abs(z[1] - ez) < 1e-12                    # the fold at the stroke's end
+        assert ex - ax > 0.6 * W and (ez - az) * (1 if which == 'upper' else -1) > 0.2 * W
+        assert qa3d.folds_back(np.stack(fn(t), 1))
+    for name, (u_, l_) in eyes.expressions(EK, 1.0).items():
+        if name != 'chevron':
+            assert not any(qa3d.folds_back(np.stack(g(t), 1)) for g in (u_, l_) if g is not None), name
+    # the strokes' ribbons: lashes()' vertex counts and quads
+    for K_ in (EK, eyes._knobs({'crease': 0.0})):
+        rest = eyes.lashes(F, K_, L, 1, (0.03, 0.0))
+        ch = eyes.LASHES['chevron'](F, K_, L, 1, (0.03, 0.0), up, lo)
+        assert [len(v) for v, _ in ch] == [len(v) for v, _ in rest]
+        assert [q for _, q in ch] == [q for _, q in rest]
+    assert 'chevron' in eyes.CLOSED and expressions.PRESETS['effort']['eye'] == 'chevron'
+
+
+def test_folded_opening():
+    """a lid folded back on itself (the chevron's) opens by its loop's winding, not by heights over x: a closed chevron
+    reads 0 where heights over x read the wedge between its strokes; an open eye reads as before."""
+    u = np.linspace(0, 1, 11)
+    stroke = lambda s: np.stack([u, s * 0.4 * u], 1)
+    upper = np.concatenate([stroke(1), stroke(1)[::-1][1:]])           # out along the upper stroke and back
+    lower = np.concatenate([stroke(-1), stroke(-1)[::-1][1:]])
+    xs = np.linspace(0, 1, 96)
+    assert qa3d.opening(upper, lower, xs)[1] > 0.3                     # heights over x: the wedge (0.4)
+    a, share = qa3d.loop_opening(upper, lower, xs, -1, np.array([[0.6, 0.0], [0.8, 0.1]]))
+    assert a == 0.0 and share == 0.0
+    th = np.linspace(np.pi, 0, 40)                                     # an open eye, inner (x -1) to outer (x +1)
+    up_, lo_ = np.stack([np.cos(th), 0.5 * np.sin(th)], 1), np.stack([np.cos(th), -0.3 * np.sin(th)], 1)
+    xs = np.linspace(-1, 1, 96)
+    sg = qa3d.loop_sign(up_, lo_)
+    a, share = qa3d.loop_opening(up_, lo_, xs, sg, np.array([[0.0, 0.0], [0.0, 0.55]]))
+    assert abs(a / qa3d.opening(up_, lo_, xs)[1] - 1) < 0.02 and share == 0.5
+    assert not qa3d.folds_back(up_) and qa3d.loop_opening(up_, lo_, xs, -sg)[0] == 0.0
+
+
+# effort as the lab measures it on Clawd's head (mouthlab.CALIBRATE: the chevron's and the squeeze's effort, the same
+# mouth and brows; its neutral), charkit/out/mouthlab/r3_b/mouth.json
+EFFORT = {'mouth_open': 0.045, 'mouth_teeth': 0.745, 'mouth_width': 0.19, 'mouth_lift': -0.0066, 'brow_tilt': 12.65,
+          'brow_z': 0.163}
+EFFORT_EYES = {'chevron': {'eye_open': 0.0, 'eye_arc': 0.0043, 'eye_fork': 0.2718},
+               'squeeze': {'eye_open': 0.0, 'eye_arc': 0.0818, 'eye_fork': 0.0},
+               'happy': {'eye_open': 0.0, 'eye_arc': 0.1495, 'eye_fork': 0.0221}}
+EFFORT_NEUTRAL = {'eye_open': 1.0, 'eye_aspect': 0.914, 'mouth_open': 0.0, 'mouth_teeth': 0.0, 'mouth_width': 0.13,
+                  'mouth_lift': 0.1603, 'brow_tilt': -1.4, 'brow_z': 0.1862}
+
+
+def test_effort_chevron_calibrated():
+    """effort's target (Michael, 2026-09-30: its eye a > < chevron) passes on the chevron and fails on the rest face and
+    on the closed eyes it replaces (the squeeze, round 2's effort eye) or neighbours (the happy arc)."""
+    g = lambda e: exprqa.grade_targets('effort', dict(EFFORT, **EFFORT_EYES[e]), EFFORT_NEUTRAL)
+    assert g('chevron')['status'] == 'PASS' and g('chevron')['miss'] == 0.0
+    for e in ('squeeze', 'happy'):
+        assert g(e)['status'] == 'FAIL' and g(e)['features']['eye_fork']['status'] == 'FAIL', e
+    assert exprqa.grade_targets('effort', EFFORT_NEUTRAL, EFFORT_NEUTRAL)['status'] == 'FAIL'
+    # a drawn chevron is named effort (a drawing's > < calibrates the same target); a drawn shut line isn't
+    assert exprqa.name(dict(EFFORT_EYES['chevron'])) == 'effort'
+    assert exprqa.name({'eye_open': 0.0, 'eye_arc': -0.05, 'eye_fork': 0.0}) == 'sleep'
+
+
 # the model sheet's heads (idol_D, as exprqa measures them against the drawing's own neutral; the lab's mouth.json)
 DESIGN_NEUTRAL = {'eye_open': 1.0, 'eye_aspect': 0.871, 'iris_ratio': 0.504, 'mouth_width': 0.0609, 'mouth_open': 0.0,
                   'mouth_area': 0.0, 'mouth_fill': 0.0, 'mouth_lift': 0.0714, 'mouth_wave': 0.0, 'mouth_skew': 0.4286,
@@ -180,6 +253,10 @@ def test_lab_on_head():
         assert r['cover'] is None or r['cover'] >= 0.9, (k, r['cover'])
     for n, p in M['presets'].items():
         assert p['targets']['status'] in ('PASS', 'WARN', 'INFO'), (n, p['targets'])
+    # the chevron: its folded lids flip no skin face (eyes.CHEVRON's folds sit between the rims' sides), and the
+    # effort's target passes on it and fails on the rest face and the other closed eyes
+    assert M['eye_folds']['chevron'] == 0, M['eye_folds']
+    assert M['calibration']['effort']['ok'], {v: g['status'] for v, g in M['calibration']['effort']['variants'].items()}
 
 
 if __name__ == '__main__':

@@ -14,11 +14,11 @@ A stage's key is what the stage read, recorded while it ran, so a read nobody li
             (`character.data.head.L`, `character.data.joints.neck01____head`), shade.MATS entries, Blender objects (their
             full state, or the part scene.DEPS declares the stage reads: garments read the body below the neck, and only the
             names of the skin's modifiers and groups)
-  files     every file it opened outside the kit (the TRELLIS GLB) and every path named in the spec sections it read, by
+  files     every file it opened outside the kit (the hull's GLB) and every path named in the spec sections it read, by
             sha256 (a stat-checked memo skips re-hashing unchanged files; a manifest's sha256 is compared, not trusted)
 A lookup evaluates each stored entry's recorded reads against the scene as it now stands and restores the first entry
 whose reads all match. A miss says what changed: `spec.hair`, `character.data.joints.neck01____head moved 5.5e-05`,
-`file charkit/out/i3d/clawd/clawd_3dstyle_s1.glb`, `code charkit/garments.py`.
+`file charkit/out/hull/clawd/hull.glb`, `code charkit/garments.py`.
 
 A checkpoint holds what the stage changed and only that, so it restores onto a rebuilt upstream (garments onto a new face):
   data.blend   the datablocks it made (bpy.data.libraries.write); what they point at from before (the rig, a shared
@@ -572,13 +572,79 @@ def _skip_prefixes():
 _MODS = {}
 
 
+class Tree:
+    """where the code walk (code_units) reads charkit's modules: another worktree's files (root: its top), or a git
+    revision's (repo and rev: a commit or a tree id, read with git, nothing checked out). The default, None, is this
+    checkout, as every cache key reads it. The gate compares one check's code, or one change's reach, between two trees
+    (charkit.codediff)."""
+
+    def __init__(self, root=None, repo=None, rev=None):
+        self.repo, self.rev = repo, rev
+        self.root = os.path.abspath(root) if root else '<git %s>' % rev
+        self.id = self.root if root else 'git:%s:%s' % (os.path.abspath(repo or ROOT), rev)
+        self._blobs = None
+        if root is None:
+            import subprocess
+            r = subprocess.run(['git', 'ls-tree', '-r', '-z', rev, '--', 'charkit'], cwd=repo or ROOT,
+                               capture_output=True, text=True)
+            if r.returncode:
+                raise ValueError('no tree %s: %s' % (rev, r.stderr.strip()))
+            self._blobs = {}
+            for e in r.stdout.split('\0'):
+                if e:
+                    meta, _, path = e.partition('\t')
+                    if path.endswith('.py'):
+                        self._blobs[path] = meta.split()[2]
+            self.mods = digest(sorted(self._blobs))          # (which modules exist: imports resolve against them)
+
+    def path(self, rel):
+        return os.path.join(self.root, rel)
+
+    def rel(self, path):
+        return os.path.relpath(path, self.root) if self._blobs is None else path[len(self.root) + 1:]
+
+    def isfile(self, path):
+        return os.path.isfile(path) if self._blobs is None else self.rel(path) in self._blobs
+
+    def stamp(self, path):
+        if self._blobs is None:
+            st = os.stat(path)
+            return [st.st_mtime_ns, st.st_size]
+        return [self._blobs[self.rel(path)], self.mods]
+
+    def text(self, path):
+        if self._blobs is None:
+            return open(path).read()
+        import subprocess
+        return subprocess.run(['git', 'cat-file', 'blob', self._blobs[self.rel(path)]], cwd=self.repo or ROOT,
+                              capture_output=True, text=True, check=True).stdout
+
+
+_TREE = [None]                          # the tree the code walk reads (code_tree()); None: this checkout
+
+
+@contextlib.contextmanager
+def code_tree(tree):
+    """code_units (and _mod) read tree's modules inside: a Tree, or a worktree's path. The memo of parsed modules
+    is per tree (a git tree's by blob), and only this checkout's is kept on disk."""
+    t = Tree(root=tree) if isinstance(tree, str) else tree
+    old = _TREE[0]
+    _TREE[0] = t
+    try:
+        yield t
+    finally:
+        _TREE[0] = old
+
+
 def _module_file(name):
-    """charkit.x.y -> its source file (None outside charkit)."""
+    """charkit.x.y -> its source file (None outside charkit) in the tree the code walk reads (code_tree)."""
     parts = name.split('.')
     if parts[0] != 'charkit':
         return None
-    for p in (os.path.join(KIT, *parts[1:]) + '.py', os.path.join(KIT, *parts[1:], '__init__.py')):
-        if os.path.isfile(p):
+    t = _TREE[0]
+    kit = KIT if t is None else t.path('charkit')
+    for p in (os.path.join(kit, *parts[1:]) + '.py', os.path.join(kit, *parts[1:], '__init__.py')):
+        if (os.path.isfile(p) if t is None else t.isfile(p)):
             return p
     return None
 
@@ -638,17 +704,20 @@ class _Mod:
     is not the module's `main`): free names (this module's definitions or imports), `module.attr` pairs, the charkit
     modules it imports inside and binds; the digest of the other top-level statements and what they refer to; the
     names the top level binds to charkit modules (bound) and to names in them (bound_from); the charkit modules it
-    imports anywhere. Plain data, memoized on disk by file stamp."""
-    SCHEMA = 3
+    imports anywhere. Plain data, memoized on disk by file stamp. For the finer walk (code_units(fine=True): the
+    gate's comparisons, not cache keys) also each top-level assignment to plain names (assigns: {name: [digest, names,
+    attrs, local]}) and the rest of the top level without them or the imports (rest, rest_refs)."""
+    SCHEMA = 4
 
     def __init__(self, name, path, d=None):
         self.name, self.path = name, path
-        self.rel = os.path.relpath(path, ROOT)
+        t = _TREE[0]
+        self.rel = os.path.relpath(path, ROOT) if t is None else t.rel(path)
         if d is not None:
             self.__dict__.update(d)
             self.imports = set(self.imports)
             return
-        tree = ast.parse(open(path).read())
+        tree = ast.parse(open(path).read() if t is None else t.text(path))
         _strip_docs(tree)
         self.digest = _dump(tree)
         self.pkg = name if path.endswith('__init__.py') else name.rpartition('.')[0]
@@ -671,6 +740,23 @@ class _Mod:
                         self.top_refs[k] = self.top_refs[k] + [x for x in refs[k] if x not in self.top_refs[k]]
         self.top_refs = getattr(self, 'top_refs', {'names': [], 'attrs': [], 'local': [], 'called': []})
         self.top = digest([ast.dump(n, annotate_fields=False, include_attributes=False) for n in top])
+        # (the finer walk's view of the top level: a constant is its own unit, reached by name; imports resolve names)
+        self.assigns, rest = {}, []
+        self.rest_refs = {'names': [], 'attrs': [], 'local': [], 'called': []}
+        for n in top:
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                continue
+            tg = n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AnnAssign) else None
+            names = [t.id for t in tg if isinstance(t, ast.Name)] if tg else []
+            refs = self._refs(n)
+            if tg and len(names) == len(tg):
+                for x in names:
+                    self.assigns[x] = [_dump(n), refs['names'], refs['attrs'], refs['local']]
+                continue
+            rest.append(n)
+            for k in self.rest_refs:
+                self.rest_refs[k] = self.rest_refs[k] + [x for x in refs[k] if x not in self.rest_refs[k]]
+        self.rest = digest([ast.dump(n, annotate_fields=False, include_attributes=False) for n in rest])
         # a top-level import nothing here names: imported for what importing it does (registering parts): taken whole
         self.side = sorted({v.lstrip('!') for k, v in self.bound.items() if k not in used} |
                            {v[0] for k, v in self.bound_from.items() if k not in used and v[1] == '*'})
@@ -750,7 +836,8 @@ class _Mod:
 
     def data(self):
         return dict(digest=self.digest, pkg=self.pkg, defs=self.defs, bound=self.bound, bound_from=self.bound_from,
-                    top=self.top, top_refs=self.top_refs, side=self.side, imports=sorted(self.imports))
+                    top=self.top, top_refs=self.top_refs, side=self.side, imports=sorted(self.imports),
+                    assigns=self.assigns, rest=self.rest, rest_refs=self.rest_refs)
 
     def resolve(self, node, alias):
         """the charkit modules an import statement brings in."""
@@ -778,7 +865,24 @@ class _Mod:
 _DISK = [None, False]                   # the on-disk memo of parsed modules, and whether it changed
 
 
+_BLOB_MODS = {}                         # parsed modules of git trees, by (blob, module, the tree's module set)
+
+
 def _mod(name):
+    t = _TREE[0]
+    if t is not None:                   # another tree: memo per tree in memory (a git tree's per blob, across trees)
+        p = _module_file(name)
+        if p is None:
+            raise OSError('no module %s in %s' % (name, t.root))
+        k = (t.id, name) if t._blobs is None else (name,) + tuple(t.stamp(p))
+        memo = _MODS if t._blobs is None else _BLOB_MODS
+        st = t.stamp(p) if t._blobs is None else None
+        if k not in memo or (st is not None and memo[k][0] != st):
+            memo[k] = (st, _Mod(name, p))
+        M = memo[k][1]
+        if t._blobs is not None and (M.path != p or M.rel != t.rel(p)):
+            M = _Mod(name, p, M.data())             # (the same blob in another tree: its paths are that tree's)
+        return M
     p = _module_file(name)
     st = os.stat(p)
     k = [p, st.st_mtime_ns, st.st_size, sys.version.split()[0], _Mod.SCHEMA]
@@ -808,7 +912,7 @@ def save_code_memo():
             pass
 
 
-def code_units(*fns, modules=(), depth=None):
+def code_units(*fns, modules=(), depth=None, starts=(), fine=False):
     """the code the functions run, as {unit: digest}, followed definition by definition across modules: each function
     ('path:name'), the definitions it names in its own module, the definitions it reaches in other charkit modules
     through their names (`from m import f`, `m.f`), and each module's top-level statements ('path:<top>': they run on
@@ -817,10 +921,16 @@ def code_units(*fns, modules=(), depth=None):
     modules. depth: follow references only this many modules away (None: all). Names are resolved as Python scopes
     them: a function's own local `main` is not the module's main. (Until 2026-09-30 a module was taken whole with every
     module it imports anywhere: bodyeval's one use of `cli._path` brought cli.py's 42 imports into every QA key, and the
-    hull's shared-cache key covered garments.py through a local named `main`.)"""
+    hull's shared-cache key covered garments.py through a local named `main`.)
+    starts: more definitions to start from, as (module, name) (name None: the module whole), for a tree whose code isn't
+    imported (code_tree: another worktree or a git revision).
+    fine: a module's top-level constants as units of their own ('path:=NAME', reached by name) and its other top-level
+    statements, imports left out, as 'path:<top>': one constant changed then reaches only the code that names it (the
+    gate's comparisons: charkit.codediff; cache keys don't use it)."""
     import collections
     units, seen, done_mod, whole = {}, set(), set(), set()
     work = collections.deque((fn.__module__, fn.__name__, 0) for fn in fns)
+    work.extend((m, n, 0 if n else 1) for m, n in starts)
     work.extend((m, None, 1) for m in modules)
 
     def ref(M, lvl, name=None, attr=None):
@@ -829,6 +939,8 @@ def code_units(*fns, modules=(), depth=None):
             return
         if name in M.defs:
             work.append((M.name, name, lvl))
+        elif fine and name in M.assigns:
+            work.append((M.name, '=' + name, lvl))
         elif name in M.bound_from:
             m, n = M.bound_from[name]
             work.append((m, None if n == '*' else n, lvl + 1))
@@ -846,7 +958,7 @@ def code_units(*fns, modules=(), depth=None):
                 work.append((M.bound[x], a, lvl + 1))
             elif x in M.bound:
                 work.append((M.bound[x][1:], None, lvl + 1))
-            elif x in M.defs or x in M.bound_from:
+            elif x in M.defs or x in M.bound_from or fine and x in M.assigns:
                 ref(M, lvl, name=x)
         for m, a in refs['local']:
             work.append((m, a, lvl + 1))
@@ -861,14 +973,24 @@ def code_units(*fns, modules=(), depth=None):
             continue
         if m not in done_mod:                          # its top-level statements run whenever it's imported
             done_mod.add(m)
-            units[M.rel + ':<top>'] = M.top
-            follow(M, M.top_refs, lvl, top=True)
+            units[M.rel + ':<top>'] = M.rest if fine else M.top
+            follow(M, M.rest_refs if fine else M.top_refs, lvl, top=True)
             work.extend((x, None, lvl + 1) for x in M.side)
         if n is None:
             if m not in whole:
                 whole.add(m)
                 units[M.rel] = M.digest
                 work.extend((m, d, lvl) for d in M.defs)
+                if fine:
+                    work.extend((m, '=' + a, lvl) for a in M.assigns)
+            continue
+        if fine and n.startswith('=') and n[1:] in M.assigns:
+            dg, nm, at, lo = M.assigns[n[1:]]
+            units['%s:%s' % (M.rel, n)] = dg
+            follow(M, {'names': nm, 'attrs': at, 'local': lo}, lvl)
+            continue
+        if fine and n in M.assigns and n not in M.defs:
+            work.append((m, '=' + n, lvl))             # (a module's constant, as `module.NAME`)
             continue
         if n in M.defs:
             dg, _, imps, _, _ = M.defs[n]
@@ -2316,7 +2438,7 @@ def step_depth():
 
 def _port_prefixes(build_out):
     """(absolute prefix, portable prefix), longest first: the build's out folder as '<out>/', the worktree (as named
-    and resolved) and each link in its charkit/out (the gate's i3d and gate folders, resolved) relative to it."""
+    and resolved) and each link in its charkit/out (the gate's gate folder, resolved) relative to it."""
     from . import closure
     with closure.paused():                          # (a look at the worktree's links, not an input)
         pre = [(p, r) for p, r in closure._prefixes(ROOT)]
