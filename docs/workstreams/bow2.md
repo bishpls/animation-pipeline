@@ -19,7 +19,21 @@ module of its own (`charkit/bowqa.py`, QA part `bow_profile`, order 1765) so the
   bow_front_tail_width 0.0 PASS, bow_front_tail_gap 0.014 PASS, bow_front_loop_width 0.002 PASS, bow_profile_ribbon
   0.053 PASS, bow_front_flare 1.005 FAIL (the pillows), art_*_bow INFO.
 - **Checks built and calibrated** (d179a05; steps `charkit/steps/bowqa.py`; tests `charkit/tests/test_bowqa.py`).
-- **Next:** the refit (below), with piece_bow per view beside every variant.
+- **Knob added:** `bow.drop` (358a6d6; the pillow lobes' lower edge lowered toward their outer ends; default 0).
+- **Not gated; the spec (clawd.json) unchanged.** The ribbons hit a conflict that is Michael's call (below, "The
+  ribbon conflict"). Option build running at handoff: `charkit/out/b2_close` (spec `charkit/spec/_v_close.json`,
+  untracked: ribbon turn 20, w [0.204, 0.338], drop 0.2); review page `charkit/out/bow2/review/index.html`
+  (generator review.py, summary `summary.json`; renders cu2.py BUILD rv_NAME).
+
+### Next steps (a fresh agent), in order
+1. Michael's call on the ribbons (A: accept bow_profile_ribbon's regression, the ribbons hung close showing 0.08 L of
+   face; B: the jacket's bust sides fall back so a turned ribbon can hang close: the jacket's owner; C: replace
+   bow_profile_ribbon's measure with what the old flag meant, an ink line between ribbon and jacket, calibrated).
+2. The loops, independent of 1: `drop` 0.2 fixes loop_thick / loop_lean and raises piece_bow in every view, but
+   bow_front_loop_end (flag) PASS -> WARN (0.121 -> 0.244: the dropped outer ends read straight). Retune `end_p`
+   ([upper, lower]: the lower corner rounder, e.g. [4, 1.0-1.2]) or `end` with drop, against loop_end,
+   art_outline_collar (box: corners where the collar meets the loops' top) and bow_front_bleed (box only).
+3. Then the spec lines, pregate, box build, gate `python -m charkit remote gate tool/bow2 --into pipeline-3d`.
 
 ## Measured first (profile, the QA's grid: 212 px/L, registered on the near eye; forward = toward the face)
 
@@ -91,3 +105,32 @@ Sweep s1 (`sweep.py s1.json`; one evaluator process, ~16-21 s a variant; summary
 
 Hinge 0 and -1 sink the ribbons' outer halves into the jacket (the ribbon and tail width checks fail, and front and
 three-quarter IoU drop 12%+).
+
+Sweep s2/s3 (turn with the front width held: w x cos 40 / cos t; `drop`; stand-offs):
+
+| variant | reach | hang | thick | lean | ribbon (flag; seen L) | loop_end (flag) | tail width | bow IoU f / 3q / p |
+|---|---|---|---|---|---|---|---|---|
+| b2_before | 0.109 F | 12.6 F | 0.076 F | 20.0 F | 0.053 P (0.169) | 0.121 P | 0.0 P | 0.896 / 0.758 / 0.346 |
+| turn 20, w held (t20w) | 0.029 P | 4.2 P | 0.076 F | 20.2 F | 0.553 F (0.080) | 0.121 P | 0.0 P | 0.897 / 0.772 / 0.543 |
+| t20w, stand 0 / 0.005 / 0.03 | 0.035 / 0.034 / 0.040 W | 7.5 / 6.7 W / 1.7 P | F | F | 0.553 F (0.080 each) | P | P | p 0.582 / 0.568 / 0.516 |
+| turn 25, w held, stand 0 | 0.030 W | 3.3 P | F | F | 0.447 W | P | 0.0 P | 0.897 / 0.792 / 0.575 |
+| turn 30, w held | 0.063 F | 3.3 P | F | F | 0.342 W | P | 0.0 P | 0.896 / 0.771 / 0.479 |
+| turn 30 (w as is) | 0.076 F | 5.7 W | F | F | 0.25 P | P | 0.154 W | 0.886 / 0.764 / 0.435 |
+| drop 0.1 | (as before) | | 0.051 F | 12.2 W | 0.053 P | 0.179 W | P | 0.921 / 0.798 / 0.402 |
+| drop 0.2 | | | 0.035 W | 2.3 P | 0.053 P | 0.244 W | P | 0.925 / 0.814 / 0.417 |
+| drop 0.3 | | | 0.026 P | 4.3 P | 0.026 P | 0.301 F | 0.026 P | 0.902 / 0.810 / 0.416 |
+
+## The ribbon conflict (the coordinator's two questions, answered by measurement)
+
+1. The design passes bow_profile_ribbon (tool/calib's record: the design moved 1-2 px reads 0.118-0.171 PASS; its
+   drawn tails show 0.179 L). The check measures the ribbons' face width seen in profile: the count of our bow's
+   pixels per row over 30-80% of the drawn tails' height, against the drawn tails' (not missing ink, not a
+   separation distance).
+2. A stand-off doesn't change it: t20w at stand 0, 0.005, 0.015 and 0.03 L all show 0.080 L (value 0.553 FAIL); a
+   stand-off moves the whole ribbon forward (reach worsens) without widening what shows.
+3. Why: hung close (front edge at the drawn -0.21) and not sunk into the jacket, a ribbon with the drawn front width
+   can show at most jacket_u(x_out) - front = 0.08-0.10 L (above). The drawing shows 0.18 L: its profile ribbons are
+   deeper than its front view and our jacket (matching the drawing where it shows) allow. So the check isn't
+   miscalibrated against the design; it asks for a depth our geometry can't give with the ribbons close. Michael's
+   call (step 1 above). The trade is monotone in the turn: reach PASS needs turn <= 20 (seen 0.08, ribbon FAIL);
+   ribbon PASS needs turn >= 30 unheld (reach 0.076 FAIL).
