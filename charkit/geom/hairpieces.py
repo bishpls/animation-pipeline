@@ -2367,6 +2367,16 @@ def shade_normals(pieces, L, style):
             G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
             Ne = np.where(out[:, None], (1 - w) * Ne + w * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
+        if p.get('family') == 'flyaways' and style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
+            # each strand one tone, its root's (the mass's normal where it grows from, the vertex nearest the chain's
+            # first point): the envelope's normal turns along a blade standing out of the mass, and a cel terminator
+            # across a thin strand draws as a torn shadow patch (hairtag round 3: the back view's kinks, 7 -> 14)
+            Ne = Ne.copy()
+            for k, ch in enumerate(p.get('chains') or ()):
+                m = np.nonzero(p['lock'] == k)[0]
+                if len(m) and len(ch):
+                    r = m[np.argmin(np.linalg.norm(p['V'][m] - np.asarray(ch[0]), axis=1))]
+                    Ne[m] = Ne[r]
         p['vn_shade'] = Ne
 
 

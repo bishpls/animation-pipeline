@@ -93,6 +93,14 @@ MEASUREMENT_STEPS = [
     ('face_eye_asym', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy; the worst key)'),
     ('face_preset_*', 'bf797d4', 'new: the combined expressions (charkit.expressions.PRESETS) against exprqa.TARGETS, '
      'the furthest feature past its target in WARN margins (tool/mouth2)'),
+    # tool/hairtag: the hair layers (the hair pieces' targets) remade by the drawing's own structure
+    ('hair_piece_*', '97d9449', "the hair layers the pieces are graded against (charkit.hairlayers, the manifest's "
+     "produced hair_layers) remade (tool/hairtag): the body sheet's lock regions and cel tones vote the transferred "
+     "families, clips leave the hair; 0.892 -> 0.958 against the hand-checked hair truth. Same geometry, old -> new "
+     "layers: upper back 0.760 -> 0.697, lower back 0.704 -> 0.570, bangs 0.762 -> 0.786, side locks 0.544 -> 0.536, "
+     "ahoge 0.270 -> 0.362 (docs/workstreams/hairtag.md, the 2x2)"),
+    ('hair_fringe_low', '97d9449', "the front's bangs in the remade hair layers (tool/hairtag): 0.0094 either way"),
+    ('hair_tips_*', '97d9449', "the drawn hair's lower edge from the remade hair layers (tool/hairtag): clips out"),
     # tool/mouth3: the effort eye as a > < chevron (Michael, 2026-09-30)
     ('face_preset_effort', '8ea2634', "effort's eye target is the chevron (exprqa eye_fork >= 0.15, a closed eye's strokes "
      "forking) where it was an arched shut line (eye_arc >= 0.02); the preset's eye is the chevron (tool/mouth3)"),
