@@ -116,6 +116,11 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
         jd['rise'] = underside_rise(rgb, eye_x, facing)
     except Exception:                         # (a sheet whose chin can't be read: the chin stays the rows' own)
         jd = None
+    if jd is not None:
+        try:
+            jd['depth'] = jaw_depth(rgb, eye_x, jd, facing)
+        except Exception:                     # (no three-quarter jaw line: the rim on the envelope's front, as before)
+            jd['depth'] = None
     return dict(z=z, mid=-lead_p, w=_smooth(w, 2), lead3=lead3, az3=float(D['az_three_quarter']), chin=chin,
                 nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny, eyes=ev, jaw_design=jd)
 
@@ -139,7 +144,7 @@ def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
     return zs, ys
 
 
-JAW_UNDER = {'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0]}   # the style's face section
+JAW_UNDER = {'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design'}   # the style's face section
                                  # overrides these (charkit/styles: DEFAULT says what each is)
 
 
@@ -163,6 +168,32 @@ def jaw_line(D, dx=0.005):
                 neck=float(F['neck']) if F.get('neck') else None)
 
 
+def jaw_depth(rgb, eye_x, J, facing=-1):
+    """the design's jaw edge in depth: how far behind the chin point the jaw line lies at each half-width x of its V,
+    read from the head sheet's three-quarter (its near jaw line, charkit.faceregion.tq_jaw: per column from the chin,
+    the face's foot) against the front's V (J: jaw_line's x, z): a point of the edge at height z shows at u = x cos a +
+    y sin a in a three-quarter at azimuth a, so its depth behind the chin point is (du - x cos a) / sin a -> [[x], [D]]
+    (L) or None. The three-quarter draws it only up to where its hair covers the jaw (Clawd's: z -0.27)."""
+    import importlib, math
+    fr = importlib.import_module('charkit.faceregion')
+    views, ppl = fr.design_jaw_views(rgb, eye_x, facing, which=('three_quarter',))
+    v = views.get('three_quarter')
+    if v is None:
+        return None
+    M = fr.tq_jaw(v['cls'], ppl, facing)
+    if not M or M.get('line') is None:
+        return None
+    a = math.radians(v['az'])
+    jx, jz = np.asarray(J['x'], float), np.asarray(J['z'], float)
+    xs, ds = [], []
+    for du, z in M['line']:
+        if z <= jz[0] + 0.004 or z > jz.max():
+            continue
+        x = float(np.interp(z, jz, jx))
+        xs.append(round(x, 4)); ds.append(round(float((du - x * math.cos(a)) / math.sin(a)), 4))
+    return [xs, ds] if len(xs) >= 4 else None
+
+
 def underside_rise(rgb, eye_x, facing=-1):
     """the design's chin underside in profile: its angle (degrees, + rising from the chin toward the throat), read on the
     head sheet's profile as the QA reads it (charkit.faceregion.jaw_profile) -> degrees or None."""
@@ -176,7 +207,8 @@ def jaw_under(C, face=None):
     """the jaw's underside for the head's mesh (charkit.code_base.UnderJaw), from the design's jaw line (C['jaw_design'])
     and the style's face section (JAW_UNDER's keys): None when the style builds the chin as rows alone (jaw_under off) or
     the design's jaw can't be read -> dict(x, z (the jaw line in front), rise (degrees: the underside's rise from the jaw
-    line toward the throat, the design's measured in profile or the style's, within jaw_rise_range), neck)."""
+    line toward the throat, the design's measured in profile or the style's, within jaw_rise_range), neck, depth (the
+    jaw edge's depth behind the chin per x, jaw_depth's, where the style's jaw_edge is 'design': headgeom.jaw_envelope))."""
     st = dict(JAW_UNDER, **(face or {}))
     J = C.get('jaw_design')
     if not st['jaw_under'] or not J or len(J.get('x') or ()) < 5:
@@ -185,7 +217,7 @@ def jaw_under(C, face=None):
     rise = J.get('rise') if st['jaw_rise'] == 'design' else st['jaw_rise']
     rise = float(np.clip(12.0 if rise is None else rise, lo, hi))
     return dict(x=J['x'], z=J['z'], chin=J['chin'], neck=J['neck'], rise=round(rise, 1),
-                rise_design=J.get('rise'))
+                rise_design=J.get('rise'), depth=J.get('depth') if st.get('jaw_edge') == 'design' else None)
 
 
 def relief_split(z, mid, nose_z, top=-0.02, bottom=None):

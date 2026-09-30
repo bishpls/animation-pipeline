@@ -5,7 +5,7 @@ taper curves.
     python taper_lab.py OUT.png BUILD_DIR            # the bundle (the whole scene)
     python taper_lab.py OUT.png --geom GEOM_DIR      # a local assembly: GEOM_DIR/head_code.npz, body_code.npz
     python taper_lab.py OUT.png --design             # the design against itself (the checks' own floor)
-JSON=path writes the numbers."""
+JSON=path writes the numbers; DESIGN_CACHE=path.pkl keeps the design's side between runs."""
 import json, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
@@ -37,7 +37,15 @@ def scene(build=None, geom=None, log=print):
 def run(out=None, build=None, geom=None, design_only=False, log=print):
     spec = jaw_lab.spec_of()
     t0 = time.time()
-    D, ppl, Dc, az = fr.design_jaw(spec, 0.168)
+    cache = os.environ.get('DESIGN_CACHE')           # (a pickle of the design's side: it doesn't change between tries)
+    if cache and os.path.exists(cache):
+        import pickle
+        D, ppl, Dc, az = pickle.load(open(cache, 'rb'))
+    else:
+        D, ppl, Dc, az = fr.design_jaw(spec, 0.168)
+        if cache:
+            import pickle
+            pickle.dump((D, ppl, Dc, az), open(cache, 'wb'))
     z0 = D['front']['taper']['z0']
     if design_only:
         Dt = {vn: D[vn].get('taper') for vn in ('front', 'three_quarter')}

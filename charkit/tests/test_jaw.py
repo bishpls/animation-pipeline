@@ -188,6 +188,27 @@ def test_under_jaw_leaves_the_rows_under_its_band_on_the_sections():
     assert abs(P[0, 2] - (-0.3)) > 1e-3 or np.abs(P[0] - ref[0]).max() > 1e-3   # in the band: along the meridian
 
 
+def test_jaw_envelope_puts_the_edge_at_the_designs_depth():
+    """with the design's depth (the edge 0.9 L back per L out from the chin), each row's outline passes through the
+    edge's point (the V's half-width at the depth the recession gives it, placed at our chin's own), the midline (the
+    profile) where it was; without it, the sections unchanged."""
+    S, jaw = _head()
+    xs = np.arange(0.03, 0.2, 0.01)
+    jaw = dict(jaw, depth=[list(xs), list(0.9 * xs)])
+    Se, info = headgeom.jaw_envelope(S, jaw)
+    Dfn = headgeom.jaw_depth(jaw)
+    j0 = int(np.argmin(np.abs(S.th)))
+    for z in (-0.33, -0.3, -0.27):
+        k = int(np.argmin(np.abs(S.zs - z)))
+        xV = float(np.interp(S.zs[k], jaw['z'], jaw['x']))
+        yJ = info['y_ref'] + float(Dfn(xV))
+        x, y = Se.xy(k)
+        near = np.min(np.hypot(x - xV, y - yJ))
+        assert near < 0.006, (z, near)                               # the outline through the edge's point
+        assert abs(Se.r[k, j0] - S.r[k, j0]) < 1e-9                  # the midline unmoved
+    assert headgeom.jaw_envelope(S, dict(jaw, depth=None))[0] is S
+
+
 def test_orient_faces_makes_the_winding_consistent():
     V = np.array([[x, y, z] for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)]) - 0.5
     V[:, 2] += 0.15                                                 # (the forehead's seed near z 0.15)
