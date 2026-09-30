@@ -61,7 +61,15 @@ and two levels. A run takes about 1.5 s.
   `Part.subdivided` uses the recorded faces. Tests: `charkit/tests/test_wind.py`; test_geomstage and test_bodyeval
   updated.
 
+- **M1 result** (box, 82f2c5d, `charkit/out/evalmesh/m1_clawd`): evaldrift --stages shows 0 of 110 checks drifting.
+  The evaluated sleeves are 1.85e-6 / 1.35e-6 L and every garment is within 1.1e-5 L. The only stage drift is the
+  skin's subdivision (M2). boarddiff base_clawd -> m1_clawd: 375 QA checks identical, 22 of 24 images identical (face_030
+  max 4/255 on a few pixels, sheet_views max 1). Bundle to bundle, every garment's raw loops are identical. The
+  evaluated meshes are the same geometry (0 L; the collar 1.2e-7 L on one vertex) with the same winding, first corners
+  and UVs. Only their vertex order changed: BMesh's to_mesh no longer reorders the edges.
+- Merged pipeline-3d 4de65ab (tool/face4) at 2ac1653. Gate launched on it (M1 only; M2 is uncommitted in the tree).
+
 ## Next
-- M1: box build and evaldrift --stages (`charkit/out/evalmesh/m1_clawd`), boarddiff against base_clawd, then the gate.
+- M1: the gate (`charkit/out/gate/`), read under K.
 - M2: fold the isolation-level rule into `charkit/geom/subsurf.py` locally, around the vertices that need it. Then run
   the build's pieces through the lab: the bundle's raw garments and skin base, with the eye margins creased.
