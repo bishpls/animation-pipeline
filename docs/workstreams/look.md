@@ -776,3 +776,55 @@ regions (hair, skin, garments) of the shaded regions' mean IoU (shade and lit) w
 - The gate `gate-look4-0930-141135-b484` (bb3fdf1, before the merge) is running on the build box; the after build
   `look6_after` (render box: face_lift 15) too. `designlight.review` writes the review page
   (`python -c "from charkit import designlight as dl; dl.review({NAME: BUILD, ...}, OUT)"`).
+
+### Results (look6_base = pipeline-3d d60486a; look6_after = the same with `face_lift` 15; render box builds)
+
+The hair's shadow share of the face, ours / the design's (lookqa.face_shadow, the bare head):
+
+| light | front | three-quarter | profile |
+|---|---|---|---|
+| design light (15, 47.5), before | 0.359 / 0.076 | 0.322 / 0.192 | 0.452 / 0.207 |
+| design light, **after** | **0.170** / 0.076 | **0.136** / 0.192 | **0.199** / 0.207 |
+| boards' light (30, 40), before | 0.341 / 0.076 | 0.259 / 0.192 | 0.302 / 0.207 |
+| boards' light, **after** | **0.195** / 0.076 | **0.136** / 0.192 | **0.136** / 0.207 |
+
+The Blender bake with `face_lift` equals the venv lab's numbers (boards' light 0.195 / 0.136 / 0.136-0.138). Face shadow
+IoU under the design light: front 0.383 -> 0.463, 3/4 0.375 -> 0.313, profile 0.351 -> 0.358. The neck and the chin
+don't move (the neck keeps lift 1). The front's remaining 0.17 is the fringe map (`fringe_drop` 0.07 L).
+
+The chin under the design light (after): `face_shadow_chin_edge` **0.057 L FAIL** (front 0.040, 3/4 0.074; boards'
+light 0.060). `face_shadow_chin` (the jaw IoU) 0.694 INFO (boards' 0.659). Our shadow runs to the neck's base in front
+(reach 0.15 L against the design's V 0.127), and in 3/4 the whole neck is shaded where the design shades a band under
+the jaw and the far side. Michael's flag stands, and this is now a calibrated check of it.
+
+**Gate** `charkit/out/gate/gate_tool-look6_bb3fdf1_into_4007276.md`: **PASS** under K. Nothing blocks. Reported:
+face_shadow_chin_edge, a check the branch adds that FAILs (0.1467 INFO -> 0.0568 FAIL, reported, not blocking). The
+face_shadow_*, face_noise*, face_islands values moved (INFO). hair_noise 0.0807 -> 0.081 FAIL (already FAIL, +0.0003).
+Build CPU 1.02x. 64 test files, 0 failing. The face_shadow_* steps (d1ad9ba) weren't read as `remeasured`: the report
+lists them as moves, so no 2x2 ran for them. Worth a look at how charkit/steps patterns match before the next gate.
+Gated at bb3fdf1; the branch has since merged pipeline-3d 25b1936 (271ae94) and added docs and review code only.
+
+Review page: `charkit/out/look6_review/index.html` (design | boards' light | design light per head and body view, before
+and after, the shade overlaid against the design's, per region IoU and shares). QA pictures:
+`charkit/out/look6_{base,after}/qa_look6/` (qa_face_shadow.png, qa_chin_shadow.png: the jaw found in red, the
+jaw-aligned grids).
+
+### Next, in order
+1. `python -m charkit remote gate tool/look6 --into pipeline-3d --carry` (export CLOUDSDK_CONFIG first) if the
+   coordinator wants the gate at the branch head (271ae94 and later add the pipeline-3d merge, docs, review code).
+2. Check why the face_shadow_* steps in charkit/steps/lookqa.py didn't make the gate read them as `remeasured` (the 2x2).
+3. The chin (Michael's flag, now a calibrated FAIL): the lever is the neck's own shading and geometry, not the light.
+   Our jaw's shadow covers the neck to its base (a short neck, 0.18 L at the chin, against the design's ~0.35). Try the
+   neck lit but for the cast (round 5's call), then tool/face's neck length. Measure with face_shadow_chin_edge.
+4. The front forehead: `face.fringe_drop` 0.07 -> ~0.03 L (a build: the fringe map is baked in Blender) against the
+   design's 0.076.
+5. `face_shadow_chin` (the IoU on the jaw) stays INFO until a known-bad separates from the design by more than its
+   noise.
+
+### Decisions for Michael
+- **The board light.** The design light is a camera key at 15 deg left and 47.5 up; the boards use 30 and 40 (call A).
+  They're close, and the fit is weak: 0.547 against 0.531. Don't switch the default on this evidence. If anything,
+  it's a small move toward the camera and up. It's a taste call, with before and after on the review page.
+- **The hair's cast on the face**: `face_lift` 15 is set as the anime default (hair only shades the face where it stands
+  well off it). Keep it, or go back to the full cast.
+- **The chin**: the calibrated check says the flag is still open, and the neck's shading or length is the fix.
