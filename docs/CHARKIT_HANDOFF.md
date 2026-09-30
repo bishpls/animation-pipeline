@@ -899,11 +899,18 @@ infra/gcp/build.sh status | up | ssh | stop
 How the gate gets its code:
 - The box keeps one clone (`/srv/work/repo`). A gate sends a git bundle of only the commits that clone lacks. The
   first bundle is the whole history, 1.8 GB; later ones are small.
-- A file over 100 MB goes through the bucket, not the IAP tunnel, which carries about 1–3 MB/s.
-- A worktree's first sync is seeded on the box by hard links from the most recently synced copy there (its builds and
-  caches dropped), so it takes about 5 s rather than 4–9 minutes.
-- `charkit/out/i3d` (526 MB, gitignored) is seeded from the box's synced copy of the worktree, then rsynced.
-- Gates from several worktrees queue on a lock there, so parallel workstreams can gate whenever they're ready.
+- **Bulk data goes through the bucket, not the IAP tunnel** (`charkit/bucketsync.py`, merged 2026-09-30). Syncs,
+  fetches and pushes go through a content-addressed store (`cas/<aa>/<sha256>` blobs, manifests, named pointers) in
+  the existing bucket; ssh stays on IAP for control. A box fetches missing blobs inside GCP (884 MB in about 6 s),
+  reuses matching files from its own copies before asking the laptop, and hard-links inputs from a read-only blob cache
+  (always replaced by rename, never written through). Outputs are never linked. A fresh copy syncs in about 3 s
+  (rsync: 5-8 min). Builds and gates publish their outputs in-session and the laptop pulls them.
+- The slow link is the laptop's upload (about 1.8 MB/s either way), so new content costs the same once, and then
+  never again for any worktree or box. A saturated uplink is what dropped IAP ssh ("not responding").
+- `CHARKIT_SYNC=rsync` keeps the old rsync-over-IAP path (with its hard-link seeding and the `charkit/out/i3d` rule).
+  `infra/gcp/build.sh verify WT` compares a box copy with the worktree file by file.
+- Gates from several worktrees run in parallel, each in its own clone, with a lock per baseline.
+- Open: bucket garbage collection (about 1 GB of blobs now); ssh multiplexing (1.2-3.8 s per IAP ssh).
 
 The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
 sessions share its 16 GB.
