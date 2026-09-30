@@ -547,7 +547,7 @@ directly under the chin, following the jaw." Round 2 built the cast shadows (abo
 QA number or gate. This round merges them onto today's look (look3's H and I, look4's M, toonrender2's render drawing,
 face4's chin) and validates them.
 
-### State (in progress)
+### State
 
 - `tool/look2` merged (afc0a52): conflicts only in gltf.py's material record and look.js's mesh attributes (look3's
   streak hash and region factor kept, the cast added beside them).
@@ -621,3 +621,38 @@ and the untilted neck, > 8 lv), per face board: EEVEE 9172-17601 px, ours 9159-1
 0.990-0.994; inside them the after boards differ by 0.42-0.49 lv (0.14-0.32% over 8). Body boards: 24-1506 px changed,
 IoU 0.88-0.99. The QA's two drawings agree on the bare head: face_shadow_chin 0.5282 / 0.528 (render / numpy) before,
 0.508 / 0.5073 after; chin_soft 0.0056 / 0.0055, 0.0037 / 0.0036.
+
+### Stopped 2026-09-30 ~09:50: gcloud "Reauthentication failed" (box work stopped)
+
+- **The gate is running unfollowed** on the build box: job `gate-look4-0930-094431-f250` (tool/look5 at 40f1d62 into
+  pipeline-3d 4de65ab), started before auth expired; its report can't be fetched until Michael re-logs in.
+- **The option build `look5_castneck`** (`charkit/out/look5_specs/clawd_castneck.json`: `look.face.cast.face` false)
+  built on the render box (exit 0) but its outputs weren't fetched, and its lookboards and look QA didn't run.
+- Review page: `charkit/out/look5_review/index.html` (design | before | after on the bare head, the chin and temple
+  close-ups, the QA's chin overlays, the numbers).
+
+**Next, in order (after `gcloud auth login`):**
+1. `python -m charkit remote attach gate-look4-0930-094431-f250`: collects the report into `charkit/out/gate/`. Read it
+   under K. Expect: the look part's bare-head checks `remeasured` (steps at d082a27); face_shadow_chin* new INFO; the
+   hull rebuilt once in the candidate (scene.py is in its produced-cache key: DEPS changed), so CPU may read high;
+   attribute it from the report's CHARKIT_PRODUCED lines as look4 did. The 2x2's "old geometry, new measure" cell is
+   the old measure in practice (a pre-look5 build has no bare skin, so it draws dressed).
+2. `CHARKIT_BOX_ENV=$PWD/infra/gcp/render.env infra/gcp/build.sh fetch $PWD charkit/out/look5_castneck`, then on the
+   render box its lookboards (`lookboard.py -- charkit/out/look5_castneck/lookboard_bare --L 0.25 --bare` and without
+   `--bare`) and `python -m charkit.lookqa charkit/out/look5_castneck`; fetch `lookboard_bare`, `lookboard`, `qa_look`.
+   Rebuild the page with `--extra castneck=charkit/out/look5_castneck` (scratch script: the session's `opt.sh`).
+3. Michael's calls (below), then a chin measure that calibrates (aligned on the jaw; the shadow's top edge's distance
+   from the jaw per column; or the soft width measured the same way on the design's picture), and only then a flag
+   check.
+
+**Decisions for Michael:**
+- **The hair's cast on the face overshoots from the front** (34% of the face in shadow under the bangs against the
+  design's 8%; before 20%); it helps the three-quarter and profile temple and cheek (face shadow IoU 0.309 -> 0.339,
+  0.256 -> 0.387; front 0.470 -> 0.393). Keep it, take the neck-only option (`face.cast.face` false: the face keeps
+  the fringe map), or tune `at` / the bake's elevation for the face.
+- **The chin:** the cast makes the shade start at the jaw (three-quarter) and narrows the smear (soft width -34%), but
+  the chin's IoU with the design doesn't move (0.528 -> 0.508): what differs is the neck's own toon shading (the
+  three-quarter design shades only a band under the jaw; our lambert shades the whole neck) and its extent (our
+  shadow ends 0.15-0.2 L under the chin, the design's 0.3-0.35). A call on the neck's own terminator (e.g. the neck
+  lit but for the cast) is the lever the flag points at.
+- **The chin checks ship INFO** (not calibrated, above). Promotion waits on a calibrated measure.
