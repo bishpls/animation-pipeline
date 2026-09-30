@@ -524,3 +524,45 @@ built at 816ada9; the new checks measured on jaw_4's bundle with the same code; 
 - The boards' chin angle (119.7 against 129.7) is what the design's own recession gives under the boards' 6-degree
   look down (a camera at the chin's height reads 127); flattening the chin's recession to close it would undo the
   three-quarter.
+
+**Gates** (816ada9 into pipeline-3d 2e3bdd5, build box; 2e3bdd5 is notes only and merged since, 2be295e):
+- default (`clawd.json`): FAIL on body_front_skirt_aline (gone), body_front_waist_skin 0 -> 0.0131, hair_folds 9 -> 43,
+  piece_collar 0.77 -> 0.736: the same four at the same values as the last round's gate (89b8d1d into 5cb5256), the
+  hull's (tool/hull-det, merged in this branch; A/B builds above). face_folds unchanged (4); the face region's checks
+  are new to pipeline-3d (jaw_taper_shape 0.0281 WARN, jaw_line_bend 41.2 FAIL, chin_angle 119.7 PASS, chin_tip 0.59
+  WARN, tq_cheek_hollow 0.005 PASS, tq_jaw_notch 0.0573 FAIL; chin_underside 12.5, neck_front_wiggle 6.9 PASS); sheet_*
+  remeasured, all PASS (sheet_cheek WARN -> PASS); body_back_skirt_width and body_back_iou_skin improved.
+- `clawd_mh.json`: FAIL on hair_folds 7 -> 49, body_three_quarter_hair_width 0.956 -> 0.896, body_back_skirt_width
+  0.941 -> 0.882, body_three_quarter_skirt_aline 0.043 -> 0.086: the hull's four, as before. The MakeHuman head isn't
+  the code head: jaw_envelope doesn't touch it; its face-region checks are new (its own jaw, e.g. chin_underside -5.5).
+- Reports: `charkit/out/gate/gate_tool-face_816ada9_into_2e3bdd5.md`, `..._clawd_mh.md`.
+
+**Review page:** `charkit/out/face_review/taper/index.html` (`tools/face_labs/taper_page.py`): design | jaw_4 | jaw_5,
+close on the chin in front and three-quarter at 420 px per L with each picture's traced outline (red the design's, blue
+ours), the taper curves, the bare views, the checks.
+
+## Checkpoint (2026-09-30, after the taper round): state for the next agent
+
+Branch `tool/face`; nothing pushed. Merged in: pipeline-3d 2e3bdd5, tool/eyes2 97a7480, tool/hull-det. Michael's calls
+(2e3bdd5): eye flatness (a) and brow (a), the current defaults: decision 5 is settled.
+
+Open, in order:
+1. **The three-quarter notch** (tq_jaw_notch 0.057 FAIL, level camera; the boards' 0.032): the near jaw line rises with
+   the design's to du 0.2, then runs flat and hooks down into the neck where the design's keeps rising to the ear. It
+   needs the jaw's side as an underside of its own (the band's rows carried round the sides: `EDGE_BAND`, off). Two
+   pieces are missing: U round the sides parametrised along the rim (the polar form round the neck's axis steps there),
+   and a row map that keeps the rim and the throat on fixed rows across the side's columns. `jaw_health.py` and
+   `tools/face_labs/taper_lab.py` measure both; the unrolled chart (the cage's rows by angle and height) showed the
+   failure directly.
+2. **The neck-edge nick** (jaw_line_bend 41 in the level camera, 13.5 in the boards'): a T-junction in the emulated
+   outline where the neck's silhouette meets the jaw's; the outward bump sharpens it (EDGE_BUMP 0: 25, at a cost to the
+   chin and the hollow).
+3. **The chin in the boards' camera**: chin_tip 0.59 WARN, the arms 30 degrees against the design's 25: the look down
+   on the design's own recession. A crease on the V's rim near its point (character.py sets creases for the eye margins
+   only; not this workstream's file) would keep its point through the subdivision.
+4. **The profile's depth registration**: profile_edge, sheet_nose_reach and chin_reach read ours by the iris plate's
+   depth, which eyes2's turned surface moved 0.019 L; registering on the head frame's eye depth needs the build to record
+   it (the assembly carries eye_z, not the eye plane's y).
+5. The hull's regressions (hair_folds, the hull-built skirt, collar and waist): tool/hull-det's, gated alone to confirm.
+6. `qa3d.face_folds` (624a516) and `qa3d.eye_anchor` are outside this workstream's files: the integrator should keep or
+   re-home them.
