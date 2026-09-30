@@ -6,6 +6,25 @@ hair_piece_bangs, piece_sleeve, bow_profile_ribbon). Items: (1) `python -m chark
 triple, records backfilled; (2) the gate requires a calibration record for a new or remeasured check; (3) the
 anti-gaming guard; (4) recorded acceptance of a named new FAIL; (5) the process guide section in CHARKIT_HANDOFF.md.
 
+## Round 2 (2026-09-30, late): the gate, piece_details records, the four WARN-on-known-bad flag checks
+
+Brief: (1) gate tool/calib into pipeline-3d (pregate first); show the guard fix 3d66737 on a real gate; (2) records for
+the piece_details checks (collar_back_torn included); (3) recalibrate collar_back_iou, art_speckle_neck,
+art_mirror_self_boots and collar_back_lay's grading (its one-sided design smoothing is tool/collar4's) so each passes
+on the design moved 1-2 px and fails its known-bad, the limit change registered as a remeasure; (4) delete
+tmp/calib-bow and tmp/calib-bow-accept after use (never merge them).
+
+Progress:
+- pipeline-3d moved to 07fa3c2 (tool/xpbd, charkit/sim only): merged at ec133ef. Pregate PASS (0 moved, 316 s):
+  charkit/out/pregate/pregate_tool-calib_4db2b0a+dirty_into_07fa3c2.md.
+- Gates launched (box): tool/calib ec133ef into pipeline-3d; the real pair tmp/calib-bow into 3ebc3fb with the gate
+  code from tool/calib (--code) to show bow_front_loop_width no longer blocks through the guard. Logs:
+  charkit/out/calib/r2/gate_calib.log, gate_bowA.log.
+- piece_details: charkit/calib/details.py (the Details adapter: Garments' stand-ins plus our_classes moved with the
+  labels, alone() from the stand-in, our_section from sleeve_closeup); labels.py's collar_flags patterns made explicit
+  (collar_back_[ls]*, the three bow checks) so they no longer swallow piece_details' collar_back_torn and bow_*.
+  Harness: charkit/out/calib/r2/pd_measure.py (piece_details on candidate known-bads, pd_kb.json), pd_design.py.
+
 ## State (read first when resuming)
 
 - Code: `charkit/calibrate.py` (engine, store, records, CLI, the gate's readings), `charkit/calib/` (the registry
