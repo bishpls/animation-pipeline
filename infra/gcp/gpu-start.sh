@@ -24,7 +24,8 @@ box_start() {
   local st
   # an unreadable state is gcloud, not the box: say so rather than go on to a misleading "could not switch"
   st=$(_state 2>&1) || { echo "can't read $VM's state from gcloud: ${st##*ERROR: }" >&2
-    echo "(expired login? run: gcloud auth login)" >&2; return 1; }
+    if [ -n "${CLOUDSDK_CONFIG:-}" ]; then echo "(the service account's gcloud config $CLOUDSDK_CONFIG: docs/workstreams/infra-auth.md)" >&2
+    else echo "(expired login? run: gcloud auth login)" >&2; fi; return 1; }
   [ "$st" = RUNNING ] && { echo "running as $(_state 'machineType.basename()')"; return 0; }
   local shape err
   for shape in ${BOX_SHAPES:-${MACHINE_TYPE:-} ${FALLBACK_MACHINE_TYPE:-}}; do
