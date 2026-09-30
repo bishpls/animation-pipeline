@@ -171,6 +171,46 @@ def test_ink_core_leaves_the_jackets_part_of_the_band_mask_out():
     assert pq.ink_core(band, np.zeros_like(cls)) is band      # no ink: the mask itself
 
 
+def test_the_windowed_measures_read_as_the_whole_grid_does():
+    """spikes, clean and bodymeasure's outline_f and iou_tol work on the pieces' own window (bodymeasure.window, the QA's
+    time): the same numbers as on the whole grid, a piece at the grid's edge included."""
+    from scipy import ndimage
+    from charkit import bodymeasure as bm
+    rng = np.random.default_rng(3)
+    n = 300
+    for k in range(6):
+        m = disk(n, 60 + 40 * k, 150 + (k % 3) * 30, 25 + 5 * k)
+        m[rng.integers(0, n, 40), rng.integers(0, n, 40)] = True            # specks and a horn
+        m[140:150, 150:215] = k % 2 == 0
+        if k == 5:
+            m[:, :12] = True                                                  # at the grid's edge
+        d = disk(n, 70 + 40 * k, 155 + (k % 3) * 30, 28 + 4 * k)
+        # the whole-grid versions (the code before the window): spikes and clean padded round the whole grid
+        rp = max(1.0, pq.SPIKE_R * PPL); pad = int(np.ceil(rp)) + 2
+        M = np.pad(m, pad)
+        op = ndimage.binary_opening(M, structure=pq.disk(rp))
+        s = pq.spikes(m, PPL)
+        if op.any():
+            dd = ndimage.distance_transform_edt(~op)
+            lab, nl = ndimage.label(M & ~op, structure=np.ones((3, 3)))
+            deep = sorted([float(dd[lab == j].max()) / PPL for j in range(1, nl + 1)], reverse=True)
+            assert s['depths'] == [round(x, 4) for x in deep if x >= pq.SPIKE_MIN]
+        for (r_, c_), dep in zip(s['at'], s['depths']):
+            assert m[r_, c_]
+        rc = max(1.0, pq.CLOSE * PPL); pc = int(np.ceil(rc)) + 2
+        full = ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(m, pc), structure=pq.disk(rc)))[pc:-pc, pc:-pc]
+        assert (pq.clean(m, PPL) == full).all()
+        a, b = bm.outline(m), bm.outline(d)
+        ta, tb = ndimage.distance_transform_edt(~a), ndimage.distance_transform_edt(~b)
+        f = bm.outline_f(m, d, 3.0)
+        assert f['p'] == float((tb[a] <= 3.0).mean()) and f['r'] == float((ta[b] <= 3.0).mean())
+        assert f['d_ours'] == float(tb[a].mean()) and f['d_drawn'] == float(ta[b].mean())
+        band = min(3.0, 0.5 * float(ndimage.distance_transform_edt(d).max()))
+        keep = tb > band
+        assert bm.iou_tol(m, d, 3.0) == float(((m & d) & keep).sum() / ((m | d) & keep).sum())
+    assert bm.window(np.zeros((5, 5), bool)) is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

@@ -118,15 +118,18 @@ def spikes(m, ppl, r=SPIKE_R, min_depth=SPIKE_MIN, where=None, away=None):
         return dict(n=0, depth=0.0, depths=[], at=[])
     rp = max(1.0, r * ppl)
     pad = int(np.ceil(rp)) + 2
-    M = np.pad(m, pad)
+    from .bodymeasure import window
+    w = window(m, 0)                   # (the mask's own window, padded: the same spikes, the grid's cost spared)
+    r0, c0 = w[0].start, w[1].start
+    M = np.pad(m[w], pad)
     op = ndimage.binary_opening(M, structure=disk(rp))
     cut = M & ~op
     if not op.any():                   # the whole mask is thinner than the disk: no body to stand out of
         return dict(n=0, depth=0.0, depths=[], at=[])
     d = ndimage.distance_transform_edt(~op)
     lab, n = ndimage.label(cut, structure=np.ones((3, 3)))
-    W = np.pad(where, pad) if where is not None else None
-    X = np.pad(away, pad) if away is not None else None
+    W = np.pad(where[w], pad) if where is not None else None
+    X = np.pad(away[w], pad) if away is not None else None
     depths, at = [], []
     for k in range(1, n + 1):
         sel = lab == k
@@ -140,7 +143,7 @@ def spikes(m, ppl, r=SPIKE_R, min_depth=SPIKE_MIN, where=None, away=None):
         if depth >= min_depth:
             rr, cc = np.nonzero(sel)
             depths.append(round(depth, 4))
-            at.append((int(rr[i] - pad), int(cc[i] - pad)))
+            at.append((int(rr[i] - pad + r0), int(cc[i] - pad + c0)))
     order = np.argsort(depths)[::-1]
     depths = [depths[i] for i in order]
     at = [at[i] for i in order]
@@ -154,8 +157,12 @@ def clean(m, ppl, r=CLOSE):
         return m
     rp = max(1.0, r * ppl)
     pad = int(np.ceil(rp)) + 2
-    M = ndimage.binary_closing(np.pad(m, pad), structure=disk(rp))
-    return ndimage.binary_fill_holes(M)[pad:-pad, pad:-pad]
+    from .bodymeasure import window
+    w = window(m, 0)                   # (the mask's own window, padded: the same mask, the grid's cost spared)
+    M = ndimage.binary_closing(np.pad(m[w], pad), structure=disk(rp))
+    out = np.zeros_like(m, dtype=bool)
+    out[w] = ndimage.binary_fill_holes(M)[pad:-pad, pad:-pad]
+    return out
 
 
 def silhouette(m, fg, ppl, free=FREE):
