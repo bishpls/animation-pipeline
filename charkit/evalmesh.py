@@ -53,7 +53,7 @@ def corner_uv(p):
 def _save(path, pieces):
     arrays, meta = {}, []
     for i, p in enumerate(pieces):
-        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w'):
+        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'groups'):
             if p.get(k) is not None:
                 arrays['%d/%s' % (i, k)] = np.asarray(p[k])
         meta.append(dict(name=p['name'], mods=p['mods'], L=p.get('L', 1.0)))
@@ -67,7 +67,7 @@ def _load(path):
     out = []
     for i, m in enumerate(meta):
         p = dict(m)
-        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'parent'):
+        for k in ('V', 'loopv', 'counts', 'luv', 'crease_e', 'crease_w', 'parent', 'groups'):
             key = '%d/%s' % (i, k)
             p[k] = Z[key] if key in Z.files else None
         out.append(p)
@@ -125,6 +125,13 @@ def _bl_mesh(p):
         poly.use_smooth = True
     ob = bpy.data.objects.new(p['name'], me)
     bpy.context.scene.collection.objects.link(ob)
+    G = p.get('groups')
+    if G is not None and len(G):                                  # vertex groups (columns), as garments._object adds them
+        for k in range(G.shape[1]):
+            g = ob.vertex_groups.new(name='g%d' % k)
+            for w_ in np.unique(G[:, k]):
+                if w_ > 0:
+                    g.add([int(i) for i in np.nonzero(G[:, k] == w_)[0]], float(w_), 'REPLACE')
     for i, (t, s) in enumerate(p['mods']):
         m = ob.modifiers.new('m%d' % i, t)
         for k, v in s.items():
@@ -154,6 +161,13 @@ def blender_main(inp, out):
         if lay is not None:
             uv = np.empty(len(me.loops) * 2, np.float32); lay.data.foreach_get('uv', uv)
             r['luv'] = uv.reshape(-1, 2)[order].astype(float)
+        if p.get('groups') is not None and len(p['groups']):
+            k = p['groups'].shape[1]
+            Gw = np.zeros((n, k))
+            for i, v in enumerate(me.vertices):
+                for x in v.groups:
+                    Gw[i, x.group] = x.weight
+            r['groups'] = Gw
         ca = me.attributes.get('crease_edge')
         if ca is not None and len(me.edges):
             w = np.empty(len(me.edges), np.float32); ca.data.foreach_get('value', w)
@@ -464,3 +478,58 @@ def main(args):
         print('report', os.path.join(out, 'evalmesh.md'))
         return 0
     print(__doc__); return 1
+
+
+# ------------------------------------------------------------------------------------------------------------ M4
+FINAL_MODS = ('SOLIDIFY', 'SUBSURF')     # what the venv applies at rest (call J); Armature and the outline stay in Blender
+
+
+def finalize(o):
+    """a recorded garment object (charkit.geomstage.pieces) with its Solidify and Subdivision Surface applied at rest,
+    venv-side (M4): -> dict(V, polys (m, k) or (loopv, counts), uv_corner [(k, 2)] or None, mat_idx (m,), weights
+    {bone: (n,)}, shell (the Solidify's thickness, for the outline's cap) or None, levels). The weights are copied to
+    the Solidify's copies and carried through the subdivision as Blender carries vertex data (linearly)."""
+    from .geom import solidify as solid, subsurf
+    V = np.asarray(o['V'], float)
+    polys = o['polys']
+    lv = np.concatenate([np.asarray(f, np.int64) for f in polys]); cnt = np.array([len(f) for f in polys], np.int64)
+    nf = len(cnt)
+    if o['uv_corner'] is not None:
+        luv = np.concatenate([np.asarray(u, float).reshape(-1, 2) for u in o['uv_corner']])
+    elif o['uv'] is not None:
+        luv = np.asarray(o['uv'], float)[lv]
+    else:
+        luv = None
+    mat = np.asarray(o['mat_idx'], np.int64) if o['mat_idx'] is not None else np.zeros(nf, np.int64)
+    names = sorted(o['weights'])
+    W = np.stack([np.asarray(o['weights'][b], float) for b in names], 1) if names else np.zeros((len(V), 0))
+    cre, shell, levels = None, None, 0
+    for name, m in o['mods'].items():
+        st = m['settings']
+        if m['type'] == 'SOLIDIFY':
+            shell = abs(float(st['thickness']))
+            R = solid.solidify(V, (lv, cnt), float(st['thickness']), uv=luv,
+                               **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
+            V, lv, cnt, luv = R['V'], R['loopv'], R['counts'], R['uv']
+            mat = mat[R['parent']]
+            W = np.concatenate([W, W])
+            cre = R['creases'] if len(R['creases'][0]) else None
+        elif m['type'] == 'SUBSURF':
+            levels = int(st.get('levels', 1))
+            if int(st.get('render_levels', levels)) != levels:
+                raise ValueError('%s: viewport and render levels differ (%s): one final mesh cannot serve both'
+                                 % (o['name'], st))
+            R = subsurf.subdivide(V, (lv, cnt), levels=levels, creases=cre, uv=luv, carry=W)
+            V, lv, cnt = R['V'], R['quads'].ravel(), np.full(len(R['quads']), 4)
+            luv = R['uv'].reshape(-1, 2) if R['uv'] is not None else None
+            mat = mat[R['parent']]
+            W = R['carry']
+            cre = None
+    st_ = np.r_[0, np.cumsum(cnt)[:-1]]
+    return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat,
+                uv_corner=[luv[a:a + c] for a, c in zip(st_, cnt)] if luv is not None else None,
+                weights={b: W[:, k] for k, b in enumerate(names)}, shell=shell, levels=levels)
+
+
+_SOLID_KW = ('offset', 'use_rim', 'edge_crease_outer', 'edge_crease_inner', 'edge_crease_rim', 'use_even_offset',
+             'use_quality_normals', 'use_flip_normals')

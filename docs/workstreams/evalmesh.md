@@ -125,10 +125,26 @@ Residuals, explained:
   (face4's, above). Masked skin 3.42e-6 L, garments ≤ 1.1e-5 L. Commits: M2 9ee0a9e, M3 16c0040. The gate on
   M2 and M3 together follows: the evaluator isn't in the build's geometry, so the QA should not move.
 
+- **M4 groundwork: `evalmesh.finalize(o)`**, a recorded garment's final mesh at rest (geom.solidify, then
+  geom.subsurf with the carried weights; materials through the parents). On m2_clawd, against the build's bundle:
+  every piece ≤ 9.8e-6 L per vertex (one to one), UVs ≤ 1.2e-6 per corner, materials 100% per face, winding and
+  first corners 100%. The weights, rounded as `_object` rounds them, match Blender's own evaluated vertex groups
+  (lab, local Blender, Solidify + Subsurf) to 8e-8. The lab carries vertex groups now (`piece['groups']`). Not wired
+  into the build yet.
+
 ## Next
-- The M2+M3 gate (charkit/out/gate/gate_tool-evalmesh_*), read under K.
+- **The M2+M3 gate is pending.** It is job `gate-evalmesh-0930-094156-a574` on the build box, gating 0f2f4cf (M2
+  9ee0a9e and M3 16c0040, with pipeline-3d e3cd020 merged) into pipeline-3d. gcloud auth lapsed at 09:50, so its
+  result wasn't collected. Once Michael logs in again, run `python -m charkit remote attach gate-evalmesh-0930-094156-a574`.
+  The report lands in `charkit/out/gate/gate_tool-evalmesh_0f2f4cf_into_*.md`. Read it under K. The evaluator isn't in
+  the build's geometry, so no check should move; the tests include the new test_subsurf.py.
+  pipeline-3d has since moved to ce69b1b (infra3's cache-key hashing and the 2x2 fix, crown_trim on). Merge it before
+  M4's work, but don't re-gate M2+M3 for it: the coordinator decides.
+- The commits after 0f2f4cf are the lab and notes only (evalmesh.finalize, vertex groups in the lab,
+  test_finalize_a_recorded_garment). The build doesn't read them.
 - M4, the switch (plan):
-  1. Garments first; they're already a venv product. After `garments_geom` records build(), a venv pass gives each
+  1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
+     above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
      `_object` its final mesh at rest: geom.solidify then geom.subsurf at the modifier's `levels` (garments: 1 for
      viewport and render). Polygons come as (loopv, counts), per-corner UVs from subsurf, mat_idx through `parent`,
      and weights copied to the Solidify copies and carried linearly through Subsurf, as Blender carries vertex data.

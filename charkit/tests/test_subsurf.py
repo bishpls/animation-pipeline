@@ -90,6 +90,23 @@ def test_solidify_layout():
     assert cr[(0, 1)] == 1.0 and cr[(6, 7)] == 0.5 and cr[(0, 6)] == 0.25 and (1, 4) not in cr
 
 
+def test_finalize_a_recorded_garment():
+    """M4's final mesh at rest: a strip's Solidify then Subsurf, its materials through the polygons' parents and its
+    weights copied to the Solidify's copies and carried linearly (as Blender carries vertex groups)."""
+    V = np.array([(x, y, 0.1 * x * x) for y in (0, 1) for x in range(4)], float)
+    F = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6)]
+    o = dict(name='strip', V=V, polys=F, uv=None, uv_corner=[[(V[v, 0] / 3, V[v, 1]) for v in f] for f in F],
+             mat_idx=[0, 1, 0], weights={'b': V[:, 0] / 3},
+             mods={'thick': dict(type='SOLIDIFY', settings=dict(thickness=0.1, offset=-1)),
+                   'sub': dict(type='SUBSURF', settings=dict(levels=1, render_levels=1))})
+    R = evalmesh.finalize(o)
+    S = solid.solidify(V, F, 0.1)
+    assert len(R['counts']) == 4 * len(S['counts']) and R['shell'] == 0.1 and R['levels'] == 1
+    assert np.allclose(R['weights']['b'][:2 * len(V)], np.r_[V[:, 0], V[:, 0]] / 3)   # kept at the vertices
+    assert set(R['mat_idx'].tolist()) == {0, 1}
+    assert len(R['uv_corner']) == len(R['counts'])
+
+
 def test_against_blender():
     if not os.path.exists(evalmesh.BLENDER):
         print('(no Blender: skipped)'); return
