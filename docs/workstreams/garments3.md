@@ -422,3 +422,13 @@ and the corner normals the piece's own vn): our rebuild 2.602 (exact), the TRELL
 The specks: the hair's rendered surface is the piece pulled in 0.0014 m along its normals (the outline hull is the
 piece itself), and the pieces stand `gap` 0.006 L (0.0015 m) off the skin: the rendered underside comes within
 ~0.1 mm of the neck, and where a lock meets the neck under the jaw in profile the skin and hair z-fight.
+
+Localised (`hairswap.py`: every hair piece of a rebuilt set swapped into the candidate bundle, Blender's outline pull
+and corner normals rebuilt; the candidate's own set reads 2.602 exactly): **lock 0 of the lower back** (the near
+side's outermost lock in profile, x 0.26..0.70 L, down to z -0.53, behind the jaw): the candidate's piece without it
+reads 1.34 PASS (profile 129.95 -> 50.91); without any other lock 2.602. On the sheet-only masks' hull that lock has
+964 vertices against 1,376 on the TRELLIS hull (the back's seven locks split differently; its extent and its 0.15 L
+from the skin are the same). Not the skin gap: the pieces rebuilt with `pieces_opts.gap` 0.009 / 0.012 L (default
+0.006) read 2.602 / 2.603. Not fixed this round (the lock partition is the hair builder's, from the hull's back of the
+head; the fix is either there or in the hull's carve from the new masks). The merged pipeline-3d a4f91a3 (face4-crown:
+the crown's skin moves the side locks; hair normals set per vertex under the outline) may move it: the re-gate reads it.
