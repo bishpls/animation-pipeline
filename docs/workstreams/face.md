@@ -1103,3 +1103,29 @@ reshuffles anywhere (the voxel-exact shell would decouple it but moves the body 
 walk and conform amplify by about 40 (tool/collar's template, being reworked). sleeve_profile_rough_L stays 0.0146
 FAIL for the coordinator: accept it as body-fit noise, or hold for tool/collar. Merged pipeline-3d 6ddcb5b (fa84d84).
 Pre-gate PASS (fa84d84 into 6ddcb5b: 21 moved, 0 blocking, 150 s).
+
+### Round 5, the finish (2026-09-30, evening): the re-gate's two blockers, the hull made local
+
+**The re-gate** (36908d0 into pipeline-3d 2f42155, `--accept sleeve_profile_rough_L,jaw_taper_shape`;
+`charkit/out/gate/gate_tool-face5_36908d0_into_2f42155.md`): FAIL under K, two blockers. The first is the new FAIL
+sleeve_profile_rough_L 0.0107 WARN -> 0.0146 FAIL. The second is the flag check art_terminator_hair 2.308 -> 2.751
+(past its 2.5 line; the hair changed since the last gate: tool/hairtag's structure masks, the flyaways in one tone).
+jaw_taper_shape's 2x2 was accepted. CPU 1.47x (890.4 / 605.7 s: a cold candidate rebuilt resolve 162 s and
+pieces_hair 127 s against a cached baseline).
+
+**Why --accept didn't take sleeve_profile_rough_L** (charkit/gate.py `judge`): `--accept` applies only to the 2x2's
+rows, remeasured checks that get worse under one measure on both geometries (`twobytwo(..., accept)` sets
+`accepted`; `judge` reads it only in the 2x2 loop). A plain new FAIL (a check PASSing or WARNing on the baseline and
+FAILing on the candidate) blocks in `judge`'s first loop before any accept is consulted. Policy K has no accept for a new
+FAIL: no flag spelling or pattern reaches it. The gate can't record Michael's acceptance of it. It is the
+coordinator's to record at merge (or a change to policy K, which is Michael's). The better answer is that the FAIL
+goes: the collar moved through the hull's decimation (below), and a local hull stops that move at its source.
+
+**The chain, measured** (tool/hull-local, `~/animation-pipeline-hulllocal`, docs/workstreams/hull-local.md): the hull
+built twice with one hull code, only the head's sections differing (pipeline-3d 3a0ad37 and this branch 36908d0). The
+face's carve changes 754 voxels, all in the face's box. The surface before decimation changes within 0.070 L of them.
+The fixed 150,000-face decimation then moves 401 vertices away from the edit (202 over 1e-6 L, up to 0.0008 L):
+the head's sides and back, the crown, the neck, the torso (24) and the legs (21). These are the body fit's input
+(round 5's trace: the body moves 1.6e-4 to 1.4e-3 L per row, the collar 0.035 L) and the hair envelope's.
+tool/hull-local decimates to a quadric error instead. The neck, torso, legs, crown and the head's back are then
+bit-identical, and what differs is the face and the sides it reaches.
