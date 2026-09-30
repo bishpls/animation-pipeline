@@ -867,8 +867,8 @@ Jobs:
 **The terminator's attribution (measured).** The crown-only build (`f4_crown`, build box) reads art_terminator_hair
 2.552 exactly as the gate's candidate (per view front 9.552, three-quarter 8.399, profile 8.306, back 2.703; pipeline-3d
 `f4_before`: 8.895, 8.294, 8.755, 2.708): **the crown, all of it; the chin none.** The QA's artifacts part runs alone on
-a bundle in 8 s and reproduces both builds' readings exactly (`tools`: the scratch scripts are in the commit message of
-the fix). The cause, narrowed by swapping arrays between the two bundles:
+a bundle in 8 s and reproduces both builds' readings exactly (`tools/face_labs/hair_normals_lab.py`: the check
+alone, with another build's hair corner normals, with the pieces' own, and each piece's corner errors). The cause, narrowed by swapping arrays between the two bundles:
 - the hair's vertices moved <= 0.3 mm (the hair builder reads the skin's cage at the crown), but the pipeline-3d bundle
   with **only the crown build's hair corner normals** swapped in reads 2.552; per piece: side_lock_L +0.43, side_lock_R
   +0.23 kinks per L in front (bangs, backs: 0);
@@ -892,3 +892,7 @@ the box +0.0003). TIP_BIAS moves the chin's pixel row and swings the taper 0.023
 shifts the normalised taper curve): (0.002-0.0035, 0.04) read as the default, (0.0045-0.006, *) FAIL, the refit off
 PASSes the taper (0.0233) but chin_tip goes WARN (0.663). The taper can't take the refit's whole angle in the boards'
 camera; the level camera's taper is 0.018 throughout.
+- `hair_normals_lab.py f4_before --errors`: the transfer's misses are on every piece, not only the side locks (corners
+  over 3 degrees: bangs 1,911, side locks 2,312 / 2,207, upper back 5,259, lower back 1,442; the block buns' own flat
+  normals up to 137 degrees off at ~30 vertices each, the ahoge and flyaways 6-8 degrees mean). The exact normals will
+  move every hair check that reads shading: read on the box builds before the gates.
