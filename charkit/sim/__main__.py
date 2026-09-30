@@ -1,5 +1,7 @@
 """python -m charkit.sim rest BUILD [--out DIR] [--pieces a,b] [--variants v,w] [--seconds S]
-python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]"""
+python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]
+python -m charkit.sim tune BUILD [--out DIR] [--pose kick]
+python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]"""
 import sys
 
 
@@ -17,6 +19,13 @@ def main(a):
     if a[0] == 'motion':
         from . import motion
         return motion.main(a[1:])
+    if a[0] == 'tune':
+        from . import motion
+        motion.tune_springs(a[1], opt('--out', a[1] + '/sim_tune'), pose=opt('--pose', 'kick'))
+        return 0
+    if a[0] == 'review':
+        from . import review
+        return review.main(a[1:])
     print(__doc__); return 2
 
 

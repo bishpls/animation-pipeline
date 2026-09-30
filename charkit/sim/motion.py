@@ -425,3 +425,87 @@ def main(a):
     run(build, opt('--out', os.path.join(build, 'sim_motion')), poses=tuple(opt('--poses', ','.join(LEG_POSES)).split(',')),
         methods=tuple(opt('--methods', ','.join(METHODS)).split(',')), every=int(opt('--every', 6)))
     return 0
+
+
+# ------------------------------------------------------------------------------------ tuning the spring chains from XPBD
+def tune_springs(build, out, pose='kick', ref=('anime', 'hips'), grid=None, log=print):
+    """the spring chains' settings fitted to the cloth: the reference XPBD run (style, hold frame) records every
+    frame's cage-carried template; each chain joint follows the template point it starts on; for each piece, every
+    (stiffness, gravity, drag) in the grid runs its chains (the fitted capsules as their colliders) through the same
+    frames, scored by the joints' mean distance from the reference's (L). -> the report (out/tune.json, out/tune.md)."""
+    from ..evalmesh import POSES
+    os.makedirs(out, exist_ok=True)
+    S = Scene(build, log=log)
+    fs, n0 = S.schedule(pose)
+    M = Cloth(S, style=ref[0], hold_frame=ref[1], log=log)
+    traj = {n: [] for n in PIECES}
+    Ds = []
+    for f in fs:
+        D = S.rig.skinning(POSES[pose], f)
+        Ds.append(D)
+        _, co = M.frame(D, 1.0 / FPS)
+        for n in PIECES:
+            traj[n].append(co[n])
+    grid = grid or dict(stiffness=(0.25, 0.5, 1.0, 2.0, 4.0), gravity=(0.0, 0.1, 0.3), drag=(0.4, 0.7))
+    sp0 = Springs(S, colliders=True)
+    rep = dict(build=build, pose=pose, ref='xpbd %s, hold toward %s' % ref, grid=grid, pieces={})
+    for n, chains in sp0.chains.items():
+        # the joints' material points: the nearest template vertex to each rest joint
+        V0 = S.co[n]['V']
+        idx = [[int(np.argmin(np.linalg.norm(V0 - j, axis=1))) for j in ch.J[1:]] for ch, _, _ in chains]
+        R = np.array([[t[i] for i in ix] for t in traj[n] for ix in [sum(idx, [])]])      # (frames, joints, 3)
+        g = next(s for s in S.graph['springs'] if s['piece'] == n)
+        rows = []
+        for st in grid['stiffness']:
+            for gr in grid['gravity']:
+                for dr in grid['drag']:
+                    err, errs = [], []
+                    chs = [springbone.Chain(ch.J, stiffness=st, drag=dr, gravity=gr, gravity_dir=ch.gdir,
+                                            hit_radius=ch.hit) for ch, _, _ in chains]
+                    for k, D in enumerate(Ds):
+                        caps = riglib.capsule_rows(S.caps, D)
+                        P = []
+                        for ch in chs:
+                            if k == 0:
+                                ch.reset(D['hips'])
+                            ch.step(D['hips'], 1.0 / FPS, caps)
+                            P.append(ch.cur)
+                        d = np.linalg.norm(np.concatenate(P) - R[k], axis=1) / S.L
+                        errs.append(d.mean())
+                        if k >= n0 - 1:
+                            err.append(d.mean())
+                    rows.append(dict(stiffness=st, gravity=gr, drag=dr, err_motion=float(np.mean(err)),
+                                     err_rest=float(errs[n0 - 1]), err_end=float(errs[-1])))
+        base = dict(stiffness=g['stiffness'], gravity=g['gravity'], drag=g['drag'])
+        chs = [springbone.Chain(ch.J, hit_radius=ch.hit, gravity_dir=ch.gdir, **base) for ch, _, _ in chains]
+        e0, e1 = [], []
+        for k, D in enumerate(Ds):
+            caps = riglib.capsule_rows(S.caps, D)
+            P = []
+            for ch in chs:
+                if k == 0:
+                    ch.reset(D['hips'])
+                ch.step(D['hips'], 1.0 / FPS, caps)
+                P.append(ch.cur)
+            d = np.linalg.norm(np.concatenate(P) - R[k], axis=1) / S.L
+            e0.append(d.mean())
+        best = min(rows, key=lambda r: r['err_motion'])
+        rep['pieces'][n] = dict(graph=dict(base, err_motion=float(np.mean(e0[n0 - 1:])), err_rest=float(e0[n0 - 1]),
+                                           err_end=float(e0[-1])), best=best, rows=rows,
+                                hit_radius_L=chains[0][0].hit / S.L)
+        log('tune %s: graph (%s) err %.3f L -> best stiffness %s gravity %s drag %s err %.3f L (rest %.3f, end %.3f)' % (
+            n, base, np.mean(e0[n0 - 1:]), best['stiffness'], best['gravity'], best['drag'], best['err_motion'],
+            best['err_rest'], best['err_end']))
+    json.dump(rep, open(os.path.join(out, 'tune.json'), 'w'), indent=1)
+    L_ = ['# The spring chains tuned to the cloth (%s, reference %s)' % (pose, rep['ref']), '',
+          'Per piece, its chains\' joints against the reference cloth\'s material points (mean distance, L) over the '
+          'motion, at rest (settled) and at the end; the graph\'s settings and the best of the grid %s, colliders: the '
+          'fitted capsules.' % json.dumps(grid), '',
+          '| piece | settings | stiffness | gravity | drag | err motion | err rest | err end |', '|---|---|---|---|---|---|---|---|']
+    for n, r in rep['pieces'].items():
+        for k in ('graph', 'best'):
+            x = r[k]
+            L_.append('| %s | %s | %s | %s | %s | %.3f | %.3f | %.3f |' % (n, k, x['stiffness'], x['gravity'], x['drag'],
+                                                                         x['err_motion'], x['err_rest'], x['err_end']))
+    open(os.path.join(out, 'tune.md'), 'w').write('\n'.join(L_) + '\n')
+    return rep
