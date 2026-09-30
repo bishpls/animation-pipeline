@@ -1555,9 +1555,6 @@ BUN_OUTLINE_TOL = 0.012    # L: an outline pixel within this of the other's agre
 # edge set changes as the mesh moves, the loss steps by about 3.5e-5 there, and L-BFGS stops on those steps.)
 BUN_METHOD = 'soft'
 BUN_SOFT = (4.0, 2.0, 1.0)  # px: the soft stages' softness, each an L-BFGS-B started from the one before's optimum
-BUN_SOFT_ANNEAL = (10.0, 3.0, 1.0)   # the prior at each softness, in BUN_SOFT_PRIOR: strong while the loss is coarse,
-                                     # so each step follows one minimum as it sharpens (without it, a 10 um move of
-                                     # the bun points took bun_L's second stage into a neighbouring basin, 0.017 L away)
 
 
 def _outline(m):
@@ -1844,8 +1841,8 @@ def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_ove
     BUN_SOFT_PRIOR x the squared distance from the start in the fit's units (BUN_SOFT_UNIT), minimised by L-BFGS-B on
     the analytic gradient (through the parameters' vertex Jacobian by central differences: the mesh is smooth in them).
     Stages: the block's 9 (centre, rotation, size), then all nx (the slab's or the loops' too), each through BUN_SOFT's
-    softnesses coarse to fine with the prior annealed alongside (BUN_SOFT_ANNEAL), each from the one before's optimum; a
-    ribbon with loop_starts > 1 also from the loops set forward, the lower final value kept.
+    softnesses coarse to fine, each from the one before's optimum; a ribbon with loop_starts > 1 also from the loops set
+    forward, the lower final value kept.
     -> (x, report {loss (the soft loss at s = BUN_SOFT[-1]), prior, stages [(n, softness, evaluations, value, status)]})."""
     from scipy.optimize import minimize
     tv = []
@@ -1882,21 +1879,19 @@ def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_ove
 
     stages = []
 
-    def run(x0, unit):
-        """L-BFGS-B on value + the prior, in `unit`s, bounded, through the softnesses and the prior's annealing
-        (BUN_SOFT, BUN_SOFT_ANNEAL) -> (x, final value)."""
+    def run(x0, unit, softs):
+        """L-BFGS-B on value + the prior, in `unit`s, bounded, through the softnesses -> (x, final value)."""
         z = np.asarray(x0, float) / unit
         bounds = list(zip(z - BUN_SOFT_BOUND, z + BUN_SOFT_BOUND))
         zp = np.zeros_like(z)                          # (the prior's centre: the start, block_frame's pose)
         v = None
-        for s, a in zip(BUN_SOFT, BUN_SOFT_ANNEAL):
+        for s in softs:
             cnt = [0]
-            lam = BUN_SOFT_PRIOR * a
 
             def fz(zz):
                 cnt[0] += 1
                 val, g = value(zz * unit, s)
-                return val + lam * float((zz - zp) @ (zz - zp)), g * unit + 2 * lam * (zz - zp)
+                return val + BUN_SOFT_PRIOR * float((zz - zp) @ (zz - zp)), g * unit + 2 * BUN_SOFT_PRIOR * (zz - zp)
             r = minimize(fz, z, jac=True, method='L-BFGS-B', bounds=bounds,
                          options=dict(maxiter=1000, maxfun=2000, ftol=1e-15, gtol=1e-10))
             z, v = r.x, float(r.fun)
@@ -1906,13 +1901,13 @@ def _fit_block_soft(targets, views, hull_frame, unpack, meshes, npart, nx, w_ove
     u = BUN_SOFT_UNIT
     unit9 = np.r_[[u[0]] * 3, [u[1]] * 3, [u[2]] * 3]
     unit = np.r_[unit9, [u[3]] * 3, [u[4]] * 3, [u[5]] * (nx - 15)]
-    x, _ = run(np.zeros(9), unit9)
+    x, _ = run(np.zeros(9), unit9, BUN_SOFT)
     x0 = np.r_[x, np.zeros(nx - 9)]
-    x, v = run(x0, unit)
+    x, v = run(x0, unit, BUN_SOFT[1:] or BUN_SOFT)
     if kind == 'ribbon' and loop_starts > 1:
         x1 = x0.copy()
         x1[10] = -2 * o0[1]
-        x1, v1 = run(x1, unit)
+        x1, v1 = run(x1, unit, BUN_SOFT[1:] or BUN_SOFT)
         if v1 < v:
             x, v = x1, v1
     data = value(x, BUN_SOFT[-1], False)
