@@ -190,3 +190,48 @@ the session ends first, rerun both (about 3-5 min each on the laptop).
    (the per-view scores don't depend on the names; only a cross-view reading does).
 4. **The lock source for a pilot:** the structure labeller's regions where its strokes close (three-quarter, profile),
    continued across the gaps in front (the truth's own move, automated), lifted onto the crown chart.
+
+## Round 2 (the ribbons pilot; started 2026-09-30)
+
+The coordinator's decisions for the round (Michael's go-ahead): the lock scores stay INFO until after the pilot; the
+crown above the drawn lines stays unscored; call C fixed from the probe; ribbons are the pilot's lock model. Merged
+pipeline-3d `8b5ecae` (softras round 3, collar3 M2) first (clean).
+
+**Call C, fixed** (`6c4cfb7`): the profile's locks renamed by the cross-view probe (the truth's source `calls` C and the
+profile's `note` hold the evidence): its front fringe lock is the front's `l` (was `c`), its lock with the crab the
+front's `l_clip` (was `l`), its lock under the part by the star `l_back` (was `l_clip`; a lock the front doesn't label:
+behind the star, in call E's unscored strip). The three-quarter keeps the front's names. Every assignment of the
+three-quarter's and profile's names brute-forced over corr.py's triangle pairs: this one agrees on 1,259 of 2,318 shared
+triangles (the old names 990; shifting the three-quarter's names too scores lower). corr.py again: front~profile
+0.07 -> 0.541, three-quarter~profile 0.413 -> 0.536, front~three-quarter 0.547 (unchanged). The drawn clips disagree
+(the crab on l in front, about 27 degrees round her left; on the profile's l_clip, about 70): the sheet doesn't place
+them consistently. Per-view scores don't move (they don't read names).
+
+**The ribbon lock model** (`hairpieces.OPTS['lock_model'] = 'ribbon'`, default 'wedge'; `ribbon_pieces` ('bangs',)):
+- `lock_lines`: the drawing's lock lines lifted onto the crown chart. Per view (front, three-quarter, profile), each chart
+  point of the piece on the envelope that faces the view (normal . view > `ribbon_face` 0.3) and lies in the view's
+  drawn family region takes the view's stroke evidence there (`drawn_strokes`: the labeller's walls, the raw line class
+  and the faint ridges, off the region's outline by `ribbon_erode` 3 px; the three-quarter, which the hair layers don't
+  split into families, uses its whole drawn hair), weighted by how squarely it faces, averaged over the views.
+- The lines: smooth curves phi(theta) = a + b s + c s^2 (s = theta / 30 deg from a reference), held at their top value
+  above the drawn span (the lines stop short of the part; the locks run on to the crown), straight on below it.
+  `ribbon_lines` 'free': every (a, b, c) on a grid scored by the evidence along it, taken greedily (ribbon_rel of the
+  best, never within lock_min of or crossing one taken); 'anchored' (default): one line per notch of the lower edge
+  (the wedge's own cuts, `locks()`), sliding up to `ribbon_slide` 3 deg and bending (b, c) through the evidence above
+  it, a small prior toward straight (`ribbon_prior`); `ribbon_keep`: a notch without that much evidence drops its line
+  (its two locks merge); 'anchored+free' adds free lines where they clash with none.
+- `ribbon_bounds` -> each lock between two boundary curves (the piece's sides and the lines, held apart); `lock_shell`
+  (bounds=...) samples it in columns at fixed fractions across it, each column curving with its boundaries (the strand
+  direction follows them); each column's tip where it meets the drawn edge (drawn_tips, iterated as the column curves).
+  The wedge path is untouched (bit-identical by construction).
+
+Lab: `charkit/out/hairlocks/multilab.py BUILD OUT.json VARIANTS.json [--noise]` (hairlab's context once, per variant the
+pieces rebuilt, z-buffered in the QA scene, scored against the truth; the lab's hair checks); `chartpic.py` (the
+chart's evidence with the lines over it). A probe variant (`truth_lines`) feeds the truth's own lock boundaries as the
+evidence: the model and its line fit apart from the strokes (never the builder's source).
+
+First runs (the lab over hl_base; lock IoU all / front / three-quarter / profile): the wedge 0.439 (0.420 / 0.415 /
+0.501, the lab reproduces the notes' numbers); free lines from the strokes 0.272 then 0.214; free lines from the
+truth's boundaries 0.349. Readings: the drawn lock lines on the chart span only theta 35-55 (the hairline to where the
+tips separate; below, the eye-holes); free line detection doubles lines on one stroke and misses the notches; the
+views' strokes land a few degrees apart on the chart (the drawing's inconsistency and our surface's depth).
