@@ -7,7 +7,7 @@ analytic volume, say), or render boards from the result.
     from charkit import scene; S = scene.build(spec)     # inside Blender: S.character, S.hair, S.garments, ...
     scene.boards(S, out, which=('views', 'expressions', 'mouths', 'body'))     # expressions: EXPR and PRESETS
 """
-import json, os
+import functools, json, os
 
 import numpy as np
 
@@ -509,7 +509,7 @@ def build(spec, until=None, skip=(), cache=None):
 def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
     """render the review boards into out/: head views (front .. back), the expression and mouth sets, full-body views."""
     import bpy
-    from . import qa, trace
+    from . import qa
     from .boards.face_board import set_expr, set_mouth, set_preset
     os.makedirs(out, exist_ok=True)
     sc = bpy.context.scene
@@ -518,45 +518,34 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
     if cam is None:
         cam = bpy.data.objects.new('board_cam', bpy.data.cameras.new('board_cam')); sc.collection.objects.link(cam)
     sc.camera = cam
-    covers = S.covers
-
-    def shot(path, *a, **kw):
-        with trace.span('board', path=os.path.basename(path)):
-            qa.render_view(cam, *a, path, **kw)
-            if covers:
-                qa.features_through(path, S.features, covers, [S.character['skin']])
+    # each set's views as one animation render where they share a camera (qa.render_views: the same pictures as a
+    # still per view, in a quarter of the time); the features laid through the hair where there are covers
+    feats = (S.features, S.covers, [S.character['skin']]) if S.covers else None
+    V = qa.View
     made = []
     if 'views' in which:
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
-        for az in (0, 30, 60, 90, 150):
-            p = os.path.join(out, f'face_{az:03d}.png'); made.append(p)
-            shot(p, (0, 0, eye_z + 0.06 * L), az, 1.0, 0.0, lens=85)
+        made += qa.render_views(cam, [V((0, 0, eye_z + 0.06 * L), az, 1.0, 0.0, os.path.join(out, f'face_{az:03d}.png'),
+                                        lens=85) for az in (0, 30, 60, 90, 150)], features=feats)
     if 'body' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 1000
         H_ = S.spec.get('body', {}).get('height_m', 1.6)
-        for az in (0, 35, 90, 180):
-            p = os.path.join(out, f'body_{az:03d}.png'); made.append(p)
-            with trace.span('board', path=os.path.basename(p)):
-                qa.render_view(cam, (0, 0, H_ * 0.52), az, 6.0, 0.0, p, ortho=H_ * 1.12)
+        made += qa.render_views(cam, [V((0, 0, H_ * 0.52), az, 6.0, 0.0, os.path.join(out, f'body_{az:03d}.png'),
+                                        ortho=H_ * 1.12) for az in (0, 35, 90, 180)])
     if 'expressions' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
-        for e in EXPR:
-            set_expr(S.character, e)
-            p = os.path.join(out, f'expr_{e}.png'); made.append(p)
-            shot(p, (0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, lens=85)
+        made += qa.render_views(cam, [V((0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, os.path.join(out, f'expr_{e}.png'),
+                                        lens=85, state=functools.partial(set_expr, S.character, e)) for e in EXPR],
+                                features=feats)
         set_expr(S.character, None)
-        for e in PRESETS:
-            set_preset(S.character, e)
-            p = os.path.join(out, f'preset_{e}.png'); made.append(p)
-            shot(p, (0, 0, eye_z - 0.12 * L), 0, 0.5, 0.0, lens=85)
+        made += qa.render_views(cam, [V((0, 0, eye_z - 0.12 * L), 0, 0.5, 0.0, os.path.join(out, f'preset_{e}.png'),
+                                        lens=85, state=functools.partial(set_preset, S.character, e))
+                                      for e in PRESETS], features=feats)
         set_preset(S.character, None)
     if 'mouths' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
-        for m in MOUTH:
-            set_mouth(S.character, m)
-            p = os.path.join(out, f'mouth_{m}.png'); made.append(p)
-            with trace.span('board', path=os.path.basename(p)):
-                qa.render_view(cam, (0, 0, eye_z - 0.28 * L), 0, 0.30, 0.0, p, lens=85)
+        made += qa.render_views(cam, [V((0, 0, eye_z - 0.28 * L), 0, 0.30, 0.0, os.path.join(out, f'mouth_{m}.png'),
+                                        lens=85, state=functools.partial(set_mouth, S.character, m)) for m in MOUTH])
         set_mouth(S.character, 'neutral')
     from . import shade
     shade.set_view(0)                                # the front's light and the build's line widths back (the bundle and

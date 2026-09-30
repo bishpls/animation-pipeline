@@ -84,18 +84,121 @@ page is `charkit/out/hair_review/index.html` (`python -m charkit hairpage`).
   0.057 to 0.050. But the lower back reaches into the neck and shoulders (hair_penetration 0.049 L FAIL, 201
   vertices), and the fringe ends 0.07 L short over the eyes (FAIL).
 
+## Detail round (`tool/hair-detail`)
+
+Michael's note on the checkpoint: the detail of the drawn pieces was lost in the render, and the buns came out as
+smooth blobs. Measured first with `python -m charkit hairlab BUILD` (new: the pieces rebuilt over a finished build's bundle with
+style, opts and shape overrides, and measured by the QA's own hair checks with no Blender, about 20 s a variant). The
+causes were:
+- **Buns.** An icosphere radius field over the hull's bun points: the visual hull keeps outlines only, so a blob.
+- **The head swelled up into the buns.** The hull is the union of head and bun (it can't carve the notch between
+  them). Its fill under each bun was labelled bangs or side locks and lifted the envelope, so from the front our bangs
+  covered the lower half of each drawn bun (5,600 of its 16,100 px).
+- **The hair sat 0.024 L low against our eyes.** `i3d.eye_target` put the hull's eyes (the drawn irises' centroid)
+  on our eye knobs' line, but our irises sit 0.024 L above it. The QA anchors on the irises, as the drawings do.
+- **The fringe ended short.** A lock's lower edge was the chart's 4 degree columns interpolated, then notched 7
+  degrees deeper, so the drawn points over the eyes were rounded off.
+- **Side locks** stood in front of the face in profile, because the hull fills the gap between lock and cheek. This
+  one is not fixed yet; see Left.
+- **Shading.** Every lock shaded with the one envelope normal, so a lock had no relief of its own.
+
+What changed:
+
+| Where | What |
+|---|---|
+| `hairpieces.bun_block`, `fit_block` | A block bun template: two rounded boxes (superellipsoids, `bun_e` 0.3: flat faces, bevelled edges), the main block and the fold's slab. Its pose, size and slab are fitted by Nelder-Mead to the drawn bun's front, profile and back silhouettes (the hull's views, `view_px`). It shades with its own normals. Chosen per design: `hair.shape.pieces_opts.bun: "block"` (default `round`). |
+| `hairpieces.carve_under_buns` | A mass point that the front or back view draws inside a bun, and beyond the head's outline, becomes `BUN_BASE`, out of the envelope. The head's outline is the convex hull of the drawn mass above the eye line (the buns hide the head's top). The envelope fills over it from its column. On Clawd, 723 points. |
+| `i3d.eye_target` | `eye_anchor: "iris"` aligns the generated shape to our irises' height. The pieces take it from `hair.shape.pieces_opts.eye_anchor`, which only the pieces stage's case uses. Set on all of `hair.shape`, it also moved the authored body's and the garments' fits to the hull. The spec gate then regressed sheet_neck_to_jaw (0.99 to 0.69), body_back_hem_mid, body_front_leg and body_front_iou_skin. Opt-in; the default stays on the knobs' line. |
+| `hairpieces.drawn_tips`, `fine_tips` | The drawn lower edge at any phi. With `fine_tips` (default `('bangs',)`), a lock's edge is the drawing's at its own 1.5 degree columns (median of 3). |
+| `hairpieces.clamp_to_view`, `skin_front` | Opt-in (`clamp_side_locks`). It holds the side locks behind the drawn profile's front edge, as a shear per height, and never behind the cheek the front view draws them over. It is off because moving a built lock folds it. The first renders crumpled at the cheeks: 150-200 outer folds per side lock, per vertex; 40-130 sheared. The builder counted its folds before the clamp, so the QA missed them (they are now counted after it). |
+| `hairpieces.crown_cap` | The cap's inner face clears the skin, as a lock's does. It was the upper back's penetration. |
+| `lock_shell` relief, `shade_normals` lock_shading | Each lock gets a ridge across it (`relief` L), with grooves between locks. Its shading blends in the lock's outer normal, smoothed within the lock `lock_shading_smooth` times (`lock_shading`). The relief fades out again over the lock's last 30%: out along the chart's radius, a hanging tip dipped into the shoulders. On the default spec that gave the lower back 0.004 L of penetration, 1 vertex, the gate's one regression. Anime: relief 0.008 L and lock_shading 0.2. The raw facets at 0.35 put the p95 angle between adjacent shading normals at 30 degrees. Smoothed at 0.2 it is 3-7 degrees (the envelope alone gives 3), and it adds under 0.002 to hair_noise. The anime notch is now 3 (was 7), because the drawn edge already carries the notches. |
+| `qa3d` | Added `hair_bun_outline` (outline agreement at 0.012 L, graded 0.7 / 0.5), `hair_bun_corners` (INFO, ours against drawn) and `hair_tips_front`/`_back` (INFO, the lock tips along the lower edge). |
+| `hairlab` | The measurement loop above, as a command. `--labels PNG` draws the QA scene's family labels per view with the drawn outlines. `--noise` gives hair_noise's measure for the rebuilt pieces, drawn as the build's hair objects with the pieces' meshes and shading normals. |
+| `hairpage` | A renders section: the design's turnaround figures beside the before and after boards, with close-ups of the top (buns, fringe, locks). With `--against`, the hair pieces' checks are remeasured on both builds by the current QA. |
+| `charkit/spec/clawd_body_pieces.json` | clawd_body with the hair in pieces, block buns and the pieces' iris anchor (`pieces_opts: {bun: block, eye_anchor: iris}`). |
+
+Measured by `hairlab` over the same build (`charkit/out/hd_base`, a box build of clawd_body in pieces at 849b9a7),
+so the skin and the QA are the same. "Before" is the hair as built there. "After" is `--opts bun=block --shape
+eye_anchor=iris` with the new defaults:
+
+| Check | Before | After | Step that moved it |
+|---|---|---|---|
+| hair_piece_bangs | 0.611 | 0.757 | carve (+0.13), iris anchor (+0.04) |
+| hair_piece_buns | 0.687 | 0.831 | carve, block fit with its slab |
+| hair_bun_outline (0.012 L) | 0.212 FAIL | 0.400 FAIL | block fit |
+| hair_bun_corners (ours / drawn) | 20 / 35 | 17 / 35 | the round buns' lumps counted as corners; the bevels round ours off |
+| hair_piece_side_locks | 0.505 | 0.537 | iris anchor (the clamp's 0.557 is off, see above) |
+| hair_piece_upper_back / lower_back | 0.780 / 0.692 | 0.780 / 0.723 | notch 3, iris anchor |
+| hair_fringe_low (L, + short) | 0.014 | 0.009 | fine tips (the iris anchor alone made it 0.038) |
+| hair_tips front / back (drawn 4 / 8) | 4 / 4 | 4 / 4 | |
+| hair_penetration (L) | 0.038 | 0.015 (2 vertices) | crown cap |
+| face shown / design: front, 3/4, profile | 1.12, 1.02, 0.53 | 1.12, 1.04, 0.63 | iris anchor (the clamp reached 0.82 in profile) |
+| hair_noise (builds, per-group cuts) | 0.060 | 0.068 | see below |
+
+Ablations with `hairlab` were the evidence for each default:
+- **Round buns.** With the carve they score 0.772 IoU and 0.303 outline; the fitted block scores 0.829 and 0.385.
+- **Knobs anchor** (final config otherwise): bangs 0.698, side locks 0.521, buns 0.811 and tips 2 / 4. The face shown
+  in front is 1.06.
+- **hair_noise.** hair_noise rose with the block buns, not with the lock detail. `hairlab` with the old shared cuts:
+  - final 0.070; with round buns 0.047; without the carve 0.054; without the lock detail 0.069; without fine tips 0.069.
+  - The measure cut tones at percentiles of all the hair's pixels, so the blocks' large flat faces moved the mass's cuts.
+  - It now cuts each tone group at its own percentiles (`qa3d.tone_edges`, `HAIR_NOISE_GROUPS`: the buns apart from
+    the mass). This is registered in `history.STEPS` (cc79d07), so gates call it remeasured.
+  - Remeasured builds: before (849b9a7) 0.0597; after (e4c5d18) 0.0879 FAIL becomes 0.068 WARN; the default spec's
+    candidate 0.048 becomes 0.055.
+  - **The real cost of block buns**, the mass's front tone edges on its own cuts, block against round with all else
+    equal: 0.128 to 0.139 per pixel (+9%). Between the two builds, where everything changed: front 0.125 to 0.148;
+    profile 0.034 to 0.031; back 0.044 to 0.037. The buns' own edges went from 0.02 to 0.06; that is the blocks'
+    faces and bevels.
+
 ## Left
 
-- **Side locks** (IoU 0.46, WARN). Ours follow the hull's envelope, which fills the gap between the lock and the cheek
-  that no view shows. The drawn locks hang closer to the face and curl in at the chin. That needs per-view silhouette
-  constraints on the side locks (the drawn masks in front and profile), not just the envelope.
-- **Code head.**
-  - The lower back penetrates the neck and shoulders. Below the chin, the skin field only counts skin inside the
-    envelope. Clear the neck's and shoulders' own surface instead.
-  - The fringe ends short over the eyes.
-- **The fringe's tips** end 0.05-0.07 L above the drawn ones over the eyes. The lower edges now come from the drawing
-  that faces each column, but a 4 degree column can fall between narrow drawn tips.
-- **Folds.** 11 faces remain (WARN; bangs, side locks and the upper back's crown).
+- **Side locks: face shown in profile** is 0.63 of the design's (IoU 0.54, WARN). The hull fills the gap between lock
+  and cheek. Pushing built locks back folds them (above), so the profile constraint has to go into the chart's
+  envelope before lofting, from the drawn profile edge per row. The drawn locks also curl in at the chin.
+- **Buns** outline 0.40 at 0.012 L (FAIL against 0.7), IoU 0.83. The drawn bun has two loops with a visible step
+  between them. Ours is a block plus a slab, so the next template would be real loop geometry: a ribbon swept around
+  the knot. Corners are 17 against the drawn 35, because our bevels round them off.
+- **hair_penetration** 0.015 L (2 vertices, the upper back near the pole): the chart's coarse skin sampling at the pole.
+- **eye_anchor 'iris' as the default.** It is opt-in here. It moves every hair mode's alignment 0.024 L up on Clawd,
+  and bodyeval, faceeval and garments use eye_target too, so it is the integrator's call.
+- **Shared generated inputs.** charkit/out/hull and charkit/out/clawd were hard-linked across seven worktrees. A build
+  whose stamp is stale rewrote them in place for everyone. (It was the same content: the hull code didn't change.)
+  This worktree's copies are now its own.
+- **Lock outlines and highlight streaks:** not done. The relief is 0 at a lock's edges, so adjacent locks meet with no
+  depth step for the inverted-hull outline to catch.
+- **Folds.** 9 on clawd_body (WARN): the bangs and the side locks.
 - **Springs.** The chains are stored in the parts' meta, but no bones or VRMC_springBone export yet.
-- **hair_noise.** The front still reads 0.066: the lit fringe against the side locks turned away, a real shadow shape
-  along jagged tips.
+
+## Next round: torn tips and jagged edges
+
+These are from Michael, on the look_v5 boards, which carry this branch's pre-merge hair. Measure each one before
+fixing it. Shading terminators on the locks are the look's matter, unless they come from the lock normals
+(`lock_shading`).
+
+- **Torn fragments at lock tips.** Small loose shards near the neck and the side locks.
+- **Stepped, jagged edges.** Along the back hair's lower edge, and along the fringe in profile.
+
+Target: clean lock tips with no shards, and lock edges smooth at the silhouette.
+
+**Measure (to add to `hairlab`)** until tool/artifacts' shared detectors land (outline roughness, fragments and
+slivers, terminator roughness per region, calibrated on the design):
+- **Fragments.** The small disconnected components of the hair class per view (front, three-quarter, profile, back),
+  from `labels_for`: count, and pixels under about 60 px. Also per family, which tells which piece sheds them.
+- **Edge roughness.** The hair silhouette's lower edge per column (as `qa3d.hair_tips` reads it), against its own
+  smoothed copy: RMS and p95 in L, per view. The fringe in profile and the back's lower edge are the two to watch.
+
+A scratch version of the fragment count, run on hd_base with this round's defaults and the clamp off, as a starting
+baseline:
+- front 16 components, 109 px;
+- three-quarter 10, 67 px;
+- profile 5, 47 px.
+
+The before-round hair had front 30 / 206 px, three-quarter 23 / 125 px and profile 6 / 75 px.
+
+**Likely sources, to check first:**
+- the lock shells' tips, where the ladder stitches columns whose tips differ by more than a step (thin slivers);
+- `fine_tips`' per-column drawn edge, where a 3-column median leaves single-column spikes;
+- the notch's V meeting the drawn edge;
+- the lower back's edge sampled at 4 degree columns.
