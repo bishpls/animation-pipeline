@@ -1893,8 +1893,10 @@
    ],
    "source": "hull",
    "ribbon": {
-    "stand": 0.03
-   }
+    "stand": 0.05,
+    "turn": 40
+   },
+   "end": 0.2
   },
   {
    "kind": "belt",

@@ -2024,8 +2024,10 @@
    "knot": 0.6,
    "lift": 0.03,
    "ribbon": {
-    "stand": 0.03
-   }
+    "stand": 0.05,
+    "turn": 40
+   },
+   "end": 0.2
   },
   {
    "kind": "belt",
