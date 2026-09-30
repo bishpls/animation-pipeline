@@ -88,13 +88,49 @@ pipeline-3d 9397578.
   1. the merged tree's QA measures the baseline's bundle (the new measure on the old geometry);
   2. `git merge --abort`;
   3. the baseline's QA measures the candidate's bundle (the old measure on the new geometry).
-- **The verdict.** A check that regresses under the old measure fails the gate unless `--accept PATTERN[,…]` names it
-  (`remote gate` passes `--accept` through). If a crossed run can't run, the verdict is WARN (unverified).
+- **The verdict.** A remeasured check that reads worse on the new geometry under one measure applied to both
+  geometries fails the gate, unless `--accept PATTERN[,…]` names it (`remote gate` passes `--accept` through).
+  "One measure" is the old measure on both, or the new measure on both (`gate.twobytwo_drops`). If a crossed run can't
+  run, the verdict is WARN (unverified).
+  - The brief asked for the old measure. The demo showed the new measure on both geometries hides drops too: the
+    remeasured row compares the new measure on the new geometry with the old measure on the old, so a drop by either
+    standard can hide in it. Both are flagged.
 - The report gets a 2×2 table.
 - **The bundle format** is schema `charkit.bundle/1`, unchanged since tool/measure: named arrays plus JSON metadata,
   read by name. Old code reads a newer bundle unless an array it reads was renamed or removed, and such a part comes
   back SKIPPED, which shows. A schema bump would need the candidate exported by the baseline's bundle writer (open
   item).
+
+**The demonstration: tool/body round 3's flap measure change.** Round 3 was the first flaps. Step d35fbaf registered
+`piece_skirt` and `piece_overskirt_panel_*` as remeasured (the same-colour layer rule) while the flaps' geometry
+changed. The setup:
+- the gate at a456834 into 966ad22 on `clawd_body.json`, as round 3 was gated on 2026-09-29;
+- run with this branch's gate.py, history.py and registry.py in a clone at 966ad22 on the build box;
+- the cached 966ad22 baseline, a fresh candidate build and both crossed QA runs;
+- script: scratchpad `demo2x2.sh`. Report: `charkit/out/gate/gate_demo2x2-tool-body_a456834_into_966ad22_clawd_body.md`
+  (and `.json`).
+
+| check | old geom, old measure | new geom, old measure | old geom, new measure | new geom, new measure | old | new |
+|---|---|---|---|---|---|---|
+| piece_overskirt_panel_R | 0.526 WARN | 0.382 FAIL | 0.526 WARN | 0.453 FAIL | **regressed** | **regressed** |
+| piece_overskirt_panel_L | 0.451 FAIL | 0.306 FAIL | 0.453 FAIL | 0.348 FAIL | value | value |
+| piece_skirt | 0.803 PASS | 0.733 WARN | 0.803 PASS | 0.804 PASS | **regressed** | value |
+| body_back_skirt_width | 1.995 FAIL | 2.487 FAIL | 1.037 PASS | 1.102 WARN | value | **regressed** |
+| piece_skirt_extent (new) | - | - | 0.0612 PASS | 0.1035 WARN | - | **regressed** |
+| body_front_skirt_width | 0.795 FAIL | 1.047 PASS | 0.795 FAIL | 1.047 PASS | improved | improved |
+
+- The old gate called the first three rows "remeasured", neutral, and FAILed only on `body_back_iou_skin`. The 2×2
+  shows `piece_overskirt_panel_R` dropping WARN → FAIL under the old measure. That is the regression the notes' 2×2
+  found by hand: 0.381 in the evaluator, 0.382 here.
+- `piece_skirt` held at 0.804 only because the new rule stopped counting the flaps' pixels over it. Under the old
+  measure it dropped 0.803 PASS → 0.733 WARN, which nobody had caught.
+- Under the new measure alike, the back skirt width (1.037 PASS → 1.102 WARN) and the new skirt extent check
+  (0.0612 PASS → 0.1035 WARN) got worse too.
+- The front skirt width improved by both measures, so the remeasure didn't dress up the gain.
+- Tests ok; no crossed-run errors; the geometry changed (bundle 4837e0c42c → f6eccdb4b3). The verdict with this
+  code is FAIL: body_back_iou_skin, plus the four hidden regressions listed by `gate.twobytwo_drops`. This run's
+  report predates flagging the new-measure drops and lists the old-measure two, which were recomputed from the same
+  rows.
 
 ## 4. The evaluator against the box: `python -m charkit evaldrift [SPEC]`
 
@@ -105,6 +141,34 @@ pipeline-3d 9397578.
   (CIEDE2000); `--tol` sets one for all.
 - It writes `drift.json` and `drift.md` into the build folder and exits 1 on drift. `test_evaldrift` tests the
   comparison.
+- The evaluator reads the build's own resolved spec (`BUILD/NAME.spec.json`), as `bodyeval.validate` does. The raw
+  default spec can't be assembled by the evaluator: the code-built body's `body_code` file comes from the build's
+  `code_body` step.
+- `--no-build` reuses the box build at `--out`.
+
+**The first result** (clawd.json; box build of c1016fa, whose geometry is pipeline-3d 9397578's; the evaluator on the
+same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differently.
+- **Hems and skirt: no drift.** All 13 `body_*_hem`, `hem_mid`, `skirt_width` and `skirt_aline` checks agree to the
+  last digit. The body round's 0.024–0.028 L hem offset is gone at this commit.
+- **Hair: the evaluator doesn't build the build's hair.**
+  - `body_*_hair_length` reads 0.20–0.27 L shorter in every view: PASS on the box, FAIL in the evaluator.
+  - `body_*_top` reads 0.066 L lower; `body_*_iou_hair` is down by 0.05–0.18 and `hair_width` by 0.04–0.06
+    (profile +0.09).
+  - The knock-on effects: `body_*_iou_skin` (profile -0.082), `sheet_shown_*` (profile 0.356 → 0.038), `shape_iou*`,
+    `ref_iou`, `body_*_iou`.
+  - The default spec's cut-piece hair (`geom/hair_pieces`) isn't what `bodyeval.Evaluator.hair_parts` builds, so a fit
+    on the evaluator aims at the wrong hair. Owner: hair / body.
+- **Face registration.** `sheet_cheek_chin` -0.0027 → -0.0277, `sheet_profile_chin` 0.0003 → -0.0247 and
+  `sheet_neck_to_jaw` read 0.025 L apart. `sheet_width` is +0.026.
+  - These are e9a6753's numbers exactly: the QA's face registered on the head's eye line instead of the iris plates'
+    mean, 0.0235 L over it. That change reached `qa3d` but not the evaluator's `bodymeasure.sheet_face`.
+  - Owner: face; the fix is the evaluator using `qa3d.eye_anchor`.
+- **Not compared:**
+  - 171 checks only the box gives: detailqa's boot, torso and midriff checks, the pieces' aggregate checks, and the
+    rest of the parts the evaluator doesn't run;
+  - 264 only the evaluator gives: `bodymeasure.piece_checks`' per-view sub-measures such as
+    `piece_boot_L_back_bottom`, which the box's QA reports under other names.
+- Report: `charkit/out/evaldrift/clawd/drift.md`.
 
 ## Verification
 

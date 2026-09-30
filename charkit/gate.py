@@ -17,7 +17,8 @@ A check whose measurement the branch changes (a measurement step it registers: c
 `remeasured`, neither better nor worse. When the branch also changes the geometry, the gate scores it both ways (the
 2x2, Michael's no-gaming rule): the baseline's QA code measures the candidate's geometry bundle (the old measure on the
 new geometry) and the candidate's measures the baseline's (the new measure on the old geometry). A remeasured check that
-gets worse under the old measure fails the gate, unless it's accepted by name (--accept PATTERN[,PATTERN]).
+gets worse under either measure alike (the old on both geometries, or the new on both) fails the gate, unless it's
+accepted by name (--accept PATTERN[,PATTERN]).
 The report (markdown and json) is written to charkit/out/gate/: the checks that changed, the 2x2, the tests, the trace
 diff.
 """
@@ -168,6 +169,17 @@ def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
     return rows
 
 
+def twobytwo_drops(rows):
+    """the 2x2's hidden regressions: a remeasured check that reads worse on the new geometry under either measure alike
+    (the old on both geometries, or the new on both), not accepted -> [(check, [the measures it's worse under])]."""
+    out = []
+    for r in rows:
+        worse = [m for m in ('old', 'new') if r.get(m) == 'regressed']
+        if worse and not r.get('accepted'):
+            out.append((r['check'], worse))
+    return out
+
+
 def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False, accept=()):
     head = _git('rev-parse', '--short', into).stdout.strip()
     tip = _git('rev-parse', '--short', branch).stdout.strip()
@@ -252,13 +264,14 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         bad_tests = [k for k, v in rep['tests'].items() if v != 'ok']
         regressed = [r['check'] for r in rep['qa'] if r['verdict'] in ('regressed', 'gone')]
         tb = rep.get('twobytwo') or {}
-        hidden = [r['check'] for r in tb.get('rows', []) if r['old'] == 'regressed' and not r['accepted']]
+        hidden = ['%s (%s)' % (k, ', '.join('the %s measure' % m for m in ms)) for k, ms in twobytwo_drops(tb.get('rows', []))]
         if bad_tests or regressed or hidden:
             rep['verdict'] = 'FAIL'
             rep['why'] = '; '.join(filter(None, ['tests failing: ' + ', '.join(bad_tests) if bad_tests else '',
                                                  'checks worse: ' + ', '.join(regressed) if regressed else '',
-                                                 'worse under the old measure (a remeasure step covers it; accept with '
-                                                 '--accept): ' + ', '.join(hidden) if hidden else '']))
+                                                 'worse on the new geometry under one measure on both (a remeasure '
+                                                 'step covered it; accept with --accept): ' + ', '.join(hidden)
+                                                 if hidden else '']))
         else:
             worse = [r['check'] for r in rep['qa'] if r['verdict'] == 'value']
             # the slowness check is on CPU seconds, which the box's load barely moves; wall time only where a cached
@@ -318,11 +331,12 @@ def _write(rep, gdir, tag):
             L.append('\n| check | old geometry, old measure | new geometry, old measure | old geometry, new measure | '
                      'new geometry, new measure (candidate) | under the old measure | under the new |\n'
                      '| --- | --- | --- | --- | --- | --- | --- |')
-            for r in sorted(tb['rows'], key=lambda r: (r['old'] != 'regressed', r['check'])):
-                L.append('| %s | %s | %s | %s | %s | %s%s | %s |' % (
+            mark = lambda r, m: ('**regressed**%s' % (' (accepted)' if r['accepted'] else '')) if r[m] == 'regressed' \
+                else r[m] or '-'
+            for r in sorted(tb['rows'], key=lambda r: ('regressed' not in (r['old'], r['new']), r['check'])):
+                L.append('| %s | %s | %s | %s | %s | %s | %s |' % (
                     r['check'], cell(r['base']), cell(r['old_on_new']), cell(r['new_on_old']), cell(r['cand']),
-                    '**%s**' % r['old'] if r['old'] == 'regressed' else r['old'] or '-',
-                    ' (accepted)' if r['accepted'] and r['old'] == 'regressed' else '', r['new'] or '-'))
+                    mark(r, 'old'), mark(r, 'new')))
     if rep.get('blender_seconds'):
         L.append('\nBuild time (Blender and QA): %s s -> %s s' % tuple(rep['blender_seconds']))
     if rep.get('cpu_seconds') and all(rep['cpu_seconds']):

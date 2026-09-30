@@ -72,8 +72,11 @@ def test_twobytwo_scores_a_remeasured_check_under_the_old_measure():
     assert L['new'] == 'value' and R['new'] == 'regressed'
     assert L['old_on_new'] == [0.312, 'FAIL'] and L['new_on_old'] == [0.456, 'FAIL']
     assert rows['piece_skirt']['old'] == 'same' and rows['piece_skirt']['new'] == 'same'
-    acc = {r['check']: r['accepted'] for r in gate.twobytwo(base, cand, old_on_new, new_on_old, rem, ['*_R'])}
-    assert acc['piece_overskirt_panel_R'] and not acc['piece_overskirt_panel_L']
+    assert gate.twobytwo_drops(rows.values()) == [('piece_overskirt_panel_L', ['old']),
+                                                   ('piece_overskirt_panel_R', ['old', 'new'])]
+    acc = gate.twobytwo(base, cand, old_on_new, new_on_old, rem, ['*_R'])
+    assert {r['check']: r['accepted'] for r in acc}['piece_overskirt_panel_R']
+    assert gate.twobytwo_drops(acc) == [('piece_overskirt_panel_L', ['old'])]          # accepted by name
     # the old measure couldn't read the new bundle: no old-measure verdicts, nothing flagged
     rows = gate.twobytwo(base, cand, None, None, rem)
     assert all(r['old'] in ('unmeasured', None) for r in rows)

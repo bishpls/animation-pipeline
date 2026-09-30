@@ -6,8 +6,10 @@ aims at a number the build doesn't give (the body round found the hems 0.024-0.0
     python -m charkit evaldrift [SPEC] [--tol 0.01] [--out DIR]   a build on the build box, then the evaluator there on
                                                                   the same synced copy; the report fetched into DIR
                                                                   (default charkit/out/evaldrift/<spec>)
+    python -m charkit evaldrift [SPEC] --no-build                 the same against the box build already at --out
     python -m charkit evaldrift SPEC --build DIR --here           the evaluator and the comparison where it runs, against
-                                                                  the build in DIR (what the box runs)
+                                                                  the build in DIR (what the box runs); the evaluator
+                                                                  reads the build's resolved spec (DIR/NAME.spec.json)
 
 The report: DIR/drift.json and DIR/drift.md, every compared check (box value and status, evaluator value and status,
 the difference, its tolerance), the drifted ones first. It exits 1 when any check drifts.
@@ -59,6 +61,12 @@ def compare(box, ev, tol=None):
                 only_eval=sorted(k for k in set(ev) - set(box) if (ev[k] or {}).get('value') is not None))
 
 
+def build_spec(build):
+    """the resolved spec a build ran (BUILD/NAME.spec.json: with the code-built head's and body's geometry files, which
+    the build's own steps made), as bodyeval.validate evaluates it."""
+    return next(os.path.join(build, f) for f in sorted(os.listdir(build)) if f.endswith('.spec.json'))
+
+
 def evaluator_checks(spec_path):
     """every check the fast evaluator gives for the spec, as the body fit reads them (bodyfit.BodyChecks, group 'all',
     fine: the render's subdivision) -> ({check: {value, status}}, seconds)."""
@@ -85,7 +93,7 @@ def here(spec_path, build, tol=None):
     build/drift.json and drift.md)."""
     qa = json.load(open(os.path.join(build, 'qa', 'qa.json')))
     box = {k: {'value': c.get('value'), 'status': c.get('status')} for k, c in qa['checks'].items()}
-    ev, secs = evaluator_checks(spec_path)
+    ev, secs = evaluator_checks(build_spec(build))
     rep = dict(spec=spec_path, build=os.path.relpath(build, ROOT), git=_git_of(build), tol=tol, tolerances=TOL,
                evaluator_seconds=secs, t=time.strftime('%Y-%m-%dT%H:%M:%S'), **compare(box, ev, tol))
     json.dump(rep, open(os.path.join(build, 'drift.json'), 'w'), indent=1, default=str)
@@ -97,7 +105,7 @@ def markdown(rep):
     L = ['# evaldrift: %s at %s: %d of %d checks drift' % (rep['spec'], rep.get('git'), len(rep['drift']), rep['compared']),
          '', 'The box build (`%s`) against the fast evaluator (bodyeval, as bodyfit reads it) on the same commit; '
          'tolerance per check: %s. Checks only the build has: %d; only the evaluator: %d.' % (
-             rep['build'], rep['tol'] if rep.get('tol') is not None else ', '.join('%s %s' % pt for pt in rep['tolerances']),
+             rep['build'], rep['tol'] if rep.get('tol') is not None else ', '.join('%s %s' % tuple(pt) for pt in rep['tolerances']),
              len(rep['only_box']), len(rep['only_eval'])), '',
          '| check | box | evaluator | eval - box | tol | |', '| --- | --- | --- | --- | --- | --- |']
     for r in rep['rows']:
@@ -121,9 +129,10 @@ def main(args):
         from . import remote
         stem = os.path.basename(spec).split('.')[0]
         out = opt('--out', 'charkit/out/evaldrift/%s' % stem)
-        code = remote.build([spec, '--out', out, '--boards', 'views', '--no-blend'])
-        if code:
-            raise SystemExit('evaldrift: the box build failed (exit %d)' % code)
+        if '--no-build' not in args:
+            code = remote.build([spec, '--out', out, '--boards', 'views', '--no-blend'])
+            if code:
+                raise SystemExit('evaldrift: the box build failed (exit %d)' % code)
         more = ['--tol', str(tol)] if tol is not None else []
         code = remote.charkit(['evaldrift', remote._portable_spec(spec), '--build', out, '--here'] + more)
         remote._sh('fetch', ROOT, out)
@@ -131,6 +140,12 @@ def main(args):
         if not os.path.exists(p):
             raise SystemExit('evaldrift: the evaluator run failed on the box (exit %d)' % code)
         rep = json.load(open(p))
+        # the box copy has no git: the commit (and whether the synced tree had changes) from here
+        import subprocess
+        g = lambda *a: subprocess.run(['git', '-C', ROOT, *a], capture_output=True, text=True).stdout.strip()
+        rep.update(spec=spec, git=g('rev-parse', '--short', 'HEAD') + ('+dirty' if g('status', '--porcelain', '--untracked-files=no') else ''))
+        json.dump(rep, open(p, 'w'), indent=1, default=str)
+        open(os.path.join(ROOT, out, 'drift.md'), 'w').write(markdown(rep))
     print(markdown(rep).split('\n')[0])
     for r in rep['rows']:
         if r['drift']:
