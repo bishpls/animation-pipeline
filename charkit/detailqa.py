@@ -870,15 +870,21 @@ def overhang_checks(ours, design):
     return C
 
 
-def leg_back(cls, ppl, band=LEG_BAND, win=WIN):
-    """in profile, the legs' back edge per row of `band`: the widest skin run's end away from the face (the face side
-    found as bodyqa.front_edge finds it: the skin at the eyes against the hair), runs under 0.1 L left out. -> {row: L
-    from the grid's left edge, + toward the back}."""
-    H, W = cls.shape
-    z = win['top'] - (np.arange(H) + 0.5) / ppl
+def face_side(cls, ppl, win=WIN):
+    """which way a profile faces: -1 when the skin at the eyes lies left of the hair (the face on the image's left),
+    else +1 (as bodyqa.front_edge finds it)."""
+    z = win['top'] - (np.arange(cls.shape[0]) + 0.5) / ppl
     eye = np.nonzero(np.abs(z) < 0.2)[0]
     sk, hr = np.nonzero(cls[eye] == CL['skin'])[1], np.nonzero(cls[eye] == CL['hair'])[1]
-    face = -1 if (len(sk) and len(hr) and sk.mean() < hr.mean()) else 1
+    return -1 if (len(sk) and len(hr) and sk.mean() < hr.mean()) else 1
+
+
+def leg_back(cls, ppl, band=LEG_BAND, win=WIN, face=None):
+    """in profile, the legs' back edge per row of `band`: the widest skin run's end away from the face (face_side's,
+    unless given), runs under 0.1 L left out. -> {row: L from the grid's left edge, + toward the back}."""
+    H, W = cls.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    face = face_side(cls, ppl, win) if face is None else face
     out = {}
     for r in np.nonzero((z <= band[0]) & (z >= band[1]))[0]:
         c = np.nonzero(cls[r] == CL['skin'])[0]
@@ -890,21 +896,33 @@ def leg_back(cls, ppl, band=LEG_BAND, win=WIN):
     return out
 
 
+LEG_EDGE = 0.02                     # L: the rows this close to either figure's first or last leg row are left out (the
+                                    # shorts' hem and the boot cuff's top cut the skin's row there: a drawn cuff line that
+                                    # slopes cut the design's last two rows short at the back, 0.13-0.21 L, on every build)
+
+
 def leg_back_check(ocls, dcls, ppl, win=WIN):
-    """body_profile_leg_back from the profile's class images, ours and the design's (None when they share < 10 rows)."""
-    a, b = leg_back(ocls, ppl, win=win), leg_back(dcls, ppl, win=win)
-    rows = sorted(set(a) & set(b))
+    """body_profile_leg_back from the profile's class images, ours and the design's (None when they share < 10 rows).
+    Both figures' back edges are taken on the design's facing: ours is drawn on the design's grid, facing the same way,
+    and face_side can misread ours (a side lock in front of the eyes: it then measured the front edge, offset -5.3 L)."""
+    fd = face_side(dcls, ppl, win)
+    a, b = leg_back(ocls, ppl, win=win, face=fd), leg_back(dcls, ppl, win=win, face=fd)
+    z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
+    if not a or not b:
+        return None
+    lo, hi = max(min(a), min(b)) + LEG_EDGE * ppl, min(max(a), max(b)) - LEG_EDGE * ppl
+    rows = sorted(r for r in set(a) & set(b) if lo <= r <= hi)
     if len(rows) < 10:
         return None
     d = np.array([a[r] - b[r] for r in rows])
     off = float(np.median(d))
     k = int(np.argmax(d - off))
     v_ = round(max(0.0, float(d[k] - off)), 4)
-    z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
     return {'value': v_, 'status': grade('leg_back', v_), 'at': z(rows[k]), 'offset': round(off, 4),
             'rows': [z(rows[0]), z(rows[-1])],
             'note': "the legs' back edge in profile against the design's, row by row from under the shorts to the "
-                    "boot cuffs: its largest outward bump (L) once the median offset between them is taken out"}
+                    "boot cuffs (%.2f L from either end left out): its largest outward bump (L) once the median offset "
+                    "between them is taken out" % LEG_EDGE}
 
 
 def panel_edge(O, D, masks, ppl, idx, pm, near=0.25):
