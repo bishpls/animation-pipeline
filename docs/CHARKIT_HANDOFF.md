@@ -748,9 +748,29 @@ after merges.
 
 **Branches at checkpoint:** each has its notes in docs/workstreams/NAME.md; relaunch lean from them. Integrator
 decisions already made:
-- **tool/face** (face round 3): the three-quarter notch 0.057 -> 0 and the jaw_line_bend 41 -> 4.6. Accepted 2x2 drops:
-  chin_angle 119.7 -> 116.7 (design 129.7: next face round recovers it), chin_tip 0.59 -> 0.56, jaw_taper_shape.
-  Merge on gates whose only failures are those.
+- **tool/face (round 3): MERGED (bbf1c04).** The notch 0.057 -> 0, jaw_line_bend 41 -> 4.6, with the accepted chin 2x2
+  drops (chin_angle 116.7 in the boards' camera, about 126 level; design 129.7). **Next face round:**
+  - recover the chin (crease the V's point in character.py, or denser cage columns);
+  - the ramus behind the jaw angle;
+  - **120 inward-facing skin triangles at the crown**, which make the default spec's hair_penetration 0.0124 FAIL a false
+    reading (found by tool/hair4);
+  - sheet_width's +0.023 evaluator drift.
+- **tool/look3 (calls H and I): MERGED (18b740a).** Streaks now agree across GPUs and renderers (IoU 1.000 / 0.995).
+  Thin garments are fully inked. **Open for Michael** (look.md round 3):
+  - the rim beads: a cap of 0.3 or 0.2 of the shell (214 / 84 flips left), or flat rims from the garments side;
+  - caps for the bow and boots at half their measured thickness (501 -> 144 and 226 -> 78 flips);
+  - a streak seed, if the big highlight on the right bun reads wrong;
+  - the garment line weight: ink area +21-30% now that the lines draw at full width; the multiplier is the dial.
+- **tool/hair4: checkpoint bb189f9, not gated.** Defaults: body clearance (clawd_mh hair_penetration 0.0484 -> 0.0034)
+  and the crown trim (upper back 0.771); buns 0.397 -> 0.437. Behind settings: shell samples (stable, but folds 6 -> 12
+  on this bundle) and the outline-weighted bun fit (0.50, costs the back view). Next: merge pipeline-3d, gate, review
+  page.
+- **tool/skirt: checkpoint 73fe12c, not gated.** Template flaps and stepped band, tuck and 18 pleats, built on the box:
+  flap profile IoU 0.25 -> 0.71, band steps PASS, back gap PASS, tuck PASS. Next: write fit G into the specs, merge
+  tool/garments2 (see below), flapchains, gate both together.
+- **tool/toonrender2: checkpoint 0b16765, not gated.** The QA can draw with charkit.render (`CHARKIT_QA_DRAW`), and its
+  head pictures sit half as far from EEVEE (0.84-0.91 levels against 1.6-2.1). Default unchanged. Next: merge look3,
+  recalibrate the noise, add clawd_mh, time the build box, decide the default.
 - **tool/garments2** (jacket over band, 2bf75d1; gated 3d81679): Michael's flag is fixed (the over-band check 0.97 FAIL
   -> 0 PASS, piece_waistband 0.45 FAIL -> 0.89 PASS). MakeHuman gate PASS; **default gate FAIL, merge held**:
   - body_front_skirt_overhang_L/R 0 -> 0.118/0.115: the band now has its drawn width, and the skirt's tuck follows the
@@ -770,7 +790,6 @@ decisions already made:
 - **tool/skirt**: the flap train touches the back of the thigh (body_profile_leg_outline 0.57, 82 rows against the
   design's 3); clawd_mh body_three_quarter_skirt_aline 0.078 WARN is accepted and belongs here.
 - **tool/outfit-source**: masks without the TRELLIS field (or the field made a required produced reference).
-- **tool/look3**: calls H and I.
 - **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
 - **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
