@@ -15,7 +15,8 @@ own targets (exprqa.TARGETS).
         (preset_*.png, mouth_*.png) for the contact sheet, at the board's face camera, beside the sheet's heads
     python -m charkit mouth --spec RESOLVED.spec.json [--rig-measure ref_measure.json] [--out DIR]
         the same on the spec assembled here (charkit.faceeval's bundle: numpy, no Blender)
-    python -m charkit mouth --dump RESOLVED.spec.json --out HEAD.pkl.gz     (on the build box: the head, a minute)
+    python -m charkit mouth --dump SPEC.json --out HEAD.pkl.gz     (on the build box: the head, a minute; a spec as
+        authored is resolved first, into HEAD's folder/resolved)
     python -m charkit mouth --head HEAD.pkl.gz [--set JSON] [--out DIR] [--no-page]
         the loop for mouth.py's shapes and the expression keys: the features re-keyed over the dumped head with this
         checkout's code (a few seconds) and measured; --set lays spec keys over the head's spec ('{"mouth": {...}}')
@@ -56,6 +57,11 @@ def dump_head(spec_path, out):
     head itself takes a minute (the authored body) and its references (the hull) live on the build box."""
     import gzip, pickle
     from . import character
+    if not spec_path.endswith('.spec.json'):                 # a spec as authored: resolved first, as a build does
+        from . import cli
+        d = os.path.join(os.path.dirname(os.path.abspath(out)), 'resolved')
+        os.makedirs(d, exist_ok=True)
+        spec_path = cli.resolve(spec_path, d)[1]
     txt = open(spec_path).read()
     import re
     S = json.loads(re.sub(r'/srv/work/[^/"]+/', ROOT + '/', txt))
