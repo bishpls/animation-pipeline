@@ -43,11 +43,18 @@ def adapters():
     return [adapter_info(a) for a in wgpu.gpu.enumerate_adapters_sync()]
 
 
+# llvmpipe's and lavapipe's threads (Mesa's LP_NUM_THREADS, read when the adapters are made) unless the environment sets
+# them: the QA on the build box (tr3_a, 40 frames, 2026-09-30) took 151 s wall / 488 CPU s at Mesa's default (a thread a
+# core, 32), 128 s / 321 at 8, 176 s / 337 at 4, 233 s / 359 at 2 (the values identical); a GPU ignores it
+CPU_THREADS = 8
+
+
 def device(pref=None):
     """the wgpu device for a preference (see the module doc) -> (device, adapter info). One per process and preference."""
     pref = (pref or os.environ.get('CHARKIT_RENDER_ADAPTER') or 'auto').strip()
     if pref in _DEVICE:
         return _DEVICE[pref]
+    os.environ.setdefault('LP_NUM_THREADS', str(CPU_THREADS))
     import wgpu
     ads = wgpu.gpu.enumerate_adapters_sync()
     if not ads:
@@ -72,6 +79,8 @@ def device(pref=None):
     a = ads[pick]
     lim = a.limits
     dev = a.request_device_sync(required_limits={'max-texture-dimension-2d': lim['max-texture-dimension-2d']})
+    if info[pick]['type'] == 'CPU' or 'llvmpipe' in str(info[pick]['device']):
+        info[pick]['lp_threads'] = int(os.environ['LP_NUM_THREADS'])
     _DEVICE[pref] = (dev, info[pick])
     return _DEVICE[pref]
 

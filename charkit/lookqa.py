@@ -107,13 +107,14 @@ def _scaled(B, o, variant, line_scale):
             cap = c0
         c1 = min(k * w0, cap) if cap else k * w0
         V = o.a(variant, 'V')
+        # (line_k: the render drawing's width; the renderer applies the cap itself, toon.wgsl's inward())
         if c0 > 0:
-            S[0] = dict(S[0], V=V + sh * (c1 / c0))
+            S[0] = dict(S[0], V=V + sh * (c1 / c0), line_k=k)
             for i in range(1, len(S)):
                 if S[i]['hull']:
                     S[i] = dict(S[i], V=V - sh * ((k * w0 - c1) / c0))
         else:
-            S[0] = dict(S[0], V=V + sh * k)
+            S[0] = dict(S[0], V=V + sh * k, line_k=k)
     return S
 
 
@@ -505,12 +506,11 @@ def line_width(B, design, out=None, ss=4, ppl=None, off=(0.0, 0.0)):
     from . import qa3d
     hull_region = [(_region(s_['o']) if s_['hull'] else None) for s_ in surfs]
     hulls = {i for i, h in enumerate(hull_region) if h}
-    items = [(s_['V'], s_['T'], i, s_['cull']) for i, s_ in enumerate(surfs)]
     allw = {r: [] for r in REGIONS}
     allc = {r: [] for r in REGIONS}
     pics = []
     for az in VIEWS:
-        mi = fr.zbuffer(items, az)[1]                           # the surface per pixel (draw()'s aux['mesh'])
+        mi = qa3d.draw_ids(B, surfs, az, fr)                    # the surface per pixel (draw()'s aux['mesh'])
         col = _hull_colours(B, surfs, hulls, az)                # each line's colour as draw() shades it (flat)
         rgb = col[np.maximum(mi, 0)]
         for r in REGIONS:
