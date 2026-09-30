@@ -78,6 +78,10 @@ def resolve(spec_path, out, do_fit=True, base=None):
     spec = manifest.produce(manifest.resolve(json.load(open(spec_path))))
     if base:
         spec['base'] = base
+    from . import styles
+    # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
+    # the stage cache keys on it)
+    spec['look'] = styles.merge(styles.load(spec.get('style', 'anime'))['look'], spec.get('look'))
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
@@ -244,6 +248,10 @@ def build(args):
     name = json.load(open(spec_path))['name']
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
+    from . import cache
+    n = cache.unshare(out)                      # the build rewrites its outputs: not through links to another worktree
+    if n:
+        print('build: %d files in %s were hard-linked elsewhere; unshared' % (n, out))
     spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')

@@ -1,5 +1,5 @@
 {
- "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land.",
+ "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. look: a key light that turns with the camera (the design's turnarounds are lit from the viewer's side in every view), outlines a constant share of the picture, the head and neck shaded on a smooth stand-in's normals, the hair's drawn highlight streaks; values set against charkit/lookqa's measures (docs/workstreams/look.md).",
  "hull": {
   "p": 2.0,
   "class_share": 0.6,
@@ -22,5 +22,67 @@
   "normals": "envelope",
   "shade_close": 0.5,
   "shade_blur": 0.45
+ },
+ "look": {
+  "light": {
+   "mode": "camera",
+   "key": [
+    30.0,
+    40.0
+   ]
+  },
+  "lines": {
+   "mode": "screen",
+   "frac": 0.0022,
+   "regions": {
+    "skin": 1.0,
+    "hair": 1.0,
+    "garment": 1.0,
+    "accessory": 0.8
+   },
+   "color": "ink",
+   "ink": [
+    0.059,
+    0.024,
+    0.024
+   ],
+   "ink_regions": [
+    "hair",
+    "garment",
+    "accessory"
+   ]
+  },
+  "face": {
+   "normals": "proxy",
+   "blur": 0.22,
+   "chin_tilt": 85.0,
+   "tilt_power": 0.25,
+   "fringe": true,
+   "jaw_line": false,
+   "jaw_width": 0.0045,
+   "jaw_reach": 0.9,
+   "fringe_drop": 0.07,
+   "fringe_sides": true
+  },
+  "hair": {
+   "highlight": "streaks",
+   "elevation": 47.0,
+   "length": 5.0,
+   "jitter": 4.0,
+   "count": 36,
+   "duty": 0.25,
+   "keep": 0.3,
+   "amount": 0.85,
+   "color": [
+    0.973,
+    0.859,
+    0.776
+   ],
+   "deep_at": 0.15,
+   "lock_shade": 0.0,
+   "under": [
+    "lower_back"
+   ]
+  }
  }
 }
