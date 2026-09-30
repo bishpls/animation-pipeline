@@ -2193,14 +2193,18 @@ def run(B, out, ref_image=None, mode='on', parts=None):
         ref = B.spec.get('ref')
         ref_image = ref.get('image') if isinstance(ref, dict) else None
     rep = {'checks': {}, 'views': {}}
-    t0 = time.perf_counter()
+    t0, c0 = time.perf_counter(), time.process_time()
+    timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
             continue
         args = (ref_image,) if P.ref_image else ()
         try:
-            with trace.span('qa.' + P.name):
+            with trace.span('qa.' + P.name) as sp:
+                t1, c1 = time.perf_counter(), time.process_time()
                 table, C = cache.qa_part(P.name, P.fn, B, design, out, args, mode=mode)
+                timing[P.name] = [round(time.perf_counter() - t1, 2), round(time.process_time() - c1, 2)]
+                sp['cpu_s'] = timing[P.name][1]
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
@@ -2218,6 +2222,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
+                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing,
                        'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B))}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
@@ -2227,12 +2232,19 @@ def run(B, out, ref_image=None, mode='on', parts=None):
 
 def main(args):
     """python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl]
+                              [--draw numpy|render] [--threads N]
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
-    (a build's own does it: python -m charkit build)."""
+    (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
+    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS)."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if opt('--draw'):
+        from . import qarender
+        os.environ[qarender.ENV] = opt('--draw')
+    if opt('--threads'):
+        os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')

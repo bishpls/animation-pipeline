@@ -1,8 +1,8 @@
 # Workstream: our own toon renderer (`tool/toonrender`)
 
 State: phase 1 done (boards from a build's export, measured against EEVEE, three machines). Phase 2 in progress on
-`tool/toonrender2` (`~/animation-pipeline-toonrender2`): checkpoint below ("Phase 2: state at the checkpoint"); the QA's
-default drawing is still numpy.
+`tool/toonrender2` (`~/animation-pipeline-toonrender2`): "Phase 2, round 2" below, then the checkpoint before it; the
+QA's default drawing is still numpy.
 
 Gate: `python -m charkit remote gate tool/toonrender --into pipeline-3d`: **PASS** at 75fe37b into e11fadb (no check
 changed; `test_render.py` ok on the build box's llvmpipe). Later commits touch only `charkit/render/page.py`,
@@ -200,6 +200,25 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
   export could carry `eye_z`.
 - The T4's OpenGL adapter in wgpu loses its device (Vulkan works). lavapipe on the build box needs
   `mesa-vulkan-drivers libvulkan1` (apt; not done; llvmpipe through GL works).
+
+## Phase 2, round 2 (overnight 2026-09-30, `tool/toonrender2`)
+
+In progress. Merged pipeline-3d 08f93e2 (look3's H and I, artifacts, face round 3, geom-truth, nofallback, infra2) at
+0f82d34: conflicts in cli.py's docstring and lookqa._scaled (look3's capped outline model kept, with this branch's
+`line_k` tag on the scaled surface: toon.wgsl's inward() applies the cap itself). Tests: 402 of 403, and the one
+(test_cache.test_code_closure) was this branch's: cache.qa_part's `from . import qarender` put the whole QA into every
+stage's code closure (a QA edit would have invalidated the garments stage's cache); now imported by name (928ea2d).
+
+New since the checkpoint: **artifactqa's body frame draws through qa3d.draw**, so under the render drawing the art_*
+checks of the collar, bow, top, skirt and boots (and the silhouette checks built from Michael's flags) move too; the
+head frame's art_* read artifactqa.buffers() (its own z-buffer) and don't. The calibration now covers them.
+
+Tools added: `python -m charkit qa BUNDLE --draw numpy|render [--threads N]` (LP_NUM_THREADS for llvmpipe); qa.json
+`measured.cpu_s` and `measured.parts` {part: [wall s, CPU s]} (process CPU, every thread); `remote run --fetch DIR CMD`.
+
+Plan: box builds of clawd.json and clawd_body.json (hair pieces vs the geom shell: the second geometry for the 2x2) at
+the merged head, with the look export and toon boards; the QA timed on the box under both drawings; calibrate (placements
+off the 3x grid) and qaref on those builds; decide; register the step; gate.
 
 ## Phase 2: state at the checkpoint (2026-09-30, `tool/toonrender2`, from pipeline-3d cfcdc3a)
 
