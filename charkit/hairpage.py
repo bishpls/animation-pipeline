@@ -3,8 +3,12 @@ against the design and against a build before it.
 
     python -m charkit hairpage BUILD [--against BASE_BUILD] [--out DIR]     -> DIR/index.html (default BUILD/hair)
 
+  renders    per view the design's turnaround figure (the manifest's head_turnaround, body_turnaround) beside BASE's
+             board and this build's (BUILD/boards: build with --boards views,body)
   checks     every hair check of the QA, this build against BASE (the per-family IoUs against the hair layers, the
-             fringe, penetration and folds, and the whole-hair checks: IoU, width, length, top, noise, scalp, shown)
+             fringe, penetration and folds, and the whole-hair checks: IoU, width, length, top, noise, scalp, shown);
+             with BASE, the hair pieces' checks and hair_noise also remeasured on both builds by this code's QA (like
+             for like)
   families   per view the drawing's families (the hair layers, charkit.hairlayers) beside ours (qa_hair_pieces.png)
   sheet      the QA's body comparison, the head's rows: the design, ours, the overlap (qa_sheet_body.png)
   noise      the hair drawn alone with its toon materials (qa_hair_front.png), BASE's beside it
@@ -22,6 +26,33 @@ PAL = {'bangs': (.85, .2, .2), 'side_lock_L': (1, .8, .2), 'side_lock_R': (.95, 
        'flyaways': (.5, .9, .1)}
 EXPLODE = 0.35                  # L: how far the exploded view moves each piece out
 HAIR_KEYS = ('hair', 'scalp', 'sheet_shown', '_top', 'shape_iou_hair', 'palette_hair')
+HEAD_BOARDS = (('front', 'face_000'), ('three-quarter', 'face_030'), ('profile', 'face_090'), ('back (az 150)', 'face_150'))
+BODY_BOARDS = ('body_000', 'body_035', 'body_090', 'body_180')
+
+
+def figures(path, tol=0.06, gap=12):
+    """a turnaround sheet's figures, left to right: their boxes (x0, y0, x1, y1), split where no column differs from
+    the background (the border's median colour) for `gap` pixels."""
+    from PIL import Image
+    im = np.asarray(Image.open(path).convert('RGB')).astype(float) / 255
+    bg = np.median(np.r_[im[0], im[-1]], 0)
+    fg = np.abs(im - bg).max(2) > tol
+    on = np.r_[False, fg.sum(0) > 2, False]
+    edges = np.flatnonzero(np.diff(on.astype(int)))
+    runs = [[a, b] for a, b in zip(edges[::2], edges[1::2])]
+    merged = []
+    for a, b in runs:
+        if merged and a - merged[-1][1] < gap:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    out = []
+    for a, b in merged:
+        if b - a < 40:
+            continue
+        rows = np.flatnonzero(fg[:, a:b].any(1))
+        out.append((int(a), int(rows.min()), int(b), int(rows.max()) + 1))
+    return out
 
 
 def _p(path):
@@ -123,6 +154,46 @@ def page(build, out, against=None):
             im = im.crop((0, 0, w, int(h * crop)))
         im.save(os.path.join(img, name))
         return 'img/' + name
+    # the renders: the design's figures beside the boards
+    from . import manifest
+    refs = manifest.load(spec['ref']['manifest'])['references'] if isinstance(spec.get('ref'), dict) else {}
+    render_rows = []
+    for sheet, boards in (('head_turnaround', HEAD_BOARDS), ('body_turnaround', [(b, b) for b in BODY_BOARDS])):
+        figs, src = [], (refs.get(sheet) or {}).get('path')
+        if src and os.path.exists(_p(src)):
+            im = Image.open(_p(src)).convert('RGB')
+            figs = [im.crop(b) for b in figures(_p(src))]
+        cells = []
+        for k, (label, board) in enumerate(boards):
+            d = None
+            if sheet == 'head_turnaround' and k < len(figs):
+                figs[k].save(os.path.join(img, 'design_%s.png' % board)); d = 'img/design_%s.png' % board
+            b0 = copy(os.path.join(against, 'boards', board + '.png'), 'base_%s.png' % board) if against else None
+            b1 = copy(os.path.join(build, 'boards', board + '.png'), '%s.png' % board)
+            if b1 or b0:
+                cells.append((label, d, b0, b1))
+        if sheet == 'head_turnaround':
+            # the close-ups: each picture's top (the buns, the fringe, the locks' relief) at twice the size
+            top = []
+            for label, d, b0, b1 in cells:
+                row = []
+                for x in (d, b0, b1):
+                    if x is None:
+                        row.append(None); continue
+                    im = Image.open(os.path.join(out, x)).convert('RGB')
+                    w, h = im.size
+                    name = x.replace('img/', 'img/top_')
+                    im.crop((0, 0, w, int(h * 0.55))).save(os.path.join(out, name))
+                    row.append(name)
+                top.append(('%s, top' % label, *row))
+            render_rows.append(('head top', top, None))
+        if sheet == 'body_turnaround' and figs:
+            for k, f in enumerate(figs):
+                f.save(os.path.join(img, 'design_body_%d.png' % k))
+            cells.insert(0, ('the design', None, None, None))
+            render_rows.append(('body', cells, ['img/design_body_%d.png' % k for k in range(len(figs))]))
+        else:
+            render_rows.append(('head', cells, None))
     rows = []
     keys = sorted(k for k in set(qa) | set(base) if any(s in k for s in HAIR_KEYS))
     for k in keys:
@@ -175,6 +246,8 @@ def page(build, out, against=None):
          'the flyaways built on their own. Style: %s (normals: %s). Against: %s.</p>' % (
              html.escape(str(index.get('style'))), html.escape(str(index.get('normals'))),
              html.escape(os.path.relpath(against, ROOT)) if against else 'nothing'),
+         _renders(render_rows),
+         _remeasured(build, against) if against else '',
          '<h2>Checks</h2><table><tr><th>check</th>%s<th>this build</th><th>detail</th></tr>%s</table>' % (
              '<th>before</th>' if against else '', ''.join(rows)),
          '<h2>Pieces</h2><table><tr><th>piece</th><th>family</th><th>locks</th><th>triangles</th><th>folds</th>'
@@ -200,6 +273,53 @@ def page(build, out, against=None):
         '<div class="tile"><img src="%s" height="260">%s</div>' % (p, n) for n, p in ex))
     open(os.path.join(out, 'index.html'), 'w').write('\n'.join(H))
     return os.path.join(out, 'index.html')
+
+
+def _renders(rows):
+    """the renders section: per head view the design's figure, the base's board and this build's at one height; the
+    body's boards under the body turnaround's figures."""
+    H = []
+    for kind, cells, design in rows:
+        if kind in ('head', 'head top') and cells:
+            H.append('<h2>%s</h2><table><tr><th></th><th>design</th><th>before</th>'
+                     '<th>this build</th></tr>%s</table>' % (
+                         'Renders against the design: head' if kind == 'head' else
+                         'Close-ups: the buns, the fringe and the locks (the top of each picture)', ''.join(
+                         '<tr><td>%s</td>%s</tr>' % (html.escape(label), ''.join(
+                             '<td>%s</td>' % ('<img src="%s" height="360">' % x if x else '') for x in (d, b0, b1)))
+                         for label, d, b0, b1 in cells)))
+        elif kind == 'body' and cells:
+            H.append('<h2>Renders: body</h2>')
+            if design:
+                H.append('<div class="row">%s</div>' % ''.join('<div class="tile"><img src="%s" height="300">design'
+                                                              '</div>' % x for x in design))
+            for tag, i in (('before', 2), ('this build', 3)):
+                H.append('<div class="row">%s</div>' % ''.join(
+                    '<div class="tile"><img src="%s" height="300">%s, %s</div>' % (c[i], tag, html.escape(c[0]))
+                    for c in cells if c[i]))
+    return '\n'.join(H)
+
+
+def _remeasured(build, against):
+    """the hair pieces' checks and hair_noise on both builds by this code's QA (qa3d.hair_pieces, qa3d.hair_noise over
+    each bundle's hair objects)."""
+    from . import bundle as bl, qa3d
+    res = {}
+    for tag, b in (('before', against), ('this build', build)):
+        try:
+            B = bl.load(os.path.join(b, 'bundle'))
+            _, C = qa3d.hair_pieces(B, qa3d.Design(B))
+            C.update(qa3d.hair_noise(B)[1])
+            res[tag] = C
+        except Exception as e:                                    # (a build without pieces, or an older bundle)
+            res[tag] = {'error': {'status': 'SKIPPED', 'why': repr(e)[:200]}}
+    keys = sorted(set(res['before']) | set(res['this build']))
+    cell = lambda c: '<td class="%s">%s %s%s</td>' % (c.get('status', ''), c.get('value', ''), c.get('status', ''),
+                                                      ' (drawn %s)' % c['drawn'] if 'drawn' in c else '') if c else '<td></td>'
+    return ('<h2>Hair pieces and hair_noise, remeasured by this QA on both builds</h2><table><tr><th>check</th><th>before</th><th>this '
+            'build</th></tr>%s</table>' % ''.join('<tr><td>%s</td>%s%s</tr>' % (k, cell(res['before'].get(k)),
+                                                                              cell(res['this build'].get(k)))
+                                                  for k in keys))
 
 
 def main(args):

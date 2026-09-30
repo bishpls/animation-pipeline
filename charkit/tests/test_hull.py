@@ -133,3 +133,23 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_a_banded_view_carves_only_its_heights_and_fits_its_azimuth():
+    """an extra view limited to a height band (View.zband) carves there and nowhere else, and fit_view finds the
+    azimuth it was drawn at from its band's silhouette against the hull of the others."""
+    occ, xs, ys, zs = figure()
+    views = {n: view(occ, xs, ys, zs, n, az) for n, az in (('front', 0), ('profile', 90), ('back', 180))}
+    A = hull.axes_for(views, H)
+    V0 = hull.carve(views, A, list(views))
+    empty = hull.View('blank', 135.0, np.zeros((260, 600), bool), PPL, 300.0, 40.0)
+    empty.zband = (-1.6, 0.3)                                      # the torso's heights: an empty drawing there
+    V = hull.carve(dict(views, blank=empty), A, list(views) + ['blank'])
+    band = empty.band(A.zs)
+    assert not V[:, :, band].any() and (V[:, :, ~band] == V0[:, :, ~band]).all()
+    drawn = view(occ, xs, ys, zs, 'extra', 140.0)
+    drawn.zband = (-1.6, 0.3)
+    drawn.mask &= drawn.band((drawn.eye_y - np.arange(260)) / PPL)[:, None]
+    drawn.az = 125.0                                               # its nominal angle, 15 degrees off
+    fit = hull.fit_view(drawn, hull.rounded(views, A, list(views), p=2.0, smooth=0.0), A, 125.0)
+    assert abs(fit['az'] - 140.0) <= 2.5 and fit['iou'] > 0.9, fit

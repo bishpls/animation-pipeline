@@ -84,6 +84,10 @@ STEPS = [
     # tool/look: the QA draws what the boards light
     ('hair_noise', '37ff417', 'the hair drawn under each view\'s board light (the style\'s look: the anime key turns with '
      'the camera), not its material\'s one fixed light: the back view is lit as the front is (tool/look)'),
+    # tool/hair-detail: the buns' tones cut apart from the mass's
+    ('hair_noise', 'cc79d07', 'each tone group cut at its own percentiles, the buns apart from the mass (qa3d.tone_edges; '
+     'tool/hair-detail): a block bun\'s flat faces had moved the shared cuts. The clawd_body pieces build reads 0.068, '
+     'was 0.088; the default spec 0.055, was 0.048'),
 ]
 
 
