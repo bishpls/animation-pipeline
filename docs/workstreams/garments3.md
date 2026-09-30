@@ -453,3 +453,18 @@ flap IoU L / R per view, and the panels' piece IoU:
 
 The drawn three-quarter's left flap matches no turn (0.0-0.04 throughout). Following the three-quarter costs every
 other view: B is rot20 (the three-quarter R's best). The default is A; nothing changed in the specs or the checks.
+
+## The round-3 gate (e66abc8 into 4de65ab): FAIL under K, five blockers
+
+Report `charkit/out/gate/gate_tool-garments3_e66abc8_into_4de65ab.md` (.json, .summary.json). pipeline-3d a4f91a3 merged
+first (f0785ff; pipeline-3d had moved to 4de65ab by the gate). **Cleared:** bow_profile_torn 0.066 FAIL -> 0.0 PASS,
+bow_three_quarter_torn 0.0108 FAIL -> 0.0019 PASS (base 0.0058), bow_front_torn 0.001 PASS; piece_top 0.595 -> 0.688.
+CPU 1.29x. **Blocking:** (1) test_bow_tails.py: the gate runs each test file as a script and it lacked the sys.path line
+and runner the others carry (fixed after the gate, with this note: runs clean as a script); (2) art_speckle_neck 1.289
+-> 2.606 (attributed above: the lower back's lock 0 on the sheet-only masks' hull; the merge didn't move it); (3-5) the
+three-quarter flap 2x2 (flap_three_quarter_iou_R, _width_R, hemband_overskirt_panel_R_steps): Michael's call, options
+page `charkit/out/g3_flaps/index.html` (A default; B = rot20). Reported, not blocking: bow_front_tail_gap 0.0 PASS ->
+0.033 WARN (the tails now show their full width in front). Not done: the review page refresh: the render build
+`charkit/out/g3_render3` (e66abc8, boards) landed; regenerate with scratch `g5/review5.py charkit/out/g3_review
+charkit/out/<pipeline-3d build> charkit/out/g3_render3` (the old "before" was tr3_a). Next: the lock-0 fix (hair
+builder or the hull's carve at the back of the head), then re-gate.

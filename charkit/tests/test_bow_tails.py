@@ -1,8 +1,11 @@
 """the bow's tail knobs (garments._bow_mesh `ribbon.turn`, bow_hull `ribbon.stand`, tool/garments3 round 3): the tails
 hung in front of the jacket read torn in profile when flush with its front (bow_profile_torn 0.066 -> 0.0 with stand
 0.03 L on Clawd)."""
+import os, sys
+
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from charkit import garments as gm
 
 
@@ -42,3 +45,10 @@ def test_turn_swings_the_outer_edge_back_and_keeps_the_width():
         outer = eb[np.argmax(sx * eb[:, 0])]
         inner = eb[np.argmin(sx * eb[:, 0])]
         assert outer[1] > inner[1]                           # the outer edge back (+y), the inner forward
+
+
+if __name__ == '__main__':
+    for k, f in list(globals().items()):
+        if k.startswith('test_'):
+            f()
+            print('ok', k)
