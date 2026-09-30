@@ -68,7 +68,7 @@ def test_steps_are_arange_without_fusion():
     for a, b, h in ((-1.23, 1.27, 0.01), (2.5, -3.1, -0.01), (0.3, 0.33, 0.01)):
         s = _steps(a, b, h)
         assert len(s) == len(np.arange(a, b, h)) and np.allclose(s, np.arange(a, b, h), rtol=0, atol=1e-12)
-        assert s.tobytes() == (a + np.arange(len(s), dtype=float) * h).tobytes()
+        assert s.tobytes() == (a + np.arange(len(s), dtype=float) * ((a + h) - a)).tobytes()
 
 
 def test_surface_snap_makes_decimation_independent_of_ulp_noise():
