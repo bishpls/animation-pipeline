@@ -169,6 +169,18 @@ def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
     return rows
 
 
+def geometry(out):
+    """a build's geometry, for the 2x2's "did the geometry change": its bundle's array hashes (charkit/bundle.py's
+    bundle.json), not the bundle's content hash, which also covers the metadata (the resolved spec's absolute output
+    paths, which differ between any two builds) -> (digest, {array: hash}) or (None, {})."""
+    import hashlib
+    p = os.path.join(out, 'bundle', 'bundle.json')
+    if not os.path.exists(p):
+        return None, {}
+    h = json.load(open(p)).get('hashes') or {}
+    return hashlib.sha1(json.dumps(sorted(h.items())).encode()).hexdigest()[:12], h
+
+
 def twobytwo_drops(rows):
     """the 2x2's hidden regressions: a remeasured check that reads worse on the new geometry under either measure alike
     (the old on both geometries, or the new on both), not accepted -> [(check, [the measures it's worse under])]."""
@@ -241,7 +253,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
         # the 2x2: a remeasured check on changed geometry scored under both measures. The candidate's code (the merged
         # tree, here now) measures the baseline's bundle; then, the merge undone, the baseline's measures the candidate's
-        ga, gb = (q.get('measured', {}).get('bundle') for q in (qa_a, qa_b))
+        (ga, ha), (gb, hb) = geometry(base_out), geometry(cand_out)
         stepped = [k for k in set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
                    if any(fnmatch.fnmatchcase(k, p) for p in rep["remeasured"])]
         if stepped and ga != gb:
@@ -252,7 +264,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                                                ('old measure on the new geometry', old_on_new)) if 'error' in q}
             rep['twobytwo'] = {'rows': twobytwo(qa_a, qa_b, None if errs else old_on_new, None if errs else new_on_old,
                                                 rep['remeasured'], accept), 'errors': errs,
-                               'bundles': [ga, gb]}
+                               'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
         elif stepped:
             rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
         from . import trace
@@ -320,8 +332,8 @@ def _write(rep, gdir, tag):
         L.append('\nremeasured: %s: %s' % (k, why))
     tb = rep.get('twobytwo')
     if tb:
-        L.append('\n**The 2x2** (remeasured checks; value status per cell; geometry %s -> %s):' % tuple(
-            (str(g) or '')[:10] for g in tb.get('bundles', [None, None])))
+        L.append('\n**The 2x2** (remeasured checks; value status per cell; geometry %s -> %s, %s arrays changed):' % (
+            tuple(str(g)[:12] for g in tb.get('bundles', [None, None])) + (tb.get('arrays_changed', '?'),)))
         if tb.get('same_geometry'):
             L.append('\nThe geometry is unchanged: the remeasured rows above are the measure alone.')
         for k, e in (tb.get('errors') or {}).items():

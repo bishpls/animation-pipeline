@@ -172,9 +172,31 @@ same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differentl
 
 ## Verification
 
-(filled in below as the runs land)
+- **Tests:** `test_registry` (6), `test_preview` (5), `test_evaldrift` (2), and `test_gate` (+2: the 2×2, the geometry
+  digest). The gates run the whole suite.
+- **Task 2: identical QA before and after.**
+  - The clawd_mh gate (c1016fa into e11fadb, build box) PASSes with "no check changed".
+  - `python -m charkit.boarddiff` on its baseline and candidate: 16 QA overlay images, 0 differ; 292 checks, 0 differ.
+    qa.json is identical apart from `measured` (timings): the same 292 checks in the same order, the same tables.
+  - On the render box, preview 3bc7b86 against preview 9397578 (the same boards and QA): no graded check changed
+    status, and the counts are identical (176/29/8/78).
+- **The 2×2's "did the geometry change".** The two gate builds' bundles have different content hashes: the resolved
+  spec's absolute output paths are part of it. So the gate compares the bundles' array hashes instead
+  (`gate.geometry`). Those differ too, in `o/clawd_skin/masked/V` and `shrink` only, with every QA number identical
+  (see Open items).
+- **Task 1:** two real previews on the render box.
+  - 9397578: 878 s, cold cache; its close-ups are the venv drawing.
+  - 3bc7b86: 573 s; its close-ups are the EEVEE design board, and its previous is 9397578. The heads line up with
+    head_turnaround on the eye line at one scale; the turntable has 13 views.
 
 ## Open items
+
+- **Masked skin differs between builds.** The skin's garment-masked vertices (`o/clawd_skin/masked/V`, `shrink`)
+  differ between the clawd_mh gate's baseline and candidate, though no geometry code differs between them and every
+  QA number is identical. It looks like run-to-run nondeterminism in the garment mask (not measured further). It makes
+  the 2×2 run where it isn't needed, which costs time but not correctness.
+- **The evaluator's drift** (task 4's result) belongs to the hair and face owners: the evaluator doesn't build the
+  cut-piece hair, and its face registration lacks e9a6753's eye line.
 
 - The hook isn't installed in the pipeline-3d worktree (the integrator's call).
 - A bundle schema bump would disable the 2×2 (WARN, unverified). The fix then is exporting the candidate's scene with

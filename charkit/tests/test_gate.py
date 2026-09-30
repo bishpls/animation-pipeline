@@ -82,6 +82,18 @@ def test_twobytwo_scores_a_remeasured_check_under_the_old_measure():
     assert all(r['old'] in ('unmeasured', None) for r in rows)
 
 
+def test_geometry_is_the_bundles_arrays_not_its_metadata():
+    """two builds of one geometry differ in their bundles' metadata (the resolved spec's output paths, the time): the
+    2x2 asks whether the arrays changed."""
+    d = tempfile.mkdtemp()
+    for k, (spec, arr) in {'a': ('/x/a', 'h1'), 'b': ('/x/b', 'h1'), 'c': ('/x/a', 'h2')}.items():
+        os.makedirs(os.path.join(d, k, 'bundle'))
+        json.dump({'spec': {'head_code': spec}, 'hashes': {'o/skin/eval/V': arr, 'img/iris': 'i'}, 'content': k},
+                  open(os.path.join(d, k, 'bundle', 'bundle.json'), 'w'))
+    g = {k: gate.geometry(os.path.join(d, k))[0] for k in 'abc'}
+    assert g['a'] == g['b'] != g['c'] and gate.geometry(os.path.join(d, 'none')) == (None, {})
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
