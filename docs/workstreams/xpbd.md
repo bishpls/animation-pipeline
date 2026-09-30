@@ -185,3 +185,54 @@ only `charkit/sim/*`, `charkit/tests/test_sim.py` and these notes: `charkit/sim`
 only when a garment opts in), so no new gate. Outputs (gitignored): `charkit/out/xpbd/{base,base2}` (box builds),
 `rest_final/`, `motion_final/`, `review/` (the page), `gate/`. Commands: `python -m charkit.sim rest|motion|tune|review`.
 Tests: `charkit/tests/test_sim.py` (14).
+
+## Round 2 (2026-09-30, late): the squat, motion checks, style defaults, the bake, the spring tuning
+
+Brief (Michael's decisions 2026-09-30): the anime skirt moves as XPBD cloth held toward the drawn shape carried by the
+pelvis (`xpbd_hips`, hold 0.8, a named liberty); realistic has no hold (`xpbd_physics`, hold 0); ship both: bake cloth
+caches for rendered shots, and tune the VRM spring chains against the cloth for real-time; templates stay the rest shape.
+Merged pipeline-3d 004efc3 (tool/calib: records required for new checks) at the start.
+
+### 1. The squat: the pins, not a collider (measured)
+- Where the squat's shared 0.185 L sat (`charkit/out/xpbd/r2/diag_squat*.py`): the skirt's top front (rest height 0.96-1.15
+  of its 1.17 L, azimuth +-55 deg), nearest skin bone `spine`. The spine bends 25 deg and the belly comes down over the
+  waist, while the skirt's pinned top rows follow the skirt's own weights (100% hips). The waistband (skinned, 100% hips)
+  goes 30.6% of its surface 0.265 L into the skin at the squat too: the waist garments don't bend with the body. The skin
+  itself folds 7.2% into itself at the squat (hips, upper legs: LBS).
+- Pelvis and belly capsules (`rig.fit_torso`: per bone three slabs, each a left-right capsule fitted by least squares):
+  p90 0.022 / 0.014 / 0.015 L (hips), 0.005 / 0.008 / 0.010 (spine), against round 1's one capsule's 0.24 L. **They change
+  nothing measured**: squat worst new-inside 0.049 at 0.185 L with or without them.
+- **The pins carried by the skin** (`rig.transfer_weights`: each pinned cage vertex takes the skin's weights at its nearest
+  point, as production rigs transfer the body's weights to cloth): squat skirt worst new-inside 0.049 / 0.185 L ->
+  0.006 / 0.014 L (end 0.001 / 0.004), stretch p99 0.19 -> 0.10; kick 0.002 / 0.031 L, stretch 0.06. With the torso
+  capsules too: identical numbers, 40% slower (67 s against 48 s a pose). Default `motion.CLOTH = dict(colliders='legs',
+  pins='body')`; `colliders='body'` adds the torso capsules (kept for VRM export and the spring chains).
+- For the rig's owner: the waistband needs the same (the body's weights near the waist), else at the squat it sits 0.265 L
+  inside the belly.
+
+### 2. Motion checks (charkit/sim/motionqa.py, QA part `motion`, order 2500)
+`motion_{kick,squat}_skirt_inside` (worst share of the skirt's surface newly inside the posed skin) and
+`motion_{kick,squat}_skirt_stretch` (worst coarse edge stretch p99), moved as the style says (physics.garment_motion);
+limits inside 0.01 / 0.03, stretch 0.25 / 0.5. The panels' numbers in the table, not graded. On base2 (local): 0.0024,
+0.064, 0.0061, 0.104, all PASS; 95 s wall, 91 s CPU (the added build CPU). Calibration adapter charkit/calib/motion.py
+(defect detectors, shape guard piece_skirt): design = the held solve with one nuisance nudged per move (substeps 16/24,
+ramp 0.35/0.45 s, 3 iterations, colliders +0.005 L, hold +-0.05); known-bads computed from the same build:
+motion_skinned (stretch at both poses, inside at the squat), motion_pelvis_rigid (inside at the kick: the skinned skirt
+enters the skin only 0.1% there because it stretches instead). Records: not yet run (on the r2 box build).
+
+### 3. Style profiles
+anime.json physics.garment_motion {method xpbd_hips, hold_shape 0.8, loose [skirt, panel]}; realistic.json
+{xpbd_physics, 0.0, [skirt, panel]}. The code reads the method from the profile (a spec's physics.garment_motion over it);
+a profile without it gets 'skinned'. test_sim.test_garment_motion_comes_from_the_style_profile.
+
+### 4. The bake (charkit/sim/bake.py; `python -m charkit.sim bake BUILD --clip kick --pc2 --replay`)
+BUILD/cloth/CLIP/: cloth.json (clip, method and settings, colliders, pieces, bundle digest, commit, measures every 6
+frames), coarse.npz (per piece (frames, coarse vertices, 3) float32, and the skeleton's per-frame matrices), PIECE.pc2
+(Blender's Mesh Cache modifier, first in the stack, its Armature off; Blender's own Solidify and Subdivision make the render
+mesh). The replay check (Blender against our finalize, L) writes replay.json.
+
+### Running / next (update as they land)
+- Box build of 5ad798e -> `charkit/out/xpbd/r2/build` (the motion checks in the real build, its CPU).
+- Spring tuning on base2 -> `charkit/out/xpbd/r2/tune_base2` (kick and squat, the body colliders).
+- Then: calibrate the motion checks on the r2 build (`python -m charkit calibrate motion_* --build charkit/out/xpbd/r2/build`),
+  bake the kick with the replay, the review page, pregate, gate.
