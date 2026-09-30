@@ -93,6 +93,29 @@ def test_leg_back_bump_against_the_design():
     assert C['value'] == 0.1 and C['offset'] == 0.03 and C['status'] == 'FAIL', C
 
 
+def test_leg_back_reads_ours_on_the_designs_facing_and_skips_the_garment_edges():
+    # ours with a lock of hair in front of the eyes (face_side then reads ours facing the other way), and the design's
+    # boot cuff line sloping: its last two leg rows cut short at the back. Neither is a bump of the leg
+    win = dict(x=2.0, top=1.0, bottom=-4.5)
+    H, W = int(5.5 * PPL), 400
+    z = win['top'] - (np.arange(H) + 0.5) / PPL
+    def fig(lock=False, cuff=False):
+        c = np.zeros((H, W), int)
+        eye = np.abs(z) < 0.2
+        c[eye, 150:180] = dq.CL['skin']; c[eye, 180:230] = dq.CL['hair']
+        if lock:
+            c[eye, 100:150] = dq.CL['hair']
+        leg = (z <= -2.6) & (z >= -4.0)
+        c[leg, 170:230] = dq.CL['skin']
+        if cuff:
+            c[(z < -3.98) & (z >= -4.0), 215:230] = 0
+        return c
+    assert dq.face_side(fig(lock=True), PPL, win) == 1 and dq.face_side(fig(), PPL, win) == -1
+    C = dq.leg_back_check(fig(lock=True), fig(cuff=True), PPL, win=win)
+    assert C['value'] == 0.0 and C['offset'] == 0.0 and C['status'] == 'PASS', C
+    assert C['rows'][1] > -4.0 + dq.LEG_EDGE - 0.01, C
+
+
 def test_outline_roughness_staircase_against_straight():
     straight = np.zeros((100, 200), bool)
     for c in range(200):
