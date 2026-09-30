@@ -54,6 +54,32 @@ mesh, byte for byte). At round 2's pose: poke-through 0 in every view, the bend 
   and profile iou 0.797 -> 0.705, and **it covers the crab** (crab iou 0.74 / 0.75 / 0.63 -> 0.20 / 0.12 / 0.28): the
   fit never scored the crab. Not shipped. Hence the joint fit (below).
 
+**The joint fit (shipped)** (`fit_joint.py`, from the star-only refit; both clips' 14 knobs, Nelder-Mead, 1,037
+evaluations, stopped at the 30 min limit with the last 150 moving the loss 0.002). Loss: for each clip and view (front,
+three-quarter 1, profile 0.6: Michael's weighting) (1 - shape IoU) + 1.5 |log size| + 4 pos, each clip's IoU as the
+QA sees it (what the other covers counts); each clip's back + 2 + px / 40 when it shows; + 20 x seat beyond 0.004 L;
++ 3 x the bend. Harness numbers on `acc_new`'s hair (round 2's pose -> round 3):
+
+| check | round 2 | round 3 |
+|---|---|---|
+| star back shown | 1502 FAIL | **30 PASS** |
+| star seat (per vertex) | 0.0412 FAIL | **0.0003 PASS** |
+| crab through the star (px, fr / 3/4 / pr) | 0 / 0 / 0 (floating) | 0 / 0 / 0 (bent 0.046 L) |
+| star iou fr / 3/4 / pr | 0.541 / 0.792 / 0.797 | 0.570 / 0.749 / 0.748 |
+| star pos fr / 3/4 / pr | 0.085 F / 0.031 / 0.279 F | **0.018** / 0.098 F / 0.348 F |
+| star size 3/4 | 1.128 W | 1.156 W |
+| crab iou fr / 3/4 / pr | 0.741 / 0.754 / 0.627 W | 0.726 / 0.732 / **0.492 F** |
+| crab pos fr / 3/4 / pr | 0.120 F / 0.010 / 0.227 F | 0.104 F / 0.066 F / 0.243 F |
+| crab back shown, seat | 17, -0.0000 | 0, 0.0000 |
+| the views' loss (star + crab) | 2.19 + 1.98 = 4.17 | 2.36 + 2.34 = 4.69 |
+
+Hiding the star from behind costs 0.52 of the views' loss: both clips move forward on the head (the only place a seated
+star hides from behind), which puts the front on the drawing (star front pos 0.018) and the three-quarter and profile
+further off (both clips' three-quarter pos to FAIL, the crab's profile iou to FAIL: the star now covers more of it in
+profile). Specs: the star's and the crab's at / facing / tilt / size, the star's `"conform": true`, in all six specs.
+Against the gate's baseline (pipeline-3d's placeholders) none of these is a new FAIL. Pictures: `acc_work/r3/pic_r3.png`
+(accqa.picture on the harness), `backzoom_r3.png` (the back, round 2 over round 3).
+
 ### Blocker 2: `palette_iris_shade` (the 2x2's crossed cell, unmeasured)
 **The cause is the palette's classes, not the crab's reclass.** Measured with each tree's own code on the box builds'
 bundles (`acc_work/r3`, `pal_probe.py`; the old code from a detached worktree at 3a0ad37):
