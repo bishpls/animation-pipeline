@@ -132,6 +132,29 @@ Net: two checks improve (back skirt width FAIL to PASS, cuff_L FAIL to WARN) and
 FAIL, back hem_mid WARN to FAIL). The front width and the panels also get worse, so the extension stays off
 (`hull: false`). Turn it on with one manifest line and re-measure once tool/body's panels are flaps over the skirt.
 
+### The hull with the extension on (bodice and upper skirt, the sheet's labels)
+
+`python -m charkit.geom hull charkit/spec/clawd_body.json`, with `hull: true`:
+
+| held out | sheet only | with it | without back_l | without back_r |
+|---|---|---|---|---|
+| front | 0.9449 | 0.9440 | 0.9449 | 0.9446 |
+| profile | 0.3536 | 0.3591 | 0.3536 | 0.3580 |
+| three-quarter | 0.8764 | 0.8801 | 0.8804 | 0.8758 |
+| back | 0.9469 | 0.9474 | 0.9469 | 0.9475 |
+
+Fitted per band: back_l bodice at 137.5, upper skirt at 140.5; back_r at 219.5 and 215.5. Each band's own held-out
+IoU is 0.942-0.944.
+
+Pieces held out (agree / pieces IoU):
+
+| view | before | after |
+|---|---|---|
+| front | 0.7641 / 0.6034 | 0.7647 / 0.6041 |
+| profile | 0.6649 / 0.5371 | 0.6658 / 0.5390 |
+| three-quarter | 0.7228 / 0.5518 | 0.7213 / 0.5468 |
+| back | 0.6906 / 0.4984 | 0.6826 / 0.4861 |
+
 ## Rejected
 
 - A1-3, B1-3, C1-2 as the hull's extension. All drift- and registration-clean except B, but each kept a smaller
@@ -164,8 +187,16 @@ tokens. Calls are logged in the main checkout's ledger (2026-09-29T16:35 to 17:0
 
 ## Next
 
-- The hem panels need a view the models draw consistently, or a construction prior: the stepped panels'
-  hang is where every generated view disagrees.
-- The bow needs a check of its own (the cream bow's region against the sheet's, the sleeves left out).
-- Pieces for the extra views come from voting. Outfit masks drawn for them (charkit.outfit on the extension's
+- **Re-measure the extension against tool/body's flap panels.** Set `hull: true` on `body_turnaround_back34` in the
+  manifest and rebuild `clawd_body.json --hair pieces`. The panel/label ablation is done: V2 (the sheet's labels)
+  loses the panels as V1 does, so the carve's shape is the cause. Whether the narrower sides help flaps layered
+  over the skirt is still open.
+- **A volume check beside leave-one-out** (the hull's radius per angle against the design's widths). Restore
+  keeps silhouettes, so bands that pass leave-one-out can still move what the builders measure.
+- **The hem panels** need a view the models draw consistently, or a construction prior: the stepped panels' hang
+  is where every generated view disagrees.
+- **The bow** needs a check of its own (the cream bow's region against the sheet's, with the sleeves left out).
+- **Pieces for the extra views** come from voting. Outfit masks drawn for them (charkit.outfit on the extension's
   figures) would make them independent evidence.
+- **Merging tool/hull-det:** this branch's hull edits are the view intake, the bands and the band masks in
+  `surface` and `label_vertices` (the view choice). Resolve those keeping `det.cs` and `det.dot3`.
