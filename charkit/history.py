@@ -73,6 +73,10 @@ STEPS = [
     # tool/look: the QA draws what the boards light
     ('hair_noise', '37ff417', 'the hair drawn under each view\'s board light (the style\'s look: the anime key turns with '
      'the camera), not its material\'s one fixed light: the back view is lit as the front is (tool/look)'),
+    # tool/look2: the look QA's speedup
+    ('line_ink', '0b6e9cd', 'the lines\' own colour (their supersampled pixels before the pixel filter), not the pixels a '
+     'line covers wholly after it (blended with their neighbours): the inked hair, garment and accessory lines read '
+     '0.48 from the design\'s ink, were 4.5, 7.8 and 15.6; the skin\'s brown 24.67, was 24.9 (tool/look2)'),
 ]
 
 
