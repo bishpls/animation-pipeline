@@ -25,4 +25,19 @@ MEASUREMENT_STEPS = [
     ('face_shadow_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
     ('face_shadow_face_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
     ('face_shadow_neck_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
+    # tool/look6: the design light (docs/workstreams/look.md round 6). One literal: charkit.registry reads the first
+    # MEASUREMENT_STEPS assignment with ast, so a `+=` block is never read (the round's first gate missed these steps).
+    # The design light's step is ec0c93c, the commit that puts design_light in the manifest (d1ad9ba's code reads it
+    # when there; a build at d1ad9ba still measures under the boards' light).
+    ('face_shadow_*', 'ec0c93c', "measured under the design light (the manifest's design_light: the camera key the "
+     "turnarounds' drawn shading implies, 15 deg left, 47.5 up; charkit.designlight), not the boards' (30, 40), the cast "
+     "rebaked at its elevation (designlight.rebake: bit-identical to the build's bake at the build's elevation); the "
+     "boards' light's values beside ('board')"),
+    ('face_shadow_chin', 'd1ad9ba', "on the jaw: the shadow in jaw coordinates (columns from the chin's point, rows under "
+     "the jaw: the design's jaw its ink, ours the step back in depth), IoU over the skin both show; was the neck window "
+     "aligned on the eyes (the design's own shadow moved 1-2 px read 0.55-0.87; on the jaw 0.81-0.94). INFO: not "
+     "calibrated (round 1's band reads 0.69-0.70)"),
+    ('face_shadow_chin_edge', 'd1ad9ba', "on the jaw: the mean distance between our shadow's lower edge under the jaw and "
+     "the design's, per column (L); was the reach under the window's top aligned on the eyes. Calibrated and graded: the "
+     "design moved 1-2 px reads <= 0.012 L, round 1's band 0.060-0.061 L (FAIL over 0.04)"),
 ]

@@ -657,3 +657,211 @@ IoU 0.88-0.99. The QA's two drawings agree on the bare head: face_shadow_chin 0.
   shadow ends 0.15-0.2 L under the chin, the design's 0.3-0.35). A call on the neck's own terminator (e.g. the neck
   lit but for the cast) is the lever the flag points at.
 - **The chin checks ship INFO** (not calibrated, above). Promotion waits on a calibrated measure.
+
+## Round 6: the design light (`tool/look6`, from pipeline-3d d60486a; tool/look5 merged)
+
+Michael asked whether shadows should be part of model optimisation at all. They belong to the look layer (shaders, the
+SDF face maps, the baked cast attributes), authored against a key light; no geometry fit reads shading. The gap: the look
+is graded under the board light (call A: the camera key, 30 deg left of the camera, 40 up), which was never derived from
+the design. The design's drawn shading implies a light (the V under the chin, the hair's shadow on the face, the skin's,
+hair's and garments' terminators). This round fits that light, stores it as a reference light for QA (the board light
+stays call A's style setting), grades the look under it, recalibrates the chin measures on the jaw, and re-measures the
+hair's shadow on the face.
+
+### Plan
+1. Fit the design light: our shaded regions (charkit.render's tone buffer, under a candidate light) against the design's
+   drawn ones (head_turnaround and body_turnaround: skin, hair, garments), per view and jointly (one camera-relative key
+   for every view, or one world light), with the per-view residuals.
+2. Store it as a reference light (the manifest), and grade face_shadow_*, the chin, the hair's share of the face and the
+   terminators under it.
+3. The chin measures aligned on the jaw, calibrated (pass on the design moved 1-2 px, fail on round 1's band).
+4. The hair's cast on the face (34% against the design's 8% in front) under the design light; tune the cast if over.
+5. Before / after renders for Michael's call on the board default (not changed here).
+
+Base build: `charkit/out/look6_base` (render box, charkit/spec/clawd.json at d60486a).
+
+### Progress (checkpoint 1)
+
+- `charkit/designlight.py`: the fit (`python -m charkit.designlight BUILD`). The design's views classed by colour family
+  (bodyqa.family; each family split lit / shade by Otsu over the whole sheet), ours drawn by charkit.render on the same
+  grids (the head sheet at FACE_PPL aligned on the eyes as face_shadow is; the body sheet on bodyqa's grid), the tone
+  buffer cut at 0.5, the hulls and the drawn lines left out. Score per region (hair, skin, garment; the head's skin also
+  split face / neck): the mean of the shade and lit IoUs. Grid 10 deg, then 2.5 deg round the best. ~4500 frames, 4 min
+  on the laptop (M2).
+- First fit on look5_after (pipeline-3d 4de65ab's geometry): joint camera key 12.5 deg left, 55 up (score 0.546);
+  board key (30, 40) 0.524; one world light 0.480 (the back view falls to 0.226: the drawing is lit from the viewer's
+  side in every view, a camera key, not a world light). Per view: head front (-2.5, 40), 3/4 (-5, 57.5), profile
+  (40, 47.5); body front (-2.5, 42.5), 3/4 (-17.5, 57.5), profile (10, 55), back (5, 57.5).
+- `designlight.rebake`: faceshade.cast_maps in the venv on the bundle's own inputs (the skin's base mesh, the hair's
+  own meshes): **bit-identical** to the build's bake at 40 deg (18478 x 16 values, max difference 0). `carry` puts a
+  base-mesh bake on the export's render-level skin (barycentric on the nearest base triangle): the main skin and face
+  primitives agree with the build's own carried values to 1e-4 mean (threshold agreement 0.9999). So the QA can draw
+  under any light's elevation, or any cast setting, in ~3 s without a build.
+- The chin, aligned on the jaw (scratch `chinlab.py`, to land in lookqa): the jaw per column (the design: its lowest ink
+  run with skin over and under it; ours: the largest depth step back between skin pixels, the neck behind the jaw), the
+  shadow in jaw coordinates (columns from the chin point, rows under the jaw). The design's shadow moved 1-2 px against
+  its own jaw: IoU 0.81-0.94, lower-edge error 0.003-0.012 L. Round 1's band (look5_before, board light): IoU 0.75
+  front / 0.60 3/4, edge 0.039 / 0.088 L. The cast (look5_after, board light): IoU 0.73 / 0.62, edge 0.041 / 0.084.
+
+### Progress (checkpoint 2)
+
+- **The chin on the jaw** (lookqa `jaw_drawn`, `jaw_depth`, `jaw_frame`, `chin_on_jaw`; `face_shadow_chin`,
+  `face_shadow_chin_edge` keep their names, remeasured). Calibration (`designlight.chin_calibration`), look6's frame:
+
+  | | IoU front / 3q | edge front / 3q (L) |
+  |---|---|---|
+  | the design's shadow moved 1-2 px against its jaw (8 moves) | >= 0.848 / >= 0.814 | <= 0.012 / <= 0.009 |
+  | round 1's band (look5_before), boards' light | 0.759 / 0.626 | 0.036 / 0.085 (mean 0.060) |
+  | round 1's band, design light (0, 55) | 0.762 / 0.640 | 0.037 / 0.085 (mean 0.061) |
+  | the cast (look5_after), boards' light | 0.747 / 0.644 | 0.038 / 0.081 |
+  | the cast, design light | 0.712 / 0.675 | 0.048 / 0.088 |
+
+  `face_shadow_chin_edge` is calibrated (PASS <= 0.02 L, WARN <= 0.04, FAIL over): the design passes with margin, the
+  band fails (0.060). Graded now. `face_shadow_chin` (the IoU on the jaw) is not: the band reads 0.69-0.70 against a FAIL
+  line of 0.7 (its front 0.76, near the design's worst move 0.81), so it stays INFO with its proposed grade.
+  The picture measure of softness (the design's 0.002-0.0025 L) read ours 0.009-0.039 with no order between the band
+  and the cast: not used.
+- **The hair's cast on the face** (`designlight.cast_lab`: the cast rebaked with options, the face share in shade per
+  view, ours / the design's 0.076 front, 0.192 3/4, 0.207 profile; look6_base):
+
+  | option | design light (0, 55): front / 3q / profile, mean abs error | boards' light (30, 40): front / 3q / profile, mean abs error |
+  |---|---|---|
+  | the look (look5's cast) | 0.404 / 0.466 / 0.962, 0.452 | 0.341 / 0.259 / 0.302, 0.153 |
+  | face off (the fringe map alone) | 0.168 / 0.127 / 0.088, 0.092 | 0.194 / 0.131 / 0.083, 0.098 |
+  | the bangs and side locks only | 0.400 / 0.470 / 0.975 | 0.341 / 0.262 / 0.304 |
+  | lift 6 (face and neck) | 0.296 / 0.321 / 0.411 | 0.280 / 0.173 / 0.161 |
+  | lift 15 (face and neck) | 0.170 / 0.143 / 0.261, 0.066; chin IoU 0.53 | |
+  | soft 4 | 0.406 / 0.460 / 0.968 | 0.335 / 0.249 / 0.299 |
+  | face_el 15 / 25 (the face's bake from a lower light) | 0.216 / 0.181 / 0.339, 0.094 / 0.129 | 0.275 / 0.153 / 0.128, 0.105 / 0.087 |
+  | **face_lift 15 (the face alone)** | **0.171 / 0.148 / 0.269, 0.067** | **0.195 / 0.136 / 0.138, 0.081** |
+  | face_lift 12 / 20 | 0.094 / 0.056 | 0.080 / 0.087 |
+
+  Under the design light the hair's shadow covers the profile's whole face (0.96): the side lock stands between a
+  light from the viewer's side and the cheek. The drawing doesn't shade it: its face is lit as if from a lower light than
+  its neck (the bangs' shadow thin, the jaw's long). The lever is the face's receivers lifted off the hair (`face_lift`:
+  only hair standing well off the face shades it); the neck keeps lift 1, so the chin is unchanged. Softness and the
+  occluder set don't move it. Set: anime `look.face.cast.face_lift` 15 (faceshade.cast_maps `face_lift`, and
+  `face_el` as an option, off). The front's remaining 0.17 is the fringe map (face off reads the same): its
+  `fringe_drop` (0.07 L) is the next lever, a build change.
+
+### The design light (fit on look6_base, pipeline-3d d60486a; the cast rebaked at each light's elevation)
+
+`python -m charkit.designlight charkit/out/look6_base` (5853 frames, 584 s on the laptop). Score: per view the mean over
+regions (hair, skin, garments) of the shaded regions' mean IoU (shade and lit) with the drawing's.
+
+| view (az) | its best key (deg left, up) | score | at the joint key | at the boards' (30, 40) | within 0.01 of its best |
+|---|---|---|---|---|---|
+| head front (0) | 2.5, 37.5 | 0.609 | 0.583 (-0.026) | 0.554 | a0 -10..0, el 40 |
+| head 3/4 (35.7) | 12.5, 42.5 | 0.562 | 0.560 (-0.002) | 0.546 | a0 0..50, el 20..50 |
+| head profile (90) | 32.5, 47.5 | 0.583 | 0.575 (-0.008) | 0.576 | a0 20..40, el 40..50 |
+| body front (0) | 0, 42.5 | 0.514 | 0.507 (-0.007) | 0.492 | a0 -20..20, el 30..70 |
+| body 3/4 (35.5) | -5, 57.5 | 0.507 | 0.494 (-0.013) | 0.477 | a0 -20..20, el 50..60 |
+| body profile (90) | 12.5, 52.5 | 0.550 | 0.549 (-0.001) | 0.541 | a0 0..30, el 40..60 |
+| body back (180) | 10, 57.5 | 0.579 | 0.561 (-0.018) | 0.534 | a0 -10..20, el 60 |
+
+- **The joint camera key: 15 deg left of the camera, 47.5 up** (0.547; the boards' 0.531). One world light fits worse
+  (47.5, 47.5: 0.472; the back view 0.204): the drawing is lit from the viewer's side in every view.
+- The views agree on a key near the camera (a0 -5..15 but the head's profile, 32.5) and 37.5-57.5 up. The head's front
+  wants the lowest light (37.5; the most lost at the joint key, 0.026), the body's back and three-quarter the highest
+  (57.5). The fit is weak: 0.016 over the boards' light; the garments barely shade under any light (IoU 0.44-0.49: the
+  drawing's pleats and folds are painted, ours mostly lit). Per region at the joint key: hair 0.53-0.73, skin
+  0.47-0.59, the neck 0.54-0.79, the face 0.43-0.57, garments 0.44-0.49.
+- Stored as the manifest's `design_light` (camera, [15, 47.5]) with the per-view bests and a caution. lookqa reads the
+  manifest file (not the resolved spec: every produced reference stamps the spec's `ref`, so the hull would rebuild).
+
+### State (checkpoint 3)
+
+- Merged pipeline-3d 25b1936 (tool/infra-auth: box commands need `export CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud`;
+  the infra/gcp env files export it) at 271ae94. Clean merge.
+- The gate `gate-look4-0930-141135-b484` (bb3fdf1, before the merge) is running on the build box; the after build
+  `look6_after` (render box: face_lift 15) too. `designlight.review` writes the review page
+  (`python -c "from charkit import designlight as dl; dl.review({NAME: BUILD, ...}, OUT)"`).
+
+### Results (look6_base = pipeline-3d d60486a; look6_after = the same with `face_lift` 15; render box builds)
+
+The hair's shadow share of the face, ours / the design's (lookqa.face_shadow, the bare head):
+
+| light | front | three-quarter | profile |
+|---|---|---|---|
+| design light (15, 47.5), before | 0.359 / 0.076 | 0.322 / 0.192 | 0.452 / 0.207 |
+| design light, **after** | **0.170** / 0.076 | **0.136** / 0.192 | **0.199** / 0.207 |
+| boards' light (30, 40), before | 0.341 / 0.076 | 0.259 / 0.192 | 0.302 / 0.207 |
+| boards' light, **after** | **0.195** / 0.076 | **0.136** / 0.192 | **0.136** / 0.207 |
+
+The Blender bake with `face_lift` equals the venv lab's numbers (boards' light 0.195 / 0.136 / 0.136-0.138). Face shadow
+IoU under the design light: front 0.383 -> 0.463, 3/4 0.375 -> 0.313, profile 0.351 -> 0.358. The neck and the chin
+don't move (the neck keeps lift 1). The front's remaining 0.17 is the fringe map (`fringe_drop` 0.07 L).
+
+The chin under the design light (after): `face_shadow_chin_edge` **0.057 L FAIL** (front 0.040, 3/4 0.074; boards'
+light 0.060). `face_shadow_chin` (the jaw IoU) 0.694 INFO (boards' 0.659). Our shadow runs to the neck's base in front
+(reach 0.15 L against the design's V 0.127), and in 3/4 the whole neck is shaded where the design shades a band under
+the jaw and the far side. Michael's flag stands, and this is now a calibrated check of it.
+
+**Gate** `charkit/out/gate/gate_tool-look6_bb3fdf1_into_4007276.md`: **PASS** under K. Nothing blocks. Reported:
+face_shadow_chin_edge, a check the branch adds that FAILs (0.1467 INFO -> 0.0568 FAIL, reported, not blocking). The
+face_shadow_*, face_noise*, face_islands values moved (INFO). hair_noise 0.0807 -> 0.081 FAIL (already FAIL, +0.0003).
+Build CPU 1.02x. 64 test files, 0 failing. The face_shadow_* steps (d1ad9ba) weren't read as `remeasured`: the report
+lists them as moves, so no 2x2 ran for them. Worth a look at how charkit/steps patterns match before the next gate.
+Gated at bb3fdf1; the branch has since merged pipeline-3d 25b1936 (271ae94) and added docs and review code only.
+
+Review page: `charkit/out/look6_review/index.html` (design | boards' light | design light per head and body view, before
+and after, the shade overlaid against the design's, per region IoU and shares). QA pictures:
+`charkit/out/look6_{base,after}/qa_look6/` (qa_face_shadow.png, qa_chin_shadow.png: the jaw found in red, the
+jaw-aligned grids).
+
+### The remeasure steps, read (the 2x2)
+
+Why the first gate ran no 2x2: charkit/steps/lookqa.py added the round's three steps in a second
+`MEASUREMENT_STEPS += [...]` block, and `registry.module_steps` reads only the first literal (by ast), so the gate's
+`steps_between` never saw them. Fixed by folding them into the one literal. The design light's `face_shadow_*` step now
+names ec0c93c (the manifest's design_light; a build at d1ad9ba still measured under the boards' light). The chin's two
+steps stay at d1ad9ba. No other check's measure changed this round: face_noise*, face_islands and hair_noise read the
+boards' light as before and moved with the look (`face_lift`). Tests:
+- test_registry `test_a_modules_steps_are_one_literal`: any module that binds MEASUREMENT_STEPS more than once, or adds
+  to it, fails. A steps file run as a script must equal what's read.
+- test_lookqa `test_the_design_light_remeasures_face_shadow`: the gate's path (load_steps, steps_between, the pattern
+  match) marks all six face_shadow_* checks remeasured and none of the others.
+
+Both tests fail on the old file.
+
+**Gate** `charkit/out/gate/gate_tool-look6_6e5c1f9_into_25b1936.md`: **PASS** under K, with the 2x2. The six
+face_shadow_* checks are now read as remeasured; face_shadow_chin_edge is no longer "a new check that FAILs". Values are
+as in the first gate. The 2x2 cells (old geometry, old measure | new geometry, old measure | old geometry, new measure |
+new geometry, new measure):
+
+| check | old / old | new / old | old / new | new / new |
+|---|---|---|---|---|
+| face_shadow_3q | 0.3338 | 0.3068 | 0.3754 | 0.313 |
+| face_shadow_chin | 0.435 | 0.435 | 0.6985 | 0.6939 |
+| face_shadow_chin_edge | 0.1467 | 0.1467 | 0.0568 FAIL | 0.0568 FAIL |
+| face_shadow_chin_soft | 0.0034 | 0.0034 | 0.0023 | 0.0023 |
+| face_shadow_face_3q | 0.0679 | -0.0561 | 0.1298 | -0.0558 |
+| face_shadow_neck_3q | 0.1068 | 0.1068 | 0.0986 | 0.0986 |
+
+- The chin's FAIL is all measure: `face_lift` leaves the neck alone.
+- The face's share of shade gets closer to the design's under both measures: 0.068 -> 0.056 on the boards' light,
+  0.130 -> 0.056 on the design light.
+- The look's one cost is face_shadow_3q, the three-quarter IoU, which drops under both measures (-0.027 on the boards'
+  light, -0.062 on the design light). It's INFO, so it doesn't block. It's the same 3/4 drop as in Results.
+- Build CPU 1.28x: the baseline at 25b1936 is cheaper (577 s against 759 s at 4007276), while the candidate's cost is
+  about the same (738 s). 66 test files, 0 failing.
+
+### Next, in order
+1. `python -m charkit remote gate tool/look6 --into pipeline-3d --carry` (export CLOUDSDK_CONFIG first) if the
+   coordinator wants the gate at the branch head (271ae94 and later add the pipeline-3d merge, docs, review code).
+2. Check why the face_shadow_* steps in charkit/steps/lookqa.py didn't make the gate read them as `remeasured` (the 2x2).
+3. The chin (Michael's flag, now a calibrated FAIL): the lever is the neck's own shading and geometry, not the light.
+   Our jaw's shadow covers the neck to its base (a short neck, 0.18 L at the chin, against the design's ~0.35). Try the
+   neck lit but for the cast (round 5's call), then tool/face's neck length. Measure with face_shadow_chin_edge.
+4. The front forehead: `face.fringe_drop` 0.07 -> ~0.03 L (a build: the fringe map is baked in Blender) against the
+   design's 0.076.
+5. `face_shadow_chin` (the IoU on the jaw) stays INFO until a known-bad separates from the design by more than its
+   noise.
+
+### Decisions for Michael
+- **The board light.** The design light is a camera key at 15 deg left and 47.5 up; the boards use 30 and 40 (call A).
+  They're close, and the fit is weak: 0.547 against 0.531. Don't switch the default on this evidence. If anything,
+  it's a small move toward the camera and up. It's a taste call, with before and after on the review page.
+- **The hair's cast on the face**: `face_lift` 15 is set as the anime default (hair only shades the face where it stands
+  well off it). Keep it, or go back to the full cast.
+- **The chin**: the calibrated check says the flag is still open, and the neck's shading or length is the fix.
