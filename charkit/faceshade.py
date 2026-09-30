@@ -66,16 +66,56 @@ def blush(H, size=512, color=(1.0, 0.62, 0.62), amount=0.5):
 
 def fringe_shadow(H, centre, bangs, size=512, drop=0.03, soft=1.5):
     """the bangs' shadow on the face (0..1): their front silhouette in head space, dropped by `drop` (in L) and softened.
-    bangs: (verts, faces) in world at rest."""
+    bangs: (verts, faces) in world at rest. The triangles are filled a batch at a time (those with the same bounding
+    box size together; the same pixel-centre test as one at a time: fringe_shadow_loop)."""
+    img = _fringe_fill(H, centre, bangs, size, drop)
+    return np.clip(_blur(img, soft * size / 512), 0, 1)
+
+
+def _fringe_tris(H, centre, bangs, size, drop):
     L = H.L
-    X, Z = _grid(size, L)
     x0, x1, z0, z1 = (w * L for w in FACE_WIN)
-    img = np.zeros((size, size))
     v, faces = bangs
     q = np.asarray(v) - np.asarray(centre)
     px = (q[:, 0] - x0) / (x1 - x0) * size
     pz = (z1 - (q[:, 2] - drop * L)) / (z1 - z0) * size
     front = q[:, 1] < H.df * 0.2                       # only the parts in front of the forehead
+    return px, pz, front, faces
+
+
+def _fringe_fill(H, centre, bangs, size, drop):
+    px, pz, front, faces = _fringe_tris(H, centre, bangs, size, drop)
+    tri = [(f[0], f[k], f[k + 1]) for f in faces if all(front[i] for i in f) for k in range(1, len(f) - 1)]
+    img = np.zeros((size, size))
+    if not tri:
+        return img
+    T = np.array(tri, np.int64)
+    xs, zs = px[T], pz[T]
+    xa = np.maximum(0, np.floor(xs.min(1))).astype(int); xb = np.minimum(size - 1, np.ceil(xs.max(1))).astype(int)
+    za = np.maximum(0, np.floor(zs.min(1))).astype(int); zb = np.minimum(size - 1, np.ceil(zs.max(1))).astype(int)
+    (ax, bx, cx), (az_, bz, cz) = xs.T, zs.T
+    d = (bz - cz) * (ax - cx) + (cx - bx) * (az_ - cz)
+    ok = (xa <= xb) & (za <= zb) & ~(np.abs(d) < 1e-9)
+    w_, h_ = xb - xa + 1, zb - za + 1
+    for ww, hh in set(zip(w_[ok].tolist(), h_[ok].tolist())):
+        g = np.nonzero(ok & (w_ == ww) & (h_ == hh))[0]
+        oz, ox = np.meshgrid(np.arange(hh), np.arange(ww), indexing='ij')
+        gx = (xa[g, None, None] + ox) + 0.5
+        gz = (za[g, None, None] + oz) + 0.5
+        A = lambda a: a[g, None, None]
+        l1 = ((A(bz) - A(cz)) * (gx - A(cx)) + (A(cx) - A(bx)) * (gz - A(cz))) / A(d)
+        l2 = ((A(cz) - A(az_)) * (gx - A(cx)) + (A(ax) - A(cx)) * (gz - A(cz))) / A(d)
+        inside = (l1 >= 0) & (l2 >= 0) & (l1 + l2 <= 1)
+        img[(za[g, None, None] + oz)[inside], (xa[g, None, None] + ox)[inside]] = 1.0
+    return img
+
+
+def fringe_shadow_loop(H, centre, bangs, size=512, drop=0.03, soft=1.5):
+    """fringe_shadow one triangle at a time (the reference its batches are checked against)."""
+    L = H.L
+    x0, x1, z0, z1 = (w * L for w in FACE_WIN)
+    px, pz, front, faces = _fringe_tris(H, centre, bangs, size, drop)
+    img = np.zeros((size, size))
     for f in faces:
         if not all(front[i] for i in f):
             continue
@@ -210,6 +250,222 @@ def ink(H, V, centre, neck_w, size=512, width=0.0045, reach=0.9, color=(0.42, 0.
     return np.dstack([rgb, a])
 
 
+# ------------------------------------------------------------------------------------------------------ cast shadows
+CAST_K = 16                                  # the light azimuths the cast shadows are baked for (every 22.5 degrees)
+
+
+def cast_dirs(k=CAST_K, el=40.0):
+    """the directions toward the light the cast shadows are baked for (head space): k azimuths phi = 360 i / k round
+    the head at elevation el; phi 0 is a light in front of her (-y), 90 from her left (+x). A shader finds its light's
+    phi as atan2(x, -y) of its direction."""
+    phi = np.radians(np.arange(k) * 360.0 / k)
+    e = math.radians(el)
+    return np.stack([np.sin(phi) * math.cos(e), -np.cos(phi) * math.cos(e), np.full(k, math.sin(e))], 1)
+
+
+def _triangles(F):
+    """polygons (lists of vertex indices, or an (m, 3+) array) fanned into triangles -> (t, 3)."""
+    if isinstance(F, np.ndarray) and F.ndim == 2:
+        return np.concatenate([F[:, [0, k, k + 1]] for k in range(1, F.shape[1] - 1)]) if F.shape[1] > 3 else F
+    return np.array([(f[0], f[k], f[k + 1]) for f in F for k in range(1, len(f) - 1)], np.int64).reshape(-1, 3)
+
+
+def surface_points(meshes, spacing):
+    """points on the surfaces of meshes [(V, polygons)] under `spacing` apart (each triangle sampled on a barycentric
+    grid) -> (m, 3)."""
+    out = []
+    for V, F in meshes:
+        V = np.asarray(V, float)
+        T = _triangles(F)
+        if not len(T):
+            continue
+        A, B_, C = V[T[:, 0]], V[T[:, 1]], V[T[:, 2]]
+        e = np.maximum(np.maximum(np.linalg.norm(B_ - A, axis=1), np.linalg.norm(C - B_, axis=1)),
+                       np.linalg.norm(A - C, axis=1))
+        n = np.clip(np.ceil(e / spacing).astype(int), 1, 64)
+        for k in np.unique(n):
+            sel = n == k
+            i, j = np.meshgrid(np.arange(k + 1), np.arange(k + 1), indexing='ij')
+            ok = i + j <= k
+            w1, w2 = (i[ok] / k)[None, :, None], (j[ok] / k)[None, :, None]
+            out.append((A[sel][:, None] + (B_[sel] - A[sel])[:, None] * w1 + (C[sel] - A[sel])[:, None] * w2).reshape(-1, 3))
+    return np.concatenate(out) if out else np.zeros((0, 3))
+
+
+def cast_shadow(P, N, meshes, dirs, L, px=0.012, bias=1.5, lift=1.0, soft=2.0, spacing=1.5, grow=1):
+    """per point P (normals N) and direction toward the light, how far the occluders `meshes` [(V, polygons)] shadow
+    it: 0 lit .. 1 in their shadow. A shadow map per direction: the occluders' surfaces, sampled `spacing` pixels
+    apart, splatted into an orthographic map from the light (`px` L a pixel) keeping each pixel's point nearest the
+    light, the map then grown `grow` pixels (closing the gaps between samples); a point is shadowed where the map holds
+    an occluder more than `bias` pixels nearer the light than it (the point lifted `lift` pixels along its normal
+    first), averaged over a disc `soft` pixels round it (percentage-closer filtering: the value runs smoothly from 0
+    to 1 across the shadow's edge, which a threshold then cuts cleanly). numpy only (it runs in Blender's Python).
+    -> (n, len(dirs)) float32."""
+    P = np.asarray(P, float); N = np.asarray(N, float)
+    out = np.zeros((len(P), len(dirs)), np.float32)
+    if not len(P) or not meshes:
+        return out
+    h = px * L
+    Q = surface_points(meshes, spacing * h)
+    R = P + N * (lift * h)
+    r = int(math.ceil(soft))
+    du, dv = np.meshgrid(np.arange(-r, r + 1), np.arange(-r, r + 1), indexing='ij')
+    disc = (du ** 2 + dv ** 2) <= soft ** 2 + 1e-9
+    du, dv = du[disc], dv[disc]
+    for k, d in enumerate(np.asarray(dirs, float)):
+        d = d / np.linalg.norm(d)
+        a = np.cross(d, [0.0, 0.0, 1.0] if abs(d[2]) < 0.95 else [1.0, 0.0, 0.0]); a /= np.linalg.norm(a)
+        b = np.cross(a, d)
+        uq, vq, sq = Q @ a, Q @ b, Q @ d
+        ur, vr, sr = R @ a, R @ b, R @ d
+        u0 = min(uq.min(), ur.min()) - (r + 2) * h
+        v0 = min(vq.min(), vr.min()) - (r + 2) * h
+        W = int(math.ceil((max(uq.max(), ur.max()) - u0) / h)) + r + 3
+        H_ = int(math.ceil((max(vq.max(), vr.max()) - v0) / h)) + r + 3
+        D = np.full(W * H_, -np.inf)
+        iq = np.floor((uq - u0) / h).astype(np.int64) * H_ + np.floor((vq - v0) / h).astype(np.int64)
+        np.maximum.at(D, iq, sq)
+        D = D.reshape(W, H_)
+        for _ in range(grow):                                   # a 3x3 maximum
+            E = D.copy()
+            E[1:] = np.maximum(E[1:], D[:-1]); E[:-1] = np.maximum(E[:-1], D[1:])
+            D = E.copy()
+            D[:, 1:] = np.maximum(D[:, 1:], E[:, :-1]); D[:, :-1] = np.maximum(D[:, :-1], E[:, 1:])
+        iu = np.floor((ur - u0) / h).astype(np.int64)
+        iv = np.floor((vr - v0) / h).astype(np.int64)
+        blocked = D[iu[:, None] + du[None, :], iv[:, None] + dv[None, :]] > (sr + bias * h)[:, None]
+        out[:, k] = blocked.mean(1)
+    return out
+
+
+CAST_ATTRS = tuple('ck_cast%d' % i for i in range(4))     # the baked cast shadows: four RGBA point attributes, 16 azimuths
+
+
+def cast_maps(V, faces, fmat, head_w, neck_w, hair, L, dirs, z_chin, **kw):
+    """the head and neck's cast shadows, per vertex (rest pose, world) and baked light direction (cast_dirs), 0 lit ..
+    1 in shadow (cast_shadow): the face (the head's polygons, fmat 1, above the chin's height z_chin) in the hair's
+    shadow; under the chin (the neck, neck_w > 0, and the head's own polygons below the chin) in the head's and the
+    hair's (the jaw and chin over it). Nothing else is shadowed: the face's own shading is the SDF's, the body's the
+    toon's. hair: [(V, triangles)] world. -> (n, len(dirs)) float32."""
+    from . import anime_head as ah
+    V = np.asarray(V, float)
+    T = _triangles(faces)
+    fm = np.repeat(np.asarray(fmat), [len(f) - 2 for f in faces]) if not isinstance(faces, np.ndarray) else \
+        np.repeat(np.asarray(fmat), faces.shape[1] - 2)
+    N = ah.vertex_normals(V, faces)
+    out = np.zeros((len(V), len(dirs)), np.float32)
+    head_v = np.zeros(len(V), bool); head_v[np.unique(T[fm == 1])] = True
+    under = V[:, 2] < z_chin + 0.02 * L
+    face_v = head_v & ~under
+    neck_v = ((np.asarray(neck_w) > 1e-3) | head_v) & under
+    smooth = kw.pop('smooth', 0)
+    if face_v.any() and hair:
+        out[face_v] = cast_shadow(V[face_v], N[face_v], hair, dirs, L, **kw)
+    if neck_v.any():
+        out[neck_v] = cast_shadow(V[neck_v], N[neck_v], [(V, T[fm == 1])] + list(hair), dirs, L, **kw)
+    if smooth:
+        out = smooth_vertex(out, T, face_v | neck_v, smooth)
+    return out
+
+
+def smooth_vertex(X, T, sel, iters, keep=0.5):
+    """per-vertex values X (n, k) averaged with their mesh neighbours' `iters` times (each vertex keeping `keep` of its
+    own), over the vertices in sel (the rest unchanged and not read): the per-vertex shadow's contour follows the
+    occluder rather than the triangles."""
+    X = np.asarray(X, np.float32).copy()
+    E = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+    E = E[sel[E[:, 0]] & sel[E[:, 1]]]
+    E = np.concatenate([E, E[:, ::-1]])
+    deg = np.bincount(E[:, 0], minlength=len(X)).astype(np.float32)
+    ok = deg > 0
+    for _ in range(int(iters)):
+        acc = np.zeros_like(X)
+        np.add.at(acc, E[:, 0], X[E[:, 1]])
+        X[ok] = keep * X[ok] + (1 - keep) * acc[ok] / deg[ok, None]
+    return X
+
+
+def _mesh_world(ob):
+    """an object's own mesh (no modifiers: at rest) in world space -> (V, triangles)."""
+    me = ob.data
+    co = np.empty(len(me.vertices) * 3); me.vertices.foreach_get('co', co)
+    M = np.array(ob.matrix_world)
+    me.calc_loop_triangles()
+    tri = np.empty(len(me.loop_triangles) * 3, np.int64); me.loop_triangles.foreach_get('vertices', tri)
+    return co.reshape(-1, 3) @ M[:3, :3].T + M[:3, 3], tri.reshape(-1, 3)
+
+
+def cast_params(look_cast, el):
+    """the look's face.cast (a dict, or True) as the shader and the QA read it: k azimuths baked at elevation el, the
+    shadow where the interpolated value crosses `at` (softened +- `width`), toon tones held under `half` (half-lambert:
+    below the lit step) in it."""
+    c = dict(look_cast) if isinstance(look_cast, dict) else {}
+    return dict(k=int(c.get('k', CAST_K)), el=float(el), at=float(c.get('at', 0.5)), width=float(c.get('width', 0.12)),
+                half=float(c.get('half', 0.47)), attrs=list(CAST_ATTRS), px=float(c.get('px', 0.012)),
+                soft=float(c.get('soft', 2.0)), smooth=int(c.get('smooth', 2)))
+
+
+def cast_nodes(m, P):
+    """a toon material (shade.toon3, or faceshade.material's face) given the baked cast shadows: the shadow at the
+    light's azimuth (ldir_head: atan2(x, -y), interpolated between the two baked azimuths either side), cut at P['at'];
+    under it the toon's half-lambert is held below the lit step (P['half']: the shade tone, its rim off), and the
+    face's SDF shadow takes it too. -> the shadow socket. The parameters ride on the material ('ck_cast', JSON)."""
+    import json
+    nt = m.node_tree; N_, Lk = nt.nodes.new, nt.links.new
+
+    def op(o, a=None, b=None, c=None, clamp=False):
+        n = N_('ShaderNodeMath'); n.operation = o; n.use_clamp = clamp
+        for i, x in enumerate((a, b, c)):
+            if x is None:
+                continue
+            if isinstance(x, (int, float)):
+                n.inputs[i].default_value = float(x)
+            else:
+                Lk(x, n.inputs[i])
+        return n.outputs[0]
+    ld = nt.nodes.get('ldir_head')
+    if ld is None:
+        ld = N_('ShaderNodeCombineXYZ'); ld.name = 'ldir_head'
+        for i in range(3):
+            ld.inputs[i].default_value = float(shade.LDIR[i])
+    sep = N_('ShaderNodeSeparateXYZ'); Lk(ld.outputs[0], sep.inputs[0])
+    phi = op('ARCTAN2', sep.outputs['X'], op('MULTIPLY', sep.outputs['Y'], -1.0))
+    k = P['k']
+    step = 2 * math.pi / k
+    chans = []
+    for name in P['attrs']:
+        at = N_('ShaderNodeAttribute'); at.attribute_name = name; at.attribute_type = 'GEOMETRY'
+        sc = N_('ShaderNodeSeparateColor'); Lk(at.outputs['Color'], sc.inputs[0])
+        chans += [sc.outputs[0], sc.outputs[1], sc.outputs[2], at.outputs['Alpha']]
+    acc = None
+    for i in range(k):
+        d = op('WRAP', op('SUBTRACT', phi, i * step), math.pi, -math.pi)
+        w = op('MAXIMUM', op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', d), step)), 0.0)
+        acc = op('MULTIPLY', w, chans[i]) if acc is None else op('MULTIPLY_ADD', w, chans[i], acc)
+    mr = N_('ShaderNodeMapRange'); mr.name = 'ck_cast'; mr.interpolation_type = 'SMOOTHSTEP'
+    mr.inputs['From Min'].default_value = P['at'] - P['width']; mr.inputs['From Max'].default_value = P['at'] + P['width']
+    Lk(acc, mr.inputs['Value'])
+    shadow = mr.outputs['Result']
+    # the toon's half-lambert held below the lit step under the shadow: half - max(half - H, 0) * shadow
+    for half in [n for n in nt.nodes if n.type == 'MATH' and n.operation == 'MULTIPLY_ADD'
+                 and any(l.to_node.type == 'VALTORGB' for l in n.outputs[0].links)]:
+        ramps = [l.to_socket for l in half.outputs[0].links if l.to_node.type == 'VALTORGB']
+        h2 = op('SUBTRACT', half.outputs[0], op('MULTIPLY', op('MAXIMUM', op('SUBTRACT', half.outputs[0], P['half']), 0.0),
+                                                 shadow))
+        for sock in ramps:
+            Lk(h2, sock)
+    # the face's SDF shadow: max(its edge and fringe, the cast shadow)
+    shmax = next((n for n in nt.nodes if n.type == 'MATH' and n.operation == 'MAXIMUM' and n.use_clamp
+                  and any(l.to_node.type == 'MIX' for l in n.outputs[0].links)), None)
+    if shmax is not None:
+        outs = [l.to_socket for l in shmax.outputs[0].links]
+        mx = op('MAXIMUM', shmax.outputs[0], shadow, clamp=True)
+        for sock in outs:
+            Lk(mx, sock)
+    m['ck_cast'] = json.dumps({x: P[x] for x in ('k', 'el', 'at', 'width', 'half', 'attrs')})
+    return shadow
+
+
 def apply_proxy_normals(skin, N, name='skin_normals'):
     """the stand-in's normals onto the rendered skin: a hidden copy of its base mesh (rigged as it is, without its shape
     keys) carrying N as custom normals, transferred after the outline (Solidify re-derives corner normals; see
@@ -325,9 +581,11 @@ def set_light(ldir_world, head_matrix=None):
                 nd.inputs[i].default_value = float(d[i])
 
 
-def apply(C, bangs=None, colors=None, size=512, look=None):
+def apply(C, bangs=None, colors=None, size=512, look=None, hair=()):
     """give an assembled, built character (charkit.character.build's dict) the face shading on its head faces, and with
-    the look's face.normals 'proxy' the stand-in's normals over the head and neck (proxy_normals)."""
+    the look's face.normals 'proxy' the stand-in's normals over the head and neck (proxy_normals); with its face.cast
+    the head's and the hair's (the rendered hair objects, `hair`) shadows baked onto the skin (cast_maps) and read by
+    the skin's materials (cast_nodes)."""
     import bpy
     from . import eyetex, trace
     A = C['data']; Hd = A['head']; H = Hd['H']; centre = Hd['centre']
@@ -373,6 +631,22 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
         at = me.color_attributes.new('ck_ink_w', 'FLOAT_COLOR', 'POINT')
         at.data.foreach_set('color', np.repeat(ink_w[:, None], 4, 1).astype(np.float32).ravel())
     me.materials[1] = mat
+    if fl.get('cast') and hair:
+        el = float(((look or {}).get('light') or {}).get('key', (39.3, 44.6))[1])
+        P = cast_params(fl['cast'], el)
+        with trace.span('face.cast', vertices=len(A['verts'])) as sp_:
+            nk, _ = neck_weight(A['verts'], centre, H.L, H.chin, neck)
+            occ = [_mesh_world(o) for o in hair]
+            cm = cast_maps(A['verts'], A['faces'], A['fmat'], A['body']['head_w'], nk, occ, H.L,
+                           cast_dirs(P['k'], P['el']), centre[2] - H.chin, px=P['px'], soft=P['soft'],
+                           smooth=P['smooth'])
+            sp_['shadowed'] = round(float((cm > 0.5).mean()), 4)
+        for i, name in enumerate(P['attrs']):
+            at = me.color_attributes.new(name, 'FLOAT_COLOR', 'POINT')
+            at.data.foreach_set('color', np.ascontiguousarray(cm[:, 4 * i:4 * i + 4], np.float32).ravel())
+        for m_ in {me.materials[0], mat}:
+            if m_ is not None and m_.use_nodes and 'ck_cast' not in m_.node_tree.nodes:
+                cast_nodes(m_, P)
     if Np is not None:
         with trace.span('face.proxy_transfer'):
             apply_proxy_normals(skin, Np)

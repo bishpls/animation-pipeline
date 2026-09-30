@@ -48,7 +48,10 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            mask taken from it too, so the eye hollows and cheeks never band), fringe (the bangs' shadow on the forehead,
            `fringe_drop` L below them; with fringe_sides the side locks' too, on the temples and cheeks),
            jaw_line (the jaw's edge over the neck inked in the face's UV, `jaw_width` L wide: from the front it doesn't
-           turn from the camera, so no outline draws it);
+           turn from the camera, so no outline draws it); cast (None, or the head's and hair's shadows baked per skin
+           vertex for `k` light azimuths at the key's elevation, charkit.faceshade.cast_maps: the jaw's on the neck, the
+           hair's on the face; shadow maps of `px` L pixels, filtered `soft` pixels round, the values smoothed over the
+           mesh `smooth` times; read where they cross `at` +- `width`; the toon held at or under `half` in them);
            hair: highlight None or 'streaks' (short drawn streaks down the hair on the crown's lit side: `count`
            columns of azimuth round the head, a share `keep` of them carrying one `length` degrees long and `duty` of
            its column wide about `elevation` +- `jitter`; `amount`, `color`), deep_at (the deep tone's step on
@@ -85,7 +88,7 @@ DEFAULT = {
              'lines': {'mode': 'world', 'frac': 0.0025, 'regions': {'skin': 1.0, 'hair': 1.0, 'garment': 1.0, 'accessory': 1.0},
                        'color': 'build', 'ink': [0.24, 0.13, 0.11]},
              'face': {'normals': 'geometric', 'chin_tilt': 0.0, 'fringe': True, 'fringe_drop': 0.03,
-                      'fringe_sides': False, 'jaw_line': False},
+                      'fringe_sides': False, 'jaw_line': False, 'cast': None},
              'hair': {'highlight': None, 'elevation': 40.0, 'length': 9.0, 'jitter': 8.0, 'count': 40, 'duty': 0.35,
                       'keep': 0.5, 'amount': 0.8, 'color': [0.97, 0.86, 0.78], 'deep_at': 0.27, 'lock_shade': 0.0,
                       'under': []}},

@@ -18,6 +18,9 @@
 //           threshold map sampled in the 'face' UV (mirrored for light from her right), a +-softness step, the fringe's
 //           shadow, the blush (multiply by its alpha); two tones (lit, shade); the drawn jaw line (ink, off the neck by
 //           _INK_W) over the result
+//   cast    a toon3's or face's `cast` (charkit.faceshade.cast_maps): the head's and hair's shadows baked per vertex for
+//           k light azimuths (_CK_CAST0..3), read at the head-space light's azimuth; the toon's h held at or under
+//           `half` in them, the face's SDF shadow their maximum
 //   hair    toon3 plus (analytic hair, 'lock' UV) the angel ring (a band at an elevation above the hair centre, on each
 //           lock's middle, facing the camera, on the lit side), the root-to-tip gradient and drawn strand lines
 //   streaks toon3's `highlight` (the cut hair, charkit.shade.hair_toon): short streaks down the hair about an elevation
@@ -104,8 +107,27 @@
   };
 
   // ------------------------------------------------------------------------------------------------ materials
-  function toon3Nodes(L) {
-    const h = S.dot(nWorld(), U.light).mul(0.5).add(0.5);
+  // charkit.faceshade.cast_maps / cast_nodes: the head's and hair's shadows baked per vertex for k light azimuths
+  // (4 vec4 attributes), read at the head-space light's azimuth (atan2(x, z) in glTF: 0 in front, + to her left),
+  // interpolated between the two baked azimuths either side and cut at `at` +- `width` by a smoothstep
+  function castNodes(C) {
+    const k = C.k, step = 2 * Math.PI / k;
+    const phi = S.atan(U.headLight.x, U.headLight.z);
+    const a = C.attributes.map(n => S.attribute(n.toLowerCase(), 'vec4'));
+    let acc = S.float(0);
+    for (let i = 0; i < k; i++) {
+      const d = S.mod(phi.sub(i * step).add(Math.PI), 2 * Math.PI).sub(Math.PI);   // wrapped to [-pi, pi)
+      const w = S.max(S.float(1.0).sub(S.abs(d).div(step)), 0.0);
+      acc = acc.add(w.mul(a[i >> 2]['xyzw'[i & 3]]));
+    }
+    const t = sat(acc.sub(C.at - C.width).div(2 * C.width));
+    return t.mul(t).mul(S.float(3.0).sub(t.mul(2.0)));
+  }
+
+  function toon3Nodes(L, attrs) {
+    let h = S.dot(nWorld(), U.light).mul(0.5).add(0.5);
+    const cast = L.cast && attrs && attrs.cast ? castNodes(L.cast) : null;
+    if (cast) h = h.sub(S.max(h.sub(L.cast.half), 0.0).mul(cast));   // held under the lit step in the shadow
     const s = L.softness;
     const sLit = sat(h.sub(L.threshold - s).div(2 * s));
     const sDeep = sat(h.sub(L.deepThreshold - s).div(2 * s));
@@ -116,7 +138,7 @@
       col = screen(base, v3(L.rim.color), rimF);
     }
     if (L.highlight && L.highlight.kind === 'streaks') col = streakNodes(L.highlight, col, sLit);
-    return { h, sLit, sDeep, col, rimF };
+    return { h, sLit, sDeep, col, rimF, cast };
   }
 
   // charkit.shade.streak_hash: Bob Jenkins' lookup3 as Blender's White Noise node computes it (EEVEE's
@@ -175,6 +197,7 @@
       const fr = sample(tex[F.fringe.index], F.fringe, uvOf(F.fringe), F.fringe.filter === 'cubic').x;
       sh = S.max(sh, mapRange(fr, F.fringeRange[0], F.fringeRange[1]));
     }
+    if (toon.cast) sh = S.max(sh, toon.cast);                     // the baked cast shadows (castNodes)
     sh = sat(sh).mul(U.sdf);
     let col = S.mix(v3(F.lit), v3(F.shade), sh);
     if (F.blush) {
@@ -231,7 +254,7 @@
       color = c.xyz;
       if (L.alpha === 'blend') alpha = c.w;
     } else {
-      toon = toon3Nodes(L);
+      toon = toon3Nodes(L, attrs);
       color = toon.col;
       if (L.kind === 'face' && L.face) { face = faceNodes(L, tex, toon); color = face.col; }
       if (L.kind === 'hair' && L.hair) color = hairNodes(L, toon, color, attrs.uv1);
@@ -345,7 +368,8 @@
       const name = M.object || js.meshes[gm].name;
       const g = mesh.geometry;
       const attrs = { uv0: !!g.attributes.uv, uv1: !!g.attributes.uv1, faceMask: !!g.attributes._face_mask,
-        outlineW: !!g.attributes._outline_width, hullN: !!g.attributes._hull_normal };
+        outlineW: !!g.attributes._outline_width, hullN: !!g.attributes._hull_normal,
+        cast: !!g.attributes._ck_cast0 };
       if (M.outline) {                                       // the region's screen-line factor (the surface and hull read it)
         const R = info.root.lines;
         M.outline.regionFactor = (R && R.regions && R.regions[M.outline.region]) || 1;

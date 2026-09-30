@@ -176,6 +176,169 @@ fetched with `infra/gcp/build.sh fetch $PWD charkit/out/NAME/lookboard`. The rev
    `charkit/styles/anime.json` (`look.light.key`, `look.lines.color` / `ink_regions` / `frac`). Inking the skin line
    waits on the eye QA masking the face contour by geometry (queued for tool/face).
 
+### Round 2 progress
+
+**1. The QA speedup (done: `0b6e9cd`, `5f90e76`).**
+- `qa3d.draw` is now `draw_lit(draw_view(...))`. `draw_view` holds everything that doesn't depend on the light: the
+  z-buffer, each surface's pixels, triangles and weights, normals, and the face's and textures' samples. `draw_lit`
+  shades a view under one light. It is bit-identical to the old draw: 60 of 60 pictures, tones, labels and depths on
+  the default bundle match, and `charkit/tests/test_lookqa.py` checks it. face_noise rasterizes each view once; its
+  sweep's four lights shade the skin alone, with no picture. face_shadow reuses face_noise's board views (`board_tones`,
+  memoized per bundle, frame and azimuth).
+- **line_width stays at the design's scale (401 px per L x 4); the plan's 200 x 3 doesn't measure the same thing.**
+  The per-skeleton-pixel width (2 d - 1, the distance transform) is quantized to the sub-pixel, so the median sits on
+  a lattice point. It holds at 1.812 px across 5 sub-pixel offsets at 401 x 4, but jumps with the resolution: 1.997
+  at 200 x 3, 1.498 at 200 x 4 (default bundle; 1.733 on the pieces bundle), 1.772 at 300 x 4. The p10 is the
+  sub-pixel slivers' floor, so line_spread follows the sub-pixel too: 11.6 at x4, 4.66 at 200 x 3. A
+  resolution-free estimator (local line area over Kulpa-corrected skeleton length) holds at 2.02-2.10 across all of
+  them, but it reads the design's short strokes 27-39% wider (their ends and junctions): a different measure, left as
+  an option (`widthlab`, scratch). The cost went elsewhere:
+  - the lines come from the z-buffer's labels alone, each in its hull's flat colour (`_hull_colours`), so there's no
+    per-pixel preparation;
+  - the widths are cut to their box (the same distances and skeleton);
+  - the design's widths are measured per group of lines and memoized (bit-identical to the whole sheet's; 4.4 -> 2.6 s
+    cold).
+- **line_ink now reads the lines' own colour**: their supersampled pixels, not the pixels a line covers wholly after
+  the pixel filter, which blended thin lines with their neighbours. The inked hair, garment and accessory lines read
+  0.48 from the design's ink (were 4.5, 7.8, 15.6); the skin's brown 24.67 (was 24.9). It's registered as a
+  measurement step (`history.STEPS`, `0b6e9cd`).
+- **The Blender side**: the skin's `proxy_normals` Data Transfer costs 0.66 s an evaluation at the viewport's
+  subdivision and 2.3 s at the render's (measured on the saved scene). Every trace snapshot and every bundle read
+  evaluated it, though it moves no vertex: a full snapshot took 8.3 s with it and 4.6 s without. It is now off where
+  only positions are read (`trace.OUTLINE_MODS`, `bundle.NORMAL_MODS`): the bundle went 13.3 -> 5.7 s, and every
+  array is identical but the skin's masked V (7e-9 m). Other loop mappings aren't faster, and they turn the normals
+  (NEAREST_POLYNOR: mean 6.0 deg, p99 54; POLYINTERP_LNORPROJ: 0.9 / 13 and slower), so they were rejected.
+  faceshade.apply has trace spans: proxy_normals 1.05 s, fringe 1.73 s (a Python loop over 41,872 faces), sdf 0.03 s.
+
+Per check on the box (median of 5 runs at 5 sub-pixel offsets; the box shared with other gates, so CPU time is the
+steadier number):
+
+| check | before, wall / CPU s | after, wall / CPU s |
+|---|---|---|
+| face_noise (+ sweep, islands) | 44.8 / 56.1 | 9.7 / 16.3 |
+| face_shadow | 8.6 / 10.9 | 2.2 / 5.0 |
+| line_width (+ spread, ink) | 82.3 / 158.1 | ~10 / ~12.5 |
+
+The values against their sampling spread (the same 5 offsets, before / after; each after equals its before at the
+same offset):
+
+| check | default: spread over offsets | pieces: spread over offsets |
+|---|---|---|
+| face_noise | 0.0647-0.0652, the same at every offset | 0.0459-0.0468, the same |
+| face_noise_sweep | 0.0523-0.0524, the same | 0.0508-0.0511, the same |
+| face_islands | 7, the same | 11-12, the same |
+| face_shadow_3q | 0.4382-0.4466, the same | 0.3639-0.3853, the same |
+| line_width | 0.912 at all 5, the same | 0.912, the same |
+| line_spread | 11.649 at all 5, the same | 11.649, the same |
+| line_ink | 24.9 -> 24.67 (the step above) | 24.9 -> 24.67 |
+
+Whole builds of the default spec (the QA and its caches cold, stages cached alike), three at once on the build box
+under the same load:
+
+| build | total s | look part s | ratio to pre-look |
+|---|---|---|---|
+| 966ad22, pre-look | 142.7 | none | 1.00 |
+| 0122617, round 1 | 243.9 | 95.2 | 1.71 |
+| 5928f93, round 2 (lines ~4 s slower than 5f90e76) | 168.9 | 27.3 | 1.18 |
+
+Gates at `61b9368` (task 1 merged with pipeline-3d 6ca18da), both **PASS**, the only change line_ink remeasured:
+- default: 282.8 -> 171.5 s wall, 778 -> 554 s CPU;
+- clawd_body: 265.1 -> 235.2 s wall, 1578 -> 1351 s CPU.
+
+(Reports: `charkit/out/gate/gate_tool-look2_61b9368_into_6ca18da*.md`.)
+
+**2 and 3. Cast shadows: the jaw's on the neck, the hair's on the temple and cheek (one mechanism).**
+- **The bake** (`faceshade.cast_maps`, `cast_shadow`, numpy only, in the face_shading stage):
+  - per skin vertex (rest pose) and per light direction, how much the occluders shadow it, 0 .. 1;
+  - directions: `k` = 16 azimuths round the head (phi = atan2(x, -y), 0 in front of her) at the key's elevation;
+  - each direction is a shadow map from the light: the occluders' surfaces splatted into an orthographic map of
+    0.012 L pixels, keeping the point nearest the light, grown a pixel, read with percentage-closer filtering 2 px
+    round, so the value runs smoothly across the edge;
+  - the per-vertex values are smoothed over the mesh twice;
+  - receivers and occluders: the face above the chin takes the hair's shadow only (its own shading stays the SDF's).
+    The neck, and the head's own polygons under the chin, take the head's and the hair's: the jaw and chin over the
+    neck;
+  - stored as four RGBA point attributes, `ck_cast0..3`. It costs 1.3 s in Blender (the trace span `face.cast`).
+- **The shader** (`faceshade.cast_nodes`, on the skin's toon3 and on the face material):
+  - the light's azimuth from `ldir_head`, the value interpolated between the two baked azimuths either side, cut at
+    0.5 +- 0.12 by a smoothstep;
+  - under the shadow, the toon's half-lambert is held at 0.47 or under (the shade tone, no rim), and the face's SDF
+    shadow takes the maximum;
+  - its parameters ride on the material (`ck_cast`). Parity: `bundle` (`fcast` per vertex, `shading.cast`), `qa3d`
+    (`_cast`, `_toon`/`_face_lit` with the cast), `gltf` (`_CK_CAST0..3`, material `cast`), `look.js` (`castNodes`).
+- **The neck's normals no longer tilt** (anime `face.chin_tilt` 85 -> 0). The tilt shaded the whole neck from the chin
+  to its base as one band: that was the "smeared band". The neck now shades round its axis as a cylinder, and the jaw's
+  cast shadow makes the shape under the chin. It comes from the geometry, so tool/face's new overhanging jaw carries
+  straight into it (nothing to change here; rebuild and re-measure).
+- **The measures** (`lookqa.face_shadow`):
+  - `face_shadow_chin` (graded: PASS >= 0.6, WARN >= 0.4): the shadow's IoU with the design's over the neck window
+    (the chin to 0.5 L under it), front and three-quarter;
+  - `face_shadow_chin_edge` (graded, L: PASS <= 0.03, WARN <= 0.06): the shadow's depth per column against the
+    design's (the V drawn as a profile);
+  - `face_shadow_chin_soft` (INFO): the tone step's soft width on the neck;
+  - `qa_chin_shadow.png`: close-ups, the design, ours and the overlay.
+  - The face measures now draw the head bare, as head_turnaround draws it: no garments, the skin unmasked (the
+    bundle's new `bare` skin variant). With the collar on, the neck window held only a strip between the chin and the
+    collar, and the old band scored IoU 0.85 there.
+- `lookboard.py --bare` renders the head bare for the review; `lookpage.py --board lookboard_bare --shadows` adds the
+  close-ups.
+
+### Paused 2026-09-30 ~01:45 (coordinator's request): state and exact next steps
+
+**Committed at the pause** (the SHA is in the commit log, "look round 2, paused"):
+- task 1 is done and gated (above);
+- the task 2-3 code is in, but **not yet validated by QA numbers or a gate**. The anime defaults now carry
+  `face.cast` and `chin_tilt` 0: revert those two in `charkit/styles/anime.json` if a gate is needed before
+  validation.
+- `faceshade.fringe_shadow` is vectorized, bit-identical to the old loop on the real bangs (41,872 faces;
+  0.76 -> 0.20 s here, 1.7-2.6 s on the boxes). `fringe_shadow_loop` is kept as the reference.
+
+**What the renders showed so far** (render box, `clawd_body_pieces`, T4):
+- `l2c_base` is round 1's look;
+- `l2c_a` and `cl1`/`cl2` are cast-lab re-bakes on l2c_a's scene
+  (`blender -b OUT/clawd.blend --python castlab_blender.py -- ROOT BUNDLE_JSON OUTDIR CAST_JSON`: the script is in
+  the session's scratch, not tracked; it's a quick loop for bake parameters without a build).
+- The old tilt shaded the whole neck, chin to base, as one flat band. With the cast, the neck is lit and the jaw's
+  shadow sits directly under it. The shape is a broad, dome-edged band rather than the design's V: our jaw is round
+  and barely overhangs (tool/face's rebuild should sharpen it).
+- In the 3/4 view the hair's shadow now falls on the temple beside the eye; in profile, on the cheek under the side
+  hair (it was ~2% of the face). Its edges follow the locks' tips and are somewhat blotchy. Smoothing 2 and 4 look
+  much alike.
+- The QA's old chin numbers are misleading: the collar hid the neck, and the band scored IoU 0.85 / edge 0.021 L.
+  That's why the face measures now draw the head bare.
+
+**Box jobs running at the pause** (outputs land locally when their fetch finishes; nothing needs killing):
+- render box: `l2c_b` (the cast, before the chin split and bare variant), which renders `lookboard_bare` and
+  `lookboard` after its fetch. `charkit/out/l2c_b` is still fetching over the tunnel.
+- render box: `l2c_c`, the plain pieces spec with the new defaults (the cast, the bare variant) ->
+  `charkit/out/l2c_c`.
+- render box: `l2c_d`, the "before" with the new code (`clawd_body_pieces_nocast.json`: no cast, chin_tilt 85) ->
+  `charkit/out/l2c_d`.
+- build box: the A/B/C timing, run 3 (`/srv/work/look2_scratch/ab2.sh`, detached). Its output is in
+  `/srv/work/look2_scratch/ab_2.out` and `ab/*_3.log` (`TIME` lines: wall, user, sys). Run 2, under load 45-48:
+  - trace totals: pre-look 166.9, round 1 307.7, round 2 (5f90e76) 211.6 s, so 1.27x (run 1 at lighter load: 1.18x);
+  - the look part: 123.7 -> 34.7 s;
+  - process-tree CPU (hull and outfit production included): 520.6 / 760.7 / 562.1 s, so round 2 is 1.08x.
+
+**Next, in order:**
+1. When `l2c_c` and `l2c_d` land, render both bare boards on the render box. Run
+   `$BLENDER -b charkit/out/NAME/clawd.blend --python charkit/boards/lookboard.py -- charkit/out/NAME/lookboard_bare --L 0.25 --bare`,
+   the same without `--bare` into `lookboard`, then fetch both.
+2. Run `python -m charkit.lookqa charkit/out/NAME` for each (on the render box, then fetch `qa_look`). That gives the
+   chin and face numbers on the bare head, before (l2c_d) and after (l2c_c).
+3. Build the review page:
+   `python -m charkit.lookpage charkit/out/look2_review --before charkit/out/l2c_d --after charkit/out/l2c_c --board lookboard_bare --shadows`,
+   then `open` it.
+4. Run tool/artifacts' detectors on both, for the neck's and face's jaggedness. A scratch copy with cast-aware buffers
+   is in the session's scratchpad (`art/artifactqa.py`, `art/artrun.py`, `art/artifacts_design.json`): copy them into
+   a scratch worktree, never into this branch.
+5. If the numbers hold, register measurement steps for `face_noise*`, `face_islands` and `face_shadow_*` (the bare
+   head), then gate both specs. If the budget still needs it, the remaining lever for 1.2x is `face.proxy_normals`
+   (O(n^2) numpy, 0.7-1.05 s).
+6. Task 4 (the hair's smooth proxy normals): tool/artifacts now has per-region INFO checks (`art_terminator_*`,
+   1b2a283), so the precondition is met. It still needs agreement with tool/hair-detail before touching the hair's
+   normals.
+
 ### Ownership
 
 Yours: `charkit/shade.py`, `charkit/faceshade.py`, `charkit/lookqa.py`, the look parts of `charkit/gltf.py` (the

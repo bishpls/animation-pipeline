@@ -47,6 +47,10 @@ The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linea
                           facingBlend, hash: 'lookup3'} (shade.hair_toon: the cut hair's drawn streaks; a column is kept
                           and placed by Jenkins' lookup3 of its index's float32 bits, Blender's White Noise:
                           shade.streak_hash),
+             cast?: {k, el, at, width, half, attributes: ['_CK_CAST0'..'_CK_CAST3']} (faceshade.cast_maps: the head's
+                    and hair's shadows baked per vertex for k light azimuths, phi = atan2(x, z) of the head-space
+                    light, 360 i / k; interpolated, cut at `at` +- `width` by a smoothstep; under it the toon's
+                    half-lambert is held at or below `half` and the face's SDF shadow takes it),
              face: {sdf, fringe, blush, ink? (textureInfo), softness, fringeRange, mask: '_FACE_MASK', inkWeight?: '_INK_W'},
              hair: {lock: texCoord, ring: {color, elevation, centre, width, soft, facing, mid, amount}, gradient, strands},
              flat: color; plate: texture}
@@ -283,7 +287,12 @@ def material_look(m):
                           'length': P['length'], 'jitter': P['jitter'], 'count': P['count'], 'duty': P['duty'],
                           'keep': P['keep'], 'amount': P['amount'], 'color': r6(np.array(_lin3(P['color']))),
                           'facing': P['facing'], 'facingBlend': 0.5, 'hash': P.get('hash', 'sin')}
-    if 'ldir_head' in N:                                           # faceshade.material
+    if m.get('ck_cast'):                                           # faceshade.cast_nodes: the baked cast shadows
+        P = json.loads(m['ck_cast'])
+        d['cast'] = {'k': int(P['k']), 'el': P['el'], 'at': P['at'], 'width': P['width'], 'half': P['half'],
+                     'attributes': ['_CK_CAST%d' % i for i in range(len(P['attrs']))]}
+    if 'ldir_head' in N and any(n.type == 'TEX_IMAGE' for n in N):   # faceshade.material (a cast-shadowed toon3 has
+                                                                      # the head light too, no maps)
         tex = [n for n in N if n.type == 'TEX_IMAGE']
         sdf = next(n for n in tex if any(l.to_node.type == 'MATH' and l.to_node.operation == 'SUBTRACT'
                                          for l in n.outputs['Color'].links))
@@ -522,7 +531,8 @@ class Eval:
             if a.domain == 'POINT' and a.data_type in ('FLOAT_COLOR', 'FLOAT') and not a.name.startswith('.') \
                     and a.name not in ('position',):
                 if a.data_type == 'FLOAT_COLOR':
-                    x = np.empty(nv * 4, np.float32); a.data.foreach_get('color', x); x = x.reshape(-1, 4)[:, 0]
+                    x = np.empty(nv * 4, np.float32); a.data.foreach_get('color', x)
+                    x = x.reshape(-1, 4) if a.name.startswith('ck_cast') else x.reshape(-1, 4)[:, 0]
                 else:
                     x = np.empty(nv, np.float32); a.data.foreach_get('value', x)
                 self.attrs[a.name] = x
@@ -799,6 +809,10 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                     attrs['_FACE_MASK'] = W.accessor(E.attrs['face_mask'][vi].astype(np.float32), 'SCALAR', target=34962)
                 if 'ck_ink_w' in E.attrs:                        # where the face's drawn lines may show
                     attrs['_INK_W'] = W.accessor(E.attrs['ck_ink_w'][vi].astype(np.float32), 'SCALAR', target=34962)
+                for ci in range(4):                              # the baked cast shadows (faceshade.cast_maps)
+                    if 'ck_cast%d' % ci in E.attrs:
+                        attrs['_CK_CAST%d' % ci] = W.accessor(np.ascontiguousarray(E.attrs['ck_cast%d' % ci][vi], np.float32),
+                                                              'VEC4', target=34962)
                 ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
                 prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
                 if knames:
