@@ -587,6 +587,14 @@ def page(out=OUT, open_it=True):
                       r['counts']['builds'], r['J0'], r['J'], ''.join('<td>%.3f</td>' % r['iou'][t[0]] for t in F.terms),
                       r['pieces']['overskirt_panel_L'][0], r['pieces']['overskirt_panel_L'][1],
                       r['pieces']['overskirt_panel_R'][0], r['pieces']['overskirt_panel_R'][1]))
+    for p_ in sorted(glob.glob(os.path.join(out, 'fitkit_*.json'))):             # fitkit.optimise on the same IoUs
+        r = json.load(open(p_))
+        tr.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%d</td><td>-</td><td>%.4f</td><td><b>%.4f</b></td>%s'
+                  '<td>%.3f %s</td><td>%.3f %s</td></tr>' % (
+                      r['start'], r['method'], r['wall'], r['evaluations'], r['J0'], r['J'],
+                      ''.join('<td>%.3f</td>' % r['iou'][t[0]] for t in F.terms),
+                      r['pieces']['overskirt_panel_L'][0], r['pieces']['overskirt_panel_L'][1],
+                      r['pieces']['overskirt_panel_R'][0], r['pieces']['overskirt_panel_R'][1]))
     W_, H_ = 700, 280
     tmax = max(max(h['t'] for h in r['history']) for r in recs) or 1.0
     Js = [h.get('J', h.get('J_soft')) for r in recs for h in r['history']]

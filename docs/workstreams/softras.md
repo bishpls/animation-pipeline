@@ -62,6 +62,142 @@ numpy + numba, no GPU, no new dependency (torch 2.11 is in the venv but not need
 On the flap itself (1036 vertices, 846 quads, back view): 5 ms a view forward with the occluder; its contour 107 edges
 from 1147 points.
 
+## The chain and the pilot harness (`charkit/render/softfit.py`)
+
+- **The frozen scene** (`python -m charkit.render.softfit scene`, 116 s once, `charkit/out/softras/flap_scene.pkl`):
+  the evaluator's assembly and hull (what `garments.flap` reads), the spec, bodyqa's windows per view (front,
+  three-quarter, profile, back, and profile_R: the profile from the other side, mirrored onto the drawn near flap, as
+  skirtqa reads the right flap), the scene without the flaps z-buffered once per view (depth, object labels, the
+  side-split labels piece_shapes reads), the drawn flaps (skirtqa.drawn_pieces), the outfit masks and graph. The skirt
+  harness's `fast.py` compositing, frozen: a candidate costs its two flaps' builds and their rasterisation only.
+- **The objective** J = sum over skirtqa's flap IoUs (flap_{view}_iou_{L,R}: the flap's visible pixels against the
+  drawn flap) of VW[view] (1 - IoU), fit G's view weights (back 1, profile 1, front 0.7, three-quarter 0.4). Every J
+  and IoU reported is the hard one, on the QA's pixels. The piece IoUs (qa3d.grade_pieces over
+  bodymeasure.piece_shapes) are reported beside it for every start and result (no gaming).
+- **The knobs**: fit G's (skirt_scratch/fit.py PARAMS) less `band` (the band's material and rows, not the
+  silhouette): e1o, e1i (the edges' azimuths at the hem), standm, stand1 (the standoff), first, rise (the stair),
+  droop, out, twist; their steps and bounds as fit G's.
+- **The chain**: dJ/dV from the silhouettes (each flap's, the other flap and the frozen scene as its occluder), then
+  dV/dknob by central differences of the builder at 0.01 step (the builder takes 3 ms). The builder re-samples its rows
+  and columns on the stair's corners and the band's edges (`first`, `rise`, the edges), so a vertex's two one-sided
+  differences can disagree (a row slid past another): there the smaller is taken; a knob whose builds change the faces
+  on both sides falls back to differences of the soft J itself. Checked against differences of the soft J at 0.05
+  step: within 1-8% on every knob (the 0.05-step differences carry the builder's re-sampling).
+- **Coordinate descent** as the skirt ran it (fit.py): each knob a step up then down, the first move that lowers J
+  taken and the sweep begun again, a sweep with no move halving every step, until three halvings; fit.py caps it at 12
+  sweeps (a move or a halving each). Run both as written and to convergence.
+- **The gradient fit**: L-BFGS-B (scipy) on the soft J at softness s, in steps from the start within the bounds.
+
+## The pilot: the flap template, gradient against coordinate descent (laptop, M2 Pro, one process)
+
+Starts: **g** = fit G's own start (skirt_scratch/t8.json's knobs), **far** = every knob 2-6 steps off it. J and the
+IoUs are hard (the QA's pixels); "evaluations" are J evaluations for CD (a build and a hard render of 5 views, 66 ms) and
+gradient evaluations for L-BFGS (a soft render with its backward and 19 builds for dV/dknob, 170-210 ms). Records:
+`charkit/out/softras/fit_*.json`; page `charkit/out/softras/index.html`.
+
+| start | fit | wall s | evaluations | builds | J | front L/R | 3/4 L/R | profile L/R | back L/R | piece L | piece R |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| g | start | | | | 2.1846 | 0.680 / 0.688 | 0.029 / 0.016 | 0.675 / 0.674 | 0.853 / 0.837 | 0.653 WARN | 0.759 PASS |
+| g | CD as fit.py runs it (12 sweeps) | 4.8 | 71 | 71 | 1.8869 | 0.708 / 0.727 | 0.024 / 0.000 | 0.780 / 0.779 | 0.885 / 0.854 | 0.705 WARN | 0.791 PASS |
+| g | CD to convergence | 15.6 | 235 | 235 | 1.8413 | 0.755 / 0.773 | 0.024 / 0.000 | 0.752 / 0.751 | 0.903 / 0.873 | 0.711 WARN | 0.811 PASS |
+| g | **L-BFGS, s 0.5** | 16.4 | 71 | 1313 | **1.8270** | 0.774 / 0.793 | 0.018 / 0.000 | 0.757 / 0.757 | 0.892 / 0.862 | 0.712 WARN | 0.814 PASS |
+| g | L-BFGS, s 1 | 12.5 | 57 | 1047 | 1.8266 | 0.774 / 0.793 | 0.018 / 0.000 | 0.757 / 0.757 | 0.893 / 0.863 | 0.712 WARN | 0.814 PASS |
+| g | L-BFGS, s 0.25 | 11.6 | 60 | 1104 | 1.8263 | 0.775 / 0.794 | 0.018 / 0.000 | 0.756 / 0.755 | 0.893 / 0.864 | 0.713 WARN | 0.816 PASS |
+| g | L-BFGS annealed s 2, 1, 0.5 | 30.7 | 118 | 2170 | 1.8262 | 0.775 / 0.793 | 0.018 / 0.000 | 0.757 / 0.757 | 0.892 / 0.863 | 0.712 WARN | 0.814 PASS |
+| far | start | | | | 3.1683 | 0.508 / 0.520 | 0.046 / 0.427 | 0.349 / 0.349 | 0.721 / 0.705 | 0.524 WARN | 0.718 PASS |
+| far | CD as fit.py runs it (12 sweeps) | 3.4 | 49 | 49 | 2.4870 | 0.661 / 0.671 | 0.060 / 0.152 | 0.502 / 0.498 | 0.855 / 0.841 | 0.616 WARN | 0.763 PASS |
+| far | CD to convergence | 26.5 | 380 | 380 | 1.9293 | 0.721 / 0.735 | 0.025 / 0.000 | 0.755 / 0.755 | 0.878 / 0.854 | 0.691 WARN | 0.787 PASS |
+| far | **L-BFGS, s 0.5** | 16.9 | 83 | 1541 | **1.8275** | 0.774 / 0.792 | 0.019 / 0.000 | 0.754 / 0.755 | 0.895 / 0.865 | 0.712 WARN | 0.814 PASS |
+| far | L-BFGS annealed s 2, 1, 0.5 | 29.0 | 148 | 2740 | 2.3012 | 0.801 / 0.819 | 0.116 / 0.601 | 0.333 / 0.329 | 0.921 / 0.896 | 0.647 WARN | 0.910 PASS |
+
+(The piece IoUs are qa3d's graded `piece_overskirt_panel_{L,R}` over the four views; they rise with J in every row.)
+
+Reading it:
+- **The gradient fit reaches the lowest J from both starts, and the same point**: from g and from far, e1o 126.3 /
+  126.1, e1i 156.3 / 156.5, stand1 0.120 / 0.118, first 0.178 / 0.179, rise 0.187 / 0.190, twist -0.02 / -0.03 (droop
+  0.35 / 0.18: it hardly moves J, its gradient is -0.01 a step). J 1.8270 / 1.8275.
+- **Coordinate descent depends on its start and its budget.** As fit.py runs it (12 sweeps, one move or halving
+  each) it stops early: 1.887 from g, 2.487 from far. Run to convergence it gets 1.841 from g (0.8% short of the
+  gradient's) in about the same wall time, and from far it walks down another valley to 1.929 (droop at its bound
+  -0.5, first 0.4, rise 0.1), 5.6% short, in 1.6x the gradient's wall time.
+- **Wall time is even; evaluations are 3-5x fewer.** A gradient evaluation costs ~3x a hard one here, and half of it
+  is the builder: 19 builds a gradient for dV/dknob by differences (7.9 of 16.4 s from g). An analytic Jacobian of
+  the builder, or builds in parallel, halves the gradient fit's wall time; nothing like it helps CD, whose cost is its
+  count of evaluations.
+- **The softness hardly matters** (s 0.25, 0.5, 1: J 1.8263-1.8270). s is a pixel-scale smoothing, not a shape-scale
+  one: annealing from s 2 doesn't widen the capture range; from far it found a different minimum (J 2.30: the
+  three-quarter's right tail 0.60 at the profile's cost, 0.33): the three-quarter's drawn tails disagree with the other
+  views (docs/workstreams/skirt.md), so J has two basins.
+
+### Where the objective is smooth and where it isn't
+
+`scan.json` (python -m charkit.render.softfit scan): at g, each knob's dJ/dstep by the chain against differences of
+the hard J at 0.01, 0.1 and 1 step and of the soft J at 0.01 step:
+
+| knob | chain | hard 0.01 | hard 0.1 | hard 1 | soft 0.01 |
+|---|---|---|---|---|---|
+| e1o | -0.0497 | -0.0622 | -0.0486 | -0.0331 | -0.0495 |
+| e1i | +0.1542 | +0.1523 | +0.1490 | +0.1329 | +0.1541 |
+| standm | +0.0407 | +0.0369 | +0.0337 | +0.0149 | +0.0369 |
+| stand1 | +0.0356 | +0.0598 | +0.0395 | +0.0364 | +0.0357 |
+| first | -0.0648 | -0.1259 | -0.0540 | -0.0519 | -0.0645 |
+| rise | -0.1081 | -0.1983 | -0.1022 | -0.0932 | -0.1077 |
+| droop | -0.0105 | -0.0171 | -0.0171 | -0.0098 | -0.0105 |
+| out | +0.0098 | +0.0154 | +0.0092 | +0.0109 | +0.0098 |
+| twist | -0.0444 | -0.0345 | -0.0453 | -0.0533 | -0.0444 |
+
+- **Pixels.** The hard J's differences at 0.01 step are off by up to 2x (first, rise, stand1: a few pixels flipping
+  decide them); at 1 step they average the curvature. The flap is large (~30k px a view), so the hard J is rarely flat
+  over a 0.05 step, but it is a staircase at the scale a gradient needs. The soft J's differences match the chain to
+  0.1-1% on 8 of 9 knobs.
+- **Occlusion.** standm (the standoff over the skirt) is the exception: chain +0.0407 against the soft J's own +0.0369
+  (10%). Moving the flap off the skirt moves the flap-skirt occlusion boundary, which the rasteriser keeps hard. Where a
+  knob mostly moves depth against an occluder, the chain undercounts it.
+- **No overlap, no gradient.** The three-quarter view's drawn tails sit where ours are hidden behind the legs
+  (IoU 0.02 / 0.00 at the optimum): an IoU's gradient is zero where ours and the drawing don't meet (d IoU / d cov is
+  -I / U^2 there, and I is 0). A distance-based loss (chamfer, or a distance transform of the drawn mask) would pull.
+- **Topology.** first, rise and the edges re-sample the builder's rows and columns. The limiter (the smaller one-sided
+  difference where the two disagree) handled every one: 621 and 729 knob derivatives by the chain, none needed the
+  soft J's own differences.
+
+### Through fitkit itself (`python -m charkit.render.softfit fitkit fd|grad`)
+
+The same IoUs as fitkit terms (each 'ratio' at tol 0.1, weighted by fit G's view weight, no protection, the regulariser
+pulling toward the start), `charkit.render.softfit:FlapChecks` as the evaluator (fine: the hard IoUs; smooth: the soft
+ones; `jacobian()`: the chain), `fitkit.optimise` with its finite differences (FAST: Broyden between full Jacobians)
+against its new gradient path:
+
+| start | fitkit | wall s | evaluations (step / Jacobian / polish) | J | 3/4 L/R | profile L/R | piece L | piece R |
+|---|---|---|---|---|---|---|---|---|
+| g | finite differences | 20.7 | 280 (29 / 18 / 233) | 1.8693 | 0.026 / 0.000 | 0.762 / 0.762 | 0.709 WARN | 0.802 PASS |
+| g | gradient path | 19.9 | 198 (60 / 49 / 89) | 1.8310 | 0.018 / 0.000 | 0.764 / 0.764 | 0.712 WARN | 0.812 PASS |
+| far | finite differences | 31.8 | 441 (24 / 18 / 399) | 2.3775 | 0.126 / 0.597 | 0.350 / 0.345 | 0.635 WARN | 0.882 PASS |
+| far | gradient path | 26.4 | 235 (49 / 38 / 148) | 2.3780 | 0.077 / 0.401 | 0.404 / 0.400 | 0.625 WARN | 0.833 PASS |
+
+- From g the gradient path reaches J 1.831 (finite differences 1.869) with 30% fewer evaluations: the trust region
+  keeps stepping (60 steps against 29) on exact Jacobians, so the polish (the pattern search on the hard pixels) has
+  far less left to do (89 against 233).
+- From far both stop in the three-quarter's basin (J 2.378): fitkit's cost is not J (soft-L1 over the hinged
+  residuals, a regulariser toward the start, 4 x knobs trust-region evaluations a cycle), and plain L-BFGS on J got
+  out of it (1.8275). The gradient path doesn't change fitkit's objective; it changes how cheaply fitkit sees it.
+
+## Recommendation for fitkit
+
+1. **Keep the gradient path opt-in** (landed: `fitkit.GRADIENT = False`; `optimise(gradient=True)`; an evaluator adds
+   `jacobian(spec, group, knob_names) -> (checks, {measure: {knob: d value / d knob}})`; `Term.dresidual` turns
+   measure derivatives into residual ones for every reading kind; `Pool.jacobian`; phase 'jacobian'). Tests:
+   charkit/tests/test_fitkit.py (the toy: plain 180, fast 85, gradient 71 evaluations to the same fine cost; dresidual
+   against differences for ratio, abs, gap, floor).
+2. **Which evaluators should offer jacobian()**: those whose terms are silhouette IoUs (piece shapes, flap and skirt
+   outlines, the body's per-view IoUs): softras gives d IoU / dV per view in ms, and a template builder's dV/dknob by
+   differences costs builds only (3 ms a flap). Width, hang, attach and band-step checks are read off silhouettes by
+   non-smooth rules (row maxima, line fits, step counts); leave them to the differences and the polish.
+3. **Chain helper**: the limited central difference of a builder (`Flaps.value_and_grad`'s per-vertex minmod where
+   a builder re-samples rows) is generic; lift it into fitkit (or softras) when a second template takes the path.
+4. **What would pay most next**: analytic dV/dknob for the templates (half the gradient's time here is 19 builds);
+   a distance-based term for views where ours and the drawing don't overlap (IoU has no gradient there); and the
+   depth-occlusion boundary made soft if a knob mostly moves depth (standm's 10%).
+
 ## Log
 
 - 2026-09-30: started; notes skeleton. The rasteriser and its tests (3593734); the pilot harness (softfit); fitkit's
