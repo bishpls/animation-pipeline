@@ -22,7 +22,30 @@ round-6 merge fixed the hem regressions that were hull-det's and garment-samplin
   The thigh bump still reads: before 0.108 FAIL at -2.806, LimbTrack alone 0.061 FAIL, after 0.014 PASS (box),
   0.019 PASS (b8097cf + this branch, evaluator).
 
-GATES2
+## Paused (2026-09-30, usage limit): read this first when resuming
+
+- **Head** `tool/hull-limbs` 39da743: pipeline-3d 53a557f merged (tool/face's carve_face hair margin, tool/eyes2). It
+  merged cleanly, `clawd_body_pieces.json` still equals `clawd.json` (test_spec_alias ok) and all three authored specs
+  keep the shorts' `hem_drop` 0.03. The full test suite passed at 56b480a; it hasn't been rerun after this merge.
+- **Box jobs possibly still running at the pause** (their results are superseded by the 53a557f merge):
+  - gates of 56b480a into b8097cf, default and clawd_mh. Local logs: `charkit/out/hl3_gate2_{default,mh}.log`;
+    reports into `charkit/out/gate/`.
+  - the build box's stage-hash run at 56b480a (`charkit/out/hl3_stages_build2`). The render box
+    (`hl3_stages_render2`) and laptop (`hl3_stages_laptop2`) runs at 56b480a are done. Compare with the scratchpad's
+    `stagecmp.py`, or diff the three `stages.json`.
+- **Next, in order:**
+  1. Run the whole suite; then gate the head into pipeline-3d 53a557f on both specs
+     (`python -m charkit remote gate tool/hull-limbs --into pipeline-3d [--spec charkit/spec/clawd_mh.json]`).
+     Expected from this branch: hair_folds, piece_collar and body_back_leg back at the baseline's. The default spec's
+     body_profile_leg_back should PASS (0.014-0.019 on the evaluator and box). clawd_mh may still show hair_penetration
+     (the MakeHuman shoulder, above) and body_three_quarter_skirt_aline 0.078 WARN; neither is the refine axis's.
+  2. Stage hashes at the final head on the build box, render box and laptop
+     (`python -m charkit.geom hull charkit/spec/clawd.json --fast --stages DIR`). carve_face changed, so the face stages
+     move.
+  3. Regenerate the review page `charkit/out/hl3/review/index.html` (scratchpad `hl3/mkpage3.py`) with the new gates,
+     and `open` it.
+  4. Remove the throwaway worktrees `~/animation-pipeline-hlpin` (tmp/hull-limbs-pin: the refine axis pinned, never
+     merge) and `~/animation-pipeline-hlbody` (tmp/hull-limbs-on-body: this branch on tool/body 25d8d48).
 
 **Why relaunched.** Michael saw a protrusion at the back of the leg in profile. tool/body traced it to the hull: at
 z -2.72 to -2.76 L the hull labels skin all along the profile's side run behind the leg, where the flap train hangs, and
