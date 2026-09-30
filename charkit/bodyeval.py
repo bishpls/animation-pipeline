@@ -285,15 +285,17 @@ def _vertex_adjacency(F, n):
 
 
 def hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clear=0.006, grow=2):
-    """target3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin (signed along the nearest
-    face's normal, as Blender's BVH find_nearest gives it) in the head region; low pale texels out; `grow` rings back."""
+    """target3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin in the head region; low
+    pale texels out; `grow` rings back. The signed distance takes its sign from the angle-weighted pseudo-normal at the
+    nearest feature (face, edge or vertex: BVH.signed_distance's 'normal'), so a tie between faces sharing the nearest
+    edge or vertex can't flip it (Blender's find_nearest signs along whichever face its BVH reaches first: 1,804 of
+    75,006 hull vertices took the other sign, evalmesh R3). The build reads this selection (cli.hair_select), not
+    Blender's."""
     from .geom.bvh import BVH
-    from .geom.mesh import Mesh, face_normals
+    from .geom.mesh import Mesh
     from .target3d import hsv
     bm = Mesh.from_polys(np.asarray(body_v, float), [tuple(f) for f in body_f])
-    _, f, q = BVH(bm).nearest(V)
-    fn = face_normals(bm.V, bm.F)
-    sd = np.where(f >= 0, np.einsum('ij,ij->i', V - q, fn[np.maximum(f, 0)]), 1.0)
+    sd = BVH(bm).signed_distance(np.asarray(V, float), sign='normal')
     _, s_, v_ = hsv(C)
     keep_v = (sd > clear) & (V[:, 2] > chin_z - below)
     low = V[:, 2] < chin_z + 0.02
@@ -343,6 +345,29 @@ def drop_small_parts(V, F, min_faces):
     size = np.bincount(lab, minlength=nc)
     keep = size[lab] >= min_faces
     return _keep_faces(V, F[keep], np.ones(len(V), bool)) if keep.any() else (V[:0], F[:0])
+
+
+def hair_selection(spec, load=None):
+    """the hair selection the build's volume is made on (cli.hair_select writes it, scene.hair_shape_volume reads it), made
+    exactly as the evaluator makes its own: the spec's character assembled (assemble_cached, after scene.fit_cranium as
+    resolve() does), its generated character loaded (geom.parts.load_generated, compat), select_hair on the gridded face.
+    One function for both sides: crab_1's stage drift (evalmesh R3) came from two selections. -> (hv (n, 3) world, hf
+    (m, k)) or None (a selection only Blender makes: hair_part)."""
+    from . import scene, target3d
+    from .geom.parts import load_generated
+    load = load or (lambda p: load_generated(p, compat=True))
+    import contextlib, io
+    with contextlib.redirect_stdout(io.StringIO()):
+        spec = scene.fit_cranium(json.loads(json.dumps(spec)), ROOT, load=load)
+    A = assemble_cached(spec)
+    p = _glb(spec)
+    V, F, C = load(p)
+    gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), target3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
+    try:
+        R = select_hair(A, spec, gen[0], gen[1], face_y_grid(A))
+    except NotImplementedError:
+        return None
+    return np.asarray(R['sel'][0], float), np.asarray(R['sel'][1])
 
 
 def select_hair(A, spec, gen, eyes_gen, grid=None):
@@ -911,7 +936,7 @@ class Evaluator:
         objects, full, align = [], None, None
         if shape:
             FIN = ('smooth', 'smooth_factor', 'min_part', 'decimate', 'mode', 'voxel', 'cap', 'geom', 'geom_opts',
-                   'normals', 'normal_mix', 'carries')
+                   'normals', 'normal_mix', 'carries', 'selection')
             skey = _h([head, {k: v for k, v in shape.items() if k not in FIN}])
             grid = lambda: self._memo('face_grid', head, lambda: face_y_grid(A))
             gen = self.generated()
@@ -984,8 +1009,11 @@ class Evaluator:
                 mid, spacing = scene.eye_target(A, base_shape)
                 full = (target3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
                 align = dict(eye_mid=mid, spacing=spacing)
-        accs = self._memo('accessories', _h([vkey, acc]), lambda: [(n, to_head(v, A), f, a) for n, v, f, a in
-                                                                   accessories.generate(vol(), L, acc)])
+        # the clips rest on the hair the build makes (accessories.generate's ground), keyed by its shape in the head frame
+        gkey = [(n, len(q), round(float(np.asarray(q).sum()), 5)) for n, q, f in objects]
+        accs = self._memo('accessories', _h([vkey, acc, gkey]), lambda: [
+            (n, to_head(v, A), f, a) for n, v, f, a in accessories.generate(
+                vol(), L, acc, ground=[(from_head(q, A), f) for _, q, f in objects], centre=A['head']['centre'])])
         parts = [Part(n, 'hair', from_head(q, A), f) for n, q, f in objects]
         for n, q, f, a in accs:
             parts.append(Part(n, 'accessories', from_head(q, A), f))

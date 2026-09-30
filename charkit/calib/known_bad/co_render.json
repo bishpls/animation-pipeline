@@ -1,0 +1,10 @@
+{
+ "name": "co_render",
+ "why": "tool/collar 5ffd446 (render box): the puffs' tops rose ~0.05 L above the shoulder line (collar.md, End of round 1) while piece_sleeve read PASS",
+ "flag": "the puff caps above the shoulder line",
+ "commit": "5ffd446",
+ "source": "~/animation-pipeline-garments3/charkit/out/co_render",
+ "stored": "2026-09-30",
+ "bundle": "23931897c87a3469",
+ "qa_checks": 496
+}

@@ -1384,7 +1384,27 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print, ha
     return int(gone.sum())
 
 
-def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page=True, pieces=True, sheet='body',
+# The mesh's decimation (hull.ply, hull.glb): quadric-error edge collapse (charkit.geom.remesh.decimate) until the
+# cheapest collapse left costs more than DECIMATE_COST (area-weighted squared distance, L^4). It was a fixed budget of
+# 150,000 faces, a global rule: a face edit changed the face's triangle count, so the budget's last collapses landed
+# elsewhere and 401 vertices away from the edit moved (up to 0.0008 L, the head's back and crown, the torso, the legs;
+# tool/hull-local, tools/hull_local/locality.py), which the body fit spread over every row and the collar amplified
+# about 40x (docs/workstreams/face.md, round 5). A cost bound stops each region at its own error, so an edit moves
+# only what it reaches. 1.2e-10 is the last collapse's cost at 150,000 faces on the default spec (pipeline-3d 3a0ad37:
+# 1.204e-10), so the mesh keeps its density. An explicit face count (build's faces, main's --faces) still decimates
+# to a count, for labs.
+DECIMATE_COST = 1.2e-10
+
+
+def decimate_hull(m, faces=None, info=None):
+    """the hull's surface decimated: to the quadric error DECIMATE_COST, or to `faces` faces when given -> Mesh."""
+    from . import remesh
+    if faces:
+        return remesh.decimate(m, faces, info=info)
+    return remesh.decimate(m, 0, max_cost=DECIMATE_COST, info=info)
+
+
+def build(spec, out, h=0.01, style=None, faces=None, validate_views=True, page=True, pieces=True, sheet='body',
           face=True, log=print, stages=None):
     """a resolved spec's hull into `out`: hull.glb (coloured, with its sidecar hull.glb.json: the eyes, exactly, the
     per-vertex classes hull_labels.npy and, with the outfit's piece masks, the per-vertex pieces hull_pieces.npy),
@@ -1487,7 +1507,8 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
     m = surface(V, A, views)
     stage('surface', V=m.V, F=m.F, vc=m.vc if m.vc is not None else np.zeros(0))
     full = len(m.F)
-    m = remesh.decimate(m, faces)
+    dec = {}
+    m = decimate_hull(m, faces, info=dec)
     stage('decimated', V=m.V, F=m.F, vc=m.vc if m.vc is not None else np.zeros(0))
     io.save(m, os.path.join(out, 'hull.ply'))
     io.save(m, os.path.join(out, 'hull.glb'))            # a coloured 'generated character' for charkit.geom.parts
@@ -1506,6 +1527,8 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
     json.dump(sidecar(ex, ey, **side), open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs, **shell)
     rep.update(calibration=info, mesh={'vertices': len(m.V), 'faces': len(m.F), 'faces_before_decimation': full,
+                                       'decimation': dict(dec, rule='faces %d' % faces if faces else
+                                                          'quadric error %g' % DECIMATE_COST),
                                        'health': repair.report(m)}, seconds=round(time.time() - t0, 1))
     json.dump(rep, open(os.path.join(out, 'hull.json'), 'w'), indent=1, default=str)
     if page and validate_views:
@@ -1748,7 +1771,8 @@ def main(args):
     head = '--head' in args
     out = refcheck._p(opt('--out', 'charkit/out/hull/%s%s' % (spec.get('name', 'char'), '_head' if head else '')))
     stages = [] if '--stages' in args else None
-    rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'), int(opt('--faces', 150000)),
+    rep = build(spec, out, float(opt('--h', 0.005 if head else 0.01)), opt('--style'),
+                int(opt('--faces')) if opt('--faces') else (150000 if head else None),
                 validate_views='--fast' not in args, sheet='head' if head else 'body', stages=stages)
     if stages is not None:
         save_stages(stages, refcheck._p(opt('--stages')), out)

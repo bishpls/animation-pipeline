@@ -1,0 +1,112 @@
+{
+ "check": "bow_front_bleed",
+ "part": "collar_flags",
+ "adapter": "Garments",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:01:38",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.3775,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.3342,
+    0.0,
+    0.0,
+    0.8378,
+    1.0684
+   ],
+   "statuses": [
+    "FAIL",
+    "PASS",
+    "PASS",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.3342,
+   "status": "FAIL",
+   "passing": 2
+  },
+  "affine_pieces": {
+   "values": [
+    0.7813,
+    0.6919,
+    0.7154,
+    0.6119,
+    1.106
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.7154,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), g3_render3 reads 0.3775 FAIL; a random stand-in fails it; shape guarded by piece_bow",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 23.3
+}

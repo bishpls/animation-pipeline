@@ -1,0 +1,123 @@
+{
+ "check": "piece_bow",
+ "part": "sheet_pieces",
+ "adapter": "Pieces",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:02:44",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.995,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.995,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.993,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.991,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.987,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.978,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.991,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.986,
+    "PASS"
+   ]
+  },
+  "min": 0.978,
+  "max": 0.995,
+  "spread": 0.017,
+  "median": 0.991,
+  "views": {
+   "front": [
+    1.0,
+    1.0
+   ],
+   "profile": [
+    0.8651,
+    0.9715
+   ],
+   "three_quarter": [
+    0.9984,
+    1.0
+   ]
+  }
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a shape check, the anti-gaming guard's measure: no single flagged build",
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0,
+    0.024,
+    0.017,
+    0.0,
+    0.023
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.017,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.663,
+    0.709,
+    0.668,
+    0.668,
+    0.607
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.668,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.754,
+  "status": "PASS",
+  "margin": 0.635
+ },
+ "verdict": "guard",
+ "why": "no known-bad (a shape check, the anti-gaming guard's measure: no single flagged build); the design passes and the floor does not",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 51.9
+}

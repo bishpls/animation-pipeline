@@ -1,0 +1,91 @@
+{
+ "check": "face_shadow_chin_edge",
+ "part": "look",
+ "adapter": "Chin",
+ "module": "charkit.calib.chin",
+ "at": "2026-09-30T18:03:49",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0049,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0087,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.004,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0082,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0053,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0098,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0046,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0086,
+    "PASS"
+   ]
+  },
+  "min": 0.004,
+  "max": 0.0098,
+  "spread": 0.0058,
+  "median": 0.006750000000000001
+ },
+ "known_bad": {
+  "name": "look5_before",
+  "value": 0.0601,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shadow_moved": {
+   "values": [
+    0.0402,
+    0.0289,
+    0.0225,
+    0.0152,
+    0.0425
+   ],
+   "statuses": [
+    "FAIL",
+    "WARN",
+    "WARN",
+    "PASS",
+    "FAIL"
+   ],
+   "median": 0.0289,
+   "status": "WARN",
+   "passing": 1
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0567,
+  "status": "FAIL",
+  "margin": -1.255
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0058), look5_before reads 0.0601 FAIL, the floor shadow_moved WARN",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "shadow_moved": "the design's own shadow moved 4-8 px in a random direction against its jaw"
+ },
+ "seconds": 31.4
+}

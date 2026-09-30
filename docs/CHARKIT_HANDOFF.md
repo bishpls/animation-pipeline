@@ -1122,6 +1122,25 @@ Drawn from the session's recurring failure patterns:
    - retire tools/imageto3d/trellis_remote.sh;
    - give the perceptual metric its own environment on the render box.
 
+### When a check and Michael's eye disagree
+
+A check passed while Michael saw the defect (2026-09-30: look5's chin, hair_piece_bangs 0.79 PASS with the bang locks at
+a random split's level, piece_sleeve PASS with the puff caps above the shoulder line, bow_profile_ribbon PASS with the
+ribbons as flat blades). Work down this list in order; don't touch the builder until the first three hold.
+1. **Calibrate the measure: the triple.** `python -m charkit calibrate CHECK --build DIR` (charkit/calibrate.py): the
+   design against itself moved 1-2 px must PASS (read the spread); the named known-bad build must FAIL; a random floor
+   (shuffled labels or partitions, a jittered or affine-perturbed geometry) must not pass, and the current build must
+   beat it clearly. A check that fails this is fixed or kept INFO, never loosened. The record lands in
+   `charkit/calib/records/`; the gate blocks a new or remeasured check without one.
+2. **Truth-check the asset.** Where the check reads a produced asset (the outfit masks, the hair layers), score that
+   asset against a small hand-checked truth (outfit_truth, hair_truth, the lock truth). Below about 0.95, or with the
+   views disagreeing, fix the asset first: a check is only as good as the masks it compares with.
+3. **The granularity check.** Does the design draw structure no check measures (the bangs' locks inside the family,
+   the puffs' caps inside the sleeve's IoU, the ribbons' depth inside a width)? A probe (`probes` in the registry)
+   perturbs that structure; a check that still passes is blind to it. Add a check at that granularity, calibrated.
+4. **Then the builder.** Fit with the new check and every piece's shape IoU in all views beside it (the gate's
+   anti-gaming guard blocks a check improving while its piece's shape drops more than 15% in a view).
+
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
 Michael's next steps after the code-authored head: cut-piece hair and garments, the eye and mouth engine overhaul,

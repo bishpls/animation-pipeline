@@ -1,0 +1,92 @@
+{
+ "check": "bow_front_flare",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.562,
+    "FAIL"
+   ],
+   "+0,+2": [
+    0.562,
+    "FAIL"
+   ],
+   "+1,+0": [
+    0.549,
+    "FAIL"
+   ],
+   "+2,+0": [
+    0.534,
+    "FAIL"
+   ],
+   "+0,-1": [
+    0.562,
+    "FAIL"
+   ],
+   "+0,-2": [
+    0.562,
+    "FAIL"
+   ],
+   "-1,+0": [
+    0.575,
+    "FAIL"
+   ],
+   "-2,+0": [
+    0.587,
+    "FAIL"
+   ]
+  },
+  "min": 0.534,
+  "max": 0.587,
+  "spread": 0.053,
+  "median": 0.562
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.994,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    null,
+    null,
+    0.732,
+    null,
+    1.232
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.982,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.005,
+  "status": "FAIL",
+  "margin": -0.055
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads FAIL moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 204.7
+}

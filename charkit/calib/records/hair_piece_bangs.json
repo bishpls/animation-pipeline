@@ -1,0 +1,100 @@
+{
+ "check": "hair_piece_bangs",
+ "part": "hair_pieces",
+ "adapter": "Hair",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:01:51",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.943,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.9,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.953,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.918,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.943,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.9,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.953,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.918,
+    "PASS"
+   ]
+  },
+  "min": 0.9,
+  "max": 0.953,
+  "spread": 0.053,
+  "median": 0.9305,
+  "views": {
+   "front": [
+    0.8986,
+    0.9482
+   ],
+   "profile": [
+    0.9035,
+    0.9605
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "hl_base",
+  "value": 0.792,
+  "status": "PASS"
+ },
+ "floor": {
+  "voronoi_families": {
+   "values": [
+    0.076,
+    0.135,
+    0.153,
+    0.15,
+    0.162
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.15,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.792,
+  "status": "PASS",
+  "margin": 0.823
+ },
+ "verdict": "blind",
+ "why": "the known-bad hl_base reads 0.792 PASS",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_families": "the hair's drawn area cut into random cells (8 per family a view shows), each a random family (weighted by the families' drawn areas)"
+ },
+ "seconds": 12.2
+}

@@ -99,8 +99,10 @@ def stage_hair(S):
     acc = S.spec.get('accessories') or []
     if shape and shape.get('mode') in ('mesh', 'geom', 'pieces'):
         acc = [a for a in acc if a['kind'] not in shape.get('carries', ['bun'])]
+    # the clips rest on the hair as built (its objects' base meshes, world), the buns on the hair volume
     S.accessories = accessories.build(S.character['data'], S.character['arm'], S.hair_volume, acc,
-                                      {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')})
+                                      {'hair': shade.MATS.get('hair') or shade.MATS.get('hair_shape')},
+                                      ground=accessories.hair_ground(S.hair))
 
 
 def cull_face(S, hv, hf, shape):
@@ -149,6 +151,15 @@ def hair_shape_volume(S, shape, hc):
     cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
                                    hc.get('deep', (0.6, 0.22, 0.16))]
     chin_z = Hd['centre'][2] - Hd['H'].chin
+    sel = shape.get('selection')
+    if sel and os.path.exists(sel if os.path.isabs(sel) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sel)):
+        # the selection made venv-side by the evaluator's own function (cli.hair_select, bodyeval.hair_selection): one
+        # selection for the build and the evaluator, already culled off the face
+        Z = np.load(sel if os.path.isabs(sel) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), sel))
+        hv, hf = np.asarray(Z['V'], float), [tuple(int(i) for i in f) for f in Z['F']]
+        S.hair_shape = (hv, hf)
+        style = hair._style(S.spec['hair'])
+        return hair.MeshVolume(Hd['H'], Hd['centre'], style, Hd['info']['target'], (hv, hf))
     if shape.get('select') == 'outside':
         hv, hf = target3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
                                      below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)

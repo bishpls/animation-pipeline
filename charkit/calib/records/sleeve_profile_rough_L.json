@@ -1,0 +1,120 @@
+{
+ "check": "sleeve_profile_rough_L",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_sleeve_L"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0047,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0047,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0047,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0047,
+    "PASS"
+   ]
+  },
+  "min": 0.0047,
+  "max": 0.0047,
+  "spread": 0.0,
+  "median": 0.0047
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 0.0049,
+  "status": "PASS"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0067,
+    0.0047,
+    0.0047,
+    0.0047,
+    0.0121
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "WARN"
+   ],
+   "median": 0.0047,
+   "status": "PASS",
+   "passing": 4
+  },
+  "affine_pieces": {
+   "values": [
+    0.0047,
+    0.0047,
+    0.0047,
+    0.0047,
+    0.0047
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0047,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "torn_edges": {
+   "value": 0.0047,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "torn_edges"
+ ],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "blind",
+ "why": "the known-bad body6_render reads 0.0049 PASS",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random",
+  "torn_edges": "(probe) every drawn piece's outline bitten: a disk 0.016-0.03 L across per 0.06 L of outline, given to the nearest other label"
+ },
+ "seconds": 204.7
+}

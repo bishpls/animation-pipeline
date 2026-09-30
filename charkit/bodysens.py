@@ -107,6 +107,10 @@ HAIR_VOLUME = {'thick': (1.0, 0.1, 0.5, 2.0, 'volume thickness'), 'crown': (1.0,
 ACCESSORY = {'az': (0.0, 4.0, -180.0, 180.0, 'degrees'), 'el': (0.0, 4.0, -40.0, 90.0, 'degrees'),
              'size': (0.2, 0.03, 0.02, 0.8, 'L'), 'tilt': (0.0, 6.0, -90.0, 90.0, 'degrees'),
              'lean': (0.0, 6.0, -60.0, 60.0, 'degrees'), 'lift': (0.0, 0.01, -0.05, 0.1, 'L')}
+# a clip placed by 'at' (charkit.accessories: L from the head's centre) and turned by 'facing' has these in place of az / el
+ACCESSORY_AT = {'at.0': (0.0, 0.02, -1.0, 1.0, 'L, toward her left'), 'at.1': (0.0, 0.02, -1.0, 1.0, 'L, toward her back'),
+                'at.2': (0.0, 0.02, -1.0, 1.0, 'L, up'), 'facing.0': (0.0, 6.0, -180.0, 180.0, 'degrees'),
+                'facing.1': (0.0, 6.0, -60.0, 60.0, 'degrees')}
 NOISE = {'iou': 0.0015, 'angle': 0.15, 'L': 0.003, 'ratio': 0.004, 'sheet': 0.004}   # below: rasterisation noise
 UNBOUNDED = 5                                                  # steps a knob without a bound is trusted to go
 
@@ -196,9 +200,14 @@ def inventory(spec):
     carried = set(shape.get('carries', ['bun'])) if shape and mode in ('mesh', 'geom') else set()
     for i, a in enumerate(spec.get('accessories') or []):
         nm = a.get('name') or ('%s_%d' % (a['kind'], i))
-        for k, (d, st, lo, hi, note) in ACCESSORY.items():
+        knobs = dict(ACCESSORY)
+        if a.get('at') is not None:
+            knobs.pop('az'); knobs.pop('el')
+            knobs.update(ACCESSORY_AT)
+        for k, (d, st, lo, hi, note) in knobs.items():
             kind = 'inactive' if a['kind'] in carried else 'geometry'
-            add('accessories.%d.%s' % (i, k), 'hair', nm, a.get(k, d), st, lo, hi,
+            v = a.get(k, d) if '.' not in k else ((a.get(k.split('.')[0]) or [d] * 3)[int(k.split('.')[1])])
+            add('accessories.%d.%s' % (i, k), 'hair', nm, v, st, lo, hi,
                 note + (' (carried by the generated hair)' if a['kind'] in carried else ''), kind)
         for k in ('color', 'line'):
             if k in a:
