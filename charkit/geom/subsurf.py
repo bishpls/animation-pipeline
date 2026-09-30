@@ -6,7 +6,8 @@ smooth ('ALL': the open edges sharp, their corners not), UVs smoothed inside and
 
     R = subsurf.subdivide(V, polys, levels=1, creases={(a, b): 1.0}, uv=per_corner_uvs)
     R['V'] (n, 3) at the limit surface; R['quads'] (m, 4); R['parent'] (m,) the input polygon per quad;
-    R['uv'] (m, 4, 2) per corner; R['carry'] per-vertex data carried as Blender carries vertex data (vertex groups)
+    R['uv'] (m, 4, 2) per corner; R['carry'] per-vertex data carried as Blender carries vertex data (vertex groups;
+    carry_rule='limit': through the positions' own stencil, the skin weights charkit ships)
 
 The refined mesh's vertices are ordered as Blender's: the input vertices, then one per input edge, then one per polygon
 (each level). Each child quad starts where Blender's does, so a fan triangulation cuts it along the same diagonal.
@@ -297,11 +298,14 @@ def uv_values(T, luv, limit_=UV_LIMIT, use_winding=True):
 
 # ------------------------------------------------------------------------------------------------------------ main
 def subdivide(V, polys, levels=1, creases=None, vcreases=None, uv=None, limit_surface=True, carry=None,
-              uv_smooth='PRESERVE_BOUNDARIES', sharpness=None, quality=3):
+              uv_smooth='PRESERVE_BOUNDARIES', sharpness=None, quality=3, carry_rule='linear'):
     """Blender's Subdivision Surface on a mesh. polys: index tuples, or (loopv, counts); creases: {(a, b): crease 0..1}
     or (pairs (k, 2), creases (k,)); vcreases: per-vertex crease (n,) or None; sharpness: (pairs, sharpness) given as
     OpenSubdiv sharpness directly (instead of creases); uv: per-corner UVs ([(u, v) per corner] per polygon, or
-    (loops, 2)); carry: per-vertex data (n, k) interpolated as Blender interpolates vertex data (linear, no limit).
+    (loops, 2)); carry: per-vertex data (n, k), by carry_rule: 'linear' as Blender interpolates vertex data (kept at
+    the vertices, the mean of the ends and of the corners; no limit), 'limit' through the same refinement and limit
+    stencil as the positions (the limit-stencil skin weights call J ships: an affine, non-negative mask, so weights
+    that sum to 1 still do).
     -> dict(V, quads, parent, uv (m, 4, 2) or None, carry or None, sharp (the final level's sharp edges: pairs,
     sharpness))."""
     V = np.asarray(V, float)
@@ -349,6 +353,11 @@ def subdivide(V, polys, levels=1, creases=None, vcreases=None, uv=None, limit_su
         uvs = np.maximum(uvs, np.where(_nonmanifold_vertices(UT), INF, 0.0))
         UVT = [U, UT, ues, uvs]
     C = None if carry is None else np.asarray(carry, float).reshape(n, -1)
+    if carry_rule not in ('linear', 'limit'):
+        raise ValueError('carry_rule %r' % carry_rule)
+    nd = V.shape[1]
+    if C is not None and carry_rule == 'limit':         # the carried data rides with the positions, column for column
+        V, C = np.concatenate([V, C], 1), None
     parent = np.arange(T.nf)
     for lev in range(levels):
         V1, Qd, ps, vs1, par = refine(V, T, es, vs)
@@ -372,6 +381,8 @@ def subdivide(V, polys, levels=1, creases=None, vcreases=None, uv=None, limit_su
             U, UT, ues, uvs = UVT
             UVT[0] = evaluate(U, UT, ues, uvs, levels, quality)
     uv_out = UVT[0][UVT[1].lv].reshape(-1, 4, 2) if UVT is not None and levels else None
+    if carry is not None and carry_rule == 'limit':
+        V, C = V[:, :nd], V[:, nd:]
     return dict(V=V, quads=quads, parent=parent, uv=uv_out, carry=C, sharp=sharp_final)
 
 

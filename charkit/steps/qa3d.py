@@ -104,4 +104,10 @@ MEASUREMENT_STEPS = [
      "its loop's winding"),
     ('expr_*_eye', '8ea2634', "a closed eye's fork (exprqa eye_fork) graded against the drawing's, and in the match past "
      'its pass band (a chevron against a single stroke); two single strokes match as before (tool/mouth3)'),
+    # tool/evalmesh M4: the garments' final meshes (Solidify and Subsurf applied venv-side) are the bundle's raw
+    ('poke_share', '0c9eb95', "skin poking through a garment is read against the garment's outer surface only (its "
+     "faces' ck_layer 0, evalmesh.finalize), not every raw face: raw became the final mesh, whose Solidify inner copy "
+     "sits t inside the surface and read skin under it as poking through; a bundle without the layer reads every face, "
+     "as before. The 2x2 (by hand, M4's gate): old measure 0.0028 on the old meshes, 0.020 on the final ones; new "
+     "measure 0.0028 on the old, 0.003 on the final (tool/evalmesh)"),
 ]

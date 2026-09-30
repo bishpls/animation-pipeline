@@ -92,14 +92,15 @@ def test_solidify_layout():
 
 def test_finalize_a_recorded_garment():
     """M4's final mesh at rest: a strip's Solidify then Subsurf, its materials through the polygons' parents and its
-    weights copied to the Solidify's copies and carried linearly (as Blender carries vertex groups)."""
+    weights copied to the Solidify's copies and carried by either rule: linearly (as Blender carries vertex groups), or
+    through the positions' limit stencil (WEIGHT_RULE, R3a)."""
     V = np.array([(x, y, 0.1 * x * x) for y in (0, 1) for x in range(4)], float)
     F = [(0, 1, 5, 4), (1, 2, 6, 5), (2, 3, 7, 6)]
     o = dict(name='strip', V=V, polys=F, uv=None, uv_corner=[[(V[v, 0] / 3, V[v, 1]) for v in f] for f in F],
              mat_idx=[0, 1, 0], weights={'b': V[:, 0] / 3},
              mods={'thick': dict(type='SOLIDIFY', settings=dict(thickness=0.1, offset=-1)),
                    'sub': dict(type='SUBSURF', settings=dict(levels=1, render_levels=1))})
-    R = evalmesh.finalize(o)
+    R = evalmesh.finalize(o, weight_rule='linear')
     S = solid.solidify(V, F, 0.1)
     assert len(R['counts']) == 4 * len(S['counts']) and R['shell'] == 0.1 and R['levels'] == 1
     from charkit.garments import group_weights                  # (as the coarse object's vertex group holds them)
@@ -107,6 +108,40 @@ def test_finalize_a_recorded_garment():
     assert np.array_equal(R['weights']['b'][:2 * len(V)], np.r_[w, w])                # kept at the vertices
     assert set(R['mat_idx'].tolist()) == {0, 1}
     assert len(R['uv_corner']) == len(R['counts'])
+    # the default (the limit stencil): the same mesh, the weights as the solidified mesh's positions would go
+    assert evalmesh.WEIGHT_RULE == 'limit'
+    D = evalmesh.finalize(o)
+    assert np.array_equal(D['V'], R['V']) and np.array_equal(D['loopv'], R['loopv'])
+    cre = S['creases'] if len(S['creases'][0]) else None
+    want = subsurf.subdivide(np.r_[w, w][:, None], (S['loopv'], S['counts']), creases=cre)['V'][:, 0]
+    assert np.abs(D['weights']['b'] - want).max() < 1e-12
+    assert np.abs(D['weights']['b'] - R['weights']['b']).max() > 1e-3            # (the rules do differ here)
+
+
+def test_carry_rules():
+    """per-vertex data through the subdivision: 'linear' keeps it at the vertices and takes means (Blender's vertex
+    data); 'limit' puts it through the positions' own refinement and limit stencil, leaving the positions as they were.
+    Skin weights that sum to 1 still do, and stay in 0..1 (the stencil is affine and non-negative), on creases,
+    semi-sharp creases and open borders alike."""
+    for name in ('cube_one_c0.9', 'cube_ring_c0.7', 'grid_open', 'cube_two_sharp'):
+        p = _shape(name)
+        n = len(p['V'])
+        rng = np.random.default_rng(len(name))
+        W = rng.random((n, 3)); W[rng.random(n) < 0.4, 1:] = 0; W /= W.sum(1, keepdims=True)
+        base = _sub(p)
+        lin, lim = _sub(p, carry=W), _sub(p, carry=W, carry_rule='limit')
+        assert np.array_equal(lin['V'], base['V']) and np.abs(lim['V'] - base['V']).max() < 1e-12, name
+        assert np.array_equal(lin['carry'][:n], W), name                          # linear: kept at the vertices
+        cre = (p['crease_e'], p['crease_w']) if len(p['crease_e']) else None
+        assert np.abs(lim['carry'] - subsurf.subdivide(W, (p['loopv'], p['counts']), creases=cre)['V']).max() < 1e-12
+        for C in (lin['carry'], lim['carry']):
+            assert np.abs(C.sum(1) - 1).max() < 1e-12 and C.min() > -1e-15 and C.max() < 1 + 1e-12, name
+    try:
+        _sub(_shape('grid_open'), carry=np.ones((len(_shape('grid_open')['V']), 1)), carry_rule='nearest')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('an unknown carry rule must fail loudly')
 
 
 def test_against_blender():
