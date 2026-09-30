@@ -1,0 +1,117 @@
+{
+ "check": "hair_back_lines",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T19:58:32",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hair_piece_upper_back",
+  "hair_piece_lower_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.022,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.043,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.066,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.044,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.003,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.106,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.084,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.263,
+    "PASS"
+   ]
+  },
+  "min": -0.066,
+  "max": 0.263,
+  "spread": 0.329,
+  "median": 0.023,
+  "views": {
+   "back": [
+    -0.066,
+    0.263
+   ],
+   "front": [
+    -0.102,
+    0.463
+   ],
+   "profile": [
+    -0.144,
+    0.499
+   ],
+   "three_quarter": [
+    -0.165,
+    0.6
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 4.561,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_lines": {
+   "values": [
+    -0.634,
+    -0.572,
+    -0.345,
+    -0.118,
+    -0.392
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": -0.392,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "stripes": {
+   "value": 8.322,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 4.567,
+  "status": "FAIL",
+  "margin": 11.949
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.329), hair5_1580f95 reads 4.561 FAIL; a random stand-in passes it (voronoi_lines); shape guarded by hair_piece_upper_back, hair_piece_lower_back",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "voronoi_lines": "the ink inside the mass: a random partition's boundaries (about the drawing's line length)",
+  "stripes": "the drawing's ink plus vertical lines every 0.12 L across the mass"
+ },
+ "seconds": 60.8
+}

@@ -1,0 +1,117 @@
+{
+ "check": "hair_ahoge_bend",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T19:58:32",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hair_piece_ahoge",
+  "hair_ahoge_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0,
+  "views": {
+   "back": [
+    -0.0,
+    -0.0
+   ],
+   "front": [
+    -0.0,
+    -0.0
+   ],
+   "profile": [
+    -0.0,
+    -0.0
+   ],
+   "three_quarter": [
+    0.0,
+    0.0
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 107.2,
+  "status": "FAIL"
+ },
+ "floor": {
+  "rotate_ahoge": {
+   "values": [
+    206.3,
+    38.3,
+    101.0,
+    11.0,
+    32.1
+   ],
+   "statuses": [
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "PASS",
+    "WARN"
+   ],
+   "median": 38.3,
+   "status": "WARN",
+   "passing": 1
+  }
+ },
+ "probes": {
+  "wiggle_ahoge": {
+   "value": 77.9,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 107.2,
+  "status": "FAIL",
+  "margin": -1.799
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), hair5_1580f95 reads 107.2 FAIL; a random stand-in fails it; shape guarded by hair_piece_ahoge, hair_ahoge_shape",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "rotate_ahoge": "the drawn ahoge turned about its root by 25-45 degrees either way",
+  "wiggle_ahoge": "the drawn ahoge bent sideways along its length by a 1.5-wave of 0.012 L"
+ },
+ "seconds": 60.8
+}

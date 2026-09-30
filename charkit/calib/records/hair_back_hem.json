@@ -1,0 +1,93 @@
+{
+ "check": "hair_back_hem",
+ "part": "hair_flags",
+ "adapter": "HairFlags",
+ "module": "charkit.calib.hairflags",
+ "at": "2026-09-30T19:58:32",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "hair_piece_lower_back",
+  "hair_piece_upper_back"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0,
+    "PASS"
+   ]
+  },
+  "min": 0,
+  "max": 0,
+  "spread": 0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "hair5_1580f95",
+  "value": 5,
+  "status": "FAIL"
+ },
+ "floor": {
+  "smooth_hem": {
+   "values": [
+    8,
+    8,
+    8,
+    8,
+    8
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 8,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 5,
+  "status": "FAIL",
+  "margin": 0.375
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0), hair5_1580f95 reads 5 FAIL; a random stand-in fails it; shape guarded by hair_piece_lower_back, hair_piece_upper_back",
+ "build": "charkit/out/h5_base",
+ "generators": {
+  "smooth_hem": "the back view's hair with its lower edge smoothed over 0.15 L (a bob's hem)"
+ },
+ "seconds": 60.8
+}
