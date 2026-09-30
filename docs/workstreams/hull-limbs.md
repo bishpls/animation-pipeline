@@ -5,6 +5,25 @@ tool/garment-sampling 47b401f, then pipeline-3d 2e3bdd5. tool/body round 6 merge
 
 ## State (2026-09-30, relaunch): read first
 
+**Latest (after pipeline-3d b8097cf, tool/body round 6 with hull-det and garment-sampling).** Merged at 4815115. The
+round-6 merge fixed the hem regressions that were hull-det's and garment-sampling's. This branch's own three, fixed:
+- `hair_folds` and `piece_collar` (5d618ee): `refine` fits the oblique views' axes against the silhouettes' hull without
+  the limb split. The three-quarter's offsets tie within 1e-4 of IoU half a voxel apart, so the limb carve had flipped
+  it +0.040 → +0.035 L. The whole carve moved a pixel, and the hair's flyaways turned (see below). Without the split it
+  is +0.040 in both trees; box builds with the axis at +0.040 give hair_folds 9 (default) and 7 (clawd_mh), the
+  three-quarter hair width 0.956 and piece_collar 0.755.
+- `body_back_leg` (56b480a): the shorts' hem 0.03 L lower (`hem_drop` in clawd, clawd_body, clawd_body_pieces).
+  Without the slab's `shorts` labels the hull-labelled hem sits 0.03 L high at the back. The body's subdivided seat
+  showed through the gap the design draws between the legs from z -2.63. Evaluator: 0.0848 WARN → 0.0001 PASS,
+  body_front_leg 0.038 → 0.000, dark IoU up in all four views, no check worse. code_body.CROTCH 0.11 changes nothing.
+- `body_profile_leg_back` (1fd1c63, detailqa): both figures read on the design's facing (face_side misread ours: offset
+  -5.26 L, the front edge), and the rows within 0.02 L (LEG_EDGE) of either figure's leg ends left out. The design's
+  sloped boot-cuff line cut its last two rows short: 0.13-0.21 L on every build, the "0.207 FAIL" of round 6's build.
+  The thigh bump still reads: before 0.108 FAIL at -2.806, LimbTrack alone 0.061 FAIL, after 0.014 PASS (box),
+  0.019 PASS (b8097cf + this branch, evaluator).
+
+GATES2
+
 **Why relaunched.** Michael saw a protrusion at the back of the leg in profile. tool/body traced it to the hull: at
 z -2.72 to -2.76 L the hull labels skin all along the profile's side run behind the leg, where the flap train hangs, and
 code_body's thigh fit bulged back to it. The thigh's back edge sat 0.07-0.11 L behind the design's from z -2.74 to
@@ -154,7 +173,16 @@ clawd_mh (baseline → before → this branch):
   These are exactly the paused gate's values (a9a84a8): they were never hull-det's edge-mode bug.
 - Improved: `piece_waistband` 0.366 FAIL → 0.499 FAIL → 0.502 WARN.
 
-PINNED
+Attribution builds (throwaway branch `tmp/hull-limbs-pin` = 05f1c1f with the three-quarter's refined axis pinned at the
+before's +0.040 L; box):
+- default: hair_folds 9 (flyaways 0), piece_collar 0.755 PASS, body_back_leg 0.122 WARN (unchanged: not the axis);
+- clawd_mh: hair_folds 7, three-quarter hair width 0.956 PASS, hair_penetration 0.048 FAIL and three-quarter skirt
+  A-line 0.078 WARN (unchanged: not the axis).
+- clawd_mh's hair_penetration is the `lower_back` hair 0.048 L into the MakeHuman skin at the shoulder's top on her
+  left (x 0.32..0.40, z -0.57..-0.59, 33 vertices). The hull's shoulder behind the puff is 0.03-0.05 L shallower there
+  (x 0.40..0.50, z -0.52..-0.58). Before, the arm parts at z -0.52 took the whole side run (the torso's and the back
+  hair's depth), a slab the smoothing spread over the shoulder. The MakeHuman shoulder stands outside the design's hull
+  there; the authored body's (default spec) hair_penetration doesn't change.
 
 **Open items**
 - tool/body: `body_profile_leg_back` as coded fails on the boot cuff's top rows in every build of ours (above), and its
