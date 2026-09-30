@@ -28,6 +28,12 @@ SHARED = (('charkit.qa3d', 'Design'), ('charkit.qa3d', '_check_name'), ('charkit
           ('charkit.bundle', 'Bundle'), ('charkit.bundle', 'Obj'), ('charkit.bundle', 'load'))
 
 
+# the kit's bookkeeping, not measurement: the cache's keys and restores, the input record, the trace, the thread caps,
+# the part registry. A part reaches them (cache.memo, the @qa_part decorator), and a change there moved no check: tool/
+# infra4's own cache.py change flagged all 24 parts, and the 2x2 (217 s) found every check read alike.
+BOOKKEEPING = ('charkit/cache.py', 'charkit/closure.py', 'charkit/trace.py', 'charkit/procs.py', 'charkit/registry.py')
+
+
 def tree(t, repo=ROOT):
     """a cache.Tree for t: a Tree, a directory (a worktree), or a git revision or tree id in repo."""
     if isinstance(t, cache.Tree):
@@ -83,11 +89,13 @@ def part_defs(t):
 
 def measure_units(t):
     """each QA part's measuring code in tree t -> {part: {unit: digest}}: the part's function and what it reaches, and
-    the QA's shared code (SHARED, where the tree has it), a module's constants each a unit (code_units' fine walk)."""
+    the QA's shared code (SHARED, where the tree has it), a module's constants each a unit (code_units' fine walk); the
+    kit's bookkeeping (BOOKKEEPING) left out."""
     T = tree(t)
     with cache.code_tree(T):
         shared = [(m, n) for m, n in SHARED if _has(m, n)]
-        return {P['name']: cache.code_units(starts=[(P['module'], P['fn'])] + shared, fine=True)
+        return {P['name']: {k: v for k, v in cache.code_units(starts=[(P['module'], P['fn'])] + shared, fine=True).items()
+                            if not k.startswith(BOOKKEEPING)}
                 for P in part_defs(T)}
 
 
