@@ -566,3 +566,16 @@ Open, in order:
 5. The hull's regressions (hair_folds, the hull-built skirt, collar and waist): tool/hull-det's, gated alone to confirm.
 6. `qa3d.face_folds` (624a516) and `qa3d.eye_anchor` are outside this workstream's files: the integrator should keep or
    re-home them.
+
+## Next round, first task: the design's jaw outline is poisoned by hair (Michael, 2026-09-30)
+
+In the taper page's "front: the lower outline" plot, the design curve (head sheet) has dip-spikes on both sides at
+about z −0.15 to −0.18 L round the eyes. There the side locks overlap the face in the drawing, and the tracer follows
+the hair's edge, not the face's. Ours are bare renders (hair hidden), so those rows compare hair against no hair. The
+rows are at the face's widest point, and the taper checks normalise by it (w(t)/w(0), where the taper starts), so the
+whole taper curve and jaw_taper_shape are biased. Fix the measure before any more jaw geometry:
+1. Prefer a hairless design reference: check whether head_construction (the skull's authority) draws the bare head at
+   the front and three-quarter angles. If it does, use it for the jaw outline checks.
+2. Otherwise mask the occlusions: drop any row where the design's face outline pixel touches the hair class (both
+   sides of the comparison) and normalise by the widest visible face row. Register it as a remeasure in history.STEPS.
+Then re-read jaw_4 and jaw_5 on the corrected measure before touching the three-quarter notch.
