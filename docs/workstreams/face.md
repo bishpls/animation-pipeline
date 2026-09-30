@@ -1036,5 +1036,9 @@ Jobs:
   coordinator.
 - merged pipeline-3d 25b1936 (infra-auth, evalmesh M2+M3: subsurf.py identical; infra3 run 3) at 253a702.
 - render box build of the tip (everything) -> `charkit/out/f5_after`; the gate into pipeline-3d (build box).
+- **The subdivision move on the box: 0 QA checks move** (f5_geom, c047273 on d60486a, against f5_after, 253a702: the
+  subdivision move plus pipeline-3d 25b1936, whose own gates moved nothing): every check's value and grade identical.
+- pre-gate (253a702 into 25b1936): PASS, 21 values moved, none blocking
+  (`charkit/out/pregate/pregate_tool-face5_253a702_into_25b1936.md`; it doesn't cover the piece details or the face).
 - review page: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
   --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
