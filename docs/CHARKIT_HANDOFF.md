@@ -785,6 +785,10 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - I. screen-width lines on thin shells (from tool/toonrender): the outline's inward move is capped at half each
     piece's shell thickness, and the rest of the line width goes outward. The shells no longer turn inside out
     (garments are 1.5-3 mm thick, the move was 3.6 mm), and thin pieces' silhouettes grow by a fraction of a pixel.
+  - J. subdivision and Solidify (docs/GEOM_TRUTH.md step 7) move out of Blender into the venv: no reason to keep them
+    there. They're computed at rest and then skinned (the game-engine way; the VRM export needs final meshes anyway),
+    and the motion QA checks the bends at extreme poses against Blender's per-frame modifiers. The outline's inverted
+    hull stays render-time (call I), not geometry.
 - **Follow-ups not assigned:**
   - key gate baselines on the produced references' stamps;
   - make a missing TRELLIS field fail loudly;
