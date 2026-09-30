@@ -237,3 +237,25 @@ conflicts; the steps file names the rebased collarqa commit, a12f99d: the gate m
 (`charkit/out/pregate/pregate_tool-bow_5629e58_into_6ddcb5b.md`): PASS under K, 26 moved, 0 blocking;
 body_profile_chest 0.045 WARN -> 0.024 PASS; the evaluator's bodice-panel rows move (the wider ribbons cover more of the
 panel: its three-quarter top -0.085 -> -0.160 WARN, its profile rows gone, hidden behind the ribbons).
+
+**Gate 1 (5ce7954 into 9eba0b0): FAIL under K, one blocker** (`charkit/out/gate/gate_tool-bow_5ce7954_into_9eba0b0.md`):
+art_outline_collar 0.743 PASS -> 2.193 WARN, without the puffs. Improved: bow_front_tail_width 0.308 FAIL -> 0.0125
+PASS, bow_profile_ribbon 0.868 -> 0.092 PASS, bow_front_loop_end 0.593 -> 0.059 PASS, piece_bow 0.696 WARN -> 0.754
+PASS, bow_front_tail_gap WARN -> PASS, body_profile_chest WARN -> PASS. But bow_front_bleed 0.3425 FAIL (round 1's
+narrower ribbons 0.0325; pipeline-3d's bow 0.3775).
+
+**art_outline_collar is a corner count** (box builds bw_e0/p3/p4, the gate's flags; corners.py on their bundles): the
+collar's visible outline in front is two small pieces above the loops, 1.34 L long, so each corner is 0.745 (limits
+1.5 / 2.5 on the design's 0.84: 2 corners PASS, 3 WARN). One corner is at every build's right collar tip at the neck
+(x 0.187, z -0.47); the round caps add one at each collar piece's outer bottom end (x -0.352, z -0.614), where the
+collar's edge meets the loop's top edge: a round cap drops the loop's top there (0.035 L at p2, 0.024 p3, 0.020 p4,
+from the lobe's own taper plus the cap). Box: end 0 (open) 0.745 PASS, loop_end 0.593 FAIL; p2 (the gate) 2.193 WARN,
+0.059 PASS; p3 1.48 PASS (2 corners), 0.215 WARN; p4 0.743 PASS, 0.316 FAIL. No single power passes both, so
+`end_p` [upper, lower] (fd.. garments: the powers at the section's top and bottom, blended round it; the drawn loops'
+upper outer corners are square, their lower ones round): the top as p4's (no corner), the bottom round. Harness
+loop_end: [4,2] 0.186 WARN, [5,2] 0.222, [4,1.6] 0.143 PASS, [6,1.6] 0.200.
+
+**The bleed** (bleedpic.py on bw_p3): the widened ribbons, turned about their middle, sink their outer edges onto the
+jacket (0.107 L back at the ends against 0.07 of stand): no line along them there (rows 240-320 of the bleed frame).
+Round 1's narrow ribbon kept its outer edge ~0.008 L clear. `ribbon.hinge` (0..1): each row forward by that share of
+its turned half-depth (1: the outer edge on the wrap; `stand` then its clearance), the front view unchanged.

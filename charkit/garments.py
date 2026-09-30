@@ -2490,6 +2490,9 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     `out` (how far out their ends swing) and the ends' cut `slant` (the outer corner lower); else the old tails. Its
     `turn` (degrees, default 0): each tail's section turned about its length, its outer edge back and its inner edge
     forward (a ribbon falling over the bust's round shows its face in profile, as the design's do; 0 flat to the front).
+    Its `hinge` (0 .. 1, default 0): each row brought forward by that share of its turned half-depth, so at 1 the outer
+    edge stays on the wrap (the jacket's front) where a turn about the middle sank it into the jacket with no line
+    between; `stand` is then the outer edge's clearance.
     The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
     'tail_s'."""
     depth = 0.09 * sz if depth is None else depth
@@ -2533,20 +2536,25 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
             # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold. With `end` (a share
             # of its length) its far end is closed round: the section shrinks by a quarter ellipse over that share to a
             # point (a fan), where the old open ring read as a straight cut with no line (Michael, 2026-09-30). `end_p`:
-            # the cap's superellipse power (2 a quarter ellipse; higher, a flatter end with rounder corners, as drawn)
+            # the cap's superellipse power (2 a quarter ellipse; higher, a flatter end with rounder corners, as drawn), or
+            # [upper, lower]: the powers at the section's top and bottom, blended round it (the drawn loops' upper outer
+            # corners are square, their lower ones round)
             u_rows = [(1 - math.cos(math.pi * i / nv)) / 2 for i in range(nv + 1)]
             if end:
                 # the old rows up to the cap, then rows closing it (denser toward its tip)
                 u_rows = [u for u in u_rows if u < 1 - end]
                 u_rows += [1 - end + end * math.sin(0.5 * math.pi * q / 8) for q in range(8)]
+            p_up, p_lo = (end_p, end_p) if np.isscalar(end_p) else end_p
             for i, u_ in enumerate(u_rows):
                 th = math.acos(max(-1.0, min(1.0, 1 - 2 * u_)))      # 0 .. pi along the lobe
-                k_ = 1.0
+                k_up = k_lo = 1.0
                 if end and u_ > 1 - end:
                     e_ = (u_ - (1 - end)) / end
-                    k_ = max(0.0, 1 - e_ ** end_p) ** (1.0 / end_p)
+                    k_up = max(0.0, 1 - e_ ** p_up) ** (1.0 / p_up)
+                    k_lo = max(0.0, 1 - e_ ** p_lo) ** (1.0 / p_lo)
                 for j in range(nu):
                     ph = 2 * math.pi * j / nu
+                    k_ = k_lo + (k_up - k_lo) * 0.5 * (1 + math.sin(ph))
                     taper = (knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8) * k_
                     x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                     zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
@@ -2574,6 +2582,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
         w0, w1 = rb.get('w', (0.13, 0.22))
         out_, slant = rb.get('out', 0.2), rb.get('slant', None)
         ct, st = math.cos(math.radians(rb.get('turn', 0.0))), math.sin(math.radians(rb.get('turn', 0.0)))
+        hinge = rb.get('hinge', 0.0)
         t0_ = len(verts)
         for i in range(M + 1):
             s_ = i / M
@@ -2589,7 +2598,7 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
             for (dx, dz), dy in ((cut[0], -0.01 * L), (cut[1], -0.01 * L), (cut[2], -0.01 * L),
                                  (cut[2], 0.004 * L), (cut[1], 0.004 * L), (cut[0], 0.004 * L)):
                 u_, y_ = dx * sx, dy + 0.003 * L                  # outward across the tail; depth from its mid-plane
-                dx, dy = sx * (u_ * ct - y_ * st), u_ * st + y_ * ct - 0.003 * L
+                dx, dy = sx * (u_ * ct - y_ * st), u_ * st + y_ * ct - 0.003 * L - hinge * 0.5 * w * st
                 vs.append(p + np.array([dx, dy, dz])); us.append((0.5, s_))
         fs = []
         for i in range(M):
