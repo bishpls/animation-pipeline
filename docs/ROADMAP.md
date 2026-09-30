@@ -162,3 +162,17 @@ Speed-ups, largest first:
    - Blender's 46 s character assembly, once GEOM_TRUTH step 4 lands.
 7. **Iterate locally, gate once.** An exact evaluator (single-source geometry) and QA boards from `charkit.render`
    (0.02 s a board on the laptop) let agents converge before the first gate, instead of using gates to iterate.
+
+**Box provisioning (checked 2026-09-30): no change yet.** 33 minutes of build-box samples:
+- CPU median 44% busy, and 90% or more busy in only 3% of minutes;
+- load above 32 in 29% of minutes (peak 54.6);
+- 5.6 builds at once on average (peak 10);
+- at most 80 of 126 GB of memory used;
+- no build ever waited for a slot.
+
+The box is bursty, not undersized. Fix the scheduling (items 2-5 above) first. Make the load sampler start at boot on
+both boxes (it stopped when the box idle-stopped, and the render box has no samples yet), then read a full day with
+`charkit remote load --hours 24`. **Trigger for a capacity ask:** builds waiting for a slot in more than about 10% of
+active minutes after the fix. The likely ask is a second 32-vCPU build box as an auto-stopping spot VM (the detached
+jobs survive preemption). If latency matters more than throughput, benchmark a compute-optimised machine type first.
+GPU demand should fall: `charkit.render` draws boards on the CPU, so EEVEE is needed only for parity checks.
