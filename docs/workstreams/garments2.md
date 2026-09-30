@@ -5,7 +5,34 @@ shorts, the skirt's pleat detail, the collar and bow, the wrist cuffs. Worktree 
 branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling 47b401f merged) plus pipeline-3d
 2e3bdd5.
 
-## State (2026-09-30, milestone 3). Start here.
+## Paused (2026-09-30, usage limit). Start here.
+
+- **Branch** at the merge of pipeline-3d 53a557f (tool/face, tool/eyes2, the spec-alias test): `cbea649`. No code
+  changed since milestone 3; the jacket-over-band work (item 1 below) hasn't started in code.
+- **Box job running:** the "before" build, `~/animation-pipeline-g2before` fast-forwarded to 53a557f (branch
+  `tmp/g2before`), `remote build charkit/spec/clawd.json --out charkit/out/g2_before --boards views --no-blend`, log
+  `charkit/out/remote_g2_before.log` there. Rebuild it again if pipeline-3d moves before the final page.
+- **Found while reading the design (to confirm with numbers first):** the drawn piece masks label the jacket's lower
+  front corners as the waistband. In front, 0.2-0.3 L out, the masks' `top` ends at -1.30 and the band starts there,
+  while the drawing's jacket fronts hang to about -1.35..-1.37 (their hems slant down toward the opening: about -1.32 at
+  x ±0.4, -1.37 at the inner corners). So the design's `top_front_hem_step` 0.033 L (the band's visible top lower in the
+  middle) is an artefact: drawn, the band shows from about -1.33 under the bib and -1.36 under the jacket's corners,
+  so the middle is higher. Next: measure the design's junction from its ink (the band's region flooded inside its
+  strokes), not the masks, and re-derive the hem step's design value.
+- **Also to settle before building:** the plan tucks the bib's foot under the band, but `top_*_over_band` counts
+  `bodice_panel` among the jacket's pieces and expects it over the band. Either the bib hangs over the band too (flush
+  with its face, the jacket's fronts proud of it) or the check leaves the bib out. The drawn bib's bottom is a gentle
+  curve at about -1.325, the band's top edge line.
+- **Drawn jacket front:** the opening's edges stand at x ±0.175-0.18 L from the hem up to the bow tails' ends (-1.22);
+  above that the tails cover them.
+- **Scratch harness** (untracked): `g2lib.py`, `puffrun.py`, `specrun.py` and the junction crops `j0.py`-`j2.py` in
+  this session's scratchpad (`/private/tmp/claude-501/-Users-michaelbishop-opus-anim-test/ed87a979-.../scratchpad`).
+  Swap garments into `charkit/out/g2_m2` (the current box build of this branch's spec).
+- **Next, in order:** confirm the mask finding and fix the design-side measure; then item 1 below (the bib as
+  `bodice_panel`, the opening cut, the jacket's hem over the band with the slanted front corners, `bodice_panel` in
+  detailqa's midriff piece lists), in the evaluator first; then the box build.
+
+## State (2026-09-30, milestone 3)
 
 **Branch** `tool/garments2` (see `git log -1`), with pipeline-3d b571f28 merged (tool/body round 6, hull-det,
 garment-sampling). **Rescoped** (coordinator, after Michael's review of round 6): this workstream owns the UPPER
