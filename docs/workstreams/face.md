@@ -916,3 +916,19 @@ build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow
   b43c15e's: mouth2's gate moved only art_fragments_face on the rest face).
 - Gate tool/face4 (crown, exact normals, the chin at share 0.59) into pipeline-3d ae7fd45 next; the review page:
   `charkit/out/face_review/round4/index.html`.
+- **Gate tool/face4** (bd671ea into pipeline-3d ae7fd45): **PASS under K**
+  (`charkit/out/gate/gate_tool-face4_bd671ea_into_ae7fd45.md`). Nothing blocks. Improved: chin_tip 0.557 WARN -> 0.826
+  PASS, hair_penetration 0.0124 FAIL -> 0 PASS. Flag check art_terminator_hair 2.376 -> 2.433 (WARN grade both).
+  Values: chin_angle 116.7 -> 118.8 WARN, jaw_taper_shape 0.0388 -> 0.0399 WARN (0.0001 under FAIL), chin_underside
+  12.8 -> 14.2, jaw_taper 0.0055 -> 0.0059, art_outline_hair 0.689 -> 0.71 INFO, expr_*_brow (INFO), the face's
+  shading within 1%. CPU 1.09x. pipeline-3d moved to a4f91a3 (infra3 milestone B) after both gates: not re-gated.
+- Merge order: tool/face4-crown can merge alone; tool/face4 contains it.
+- Review page: `charkit/out/face_review/round4/index.html` (`face4_page.py ... --also ... --head head.html`): the
+  summary and the open decisions, design | before | after in the level projection (hair shown and hidden, the traces),
+  the boards' camera (whole and the chin), the hair's terminator per view with the crown alone and with exact normals,
+  the side locks' crops and the QA's artifact marks, the outlines, the numbers.
+
+**Open for Michael:** the chin's V graded in the level camera (there the taper reads 0.021 and the whole refit
+128.5-128.9; the rim loop 130.2 but the boards' chin_tip 0.42 FAIL); the ramus (no drawn reference: the side locks
+cover it in every view); sheet_width's drift (the evaluator's inputs: infra / body); the hair's exact normals as a look
+change (a hair-round call; hair4's crown_trim, blocked on the same check at 2.607, worth re-measuring on them).
