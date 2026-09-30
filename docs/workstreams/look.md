@@ -539,3 +539,29 @@ charkit/boards/lookprobe.py -- ...'` then `build.sh fetch` (`remote run` runs ch
 - The SDF's nose shadow: a thin triangle along the nose instead of the hexagonal cheek patch.
 - look.js against the Blender boards in `projects/charkit-look` (camera key, screen lines, streaks).
 - Grades for the look checks after a few builds of history.
+
+## Round 5 (look2's cast shadows, landed; `tool/look5`, from pipeline-3d 4de65ab)
+
+Michael's flag: "Today's under-chin shadow reads as a smeared horizontal band low on the neck; the design has a clean V
+directly under the chin, following the jaw." Round 2 built the cast shadows (above, "2 and 3") and paused before any
+QA number or gate. This round merges them onto today's look (look3's H and I, look4's M, toonrender2's render drawing,
+face4's chin) and validates them.
+
+### State (in progress)
+
+- `tool/look2` merged (afc0a52): conflicts only in gltf.py's material record and look.js's mesh attributes (look3's
+  streak hash and region factor kept, the cast added beside them).
+- **charkit.render draws the cast** (0010805): the export's `_CK_CAST0..3` read as a third vertex stream; the vertex
+  stage reads them at the head light's azimuth (atan2(x, z) in glTF, the two baked azimuths either side, linear, so per
+  vertex equals per pixel), the fragment cuts it by a smoothstep; toon3's half-lambert held under `half`, the face's SDF
+  shadow its maximum (toon.wgsl, and measure.wgsl's tone). Tests: `test_sphere_cast` (tones and colours against
+  qa3d._cast/_toon under three lights), `test_sphere_bare_variant`.
+- **The bare head under the render drawing**: round 2's face measures draw the head bare (the bundle's 'bare' skin),
+  which the render drawing couldn't draw (it fell back to numpy for any skin but 'masked'). The look export
+  (NAME.look.glb) now carries the skin's bare variant (NAME.bare: the garment mask off, no scene node, so no viewer
+  draws it; mesh extension `variant: 'bare'`), and qarender draws the 'bare' skin from it.
+- **A stale-cache hole closed**: scene.DEPS keyed face shading on the hair's names and `hair_front*` only; the cast
+  bakes every hair object's geometry into the skin, so with the cast on the stage now keys on the whole hair (and on the
+  cut pieces' bangs and side locks, which the fringe reads, otherwise).
+- Builds next (render box): `look5_before` (`charkit/out/look5_specs/clawd_nocast.json`: clawd.json with
+  `look.face.cast` null and `chin_tilt` 85, this branch's code) and `look5_after` (clawd.json), then both lookboards.
