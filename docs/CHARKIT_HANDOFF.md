@@ -780,6 +780,11 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - E. flap train: hang (the current default);
   - F. hair relief and clamp: deferred until relevant;
   - G. Kimodo licence: deferred until motion options are reviewed.
+  - H. hair streaks (from tool/toonrender): replace the `sin()` hash, whose large angles every GPU rounds differently, with
+    an integer hash. The streaks then fall in the same place in EEVEE on every GPU, in charkit.render, and in look.js.
+  - I. screen-width lines on thin shells (from tool/toonrender): the outline's inward move is capped at half each
+    piece's shell thickness, and the rest of the line width goes outward. The shells no longer turn inside out
+    (garments are 1.5-3 mm thick, the move was 3.6 mm), and thin pieces' silhouettes grow by a fraction of a pixel.
 - **Follow-ups not assigned:**
   - key gate baselines on the produced references' stamps;
   - make a missing TRELLIS field fail loudly;
