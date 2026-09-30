@@ -380,3 +380,33 @@ the corrected check (below) on both.
   neither the margin nor the eye window's carve moves them; what's left between this branch and pipeline-3d on the
   hull is tool/hull-det (its facing view and decimation) and this branch's reconciling of it with refs2's banded views
   (`_facing` masked by `View.band`). hull-det's owner should gate it alone into pipeline-3d to confirm.
+
+**Final gates** (89b8d1d into pipeline-3d 5cb5256, build box; tool/hull-det and tool/eyes2 are merged in this branch):
+- default (`clawd.json`): FAIL. Worse: hair_folds 9 -> 43, piece_collar 0.77 -> 0.736, body_front_waist_skin
+  0 -> 0.013, body_front_skirt_aline gone (the hull's: above), sheet_cheek_chin and sheet_profile_chin (the iris
+  anchor). face_folds no longer regresses. The jaw checks: 6 PASS, jaw_taper 0.0271 and chin_point_z -0.0224 WARN.
+- `clawd_mh.json`: FAIL on the hull's four (hair_folds 7 -> 49, three-quarter hair width, back skirt width, the
+  three-quarter A-line); face_folds 1318 -> 1218 (the MakeHuman head's own, a value change).
+- Review page: `charkit/out/face_review/jaw/index.html` (`jaw_page.py`: jaw_0 against jaw_4). Decision renders for
+  Michael's calls: `charkit/out/decisions/face/{eye_flatness/a,b,c, brow/a,b}.png` and `.json`, index `index.json`
+  (a: jaw_3; b, c: `dec2_*`, the same code and spec as jaw_3; eye (c) wasn't defined: rendered as the midpoint,
+  forward 0.018 L, and reads as a).
+
+## Checkpoint (2026-09-30): state for the next agent
+
+**Branch `tool/face`** at the commit adding this section; nothing pushed. Merged in: pipeline-3d 5cb5256, tool/eyes2
+97a7480 (clean). The chin and jaw are done to their checks; the open items, in order:
+1. **The iris anchor** (0.0235 L): our irises sit that far above the head frame's eye line; the QA and the sheet
+   checks anchor on the iris plate's vertex mean, the design on its eye row. It puts the chin 0.024 L low against the
+   eyes: jaw_taper and chin_point_z WARN, sheet_profile_chin / sheet_cheek_chin WARN, profile_edge FAIL (its worst row
+   is the chin's corner). tool/eyes2 found part of it (the plate's mean runs 0.012-0.013 L off the visible iris) and
+   proposes a visible-iris anchor in qa3d/sheetqa. Settle the anchor first, then whether the head's frame or the eye's
+   placement moves (eyes.py is this workstream's).
+2. **The hull regressions** (hair_folds, flyaways 41 of them; the three-quarter hair width; the hull-built skirt,
+   collar, waist): not the jaw, the carve margin or the eye window (A/B builds above); tool/hull-det, gated alone into
+   pipeline-3d, would confirm. This branch's reconciling of hull-det with refs2's bands (`_facing` masked by
+   `View.band`) is in 9de3a6d.
+3. **qa3d.face_folds** (624a516) is outside this workstream's files: the integrator should keep or re-home it.
+4. The look (tool/look2): the jaw line is the skin's outline (warm brown, thin); the design's is near-black and heavier
+   toward the point, with a dark wedge under it: the chin now overhangs the neck (0.19-0.23 L at the midline) for a
+   cast shadow. The cage's per-vertex part (`Cg.under_part`, 1 the underside) isn't exported as a vertex group yet.
