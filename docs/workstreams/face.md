@@ -250,30 +250,130 @@ Garments and the rest of `code_body` are tool/body's, hair is the hair workstrea
   tip in front of the bangs all move it.
 
 
-## The chin and jaw (2026-09-29, in progress: see the next section when it lands)
+## The chin and jaw (2026-09-29): the jaw's underside in the mesh
 
-State before the final build and gates, for a resumer:
-- **Measures:** `faceregion.jaw` (a `face_region` part): 8 checks, the design side from the head sheet
-  (`hull.views_from_heads` + `bodyqa.classes`, lines kept), ours from the scene in two cameras (the boards' own for
-  "does the jaw line draw", the outline emulated as an inverted hull; a level one far out for the shape). Lab:
-  `tools/face_labs/jaw_lab.py OUT.png BUILD` or `--geom GEOM_DIR` (a local assembly, 30 s).
-- **Construction:** `headgeom.UnderJaw` (the mesh's own: the sections stay the envelope, so the hull, eyes, hair and
-  shading read the same sections as before, to 1e-12). The cage's rows from the mouth block down to -0.404 follow each
-  column's meridian: the envelope to the rim, the underside back up to the throat, the neck down. Wired through
-  `cylinder_cage(jaw=...)`, `code_base.head_mesh` (the underside held out of the limit fit), the UVs (the chart's
-  height in the band). The style's `face.jaw_*` keys; the design's rise is read in the head sheet's profile (13.7).
-- **Baseline jaw_0 FAILs 7 of 8** (neck_to_face PASSes: the widths were right, the line was missing); the lab's local
-  assembly of the new head PASSes all 8, in anime and realistic.
-- **Open: `qa3d.face_folds` counts the chin's underside.** Its mouth box reaches 0.38 L under the eyes and counts a skin
-  face whose normal leans back more than 0.2 as folded. The underside faces down and back (a V rim that climbs toward
-  the ears leans it back 0.2 to 0.3 wherever it is laid), so 20 to 36 faces count at rest and again under every mouth
-  key. Not my file; the fix is to leave out faces facing down at rest (normal z < -0.7 and y > 0).
-- **Carve margin (decision 4a):** `hull.carve_face` keeps hair the front view draws over the face (a hair pixel with
-  face either side in its row: the fringe) within `HAIR_KEEP` 0.03 L of the face. Measured with
-  `tools/face_labs/carve_lab.py` on the build box: every carved voxel is hair in some view, so "hair in any view" would
-  have kept a layer over the side locks' gap too; the carve never took a lock over the eyes, it took the bangs' inner
-  layer over the forehead (z 0.1-0.3, 0.006-0.24 L in front of it).
-- **Gotcha (2026-09-29): don't run remote builds in parallel from one worktree when a produced reference is stale.** The
-  hull and the outfit masks live per character (`charkit/out/hull/clawd`, `charkit/out/clawd/outfit`), not per spec,
-  and every build in the box's copy of the worktree rebuilds a stale one at once: one read a half-written npz
-  (`BadZipFile`). Build once (it refreshes them), then fan out.
+Michael: the chin and neck are "still very obviously visually glitched". In front the face ran straight into a neck as
+wide as the lower face, with no chin point and no jaw line; in profile the neck's front outline wiggled under the jaw.
+
+**Why.** One closed section per row can't hold a chin that overhangs the neck: between the chin point and the throat a
+row crosses the chin, then air, then the neck. The rows stepped from the chin to the neck, the cage's rows (0.03 L
+apart) turned the step into an underside sloping *down* toward the throat (5 degrees), nearly edge-on to the boards'
+camera (it looks down 6.5 degrees at the chin), so no outline drew the jaw. The limit fit rang on the step: it threw the
+chin's cage vertex 0.08 L forward and left a lip and a notch under the jaw, the profile's wiggle.
+
+**The construction: `headgeom.UnderJaw`, the mesh's own.** The sections stay the envelope (each row's outline, the air
+under the chin filled): the hull's face carve, the eyes, the hair and the shading read the same sections as before (to
+1e-12, cross-machine noise). The solid is the envelope less a pocket under the jaw:
+- the underside z = U(x, y): a ruled surface from the rim (the design's jaw line in front, `headfit.jaw_line`: the lower
+  face's outline read as a height over x, the V; laid on the envelope's front) toward the neck's axis, rising at the
+  design's own underside angle (13.7 degrees, read in the head sheet's profile by the QA's measure), eased round off the
+  chin (0.75 of it at the rim to 1.15 of it 0.12 L in: the design's underside runs flat under the chin's round bottom,
+  then climbs), capped 0.012 L under the mouth block;
+- the pocket: under U, outside the neck (its top row continued up), over the neck's width (fading past it), in front of
+  its axis; round the neck's sides the envelope closes on the neck and the pocket with it (gone by 85 degrees);
+- the cage's rows from the mouth block down to -0.404 (`JAW_BAND_END`) are laid 0.0075 L apart in the chart and placed
+  along each column's meridian by arc length: the envelope down to the rim, the underside back up to the throat, the
+  neck down. The columns hang from a centre line straight through the band (the sections' centres jump at the chin's
+  step) eased into the rows' own at both ends (else the columns shear there and the normals kink). Under -0.404 to the
+  join the rows are on the sections, their spacing growing evenly from the band's to the cage's own. The neck behind
+  the chin is its top clean row (0.03 L or more under the chin, no lower than the band's foot) continued up.
+- the chin's point is lowered 0.006 L at the tip (`TIP_BIAS`): the subdivision rounds the V's point across the cage's
+  columns (0.033 L apart there), which raises it that much (as `headfit.CHIN_BIAS` in profile).
+- the cage's winding is made consistent across shared edges (`orient_faces`): the cage's own rule (each quad faces away
+  from the axis at its height) turned the underside inward; the underside's vertices are held out of the limit fit
+  (fitting pushed the cage out round the rim); the UVs take the chart's height in the band (a vertex's z runs back up
+  there: 0 of 1152 faces under the chin reversed).
+- style keys (`charkit/styles`, `face`): `jaw_under` (on in DEFAULT: realistic builds it too), `jaw_rise` ('design' or
+  degrees), `jaw_rise_range` [8, 25].
+
+Tried and dropped (don't retry): the underside as the lowest of cones from the rim's points (the V's arms rise faster
+than the cones, so the rim sagged 0.01 L under the drawn arms); as the rim's height at its nearest point plus the rise
+(jumps where two parts of the rim are equally near); in each sagittal slice from the V's height at that x (descends
+along the columns at the neck's sides: the pocket ended in a wall at 55 degrees); a band running to the join (the neck's
+rows went coarse and the crease rose to 45.7); cage rows anchored on the rim and the throat (the throat's row became a
+wiggle, 13.5 degrees); a rise capped at 11 or 9 degrees for face_folds (below: no help).
+
+**The measures: `faceregion.jaw`** (in `face_region`), the design side from the head sheet (`hull.views_from_heads`,
+`bodyqa.classes` with the lines kept), ours from the scene (`qa3d.scene_classes`) in two cameras: the boards' own, with
+the outline emulated as the look draws it (the skin offset by the line's width, faces flipped, back faces culled), for
+whether a jaw line draws; a level one far out, as the design is drawn, for the shape.
+
+| check | what | limits (PASS / WARN) |
+|---|---|---|
+| `jaw_taper` | the face outline's half-width per row from the cheek (z -0.1) to the design's chin point, rms against the design's (L) | 0.015 / 0.03 |
+| `chin_point_z` | the chin point (the face region's lowest pixel near the middle) less the design's (L) | 0.015 / 0.03 |
+| `chin_v` | the V's rise 0.08 L either side of the chin point, ours over the design's | 15% / 30% |
+| `neck_to_face` | the neck's width 0.1 L under the chin over the face's 0.1 L over it, ours over the design's | 15% / 30% |
+| `jaw_line_front`, `jaw_line_three_quarter` | the jaw line's length with neck skin under it (the boards' camera, the outline emulated), ours over the design's | >= 0.7 / >= 0.4 |
+| `chin_underside` | the profile's underside angle (deg, + rising to the throat) against the design's | 6 / 12 deg |
+| `neck_front_wiggle` | the neck's front outline's sharpest bend 0.1 L under the throat (deg) | 12 / 18 |
+
+Labs: `tools/face_labs/jaw_lab.py` (a build, or `--geom` a local assembly in 30 s: the pictures, face_folds' rest
+count and the join's crease), `jaw_page.py` (the review page), `carve_lab.py` (the hull carve's detail, on the build
+box). Tests: `charkit/tests/test_jaw.py`.
+
+**Two things the measures showed that are not the jaw's:**
+- **The irises sit 0.0235 L above the head frame's eye line** (iris centres z 1.3127 m, eye line 1.3068 m; the eye
+  knob `z` is 0). The head is built on the design's eye row; the QA reads every feature from the irises. So below the
+  eyes everything reads 0.024 L low: `chin_point_z` -0.022 and the sheet's `sheet_profile_chin` -0.025 /
+  `sheet_cheek_chin` -0.028 (WARN) on the build, while the chin is on the design's to 0.001 L in the head frame. The
+  old chin's rounded step read about 0.015 L high and hid it (`CHIN_BIAS` was swept on that). The fix is where the eye
+  engine puts the iris against the design's eye row (charkit/eyes.py), which moves the whole face region: not done.
+- **`qa3d.face_folds` counts the chin's underside** (see the gate section below).
+
+**Carve margin (decision 4a):** `hull.carve_face` keeps hair the front view draws over the face (a hair pixel with
+face either side in its row: the fringe) within `HAIR_KEEP` 0.03 L of the face (`CK_HAIR_KEEP` overrides it for A/B
+builds). `carve_lab.py` on the build box: every carved voxel is hair in some view, so "hair in any view" would have kept
+a layer over the side locks' gap too; the carve never took a lock over the eyes; it took the bangs' inner layer over
+the forehead (z 0.1-0.3, 0.006-0.24 L in front of it); the rule keeps 523 voxels. On the current pipeline-3d neither
+regression it was for reproduces: `hair_fringe_low` isn't computed on the default spec, and `body_back_leg` PASSes
+(0.0518) on jaw_0 without it. An A/B build of the MakeHuman default (margin off) read `hair_folds` 46 against the
+gate's candidate 47: the margin moves none of the gate's hair checks.
+
+**Gotchas from this round:**
+- **Don't run remote builds in parallel from one worktree when a produced reference is stale.** The hull and the outfit
+  masks live per character (`charkit/out/hull/clawd`, `charkit/out/clawd/outfit`), not per spec, and every build in
+  the box's copy rebuilds a stale one at once: one read a half-written npz (`BadZipFile`). Build once, then fan out.
+- A remote build's sync takes the worktree as it is when that build starts: a chain of builds picks up whatever you
+  commit or merge in between.
+- The jaw lab's local assembly has no eyes: its reference is the head's eye line, not the irises (see above).
+
+**Numbers.** jaw_0 (the baseline Michael saw: HEAD 91e44ca, `clawd_body.json`) against jaw_4 (this round's final build:
+the merged pipeline-3d 5cb5256, `clawd.json` now the authored character; render box, boards). The jaw checks
+measured with the final `faceregion` on both (`jaw_page.py`); the rest from each build's QA; face_folds recounted with
+the corrected check (below) on both.
+
+| check | jaw_0 | jaw_4 |
+|---|---|---|
+| jaw_taper (L) | 0.0361 FAIL | 0.0271 WARN (the iris anchor, below) |
+| chin_point_z (L) | -0.2169 FAIL (the face ran into the neck to the collar) | -0.0224 WARN (the iris anchor) |
+| chin_v | 4.211 FAIL | 1.084 PASS |
+| neck_to_face | 0.862 PASS | 0.862 PASS |
+| jaw_line_front | 0.032 FAIL | 0.979 PASS |
+| jaw_line_three_quarter | 0.147 FAIL | 1.333 PASS |
+| chin_underside (deg; design 13.7) | -7.5 FAIL | 12.8 PASS |
+| neck_front_wiggle (deg) | 29.8 FAIL | 6.2 PASS |
+| eye_hollow_L / cheek_lead_L / eye_bowl_L | 0.0164 / 0.0047 / 0.0228 WARN | the same |
+| eye_width_three_quarter / profile | 1.083 / 0.889 PASS | the same |
+| neck_crease (visible skin, deg) | 26.4 WARN | 24.2 WARN |
+| neck_crease_all (INFO) | 48.1 | 48.1 |
+| profile_edge (rms L) | 0.0501 WARN | 0.0622 FAIL (worst row -0.36: the chin's corner, the anchor) |
+| face_folds (corrected check) | 4 PASS | 4 PASS (530 on the old check: the underside) |
+| sheet_profile_chin / sheet_cheek_chin | -0.0097 / -0.0127 PASS | -0.0247 / -0.0277 WARN (the anchor) |
+| hair_fringe_low | (not computed) | 0.0141 PASS |
+| hair_folds | (not computed) | 43 FAIL (the gate's hull regression, below) |
+
+**Gates** (on the build box; tool/hull-det 5428033 is in this branch and not in pipeline-3d):
+- 13ffa22 into f2d0ea7: default (MakeHuman then) FAIL (hair_folds 7 -> 47, body_three_quarter_hair_width
+  0.956 -> 0.896); `clawd_body` FAIL (face_folds, sheet_cheek_chin, sheet_profile_chin, body_front_hair_length).
+- dff58bd into 5cb5256: default (`clawd.json`, the authored character) FAIL (face_folds 4 -> 530, hair_folds 9 -> 43,
+  sheet_cheek_chin, sheet_profile_chin, piece_collar 0.77 -> 0.737, body_front_waist_skin 0 -> 0.013,
+  body_front_skirt_aline gone); `clawd_mh.json` FAIL (hair_folds 7 -> 47, body_three_quarter_hair_width,
+  body_back_skirt_width 0.941 -> 0.882, body_three_quarter_skirt_aline 0.043 -> 0.086).
+- face_folds: fixed since in `qa3d.face_folds` (624a516, outside this workstream's files, at the coordinator's
+  request): faces facing down at rest (normal z < -0.7) no longer count as facing away; a flip still counts. Over the
+  13 mouth keys the underside flips no face; all 488 counted were the underside's own. jaw_0 4 -> 4, jaw_4 530 -> 4.
+- hair_folds (41 of the 46 in the flyaways piece) and the hull-built garments' moves are the hull's: an A/B build of
+  the MakeHuman spec with the carve margin off read hair_folds 46 against the candidate's 47, so the margin isn't it;
+  the likely cause is tool/hull-det's hull (facing view, decimation) with or without the eye window's carve (an A/B
+  with the socket eye region is in `charkit/out/ab_socket` when it lands).

@@ -513,7 +513,10 @@ EYE_OPENING = (0.18, 0.15)       # L: the front eye opening's width and height w
 def face_style(spec):
     """the spec's style profile's face section (charkit/styles): how its eye region is built."""
     from charkit import styles
-    return styles.load(spec.get('style', 'anime'))['face']
+    f = dict(styles.load(spec.get('style', 'anime'))['face'])
+    if os.environ.get('CK_EYE_REGION'):                  # (a lab's override, for A/B builds; not in any cache key)
+        f['eye_region'] = os.environ['CK_EYE_REGION']
+    return f
 
 
 def eye_window(C, face=None):
