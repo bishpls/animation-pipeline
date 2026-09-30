@@ -86,9 +86,7 @@ bundle.target_pieces.
 
 ## Status
 
-Not gated: B2 reads art_terminator_hair 2.514 (pipeline-3d ba51e43: 2.308), past the flag's 2.5 line, through the
-buns' fit. Under K it would block. Next (docs/workstreams/face.md, round 5's finish): make the bun fit stable under
-tiny input moves, then rebuild B2/B3 and gate this branch into pipeline-3d, and tool/face5 into it.
+**Gate PASS under K** (round 2, below): bd0d8ce into pipeline-3d eb7ac94, `charkit/out/gate/gate_tool-hull-local_bd0d8ce_into_eb7ac94.md`. Mergeable.
 
 ## Round 2 (2026-09-30, evening): the buns' fit made stable
 
@@ -150,7 +148,7 @@ under the points' 1 um move (fails), the soft fit under 1e-6 L.
 
 Jobs (2026-09-30 evening): box builds `--boards '' --no-blend` of f3682b7 (this branch: pipeline-3d 8b5ecae + the local
 hull + the stable fit) -> `charkit/out/hl_b2s`, and of tmp/face5-on-hull-local 317a41c (face5 2e4c1d6 + this branch)
--> `~/animation-pipeline-face5hl/charkit/out/hl_b3s`. Laptop logs in `charkit/out/bunstab/build_b2s.log`, `build_b3s.log`.
+-> `charkit/out/hl_face5pair/hl_b3s` (copied). Laptop logs in `charkit/out/bunstab/build_b2s.log`, `build_b3s.log`.
 
 **The box builds** (`--boards '' --no-blend`, as a gate builds; CPU 635.9 s B2s, 648.5 s B3s):
 
@@ -177,7 +175,7 @@ steps. BUN_SOFT_ANNEAL (10, 3, 1): each softness step's prior in BUN_SOFT_PRIOR,
 both stages. At 10 um then all 20 perturbations move the buns under 5.4e-6 L (proportional; soft losses 0.291797 /
 0.354914 on every one). bun_L's minimum is now another (0.2918, the old one's 0.2773), bun_R's lower (0.3549 against
 0.3577). Rebuilt on the box: B2a (a7ef42e, `charkit/out/hl_b2a`) and B3a (tmp 5f4587e,
-`~/animation-pipeline-face5hl/charkit/out/hl_b3a`); stability at 1 um / 100 um / 1 mm and the unit test running
+`charkit/out/hl_face5pair/hl_b3a` (copied; the tmp worktree removed)); stability at 1 um / 100 um / 1 mm and the unit test running
 locally (`charkit/out/bunstab/stab_soft*.json`, `test_bun_fit.log`). pipeline-3d 07fa3c2 (xpbd, opt-in) merged at
 d10eb65. Pre-gate (1f854d7 into 07fa3c2): PASS, 14 moved, 0 blocking.
 - **Annealed variant reverted (2542d8b)**: B2a read art_terminator_hair **2.617 (grade FAIL**, back 2.617), B3a 2.61;
@@ -191,3 +189,28 @@ d10eb65. Pre-gate (1f854d7 into 07fa3c2): PASS, 14 moved, 0 blocking.
   it. Candidates: a constraint the drawing gives on the orientation (the bun's drawn inner lines or the three-quarter
   view in the fit: bun_views has no three_quarter by default), or fewer free parameters (the loops' place and size trade
   off); the prior alone can't separate them without costing fit.
+
+**The gate** (bd0d8ce into pipeline-3d eb7ac94; merged pipeline-3d 07fa3c2 at d10eb65 and eb7ac94 (hairlocks round 2,
+its lock model off by default; the bun fit's code untouched) at bd0d8ce): **PASS under K**, nothing blocks.
+art_terminator_hair 2.308 -> 2.045 (WARN -> WARN), hair_piece_buns 0.864 -> 0.865, hair_bun_outline 0.456 -> 0.470
+(FAIL both), art_peeks_hair 16 -> 15, art_fragments_collar 6.338 -> 6.515 (grade FAIL both); INFO art_terminator_collar
+3.571 -> 5.723 (the collar moves once with the new hull, through the body fit); body_*_top 0.0048 -> 0. CPU 1.43x
+(614.2 -> 880.1 s: the candidate cold, hull.py, remesh.py and hairpieces.py changed, against a cached baseline; the
+one-time hull rebuild). Tests: 73 files, 0 failing; test_bun_fit.py 81 s on the box, the slowest (its Nelder-Mead
+calibration and five soft fits).
+
+Kept fit's full 1 um run (10 perturbations each; `charkit/out/bunstab/stab_soft.json`): bun_L at most 2.4e-7 L (median
+4.4e-8), bun_R 1.6e-7 L (median 6.3e-8); Nelder-Mead 0.064 / 0.19 L. Review page: `charkit/out/bunstab/page/index.html`
+(`tools/hull_local/bunpage.py`: per bun and view the Nelder-Mead fit and its 1 um refit beside the soft fit's, the
+stability tables, the box builds' bun checks). tmp/face5-on-hull-local deleted (its builds' QA and pieces copied to
+`charkit/out/hl_face5pair/`).
+
+**For tool/face5:** merge pipeline-3d once hull-local lands and re-gate with `--accept jaw_taper_shape` (the 2x2, as
+before). Expected on this branch's fit (B3s): art_terminator_hair 2.179 WARN (hull-local 2.045: +0.134, the grade
+held; the side locks and bangs carry it, the buns move 4e-8 L), art_speckle_neck 0.833 -> 0.678, art_peeks_hair 15 ->
+14, the bun checks unchanged; sleeve_profile_rough_L no longer blocks (tool/collar3 M2).
+
+**Next (open):** (1) the kept fit's 10 um fragility (1 of 20 perturbations switched bun_L's basin, 0.017 L), and (2)
+the terminator's dependence on a bun orientation the silhouettes don't fix (B2s 2.045 against B2a 2.617 at equal
+IoUs): an orientation constraint from the drawing (the bun's inner lines, or the three-quarter view in bun_views), or
+fewer free loop parameters; then the annealed schedule (a7ef42e, reverted) could come back.
