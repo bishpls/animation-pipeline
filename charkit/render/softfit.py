@@ -687,7 +687,7 @@ def page(out=OUT, open_it=True, template='flap'):
                 ks = [t[0] for t in F.terms if t[3] == v]
                 cells.append('<figure><img src="page/%s"><figcaption>%s: IoU %s</figcaption></figure>' % (
                     fn, v, ' '.join('%s %.3f' % (k[-1], iou[k]) for k in sorted(ks) if k in iou)))
-            info = 'J (QA pixels) %.4f' % J + (' &middot; chamfer %.4f L' % r['chamfer'] if r and 'chamfer' in r else '')
+            info = 'J (QA pixels) %.4f' % J + (' &middot; chamfer %.4f L' % r['C'] if r and 'C' in r else '')
             if r is not None:
                 info += ' &middot; %.1f s wall &middot; %d evaluations &middot; %d builds' % (
                     r['wall'], r['counts']['hard'] + r['counts']['grad'], r['counts']['builds'])
