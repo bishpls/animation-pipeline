@@ -3,7 +3,7 @@ branch moves: a throwaway worktree at the integration head builds the baseline (
 takes the branch with `git merge --no-commit`, runs the tests, builds again, and the two builds' QA and traces are
 compared.
 
-    python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--keep]
+    python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
 
 The worktree is a sparse checkout (charkit/sparse.py's charkit profile: the code, plus the paths the character's
 manifest names): a few hundred MB instead of every film's assets. The gate refuses to start with under 5 GB free.
@@ -13,10 +13,16 @@ The verdict:
          or disappears
   WARN   a graded check's value moves the wrong way without changing status, or the build takes 1.5x as long
   PASS   otherwise
-A check whose measurement the branch changes (charkit.history.STEPS) is `remeasured`, neither better nor worse.
-The report (markdown and json) is written to charkit/out/gate/: the checks that changed, the tests, the trace diff.
+A check whose measurement the branch changes (a measurement step it registers: charkit.history, charkit/steps/) is
+`remeasured`, neither better nor worse. When the branch also changes the geometry, the gate scores it both ways (the
+2x2, Michael's no-gaming rule): the baseline's QA code measures the candidate's geometry bundle (the old measure on the
+new geometry) and the candidate's measures the baseline's (the new measure on the old geometry). A remeasured check that
+gets worse under either measure alike (the old on both geometries, or the new on both) fails the gate, unless it's
+accepted by name (--accept PATTERN[,PATTERN]).
+The report (markdown and json) is written to charkit/out/gate/: the checks that changed, the 2x2, the tests, the trace
+diff.
 """
-import glob, json, os, shlex, shutil, subprocess, sys, tempfile, time
+import fnmatch, glob, json, os, shlex, shutil, subprocess, sys, tempfile, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable
@@ -111,7 +117,82 @@ def compare_qa(a, b, remeasured=None):
     return rows
 
 
-def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False):
+def cross_qa(tree, bundle_dir, out):
+    """one tree's QA code on another build's geometry bundle (the 2x2's crossed cells): `python -m charkit qa` run in
+    tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's) -> the
+    report (qa.json's) or {'error': why}."""
+    os.makedirs(out, exist_ok=True)
+    r = subprocess.run([PY, '-m', 'charkit', 'qa', bundle_dir, '--out', out, '--cache', 'off'], cwd=tree,
+                       capture_output=True, text=True)
+    p = os.path.join(out, 'qa.json')
+    if r.returncode or not os.path.exists(p):
+        return {'error': 'exit %d: %s' % (r.returncode, (r.stdout + r.stderr)[-800:])}
+    return json.load(open(p))
+
+
+def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
+    """the 2x2 for each remeasured check: its value and status in base (the old geometry, the old measure), old_on_new
+    (the new geometry, the old measure), new_on_old (the old geometry, the new measure) and cand (the new geometry, the
+    new measure) -> rows, each with `old` (the new geometry against the old under the old measure: regressed, improved,
+    value, same, unmeasured) and `new` (the same under the new measure), and `accepted` (a pattern in accept covers it).
+    A check the old measure doesn't have is new with its step: it has no old-measure row."""
+    import fnmatch
+
+    def cell(q, k):
+        c = (q or {}).get('checks', {}).get(k)
+        return [c.get('value'), c.get('status')] if c else None
+
+    def verdict(a, b):
+        if a is None or b is None:
+            return 'unmeasured' if a is not None else None
+        (va, sa), (vb, sb) = a, b
+        if sa in RANK and sb in RANK and RANK[sb] != RANK[sa]:
+            return 'regressed' if RANK[sb] > RANK[sa] else 'improved'
+        if sa in RANK and sb not in RANK:
+            return 'unmeasured'
+        return 'value' if va != vb else 'same'
+    names = set()
+    for q in (base, cand, old_on_new, new_on_old):
+        names |= set((q or {}).get('checks', {}))
+    rows = []
+    for k in sorted(names):
+        if not any(fnmatch.fnmatchcase(k, p) for p in remeasured or {}):
+            continue
+        r = dict(check=k, base=cell(base, k), old_on_new=cell(old_on_new, k), new_on_old=cell(new_on_old, k),
+                 cand=cell(cand, k))
+        r['old'] = verdict(r['base'], r['old_on_new'])
+        r['new'] = verdict(r['new_on_old'], r['cand'])
+        r['accepted'] = any(fnmatch.fnmatchcase(k, p) for p in accept)
+        if r['old'] is None and r['new'] is None:
+            continue
+        rows.append(r)
+    return rows
+
+
+def geometry(out):
+    """a build's geometry, for the 2x2's "did the geometry change": its bundle's array hashes (charkit/bundle.py's
+    bundle.json), not the bundle's content hash, which also covers the metadata (the resolved spec's absolute output
+    paths, which differ between any two builds) -> (digest, {array: hash}) or (None, {})."""
+    import hashlib
+    p = os.path.join(out, 'bundle', 'bundle.json')
+    if not os.path.exists(p):
+        return None, {}
+    h = json.load(open(p)).get('hashes') or {}
+    return hashlib.sha1(json.dumps(sorted(h.items())).encode()).hexdigest()[:12], h
+
+
+def twobytwo_drops(rows):
+    """the 2x2's hidden regressions: a remeasured check that reads worse on the new geometry under either measure alike
+    (the old on both geometries, or the new on both), not accepted -> [(check, [the measures it's worse under])]."""
+    out = []
+    for r in rows:
+        worse = [m for m in ('old', 'new') if r.get(m) == 'regressed']
+        if worse and not r.get('accepted'):
+            out.append((r['check'], worse))
+    return out
+
+
+def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False, accept=()):
     head = _git('rev-parse', '--short', into).stdout.strip()
     tip = _git('rev-parse', '--short', branch).stdout.strip()
     tag = '%s_%s' % (branch.replace('/', '-'), tip)
@@ -126,7 +207,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
     wt = tempfile.mkdtemp(prefix='charkit-gate-')
     os.rmdir(wt)
     rep = {'branch': branch, 'tip': tip, 'into': into, 'head': head, 'spec': spec, 'args': list(args),
-           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S')}
+           'suffix': suffix, 't': time.strftime('%Y-%m-%dT%H:%M:%S'), 'accept': list(accept)}
     if _free_gb(os.path.dirname(wt)) < 5:
         raise SystemExit('gate: only %.1f GB free on disk; free some before gating' % _free_gb(os.path.dirname(wt)))
     _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
@@ -168,8 +249,24 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         # the measurement steps the branch brings, as the merged tree registers them (this code's STEPS lacks the
         # branch's own)
         steps = history.load_steps(os.path.join(wt, 'charkit', 'history.py'))
-        rep['remeasured'] = history.steps_between(head, tip, steps)
+        rep['remeasured'] = history.steps_between(head, tip, steps, repo=wt)
         rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
+        # the 2x2: a remeasured check on changed geometry scored under both measures. The candidate's code (the merged
+        # tree, here now) measures the baseline's bundle; then, the merge undone, the baseline's measures the candidate's
+        (ga, ha), (gb, hb) = geometry(base_out), geometry(cand_out)
+        stepped = [k for k in set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
+                   if any(fnmatch.fnmatchcase(k, p) for p in rep["remeasured"])]
+        if stepped and ga != gb:
+            new_on_old = cross_qa(wt, os.path.join(base_out, 'bundle'), os.path.join(cand_out, 'x_new_measure_old_geometry'))
+            _git('merge', '--abort', cwd=wt, check=False)
+            old_on_new = cross_qa(wt, os.path.join(cand_out, 'bundle'), os.path.join(cand_out, 'x_old_measure_new_geometry'))
+            errs = {k: q['error'] for k, q in (('new measure on the old geometry', new_on_old),
+                                               ('old measure on the new geometry', old_on_new)) if 'error' in q}
+            rep['twobytwo'] = {'rows': twobytwo(qa_a, qa_b, None if errs else old_on_new, None if errs else new_on_old,
+                                                rep['remeasured'], accept), 'errors': errs,
+                               'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
+        elif stepped:
+            rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
         from . import trace
         rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')), trace.read(os.path.join(cand_out, 'trace.jsonl')))
         # (the last end: a build whose QA runs in the venv after Blender appends its own, with the whole build's time)
@@ -178,10 +275,15 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['blender_seconds'] = [ta, tb]
         bad_tests = [k for k, v in rep['tests'].items() if v != 'ok']
         regressed = [r['check'] for r in rep['qa'] if r['verdict'] in ('regressed', 'gone')]
-        if bad_tests or regressed:
+        tb = rep.get('twobytwo') or {}
+        hidden = ['%s (%s)' % (k, ', '.join('the %s measure' % m for m in ms)) for k, ms in twobytwo_drops(tb.get('rows', []))]
+        if bad_tests or regressed or hidden:
             rep['verdict'] = 'FAIL'
             rep['why'] = '; '.join(filter(None, ['tests failing: ' + ', '.join(bad_tests) if bad_tests else '',
-                                                 'checks worse: ' + ', '.join(regressed) if regressed else '']))
+                                                 'checks worse: ' + ', '.join(regressed) if regressed else '',
+                                                 'worse on the new geometry under one measure on both (a remeasure '
+                                                 'step covered it; accept with --accept): ' + ', '.join(hidden)
+                                                 if hidden else '']))
         else:
             worse = [r['check'] for r in rep['qa'] if r['verdict'] == 'value']
             # the slowness check is on CPU seconds, which the box's load barely moves; wall time only where a cached
@@ -190,8 +292,12 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             rep['cpu_seconds'] = [ca, cb]
             ra, rb = (ca, cb) if ca and cb else (ta, tb)
             slow = ra and rb and rb > 1.5 * ra
-            rep['verdict'] = 'WARN' if slow else 'PASS'
-            rep['why'] = ('the build takes %.1fx the %s' % (rb / ra, 'CPU time' if ca and cb else 'time')) if slow else ''
+            unverified = sorted(tb.get('errors') or {})
+            rep['verdict'] = 'WARN' if slow or unverified else 'PASS'
+            rep['why'] = '; '.join(filter(None, [
+                ('the build takes %.1fx the %s' % (rb / ra, 'CPU time' if ca and cb else 'time')) if slow else '',
+                ('the 2x2 could not run (%s): the remeasured checks are unverified under the old measure'
+                 % ', '.join(unverified)) if unverified else '']))
             rep['values_moved'] = worse
         return _write(rep, gdir, tag)
     finally:
@@ -224,6 +330,25 @@ def _write(rep, gdir, tag):
             L.append('| (no check changed) | | | |')
     for k, why in (rep.get('remeasured') or {}).items():
         L.append('\nremeasured: %s: %s' % (k, why))
+    tb = rep.get('twobytwo')
+    if tb:
+        L.append('\n**The 2x2** (remeasured checks; value status per cell; geometry %s -> %s, %s arrays changed):' % (
+            tuple(str(g)[:12] for g in tb.get('bundles', [None, None])) + (tb.get('arrays_changed', '?'),)))
+        if tb.get('same_geometry'):
+            L.append('\nThe geometry is unchanged: the remeasured rows above are the measure alone.')
+        for k, e in (tb.get('errors') or {}).items():
+            L.append('\n%s: could not run: `%s`' % (k, e.strip().splitlines()[-1][:200] if e.strip() else e))
+        if tb.get('rows'):
+            cell = lambda c: '%s %s' % (str(c[0])[:10], c[1] or '') if c else '-'
+            L.append('\n| check | old geometry, old measure | new geometry, old measure | old geometry, new measure | '
+                     'new geometry, new measure (candidate) | under the old measure | under the new |\n'
+                     '| --- | --- | --- | --- | --- | --- | --- |')
+            mark = lambda r, m: ('**regressed**%s' % (' (accepted)' if r['accepted'] else '')) if r[m] == 'regressed' \
+                else r[m] or '-'
+            for r in sorted(tb['rows'], key=lambda r: ('regressed' not in (r['old'], r['new']), r['check'])):
+                L.append('| %s | %s | %s | %s | %s | %s | %s |' % (
+                    r['check'], cell(r['base']), cell(r['old_on_new']), cell(r['new_on_old']), cell(r['cand']),
+                    mark(r, 'old'), mark(r, 'new')))
     if rep.get('blender_seconds'):
         L.append('\nBuild time (Blender and QA): %s s -> %s s' % tuple(rep['blender_seconds']))
     if rep.get('cpu_seconds') and all(rep['cpu_seconds']):
@@ -243,5 +368,6 @@ def main(args):
         print(__doc__); return
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     rep = gate(args[0], into=opt('--into', 'HEAD'), spec=opt('--spec', 'charkit/spec/clawd.json'),
-               args=shlex.split(opt('--args', '')), keep='--keep' in args)
+               args=shlex.split(opt('--args', '')), keep='--keep' in args,
+               accept=[a for a in opt('--accept', '').split(',') if a])
     raise SystemExit(0 if rep['verdict'] != 'FAIL' else 1)

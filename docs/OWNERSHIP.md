@@ -23,4 +23,4 @@ integrator. Shared files are edited only in the named sections.
 | measurement suites | `artifactqa.py`; `perceptual.py` | artifacts; perceptual |
 | infrastructure | `manifest.py`, `cache.py`, `gate.py`, `remote.py`, `infra/gcp/*`, `tools/*` | integrator / infra |
 | specs | `spec/*.json`: each owner edits only its sections; `clawd.json` = `clawd_body_pieces.json` (a test enforces it) | shared |
-| registries | `qa3d.PARTS`, `history.STEPS` | shared until self-registration lands |
+| registries | `registry.py` (the mechanism); a part registers in its own module (`@qa_part`), a step in `charkit/steps/<module>.py` (docs/CHARKIT.md, "Registering a QA part or a measurement step") | infra; each part and steps file is its module's owner's |
