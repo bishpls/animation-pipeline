@@ -6,15 +6,23 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A merged (pipeline-3d b43c15e). Milestone B, subset 1 (g, the baseline finding, the boards): done and gated,
-waiting for the coordinator.
-- Gated: **3aaa9b7 into pipeline-3d ae7fd45: PASS** with pipeline-3d's gate code (`gate_tool-infra3_3aaa9b7_into_ae7fd45`:
-  no check changed, 54 test files ok, CPU 0.98x, 510 s). pipeline-3d then moved to 23492b6 (tool/face4-crown); the
-  branch merges into it cleanly (git merge-tree). Not re-gated (K: the coordinator decides). Commits after 3aaa9b7 are
-  notes only.
-- Throwaway branches tmp/infra3-* deleted. Their reports stay in this worktree's charkit/out/gate (untracked).
-- Next: subset 2, h + i (below: "Findings for subset 2" first: the function-precise code walk is the lever for both
-  h and g), then l, then k + j.
+Subset 1 merged (pipeline-3d a4f91a3). Subset 2 (h + i): h's code-walk narrowing done and unit-tested, being gated;
+i not started (next run).
+- **cache.code_units follows definitions, not modules** (charkit/cache.py `_Mod`, `code_units`; memo SCHEMA 3, so
+  every cache key changes once, approved by the coordinator): names resolve as Python scopes them (hull.Owners' local
+  `main` no longer means hull.main), `m.f` and `from m import f` follow f alone, a module used bare, `import *`,
+  a dotted import or a side-effect import (nothing names it) is taken whole, each reached module's top-level
+  statements are a unit ('path:<top>'), and from the top level a same-module function is followed only when called
+  there (scene.py's table of stages ran none of them). Measured on the real code: the hull's shared-cache key (depth
+  2) 25 files, garments.py not among them (before: garments.py via hull.main -> bodyeval); artifactqa's design key
+  52 files, cli.py:_path in it, gate/remote/tune not (before: 101 modules); code_head's step key 10 files at any depth;
+  stage_hair's key no garments.py.
+- Real pairs being run: (1) the gate of tool/infra3 into pipeline-3d (every key misses once); (2) a garments.py-only
+  edit gated into tool/infra3 with this gate code (the hull must restore from the shared cache, not rebuild); (3)
+  `gate --carry` from (2)'s report across a remote.py code edit.
+- i (next): a slot for the whole build and THREAD_VARS for every box build (remote build/tune), then l, then k + j.
+- Also left in h: the venv file steps' keys aren't portable across clones (pieces_hair's `cut` holds absolute out
+  paths; file_step keys `inputs` by absolute path), so gate clones still rebuild pieces_hair (about 120 s).
 
 ## Milestone B (2026-09-30 night)
 

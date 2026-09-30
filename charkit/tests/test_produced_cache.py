@@ -317,9 +317,9 @@ def test_the_clawd_references_keys_reach_deeper_than_their_stamps():
     folds in the outfit's (it reads the masks)."""
     R = manifest.load('charkit/refs/clawd/manifest.json')['references']
     for rid, deeper in (('hair_layers', 'charkit/outfit.py'), ('outfit_masks', 'charkit/i3d.py'),
-                        ('hull', 'charkit/geom/headmesh.py')):
-        one = {k for k in manifest._producer_code(R[rid]) if ':' not in k}
-        two = {k for k in manifest._producer_code(R[rid], manifest.CACHE_DEPTH) if ':' not in k}
+                        ('hull', 'charkit/bodymeasure.py')):
+        one = {k.split(':')[0] for k in manifest._producer_code(R[rid])}
+        two = {k.split(':')[0] for k in manifest._producer_code(R[rid], manifest.CACHE_DEPTH)}
         assert one < two and deeper in two - one, (rid, sorted(two - one))
     assert 'outfit_masks' in R['hull']['reads'] and 'outfit_masks' in R['hair_layers']['reads']
 
