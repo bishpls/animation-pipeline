@@ -61,7 +61,8 @@ def dump_head(spec_path, out):
         from . import cli
         d = os.path.join(os.path.dirname(os.path.abspath(out)), 'resolved')
         os.makedirs(d, exist_ok=True)
-        spec_path = cli.resolve(spec_path, d)[1]
+        spec, spec_path = cli.resolve(spec_path, d)
+        spec = cli.code_body(cli.code_head(spec, spec_path, d), spec_path, d)     # (the authored head's and body's files)
     txt = open(spec_path).read()
     import re
     S = json.loads(re.sub(r'/srv/work/[^/"]+/', ROOT + '/', txt))
