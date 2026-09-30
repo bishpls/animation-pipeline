@@ -17,8 +17,13 @@ as the QA reads them (charkit.refcheck at FACE_PPL).
                  hull's pixels' widths (twice the distance to the line's edge, along its skeleton) per region (skin,
                  hair, garment, accessory), their median in px of the design's page and their spread (p90 / p10); the
                  design's lines (its pixels darker than half way from ink to paper, v < 0.5, inside its head boxes)
-                 measured the same way. line_ink: the lines' colour per region (the median of the pixels a line covers
-                 wholly) against the design's ink (its line cores' median), CIEDE2000
+                 measured the same way. line_ink: the lines' colour per region (the median of their supersampled
+                 pixels, before the pixel filter) against the design's ink (its line cores' median), CIEDE2000
+
+Cost (docs/workstreams/look.md, round 2): each view is rasterized once (charkit.qa3d.draw_view) and shaded under each
+light (draw_lit: the sweep's lights shade the skin alone, with no picture); face_shadow shares face_noise's board views
+(board_tones); line_width prepares and shades the lines alone, at the design's scale (its widths step with the
+resolution: a 2 px line at 200 px per L x 3 is three sub-pixels across).
 
     table, checks = lookqa.measure(B, design, out)      # charkit.qa3d's 'look' part
 """
@@ -37,16 +42,19 @@ REGIONS = ('skin', 'hair', 'garment', 'accessory')
 
 
 class HeadFrame:
-    """an orthographic window round the head at ppl px per L (supersampled ss), for charkit.qa3d.draw."""
+    """an orthographic window round the head at ppl px per L (supersampled ss), for charkit.qa3d.draw; off shifts the
+    frame's origin by that many output pixels (x right, y down: the measures' sampling spread at sub-pixel offsets)."""
 
-    def __init__(self, B, ppl=FACE_PPL, ss=3, win=WIN):
+    def __init__(self, B, ppl=FACE_PPL, ss=3, win=WIN, off=(0.0, 0.0)):
         A = B.assembly
         L = float(A['L'])
         self.L, self.ppl, self.ss = L, ppl, ss
         self.eye_z = float(A['eye_z'])
         self.pix = L / ppl / ss
         self.win = dict(x=win[0] * L, top=win[1] * L, bottom=-win[2] * L)
-        self.origin = (0.0, self.eye_z)
+        self.off = (float(off[0]), float(off[1]))
+        self.origin = (-self.off[0] * L / ppl, self.eye_z + self.off[1] * L / ppl)
+        self.key = (float(ppl), int(ss), tuple(float(w) for w in win), self.off)
 
     def zbuffer(self, items, az, ids=False):
         from .geom import raster
@@ -59,7 +67,7 @@ class HeadFrame:
         return P2 / self.ss
 
     def row(self, z):
-        return (self.win['top'] - (z - self.eye_z)) / (self.pix * self.ss)
+        return (self.win['top'] - (z - self.origin[1])) / (self.pix * self.ss)
 
 
 def key_light(az, a0, el):
@@ -114,11 +122,26 @@ def skin_tones(B, fr, az, ldir=None, surfs=None):
     skin mask, and the drawn picture."""
     from . import qa3d
     surfs = surfs if surfs is not None else _scene(B)
+    return _tones(B, qa3d.draw_view(B, surfs, az, fr), fr, ldir)
+
+
+def _tones(B, view, fr, ldir=None, picture=True):
+    """skin_tones from a view of _scene (charkit.qa3d.draw_view): picture=False shades the skin alone (surface 0) and
+    draws no picture (-> q, m, None)."""
+    from . import qa3d
     aux = {}
-    px = qa3d.draw(B, surfs, az, fr, ss=fr.ss, ldir=ldir, aux=aux)
+    px = qa3d.draw_lit(B, view, ldir, ss=fr.ss, aux=aux, only=None if picture else (0,), picture=picture)
     m = (aux['mesh'] == 0) & np.isfinite(aux['tone'])
     q = np.where(m, np.rint(np.nan_to_num(aux['tone'])), -1).astype(int)
     return q, m, px
+
+
+def board_tones(B, fr, az, view=None):
+    """skin_tones under the boards' light, once per bundle, frame and azimuth (face_noise and face_shadow share it);
+    view: the azimuth's draw_view when the caller has one."""
+    from . import qa3d
+    return B.memo(('lookqa.board_tones', fr.key, float(az)),
+                  lambda: _tones(B, view if view is not None else qa3d.draw_view(B, _scene(B), az, fr), fr))
 
 
 def design_noise(D, chin):
@@ -138,9 +161,11 @@ def design_noise(D, chin):
     return out
 
 
-def face_noise(B, out=None, design=None):
-    """-> (table, checks face_noise, face_noise_sweep, face_islands): see the module."""
-    fr = HeadFrame(B)
+def face_noise(B, out=None, design=None, fr=None):
+    """-> (table, checks face_noise, face_noise_sweep, face_islands): see the module. Each view is rasterized once
+    (charkit.qa3d.draw_view) and shaded under the board light and the sweep's four (the skin alone, no picture)."""
+    from . import qa3d
+    fr = fr or HeadFrame(B)
     surfs = _scene(B)
     ss = fr.ss
     min_px = ISLAND * (fr.ppl * ss) ** 2
@@ -148,7 +173,8 @@ def face_noise(B, out=None, design=None):
     chin_row = fr.row(fr.eye_z - float(B.assembly['chin'])) * ss
     per, sweep, isl, pics = {}, {}, {}, []
     for az in VIEWS:
-        q, m, px = skin_tones(B, fr, az, surfs=surfs)
+        view = qa3d.draw_view(B, surfs, az, fr)
+        q, m, px = board_tones(B, fr, az, view)
         rows = np.arange(q.shape[0])[:, None]
         m = m & (rows < chin_row + 0.5 * fr.ppl * ss)              # the face and the neck (as design_noise's)
         if m.sum() < 100:
@@ -161,11 +187,12 @@ def face_noise(B, out=None, design=None):
             pics += [qa_px(px), _tone_pic(q, m, ss)]
         sw = []
         for a0, el in SWEEP:
-            q2, m2, _ = skin_tones(B, fr, az, ldir=key_light(az, a0, el), surfs=surfs)
+            q2, m2, _ = _tones(B, view, fr, key_light(az, a0, el), picture=False)
             sw.append(_edges(q2, m2) * ss)
             if out and az == 30:
                 pics.append(_tone_pic(q2, m2, ss))
         sweep[az] = round(float(np.mean(sw)), 4)
+        del view
     if not per:
         return None, {'face_noise': {'status': 'SKIPPED', 'why': 'no visible skin in the head window'}}
     v = float(np.mean([p['all'] for p in per.values()]))
@@ -261,14 +288,13 @@ def _ours_eyes(B, fr, az):
     return fr.project(np.array([c for c in qa3d.iris_centres(B)]), az)
 
 
-def face_shadow(B, design, out=None):
+def face_shadow(B, design, out=None, fr=None):
     """-> (table, checks face_shadow_3q (the three-quarter's shadow IoU), face_shadow_face_3q, face_shadow_neck_3q (the
     share of face and neck skin in shadow, ours less the design's)): see the module."""
     D = design_heads(design) if design is not None else None
     if D is None:
         return None, {'face_shadow_3q': {'status': 'SKIPPED', 'why': 'no spec.ref.face_sheet'}}
-    fr = HeadFrame(B)
-    surfs = _scene(B)
+    fr = fr or HeadFrame(B)
     ss = fr.ss
     chin_z = fr.eye_z - float(B.assembly['chin'])
     rows_ours = fr.row(chin_z)
@@ -277,7 +303,7 @@ def face_shadow(B, design, out=None):
         h = D['heads'].get(view)
         if not h or not h['eyes']:
             continue
-        q, m, px = skin_tones(B, fr, az, surfs=surfs)
+        q, m, px = board_tones(B, fr, az)
         q, m = q[ss // 2::ss, ss // 2::ss], m[ss // 2::ss, ss // 2::ss]
         ours_sh = m & (q >= 1)
         # the design's view, cut to our window round its eyes (translation only: one scale, one eye line)
@@ -351,25 +377,20 @@ def _shadow_pic(m, ours_sh, d_skin, d_sh):
 
 
 # ------------------------------------------------------------------------------------------------------ lines
-def widths(mask, ss=1):
+def widths(mask, ss=1, min_px=10):
     """a line mask's widths: twice the distance to its edge at each skeleton pixel, in output pixels (supersampled
-    masks divided by ss) -> array."""
+    masks divided by ss) -> array. Measured on the mask cut to its lines' box and a pixel round it (the same distances
+    and skeleton as on the whole mask: the ring is background, and where the box meets the mask's edge, so does the
+    cut)."""
     from scipy import ndimage
     from skimage.morphology import skeletonize
-    if mask.sum() < 10:
+    if mask.sum() < max(1, min_px):
         return np.zeros(0)
+    ys, xs = np.nonzero(mask.any(1))[0], np.nonzero(mask.any(0))[0]
+    mask = mask[max(0, ys[0] - 1):ys[-1] + 2, max(0, xs[0] - 1):xs[-1] + 2]
     d = ndimage.distance_transform_edt(mask)
     sk = skeletonize(mask)
     return (2 * d[sk] - 1) / ss if ss > 1 else 2 * d[sk] - 1
-
-
-def _core(mk, ss, shape):
-    """the output pixels a supersampled mask covers wholly (a line's own colour, not its blend with its neighbours)."""
-    H, W = shape
-    h, w = min(H, mk.shape[0] // ss), min(W, mk.shape[1] // ss)
-    out = np.zeros((H, W), bool)
-    out[:h, :w] = mk[:h * ss, :w * ss].reshape(h, ss, w, ss).all(axis=(1, 3))
-    return out
 
 
 def _stats(w):
@@ -404,45 +425,100 @@ def line_scale(B, native_ppl, native_h):
 LINE_WIN = (0.85, 1.05, 0.95)    # the line measure's window round the eye line, in L (the head and its hair)
 
 
-def line_width(B, design, out=None, ss=4):
-    """-> (table, checks line_width (our median width over the design's), line_spread (p90 / p10 of ours)), in px of the
-    design's own page: ours drawn at its px per L (supersampled ss), its lines measured at its resolution x ss."""
+def _hull_colours(B, surfs, hulls, az):
+    """per surface, the colour charkit.qa3d.draw gives a line (an outline hull's material, shaded as draw shades it
+    under the view's light; NaN for the rest) -> (len(surfs), 3) linear."""
+    from . import qa3d
+    a = np.radians(az)
+    view_d = np.array([-np.sin(a), np.cos(a), 0.0])
+    ldir = qa3d.view_light(B, az)
+    col = np.full((len(surfs), 3), np.nan)
+    for i in hulls:
+        s_ = surfs[i]
+        mat = s_['o'].material(int(s_['slots'][0]))[1]
+        col[i] = qa3d._shade(B, s_['o'], mat, -view_d[None, :], view_d, ldir)[0]
+    return col
+
+
+def _lines_pic(mi, rgb, hulls, ss):
+    """what line_width measures, at the output resolution: the lines in their own colour over the figure's silhouette
+    (pale) on grey."""
+    from . import qa3d
+    H, W = mi.shape[0] // ss, mi.shape[1] // ss
+    mi, rgb = mi[:H * ss, :W * ss], rgb[:H * ss, :W * ss]
+    ln = np.isin(mi, list(hulls))
+    cov = ln.reshape(H, ss, W, ss).mean(axis=(1, 3))[..., None]
+    col = (np.where(ln[..., None], rgb, 0.0).reshape(H, ss, W, ss, 3).sum(axis=(1, 3))
+           / np.maximum(ln.reshape(H, ss, W, ss).sum(axis=(1, 3)), 1)[..., None])
+    fig = (mi >= 0).reshape(H, ss, W, ss).mean(axis=(1, 3))[..., None]
+    base = 0.93 * (1 - fig) + 0.99 * fig
+    return base * (1 - cov) + qa3d._srgb(col) * cov
+
+
+def design_widths(lines0, ss=4):
+    """the design's line widths: widths() of its line pixels (lines0, at its own resolution) upsampled x ss, one group
+    of lines at a time (lines within 4 px of each other together: the same widths as the whole sheet's, on a fraction
+    of its pixels)."""
+    from scipy import ndimage
+    if lines0.sum() * ss * ss < 10:
+        return np.zeros(0)
+    lab, n = ndimage.label(ndimage.binary_dilation(lines0, iterations=2), structure=np.ones((3, 3)))
+    out = []
+    for i, sl in enumerate(ndimage.find_objects(lab)):
+        cut = lines0[sl] & (lab[sl] == i + 1)
+        out.append(widths(np.repeat(np.repeat(cut, ss, 0), ss, 1), ss, min_px=1))
+    return np.concatenate(out) if out else np.zeros(0)
+
+
+def line_width(B, design, out=None, ss=4, ppl=None, off=(0.0, 0.0)):
+    """-> (table, checks line_width (our median width over the design's), line_spread (p90 / p10 of ours), line_ink),
+    in px of the design's own page: ours drawn at ppl px per L (None: the design's own), supersampled ss, their widths
+    scaled by the design's px per L over ppl; its lines measured at its resolution x ss. Only the z-buffer is drawn
+    (every surface occludes the lines), each line in its hull's flat colour: our lines' colour is the median of their
+    supersampled pixels (a line's own colour, not its blend with its neighbours after the pixel filter).
+    The widths need the design's scale: at 200 px per L x 3 a 2 px line is 3 sub-pixels across and the median steps
+    by 0.67 px (docs/workstreams/look.md, round 2)."""
     D = design_heads(design) if design is not None else None
     native_ppl, native_h = (D['native_ppl'], D['native_h']) if D else (401.0, 1440)
-    fr = HeadFrame(B, ppl=native_ppl, ss=ss, win=LINE_WIN)
+    ppl = native_ppl if ppl is None else ppl
+    k = native_ppl / ppl
+    fr = HeadFrame(B, ppl=ppl, ss=ss, win=LINE_WIN, off=off)
     ks = line_scale(B, native_ppl, native_h)
     surfs = _scene(B, skin_outline=True, line_scale=ks)
     from . import qa3d
     hull_region = [(_region(s_['o']) if s_['hull'] else None) for s_ in surfs]
+    hulls = {i for i, h in enumerate(hull_region) if h}
+    items = [(s_['V'], s_['T'], i, s_['cull']) for i, s_ in enumerate(surfs)]
     allw = {r: [] for r in REGIONS}
     allc = {r: [] for r in REGIONS}
     pics = []
     for az in VIEWS:
-        aux = {}
-        px = qa3d.draw(B, surfs, az, fr, ss=ss, aux=aux)
+        mi = fr.zbuffer(items, az)[1]                           # the surface per pixel (draw()'s aux['mesh'])
+        col = _hull_colours(B, surfs, hulls, az)                # each line's colour as draw() shades it (flat)
+        rgb = col[np.maximum(mi, 0)]
         for r in REGIONS:
             ids = [i for i, h in enumerate(hull_region) if h == r]
             if ids:
-                mk = np.isin(aux['mesh'], ids)
-                allw[r].append(widths(mk, ss))
-                core = _core(mk, ss, px.shape[:2])
-                allc[r].append(px[..., :3][core])
+                mk = np.isin(mi, ids)
+                allw[r].append(widths(mk, ss) * k)
+                allc[r].append(rgb[mk])
         if out:
-            pics.append(qa_px(px))
+            pics.append(_lines_pic(mi, rgb, hulls, ss))
     ours = {r: _stats(np.concatenate(w)) for r, w in allw.items() if w}
     ours = {r: v for r, v in ours.items() if v}
     table = {'ours': ours, 'page': dict(native_ppl=round(native_ppl, 1), native_h=native_h),
-             'scale': {k: round(v, 3) for k, v in ks.items()} or 'build widths'}
+             'drawn': dict(ppl=round(float(ppl), 1), ss=ss),
+             'scale': {k_: round(v, 3) for k_, v in ks.items()} or 'build widths'}
     C = {}
     allo = [np.concatenate(w) for w in allw.values() if w]
     so = _stats(np.concatenate(allo)) if allo else None
     table['ours_all'] = so
     from . import paletteqa
-    ours_ink = {r: np.median(np.concatenate(c), 0) for r, c in allc.items() if c and sum(len(x) for x in c) > 20}
+    ours_ink = {r: np.floor(np.clip(qa3d._srgb(np.median(np.concatenate(c), 0)), 0, 1) * 255 + 0.5) / 255
+                for r, c in allc.items() if c and sum(len(x) for x in c) > 20}
     table['ink'] = {r: paletteqa._hex(c) for r, c in ours_ink.items()}
     if D:
-        up = np.repeat(np.repeat(D['lines0'], ss, 0), ss, 1)
-        dw = _stats(widths(up, ss))
+        dw = _stats(design.memo(design_widths, D['lines0'], 4))
         table['design'] = dw
         di = D.get('ink')
         if di is not None and ours_ink:

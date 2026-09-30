@@ -64,4 +64,13 @@ if [ "$dirs" != FULL ]; then
   git -C "$dest" sparse-checkout set --cone $dirs
 fi
 git -C "$dest" checkout -q "$branch"
+# the builds' generated inputs (charkit/out/i3d: the TRELLIS field the outfit masks read), cloned copy-on-write (APFS
+# cp -c: no space, and a write never reaches the source); without them the masks come out wrong
+if [ -d "$ROOT/charkit/out/i3d" ] && [ ! -e "$dest/charkit/out/i3d" ]; then
+  mkdir -p "$dest/charkit/out" && { cp -Rc "$ROOT/charkit/out/i3d" "$dest/charkit/out/" 2>/dev/null || cp -R "$ROOT/charkit/out/i3d" "$dest/charkit/out/"; }
+fi
+# the boxes' configs (gitignored, so a checkout lacks them): copied from this worktree, or the main one
+for f in "$ROOT"/infra/gcp/*.env; do
+  [ -e "$f" ] && [ -d "$dest/infra/gcp" ] && cp -n "$f" "$dest/infra/gcp/"
+done
 echo "$dest ($branch, profile $profile): $(du -sh "$dest" | cut -f1)"

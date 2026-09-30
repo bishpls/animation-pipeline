@@ -65,11 +65,13 @@ GARMENT = {
               'cols': (24, 4, 8, 48, 'resolution'), 'rows': (16, 4, 4, 32, 'resolution')},
 }
 COLOURS = ('color', 'panel_color', 'hem_color', 'stripe_color', 'sole_color', 'shade')
-NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel', 'sole', 'repeat', 'line', 'hem', 'steps',
+NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel', 'ease', 'sole', 'repeat', 'line', 'hem', 'steps',
              # a hull-sourced piece's settings (garments.hull_pieces): where its shape comes from and how it's read off
              # the hull, not what a fit moves
              'source', 'piece', 'fold', 'under', 'tuck', 'hem_q', 'hem_drop', 'hem_smooth', 'waist_q', 'span', 'step',
-             'round', 'nth', 'conform', 'conform_k', 'cell', 'reach', 'lift', 'mass', 'q', 'occluders', 'occluded_span', 'front_band', 'panel_mass', 'overlap', 'drawn', '_spec', 'knot', 'lift')
+             'round', 'nth', 'conform', 'conform_k', 'cell', 'reach', 'lift', 'mass', 'q', 'occluders', 'occluded_span', 'front_band', 'panel_mass', 'overlap', 'drawn', '_spec', 'knot', 'lift', 'round_xs', 'roll', 'clear', 'over', 'tail', 'sweep', 'out', 'taper', 'tail_rows', 'trim', 'band', 'step_h', 'bones', 'narrow', 'train', 'gap', 'blend', 'aline',
+             'tip', 'stair', 'az_waist', 'neckline', 'neck_sectors', 'neck_q', 'neck_smooth', 'neck_min_pts', 'neck_drop',
+             'keep_edge', 'v_edge', 'conform_smooth', 'front_smooth', 'clear_hands', 'clear_slope', 'clear_bands')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {
