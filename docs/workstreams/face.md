@@ -139,3 +139,113 @@ how far the window may bring the face forward (`face.forward` 0) was tried and d
 - `poke_share` 0.020 (FAIL) is at the wrists, from the body code.
 - Hull building isn't deterministic across box copies. The fork-point baseline, built fresh in its own copy, failed in
   `garments.sleeve_hull` ("no row of the piece is measured on 15% of its circle").
+
+## Checkpoint (2026-09-29): state for the next agent
+
+**Branch `tool/face`** in worktree `~/animation-pipeline-face`. Its HEAD is the commit that adds this section; nothing
+is pushed or merged anywhere.
+- **Forked from** tool/body 849b9a7.
+- **Merged into it:**
+  - pipeline-3d, up to 0122617 (tool/look's camera key and screen lines, tool/unshare, the parallel gates);
+  - tool/hull-det, 5428033 (`charkit/geom/det.py`: `det.cs`, `det.dot3`; hull.py's projection and labels).
+- **Gated:** 712e736 into pipeline-3d 966ad22 (reports in `charkit/out/gate/gate_tool-face_712e736_into_966ad22*.md`).
+  - Default spec: FAIL, `hair_fringe_low` 0.0565 → 0.0612.
+  - `clawd_body.json`: FAIL, `body_back_leg` 0.066 → 0.108.
+  - Both are the hull's face carve (decision 4 below). The merges since then (pipeline-3d 0122617, tool/hull-det) are
+    not gated; all 215 tests pass after them.
+
+**Current numbers.** The table under Numbers above: the eye region fixed, the visible crease 29.6 WARN.
+
+**Decisions from the coordinator (2026-09-29):**
+1. **Collar: (a).** Keep the slender neck; the collar lies on the flare below it. Routed to tool/body, not ours.
+2. **Chin:** the head sheet sets the chin.
+3. **Crease:** grade the visible skin's (`neck_crease` on the `masked` skin; `neck_crease_all` INFO).
+4. **Fringe and hull carve: (a).** `hull.carve_face` keeps hair within a margin of the face. Implement it in
+   `carve_face` only, using tool/hull-det's `det.cs` / `det.dot3`, and keep the change local to `carve_face`. Not
+   started. The mechanism is in Numbers above: the window sets the eye region back to the design's depth, so a fringe
+   lock hanging close in front of the eye is carved by views that draw the eye clear. Keep hair-labelled voxels within
+   a margin in front of the face surface.
+5. **Eye flatness and brow: (a)** for both (the design's plane; the brow's slight recess), pending Michael's taste page.
+   It needs the option renders: `face.forward` 0 for eye (b), `curve` [2, 2] with reach up 0.2 for brow (b).
+
+**Next task, top priority: the front-view chin and jaw.** The coordinator's brief, verbatim:
+
+> NEW, top priority, from Michael's screenshot of the front close-up: the chin and neck are "still very obviously
+> visually glitched".
+> - No chin: the face flows straight into a neck as wide as the lower face.
+> - No jaw line: the design has a V chin overlapping the neck, with a dark wedge under it.
+> - The neck reads as a column.
+> None of your checks see the front view's jaw. Add front-view checks, then fix:
+> - the face outline per row from the cheek down to the chin point, against the design: taper, the chin point's height
+>   and sharpness;
+> - the chin's underside visible over the neck in front view: the chin must project forward and down past the neck's
+>   front, so the outline draws the jaw line (measure the jaw-line pixels in the front and three-quarter views against
+>   the design);
+> - the neck's width over the face's width at the jaw, against the design.
+> Also check the profile (Michael's side screenshot): the neck's front outline wiggles under the jaw.
+> Then re-gate both specs, and report with close-ups beside the design at matching scale.
+
+**Found so far:**
+- **The likely cause is the jaw's underside, which slopes the wrong way.** In the head sections
+  (`charkit/out/face_b/geom/head_code.npz`), the chin tip's row (z −0.36, front y −0.013 in the eye frame) drops to
+  the throat's (−0.38, y 0.198): the underside slopes down toward the throat at about 5°. The board camera (eye height
+  +0.06 L, 4 L away) looks down about 5.7°, so the underside is nearly edge-on. It barely turns from the camera, so no
+  jaw silhouette and no line. The anime design's underside rises from the chin back to the throat, so the chin's V
+  overlaps the neck and the jaw rim is a silhouette. The per-row sections can't make the underside rise: each row is
+  one closed section, so a rising underside needs the throat junction above the chin tip, with the rows between
+  carrying the chin in front and the neck behind.
+- **Where it's built.** `headfit.assemble` builds under the chin from the design's profile skin edge per row
+  (`headfit.neck_front`, head_turnaround's profile: the front edge of the skin under the chin, via
+  `hull.views_from_heads` and `bodyqa.classes`). That edge is single-valued per row, so it can't encode the underside.
+  The neck's width comes from the head sheet's front (`D['front']['neck']`: 0.06 L under the chin), eased in under
+  the chin (`wk_all`, `wk_back`: the section's back keeps the neck's width, its front narrows to the chin's V).
+  `sheet_neck_to_jaw` PASSes (0.987), but it is graded on the head alone.
+- **Reuse for the design side of the front checks.** `hull.views_from_heads(rgb, eye_x, facing)` gives the head
+  sheet's views (mask, eye_y, ppl, axis) and `bodyqa.classes(rgb, mask, eye_y, ppl)` the classes (skin, line, ...),
+  as `neck_front` does.
+  - The design's jaw line is the line-class run crossing the skin below the mouth.
+  - Its lowest point is the chin point; the V's slopes there give the sharpness.
+  - The skin under it, bounded by lines, is the neck.
+- **Ours.** The front view's z-buffer (`faceqa.zbuffer` on `qa3d.scene_classes`, az 0 and the three-quarter). A jaw
+  line draws where, going down a column below the mouth, the visible depth jumps back by more than the ink line's
+  depth (screen lines `frac` 0.0022 of the frame: about 0.004 L at the board camera; use 0.01 L to be safe).
+- **The look's stop-gap.** tool/look added `look.face.jaw_line` (it inks the jaw's edge in the face UV; off in anime),
+  noting "from the front it doesn't turn from the camera, so no outline draws it". That is the same geometric fault.
+- **Tools.** `tools/face_labs/chin_cmp.py` puts the head sheet's front, three-quarter and profile beside builds' face
+  boards at the same px per L. The first comparison is `chin_cmp.py OUT.png ~/animation-pipeline-ckpt/charkit/out/ckpt_full
+  charkit/out/face_i`.
+
+**Box jobs.** None in flight. Outputs:
+- `charkit/out/jaw_0` (render box, HEAD 91e44ca, `clawd_body.json`, views and body boards, `clawd.blend`) is the
+  current look's baseline for the jaw task.
+- `charkit/out/face_i` is the last `clawd_body_pieces` build (712e736).
+- Candidate gate outputs stay on the build box in `/srv/work/gate-out`; the reports come back to `charkit/out/gate`.
+
+**Files owned:**
+- `charkit/geom/headfit.py`, `charkit/geom/headgeom.py`, `charkit/code_base.py` (the head, `wrap`, the join);
+- `charkit/eyes.py`;
+- `charkit/faceregion.py`, `charkit/tests/test_faceregion.py`;
+- the style profiles' `face` section;
+- `hull.carve_face`, for decision 4 only;
+- `code_body`'s torso top rows (re-seated from `code_base._join_neck`).
+
+Garments and the rest of `code_body` are tool/body's, hair is the hair workstream's, and the look is tool/look's.
+
+**Gotchas:**
+- The hull carves in front of this head (`hull.carve_face` → `code_base.head_sections`). Any change to the face
+  surface changes the hull, and through it the hair pieces, the legs and the garments. Watch `hair_fringe_low`,
+  `body_back_leg` and `poke_share` after head changes.
+- Hulls built in different box copies can differ (tool/hull-det works on this). A fresh baseline worktree failed in
+  `garments.sleeve_hull`.
+- The IAP tunnel can drop mid-command. A dropped `remote build` can leave its Blender running on the box, and a
+  retry into the same `--out` then corrupts `trace.jsonl` (and the hair once: `hair_folds` 1405). Retry into a new
+  folder. Gates with a dropped tunnel keep running on the box; their reports stay there.
+- Local builds on the laptop go through `python -m charkit slots 1`; heavy builds go to the boxes
+  (`remote build`, `remote --box render build` for boards).
+- The QA's `eval` skin variant is subdivided once (the viewport level), not at the render level; `masked` is the
+  skin with the garments' mask on. The neck lab subdivides once to match.
+- `faceregion`'s eye widths compare `qa3d.eye_image` renders with the head sheet's crops (`eyepage.design_eyes`), so
+  lashes and lids count. The geometric prediction in the eye lab runs about 0.89 of the box's profile measure.
+- `hair_fringe_low`'s "ours" is the lowest visible bangs pixel in the front class map, so skin, lashes or a carved
+  tip in front of the bangs all move it.
+
