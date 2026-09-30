@@ -93,6 +93,11 @@ stands out past the band from z -1.40 (x +-0.33 at -1.40, +-0.35 at -1.45 agains
 it covers the band below -1.39. With the jacket now covering the band's top rows, that's what's left of the band's
 width: `waistband_front_width` PASS -> FAIL (ours 0.44 against the drawn 0.52), three-quarter and profile likewise.
 Suggested: tuck the skirt under the band garment's lower edge (its `rows` bottom) rather than the hull label's.
+This is also what fails `body_front_skirt_overhang_{L,R}` in the default gate (PASS -> FAIL 0.115-0.118, the skirt
+standing past the band's side in its lower half): it has been there since milestone 2's `fit_rows` narrowed the band
+to its drawn width (0.63 L; the hull's rows had made it 0.77-0.80, which covered the skirt's top). Widening the band
+again to hide the skirt would trade the band's own shape (piece_waistband 0.894 PASS, its widths) for another
+piece's fault; left for tool/skirt and the integrator.
 
 ## State (2026-09-30, milestone 3)
 
