@@ -236,6 +236,38 @@ def test_the_cage_carries_the_template():
     assert np.abs(Vb[:, 1] - (V[:, 1] + 0.2 * V[:, 2] ** 2)).max() < 0.01
 
 
+def test_the_hook_is_off_unless_asked():
+    """charkit.sim.hook on a recorded stand-in (a level grid panel held by one edge over a sphere 'body'): with no
+    garment asking, the product is untouched (same digest); asked, the panel is settled: its pinned rows stay, the rest
+    falls onto the body and not into it."""
+    import copy
+    from charkit import garments, geomstage
+    from charkit.geom import primitives
+    from charkit.sim import hook
+    NR, NC, h = 8, 6, 0.02
+    V = np.array([(-0.05 + i * h, -0.07 + j * h, 0.126) for j in range(NR) for i in range(NC)], float)
+    faces = [(j * NC + i, j * NC + i + 1, (j + 1) * NC + i + 1, (j + 1) * NC + i) for j in range(NR - 1)
+             for i in range(NC - 1)]
+    with geomstage.recording() as rec:
+        arm = geomstage._Ref(rec, 'arm', 'the armature')
+        ob = garments._object('panel', V, faces, {'hips': np.ones(len(V))}, arm,
+                              [garments._toon('panel', (0.8, 0.4, 0.1), [0.7, 0.6, 0.6])])
+        sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.0025; sol.offset = -1
+    P = geomstage.product('garments', rec)
+    m = primitives.icosphere(3)
+    Vs, Fs = (m.V, m.F) if hasattr(m, 'V') else m
+    A = dict(verts=np.asarray(Vs, float) * 0.12, faces=[tuple(f) for f in np.asarray(Fs)], head=dict(L=0.25))
+    Q = hook.apply(copy.deepcopy(P), A, [dict(name='panel')])
+    assert geomstage.digest(Q) == geomstage.digest(P) and 'drape' not in Q['meta']
+    R = hook.apply(copy.deepcopy(P), A, [dict(name='panel', drape=dict(solver='xpbd', seconds=1.0, colliders=[]))],
+                   dict(style='realistic'))
+    X = geomstage.pieces(R)[0][0]['V']
+    assert np.array_equal(X[:2 * NC], V[:2 * NC])                     # its pinned rows
+    assert np.linalg.norm(X - V, axis=1).max() > 0.005                # the rest moved
+    assert (np.linalg.norm(X, axis=1) - 0.12).min() > -0.002          # onto the sphere, not into it (grid error)
+    assert R['meta']['drape']['panel']['strain_max'] < 0.05
+
+
 if __name__ == '__main__':
     import time
     for k, f in list(globals().items()):

@@ -116,12 +116,22 @@ def collider(Bd, names, box, h):
 
 # ------------------------------------------------------------------------------------------------------------ rest drape
 def rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, colliders=('clawd_skin:base', 'skirt',
-               'shorts'), grid_h=None, clear=0.004, spacing=0.03, pin_rows=2, log=print, **dials):
-    """settle one garment on its cage (charkit.sim.cage, `spacing` L): -> dict(V (the template's vertices, settled),
-    stats)."""
+               'shorts'), grid_h=None, log=print, **kw):
+    """settle one of a build's garments against its bundle's meshes (settle()): -> dict(V, stats, cage, solver)."""
+    t0 = time.time()
+    G = Bd.grid(tuple(c for c in colliders if c.split(':')[0] != name), grid_h or 0.01 * Bd.L)
+    R = settle(Bd.coarse[name], G, Bd.L, style=style, rest=rest, seconds=seconds, fps=fps, log=log, **kw)
+    R['stats']['t_grid'] = round(time.time() - t0, 2)
+    return R
+
+
+def settle(o, G, L, style='anime', rest='template', seconds=3.0, fps=60, clear=0.004, spacing=0.03, pin_rows=2,
+           log=print, **dials):
+    """settle a recorded grid-built garment `o` (charkit.geomstage.pieces' dict) on its cage (charkit.sim.cage,
+    `spacing` L) against the signed-distance grid G, its top `pin_rows` rows pinned: -> dict(V (the template's
+    vertices, settled), stats, cage, solver)."""
     from . import cage as cagelib
-    o = Bd.coarse[name]
-    L = Bd.L
+    name = o['name']
     K = cagelib.of_piece(o, spacing * L, keep_rows=range(pin_rows))
     nc = len(K.cols)
     pins = np.r_[np.arange(pin_rows * nc), np.nonzero(~K.used)[0]]
@@ -134,9 +144,6 @@ def rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, co
     thick = max([abs(float(m['settings'].get('thickness', 0))) for m in o['mods'].values()
                  if m['type'] == 'SOLIDIFY'] or [0.0])
     radius = thick + clear * L
-    t0 = time.time()
-    G = Bd.grid(tuple(c for c in colliders if c.split(':')[0] != name), grid_h or 0.01 * L)
-    tg = time.time() - t0
     # each vertex's radius capped at its own rest clearance: the template at rest is never pushed (its tucked top sits
     # on the skirt closer than the radius, pinned), only a new approach is resisted
     rad = np.clip(G.distance(C.V), 0.0, radius)
@@ -167,18 +174,18 @@ def rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, co
     stats = dict(piece=name, style=style, rest=rest, dials={k: v for k, v in st['physics'].items()},
                  n=int(len(X)), cage=int(C.n), cage_free=int(free.sum()), cage_edge_L=[float(C.rest_len.min() / L),
                                                                                      float(C.rest_len.max() / L)],
-                 radius_L=radius / L, radius_capped=int((rad < radius).sum()), grid_h_L=G.h / L, seconds=seconds, fps=fps, substeps=S.substeps,
-                 iterations=S.iterations, rest_carry_L=float(np.abs(V0 - o['V']).max() / L),
+                 radius_L=radius / L, radius_capped=int((rad < radius).sum()), grid_h_L=G.h / L, seconds=seconds,
+                 fps=fps, substeps=S.substeps, iterations=S.iterations, rest_carry_L=float(np.abs(V0 - o['V']).max() / L),
                  moved_max_L=float(mv.max()), moved_mean_L=float(mv.mean()),
                  strain_max=float(sn.max()), strain_p99=float(np.percentile(sn, 99)),
                  clear_min_L_before=float(d0[used].min() / L), clear_min_L=float(d[used].min() / L),
                  inside_before=int((d0[used] < 0).sum()), inside=int((d[used] < 0).sum()),
-                 settle_vmax_L=trace[-1]['vmax_L'], trace=trace, t_grid=round(tg, 2), t_sim=round(ts, 2))
+                 settle_vmax_L=trace[-1]['vmax_L'], trace=trace, t_sim=round(ts, 2))
     log('rest %s %s %s: moved max %.3f L mean %.3f L, cage strain max %.4f p99 %.4f, clear min %.4f L (before %.4f), '
-        'inside %d (before %d), v %.2g L/s, %.1f s + grid %.1f s' % (
+        'inside %d (before %d), v %.2g L/s, %.1f s' % (
             name, style, rest, stats['moved_max_L'], stats['moved_mean_L'], stats['strain_max'], stats['strain_p99'],
             stats['clear_min_L'], stats['clear_min_L_before'], stats['inside'], stats['inside_before'],
-            stats['settle_vmax_L'], ts, tg))
+            stats['settle_vmax_L'], ts))
     return dict(V=X, stats=stats, cage=K, solver=S)
 
 
