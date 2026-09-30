@@ -63,7 +63,39 @@ hand; the legs and boots below the shorts):
 
 ## Results
 
-(filled in below as the box runs land)
+Hull pair on the box, validated (before tool/hull-det 24fa199; after, that plus this fix):
+
+| held out | before | after | no limb split (after) | plain |
+|---|---|---|---|---|
+| front | 0.9449 | 0.9449 | 0.9449 | 0.9449 |
+| profile (plain carve both times) | 0.3537 | 0.3536 | 0.3536 | 0.3536 |
+| three-quarter | 0.8335 | **0.8783** | 0.8614 | 0.7149 |
+| back | 0.9343 | **0.9467** | 0.9458 | 0.9458 |
+
+Per-height borrowing (front limb parts, height x side, 2+ foreign cells in the side runs, by the hand-made truth):
+
+| | arm before | arm after | leg before | leg after |
+|---|---|---|---|---|
+| parts | 416 | 416 | 526 | 526 |
+| borrowing | 296 | 8 | 3 | 2 |
+| foreign cells / own cells | 6,793 / 6,539 | 80 / 5,890 | 106 / 23,862 | 8 / 21,324 |
+| whole side run | 4 | 0 | 244 (the boots) | 0 |
+
+The 8 left: z −0.54..−0.55 (×2 sides), the `sleeve_L` mask on the sailor collar's stripe, on the arm's track (joined
+with the interpolated section, it widens nothing); z −1.36 and −2.49 (×2), 2–3 cells of the forearm's and hand's own
+outline the truth gives to the skirt. Legs: z −2.73 (×2), the thigh's outline at the shorts' hem.
+
+- **Determinism:** two fast-path builds on the box are bit-identical in every stage and output (hull.npz 908973a8…,
+  hull_pieces 9bcfabaf…); the validated build's outputs match them. The new stages (limb images, sections, the
+  rejected runs) and the outfit masks hash the same on the laptop (arm64) and the box (x86): 23 of 23.
+- **Pieces labels:** the arm pieces gain in every view (held-out front sleeve cuffs 0.15–0.22 → 0.54–0.58, the back's
+  used cuff_R 0.50 → 0.84); the skirt loses (held-out three-quarter 0.617 → 0.452) and the weighted pieces IoU dips
+  (three-quarter held out 0.4235 → 0.3956). The arm blobs in front of the skirt's sides had carried the profile's
+  mislabelled panel masks; without them the profile's panel labels land on the skirt's own side surface.
+- **tool/hull-det can't build clawd_body** (24fa199 and 3da2530): `garments.band_hull` fails on `cuff_L` ("no row of
+  the piece is measured on 20% of its circle"). Its hull's `sleeve_cuff_L` points sit on the bow's tail: they cover
+  17% of the circle round the upper arm, a median 0.43 L from it. With this fix: 58%, 0.15 L. The body's before is
+  therefore pipeline-3d (0122617), the gate's baseline.
 
 ## Measurement tools
 
