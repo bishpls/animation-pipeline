@@ -169,3 +169,14 @@ hull + the stable fit) -> `charkit/out/hl_b2s`, and of tmp/face5-on-hull-local 3
 - **face5's move of the buns** (the build pairs' bun meshes): Nelder-Mead B2 -> B3 0.0266 / 0.0158 L (bun_L / R);
   stable B2s -> B3s **3.9e-8 / 5.7e-8 L**. face5's terminator move is now +0.134 (2.045 -> 2.179, same grade), carried
   by the pieces face5 reshapes (side locks, bangs), not the buns (before: +0.45 through the buns).
+
+**The prior annealed (a7ef42e).** At 1 um every perturbation passed, but at 10 um one (the bun points' random seed 0)
+took bun_L to a neighbouring minimum 0.017 L away (soft loss 0.2791 against 0.2773; `charkit/out/bunstab/diag3.py`):
+the 9-parameter stages agreed, the second stage (the loops freed from their defaults) forked in its first long
+steps. BUN_SOFT_ANNEAL (10, 3, 1): each softness step's prior in BUN_SOFT_PRIOR, strong while the loss is coarse, in
+both stages. At 10 um then all 20 perturbations move the buns under 5.4e-6 L (proportional; soft losses 0.291797 /
+0.354914 on every one). bun_L's minimum is now another (0.2918, the old one's 0.2773), bun_R's lower (0.3549 against
+0.3577). Rebuilt on the box: B2a (a7ef42e, `charkit/out/hl_b2a`) and B3a (tmp 5f4587e,
+`~/animation-pipeline-face5hl/charkit/out/hl_b3a`); stability at 1 um / 100 um / 1 mm and the unit test running
+locally (`charkit/out/bunstab/stab_soft*.json`, `test_bun_fit.log`). pipeline-3d 07fa3c2 (xpbd, opt-in) merged at
+d10eb65. Pre-gate (1f854d7 into 07fa3c2): PASS, 14 moved, 0 blocking.
