@@ -63,7 +63,7 @@ class Token:
         self.box = os.environ.get('BS_ROLE') == 'box'
         self.lock = threading.Lock()
         self.tok, self.exp = None, 0
-        self.path = os.path.join(CACHE_HOME, 'token.json')
+        self.path = os.path.join(CACHE_HOME, 'token.json')    # (the laptop's: one per gcloud config, _laptop)
 
     def get(self, refresh=False):
         with self.lock:
@@ -78,6 +78,9 @@ class Token:
         return d['access_token'], time.time() + int(d['expires_in'])
 
     def _laptop(self, refresh):
+        cfg = gcloud_config()
+        if cfg:                                          # the box-control service account's: its own token
+            self.path = os.path.join(CACHE_HOME, 'token-%s.json' % hashlib.sha256(cfg.encode()).hexdigest()[:12])
         if not refresh:
             try:
                 d = json.load(open(self.path))
@@ -87,8 +90,9 @@ class Token:
                 pass
         r = subprocess.run(['gcloud', 'auth', 'print-access-token'], capture_output=True, text=True)
         if r.returncode != 0 or not r.stdout.strip():
-            raise SystemExit('bucketsync: gcloud has no valid login (%s): run `gcloud auth login`'
-                             % (r.stderr.strip().splitlines() or ['no token'])[-1])
+            raise SystemExit('bucketsync: gcloud has no valid login (%s): %s' % (
+                (r.stderr.strip().splitlines() or ['no token'])[-1], 'the service account config %s: see '
+                'docs/workstreams/infra-auth.md' % cfg if cfg else 'run `gcloud auth login`'))
         tok = r.stdout.strip()
         exp = time.time() + 300                          # gcloud may hand back a cached token near its end
         try:
@@ -103,6 +107,27 @@ class Token:
             json.dump(dict(token=tok, exp=exp), f)
         os.replace(self.path + '.tmp', self.path)
         return tok, exp
+
+
+def gcloud_config():
+    """the laptop's gcloud config for the box: CLOUDSDK_CONFIG (build.sh exports its env file's), else the env file's
+    own (CHARKIT_BOX_ENV, else infra/gcp/build.env beside this file's repo) put in the environment -> it, or None
+    (gcloud's default login)."""
+    if os.environ.get('CLOUDSDK_CONFIG'):
+        return os.environ['CLOUDSDK_CONFIG']
+    env = os.environ.get('CHARKIT_BOX_ENV') or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
+        __file__))), 'infra', 'gcp', 'build.env')
+    try:
+        for line in open(env):
+            line = line[len('export '):] if line.startswith('export ') else line
+            if line.startswith('CLOUDSDK_CONFIG='):
+                v = os.path.expanduser(os.path.expandvars(line.split('=', 1)[1].split('#')[0].strip()))
+                if v:
+                    os.environ['CLOUDSDK_CONFIG'] = v
+                    return v
+    except OSError:
+        pass
+    return None
 
 
 class Bucket:
