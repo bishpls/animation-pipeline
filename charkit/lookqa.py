@@ -96,7 +96,7 @@ def _scaled(B, o, variant, line_scale):
     k = (line_scale or {}).get(o.name)
     sh = o.a(variant, 'shrink')
     if k is not None and sh is not None and not S[0]['hull']:
-        S[0] = dict(S[0], V=o.a(variant, 'V') + sh * k)
+        S[0] = dict(S[0], V=o.a(variant, 'V') + sh * k, line_k=k)       # (line_k: the render drawing's width)
     return S
 
 
@@ -488,12 +488,11 @@ def line_width(B, design, out=None, ss=4, ppl=None, off=(0.0, 0.0)):
     from . import qa3d
     hull_region = [(_region(s_['o']) if s_['hull'] else None) for s_ in surfs]
     hulls = {i for i, h in enumerate(hull_region) if h}
-    items = [(s_['V'], s_['T'], i, s_['cull']) for i, s_ in enumerate(surfs)]
     allw = {r: [] for r in REGIONS}
     allc = {r: [] for r in REGIONS}
     pics = []
     for az in VIEWS:
-        mi = fr.zbuffer(items, az)[1]                           # the surface per pixel (draw()'s aux['mesh'])
+        mi = qa3d.draw_ids(B, surfs, az, fr)                    # the surface per pixel (draw()'s aux['mesh'])
         col = _hull_colours(B, surfs, hulls, az)                # each line's colour as draw() shades it (flat)
         rgb = col[np.maximum(mi, 0)]
         for r in REGIONS:

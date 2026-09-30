@@ -9,6 +9,12 @@
     bench VRM [--reps 5] [--adapter A] [--ss 4] [--which views,body] [--json OUT]
                                              seconds per board (warm; the first frame and the setup apart)
     page DIR                                 DIR/compare.json -> DIR/index.html
+    qaref BUILD [--out DIR] [--no-eevee]     the QA's frames drawn by the numpy drawing, ours and EEVEE (charkit/render/
+                                             qaref.py): tone agreement, the drawn checks on each, DIR/qaref.json
+    calibrate BUILD [BUILD2] [--out DIR]     the drawn QA checks under both drawings with their noise, and the 2x2
+                                             (charkit/render/calibrate.py)
+    parity BUILD [--box build]               this machine against the build box on one export: boards, buffers, checks
+                                             (charkit/render/parity.py; exit 1 past a bound)
 """
 import json, os, shutil, sys, time
 
@@ -29,10 +35,11 @@ def _head(bundle_dir):
 
 
 def _vrm_in(build):
-    c = [f for f in sorted(os.listdir(build)) if f.endswith('.vrm') and '.springs.' not in f]
-    if not c:
-        raise SystemExit(f'{build}: no .vrm (build with --vrm, or python -m charkit export BUILD/NAME.blend)')
-    return os.path.join(build, c[0])
+    from .buildboards import export_of
+    p = export_of(build)                                # NAME.look.glb (every build's), else NAME.vrm
+    if p is None:
+        raise SystemExit(f'{build}: no NAME.look.glb or .vrm (build it, or python -m charkit export BUILD/NAME.blend)')
+    return p
 
 
 def _save(path, img):
@@ -164,7 +171,7 @@ def compare_build(args):
     R0 = gpu.Renderer(M, streaks=False, **kw)
     pal = compare.palette(M, views.BG)
     bdir = os.path.join(build, 'boards')
-    V = [v for v in views.board_views(M, ('views', 'body'), eye_z=eye_z, L=L)
+    V = [v for v in views.board_views(M, ('views', 'body', 'design'), eye_z=eye_z, L=L)
          if os.path.exists(os.path.join(bdir, v.name + '.png'))]
     if not V:
         raise SystemExit(f'{bdir}: no face_*/body_* boards')
@@ -241,7 +248,10 @@ def main(argv):
         print(__doc__); return 0
     cmd, rest = argv[0], argv[1:]
     f = {'probe': probe, 'boards': boards, 'compare': compare_build, 'bench': bench,
-         'page': lambda a: print(__import__('charkit.render.page', fromlist=['write']).write(a[0])) or 0}.get(cmd)
+         'page': lambda a: print(__import__('charkit.render.page', fromlist=['write']).write(a[0])) or 0,
+         'qaref': lambda a: __import__('charkit.render.qaref', fromlist=['main']).main(a),
+         'calibrate': lambda a: __import__('charkit.render.calibrate', fromlist=['main']).main(a),
+         'parity': lambda a: __import__('charkit.render.parity', fromlist=['main']).main(a)}.get(cmd)
     if f is None:
         print(__doc__); return 1
     return f(rest)

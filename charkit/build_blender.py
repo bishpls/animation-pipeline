@@ -1,8 +1,9 @@
 """Blender entry for `python -m charkit build` (charkit/cli.py): build a resolved spec's scene, render its boards, export
 its geometry bundle for the QA, save it.
     blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend] [--bundle] [--qa]
-                                                                      [--vrm] [--cache on|off|refresh|verify]
---bundle writes OUT_DIR/bundle (charkit/bundle.py: everything the QA measures), which the venv measures afterwards
+                                                                      [--vrm] [--look] [--cache on|off|refresh|verify]
+--look writes OUT_DIR/NAME.look.glb (charkit/gltf.py look_only: what charkit.render draws, the QA's drawing and the build
+box's boards). --bundle writes OUT_DIR/bundle (charkit/bundle.py: everything the QA measures), which the venv measures afterwards
 (charkit/qa3d.py, `python -m charkit qa`); --qa runs the old Blender-side QA pass instead (charkit/qa3d_blender.py).
 The stages go through the build cache (charkit/cache.py), and so do the boards, the bundle, the QA and the VRM, keyed on
 the whole scene; --cache off builds without it. A restore that doesn't reproduce its stage starts the build over with
@@ -58,8 +59,10 @@ def main(a, worker=False, t0=None):
 
         def export():
             with trace.span('bundle') as sp:
+                c0 = time.process_time()
                 p = bundle.export(S, os.path.join(out, 'bundle'), json.load(open(rp)) if os.path.exists(rp) else None)
-                sp.update(bytes=os.path.getsize(os.path.join(os.path.dirname(p), bundle.ARRAYS)))
+                sp.update(bytes=os.path.getsize(os.path.join(os.path.dirname(p), bundle.ARRAYS)),
+                          cpu_s=round(time.process_time() - c0, 2))
             print('CHARKIT_BUNDLE', os.path.dirname(p))
         product('bundle', export, [bundle.export])
     if '--qa' in a:
@@ -83,12 +86,27 @@ def main(a, worker=False, t0=None):
 
         def vrm():
             with trace.span('export', path=os.path.basename(path)) as sp:
+                c0 = time.process_time()                # (CPU seconds: every thread of this Blender)
                 gltf.export_scene(S, path, meta={'name': spec['name'].capitalize()})
                 c = gltf.check(path)
-                sp.update({k: c.get(k) for k in ('bytes', 'triangles', 'errors')})
+                sp.update({k: c.get(k) for k in ('bytes', 'triangles', 'errors')}, cpu_s=round(time.process_time() - c0, 2))
             print('CHARKIT_GLTF', json.dumps({k: c.get(k) for k in ('bytes', 'triangles', 'errors', 'look_kinds')},
                                              default=str))
         product('vrm', vrm, [gltf.export_scene, gltf.check], opts=[os.path.basename(path)])
+    if '--look' in a:
+        # what charkit.render draws (the QA's drawing, the build box's boards): the export without its shape keys or
+        # weights (gltf.export look_only), a fraction of the full export's cost
+        from charkit import gltf
+        path = os.path.join(out, spec['name'] + '.look.glb')
+
+        def look():
+            with trace.span('look_export', path=os.path.basename(path)) as sp:
+                c0 = time.process_time()
+                gltf.export_scene(S, path, meta={'name': spec['name'].capitalize()}, look_only=True, log=lambda *x: None)
+                c = gltf.check(path)
+                sp.update({k: c.get(k) for k in ('bytes', 'triangles', 'errors')}, cpu_s=round(time.process_time() - c0, 2))
+            print('CHARKIT_LOOK', json.dumps({k: c.get(k) for k in ('bytes', 'triangles', 'errors')}, default=str))
+        product('look', look, [gltf.export_scene, gltf.check], opts=[os.path.basename(path)])
     if '--blend' in a:
         with trace.span('save'):
             scene.save(os.path.join(out, spec['name'] + '.blend'))

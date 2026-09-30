@@ -15,6 +15,10 @@ changed).
                                              `preview --tip BRANCH` in the background after a merge on BRANCH
                                              (default: this worktree's branch); it never blocks the merge
 
+The toon renderer's parity: the build's EEVEE boards against charkit.render's from the build's export (python -m
+charkit.render compare, drawn where the page is made), per board the mean difference, the silhouette's IoU and the ink's
+mean width, flagged past PARITY; the side-by-side page is toonrender/index.html.
+
 The commit is built in its own detached worktree (../animation-pipeline-autopreview, kept between previews, so its box
 copy syncs only what changed) whatever this worktree's state; previews queue on a lock. The page is
 charkit/out/previews/<sha>/review.html, and charkit/out/previews/latest.html points at the newest.
@@ -381,7 +385,8 @@ def page(sha, spec=SPEC, log=print):
          'figure img{display:block}figcaption{font-size:12px;color:#444;margin-top:4px;max-width:600px}'
          '.box{background:#fff;border:1px solid #ddd;border-radius:6px;padding:10px 14px;max-width:1200px}'
          'code{font-size:12px}.grid{display:grid;grid-template-columns:repeat(3,auto);gap:10px;justify-content:start}'
-         '.k{color:#666;font-size:12px}</style>',
+         '.k{color:#666;font-size:12px}table{border-collapse:collapse;font-size:13px}'
+         'td,th{padding:2px 10px;border-bottom:1px solid #eee;text-align:left}</style>',
          '<h1>Clawd preview: <code>%s</code></h1>' % short,
          '<div class="box"><b>%s</b><br><span class="k">%s &middot; spec <code>%s</code> &middot; built on the %s box '
          '(boards %s, %s s) &middot; page %s</span><br>Previous: %s</div>' % (
@@ -433,6 +438,8 @@ def page(sha, spec=SPEC, log=print):
     if tt:
         P.append('<h2>Turntable in the design\'s projection</h2><div class="row">%s</div>' % ''.join(
             _fig(got[k], '%s&deg;' % int(k.split('_')[-1])) for k in tt))
+    # the toon renderer against this build's EEVEE boards (the standing parity test after each merge)
+    P.append(parity_section(d, parity(d, log=log)))
     # the rest of the build
     links = sorted(glob.glob(os.path.join(d, 'qa', 'qa_*.png'))) + sorted(glob.glob(os.path.join(d, 'sheet_*.png')))
     P.append('<h2>Files</h2><div class="box">QA overlays: %s<br>boards: <a href="boards/">boards/</a> &middot; '
@@ -445,6 +452,64 @@ def page(sha, spec=SPEC, log=print):
         '<!doctype html><meta http-equiv="refresh" content="0; url=%s/review.html">' % latest['short'])
     _prune_bundles()
     return path
+
+
+# ------------------------------------------------------------------------------------------------------------ parity
+PARITY = dict(mean=1.5, iou=0.998, width=0.1)     # per board: EEVEE against ours past these is flagged (levels, IoU,
+                                                  # the ink's mean width in px); phase 1 read 0.64-0.86, 0.9991+, 0.02
+
+
+def parity(d, log=print):
+    """the build's EEVEE boards against charkit.render's from its export (python -m charkit.render compare, drawn on
+    this machine) -> compare.json's content, or {'why'} (no export, no boards, no adapter). Made once per preview."""
+    out = os.path.join(d, 'toonrender')
+    p = os.path.join(out, 'compare.json')
+    if not os.path.exists(p):
+        r = subprocess.run([PY, '-m', 'charkit.render', 'compare', d, '--out', out], cwd=ROOT, capture_output=True,
+                           text=True)
+        if r.returncode or not os.path.exists(p):
+            log('preview parity: %s' % (r.stdout + r.stderr)[-600:])
+            return {'why': ((r.stdout + r.stderr).strip().splitlines() or ['compare failed'])[-1][:300]}
+    return json.load(open(p))
+
+
+def parity_rows(C):
+    """compare.json -> per board: mean, over 8, silhouette IoU, the ink's mean width EEVEE / ours, tones, flagged."""
+    rows = []
+    for name, b in (C.get('boards') or {}).items():
+        m = b['metrics']
+        ln = m.get('lines') or {}
+        we, wo = (ln.get('eevee') or {}).get('mean_width'), (ln.get('ours') or {}).get('mean_width')
+        flag = [k for k, bad in (('mean', m['diff']['mean'] > PARITY['mean']),
+                                 ('iou', m['silhouette']['iou'] < PARITY['iou']),
+                                 ('width', we is not None and wo is not None and abs(we - wo) > PARITY['width'])) if bad]
+        rows.append(dict(board=name, mean=m['diff']['mean'], over8=m['diff']['over8'], iou=m['silhouette']['iou'],
+                         width=[we, wo], tones=(m.get('tones') or {}).get('agree'), seconds=b.get('seconds'), flag=flag))
+    return rows
+
+
+def parity_section(d, C):
+    if 'why' in C:
+        return ('<h2>Toon renderer parity</h2><div class="box k">not measured: %s</div>' % html.escape(C['why']))
+    rows = parity_rows(C)
+    bad = [r for r in rows if r['flag']]
+    T = ['<table><tr><th>board</th><th>mean (levels)</th><th>&gt;8 levels</th><th>silhouette IoU</th>'
+         '<th>ink width EEVEE / ours (px)</th><th>tones agree</th><th>ours (s)</th></tr>']
+    for r in rows:
+        f = lambda k, s: '<b style="color:#b00">%s</b>' % s if k in r['flag'] else s
+        T.append('<tr><td>%s</td><td>%s</td><td>%.3f%%</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>' % (
+            r['board'], f('mean', '%.3f' % r['mean']), 100 * r['over8'], f('iou', '%.5f' % r['iou']),
+            f('width', '%s / %s' % tuple('%.3f' % w if w is not None else '?' for w in r['width'])),
+            '%.5f' % r['tones'] if r['tones'] is not None else '?', r['seconds']))
+    T.append('</table>')
+    a = C.get('adapter') or {}
+    return ('<h2>Toon renderer parity: this build\'s EEVEE boards against charkit.render (%s)</h2><div class="box">'
+            '<p class="k">Drawn from the build\'s export on %s (%s). Flagged past mean %.1f levels, IoU %.3f, ink width '
+            '%.2f px apart. <a href="toonrender/index.html">side by side and heatmaps</a></p>%s</div>' % (
+                'all %d boards within bounds' % len(rows) if not bad else '<b>%d of %d boards flagged</b>' % (
+                    len(bad), len(rows)),
+                html.escape(str(a.get('device'))), html.escape(str(a.get('backend'))), PARITY['mean'], PARITY['iou'],
+                PARITY['width'], ''.join(T)))
 
 
 # ------------------------------------------------------------------------------------------------------------ the hook

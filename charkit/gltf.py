@@ -35,7 +35,9 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
 The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linear:
   root      {version, character, light: {direction, mode?: 'camera', key?: [deg left of the camera, deg up]},
              lines?: {mode: 'screen', frac, regions: {skin, hair, garment, accessory}}, head: {bone, centre, L}, height,
-             features: {through: 0.55}, bindPose: {bone: quat}}
+             features: {through: 0.55}, bindPose: {bone: quat},
+             boards?: {frame: 'blender', eye_z, L, centre, height_m} (what charkit.scene.boards frames its views on),
+             landmarks?: {frame: 'blender', ...} (charkit.trace.landmarks: the bundle's)}
              (the style's look, charkit.shade: a camera key is `direction` turned with the camera, `direction` being the
              front view's; screen lines are frac of the picture's height times their region's factor)
   material  {kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha: opaque | blend,
@@ -410,8 +412,10 @@ class Eval:
     off (co: the original surface), and with it on (surf: the first N vertices of its result, the surface Blender draws,
     moved inward by the line width; the hull is the original surface), for the base and for every shape key."""
 
-    def __init__(self, ob, subdiv=2):
+    def __init__(self, ob, subdiv=2, keys=True, groups=None):
+        """keys=False: the base alone (no shape key evaluated); groups: the vertex groups to read (None: all)."""
         import bpy
+        self.want_groups = groups
         self.ob = ob
         om = _outline_mod(ob)
         saved, levels = [], []
@@ -440,7 +444,7 @@ class Eval:
                 om.show_viewport = True
                 self.surf, self.hull_n = self._positions(n)
             self.keys = {}
-            if ks:
+            if ks and keys:
                 for k in ks.key_blocks[1:]:
                     k.value = 1.0
                     self.keys[k.name] = self._positions(n)
@@ -492,10 +496,20 @@ class Eval:
         self.materials = list(me.materials)
         names = [g.name for g in self.ob.vertex_groups]
         self.groups = {}                                         # name -> (nv,) weights
-        for v in me.vertices:
-            for g in v.groups:
-                if g.weight > 0 and g.group < len(names):
-                    self.groups.setdefault(names[g.group], np.zeros(nv, np.float32))[v.index] = g.weight
+        want = self.want_groups
+        gi = None if want is None else {i for i, n in enumerate(names) if n in want}
+        if gi is None or gi:
+            rows = [(g.group, v.index, g.weight) for v in me.vertices for g in v.groups
+                    if g.weight > 0 and g.group < len(names) and (gi is None or g.group in gi)]
+            if rows:                                             # (one array per group, filled at once: a zeros(nv)
+                R = np.array(rows, np.float64)                   # per (vertex, group) pair cost 3-6 s an export)
+                gs = R[:, 0].astype(np.int64)
+                _, first = np.unique(gs, return_index=True)
+                for k in gs[np.sort(first)]:                     # (in the order first met, as before)
+                    sel = gs == k
+                    w = np.zeros(nv, np.float32)
+                    w[R[sel, 1].astype(np.int64)] = R[sel, 2]
+                    self.groups[names[k]] = w
         self.attrs = {}
         for a in me.attributes:
             if a.domain == 'POINT' and a.data_type in ('FLOAT_COLOR', 'FLOAT') and not a.name.startswith('.') \
@@ -545,9 +559,12 @@ def _roles(objects):
     return {'features': feats, 'holdouts': skin}
 
 
-def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=None, tpose=True, extra=None, log=print):
+def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=None, tpose=True, extra=None, log=print,
+           look_only=False):
     """write the character in the current Blender scene (its armature and visible, rigged meshes) to path (.vrm / .glb).
-    -> a report dict."""
+    look_only: what charkit.render draws and nothing a runtime poses with (the build pose: no shape keys evaluated, no
+    morph targets, every vertex bound to the hips; the skeleton, OPENADS_charkit_look and the textures as usual): a
+    build's NAME.look.glb, a fraction of the full export's cost. -> a report dict."""
     import bpy
     arm = arm or next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')
     if objects is None:
@@ -656,7 +673,11 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
     skinned = [o for o in objects]
     head_info = None
     for ob in skinned:
-        E = Eval(ob, subdiv)
+        if look_only:
+            om_ = _outline_mod(ob)
+            E = Eval(ob, subdiv, keys=False, groups={om_.vertex_group} if om_ is not None and om_.vertex_group else set())
+        else:
+            E = Eval(ob, subdiv)
         mw = np.array(ob.matrix_world)
         xf = lambda p: p @ mw[:3, :3].T + mw[:3, 3]
         Nm = np.linalg.inv(mw[:3, :3]).T
@@ -688,11 +709,12 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
             moved = np.linalg.norm(d, axis=1) > 1e-7
             hulln = np.where(moved[:, None], unit(d), vavg)
         # skin weights: top four bones
-        bone_w = {g: w for g, w in E.groups.items() if g in idx}
+        bone_w = {g: w for g, w in E.groups.items() if g in idx} if not look_only else {}
         if not bone_w and ob.parent_type == 'BONE' and ob.parent_bone in idx:
             bone_w = {ob.parent_bone: np.ones(len(co), np.float32)}
         if not bone_w:
-            rep['warnings'].append(f'{ob.name}: no bone weights; bound to hips')
+            if not look_only:
+                rep['warnings'].append(f'{ob.name}: no bone weights; bound to hips')
             bone_w = {'hips': np.ones(len(co), np.float32)}
         bn = list(bone_w)
         Wm = np.stack([bone_w[b] for b in bn], 1)
@@ -955,12 +977,22 @@ def vrmc(W, names, idx, mesh_node, P, head, name, meta, rep):
 
 
 def export_scene(S, path, **kw):
-    """from charkit.scene.build's Scene: its roles (features, the skin as holdout) and name."""
+    """from charkit.scene.build's Scene: its roles (features, the skin as holdout) and name, and what frames its boards
+    (the root's `boards` and `landmarks`: a renderer draws scene.boards' views from the export alone)."""
     import bpy
     objs = [o for o in bpy.context.scene.objects if o.type == 'MESH' and not o.hide_render
             and o.parent == S.character['arm']]
     roles = {'features': [o.name for o in S.features], 'holdouts': [S.character['skin'].name]}
     extra = {'height': float((S.spec.get('body') or {}).get('height_m', 1.6))}
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from charkit import trace
+    hd = S.character['data']['head']
+    extra['boards'] = {'frame': 'blender', 'eye_z': round(float(hd['eye_z']), 7), 'L': round(float(hd['L']), 7),
+                       'centre': [round(float(x), 7) for x in hd['centre']], 'height_m': extra['height']}
+    lm = trace._plain(trace.landmarks(S))
+    if lm:
+        extra['landmarks'] = dict(lm, frame='blender')
     extra.update(kw.pop('extra', {}) or {})
     return export(path, arm=S.character['arm'], objects=objs, name=S.name, roles=roles, extra=extra, **kw)
 

@@ -2281,7 +2281,8 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
     else:                                               # (a function from outside charkit: its own source)
         import inspect
         units = dict(code_units(modules=('charkit.bundle',)), **{'<%s>' % fn.__qualname__: digest(inspect.getsource(fn))})
-    static = digest([SCHEMA, 'qa', name, units, venv_env(), args])
+    from . import qarender
+    static = digest([SCHEMA, 'qa', name, units, venv_env(), args] + qarender.cache_key())   # (the QA's drawing)
     kd = os.path.join(d, 'qa', name, static[:20])
     E, why = None, 'no entry' if mode in ('on', 'verify') else 'cache %s' % mode
     if mode in ('on', 'verify'):
