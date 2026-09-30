@@ -130,12 +130,21 @@ def shell(A, spec, normals=None, hull=None):
     """a tight garment: the region's faces lifted by `offset` along the body's normals. With `source` 'hull', its hem
     follows the hull's own piece: cut below the lower edge of its points (and its folded pieces', `fold`) per angle
     round the body (hull_edge), lowered by `hem_drop` L. -> dict(verts, faces, weights, uvs (per face corner, the
-    body's), src (body vertex per shell vertex), faces_src (body face index per face))."""
+    body's), src (body vertex per shell vertex), faces_src (body face index per face)).
+
+    Over a band (`ease` with `mode` 'over': a jacket's hem hung outside the waistband, garments2): the hem is the band's
+    top edge less `hang` L (ease_over_band), not the hull's edge, and the shell drapes out to the band's face or a flare
+    (ease_over_band). An `opening` (a jacket's open front) cuts the faces between its edges out; a shell `inside`
+    another's opening (the bib behind the jacket) keeps only the faces there, `margin` L past its edges (under the
+    jacket). Hem and opening are cut clean: the kept faces' border vertices moved onto the cut (snap_cuts). With
+    `refine` n, the region's faces are refined n Catmull-Clark levels first (see below; no body UVs then)."""
     L = A['head']['L']
     V, F = A['verts'], A['faces']
     ins = region(A, spec['region'])
     cut = None
-    if spec.get('source') == 'hull':
+    ez = spec.get('ease')
+    over = bool(ez) and ez.get('mode') == 'over'
+    if spec.get('source') == 'hull' and not over:
         P = _hull_points(hull, spec)
         ax = _vertical_axis(P, P[:, 2].max())
         edge = hull_edge(P, ax, q=spec.get('hem_q', 2.0))
@@ -148,18 +157,65 @@ def shell(A, spec, normals=None, hull=None):
         ins &= V[:, 2] >= cut(V)
     # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
     for bone, t, side, o in spec.get('cuts', []):
-        h, tl = bone_seg(A, bone)
-        zc = (h + (tl - h) * t)[2] + o * L
+        if bone == 'eye':                                        # a height from the eye line (L)
+            zc = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + o * L
+        else:
+            h, tl = bone_seg(A, bone)
+            zc = (h + (tl - h) * t)[2] + o * L
         ins &= (V[:, 2] >= zc) if side == 'above' else (V[:, 2] <= zc)
-    ez = spec.get('ease')
+    body_of, Wr = None, None
+    rf = spec.get('refine', 0)
+    if rf:
+        # its region refined (Catmull-Clark, `refine` levels) before the hem and the opening are cut: the body's faces
+        # (0.038 L on the torso) left a jacket's front corners one vertex each, its hem slanting in steps between them.
+        # The refined mesh carries the weights; its first vertices are the body's own (the vertex points)
+        from . import subdiv
+        k0 = [i for i, f in enumerate(F) if all(ins[v] for v in f)]
+        u0 = sorted({v for i in k0 for v in F[i]})
+        r0 = {o: n for n, o in enumerate(u0)}
+        bones = [b for b, w in A['weights'].items() if w[u0].max() > 1e-4]
+        D = np.c_[V[u0], np.stack([A['weights'][b][u0] for b in bones], 1)]
+        D1, Q, par = subdiv.catmull_clark(D, [tuple(r0[v] for v in F[i]) for i in k0], limit=False, levels=rf)
+        V, F = D1[:, :3], [tuple(int(v) for v in q) for q in Q]
+        Wr = {b: np.clip(D1[:, 3 + j], 0, 1) for j, b in enumerate(bones)}
+        body_of = np.full(len(V), -1)
+        body_of[:len(u0)] = u0
+        faces_body = np.asarray(k0)[par]
+        ins = np.ones(len(V), bool)
+        normals = None
     band = None
+    cuts = []                                                    # signed cuts (>= 0 kept) whose edges are snapped
     if ez and hull is not None:
         bs = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g['name'] == ez.get('under', 'waistband')),
                   None)
         if bs is not None:
             band = (bs, belt_hull(A, bs, hull))
-            # its hem stays under the band: a dropped hem hung out below the band's lower edge at the front
-            ins &= V[:, 2] >= band[1]['verts'][:, 2].min() + ez.get('above_bottom', 0.03) * L
+            if over:
+                hz = hem_over_band(A, ez, band)
+                cut = hz
+                cuts.append(lambda X, hz=hz: X[:, 2] - hz(X))
+                ins &= V[:, 2] >= hz(V)
+            else:
+                # its hem stays under the band: a dropped hem hung out below the band's lower edge at the front
+                ins &= V[:, 2] >= band[1]['verts'][:, 2].min() + ez.get('above_bottom', 0.03) * L
+    ol = spec.get('outline')
+    if ol:
+        g_ol = outline_cut(A, ol)
+        cuts.append(g_ol)
+        ins &= g_ol(V) >= 0
+    op, inside = spec.get('opening'), spec.get('inside')
+    if op:
+        g_op = opening_cut(A, op)
+        cuts.append(g_op)
+        ins &= g_op(V) >= 0
+    if inside:
+        of = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g['name'] == inside['of']), None)
+        if of is None or not of.get('opening'):
+            raise ValueError('%s: inside %s, which has no opening' % (spec['name'], inside['of']))
+        g_of, m_ = opening_cut(A, of['opening']), inside.get('margin', 0.03) * L
+        g_in = lambda X, g_of=g_of, m_=m_: m_ - g_of(X)
+        cuts.append(g_in)
+        ins &= g_in(V) >= 0
     keep = [i for i, f in enumerate(F) if all(ins[v] for v in f)]
     used = sorted({v for i in keep for v in F[i]})
     remap = {o: n for n, o in enumerate(used)}
@@ -167,7 +223,11 @@ def shell(A, spec, normals=None, hull=None):
     off = spec.get('offset', 0.012) * L
     sv = V[used] + nrm[used] * off
     sf = [tuple(remap[v] for v in F[i]) for i in keep]
-    if spec.get('hem_snap') and cut is not None:
+    if cuts and spec.get('hem_snap') and cut is not None and not over:
+        cuts.append(lambda X: X[:, 2] - cut(X))
+    if cuts:
+        sv = snap_cuts(V, F, used, keep, sv, cuts, ins)
+    elif spec.get('hem_snap') and cut is not None:
         sv = hem_snap(V, F, used, keep, sv, cut, ins)
     sm = spec.get('smooth')
     if sm:
@@ -181,12 +241,27 @@ def shell(A, spec, normals=None, hull=None):
         grow = sm.get('grow', 0.02) * L
         nn = vertex_normals(sv2, sf)
         sv = np.where(mask[:, None], sv2 + nn * grow, sv)
+    if rf:
+        dom_r = np.array(list(Wr))[np.argmax(np.stack(list(Wr.values()), 1), 1)]
+        tor = np.isin(dom_r[used], TORSO)
+    else:
+        tor = np.isin(dominant(A)[0][used], TORSO)
     if band is not None:
-        sv = ease_to_band(A, sv, ez, band)
-    W = {b: w[used] for b, w in A['weights'].items() if w[used].max() > 1e-4}
-    B = A['body']
-    uvs = [[B['uvs'][ui] for ui in B['face_uv'][i]] for i in keep]
-    G = dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+        sv = ease_over_band(A, sv, ez, band, tor) if over else ease_to_band(A, sv, ez, band)
+    if rf:
+        W = {b: w[used] for b, w in Wr.items() if w[used].max() > 1e-4}
+        tot = np.maximum(sum(W.values()), 1e-9)
+        W = {b: w / tot for b, w in W.items()}
+        src = body_of[used]
+        G = dict(verts=sv, faces=sf, weights=W, uvs=None, src=src[src >= 0], faces_src=[int(faces_body[i]) for i in keep])
+    else:
+        W = {b: w[used] for b, w in A['weights'].items() if w[used].max() > 1e-4}
+        B = A['body']
+        uvs = [[B['uvs'][ui] for ui in B['face_uv'][i]] for i in keep]
+        G = dict(verts=sv, faces=sf, weights=W, uvs=uvs, src=np.array(used), faces_src=keep)
+    if spec.get('stripe') and ol:
+        sv, G['panel_faces'] = stripe_faces(A, sv, sf, ol, spec['stripe'])
+        G['verts'] = sv
     if spec.get('source') == 'hull' and 'panel' in spec and hull and spec['panel'].get('mode') != 'texture':
         pp = hull.get(spec['panel'].get('piece', 'bodice_panel'))
         if pp is not None and len(pp) >= 10:
@@ -239,6 +314,202 @@ def ease_to_band(A, sv, ez, band):
     k = np.clip((t - t0 - hold) / (0.02 * L), 0, 1)            # under it: at its face down to `hold` (inside its
     under = (1 - k) * face + k * np.minimum(r, inner)          # thickness), then into its inner surface over 0.02 L
     r_new = np.where(t <= t0, out, under)
+    return ax.point(t, th, r_new)
+
+
+def snap_cuts(V, F, used, keep, sv, cuts, ins):
+    """a shell's cuts made clean (hem_snap for any cut): each vertex on the kept faces' border moved toward the removed
+    vertices it shares a face with that a cut drops (g(them) < 0 <= g(it), g one of `cuts`: a signed function of world
+    points, >= 0 kept), to where that cut crosses the line between them (the mean over them and the cuts), carrying the
+    shell's offset. -> the moved shell vertices."""
+    kept = np.zeros(len(V), bool)
+    for i in keep:
+        kept[list(F[i])] = True
+    G = [np.asarray(g(V), float) for g in cuts]
+    moves = {}
+    for f in F:
+        for u in f:                                        # every pair sharing a face: a quad's diagonal too, or a
+            if not kept[u]:                                # border vertex whose only dropped neighbour is across its
+                continue                                   # face (a slanted cut's staircase) would stay put
+            for w in f:
+                if w == u or ins[w]:
+                    continue
+                for g in G:
+                    if g[w] < 0 <= g[u]:
+                        k = g[u] / max(1e-12, g[u] - g[w])
+                        moves.setdefault(u, []).append(V[u] + (V[w] - V[u]) * k)
+    idx = {o: n for n, o in enumerate(used)}
+    sv = sv.copy()
+    for u, ps in moves.items():
+        if u in idx:
+            sv[idx[u]] += np.mean(ps, 0) - V[u]
+    return sv
+
+
+def opening_cut(A, op):
+    """a jacket's open front as a signed cut: |x| less the opening's half-width at the point's height on the body's
+    front (y before the chest's head), else 1 L (kept). op: `half` [[z, half], ...] (L from the eye line; held past its
+    ends). -> fn(world points) -> (n,) (>= 0 outside the opening)."""
+    L = A['head']['L']
+    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    K = np.asarray(sorted(op['half']), float)
+    yc = bone_seg(A, op.get('front_of', 'chest'))[0][1]
+
+    def g(X):
+        X = np.asarray(X, float)
+        half = np.interp((X[:, 2] - ez) / L, K[:, 0], K[:, 1]) * L
+        return np.where(X[:, 1] < yc, np.abs(X[:, 0]) - half, L)
+    return g
+
+
+def _eye_z(A):
+    L = A['head']['L']
+    return A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+
+
+def outline_dist(A, ol, X):
+    """a sailor collar's outline (`outline`) at world points: (the signed distance inside it, L: > 0 inside, and the
+    distance in from its outer edge). Front (y before the chest's head): the lapels between an inner edge (the V
+    neckline) and an outer one, `front` [[z, inner half, outer half], ...] (L from the eye line; |x| between them);
+    back: the flap, `back` [[z, half], ...] down to `bottom` (L from the eye line). Distances are in the front or back
+    projection (x, z)."""
+    L = A['head']['L']
+    X = np.asarray(X, float)
+    z = (X[:, 2] - _eye_z(A)) / L
+    ax_ = np.abs(X[:, 0]) / L
+    yc = bone_seg(A, ol.get('front_of', 'chest'))[0][1]
+    K = np.asarray(sorted(ol['front']), float)
+    inner, outer = np.interp(z, K[:, 0], K[:, 1]), np.interp(z, K[:, 0], K[:, 2])
+    top = K[:, 0].max()
+    d_front_out = outer - ax_
+    d_front = np.minimum(ax_ - inner, d_front_out)
+    Kb = np.asarray(sorted(ol['back']), float)
+    half = np.interp(z, Kb[:, 0], Kb[:, 1])
+    d_back_out = np.minimum(half - ax_, z - ol['bottom'])
+    front = X[:, 1] < yc
+    return np.where(front, d_front, d_back_out) * L, np.where(front, d_front_out, d_back_out) * L
+
+
+def outline_cut(A, ol):
+    """outline_dist's signed distance as a cut (>= 0 kept)."""
+    return lambda X: outline_dist(A, ol, X)[0]
+
+
+def stripe_faces(A, sv, sf, ol, st):
+    """a collar's stripe: the faces whose centre lies `in` to `in` + `width` L in from the outline's outer edge (a second
+    material), with the vertices within half an edge of the stripe's two edges moved onto them along the distance's
+    gradient (numerical), so its edges run straight rather than stepping with the faces. -> (vertices, per face 0/1)."""
+    L = A['head']['L']
+    sv = np.asarray(sv, float).copy()
+    d0, d1 = st['in'] * L, (st['in'] + st['width']) * L
+    e = np.median([np.linalg.norm(sv[f[0]] - sv[f[1]]) for f in sf[:500]]) if len(sf) else 0.01 * L
+    h = 1e-3 * L
+    for d_ in (d0, d1):
+        dist = outline_dist(A, ol, sv)[1]
+        near = np.abs(dist - d_) < 0.5 * e
+        if not near.any():
+            continue
+        P = sv[near]
+        g = np.stack([(outline_dist(A, ol, P + h * np.eye(3)[k])[1] - outline_dist(A, ol, P - h * np.eye(3)[k])[1]) /
+                      (2 * h) for k in (0, 2)], 1)                    # in the projection's plane (x, z)
+        gn = np.maximum((g ** 2).sum(1), 1e-12)
+        step = (d_ - dist[near]) / gn
+        sv[near, 0] += step * g[:, 0]
+        sv[near, 2] += step * g[:, 1]
+    C = np.array([sv[list(f)].mean(0) for f in sf])
+    dc = outline_dist(A, ol, C)[1]
+    return sv, ((dc >= d0) & (dc <= d1)).astype(np.int32)
+
+
+def _by_azimuth(K, th):
+    """a knot table [[degrees from the front, value], ...] (mirrored: |theta|) at angles th (radians)."""
+    K = np.asarray(sorted(K), float)
+    return np.interp(np.degrees(np.abs(np.angle(np.exp(1j * np.asarray(th, float))))), K[:, 0], K[:, 1])
+
+
+def hem_over_band(A, ez, band):
+    """the hem of a shell hung over a band (ease mode 'over'): the band's top edge less `hang` L, a number or a knot
+    table by azimuth round the band's axis ([[degrees from the front, L], ...]: a jacket's fronts hang lower than its
+    bib). -> fn(world points) -> the hem's height (world z) there."""
+    L = A['head']['L']
+    Gb = band[1]
+    ax = Gb['axis']
+    z_top = float(ax.o[2] - Gb['ts'][0])                      # the band's axis is upright: its top edge is level
+    hang = ez.get('hang', 0.03)
+
+    def hz(X):
+        th = ax.coords(np.asarray(X, float))[1]
+        h = _by_azimuth(hang, th) if isinstance(hang, (list, tuple)) else np.full(len(th), float(hang))
+        return z_top - h * L
+    return hz
+
+
+def ease_over_band(A, sv, ez, band, source=None):
+    """a shell's vertices hung over a band (a jacket's hem outside the waistband, garments2): the drape's radius round the
+    band's axis is the band's face (its second row, under its rounded edge) plus `gap` L, or a flare (`flare`: a knot
+    table [[degrees from the front, radius L from the band's axis], ...]: the jacket's hem standing off the waist, as
+    the design's silhouettes show it) where that is further out. Above the band's top edge, over `over` L, eased out
+    toward it (only ever outward); from the edge down, hung straight at it (the body narrows under the band; the
+    drape doesn't). With `drape` {from: L from the eye line}, first hung from the bust (below: forward, per column
+    across), from the vertices `source` marks (the torso's: a shoulder's or an arm's would hang the sides out to the
+    arms), round the front only (`az` [a0, a1]: fully to a0 degrees from the front, out by a1: the design's back is
+    fitted), with `taper` p coming back in to the band's drape by its top edge (the p-th power of the way down).
+    band: (its spec,
+    belt_hull's result). -> the moved vertices."""
+    from .geom import loft
+    L = A['head']['L']
+    bs, Gb = band
+    ax, Fb = Gb['axis'], loft.Field(Gb['ts'], Gb['th'], Gb['R'], None)
+    t, th, r = ax.coords(sv)
+    t0 = Gb['ts'][0]
+    dr = ez.get('drape')
+    if dr:
+        # hung from the bust: below `from` (L from the eye line) the front hangs straight down from the furthest forward
+        # it reaches above, per column across the body (its forward depth's running maximum down the axis, in columns
+        # of `step` L sideways): a jacket's front panels fall from the bust, forward of the midriff (in profile they
+        # stand before the bib, as drawn), and stay where they are across (the opening keeps its width in front)
+        ez_ = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+        t_from = float(ax.o[2] - (ez_ + dr['from'] * L))
+        step = dr.get('step', 0.02) * L
+        fwd, side = r * np.cos(th), r * np.sin(th)
+        a0, a1 = dr.get('az', (60.0, 100.0))               # the fronts hang; the fitted back doesn't (in fully to a0
+        deg = np.degrees(np.abs(th))                       # degrees from the front, out by a1)
+        wa = np.clip((a1 - deg) / max(1e-6, a1 - a0), 0, 1)
+        sel = (t >= t_from - step) & (wa > 0) & (source if source is not None else True)
+        if sel.sum() > 20:
+            ts = np.arange(t_from, max(t.max(), t_from + 2 * step) + step, step)
+            bs = np.arange(side[sel].min() - step, side[sel].max() + 2 * step, step)
+            it = np.clip(np.rint((t[sel] - ts[0]) / step).astype(int), 0, len(ts) - 1)
+            ib = np.clip(np.rint((side[sel] - bs[0]) / step).astype(int), 0, len(bs) - 1)
+            Y = np.full((len(ts), len(bs)), -np.inf)
+            np.maximum.at(Y, (it, ib), fwd[sel])
+            for i in range(len(ts)):                       # each row filled across from its measured columns
+                ok = np.isfinite(Y[i])
+                Y[i] = np.interp(np.arange(len(bs)), np.nonzero(ok)[0], Y[i, ok]) if ok.sum() >= 2 else \
+                    (Y[i - 1] if i else Y[i])
+            Y = np.maximum.accumulate(Y, axis=0)
+            k = int(round(dr.get('spread', 0.0) * L / step))    # a panel, not a column: each column hangs from the
+            if k:                                                # furthest forward within `spread` L across
+                P_ = np.pad(Y, ((0, 0), (k, k)), mode='edge')
+                Y = np.max(np.stack([P_[:, j:j + Y.shape[1]] for j in range(2 * k + 1)]), 0)
+            Y = loft.gauss1d(Y, dr.get('smooth', 1.0), axis=1)
+            jt = np.clip(np.rint((t - ts[0]) / step).astype(int), 0, len(ts) - 1)
+            hang = np.array([np.interp(sb, bs, Y[k]) for sb, k in zip(side, jt)]) if len(t) else fwd
+            if dr.get('taper'):
+                # back in toward the band at the hem, as the `taper` power of the way down
+                tgt = (Fb.at(np.full(len(t), Gb['ts'][min(1, len(Gb['ts']) - 1)]), th) + ez.get('gap', 0.015) * L) * \
+                    np.cos(th)
+                sw = np.clip((t - t_from) / max(1e-9, t0 - t_from), 0, 1) ** dr['taper']
+                hang = hang + (np.minimum(hang, tgt) - hang) * sw
+            fwd = np.where(t >= t_from, fwd + np.maximum(0.0, hang - fwd) * wa, fwd)
+            r, th = np.hypot(fwd, side), np.arctan2(side, fwd)
+    drape = Fb.at(np.full(len(t), Gb['ts'][min(1, len(Gb['ts']) - 1)]), th) + ez.get('gap', 0.015) * L
+    if ez.get('flare'):
+        drape = np.maximum(drape, _by_azimuth(ez['flare'], th) * L)
+    over = ez.get('over', 0.25) * L
+    w = np.clip((t - (t0 - over)) / over, 0, 1)
+    w = w * w * (3 - 2 * w)                                    # 0 at `over` above the edge .. 1 at it
+    r_new = np.where(t <= t0, r + np.maximum(0.0, drape - r) * w, np.maximum(r, drape))
     return ax.point(t, th, r_new)
 
 
@@ -2324,7 +2595,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 midx = [1 if G['verts'][list(f), 2].max() < zmin + s['sole']['height'] * L else 0 for f in G['faces']]
             uvc = G['uvs']
             if 'panel_faces' in G:                                    # the hull's panel: a second material by face
-                mats.append(_toon(nm + '_panel', s['panel']['color'], sh))
+                mats.append(_toon(nm + '_panel', (s.get('stripe') or s.get('panel'))['color'], sh))
                 midx = [int(v) for v in G['panel_faces']]
             elif 'panel' in s:                                        # a front panel in another colour (a bib, a placket)
                 # a front-projected UV and a mask texture: a smooth-edged panel on the front, the plain colour elsewhere

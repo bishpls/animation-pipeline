@@ -72,7 +72,10 @@ NOT_KNOBS = ('kind', 'name', 'side', 'bone', 'region', 'cuts', 'smooth', 'panel'
              'round', 'nth', 'conform', 'conform_k', 'cell', 'reach', 'lift', 'mass', 'q', 'occluders', 'occluded_span', 'front_band', 'panel_mass', 'overlap', 'drawn', '_spec', 'knot', 'lift', 'round_xs', 'roll', 'clear', 'over', 'tail', 'sweep', 'out', 'taper', 'tail_rows', 'trim', 'band', 'step_h', 'bones', 'narrow', 'train', 'gap', 'blend', 'aline',
              'tip', 'stair', 'az_waist', 'neckline', 'neck_sectors', 'neck_q', 'neck_smooth', 'neck_min_pts', 'neck_drop',
              'keep_edge', 'v_edge', 'conform_smooth', 'front_smooth', 'clear_hands', 'clear_slope', 'clear_bands',
-             'hem_level', 'hem_snap')
+             'hem_level', 'hem_snap',
+             # a shell's cut templates (garments2: the jacket's open front, the bib inside it, the collar's outline and
+             # stripe) and its refinement: tables and settings, not single knobs a sweep moves
+             'opening', 'inside', 'outline', 'stripe', 'refine')
 
 # hair.shape (mesh / geom mode): knob -> (default, step, lo, hi, note)
 HAIR_SHAPE = {

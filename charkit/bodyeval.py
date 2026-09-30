@@ -610,7 +610,7 @@ def garment_tones(A, s, G):
             flat = np.array([V[list(f), 2].max() < zmin + s['sole']['height'] * L for f in F])
             second = np.asarray(s['sole']['color'], float)
         if 'panel_faces' in G:                                     # the hull's panel: a second material by face
-            flat = np.asarray(G['panel_faces'], bool); second = np.asarray(s['panel']['color'], float)
+            flat = np.asarray(G['panel_faces'], bool); second = np.asarray((s.get('stripe') or s.get('panel'))['color'], float)
         elif 'panel' in s:
             P_ = s['panel']
             cyf = A['head']['centre'][1]

@@ -67,7 +67,7 @@ MID_TOP = -0.95                     # L from the eye line: the torso band's top 
 PROFILE_FRONT_TOP = -1.22           # ... the profile's front edge's: the drawn bow tails hang free in front of it to -1.21
                                     # (their drawn masks run on down the bodice's front, which they cover in profile)
 TORSO_PIECES = ('top', 'bodice_panel', 'waistband')   # the drawn pieces whose pixels are the torso's outline
-TORSO_OBJECTS = ('top', 'waistband')                   # ours
+TORSO_OBJECTS = ('top', 'bodice_panel', 'waistband')   # ours (the bib its own object: garments2)
 CANDIDATES = ('top', 'bodice_panel', 'waistband', 'bow', 'bow_tail_L', 'bow_tail_R', 'collar', 'sleeve_L', 'sleeve_R',
               'sleeve_cuff_L', 'sleeve_cuff_R', 'cuff_L', 'cuff_R', 'skirt', 'skirt_panel', 'overskirt_panel_L',
               'overskirt_panel_R')                     # the drawn pieces an edge pixel of the torso band can belong to
@@ -583,7 +583,7 @@ def _torso(O, D, masks, view, ppl, idx, pm):
     for who in ('ours', 'design'):
         if who == 'ours':
             lab = O['lab']
-            torso = _members(lab, idx, [m for p in ('top', 'waistband') for m in pm.get(p, [])])
+            torso = _members(lab, idx, [m for p in TORSO_OBJECTS for m in pm.get(p, [])])
             band = _members(lab, idx, pm.get('waistband', []))
             skirt = _members(lab, idx, pm.get('skirt', []))
             fg = O['fg']
@@ -652,7 +652,7 @@ def measure(B, design, out=None):
                         "a step between the top and the band" % (k, MID_TOP if (view, k) != ('profile', 'left') else
                                                                    PROFILE_FRONT_TOP)}
         lab = O[view]['lab']
-        top_ids = [idx[n] + s for n in ('top',) if n in idx for s in (0, 1000)]
+        top_ids = [idx[n] + s for n in ('top', 'bodice_panel') if n in idx for s in (0, 1000)]
         band_ids = [idx[n] + s for n in ('waistband',) if n in idx for s in (0, 1000)]
         bc = np.nonzero(np.isin(lab, band_ids))[1]
         if len(bc) and top_ids:
@@ -917,7 +917,7 @@ def panel_edge(O, D, masks, ppl, idx, pm, near=0.25):
     for who in ('ours', 'design'):
         if who == 'ours':
             band = _members(O['lab'], idx, pm.get('waistband', []))
-            own = _members(O['lab'], idx, [m for p in ('top', 'bow') for m in pm.get(p, [])])
+            own = _members(O['lab'], idx, [m for p in ('top', 'bodice_panel', 'bow') for m in pm.get(p, [])])
             cream = own & (O['cls'] == CL['cream'])
         else:
             band = masks.get('front__waistband')

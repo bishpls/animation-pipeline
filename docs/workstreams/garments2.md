@@ -5,32 +5,59 @@ shorts, the skirt's pleat detail, the collar and bow, the wrist cuffs. Worktree 
 branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling 47b401f merged) plus pipeline-3d
 2e3bdd5.
 
-## Paused (2026-09-30, usage limit). Start here.
+## Round 3: the jacket over the band (2026-09-30, resumed). Start here.
 
-- **Branch** at the merge of pipeline-3d 53a557f (tool/face, tool/eyes2, the spec-alias test): `cbea649`. No code
-  changed since milestone 3; the jacket-over-band work (item 1 below) hasn't started in code.
-- **Box job running:** the "before" build, `~/animation-pipeline-g2before` fast-forwarded to 53a557f (branch
-  `tmp/g2before`), `remote build charkit/spec/clawd.json --out charkit/out/g2_before --boards views --no-blend`, log
-  `charkit/out/remote_g2_before.log` there. Rebuild it again if pipeline-3d moves before the final page.
-- **Found while reading the design (to confirm with numbers first):** the drawn piece masks label the jacket's lower
-  front corners as the waistband. In front, 0.2-0.3 L out, the masks' `top` ends at -1.30 and the band starts there,
-  while the drawing's jacket fronts hang to about -1.35..-1.37 (their hems slant down toward the opening: about -1.32 at
-  x ±0.4, -1.37 at the inner corners). So the design's `top_front_hem_step` 0.033 L (the band's visible top lower in the
-  middle) is an artefact: drawn, the band shows from about -1.33 under the bib and -1.36 under the jacket's corners,
-  so the middle is higher. Next: measure the design's junction from its ink (the band's region flooded inside its
-  strokes), not the masks, and re-derive the hem step's design value.
-- **Also to settle before building:** the plan tucks the bib's foot under the band, but `top_*_over_band` counts
-  `bodice_panel` among the jacket's pieces and expects it over the band. Either the bib hangs over the band too (flush
-  with its face, the jacket's fronts proud of it) or the check leaves the bib out. The drawn bib's bottom is a gentle
-  curve at about -1.325, the band's top edge line.
-- **Drawn jacket front:** the opening's edges stand at x ±0.175-0.18 L from the hem up to the bow tails' ends (-1.22);
-  above that the tails cover them.
-- **Scratch harness** (untracked): `g2lib.py`, `puffrun.py`, `specrun.py` and the junction crops `j0.py`-`j2.py` in
-  this session's scratchpad (`/private/tmp/claude-501/-Users-michaelbishop-opus-anim-test/ed87a979-.../scratchpad`).
-  Swap garments into `charkit/out/g2_m2` (the current box build of this branch's spec).
-- **Next, in order:** confirm the mask finding and fix the design-side measure; then item 1 below (the bib as
-  `bodice_panel`, the opening cut, the jacket's hem over the band with the slanted front corners, `bodice_panel` in
-  detailqa's midriff piece lists), in the evaluator first; then the box build.
+**Branch** `tool/garments2` with pipeline-3d 9397578 merged (face, eyes2, produced-cache, the process decisions and
+`docs/OWNERSHIP.md`). The "before" build: `~/animation-pipeline-g2before` (branch `tmp/g2before` at pipeline-3d),
+`charkit/out/g2_before`; rebuild it if pipeline-3d moves before the final page.
+
+**Measured first: what the design shows at the junction.**
+- The outfit masks label the jacket's lower part as the waistband wherever the jacket hangs over it: the front's
+  notched corners (13% of the band's mask), the three-quarter's near front (46%), the back's hem (38%). In profile
+  the band's mask holds only the jacket's lower part and the band itself is labelled skirt. Measures on the band now
+  take its **ink core** (`pieceqa.ink_core`: the largest part of its mask the drawing's line class leaves connected;
+  the jacket's hem stroke cuts the rest off): `waistband_{front,three_quarter,back}_{rows,width}` and
+  `top_front_hem_step` (step b3aaf2c). Drawn junction (the band's visible top, QA frame): front -1.38 at the jacket's
+  inner corners (x +-0.24), -1.343 under the bib, -1.371 at x +-0.3; back -1.39 in the middle, -1.371 at +-0.3;
+  three-quarter -1.39..-1.37 on the near front. So the bib's hem is 0.035 L **higher** than the jacket's fronts (the
+  masks had read the corners as band: +0.033).
+- **The garment builders' eye line is 0.0235 L below the QA's.** Heights in garment specs (`rows`, `drawn_extent`,
+  my `opening` and `drape`) are L from `eye_knobs.z`; the QA aligns our irises (0.0235 L higher) with the design's
+  eyes. A spec height z lands at z - 0.0235 in every check. The bow's `lift` 0.03 had absorbed it; the band's rows here
+  are set in the QA frame by hand (-1.31/-1.47 land at the drawn -1.3335/-1.4935). A builder-wide fix needs the iris
+  line at garment-build time: integrator's call (it also shifts the hull-built skirt and flaps, possibly the
+  0.024-0.028 L hem offset seen between the evaluator and the box).
+- `top_*_over_band` read a jacket hung over the band all round as tucked: drawn alone, its back panel shows below the
+  front hem and through the open front. Now tucked only within 0.08 L behind the band (depth; step a7a6845).
+- `waistband_profile_overhang` now from the figures' front edges at fixed rows (the masks' profile band is the
+  jacket's lower part; the hanging jacket hides the band's own front): step a7a6845.
+
+**Built (garments.py, the upper garments' area):**
+- `shell` over a band (`ease.mode: over`): the hem at the band's top less `hang` (a knot table by azimuth: the
+  jacket's fronts hang lower than its sides, the back lowest), `hem_over_band`; the drape (`ease_over_band`) hangs out
+  to the band's face plus `gap`, or a `flare` table by azimuth (the hem standing off the waist, from the hull and the
+  front/back silhouettes), and `drape` hangs the fronts from the bust (the running maximum of the shell's radius down
+  each column, front only: `az` [60, 100]) and brings them back in toward the hem (`taper`).
+- `opening`: the jacket's open front as a signed cut (`half` [[z, half-width]]); `inside`: a shell kept inside
+  another's opening plus a margin (the bib under the jacket's edges). Cuts are made clean by `snap_cuts` (border
+  vertices moved onto each cut along the face's edges and diagonals).
+- `refine`: the shell's region Catmull-Clark refined before cutting (the body's 0.038 L torso faces left each front
+  corner one vertex and the hem stepping between them); weights carried, the body's vertex points map back for
+  masking.
+- The bib is its own garment, `bodice_panel` (cream shell inside the top's opening, 0.04 margin, its hem 0.005 over
+  the band); the top lost its textured `panel` and `fold`. `detailqa`'s midriff lists take `bodice_panel`.
+- The hem's `hang` knots fitted to the drawn junction by coordinate descent (scratch `fithang.py`: front, back and
+  three-quarter columns plus the side hems): junction errors 0-0.01 L except the three-quarter's near side (0.028: the
+  drawn front and three-quarter disagree about the side's height).
+- Tests: `charkit/tests/test_jacket.py` (the cuts on their lines, the bib's margin, the hem over the band and lower in
+  front, the flare), `test_pieceqa.py` (the ink core, the depth-aware junction).
+
+**Coordination (tool/skirt):** the skirt's top follows the hull's band label's lower edge (`skirt_hull`, `under`),
+which the masks put about 0.09 L high at the sides (the band's lower part labelled skirt): in front the skirt's top
+stands out past the band from z -1.40 (x +-0.33 at -1.40, +-0.35 at -1.45 against the band's +-0.315) and in profile
+it covers the band below -1.39. With the jacket now covering the band's top rows, that's what's left of the band's
+width: `waistband_front_width` PASS -> FAIL (ours 0.44 against the drawn 0.52), three-quarter and profile likewise.
+Suggested: tuck the skirt under the band garment's lower edge (its `rows` bottom) rather than the hull label's.
 
 ## State (2026-09-30, milestone 3)
 
