@@ -1,58 +1,111 @@
 # Workstream: artifact QA, measuring "obvious jaggedness" (`tool/artifacts`)
 
-**State (2026-09-29, night): PAUSED by the coordinator** (usage limit). Built, calibrated and committed on
-`tool/artifacts`: `charkit/artifactqa.py`, the QA part `artifacts` (`qa3d.PARTS`; checks `art_<detector>_<region>` and
-`art_peeks_<region>`, INFO with a proposed `grade`), tests (`charkit/tests/test_artifactqa.py`), the stored design
-measures (`charkit/refs/clawd/artifacts_design.json`), `history.STEPS` entries. pipeline-3d `01f2cdd` is merged in
-(`f3ebb42`; the only conflict was history.py's STEPS, both kept). The code under gate is `0db2e9b`.
+**State (2026-09-30): round 2 done; final gates running at `9e3691c`** (see "Gates" below: fill in the verdicts).
+pipeline-3d `9397578` is merged in (`0976017`; conflicts in qa3d.PARTS and history.STEPS, both sides kept). Round 2:
+1. **Step 0, the design's stamp** (`2a963bb`, `15ec3f7`): the stamp now hashes the outfit masks' bytes and the graph's
+   piece id/type pairs (what `design_body` reads), not the produced `outfit_graph.json` (its springs and comparison
+   differ between copies and specs while the masks are bit-identical: laptop, the box's artifacts/3d/body copies and
+   both specs all hold masks `074d9a...`). The code digest (`design_code`) covers the design-side functions and the
+   constants and defaults they read, not the module's other lines, so a grade's limit or a docstring no longer
+   re-measures. `artifacts_design.json` holds a record per stamp (`records`; both specs share one today), and a
+   stamp it lacks is made once per machine into the produced references' shared cache
+   (`$CHARKIT_PRODUCED_CACHE/artifacts_design/STAMP-EYEX.json`), not once per build.
+2. **Michael's flags as calibrated checks** (`2a963bb`..`b9bc3bd`): silhouette detectors on the body frame, graded
+   against the design in the same view; each passes on the design and fails on the build where he saw the flag
+   (table below). Registered in `history.STEPS` at `b9bc3bd`.
+3. **Fixed on the way:** the boots region read only the cuffs since round 5 (`boot_L`/`boot_R` weren't in OBJECTS);
+   the body frame started 0.5 L under the eyes and cut the hull sleeves' caps (and the collar's top) off: it starts
+   at 0.2 L now; a wrong row-to-height map in the body frame (sign) is fixed before any check used it.
 
-**Box jobs running at the pause** (started from this worktree, 2026-09-29 ~21:30; the local ssh sessions were this
-agent's background tasks and may have died with it: if a report is missing, re-run):
-- `python -m charkit remote gate tool/artifacts --into pipeline-3d` -> report `charkit/out/gate/gate_tool-artifacts_0db2e9b_into_01f2cdd.md`
-  (log `charkit/out/gate_default_2.log`);
-- the same with `--spec charkit/spec/clawd_body.json` -> `..._into_01f2cdd_clawd_body.md` (log `charkit/out/gate_body_2.log`);
-- `python -m charkit remote build charkit/spec/clawd_body.json --out charkit/out/art_body --no-blend` -> `charkit/out/art_body`
-  (`qa/qa.json`, `qa/qa_artifacts.png`; log `charkit/out/art_body.log`): the current pipeline with this branch, for the
-  review page's per-view table.
-The first gates (`25e6679`) failed only on the merge conflict, before any build.
-**The remote build failed** (after the pause) in Blender's garments stage, not this branch's code:
-`garments.sleeve_hull` -> `loft.field`: "no row of the piece is measured on 15% of its circle" (log
-`charkit/out/art_body.log`). It ran from this worktree's synced copy on the box (pipeline-3d `01f2cdd` merged); the
-clawd_body gate's builds may hit it too. If they do, it's tool/body's (the sleeves from the hull) or the hull's inputs on
-the box, not this workstream's: report it to the integrator, and take the per-view table from a default-spec build instead
-(`python -m charkit remote build charkit/spec/clawd.json --out charkit/out/art_default --no-blend`).
-
-**Default-spec gate (`0db2e9b` into `01f2cdd`): PASS.** Tests all ok, every art_* check new (INFO). Build CPU seconds
-793.0 -> 803.2 (+1.3%), wall 271.7 -> 293.6 s (+8%, the box was running two gates and a build at once). Its
-`art_design` note (value None, INFO) means **the stored design measures were stale on the box and re-measured (~20 s)**:
-the stamp hashes the outfit graph *beside the produced masks* (`_graph_path`), and that produced copy differs from the
-tracked one (locally `db557989...` against the tracked `charkit/refs/clawd/outfit_graph.json`, `308d5dcc...`, the
-manifest's sha). Worst views on that build: outline neck 11.8, collar 3.9, top 2.2; terminator hair 4.8, bow 8.6,
-skirt 3.2; fragments boots 2.9, top 2.9; speckle neck 1.7; peeks hair 17.
-
-**clawd_body gate (`0db2e9b` into `01f2cdd`): PASS.** Tests ok, every art_* check new (INFO), the same `art_design`
-(stale) note. Build CPU seconds 1564.8 -> 1659.4 (**+6%: over the 3% budget**, most of it the stale design's re-measure;
-wall 319.6 -> 273.6 s, noise). Its builds got past `garments.sleeve_hull`, so the remote build's failure above was that
-run's alone. Worst views: outline neck 7.9, collar 8.8, top 2.6; terminator bow 3.1, skirt 6.0, collar 2.6, hair 0.63 (the
-merged hair-detail default hair, not the pieces); fragments collar 6.2, boots 1.9; speckle neck 1.1; peeks hair 10.
+**Gates** (fill in when the reports land: `charkit/out/gate/gate_tool-artifacts_9e3691c_into_9397578*.md`; logs
+`charkit/out/gate_default_4.log`, `gate_mh_4.log`). The earlier pair at `15ec3f7` (step 0 only, before the vote fix)
+is in `gate_*_3.log`. Expect PASS (every new check INFO), no `art_design` note, CPU seconds within 3%.
 
 **Next steps, in order:**
-0. **Fix the stamp first:** in `artifactqa.design_inputs`, hash the tracked outfit graph (the manifest's
-   `outfit_graph` reference, as `bodymeasure.piece_masks` names its graph, or the masks' `.stamp`), not the produced
-   copy; re-store `artifacts_design.json`, test, commit, and re-gate both specs. The `art_design` note must be gone
-   and the CPU seconds within 3% on both specs (the part itself is ~4 s; today +1.3% default, +6% clawd_body).
-1. Read the two gate reports (expect PASS: the art_* checks are new and INFO; watch the CPU-seconds slowness line, the
-   budget is +3%: the part costs 3.5-4.0 s idle on the laptop). If a gate is missing, re-run it (commands above).
-2. If `charkit/out/art_body/qa/qa.json` exists: rebuild the review page with it and the final table:
-   `python charkit/out/artifacts_review/scripts/review.py charkit/out/artifacts_review/data/look_v5_qa/qa.json "current=charkit/out/art_body/qa/qa.json"`
-   and `python charkit/out/artifacts_review/scripts/final_table.py charkit/out/art_body/qa/qa.json`. The scripts were
-   written in a session scratchpad: set `SP` at their top to `charkit/out/artifacts_review/data/` (np2, np3, cal,
-   calib2.json, table2.txt are there) and run from the worktree with the venv python. Open the page
-   (`open charkit/out/artifacts_review/index.html`).
-3. Report to the integrator: branch head, gate verdicts, the per-region table, the review page path, the proposed limits
-   and open items (all below).
-4. If the detectors change again: `python -m charkit.artifactqa design BUNDLE_DIR` (any build's bundle; ~20 s) and commit
-   the refreshed `artifacts_design.json`, or every build re-measures the design and says so in `art_design`.
+0. Read the two final gate reports; record the verdicts, the CPU line and the `art_design` note's absence here.
+1. Report to the integrator (the summary table below, the review page, the open items).
+2. When a flagged area's fix lands (tool/garments2's sleeves, tool/skirt's band, tool/hull-limbs' thigh), re-read its
+   check on that build: it should drop to PASS. That's the "good build" several flags still lack.
+3. Promotion (the integrator's call): outline, speckle, peeks, spikes_boots, bumps_boots, points_sleeves,
+   bumps_legs and mirror_waist first (their separations are widest; see "Proposed limits").
+4. If the design-side detectors change: `python -m charkit.artifactqa design BUNDLE_DIR` (~15 s; any bundle whose
+   spec's masks match: both specs today) and commit `artifacts_design.json`.
+
+**Review page:** `charkit/out/artifacts_review/flags/index.html` (the flags: design | the flagged build | current at
+the body sheet's scale, the level orthographic projection, detector marks, the summary table, other workstreams'
+checks per flag). Round 1's calibration page: `charkit/out/artifacts_review/index.html`. The page's generator and
+the measuring scripts: `charkit/out/artifacts_review/scripts/flags/` (copied from the session scratchpad; `meas.py
+NAME=BUNDLE` writes `m_NAME.json`, `ctab.py` tabulates checks, `page.py OUTDIR` writes the page).
+
+## Michael's flags as regression checks (round 2, 2026-09-30)
+
+Measured with the code at `b9bc3bd` on each build's bundle (the QA's numpy drawings: level, orthographic, the body
+sheet's 212 px/L). Builds: design (the turnarounds); current = pipeline-3d `9397578` + this branch (box,
+`charkit/out/art_default`, and `art_mh` for clawd_mh); look_v5 (`~/animation-pipeline-look/charkit/out/look_v5`);
+body4b, body5b, body6 = tool/body rounds 4-6 (`~/animation-pipeline-body/charkit/out/body{4b,5b,6}_render`); g2m2 =
+tool/garments2's template sleeves (`~/animation-pipeline-garments2/charkit/out/g2_m2`); jaw_4/jaw_5 (tool/face).
+Values: the graded value (the worst view's excess over the design, or ratio to it) and, in brackets, ours and the
+design's raw values in that view. The design reads PASS against itself; its raw value is the baseline beside ours.
+
+| flag | check | design (raw) | bad build: value | current: value | proposed pass / warn |
+|---|---|---|---|---|---|
+| jaggedness, three-quarter and side (hull-lofted pieces) | art_outline_neck | 0.85 corners/L (front) | look_v5 7.9 FAIL (7.9 vs 0.85, front) | 6.3 FAIL (back: 13.6 vs 2.2) | x1.5 / x2.5 |
+| | art_outline_collar | 0.84 (front) | look_v5 5.5 FAIL | 4.3 FAIL | x1.5 / x2.5 |
+| | art_fragments_collar | 0.13e-3 L (front) | look_v5 3.5 FAIL | 8.0 FAIL | x1.5 / x2.5 |
+| | art_terminator_hair, art_peeks_hair | 4.35 kinks/L; none | look_v5 2.6 FAIL; 27 FAIL | 2.1 WARN; 21 FAIL | x2.0 / x2.5; 4 / 12 |
+| boots: twisted ankle, jagged protrusion, uneven soles, doubled toe, no heel | art_spikes_boots | 0 L | body4b 0.063 FAIL (profile) | 0 PASS | 0.015 / 0.025 L |
+| | art_bumps_boots | 73 deg (profile) | body4b 63 FAIL (136 vs 73) | 13 PASS (82 vs 68, front) | 20 / 30 deg |
+| | art_points_boots | 52 deg (front) | body4b 35 FAIL (87 vs 52) | 16 PASS (68 vs 52) | 20 / 30 deg |
+| | art_mirror_self_boots | 0.037 (front) | body4b 1.79 WARN | 0.54 PASS | x1.5 / x2.5 |
+| midriff: one-sided distortion (skirt past the band on her right) | art_mirror_waist | 0.012 (back), 0.034 (front) | body5b 6.9 FAIL (0.138); body4b 6.4 FAIL | 1.12 PASS (0.022) | x1.5 / x2.5 |
+| | art_bumps_skirt, art_points_skirt | | body5b 59 FAIL, 38 FAIL (the lopsided back) | 13 PASS, 0 PASS | 20 / 30 deg |
+| puff sleeves' spikiness | art_points_sleeves | 29 deg (front) | current (hull sleeves) 32 FAIL (61 vs 29) | = bad; g2m2 (template) 0 PASS | 20 / 30 deg |
+| | art_bumps_sleeves | 35 (front), 0 (profile) | current 55 FAIL (profile 65 vs 0) | = bad; g2m2 0.8 PASS | 20 / 30 deg |
+| bump on the back of the leg, profile | art_bumps_legs | 13 deg (profile) | body5b 42 FAIL (56 vs 13); body4b 42 FAIL | 0 PASS (the flap hides it) | 20 / 30 deg |
+| skirt and flaps' zigzag band | art_band_lower | 7.1 kinks/L (profile) | body6 2.67 FAIL (18.9 vs 7.1) | = body6 2.67 FAIL; clawd_mh 2.75 FAIL | x1.5 / x2.0 |
+| chin and neck: nick, taper | (face_region, tool/face) jaw_line_bend | 4.4 deg | jaw_4 24.4 FAIL, jaw_5 41.2 FAIL | 41.2 FAIL | theirs: 6 / 10 |
+| | jaw_taper_shape, chin_tip | 0, 0.843 | jaw_4 0.035 WARN, 0.30 FAIL | 0.028 WARN, 0.59 WARN | theirs |
+
+What each separation rests on, and what it can't see:
+- **Boots** (round 4 against the template from round 5): the protrusion and the doubled, heelless toe are a spike
+  (0.063 L) and a 136 deg knob in profile; the template reads 0 and 82 deg (the design 73). tool/body's detailqa
+  `boot_*` checks cover the ankle jog, heel, doubled stroke and soles in 3D (round 4 18 FAIL, round 5+ PASS).
+- **Midriff:** the asymmetry of jacket + band + skirt + flaps about the figure's axis. Round 5's jut and round 4's
+  lopsided back read 6-7x the design; round 6 on 1.1x. The **ledge** (round 4) is detailqa's `body_*_torso_jump`
+  (0.028 FAIL -> 0); the **jacket over the band** is tool/garments2's `top_*_over_band` (pieceqa, not merged): not
+  re-measured here (a layering question, not a silhouette's).
+- **Sleeves:** the hull sleeves' caps are a pointed corner (61 deg over 0.02 L) and a knob (65-89 deg over 0.06 L);
+  the template and the design round them. **Round 5 (body5b), where Michael flagged them, reads clean:** its hair
+  covered the caps in the level view (the boards' raised camera showed them). The current build, with the same
+  sleeves and the new hair, shows them. tool/garments2's `sleeve_*_spikes` measure the piece's own mask and see both.
+- **Leg bump:** a 56 deg knob over 0.06 L behind the thigh in rounds 4 and 5 (on the silhouette). **From round 6 the
+  flap's train covers it in the level view,** so the current build reads 0 while detailqa's `body_profile_leg_back`
+  (0.207 FAIL on the box) still sees the geometry. The flag holds for what's visible; the geometry is tool/hull-limbs'.
+- **Band zigzag:** the band is a texture, so it's measured on the picture drawn with its textures (`qa3d.draw`, ss 1:
+  its mesh and tone buffers are `buffers()`' to the bit, checked). Kinks per L of the dark band's edge (25-90 deg over
+  0.006 L: pixel stairs) against the design's few clean steps: every build reads 2.4-2.7x (round 4-6, clawd_mh); no
+  build has a clean band yet (tool/skirt's). The design passes by construction; the calibration's good side is only
+  the design until tool/skirt's band lands.
+- **Chin and neck:** tool/face's `face_region` checks are the calibrated ones (design all PASS; jaw_4 FAIL). This
+  module's neck outline doesn't separate the nick: jaw_4 and jaw_5 read alike (3.17 and 3.20 corners/L in
+  three-quarter), and the nick is 0.005 L, a pixel here. Anti-gaming: not tuned to pass.
+
+**Can't be measured yet:**
+- **The back's warping tuck-in** (round 6): tried the waist's silhouette bumps and dents at 0.06 L (junctions left out)
+  and its asymmetry; neither separates round 6 from the design (the pinch sits at the band/skirt junction, which the
+  design has too, and in the pleats' shading). tool/skirt's skirtqa (back outline, the flaps' gap, the pleats' pinch)
+  is the place; it's in progress there (untracked).
+- **The jacket over the band:** layering, measured by pieceqa on tool/garments2.
+- **The chin's taper and the nick** as artifacts: see above (face_region measures them).
+
+**Other findings on the current build** (INFO, not flagged by Michael): `art_fragments_neck` 11.1 and
+`art_outline_neck` 6.3 in the back view (the neck's skin in bits between the back hair locks: tool/hair3);
+`art_terminator_collar` 20.7 (three-quarter) and `art_fragments_collar` 8.0 (front): the collar's torn tips
+(tool/garments2's collar item); `art_bumps_collar` 44 and `art_bumps_flaps` 49 (the collar's back knob in profile, the
+flap tail's point in three-quarter); `art_spikes_flaps` 0.057 (three-quarter: the tail tip).
+
+**Cost:** the part takes 6-8 s CPU a build on the laptop (was 3.5-4): the body frame drawn with textures (+~1 s), the
+silhouettes (+~2 s). The design is stored, so no build re-measures it.
 
 ## What was built
 
@@ -61,8 +114,9 @@ merged hair-detail default hair, not the pieces); fragments collar 6.2, boots 1.
   (bit-identical to draw's `aux` buffers, about half the time). Two frames, each from front, three-quarter (the sheet's
   angle), profile and back under the boards' light for the view:
   - the head frame at 400 px/L (0.85 L either side, 1.25 above to 1.0 under the eye line): hair, face, neck;
-  - the body frame at the body sheet's px/L (212), from 0.5 L under the eye line to the feet: collar, bow, top, skirt,
-    boots.
+  - the body frame at the body sheet's px/L (212), from 0.2 L under the eye line to the feet (0.5 until round 2):
+    collar, bow, top, skirt, boots, and in round 2 the silhouettes (sleeves, flaps, the waist, the skirt with its
+    flaps, the legs). Round 2 draws it with `qa3d.draw` (ss 1) for the hem band's texture.
   Regions come from each pixel's object (`object_kind`: hair, skin, features, garments by name), outline hulls counting as
   their object's and as drawn lines. The face is the skin above our chin, the neck the skin from the chin to 0.5 L under it.
 - **The detectors** (every length in L, so any scale reads the same):
@@ -165,6 +219,21 @@ WARN `art_speckle_neck` 2.2, `art_fragments_boots` 1.9 (profile); PASS the rest 
 outline 0.2). Keep them INFO until a few builds of history exist, then promote outline, speckle and peeks first (their
 buffer and render readings agree best).
 
+Round 2's silhouette checks (`SHAPE_CHECKS`; the worst view's excess over the design, floored, or ratio to it):
+
+| check | pass | warn | why (calibration above) |
+|---|---|---|---|
+| art_spikes_* | 0.015 L | 0.025 L | round 4's boot 0.063, look_v5's 0.029; clean builds 0-0.013 (one borderline 0.013 spike on the template boots' back) |
+| art_points_* | 20 deg | 30 deg | hull sleeves 31-32, round 4 boots 35; template boots 16, template sleeves 0 |
+| art_bumps_* | 20 deg | 30 deg | round 4 boots 63, round 5 leg 42, hull sleeves 55; template boots 13, template sleeves 0.8 |
+| art_mirror_waist | x1.5 | x2.5 | rounds 4-5 6.4-6.9, look_v5 3.1; round 6 on 1.1-1.2 (clawd_mh 2.2 WARN: the MakeHuman body's skin at the band's sides in back) |
+| art_mirror_self_boots | x1.5 | x2.5 | round 4 1.79 (WARN only: a mild separation), template 0.54 |
+| art_band_lower | x1.5 | x2.0 | every build 2.4-2.7 (no clean band exists yet) |
+
+Promote first: spikes_boots, bumps_boots, points_sleeves, bumps_legs, mirror_waist (margins 2x or more between the
+bad and the clean build). Keep art_band_lower at WARN until tool/skirt's band gives a clean build to calibrate on;
+mirror_self_boots stays INFO (1.79 against 0.54 is a weak separation).
+
 ## Owners of what the checks flag
 
 - hair (terminators, peeks, the stepped edge): **tool/hair-detail** (geometry and normals); the terminators' shading
@@ -173,6 +242,10 @@ buffer and render readings agree best).
 - face and neck skin (the neck's silhouette in profile, the seam specks' geometry): **tool/face**; the neck's terminator
   and specks' shading: **tool/look2** (their chin-shadow item).
 - Note the front neck outline's corners sit where the collar's torn tips cross the neck: fixing the collar moves it too.
+- Round 2: sleeves' caps (points, bumps): **tool/garments2** (the template is the fix, unmerged); the band's zigzag,
+  the back's tuck-in, the flaps' tail tips: **tool/skirt**; the leg's knob: **tool/hull-limbs** (the thigh's top rows);
+  the neck's bits between the back hair locks: **tool/hair3**; the collar's torn tips: **tool/garments2**; the nick
+  and the taper: **tool/face**.
 
 ## Open items
 
@@ -190,6 +263,14 @@ buffer and render readings agree best).
 - Grades: INFO now; promote after history. Re-measure the calibration on the next look/hair round (the scripts are in
   this note's "Calibration").
 - Box timing: the gate now compares CPU seconds (tool/gate-cpu); read it in the gate reports (State, next step 1).
+- Round 2: the flags that still lack a clean build to calibrate against: the band (tool/skirt), the sleeves on the
+  design's own back view (its jacket and sleeves are one cell: the back can't fail there), the leg bump from round 6
+  on (hidden by the flap in the level view: measure it with the flap hidden, or leave it to detailqa).
+- The back's tuck-in and the jacket over the band aren't measured here (above).
+- A board-camera variant (the boards' raised camera) would see what the level view hides (round 5's sleeve caps behind
+  the hair); the process decisions put review close-ups in the design's projection, so it's not built.
+- `artifactqa.design_code` reads `cache.code_units`; if tool/infra's self-registration moves the part, keep the stamp's
+  code digest on the design-side functions only.
 
 ## The original plan and findings (before any code)
 
