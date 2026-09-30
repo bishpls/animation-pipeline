@@ -20,6 +20,11 @@ QA parts. A venv QA part is a function (B, design, out, ...) -> (table, checks),
 parts() imports every charkit module that registers one (found by the `@qa_part(` decorator at the start
 of a line, nothing else imported) and returns them in order.
 
+Flag checks. A check built from one of Michael's flags (calibrated to pass on the design and fail where he saw the
+flag; decision 2) carries FLAG in its qa.json entry: `{'value': ..., 'status': ..., 'flag': 'the torn collar tips
+(look_v5)'}` (flag_check(c, why) sets it). The merge gate blocks a merge on such a check's regression (policy K:
+charkit/gate.py), and only reports other checks' moves; a part marks its own checks, with no list here.
+
 Measurement steps. When a check's measurement changes (not the character), its numbers step; the gate and the tune
 loop then call it `remeasured` rather than better or worse (charkit.history). A module lists the steps of the checks
 it measures in a module-level literal:
@@ -41,6 +46,7 @@ STEPS_NAME = 'MEASUREMENT_STEPS'
 PART_MARK = re.compile(r'^@(?:registry\.)?qa_part\(', re.M)
 SKIP_DIRS = {'out', 'tests', '__pycache__'}
 
+FLAG = 'flag'                   # a check's qa.json key: the flag of Michael's it was built from (see above)
 Part = collections.namedtuple('Part', 'name fn prefix table order ref_image keep skip_key')
 _PARTS = {}
 _found = False
@@ -62,13 +68,26 @@ def qa_part(name, order, prefix='', table=None, ref_image=False, keep=None, skip
     return deco
 
 
+def flag_check(c, why):
+    """mark check dict c as built from Michael's flag `why` (the gate blocks on its regressions) -> c."""
+    c[FLAG] = why
+    return c
+
+
+def is_flag(c):
+    """a check (its qa.json dict, or None) built from one of Michael's flags?"""
+    return bool(isinstance(c, dict) and c.get(FLAG))
+
+
 def part_modules(root=HERE):
     """the charkit modules (dotted names) that register a QA part: their source has `@qa_part(` at a line's start."""
+    from . import closure
     out = []
-    for path in _py_files(root):
-        with open(path, encoding='utf-8') as f:
-            if PART_MARK.search(f.read()):
-                out.append(_module(path, root))
+    with closure.scanning(root, PART_MARK.pattern):         # the gate's record of what a build read: a scan, not reads
+        for path in _py_files(root):
+            with open(path, encoding='utf-8') as f:
+                if PART_MARK.search(f.read()):
+                    out.append(_module(path, root))
     return sorted(out)
 
 
@@ -113,11 +132,13 @@ def module_steps(path, name=STEPS_NAME):
 def steps(root=HERE):
     """every module's MEASUREMENT_STEPS under root (a charkit package directory, this tree's or another's), module by
     module in dotted-name order -> [(pattern, commit, why)]."""
+    from . import closure
     out = []
-    for path in sorted(_py_files(root), key=lambda p: _module(p, root)):
-        got = module_steps(path)
-        if got:
-            out += got
+    with closure.scanning(root, STEPS_NAME):
+        for path in sorted(_py_files(root), key=lambda p: _module(p, root)):
+            got = module_steps(path)
+            if got:
+                out += got
     return out
 
 

@@ -71,6 +71,7 @@ class Trace:
         self.prev = {}                  # object name -> its last snapshot (for added / changed / removed)
         self.last = None                # the last stage record
         self.taps = []                  # lists collecting every record written (capture())
+        self.out = os.path.dirname(os.path.abspath(path))       # the build's folder (portable())
 
     def write(self, event, name=None, **kw):
         rec = {'t': round(time.perf_counter() - self.t0, 4), 'event': event}
@@ -97,7 +98,7 @@ def begin(path, spec=None, spec_path=None, **env):
         _T.close()
     _T = Trace(path)
     info = dict(git=_git(), python=sys.version.split()[0], numpy=np.__version__, spec_path=spec_path,
-                spec_hash=_hash_json(spec) if spec is not None else None, **env)
+                spec_hash=_hash_json(portable(spec, _T.out)) if spec is not None else None, **env)
     try:
         import bpy
         info['blender'] = bpy.app.version_string
@@ -195,7 +196,8 @@ def stage(name, S=None, objects=None):
             removed = sorted(k for k in _T.prev if k not in snap)
             rec = dict(dt=round(dt, 4), added=added, changed=changed, removed=removed, objects=len(snap))
             if S is not None:
-                rec['knobs'] = {k: _hash_json(S.spec.get(k)) for k in STAGE_KEYS.get(name, ()) if k in S.spec}
+                rec['knobs'] = {k: _hash_json(portable(S.spec.get(k), _T.out)) for k in STAGE_KEYS.get(name, ())
+                                if k in S.spec}
                 lm = landmarks(S)
                 if lm:
                     rec['landmarks'] = lm
@@ -592,6 +594,26 @@ def _plain(x):
         return int(x)
     if isinstance(x, np.bool_):
         return bool(x)
+    return x
+
+
+def portable(x, out=None):
+    """a spec value with the paths that name where it was built made portable, for hashing: a path in the build's own
+    folder as '<out>/...' (the resolved spec's hair.shape.pieces, head_code, garments_geom: every build has its own
+    folder), one in the worktree relative to it (gate clones and worktrees differ). Content is keyed elsewhere (the
+    cache hashes the files a spec names); these hashes say which knobs moved."""
+    if isinstance(x, str):
+        if not x.startswith(os.sep):
+            return x
+        for a, r in (((out.rstrip(os.sep) + os.sep) if out else None, '<out>/'), (ROOT + os.sep, ''),
+                     (os.path.realpath(ROOT) + os.sep, '')):
+            if a and x.startswith(a):
+                return r + x[len(a):]
+        return x
+    if isinstance(x, dict):
+        return {k: portable(v, out) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [portable(v, out) for v in x]
     return x
 
 
