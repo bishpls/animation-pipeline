@@ -434,7 +434,12 @@ the side_lock_L fold follows the ease's end (theta 127 -> 134-141; folds 4 / 5 /
 0.534 new). Round 2 traced it to the hull labeller's squarest view (the profile's call-B lower back at the jaw). In the
 lab now: `label_hull(weigh=p)`, every view that sees a point votes its family with score ** p
 (`charkit/out/hairtag/r3/label_weigh.patch`, not committed; `labvote.py BUILD P...` beside it; results to
-`r3/vote1.txt`, running at this writing).
+`r3/vote1.txt`). **Result: weigh 1, 2 and 4 move 0 of the hull's labels** (every check, fold and shape IoU identical):
+no hull point is seen by more than two of the views, so the weighted vote always picks the squarest view's family.
+Round 2's "weigh the views' agreement" can't move the jaw's labels. What's left is call B itself (the profile's shadow
+tone at the jaw as the lower back), which Michael accepted as truth: the side locks' -0.009 under the new measure is
+that call's cost to the geometry unless a side-lock prior (the front view's side lock kept where the profile's lower
+back meets it at the jaw) is wanted.
 
 **hair_noise:** 0.0807 FAIL -> 0.0793 WARN at gate 1 (the method's masks lower it); where it sits is above (front view:
 bangs round the star clip, the side locks, bun_L's facets). Not fixed further this round. noiselab's drawing doesn't
@@ -443,9 +448,8 @@ take the rebuilt flyaways' per-vertex normals (strand_tone reads the same there)
 **Next (a lean relaunch):**
 1. Read gate 2 (the job above). If PASS under K, tool/hairtag is mergeable; if pipeline-3d moved, `python -m charkit gate
    --carry tool/hairtag --into pipeline-3d` (everything after 76b55cb is notes).
-2. The labeller vote: read `r3/vote1.txt` (weigh 1, 2, 4 against the squarest view: side locks, lower back, folds, the
-   shape IoU per view). If a weight gains the side locks without costing the lower back or the shape, apply the patch
-   as a pieces option, lab it, then box-build and gate it.
+2. The side locks: the labeller vote is moot (above). Only a decision on a side-lock prior at the jaw remains
+   (Michael's).
 3. hair_noise's margin (0.0793 against 0.08): bun_L's block facets (2-3x bun_R's edges in every view: its fit) and the
    bangs' tone loops round the star clip are the largest movable parts.
 4. For tool/collar: this round didn't touch lock 0 of the lower back or its trim. art_speckle_neck reads 2.606 -> 1.34
