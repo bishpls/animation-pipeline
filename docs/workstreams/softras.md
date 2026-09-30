@@ -206,3 +206,14 @@ against its new gradient path:
   the scan, fitkit's runs, the review page. Then the gate, once (policy K): `python -m charkit remote gate tool/softras
   --into pipeline-3d`, expected to move no check (nothing on the build path imports softras or softfit; fitkit's
   default is unchanged and only the fit commands import it).
+- **Gate PASS** (161f9af into pipeline-3d 3a0ad37, policy K): nothing blocks, 0 items reported; no candidate build
+  (6 files changed, none among the 560 the baseline build read); 70 test files, 0 failing, test_softras.py and
+  test_fitkit.py among them on the build box. Report charkit/out/gate/gate_tool-softras_161f9af_into_3a0ad37.md.
+
+## Decisions for Michael
+
+1. Merge the gradient path as opt-in (it changes no default), or keep it on the branch until a second evaluator takes it.
+2. Next for gradients: analytic Jacobians in the template builders (half the gradient fit's time), or a distance term
+   for views with no overlap (the flap's three-quarter).
+3. The flap's three-quarter view: the drawing's tails there disagree with its back, front and profile (skirt notes);
+   J has two basins because of it. Which view wins is a design call, not an optimiser's.
