@@ -447,9 +447,8 @@ class Part:
             uvc = tex['uvc'] if tex else None
             sharp = None
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
-                polys, uvc = recalc_normals(V, polys, uvc)      # (the faces as garments._object winds them)
-                V, polys, parent, uvc, sharp = solidify(V, polys, self.solid, uvc,
-                                                        crease=getattr(self, 'solid_crease', None), with_sharp=True)
+                V, polys, parent, uvc, sharp = solidify(V, polys, self.solid, uvc, crease=getattr(self, 'solid_crease',
+                                                        None), with_sharp=True)   # (the faces wound as recorded: geom.wind)
             for _ in range(levels):
                 V, polys, par, uvc, sharp = subdivide(V, polys, uvc, sharp=sharp, with_sharp=True)
                 parent = parent[par]
@@ -1436,67 +1435,6 @@ def vertex_normals(V, polys):
     ang = np.arccos(np.clip((e1 * e2).sum(1), -1, 1))
     N = np.zeros_like(V); np.add.at(N, lv, FN[fid] * ang[:, None])
     return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
-
-
-def recalc_normals(V, polys, uv=None):
-    """bmesh.ops.recalc_face_normals (garments._object runs it on every piece): each connected region's polygons wound
-    consistently, and the region turned so its outermost vertex's polygon faces away from the region's centre (the
-    polygons' area-weighted centres; at that vertex the edge most across the outward direction, and of its polygons the
-    one facing most along it). -> (polys, uv) with the flipped polygons (and their corner UVs) reversed."""
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import connected_components
-    V = np.asarray(V, float)
-    lv, st, cnt = _loops_of(polys)
-    nf, n = len(cnt), len(V)
-    fid = np.repeat(np.arange(nf), cnt)
-    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
-    a, b = lv, lv[nxt]
-    key = np.minimum(a, b) * n + np.maximum(a, b)
-    order = np.argsort(key, kind='stable')
-    ks = key[order]
-    same = np.nonzero(ks[1:] == ks[:-1])[0]
-    i, j = order[same], order[same + 1]                       # loops sharing an edge (consecutive pairs)
-    flip_rel = (a[i] == a[j])                                 # the same direction in both: one of them is reversed
-    nc, comp = connected_components(coo_matrix((np.ones(len(i)), (fid[i], fid[j])), shape=(nf, nf)), directed=False)
-    flip = np.zeros(nf, bool); seen = np.zeros(nf, bool)
-    adj = [[] for _ in range(nf)]
-    for x, y, r in zip(fid[i], fid[j], flip_rel):
-        adj[x].append((y, r)); adj[y].append((x, r))
-    for f0 in range(nf):                                       # breadth first from each region's first polygon
-        if seen[f0]:
-            continue
-        seen[f0] = True; queue = [f0]
-        while queue:
-            f = queue.pop()
-            for g, r in adj[f]:
-                if not seen[g]:
-                    seen[g] = True; flip[g] = flip[f] ^ r; queue.append(g)
-    FN = np.zeros((nf, 3)); np.add.at(FN, fid, np.cross(V[lv], V[lv[nxt]]))
-    area = np.linalg.norm(FN, axis=1) / 2
-    FN = FN / np.maximum(2 * area, 1e-30)[:, None] * np.where(flip, -1, 1)[:, None]
-    FC = np.zeros((nf, 3)); np.add.at(FC, fid, V[lv]); FC /= cnt[:, None]
-    for c in range(nc):
-        fs = np.nonzero(comp == c)[0]
-        w = area[fs]
-        cent = (FC[fs] * w[:, None]).sum(0) / max(w.sum(), 1e-30)
-        m = np.isin(fid, fs)
-        loops = np.nonzero(m)[0]
-        v = lv[loops[np.argmax(((V[lv[loops]] - cent) ** 2).sum(1))]]
-        d = V[v] - cent; d /= max(np.linalg.norm(d), 1e-30)
-        at = loops[(lv[loops] == v) | (b[loops] == v)]         # the edges at the vertex, by the loops that run them
-        ev = V[b[at]] - V[a[at]]; ev /= np.maximum(np.linalg.norm(ev, axis=1, keepdims=True), 1e-30)
-        ed = np.abs(ev @ d)
-        best = at[ed <= ed.min() + 1e-6]                        # the edge most across the outward direction
-        k_ = key[best]
-        cand = np.nonzero(np.isin(key, k_) & m)[0]
-        f = fid[cand[np.argmax(np.abs(FN[fid[cand]] @ d))]]
-        if FN[f] @ d < 0:
-            flip[fs] = ~flip[fs]
-    P = [tuple(int(x) for x in (lv[s_:s_ + c_][::-1] if flip[q] else lv[s_:s_ + c_])) for q, (s_, c_) in enumerate(zip(st, cnt))]
-    if uv is None:
-        return P, None
-    Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c_, float) for c_ in uv])
-    return P, [Uc[s_:s_ + c_][::-1] if flip[q] else Uc[s_:s_ + c_] for q, (s_, c_) in enumerate(zip(st, cnt))]
 
 
 def solidify(V, polys, t, uv=None, rim=True, crease=None, with_sharp=False):

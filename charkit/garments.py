@@ -2770,8 +2770,14 @@ def _toon_tex(name, image, shade_mul=None):
     return m
 
 
-def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat_idx=None, smooth=True):
+def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat_idx=None, smooth=True, wound=False):
+    """a garment piece as a rigged mesh object. Its faces are wound as charkit.geom.wind.orient decides (each region
+    consistent, its normals out): the garments product's recording winds them venv-side and passes wound=True, so
+    Blender takes them as given (GEOM_TRUTH step 7a); the in-Blender path winds them here with the same function."""
     from . import character
+    if not wound:
+        from .geom import wind
+        faces, uv_corner = wind.orient(verts, faces, uv_corner)[:2]
     ob = character._mesh(name, verts, faces, None, mats)
     me = ob.data
     if uv is not None or uv_corner is not None:
@@ -2783,10 +2789,6 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
         p.use_smooth = smooth
         if mat_idx is not None:
             p.material_index = mat_idx[pi]
-    import bmesh
-    bm = bmesh.new(); bm.from_mesh(me)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(me); bm.free()
     for b, w in weights.items():
         if b not in arm.data.bones:
             continue
