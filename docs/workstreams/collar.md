@@ -364,3 +364,29 @@ The one place: `garments._eye_z(A)` = the iris plates' mean z (knob line only wi
 height in the builders now reads (the `eye` cuts, opening_cut, outline_dist, the drape's `from`, the lofts' `rows`,
 drawn_extent), and `garments.hull_target(A, shape)` (i3d.eye_target with eye_anchor 'iris', as the hair pieces
 already align) for the hull's pieces (hull_pieces) and flapchains.chains' mapping into the graph's frame.
+
+**Measured (harness, bw_v1's bundle; k0 = the old frame, i0 = the new frame alone, r* = refits; `qadiff.py`).** The
+frame alone (i0 against k0, 139 of 263 harness checks moved): better, the hull-built pieces now read as built:
+piece_sleeve_cuff_L 0.712 WARN -> 0.790 PASS, _R 0.544 -> 0.782 PASS, piece_sleeve_R 0.777 -> 0.835, piece_shorts 0.601
+-> 0.701, the shorts' hems in four views WARN -> PASS, front_hem and three_quarter_hem WARN -> PASS, skirt_back_outline
+FAIL -> WARN, piece_skirt 0.869 -> 0.885, sleeve_profile_rough_L WARN -> PASS. Worse, the knobs tuned in the old frame:
+the waistband's rows 0.0047 -> 0.0282 (three views PASS -> WARN; piece_waistband 0.907 -> 0.803), piece_bow 0.735 ->
+0.699, the flaps' tails 0.0235 L shorter against the drawn (flap_profile_iou_L/R PASS -> WARN), the wrist cuffs
+(cuff_front_flare_L WARN -> FAIL: the hull's cuff now sits 0.0235 L up our forearm), shoulder_back_slope PASS -> WARN
+(a guard; M3's shoulders), collar_front_torn PASS -> WARN.
+
+Refits (each against its piece's IoU in all views):
+- waistband `rows` -0.0235 (the band's placement against the drawn band), `fit_rows` kept (the hull's rows its section is
+  measured on: shifting them too, r1, sampled the hips and widened it, waistband_front_width PASS -> WARN).
+- bow `lift` 0.03 -> 0.0065 (the drawn extent now in the right frame): piece_bow 0.735 WARN -> 0.754 PASS (0.843 / 0.699
+  / 0.303 per view before the lift; bow_front_tail_width 0.0, bow_profile_ribbon 0.0789 -> 0.0526).
+- the flaps' tails `first` 0.18 -> 0.2035 (their treads hang below the skirt's hem, which rose with the hull):
+  flap_profile_iou_L/R back to PASS (0.71), flap_front_iou 0.73/0.75 -> 0.78/0.79.
+- the wrist cuffs: `bell` (new, band_hull: the top rows grown by `bell` L tapering to 0 at the bottom; the drawn cuffs
+  flare 1.22, ours 1.04-1.08) 0.015: every cuff flare better than before (front_L 0.138 WARN -> 0.102 WARN, back_L PASS,
+  front_R 0.178 FAIL -> 0.147 WARN, back_R 0.196 -> 0.155 FAIL); piece_cuff_L 0.779 PASS -> 0.733 WARN (the frame's
+  cost mostly: 0.75 without the bell), piece_cuff_R 0.565 -> 0.586. 0.03 flares all PASS/WARN but costs the IoU more and
+  pushes the skirt (clear_hands): front_skirt_aline FAIL. (A first name, `flare`, collided with the boot cuffs'
+  template key and moved them: renamed.)
+- Insensitive, left as drawn: the jacket's opening and drape `from`, the bodice panel's eye cut (shifting them -0.0235
+  moved piece_top and piece_bodice_panel by <= 0.001).
