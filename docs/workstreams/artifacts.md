@@ -30,11 +30,17 @@ tracked one (locally `db557989...` against the tracked `charkit/refs/clawd/outfi
 manifest's sha). Worst views on that build: outline neck 11.8, collar 3.9, top 2.2; terminator hair 4.8, bow 8.6,
 skirt 3.2; fragments boots 2.9, top 2.9; speckle neck 1.7; peeks hair 17.
 
+**clawd_body gate (`0db2e9b` into `01f2cdd`): PASS.** Tests ok, every art_* check new (INFO), the same `art_design`
+(stale) note. Build CPU seconds 1564.8 -> 1659.4 (**+6%: over the 3% budget**, most of it the stale design's re-measure;
+wall 319.6 -> 273.6 s, noise). Its builds got past `garments.sleeve_hull`, so the remote build's failure above was that
+run's alone. Worst views: outline neck 7.9, collar 8.8, top 2.6; terminator bow 3.1, skirt 6.0, collar 2.6, hair 0.63 (the
+merged hair-detail default hair, not the pieces); fragments collar 6.2, boots 1.9; speckle neck 1.1; peeks hair 10.
+
 **Next steps, in order:**
 0. **Fix the stamp first:** in `artifactqa.design_inputs`, hash the tracked outfit graph (the manifest's
    `outfit_graph` reference, as `bodymeasure.piece_masks` names its graph, or the masks' `.stamp`), not the produced
    copy; re-store `artifacts_design.json`, test, commit, and re-gate both specs. The `art_design` note must be gone
-   and the CPU seconds within ~1% (the part itself is ~4 s).
+   and the CPU seconds within 3% on both specs (the part itself is ~4 s; today +1.3% default, +6% clawd_body).
 1. Read the two gate reports (expect PASS: the art_* checks are new and INFO; watch the CPU-seconds slowness line, the
    budget is +3%: the part costs 3.5-4.0 s idle on the laptop). If a gate is missing, re-run it (commands above).
 2. If `charkit/out/art_body/qa/qa.json` exists: rebuild the review page with it and the final table:
