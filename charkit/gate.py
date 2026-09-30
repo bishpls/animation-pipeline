@@ -1187,7 +1187,8 @@ def _write(rep, gdir, tag):
         L.append('- build CPU time (all processes): %s s -> %s s (%.2fx); threads %s -> %s' % (
             tuple(rep['cpu_seconds']) + (rep['cpu_seconds'][1] / rep['cpu_seconds'][0],
                                          bb.get('threads') or ('uncapped' if not bb.get('cached') else 'cached'),
-                                         cb.get('threads') or 'uncapped')))
+                                         cb.get('threads') or (rep.get('cpu_threads') or [None, None])[1] or
+                                         'uncapped')))
     L.append('\n## Phases\n')
     L += _table(rep.get('phases') or [], [('phase', lambda r: r['phase']), ('start (s)', lambda r: r['start']),
                                           ('seconds', lambda r: r['seconds']), ('note', lambda r: r.get('note', ''))])

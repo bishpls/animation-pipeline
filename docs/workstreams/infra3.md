@@ -43,12 +43,30 @@ Subset 1 (g, the baseline finding, the boards), code done, unit-tested, being ga
   whose move reaches the build): **87.9 s**, nothing built (the smoke-docs gate of the same shape: 705 s). The
   closure recording costs the tests nothing measurable (0.41 s vs 0.41 s, 1.15 vs 1.15 s a file). No boards: the
   candidate's steps have no toon_boards row (16 s before).
+- **Measured on real pairs** (tip 2c25504; stand-ins for pipeline-3d moving: b43c15e plus a docs line (775a1ce), plus
+  that and a comment in charkit/tests/test_trace.py (69b7c2d), plus a comment in charkit/cli.py (4b55075)):
+  - the normal gate, pipeline-3d's gate code: **PASS** (`gate_tool-infra3_2c25504_into_b43c15e`): no check changed,
+    53 test files ok, CPU 0.79x (850.9 s, capped, against the cached uncapped baseline's 1,081 s), 495 s.
+  - the in-gate carry, this gate code (`gate_tmp-infra3-self_2c25504_into_775a1ce`): the baseline linked to
+    b43c15e's, the candidate carried over from the normal gate's build (the merged trees differ in one doc): **62.2 s**,
+    tests only (the same tip's gate with a candidate build: 480-510 s).
+  - `gate --carry` on the laptop from that report: into 69b7c2d **carried, PASS, 1 s** (test_trace.py rerun here in
+    a throwaway worktree of the merge; the first cut reran 24 test files that list charkit/tests: a listed folder now
+    counts a file added or deleted, not one edited, which a read already covers); into 4b55075 **not carried**
+    (exit 3: the baseline and candidate read charkit/cli.py), 1 s; into 775a1ce: already gated.
+  - **The limit of (g) today:** the builds read nearly every charkit module (the baseline's closure: 571 files,
+    cli.py, gate.py, remote.py, boxjob.py among them), so a pipeline-3d move that touches any .py file won't carry.
+    The cause is the cache keys' code walks (next item); narrowing them is subset 2 (h) and is what makes (g) pay.
 - Findings for subset 2: (1) **the hull's shared-cache key covers garments.py through a name collision**: `Owners`
   (charkit/geom/hull.py) has a local `main`, which cache.code_units resolves to the module's top-level `main`; that
   imports bodyeval, which imports garments. The stamp (depth 1) doesn't cover garments.py; code2 (depth 2, the shared
   cache's key) does, so a fresh gate clone misses and rebuilds the hull (196 s). Fix: locals out of a def's names
   (one-off key change). (2) **The build reads charkit/gate.py** (the closure says so): a code walk follows cli.py's
-  function-level `from . import gate`; every gate-code change builds a candidate.
+  function-level `from . import gate`; every gate-code change builds a candidate. The walk: artifactqa's design cache key is
+  `code_units(design_heads)` with no depth limit: design_heads imports refcheck, whose module imports bodyeval, whose
+  resolve() uses `cli._path`, and a module is taken whole with its function-level imports, so cli.py's 42 imports
+  (gate, remote, tune, preview...) follow: 101 modules. A function-precise walk across modules (follow `mod.attr` to
+  that def, classes whole) would fix both findings; it changes every key once.
 
 ## What changed (milestone A)
 

@@ -27,7 +27,7 @@ environment's, which the gate doesn't compare.
 
 What can change a build, given its closure (affected()):
   - a file it read, or ran, changed (tracked: the merge's changes; untracked: its sha256 differs);
-  - a file added, changed or deleted in a folder its own code listed;
+  - a file added or deleted (or changed in type) in a folder its own code listed (one whose content it used was read);
   - a data file (not Python, not documentation) changed anywhere in the checkout: Blender's C code reads images and
     libraries the audit hook can't see, so a data file the record doesn't name still counts (conservative);
   - a Python file under a scanned folder whose old or new text has the scan's marker;
@@ -284,7 +284,8 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None, untracked=T
                     re.search(m, _text(root, rev, p), re.M)), None) if marks else None
         if p in reads:
             out.append((p, 'the build read it'))
-        elif os.path.dirname(p) in listed:
+        elif os.path.dirname(p) in listed and st != 'M':
+            # (a listing changes when a file comes or goes; a file whose content the build used was read, above)
             out.append((p, 'in a folder the build lists (%s)' % (os.path.dirname(p) or '.')))
         elif hit:
             out.append((p, 'the build scans for %r, which it has' % hit))
