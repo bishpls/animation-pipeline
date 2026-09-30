@@ -74,16 +74,17 @@ def region(A, parts):
     return inside
 
 
-def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True):
-    """a piece's lower (or upper) edge per angle round an axis, from its hull points: per sector the q-th percentile of
-    height (100 - q for the upper), filled round the circle and smoothed -> fn(theta) -> height (world z)."""
+def hull_edge(P, ax, n=72, q=2.0, smooth=2.0, low=True, min_pts=5):
+    """a piece's lower (or upper) edge per angle round an axis, from its hull points: per sector (with at least min_pts
+    points) the q-th percentile of height (100 - q for the upper), filled round the circle and smoothed -> fn(theta) ->
+    height (world z)."""
     from .geom import loft
     _, th, _ = ax.coords(P)
     j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
     z = np.full(n, np.nan)
     for k in range(n):
         zk = P[j == k, 2]
-        if len(zk) >= 5:
+        if len(zk) >= min_pts:
             z[k] = np.percentile(zk, q if low else 100 - q)
     z = loft._fill_periodic(z)
     if z is None:
@@ -426,9 +427,10 @@ def _hull_points(hull, s, fold=()):
     return np.concatenate(P)
 
 
-def front_surface(P, cell, fill=3):
+def front_surface(P, cell, fill=3, smooth=0.0):
     """a piece's front (its least y, toward the viewer) over a grid of (x, z) cells of size `cell`, from its hull points,
-    empty cells filled from their neighbours `fill` times and then from the nearest -> fn(x, z) -> y."""
+    empty cells filled from their neighbours `fill` times and then from the nearest, then (smooth: sigma in cells)
+    Gaussian-smoothed -> fn(x, z) -> y."""
     x0, z0 = P[:, 0].min() - cell, P[:, 2].min() - cell
     nx = int((P[:, 0].max() - x0) / cell) + 3
     nz = int((P[:, 2].max() - z0) / cell) + 3
@@ -448,6 +450,9 @@ def front_surface(P, cell, fill=3):
         bi, bj = np.nonzero(~ok)
         near = ((bi[:, None] - gi[None]) ** 2 + (bj[:, None] - gj[None]) ** 2).argmin(1)
         Y[bi, bj] = Y[gi[near], gj[near]]
+    if smooth:
+        from .geom import loft
+        Y = loft.gauss1d(loft.gauss1d(Y, smooth, axis=0), smooth, axis=1)
 
     def fn(x, z):
         u = np.clip((np.asarray(x) - x0) / cell - 0.5, 0, nx - 1.001)
@@ -665,6 +670,9 @@ def skirt_hull(A, spec, hull):
     zig = np.abs((ph % 1.0) - 0.5) * 2 - 0.5
     R = F.R + off + depth * zig * VV ** 0.7
     T = t0_at(TH) + VV * (hem_at(TH) - t0_at(TH))
+    clear_info = None
+    if spec.get('clear_hands'):
+        R, clear_info = clear_arms(A, spec, hull, ax, T, np.broadcast_to(TH, T.shape), R)
     verts = ax.point(T, np.broadcast_to(TH, T.shape), R).reshape(-1, 3)
     faces = [(i * n + k, i * n + (k + 1) % n, (i + 1) * n + (k + 1) % n, (i + 1) * n + k)
              for i in range(rows) for k in range(n)]
@@ -682,7 +690,47 @@ def skirt_hull(A, spec, hull):
     leg = 0.65 * vv ** 1.4
     Wt = {'hips': 1 - leg, 'leftUpperLeg': leg * (1 + sx) / 2, 'rightUpperLeg': leg * (1 - sx) / 2}
     return dict(verts=verts, faces=faces, weights=Wt, uv=uvs, panel=pan, z_waist=float(top - np.median(t0_at(F.th))),
-                panel_half=half, axis=ax, grid=(rows + 1, n))
+                panel_half=half, axis=ax, grid=(rows + 1, n), clear=clear_info)
+
+
+ARM_BONES = ('LowerArm', 'Hand', 'Thumb', 'Index', 'Middle', 'Ring', 'Little')
+
+
+def arm_points(A, spec=None, hull=None, w_min=0.3):
+    """the hands', fingers' and forearms' skin at bind (their bones' weight over w_min), and the wrist bands built on the
+    forearms (band_hull, from the whole spec in `_spec`): what a skirt hanging beside the arms must clear."""
+    W = A['weights']
+    w = sum((np.asarray(W[b]) for b in W if any(k in b for k in ARM_BONES)), np.zeros(len(A['verts'])))
+    P = [A['verts'][w > w_min]]
+    whole = (spec or {}).get('_spec') or {}
+    for g in whole.get('garments', []):
+        if g.get('kind') == 'band' and 'LowerArm' in g.get('bone', '') and g.get('source') == 'hull' and hull:
+            P.append(np.asarray(band_hull(A, g, hull)['verts']))
+    return np.concatenate(P)
+
+
+def clear_arms(A, spec, hull, ax, T, TH, R, chunk=256):
+    """a skirt's radius field capped clear of the arms hanging beside it (the hands rest in its flare at bind, and the
+    rig's skin went through the cloth): at each cell no more than the arm point's radius less `clear_hands` L, the cap
+    easing back out by `clear_slope` of the distance (a cone round each point, so the dent is smooth), over the arm points
+    within the skirt's height. -> (R, dict(points, cells capped, max dent (L)))."""
+    L = A['head']['L']
+    P = arm_points(A, spec, hull)
+    tp, thp, rp = ax.coords(P)
+    keep = (tp > T.min() - 0.1 * L) & (tp < T.max() + 0.1 * L)
+    tp, thp, rp = tp[keep], thp[keep], rp[keep]
+    c = spec['clear_hands'] * L
+    k = spec.get('clear_slope', 0.6)
+    cap = np.full(R.shape, np.inf)
+    Tf, THf = T.reshape(-1), TH.reshape(-1)
+    for a in range(0, len(tp), chunk):
+        dt = Tf[:, None] - tp[None, a:a + chunk]
+        dth = np.angle(np.exp(1j * (THf[:, None] - thp[None, a:a + chunk]))) * rp[None, a:a + chunk]
+        cc = rp[None, a:a + chunk] - c + k * np.hypot(dt, dth)
+        cap = np.minimum(cap, cc.min(1).reshape(R.shape))
+    R2 = np.minimum(R, cap)
+    dent = (R - R2) / L
+    return R2, dict(points=int(len(tp)), cells=int((dent > 1e-6).sum()), max_dent=round(float(dent.max()), 4))
 
 
 def panel(A, spec):
@@ -733,8 +781,12 @@ def flap(A, spec, hull):
     from its waist (tucked under the band, as the skirt is) to its hem, `clear` L plus its thickness off the pleats'
     crests, then carried on below the hem as a longer section of the skirt's cone: each column continues the skirt's
     own slope there, tilted `out` further out and `sweep` toward the centre back, for `length` L at its front edge and
-    `train` more at its back edge (a stepped diagonal in front, a train sweeping back in profile). Centred on azimuth
-    `az` (degrees, 0 the front, + her left), `width` L wide at the skirt's hem and `narrow` of that angle at the waist.
+    `train` more at its lowest: its back edge (a stepped diagonal in front, a train sweeping back in profile), or with
+    `tip` < 1 a V pointing down `tip` of the way from its front edge to its back edge (the design's flaps: their hems
+    rise to the side and to the centre back from a point at the back corner); `stair` treads a side make that hem a
+    staircase in silhouette (0: straight). Centred on azimuth `az` (degrees, 0 the front, + her left) at the skirt's
+    hem and `az_waist` (default az) at the waist, `width` L wide at the skirt's hem and `narrow` of that angle at the
+    waist (above 1: wider at the waist).
     Needs the hull skirt it lies on (`over`, default skirt, from the whole spec in `_spec`). Its chain as data: `bones`
     bones joint to joint along its middle column, the first from the waist to the skirt's hem (parent hips), the rest
     along the tail, named NAME_0, NAME_1, ... (charkit.flapchains writes the path into the outfit graph; the rig stage
@@ -747,7 +799,7 @@ def flap(A, spec, hull):
     sk = next((g for g in whole.get('garments', []) if g['name'] == spec.get('over', 'skirt')), None)
     if not sk or sk.get('source') != 'hull':
         raise ValueError('%s: a flap lies on a hull skirt (%s)' % (spec['name'], spec.get('over', 'skirt')))
-    Gs = skirt_hull(A, sk, hull)
+    Gs = skirt_hull(A, dict(sk, _spec=whole), hull)
     ax = Gs['axis']
     nr, n = Gs['grid']
     t, th, r = ax.coords(np.asarray(Gs['verts']))
@@ -759,6 +811,7 @@ def flap(A, spec, hull):
     Rc = np.maximum.reduce([np.roll(R, k, 1) for k in range(-pw, pw + 1)])       # the pleats' crests
     lift = (spec.get('clear', 0.03) + spec.get('thick', 0.01)) * L
     a0 = math.radians(spec.get('az', 120.0))
+    a0w = math.radians(spec.get('az_waist', spec.get('az', 120.0)))          # its centre at the waist
     cols = spec.get('cols', 16)
     at = lambda Z, i, a: np.interp(np.mod(a + math.pi, 2 * math.pi) - math.pi, th_s, Z[i][order], period=2 * math.pi)
     half1 = spec.get('width', 0.4) * L / 2 / max(1e-6, float(at(Rc, nr - 1, a0)))
@@ -767,7 +820,7 @@ def flap(A, spec, hull):
     over = []
     for i in range(nr):
         v = i / (nr - 1)
-        a = a0 + u * (half0 + (half1 - half0) * v)
+        a = a0w + (a0 - a0w) * v + u * (half0 + (half1 - half0) * v)
         over.append(ax.point(at(T, i, a), a, at(Rc, i, a) + lift))
     over = np.array(over)                                                        # (nr, cols + 1, 3)
     # the tail: each column carries on along the skirt's slope at its hem, longer toward the back edge
@@ -781,7 +834,15 @@ def flap(A, spec, hull):
     dirs = slope + spec.get('out', 0.3) * e_out + spec.get('sweep', 0.3) * e_back
     dirs /= np.linalg.norm(dirs, axis=1)[:, None]
     back = (u * sgn + 1) / 2                                                  # 0 at the front edge .. 1 at the back
-    lens = spec.get('length', 0.6) * L * (1 + spec.get('train', 1.0) * back)
+    # the hem's profile across the flap, 0 at its edges' rise .. 1 at its lowest: a diagonal down to the back edge
+    # (tip 1), or a V whose point is `tip` of the way from the front edge to the back; `stair` treads a side make the
+    # hem's silhouette a staircase (the design's stepped hem), each tread level across its columns
+    tip = float(spec.get('tip', 1.0))
+    prof = back if tip >= 1 else np.where(back <= tip, back / max(tip, 1e-9), (1 - back) / max(1 - tip, 1e-9))
+    stair = int(spec.get('stair', 0))
+    if stair:
+        prof = np.minimum(1.0, (np.floor(prof * stair + 1e-9) + 1) / stair)
+    lens = spec.get('length', 0.6) * L * (1 + spec.get('train', 1.0) * prof)
     m = spec.get('tail_rows', 12)
     rows_t = [hem + (s_ * lens)[:, None] * dirs for s_ in np.linspace(0, 1, m + 1)[1:]]
     S = float(lens[cols // 2])
@@ -1077,9 +1138,19 @@ def bow_hull(A, spec, hull):
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
         S = np.concatenate([B] + tails)
         S = S[S[:, 1] < np.percentile(S[:, 1], 2) + spec.get('front_band', 0.3) * L]   # its front (stray labels behind)
-        fy = front_surface(S, spec.get('cell', 0.04) * L)
+        fy = front_surface(S, spec.get('cell', 0.04) * L, smooth=spec.get('front_smooth', 1.0))
         V = G['verts']
-        V[:, 1] += (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
+        dy = (fy(V[:, 0], V[:, 2]) - (y - depth)) * spec.get('conform_k', 1.0)
+        # the shift smoothed over the mesh (neighbours' mean): the grid's cells stepped the lobes' edges, which read
+        # torn in profile, and pushed the lobes' backs into the collar under them
+        nb = [set() for _ in range(len(V))]
+        for f in G['faces']:
+            for a in f:
+                nb[a].update(f)
+        nb = [np.fromiter(n, int) for n in nb]
+        for _ in range(spec.get('conform_smooth', 4)):
+            dy = np.array([dy[n].mean() if len(n) else dy[i] for i, n in enumerate(nb)])
+        V[:, 1] += dy
     G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
 
@@ -1159,24 +1230,32 @@ def surface_walk(V, N, p0, d0, step, n, bias=None):
     return np.array(pts)
 
 
-def collar(A, spec, normals=None):
+def collar(A, spec, normals=None, neckline=None):
     """a sailor collar that drapes: from the neckline, at each azimuth, a walk along the body surface outward and down
     (over the shoulders at the sides, down the chest in front, down the back behind) to a length by azimuth; a V opening at
     the front, a square flap behind; lifted by `offset`. The stripe runs `stripe` (a share of the length) in from its
-    edge. -> dict(verts, faces, weights, uv, edge (per face: 1 on the stripe))."""
+    edge. The neckline: level at the neck bone's head plus `rise` L, or `neckline` (fn(azimuth) -> world z: the design's,
+    collar_hull's), where the collar starts on the body at each azimuth; with `keep_edge` (default) each column's walk is
+    shortened by how far below the level ring it starts, so the collar's outer edge stays. -> dict(verts, faces, weights,
+    uv, edge (per face: 1 on the stripe))."""
     from .anime_head import raycast
     L = A['head']['L']
     V, F = A['verts'], A['faces']
     N = normals if normals is not None else vertex_normals(V, F)
     nb, _ = bone_seg(A, 'neck')
-    z0 = nb[2] + spec.get('rise', 0.0) * L
+    z_ref = nb[2] + spec.get('rise', 0.0) * L
+    keep = neckline is not None and spec.get('keep_edge', True)
+    if neckline is None:
+        neckline = lambda a: z_ref
+    zs = np.array([float(neckline(a)) for a in np.linspace(-math.pi, math.pi, 73)])
+    z_lo, z_hi = float(zs.min()), float(zs.max())
     cy = nb[1] + 0.02 * L
     vd, sd, bd = (spec.get(k, d) * L for k, d in (('v_depth', 0.62), ('side_depth', 0.30), ('back_depth', 0.5)))
     v_half = math.radians(spec.get('v_half', 36.0))
-    near = (np.abs(V[:, 2] - z0) < 0.08 * L) & (N[:, 2] > -0.45)
+    near = (V[:, 2] > z_lo - 0.08 * L) & (V[:, 2] < z_hi + 0.08 * L) & (N[:, 2] > -0.45)
     # walk on the neck and torso only (the jaw's underside is close to the neck's front: never snap to the head)
     hw_ = A['weights'].get('head', np.zeros(len(V)))
-    tor = (hw_ < 0.3) & (V[:, 2] < z0 + 0.04 * L) & (V[:, 2] > z0 - 1.2 * L) & (N[:, 2] > -0.45)   # no under-jaw
+    tor = (hw_ < 0.3) & (V[:, 2] < z_hi + 0.04 * L) & (V[:, 2] > z_lo - 1.2 * L) & (N[:, 2] > -0.45)   # no under-jaw
     Vt, Nt = V[tor], N[tor]
     T = np.array([(f[0], f[k], f[k + 1]) for f in F if all(near[v] for v in f) for k in range(1, len(f) - 1)])
     na, nr = spec.get('cols', 96), spec.get('rows', 12)
@@ -1193,28 +1272,53 @@ def collar(A, spec, normals=None):
     for k in range(na):
         a = -math.pi + 2 * math.pi * (k + 0.5) / na
         d = np.array([math.sin(a), -math.cos(a), 0.0])
-        o = np.array([0.0, cy, z0])
+        o = np.array([0.0, cy, float(neckline(a))])
         t = raycast(o, d[None], V, T)[0] if len(T) else np.inf
         p0 = o + d * (t if np.isfinite(t) else 0.06 * L)
         ln = length(a)
+        if keep:
+            # a neckline below the level ring (rise) keeps the collar's outer edge where the ring's walk put it: each
+            # column shorter by how much lower it starts (the back flap's square bottom stays level)
+            ln = max(0.2 * ln, ln - max(0.0, z_ref - float(neckline(a))))
         path = surface_walk(Vt, Nt, p0, d * 0.7 + np.array([0, 0, -0.3]), ln / (nr * 2), nr * 2,
                             bias=np.array([0, 0, -0.25]))
         for j in range(nr + 1):
             i_ = int(np.argmin(((Vt - path[2 * j]) ** 2).sum(1)))
             grid[j, k] = path[2 * j] + Nt[i_] * off
-    verts = grid.reshape(-1, 3)
-    uvs = [(k / na, j / nr) for j in range(nr + 1) for k in range(na)]
-    faces, edge = [], []
     st0, st1 = spec.get('stripe', (0.72, 0.86))
-    for j in range(nr):
-        for k in range(na):
-            a = -math.pi + 2 * math.pi * (k + 0.5) / na
+    faces, edge = [], []
+    if spec.get('v_edge', 'exact') == 'exact':
+        # the V opening's edges as lines: each row resampled round from the V's edge on her left, by the back, to its
+        # edge on her right (an open strip), rather than the V cut by whole quads, whose staircase edge read as a torn
+        # lapel tip beside the neck
+        m = na
+        rows_ = []
+        for j in range(nr + 1):
+            av = min(v_half * (1 - j / nr), math.radians(60))
+            phi = av + (2 * math.pi - 2 * av) * np.arange(m + 1) / m          # 0 the front, + her left, round the back
+            u = (np.mod(phi + math.pi, 2 * math.pi) / (2 * math.pi)) * na - 0.5
+            k0 = np.floor(u).astype(int)
+            f = (u - k0)[:, None]
+            rows_.append((1 - f) * grid[j, k0 % na] + f * grid[j, (k0 + 1) % na])
+        verts = np.concatenate(rows_)
+        uvs = [(i / m, j / nr) for j in range(nr + 1) for i in range(m + 1)]
+        for j in range(nr):
             s_mid = (j + 0.5) / nr
-            if abs(a) < v_half * (1 - s_mid) and abs(a) < math.radians(60):
-                continue                                       # the V opening
-            k2 = (k + 1) % na
-            faces.append((j * na + k, j * na + k2, (j + 1) * na + k2, (j + 1) * na + k))
-            edge.append(1 if st0 <= s_mid <= st1 else 0)
+            for i in range(m):
+                faces.append((j * (m + 1) + i, j * (m + 1) + i + 1, (j + 1) * (m + 1) + i + 1, (j + 1) * (m + 1) + i))
+                edge.append(1 if st0 <= s_mid <= st1 else 0)
+    else:
+        verts = grid.reshape(-1, 3)
+        uvs = [(k / na, j / nr) for j in range(nr + 1) for k in range(na)]
+        for j in range(nr):
+            for k in range(na):
+                a = -math.pi + 2 * math.pi * (k + 0.5) / na
+                s_mid = (j + 0.5) / nr
+                if abs(a) < v_half * (1 - s_mid) and abs(a) < math.radians(60):
+                    continue                                       # the V opening
+                k2 = (k + 1) % na
+                faces.append((j * na + k, j * na + k2, (j + 1) * na + k2, (j + 1) * na + k))
+                edge.append(1 if st0 <= s_mid <= st1 else 0)
     from .body import nearest
     nn = nearest(verts, V)
     W = {b: w[nn] for b, w in A['weights'].items() if w[nn].max() > 1e-4}
@@ -1225,10 +1329,23 @@ def collar_hull(A, spec, normals, hull):
     """collar() laid onto the hull's collar (conform): the sailor collar walked on the body as before, then each vertex
     moved along its normal onto the design's collar surface where the hull shows it (the back flap lies flat on the
     back, the lapels follow the neckline); `offset` L out from it."""
-    G = collar(A, spec, normals)
     P = _hull_points(hull, spec)
     L = A['head']['L']
-    V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12))
+    neckline = None
+    if spec.get('neckline', 'hull') == 'hull':
+        # seated where the design's collar starts on the body, per azimuth round the neck: its hull points' upper edge
+        # (lower at the back and the sides than in front, on the neck's flare into the shoulders), not one level ring
+        # round the neck, which rode up it like a turtleneck
+        from .geom import loft
+        nb, _ = bone_seg(A, 'neck')
+        ax = loft.Axis((nb[0], nb[1], 0.0), (0, 0, -1), (0, -1, 0))
+        top = hull_edge(P, ax, n=spec.get('neck_sectors', 36), q=spec.get('neck_q', 3.0), low=False,
+                        smooth=spec.get('neck_smooth', 1.5), min_pts=spec.get('neck_min_pts', 10))
+        drop = spec.get('neck_drop', 0.0) * L
+        neckline = lambda a: top(a) - drop
+    G = collar(A, spec, normals, neckline)
+    V = conform(G['verts'], G['faces'], P, L, reach=spec.get('reach', 0.12), k=spec.get('conform_k', 8),
+                smooth=spec.get('conform_smooth', 3))
     G['verts'] = V + vertex_normals(V, G['faces']) * spec.get('lift', 0.005) * L
     return G
 
@@ -1390,7 +1507,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
         elif k == 'skirt':
-            G = skirt_hull(A, s, hull) if s.get('source') == 'hull' else skirt(A, s)
+            G = skirt_hull(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'hull' else skirt(A, s)
             pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * math.pi)
             tex = stepped_hem(colors=(col, s.get('hem_color', (0.28, 0.2, 0.18))), panel=(0.5 - pw, 0.5 + pw),
                               repeat=s.get('repeat', 8), pleats=s.get('pleats', 24))

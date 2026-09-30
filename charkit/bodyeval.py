@@ -540,7 +540,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     elif k == 'sleeve':
         G = gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
     elif k == 'skirt':
-        G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
+        G = gm.skirt_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
         G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
     elif k == 'bow':
