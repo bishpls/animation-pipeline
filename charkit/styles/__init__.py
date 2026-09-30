@@ -14,6 +14,23 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            lock_shading (0..1: how much of each lock's own outer normal, smoothed within the lock lock_shading_smooth
            times, is blended into the mass's, so its relief and grooves shade), bun_e, bun_q, bun_slab (a block bun's squareness (0 a box, 1 an ellipsoid), the share of the hull's bun
            points its extent ignores at either end, its folded slab's share of its width)
+  face     the face's construction (charkit.geom.headfit): eye_region ('socket': a dip at each eye takes the surface back
+           to the design's eye depth, a realistic orbit; 'window': the anime eye region, a flat window round each eye,
+           yawed back toward its outer corner by the design's own yaw (yaw 'design', or degrees), with the brow and the
+           cheek no further forward than it; max_yaw caps it), margin (L: the window past the eye's opening), reach (L,
+           up and down: how far above and below the window the correction reaches), hold and curve (the brow and the
+           cheek held behind the window's plane, allowed forward of it by curve * d^2 at d L out of the window (a pair:
+           above and below the window's centre, the brow and the cheek); toward the
+           nose it lets go from `release` of the window's half-width in from the eye), forward (L: how far the window may
+           bring the face out of its own surface, None: as far as the plane asks),
+           cheek_peak (where across the face, as a share of its half-width, the cheek term that meets the three-quarter's
+           far contour is fullest: 0.5 under the eye, larger toward the cheekbone); jaw_under (the chin overhangs the
+           neck: the head's mesh carries the jaw's underside, rising from the design's jaw line toward the throat,
+           charkit.geom.headgeom.UnderJaw; off, the chin is the rows' own step), jaw_rise ('design': the underside's angle
+           read in the head sheet's profile, or degrees) within jaw_rise_range (degrees; Clawd's design reads 13.7),
+           jaw_edge ('design': the jaw line an edge in 3D at the depth the head sheet's three-quarter draws it, its
+           underside carried round the sides to the jaw's angle, charkit.geom.headgeom.jaw_envelope; None: the rim on
+           the envelope's front under the neck's width only)
   look     the render look (charkit.shade, faceshade; the boards, turntables and the glTF export's look extension):
            light: mode 'world' (one fixed art-directed light, `dir` toward it) or 'camera' (a key that turns with the
            camera: `key` = [degrees to the camera's left, degrees above], so a turntable's back is lit as its front is);
@@ -34,6 +51,15 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            its column wide about `elevation` +- `jitter`; `amount`, `color`), deep_at (the deep tone's step on
            half-lambert: lower keeps the deep tone to hair turned right away from the light), lock_shade (the families
            in `under`, the layers under others, drawn that far from their lit tone toward their shade: 0 off .. 1)
+  eyes     the eye's surface behind its opening (charkit.eyes: Surface, the knobs in eyes.DEFAULT_EYE): surface 'plate'
+           (on the face, `depth` behind it: every view sees the whole opening, as a plate on the face) or 'turned' (a
+           vertical fold following the iris's nasal outline; nasal of it the surface faces the front, turn[0] degrees
+           toward the nose, so a side view can't see it; past it the surface turns outward from turn[1] to turn[2] at
+           the outer corner; the lids, lashes, pocket and the skin within fold_reach L of the opening follow it, every
+           (x, z) kept: the front view is the plate's), anchor (where it sits against the face: 'corners', 'min',
+           'mean', 'fold'), fold_follow (0: the profile's front edge upright; 1: each row's fold at the face's depth
+           there), converge (the irises' rest place toward the nose, eye widths, when the spec's iris doesn't set it;
+           only with a turned surface: a plate's far eye in three-quarter loses its nasal white)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
            gravity, cloth stiffness and damping, hair spring stiffness and damping, gravity scale. Declared here so the
            solvers are written against a profile from the start
@@ -48,6 +74,9 @@ DEFAULT = {
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
                     'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06,
                     'relief': 0.0, 'lock_shading': 0.0, 'lock_shading_smooth': 8, 'bun_e': 0.3, 'bun_q': 0.06, 'bun_slab': 0.38},
+    'face': {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
+             'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5,
+             'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design'},
     'look': {'light': {'mode': 'world', 'dir': [-0.45, -0.55, 0.70], 'key': [39.3, 44.6]},
              'lines': {'mode': 'world', 'frac': 0.0025, 'regions': {'skin': 1.0, 'hair': 1.0, 'garment': 1.0, 'accessory': 1.0},
                        'color': 'build', 'ink': [0.24, 0.13, 0.11]},
@@ -58,6 +87,7 @@ DEFAULT = {
                       'under': []}},
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
+    'eyes': {'surface': 'plate'},
 }
 
 
