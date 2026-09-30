@@ -425,3 +425,30 @@ per-height maximum radius jumps from the jaw's underside (r 0.30 L) to the chest
 whole neck lies behind that plane, so it reads as the back panel (half-width 0.4) and the collar (and its skin mask)
 wraps the neck. Variants c3_D4 (collar outline `front_of` 'neck') and c3_D5 (D4 + the jacket's opening `front_of`
 'neck') test the split at the neck's own plane.
+
+**The split at the neck (box c3_D4: the collar's outline `front_of` 'neck'; c3_D5: + the jacket's opening):** against D3,
+neck_crease 92.6 -> 45.5/45.7 FAIL (the neck's front now shows: r 0.115 L continuous through the cut), piece_collar 0.639
+-> 0.683 WARN, collar_front_torn 0.0197 -> 0.0087 FAIL; but collar_profile_torn 0.0252 -> 0.0976 FAIL, art_outline_collar
+3.82 -> 8.54 / 6.80 WARN and art_fragments_collar 3.62 -> 9.27 (the collar's front and back halves meet in profile at the
+neck's plane, a torn edge). Not taken. The crease left on D5 (crease.py): columns +-25..55 degrees, 0.07-0.10 L under
+the cut, r 0.146 -> 0.175 -> 0.202 with gaps: the chest in the V (the jacket's V shows skin there now, as drawn) and
+the shoulders template's turn; the measure reads the V's chest within JOIN (0.10 L under the cut).
+
+Review page: `charkit/out/collar_round3/review/index.html` (design | before c3_before | after c3_m2 = M2 | option D3, the
+back view, the bow zoomed, the profile, the neck junction; every check whose status moved; generator review.py and
+cu2.py beside it).
+
+### M3: open, in order (for the next agent)
+
+1. The collar's front/back split: neither the chest's plane (the neck wrapped: neck_crease 92.6, the front torn) nor the
+   neck's (the profile torn) works. Next: a split that follows the body (the lapels' front outline defined round the
+   neck by azimuth, e.g. outline_dist's `front` as |angle from the front| < a table per height, so the neck's sides
+   belong to the lapels' inner edge), measured on collar_profile_torn, collar_front_torn and neck_crease per column
+   (crease.py) together.
+2. shoulder_back_slope 0.249 FAIL on every D (a guard, not a flag): the level shoulders template against the design's
+   slope; fit `fall`/`round`/`x` with shoulder_back_line (0.0235 WARN: the torso can't rise above the neck ring) and
+   collar_back_lay (0.0094 PASS).
+3. art_outline_collar (flag; PASS <= 2 corners): 3.8 on D3; count the corners with corners.py on c3_D3 before changing
+   anything (the puffs' station adds a corner where the puffs meet the collar's side in front, round 1).
+4. The jacket's front in profile under the ribbons (the bow's profile IoU 0.30 on M2): not started.
+5. hair_noise 0.0782 WARN on D3 (0.0018 of margin), art_speckle_neck 1.08 PASS on D3: held.
