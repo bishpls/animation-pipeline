@@ -323,3 +323,39 @@ and three-quarter lower 1.47/2.33/1.85, face in profile 0.633):**
   drawing's other hair let the box hang over the head in profile, where the bun is in front: `bun_over` per view
   (profile 1.0) raised profile to 0.42 (over 1 in front too cost the front and the IoU). The drawn front bun also has
   tails (strands flaring from its base into the hair) that no box covers.
+
+**Defaults chosen (`586d7b6`)**, from nine batches of `hairlab` variants over h3_base (same bundle, same hull):
+- `hairpieces.OPTS`: `crown_cap` 20, `crown_blend` 8, `cap_top` 0.006 L (the cover sits 0.006 L under the envelope at
+  the pole, the locks' tops held just under it where it is outermost: at -0.002 it stood 2-10 px over the drawn crown
+  in profile, at 400 px/L); `side_lock_trim` on with `trim_cut` false, `trim_smooth` 3, `trim_margin` 0.01 L, above
+  the chin only; `tuck_flyaways` on. `cap_sectors` stays off (each sector is its own shell: shards along the crown in
+  every view, fragments 9/13/6/10 -> 14/26/8/13). The ribbon fit's second start (loops set forward,
+  `bun_loop_starts` 2) lowers the fit's loss but not the outline (0.423 against 0.447): off.
+- The anime style's `notch` 3 -> 0: the drawn edge carries the notches; the deepening made the V's between tips that
+  the steps measure counts (profile lower edge 2.28 -> 1.77 per L; hair_fringe_low 0.0094 -> 0.0047 L).
+- Clawd's specs (clawd.json and its alias clawd_body_pieces.json): `bun: "ribbon"`.
+- Call F (relief strength, the side-lock clamp) is untouched: `clamp_side_locks` stays off, `side_lock_trim` is its own
+  switch.
+
+| check (hairlab, h3_base) | design | before (old defaults) | after |
+|---|---|---|---|
+| fragments front / 3q / profile / back | 0 / 0 / 0 / 0 | 11 / 16 / 15 / 10 | 6 / 13 / 8 / 7 |
+| islands (a lock inside another) | 0 | 0 (flicks 0/2/3/0) | 0 (flicks 0/2/3/0) |
+| steps/L profile front (the hair's front at the jaw) | 0.38 | 1.47 | 1.52 |
+| steps/L profile lower | 0.41 | 2.33 | 1.76 |
+| steps/L three-quarter lower | 0.26 | 1.85 | 2.28 |
+| steps/L back lower | 0.30 | 0.00 | 0.00 |
+| hair_bun_outline (front, profile) | 0.7 target | 0.393 (0.443, 0.308) | 0.448 (0.52, 0.32) |
+| hair_piece bangs / side locks / upper back / lower back / buns | | 0.758 / 0.537 / 0.780 / 0.723 / 0.831 | 0.764 / 0.541 / 0.776 / 0.719 / 0.834 |
+| hair_fringe_low (L) | | 0.0094 | 0.0047 |
+| hair_penetration (L) | | 0.0148 | 0.0148 |
+| builder folds | | 9 | 5 |
+| face shown / design: front, 3q, profile | 1 | 1.124, 1.040, 0.633 | 1.119, 1.046, 0.689 |
+
+Regressions, by cause:
+- **upper back -0.004**: the crown's cover in profile (a band where the fringe's slivers were, over a crown that
+  stands above the drawn one) and the ribbon buns (their loops occlude the crown differently in profile).
+- **lower back -0.004**: the trim's pull in the front view: the side locks drawn back at the cheek show the lower
+  back behind them where the drawing has side lock.
+- **three-quarter lower edge +1 step**: a lower-back tip (row 791) crosses the 0.003 L tooth threshold with notch 0.
+  The step counts are single lobes at these lengths (1.7-2.7 L of edge): one lobe is 0.4-0.6 per L.
