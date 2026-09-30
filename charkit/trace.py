@@ -31,8 +31,9 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _T = None                               # the open trace
-# measured with these modifiers off: render tricks, not surface (the inverted-hull outline; the mask hiding skin under clothes)
-OUTLINE_MODS = ('outline', 'under_garments')
+# measured with these modifiers off: render tricks, not surface (the inverted-hull outline; the mask hiding skin under clothes;
+# the skin's shading normals carried from its proxy, charkit.faceshade: they move no vertex, and cost 0.7 s an evaluation)
+OUTLINE_MODS = ('outline', 'under_garments', 'proxy_normals')
 # parts that are open sheets by design (plates, ribbons, strips, proxies): their open edges are not a fault
 SHEETS = ('brow_', 'iris_', 'sclera_', 'lash_', 'mouth_line', 'teeth', 'tongue', 'hair_shape_normals')
 HEALTH_FLAGS = ('open_edges', 'nonmanifold_edges', 'inverted_shells', 'degenerate_faces', 'loose_verts')
