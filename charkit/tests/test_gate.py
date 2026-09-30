@@ -546,3 +546,15 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_a_cached_build_needs_its_bundle_arrays(tmp_path):
+    """a cached baseline that kept its qa.json but lost bundle/arrays.npz isn't one a gate can stand on (the 2x2 reads
+    its bundle: tool/calib's real-pair gates on the box, 2026-09-30)."""
+    out = tmp_path / 'base_x'
+    (out / 'qa').mkdir(parents=True)
+    (out / 'qa' / 'qa.json').write_text('{}')
+    (out / 'bundle').mkdir()
+    assert not gate._whole(str(out))
+    (out / 'bundle' / 'arrays.npz').write_bytes(b'')
+    assert gate._whole(str(out))
