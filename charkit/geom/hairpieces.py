@@ -42,8 +42,13 @@ FAMILY_PHI = {'bangs': (0, 100), 'upper_back': (50, 180), 'lower_back': (50, 180
 # stray one from carrying a family round the head
 LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5, 'lower_back': 2.5}
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
-OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
-            chain=6, fine_tips=('bangs',))
+OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
+            chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
+            trim_smooth=3.0, trim_margin=0.01, tuck_flyaways=True)
+# (hair round 3's defaults: the crown's one cover (crown_cap 20, crown_blend 8, cap_top 0.006 L under the envelope at
+# the pole: the pole's slivers gone), side_lock_trim pulling without cutting, from 0.01 L ahead of the drawn edge, smoothed
+# over 3 cells (face in profile 0.63 -> 0.69 of the design's, side-lock folds 4 -> 3), the flyaways tucked;
+# crown_blend 0 and crown_cap 8 give the old fan)
 # (build's opts also: bun 'round' | 'block' (the design's bun template: a round shell or fitted block loops), bun_fit,
 # carve_buns; clamp_side_locks (a taste call, off by default: the side locks held behind the drawn profile's front
 # edge) with clamp_mode 'envelope' (side_lock_trim: the chart's side-lock cells cut before the locks are shaped;
@@ -1054,7 +1059,7 @@ def bun_targets(masks, views, hull_frame, head_c, side):
     return out
 
 
-def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25):
+def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25, loop_starts=1):
     """a block bun's pose and size fitted to the drawn bun: from bun_block's frame and extents (the hull's points), the
     centre, a rotation and the three half-sizes that best cover each view's drawn bun, then with the fold's slab free
     too (its place and size in the bun's frame) (Nelder-Mead on the silhouettes: the drawn bun missed and ours outside
@@ -1103,7 +1108,7 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
         simplex = np.vstack([x0] + [x0 + d for d in np.eye(n) * steps])
         x = minimize(loss, x0, method='Nelder-Mead', options=dict(maxfev=fev, initial_simplex=simplex, xatol=1e-3,
                                                                    fatol=1e-4)).x
-    if kind == 'ribbon':
+    if kind == 'ribbon' and loop_starts > 1:
         # (the loops' placement: the fit starts them set back; bun_detail's side view and the sheet's profile disagree
         # on which side the step shows, so a start set forward is fitted too and the better kept)
         x1 = np.r_[x[:9], np.zeros(nx - 9)]
@@ -1459,7 +1464,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         Sk = F['S']
         floor = np.where(np.isfinite(Sk), Sk + o['gap'] * L + style['tip_thick'] * L +
                          LAYER['side_lock_L'] * style['inset'] * L, F['R'] - 0.3 * L)
-        trim = lambda Lc: side_lock_trim(F, Lc, masks, views, hull_frame, o.get('clamp_margin', 0.0),
+        trim = lambda Lc: side_lock_trim(F, Lc, masks, views, hull_frame, o.get('trim_margin', 0.0),
                                          o.get('clamp_share', 1.0), floor, o.get('trim_pull', True),
                                          o.get('trim_cut', True), o.get('trim_smooth', 0.7),
                                          o.get('trim_spread', -1.0) * L if o.get('trim_spread', -1.0) >= 0 else 0.0,
@@ -1522,7 +1527,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                     tg = bun_targets(masks, views, hull_frame, case.centre, sgn)
                     if tg:
                         fit, iou = fit_block(P, case.centre, style, tg, views, hull_frame,
-                                             tuple(o.get('bun_iters', (600, 900))), kind, o.get('bun_over', 0.25))
+                                             tuple(o.get('bun_iters', (600, 900))), kind, o.get('bun_over', 0.25),
+                                             o.get('bun_loop_starts', 1))
                         report.setdefault('bun_fit', {})[side] = iou
                 add(side, 'buns', [bun_block(P, case.centre, style, sgn, fit, kind)])
     # the ahoge: from the drawings' strokes (the hull carves so thin a crescent poorly), else its hull points

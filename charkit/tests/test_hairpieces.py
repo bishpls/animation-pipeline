@@ -49,7 +49,7 @@ def test_a_lock_is_a_closed_outward_fold_free_shell_clear_of_the_skin():
     F = sphere_fields(1.0, skin=0.8)
     ph = np.arange(-30, 31, 4.0)
     top = np.zeros(len(ph)); edge = 80 + 10 * np.cos(np.radians(ph * 6))
-    opts = dict(hp.OPTS)
+    opts = dict(hp.OPTS, crown_blend=0.0, crown_cap=8.0)   # (the plain shell: no crown cover over it)
     S = hp.lock_shell(F, 'bangs', -30.0, 30.0, 0.0, ph, top, edge, STYLE, opts, L=1.0)
     V, T = S['V'], S['T']
     n = _edges(T)
@@ -157,9 +157,9 @@ def test_a_tucked_blade_starts_under_the_surface_and_leaves_it_once():
 
 
 def test_the_crown_cover_is_outermost_then_under_every_layer():
-    o = dict(hp.OPTS, crown_cap=20.0, crown_blend=8.0)
+    o = dict(hp.OPTS, crown_cap=20.0, crown_blend=8.0, cap_top=-0.002)
     ins = hp.cap_inset(np.array([0.0, 10.0, 12.0, 16.0, 20.0]), o, STYLE, 1.0)
-    assert ins[0] < 0 and ins[1] == ins[0] and ins[2] == ins[0]         # outside the fringe to cap - blend
+    assert ins[0] == -0.002 and ins[1] == ins[0] and ins[2] == ins[0]   # cap_top (here outside the fringe) to cap - blend
     assert np.all(np.diff(ins[2:]) > 0) and ins[-1] > max(hp.LAYER.values()) * STYLE['inset']   # then under all
 
 
