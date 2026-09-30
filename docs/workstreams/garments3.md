@@ -400,3 +400,25 @@ piece_top 0.686 -> 0.688, piece_bodice_panel 0.839 -> 0.899, body_profile_iou 0.
 0.0283 PASS -> 0.033 WARN (the tails' inner edges no longer hidden behind the jacket's fronts in front: ours read
 their full width); INFO only: art points_bow 0 -> 0.6, spikes_bow 0 -> 0.017, peeks_bow 3 -> 1. Taken in the four
 specs that carry the taper (clawd, clawd_body, clawd_body_pieces, clawd_code).
+
+### art_speckle_neck: attributed to the lower back hair, rebuilt on the sheet-only masks' hull
+
+Base (pipeline-3d's bundle, g4/before = tr3_a: reads 1.289, the gate's base value) against the candidate (g3_render2:
+2.602; profile 30.75 -> 129.95, front and three-quarter unchanged), objects swapped into the candidate from the base
+(`artswap.py`): clawd_skin 2.603, top + bodice_panel 2.602, collar 2.654, bow 2.602, every garment 2.602; **all the
+hair 1.34 PASS; hair_lower_back alone 1.34 PASS** (profile 30.26); every other hair piece 2.602. The four specks are
+the lower back hair's.
+
+What changed it (hair pieces rebuilt locally, `hairattr.py`, cli.pieces_hair with mode off; the candidate's own
+rebuild matches the box's piece to 3e-6 m): the body's collar cap (code_body IN_FRONT collar, this branch) doesn't
+reach it (the piece rebuilt on a body without the cap is identical to 1e-10); **the hull does**: rebuilt on a hull
+carved from the TRELLIS-steered masks (the produced cache's look4 hull, masks ac92dcebb0) with the current hair layers,
+the lower back is the base's piece (9,890 vertices against our 9,634; 0.26 mm from the base bundle's), its seven
+locks split the back differently (vertices per lock 1376/714/1248/2654/1708/1472/718 against ours
+964/730/1648/2644/1700/1126/822). So: outfit-source's sheet-only masks -> the visual hull's shape at the back of the
+head -> the lower back locks -> the specks. Measured on the candidate bundle with the rebuilt piece swapped in
+(`arthair.py`; Blender's outline pull is the angle-weighted vertex normals times 0.0014 m, cos 1.0 on the candidate's,
+and the corner normals the piece's own vn): our rebuild 2.602 (exact), the TRELLIS-hull rebuild **1.34 PASS**.
+The specks: the hair's rendered surface is the piece pulled in 0.0014 m along its normals (the outline hull is the
+piece itself), and the pieces stand `gap` 0.006 L (0.0015 m) off the skin: the rendered underside comes within
+~0.1 mm of the neck, and where a lock meets the neck under the jaw in profile the skin and hair z-fight.
