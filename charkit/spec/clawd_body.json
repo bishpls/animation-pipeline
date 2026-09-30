@@ -1113,6 +1113,7 @@
   {
    "kind": "shell",
    "name": "shorts",
+   "hem_drop": 0.03,
    "region": [
     [
      "hips",
