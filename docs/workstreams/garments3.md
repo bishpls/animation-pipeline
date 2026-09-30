@@ -291,7 +291,31 @@ pipeline-3d's masked skin shows no neck column at +-115..175 degrees near the cu
 +-125..145 (crease 39.5-39.6 there; g3_a +-115..175). At the shoulders' sides (90 deg, z -0.62..-0.78) our torso stands
 at 0.404-0.416 L from its axis, pipeline-3d's 0.31-0.365; the hull's collar has no points there (only above z -0.58
 and behind, 105-180 deg). A cap over the collar's side points (tried, reverted) bound only at 50 deg (the lapels).
-Next: the top's `refine` (garments2's; pipeline-3d has none, thick 0.01) against the crease on the evaluator.
+
+Measured on the evaluator (`ev5.py`: its masked skin reads the box's 39.6 exactly; `neckline.py` per column): at
++-125..175 the masked skin shows down to z -0.597, one body row below the jacket's neckline, which dips at the back
+(-0.549 at 125 deg, -0.591 at 155) where the region's `neck` weight rule leaves the upper back out; the collar covers
+that band in the render but not in the mask. The top's `refine` 0/1/2 leaves the crease at 39.6 (not the cause).
+
+| top variant | neck_crease (worst col) | back cols 125/135 | top IoU (front/3q) | collar |
+|---|---|---|---|---|
+| as merged (neck 0.3, cut 0.04) | 39.6 (125) | 39.6 / 29.0 | 0.364 / 0.515 | 0.784 |
+| **neck 0.6 (taken, d7029ef)** | **26.9 (75)** | 17.6 / 14.7 | 0.364 / 0.515 | 0.784 |
+| cut 0.08 | 45.4 (65) | 39.9 / 20.5 | 0.342 / 0.499 | 0.786 |
+| neck 0.6, cut 0.08 | 18.7 (-25) | 1.8 / 8.6 | 0.342 / 0.499 | 0.786 |
+
+(IoUs with taper 2.) pipeline-3d reads 27.6 WARN. art_speckle_neck needs the box's look QA.
+
+### Taken so far (commits)
+
+- bdeeb8e the QA's windowed measures (exact); 1be39ab `drape.taper` 2 in the four specs that carry it (clawd, clawd_body,
+  clawd_body_pieces, clawd_code) and the promotion of art_points_sleeves, art_bumps_sleeves, art_band_lower
+  (`artifactqa.PROMOTED`; re-measured with this code: points_sleeves body6 31.7 / pipeline-3d 27.9 vs 0.0, bumps_sleeves
+  63.7 / 45.6 vs 0.0, band_lower body6 3.259 vs 1.201: 2.7x); d7029ef the top's neck weight 0.6.
+- Taper variants on the evaluator (piece IoU top / bow / bodice / waistband): none 0.657/0.604/0.804/0.886; taper 2
+  0.690/0.674/0.839/0.907; 3 0.669/0.598/0.828/0.907; 4 0.667/0.600/0.825/0.907; from -1.05 + 3 0.674/0.633/0.826/0.907.
+- af8cd2c merged pipeline-3d b43c15e (infra3 milestone A: K in gate.py, CPU seconds at the same thread cap;
+  toonrender2: the QA draws with charkit.render; hair4). Clean. infra3's local pre-gate check isn't in yet (its (l)).
 
 ### The three-quarter flaps
 
