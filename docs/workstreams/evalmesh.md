@@ -50,6 +50,46 @@ and two levels. A run takes about 1.5 s.
 - The old ports (`bodyeval.subdivide`, `charkit/subdiv.py`) get smooth, n-gon and triangle shapes to 1.5e-7. They miss
   creases (bodyeval.subdivide ignores them: 0.03 to 0.6 off) and open-border corners (0.004).
 
+**UVs:** Blender's converter (subdiv_converter_mesh) groups a vertex's corners into one UV value when they sit within
+STD_UV_CONNECT_LIMIT (1e-4) of the group's first corner *and* share its UV winding. The winding is cross_poly_v2 > 0:
+the trapezium rule in float32, summed from the last corner's edge. The float32 detail matters. The boots' sole caps
+have zero-area UV triangles (the trapezium gives exactly 0 in float32 and -1e-16 in float64), and deciding them in
+float64 put 800 boot corners 0.18 off. With the float32 rule the boots, skin and masked skin match to 1.6e-6.
+
+**Vertex groups through Subsurf:** Blender carries vertex data linearly: kept at the vertices, the mean of the ends at
+an edge's point, the mean of the corners at a face's (`subsurf._carry`, 4.7e-8 against Blender). Not the limit
+stencil. Weights above 1 are clamped when added to a group.
+
+**Solidify, as Blender lays it out** (offset -1, the lab's strips): the input vertices first and unmoved, then the
+copies moved t in along Blender's vertex normals (unit polygon normals weighted by corner angle). Then the input
+polygons, the copies reversed with the first corner kept, and a rim quad (b, a, a+n, b+n) per open edge a→b (rim
+faces in Blender's edge order; ours in loop order, which only reorders faces). Rim UVs are [ub, ua, ua, ub].
+edge_crease_outer goes on the input's open edges, _inner on the copies', _rim on the cross edges (v, v+n). The old
+port had the halves swapped and the copies fully reversed: the positions were right, the winding inside out.
+
+**The build's pieces** (`python -m charkit evalmesh build charkit/out/evalmesh/base_clawd`, report
+`charkit/out/evalmesh/lab_base/evalmesh.md`). Ours (geom.subsurf, geom.solidify) against local Blender on the same
+input:
+
+| piece | max L | mean L | faces, winding, first corner | UV max |
+|---|---|---|---|---|
+| skin (level 1) | 9.1e-6 | 3.0e-7 | all equal | 7.2e-7 |
+| skin, masked | 3.7e-6 | 3.4e-7 | all equal | 7.2e-7 |
+| garments, Solidify + Subsurf (16 pieces) | 9.9e-6 (shorts), 1.1e-5 (collar) | ≤ 4.7e-7 | all equal | ≤ 1.5e-6 |
+| garments, Subsurf alone on Blender's Solidify | ≤ 9.9e-6 | ≤ 4.4e-7 | all equal | ≤ 1.5e-6 |
+| garments, Solidify alone | ≤ 4.6e-7, collar 2.3e-5 | ≤ 1.3e-7 | all equal, vertex order identical | ≤ 6.6e-8 |
+| boots, bow (Subsurf only) | ≤ 1.5e-6 | ≤ 4.5e-7 | all equal | ≤ 1.6e-6 |
+
+Local Blender against the box's bundle (ARM against x86, same 5.2.2): ≤ 1.9e-6 L, except the collar at 1.1e-5.
+The old evaluator (evaldrift, box) had the masked skin 0.0088 L off.
+
+Residuals, explained:
+- The largest subdivision errors sit on the skin's and shorts' highest-valence poles (valence 72, 48 and 36, and the
+  edges next to them): 9e-6 L = 2.3 µm. OpenSubdiv evaluates the end-cap weights there in float32; ours is float64.
+- The collar's Solidify (2.3e-5 L) is Blender's float32 vertex normal at a near-degenerate corner. Box and laptop
+  Blender disagree there by 1.1e-5 themselves.
+- Everything is 10x or more under GEOM_TOL (1e-4 L).
+
 ## Log
 - 2026-09-30: merged pipeline-3d ae7fd45 (fast-forward). Baseline box build `charkit/out/evalmesh/base_clawd`
   (--boards views --no-blend) and `evaldrift --stages` on it: 0 of 110 checks drift. Stage drift: only the evaluated
@@ -67,9 +107,33 @@ and two levels. A run takes about 1.5 s.
   max 4/255 on a few pixels, sheet_views max 1). Bundle to bundle, every garment's raw loops are identical. The
   evaluated meshes are the same geometry (0 L; the collar 1.2e-7 L on one vertex) with the same winding, first corners
   and UVs. Only their vertex order changed: BMesh's to_mesh no longer reorders the edges.
-- Merged pipeline-3d 4de65ab (tool/face4) at 2ac1653. Gate launched on it (M1 only; M2 is uncommitted in the tree).
+- Merged pipeline-3d 4de65ab (tool/face4) at 2ac1653.
+- **M1 gate: PASS under K** (73be408 into 4de65ab; report `charkit/out/gate/gate_tool-evalmesh_73be408_into_4de65ab.md`).
+  No check changed, all 56 test files ok, build CPU 819.9 -> 934.6 s (1.14x), Blender and QA 315.7 -> 283.1 s.
+  **M1 is mergeable at 73be408**; the commits after it are notes only.
 
 ## Next
-- M1: the gate (`charkit/out/gate/`), read under K.
-- M2: fold the isolation-level rule into `charkit/geom/subsurf.py` locally, around the vertices that need it. Then run
-  the build's pieces through the lab: the bundle's raw garments and skin base, with the eye margins creased.
+- M2 and M3 in the evaluator: `bodyeval.subdivide` delegates to `charkit/geom/subsurf.py` (Part.subdivided runs all
+  levels at once, the skin's eye margins creased: `skin_creases`). `bodyeval.solidify` and Part.subdivided go through
+  `charkit/geom/solidify.py`, with the recorded settings (SOLID_SETTINGS) and the creases it leaves. Measured by
+  evaldrift --stages on a box build of the same tree (`charkit/out/evalmesh/m2_clawd`).
+- M4, the switch (plan):
+  1. Garments first; they're already a venv product. After `garments_geom` records build(), a venv pass gives each
+     `_object` its final mesh at rest: geom.solidify then geom.subsurf at the modifier's `levels` (garments: 1 for
+     viewport and render). Polygons come as (loopv, counts), per-corner UVs from subsurf, mat_idx through `parent`,
+     and weights copied to the Solidify copies and carried linearly through Subsurf, as Blender carries vertex data.
+     The pass drops the 'thick' and 'sub' mod events. Armature ('rig', inside _object) and the outline stay.
+  2. The outline's cap reads the shell's thickness from the 'thick' SOLIDIFY (`shade.shell_of`). With the modifier
+     gone it needs the thickness as a custom property the recording sets (`ob['ck_shell']`).
+  3. The bundle's 'raw' variant of a garment becomes the final mesh. Checks that read raw (poke-through, open edges)
+     change measure: score them both ways (the gate's 2x2). The evaluator's Part then has no solid and no subdivision:
+     exact by construction.
+  4. The skin waits for rollout step 4 (the character product). It carries shape keys, two UV layers, the Mask and
+     render level 2. geom.subsurf is numpy-only, so Blender's character stage could call it meanwhile, but GEOM_TRUTH
+     wants it venv-side.
+  5. Motion QA: at extreme poses, Blender per frame (Armature, then Solidify and Subsurf on the posed coarse mesh)
+     against the engine way (Armature on the final rest mesh). Per-vertex distances per piece, with linear weights
+     (Blender's own) and limit-stencil weights as the two candidates.
+- Follow-ups: `charkit/subdiv.py` (faceeval, code_base, headfit) is a third Catmull-Clark. Its `carry` puts vertex
+  weights through the limit, but Blender carries them linearly (measured). Delegating it to geom.subsurf changes
+  faceeval only near its crop border and in carried weights, so do it with tool/face.
