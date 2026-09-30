@@ -329,7 +329,7 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
     """give an assembled, built character (charkit.character.build's dict) the face shading on its head faces, and with
     the look's face.normals 'proxy' the stand-in's normals over the head and neck (proxy_normals)."""
     import bpy
-    from . import eyetex
+    from . import eyetex, trace
     A = C['data']; Hd = A['head']; H = Hd['H']; centre = Hd['centre']
     fl = (look or {}).get('face') or {}
     from . import mh
@@ -337,9 +337,10 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
     neck = [np.asarray(J[k], float) for k in mh.VRM_JOINTS['neck']]
     Np = None
     if fl.get('normals') == 'proxy':
-        Np, _, _ = proxy_normals(A['verts'], A['faces'], A['body']['head_w'], centre, H.L, H.chin, neck,
-                                 blur=fl.get('blur', 0.22), chin_tilt=fl.get('chin_tilt', 60.0),
-                                 tilt_power=fl.get('tilt_power', 0.6))
+        with trace.span('face.proxy_normals'):
+            Np, _, _ = proxy_normals(A['verts'], A['faces'], A['body']['head_w'], centre, H.L, H.chin, neck,
+                                     blur=fl.get('blur', 0.22), chin_tilt=fl.get('chin_tilt', 60.0),
+                                     tilt_power=fl.get('tilt_power', 0.6))
     ink_img, ink_w = None, None
     if fl.get('jaw_line'):
         nk, _ = neck_weight(A['verts'], centre, H.L, H.chin, neck)
@@ -349,13 +350,15 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
         ink_img = eyetex.to_blender_image('face_ink', px)
     col = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
     col.update(colors or {})
-    thr = sdf(H, size)
+    with trace.span('face.sdf'):
+        thr = sdf(H, size)
     img = bpy.data.images.new('face_sdf', size, size, alpha=False, float_buffer=True)
     img.colorspace_settings.name = 'Non-Color'
     img.pixels.foreach_set(np.dstack([thr, thr, thr, np.ones_like(thr)])[::-1].astype(np.float32).ravel())
     img.pack()
-    fr = fringe_shadow(H, centre, bangs, size, drop=fl.get('fringe_drop', 0.03)) if bangs is not None \
-        else np.zeros((size, size))
+    with trace.span('face.fringe', faces=len(bangs[1]) if bangs is not None else 0):
+        fr = fringe_shadow(H, centre, bangs, size, drop=fl.get('fringe_drop', 0.03)) if bangs is not None \
+            else np.zeros((size, size))
     fimg = bpy.data.images.new('face_fringe', size, size, alpha=False, float_buffer=True)
     fimg.colorspace_settings.name = 'Non-Color'
     fimg.pixels.foreach_set(np.dstack([fr, fr, fr, np.ones_like(fr)])[::-1].astype(np.float32).ravel())
@@ -371,5 +374,6 @@ def apply(C, bangs=None, colors=None, size=512, look=None):
         at.data.foreach_set('color', np.repeat(ink_w[:, None], 4, 1).astype(np.float32).ravel())
     me.materials[1] = mat
     if Np is not None:
-        apply_proxy_normals(skin, Np)
+        with trace.span('face.proxy_transfer'):
+            apply_proxy_normals(skin, Np)
     return mat
