@@ -580,11 +580,12 @@ whole taper curve and jaw_taper_shape are biased. Fix the measure before any mor
    sides of the comparison) and normalise by the widest visible face row. Register it as a remeasure in history.STEPS.
 Then re-read jaw_4 and jaw_5 on the corrected measure before touching the three-quarter notch.
 
-## Round 3 (2026-09-30): the hair off the design's jaw, the jaw's side carried round (in progress)
+## Round 3 (2026-09-30): the hair off the design's jaw, the jaw's side carried round
 
-**The design's outline without its hair (Michael's flag; 1129dd5, registered in `history.STEPS` at 32e2086).**
-`head_construction` (the bald head) draws front and profile only, and its front chin is the manifest's outlier (0.034 L
-lower, more pointed), so it can't stand in for the head sheet. The head sheet's own outline is masked instead:
+**1. The design's outline without its hair** (Michael's flag; the measure 1129dd5, its steps now in
+`charkit/steps/faceregion.py`). `head_construction` (the bald head) draws front and profile only, and its front chin is
+the manifest's outlier (0.034 L lower, more pointed), so it can't stand in for the head sheet. The head sheet's own
+outline is masked instead:
 - `faceregion._occluded`: going up a side from the chin, the first row whose visible extent falls `OCC_DROP` 0.006 L
   under its running maximum with hair within `OCC_REACH` 0.03 L beyond the edge is a lock's tip; the rows from
   `OCC_MARGIN` 0.008 L under it up are dropped. Hair beside the edge alone marks nothing: the sheet's jaw is drawn over
@@ -599,60 +600,130 @@ lower, more pointed), so it can't stand in for the head sheet. The head sheet's 
 - Ours is read with the hair hidden (`faceregion.bare`) for the outline's shape, on the design's rows. Ours with and
   without hair read the same today (our locks don't reach the face's edge in front).
 - `ARMS` (0.2, 0.95) keeps the jaw lines' window at z -0.215 to -0.354; the arc-length samples are anchored on the
-  chin (the chin's measures had moved with where the outline was cut: chin_angle 119.7 -> 119.6 on jaw_5 is that).
+  chin (the chin's measures had moved with where the outline was cut).
+- Tests (`test_jaw.py`): a lock over each side and hair behind the jaw, a mouth line across the chin's column, a lock
+  over the three-quarter's far cheek.
 
-Remeasured (the boards' camera; level in brackets):
+Remeasured (the boards' camera; level in brackets). With the hair gone from the comparison the taper's gap grew: ours
+falls away faster than the design's under its widest row in view. In the level camera ours sits on the design's; the
+boards' camera, 6 degrees over the chin, narrows the lower jaw (w at z -0.3: 0.105 board, 0.147 level, 0.14 design).
 
-| check | design | jaw_4 before -> after | jaw_5 before -> after |
+| check | design | jaw_4 old -> new measure | jaw_5 old -> new measure |
 |---|---|---|---|
 | jaw_taper_shape | 0 | 0.0353 WARN -> 0.0421 FAIL (0.019) | 0.0281 WARN -> 0.0394 WARN (0.0266) |
 | jaw_taper (L) | | 0.0095 -> 0.0061 PASS | 0.0093 -> 0.0058 PASS |
-| jaw_line_bend (deg) | 4.4 -> 4.2 | 24.4 FAIL (unchanged) | 41.2 FAIL (unchanged) |
+| jaw_line_bend (deg) | 4.4 -> 4.2 | 24.4 FAIL | 41.2 FAIL |
 | chin_angle (deg) | 129.7 | 107.6 FAIL | 119.7 PASS -> 119.6 WARN (on the limit) |
 | chin_tip | 0.843 -> 0.833 | 0.30 -> 0.317 FAIL | 0.59 -> 0.584 WARN |
-| tq_cheek_hollow design (L) | 0.0035 -> 0.0017 | 0.0097 FAIL | 0.005 PASS |
+| tq_cheek_hollow, the design's (L) | 0.0035 -> 0.0017 | 0.0097 FAIL | 0.005 PASS |
 
-With the hair gone from the comparison, the taper's gap grew: ours falls away faster than the design's under its widest
-row in view. In the level camera ours sits on the design's (0.019-0.027 rms, the step at t 0.67 the neck-edge nick);
-the boards' camera, 6 degrees over the chin, narrows the lower jaw (w at z -0.3: 0.105 board, 0.147 level, 0.14 design).
-
-**The jaw's side (headgeom `SIDE`, style `face.jaw_side`, on in DEFAULT; b9f0ab3).** The three-quarter's near jaw line
-rose with the design's to the neck's edge, ran flat at z -0.31, and hooked down into the neck. Past the neck's width
-the pocket ended and every side column's rim sat at -0.31 with its throat at the pocket's cap: a ledge under the mouth
-block's bottom row (z -0.29, the band's top). EDGE_BAND's try failed because U's polar form round the neck's axis
-sweeps across the rim going in along a side column: their rays start from the sections' own centre there (y 0.245 at
-z -0.2, 0.1 L in front of the axis), so the pocket dropped out in columns 62-84 degrees.
+**2. The jaw's side carried round (the notch; headgeom `SIDE`, style `face.jaw_side`, on in DEFAULT; b9f0ab3,
+1fb4e24).** The three-quarter's near jaw line rose with the design's to the neck's edge, ran flat at z -0.31, and
+hooked down into the neck. Past the neck's width the pocket ended and every side column's rim sat at -0.31 with its
+throat at the pocket's cap: a ledge under the mouth block's bottom row (z -0.29, the band's top). EDGE_BAND's try
+failed because U's polar form round the neck's axis sweeps across the rim going in along a side column: their rays
+start from the sections' own centre there (y 0.245 at z -0.2, 0.1 L in front of the axis), so the pocket dropped out
+in columns 62-84 degrees.
 - **Per column** (`UnderJaw(side=...)`): each column's underside hangs from its own point of the jaw's edge (the V on the
   envelope, crossed by the column's sheet, up to the jaw's angle at -0.215), rising over how far in from it the point
-  lies in plan (the band's centre line moves with height, so the column's radius alone overstated it: the midline's
-  throat went from (0.12, -0.325) to (0.091, -0.304) until that was in), capped under the column's top as U was. The
-  rim is where the envelope's path first drops under it (not the V's own height: TIP_BIAS puts that on the chin's
-  rounded bottom, 0.02 L behind its front). The throat is where it meets the neck (its top row continued up).
+  lies in plan (the band's centre line moves with height; the column's radius alone put the midline's throat at
+  (0.091, -0.304) instead of U's (0.12, -0.325)), capped under the column's top as U was. The rim is where the
+  envelope's path first drops under it (the V's own height puts it on the chin's rounded bottom, 0.02 L behind its
+  front: TIP_BIAS). The throat is where it meets the neck (its top row continued up). The chin's columns match U's
+  rims and throats to a few thousandths of L.
 - **The band's top** rises round the sides over the rim (EDGE_BAND's `top()`); behind the jaw it comes back down only
-  after the rows have relaxed (below).
+  after the rows have relaxed.
 - **The rows.** At the chin the linear map's own breakpoints (the rim on band rows 3-5, the throat 8-12); eased over
-  `SIDE_EASE` (0.4-0.7 rad) onto fixed rows round the sides, `SIDE_ROWS` (4, 10): the rim and the throat are edge
-  loops along the jaw line there, so no row runs from the face onto the underside between two columns. Fixed rows at
-  the chin too crumpled the V's point (chin_angle 108, chin_tip 0.35); (4, 11) left 14 edges over 90 degrees where
-  the neck's rows met them.
+  `SIDE_EASE` (0.4-0.7 rad) onto fixed rows round the sides, `SIDE_ROWS` (3, 9): the rim and the throat are edge loops
+  along the jaw line there, so no row runs from the face onto the underside between two columns. Fixed rows at the
+  chin too crumpled the V's point (chin_angle 108, chin_tip 0.35); (4, 11) left 14 edges over 90 degrees; (4, 10) two
+  faces at the jaw's side just past the neck's width turned in and back (x 0.13, z -0.296; face_folds 4 -> 32 on the
+  box, those two under every mouth key: jaw_6); (3, 9) none.
 - **Behind the jaw's angle** the pocket blends into the envelope over `SIDE_FADE` 0.2 rad, and the rows (the rim's at
   the jaw angle's height there, `SIDE_DROP` 0.05 L under it for the throat's) ease back to level over `SIDE_RELAX`
   1 rad. Dropped over the fade alone (0.1 L in two columns) they folded (a dihedral of 175 degrees).
-- Tried and off: the old U's height at the chin's columns (`SIDE_UOLD` (0.45, 0.7)): the board's chin_angle 116.3 ->
-  119.9, but a kink where the V crosses the neck's edge (jaw_line_bend 4.9 -> 7.8, at z -0.316).
+- **The old U at the chin** (`SIDE_UOLD`, off): U's own heights (the polar form, without its neck-width sink) at the
+  chin's columns, eased to the per-column form over (0.45, 0.7) rad. Lab (rows (3, 9)): chin_angle 116.4 -> 119.8,
+  chin_tip 0.612 -> 0.671, jaw_taper_shape 0.0385 -> 0.0371, but a small nick where the V crosses the neck's edge
+  (jaw_line_bend 4.6 -> 7.9, at z -0.316). It is the no-drop option for the gate's 2x2 (below).
+- Test: the side pocket on the synthetic head (`test_side_pocket_follows_the_jaw_round_its_sides`).
+- Labs: `tools/face_labs/jaw_health.py` counts the sharp edges by region; the per-column meridians, the plan view and
+  the sharp-edge chart were scratch scripts (the chart of dihedrals by angle round the head and height is worth keeping
+  if the jaw's cage is worked again).
 
-Local lab (jaw_5's head code, the skin alone; `tools/face_labs/taper_lab.py --geom`, `jaw_health.py`), before -> after:
-tq_jaw_notch 0.0548 -> 0, jaw_line_bend 41.2 -> 4.9, jaw_taper_shape 0.0372 -> 0.0388 (level 0.0225 -> 0.0165),
-chin_angle 119.4 -> 116.3, chin_tip 0.642 -> 0.611, tq_cheek_hollow 0.0048 (the same), chin_underside 12.6 -> 12.8,
-jaw_line_three_quarter 1.333 -> 1.16. The cage in the jaw: edges over 90 degrees 2 -> 2, the sharpest 93 -> 92 degrees,
-folded corners 22 -> 78 (the throat's crease is longer: it now runs up the side to -0.19).
+**Numbers** (render box, `clawd.json`, views and body boards). jaw_5: the head pipeline-3d carries (816ada9); jaw_6:
+b9f0ab3 (rows (4, 10)); jaw_7: 1fb4e24 with pipeline-3d 301b661 merged (rows (3, 9), the final geometry). The jaw's
+checks under the new measure:
 
-**Box build:** `charkit/out/jaw_6` (render box, `clawd.json`, views and body boards) at b9f0ab3 (db718ae plus this
-round), running. pipeline-3d moved to 120d197 during the round (hair round 3, hull-limbs), merged in at 1dd0798.
+| check | jaw_5 | jaw_6 | jaw_7 |
+|---|---|---|---|
+| tq_jaw_notch (L) | 0.0573 FAIL | 0 PASS | 0 PASS |
+| jaw_line_bend (deg; the neck-edge nick) | 41.2 FAIL | 4.9 PASS | 4.6 PASS |
+| jaw_taper_shape | 0.0394 WARN | 0.039 WARN | 0.0388 WARN |
+| jaw_taper (L) | 0.0058 PASS | 0.0056 PASS | 0.0055 PASS |
+| chin_angle (deg; design 129.7) | 119.6 WARN | 116.4 WARN | 116.7 WARN |
+| chin_tip | 0.584 WARN | 0.554 WARN | 0.557 WARN |
+| tq_cheek_hollow (L) | 0.005 PASS | 0.005 PASS | 0.005 PASS |
+| jaw_line_front / three_quarter | 0.968 / 1.333 | 0.937 / 1.12 | 0.937 / 1.106 PASS |
+| chin_underside (deg; design 13.7) | 12.5 | 12.8 | 12.8 PASS |
+| face_folds | 4 | 32 PASS | 4 PASS |
+| neck_crease (visible skin, deg) | 24.2 WARN | 24.3 WARN | 27.6 WARN |
+| profile_edge (rms L) | 0.0391 WARN | 0.0349 WARN | 0.0356 WARN |
+| body_profile_iou_skin | 0.688 WARN | 0.696 WARN | 0.713 PASS |
+| piece_collar | 0.736 WARN | 0.74 WARN | 0.754 PASS |
 
-**body_profile_iou_skin** (0.688 WARN on jaw_5; `skin_profile` diff by height): the face band loses most (3096
-design-only px: the hair over our face in profile), then the waist and hands (4685 / 2939). The chin and jaw band:
-653 ours-only, 386 design-only. The body QA registers ours on the iris plates' mean (`qa3d.sheet_body`), not the eye
-anchor: our chin draws 5 px (0.0235 L) low there. Shifting ours 5 px up lifts the head band's skin IoU 0.507 -> 0.544,
-but the whole view's falls 0.688 -> 0.663, because the legs and arms register better as they are (they prefer ours 4 px
-forward: 0.718). The check is the body's registration more than the chin's shape.
+jaw_7 carries pipeline-3d's hair round 3 and hull-limbs, which jaw_5 and jaw_6 don't: body_profile_iou_skin,
+piece_collar and neck_crease between jaw_6 and jaw_7 are theirs as much as the head's (the gate against pipeline-3d
+separates them).
+
+**The gate's 2x2** (the old measure, pipeline-3d's faceregion, on each geometry; the gate measures the same):
+
+| check | old measure, jaw_5 | old measure, jaw_7 | new measure, jaw_5 | new measure, jaw_7 |
+|---|---|---|---|---|
+| jaw_taper_shape | 0.0281 WARN | 0.0291 WARN | 0.0394 WARN | 0.0388 WARN |
+| jaw_taper | 0.0093 PASS | 0.0092 PASS | 0.0058 PASS | 0.0055 PASS |
+| jaw_line_bend | 41.2 FAIL | 4.6 PASS | 41.2 FAIL | 4.6 PASS |
+| chin_angle | 119.7 PASS | 116.7 WARN | 119.6 WARN | 116.7 WARN |
+| chin_tip | 0.59 WARN | 0.56 WARN | 0.584 WARN | 0.557 WARN |
+| tq_cheek_hollow | 0.005 PASS | 0.005 PASS | 0.005 PASS | 0.005 PASS |
+
+The geometry costs chin_angle 3 degrees and chin_tip 0.03 under both measures, and jaw_taper_shape 0.001 under the
+old: the gate fails on them unless they're accepted. The coordinator decides; the alternative is `SIDE_UOLD` (0.45,
+0.7): no drop under either measure, at a nick of 7.9 degrees (WARN) at the neck's edge instead of 4.6.
+
+**3. The evaluator's eye line** (evaldrift; 9a85cf5). `bodymeasure.sheet_face` registered ours on the iris plates'
+mean; it now sets them level with the head's eye line (`bodyeval`'s landmarks carry `eye_z`), as `qa3d.eye_anchor`
+does since e9a6753. On jaw_7's spec, sheet_cheek_chin, sheet_profile_chin and sheet_neck_to_jaw now match the box
+exactly (they were 0.025 L low). sheet_width still drifts +0.023 (the report's +0.026): another cause, open.
+
+**4. body_profile_iou_skin** (`skin_profile` diff by height, jaw_5): the face band loses most (3096 design-only px:
+the hair over our face in profile), then the waist and hands (4685 / 2939). The chin and jaw band: 653 ours-only, 386
+design-only. The body QA (`qa3d.sheet_body`) registers ours on the iris plates' mean, not the eye anchor: our chin
+draws 5 px (0.0235 L) low there. Shifting ours 5 px up lifts the head band's skin IoU 0.507 -> 0.544 but the whole
+view's falls 0.688 -> 0.663 (the legs and arms prefer ours 4 px forward: 0.718). On the box it reads 0.713 PASS at
+jaw_7.
+
+**Review page:** `charkit/out/face_review/round3/index.html` (`tools/face_labs/jaw3_page.py`): design | jaw_5 (the
+pipeline-3d head) | jaw_7, close on the chin and jaw in front, three-quarter and profile at 420 px per L, the corrected
+traces overlaid (the design's red, with a dashed line where its hair's rows start; ours blue, traced with the hair
+hidden), the curves, the jaw's shading before and after (jaw_health), and the checks.
+
+**Gotchas from this round:**
+- The scratchpad is shared with the other agents of the session: a log named `gate_default.log` was overwritten by
+  another workstream's gate. Use a subfolder of your own.
+- `remote gate` runs in parallel on the box now; stopping the local process leaves the gate running there (kill it by
+  its gate id's PIDs, then remove `/srv/work/gates/<gid>*`).
+- zsh doesn't split an unquoted `$v`: a loop over variant strings needs `${=v}`.
+- A lab's `KEY=VALUE` override is set on the module at run time; the build's caches are keyed by code, so overrides only
+  reach the local assembly (`jaw_lab.local`), never a box build.
+
+**Open, in order:**
+1. The coordinator's call on the 2x2 (chin_angle, chin_tip, jaw_taper_shape) or `SIDE_UOLD`.
+2. The chin in the boards' camera: chin_tip 0.557, chin_angle 116.7 (the design 0.83 / 129.7; level camera 0.95 /
+   126). The look down on the design's recession, and the subdivision rounding the V's point across columns 0.033 L
+   apart; a crease on the V's rim near its point (character.py, not this workstream's) or denser columns at the chin.
+3. jaw_taper_shape 0.0388 WARN: the boards' camera narrows the lower jaw (level 0.0165).
+4. neck_crease 27.6 WARN at jaw_7 (24.3 at jaw_6): the gate will say whether the head or the merged collar moved it.
+5. The side pocket's fade behind the jaw's angle curls up to the band's top (under the ear, behind the side locks):
+   a ramus going up to the ear would be the design's.
+6. sheet_width's evaluator drift (+0.023); the body QA's registration (`qa3d.sheet_body` on the iris mean).
