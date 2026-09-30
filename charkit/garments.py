@@ -1254,6 +1254,19 @@ def skirt_hull(A, spec, hull):
         # an A-line flares to its hem: each column's radius never narrows going down (a visual hull rounds the
         # hem's corners in, where the views' silhouettes cut it, and the skirt read as a bubble)
         F.R = np.maximum.accumulate(F.R, axis=0)
+        al = spec['aline']
+        if isinstance(al, dict):
+            # the A-line as a template (templates first): each column a line from its top radius to its hem radius,
+            # shaped by `shape` (v ** shape: 1 straight, under 1 flaring early, over 1 late), the hull giving only the
+            # two ends. The hull's rows just under the band flared the skirt out at once into a bell (the sheet-only
+            # masks start the skirt's label under the band): body_front_skirt_aline -0.161 (tool/garments3)
+            line = F.R[:1] + (F.R[-1:] - F.R[:1]) * (vs[:, None] ** float(al.get('shape', 1.0)))
+            # `sides` k: the template weighted |sin th| ** k round the body (the front view's outline is the sides'
+            # columns; the front and back columns keep the hull's shape, which the profile's outline and the flaps
+            # lying on the skirt's back fit); None: every column
+            k_ = al.get('sides')
+            w_ = np.ones_like(F.th) if k_ is None else np.abs(np.sin(F.th)) ** float(k_)
+            F.R = F.R + (line - F.R) * w_[None, :]
     off = spec.get('offset', 0.0) * L
     pleats = spec.get('pleats', 24); depth = spec.get('pleat', 0.05) * L
     TH = F.th[None, :]; VV = vs[:, None]

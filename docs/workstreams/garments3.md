@@ -151,3 +151,22 @@ its timing and which checks it covers. No box jobs running.
 5. art_mirror_waist: attribute (left/right difference of the midriff in back).
 6. `flapchains`, outfit_graph.json regeneration (outfit-source step 6), evaldrift --stages on a consistent build, the
    render-box build with boards and lookprobe --normals for call L's real flip count, the review page, one gate.
+
+## The skirt's A-line as a template (skirt_hull `aline: {shape, sides}`)
+
+On the evaluator (scratch `ev3.py`, the fixed body, ~2 min a run), against the same state with `aline: true`:
+
+| aline | front_skirt_aline | back_skirt_width | profile_skirt_width | piece_skirt | skirt_back_outline | hemband_skirt_step | flap_profile_iou L |
+|---|---|---|---|---|---|---|---|
+| true (the hull's rows, monotone) | -0.159 FAIL | 0.866 WARN | 1.0 PASS | 0.876 | 0.033 WARN | 0.040 WARN | 0.739 |
+| every column a line, shape 1.0 | -0.02 PASS | 0.834 FAIL | 0.843 FAIL | 0.786 | 0.084 FAIL | 0.506 FAIL | 0.529 WARN |
+| every column, shape 0.8 | -0.02 PASS | 0.898 WARN | 0.906 WARN | 0.838 | 0.060 FAIL | 0.52 FAIL | 0.636 WARN |
+| sides (sin^4), shape 1.0 | -0.02 PASS | 0.84 FAIL | 0.997 PASS | 0.822 | 0.072 FAIL | 0.047 FAIL | 0.736 |
+| sides (sin^4), shape 0.8 | -0.02 PASS | 0.893 WARN | 0.997 PASS | 0.855 | 0.052 FAIL | 0.047 FAIL | 0.736 |
+| **sides (sin^8), shape 0.7 (taken)** | **-0.02 PASS** | **0.936 PASS** | 1.0 PASS | 0.867 | 0.045 FAIL | 0.052 FAIL | 0.739 |
+
+The front view's outline is the side columns, the profile's the front and back columns (and the flaps lie on the
+back): the template on the sides only (`sides` k: weight |sin th| ** k) fixes the bell without touching the profile.
+Worse: `skirt_back_outline` 0.033 WARN -> 0.045 FAIL and `hemband_skirt_step` 0.040 WARN -> 0.052 FAIL; both are
+tool/skirt's new checks, FAIL on round 6's geometry (0.051, and no step found), so not new FAILs in the gate's 2x2 if
+pipeline-3d's geometry reads the same; to report.

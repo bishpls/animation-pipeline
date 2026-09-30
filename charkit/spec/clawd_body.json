@@ -1731,7 +1731,10 @@
    ],
    "source": "hull",
    "under": "waistband",
-   "aline": true,
+   "aline": {
+    "shape": 0.7,
+    "sides": 8
+   },
    "clear_hands": 0.05,
    "axis": "midline",
    "symmetric": true,
