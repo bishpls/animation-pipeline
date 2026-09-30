@@ -205,3 +205,22 @@ The drop doesn't reach 0 at 0 (the lips' rings between the mouth and the chin mo
 
 The mouth block (`code_base.mouth_block`) is bit-identical to pipeline-3d's on all four Clawd specs
 (`tests/test_mouth.py` holds it): the head's rest mesh doesn't move.
+
+### Boards and the contact sheet
+
+`python -m charkit remote --box render build charkit/spec/clawd.json --out charkit/out/mouth_boards --boards
+expressions,mouths --boards-renderer eevee`, then `python -m charkit mouth charkit/out/mouth_boards --boards
+charkit/out/mouth_boards/boards --against charkit/out/mouthlab/r2_before --out charkit/out/mouth_boards/mouth`.
+**The contact sheet: `charkit/out/mouth_boards/mouth/index.html`** (in this worktree): every preset's face board beside
+the sheet's drawn head where one exists, at one scale, its class render and target table; every mouth key's board and
+class render with this build / before numbers; the sheet's heads against the library.
+
+That build's QA (the default spec, pipeline-3d b43c15e merged): face_folds 8 PASS, face_expr_range 0 PASS,
+face_eye_asym 0, face_mouth_cover 0.942 WARN (wavy), face_preset_* all 12 PASS (0.0), expr_* INFO (laugh mouth 0.203,
+yawn mouth 0.157). face_mouth_asym read 0.101 WARN on the smirk (asymmetric by design): shapes with a `skew` are now
+left out of it (registered with the step).
+
+Looking at the boards: every preset reads as meant; the brows sit under the fringe (drawn through it faintly), so
+brow-led presets (focus, sad, angry) lean on the lids. The squeeze (effort) reads close to the happy closed eye: an
+anime effort eye is often a `>` `<` chevron, which a lid curve over x can't draw (it needs the lid loop folded at the
+inner corner). A decision for Michael.
