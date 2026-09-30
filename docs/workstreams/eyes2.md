@@ -179,8 +179,36 @@ Both FAIL, and neither failure is the eyes'.
   character is unchanged by the eye work: it keeps the plate, and the trace shows only its eye knobs' hash moved. The
   hair moved: the bangs have 8 shells, were 6. That is the hull's face carve keeping the fringe (tool/face decision
   4a) with hull-det's facing view.
+- **Checked against tool/face's own tip** (13ffa22, a throwaway branch `tmp/eyes2-facetip`, no eye work):
+  - its clawd_body build reads face_folds 450 (FAIL) and body_front_hair_length -0.0848 (WARN), as my candidate does;
+  - its gate into pipeline-3d (6521f45, the MakeHuman default then) reads hair_folds 7 → 47 and
+    body_three_quarter_hair_width 0.956 → 0.896, the same two regressions.
+  The sheet_* profile moves were mine, though: the next section.
 - **The hull differs between the boxes.** A board build on the render box (n1) failed in `garments.band_hull` (a
   sleeve or boot cuff: "no row of the piece is measured on 20% of its circle") on a hull it built itself. It failed
   again with tool/hull-det's latest (ced2f92: angle-weighted facing normals, det.cs by tolerance). The gate's candidate,
   built on the build box (n2), didn't fail. The garment bands are arm and leg cuffs, and the eye change can't reach
   them (joints follow their 8 nearest vertices). This is the non-determinism face.md reports and hull-det is chasing.
+
+## The sheet checks' anchor, and fold_back
+
+Anchored at its corners, the turned surface brought the eye's middle forward, and the clawd_body gate read
+sheet_profile 0.0128 → 0.0245 and nose_reach -0.011 → -0.032 (WARN). Measured in profile (L from the head's centre,
+negative = forward):
+
+| | the QA's anchor (the iris plate's vertex mean) | the visible iris's centroid |
+|---|---|---|
+| plate (before) | -0.3279 | -0.3358 |
+| turned, fold_back 0 | -0.3591 | -0.3475 |
+| turned, fold_back 0.015 | -0.3453 | -0.3324 |
+
+- **Part of the move is real.** The visible iris came 0.012 L forward, so `fold_back` sets the whole surface back.
+- **Part is the anchor.** The sheet checks anchor each view on the iris plate's vertex mean (`qa3d.iris_centres`),
+  and the design's on its visible iris blob. For a flat plate the two agree. On the turned surface the mean runs
+  0.012-0.013 L forward of the visible iris.
+
+At fold_back 0.015 the sheet checks pass (profile 0.012, nose_reach -0.018, chin_reach -0.003). One cost: the far
+eye's three-quarter gaze_off WARNs (-0.044 against 0.013), a new check. At 0.010, nose_reach stays WARN (-0.023).
+
+The anchor's fix belongs in the QA: a per-view visible-iris anchor, or the iris's own vertices' mean, registered as a
+`sheet_*` measurement step. That is qa3d/sheetqa, shared with tool/face, so it's left as an open item.
