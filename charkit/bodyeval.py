@@ -7,10 +7,11 @@ qa3d's silhouette checks measured on it through a numpy z-buffer (charkit.geom.r
     Q = E.qa(G)                                                # shape_iou (overall, per band, per view), ref_iou
 
 What is cached, and how a knob change reuses it:
-  assembly   character.assemble at the resolved spec (pickled by the spec and the code). A body knob rebuilds only
-             the body (body.build_body_data, about 1 s) and carries the assembled head over in its own frame (head centre,
-             head length L): the anime head is a wrap onto an L-sized target, so it keeps its shape in L whatever the body
-             (`compose`). Any other character knob (head, eyes, mouth, ...) assembles again (about 15 s).
+  assembly   character.assemble at the resolved spec (pickled by the spec and the code). On MakeHuman's body a body
+             knob rebuilds only the body (body.build_body_data, about 1 s) and carries the assembled head over in its own
+             frame (head centre, head length L): the anime head is a wrap onto an L-sized target, so it keeps its shape in
+             L whatever the body (`compose`). The authored body (body.source 'code') and any other character knob (head,
+             eyes, mouth, ...) assemble again (about 15-25 s).
   hair       the generated hair (hair.shape) selected, culled and smoothed as scene.hair_shape_mesh does, the hair cap
              and the accessories' volume, kept in the head frame: a body knob moves them as the build's eye alignment
              would; hair and head knobs recompute them.
@@ -793,8 +794,11 @@ class Evaluator:
             if bk == self._base_bk:
                 return A0, 'assembled'
             base = ((ck, self._base_bk), A0)
-        from .character import base_of
-        if base is not None and base_of(spec) != 'anime':
+        from .character import base_of, body_source
+        # compose builds the new body with MakeHuman's body.build_body_data; the authored body (body.source 'code',
+        # charkit.code_body) is another mesh that reads only height_m and heads_tall, so its body knobs assemble afresh
+        # (composing it raised IndexError: MakeHuman's 13380 vertices against the code body's 18478; tool/look4)
+        if base is not None and base_of(spec) != 'anime' and body_source(spec) == 'makehuman':
             if bk not in self._bodies:
                 from . import body as bodylib
                 self._bodies = {bk: bodylib.build_body_data(spec.get('body'), keep_head=True)}
