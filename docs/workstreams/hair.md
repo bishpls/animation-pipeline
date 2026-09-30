@@ -359,3 +359,37 @@ Regressions, by cause:
   back behind them where the drawing has side lock.
 - **three-quarter lower edge +1 step**: a lower-back tip (row 791) crosses the 0.003 L tooth threshold with notch 0.
   The step counts are single lobes at these lengths (1.7-2.7 L of edge): one lobe is 0.4-0.6 per L.
+
+**Final state (round 3, `0bba271` + notes; pipeline-3d merged at db718ae).** Gates, into 9397578: default spec **PASS**
+(`charkit/out/gate/gate_tool-hair3_0bba271_into_9397578.md`), clawd_mh **PASS** (`..._clawd_mh.md`).
+- The first default gate (586d7b6 into b8097cf) FAILed on body_three_quarter_iou 0.851 -> 0.849 WARN. Ablated in the
+  lab (`tools/hair3/ablate.py`, the body QA's own zbuffer): the trim on her right side (mirrored from the left
+  profile, it moved the far side lock's front edge in from where the three-quarter view draws it, at the silhouette)
+  and the ribbon's loops, 0.001 each. Fixed by `trim_sides: "drawn"` (only her left side, the one the sheet's profile
+  draws) and `bun_over: {profile: 1}` (the bun fit weighing our bun over the head's hair whole in profile, where the
+  bun is in front of it): lab 0.8511 against 0.8507 before; gate 0.855 -> 0.854 PASS.
+- Gate deltas on the default spec (9397578): bangs 0.736 -> 0.761, side locks 0.533 -> 0.541, hair_folds 6 -> 4,
+  hair_fringe_low 0.0141 -> 0.0094 L (the fringe on the new carve), sheet_shown_profile 0.356 -> 0.371; regressions:
+  upper back 0.771 -> 0.756 (the crown cover, over a crown higher than the drawn one, and the profile-weighted bun
+  uncovering crown), hair_bun_outline 0.397 -> 0.371 and buns 0.826 -> 0.824 (the profile weight: on b8097cf's hull
+  the ribbon alone gave 0.403 -> 0.452, with the weight 0.420; on 9397578's it costs more), hair_noise 0.0721 ->
+  0.0738 (WARN both).
+- MakeHuman spec (round buns, no fit): side locks 0.479 -> 0.506, upper back +0.009, lower back +0.008, folds 5 -> 4,
+  sheet_shown_profile 0.195 -> 0.235; bangs 0.718 -> 0.702 (the crown cover, upper-back family, over the crown the
+  front view draws as fringe: that head shows more crown from the front), penetration 0.0007 -> 0.0015 (PASS).
+- Lab, final defaults over b8097cf's bundle (`h3n_after_r`, one hull): fragments 13/17/12/12 -> 11/14/9/8; steps/L
+  profile lower 1.77 -> 1.19, profile front 0.96 -> 1.00, three-quarter lower 1.12 -> 1.54 (one lobe); face in
+  profile 0.632 -> 0.687; folds 9 -> 6. Trimming both sides gave fragments 5/10/9/6 but failed the three-quarter gate.
+- The review page: `charkit/out/hair3_review/index.html` (design | before | after per view, the boards of
+  `h3n_before_r` and `h3n_after_r` on the render box; the after render is 586d7b6's defaults, both-sided trim).
+- The cover's front/back split (`cap_sectors: "half"`): upper back +0.003 for +2 front fragments; left off.
+
+**Open, next:**
+1. The bun: the profile weight trades outline for the three-quarter silhouette. A three-quarter target for the fit
+   (no hair_layers three-quarter mask yet), or the drawn tails (strands from the bun's base) as blades.
+2. The crown stands above the drawn crown in profile (the envelope's pole), which the cover makes a solid band: the
+   upper back's loss. Lower the pole to the drawn crown, or give the cover the fringe's family where the front view
+   draws fringe without shedding shards.
+3. Her right side lock: untrimmed, it keeps its edge shards (front fragments 5 -> 11 against both-sided). Trim it to
+   the three-quarter view's edge, not the mirrored profile's.
+4. Three-quarter lower-edge steps: tips at the collar (lower back) and the side-lock tips; each is one lobe.
