@@ -726,6 +726,89 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Day run (2026-09-30, 10:00-20:00 EDT, Michael reviewing): start here
+
+The morning report (`charkit/out/overnight/20260930/index.html`) and today's progress page
+(`charkit/out/progress/20260930/index.html`: design | 1583cd6 | now, the day's merges, in-flight branches) cover what
+merged. On the 227 checks that existed this morning: PASS 186 -> 199, WARN 36 -> 27, FAIL 5 -> 1, no PASS -> FAIL. The
+160 checks added today measure defects nothing measured before (53 FAIL by design).
+
+**Merged today, among 33 merges:**
+- look4, look5 and look6 (call M; cast shadows; the design light);
+- hair4, crowntrim and hairtag (the structure hair masks, on by default, with the truth's calls A-E);
+- toonrender2 (the QA draws with charkit.render);
+- mouth2 and mouth3 (the modular expression API; the effort chevron);
+- face4 and face4-crown;
+- garments3 (the sheet-only outfit masks, flaps, skirt, flat rims);
+- evalmesh M1-M4 and R3a (call J done: garments made in the venv, stencil weights);
+- infra3, infra4, infra5, infra-auth (policy K in gate.py; carry; remeasure detection; TRELLIS unwired; box control
+  on a service account);
+- the bow's M1, collar M2 (the eye-line frame), softras (soft silhouettes, an opt-in gradient path), xpbd (our cloth
+  solver, opt-in), hairlocks (a lock truth; ribbons opt-in), the palette reclass.
+
+**Batch pending at compaction:** `tmp/batch-0930` = pipeline-3d 1580f95 + tool/accessories2 + tool/calib +
+tool/hull-local (7022b5a), gated once. If PASS, fast-forward pipeline-3d to it. Then:
+- tell every agent that new or remeasured checks need calibration records;
+- re-gate tool/face5 on top with `--accept jaw_taper_shape`.
+
+**Michael's rules added today:**
+- **The anti-gaming guard:** a change that improves its own check while that piece's shape IoU drops more than 15% in any
+  view blocks. Planned: a visibility floor, so barely visible pieces don't trip it.
+- **When a check and his eye disagree:** calibrate the measure (the triple: the design against itself with jitter, the
+  known-bad, a random floor), then truth-check the asset, then check granularity (does the design draw structure no
+  check measures?), then work on the builder.
+- **Review pages** open with Recommended / Asked of Michael / Key numbers.
+- **Box control** uses a service account (docs/workstreams/infra-auth.md).
+- **Agents** are relaunched on context size (about 250-300k tokens) plus remaining work, and short follow-ups continue
+  by SendMessage. The `charkit-worker` agent type (`~/.claude/agents/charkit-worker.md`) carries the standing rules;
+  until a session restart lists it, briefs point general-purpose agents at the file.
+
+**Michael's decisions today:**
+- The flaps follow front, back and profile (option A).
+- The hair masks are on by default, with the truth's calls A-E.
+- The chin is graded level; head_construction is the jaw's authority behind the hair.
+- The V opens to skin, with the body's neck-to-chest join fixed.
+- **Skirt motion:** the anime default is xpbd with the drawn shape held on the pelvis (hold 0.8); the realistic profile uses
+  no hold. Rendered shots get baked cloth caches; the VRM's spring chains are tuned against the cloth.
+- **Accessories:** the clips' view weights balance front and side, and the star keeps its dark brown outline. **Evening
+  revision:** placement must not occlude pieces. Be opinionated about deviating from the reference: the crab hidden
+  under the star is poor design.
+- Hands are planned in docs/ROADMAP.md, and paid reference generation is approved.
+- art_mirror_self_boots is to be promoted.
+- **Garments are paused** until tool/pieceref lands.
+
+**Running or parked at compaction** (each has notes in docs/workstreams/NAME.md):
+- **tool/pieceref** (running): the bow as sub-pieces (knot, lobes, tails); isolated-piece checks against
+  garment_breakdown and the close-ups; the manifest's authority split into shape and placement; a generated bow
+  close-up; option C (the ribbon flag re-measured as an ink-line separation).
+- **tool/collar4** (paused; collar.md round 8): the stand compromise across views, the torn edges, neck_crease;
+  milestone 2 (the V and the body join).
+- **tool/sleeves** (paused, `~/animation-pipeline-sleeves`): puff_lumps fixed by a pear-shaped table; the cuff band's
+  tilt is Michael's call.
+- **tool/bow2** (superseded by pieceref).
+- **tool/face5** (waits for the batch).
+
+**Queued:**
+- the accessories placement round, under the non-occlusion rule;
+- a small calibration follow-up (promote art_mirror_self_boots, the guard's visibility floor, art_speckle_neck's
+  sub-pixel sensitivity);
+- the bun orientation constraint from the drawing (and a slimmer test_bun_fit);
+- evalmesh R3b (the skin's subdivision, after face5);
+- softras round 4 (soft occlusion);
+- xpbd round 2 (a pelvis collider, gated motion checks, the hold defaults in the style profiles, the bake path, the
+  spring tuning);
+- the hands round (a template on the existing VRM finger bones, a pose library as an expression component, a
+  generated hand sheet);
+- outfit-source round 2.
+
+**Open questions for Michael:**
+1. A standing rule for designs whose views disagree in 3D (six cases today): the base model takes the best compromise
+   across views, checks built on a single view's inconsistent feature are re-measured against the intent, and
+   view-exact matching becomes a per-shot override.
+2. Hair locks: test the envelope depth first; if the drawings disagree, grade per view with a joint target near 0.52;
+   ribbons off by default; accept call C's fix.
+3. The cuff band's tilt (deferred with the garments pause).
+
 ## Overnight run results (2026-09-30, 06:30-10:05 EDT; start here)
 
 **The morning report:** `charkit/out/overnight/20260930/index.html` (gitignored). It lists the decisions with their images,
