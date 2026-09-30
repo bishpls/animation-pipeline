@@ -51,12 +51,27 @@ def _tests(wt):
     return res
 
 
+def _cpu_children():
+    import resource
+    u = resource.getrusage(resource.RUSAGE_CHILDREN)
+    return u.ru_utime + u.ru_stime
+
+
 def _build(wt, spec, out, args):
-    t = time.time()
+    """-> (ok, wall seconds, log tail). The build's CPU seconds (it and everything it waited for: Blender, the QA's
+    venv) go to OUT/cpu_seconds.json: wall time moves with the box's load, and gates now run side by side."""
+    t, c = time.time(), _cpu_children()
     r = subprocess.run([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', 'views', '--no-blend'] + args,
                        cwd=wt, capture_output=True, text=True)
     ok = r.returncode == 0 and os.path.exists(os.path.join(out, 'qa', 'qa.json'))
+    if ok:
+        json.dump({'cpu_seconds': round(_cpu_children() - c, 1)}, open(os.path.join(out, 'cpu_seconds.json'), 'w'))
     return ok, round(time.time() - t, 1), (r.stdout + r.stderr)[-1500:]
+
+
+def _cpu(out):
+    p = os.path.join(out, 'cpu_seconds.json')
+    return json.load(open(p))['cpu_seconds'] if os.path.exists(p) else None
 
 
 def compare_qa(a, b, remeasured=None):
@@ -169,9 +184,14 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                                                  'checks worse: ' + ', '.join(regressed) if regressed else '']))
         else:
             worse = [r['check'] for r in rep['qa'] if r['verdict'] == 'value']
-            slow = ta and tb and tb > 1.5 * ta
+            # the slowness check is on CPU seconds, which the box's load barely moves; wall time only where a cached
+            # baseline predates the CPU record
+            ca, cb = _cpu(base_out), _cpu(cand_out)
+            rep['cpu_seconds'] = [ca, cb]
+            ra, rb = (ca, cb) if ca and cb else (ta, tb)
+            slow = ra and rb and rb > 1.5 * ra
             rep['verdict'] = 'WARN' if slow else 'PASS'
-            rep['why'] = 'the build is %.1fx slower' % (tb / ta) if slow else ''
+            rep['why'] = ('the build takes %.1fx the %s' % (rb / ra, 'CPU time' if ca and cb else 'time')) if slow else ''
             rep['values_moved'] = worse
         return _write(rep, gdir, tag)
     finally:
@@ -206,6 +226,8 @@ def _write(rep, gdir, tag):
         L.append('\nremeasured: %s: %s' % (k, why))
     if rep.get('blender_seconds'):
         L.append('\nBuild time (Blender and QA): %s s -> %s s' % tuple(rep['blender_seconds']))
+    if rep.get('cpu_seconds') and all(rep['cpu_seconds']):
+        L.append('\nBuild CPU time (all processes): %s s -> %s s' % tuple(rep['cpu_seconds']))
     if rep.get('trace'):
         L.append('\n```\n' + rep['trace'][:6000] + '\n```')
     if rep.get('log'):
