@@ -462,11 +462,29 @@ def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     held |= set(np.nonzero(Cg.under_part == 1)[0].tolist())
     movable = np.array([i not in held for i in range(len(Va))])
     sharp = [(a, b) for E in eyes.values() for a, b in zip(E['margin'], E['margin'][1:] + E['margin'][:1])]
-    Va, gaps = fit_limit(Va, faces, movable, sharp,
+    crease = jaw_crease(Cg)
+    Va, gaps = fit_limit(Va, faces, movable, sharp + crease,
                          normal=dome_vertices(len(Va), faces, groups) if SKULL_NORMAL else None)
     chart_z = np.concatenate([Cg.chart_z, Va[len(Cg.chart_z):, 2]])     # (the sockets and the cavity: their own)
     return dict(V=Va, faces=faces, groups=groups, eyes=eyes, mouth=mouth, neck=list(Cg.loops['neck'][0]), cage=Cg,
-                limit_gaps=gaps, chart_z=chart_z)
+                limit_gaps=gaps, chart_z=chart_z, jaw_crease=crease)
+
+
+def jaw_crease(Cg):
+    """the jaw's rim loop (its cage row, headgeom.SIDE_RIM_ROW) creased across headgeom.JAW_CREASE columns either side of
+    the chin's -> [(a, b)] cage edges."""
+    from charkit.geom import headgeom
+    k = int(headgeom.JAW_CREASE)
+    if not k or getattr(Cg, 'rim_row', None) is None or not headgeom.SIDE_RIM_ROW:
+        return []
+    on = np.nonzero(np.abs(Cg.chart_z - Cg.rim_row) < 1e-7)[0]
+    cols = {}
+    for v in on:
+        j = int(np.argmin(np.abs(Cg.th - Cg.chart_th[v]))) if np.isfinite(Cg.chart_th[v]) else -1
+        if j >= 0 and abs(Cg.th[j] - Cg.chart_th[v]) < 1e-7:
+            cols[j] = int(v)
+    j0 = int(np.argmin(np.abs(Cg.th)))
+    return [(cols[j], cols[j + 1]) for j in range(j0 - k, j0 + k) if j in cols and j + 1 in cols]
 
 
 # ------------------------------------------------------------------------------------------------------------ the join
@@ -753,6 +771,7 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
                  loops=[[v + nbv for v in r] for r in M_['loops']],
                  outer=off(M_['outer']), side=off(M_['side']))
     base = CodeBase(eyes, mouth)
+    jaw_crease_ = [(a + nbv, b + nbv) for a, b in Hmesh['jaw_crease']]
     # the head's frame for H: origin at the eye line on the head's axis (the section's centre there)
     k0 = int(np.argmin(np.abs(Sb.zs)))
     y0 = float(Sb.cy[k0])
@@ -783,5 +802,5 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     info = dict(region=region, target=(TV, TT), profile=[], eye_world=[marks['eye_l'], marks['eye_r']], c_real=None,
                 c_anime=centre, pinned=region.copy(), extra=None, code=dict(cut=CUT, head=rep, groups=Hmesh['groups']))
     B = dict(Bm, verts=pre, faces=faces, face_uv=face_uv, uvs=uvs_all, weights=weights, head_w=head_w, face_w=face_w,
-             base=base, regions=None, ghosts=ghosts, marks=dict(Bm['marks'], **marks))
+             base=base, regions=None, ghosts=ghosts, marks=dict(Bm['marks'], **marks), jaw_crease=jaw_crease_)
     return B, V, H, centre, info
