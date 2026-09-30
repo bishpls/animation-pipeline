@@ -205,3 +205,32 @@ pipeline-3d's, truth 0.892) and once with the new (`charkit/out/hairtag/produced
 the pieces built from each set (the geometry) and each scored by the QA's own `hair_pieces_measure` against each set (the
 measure). Why not the gate's 2x2 alone: its crossed cell runs the baseline worktree's QA, which reads the hair layers the
 baseline worktree produced, and a cached baseline worktree produces none (the hair_pieces part SKIPs there).
+
+**The lab reproduces both gate builds**: the pieces built from the old masks and scored against them read bangs 0.762,
+side locks 0.544, upper back 0.760, lower back 0.704, buns 0.826, bun outline 0.397, folds 6 (the gate's baseline:
+0.762 / 0.545 / 0.760 / 0.703 / 0.826 / 0.397 / 6); from the new against the new 0.788 / 0.528 / 0.760 / 0.606 / 0.825 /
+0.357 / 11 (the candidate: 0.788 / 0.528 / 0.760 / 0.606 / 0.825 / 0.358 / 11). The build as built scores as the old
+geometry does to 0.001.
+
+**The 2x2** (`charkit/out/hairtag/r2/x1/twobytwo.json`; geometry = the masks the pieces were built from, measure = the
+masks they are scored against):
+
+| check | old geom, old measure | new geom, old measure | old geom, new measure | new geom, new measure | reading |
+|---|---|---|---|---|---|
+| hair_piece_bangs | 0.762 | 0.759 | 0.786 | 0.788 | flat (-0.003 / +0.002) |
+| hair_piece_side_locks | 0.544 | 0.520 | 0.536 | 0.528 | **geometry worse under both** (-0.024 / -0.008; profile 0.501 -> 0.475 under the new) |
+| hair_piece_upper_back | 0.760 | 0.711 | 0.697 | 0.760 | target moved (-0.063); geometry +0.063 under the new |
+| hair_piece_lower_back | 0.704 | 0.552 | 0.570 | 0.606 | target moved (-0.134); geometry +0.036 under the new |
+| hair_piece_buns | 0.826 | 0.826 | 0.824 | 0.825 | flat |
+| hair_piece_ahoge (INFO) | 0.270 | 0.262 | 0.362 | 0.337 | geometry worse under both (-0.008 / -0.025) |
+| hair_piece_flyaways (INFO) | 0.186 | 0.169 | 0.171 | 0.151 | geometry worse under both (-0.017 / -0.020) |
+| hair_bun_outline | 0.397 | 0.361 | 0.392 | 0.357 | **geometry worse under both** (-0.036 / -0.035): front 0.409 -> 0.387, profile 0.362 -> 0.305 |
+| hair_fringe_low | 0.0094 | 0.0094 | 0.0094 | 0.0094 | flat |
+| hair_folds (geometry only) | 6 | 11 | | | side_lock_L 2 -> 5, side_lock_R 1 -> 2, bangs 1 -> 2 |
+
+The shape (the hair class against the drawn hair, as the body QA draws it; measure-free): front 0.8389 -> 0.8391,
+three-quarter 0.7406 -> 0.7381, profile 0.8316 -> 0.8345, back 0.9216 -> 0.9214.
+
+So the lower back's -0.097 at the gate is the target (-0.134 on the same geometry) with the geometry gaining +0.036 on
+the new target, and the upper back's 0.760 -> 0.760 hides a -0.063 target move and a +0.063 geometry gain. The real
+geometry losses are the side locks, the bun outline, the folds (and the INFO ahoge and flyaways).
