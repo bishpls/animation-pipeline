@@ -110,7 +110,9 @@ puff now starts at its drawn top under the collar, z -0.57, not -0.70):
   - `hair_folds` 9 WARN → 47 FAIL, all on the flyaways (0 → 41). The limb carve moves the three-quarter's refined axis
     one pixel (+0.040 → +0.035 L), because `refine` fits it against the rounded hull. The whole carve shifts by that
     much, the head included (2,708 voxels above the eye line). `hairpieces.flyaways` sets each blade's plane to the
-    median y of the 24 nearest hull hair-mass vertices, which split between the mass's front and back. So the planes
+    median y of the 24 nearest hull hair-mass vertices, which split between the mass's front and back. (Checked: with
+    the after code and the three-quarter's axis pinned at the before's +0.040, the hull above the eye line is identical
+    to the before's, 0 voxels.) So the planes
     jump (lock 2: 0.108 → 0.040, lock 3: 0.060 → 0.000, lock 4: 0.010 → 0.060 world), and the blades turn against the
     envelope's normal. That fragility is the hair builder's (tool/hair): take the mid-plane as the midpoint of the
     mass's front and back at the root. This is the "hair_folds 7 → 47" of the paused gate: it was this branch's (the
@@ -122,7 +124,37 @@ puff now starts at its drawn top under the collar, z -0.57, not -0.70):
   - `piece_collar` 0.753 PASS → 0.736 WARN.
   - `hair_penetration` 0.0148 FAIL is the same in both (not this branch's).
 
-GATES
+**Gates of 05f1c1f into pipeline-3d 2e3bdd5: FAIL on both specs.** To split the causes, the before (2111d12: hull-det +
+garment-sampling without this branch) was gated into the same commit, so both share one baseline build.
+Reports: `charkit/out/gate/gate_tool-hull-limbs_05f1c1f_into_2e3bdd5[_clawd_mh].md` and
+`gate_tmp-hull-limbs-base_2111d12_into_2e3bdd5[_clawd_mh].md`.
+
+Default spec (baseline → before → this branch):
+- hull-det / garment-sampling (regressed in the before gate too; this branch reduces them):
+  - `body_front_hem` 0.047 PASS → 0.165 FAIL → 0.113 WARN;
+  - `body_three_quarter_hem` 0.080 PASS → 0.174 FAIL → 0.137 WARN;
+  - `body_back_hem` 0.033 PASS → 0.151 WARN → 0.099 WARN;
+  - `body_back_hem_mid` 0.136 WARN → 0.231 FAIL → 0.174 FAIL;
+  - `piece_overskirt_panel_L_extent` 0.042 PASS → 0.141 WARN → 0.099 WARN;
+  - `piece_overskirt_panel_R_extent` 0.057 PASS → 0.137 WARN → 0.080 PASS (fixed here).
+- This branch:
+  - `hair_folds` 9 WARN → 9 → 47 FAIL (the flyaways, via the refine axis, above);
+  - `body_back_leg` 0.066 PASS → 0.075 PASS → 0.118 WARN (skin through the shorts' seat, above);
+  - `piece_collar` 0.770 PASS → 0.753 PASS → 0.736 WARN.
+- Improved by this branch: `piece_shorts` 0.426 FAIL → 0.403 → 0.679 WARN; `body_three_quarter_iou_skin` → PASS.
+
+clawd_mh (baseline → before → this branch):
+- hull-det / garment-sampling: `body_back_skirt_width` 0.941 PASS → 0.866 WARN → 0.872 WARN;
+  `body_front_skirt_aline` -0.040 PASS → -0.055 WARN → -0.053 WARN.
+- This branch:
+  - `hair_folds` 7 WARN → 8 → 47 FAIL;
+  - `hair_penetration` 0.0009 PASS → 0.0007 → 0.0476 FAIL;
+  - `body_three_quarter_hair_width` 0.956 PASS → 0.956 → 0.896 WARN;
+  - `body_three_quarter_skirt_aline` 0.043 PASS → 0.026 → 0.078 WARN.
+  These are exactly the paused gate's values (a9a84a8): they were never hull-det's edge-mode bug.
+- Improved: `piece_waistband` 0.366 FAIL → 0.499 FAIL → 0.502 WARN.
+
+PINNED
 
 **Open items**
 - tool/body: `body_profile_leg_back` as coded fails on the boot cuff's top rows in every build of ours (above), and its
