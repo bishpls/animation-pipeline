@@ -144,22 +144,28 @@ def segment(rgba, iris_hue=IRIS_HUE):
 
 
 def measure(rgba, ppl, iris_hue=IRIS_HUE):
-    """an eye picture's measures (see the module), lengths in head lengths L; None where a part isn't found."""
+    """an eye picture's measures (see the module), lengths in head lengths L; None where a part isn't found. The
+    opening's box is segment()'s; the iris's height is the whole iris's (refine: a lid's shadow can darken its top out
+    of its lit colour); the pupil's run, aspect and share come from its coverage map (pupil_shape: a threshold cut its
+    soft ends and read a 6 px width to a pixel)."""
     S = segment(rgba, iris_hue)
     out = {}
     ob, ib, pb, hb = (_box(S[k]) for k in ('opening', 'iris', 'pupil', 'highlight'))
     if ob is None or ib is None:
         return {'found': False}
+    R = refine(rgba, S, iris_hue)
+    fb = _box(R['iris_full'] & R['opening'])
     ow, oh = (ob[1] - ob[0] + 1) / ppl, (ob[3] - ob[2] + 1) / ppl
-    iw, ih = (ib[1] - ib[0] + 1) / ppl, (ib[3] - ib[2] + 1) / ppl
-    icx, icy = (ib[0] + ib[1]) / 2, (ib[2] + ib[3]) / 2
+    iw, ih = (ib[1] - ib[0] + 1) / ppl, (fb[3] - fb[2] + 1) / ppl
+    icx, icy = (ib[0] + ib[1]) / 2, (fb[2] + fb[3]) / 2
     out.update(found=True, open_w=round(ow, 4), open_h=round(oh, 4), aspect=round(oh / ow, 3),
-               iris_w=round(iw, 4), iris_h=round(ih, 4), iris_fill=round(ih / oh, 3),
+               iris_w=round(iw, 4), iris_h=round(ih, 4), iris_fill=round(min(1.0, ih / oh), 3),
                iris_cx=round(((icx - (ob[0] + ob[1]) / 2) / ppl) / ow, 3), iris_cy=round(((icy - (ob[2] + ob[3]) / 2) / ppl) / oh, 3))
-    if pb:
-        pw, ph = (pb[1] - pb[0] + 1) / ppl, (pb[3] - pb[2] + 1) / ppl
+    P = pupil_shape(rgba, R, ppl) if pb else {}
+    if P:
+        pw, ph = P['pupil_w50_L'], P['pupil_h']
         out.update(pupil_w=round(pw, 4), pupil_h=round(ph, 4), pupil_run=round(ph / ih, 3), pupil_aspect=round(pw / ph, 3),
-                   pupil_share=round(float(S['pupil'].sum() / max(1, S['iris'].sum())), 3))
+                   pupil_share=round(float(P['_cover'].sum() / max(1, (R['iris_full'] & R['opening']).sum())), 3))
     if hb:
         ys, xs = np.nonzero(S['highlight'])
         out.update(highlight_share=round(float(S['highlight'].sum() / max(1, S['iris'].sum())), 3),
@@ -413,13 +419,37 @@ def flick(S, nasal=-1):
             'flick_angle': round(float(np.degrees(np.arctan2(cy - ty, out_))), 1), '_tip': (tx, ty), '_corner': (float(cxc), cy)}
 
 
+def refine(rgba, S, iris_hue=IRIS_HUE):
+    """segment()'s masks with the iris taken whole for the per-view measures: its colour's dark shades too (the top a
+    lid's shadow darkens: the iris's hue, saturated, however dark, connected to its lit colour within its columns and
+    up to 0.8 of its height above it), filled along rows (the pupil and highlights inside), and the opening re-filled
+    from it. The lash line (a red-black) and skin (unsaturated) stay out. -> a new dict of masks."""
+    ib = _box(S['iris'])
+    if ib is None:
+        return S
+    h, s, v = _hsv(rgba[..., :3])
+    on = rgba[..., 3] > 0.5
+    H, W = on.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    ih = ib[3] - ib[2] + 1
+    box = (xx >= ib[0] - 2) & (xx <= ib[1] + 2) & (yy >= ib[2] - 0.8 * ih) & (yy <= ib[3] + 2)
+    amber = on & box & (h >= iris_hue[0] - 13) & (h <= iris_hue[1] + 5) & (s > 0.45) & (v > 0.12)
+    seed = S['iris'] & amber
+    grown = _grow(seed, amber, int(ih))
+    iris = _row_fill(grown | (S['pupil'] & box)) | S['iris']
+    out = dict(S)
+    out['iris_full'] = iris
+    out['opening'] = _row_fill(S['sclera'] | iris)
+    return out
+
+
 def measure_view(rgba, ppl, nasal=-1, iris_hue=IRIS_HUE):
     """measure() with the per-view measures (gaze, pupil, edge, flick; see the module) for an eye whose nose lies
-    `nasal` (-1 the picture's left, +1 its right)."""
+    `nasal` (-1 the picture's left, +1 its right), on the masks refine() makes."""
     M = measure(rgba, ppl, iris_hue)
     if not M.get('found'):
         return M
-    S = M['_masks']
+    S = M['_masks'] = refine(rgba, M['_masks'], iris_hue)
     for part in (gaze(S, nasal), pupil_shape(rgba, S, ppl, nasal), front_edge(S, nasal), flick(S, nasal)):
         M.update(part)
     M['nasal'] = nasal
@@ -483,6 +513,63 @@ def views(B, design=None, out=None, ss=3):
                 if prev is None or qa3d.STATUS.index(v['status']) > qa3d.STATUS.index(prev['status']):
                     C[name] = dict(v, eye=side)
     return table, C
+
+
+def overlay(rgba, M, scale=4, bg=0.93):
+    """an eye picture with its per-view measures drawn (measure_view's M), `scale` times up -> RGB floats: the opening's
+    outline (magenta), the pupil's width lines at 25/50/75% of its height (cyan) and its second-moment ellipse (yellow),
+    the front gap per row (red: the sclera between the opening's nasal edge and the iris's), the fitted front edge
+    (green), the lash flick's tip and the far corner (blue)."""
+    from PIL import Image, ImageDraw
+    im = rgba[..., :3] * rgba[..., 3:4] + bg * (1 - rgba[..., 3:4])
+    H, W = im.shape[:2]
+    pic = Image.fromarray((np.clip(im, 0, 1) * 255).astype(np.uint8)).resize((W * scale, H * scale), Image.NEAREST)
+    d = ImageDraw.Draw(pic)
+    s = float(scale)
+    P = lambda x, y: ((x + 0.5) * s, (y + 0.5) * s)
+    S = M.get('_masks') or {}
+    if 'opening' in S:
+        o = S['opening']
+        e = o & ~(np.roll(o, 1, 0) & np.roll(o, -1, 0) & np.roll(o, 1, 1) & np.roll(o, -1, 1))
+        for y, x in zip(*np.nonzero(e)):
+            d.rectangle([x * s + s / 2 - 1, y * s + s / 2 - 1, x * s + s / 2, y * s + s / 2], fill=(220, 30, 160))
+    nasal = M.get('nasal', -1)
+    # the front gap, per row
+    if M.get('_gaze_rows') and 'opening' in S:
+        o0, o1 = _rows(S['opening'])
+        for r, g in zip(M['_gaze_rows'], M['_gaps']):
+            if g > 0:
+                x0 = o0[r] if nasal < 0 else o1[r] - g + 1
+                d.line([P(x0 - 0.5, r), P(x0 + g - 0.5, r)], fill=(230, 20, 20), width=max(1, scale // 2))
+    # the front edge's line
+    if M.get('_edge'):
+        (xa, ya), (xb, yb) = M['_edge']
+        d.line([P(xa, ya), P(xb, yb)], fill=(20, 170, 60), width=max(1, scale // 2))
+    # the pupil: width lines and the moment ellipse
+    if M.get('_pupil_rows') and M.get('_cover') is not None:
+        c = M['_cover']
+        top, bot = M['_pupil_rows']
+        w = c.sum(1)
+        for f in (0.25, 0.5, 0.75):
+            r = top + f * (bot - top)
+            k = int(np.clip(round(r), 0, H - 1))
+            if c[k].sum() <= 0:
+                continue
+            cx = float((c[k] * np.arange(W)).sum() / c[k].sum())
+            half = float(np.interp(r, np.arange(H), w)) / 2
+            d.line([P(cx - half - 0.5, r), P(cx + half - 0.5, r)], fill=(0, 220, 255), width=max(1, scale // 3))
+        cx, cy, a, b, tilt = M['pupil_ellipse']
+        t = np.linspace(0, 2 * np.pi, 64)
+        th = np.radians(tilt)
+        # the major axis runs up the picture, tilted `tilt` degrees toward its right
+        xs = cx + b * np.cos(t) * np.cos(th) + a * np.sin(t) * np.sin(th)
+        ys = cy + b * np.cos(t) * np.sin(th) - a * np.sin(t) * np.cos(th)
+        d.line([P(x, y) for x, y in zip(xs, ys)], fill=(255, 210, 0), width=1)
+    if M.get('_tip'):
+        for (x, y), col in ((M['_tip'], (30, 60, 230)), (M['_corner'], (30, 60, 230))):
+            d.ellipse([P(x, y)[0] - 3, P(x, y)[1] - 3, P(x, y)[0] + 3, P(x, y)[1] + 3], outline=col, width=2)
+        d.line([P(*M['_corner']), P(*M['_tip'])], fill=(30, 60, 230), width=1)
+    return np.asarray(pic, float) / 255
 
 
 def picture(ours_rgba, design_rgba, ours, design, scale=3):
