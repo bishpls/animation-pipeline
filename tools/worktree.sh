@@ -64,4 +64,8 @@ if [ "$dirs" != FULL ]; then
   git -C "$dest" sparse-checkout set --cone $dirs
 fi
 git -C "$dest" checkout -q "$branch"
+# the boxes' configs (gitignored, so a checkout lacks them): copied from this worktree, or the main one
+for f in "$ROOT"/infra/gcp/*.env; do
+  [ -e "$f" ] && [ -d "$dest/infra/gcp" ] && cp -n "$f" "$dest/infra/gcp/"
+done
 echo "$dest ($branch, profile $profile): $(du -sh "$dest" | cut -f1)"

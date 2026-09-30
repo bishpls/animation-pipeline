@@ -57,3 +57,16 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_build_cpu_seconds_count_the_build_and_what_it_waited_for(tmp_path):
+    """the gate's slowness check is on CPU seconds (the build and every process it reaped), which parallel gates on a
+    shared box don't inflate the way they inflate wall time."""
+    import json, subprocess, sys
+    from charkit import gate
+    c0 = gate._cpu_children()
+    subprocess.run([sys.executable, '-c', 's = 0\nfor i in range(2000000): s += i'], check=True)
+    assert gate._cpu_children() - c0 > 0.02
+    assert gate._cpu(str(tmp_path)) is None
+    json.dump({'cpu_seconds': 12.5}, open(tmp_path / 'cpu_seconds.json', 'w'))
+    assert gate._cpu(str(tmp_path)) == 12.5
