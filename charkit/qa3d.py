@@ -1581,11 +1581,10 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS, ldir=None, aux=None):
     return draw_lit(B, draw_view(B, surfs, az, fr), ldir, transparent=transparent, ss=ss, aux=aux)
 
 
-def draw_view(B, surfs, az, fr, only=None):
+def draw_view(B, surfs, az, fr):
     """draw()'s part that doesn't depend on the light, for one view: the z-buffer and, per surface, its pixels (flat
     indices, in row order), their triangles and barycentric weights, the shading normals, and per material slot the
-    face's and the textures' samples -> a view for draw_lit. only: the surface indices to prepare (every surface still
-    occludes; the rest can't be shaded)."""
+    face's and the textures' samples -> a view for draw_lit."""
     items = [(s['V'], s['T'], s['slots'], s['cull']) for s in surfs]
     zb, lab, mi, ti, bc = fr.zbuffer(items, az, ids=True)
     a = np.radians(az)
@@ -1597,7 +1596,7 @@ def draw_view(B, surfs, az, fr, only=None):
     parts = []
     for k, s in enumerate(surfs):
         idx = order[ends[k]:ends[k + 1]]
-        if not len(idx) or only is not None and k not in only:
+        if not len(idx):
             continue
         o, V, T, Tl = s['o'], s['V'], s['T'], s['Tl']
         t, w = tif[idx], bcf[idx]

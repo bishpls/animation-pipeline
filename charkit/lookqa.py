@@ -425,6 +425,21 @@ def line_scale(B, native_ppl, native_h):
 LINE_WIN = (0.85, 1.05, 0.95)    # the line measure's window round the eye line, in L (the head and its hair)
 
 
+def _hull_colours(B, surfs, hulls, az):
+    """per surface, the colour charkit.qa3d.draw gives a line (an outline hull's material, shaded as draw shades it
+    under the view's light; NaN for the rest) -> (len(surfs), 3) linear."""
+    from . import qa3d
+    a = np.radians(az)
+    view_d = np.array([-np.sin(a), np.cos(a), 0.0])
+    ldir = qa3d.view_light(B, az)
+    col = np.full((len(surfs), 3), np.nan)
+    for i in hulls:
+        s_ = surfs[i]
+        mat = s_['o'].material(int(s_['slots'][0]))[1]
+        col[i] = qa3d._shade(B, s_['o'], mat, -view_d[None, :], view_d, ldir)[0]
+    return col
+
+
 def _lines_pic(mi, rgb, hulls, ss):
     """what line_width measures, at the output resolution: the lines in their own colour over the figure's silhouette
     (pale) on grey."""
@@ -458,9 +473,9 @@ def design_widths(lines0, ss=4):
 def line_width(B, design, out=None, ss=4, ppl=None, off=(0.0, 0.0)):
     """-> (table, checks line_width (our median width over the design's), line_spread (p90 / p10 of ours), line_ink),
     in px of the design's own page: ours drawn at ppl px per L (None: the design's own), supersampled ss, their widths
-    scaled by the design's px per L over ppl; its lines measured at its resolution x ss. Only the lines are prepared
-    and shaded (every surface still occludes them). Our lines' colour is the median of their supersampled pixels
-    before the pixel filter (a line's own colour, not its blend with its neighbours).
+    scaled by the design's px per L over ppl; its lines measured at its resolution x ss. Only the z-buffer is drawn
+    (every surface occludes the lines), each line in its hull's flat colour: our lines' colour is the median of their
+    supersampled pixels (a line's own colour, not its blend with its neighbours after the pixel filter).
     The widths need the design's scale: at 200 px per L x 3 a 2 px line is 3 sub-pixels across and the median steps
     by 0.67 px (docs/workstreams/look.md, round 2)."""
     D = design_heads(design) if design is not None else None
@@ -473,20 +488,22 @@ def line_width(B, design, out=None, ss=4, ppl=None, off=(0.0, 0.0)):
     from . import qa3d
     hull_region = [(_region(s_['o']) if s_['hull'] else None) for s_ in surfs]
     hulls = {i for i, h in enumerate(hull_region) if h}
+    items = [(s_['V'], s_['T'], i, s_['cull']) for i, s_ in enumerate(surfs)]
     allw = {r: [] for r in REGIONS}
     allc = {r: [] for r in REGIONS}
     pics = []
     for az in VIEWS:
-        aux = {}
-        qa3d.draw_lit(B, qa3d.draw_view(B, surfs, az, fr, only=hulls), ss=ss, aux=aux, only=hulls, picture=False)
+        mi = fr.zbuffer(items, az)[1]                           # the surface per pixel (draw()'s aux['mesh'])
+        col = _hull_colours(B, surfs, hulls, az)                # each line's colour as draw() shades it (flat)
+        rgb = col[np.maximum(mi, 0)]
         for r in REGIONS:
             ids = [i for i, h in enumerate(hull_region) if h == r]
             if ids:
-                mk = np.isin(aux['mesh'], ids)
+                mk = np.isin(mi, ids)
                 allw[r].append(widths(mk, ss) * k)
-                allc[r].append(aux['rgb'][mk])
+                allc[r].append(rgb[mk])
         if out:
-            pics.append(_lines_pic(aux['mesh'], aux['rgb'], hulls, ss))
+            pics.append(_lines_pic(mi, rgb, hulls, ss))
     ours = {r: _stats(np.concatenate(w)) for r, w in allw.items() if w}
     ours = {r: v for r, v in ours.items() if v}
     table = {'ours': ours, 'page': dict(native_ppl=round(native_ppl, 1), native_h=native_h),
