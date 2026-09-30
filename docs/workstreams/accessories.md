@@ -24,6 +24,19 @@ palette_iris_shade's crossed cell can't be measured while the branch changes the
    placement, Michael's (a)).
 3. A render-box build with face and body boards (the bent star's shading), the review page updated.
 
+### Progress
+- `tool/acc-reclass`: 9bfbc8b (the code), 6e3757b (the steps at 9bfbc8b: acc_* new; body_*_iou_*, palette_iris_*,
+  hair_piece_*, hair_bun_* remeasured), 9e9f5aa (pipeline-3d eb7ac94 merged: hairlocks, no QA part). New test
+  `test_hair_tones_class_an_accessory_by_object` (calibrated: the old rule's family() reads the fitted star as iris).
+  Pregate PASS (`charkit/out/pregate/pregate_tool-acc-reclass_6e3757b_into_859f610.md`: 11 moved, all remeasured:
+  iou_hair -0.013 to -0.020, palette_iris_lit 7.06 WARN -> 2.06 PASS, palette_iris_shade 4.68 -> 4.79 on the
+  evaluator). Box gate: job `gate-accessories-0930-185553-72fb` (log `charkit/out/acc_work/r4/gate_reclass.log`).
+- `tool/accessories2` dc7a40a: tool/acc-reclass merged in (steps files resolved to the reclass's; test_accessories
+  without the accqa tests). What's left against the reclass: the geometry only (accessories.py, scene, cli.hair_select,
+  bodyeval.hair_selection / hair_by_outside / the evaluator's ground, bodysens, the six specs).
+- Next: the render-box boards of dc7a40a (`charkit/out/acc_r4_render`); when the coordinator has merged the reclass,
+  merge pipeline-3d here, pregate, gate.
+
 ## Round 3 (`tool/accessories2`, continued): the gate's three blockers
 
 ### Michael's decisions (2026-09-30, through the coordinator)
