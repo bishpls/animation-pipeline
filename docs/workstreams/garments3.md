@@ -199,3 +199,60 @@ pipeline-3d's geometry reads the same; to report.
 **Launched together at c0010c2+flapchains** (no edits while they run): `evaldrift --stages --out charkit/out/g3_c`
 (box build and the evaluator), `remote gate tool/garments3 --into pipeline-3d` (report in charkit/out/gate/),
 `remote --box render build charkit/spec/clawd.json --boards body --out charkit/out/g3_render`.
+
+## The gate, the consistent build, call L measured, the review page (end of round)
+
+**Gate** `python -m charkit remote gate tool/garments3 --into pipeline-3d`: 7408658 into a3073f5, **FAIL**. Report:
+`charkit/out/gate/gate_tool-garments3_7408658_into_a3073f5.md` (and .json). Tests all ok. No --accept. Under K:
+- **New FAILs on existing checks:** `body_profile_torso_jump_front` 0 PASS -> 0.0612 FAIL; `neck_crease` 27.6 WARN ->
+  39.6 FAIL; `piece_sleeve_cuff_R` 0.500 WARN -> 0.496 FAIL (0.004 under the line).
+- **Flag-check regression:** `art_speckle_neck` 1.289 PASS -> 2.602 WARN (all in profile: 130 against the design's 50).
+  `art_mirror_waist` 1.19 -> 1.17 PASS on the gate's build (g3_a/g3_b read 1.83/1.65 WARN: to watch). Flag checks
+  better: `art_band_lower`, `art_bumps_sleeves`, `art_points_sleeves` WARN -> PASS (promotable), `art_outline_collar`
+  WARN -> PASS.
+- **2x2, the new measures regressed on the new geometry:** `bow_profile_torn` 0 -> 0.025 FAIL and `bow_front_tail_gap`
+  0 -> 0.033 WARN (garments2's known drops), `flap_three_quarter_iou_R` 0.571 WARN -> 0.0 FAIL and
+  `flap_three_quarter_width_R` 0.073 WARN -> 0.184 FAIL (the three-quarter's drawn tails disagree with the other
+  views; the skirt fit weighted it 0.25), `hemband_overskirt_panel_R_steps` 2 WARN -> no step FAIL, `shorts_*_hem`
+  0.0-0.014 PASS -> 0.028-0.038 WARN (four views).
+- **Build CPU** (Blender and QA) 229.8 -> 349.9 s = **1.52x** (over 1.5x). Likely garments2's `refine: 2` on the top
+  (14,168 -> 197,608 faces), untimed per stage.
+- Better (selection): `piece_waistband` 0.453 FAIL -> 0.886, `piece_overskirt_panel_L` 0.422 FAIL -> 0.698 WARN, `_R`
+  0.623 -> 0.807 PASS, `piece_shorts` 0.393 FAIL -> 0.601, `piece_skirt` 0.762 -> 0.869, `piece_cuff_L` 0.659 WARN ->
+  0.779 PASS, `body_profile_iou` 0.852 -> 0.916, `body_profile_leg_outline` 0.574 -> 0.014, `piece_skirt_extent` 0.127
+  WARN -> 0.014 PASS, `body_front_skirt_aline` held at -0.02 PASS. WARN moves: `body_three_quarter_iou` 0.855 PASS ->
+  0.840 WARN, `body_back_skirt_width` 0.995 -> 0.936.
+
+**evaldrift** `--stages` on the consistent build `charkit/out/g3_c` (7408658): **0 of 110 checks drift**. Stage drifts
+left: the collar evaluated 0.012 L apart; the template flaps 7,526 against 2,072 vertices (evaldrift's stage compare
+subdivides a piece the build leaves unsubdivided: from the skirt merge, evaldrift's side); the masked skin 0.199 L (95
+vertices; the same on g3_a). Every creased garment's evaluated stage now matches Blender (call L's evaluator side).
+
+**Call L on the real build** (`lookprobe --normals` on `charkit/out/g3_render/clawd.blend`, result copied to
+`charkit/out/g3_render/normals.json`; the "before" is look round 3's measurement, an older garment set): garment faces
+flipped by the outline at the build width 5,757 -> 338 (rim faces 5,527 -> 38), the face boards' 4,526 -> 233 (rim
+4,385 -> 17), the body boards' 9,193 -> 3,798 (rim 6,102 -> 138; the rest are layers and the thick bands' edge rings,
+3,660).
+
+**Render-box build with boards:** `charkit/out/g3_render` (boards body_000/035/090/180). **Review page:**
+`charkit/out/g3_review/index.html` (design | pipeline-3d 1583cd6 | garments3: full figures on the EEVEE boards;
+close-ups of the collar's back, the neck in profile, the jacket over the band in profile, the skirt's front, the
+flaps back and profile, the back tuck; every check whose status moved). Generator: scratch `review3.py`.
+
+## Open, in order (for the next round)
+
+1. `body_profile_torso_jump_front` (0.061): the jacket's fronts drape from the bust, which the new body puts 0.025 L
+   further forward; the band's front recessed 0.08 L behind them at z -1.38 (design 0.0235). Try the drape
+   (`top.ease.drape`) or the band's front radius (its hull points in front are the jacket's in profile).
+2. `neck_crease` / `art_speckle_neck`: the neck's joint at the back side (column 125) and the collar in profile, where
+   the jacket's shoulder still covers the collar's side: extend the body's collar cap to the shoulders' sides (the
+   cap counts only the collar behind the torso's axis within the back view's x +-0.40), or lift the jacket's shoulders
+   under the collar.
+3. Build CPU 1.52x: time the garments stage; the top's `refine: 2`.
+4. The 2x2 drops above: Michael's calls (bow, three-quarter flaps), the shorts' hems (the new masks' shorts label).
+5. `piece_sleeve_cuff_R` 0.496: call L's creases or the body; attribute.
+6. The hang (`g3_h1`) fixes `waistband_profile_rows` but costs `torso_jump_L` and `waistband_back_rows`: the front
+   and profile junctions disagree at the side; a per-view fit (garments2's fithang on the evaluator) is the next tool.
+7. Not done: the collar's V from the template (piece_collar front 0.63, three-quarter 0.49 already above
+   pipeline-3d's 0.55/0.24); outfit_graph.json's full regeneration from the sheet-only masks (outfit-source step 6);
+   the TRELLIS cleanup; promoting art_points/bumps_sleeves and art_band_lower (they PASS here).
