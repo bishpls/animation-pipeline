@@ -132,6 +132,20 @@ profile hides its three-quarter tails behind the legs (IoU near 0). The fit weig
   body6_render's head and body codes). pipeline-3d now carries tool/hull-limbs' thigh fix (the bare leg 0.019 PASS), so
   the codes are rebuilt from the current tree for the final fit.
 
+## The final fit (fresh codes from the current tree)
+
+- **The edges from the drawing.** The flap's outer and inner edges are read off the drawn back-view flap row by row
+  and turned into azimuths on our skirt's crest surface (our skirt matches the design's widths): about 129/164 deg a
+  quarter of the way down, 129/161 halfway, 126/159 at three quarters, ~123/157 at the hem (scratch `edges.py`). The
+  earlier descents had drifted the inner edge to 167 deg (hiding the tails behind the thighs to dodge the hem checks).
+- **The stair**: three treads, the first as long as the band is thick (so under the face two risers show, as drawn),
+  rising evenly (`tail`: steps 3, first, rise). The irregular stairs the free lengths found are gone.
+- **The fit** (scratch `fit.py`, coordinate descent) then moves only the hem knots (+-2 deg), the standoff, the stair's
+  first and rise, droop, out, twist and the band's thickness. The objective carries every view's flap IoU, width, hang
+  and attach, the profile's sweep and clearance, the leg outline (graded), the gated piece IoUs (the right flap's kept
+  over 0.53: round 6's 0.619 WARN must not fall below 0.5) and extents, the flaps' band per view, and the hems as
+  penalties from 0.07.
+
 ## For other workstreams
 
 - **clawd_mh body_three_quarter_skirt_aline** (0.078 WARN on pipeline-3d, handed to tool/skirt): bodyqa.aline keeps
