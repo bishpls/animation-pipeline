@@ -416,11 +416,14 @@ camera-relative). h6_off (pipeline-3d's hair) reads 0.0807 (front 0.1223, profil
 measurement steps conflicted (both kept); anime.json merged clean (look6's face_lift beside strand_tone). Suite: 66 pass.
 Pregate PASS (12 moved, 0 blocking): `charkit/out/pregate/pregate_tool-hairtag_76b55cb_into_9eba0b0.md`.
 
-**Gate 2** (76b55cb into 9eba0b0, with strand_tone): box job `gate-hair4-0930-150450-121a` (running at this writing;
-`python -m charkit remote attach gate-hair4-0930-150450-121a` collects it; its report lands as
-`charkit/out/gate/gate_tool-hairtag_76b55cb_into_9eba0b0.md`). Expected from the bundle lab: art_terminator_hair
-2.286 -> about 2.31 WARN (grade unchanged: a value move under K); the base is now 9eba0b0 (look6's design light may move
-the art checks on both sides).
+**Gate 2** (76b55cb into 9eba0b0, with strand_tone; job `gate-hair4-0930-150450-121a`):
+`charkit/out/gate/gate_tool-hairtag_76b55cb_into_9eba0b0.md`, **PASS under K** (nothing blocks; 37 items; CPU 1.24x).
+Flag checks, values only: art_terminator_hair 2.286 -> 2.308 (WARN grade both, as the bundle lab said), art_peeks_hair
+22 -> 16. Improved: hair_noise 0.081 FAIL -> 0.0785 WARN, art_speckle_neck 2.606 WARN -> 1.34 PASS. hair_folds 5 -> 4.
+Remeasured, the 2x2 (old geometry old measure / new geometry old measure / old geometry new measure / candidate): lower
+back 0.706 / 0.562 / 0.572 / 0.617 (the one drop, under the old measure), side locks 0.550 / 0.523 / 0.543 / 0.534,
+upper back 0.768 / 0.721 / 0.701 / 0.768, bangs 0.760 / 0.758 / 0.785 / 0.792, buns 0.862 / 0.864 / 0.862 / 0.864.
+**Mergeable under K.**
 
 **The folds** (the merged build h6_m, `wherefolds.py` over foldlab's piece_folds; `charkit/out/hairtag/r3/`): 4 against
 pipeline-3d's 5: bangs lock 6 (phi 77.4, theta 68, the temple), side_lock_L lock 2 (phi 72.9, theta 126.9: round 2's
@@ -446,8 +449,8 @@ bangs round the star clip, the side locks, bun_L's facets). Not fixed further th
 take the rebuilt flyaways' per-vertex normals (strand_tone reads the same there), so the build is its measure.
 
 **Next (a lean relaunch):**
-1. Read gate 2 (the job above). If PASS under K, tool/hairtag is mergeable; if pipeline-3d moved, `python -m charkit gate
-   --carry tool/hairtag --into pipeline-3d` (everything after 76b55cb is notes).
+1. Gate 2 PASS under K (above). If pipeline-3d moves before the merge: `python -m charkit gate --carry tool/hairtag
+   --into pipeline-3d` (everything after 76b55cb is notes).
 2. The side locks: the labeller vote is moot (above). Only a decision on a side-lock prior at the jaw remains
    (Michael's).
 3. hair_noise's margin (0.0793 against 0.08): bun_L's block facets (2-3x bun_R's edges in every view: its fit) and the
