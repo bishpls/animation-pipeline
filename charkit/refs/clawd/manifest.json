@@ -78,7 +78,7 @@
    "kind": "outfit_graph",
    "path": "charkit/refs/clawd/outfit_graph.json",
    "tracked": true,
-   "sha256": "321429ef2d646ad1175acf1141373dafb1e595fddf61e51adacee48695cc80a8",
+   "sha256": "444e3c4884dcad77023417ea44b76503e0011fc5745ddedcd9ccbb3c4987f771",
    "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
    "provenance": {
     "tool": "charkit.outfit",
@@ -470,14 +470,14 @@
    "kind": "piece_truth",
    "path": "charkit/refs/clawd/outfit_truth.npz",
    "tracked": true,
-   "sha256": "f692b2cb8477bcaf6db4acb3b11dfbd9eae8048f1d6876b48348ddb6e7635d4d",
-   "role": "a hand-checked labelling of body_turnaround's four views by outfit piece, on the outfit masks' grids (bodyqa.design_views at the sheet's 212.5 px/L): what `python -m charkit outfit score` grades the produced masks against (outfit.score)",
-   "provenance": {"by": "annotated by Claude (claude-opus-5-5) for tool/outfit-source", "date": "2026-09-30", "method": "every cell of 25 px or more (outfit.cells: 263 in the four views) labelled by eye from zoomed crops beside the cells; the file's meta holds the calls"},
-   "cautions": [
-    "one reading by eye: where the drawing allows either (the profile's two bow tails, a tuft under a bun, the hem's pixels at the shorts' edge) a set is accepted",
-    "it takes the overskirt panels as hanging from the waistband over the skirt (Michael, 2026-09-29): the back's and the profile's unbroken cells from the waistband into the tails are the panels, which a line-art reading (one cell, one piece) shares with outfit.match_view",
-    "valid for the grids it records only: a new sheet, a new eye spacing or a new window needs it redrawn, and outfit.score refuses a grid that differs"
-   ]
+   "sha256": "8109bd87550e5a236f2e925757299470f7fa51dc2adf45eda1e7cc3da3ba0c3c",
+   "role": "a hand-checked labelling of body_turnaround's four views by outfit piece, on the outfit masks' grids (bodyqa.design_views at the sheet's 212.5 px/L): what `python -m charkit outfit score` grades the produced masks against (outfit.score); and the bow's parts (knot, left and right lobe: VIEW.parts, graded by outfit.score_parts against the produced VIEW__bow.PART masks)",
+   "provenance": {
+    "by": "annotated by Claude (claude-opus-5-5) for tool/outfit-source",
+    "date": "2026-09-30",
+    "method": "every cell of 25 px or more (outfit.cells: 263 in the four views) labelled by eye from zoomed crops beside the cells; the file's meta holds the calls"
+   },
+   "cautions": ["one reading by eye: where the drawing allows either (the profile's two bow tails, a tuft under a bun, the hem's pixels at the shorts' edge) a set is accepted", "it takes the overskirt panels as hanging from the waistband over the skirt (Michael, 2026-09-29): the back's and the profile's unbroken cells from the waistband into the tails are the panels, which a line-art reading (one cell, one piece) shares with outfit.match_view", "valid for the grids it records only: a new sheet, a new eye spacing or a new window needs it redrawn, and outfit.score refuses a grid that differs", "the parts (2026-09-30, tool/pieceref): the bow's drawn cells labelled by eye; in profile the knot and the near lobe (her left) are sure, the two small cells above and below the knot may be either lobe (a set)"]
   },
   "hair_truth": {
    "kind": "family_truth",
@@ -521,19 +521,12 @@
    "produced_by": "charkit.outfit",
    "produced_fn": "charkit.outfit:main",
    "reads": ["rig", "body_turnaround"],
-   "reads_spec": ["name", "ref", "eyes.x", "garments[].{name,kind,side,bone}", "garments[].region[].0",
-                  "accessories[].{name,kind,side,az}"],
-   "reads_files": ["charkit/refs/clawd/outfit_notes.json", "projects/tsuzuku/rig/clawd/build/*",
-                   "projects/tsuzuku/rig/clawd/rig.json", "projects/tsuzuku/rig/clawd/base.png"],
+   "reads_spec": ["name", "ref", "eyes.x", "garments[].{name,kind,side,bone}", "garments[].region[].0", "accessories[].{name,kind,side,az}"],
+   "reads_files": ["charkit/refs/clawd/outfit_notes.json", "projects/tsuzuku/rig/clawd/build/*", "projects/tsuzuku/rig/clawd/rig.json", "projects/tsuzuku/rig/clawd/base.png"],
    "path": "charkit/out/clawd/outfit/outfit_masks.npz",
    "command": "python -m charkit outfit {spec} --out {out} --no-manifest",
-   "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced)",
-   "cautions": [
-    "made from the rig and body_turnaround alone (outfit.sheet_field: the rig's layers laid out in 3D by the sheet's front and profile, then relabelled by the views); nothing gitignored is read. Until 2026-09-30 a TRELLIS field found in charkit/out/i3d/ext steered them, and copies without it made other masks (docs/workstreams/outfit-source.md)",
-    "scored against the hand-checked truth (outfit_truth, `python -m charkit outfit score`): 0.972 of the garment pixels agree (front 0.993, three-quarter 0.966, profile 0.909, back 0.993; mean piece IoU 0.913); the TRELLIS-steered masks scored 0.865 (0.786). The largest misses: the profile's panel side and skirt hem, the buns' undersides, the crab clip",
-    "the graph's comparison with the spec's hand list is made against the garments' and accessories' roles only (reads_spec: names, kinds, sides, bones, region bones, az), so its matches are the spec's own but it lists no knob deltas; `python -m charkit outfit SPEC` gives the full comparison",
-    "a piece a view hides has an empty mask there"
-   ]
+   "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced); a multi-segment piece's parts beside it, keyed VIEW__PIECE.PART (outfit.PARTS: the bow's knot and lobes, cut by the drawn cells, outfit.bow_parts)",
+   "cautions": ["made from the rig and body_turnaround alone (outfit.sheet_field: the rig's layers laid out in 3D by the sheet's front and profile, then relabelled by the views); nothing gitignored is read. Until 2026-09-30 a TRELLIS field found in charkit/out/i3d/ext steered them, and copies without it made other masks (docs/workstreams/outfit-source.md)", "scored against the hand-checked truth (outfit_truth, `python -m charkit outfit score`): 0.972 of the garment pixels agree (front 0.993, three-quarter 0.966, profile 0.909, back 0.993; mean piece IoU 0.913); the TRELLIS-steered masks scored 0.865 (0.786). The largest misses: the profile's panel side and skirt hem, the buns' undersides, the crab clip", "the graph's comparison with the spec's hand list is made against the garments' and accessories' roles only (reads_spec: names, kinds, sides, bones, region bones, az), so its matches are the spec's own but it lists no knob deltas; `python -m charkit outfit SPEC` gives the full comparison", "a piece a view hides has an empty mask there"]
   }
  },
  "authority": {

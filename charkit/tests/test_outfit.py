@@ -253,3 +253,20 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+
+
+def test_the_bow_is_cut_into_its_knot_and_lobes_by_its_drawn_cells():
+    # a bow drawn as three cells: two lobes either side of a small knot, lines (0) between them
+    cl = np.zeros((40, 100), np.int32)
+    cl[5:35, 5:44] = 1; cl[12:28, 46:54] = 2; cl[5:35, 56:95] = 3
+    M = cl > 0
+    P, rows = O.bow_parts(M, cl, 'front', 100.0)
+    assert P['knot'].sum() == (cl == 2).sum() and rows == (12, 27)
+    assert (P['lobe_L'] == (cl == 3)).all() and (P['lobe_R'] == (cl == 1)).all()   # her left: the picture's right
+    Pp, _ = O.bow_parts(M, cl, 'profile', 100.0, rows)
+    assert Pp['knot'].sum() == (cl == 2).sum() and not Pp['lobe_R'].any()
+    assert O.is_part('front__bow.knot') and not O.is_part('front__bow_tail_L')
+    r = O.score_parts({'front__bow.knot': P['knot'], 'front__bow.lobe_L': P['lobe_R'], 'front__bow.lobe_R': P['lobe_L']},
+                      ({'front': np.where(cl == 2, 0, np.where(cl == 3, 1, np.where(cl == 1, 2, -1)))},
+                       [['bow.knot'], ['bow.lobe_L'], ['bow.lobe_R']]))
+    assert r['front']['iou']['bow.knot'] == 1.0 and r['front']['iou']['bow.lobe_L'] == 0.0     # the sides swapped

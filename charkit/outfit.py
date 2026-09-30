@@ -3012,6 +3012,158 @@ def _splat(P, C, az, size, label, font=None):
 
 
 # ------------------------------------------------------------------------------------------------------------ the truth
+# ------------------------------------------------------------------------------------------------ sub-pieces (parts)
+# A multi-segment garment is cut into its parts (Michael, 2026-09-30): the bow into its knot and its two lobes (its tails
+# are pieces already). Each part has its own mask, keyed VIEW__PIECE.PART beside the piece's (a part key has a '.', so
+# the piece partition's readers, which take VIEW__PIECE ids from the graph's pieces, pass it by), its own truth
+# (outfit_truth's VIEW.parts images) and its own checks (charkit.partqa).
+PARTS = {'bow': ('knot', 'lobe_L', 'lobe_R')}
+KNOT_SHARE = (0.01, 0.25)       # the knot's cell holds this share of the bow's pixels in a view
+KNOT_ROWS = 0.02                # L: another view's knot cell has its centre within the front knot's rows +- this
+CELL_IN = 0.6                   # a cell is the piece's when this share of it lies in the piece's mask
+
+
+def part_key(view, pid, part):
+    return '%s__%s.%s' % (view, pid, part)
+
+
+def is_part(key):
+    """a masks key (VIEW__PIECE or VIEW__PIECE.PART) names a part."""
+    return '.' in key.split('__', 1)[-1]
+
+
+def _cells_in(M, cell_lbl):
+    """the cells lying in mask M (CELL_IN of them), M's other pixels given to the nearest one -> (label image on M, ids)."""
+    from scipy import ndimage
+    ids, cnt = np.unique(cell_lbl[M], return_counts=True)
+    tot = np.bincount(cell_lbl.ravel(), minlength=int(cell_lbl.max()) + 1)
+    keep = [int(i) for i, c in zip(ids, cnt) if i > 0 and c >= CELL_IN * tot[i]]
+    lab_ = np.where(M & np.isin(cell_lbl, keep), cell_lbl, 0)
+    if not keep:
+        return lab_, []
+    if (M & (lab_ == 0)).any():
+        _, (iy, ix) = ndimage.distance_transform_edt(lab_ == 0, return_indices=True)
+        lab_ = np.where(M, lab_[iy, ix], 0)
+    return lab_, keep
+
+
+def bow_parts(M, cell_lbl, view, ppl, knot_rows=None):
+    """one view's bow mask cut into its knot and lobes by the drawn cells: the knot is a cell of KNOT_SHARE of the bow,
+    in front the one nearest the bow's middle column, in the other views the one whose centre lies in the front knot's
+    rows (knot_rows: (r0, r1), +- KNOT_ROWS L; nearest their middle); the lobes are the rest either side of the knot's
+    centre column (her left, L, to the picture's right in front and three-quarter); in profile the rest is the near
+    lobe (L: the profile faces the picture's left, so it shows her left side); the back shows no bow.
+    -> ({part: mask}, the knot's rows (r0, r1) or None)."""
+    out = {p: np.zeros(M.shape, bool) for p in PARTS['bow']}
+    if view == 'back' or M.sum() < 50:
+        return out, None
+    lab_, keep = _cells_in(M, cell_lbl)
+    n = float(M.sum())
+    cols = np.nonzero(M.any(0))[0]
+    mid = 0.5 * (cols[0] + cols[-1])
+    cand = []
+    for i in keep:
+        m = lab_ == i
+        a = m.sum() / n
+        if not (KNOT_SHARE[0] <= a <= KNOT_SHARE[1]):
+            continue
+        ys, xs = np.nonzero(m)
+        cand.append((i, ys.mean(), xs.mean(), ys.min(), ys.max()))
+    knot = None
+    if view == 'front' or knot_rows is None:
+        if cand:
+            knot = min(cand, key=lambda c: abs(c[2] - mid))
+    else:
+        pad = KNOT_ROWS * ppl
+        rm = 0.5 * (knot_rows[0] + knot_rows[1])
+        near = [c for c in cand if knot_rows[0] - pad <= c[1] <= knot_rows[1] + pad]
+        if near:
+            knot = min(near, key=lambda c: abs(c[1] - rm))
+    if knot is None:
+        out['lobe_L'] = M.copy()
+        return out, None
+    out['knot'] = lab_ == knot[0]
+    rest = M & ~out['knot']
+    if view == 'profile':
+        out['lobe_L'] = rest
+    else:
+        # cell by cell, by the side of the knot's centre its centre lies on (a lobe's cells can reach under the knot)
+        for i in keep:
+            if i == knot[0]:
+                continue
+            m = lab_ == i
+            side = 'lobe_L' if np.nonzero(m)[1].mean() >= knot[2] else 'lobe_R'
+            out[side] |= m
+        c = np.arange(M.shape[1])[None, :]
+        left = rest & ~out['lobe_L'] & ~out['lobe_R']
+        out['lobe_L'] |= left & (c >= knot[2])
+        out['lobe_R'] |= left & (c < knot[2])
+    return out, (int(knot[3]), int(knot[4]))
+
+
+def part_masks(masks, cell_lbls, ppl):
+    """the parts of the pieces PARTS names, per view ({view: cell label image}): {VIEW__PIECE.PART: mask}."""
+    out = {}
+    for pid in PARTS:
+        rows = None
+        for vn in ('front',) + tuple(v for v in VIEWS if v != 'front'):
+            M = masks.get('%s__%s' % (vn, pid))
+            if M is None or vn not in cell_lbls:
+                continue
+            P, kr = bow_parts(M, cell_lbls[vn], vn, ppl, rows)
+            if vn == 'front':
+                rows = kr
+            for part, m in P.items():
+                out[part_key(vn, pid, part)] = m
+    return out
+
+
+def load_parts(path):
+    """a truth's part labels (charkit-outfit-truth/1 with parts: per view VIEW.parts, an index image into `part_sets`,
+    the part keys PIECE.PART a pixel may be; -1 unscored) -> ({view: image}, part_sets) or None."""
+    Z = np.load(_p(path))
+    if 'part_sets' not in Z.files:
+        return None
+    return {v: Z[v + '.parts'] for v in VIEWS if v + '.parts' in Z.files}, json.loads(str(Z['part_sets']))
+
+
+def score_parts(masks, parts):
+    """the part masks (VIEW__PIECE.PART) against a truth's part labels (load_parts'): per view and in all the share of
+    the labelled pixels whose part the truth accepts, and per part the IoU (resolved as score's). -> dict."""
+    T, sets = parts
+    out, acc = {}, {}
+    for v, t in T.items():
+        ks = sorted(k for k in masks if k.startswith(v + '__') and is_part(k))
+        if not ks:
+            continue
+        names = [k.split('__', 1)[1] for k in ks] + ['none']
+        Lb = np.full(t.shape, len(names) - 1, np.int32)
+        for i, k in enumerate(ks):
+            Lb[masks[k]] = i
+        got = np.array(names, object)[Lb]
+        ok = np.zeros(t.shape, bool)
+        resolved = np.full(t.shape, 'none', object)
+        for i, st in enumerate(sets):
+            m = t == i
+            inset = m & np.isin(got, st)
+            ok |= inset
+            resolved[inset] = got[inset]
+            resolved[m & ~inset] = st[0]
+        lab = t >= 0
+        iou = {}
+        for pid in names[:-1]:
+            a, b = lab & (got == pid), lab & (resolved == pid)
+            u = int((a | b).sum())
+            if u:
+                iou[pid] = round(float((a & b).sum() / u), 3)
+                acc.setdefault(pid, [0, 0])
+                acc[pid][0] += int((a & b).sum())
+                acc[pid][1] += u
+        out[v] = dict(accuracy=round(float(ok[lab].mean()), 4) if lab.any() else None, labelled=int(lab.sum()), iou=iou)
+    out['all'] = dict(iou={pid: round(a / b, 3) for pid, (a, b) in sorted(acc.items())})
+    return out
+
+
 def load_truth(path):
     """a hand-checked labelling of the sheet's views by piece (charkit-outfit-truth/1: per view an index image into
     `sets`, the piece ids a pixel may be, 'none' for no piece; -1 unscored), on the outfit masks' grids.
@@ -3032,7 +3184,7 @@ def score(masks, truth):
     T, sets, _ = truth
     out, acc_p, conf = {}, {}, []
     for v, t in T.items():
-        ks = sorted(k for k in masks if k.startswith(v + '__'))
+        ks = sorted(k for k in masks if k.startswith(v + '__') and not is_part(k))
         if not ks:
             continue
         if masks[ks[0]].shape != t.shape:
@@ -3094,6 +3246,12 @@ def score_main(args):
           '; mean piece IoU %.3f' % r['all']['mean_iou'])
     for c in r['all']['confusions']:
         print('  %6d px  %-14s truth %-30s got %s' % (c['px'], c['view'], c['truth'], c['got']))
+    P = load_parts(R['outfit_truth']['path'])
+    if P is not None:
+        rp = score_parts({k: Z[k] for k in Z.files}, P)
+        r['parts'] = rp
+        print('parts: ' + '  '.join('%s %.3f' % (v, x['accuracy']) for v, x in rp.items() if v != 'all' and x['accuracy'] is not None)
+              + '; IoU ' + ', '.join('%s %.3f' % t for t in rp['all']['iou'].items()))
     return r
 
 
@@ -3328,6 +3486,9 @@ def build(spec_path, out=None, notes=None, write_manifest=True, log=print):
     apply_notes(G, N)
     for g in G['pieces']:
         g.pop('_k', None)
+        if g['id'] in PARTS:                # its parts (their masks: VIEW__PIECE.PART in outfit_masks)
+            g['parts'] = [dict(id='%s.%s' % (g['id'], q), part=q, side=q[-1] if q[-2:] in ('_L', '_R') else 'C')
+                          for q in PARTS[g['id']]]
     paths = {}
     text = dumps(G) + '\n'
     gp = os.path.join(out, 'outfit_graph.json')
@@ -3342,6 +3503,7 @@ def build(spec_path, out=None, notes=None, write_manifest=True, log=print):
     paths['picture'] = picture(A, G, os.path.join(out, 'outfit.png'))
     paths['report'] = report(G, os.path.join(out, 'outfit.md'))
     masks = {'%s__%s' % (vn, g['id']): A['assigned'][vn] == g['_k'] for vn in A.get('assigned', {}) for g in G['pieces']}
+    masks.update(part_masks(masks, {vn: m['cell_lbl'] for vn, m in (A.get('match') or {}).items()}, A['sheet']['ppl']))
     np.savez_compressed(os.path.join(out, 'outfit_masks.npz'), **masks)
     paths['masks'] = os.path.join(out, 'outfit_masks.npz')
     for g in G['pieces']:
