@@ -863,3 +863,32 @@ Jobs:
   `charkit/out/f4_before` (the review page's before, the hair as the gate's baseline).
 - Chin back-off: chin_lab sweep on jaw_7's head code (`charkit/out/face4b/lab_*.json`; the lab reads the defaults'
   0.0398 as before; the box reads the lab +0.0003, so the lab's taper must stay <= ~0.0395).
+
+**The terminator's attribution (measured).** The crown-only build (`f4_crown`, build box) reads art_terminator_hair
+2.552 exactly as the gate's candidate (per view front 9.552, three-quarter 8.399, profile 8.306, back 2.703; pipeline-3d
+`f4_before`: 8.895, 8.294, 8.755, 2.708): **the crown, all of it; the chin none.** The QA's artifacts part runs alone on
+a bundle in 8 s and reproduces both builds' readings exactly (`tools`: the scratch scripts are in the commit message of
+the fix). The cause, narrowed by swapping arrays between the two bundles:
+- the hair's vertices moved <= 0.3 mm (the hair builder reads the skin's cage at the crown), but the pipeline-3d bundle
+  with **only the crown build's hair corner normals** swapped in reads 2.552; per piece: side_lock_L +0.43, side_lock_R
+  +0.23 kinks per L in front (bangs, backs: 0);
+- the build's corner normals weren't the pieces' own: `scene.hair_pieces_objects` gave each piece its envelope normals
+  through a hidden proxy and a Data Transfer (NEAREST_NORMAL: by position). A lock's inner and outer surfaces meet at
+  its edges: 210 of side_lock_L's 5,280 vertices coincide with a twin whose normal differs 7.6 degrees (median), 438
+  lie within 1 mm of another (the outline's inward move is 0.7-1.4 mm): 400 vertices took a neighbour's normal, up to
+  12.7 degrees off (reproduced in Blender 5.2 locally: 398). Which ones is re-seeded by any sub-millimetre change.
+- With every hair corner given its piece's own normal (the QA on the bundles, lnor swapped): pipeline-3d 2.382, the
+  crown 2.433 (front 8.92 -> 9.11: the crown's real effect, under the 2.5 line; three-quarter, profile and back all
+  fall, back 2.71 -> 1.81).
+- **Fix** (tool/face4-crown 925b469): `geom.blender.set_normals`: the normals as a point attribute, set by Geometry
+  Nodes' Set Mesh Normal (tangent space, so they follow the head's armature) after the outline: 0.003 degrees mean, 0.35
+  max; `scene.PIECE_NORMALS` 'transfer' keeps the old way; `test_hair_normals` (Blender). Box build `f4_crown_n`
+  (`build-face-0930-083440-2c18`) to read every check before the gate.
+
+**The chin backed off** (db981bd): `SIDE_RIMFIT_FADE` (a column refitted by a share of its gap): the point and its
+neighbour whole, the second column (x 0.057) 0.59. Its share 0 / 0.36-0.52 / 0.6 / 0.75 / 0.9 / 1: chin_angle 117.0 /
+117.8 / 118.0 / 118.4 / 119.1 / 119.1, jaw_taper_shape 0.0391 / 0.0393 / 0.0394 / 0.0396 / 0.0398 / 0.0398 (lab;
+the box +0.0003). TIP_BIAS moves the chin's pixel row and swings the taper 0.023-0.048 (a pixel of the chin point
+shifts the normalised taper curve): (0.002-0.0035, 0.04) read as the default, (0.0045-0.006, *) FAIL, the refit off
+PASSes the taper (0.0233) but chin_tip goes WARN (0.663). The taper can't take the refit's whole angle in the boards'
+camera; the level camera's taper is 0.018 throughout.
