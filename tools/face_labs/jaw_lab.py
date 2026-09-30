@@ -29,7 +29,13 @@ def local(geom, spec=None):
     keep = V0[:, 2] > c[2] - 1.2 * L
     F = [f for f in A['faces'] if keep[list(f)].all()]
     used = sorted({v for f in F for v in f}); re = {o: n for n, o in enumerate(used)}
-    Vs, Q = subdiv.catmull_clark(V0[used], [tuple(re[v] for v in f) for f in F], levels=1)[:2]
+    sharp = []                                   # (as the modifier: the eye margins and the jaw's crease creased)
+    for E in A['eyes']:
+        lp = E['eye']['margin']
+        sharp += list(zip(lp, lp[1:] + lp[:1]))
+    sharp += list(A['body'].get('jaw_crease') or ())
+    sharp = [(re[a], re[b]) for a, b in sharp if a in re and b in re]
+    Vs, Q = subdiv.catmull_clark(V0[used], [tuple(re[v] for v in f) for f in F], sharp, levels=1)[:2]
     Q = np.asarray(Q)
     T = np.concatenate([Q[:, [0, 1, 2]], Q[:, [0, 2, 3]]])
     ex = A['head']['eye_knobs']['x'] if isinstance(A['head'].get('eye_knobs'), dict) else 0.168

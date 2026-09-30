@@ -80,6 +80,41 @@ def test_the_cylinder_cage_fits_a_head_without_folds():
     assert abs(mid[2]) < 0.01, mid
 
 
+def _dome_turned_over(V0, V, F, groups):
+    """the dome's quads (over the face's top row) that the fit turned over: their normal against their placed one."""
+    n = 0
+    for f, g in zip(F, groups):
+        if g not in ('skull', 'crown'):
+            continue
+        a, b = V0[list(f)], V[list(f)]
+        n += int(np.cross(a[2] - a[0], a[3] - a[1]) @ np.cross(b[2] - b[0], b[3] - b[1]) < 0)
+    return n
+
+
+def test_the_limit_fit_keeps_the_crown_facing_out():
+    """fitting the cage to its limit surface moved freely, the crown's cap folds over on a plain ellipsoid (the fit
+    reproduces where along the surface each vertex was placed, and the cap's grid, its corners three-valent, can't: 60
+    quads turned in, as on the code head, where hair_penetration read them); along the placed surface's normal only (the
+    dome: code_base.SKULL_NORMAL) none do, and the limit surface still passes through the placed points."""
+    from charkit import code_base, subdiv
+    from charkit.geom import headfit
+    S = ellipsoid_sections()
+    Cg, ctr = headfit.cylinder_cage(S, {'eye_x': 0.168, 'nose_z': -0.1}, z_top=0.25, z_bottom=-0.55)
+    V, F = np.asarray(Cg.V), [list(f) for f in Cg.F]
+    groups = [Cg.groups[g] for g in Cg.group]
+    movable = np.ones(len(V), bool)
+    movable[Cg.loops['neck'][0]] = False
+    free, _ = code_base.fit_limit(V, F, movable)
+    assert _dome_turned_over(V, free, F, groups) > 20                   # the known-bad fit
+    dome = code_base.dome_vertices(len(V), F, groups)
+    fitted, gaps = code_base.fit_limit(V, F, movable, normal=dome)
+    assert _dome_turned_over(V, fitted, F, groups) == 0
+    Vs = np.asarray(subdiv.catmull_clark(fitted, F, [])[0])[:len(V)]
+    d = V[dome] - ctr
+    d /= np.linalg.norm(d, axis=1, keepdims=True)
+    assert np.abs(np.einsum('ij,ij->i', Vs[dome] - V[dome], d)).max() < 0.003      # (the code head: 0.0013)
+
+
 def test_the_fairness_measure_sees_a_bump_and_not_a_sphere():
     from charkit.geom import headfit
     S = ellipsoid_sections()
