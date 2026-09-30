@@ -16,7 +16,7 @@
     python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
     python -m charkit remote jobs | attach JID | kill JID | load         # detached box jobs; the boxes' load (charkit/boxjob.py)
     python -m charkit preview [REF] | hook install | serve               # after a merge: the combined preview (charkit/preview.py); serve: click-to-flag (charkit/flags.py)
-    python -m charkit evaldrift [SPEC]                                 # the numpy evaluator against a box build (charkit/evaldrift.py)
+    python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -269,6 +269,7 @@ def build(args):
     spec = code_body(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     spec = pieces_hair(spec, resolved, out, mode)
+    spec = garments_geom(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
         # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
@@ -503,6 +504,46 @@ def pieces_hair(spec, resolved, out, mode='on'):
                                      'charkit.styles'), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
+def garments_geom(spec, resolved, out, mode='on'):
+    """venv-side, the garments stage's geometry (charkit/geomstage.py, docs/GEOM_TRUTH.md): the character assembled as
+    the Blender side assembles it, the hull's pieces aligned onto it, and garments.build run with its Blender calls
+    recorded -> out/geom/garments.npz, and the resolved spec pointed at it (spec['garments_geom']): the Blender side
+    replays it, and the evaluator (charkit.bodyeval) makes the same product. The character is assembled with the
+    cranium the Blender side fits first (scene.fit_cranium, with the venv's GLB reader as the other venv steps use it);
+    the product keeps the body it was built on, and the Blender side notes how far its own is from it (the trace's
+    garments_body). CHARKIT_GARMENTS=blender keeps the old path (garments computed inside Blender). A cached step
+    (file_step): it runs again when the resolved spec, a file it reads (the hull, the code head and body, the outfit
+    graph) or the code change."""
+    if not spec.get('garments') or os.environ.get('CHARKIT_GARMENTS') == 'blender':
+        return spec
+    from . import cache, geomstage, scene
+    from .geom.parts import load_generated
+    import contextlib, copy, io
+    key = copy.deepcopy({k: v for k, v in spec.items() if k != 'garments_geom'})
+    with contextlib.redirect_stdout(io.StringIO()):
+        key = scene.fit_cranium(key, ROOT, load=lambda p: load_generated(p, compat=True))
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'garments.npz')
+
+    def run():
+        geomstage.garments_step(key, path)
+    if mode == 'off':
+        run()
+    else:
+        ins = [spec[k] for k in ('head_code', 'body_code') if spec.get(k)]
+        glb = ((spec.get('hair') or {}).get('shape') or {}).get('glb')
+        r = cache.file_step('garments_geom', run, [garments_geom], key, gdir,
+                            inputs=ins + (_glb_inputs(glb) if glb else []),
+                            modules=('charkit.geomstage', 'charkit.garments', 'charkit.character', 'charkit.code_base',
+                                     'charkit.code_body', 'charkit.geom.loft', 'charkit.scene'),
+                            name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE garments_geom', r)
+    spec['garments_geom'] = path
     json.dump(spec, open(resolved, 'w'), indent=1)
     return spec
 
