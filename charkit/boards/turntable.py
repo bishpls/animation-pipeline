@@ -38,21 +38,20 @@ def main(out, n=24, look=None, only=None):
         cam = bpy.data.objects.new('board_cam', bpy.data.cameras.new('board_cam'))
         sc.collection.objects.link(cam)
     sc.camera = cam
+    # each set as one animation render (qa.render_views: the same pictures as a still per view, each with its view's
+    # look), a quarter of the time
+    V = qa.View
     frames = {'body': [], 'face': []}
-    for i in range(n):
-        az = 360.0 * i / n
-        if only in (None, 'body'):
-            sc.render.resolution_x, sc.render.resolution_y = 540, 900
-            p = os.path.join(out, 'body_%03d.png' % i)
-            qa.render_view(cam, (0, 0, H * 0.52), az, 6.0, 0.0, p, ortho=H * 1.12)
-            frames['body'].append(p)
-        if only in (None, 'face'):
-            sc.render.resolution_x, sc.render.resolution_y = 700, 700
-            p = os.path.join(out, 'face_%03d.png' % i)
-            qa.render_view(cam, (0, 0, eye_z + 0.06 * L), az, 1.0, 0.0, p, lens=85)
-            if covers and feats:
-                qa.features_through(p, feats, covers, [skin])
-            frames['face'].append(p)
+    if only in (None, 'body'):
+        sc.render.resolution_x, sc.render.resolution_y = 540, 900
+        frames['body'] = qa.render_views(cam, [V((0, 0, H * 0.52), 360.0 * i / n, 6.0, 0.0,
+                                                 os.path.join(out, 'body_%03d.png' % i), ortho=H * 1.12)
+                                               for i in range(n)])
+    if only in (None, 'face'):
+        sc.render.resolution_x, sc.render.resolution_y = 700, 700
+        frames['face'] = qa.render_views(cam, [V((0, 0, eye_z + 0.06 * L), 360.0 * i / n, 1.0, 0.0,
+                                                 os.path.join(out, 'face_%03d.png' % i), lens=85) for i in range(n)],
+                                         features=(feats, covers, [skin]) if covers and feats else None)
     shade.set_view(0)
     json.dump({k: [os.path.basename(p) for p in v] for k, v in frames.items()}, open(os.path.join(out, 'frames.json'), 'w'))
     return frames
