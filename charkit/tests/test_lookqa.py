@@ -102,6 +102,33 @@ def test_smooth_vertex_keeps_constants():
     assert Y[3].tolist() == [1.0, 1.0, 1.0] and 0 < Y[0, 0] < 1
 
 
+def test_chin_separates_the_v_from_the_band():
+    """face_shadow_chin's calibration on shapes: a V under the chin (the design's) against itself and moved by the
+    placement's noise PASS; Michael's flag, a band low on the neck, FAILs both, even a band as thick as the V's mean
+    (the pixel count per column alone reads it as the V: why the reach is graded)."""
+    from charkit import lookqa
+    ppl, H, W = 200, 140, 200
+    rows, cols = np.mgrid[:H, :W]
+    r0 = 20                                                  # the chin's row: the window is r0 .. r0 + 0.5 L
+    neck = (cols >= 60) & (cols < 140) & (rows >= r0) & (rows < r0 + ppl // 2)
+    depth = 40 - 0.8 * np.abs(cols + 0.5 - 100)              # the V: 0.2 L deep under the chin, 0.04 L at the sides
+    V = neck & (rows < r0 + depth)
+    grade = lambda c: (lookqa._grade_chin(c['iou'], lookqa.CHIN_IOU, True),
+                       lookqa._grade_chin(c['edge'], lookqa.CHIN_EDGE, False))
+    c = lookqa._chin(V, V, neck, ppl)
+    assert c['iou'] == 1.0 and c['edge'] == 0.0 and grade(c) == ('PASS', 'PASS')
+    for sh in ((2, 0), (0, 2), (-2, 0), (0, -2)):            # 0.01 L either way
+        c = lookqa._chin(np.roll(V, sh, (0, 1)), V, neck, ppl)
+        assert grade(c) == ('PASS', 'PASS'), (sh, c)
+    mean = int(round(V.sum() / neck.any(0).sum()))           # the V's mean thickness (24 px)
+    band = neck & (rows >= r0 + 60) & (rows < r0 + 60 + mean)
+    c = lookqa._chin(band, V, neck, ppl)
+    assert grade(c) == ('FAIL', 'FAIL'), c
+    assert abs(c['ours_depth'] - c['design_depth']) < 0.01   # the count alone: the same
+    tilt = neck & (rows >= r0 + 30)                          # round 1's smear: the neck shaded from part way down
+    assert grade(lookqa._chin(tilt, V, neck, ppl))[0] == 'FAIL'
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

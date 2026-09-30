@@ -13,7 +13,9 @@ as the QA reads them (charkit.refcheck at FACE_PPL).
                  share of the face (above our chin) and of the neck (the chin to 0.5 L under it), ours and drawn, and the
                  shadows' IoU. The three-quarter is the headline view (the design shades it most). `chin` (graded):
                  the shadow under the chin in the front and three-quarter views, over the neck window: its IoU with
-                 the design's, and its depth under the jaw per column against the design's (the V: `chin_edge`, L)
+                 the design's, and how far under the chin it reaches per column against the design's (the V drawn as
+                 a profile: `chin_edge`, L). Both flag checks (Michael's under-chin band), graded, capped at WARN until
+                 promoted (CHIN_PROMOTED)
   line_width     the outlines' drawn widths in the design's framing (a head sheet 1440 px tall at the design's px per L:
                  the style's 'screen' lines at that page, or each object's build width), from 0, 30 and 90 degrees: the
                  hull's pixels' widths (twice the distance to the line's edge, along its skeleton) per region (skin,
@@ -322,7 +324,7 @@ def face_shadow(B, design, out=None, fr=None):
     """-> (table, checks face_shadow_3q (the three-quarter's shadow IoU), face_shadow_face_3q, face_shadow_neck_3q (the
     share of face and neck skin in shadow, ours less the design's), face_shadow_chin (graded: the shadow under the chin,
     its IoU with the design's over the neck window in the front and three-quarter views) and face_shadow_chin_edge
-    (graded: how far our shadow's depth under the jaw is from the design's, per column, L)): see the module."""
+    (graded: how far our shadow's reach under the chin is from the design's, per column, L)): see the module."""
     D = design_heads(design) if design is not None else None
     if D is None:
         return None, {'face_shadow_3q': {'status': 'SKIPPED', 'why': 'no spec.ref.face_sheet'}}
@@ -386,16 +388,18 @@ def face_shadow(B, design, out=None, fr=None):
     if ch:
         iou = float(np.mean([c['iou'] for c in ch.values()]))
         edge = float(np.mean([c['edge'] for c in ch.values()]))
-        C['face_shadow_chin'] = {'value': round(iou, 4), 'per_view': {v: c['iou'] for v, c in ch.items()},
-                                 'status': _grade_chin(iou, CHIN_IOU, True)}
+        C['face_shadow_chin'] = _flag({'value': round(iou, 4), 'per_view': {v: c['iou'] for v, c in ch.items()},
+                                       'grade': _grade_chin(iou, CHIN_IOU, True)})
         sw = [c['soft'] for c in ch.values() if c.get('soft') is not None]
         if sw:
             C['face_shadow_chin_soft'] = {'value': round(float(np.mean(sw)), 4), 'status': 'INFO',
                                           'per_view': {v: c['soft'] for v, c in ch.items()}}
-        C['face_shadow_chin_edge'] = {'value': round(edge, 4), 'per_view': {v: c['edge'] for v, c in ch.items()},
-                                      'ours_depth': {v: c['ours_depth'] for v, c in ch.items()},
-                                      'design_depth': {v: c['design_depth'] for v, c in ch.items()},
-                                      'status': _grade_chin(edge, CHIN_EDGE, False)}
+        C['face_shadow_chin_edge'] = _flag({'value': round(edge, 4), 'per_view': {v: c['edge'] for v, c in ch.items()},
+                                            'ours_reach': {v: c['ours_reach'] for v, c in ch.items()},
+                                            'design_reach': {v: c['design_reach'] for v, c in ch.items()},
+                                            'ours_depth': {v: c['ours_depth'] for v, c in ch.items()},
+                                            'design_depth': {v: c['design_depth'] for v, c in ch.items()},
+                                            'grade': _grade_chin(edge, CHIN_EDGE, False)})
     t = table.get('three_quarter')
     if t:
         C['face_shadow_3q'] = {'value': t['iou'], 'status': 'INFO', 'per_view': {v: r['iou'] for v, r in table.items()}}
@@ -416,6 +420,20 @@ CHIN_EDGE = (0.03, 0.06)         # face_shadow_chin_edge, L: PASS at or under, W
 CHIN_PIC = (0.25, 0.55, 0.45)    # the chin close-up round our chin, L: above, below, either side
 
 
+CHIN_FLAG = ("the under-chin shadow a smeared horizontal band low on the neck; the design's a clean V directly under the "
+             "chin, following the jaw (look round 1)")
+CHIN_PROMOTED = False            # the integrator's call: then the grade is the status (else capped at WARN)
+
+
+def _flag(c):
+    """a chin check built from Michael's flag (charkit.registry.flag_check: the gate blocks on its regressions): its
+    grade capped at WARN until promoted (CHIN_PROMOTED), as charkit.artifactqa's calibrated checks are."""
+    from . import registry
+    g = c['grade']
+    c['status'] = g if CHIN_PROMOTED else 'PASS' if g == 'PASS' else 'WARN'
+    return registry.flag_check(c, CHIN_FLAG)
+
+
 def _grade_chin(v, lim, higher_better):
     p, w = lim
     if higher_better:
@@ -425,20 +443,34 @@ def _grade_chin(v, lim, higher_better):
 
 def _chin(ours_sh, d_sh, region, ppl):
     """the shadow under the chin (region: the neck window, the chin to 0.5 L under it, over the skin both show),
-    ours against the design's: their IoU, and the shadow's depth per column (its pixels in the column, in L: the V
-    under the jaw drawn as a profile) -> dict(iou, edge (the mean |our depth - the design's| over the columns both
-    show, L), ours_depth, design_depth (their means, L), px)."""
+    ours against the design's: their IoU, and per column how far under the chin the shadow reaches (its lowest pixel
+    below the window's top, L; 0 where the column has none: the V under the jaw drawn as a profile) -> dict(iou, edge
+    (the mean |our reach - the design's| over the columns both show, L), ours_reach, design_reach (their means, L),
+    ours_depth, design_depth (the shadow's pixels per column, L, means: INFO), px).
+    The reach, not the pixel count, is graded: a count is blind to where the shadow sits (a band of the V's mean
+    thickness low on the neck reads as the V; test_chin_separates_the_v_from_the_band)."""
     a = region
     if a.sum() < 50:
-        return dict(iou=None, edge=None, ours_depth=None, design_depth=None, px=int(a.sum()))
+        return dict(iou=None, edge=None, ours_reach=None, design_reach=None, ours_depth=None, design_depth=None,
+                    px=int(a.sum()))
     u = (ours_sh | d_sh) & a
     iou = float((ours_sh & d_sh & a).sum() / max(1, u.sum()))
     cols = a.sum(0) >= 0.05 * ppl                       # columns with neck skin both show
+    if not cols.any():
+        return dict(iou=round(iou, 4), edge=None, ours_reach=None, design_reach=None, ours_depth=None,
+                    design_depth=None, px=int(a.sum()))
+    r0 = int(np.nonzero(a.any(1))[0][0])
+    rows = np.arange(a.shape[0])[:, None]
+
+    def reach(sh):
+        low = np.where(sh & a, rows, -1).max(0)
+        return (np.where(low >= 0, low + 1 - r0, 0) / ppl)[cols]
+    ro, rd = reach(ours_sh), reach(d_sh)
     do = (ours_sh & a).sum(0)[cols] / ppl
     dd = (d_sh & a).sum(0)[cols] / ppl
-    return dict(iou=round(iou, 4), edge=round(float(np.mean(np.abs(do - dd))), 4) if cols.any() else None,
-                ours_depth=round(float(do.mean()), 4) if cols.any() else None,
-                design_depth=round(float(dd.mean()), 4) if cols.any() else None, px=int(a.sum()))
+    r4 = lambda x: round(float(x), 4)
+    return dict(iou=r4(iou), edge=r4(np.mean(np.abs(ro - rd))), ours_reach=r4(ro.mean()), design_reach=r4(rd.mean()),
+                ours_depth=r4(do.mean()), design_depth=r4(dd.mean()), px=int(a.sum()))
 
 
 def _soft_width(q, m, soft, r0, r1, ppl):
