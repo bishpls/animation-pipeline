@@ -301,23 +301,51 @@ def _grow_rings(F, start, rings, exclude, n):
 
 
 LIMIT_ITERS = 10                 # rounds of fitting the cage to its own subdivision's limit surface
+SKULL_NORMAL = True              # the dome's vertices (skull, crown) fitted along the placed surface's normal only: fitted
+                                 # freely, the crown's flat top (the sections' last rows, 0.004 L apart, r 0.03 -> 0.15)
+                                 # dragged the dome's top rows 0.03-0.04 L along the surface and folded 60 of the crown's
+                                 # quads over (hair4's false hair_penetration: 120 inward triangles)
 
 
-def fit_limit(V, faces, movable, sharp=(), iters=LIMIT_ITERS):
+def fit_limit(V, faces, movable, sharp=(), iters=LIMIT_ITERS, normal=None):
     """the cage moved so its Catmull-Clark limit surface (level 1, the build's viewport modifier, which the QA measures)
     passes through where the cage's vertices were placed: subdivision pulls a surface inside its cage, most on narrow
     convex features (the nose, the chin), so each round moves every movable vertex by the gap between its target and its
-    limit position -> (V, the remaining gap per round, L)."""
+    limit position. normal (bool per vertex): those vertices move only along the placed surface's normal (the gap's
+    part across the surface; where along it a vertex sits is the placement's, not a shape to reproduce) -> (V, the
+    remaining gap per round, L)."""
     from charkit import subdiv
     T = np.asarray(V, float)
     P = T.copy()
+    N = _vertex_normals(T, faces) if normal is not None else None
     gaps = []
     for _ in range(iters):
         V1, Q, par = subdiv.catmull_clark(P, faces, sharp)
         d = T - V1[:len(P)]
+        if N is not None:
+            d[normal] = np.einsum('ij,ij->i', d[normal], N[normal])[:, None] * N[normal]
         gaps.append(round(float(np.abs(d[movable]).max()), 5))
         P[movable] += d[movable]
     return P, gaps
+
+
+def dome_vertices(n, faces, groups):
+    """the cage's dome (its 'skull' rows over the face's top row and the 'crown' cap) as a mask over n vertices."""
+    m = np.zeros(n, bool)
+    for f, g in zip(faces, groups):
+        if g in ('skull', 'crown'):
+            m[list(f)] = True
+    return m
+
+
+def _vertex_normals(V, faces):
+    """area-weighted vertex normals of a polygon mesh (each face's by its diagonals' cross product)."""
+    N = np.zeros_like(V)
+    for f in faces:
+        P = V[list(f)]
+        n = np.cross(P[2] - P[0], P[-1] - P[1]) if len(f) == 4 else np.cross(P[1] - P[0], P[2] - P[0])
+        N[list(f)] += n
+    return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-12)
 
 
 def eye_outline(spec, n=32):
@@ -434,10 +462,29 @@ def head_mesh(S, C, cut, eye_outline=None, mouth=None):
     held |= set(np.nonzero(Cg.under_part == 1)[0].tolist())
     movable = np.array([i not in held for i in range(len(Va))])
     sharp = [(a, b) for E in eyes.values() for a, b in zip(E['margin'], E['margin'][1:] + E['margin'][:1])]
-    Va, gaps = fit_limit(Va, faces, movable, sharp)
+    crease = jaw_crease(Cg)
+    Va, gaps = fit_limit(Va, faces, movable, sharp + crease,
+                         normal=dome_vertices(len(Va), faces, groups) if SKULL_NORMAL else None)
     chart_z = np.concatenate([Cg.chart_z, Va[len(Cg.chart_z):, 2]])     # (the sockets and the cavity: their own)
     return dict(V=Va, faces=faces, groups=groups, eyes=eyes, mouth=mouth, neck=list(Cg.loops['neck'][0]), cage=Cg,
-                limit_gaps=gaps, chart_z=chart_z)
+                limit_gaps=gaps, chart_z=chart_z, jaw_crease=crease)
+
+
+def jaw_crease(Cg):
+    """the jaw's rim loop (its cage row, headgeom.SIDE_RIM_ROW) creased across headgeom.JAW_CREASE columns either side of
+    the chin's -> [(a, b)] cage edges."""
+    from charkit.geom import headgeom
+    k = int(headgeom.JAW_CREASE)
+    if not k or getattr(Cg, 'rim_row', None) is None or not headgeom.SIDE_RIM_ROW:
+        return []
+    on = np.nonzero(np.abs(Cg.chart_z - Cg.rim_row) < 1e-7)[0]
+    cols = {}
+    for v in on:
+        j = int(np.argmin(np.abs(Cg.th - Cg.chart_th[v]))) if np.isfinite(Cg.chart_th[v]) else -1
+        if j >= 0 and abs(Cg.th[j] - Cg.chart_th[v]) < 1e-7:
+            cols[j] = int(v)
+    j0 = int(np.argmin(np.abs(Cg.th)))
+    return [(cols[j], cols[j + 1]) for j in range(j0 - k, j0 + k) if j in cols and j + 1 in cols]
 
 
 # ------------------------------------------------------------------------------------------------------------ the join
@@ -724,6 +771,7 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
                  loops=[[v + nbv for v in r] for r in M_['loops']],
                  outer=off(M_['outer']), side=off(M_['side']))
     base = CodeBase(eyes, mouth)
+    jaw_crease_ = [(a + nbv, b + nbv) for a, b in Hmesh['jaw_crease']]
     # the head's frame for H: origin at the eye line on the head's axis (the section's centre there)
     k0 = int(np.argmin(np.abs(Sb.zs)))
     y0 = float(Sb.cy[k0])
@@ -754,5 +802,5 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     info = dict(region=region, target=(TV, TT), profile=[], eye_world=[marks['eye_l'], marks['eye_r']], c_real=None,
                 c_anime=centre, pinned=region.copy(), extra=None, code=dict(cut=CUT, head=rep, groups=Hmesh['groups']))
     B = dict(Bm, verts=pre, faces=faces, face_uv=face_uv, uvs=uvs_all, weights=weights, head_w=head_w, face_w=face_w,
-             base=base, regions=None, ghosts=ghosts, marks=dict(Bm['marks'], **marks))
+             base=base, regions=None, ghosts=ghosts, marks=dict(Bm['marks'], **marks), jaw_crease=jaw_crease_)
     return B, V, H, centre, info

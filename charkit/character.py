@@ -238,6 +238,8 @@ def build(spec, clay=None, look=None):
     for lp in loops:
         for a_, b_ in zip(lp, lp[1:] + lp[:1]):
             pairs.add((min(a_, b_), max(a_, b_)))
+    for a_, b_ in A['body'].get('jaw_crease') or ():         # the jaw's rim at the chin (code_base.jaw_crease)
+        pairs.add((min(a_, b_), max(a_, b_)))
     vals = [1.0 if (min(e.vertices[0], e.vertices[1]), max(e.vertices[0], e.vertices[1])) in pairs else 0.0 for e in me.edges]
     cr.data.foreach_set('value', vals)
     ow = outline_weights(A)

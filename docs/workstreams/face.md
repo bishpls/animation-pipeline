@@ -745,3 +745,25 @@ hidden), the curves, the jaw's shading before and after (jaw_health), and the ch
 5. The side pocket's fade behind the jaw's angle curls up to the band's top (under the ear, behind the side locks):
    a ramus going up to the ear would be the design's.
 6. sheet_width's evaluator drift (+0.023); the body QA's registration (`qa3d.sheet_body` on the iris mean).
+
+## Round 4 (2026-09-30, overnight): the chin in the design's projection, the crown, the ramus
+
+Branch `tool/face4` from pipeline-3d a3073f5. Labs on jaw_7's head code (`charkit/out/jaw_7/geom`), the local assembly
+(the skin subdivided once, as the QA's eval mesh; the lab now creases the eye margins and the jaw's crease as the
+modifier does).
+
+**1. The crown's inward triangles (hair4's false hair_penetration; fixed).** Not duplicates: `code_base.fit_limit` (the
+cage moved so its level-1 surface passes through the placed points) turned 60 of the crown's quads over (120
+triangles; x +-0.064, z 0.630-0.641 L), dragging the dome's top rows up to 0.043 L along the surface. It fits all three
+coordinates, so it tries to reproduce where along the surface each vertex was placed, which the crown's cap (a Coons
+grid, three-valent corners) can't; the placed cage has none turned. The same fit folds 60 on a plain ellipsoid
+(`test_the_limit_fit_keeps_the_crown_facing_out`, the known-bad case). Now the dome's vertices (groups skull and
+crown) move only along the placed surface's normal (`code_base.SKULL_NORMAL`): 0 turned over, the fit's largest move
+there 0.043 -> 0.007 L, the level-1 surface within 0.0013 L of the placed points (0.0001 before), the skin's top
+0.6406 (unchanged). hair_penetration on the default spec should read the hair's true clearance (+0.013 L) after a build.
+
+**2. The chin: what the measure can resolve.** The jaw checks read ours off a picture at the head sheet's scale (401 px
+per L: a pixel is 0.0025 L). chin_angle fits each arm over 0.06 L of arc (24 px): a pixel at one end of an arm is 2.4
+degrees. `tools/face_labs/chin_lab.py` reads the same measures on ours drawn K times finer (K=4) beside the sheet's
+scale, and prints each chin column's rim against its target. jaw_7 at the sheet's scale / 4x: level 126.1 / 126.3,
+boards' 116.4 / 116.1 (the design 129.7).
