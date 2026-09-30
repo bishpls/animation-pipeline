@@ -686,9 +686,9 @@ def chevron_lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40, C=N
         return _ribbon(F, side, eye_c, np.stack([x, z], 1), th, sign, tuck=0.5, surf=S, at=S(x, z) if S.on else None,
                        tip=tip)
     out = [stroke('upper', n + 10, 1.0), stroke('lower', 16, -1.0)]
-    if K.get('crease', 0) > 0:
-        x, z = chevron_stroke(K, L, np.linspace(0.1, 0.9, 24), 'upper', C)
-        out.append(_ribbon(F, side, eye_c, np.stack([x, z], 1), np.full(24, 1e-5), 1.0, tuck=0.5, surf=S,
+    if K.get('crease', 0) > 0:                      # (behind the skin: at the strokes' depth it z-fought with the
+        x, z = chevron_stroke(K, L, np.linspace(0.1, 0.9, 24), 'upper', C)       # upper one, a dashed line on the board)
+        out.append(_ribbon(F, side, eye_c, np.stack([x, z], 1), np.full(24, 1e-5), 1.0, lift=0.002, tuck=0.5, surf=S,
                            at=S(x, z) if S.on else None))
     return out
 
@@ -804,8 +804,9 @@ def expressions(K, L):
 LASHES = {'chevron': chevron_lashes}
 # lid_key's options per expression: the chevron's pocket seated behind the skin where it lands
 KEY_OPTS = {'chevron': dict(seat=True)}
-# the closed expressions: the eye plates sink back under them so nothing shows through the lids' seam
-CLOSED = ('blink', 'happy', 'chevron')
+# the closed expressions: the eye plates sink back under them so nothing shows through the lids' seam (the squeeze's
+# showed its iris and sclera through the skin under and over the eye on the boards until it was listed, tool/mouth3)
+CLOSED = ('blink', 'happy', 'squeeze', 'chevron')
 
 
 # expressions that also scale the iris about its centre, as a share of its size (a shocked eye's shrunken iris)
