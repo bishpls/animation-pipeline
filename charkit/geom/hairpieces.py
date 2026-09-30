@@ -893,7 +893,7 @@ def crown_cap(F, style, opts, L):
                 chain=np.array([po]), push=0.0)
 
 
-def cap_sectors(cap, F, regions):
+def cap_sectors(cap, F, regions, mode=True):
     """the crown's cover split round phi by the part lines: each face to the piece whose family the crown's rows take
     in its column (piece_regions' crown rows; the side locks by side; a family with no piece: the upper back). The cover
     stays one smooth surface; its sectors belong to the pieces whose locks they cover, so the fringe's crown is fringe
@@ -907,6 +907,10 @@ def cap_sectors(cap, F, regions):
     f = fam_at[i]
     piece = np.array([names.get(int(x), ('side_lock_L' if p_ > 0 else 'side_lock_R') if int(x) == fam_id('side_locks')
                                 else 'upper_back') for x, p_ in zip(f, ph)])
+    if mode == 'half':
+        # (two sectors only: the front half the fringe's, the back half the upper back's; the part lines' sectors
+        # showed as small pieces along the crown)
+        piece = np.where(np.abs(ph) < 90, 'bangs', 'upper_back')
     piece = np.array([p_ if p_ in regions else 'upper_back' for p_ in piece])
     out = {}
     for name in np.unique(piece):
@@ -1493,7 +1497,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
     sectors = {}
     if o.get('crown_blend', 0) > 0 and o.get('cap_sectors', False):
-        sectors = cap_sectors(crown_cap(F, style, o, L), F, regions)
+        sectors = cap_sectors(crown_cap(F, style, o, L), F, regions, o['cap_sectors'])
     for piece, R in regions.items():
         ph = _unwrap(R['ph'])
         L_, edge = locks(ph, R['tip'], style['lock_min'], style['notch'])
