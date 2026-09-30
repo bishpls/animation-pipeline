@@ -768,3 +768,11 @@ regions (hair, skin, garments) of the shaded regions' mean IoU (shade and lit) w
   0.47-0.59, the neck 0.54-0.79, the face 0.43-0.57, garments 0.44-0.49.
 - Stored as the manifest's `design_light` (camera, [15, 47.5]) with the per-view bests and a caution. lookqa reads the
   manifest file (not the resolved spec: every produced reference stamps the spec's `ref`, so the hull would rebuild).
+
+### State (checkpoint 3)
+
+- Merged pipeline-3d 25b1936 (tool/infra-auth: box commands need `export CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud`;
+  the infra/gcp env files export it) at 271ae94. Clean merge.
+- The gate `gate-look4-0930-141135-b484` (bb3fdf1, before the merge) is running on the build box; the after build
+  `look6_after` (render box: face_lift 15) too. `designlight.review` writes the review page
+  (`python -c "from charkit import designlight as dl; dl.review({NAME: BUILD, ...}, OUT)"`).

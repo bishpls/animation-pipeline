@@ -22,7 +22,7 @@ for every view) beside it. A coarse grid, then a finer one round the best.
 
     python -m charkit.designlight BUILD [--out DIR]       # fit.json and the pictures into DIR (default BUILD/design_light)
 """
-import json, math, os
+import json, math, os, re
 
 import numpy as np
 
@@ -636,7 +636,7 @@ def review(builds, out, keys=None):
         for sh, vs in setups.items():
             k = 1 if sh == 'head' else 2
             for v, s in vs.items():
-                tag = '%s_%s_%s' % (bname, sh, v)
+                tag = re.sub('[^a-z0-9]+', '_', ('%s_%s_%s' % (bname, sh, v)).lower()).strip('_')
                 cells = []
                 if first or True:
                     dm = s['design']
