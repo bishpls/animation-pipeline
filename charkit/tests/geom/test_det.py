@@ -34,11 +34,13 @@ def test_gaussian_matches_scipy_and_ignores_memory_layout():
     from scipy.ndimage import gaussian_filter
     rng = np.random.default_rng(1)
     x = (rng.random((21, 17, 30)) > 0.5).astype(np.float32)
-    for sig in (1.0, 1.5, (0.6, 0.6, 2.0)):
-        a = det.gaussian(x, sig)
-        assert np.abs(a - gaussian_filter(x, sig, mode='nearest')).max() < 1e-6
-        b = det.gaussian(np.asfortranarray(x), sig)                  # another layout: the same elementwise sums
-        assert a.tobytes() == np.ascontiguousarray(b).tobytes()
+    for mode in ('reflect', 'nearest'):                          # the edge modes are scipy's, reflect its default
+        for sig in (1.0, 1.5, (0.6, 0.6, 2.0), (2.7, 2.7, 9.0)):
+            a = det.gaussian(x, sig, mode=mode)
+            assert np.abs(a - gaussian_filter(x, sig, mode=mode)).max() < 1e-6
+            b = det.gaussian(np.asfortranarray(x), sig, mode=mode)  # another layout: the same elementwise sums
+            assert a.tobytes() == np.ascontiguousarray(b).tobytes()
+    assert det.gaussian(x, 1.5).tobytes() == det.gaussian(x, 1.5, mode='reflect').tobytes()
     w = det.kernel(1.5)
     assert w.tobytes() == det.kernel(np.nextafter(1.5, 2.0)).tobytes()   # weights snapped: an ulp in sigma is nothing
 
