@@ -74,47 +74,77 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
 7. **The bow close-up call** (round 2, 2026-09-30): prompt `bow_closeup` in prompts.json; one call, n=2, 2560x1440
    high, refs body_turnaround then garment_breakdown, out `charkit/out/pieceref/gen/bow_closeup_1|2.png`, logged to
    this worktree's tools/ledger.jsonl (a gitignored `.env` symlink to the main checkout's, removed after).
+8. **The close-up registered** (f824be4, step fc0952a): refcheck per view (`harness/curef.py`, cells pictures
+   `harness/curef_*.png`, overlays `curov_*.png`; `harness/cucal.py IMG BUILD..` reads builds against one):
 
-Not done: the bow fix, loop_end / bleed, the review page, the
-gate, the cuffs and boots.
+   | reference (front) | body IoU | tails | knot / span (turnaround 0.110) | whole silhouette 3q / profile |
+   |---|---|---|---|---|
+   | garment_breakdown | 0.762 | 0.759 | 0.147 | (front only) |
+   | close-up take 1 | 0.818 | 0.531 | 0.121 | 0.522 / 0.318 |
+   | close-up take 2 (registered) | **0.871** | 0.516 | 0.135 | 0.444 / 0.314 |
+
+   Take 2's three-quarter is turned the other way (its larger lobe the picture's left); both takes' 3q and side views
+   draw no line between a lobe and its tail (the ink-cell split fails there), their tails ~20% longer: only the front
+   is registered. Authority split per property: `shape_bow: bow_closeup` (iso_bow_body now graded, flag: the
+   turnaround 0.871 PASS, b2_close 0.754 WARN, b2_before 0.616 and g3_render3 0.659 FAIL; the breakdown couldn't
+   separate: b2_close 0.82 above the design's 0.76), `lines_bow: garment_breakdown` (knot line, creases: its creases
+   match the turnaround's, the close-up's run 1.84-1.90 lobe widths against 1.40-1.53); tails, knot size, knot rect
+   INFO (knot size: the turnaround 0.18 against the close-up, flagged builds 0.22: no separation). isoqa's knot-line
+   reach now scales with the picture's line width (the close-up's 5-6 px lines read None at 2 px).
+9. **pipeline-3d 004efc3 merged** (857ffbd; tool/calib: `charkit calibrate`, records required for new and remeasured
+   checks, the guard in the gate). steps/collarqa.py conflict: both sides' entries kept.
+10. **The pleated bow** (d814b6a; knobs, OFF in the default spec, so builds are unchanged): garments.py
+   `_bow_mesh(pleat=, knot_box=)`, `_pleat_band`: each lobe a trapezoid panel (pinched at the knot, top rising to a
+   square upper corner, bottom to a rounder lower one) folded along a straight crease from the knot's lower corner to
+   the lower outer corner over a strip behind (the fold's underside, `step` half-depths back), meant to make the
+   panel's edge a silhouette the hull draws; the knot `knot_box` [w, d, h, corner radius] (sizes) stood in front of
+   the lobes by its sides after the wrap (`pleat.stand`, bow_hull), so its hull's back faces outline it; `pleat.cup`
+   (the lobes' ends forward) and `pleat.wrap: 'row'` (lobes wrapped by their centre row) are there but hurt (p3).
+   7 connected parts: partqa.split names them. partqa's knot line now reaches the outline's width (b591b22 step).
+   Harness: `harness/var.py OUT --base b2_close --set 'garments.bow.pleat=JSON' --set 'garments.bow.knot_box=JSON'`
+   (bow2's, the outline's shrink rebuilt from the normals: -N |thickness| (1 + offset) / 2; b2_close's bow matches at
+   cos 0.99998, and v0 reproduces the box's partqa numbers exactly, so line checks read on splices); ~70-110 s;
+   `harness/bowview.py SRC` (front/3q/profile with lines, bow by part: `bowview_*.png`); `harness/partonly.py SRC`.
+
+   | run (on b2_close's bundle) | piece_bow F/3q/P | knot_iou F/3q/P | lobe_iou | knot_line | knot_rect | crease_len | profile thick/lean/hang | iso body |
+   |---|---|---|---|---|---|---|---|---|
+   | v0 (b2_close as is) | 0.926/0.828/0.654 | 0.536/0.127/0 | 0.722 | 0.889 F | 0.475 F | 1.0 F | 0.035 W/2.6/4.2 | 0.744 F |
+   | p2 pleat knot .07 top/bottom .24 sag .06 step 1.4 thin .4 pinch .6 stand .01; knot_box [.10,.09,.145,.02] | 0.948/0.874/0.582 | 1.0?/0/0 | 0.703 | **0 P** | **0.094 P** | 0.748 F | 0.066 F/34 F/15 F | 0.739 F |
+   | p3 = p2 + cup .12, depth .09, wrap row | 0.941/0.793/**0.458** | | 0.503 W | | | 0.935 F | 0.060 F/51 F/20 F | 0.769 W |
+
+   Findings: the knot is fixed in front (outlined all round, a rectangle). Open: (a) **no crease line is drawn**
+   (bowview: no line inside the panels in p1-p3): probe the depth at mid-lobe across the crease after the wrap (panel
+   rim vs strip front) before tuning; the hull's visible ring at a lower edge is the panel's BACK half (flipped shell,
+   front-culled), so the strip must sit behind the panel's back surface there, not just its centre plane: try step >=
+   1 + thin with the strip's top overlap small, or build the fold as the panel's lower edge turned back (a lip) rather
+   than a separate strip. (b) **The knot in profile**: it floats 0.004 L + lines in front of the lobes (a gap), knot
+   IoU 0 in 3q and profile; the design's knot overlaps the lobe in profile: the lobes' middles must come forward past
+   the knot's back while staying behind it by its sides (cup did that but wrecked the profile: try cup with the default
+   wrap and a smaller value, 0.03-0.06). (c) **The profile loop checks** (bow_profile_loop_thick/lean, tail_hang;
+   flag-calibrated in bow2's bowqa: regressions block): pleat lobes are thin wedges in profile; the pillow's depth
+   (spec depth 0.06, pinch) and the top/bottom heights set them. (d) bow_part_knot_iou front reads 1.0 on p1-p3 (a
+   round and a square knot alike): check partqa's front knot mask at the sheet scale before trusting it.
+   Guard: piece_bow must stay within ~15% of v0 in every view (profile >= 0.556).
+11. **Calibration records not written yet** (the gate needs them: bow_profile_ribbon (remeasured; the existing record
+   is for the old measure), bow_part_*, the graded iso_*). `python -m charkit calibrate CHECK` runs a QA part with an
+   adapter from `charkit/calib/*.py` (CALIBRATION literals; labels.py's Garments patches our label pictures with the
+   design's masks). Needed: (i) Garments.patches: patch `collarqa.ribbon_line` like `bleed` (the design's tails moved,
+   lines kept -> reads the design's value; a generator's stand-in: no line between pieces); (ii) a new
+   `charkit/calib/parts.py`: adapter for `bow_parts` (patch `partqa.grid_labels` with the design's part masks moved /
+   voronoi-relabelled / affine-moved, and `partqa.line_picture` with the design's parts and lines) and for
+   `iso_pieces` (patch `isoqa.our_piece` with `design_piece(front)` moved, or relabelled cells); known-bad
+   g3_render3 (stored) for all; kinds: knot_iou, lobe_iou, iso_bow_body 'shape'; knot_line, knot_rect, crease_*
+   'defect'; shape ['piece_bow'].
 
 ## Next steps, in order
-1. **Tests for isoqa** (synthetic five-cell bow: ref_piece's naming, compare reads itself scaled and moved). Run
-   `python -m pytest -q charkit/tests/test_partqa.py charkit/tests/test_collarqa.py charkit/tests/test_outfit.py`.
-2. **The bow close-up** (Michael approved; one call, n=2): the bow ALONE, front, three-quarter (turned to the
-   viewer's left) and side (facing left), knot and each lobe's crease clear, one scale, orthographic, white ground;
-   inputs body_turnaround and garment_breakdown (the turnaround first: its proportions are the ones to keep; the
-   breakdown's knot is 33% wider). Prompt in `charkit/refs/clawd/gen/prompts.json` (key `bow_closeup`, the existing
-   `bow_detail` prompt's style); `~/animation-pipeline/.venv/bin/python tools/gptimage.py "PROMPT" OUT.png --size
-   2560x1440 --quality high --ref charkit/refs/clawd/gen/body_turnaround.png --ref
-   charkit/refs/clawd/gen/garment_breakdown.png --n 2` (it logs to tools/ledger.jsonl itself; it reads the key from
-   `~/animation-pipeline/.env`, so run it from the main checkout's tools with OUT an absolute path in this worktree,
-   or copy the script's call). Refcheck both with `isoqa.compare` against the turnaround's front, three-quarter and
-   profile bow (design_piece for each view); register the better one in the manifest (provenance, cautions, sha256,
-   `pieces` boxes per view) and, if it beats the breakdown's 0.76, make it `shape_bow` and grade body / tails / knot
-   size (then calibrate them: the reference moved and scaled PASS, b2_close's pillows FAIL?). Existing unregistered
-   `~/animation-pipeline-refs2/charkit/out/refs2/gen/bow_detail_1|2.png` (the bow on a bust, five views, 2026-09-29,
-   paid): refs2 rejected them (bust 0.74 against the sheet); the bow is ~350 px wide there: usable for a three-quarter
-   and side refcheck if the new call fails.
-3. **Fix the bow** (charkit/garments.py `_bow_mesh`, `bow_hull`; knobs in clawd.json): trapezoid lobes (the `wing`
-   branch is a bow tie's wing: start there) with a real crease fold the outlines draw (an overlapping pleat: the
-   lobe's upper face folded over its lower along the crease from the knot's lower corner toward the lower outer
-   corner, standing proud enough that its edge is a silhouette: inverted hulls draw silhouettes only, not valleys or
-   ridges); the knot as its own object or at least its own outlined part standing in front of the lobes (the drawn
-   knot 0.085 x 0.118 L, aspect 1.39, fill 0.98; ours 0.1275 x 0.1575); visible in profile between the lobes. Fit to
-   the isolated references for shape and lines (iso_*), to the turnaround for placement (bow_part_*), with piece_bow
-   and every part's IoU in all views reported beside (the anti-gaming guard). Harness: bow2's
-   `~/animation-pipeline-bow2/charkit/out/bow2/harness/var.py` (splices an evaluator bow into a box bundle; copy it
-   here, point WT at this worktree; its splice zeroes the outline shrink, so bow_front_bleed and anything read with
-   lines is only right on box builds: run `python -m charkit remote build` for those).
-4. `bow_front_loop_end` (flag, 0.121 P -> 0.244 W with drop 0.2: retune `end_p` [upper, lower] with drop, e.g. the
-   lower corner rounder [4, 1.0-1.2]) and `bow_front_bleed` (0.205 FAIL on b2_close, reproduces locally on the box
-   bundle: `harness/ribcal.py b2_close`; locate with a picture like `harness/ribpic.py` in front: the dropped loops'
-   lower corners or the closer ribbons' outer edges).
-5. Review page (summary box first: Recommended / Asked of Michael / Key numbers; design and the isolated reference |
-   before (b2_before) | after, per sub-piece numbers), pregate, box build, gate
-   `python -m charkit remote gate tool/pieceref --into pipeline-3d`. Expect under K: bow_part_* and iso_* are new
-   (FAILs reported, not blocking); bow_profile_ribbon is a remeasure (registered); bow_front_bleed FAIL is new against
-   pipeline-3d's 0.0 PASS (blocking until item 4 fixes it); bow_front_loop_end WARN is a flag regression (blocking).
-6. If room: the cuffs and boots in isoqa (boxes on the breakdown; cuffs also on sleeve_closeup). Not the collar
-   (tool/collar4), the puffs (tool/sleeves, paused) or the clips (tool/accessories2).
+1. **The crease line** (State 10a): probe, then fix the fold so the hull draws it; tune pleat to the design:
+   crease_dir (-37/-40 deg; ours ~-17 to -20), crease_len (1.45-1.53 lobe widths), the almond fold near the top if the
+   length needs it; iso_bow_body (>= 0.85 against the close-up: the turnaround reads 0.871).
+2. **The knot in profile and three-quarter** (10b) and **the profile loop checks** (10c) with the guard (10, profile
+   >= 0.556), then set the fitted pleat and knot_box in clawd.json's bow and remove the pillow knobs it replaces.
+3. `bow_front_loop_end` and `bow_front_bleed` (were items 4: the pleat changes the lobes' ends and edges; re-read
+   them on the fitted splice, and on a box build for bleed).
+4. Calibration records (State 11) for bow_profile_ribbon, bow_part_*, iso_bow_body/knot_line/crease_*.
+5. Review page (summary box first; the close-up refcheck table, before/after per sub-piece with the guard IoUs),
+   pregate, box build, gate `python -m charkit remote gate tool/pieceref --into pipeline-3d`.
+6. If room: the cuffs and boots in isoqa. Not the collar, sleeves or accessories (paused, Michael).
