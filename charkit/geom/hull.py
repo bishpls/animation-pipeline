@@ -15,17 +15,19 @@ A turnaround drawn at one scale with one eye line (charkit refcheck checks this)
   carve      the plain hull: every voxel inside the figure in every view given. Three orthogonal views make each
              height's section the rectangle of the front width by the side depth, which a round body isn't.
   rounded    the shape prior (a style's, charkit.styles): each height's section is the union of superellipses inscribed
-             in the (front run x side run) rectangles. A front run takes its depth from the side runs of its own class
-             where it has them: a forearm's skin from the skin drawn over the clothes, not the torso's depth. The result
-             is smoothed across heights and kept inside the plain hull of every view given.
+             in the (front run x side run) rectangles (sections). A front run takes its depth from the side runs of its
+             own class where it has them: a forearm's skin from the skin drawn over the clothes, not the torso's depth.
+             The result is smoothed across heights and kept inside the plain hull of every view given.
   project    a hull's silhouette at an azimuth, on a (u, z) grid
   validate   leave one out: each view predicted from the others, its IoU against the drawing
   surface    the closed surface (volume.to_mesh), with vertex colours from the view that faces each vertex best
 
 Pieces (the outfit graph's, charkit.outfit; its per-view masks are the manifest's produced `outfit_masks`):
   attach_pieces   the masks onto the views, and each pixel's limb (arm, leg or body: a piece's by its attach bone, free
-                  skin's by the graph's skeleton on the front and back). `rounded` splits a front run where a limb meets
-                  the body and pairs each limb part with the side view's pixels of that limb.
+                  skin's by the graph's skeleton on the front and back, by the pieces it touches on the other views:
+                  free_limbs). `rounded` splits a front run where a limb meets the body and pairs each limb part with
+                  the side view's section of that limb (LimbTrack: its skin, its pieces on the skin's track, else
+                  interpolated from the heights where the side view shows it).
   label_volume    the hull's surface labelled per piece: each shell voxel takes the label (the piece, else FREE + the
                   class) of the view that faces it most squarely among those that see it. The profile's and the
                   three-quarter's mirrors label the far side, pieces swapped left for right.
@@ -34,7 +36,9 @@ Pieces (the outfit graph's, charkit.outfit; its per-view masks are the manifest'
 
 Clawd's body_turnaround (2026-09-28): the three-quarter predicted from front, side and back only scores IoU 0.715 plain,
 0.797 with ellipses, 0.818 with class-aware pairing, 0.862 with the axis refined and the smoothing, 0.876 with the limb
-split (the wrist cuffs no longer take the skirt's depth). TRELLIS scores 0.79 there, our build 0.68.
+split (the wrist cuffs no longer take the skirt's depth). TRELLIS scores 0.79 there, our build 0.68. With the outfit's
+current masks (their profile puts the arm pieces on the skirt's front panel and the bow) the split had fallen to 0.834,
+under no split's 0.861; with each limb taking its own section (LimbTrack, 2026-09-29) it is 0.878.
 
     python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open]
 
