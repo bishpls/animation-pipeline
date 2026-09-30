@@ -81,8 +81,8 @@ Reading them:
 | where | ours: face / body | EEVEE |
 |---|---|---|
 | laptop, M2 Pro (Metal) | 0.018 / 0.012 (ss 6: 0.032 / 0.016) | 2.0 s a still (handoff) |
-| render box, T4 (Vulkan) | RENDER_GPU | in this build: 5.3 (face, batched, features pass included) / 3.8 (body, batched); the handoff's saved-scene numbers 2.2 still, 0.53 batched |
-| render box CPU, 8 vCPU (lavapipe, Vulkan) | RENDER_LVP | - |
+| render box, T4 (Vulkan) | 0.036 / 0.023 (ss 6: 0.057 / 0.030) | in this build: 5.3 (face, batched, features pass included) / 3.8 (body, batched); the handoff's saved-scene numbers 2.2 still, 0.53 batched |
+| render box CPU, 8 vCPU (lavapipe, Vulkan) | 6.6 / 3.9 | - |
 | build box CPU, 32 vCPU (llvmpipe, GL) | 1.60 / 1.07 | software EEVEE: minutes a board (why it skips boards) |
 
 Setup (load the export, upload, compile) is 1.2-2 s once per process; the first frame 0.2-2 s. The garment normals cost
@@ -90,9 +90,16 @@ under 10 ms per line width (numpy), cached per width.
 
 ### Across machines (ours)
 
-The same boards from the laptop (Metal) and the build box (llvmpipe): 99.85-99.97% of pixels bit-identical, mean
-0.001-0.003 levels, the rest on part and line edges (rasteriser ties), max 31 levels. EEVEE itself isn't the same across
-GPUs (the streak hash, below).
+The same nine boards drawn on each machine, against the laptop's (M2, Metal):
+
+| machine | pixels bit-identical (min / mean over boards) | max diff |
+|---|---|---|
+| build box, llvmpipe (GL) | 99.851% / 99.918% | 31 |
+| render box, lavapipe (Vulkan) | 99.839% / 99.918% | 24 |
+| render box, T4 (Vulkan) | 98.428% / 98.952% | 24 |
+
+The differing pixels sit on part and line edges (rasteriser ties). The T4's extra ~1% differ by one level (rounding:
+0.013% of its pixels differ by more than 2 levels); not yet traced to a function. EEVEE itself isn't the same across GPUs (the streak hash, below).
 
 ## Findings for other workstreams (the look is paused; these are for it and the integrator)
 

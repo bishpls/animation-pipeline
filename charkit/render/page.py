@@ -56,6 +56,13 @@ def write(out):
             H.append(f'<tr><td>{e(s["what"])}</td><td>{e(s["where"])}</td><td>{_f(s["s_per_board"], 3)}</td>'
                      f'<td>{e(s.get("note", ""))}</td></tr>')
         H.append('</table>')
+    if C.get('machines'):
+        H.append('<h2>Ours across machines (against the render on this page)</h2><table><tr><th>boards from</th>'
+                 '<th>adapter</th><th>boards</th><th>pixels identical (min / mean)</th><th>max diff</th></tr>')
+        for r in C['machines']:
+            H.append(f'<tr><td>{e(r["dir"])}</td><td>{e(r["adapter"])}</td><td>{r["boards"]}</td>'
+                     f'<td>{100 * r["identical_min"]:.3f}% / {100 * r["identical_mean"]:.3f}%</td><td>{r["max"]}</td></tr>')
+        H.append('</table>')
     for n, b in B.items():
         m = b['metrics']; d = m['diff']
         H.append(f'<div class="board" id="{n}"><b>{n}</b> <span class="mute">{b["res"][0]} x {b["res"][1]} &middot; '

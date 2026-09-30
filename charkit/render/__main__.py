@@ -124,6 +124,33 @@ def speed_rows(build, et, batches):
     return rows
 
 
+def machine_rows(build, out, names):
+    """ours from other machines (BUILD/ours_*/NAME.png, python -m charkit.render boards there) against ours here."""
+    from PIL import Image
+    rows = []
+    for d in sorted(os.listdir(build)):
+        p = os.path.join(build, d)
+        if not (d.startswith('ours_') and os.path.isdir(p)):
+            continue
+        same, mx, n = [], 0, 0
+        for nm in names:
+            f = os.path.join(p, nm + '.png')
+            if not os.path.exists(f):
+                continue
+            a = np.asarray(Image.open(os.path.join(out, 'ours', nm + '.png'))).astype(np.int16)
+            b = np.asarray(Image.open(f).convert('RGB')).astype(np.int16)
+            dd = np.abs(a - b).max(-1)
+            same.append(float((dd == 0).mean())); mx = max(mx, int(dd.max())); n += 1
+        info = {}
+        rj = os.path.join(p, 'render.json')
+        if os.path.exists(rj):
+            info = json.load(open(rj)).get('adapter', {})
+        if n:
+            rows.append({'dir': d, 'adapter': '%s (%s)' % (info.get('device'), info.get('backend')), 'boards': n,
+                         'identical_min': round(min(same), 5), 'identical_mean': round(float(np.mean(same)), 5), 'max': mx})
+    return rows
+
+
 def compare_build(args):
     from PIL import Image
     from . import compare, gpu, model, page, views
@@ -169,6 +196,7 @@ def compare_build(args):
               f'{m.get("tones", {}).get("agree")} | {dt:.3f} s')
     C['eevee_batches'] = batches
     C['speed'] = speed_rows(build, et, batches)
+    C['machines'] = machine_rows(build, out, [v.name for v in V])
     C['notes'] = NOTES
     json.dump(C, open(os.path.join(out, 'compare.json'), 'w'), indent=1, default=str)
     p = page.write(out)
