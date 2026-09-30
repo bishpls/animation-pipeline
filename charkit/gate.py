@@ -59,8 +59,7 @@ EXPORT_CODE = ('charkit/gltf.py',)
 # CPU uncapped, 485 s and 527 s capped at 4, the outputs bit-identical (733 arrays, 351 checks). Uncapped, the CPU
 # a build burns spinning grows with the box's load (the same build measured 379 s and 1,291 s), which made policy K's
 # CPU rule noise. CHARKIT_GATE_THREADS overrides (0: uncapped).
-THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS', 'BLIS_NUM_THREADS',
-               'VECLIB_MAXIMUM_THREADS')
+from .procs import THREAD_VARS         # (numba, BLAS, OpenMP, llvmpipe) every build on the box has them now (procs.cap_threads)
 
 
 def _threads():
@@ -133,6 +132,17 @@ def _cpu_children():
     return u.ru_utime + u.ru_stime
 
 
+def _step_cache_env():
+    """the venv steps' entries (charkit.cache.file_step: the code head and body, the hair pieces, the garments) in one
+    folder the box's gate builds share (CHARKIT_GATE_STEP_CACHE, default ~/.cache/charkit/steps; 'off': each worktree's
+    own, cold, as before), keyed portably and on all the code each step reaches (CHARKIT_STEP_DEPTH=all), so a branch
+    that doesn't reach a step restores it in every clone: pieces_hair took 120-200 s a gate, rebuilt each time."""
+    v = os.environ.get('CHARKIT_GATE_STEP_CACHE', '~/.cache/charkit/steps')
+    if v == 'off':
+        return {}
+    return {'CHARKIT_STEP_CACHE': os.path.abspath(os.path.expanduser(v)), 'CHARKIT_STEP_DEPTH': 'all'}
+
+
 def _build(wt, spec, out, args, record=True, procs=None):
     """a build of the tree in wt into out -> {ok, seconds, cpu, log (its output's tail), steps ({step: seconds}: its
     CHARKIT_PHASE lines), cache (its CHARKIT_CACHE and CHARKIT_PRODUCED lines), killed}. Its CPU seconds (it and
@@ -150,6 +160,7 @@ def _build(wt, spec, out, args, record=True, procs=None):
         env['CHARKIT_CLOSURE'] = log
     if _threads():
         env.update({k: str(_threads()) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
+    env.update(_step_cache_env())
     t = time.time()
     # (no boards: nothing the gate reads draws from them, and the box's toon boards took 16 s a build)
     p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', '', '--no-blend'] + list(args),
@@ -261,6 +272,30 @@ def compare_qa(a, b, remeasured=None):
     return rows
 
 
+# (run in the tree, with its own code: the gate's code may differ from a baseline's)
+_PRODUCE = """import json, sys
+from charkit import character, manifest
+s = character.check_spec(manifest.resolve(json.load(open(sys.argv[1]))))
+ref = s.get('ref') if isinstance(s.get('ref'), dict) else {}
+R = manifest.load(ref['manifest'])['references'] if ref.get('manifest') else {}
+for k, r in R.items():
+    if r.get('produced_by'):
+        print('CHARKIT_PRODUCED_INPUT', k, manifest.produced(s, k), flush=True)
+"""
+
+
+def produce_inputs(tree, spec):
+    """the manifest's produced references (produced_by: the hull, the outfit masks, the hair layers) made in tree by its
+    own code from spec, as its build makes them, for a crossed QA there: the QA reads them when they exist and skips
+    what needs them otherwise, so in a worktree that never built (a cached baseline's) the old measure measured none of
+    the hair_piece_* checks on the new geometry (tool/hairtag 37c09cf's gate: every old-measure cell unmeasured).
+    Mostly restores from the shared cache (charkit.manifest). -> None, or why it failed."""
+    r = subprocess.run([PY, '-c', _PRODUCE, spec], cwd=tree, capture_output=True, text=True)
+    if r.returncode:
+        return 'exit %d: %s' % (r.returncode, (r.stdout + r.stderr)[-800:])
+    return None
+
+
 def cross_qa(tree, bundle_dir, out):
     """one tree's QA code on another build's geometry bundle (the 2x2's crossed cells): `python -m charkit qa` run in
     tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's) -> the
@@ -313,11 +348,29 @@ def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
                  cand=cell(cand, k))
         r['old'] = verdict(r['base'], r['old_on_new'])
         r['new'] = verdict(r['new_on_old'], r['cand'])
+        r['unmeasured'] = unmeasured_cells(r)
+        for m, c in (('old', 'old measure on the new geometry'), ('new', 'new measure on the old geometry')):
+            if c in r['unmeasured']:
+                r[m] = 'unmeasured'
         r['accepted'] = any(fnmatch.fnmatchcase(k, p) for p in accept)
         if r['old'] is None and r['new'] is None:
             continue
         rows.append(r)
     return rows
+
+
+def unmeasured_cells(r):
+    """a 2x2 row's crossed cells that couldn't be measured -> their names: the old measure on the new geometry when the
+    old measure has the check (it measured the baseline), the new measure on the old geometry when both do. Each is
+    the only view of a remeasured check's geometry change under one fixed measure (Michael's no-gaming rule), so one
+    missing blocks the gate (judge), never passes as 'unmeasured'. A check the branch adds has no old-measure cell."""
+    ok = lambda c: bool(c) and c[1] not in (None, 'SKIPPED')
+    out = []
+    if ok(r.get('base')) and not ok(r.get('old_on_new')):
+        out.append('old measure on the new geometry')
+    if ok(r.get('base')) and ok(r.get('cand')) and not ok(r.get('new_on_old')):
+        out.append('new measure on the old geometry')
+    return out
 
 
 def geometry(out):
@@ -676,8 +729,14 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                    if any(fnmatch.fnmatchcase(k, p) for p in rep["remeasured"])]
         if stepped and ga != gb:
             with clock('2x2', 'both QA codes on both bundles'):
-                f1 = ex.submit(cross_qa, wc, os.path.join(base_out, 'bundle'), os.path.join(cand_out, 'x_new_measure_old_geometry'))
-                f2 = ex.submit(cross_qa, wb, os.path.join(cand_out, 'bundle'), os.path.join(cand_out, 'x_old_measure_new_geometry'))
+                # each tree's produced references first: a tree that didn't build (a cached baseline's, a carried
+                # candidate's) has none, and its QA would skip the checks that read them
+                def crossed(tree, bundle, x):
+                    e = produce_inputs(tree, spec)
+                    return {'error': "its produced references couldn't be made: " + e} if e else \
+                        cross_qa(tree, bundle, x)
+                f1 = ex.submit(crossed, wc, os.path.join(base_out, 'bundle'), os.path.join(cand_out, 'x_new_measure_old_geometry'))
+                f2 = ex.submit(crossed, wb, os.path.join(cand_out, 'bundle'), os.path.join(cand_out, 'x_old_measure_new_geometry'))
                 new_on_old, old_on_new = f1.result(), f2.result()
             errs = {k: q['error'] for k, q in (('new measure on the old geometry', new_on_old),
                                                ('old measure on the new geometry', old_on_new)) if 'error' in q}
@@ -965,6 +1024,23 @@ def judge(rep, qa_a, qa_b):
     for b in ('flag_values', 'values'):
         R[b].sort(key=lambda x: -abs(x.get('rel') or 0) if x.get('rel') is not None else -abs(x.get('delta') or 0))
     tb = rep.get('twobytwo') or {}
+    # the 2x2 never skips silently: a crossed cell it couldn't measure, or a crossed QA that couldn't run, blocks
+    # (from the cells, so --rejudge reads an old report's rows the same way)
+    for r in tb.get('rows') or ():
+        cells = unmeasured_cells(r)
+        if cells:
+            row = dict(check=r['check'], cells=cells, base=r.get('base'), old_on_new=r.get('old_on_new'),
+                       new_on_old=r.get('new_on_old'), cand=r.get('cand'), measures=[])
+            if r.get('accepted'):
+                R['twobytwo'].append(dict(row, note='unmeasured: %s; accepted (--accept)' % ', '.join(cells)))
+            else:
+                block.append(dict(row, kind="the 2x2 couldn't measure it"))
+    for k in sorted(tb.get('errors') or {}):
+        if all(r.get('accepted') for r in tb.get('rows') or ()) and tb.get('rows'):
+            R['notes'].append('the 2x2 could not run the %s: its remeasured checks (all accepted) are unverified '
+                              'there' % k)
+        else:
+            block.append({'kind': 'the 2x2 could not run the %s' % k, 'error': str(tb['errors'][k])[-300:]})
     for r in tb.get('rows') or ():
         worse = [m for m in ('old', 'new') if r.get(m) == 'regressed']
         if not worse:
@@ -983,8 +1059,6 @@ def judge(rep, qa_a, qa_b):
             block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2)'))
         else:
             R['twobytwo'].append(row)
-    for k in sorted(tb.get('errors') or {}):
-        R['notes'].append('the 2x2 could not run the %s: its remeasured checks are unverified there' % k)
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
     ta, tb_ = (rep.get('cpu_threads') or [None, None])[:2]
     if ca_ and cb_:
@@ -1018,6 +1092,9 @@ def verdict_pre_k(rep):
 
 def _why(b):
     k = b.get('kind')
+    if b.get('cells'):
+        return '%s: %s (%s; the old geometry %s, the candidate %s)' % (k, b['check'], ', '.join(b['cells']),
+                                                                     _cell(b.get('base')), _cell(b.get('cand')))
     if 'check' in b:
         a, z = (b['from'], b['to']) if 'from' in b else (b.get('base'), b.get('cand'))
         return '%s: %s %s -> %s' % (k, b['check'], _cell(a), _cell(z))

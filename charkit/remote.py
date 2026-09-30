@@ -91,6 +91,7 @@ def _opt(args, k, d=None):
 def up():
     """the box started if stopped, and kept awake: its idle stop honours /srv/work/.keepalive for two hours (a long upload
     to the box otherwise looks idle there, and the box stopped under a seed's transfer)."""
+    preflight()
     _sh('up')
     _sh('ssh', 'touch /srv/work/.keepalive', check=False, retry=True)
 
@@ -312,9 +313,49 @@ def _cfg():
     """build.sh's ssh config for the box (ProxyCommand: the IAP tunnel) and the host name in it."""
     vm = _env('VM')
     cfg = os.path.expanduser('~/.ssh/charkit-%s.config' % vm)
-    if not os.path.exists(cfg):
-        _sh('ssh', 'true', check=False, retry=True)          # build.sh writes the config on first use
+    mark = '# gcloud: %s\n' % (_gcloud() or os.environ.get('CLOUDSDK_CONFIG') or 'default')
+    try:
+        fresh = mark in open(cfg).read()
+    except OSError:
+        fresh = False
+    if not fresh:                     # build.sh writes it on first use, and rewrites it for another gcloud config
+        _sh('ssh', 'true', check=False, retry=True)
     return cfg, vm
+
+
+def _gcloud():
+    """the box's gcloud config, CLOUDSDK_CONFIG in its env file (the box-control service account's: no reauth; see
+    docs/workstreams/infra-auth.md), put in this process's environment for its gcloud calls and ssh sessions -> it,
+    or None (gcloud's default login)."""
+    c = _env('CLOUDSDK_CONFIG')
+    if c:
+        os.environ['CLOUDSDK_CONFIG'] = os.path.expanduser(c)
+    return c and os.path.expanduser(c)
+
+
+CHECKED = set()                   # the gcloud configs whose credential worked in this process
+
+
+def preflight():
+    """before a job: the box's gcloud credential can act without a prompt (a token). Otherwise exit with one line on
+    what to run, rather than a traceback from the first gcloud or ssh call."""
+    c = _gcloud() or os.environ.get('CLOUDSDK_CONFIG') or 'default'
+    if c in CHECKED or os.environ.get('CHARKIT_NO_PREFLIGHT'):
+        return
+    try:
+        r = subprocess.run(['gcloud', 'auth', 'print-access-token', '--quiet'], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=60)
+        err = r.stderr.strip().splitlines()
+        ok = r.returncode == 0 and bool(r.stdout.strip())
+        why = next((l for l in err if l.startswith('ERROR')), err[-1] if err else 'no token')
+    except (OSError, subprocess.TimeoutExpired) as e:
+        ok, why = False, str(e)
+    if not ok:
+        fix = ('its service-account key is not active: CLOUDSDK_CONFIG=%s gcloud auth activate-service-account '
+               '--key-file=KEY (docs/workstreams/infra-auth.md), or delete the CLOUDSDK_CONFIG line in %s and run '
+               '`gcloud auth login`' % (c, BOX['env'])) if c != 'default' else 'run `gcloud auth login`'
+        raise SystemExit('remote: gcloud (config %s) cannot act for the box: %s. Fix: %s' % (c, why.strip()[-160:], fix))
+    CHECKED.add(c)
 
 
 def _record(rec):
@@ -327,6 +368,7 @@ def _record(rec):
 
 def _box_status():
     """the box's state from gcloud (RUNNING, TERMINATED, ...), or None when gcloud can't say."""
+    _gcloud()
     r = subprocess.run(['gcloud', 'compute', 'instances', 'describe', _env('VM'), '--zone', _env('ZONE'), '--project',
                         _env('PROJECT'), '--format=value(status)'], capture_output=True, text=True)
     return (r.stdout.strip() or None) if r.returncode == 0 else None
@@ -354,6 +396,7 @@ def job(kind, script, label, collect=None):
             ti = tarfile.TarInfo(name)
             ti.size, ti.mode, ti.mtime = len(b), mode, int(time.time())
             tf.addfile(ti, io.BytesIO(b))
+    preflight()
     rec = dict(jid=jid, box=os.path.basename(BOX['env'])[:-4], kind=kind, label=label, collect=collect,
                sent=time.strftime('%Y-%m-%dT%H:%M:%S'), state='starting')
     _record(rec)
@@ -570,9 +613,11 @@ def _slots():
 
 
 def _env(key):
+    """KEY's value in the box's env file (a bash file: `export KEY=...` too, and $HOME expanded)."""
     for line in open(BOX['env']):
+        line = line[len('export '):] if line.startswith('export ') else line
         if line.startswith(key + '='):
-            return line.split('=', 1)[1].split('#')[0].strip()
+            return os.path.expandvars(line.split('=', 1)[1].split('#')[0].strip())
     return None
 
 
@@ -583,6 +628,7 @@ def put(local, remote):
         _sh('push', local, remote)
     elif os.path.getsize(local) > BUCKET_OVER and _env('BUCKET'):
         url = '%s/remote/%s' % (_env('BUCKET').rstrip('/'), os.path.basename(local))
+        _gcloud()
         subprocess.run(['gcloud', 'storage', 'cp', '--quiet', local, url, '--project', _env('PROJECT')], check=True)
         _sh('ssh', 'gcloud storage cp --quiet %s %s' % (shlex.quote(url), shlex.quote(remote)))
     else:
