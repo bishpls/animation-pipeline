@@ -1,6 +1,6 @@
 # Produced references stamped by what they read (tool/stamp-spec)
 
-State: in progress. Numbers below are from the build box unless marked.
+State: done, gated (see "Gates"). Numbers are from the build box unless marked.
 
 ## The bug
 
@@ -104,3 +104,79 @@ Measured on the build box (32 vCPU, load 33-50 from other gates), per produced r
   What it doesn't cover: two builds running at once in one copy on specs that differ in a declared section. The second
   rebuilds in place while the first may still read. No current spec pair does that; if one appears, variant folders
   are the fix, with the three readers above going through a `manifest.path(spec, rid)`.
+
+## Verification on the build box
+
+Box copies, `charkit build charkit/spec/clawd_body_pieces.json --no-blend` (the authored spec), produced references
+after the build (masks, graph, hull `.npz`, hull pieces, hair layers; stamps of outfit / hull / hair layers):
+
+**Before (pipeline-3d code, stamps don't cover the field):**
+
+| copy | field | masks | graph | hull | pieces | hair | stamps |
+|---|---|---|---|---|---|---|---|
+| animation-pipeline-3d | yes | `074d9a3f` | `659eebc6` | `996c4195` | `7b1836ab` | `231abc3e` | `57c5e3f0` `a3d52ea2` `8b402d01` |
+| animation-pipeline-bis42df0c8 | no | `bc0f48dc` | `59380eb7` | `7524e943` | `bcd6a376` | - | `57c5e3f0` `d8a6c256` - |
+| stampspec-prev (clawd.json, old code) | yes | `074d9a3f` | `659eebc6` | `996c4195` | `7b1836ab` | - | `57c5e3f0` `a3d52ea2` - |
+
+Same outfit stamp, two sets of masks; the graph made from clawd.json by name whatever spec the build used.
+
+**After, first version (`reads_spec`, the field; before the read entries and the rig's files were added):**
+
+| copy | field | masks | graph | hull | pieces | hair | stamps | build |
+|---|---|---|---|---|---|---|---|---|
+| stampspec (fresh) | yes | `074d9a3f` | `c840f335` | `996c4195` | `7b1836ab` | `231abc3e` | `09bf69de` `3e97cdd3` `bd0a6556` | ok |
+| stampspec-prev (had clawd.json's, old stamps) | yes | `074d9a3f` | `c840f335` | `996c4195` | `7b1836ab` | `231abc3e` | `09bf69de` `3e97cdd3` `bd0a6556` | ok, rebuilt on its own ("stale") |
+| stampspec-nofield | no | `bc0f48dc` | `ad8de263` | `7524e943` | `bcd6a376` | `3d928b06` | `fc5b4d49` `70ff51b8` `0c69c687` | **fails**: the 15% error in `garments.sleeve_hull` |
+
+The graph `c840f335` differs from `659eebc6` only in its comparison (made from the build's own spec, cut down) and
+its `generated_by` (the cut-down spec's path, the same in every copy).
+
+**After, final (`975d144`: files, read entries, the rig's files, roles):**
+
+| copy | its history | masks | graph | hull | pieces | hair | stamps | build |
+|---|---|---|---|---|---|---|---|---|
+| stampspec | fresh (its produced references removed) | `074d9a3f` | `c840f335` | `996c4195` | `7b1836ab` | `231abc3e` | `8f3aa839` `e6dc197b` `f579eb87` | ok |
+| stampspec-prev | clawd.json's by the old code, then the first version's | `074d9a3f` | `c840f335` | `996c4195` | `7b1836ab` | `231abc3e` | `8f3aa839` `e6dc197b` `f579eb87` | ok, all three rebuilt on their own ("stale") |
+| stampspec-nofield | built without the field (the 15% failure), then given it | `074d9a3f` | `c840f335` | `996c4195` | `7b1836ab` | `231abc3e` | `8f3aa839` `e6dc197b` `f579eb87` | ok, all three rebuilt on their own ("stale") |
+
+The laptop computes the same three stamps for the same inputs (`8f3aa839`, `e6dc197b`, `f579eb87`). Every build's QA
+summary is FAIL, from the checks that already fail on the clawd_body baseline (poke_share, skirt widths, some pieces).
+
+**The authored spec's build:** with the field, clawd_body_pieces builds; without it, the same code fails in
+`garments.sleeve_hull` ("no row of the piece is measured on 15% of its circle", `loft.field`). The bis copies'
+failure and tool/look's passing gate on clawd_body split the same way: the bis copies had no field (hull `7524e943`),
+the look gate (run from `~/animation-pipeline-3d`) seeded its clone's i3d from that worktree's box copy, which has
+the field (hull `996c4195`), and its cached baseline came from tool/motion's gate, whose copy has it too.
+
+## Open items
+
+- **A copy without the field still builds another character, now under its own stamp.** The stamp only makes the
+  difference visible and self-healing; pipeline-3d's sync fix (`f2d0ea7`) is what gives every copy the field. Two
+  follow-ups for the integrator:
+  - the gate's shared baseline (`base_<head>_<spec>_<opts>`) is keyed without its inputs. A baseline built in a clone
+    without the field would be compared with candidates that have it. Keying it on the produced references' stamps
+    (`PATH.stamp`), or refusing to gate without the field, closes that;
+  - `reads_files` could carry a `required` flag, so a copy without the field fails loudly instead of placing the
+    outfit by landmarks (which makes the authored specs fail later, in `garments.sleeve_hull`).
+- **The comparison in the produced graph** has no knob deltas and `knob_only` notes that miss knobs (it's made from
+  roles). Nothing reads either. Splitting the comparison out of the produced reference (outfit.py) would take the
+  garments out of the outfit's stamp altogether.
+- **Variant folders** aren't built (see above); two builds at once in one copy on specs that differ in a declared
+  section would race.
+- **STAMP_DEPTH = 1** still leaves code two imports deep out of the stamp. It wasn't the cause here (the pipeline-3d
+  copy's masks and graph are what the current code makes), but it can be.
+- **A rebuild's log** lists each rig file the outfit reads (121 lines' worth on one line); a count and a digest would
+  read better.
+- **Box copies left for inspection:** `/srv/work/stampspec-prev`, `/srv/work/stampspec-nofield`,
+  `/srv/work/stampspec-v1` (the first version's outputs), `/srv/work/stampspec-old-code`,
+  `/srv/work/stampspec-final-code`, `/srv/work/stampspec-shas.sh`; the experiment runs are in this worktree's copy,
+  `charkit/out/exp`. All removable.
+
+## Gates (975d144 into pipeline-3d f2d0ea7, on the build box, both clones with the field)
+
+- default spec: **PASS**, no check changed; tests all ok (test_manifest's 11 included). CPU 572.9 -> 586.2 s.
+- `--spec charkit/spec/clawd_body.json`: **PASS**, no check changed. CPU 1332.7 -> 1555.4 s (the candidate made its
+  produced references under the new stamps; the baseline was cached from another gate).
+- No QA change for the authored spec: the produced graph now compares against clawd_body's own garments, but their
+  roles match clawd.json's, so the matched pairs the piece checks read are the same 23.
+- The trace's one difference, `hair.shape.pieces`, is the gate clone's absolute path, as in every gate.
