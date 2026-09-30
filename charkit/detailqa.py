@@ -24,10 +24,18 @@ Checks (qa3d part 'details'; lengths in L, angles in degrees):
         under the band), beyond the design's on that side; and the two sides' difference beyond the design's (a
         lopsided skirt: Michael's review of round 5, her right jutting out past the band and her left meeting it)
   body_profile_leg_back
-        the legs' back edge in profile (the skin's run per row, from under the shorts to the boot cuffs; LEG_BAND): its
-        largest outward bump against the design's once their median offset is taken out (a pointed bump behind the
-        thigh, Michael's review of round 5: the hull's skin at the thigh's top rows ran the whole side run behind the
-        leg, tool/hull-limbs)
+        the bare leg's back edge in profile (our skin alone, no garments: the skin's run per row over the design's
+        leg, from under its shorts to its boot cuffs; LEG_BAND): its largest outward bump against the design's once
+        their median offset is taken out (a pointed bump behind the thigh, Michael's review of round 5: the hull's skin
+        at the thigh's top rows ran the whole side run behind the leg, tool/hull-limbs). Bare, because a garment
+        hanging against the thigh hides its edge in the dressed figure (the overskirt flaps did, on every build since
+        3d0d5f2), and the design draws the leg whole. Calibrated: the design against itself 0; pipeline-3d db718ae's
+        thigh (fitted to the hull's slab) 0.108 FAIL at z -2.80; tool/hull-limbs 0.019 PASS
+  body_profile_leg_outline (INFO)
+        the dressed figure's outline behind the leg in profile: per row, the leg's skin run followed back through
+        whatever touches it (a garment hanging against the thigh), its back end against the design's, the bare leg's
+        offset taken out: the largest step outward (L), and how many rows have something against the leg that the
+        design keeps clear (tool/skirt's flaps on pipeline-3d db718ae: 0.57 L, 82 of the leg's 242 rows; the design 3)
   body_front_panel_edge
         the cream panel's lower part above the band: its outline's roughness (how far it strays from its own smoothed
         outline: a staircase or a torn edge) beyond the design's, with its fragments and holes against the design's
@@ -541,10 +549,23 @@ class _Window:
         return raster.window_zbuffer(items, az, self.origin, 1.0, self.pix, self.win, ids=ids)
 
 
+def bare_skin(B):
+    """the skin alone, whole (its 'eval' variant: no garments' mask), every triangle skin -> (V, T, labels) or None."""
+    try:
+        sk = B.skin()
+    except StopIteration:
+        return None
+    if not sk.has('eval'):
+        return None
+    V, T = sk.mesh('eval')[:2]
+    return V, T, np.full(len(T), CL['skin'])
+
+
 def our_views(B, ppl, az3):
     """ours on the design's grids: per view (front, profile, back, and profile_R: the profile from -x, mirrored onto
     the design's profile) the object labels (index into names; + 1000 for a two-sided object's right half), their
-    depth and the classes (lines absorbed). -> ({view: dict(lab, depth, cls, fg)}, names)."""
+    depth and the classes (lines absorbed); the profile also the bare skin's classes (bare_skin: 'bare').
+    -> ({view: dict(lab, depth, cls, fg[, bare])}, names)."""
     from . import qa3d
     from .faceqa import zbuffer, view as proj
     meshes, names = qa3d.scene_objects(B)
@@ -566,6 +587,10 @@ def our_views(B, ppl, az3):
         if v == 'profile_R':
             depth, lab, cls, fg = depth[:, ::-1], lab[:, ::-1], cls[:, ::-1], fg[:, ::-1]
         out[v] = dict(lab=lab, depth=depth, cls=cls, fg=fg, az=az[v], org=org)
+        if v == 'profile':
+            bare = bare_skin(B)
+            if bare is not None:
+                out[v]['bare'] = bodyqa.ours(zbuffer([bare], az[v], org, As['L'], 1.0 / ppl, WIN)[1])[0]
     return out, names
 
 
@@ -689,9 +714,12 @@ def measure(B, design, out=None):
             C.update(overhang_checks(a, b))
 
     if 'profile' in dv:
-        lb = leg_back_check(O['profile']['cls'], dv['profile']['cls'], ppl)
+        lb = leg_back_check(O['profile'].get('bare', O['profile']['cls']), dv['profile']['cls'], ppl)
         if lb:
             C['body_profile_leg_back'] = lb
+            lo = leg_outline_check(O['profile']['cls'], dv['profile']['cls'], ppl, offset=lb['offset'])
+            if lo:
+                C['body_profile_leg_outline'] = lo
 
     # ---- the boots, per view
     boots = {}
@@ -901,12 +929,25 @@ LEG_EDGE = 0.02                     # L: the rows this close to either figure's 
                                     # slopes cut the design's last two rows short at the back, 0.13-0.21 L, on every build)
 
 
+def leg_rows(rows):
+    """the leg's rows among a figure's back-edge rows: the longest run of consecutive rows (a hand above the shorts
+    reads as skin in the band too, cut off from the leg by the shorts' rows)."""
+    rows = sorted(rows)
+    if not rows:
+        return []
+    runs = np.split(np.asarray(rows), np.nonzero(np.diff(rows) > 1)[0] + 1)
+    return [int(r) for r in max(runs, key=len)]
+
+
 def leg_back_check(ocls, dcls, ppl, win=WIN):
-    """body_profile_leg_back from the profile's class images, ours and the design's (None when they share < 10 rows).
-    Both figures' back edges are taken on the design's facing: ours is drawn on the design's grid, facing the same way,
-    and face_side can misread ours (a side lock in front of the eyes: it then measured the front edge, offset -5.3 L)."""
+    """body_profile_leg_back from the profile's class images, ours (the bare leg: our_views' 'bare') and the design's
+    (None when they share < 10 rows). Both figures' back edges are taken on the design's facing: ours is drawn on the
+    design's grid, facing the same way, and face_side can misread ours (a side lock in front of the eyes: it then
+    measured the front edge, offset -5.3 L). The rows are the design's leg (leg_rows: its hand above the shorts left
+    out), LEG_EDGE in from either figure's ends."""
     fd = face_side(dcls, ppl, win)
     a, b = leg_back(ocls, ppl, win=win, face=fd), leg_back(dcls, ppl, win=win, face=fd)
+    b = {r: b[r] for r in leg_rows(b)}
     z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
     if not a or not b:
         return None
@@ -920,9 +961,56 @@ def leg_back_check(ocls, dcls, ppl, win=WIN):
     v_ = round(max(0.0, float(d[k] - off)), 4)
     return {'value': v_, 'status': grade('leg_back', v_), 'at': z(rows[k]), 'offset': round(off, 4),
             'rows': [z(rows[0]), z(rows[-1])],
-            'note': "the legs' back edge in profile against the design's, row by row from under the shorts to the "
-                    "boot cuffs (%.2f L from either end left out): its largest outward bump (L) once the median offset "
-                    "between them is taken out" % LEG_EDGE}
+            'note': "the bare leg's back edge in profile (our skin alone, no garments) against the design's, row by "
+                    "row over the design's leg from under its shorts to its boot cuffs (%.2f L from either end left "
+                    "out): its largest outward bump (L) once the median offset between them is taken out" % LEG_EDGE}
+
+
+OUTLINE_GAP = 2                     # px: a gap this wide or narrower in the outline behind the leg is bridged
+OUTLINE_HUG = 0.02                  # L: the outline running this far past the leg's own skin: something against the leg
+
+
+def outline_back(cls, ppl, face, edges, gap=OUTLINE_GAP):
+    """per row of `edges` (leg_back's), the figure's outline behind the leg: from the leg's back edge on, back through
+    whatever touches it (any class but none; gaps up to `gap` px bridged) -> {row: L, + toward the back}."""
+    out = {}
+    step = 1 if face < 0 else -1
+    for r, v in edges.items():
+        row = cls[r] > 0
+        k = int(round(v * ppl)) * (1 if face < 0 else -1)
+        miss = 0
+        while 0 <= k + step < len(row) and miss <= gap:
+            k += step
+            miss = 0 if row[k] else miss + 1
+        end = k - step * miss
+        out[r] = (end if face < 0 else -end) / ppl
+    return out
+
+
+def leg_outline_check(ocls, dcls, ppl, offset=0.0, win=WIN):
+    """body_profile_leg_outline (INFO) from the dressed profile's class images, ours and the design's: the outline
+    behind the leg (outline_back) against the design's on the design's leg rows, `offset` (the bare leg's) taken out."""
+    fd = face_side(dcls, ppl, win)
+    a, b = leg_back(ocls, ppl, win=win, face=fd), leg_back(dcls, ppl, win=win, face=fd)
+    b = {r: b[r] for r in leg_rows(b)}
+    if not a or not b:
+        return None
+    lo, hi = max(min(a), min(b)) + LEG_EDGE * ppl, min(max(a), max(b)) - LEG_EDGE * ppl
+    rows = sorted(r for r in set(a) & set(b) if lo <= r <= hi)
+    if len(rows) < 10:
+        return None
+    oa = outline_back(ocls, ppl, fd, {r: a[r] for r in rows})
+    ob = outline_back(dcls, ppl, fd, {r: b[r] for r in rows})
+    d = np.array([oa[r] - ob[r] - offset for r in rows])
+    k = int(np.argmax(d))
+    z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
+    hug = int(sum(oa[r] - a[r] > OUTLINE_HUG for r in rows))
+    return {'value': round(max(0.0, float(d[k])), 4), 'status': 'INFO', 'at': z(rows[k]), 'rows': len(rows),
+            'hugging': hug, 'hugging_design': int(sum(ob[r] - b[r] > OUTLINE_HUG for r in rows)),
+            'note': "the dressed figure's outline behind the leg in profile (the leg's skin run followed back through "
+                    "whatever touches it) against the design's, the bare leg's offset taken out: its largest step "
+                    "outward (L); hugging: the rows where something runs over %.2f L past the leg's skin (a garment "
+                    "against the thigh), ours and the design's" % OUTLINE_HUG}
 
 
 def panel_edge(O, D, masks, ppl, idx, pm, near=0.25):

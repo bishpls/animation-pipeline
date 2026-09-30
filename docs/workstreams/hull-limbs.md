@@ -3,7 +3,63 @@
 Branch `tool/hull-limbs`, worktree `~/animation-pipeline-hulllimbs`. It merges tool/hull-det 3267aea, then
 tool/garment-sampling 47b401f, then pipeline-3d 2e3bdd5. tool/body round 6 merges the first two; this branch goes on top.
 
-## Round 4 (2026-09-30): read first
+## Round 5 (2026-09-30): read first
+
+**Head** `tool/hull-limbs` cddbd12. It merges pipeline-3d e11fadb (72c98f2: hair round 3). The coordinator gave this
+workstream `body_profile_leg_back` in detailqa.py for the round, since tool/body is inactive.
+- **2479a22:** `body_profile_leg_back` reads **the bare leg**.
+  - Our skin alone: `detailqa.bare_skin`, the skin's `eval` variant with no garments' mask, z-buffered on the design's
+    profile grid (`our_views`' `bare`).
+  - It is read over the design's leg rows only: `leg_rows`, the longest run of rows, which leaves out the design's hand
+    above the shorts.
+  - It keeps the design's facing and LEG_EDGE (1fd1c63).
+- **`body_profile_leg_outline` (INFO), for tool/skirt:**
+  - It follows the leg's skin run back through whatever touches it in the dressed profile, and compares that outline
+    with the design's, the bare leg's offset taken out.
+  - `hugging` counts the rows where something runs more than 0.02 L past the leg's skin.
+- **cddbd12:** both steps registered in `history.STEPS`.
+- **Tests:** the design's hand is left out; the bare leg sees a bump a flap hides, while the dressed leg can't; the
+  outline sees a flap hugging the thigh and reads 0 on a clear one.
+- **Calibration** (the evaluator on the real sheet; scratchpad `hl3/calib.py`):
+
+  | | body_profile_leg_back | body_profile_leg_outline |
+  |---|---|---|
+  | the design against itself | **0.0000 PASS** | 0.0 (3 rows hugging) |
+  | pipeline-3d db718ae (the thigh fitted to the slab) | **0.1083 FAIL at -2.797** | 0.570 (82 rows) |
+  | this branch | **0.0188 PASS at -3.898** | 0.574 (82 rows) |
+
+  e11fadb changes only the hair. On a real Blender bundle (`hl3_box_after`) the bare profile renders 138,847 skin px
+  against 36,881 dressed.
+
+**Gates of cddbd12 into pipeline-3d e11fadb:**
+- **Default spec: PASS.**
+  - `body_profile_leg_back` 0.2071 FAIL → **0.0188 PASS** (remeasured: the bare leg; the evaluator's number exactly).
+  - `body_profile_leg_outline` new, 0.5742 INFO.
+  - `piece_collar` 0.745 WARN → 0.754 PASS.
+  - `body_back_leg` 0.0565 → 0.0001; `body_front_leg` 0.0612 → 0.0001.
+  - **`hair_folds` 4 → 6 WARN**, combined with hair round 3: side_lock_L 1 → 2, lower_back 0 → 1.
+  - `hair_penetration` is 0.0124 FAIL (upper_back) in both, the baseline's own.
+- **clawd_mh: FAIL** on `hair_penetration` 0.0015 PASS → **0.0484 FAIL** (lower_back, 47 vertices) and
+  `body_three_quarter_skirt_aline` 0.026 → 0.078 WARN (round 4, below).
+  - The coordinator accepts the hair_penetration FAIL for this merge: the hair's clearance leaned on the wrong
+    shoulder slab, and tool/hair4 takes it.
+  - `hair_folds` 4 → **11 WARN** (bangs 3 → 7, side_lock_L 0 → 1, lower_back 0 → 2).
+  - `body_profile_leg_back` 0.2024 FAIL → 0.0329 WARN, the MakeHuman leg bare. `body_profile_leg_outline` reads 0.0094
+    INFO: clawd_mh's flaps don't touch the leg.
+- **Why hair_folds moves: the hair reads the decimated mesh.** The hull above the eye line is voxel-identical to
+  pipeline-3d's (0 of 708,699 occupied voxels differ; 518 between the eye line and z -0.45). Its decimated mesh isn't:
+  13,469 against 13,531 vertices there, 13,408 shared. The limb carve changes the volume below, and the greedy
+  decimation then takes another path everywhere. The hair builder places the bangs and locks from those vertices, which
+  HULL_CONTRACT.md says not to rely on (tool/hair4: read the shell, or the hull's `V`).
+- The hull's code (hull.py, det.py, remesh.py, volume.py, code_base.py) is unchanged since 529d2bc, so round 4's stage
+  hashes hold.
+
+**Kept at the coordinator's call:** the shorts' `hem_drop` line (the duplicate with garments2 is resolved at the
+second merge), and the `history.STEPS` entries (migrated at merge if tool/infra's self-registering steps land first).
+
+**Review page:** `charkit/out/hl4/review/index.html` (scratchpad `hl3/mkpage4.py cddbd12`).
+
+## Round 4 (2026-09-30)
 
 **Head** `tool/hull-limbs` 529d2bc. It merges pipeline-3d db718ae (751bddf). The gates merged it into pipeline-3d
 9397578, which adds docs only. The commits this round:
@@ -501,7 +557,7 @@ Pieces labels, held-out agree: front 0.7648 -> 0.7643, profile 0.6679 -> 0.6672,
 back 0.6927 -> 0.6847. With the real masks the limb split already helps before the fix (0.8759 against 0.8614 without
 it), and the fix adds 0.002: the large before/after gaps above were the no-TRELLIS masks'. The per-height borrowing
 table with the real masks is still to measure (step 1). Both body builds died at the start: the box stopped answering
-ssh ("server anim-build-1 not responding"), so rerun them (`scratchpad/hl/redo.sh` is not needed: `python -m charkit
+ssh ("server <build box> not responding"), so rerun them (`scratchpad/hl/redo.sh` is not needed: `python -m charkit
 remote build charkit/spec/clawd_body.json --out charkit/out/hl2_body_TAG --no-blend` from each worktree).
 
 The clawd_body gate of a9a84a8 into 01f2cdd: **FAIL**, checks worse: `body_back_hem_mid`, `body_front_hair_length`,
