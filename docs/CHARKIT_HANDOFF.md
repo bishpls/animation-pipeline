@@ -726,7 +726,52 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
-## Overnight run plan (2026-09-30 evening; start here)
+## Overnight run results (2026-09-30, 06:30-10:05 EDT; start here)
+
+**The morning report:** `charkit/out/overnight/20260930/index.html` (gitignored). It lists the decisions with their images,
+the merges and the re-login steps.
+
+**The run stopped early.** gcloud auth lapsed at 09:50, 3h20m after the login, which is far shorter than assumed.
+Box jobs keep running detached. After `gcloud auth login`, collect them:
+- `remote attach gate-look4-0930-094431-f250` (look5's gate);
+- `remote attach gate-evalmesh-0930-094156-a574` (evalmesh M2+M3);
+- infra3's jobs, listed in its notes.
+
+**Merged, 12 merges, each gated under K** (08f93e2 -> ce69b1b):
+
+| merge | branch | what |
+|---|---|---|
+| a3073f5 | look4 | call M; four art_* checks promoted to FAIL; bodyeval re-assembles code bodies |
+| 9549b30 | hair4 | the hair clear of its own body |
+| 1141e74 | toonrender2 | the QA draws with charkit.render by default |
+| b43c15e | infra3 A | K in gate.py; tests-only gates; one live gate per branch; thread caps |
+| ae7fd45 | mouth2 | the modular expression system; 13 graded presets |
+| 23492b6 | face4-crown | the crown's quads no longer turn over; exact hair normals |
+| a4f91a3 | infra3 B1 | `gate --carry`; re-gates about 62 s |
+| 4de65ab | face4 | the chin toward the V |
+| 89ae4c1 | hairtag-truth | the hair truth and scorer; the new masks off by default |
+| f2ec090 | evalmesh M1 | winding decided in the venv |
+| e3cd020 | infra3 B2 | cache keys hash only the functions a step uses |
+| ce69b1b | crowntrim | the crown trim on by default |
+
+Previews 1583cd6 -> f2ec090: PASS 186 -> 200, WARN 36 -> 35, FAIL 5 -> 4. Of the four FAILs left, tool/garments3 fixes
+piece_waistband, piece_shorts and piece_overskirt_panel_L. The fourth is hair_bun_outline, 0.436 after the crown trim.
+
+**Waiting on Michael:**
+- **tool/garments3** (e0ab0d4): blocked on the three-quarter flaps. The coordinator recommends A, the default: the
+  drawing's three-quarter view disagrees with its other views. Also blocked on art_speckle_neck, a threshold effect at
+  the hair and collar junction; the choices are in garments3.md, Round 4.
+- **tool/hairtag** (51b1cdb): whether the new masks go on by default, and call B. Its gate must re-run with the 2x2 fix.
+- **tool/look5** (8789b7f): the hair's cast shadow on the face overshoots from the front. The chin measure failed its
+  calibration, so its checks are INFO.
+
+**Ready to finish:**
+- tool/evalmesh (0b7e9ba): M2 and M3 are exact; attach the gate, then merge. M4 is planned in evalmesh.md.
+- tool/infra3: subset 3 and the 2x2 fix (cabfcf5); see infra3.md.
+
+Each workstream's notes are in docs/workstreams/NAME.md. Relaunch lean from them.
+
+## Overnight run plan (2026-09-30 evening)
 
 Read, in order: this section, the checkpoint below, then docs/ROADMAP.md. Relaunch each workstream as a fresh, lean
 agent from its docs/workstreams/NAME.md.
