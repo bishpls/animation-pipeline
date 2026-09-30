@@ -83,8 +83,10 @@ def test_code_closure():
     try:
         g = cache.code_units(_fn('charkit.scene', 'stage_garments'))
         h = cache.code_units(_fn('charkit.scene', 'stage_hair'))
-        assert 'charkit/garments.py' in g and 'charkit/scene.py:stage_garments' in g and 'charkit/qa3d.py' not in g
-        assert 'charkit/hair.py' in h and 'charkit/garments.py:' not in ''.join(h)
+        F = lambda u: {k.split(':')[0] for k in u}          # the files a key's units come from
+        assert 'charkit/garments.py' in F(g) and 'charkit/scene.py:stage_garments' in g and 'charkit/qa3d.py' not in F(g)
+        assert 'charkit/hair.py' in F(h) and 'charkit/garments.py' not in F(h)
+        assert 'charkit/scene.py:stage_garments' not in h                # scene's table of stages runs none of them
 
         def edit(rel, old, new):
             p = os.path.join(kit, rel)
@@ -97,7 +99,8 @@ def test_code_closure():
         assert cache.code_units(_fn('charkit.scene', 'stage_garments')) == g             # comments and docs don't count
         edit('garments.py', "_thick(ob, 0.01 * L)\n        else:", "_thick(ob, 0.011 * L)\n        else:")
         g2 = cache.code_units(_fn('charkit.scene', 'stage_garments'))
-        assert [u for u in g if g[u] != g2.get(u)] == ['charkit/garments.py']
+        moved = [u for u in g if g[u] != g2.get(u)]
+        assert moved and all(u.startswith('charkit/garments.py') for u in moved), moved
         assert cache.code_units(_fn('charkit.scene', 'stage_hair')) == h                 # hair doesn't run garments.py
         edit('scene.py', "S.garments = garments.build(", "S.garments = garments.build(  ")   # formatting only
         assert cache.code_units(_fn('charkit.scene', 'stage_garments')) == g2
@@ -109,15 +112,29 @@ def test_code_closure():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_a_local_name_is_not_the_modules_and_an_attribute_is_one_definition():
+    """names resolve as Python scopes them: hull.Owners' local `main` isn't hull.main (which imports bodyeval, and so
+    garments, into the hull's shared-cache key); `cli._path` in bodyeval brings _path, not cli.py's 42 imports."""
+    from charkit import artifactqa, manifest
+    R = manifest.load('charkit/refs/clawd/manifest.json')['references']
+    F = lambda u: {k.split(':')[0] for k in u}
+    for d in (1, manifest.CACHE_DEPTH):
+        u = manifest._producer_code(R['hull'], d)
+        assert 'charkit/geom/hull.py:main' not in u and 'charkit/garments.py' not in F(u), d
+    u = cache.code_units(artifactqa.design_heads, artifactqa.design_body)
+    assert 'charkit/cli.py:_path' in u and not {'charkit/gate.py', 'charkit/remote.py', 'charkit/tune.py'} & F(u)
+
+
 def test_step_closure_is_depth_limited():
     """a venv step's code key follows its imports STEP_DEPTH deep: the authored head's step covers the code base, not the
     QA (whole and transitive, every step reached all of charkit and any edit re-ran the fits)."""
     from charkit import cli
     deep = cache.code_units(cli.code_head, modules=('charkit.cache',))
     near = cache.code_units(cli.code_head, modules=('charkit.cache',), depth=cache.STEP_DEPTH)
-    mods = lambda u: {k for k in u if ':' not in k}
-    assert 'charkit/qa3d.py' in mods(deep) and 'charkit/qa3d.py' not in mods(near)
-    assert 'charkit/code_base.py' in mods(near) and len(mods(near)) < len(mods(deep)) / 3
+    mods = lambda u: {k.split(':')[0] for k in u}
+    # (followed definition by definition, the step doesn't reach the QA at any depth: 10 files, 2026-09-30)
+    assert 'charkit/qa3d.py' not in mods(deep) and mods(near) <= mods(deep)
+    assert 'charkit/code_base.py' in mods(near) and len(mods(deep)) < 30
 
 
 def test_file_memo():

@@ -9,6 +9,11 @@
 //               with front faces culled, in the line colour
 //   vs_holdout  the skin at co (qa.features_pass turns its SOLIDIFY off), writing depth and a transparent black
 //   fs_surface  toon3 | face | flat | plate, premultiplied (plates with alpha blend over what is behind)
+//   cast        a toon3's or face's baked cast shadows (charkit.faceshade.cast_maps / cast_nodes: the jaw's on the neck,
+//               the hair's on the face): per vertex, k light azimuths in four vec4 streams; the vertex stage reads them at
+//               the head-space light's azimuth (atan2(x, z), interpolated between the two baked either side: linear, so
+//               per vertex equals per pixel), the fragment cuts it at `at` +- `width` by a smoothstep; under it toon3's
+//               half-lambert is held at or under `half`, and the face's SDF shadow takes its maximum
 //
 // Textures are read with textureLoad (no sampler: exact, and float32 needs no filterable format): bilinear or cubic
 // B-spline (Blender's 'Linear' / 'Cubic' image interpolation), EXTEND clamps, CLIP reads zero outside (the border).
@@ -45,6 +50,7 @@ struct MatU {
   outline: vec4<f32>,        // build width (m), region factor, 1 outlined, the inward move's cap (m; 0 none)
   line_color: vec4<f32>,
   hl_el: vec4<f32>,          // the streaks' elevation: lowest middle (rad), jitter span (rad)
+  cast_p: vec4<f32>,         // the baked cast shadows: azimuths k, at, width, half (F_CAST)
 };
 
 const F_RIM: u32 = 1u;
@@ -54,6 +60,7 @@ const F_FRINGE: u32 = 8u;
 const F_BLUSH: u32 = 16u;
 const F_INK: u32 = 32u;
 const F_BLEND: u32 = 64u;
+const F_CAST: u32 = 128u;
 
 @group(0) @binding(0) var<uniform> V: ViewU;
 @group(1) @binding(0) var<uniform> M: MatU;
@@ -72,6 +79,10 @@ struct VIn {
   @location(5) uv1: vec2<f32>,
   @location(6) fmask: f32,
   @location(7) inkw: f32,
+  @location(8) cast0: vec4<f32>,
+  @location(9) cast1: vec4<f32>,
+  @location(10) cast2: vec4<f32>,
+  @location(11) cast3: vec4<f32>,
 };
 
 struct VOut {
@@ -82,6 +93,7 @@ struct VOut {
   @location(3) uv1: vec2<f32>,
   @location(4) fmask: f32,
   @location(5) inkw: f32,
+  @location(6) shadow: f32,
 };
 
 fn build_w() -> f32 { return M.outline.x * M.outline.z; }
@@ -97,10 +109,35 @@ fn inward(w: f32) -> f32 {
   return w;
 }
 
+// charkit.faceshade.cast_nodes: the baked value at the head-space light's azimuth, phi = atan2(x, z) (0 in front, + to
+// her left), each baked azimuth i (360 i / k) weighted max(1 - |phi - its|, wrapped to [-pi, pi), / span, 0)
+fn cast_at(v: VIn) -> f32 {
+  if ((M.kind.y & F_CAST) == 0u) { return 0.0; }
+  let k = u32(M.cast_p.x);
+  let span = 2.0 * PI / M.cast_p.x;
+  let phi = atan2(V.head_light.x, V.head_light.z);
+  var c = array<vec4<f32>, 4>(v.cast0, v.cast1, v.cast2, v.cast3);
+  var acc = 0.0;
+  for (var i = 0u; i < min(k, 16u); i++) {
+    var d = phi - f32(i) * span;
+    d = d - 2.0 * PI * floor((d + PI) / (2.0 * PI));
+    let w = max(1.0 - abs(d) / span, 0.0);
+    acc += w * c[i >> 2u][i & 3u];
+  }
+  return acc;
+}
+
+// the cut: 0 lit .. 1 in the cast shadow (Blender's Map Range 'Smooth Step' from at - width .. at + width)
+fn cast_shadow(c: f32) -> f32 {
+  if ((M.kind.y & F_CAST) == 0u) { return 0.0; }
+  return smoothstep(M.cast_p.y - M.cast_p.z, M.cast_p.y + M.cast_p.z, c);
+}
+
 fn out_of(p: vec3<f32>, v: VIn) -> VOut {
   var o: VOut;
   o.clip = V.viewproj * vec4<f32>(p, 1.0);
   o.wpos = p; o.nor = v.nor; o.uv0 = v.uv0; o.uv1 = v.uv1; o.fmask = v.fmask; o.inkw = v.inkw;
+  o.shadow = cast_at(v);
   return o;
 }
 
@@ -227,8 +264,14 @@ fn facing(n: vec3<f32>, vd: vec3<f32>, e: f32) -> f32 {
 
 struct Toon { col: vec3<f32>, s_lit: f32, };
 
-fn toon3(n: vec3<f32>, vd: vec3<f32>, wpos: vec3<f32>) -> Toon {
+// toon3's half-lambert, held at or under the cast's `half` in its shadow cs (0 .. 1: cast_shadow)
+fn half_lambert(n: vec3<f32>, cs: f32) -> f32 {
   let h = dot(n, V.light.xyz) * 0.5 + 0.5;
+  return h - max(h - M.cast_p.w, 0.0) * cs;
+}
+
+fn toon3(n: vec3<f32>, vd: vec3<f32>, wpos: vec3<f32>, cs: f32) -> Toon {
+  let h = half_lambert(n, cs);
   let s = M.tone.z;
   let s_lit = sat((h - (M.tone.x - s)) / (2.0 * s));
   let s_deep = sat((h - (M.tone.y - s)) / (2.0 * s));
@@ -264,7 +307,7 @@ fn toon3(n: vec3<f32>, vd: vec3<f32>, wpos: vec3<f32>) -> Toon {
   return o;
 }
 
-fn face(toon: vec3<f32>, uv1: vec2<f32>, fmask: f32, inkw: f32) -> vec3<f32> {
+fn face(toon: vec3<f32>, uv1: vec2<f32>, fmask: f32, inkw: f32, cs: f32) -> vec3<f32> {
   let lh = V.head_light.xyz;
   let t = atan2(abs(lh.x), lh.z) / PI;                 // 0 light from the front .. 1 from behind
   var u = uv1.x;
@@ -277,7 +320,7 @@ fn face(toon: vec3<f32>, uv1: vec2<f32>, fmask: f32, inkw: f32) -> vec3<f32> {
     let fr = tex(t_fringe, uv1, M.samp.y).x;
     sh = max(sh, map_range(fr, M.face.y, M.face.z));
   }
-  sh = sat(sh);
+  sh = sat(max(sat(sh), cs));                           // the cast shadow over the SDF's and the fringe's
   var col = mix(M.face_lit.xyz, M.face_shade.xyz, sh);
   if ((fl & F_BLUSH) != 0u) {
     let b = tex(t_blush, uv1, M.samp.z);
@@ -307,9 +350,10 @@ fn fs_surface(v: VOut, @builtin(front_facing) ff: bool) -> @location(0) vec4<f32
   if (!ff) { n = -n; }                                  // Blender's Geometry Normal faces the viewer
   var vd = normalize(V.cam_pos.xyz - v.wpos);
   if (V.cam_pos.w > 0.5) { vd = V.cam_back.xyz; }
-  let t = toon3(n, vd, v.wpos);
+  let cs = cast_shadow(v.shadow);
+  let t = toon3(n, vd, v.wpos, cs);
   var col = t.col;
-  if (kind == 2u) { col = face(col, v.uv1, v.fmask, v.inkw); }
+  if (kind == 2u) { col = face(col, v.uv1, v.fmask, v.inkw, cs); }
   if ((M.kind.y & F_TEXTURE) != 0u) {
     let c = tex(t_tex, v.uv0, M.samp2.x);
     col = col * (c.xyz * c.w);                           // Mix 'Multiply' by the Color output alone: premultiplied

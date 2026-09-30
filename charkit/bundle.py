@@ -20,6 +20,8 @@ far the outline modifier pulls each vertex in: the rendered surface is V + shrin
 `parent` (the base polygon each polygon came from) and `keys` (shape keys: world offsets, sparse):
   eval         the evaluated mesh without its outline hull or garment mask (what trace.mesh_arrays reads)
   masked       the skin with its garment mask on (what renders)
+  bare         the skin with its garment mask off (eval's surface with the render's shrink and normals: the look QA's
+               bare head and neck, as head_turnaround draws them)
   base         the armature-posed base mesh with its shape keys (as Blender holds them: float32)
   assembly     the skin as the assembly made it (float64) with its lid and mouth keys (the fold count's)
   raw          the mesh data itself (hair and garments: poke-through, open edges)
@@ -119,7 +121,8 @@ def _toon3(m, rm=None):
                 rim_amt=float(lm.inputs[1].default_value), blend=float(lw.inputs['Blend'].default_value),
                 rim_from=[float(rr.inputs['From Min'].default_value), float(rr.inputs['From Max'].default_value)],
                 strength=float(em.inputs['Strength'].default_value), texture=texture.name if texture is not None else None,
-                **({'highlight': highlight} if highlight else {}))
+                **({'highlight': highlight} if highlight else {}),
+                **({'cast': json.loads(m['ck_cast'])} if m.get('ck_cast') else {}))
 
 
 def _face(m):
@@ -154,7 +157,8 @@ def _face(m):
                 fringe=fr.image.name if fr is not None else None, blush=bl.image.name if bl is not None else None,
                 fringe_at=[float(frr.inputs['From Min'].default_value), float(frr.inputs['From Max'].default_value)]
                 if frr is not None else None, mask='face_mask', uv='face',
-                ink=ink.image.name if ink is not None and ink.image is not None else None, ink_w='ck_ink_w')
+                ink=ink.image.name if ink is not None and ink.image is not None else None, ink_w='ck_ink_w',
+                **({'cast': json.loads(m['ck_cast'])} if m.get('ck_cast') else {}))
 
 
 def material_record(m):
@@ -233,6 +237,13 @@ def _read(ob, uv=False, normals=False):
                 if fm is not None and fm.domain == 'POINT' and n:
                     c = np.empty(n * 4, np.float32); fm.data.foreach_get('color', c)
                     out[key] = c[0::4].copy()
+            cast = [me.color_attributes.get('ck_cast%d' % i) for i in range(4)]     # faceshade.cast_maps: 16 azimuths
+            if n and all(a is not None and a.domain == 'POINT' for a in cast):
+                cs = []
+                for a in cast:
+                    c = np.empty(n * 4, np.float32); a.data.foreach_get('color', c)
+                    cs.append(c.reshape(-1, 4))
+                out['fcast'] = np.concatenate(cs, 1)
         if normals and len(me.loops):
             cn = np.empty(len(me.loops) * 3, np.float32)
             me.corner_normals.foreach_get('vector', cn)
@@ -391,6 +402,20 @@ def export(S, out, ref_measure=None):
                         Gv['lnor'] = Go['lnor'][:nl]
                 else:
                     rec['outline']['unmatched'] = True
+                if ob.name == skin.name:
+                    # 'bare': the skin with its garment mask off, as it renders (the look QA's bare head and neck,
+                    # set against head_turnaround's bare shoulders): eval's surface with the render's shrink and normals
+                    prev = _mods(ob, lambda m: m.show_viewport and m.name != 'under_garments')
+                    try:
+                        Gb_ = _read(ob, normals=True)
+                    finally:
+                        _restore(prev)
+                    Ge = variants['eval']
+                    n, nl = len(Ge['V']), len(Ge['loopv'])
+                    if len(Gb_['V']) >= 2 * n and np.array_equal(Gb_['loopv'][:nl], Ge['loopv']):
+                        variants['bare'] = dict({k: v for k, v in Ge.items() if k != 'parent'},
+                                                shrink=(Gb_['V'][:n] - Ge['V']).astype(np.float32), lnor=Gb_['lnor'][:nl])
+                    del Gb_
             elif hair:
                 Gv = variants['eval']
                 Gn = _read(ob, normals=True)

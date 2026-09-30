@@ -93,10 +93,13 @@ def test_line_cap():
     assert shade.line_offset(0.0012, None) == 1.0
 
 
-def sphere_glb(path, r=0.1, w=0.002, n=96, cap=None, streaks=None):
+def sphere_glb(path, r=0.1, w=0.002, n=96, cap=None, streaks=None, cast=None, bare=None):
     """a UV sphere at the origin (glTF frame) with a toon3 material and an outline, written by charkit/gltf.py's own
     Writer as the export writes a mesh: POSITION the surface moved inward by the build width (at most `cap`, a thin
-    shell's maxInward); `streaks`: the material's highlight (charkit.shade.hair_toon's)."""
+    shell's maxInward); `streaks`: the material's highlight (charkit.shade.hair_toon's); `cast`: (the material's cast
+    {k, at, width, half}, fn(unit normals (n, 3), glTF) -> (n, k) the baked values: _CK_CAST0..3); `bare`: a radius for a
+    second sphere written as the object's 'bare' variant (a mesh without a node, as gltf.export look_only writes the
+    skin's)."""
     from charkit.gltf import EXT, Writer
     th, ph = np.meshgrid(np.linspace(0, math.pi, n // 2 + 1), np.linspace(0, 2 * math.pi, n + 1), indexing='ij')
     N = np.stack([np.sin(th) * np.cos(ph), np.cos(th), np.sin(th) * np.sin(ph)], -1).reshape(-1, 3)
@@ -117,16 +120,26 @@ def sphere_glb(path, r=0.1, w=0.002, n=96, cap=None, streaks=None):
             'shade': [0.4, 0.2, 0.1], 'deep': [0.2, 0.1, 0.05], 'threshold': 0.5, 'deepThreshold': 0.27, 'softness': 0.015}
     if streaks:
         look['highlight'] = dict(streaks)
+    if cast:
+        look['cast'] = dict(cast[0], attributes=['_CK_CAST%d' % i for i in range(4)])
     Wr.js['materials'].append({'name': 'ball', 'extensions': {EXT: look}})
-    attrs = {'POSITION': Wr.accessor((N * (r - shade.line_inward(w, cap))).astype(np.float32), 'VEC3', minmax=True),
-             'NORMAL': Wr.accessor(N.astype(np.float32), 'VEC3')}
-    Wr.js['meshes'].append({'name': 'ball', 'primitives': [{'attributes': attrs, 'indices': Wr.accessor(F.ravel(), 'SCALAR'),
-                                                           'material': 0}],
-                            'extensions': {EXT: {'object': 'ball', 'outline': dict({'width': w, 'color': [0.0, 0.0, 0.0],
-                                                                                    'region': 'skin'},
-                                                                                   **({'maxInward': cap} if cap else {}))}}})
-    Wr.js['nodes'].append({'name': 'ball', 'mesh': 0})
-    Wr.js['scenes'][0]['nodes'].append(0)
+    for name, rad, variant in [('ball', r, None)] + ([('ball.bare', bare, 'bare')] if bare else []):
+        attrs = {'POSITION': Wr.accessor((N * (rad - shade.line_inward(w, cap))).astype(np.float32), 'VEC3', minmax=True),
+                 'NORMAL': Wr.accessor(N.astype(np.float32), 'VEC3')}
+        if cast:
+            c = np.zeros((len(N), 16), np.float32)
+            c[:, :cast[0]['k']] = cast[1](N)
+            for i in range(4):
+                attrs['_CK_CAST%d' % i] = Wr.accessor(np.ascontiguousarray(c[:, 4 * i:4 * i + 4]), 'VEC4')
+        mx = {'object': 'ball', 'outline': dict({'width': w, 'color': [0.0, 0.0, 0.0], 'region': 'skin'},
+                                                **({'maxInward': cap} if cap else {}))}
+        if variant:
+            mx['variant'] = variant
+        Wr.js['meshes'].append({'name': name, 'primitives': [{'attributes': attrs, 'indices': Wr.accessor(F.ravel(), 'SCALAR'),
+                                                             'material': 0}], 'extensions': {EXT: mx}})
+        if not variant:
+            Wr.js['nodes'].append({'name': name, 'mesh': len(Wr.js['meshes']) - 1})
+            Wr.js['scenes'][0]['nodes'].append(len(Wr.js['nodes']) - 1)
     Wr.js['extensions'][EXT] = {'version': 1, 'light': {'direction': [1.0, 0.0, 0.0]}, 'lines': LOOK['lines'],
                                 'head': {'centre': [0, 0, 0], 'L': 0.25}}
     Wr.js['extensionsUsed'].append(EXT)
