@@ -725,7 +725,8 @@ def _tests_at(root, tree, head, tip, spec, names):
     """the named test files run in a throwaway sparse worktree of TREE (the merge of tip into head, as a commit object
     no ref points to) -> ({file: 'ok' or its tail}, {file: seconds})."""
     from . import sparse
-    c = _git('commit-tree', tree, '-p', head, '-p', tip, '-m', 'gate --carry: %s into %s' % (tip, head), cwd=root)
+    c = _git('-c', 'user.name=charkit-gate', '-c', 'user.email=gate@localhost', 'commit-tree', tree, '-p', head, '-p',
+             tip, '-m', 'gate --carry: %s into %s' % (tip, head), cwd=root)       # (the box's git has no identity)
     wt = tempfile.mkdtemp(prefix='charkit-carry-')
     os.rmdir(wt)
     try:
