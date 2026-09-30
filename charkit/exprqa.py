@@ -29,7 +29,9 @@ library has nothing close to fails with `missing`, which means: add it to the te
 """
 import numpy as np
 
-CLASS = {'none': 0, 'skin': 1, 'hair': 2, 'iris': 3, 'line': 4, 'white': 9, 'mouth': 11, 'brow': 12}
+CLASS = {'none': 0, 'skin': 1, 'hair': 2, 'iris': 3, 'line': 4, 'white': 9, 'mouth': 11, 'brow': 12, 'tongue': 13}
+INSIDE = (CLASS['line'], CLASS['mouth'], CLASS['white'], CLASS['tongue'])   # what a mouth's lines and opening show (a
+                                                     # drawing's tongue is its inside's red: only ours tell it apart)
 EYE_X = 0.168
 WIN = dict(x=0.65, top=0.45, bottom=-0.75)           # the face window, L round the eyes (faceqa's)
 EYE_BOX = dict(x=0.15, up=0.13, down=0.11)           # an eye's window round its centre
@@ -154,7 +156,7 @@ def mouth(cls, ppl, axis, eye_y):
     y0, y1 = int(eye_y - MOUTH_BOX['top'] * ppl), int(eye_y - MOUTH_BOX['bottom'] * ppl) + 1
     x0, y0 = max(0, x0), max(0, y0)
     sub = cls[y0:y1, x0:x1]
-    m = np.isin(sub, (CLASS['line'], CLASS['mouth'], CLASS['white']))
+    m = np.isin(sub, INSIDE)
     from .sheetqa import label
     from .bodyqa import _shift, dilate, erode
     grp = m.copy()                                            # a thin stroke broken by its anti-aliasing is one mouth:
@@ -211,10 +213,35 @@ def mouth(cls, ppl, axis, eye_y):
         if ok.sum() > 5:
             r = e[ok] - np.poly1d(np.polyfit(x[ok], e[ok], 2))(x[ok])
             wave = max(wave, float(np.sqrt(np.mean(r ** 2))) / len(cols))
-    return {'found': True, 'width': round(w, 4), 'open': round(oh, 4), 'area': round(float(area), 5),
-            'fill': round(float(area / (w * oh)), 3) if oh > 0 else 0.0, 'lift': round(float(lift), 4),
-            'wave': round(wave, 4), 'aspect': round(oh / w, 3), 'centre_z': round(float((eye_y - (y0 + (b[2] + b[3]) / 2)) / ppl), 4),
-            '_mask': (comp, inner, (x0, y0))}
+    skew = (np.mean(ctr[:k]) - np.mean(ctr[-k:])) / len(cols)   # + = the picture's right corner higher (a smirk)
+    out = {'found': True, 'width': round(w, 4), 'open': round(oh, 4), 'area': round(float(area), 5),
+           'fill': round(float(area / (w * oh)), 3) if oh > 0 else 0.0, 'lift': round(float(lift), 4),
+           'wave': round(wave, 4), 'aspect': round(oh / w, 3), 'skew': round(float(skew), 4),
+           'centre_z': round(float((eye_y - (y0 + (b[2] + b[3]) / 2)) / ppl), 4)}
+    out.update(contents(sub, comp, inner if ib else None))
+    out['_mask'] = (comp, inner, (x0, y0))
+    return out
+
+
+def contents(sub, comp, inner, reach=3):
+    """what a mouth shows: an open one's teeth and tongue (shares of its inside), and how much of its opening's top and
+    bottom edges the line draws (the share of the inside's columns with a line pixel within `reach` px above its top,
+    below its bottom: the drawn mouth's outline; our lip line runs along the top edge only); a closed one's line (the
+    share of its columns the line class crosses: a mouth line read as a line, not a skin crease)."""
+    line = sub == CLASS['line']
+    if inner is None or not inner.any():
+        cols = np.nonzero(comp.any(0))[0]
+        return {'teeth': 0.0, 'tongue': 0.0, 'line_top': 0.0, 'line_bottom': 0.0,
+                'line_closed': round(float(line[:, cols].any(0).mean()), 3) if len(cols) else 0.0}
+    c = sub[inner]
+    top = bot = 0
+    cols = np.nonzero(inner.any(0))[0]
+    for x in cols:
+        ys = np.nonzero(inner[:, x])[0]
+        top += bool(line[max(0, ys[0] - reach):ys[0], x].any())
+        bot += bool(line[ys[-1] + 1:ys[-1] + 1 + reach, x].any())
+    return {'teeth': round(float((c == CLASS['white']).mean()), 3), 'tongue': round(float((c == CLASS['tongue']).mean()), 3),
+            'line_top': round(top / len(cols), 3), 'line_bottom': round(bot / len(cols), 3), 'line_closed': 0.0}
 
 
 def brow(cls, ppl, e, axis, ours=False):
@@ -250,7 +277,7 @@ def brow(cls, ppl, e, axis, ours=False):
     inward = np.sign(axis - (xs.mean() + x0)) or 1.0            # +1: the inner end is to the right
     tilt = float(np.degrees(np.arctan(p[0] * inward)))          # rows grow down: + = the inner end lower
     return {'tilt': round(tilt, 1), 'height': round(float((e['centre'][1] - (ys.mean() + y0)) / ppl), 4),
-            'skin_border': round(best[1], 2)}
+            'skin_border': round(best[1], 2), 'row': float(ys.mean() + y0)}
 
 
 def measure(cls, ppl, eye_y, axis, eye_x=EYE_X, ours=False, refine=True):
@@ -259,6 +286,7 @@ def measure(cls, ppl, eye_y, axis, eye_x=EYE_X, ours=False, refine=True):
     eyes' spacing over 2 * eye_x L, a check on the scale)."""
     E = [eye(cls, ppl, (axis + s * eye_x * ppl, eye_y)) for s in (-1, 1)]
     out = {}
+    eye_y0 = eye_y                                              # the eye line as given (the brows' z is over it)
     if all(e.get('centre') for e in E):
         out['spacing'] = round(abs(E[1]['centre'][0] - E[0]['centre'][0]) / (2 * eye_x * ppl), 3)
         if refine:
@@ -269,7 +297,10 @@ def measure(cls, ppl, eye_y, axis, eye_x=EYE_X, ours=False, refine=True):
     out['eyes'] = E
     out['mouth'] = mouth(cls, ppl, axis, eye_y)
     out['brows'] = [brow(cls, ppl, e, axis, ours) for e in E]
-    return out
+    for b in out['brows']:
+        if b:
+            b['z'] = round((eye_y0 - b.pop('row')) / ppl, 4)    # over the given eye line: a closed or narrowed eye's
+    return out                                                  # found centre moves, the line doesn't
 
 
 # ------------------------------------------------------------------------------------------------------------ matching
@@ -290,11 +321,13 @@ def summary(M, neutral=None):
             s['eye_arc'] = float(np.mean([e['arc'] for e in cl]))
     mo = M['mouth']
     if mo.get('found'):
-        s.update({'mouth_' + k: mo[k] for k in ('width', 'open', 'area', 'fill', 'lift', 'wave', 'aspect')})
+        s.update({'mouth_' + k: mo[k] for k in ('width', 'open', 'area', 'fill', 'lift', 'wave', 'aspect', 'skew', 'teeth',
+                                                 'tongue', 'line_top', 'line_bottom', 'line_closed') if k in mo})
     B = [b for b in M['brows'] if b]
     if B:
         s['brow_tilt'] = float(np.mean([b['tilt'] for b in B]))
         s['brow_height'] = float(np.mean([b['height'] for b in B]))
+        s['brow_z'] = float(np.mean([b['z'] for b in B]))
     if neutral:
         for k in ('eye_aspect', 'iris_ratio'):
             if k in s and neutral.get(k):
@@ -393,6 +426,100 @@ def grade(d, o, part):
     return C
 
 
+# ------------------------------------------------------------------------------------------------------------ targets
+# the template's own combined expressions (charkit.expressions.PRESETS) as what each must read as, in exprqa's measures: the
+# standard anime set for action shorts (effort, shout, focus, surprise, anger, pain, smug, embarrassed, sad) and the
+# heads the model sheet draws (laugh, angry, fluster, yawn). {preset: {feature: (low, high)}}, None an open end; the
+# *_rel features are against the same face's neutral (the mouth's width as a ratio, the brows' tilt in degrees (+ the
+# inner ends lower) and height over the eye line in L as differences); mouth_skew_abs the corners' height difference over the width.
+# No reference grades these (the manifest gives expressions no authority): they are the template's intent, set from
+# what each expression means, not fitted to our numbers.
+TARGETS = {
+    'effort': {'eye_open': (0, 0.5), 'eye_arc': (0.02, None), 'mouth_open': (0.015, 0.07), 'mouth_teeth': (0.5, None),
+               'mouth_width_rel': (1.1, None), 'mouth_lift': (None, 0.02), 'brow_tilt_rel': (8, None)},
+    'shout': {'eye_open': (0.5, 1), 'mouth_open': (0.10, None), 'mouth_width_rel': (1.0, None),
+              'mouth_teeth': (0.03, 0.45), 'mouth_tongue': (0.05, None), 'mouth_line_top': (0.6, None),
+              'brow_tilt_rel': (10, None)},
+    'focus': {'eye_open': (0.5, 1), 'eye_aspect_rel': (0.55, 0.92), 'mouth_open': (None, 0.02),
+              'mouth_lift': (-0.12, 0.02), 'brow_tilt_rel': (4, 16), 'brow_z_rel': (None, 0.0)},
+    'surprise': {'eye_open': (0.5, 1), 'eye_aspect_rel': (1.05, None), 'mouth_open': (0.03, 0.14),
+                 'mouth_fill': (0.6, None), 'mouth_width_rel': (None, 0.85), 'brow_z_rel': (0.015, None)},
+    'angry': {'eye_open': (0.5, 1), 'eye_aspect_rel': (None, 0.95), 'mouth_lift': (None, -0.01),
+              'brow_tilt_rel': (12, None), 'brow_z_rel': (None, 0.0)},
+    'pain': {'eye_open': (0.5, 1), 'eye_aspect_rel': (None, 0.8), 'mouth_open': (0.015, 0.08), 'mouth_teeth': (0.4, None),
+             'mouth_lift': (None, 0.0), 'brow_tilt_rel': (None, -8)},
+    'smug': {'eye_open': (0.5, 1), 'eye_aspect_rel': (0.45, 0.85), 'mouth_open': (None, 0.02), 'mouth_skew_abs': (0.04, None),
+             'mouth_lift': (0.0, None), 'brow_tilt_rel': (-6, 6)},
+    'embarrassed': {'eye_open': (0.5, 1), 'mouth_wave': (0.008, None), 'mouth_open': (None, 0.06),
+                    'mouth_width_rel': (None, 1.2), 'brow_tilt_rel': (None, -5)},
+    'sad': {'eye_open': (0.5, 1), 'eye_aspect_rel': (0.6, 1.0), 'mouth_lift': (None, -0.02), 'brow_tilt_rel': (None, -8)},
+    'laugh': {'eye_open': (0, 0.5), 'eye_arc': (0.02, None), 'mouth_open': (0.08, None), 'mouth_teeth': (0.02, None),
+              'brow_z_rel': (0.0, None)},
+    'fluster': {'eye_open': (0.5, 1), 'iris_ratio_rel': (None, 0.6), 'mouth_wave': (0.008, None)},
+    'yawn': {'eye_open': (0, 0.5), 'mouth_open': (0.10, None), 'mouth_fill': (0.6, None)},
+}
+TARGET_MARGIN = {'eye_open': 0.0, 'eye_arc': 0.02, 'eye_aspect_rel': 0.1, 'iris_ratio_rel': 0.1, 'mouth_open': 0.015,
+                 'mouth_width_rel': 0.1, 'mouth_lift': 0.03, 'mouth_teeth': 0.1, 'mouth_tongue': 0.03, 'mouth_fill': 0.1,
+                 'mouth_wave': 0.004, 'mouth_skew_abs': 0.02, 'mouth_line_top': 0.15, 'brow_tilt_rel': 4.0,
+                 'brow_z_rel': 0.015}          # how far past a target is WARN, not FAIL
+
+
+def target_features(s, neutral=None):
+    """a summary's features plus those TARGETS read against the face's neutral summary."""
+    f = dict(s)
+    n = neutral or {}
+    if s.get('mouth_width') and n.get('mouth_width'):
+        f['mouth_width_rel'] = s['mouth_width'] / n['mouth_width']
+    for k in ('brow_tilt', 'brow_z'):
+        if k in s and k in n:
+            f[k + '_rel'] = s[k] - n[k]
+    if 'mouth_skew' in s:
+        f['mouth_skew_abs'] = abs(s['mouth_skew'])
+    return f
+
+
+def grade_targets(name, s, neutral=None):
+    """a combined expression's summary against its TARGETS -> dict(status (the worst feature's; INFO with no targets),
+    miss (the furthest feature past its target, in its WARN margins: 0 every feature inside, up to 1 WARN, past 1
+    FAIL; a feature not found counts 9), features {feature: {value, want, status}})."""
+    T = TARGETS.get(name)
+    if not T:
+        return {'status': 'INFO', 'miss': None, 'features': {}}
+    f = target_features(s, neutral)
+    out, miss = {}, 0.0
+    for k, (lo, hi) in T.items():
+        v = f.get(k)
+        want = ('%s..%s' % ('' if lo is None else lo, '' if hi is None else hi))
+        if v is None:
+            out[k] = {'value': None, 'want': want, 'status': 'FAIL', 'why': 'not found'}
+            miss = max(miss, 9.0)
+            continue
+        d = max(0.0, (lo - v) if lo is not None else 0.0, (v - hi) if hi is not None else 0.0)
+        m = TARGET_MARGIN.get(k, 0.0)
+        st = 'PASS' if d <= 1e-9 else 'WARN' if d <= m else 'FAIL'
+        miss = max(miss, d / m if m > 0 else (0.0 if d <= 1e-9 else 9.0))
+        out[k] = {'value': round(float(v), 4), 'want': want, 'status': st}
+    worst = max((c['status'] for c in out.values()), key=['PASS', 'WARN', 'FAIL'].index)
+    return {'status': worst, 'miss': round(float(miss), 3), 'features': out}
+
+
+# the model sheet's heads (exprqa.name's names) and the preset each draws: the targets' calibration (they pass on the
+# drawing), and the lab's contact sheet pairs them
+SHEET_PRESET = {'laugh': 'laugh', 'angry': 'angry', 'fluster': 'fluster', 'yawn': 'yawn'}
+
+
+def calibrate_targets(heads, design_neutral, rest):
+    """TARGETS calibrated (a new check passes on the design and fails on a known-bad example): each drawn head
+    (heads: [(sheet head name, its summary)], exprqa.summary's against the drawing's own neutral) graded against its
+    preset's targets, where it should pass; and the rest face (rest: (summary, its neutral)) against every preset's,
+    where each should fail -> dict(design {head: grade}, rest {preset: grade}, ok (every drawn head PASS or WARN and
+    every preset FAIL at rest))."""
+    D = {h: grade_targets(SHEET_PRESET[h], s, design_neutral) for h, s in heads if h in SHEET_PRESET}
+    R = {n: grade_targets(n, rest[0], rest[1]) for n in TARGETS}
+    ok = all(g['status'] in ('PASS', 'WARN') for g in D.values()) and all(g['status'] == 'FAIL' for g in R.values())
+    return {'design': D, 'rest': R, 'ok': ok}
+
+
 def name(s):
     """a readable name for a sheet head from what it shows."""
     eyes = 'open' if s.get('eye_open', 1) >= 0.5 else ('arched' if s.get('eye_arc', 0) > 0 else 'shut')
@@ -412,7 +539,7 @@ def name(s):
 
 # ------------------------------------------------------------------------------------------------------------ pictures
 PAL = {0: (0.97, 0.97, 0.95), 1: (0.98, 0.85, 0.77), 2: (0.85, 0.45, 0.28), 3: (0.95, 0.75, 0.1), 4: (0.12, 0.08, 0.08),
-       9: (1.0, 1.0, 1.0), 11: (0.75, 0.2, 0.3), 12: (0.35, 0.2, 0.6)}
+       9: (1.0, 1.0, 1.0), 11: (0.75, 0.2, 0.3), 12: (0.35, 0.2, 0.6), 13: (0.95, 0.5, 0.6)}
 
 
 def paint(cls, M=None):
@@ -436,18 +563,20 @@ def paint(cls, M=None):
 
 # ------------------------------------------------------------------------------------------------------------ ours
 def render(data, combo, ppl, win=WIN):
-    """our face head-on with a combination's keys applied ({'eye': name, 'mouth': name, 'brow': name}; None or 'neutral'
-    = the basis): the parts' offsets summed onto the posed base meshes and z-buffered (charkit.faceqa) at ppl round the
-    eyes -> class image on the face window (eye line at row win.top * ppl, midline at column win.x * ppl)."""
+    """our face head-on with a combination's keys applied (a preset, charkit.expressions: {'eye': name, 'mouth': name,
+    'brow': name}, a component's value a name or {name: weight}; None or 'neutral' = the basis): the parts' offsets,
+    weighted, summed onto the posed base meshes and z-buffered (charkit.faceqa) at ppl round the eyes -> class image
+    on the face window (eye line at row win.top * ppl, midline at column win.x * ppl)."""
     from .faceqa import zbuffer
-    keys = ['%s_%s' % (p, n) for p, n in combo.items() if n and n != 'neutral']
+    from .expressions import weights
+    keys = weights(combo)
     meshes = []
     for _, V, T, lab, K in data['parts']:
         P = V.copy()
-        for k in keys:
+        for k, w in keys.items():
             if k in K:
                 idx, D = K[k]
-                P[idx] += D
+                P[idx] += D if w == 1.0 else w * D
         meshes.append((P, T, lab))
     _, cls = zbuffer(meshes, 0.0, (0.0, data['eye_z']), data['L'], 1.0 / ppl, win, thin=THIN)
     return np.where(cls < 0, 0, cls)
