@@ -5,6 +5,9 @@ candidate; the tests run, each side is built when it has to be, and the two buil
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
                                   [--build]
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
+    python -m charkit gate --accept-fail CHECK --by NAME --why TEXT [--branch BRANCH] [--value V]
+        # the coordinator records Michael's acceptance of a named new FAIL (charkit/accepted/CHECK.json: commit it on
+        # the branch): the gate reports it, with who, when and why, instead of blocking on it
     python -m charkit gate --carry BRANCH [--into pipeline-3d] [--spec SPEC] [--args ".."] [--no-tests] [--dry-run]
                                   [--json] [--rule definitions|files]
         # an earlier gate of BRANCH's tip carried to INTO's head without a build: the tests the move reaches rerun
@@ -28,7 +31,13 @@ The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only b
     that FAILs is reported, not blocking: it measures a known fault, it doesn't make one);
   - a regression in a check built from Michael's flags (a check carrying `flag`: charkit.registry.FLAG): its status or
     its calibrated grade gets worse, or it disappears;
-  - the build's CPU time over 1.5x the baseline's.
+  - the build's CPU time over 1.5x the baseline's;
+  - a graded check the merge adds with no calibration record (charkit/calibrate.py), or one it remeasures without a
+    fresh record, or a record whose verdict isn't calibrated;
+  - the anti-gaming guard: the merge improves its own new or flag check while that check's piece's shape IoU (its
+    registry `shape`, per view) drops by more than 15% in a view.
+A new FAIL (or a guard block) Michael has accepted by name (charkit/accepted/CHECK.json, `gate --accept-fail`) is
+reported with who, when and why instead.
 Everything else (a PASS going WARN, a value moving, a check going or new, the 2x2's drops short of those) is reported,
 not enforced: the report's "Report" section and its summary (REPORT.summary.json: the verdict, what blocks, and each
 reported move, for the integrator's morning report). PASS otherwise.
@@ -857,6 +866,10 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                                'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
         elif stepped:
             rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
+        # the calibration records a new or remeasured check needs, the anti-gaming guard, Michael's acceptances: read
+        # from the merged tree (charkit/calibrate.py), only when checks moved (milliseconds: json and a literal)
+        if rep['qa']:
+            calibration_step(rep, wc, head, qa_a, qa_b, clock)
         if cand_q == cand_out:
             rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')),
                                       trace.read(os.path.join(cand_out, 'trace.jsonl')))
@@ -876,6 +889,31 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             else:
                 _git('worktree', 'remove', '--force', wt, check=False)
                 shutil.rmtree(wt, ignore_errors=True)
+
+
+def calibration_step(rep, tree, head, qa_a, qa_b, clock=None):
+    """the merged tree's calibration records against what the merge adds and remeasures (rep['calibration']), the
+    anti-gaming guard's findings and the pieces' shapes beside the improved checks (rep['guard'], rep['shapes']), and
+    Michael's recorded acceptances (rep['accepted']). tree: the merged worktree; head: the integration commit."""
+    from . import calibrate, registry
+    ca, cb = (qa_a or {}).get('checks', {}), (qa_b or {}).get('checks', {})
+    is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
+    with (clock('calibration', "the records, the guard and the acceptances, from the merged tree") if clock else
+          contextlib.nullcontext({})) as ph:
+        try:
+            E = calibrate.entries(tree)
+            rep['calibration'] = calibrate.requirements(tree, (tree, head), qa_a, qa_b, rep)
+            rep['guard'] = calibrate.guard(rep, qa_a, qa_b, is_flag, E=E, R=calibrate.records(tree))
+            rep['shapes'] = calibrate.shape_report(rep, qa_a, qa_b, E=E)
+            rep['accepted'] = calibrate.accepted(tree)
+        except Exception as e:                      # (never the gate's failure: the note says what wasn't read)
+            rep.setdefault('notes', []).append("the calibration records weren't read (%s: %s)" % (type(e).__name__, e))
+            rep['calibration'] = {'rows': [], 'error': str(e)}
+        n = rep.get('calibration') or {}
+        ph['note'] = '%d check%s need a record, %d guard finding%s' % (
+            len(n.get('rows') or ()), 's' * (len(n.get('rows') or ()) != 1), len(rep.get('guard') or ()),
+            's' * (len(rep.get('guard') or ()) != 1))
+    return rep
 
 
 # ----------------------------------------------------------------------------------- carrying a verdict to a new target
@@ -1174,7 +1212,7 @@ def judge(rep, qa_a, qa_b):
     is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
     block = [dict(h) for h in rep.get('hard') or ()]
     R = {k: [] for k in ('warn', 'new_failing', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed',
-                         'remeasured', 'unregistered', 'twobytwo', 'notes')}
+                         'remeasured', 'unregistered', 'twobytwo', 'accepted', 'calibration', 'shapes', 'notes')}
     R['notes'] += list(rep.get('notes') or ())
     # a QA part whose measuring code changed with no registered step (charkit.codediff): its checks' moves are judged
     # as any others (nothing is relaxed), and on changed geometry the 2x2 scores them under each measure too
@@ -1246,6 +1284,43 @@ def judge(rep, qa_a, qa_b):
             block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2%s)' % why))
         else:
             R['twobytwo'].append(row)
+    # calibration (Michael's rule): a graded check the merge adds needs a record, one it remeasures a fresh one, and a
+    # record must say calibrated (charkit/calibrate.py; rep['calibration'] from the merged tree)
+    for r in (rep.get('calibration') or {}).get('rows') or ():
+        c = (cb.get(r['check']) or {})
+        row = dict(check=r['check'], why=r['why'], record=r['record'], cand=[c.get('value'), c.get('status')],
+                   why_record=r.get('why_record'))
+        (R['calibration'] if r.get('ok') else block).append(row if r.get('ok') else dict(row, kind='calibration'))
+    # the anti-gaming guard (Michael, 2026-09-30): the merge improves its own new or flag check while that check's
+    # piece's shape IoU drops by more than calibrate.DROP in a view
+    G = rep.get('guard')
+    if G is None and qa_a and qa_b:
+        from . import calibrate
+        G = calibrate.guard(rep, qa_a, qa_b, is_flag)
+        if rep.get('shapes') is None:
+            rep['shapes'] = calibrate.shape_report(rep, qa_a, qa_b)
+    R['shapes'] = list(rep.get('shapes') or ())
+    by = {}
+    for g in G or ():
+        by.setdefault(g['check'], []).append(g)
+    for k, gs in sorted(by.items()):
+        g0 = min(gs, key=lambda g: g['rel'])
+        block.append(dict(check=k, kind='anti-gaming guard', how=g0['how'], **{'from': g0['from'], 'to': g0['to']},
+                          drops=[{x: g[x] for x in ('shape', 'view', 'base', 'cand', 'rel')} for g in gs]))
+    # Michael's acceptance of a named new FAIL (or a guard block on it), recorded in the merged tree (charkit/accepted/):
+    # reported with who decided, when and why, not blocking
+    acc = rep.get('accepted') or {}
+    if acc:
+        from . import calibrate
+        keep = []
+        for b in block:
+            a = acc.get(b.get('check'))
+            if b.get('kind') in ('new FAIL', 'anti-gaming guard') and calibrate.covers(a, rep.get('branch')):
+                R['accepted'].append(dict(b, accepted={k: a.get(k) for k in ('by', 'at', 'why', 'value', 'branch',
+                                                                              'recorded_by')}))
+            else:
+                keep.append(b)
+        block = keep
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
     ta, tb_ = (rep.get('cpu_threads') or [None, None])[:2]
     if ca_ and cb_:
@@ -1279,6 +1354,19 @@ def verdict_pre_k(rep):
 
 def _why(b):
     k = b.get('kind')
+    if k == 'calibration':
+        rec = b.get('record')
+        what = {'missing': 'no calibration record', 'stale': 'the calibration record not refreshed'}.get(
+            rec, 'the calibration record says %s' % rec)
+        return '%s: %s (%s check%s; python -m charkit calibrate %s)' % (
+            what, b['check'], 'a new' if b.get('why') == 'new' else 'a remeasured',
+            ': ' + b['why_record'] if b.get('why_record') and rec not in ('missing', 'stale') else '', b['check'])
+    if k == 'anti-gaming guard':
+        d = min(b['drops'], key=lambda x: x['rel'])
+        return 'anti-gaming guard: %s improved (%s -> %s; %s) while %s fell in %s %.3g -> %.3g (%+.0f%%)%s' % (
+            b['check'], _cell(b.get('from')), _cell(b.get('to')), b.get('how'), d['shape'], d['view'], d['base'],
+            d['cand'], 100 * d['rel'], ' and %d more view%s' % (len(b['drops']) - 1, 's' * (len(b['drops']) > 2))
+            if len(b['drops']) > 1 else '')
     if b.get('cells'):
         return '%s: %s (%s; the old geometry %s, the candidate %s)' % (k, b['check'], ', '.join(b['cells']),
                                                                      _cell(b.get('base')), _cell(b.get('cand')))
@@ -1401,11 +1489,35 @@ def _write(rep, gdir, tag):
                        ('remeasured', 'Remeasured'),
                        ('unregistered', 'Measuring code changed with no registered step (register a remeasure in '
                                         'charkit/steps/ if intended)'),
-                       ('twobytwo', "The 2x2's drops (not blocking)")):
+                       ('twobytwo', "The 2x2's drops (not blocking)"),
+                       ('accepted', "Accepted by name (Michael's call, recorded in charkit/accepted/)"),
+                       ('calibration', 'Calibration records of the new and remeasured checks (charkit/calib/records)'),
+                       ('shapes', "The pieces' shape beside the checks that moved (the anti-gaming guard's evidence)")):
         rows = R.get(key) or []
         if not rows:
             continue
         L.append('**%s** (%d):\n' % (title, len(rows)))
+        if key == 'accepted':
+            L += _table(rows, [('check', lambda r: r['check']), ('what', lambda r: r.get('kind')),
+                               ('candidate', lambda r: _cell(r.get('cand') or r.get('to'))),
+                               ('by', lambda r: r['accepted'].get('by')), ('when', lambda r: r['accepted'].get('at')),
+                               ('why', lambda r: r['accepted'].get('why'))])
+            L.append('')
+            continue
+        if key == 'calibration':
+            L += _table(rows, [('check', lambda r: r['check']), ('', lambda r: r['why']),
+                               ('record', lambda r: r['record']), ('candidate', lambda r: _cell(r.get('cand'))),
+                               ('the record says', lambda r: r.get('why_record') or '')])
+            L.append('')
+            continue
+        if key == 'shapes':
+            f = lambda x: '-' if x is None else '%.3g' % x
+            L += _table(rows, [('check', lambda r: r['check']), ('shape', lambda r: r['shape']),
+                               ('per view, base -> candidate', lambda r: '; '.join(
+                                   '%s %s -> %s%s' % (v, f(a), f(b), ' (%+.0f%%)' % (100 * (b - a) / a) if a and b is
+                                                      not None else '') for v, (a, b) in r['views'].items()))])
+            L.append('')
+            continue
         if key == 'unregistered':
             L += _table(rows, [('QA part', lambda r: r['part']),
                                ('its code that changed', lambda r: ', '.join(r['units'][:6]) + (
@@ -1555,6 +1667,15 @@ def main(args):
             if r.get('report'):
                 print('report', r['report'])
         raise SystemExit(3 if not r['carried'] else 0 if r['verdict'] == 'PASS' else 1)
+    if args[0] == '--accept-fail':
+        # Michael's acceptance of a named new FAIL, recorded for the gate (the coordinator's, on Michael's call)
+        from . import calibrate
+        v = opt('--value')
+        r = calibrate.accept(args[1], by=opt('--by'), why=opt('--why'), value=float(v) if v else None,
+                             branch=opt('--branch'), recorded_by=opt('--recorded-by', 'coordinator'))
+        print('recorded: %s accepted by %s (%s): %s -> %s; commit it on the branch' % (
+            r['check'], r['by'], r['at'], r['why'], os.path.join(calibrate.ACCEPTED, r['check'] + '.json')))
+        return
     rep = gate(args[0], into=opt('--into', 'HEAD'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                args=shlex.split(opt('--args', '')), keep='--keep' in args,
                accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args)

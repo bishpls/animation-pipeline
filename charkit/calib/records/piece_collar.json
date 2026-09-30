@@ -1,0 +1,127 @@
+{
+ "check": "piece_collar",
+ "part": "sheet_pieces",
+ "adapter": "Pieces",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:02:44",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.945,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.941,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.944,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.939,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.949,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.948,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.949,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.948,
+    "PASS"
+   ]
+  },
+  "min": 0.939,
+  "max": 0.949,
+  "spread": 0.01,
+  "median": 0.9464999999999999,
+  "views": {
+   "back": [
+    0.9995,
+    1.0
+   ],
+   "front": [
+    1.0,
+    1.0
+   ],
+   "profile": [
+    0.0853,
+    0.1204
+   ],
+   "three_quarter": [
+    0.9312,
+    1.0
+   ]
+  }
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a shape check, the anti-gaming guard's measure: no single flagged build",
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0,
+    0.002,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.577,
+    0.683,
+    0.621,
+    0.647,
+    0.671
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.647,
+   "status": "WARN",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.756,
+  "status": "PASS",
+  "margin": 0.694
+ },
+ "verdict": "guard",
+ "why": "no known-bad (a shape check, the anti-gaming guard's measure: no single flagged build); the design passes and the floor does not",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 51.9
+}

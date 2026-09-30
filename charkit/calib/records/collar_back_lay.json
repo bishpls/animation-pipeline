@@ -1,0 +1,112 @@
+{
+ "check": "collar_back_lay",
+ "part": "collar_flags",
+ "adapter": "Garments",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:01:38",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_collar"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0141,
+    "WARN"
+   ],
+   "+0,+2": [
+    0.0141,
+    "WARN"
+   ],
+   "+1,+0": [
+    0.0141,
+    "WARN"
+   ],
+   "+2,+0": [
+    0.0141,
+    "WARN"
+   ],
+   "+0,-1": [
+    0.0141,
+    "WARN"
+   ],
+   "+0,-2": [
+    0.0141,
+    "WARN"
+   ],
+   "-1,+0": [
+    0.0141,
+    "WARN"
+   ],
+   "-2,+0": [
+    0.0141,
+    "WARN"
+   ]
+  },
+  "min": 0.0141,
+  "max": 0.0141,
+  "spread": 0.0,
+  "median": 0.0141
+ },
+ "known_bad": {
+  "name": "g3_render3",
+  "value": 0.0471,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0094,
+    0.0,
+    0.0047,
+    0.0047,
+    0.0047
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0047,
+   "status": "PASS",
+   "passing": 5
+  },
+  "affine_pieces": {
+   "values": [
+    0.0141,
+    0.3765,
+    0.3906,
+    0.0094,
+    0.0
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0141,
+   "status": "WARN",
+   "passing": 2
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0424,
+  "status": "FAIL",
+  "margin": 7.021
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads WARN moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
+ },
+ "seconds": 23.3
+}
