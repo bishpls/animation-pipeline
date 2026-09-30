@@ -751,8 +751,19 @@ decisions already made:
 - **tool/face** (face round 3): the three-quarter notch 0.057 -> 0 and the jaw_line_bend 41 -> 4.6. Accepted 2x2 drops:
   chin_angle 119.7 -> 116.7 (design 129.7: next face round recovers it), chin_tip 0.59 -> 0.56, jaw_taper_shape.
   Merge on gates whose only failures are those.
-- **tool/garments2** (jacket over band): MakeHuman gate PASS. Merge needs geom-truth's evaluator-dispatch conflict
-  resolved (drop garments2's dispatch edits) and a single `hem_drop` in the shorts entry.
+- **tool/garments2** (jacket over band, 2bf75d1; gated 3d81679): Michael's flag is fixed (the over-band check 0.97 FAIL
+  -> 0 PASS, piece_waistband 0.45 FAIL -> 0.89 PASS). MakeHuman gate PASS; **default gate FAIL, merge held**:
+  - body_front_skirt_overhang_L/R 0 -> 0.118/0.115: the band now has its drawn width, and the skirt's tuck follows the
+    hull's band label, which the drawn masks put about 0.09 L too high at the sides;
+  - body_front_torso_jump_L WARN;
+  - 2x2 drops: bow_profile_torn 0 -> 0.018 FAIL, bow_front_tail_gap WARN, sleeve_profile_rough_L WARN.
+  **Plan:** tool/skirt merges tool/garments2 into its branch, tucks the skirt under the band garment's bottom row, and
+  both land through one gate. Decide the bow and sleeve 2x2 drops then. At merge, drop garments2's edits to the
+  evaluator's garment dispatch (geom-truth removed it; this includes the collar-stripe tone) and keep a single
+  `hem_drop` in the shorts entry.
+- **Cross-cutting, from garments2:** the garment builders' eye line (the eye knobs) sits 0.0235 L below the QA's (the
+  irises), so every garment lands that much low in the checks. Fix it in one place, not per garment. Our shoulders sit
+  0.06-0.09 L below the drawn collar line (tool/body), which blocks the sailor-collar template.
 - **tool/artifacts**: flag-calibrated checks capped at WARN, the rest INFO. MakeHuman gate PASS.
 - **tool/hair4** (buns, crown, MakeHuman shoulder clearance, placement off the decimated mesh). Accepted at the
   hull-limbs merge, fixed here: clawd_mh hair_penetration 0.0484 FAIL, and hair_folds 4 -> 11.
