@@ -33,14 +33,21 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
                'expression'), and every other key as a custom expression of its own name.
 
 The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linear:
-  root      {version, character, light: {direction}, head: {bone, centre, L}, height, features: {through: 0.55},
-             bindPose: {bone: quat}}
+  root      {version, character, light: {direction, mode?: 'camera', key?: [deg left of the camera, deg up]},
+             lines?: {mode: 'screen', frac, regions: {skin, hair, garment, accessory}}, head: {bone, centre, L}, height,
+             features: {through: 0.55}, bindPose: {bone: quat}}
+             (the style's look, charkit.shade: a camera key is `direction` turned with the camera, `direction` being the
+             front view's; screen lines are frac of the picture's height times their region's factor)
   material  {kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha: opaque | blend,
              toon3/face/hair: lit, shade, deep, threshold, deepThreshold, softness, rim: {color, amount, facing, range}, texture?,
-             face: {sdf, fringe, blush (textureInfo), softness, fringeRange, mask: '_FACE_MASK'},
+             highlight?: {kind: 'streaks', centre, elevation, length, jitter, count, duty, keep, amount, color, facing,
+                          facingBlend} (shade.hair_toon: the cut hair's drawn streaks),
+             face: {sdf, fringe, blush, ink? (textureInfo), softness, fringeRange, mask: '_FACE_MASK', inkWeight?: '_INK_W'},
              hair: {lock: texCoord, ring: {color, elevation, centre, width, soft, facing, mid, amount}, gradient, strands},
              flat: color; plate: texture}
-  mesh      {object, outline?: {width (m), color, widthAttribute?, normalAttribute?}, feature?: true, holdout?: true}
+  mesh      {object, outline?: {width (m), color, region, widthAttribute?, normalAttribute?}, feature?: true, holdout?: true}
+  (the skin's proxy normals, charkit.faceshade, are its NORMAL: they are the render's corner normals; _INK_W is where
+  the face's drawn lines may show)
 """
 import json, math, os, struct, sys, zlib
 
@@ -190,6 +197,11 @@ def _col(sock):
     return [round(float(x), 6) for x in sock.default_value[:3]]
 
 
+def _lin3(c):
+    c = np.asarray(c, float)
+    return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+
+
 def material_look(m):
     """one of charkit's emission materials (shade.toon3 / flat / plate, faceshade.material, hair.material, garments._toon_tex)
     -> the OPENADS_charkit_look description (colours linear, as stored). Images are returned as Blender images under
@@ -256,12 +268,19 @@ def material_look(m):
         d['texture'] = {'_image': tx.image.name, 'uv': uvn[0].uv_map if uvn else 'uv', 'mode': 'multiply',
                         'filter': tx.interpolation.lower(), 'wrap': tx.extension.lower()}
         d['_images'][tx.image.name] = tx.image
+    if 'ck_highlight' in N and m.get('ck_highlight'):            # shade.hair_toon's drawn streaks (the cut pieces)
+        P = json.loads(m['ck_highlight'])
+        d['highlight'] = {'kind': 'streaks', 'centre': r6(g3(P['centre'])), 'elevation': P['elevation'],
+                          'length': P['length'], 'jitter': P['jitter'], 'count': P['count'], 'duty': P['duty'],
+                          'keep': P['keep'], 'amount': P['amount'], 'color': r6(np.array(_lin3(P['color']))),
+                          'facing': P['facing'], 'facingBlend': 0.5}
     if 'ldir_head' in N:                                           # faceshade.material
         tex = [n for n in N if n.type == 'TEX_IMAGE']
         sdf = next(n for n in tex if any(l.to_node.type == 'MATH' and l.to_node.operation == 'SUBTRACT'
                                          for l in n.outputs['Color'].links))
         fr = next((n for n in tex if any(l.to_node.type == 'MAP_RANGE' for l in n.outputs['Color'].links)), None)
-        bl = next((n for n in tex if n.outputs['Alpha'].is_linked), None)
+        bl = next((n for n in tex if n.outputs['Alpha'].is_linked and n.name != 'ck_ink'), None)
+        ink = N.get('ck_ink')
         edge = next(n for n in N if n.type == 'MAP_RANGE' and n.inputs['From Min'].default_value < 0)
         frr = next((l.to_node for l in fr.outputs['Color'].links), None) if fr else None
         col = next(n for n in mixes if n.blend_type == 'MIX' and not n.inputs['A'].is_linked and not n.inputs['B'].is_linked
@@ -280,6 +299,11 @@ def material_look(m):
         if bl is not None:
             face['blush'] = {'_image': bl.image.name, 'uv': 'face', 'wrap': bl.extension.lower(), 'filter': bl.interpolation.lower()}
             d['_images'][bl.image.name] = bl.image
+        if ink is not None and ink.image is not None:             # faceshade.ink: drawn lines, off the neck (_INK_W)
+            face['ink'] = {'_image': ink.image.name, 'uv': 'face', 'wrap': ink.extension.lower(),
+                           'filter': ink.interpolation.lower()}
+            face['inkWeight'] = '_INK_W'
+            d['_images'][ink.image.name] = ink.image
         d.update(kind='face', face=face)
     if any(n.type == 'UVMAP' and n.uv_map == 'lock' for n in N):   # hair.material
         maths = [n for n in N if n.type == 'MATH']
@@ -606,7 +630,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
             if k in look:
                 look[k] = texinfo(look[k], images)
         if 'face' in look:
-            for k in ('sdf', 'fringe', 'blush'):
+            for k in ('sdf', 'fringe', 'blush', 'ink'):
                 if k in look['face']:
                     look['face'][k] = texinfo(look['face'][k], images)
         if 'hair' in look:
@@ -737,6 +761,8 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                     attrs['_HULL_NORMAL'] = W.accessor(g3(hulln[vi]).astype(np.float32), 'VEC3', target=34962)
                 if 'face_mask' in E.attrs:
                     attrs['_FACE_MASK'] = W.accessor(E.attrs['face_mask'][vi].astype(np.float32), 'SCALAR', target=34962)
+                if 'ck_ink_w' in E.attrs:                        # where the face's drawn lines may show
+                    attrs['_INK_W'] = W.accessor(E.attrs['ck_ink_w'][vi].astype(np.float32), 'SCALAR', target=34962)
                 ind = inv.astype(np.uint32 if len(first) > 65535 else np.uint16)
                 prim = {'attributes': attrs, 'indices': W.accessor(ind, 'SCALAR', target=34963), 'mode': 4, 'material': mat_i}
                 if knames:
@@ -755,7 +781,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                 mesh['weights'] = [0.0] * len(knames)
             mx = {'object': ob.name}
             if outline:
-                mx['outline'] = {'width': outline[0], 'color': list(outline[1])}
+                mx['outline'] = {'width': outline[0], 'color': list(outline[1]), 'region': ob.get('ck_line_region', 'skin')}
                 if ow is not None:
                     mx['outline']['widthAttribute'] = '_OUTLINE_WIDTH'
                 if need_hull:
@@ -787,6 +813,16 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
     rootx = {'version': 1, 'character': name, 'units': 'metres', 'frame': 'Y up, facing +Z, her left +X',
              'light': {'direction': ldir or r6(g3([-0.45, -0.55, 0.70]) / np.linalg.norm([-0.45, -0.55, 0.70]))},
              'features': {'through': THROUGH}, 'bindPose': bindq, 'tpose': bool(tpose)}
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from charkit import shade
+    lk = shade.get_look()
+    if (lk.get('light') or {}).get('mode') == 'camera':          # the key turns with the camera (the style's look)
+        rootx['light'].update(mode='camera', key=[float(x) for x in lk['light']['key']])
+    if (lk.get('lines') or {}).get('mode') == 'screen':          # outlines a share of the picture's height
+        ln = lk['lines']
+        rootx['lines'] = {'mode': 'screen', 'frac': float(ln.get('frac', 0.0025)),
+                          'regions': {k: float(v) for k, v in (ln.get('regions') or {}).items()}}
     if head_info:
         cx, cy, cz, L = head_info
         rootx['head'] = {'bone': 'head', 'centre': r6(g3([cx, cy, cz])), 'L': round(L, 6)}
@@ -891,7 +927,9 @@ def vrmc(W, names, idx, mesh_node, P, head, name, meta, rep):
             custom[kn] = {'morphTargetBinds': binds(kn, 1.0), 'isBinary': False}
     # the kit's combined expressions (charkit.scene.PRESETS: eyes, mouth and brows together), where a VRM preset doesn't
     # already hold the name
-    from .scene import PRESETS as COMBINED
+    if ROOT not in sys.path:                             # (run as a script by `python -m charkit export`: absolute)
+        sys.path.insert(0, ROOT)
+    from charkit.scene import PRESETS as COMBINED
     for ex, P in COMBINED.items():
         if ex in preset:
             continue
