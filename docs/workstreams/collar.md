@@ -452,3 +452,7 @@ cu2.py beside it).
    anything (the puffs' station adds a corner where the puffs meet the collar's side in front, round 1).
 4. The jacket's front in profile under the ribbons (the bow's profile IoU 0.30 on M2): not started.
 5. hair_noise 0.0782 WARN on D3 (0.0018 of margin), art_speckle_neck 1.08 PASS on D3: held.
+
+**M2 on the merge (b361654 into pipeline-3d 2f42155): PASS under K**
+(`charkit/out/gate/gate_tool-collar3_b361654_into_2f42155.md`): the same 193 items as 9c99e44's gate, PASS -> WARN
+piece_cuff_L and shoulder_back_slope, CPU 1.27x (605.7 -> 770.6 s). M3's code is in it, off by default. Mergeable.
