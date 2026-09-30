@@ -344,3 +344,21 @@ meets the neck under the jaw (the head frame), not at the collar. Not attributed
 QA time on the render box 246 -> 168 s (sheet_pieces 38 -> 6.7, piece_details 36.6 -> 20.2; skirt 32.5 unchanged).
 evaldrift `--stages` on g3_d (18f3b41): 0 of 110 checks drift; stage drifts as g3_c's (the skin's 95 vertices 0.199 L,
 the collar 0.012 L, the flaps' subdivision evaldrift-side). Tests: 460 passed (after the merge).
+
+## The round-2 gate (b17b8b4 into b43c15e): FAIL under K, six blockers
+
+Report `charkit/out/gate/gate_tool-garments3_b17b8b4_into_b43c15e.md` (.json, .summary.json). Cleared: torso_jump_front
+0.061 FAIL -> 0.0 PASS (base 0.0), neck_crease 39.6 FAIL -> 26.9 WARN (base 27.6), piece_sleeve_cuff_R 0.496 FAIL ->
+0.555 WARN (base 0.500). CPU 1081 -> 901 s (0.83x; the baseline cached, uncapped threads, the candidate at 4); Blender
+and QA 277 -> 293 s. Blocking: art_speckle_neck 1.289 PASS -> 2.602 WARN (flag; the profile's 4 specks where the hair
+meets the neck, untouched by this round's changes); bow_profile_torn 0.0 -> 0.066 FAIL and bow_three_quarter_torn 0.0058
+WARN -> 0.0108 FAIL (the 2x2; the jacket's fronts drawn back leave the tails' lower edge as the outline);
+flap_three_quarter_iou_R 0.571 -> 0.0, flap_three_quarter_width_R 0.073 -> 0.184, hemband_overskirt_panel_R_steps 2 ->
+none (the design's three-quarter disagrees with its other views: Michael's call). Promoted art checks all PASS
+(band_lower 2.163 -> 1.233, bumps_sleeves 45.6 -> 0, points_sleeves 28 -> 0). WARN moves: body_three_quarter_iou 0.855
+-> 0.84, piece_sleeve_R 0.82 -> 0.779. Review page `charkit/out/g3_review/index.html` (design | pipeline-3d tr3_a |
+g3_render2 at 18f3b41, before the cuff span).
+
+Next (lean relaunch): art_speckle_neck's specks (the head frame, profile: the hair against the neck under the jaw;
+compare tr3_a's frame); the bow tails' lower edge in profile and three-quarter (their hem, now the outline); the
+three-quarter flaps (Michael's call, skirt.md numbers).
