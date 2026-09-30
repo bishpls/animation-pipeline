@@ -198,6 +198,79 @@ against its new gradient path:
    a distance-based term for views where ours and the drawing don't overlap (IoU has no gradient there); and the
    depth-occlusion boundary made soft if a knob mostly moves depth (standm's 10%).
 
+## Round 3 (after the merge, ba51e43): the distance term, call A, a second template
+
+The coordinator's calls: the opt-in path merged as is; next the distance term, then analytic builder derivatives; the
+flap's three-quarter tails follow Michael's call A (front, back and profile win).
+
+- **Call A in the objective**: the three-quarter's flap terms weigh 0 (`--weights a`: VW_A, three-quarter 0; it
+  draws only the tails there, so this masks exactly its tails). They are still measured and reported in every
+  record and on the page (no gaming), just not fitted.
+- **The distance term** (`softras.Outline`, `softras.chamfer`): the symmetric chamfer between our visible contour and
+  the drawn outline, in px (the mean over our contour points of the drawn outline's distance transform, sampled
+  bilinearly, plus the mean over the drawn outline's pixels of the distance to our nearest contour point). It has a
+  gradient where ours and the drawing don't overlap (the IoU's is 0 there). Each contour point sits on its pixel
+  segment, t = cross(A - p, B - A) / cross(e, B - A), so the derivative is exact for what is computed: tested against
+  differences, overlapping and apart, relative error 1e-8 (test_chamfer_gradient). The fit's objective with it:
+  J + LAMBDA sum over terms of w x chamfer (L), LAMBDA 1 (`--dist 1`).
+- **What the chamfer isn't**: smooth at the scale of a pixel. Its samples are the pixel pairs the contour crosses, so
+  points appear and vanish as the contour sweeps over pixel centres. At the far start, 0.01-step differences of J
+  with the term read 1.4-1.6x the chain's local derivative (e1o -0.061 against -0.037, first +0.080 against +0.059,
+  droop -0.042 against -0.028), with the same sign. A continuous version (samples weighted by the contour length they
+  stand for) is the refinement if the fits show it matters.
+- **The second template: the puff sleeve** (`garments.puff`, `Sleeves`): its frozen scene without the sleeves
+  (`scene --template sleeve`), drawn as the outfit masks (VIEW__sleeve_{L,R}, as piece_shapes reads them), 7 terms
+  (every view with 200 px or more; the right sleeve is hidden in profile), every view weighing 1. Knobs: the knot
+  table's four extents each scaled (sxp, syp, sxm, sym, 0.05 steps), a taper across the stations, the cap's height,
+  the section's roundness. The stations stay, so no knob changes the topology. The right sleeve mirrors the left's
+  knots. A build takes 16 ms a side (2625 vertices).
+
+### Round 3's numbers (`charkit/out/softras/r3`: fit_*.json, runs.log; pages index.html, index_sleeve.html)
+
+J is the hard IoU objective under the fit's weights (the flap's under call A); C is the weighted chamfer (L), measured
+for every fit whether or not it was fitted. CD runs to convergence; L-BFGS at s 0.5; "+ chamfer" adds the term
+(LAMBDA 1).
+
+| template | start | fit | wall s | evaluations | J | C | IoUs (3/4 reported, weight 0 for the flap) | piece L | piece R |
+|---|---|---|---|---|---|---|---|---|---|
+| flap | g | start | | | 1.3874 | 0.497 | | 0.653 WARN | 0.759 PASS |
+| flap | g | CD | 12.6 | 235 | 1.0351 | 0.387 | front .755/.773, 3/4 .023/.000, profile .752/.754, back .906/.883 | 0.712 WARN | 0.818 PASS |
+| flap | g | **L-BFGS** | 6.8 | 38 | **1.0189** | 0.389 | front .775/.794, 3/4 .017/.000, profile .756/.759, back .895/.873 | 0.714 WARN | 0.823 PASS |
+| flap | g | L-BFGS + chamfer | 14.5 | 82 | 1.0247 | **0.382** | front .760/.778, 3/4 .020/.000, profile .759/.761, back .901/.878 | 0.715 WARN | 0.821 PASS |
+| flap | far | start | | | 2.5556 | 0.894 | | 0.524 WARN | 0.718 PASS |
+| flap | far | CD | 20.9 | 383 | 1.1238 | 0.416 | front .721/.735, 3/4 .025/.000, profile .755/.757, back .881/.865 | 0.692 WARN | 0.794 PASS |
+| flap | far | **L-BFGS** | 20.6 | 88 | **1.0199** | 0.394 | front .777/.796, 3/4 .017/.000, profile .754/.757, back .895/.873 | 0.712 WARN | 0.821 PASS |
+| flap | far | L-BFGS + chamfer | 26.4 | 130 | 1.0242 | **0.383** | front .765/.782, 3/4 .021/.000, profile .750/.752, back .907/.884 | 0.715 WARN | 0.823 PASS |
+| sleeve | g | start | | | 2.0326 | 0.688 | | | |
+| sleeve | g | **CD** | 6.7 | 106 | **1.8235** | 0.619 | front .757/.769, 3/4 .866/.398, profile .855, back .761/.771 | 0.932 PASS | 0.830 PASS |
+| sleeve | g | L-BFGS | 26.6 | 51 | 1.8540 | 0.637 | front .762/.775, 3/4 .877/.394, profile .837, back .744/.756 | 0.925 PASS | 0.819 PASS |
+| sleeve | g | L-BFGS + chamfer | 19.9 | 40 | 1.8544 | **0.611** | front .773/.780, 3/4 .861/.399, profile .832, back .745/.755 | 0.930 PASS | 0.832 PASS |
+| sleeve | far | start | | | 2.2746 | 0.772 | | | |
+| sleeve | far | **CD** | 22.1 | 308 | **1.8254** | 0.620 | front .756/.765, 3/4 .870/.391, profile .861, back .761/.772 | 0.934 PASS | 0.830 PASS |
+| sleeve | far | L-BFGS | 19.4 | 37 | 1.8382 | 0.629 | front .765/.763, 3/4 .871/.374, profile .854, back .761/.774 | 0.937 PASS | 0.831 PASS |
+| sleeve | far | L-BFGS + chamfer | 46.7 | 90 | 1.9145 | 0.649 | front .753/.730, 3/4 .849/.387, profile .852, back .756/.759 | 0.935 PASS | 0.823 PASS |
+
+Reading it:
+- **Call A** makes the flap's objective the four views that agree: the gradient fit still wins from both starts
+  (1.0189 / 1.0199 against CD's 1.0351 / 1.1238), from g in half CD's wall time and a sixth of its evaluations. The
+  three-quarter's IoUs stay 0.02 / 0.00 in every fit (reported, weight 0).
+- **The distance term doesn't pay on these two**: on the flap it buys the lowest chamfer (0.382 / 0.383) for +0.005 J;
+  on the sleeve from g the lowest chamfer for the same J, and from far it lands worse (1.9145). Both far starts here
+  already overlap the drawing in every fitted view, so the IoU has a gradient everywhere it's needed; the term's use is
+  starts or views with no overlap, which call A removed from the flap's objective (its three-quarter tails). The
+  chamfer's own non-smoothness (samples appearing as the contour sweeps pixel centres, 1.4-1.6x) costs the line
+  searches evaluations (the sleeve's far run, 90 evaluations and 46.7 s).
+- **The sleeve is where the gradient loses**, and the measurement says why: 23-54% of its visible outline is an
+  occlusion boundary (the torso, the cuffs, the other arm), against 2-6% for the flap in back and profile. The chain
+  differentiates only the free outline, so at g it matches the soft J's own differences for the knob that moves the
+  free outline (sxp 1.00x) and not for those that move depth against the torso and cuff (sxm 0.54x, round 0.46x, cap
+  2.98x, syp 1.25x). L-BFGS then converges on a biased gradient: J 1.854 / 1.838 against CD's 1.824 / 1.825.
+
+What that means for the order of work: **soft occlusion** (the depth-order boundary between the piece and its
+occluders made soft and differentiated, as the contour is) comes before analytic builder derivatives for any piece
+that sits against the body (sleeves, collar, boots at the cuff); the distance term stays opt-in (`--dist`) for
+no-overlap cases, with length-weighted samples if it's used.
+
 ## Log
 
 - 2026-09-30: started; notes skeleton. The rasteriser and its tests (3593734); the pilot harness (softfit); fitkit's
@@ -206,6 +279,11 @@ against its new gradient path:
   the scan, fitkit's runs, the review page. Then the gate, once (policy K): `python -m charkit remote gate tool/softras
   --into pipeline-3d`, expected to move no check (nothing on the build path imports softras or softfit; fitkit's
   default is unchanged and only the fit commands import it).
+- Merged into pipeline-3d as ba51e43 (gate --carry); round 3 on top (the chamfer, call A, the sleeve).
+- **Round 3 gate PASS** (d18d8cf into pipeline-3d ba51e43, policy K): nothing blocks, 0 items reported, no candidate
+  build (4 files changed, none the baseline build read), 70 test files 0 failing (test_softras.py's chamfer test among
+  them). Report charkit/out/gate/gate_tool-softras_d18d8cf_into_ba51e43.md. Round 3's decisions: soft occlusion before
+  builder derivatives (the sleeve's evidence); keep the chamfer opt-in.
 - **Gate PASS** (161f9af into pipeline-3d 3a0ad37, policy K): nothing blocks, 0 items reported; no candidate build
   (6 files changed, none among the 560 the baseline build read); 70 test files, 0 failing, test_softras.py and
   test_fitkit.py among them on the build box. Report charkit/out/gate/gate_tool-softras_161f9af_into_3a0ad37.md.

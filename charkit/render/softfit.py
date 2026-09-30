@@ -28,11 +28,17 @@ OUT = os.path.join(ROOT, 'charkit', 'out', 'softras')
 FLAPS = ('overskirt_panel_L', 'overskirt_panel_R')
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 VW = {'back': 1.0, 'profile': 1.0, 'three_quarter': 0.4, 'front': 0.7}     # fit G's view weights (skirt_scratch/fit.py)
+# Michael's call A for the flaps: the front, back and profile win; the three-quarter's drawn tails (the only flap it
+# draws) disagree with them, so its terms weigh 0: measured and reported, not fitted
+VW_A = {'back': 1.0, 'profile': 1.0, 'three_quarter': 0.0, 'front': 0.7}
+WEIGHTS = {'g': VW, 'a': VW_A}
+LAMBDA = 1.0            # the distance term: J + LAMBDA * sum over terms of w * chamfer (L)
 
 
 # ------------------------------------------------------------------------------------------------------------ the scene
-def build_scene(spec_path='charkit/spec/clawd.json', out=OUT, log=print):
-    """the flap's frozen scene (see the module) -> its path."""
+def build_scene(spec_path='charkit/spec/clawd.json', out=OUT, log=print, pieces=FLAPS, name='flap'):
+    """a template's frozen scene (see the module): the scene without `pieces`, their drawings (the flaps:
+    skirtqa.drawn_pieces; anything else: the outfit masks, as piece_shapes reads them) -> OUT/NAME_scene.pkl."""
     from charkit import bodyeval, bodymeasure, bodyqa, cli, skirtqa as sq
     from charkit.faceqa import view as proj
     from charkit.geom import raster
@@ -60,7 +66,7 @@ def build_scene(spec_path='charkit/spec/clawd.json', out=OUT, log=print):
     iris, centre, L = np.asarray(lm['iris'], float), lm['centre'], lm['L']
     az = bodyqa.azimuths(S.az3)
     az['profile_R'] = 270.0
-    static = [i for i in vis if names[i] not in FLAPS]
+    static = [i for i in vis if names[i] not in pieces]
     om = [(objs[i]['V'], objs[i]['F'], np.full(len(objs[i]['F']), i)) for i in static]
     pm = [(objs[i]['V'], objs[i]['F'], np.where(objs[i]['V'][objs[i]['F']].mean(1)[:, 0] >= 0, i, i + 1000))
           for i in static]
@@ -75,14 +81,18 @@ def build_scene(spec_path='charkit/spec/clawd.json', out=OUT, log=print):
         d_o, l_o = raster.window_zbuffer(om, *a)
         d_p, l_p = raster.window_zbuffer(pm, *a)
         views[v] = dict(az=float(az[v]), origin=(float(org[0]), float(org[1])), depth=d_o, lab=l_o, lab_pc=l_p)
-    P = sq.drawn_pieces(S.design, masks, marks, ppl)
-    drawn = {v: {f: P[v]['full'][f] for f in FLAPS} for v in P}
+    if name == 'flap':
+        P = sq.drawn_pieces(S.design, masks, marks, ppl)
+        drawn = {v: {f: P[v]['full'][f] for f in FLAPS} for v in P}
+    else:
+        H, W = views['front']['depth'].shape
+        drawn = {v: {f: masks.get('%s__%s' % (v, f), np.zeros((H, W), bool)) for f in pieces} for v in VIEWS}
     g = dict(graph)
-    g['pieces'] = [p for p in graph['pieces'] if p['id'] in FLAPS + ('skirt',)]
+    g['pieces'] = [p for p in graph['pieces'] if p['id'] in tuple(pieces) + (('skirt',) if name == 'flap' else ())]
     scene = dict(spec=G.spec, A=G.A, hull=hull, L=float(L), ppl=float(ppl), win=dict(bodyqa.WIN), names=names,
-                 flap_idx={n: names.index(n) for n in FLAPS}, views=views, drawn=drawn, masks=masks, graph=g,
-                 flaps={n: next(x for x in G.spec['garments'] if x['name'] == n) for n in FLAPS})
-    path = os.path.join(out, 'flap_scene.pkl')
+                 piece_idx={n: names.index(n) for n in pieces}, views=views, drawn=drawn, masks=masks, graph=g,
+                 specs={n: next(x for x in G.spec['garments'] if x['name'] == n) for n in pieces})
+    path = os.path.join(out, '%s_scene.pkl' % name)
     pickle.dump(scene, open(path, 'wb'), protocol=pickle.HIGHEST_PROTOCOL)
     log('scene %s (%.0f s)' % (path, time.time() - t))
     return path
@@ -121,19 +131,29 @@ class Flaps:
     other side, mirrored onto the drawn near flap) and the objective J = sum over them of VW[view] (1 - IoU);
     soft(x, s) the same on soft silhouettes, with dJ / dx through the vertices. Counts every build and render."""
 
-    def __init__(self, path=os.path.join(OUT, 'flap_scene.pkl'), params=PARAMS):
+    PARAMS, STARTS, NAMES, ORDER = PARAMS, STARTS, {'L': FLAPS[0], 'R': FLAPS[1]}, \
+        ('front', 'three_quarter', 'profile', 'profile_R', 'back')
+
+    def __init__(self, path=os.path.join(OUT, 'flap_scene.pkl'), params=None, weights='g', dist=0.0):
         from charkit import garments as gm
         from charkit.render import softras
         self.gm, self.sr = gm, softras
         S = pickle.load(open(path, 'rb'))
-        self.S, self.params = S, params
+        self.S, self.params = S, params or self.PARAMS
         self.spec, self.A, self.hull = S['spec'], S['A'], S['hull']
-        self.base = copy.deepcopy(S['flaps']['overskirt_panel_L'])
-        self.base.setdefault('out', 0.0)
-        self.right = S['flaps']['overskirt_panel_R']
+        self.specs = S.get('specs') or S['flaps']
+        self.base = copy.deepcopy(self.specs[self.NAMES['L']])
+        self.right = self.specs[self.NAMES['R']]
         self.views = {v: softras.SheetView(d['az'], d['origin'], S['L'], 1.0 / S['ppl'], S['win'])
                       for v, d in S['views'].items()}
-        self.terms = []                                     # (name, view drawn in, side, view we're seen in, mask, w)
+        self.weights, self.dist, self._outlines, self.last_chamfer = weights, float(dist), {}, {}
+        self.terms = self.make_terms(S, WEIGHTS.get(weights, VW))   # (name, view drawn, side, view seen in, mask, w)
+        self.n = dict(builds=0, hard=0, soft=0, grad=0, build_s=0.0, render_s=0.0)
+        self.setup(gm)
+
+    def make_terms(self, S, vw):
+        self.base.setdefault('out', 0.0)
+        out = []
         for view in VIEWS:
             for side in 'LR':
                 ov = 'profile_R' if (view == 'profile' and side == 'R') else view
@@ -141,9 +161,16 @@ class Flaps:
                 m = S['drawn'][view][dp]
                 if m.sum() < 200:                            # skirtqa.MIN_PX
                     continue
-                self.terms.append(('flap_%s_iou_%s' % (view, side), view, side, ov,
-                                   m[:, ::-1] if ov == 'profile_R' else m, VW[view]))
-        self.n = dict(builds=0, hard=0, soft=0, grad=0, build_s=0.0, render_s=0.0)
+                out.append(('flap_%s_iou_%s' % (view, side), view, side, ov, m[:, ::-1] if ov == 'profile_R' else m,
+                            vw[view]))
+        return out
+
+    def outline(self, name):
+        if name not in self._outlines:
+            self._outlines[name] = self.sr.Outline(next(t[4] for t in self.terms if t[0] == name))
+        return self._outlines[name]
+
+    def setup(self, gm):
         memo, orig = {}, gm.skirt_hull
 
         def skirt_memo(A, spec, hull):                      # the skirt under the flaps doesn't change in these fits
@@ -174,7 +201,7 @@ class Flaps:
         return s
 
     def start(self, name):
-        st = STARTS[name]
+        st = self.STARTS[name]
         return np.array([st[k] for k, _, _, _, _ in self.params], float)
 
     def build(self, x):
@@ -206,11 +233,13 @@ class Flaps:
             out[side] = z
         return out
 
-    def render(self, geo, s=0.5, grad=False, soft=True, per_term=None):
+    def render(self, geo, s=0.5, grad=False, soft=True, per_term=None, chamfer=False):
         """-> (J, {term: iou}, {side: dJ/dV} or None). soft False: the hard silhouettes (the QA's) for J. per_term (a
-        dict, with grad): filled with {term: {side: d iou / dV}}."""
+        dict, with grad): filled with {term: {side: d iou / dV}}. With self.dist (soft), J adds dist * w * each term's
+        outline chamfer (softras.chamfer, in L), and its gradient; chamfer: measure the chamfers (last_chamfer) even
+        without the term."""
         t = time.time()
-        J, ious = 0.0, {}
+        J, ious, cham = 0.0, {}, {}
         dV = {side: np.zeros_like(V) for side, (V, _) in geo.items()} if grad else None
         need = {}
         for name, view, side, ov, m, w in self.terms:
@@ -228,14 +257,33 @@ class Flaps:
                 iou, g = S_.iou(m, None if soft else S_.hard.astype(float))
                 ious[name] = iou
                 J += w * (1 - iou)
-                if grad:
+                if grad and (w or per_term is not None):
                     d_ = S_.backward(g)
                     dV[side] -= w * d_
                     if per_term is not None:
                         per_term[name] = {side: d_}
+                if soft and (self.dist or chamfer):
+                    val, back = self.sr.chamfer(S_, self.outline(name))
+                    if val is not None:
+                        pix = self.views[ov].pix
+                        cham[name] = val * pix
+                        J += self.dist * w * val * pix
+                        if grad and self.dist and w:
+                            dV[side] += back(self.dist * w * pix)
+        if soft and (self.dist or chamfer):
+            self.last_chamfer = cham
         self.n['soft' if soft else 'hard'] += 1
         self.n['render_s'] += time.time() - t
         return J, ious, dV
+
+    def measure(self, x):
+        """the QA's J (hard IoUs, this fit's weights), the IoUs, and the outline chamfers (L) with their weighted sum."""
+        geo = self.build(x)
+        J, ious, _ = self.render(geo, soft=False)
+        self.render(geo, s=0.5, chamfer=True)
+        ch = dict(self.last_chamfer)
+        wt = {t[0]: t[5] for t in self.terms}
+        return J, ious, ch, float(sum(wt[k] * v for k, v in ch.items()))
 
     def hard(self, x):
         J, ious, _ = self.render(self.build(x), soft=False)
@@ -294,7 +342,7 @@ class Flaps:
         from charkit import bodymeasure, qa3d
         from charkit.geom.raster import window_zbuffer
         geo = self.build(x)
-        idx = self.S['flap_idx']
+        idx = self.S.get('piece_idx') or self.S['flap_idx']
         labels = {}
         for v in VIEWS:
             d = self.S['views'][v]
@@ -302,7 +350,7 @@ class Flaps:
             meshes = []
             for side in 'LR':
                 V, T = geo[side]
-                i = idx['overskirt_panel_' + side]
+                i = idx[self.NAMES[side]]
                 meshes.append((V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)))
             df, lf = window_zbuffer(meshes, vw.az, vw.origin, vw.L, vw.pix, vw.win)
             lab = d['lab_pc'].copy()
@@ -313,7 +361,67 @@ class Flaps:
                                       self.S['ppl'])
         PC = qa3d.grade_pieces(PS)
         return {p: [PC[p]['value'], PC[p]['status'], {v: round(r['iou_tol'], 4) for v, r in PS[p]['views'].items()}]
-                for p in FLAPS if p in PC}
+                for p in self.NAMES.values() if p in PC}
+
+
+# ------------------------------------------------------------------------------------------------------------ sleeves
+# the puff sleeve (garments.puff): its knot table's four extents (columns 1-4: out and forward, in and back of the arm's
+# frame) each scaled, a taper across the stations (x (1 + taper (t - mid) / span)), the cap's height and the section's
+# roundness. The stations themselves stay (they set the rows: no topology change).
+SLEEVE_PARAMS = [('sxp', 1, 0.05, 0.6, 1.6), ('syp', 2, 0.05, 0.6, 1.6), ('sxm', 3, 0.05, 0.6, 1.6),
+                 ('sym', 4, 0.05, 0.6, 1.6), ('taper', 'taper', 0.05, -0.6, 0.6), ('cap', ('cap',), 0.02, 0.0, 0.3),
+                 ('round', ('round',), 0.2, 1.5, 4.0)]
+SLEEVE_STARTS = {   # the spec's own sleeve (its knots as fitted), and one far from it (every knob 3-5 steps off)
+    'g': dict(sxp=1.0, syp=1.0, sxm=1.0, sym=1.0, taper=0.0, cap=0.12, round=2.3),
+    'far': dict(sxp=1.2, syp=0.8, sxm=0.8, sym=1.2, taper=0.25, cap=0.2, round=3.1),
+}
+
+
+class Sleeves(Flaps):
+    """the puff sleeves on their frozen scene (build_scene(pieces=sleeves, name='sleeve')): both sides' piece IoUs in
+    every view whose outfit mask shows 200 px or more (sleeve_{view}_iou_{side}, the outfit masks as piece_shapes reads
+    them), every view weighing 1; the right sleeve mirrors the left's knots (garments.puff's `mirror`)."""
+    PARAMS, STARTS, NAMES, ORDER = SLEEVE_PARAMS, SLEEVE_STARTS, {'L': 'sleeve_L', 'R': 'sleeve_R'}, VIEWS
+
+    def make_terms(self, S, vw):
+        out = []
+        for view in VIEWS:
+            for side in 'LR':
+                m = S['drawn'][view][self.NAMES[side]]
+                if m.sum() >= 200:
+                    out.append(('sleeve_%s_iou_%s' % (view, side), view, side, view, m, 1.0))
+        return out
+
+    def setup(self, gm):
+        pass
+
+    def spec_at(self, x):
+        v = dict(zip([p[0] for p in self.params], x))
+        s = copy.deepcopy(self.base)
+        K = np.asarray(s['profile'], float)
+        span = max(1e-9, K[-1, 0] - K[0, 0])
+        f = 1 + v['taper'] * (K[:, 0] - 0.5 * (K[0, 0] + K[-1, 0])) / span
+        for c, k in ((1, 'sxp'), (2, 'syp'), (3, 'sxm'), (4, 'sym')):
+            K[:, c] = K[:, c] * v[k] * f
+        s['profile'] = K.round(6).tolist()
+        s['cap'], s['round'] = float(v['cap']), float(v['round'])
+        return s
+
+    def build(self, x):
+        t = time.time()
+        sl = self.spec_at(x)
+        whole = copy.deepcopy(self.spec)
+        whole['garments'] = [sl if g['name'] == self.NAMES['L'] else g for g in whole['garments']]
+        out = {}
+        for side, sp in (('L', sl), ('R', self.right)):
+            G = self.gm.puff(self.A, dict(sp, _spec=whole), self.hull)
+            out[side] = (np.asarray(G['verts'], float), self.sr.triangles(G['faces']))
+        self.n['builds'] += 1
+        self.n['build_s'] += time.time() - t
+        return out
+
+
+TEMPLATES = {'flap': (Flaps, FLAPS), 'sleeve': (Sleeves, ('sleeve_L', 'sleeve_R'))}
 
 
 # ------------------------------------------------------------------------------------------------------------ the fits
@@ -328,7 +436,7 @@ def coordinate_descent(F, x0, log=print, sweeps=12):
     x = np.clip(np.array(x0, float), lo, hi)
     best, ious = F.hard(x)
     hist = [dict(t=time.time() - t0, evals=F.n['hard'], J=best)]
-    kf = [p[0] for p in F.params].index('first')
+    halvings = 0
     sweep = -1
     while sweeps is None or sweep + 1 < sweeps:
         sweep += 1
@@ -350,7 +458,8 @@ def coordinate_descent(F, x0, log=print, sweeps=12):
         if not improved:
             steps = steps / 2
             log('  cd sweep %d: no move, steps halved' % sweep)
-            if steps[kf] < 0.004:
+            halvings += 1
+            if halvings >= 3:                                # (fit.py: `first`'s step under 0.004, from 0.02)
                 break
     return x, best, hist
 
@@ -383,14 +492,17 @@ def gradient_fit(F, x0, s=0.5, log=print, maxiter=60, anneal=()):
     return x, F.hard(x)[0], hist
 
 
-def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print):
-    """one fit from a named start, its record written to OUT/fit_METHOD_START.json."""
-    F = Flaps(os.path.join(out, 'flap_scene.pkl'))
+def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print, template='flap', weights='g',
+            dist=0.0):
+    """one fit from a named start, its record written to OUT/fit_[TEMPLATE_]METHOD..._START.json. weights: the view
+    weights ('g' fit G's, 'a' Michael's call A); dist: the gradient fit's distance term (LAMBDA, per L of chamfer)."""
+    F = TEMPLATES[template][0](os.path.join(out, '%s_scene.pkl' % template), weights=weights,
+                               dist=dist if method != 'cd' else 0.0)
     x0 = F.start(start)
     F.hard(x0)                                              # (warm: numba's compile, the skirt's memo)
     F.value_and_grad(x0, s=s)
     F.n = dict(builds=0, hard=0, soft=0, grad=0, build_s=0.0, render_s=0.0)
-    J0, i0 = F.hard(x0)
+    J0, i0, c0, C0 = F.measure(x0)
     F.n = dict(builds=0, hard=0, soft=0, grad=0, build_s=0.0, render_s=0.0)
     t = time.time()
     if method == 'cd':
@@ -399,15 +511,19 @@ def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print):
         x, J, hist = gradient_fit(F, x0, s=s, log=log, anneal=anneal)
     wall = time.time() - t
     n = dict(F.n)
-    J1, i1 = F.hard(x)
+    J1, i1, c1, C1 = F.measure(x)
     rec = dict(method=method, start=start, s=s, anneal=list(anneal), sweeps=sweeps if method == 'cd' else None,
+               template=template, weights=weights, dist=F.dist, chamfer0=c0, chamfer=c1, C0=C0, C=C1,
                wall=wall, counts=n,
                knobs=[p[0] for p in F.params], x0=x0.tolist(), x=x.tolist(), J0=J0, J=J1, iou0=i0, iou=i1,
                pieces0=F.pieces(x0), pieces=F.pieces(x), history=hist, spec=F.spec_at(x))
     tag = method + ('_s%g' % s if method != 'cd' else ('' if sweeps else '_full')) + ('_anneal' if anneal else '')
+    tag = ('' if template == 'flap' else template + '_') + tag + ('_d%g' % F.dist if F.dist else '') + \
+        ('_w%s' % weights if weights != 'g' else '')
     p = os.path.join(out, 'fit_%s_%s.json' % (tag, start))
     json.dump(rec, open(p, 'w'), indent=1, default=float)
-    log('%s from %s: J %.4f -> %.4f in %.1f s; %s -> %s' % (method, start, J0, J1, wall, n, p))
+    log('%s %s from %s: J %.4f -> %.4f, chamfer %.4f -> %.4f L, in %.1f s; %s -> %s' % (
+        template, method, start, J0, J1, C0, C1, wall, n, p))
     return rec
 
 
@@ -521,9 +637,11 @@ def silhouettes(F, x):
 
 
 def fit_label(r):
+    w = ' [weights %s]' % r['weights'] if r.get('weights', 'g') != 'g' else ''
     if r['method'] == 'cd':
-        return 'cd (12 sweeps)' if r.get('sweeps') else 'cd (to convergence)'
-    return 'l-bfgs s%g%s' % (r['s'], ' anneal ' + ','.join('%g' % a for a in r['anneal']) if r['anneal'] else '')
+        return ('cd (12 sweeps)' if r.get('sweeps') else 'cd (to convergence)') + w
+    return 'l-bfgs s%g%s%s%s' % (r['s'], ' anneal ' + ','.join('%g' % a for a in r['anneal']) if r['anneal'] else '',
+                                 ' + chamfer x%g' % r['dist'] if r.get('dist') else '', w)
 
 
 PAGE_CSS = ('body{font:13px system-ui;margin:16px;background:#f4f4f6;color:#222}.row{display:flex;flex-wrap:wrap;'
@@ -531,20 +649,24 @@ PAGE_CSS = ('body{font:13px system-ui;margin:16px;background:#f4f4f6;color:#222}
             'table{border-collapse:collapse;font-size:12px}td,th{border:1px solid #ccc;padding:2px 5px;text-align:right}')
 
 
-def page(out=OUT, open_it=True):
+def page(out=OUT, open_it=True, template='flap'):
     """the review page (OUT/index.html): the fits' table, J against wall time, the objective along each knob (scan.json),
     and per start and fit each view's drawn flaps against ours (drawn only blue, ours only red, both dark). -> path."""
     import glob, html
     from PIL import Image
     recs = [json.load(open(p)) for p in sorted(glob.glob(os.path.join(out, 'fit_*.json')))]
+    recs = [r for r in recs if r.get('template', 'flap') == template]
     if not recs:
         raise SystemExit('no fits in %s' % out)
-    F = Flaps(os.path.join(out, 'flap_scene.pkl'))
+    F = TEMPLATES[template][0](os.path.join(out, '%s_scene.pkl' % template), weights=recs[0].get('weights', 'g'))
     img = os.path.join(out, 'page')
     os.makedirs(img, exist_ok=True)
     ppl, top = F.S['ppl'], F.S['win']['top']
-    r0, r1, c0, c1 = int((top + 1.2) * ppl), int((top + 3.6) * ppl), 150, 830
-    order = ('front', 'three_quarter', 'profile', 'profile_R', 'back')
+    allm = np.logical_or.reduce([t[4] for t in F.terms])
+    rr, cc = np.nonzero(allm.any(1))[0], np.nonzero(allm.any(0))[0]
+    r0, r1 = max(0, rr[0] - 60), min(allm.shape[0], rr[-1] + 60)
+    c0, c1 = max(0, cc[0] - 60), min(allm.shape[1], cc[-1] + 60)
+    order = F.ORDER
 
     def panel(o, d, path):
         rgb = np.full(o.shape + (3,), 235, np.uint8)
@@ -560,14 +682,12 @@ def page(out=OUT, open_it=True):
             o, d = silhouettes(F, np.array(x))
             cells = []
             for v in order:
-                fn = '%s_%s_%s.png' % (start, ''.join(c if c.isalnum() else '_' for c in label), v)
+                fn = '%s_%s_%s_%s.png' % (template, start, ''.join(c if c.isalnum() else '_' for c in label), v)
                 panel(o[v], d[v], os.path.join(img, fn))
-                vv = 'profile' if v == 'profile_R' else v
-                ks = [k for k in iou if k.startswith('flap_%s_iou_' % vv) and
-                      (v != 'profile_R' or k.endswith('_R')) and (v != 'profile' or k.endswith('_L'))]
-                cells.append('<figure><img src="page/%s"><figcaption>%s: %s</figcaption></figure>' % (
-                    fn, v, ' '.join('%s %.3f' % (k[-1], iou[k]) for k in sorted(ks))))
-            info = 'J (QA pixels) %.4f' % J
+                ks = [t[0] for t in F.terms if t[3] == v]
+                cells.append('<figure><img src="page/%s"><figcaption>%s: IoU %s</figcaption></figure>' % (
+                    fn, v, ' '.join('%s %.3f' % (k[-1], iou[k]) for k in sorted(ks) if k in iou)))
+            info = 'J (QA pixels) %.4f' % J + (' &middot; chamfer %.4f L' % r['C'] if r and 'C' in r else '')
             if r is not None:
                 info += ' &middot; %.1f s wall &middot; %d evaluations &middot; %d builds' % (
                     r['wall'], r['counts']['hard'] + r['counts']['grad'], r['counts']['builds'])
@@ -577,24 +697,27 @@ def page(out=OUT, open_it=True):
             rows.append('<h3>start %s: %s</h3><p>%s<br>%s</p><div class="row">%s</div>' % (
                 html.escape(start), html.escape(label), info, pcs, ''.join(cells)))
     th = ('<tr><th>start</th><th>fit</th><th>wall s</th><th>evaluations</th><th>builds</th><th>J start</th>'
-          '<th>J end</th>' + ''.join('<th>%s</th>' % t[0].replace('flap_', '').replace('_iou', '') for t in F.terms) +
+          '<th>J end</th><th>chamfer L (start, end)</th>' + ''.join('<th>%s</th>' % t[0].replace('flap_', '').replace(
+              '_iou', '') for t in F.terms) +
           '<th>piece L</th><th>piece R</th></tr>')
     tr = []
     for r in recs:
-        tr.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%d</td><td>%d</td><td>%.4f</td><td><b>%.4f</b></td>%s'
+        tr.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%d</td><td>%d</td><td>%.4f</td><td><b>%.4f</b></td><td>%s</td>%s'
                   '<td>%.3f %s</td><td>%.3f %s</td></tr>' % (
                       r['start'], fit_label(r), r['wall'], r['counts']['hard'] + r['counts']['grad'],
-                      r['counts']['builds'], r['J0'], r['J'], ''.join('<td>%.3f</td>' % r['iou'][t[0]] for t in F.terms),
-                      r['pieces']['overskirt_panel_L'][0], r['pieces']['overskirt_panel_L'][1],
-                      r['pieces']['overskirt_panel_R'][0], r['pieces']['overskirt_panel_R'][1]))
-    for p_ in sorted(glob.glob(os.path.join(out, 'fitkit_*.json'))):             # fitkit.optimise on the same IoUs
+                      r['counts']['builds'], r['J0'], r['J'],
+                      '%.4f, %.4f' % (r['C0'], r['C']) if 'C' in r else '-',
+                      ''.join('<td>%.3f</td>' % r['iou'][t[0]] for t in F.terms),
+                      r['pieces'][F.NAMES['L']][0], r['pieces'][F.NAMES['L']][1],
+                      r['pieces'][F.NAMES['R']][0], r['pieces'][F.NAMES['R']][1]))
+    for p_ in sorted(glob.glob(os.path.join(out, 'fitkit_*.json'))) if template == 'flap' else ():
         r = json.load(open(p_))
-        tr.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%d</td><td>-</td><td>%.4f</td><td><b>%.4f</b></td>%s'
+        tr.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%d</td><td>-</td><td>%.4f</td><td><b>%.4f</b></td><td>-</td>%s'
                   '<td>%.3f %s</td><td>%.3f %s</td></tr>' % (
                       r['start'], r['method'], r['wall'], r['evaluations'], r['J0'], r['J'],
                       ''.join('<td>%.3f</td>' % r['iou'][t[0]] for t in F.terms),
-                      r['pieces']['overskirt_panel_L'][0], r['pieces']['overskirt_panel_L'][1],
-                      r['pieces']['overskirt_panel_R'][0], r['pieces']['overskirt_panel_R'][1]))
+                      r['pieces'][F.NAMES['L']][0], r['pieces'][F.NAMES['L']][1],
+                      r['pieces'][F.NAMES['R']][0], r['pieces'][F.NAMES['R']][1]))
     W_, H_ = 700, 280
     tmax = max(max(h['t'] for h in r['history']) for r in recs) or 1.0
     Js = [h.get('J', h.get('J_soft')) for r in recs for h in r['history']]
@@ -638,7 +761,7 @@ def page(out=OUT, open_it=True):
            'far = every knob 2-6 steps off it. Panels: rows z -1.2 .. -3.6 L; drawn only blue, ours only red, both dark. '
            'Data: charkit/out/softras/fit_*.json, scan.json.</p><table>%s%s</table><h2>J against wall time</h2>%s%s'
            '<h2>The fits, view by view</h2>%s' % (PAGE_CSS, th, ''.join(tr), svg, sc, ''.join(rows)))
-    path = os.path.join(out, 'index.html')
+    path = os.path.join(out, 'index.html' if template == 'flap' else 'index_%s.html' % template)
     open(path, 'w').write(doc)
     if open_it:
         os.system('open "%s"' % path)
@@ -656,15 +779,19 @@ if __name__ == '__main__':
     ap.add_argument('--s', type=float, default=0.5)
     ap.add_argument('--anneal', default='')
     ap.add_argument('--sweeps', type=int, default=12, help='cd: at most this many sweeps (0: to convergence)')
+    ap.add_argument('--template', default='flap', choices=sorted(TEMPLATES))
+    ap.add_argument('--weights', default='g', choices=sorted(WEIGHTS))
+    ap.add_argument('--dist', type=float, default=0.0, help='the distance term (LAMBDA %g: per L of chamfer)' % LAMBDA)
     a = ap.parse_args()
     if a.cmd == 'scene':
-        build_scene(a.spec, a.out)
+        build_scene(a.spec, a.out, pieces=TEMPLATES[a.template][1], name=a.template)
     elif a.cmd == 'fit':
-        run_fit(a.method, a.start, a.out, a.s, tuple(float(v) for v in a.anneal.split(',') if v), a.sweeps or None)
+        run_fit(a.method, a.start, a.out, a.s, tuple(float(v) for v in a.anneal.split(',') if v), a.sweeps or None,
+                template=a.template, weights=a.weights, dist=a.dist)
     elif a.cmd == 'fitkit':
         run_fitkit(a.start, a.method == 'grad', a.out, a.s)
     elif a.cmd == 'scan':
         F = Flaps(os.path.join(a.out, 'flap_scene.pkl'))
         json.dump(scan(F, F.start(a.start), s=a.s), open(os.path.join(a.out, 'scan.json'), 'w'), default=float)
     elif a.cmd == 'page':
-        print(page(a.out))
+        print(page(a.out, template=a.template))
