@@ -265,3 +265,64 @@ Readings:
 Next (running): anchors from the drawn lower edge at 0.5 deg (`ribbon_anchors 'drawn'`, `drawn_notches`), a facing
 threshold of 0.5, shear-only lines; and the ribbon form's capacity against the truth (`bendprobe.py`: quadratic cuts
 descended from the sheared wedges' 0.515).
+
+**Results (round 2).** Batch 3 (`m3.json`): anchors from the drawn lower edge at 0.5 deg (`ribbon_anchors 'drawn'`)
+0.415 (front 0.336: 7 notches, extra locks), prominence 6 deg 0.372 (5 locks, profile 0.293); a facing threshold of 0.5
+0.442 (0.495 / 0.325 / 0.511, folds 0); shear-only lines 0.446 (folds 4). Nothing clears the wedge by more than 0.013.
+
+**The capacity probes** (`bendprobe.py`: each cut phi = a + b (theta - 60) + c (theta - 60)^2 / 30, descended against
+the truth on hl_base's bangs surface; a probe, never a builder's source):
+
+| partition of the same bangs surface | lock IoU | within | front | three-quarter | profile |
+|---|---|---|---|---|---|
+| the builder's wedges | 0.439 | 0.541 | 0.420 | 0.415 | 0.501 |
+| sheared wedges fitted to the truth (round 1) | 0.515 | 0.624 | 0.502 | 0.485 | 0.575 |
+| **ribbons fitted to all three views** | **0.525** | 0.636 | 0.510 | 0.493 | 0.591 |
+| ribbons fitted to the front alone | | | **0.731** | 0.289 | 0.230 |
+| ribbons fitted to the three-quarter alone | | | 0.386 | **0.701** | 0.302 |
+| ribbons fitted to the profile alone | | | 0.370 | 0.338 | **0.698** |
+
+**The finding: no partition of our bangs surface can reach the labeller's 0.555.** Each view alone fits to 0.70-0.73,
+but the three drawings put the lock lines at different places on our surface, so one 3D partition loses about 0.2 of
+lock IoU to the disagreement (the same disagreement as the clips': call C). The rest (0.636 within the truth against
+0.525) is the piece's own outline and tips. The labeller scores 0.555 because it is 2D and per view: it pays no
+consistency. So the lock model is not the limit any more; the correspondence through our surface is (the envelope's
+depth, which maps each view's x onto the chart), and the drawing's own inconsistency, which no 3D build removes.
+
+**The pilot (box builds at c161c95, the default spec before, `lock_model ribbon, ribbon_prior 0, ribbon_face 0.5`
+after; `charkit/out/hl_before2`, `charkit/out/hl_ribbon`; the lab reproduces both exactly):**
+
+| | lock IoU all | front | three-quarter | profile | front lines L | front purity | front tip L |
+|---|---|---|---|---|---|---|---|
+| before (wedge) | 0.439 | 0.420 | 0.415 | 0.501 | 0.049 | 0.882 | 0.082 |
+| after (ribbon) | 0.442 | **0.495** | 0.325 | 0.511 | **0.022** | **0.960** | **0.064** |
+
+QA (before -> after): hair_piece_bangs 0.792 -> 0.780 PASS; side locks 0.534 -> 0.523 WARN; body hair IoU front 0.842
+-> 0.840, three-quarter 0.757 -> 0.756, profile 0.829; hair_noise 0.0791 -> 0.0797 WARN (0.0003 under its 0.08 line);
+art_terminator_hair (flag) 2.308 -> 2.311 WARN; hair_folds 4 -> 3; art_peeks_hair 16 -> 16; art_fragments_hair 1.23
+-> 1.236; hair_fringe_low 0.0094; hair_bun_outline 0.456 FAIL on both. Policy K on the pair: PASS. The builder's default
+path is bit-identical (`charkit/out/hairlocks/identity.py`: 0 of 9 pieces' arrays differ).
+
+**Not the default:** the rule was better lock scores and no FAIL or flag regression; the lock score is level (+0.003),
+the front gains 0.075 and the three-quarter loses 0.09, and hair_noise's margin goes from 0.0009 to 0.0003. The
+setting stays off (`lock_model 'wedge'`).
+
+Review page: `charkit/out/hairlocks/review/index.html` (per view sheet | truth | before | after | the labeller, each
+lock coloured as the truth lock it matches; the per-lock numbers; then the pilot's section: the per-view tables, the
+capacity probes, the chart's evidence with the lines, the QA table). Round 1's page: `review_prev/`.
+
+## For Michael (round 2 decisions)
+
+1. **The lock target is out of reach for one 3D lock set on this sheet.** One view at a time, the ribbons fit 0.70-0.73;
+   all three at once, 0.525, because the three drawings don't agree where the lines fall. Choose:
+   a. Score the locks per view with a consistency allowance: grade each view's locks apart, as each view's own fit
+      would. Or keep the joint score and set its target from this capacity (about 0.52), not the labeller's 0.555.
+   b. Let a lock's boundary move a little per view: view-dependent ribbons (a lock line's drawn position per view,
+      blended by facing), as anime models cheat per camera. It would lift all three views, but the model would no
+      longer be one rigid mesh per pose.
+   c. Fix the correspondence first: make the envelope's depth agree with the views' lines (the per-view fits' cuts
+      differ by 10-25 deg of phi: that's the depth error plus the drawing's inconsistency).
+2. **The ribbons as the default for the front's sake?** Front 0.420 -> 0.495, the lock lines on the drawn ones (0.049
+   -> 0.022 L), purity 0.96, K PASS; but the three-quarter falls (0.415 -> 0.325) and hair_noise's margin shrinks to
+   0.0003. The recommendation is to keep them off until 1b or 1c.
+3. **Call C is revised** (the profile's locks renamed). Accept, or keep the per-view names.
