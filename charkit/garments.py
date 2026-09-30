@@ -1289,12 +1289,15 @@ def knot(K, x, col=1):
 def flap_stair(tail):
     """a flap tail's stepped lower edge: `steps` treads across it (0 its outer edge .. 1 its inner), their widths from
     `widths` (shares, default equal), their lengths below the skirt's hem from `outer` (the first) to `inner` (the
-    last) L, or listed in `lengths`. -> (edges (steps + 1,), lengths (steps,))."""
+    last) L, listed in `lengths`, or from `first` rising by `rise` a tread. -> (edges (steps + 1,), lengths
+    (steps,))."""
     n = int(tail.get('steps', 4))
     w = np.asarray(tail.get('widths') or [1.0] * n, float)
     e = np.r_[0.0, np.cumsum(w) / w.sum()]
     if tail.get('lengths'):
         ln = np.asarray(tail['lengths'], float)
+    elif 'rise' in tail:
+        ln = tail['first'] + tail['rise'] * np.arange(n)
     else:
         ln = tail['outer'] + (tail['inner'] - tail['outer']) * (np.arange(n) / max(1, n - 1))
     return e, ln
@@ -1307,7 +1310,8 @@ def flap_template(A, spec, hull):
     crests, `clear` plus `thick` L off them plus `stand` (a knot table [s, L]), between its outer and inner edges'
     azimuths (`edges`: knots [s, outer deg, inner deg]; 0 the front, + her left; the outer edge toward her side, the
     inner toward the centre back). Below the hem each column hangs on as a tail: the skirt's slope at its hem turned
-    `droop` of the way to plumb (Michael's call: hang, no sweep beyond the skirt's flare) and `out` L per L further out,
+    `droop` of the way to plumb (Michael's call: hang, no sweep beyond the skirt's flare), `out` L per L further out
+    and `twist` L per L round toward its outer edge's side,
     for its tread's length (`tail`: flap_stair's steps, widths, outer and inner lengths, L): a stepped lower edge in
     silhouette, descending from the outer corner to the tip at the inner corner, as drawn. The dark band is geometry, a
     second material on the faces within `band` L of that stepped edge (the treads, the risers and the outer edge below
@@ -1383,6 +1387,9 @@ def flap_template(A, spec, hull):
     dirs = (1 - dr) * slope + dr * down
     dirs /= np.linalg.norm(dirs, axis=1)[:, None]
     dirs = dirs + spec.get('out', 0.0) * e_out
+    if spec.get('twist'):                                     # turning toward its outer edge's side as it falls
+        e_th = np.stack([ax.point(0.0, a_ + 1e-3, 1.0) - ax.point(0.0, a_, 1.0) for a_ in ah]) / 1e-3
+        dirs = dirs + spec['twist'] * np.sign(knot(E, 1.0, 1) - knot(E, 1.0, 2)) * e_th
     tails = np.array([hem + l_ * dirs for l_ in tl])                              # (len(tl), len(us), 3)
     G = np.concatenate([over, tails], 0)
     NR, NC = G.shape[:2]
