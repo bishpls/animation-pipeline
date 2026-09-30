@@ -41,7 +41,7 @@ reported success.
 
 ## Gates
 - 1f426ec into pipeline-3d 36e7ea2, default spec (clawd.json): **PASS**. No check changed, no values moved, and all
-  51 tests ok (test_spec_declared and test_spec_alias included). The trace shows only the routine `knobs hair changed`
+  50 tests ok (test_spec_declared and test_spec_alias included). The trace shows only the routine `knobs hair changed`
   and spec_hash, which every gate shows (the build folder's paths). Base build 537.6 s, candidate 576.7 s (the
   produced references were rebuilt).
 - Local, before the gate: at 36e7ea2 and at 1f426ec, clawd.json's outfit masks, hull and hair layers were rebuilt
