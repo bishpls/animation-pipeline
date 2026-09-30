@@ -743,3 +743,28 @@ Base build: `charkit/out/look6_base` (render box, charkit/spec/clawd.json at d60
   occluder set don't move it. Set: anime `look.face.cast.face_lift` 15 (faceshade.cast_maps `face_lift`, and
   `face_el` as an option, off). The front's remaining 0.17 is the fringe map (face off reads the same): its
   `fringe_drop` (0.07 L) is the next lever, a build change.
+
+### The design light (fit on look6_base, pipeline-3d d60486a; the cast rebaked at each light's elevation)
+
+`python -m charkit.designlight charkit/out/look6_base` (5853 frames, 584 s on the laptop). Score: per view the mean over
+regions (hair, skin, garments) of the shaded regions' mean IoU (shade and lit) with the drawing's.
+
+| view (az) | its best key (deg left, up) | score | at the joint key | at the boards' (30, 40) | within 0.01 of its best |
+|---|---|---|---|---|---|
+| head front (0) | 2.5, 37.5 | 0.609 | 0.583 (-0.026) | 0.554 | a0 -10..0, el 40 |
+| head 3/4 (35.7) | 12.5, 42.5 | 0.562 | 0.560 (-0.002) | 0.546 | a0 0..50, el 20..50 |
+| head profile (90) | 32.5, 47.5 | 0.583 | 0.575 (-0.008) | 0.576 | a0 20..40, el 40..50 |
+| body front (0) | 0, 42.5 | 0.514 | 0.507 (-0.007) | 0.492 | a0 -20..20, el 30..70 |
+| body 3/4 (35.5) | -5, 57.5 | 0.507 | 0.494 (-0.013) | 0.477 | a0 -20..20, el 50..60 |
+| body profile (90) | 12.5, 52.5 | 0.550 | 0.549 (-0.001) | 0.541 | a0 0..30, el 40..60 |
+| body back (180) | 10, 57.5 | 0.579 | 0.561 (-0.018) | 0.534 | a0 -10..20, el 60 |
+
+- **The joint camera key: 15 deg left of the camera, 47.5 up** (0.547; the boards' 0.531). One world light fits worse
+  (47.5, 47.5: 0.472; the back view 0.204): the drawing is lit from the viewer's side in every view.
+- The views agree on a key near the camera (a0 -5..15 but the head's profile, 32.5) and 37.5-57.5 up. The head's front
+  wants the lowest light (37.5; the most lost at the joint key, 0.026), the body's back and three-quarter the highest
+  (57.5). The fit is weak: 0.016 over the boards' light; the garments barely shade under any light (IoU 0.44-0.49: the
+  drawing's pleats and folds are painted, ours mostly lit). Per region at the joint key: hair 0.53-0.73, skin
+  0.47-0.59, the neck 0.54-0.79, the face 0.43-0.57, garments 0.44-0.49.
+- Stored as the manifest's `design_light` (camera, [15, 47.5]) with the per-view bests and a caution. lookqa reads the
+  manifest file (not the resolved spec: every produced reference stamps the spec's `ref`, so the hull would rebuild).
