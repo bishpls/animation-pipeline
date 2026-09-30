@@ -49,6 +49,15 @@ def cage_health(geom, log=print):
                corner_min=q['corner_min'], edges_over_60=int((ang > 60).sum()), edges_over_90=int((ang > 90).sum()),
                dihedral_p99=round(float(np.percentile(ang, 99)), 1), dihedral_max=round(float(ang.max()), 1),
                worst_at=[round(float(v), 3) for v in at[np.argmax(ang)]])
+    # where the sharp edges are (L round the head's centre, y back): the chin (within the neck's width, in front of the
+    # neck), the jaw's sides (outside it, in front of the neck's axis), behind (at or behind the neck's axis)
+    Hd = spec.get('head') or {}
+    c = np.asarray(C.get('centre', [0.0, 0.0, 0.0]), float) if isinstance(C, dict) else np.zeros(3)
+    P = at[ang > 60] if len(at) else np.zeros((0, 3))
+    ax_y = float(np.nanmedian(S.cy[(S.zs < -0.42) & (S.zs > -0.5)])) if np.isfinite(S.cy).any() else 0.35
+    reg = dict(chin=int(((np.abs(P[:, 0]) < 0.12) & (P[:, 1] < ax_y)).sum()),
+               sides=int(((np.abs(P[:, 0]) >= 0.12) & (P[:, 1] < ax_y)).sum()), behind=int((P[:, 1] >= ax_y).sum()))
+    out['over_60_by_region'] = reg
     log('cage health (z %s..%s): %s' % (JAW_Z[0], JAW_Z[1], out))
     return out
 

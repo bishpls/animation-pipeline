@@ -6,7 +6,8 @@
 
 Per board (8-bit sRGB, as the PNGs are):
   diff        per pixel the largest channel difference (levels): max, mean, p99, share over 8 and over 24 levels, and the
-              same outside `exclude` (a mask of pixels to leave out, e.g. the hair streaks, whose placement is the GPU's)
+              same outside `exclude` (a mask of pixels to leave out; region_stats: the same inside a region, e.g. the
+              hair streaks of either picture, streak_mask)
   silhouette  IoU of the character's pixels (farther than 6 levels from the background colour) and the share of pixels
               where exactly one of the two has the character
   lines       the dark ink (sRGB luma under 70) upsampled x4, its widths at each skeleton pixel (charkit.lookqa.widths):
@@ -147,10 +148,21 @@ def board(ref, ours, pal=None, bg=(0.86, 0.86, 0.90), exclude=None):
     return out
 
 
+def region_stats(ref, ours, region):
+    """board()'s difference measures inside a region (bool (H, W)), plus its size."""
+    d = np.abs(ref[..., :3].astype(np.int16) - ours[..., :3].astype(np.int16)).max(-1)[region]
+    if not d.size:
+        return {'px': 0}
+    return {'px': int(d.size), 'max': int(d.max()), 'mean': round(float(d.mean()), 3),
+            'p99': round(float(np.percentile(d, 99)), 1), 'over8': round(float((d > 8).mean()), 5),
+            'over24': round(float((d > 24).mean()), 5)}
+
+
 def streak_mask(ref, ours, base, M, grow=2):
     """the hair streaks of either picture: where ours differs from ours drawn without them (base), or where EEVEE's is
-    brighter than base by 8+ levels on the hair's lit tone; grown by `grow` px. Their placement comes from a hash of
-    sin() that differs between GPUs (gpu.streak_table), so they are measured apart."""
+    brighter than base by 8+ levels on the hair's lit tone; grown by `grow` px. The region the streaks' own agreement is
+    measured in (region_stats): their columns come from an integer hash (charkit.shade.streak_hash), the same on every
+    GPU, so they are no longer left out."""
     from scipy import ndimage
     lits = [srgb8(L['lit']) for L in M.materials if L.get('highlight')]
     on_hair = np.zeros(base.shape[:2], bool)

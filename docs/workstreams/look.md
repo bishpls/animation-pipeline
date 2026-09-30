@@ -211,6 +211,162 @@ write-only-when-changed guard), `scene.py` (`stage_face_shading`, `hair_pieces_o
   the box can come up as a T4 fallback (same speed for boards).
 - No foreground sleeps; long jobs with `run_in_background`; the laptop's own heavy work through its one build slot.
 
+## Round 3: Michael's calls H and I (`tool/look3`, from pipeline-3d 301b661; pipeline-3d cfcdc3a merged in)
+
+Builds on the render box (T4): `charkit/out/look3_before` (pipeline-3d 301b661) and `charkit/out/look3_after`
+(0b99529), charkit/spec/clawd.json, `--boards views,body --vrm`. Review page: `charkit/out/look3_review/index.html`
+(`python -m charkit.lookab charkit/out/look3_review.json`): per board EEVEE before | after | difference, close-ups of
+garment edges and streaks (per renderer and GPU), every table below.
+
+### Call H: the streaks by an integer hash
+
+- `shade.hair_toon` keeps and places a streak column by Blender's **White Noise 1D** on the column index: Jenkins'
+  lookup3 (`hash_uint`, `hash_uint2`) of the index's float32 bits, u32 arithmetic, no `sin()`. Shader nodes have no
+  integer ops; White Noise is Blender's integer hash (EEVEE's `gpu_shader_common_hash.glsl`, Cycles' `util/hash.h`, the
+  same code). Value keeps the column (`< keep`), Color's green places its elevation.
+- `shade.streak_hash` / `streak_columns`: the numpy reference. `toon.wgsl` computes the same per pixel (the per-column
+  table left the uniform); `look.js` the same in TSL u32 ops (`CK.hash`). The export's highlight says `hash: 'lookup3'`.
+- Measured: `charkit/boards/lookprobe.py --hash` renders the node for columns 0..63 and reads it back in three 11-bit
+  windows (EEVEE's film is half float): **64/64 columns match on the laptop (M2, Metal) and on the T4**, worst 0.99 of
+  an fp16 step. `test_streak_hash_gpu` runs toon.wgsl's hash in a compute pass: bit-identical to numpy on Metal and
+  on the T4's Vulkan. look.js runs it in headless Chrome's WebGPU (M2): the same columns (below).
+
+Streak agreement (`lookab`: each renderer's streak pixels are its board against its own board without streaks, > 4
+levels; IoU over all nine boards, and the two boards' difference inside the union):
+
+| pair | before: IoU | before: mean in the region | after: IoU | after: mean in the region |
+|---|---|---|---|---|
+| EEVEE laptop (M2) / EEVEE T4 | 0.476 | 34.1 lv (48.7% > 8) | **1.000** | 0.01 lv (0.0% > 8) |
+| EEVEE T4 / charkit.render (M2) | 0.064 | 56.2 lv | **0.995** | 0.56 lv (0.1% > 8) |
+| EEVEE laptop / charkit.render (M2) | 0.054 | 58.2 lv | **0.995** | 0.56 lv |
+| EEVEE T4 / charkit.render (T4) | - | - | 0.995 | 0.57 lv |
+| charkit.render M2 / T4 | - | - | 1.000 | 0.07 lv |
+| EEVEE T4 / look.js (Chrome WebGPU, M2) | - | - | 0.861 | 9.7 lv (35% > 8) |
+
+look.js (`projects/charkit-look` boards, `~noring` for its streak-free base; ss 2, a box filter against EEVEE's
+Gaussian): the same kept columns and positions; its streak edges differ (face boards IoU 0.84-0.94, the body boards'
+few-hundred-pixel streaks 0.58-0.77).
+
+The kept set changed with the hash: 10 of 36 columns (1, 4, 12, 18, 20, 23, 26, 27, 28, 33); one now lands on the right
+bun as a large highlight (face_030). A taste point: a `seed` added to the index would pick another set.
+
+### Call I: the outline's inward move capped at half a shell
+
+- `shade.outline` stores `ck_line_cap` = `SHELL_CAP` (0.5) x the piece's own 'thick' SOLIDIFY (`shell_of`) and sets
+  the SOLIDIFY's offset so the surface moves inward by `min(w, cap)` and the hull goes the rest, `w - min(w, cap)`,
+  outward (`line_offset`: offset o puts the surface w (1 + o) / 2 in and the hull w (1 - o) / 2 out; checked in
+  Blender). `set_view` writes the offset per view with the thickness. The export: `outline.maxInward`; charkit.render's
+  vertex stages, `Prim.co()` and the garment normals follow it; look.js moves the surface and the hull per view
+  (which also removes toonrender's finding 4 for every mesh: its surface stayed at the build width).
+- Capped pieces: shorts 0.75 mm, sleeves 1.0, top / skirt / overskirt panels 1.25, collar 1.5, cuffs 2.5, waistband and
+  wrists 3.125, boot cuffs 3.75. At the build width (1.2 mm) only the shorts and sleeves are capped; at the face boards'
+  (0.93 mm) only the shorts; at the body boards' (3.62 mm) all.
+- **What the cap fixed.** On the body boards the thin shells' inner layer moved outward past the hull (by w - t) and
+  covered the line: the line drew only 14-66% of the thin garments' silhouette edges (sleeves ~30%, top ~33%, skirt
+  ~51%, shorts ~64%). After: **100% on every piece**. The sleeves had no visible outline on body_000 before
+  (review page close-ups).
+
+Silhouettes and lines (EEVEE, render box; per piece: charkit.render ids of the piece alone at 4x, the mean move of its
+outline = area change over perimeter):
+
+| | face boards | body boards |
+|---|---|---|
+| per piece, thin shells | 0.00 px | +0.72 (sleeves) .. +0.75 (top) .. +0.89 (skirt) .. +0.97 (overskirt) .. +1.11-1.16 (shorts) px |
+| per piece, thick shells | 0.00 | cuffs +0.52-0.55, waistband +0.27, wrists +0.23 px |
+| per piece, everything else (skin, hair, boots, bow, accessories) | 0.00 | 0.00 |
+| whole silhouette (IoU, mean move) | 1.0, 0 px | 0.9924-0.9937, +0.16-0.22 px |
+| ink mean width (coverage) | 1.49-1.67 px, +-0.004 | 1.55 -> 1.68-1.71 px |
+| ink area | +-0.4% | +21-30% |
+
+(Against the original surface the outline of a thin shell now sits w - cap outside, 1.4-1.75 px on the body boards;
+the "before" render already had the crossed inner layer w - t outside, so the change as seen is smaller.)
+
+Shading normals turned more than 90 degrees by the outline (`lookprobe --normals`: per corner, outline on against off;
+a face flips when its corners' mean cos < 0), garments:
+
+| width | before: all (rim / edge rings / away) | after: all (rim / edge rings / away) |
+|---|---|---|
+| build 1.2 mm | 5757 (5527 / 32 / 198) | 5757 (5527 / 32 / 198) |
+| face boards ~0.93 mm | 4526 (4385 / 19 / 122) | 4526 (4385 / 19 / 122) |
+| body boards 3.62 mm | 12702 (7701 / 3406 / 1595) | 9193 (6102 / 2101 / 990) |
+
+Not 0. What remains, by cause:
+- **Rim beads** (6102 at the body width, 5527 at the build width, unchanged by the cap): the thick SOLIDIFY's rim,
+  subdivided, is a rounded bead of radius about a third of the shell; any inward move beyond that collapses it, at every
+  width, before and after, including the face boards where the call changes nothing. Its faces are slivers at open
+  edges inside the line (the line now draws 100% of the edges). Measured on the before scene: cap share 0.3 -> 214
+  flipped shell faces at the body width, 0.2 -> 84, 0.1 -> 34 (0.5: 8466); creasing the rims (`edge_crease_rim`) doesn't
+  help (8438). A smaller share sends more of the line outward (w - s t outside the surface).
+- **Edge rings** of the thick cuffs, waistband and wrists (their big rounded edges; 2101 at the body width, down from
+  3406).
+- **The collar away from its rim** (263 at the body width, 176 at the build width, 122 at the face boards'): it is
+  locally thinner than its 3 mm shell (measured p5 0.94 mm, p1 0.17 mm): its geometry (garments2), not the cap.
+- **Closed thin pieces** without a shell modifier (bow 501, boots 2 x 113 at the body width; accessories crab 260, star
+  8): no cap as built. Capped at half their measured thickness (p5), the bow drops to 144, the boots to 2 x 39, the crab
+  to 144 (an experiment, `lookprobe` with ck_line_cap set; not built in).
+
+### charkit.render against the render box's EEVEE (after, streaks included; acceptance)
+
+| board | mean | streak region mean | > 8 lv | silhouette IoU | tones agree |
+|---|---|---|---|---|---|
+| face_000 | 0.647 | 0.52 | 0.343% | 0.9997 | 0.99942 |
+| face_030 | 0.643 | 0.49 | 0.273% | 0.9998 | 0.99951 |
+| face_060 | 0.638 | 0.54 | 0.269% | 0.9999 | 0.99971 |
+| face_090 | 0.613 | 0.51 | 0.199% | 0.9999 | 0.99972 |
+| face_150 | 0.519 | 0.53 | 0.193% | 0.9999 | 0.99970 |
+| body_000 | 0.858 | 0.80 | 0.440% | 0.99904 | 0.99959 |
+| body_035 | 0.870 | 0.97 | 0.460% | 0.99932 | 0.99931 |
+| body_090 | 0.839 | 0.86 | 0.322% | 0.99927 | 0.99965 |
+| body_180 | 0.840 | 0.82 | 0.440% | 0.99912 | 0.99949 |
+
+Before (the old renderer, sin hash f64, the before build): whole-board means 0.66-1.04 (face_060 1.036), silhouette IoU
+0.99922-0.9999. The body boards' IoU fell a little (0.99922 -> 0.99904 on body_000): more of their outline is line
+now, and the line's edges carry the anti-aliasing difference (16 regular samples against EEVEE's 64 jittered).
+
+### The QA
+
+- No check changed status. `line_width` (INFO) moved: the QA's outline model had the hull at the original surface
+  and scaled the shrink linearly, so it drew a capped piece wrong; `qa3d.render_surfaces` now puts a capped piece's
+  hull the rest of the width outside (from the bundle's recorded offset), `lookqa._scaled` caps the inward move at the
+  design's scale, and the bundle records the cap. On the after build: 0.942 under the old model, 1.133 under the new
+  (before build 1.0 under both): the garment lines' median at the design's scale 2.75 px (was 1.99; the skin's is
+  2.79). Steps registered for `line_width` and `line_spread` (22a1ae7, charkit/steps/lookqa.py).
+- Taste point: the garment lines now show at full width, so the body boards carry 21-30% more ink. If they read heavy,
+  `look.lines.regions.garment` (1.0) is the dial (call B).
+
+### Gates (712a0a3 into pipeline-3d cfcdc3a)
+
+- `python -m charkit remote gate tool/look3 --into pipeline-3d`: **PASS**. Every test ok; moved: `line_width` 1.0 ->
+  1.133 INFO (remeasured; 2x2: new geometry under the old measure 0.942, old geometry under the new 1.0), `shape_iou`
+  0.884 -> 0.885, `shape_iou_torso` 0.933 -> 0.934 (INFO). Build 285.8 -> 291.0 s.
+- `... --spec charkit/spec/clawd_mh.json`: **PASS**. Moved: `line_width` 0.942 -> 1.133 INFO (remeasured; 2x2 0.912
+  under the old measure), `face_shadow_neck_3q` 0.1074 -> 0.1071 INFO. Build 205.3 -> 235.5 s.
+- Later commits (4c48e19, 189bb70) touch only these notes, `charkit/lookab.py` and the charkit-look harness's flag.
+
+### Tools (the look's)
+
+| | |
+|---|---|
+| `charkit/boards/lookprobe.py` | Blender: `--hash` (White Noise bits vs `shade.streak_hash`), `--boards` (scene.boards re-rendered from a saved scene through a shim of its Scene: bit-identical to the build's own boards on the T4; `--streaks off`, `--cap 0`), `--normals` (per piece and width: flips by rim / edge rings / away, geometric flips, the moves). |
+| `charkit/lookab.py` | The A/B review from a manifest: streak agreement across renderers and GPUs, silhouettes and line coverage per piece (charkit.render ids), ink, flips, charkit.render's compare, close-ups, the page. |
+
+Commands used: `python -m charkit remote --box render build charkit/spec/clawd.json --out charkit/out/NAME --boards
+views,body --vrm`; on the box `infra/gcp/build.sh sync $PWD && infra/gcp/build.sh run $PWD '$BLENDER -b ... --python
+charkit/boards/lookprobe.py -- ...'` then `build.sh fetch` (`remote run` runs charkit subcommands, not shell);
+`python -m charkit.render compare BUILD`; the old renderer from a pipeline-3d checkout for the before numbers.
+
+### Open items
+
+- The rim beads and the collar's thin regions still flip (above): Michael's call on a smaller share (0.2-0.3), or
+  garments2 keeping rims flat / the collar at its thickness.
+- Closed thin pieces (bow, boots, crab, star) have no cap: a measured thickness would give them one (experiment above).
+- look.js: its streaks are measured (above); its per-view surface and hull aren't yet measured against EEVEE board by
+  board (phase 2 B.1: `node engine/render.mjs projects/charkit-look --loop=views~BUILD~vrm:clawd`; needs
+  `node_modules` linked into the worktree). For meshes with `_HULL_NORMAL` (skin, hair) the per-view surface move uses
+  that attribute unskinned: exact in the build pose, off by the bone's rotation when posed.
+- The streak set changed (one on the right bun): a seed if Michael prefers another set.
+- OWNERSHIP.md's look row could list `lookab.py` and `boards/lookprobe.py`.
+
 ## Next
 
 - The hair's shadow on the face from the side (the design's profile shades the temple and cheek under the side hair;

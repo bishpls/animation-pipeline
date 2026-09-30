@@ -17,7 +17,8 @@
    "leg_slim": 1.02,
    "hip": 1.08,
    "arm_slim": 0.9
-  }
+  },
+  "source": "makehuman"
  },
  "head": {
   "chin": 1.0,
@@ -696,5 +697,6 @@
     0.24
    ]
   }
- ]
+ ],
+ "base": "makehuman"
 }

@@ -1,9 +1,9 @@
 """python -m charkit.render COMMAND ... (docs: charkit/render/__init__.py)
 
     probe                                    the adapters wgpu sees here, and one small frame's time on each
-    boards VRM --out DIR [--which views,body] [--bundle DIR] [--ss 4] [--adapter A] [--hash f64|f32|nv]
+    boards VRM --out DIR [--which views,body] [--bundle DIR] [--ss 4] [--adapter A] [--no-streaks]
                                              the boards drawn from an export, as scene.boards frames them
-    compare BUILD [--out DIR] [--ss 4] [--adapter A] [--hash ...] [--open]
+    compare BUILD [--out DIR] [--ss 4] [--adapter A] [--open]
                                              BUILD's EEVEE boards (BUILD/boards/*.png) against ours from its export
                                              (BUILD/*.vrm), with DIR/compare.json and the review page DIR/index.html
     bench VRM [--reps 5] [--adapter A] [--ss 4] [--which views,body] [--json OUT]
@@ -61,7 +61,7 @@ def boards(args):
     t = time.time()
     M = model.load(vrm)
     eye_z, L = _head(_opt(args, '--bundle', os.path.join(os.path.dirname(vrm), 'bundle')))
-    R = gpu.Renderer(M, adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)), hash_mode=_opt(args, '--hash', 'f64'))
+    R = gpu.Renderer(M, adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)), streaks='--no-streaks' not in args)
     rep = {'adapter': R.info, 'load_s': round(time.time() - t, 3), 'boards': {}}
     for v in views.board_views(M, which, eye_z=eye_z, L=L):
         t = time.time()
@@ -95,10 +95,10 @@ def eevee_times(build):
 
 
 NOTES = [
-    'The hair streaks are measured apart: charkit.shade.hair_toon places them by fract(sin(i k) 43758.5453) of a '
-    'column index in the thousands of radians, which each GPU evaluates differently (NVIDIA scales the argument to '
-    'revolutions in float32 first). Ours evaluates it exactly (gpu.streak_table), so the kept columns differ from EEVEE '
-    'on the T4 as they would between two GPUs running EEVEE.',
+    'The hair streaks are included: charkit.shade.hair_toon keeps its columns by an integer hash of their index '
+    '(Jenkins\' lookup3, Blender\'s White Noise node; toon.wgsl computes the same in u32), the same bits on every GPU '
+    '(Michael\'s call H). "Streaks" gives the difference inside the streak region of either picture (compare.streak_mask); '
+    '"excl. streaks" leaves it out, as the phase 1 table did.',
     'EEVEE dithers its 8-bit output (1 level on about 80% of flat pixels), so a mean difference under 1 level is the floor.',
     'The hair and skin are shaded with normals Blender transfers after the outline, re-sampled at each view\'s moved '
     'surface (p99 1-12 degrees from the export\'s at the body boards\' width); the export carries them at the outline-off '
@@ -166,7 +166,7 @@ def compare_build(args):
     vrm = _vrm_in(build)
     M = model.load(vrm)
     eye_z, L = _head(os.path.join(build, 'bundle'))
-    kw = dict(adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)), hash_mode=_opt(args, '--hash', 'f64'))
+    kw = dict(adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)))
     R = gpu.Renderer(M, **kw)
     R0 = gpu.Renderer(M, streaks=False, **kw)
     pal = compare.palette(M, views.BG)
@@ -178,7 +178,7 @@ def compare_build(args):
     for v in V[:1]:
         R.render(v)                                     # warm: the first frame compiles the pipelines' shaders
     C = {'build': build, 'vrm': vrm, 'adapter': R.info, 'created': time.strftime('%Y-%m-%d %H:%M'),
-         'settings': {'ss': R.ss, 'sigma': R.sigma, 'radius': R.radius, 'hash': R.hash_mode, 'through': R.through,
+         'settings': {'ss': R.ss, 'sigma': R.sigma, 'radius': R.radius, 'hash': 'lookup3', 'through': R.through,
                       'eye_z': eye_z, 'L': L}, 'boards': {}}
     et, batches = eevee_times(build)
     for v in V:
@@ -189,6 +189,7 @@ def compare_build(args):
         base = R0.render(v)
         ex = compare.streak_mask(ref, ours, base, M)
         m = compare.board(ref, ours, pal, views.BG, exclude=ex)
+        m['diff_streaks'] = compare.region_stats(ref, ours, ex)
         files = {'eevee': f'eevee/{v.name}.png', 'ours': f'ours/{v.name}.png', 'diff': f'diff/{v.name}.png'}
         os.makedirs(os.path.join(out, 'eevee'), exist_ok=True)
         shutil.copy(os.path.join(bdir, v.name + '.png'), os.path.join(out, files['eevee']))
@@ -198,8 +199,9 @@ def compare_build(args):
         C['boards'][v.name] = {'res': list(v.res), 'seconds': round(dt, 4), 'eevee_seconds': et.get(v.name),
                                'metrics': m, 'files': files}
         d = m['diff']
-        print(f'{v.name}: max {d["max"]} mean {d["mean"]:.3f} >8 {100 * d["over8"]:.3f}% | excl. streaks mean '
-              f'{m.get("diff_excl", d)["mean"]:.3f} | IoU {m["silhouette"]["iou"]:.4f} | tones '
+        print(f'{v.name}: max {d["max"]} mean {d["mean"]:.3f} >8 {100 * d["over8"]:.3f}% | streaks mean '
+              f'{m["diff_streaks"].get("mean", 0):.3f} >8 {100 * m["diff_streaks"].get("over8", 0):.2f}% | IoU '
+              f'{m["silhouette"]["iou"]:.4f} | tones '
               f'{m.get("tones", {}).get("agree")} | {dt:.3f} s')
     C['eevee_batches'] = batches
     C['speed'] = speed_rows(build, et, batches)

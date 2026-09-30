@@ -7,6 +7,51 @@ import numpy as np
 
 from . import anime_head, body as bodylib, brows as browlib, eyes as eyelib, mouth as mouthlib
 
+# what a spec builds on, declared: there is no default (docs/CHARKIT_HANDOFF.md, decision 7). A spec that left them out
+# used to build MakeHuman's head and body and report success.
+BASES = ('code', 'anime', 'makehuman')          # spec['base']
+BODY_SOURCES = ('code', 'makehuman')            # spec['body']['source']
+
+
+class SpecError(ValueError):
+    """a spec that doesn't declare what it builds on."""
+
+
+def _undeclared(spec, what, got, allowed):
+    return SpecError("spec %r: %s is %s; declare it as one of %s (no default: charkit does not fall back to MakeHuman)"
+                     % (spec.get('name', '?'), what, 'missing' if got is None else 'set to %r' % (got,),
+                        ' | '.join(repr(a) for a in allowed)))
+
+
+def base_of(spec):
+    """spec['base']: 'code' (the head authored from the references, charkit/code_base.py), 'anime' (charkit's derived
+    anime base, charkit/base_anime.py) or 'makehuman' (MakeHuman's own head wrapped). Missing or other: SpecError."""
+    b = spec.get('base')
+    if b not in BASES:
+        raise _undeclared(spec, "'base'", b, BASES)
+    return b
+
+
+def body_source(spec):
+    """spec['body']['source']: 'code' (the authored body fitted to the hull, charkit/code_body.py; base 'code' only) or
+    'makehuman' (MakeHuman's body, charkit/body.py). Missing or other: SpecError."""
+    body = spec.get('body')
+    s = body.get('source') if isinstance(body, dict) else None
+    if s not in BODY_SOURCES:
+        raise _undeclared(spec, "'body.source'", s, BODY_SOURCES)
+    if s == 'code' and base_of(spec) != 'code':
+        raise SpecError("spec %r: body.source 'code' needs base 'code' (base %r would build MakeHuman's body)"
+                        % (spec.get('name', '?'), spec['base']))
+    return s
+
+
+def check_spec(spec):
+    """-> spec, once its base and body source are declared (base_of, body_source); SpecError otherwise. Run where a spec
+    is loaded to build (charkit.cli.resolve, the evaluator), before any build work."""
+    base_of(spec)
+    body_source(spec)
+    return spec
+
 
 def _kept(cache, key, make):
     """make() once per cache key (no cache: every time)."""
@@ -20,18 +65,20 @@ def _kept(cache, key, make):
 def assemble(spec, keys=True, cache=None):
     """numpy assembly: -> dict(verts, faces, fmat (0 body, 1 head), weights {vrm bone: (N,)}, joints, face_w {MakeHuman face
     bone: (N,)}, body (the body data), head info).
-    spec['base']: 'makehuman' (the default): MakeHuman's own head wrapped onto the anime head, its eyes and mouth detected in
-    its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its eyes and mouth
-    from stored labels; 'code': the head authored in code from the references on MakeHuman's body (charkit/code_base.py),
-    or on the authored body when spec['body']['source'] is 'code' (charkit/code_body.py),
-    its eyes and mouth from its own loops. keys=False leaves out the shape keys (the rest pose only); cache: an optional dict that keeps the body
-    and the wrap's knob-independent part between calls (charkit.faceeval: one body, many head knob sets)."""
+    spec['base'] (required, base_of): 'makehuman': MakeHuman's own head wrapped onto the anime head, its eyes and mouth
+    detected in its topology; 'anime': charkit's derived anime base (charkit/base_anime.py), re-wrapped to the knobs, its
+    eyes and mouth from stored labels; 'code': the head authored in code from the references on MakeHuman's body
+    (charkit/code_base.py), or on the authored body when spec['body']['source'] (required, body_source) is 'code'
+    (charkit/code_body.py), its eyes and mouth from its own loops. keys=False leaves out the shape keys (the rest pose
+    only); cache: an optional dict that keeps the body and the wrap's knob-independent part between calls
+    (charkit.faceeval: one body, many head knob sets)."""
     import json as _json
-    anime = spec.get('base', 'makehuman') in ('anime', 'code')            # a derived base: labels, not detection
-    code = spec.get('base', 'makehuman') == 'code'
+    base = base_of(spec)
+    anime = base in ('anime', 'code')                                     # a derived base: labels, not detection
+    code = base == 'code'
     bkey = _json.dumps(spec.get('body'), sort_keys=True)
     body = cache.get(('body', bkey)) if cache is not None else None
-    authored = code and (spec.get('body') or {}).get('source') == 'code'
+    authored = body_source(spec) == 'code'
     if body is None and authored:
         # the authored body fitted to the hull (charkit.code_body), its eye line where the code head's chin puts it
         from . import code_base, code_body

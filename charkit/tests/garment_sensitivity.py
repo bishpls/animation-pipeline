@@ -109,17 +109,17 @@ def checks(E, G):
 
 
 def run(spec_path, source, faces, remesh_file, body, cache):
-    from charkit import bodyeval, code_base, garments as gm
+    from charkit import bodyeval, character, code_base, garments as gm
     os.makedirs(cache, exist_ok=True)
-    spec = bodyeval.resolve(spec_path)
+    spec = bodyeval.resolve(spec_path, check=True)
     hdir = hull_dir(spec)
-    code = spec.get('base') == 'code'
+    code = character.base_of(spec) == 'code'
     if code:
         hc = os.path.join(cache, 'head_code.npz')
         if not os.path.exists(hc):
             code_base.save_head(spec, hc)
         spec['head_code'] = hc
-    code_body = (spec.get('body') or {}).get('source') == 'code'
+    code_body = character.body_source(spec) == 'code'
     names = [('det', f) for f in faces] + ([('remesh', faces[0])] if remesh_file else [])
     res, E, orig = {}, None, gm.hull_pieces
     for tag, f in names:

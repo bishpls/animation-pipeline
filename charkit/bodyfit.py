@@ -552,7 +552,7 @@ def probe(spec, out, base=None, workers=None, outfit=True, draft=True, hold=HOLD
     from . import bodyeval, bodymeasure, fitters
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
-    spec = bodyeval.resolve(spec, base) if isinstance(spec, str) else copy.deepcopy(spec)
+    spec = bodyeval.resolve(spec, base, check=True) if isinstance(spec, str) else copy.deepcopy(spec)
     graph = bodymeasure.load_graph(spec) if outfit else None
     authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
     pool = fitkit.Pool('charkit.bodyfit:BodyChecks', (spec, graph), workers or WORKERS)
@@ -582,7 +582,7 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=SCHEDULE, baseli
     from . import bodyeval, bodymeasure
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
-    spec = bodyeval.resolve(spec, base) if isinstance(spec, str) else copy.deepcopy(spec)
+    spec = bodyeval.resolve(spec, base, check=True) if isinstance(spec, str) else copy.deepcopy(spec)
     graph = bodymeasure.load_graph(spec) if outfit else None
     authority = dict(AUTHORITY); authority.update((spec.get('ref') or {}).get('authority') or {})
     workers = workers or WORKERS

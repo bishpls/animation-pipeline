@@ -105,7 +105,7 @@ def main(args):
         meshes, _ = qa3d.scene_classes(b)
         V, T_, _, _ = b.skin().mesh('masked')
         O = fr.ours_jaw(meshes, (V, T_), qa3d.iris_centres(b), float(b.assembly['eye_z']), float(b.assembly['L']), ppl,
-                        az, D['front'].get('chin', (0, None))[1], z0)[0]
+                        az, D['front'].get('chin', (0, None))[1], z0, design_tq_top=Dt['three_quarter'].get('top'))[0]
         Mc.append({vn: O[vn].get('taper') for vn in ('front', 'three_quarter')})
     save = lambda im, name: (im.save(os.path.join(img, name)), 'img/' + name)[1]
     charts(Dt, Mc, labels, os.path.join(img, 'curves.png'))

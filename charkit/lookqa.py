@@ -91,12 +91,30 @@ def _scene(B, skin_outline=False, line_scale=None):
 
 
 def _scaled(B, o, variant, line_scale):
+    """an object's surfaces with its outline k x its build width (line_scale): the surface moved inward by
+    inward(k w0) and the hull the rest of the width outward (charkit.shade.line_inward: a thin shell's cap), from the
+    build's shrink (inward(w0) along the hull direction)."""
     from . import qa3d
     S = qa3d.surfaces(B, o, variant)
     k = (line_scale or {}).get(o.name)
     sh = o.a(variant, 'shrink')
     if k is not None and sh is not None and not S[0]['hull']:
-        S[0] = dict(S[0], V=o.a(variant, 'V') + sh * k, line_k=k)       # (line_k: the render drawing's width)
+        w0 = abs(float(o.outline.get('thickness') or 0.0))
+        off = float(o.outline.get('offset', 1.0))
+        c0 = w0 * (1 + off) / 2                                  # the build width's inward move
+        cap = o.outline.get('cap')
+        if cap is None and c0 < w0 - 1e-9:                      # capped at the build width (a bundle without 'cap')
+            cap = c0
+        c1 = min(k * w0, cap) if cap else k * w0
+        V = o.a(variant, 'V')
+        # (line_k: the render drawing's width; the renderer applies the cap itself, toon.wgsl's inward())
+        if c0 > 0:
+            S[0] = dict(S[0], V=V + sh * (c1 / c0), line_k=k)
+            for i in range(1, len(S)):
+                if S[i]['hull']:
+                    S[i] = dict(S[i], V=V - sh * ((k * w0 - c1) / c0))
+        else:
+            S[0] = dict(S[0], V=V + sh * k, line_k=k)
     return S
 
 

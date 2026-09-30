@@ -5,6 +5,154 @@ preview after every merge, self-registering QA parts and measurement steps, the 
 standing evaluator-against-box drift test. Worktree `~/animation-pipeline-infra`, branch `tool/infra` from
 pipeline-3d 9397578.
 
+## Round 2 (tool/infra2, 2026-09-30): state and next steps (read first when resuming)
+
+Worktree `~/animation-pipeline-infra2`, branch `tool/infra2` from pipeline-3d cfcdc3a. Checkpointed at the
+coordinator's call (usage limit): tasks 1-3 done and tested, (b) measured, (c) located; (a) not started.
+
+**Task 1: box jobs survive dropped connections (`charkit/boxjob.py`, `charkit/remote.py`).**
+- `remote build | tune | run | gate` send the job to the box and follow it. The box keeps it in `/srv/work/.jobs/<jid>/`:
+  `run.sh`, `meta.json`, the job's own `boxjob.py` and `bucketsync.py`, `claim` (O_EXCL: a retried start never runs it
+  twice), `pid` (a setsid supervisor that no ssh session owns; the job in its own process group), `log`, `exit`.
+- The laptop follows with `boxjob.py follow JID OFFSET`: framed chunks (`D n`, a heartbeat `H` every 15 s, `E rc`). After
+  a drop (ssh exits, or no frame for 75 s) it reattaches at the last byte delivered, 3 s after a working connection
+  drops, with backoff up to 60 s otherwise. It gives up only after 45 min without a connection (exit 75, the job goes on),
+  says "lost" if the box stopped (exit 70), and propagates the job's exit code.
+- `remote jobs [--days N]` lists every box's jobs; `remote attach JID` follows a job again from byte 0 and collects its
+  outputs (the local record in `charkit/out/remote/jobs/<jid>.json` says what and where); `remote kill JID` SIGTERMs
+  the job's process group and descendants only. Ctrl-C stops following and leaves the job running (it says so).
+- Setup steps that are safe to repeat (sync, push, pull, keepalive, the gate's ref list and i3d seed) retry on ssh's own
+  failure (exit 255). The gate's ref list no longer reads a failed ssh as "the box has nothing" (that bundle would be
+  the whole 1.8 GB history). The gate's i3d seed is now idempotent (links under a temporary name, renamed).
+- Jobs run with PYTHONUNBUFFERED=1, so the log streams. The supervisor's command line names charkit, so the build
+  box's idle stop counts a running job as busy; past 60 min it touches the keepalive every 30 min (the render box's idle
+  check has no pgrep).
+- **Rollout.** Nothing on the box changed for old clients: their in-session gates and builds ran alongside all of this.
+  A worktree gets detached jobs when it merges pipeline-3d after this; `CHARKIT_DETACH=0` keeps the in-session path.
+- **The demonstration** (build box at load 33-55; `remote build charkit/spec/clawd.json`, job
+  build-infra2-0930-050445-7dfa):
+  - drop 1 at 05:07:04: SIGKILL to the follow's ssh -> "the connection to the box dropped (ssh exit -9) ... reattaching
+    in 3 s";
+  - drop 2 at 05:08:32: SIGKILL to its IAP tunnel process (gcloud start-iap-tunnel, the ssh's ProxyCommand) -> "ssh
+    exit 255: client_loop: send disconnect: Broken pipe", the reported failure;
+  - the job ran on and finished; the command reported "followed to its end through 2 dropped connections", pulled its
+    outputs (36 files, 44.65 MB, 4.4 s) and exited 0.
+  - The laptop command itself killed (SIGKILL at 05:14:10, exit 137) mid-way through a clawd_mh build: the job went
+    on; `remote attach build-infra2-0930-051014-2445` followed it from byte 0 to its end, pulled 34 files (40.45 MB,
+    2.9 s) into charkit/out/mhdet1 and exited 0.
+  - Exit codes: `remote run kill /nonexistent` exits 1 through the detached path; builds exit 0.
+- Tests: `test_boxjob` (runs once however often started; log whole and in order from any offset; frames across split
+  reads; lost; kill; `remote.attach` over a connection that drops every 700 bytes gets the whole log once with the
+  exit code; the sampler; the summary), `test_procs` (the wait log). Run on the laptop and on the box's Linux Python.
+
+**Task 2: box load (`boxjob.py sample`, `charkit/boxload.py`).**
+- A user crontab line (installed by the first job on a box; its command line doesn't name charkit, so it never keeps a
+  box awake) samples once a minute into `/srv/work/.load/load-<UTC day>.jsonl`: 1/5/15-min load; CPU busy, user,
+  system, iowait, steal since the last sample; CPU by process class (charkit build, qa, gate, ...; Blender; other: from
+  /proc/PID/stat); memory; the slots (count, holders from /proc/locks, without touching the locks); builds waiting for a
+  slot; running jobs; GPU where nvidia-smi exists; free disk. A job's supervisor publishes `/srv/work/.load` to the
+  bucket as `load-<VM>` when the job ends.
+- `charkit.procs.acquire_slot` now writes `slots/wait/<pid>.json` while waiting and a line per slot taken in
+  `slots/waits.jsonl` (the wait, and what for). Builds record these once their code has this (gates: after the merge).
+- `remote load [--hours N] [--box NAME] [--fresh] [--json]` summarises per box, with an hourly table and a reading.
+- **The sampler runs on the build box since 09:03 UTC**; the render box gets it with its first detached job (none yet).
+  **The first 15 minutes** (09:03-09:16 UTC): CPU busy mean 63%, median 66%, p90 84%; load mean 32.6, p90 45.6, peak
+  54.6 on 32 vCPU, above 32 in 53% of minutes; memory at most 80 of 126 GB used, never under 46 GB available;
+  **8.3 `charkit build` processes at once on average (max 10) against 1.3 slots held (max 4 of 8)**; CPU by class:
+  charkit build 42%, Blender 4%, charkit qa 3%.
+- **The finding that matters for the capacity call:** a build takes a slot only for its Blender step. Its Python stages
+  (the hull, garments, QA) run outside the slots, and on the build box, where boards are skipped, they are most of the
+  CPU. So SLOTS doesn't bound the box's load: raising or lowering it changes little. What bounds it is how many builds
+  the agents start. Next: let a day of samples accumulate (the render box too), then `remote load --hours 24`. If the
+  CPU is saturated at peaks while builds queue on cores, a bigger machine or a second box adds throughput; a machine-wide
+  cap on concurrent builds (a slot for the whole build, not only Blender) would turn overload into a visible queue.
+  SLOTS left at 8: the data doesn't support a change.
+- Caveats: CPU by class counts processes alive at a sample (short-lived ones are missed: about 13 points of the 63% in
+  the first window); `procs.available_gb` reads macOS's vm_stat only, so the box never waits for memory.
+
+**Task 3: click-to-flag on the preview page (`charkit/flags.py`, `charkit/flagui.js`).**
+- **Michael starts it** in the worktree whose previews he reviews (pipeline-3d's, after the merge):
+  `python -m charkit preview serve --open` (port 8765; `--port N`), then presses F (or Flag) on a page and clicks a
+  point or drags a box; severity 0 praise / 1 minor / 2 clear / 3 severe (keys 0-3), a note, Cmd-Enter. A marker's
+  click edits or deletes it. List shows the page's flags. It serves 127.0.0.1 only, from the standard library.
+- Flags go to `charkit/out/previews/flags.jsonl` (the live flags, one per line) and `flags.log.jsonl` (every add,
+  edit, delete). Fields: id, t, edited, sha, short, image (the picture clicked), px / box in its pixels, board, view,
+  az, board_px / board_box in the board's pixels, part, region (the class: skin, hair, white, orange, line, ...), parts
+  (a box's shares), part_source, severity, severity_name, note.
+- A flag is anchored on its board through the crops' maps (`preview.crops` records each crop's map in crops.json; for a
+  page made before, `flags.crop_maps` works them out once from the stored boards and keeps page/maps.json). It shows on
+  every picture of that board: the page's crop, the raw board (`/view?src=...`, linked from `/<sha>/boards/`).
+- **The part** comes from an ID pass: the build's bundle drawn in the board's projection with the QA's z-buffer
+  (`qa3d.scene_objects`), cached in page/id_<board>.npz (about 5 s the first time). The body boards (orthographic,
+  1.12 H across 1000 px round (0, 0, 0.52 H)) and the design boards (orthographic, 2.4 L across round the head) have
+  exact projections. Measured on preview 3bc7b86 against each board's rendered silhouette: design boards IoU
+  0.993-0.996, no shift; body boards 0.983-0.986 without the white boots (the silhouette detector misses white on the
+  near-white background; with them 0.90-0.93), bounding boxes within 1-2 px. The rest is the outline shell outside the
+  mesh. **The part is null, with the reason in part_source,** for the perspective face_* boards, the design's own
+  pictures, QA overlays and sheets, and previews whose bundle was pruned (only the newest 4 keep one).
+- The page still works opened as a file: it shows a note that flags need the server. The server adds the script to
+  pages made before this; `preview.page` now includes it and copies flagui.js to previews/flags.js.
+- Tests: `test_flags` (a board mark lands where the crop's map says, for figure and head crops; add, edit, delete,
+  the log; a flag shows on the board's other pictures; the null-part reasons; the HTTP API). The UI was driven end to
+  end in headless Chrome over the DevTools protocol (F, drag a box, severity 3, note, save: part "skirt"; click the
+  marker, edit, save). The driver script was a one-off (scratchpad).
+- Test data: this worktree's charkit/out/previews holds copies of 3bc7b86 and cfcdc3a and a few test flags (ignored
+  files; delete freely).
+
+**The hook's git environment (the coordinator's bug, fixed here).** Git exports GIT_DIR, GIT_INDEX_FILE and more to a
+hook's processes, and a git command run with them acts on the hooked repository whatever its cwd: the post-merge
+preview's `checkout -f --detach` detached pipeline-3d's HEAD. Now `preview._git` and the preview's build child run
+without them, `preview.main` drops them from its own environment (the box sync lists files with git too), and the hook
+script unsets them. `test_preview.test_the_hooks_preview_never_touches_the_hooked_worktree` merges in a throwaway
+repo whose hook's stub runs a forced detached checkout in a second worktree through `preview._git` with GIT_DIR set:
+the hooked worktree stays on main at the merge (the old `_git` detaches it: checked). The hook stays uninstalled
+(the integrator reinstalls it after the merge).
+
+**(b) ssh multiplexing: measured, not adopted.** Over IAP to the build box: a plain ssh median 1.24 s (1.05-1.58, 8
+runs); with ControlMaster, 1.39 s for the master, then 0.10 s median (0.08-0.13). But killing the master took the
+session riding it down (exit 255), which fails the brief's condition. With detached jobs and the retries above, a
+shared drop now costs a 3 s reattach, not a job, so it's worth reconsidering (about 4 ssh per remote build: ~4.5 s).
+The control socket path must be short (macOS limit 104 bytes: `~/.ssh/cm/%C`).
+
+**(c) The masked skin's nondeterminism: located, not yet fixed.**
+- The coordinator's data point (tool/artifacts f87620c into cfcdc3a, clawd_mh: "knobs hair changed", 2 arrays
+  changed) has two separate causes:
+  1. **"knobs hair changed" and the spec_hash** are a path, not content. The resolved spec's `hair.shape.pieces` is an
+     absolute path into the build's own output (`/srv/work/gates/<gate id>/charkit/out/gate/<build>/geom/hair_pieces`),
+     and trace.py hashes the whole hair section. Base and candidate always differ there. Fix: resolve it relative to
+     the build's out dir, or leave output paths out of the knob hash (trace.STAGE_KEYS / the spec resolution; check
+     whether the hair stage's cache key includes it too: then gates never reuse the baseline's hair).
+  2. **The 2 arrays** are `o/clawd_skin/masked/V` (15 of 39393 vertices, at most 1.19e-7 m: one float32 ulp) and
+     `masked/shrink` (13 rows, at most 1.5e-8). The `eval` variant, the same skin without the garment MASK modifier, is
+     bit-identical. So the difference is in Blender's evaluation of the masked skin (bundle.py reads it with every
+     shown modifier but the outline and proxy normals; the MASK `under_garments` is first in the stack).
+- **Next step (not run: no new experiments at the checkpoint):** open a clawd_mh build's blend on the build box
+  (`/srv/work/animation-pipeline-infra2/charkit/out/mhdet1/clawd.blend`, or any clawd_mh build's) and, in one Blender
+  process, read the masked skin 6 times, each after a fresh evaluation (all modifiers off, update, the bundle's set on,
+  `evaluated_get(dg).to_mesh()`), then with each modifier after the mask turned off. Varies within a process: bisect to
+  the modifier and try `-t 1`. Identical within a process but not across: compare two processes' saves, with
+  PYTHONHASHSEED fixed and with `-t 1`. The fix is then either that modifier's settings or rounding the masked read
+  (e.g. to 1e-6 m) where the bundle stores it.
+
+**Round 2 gates** (build box, through the detached path):
+- default spec: **PASS**, `gate_tool-infra2_01a48e3_into_00a29b4.md`: 48 test files ok (test_boxjob, test_flags and
+  test_preview's hook test among them, on the box's Linux Python), no check changed, no 2x2 needed. Its trace shows
+  "knobs hair changed" and a spec_hash change: the resolved spec's absolute hair_pieces path ((c) cause 1), not content.
+- 01a48e3 is 9d73108 merged with pipeline-3d deb2e02; the only conflict was charkit/cli.py's usage lines (both kept).
+  A first gate of 933efc8 was stopped with `remote kill` (it would have hit that conflict): its command exited 143,
+  the job's own exit code. A killed gate skips its cleanup, so it leaves its clone in /srv/work/gates (a trap in the
+  gate step would fix this).
+- tool/infra2 merges cleanly into pipeline-3d 71c647f (tool/artifacts merged since).
+- **Not run:** the `--spec charkit/spec/clawd_mh.json` gate (no new gates at the checkpoint).
+
+**Next steps (a lean relaunch):**
+1. Gate `--spec charkit/spec/clawd_mh.json` (the default spec's gate PASSed); merge pipeline-3d first if it moved.
+2. (c): the probe above, then the fix; and the hair path in the resolved spec (with its owner).
+3. (a) bucket GC: list `cas/m/*` manifests and `cas/n/*` names, keep what the last N days' manifests reference, dry
+   run first (count and bytes), then delete; the bucket's soft delete keeps deletes 7 days.
+4. After a day of samples: `remote load --hours 24` for both boxes, and the capacity note for Michael.
+5. Old job dirs prune after 14 days, load logs after 60.
+
 ## 1. The combined preview after a merge: `python -m charkit preview`
 
 - `python -m charkit preview [REF]` (default HEAD) builds REF on the render box with boards `views,body,design` in its
