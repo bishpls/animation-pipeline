@@ -184,14 +184,14 @@ def _interval(P2, F, t, px, py, ex, ey):
 @nb.njit(cache=True)
 def _crossings(P2, F, start, tris, cov, vis, W, H):
     """the contour points: for every visible pixel p beside a pixel q no triangle covers, where the union of the
-    triangles over p and q ends along the segment from p's centre to q's. -> (n, 4) float rows (x, y (the point),
-    triangle, edge) and the edge's global vertex ids (n, 2)."""
+    triangles over p and q ends along the segment from p's centre to q's. -> (n, 7) float rows (x, y (the point),
+    triangle, edge, dx, dy (the segment's direction), t (how far along it from p)) and the edge's vertex ids (n, 2)."""
     cap = 0
     for y in range(H):
         for x in range(W):
             if vis[y, x]:
                 cap += 4
-    out = np.empty((cap, 4))
+    out = np.empty((cap, 7))
     ev = np.empty((cap, 2), np.int64)
     n = 0
     A = np.empty(512); B = np.empty(512); T = np.empty(512, np.int64); K = np.empty(512, np.int64)
@@ -230,6 +230,7 @@ def _crossings(P2, F, start, tris, cov, vis, W, H):
                 if cur >= 1.0 - 1e-9:
                     continue
                 out[n, 0] = px + cur * dx; out[n, 1] = py + cur * dy; out[n, 2] = bt; out[n, 3] = bk
+                out[n, 4] = dx; out[n, 5] = dy; out[n, 6] = cur
                 ev[n, 0] = F[bt, bk]; ev[n, 1] = F[bt, (bk + 1) % 3]
                 n += 1
     return out[:n], ev[:n]
@@ -451,8 +452,78 @@ def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, sof
     t3 = time.time()
     return Silhouette(V=V, F=F, view=view, box=(y0, y1, x0, x1), s=float(s), kernel=kernel, P2=P2, depth=dep,
                       zbuf=zb, face=fb, cov_hard=cov, hard=vis, vis_soft=vis_soft, cov=Fs * vis_soft, EA=EA, EB=EB,
-                      U0=U0, U1=U1, dmin=dmin, eid=eid, ucl=ucl, contour=X,
+                      U0=U0, U1=U1, dmin=dmin, eid=eid, ucl=ucl, contour=X, contour_edges=ev,
                       seconds={'raster': t1 - t0, 'contour': t2 - t1, 'field': t3 - t2})
+
+
+class Outline:
+    """a drawn mask's outline, for chamfer(): its outline pixels' centres Q (whole-view px) and the distance transform
+    of the outline (px), sampled bilinearly."""
+
+    def __init__(self, mask):
+        from scipy import ndimage
+        m = np.asarray(mask, bool)
+        edge = m & ~ndimage.binary_erosion(m, border_value=0)
+        self.Q = np.stack(np.nonzero(edge)[::-1], 1).astype(float) + 0.5          # (x, y) centres
+        self.dt = ndimage.distance_transform_edt(~edge) if edge.any() else np.full(m.shape, np.inf)
+        self.shape = m.shape
+
+    def sample(self, P):
+        """the distance transform and its gradient at whole-view points P (n, 2), bilinear."""
+        H, W = self.shape
+        x = np.clip(P[:, 0] - 0.5, 0, W - 1.001); y = np.clip(P[:, 1] - 0.5, 0, H - 1.001)
+        i, j = np.floor(y).astype(int), np.floor(x).astype(int)
+        fy, fx = y - i, x - j
+
+        a = self.dt
+        v00, v01, v10, v11 = a[i, j], a[i, j + 1], a[i + 1, j], a[i + 1, j + 1]
+        val = v00 * (1 - fx) * (1 - fy) + v01 * fx * (1 - fy) + v10 * (1 - fx) * fy + v11 * fx * fy
+        gx = (v01 - v00) * (1 - fy) + (v11 - v10) * fy                  # the bilinear interpolant's own derivative
+        gy = (v10 - v00) * (1 - fx) + (v11 - v01) * fx
+        return val, np.stack([gx, gy], 1)
+
+
+def chamfer(S, target):
+    """the symmetric chamfer distance (px) between S's visible contour (its contour points: one per covered / uncovered
+    pixel pair, on the pixel segment between their centres) and a drawn Outline: the mean over our points of the
+    distance to the drawn outline, plus the mean over the drawn outline's points of the distance to our nearest point.
+    Unlike an IoU it has a gradient where the two don't overlap. Each contour point slides along its pixel segment as
+    its edge moves (t = cross(A - p, B - A) / cross(e, B - A)), which is the derivative of what is computed.
+    -> (value px (None when S shows no contour), backward(scale) -> d(scale * value)/dV (N, 3))."""
+    from scipy.spatial import cKDTree
+    X = S.contour
+    if not len(X) or not len(target.Q):
+        return None, lambda scale=1.0: np.zeros_like(S.V)
+    y0, _, x0, _ = S.box
+    Xw = X[:, :2] + np.array([x0, y0], float)
+    a, ga = target.sample(Xw)
+    d, k = cKDTree(Xw).query(target.Q)
+    val = float(a.mean() + d.mean())
+
+    def backward(scale=1.0):
+        gX = ga / len(Xw)
+        v = Xw[k] - target.Q
+        np.add.at(gX, k, v / np.maximum(1e-9, d)[:, None] / len(target.Q))
+        gX *= scale
+        e = X[:, 4:6]; t = X[:, 6]
+        p = X[:, :2] - t[:, None] * e
+        A, B = S.P2[S.contour_edges[:, 0]], S.P2[S.contour_edges[:, 1]]
+        dd = B - A; aa = A - p
+        n = e[:, 0] * dd[:, 1] - e[:, 1] * dd[:, 0]
+        m = aa[:, 0] * dd[:, 1] - aa[:, 1] * dd[:, 0]
+        ok = np.abs(n) > 1e-12
+        n = np.where(ok, n, 1.0)
+        dm_A = np.stack([dd[:, 1] + aa[:, 1], -aa[:, 0] - dd[:, 0]], 1)
+        dm_B = np.stack([-aa[:, 1], aa[:, 0]], 1)
+        dn_A = np.stack([e[:, 1], -e[:, 0]], 1)
+        dt_A = (dm_A * n[:, None] - m[:, None] * dn_A) / n[:, None] ** 2
+        dt_B = (dm_B * n[:, None] + m[:, None] * dn_A) / n[:, None] ** 2
+        s_ = np.where(ok, (gX * e).sum(1), 0.0)                # d value / d t
+        g2 = np.zeros((len(S.P2), 2))
+        np.add.at(g2, S.contour_edges[:, 0], s_[:, None] * dt_A)
+        np.add.at(g2, S.contour_edges[:, 1], s_[:, None] * dt_B)
+        return S.view.pullback(S.V, g2)
+    return val, backward
 
 
 def soft_iou(cov, mask, weight=None):

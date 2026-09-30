@@ -124,6 +124,33 @@ def test_gradient_perspective():
     assert cos > 0.9999 and med < 1e-4 and p95 < 1e-2
 
 
+def test_chamfer_gradient():
+    """the outline chamfer (softras.chamfer) against central differences, the panel against an ellipse it overlaps and
+    against one it doesn't touch (where the IoU has no gradient): the chamfer still pulls."""
+    V, F = sheet()
+    view = softras.SheetView(30.0, (0.0, 0.0), 1.0, 0.01, WIN)
+    for name, mask in (('overlapping', ellipse(view.shape, 85, 78, 30, 55)), ('apart', ellipse(view.shape, 30, 30, 12, 12))):
+        T = softras.Outline(mask)
+        S = softras.silhouette(V, F, view, s=0.5)
+        val, back = softras.chamfer(S, T)
+        G = back()
+        if name == 'apart':
+            assert S.iou(mask)[0] == 0 and np.abs(S.backward(-S.iou(mask)[1])).max() == 0
+        idx = np.argsort(-np.abs(G).ravel())[:30]
+        a, f = [], []
+        for kk in idx:
+            i, c = divmod(int(kk), 3)
+            Vp, Vm = V.copy(), V.copy(); Vp[i, c] += 1e-7; Vm[i, c] -= 1e-7
+            fp = softras.chamfer(softras.silhouette(Vp, F, view, s=0.5), T)[0]
+            fm = softras.chamfer(softras.silhouette(Vm, F, view, s=0.5), T)[0]
+            a.append(G[i, c]); f.append((fp - fm) / 2e-7)
+        a, f = np.array(a), np.array(f)
+        rel = np.abs(a - f) / np.maximum(np.abs(a), np.abs(f))
+        print('  chamfer %s: %.2f px; gradient against differences: median relative error %.1e, max %.1e' %
+              (name, val, np.median(rel), rel.max()))
+        assert np.median(rel) < 1e-4 and np.linalg.norm(G) > 0
+
+
 def test_converges_to_hard():
     """as s -> 0 the soft coverage is the hard one (the QA's raster at pixel centres): the summed difference shrinks
     with s, and past the contour band nothing differs at all."""
