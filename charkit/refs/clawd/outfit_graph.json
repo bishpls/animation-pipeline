@@ -4958,10 +4958,10 @@
    "piece": "overskirt_panel_R",
    "motion": "spring",
    "root_bone": "hips",
-   "length": 2.137,
+   "length": 1.862,
    "chains": [
     {
-     "joints": [[0.069, 0.36, -1.406], [-0.683, 1.008, -2.545], [-0.71, 1.029, -2.665], [-0.737, 1.05, -2.786], [-0.764, 1.071, -2.906], [-0.791, 1.092, -3.026], [-0.818, 1.113, -3.147]],
+     "joints": [[-0.205, 0.302, -1.427], [-0.782, 0.756, -2.481], [-0.793, 0.759, -2.596], [-0.804, 0.762, -2.711], [-0.814, 0.764, -2.826], [-0.825, 0.767, -2.941], [-0.836, 0.77, -3.056]],
      "root": "at waistband",
      "source": "notes (the built flap)",
      "bones": ["overskirt_panel_R_0", "overskirt_panel_R_1", "overskirt_panel_R_2", "overskirt_panel_R_3", "overskirt_panel_R_4", "overskirt_panel_R_5"]
@@ -4985,10 +4985,10 @@
    "piece": "overskirt_panel_L",
    "motion": "spring",
    "root_bone": "hips",
-   "length": 1.91,
+   "length": 1.862,
    "chains": [
     {
-     "joints": [[0.226, 0.302, -1.427], [0.803, 0.756, -2.481], [0.815, 0.759, -2.605], [0.827, 0.762, -2.73], [0.838, 0.765, -2.854], [0.85, 0.768, -2.979], [0.862, 0.771, -3.104]],
+     "joints": [[0.226, 0.302, -1.427], [0.803, 0.756, -2.481], [0.814, 0.759, -2.596], [0.825, 0.762, -2.711], [0.836, 0.764, -2.826], [0.846, 0.767, -2.941], [0.857, 0.77, -3.056]],
      "root": "at waistband",
      "source": "notes (the built flap)",
      "bones": ["overskirt_panel_L_0", "overskirt_panel_L_1", "overskirt_panel_L_2", "overskirt_panel_L_3", "overskirt_panel_L_4", "overskirt_panel_L_5"]

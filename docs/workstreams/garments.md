@@ -1,5 +1,13 @@
 # Garments as pieces (tool/garments)
 
+## Round 5 in progress (2026-09-30)
+
+Michael's review of round 4: the midriff sliced and shifted, the boots twisted with no heel. Done so far (tool/body):
+the measures (`charkit/detailqa.py`, QA part `details`, 30 checks, registered at 843922c; round 4 reads 18 FAIL,
+8 WARN), the boots as a template (`garments.boot`), the midriff (`ease_to_band`, `belt_hull` straight, the texture
+panel), the right flap as the left's mirror (`flap_mirror`), chains rewritten (flapchains). Next: the box build and
+render, the gates, the review page, this checkpoint.
+
 ## Checkpoint: end of round 4 (2026-09-30). Start here.
 
 **Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`); it contains `pipeline-3d` f2d0ea7 (the sync
