@@ -65,7 +65,7 @@ def assemble(spec, keys=True, cache=None):
                                                 detail=spec.get('head_detail'), eye_w=eye_w, lips_w=lips_w, wings_w=wings_w,
                                                 prep=prep)
     # the eyes: the margins onto the anime outline, the lids and pockets after them; plates, lashes and lid keys
-    EK = eyelib._knobs(spec.get('eyes'))
+    EK = eyelib.knobs(spec)
     F = eyelib.Face(H, centre)
     eyes = []
     for side, s_ in ((1, 'l'), (-1, 'r')):
@@ -75,8 +75,7 @@ def assemble(spec, keys=True, cache=None):
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
     gaze = {'look_left': (0.13, 0.0), 'look_right': (-0.13, 0.0), 'look_up': (0.0, 0.07), 'look_down': (0.0, -0.06)}
-    from .eyetex import _knobs as iris_knobs
-    conv = iris_knobs(spec.get('iris'))['converge']
+    conv = EK['iris'][3]                                  # (the spec's iris convergence, or the style's: eyes.knobs)
     for E in eyes:
         sd, c = E['side'], E['c']
         W = EK['width'] * L

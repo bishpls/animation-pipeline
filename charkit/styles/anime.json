@@ -97,5 +97,20 @@
    0.12,
    0.3
   ]
+ },
+ "_note_eyes": "eyes: the eye's surface turned round a fold at the iris's nasal edge (charkit.eyes.Surface; docs/workstreams/eyes2.md). The head sheet's eyes, measured per view by charkit.eyeqa (eye_view_*): in profile the iris sits against the opening's front edge (front_gap 0.000), all the white behind it (behind 1.00); in three-quarter the near eye's nasal white narrows (front_gap 0.069 against the front's 0.09) and the far eye's widens (0.158). A plate on the face can't: every view sees its whole opening (profile front_gap 0.188, behind 0.00; three-quarter 0.179). turn [-5, 10, 45]: the profile's iris 0.053 L wide against the design's 0.040, its opening 0.080 against 0.090 (a flatter iris region [-5, 5, 52] reads 0.048 / 0.083 but moves the far eye's three-quarter iris the wrong way); anchor 'corners' (the corners on the face, the middle up to 0.027 L forward: faceregion's eye_hollow 0.016 -> 0.012, eye_bowl unchanged) against 'min' (the corners 0.03-0.05 L back behind the face: eye_hollow 0.029-0.046, the far eye's nasal white hidden in three-quarter); fold_follow 1 (edge_rms 0.017 against the design's 0.021; 0 reads 0.006 and brings the upper lid 0.01 L further forward). converge 0.09: the head sheet converges the irises 0.087-0.088 of the opening in front (gaze_off; ours 0.064).",
+ "eyes": {
+  "surface": "turned",
+  "turn": [
+   -5.0,
+   10.0,
+   45.0
+  ],
+  "fold_at": 0.0,
+  "fold_soft": 0.03,
+  "fold_reach": 0.035,
+  "fold_follow": 1.0,
+  "anchor": "corners",
+  "converge": 0.09
  }
 }

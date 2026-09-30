@@ -36,6 +36,23 @@ DEFAULT_EYE = {
     'lower_lash_w': 0.36,  # lower lash thickness (share of the upper)
     'crease': 0.10,      # the double-lid crease line above the lash, in widths (0 = none)
     'crease_w': 0.004,   # its thickness, in L
+    # the eye's surface behind its opening (Surface; the style profile's `eyes` section sets it): 'plate' lies on the
+    # face `depth` behind it; 'turned' bends it round a vertical fold at the iris's nasal edge, the lids, lashes, pocket
+    # and the skin round the opening following it, every (x, z) kept (the front view is the plate's)
+    'surface': 'plate',
+    'turn': (-5.0, 10.0, 45.0),   # 'turned': the surface's angle from facing front (degrees, + toward the eye's own
+                                  # side) nasal of the fold, just past it, and at the outer corner (linear between)
+    'fold_at': 0.0,      # the fold from the iris's nasal edge, in eye widths (+ outward)
+    'fold_soft': 0.03,   # the fold's rounding, half-width in eye widths
+    'fold_reach': 0.035, # L: how far outside the opening the skin follows the surface (fading to the face's own)
+    'fold_follow': 0.0,  # each row's fold at one depth (0: the profile's front edge upright) or at the face's depth
+                         # there (1: the edge follows the iris's outline as the face recedes)
+    'anchor': 'min',     # the surface's depth: 'min' never in front of `depth`; 'mean' its mean over the opening
+                         # there; 'corners' the opening's two corners there (their mean); 'fold' the fold there
+    'converge': 0.0,     # the irises' rest place toward the nose (eye widths) when the spec's iris doesn't set it
+    'iris': (0.285, 0.54, -0.01, 0.0),  # the iris at rest: half-width, half-height, centre height and convergence, in
+                                        # eye widths (knobs() takes them from the iris knobs): the fold follows its
+                                        # nasal outline, the plates are laid with it
 }
 
 RINGS = 6                                   # outer lid rings that can follow the margin (spread() decides how far)
@@ -132,6 +149,23 @@ def _knobs(k):
     return K
 
 
+def knobs(spec):
+    """a spec's eye knobs: DEFAULT_EYE, the style profile's `eyes` section (charkit/styles), the spec's own `eyes`; the
+    iris's nasal edge from its knobs (charkit.eyetex: half-width and convergence). The eye surface bends only on a base
+    whose eye loops the lids ride (base 'code'); elsewhere it is the plate."""
+    from . import eyetex, styles
+    st = {k: v for k, v in (styles.load(spec.get('style', 'anime')).get('eyes') or {}).items() if k != 'iris'}
+    K = _knobs({**st, **(spec.get('eyes') or {})})
+    if spec.get('base') != 'code':
+        K['surface'] = 'plate'
+    IK = eyetex._knobs(spec.get('iris'))
+    conv = (spec.get('iris') or {}).get('converge')
+    if conv is None:                                # the style's, with a surface that turns (a plate's far eye in
+        conv = K['converge'] if K['surface'] == 'turned' else 0.0     # three-quarter would lose its nasal white)
+    K['iris'] = tuple(float(IK[k]) for k in ('rx', 'rz', 'cz')) + (float(conv),)
+    return K
+
+
 def _arc(t, peak, full):
     """a lid arc on t in [0, 1]: 0 at both corners, 1 at t = peak; full (0..1) squares it off."""
     t = np.clip(t, 0, 1)
@@ -162,6 +196,137 @@ def closed_line(K, L, t, happy=False):
     base = x * math.tan(math.radians(K['tilt'])) - K['inner_drop'] * W * (1 - np.asarray(t)) ** 2
     arc = np.sin(np.pi * np.asarray(t)) * 0.10 * W
     return x, (base + arc * 1.6 if happy else base - arc)
+
+
+# ------------------------------------------------------------------------------------------------------------ surface
+def _smooth(e0, e1, x):
+    t = np.clip((np.asarray(x, float) - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def _inside(P, poly):
+    """points (M, 2) inside a closed polygon (N, 2) (even-odd) -> bool (M,)."""
+    x, y = P[:, 0][:, None], P[:, 1][:, None]
+    a, b = poly, np.roll(poly, -1, 0)
+    ya, yb = a[:, 1][None], b[:, 1][None]
+    cross = (ya > y) != (yb > y)
+    xi = a[:, 0][None] + (y - ya) * (b[:, 0] - a[:, 0])[None] / np.where(yb == ya, 1e-30, yb - ya)
+    return (cross & (x < xi)).sum(1) % 2 == 1
+
+
+def _seg_dist(P, poly):
+    """points' distance (M,) to a closed polygon's edges."""
+    a, b = poly[None], np.roll(poly, -1, 0)[None]
+    d = b - a
+    t = np.clip(((P[:, None] - a) * d).sum(-1) / np.maximum((d * d).sum(-1), 1e-30), 0, 1)
+    q = a + t[..., None] * d
+    return np.sqrt(((P[:, None] - q) ** 2).sum(-1)).min(1)
+
+
+class Surface:
+    """the eye's surface behind its opening, as a depth field on the face F (metres, + back), a function of eye-local
+    (x outward, z up): zero for the plate. 'turned' (K['surface']): along each row the surface faces a little toward
+    the nose (turn[0]) up to a fold that follows the iris's nasal outline (K['iris'], moved by fold_at), then turns
+    outward from turn[1] just past it to turn[2] at the outer corner; every row's fold sits at one depth (the profile's
+    front edge is upright), and the whole is set against the face so that inside the opening it never comes in front
+    of the plate's depth (anchor 'min'; or 'mean', 'fold'). Outside the opening it fades to the face's own over
+    K['fold_reach'] L. Everything of the eye (lids, lashes, the pocket, the plates, the skin round the opening) takes the
+    field at its own (x, z), so the front view is unchanged, and from the side the part of the opening nasal of the fold
+    faces away: the iris sits at the front edge in profile, the sclera behind it."""
+
+    def __init__(self, F, K, L, side, eye_c):
+        self.on = K.get('surface') == 'turned'
+        self.side, self.ex, self.ez = side, float(eye_c[0]), float(eye_c[1])
+        if not self.on:
+            return
+        self.W = W = K['width'] * L
+        self.poly = outline_polygon(K, L, n=48)
+        self.reach = float(K['fold_reach']) * L
+        rx, rz, cz, conv = K['iris']
+        self.iris = (rx, rz, cz, conv)
+        self.at, self.soft = float(K['fold_at']), max(1e-3, float(K['fold_soft']))
+        self.follow = float(K.get('fold_follow', 0.0))
+        tn, tf, tc = (math.radians(a) for a in K['turn'])
+        # G(u): the surface's depth (eye widths, + back) at u eye widths outward of the row's fold, 0 at the fold
+        e0 = -(rx + conv) + self.at                          # the fold at the iris's middle row
+        u = np.linspace(-1.5, 1.8, 661)
+        th_t = np.minimum(tf + (tc - tf) * np.maximum(u, 0) / max(1e-3, 0.5 - e0), math.radians(80))
+        th = tn + (th_t - tn) * _smooth(-self.soft, self.soft, u)
+        slope = np.tan(th)
+        G = np.concatenate([[0.0], np.cumsum(0.5 * (slope[1:] + slope[:-1]) * np.diff(u))])
+        self.u, self.G = u, G - np.interp(0.0, u, G)
+        # the face's own depth over the eye (eye widths, relative to the eye's centre), on a grid round the opening
+        gx = np.linspace(-0.8, 0.8, 97); gz = np.linspace(-0.8, 0.8, 97)
+        GX, GZ = np.meshgrid(gx, gz, indexing='ij')
+        yF = (F.y(self.ex + side * GX.ravel() * W, self.ez + GZ.ravel() * W) - F.y(self.ex, self.ez)) / W
+        self.gx, self.gz, self.yF = gx, gz, yF.reshape(GX.shape)
+        # the anchor: over the opening (its polygon, sampled), the surface's offset from the face
+        P = self.poly / W
+        inside = _inside(np.stack([GX.ravel(), GZ.ravel()], 1), P).reshape(GX.shape)
+        off = self._raw(GX[inside], GZ[inside]) - self.yF[inside]
+        a = K.get('anchor', 'min')
+        if a == 'corners':                                  # the opening's two corners on the face (their mean)
+            cx = np.array([-0.5, 0.5]); czs = outline(K, 1.0, np.array([0.0, 1.0]), 'upper')[1] / K['width']
+            self.c0 = -float(np.mean(self._raw(cx, czs) - self._face(cx, czs)))
+        elif a == 'fold':                                   # the middle row's fold on the face
+            fz = np.array([cz]); fx = self.fold_x(fz)
+            self.c0 = -float((self._raw(fx, fz) - self._face(fx, fz))[0])
+        else:
+            self.c0 = -(off.min() if a == 'min' else off.mean())
+        self.info = dict(fold_mid=round(e0, 3), fold_min=round(float((off.min() + self.c0) * W / L), 4),
+                         fold_max=round(float((off.max() + self.c0) * W / L), 4))
+
+    def fold_x(self, z):
+        """the fold's x (eye widths) on rows z (eye widths): the iris's nasal outline, fold_at outward of it."""
+        rx, rz, cz, conv = self.iris
+        q = np.clip(1 - ((np.asarray(z, float) - cz) / rz) ** 2, 0.05, 1)
+        return -(conv + rx * np.sqrt(q)) + self.at
+
+    def _raw(self, x, z):
+        """the surface's depth (eye widths, + back) relative to the frontal plane through its middle row's fold."""
+        xf = self.fold_x(z)
+        out = np.interp(np.asarray(x, float) - xf, self.u, self.G)
+        if self.follow:
+            z = np.asarray(z, float)
+            out = out + self.follow * (self._face(xf, z) - self._face(self.fold_x(np.zeros(1)), np.zeros(1)))
+        return out
+
+    def _face(self, x, z):
+        """the face's depth at (x, z) eye widths, bilinear on the grid (numpy: Blender's Python has no scipy)."""
+        n, m = self.yF.shape
+        i = np.clip((np.asarray(x, float) - self.gx[0]) / (self.gx[1] - self.gx[0]), 0, n - 1 - 1e-9)
+        j = np.clip((np.asarray(z, float) - self.gz[0]) / (self.gz[1] - self.gz[0]), 0, m - 1 - 1e-9)
+        i0, j0 = np.floor(i).astype(int), np.floor(j).astype(int)
+        a, b = i - i0, j - j0
+        Y = self.yF
+        return ((1 - a) * (1 - b) * Y[i0, j0] + a * (1 - b) * Y[i0 + 1, j0] + (1 - a) * b * Y[i0, j0 + 1]
+                + a * b * Y[i0 + 1, j0 + 1])
+
+    def __call__(self, x, z):
+        """the extra depth at eye-local (x, z) (arrays, metres) -> the same shape."""
+        x, z = np.broadcast_arrays(np.atleast_1d(np.asarray(x, float)), np.atleast_1d(np.asarray(z, float)))
+        if not self.on:
+            return np.zeros(x.shape)
+        P = np.stack([x.ravel(), z.ravel()], 1)
+        d = _seg_dist(P, self.poly)
+        w = np.where(_inside(P, self.poly), 1.0, 1 - _smooth(0.0, self.reach, d))
+        xw, zw = P[:, 0] / self.W, P[:, 1] / self.W
+        f = (self._raw(xw, zw) + self.c0 - self._face(xw, zw)) * self.W
+        return (f * w).reshape(x.shape)
+
+    def world(self, X, Z):
+        """the extra depth at world (X, Z)."""
+        return self(self.side * (np.asarray(X, float) - self.ex), np.asarray(Z, float) - self.ez)
+
+
+def surface(F, K, L, side, eye_c):
+    """the eye's Surface, made once per face, knobs and eye."""
+    cache = F.__dict__.setdefault('_surfaces', {})
+    key = (side, float(eye_c[0]), float(eye_c[1]), L,
+           tuple(sorted((k, str(v)) for k, v in K.items())))
+    if key not in cache:
+        cache[key] = Surface(F, K, L, side, eye_c)
+    return cache[key]
 
 
 # ------------------------------------------------------------------------------------------------------------ placement
@@ -208,11 +373,12 @@ def spread(src_old, disp, pts, floor=0.003, k=1.6):
     return out
 
 
-def spokes(V, eye, F, moved):
+def spokes(V, eye, F, moved, surf=None, rest=False):
     """an authored base's eye loops (eye['loops']: the block's rim first, the lid's margin last, index-aligned) following
     the margin: each ring vertex takes the share of its spoke's margin move that its place along the spoke has at rest
     (0 at the rim, which stays, 1 at the margin), in the face's plane, re-seated on the face at its old depth offset. The
     rings stay nested (a lid closing stretches them, it can't fold them), and nothing past the rim moves.
+    surf: the eye's Surface, its depth added where the vertex lands (rest: V already carries it, taken out first).
     moved: {margin vertex: its move (3,)} -> {ring vertex: its move (3,)}."""
     loops = eye['loops']
     rim, mar = loops[0], loops[-1]
@@ -231,17 +397,24 @@ def spokes(V, eye, F, moved):
         vs = np.array(vs)
         off = V[vs, 1] - F.y(V[vs, 0], V[vs, 2])
         x2, z2 = np.array(xs), np.array(zs)
+        if surf is not None and surf.on:
+            if rest:
+                off = off - surf.world(V[vs, 0], V[vs, 2])
+            off = off + surf.world(x2, z2)
         P = np.stack([x2, F.y(x2, z2) + off, z2], 1)
         for v, p in zip(vs, P):
             out[int(v)] = p - V[v]
     return out
 
 
-def _world(F, ex, ez, side, x, z, depth=0.0):
-    """eye-local (x, z) -> world, on the face surface, pushed back by depth along the view (y)."""
+def _world(F, ex, ez, side, x, z, depth=0.0, surf=None):
+    """eye-local (x, z) -> world, on the face surface, pushed back by depth along the view (y), and by the eye's
+    Surface there when given."""
     X = ex + side * np.asarray(x); Z = ez + np.asarray(z)
     P = F.points(*np.broadcast_arrays(np.atleast_1d(X).astype(float), np.atleast_1d(Z).astype(float)))
     P[:, 1] += depth
+    if surf is not None and surf.on:
+        P[:, 1] += surf(*np.broadcast_arrays(np.atleast_1d(np.asarray(x, float)), np.atleast_1d(np.asarray(z, float))))
     return P
 
 
@@ -261,11 +434,12 @@ def place(V, eye, F, K, L, side, eye_c):
     behind the plate. -> (new V, margin targets {vertex: world})."""
     V = V.copy()
     ex, ez = eye_c
+    S = surface(F, K, L, side, eye_c)
     tp = _margin_params(V, eye, side)
     tgt = {}
     for which in ('upper', 'lower'):
         x, z = outline(K, L, tp[which], which)
-        P = _world(F, ex, ez, side, x, z)
+        P = _world(F, ex, ez, side, x, z, surf=S)
         for v, p in zip(eye[which], P):
             tgt[v] = p
     m = np.array(eye['margin'])
@@ -274,7 +448,7 @@ def place(V, eye, F, K, L, side, eye_c):
     dxz = (new - old)[:, [0, 2]]
     if eye.get('loops'):
         # an authored base's own loops: along their spokes (spokes()), nothing past the block's rim moves
-        for v, d in spokes(V, eye, F, {v: tgt[v] - V[v] for v in m}).items():
+        for v, d in spokes(V, eye, F, {v: tgt[v] - V[v] for v in m}, surf=S).items():
             V[v] = V[v] + d
     else:
         # outer rings: the margin's in-surface motion, fading; re-seated on the face at their old depth offset
@@ -305,7 +479,7 @@ def place(V, eye, F, K, L, side, eye_c):
         rows.append((mp[0] + (cen[0] - mp[0]) * pull, mp[2] + (cen[1] - mp[2]) * pull, dz))
     if pv:
         x2, z2, dz = np.array(rows).T
-        V[np.array(pv)] = np.stack([x2, F.y(x2, z2) + depth + dz, z2], 1)
+        V[np.array(pv)] = np.stack([x2, F.y(x2, z2) + depth + dz + S.world(x2, z2), z2], 1)
     return V, tgt
 
 
@@ -344,7 +518,7 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
     loc = np.array(loc)
     rho_of = np.concatenate([[0.0], np.repeat(reach * np.arange(1, nr + 1) / nr, na)])
     depth = D0 + 0.004 * L * np.clip((rho_of - 0.92) / (reach - 0.92), 0, 1) ** 2
-    pts = _world(F, ex, ez, side, loc[:, 0] + shift[0], loc[:, 1] + shift[1])
+    pts = _world(F, ex, ez, side, loc[:, 0] + shift[0], loc[:, 1] + shift[1], surf=surface(F, K, L, side, eye_c))
     pts[:, 1] += depth
     uvs = [(x / W + 0.5, z / W + 0.5) for x, z in loc]
     faces = []
@@ -360,9 +534,10 @@ def plate(F, K, L, side, eye_c, na=48, nr=10, reach=1.18, shift=(0.0, 0.0), bias
 
 
 # ---------------------------------------------------------------------------------------------------------------- lashes
-def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35):
+def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35, surf=None, at=None):
     """a ribbon along eye-local points (N,2) with per-point thickness, offset along the 2D normal (away from the eye); its
-    inner edge tucked a little over the opening. -> (verts, quads)."""
+    inner edge tucked a little over the opening; on the eye's Surface when given, or `at` (N,): each point's extra
+    depth, both edges alike (a lash stands off its lid line, it doesn't sink into the skin behind). -> (verts, quads)."""
     pts = np.asarray(pts)
     tan = np.gradient(pts, axis=0)
     tan /= np.maximum(np.linalg.norm(tan, axis=1, keepdims=True), 1e-12)
@@ -370,8 +545,10 @@ def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35):
     inner = pts - nrm * thick[:, None] * tuck
     outer = pts + nrm * thick[:, None] * (1 - tuck)
     ex, ez = eye_c
-    Vi = _world(F, ex, ez, side, inner[:, 0], inner[:, 1], depth=lift)
-    Vo = _world(F, ex, ez, side, outer[:, 0], outer[:, 1], depth=lift)
+    Vi = _world(F, ex, ez, side, inner[:, 0], inner[:, 1], depth=lift, surf=None if at is not None else surf)
+    Vo = _world(F, ex, ez, side, outer[:, 0], outer[:, 1], depth=lift, surf=None if at is not None else surf)
+    if at is not None:
+        Vi[:, 1] += at; Vo[:, 1] += at
     n = len(pts)
     verts = np.vstack([Vi, Vo])
     quads = []
@@ -381,11 +558,23 @@ def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35):
     return verts, quads
 
 
+def _flick_depth(F, S, eye_c, side, xc, zc, fx, fz, h=0.05):
+    """the flick's extra depth: the eye's surface at the outer corner (xc, zc), carried on at its slope there along
+    x (world y's rise per eye-local x over the last h of the eye's width), less the face's own depth under the flick."""
+    ex, ez = eye_c
+    y = lambda x, z: F.y(ex + side * np.asarray(x, float), ez + np.asarray(z, float)) + S(x, z)
+    xb = xc - h * S.W
+    yc, yb = float(y(np.array([xc]), np.array([zc]))[0]), float(y(np.array([xb]), np.array([zc]))[0])
+    slope = (yc - yb) / (xc - xb)
+    return yc + slope * (fx - xc) - F.y(ex + side * fx, ez + fz)
+
+
 def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     """upper lash line (thick, tapering in toward the inner corner, a flick past the outer corner) and a lower lash (the
     outer part), along the outline or along given lid curves (functions t -> eye-local (x, z), for the shape keys).
     -> list of (verts, quads) ribbons."""
     W = K['width'] * L
+    S = surface(F, K, L, side, eye_c)
     upper_fn = upper_fn or (lambda t: outline(K, L, t, 'upper'))
     lower_fn = lower_fn or (lambda t: outline(K, L, t, 'lower'))
     t = np.linspace(0.03, 1.0, n)
@@ -397,12 +586,17 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     fx = x[-1] + np.cos(ang) * K['flick'] * W * s
     fz = z[-1] + np.sin(ang) * K['flick'] * W * s ** 1.6          # curving up at its end
     fth = th[-1] * (1 - s) ** 1.2 + 1e-5
+    at = None
+    if S.on:
+        # on a turned surface the lash stands at its lid line's depth, and the flick goes on along the surface's own
+        # slope at the corner (not the face's steep turn behind it)
+        at = np.concatenate([S(x, z), _flick_depth(F, S, eye_c, side, x[-1], z[-1], fx, fz)])
     up = _ribbon(F, side, eye_c, np.stack([np.concatenate([x, fx]), np.concatenate([z, fz])], 1),
-                 np.concatenate([th, fth]), 1.0)
+                 np.concatenate([th, fth]), 1.0, surf=S, at=at)
     t2 = np.linspace(1 - K['lower_lash'], 1.0, 16)
     x2, z2 = lower_fn(t2)
     th2 = K['lash'] * L * K['lower_lash_w'] * np.sin(np.pi * 0.5 * (t2 - t2[0]) / (t2[-1] - t2[0])) ** 0.8 + 1e-5
-    lo = _ribbon(F, side, eye_c, np.stack([x2, z2], 1), th2, -1.0)
+    lo = _ribbon(F, side, eye_c, np.stack([x2, z2], 1), th2, -1.0, surf=S, at=S(x2, z2) if S.on else None)
     out = [up, lo]
     if K.get('crease', 0) > 0:
         # the double-lid crease: a thin line above the lash over its middle and outer part, following the lid
@@ -411,7 +605,7 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
         lift_ = K['lash'] * L + K['crease'] * W
         th3 = K['crease_w'] * L * np.sin(np.pi * (t3 - t3[0]) / (t3[-1] - t3[0])) ** 0.7 + 1e-5
         out.append(_ribbon(F, side, eye_c, np.stack([x3, z3 + lift_ * np.sin(np.pi * (0.2 + 0.8 * t3)) ** 0.3], 1), th3,
-                           1.0, tuck=0.5))
+                           1.0, tuck=0.5, surf=S))
     return out
 
 
@@ -420,6 +614,7 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
     """offsets (N,3) moving the upper and/or lower margin to target curves (functions t -> (x, z) eye-local), the outer rings
     and the near pocket after them, on the face surface. The base pose is V (already placed)."""
     ex, ez = eye_c
+    S = surface(F, K, L, side, eye_c)
     D = np.zeros_like(V)
     tp = _margin_params(V, eye, side)
     moved = {}
@@ -427,7 +622,7 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
         if fn is None:
             continue
         x, z = fn(tp[which])
-        P = _world(F, ex, ez, side, x, z)
+        P = _world(F, ex, ez, side, x, z, surf=S)
         for v, p in zip(eye[which], P):
             if v not in moved:
                 moved[v] = p - V[v]
@@ -439,8 +634,8 @@ def lid_key(V, eye, F, K, L, side, eye_c, upper_to=None, lower_to=None):
         D[v] = d
     src = V[mv]
     if eye.get('loops'):
-        for v, d in spokes(V, eye, F, moved).items():            # the loops follow their spokes (nothing past the rim)
-            D[v] = d
+        for v, d in spokes(V, eye, F, moved, surf=S, rest=True).items():   # the loops follow their spokes (nothing
+            D[v] = d                                                        # past the rim moves)
     else:
         ov = np.array(list(eye['outer'].keys()))
         d = spread(src, md, V[ov])

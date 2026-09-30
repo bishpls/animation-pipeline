@@ -17,6 +17,8 @@ DEFAULT_IRIS = {
     'rz': 0.37,                    # iris half-height (taller than the opening: the lids clip it)
     'cz': -0.01,                   # iris centre above the eye centre
     'pupil_rx': 0.085, 'pupil_rz': 0.135,
+    'pupil_cz': -0.01,             # the pupil's centre above the iris's (eye widths): the lids clip a tall iris, so the
+                                   # pupil sits in the middle of what shows, not of the whole iris
     'striation': 0.25,             # strength of the radial fibres
     'glow': 0.8,                   # the bottom crescent
     'shine': [                     # (u offset, v offset, rx, rz, alpha) from the iris centre, in eye widths
@@ -87,7 +89,7 @@ def iris(K=None, n=512):
     ring = _ss(0.80, 0.97, r)
     rgb = _mix(rgb, np.array(K['ring'], float), ring)
     # pupil
-    pr = np.sqrt((x / K['pupil_rx']) ** 2 + ((zc + 0.01) / K['pupil_rz']) ** 2)
+    pr = np.sqrt((x / K['pupil_rx']) ** 2 + ((zc - K['pupil_cz']) / K['pupil_rz']) ** 2)
     rgb = _mix(rgb, np.array(K['pupil'], float), 1 - _ss(0.92, 1.05, pr))
     # the lid's shadow over the top of the iris
     rgb = rgb * (1 - 0.45 * _ss(0.05, 0.28, z))[..., None]

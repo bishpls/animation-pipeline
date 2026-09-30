@@ -82,6 +82,8 @@ def resolve(spec_path, out, do_fit=True, base=None):
     # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
     # the stage cache keys on it)
     spec['look'] = styles.merge(styles.load(spec.get('style', 'anime'))['look'], spec.get('look'))
+    # and its eye section (the eye's surface: charkit.eyes.knobs) under the spec's own `eyes`, for the same reason
+    spec['eyes'] = styles.merge(styles.load(spec.get('style', 'anime')).get('eyes') or {}, spec.get('eyes'))
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
