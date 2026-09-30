@@ -96,7 +96,7 @@
    "kind": "outfit_graph",
    "path": "charkit/refs/clawd/outfit_graph.json",
    "tracked": true,
-   "sha256": "2b1caa429ed672e9d0ae2cb95822a69370c5bb4490c79200561591d99b2b1d00",
+   "sha256": "4915b8ab26f8c36085660545c99de02b746282d61459203fca660ed1ffda4aff",
    "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
    "provenance": {
     "tool": "charkit.outfit",
