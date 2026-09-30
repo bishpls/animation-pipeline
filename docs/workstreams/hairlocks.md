@@ -118,7 +118,28 @@ the same lock. Results: below.
 First wedge run (equal-spaced start, k = 5, straight cuts): 0.411 (front 0.380, three-quarter 0.312, profile 0.593),
 below the builder's own 7 wedges (0.439): the descent stalls in a local optimum from that start.
 
-**Probe jobs at checkpoint (laptop, background, one chained job):** `wedge.py charkit/out/hl_base
+**Results (both probes landed):**
+
+| bangs partition (hl_base's bangs surface) | lock IoU | within the truth | front | three-quarter | profile |
+|---|---|---|---|---|---|
+| the builder's 7 wedges (notches) | 0.439 | 0.541 | 0.420 | 0.415 | 0.501 |
+| 7 straight wedges, cuts fitted to the truth | 0.482 | 0.587 | 0.479 | 0.426 | 0.560 |
+| 7 sheared wedges, fitted (shear -0.7 to +0.15 deg phi per deg theta) | 0.515 | 0.624 | 0.502 | 0.485 | 0.575 |
+| the labeller's regions (for scale) | 0.555 | 0.582 | 0.308 | 0.745 | 0.714 |
+
+Even with the cuts fitted to the truth (which a builder can't do), the wedge model gains only +0.04, and +0.08 with
+shear: **the meridian-wedge lock model is the limit, not where its notches fall.** Curved lock boundaries on the chart
+(ribbons between two contour curves) are needed to approach the drawing.
+
+Correspondence through our bangs surface (triangles two views both label; agreement = the same lock name):
+front~three-quarter 0.547 (1,261 triangles), three-quarter~profile 0.413 (658), **front~profile 0.07** (399: the
+front's l reads as the profile's c on 194 triangles, the front's l_clip on 155). So **call C is likely wrong**: the
+profile shows her left side, and its front fringe lock is the front's l (over her left eye), not the central c; the
+three-quarter's names also shift one lock toward her left (front c ~ three-quarter r on 254, front l ~ three-quarter c
+on 193). Our surface's own misfit confounds this, so the correspondence stays a call for Michael; the pilot needs its
+lift to find the links, not assume the names.
+
+**Probe jobs (done; they ran on the laptop, one chained job):** `wedge.py charkit/out/hl_base
 charkit/out/hairlocks/wedge_own.json --own --shear` (descent from the builder's own 6 cuts, then with shear; log
 `wedge_own.log`), then `corr.py charkit/out/hl_base charkit/out/hairlocks/corr_base.json` (log `corr_base.log`). If
 the session ends first, rerun both (about 3-5 min each on the laptop).
@@ -164,6 +185,8 @@ the session ends first, rerun both (about 3-5 min each on the laptop).
    partition reaches.
 2. **The crown above the drawn lines is unscored** (rule 2): the lines stop short of the part. Accept, or extend each
    line straight to the part (more of every lock scored, but a guess).
-3. **Call C's correspondence** (front c = profile's front fringe lock; the three-quarter's outer sweep unscored).
+3. **Call C's correspondence**: the probe says the names shift as the head turns (profile c ~ front l). Rename the
+   profile's and three-quarter's locks by the probe's mapping, or keep the names per view and score views apart
+   (the per-view scores don't depend on the names; only a cross-view reading does).
 4. **The lock source for a pilot:** the structure labeller's regions where its strokes close (three-quarter, profile),
    continued across the gaps in front (the truth's own move, automated), lifted onto the crown chart.
