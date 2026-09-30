@@ -15,7 +15,9 @@ compact cell nearest its middle, its tails the two cells reaching lowest, its lo
 picture's right: the flat-lay and the close-ups draw the piece from the front); its lines are its ink and its fainter
 strokes (outfit.ridges: the creases are drawn in a shade).
 
-Checks (qa3d part 'iso_pieces', prefix 'iso_'; the bow's from its shape authority):
+Checks (qa3d part 'iso_pieces', prefix 'iso_'; the bow's outline from its shape authority `shape_bow`, the lines
+inside it from `lines_bow` when the manifest names one: each graded against the reference that agrees with the
+turnaround on that property, the refcheck):
   iso_bow_body       the lobes and knot scaled to their own width: IoU with the reference's
   iso_bow_tails      the tails in the same frame: IoU with the reference's
   iso_bow_knot_size  the knot's width over the body's, |ours / reference's - 1|
@@ -55,10 +57,13 @@ def grade(key, v):
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
 
 
-INFO_KEYS = ('body', 'tails', 'knot_size', 'knot_rect')   # reported, not graded: garment_breakdown's bow reads
-                                    # 0.76 against the turnaround's own (refcheck), its knot 33% wider, rounder (fill
-                                    # 0.91 against 0.98): its outline and knot aren't the turnaround's, its inner lines
-                                    # are (crease -39 against -37/-40 degrees, length 1.5 against 1.45-1.53 widths)
+INFO_KEYS = ('tails', 'knot_size', 'knot_rect')   # reported, not graded. Refcheck (the turnaround's front bow
+                                    # against each reference): garment_breakdown's body 0.762, tails 0.759, knot 33%
+                                    # wider, its inner lines the turnaround's (crease -39 against -37/-40 degrees,
+                                    # length 1.5 against 1.45-1.53 widths): lines_bow. bow_closeup's body 0.871 (the
+                                    # turnaround PASSes; g3_render3 0.659 FAILs): shape_bow; its tails 0.516 (drawn
+                                    # ~20% longer) and knot 22% wider (the turnaround reads 0.18 against it, the flagged
+                                    # builds 0.22): those two don't separate the flagged shape from the drawn one
 
 
 def _check(key, v, flag=True, **kw):
@@ -176,8 +181,11 @@ def compare(o, r):
         bw = float(_box(_body(p))[2] - _box(_body(p))[0])
         # lengths in body widths; a lobe's outline is the lines within 1.5 line widths of its edge (a picture's scale
         # unknown: the flat-lay's lines are its own)
+        # the knot's outline: its cells a line apart, so reach at least that line's width (the close-up's lines are 5-6
+        # px at 2560 wide: at 2 px its knot read no edge near the lobes, None)
+        lw = pqa.line_width(p['line'])
         out[name] = pqa.part_measures(p['parts']['knot'], {'L': p['parts']['lobe_L'], 'R': p['parts']['lobe_R']},
-                                      p['line'], bw, band_px=BAND_W * pqa.line_width(p['line']))
+                                      p['line'], bw, band_px=BAND_W * lw, reach=max(2, int(np.ceil(lw))))
     return out
 
 
@@ -195,14 +203,16 @@ def design_piece(design, masks, view='front'):
 
 
 # ------------------------------------------------------------------------------------------------------------ the part
-def reference(design, key):
-    """the manifest's shape authority for a piece (`shape_<key>`) and its box and view on that reference -> (rgb,
-    ref dict, box, view) or None."""
+def reference(design, key, kind='shape'):
+    """the manifest's authority for a piece's `kind` ('shape': `shape_<key>`, its outline; 'lines': `lines_<key>`, the
+    lines inside it, else the shape's) and its box and view on that reference -> (rgb, its name, its piece entry) or
+    None."""
     from PIL import Image
     from . import manifest
     ref = design.ref()
     M = manifest.load(ref['manifest']) if ref.get('manifest') else None
-    auth = ((M or {}).get('authority') or {}).get('shape_' + key)
+    A = (M or {}).get('authority') or {}
+    auth = A.get('%s_%s' % (kind, key)) or A.get('shape_' + key)
     if not auth or not M:
         return None
     R = M['references'].get(auth) or {}
@@ -234,8 +244,16 @@ def measure(B, design):
     az = {'front': 0.0}.get(pc.get('view', 'front'), 0.0)
     O = our_piece(B, az, ctx['ppl'])
     M = compare(O, R)
-    T, C = {'bow': dict(reference=auth, box=pc['box'], view=pc.get('view', 'front'), measures=M)}, {}
-    if M is None:
+    # the lines inside the piece from their own authority (lines_bow: the reference whose knot outline and creases
+    # agree with the turnaround's; the close-up's outline does, its creases run longer)
+    lg = reference(design, 'bow', 'lines')
+    lauth = lg[1] if lg else auth
+    Rl = R if lauth == auth else ref_piece(lg[0], lg[2]['box'])
+    Ml = M if lauth == auth else compare(our_piece(B, {'front': 0.0}.get(lg[2].get('view', 'front'), 0.0), ctx['ppl'])
+                                         if lg[2].get('view', 'front') != pc.get('view', 'front') else O, Rl)
+    T, C = {'bow': dict(reference=auth, lines=lauth, box=pc['box'], view=pc.get('view', 'front'), measures=M,
+                        line_measures=Ml)}, {}
+    if M is None or Ml is None:
         C['iso_bow_body'] = _check('body', None, why='no bow body drawn')
         return T, C
     C['iso_bow_body'] = _check('body', M['body'], reference=auth,
@@ -247,14 +265,15 @@ def measure(B, design):
     C['iso_bow_knot_size'] = _check('knot_size', None if ko is None or kr is None else abs(ko / kr - 1),
                                     ours=ko and round(ko, 3), ref=kr and round(kr, 3),
                                     note="the knot's width over the lobes' span, |ours / %s's - 1|" % auth)
-    Om, Rm = M['ours'], M['ref']
+    Om, Rm = Ml['ours'], Ml['ref']
     C['iso_bow_knot_rect'] = _check('knot_rect', pqa.rect_err(Om['knot'], Rm['knot']), ours=Om['knot'],
-                                    ref=Rm['knot'], note="partqa's knot rectangle on the isolated pictures")
+                                    ref=Rm['knot'], reference=lauth,
+                                    note="partqa's knot rectangle on the isolated pictures (%s's)" % lauth)
     kl_o, kl_r = Om['knot_line'], Rm['knot_line']
     C['iso_bow_knot_line'] = _check('knot_line', None if kl_o is None or kl_r is None else max(0.0, kl_r - kl_o),
-                                    ours=kl_o and round(kl_o, 3), ref=kl_r and round(kl_r, 3),
-                                    note="the knot's edge against the lobes with a line between, the reference's "
-                                         "share less ours")
+                                    ours=kl_o and round(kl_o, 3), ref=kl_r and round(kl_r, 3), reference=lauth,
+                                    note="the knot's edge against the lobes with a line between, %s's share less "
+                                         "ours" % lauth)
     lens, dirs = {}, {}
     for s in ('L', 'R'):
         co, cr = Om['crease'].get(s), Rm['crease'].get(s)
@@ -269,7 +288,8 @@ def measure(B, design):
                                      per_side=dirs, note="each lobe's crease direction, ours less the reference's")
     got = bodymeasure.piece_masks(B.spec)
     if got is not None and any(k.endswith('__bow.knot') for k in got[0]):
-        Dm = compare(design_piece(design, got[0]), R)
+        Dp = design_piece(design, got[0])
+        Dm = compare(Dp, R)
         T['bow']['refcheck'] = Dm
         C['iso_bow_refcheck'] = dict(value=None if Dm is None else round(Dm['body'], 4), status='INFO',
                                      tails=None if Dm is None else Dm['tails'],
@@ -277,4 +297,7 @@ def measure(B, design):
                                      note="the turnaround's front bow (the outfit's part masks) against %s the same "
                                           "way: body IoU (tails and the knot's size beside): the reference's "
                                           "consistency with the turnaround" % auth)
+        if lauth != auth:
+            Dl = compare(Dp, Rl)
+            T['bow']['refcheck_lines'] = Dl and {k: Dl[k] for k in ('ours', 'ref')}
     return T, C

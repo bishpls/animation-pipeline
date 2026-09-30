@@ -77,10 +77,11 @@ def test_a_rounder_bow_reads_worse():
     assert M is None or M['body'] < 0.95
 
 
-def test_the_info_checks_report_their_grade_and_the_line_checks_carry_the_flag():
-    c = I._check('body', 0.5)
+def test_the_info_checks_report_their_grade_and_the_graded_ones_carry_the_flag():
+    c = I._check('tails', 0.5)
     assert c['status'] == 'INFO' and c['graded_as'] == 'FAIL'
-    assert registry.is_flag(I._check('crease_dir', 30.0))
+    assert registry.is_flag(I._check('crease_dir', 30.0)) and registry.is_flag(I._check('body', 0.6))
+    assert I._check('body', 0.871)['status'] == 'PASS' and I._check('body', 0.659)['status'] == 'FAIL'
 
 
 if __name__ == '__main__':

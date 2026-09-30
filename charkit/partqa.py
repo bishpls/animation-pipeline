@@ -269,10 +269,11 @@ def line_width(line):
     return 2.0 * float(np.median(d[sk])) if sk.any() else 1.0
 
 
-def part_measures(knot, lobes, line, ppl, band_px=None):
-    """the knot's rectangle and outlined share and each lobe's crease on one picture's masks (lobes {'L', 'R'})."""
+def part_measures(knot, lobes, line, ppl, band_px=None, reach=2):
+    """the knot's rectangle and outlined share and each lobe's crease on one picture's masks (lobes {'L', 'R'}); reach:
+    outline_share's (px: a picture's lines wider than 2 px, the gap between its cells wider too)."""
     other = lobes.get('L', np.zeros_like(knot)) | lobes.get('R', np.zeros_like(knot))
-    return dict(knot=knot_rect(knot, ppl), knot_line=outline_share(knot, line, other),
+    return dict(knot=knot_rect(knot, ppl), knot_line=outline_share(knot, line, other, reach=reach),
                 crease={s: crease(m, line, ppl, s, band_px=band_px) for s, m in lobes.items()})
 
 

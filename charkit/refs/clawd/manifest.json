@@ -1,6 +1,32 @@
 {
  "name": "clawd",
  "references": {
+  "bow_closeup": {
+   "kind": "generated_reference",
+   "tracked": true,
+   "provenance": {
+    "model": "gpt-image-2.5-sunburst",
+    "date": "2026-09-30",
+    "size": "2560x1440",
+    "quality": "high",
+    "inputs": ["charkit/refs/clawd/gen/body_turnaround.png", "charkit/refs/clawd/gen/garment_breakdown.png"],
+    "prompt": "charkit/refs/clawd/gen/prompts.json",
+    "prompt_key": "bow_closeup",
+    "ledger": "tools/ledger.jsonl",
+    "take": "2 of 2 (n=2): its front bow agrees with the turnaround's best (body IoU 0.871 against take 1's 0.818 and the breakdown's 0.762)"
+   },
+   "path": "charkit/refs/clawd/gen/bow_closeup.png",
+   "role": "the bow alone (lobes, knot, tails), front, three-quarter and side, one scale, orthographic, on white: the bow's outline for charkit.isoqa (shape_bow)",
+   "cautions": ["refcheck against the turnaround's front bow: body 0.871, tails 0.516 (its tails ~20% longer), knot 0.135 of the span against 0.110 (22% wider); its creases run longer (1.84-1.90 lobe widths against 1.40-1.53): the lines inside the bow stay garment_breakdown's (lines_bow)", "its three-quarter is turned the other way from the turnaround's (its larger lobe is the picture's left), and its three-quarter and side views draw no line between a lobe and its tail: only the front is registered in 'pieces'", "a generated drawing: its scale is its own (isoqa scales each piece to its own width)"],
+   "sha256": "ce751f9cd51e25de80bc49b6aa03c9278ecbc784686e4168057a93b1d8f8300d",
+   "pieces": {
+    "bow": {
+     "box": [110, 330, 850, 1073],
+     "view": "front",
+     "rigid": true
+    }
+   }
+  },
   "sheet": {
    "kind": "model_sheet",
    "path": "projects/hello-world/refs/idol_D.png",
@@ -547,7 +573,8 @@
   "outfit_pieces": "outfit_graph",
   "skull": "head_construction",
   "piece_placement": "outfit_graph",
-  "shape_bow": "garment_breakdown"
+  "shape_bow": "bow_closeup",
+  "lines_bow": "garment_breakdown"
  },
  "notes": [
   "2026-09-30 (Michael, tool/pieceref): a piece's authority is split: its shape from its isolated reference (shape_<piece>: garment_breakdown, the close-ups; one object, larger, self-consistent; charkit.isoqa draws ours alone in that reference's projection, scaled to the piece's own size, and compares shape and inner lines), its placement, occlusion and silhouette in context from the turnaround (piece_placement: the outfit graph's masks on body_turnaround; the piece checks, partqa). Rigid pieces only from the flat-lay: draped ones (the skirt) wait for the sewing-pattern work.",
