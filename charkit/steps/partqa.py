@@ -6,4 +6,6 @@ MEASUREMENT_STEPS = [
     ('bow_part_*', 'e992be8', "new: the bow's knot and lobes against the drawn parts (outline agreement per view), the "
      "knot's outline against the lobes and its rectangle, each lobe's crease (the lines inside it: length over width, "
      "direction), ours drawn with the build's outlines against the design's lines"),
+    ('bow_part_knot_line', 'd814b6a2', "the knot's outline share reaches the outline's own width (was 2 px: an outlined "
+     "knot read None, its lines 3-5 px wide at 400 px/L)"),
 ]
