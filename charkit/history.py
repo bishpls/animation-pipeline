@@ -33,6 +33,12 @@ STEPS = [
     ('bow_*', '1b8b30b', "new: the bow's torn edges, its lobes' flare and its tails' width and parting"),
     ('sleeve_*', 'cda2b7f', "the spikes on the cap's silhouette only (the drawn masks' inner corners are cutting "
      "slivers), the check set by the design alone, the stand-off against sleeve_closeup"),
+    ('waistband_*_rows', 'b3aaf2c', "the design's band inside its ink (the masks gave it the jacket's lower part where "
+     "the jacket hangs over it): the back's top -1.314 -> -1.390, the three-quarter's bottom -1.413 -> -1.493"),
+    ('waistband_*_width', 'b3aaf2c', "the design's band inside its ink (the jacket's hanging corners left out)"),
+    ('top_front_hem_step', 'b3aaf2c', "the design's band inside its ink: the bib's hem is 0.037 L higher than the "
+     "jacket's fronts (the masks had read the fronts' corners as band, +0.033)"),
+    ('waistband_profile_overhang', 'b3aaf2c', "ours takes the bib (its own object now) with the top"),
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
     ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
      "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
