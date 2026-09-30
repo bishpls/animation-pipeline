@@ -193,6 +193,24 @@ same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differentl
   - 3bc7b86: 573 s; its close-ups are the EEVEE design board, and its previous is 9397578. The heads line up with
     head_turnaround on the eye line at one scale; the turntable has 13 views.
 
+## Merges and final gates
+
+- **pipeline-3d 120d197 (tool/hull-limbs) merged at f2635f3.** hull-limbs had added three measurement steps to
+  `history.STEPS`: `body_profile_leg_back` 1fd1c63 and 2479a22, and `body_profile_leg_outline` 2479a22. They moved
+  word for word to `charkit/steps/detailqa.py`, right after `body_profile_leg_back`'s first step (854776f), so that
+  check's steps keep their order. It added no QA part.
+  - All 68 of pipeline-3d's steps are registered (the same multiset).
+  - `steps_between` is identical to pipeline-3d's list on every ordered pair of 32 commits.
+  - The whole suite passes.
+- **Gates of f2635f3**, on the build box:
+  - default spec into 120d197: **PASS**, no check changed (`gate_tool-infra_f2635f3_into_120d197.md`);
+  - `--spec charkit/spec/clawd_mh.json` into 62b0556: **PASS**, no check changed. pipeline-3d had moved on to
+    tool/bucket-sync, which is `bucketsync.py`, remote.py and build.sh only.
+- **Earlier gates**, all PASS with no check changed: c1016fa into e11fadb (both specs), 4fa804a into e11fadb (both
+  specs).
+- **301b661** (tool/toonrender, `charkit/render/`) came after both gates. tool/infra merges into it cleanly, the whole suite passes on the merge result (21 parts, 68 steps), and the
+  merge result has no `PARTS` or `STEPS` list or reader: toonrender registers nothing.
+
 ## Open items
 
 - **Masked skin differs between builds.** The skin's garment-masked vertices (`o/clawd_skin/masked/V`, `shrink`)
