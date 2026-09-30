@@ -3,8 +3,9 @@
     isotropic(m, L)        Botsch-Kobbelt isotropic remeshing to target edge length L: split edges longer than 4/3 L,
                            collapse edges shorter than 4/5 L, flip edges toward valence 6, tangential relaxation, and
                            projection back onto the input surface (BVH); vertex colours follow
-    decimate(m, faces)     quadric error (Garland-Heckbert) edge collapse to a face count, with link-condition, normal-flip
-                           and valence checks, so a closed manifold input stays closed and manifold
+    decimate(m, faces)     quadric error (Garland-Heckbert) edge collapse to a face count or an error bound (max_cost:
+                           local, as a count isn't), with link-condition, normal-flip and valence checks, so a closed
+                           manifold input stays closed and manifold
 
 Both expect a manifold mesh (repair.report(...)['nonmanifold_edges'] == 0); open boundaries are kept (their edges are
 never collapsed or flipped).
@@ -519,7 +520,7 @@ def _qbest(q, pa, pb):
 
 
 @nb.njit(**_OPT)
-def _decimate(V, F, vf, nvf, alive_f, alive_v, Q, A, E, target_f, cos_min, max_len2):
+def _decimate(V, F, vf, nvf, alive_f, alive_v, Q, A, E, target_f, cos_min, max_len2, max_cost):
     heap = [(0.0, np.int64(0), np.int64(0), np.int64(0), np.int64(0))]
     heap.pop()
     stamp = np.zeros(V.shape[0], np.int64)
@@ -533,13 +534,17 @@ def _decimate(V, F, vf, nvf, alive_f, alive_v, Q, A, E, target_f, cos_min, max_l
         if alive_f[f]:
             nf += 1
     rA = np.empty(CAP * 2, np.int64); rB = np.empty(CAP * 2, np.int64); fb = np.empty(8, np.int64)
+    last = 0.0
     while nf > target_f and len(heap) > 0:
         c, a, b, sa, sb = heapq.heappop(heap)
+        if c > max_cost:            # the heap's cheapest (stale or not) is over the bound: every other entry is too
+            break
         if not (alive_v[a] and alive_v[b]) or stamp[a] != sa or stamp[b] != sb:
             continue
         q = Q[a] + Q[b]
         p, cc = _qbest(q, V[a], V[b])
         if _try_collapse(V, F, vf, nvf, alive_f, alive_v, a, b, p, max_len2, cos_min, rA, rB, fb):
+            last = c
             Q[a] = q
             for d in range(A.shape[1]):
                 A[a, d] = 0.5 * (A[a, d] + A[b, d])
@@ -552,18 +557,25 @@ def _decimate(V, F, vf, nvf, alive_f, alive_v, Q, A, E, target_f, cos_min, max_l
                 qq = Q[a] + Q[u]
                 pp, c2 = _qbest(qq, V[a], V[u])
                 heapq.heappush(heap, (c2, a, u, stamp[a], stamp[u]))
-    return nf
+    return nf, last
 
 
-def decimate(m, target_faces, cos_min=0.2, max_edge=None):
+def decimate(m, target_faces, cos_min=0.2, max_edge=None, max_cost=None, info=None):
     """quadric-error edge collapse down to `target_faces` (or as far as the checks allow). max_edge: optional cap on edge
-    lengths the collapses may create. Vertex colours are averaged along. -> Mesh."""
+    lengths the collapses may create. max_cost: stop at the first collapse whose quadric error (area-weighted squared
+    distance, L^4 in L units) is over it (target_faces 0 for that bound alone). A face count is a global budget: the last
+    collapses are wherever the cheapest remaining edges are, so an edit anywhere moves vertices everywhere; a cost bound
+    is local (each region stops where its own error does). Vertex colours are averaged along. info: a dict to receive
+    the faces kept and the last collapse's cost. -> Mesh."""
     m = as_mesh(m)
     attrs = m.vc
     V, F, af, av, A, vf, nvf = _dyn(m, attrs=attrs)
     Q = _quadrics(V, F)
     E, _, _ = unique_edges(F)
-    _decimate(V, F, vf, nvf, af, av, Q, A, np.ascontiguousarray(E), int(target_faces), cos_min,
-              -1.0 if max_edge is None else float(max_edge) ** 2)
+    nf, last = _decimate(V, F, vf, nvf, af, av, Q, A, np.ascontiguousarray(E), int(target_faces), cos_min,
+                         -1.0 if max_edge is None else float(max_edge) ** 2,
+                         np.inf if max_cost is None else float(max_cost))
+    if info is not None:
+        info.update(faces=int(nf), last_cost=float(last))
     V2, F2, A2 = _compact(V, F, af, av, A)
     return Mesh(V2, F2, vc=A2 if attrs is not None else None)
