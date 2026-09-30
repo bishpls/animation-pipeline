@@ -231,6 +231,39 @@ frames), coarse.npz (per piece (frames, coarse vertices, 3) float32, and the ske
 (Blender's Mesh Cache modifier, first in the stack, its Armature off; Blender's own Solidify and Subdivision make the render
 mesh). The replay check (Blender against our finalize, L) writes replay.json.
 
+### 4b. The bake pilot (base2, the kick: `charkit/out/xpbd/r2/bake_base2_kick`)
+120 frames (60 settle pre-roll, 24 ramp, 36 held) in 54.7 s on the laptop; coarse.npz 6.0 MB (compressed, bones
+included), skirt.pc2 3.9 MB, each flap's 1.5 MB. Measured as baked (last frame): skirt 0.2% new inside at 0.008 L,
+stretch p99 6%; flaps 0, 0.3%. Digest 4dad66820b868a35. **The Blender replay (Mesh Cache against our finalize) has not
+run yet** (`python -m charkit.sim bake BUILD --clip kick --pc2 --replay`, local Blender 5.2: the object names, the
+stack order and the PC2 frame mapping are unverified until it does).
+
+### 5. The spring chains tuned to the cloth (base2, kick + squat, `charkit/out/xpbd/r2/tune_base2/tune.md`)
+Reference xpbd_hips (round 2: pins on the skin); chains against the body capsules (legs, pelvis, belly; shrunk to clear
+the chains' rest joints). Joint error (mean L from the cloth's points, over the motion / settled at rest):
+| piece | graph (stiffness, gravity, drag) | error | tuned | error |
+|---|---|---|---|---|
+| skirt | 0.29, 0.3, 0.76 | 0.334 / 0.324 | 8.0, 0.05, 0.3 | 0.070 / 0.015 |
+| flap L / R | 0.22, 0.2, 0.4 | 0.587 / 0.549, 0.580 / 0.549 | 8.0, 0.05, 0.7 | 0.050 / 0.020 |
+Garments on the chains, as motion QA measures them (worst new inside share, depth L, stretch p99):
+skirt kick 0.042 / 0.184 / 0.72 -> 0.013 / 0.168 / 0.02; squat 0.098 / 0.195 / 0.78 -> 0.063 / 0.185 / 0.11; flap R kick
+0.100 / 0.142 / 0.84 -> 0.001 / 0 / 0; at rest the flaps 1.1% -> 0-0.1%. Two limits of the tuned chains: stiffness 8 is
+the grid's edge (widen it); the skirt's chains still put 6.3% inside at 0.185 L at the squat: their roots ride the hips,
+the waist problem item 1 fixed for the cloth (root the chains' top joints on the skin's weights, or on a spine-blended
+bone, before shipping them).
+
+### Motion QA's CPU (about 91 s a build when its inputs change)
+Where it goes (laptop profile, charkit/out/xpbd/r2/prof.py): the XPBD step is nearly all of it: about 0.26-0.4 s a frame
+(20 substeps x 2 iterations on 2,220 cage vertices, numba, one thread) x 96 frames a pose, and 60 of those 96 are the
+1 s settle at rest, run once per pose; measuring (posing the 75k-vertex skin, its BVH, winding numbers) is about 0.2 s x 11
+measured frames a pose, about 2.5 s; the finalizes about 1 s a pose (only the measured frames: motion._Finals); the scene
+about 1.5 s. It is a cached QA part (cache.qa_part keyed on the bundle arrays, garments.npz, the style file and its code),
+so a build pays it only when the skirt, the body, the style or charkit/sim changed. To shrink it, in order of payoff:
+(1) settle once and start both poses from the settled state (the settle is identical: -60 frames of 192, about 30%);
+(2) a shorter settle (0.5 s: with hold 0.8 the cloth starts at the template and sags 0.025 L; measure its drift first);
+(3) fewer substeps (15; the calibration's 16-substep nudge says whether the checks hold). Measuring only near the worst
+frames saves little (measuring is under 5%). (1)+(2) together should roughly halve it.
+
 ### Running / next (update as they land)
 - Box build of 5ad798e -> `charkit/out/xpbd/r2/build` (the motion checks in the real build, its CPU).
 - Spring tuning on base2 -> `charkit/out/xpbd/r2/tune_base2` (kick and squat, the body colliders).
