@@ -1,0 +1,451 @@
+{
+ "format": "charkit-hair-locks-truth-src/1",
+ "sheet": "body_turnaround",
+ "views": {
+  "front": {
+   "scope": [
+    "bangs"
+   ],
+   "cuts": [
+    {
+     "p": [
+      [
+       428,
+       143
+      ],
+      [
+       465,
+       162
+      ],
+      [
+       505,
+       185
+      ],
+      [
+       527,
+       167
+      ],
+      [
+       552,
+       154
+      ],
+      [
+       562,
+       150
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       391,
+       181
+      ],
+      [
+       386,
+       202
+      ],
+      [
+       381,
+       227
+      ],
+      [
+       379,
+       245
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       340,
+       245
+      ],
+      [
+       426,
+       243
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       465,
+       162
+      ],
+      [
+       455,
+       187
+      ],
+      [
+       453,
+       202
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       505,
+       185
+      ],
+      [
+       506,
+       258
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       527,
+       167
+      ],
+      [
+       545,
+       192
+      ],
+      [
+       549,
+       198
+      ]
+     ]
+    }
+   ],
+   "seeds": [
+    [
+     490,
+     150,
+     "x"
+    ],
+    [
+     380,
+     215,
+     "bangs/r_out"
+    ],
+    [
+     420,
+     185,
+     "bangs/r"
+    ],
+    [
+     480,
+     200,
+     "bangs/c"
+    ],
+    [
+     525,
+     200,
+     "bangs/l"
+    ],
+    [
+     555,
+     170,
+     "bangs/l_clip"
+    ],
+    [
+     588,
+     184,
+     "x"
+    ],
+    [
+     568,
+     160,
+     "x"
+    ],
+    [
+     376,
+     247,
+     "bangs/r_out"
+    ],
+    [
+     595,
+     199,
+     "x"
+    ]
+   ],
+   "tips": {
+    "bangs/r_out": "cut",
+    "bangs/r": "cut",
+    "bangs/l_clip": "hidden"
+   }
+  },
+  "three_quarter": {
+   "scope": [
+    "bangs"
+   ],
+   "cuts": [
+    {
+     "p": [
+      [
+       440,
+       149
+      ],
+      [
+       451,
+       164
+      ],
+      [
+       472,
+       158
+      ],
+      [
+       502,
+       185
+      ],
+      [
+       528,
+       165
+      ],
+      [
+       562,
+       148
+      ],
+      [
+       600,
+       147
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       451,
+       164
+      ],
+      [
+       438,
+       180
+      ],
+      [
+       425,
+       200
+      ],
+      [
+       415,
+       230
+      ],
+      [
+       412,
+       245
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       392,
+       246
+      ],
+      [
+       443,
+       244
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       472,
+       158
+      ],
+      [
+       462,
+       175
+      ],
+      [
+       455,
+       190
+      ],
+      [
+       452,
+       208
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       502,
+       185
+      ],
+      [
+       502,
+       200
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       528,
+       165
+      ],
+      [
+       545,
+       190
+      ],
+      [
+       547,
+       195
+      ]
+     ]
+    }
+   ],
+   "seeds": [
+    [
+     500,
+     150,
+     "x"
+    ],
+    [
+     405,
+     200,
+     "x"
+    ],
+    [
+     438,
+     205,
+     "bangs/r"
+    ],
+    [
+     478,
+     200,
+     "bangs/c"
+    ],
+    [
+     520,
+     190,
+     "bangs/l"
+    ],
+    [
+     555,
+     170,
+     "bangs/l_clip"
+    ],
+    [
+     588,
+     180,
+     "x"
+    ]
+   ],
+   "tips": {
+    "bangs/r": "cut",
+    "bangs/l_clip": "hidden"
+   },
+   "complete": false,
+   "note": "the family truth leaves the three-quarter's mass unresolved (any mass family), so the completeness test can't say which cells are bangs: every bang lock there was checked by eye"
+  },
+  "profile": {
+   "scope": [
+    "bangs"
+   ],
+   "cuts": [
+    {
+     "p": [
+      [
+       468,
+       142
+      ],
+      [
+       477,
+       186
+      ],
+      [
+       503,
+       167
+      ],
+      [
+       533,
+       145
+      ],
+      [
+       569,
+       148
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       477,
+       186
+      ],
+      [
+       478,
+       210
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       503,
+       167
+      ],
+      [
+       512,
+       185
+      ],
+      [
+       514,
+       194
+      ]
+     ]
+    }
+   ],
+   "seeds": [
+    [
+     500,
+     150,
+     "x"
+    ],
+    [
+     455,
+     200,
+     "bangs/l"
+    ],
+    [
+     495,
+     195,
+     "bangs/l_clip"
+    ],
+    [
+     522,
+     170,
+     "bangs/l_back"
+    ]
+   ],
+   "tips": {
+    "bangs/l_back": "hidden"
+   },
+   "note": "call C revised (tool/hairlocks round 2): the profile's locks renamed by the cross-view probe (tools/hairlocks/corr.py over hl_base's bangs surface): its front fringe lock is the front's l (was c), its lock with the crab the front's l_clip (was l), its lock under the part by the star l_back, a lock the front doesn't label (was l_clip)"
+  }
+ },
+ "provenance": {
+  "by": "annotated by Claude (claude-opus-5-5) for tool/hairlocks",
+  "date": "2026-09-30",
+  "method": "the family truth's hair cells (outfit.cells, 25 px or more) cut along the drawn lock lines (snapped to the stroke where it runs, straight across its gaps), each piece labelled by a seed; read by eye from zoomed crops of the sheet, its walls (the raw line class and the faint ridges) and the structure labeller's regions (tools/hairlocks/pic.py, raw.py, walls.py)"
+ },
+ "rules": [
+  "1. A lock is a region the drawing bounds by lock lines (strokes that run along the strands from the lock's root toward its tip) or by the hair's outline, the skin it hangs over (the eye-holes) and the clips. A short stroke inside a lock that reaches neither its root nor a side (a split tip, a strand line) doesn't part it.",
+  "2. The crown above the drawn lock lines' upper ends is unscored ('x'): the lines stop short of the part and the drawing doesn't say where the locks run there. The cut runs straight through the lines' upper ends.",
+  "3. A lock that merges into another family's lock below (the bangs into the face-framing side lock at the eyes' top) ends at the family truth's cut there; its tip is marked 'cut' and not scored for tip position or shape.",
+  "4. A lock whose lower part the clips hide (the crab, the star) is scored for area and boundary, its tip marked 'hidden'.",
+  "5. The strip between the outermost bang line near the star and the outline, which runs under the star into the side lock, is unscored ('x'): the star hides the join.",
+  "6. Scope per view: the families whose locks are labelled (the bangs first). A hair cell whose family-truth majority is a scope family must be labelled (a lock or 'x'); the rest is out of the lock truth, and a lock of ours spilling onto it counts against its IoU.",
+  "7. Lock names are the same physical lock across views where the drawing's correspondence is read (front r, c, l, l_clip; the three-quarter's r, c, l, l_clip; the profile's l, l_clip, l_back): see the calls."
+ ],
+ "calls": [
+  "A. The bangs are five locks in front (r_out, r, c, l, l_clip), four in three-quarter (r, c, l, l_clip) and three in profile (l, l_clip, l_back). The front's r_out is the thin temple strip between the outermost line and the outline on her right, below the flyaway's root; it is its own lock (two strokes bound it).",
+  "B. The central lock c's short inner stroke near its tip (front 471,216-476,236; three-quarter 465,215-467,235) is a split tip, not a lock line (rule 1).",
+  "C. Correspondence (revised, tool/hairlocks round 2, from the cross-view probe): the profile shows her left side, so its front fringe lock (tip at the forehead) is the front's l (over her left eye), not the central c; its lock with the crab is the front's l_clip; its lock under the part by the star is l_back, round her left beyond what the front labels (in front it sits behind the star, in the unscored strip of call E). The three-quarter keeps the front's names. Evidence (tools/hairlocks/corr.py: the drawn locks read back onto hl_base's bangs surface, each triangle the lock most of its pixels lie in per view): with the old names the views agree on 990 of 2,318 shared triangles (front~three-quarter 690/1,261, front~profile 28/399, three-quarter~profile 272/658); the best of every assignment of the three-quarter's and profile's names (brute force) is this one, 1,259 (690, 216, 353); shifting the three-quarter's names too scores lower (front~three-quarter 569). The drawn clips disagree with it: the crab sits on l in front (about 27 degrees round her left) and on the profile's l_clip (about 70 degrees): the sheet's views don't place the clips consistently, so they don't anchor the names. Our surface's misfit still confounds the probe; per-view scores don't depend on the names, only a cross-view reading does. Her right bangs (r, r_out) are hidden in profile. The three-quarter's outer sweep on her right (the lock with the flick at 388,202) is unscored: it could be the front's r_out or the side hair.",
+  "D. The line between c and l (front x 505) runs straight down the gap between the eyes; the eye-holes (skin) part the lock tips below the lines.",
+  "E. The strip beside the star (front 588,184; three-quarter 588,180) is unscored (rule 5)."
+ ]
+}
