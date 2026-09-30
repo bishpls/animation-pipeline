@@ -497,6 +497,24 @@
     "no sha256: it grades and no produced reference reads it (so it stays out of their stamps); charkit/tests/test_hairtruth.py checks it matches its source"
    ]
   },
+  "hair_locks_truth": {
+   "kind": "lock_truth",
+   "path": "charkit/refs/clawd/hair_locks_truth.npz",
+   "source": "charkit/refs/clawd/hair_locks_truth.json",
+   "tracked": true,
+   "role": "a hand-checked labelling of body_turnaround's hair by drawn lock (the bangs in front, three-quarter and profile) on the hair layers' grids (bodyqa.design_views at the sheet's 212.5 px/L): what `python -m charkit hairlocks score BUILD` grades a build's lock partition against (charkit.hairlocks.score), and the structure labeller's lock regions. Built from its source by `python -m charkit hairlocks truth`: the family truth's hair cells cut along the drawn lock lines, each piece labelled by a seed",
+   "provenance": {
+    "by": "annotated by Claude (claude-opus-5-5) for tool/hairlocks",
+    "date": "2026-09-30",
+    "method": "cells cut along the drawn lock lines (snapped where the stroke runs, straight across its gaps), read by eye from zoomed crops; docs/workstreams/hairlocks.md lists the split rules and the calls"
+   },
+   "cautions": [
+    "one reading by eye at 212.5 px/L: the lock lines are partial strokes, so where a lock runs above them (the crown) is unscored",
+    "the bangs only so far; the side locks and the back layers are not labelled by lock",
+    "valid for the grids it records only (as hair_truth)",
+    "no sha256: it grades and no produced reference reads it; charkit/tests/test_hairlocks.py checks it matches its source"
+   ]
+  },
   "outfit_masks": {
    "kind": "piece_masks",
    "tracked": false,
