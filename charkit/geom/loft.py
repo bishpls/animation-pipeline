@@ -92,11 +92,16 @@ def _fill_periodic(row):
     return np.interp(x, x[ok], row[ok], period=n)
 
 
-def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15):
+def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15, prior=None, name=None):
     """the radius field of a piece's points: per cell (the row nearest each point's t, a theta sector) the q-quantile of
     their radii; a row whose cells are measured on at least min_row of the circle filled round it; rows without enough
     filled from their neighbours in t (clamped at the ends); then a Gaussian (smooth: sigma in rows, sigma in sectors;
-    periodic round the circle). -> Field."""
+    periodic round the circle). -> Field (its `coverage`: the best row's measured share of the circle).
+    Marginal coverage degrades rather than raising (a hull's labels move at the pieces' boundaries from machine to
+    machine, and with the graph a spec's garments cut): when no row reaches min_row, the rows measured on at least half
+    the best row's share (and two cells) stand in, the rest interpolated from them; when none has two cells, `prior` (a
+    radius, or one per row) is the field; only a piece with neither raises. Either way a warning, and the best row's
+    share in LOW_COVERAGE (garments.build keeps it on the object; the QA reports garment_coverage, INFO)."""
     ts = np.asarray(ts, float)
     th_c = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
     i = np.clip(np.rint(np.interp(t, ts, np.arange(len(ts)))).astype(int), 0, len(ts) - 1)
@@ -108,27 +113,51 @@ def field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15):
     rr = r[keep]
     order = np.argsort(cell, kind='stable')
     cell, rr = cell[order], rr[order]
-    starts = np.r_[0, np.nonzero(np.diff(cell))[0] + 1]
-    ends = np.r_[starts[1:], len(cell)]
+    starts = np.r_[0, np.nonzero(np.diff(cell))[0] + 1] if len(cell) else np.zeros(0, int)
+    ends = np.r_[starts[1:], len(cell)] if len(cell) else np.zeros(0, int)
     for a, b in zip(starts, ends):
         R.flat[cell[a]] = np.quantile(rr[a:b], q)
     measured = np.isfinite(R)
-    rows_ok = measured.mean(1) >= min_row
+    cov = measured.mean(1)
+    two = measured.sum(1) >= 2                                   # a row fills round from two cells at least
+    rows_ok = (cov >= min_row) & two
+    best = round(float(cov.max()), 3) if len(cov) else 0.0
+    what = 'loft%s' % (' (%s)' % name if name else '')
+    if not rows_ok.any():
+        import warnings
+        rows_ok = (cov >= 0.5 * cov.max()) & two if cov.max() > 0 else two
+        if rows_ok.any():
+            warnings.warn('%s: no row of the piece is measured on %.0f%% of its circle (the best on %.0f%%): its '
+                          'best-measured rows stand in' % (what, 100 * min_row, 100 * best))
+        elif prior is not None:
+            warnings.warn('%s: no row of the piece is measured on two cells: its prior stands in' % what)
+            LOW_COVERAGE.append(best)
+            R = np.broadcast_to(np.asarray(prior, float).reshape(-1, 1) if np.ndim(prior) else float(prior),
+                                (len(ts), nth)).copy()
+            F = Field(ts, th_c, R, measured)
+            F.coverage = best
+            return F
+        else:
+            raise ValueError('%s: no row of the piece is measured on two cells, and no prior' % what)
+        LOW_COVERAGE.append(best)
     for k in range(len(ts)):
         if rows_ok[k]:
             R[k] = _fill_periodic(R[k])
         else:
             R[k] = np.nan
     good = np.nonzero(rows_ok)[0]
-    if not len(good):
-        raise ValueError('no row of the piece is measured on %.0f%% of its circle' % (100 * min_row))
     for jj in range(nth):
         R[:, jj] = np.interp(np.arange(len(ts)), good, R[good, jj])
     if smooth[1]:
         R = gauss1d(R, smooth[1], axis=1, mode='wrap')
     if smooth[0]:
         R = gauss1d(R, smooth[0], axis=0, mode='nearest')
-    return Field(ts, th_c, R, measured)
+    F = Field(ts, th_c, R, measured)
+    F.coverage = best
+    return F
+
+
+LOW_COVERAGE = []      # the best row's share for each field built from marginal coverage (garments.build reads it)
 
 
 def loft(ax, F, R=None, ts=None):

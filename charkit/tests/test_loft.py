@@ -122,6 +122,40 @@ def test_the_hull_builders_run_without_scipy():
     assert r.returncode == 0 and 'ok' in r.stdout, r.stderr[-1500:]
 
 
+def test_field_degrades_on_marginal_coverage():
+    """a piece whose hull labels cover under min_row of every row (a label wobble at a piece's boundary, a graph that
+    cuts it narrower) lofts from its best rows, warns, and records its coverage, rather than killing the build."""
+    import warnings
+    g = np.random.default_rng(3)
+    t = g.uniform(0, 1, 400)
+    th = g.uniform(-0.3, 0.3, 400)                               # a tenth of the circle
+    r = np.full(400, 0.1)
+    del loft.LOW_COVERAGE[:]
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        F = loft.field(t, th, r, np.linspace(0, 1, 8), nth=48, min_row=0.15, name='sleeve_L')
+    assert np.isfinite(F.R).all() and abs(F.R.mean() - 0.1) < 0.02
+    assert loft.LOW_COVERAGE and loft.LOW_COVERAGE[0] < 0.15 and F.coverage < 0.15
+    assert any('stand in' in str(x.message) and 'sleeve_L' in str(x.message) for x in w)
+
+
+def test_field_prior_when_nothing_fills():
+    """no row with two measured cells: the builder's prior radius stands in (warned, recorded); without one it raises."""
+    import warnings
+    t, th, r = np.array([0.5]), np.array([0.0]), np.array([0.2])
+    del loft.LOW_COVERAGE[:]
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        F = loft.field(t, th, r, np.linspace(0, 1, 5), nth=24, prior=0.2)
+    assert np.allclose(F.R, 0.2) and loft.LOW_COVERAGE and any('prior' in str(x.message) for x in w)
+    try:
+        loft.field(t, th, r, np.linspace(0, 1, 5), nth=24)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('no prior: should raise')
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
