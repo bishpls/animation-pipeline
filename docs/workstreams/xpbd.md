@@ -184,4 +184,4 @@ Branch `tool/xpbd` (see the report for the head). Gate PASS under K at 5a33f4d (
 only `charkit/sim/*`, `charkit/tests/test_sim.py` and these notes: `charkit/sim` isn't read by a default build (imported
 only when a garment opts in), so no new gate. Outputs (gitignored): `charkit/out/xpbd/{base,base2}` (box builds),
 `rest_final/`, `motion_final/`, `review/` (the page), `gate/`. Commands: `python -m charkit.sim rest|motion|tune|review`.
-Tests: `charkit/tests/test_sim.py` (15).
+Tests: `charkit/tests/test_sim.py` (14).
