@@ -1081,3 +1081,25 @@ tq_cheek_hollow 0.005 PASS -> 0.0056 WARN (the 2x2: 0.0052 WARN under the old me
    over its lock (-0.154) is still the sheet's hair edge; `HIDDEN_TQ` (fit it from under the lock only) broke the jaw
    in the lab. A three-quarter reference without hair would settle it.
 5. The rim loop stays off (under level grading it loses the tip and the three-quarter hollow).
+
+**The collar's move traced (the finish; no fix: nothing in its anchoring reads the head).**
+`tools/face_labs/collar_trace.py` (venv; `charkit/out/face5/collar/collar_trace.json`) rebuilds `collar_hull` on every
+mix of f5_before's and f5_geom's head_code, body_code and hull (pipeline-3d's and this branch's produced hulls). The
+local builds reproduce both recorded collars (0 and 4e-5 L). Swapping the head alone moves the collar 1.2e-4 L, the
+hull alone 0, and **the body fit alone 0.035 L** (0.0088 m on the cage: all of it). The chain:
+1. headfit's jaw changes the hull's face carve (`hull.carve_face` reads headfit's sections): 754 voxels, all at z -0.37
+   to +0.20 L.
+2. The hull mesh is decimated to a fixed face budget, so hull.ply differs at the face (about 1,700 vertices) and by 1-2
+   vertices each at the waistband, skirt, shorts, sleeve_L and collar, far below it.
+3. code_body's torso reads hull.ply in one least-squares solve with the rows smoothed together, so every row moves
+   1.6e-4 to 1.4e-3 L. The fit is deterministic (a repeat run is identical; the box's pair is reproduced to 2e-5). Its
+   neck ring (skin up to CUT + 0.1) reads the same on both hulls.
+4. The collar's anchors hold: the neck bone moves 2e-5 L, the neckline 0 and the walks' starts 1.1e-4 L, while the
+   body under the collar moves 0.0009 L at most (median 3.5e-5). The surface walk (it snaps to the nearest vertex's
+   tangent plane) takes one column to 0.019 L, and conform takes the collar to 0.035 L: about 40 times the body's move.
+
+Both real couplings are outside the collar's anchoring. The body fit reads the decimated mesh, which a face change
+reshuffles anywhere (the voxel-exact shell would decouple it but moves the body for every branch), and the collar's
+walk and conform amplify by about 40 (tool/collar's template, being reworked). sleeve_profile_rough_L stays 0.0146
+FAIL for the coordinator: accept it as body-fit noise, or hold for tool/collar. Merged pipeline-3d 6ddcb5b (fa84d84).
+Pre-gate PASS (fa84d84 into 6ddcb5b: 21 moved, 0 blocking, 150 s).
