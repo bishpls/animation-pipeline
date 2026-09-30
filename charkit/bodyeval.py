@@ -500,7 +500,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     as a Part (garment_part) and the skin vertices it hides; hull: garments.hull_pieces' points, for a garment whose
     `source` is 'hull'. (nrm, dom: unused, kept for callers; build() computes its own.) -> (Part, hide indices)."""
     from . import geomstage
-    P = geomstage.product('garments', geomstage.record(A, [s], hull=hull, spec_all=spec_all))
+    P = geomstage.finalize(geomstage.product('garments', geomstage.record(A, [s], hull=hull, spec_all=spec_all)))
     obs, hide = geomstage.pieces(P)
     if len(obs) != 1:
         raise ValueError('%s: garments.build made %d objects' % (s.get('name'), len(obs)))

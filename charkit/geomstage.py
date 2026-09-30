@@ -333,16 +333,88 @@ def replay(P, C):
     return obs
 
 
+# ------------------------------------------------------------------------------------ call J: the final meshes (M4)
+FINAL_MODS = ('SOLIDIFY', 'SUBSURF')     # applied at rest venv-side; Blender keeps the Armature, the Mask, the outline
+
+
+class _FinalRec(_Rec):
+    def name(self, kind):
+        self.n += 1
+        return 'final_%s%d' % (kind, self.n)
+
+
+def finalize(P):
+    """Michael's call J (M4): each recorded garment's Solidify and Subdivision Surface applied at rest, venv-side
+    (charkit.evalmesh.finalize: geom.solidify then geom.subsurf, Blender's to 1e-5 L; the weights as the vertex groups
+    hold them, carried linearly as Blender carries vertex data). Its `_object` call gets the final mesh (final=True),
+    its 'thick' and 'sub' modifier events go, and where they stood its object gets 'ck_shell' (the Solidify's
+    thickness, for the outline's cap: shade.shell_of) and 'ck_final_levels'. The recording as made stays in
+    meta['coarse_events'] (pieces(P, coarse=True): the lab's and motion QA's input). -> the product (a new dict)."""
+    from . import evalmesh
+    meta = P['meta']
+    if meta.get('coarse_events') is not None:
+        return P
+    ev = meta['events']
+    obs = pieces(P)[0]
+    ids = [e[1] for e in ev if e[0] == 'call' and e[2] == '_object']
+    arrays = dict(P['arrays'])
+    rec = _FinalRec(); rec.arrays = arrays
+    new_call, items, drop_mod = {}, {}, {}
+    for i, o in zip(ids, obs):
+        types = [m['type'] for m in o['mods'].values()]
+        if not types:
+            continue
+        if any(t not in FINAL_MODS for t in types):
+            raise ValueError('geomstage.finalize: %s has modifiers %s (only %s are applied at rest)' % (
+                o['name'], types, FINAL_MODS))
+        F = evalmesh.finalize(o)
+        n = rec.name('p')
+        arrays[n + '/loopv'] = np.asarray(F['loopv'], np.int64)
+        arrays[n + '/counts'] = np.asarray(F['counts'], np.int32)
+        e = next(x for x in ev if x[0] == 'call' and x[1] == i)
+        d = dict(zip(OBJECT_ARGS, e[3])); d.update(e[4])
+        d.update(verts=rec.enc(np.asarray(F['V'], float)), faces={'$p': n, 'tuple': True},
+                 weights={b: rec.enc(np.asarray(w, float)) for b, w in F['weights'].items()}, uv=None,
+                 wound=True, final=True)
+        if F['uv_corner'] is not None:
+            c = rec.name('c')
+            arrays[c + '/values'] = np.concatenate([np.asarray(u, float) for u in F['uv_corner']])
+            arrays[c + '/counts'] = np.asarray(F['counts'], np.int32)
+            d['uv_corner'] = {'$c': c}
+        if d.get('mat_idx') is not None:
+            d['mat_idx'] = rec.enc(np.asarray(F['mat_idx'], np.int64))
+        new_call[i] = ['call', i, '_object', [d.pop(k) for k in OBJECT_ARGS[:6]], d]
+        items[i] = ([['item', i, 'ck_shell', float(F['shell'])]] if F['shell'] else []) + \
+            [['item', i, 'ck_final_levels', int(F['levels'])]]
+        drop_mod.update({x[1]: i for x in ev if x[0] == 'mod' and x[2] == i})
+    out, placed = [], set()
+    for e in ev:
+        if e[0] == 'call' and e[1] in new_call:
+            out.append(new_call[e[1]])
+        elif e[0] == 'mod' and e[1] in drop_mod:
+            ob = drop_mod[e[1]]
+            if ob not in placed:                          # (its shell recorded where its Solidify stood: before the outline)
+                out += items[ob]; placed.add(ob)
+        elif e[0] == 'set' and e[1] in drop_mod:
+            continue
+        else:
+            out.append(e)
+    return dict(meta=dict(meta, events=out, coarse_events=ev, final=dict(mods=list(FINAL_MODS), objects=len(new_call))),
+                arrays=arrays)
+
+
 # ----------------------------------------------------------------------------------------------- the evaluator's view
-def pieces(P):
+def pieces(P, coarse=False):
     """the product as the evaluator reads it: per object made (in order) dict(name, V, polys, uv (per vertex) or
     uv_corner (per polygon's corners), mat_idx, smooth, materials [dict(fn 'toon'|'toon_tex', name, color or image
     (float, row 0 = top), shade (the multiplier or None))], mods {name: dict(type, settings)}, props {key: value},
-    outline (the call's kwargs)) and the skin's hidden vertices: -> (objects, hide (N,) bool or None)."""
+    outline (the call's kwargs)) and the skin's hidden vertices: -> (objects, hide (N,) bool or None). coarse: a final
+    product's recording as made (before finalize: the coarse meshes and their modifiers)."""
     arrays = P['arrays']
     made = {}
     obs, hide = [], None
-    for e in P['meta']['events']:
+    events = P['meta'].get('coarse_events') if coarse else None
+    for e in events if events is not None else P['meta']['events']:
         if e[0] == 'call':
             _, i, fn, args, kw = e
             a = _dec(args, arrays)
@@ -461,8 +533,8 @@ def garments_product(A, specs, hull=None, spec_all=None):
     """the garments stage's product for assembly A: garments.build recorded (numpy), with the body it was built on kept
     for the Blender side's check (check/body: the assembly's vertices in float32)."""
     rec = record(A, specs, hull=hull, spec_all=spec_all)
-    return product('garments', rec, meta=dict(garments=[g.get('name') for g in specs or []], numpy=np.__version__),
-                   checks={'body': np.asarray(A['verts'], np.float32)})
+    return finalize(product('garments', rec, meta=dict(garments=[g.get('name') for g in specs or []], numpy=np.__version__),
+                            checks={'body': np.asarray(A['verts'], np.float32)}))
 
 
 def garments_step(spec, path, log=print):

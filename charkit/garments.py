@@ -2770,10 +2770,20 @@ def _toon_tex(name, image, shade_mul=None):
     return m
 
 
-def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat_idx=None, smooth=True, wound=False):
+def group_weights(w):
+    """a bone's weights as a garment's vertex group holds them: to 3 decimals, 1e-4 and under left out (0), over 1
+    clamped (as vertex_groups.add clamps). The venv's final meshes carry these through the Subdivision (call J)."""
+    r = np.round(np.asarray(w, float), 3)
+    return np.clip(np.where(r > 1e-4, r, 0.0), 0.0, 1.0)
+
+
+def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat_idx=None, smooth=True, wound=False,
+            final=False):
     """a garment piece as a rigged mesh object. Its faces are wound as charkit.geom.wind.orient decides (each region
     consistent, its normals out): the garments product's recording winds them venv-side and passes wound=True, so
-    Blender takes them as given (GEOM_TRUTH step 7a); the in-Blender path winds them here with the same function."""
+    Blender takes them as given (GEOM_TRUTH step 7a); the in-Blender path winds them here with the same function.
+    final: the venv's final mesh at rest (geomstage.finalize, call J): its weights already group_weights' carried
+    through the Subdivision, taken as they are."""
     from . import character
     if not wound:
         from .geom import wind
@@ -2782,21 +2792,25 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     me = ob.data
     if uv is not None or uv_corner is not None:
         lay = me.uv_layers.new(name='uv')
-        for pi, p in enumerate(me.polygons):
-            for k, li in enumerate(p.loop_indices):
-                lay.data[li].uv = uv_corner[pi][k] if uv_corner is not None else uv[me.loops[li].vertex_index]
-    for pi, p in enumerate(me.polygons):
-        p.use_smooth = smooth
-        if mat_idx is not None:
-            p.material_index = mat_idx[pi]
+        if uv_corner is not None:                               # (from_pydata keeps the polygons' corners in order)
+            U = np.concatenate([np.asarray(c, np.float32).reshape(-1, 2) for c in uv_corner])
+        else:
+            lv = np.empty(len(me.loops), np.int32); me.loops.foreach_get('vertex_index', lv)
+            U = np.asarray(uv, np.float32)[lv]
+        lay.data.foreach_set('uv', U.ravel())
+    me.polygons.foreach_set('use_smooth', np.full(len(me.polygons), bool(smooth)))
+    if mat_idx is not None:
+        me.polygons.foreach_set('material_index', np.asarray(mat_idx, np.int32))
     for b, w in weights.items():
         if b not in arm.data.bones:
             continue
         g = ob.vertex_groups.new(name=b)
-        for w_ in np.unique(np.round(w, 3)):
-            if w_ <= 1e-4:
-                continue
-            g.add([int(i) for i in np.nonzero(np.round(w, 3) == w_)[0]], float(w_), 'REPLACE')
+        wr = np.clip(np.asarray(w, float), 0.0, 1.0) if final else group_weights(w)
+        vals, inv = np.unique(wr, return_inverse=True)
+        order = np.argsort(inv, kind='stable')
+        for k, idx in enumerate(np.split(order, np.cumsum(np.bincount(inv, minlength=len(vals)))[:-1])):
+            if vals[k] > (0.0 if final else 1e-4):
+                g.add(idx.tolist(), float(vals[k]), 'REPLACE')
     mod = ob.modifiers.new('rig', 'ARMATURE'); mod.object = arm
     ob.parent = arm
     return ob

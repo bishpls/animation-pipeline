@@ -411,11 +411,16 @@ def build_pieces(build, render=False):
         out.append(piece('skin_render', V, polys, uv=uvc, creases=cre, mods=[('SUBSURF', dict(levels=2))], L=L))
         truth['skin_render'] = None
     gp = os.path.join(build, 'geom', 'garments.npz')
-    obs = geomstage.pieces(geomstage.load(gp))[0] if os.path.exists(gp) else []
+    Pg = geomstage.load(gp) if os.path.exists(gp) else None
+    final = Pg is not None and Pg['meta'].get('coarse_events') is not None     # (call J: the bundle's raw is final)
+    obs = geomstage.pieces(Pg, coarse=True)[0] if Pg is not None else []
     for o in obs:
         bo = B.obj(o['name'])
-        Vr, lvr, cntr = bo.V('raw'), bo.a('raw', 'loopv'), bo.a('raw', 'counts')
-        pr = [tuple(int(x) for x in lvr[s_:s_ + c]) for s_, c in zip(np.r_[0, np.cumsum(cntr)[:-1]], cntr)]
+        if final:                                               # the coarse mesh and its modifiers from the product
+            Vr, pr = np.asarray(o['V'], float), [tuple(int(x) for x in f) for f in o['polys']]
+        else:
+            Vr, lvr, cntr = bo.V('raw'), bo.a('raw', 'loopv'), bo.a('raw', 'counts')
+            pr = [tuple(int(x) for x in lvr[s_:s_ + c]) for s_, c in zip(np.r_[0, np.cumsum(cntr)[:-1]], cntr)]
         if o['uv_corner'] is not None:
             U = [np.asarray(u, float) for u in o['uv_corner']]
         elif o['uv'] is not None:
@@ -548,8 +553,9 @@ def finalize(o):
     else:
         luv = None
     mat = np.asarray(o['mat_idx'], np.int64) if o['mat_idx'] is not None else np.zeros(nf, np.int64)
+    from .garments import group_weights                    # (the weights as the coarse object's vertex groups hold them)
     names = sorted(o['weights'])
-    W = np.stack([np.asarray(o['weights'][b], float) for b in names], 1) if names else np.zeros((len(V), 0))
+    W = np.stack([group_weights(o['weights'][b]) for b in names], 1) if names else np.zeros((len(V), 0))
     cre, shell, levels = None, None, 0
     for name, m in o['mods'].items():
         st = m['settings']

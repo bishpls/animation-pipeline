@@ -174,8 +174,26 @@ Residuals, explained:
   CPU 758.7 -> 751.6 s (0.99x). 4007276 merges into the branch cleanly (the gate's own merge). **M2+M3 mergeable at
   1939469**; the commits after it are notes only.
 
+- **M2+M3 merged** into pipeline-3d (81ffcb1); pipeline-3d 25b1936 (infra-auth: box control on a service account,
+  `CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud` in every box shell) fast-forwarded in. Coordinator's go-ahead for M4:
+  skin weights linear (Blender's), the panels' loose vertices kept as Blender keeps them, charkit/subdiv.py left to
+  tool/face5.
+
+## M4, the switch (in progress)
+- `geomstage.finalize(P)`: every recorded garment with a Solidify or Subsurf gets its final mesh at rest
+  (`evalmesh.finalize`) in its `_object` call (`final=True`); its 'thick'/'sub' events go; where they stood, its
+  object gets `ck_shell` (the outline's cap: `shade.shell_of` reads it) and `ck_final_levels`. The recording as made
+  stays in `meta['coarse_events']` (`pieces(P, coarse=True)`: the lab, motion QA). `garments_product` and the
+  evaluator's `garment_piece` finalize, so the evaluator's garments are the build's meshes by construction (no
+  solid, no subdivision left in their Parts).
+- Weights: `garments.group_weights` (3 decimals, 1e-4 and under dropped, clamped to 1) is what `_object` gives the
+  coarse vertex groups and what finalize carries; a final object's weights go in as carried (not rounded again).
+  `_object` sets corner UVs, smooth flags and material indices with foreach_set (the final meshes are 8x larger).
+- On merged_clawd's product: finalize 0.9 s for 19 pieces, the product 13 MB (save 1.0 s). Against the bundle's
+  Blender-evaluated meshes: all 19 one to one, ≤ 1.2e-5 L (the collar), every face, winding and first corner
+  equal, UVs ≤ 1.2e-6.
+
 ## Next
-- Waiting on the coordinator's merge and go-ahead for M4.
 - M4, the switch (plan):
   1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
      above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
