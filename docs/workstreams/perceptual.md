@@ -5,7 +5,29 @@ Michael's severity calls (the handoff's "Michael's review of the end-to-end run"
 phase 4 item 4). It complements the geometric checks. It reads the EEVEE boards, so it runs where boards render (the
 GPU render box), never in a gate.
 
-**State: paused 2026-09-29 (the coordinator scaled down concurrency).** Nothing is running on the boxes.
+**State: relaunched 2026-09-30 (the integrator approved it).** pipeline-3d 9397578 merged in (92e8fe2): the default
+spec is the authored character, produced references are cached. The calibration run is below ("Calibration run,
+2026-09-30").
+
+## Calibration run, 2026-09-30: pre-registered before any number was seen
+
+- **Labels** (`charkit/refs/clawd/perceptual_labels.json`): the 17 from before plus 18 from Michael's calls of
+  2026-09-30 (the round 4, 5 and 6 body reviews, the jaw and eye reviews; quotes and times from the session): the boots,
+  the midriff (rounds 4, 5 and 6), the puff spikes, the leg bump, the flap drape, the band zigzag, the rear tuck, the chin
+  taper, the neck notch (`inferred`) and nick (`agent`), the pupils, and four praise labels (the pleated skirt, the boots
+  template, the neck and jaw, the eye structure). Each label carries the geometric QA's verdict *of its build's own QA*
+  (`check`, the blind comparison) and, where one was added after the flag to catch it, `check_now` (fitted to the flag:
+  an upper bound, not a fair comparison).
+- **Pairs** (before/after): 7 praise pairs (his before/after calls), 1 implicit, 1 unreviewed; the metric agrees when the
+  region's value falls from the worse build to the better one; the geometric check agrees when its status improves.
+- **Primary variant, fixed now:** layer 24, floors (the pool's 10% quantile per scale, view and region), the
+  coverage-weighted mean, the body at 112 px per L, all labels. Its LOO rho is the headline.
+- **Decision rule, fixed now:** the metric "clearly beats" the geometric checks when the primary variant's LOO rho exceeds
+  the blind geometric rho by 0.2 or more **and** a paired bootstrap over labels (2000 draws) puts the 90% interval of
+  (LOO rho - geometric rho) above 0. Otherwise it doesn't, and the notes say why.
+- **Variants, reported whatever they show** (n is ~35, so a variant that wins by a little is noise): no floors, layer 18,
+  layer 12, p90 instead of the mean, the neighbour match off (aligned), the body at 224 px per L (`body_hi`), Michael's
+  words only (no `inferred` / `agent`), no relative praise.
 
 ## The model and its licence
 

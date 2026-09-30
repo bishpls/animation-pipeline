@@ -29,9 +29,10 @@ one patch on the other side (both ways, averaged), so a shift under a patch cost
 coverage-weighted mean over its patches (and its 90th percentile, the worst); its score is the region's weight times
 (distance - the floor): the calibration's (charkit/refs/clawd/perceptual_calibration.json).
 
-    python -m charkit perceptual BUILD [--out DIR] [--spec SPEC] [--no-page] [--open] [--remote]
+    python -m charkit perceptual BUILD [--out DIR] [--spec SPEC] [--no-page] [--open] [--remote] [--hi]
         -> BUILD/perceptual/perceptual.json (per scale, view and region: distance, p90, score, grade), heat maps
-           (heat_SCALE_VIEW.png: the design | ours | ours under the distance) and index.html
+           (heat_SCALE_VIEW.png: the design | ours | ours under the distance), maps.npz (every distance map and region
+           coverage, to re-pool without the model) and index.html; --hi adds the body at 224 px per L (body_hi)
     python -m charkit perceptual --calibrate LABELS.json --build LABEL=DIR [...] [--out DIR]
         the calibration: every labelled build scored, per-region weights and limits fitted to the severities, Spearman's
         rho in-sample and leave-one-out -> DIR/calibration.json, DIR/index.html
@@ -49,7 +50,7 @@ LICENCE = dict(name='DINOv3 License', updated='2025-08-19', url='https://ai.meta
 PATCH = 16
 MEAN, STD = np.array([0.485, 0.456, 0.406]), np.array([0.229, 0.224, 0.225])
 BG = np.array([0.93, 0.93, 0.93])          # both pictures' background (the design's grey, the boards' near-white)
-LAYERS = (24, 18)                           # hidden states read: the last block (the metric) and a mid-late one (a check)
+LAYERS = (24, 18, 12)                       # hidden states read: the last block (the metric), then mid-late and mid (checks)
 RADIUS = 1                                  # patches: the best match is sought this far on the other side
 
 # the two scales: ppl px per L, the grid in patches (it tiles exactly), the window's top above the eye line (L), the
@@ -59,7 +60,13 @@ SCALES = {
                  views={'front': 0, 'three_quarter': 35, 'profile': 90, 'back': 180}),
     'head': dict(ppl=224, cols=28, rows=22, top=0.84, board='face_%03d.png',
                  views={'front': 0, 'three_quarter': 30, 'profile': 90}),
+    # the body at the head's px per L (the same window; the body sheet is drawn at 212 px per L, the boards at 152): a
+    # 16 px patch is 0.07 L, so a detail of a tenth of an L (the bridge between the boots) spans patches. Optional
+    # (--hi): 4x the tokens, maps only (no heat pictures)
+    'body_hi': dict(ppl=224, cols=64, rows=106, top=1.3, board='body_%03d.png',
+                    views={'front': 0, 'three_quarter': 35, 'profile': 90, 'back': 180}, optional=True),
 }
+DEFAULT_SCALES = ('body', 'head')
 # the head scale shows the head sheet's own subjects only: its heads are bare to the shoulders, where ours wears the
 # collar and top (the body scale grades those against the body sheet)
 HEAD_REGIONS = ('face', 'eyes', 'hair', 'neck', 'accessories')
@@ -181,7 +188,7 @@ def design_spec(spec_path='charkit/spec/clawd.json'):
     return spec, float(eyelib._knobs(spec.get('eyes'))['x'])
 
 
-def design_body(spec, ex, chin=-0.37):
+def design_body(spec, ex, chin=-0.37, scale='body'):
     """the body sheet's figures on the body grid: {view: dict(rgb, fg, regions {name: bool}, anchor (sheet px),
     ppl_sheet)} (charkit.qa3d.Design's sheet context and bodyqa's classes; the outfit graph's piece masks). chin: L
     under the eye line, the head sheet's (the body sheet draws the neck in the face's tone, so its own face region runs
@@ -195,15 +202,15 @@ def design_body(spec, ex, chin=-0.37):
     dv = D.design_views()
     pm = bodymeasure.piece_masks(spec)
     masks = pm[0] if pm else {}
-    return venv_memo(_design_body, ctx['rgb'], ctx['D'], ctx['ppl'], dv, masks, chin), ctx['az3']
+    return venv_memo(_design_body, ctx['rgb'], ctx['D'], ctx['ppl'], dv, masks, chin, scale), ctx['az3']
 
 
-def _design_body(rgb, Dfig, ppl0, dv, masks, chin):
+def _design_body(rgb, Dfig, ppl0, dv, masks, chin, scale='body'):
     from . import bodyqa
-    u, z = grid('body')
-    w, ppl = win('body')
+    u, z = grid(scale)
+    w, ppl = win(scale)
     out = {}
-    for view in SCALES['body']['views']:
+    for view in SCALES[scale]['views']:
         f = Dfig['figures'].get(view)
         if f is None or view not in dv:
             continue
@@ -445,7 +452,7 @@ class Ours:
         ou, oz = self.anchor(view, az)
         U, Z = ou + u * self.L, oz + z * self.L                   # world, per cell (u along the view's right)
         lab = self.labels(scale, view, az)
-        if scale == 'body':
+        if scale.startswith('body'):
             Hh, Ww = BODY_BOARD['res'][1], BODY_BOARD['res'][0]
             ppm = max(Hh, Ww) / (BODY_BOARD['ortho'] * self.H)
             rows = Hh / 2 - (Z - BODY_BOARD['target'] * self.H) * ppm - 0.5
@@ -490,16 +497,23 @@ IRIS_AHEAD = 0.27      # L: our iris centres' lead over the head centre (y), for
 
 
 # ------------------------------------------------------------------------------------------------------------ pairs
-def pairs(build, spec_path='charkit/spec/clawd.json'):
+def pairs(build, spec_path='charkit/spec/clawd.json', scales=DEFAULT_SCALES):
     """every (scale, view) of a build with its board: the design and ours on one grid, each side's regions, the
     registration's silhouette IoU. -> list of dicts."""
     spec, ex = design_spec(spec_path)
     O = Ours(build)
     Dh = design_head(spec, ex)
     chins = [d['chin'] for v, d in Dh.items() if v == 'profile'] or [d['chin'] for d in Dh.values()]
-    Db, az3 = design_body(spec, ex, float(np.median(chins)) if chins else -0.37)
+    chin = float(np.median(chins)) if chins else -0.37
+    sides = []
+    for scale in scales:
+        if scale == 'head':
+            sides.append((scale, Dh))
+        else:
+            Db, az3 = design_body(spec, ex, chin, scale)
+            sides.append((scale, Db))
     out = []
-    for scale, D in (('body', Db), ('head', Dh)):
+    for scale, D in sides:
         for view in SCALES[scale]['views']:
             if view not in D:
                 continue
@@ -524,8 +538,8 @@ def pairs(build, spec_path='charkit/spec/clawd.json'):
                 fz = o['fg_z'] & ~cut
                 o['reg_iou'] = round(float((fz & fgo).sum() / max(1, (fz | fgo).sum())), 4)
             out.append(dict(scale=scale, view=view, design=d, ours=o, iou=round(iou, 4),
-                            az_board=SCALES[scale]['views'][view], az_design=(az3 if view == 'three_quarter' else
-                                                                              SCALES[scale]['views'][view])))
+                            az_board=SCALES[scale]['views'][view], az_design=(az3 if view == 'three_quarter' and scale != 'head'
+                                                                              else SCALES[scale]['views'][view])))
     return out
 
 
@@ -700,12 +714,15 @@ def score_pairs(prs, feats, layer=LAYERS[0]):
                 continue
             masks[reg] = (md if md is not None else np.zeros_like(mo), mo)
         pr['regions'] = region_stats(dm, masks)
-        pr['layers'] = {}
+        pr['cover'] = {reg: coverage(_dilate(md if mo is None else md | mo, 3)) for reg, (md, mo) in masks.items()}
+        pr['maps'] = {'aligned_l%d' % layer: al}
+        pr['layers'] = {'aligned': {k: dict(dist=v['dist'], p90=v['p90']) for k, v in region_stats(al, masks).items()}}
         for l in fd:
             if l == layer:
                 continue
             d2, _ = patch_distance(fd[l], fo[l])
-            pr['layers'][l] = {k: v['dist'] for k, v in region_stats(d2, masks).items()}
+            pr['maps']['dmap_l%d' % l] = d2
+            pr['layers'][l] = {k: dict(dist=v['dist'], p90=v['p90']) for k, v in region_stats(d2, masks).items()}
         pr['whole'] = round(float(dm[coverage(pr['design']['fg'] | pr['ours']['fg']) >= MIN_COVER].mean()), 4)
     return prs
 
@@ -773,13 +790,16 @@ def legend(lo=0.1, hi=0.45, w=240, h=14):
 
 
 # ------------------------------------------------------------------------------------------------------------ the run
-def run(build, out=None, spec_path='charkit/spec/clawd.json', calib=CALIBRATION, pictures=True, log=print):
-    """the whole pass on a build with boards -> the result dict (also out/perceptual.json, the heat maps, index.html)."""
+def run(build, out=None, spec_path='charkit/spec/clawd.json', calib=CALIBRATION, pictures=True, log=print,
+        scales=DEFAULT_SCALES):
+    """the whole pass on a build with boards -> the result dict (also out/perceptual.json, the heat maps, maps.npz: every
+    pair's per-patch distance maps (each layer, and layer 24 unmatched) and region coverage, for re-pooling without the
+    model; index.html)."""
     build = _p(build)
     out = _p(out) if out else os.path.join(build, 'perceptual')
     os.makedirs(out, exist_ok=True)
     t0 = time.time()
-    prs = pairs(build, spec_path)
+    prs = pairs(build, spec_path, scales)
     if not prs:
         raise RuntimeError('%s: no boards (boards/body_*.png, face_*.png) to compare' % build)
     t1 = time.time()
@@ -791,6 +811,7 @@ def run(build, out=None, spec_path='charkit/spec/clawd.json', calib=CALIBRATION,
     res = dict(build=build, when=time.strftime('%Y-%m-%d %H:%M'), model=meta, licence=LICENCE, layer=LAYERS[0],
                radius=RADIUS, calibration=(C or {}).get('fitted'), scales={}, seconds=dict(
                    register=round(t1 - t0, 1), features=round(t2 - t1, 1)))
+    maps = {}
     for pr in prs:
         sc, v = pr['scale'], pr['view']
         R = {}
@@ -798,18 +819,30 @@ def run(build, out=None, spec_path='charkit/spec/clawd.json', calib=CALIBRATION,
             score, g = grade(C, sc, v, reg, st['dist'])
             if st['patches'] < MIN_PATCHES and g != 'INFO':
                 g = 'INFO'
-            R[reg] = dict(st, score=score, grade=g, graded_here=PRIMARY.get(reg, 'body') == sc,
-                          **{'dist_l%d' % l: pr['layers'][l].get(reg) for l in pr['layers']})
+            ex = {}
+            for l, per in pr['layers'].items():
+                tag = l if isinstance(l, str) else 'l%d' % l
+                if reg in per:
+                    ex['dist_' + tag], ex['p90_' + tag] = per[reg]['dist'], per[reg]['p90']
+            R[reg] = dict(st, score=score, grade=g, graded_here=PRIMARY.get(reg, 'body') == sc, **ex)
+        key = '%s_%s' % (sc, v)
+        maps[key + '__dmap_l%d' % LAYERS[0]] = pr['dmap'].astype(np.float16)
+        for k, m in pr['maps'].items():
+            maps[key + '__' + k] = m.astype(np.float16)
+        for reg, c in pr['cover'].items():
+            maps[key + '__cov_' + reg] = c.astype(np.float16)
+        maps[key + '__cov_fg'] = coverage(pr['design']['fg'] | pr['ours']['fg']).astype(np.float16)
         entry = dict(iou=pr['iou'], registration_iou=pr['ours'].get('reg_iou'), how=pr['ours']['how'],
                      board=pr['ours']['board'], az_board=pr['az_board'], az_design=pr['az_design'], whole=pr['whole'],
                      regions=R)
-        if pictures:
+        if pictures and not SCALES[sc].get('optional'):
             f = 'heat_%s_%s.png' % (sc, v)
             _save(os.path.join(out, f), heat_picture(pr))
             np.save(os.path.join(out, 'dmap_%s_%s.npy' % (sc, v)), pr['dmap'].astype(np.float16))
             entry['picture'] = f
         res['scales'].setdefault(sc, {})[v] = entry
     res['summary'] = summary(res)
+    np.savez_compressed(os.path.join(out, 'maps.npz'), **maps)
     if pictures:
         _save(os.path.join(out, 'legend.png'), legend())
     json.dump(res, open(os.path.join(out, 'perceptual.json'), 'w'), indent=1)
@@ -871,6 +904,8 @@ def page(res, out):
              'below 0.1, yellow to red to magenta at 0.45; the design\'s outline in blue).</p><img src="legend.png">')
     for sc in ('head', 'body'):
         for v, en in (res['scales'].get(sc) or {}).items():
+            if 'picture' not in en:
+                continue
             H.append('<h2>%s scale, %s</h2>' % (sc, v.replace('_', '-')))
             cap = ('silhouette IoU with the design %.3f; registration (board against our z-buffer) %s; %s; board %s at '
                    '%s deg, the design at %s deg; whole-figure distance %.3f' % (
@@ -1243,7 +1278,8 @@ def main(args):
     build = args[0]
     if '--remote' in args:
         return remote(build, [a for a in args[1:] if a != '--remote'])
-    res = run(build, opt('--out'), opt('--spec', 'charkit/spec/clawd.json'), pictures='--no-page' not in args)
+    res = run(build, opt('--out'), opt('--spec', 'charkit/spec/clawd.json'), pictures='--no-page' not in args,
+              scales=DEFAULT_SCALES + (('body_hi',) if '--hi' in args else ()))
     for r in res['summary']:
         print('  %-12s %-5s %-14s dist %.3f  p90 %.3f  %s %s' % (r['region'], r['scale'], r['view'], r['dist'], r['p90'],
                                                              '' if r['score'] is None else 'score %.3f' % r['score'],
