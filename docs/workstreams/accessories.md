@@ -5,12 +5,24 @@ placeholders in `charkit/accessories.py` were a thin stretched four-point star a
 them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
 remodels and places them.
 
-## State: Round 3 (`tool/accessories2`, aec2fda), gated: FAIL under K on one item (palette_iris_shade's crossed cell, unmeasurable by construction: the coordinator's call); decisions for Michael
+## State: Round 4 (the split: `tool/acc-reclass` first, then this branch's geometry); round 3 gated FAIL under K on palette_iris_shade's unmeasurable crossed cell only; Michael kept round 3's placement
 
 Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
 pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
 selection for the build and the evaluator. Harness, logs and pictures (gitignored): `charkit/out/acc_work/`; the
 3ebc3fb baseline box build `charkit/out/acc_base2` (its own QA `qa/`, the new code's QA on its bundle `qa_new/`).
+
+## Round 4: the measure lands first, alone (the coordinator's decision, 2026-09-30)
+palette_iris_shade's crossed cell can't be measured while the branch changes the measure and the geometry together
+(the old measure reads the fitted star as the iris). So:
+1. `tool/acc-reclass`, from pipeline-3d 07fa3c2: the QA's reclass alone (accqa.py whole, the qa3d / bodymeasure /
+   checks hunks, bodyeval.hair_tones only, the steps at its own commit, the accqa tests in test_accqa.py), no geometry
+   (no accessories.py, scene, cli.hair_select, bodyeval.hair_selection / hair_by_outside, bodysens, specs). Gated
+   into pipeline-3d with the old geometry, so the 2x2 is measurable. The coordinator merges it.
+2. Then pipeline-3d merged into tool/accessories2 (the steps files resolved to pipeline-3d's: this branch's fc6269c /
+   e89c90c entries dropped, so the geometry gates under one measure), and the clips' geometry re-gated (round 3's
+   placement, Michael's (a)).
+3. A render-box build with face and body boards (the bent star's shading), the review page updated.
 
 ## Round 3 (`tool/accessories2`, continued): the gate's three blockers
 
@@ -18,6 +30,9 @@ selection for the build and the evaluator. Harness, logs and pictures (gitignore
 1. **Which view the clips honour:** the clips balance between the front and side views, the current compromise: the
    placement fit keeps its view weighting (front and three-quarter 1, profile 0.6).
 2. **The star's outline:** the default dark brown outline is fine for the star (the golden `line` stays dropped).
+3. **Round 3's placement stays** (Michael chose (a), 2026-09-30): the star hidden from behind and bending over the crab,
+   accepting the three-quarter and profile placement cost (both clips' three-quarter pos to FAIL, the crab's profile
+   iou 0.627 -> 0.492), against (b) round 2's placement with the star conformed and the back check failing.
 
 ### Blocker 1: `acc_star_back_shown` (the star shows from behind)
 Harness: `acc_work/r3/lab.py` (round 2's `fitlib.Harness` on the round 2 box build `acc_new`'s hair, each clip optionally
