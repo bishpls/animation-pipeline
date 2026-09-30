@@ -943,7 +943,7 @@ HAIR_KEEP = 0.03                     # L: hair the front view draws over the fac
 HAIR_CLASS = 2                       # bodyqa.CLASS['hair']
 
 
-def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print, hair_keep=HAIR_KEEP, detail=None):
+def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print, hair_keep=None, detail=None):
     """the hull without what stands in front of the face: where a view draws skin or iris (at the head's heights), every
     voxel between its camera and the face's surface on that pixel's ray goes. No view's silhouette shows the gap between
     a side lock and the cheek, so the carve fills it; the face drawn there says it's empty. head: the face's surface,
@@ -954,6 +954,8 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print, ha
     would carve without the hair rule: position, how far in front of the face (the most over the views carving it),
     hair or not, kept or not). In place -> voxels removed."""
     from .headfit import sections_mesh
+    if hair_keep is None:                                  # (CK_HAIR_KEEP: a lab's override, for A/B builds)
+        hair_keep = float(os.environ.get('CK_HAIR_KEEP', HAIR_KEEP))
     m = sections_mesh(head, step=1)
     Vm = m.V + np.array([0.0, y_e, 0.0])
     ix, iy, iz = np.nonzero(V)

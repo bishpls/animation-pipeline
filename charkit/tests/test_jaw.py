@@ -122,6 +122,17 @@ def test_under_jaw_keeps_the_rim_on_the_v():
         assert abs(P[k, 2] - (-0.36 + abs(P[k, 0]) / 2)) < 0.01, (deg, P[k])
 
 
+def test_under_jaw_leaves_the_rows_under_its_band_on_the_sections():
+    """rows under the band's foot (the neck down to the join) are the sections' own, not the meridians' end."""
+    S, jaw = _head()
+    U = headgeom.UnderJaw(S, jaw, -0.2, -0.45)
+    th, z = np.zeros(3), np.array([-0.3, -0.5, -0.55])
+    P = U.place(th, z)
+    ref = headgeom.place(S, th, z)
+    assert np.abs(P[1:] - ref[1:]).max() < 1e-9                      # under the foot: the sections'
+    assert abs(P[0, 2] - (-0.3)) > 1e-3 or np.abs(P[0] - ref[0]).max() > 1e-3   # in the band: along the meridian
+
+
 def test_orient_faces_makes_the_winding_consistent():
     V = np.array([[x, y, z] for x in (0.0, 1.0) for y in (0.0, 1.0) for z in (0.0, 1.0)]) - 0.5
     V[:, 2] += 0.15                                                 # (the forehead's seed near z 0.15)

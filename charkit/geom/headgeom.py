@@ -197,7 +197,8 @@ def _near(mask, nb, off, k):
 JAW_BAND_DZ = 0.0075     # L of chart height per cage row in the jaw's band (its columns run over the chin, back along
                          # the underside and down the neck to the band's foot: in front three times its height)
 JAW_BAND_END = 0.11      # L under the mouth block: the band ends at the first cage row this far down (the neck under
-                         # the throat; the rows under it, to the join, stay the cage's own)
+                         # the throat; under it, to the join, the rows are on the sections, their spacing growing
+                         # evenly from the band's to the cage's own)
 JAW_TOP_GAP = 0.012      # L: the underside kept this far under the band's top row (the mouth block's bottom)
 POCKET_FADE = 0.02       # L: the pocket under the jaw, whole over the neck's width, fades out over this past it
 TIP_BIAS = (0.006, 0.06) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
@@ -237,10 +238,15 @@ class UnderJaw:
         self.tan = float(np.tan(np.radians(jaw['rise'])))
         j0 = int(np.argmin(np.abs(S.th)))
         front = self.cy - self.r[:, j0]
-        below = self.zs < float(jaw['chin']) - 0.01
-        ref = float(np.median(front[below & (self.zs > float(jaw['chin']) - 0.12)])) if below.any() else np.nan
-        k0 = np.nonzero(below & (np.abs(front - ref) < 0.01))[0]
+        # the neck's top row: the first, 0.03 L or more under the chin, whose front is the neck's (within 0.004 L of its
+        # median front further down: the rows just under the chin still carry the old step's smoothing, a lip)
+        chin = float(jaw['chin'])
+        below = self.zs < chin - 0.03
+        ref = float(np.median(front[(self.zs < chin - 0.04) & (self.zs > chin - 0.12)])) if below.any() else np.nan
+        k0 = np.nonzero(below & (np.abs(front - ref) < 0.004))[0]
         self.k0 = int(k0[0]) if len(k0) else int(np.nonzero(below)[0][0])
+        if self.zs[self.k0] < self.z_bottom:                # no lower than the band's foot (the rows under it are the
+            self.k0 = int(np.argmin(np.abs(self.zs - self.z_bottom)))   # sections': the neck must meet them there)
         self.z_n0 = float(self.zs[self.k0])
         xn = np.sin(S.th) * self.r[self.k0]
         yn = self.cy[self.k0] - np.cos(S.th) * self.r[self.k0]
@@ -319,11 +325,16 @@ class UnderJaw:
         return u - POCKET_DROP * (1 - w)
 
     def centre(self, z):
-        """the band's columns hang from a centre line straight from the top row's centre to the bottom row's (the
-        sections' own centres jump back at the chin's step, which would twist the columns' sheets)."""
+        """the band's columns hang from a centre line: straight from the top row's centre to the bottom row's through
+        the middle (the sections' own centres jump back at the chin's step, which would twist the columns' sheets), eased
+        into the sections' own at both ends (sin^2 of the way down: the position and the slope meet the rows over and
+        under the band, else the columns shear there and the limit surface's normals kink: a lit ring round the neck)."""
+        z = np.asarray(z, float)
         c0, c1 = self._rows(np.array([self.z_top, self.z_bottom]))[0]
-        t = np.clip((self.z_top - np.asarray(z, float)) / (self.z_top - self.z_bottom), 0, 1)
-        return c0 + (c1 - c0) * t
+        t = np.clip((self.z_top - z) / (self.z_top - self.z_bottom), 0, 1)
+        own = self._rows(np.atleast_1d(z))[0].reshape(np.shape(z))
+        w = np.sin(np.pi * t) ** 2
+        return own + w * (c0 + (c1 - c0) * t - own)
 
     @staticmethod
     def _ray(theta, xs, ys, c):
@@ -390,15 +401,15 @@ class UnderJaw:
         return self._mer[key]
 
     def place(self, theta, z, part=None):
-        """chart points (theta, z) -> (N, 3): at or over z_top the sections' own (place); under it along the column's
-        meridian by arc length (z_top at its start, z_bottom at its end). part: an array (N,) filled with where each point
+        """chart points (theta, z) -> (N, 3): at or over z_top and under z_bottom the sections' own (place); between,
+        along the column's meridian by arc length (z_top at its start, z_bottom at its end). part: an array (N,) filled with where each point
         fell: 0 the envelope (over the rim, or a column without the pocket), 1 the underside (strictly between the rim and
         the throat), 2 the neck under the throat."""
         theta, z = np.asarray(theta, float), np.asarray(z, float)
         out = place(self.S, theta, z)
         if part is not None:
             part[:] = 0
-        band = z < self.z_top - 1e-9
+        band = (z < self.z_top - 1e-9) & (z >= self.z_bottom - 1e-9)    # (under the band's foot: the sections')
         span = self.z_top - self.z_bottom
         for t in np.unique(theta[band]):
             sel = band & (theta == t)
@@ -489,7 +500,16 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         low = zs[zs <= z_a - JAW_BAND_END + 1e-9]
         z_n = float(low.max()) if len(low) else float(z_bottom)
         n = max(2, int(round((z_a - z_n) / JAW_BAND_DZ)))
-        zs = np.concatenate([zs[zs >= z_a - 1e-9], z_a - (z_a - z_n) * np.arange(1, n) / n, zs[zs <= z_n + 1e-9]])
+        d_band = (z_a - z_n) / n
+        # under the band to the join the rows' spacing grows evenly from the band's to the cage's own (an abrupt 4x step
+        # concentrated the nape's curvature on one row: the limit surface's normals kinked, a lit ring round the neck)
+        span, d1 = z_n - z_bottom, 1.3 * d_band
+        m = max(1, int(np.ceil(2 * span / (d1 + dz))))
+        dm = 2 * span / m - d1
+        steps = d1 + (dm - d1) * np.arange(m) / max(1, m - 1)
+        under_rows = z_n - np.cumsum(steps)
+        under_rows[-1] = z_bottom
+        zs = np.concatenate([zs[zs >= z_a - 1e-9], z_a - (z_a - z_n) * np.arange(1, n) / n, [z_n], under_rows])
         under = UnderJaw(S, jaw, z_a, z_n)
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
