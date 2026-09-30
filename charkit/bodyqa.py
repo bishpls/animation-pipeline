@@ -486,12 +486,16 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
               'the widest garment row through the axis between waist and knee, on the rows neither figure has a hand '
               'against')
     elif [r for r in rd if not rd[r][1] and r in ro]:
-        # no row free in both (ours' hands hang against every row the design's leave free): ours' run on the design's
-        # free rows, where a hand of ours may touch it
+        # no row free in both (ours' hands hang against every row the design's leave free): the design's widest free row,
+        # and ours on that same row (a hand of ours may touch it). Each figure's own widest over those rows sat at
+        # different heights (clawd_mh's back: the design's free rows are the waist, widening downward, and ours' widest
+        # was its top row against the design's bottom one)
         fd = [r for r in rd if not rd[r][1] and r in ro]
-        width('skirt_width', round(max(ro[r][0] for r in fd), 4), round(max(rd[r][0] for r in fd), 4),
-              "the widest garment row through the axis between waist and knee, on the design's rows free of hands (no "
-              'row is free in both: ours measured there with a hand against it)')
+        r_ = max(fd, key=lambda r: (rd[r][0], -r))
+        width('skirt_width', round(ro[r_][0], 4), round(rd[r_][0], 4),
+              "the garment row through the axis at the design's widest row free of hands, between waist and knee, "
+              "ours on the same row (no row is free in both: ours measured there with a hand against it)")
+        C['skirt_width']['z'] = round(float(WIN['top'] - (r_ + 0.5) / D['ppl']), 4)
     else:
         width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the '
               'axis between waist and knee, rows with a hand against it left out (no row free in both)')

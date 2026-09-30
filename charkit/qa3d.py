@@ -1294,7 +1294,10 @@ def spring_pieces(S, graph, B, meshes, names):
     per view its lowest row, its outer edge (L, + ours lower / further out) and its visible area over the drawn one
     (valued by the worst |lowest row| over the views showing at least a quarter of its largest drawing, graded as a
     length); for a piece built on its own chain (a flap), <id>_hang: where it hangs from and to (its top and lowest
-    point, L from the eye line) against its drawn chain's root and tip (valued by the larger difference)."""
+    point, L from the eye line) against its drawn chain's root and the drawn piece's lowest point (drawn_low: the chain is
+    a skeleton, and a skeleton ends short of the tip by the piece's half-width there: the flaps' chains end at -3.07 L
+    where the drawn flaps reach -3.19 .. -3.21, so a flap as long as the drawing read 0.13 too low) (valued by the
+    larger difference)."""
     from . import bodymeasure
     C = {}
     L = B.assembly['L']
@@ -1321,14 +1324,28 @@ def spring_pieces(S, graph, B, meshes, names):
         if own and len(J) and chained:
             V = np.concatenate([meshes[i][0] for i in own])
             top, low = (float(V[:, 2].max()) - ez) / L, (float(V[:, 2].min()) - ez) / L
-            da, dr = top - float(J[0, 2]), low - float(J[:, 2].min())
+            tip = drawn_low(graph, pid)
+            tip = float(J[:, 2].min()) if tip is None else tip
+            da, dr = top - float(J[0, 2]), low - tip
             v = max(abs(da), abs(dr))
             C[pid + '_hang'] = {'value': round(v, 4), 'status': 'PASS' if v <= HANG_PASS else 'WARN' if v <= HANG_WARN
                                 else 'FAIL', 'attach': [round(top, 3), round(float(J[0, 2]), 3)],
-                                'reach': [round(low, 3), round(float(J[:, 2].min()), 3)],
-                                'note': 'where it hangs from (its top) and to (its lowest point), ours and the drawn '
-                                        "chain's root and tip, L from the eye line"}
+                                'reach': [round(low, 3), round(tip, 3)],
+                                'note': "where it hangs from (its top) and to (its lowest point), ours against the drawn "
+                                        "chain's root and the drawn piece's lowest point, L from the eye line"}
     return C
+
+
+def drawn_low(graph, pid, share=0.25):
+    """a drawn piece's lowest point, L from the eye line: the median over the views showing at least `share` of its
+    largest drawing of its extent's bottom (the outfit graph's per-view bbox), or None without extents."""
+    pc = next((p for p in graph.get('pieces') or [] if p['id'] == pid), None)
+    ext = {v: e for v, e in ((pc or {}).get('extent') or {}).items() if v != 'rig' and e.get('bbox') and e.get('px')}
+    if not ext:
+        return None
+    big = max(e['px'] for e in ext.values())
+    z = [e['bbox'][1] for e in ext.values() if e['px'] >= share * big]
+    return float(np.median(z)) if z else None
 
 
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)

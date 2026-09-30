@@ -102,6 +102,25 @@ def test_evaluate_takes_a_zbuffer_label_image():
     assert views and views[0][0] == 'front' and 'skirt' in table['views']['front']['ours']
 
 
+def test_skirt_width_with_no_row_free_in_both_compares_one_row():
+    """no row is free of hands in both figures: the design's widest free row, and ours on that same row (each figure's
+    own widest over the design's free rows sat at different heights: ours' top row against the design's bottom one)."""
+    im, fg = figure()
+    cls, _ = bodyqa.classes(im, fg, WIN['top'] * PPL, PPL)
+    D = bodyqa.measure(cls, fg, PPL, 'front')
+    D['ppl'] = PPL
+    O = dict(D)
+    # the design's free rows 10..14, widening downward (0.70 .. 0.88); ours blocked on every row, narrower at the top and
+    # wider below: ours' widest over those rows (0.92 at row 10) would sit against the design's at row 14
+    D['skirt'] = dict(D['skirt'], _rows={r: (0.70 + 0.045 * (r - 10), False) for r in range(10, 15)})
+    D['skirt']['_rows'].update({r: (1.0, True) for r in range(15, 20)})
+    O['skirt'] = dict(O['skirt'], _rows={r: (0.92 - 0.01 * (r - 10), True) for r in range(10, 20)})
+    C_ = bodyqa.compare(O, D, cls, cls, fg, fg, 'front')
+    sw = C_['skirt_width']
+    assert sw['design'] == 0.88 and sw['ours'] == 0.88 and sw['value'] == 1.0, sw
+    assert abs(sw['z'] - (WIN['top'] - 14.5 / PPL)) < 1e-3, sw
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
