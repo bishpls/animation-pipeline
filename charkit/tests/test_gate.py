@@ -139,14 +139,14 @@ def test_k_blocks_only_new_fails_flag_regressions_and_cpu():
            art_mirror_waist=(1.15, 'WARN', 'WARN', 'waist'))             # art_bumps_legs gone: a regression
     v, block, R = _judge(a, b, cpu_seconds=[100, 140])
     kinds = {(x['kind'], x.get('check')) for x in block}
-    assert v == 'FAIL' and kinds == {('new FAIL', 'iou'), ('new FAIL', 'new_bad'), ('flag check regressed', 'art_spikes_boots'),
+    assert v == 'FAIL' and kinds == {('new FAIL', 'iou'), ('flag check regressed', 'art_spikes_boots'),
                                      ('flag check regressed', 'art_points_sleeves'),
                                      ('flag check regressed', 'art_bumps_legs')}, kinds
     assert [r['check'] for r in R['warn']] == ['width'] and [r['check'] for r in R['gone']] == ['gone_ok']
     assert [r['check'] for r in R['flag_values']] == ['art_mirror_waist'] and R['flag_values'][0]['flag'] == 'waist'
     assert [r['check'] for r in R['values']] == ['info', 'chin']         # the biggest move first (+33% before +4%)
     assert R['values'][0]['delta'] == 1 and abs(R['values'][1]['rel'] - 0.04) < 1e-9
-    assert [r['check'] for r in R['new']] == ['new_ok']
+    assert [r['check'] for r in R['new']] == ['new_ok'] and [r['check'] for r in R['new_failing']] == ['new_bad']
     # the same moves without the FAILs and flag regressions pass, reported
     b2 = _q(iou=(0.85, 'PASS'), width=(0.97, 'WARN'), chin=(0.52, 'WARN'), info=(4, 'INFO'),
             art_spikes_boots=(0.01, 'PASS', 'PASS', 'boots'), art_points_sleeves=(1.3, 'WARN', 'WARN', 'sleeves'),

@@ -4,7 +4,7 @@ candidate; the tests run, each side is built when it has to be, and the two buil
 
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
                                   [--build]
-    python -m charkit gate --rejudge REPORT.json [--json]      # an earlier report read under policy K
+    python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
 
 The worktrees are sparse checkouts (charkit/sparse.py's charkit profile: the code, plus the paths the character's
 manifest names): a few hundred MB instead of every film's assets. The gate refuses to start with under 5 GB free.
@@ -19,7 +19,8 @@ by side, each in its worktree, with the tests alongside (on a machine with 16 or
 
 The verdict: Michael's policy K (2026-09-30). The merge is blocked (FAIL) only by
   - the merge conflicting, a test failing, a build failing;
-  - a new FAIL: a check that FAILs on the candidate and didn't on the baseline;
+  - a new FAIL: a check that PASSed or WARNed on the baseline and FAILs on the candidate (a check the branch adds
+    that FAILs is reported, not blocking: it measures a known fault, it doesn't make one);
   - a regression in a check built from Michael's flags (a check carrying `flag`: charkit.registry.FLAG): its status or
     its calibrated grade gets worse, or it disappears;
   - the build's CPU time over 1.5x the baseline's.
@@ -559,18 +560,18 @@ def _delta(vx, vy):
 
 def judge(rep, qa_a, qa_b):
     """Michael's policy K on a gate's comparison -> (verdict, blocking, report). Blocking: rep['hard'] (the merge
-    conflicting, a test failing, a build failing); a new FAIL (a check FAILing on the candidate and not on the
-    baseline; a remeasured check is judged by its 2x2 instead); a flag check (charkit.registry.is_flag, on either
+    conflicting, a test failing, a build failing); a new FAIL (a check PASSing or WARNing on the baseline and FAILing
+    on the candidate; a remeasured check is judged by its 2x2 instead); a flag check (charkit.registry.is_flag, on either
     side's qa.json) whose status or calibrated grade gets worse, or which goes; the 2x2's drops that end at FAIL under
     that measure or are flag checks (not --accept'ed); the build's CPU over CPU_LIMIT x. The report: everything else,
-    by kind (warn: a check PASS -> WARN; flag_values and values: value moves, the biggest first; gone; new; improved;
-    removed; remeasured; twobytwo; notes)."""
+    by kind (warn: a check PASS -> WARN; new_failing: checks the branch adds that FAIL; flag_values and values: value
+    moves, the biggest first; gone; new; improved; removed; remeasured; twobytwo; notes)."""
     from . import registry
     ca, cb = (qa_a or {}).get('checks', {}), (qa_b or {}).get('checks', {})
     is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
     block = [dict(h) for h in rep.get('hard') or ()]
-    R = {k: [] for k in ('warn', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed', 'remeasured',
-                         'twobytwo', 'notes')}
+    R = {k: [] for k in ('warn', 'new_failing', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed',
+                         'remeasured', 'twobytwo', 'notes')}
     for r in rep.get('qa') or ():
         k, v = r['check'], r['verdict']
         (vx, sx), (vy, sy) = r['base'], r['cand']
@@ -583,13 +584,14 @@ def judge(rep, qa_a, qa_b):
             row['flag'] = (cb.get(k) or ca.get(k) or {}).get(registry.FLAG)
         if v == 'remeasured':
             R['remeasured'].append(row)
-        elif sy == 'FAIL' and sx != 'FAIL':
+        elif sy == 'FAIL' and sx in ('PASS', 'WARN'):
             block.append(dict(row, kind='new FAIL'))
         elif fl and (v in ('regressed', 'gone', 'ungraded') or (gx in RANK and gy in RANK and RANK[gy] > RANK[gx])):
             block.append(dict(row, kind='flag check regressed'))
         else:
-            R[{'regressed': 'warn', 'gone': 'gone', 'ungraded': 'gone', 'new': 'new', 'improved': 'improved',
-               'removed': 'removed', 'value': 'flag_values' if fl else 'values'}.get(v, 'values')].append(row)
+            R['new_failing' if v == 'new' and sy == 'FAIL' else {
+                'regressed': 'warn', 'gone': 'gone', 'ungraded': 'gone', 'new': 'new', 'improved': 'improved',
+                'removed': 'removed', 'value': 'flag_values' if fl else 'values'}.get(v, 'values')].append(row)
     for b in ('flag_values', 'values'):
         R[b].sort(key=lambda x: -abs(x.get('rel') or 0) if x.get('rel') is not None else -abs(x.get('delta') or 0))
     tb = rep.get('twobytwo') or {}
@@ -598,8 +600,11 @@ def judge(rep, qa_a, qa_b):
         if not worse:
             continue
         after = {'old': (r.get('old_on_new') or [None, None])[1], 'new': (r.get('cand') or [None, None])[1]}
+        m0 = worse[0]                                   # the cells it's worse between, under that measure
         row = dict(check=r['check'], measures=worse, base=r.get('base'), old_on_new=r.get('old_on_new'),
-                   new_on_old=r.get('new_on_old'), cand=r.get('cand'))
+                   new_on_old=r.get('new_on_old'), cand=r.get('cand'),
+                   **{'from': r.get('base' if m0 == 'old' else 'new_on_old'),
+                      'to': r.get('old_on_new' if m0 == 'old' else 'cand')})
         if r.get('accepted'):
             R['twobytwo'].append(dict(row, note='accepted (--accept)'))
         elif any(after[m] == 'FAIL' for m in worse):
@@ -639,7 +644,8 @@ def verdict_pre_k(rep):
 def _why(b):
     k = b.get('kind')
     if 'check' in b:
-        return '%s: %s %s -> %s' % (k, b['check'], _cell(b.get('base')), _cell(b.get('cand')))
+        a, z = (b['from'], b['to']) if 'from' in b else (b.get('base'), b.get('cand'))
+        return '%s: %s %s -> %s' % (k, b['check'], _cell(a), _cell(z))
     if k == 'build CPU':
         return 'the build takes %.2fx the CPU time (%s -> %s s)' % (b['ratio'], b['base'], b['cand'])
     if b.get('files'):
@@ -744,7 +750,8 @@ def _write(rep, gdir, tag):
     L.append('\n## Report (not blocking)\n')
     cell = lambda k: (lambda r: _cell(r.get(k)))
     num = lambda k, f='%+.4g': (lambda r: (f % r[k]) if r.get(k) is not None else '')
-    for key, title in (('warn', 'Checks going PASS -> WARN'), ('flag_values', "Flag checks' values moved (status and "
+    for key, title in (('warn', 'Checks going PASS -> WARN'), ('new_failing', 'New checks that FAIL (the branch adds '
+                                                                               'them)'), ('flag_values', "Flag checks' values moved (status and "
                                                                                       'grade unchanged)'),
                        ('values', 'Values moved (status unchanged), the biggest first'), ('gone', 'Checks gone or ungraded'),
                        ('new', 'New checks'), ('improved', 'Improved'), ('removed', 'Retired by a measurement step'),
@@ -859,7 +866,7 @@ def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return
     if args[0] == '--rejudge':
-        for p in [a for a in args[1:] if not a.startswith('--')]:
+        for p in sorted(x for a in args[1:] if not a.startswith('--') for x in (glob.glob(a) or [a])):   # (patterns too)
             r = rejudge(p)
             if '--json' in args:
                 print(json.dumps(r, default=str))
