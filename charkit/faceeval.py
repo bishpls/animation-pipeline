@@ -143,7 +143,7 @@ def features(b, A, S, keys=False):
             var = {'eval': G}
             if keys:
                 back = np.zeros((len(v), 3)); back[:, 1] = 0.006
-                K = {'eye_blink': back, 'eye_happy': back}
+                K = {'eye_' + nm: back for nm in eyelib.CLOSED}
                 if k == 'iris':
                     K.update({kn: D for kn, D in (E.get('iris_keys') or {}).items()})
                     K.update({'eye_' + nm: eyelib.iris_scale(v, uv, cz, s_) for nm, s_ in getattr(eyelib, 'IRIS_SCALE', {}).items()})

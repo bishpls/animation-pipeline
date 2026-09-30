@@ -159,8 +159,8 @@ def features(G, keys=True, cache=None):
         for name, (uf, lf) in eyelib.expressions(EK, L).items():
             if uf is None and lf is None:                 # the lids as they are (a shocked eye: its iris key only)
                 continue
-            D = eyelib.lid_key(V, E['eye'], F, EK, L, sd, c, uf, lf)
-            lash = eyelib.lashes(F, EK, L, sd, c, uf, lf)
+            D = eyelib.lid_key(V, E['eye'], F, EK, L, sd, c, uf, lf, **eyelib.KEY_OPTS.get(name, {}))
+            lash = eyelib.LASHES.get(name, eyelib.lashes)(F, EK, L, sd, c, uf, lf)
             E['keys'][name] = (D, [lv - bv for (lv, _), (bv, _) in zip(lash, E['lashes'])])
     # the mouth: the lips' loop onto the neutral line, the cavity behind; the viseme and expression keys
     MK = mouthlib._knobs(spec.get('mouth'))
@@ -353,7 +353,7 @@ def build_eyes(A, arm, skin, spec, look=None):
         # closed eyes: the plates sink back so nothing shows through the lids' seam
         for o in (sc, iob):
             back = np.zeros((len(o.data.vertices), 3)); back[:, 1] = 0.006
-            for name in ('blink', 'happy'):
+            for name in eyelib.CLOSED:
                 _key(o, f'eye_{name}', back)
         # expressions that scale the iris (a shocked eye's shrunken iris)
         cz = eyetex._knobs(IK)['cz']

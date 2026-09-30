@@ -32,7 +32,7 @@ PRESETS = {
     'angry': dict(eye='angry', mouth='frown', brow='angry'),
     'fluster': dict(eye='shock', mouth='wavy', brow='surprised'),
     'yawn': dict(eye='blink', mouth='yawn', brow='raise'),
-    'effort': dict(eye='squeeze', mouth='clench', brow='knit'),
+    'effort': dict(eye='chevron', mouth='clench', brow='knit'),      # (the > < chevron: Michael, 2026-09-30)
     'shout': dict(eye='angry', mouth='shout', brow='angry'),
     'focus': dict(eye='focus', mouth='firm', brow='focus'),
     'surprise': dict(eye='wide', mouth='surprised', brow='surprised'),

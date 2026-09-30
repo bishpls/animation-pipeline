@@ -73,7 +73,8 @@
     "smooth": 2,
     "at": 0.5,
     "width": 0.12,
-    "half": 0.47
+    "half": 0.47,
+    "face_lift": 15.0
    }
   },
   "hair": {

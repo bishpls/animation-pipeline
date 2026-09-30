@@ -293,9 +293,10 @@ def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None
 
 def shell_of(ob):
     """a thin shell's thickness (m): the object's own SOLIDIFY that gives it thickness (a garment's 'thick'; not the
-    outline, which flips normals), else 0 (a closed surface: the skin, the hair pieces, the boots)."""
+    outline, which flips normals), or the shell the venv already made (a final mesh's 'ck_shell', call J), else 0 (a
+    closed surface: the skin, the hair pieces, the boots)."""
     return max([abs(float(md.thickness)) for md in ob.modifiers if md.type == 'SOLIDIFY' and not md.use_flip_normals
-                and md.name != 'outline'] or [0.0])
+                and md.name != 'outline'] + [abs(float(ob.get('ck_shell', 0.0)))])
 
 
 def measured_thickness(ob, pct=THICK_PCT, reach=THICK_REACH):

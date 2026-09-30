@@ -411,11 +411,16 @@ def build_pieces(build, render=False):
         out.append(piece('skin_render', V, polys, uv=uvc, creases=cre, mods=[('SUBSURF', dict(levels=2))], L=L))
         truth['skin_render'] = None
     gp = os.path.join(build, 'geom', 'garments.npz')
-    obs = geomstage.pieces(geomstage.load(gp))[0] if os.path.exists(gp) else []
+    Pg = geomstage.load(gp) if os.path.exists(gp) else None
+    final = Pg is not None and Pg['meta'].get('coarse_events') is not None     # (call J: the bundle's raw is final)
+    obs = geomstage.pieces(Pg, coarse=True)[0] if Pg is not None else []
     for o in obs:
         bo = B.obj(o['name'])
-        Vr, lvr, cntr = bo.V('raw'), bo.a('raw', 'loopv'), bo.a('raw', 'counts')
-        pr = [tuple(int(x) for x in lvr[s_:s_ + c]) for s_, c in zip(np.r_[0, np.cumsum(cntr)[:-1]], cntr)]
+        if final:                                               # the coarse mesh and its modifiers from the product
+            Vr, pr = np.asarray(o['V'], float), [tuple(int(x) for x in f) for f in o['polys']]
+        else:
+            Vr, lvr, cntr = bo.V('raw'), bo.a('raw', 'loopv'), bo.a('raw', 'counts')
+            pr = [tuple(int(x) for x in lvr[s_:s_ + c]) for s_, c in zip(np.r_[0, np.cumsum(cntr)[:-1]], cntr)]
         if o['uv_corner'] is not None:
             U = [np.asarray(u, float) for u in o['uv_corner']]
         elif o['uv'] is not None:
@@ -524,6 +529,11 @@ def main(args):
         run_build(build, out, render='--render' in args, names=names.split(',') if names else None)
         print('report', os.path.join(out, 'evalmesh.md'))
         return 0
+    if args[0] == 'motion':
+        build = args[1]
+        names = opt('--pieces')
+        motion(build, opt('--out', os.path.join(build, 'motion')), names=names.split(',') if names else None)
+        return 0
     print(__doc__); return 1
 
 
@@ -548,9 +558,11 @@ def finalize(o):
     else:
         luv = None
     mat = np.asarray(o['mat_idx'], np.int64) if o['mat_idx'] is not None else np.zeros(nf, np.int64)
+    from .garments import group_weights                    # (the weights as the coarse object's vertex groups hold them)
     names = sorted(o['weights'])
-    W = np.stack([np.asarray(o['weights'][b], float) for b in names], 1) if names else np.zeros((len(V), 0))
+    W = np.stack([group_weights(o['weights'][b]) for b in names], 1) if names else np.zeros((len(V), 0))
     cre, shell, levels = None, None, 0
+    layer = np.zeros(nf, np.int8)                            # per face: 0 the surface, 1 the Solidify's copy, 2 its rim
     for name, m in o['mods'].items():
         st = m['settings']
         if m['type'] == 'SOLIDIFY':
@@ -558,7 +570,9 @@ def finalize(o):
             R = solid.solidify(V, (lv, cnt), float(st['thickness']), uv=luv,
                                **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
             V, lv, cnt, luv = R['V'], R['loopv'], R['counts'], R['uv']
+            nf_ = len(mat)
             mat = mat[R['parent']]
+            layer = np.r_[np.zeros(nf_, np.int8), np.ones(nf_, np.int8), np.full(len(R['counts']) - 2 * nf_, 2, np.int8)]
             W = np.concatenate([W, W])
             cre = R['creases'] if len(R['creases'][0]) else None
         elif m['type'] == 'SUBSURF':
@@ -570,13 +584,189 @@ def finalize(o):
             V, lv, cnt = R['V'], R['quads'].ravel(), np.full(len(R['quads']), 4)
             luv = R['uv'].reshape(-1, 2) if R['uv'] is not None else None
             mat = mat[R['parent']]
+            layer = layer[R['parent']]
             W = R['carry']
             cre = None
     st_ = np.r_[0, np.cumsum(cnt)[:-1]]
-    return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat,
+    return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat, layer=layer,
                 uv_corner=[luv[a:a + c] for a, c in zip(st_, cnt)] if luv is not None else None,
                 weights={b: W[:, k] for k, b in enumerate(names)}, shell=shell, levels=levels)
 
 
 _SOLID_KW = ('offset', 'use_rim', 'edge_crease_outer', 'edge_crease_inner', 'edge_crease_rim', 'use_even_offset',
              'use_quality_normals', 'use_flip_normals')
+
+
+# ------------------------------------------------------------------------------------------------ M4: motion QA
+# extreme poses: per bone a rotation in the armature's rest frame (axis, degrees) about its head, composed down the
+# chain (Blender frame: +Z up, the character facing -Y, its left arm along +X)
+POSES = {
+    'arms_up': dict(leftUpperArm=('Y', -80), rightUpperArm=('Y', 80)),
+    'elbows_bent': dict(leftUpperArm=('Y', -30), rightUpperArm=('Y', 30), leftLowerArm=('Z', -130),
+                        rightLowerArm=('Z', 130)),
+    'arms_forward_crossed': dict(leftUpperArm=('Z', -110), rightUpperArm=('Z', 110)),
+    'kick': dict(leftUpperLeg=('X', -95), leftLowerLeg=('X', 30), rightLowerLeg=('X', 120)),
+    'squat': dict(leftUpperLeg=('X', -100), rightUpperLeg=('X', -100), leftLowerLeg=('X', 130),
+                  rightLowerLeg=('X', 130), spine=('X', 25)),
+    'twist_bend': dict(spine=('Z', 40), chest=('X', 35), upperChest=('Z', 20), neck=('X', 20)),
+    'split': dict(leftUpperLeg=('Y', 70), rightUpperLeg=('Y', -70)),
+}
+
+
+def _groups(ob, names, W, final):
+    """vertex groups named by bone: the weights as given (grouped by value in one pass)."""
+    for k, b in enumerate(names):
+        g = ob.vertex_groups.new(name=b)
+        w = np.asarray(W[:, k], float)
+        vals, inv = np.unique(w, return_inverse=True)
+        order = np.argsort(inv, kind='stable')
+        for j, idx in enumerate(np.split(order, np.cumsum(np.bincount(inv, minlength=len(vals)))[:-1])):
+            if vals[j] > 0:
+                g.add(idx.tolist(), float(vals[j]), 'REPLACE')
+
+
+def motion_main(inp, out):
+    """inside Blender: the character's armature (body.build_armature on the build's joints); per piece the variants
+    (Armature first, then their own modifiers), evaluated at rest and at each pose -> out (positions per variant and
+    pose)."""
+    import bpy
+    from mathutils import Matrix
+    from charkit import body
+    Z = np.load(inp, allow_pickle=False)
+    meta = json.loads(str(Z['meta']))
+    arm = body.build_armature({k: tuple(v) for k, v in meta['joints'].items()})
+    obs = []
+    for i, v in enumerate(meta['variants']):
+        p = dict(name=v['name'], V=Z['%d/V' % i], loopv=Z['%d/loopv' % i], counts=Z['%d/counts' % i], mods=[])
+        ob = _bl_mesh(p)
+        _groups(ob, v['bones'], Z['%d/W' % i], v['final'])
+        m = ob.modifiers.new('rig', 'ARMATURE'); m.object = arm
+        for t, st in v['mods']:
+            md = ob.modifiers.new(t.lower(), t)
+            for k, x in st.items():
+                setattr(md, k, x)
+        obs.append(ob)
+    res = {}
+    for pose in ['rest'] + list(meta['poses']):
+        for pb in arm.pose.bones:
+            pb.rotation_quaternion = (1, 0, 0, 0)
+        for b, (ax, deg) in (meta['poses'].get(pose) or {}).items():
+            if b not in arm.pose.bones:
+                continue
+            Bm = arm.data.bones[b].matrix_local.to_3x3()
+            R = Matrix.Rotation(np.radians(deg), 3, ax)
+            arm.pose.bones[b].rotation_quaternion = (Bm.transposed() @ R @ Bm).to_quaternion()
+        bpy.context.view_layer.update()
+        dg = bpy.context.evaluated_depsgraph_get()
+        for i, ob in enumerate(obs):
+            oe = ob.evaluated_get(dg)
+            me = oe.to_mesh()
+            co = np.empty(len(me.vertices) * 3); me.vertices.foreach_get('co', co)
+            res['%s/%d' % (pose, i)] = co.reshape(-1, 3)
+            oe.to_mesh_clear()
+    np.savez(out, **res)
+
+
+def motion(build, out, names=None, poses=None, log=print):
+    """motion QA (call J, M4's exit): each garment at extreme poses, three ways, in a local Blender with the build's
+    armature: 'blender' the coarse mesh with Blender's per-frame stack (Armature, then its Solidify and Subsurf, as the
+    build had them); 'linear' the venv's final mesh at rest with the Armature alone and the weights carried linearly
+    (what the build now ships, the game-engine way); 'stencil' the same with the weights through the limit stencil
+    instead (the other candidate). Per piece and pose, each final variant's distance from 'blender' per vertex (the
+    correspondence matched at rest, one to one). -> the report dict (out/motion.json, out/motion.md)."""
+    import tempfile
+    from . import bundle as bundlelib, geomstage
+    from .garments import group_weights
+    from .geom import solidify as solid, subsurf
+    poses = poses or POSES
+    B = bundlelib.load(os.path.join(build, 'bundle'))
+    L = float(B.meta('assembly')['L'])
+    joints = B._meta['landmarks']['joints']
+    P = geomstage.load(os.path.join(build, 'geom', 'garments.npz'))
+    if P['meta'].get('coarse_events') is None:
+        P = geomstage.finalize(P)
+    coarse, final = geomstage.pieces(P, coarse=True)[0], geomstage.pieces(P)[0]
+    variants, arrays, rows = [], {}, []
+    for c, f in zip(coarse, final):
+        if names and c['name'] not in names or not c['mods']:
+            continue
+        bones = sorted(b for b in c['weights'])
+        Wc = np.stack([group_weights(c['weights'][b]) for b in bones], 1)
+        lv = np.concatenate([np.asarray(x, np.int64) for x in c['polys']]); cnt = np.array([len(x) for x in c['polys']])
+        mods = [(m['type'], {k: v for k, v in m['settings'].items() if k not in SKIP_SETTINGS and k != 'render_levels'})
+                for m in c['mods'].values()]
+        # the stencil candidate: the weights through the same Solidify and Subsurf as positions are (the limit)
+        Ws, lvs, cnts, cre = Wc, lv, cnt, None
+        for t, st in mods:
+            if t == 'SOLIDIFY':
+                R = solid.solidify(c['V'], (lvs, cnts), float(st['thickness']),
+                                   **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
+                Ws, lvs, cnts = np.concatenate([Ws, Ws]), R['loopv'], R['counts']
+                cre = R['creases'] if len(R['creases'][0]) else None
+            else:
+                Ws = subsurf.subdivide(Ws, (lvs, cnts), levels=int(st.get('levels', 1)), creases=cre)['V']
+        Wf = np.stack([np.asarray(f['weights'][b], float) for b in bones], 1)
+        flv = np.concatenate([np.asarray(x, np.int64) for x in f['polys']]); fcnt = np.array([len(x) for x in f['polys']])
+        base = len(variants)
+        for kind, V_, lv_, cnt_, W_, md in (('blender', c['V'], lv, cnt, Wc, mods),
+                                            ('linear', f['V'], flv, fcnt, Wf, []),
+                                            ('stencil', f['V'], flv, fcnt, np.clip(Ws, 0, 1), [])):
+            i = len(variants)
+            variants.append(dict(name='%s:%s' % (c['name'], kind), bones=bones, mods=md, final=kind != 'blender'))
+            arrays.update({'%d/V' % i: np.asarray(V_, float), '%d/loopv' % i: lv_, '%d/counts' % i: cnt_,
+                           '%d/W' % i: W_})
+        rows.append(dict(piece=c['name'], base=base))
+    work = tempfile.mkdtemp(prefix='evalmesh_motion_')
+    inp, res = os.path.join(work, 'in.npz'), os.path.join(work, 'out.npz')
+    np.savez(inp, meta=np.array(json.dumps(dict(joints=joints, variants=variants, poses=poses))), **arrays)
+    expr = 'import sys; sys.path.insert(0, %r); from charkit import evalmesh; evalmesh.motion_main(%r, %r)' % (
+        ROOT, inp, res)
+    t = time.time()
+    r = subprocess.run([BLENDER, '-b', '--factory-startup', '--python-exit-code', '1', '--python-expr', expr],
+                       capture_output=True, text=True)
+    if r.returncode or not os.path.exists(res):
+        raise RuntimeError('evalmesh motion: Blender failed (%d):\n%s' % (r.returncode, (r.stdout + r.stderr)[-3000:]))
+    log('evalmesh motion: Blender posed %d variants at %d poses in %.1f s' % (len(variants), len(poses) + 1,
+                                                                             time.time() - t))
+    Z = np.load(res)
+    out_rows = []
+    for row in rows:
+        b = row['base']
+        Vb0 = Z['rest/%d' % b]
+        rr = dict(piece=row['piece'], n=int(len(Vb0)), poses={})
+        for j, kind in ((1, 'linear'), (2, 'stencil')):
+            idx, d0, bij = match(Z['rest/%d' % (b + j)], Vb0)
+            rr['rest_%s' % kind] = dict(one_to_one=bool(bij), max_L=float(d0.max() / L))
+            for pose in poses:                              # (idx: Blender's vertex -> the final mesh's)
+                Pb = Z['%s/%d' % (pose, b)]
+                d = np.linalg.norm(Z['%s/%d' % (pose, b + j)][idx] - Pb, axis=1) / L
+                rr['poses'].setdefault(pose, {})[kind] = dict(max_L=float(d.max()), p99_L=float(np.percentile(d, 99)),
+                                                              mean_L=float(d.mean()))
+                rr['poses'][pose]['moved_L'] = float(np.linalg.norm(Pb - Vb0, axis=1).max() / L)
+        out_rows.append(rr)
+    rep = dict(build=build, L=L, poses=poses, rows=out_rows)
+    os.makedirs(out, exist_ok=True)
+    json.dump(rep, open(os.path.join(out, 'motion.json'), 'w'), indent=1)
+    open(os.path.join(out, 'motion.md'), 'w').write(motion_markdown(rep))
+    log('report %s' % os.path.join(out, 'motion.md'))
+    return rep
+
+
+def motion_markdown(rep):
+    L = ['# motion QA: the final meshes against Blender\'s per-frame modifiers', '',
+         'Build `%s`. Per garment and extreme pose, the distance per vertex (head lengths L) of the venv\'s final mesh '
+         'posed by the Armature alone from the coarse mesh posed with Blender\'s per-frame stack (Armature, Solidify, '
+         'Subsurf). moved: how far the pose moved the piece (max, Blender\'s); linear: the weights carried linearly '
+         '(what ships); stencil: carried by the limit stencil; each max / p99 / mean.' % rep['build'], '']
+    poses = list(rep['poses'])
+    L.append('| piece | rest (linear, stencil) | ' + ' | '.join(poses) + ' |')
+    L.append('|---|---|' + '---|' * len(poses))
+    f = lambda r: '%.2g / %.2g / %.2g' % (r['max_L'], r['p99_L'], r['mean_L'])
+    for r in rep['rows']:
+        cells = ['moved %.2g<br>lin %s<br>st %s' % (r['poses'][p]['moved_L'], f(r['poses'][p]['linear']),
+                                                     f(r['poses'][p]['stencil'])) for p in poses]
+        L.append('| %s | %.1e, %.1e | %s |' % (r['piece'], r['rest_linear']['max_L'], r['rest_stencil']['max_L'],
+                                              ' | '.join(cells)))
+    worst = {k: max(r['poses'][p][k]['max_L'] for r in rep['rows'] for p in poses) for k in ('linear', 'stencil')}
+    L += ['', 'Worst max over pieces and poses: linear %.3g L, stencil %.3g L.' % (worst['linear'], worst['stencil'])]
+    return '\n'.join(L) + '\n'
