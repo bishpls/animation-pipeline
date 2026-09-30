@@ -78,4 +78,12 @@ MEASUREMENT_STEPS = [
                           '-0.0247 -> 0.0003, profile 0.0136 -> 0.0053)'),
     # tool/toonrender2: the default drawing
     ('hair_noise', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); hair pictures 0.15 levels from EEVEE's on the hair, numpy 0.25 (0.70 with streaks); tr3_a 0.0739 -> 0.0744, noise 0.0007"),
+    # tool/hairtag: the hair layers (the hair pieces' targets) remade by the drawing's own structure
+    ('hair_piece_*', '97d9449', "the hair layers the pieces are graded against (charkit.hairlayers, the manifest's "
+     "produced hair_layers) remade (tool/hairtag): the body sheet's lock regions and cel tones vote the transferred "
+     "families, clips leave the hair; 0.892 -> 0.958 against the hand-checked hair truth. Same geometry, old -> new "
+     "layers: upper back 0.760 -> 0.697, lower back 0.704 -> 0.570, bangs 0.762 -> 0.786, side locks 0.544 -> 0.536, "
+     "ahoge 0.270 -> 0.362 (docs/workstreams/hairtag.md, the 2x2)"),
+    ('hair_fringe_low', '97d9449', "the front's bangs in the remade hair layers (tool/hairtag): 0.0094 either way"),
+    ('hair_tips_*', '97d9449', "the drawn hair's lower edge from the remade hair layers (tool/hairtag): clips out"),
 ]

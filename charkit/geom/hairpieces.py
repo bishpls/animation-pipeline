@@ -810,7 +810,7 @@ def drawn_front(masks, mirror, hair_fams=MASS, look=3):
 
 
 def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor=None, pull=True, cut_ahead=True,
-                   smooth=0.7, spread=0.0, zmin=None, sides='drawn', tq_slack=0.0):
+                   smooth=0.7, spread=0.0, zmin=None, sides='drawn', tq_slack=0.0, fade=0.0):
     """the side locks held to the drawn profile before any lock is shaped (Michael's flag, hair round 3: the visual
     hull fills the gap between a side lock and the cheek, which no view shows, so the locks stood in front of the face
     in profile; moving built locks back crumpled them). Per side, her own profile (the mirror for her right), per
@@ -830,7 +830,11 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
     'three_quarter' (hair round 4) her right to the mirrored profile but never pulled in past the three-quarter view's
     drawn edge: the sheet's three-quarter draws her right side lock at the figure's far silhouette beside the face, so
     each of its cells may move in only until it projects onto that edge (the drawn figure's outer column in its row,
-    less tq_slack L), or not at all if it projects inside it already. -> Lc."""
+    less tq_slack L), or not at all if it projects inside it already.
+    fade (deg of theta, with zmin): below the chin each column's side lock keeps its last pull, easing out (smoothstep)
+    over `fade` degrees and never under the floor. Stopped dead at the chin, the pull leaves a step in the envelope
+    (0.38 -> 0.49 L between two rows on Clawd) at each column's own chin row, and the lock's surface shears across it
+    into folds (hairtag round 2: side_lock_L's lock 2 at phi 77, theta 125-127). -> Lc."""
     from scipy.ndimage import gaussian_filter
     ch, G = F['chart'], F['grid']
     m = masks.get('profile__side_locks')
@@ -935,6 +939,19 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
             ncut += int((Lc[i, j0:] == k).sum())
             Lc[i, j0:][Lc[i, j0:] == k] = 0
             cut[i] = min(cut[i], j0 * G.dth)
+    if D.any() and fade > 0 and zmin is not None:
+        # below the chin: each column's last pull carried on down its side lock, easing out over `fade` degrees
+        for i in np.nonzero((D > 0).any(1))[0]:
+            j1 = int(np.nonzero(D[i] > 0)[0].max())
+            below = np.arange(j1 + 1, G.nth)
+            below = below[(Lc[i, below] == k) & (Pz[i, below] <= zmin)]
+            if not len(below):
+                continue
+            w = np.clip((below - j1) * G.dth / fade, 0, 1)
+            d = D[i, j1] * (1 - w * w * (3 - 2 * w))
+            if floor is not None:
+                d = np.minimum(d, np.maximum(R[i, below] - floor[i, below], 0.0))
+            D[i, below] = np.maximum(D[i, below], d)
     if D.any() and spread > 0:
         # the cells round a pulled one (other families: the lower back beside a side lock) drawn in with it, less
         # `spread` (world: their layers' gap), so no layer behind comes out past the pulled lock
@@ -2043,7 +2060,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                          o.get('trim_cut', True), o.get('trim_smooth', 0.7),
                                          o.get('trim_spread', -1.0) * L if o.get('trim_spread', -1.0) >= 0 else 0.0,
                                          None if o.get('trim_below_chin', False) else case.chin_z,
-                                         o.get('trim_sides', 'drawn'), o.get('trim_tq_slack', 0.0))
+                                         o.get('trim_sides', 'drawn'), o.get('trim_tq_slack', 0.0),
+                                         o.get('trim_fade', 0.0))
     regions = piece_regions(F, o, trim)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
