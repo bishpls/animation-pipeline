@@ -185,15 +185,21 @@ def test_a_limb_track_keeps_the_limb_and_interpolates_what_is_hidden():
     E |= skin
     E[11:17, 20:25] = True                                             # the limb's own piece
     E[0:6, 5:10] = True; E[0:6, 20:25] = True                          # a decoy: a piece mask on another garment
+    E[5:25, 26:28] = True                                              # a puff: a piece much deeper than the skin
     side_runs = [[(0, 25)] if k >= 40 else [(0, 29)] for k in range(nz)]
     only = [k >= 40 for k in range(nz)]
     width = [6] * nz
+    width[26] = width[27] = 12                                         # the puff is wide in front too
     T = hull.LimbTrack(E, skin, side_runs, only, width, window=3)
     assert T.at(3) == ([(10, 15)], 'limb')
     assert T.at(7) == ([(10, 15)], 'limb') and T.rejected[7] == [(0, 5)], (T.at(7), T.rejected[7])
     runs, src = T.at(22)
     assert src == 'piece' and T.rejected[22] == [(0, 5)] and runs[0][0] >= 10 and runs[-1][1] <= 20, (runs, src)
-    runs, src = T.at(27)                                               # between y 10-15 and 12-19, depth ~6-8
+    runs, src = T.at(27)                                               # the puff holds the track: it counts
+    assert src == 'piece' and runs[0][0] <= 5 and runs[-1][1] >= 24, (runs, src)
+    T2 = hull.LimbTrack(E, skin, side_runs, only, [6] * nz, window=3)  # as deep, but narrow in front: a mask across the body
+    assert T2.rejected[27] == [(5, 24)], T2.rejected[27]
+    runs, src = T.at(29)                                               # between y 10-15 and 12-19, depth ~6-8
     assert src == 'interp' and len(runs) == 1 and 10 <= runs[0][0] <= 13 and 15 <= runs[0][1] <= 19, runs
     assert T.at(42) == ([(0, 25)], 'only')
     assert T.at(15)[1] == 'interp'

@@ -613,7 +613,9 @@ def _split(g, min_w):
     return [tuple(r) for r in R]
 
 
-TRACK_OVERLAP = 0.5                 # a limb piece's side run counts where this share of it overlaps the limb's skin track
+TRACK_OVERLAP = 0.5                 # a limb piece's side run counts where it overlaps the limb's skin track by this share
+                                    # of the shorter of the two (a puff sleeve holds the forearm's track; a stripe lies in it)
+TRACK_ASPECT = 2.0                  # nor where it is deeper than this over the limb's front width (a mask across the body)
 TRACK_WINDOW = 0.15                 # L: an interpolated section starts from the median of this much of the limb seen on
                                     # either side (a row at the edge of a sighting is cut short: skin going into a cuff)
 
@@ -643,7 +645,8 @@ class LimbTrack:
     is it). width: the widest front part of the limb per height (cells; 0 where it has none).
       - 'only': the whole side row.
       - 'limb': a height where the side view shows the limb's skin: its skin's runs, with the runs of its pieces that
-        overlap the skin (TRACK_OVERLAP of the piece run within the skin's extent). Skin is the limb's best evidence in
+        overlap the skin's extent (by TRACK_OVERLAP of the shorter of the two) and are no deeper than TRACK_ASPECT
+        times the limb's front width. Skin is the limb's best evidence in
         a side view: free_limbs places it by the pieces it touches, where a piece mask can sit on the wrong garment
         (Clawd's profile has the arm pieces on the skirt's front panel, the bow and its tails, running up to the
         forearm).
@@ -680,7 +683,8 @@ class LimbTrack:
             lo, hi = ext[k] if has[k] else self._between(ks, ext, k)
             keep = _runs(skin[:, k])
             for y0, y1 in _runs(pieces[:, k]):
-                if min(y1, hi) - max(y0, lo) + 1 >= TRACK_OVERLAP * (y1 - y0 + 1):
+                if min(y1, hi) - max(y0, lo) + 1 >= TRACK_OVERLAP * min(y1 - y0 + 1, hi - lo + 1) and \
+                        (width[k] <= 0 or y1 - y0 + 1 <= TRACK_ASPECT * width[k]):
                     keep.append((y0, y1))
                 else:
                     self.rejected[k].append((y0, y1))
