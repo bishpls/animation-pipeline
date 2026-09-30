@@ -240,6 +240,34 @@ def test_under_jaw_keeps_the_rim_on_the_v():
         assert abs(P[k, 2] - (-0.36 + abs(P[k, 0]) / 2)) < 0.01, (deg, P[k])
 
 
+def test_side_pocket_follows_the_jaw_round_its_sides():
+    """the per-column form (side): every column up to the jaw's angle (z -0.25 here: the V at x 0.22) has a rim on the
+    drawn V (its height at the rim's x) and a throat on the neck (a circle radius 0.12 about y 0.35) over the rim (the
+    underside rises inward); past the angle the pocket fades out; round the sides the rim keeps its chart row."""
+    S, jaw = _head()
+    rows = (-0.24, -0.33)
+    U = headgeom.UnderJaw(S, jaw, -0.2, -0.55, side=dict(z_angle=-0.25, rows=rows))
+    seen = []
+    for deg in range(0, 90, 5):
+        t = math.radians(deg)
+        P, s, info = U.meridian(t)
+        if info['rim'] is None:
+            continue
+        k = int(np.argmin(np.abs(s - info['s_rim'])))
+        assert abs(P[k, 2] - (-0.36 + abs(P[k, 0]) / 2)) < 0.012, (deg, P[k])          # on the V
+        j = int(np.argmin(np.abs(s - info['s_throat'])))
+        assert abs(math.hypot(P[j, 0], P[j, 1] - 0.35) - 0.12) < 0.012, (deg, P[j])     # on the neck
+        assert P[j, 2] > P[k, 2], deg                                                    # rising inward
+        seen.append((deg, float(P[k, 0]), info['w']))
+    assert seen[0][0] == 0 and max(x for _, x, _ in seen) > 0.19, seen                # the chin round to the angle
+    t = math.radians(40)                                  # (past SIDE_EASE and short of the angle: the fixed row)
+    P, s, info = U.meridian(t)
+    assert info['rim'] is not None and U.side_weight(t) == 1.0
+    got = U.place(np.array([t]), np.array([rows[0]]))[0]
+    k = int(np.argmin(np.abs(s - info['s_rim'])))
+    assert np.abs(got - P[k]).max() < 0.003, (got, P[k])
+
+
 def test_under_jaw_leaves_the_rows_under_its_band_on_the_sections():
     """rows under the band's foot (the neck down to the join) are the sections' own, not the meridians' end."""
     S, jaw = _head()

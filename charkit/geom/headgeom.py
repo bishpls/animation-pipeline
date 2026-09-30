@@ -230,6 +230,26 @@ EDGE_PROW = 1.5          # the prow's shape: y from the midline's front to the e
                          # hollow at 0.0055 L, 1.5 0.0048)
 EDGE_SOFT = 0.004        # L: the prow's hold is a soft maximum over this
 EDGE_REF = (0.06, 0.16)  # L of the V's half-width: the design's recession is placed at our chin's depth over this span
+# The jaw's side (round 3): the pocket carried round the sides to the jaw's angle along the rim. Each cage column's
+# underside hangs from its own rim point (where the jaw's edge crosses the column's sheet), rising inward along the
+# column at the jaw's rise to the neck. U's polar form round the neck's axis had swept across the rim going in along a
+# side column (the column's rays there start from the sections' own centre, 0.1 L in front of the axis), and the pocket
+# dropped out; without it the pocket ended at the neck's width and the side was a ledge at the band's top (z -0.31): the
+# three-quarter's jaw line ran flat, then hooked down into the neck. The rows keep the rim and the throat on fixed band
+# rows across the pocket's columns (edge loops along the jaw line), so no row runs from the face onto the underside
+# between two columns.
+SIDE = True              # the per-column pocket round the sides (style face.jaw_side); False: UnderJaw's U (the chin only)
+SIDE_ROWS = (4, 10)      # the band's rows under its top (the mouth block's bottom) that the rim and the throat keep
+                         # round the sides ((4, 11): 14 edges over 90 degrees where the neck's rows met them; now 2)
+SIDE_FADE = 0.2          # rad round the band's centre past the jaw's angle: the pocket blends into the envelope over this
+SIDE_EASE = (0.4, 0.7)   # rad round the band's centre: the rows' map eases from the linear one (the chin's, where the
+                         # rim and the throat fall on rows 3-5 and 8-12 of the band) to SIDE_ROWS over this
+SIDE_UOLD = None         # rad (a, b): the chin's columns keep U's height (the polar form) under a, the per-column form
+                         # over b. (0.45, 0.7): the board's chin_angle 116.3 -> 119.9, but a kink where the V crosses
+                         # the neck's edge (jaw_line_bend 4.9 -> 7.8): off
+SIDE_RELAX = 1.0         # rad past the jaw's angle: behind it the rows (the rim's at the jaw angle's height there) ease
+                         # back to level over this (dropped over the pocket's fade alone, 0.1 L in two columns, they folded)
+SIDE_DROP = 0.05         # L: behind the jaw's angle the throat's row runs this far under the rim's (no underside there)
 
 
 def jaw_depth(jaw):
@@ -343,7 +363,8 @@ class UnderJaw:
     place(theta, z) puts chart rows under z_top along it by arc length, so the cage's rows follow the surface round the
     chin and the chin's underside is its own band of quads (no step for the limit fit to ring on)."""
 
-    def __init__(self, S, jaw, z_top, z_bottom, dz=0.001, reach=0.0, top=None, phi_end=None):
+    def __init__(self, S, jaw, z_top, z_bottom, dz=0.001, reach=0.0, top=None, phi_end=None, side=None):
+        self.side = side                                  # dict(z_angle, rows): the per-column pocket round the sides
         self.reach = float(reach)                         # L: the pocket kept whole this far past the neck's width
         self.top = top                                    # the band's top per column (theta -> z; default z_top)
         self.phi_end = phi_end                            # the pocket ends past this angle round the neck's axis
@@ -384,6 +405,13 @@ class UnderJaw:
         self.rim_r = np.hypot(self.jx, self.y_axis - self.y0)
         self.y_c = float(self.centre(np.array([0.5 * (self.z_top + self.z_bottom)]))[0])
         self._mer = {}
+        if side is not None:                              # the rim by column: the edge's angle round the band's centre
+            over = np.nonzero(self.jz > float(side['z_angle']))[0]            # (the V from the chin up to the jaw's angle)
+            n = max(2, int(over[0]) if len(over) else len(self.jz))
+            c_ = self.centre(self.jz[:n])
+            th_e = np.arctan2(self.jx[:n], c_ - self.y0[:n])
+            self.rim_th, self.rim_zs = np.maximum.accumulate(th_e), self.jz[:n]
+            self.rim_rho = np.hypot(self.jx[:n], c_ - self.y0[:n])
 
     def z_top_at(self, theta):
         """the band's top at column theta (the chart's height its meridian starts from)."""
@@ -433,7 +461,7 @@ class UnderJaw:
         t = np.where(np.abs(x1 - x0) > 1e-12, (x - x0) / np.where(np.abs(x1 - x0) > 1e-12, x1 - x0, 1.0), 0.0)
         return float(np.min((y0 + t * (y1 - y0))[hit]))
 
-    def U(self, x, y):
+    def U(self, x, y, fade=True):
         """the underside's height at (x, y) (arrays): a ruled surface, from each point of the rim a line in plan toward
         the neck's axis (0, y_axis), rising at the jaw's rise: in polar form round the axis, the rim's height at the
         point's angle plus the rise over how far inside the rim it lies. So it passes through the drawn jaw line exactly,
@@ -448,6 +476,8 @@ class UnderJaw:
         else:                                             # (the band's top where the point's column is)
             cap = np.vectorize(self.z_top_at)(np.arctan2(ax, self.y_c - y)) - JAW_TOP_GAP
         u = cap - np.logaddexp(0.0, (cap - u) / 0.004) * 0.004          # a soft min with the cap (0.004 L round it)
+        if not fade:                                      # (its height alone: the per-column form ends the pocket)
+            return u
         w = _smoothstep((self.x_neck + self.reach + POCKET_FADE - ax) / POCKET_FADE) * _smoothstep((self.y_axis - y) / self.y_fade)
         if self.phi_end is not None:                      # (round the side the pocket ends at the jaw's angle)
             w = w * _smoothstep((self.phi_end + EDGE_PHI_FADE - phi) / EDGE_PHI_FADE)
@@ -484,11 +514,86 @@ class UnderJaw:
         neck = np.array([self._ray(theta, xn, yn, b) if zz > self.z_n0 else e for zz, b, e in zip(z, cb, env)])
         return env, neck
 
+    def _path(self, theta, rho, zz):
+        """a column's path (radius, height along column theta round the band's centre line) -> (points (M, 3), arc
+        lengths)."""
+        P = np.stack([rho * np.sin(theta), self.centre(zz) - rho * np.cos(theta), zz], 1)
+        return P, np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))])
+
+    def side_weight(self, theta):
+        """the pocket's share at column theta in the per-column form: whole up to the jaw's angle (the rim's last
+        column), easing to none over SIDE_FADE past it."""
+        a = abs(float(np.angle(np.exp(1j * float(theta)))))
+        return float(_smoothstep(1 - (a - self.rim_th[-1]) / SIDE_FADE)) if a > self.rim_th[-1] else 1.0
+
+    def _meridian_side(self, theta):
+        """the per-column form (self.side): column theta's path down the envelope to its rim point (where the jaw's edge
+        crosses the column: the rim's height by the column's angle, the rim held at the jaw's angle past it), in along the
+        underside hung from it (the rise over how far in from the rim, capped JAW_TOP_GAP under the column's top) to the
+        neck (the throat), down the neck -> (points, arc lengths, info: rim, throat, w (the pocket's share: side_weight),
+        env (the envelope's own path and arc lengths, for w < 1))."""
+        zt = self.z_top_at(theta)
+        zg = np.arange(zt, self.z_bottom - 1e-9, -self.dz)
+        zg[-1] = self.z_bottom
+        rS, rN = self.rho(theta, zg)
+        Pe, se = self._path(theta, rS, zg)
+        info = dict(rim=None, throat=None, w=self.side_weight(theta), env=(Pe, se),
+                    a=abs(float(np.angle(np.exp(1j * float(theta))))))
+        a = min(info['a'], float(self.rim_th[-1]))
+        z_e, r_e = float(np.interp(a, self.rim_th, self.rim_zs)), float(np.interp(a, self.rim_th, self.rim_rho))
+        if info['w'] <= 0 or z_e >= zt - 0.01 or z_e <= self.z_bottom + 0.01:
+            return Pe, se, info
+        cap = zt - JAW_TOP_GAP
+        c_e, ct = float(self.centre(np.array([z_e]))[0]), float(np.cos(theta))
+
+        st_ = float(np.sin(theta))
+        bu = 1.0 if SIDE_UOLD is None else float(_smoothstep((info['a'] - SIDE_UOLD[0]) / (SIDE_UOLD[1] - SIDE_UOLD[0])))
+
+        def Uc(rho, z):                                   # the column's underside: hung from its point of the edge,
+            d = (r_e - rho) + (self.centre(z) - c_e) * ct    # rising over how far in from it it lies in plan (the
+            u = z_e + self.rise(d)                           # column's centre line moves with the height)
+            u = cap - np.logaddexp(0.0, (cap - u) / 0.004) * 0.004     # (a soft min with the cap, as U's)
+            if bu < 1.0:
+                u = bu * u + (1 - bu) * self.U(rho * st_, self.centre(z) - rho * ct, fade=False)
+            return u
+        g = zg - Uc(rS, zg)
+        cand = np.nonzero((g < 0) & (rS > rN + POCKET_MIN))[0]
+        if not len(cand) or cand[0] == 0:
+            return Pe, se, info
+        i = int(cand[0])
+        f = g[i - 1] / (g[i - 1] - g[i])
+        z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
+        rho_u = np.arange(r_r, 0.0, -self.dz)
+        lo, hi = np.full(len(rho_u), z_r - 0.02), np.full(len(rho_u), zt)     # (its height per radius: bisection)
+        for _ in range(32):
+            m = 0.5 * (lo + hi)
+            h = m - Uc(rho_u, m)
+            lo, hi = np.where(h < 0, m, lo), np.where(h < 0, hi, m)
+        zu = 0.5 * (lo + hi)
+        rn_u = self.rho(theta, zu)[1]
+        hit = np.nonzero(rho_u <= rn_u)[0]
+        j = int(hit[0]) if len(hit) else 0
+        if j < 2 or np.abs(np.diff(zu[:j + 1])).max() >= 0.01:
+            return Pe, se, info
+        d0, d1 = rho_u[j - 1] - rn_u[j - 1], rho_u[j] - rn_u[j]
+        f = d0 / (d0 - d1)
+        z_j, r_j = zu[j - 1] + f * (zu[j] - zu[j - 1]), rho_u[j - 1] + f * (rho_u[j] - rho_u[j - 1])
+        below = zg < z_j
+        rho = np.concatenate([rS[:i], [r_r], rho_u[1:j], [r_j], rN[below]])
+        zz = np.concatenate([zg[:i], [z_r], zu[1:j], [z_j], zg[below]])
+        P, s = self._path(theta, rho, zz)
+        info.update(rim=(float(r_r), float(z_r)), throat=(float(r_j), float(z_j)), s_rim=float(s[i]),
+                    s_throat=float(s[i + j]))
+        return P, s, info
+
     def meridian(self, theta):
         """column theta's path from z_top to z_bottom -> (points (M, 3), arc length (M,), info dict(rim, throat: (radius,
         z) or None))."""
         key = round(float(theta), 9)
         if key in self._mer:
+            return self._mer[key]
+        if self.side is not None:
+            self._mer[key] = self._meridian_side(theta)
             return self._mer[key]
         zt = self.z_top_at(theta)
         zg = np.arange(zt, self.z_bottom - 1e-9, -self.dz)
@@ -539,6 +644,10 @@ class UnderJaw:
         zt = self.z_top_at(theta)
         span = zt - self.z_bottom
         lin = np.clip((zt - np.asarray(z, float)) / span, 0, 1) * s[-1]
+        if self.side is not None:
+            if info['rim'] is None:
+                return self._arc_env(zt, np.asarray(z, float), info)
+            return self._arc_side(zt, np.asarray(z, float), s, info)
         if not EDGE_PIECEWISE or self.top is None or zt <= self.z_top + 1e-9 or info['rim'] is None:
             return lin
         b_lin = (zt - self.z_top) / span * s[-1]
@@ -549,6 +658,41 @@ class UnderJaw:
         q_a = (zt - z) / max(zt - self.z_top, 1e-9) * b
         q_b = b + (self.z_top - z) / (self.z_top - self.z_bottom) * (s[-1] - b)
         return np.clip(np.where(above, q_a, q_b), 0, s[-1])
+
+    def _arc_side(self, zt, z, s, info):
+        """the per-column form's rows: the rim on chart row side['rows'][0] and the throat on [1] in every column with
+        the pocket, each stretch between (the face down to the rim, the underside, the neck) by chart height."""
+        s_r, s_j, s_e = info['s_rim'], info['s_throat'], s[-1]
+        b = float(_smoothstep((info['a'] - SIDE_EASE[0]) / (SIDE_EASE[1] - SIDE_EASE[0])))
+        span = zt - self.z_bottom                         # (the linear map's own breakpoints, eased to the fixed rows)
+        z_R = (1 - b) * (zt - s_r / s_e * span) + b * self.side['rows'][0]
+        z_T = (1 - b) * (zt - s_j / s_e * span) + b * self.side['rows'][1]
+        q = np.where(z >= z_R, (zt - z) / max(zt - z_R, 1e-9) * s_r,
+                     np.where(z >= z_T, s_r + (z_R - z) / (z_R - z_T) * (s_j - s_r),
+                              s_j + (z_T - z) / max(z_T - self.z_bottom, 1e-9) * (s_e - s_j)))
+        return np.clip(q, 0, s_e)
+
+    def _arc_env(self, zt, z, info):
+        """the per-column form's rows on a column's envelope (no pocket: behind the jaw's angle, and blended with the
+        pocket's over its fade): the rim's and the throat's rows at heights easing from the jaw angle's (the rim's
+        there, SIDE_DROP under it) back to their own over SIDE_RELAX past it, each stretch between by chart height."""
+        Pe, se = info['env']
+        s_e = se[-1]
+        a = info.get('a', np.pi)
+        e = float(_smoothstep((self.rim_th[-1] + SIDE_RELAX - a) / SIDE_RELAX))
+        span = zt - self.z_bottom
+        if e <= 0 or a < self.rim_th[-1] - 1e-9:
+            return np.clip((zt - z) / span, 0, 1) * s_e
+        z_R, z_T = self.side['rows']
+        z_g = float(self.rim_zs[-1])
+        h_R = z_R + e * (z_g - z_R)
+        h_T = z_T + e * (z_g - SIDE_DROP - z_T)
+        zp = Pe[:, 2]
+        s_R, s_T = float(np.interp(h_R, zp[::-1], se[::-1])), float(np.interp(h_T, zp[::-1], se[::-1]))
+        q = np.where(z >= z_R, (zt - z) / max(zt - z_R, 1e-9) * s_R,
+                     np.where(z >= z_T, s_R + (z_R - z) / (z_R - z_T) * (s_T - s_R),
+                              s_T + (z_T - z) / max(z_T - self.z_bottom, 1e-9) * (s_e - s_T)))
+        return np.clip(q, 0, s_e)
 
     def place(self, theta, z, part=None):
         """chart points (theta, z) -> (N, 3): at or over z_top and under z_bottom the sections' own (place); between,
@@ -566,6 +710,11 @@ class UnderJaw:
             P, s, info = self.meridian(t)
             q = self.arc(t, z[sel], s, info)
             out[sel] = np.stack([np.interp(q, s, P[:, k]) for k in range(3)], 1)
+            w = info.get('w', 1.0)
+            if info['rim'] is not None and w < 1.0:        # (past the jaw's angle: blended into the envelope's own)
+                Pe, se = info['env']
+                qe = self._arc_env(self.z_top_at(t), z[sel], info)
+                out[sel] = w * out[sel] + (1 - w) * np.stack([np.interp(qe, se, Pe[:, k]) for k in range(3)], 1)
             if part is not None and info['rim'] is not None:
                 part[sel] = np.where(q >= info['s_throat'] - 1e-9, 2, np.where(q > info['s_rim'] + 1e-9, 1, 0))
         return out
@@ -665,7 +814,25 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         # underside of its own, as the chin has, up to the jaw's angle
         S_env, edge = jaw_envelope(S, jaw)
         top = None
-        if EDGE_BAND and edge and edge.get('z_angle') is not None:
+        side = SIDE if jaw.get('side') is None else bool(jaw['side'])
+        if side and edge and edge.get('z_angle') is not None:
+            # the pocket round the sides, per column (SIDE): the band's top raised round the sides over the rim (as
+            # EDGE_BAND's), the rim and the throat on fixed band rows
+            t_b = abs(theta_of(S, mw, mz))
+            z_lat = min(edge['z_angle'] + EDGE_TOP, -EYE_BLOCK[1] - 0.05)
+
+            back = [EDGE_TOP_BACK[0], EDGE_TOP_BACK[1]]      # (set from the rim's end below: the top comes back down
+                                                             # behind the jaw once the rows have relaxed, SIDE_RELAX)
+
+            def top(t, z_a=z_a, t_b=t_b, z_lat=z_lat, back=back):
+                a_ = abs(float(np.angle(np.exp(1j * t))))
+                w_ = _smoothstep((a_ - t_b - EDGE_TOP_COLS[0]) / EDGE_TOP_COLS[1]) * _smoothstep((back[1] - a_) / (back[1] - back[0]))
+                return z_a + (z_lat - z_a) * float(w_)
+            rows_ = (z_a - SIDE_ROWS[0] * d_band, z_a - SIDE_ROWS[1] * d_band)
+            under = UnderJaw(S_env, jaw, z_a, z_n, top=top, side=dict(z_angle=edge['z_angle'], rows=rows_))
+            back[0] = float(under.rim_th[-1]) + SIDE_RELAX
+            back[1] = back[0] + (EDGE_TOP_BACK[1] - EDGE_TOP_BACK[0])
+        elif EDGE_BAND and edge and edge.get('z_angle') is not None:
             t_b = abs(theta_of(S, mw, mz))                 # (the mouth block's columns)
             z_lat = min(edge['z_angle'] + EDGE_TOP, -EYE_BLOCK[1] - 0.05)
 
@@ -673,12 +840,13 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
                 a_ = abs(float(np.angle(np.exp(1j * t))))
                 w_ = _smoothstep((a_ - t_b - EDGE_TOP_COLS[0]) / EDGE_TOP_COLS[1]) * _smoothstep((EDGE_TOP_BACK[1] - a_) / (EDGE_TOP_BACK[1] - EDGE_TOP_BACK[0]))
                 return z_a + (z_lat - z_a) * float(w_)
-        under = UnderJaw(S_env, jaw, z_a, z_n, reach=1.0 if top else 0.0, top=top)
-        if top is not None:
-            xg = float(np.interp(edge['z_angle'], jaw['z'], jaw['x']))
-            yg = float(np.interp(xg, under.jx, under.y0))
-            under.phi_end = float(np.arctan2(xg, under.y_axis - yg))
-            under.y_fade = EDGE_Y_FADE
+        if under is None:
+            under = UnderJaw(S_env, jaw, z_a, z_n, reach=1.0 if top else 0.0, top=top)
+            if top is not None:
+                xg = float(np.interp(edge['z_angle'], jaw['z'], jaw['x']))
+                yg = float(np.interp(xg, under.jx, under.y0))
+                under.phi_end = float(np.arctan2(xg, under.y_axis - yg))
+                under.y_fade = EDGE_Y_FADE
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
     row = lambda z: int(np.argmin(np.abs(zs - z)))
