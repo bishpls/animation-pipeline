@@ -2,6 +2,10 @@
 
 State: phase 1 done (boards from a build's export, measured against EEVEE, three machines). Phase 2 planned below.
 
+Gate: `python -m charkit remote gate tool/toonrender --into pipeline-3d`: **PASS** at 75fe37b into e11fadb (no check
+changed; `test_render.py` ok on the build box's llvmpipe). Later commits touch only `charkit/render/page.py`,
+`__main__.py` and these notes.
+
 Why: Blender renders are CPU-bound (a still re-evaluates ~130 modifiers); the build box can't render EEVEE, so the QA
 draws with a separate numpy rasteriser (`qa3d.draw`) that doesn't match the boards; the web viewer (`look.js`) is a
 third renderer nobody had checked. One toon renderer we own should serve the boards, the QA and the web.
