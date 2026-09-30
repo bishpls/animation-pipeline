@@ -387,6 +387,12 @@ def stage_face_shading(S):
 def stage_garments(S):
     from . import garments
     specs = S.spec.get('garments')
+    if S.spec.get('garments_geom'):
+        # the garments computed venv-side (`python -m charkit build` runs charkit.geomstage.garments_step, the evaluator's
+        # own step): Blender only replays the objects, materials, modifiers and the skin mask (docs/GEOM_TRUTH.md)
+        from . import geomstage
+        S.garments = geomstage.garments_instantiate(S, S.spec['garments_geom'])
+        return
     hull = garments.hull_pieces(S.spec, S.character['data']) if any(g.get('source') == 'hull' for g in specs or []) \
         else None
     S.garments = garments.build(S.character, specs, hull=hull, spec_all=S.spec)

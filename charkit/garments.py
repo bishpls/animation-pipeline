@@ -2068,11 +2068,17 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             _loft.LOW_COVERAGE.clear()
         obs.append(ob)
     if hide.any():
-        g = skin.vertex_groups.new(name='under_garments')
-        g.add([int(i) for i in np.nonzero(hide)[0]], 1.0, 'REPLACE')
-        mk = skin.modifiers.new('under_garments', 'MASK'); mk.vertex_group = 'under_garments'; mk.invert_vertex_group = True
-        while skin.modifiers.find('under_garments') > 0:              # first in the stack
-            import bpy
-            with bpy.context.temp_override(object=skin):
-                bpy.ops.object.modifier_move_up(modifier='under_garments')
+        mask_skin(skin, hide)
     return obs
+
+
+def mask_skin(skin, hide):
+    """the body under the garments masked away: the hidden vertices in the skin's 'under_garments' group, a Mask modifier
+    first in its stack."""
+    g = skin.vertex_groups.new(name='under_garments')
+    g.add([int(i) for i in np.nonzero(hide)[0]], 1.0, 'REPLACE')
+    mk = skin.modifiers.new('under_garments', 'MASK'); mk.vertex_group = 'under_garments'; mk.invert_vertex_group = True
+    while skin.modifiers.find('under_garments') > 0:              # first in the stack
+        import bpy
+        with bpy.context.temp_override(object=skin):
+            bpy.ops.object.modifier_move_up(modifier='under_garments')
