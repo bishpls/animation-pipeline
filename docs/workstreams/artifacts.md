@@ -1,6 +1,6 @@
 # Workstream: artifact QA, measuring "obvious jaggedness" (`tool/artifacts`)
 
-**State (2026-09-30): round 2 done; final gates at `b745759` into pipeline-3d `cfcdc3a` running** (fill in below).
+**State (2026-09-30): round 2 done; final gates PASS both specs at `b745759` into pipeline-3d `8a7d4ea`.** The branch merges cleanly into `ec28825` too.
 pipeline-3d `9397578` merged (`0976017`), then `cfcdc3a` (`f87620c`: self-registration; qa3d.py and history.py took the
 new side; the part is `@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')` on `artifactqa.measure`;
 the steps are in `charkit/steps/artifactqa.py`, text unchanged; `test_registry.py` ok). Round 2:
@@ -30,7 +30,12 @@ the steps are in `charkit/steps/artifactqa.py`, text unchanged; `test_registry.p
   slivers (0.005 L^2 between the hair and the collar), and `art_points_boots` 20.6 on the template boots: fixed at
   `f771ec1` (face and neck left out of a view showing under 0.01 L^2; points_boots back to INFO), step registered at
   `b745759`.
-- `b745759` into `cfcdc3a`: running (`charkit/out/gate_default_6.log`, `gate_mh_6.log`); fill in.
+- **Final: `b745759` into `8a7d4ea`, both PASS** (pipeline-3d moved during the gate): tests all ok (test_artifactqa,
+  test_registry among them), every art_* check new, no `art_design` note; CPU seconds default 1299.7 -> 1254.5,
+  clawd_mh 328.6 -> 331.4; default geometry unchanged in the 2x2. The default build's WARNs (the calibrated checks,
+  capped): outline_neck 1.66, outline_collar 4.08, fragments_collar 2.1, terminator_hair 2.49, peeks_hair 19,
+  points_sleeves 31.4, bumps_sleeves 44.2, band_lower 2.47. Reports
+  `charkit/out/gate/gate_tool-artifacts_b745759_into_8a7d4ea{,_clawd_mh}.md`.
 - The gate's build diff shows `hair` knobs changed between base and candidate though this branch touches no spec or hair
   file: the gate's own (the candidate is built as `+dirty`); for the integrator.
 
@@ -43,7 +48,7 @@ points_sleeves, bumps_sleeves, band_lower. The perceptual result (8ae6ce9) found
 defects; these per-flag geometric checks are the signal (the coordinator: rho 0.59 against Michael's labels).
 
 **Next steps, in order:**
-0. Read the `f87620c` gate reports; record the verdicts here (expect PASS; the calibrated checks' WARNs are new).
+0. Done: the final gates (above).
 1. Report to the integrator (the summary table below, the review page, the open items).
 2. When a flagged area's fix lands (tool/garments2's sleeves, tool/skirt's band, tool/hull-limbs' thigh), re-read its
    check on that build: it should drop to PASS. That's the "good build" several flags still lack.
