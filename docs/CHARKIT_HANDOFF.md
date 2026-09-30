@@ -795,7 +795,7 @@ decisions already made:
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
   docs/GEOM_TRUTH.md step 7.
 - **Second-character checkpoint** (side quest, uncommitted; the character's files stay untracked because its project
-  is unpublished): the worktree is ~/animation-pipeline-sonnet, the page charkit/out/sonnet_checkpoint/. First
+  is unpublished): its worktree and page are in the integrator's memory, not here. First
   generality reading: QA pass share 30% against Clawd's 83% on the same code, and none of the references reached the
   model (it built the MakeHuman default). Generic blockers, in order:
   1. reference detection (views, eyes, hair) tuned to Clawd's colours; a floor line merges the views;
