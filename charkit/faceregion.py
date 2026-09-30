@@ -974,8 +974,9 @@ CONS_REF = 'head_construction'
 HIDDEN = (0.006, 0.01)           # L: PASS / WARN for ours against head_construction's outline under the sheet's hair (rms):
                                  # the two references agree to 0.002 where both show the face (registered), so PASS within
                                  # 3x that; the flagged head (pipeline-3d d60486a, the face curving in under the locks)
-                                 # reads 0.0125, FAIL
+                                 # reads 0.011, FAIL
 HIDDEN_DZ = 0.0025               # L: the rows compared
+HIDDEN_ZMAX = 0.05               # z: construction_front's rows run up to here (the head's fit reads them past the check's)
 HIDDEN_FLAG = ("the face curving in where the head sheet's hair covers its edge (Michael, 2026-09-30): the outline "
                "there is head_construction's")
 
@@ -1007,8 +1008,9 @@ def _rows_on(z, v, zg):
 
 def construction_front(spec, eye_x, facing, chin, top, cls_t, ppl_t):
     """head_construction's front outline registered on the head sheet's front (its chin `chin`, its hair-occlusion row
-    `top`, its classes cls_t at ppl_t) -> dict(z (rows, L), xl, xr (the half-widths either side of the chin's column, L;
-    nan off the face), rows [top, the construction's widest row under the eyes]: where it is the authority, sz (its rows'
+    `top`, its classes cls_t at ppl_t) -> dict(z (rows, L, up to HIDDEN_ZMAX), xl, xr (the half-widths either side of the
+    chin's column, L; nan off the face), rows [top, the construction's widest row under the eyes]: where the check
+    compares, sz (its rows'
     scale about the eye line: the chins meet), sx (its widths' scale, fitted over the rows both show), fit (the rms of the
     registered half-widths against the sheet's there; fit_raw unregistered), outline (its registered outline (u, z))),
     or None without the reference."""
@@ -1022,7 +1024,7 @@ def construction_front(spec, eye_x, facing, chin, top, cls_t, ppl_t):
     zc, cl, cr = _outer(clsc, pc, chc)
     zt, tl, tr = _outer(cls_t, ppl_t, chin)
     sz = chin[1] / chc[1]
-    zg = np.arange(chin[1], TAPER_TOP[0] + 1e-9, HIDDEN_DZ)
+    zg = np.arange(chin[1], HIDDEN_ZMAX + 1e-9, HIDDEN_DZ)
     cl_r, cr_r = _rows_on(zc * sz, cl, zg), _rows_on(zc * sz, cr, zg)
     cl_o, cr_o = _rows_on(zc, cl, zg), _rows_on(zc, cr, zg)
     tl_g, tr_g = _rows_on(zt, tl, zg), _rows_on(zt, tr, zg)
@@ -1037,7 +1039,7 @@ def construction_front(spec, eye_x, facing, chin, top, cls_t, ppl_t):
     fit_raw = float(np.sqrt(np.mean((0.5 * (cl_o + cr_o)[okr] - wt[okr]) ** 2)))
     rows = None
     if top is not None:
-        up = (zg > top) & np.isfinite(wc)
+        up = (zg > top) & (zg <= TAPER_TOP[0] + 1e-9) & np.isfinite(wc)
         if up.any():
             k = np.nonzero(up)[0][np.argmax(wc[up])]
             rows = [round(float(top), 4), round(float(zg[k]), 4)]
@@ -1054,9 +1056,10 @@ def hidden_compare(H, E):
         return None
     lo, hi = H['rows']
     sel = (H['z'] > lo) & (H['z'] <= hi + 1e-9)
-    zz = H['z'][sel]
-    d = np.concatenate([_rows_on(E['z'], E[s], zz) - H[s][sel] for s in ('xl', 'xr')])
-    zr = np.concatenate([zz, zz])
+    zz = zr = H['z'][sel]
+    # the half-width: the mean of the two sides (the full width over 2), so the drawing's chin off its face's middle
+    # (the construction's by 0.004 L, the sheet's 0.013) isn't read as a side too wide and the other too narrow
+    d = 0.5 * (_rows_on(E['z'], E['xl'], zz) + _rows_on(E['z'], E['xr'], zz)) - 0.5 * (H['xl'][sel] + H['xr'][sel])
     ok = np.isfinite(d)
     if ok.sum() < 5:
         return None
@@ -1066,7 +1069,8 @@ def hidden_compare(H, E):
     return flag_check(dict(value=round(rms, 4), mean=round(float(np.mean(d[ok])), 4),
                            worst=[round(float(zr[k]), 3), round(float(d[k]), 4)], rows=[lo, hi], fit=H['fit'],
                            sx=H['sx'], sz=H['sz'], status=_grade(rms, HIDDEN),
-                           note="ours' front half-widths (level, hair hidden) against head_construction's outline (its "
+                           note="ours' front half-width (level, hair hidden; the two sides' mean) against "
+                                "head_construction's outline (its "
                                 "rows scaled so its chin meets the head sheet's, its widths by sx, fitted where both "
                                 "show the face: fit, rms L) from the head sheet's hair-occlusion row to the "
                                 "construction's widest row under the eyes (rows, z): rms L, mean (+ ours wider), worst "
