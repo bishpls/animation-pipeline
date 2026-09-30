@@ -93,3 +93,61 @@ the flap below -0.69). The torso's back under the flap moves in 0.03-0.11 L (z -
 collar's surface, garments2's body sat 0.07-0.10); nothing else moves over 6e-5 L (the front, the lapels, the bow's
 cap unchanged). Test: `test_code_body.test_the_collars_back_flap_holds_the_torso_behind_it`. The body-code step's
 cache now covers charkit.garments (shell_points).
+
+### The other regressions, measured (g3_a; not yet fixed)
+
+- **`body_profile_torso_jump_front` 0 -> 0.0565 FAIL** and the band in profile: ours steps in 0.08 L at z -1.38 from
+  the jacket's front to the band (design 0.0235 at -1.352); `waistband_profile_overhang` 0.0847 against 0.0565;
+  `waistband_profile_rows` ours -1.343..-1.484 against the drawn -1.390..-1.498. With the sheet-only masks the
+  profile's band mask is finally the band (the old one held the jacket's lower part), so these checks' design values
+  moved too. Two causes: (1) the new body's bust stands 0.023-0.028 L further forward at z -0.9..-1.1 (the lower
+  bodice is now labelled top, pulled in 0.022, not waistband, 0.035), and the jacket's fronts drape from the bust;
+  (2) garments2's `hang` knots (fitted to the old masks' junction; 90 deg: 0) leave the jacket's side hem at the band's
+  top, where the new profile mask draws it at -1.39 (hang about 0.056 at the side; this also agrees with the
+  three-quarter's near side, 0.028 low against the front in garments2's fit).
+- **`body_front_skirt_aline` 0 -> -0.161 FAIL** (ours 0.837, design 0.998): bodyqa.aline is the median width within
+  0.15 L above the middle hem over the widest row no hand touches. Our skirt flares out at once under the band and then
+  hangs nearly straight (a bell; close-up `cu_front_skirt.png`); the design is a straight A-line widest at the hem.
+  outfit-source alone read -0.122 (the skirt's label now starts under the band, top -1.476, and reaches its dark hem).
+  Plan, templates first: the skirt's columns as a line from under the band to the hem (`aline` a shape exponent
+  fitted to the drawn per-view widths), not the hull's per-row section.
+- **`piece_top` 0.595 -> 0.486 FAIL** (back 0.85 -> 0.58) and `neck_crease`, `art_speckle_neck` (profile 30.7 -> 127):
+  expected to come mostly from the body through the collar (fixed above); to be confirmed on the next build.
+- **`art_mirror_waist` 1.19 PASS -> 1.825 WARN** (back: ours 0.0365 against the design's 0.0133): not attributed yet.
+- Held or better: skirt overhang L/R 0 PASS (garments2 alone 0.118 FAIL: the skirt's tuck under the band garment's
+  bottom row fixed it), `body_front_torso_jump_L` 0 PASS, `piece_waistband` 0.885 PASS, the flaps' pieces 0.696/0.805,
+  `art_band_lower`, `art_points_sleeves`, `art_bumps_sleeves` WARN -> PASS.
+
+## Checkpoint (coordinator's request, about 200 tool calls in)
+
+**Branch** `tool/garments3`, head after this commit. Merges done (outfit-source 2ae1269, garments2 8bfb844, skirt
+40ec955), fit G in the specs (6bc770a), call L (dcfc681), the body's collar cap (529da75). Tests: 55 files ok at the
+skirt merge; since then test_bodyeval, test_geomstage, test_subdiv, test_code_body ok (the full suite not rerun).
+
+**Harness** (session scratchpad `g3/`, not tracked; copies of the skirt's `sk/` pointed at this worktree):
+`qadiff.py A/qa.json B/qa.json` (moves by status), `cu.py OUT VIEW x0 x1 z0 z1 BUNDLE...` (design | builds close-ups,
+the QA renderer, one height), `depth.py`/`depth2.py` (collar/top/skin/band depths per height in bundles),
+`hullback.py HULL_DIR` (backmost hull labels per height), `torsoback.py [BODY_CODE]` (the torso's back against the
+hull's collar), `ev3.py OUT [--geom DIR] [--body CODE] [--set garments.NAME.KEY=JSON]` (the evaluator: body sheet
+checks, piece IoUs per view, skirtqa -> OUT/ev.json), `evcmp.py A/ev.json B/ev.json`, `rimlab.py` (Blender).
+Local produced refs (hull, masks) fetched from the box (`infra/gcp/build.sh fetch WT charkit/out/hull`, `.../clawd`):
+current against this tree's stamps.
+
+**Running at checkpoint:** local evaluator job (background shell id bhxkyxrhp): `ev3.py` baseline on g3_a's codes
+(-> scratchpad `g3/ev_base/ev.json`) then with the fixed body (`g3/bc1/body_code.npz` -> `g3/ev_bc1/ev.json`); purpose:
+its timing and which checks it covers. No box jobs running.
+
+**Next steps, in order** (coordinator: prefer box variant builds over porting garments2's hang fitter):
+1. Box build of the head (`python -m charkit remote build charkit/spec/clawd.json --out charkit/out/g3_b`), then
+   `qadiff.py` against g3_a and 1583cd6: confirm the body fix (piece_collar back, piece_top, neck_crease,
+   art_speckle_neck) and call L's effect on every check.
+2. The jacket over the band in profile: variant builds of `top.ease.hang` (the side knots 71-117 deg lowered toward
+   0.05) and, if needed, the drape (`drape.spread`) for the bust's +0.025 L; score torso_jump_front,
+   waistband_*_rows, piece_top, top_*_over_band, waistband_*_width.
+3. The skirt's A-line as a template (garments.skirt_hull: a column shape exponent from under the band to the hem),
+   fitted on the evaluator or by variant builds against body_*_skirt_aline, body_*_skirt_width, the hems, piece_skirt.
+4. The collar's V (hidden under the bow): `v_depth` from the template, not the hull's visible labels; check
+   piece_collar front/three-quarter after step 1 before touching it.
+5. art_mirror_waist: attribute (left/right difference of the midriff in back).
+6. `flapchains`, outfit_graph.json regeneration (outfit-source step 6), evaldrift --stages on a consistent build, the
+   render-box build with boards and lookprobe --normals for call L's real flip count, the review page, one gate.
