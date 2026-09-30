@@ -18,6 +18,13 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
+    # tool/skirt (charkit/skirtqa.py): Michael's review of round 6's flaps, stepped band and back
+    ('flap_*', '9153f09', "new: each overskirt flap per view against the whole drawn flap (its face over the skirt filled "
+     "between the drawn lines, its tail, its band): IoU, width down its length, attach, hang angle, the profile's sweep"),
+    ('hemband_*', '9153f09', "new: the stepped band on the skirt's hem and on each flap: its steps (risers between treads "
+     "on the band's top edge), their size and the band's height against the drawing's"),
+    ('skirt_back_*', '9153f09', "new: the back view's skirt-and-flaps outline, the gap between the flaps and what shows in "
+     "it"),
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
     ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
      "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
