@@ -766,12 +766,20 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - tool/hair3: fragments and edge measures done, fixes next; `hair.md` "Round 3";
   - tool/mouth: a mouth lab, laugh and yawn refit, new mouths started; `mouth.md`;
   - tool/motion: ring constraints and foot IK, ungated; `motion.md`.
-- **Waiting on Michael:**
-  - board light (A) and outline ink (B), with renders on tool/look's review page;
-  - hair relief and side-lock clamp, and eye flatness and brow (option renders coming into
-    `charkit/out/decisions/`);
-  - the flap train, hang or sweep (round 5 renders it);
-  - the Kimodo licence (its text encoder is Llama 3).
+- **Michael's calls (2026-09-30, from the decisions page):**
+  - A. board light: the camera key (`look.light.mode: camera`, 30°/40°), already the default;
+  - B. outlines: ink on hair, garments and accessories, the skin warm brown, 0.22%, already the default. Line
+    thickness is a per-production taste choice: keep it a style setting (`look.lines.frac`, per-region multipliers).
+    A future production can set its own.
+  - C. eye flatness: (a), the design's plane (coordinator's call; the eye surface builds on it);
+  - D. brow: (a), the slight recess under the fringe (coordinator's call). It's the forehead's fixed shape under the
+    bangs, not brow motion.
+  - Michael envisions a modular expression system (eyes, brows, mouth and face moving as combinable components). The
+    expression keys already work that way. tool/mouth's relaunch should build toward it, with the rest face as one
+    preset.
+  - E. flap train: hang (the current default);
+  - F. hair relief and clamp: deferred until relevant;
+  - G. Kimodo licence: deferred until motion options are reviewed.
 - **Follow-ups not assigned:**
   - key gate baselines on the produced references' stamps;
   - make a missing TRELLIS field fail loudly;
