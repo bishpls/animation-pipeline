@@ -7,9 +7,15 @@ last-bit masked-skin nondeterminism; (7) j, the load sampler at boot.
 
 ## State (read first when resuming)
 
-Subset 1 (items 1-3): code done and unit-tested (test_codediff, test_gate). Running: the real-pair gates with this gate
-code (evalmesh 0c9eb95 into 25b1936, look6 bb3fdf1 into 4007276: `remote gate tmp/infra4-* --code tool/infra4`), the
-carry-rate measurement (after), and the normal gate of tool/infra4 into pipeline-3d.
+Subset 1 (items 1-3, plus the coordinator's --vrm drawing artifact): code done, unit-tested, gated.
+- **tool/infra4 9ef6d1a into pipeline-3d 9eba0b0: PASS under K** (pipeline-3d's gate code;
+  `charkit/out/gate/gate_tool-infra4_9ef6d1a_into_9eba0b0.md`): no check changed, CPU 1.26x (721 -> 910 s), 658 s.
+  Commits after it: the crossed-QA rebase (1766073), the carry's later-commit check and the closure's test-scan fix
+  (b7d8dc4), the --vrm look export (ed6f902), notes: gate.py, closure.py, cli.py, qa3d.py and tests.
+- Real pairs with this gate code: evalmesh 0c9eb95 into 25b1936 **FAIL** (poke_share, the unregistered remeasure: below);
+  look6 bb3fdf1 into 4007276 **PASS** (the face_shadow_* found and scored, as look6's registered gate did).
+- Running: evalmesh 0c9eb95 again (the rebase: hair_folds must drop out); tmp/infra4-vrm (evalmesh ed0f91a with this
+  branch) into 9eba0b0 (the 7 face_shadow values must equal the baseline's); the carry-rate variants.
 
 ## 1. Unregistered remeasures (charkit/codediff.py, gate.py)
 
@@ -52,6 +58,24 @@ part's prefix, else "any check".
 Before the fine walk, bundle.py (the Blender-side export evalmesh also changed) flagged all 24 parts, and qa3d.py's
 FACE_EXPECT all qa3d parts.
 
+**Gated with this gate code on the box** (`remote gate tmp/infra4-* --code tool/infra4`):
+- **evalmesh 0c9eb95 into 25b1936: FAIL** (the old gate: PASS, poke_share 0.0028 -> 0.0030 "value"). The `poke` part
+  flagged (qa3d.py:poke); the 2x2 ran (235 s): poke_share under the old measure reads the new geometry **0.02 FAIL**
+  (the old geometry 0.0028 PASS), under the new 0.0028 -> 0.003 PASS. Blocks: "new FAIL under one measure on both
+  geometries (the 2x2; its measure changed with no registered step: register a remeasure)". The old poke measure reads
+  the final mesh's inner copy and rim, which the new bundle carries; whether that's the intended remeasure (register
+  it, and --accept poke_share by name) is evalmesh's and the coordinator's call. 637 s (the old gate 480 s).
+- **look6 bb3fdf1 into 4007276: PASS** (the old gate: PASS with the face_shadow_* compared across both changes). Five
+  parts flagged; the 2x2 found the six face_shadow_* read differently and scored them: face_shadow_chin_edge FAIL
+  under the new measure on both geometries (not a drop), nothing worse under a fixed measure. The same as look6's
+  gate once its steps were read (6e5c1f9: PASS, the six remeasured). 645 s.
+- Both also listed **hair_folds**: the merged tree's QA read the cached baseline's bundle as 1342 FAIL (the build: 5
+  WARN). An artifact of the crossed cell, not a measure change: the bundle's spec names the hair builder's report by
+  the folder the baseline was built in, another gate's clone since removed, so the QA fell back to counting dihedrals.
+  Fixed (1766073): the crossed QA measures a copy of the bundle whose spec paths point where the build's folder is now
+  (`gate.rebased_bundle`, the build folder mirrored so the look export stays beside it). It had been in every 2x2
+  on a cached baseline; it showed only now because an unrecorded part's checks are "any check".
+
 ## 2. The follow that printed another branch's result
 
 Not remote.py's lookup: neither remote.py nor boxjob.py looks for "the newest report". The mouth3 agent's output
@@ -86,6 +110,15 @@ second half also stops a move that changes a caller of the branch's change. Data
 file-level against the two builds' closures. Guarded at the QA boundary, where data (the bundle), not calls, joins the
 two sides: the move changes a QA part's measuring code or adds a part while the branch's candidate was built; or the
 branch changes a measure (registered or not) while the move changes a file the baseline read. Those refuse.
+
+## The coordinator's --vrm artifact: both sides draw from the same export (ed6f902)
+
+A branch changing gltf.py builds its gate candidate with --vrm, and `cli.build` then passed Blender `--vrm` alone: no
+NAME.look.glb, so the QA's drawing (render.buildboards.export_of: the look export, else the VRM) drew the candidate
+from its full VRM and the baseline from its look export; tool/evalmesh ed0f91a's gate moved 7 face_shadow values with no
+change. Now every build writes the look export (unless --no-look), and the VRM besides with --vrm, so every QA draws
+the look export. qa.json's measured.draw names the export it drew (`export`), and the gate notes two reports that
+drew from different kinds (`gate.draw_exports`). Validation running: ed0f91a merged with this branch, into 9eba0b0.
 
 ## Next steps
 
