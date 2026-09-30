@@ -1,0 +1,136 @@
+{
+ "check": "piece_sleeve_L",
+ "part": "sheet_pieces",
+ "adapter": "Pieces",
+ "module": "charkit.calib.labels",
+ "at": "2026-09-30T18:02:44",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.997,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.99,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.999,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.996,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.998,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.994,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.998,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.993,
+    "PASS"
+   ]
+  },
+  "min": 0.99,
+  "max": 0.999,
+  "spread": 0.009,
+  "median": 0.9964999999999999,
+  "views": {
+   "back": [
+    0.9773,
+    0.9996
+   ],
+   "front": [
+    0.9843,
+    0.9991
+   ],
+   "profile": [
+    0.9923,
+    0.9988
+   ],
+   "three_quarter": [
+    0.9862,
+    0.9999
+   ]
+  }
+ },
+ "known_bad": {
+  "name": "co_render",
+  "value": 0.883,
+  "status": "PASS"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.004,
+    0.023,
+    0.0,
+    0.0,
+    0.033
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.004,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.828,
+    0.829,
+    0.834,
+    0.795,
+    0.801
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.828,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "cap_up": {
+   "value": 0.94,
+   "status": "PASS"
+  }
+ },
+ "blind_to": [
+  "cap_up"
+ ],
+ "current": {
+  "value": 0.931,
+  "status": "PASS",
+  "margin": 0.887
+ },
+ "verdict": "blind",
+ "why": "the known-bad co_render reads 0.883 PASS",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random",
+  "cap_up": "the sleeves' top 35% (the puffs' caps) raised 0.04 L"
+ },
+ "seconds": 51.9
+}

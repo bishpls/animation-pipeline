@@ -1,0 +1,90 @@
+{
+ "check": "hair_truth_accuracy",
+ "part": null,
+ "adapter": "HairTruth",
+ "module": "charkit.calib.hairtruth",
+ "at": "2026-09-30T18:04:55",
+ "better": "higher",
+ "kind": "score",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9636,
+    null
+   ],
+   "+0,+2": [
+    0.9306,
+    null
+   ],
+   "+1,+0": [
+    0.9702,
+    null
+   ],
+   "+2,+0": [
+    0.9429,
+    null
+   ],
+   "+0,-1": [
+    0.9634,
+    null
+   ],
+   "+0,-2": [
+    0.9304,
+    null
+   ],
+   "-1,+0": [
+    0.9709,
+    null
+   ],
+   "-2,+0": [
+    0.9447,
+    null
+   ]
+  },
+  "min": 0.9304,
+  "max": 0.9709,
+  "spread": 0.0405,
+  "median": 0.9540500000000001
+ },
+ "known_bad": {
+  "name": "hair_transfer",
+  "value": 0.8853,
+  "status": null
+ },
+ "floor": {
+  "shuffle_regions": {
+   "values": [
+    0.3572,
+    0.5131,
+    0.3927,
+    0.1034,
+    0.2896
+   ],
+   "statuses": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "median": 0.3572,
+   "status": null,
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.9496,
+  "status": null,
+  "margin": 0.993
+ },
+ "verdict": "calibrated",
+ "why": "a score: the design's worst move 0.9304, the known-bad hair_transfer 0.8853, the floor 0.3572, the current 0.9496 (margin 0.993)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "shuffle_regions": "each truth region given a random family (weighted by the families' truth areas)"
+ },
+ "seconds": 64.8
+}

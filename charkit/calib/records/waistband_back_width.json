@@ -1,0 +1,92 @@
+{
+ "check": "waistband_back_width",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_waistband"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.047,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.047,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.047,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.047,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.047,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.047,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.047,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.047,
+    "PASS"
+   ]
+  },
+  "min": 0.047,
+  "max": 0.047,
+  "spread": 0.0,
+  "median": 0.047
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 0.227,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.094,
+    0.289,
+    null,
+    0.742,
+    0.5
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.39449999999999996,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.102,
+  "status": "FAIL",
+  "margin": 0.842
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0), body6_render reads 0.227 FAIL, the floor voronoi_pieces FAIL",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 204.7
+}

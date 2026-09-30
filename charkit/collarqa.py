@@ -43,9 +43,14 @@ RIBBON = (0.3, 0.8)                 # the share of the tails' height (from their
 LIMITS = {                          # (pass within, warn within); else fail
     'line': (0.015, 0.03),          # L: the shoulder line's median height against the design's
     'slope': (0.10, 0.20),          # L per L: its slope against the design's
-    'iou': (0.80, 0.65),            # IoU, at least (higher is better)
+    'iou': (0.87, 0.81),            # IoU, at least (higher is better). Calibrated (tool/calib, 2026-09-30; was 0.80 /
+                                    # 0.65, where the flagged build read 0.754 WARN): the design moved 1-2 px reads
+                                    # 0.925-0.957, g3_render3 0.754; the limits at the thirds of that gap
     'square': (0.08, 0.15),         # |ours - design| of the panel's width at 90% down over at 50%
-    'lay': (0.01, 0.02),            # L: the trough beside the panel beyond the design's
+    'lay': (0.025, 0.036),          # L: the trough beside the panel beyond the design's. Calibrated (tool/calib; was
+                                    # 0.01 / 0.02, which the design failed against itself): the design as ours reads
+                                    # 0.0141 at every 1-2 px move (its own side is closed, pieceqa.clean, and ours
+                                    # isn't: the drawn notch counts), g3_render3 0.0471; the limits at the thirds
     'loop_width': (0.06, 0.12),     # |ours / design - 1| of the loops' span
     'loop_end': (0.15, 0.30),       # the straight share of a loop's end beyond the design's
     'bleed': (0.03, 0.06),          # L of the bow's edge on the jacket with no line, beyond the design's

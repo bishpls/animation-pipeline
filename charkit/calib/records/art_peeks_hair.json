@@ -1,0 +1,68 @@
+{
+ "check": "art_peeks_hair",
+ "part": "artifacts",
+ "adapter": "Art",
+ "module": "charkit.calib.art",
+ "at": "2026-09-30T18:10:57",
+ "better": null,
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    null,
+    null
+   ],
+   "+0,+2": [
+    null,
+    null
+   ],
+   "+1,+0": [
+    null,
+    null
+   ],
+   "+2,+0": [
+    null,
+    null
+   ],
+   "+0,-1": [
+    null,
+    null
+   ],
+   "+0,-2": [
+    null,
+    null
+   ],
+   "-1,+0": [
+    null,
+    null
+   ],
+   "-2,+0": [
+    null,
+    null
+   ]
+  },
+  "min": null,
+  "max": null,
+  "spread": null,
+  "median": null
+ },
+ "known_bad": {
+  "name": "look_v5",
+  "value": 27,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 16,
+  "status": "FAIL",
+  "margin": null
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads none moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 101.8
+}

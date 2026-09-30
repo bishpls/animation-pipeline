@@ -1,0 +1,118 @@
+{
+ "check": "sleeve_back_spikes_R",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_sleeve_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0021,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0021,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0021,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0021,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0021,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0021,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0021,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0021,
+    "PASS"
+   ]
+  },
+  "min": 0.0021,
+  "max": 0.0021,
+  "spread": 0.0,
+  "median": 0.0021
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 0.0,
+  "status": "WARN"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "PASS",
+    "WARN",
+    "FAIL",
+    "WARN",
+    "PASS"
+   ],
+   "median": 0.0,
+   "status": "FAIL",
+   "passing": 2
+  },
+  "affine_pieces": {
+   "values": [
+    0.0,
+    0.0,
+    0.0127,
+    0.0021,
+    0.0105
+   ],
+   "statuses": [
+    "PASS",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.0021,
+   "status": "WARN",
+   "passing": 1
+  }
+ },
+ "probes": {
+  "torn_edges": {
+   "value": 0.0058,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": -1.0
+ },
+ "verdict": "blind",
+ "why": "the known-bad body6_render reads 0.0 WARN",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random",
+  "torn_edges": "(probe) every drawn piece's outline bitten: a disk 0.016-0.03 L across per 0.06 L of outline, given to the nearest other label"
+ },
+ "seconds": 204.7
+}

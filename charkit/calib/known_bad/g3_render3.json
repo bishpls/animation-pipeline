@@ -1,0 +1,10 @@
+{
+ "name": "g3_render3",
+ "why": "pipeline-3d 3ebc3fb's build (tool/bow's gate baseline): Michael's bow flags (the loops' ends cut off, the colour bleeding into the jacket, the ribbons merged into the jacket in profile) and the back view's shoulders and collar",
+ "flag": "collar_flags (Michael 2026-09-30)",
+ "commit": "3ebc3fb",
+ "source": "~/animation-pipeline-garments3/charkit/out/g3_render3",
+ "stored": "2026-09-30",
+ "bundle": "0b7e101e69aae2c6",
+ "qa_checks": 484
+}

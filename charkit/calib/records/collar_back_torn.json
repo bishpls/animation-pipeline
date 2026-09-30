@@ -1,0 +1,117 @@
+{
+ "check": "collar_back_torn",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_collar"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no build has read a torn back panel (look_v5, body6_render, g2_before, g3_render3, current: 0.0)",
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    null,
+    0.0,
+    0.0,
+    null,
+    0.0
+   ],
+   "statuses": [
+    "FAIL",
+    "PASS",
+    "PASS",
+    "FAIL",
+    "PASS"
+   ],
+   "median": 0.0,
+   "status": "PASS",
+   "passing": 3
+  },
+  "affine_pieces": {
+   "values": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0003
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0,
+   "status": "PASS",
+   "passing": 5
+  }
+ },
+ "probes": {
+  "torn_edges": {
+   "value": 0.0053,
+   "status": "WARN"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "guard",
+ "why": "a defect detector with no known-bad (no build has read a torn back panel (look_v5, body6_render, g2_before, g3_render3, current: 0.0)); the design passes; shape guarded by piece_collar",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random",
+  "torn_edges": "(probe) every drawn piece's outline bitten: a disk 0.016-0.03 L across per 0.06 L of outline, given to the nearest other label"
+ },
+ "seconds": 204.7
+}

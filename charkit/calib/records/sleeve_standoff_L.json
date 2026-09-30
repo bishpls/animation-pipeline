@@ -1,0 +1,70 @@
+{
+ "check": "sleeve_standoff_L",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_sleeve_L",
+  "piece_sleeve_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no build has failed it (body6_render 0.003-0.006, g2_before 0.10 WARN, current 0.03-0.04)",
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.027,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "unmeasured",
+ "why": "no known-bad (no build has failed it (body6_render 0.003-0.006, g2_before 0.10 WARN, current 0.03-0.04)) and no random floor: nothing it must fail",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 204.7
+}

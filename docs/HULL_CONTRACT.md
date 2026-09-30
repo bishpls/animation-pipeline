@@ -32,7 +32,7 @@ missing or stale, and returns `charkit/out/hull/NAME/hull.glb`. The other files 
 |---|---|
 | `hull.npz` | `V` bool (nx, ny, nz): the occupancy. `xs`, `ys`, `zs` float64: the axes. `shell` int16 (n, 3): the shell voxels' indices (ix, iy, iz), in `np.nonzero` order. `shell_label` int32 (n,): their labels. A shell voxel is occupied and has at least one empty 6-neighbour; outside the grid counts as empty. |
 | `hull.glb.json` | The sidecar. `eyes`: [[+x, y_e, 0], [−x, y_e, 0]], her left eye first, exact. `units` "L". `by` "charkit.geom.hull". `contract`. `labels` and `pieces`: the per-vertex arrays' file names. `piece_names` {str(label): name}. |
-| `hull.ply`, `hull.glb` | The same mesh: marching cubes on `V` blurred 1 voxel, positions snapped to 2^-20 L, decimated to 150,000 faces. Vertex colours come from the view facing each vertex. |
+| `hull.ply`, `hull.glb` | The same mesh: marching cubes on `V` blurred 1 voxel, positions snapped to 2^-20 L, decimated to a quadric error (`hull.DECIMATE_COST`, about 150,000 faces on the default spec; it was a fixed 150,000). An edit to `V` moves only the vertices near it. Vertex colours come from the view facing each vertex. |
 | `hull_labels.npy` | int16, one per mesh vertex: the `bodyqa.CLASS` code (0-10) the facing view draws there. |
 | `hull_pieces.npy` | int16, one per mesh vertex: the label of the nearest shell voxel. |
 | `hull.json` | A report: calibration, scores, mesh health, seconds. **Not part of the contract.** |
@@ -132,6 +132,10 @@ The code change changes the stamp, so every copy rebuilds. Where it's cheap, kee
 integration round.
 
 ## Changelog
+
+- 1, not breaking (2026-09-30, tool/hull-local): the mesh decimated to a quadric error instead of a fixed face count, so
+  a local edit (the face's carve) leaves the mesh bit-identical away from it; the face count now varies a little per
+  spec and branch (150,196 on the default spec at pipeline-3d 3a0ad37). Every mesh reader sees a new mesh once.
 
 - 1 (2026-09-30, tool/hull-limbs): the first written contract. It describes the outputs as they were since the labelled
   shell (tool/garment-sampling) and hull-det; the `contract` field is new.
