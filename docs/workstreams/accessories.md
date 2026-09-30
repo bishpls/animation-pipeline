@@ -5,7 +5,7 @@ placeholders in `charkit/accessories.py` were a thin stretched four-point star a
 them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
 remodels and places them.
 
-## State: Round 4 (the split: `tool/acc-reclass` first, then this branch's geometry); round 3 gated FAIL under K on palette_iris_shade's unmeasurable crossed cell only; Michael kept round 3's placement
+## State: Round 4 done: the reclass landed (pipeline-3d 1580f95); this branch's geometry gated PASS under K (67ab3a8 into 1580f95); boards and review page ready; for the coordinator to merge
 
 Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
 pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
@@ -48,7 +48,21 @@ palette_iris_shade's crossed cell can't be measured while the branch changes the
   left against pipeline-3d is the geometry only; no measurement step between (history.steps_between: none), so the
   gate compares under one measure. The pregate above covers this code (the same tree). Gate: running (log
   `charkit/out/acc_work/r4/gate_geom.log`).
-- Next: the review page `charkit/out/acc_work/review/round4.html` (the boards round 2 | round 4, the summary box).
+- **Gate PASS under K** (`charkit/out/gate/gate_tool-accessories2_67ab3a8_into_1580f95.md`): nothing remeasured, no
+  QA part's code changed; acc_star_back_shown 0 -> 31 PASS, acc_star_seat 0.0153 FAIL -> 0.0003 PASS, 17 acc_*
+  improved; every clip's IoU up or the same against the baseline (star 0.500 / 0.547 / 0.552 -> 0.570 / 0.749 / 0.745,
+  crab 0.518 / 0.523 / 0.492 -> 0.729 / 0.726 / 0.492): the anti-gaming guard doesn't trigger against the gate's
+  baseline (against round 2 the crab's profile IoU 0.627 -> 0.492, the cost Michael accepted with (a)). Flag check
+  art_peeks_hair 16 -> 18 (WARN both, grade FAIL both); art_outline_face 0.481 -> 0.300, art_speckle_face 0.233 ->
+  0.332 (INFO); CPU 1.26x (pieces_hair's one-time miss 104.6 s); tests ok.
+- **Boards** (render box, EEVEE, `charkit/out/acc_r4_render/boards`, measured by `acc_work/r4/boards.py`: the star by
+  its colour, its luminance split at Otsu, the pieces per tone): the bent star shades flat as round 2's rigid one:
+  shade share face_000 / 030 / 090 0.065 / 0.046 / 0.043 -> 0.056 / 0.047 / 0.050, at most 2 shade pieces, all thin
+  (the facet ridge): no stripes (decision 3 of round 3 answered by measurement; Michael asked to confirm by eye).
+- Review page (local): `charkit/out/acc_work/review/round4.html` (`acc_work/review4.py`): the summary box, the face
+  boards round 2 | round 4 with the star at 2x and its numbers, the body boards, the QA's clip overlays, both gates.
+- Left: the coordinator's merge; Michael's yes / no on the bent star's look. Open (not this round): the clips'
+  three-quarter / profile positions (the drawn place is inside our hair: widen the hair there), pos3d FAIL.
 
 ## Round 3 (`tool/accessories2`, continued): the gate's three blockers
 
