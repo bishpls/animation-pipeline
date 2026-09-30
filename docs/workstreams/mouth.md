@@ -5,7 +5,7 @@ eye and mouth engine is `docs/workstreams/eyes.md`; this round owns the mouth an
 `brows.py`, the lid shapes in `eyes.expressions`, `scene.PRESETS`, `exprqa`), not the iris, pupil or sclera
 (`tool/eyes2`) or the face's shape below the mouth (`tool/face`).
 
-## State: PAUSED 2026-09-29 (coordinator: usage limit), mid goal 1. Resume from "Next steps" below.
+## State: round 1 PAUSED 2026-09-29; round 2 (`tool/mouth2`) below, at the end of this file.
 
 No box jobs running. Local outputs (gitignored, in this worktree):
 - `charkit/out/base_mh`: the MakeHuman baseline build (`clawd.json`, pipeline-3d code), bundle and QA.
@@ -124,3 +124,84 @@ shout 0.065.
 8. Gates: `python -m charkit remote gate tool/mouth --into pipeline-3d` and with `--spec
    charkit/spec/clawd_body_pieces.json` (its baseline build fails today at garments, so that gate will FAIL on the
    baseline until the integrator fixes it).
+
+## Round 2 (`tool/mouth2`, 2026-09-30 overnight)
+
+Branch `tool/mouth2` in `~/animation-pipeline-mouth`, from pipeline-3d 1141e74, round 1 (`tool/mouth`) merged in
+(`character.py`: pipeline-3d's declared base and body kept, the `features(geometry(spec))` split added), pipeline-3d
+b43c15e merged before the gate. Round 1's next steps 1-3 and 5-7 done as below; step 4 (MakeHuman's outer rings) and the
+clawd_body_pieces gate dropped (MakeHuman retired from gating; the default spec is the authored character).
+
+**The lab's head:** `python -m charkit remote run --fetch charkit/out/mouthlab/h2 mouth --dump charkit/spec/clawd.json
+--out charkit/out/mouthlab/h2/head.pkl.gz` (`--dump` now resolves an authored spec and runs the code head and body
+stages first; 90 s on the box). Round 1's dumps predated the face rounds. "Before" below is round 1's code on this head
+(`charkit/out/mouthlab/r2_before`), "now" is `r2_s4` (local, gitignored).
+
+### The component API (Michael: a modular expression system)
+
+`charkit/expressions.py`: a preset is `{component: name | {name: weight}}` over the components `eye`, `brow`, `mouth`,
+`look` (the shape keys `<component>_<name>`); a component left out stays at rest, so the rest face is the empty preset
+(`PRESETS['rest']`). `weights(P)` -> `{shape key: weight}` is what every consumer applies (the boards'
+`face_board.set_preset`, the export's combined VRM expressions, `exprqa.render`); `combine(a, b, ...)` layers presets
+(later components win); `library()` lists each component's shapes; `check()` finds a preset naming a shape the
+library lacks. `scene.PRESETS` is `expressions.PRESETS`.
+
+**The components must not share vertices** (they add). Found this round: the authored mouth's outer rings reach the
+eyes' lid loops, so every open mouth key moved 100 lid vertices (up to 0.013 L), and squeeze + laugh read as an open eye
+at the sheet's scale. `mouth.held(eyes)` (called in `character.features`, the mouth keys' line only) holds the eyes'
+loops, margins, pockets and sockets still in every mouth key; `tests/test_mouth.py` checks no vertex is moved by both
+(on a dumped head). Folds stayed 0 on every key.
+
+### The library (additive)
+
+- Lid shapes (`eyes.expressions`): focus (upper lowered and squared, lower raised), squeeze (shut, arched, squared off:
+  `closed_line(arch, sharp, drop)`, blink and happy bit-identical), wince, shy; `qa3d.FACE_EXPECT` ranges for each.
+  The angry lid 0.86 -> 0.8 of the height (its aspect read 0.96 of neutral; the sheet's angry head 0.92).
+- Brows (`brows.expressions`): focus, knit, pained.
+- Mouths: shout, clench, grimace set their own smile (0, -0.02, -0.08; they took the spec's 0.22 and curved up like a
+  grin: clench lift 0.175 -> -0.007, grimace 0.130 -> -0.096, shout 0.221 -> 0.065). wobble width 1.2 -> 1.1.
+- Presets (13): rest, laugh, angry (eye now 'angry'), fluster, yawn, effort, shout, focus, surprise, pain, smug,
+  embarrassed, sad. `scene.EXPR` / `MOUTH` list every shape, so the boards draw them; `face_board.set_expr`'s brow map
+  covers the new lids.
+
+### Measurement added
+
+- `face_preset_<name>` (qa3d.face_presets, in the face part): each preset rendered head-on and graded against
+  `exprqa.TARGETS`; value = the furthest feature past its target in its WARN margins (0 inside, <= 1 WARN). Rule
+  `face_preset_*` 'lo' 0/1 in checks.py. **Calibrated** (`exprqa.calibrate_targets`, tested): the sheet's four drawn
+  heads pass their presets' targets (laugh WARN: its brows are under the fringe, brow_z_rel -0.004), and the rest face
+  fails every one of the 12 (miss > 1).
+- The shape fit includes the shape: `mouthlab.design_mouths` (the drawn heads' mouths filled, at the sheet's 111 px/L),
+  `mask_iou` (centred on the bounding boxes), `fit_shape(mask=...)` adds (1 - IoU) to the cost and reports it. The
+  mouths are drawn in the front view only, so that is every view they have.
+- Measurement steps (charkit/steps/qa3d.py): expr_* (dee61e7: measured against idol_D again), face_folds,
+  face_mouth_cover, face_mouth_asym (dee61e7: round 1's mouths), face_folds, face_expr_range, face_eye_asym (bf797d4:
+  the new lids), face_preset_* (new).
+
+### Numbers (the lab on the current head; before = round 1's code)
+
+| | before | now | drawn |
+|---|---|---|---|
+| laugh: proxy shape IoU | 0.748 | 0.921 | |
+| laugh: expr_laugh_mouth (INFO) | 0.370 WARN | 0.203 PASS | |
+| laugh: open / lift / fill (head) | 0.160 / 0.210 / 0.599 | 0.140 / 0.146 / 0.723 | 0.153 / 0.103 / 0.598 |
+| yawn: proxy shape IoU | 0.916 | 0.960 | |
+| yawn: expr_yawn_mouth (INFO) | 0.254 WARN | 0.157 WARN | |
+| yawn: open / lift / fill (head) | 0.180 / 0.043 / 0.657 | 0.175 / 0.004 / 0.725 | 0.180 / -0.038 / 0.626 |
+| chin drop laugh / yawn / shout (L) | 0.096 / 0.076 / 0.082 | 0.065 / 0.055 / 0.059 | 0 (outline kept) |
+| mouth keys' folds | 0 all | 0 all | |
+| worst cover | wavy 0.937 | wavy 0.942, grimace 0.943 | |
+| eye keys' folds | angry 2, sad 2 | + squeeze 2, wince 2 | |
+| presets graded (lab) | 4: 3 PASS, angry WARN | 12: all PASS | |
+
+The fits (laugh: open, up, smile, rounds free, width 2.0 kept; yawn: width, corner, rounds; wave left out) trade fill
+for shape: fill reads the inside over the outer box, and the drawing's outline is heavier than our line, so its inside
+is smaller. Both fills moved away (laugh 0.645 -> 0.712 on the proxy, yawn 0.726 -> 0.771): said, not hidden. The laugh
+is now a bowl (a smile-curved top, a round U bottom; round 1's was a V), the yawn an oval.
+
+jaw_follow sweep (the chin's dial; every key 0 folds at each value; laugh / yawn / shout chin drop, L):
+0.6: 0.096 / 0.076 / 0.083; 0.45: 0.083 / 0.066 / 0.071; 0.3: 0.069 / 0.055 / 0.059; 0.15: 0.055 / 0.044 / 0.047.
+The drop doesn't reach 0 at 0 (the lips' rings between the mouth and the chin move with the lower lip). Default 0.3.
+
+The mouth block (`code_base.mouth_block`) is bit-identical to pipeline-3d's on all four Clawd specs
+(`tests/test_mouth.py` holds it): the head's rest mesh doesn't move.
