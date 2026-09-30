@@ -19,6 +19,8 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
+    ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
+     "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
     ('body_*_skirt_width', '854776f', "no row free of hands in both figures: the design's widest free row against ours "
      "on that same row (each figure's own widest over the design's free rows had sat at different heights)"),
     ('piece_*_hang', '854776f', "the reach against the drawn piece's lowest point (the outfit graph's extents), not the "
