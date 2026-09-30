@@ -294,3 +294,22 @@ profile lower back is the shadow tone below the head (the truth's rule 2, call B
 point the view that faces it most squarely: at the jaw that is the profile, so points the front view draws as side
 lock become lower back. A labeller that weighs the views' agreement (not only the squarest view) is the next step.
 Not a mask error: the new masks' remaining profile error runs the other way (lower back called side locks, 1,050 px).
+
+**crown_trim on the exact hair normals** (the coordinator's add-on; box builds of `0161ec5`, default spec, fetched to
+`charkit/out/h5_off` and `h5_crown`). Face4-crown's exact normals (pipeline-3d 4de65ab) took away what held the crown
+trim off in hair round 4 (art_terminator_hair 2.376 -> 2.607, the proxy normals' flips at the lock edges):
+
+| check | crown_trim off | on |
+|---|---|---|
+| art_terminator_hair (flag; pass 2.0, warn 2.5) | 2.252 WARN (front 2.192, three-quarter 2.252, profile 1.567, back 1.945) | **2.236** WARN (2.190, 2.236, 1.658, 1.796) |
+| art_peeks_hair (flag) | 16 WARN | 15 WARN |
+| hair_piece_upper_back / buns | 0.760 / 0.826 | 0.772 / 0.847 |
+| hair_bun_outline (front, profile) / corners | 0.385 (0.390, 0.375) / 22 | 0.436 / 19 |
+| hair_piece_bangs / side_locks / lower_back | 0.788 / 0.528 / 0.606 | 0.786 / 0.527 / 0.606 |
+| hair_noise | 0.0735 WARN | 0.076 WARN |
+| art_outline_hair (INFO) | 0.648 | 0.623 |
+| body_three_quarter_iou_hair (the other 48 body and shape IoUs, widths and tops unchanged) | 0.740 | 0.739 |
+| hair_folds / hair_penetration | 11 / 0 | 11 / 0 |
+
+No status or grade changed; the flag checks both improve. **crown_trim is on by default** (`hairpieces.OPTS`), riding
+this round's gate.
