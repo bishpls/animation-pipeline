@@ -1,7 +1,9 @@
 """python -m charkit.sim rest BUILD [--out DIR] [--pieces a,b] [--variants v,w] [--seconds S]
 python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]
-python -m charkit.sim tune BUILD [--out DIR] [--pose kick]
-python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]"""
+python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat]
+python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]
+python -m charkit.sim bake BUILD --clip kick [--out DIR] [--method M] [--pc2] [--replay [--blender PATH]]
+python -m charkit.sim qa BUILD [--method M]           motion QA (charkit.sim.motionqa) on a build, printed"""
 import sys
 
 
@@ -21,7 +23,21 @@ def main(a):
         return motion.main(a[1:])
     if a[0] == 'tune':
         from . import motion
-        motion.tune_springs(a[1], opt('--out', a[1] + '/sim_tune'), pose=opt('--pose', 'kick'))
+        motion.tune_springs(a[1], opt('--out', a[1] + '/sim_tune'), poses=tuple(opt('--poses', 'kick,squat').split(',')))
+        return 0
+    if a[0] == 'bake':
+        from . import bake
+        return bake.main(a[1:])
+    if a[0] == 'qa':
+        import json as _j
+        from .. import bundle as bl
+        from . import motionqa
+        B = bl.load(a[1] + '/bundle')
+        gm = motionqa.settings(B)
+        if opt('--method'):
+            gm['method'] = opt('--method')
+        T, C = motionqa.measure(B, gm, log=print)
+        print(_j.dumps(dict(table=T, checks=C), indent=1))
         return 0
     if a[0] == 'review':
         from . import review

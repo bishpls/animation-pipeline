@@ -1,0 +1,9 @@
+{
+ "name": "motion_skinned",
+ "why": "the skirt skinned as the build ships it (its inherited weights; round 1, tool/xpbd: at the kick the front panel is dragged up with the thigh, 199% stretch p99, 535% max; at the squat 5.8% of its surface 0.185 L inside the skin). Computed from the build under calibration by charkit.calib.motion (method 'skinned'), nothing stored",
+ "flag": "the kick's ballooning skirt (tool/xpbd round 1 review)",
+ "commit": null,
+ "source": null,
+ "computed": "charkit.calib.motion.Motion.measure_known_bad",
+ "stored": "2026-09-30"
+}

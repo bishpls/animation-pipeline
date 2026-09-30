@@ -284,6 +284,79 @@ def test_the_hook_is_off_unless_asked():
     assert R['meta']['drape']['panel']['strain_max'] < 0.05
 
 
+def test_pc2_caches_round_trip():
+    import tempfile
+    from charkit.sim import bake
+    X = np.random.default_rng(0).normal(size=(5, 7, 3)).astype(np.float32)
+    p = os.path.join(tempfile.mkdtemp(), 'a.pc2')
+    bake.write_pc2(p, X, start=0.0)
+    Y, start, rate = bake.read_pc2(p)
+    assert np.array_equal(X, Y) and start == 0.0 and rate == 1.0
+    assert os.path.getsize(p) == 32 + X.nbytes                      # the PC2 header, then float32 xyz per point
+
+
+def test_weights_transfer_from_the_nearest_skin_point():
+    from charkit.sim import rig
+    V = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]], float)
+    F = np.array([[0, 1, 2], [1, 3, 2]])
+    W = {'a': np.array([1.0, 0.0, 1.0, 0.0]), 'b': np.array([0.0, 1.0, 0.0, 1.0])}
+    P = np.array([[0.25, 0.5, 0.3], [0.0, 0.0, -0.2], [2.0, 0.5, 0.0]])     # above the middle, under a corner, off an edge
+    T = rig.transfer_weights(P, V, F, W)
+    assert np.allclose(T['a'], [0.75, 1.0, 0.0]) and np.allclose(T['a'] + T['b'], 1.0)
+
+
+def test_torso_capsules_fit_an_elliptic_body():
+    from charkit.sim import rig
+
+    class R:
+        head = {'hips': np.array([0.0, 0.0, 0.0])}
+        tail = {'hips': np.array([0.0, 0.0, 0.3])}
+    t, z = np.meshgrid(np.linspace(0, 2 * np.pi, 72, endpoint=False), np.linspace(0, 0.3, 16))
+    V = np.stack([0.16 * np.cos(t).ravel(), 0.11 * np.sin(t).ravel(), z.ravel()], 1)       # a 1.45:1 section
+    caps = rig.fit_torso(V, {'hips': np.ones(len(V))}, R(), bones=('hips',), slabs=2)
+    assert len(caps) == 2
+    for c in caps:
+        assert c['err_p90'] < 0.02 and abs(c['r'] - 0.11) < 0.01       # (a stadium against an ellipse: 0.014)
+    z0 = caps[0]['a'][2]
+    cl = rig.rest_clear(caps, np.array([[0.0, 0.0, z0 + 0.05]]), 0.01)   # a rest point 0.05 off the first's axis
+    assert abs(cl[0]['r'] - 0.04) < 1e-9 and cl[0]['r_fit'] == caps[0]['r'] and all(c['r'] <= c['r_fit'] for c in cl)
+
+
+def test_garment_motion_comes_from_the_style_profile():
+    from charkit import styles
+    from charkit.sim import motionqa
+
+    class B:
+        _reads = []
+
+        def __init__(self, spec):
+            self.spec = spec
+    a = motionqa.settings(B({'style': 'anime'}))
+    r = motionqa.settings(B({'style': 'realistic'}))
+    assert (a['method'], a['hold_shape']) == (styles.load('anime')['physics']['garment_motion']['method'],
+                                              styles.load('anime')['physics']['garment_motion']['hold_shape'])
+    assert (a['method'], a['hold_shape']) == ('xpbd_hips', 0.8)         # Michael, 2026-09-30
+    assert (r['method'], r['hold_shape']) == ('xpbd_physics', 0.0)
+    o = motionqa.settings(B({'style': 'anime', 'physics': {'garment_motion': {'method': 'skinned'}}}))
+    assert o['method'] == 'skinned' and o['hold_shape'] == 0.8          # a spec's own over the profile's
+    assert [motionqa.grade('inside', v) for v in (0.005, 0.02, 0.05)] == ['PASS', 'WARN', 'FAIL']
+    B.spec = None
+    b = B({'style': 'anime', 'garments': [dict(name='p', kind='panel'), dict(name='s', kind='skirt'),
+                                           dict(name='t', kind='shell')]})
+    assert motionqa.loose_pieces(b, a) == ['s', 'p']
+
+
+def test_the_motion_calibration_nudges_every_move():
+    from charkit import calibrate
+    from charkit.calib import motion as cm
+    for hold in (0.8, 0.0):
+        got = [cm.nudge(m, hold) for m in calibrate.MOVES]
+        assert len(got) == len(calibrate.MOVES) and all(len(g) == 1 for g in got)
+    E = [e for e in calibrate.entries() if e['module'] == 'charkit.calib.motion']
+    assert {e['check'] for e in E} == {'motion_%s_skirt_%s' % (p, k) for p in ('kick', 'squat')
+                                       for k in ('inside', 'stretch')}
+
+
 if __name__ == '__main__':
     import time
     for k, f in list(globals().items()):
