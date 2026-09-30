@@ -115,6 +115,27 @@ STEPS = [
     ('line_ink', '0b6e9cd', 'the lines\' own colour (their supersampled pixels before the pixel filter), not the pixels a '
      'line covers wholly after it (blended with their neighbours): the inked hair, garment and accessory lines read '
      '0.48 from the design\'s ink, were 4.5, 7.8 and 15.6; the skin\'s brown 24.67, was 24.9 (tool/look2)'),
+    # tool/face: the QA's eyes on the head's eye line; the taper's shape
+    ('sheet_*', 'e9a6753', 'ours registered on the eyes at the head\'s eye line (qa3d.eye_anchor: the design\'s eye row, '
+                          'which the head is built on), not the iris plates\' vertex mean 0.0235 L over it: every height '
+                          'under the eyes had read that much low (jaw_4: cheek_chin -0.0277 -> -0.0027, profile_chin '
+                          '-0.0247 -> 0.0003, profile 0.0136 -> 0.0053)'),
+    ('profile_edge', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor), not the iris plates\' mean: '
+                               'jaw_4 0.0622 -> 0.0278 (its worst row had been the chin\'s corner)'),
+    ('jaw_*', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor): jaw_4 jaw_taper 0.0271 -> 0.0095'),
+    ('chin_*', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor): jaw_4 chin_point_z -0.0224 -> 0'),
+    ('neck_to_face', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor)'),
+    ('neck_front_wiggle', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor)'),
+    ('jaw_taper_shape', 'e9a6753', 'new: the front outline\'s w(t)/w(0) from the cheekbone row to the chin against the '
+                                  'design\'s, in the boards\' camera'),
+    ('jaw_line_bend', 'e9a6753', 'new: the jaw lines\' sharpest local bend (a kink where the silhouette jumps in depth)'),
+    ('chin_angle', 'e9a6753', 'new: the V\'s opening near the chin against the design\'s, in the boards\' camera'),
+    ('chin_tip', 'e9a6753', 'new: the share of the V\'s turn made at its point (a V, not a U)'),
+    ('tq_*', 'e9a6753', 'new: the three-quarter\'s far-cheek hollow and the near jaw line\'s notch at the neck'),
+    ('eye_pupil_*', 'b9055f7', 'the pupil read from its coverage map (sub-pixel; a value threshold had cut its soft ends) '
+                               'and against the whole iris\'s height (its lid-shadowed top had fallen out of the iris): '
+                               'the pre-round-2 build reads pupil_run 0.297 against the design\'s 0.405 (it had read 0.341 '
+                               'against 0.394)'),
 ]
 
 
