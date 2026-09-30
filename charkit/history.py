@@ -19,13 +19,13 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
     # tool/body round 5 (charkit/detailqa.py): Michael's review of round 4's midriff and boots
-    ('body_*_torso_jump_*', 'DETAILQA', "new: the torso outline's largest step from under the bust to the skirt, "
+    ('body_*_torso_jump_*', '843922c', "new: the torso outline's largest step from under the bust to the skirt, "
      "outward and inward, beyond the design's (the top and the band sliced and shifted)"),
-    ('body_*_midriff_gap', 'DETAILQA', "new: the top's hem against the band's top: a see-through gap or the top over "
+    ('body_*_midriff_gap', '843922c', "new: the top's hem against the band's top: a see-through gap or the top over "
      'the band'),
-    ('body_front_panel_edge', 'DETAILQA', "new: the cream panel's lower part: its outline's roughness, fragments and "
+    ('body_front_panel_edge', '843922c', "new: the cream panel's lower part: its outline's roughness, fragments and "
      "holes against the design's (a torn edge)"),
-    ('boot_*', 'DETAILQA', "new: the boots' ankle jog and bend, the ankle's folds front and back, the heel block, doubled "
+    ('boot_*', '843922c', "new: the boots' ankle jog and bend, the ankle's folds front and back, the heel block, doubled "
      'outline strokes, the soles in 3D (flat, twist) and the left/right mirror'),
     ('body_*_leg_gap', 'd35fbaf', "new: rows over the lower legs and boots where the design's legs stand apart and ours join (a bridge)"),
     ('body_*_boot_step_*', 'd35fbaf', "new: each boot's outline's largest row-to-row jump beyond the design's (the shaft/foot seam)"),
