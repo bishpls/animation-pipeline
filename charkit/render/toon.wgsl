@@ -2,9 +2,11 @@
 // streaks, flat, plate; charkit/faceshade.py material), read from the export's OPENADS_charkit_look (charkit/gltf.py).
 // WGSL, so the same source can run in a browser's WebGPU (engine/three/charkit/look.js is the TSL port of the same maths).
 //
-//   vs_surface  the surface Blender draws: the original surface (co) moved inward by this view's line width x the
-//               vertex's outline factor along the hull direction (the outline SOLIDIFY: offset 1, negative thickness)
-//   vs_hull     the inverted hull at the original surface (co), drawn with front faces culled, in the line colour
+//   vs_surface  the surface Blender draws: the original surface (co) moved inward along the hull direction by
+//               inward(this view's line width) x the vertex's outline factor (the outline SOLIDIFY, negative thickness;
+//               inward(w) = w, or for a thin shell min(w, maxInward): charkit.shade.line_inward, Michael's call I)
+//   vs_hull     the inverted hull: co moved outward by the rest of the width, w - inward(w) (0 unless capped), drawn
+//               with front faces culled, in the line colour
 //   vs_holdout  the skin at co (qa.features_pass turns its SOLIDIFY off), writing depth and a transparent black
 //   fs_surface  toon3 | face | flat | plate, premultiplied (plates with alpha blend over what is behind)
 //
@@ -34,16 +36,15 @@ struct MatU {
   rim_color: vec4<f32>,
   rim: vec4<f32>,            // Layer Weight exponent, map-range from, to
   hl_centre: vec4<f32>,      // xyz: the streaks' centre; w: columns
-  hl: vec4<f32>,             // length (rad), duty, amount
+  hl: vec4<f32>,             // length (rad), duty, amount; w: the share of columns kept
   hl_face: vec4<f32>,        // facing from, to, Layer Weight exponent
   hl_color: vec4<f32>,
   face: vec4<f32>,           // softness, fringe range from, to
   face_lit: vec4<f32>,
   face_shade: vec4<f32>,
-  outline: vec4<f32>,        // build width (m), region factor, 1 outlined
+  outline: vec4<f32>,        // build width (m), region factor, 1 outlined, the inward move's cap (m; 0 none)
   line_color: vec4<f32>,
-  hl_keep: array<vec4<f32>, 16>,   // per column (64 max): kept (0 / 1)
-  hl_el0: array<vec4<f32>, 16>,    // per column: the streak's middle elevation (rad)
+  hl_el: vec4<f32>,          // the streaks' elevation: lowest middle (rad), jitter span (rad)
 };
 
 const F_RIM: u32 = 1u;
@@ -90,6 +91,12 @@ fn view_w() -> f32 {
   return M.outline.x;
 }
 
+// charkit.shade.line_inward: how far the outline moves the surface inward at width w; the rest goes outward
+fn inward(w: f32) -> f32 {
+  if (M.outline.w > 0.0) { return min(w, M.outline.w); }
+  return w;
+}
+
 fn out_of(p: vec3<f32>, v: VIn) -> VOut {
   var o: VOut;
   o.clip = V.viewproj * vec4<f32>(p, 1.0);
@@ -99,13 +106,20 @@ fn out_of(p: vec3<f32>, v: VIn) -> VOut {
 
 @vertex
 fn vs_surface(v: VIn) -> VOut {
-  // POSITION = co - hull * build_w * ow  ->  co - hull * view_w * ow
-  return out_of(v.pos + v.hull * ((build_w() - view_w()) * v.ow), v);
+  // POSITION = co - hull * inward(build_w) * ow  ->  co - hull * inward(view_w) * ow
+  return out_of(v.pos + v.hull * ((inward(build_w()) - inward(view_w())) * v.ow), v);
 }
 
 @vertex
 fn vs_hull(v: VIn) -> VOut {
-  return out_of(v.pos + v.hull * (build_w() * v.ow), v);
+  // co + hull * (view_w - inward(view_w)) * ow
+  let w = view_w();
+  return out_of(v.pos + v.hull * ((inward(build_w()) + w - inward(w)) * v.ow), v);
+}
+
+@vertex
+fn vs_holdout(v: VIn) -> VOut {
+  return out_of(v.pos + v.hull * (inward(build_w()) * v.ow), v);   // co
 }
 
 // ------------------------------------------------------------------------------------------------ texture reads
@@ -172,6 +186,36 @@ fn tex(t: texture_2d<f32>, uv: vec2<f32>, mode: u32) -> vec4<f32> {
   return tex_linear(t, uv, wrap);
 }
 
+// ------------------------------------------------------------------------------------------------ the streaks' hash
+// charkit.shade.streak_hash: Bob Jenkins' lookup3 as Blender's White Noise node computes it (EEVEE's
+// gpu_shader_common_hash.glsl, Cycles' util/hash.h), on the column index's float bits: u32 arithmetic, the same bits on
+// every GPU. White Noise 1D: Value = hash_uint(bits(w)), Color's green = hash_uint2(bits(w), bits(1.0)).
+fn rot(x: u32, k: u32) -> u32 { return (x << k) | (x >> (32u - k)); }
+
+fn lookup3_final(a0: u32, b0: u32, c0: u32) -> u32 {
+  var a = a0; var b = b0; var c = c0;
+  c ^= b; c -= rot(b, 14u);
+  a ^= c; a -= rot(c, 11u);
+  b ^= a; b -= rot(a, 25u);
+  c ^= b; c -= rot(b, 16u);
+  a ^= c; a -= rot(c, 4u);
+  b ^= a; b -= rot(a, 14u);
+  c ^= b; c -= rot(b, 24u);
+  return c;
+}
+
+fn hash_uint(kx: u32) -> u32 {
+  let s = 0xdeadbeefu + (1u << 2u) + 13u;
+  return lookup3_final(s + kx, s, s);
+}
+
+fn hash_uint2(kx: u32, ky: u32) -> u32 {
+  let s = 0xdeadbeefu + (2u << 2u) + 13u;
+  return lookup3_final(s + kx, s + ky, s);
+}
+
+fn hash_unit(h: u32) -> f32 { return f32(h) / 4294967296.0; }     // float(h) / float(0xFFFFFFFFu), as Blender's
+
 // ------------------------------------------------------------------------------------------------ the look
 fn sat(x: f32) -> f32 { return clamp(x, 0.0, 1.0); }
 fn map_range(x: f32, a: f32, b: f32) -> f32 { return sat((x - a) / (b - a)); }
@@ -197,15 +241,16 @@ fn toon3(n: vec3<f32>, vd: vec3<f32>, wpos: vec3<f32>) -> Toon {
     col = vec3<f32>(1.0) - (vec3<f32>(1.0 - f) + f * (vec3<f32>(1.0) - M.rim_color.xyz)) * (vec3<f32>(1.0) - base);
   }
   if ((fl & F_STREAKS) != 0u) {
-    // charkit.shade.hair_toon: columns of azimuth round the centre; the kept ones carry a short streak
+    // charkit.shade.hair_toon: columns of azimuth round the centre; the kept ones (an integer hash of the column's
+    // index, below) carry a short streak
     let p = wpos - M.hl_centre.xyz;
     let el = atan2(p.y, length(p.xz));
     let az = atan2(p.x, p.z);
     let count = M.hl_centre.w;
     let c = (az + PI) * count / (2.0 * PI);
-    let idx = clamp(i32(floor(c)), 0, 63);
-    let keep = M.hl_keep[idx / 4][idx % 4];
-    let el0 = M.hl_el0[idx / 4][idx % 4];
+    let bits = bitcast<u32>(floor(c));                   // the column index's float bits (White Noise's W)
+    let keep = select(0.0, 1.0, hash_unit(hash_uint(bits)) < M.hl.w);
+    let el0 = M.hl_el.x + hash_unit(hash_uint2(bits, bitcast<u32>(1.0))) * M.hl_el.y;
     let along = 1.0 - abs(el - el0) / (M.hl.x * 0.5);
     let across = 1.0 - abs(fract(c) - 0.5) / (M.hl.y * 0.5);
     let shape = sat(along * 3.0) * sat(across * 3.0);

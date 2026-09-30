@@ -5,7 +5,8 @@ VRM export maps these onto MToon.
 The style profile's `look` (charkit.styles) says how a view is lit and lined: set_look() keeps it (and stores it in the
 scene, so a saved .blend's turntable renders it the same way), set_view() applies it for one camera: the light ('world':
 fixed; 'camera': a key that turns with the camera) into every material's 'ldir' and 'ldir_head' node, and the outlines'
-widths ('screen': the same share of the picture in every view). charkit.qa.render_view calls set_view for each shot.
+widths ('screen': the same share of the picture in every view; a thin shell's inward move capped at half its thickness,
+the rest of the width outward: outline()). charkit.qa.render_view calls set_view for each shot.
 """
 import json, math
 
@@ -80,10 +81,11 @@ def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
     tone only where the hair turns right away from the light), an under layer's lit tone moved `inner` of the way to its
     shade (the layers under others a step darker, as drawn), and the drawn highlight: short streaks along the hair on
     the crown's lit side, as the design draws them. Round the head centre the hair is cut into `count` columns of azimuth;
-    a hash of each column's index keeps a share `keep` of them and shifts its streak's elevation by up to `jitter`
+    an integer hash of each column's index (streak_hash: Blender's White Noise, Jenkins' lookup3 on the index's float
+    bits, the same on every GPU) keeps a share `keep` of them and shifts its streak's elevation by up to `jitter`
     degrees about `elevation`; a streak is `length` degrees of elevation long and `duty` of its column wide, tapered at
     both ends, and fades where the surface turns from the camera. Its parameters ride on the material ('ck_highlight',
-    JSON) for the bundle and the export."""
+    JSON, with hash 'lookup3') for the bundle and the export."""
     if name in MATS:
         return MATS[name]
     hl = dict(hl or {})
@@ -98,7 +100,7 @@ def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
     P = dict(centre=[float(x) for x in centre], elevation=float(hl.get('elevation', 40.0)),
              length=float(hl.get('length', 9.0)), jitter=float(hl.get('jitter', 8.0)), count=int(hl.get('count', 40)),
              duty=float(hl.get('duty', 0.35)), keep=float(hl.get('keep', 0.5)), amount=float(hl.get('amount', 0.8)),
-             color=[float(x) for x in hl.get('color', (1.0, 0.86, 0.74))], facing=[0.55, 0.25])
+             color=[float(x) for x in hl.get('color', (1.0, 0.86, 0.74))], facing=[0.55, 0.25], hash='lookup3')
 
     def op(o, a=None, b=None, name=None):
         n = N('ShaderNodeMath'); n.operation = o
@@ -123,11 +125,14 @@ def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
     az = op('ARCTAN2', sp.outputs['X'], op('MULTIPLY', sp.outputs['Y'], -1.0))       # 0 in front, + to her left
     col = op('MULTIPLY', op('ADD', az, math.pi), P['count'] / (2 * math.pi))           # the column coordinate
     idx = op('FLOOR', col)
-
-    def hashed(k):
-        return op('FRACT', op('MULTIPLY', op('SINE', op('MULTIPLY', idx, k)), 43758.5453))
-    keep = op('LESS_THAN', hashed(12.9898), P['keep'], name='ck_hl_keep')
-    el0 = op('ADD', math.radians(P['elevation'] - P['jitter']), op('MULTIPLY', hashed(78.233), math.radians(2 * P['jitter'])))
+    # the column's hashes (streak_hash): White Noise 1D is an integer hash of W's bits (uint arithmetic, exact on every
+    # GPU): Value = hash_uint(bits(idx)) keeps the column, Color's green = hash_uint2(bits(idx), bits(1.0)) its elevation
+    wn = N('ShaderNodeTexWhiteNoise'); wn.noise_dimensions = '1D'; wn.name = 'ck_hl_hash'
+    Lk(idx, wn.inputs['W'])
+    sep = N('ShaderNodeSeparateColor'); sep.mode = 'RGB'
+    Lk(wn.outputs['Color'], sep.inputs['Color'])
+    keep = op('LESS_THAN', wn.outputs['Value'], P['keep'], name='ck_hl_keep')
+    el0 = op('ADD', math.radians(P['elevation'] - P['jitter']), op('MULTIPLY', sep.outputs['Green'], math.radians(2 * P['jitter'])))
     # along: 1 at the streak's middle elevation, 0 at +-length/2; across: 1 at the column's middle, 0 at +-duty/2
     along = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', el, el0)), math.radians(P['length'] / 2)))
     across = op('SUBTRACT', 1.0, op('DIVIDE', op('ABSOLUTE', op('SUBTRACT', op('FRACT', col), 0.5)), P['duty'] / 2))
@@ -144,6 +149,66 @@ def hair_toon(name, lit, shade, deep, centre, hl=None, inner=0.0, rim_amt=0.0):
     Lk(mx.outputs['Result'], em.inputs['Color'])
     m['ck_highlight'] = json.dumps(P)
     return m
+
+
+# the streaks' hash: Bob Jenkins' lookup3 (hash_uint / hash_uint2 and their `final` mix), as Blender's White Noise node
+# computes it in EEVEE (gpu_shader_common_hash.glsl) and Cycles (util/hash.h): unsigned 32-bit arithmetic, so every GPU,
+# charkit.render's toon.wgsl and look.js get the same bits. The float the node outputs is float(h) / float(0xFFFFFFFF),
+# i.e. h rounded to float32 over 2^32.
+_U32 = np.uint32
+
+
+def _rot(x, k):
+    return (x << _U32(k)) | (x >> _U32(32 - k))
+
+
+def _final(a, b, c):
+    c ^= b; c -= _rot(b, 14)
+    a ^= c; a -= _rot(c, 11)
+    b ^= a; b -= _rot(a, 25)
+    c ^= b; c -= _rot(b, 16)
+    a ^= c; a -= _rot(c, 4)
+    b ^= a; b -= _rot(a, 14)
+    c ^= b; c -= _rot(b, 24)
+    return c
+
+
+def hash_uint(kx):
+    """lookup3's one-word hash of uint32s (array) -> uint32s."""
+    kx = np.atleast_1d(np.asarray(kx, _U32))
+    with np.errstate(over='ignore'):
+        a = np.full(kx.shape, 0xdeadbeef + (1 << 2) + 13, _U32); b = a.copy(); c = a.copy()
+        a += kx
+        return _final(a, b, c)
+
+
+def hash_uint2(kx, ky):
+    kx, ky = np.broadcast_arrays(np.atleast_1d(np.asarray(kx, _U32)), np.atleast_1d(np.asarray(ky, _U32)))
+    with np.errstate(over='ignore'):
+        a = np.full(kx.shape, 0xdeadbeef + (2 << 2) + 13, _U32); b = a.copy(); c = a.copy()
+        b += ky
+        a += kx
+        return _final(a, b, c)
+
+
+def _unit(h):
+    return (h.astype(np.float32) / np.float32(4294967296.0)).astype(np.float32)
+
+
+def streak_hash(count):
+    """the White Noise node's two hashes for column indices 0..count-1 (their float32 bits): (Value, Color's green),
+    each float32 in [0, 1]."""
+    bits = np.arange(count, dtype=np.float32).view(_U32)
+    return _unit(hash_uint(bits)), _unit(hash_uint2(bits, np.float32(1.0).view(_U32)))
+
+
+def streak_columns(P):
+    """a highlight's per-column table (P: hair_toon's parameters, or the export's `highlight`): kept (0 / 1, float32) and
+    the streak's middle elevation (rad, float32), for column indices 0..count-1."""
+    h1, h2 = streak_hash(int(P['count']))
+    keep = (h1 < np.float32(P['keep'])).astype(np.float32)
+    el0 = (math.radians(P['elevation'] - P['jitter']) + h2.astype(np.float64) * math.radians(2 * P['jitter']))
+    return keep, el0.astype(np.float32)
 
 
 def flat(name, color):
@@ -182,22 +247,65 @@ def plate(name, image, alpha=True):
     return m
 
 
+SHELL_CAP = 0.5         # the outline's inward move is at most this share of a thin shell's thickness (Michael's call I)
+
+
 def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None):
     """inverted hull: a flipped, back-face-culled solidify shell in the line colour. The object keeps its build width
-    and its region (skin, hair, garment, accessory) for set_view's screen-width lines."""
+    and its region (skin, hair, garment, accessory) for set_view's screen-width lines.
+
+    The SOLIDIFY (negative thickness -w, offset o) moves the surface inward by w (1 + o) / 2 and puts the hull
+    w (1 - o) / 2 outside the original surface: a line w wide. A thin shell (a garment's own 'thick' SOLIDIFY, below
+    this one) keeps its inward move under line_cap (SHELL_CAP of its thickness; its two layers moving toward each other
+    would cross, and Blender's recomputed normals turn by up to 180 degrees there), and the rest of the width goes
+    outward (line_offset). The cap is kept on the object ('ck_line_cap', m) for set_view and the export."""
     ob['ck_line_w'] = float(thick)
     ob['ck_line_region'] = region or _region(ob, name)
+    shell = shell_of(ob)
+    if shell > 0:
+        ob['ck_line_cap'] = SHELL_CAP * shell
     m = flat(name, color)
     ob['ck_line_mat'] = m.name                       # its build colour, kept for line_colors('build')
     m.use_fake_user = True
     m.use_backface_culling = True
     ob.data.materials.append(m)
     sol = ob.modifiers.new('outline', 'SOLIDIFY')
-    sol.thickness = -thick; sol.offset = 1.0; sol.use_flip_normals = True; sol.use_rim = False
+    sol.thickness = -thick; sol.offset = line_offset(thick, line_cap(ob)); sol.use_flip_normals = True
+    sol.use_rim = False
     sol.material_offset = len(ob.data.materials) - 1
     if 'outline_w' in ob.vertex_groups:
         sol.vertex_group = 'outline_w'; sol.thickness_vertex_group = 0.0
     return sol
+
+
+def shell_of(ob):
+    """a thin shell's thickness (m): the object's own SOLIDIFY that gives it thickness (a garment's 'thick'; not the
+    outline, which flips normals), else 0 (a closed surface: the skin, the hair pieces, the boots)."""
+    return max([abs(float(md.thickness)) for md in ob.modifiers if md.type == 'SOLIDIFY' and not md.use_flip_normals
+                and md.name != 'outline'] or [0.0])
+
+
+def line_cap(ob):
+    """the outline's largest inward move (m) for an outlined object: SHELL_CAP of its shell's thickness, or None (no
+    cap: the whole width goes inward, as before call I). Objects built before the cap was stored get it from their
+    modifiers."""
+    if 'ck_line_cap' in ob:
+        return float(ob['ck_line_cap'])
+    s = shell_of(ob)
+    return SHELL_CAP * s if s > 0 else None
+
+
+def line_inward(w, cap):
+    """how far the outline moves the surface inward at line width w (m): w, capped at `cap`."""
+    return min(w, cap) if cap is not None and cap > 0 else w
+
+
+def line_offset(w, cap):
+    """the outline SOLIDIFY's offset for width w: the surface inward by line_inward(w, cap), the hull outward by the
+    rest (w (1 + o) / 2 = inward)."""
+    if w <= 0:
+        return 1.0
+    return 2.0 * line_inward(w, cap) / w - 1.0
 
 
 def _region(ob, line):
@@ -317,7 +425,7 @@ def line_width(ob, m_per_px=None, res_y=None, look=None):
 
 def set_view(az, m_per_px=None, res_y=None, look=None):
     """the look for one camera (azimuth az, degrees; m_per_px at the target, res_y the picture's height): the light,
-    and with 'screen' lines every outline's width. -> the light used."""
+    and with 'screen' lines every outline's width (and its offset: a thin shell's inward move capped). -> the light used."""
     import bpy
     look = look if look is not None else get_look()
     d = view_light(az, look)
@@ -327,7 +435,11 @@ def set_view(az, m_per_px=None, res_y=None, look=None):
             continue
         mod = next((m for m in ob.modifiers if m.type == 'SOLIDIFY' and m.name == 'outline'), None)
         if mod is not None:
-            t32 = float(np.float32(-line_width(ob, m_per_px, res_y, look)))
+            w = line_width(ob, m_per_px, res_y, look)
+            t32 = float(np.float32(-w))
             if mod.thickness != t32:                     # only when it changes: a write re-evaluates the object's
                 mod.thickness = t32                      # modifier stack (~1.5 s a frame over 47 outlined objects)
+            o32 = float(np.float32(line_offset(w, line_cap(ob))))
+            if mod.offset != o32:                        # a thin shell's inward move capped (outline())
+                mod.offset = o32
     return d

@@ -10,8 +10,9 @@ OPENADS_charkit_look extension) read back with numpy and Pillow, no Blender. The
 
 Positions are the build pose (the A-pose the build renders and the boards show): the export's inverse bind matrices are
 that pose, so a mesh drawn without skinning stands as Blender drew it. POSITION is the surface Blender draws at the build
-line width (the outline SOLIDIFY moved it inward by width x _OUTLINE_WIDTH along the hull normal); Prim.co() gives back
-the original surface, where the hull is.
+line width (the outline SOLIDIFY moved it inward by inward(width) x _OUTLINE_WIDTH along the hull normal: the width, or
+for a thin shell at most its outline's maxInward, charkit.shade.line_inward); Prim.co() gives back the original surface.
+The hull is there plus the rest of the width, width - inward(width), outward (0 unless the move was capped).
 """
 import io, json, os, struct
 from dataclasses import dataclass, field
@@ -117,12 +118,17 @@ class Prim:
     def width_factor(self):
         return self.outline_w if self.outline_w is not None else np.ones(len(self.position), np.float32)
 
+    def inward(self, w):
+        """how far the outline moves this primitive's surface inward at line width w (charkit.shade.line_inward)."""
+        cap = float((self.outline or {}).get('maxInward') or 0.0)
+        return min(w, cap) if cap > 0 else w
+
     def co(self):
-        """the original surface (where Blender's hull is): POSITION moved back out by the build width."""
+        """the original surface (the outline off): POSITION moved back out by the build width's inward move."""
         if not self.outline:
             return self.position
-        w = float(self.outline['width'])
-        return (self.position + self.hull_dir() * (w * self.width_factor())[:, None]).astype(np.float32)
+        c = self.inward(float(self.outline['width']))
+        return (self.position + self.hull_dir() * (c * self.width_factor())[:, None]).astype(np.float32)
 
 
 @dataclass

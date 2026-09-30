@@ -21,14 +21,19 @@
 //   hair    toon3 plus (analytic hair, 'lock' UV) the angel ring (a band at an elevation above the hair centre, on each
 //           lock's middle, facing the camera, on the lit side), the root-to-tip gradient and drawn strand lines
 //   streaks toon3's `highlight` (the cut hair, charkit.shade.hair_toon): short streaks down the hair about an elevation
-//           above the head centre, one per kept column of azimuth (hashes of its index keep it and shift it), lit, facing
+//           above the head centre, one per kept column of azimuth (integer hashes of its index keep it and shift it:
+//           Jenkins' lookup3 on the index's float bits, Blender's White Noise, in u32: the same bits as EEVEE on every
+//           GPU and as charkit.render's toon.wgsl), lit, facing
 //   light   the root's light.direction (world), or with light.mode 'camera' a key [deg left of the camera, deg up] that
 //           turns with the camera (ck.update(dt, camera)), as charkit.shade.set_view lights the boards
 //   lines   the root's lines.mode 'screen': every outline frac x the picture's height at the head's distance (times its
 //           region's factor), as charkit.shade.set_view widens them per view; else each mesh's build width
 //   plate   the eye textures (cubic B-spline filtering and CLIP, like Blender's image nodes); flat: one colour
 //   outline an inverted hull per outlined mesh: back faces pushed out along _HULL_NORMAL (or NORMAL) by width x
-//           _OUTLINE_WIDTH (POSITION is already Blender's surface, drawn inward by the same amount)
+//           _OUTLINE_WIDTH from Blender's surface. POSITION is that surface at the build width, moved inward by
+//           inward(width) = width, or for a thin shell min(width, the outline's maxInward) (charkit.shade.line_inward,
+//           Michael's call I); per view the surface moves by inward(build) - inward(view) and the hull sits the rest of
+//           the view's width, width - inward(width), outside the original surface
 //   through features (eyes, lashes, brows) rendered again with the skin as a depth-only holdout and everything else hidden,
 //           laid over the frame at 0.55 x their alpha in sRGB, as charkit.qa.features_through does
 // Debug views (CK.U.debug): see CK.DEBUG.
@@ -114,18 +119,38 @@
     return { h, sLit, sDeep, col, rimF };
   }
 
-  // charkit.shade.hair_toon's streaks: the hair cut into `count` columns of azimuth round the head centre; a
-  // fract(sin(i k) 43758.5453) hash of each column's index keeps it and shifts its streak's elevation
+  // charkit.shade.streak_hash: Bob Jenkins' lookup3 as Blender's White Noise node computes it (EEVEE's
+  // gpu_shader_common_hash.glsl), on u32s: hashUint(bits(w)) is the node's Value, hashUint2(bits(w), bits(1.0)) its
+  // Color's green; float(h) / 2^32 as Blender converts them
+  const rotU = (x, k) => x.shiftLeft(S.uint(k)).bitOr(x.shiftRight(S.uint(32 - k)));
+  const lookup3 = S.Fn(([a0, b0, c0]) => {
+    const a = S.uint(a0).toVar(), b = S.uint(b0).toVar(), c = S.uint(c0).toVar();
+    c.bitXorAssign(b); c.subAssign(rotU(b, 14));
+    a.bitXorAssign(c); a.subAssign(rotU(c, 11));
+    b.bitXorAssign(a); b.subAssign(rotU(a, 25));
+    c.bitXorAssign(b); c.subAssign(rotU(b, 16));
+    a.bitXorAssign(c); a.subAssign(rotU(c, 4));
+    b.bitXorAssign(a); b.subAssign(rotU(a, 14));
+    c.bitXorAssign(b); c.subAssign(rotU(b, 24));
+    return c;
+  });
+  const H1 = 0xdeadbeef + (1 << 2) + 13, H2 = 0xdeadbeef + (2 << 2) + 13;       // lookup3's seeds for 1 and 2 words
+  const hashUint = kx => lookup3(S.uint(H1).add(kx), S.uint(H1), S.uint(H1));
+  const hashUint2 = (kx, ky) => lookup3(S.uint(H2).add(kx), S.uint(H2).add(ky), S.uint(H2));
+  const hashUnit = h => S.float(h).div(4294967296.0);
+  CK.hash = { hashUint, hashUint2, hashUnit };
+
+  // charkit.shade.hair_toon's streaks: the hair cut into `count` columns of azimuth round the head centre; an integer
+  // hash of each column's index keeps it and shifts its streak's elevation
   function streakNodes(Hl, col, sLit) {
     const rad = Math.PI / 180;
     const p = S.positionGeometry.sub(v3(Hl.centre));             // glTF: y up, her front +z, her left +x
     const el = S.atan(p.y, S.length(p.xz));
     const az = S.atan(p.x, p.z);                                  // 0 in front, + to her left (Blender's atan2(x, -y))
     const c = az.add(Math.PI).mul(Hl.count / (2 * Math.PI));
-    const idx = S.floor(c);
-    const hash = k => S.fract(S.sin(idx.mul(k)).mul(43758.5453));
-    const keep = S.float(1.0).sub(S.step(Hl.keep, hash(12.9898)));            // hash < keep
-    const el0 = S.float((Hl.elevation - Hl.jitter) * rad).add(hash(78.233).mul(2 * Hl.jitter * rad));
+    const bits = S.floatBitsToUint(S.floor(c));                  // the column index's float bits (White Noise's W)
+    const keep = S.float(1.0).sub(S.step(Hl.keep, hashUnit(hashUint(bits))));          // hash < keep
+    const el0 = S.float((Hl.elevation - Hl.jitter) * rad).add(hashUnit(hashUint2(bits, S.uint(0x3f800000))).mul(2 * Hl.jitter * rad));
     const along = S.float(1.0).sub(S.abs(el.sub(el0)).div(Hl.length / 2 * rad));
     const across = S.float(1.0).sub(S.abs(S.fract(c).sub(0.5)).div(Hl.duty / 2));
     const shape = sat(along.mul(3.0)).mul(sat(across.mul(3.0)));   // each clamped first: outside both is not inside
@@ -231,20 +256,35 @@
     for (let i = 1; i < dbg.length; i++) out = out.add(dbg[i].mul(is(U.debug, i)));
     m.colorNode = out;
     if (alpha) { m.transparent = true; m.depthWrite = false; m.opacityNode = S.mix(alpha, S.float(1), S.min(U.debug, 1.0)); }
+    if (M && M.outline) m.positionNode = CK.surfacePosition(M, attrs);
     m.userData.look = L;
     return m;
   };
+
+  // an outlined mesh's line width in this view (screen lines, the root's lines.mode 'screen': U.lineScreen x the
+  // region's factor, else the build width) and charkit.shade.line_inward: the surface's inward move at a width
+  const viewWidth = M => S.mix(S.float(M.outline.width), U.lineScreen.mul(M.outline.regionFactor || 1), S.step(1e-9, U.lineScreen));
+  const inwardOf = (M, w) => (M.outline.maxInward ? S.min(S.float(w), M.outline.maxInward) : S.float(w));
+  const outlineW = attrs => (attrs.outlineW ? S.attribute('_outline_width', 'float') : S.float(1));
+  // how far this view's surface is from POSITION (the build width's), along the hull direction: inward(build) - inward(view)
+  const surfaceShift = M => inwardOf(M, M.outline.width).sub(inwardOf(M, viewWidth(M)));
 
   CK.hullMaterial = (M, attrs) => {
     const m = new T.MeshBasicNodeMaterial();
     m.side = T.BackSide;
     m.name = 'ck:outline';
     m.colorNode = v3(M.outline.color);
-    const w = attrs.outlineW ? S.attribute('_outline_width', 'float') : S.float(1);
-    // screen lines (the root's lines.mode 'screen'): U.lineScreen x the region's factor, else the build width
-    const width = S.mix(S.float(M.outline.width), U.lineScreen.mul(M.outline.regionFactor || 1), S.step(1e-9, U.lineScreen));
-    m.positionNode = S.positionLocal.add(S.normalLocal.mul(w.mul(width).mul(U.outline)));
+    // the view's surface plus its width: co + (w - inward(w)) along the hull direction (this geometry's normal)
+    m.positionNode = S.positionLocal.add(S.normalLocal.mul(outlineW(attrs).mul(surfaceShift(M).add(viewWidth(M).mul(U.outline)))));
     return m;
+  };
+
+  // the surface Blender draws in this view: POSITION moved by surfaceShift along the hull direction (NORMAL where the
+  // export has no _HULL_NORMAL, the two agreeing there; else the _HULL_NORMAL attribute itself, exact in the build pose
+  // the boards use: three's skinning moves only NORMAL)
+  CK.surfacePosition = (M, attrs) => {
+    const dir = attrs.hullN ? S.attribute('_hull_normal', 'vec3') : S.normalLocal;
+    return S.positionLocal.add(dir.mul(outlineW(attrs).mul(surfaceShift(M))));
   };
 
   // the skin as a depth-only holdout for the feature pass; at the original surface (charkit.qa.features_through turns
@@ -252,10 +292,7 @@
   CK.holdoutMaterial = (M, attrs) => {
     const m = new T.MeshBasicNodeMaterial({ colorWrite: false });
     m.side = T.DoubleSide; m.name = 'ck:holdout';
-    if (M && M.outline) {
-      const w = attrs.outlineW ? S.attribute('_outline_width', 'float') : S.float(1);
-      m.positionNode = S.positionLocal.add(S.normalLocal.mul(w.mul(M.outline.width)));
-    }
+    if (M && M.outline) m.positionNode = S.positionLocal.add(S.normalLocal.mul(outlineW(attrs).mul(inwardOf(M, M.outline.width))));
     return m;
   };
 
@@ -309,6 +346,10 @@
       const g = mesh.geometry;
       const attrs = { uv0: !!g.attributes.uv, uv1: !!g.attributes.uv1, faceMask: !!g.attributes._face_mask,
         outlineW: !!g.attributes._outline_width, hullN: !!g.attributes._hull_normal };
+      if (M.outline) {                                       // the region's screen-line factor (the surface and hull read it)
+        const R = info.root.lines;
+        M.outline.regionFactor = (R && R.regions && R.regions[M.outline.region]) || 1;
+      }
       mesh.material = CK.material(L, M, info.tex, attrs);
       mesh.frustumCulled = false;
       mesh.userData.ck = { name, look: L, mesh: M, prim: pi, attrs };
@@ -333,8 +374,6 @@
         hg.setIndex(g.index); hg.morphAttributes = g.morphAttributes; hg.morphTargetsRelative = g.morphTargetsRelative;
       }
       if (M.outline) {
-        const R = info.root.lines;
-        if (R && R.regions) M.outline.regionFactor = R.regions[M.outline.region] || 1;
         const h = clone(hg, CK.hullMaterial(M, attrs), CK.LAYER.main);
         h.userData.ck = { name, hull: true }; h.renderOrder = -1;
         ck.hulls.push(h); ck.parts[name].hulls.push(h);

@@ -30,21 +30,25 @@ def write(out):
     H.append('<h1>charkit toon renderer against EEVEE</h1>')
     H.append(f'<div class="mute">build <code>{e(C["build"])}</code> &middot; export <code>{e(os.path.basename(C["vrm"]))}'
              f'</code> &middot; ours on {e(str(C["adapter"].get("device")))} ({e(str(C["adapter"].get("backend")))}), '
-             f'ss {C["settings"]["ss"]}, film sigma {C["settings"]["sigma"]:.3f} px, streak hash {e(C["settings"]["hash"])}'
+             f'ss {C["settings"]["ss"]}, film sigma {C["settings"]["sigma"]:.3f} px, streak hash {e(C["settings"].get("hash", "?"))}'
              f' &middot; {e(C.get("created", ""))}</div>')
-    H.append(f'<p class="mute">{e(LEGEND)}. "Excl. streaks": the hair streaks of either picture left out (their placement '
-             f'is a hash of sin() that differs between GPUs; see the notes). Silhouette: pixels farther than 6 levels from '
+    H.append(f'<p class="mute">{e(LEGEND)}. Max, mean, p99, &gt;8: every pixel, the hair streaks included. "Streaks": '
+             f'inside the streak region of either picture; "excl. streaks": outside it (the phase 1 measure, when the '
+             f'streaks\' hash differed between GPUs). Silhouette: pixels farther than 6 levels from '
              f'the background. Lines: dark ink (luma under 70); mean width from its coverage. Tones: pixels within 6 levels '
              f'of a palette colour, classified by the nearest.</p>')
     H.append('<h2>Per board</h2><table><tr><th>board</th><th>max</th><th>mean</th><th>p99</th><th>&gt;8 lv</th>'
-             '<th>mean excl. streaks</th><th>&gt;8 excl.</th><th>silhouette IoU</th><th>xor px</th>'
+             '<th>streaks mean</th><th>streaks &gt;8</th><th>mean excl. streaks</th><th>&gt;8 excl.</th>'
+             '<th>silhouette IoU</th><th>xor px</th>'
              '<th>line width EEVEE / ours (px)</th><th>ink ratio</th><th>tone agree</th><th>classified</th>'
              '<th>ours s</th></tr>')
     for n, b in B.items():
-        m = b['metrics']; d, dx = m['diff'], m.get('diff_excl', m['diff'])
+        m = b['metrics']; d, dx, ds = m['diff'], m.get('diff_excl', m['diff']), m.get('diff_streaks') or {}
         ln, tn = m['lines'], m.get('tones', {})
         H.append(f'<tr><td><a href="#{n}">{n}</a></td><td>{d["max"]}</td><td>{d["mean"]:.3f}</td><td>{d["p99"]}</td>'
-                 f'<td>{100 * d["over8"]:.3f}%</td><td>{dx["mean"]:.3f}</td><td>{100 * dx["over8"]:.3f}%</td>'
+                 f'<td>{100 * d["over8"]:.3f}%</td><td>{_f(ds.get("mean"))}</td>'
+                 f'<td>{"-" if "over8" not in ds else "%.2f%%" % (100 * ds["over8"])}</td>'
+                 f'<td>{dx["mean"]:.3f}</td><td>{100 * dx["over8"]:.3f}%</td>'
                  f'<td>{m["silhouette"]["iou"]:.4f}</td><td>{m["silhouette"]["xor_px"]}</td>'
                  f'<td>{_f(ln["eevee"].get("mean_width"))} / {_f(ln["ours"].get("mean_width"))}</td>'
                  f'<td>{_f(ln.get("ink_ratio"))}</td><td>{_f(tn.get("agree"), 4)}</td>'
