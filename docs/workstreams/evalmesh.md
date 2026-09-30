@@ -121,11 +121,12 @@ Residuals, explained:
   one): every piece ≤ 1.1e-5 L (the collar), all faces, windings and first corners Blender's (the old port had every
   shell's winding inside out).
 
+- **M3 evaldrift** (box, 16c0040's evaluator on m2_clawd): 0 of 110 checks drift. The stage drift is only crab_1
+  (face4's, above). Masked skin 3.42e-6 L, garments ≤ 1.1e-5 L. Commits: M2 9ee0a9e, M3 16c0040. The gate on
+  M2 and M3 together follows: the evaluator isn't in the build's geometry, so the QA should not move.
+
 ## Next
-- M2 and M3 in the evaluator: `bodyeval.subdivide` delegates to `charkit/geom/subsurf.py` (Part.subdivided runs all
-  levels at once, the skin's eye margins creased: `skin_creases`). `bodyeval.solidify` and Part.subdivided go through
-  `charkit/geom/solidify.py`, with the recorded settings (SOLID_SETTINGS) and the creases it leaves. Measured by
-  evaldrift --stages on a box build of the same tree (`charkit/out/evalmesh/m2_clawd`).
+- The M2+M3 gate (charkit/out/gate/gate_tool-evalmesh_*), read under K.
 - M4, the switch (plan):
   1. Garments first; they're already a venv product. After `garments_geom` records build(), a venv pass gives each
      `_object` its final mesh at rest: geom.solidify then geom.subsurf at the modifier's `levels` (garments: 1 for
