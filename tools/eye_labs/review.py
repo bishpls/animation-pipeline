@@ -142,6 +142,26 @@ def main(out, before, after):
               '<div class="tile"><img src="img/section.png" style="width:704px">her left eye\'s sclera plate along the corner row '
               '(<code>bundle</code> vertices within 0.03 eye widths of it). Nasal of the fold the surface faces the front, '
               'so a side view sees it edge-on or from behind.</div></div>')
+    # the boards as rendered (EEVEE, with the hair): the eyes' band of the face boards, before | after
+    crops = {'000': (0.28, 0.36, 0.72, 0.62), '030': (0.22, 0.36, 0.66, 0.62), '090': (0.12, 0.36, 0.56, 0.62)}
+    got = []
+    for v, (x0, y0, x1, y1) in crops.items():
+        paths = [os.path.join(b, 'boards', 'face_%s.png' % v) for b in (before, after)]
+        if not all(os.path.exists(q) for q in paths):
+            continue
+        from PIL import Image
+        for tag, q in zip(('before', 'after'), paths):
+            im = Image.open(q); W, H = im.size
+            im.crop((int(x0 * W), int(y0 * H), int(x1 * W), int(y1 * H))).save(os.path.join(out, 'img', 'board_%s_%s.png' % (v, tag)))
+        got.append(v)
+    if got:
+        Hs.append('<h2>The face boards as rendered (EEVEE, hair on), the eyes\' band</h2><p>Before and after, the board '
+                  'camera at 0, 30 and 90 degrees. The hair differs between the two builds (the default spec now builds hair '
+                  'pieces), so judge the eyes by the crops above; these show them in the shaded frame.</p>')
+        for v in got:
+            Hs.append('<div class="row">%s</div>' % ''.join(
+                '<div class="tile"><b>%s, %s&deg;</b><img src="img/board_%s_%s.png" style="width:560px"></div>' % (t, int(v), v, t)
+                for t in ('before', 'after')))
     open(os.path.join(out, 'index.html'), 'w').write('\n'.join(Hs))
     json.dump({'before': {k: {kk: vv for kk, vv in v.items() if kk in ('ours', 'design', 'status', 'eye')} for k, v in Cb.items()},
                'after': {k: {kk: vv for kk, vv in v.items() if kk in ('ours', 'design', 'status', 'eye')} for k, v in Ca.items()}},
