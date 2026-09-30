@@ -45,9 +45,11 @@ BUN_CORE = 1.6          # a bun's points further than this many times their medi
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=8.0,
             chain=6, fine_tips=('bangs',))
 # (build's opts also: bun 'round' | 'block' (the design's bun template: a round shell or fitted block loops), bun_fit,
-# carve_buns, clamp_side_locks (off: it folds the locks, see build), clamp_margin, clamp_keep_cheek; fine_tips: the
-# pieces whose lower edge is the drawing's at the locks' own columns (the fringe's points over the eyes), not the
-# chart's columns interpolated)
+# carve_buns; clamp_side_locks (a taste call, off by default: the side locks held behind the drawn profile's front
+# edge) with clamp_mode 'envelope' (side_lock_trim: the chart's side-lock cells cut before the locks are shaped;
+# clamp_share 1 at the drawn edge, 0.5 half way) or 'shear' (the old clamp_to_view on built locks: it folds them),
+# clamp_margin (L), clamp_keep_cheek; fine_tips: the pieces whose lower edge is the drawing's at the locks' own columns
+# (the fringe's points over the eyes), not the chart's columns interpolated)
 
 
 def fam_id(name):
@@ -370,10 +372,11 @@ def _largest(m):
     return out
 
 
-def piece_regions(F, opts):
+def piece_regions(F, opts, trim=None):
     """the mass's pieces on the chart: per piece (a family's largest connected region, the side locks one per side) its
     columns in order round phi (contiguous: the columns between two it has take their interpolated top and tip) and per
-    column the theta of its top (the crown, or `up` above its first cell) and of its tip (its last cell's far edge)."""
+    column the theta of its top (the crown, or `up` above its first cell) and of its tip (its last cell's far edge).
+    trim(Lc) -> Lc: the families cut before the regions are found (side_lock_trim: the drawn profile's front edge)."""
     G = F['grid']
     Lc = fill_families(F['L'], F['reach'], F.get('nothair'))
     # the crown's rows: every column converges there and the buns hide it, so a column's crown takes the family it has
@@ -384,6 +387,8 @@ def piece_regions(F, opts):
         below = below[below > 0]
         if len(below):
             Lc[i, :cr] = np.bincount(below).argmax()
+    if trim is not None:
+        Lc = trim(Lc)
     F['Lfill'] = Lc
     out = {}
     specs = [('bangs', 'bangs', None), ('side_lock_L', 'side_locks', 1), ('side_lock_R', 'side_locks', -1),
@@ -417,6 +422,60 @@ def piece_regions(F, opts):
         tip = (hi + 1) * G.dth
         out[piece] = dict(family=fam, cols=np.array(run), ph=G.ph[run], top=top, tip=tip, cells=int(m.sum()))
     return out
+
+
+def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0):
+    """the side locks cut to the drawn profile before any lock is shaped (Michael's flag, hair round 3: the visual hull
+    fills the gap between a side lock and the cheek, which no view shows, so the locks stood in front of the face in
+    profile; moving built locks back crumpled them). Per side, her own profile (the mirror for her right): each side-lock
+    cell whose envelope point projects in front of the drawn side lock's front edge in its row (less margin L) is cut,
+    and every cell below it in its column (a lock hangs from its top: the cut is its tip). share: how far toward the
+    drawn edge the cut goes (1 the drawn edge; 0.5 half way from our envelope's own front). F['trim_cut'] keeps each
+    column's cut (theta, deg; inf where none) for drawn_tips. -> Lc."""
+    ch, G = F['chart'], F['grid']
+    m = masks.get('profile__side_locks')
+    k = fam_id('side_locks')
+    cut = np.full(G.nph, np.inf)
+    F['trim_cut'] = cut
+    if m is None or 'profile' not in views or not (Lc == k).any():
+        return Lc
+    v = views['profile']
+    PH, TH = np.meshgrid(G.ph, G.th, indexing='ij')
+    P = ch.point(PH, TH, F['R'])
+    Lc = Lc.copy()
+    for sgn, az, mirror in ((1, 90.0, False), (-1, 270.0, True)):
+        sel = (Lc == k) & (np.sign(PH) == sgn)
+        if not sel.any():
+            continue
+        img = m[:, ::-1] if mirror else m
+        rows = np.nonzero(img.any(1))[0]
+        front = np.full(img.shape[0], np.nan)
+        for r in rows:
+            c = np.nonzero(img[r])[0]
+            front[r] = c.max() if mirror else c.min()
+        ii, jj = np.nonzero(sel)
+        cc, rr = view_px(P[ii, jj], v, az, mirror, hull_frame)
+        r_ = np.floor(rr).astype(int)
+        ok = (r_ >= 0) & (r_ < img.shape[0])
+        fr = np.full(len(ii), np.nan)
+        fr[ok] = front[r_[ok]]
+        # ahead: toward the face (mirrored: +columns; else -columns) of the drawn edge, less margin
+        dirn = 1.0 if mirror else -1.0
+        over = (cc - fr) * dirn - margin * v.ppl                 # px beyond the drawn edge, toward the face
+        if share < 1.0:
+            # half way: the cut at `share` of the distance from our own front (per row, the farthest forward) back
+            ours = {}
+            for r, o in zip(r_[ok], over[ok]):
+                ours[r] = max(ours.get(r, -np.inf), o)
+            lim = np.array([ours.get(r, 0.0) * (1 - share) if ok_ else 0.0 for r, ok_ in zip(r_, ok)])
+            over = over - np.maximum(lim, 0.0)
+        ahead = np.isfinite(fr) & (over > 0)
+        for i in np.unique(ii[ahead]):
+            j0 = jj[ahead & (ii == i)].min()
+            Lc[i, j0:][Lc[i, j0:] == k] = 0
+            cut[i] = min(cut[i], j0 * G.dth)
+    F['trim_cut'] = cut
+    return Lc
 
 
 FAM_OF = {'bangs': 'bangs', 'side_lock_L': 'side_locks', 'side_lock_R': 'side_locks', 'upper_back': 'upper_back',
@@ -458,9 +517,12 @@ def drawn_tips(F, piece, phs, top, tip, masks, views, hull_frame, step=0.5, reac
         if not inside.any() or not inside[:max(1, int(reach / step) // 2)].any():
             continue                                               # the drawing doesn't show this column's edge
         last = np.nonzero(inside)[0].max()
-        rc = F['reach'][G.cell(ph, 0.0)[0]]
+        ic = G.cell(ph, 0.0)[0]
+        rc = F['reach'][ic]
         cap = (rc + 1.5) * G.dth if rc >= 0 else tip[k]
         out[k] = min(th[last] + step / 2, max(cap, tip[k]))
+        if 'trim_cut' in F and FAM_OF[piece] == 'side_locks':
+            out[k] = min(out[k], max(F['trim_cut'][ic], top[k] + 2 * step))     # (never below side_lock_trim's cut)
         done[k] = True
     return out, done
 
@@ -537,7 +599,7 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
     step = opts['step']
     nu = max(2, int(np.ceil((ph1 - ph0) / step)))
     phs = np.linspace(ph0, ph1, nu + 1)
-    top = np.maximum(np.interp(phs, ph_cols, top_cols), opts['crown_cap'] * 0.75)   # (the crown's cap covers the pole)
+    top = np.maximum(np.interp(phs, ph_cols, top_cols), crown_top(opts))   # (the crown's cap covers the pole)
     tip = np.interp(phs, ph_cols, edge_cols)
     if edge_fn is not None:                     # the drawing's edge at the lock's own columns (its tips kept pointed)
         tip = edge_fn(phs, top, tip)
@@ -636,40 +698,92 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
                 push=float(push_g.max() / L), vn_shade=np.concatenate([vn, vn]))
 
 
+def crown_top(opts):
+    """the theta (deg) the locks that reach the crown start at: under the crown's cap."""
+    if opts.get('crown_blend', 0) > 0:
+        return max(1.5, opts['crown_cap'] - opts['crown_blend'] - 2 * opts['step'])
+    return opts['crown_cap'] * 0.75
+
+
 def crown_cap(F, style, opts, L):
-    """the disc over the chart's pole (theta below crown_cap), part of the upper back: a fan round the pole's vertex."""
+    """the disc over the chart's pole (theta below crown_cap), part of the upper back. With crown_blend (deg) it is the
+    crown's one smooth cover: outermost (a hair outside the fringe's surface) to crown_cap - crown_blend, then tucking
+    under every layer by its rim, so the locks that meet at the crown start under it (crown_top) and come out from
+    under it as they part: no lock's top converges to a sliver at the pole (hair round 3: the crown's shards), and the
+    cap's rim is inside the locks, where its outline hull never shows. Without it: a fan at the upper back's layer."""
     ch, G = F['chart'], F['grid']
-    n = 36
+    n = 72 if opts.get('crown_blend', 0) > 0 else 36
     ring = np.linspace(-180, 180, n, endpoint=False)
-    th = opts['crown_cap']
-    inset = LAYER['upper_back'] * style['inset'] * L
+    th_cap = opts['crown_cap']
     gap, tt = opts['gap'] * L, style['tip_thick'] * L
     Sk = np.where(np.isfinite(F['S']), F['S'], -1e3)
+    blend = opts.get('crown_blend', 0.0)
+    if blend > 0:
+        ths = np.r_[np.arange(opts['step'], th_cap, opts['step']), th_cap]
+        deep = max(LAYER.values()) * style['inset'] * L + 0.01 * L        # the rim: under every layer's surface
+        top_in = -0.002 * L                                                 # the crown: just outside the fringe's
+
+        def inset_at(th):
+            w = np.clip((th - (th_cap - blend)) / blend, 0, 1)
+            return top_in + (deep - top_in) * (w * w * (3 - 2 * w))
+    else:
+        ths = np.array([th_cap])
+        inset_at = lambda th: LAYER['upper_back'] * style['inset'] * L + 0 * th
 
     def surf(offset):
         # (the inner face as the locks' is: `offset` below the outer, never within gap of the skin nor above the outer)
-        r0 = G.sample(F['R'], 0.0, 0.0) - inset
-        rr = G.sample(F['R'], ring, np.full(n, th)) - inset
+        r0 = G.sample(F['R'], 0.0, 0.0) - inset_at(0.0)
         if offset:
             r0 = min(max(r0 - offset, G.sample(Sk, 0.0, 0.0) + gap), r0 - tt)
-            rr = np.minimum(np.maximum(rr - offset, G.sample(Sk, ring, np.full(n, th)) + gap), rr - tt)
-        return ch.point(np.array([0.0]), np.array([0.0]), np.array([r0]))[0], ch.point(ring, np.full(n, th), rr)
+        rings = []
+        for th in ths:
+            rr = G.sample(F['R'], ring, np.full(n, th)) - inset_at(th)
+            if offset:
+                rr = np.minimum(np.maximum(rr - offset, G.sample(Sk, ring, np.full(n, th)) + gap), rr - tt)
+            rings.append(ch.point(ring, np.full(n, th), rr))
+        return ch.point(np.array([0.0]), np.array([0.0]), np.array([r0]))[0], rings
     po, ro = surf(0.0)
     pi, ri = surf(style['thick'] * L * 0.5)
-    V = np.concatenate([[po], ro, [pi], ri])
+    nr = len(ths)
+    V = np.concatenate([[po]] + ro + [[pi]] + ri)
+    half = 1 + nr * n
     T = []
+    idx = lambda base, r, k: base + 1 + r * n + (k % n)
+    if nr == 1:                                 # (the plain fan, in its old order: the default build unchanged)
+        for k in range(n):
+            a, b = 1 + k, 1 + (k + 1) % n
+            T.append((0, a, b))
+            T.append((n + 1, n + 1 + b, n + 1 + a))
+            T.extend([(a, n + 1 + a, n + 1 + b), (a, n + 1 + b, b)])
+        T = np.array(T, np.int64)
+        tri = V[T]; fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        if np.einsum('ij,ij->i', fn[:n * 1:4], (tri.mean(1) - ch.c)[:n * 1:4]).mean() < 0:
+            T = T[:, [0, 2, 1]]
+        d = V - ch.c
+        vn = d / np.linalg.norm(d, axis=1, keepdims=True)
+        outer = np.r_[np.ones(n + 1, bool), np.zeros(n + 1, bool)]
+        strand = np.zeros_like(V); strand[:, 2] = -1
+        return dict(V=V, T=T, outer=outer, strand=strand, vn_env=np.where(outer[:, None], vn, -vn), vn_shade=vn,
+                    chain=np.array([po]), push=0.0)
     for k in range(n):
-        a, b = 1 + k, 1 + (k + 1) % n
-        T.append((0, a, b))
-        T.append((n + 1, n + 1 + b, n + 1 + a))
-        T.extend([(a, n + 1 + a, n + 1 + b), (a, n + 1 + b, b)])
+        T.append((0, idx(0, 0, k), idx(0, 0, k + 1)))
+        T.append((half, idx(half, 0, k + 1), idx(half, 0, k)))
+    for r in range(nr - 1):
+        for k in range(n):
+            a, b, c, d = idx(0, r, k), idx(0, r, k + 1), idx(0, r + 1, k), idx(0, r + 1, k + 1)
+            T.extend([(a, c, d), (a, d, b)])
+            a, b, c, d = idx(half, r, k), idx(half, r, k + 1), idx(half, r + 1, k), idx(half, r + 1, k + 1)
+            T.extend([(a, d, c), (a, b, d)])
+    for k in range(n):                                                  # the rim's wall
+        a, b = idx(0, nr - 1, k), idx(0, nr - 1, k + 1)
+        T.extend([(a, a + half, b + half), (a, b + half, b)])
     T = np.array(T, np.int64)
-    tri = V[T]; fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
-    if np.einsum('ij,ij->i', fn[:n * 1:4], (tri.mean(1) - ch.c)[:n * 1:4]).mean() < 0:
+    tri = V[T[:n]]; fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    if np.einsum('ij,ij->i', fn, tri.mean(1) - ch.c).mean() < 0:
         T = T[:, [0, 2, 1]]
     d = V - ch.c
     vn = d / np.linalg.norm(d, axis=1, keepdims=True)
-    outer = np.r_[np.ones(n + 1, bool), np.zeros(n + 1, bool)]
+    outer = np.r_[np.ones(half, bool), np.zeros(half, bool)]
     strand = np.zeros_like(V); strand[:, 2] = -1
     return dict(V=V, T=T, outer=outer, strand=strand, vn_env=np.where(outer[:, None], vn, -vn), vn_shade=vn,
                 chain=np.array([po]), push=0.0)
@@ -1129,7 +1243,12 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     if views is not None and hull_frame is not None and o.get('carve_buns', True):
         fam, carved = carve_under_buns(V, fam, masks, views, hull_frame)
     F = mass_fields(case, V, fam, o)
-    regions = piece_regions(F, o)
+    trim = None
+    if o.get('clamp_side_locks', False) and views is not None and hull_frame is not None and \
+            o.get('clamp_mode', 'envelope') == 'envelope':
+        trim = lambda Lc: side_lock_trim(F, Lc, masks, views, hull_frame, o.get('clamp_margin', 0.0),
+                                         o.get('clamp_share', 1.0))
+    regions = piece_regions(F, o, trim)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
 
@@ -1224,7 +1343,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     # Opt-in: moving a built lock folds it (per vertex 150-200 outer folds a side lock, sheared per height 40-130, and
     # the render crumples); the constraint belongs in the chart's envelope before the locks are lofted
     if views is not None and hull_frame is not None and masks.get('profile__side_locks') is not None and \
-            o.get('clamp_side_locks', False):
+            o.get('clamp_side_locks', False) and o.get('clamp_mode', 'envelope') == 'shear':
         fr = skin_front(surface_points(np.asarray(case.A['verts'], float), case.A['faces'], 0.006 * L), 0.008 * L) \
             if o.get('clamp_keep_cheek', True) else None
         for name, az, mirror in (('side_lock_L', 90.0, False), ('side_lock_R', 270.0, True)):
