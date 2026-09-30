@@ -239,8 +239,11 @@ EDGE_REF = (0.06, 0.16)  # L of the V's half-width: the design's recession is pl
 # rows across the pocket's columns (edge loops along the jaw line), so no row runs from the face onto the underside
 # between two columns.
 SIDE = True              # the per-column pocket round the sides (style face.jaw_side); False: UnderJaw's U (the chin only)
-SIDE_ROWS = (4, 10)      # the band's rows under its top (the mouth block's bottom) that the rim and the throat keep
-                         # round the sides ((4, 11): 14 edges over 90 degrees where the neck's rows met them; now 2)
+SIDE_ROWS = (3, 9)       # the band's rows under its top (the mouth block's bottom) that the rim and the throat keep
+                         # round the sides. (4, 11): 14 edges over 90 degrees where the neck's rows met them; (4, 10):
+                         # 2, and two faces at the jaw's side just past the neck's width turned in and back (x 0.13,
+                         # z -0.296: the rows over the rim crowded where the band's top starts to rise; face_folds 4 ->
+                         # 32 on the box, those two under every mouth key); (3, 9): none, the sharpest edge 85 degrees
 SIDE_FADE = 0.2          # rad round the band's centre past the jaw's angle: the pocket blends into the envelope over this
 SIDE_EASE = (0.4, 0.7)   # rad round the band's centre: the rows' map eases from the linear one (the chin's, where the
                          # rim and the throat fall on rows 3-5 and 8-12 of the band) to SIDE_ROWS over this
