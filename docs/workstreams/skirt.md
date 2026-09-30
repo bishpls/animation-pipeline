@@ -134,10 +134,15 @@ profile hides its three-quarter tails behind the legs (IoU near 0). The fit weig
 
 ## For other workstreams
 
-- **clawd_mh body_three_quarter_skirt_aline** (coordinator, from tool/hull-limbs): it reads only 12-13 rows near the hem,
-  as the MakeHuman hands block the rest (bodyqa.aline keeps the rows within 0.15 L above the middle hem with no hand
-  against the run). Fragile. Proposal: measure each side's half-width from the axis and drop only the side a hand
-  blocks. Not changed here: bodyqa.py is covered by the hull's stamp (an edit rebuilds the hull and masks everywhere).
+- **clawd_mh body_three_quarter_skirt_aline** (0.078 WARN on pipeline-3d, handed to tool/skirt): bodyqa.aline keeps
+  the rows within 0.15 L above the middle hem where no hand touches either end of the skirt's run. In the three-quarter
+  the MakeHuman hands leave ours 12 such rows and the design none: the design's value falls back to rows where its hand
+  joins the run (wider), so the check compares ours against a hand. Read per side (each side's half-width from the axis,
+  dropping only a side a hand touches; scratch `aline.py`), the design's free left side reads 0.972 on 17 rows and ours
+  0.859 on 28 rows (her right side 0.970): clawd_mh's skirt does narrow toward the hem on that side, -0.113 against
+  the design (WARN either way). The default spec reads the same way today (0.088 WARN). Proposal: bodyqa.aline per
+  side, as above, registered as a measurement step (charkit/steps/bodyqa.py). Not changed here: bodyqa.py is covered
+  by the hull's stamp (an edit rebuilds the hull and the outfit masks), so it wants the integrator's slot.
 
 ## Paused (2026-09-30, the usage limit), resumed after db718ae
 
