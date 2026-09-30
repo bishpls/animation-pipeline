@@ -108,10 +108,13 @@ def test_only_changes_that_reach_the_build_count():
                       ({'kit/tool.py': 'pass\n'}, 'read'), ({'kit/steps/two.txt': 'two'}, 'lists'),
                       ({'kit/plain.py': '@mark(2)\ndef p(): pass\n'}, 'scans'),
                       ({'kit/part_a.py': 'def a(): pass\n'}, 'scans'),             # loses the marker
-                      ({'kit/extra.bin': 'other'}, 'data file'), ({'kit/core.py': None}, 'read')]:
+                      ({'kit/extra.png': 'other'}, 'Blender reads unseen'), ({'kit/core.py': None}, 'read')]:
         _git(root, 'reset', '-q', '--hard')
         hits = closure.affected(C, _change(root, edit), root)
         assert len(hits) == 1 and why in hits[0][1], (edit, hits)
+    _git(root, 'reset', '-q', '--hard')
+    # data Python reads is recorded when read: one nobody read (a script, a config) doesn't count
+    assert closure.affected(C, _change(root, {'kit/extra.bin': 'other', 'kit/run.sh': 'echo'}), root) == []
     _git(root, 'reset', '-q', '--hard')
     # a listed folder's file edited, not added or removed: the listing is the same, and the build didn't read it
     open(os.path.join(root, 'kit/steps/one.txt'), 'w').write('edited')
@@ -122,7 +125,7 @@ def test_only_changes_that_reach_the_build_count():
     assert closure.affected(C, [], root) == [('gen/input.npz', 'an untracked input whose content differs')]
     open(os.path.join(root, 'gen', 'input.npz'), 'w').write('v1')
     # a data file outside a sparse checkout's cone can't be read
-    ch = _change(root, {'far/away.dat': 'moved'})
+    ch = _change(root, {'far/away.png': 'moved'})
     assert closure.affected(C, ch, root, cone_dirs=['kit']) == [] and closure.affected(C, ch, root, cone_dirs=None)
 
 
