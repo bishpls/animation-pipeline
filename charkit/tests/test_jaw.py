@@ -275,10 +275,10 @@ def test_the_chin_columns_rims_land_on_the_v():
     column's rim is on the drawn V at its own x."""
     S, jaw = _head()
     got = {}
-    keep = headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A
+    keep = headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE
     try:
         for fit in (0, 3):
-            headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A = fit, 0.3
+            headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = fit, 0.3, 0.0
             U = headgeom.UnderJaw(S, jaw, -0.2, -0.55, side=dict(z_angle=-0.25, rows=(-0.24, -0.33)))
             err = []
             for deg in range(0, 17, 2):
@@ -288,8 +288,27 @@ def test_the_chin_columns_rims_land_on_the_v():
                 err.append(abs(info['rim'][1] - float(np.interp(x, U.jx, U.jz))))
             got[fit] = max(err)
     finally:
-        headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A = keep
+        headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = keep
     assert got[0] > 0.0013 and got[3] < 0.001, got
+
+
+def test_the_rim_refit_fades_by_its_share():
+    """SIDE_RIMFIT_FADE: a chin column refitted by a share w of its rim's gap keeps (1 - w) of it (the default hangs the
+    point's neighbour whole, the next column 0.59 of the way: the boards' taper stays under its FAIL line)."""
+    S, jaw = _head()
+    keep = headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE
+    gap = {}
+    t = math.radians(12)
+    try:
+        for fit, fade in ((0, 0.0), (3, 0.4)):
+            headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = fit, t + 0.2, fade
+            U = headgeom.UnderJaw(S, jaw, -0.2, -0.55, side=dict(z_angle=-0.25, rows=(-0.24, -0.33)))
+            info = U.meridian(t)[2]
+            x = info['rim'][0] * math.sin(t)
+            gap[fit] = info['rim'][1] - float(np.interp(x, U.jx, U.jz))
+    finally:
+        headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = keep
+    assert abs(gap[0]) > 0.001 and abs(gap[3] - 0.5 * gap[0]) < 0.25 * abs(gap[0]), gap
 
 
 def test_under_jaw_leaves_the_rows_under_its_band_on_the_sections():

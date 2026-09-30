@@ -260,9 +260,24 @@ SIDE_RIMFIT = 3          # secant rounds re-hanging each chin column's underside
                          # crosses it) lands on the edge's height at the rim's own x: hung from the edge's point, the
                          # rims sat -0.0024..+0.0020 L off it (the envelope's front isn't through the edge's point near
                          # the tip, EDGE_TIP), and the level outline's arms read 1.8 degrees steep each (round 4)
-SIDE_RIMFIT_A = 0.2      # rad round the band's centre: the refit in the chin's columns under this (the point and two
-                         # columns either side, x < 0.06). 0.3: the bend 4.6 -> 5.1; 0.45: a column at x 0.09 crosses
-                         # a cage row, a kink in the arm (jaw_line_bend 9.3)
+SIDE_RIMFIT_A = 0.29     # rad round the band's centre: the refit in the chin's columns under this, fading out over
+                         # SIDE_RIMFIT_FADE (the point and the next column whole, x < 0.035; the second, x 0.057, 0.59 of
+                         # its gap). Whole to the second column (0.2, no fade): chin_angle 119.1 but jaw_taper_shape
+                         # 0.0398 in the lab, 0.0401 FAIL on the box (the chin narrows near its point in the boards'
+                         # camera); its share 0 / 0.36-0.52 / 0.6 / 0.75 / 0.9: angle 117.0 / 117.8 / 118.0 / 118.4 /
+                         # 119.1, taper 0.0391 / 0.0393 / 0.0394 / 0.0396 / 0.0398 (the box reads the lab +0.0003; round 4).
+                         # 0.3 whole: the bend 4.6 -> 5.1; 0.45: a column at x 0.09 crosses a cage row, a kink (bend 9.3)
+SIDE_RIMFIT_FADE = 0.16  # rad: the refit's share of a column's gap fades from whole at SIDE_RIMFIT_A less this to none
+                         # at SIDE_RIMFIT_A (0: whole under SIDE_RIMFIT_A, none over it)
+
+
+def _rimfit_weight(a):
+    """the share of the rim's gap the refit hangs a chin column by, at a rad round the band's centre."""
+    if SIDE_RIMFIT_FADE > 0:
+        return float(np.clip((SIDE_RIMFIT_A - a) / SIDE_RIMFIT_FADE, 0.0, 1.0))
+    return 1.0 if a < SIDE_RIMFIT_A else 0.0
+
+
 SIDE_RIM_ROW = False     # the rim on its row (SIDE_ROWS[0]) at the chin too: the jaw line one edge loop from the chin
                          # round to the jaw's angle. With the refit the level outline is the design's V (130.2, tip
                          # 0.79), but the boards' camera reads its point round (chin_tip 0.42): off (round 4)
@@ -584,11 +599,16 @@ class UnderJaw:
             i = int(cand[0])
             f = g[i - 1] / (g[i - 1] - g[i])
             z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
-            if it == SIDE_RIMFIT or info['a'] >= min(float(self.rim_th[-1]), SIDE_RIMFIT_A):
+            w_fit = _rimfit_weight(info['a'])
+            if it == SIDE_RIMFIT or info['a'] >= float(self.rim_th[-1]) or w_fit <= 0.0:
                 break
+            if not it:
+                z_r0 = z_r
             # the rim where the column's envelope crosses the underside lies off the edge's height at its own x
             # (the envelope's front bulges past the edge's point or falls short of it): hang it again by the gap
+            # (a share w_fit of it: SIDE_RIMFIT_FADE)
             z_t = float(np.interp(abs(r_r * st_), self.jx, self.jz))
+            z_t = z_r0 + w_fit * (z_t - z_r0)
             if abs(z_t - z_r) < 1e-4:
                 break
             if it:                                        # (a secant step: the rim moves less than the hang)
