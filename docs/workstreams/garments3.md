@@ -16,3 +16,8 @@ rims (Michael's call L), the skirt's fit G written into the specs, one gate unde
 
 1. **tool/outfit-source (3d9f456):** clean. cli.py's usage drops the removed `--field/--no-field` and lists
    `outfit score`. Tests: 50 files ok (150 s).
+2. **tool/garments2 (2bf75d1):** one conflict, `charkit/bodyeval.py`: garments2's edits to the evaluator's garment
+   dispatch (`garment_piece`'s template sleeves and cuffs, `garment_tones`' collar stripe and band trim) dropped, since
+   geom-truth replaced that dispatch with the build's own garments stage (`geomstage`), and garments2's
+   `garments.build` already carries the same routing and materials. The shorts keep one `hem_drop` (0.03) in all
+   three specs. Tests: 53 files ok (127 s).
