@@ -30,6 +30,21 @@ def test_band_rows_levels_per_column():
         assert np.isclose(V, (1 - h / lenc)[None, :]).any(0).all()
 
 
+def test_tuck_pull_under_the_band():
+    n = 36
+    th = np.linspace(-np.pi, np.pi, n, endpoint=False)
+    T = np.linspace(0, 1.0, 21)[:, None] * np.ones((1, n))            # t down the skirt
+    R = 0.34 + 0.5 * T                                                 # a cone: at the band's edge (t 0.06) 0.37
+    tk = dict(th=th, t_lo=np.full(n, 0.06), r_lo=np.full(n, 0.33), thick=0.025, inset=0.0125, cap=np.full(n, 0.30),
+              blend=0.25)
+    R2 = gm.tuck_pull(R, T, tk)
+    at = np.array([np.interp(0.06, T[:, k], R2[:, k]) for k in range(n)])
+    assert (at <= 0.33 - 0.0125 + 1e-9).all(), at                    # out from under the band inside its edge
+    assert (R2[T < 0.06] <= 0.30 + 1e-9).all()                        # inside the band's inner surface above it
+    assert np.allclose(R2[T >= 0.06 + 0.25], R[T >= 0.06 + 0.25])     # its own shape again below the blend
+    assert (np.diff(R2, axis=0)[T[1:] > 0.06] >= -1e-9).all()         # still flaring (no waist below the band)
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
