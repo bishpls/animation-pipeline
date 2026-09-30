@@ -320,6 +320,29 @@ def edge_stats(E, sel, tooth=TOOTH, step_len=STEP_LEN):
                 per_L=round(float(teeth.sum()) / ln, 2), steps=int(steps.sum()), steps_L=round(float(steps.sum()) / ln, 2))
 
 
+def step_where(E, sel, tooth=TOOTH, step_len=STEP_LEN):
+    """edge_stats' steps in sel, located: per step (row, col of its deepest point, depth L, length L, family code at
+    it (edge_measure's fam, 0 unknown), + out / - in)."""
+    d = np.abs(E['d'])
+    lob = E['lobe']
+    n = int(lob.max()) + 1 if len(lob) else 0
+    out = []
+    if not n:
+        return out
+    peak = np.zeros(n)
+    np.maximum.at(peak, lob, d)
+    size = np.bincount(lob, minlength=n) * E['step']
+    o = np.lexsort((-d, lob))
+    lead = o[np.r_[True, lob[o][1:] != lob[o][:-1]]]
+    fam = E.get('fam', np.zeros(len(d), int))
+    for i in lead:
+        k = lob[i]
+        if sel[i] and peak[k] > tooth and size[k] < step_len:
+            out.append((int(E['P'][i, 0]), int(E['P'][i, 1]), round(float(peak[k]), 4), round(float(size[k]), 4),
+                        int(fam[i]) if len(fam) else 0, 1 if E['d'][i] > 0 else -1))
+    return out
+
+
 def edge_measure(hair, fam, ppl, facing=0, frag=FRAG, hole=HOLE):
     """one view's hair: fragments, and its outline (the hair against everything else, holes under `hole` L^2 filled:
     the clips over it) band-passed: all of it; its lower edge (outward normal within 60 degrees of straight down); its
@@ -492,8 +515,63 @@ def lock_fragments(lab, locks, ppl, frag=FRAG):
             for i in np.nonzero(keep)[0]:
                 r_, c_ = np.nonzero(cl == i + 1)
                 where.append([round(float(r_.mean()) + sl[0].start, 1), round(float(c_.mean()) + sl[1].start, 1),
-                              int(size[i]), name])
+                              int(size[i]), name, int(locks[k][1])])
     return dict(n=n, px=px, L2=round(px / ppl ** 2, 5), by=by, where=where)
+
+
+ENCLOSED = 0.8         # an island: a lock's visible part whose rim is this share one other lock
+POKE_GAP = 0.004       # L: at a poke the two surfaces meet (they intersect) along its rim: the depth step is under this
+
+
+def lock_islands(lab, depth, locks, ppl, L, frag=FRAG):
+    """every visible part of a lock (the shards under frag are lock_fragments'; a blade's any size) that another lock
+    encloses (its rim at least ENCLOSED that lock): in the render a blob of one lock inside another, ringed by its
+    outline. A drawn head of hair has none: a lock that shows inside another pokes through it. Classed by the depth step
+    along its rim: 'poke' (under POKE_GAP L: the surfaces intersect there) or 'over' (it lies in front). A blade (ahoge,
+    flyaway) lying over a lock is a 'flick' (the design's profile draws one flick over the side lock), counted apart.
+    -> dict(n (pokes and non-blade overs), pokes, over, flicks, px, by {piece>other: n}, where [(row, col, px, name,
+    kind, depth step L)])."""
+    from scipy import ndimage
+    lk = np.where(lab > 0, lab, 0)
+    dz = np.where(np.isfinite(depth), depth, np.nan) / L
+    cnt_ = dict(poke=0, over=0, flick=0)
+    px = 0
+    by, where = {}, []
+    for k, sl in enumerate(ndimage.find_objects(lk)):
+        if sl is None:
+            continue
+        thin = locks[k][0] in THIN
+        sl = tuple(slice(max(0, a.start - 2), a.stop + 2) for a in sl)
+        m = lk[sl] == k + 1
+        cl, nc = ndimage.label(m, np.ones((3, 3)))
+        size = np.bincount(cl.ravel())[1:]
+        for i in range(nc):
+            if size[i] < max(FRAG_MIN * ppl * ppl, 1) or (size[i] < frag * ppl * ppl and not thin):
+                continue                          # (a shard: counted by lock_fragments)
+            c = cl == i + 1
+            ring = ndimage.binary_dilation(c, np.ones((3, 3))) & ~c
+            rl = lab[sl][ring]
+            if not len(rl):
+                continue
+            vals, cnt = np.unique(rl, return_counts=True)
+            j = vals[np.argmax(cnt)]
+            if j <= 0 or j == k + 1 or cnt.max() < ENCLOSED * len(rl):
+                continue
+            # the depth step across its rim: the rim's depth less its island neighbours' (+: the island is nearer)
+            din = ndimage.grey_erosion(np.where(c, dz[sl], np.inf), size=(3, 3))
+            gap = (dz[sl] - din)[ring & (lab[sl] == j) & np.isfinite(din)]
+            g = float(np.nanmedian(gap)) if len(gap) else 0.0
+            kind = 'poke' if abs(g) < POKE_GAP else 'flick' if thin else 'over'
+            cnt_[kind] += 1
+            name = '%s>%s' % (locks[k][0], locks[j - 1][0])
+            if kind != 'flick':
+                px += int(size[i])
+                by[name] = by.get(name, 0) + 1
+            r_, c_ = np.nonzero(c)
+            where.append([round(float(r_.mean()) + sl[0].start, 1), round(float(c_.mean()) + sl[1].start, 1),
+                          int(size[i]), name, kind, round(g, 4)])
+    return dict(n=cnt_['poke'] + cnt_['over'], pokes=cnt_['poke'], over=cnt_['over'], flicks=cnt_['flick'], px=px,
+                L2=round(px / ppl ** 2, 5), by=by, where=where)
 
 
 def line_points(lab, depth, ppl, s1=S1, s2=S2):
@@ -542,18 +620,21 @@ def our_edges(ctx, hair, views=EDGE_VIEWS, ppl=HEAD_PPL):
     render's lines inside the hair (line_points)."""
     from . import qa3d
     labs, locks = head_labels(ctx, hair, views, ppl)
+    globals()['_last_locks'] = locks                  # (the lab's pictures name each label)
     code = np.array([0] + [qa3d.HAIR_FAMILIES.index(qa3d.HAIR_PIECE_FAMILY[n]) + 1 for n, _ in locks], np.int16)
     out = {}
     for v, (lab, depth, fc) in labs.items():
         fam = code[np.clip(lab, 0, None)]
         out[v] = edge_measure(fam > 0, fam, ppl, fc)
         out[v]['shards'] = lock_fragments(lab, locks, ppl)
+        out[v]['islands'] = lock_islands(lab, depth, locks, ppl, float(ctx['B'].assembly['L']))
         E = line_points(lab, depth, ppl)
         if E is not None:
             out[v]['lines'] = edge_stats(E, E['sel'])
             out[v]['lines_lower'] = edge_stats(E, E['sel'] & (E['n'][:, 0] > 0.5))
             out[v]['_L'] = E
         out[v]['_lab'] = lab
+        out[v]['facing'] = fc
     return out
 
 
@@ -573,6 +654,12 @@ def edge_checks(ours, design):
                                         by=dict(sh['by'], **{'loose_' + k: x for k, x in fo['by'].items()}),
                                         design=fd['n'], status=(
             'PASS' if extra <= FRAG_LIMITS[0] else 'WARN' if extra <= FRAG_LIMITS[1] else 'FAIL'))
+        isl = ours[v].get('islands')
+        if isl is not None:                 # a lock showing inside another (the design: none)
+            C['hair_islands_' + v] = dict(value=isl['n'], pokes=isl['pokes'], over=isl['over'], flicks=isl['flicks'],
+                                          px=isl['px'], by=isl['by'], design=0,
+                                          status='PASS' if isl['n'] <= FRAG_LIMITS[0] else
+                                          'WARN' if isl['n'] <= FRAG_LIMITS[1] else 'FAIL')
     picks = [('hair_rough_%s' % v, v, ('all',)) for v in EDGE_VIEWS] + [
         ('hair_rough_back_lower', 'back', ('lower',)), ('hair_rough_profile_front', 'profile', ('front',)),
         ('hair_rough_profile_lower', 'profile', ('lower',)), ('hair_rough_three_quarter_lower', 'three_quarter', ('lower',))]
@@ -650,9 +737,13 @@ def edge_picture(ctx, ours, design, path, frag=FRAG, ppl=HEAD_PPL):
                 for (r, c), k, f in zip(E['P'], lob, E['sel']):
                     if f and step[k]:
                         dr.ellipse((c - 1.5, r - 1.5, c + 1.5, r + 1.5), fill=(0, 170, 60))
-            for y, x, size, _ in ours[v]['shards']['where']:
+            for y, x, size, *_ in ours[v]['shards']['where']:
                 rad = 6 + np.sqrt(size)
                 dr.ellipse((x - rad, y - rad, x + rad, y + rad), outline=(230, 0, 0), width=2)
+            for y, x, size, _, kind, _ in (ours[v].get('islands') or {}).get('where', []):
+                if kind != 'flick':              # a lock showing inside another: magenta
+                    rad = 4 + np.sqrt(size) / 1.5
+                    dr.ellipse((x - rad, y - rad, x + rad, y + rad), outline=(220, 0, 220), width=2)
         out = []
         for im, (r0, r1, c0, c1) in pics:
             a = np.asarray(im)[max(0, r0 - 20):r1 + 20, max(0, c0 - 20):c1 + 20]

@@ -130,6 +130,52 @@ def test_hair_noise_cuts_each_tone_group_apart():
     assert (e2 & mass).sum(1).min() == 2 and (e2 & ~mass).sum() == 0 and n2 == n
 
 
+def test_a_ribbon_bun_is_a_knot_and_two_loops_set_back_and_lower():
+    R = np.eye(3)
+    half = np.array([1.0, 1.0, 1.0])
+    parts = hp.block_parts(np.zeros(3), R, half, np.array([0.0, 0.0, -5.0]), STYLE, None, 'ribbon')
+    assert len(parts) == 3
+    (c0, h0), (c1, h1), (c2, h2) = parts
+    assert np.allclose(c1[0], -c2[0]) and c1[0] > h0[0] * 0.9          # a loop either side of the knot, mirrored
+    assert c1[1] < 0 and c1[2] < 0 and h1[2] < h0[2] and h1[0] < h0[0]   # set back, lower, smaller
+    B = hp.bun_block(np.random.default_rng(0).normal(size=(200, 3)) * 0.1 + [0, 0, 1], np.zeros(3), STYLE,
+                     kind='ribbon')
+    assert (_edges(B['T']) == 2).all()                                  # closed boxes
+
+
+def test_a_tucked_blade_starts_under_the_surface_and_leaves_it_once():
+    F = sphere_fields(1.0)
+    ch = F['chart']
+    r = np.linspace(0.85, 1.3, 9)
+    W3 = ch.point(np.full(9, 80.0), np.full(9, 90.0) + np.arange(9) * 2.0, r)
+    wd = np.full(9, 0.04)
+    V, w = hp.tuck_blade(F, W3, wd, 0.01, 0.004)
+    _, _, rr = ch.coords(V)
+    lim = 1.0 - 0.01
+    assert rr[0] < lim - 0.02 + 1e-9                                    # the root sunk under the lock's surface
+    assert (rr[1:] > lim).all() and len(V) < 9                          # the rest clear of it; the root's run dropped
+
+
+def test_the_crown_cover_is_outermost_then_under_every_layer():
+    o = dict(hp.OPTS, crown_cap=20.0, crown_blend=8.0)
+    ins = hp.cap_inset(np.array([0.0, 10.0, 12.0, 16.0, 20.0]), o, STYLE, 1.0)
+    assert ins[0] < 0 and ins[1] == ins[0] and ins[2] == ins[0]         # outside the fringe to cap - blend
+    assert np.all(np.diff(ins[2:]) > 0) and ins[-1] > max(hp.LAYER.values()) * STYLE['inset']   # then under all
+
+
+def test_islands_count_a_lock_showing_inside_another():
+    from charkit import hairlab as hl
+    lab = np.zeros((200, 200), int)
+    lab[20:180, 20:180] = 1
+    lab[90:110, 90:110] = 2                                             # lock 2 inside lock 1
+    depth = np.full(lab.shape, 1.0)
+    I = hl.lock_islands(lab, depth, [('side_lock_L', 0), ('upper_back', 0)], 400.0, 1.0)
+    assert I['n'] == 1 and I['pokes'] == 1                              # flush along its rim: a poke
+    depth[90:110, 90:110] = 0.9
+    I = hl.lock_islands(lab, depth, [('side_lock_L', 0), ('flyaways', 0)], 400.0, 1.0)
+    assert I['n'] == 0 and I['flicks'] == 1                             # a blade lying over it: a flick
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
