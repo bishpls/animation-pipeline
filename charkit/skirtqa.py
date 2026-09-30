@@ -41,6 +41,11 @@ Checks (QA part 'skirt'; lengths in L, angles in degrees; SIDE L or R):
                               offset of its left and right edges against the drawing's (rows a hand touches left out)
   skirt_back_flap_gap         the gap between the flaps in the back view row by row (the right one's inner edge less the
                               left one's; negative where they overlap), against the drawing's: its mean difference
+  skirt_pleats, skirt_pleats_cream, skirt_pleat_order
+                              3D against skirt_closeup's top-down view (tool/garments2 cda2b7f's measure, moved here: the
+                              pleats are tool/skirt's): the orange pleats' count and the cream panel's (crests of our skirt
+                              round a ring 0.45 of the way down; pleats between strokes or tone steps round the design's
+                              ring), and their order (one cream block at the front)
   skirt_tuck_jut              3D: where the skirt and flaps come out from under the band, per 5 deg round it: how far they
                               stand past the band's outer surface at its lower edge (tuck_jut3d; the largest, L). Round 6
                               at the back 0.04-0.05 L: the skirt's top rim and pleats outside the band ("a strangely
@@ -92,6 +97,8 @@ LIMITS = {                    # (pass within, warn within); else fail
     'gap_dark': (0.05, 0.12),
     'clear': (0.10, 0.25),
     'tuck': (0.005, 0.015),
+    'pleats': (1, 3),         # |ours - design| of the orange pleats' count (tool/garments2 cda2b7f)
+    'pleats_cream': (0, 1),   # ... of the cream panel's
 }
 
 
@@ -532,6 +539,153 @@ def tuck_jut3d(band, garments, L, sector=5.0, below=0.01, above=0.005):
     return dict(value=round(max(0.0, out[k]), 4), at=k, back=round(max(back), 4) if back else None, sectors=out)
 
 
+# ------------------------------------------------------------------------------------------------------ pleats
+def closeup_pleats(rgb, scales=(1.5, 1.6, 1.7, 1.8, 1.9, 2.0), n=7200):
+    """(tool/garments2 cda2b7f, moved here: the pleats are tool/skirt's) skirt_closeup's top-down view (its lower middle: the skirt seen from above round the grey waist hole): round
+    rings at `scales` of the hole's radii, the pleats' boundaries (a stroke or a step in tone: peaks of the tone's
+    change along the ring) and between them each pleat's colour (cream or orange). -> dict(orange, cream (the median
+    counts over the rings), per ring [(orange, cream, sequence)], cream_deg (the cream's span)) or None."""
+    from scipy import ndimage
+    H, W = rgb.shape[:2]
+    c = np.asarray(rgb, float)[H // 2:, W // 3:2 * W // 3, :3]
+    if c.max() > 1.5:
+        c = c / 255.0
+    R, G, B_ = c[..., 0], c[..., 1], c[..., 2]
+    lum = 0.3 * R + 0.59 * G + 0.11 * B_
+    grey = (np.abs(R - G) < 0.05) & (np.abs(G - B_) < 0.05) & (lum > 0.6) & (lum < 0.93)
+    lab, k = ndimage.label(grey)
+    if not k:
+        return None
+    sz = np.bincount(lab.ravel())
+    sz[0] = 0
+    yy, xx = np.nonzero(lab == sz.argmax())
+    cy, cx, ry, rx = yy.mean(), xx.mean(), np.ptp(yy) / 2, np.ptp(xx) / 2
+    th = np.linspace(-np.pi, np.pi, n, endpoint=False)             # 0 toward the viewer: the skirt's front
+    rings = []
+    for sc in scales:
+        y, x = cy + sc * ry * np.cos(th), cx + sc * rx * np.sin(th)
+        v = ndimage.gaussian_filter1d(ndimage.map_coordinates(lum, [y, x], order=1), 3, mode='wrap')
+        cr = ndimage.map_coordinates(B_, [y, x], order=1) > 0.55
+        d = np.abs(np.gradient(v))
+        pk = np.nonzero((d > 0.012) & (d >= np.roll(d, 1)) & (d >= np.roll(d, -1)))[0]
+        merged = []
+        for p in pk:
+            if not merged or p - merged[-1] >= n / 360 * 2.0:
+                merged.append(p)
+        seq = ''
+        for a, b in zip(merged, merged[1:] + [merged[0] + n] if merged else []):
+            idx = np.arange(a, b) % n
+            if len(idx) >= n / 360 * 3:
+                seq += 'C' if cr[idx].mean() > 0.5 else 'O'
+        rings.append((seq.count('O'), seq.count('C'), seq, round(float(cr.mean() * 360), 1)))
+    if not rings:
+        return None
+    return dict(orange=float(np.median([r[0] for r in rings])), cream=float(np.median([r[1] for r in rings])),
+                cream_deg=float(np.median([r[3] for r in rings])), rings=rings)
+
+
+
+
+def our_pleats(V, T, cream, frac=0.45, nb=1440, prom=0.2):
+    """(tool/garments2 cda2b7f's our_pleats, on plain data) our skirt's pleats round a ring `frac` of the way from its
+    waist to its front hem: its outer surface's radius per angle round its waist's centre (the mesh sliced: V world,
+    T triangles, cream (per triangle: on the cream panel)), the crests (local peaks standing `prom` of the pleats' depth
+    over the troughs within half a pleat) and each crest's colour. -> dict(orange, cream, sequence (from the back round
+    her left), cream_deg, cream_centre (deg)) or None."""
+    V, T, pm = np.asarray(V, float), np.asarray(T), np.asarray(cream, int)
+    zt = V[:, 2].max()
+    top = V[V[:, 2] > zt - 0.02 * (zt - V[:, 2].min())]
+    cx, cy = top[:, 0].mean(), top[:, 1].mean()
+    ang = np.arctan2(V[:, 0] - cx, -(V[:, 1] - cy))                  # 0 the front, + her left
+    front = np.abs(ang) < np.radians(20)
+    z0 = zt - frac * (zt - np.percentile(V[front, 2], 1))
+    z = V[T, 2] - z0                                                 # (n, 3)
+    cross = (z.min(1) < 0) & (z.max(1) > 0)
+    P, M = [], []
+    for i in np.nonzero(cross)[0]:
+        t, zz = T[i], z[i]
+        for j in range(3):
+            if (zz[j] < 0) != (zz[(j + 1) % 3] < 0):
+                w = zz[j] / (zz[j] - zz[(j + 1) % 3])
+                P.append(V[t[j]] + (V[t[(j + 1) % 3]] - V[t[j]]) * w)
+                M.append(pm[i])
+    if len(P) < 50:
+        return None
+    P, M = np.array(P), np.array(M)
+    th = np.arctan2(P[:, 0] - cx, -(P[:, 1] - cy))
+    r = np.hypot(P[:, 0] - cx, P[:, 1] - cy)
+    k = ((th + np.pi) / (2 * np.pi) * nb).astype(int) % nb
+    rmax = np.full(nb, -np.inf)
+    mat = np.zeros(nb, int)
+    for kk, rr, mm in zip(k, r, M):
+        if rr > rmax[kk]:
+            rmax[kk], mat[kk] = rr, mm
+    ok = np.isfinite(rmax)
+    rmax = np.interp(np.arange(nb), np.nonzero(ok)[0], rmax[ok], period=nb)
+    w = nb // 12                                                     # the skirt's own shape (30 deg running mean) out
+    ker = np.ones(2 * w + 1) / (2 * w + 1)
+    res = rmax - np.convolve(np.r_[rmax[-w:], rmax, rmax[:w]], ker, mode='valid')
+    depth = np.percentile(res, 95) - np.percentile(res, 5)
+    half = nb // 144                                                 # 2.5 degrees
+    crest = []
+    for i in range(nb):
+        win = res[np.arange(i - half, i + half + 1) % nb]
+        wide = res[np.arange(i - 3 * half, i + 3 * half + 1) % nb]
+        if res[i] == win.max() and res[i] - wide.min() > prom * depth and (not crest or i - crest[-1] > half):
+            crest.append(i)
+    seq = ''.join('C' if mat[i] == 1 else 'O' for i in crest)
+    cth = -np.pi + (np.arange(nb) + 0.5) * 2 * np.pi / nb
+    cr = mat == 1
+    centre = float(np.degrees(np.angle(np.exp(1j * cth[cr]).mean()))) if cr.any() else None
+    return dict(orange=seq.count('O'), cream=seq.count('C'), sequence=seq, cream_deg=round(float(cr.mean() * 360), 1),
+                cream_centre=None if centre is None else round(centre, 1), z=round(float(z0), 4))
+
+
+def pleat_checks(o_, d_):
+    """the skirt's pleats (our_pleats) against skirt_closeup's top-down view (closeup_pleats): the orange and cream
+    counts, and their order (one cream block at the front, orange round the rest) -> checks (tool/garments2 cda2b7f's,
+    moved here)."""
+    if d_ is None:
+        return {}
+    if o_ is None:
+        why = {'value': None, 'status': 'FAIL', 'why': 'our skirt not sliced'}
+        return {'skirt_pleats': dict(why), 'skirt_pleats_cream': dict(why), 'skirt_pleat_order': dict(why)}
+    C = {}
+    v_ = abs(o_['orange'] - d_['orange'])
+    C['skirt_pleats'] = {'value': v_, 'status': grade('pleats', v_), 'ours': o_['orange'], 'design': d_['orange'],
+                         'note': "the orange knife pleats round the skirt (crests of ours; pleats between strokes or "
+                                 "tone steps round skirt_closeup's top-down view), ours against the design's"}
+    v_ = abs(o_['cream'] - d_['cream'])
+    C['skirt_pleats_cream'] = {'value': v_, 'status': grade('pleats_cream', v_), 'ours': o_['cream'],
+                               'design': d_['cream'], 'cream_deg': [o_['cream_deg'], d_['cream_deg']],
+                               'note': "the cream front panel's pleats, ours against the design's"}
+    seq = o_['sequence']
+    runs = sum(1 for i in range(len(seq)) if seq[i] != seq[i - 1]) if seq else 0
+    centred = o_['cream_centre'] is not None and abs(o_['cream_centre']) <= 15
+    v_ = max(0, runs - 2) + (0 if centred else 1)
+    C['skirt_pleat_order'] = {'value': v_, 'status': 'PASS' if v_ == 0 else 'FAIL', 'ours': seq,
+                              'cream_centre': o_['cream_centre'],
+                              'note': "the pleats' order round the skirt: one cream block centred at the front (within "
+                                      "15 degrees) and orange round the rest, as the design's top-down view (extra "
+                                      "colour runs, and 1 when the block is off the front)"}
+    return C
+
+
+def design_pleats(spec):
+    """closeup_pleats on the character's skirt_closeup reference (the manifest's) -> (result or None, path or None)."""
+    from . import manifest
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    try:
+        M = manifest.load(ref['manifest'])['references'] if ref.get('manifest') else {}
+        if 'skirt_closeup' not in M:
+            return None, None
+        path = manifest._p(M['skirt_closeup']['path'])
+    except (KeyError, OSError):
+        return None, None
+    from PIL import Image
+    return closeup_pleats(np.asarray(Image.open(path).convert('RGB'), float) / 255.0), path
+
+
 # ------------------------------------------------------------------------------------------------------ the checks
 def evaluate(O, names, dv, masks, marks, ppl, only=None, memo=None):
     """every check from our views (our_views) and the design's (bodyqa.design_views) with the outfit masks and the
@@ -755,6 +909,13 @@ def measure(B, design, out=None):
     O = our_views(meshes, names, ctx['ppl'], ctx['az3'], np.array(qa3d.iris_centres(B)), As['centre'], As['L'])
     T, C = evaluate(O, names, design.design_views(), masks, marks, ctx['ppl'])
     C.update(tuck_check({n: np.asarray(m[0], float) for n, m in zip(names, meshes)}, float(As['L'])))
+    d_, dp = design_pleats(B.spec)
+    if dp:
+        design._rec(dp)
+    sk = next((i for i, n in enumerate(names) if n == 'skirt'), None)
+    if sk is not None:
+        V_, T_, lab_ = meshes[sk]
+        C.update(pleat_checks(our_pleats(V_, T_, lab_ == CL['cream']), d_))
     if out:
         from .qa3d import _save_rgb
         _save_rgb(os.path.join(out, 'qa_skirt.png'), picture(O, names, design.design_views(), masks, marks, ctx['ppl']))
@@ -778,6 +939,9 @@ def measure_geometry(bundle, sheet, spec):
     O = our_views(meshes, names, sheet.ppl, sheet.az3, np.asarray(lm['iris'], float), lm['centre'], lm['L'])
     T, C = evaluate(O, names, sheet.design, masks, marks, sheet.ppl)
     C.update(tuck_check({o['name']: o['V'] for o in objs}, float(lm['L'])))
+    sk = next((o for o in objs if o['name'] == 'skirt'), None)
+    if sk is not None:
+        C.update(pleat_checks(our_pleats(sk['V'], sk['F'], sk['label'] == CL['cream']), design_pleats(spec)[0]))
     return T, C
 
 
