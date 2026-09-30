@@ -10,9 +10,10 @@ measured without Blender, per key:
 and per combined expression (charkit.expressions.PRESETS: the face's components together) its measures against the template's
 own targets (exprqa.TARGETS).
 
-    python -m charkit mouth BUILD [--against BUILD2] [--out DIR] [--boards DIR]
+    python -m charkit mouth BUILD [--against BUILD2] [--out DIR] [--boards DIR] [--before-boards DIR]
         a build's bundle -> DIR/mouth.json, DIR/index.html (default BUILD/mouth); --boards: a build's rendered boards
-        (preset_*.png, mouth_*.png) for the contact sheet, at the board's face camera, beside the sheet's heads
+        (preset_*.png, mouth_*.png, expr_*.png) for the contact sheet, at the board's face camera, beside the sheet's
+        heads; --before-boards: an earlier build's, its presets beside ours
     python -m charkit mouth --spec RESOLVED.spec.json [--rig-measure ref_measure.json] [--out DIR]
         the same on the spec assembled here (charkit.faceeval's bundle: numpy, no Blender)
     python -m charkit mouth --dump SPEC.json --out HEAD.pkl.gz     (on the build box: the head, a minute; a spec as
@@ -27,6 +28,11 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PPL = 200.0                         # the class renders' px per L (qa3d.mouth_cover's)
+# a preset's targets graded with one component swapped for its neighbours: the calibration a new target needs (it
+# passes on the shape it asks for, and fails on the rest face and on the shapes it replaces). effort's eye: the
+# chevron (Michael, 2026-09-30), against the squeeze it replaces and the other closed eyes
+CALIBRATE = {'effort': ('eye', ('chevron', 'squeeze', 'happy', 'blink'))}
+CLOSED_EYES = ('blink', 'happy', 'squeeze', 'chevron')     # the lid boards the page sets side by side
 BOARD = dict(dist=0.5, lens=85.0, sensor=36.0, px=600, below=0.12)     # scene.boards' preset camera (the face camera)
 
 
@@ -103,7 +109,8 @@ def head_bundle(path, spec_over=None):
 # ------------------------------------------------------------------------------------------------------------ measures
 def measure(B):
     """-> dict(keys {shape: {folds, cover, skin, none, m (exprqa summary)}}, rest_folds, eye_folds, presets {name: {combo,
-    m, targets}}, neutral, sheet (the drawn heads: table, checks))."""
+    m, targets}}, calibration {preset: {component, variants {name or 'rest': targets grade}}} (CALIBRATE), eyes {closed
+    eye: its measures}, neutral, sheet (the drawn heads: table, checks))."""
     from . import exprqa, qa3d
     from .expressions import PRESETS, weights
     data = qa3d.expression_data(B)
@@ -129,6 +136,25 @@ def measure(B):
         s = exprqa.summary(M, on)
         presets[name] = dict(combo=combo, m=s, cls=cls, targets=exprqa.grade_targets(name, s, on),
                              folds={k: ff['keys'][k] for k in weights(combo) if k in ff['keys']})
+    cal = {}
+    for name, (comp, alts) in CALIBRATE.items():
+        if name not in PRESETS or not all(a in lib.get(comp, ()) for a in alts):
+            continue
+        g = {'rest': dict(exprqa.grade_targets(name, on, on), combo={})}
+        for a in alts:
+            combo = dict({k: v for k, v in PRESETS[name].items() if v}, **{comp: a})
+            cls = exprqa.render(data, combo, PPL)
+            s = exprqa.summary(exprqa.measure(cls, PPL, ey, ax, ours=True), on)
+            g[a] = dict(exprqa.grade_targets(name, s, on), combo=combo, cls=cls, m=s)
+        cal[name] = dict(component=comp, variants=g,
+                         ok=g[alts[0]]['status'] == 'PASS' and all(g[k]['status'] == 'FAIL' for k in g if k != alts[0]))
+    eyes = {}
+    for name in CLOSED_EYES:
+        if name in lib['eye']:
+            cls = exprqa.render(data, {'eye': name}, PPL)
+            s = exprqa.summary(exprqa.measure(cls, PPL, ey, ax, ours=True), on)
+            eyes[name] = dict(m={k: v for k, v in s.items() if k.startswith('eye_')}, cls=cls,
+                              folds=ff['keys'].get('eye_' + name, 0))
     sheet = None
     try:
         D = qa3d.Design(B)
@@ -137,7 +163,7 @@ def measure(B):
             sheet = dict(table=table, checks=C)
     except Exception as e:                                                # (a spec with no sheet, no rig measure)
         sheet = dict(error=repr(e))
-    return dict(keys=keys, presets=presets, neutral=on, rest_folds=ff['rest'], library=lib,
+    return dict(keys=keys, presets=presets, calibration=cal, eyes=eyes, neutral=on, rest_folds=ff['rest'], library=lib,
                 eye_folds={k[4:]: v for k, v in ff['keys'].items() if k.startswith('eye_')}, sheet=sheet,
                 L=float(B.assembly['L']))
 
@@ -346,6 +372,16 @@ def text(M):
         T = p['targets']
         bad = ['%s %s (%s)' % (k, t['status'], f(t['value'])) for k, t in T['features'].items() if t['status'] != 'PASS']
         out.append('%-12s %-5s %-44s %s' % (name, T['status'], json.dumps(p['combo'])[:44], '; '.join(bad)))
+    for name, c in (M.get('calibration') or {}).items():
+        out.append('')
+        out.append('%s\'s targets with its %s swapped (calibration: %s)' % (name, c['component'], 'ok' if c['ok'] else 'NOT ok'))
+        for v, g in c['variants'].items():
+            fk = g['features'].get('eye_fork', {}).get('value')
+            out.append('  %-10s %-5s miss %-6s eye_fork %s' % (v, g['status'], f(g['miss']), f(fk)))
+    if M.get('eyes'):
+        out.append('')
+        out.append('closed eyes: %s' % '; '.join('%s arc %s fork %s folds %s' % (
+            n, f(e['m'].get('eye_arc')), f(e['m'].get('eye_fork')), e['folds']) for n, e in M['eyes'].items()))
     if M.get('sheet') and M['sheet'].get('checks'):
         out.append('')
         out.append('the sheet\'s drawn heads (%s; INFO: no authority)' % (M['sheet']['table'] or {}).get('source'))
@@ -428,10 +464,11 @@ def board_crop(path, L, box=(0.62, 0.55, 0.62)):
 
 
 
-def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions'):
+def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions', before=None):
     """the contact sheet: every combined expression as the build's face board draws it (when `boards` has them) beside
-    the sheet's drawn head where it draws one, at one scale, with its class render and measures; then every mouth key.
-    -> the page's path."""
+    the sheet's drawn head where it draws one, at one scale, with its class render and measures; the closed eyes' lid
+    boards side by side, and each calibrated target on its variants (CALIBRATE); then every mouth key. before: an
+    earlier build's boards folder, its preset boards set beside ours. -> the page's path."""
     from PIL import Image
     from . import exprqa
     img = os.path.join(out, 'img')
@@ -472,6 +509,9 @@ def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions
     for name, p in M['presets'].items():
         T = p['targets']
         pics = []
+        bb = os.path.join(before, 'preset_%s.png' % name) if before else None
+        if bb and os.path.exists(bb):
+            pics.append((save(board_crop(bb, M['L']), 'before_%s.png' % name, 300), 'before (board)'))
         bp = os.path.join(boards, 'preset_%s.png' % name) if boards else None
         if bp and os.path.exists(bp):
             pics.append((save(board_crop(bp, M['L']), 'board_%s.png' % name, 300), 'ours (board)'))
@@ -492,6 +532,46 @@ def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions
                              ''.join('<div><img src="%s" height="300"><div class="lab">%s</div></div>' % pc for pc in pics),
                              rows))
     L.append('</div>')
+    # the closed eyes side by side, and the calibrations
+    if M.get('eyes'):
+        L.append('<h2>Closed eyes</h2><p class="note">Each lid shape alone (the face board\'s expression row: its brow, '
+                 'the mouth at rest) and its class render; arc: (ends - middle) / span, + an arch; fork: the gap between '
+                 'its strokes over its outer half, over its span (a &gt; &lt; chevron about 0.3, one stroke about 0); '
+                 'folds: skin faces flipped under the key.</p><div class="row">')
+        for name, e in M['eyes'].items():
+            pics = []
+            bp = os.path.join(boards, 'expr_%s.png' % name) if boards else None
+            if bp and os.path.exists(bp):
+                a = np.asarray(Image.open(bp).convert('RGB')).astype(float) / 255
+                h_, w_ = a.shape[:2]
+                pics.append((save(a[int(0.3 * h_):int(0.72 * h_), int(0.12 * w_):int(0.88 * w_)], 'lid_%s.png' % name, 150),
+                             'board'))
+            cls = e['cls']
+            y0 = int((exprqa.WIN['top'] - 0.14) * PPL)
+            pics.append((save(exprqa.paint(cls[y0:int((exprqa.WIN['top'] + 0.12) * PPL), 30:-30]), 'lidcls_%s.png' % name,
+                              150), 'class'))
+            L.append('<div class="card"><b>%s</b> arc %s, fork %s, folds %s<div class="pair">%s</div></div>' % (
+                name, f(e['m'].get('eye_arc')), f(e['m'].get('eye_fork')), e['folds'],
+                ''.join('<div><img src="%s" height="150"><div class="lab">%s</div></div>' % pc for pc in pics)))
+        L.append('</div>')
+    for name, c in (M.get('calibration') or {}).items():
+        L.append('<h2>Calibration: %s\'s targets with its %s swapped</h2><p class="note">A new target passes on the shape '
+                 'it asks for (the first) and fails on the rest face and on the shapes it replaces: <b>%s</b>.</p>'
+                 '<div class="row">' % (name, c['component'], 'ok' if c['ok'] else 'NOT ok'))
+        for v, g in c['variants'].items():
+            rows = ''.join('<tr><td>%s</td><td>%s</td><td>%s</td><td class="%s">%s</td></tr>' % (
+                k, f(t['value']), html.escape(t['want']), t['status'], t['status']) for k, t in g['features'].items()
+                if t['status'] != 'PASS' or k.startswith('eye_'))
+            pic = ''
+            if g.get('cls') is not None:
+                cls = g['cls']
+                crop = cls[int((exprqa.WIN['top'] - 0.3) * PPL) if exprqa.WIN['top'] > 0.3 else 0:
+                           int((exprqa.WIN['top'] + 0.62) * PPL), :]
+                pic = '<img src="%s" height="200">' % save(exprqa.paint(crop), 'cal_%s_%s.png' % (name, v), 200)
+            L.append('<div class="card"><b>%s</b> <span class="%s">%s</span> <span class="lab">miss %s</span>%s<table>'
+                     '<tr><th>feature</th><th>value</th><th>target</th><th></th></tr>%s</table></div>' % (
+                         v, g['status'], g['status'], f(g['miss']), pic, rows))
+        L.append('</div>')
     # the keys
     L.append('<h2>Mouth keys</h2><p class="note">Rest folds %d. open, width in L; area L&sup2;; teeth and tongue: shares of '
              'the opening; line_top / line_bottom: shares of the opening\'s columns the line draws along its top / '
@@ -563,7 +643,7 @@ def main(args):
         aj = os.path.join(a, 'mouth.json') if os.path.isdir(a) and os.path.exists(os.path.join(a, 'mouth.json')) else a
         A = json.load(open(aj)) if aj.endswith('.json') else strip(measure(build_bundle(a)))
     if '--no-page' not in args:
-        print(page(M, out, B, opt('--boards'), A))
+        print(page(M, out, B, opt('--boards'), A, before=opt('--before-boards')))
     print('%.1f s' % (time.time() - t))
     return 0
 
