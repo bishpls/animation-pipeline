@@ -98,7 +98,7 @@ def up():
 
 def seed():
     """a box with no copy of any worktree yet (the render box's first sync) gets this one through the bucket: a tarball
-    of its tracked files and charkit/out/i3d, rather than ~0.8 GB through the IAP tunnel; rsync then sends what differs.
+    of its tracked files, rather than ~0.3 GB through the IAP tunnel; rsync then sends what differs.
     The bucket sync needs no seed: the box fetches the blobs it lacks from the bucket itself."""
     if _bucket():
         return
@@ -113,9 +113,6 @@ def seed():
         for f in files:
             if os.path.isfile(os.path.join(ROOT, f)):
                 tf.add(os.path.join(ROOT, f), arcname=f)
-        i3d = os.path.join(ROOT, 'charkit', 'out', 'i3d')
-        if os.path.isdir(i3d):
-            tf.add(i3d, arcname='charkit/out/i3d')
     put(tmp, '/srv/work/.seed.tar')
     _sh('ssh', 'mkdir -p /srv/work/%s && tar -xf /srv/work/.seed.tar -C /srv/work/%s && rm -f /srv/work/.seed.tar'
         % (name, name))
@@ -198,7 +195,7 @@ def gate(args):
     gid = '%s-%s' % (tag, uuid.uuid4().hex[:8])
     bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % gid)
     boxed = '/srv/work/repo-%s.bundle' % gid
-    G, GI = '/srv/work/gates/%s' % gid, '/srv/work/gates/%s.i3d' % gid
+    G = '/srv/work/gates/%s' % gid
     os.makedirs(os.path.dirname(bundle), exist_ok=True)
     up()
     # only what the box's clone lacks: its refs' commits (known here, since they came from here) are left out
@@ -214,16 +211,8 @@ def gate(args):
     if r.returncode == 0:
         put(bundle, boxed)
         os.remove(bundle)
-    # this gate's inputs (charkit/out/i3d): seeded by links from this worktree's synced copy, or the clone's, then this
-    # worktree's changes sent (rsync replaces a changed file, never writing through a link)
-    i3d = os.path.join(ROOT, 'charkit', 'out', 'i3d')
-    seed = '/srv/work/%s/charkit/out/i3d' % os.path.basename(ROOT)
-    # (safe to repeat after a dropped connection: the links land under a temporary name, renamed into place)
-    _sh('ssh', 'mkdir -p /srv/work/gates && S=%s; [ -d $S ] || S=/srv/work/repo/charkit/out/i3d; [ -e %s ] || '
-        '{ { [ -d $S ] && rm -rf %s.tmp && cp -al $S %s.tmp && mv %s.tmp %s; } || mkdir -p %s; }'
-        % (seed, GI, GI, GI, GI, GI, GI), retry=True)
-    if os.path.isdir(i3d):
-        _sh('push', i3d + '/', GI + '/', '--link', retry=True)
+    # (no generated inputs to send: charkit/out/i3d, TRELLIS's output, was the only one, and no build reads it since
+    # the sheet-only outfit masks, decision 8)
     sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True).stdout.strip()
            for b in (into, branch) + ((gate_code,) if gate_code else ())}
     q = shlex.quote
@@ -239,7 +228,7 @@ def gate(args):
     more += ' --build' if '--build' in args else ''
     # a killed gate (remote kill: SIGTERM to its processes) still removes its clone, its inputs and its temporary
     # files (its worktrees and the builds' scratch live under G.tmp)
-    step = ('rc=1; cleanup() { cd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log %(G)s.tmp; }; '
+    step = ('rc=1; cleanup() { cd /srv/work && rm -rf %(G)s %(G)s.log %(G)s.tmp; }; '
             'trap "cleanup; exit 143" TERM INT HUP; '
             'mkdir -p %(G)s.tmp && export TMPDIR=%(G)s.tmp && '
             'flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
@@ -247,13 +236,13 @@ def gate(args):
             'git sparse-checkout set --cone charkit && '
             'git update-ref refs/heads/%(into)s %(si)s && git update-ref refs/heads/%(branch)s %(sb)s && '
             'git checkout -q -f %(checkout)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/_gate/%(gid)s && '
-            'ln -s %(GI)s charkit/out/i3d && ln -s /srv/work/gate-out charkit/out/gate && '
+            'ln -s /srv/work/gate-out charkit/out/gate && '
             'python -m charkit slots %(slots)d >/dev/null && '
             '{ python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; rc=${PIPESTATUS[0]}; } ; '
             'for r in $(sed -n "s/^report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" /srv/work/_gate/%(gid)s/ '
             '2>/dev/null; cp "${r%%.md}.summary.json" /srv/work/_gate/%(gid)s/ 2>/dev/null; done; %(publish)scleanup; '
             'find /srv/work/gate-out -maxdepth 1 -name "cand_*" -mtime +3 -exec rm -rf {} + 2>/dev/null; exit $rc'
-            % dict(fetch=q(fetch), G=G, GI=GI, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
+            % dict(fetch=q(fetch), G=G, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
                    slots=_slots(), more=more, publish=publish, checkout=sha[gate_code] if gate_code else q(into)))
     # with the box's environment, not in this worktree's synced copy (a worktree that has only ever gated has none)
     # (the report comes back into this gate's own folder, keyed by its id, and only a report of this branch at this

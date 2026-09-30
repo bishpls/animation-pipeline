@@ -29,7 +29,7 @@ class Toy:
 TERMS = [Term('width', None, 'ratio', 0.08, 'front', 'sheet', 'front', 'g'),
          Term('reach', None, 'abs', 0.02, 'profile', 'sheet', 'profile', 'g'),
          Term('far', None, 'abs', 0.2, 'profile', 'sheet', 'profile', 'g'),
-         Term('dead', None, 'abs', 0.02, 'profile', 'trellis', 'profile', 'g')]
+         Term('dead', None, 'abs', 0.02, 'profile', 'hull', 'profile', 'g')]
 
 
 def test_residuals_and_weights():
@@ -37,7 +37,7 @@ def test_residuals_and_weights():
     R = fitkit.residuals(C, TERMS, {'profile': 'sheet'})
     r = {t['name']: t for t in R}
     assert abs(r['width']['r'] - (1 / 1.3 - 1) / 0.08) < 1e-9 and abs(r['reach']['r'] + 2.0) < 1e-9
-    assert r['dead']['w'] == 0.25 and r['width']['w'] == 1.0            # the trellis term is not the profile's authority
+    assert r['dead']['w'] == 0.25 and r['width']['w'] == 1.0            # the hull term is not the profile's authority
     assert fitkit.residuals({}, TERMS[:1])[0]['r'] == fitkit.MISSING
 
 

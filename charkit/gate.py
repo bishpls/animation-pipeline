@@ -78,15 +78,6 @@ def _free_gb(path):
     return shutil.disk_usage(path).free / 2 ** 30
 
 
-def _link_inputs(wt):
-    """the gitignored generated inputs a build reads (charkit/out/i3d), shared read-only from this worktree."""
-    src = os.path.join(ROOT, 'charkit', 'out', 'i3d')
-    dst = os.path.join(wt, 'charkit', 'out', 'i3d')
-    if os.path.isdir(src) and not os.path.exists(dst):
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        os.symlink(src, dst)
-
-
 class Clock:
     """the gate's phases: each one's start (s since the gate began), length and a note; phases may overlap."""
 
@@ -488,14 +479,14 @@ def twobytwo_drops(rows):
 
 
 def _worktree(head, spec, label):
-    """a sparse worktree at head, its generated inputs linked."""
+    """a sparse worktree at head (no generated inputs linked: charkit/out/i3d, TRELLIS's output, was the only one, and no
+    build reads it since the sheet-only outfit masks, decision 8)."""
     from . import sparse
     wt = tempfile.mkdtemp(prefix='charkit-gate-%s-' % label)
     os.rmdir(wt)
     _git('worktree', 'add', '--no-checkout', '--detach', wt, head)
     _git('sparse-checkout', 'set', '--cone', *sparse.dirs('charkit', spec), cwd=wt)
     _git('checkout', '--detach', head, cwd=wt)
-    _link_inputs(wt)
     return wt
 
 
@@ -916,7 +907,6 @@ def _tests_at(root, tree, head, tip, spec, names):
         except (Exception, SystemExit):
             pass                                       # (no manifest: the whole tree)
         _git('checkout', '--detach', c.stdout.strip(), cwd=wt)
-        _link_inputs(wt)
         return _tests(wt, jobs=min(4, _test_jobs()), only=set(names))
     finally:
         _git('worktree', 'remove', '--force', wt, cwd=root, check=False)

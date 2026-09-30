@@ -53,7 +53,7 @@ MIN_PX = 150                        # a part measured from fewer pixels (either 
 
 # ------------------------------------------------------------------------------------------------------------ classes
 def _hsv(rgb):
-    from .i3d import hsv
+    from .target3d import hsv
     s = rgb.shape[:-1]
     h, sat, v = hsv(np.asarray(rgb, float).reshape(-1, 3))
     return h.reshape(s), sat.reshape(s), v.reshape(s)

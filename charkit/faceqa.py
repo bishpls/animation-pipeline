@@ -1,9 +1,10 @@
 """Face shape QA: our face against the design's face, measured (pure numpy; the Blender side only hands over arrays).
 
-The target is the generated character (the TRELLIS.2 mesh of the 3D-style key, aligned by its eyes onto ours: same eye line,
-same eye spacing), its skin found by colour; the 2D design rig's landmarks (charkit.refs.measure) are a second reference for
-the heights of the features. Both faces are seen the same way: a z-buffer of point splats from a view azimuth, every
-surface in the scene occluding (hair, eyes, clothes), the visible skin masked. Measured, in head lengths L:
+The target is the 3D target (the spec's hair.shape.glb: the visual hull today, TRELLIS.2's mesh of the 3D-style key
+before decision 8; aligned by its eyes onto ours: same eye line, same eye spacing), its skin found by colour; the 2D
+design rig's landmarks (charkit.refs.measure) are a second reference for the heights of the features. Both faces are
+seen the same way: a z-buffer of point splats from a view azimuth, every surface in the scene occluding (hair, eyes,
+clothes), the visible skin masked. Measured, in head lengths L:
 
   front / three-quarter / profile   IoU of the visible face skin over the lower face (below the eyes to the target's
                 chin: above the eyes it is mostly the fringe and the eyes that differ, below the chin the neckline)
@@ -56,7 +57,7 @@ def triangle_loops(starts, counts):
 
 def skin_mask(C):
     """per-vertex: the generated mesh's skin, by colour."""
-    from .i3d import hsv
+    from .target3d import hsv
     h, s, v = hsv(C)
     return (s > SKIN['s'][0]) & (s < SKIN['s'][1]) & (v > SKIN['v']) & (h >= SKIN['h'][0]) & (h <= SKIN['h'][1])
 

@@ -38,9 +38,9 @@ def test_drawn_chin_finds_the_turn_to_the_neck_on_a_receding_profile():
 
 def test_checks_are_graded_only_against_their_measures_authority():
     from charkit import checks
-    A = {'body_silhouette': 'sheet', 'hair_shape': 'trellis', 'expressions': None, 'face_depth': 'trellis'}
-    C = {'shape_iou': {'value': 0.74, 'status': 'WARN'},                 # the silhouette against TRELLIS: not its authority
-         'shape_iou_hair': {'value': 0.97, 'status': 'PASS'},            # the hair shape against TRELLIS: its authority
+    A = {'body_silhouette': 'sheet', 'hair_shape': 'hull', 'expressions': None, 'face_depth': 'hull'}
+    C = {'shape_iou': {'value': 0.74, 'status': 'WARN'},                 # the silhouette against the hull: not its authority
+         'shape_iou_hair': {'value': 0.97, 'status': 'PASS'},            # the hair shape against the hull: its authority
          'body_front_iou': {'value': 0.78, 'status': 'WARN'},            # against the sheet: its authority
          'expr_laugh_mouth': {'value': 0.2, 'status': 'FAIL'},           # expressions: no reference
          'face_shape_depth': {'value': 0.02, 'status': 'WARN'},

@@ -316,7 +316,7 @@ def test_the_clawd_references_keys_reach_deeper_than_their_stamps():
     """on the real producers: the key's code (two imports) holds more modules than the stamp's (one), and the hull's key
     folds in the outfit's (it reads the masks)."""
     R = manifest.load('charkit/refs/clawd/manifest.json')['references']
-    for rid, deeper in (('hair_layers', 'charkit/outfit.py'), ('outfit_masks', 'charkit/i3d.py'),
+    for rid, deeper in (('hair_layers', 'charkit/outfit.py'), ('outfit_masks', 'charkit/target3d.py'),
                         ('hull', 'charkit/bodymeasure.py')):
         one = {k.split(':')[0] for k in manifest._producer_code(R[rid])}
         two = {k.split(':')[0] for k in manifest._producer_code(R[rid], manifest.CACHE_DEPTH)}
