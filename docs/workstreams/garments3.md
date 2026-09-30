@@ -322,3 +322,25 @@ that band in the render but not in the mask. The top's `refine` 0/1/2 leaves the
 The flaps' template edges run 126-166 deg (fit G); the drawn three-quarter tails sit at about +-100 deg while front,
 back and profile place them at 118-155 (skirt.md). g3_c three-quarter px ours/drawn: R 305/5409, L 6348/11607 (IoU
 0.0 / 0.013); the other views 0.73-0.88. The design's views disagree: Michael's call.
+
+### The right sleeve cuff (piece_sleeve_cuff_R 0.496 FAIL): call L's rims, then the band's span
+
+Attributed on the evaluator: `RIM_CREASE` 0 gives cuff_R 0.509 (back 0.626 -> 0.663; cuff_L 0.650 -> 0.670); g3_a's body
+leaves both unchanged. The flat rims square the thin hull band's ends (width 0.049 L, thick 0.02). The band's own
+template knobs, both cuffs, IoU cuff_R / cuff_L / sleeve_L / sleeve_R: as built 0.496/0.650/0.912/0.799; `width`
+(unused by the hull band) none; `thick` 0.014 none; `round` 1.5 0.488/0.659; `round` 1.5 + `roll` 0.4 0.500/0.669;
+**`span` [5, 95] 0.554/0.712/0.905/0.782 (taken: every cuff view up, back 0.626 -> 0.744)**; [4, 96]
+0.559/0.690/0.907/0.790; [8, 92] 0.591/0.738/0.897/0.765 (sleeve_R near its 0.75 line).
+
+### Box: the render build of the merged head (g3_render2, 18f3b41 before the cuff span)
+
+body_profile_torso_jump_front 0.0612 FAIL -> 0.0 PASS; neck_crease 39.6 FAIL -> 26.9 WARN (pipeline-3d 27.6);
+piece_top 0.653 -> 0.686, piece_bow 0.604 -> 0.674, piece_bodice_panel 0.804 -> 0.839, piece_waistband 0.886 -> 0.907,
+bow_front_tail_gap 0.033 WARN -> 0.028 PASS, waistband_profile_overhang 0.028 -> 0.024. Worse: **bow_profile_torn
+0.025 -> 0.066 FAIL** (the fronts no longer cover the tails' lower edge in profile; it is the outline now).
+**art_speckle_neck unchanged 2.602** (profile 129.95: 4 specks in 0.031 L^2 of neck against pipeline-3d's 1): per view
+identical to g3_c to the decimal, so neither the jacket nor the mask reaches it; the overlay marks them where the hair
+meets the neck under the jaw (the head frame), not at the collar. Not attributed further (turn budget).
+QA time on the render box 246 -> 168 s (sheet_pieces 38 -> 6.7, piece_details 36.6 -> 20.2; skirt 32.5 unchanged).
+evaldrift `--stages` on g3_d (18f3b41): 0 of 110 checks drift; stage drifts as g3_c's (the skin's 95 vertices 0.199 L,
+the collar 0.012 L, the flaps' subdivision evaldrift-side). Tests: 460 passed (after the merge).
