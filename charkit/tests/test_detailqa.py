@@ -93,6 +93,77 @@ def test_leg_back_bump_against_the_design():
     assert C['value'] == 0.1 and C['offset'] == 0.03 and C['status'] == 'FAIL', C
 
 
+def test_leg_back_reads_ours_on_the_designs_facing_and_skips_the_garment_edges():
+    # ours with a lock of hair in front of the eyes (face_side then reads ours facing the other way), and the design's
+    # boot cuff line sloping: its last two leg rows cut short at the back. Neither is a bump of the leg
+    win = dict(x=2.0, top=1.0, bottom=-4.5)
+    H, W = int(5.5 * PPL), 400
+    z = win['top'] - (np.arange(H) + 0.5) / PPL
+    def fig(lock=False, cuff=False):
+        c = np.zeros((H, W), int)
+        eye = np.abs(z) < 0.2
+        c[eye, 150:180] = dq.CL['skin']; c[eye, 180:230] = dq.CL['hair']
+        if lock:
+            c[eye, 100:150] = dq.CL['hair']
+        leg = (z <= -2.6) & (z >= -4.0)
+        c[leg, 170:230] = dq.CL['skin']
+        if cuff:
+            c[(z < -3.98) & (z >= -4.0), 215:230] = 0
+        return c
+    assert dq.face_side(fig(lock=True), PPL, win) == 1 and dq.face_side(fig(), PPL, win) == -1
+    C = dq.leg_back_check(fig(lock=True), fig(cuff=True), PPL, win=win)
+    assert C['value'] == 0.0 and C['offset'] == 0.0 and C['status'] == 'PASS', C
+    assert C['rows'][1] > -4.0 + dq.LEG_EDGE - 0.01, C
+
+
+def _legs(win, H, W):
+    """a profile figure maker for the leg tests: face left of the hair at the eye line, a leg (skin) from -2.74 to
+    -4.0, optionally a hand (skin) above the shorts, the shorts (dark) from -2.6 to -2.74, a bump behind the thigh,
+    and a flap (orange) hanging against the thigh's back."""
+    z = win['top'] - (np.arange(H) + 0.5) / PPL
+    def fig(bump=0, hand=False, flap=0, gap=0):
+        c = np.zeros((H, W), int)
+        eye = np.abs(z) < 0.2
+        c[eye, 150:180] = dq.CL['skin']; c[eye, 180:230] = dq.CL['hair']
+        c[(z <= -2.6) & (z > -2.74), 160:240] = dq.CL['dark']
+        c[(z <= -2.74) & (z >= -4.0), 170:230] = dq.CL['skin']
+        if hand:
+            c[(z <= -2.6) & (z >= -2.66), 250:290] = dq.CL['skin']
+        b = (z <= -2.8) & (z >= -2.9)
+        c[b, 230:230 + bump] = dq.CL['skin']
+        if flap:
+            c[(z <= -2.76) & (z >= -3.1), 230 + gap:230 + gap + flap] = dq.CL['orange']
+        return c
+    return fig
+
+
+def test_leg_back_takes_the_designs_leg_alone_and_reads_the_bare_leg():
+    # the design's hand above its shorts is skin in the band too: only the leg's own rows count. A bump the dressed
+    # figure hides under a flap hanging against the thigh shows on the bare leg; the design against itself reads 0
+    win = dict(x=2.0, top=1.0, bottom=-4.5)
+    H, W = int(5.5 * PPL), 400
+    fig = _legs(win, H, W)
+    design = fig(hand=True, flap=40, gap=60)
+    assert dq.leg_rows([5, 6, 7, 20, 21, 22, 23, 24]) == [20, 21, 22, 23, 24] and dq.leg_rows([]) == []
+    self = dq.leg_back_check(design, design, PPL, win=win)
+    assert self['value'] == 0.0 and self['status'] == 'PASS' and self['rows'][0] < -2.74, self
+    bare = dq.leg_back_check(fig(bump=10), design, PPL, win=win)
+    assert bare['value'] == 0.1 and bare['status'] == 'FAIL' and -2.9 <= bare['at'] <= -2.8, bare
+    dressed = dq.leg_back_check(np.where(fig(flap=40) > 0, fig(flap=40), fig(bump=10)), design, PPL, win=win)
+    assert dressed['status'] == 'PASS', dressed           # the flap over the bump: the dressed leg can't see it
+
+
+def test_leg_outline_sees_a_garment_hugging_the_thigh():
+    win = dict(x=2.0, top=1.0, bottom=-4.5)
+    H, W = int(5.5 * PPL), 400
+    fig = _legs(win, H, W)
+    design = fig(flap=40, gap=60)                          # the design's flap hangs clear of the leg
+    O = dq.leg_outline_check(fig(flap=40), design, PPL, win=win)
+    assert O['status'] == 'INFO' and O['value'] == 0.4 and O['hugging'] >= 30 and O['hugging_design'] == 0, O
+    clear = dq.leg_outline_check(design, design, PPL, win=win)
+    assert clear['value'] == 0.0 and clear['hugging'] == 0, clear
+
+
 def test_outline_roughness_staircase_against_straight():
     straight = np.zeros((100, 200), bool)
     for c in range(200):
