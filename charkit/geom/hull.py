@@ -1205,13 +1205,18 @@ def vertex_labels(m, L, A):
 def refine(views, A, prior, bound=0.1):
     """the oblique views' axes refined by their silhouettes: each against the hull of the axis-aligned views, the
     horizontal offset (within `bound` L) where its drawing fits best. The eyes calibrate a three-quarter only roughly: its
-    far eye shows partly, so its visible centroid sits toward the nose. In place -> {view: offset L}."""
+    far eye shows partly, so its visible centroid sits toward the nose. The hull it fits against is the silhouettes'
+    alone, without the limb split: the calibration shouldn't move with the outfit masks' limb labels. On Clawd the best
+    offsets lie within 1e-4 of IoU of each other, half a voxel apart, so a change to the limb carve had flipped the
+    three-quarter's +0.040 L to +0.035. That moved the whole carve a pixel, the head included, and the hair's flyaways
+    (their plane the median depth of the nearest hair-mass vertices) turned: hair_folds 9 -> 47. In place ->
+    {view: offset L}."""
     fixed = [n for n, v in views.items() if abs(np.sin(np.radians(v.az))) < 1e-9 or abs(np.cos(np.radians(v.az))) < 1e-9]
     out = {}
     for n, v in views.items():
         if n in fixed:
             continue
-        V = rounded(views, A, fixed, **prior)
+        V = rounded(views, A, fixed, **dict(prior, limbs=False))
         P, us = project(V, A, v.az)
         best = (-1.0, 0.0)
         for d in _steps(-bound, bound + 1e-9, A.h / 2):

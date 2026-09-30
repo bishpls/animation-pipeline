@@ -327,6 +327,23 @@ def test_a_flap_behind_the_hips_pairs_only_with_its_own_columns():
                                         # halves hidden behind the hips): 0.822; the back sees them whole: 0.842
 
 
+def test_the_refined_axis_does_not_move_with_the_limb_labels():
+    """the three-quarter's axis is refined against the silhouettes' hull alone: the same with the limb split as without
+    it (the outfit masks' limb labels once moved it half a voxel, which turned the hair's flyaways)."""
+    lab, xs, ys, zs = armed()
+    P = arm_pieces()
+    got = []
+    for with_pieces in (True, False):
+        views = {n: labelled_view(lab, xs, ys, zs, n, az, P) for n, az in (('front', 0), ('profile', 90), ('back', 180),
+                                                                             ('three_quarter', 35))}
+        if not with_pieces:
+            for v in views.values():
+                v.pieces = v.limbs = None
+        A = hull.axes_for(views, H)
+        views['three_quarter'].axis -= 0.04 * PPL
+        got.append(hull.refine(views, A, dict(p=2.0, smooth=0.0)))
+    assert got[0] == got[1] and abs(got[0]['three_quarter'] - 0.04) <= 0.02, got
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
