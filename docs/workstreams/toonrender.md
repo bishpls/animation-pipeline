@@ -189,6 +189,18 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
 
 ## Open items
 
+- (round 2) The render drawing's CPU on llvmpipe: ~6 CPU s a frame (the QA's 40: 240 CPU s against numpy's 45). Where
+  it goes (full shading at 3-4 samples a pixel, colour and measure passes apart, bicubic texture reads) isn't profiled;
+  a measure-only pass without the colour, or ss 1 where a check reads one sample, are the first candidates.
+- (round 2) Gate builds draw the toon 'views' boards on the box (~100-165 CPU s) and nothing reads them: `--boards ''` in
+  gate.py's builds (tool/infra3).
+- (round 2) hair_noise on EEVEE's own hair pictures reads 0.0837 against ~0.074 under both drawings, with the pictures
+  0.15 levels apart on the hair: not explained.
+- (round 2) Box against laptop under the render drawing: face_noise 0.0551 / 0.0546, hair_noise 0.0748 / 0.0744 (the
+  rest identical). parity.py's BOUNDS aren't set from a run yet.
+- (round 2) art_mirror_waist's PASS/WARN flips with the frame's sub-pixel placement (1.19-1.735 about its 1.5 limit),
+  under either drawing.
+
 - The streak hash (finding 1) and the crossed garment shells (finding 2): done in the look (tool/look3, above).
 - Hair and skin normals re-sampled after the outline (finding 3): the export's limit; the largest remaining tone patches.
 - Only the build pose, and only the 'views' and 'body' boards: no morph targets or skinning applied yet.
