@@ -70,6 +70,28 @@ this follows is tool/infra3's "For Michael: box control without the nightly reau
   `remote: gcloud (config ...) cannot act for the box: ... Fix: ...`. charkit/tests/test_remote_auth.py checks this
   with a fake gcloud, along with the env parsing.
 
+## The switch (2026-09-30 14:00 EDT) and the transition
+
+- **What moved at once:** the two cached ssh configs (their User is now the service account's posix user) and every
+  worktree's box env files (153 files over 80 worktrees and the main checkout). Each was replaced by an atomic
+  rename, with backups kept outside the repo.
+- **Running jobs were untouched:** the jobs and the boxes' state stay the owner's, and a reload of sshd leaves open
+  sessions alone. Detached jobs started before the switch went on, and the new sessions list and follow them.
+- **After the switch:**
+  - this branch's `remote run ps`, `remote jobs` (both boxes), `gpu.sh status` and a render-box ssh passed, with the
+    shell's CLOUDSDK_CONFIG pointing at an empty config, so no call could fall back to the owner's login;
+  - pipeline-3d's code (from before this branch) passed `remote run ps` with CLOUDSDK_CONFIG exported in the shell.
+- **The transition:** a worktree still on the older build.sh and remote.py works only until the owner's login lapses,
+  unless its shell exports CLOUDSDK_CONFIG. Two things fall back to the default login:
+  - Its `build.sh up` rewrites the shared `~/.ssh/charkit-<vm>.config` on every call, with no gcloud config in the
+    ProxyCommand. Its remote.py's own ssh sessions (job start, follow, jobs, kill) then open the tunnel with the
+    default login. This happened at 14:01, from a running gate. This branch's code rewrites the config back on its
+    next call (`fresh`).
+  - Its `_box_status` also asks gcloud with the default login.
+
+  The fix is to merge this branch (through pipeline-3d) into every worktree that drives the boxes. Until then, run
+  `export CLOUDSDK_CONFIG=<the path in the env file>` in the shell before `remote`.
+
 ## Pre-flight
 
 `remote` checks the credential before it starts a job and before `up`: `gcloud auth print-access-token`, without a
