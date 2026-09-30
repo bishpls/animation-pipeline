@@ -324,5 +324,7 @@ Run 3 left off here (box out on gcloud auth from 09:50; tool/infra3 not gated si
 5. k: from the i A/B's bundles (masked skin arrays equal or not on the default spec), then infra.md's probe.
 6. j: why the build box's per-minute crontab stopped (it's a user crontab: it should survive a stop/start), add an
    `@reboot` line in boxjob.install_sampler if needed, and the render box; plus Michael's auth decision above.
-7. l: a warm-iteration timing (this run's last measure, below), more real pairs (tool/hull-limbs cddbd12 into e11fadb,
+7. l: measured warm: an iteration on this worktree with the target's baseline kept is **23 s** (resolve 0.5 s, the
+   venv steps restored, the evaluator 21.7 s); the first in a worktree 136 s (its steps and references made once).
+   Next: more real pairs (tool/hull-limbs cddbd12 into e11fadb,
    tool/garments2), and the drawing: the evaluator has no charkit.render path yet.
