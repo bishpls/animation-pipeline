@@ -117,3 +117,14 @@ implementation (they agreed only by coincidence), and the evaluator reads the ha
   (fixed on this branch), and sheet_face lacks the eye-line registration (0.025 L; tool/face has it; step 8).
 - Gates of 83cadf4 (the shared memo) were launched into pipeline-3d before the infra merge; the final gates are rerun
   on the branch head after it.
+
+## Final state (branch head 47c5aee + these notes)
+- **Gates, 47c5aee into pipeline-3d cfcdc3a: default PASS, clawd_mh PASS.** No check changed. CPU 1,390 -> 1,411 s
+  (default), 511 -> 537 s (mh); garments stage 12.45 -> 6.58 s and 10.08 -> 5.74 s. (83cadf4 into cfcdc3a: PASS both,
+  CPU 1,390 -> 1,377 s: the shared memo fixed 851fd15's 1.8x WARN.)
+- **evaldrift --stages, 47c5aee:** checks drifting 6/110 (clawd), 2/110 (mh), all sheet_* (the eye-line registration);
+  stage drift only the evaluated skin (the subdivision port). Reports: `charkit/out/evaldrift_gt/{clawd,clawd_mh}/drift.md`.
+- boarddiff before/after (9397578 base vs 00f527c): all QA images and checks identical on both specs.
+- Worktrees: this one; `~/animation-pipeline-geomtruth-base` (tmp/geomtruth-base, the clean before builds; its
+  `charkit/stagedrift.py` is an untracked copy) can be removed with its branch when the integrator is done with the
+  before builds.

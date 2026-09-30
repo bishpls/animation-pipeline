@@ -221,6 +221,16 @@ on each build's own spec; boarddiff between the before and after builds):
 | boarddiff, before build against after build | | **16 QA images identical, 294 checks identical** | | **16 QA images identical, 292 checks identical** |
 | `garments_body` (venv body against Blender's) | | 0 nm, 18,478 of 18,478 f32-equal | | 18 of 13,380 vertices differ (numpy) |
 
+**On the branch head** (47c5aee, with pipeline-3d cfcdc3a merged), `python -m charkit evaldrift SPEC --stages` on
+the box:
+- the evaluator as the body fit reads it now drifts on 6 of 110 checks (clawd) and 2 of 110 (clawd_mh), all of them
+  sheet_* face measures (the eye-line registration, step 8);
+- the stage comparison flags one row on each spec, the evaluated skin (the subdivision port: up to 0.0088 L,
+  mean 1.4e-5 L on clawd; on clawd_mh the vertex counts differ, 39,267 against 39,393, mean 7.8e-4 L), which is step 7b;
+- every raw object of every stage is f32-identical or within 7.7e-7 L;
+- the evaluated garments are within 1e-5 L. The puff sleeves' wrong-side shell doesn't reproduce on cfcdc3a: the
+  hull-limbs merge changed the sleeves. The winding port is still unproven, though (step 7a).
+
 The checks still differing come from elsewhere:
 - the face sheet measures' anchor (`sheet_*_chin`, 0.025 L): bodymeasure against qa3d, rollout step 8;
 - the arms' angle (INFO);
