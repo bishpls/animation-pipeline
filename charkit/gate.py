@@ -296,11 +296,57 @@ def produce_inputs(tree, spec):
     return None
 
 
+def rebased_bundle(bundle_dir, tmp):
+    """a bundle whose spec's paths into its build's out folder (the hair pieces' report, the code head and body, the
+    garments) point where that folder is now -> the bundle's folder (itself when they all resolve; else a copy in tmp,
+    its arrays linked). A cached baseline was built in another gate's clone, since removed, so a crossed QA on it lost
+    what those paths hold: hair_folds read 1342 FAIL (the dihedral fallback) where the build read 5 WARN from the
+    builder's report (tool/infra4's real-pair gates, 2026-09-30)."""
+    p = os.path.join(bundle_dir, 'bundle.json')
+    if not os.path.exists(p):
+        return bundle_dir
+    meta = json.load(open(p))
+    here = os.path.realpath(os.path.dirname(os.path.abspath(bundle_dir)))
+    names = {os.path.basename(here), os.path.basename(os.path.dirname(os.path.abspath(bundle_dir)))}
+    moved = [0]
+
+    def fix(x):
+        if isinstance(x, dict):
+            return {k: fix(v) for k, v in x.items()}
+        if isinstance(x, list):
+            return [fix(v) for v in x]
+        if isinstance(x, str) and os.path.isabs(x) and not os.path.exists(x):
+            for n in names:
+                i = x.find('/' + n + '/')
+                if i >= 0 and os.path.exists(os.path.join(here, x[i + len(n) + 2:])):
+                    moved[0] += 1
+                    return os.path.join(here, x[i + len(n) + 2:])
+        return x
+    meta['spec'] = fix(meta.get('spec'))
+    if not moved[0]:
+        return bundle_dir
+    # (a mirror of the build's folder, every entry linked, the bundle's own metadata rewritten: the QA finds the build's
+    # export beside its bundle, OUT/NAME.look.glb, for the render drawing)
+    src = os.path.dirname(os.path.abspath(bundle_dir))
+    mirror = os.path.join(tmp, os.path.basename(src))
+    dst = os.path.join(mirror, os.path.basename(os.path.abspath(bundle_dir)))
+    os.makedirs(dst, exist_ok=True)
+    for f in os.listdir(src):
+        if f != os.path.basename(dst) and not os.path.lexists(os.path.join(mirror, f)):
+            os.symlink(os.path.join(src, f), os.path.join(mirror, f))
+    for f in os.listdir(bundle_dir):
+        if f != 'bundle.json' and not os.path.lexists(os.path.join(dst, f)):
+            os.symlink(os.path.join(os.path.abspath(bundle_dir), f), os.path.join(dst, f))
+    json.dump(meta, open(os.path.join(dst, 'bundle.json'), 'w'))
+    return dst
+
+
 def cross_qa(tree, bundle_dir, out):
     """one tree's QA code on another build's geometry bundle (the 2x2's crossed cells): `python -m charkit qa` run in
-    tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's) -> the
-    report (qa.json's) or {'error': why}."""
+    tree, its cache off (a part's cache key is its code, and a crossed run must not restore the other side's), on the
+    bundle rebased to where its build's folder is now (rebased_bundle) -> the report (qa.json's) or {'error': why}."""
     os.makedirs(out, exist_ok=True)
+    bundle_dir = rebased_bundle(bundle_dir, os.path.join(out, 'rebased'))
     r = subprocess.run([PY, '-m', 'charkit', 'qa', bundle_dir, '--out', out, '--cache', 'off'], cwd=tree,
                        capture_output=True, text=True)
     p = os.path.join(out, 'qa.json')

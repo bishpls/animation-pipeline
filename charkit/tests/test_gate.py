@@ -489,6 +489,32 @@ def test_the_carry_by_definition():
     assert not r['carried'] and 'baseline' in r['hits'], r
 
 
+def test_a_crossed_qa_reads_a_moved_builds_own_files():
+    """a cached baseline's bundle names its build's files by the folder it was built in (another gate's clone, gone):
+    the crossed QA measures a copy whose paths point where the build's folder is now, the export still beside it."""
+    root = tempfile.mkdtemp()
+    out = os.path.join(root, 'gate-out', 'base_abc_clawd_default')
+    os.makedirs(os.path.join(out, 'bundle')); os.makedirs(os.path.join(out, 'geom', 'hair_pieces'))
+    open(os.path.join(out, 'geom', 'hair_pieces', 'pieces.json'), 'w').write('{}')
+    open(os.path.join(out, 'clawd.look.glb'), 'w').write('glb')
+    open(os.path.join(out, 'bundle', 'arrays.npz'), 'w').write('npz')
+    gone = '/srv/work/gates/old.tmp/charkit-gate-base-x/charkit/out/gate/base_abc_clawd_default'
+    meta = {'schema': 1, 'spec': {'hair': {'shape': {'pieces': gone + '/geom/hair_pieces'}}, 'name': 'clawd',
+                                  'other': '/nowhere/else.npz'}}
+    json.dump(meta, open(os.path.join(out, 'bundle', 'bundle.json'), 'w'))
+    b = gate.rebased_bundle(os.path.join(out, 'bundle'), os.path.join(root, 'x'))
+    assert b != os.path.join(out, 'bundle')
+    m = json.load(open(os.path.join(b, 'bundle.json')))
+    assert m['spec']['hair']['shape']['pieces'] == os.path.join(os.path.realpath(out), 'geom', 'hair_pieces')
+    assert m['spec']['other'] == '/nowhere/else.npz'                    # (not the build's: left alone)
+    assert open(os.path.join(os.path.dirname(b), 'clawd.look.glb')).read() == 'glb'
+    assert open(os.path.join(b, 'arrays.npz')).read() == 'npz'
+    # a bundle whose paths resolve is measured where it is
+    meta['spec']['hair']['shape']['pieces'] = os.path.join(out, 'geom', 'hair_pieces')
+    json.dump(meta, open(os.path.join(out, 'bundle', 'bundle.json'), 'w'))
+    assert gate.rebased_bundle(os.path.join(out, 'bundle'), os.path.join(root, 'y')) == os.path.join(out, 'bundle')
+
+
 def test_docs_and_tests_can_reach_no_build():
     from charkit import closure
     C = {'reads': ['charkit/x.py', 'charkit/README.md'], 'listed': ['charkit/notes']}
