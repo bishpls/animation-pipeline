@@ -2097,6 +2097,14 @@ def details(B, design=None, out=None):
     return detailqa.measure(B, design, out)
 
 
+def skirt(B, design=None, out=None):
+    """the skirt and the overskirt flaps against the design (charkit.skirtqa): the flaps' shape per view (IoU, width
+    down their length, attach, hang angle, the profile's sweep), the stepped band's steps and height per piece, the back's
+    outline, the gap between the flaps and what shows in it, the skirt's top beside the band."""
+    from . import skirtqa
+    return skirtqa.measure(B, design, out)
+
+
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2116,6 +2124,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
     ('face_region', face_region, '', 'face_region'),
     ('look', look, '', 'look'),
+    ('skirt', skirt, '', 'skirt'),
 ]
 
 
