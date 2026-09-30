@@ -390,3 +390,12 @@ Refits (each against its piece's IoU in all views):
   template key and moved them: renamed.)
 - Insensitive, left as drawn: the jacket's opening and drape `from`, the bodice panel's eye cut (shifting them -0.0235
   moved piece_top and piece_bodice_panel by <= 0.001).
+
+**Box (c3_before = bw_v1 on all 496 checks; c3_m2 = 9c99e44):** the harness's reading held; plus bow_front_bleed
+0.0325 WARN -> 0 PASS, art_speckle_neck 1.34 -> 0.833 PASS, art_outline_collar 0.742 -> 1.381 PASS (flag; grade PASS),
+art_fragments_collar 4.741 -> 6.338 WARN (flag; grade FAIL both), hair_noise 0.0785 -> 0.0791 WARN (0.0009 of margin).
+
+**M2 gate (9c99e44 into pipeline-3d 0744ffe): PASS under K** (`charkit/out/gate/gate_tool-collar3_9c99e44_into_0744ffe.md`;
+pregate PASS, 188 moved, 0 blocking): no new FAIL, no flag-check regression, CPU 0.97x; PASS -> WARN: piece_cuff_L
+0.779 -> 0.733, shoulder_back_slope 0.08 -> 0.102 (a guard). shoulder_back_line stays 0.0565 FAIL: its top edge is the
+puffs (template, on the body's bones) and the hull collar's flap; M3's.
