@@ -7,7 +7,10 @@ last-bit masked-skin nondeterminism; (7) j, the load sampler at boot.
 
 ## State (read first when resuming)
 
-Subset 1 (items 1-3, plus the coordinator's --vrm drawing artifact): code done, unit-tested, gated.
+Subset 1 (items 1-3, plus the coordinator's --vrm drawing artifact): done, unit-tested, gated. **The tip f75a550 into
+pipeline-3d 3ebc3fb: PASS under K** (`charkit/out/gate/gate_tool-infra4_f75a550_into_3ebc3fb.md`): no check changed,
+CPU 1.33x (644 -> 855 s), 611 s. Commits after it: notes only. Items 4-7 not started: "Next steps" below.
+Earlier:
 - **tool/infra4 9ef6d1a into pipeline-3d 9eba0b0: PASS under K** (pipeline-3d's gate code;
   `charkit/out/gate/gate_tool-infra4_9ef6d1a_into_9eba0b0.md`): no check changed, CPU 1.26x (721 -> 910 s), 658 s.
   Commits after it: the crossed-QA rebase (1766073), the carry's later-commit check and the closure's test-scan fix
@@ -22,7 +25,7 @@ Subset 1 (items 1-3, plus the coordinator's --vrm drawing artifact): code done, 
   is now left out of a part's measure (2a0a39e; the pair then flags nothing, evalmesh and look6 unchanged).
 - Carry measurement: the definition rule first measured 2/151 like the file rule; the refusals were the measure guard
   counting cache.py (fixed above) and the unseen-data rule counting infra/*.sh, env examples and engine/*.js (closure:
-  only the kinds Blender's C code loads count unread, e02b2c5). Rerunning the four variants.
+  only the kinds Blender's C code loads count unread, e02b2c5). The after numbers are in section 3.
 
 ## 1. Unregistered remeasures (charkit/codediff.py, gate.py)
 
@@ -127,10 +130,53 @@ change. Now every build writes the look export (unless --no-look), and the VRM b
 the look export. qa.json's measured.draw names the export it drew (`export`), and the gate notes two reports that
 drew from different kinds (`gate.draw_exports`). Validation running: ed0f91a merged with this branch, into 9eba0b0.
 
-## Next steps
+**After** (the same 151 pairs, 27 reports; 23 pairs no longer merge, so 128 could carry at all):
+| rule | all pairs | the next pipeline-3d commit | laptop time |
+| --- | --- | --- | --- |
+| files (before; also with the narrowed unseen-data rule) | 2/151 (1.3%) | 1/25 | 153 s |
+| **definitions, both halves, QA guard (the default)** | **4/151 (2.6%)** | **3/25** | 1071 s |
+| definitions, the brief's half only | 5/151 (3.3%) | 4/25 | 1082 s |
+| definitions, no QA guard | 4/151 | 3/25 | 1076 s |
+What still refuses (a pair can have several): the two changes' definitions meet (120), the move changes a data file
+the baseline read (100: charkit/refs/clawd/manifest.json, spec/clawd.json, styles/anime.json, the render shaders,
+the references) or the candidate did (87), the QA guard (80, never alone once cache.py is bookkeeping). Today's merges
+were overlapping rounds of the same parts (hair, face, garments, the look) and nearly every one edited the manifest or
+the spec; a carry across them isn't safe by any rule that reads the files. The two variants are one pair apart; the
+default keeps the symmetric half (it refuses a move that changes a caller of the branch's change). The rule costs about
+7 s a carry (git trees parsed per blob, memoized).
 
-- Gate the real pairs with this gate code (`remote gate ... --code tool/infra4`): evalmesh 0c9eb95 into 25b1936, look6
-  bb3fdf1 into 4007276.
-- Item 3's after numbers (variants: the rule, one-directional, no QA guard, the file rule again).
-- Then subset 2: item 4 (pregate: piece_details' sleeve checks and the face parts need a real bundle: bodyeval's is
-  plain data; faceeval's Builder bundle needs a Blender-cached hair and garments), item 5 (TRELLIS), 6 (k), 7 (j).
+## Next steps (items 4-7 not started; the survey below is read-only)
+
+**Item 4, pregate's coverage.** The sleeve checks (sleeve_*_rough/spikes/profile, waistband_*, shorts_*, cuff_*: the
+`piece_details` part, charkit/pieceqa.py) and the face (`face` face_*, `face_region`: chin_angle, jaw_taper_shape,
+tq_cheek_hollow, ...) are QA parts that take a charkit.bundle.Bundle. pregate's evaluator (bodyfit.BodyChecks) makes
+bodymeasure's plain-dict bundle (bodyeval.Geometry.bundle), which those parts can't read. Two routes:
+1. build a real Bundle from the evaluator's geometry with bundle.Builder (as charkit.faceeval does for the face) and run
+   `qa3d.evaluate(B, parts=('piece_details', 'face', 'face_region'))` on it; first check which of the parts' reads the
+   Builder bundle carries (objects by name, per-face classes, the look), part by part, timing each;
+2. the face through charkit.faceeval, which needs a Blender-cached hair and garments (fit_blender.py --env) once per
+   base commit.
+Then measure the agreement with a real gate (`pregate --against` tool/face5's gate report, which had
+sleeve_profile_rough_L WARN -> FAIL and the chin checks), and list what stays gate-only (the render drawing's
+art_*/look, hair_*, poke, mesh, the expressions).
+
+**Item 5, TRELLIS (decision 8).** `git grep -n i3d` outside docs: bucketsync.py 25, scene.py 16, remote.py 12,
+bodyeval.py 11, infra/gcp/build.sh 10, geom/parts.py 7, tools/imageto3d/trellis_remote.sh 6, manifest.json 5,
+garments.py 4, tools/worktree.sh 3, geom/io.py, gate.py (_link_inputs), flapchains.py, faceeval.py, closure.py 3 each,
+and single references in preview, fit_blender, code_base, cli, cache, hair, geom/hull, faceqa, eyeqa, lookqa, sheetqa,
+spec/clawd_locks.json, refs/clawd/outfit_graph.json. The 'trellis' authority labels: checks.py AUTHORITY rows,
+bodyfit.AUTHORITY and _iou_term calls, facefit's terms, the manifest's "trellis" entries. Order: (a) a full build with
+charkit/out/i3d moved away, and grep the produced references' stamps for i3d paths: what still reads it; (b) stop
+shipping it (bucketsync's i3d handling, remote.py's seed and gate links, gate._link_inputs, tools/worktree.sh,
+build.sh); (c) rename the i3d module (the generated-GLB loader and aligner) and the 'trellis' labels (the manifest's
+authority names are data the QA reads: a label change may need a measurement step for face_shape_* and shape_iou*);
+(d) retire trellis_remote.sh, keep tools/imageto3d/trellis_ext. Gate it: the renames must move no value.
+
+**Item 6, k (masked-skin nondeterminism).** infra.md "Round 2" item (c) cause 2 has the probe. First, from two builds
+of one commit with --cache off (infra3's i A/B: charkit/out/i_before and i_after on the box), compare the bundles'
+array hashes: if only o/clawd_skin/masked/* differ, that's the case on the default spec; then the probe.
+
+**Item 7, j (the load sampler at boot).** boxjob.install_sampler writes the per-minute user crontab line as the box
+owner (jobs run as the owner through the as-owner wrapper); add an `@reboot` line the same way (the same CRON_MARK),
+install it with a no-op job on each box (`remote run true`, `remote --box render run true`), and check `crontab -l` as
+the owner on both. No VM metadata or startup-script changes.
