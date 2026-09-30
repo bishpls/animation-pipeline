@@ -59,8 +59,7 @@ EXPORT_CODE = ('charkit/gltf.py',)
 # CPU uncapped, 485 s and 527 s capped at 4, the outputs bit-identical (733 arrays, 351 checks). Uncapped, the CPU
 # a build burns spinning grows with the box's load (the same build measured 379 s and 1,291 s), which made policy K's
 # CPU rule noise. CHARKIT_GATE_THREADS overrides (0: uncapped).
-THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS', 'BLIS_NUM_THREADS',
-               'VECLIB_MAXIMUM_THREADS')
+from .procs import THREAD_VARS         # (numba, BLAS, OpenMP, llvmpipe) every build on the box has them now (procs.cap_threads)
 
 
 def _threads():

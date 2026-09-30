@@ -73,6 +73,57 @@ def test_wait_ends_with_the_build():
     procs.wait([d])                                               # no record: ended
 
 
+def test_a_build_holds_one_slot_for_all_it_starts():
+    """a whole build in one slot (i): what it starts (its Blender through procs.run, a worker's job, a build inside it)
+    takes none of its own, so one slot (the laptop's) can't deadlock; the slot frees when the block ends."""
+    procs.SLOTS_DIR = tempfile.mkdtemp()
+    os.environ['CHARKIT_BUILD_SLOTS'] = '1'
+    os.environ['CHARKIT_BUILD_MEM_GB'] = '0'
+    os.environ.pop(procs.HELD, None)
+    with procs.build_slot('outer') as lock:
+        assert lock is not None and os.environ[procs.HELD] == str(os.getpid())
+        assert len(procs.slot_holders()) == 1
+        inner = procs.acquire_slot('blender', poll=0.01)            # would wait forever on one slot otherwise
+        assert isinstance(inner, procs._Held)
+        inner.close()
+        r = procs.run([sys.executable, '-c', 'import os; print(os.environ.get("CHARKIT_SLOT_HELD"))'],
+                      tempfile.mkdtemp(), 'child')
+        assert r.stdout.strip() == str(os.getpid())                  # children see the held slot
+        with procs.build_slot('nested') as n2:
+            assert n2 is None
+        assert os.environ.get(procs.HELD)                           # a nested block leaves the outer's mark
+    assert procs.HELD not in os.environ and not procs.slot_holders()
+    procs.acquire_slot('after', poll=0.01).close()
+
+
+def test_thread_caps():
+    """the box's builds capped (i): a slot's share of a many-core machine, CHARKIT_THREADS to set or turn it off, and
+    a variable already set (a gate's) wins."""
+    old = {k: os.environ.pop(k, None) for k in procs.THREAD_VARS + ('CHARKIT_THREADS', 'OMP_WAIT_POLICY')}
+    real = os.cpu_count
+    try:
+        os.cpu_count = lambda: 32
+        assert procs.thread_cap() == 4
+        E = procs.thread_env()
+        assert E['LP_NUM_THREADS'] == '4' and E['NUMBA_NUM_THREADS'] == '4' and E['OMP_WAIT_POLICY'] == 'PASSIVE'
+        os.cpu_count = lambda: 12
+        assert procs.thread_cap() is None and procs.thread_env() == {}          # the laptop: uncapped
+        os.environ['CHARKIT_THREADS'] = '3'
+        assert procs.thread_cap() == 3
+        os.environ['CHARKIT_THREADS'] = 'off'
+        os.cpu_count = lambda: 32
+        assert procs.thread_cap() is None
+        os.environ.pop('CHARKIT_THREADS')
+        os.environ['NUMBA_NUM_THREADS'] = '2'
+        assert procs.cap_threads() == 2 and os.environ['OPENBLAS_NUM_THREADS'] == '4'
+    finally:
+        os.cpu_count = real
+        for k, v in old.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

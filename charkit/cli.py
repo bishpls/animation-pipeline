@@ -261,9 +261,22 @@ def sheets(spec, out):
 
 
 def build(args):
+    """`charkit build SPEC [--out DIR] ...`: the whole build in one machine-wide build slot (procs.build_slot; `--slot
+    blender`: only its Blender, as before), its thread pools capped on a many-core machine (procs.cap_threads, set by
+    main before anything loads numpy; `--threads N|off`)."""
+    from . import procs
+    name = json.load(open(args[0]))['name']
+    if '--slot' in args and args[args.index('--slot') + 1] == 'blender':
+        return _build(args)
+    with procs.build_slot('build ' + name):
+        return _build(args)
+
+
+def _build(args):
     spec_path = args[0]
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     name = json.load(open(spec_path))['name']
+    print('CHARKIT_THREADS %s' % (os.environ.get('NUMBA_NUM_THREADS') or 'uncapped'), flush=True)
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
     from . import cache
@@ -674,11 +687,27 @@ def figures(args):
         print('wrote', mp)
 
 
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains')
+
+
+def _cap(args):
+    """the command's thread pools capped (procs.cap_threads: on a many-core machine, the box), before anything loads
+    numpy, numba or a BLAS; `--threads N` or `--threads off` (uncapped) sets CHARKIT_THREADS for it."""
+    from . import procs
+    if '--threads' in args:
+        i = args.index('--threads')
+        os.environ['CHARKIT_THREADS'] = args[i + 1]
+        del args[i:i + 2]
+    procs.cap_threads()
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ('-h', '--help'):
         print(__doc__); return
     cmd, rest = argv[0], argv[1:]
+    if cmd in CAPPED:
+        _cap(rest)
     if cmd == 'build':
         build(rest)
     elif cmd == 'qa':
