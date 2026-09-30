@@ -346,7 +346,7 @@ class _FinalRec(_Rec):
 def finalize(P):
     """Michael's call J (M4): each recorded garment's Solidify and Subdivision Surface applied at rest, venv-side
     (charkit.evalmesh.finalize: geom.solidify then geom.subsurf, Blender's to 1e-5 L; the weights as the vertex groups
-    hold them, carried linearly as Blender carries vertex data). Its `_object` call gets the final mesh (final=True),
+    hold them, carried through the positions' limit stencil: evalmesh.WEIGHT_RULE, R3a). Its `_object` call gets the final mesh (final=True),
     its 'thick' and 'sub' modifier events go, and where they stood its object gets 'ck_shell' (the Solidify's
     thickness, for the outline's cap: shade.shell_of) and 'ck_final_levels'. The recording as made stays in
     meta['coarse_events'] (pieces(P, coarse=True): the lab's and motion QA's input). -> the product (a new dict)."""
@@ -400,7 +400,8 @@ def finalize(P):
             continue
         else:
             out.append(e)
-    return dict(meta=dict(meta, events=out, coarse_events=ev, final=dict(mods=list(FINAL_MODS), objects=len(new_call))),
+    return dict(meta=dict(meta, events=out, coarse_events=ev, final=dict(mods=list(FINAL_MODS), objects=len(new_call),
+                                                                    weight_rule=evalmesh.WEIGHT_RULE)),
                 arrays=arrays)
 
 

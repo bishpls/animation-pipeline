@@ -300,3 +300,161 @@ from another, key by key; `charkit/out/hairtag/r2/a1`, `a2`):
 carry-over gates, mouth2); only the qa3d steps list conflicted (both kept). Box builds of the merged head, default
 spec, `crown_trim` off (`charkit/out/h5_off`) and on (`h5_crown`, spec `charkit/out/h5spec/clawd_crown.json`): the
 coordinator's question, whether the crown trim holds art_terminator_hair under 2.5 on the exact normals.
+
+**The side locks' loss (new measure 0.536 -> 0.528, profile 0.501 -> 0.475)** is the profile's lower-back labels
+(`charkit/out/hairtag/r2/a3`): with the old profile lower back on the hull (everything else new), the new geometry reads
+side locks 0.538, upper back 0.772, lower back 0.605 (all at or above the old geometry's), but folds 12. The new
+profile lower back is the shadow tone below the head (the truth's rule 2, call B), and the hull's labeller gives each
+point the view that faces it most squarely: at the jaw that is the profile, so points the front view draws as side
+lock become lower back. A labeller that weighs the views' agreement (not only the squarest view) is the next step.
+Not a mask error: the new masks' remaining profile error runs the other way (lower back called side locks, 1,050 px).
+
+**crown_trim on the exact hair normals** (the coordinator's add-on; box builds of `0161ec5`, default spec, fetched to
+`charkit/out/h5_off` and `h5_crown`). Face4-crown's exact normals (pipeline-3d 4de65ab) took away what held the crown
+trim off in hair round 4 (art_terminator_hair 2.376 -> 2.607, the proxy normals' flips at the lock edges):
+
+| check | crown_trim off | on |
+|---|---|---|
+| art_terminator_hair (flag; pass 2.0, warn 2.5) | 2.252 WARN (front 2.192, three-quarter 2.252, profile 1.567, back 1.945) | **2.236** WARN (2.190, 2.236, 1.658, 1.796) |
+| art_peeks_hair (flag) | 16 WARN | 15 WARN |
+| hair_piece_upper_back / buns | 0.760 / 0.826 | 0.772 / 0.847 |
+| hair_bun_outline (front, profile) / corners | 0.385 (0.390, 0.375) / 22 | 0.436 / 19 |
+| hair_piece_bangs / side_locks / lower_back | 0.788 / 0.528 / 0.606 | 0.786 / 0.527 / 0.606 |
+| hair_noise | 0.0735 WARN | 0.076 WARN |
+| art_outline_hair (INFO) | 0.648 | 0.623 |
+| body_three_quarter_iou_hair (the other 48 body and shape IoUs, widths and tops unchanged) | 0.740 | 0.739 |
+| hair_folds / hair_penetration | 11 / 0 | 11 / 0 |
+
+No status or grade changed; the flag checks both improve. **crown_trim is on by default** (`hairpieces.OPTS`), riding
+this round's gate.
+
+### Round 2 gates and state (2026-09-30 night)
+
+- **tool/hairtag** `37c09cf` into pipeline-3d 4de65ab: `charkit/out/gate/gate_tool-hairtag_37c09cf_into_4de65ab.md`,
+  **PASS** under K (no new FAIL; the flag checks improve: art_terminator_hair 2.433 -> 2.236, art_peeks_hair 19 -> 15;
+  CPU 0.98x). Moved: hair_folds 6 -> 11 WARN, hair_bun_outline 0.397 -> 0.436 (FAIL both), hair_noise 0.0745 -> 0.076
+  (WARN both), art_outline_hair 0.71 -> 0.623 (INFO), body_three_quarter_iou_hair 0.742 -> 0.739. The hair_piece_*
+  checks are remeasured (the step at 97d9449). The gate's 2x2 fills the new-measure column only (old geometry ->
+  new: lower back 0.570 -> 0.606 improved, upper back 0.697 -> 0.772, buns 0.826 -> 0.847, bangs 0.786 -> 0.786, side
+  locks 0.537 -> 0.527, ahoge 0.356 -> 0.323, flyaways 0.171 -> 0.150). Its old-measure column is "unmeasured": the
+  crossed QA runs in the baseline's worktree, which reads the hair layers that worktree produced, and a cached
+  baseline worktree produced none. **A gate gap (infra's):** a 2x2 over a produced reference needs the crossed
+  worktree to produce it first. The lab's 2x2 above is that column.
+- **tool/hairtag-truth** `257aac0` (from pipeline-3d 4de65ab: the truth, the scorer, the review page and the labs, the
+  method behind `--struct`, off by default) into 4de65ab: `charkit/out/gate/gate_tool-hairtag-truth_257aac0_into_4de65ab.md`,
+  **PASS**, nothing reported (no check moved), CPU 1.10x.
+- pipeline-3d moved after both gates (f2ec090, tool/evalmesh M1): not re-gated.
+- Review page: `charkit/out/hairtag/r2page/index.html` (the 2x2, the pieces by family old and new, the crown-trim
+  pair's QA pictures side by side).
+
+**For Michael:**
+1. Which branch lands: tool/hairtag (the method on, crown_trim on: the back layers fit the truer target better, the
+   bun outline +0.039 and both flag checks improve, but folds 6 -> 11 and side locks -0.01 to -0.02), or
+   tool/hairtag-truth (the measurement alone, no geometry moved), with the method's geometry waiting on the next
+   items.
+2. Call B (the shadow tone below the head is the under layer) drives the side locks' loss through the hull's
+   labeller. Keep it and make the labeller weigh the views' agreement, or relax it at the jaw.
+
+**Next:**
+1. The hull's labeller: weigh the views that see a point, not only the squarest (the side locks' loss at the jaw).
+2. The side-lock trim's pull ending in a step (0.1 L in one row at phi 76-78, theta 125-129): the folds' spot.
+3. The front ahoge's shaded half (the tone split votes it bangs: truth front ahoge 0.846 -> 0.827), which moves the
+   ahoge piece and the front bun outline (-0.019).
+4. What the hair side needs from the sheet-only outfit masks (tool/garments3): the profile buns' undersides as bun
+   (1,258 px of profile bun are called upper back with them; buns 0.977 -> 0.948), and the far bun's peek as bun_R
+   (none at all with them). The clip rule now spares the buns' rim, so a pin piece that overlaps a bun's edge no
+   longer takes the bun's pixels, with either outfit mask set.
+
+## Round 3 (2026-09-30): the method on by default, the merge, hair_noise, the folds
+
+Michael's decisions (2026-09-30): the structure-based masks go on by default (0.892 -> 0.958 against the truth); the
+truth's calls A-E are accepted as truth. Lock 0 of the lower back (behind the jaw, its junction with the collar) is
+tool/collar's this round (art_speckle_neck): its trim is left alone here.
+
+**The merge** (`b7f63ff`, pipeline-3d 25b1936: crowntrim, the garments round's sheet-only outfit masks, look5 and look6,
+infra3's 2x2 fix, evalmesh, infra-auth). Conflicts: `hairlayers.STRUCT` (tool/hairtag-truth landed it off, as
+`STRUCT_ON` beside it): now `STRUCT = STRUCT_ON`, the plain transfer is `STRUCT_OFF` (`hairlayers SPEC --no-struct
+--out DIR`, for the old measure); crown_trim was the same change on both sides; the manifest takes outfit_truth; this
+file keeps tool/hairtag-truth's section. The suite the gate's way (`gate._tests`, each file a script): 66 files pass.
+
+**Gate 1** (d4d9033 into pipeline-3d 25b1936): `charkit/out/gate/gate_tool-hairtag_d4d9033_into_25b1936.md`, **FAIL
+under K**, one block: the flag check art_terminator_hair 2.286 -> 2.905 (its worst view the back: ratio 2.905 to the
+design's kinks per L). Reported, not blocking: hair_noise 0.0807 FAIL -> 0.0793 WARN (improved), art_speckle_neck
+2.606 WARN -> 1.34 PASS (improved), hair_folds 5 -> 4, art_peeks_hair 22 -> 16 (flag, value only), art_fragments_hair
+1.58 -> 1.23, hair_bun_outline 0.431 -> 0.456 (FAIL both), scalp_px 0 -> 4 (PASS), CPU 1.24x. The fixed 2x2 fills
+every cell now (old geometry old measure / new geometry old measure / old geometry new measure / candidate): lower back
+0.706 / 0.562 / 0.572 / 0.617 (worse under the old measure, better under the new), side locks 0.550 / 0.523 / 0.543 /
+0.534, upper back 0.768 / 0.721 / 0.701 / 0.768, bangs 0.760 / 0.758 / 0.785 / 0.792, buns 0.862 / 0.864 / 0.862 /
+0.864. On the merged base the folds and hair_noise premises changed: pipeline-3d's own build reads folds 5 (not round 2's
+6 -> 11 on the field's outfit masks) and the method lowers hair_noise under its line.
+
+**The terminator, attributed** (box builds of the merged head, default spec: `charkit/out/h6_m` as committed, and
+`h6_off` with the plain transfer, `STRUCT_OFF`, which reproduces pipeline-3d 25b1936's gate baseline exactly: 2.286,
+hair_noise 0.0807, folds 5, art_speckle_neck 2.606). The back view's hair terminator: 7 kinks in 3.60 L -> 14 in 3.56 L
+(ratio to the design's 1.355 kinks per L: 1.433 -> 2.905); the front's 40 -> 34. `tools/hairtag/termlab.py BEFORE AFTER
+OUT` runs the QA's artifacts part on one bundle with one hair object at a time taken whole from the other
+(`charkit/out/hairtag/r3/term1.json`): back ratio with the flyaways swapped 2.905 -> 2.080 (and pipeline-3d's with ours
+1.433 -> 2.042), side_lock_L 2.492 / 1.664, bun_L 2.553 / 1.735, upper back 2.832 / 1.708; the rest within 0.03. The
+flyaway blades barely moved (five, the same places, one 0.02 L deeper): their shading did. Each vertex takes the whole
+hair's blurred envelope normal, which turns along a blade standing out of the mass, so a cel terminator crosses each
+thin strand (the kinks on the side flicks at mid height and low on both sides, qa_artifacts back).
+
+**Fix, the builder's:** `strand_tone` (a style key; anime 'root', the default profile 'surface'): each flyaway strand
+shades in one tone, its root's normal. On the bundles (the flyaways' corner normals alone replaced): h6_m 2.905 FAIL
+grade -> **2.308 WARN** (back 3.936 -> 3.128 kinks per L, front 7.378 -> 7.108, three-quarter 9.41 -> 8.809), and
+pipeline-3d's own hair 2.286 -> 2.173. Under K a flag check blocks when its status or grade gets worse: 2.286 WARN ->
+2.308 WARN is a value move.
+
+**hair_noise, where it sits** (`tools/hairtag/noiselab.py BUILD OUT 'name|{...}'`: hairlab's rebuild, qa3d.hair_noise's
+drawing, each piece's pixels and tone-edge pixels per view; the lab reads 0.0791 on h6_m, the build 0.0793): front
+0.124 (1,157 edges in 9,304 px: bangs 333 round the star clip, side locks 209 + 205, lower back 197, bun_L 142, bun_R
+50, flyaways 21), profile 0.065 (bun_L 175, upper back 156, bangs 113), back 0.048 (upper back 173, lower back 137,
+bun_L 133, bun_R 64). bun_L's block facets carry 2-3x bun_R's edges in every view (its fit, not the light: the light is
+camera-relative). h6_off (pipeline-3d's hair) reads 0.0807 (front 0.1223, profile 0.0689, back 0.0508).
+
+**pipeline-3d 9eba0b0 merged** (`76b55cb`: tool/look6's design light, tool/evalmesh M4, tool/mouth3): the qa3d
+measurement steps conflicted (both kept); anime.json merged clean (look6's face_lift beside strand_tone). Suite: 66 pass.
+Pregate PASS (12 moved, 0 blocking): `charkit/out/pregate/pregate_tool-hairtag_76b55cb_into_9eba0b0.md`.
+
+**Gate 2** (76b55cb into 9eba0b0, with strand_tone; job `gate-hair4-0930-150450-121a`):
+`charkit/out/gate/gate_tool-hairtag_76b55cb_into_9eba0b0.md`, **PASS under K** (nothing blocks; 37 items; CPU 1.24x).
+Flag checks, values only: art_terminator_hair 2.286 -> 2.308 (WARN grade both, as the bundle lab said), art_peeks_hair
+22 -> 16. Improved: hair_noise 0.081 FAIL -> 0.0785 WARN, art_speckle_neck 2.606 WARN -> 1.34 PASS. hair_folds 5 -> 4.
+Remeasured, the 2x2 (old geometry old measure / new geometry old measure / old geometry new measure / candidate): lower
+back 0.706 / 0.562 / 0.572 / 0.617 (the one drop, under the old measure), side locks 0.550 / 0.523 / 0.543 / 0.534,
+upper back 0.768 / 0.721 / 0.701 / 0.768, bangs 0.760 / 0.758 / 0.785 / 0.792, buns 0.862 / 0.864 / 0.862 / 0.864.
+**Mergeable under K.**
+
+**The folds** (the merged build h6_m, `wherefolds.py` over foldlab's piece_folds; `charkit/out/hairtag/r3/`): 4 against
+pipeline-3d's 5: bangs lock 6 (phi 77.4, theta 68, the temple), side_lock_L lock 2 (phi 72.9, theta 126.9: round 2's
+spot, the trim's step at the jaw), side_lock_R lock 0 (phi -66.9, theta 119.2), upper back lock 7 inner (the crown).
+Round 2's 6 -> 11 was on the field's outfit masks; on the sheet-only masks' hull the new labels fold less than the old.
+Tried, not taken: the trim's pull eased along each column (`trim_slope`, a cone over the pulls, 0.005-0.03 L a row):
+the side_lock_L fold follows the ease's end (theta 127 -> 134-141; folds 4 / 5 / 5 / 4 / 5) and the lower back drops
+0.617 -> 0.602-0.605 (`charkit/out/hairtag/r3/slope1.txt`). Reverted.
+
+**The side locks** (step 5): the gate's 2x2 reads a geometry loss under both measures (0.550 -> 0.523 old, 0.543 ->
+0.534 new). Round 2 traced it to the hull labeller's squarest view (the profile's call-B lower back at the jaw). In the
+lab now: `label_hull(weigh=p)`, every view that sees a point votes its family with score ** p
+(`charkit/out/hairtag/r3/label_weigh.patch`, not committed; `labvote.py BUILD P...` beside it; results to
+`r3/vote1.txt`). **Result: weigh 1, 2 and 4 move 0 of the hull's labels** (every check, fold and shape IoU identical):
+no hull point is seen by more than two of the views, so the weighted vote always picks the squarest view's family.
+Round 2's "weigh the views' agreement" can't move the jaw's labels. What's left is call B itself (the profile's shadow
+tone at the jaw as the lower back), which Michael accepted as truth: the side locks' -0.009 under the new measure is
+that call's cost to the geometry unless a side-lock prior (the front view's side lock kept where the profile's lower
+back meets it at the jaw) is wanted.
+
+**hair_noise:** 0.0807 FAIL -> 0.0793 WARN at gate 1 (the method's masks lower it); where it sits is above (front view:
+bangs round the star clip, the side locks, bun_L's facets). Not fixed further this round. noiselab's drawing doesn't
+take the rebuilt flyaways' per-vertex normals (strand_tone reads the same there), so the build is its measure.
+
+**Next (a lean relaunch):**
+1. Gate 2 PASS under K (above). If pipeline-3d moves before the merge: `python -m charkit gate --carry tool/hairtag
+   --into pipeline-3d` (everything after 76b55cb is notes).
+2. The side locks: the labeller vote is moot (above). Only a decision on a side-lock prior at the jaw remains
+   (Michael's).
+3. hair_noise's margin (0.0793 against 0.08): bun_L's block facets (2-3x bun_R's edges in every view: its fit) and the
+   bangs' tone loops round the star clip are the largest movable parts.
+4. For tool/collar: this round didn't touch lock 0 of the lower back or its trim. art_speckle_neck reads 2.606 -> 1.34
+   (PASS) on this branch's masks at gate 1 (the profile 2.606 -> 0.628), so the method's lower-back labels alone clear
+   the profile's specks; the front's 1.34 is unchanged.
