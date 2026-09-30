@@ -468,3 +468,14 @@ page `charkit/out/g3_flaps/index.html` (A default; B = rot20). Reported, not blo
 `charkit/out/g3_render3` (e66abc8, boards) landed; regenerate with scratch `g5/review5.py charkit/out/g3_review
 charkit/out/<pipeline-3d build> charkit/out/g3_render3` (the old "before" was tr3_a). Next: the lock-0 fix (hair
 builder or the hull's carve at the back of the head), then re-gate.
+
+## Round 4 (the fourth agent): the lock-0 specks, the review page, the gate
+
+**Merges.** pipeline-3d 89ae4c1 (tool/face4's chin, tool/hairtag-truth: the hair truth and scorer, its structure method
+off) into a4eccc6: one conflict, `charkit/refs/clawd/manifest.json`, both new entries kept (outfit_truth, hair_truth).
+Then pipeline-3d f2ec090 (tool/evalmesh M1: the garments' winding decided venv-side, `geom.wind.orient`, passed to
+Blender as wound=True) into the merge after it: one conflict, `bodyeval.Part.subdivided` / `bodyeval.recalc_normals`:
+evalmesh's pass-through kept (no recalc_normals: the recorded faces are already wound) with call L's crease-aware
+`solidify(..., crease=solid_crease, with_sharp=True)` and the sharp edges through `subdivide`; the crease test
+(test_bodyeval) winds with `wind.orient` as evalmesh's own test does. Tests, each file as a script (the gate's way,
+`gate._tests`): 62 files ok after the first merge, 63 after the second (test_bow_tails.py among them).
