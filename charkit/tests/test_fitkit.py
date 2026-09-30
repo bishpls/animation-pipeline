@@ -1,6 +1,6 @@
 """charkit.fitkit on a toy evaluator with known answers: checks that are simple functions of two knobs (venv: run this
 file). The toy is fitkit's worker protocol: a class with checks(spec, group, fine)."""
-import os, sys
+import copy, os, sys
 
 import numpy as np
 
@@ -129,6 +129,64 @@ def test_fast_reaches_the_same_fit_in_fewer_evaluations():
     assert n1 < n0, (n0, n1)                                               # for fewer evaluations
     for i in range(8):                                                     # the same knobs, within a step
         assert abs(s1['wide']['k%d' % i] - s0['wide']['k%d' % i]) <= 0.05, (s0['wide'], s1['wide'])
+
+
+class WideGrad(Wide):
+    """Wide with the gradient path's protocol: unquantised where fine is False (a soft silhouette's smooth reading; the
+    fine reading stays quantised, as the QA's hard one), and jacobian(): each value's derivative in its knobs."""
+
+    def checks(self, spec, group, fine=False):
+        if fine:
+            return Wide.checks(self, spec, group, True)
+        k = [spec.get('wide', {}).get('k%d' % i, 1.0) for i in range(8)]
+        C = {'t%d' % i: {'value': k[i] - (0.6 + 0.1 * i), 'status': 'FAIL'} for i in range(8)}
+        C['sum'] = {'value': sum(k) - 8.6, 'status': 'FAIL'}
+        return C
+
+    def jacobian(self, spec, group, names):
+        D = {'t%d' % i: {'k%d' % i: 1.0} for i in range(8)}
+        D['sum'] = {n: 1.0 for n in names}
+        return self.checks(spec, group), D
+
+
+def test_gradient_path_is_opt_in_and_fewer_evaluations():
+    """optimise(gradient=True) takes every Jacobian from the evaluator's jacobian() (one call, no finite differences):
+    as good a fit on the fine (quantised) reading as the finite-difference paths, for fewer evaluations; the default
+    (GRADIENT False) never calls it."""
+    assert fitkit.GRADIENT is False
+    out = {}
+    for mode in ('plain', 'fast', 'gradient'):
+        pool = fitkit.Pool('charkit.tests.test_fitkit:WideGrad', (), workers=1)
+        spec, info = fitkit.optimise(pool, {'name': 'wide'}, WIDE, WIDE_TERMS, 'w', protect=False,
+                                     fast=mode != 'plain', gradient=True if mode == 'gradient' else None,
+                                     log=lambda *a: None)
+        R = fitkit.residuals(Wide().checks(spec, 'w'), WIDE_TERMS)
+        out[mode] = (fitkit.cost(R, [k.get(spec) for k in WIDE], WIDE), info['evaluations'], info)
+    assert out['gradient'][2]['gradient'] and 'jacobian' in out['gradient'][2]['phases']
+    assert not out['fast'][2]['gradient'] and 'jacobian' not in out['fast'][2]['phases']
+    assert out['gradient'][0] <= min(out['plain'][0], out['fast'][0]) * 1.05 + 1e-6, out
+    assert out['gradient'][1] < out['fast'][1] < out['plain'][1], {m: o[1] for m, o in out.items()}
+    print('  evaluations: plain %d, fast %d, gradient %d; fine cost %.4f / %.4f / %.4f' % tuple(
+        [out[m][1] for m in ('plain', 'fast', 'gradient')] + [out[m][0] for m in ('plain', 'fast', 'gradient')]))
+
+
+def test_dresidual_matches_finite_differences():
+    """Term.dresidual's reading derivatives (ratio, abs, gap past half its tolerance, floor below it) against the
+    residual's own finite differences on WideGrad."""
+    E = WideGrad()
+    terms = [Term('t1', None, 'ratio', 0.1, 'f', 's', 'f', 'w'), Term('t2', None, 'abs', 0.02, 'f', 's', 'f', 'w'),
+             Term('t3', None, 'gap', 0.2, 'f', 's', 'f', 'w'),
+             Term('t4', None, 'floor', 0.05, 'f', 's', 'f', 'w', floor=0.9), Term('sum', None, 'abs', 0.05, 'f', 's', 'f', 'w')]
+    spec = {'wide': {'k%d' % i: 0.9 + 0.07 * i for i in range(8)}}
+    names = ['k%d' % i for i in range(8)]
+    c, D = E.jacobian(spec, 'w', names)
+    for t in terms:
+        a = t.dresidual(c, D, names)
+        for j, n in enumerate(names):
+            sp, sm = copy.deepcopy(spec), copy.deepcopy(spec)
+            sp['wide'][n] += 1e-6; sm['wide'][n] -= 1e-6
+            fd = (t.residual(E.checks(sp, 'w'))[0] - t.residual(E.checks(sm, 'w'))[0]) / 2e-6
+            assert abs(a[j] - fd) < 1e-4 * max(1, abs(fd)), (t.name, n, a[j], fd)
 
 
 if __name__ == '__main__':
