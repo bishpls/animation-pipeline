@@ -1,5 +1,5 @@
 {
- "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. look: a key light that turns with the camera (the design's turnarounds are lit from the viewer's side in every view), outlines a constant share of the picture, the head and neck shaded on a smooth stand-in's normals, the hair's drawn highlight streaks; values set against charkit/lookqa's measures (docs/workstreams/look.md).",
+ "_note": "Anime (HoYoverse-style) 3D. hull, measured on Clawd's body_turnaround (the three-quarter held out): ellipses (p 2) 0.797 > p 2.5 0.791 > p 3.0 0.782; smoothing across heights with the drawn silhouettes restored (one median-depth voxel per missing pixel): 0.02 L 0.832, 0.04 0.846, 0.06 0.850, 0.09 0.856, the drawn views unchanged (0.961-0.985). physics: garments hold their drawn shape (skirts stand out, puffs keep their volume); values to be tuned when the solvers land. look: a key light that turns with the camera (the design's turnarounds are lit from the viewer's side in every view), outlines a constant share of the picture, the head and neck shaded on a smooth stand-in's normals, the hair's drawn highlight streaks; values set against charkit/lookqa's measures (docs/workstreams/look.md). face: the eye region is a window (charkit.geom.headfit.eye_fill): the eye's opening on a plane through the design's eye depth, yawed back by the design's own profile/front eye widths, the brow and cheek held behind it, the cheek term fullest at the cheekbone (0.75). Measured on Clawd's head sections against the socket: the hollow down the eye's column 0.053 -> 0.026 L, the cheek's lead over the eye 0.075 -> 0.017, the largest local concavity 0.038 -> 0.008; the eye's predicted width against the design's 1.42 -> 1.00 in profile, 1.21 -> 1.09 in three-quarter; the head's sheet checks all PASS either way. curve 2 against 4 and 8: 4 and 8 leave the cheek 0.03-0.04 L forward of the eye. release 0 (the hold lets go toward the nose from the eye's own column) against 0.5: the groove where the held cheek met the muzzle, the largest local hollow across, 0.024 -> 0.016 L; the rest unchanged. The brow is held more loosely than the cheek (curve [8, 2] above and below, reach up 0.12): it sits under the fringe, may keep a slight recess over the eye (the hollow 0.005 -> 0.021 L), and setting it back 0.05 L let the hull's face carve (charkit.geom.hull.carve_face) take the fringe's tips. forward (a cap on how far the window may bring the face out of its own surface) is left off: set to 0 it was meant to keep the outer eye behind the fringe's tip, but the box builds read hair_fringe_low 0.033 either way (the tip goes to the hull's face carve, charkit.geom.hull.carve_face, which uses this head), while the eye's width against the design's went 1.08 -> 1.14 in three-quarter and 0.89 -> 1.11 in profile and sheet_width 1.078 -> 1.083 (WARN).",
  "hull": {
   "p": 2.0,
   "class_share": 0.6,
@@ -86,5 +86,35 @@
     "lower_back"
    ]
   }
+ },
+ "face": {
+  "eye_region": "window",
+  "curve": [
+   8.0,
+   2.0
+  ],
+  "cheek_peak": 0.75,
+  "release": 0.0,
+  "reach": [
+   0.12,
+   0.3
+  ]
+ },
+ "_note_eyes": "eyes: the eye's surface turned round a fold at the iris's nasal edge (charkit.eyes.Surface; docs/workstreams/eyes2.md). The head sheet's eyes, measured per view by charkit.eyeqa (eye_view_*): in profile the iris sits against the opening's front edge (front_gap 0.000), all the white behind it (behind 1.00); in three-quarter the near eye's nasal white narrows (0.069 against the front's 0.09) and the far eye's widens (0.158). A plate on the face can't: every view sees its whole opening (profile front_gap 0.188, behind 0.00; three-quarter 0.179). Measured on Clawd (faceeval, clawd_body at tool/face 91e44ca): turn [-10, 5, 50] with fold_follow 0.5 and flick_turn 40 leaves one per-view WARN (the far eye's three-quarter nasal white 0.103 against 0.158); [-5, 10, 45] with fold_follow 1 leaves two (that, and the profile's iris too wide: gaze_off 0.181 against 0.258). The flick carried on the corner's own slope (flick_turn None) sweeps too far back once the corner turns 50 degrees (flick_out 0.70-0.81 against 0.556). anchor 'corners' (the corners on the face, the middle up to 0.03 L forward: faceregion's eye_hollow 0.016 -> 0.012, eye_bowl unchanged) against 'min' (the corners 0.03-0.05 L behind the face: eye_hollow 0.029-0.046, the far eye's nasal white hidden in three-quarter). converge 0.09: the head sheet converges the irises 0.087 of the opening in front (gaze_off; ours 0.064); 0.06-0.07 widen the far eye's white (0.125-0.15) but move its iris and the front's out of their bands. fold_back 0.015 L: anchored at the corners, the eye's middle comes forward and the profile's visible iris with it (0.012 L forward of where the plate had it); set back 0.015 it sits 0.003 L behind. The sheet checks anchor on each iris plate's vertex mean, which the turned surface carries 0.012 L further forward than the visible iris: at 0 they read sheet_profile 0.024 and nose_reach -0.032 (WARN), at 0.015 0.012 and -0.018 (PASS). Past 0.015 the corners sit behind the skin and the far eye's three-quarter iris moves out of its band.",
+ "eyes": {
+  "surface": "turned",
+  "turn": [
+   -10.0,
+   5.0,
+   50.0
+  ],
+  "fold_at": 0.0,
+  "fold_soft": 0.03,
+  "fold_reach": 0.035,
+  "fold_follow": 0.5,
+  "anchor": "corners",
+  "fold_back": 0.015,
+  "flick_turn": 40.0,
+  "converge": 0.09
  }
 }

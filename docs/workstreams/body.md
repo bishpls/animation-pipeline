@@ -5,6 +5,12 @@
 The branch, gates, numbers, open items and gotchas are in `docs/workstreams/garments.md` (its checkpoint section);
 the body and the garments share `tool/body`.
 
+Round 6 (2026-09-30), body-side: the pointed bump behind the thigh in profile (Michael's review of round 5) is
+measured (`body_profile_leg_back`, detailqa) and is tool/hull-limbs': the hull labels skin across the profile's whole
+side run at the thigh's top rows (z -2.72..-2.76), and the thigh's fit bulges 0.07-0.11 L behind the design's over the
+next 0.15 L. The body fit is unchanged; details in garments.md's round 6 checkpoint. The body's midline is x 0 (the
+hips'); the legs' midline, 0.0107 L, stays the boots' plane.
+
 Round 5 (2026-09-30), body-side: the boots are a template on the leg joints (the two ankle joints made mirror images
 about the legs' midline, x 0.0107 L: the body's legs are symmetric about it, not about 0), hiding the leg and foot
 inside; the top eases onto the waistband. Details in garments.md's round 5 checkpoint.
