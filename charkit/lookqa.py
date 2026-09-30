@@ -31,7 +31,7 @@ resolution: a 2 px line at 200 px per L x 3 is three sub-pixels across).
 
     table, checks = lookqa.measure(B, design, out)      # charkit.qa3d's 'look' part
 """
-import os
+import json, os
 
 import numpy as np
 
@@ -160,15 +160,15 @@ def _tones(B, view, fr, ldir=None, picture=True, soft=False):
     m = (aux['mesh'] == 0) & np.isfinite(aux['tone'])
     t = np.nan_to_num(aux['tone'])
     q = np.where(m, np.rint(t), -1).astype(int)
-    if soft:                                                    # the tone steps' soft pixels
-        return q, m, px, m & (np.abs(t - np.rint(t)) > 0.1)
+    if soft:                                                    # the tone steps' soft pixels, and the depth (the jaw)
+        return q, m, px, m & (np.abs(t - np.rint(t)) > 0.1), aux['depth']
     return q, m, px
 
 
 def board_tones(B, fr, az, view=None):
     """skin_tones under the boards' light, once per bundle, frame and azimuth (face_noise and face_shadow share it),
-    and its soft pixels (a tone between steps: a ramp's width on the skin, 0.1 .. 0.9 of a step) -> (q, m, px, soft);
-    view: the azimuth's draw_view when the caller has one."""
+    its soft pixels (a tone between steps: a ramp's width on the skin, 0.1 .. 0.9 of a step) and the depth -> (q, m, px,
+    soft, depth); view: the azimuth's draw_view when the caller has one."""
     from . import qa3d
 
     return B.memo(('lookqa.board_tones', fr.key, float(az)),
@@ -206,7 +206,7 @@ def face_noise(B, out=None, design=None, fr=None):
     per, sweep, isl, pics = {}, {}, {}, []
     for az in VIEWS:
         view = qa3d.draw_view(B, surfs, az, fr)
-        q, m, px, _ = board_tones(B, fr, az, view)
+        q, m, px = board_tones(B, fr, az, view)[:3]
         rows = np.arange(q.shape[0])[:, None]
         m = m & (rows < chin_row + 0.5 * fr.ppl * ss)              # the face and the neck (as design_noise's)
         if m.sum() < 100:
@@ -320,26 +320,118 @@ def _ours_eyes(B, fr, az):
     return fr.project(np.array([c for c in qa3d.iris_centres(B)]), az)
 
 
+def design_light(design):
+    """the reference light the design's drawn shading implies: the manifest's design_light (charkit.designlight's fit;
+    docs/workstreams/look.md round 6) -> dict(mode 'camera', key [deg left of the camera, deg up], ...) or None. A
+    reference for the QA only: the boards' light is the style's look.light (Michael's call A)."""
+    if design is None:
+        return None
+    r = design.ref()
+    DL = r.get('design_light')
+    if DL is None and r.get('manifest'):
+        from . import manifest, qa3d
+        try:
+            DL = manifest.load(r['manifest']).get('design_light')
+            design._rec(qa3d._path(r['manifest']))
+        except (OSError, ValueError, KeyError):
+            DL = None
+    return DL if isinstance(DL, dict) and DL.get('mode') == 'camera' and DL.get('key') else None
+
+
+_LIGHT_FRAMES = {}
+
+
+def light_frames(B, el, cast=None):
+    """charkit.render's Frames over the build's export with its cast shadows rebaked at elevation el (the bake keys on
+    the light's elevation: charkit.designlight.rebake, bit-identical to the build's own at its elevation, carried onto
+    the export's skin) -> Frames, or None (the numpy drawing: it keeps the build's bake). cast: the look's face.cast
+    overridden (a lab's options: px, soft, smooth, face, lift, bias; 'hair': the occluders' names)."""
+    from . import qarender
+    Q = qarender.frames(B)
+    look = B.meta('look') or {}
+    el0 = float(((look.get('light') or {}).get('key') or (39.3, 44.6))[1])
+    if Q is None or not (look.get('face') or {}).get('cast') or (abs(el - el0) < 1e-6 and not cast):
+        return Q
+    path = qarender.export_of(B)
+    key = (os.path.abspath(path), os.path.getmtime(path), round(float(el), 6), json.dumps(cast, sort_keys=True))
+    if key not in _LIGHT_FRAMES:
+        from . import designlight
+        from .render import buffers, model
+        M = model.load(path)
+        c = dict(cast or {})
+        hair = c.pop('hair', None)
+        for k, v in designlight.carry(B, M, designlight.rebake(B, el, c, hair)).items():
+            M.prims[k].cast = np.ascontiguousarray(v, np.float32)
+        _LIGHT_FRAMES.clear()
+        _LIGHT_FRAMES[key] = buffers.Frames(M, adapter=os.environ.get('CHARKIT_RENDER_ADAPTER'))
+    return _LIGHT_FRAMES[key]
+
+
+def light_tones(B, fr, az, key, cast=None):
+    """board_tones under a camera key (a0 deg left of the camera, el up: the design light), the cast rebaked at el
+    (light_frames; cast: its options overridden) -> (q, m, px, soft, depth)."""
+    from . import qa3d, qarender
+
+    def make():
+        surfs = _scene(B, bare=True)
+        Q = light_frames(B, float(key[1]), cast)
+        view = qarender.view(B, surfs, az, fr, Q=Q) if Q is not None else None
+        if view is None:
+            view = qa3d.draw_view(B, surfs, az, fr)
+        return _tones(B, view, fr, ldir=key_light(az, *key), soft=True)
+    return B.memo(('lookqa.light_tones', fr.key, float(az), tuple(float(x) for x in key),
+                   json.dumps(cast, sort_keys=True)), make)
+
+
 def face_shadow(B, design, out=None, fr=None):
-    """-> (table, checks face_shadow_3q (the three-quarter's shadow IoU), face_shadow_face_3q, face_shadow_neck_3q (the
-    share of face and neck skin in shadow, ours less the design's), face_shadow_chin (graded: the shadow under the chin,
-    its IoU with the design's over the neck window in the front and three-quarter views) and face_shadow_chin_edge
-    (graded: how far our shadow's reach under the chin is from the design's, per column, L)): see the module."""
+    """-> (table, checks): see the module. Under the design light (the manifest's design_light: the light the drawing's
+    shading implies) when the design has one, the boards' light's values beside ('board'); else under the boards'.
+      face_shadow_3q                the three-quarter's shadow IoU with the design's (eye-aligned; front and profile in
+                                    per_view)
+      face_shadow_face_3q / _neck_3q  the share of the face (above our chin) and the neck in shadow, ours less the
+                                    design's (per_view: every view's)
+      face_shadow_chin, _chin_edge  the shadow under the chin on the jaw (chin_on_jaw): its IoU with the design's in jaw
+                                    coordinates, and its lower edge's distance from the design's (L); calibrated (CHIN_CAL)
+      face_shadow_chin_soft         the tone steps' soft width on the neck (INFO)"""
     D = design_heads(design) if design is not None else None
     if D is None:
         return None, {'face_shadow_3q': {'status': 'SKIPPED', 'why': 'no spec.ref.face_sheet'}}
     fr = fr or HeadFrame(B)
+    DL = design_light(design)
+    lights = [('design', DL['key'])] if DL else []
+    lights.append(('board', None))
+    tables = {}
+    pics, chin_pics = [], []
+    for li, (lname, key) in enumerate(lights):
+        t, p, cp = _shadow_views(B, D, fr, key, pictures=bool(out) and li == 0)
+        tables[lname] = t
+        pics += p
+        chin_pics += cp
+    main = lights[0][0]
+    table = dict(tables[main], light=dict(name=main, key=list(DL['key']) if DL else None,
+                                          board=tables.get('board') if main != 'board' else None))
+    C = _shadow_checks(tables[main], tables.get('board') if main != 'board' else None, main)
+    if out and pics:
+        _save_row(os.path.join(out, 'qa_face_shadow.png'), pics)
+    if out and chin_pics:
+        _save_row(os.path.join(out, 'qa_chin_shadow.png'), chin_pics)
+    return table, C
+
+
+def _shadow_views(B, D, fr, key, pictures=False, cast=None):
+    """face_shadow's per-view table under a camera key (None: the boards' light; cast: light_frames') -> (table,
+    pictures, chin pictures)."""
     ss = fr.ss
     chin_z = fr.eye_z - float(B.assembly['chin'])
     rows_ours = fr.row(chin_z)
-    table, C, pics, chin_pics = {}, {}, [], []
+    table, pics, chin_pics = {}, [], []
     for view, az in (('front', 0.0), ('three_quarter', D['az3']), ('profile', 90.0)):
         h = D['heads'].get(view)
         if not h or not h['eyes']:
             continue
-        q, m, px, soft = board_tones(B, fr, az)
+        q, m, px, soft, depth = board_tones(B, fr, az) if key is None else light_tones(B, fr, az, key, cast)
         chin_soft = _soft_width(q, m, soft, int(rows_ours * ss), int((rows_ours + 0.5 * fr.ppl) * ss), fr.ppl * ss)
-        q, m = q[ss // 2::ss, ss // 2::ss], m[ss // 2::ss, ss // 2::ss]
+        q, m, depth = q[ss // 2::ss, ss // 2::ss], m[ss // 2::ss, ss // 2::ss], depth[ss // 2::ss, ss // 2::ss]
         ours_sh = m & (q >= 1)
         # the design's view, cut to our window round its eyes (translation only: one scale, one eye line)
         oe = _ours_eyes(B, fr, az)
@@ -361,6 +453,9 @@ def face_shadow(B, design, out=None, fr=None):
         lab[y0 - dy:y1 - dy, x0 - dx:x1 - dx] = sub
         d_skin = (lab == 1) | (lab == 5)
         d_sh = lab == 5
+        d_rgb = _crop_design(D['rgb'], dy, dx, H, W)
+        rr, cc = np.mgrid[dy:dy + H, dx:dx + W]
+        d_line = (d_rgb.max(-1) < LINE_W_V) & (cc >= bx[0]) & (cc < bx[2]) & (rr >= bx[1]) & (rr < bx[3])
         rows = np.arange(H)[:, None]
         face_r, neck_r = rows < rows_ours, (rows >= rows_ours) & (rows < rows_ours + 0.5 * fr.ppl)
         both = m & d_skin
@@ -373,55 +468,94 @@ def face_shadow(B, design, out=None, fr=None):
         rec['iou'] = round(float((ours_sh & d_sh & both).sum() / u.sum()), 4) if u.sum() > 50 else None
         rec['az'] = az
         if view in CHIN_VIEWS:
-            rec['chin'] = dict(_chin(ours_sh, d_sh, both & neck_r, fr.ppl), soft=chin_soft)
+            cx = float(o_c[0])
+            Jo = jaw_depth(m, depth, rows_ours, cx, fr.ppl, fr.L)
+            Jd = jaw_drawn(d_skin, d_line, rows_ours, cx, fr.ppl)
+            go, gd = jaw_frame(ours_sh, m, Jo, fr.ppl), jaw_frame(d_sh, d_skin, Jd, fr.ppl)
+            rec['chin'] = dict(chin_on_jaw(go, gd, fr.ppl), soft=chin_soft,
+                               eye_aligned=_chin(ours_sh, d_sh, both & neck_r, fr.ppl))
+            if pictures:
+                chin_pics += [_jaw_pic(d_rgb, d_sh, Jd, rows_ours, cx, fr.ppl), _jaw_pic(qa_px(px),
+                              ours_sh, Jo, rows_ours, cx, fr.ppl), _jaw_grid_pic(go, gd)]
         table[view] = rec
-        if out:
-            pics += [_crop_design(D['rgb'], dy, dx, H, W), qa_px(px), _shadow_pic(m, ours_sh, d_skin, d_sh)]
-            if view in CHIN_VIEWS:
-                cx = int(round(o_c[0]))
-                r0, r1 = int(rows_ours - CHIN_PIC[0] * fr.ppl), int(rows_ours + CHIN_PIC[1] * fr.ppl)
-                c0, c1 = cx - int(CHIN_PIC[2] * fr.ppl), cx + int(CHIN_PIC[2] * fr.ppl)
-                cut = lambda a: _cut(a, r0, r1, c0, c1)
-                chin_pics += [cut(_crop_design(D['rgb'], dy, dx, H, W)), cut(qa_px(px)),
-                              cut(_shadow_pic(m, ours_sh, d_skin, d_sh))]
-    ch = {v: r['chin'] for v, r in table.items() if r.get('chin') and r['chin'].get('iou') is not None}
+        if pictures:
+            pics += [d_rgb, qa_px(px), _shadow_pic(m, ours_sh, d_skin, d_sh)]
+    return table, pics, chin_pics
+
+
+def _shadow_checks(t, board, light):
+    """face_shadow's checks from its table under the main light (board: the boards' light's table beside)."""
+    C = {}
+    note = lambda c: dict(c, light=light)
+    ch = {v: r['chin'] for v, r in t.items() if r.get('chin') and r['chin'].get('iou') is not None}
     if ch:
+        bch = {v: r['chin'] for v, r in (board or {}).items() if r.get('chin') and r['chin'].get('iou') is not None}
         iou = float(np.mean([c['iou'] for c in ch.values()]))
-        edge = float(np.mean([c['edge'] for c in ch.values()]))
-        C['face_shadow_chin'] = _flag({'value': round(iou, 4), 'per_view': {v: c['iou'] for v, c in ch.items()},
-                                       'grade': _grade_chin(iou, CHIN_IOU, True)})
+        C['face_shadow_chin'] = note(_graded({'value': round(iou, 4), 'per_view': {v: c['iou'] for v, c in ch.items()}},
+                                             iou, CHIN_IOU, True, CHIN_CAL['iou']))
+        m = [c for c in ch.values() if c.get('edge') is not None]
+        if m:
+            edge = float(np.mean([c['edge'] for c in m]))
+            C['face_shadow_chin_edge'] = note(_graded({
+                'value': round(edge, 4), 'per_view': {v: c['edge'] for v, c in ch.items()},
+                'ours_reach': {v: c['ours_reach'] for v, c in ch.items()},
+                'design_reach': {v: c['design_reach'] for v, c in ch.items()}}, edge, CHIN_EDGE, False, CHIN_CAL['edge']))
         sw = [c['soft'] for c in ch.values() if c.get('soft') is not None]
         if sw:
-            C['face_shadow_chin_soft'] = {'value': round(float(np.mean(sw)), 4), 'status': 'INFO',
-                                          'per_view': {v: c['soft'] for v, c in ch.items()}}
-        C['face_shadow_chin_edge'] = _flag({'value': round(edge, 4), 'per_view': {v: c['edge'] for v, c in ch.items()},
-                                            'ours_reach': {v: c['ours_reach'] for v, c in ch.items()},
-                                            'design_reach': {v: c['design_reach'] for v, c in ch.items()},
-                                            'ours_depth': {v: c['ours_depth'] for v, c in ch.items()},
-                                            'design_depth': {v: c['design_depth'] for v, c in ch.items()},
-                                            'grade': _grade_chin(edge, CHIN_EDGE, False)})
-    t = table.get('three_quarter')
-    if t:
-        C['face_shadow_3q'] = {'value': t['iou'], 'status': 'INFO', 'per_view': {v: r['iou'] for v, r in table.items()}}
+            C['face_shadow_chin_soft'] = note({'value': round(float(np.mean(sw)), 4), 'status': 'INFO',
+                                               'per_view': {v: c['soft'] for v, c in ch.items()}})
+        if bch:
+            C['face_shadow_chin']['board'] = round(float(np.mean([c['iou'] for c in bch.values()])), 4)
+            be = [c['edge'] for c in bch.values() if c.get('edge') is not None]
+            if be and 'face_shadow_chin_edge' in C:
+                C['face_shadow_chin_edge']['board'] = round(float(np.mean(be)), 4)
+    v3 = t.get('three_quarter')
+    if v3:
+        C['face_shadow_3q'] = note({'value': v3['iou'], 'status': 'INFO', 'per_view': {v: r['iou'] for v, r in t.items()}})
+        if board and board.get('three_quarter'):
+            C['face_shadow_3q']['board'] = board['three_quarter']['iou']
         for nm in ('face', 'neck'):
-            o, d = t[nm]['ours'], t[nm]['design']
+            o, d = v3[nm]['ours'], v3[nm]['design']
             if o is not None and d is not None:
-                C['face_shadow_%s_3q' % nm] = {'value': round(o - d, 4), 'ours': o, 'design': d, 'status': 'INFO'}
-    if out and pics:
-        _save_row(os.path.join(out, 'qa_face_shadow.png'), pics)
-    if out and chin_pics:
-        _save_row(os.path.join(out, 'qa_chin_shadow.png'), chin_pics)
-    return table, C
+                c = {'value': round(o - d, 4), 'ours': o, 'design': d, 'status': 'INFO',
+                     'per_view': {v: dict(ours=r[nm]['ours'], design=r[nm]['design']) for v, r in t.items()}}
+                if board and board.get('three_quarter'):
+                    c['board'] = {v: r[nm]['ours'] for v, r in board.items()}
+                C['face_shadow_%s_3q' % nm] = note(c)
+    return C
 
 
 CHIN_VIEWS = ('front', 'three_quarter')
-CHIN_IOU = (0.6, 0.4)            # face_shadow_chin: PASS at or over, WARN at or over (the neck's shadow IoU)
-CHIN_EDGE = (0.03, 0.06)         # face_shadow_chin_edge, L: PASS at or under, WARN at or under
+# on the jaw (chin_on_jaw): calibrated (look.md round 6): the design's own shadow moved 1-2 px against its jaw reads IoU
+# 0.81-0.94 and edge 0.003-0.012 L (PASS); round 1's band (look5_before: chin_tilt 85, no cast) reads IoU 0.68 and edge
+# 0.064 L under the boards' light (FAIL); under the design light see CHIN_CAL
+CHIN_IOU = (0.8, 0.7)            # face_shadow_chin: PASS at or over, WARN at or over (the IoU in jaw coordinates)
+CHIN_EDGE = (0.02, 0.04)         # face_shadow_chin_edge, L: PASS at or under, WARN at or under
+CHIN_CAL = {'iou': None, 'edge': None}          # (set below: whether each grade separates the design from the band)
 CHIN_PIC = (0.25, 0.55, 0.45)    # the chin close-up round our chin, L: above, below, either side
+JAW_WIN = (0.3, 0.15, 0.45)      # where the jaw is looked for: L over and under our chin's row, either side of the eyes
+JAW_RUN = 0.08                   # L: the thickest ink run a drawn jaw may be (the wedge under the chin's point)
+JAW_STEP = 0.004                 # L: the smallest step back in depth that is the jaw over the neck (ours)
+JAW_GRID = (0.4, 0.35)           # the jaw-aligned grid: L either side of the chin's point, L under the jaw
+JAW_NEAR = 0.03                  # L: a shadow starting further under the jaw than this is not the jaw's (its reach 0)
 
 
 CHIN_UNCALIBRATED = ("INFO: not calibrated (tool/look5, docs/workstreams/look.md round 5): the design's own shadow moved "
                      "1-2 px reads IoU 0.55-0.87, and round 1's band (chin_tilt 85) reads as the cast does")
+
+
+def _graded(c, v, lim, higher_better, cal):
+    """a chin check: graded when its measure is calibrated (cal: a note of what separates), else INFO with its proposed
+    grade beside (charkit.artifactqa's way)."""
+    g = _grade_chin(v, lim, higher_better)
+    if cal:
+        c['status'] = g
+        c['calibration'] = cal
+    else:
+        c['status'] = 'INFO'
+        c['grade'] = g
+        c['why'] = 'INFO: not calibrated on the jaw (docs/workstreams/look.md round 6)'
+    return c
 
 
 def _flag(c):
@@ -437,6 +571,144 @@ def _grade_chin(v, lim, higher_better):
     if higher_better:
         return 'PASS' if v >= p else 'WARN' if v >= w else 'FAIL'
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
+
+
+# ------------------------------------------------------------------------------------------------------ the chin, on the jaw
+def _jaw_cols(shape, chin_row, cx, ppl):
+    r0 = max(4, int(chin_row - JAW_WIN[0] * ppl))
+    r1 = min(shape[0] - 4, int(chin_row + JAW_WIN[1] * ppl))
+    c0, c1 = max(0, int(cx - JAW_WIN[2] * ppl)), min(shape[1], int(cx + JAW_WIN[2] * ppl))
+    return r0, r1, c0, c1
+
+
+def jaw_drawn(skin, line, chin_row, cx, ppl):
+    """the design's jaw per column: its lowest ink run (at most JAW_RUN L thick) with skin within 3 px over and under
+    it, in the jaw window round our chin's row -> {column: the neck's first row under it}."""
+    r0, r1, c0, c1 = _jaw_cols(skin.shape, chin_row, cx, ppl)
+    J = {}
+    for c in range(c0, c1):
+        col = line[:, c]
+        r, best = r0, None
+        while r < r1:
+            if col[r]:
+                s = r
+                while r < skin.shape[0] and col[r]:
+                    r += 1
+                if r - s <= JAW_RUN * ppl and skin[max(0, s - 3):s, c].any() and skin[r:r + 3, c].any():
+                    best = r
+            else:
+                r += 1
+        if best is not None:
+            while best < min(skin.shape[0], r1 + 4) and not skin[best, c]:
+                best += 1
+            J[c] = best
+    return J
+
+
+def jaw_depth(skin, depth, chin_row, cx, ppl, L):
+    """our jaw per column: the largest step back in depth (the neck behind the jaw) between skin pixels 1-3 rows apart
+    in the jaw window, if over JAW_STEP L -> {column: the neck's first row}."""
+    r0, r1, c0, c1 = _jaw_cols(skin.shape, chin_row, cx, ppl)
+    d = np.where(skin, depth, np.nan)[:, c0:c1]
+    best = np.zeros(c1 - c0)
+    row = np.full(c1 - c0, -1)
+    with np.errstate(invalid='ignore'):
+        for k in (1, 2, 3):
+            st = d[r0 + k:r1 + k] - d[r0:r1]
+            st = np.where(np.isfinite(st), st, -np.inf)
+            i = np.argmax(st, 0)
+            v = st[i, np.arange(st.shape[1])]
+            take = v > best
+            best[take], row[take] = v[take], (r0 + i + k)[take]
+    return {c0 + j: int(row[j]) for j in range(c1 - c0) if row[j] >= 0 and best[j] > JAW_STEP * L}
+
+
+def jaw_frame(shade, skin, J, ppl):
+    """the shadow and skin in jaw coordinates: columns u from the chin's point (the middle of the jaw's lowest columns)
+    JAW_GRID[0] L either side, rows k under the jaw down to JAW_GRID[1] L -> dict(sh, sk (2U+1, K) bool, reach (per u:
+    the bottom of the first shaded run starting within JAW_NEAR L of the jaw, L; 0 where none; NaN where no neck)) or
+    None."""
+    if len(J) < 5:
+        return None
+    cs = np.array(sorted(J))
+    js = np.array([J[c] for c in cs])
+    apex = int(round(cs[js >= js.max() - 1].mean()))
+    U, K = int(round(JAW_GRID[0] * ppl)), int(round(JAW_GRID[1] * ppl))
+    sh = np.zeros((2 * U + 1, K), bool)
+    sk = np.zeros((2 * U + 1, K), bool)
+    reach = np.full(2 * U + 1, np.nan)
+    near = JAW_NEAR * ppl
+    for i, c in enumerate(range(apex - U, apex + U + 1)):
+        j = J.get(c)
+        if j is None:
+            continue
+        n = max(0, min(K, skin.shape[0] - j))
+        sk[i, :n] = skin[j:j + n, c]
+        sh[i, :n] = shade[j:j + n, c] & skin[j:j + n, c]
+        if not sk[i, :3].any():
+            continue
+        idx = np.nonzero(sh[i])[0]
+        if not len(idx) or idx[0] > near:
+            reach[i] = 0.0
+            continue
+        b, gap = idx[0], 0
+        for k in range(idx[0] + 1, K):
+            if sh[i, k]:
+                b, gap = k, 0
+            elif sk[i, k]:
+                gap += 1
+                if gap > 2:
+                    break
+            else:
+                break
+        reach[i] = (b + 1) / ppl
+    return dict(sh=sh, sk=sk, reach=reach)
+
+
+def chin_on_jaw(o, d, ppl):
+    """ours against the design's on the jaw (jaw_frame's): the shadows' IoU over the cells both show skin, and the
+    lower edge's distance (the mean |our reach - the design's| over the columns both have, L: the V following the jaw
+    against a band low on the neck) -> dict(iou, edge, ours_reach, design_reach, cols, px)."""
+    none = dict(iou=None, edge=None, ours_reach=None, design_reach=None, cols=0, px=0)
+    if o is None or d is None:
+        return none
+    both = o['sk'] & d['sk']
+    if both.sum() < 50:
+        return dict(none, px=int(both.sum()))
+    u = (o['sh'] | d['sh']) & both
+    iou = float((o['sh'] & d['sh'] & both).sum() / max(1, u.sum()))
+    m = np.isfinite(o['reach']) & np.isfinite(d['reach'])
+    r4 = lambda x: round(float(x), 4)
+    if m.sum() < 5:
+        return dict(none, iou=r4(iou), px=int(both.sum()))
+    return dict(iou=r4(iou), edge=r4(np.mean(np.abs(o['reach'][m] - d['reach'][m]))), ours_reach=r4(o['reach'][m].mean()),
+                design_reach=r4(d['reach'][m].mean()), cols=int(m.sum()), px=int(both.sum()))
+
+
+def _jaw_pic(rgb, sh, J, chin_row, cx, ppl):
+    """a chin close-up: the picture, its shadow tinted blue, the jaw found (red)."""
+    img = np.clip(np.asarray(rgb, float)[..., :3], 0, 1).copy()
+    img[sh] = img[sh] * 0.55 + np.array([0.2, 0.3, 0.9]) * 0.45
+    for c, j in J.items():
+        if 0 <= j - 1 < img.shape[0]:
+            img[j - 1, c] = (0.9, 0.05, 0.05)
+    r0, r1 = int(chin_row - CHIN_PIC[0] * ppl), int(chin_row + CHIN_PIC[1] * ppl)
+    return _cut(img, r0, r1, int(cx - CHIN_PIC[2] * ppl), int(cx + CHIN_PIC[2] * ppl))
+
+
+def _jaw_grid_pic(o, d):
+    """the jaw-aligned grids overlaid (rows under the jaw down, columns across): both shaded (dark red), ours only
+    (orange), the design's only (blue), skin both lit (pale)."""
+    if o is None or d is None:
+        return np.full((20, 20, 3), 0.93)
+    both = o['sk'] & d['sk']
+    img = np.full(o['sh'].shape + (3,), 0.93)
+    img[o['sk'] | d['sk']] = (0.80, 0.80, 0.82)
+    img[both] = (0.99, 0.94, 0.90)
+    img[o['sh'] & ~d['sh'] & both] = (0.95, 0.55, 0.20)
+    img[d['sh'] & ~o['sh'] & both] = (0.25, 0.45, 0.90)
+    img[o['sh'] & d['sh'] & both] = (0.60, 0.12, 0.15)
+    return np.repeat(np.repeat(img.transpose(1, 0, 2), 2, 0), 2, 1)
 
 
 def _chin(ours_sh, d_sh, region, ppl):

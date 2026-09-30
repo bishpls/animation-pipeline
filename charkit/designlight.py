@@ -261,14 +261,19 @@ class Fitter:
         self.draw_head = [o.name for o in B.objects() if o.group != 'garment' and o.has('eval')]
         self._m = {}
         self.frames = 0
+        self.rebake = True                              # the cast baked at each light's elevation (False: the build's)
 
     def frame(self, sheet, view, d):
+        """a view's frame under the light d, the cast shadows rebaked at its elevation (lookqa.light_frames)."""
+        from . import lookqa
         s = self.setups[sheet][view]
         kw = dict(picture=False, light=np.asarray(d, float), line=0.0)
         if sheet == 'head':
             kw.update(draw=self.draw_head, variants={self.skin: 'bare'})
         self.frames += 1
-        return self.Q.frame(s['cam'], **kw)
+        el = round(math.degrees(math.asin(float(np.clip(d[2] / np.linalg.norm(d), -1, 1)))), 1)
+        Q = (lookqa.light_frames(self.B, el) if self.rebake else None) or self.Q
+        return Q.frame(s['cam'], **kw)
 
     def view_score(self, sheet, view, d):
         key = (sheet, view, tuple(np.round(d, 6)))
@@ -296,21 +301,32 @@ class Fitter:
 
 
 def _grid_search(f, a_range, e_range, fine=FINE):
-    """maximise f(a, e) on a grid, then a finer one round the best -> (best (a, e), value, the coarse table)."""
-    tab = {(float(a), float(e)): f(a, e) for a in a_range for e in e_range}
+    """maximise f(a, e) on a grid, then a finer one round the best -> (best (a, e), value, the coarse table). The
+    elevation is the outer loop (the cast is rebaked per elevation)."""
+    tab = {(float(a), float(e)): f(a, e) for e in e_range for a in a_range}
     (a, e), v = max(tab.items(), key=lambda t: t[1])
     st, r = fine['step'], fine['reach']
-    for a2 in np.arange(a - r, a + r + 1e-9, st):
-        for e2 in np.arange(max(-89, e - r), min(89, e + r) + 1e-9, st):
+    a0, e0 = a, e
+    for e2 in np.arange(max(-89, e0 - r), min(89, e0 + r) + 1e-9, st):
+        for a2 in np.arange(a0 - r, a0 + r + 1e-9, st):
             x = f(a2, e2)
             if x > v:
                 (a, e), v = (float(a2), float(e2)), x
     return (a, e), v, tab
 
 
-def fit(B, Q, design, regions=REGIONS, grid=GRID, sheets=('head', 'body')):
-    """-> dict: per view the best camera key and its score (per region), the joint camera key over every view and each
-    view's score under it, the joint world light, and the board light's scores."""
+def _fine(best, fine=FINE):
+    a, e = best
+    st, r = fine['step'], fine['reach']
+    return [(float(a2), float(e2)) for e2 in np.arange(max(-89, e - r), min(89, e + r) + 1e-9, st)
+            for a2 in np.arange(a - r, a + r + 1e-9, st)]
+
+
+def fit(B, Q, design, regions=REGIONS, grid=GRID, sheets=('head', 'body'), rebake=True):
+    """-> (dict: per view the best camera key and its score (per region), the joint camera key over every view and each
+    view's score under it, the joint world light, and the board light's scores; the Fitter). Every light is drawn with
+    the cast rebaked at its elevation (rebake=False: the build's bake, whatever the light). The lights are visited
+    elevation by elevation (a rebake each): the coarse grid, then 2.5 deg round each view's best and the joint's."""
     setups = {}
     if 'head' in sheets:
         H = head_design(design)
@@ -321,33 +337,133 @@ def fit(B, Q, design, regions=REGIONS, grid=GRID, sheets=('head', 'body')):
         if Bd:
             setups['body'] = body_setup(B, Q, Bd)
     Fi = Fitter(B, Q, setups)
+    Fi.rebake = rebake
+    views = Fi.views()
+    az = {(sh, v): Fi.setups[sh][v]['az'] for sh, v in views}
+    cam = lambda sh, v, a, e: objective(Fi.view_score(sh, v, camera_key(az[(sh, v)], a, e)), regions)
+    joint = lambda a, e: float(np.nanmean([cam(sh, v, a, e) for sh, v in views]))
+
+    def visit(points, fn):
+        """points [(a, e)] visited elevation by elevation."""
+        for a, e in sorted(set(points), key=lambda p: (p[1], p[0])):
+            fn(a, e)
+    coarse = [(float(a), float(e)) for e in grid['el'] for a in grid['a0']]
+    visit(coarse, lambda a, e: [cam(sh, v, a, e) for sh, v in views])
+    best = {k: max(coarse, key=lambda p, k=k: cam(*k, *p)) for k in views}
+    jbest = max(coarse, key=lambda p: joint(*p))
+    fine = [p for k in views for p in _fine(best[k])]
+    visit(fine + _fine(jbest), lambda a, e: [cam(sh, v, a, e) for sh, v in views])
     res = dict(views={}, regions=list(regions))
-    for sh, v in Fi.views():
-        f = lambda a, e, sh=sh, v=v: objective(Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], a, e)), regions)
-        (a, e), val, tab = _grid_search(f, grid['a0'], grid['el'])
-        res['views']['%s/%s' % (sh, v)] = dict(az=Fi.setups[sh][v]['az'], key=[a, e], value=round(val, 4),
-                                               regions=Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], a, e)),
-                                               surface=[[k[0], k[1], round(x, 4)] for k, x in tab.items()])
-    fj = lambda a, e: Fi.total(lambda sh, v, az: camera_key(az, a, e), regions)
-    (a, e), val, _ = _grid_search(fj, grid['a0'], grid['el'])
-    res['camera'] = dict(key=[a, e], value=round(val, 4), per_view={
-        '%s/%s' % (sh, v): dict(value=round(objective(Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], a, e)),
-                                                       regions), 4),
-                                regions=Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], a, e)))
-        for sh, v in Fi.views()})
-    fw = lambda p, e: Fi.total(lambda sh, v, az: world_dir(p, e), regions)
-    (p, e), val, _ = _grid_search(fw, np.arange(-180, 180, 15.0), grid['el'])
-    res['world'] = dict(dir=[p, e], value=round(val, 4), per_view={
-        '%s/%s' % (sh, v): round(objective(Fi.view_score(sh, v, world_dir(p, e)), regions), 4) for sh, v in Fi.views()})
+    for k in views:
+        pts = coarse + _fine(best[k])
+        a, e = max(pts, key=lambda p: cam(*k, *p))
+        sh, v = k
+        res['views']['%s/%s' % k] = dict(az=az[k], key=[a, e], value=round(cam(sh, v, a, e), 4),
+                                         regions=Fi.view_score(sh, v, camera_key(az[k], a, e)),
+                                         surface=[[p[0], p[1], round(cam(sh, v, *p), 4)] for p in coarse])
+    a, e = max(coarse + _fine(jbest), key=lambda p: joint(*p))
+
+    def under(dirs_of):
+        return {'%s/%s' % (sh, v): dict(value=round(objective(Fi.view_score(sh, v, dirs_of(sh, v)), regions), 4),
+                                        regions=Fi.view_score(sh, v, dirs_of(sh, v))) for sh, v in views}
+    res['camera'] = dict(key=[a, e], value=round(joint(a, e), 4),
+                         per_view=under(lambda sh, v: camera_key(az[(sh, v)], a, e)),
+                         surface=[[p[0], p[1], round(joint(*p), 4)] for p in coarse])
+    wgrid = [(float(p), float(e)) for e in grid['el'] for p in np.arange(-180, 180, 15.0)]
+    wv = lambda p, e: float(np.nanmean([objective(Fi.view_score(sh, v, world_dir(p, e)), regions) for sh, v in views]))
+    visit(wgrid, wv)
+    wb = max(wgrid, key=lambda q: wv(*q))
+    visit(_fine(wb), wv)
+    p, e = max(wgrid + _fine(wb), key=lambda q: wv(*q))
+    res['world'] = dict(dir=[p, e], value=round(wv(p, e), 4), per_view={
+        k: x['value'] for k, x in under(lambda sh, v: world_dir(p, e)).items()})
     look = B.meta('look') or {}
     bk = ((look.get('light') or {}).get('key')) or [30.0, 40.0]
-    res['board'] = dict(key=list(bk), value=round(fj(*bk), 4), per_view={
-        '%s/%s' % (sh, v): dict(value=round(objective(Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], *bk)),
-                                                       regions), 4),
-                                regions=Fi.view_score(sh, v, camera_key(Fi.setups[sh][v]['az'], *bk)))
-        for sh, v in Fi.views()})
+    res['board'] = dict(key=list(bk), value=round(joint(*bk), 4),
+                        per_view=under(lambda sh, v: camera_key(az[(sh, v)], *bk)))
     res['frames'] = Fi.frames
+    res['rebake'] = rebake
     return res, Fi
+
+
+MOVES = ((0, 1), (0, 2), (1, 0), (2, 0), (0, -1), (0, -2), (-1, 0), (-2, 0))
+
+
+def chin_calibration(B, design, key=None, moves=MOVES):
+    """the chin measures on the jaw (lookqa.chin_on_jaw) calibrated: the design's own shadow moved 1-2 px against its
+    jaw (each move against the design as drawn: a PASS must hold), and this bundle's (a known-bad build: it must FAIL)
+    under the camera key `key` (None: the boards' light) -> {view: dict(moved {move: (iou, edge)}, ours (iou, edge))}."""
+    from . import lookqa
+    H = head_design(design)
+    D = H['D']
+    fr = lookqa.HeadFrame(B)
+    ss = fr.ss
+    rows_ours = fr.row(fr.eye_z - float(B.assembly['chin']))
+    su = head_setup(B, None, H)
+    out = {}
+    for view in lookqa.CHIN_VIEWS:
+        s = su.get(view)
+        if s is None:
+            continue
+        az = s['az']
+        dy, dx = s['shift']
+        Ht, W = s['design']['skin'][0].shape
+        lab = np.zeros((Ht, W), int)
+        y0, x0 = max(0, dy), max(0, dx)
+        y1, x1 = min(D['lab'].shape[0], dy + Ht), min(D['lab'].shape[1], dx + W)
+        bx = D['heads'][view]['box']
+        sub = D['lab'][y0:y1, x0:x1].copy()
+        yy, xx = np.mgrid[y0:y1, x0:x1]
+        sub[(xx < bx[0]) | (xx >= bx[2]) | (yy < bx[1]) | (yy >= bx[3])] = 0
+        lab[y0 - dy:y1 - dy, x0 - dx:x1 - dx] = sub
+        d_skin, d_sh = (lab == 1) | (lab == 5), lab == 5
+        rr, cc = np.mgrid[dy:dy + Ht, dx:dx + W]
+        d_line = (s['rgb'].max(-1) < lookqa.LINE_W_V) & (cc >= bx[0]) & (cc < bx[2]) & (rr >= bx[1]) & (rr < bx[3])
+        cx = float((lookqa._ours_eyes(B, fr, az).mean(0))[0])
+        Jd = lookqa.jaw_drawn(d_skin, d_line, rows_ours, cx, fr.ppl)
+        gd = lookqa.jaw_frame(d_sh, d_skin, Jd, fr.ppl)
+        moved = {}
+        for my, mx in moves:
+            g = lookqa.jaw_frame(np.roll(np.roll(d_sh, my, 0), mx, 1) & d_skin, d_skin, Jd, fr.ppl)
+            c = lookqa.chin_on_jaw(g, gd, fr.ppl)
+            moved['%+d,%+d' % (my, mx)] = (c['iou'], c['edge'])
+        q, m, px, soft, depth = lookqa.board_tones(B, fr, az) if key is None else lookqa.light_tones(B, fr, az, key)
+        q, m, depth = q[ss // 2::ss, ss // 2::ss], m[ss // 2::ss, ss // 2::ss], depth[ss // 2::ss, ss // 2::ss]
+        Jo = lookqa.jaw_depth(m, depth, rows_ours, cx, fr.ppl, fr.L)
+        c = lookqa.chin_on_jaw(lookqa.jaw_frame(m & (q >= 1), m, Jo, fr.ppl), gd, fr.ppl)
+        out[view] = dict(moved=moved, ours=(c['iou'], c['edge']), design_reach=c['design_reach'],
+                         ours_reach=c['ours_reach'])
+    return out
+
+
+CAST_VARIANTS = {                     # the hair's cast on the face: the look's, and the options tried (look.md round 6)
+    'look': None,
+    'face_off': {'face': False},                            # the face keeps the fringe map alone (look5's castneck)
+    'fringe_only': {'hair': ['hair_bangs', 'hair_side_lock_L', 'hair_side_lock_R']},
+    'bangs_only': {'hair': ['hair_bangs']},
+    'lift3': {'lift': 3.0},
+    'lift6': {'lift': 6.0},
+    'soft4': {'soft': 4.0},
+}
+
+
+def cast_lab(B, design, key, variants=None, pictures=None):
+    """the hair's cast on the face under a camera key with the bake's options varied (lookqa.light_frames' cast):
+    per variant and view the face's and neck's shade share (ours, the design's), the face's shadow IoU, the chin on
+    the jaw -> {variant: {view: dict}}; pictures: a folder for each variant's qa_face_shadow row."""
+    from . import lookqa
+    D = lookqa.design_heads(design)
+    fr = lookqa.HeadFrame(B)
+    out = {}
+    for name, c in (variants or CAST_VARIANTS).items():
+        t, pics, _ = lookqa._shadow_views(B, D, fr, key, pictures=bool(pictures), cast=c)
+        out[name] = {v: dict(face=r['face'], neck=r['neck'], iou=r['iou'],
+                             chin={k: r['chin'][k] for k in ('iou', 'edge')} if r.get('chin') else None)
+                     for v, r in t.items()}
+        if pictures and pics:
+            os.makedirs(pictures, exist_ok=True)
+            lookqa._save_row(os.path.join(pictures, 'face_shadow_%s.png' % name), pics)
+    return out
 
 
 def main(args):
@@ -413,7 +529,10 @@ def rebake(B, el, cast=None, hair=None):
             occ.append((np.asarray(Gh['V'], float), faceshade._triangles(_polys(Gh))))
     z_chin = float(As['centre'][2]) - float(As['chin'])
     return faceshade.cast_maps(V, F, np.asarray(G['pmat']), None, nk, occ, L, faceshade.cast_dirs(P['k'], P['el']),
-                               z_chin, px=P['px'], soft=P['soft'], smooth=P['smooth'], face=P['face'], **extra)
+                               z_chin, px=P['px'], soft=P['soft'], smooth=P['smooth'], face=P['face'],
+                               face_lift=P['face_lift'],
+                               face_dirs=None if P['face_el'] is None else faceshade.cast_dirs(P['k'], P['face_el']),
+                               **extra)
 
 
 def carry(B, M, base_cast, objects=None):

@@ -175,14 +175,15 @@ def light(B, az):
     return None if ld is None else np.asarray(ld, float)
 
 
-def view(B, surfs, az, fr):
+def view(B, surfs, az, fr, Q=None):
     """a qa3d surface list as the renderer draws it -> View, or None (the numpy drawing draws: the setting, no export,
-    or a surface the export doesn't hold)."""
+    or a surface the export doesn't hold). Q: the Frames to draw with (default frames(B): the build's export; lookqa's
+    design light passes one whose cast shadows are rebaked at its elevation)."""
     if setting() != 'render':
         note(B, 'numpy')
         return None
     why = []
-    Q = frames(B, why)
+    Q = Q if Q is not None else frames(B, why)
     if Q is None:
         note(B, 'numpy (%s)' % (why[0] if why else 'no renderer'))
         return None
