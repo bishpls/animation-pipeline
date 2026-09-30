@@ -21,7 +21,7 @@ fn vs_full(@builtin(vertex_index) i: u32) -> VOut {
 }
 
 @fragment
-fn fs_resolve(v: VOut) -> @location(0) vec4<f32> {
+fn fs_resolve(v: VOut) -> @location(0) vec4<u32> {     // (the float bits: measure.wgsl's targets)
   let ss = R.p.x;
   let sigma = R.p.y;
   let rad = R.p.z;
@@ -45,5 +45,5 @@ fn fs_resolve(v: VOut) -> @location(0) vec4<f32> {
       wsum += w;
     }
   }
-  return a / wsum;
+  return bitcast<vec4<u32>>(a / wsum);
 }

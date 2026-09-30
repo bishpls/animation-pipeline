@@ -16,9 +16,12 @@
 // The tone thresholds repeat toon3's (toon.wgsl) and the face's SDF step repeats face()'s: a test holds them to the
 // colour those functions give (charkit/tests/test_render_buffers.py).
 
+// (the targets are rgba32uint holding the floats' bits: float32 targets aren't colour-renderable on every backend, wgpu's
+// GL on the build box's llvmpipe among them; integer ones are in core GLES 3.0. The readback reads the same bytes as
+// float32, so the values are exact everywhere)
 struct MOut {
-  @location(0) aux: vec4<f32>,
-  @location(1) nor: vec4<f32>,
+  @location(0) aux: vec4<u32>,
+  @location(1) nor: vec4<u32>,
 };
 
 @vertex
@@ -69,8 +72,8 @@ fn fs_measure(v: VOut, @builtin(front_facing) ff: bool) -> MOut {
   var n = normalize(v.nor);
   if (!ff) { n = -n; }
   var o: MOut;
-  o.aux = vec4<f32>(f32(M.kind.w), 0.0, m_tone(n, v), m_depth(v.wpos));
-  o.nor = vec4<f32>(n, 1.0);
+  o.aux = bitcast<vec4<u32>>(vec4<f32>(f32(M.kind.w), 0.0, m_tone(n, v), m_depth(v.wpos)));
+  o.nor = bitcast<vec4<u32>>(vec4<f32>(n, 1.0));
   return o;
 }
 
@@ -82,15 +85,15 @@ fn fs_measure_plate(v: VOut, @builtin(front_facing) ff: bool) -> MOut {
   var n = normalize(v.nor);
   if (!ff) { n = -n; }
   var o: MOut;
-  o.aux = vec4<f32>(f32(M.kind.w), 0.0, -1.0, m_depth(v.wpos));
-  o.nor = vec4<f32>(n, 1.0);
+  o.aux = bitcast<vec4<u32>>(vec4<f32>(f32(M.kind.w), 0.0, -1.0, m_depth(v.wpos)));
+  o.nor = bitcast<vec4<u32>>(vec4<f32>(n, 1.0));
   return o;
 }
 
 @fragment
 fn fs_measure_hull(v: VOut) -> MOut {
   var o: MOut;
-  o.aux = vec4<f32>(f32(M.kind.w), 1.0, -1.0, m_depth(v.wpos));
-  o.nor = vec4<f32>(0.0);
+  o.aux = bitcast<vec4<u32>>(vec4<f32>(f32(M.kind.w), 1.0, -1.0, m_depth(v.wpos)));
+  o.nor = bitcast<vec4<u32>>(vec4<f32>(0.0));
   return o;
 }

@@ -27,6 +27,8 @@ import numpy as np
 from . import gpu as gpu_, model as model_, views as views_
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+# the aux target's clear (part 0, hull 0, tone -1, depth inf) as the float32 bits the rgba32uint target holds
+AUX_CLEAR = tuple(float(x) for x in np.array([0.0, 0.0, -1.0, np.inf], np.float32).view(np.uint32))
 RES_BYTES = 256                        # WebGPU's row alignment for texture reads
 
 
@@ -114,7 +116,9 @@ class Frames:
                           'operation': wgpu.BlendOperation.add},
                 'alpha': {'src_factor': wgpu.BlendFactor.one, 'dst_factor': wgpu.BlendFactor.one_minus_src_alpha,
                           'operation': wgpu.BlendOperation.add}}
-        self.hdr, self.aux_fmt = wgpu.TextureFormat.rgba16float, wgpu.TextureFormat.rgba32float
+        # the measurement targets hold float32 bits in rgba32uint (measure.wgsl): float32 isn't colour-renderable on
+        # wgpu's GL backend (the build box's llvmpipe), integer formats are
+        self.hdr, self.aux_fmt = wgpu.TextureFormat.rgba16float, wgpu.TextureFormat.rgba32uint
 
         def pipe(vs, fs, cull, targets, write=True):
             return dev.create_render_pipeline(
@@ -274,7 +278,7 @@ class Frames:
             att = [{'view': T['main'].create_view(), 'clear_value': clear, 'load_op': wgpu.LoadOp.clear,
                     'store_op': wgpu.StoreOp.store}]
         else:
-            att = [{'view': T['aux'].create_view(), 'clear_value': (0.0, 0.0, -1.0, float('inf')),
+            att = [{'view': T['aux'].create_view(), 'clear_value': AUX_CLEAR,
                     'load_op': wgpu.LoadOp.clear, 'store_op': wgpu.StoreOp.store},
                    {'view': T['nor'].create_view(), 'clear_value': (0.0, 0.0, 0.0, 0.0), 'load_op': wgpu.LoadOp.clear,
                     'store_op': wgpu.StoreOp.store}]
