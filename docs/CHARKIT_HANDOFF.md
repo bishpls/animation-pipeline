@@ -786,6 +786,29 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - benchmark the render box's SLOTS;
   - prune the box's temporary copies (bis*, stampspec-*, render-*).
 
+## Process and architecture decisions (Michael, 2026-09-30)
+
+Drawn from the session's recurring failure patterns:
+1. **Templates first.** Garments, and any other part a template can describe, are built from a few parameters fitted
+   to the design's per-view silhouettes (the boots and puff sleeves are the model). The hull gives initial guesses,
+   depth and measurement, not surface geometry. Geometry lofted straight from the hull caused spikes, twisted soles,
+   doubled lines, torn tips and bubble skirts.
+2. **Michael's flags become regression tests,** and every new check ships calibrated: it passes on the design itself
+   and fails on a known-bad example. After every merge to pipeline-3d, a combined preview and review page (design |
+   previous | current) is rendered automatically, so review never depends on someone asking for it. The artifact
+   detectors and the perceptual metric are relaunched when there's room.
+3. **No gaming.** Every fit includes its piece's shape (IoU in all views) alongside the check it targets. When a check
+   is remeasured in a branch that also changes geometry, the gate scores the new geometry under the old measure too
+   (the 2×2).
+4. **Less coupling.** QA parts and measurement steps register themselves, with no central lists to conflict on. The
+   hull has a written contract (its outputs, labels and guarantees), and downstream work pins a hull version within a
+   round. Ownership is in `docs/OWNERSHIP.md`.
+5. **Trustworthy local loops.** A standing test compares the numpy evaluator against the box on the same build, so
+   drift like the 0.024–0.028 L hem offset shows at once. Review close-ups use the design's own projection (level,
+   orthographic), not the boards' elevated camera.
+6. **Process.** A lean agent per round, briefed from its notes; about 5 at once; no polling; milestone reports;
+   smaller, more frequent merges.
+
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
 Michael's next steps after the code-authored head: cut-piece hair and garments, the eye and mouth engine overhaul,
