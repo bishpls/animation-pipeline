@@ -14,7 +14,8 @@ A measuring window is charkit.geom.raster's (and charkit.qa3d.Frame's, lookqa.He
 [c pix - win.x, (c + 1) pix - win.x) round origin[0] and z in (top - (r + 1) pix, top - r pix] round origin[1]. Every
 position and direction here is in Blender's frame (Z up, facing -Y); the export's glTF frame stays inside.
 
-Per frame, what to draw: `draw` (object names; None: every one), `off` (objects drawn without their outline: the surface
+Per frame, what to draw: `draw` (object names; None: every one), `variants` ({object: 'bare'}: the skin with its garment
+mask off, the export's variant primitives), `off` (objects drawn without their outline: the surface
 where it is, no hull; charkit.qa3d.surfaces(outline=False)), `paint` ({primitive index: (triangle mask, linear RGB)}: those
 triangles in a flat colour, as the scalp measure paints the cranium), `line` (the view's screen-line width in metres,
 times each region's factor; 0: every outline at its build width, charkit.qa3d's surfaces), `light` (toward the key, world;
@@ -102,16 +103,7 @@ class Frames:
         co = 'inward(build_w())' if 'fn inward(' in toon else 'build_w()'
         src = toon + '\nfn co_w() -> f32 { return %s; }\n' % co + open(os.path.join(HERE, 'measure.wgsl')).read()
         sm = dev.create_shader_module(code=src)
-        attrs = [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 0},
-                 {'format': wgpu.VertexFormat.float32x3, 'offset': 12, 'shader_location': 2},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 24, 'shader_location': 3},
-                 {'format': wgpu.VertexFormat.float32x2, 'offset': 28, 'shader_location': 4},
-                 {'format': wgpu.VertexFormat.float32x2, 'offset': 36, 'shader_location': 5},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 44, 'shader_location': 6},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 48, 'shader_location': 7}]
-        vbuf = [{'array_stride': gpu_.FLOATS * 4, 'step_mode': wgpu.VertexStepMode.vertex, 'attributes': attrs},
-                {'array_stride': 12, 'step_mode': wgpu.VertexStepMode.vertex,
-                 'attributes': [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 1}]}]
+        vbuf = gpu_.vertex_layout(wgpu)
         over = {'color': {'src_factor': wgpu.BlendFactor.one, 'dst_factor': wgpu.BlendFactor.one_minus_src_alpha,
                           'operation': wgpu.BlendOperation.add},
                 'alpha': {'src_factor': wgpu.BlendFactor.one, 'dst_factor': wgpu.BlendFactor.one_minus_src_alpha,
@@ -249,16 +241,20 @@ class Frames:
         slot = lambda info: self._texv.get(info['index'], self._dummy) if info else self._dummy
         return [slot(F.get('sdf')), slot(F.get('fringe')), slot(F.get('blush')), slot(F.get('ink')), slot(L.get('texture'))]
 
-    def _items(self, draw, off, paint, streaks=True):
-        """-> [(item, 'surface' | 'co', is_blend)], [hull items] for a frame's choices."""
+    def _items(self, draw, off, paint, streaks=True, variants=None):
+        """-> [(item, 'surface' | 'co', is_blend)], [hull items] for a frame's choices. variants {object: variant}: that
+        object drawn in that state (its primitives of that Prim.variant) instead of as it renders."""
         draw = None if draw is None else set(draw)
         off = set(off or ())
         paint = paint or {}
+        variants = variants or {}
         surf, hulls = [], []
         items = self.R.items if streaks else [self._plain(k) for k in range(len(self.R.items))]
         for k, it in enumerate(items):
             name = it['P'].object
             if draw is not None and name not in draw:
+                continue
+            if it['variant'] != variants.get(name):
                 continue
             mode = 'co' if name in off else 'surface'
             if k in paint:
@@ -290,8 +286,7 @@ class Frames:
         def draw(it, key):
             rp.set_pipeline(self.pipes[key])
             rp.set_bind_group(1, it['bg'])
-            rp.set_vertex_buffer(0, it['vb'])
-            rp.set_vertex_buffer(1, it['nb'])
+            gpu_.set_streams(rp, it)
             rp.set_index_buffer(it['ib'], wgpu.IndexFormat.uint32)
             rp.draw_indexed(it['n'])
         for it, mode, blend in surf:
@@ -311,7 +306,7 @@ class Frames:
         return np.frombuffer(raw, dtype).reshape(h, wp, n)[:, :w].astype(np.float32)
 
     def frame(self, cam, draw=None, off=(), paint=None, light=None, line=0.0, transparent=True, aux_ss=1,
-              picture=True, aux=True, colour=False, world=views_.BG, streaks=True):
+              picture=True, aux=True, colour=False, world=views_.BG, streaks=True, variants=None):
         """one measuring frame -> dict:
           picture  (H, W, 4) floats: sRGB colour and straight alpha at 8 bits (as a saved PNG reads back; charkit.qa3d.draw's),
                    from ss x ss samples a pixel through EEVEE's film filter; over `world` (linear) unless transparent
@@ -322,14 +317,15 @@ class Frames:
           normal   (H a, W a, 3): the shading normal (world, Blender frame), toward the viewer
           colour   with colour=True: (H a, W a, 4) linear premultiplied colour and coverage, one sample a pixel
         the buffers one sample at each pixel centre of the measuring grid (the window at aux_ss x its resolution).
-        streaks=False: the hair's drawn streaks off (charkit.shade.hair_toon's highlight)."""
+        streaks=False: the hair's drawn streaks off (charkit.shade.hair_toon's highlight). variants {object: variant}: an
+        object in another state (the skin 'bare': its garment mask off; Prim.variant)."""
         wgpu, dev, R = self.wgpu, self.dev, self.R
         t0 = time.time()
         W, H = cam.res
         light = self.light_for(cam.az) if light is None else np.asarray(light, float)
         light = light / max(np.linalg.norm(light), 1e-12)
         R._update_normals(line)
-        surf, hulls = self._items(draw, off, paint, streaks)
+        surf, hulls = self._items(draw, off, paint, streaks, variants)
         out = {'light': light, 'line': line, 'res': (W, H), 'aux_ss': aux_ss}
         clear = (0.0, 0.0, 0.0, 0.0) if transparent else (*[float(x) for x in world], 1.0)
         jobs = []

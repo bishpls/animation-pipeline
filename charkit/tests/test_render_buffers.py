@@ -2,7 +2,8 @@
 the measuring window against charkit.geom.raster's, and on a toon sphere drawn on whatever adapter the machine has
 (skipped without one): the part, hull, tone, depth and normal buffers against the sphere's own geometry and light, the
 tone classes against the colour the shader gives, the outline switched off, a painted overlay, the picture's coverage,
-the click-to-flag lookup; and the switch's fallback to the numpy drawing.
+the click-to-flag lookup; the baked cast shadows against the numpy drawing's reference; an object's bare variant; and
+the switch's fallback to the numpy drawing.
 """
 import math, os, sys, tempfile
 
@@ -103,6 +104,84 @@ def test_sphere_buffers():
         # the same frame twice: the same pixels
         F2 = Q.frame(cam, light=L, aux_ss=2, colour=True)
         assert np.array_equal(F2['part'], F['part']) and np.array_equal(F2['picture'], F['picture'])
+
+
+CAST = {'k': 16, 'at': 0.5, 'width': 0.12, 'half': 0.47}
+
+
+def _cast_values(N):
+    """a synthetic bake: per azimuth i the sphere's upper part shadowed, higher for higher i (glTF normals: y up)."""
+    y_i = -0.4 + 0.05 * np.arange(16)
+    return np.clip(0.5 + (N[:, 1:2] - y_i[None, :]) / 0.15, 0, 1).astype(np.float32)
+
+
+def test_sphere_cast():
+    """the baked cast shadows (charkit.faceshade.cast_nodes) as toon.wgsl reads them: the value at the light's azimuth
+    (interpolated between the two baked either side), cut by a smoothstep, toon3's half-lambert held under `half` in it:
+    the tone buffer and the colour against charkit.qa3d's reference (_cast, _toon) on the sphere's own normals."""
+    if _gpu() is None:
+        return
+    from charkit import qa3d
+    r, w = 0.1, 0.002
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'ball.glb')
+        sphere_glb(p, r=r, w=w, cast=(CAST, _cast_values))
+        Q = buffers.Frames(model.load(p), ss=4)
+        pix = 0.002
+        cam = buffers.window(0.0, (0.0, 0.0), pix, dict(x=0.16, top=0.16, bottom=-0.16))
+        for L in (np.array([0.6, -0.5, 0.62]), np.array([-0.3, -0.9, 0.5]), np.array([0.8, 0.3, 0.4])):
+            L = L / np.linalg.norm(L)                                                 # world (Blender), toward the key
+            F = Q.frame(cam, light=L, aux_ss=2, colour=True)
+            n = 160 * 2
+            yy, xx = np.mgrid[:n, :n]
+            u, z = (xx + 0.5) * pix / 2 - 0.16, 0.16 - (yy + 0.5) * pix / 2
+            rr = np.hypot(u, z)
+            s = r - w
+            mid = rr < 0.85 * s
+            Nn = np.stack([u / s, -np.sqrt(np.clip(1 - (u ** 2 + z ** 2) / s ** 2, 0, 1)), z / s], -1)   # Blender
+            Ng = model.to_gltf(Nn.reshape(-1, 3))
+            cs = qa3d._cast(CAST, _cast_values(Ng), L).reshape(n, n)
+            h = (Nn @ L) * 0.5 + 0.5
+            h2 = h - np.maximum(h - CAST['half'], 0.0) * cs
+            want = np.where(h2 > 0.5, 0.0, np.where(h2 > 0.27, 1.0, 2.0))
+            sure = mid & (np.abs(h2 - 0.5) > 0.03) & (np.abs(h2 - 0.27) > 0.03) & ((cs < 0.02) | (cs > 0.98))
+            got = np.rint(F['tone'][sure])
+            assert (got == want[sure]).mean() > 0.999, (got == want[sure]).mean()
+            held = sure & (h > 0.55) & (cs > 0.98)                     # lit by the lambert, in the cast shadow
+            assert held.sum() > 200, held.sum()
+            assert (np.rint(F['tone'][held]) == 1).all()
+            assert np.abs(F['colour'][..., :3][held] - (0.4, 0.2, 0.1)).max() < 0.01
+            free = sure & (h > 0.55) & (cs < 0.02)
+            assert free.sum() > 200 and (np.rint(F['tone'][free]) == 0).all(), free.sum()
+
+
+def test_sphere_bare_variant():
+    """an object's 'bare' variant (the skin with its garment mask off: a mesh the export places with no node) is drawn
+    only when a frame asks for it, in place of the object as it renders; never on a board."""
+    if _gpu() is None:
+        return
+    from charkit.render import gpu, views
+    r, w, rb = 0.1, 0.002, 0.12
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, 'ball.glb')
+        sphere_glb(p, r=r, w=w, bare=rb)
+        M = model.load(p)
+        assert [P.variant for P in M.prims] == [None, 'bare']
+        Q = buffers.Frames(M, ss=4)
+        assert [it['P'].variant for it in Q.R.drawn()] == [None]
+        pix = 0.002
+        cam = buffers.window(0.0, (0.0, 0.0), pix, dict(x=0.16, top=0.16, bottom=-0.16))
+        n = 160
+        yy, xx = np.mgrid[:n, :n]
+        rr = np.hypot((xx + 0.5) * pix - 0.16, 0.16 - (yy + 0.5) * pix)
+        F = Q.frame(cam, aux_ss=1, picture=False)
+        G = Q.frame(cam, aux_ss=1, picture=False, variants={'ball': 'bare'})
+        assert (F['part'][rr < r - 2 * pix] == 0).all() and (F['part'][rr > r + 2 * pix] == -1).all()
+        assert (G['part'][rr < rb - 2 * pix] == 1).all() and (G['part'][rr > rb + 2 * pix] == -1).all()
+        v = views.BoardView('ball', (0.0, 0.0, 0.0), 0, 1.0, 0.0, (160, 160), ortho=0.32)
+        img = Q.R.render(v)
+        fg = np.abs(img.astype(int) - img[2, 2].astype(int)).max(-1) > 64
+        assert not fg[rr > r + 2 * pix].any() and fg[rr < r - 2 * pix].all()
 
 
 def test_qarender_falls_back():

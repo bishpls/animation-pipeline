@@ -1679,10 +1679,13 @@ def view_light(B, az):
     return shade.view_light(az, dict(look))
 
 
-def _toon(sh, N, view_d, ldir=None):
-    """toon3's linear colour and tone (0 lit .. 1 shade .. 2 deep) for shading normals N under ldir (else its own)."""
+def _toon(sh, N, view_d, ldir=None, cast=None):
+    """toon3's linear colour and tone (0 lit .. 1 shade .. 2 deep) for shading normals N under ldir (else its own);
+    cast (per pixel, 0 .. 1: _cast) holds its half-lambert under the lit step (charkit.faceshade.cast_nodes)."""
     Ld = np.asarray(ldir if ldir is not None else sh['ldir'], float)
     half = (N @ Ld) * 0.5 + 0.5
+    if cast is not None:
+        half = half - np.maximum(half - sh['cast']['half'], 0.0) * cast
 
     def ramp(at):
         p0, p1 = at
@@ -1732,9 +1735,23 @@ def _face_maps(B, o, variant, sh, t, w):
     return got
 
 
-def _face_lit(B, sh, N, view_d, maps, ldir=None):
-    """_face from its maps (_face_maps) under ldir."""
-    col, tone = _toon(sh['toon'], N, view_d, ldir)
+def _cast(P, samples, ldir):
+    """the baked cast shadow (charkit.faceshade.cast_maps' per-pixel samples, one per azimuth) under ldir, as
+    faceshade.cast_nodes reads it: interpolated between the azimuths either side of the light's (atan2(x, -y)), cut at
+    P['at'] +- P['width'] by a smoothstep -> (n,) 0 .. 1."""
+    k = int(P['k'])
+    lh = np.asarray(ldir, float)
+    f = (np.arctan2(lh[0], -lh[1]) % (2 * np.pi)) / (2 * np.pi / k)
+    i0 = int(np.floor(f)) % k
+    w = f - np.floor(f)
+    c = samples[:, i0] * (1 - w) + samples[:, (i0 + 1) % k] * w
+    t = np.clip((c - (P['at'] - P['width'])) / (2 * P['width']), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def _face_lit(B, sh, N, view_d, maps, ldir=None, cast=None):
+    """_face from its maps (_face_maps) under ldir; cast (_cast) shades the toon and the SDF face alike."""
+    col, tone = _toon(dict(sh['toon'], cast=sh.get('cast')), N, view_d, ldir, cast)
     if maps is None:
         return col, tone
     uv, mk = maps['uv'], maps['mk']
@@ -1749,6 +1766,8 @@ def _face_lit(B, sh, N, view_d, maps, ldir=None):
     if sh.get('fringe'):
         a0, a1 = sh['fringe_at']
         s_ = np.maximum(s_, np.clip((maps['fringe'] - a0) / (a1 - a0), 0, 1))
+    if cast is not None:
+        s_ = np.maximum(s_, cast)
     fc = np.asarray(sh['lit']) * (1 - s_[:, None]) + np.asarray(sh['shade']) * s_[:, None]
     if sh.get('blush'):
         ba, bc = maps['blush']
@@ -1849,6 +1868,10 @@ def draw_view(B, surfs, az, fr):
             g = dict(sel=sel, mat=mat, N=N[sel])
             if mat and mat.get('kind') == 'face' and not s['hull']:
                 g['face'] = _face_maps(B, o, s['variant'], mat['shading'], t[sel], w[sel])
+            fc = o.a(s['variant'], 'fcast') if mat and (mat.get('shading') or {}).get('cast') and not s['hull'] else None
+            if fc is not None:                                # the baked cast shadows (charkit.faceshade.cast_maps)
+                Tv = o.tris(s['variant'])[0]
+                g['cast'] = (fc[Tv[t[sel]]] * w[sel][:, :, None].astype(np.float32)).sum(1)
             img = mat and ((mat.get('shading') or {}).get('texture') or (mat.get('kind') == 'plate' and mat.get('image')))
             if img and luv is not None:                       # a texture multiplied in (a plate: the texture is the colour)
                 tl, ww = Tl[t[sel]], w[sel]
@@ -1886,10 +1909,14 @@ def draw_lit(B, view, ldir=None, transparent=True, ss=FIG_SS, aux=None, only=Non
         tn = np.full(n, np.nan)
         for g in P['groups']:
             sel, mat, N = g['sel'], g['mat'], g['N']
+            cs = None
+            if 'cast' in g:
+                sh = mat['shading']
+                cs = _cast(sh['cast'], g['cast'], ldir if ldir is not None else sh.get('ldir_head', sh.get('ldir')))
             if 'face' in g:
-                col[sel], tn[sel] = _face_lit(B, mat['shading'], N, view_d, g['face'], ldir)
+                col[sel], tn[sel] = _face_lit(B, mat['shading'], N, view_d, g['face'], ldir, cs)
             elif mat and mat.get('kind') == 'toon3':
-                col[sel], tn[sel] = _toon(mat['shading'], N, view_d, ldir)
+                col[sel], tn[sel] = _toon(mat['shading'], N, view_d, ldir, cs)
             else:
                 col[sel] = _shade(B, o, mat, N, view_d, ldir)
             if 'tex' in g:
