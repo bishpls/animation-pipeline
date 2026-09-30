@@ -97,3 +97,29 @@ body.source code), `body.proportions.leg` 1.07038 -> 1.12:
   composed tolerance is 0.01). Not attributed; the likely cause is the documented carry of the hair selection across
   body knobs (module doc). And bodyfit's `body.proportions.*` / `body.pose.*` knobs do nothing on a code body: a fit
   on clawd.json should drop them (only height_m / heads_tall move it, and those are held).
+
+## Gate (1b91cfc into pipeline-3d 08f93e2, default spec)
+
+`python -m charkit remote gate tool/look4 --into pipeline-3d`: **WARN**, "the build takes 1.8x the CPU time".
+Report: `charkit/out/gate/gate_tool-look4_1b91cfc_into_08f93e2.md`. Every test ok (test_line_cap_measured and the
+new test_geomstage / test_bodyeval / test_artifactqa cases included). Read under K:
+- **New FAILs: none.** No check changed status.
+- **Flag-check regressions: none.** The calibrated ones held or improved: art_bumps_boots 13.3 -> 11.0 PASS,
+  art_mirror_self_boots 0.511 -> 0.497 PASS, art_outline_collar 5.679 -> 2.836 WARN, art_fragments_collar
+  8.39 -> 6.45 WARN, art_points_sleeves 28.0 -> 27.9 WARN; the four promoted ones pass (spikes 0.0133, legs 0,
+  mirror_waist 1.19 unchanged).
+- **Build CPU 579.3 -> 1046.0 s (1.8x), over K's 1.5x.** Attributed to a produced-reference rebuild, not the build:
+  the hull's produced-cache key covers charkit modules this branch edits (bodyeval.py, shade.py), so a candidate
+  rebuilds the hull once. The render box shows it: before build `hull: hit` (its build 178 s saved), after build
+  `hull: miss ... built in 195.7 s`; locally the hull's key changed with the bodyeval.py edit alone. Blender + QA
+  time 234.2 -> 265.1 s (1.13x, wall, on a shared box); on the render box the whole Blender side 236.3 -> 234.1 s and
+  the garments stage 7.7 -> 8.9 s (the three thickness measurements). The gate's clone is cleaned up, so its own
+  log isn't kept to split the 467 s exactly. Once pipeline-3d holds these files the hull is cached again.
+- **WARN / INFO moves** (all from the bow and boots now drawn with the cap in the QA's design-scale drawing, line
+  scale 3.1x): INFO art_fragments_bow 0.74 -> 2.12, art_outline_bow 0.90 -> 0.97, art_terminator_bow new 6.0,
+  art_fragments_top 1.59 -> 2.60, art_outline_top 5.08 -> 4.92, art_terminator_boots 4.82 -> 5.16,
+  art_fragments_boots 0.77 -> 0.64, art_peeks_collar 3 -> 2, art_bumps_collar/flaps +-0.1, art_outline_boots +0.001.
+  These are INFO detectors, not calibrated on a flag.
+- **Finding (noise):** art_outline_collar reads 5.68 (build box) and 4.44 (render box) for the same commit 08f93e2,
+  and 2.84 / 4.23 with call M: the collar's outline corners are not stable across boxes (or builds). A calibrated
+  WARN check; worth a look before it is promoted.
