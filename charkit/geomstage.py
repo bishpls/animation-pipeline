@@ -369,16 +369,24 @@ def blender_bytes(rgba):
 
 
 # ---------------------------------------------------------------------------------------------------- the assembly
-ASM_SKIP = ('garments', 'garments_geom')        # spec sections character.assemble doesn't read (the key leaves them out)
+ASM_KEYS = ('base', 'body', 'body_code', 'brows', 'eyes', 'head', 'head_code', 'head_detail', 'iris', 'mouth', 'style')
+"""the spec sections character.assemble reads (measured with charkit.cache's tracked dicts on both gate specs;
+charkit/tests/test_geomstage.py fails if it reads another), plus hair.shape.eye_depth (the code head's depth), and
+`ref` when there is no code head file (code_base then reads the face sheet)."""
 ASM_FILES = ('head_code', 'body_code')          # spec values naming files it reads (keyed by their content)
 
 
 def assembly_key(spec):
-    """the key character.assemble(spec) is kept under: the spec without ASM_SKIP (over-inclusive, so safe), the content
-    of the files ASM_FILES name, the assembly's code (charkit.cache.code_units, transitively: an edit to code_base or
-    code_body re-assembles) and the venv's packages."""
+    """the key character.assemble(spec) is kept under: the sections it reads (ASM_KEYS), with the files ASM_FILES name
+    keyed by content, not path (a build's own folder is in the path), the assembly's code (charkit.cache.code_units,
+    transitively: an edit to code_base or code_body re-assembles) and the venv's packages. The build's venv steps (the
+    hair pieces' parts.Case, the garments) and the evaluator give it different specs that agree on these, so they
+    share one assembly."""
     from . import cache, character
-    S = {k: v for k, v in spec.items() if k not in ASM_SKIP and k not in ASM_FILES}
+    S = {k: spec.get(k) for k in ASM_KEYS if k not in ASM_FILES}
+    S['eye_depth'] = ((spec.get('hair') or {}).get('shape') or {}).get('eye_depth')
+    if not spec.get('head_code'):
+        S['ref'] = spec.get('ref')
     files = {k: cache.content_digest(spec[k]) if os.path.exists(str(spec[k])) else spec[k]
              for k in ASM_FILES if spec.get(k)}
     code = cache.digest(cache.code_units(character.assemble))

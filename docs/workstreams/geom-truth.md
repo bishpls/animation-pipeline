@@ -70,3 +70,39 @@ implementation (they agreed only by coincidence), and the evaluator reads the ha
 - Laptop, the pilot evaluator on gt_before_clawd: hair f32-identical (all 9 pieces), silhouette IoU 1.0; the QA target
   identical; accessories 7e-7 L; checks differing 55 -> 30 (left: arms INFO, sheet chin anchor 0.025, sleeves
   0.008-0.01 (the solidify port), palette_iris_shade 0.05, iou_orange 0.003).
+
+## Pilot result (box; before = 9397578 base worktree, after = 00f527c; both with --no-blend, after with --cache refresh)
+- boarddiff before -> after: clawd 16 QA images identical, 294 checks identical; clawd_mh 16 identical, 292 identical.
+- stagedrift after (the new evaluator on each build's own spec): checks differing 55 -> 29 (clawd), 45 -> 8 (mh).
+  Garments f32-identical on every piece of both specs (mh's top and shorts too, now by construction); hair pieces
+  f32-identical, silhouette IoU 1.0; accessories 7e-7 L; QA target identical.
+- `garments_body`: clawd 0 nm (all 18,478 f32-equal); mh 18 of 13,380 differ (the numpy versions).
+- Blender garments stage 11.5 s -> 5.7 s (clawd). The venv step: 10.6 s of garments plus an uncached assembly (81 s
+  on the box for the code head; a same-copy rebuild hits the memo).
+- Also found: bodyeval.recalc_normals (the bmesh port) winds the hull puff sleeves opposite to Blender (0 of 1,856
+  polygons agree; every other piece 100%): the evaluated sleeves' 0.008 L (rollout step 7).
+- Merged pipeline-3d 120d197 (hair3, hull-limbs) in at 6ec0c33; suite passes. Gates launched on 851fd15.
+
+## For the other workstreams (coordinate here; the integrator folds it into the handoff)
+- **tool/garments2, tool/skirt:** keep editing `garments.py` as you do. build()'s Blender calls must go through the
+  seam (`_object`, `_toon`, `_toon_tex`, `eyetex.to_blender_image`, `shade.outline`, `mask_skin`, `ob.modifiers.new`
+  with settings, `ob[key] = value`); anything else fails the build's venv step with SeamError naming it. Your template
+  cuff and puff sleeve already fit. At merge, drop your hunks in `bodyeval.garment_piece` / `garment_tones`: they're
+  gone here, and the recording covers every kind build() makes. Check a change with
+  `python charkit/tests/test_geomstage.py` and `python -m charkit stagedrift BUILD`.
+- **tool/hair3:** nothing to do; the evaluator now reads your pieces product (or runs `cli.pieces_hair` for a spec
+  without one). Rollout step 4 (the hair volume, target and accessories venv-side) is yours with tool/accessories.
+- **tool/face:** nothing now. Rollout step 3 (the character product) splits `character.py`, not `code_base.py`; it
+  waits for your jaw round. The cross-machine assembly difference (laptop vs box, up to 0.0027 L on 1,726 vertices of
+  the code head) is worth a determinism pass in `code_base.wrap` some time.
+- **tool/infra:** fold `charkit/stagedrift.py` into `evaldrift --stages` when you merge (or I do, if this branch
+  merges after yours).
+- The evaluator on a raw spec with no products (clawd_mh.json, laptop): the pieces made by the build's own step into
+  charkit/out/bodyeval/pieces/KEY (first run 174 s, including a hull and hair-layers rebuild after the merge); then a
+  body knob 2.7 s (composed), a garment knob 0.7 s (one piece re-recorded).
+- **Gates of 851fd15 into 120d197:** default **WARN**, only on "the build takes 1.8x the CPU time" (1,226 -> 2,189 s):
+  no check changed, all tests ok, garments stage 12.05 -> 5.74 s. clawd_mh **PASS** (no check changed; CPU 325 -> 455 s).
+  The CPU is the garments step's own assembly (the code head's assembly is multithreaded LAPACK: ~80 s wall, most of
+  the ~960 s CPU). Fix: the pieces step (parts.Case.load) and the garments step share one assembly memo, keyed on the
+  spec sections the assembly reads (measured with charkit.cache's tracked dicts, guarded by a test).
+  ("stage hair: knobs hair changed" in both reports is the pieces path, which names the build's own folder.)

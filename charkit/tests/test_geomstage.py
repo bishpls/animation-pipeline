@@ -129,6 +129,43 @@ def test_images_are_shared():
     assert x1 is x2 and x1.dtype == np.float32 and np.array_equal(x1, a.astype(np.float32))
 
 
+def test_assembly_key_covers_what_assemble_reads():
+    """the shared assembly memo is keyed on ASM_KEYS (plus hair.shape.eye_depth, and ref without a code head): the
+    assembly of a MakeHuman spec, its reads recorded through charkit.cache's tracked dicts, reads nothing else. (The code
+    head's path was measured on a build: it adds head_code, body_code and hair.shape.eye_depth.)"""
+    from charkit import cache, character
+
+    class Reads:
+        paused = 0
+
+        def __init__(self):
+            self.paths = set()
+
+        def read(self, path, v):
+            self.paths.add(path)
+
+        def write(self, path):
+            pass
+    spec = {'name': 'probe', 'base': 'makehuman', 'garments': [{'kind': 'band', 'name': 'x'}], 'accessories': [],
+            'hair': {'shape': {'eye_depth': 0.01}}, 'look': {}}
+    T = cache.track(json.loads(json.dumps(spec)), ('spec',))
+    r = Reads()
+    cache._REC = r
+    try:
+        character.assemble(T, keys=False)
+    finally:
+        cache._REC = None
+    top = {p[1] for p in r.paths if len(p) > 1}
+    extra = top - set(geomstage.ASM_KEYS) - {'hair', 'ref'}
+    assert not extra, 'character.assemble reads %s: add it to geomstage.ASM_KEYS' % sorted(extra)
+    hair = {p[2:] for p in r.paths if len(p) > 2 and p[1] == 'hair'}
+    assert all(q[0] == 'shape' and (len(q) == 1 or q[1] in ('eye_depth',) or q[1].startswith('\0')) for q in hair), hair
+    # the key ignores what the assembly doesn't read, and follows what it does
+    k = geomstage.assembly_key(spec)
+    assert geomstage.assembly_key(dict(spec, garments=[], look={'x': 1}, accessories=[{'kind': 'star'}])) == k
+    assert geomstage.assembly_key(dict(spec, head={'width': 1.1})) != k
+
+
 if __name__ == '__main__':
     for k, v in list(globals().items()):
         if k.startswith('test_'):
