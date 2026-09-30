@@ -44,8 +44,11 @@ palette_iris_shade's crossed cell can't be measured while the branch changes the
   (iou_hair front 0.829 -> 0.837, profile 0.809 -> 0.795, three-quarter 0.741 -> 0.737; palette_iris unchanged).
 - Render box: job `build-accessories-0930-185625-20ee` (3b706fc's worktree, `--boards views,body`) ->
   `charkit/out/acc_r4_render` (log `charkit/out/acc_work/r4/render_build.log`).
-- Next: when the coordinator has merged the reclass, merge pipeline-3d here, pregate, gate; the review page
-  `charkit/out/acc_work/review/round4.html`.
+- The coordinator merged the reclass (pipeline-3d 1580f95, the same tree as 9e9f5aa); merged here (0ccc9e4). What's
+  left against pipeline-3d is the geometry only; no measurement step between (history.steps_between: none), so the
+  gate compares under one measure. The pregate above covers this code (the same tree). Gate: running (log
+  `charkit/out/acc_work/r4/gate_geom.log`).
+- Next: the review page `charkit/out/acc_work/review/round4.html` (the boards round 2 | round 4, the summary box).
 
 ## Round 3 (`tool/accessories2`, continued): the gate's three blockers
 
