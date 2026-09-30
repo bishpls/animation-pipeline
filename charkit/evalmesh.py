@@ -562,6 +562,7 @@ def finalize(o):
     names = sorted(o['weights'])
     W = np.stack([group_weights(o['weights'][b]) for b in names], 1) if names else np.zeros((len(V), 0))
     cre, shell, levels = None, None, 0
+    layer = np.zeros(nf, np.int8)                            # per face: 0 the surface, 1 the Solidify's copy, 2 its rim
     for name, m in o['mods'].items():
         st = m['settings']
         if m['type'] == 'SOLIDIFY':
@@ -569,7 +570,9 @@ def finalize(o):
             R = solid.solidify(V, (lv, cnt), float(st['thickness']), uv=luv,
                                **{k: v for k, v in st.items() if k != 'thickness' and k in _SOLID_KW})
             V, lv, cnt, luv = R['V'], R['loopv'], R['counts'], R['uv']
+            nf_ = len(mat)
             mat = mat[R['parent']]
+            layer = np.r_[np.zeros(nf_, np.int8), np.ones(nf_, np.int8), np.full(len(R['counts']) - 2 * nf_, 2, np.int8)]
             W = np.concatenate([W, W])
             cre = R['creases'] if len(R['creases'][0]) else None
         elif m['type'] == 'SUBSURF':
@@ -581,10 +584,11 @@ def finalize(o):
             V, lv, cnt = R['V'], R['quads'].ravel(), np.full(len(R['quads']), 4)
             luv = R['uv'].reshape(-1, 2) if R['uv'] is not None else None
             mat = mat[R['parent']]
+            layer = layer[R['parent']]
             W = R['carry']
             cre = None
     st_ = np.r_[0, np.cumsum(cnt)[:-1]]
-    return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat,
+    return dict(name=o['name'], V=V, loopv=lv, counts=cnt, mat_idx=mat, layer=layer,
                 uv_corner=[luv[a:a + c] for a, c in zip(st_, cnt)] if luv is not None else None,
                 weights={b: W[:, k] for k, b in enumerate(names)}, shell=shell, levels=levels)
 

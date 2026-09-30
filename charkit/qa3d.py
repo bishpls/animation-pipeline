@@ -2074,7 +2074,9 @@ def scalp(B, design=None, out=None):
 def poke(B, design=None, out=None):
     """body vertices (the unmasked ones) lying just outside a garment's surface, where the garment is close: the body
     showing through it (3D, so legs seen below a skirt or an arm in front of it don't count). A short ray inward from
-    the skin (along its normal, from 0.5 mm out) that meets the garment within 0.06 L is poking through."""
+    the skin (along its normal, from 0.5 mm out) that meets the garment within 0.06 L is poking through. The garment's
+    surface: a final mesh (call J: its Solidify made venv-side) keeps its surface layer ('layer' 0), as the coarse mesh
+    was; skin inside the shell's thickness is under that surface, not through it."""
     garments = [o for o in B.objects(groups=('garment',), visible=False) if o.has('raw')]
     if not garments:
         return None, {'poke_share': {'status': 'SKIPPED', 'why': 'no garments'}}
@@ -2093,7 +2095,13 @@ def poke(B, design=None, out=None):
     per_g, tot_bad = {}, 0
     for o in garments:
         vs = o.V('raw')
-        T, _ = triangles(*o.polys('raw'))
+        lv_, st_, cnt_ = o.polys('raw')
+        lay = o.a('raw', 'layer')
+        if lay is not None and len(lay) == len(cnt_) and (lay != 0).any():
+            keep = np.repeat(lay == 0, cnt_)
+            cnt_ = cnt_[lay == 0]
+            lv_, st_ = lv_[keep], np.r_[0, np.cumsum(cnt_)[:-1]].astype(np.int64)
+        T, _ = triangles(lv_, st_, cnt_)
         if not len(T):
             continue
         lo, hi = vs.min(0) - 0.02, vs.max(0) + 0.02

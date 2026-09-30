@@ -192,6 +192,28 @@ Residuals, explained:
 - On merged_clawd's product: finalize 0.9 s for 19 pieces, the product 13 MB (save 1.0 s). Against the bundle's
   Blender-evaluated meshes: all 19 one to one, ≤ 1.2e-5 L (the collar), every face, winding and first corner
   equal, UVs ≤ 1.2e-6.
+- **The M4 build** (box, `charkit/out/evalmesh/m4_clawd`, cf5053a + the UV-centre fix):
+  - evaldrift --stages: 0 of 110 checks drift; the only stage drift crab_1 (face4's). Every garment's raw f32-identical
+    to the evaluator's, evaluated ≤ 7.2e-7 L (exact by construction); masked skin 3.8e-6 L.
+  - The export (NAME.look.glb, gltf.export's own writer, as the VRM): every garment mesh against the base build's
+    (merged_clawd, Blender's modifiers) within 1e-5 L, the collar 1.07e-4 L (the export's build pose moves the
+    shoulders: the collar's blended weights, see motion QA); the skirt 22563 against 22562 exported vertices (one seam
+    split). Every other mesh identical (0 L).
+  - boarddiff merged_clawd -> m4_clawd: 487 QA checks, 1 differs: poke_share 0.0028 PASS -> 0.02 FAIL. Not geometry:
+    the check casts rays at 'raw', which is now the final mesh with the Solidify's inner layer t inside the surface;
+    skin within the shell's thickness (under the surface) read as poking through (shorts 166, bodice 30, skirt 31).
+    Rescored on the surface layer only: 0.003 (bodice 19, skirt 10, panels 3 + 3, collar 1, top 1; the base 0.0028:
+    bodice 18, skirt 10, panels 3 + 3, collar 1): the subdivided surface against the coarse one. Remeasured: a final
+    mesh's faces carry their layer (`evalmesh.finalize` 'layer': 0 surface, 1 inner copy, 2 rim; `_object` sets the
+    face attribute `ck_layer`; the bundle's raw exports it as 'layer'); `qa3d.poke` reads layer 0 when there is one.
+    The gate scores it both ways (the 2x2). 13 of 26 images differ by a few levels (sheet_body/pieces max 186-204 on a
+    handful of pixels: the subdivided hems at float32; face boards max 12).
+- **Motion QA** (`python -m charkit evalmesh motion BUILD`, `m4_clawd/motion/motion.md`): each garment at 7 extreme
+  poses in a local Blender with the build's armature; Blender's per-frame stack on the coarse mesh against the final
+  mesh under the Armature alone. 15 of 19 pieces within 1.1e-5 L at every pose (their weights one bone where they
+  bend). The bends: skirt 0.040 L max at the kick (p99 0.018, moved 1 L; limit-stencil weights 0.019), collar 0.020
+  at twist_bend (stencil 0.016), top 0.0091 (p99 0.0019), bodice 0.0016. Linear weights shipped (the coordinator's
+  call); the stencil halves the skirt's worst.
 
 ## Next
 - M4, the switch (plan):

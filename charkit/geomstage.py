@@ -383,6 +383,7 @@ def finalize(P):
             d['uv_corner'] = {'$c': c}
         if d.get('mat_idx') is not None:
             d['mat_idx'] = rec.enc(np.asarray(F['mat_idx'], np.int64))
+        d['layer'] = rec.enc(np.asarray(F['layer'], np.int8))
         new_call[i] = ['call', i, '_object', [d.pop(k) for k in OBJECT_ARGS[:6]], d]
         items[i] = ([['item', i, 'ck_shell', float(F['shell'])]] if F['shell'] else []) + \
             [['item', i, 'ck_final_levels', int(F['levels'])]]

@@ -2778,12 +2778,13 @@ def group_weights(w):
 
 
 def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat_idx=None, smooth=True, wound=False,
-            final=False):
+            final=False, layer=None):
     """a garment piece as a rigged mesh object. Its faces are wound as charkit.geom.wind.orient decides (each region
     consistent, its normals out): the garments product's recording winds them venv-side and passes wound=True, so
     Blender takes them as given (GEOM_TRUTH step 7a); the in-Blender path winds them here with the same function.
     final: the venv's final mesh at rest (geomstage.finalize, call J): its weights already group_weights' carried
-    through the Subdivision, taken as they are."""
+    through the Subdivision, taken as they are; layer: per face 0 the surface, 1 the Solidify's inner copy, 2 its rim
+    (the face attribute 'ck_layer': the QA's poke-through reads the surface)."""
     from . import character
     if not wound:
         from .geom import wind
@@ -2801,6 +2802,8 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     me.polygons.foreach_set('use_smooth', np.full(len(me.polygons), bool(smooth)))
     if mat_idx is not None:
         me.polygons.foreach_set('material_index', np.asarray(mat_idx, np.int32))
+    if layer is not None:
+        me.attributes.new('ck_layer', 'INT', 'FACE').data.foreach_set('value', np.asarray(layer, np.int32))
     for b, w in weights.items():
         if b not in arm.data.bones:
             continue
