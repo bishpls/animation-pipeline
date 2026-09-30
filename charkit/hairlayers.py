@@ -20,7 +20,9 @@ The body sheet stays the authority for the hair's silhouettes; the breakdown dec
 belongs to. Its registration overlap (hair about 0.67-0.79, face 0.57-0.69 on Clawd) is reported: two generations of
 one design, not one drawing.
 
-    python -m charkit hairlayers SPEC [--out DIR]     -> DIR/hair_layers.npz (VIEW__FAMILY), hair_layers.json, index.html
+    python -m charkit hairlayers SPEC [--out DIR] [--struct]
+                                                      -> DIR/hair_layers.npz (VIEW__FAMILY), hair_layers.json, index.html
+                                                         (--struct: the drawing's structure, STRUCT_ON; needs --out)
 """
 import json, os, sys
 
@@ -35,6 +37,18 @@ BUN_ZONE = 0.72                # L above the eye line: the buns' zone, left out 
 NECK = -0.6                    # L: the face's skin is compared above it
 BUN_RIM = 3                    # px: the outfit's bun masks grown into the hair by this much
 VIEWS = ('front', 'profile', 'back')
+# the drawing's own structure over the transferred families (docs/workstreams/hairtag.md): the sheet's hair split into
+# lock regions by its drawn lines, its faint ridges and its two cel tones (Otsu on the hair's value), each tone's runs cut
+# at their necks (a watershed of the distance to those walls, markers the h-maxima); a region whose transferred families
+# agree to `vote` takes that family whole, else keeps them per pixel. Clips drawn in the hair colour (the outfit's
+# pieces other than the buns) are not hair, except within the buns' rim (clip_rim: the rim is bun, as without the clip
+# rule; hairtag round 2: the field's outfit masks call 52 px of the profile's left bun pin_star, which the hair truth
+# and the sheet-only outfit masks call bun, and the bun fit moved to another optimum without them).
+STRUCT_ON = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False, clip_rim=True)
+# the produced hair layers' default: off (tool/hairtag-truth lands the truth and its scorer alone; the pieces fitted to
+# the method's masks moved both ways, docs/workstreams/hairtag.md's 2x2). `hairlayers SPEC --struct` makes the method's
+# masks (off the manifest's path: `--out DIR`), and `hairlayers score --masks DIR/hair_layers.npz` grades them.
+STRUCT = dict(STRUCT_ON, vote=0, clips=False)
 
 
 def _p(path):
@@ -174,7 +188,54 @@ def design_grid(view, ppl):
     return (cols - view.axis) / ppl, (view.eye_y - rows) / ppl, (H, W), (x0, y0)
 
 
-def transfer(fam_img, reg, figs, views, outfit_masks=None):
+def lock_regions(v, us, zs, hair, h=STRUCT_ON['h'], tone=True):
+    """the sheet's hair on a design grid split into lock regions by its drawing: walls are the drawn lines (the raw
+    class) and faint ridges (outfit.ridges); the hair's two cel tones apart (Otsu on its value); each tone's runs cut at
+    their necks (watershed of the distance to the walls, markers its h-maxima). -> region image (0 none)."""
+    from scipy import ndimage
+    from skimage import filters, morphology, segmentation
+    from .bodyqa import CLASS
+    from .outfit import ridges
+    rgb = np.swapaxes(v.sample(v.rgb, us, zs), 0, 1).astype(float)
+    if rgb.max() > 1.5:
+        rgb = rgb / 255
+    raw = v.sample(v.raw, us, zs).T
+    inner = hair & (raw != CLASS['line']) & ~ridges(rgb)
+    val = rgb.max(-1)
+    if inner.sum() < 100:
+        return np.zeros(hair.shape, np.int32)
+    dark = (val < filters.threshold_otsu(val[inner])) if tone else np.zeros(hair.shape, bool)
+    out = np.zeros(hair.shape, np.int32)
+    for m in (inner & dark, inner & ~dark):
+        d = ndimage.distance_transform_edt(m)
+        mk, _ = ndimage.label(morphology.h_maxima(d, h) & m)
+        ws = segmentation.watershed(-d, mk, mask=m)
+        out[ws > 0] = ws[ws > 0] + out.max()
+    return out
+
+
+def vote_regions(fam, regions, hair, vote=STRUCT_ON['vote']):
+    """each lock region whose transferred families agree to `vote` takes that family whole; the walls inside the
+    hair (lines, ridges) take their nearest region pixel's family. -> family image."""
+    from scipy import ndimage
+    out = fam.copy()
+    r = regions.ravel(); f = fam.ravel()
+    ok = (r > 0) & (f > 0)
+    n, k = int(regions.max()) + 1, len(FAMILIES) + 1
+    cnt = np.bincount(r[ok] * k + f[ok], minlength=n * k).reshape(n, k)
+    tot = cnt.sum(1)
+    top = cnt.argmax(1)
+    win = np.where((tot > 0) & (cnt.max(1) >= vote * np.maximum(tot, 1)), top, 0)
+    wv = win[regions]
+    out = np.where((regions > 0) & (wv > 0), wv, out)
+    wall = hair & (regions == 0)
+    if wall.any() and (regions > 0).any():
+        idx = ndimage.distance_transform_edt(regions == 0, return_distances=False, return_indices=True)
+        out[wall] = out[idx[0][wall], idx[1][wall]]
+    return np.where(hair, out, 0)
+
+
+def transfer(fam_img, reg, figs, views, outfit_masks=None, struct=None):
     """per view, the body sheet's hair pixels on its design grid, each with the family of the nearest breakdown family
     pixel (the buns left out) at its registered position; the outfit's bun pieces are the buns.
     -> {VIEW__FAMILY: bool image}, {view: hair pixels, per-family counts}."""
@@ -195,13 +256,26 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None):
         rows = np.clip(np.round(r['R0'] - r['S'] * zs).astype(int), 0, sub.shape[0] - 1)
         RR, CC = np.meshgrid(rows, cols, indexing='ij')
         fam = sub[idx[0][RR, CC], idx[1][RR, CC]]
-        fam = np.where(hair, fam, 0)
+        st = dict(STRUCT, **(struct or {}))
         buns = np.zeros(shape, bool)
         if outfit_masks is not None:
             for b in ('bun_L', 'bun_R'):
                 k = '%s__%s' % (name, b)
                 if k in outfit_masks and outfit_masks[k].shape == shape:
                     buns |= outfit_masks[k]
+        if st.get('clips') and outfit_masks is not None:    # clips drawn in the hair colour: not hair
+            # (the buns' rim stays hair: it is bun below, as it was before the clip rule)
+            keep = ndimage.binary_dilation(buns, iterations=BUN_RIM) if st.get('clip_rim') and buns.any() else None
+            for k, m in outfit_masks.items():
+                if k.startswith(name + '__') and k.split('__', 1)[1] not in ('bun_L', 'bun_R') and m.shape == shape:
+                    hair &= ~(m & ~keep) if keep is not None else ~m
+        fam = np.where(hair, fam, 0)
+        if st.get('vote'):
+            if st.get('bun_vote'):                           # the buns vote too: a region mostly bun is bun whole
+                fam[buns & hair] = BUNS
+            fam = vote_regions(fam, lock_regions(v, us, zs, hair, st['h'], st.get('tone', True)), hair, st['vote'])
+            if st.get('bun_vote'):
+                buns = fam == BUNS
         # the bun pieces' masks stop a pixel or two inside the drawn hair's outline: their rim is bun too
         buns = ndimage.binary_dilation(buns, iterations=BUN_RIM) & hair if buns.any() else buns
         fam[buns] = BUNS
@@ -252,9 +326,9 @@ def bun_sides(views, outfit_masks, fams):
     return out
 
 
-def produce(spec, out, page=True, log=print):
+def produce(spec, out, page=True, log=print, struct=None):
     """the breakdown's families on the body sheet's hair -> out/hair_layers.npz (VIEW__FAMILY on design grids) and
-    hair_layers.json (the registration and the counts)."""
+    hair_layers.json (the registration and the counts). struct: transfer's (STRUCT_ON: the drawing's structure)."""
     from . import manifest
     from .geom import hull
     M = manifest.load(spec['ref']['manifest'])
@@ -273,7 +347,7 @@ def produce(spec, out, page=True, log=print):
     if p:                                                # layers without them); none declared: the buns stay the
         Z = np.load(p)                                   # breakdown's nearest
         om = {k: Z[k] for k in Z.files}
-    masks, counts = transfer(lab, reg, figs, views, om)
+    masks, counts = transfer(lab, reg, figs, views, om, struct)
     os.makedirs(out, exist_ok=True)
     np.savez_compressed(os.path.join(out, 'hair_layers.npz'), **masks)
     rep = dict(families=list(FAMILIES), registration=reg, figures=figs, counts=counts, ppl=info['ppl'],
@@ -335,14 +409,303 @@ def _page(rep, lab, rgb_k, masks, views, out):
     open(os.path.join(out, 'index.html'), 'w').write('\n'.join(html))
 
 
+# ------------------------------------------------------------------------------------------------------------ the truth
+# A hand-checked labelling of the body sheet's hair by family (docs/workstreams/hairtag.md), the way the outfit's truth
+# labels its pieces. Its source is a JSON of cuts and seeds (refs/<name>/hair_truth.json): the sheet's hair cells
+# (outfit.cells: 4-connected runs of the hair class, drawn lines and faint ridges as walls) are cut further along the
+# annotator's polylines (snapped to the drawn lines between their waypoints: the cheapest path over the picture's value,
+# so a cut follows a partial stroke and crosses its gap straight), and every piece of 12 px or more takes the family set
+# of the seed inside it. Lines, cut paths and slivers are unscored.
+TRUTH_LABELS = FAMILIES + ('bun_L', 'bun_R', 'none')    # bun_L / bun_R: the buns by side (a family score reads buns)
+TRUTH_MIN = 25                 # px: cells this large are labelled (as the outfit's truth)
+TRUTH_SLIVER = 12              # px: a cut piece smaller than this is unscored
+SNAP_BAND = 6                  # px: a snapped cut stays this close to its waypoints' box
+
+
+def design(spec):
+    """the body sheet's design views (bodyqa.design_views: the grids the masks are on) -> ({view: dv}, ppl)."""
+    from . import bodyqa, manifest, sheetqa
+    R = manifest.load(spec['ref']['manifest'])['references']
+    rgb = load_rgb(R['body_turnaround']['path'])
+    eye_x = (spec.get('eyes') or {}).get('x', 0.168)
+    D = sheetqa.detect_figures(rgb, None, eye_x, -1)
+    ppl = float(D['ppl'])
+    return bodyqa.design_views(rgb, D, ppl), ppl
+
+
+def _cut_path(val, pts, snap=True):
+    """a cut through (x, y) waypoints -> (rows, cols): straight, or snapped (the cheapest path over the value between
+    consecutive waypoints, within SNAP_BAND of their box: drawn lines are dark, so it runs along them)."""
+    from skimage import draw, graph
+    rr, cc = [], []
+    for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
+        x0, y0, x1, y1 = int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1))
+        if not snap:
+            r, c = draw.line(y0, x0, y1, x1)
+        else:
+            b = SNAP_BAND
+            ra, rb = max(0, min(y0, y1) - b), min(val.shape[0], max(y0, y1) + b + 1)
+            ca, cb = max(0, min(x0, x1) - b), min(val.shape[1], max(x0, x1) + b + 1)
+            cost = 0.05 + val[ra:rb, ca:cb] ** 3
+            path, _ = graph.route_through_array(cost, (y0 - ra, x0 - ca), (y1 - ra, x1 - ca), fully_connected=True,
+                                                geometric=True)
+            path = np.array(path)
+            r, c = path[:, 0] + ra, path[:, 1] + ca
+        rr.append(r); cc.append(c)
+    return np.concatenate(rr), np.concatenate(cc)
+
+
+def truth_regions(dv, src):
+    """one view's truth from its source (dict(cuts=[{p: [[x, y], ...], snap}], seeds=[[x, y, 'a|b'], ...])) ->
+    (region label image (0 unscored), [(region id, label set, area)], cut mask, problems [str])."""
+    from scipy import ndimage
+    from .outfit import cells
+    from .bodyqa import CLASS
+    lbl, cl = cells(dv['raw'], dv['fg'], dv['rgb'])
+    hair = np.zeros(lbl.shape, bool)
+    for c in cl:
+        if c['cls'] == CLASS['hair'] and c['area'] >= TRUTH_MIN:
+            hair |= lbl == c['id']
+    val = np.asarray(dv['rgb']).max(-1)
+    cut = np.zeros(lbl.shape, bool)
+    for k in src.get('cuts', []):
+        k = k if isinstance(k, dict) else dict(p=k)
+        r, c = _cut_path(val, k['p'], k.get('snap', True))
+        cut[r, c] = True
+    # a cell's pieces: 4-connected runs of one cell's pixels off the cuts (a cut never joins two cells)
+    base = np.where(hair & ~cut, lbl, 0)
+    # tone zones: the under layer is drawn in the shadow tone; within a zone (rows r0..r1, cols c0..c1) the hair darker
+    # than v (cleaned: opened and closed a pixel) is split from the lighter, and its pieces take the zone's label
+    # unless a seed says otherwise
+    dark = np.zeros(lbl.shape, bool)
+    tone_label = np.zeros(lbl.shape, np.int32)
+    zone_id = np.zeros(lbl.shape, np.int32)
+    for i, z in enumerate(src.get('tones', [])):
+        r0, r1, c0, c1 = z['zone']
+        zm = np.zeros(lbl.shape, bool); zm[r0:r1, c0:c1] = True
+        zone_id[zm] = i + 1
+        dk = ndimage.binary_closing(ndimage.binary_opening((val < z.get('v', 0.75)) & zm & (base > 0)),
+                                    iterations=1) & (base > 0) & zm
+        dark |= dk
+        tone_label[dk] = i + 1
+    base = np.where(dark, base + lbl.max() + 1, base)
+    reg = np.zeros(lbl.shape, np.int32)
+    n = 0
+    for cid in np.unique(base[base > 0]):
+        l, m = ndimage.label(base == cid)
+        reg[l > 0] = l[l > 0] + n
+        n += m
+    area = np.bincount(reg.ravel(), minlength=n + 1)
+    sets, problems = {}, []
+    for x, y, s in src.get('seeds', []):
+        x, y = int(round(x)), int(round(y))
+        rid = reg[y, x]
+        if rid == 0:                                          # on a line or a cut: the nearest region within 3 px
+            ys, xs = np.nonzero(reg[max(0, y - 3):y + 4, max(0, x - 3):x + 4])
+            if len(ys):
+                i = np.argmin((ys + max(0, y - 3) - y) ** 2 + (xs + max(0, x - 3) - x) ** 2)
+                rid = reg[ys[i] + max(0, y - 3), xs[i] + max(0, x - 3)]
+        st = tuple(s.split('|'))
+        bad = [q for q in st if q not in TRUTH_LABELS]
+        if bad:
+            problems.append('seed (%d, %d): unknown label %s' % (x, y, bad))
+        if rid == 0:
+            problems.append('seed (%d, %d) %s: on no region' % (x, y, s))
+        elif rid in sets and sets[rid] != st:
+            problems.append('seed (%d, %d) %s: region %d already %s (a cut does not close)' % (x, y, s, rid,
+                                                                                               '|'.join(sets[rid])))
+        else:
+            sets[rid] = st
+    out = []
+    for rid in range(1, n + 1):
+        if area[rid] < TRUTH_SLIVER:
+            reg[reg == rid] = 0
+            continue
+        if rid not in sets:
+            m = reg == rid
+            tl = np.bincount(tone_label[m]).argmax()
+            zl = np.unique(zone_id[m])
+            if tl:
+                sets[rid] = tuple(src['tones'][tl - 1]['dark'].split('|'))
+            elif len(zl) == 1 and zl[0] and src['tones'][zl[0] - 1].get('light'):     # a light piece inside a zone
+                sets[rid] = tuple(src['tones'][zl[0] - 1]['light'].split('|'))
+        if rid not in sets:
+            ys, xs = np.nonzero(reg == rid)
+            problems.append('region %d (%d px) at (%d, %d): no seed' % (rid, area[rid], int(xs.mean()), int(ys.mean())))
+            continue
+        out.append((rid, sets[rid], int(area[rid])))
+    return reg, out, cut, problems
+
+
+def build_truth(spec, src_path, out_path, log=print):
+    """the hair truth's source (JSON) -> its npz (charkit-hair-truth/1: per view an index image into `sets`, -1
+    unscored; the grids the masks are on). Stops on any problem (a region without a seed, a cut that doesn't close)."""
+    src = json.load(open(_p(src_path)))
+    dv, ppl = design(spec)
+    sets, imgs, problems, n_reg = [], {}, [], 0
+    for view, vs in src['views'].items():
+        reg, regions, _, pr = truth_regions(dv[view], vs)
+        problems += ['%s: %s' % (view, q) for q in pr]
+        img = np.full(reg.shape, -1, np.int16)
+        for rid, st, _ in regions:
+            if list(st) not in sets:
+                sets.append(list(st))
+            img[reg == rid] = sets.index(list(st))
+        imgs[view] = img
+        n_reg += len(regions)
+        log('%s: %d regions, %d px labelled' % (view, len(regions), int((img >= 0).sum())))
+    if problems:
+        raise ValueError('the hair truth has %d problems:\n  %s' % (len(problems), '\n  '.join(problems)))
+    meta = dict(format='charkit-hair-truth/1', name=spec.get('name'), sheet='body_turnaround', ppl=ppl,
+                grids={v: list(i.shape) for v, i in imgs.items()}, source=src_path, regions=n_reg,
+                labels=list(TRUTH_LABELS), provenance=src.get('provenance'), rules=src.get('rules'),
+                calls=src.get('calls'))
+    np.savez_compressed(_p(out_path), sets=json.dumps(sets), meta=json.dumps(meta), **imgs)
+    return meta
+
+
+def load_truth(path):
+    """the hair truth (charkit-hair-truth/1) -> (images {view}, sets [[label]], meta)."""
+    Z = np.load(_p(path))
+    meta = json.loads(str(Z['meta']))
+    if meta.get('format') != 'charkit-hair-truth/1':
+        raise ValueError('%s: not a charkit-hair-truth/1 file' % path)
+    return {v: Z[v] for v in meta['grids'] if v in Z.files}, json.loads(str(Z['sets'])), meta
+
+
+def _fam(label):
+    return 'buns' if label in ('bun_L', 'bun_R') else label
+
+
+def score(masks, truth):
+    """hair layer masks ({VIEW__FAMILY} and {VIEW__bun_L/_R}) against the truth (load_truth's).
+    families: per view and in all the hair accuracy (of the scored pixels where the truth or the masks put a family,
+    the share whose family the truth accepts) and the wrong pixels; per family the IoU with the truth resolved per pixel
+    (the masks' family where the truth accepts it, else the truth's first); the largest confusions.
+    sides: per view and side the IoU of VIEW__bun_S with the truth's bun_S (resolved the same way, 'buns' in a set
+    without a side counting for neither). A view the masks don't cover is left out (the three-quarter has bun sides
+    only). -> dict."""
+    T, sets, _ = truth
+    fsets = [sorted({_fam(q) for q in s}, key=lambda q: [_fam(x) for x in s].index(q)) for s in sets]
+    out, acc_f, conf, sides = {}, {}, [], {}
+    for v, t in T.items():
+        ks = [k for k in masks if k.startswith(v + '__') and k.split('__', 1)[1] in FAMILIES]
+        if ks and masks[ks[0]].shape != t.shape:
+            raise ValueError('%s: masks on a %s grid, the truth on %s' % (v, masks[ks[0]].shape, t.shape))
+        scored = t >= 0
+        if ks:
+            names = [k.split('__', 1)[1] for k in ks] + ['none']
+            L = np.full(t.shape, len(names) - 1, np.int32)
+            for i, k in enumerate(ks):
+                L[masks[k]] = i
+            got = np.array(names, object)[L]
+            ok = np.zeros(t.shape, bool)
+            resolved = np.full(t.shape, 'none', object)
+            for i, st in enumerate(fsets):
+                m = t == i
+                if not m.any():
+                    continue
+                inset = m & np.isin(got, st)
+                ok |= inset
+                resolved[inset] = got[inset]
+                resolved[m & ~inset] = st[0]
+                bad = m & ~inset
+                if bad.any():
+                    vals, cnt = np.unique(got[bad], return_counts=True)
+                    conf += [(v, '|'.join(st), str(a), int(b)) for a, b in zip(vals, cnt)]
+            hairpx = scored & ((resolved != 'none') | (got != 'none'))
+            iou = {}
+            for f in FAMILIES:
+                a, b = scored & (got == f), scored & (resolved == f)
+                u = int((a | b).sum())
+                if u:
+                    iou[f] = round(float((a & b).sum() / u), 3)
+                    acc_f.setdefault(f, [0, 0])
+                    acc_f[f][0] += int((a & b).sum()); acc_f[f][1] += u
+            out[v] = dict(accuracy=round(float(ok[hairpx].mean()), 4), wrong=int((hairpx & ~ok).sum()),
+                          hair=int(hairpx.sum()), iou=iou)
+        sm = {q: masks.get('%s__%s' % (v, q)) for q in ('bun_L', 'bun_R')}
+        if any(m is not None for m in sm.values()):
+            # each pixel's side: the masks' where the truth accepts it, else the truth's first side (none: no side)
+            gs = np.full(t.shape, '', object)
+            for q, m in sm.items():
+                if m is not None:
+                    gs[m & (gs == '')] = q
+            rs = np.full(t.shape, '', object)
+            for i, st in enumerate(sets):
+                m = t == i
+                sd = [q for q in st if q in ('bun_L', 'bun_R')]
+                if not m.any() or not sd:
+                    continue
+                ok_ = m & np.isin(gs, sd)
+                rs[ok_] = gs[ok_]
+                rs[m & ~ok_] = sd[0] if st[0] in ('bun_L', 'bun_R') else ''
+            for q, m in sm.items():
+                if m is None:
+                    continue
+                a, b = scored & (gs == q), scored & (rs == q)
+                u = int((a | b).sum())
+                sides.setdefault(v, {})[q] = round(float((a & b).sum() / u), 3) if u else None
+    if acc_f:
+        wrong, hp = sum(r['wrong'] for r in out.values()), sum(r['hair'] for r in out.values())
+        fiou = {f: round(a / b, 3) for f, (a, b) in acc_f.items()}
+        out['all'] = dict(accuracy=round(1 - wrong / max(1, hp), 4), wrong=wrong, hair=hp,
+                          mean_iou=round(float(np.mean(list(fiou.values()))), 3), iou=fiou,
+                          confusions=[dict(view=a, truth=b, got=c, px=d)
+                                      for a, b, c, d in sorted(conf, key=lambda x: -x[3])[:15]])
+    out['sides'] = sides
+    return out
+
+
+def score_main(args):
+    """python -m charkit hairlayers score [SPEC] [--masks HAIR_LAYERS.npz] [--json OUT]: the produced hair layers (or
+    the given ones) against the manifest's hair_truth: per view and family, the confusions, the bun sides."""
+    from . import manifest
+    spec_path = next((a for a in args if a.endswith('.json') and 'spec' in a), 'charkit/spec/clawd.json')
+    spec = manifest.resolve(json.load(open(_p(spec_path))))
+    R = manifest.load(spec['ref']['manifest'])['references']
+    mp = args[args.index('--masks') + 1] if '--masks' in args else R['hair_layers']['path']
+    if not os.path.exists(_p(mp)):
+        raise SystemExit('%s: not made yet (python -m charkit hairlayers SPEC)' % mp)
+    Z = np.load(_p(mp))
+    r = score({k: Z[k] for k in Z.files}, load_truth(R['hair_truth']['path']))
+    print('%s against %s' % (mp, R['hair_truth']['path']))
+    print('  '.join('%s %.3f (%d wrong)' % (v, x['accuracy'], x['wrong']) for v, x in r.items() if 'accuracy' in x) +
+          '; mean family IoU %.3f' % r['all']['mean_iou'])
+    print('  families: ' + ', '.join('%s %.3f' % kv for kv in r['all']['iou'].items()))
+    print('  bun sides: ' + '; '.join('%s %s' % (v, ', '.join('%s %s' % kv for kv in s.items()))
+                                      for v, s in r['sides'].items()))
+    for c in r['all']['confusions']:
+        print('  %6d px  %-8s truth %-24s got %s' % (c['px'], c['view'], c['truth'], c['got']))
+    if '--json' in args:
+        json.dump(r, open(_p(args[args.index('--json') + 1]), 'w'), indent=1)
+    return r
+
+
+def truth_main(args):
+    """python -m charkit hairlayers truth [SPEC]: the manifest's hair_truth rebuilt from its source (hair_truth.json)."""
+    from . import manifest
+    spec_path = next((a for a in args if a.endswith('.json')), 'charkit/spec/clawd.json')
+    spec = manifest.resolve(json.load(open(_p(spec_path))))
+    ent = manifest.load(spec['ref']['manifest'])['references']['hair_truth']
+    meta = build_truth(spec, ent['source'], ent['path'])
+    print('%s: %d regions' % (ent['path'], meta['regions']))
+
+
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
+    if args[0] == 'score':
+        return score_main(args[1:]) and 0
+    if args[0] == 'truth':
+        return truth_main(args[1:])
     from . import manifest
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = manifest.resolve(json.load(open(_p(args[0]))))
     out = _p(opt('--out', os.path.join('charkit', 'out', spec.get('name', 'char'), 'hair')))
-    produce(spec, out, page='--no-page' not in args)
+    if '--struct' in args and '--out' not in args:
+        raise SystemExit('hairlayers --struct: give --out DIR (the manifest\'s produced layers stay the default method\'s)')
+    produce(spec, out, page='--no-page' not in args, struct=STRUCT_ON if '--struct' in args else None)
     print(os.path.join(out, 'index.html'))
     return 0
 
