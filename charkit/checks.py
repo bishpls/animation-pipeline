@@ -52,6 +52,7 @@ def _limits():
         ('face_blink_open', 'lo', *Q['blink_open'], False), ('face_blink_iris', 'lo', *Q['blink_iris'], False),
         ('face_eye_asym', 'lo', *Q['eye_asym'], False), ('face_mouth_asym', 'lo', *Q['mouth_asym'], False),
         ('face_viseme_gap', 'hi', *Q['viseme_gap'], False), ('face_expr_range', 'count', 0, 2, True),
+        ('face_preset_*', 'lo', 0.0, 1.0, False),     # the furthest feature past its target, in WARN margins (exprqa)
         ('eye_lid_gap', 'lo', *eyeqa.LID_GAP, False), ('eye_highlight_side', 'status', 0, 0, True),
     ]
     R += [('eye_' + k, 'ratio', p, w, False) for k, (p, w) in E.items()]
@@ -164,7 +165,7 @@ REGIONS = [
     ('body_*_skirt_width', 'outfit', 0.8), ('body_*_hem*', 'outfit', 0.75), ('body_*_sleeves', 'outfit', 0.7),
     ('body_*_boot', 'outfit', 0.6), ('body_*', 'silhouette', 0.85), ('figures_*', 'internal', 0.2), ('hair_*', 'hair', 0.75),
     ('expr_*', 'expressions', 0.75), ('face_expr_range', 'expressions', 0.7), ('face_blink_*', 'expressions', 0.7),
-    ('face_*_asym', 'expressions', 0.7), ('face_viseme_gap', 'expressions', 0.6),
+    ('face_*_asym', 'expressions', 0.7), ('face_viseme_gap', 'expressions', 0.6), ('face_preset_*', 'expressions', 0.75),
     ('palette*', 'palette', 0.8),
     ('face_shape_depth', 'internal', 0.4), ('face_folds', 'internal', 0.3), ('mesh', 'internal', 0.1),
 ]
@@ -249,7 +250,7 @@ CAPABILITY = {
     'face_folds': "the skin's lid and lip rings fold under the keys: the base mesh's topology round the openings "
                   "(charkit/base_anime.py re-lays them; `--base anime`), and MakeHuman's mouth cavity doesn't follow "
                   "tall openings (the laugh, yawn and wavy mouth keys fold)",
-    'expr_*': "the expression library's shapes (charkit/eyes.py, mouth.py, brows.py; scene.PRESETS): a shape the "
+    'expr_*': "the expression library's shapes (charkit/eyes.py, mouth.py, brows.py; expressions.PRESETS): a shape the "
               "sheet draws that the template doesn't have, or has only roughly, is a template addition",
     'figures_*': "the model sheet's figure detection (charkit/sheetqa.py detect_figures) against the typed head boxes",
     'hair_noise': "the generated hair's normals: the hair surface itself (charkit/geom's closed shell, `--hair geom`)",
@@ -257,6 +258,8 @@ CAPABILITY = {
     'poke_share': "garments fitted as offsets of the body: collision-aware fitting of each piece (charkit/garments.py)",
     'eye_highlight_side': "the eye texture's highlight placement (charkit/eyetex.py has no side knob)",
     'face_expr_range': "the expression shape keys' design (charkit/eyes.py expressions)",
+    'face_preset_*': "a combined expression's components (charkit/expressions.py PRESETS) or their shapes (eyes.py, "
+                     "brows.py, mouth.py): the preset doesn't read as its targets (exprqa.TARGETS)",
     'face_blink_*': "the lid shape keys (charkit/eyes.py)",
     'face_viseme_gap': "the mouth shape library (charkit/mouth.py SHAPES)",
     'face_*_asym': "the face's left/right construction (charkit/eyes.py, charkit/mouth.py)",
