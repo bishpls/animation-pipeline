@@ -267,6 +267,26 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
   (capped) status doesn't: tool/hair4's PASS becomes a FAIL on art_terminator_hair. That's my reading of "regressions in
   the checks built from Michael's flags"; if Michael means status only, it's one line in gate.judge.
 
+## For Michael: box control without the nightly reauth (j; written up, nothing created)
+
+The 09:50 lapse stopped every agent's box work until morning: the laptop drives both boxes with Michael's own gcloud
+login (the IAP tunnel for ssh, OS Login, `compute instances describe/start`, the bucket's `gcloud storage` and
+bucketsync's access tokens), and "Reauthentication failed. cannot prompt during non-interactive execution" is Google
+Cloud session control asking that login to reauthenticate. Detached jobs ran on; nothing could start, follow or
+collect them. Options, least provisioning first:
+1. **Session control (an admin-console setting, no new identity):** Workspace Admin > Security > Google Cloud session
+   control: a longer reauthentication frequency (or "never" for the gcloud CLI) for Michael's account or an OU. It
+   fixes this exact error; the trade is a longer-lived laptop session.
+2. **A dedicated service account for box control**, used from the laptop by a key file (`gcloud auth
+   activate-service-account --key-file`, or a separate gcloud configuration used only by charkit's remote commands:
+   CLOUDSDK_CONFIG pointing at it). Least privilege: IAP-secured tunnel user on the two VMs only; OS Login (not admin)
+   on them; start/stop/describe on those two instances (a custom role, not instanceAdmin on the project); object
+   read/write on the one bucket. A key never expires by itself: keep it mode 600 outside every worktree, rotate it,
+   and check the organisation's key-creation policy first (it's often disabled). Impersonation (`--impersonate-
+   service-account`) doesn't help: it still needs Michael's login to mint tokens.
+3. Whichever: `remote` could check the login before starting a job and say "run gcloud auth login" in one line rather
+   than the traceback (a small code change; not done yet).
+
 ## Next steps
 
 Milestone B after the coordinator's go-ahead:
