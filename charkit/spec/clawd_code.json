@@ -1891,7 +1891,10 @@
     0.6891,
     0.6762
    ],
-   "source": "hull"
+   "source": "hull",
+   "ribbon": {
+    "stand": 0.03
+   }
   },
   {
    "kind": "belt",

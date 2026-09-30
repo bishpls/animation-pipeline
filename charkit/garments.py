@@ -2467,6 +2467,14 @@ def bow_hull(A, spec, hull):
         for _ in range(spec.get('conform_smooth', 4)):
             dy = np.array([dy[n].mean() if len(n) else dy[i] for i, n in enumerate(nb)])
         V[:, 1] += dy
+    stand = (spec.get('ribbon') or {}).get('stand', 0.0)
+    if stand:
+        # the tails hung `stand` L in front of where the wrap puts them (the jacket's front there: flush, they read as a
+        # torn sliver along its edge in profile and the jacket showed through them in three-quarter), eased in over
+        # the first `stand_in` of their length from the knot
+        ts = G['tail_s']
+        k_ = np.clip(np.nan_to_num(ts, nan=0.0) / (spec.get('ribbon') or {}).get('stand_in', 0.3), 0.0, 1.0)
+        G['verts'][:, 1] -= stand * L * k_ * k_ * (3 - 2 * k_)
     G['fit'] = dict(size=sz / L, tail=tail, depth=depth / L, centre=[0.5 * (lo + hi), y, z])
     return G
 
@@ -2478,9 +2486,14 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
     height `knot` at the knot growing to `end` at the far end (`power` shapes the growth), the end closed over its last
     `cap` share by a quarter ellipse (a flat end with round corners), the end's middle raised by `rise`; else the old
     pillow (fattest mid-lobe). `ribbon` (dict, sizes): the tails' width `w` [at the knot, at the end], their spread
-    `out` (how far out their ends swing) and the ends' cut `slant` (the outer corner lower); else the old tails."""
+    `out` (how far out their ends swing) and the ends' cut `slant` (the outer corner lower); else the old tails. Its
+    `turn` (degrees, default 0): each tail's section turned about its length, its outer edge back and its inner edge
+    forward (a ribbon falling over the bust's round shows its face in profile, as the design's do; 0 flat to the front).
+    The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
+    'tail_s'."""
     depth = 0.09 * sz if depth is None else depth
     verts, faces, uvs = [], [], []
+    tail_s = {}
 
     def add(vs, fs, us):
         o = len(verts); verts.extend(vs); uvs.extend(us); faces.extend([tuple(i + o for i in f) for f in fs])
@@ -2541,6 +2554,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
         rb = ribbon or {}
         w0, w1 = rb.get('w', (0.13, 0.22))
         out_, slant = rb.get('out', 0.2), rb.get('slant', None)
+        ct, st = math.cos(math.radians(rb.get('turn', 0.0))), math.sin(math.radians(rb.get('turn', 0.0)))
+        t0_ = len(verts)
         for i in range(M + 1):
             s_ = i / M
             p = c + np.array([sx * sz * (0.05 + out_ * s_), -0.01 * L * s_, -sz * (TAIL0 + tail * s_)])
@@ -2554,6 +2569,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
                 cut = ((-w / 2, -d_ / 2 * sx), (0, 0.0), (w / 2, d_ / 2 * sx))
             for (dx, dz), dy in ((cut[0], -0.01 * L), (cut[1], -0.01 * L), (cut[2], -0.01 * L),
                                  (cut[2], 0.004 * L), (cut[1], 0.004 * L), (cut[0], 0.004 * L)):
+                u_, y_ = dx * sx, dy + 0.003 * L                  # outward across the tail; depth from its mid-plane
+                dx, dy = sx * (u_ * ct - y_ * st), u_ * st + y_ * ct - 0.003 * L
                 vs.append(p + np.array([dx, dy, dz])); us.append((0.5, s_))
         fs = []
         for i in range(M):
@@ -2561,12 +2578,16 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
                 k2 = (k + 1) % 6
                 fs.append((i * 6 + k, i * 6 + k2, (i + 1) * 6 + k2, (i + 1) * 6 + k))
         add(vs, fs, us)
+        tail_s.update(zip(range(t0_, len(verts)), np.repeat(np.arange(M + 1) / M, 6)))
     from .accessories import rounded_box
     kb = (wing or {}).get('box', (0.19, 0.16, 0.24))                 # the knot (sizes: wide, deep, tall)
     kv, kf = rounded_box(kb[0], kb[1], kb[2], 0.07, segs=2)
     add(list(kv * sz + c + np.array([0, -0.012 * L, 0.01 * sz])), kf, [(0.5, 0.5)] * len(kv))
     verts = np.array(verts)
-    return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs)
+    ts = np.full(len(verts), np.nan)
+    for k, v in tail_s.items():
+        ts[k] = v
+    return dict(verts=verts, faces=faces, weights={'upperChest': np.ones(len(verts))}, uv=uvs, tail_s=ts)
 
 
 # ------------------------------------------------------------------------------------------------------------------- collar

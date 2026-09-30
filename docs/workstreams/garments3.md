@@ -362,3 +362,41 @@ g3_render2 at 18f3b41, before the cuff span).
 Next (lean relaunch): art_speckle_neck's specks (the head frame, profile: the hair against the neck under the jaw;
 compare tr3_a's frame); the bow tails' lower edge in profile and three-quarter (their hem, now the outline); the
 three-quarter flaps (Michael's call, skirt.md numbers).
+
+## Round 3 (the third agent): the bow's tails, the neck's specks, the flap options
+
+Scratch harness (session scratchpad `g5/`, not tracked): `evbow.py OUT [--set ...] [--png]` (the bow's torn measure,
+pieceqa.collar_bow's, on the evaluator framed as the box bundle frames it: reads the box's 0.066 / 0.0108 / 0.0067
+exactly; piece IoUs per view), `splice.py OUT OBJS PARTS [--set ...]` (the box bundle g3_render2 with the named objects
+replaced whole by the evaluator's, then any QA parts: reproduces the box's checks exactly on the unchanged spec),
+`artswap.py BASE CAND OBJS` (artifactqa on the candidate bundle with objects swapped in from the base bundle: the art
+checks' attribution, 8 s a run), `bowgeo.py` (the tails' and the jacket's fronts per height), `hairattr.py`.
+
+### The bow's tails: hung 0.03 L in front of the jacket (`ribbon.stand`)
+
+Measured: the tails are wrapped onto the hull's front (conform) `depth` behind it, which is where the jacket's front
+is: in profile they sat flush with it (tail front -0.145 L, jacket -0.144 at z -1.0), a 1-2 px sliver along its edge,
+torn where the taper draws the jacket back below z -1.11 (ours 0.0707 L rough against the design's 0.0047); in
+three-quarter the jacket's front edge showed through the right tail (a slit) and the V notches' tips read torn. The
+design's tails hang free in front of the chest in profile (their front at -0.20..-0.22 L). New template knobs on the
+bow's `ribbon` (garments.bow_hull / _bow_mesh): `stand` (L: the tails hung that far in front of where the wrap puts
+them, eased in over the first `stand_in` 0.3 of their length from the knot) and `turn` (degrees: each tail's section
+turned about its length, outer edge back). Evaluator (torn front / three-quarter / profile; piece IoU bow / top /
+bodice_panel):
+
+| variant | torn F / 3q / P | bow (F/3q/P) | top | bodice_panel |
+|---|---|---|---|---|
+| as built | 0.0067 / 0.0108 / 0.066 | 0.674 (0.779/0.597/0.561) | 0.690 | 0.839 |
+| **stand 0.03 (taken)** | **0.001 / 0.0019 / 0.0** | **0.696** (0.803/0.629/0.554) | 0.692 | 0.899 |
+| stand 0.06 | 0.001 / 0.002 / 0.0 | 0.689 | 0.691 | 0.930 |
+| turn 25 | 0.0171 / 0.0158 / 0.0031 (fragments 5/4: the turned edges cut into the jacket) | 0.609 | 0.671 | 0.893 |
+| stand 0.04 + turn 25 | 0.001 / 0.0031 / 0.0 | 0.693 | 0.690 | 0.933 |
+
+Spliced into the box bundle (every other object the box's), stand 0.03 against as built: bow_profile_torn 0.066 FAIL
+-> 0.0 PASS, bow_three_quarter_torn 0.0108 FAIL -> 0.0019 PASS, bow_front_torn 0.0067 WARN -> 0.001 PASS,
+body_profile_torso_jump_front 0.0 PASS held (and _back, front _L/_R), bow_front_tail_width 0.4875 -> 0.3077 (FAIL, a
+new check), body_front_panel_edge 0.0121 -> 0.0114 WARN, top_front_opening 0.0083 -> 0.0075; piece_bow 0.674 -> 0.696,
+piece_top 0.686 -> 0.688, piece_bodice_panel 0.839 -> 0.899, body_profile_iou 0.916 -> 0.917. Worse: bow_front_tail_gap
+0.0283 PASS -> 0.033 WARN (the tails' inner edges no longer hidden behind the jacket's fronts in front: ours read
+their full width); INFO only: art points_bow 0 -> 0.6, spikes_bow 0 -> 0.017, peeks_bow 3 -> 1. Taken in the four
+specs that carry the taper (clawd, clawd_body, clawd_body_pieces, clawd_code).

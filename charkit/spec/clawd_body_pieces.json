@@ -2022,7 +2022,10 @@
    ],
    "source": "hull",
    "knot": 0.6,
-   "lift": 0.03
+   "lift": 0.03,
+   "ribbon": {
+    "stand": 0.03
+   }
   },
   {
    "kind": "belt",
