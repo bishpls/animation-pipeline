@@ -709,9 +709,9 @@ VERTEX_Q = 2.0 ** -20        # L: a millionth of L, a ten-thousandth of a voxel;
 
 
 def _facing(m, views):
-    """per vertex, the index (in views' order) of the view whose camera faces it most: area-weighted normals and
-    dot products in a fixed order (det), the first view winning a tie -> int (N,)."""
-    N = det.normals_area(m.V, m.F)
+    """per vertex, the index (in views' order) of the view whose camera faces it most: angle-weighted normals (as
+    mesh.vertex_normals) and dot products in a fixed order (det), the first view winning a tie -> int (N,)."""
+    N = det.normals_angle(m.V, m.F)
     W = np.stack([det.dot3(N, (sa, -ca, 0.0)) for ca, sa in (det.cs(v.az) for v in views.values())], 1)
     return np.argmax(W, 1)
 

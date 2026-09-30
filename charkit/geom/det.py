@@ -15,6 +15,8 @@ power-of-two grid far coarser than an ulp:
     snap(x, q)              x rounded to multiples of q (a power of two, so the result is exact)
     dot3(P, v)              rows of P dotted with a 3-vector, term by term (not BLAS)
     normals_area(V, F)      unit vertex normals, area weighted (no transcendental functions)
+    normals_angle(V, F)     unit vertex normals, angle weighted (mesh.vertex_normals' pseudo-normals), the corner angles
+                            from arccos snapped to ANGLE_W_Q
     nearest(P, Q)           each query's nearest point, a tie going to the lowest index (not cKDTree's own order)
 """
 import math
@@ -26,6 +28,7 @@ TRIG_Q = 2.0 ** -40                 # libm's cos/sin differ by an ulp (1e-16) be
 KERNEL_Q = 2.0 ** -40               # Gaussian weights likewise
 ANGLE_Q = 2.0 ** -30                # degrees: an angle measured from a drawing (the three-quarter view's), from libm's acos
 DECIDE_Q = 2.0 ** -30               # a value compared with a threshold after a per-CPU function (np.power)
+ANGLE_W_Q = 2.0 ** -30              # radians: corner angles weighting normals (np.arccos is per-CPU SIMD)
 
 
 def snap(x, q):
@@ -97,18 +100,37 @@ def norm3(P):
     return np.sqrt(P[:, 0] * P[:, 0] + P[:, 1] * P[:, 1] + P[:, 2] * P[:, 2])
 
 
+def _cross(e1, e2):
+    return np.stack([e1[:, 1] * e2[:, 2] - e1[:, 2] * e2[:, 1],
+                     e1[:, 2] * e2[:, 0] - e1[:, 0] * e2[:, 2],
+                     e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]], 1)
+
+
 def normals_area(V, F):
     """unit vertex normals, the sum of the incident faces' (area-weighted) normals: cross products and sums in a fixed
     order, so no transcendental function and no reordering. -> (N, 3)."""
     V = np.asarray(V, float)
     a, b, c = V[F[:, 0]], V[F[:, 1]], V[F[:, 2]]
-    e1, e2 = b - a, c - a
-    n = np.stack([e1[:, 1] * e2[:, 2] - e1[:, 2] * e2[:, 1],
-                  e1[:, 2] * e2[:, 0] - e1[:, 0] * e2[:, 2],
-                  e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]], 1)
+    n = _cross(b - a, c - a)
     out = np.zeros_like(V)
     for k in range(3):
         np.add.at(out, F[:, k], n)
+    return out / np.maximum(norm3(out), 1e-300)[:, None]
+
+
+def normals_angle(V, F):
+    """unit vertex normals weighted by each face's corner angle (mesh.vertex_normals' default, the pseudo-normal): the
+    same arithmetic in a fixed order, the angles from np.arccos snapped to ANGLE_W_Q. -> (N, 3)."""
+    V = np.asarray(V, float)
+    n = _cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
+    nf = n / np.maximum(norm3(n), 1e-300)[:, None]
+    out = np.zeros_like(V)
+    for k in range(3):
+        a = V[F[:, (k + 1) % 3]] - V[F[:, k]]
+        b = V[F[:, (k + 2) % 3]] - V[F[:, k]]
+        c = (a[:, 0] * b[:, 0] + a[:, 1] * b[:, 1] + a[:, 2] * b[:, 2]) / np.maximum(norm3(a) * norm3(b), 1e-300)
+        w = snap(np.arccos(np.clip(c, -1, 1)), ANGLE_W_Q)
+        np.add.at(out, F[:, k], nf * w[:, None])
     return out / np.maximum(norm3(out), 1e-300)[:, None]
 
 
