@@ -165,7 +165,7 @@ buffer and render readings agree best).
   collar reference from garment_breakdown, or its cells merged across the stripes, would make those ratios mean something.
 - Grades: INFO now; promote after history. Re-measure the calibration on the next look/hair round (the scripts are in
   this note's "Calibration").
-- Box timing: the gate compares CPU seconds (tool/gate-cpu); see "Gates".
+- Box timing: the gate now compares CPU seconds (tool/gate-cpu); read it in the gate reports (State, next step 1).
 
 ## The original plan and findings (before any code)
 
