@@ -41,7 +41,16 @@ measure: moved in both, gate-only, pre-gate-only, the same way, recall and preci
 QA" yet: qa3d's full bundle needs Blender's evaluated meshes (GEOM_TRUTH 7b, Michael's decision), so art_*, hair_*,
 poke, mesh, eyes, expressions and the charkit.render drawing stay the gate's. First timing: the evaluator alone on a
 spec failed in 31 s (no body_code); the produced references cold on the laptop: hull 86 s, outfit masks 36 s.
-Agreement run: tool/body a9aa137 into 2e3bdd5 (the gate: PASS, 149 rows: body 71, boot 23, piece 23, piece3d 17).
+**Agreement, a real pair** (`pregate --against` tool/body a9aa137 into 2e3bdd5's gate report, PASS, 149 moved:
+charkit/out/pregate/pregate_tool-body_a9aa137_into_2e3bdd5.md): the evaluator measures 376 checks; 65 of the gate's
+149 moved checks are among them (84 are the full bundle's: boots, piece3d, face, hair). Of those 65 the pre-gate saw
+57 move (recall 0.877), 51 of them the same way; of its own moves on checks the gate's QA names, 57 of 64 the gate
+also moved (precision 0.891); verdicts PASS / PASS. The misses both ways are mostly the hair (body_*_hair_*, iou_hair:
+the evaluator's hair is the generated shape, not the cut pieces). The first cut said FAIL on 4 checks the gate's QA
+doesn't have (bodymeasure's per-view, per-side rows: piece_shorts_profile_top 0.066 -> 0.249 below): K now blocks only
+on names the gate's reports know (481 names), the rest listed apart. Precision over everything was 0.227 (251 moves,
+187 of them those piece rows). Time, cold on the laptop: 409 s (each side 203 s: resolve 105 s, the produced
+references made in a fresh worktree; pieces_hair 61 s; the evaluator 34-35 s).
 
 **h, the rest** (ec00b3a): the venv steps' keys portable (cache._port: the build's out folder as '<out>/', the
 worktree and its charkit/out links relative; reads the same; a hit notes the step's reads, inputs and code files in the
