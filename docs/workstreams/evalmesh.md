@@ -214,8 +214,17 @@ Residuals, explained:
   bend). The bends: skirt 0.040 L max at the kick (p99 0.018, moved 1 L; limit-stencil weights 0.019), collar 0.020
   at twist_bend (stencil 0.016), top 0.0091 (p99 0.0019), bodice 0.0016. Linear weights shipped (the coordinator's
   call); the stencil halves the skirt's worst.
+- **M4 gate: PASS under K** (0c9eb95 into pipeline-3d 25b1936; `charkit/out/gate/gate_tool-evalmesh_0c9eb95_into_25b1936.md`):
+  nothing blocks, 1 item: poke_share 0.0028 -> 0.003 PASS (value moved). 66 test files ok, build CPU 577.3 -> 684.0 s
+  (1.18x). The gate's report has no 2x2 section for poke's remeasure; its four cells measured by hand: old code, old
+  geometry 0.0028 PASS; old code on the final meshes 0.020 FAIL (the inner layer read as skin through clothes); new
+  code on the old geometry 0.0028 PASS (no layer attribute: every face, as before); new code, new geometry 0.003 PASS.
+  **M4 mergeable at 0c9eb95.**
 
 ## Next
+- The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
+  the 2x2 not triggered for a QA change that comes with a geometry change (infra); the stencil weights as an option
+  for the skirt and collar if the bends matter in motion.
 - M4, the switch (plan):
   1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
      above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
