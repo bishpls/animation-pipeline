@@ -763,6 +763,18 @@ tool/hull-local (7022b5a), gated once. If PASS, fast-forward pipeline-3d to it. 
   by SendMessage. The `charkit-worker` agent type (`~/.claude/agents/charkit-worker.md`) carries the standing rules;
   until a session restart lists it, briefs point general-purpose agents at the file.
 
+**Standing rule:** When a design's views disagree in 3D (Michael, 2026-09-30; six cases that day). Trigger: the best joint fit
+scores well below what single views reach (under about 80%). In order:
+1. **Is it ours?** Refit with the relevant freedom opened (for example the hair's envelope depth). If one 3D shape then
+   fits every view, fix our geometry or constraints.
+2. **Is the reference adequate for this piece?** It isn't when the piece is small or occluded in the turnaround, drawn
+   view-dependently (clips face-on in every view), or has internal structure the turnaround can't resolve (a knot,
+   creases, locks). Get a better isolated reference (a breakdown or close-up drawing the piece in several views
+   together) and sub-cut the piece.
+3. **Only then compromise:** the base model takes the best fit across views and reports per-view costs; checks built on
+   one view's inconsistent feature are re-measured against their intent; view-exact matching is a per-shot override.
+Placement rules (pieces don't occlude each other) outrank the reference's exact placement.
+
 **Michael's decisions today:**
 - The flaps follow front, back and profile (option A).
 - The hair masks are on by default, with the truth's calls A-E.
@@ -802,11 +814,9 @@ tool/hull-local (7022b5a), gated once. If PASS, fast-forward pipeline-3d to it. 
 - outfit-source round 2.
 
 **Open questions for Michael:**
-1. A standing rule for designs whose views disagree in 3D (six cases today): the base model takes the best compromise
-   across views, checks built on a single view's inconsistent feature are re-measured against the intent, and
-   view-exact matching becomes a per-shot override.
-2. Hair locks: test the envelope depth first; if the drawings disagree, grade per view with a joint target near 0.52;
-   ribbons off by default; accept call C's fix.
+1. (decided: the standing rule above)
+2. (decided: hair locks as recommended. A round 3 is queued: the envelope-depth test after hull-local; per-view grading
+   with a joint target near 0.52 if the drawings really disagree; ribbons off; call C accepted)
 3. The cuff band's tilt (deferred with the garments pause).
 
 ## Overnight run results (2026-09-30, 06:30-10:05 EDT; start here)
