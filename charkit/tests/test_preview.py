@@ -101,6 +101,43 @@ def test_the_hook_runs_in_the_background_on_its_branch_only():
     assert preview.hook('status', cwd=d) is None
 
 
+def test_the_hooks_preview_never_touches_the_hooked_worktree():
+    """git exports GIT_DIR, GIT_INDEX_FILE and more to a hook's processes; a git command run with them acts on the
+    hooked repository whatever its cwd. The preview's checkout in its own worktree once detached pipeline-3d's HEAD
+    (2026-09-30). The hook unsets them, and preview._git drops them itself."""
+    d, g = _repo()
+    other = tempfile.mkdtemp() + '/wt'
+    g('worktree', 'add', '-q', '--detach', other, 'main')
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    done = os.path.join(d, 'stub.done')
+    stub = os.path.join(d, 'stub.sh')
+    # the hook's "python": records the git variables it was given, then does what build_worktree does (a forced
+    # detached checkout in another worktree) through preview._git with GIT_DIR pointing at the hooked repository
+    open(stub, 'w').write('#!/bin/sh\nenv | grep "^GIT_" > %s.env\n'
+                          'GIT_DIR=%s/.git GIT_INDEX_FILE=%s/.git/index %s -c "import sys; sys.path.insert(0, %r); '
+                          'from charkit import preview; preview._git(\'checkout\', \'-q\', \'-f\', \'--detach\', '
+                          '\'topic\', cwd=%r)"\ntouch %s\n' % (done, d, d, sys.executable, root, other, done))
+    os.chmod(stub, 0o755)
+    preview.hook('install', 'main', cwd=d, py=stub)
+    g('checkout', '-qb', 'topic'); open(os.path.join(d, 't'), 'w').write('t'); g('add', 't'); g('commit', '-qm', 't')
+    g('checkout', '-q', 'main')
+    g('merge', '-q', '--no-ff', '-m', 'merge topic', 'topic')
+    head = g('rev-parse', 'HEAD')
+    for _ in range(100):
+        if os.path.exists(done):
+            break
+        time.sleep(0.1)
+    assert os.path.exists(done), open(os.path.join(d, 'charkit', 'out', 'previews', 'hook.log')).read()
+    seen = open(done + '.env').read().split()
+    assert not [v for v in seen if v.split('=')[0] in preview.GIT_HOOK_ENV], seen
+    # the hooked worktree: still on main at the merge; the other worktree: detached at topic
+    assert g('rev-parse', '--abbrev-ref', 'HEAD') == 'main' and g('rev-parse', 'HEAD') == head
+    assert g('status', '--porcelain', '--untracked-files=no') == ''
+    og = lambda *a: subprocess.run(['git', *a], cwd=other, capture_output=True, text=True).stdout.strip()
+    assert og('rev-parse', '--abbrev-ref', 'HEAD') == 'HEAD' and og('rev-parse', 'HEAD') == g('rev-parse', 'topic')
+    preview.hook('remove', cwd=d)
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
