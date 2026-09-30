@@ -68,6 +68,67 @@ def test_widths_cut_is_whole():
                           np.sort(_widths_whole(np.repeat(np.repeat(m, 2, 0), 2, 1), 2)))
 
 
+def test_cast_shadow_overhang():
+    # a floor under a roof overhanging its front half: points under the roof are in its shadow for a light from above,
+    # the points in front of it lit; a light from below (el < 0) shadows nothing
+    from charkit import faceshade as fs
+    xs, ys = np.meshgrid(np.linspace(-0.4, 0.4, 9), np.linspace(-0.4, 0.4, 9))
+    P = np.stack([xs.ravel(), ys.ravel(), np.zeros(xs.size)], 1)
+    N = np.tile([0.0, 0.0, 1.0], (len(P), 1))
+    roof = (np.array([[-1, 0.0, 0.3], [1, 0.0, 0.3], [1, 1, 0.3], [-1, 1, 0.3]]), [(0, 1, 2, 3)])
+    up = np.array([[0.0, 0.0, 1.0]]); down = np.array([[0.0, 0.2, -1.0]])
+    c = fs.cast_shadow(P, N, [roof], np.concatenate([up, down]), 1.0, px=0.02)
+    under = P[:, 1] > 0.05
+    front = P[:, 1] < -0.05
+    assert (c[under, 0] > 0.9).all() and (c[front, 0] < 0.1).all()
+    assert (c[:, 1] == 0).all()
+    # the baked azimuths: phi = atan2(x, -y), 0 in front of her; qa3d._cast interpolates between them
+    D = fs.cast_dirs(16, 40.0)
+    assert np.allclose(np.degrees(np.arctan2(D[4, 0], -D[4, 1])), 90.0) and np.allclose(D[:, 2], np.sin(np.radians(40)))
+    smp = np.zeros((1, 16), np.float32); smp[0, 4] = 1.0
+    P_ = dict(k=16, at=0.5, width=0.12)
+    assert qa3d._cast(P_, smp, D[4])[0] == 1.0 and qa3d._cast(P_, smp, D[6])[0] == 0.0
+    mid = D[4] + D[5]
+    assert abs(qa3d._cast(P_, smp, mid / np.linalg.norm(mid))[0] - 0.5) < 1e-6      # half way: the step's middle
+
+
+def test_smooth_vertex_keeps_constants():
+    from charkit import faceshade as fs
+    T = np.array([[0, 1, 2], [1, 3, 2]])
+    X = np.ones((4, 3), np.float32)
+    assert np.allclose(fs.smooth_vertex(X, T, np.ones(4, bool), 3), 1.0)
+    X[0] = 0.0
+    Y = fs.smooth_vertex(X, T, np.array([True, True, True, False]), 1)
+    assert Y[3].tolist() == [1.0, 1.0, 1.0] and 0 < Y[0, 0] < 1
+
+
+def test_chin_separates_the_v_from_the_band():
+    """face_shadow_chin's measures on shapes: a V under the chin against itself and moved 0.01 L grade PASS; a band low
+    on the neck FAILs both, even a band as thick as the V's mean (the pixel count per column alone reads it as the V:
+    why the reach is graded). (On the real design the shadow is thinner: a pixel's move costs more; look.md round 5.)"""
+    from charkit import lookqa
+    ppl, H, W = 200, 140, 200
+    rows, cols = np.mgrid[:H, :W]
+    r0 = 20                                                  # the chin's row: the window is r0 .. r0 + 0.5 L
+    neck = (cols >= 60) & (cols < 140) & (rows >= r0) & (rows < r0 + ppl // 2)
+    depth = 40 - 0.8 * np.abs(cols + 0.5 - 100)              # the V: 0.2 L deep under the chin, 0.04 L at the sides
+    V = neck & (rows < r0 + depth)
+    grade = lambda c: (lookqa._grade_chin(c['iou'], lookqa.CHIN_IOU, True),
+                       lookqa._grade_chin(c['edge'], lookqa.CHIN_EDGE, False))
+    c = lookqa._chin(V, V, neck, ppl)
+    assert c['iou'] == 1.0 and c['edge'] == 0.0 and grade(c) == ('PASS', 'PASS')
+    for sh in ((2, 0), (0, 2), (-2, 0), (0, -2)):            # 0.01 L either way
+        c = lookqa._chin(np.roll(V, sh, (0, 1)), V, neck, ppl)
+        assert grade(c) == ('PASS', 'PASS'), (sh, c)
+    mean = int(round(V.sum() / neck.any(0).sum()))           # the V's mean thickness (24 px)
+    band = neck & (rows >= r0 + 60) & (rows < r0 + 60 + mean)
+    c = lookqa._chin(band, V, neck, ppl)
+    assert grade(c) == ('FAIL', 'FAIL'), c
+    assert abs(c['ours_depth'] - c['design_depth']) < 0.01   # the count alone: the same
+    tilt = neck & (rows >= r0 + 30)                          # round 1's smear: the neck shaded from part way down
+    assert grade(lookqa._chin(tilt, V, neck, ppl))[0] == 'FAIL'
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

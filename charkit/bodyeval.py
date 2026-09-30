@@ -445,11 +445,19 @@ class Part:
             V, polys, parent = self.V, self.polys, np.arange(len(self.polys))
             tex = getattr(self, 'tex', None)
             uvc = tex['uvc'] if tex else None
+            creases = getattr(self, 'creases', None)          # (the skin's eye margins, as character.build creases them)
+            corners = getattr(self, 'corners', None)          # (the masked skin's loose edges' ends: mask_corners)
+            vcr = None
+            if corners is not None and len(corners):
+                vcr = np.zeros(len(V)); vcr[corners] = 1.0
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
-                polys, uvc = recalc_normals(V, polys, uvc)      # (the faces as garments._object winds them)
-                V, polys, parent, uvc = solidify(V, polys, self.solid, uvc)
-            for _ in range(levels):
-                V, polys, par, uvc = subdivide(V, polys, uvc)
+                from .geom import solidify as solid           # (the faces wound as recorded: geom.wind)
+                st = getattr(self, 'solid_settings', None) or {}
+                R = solid.solidify(V, polys, self.solid, uv=uvc, **{k: v for k, v in st.items() if k != 'thickness'})
+                V, polys, parent, uvc = R['V'], (R['loopv'], R['counts']), R['parent'], R['uv']
+                creases = R['creases'] if len(R['creases'][0]) else None
+            if levels:
+                V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases, vcreases=vcr)
                 parent = parent[par]
             if tex:
                 uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
@@ -539,7 +547,14 @@ def garment_part(o):
     sol = o['mods'].get('thick')
     if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
         P.solid = float(sol['settings']['thickness'])
+        P.solid_settings = {k: v for k, v in sol['settings'].items() if k in SOLID_SETTINGS}
+    if not any(m['type'] == 'SUBSURF' for m in o['mods'].values()):   # (a piece built without one: its corners crisp)
+        P.subdiv = 0
     return P
+
+
+SOLID_SETTINGS = ('offset', 'use_rim', 'edge_crease_outer', 'edge_crease_inner', 'edge_crease_rim', 'use_even_offset',
+                  'use_quality_normals', 'use_flip_normals')      # the Solidify settings charkit.geom.solidify takes
 
 
 def _texel(img, uv):
@@ -598,6 +613,42 @@ def _plate(E, key, tex):
     return px[:, :3].astype(float), px[:, 3].astype(float)
 
 
+def skin_creases(A):
+    """the skin's creased edges as character.build creases them (crease 1: each eye's margin loop) -> {(a, b): 1.0}."""
+    out = {}
+    for E in A['eyes']:
+        lp = list(E['eye']['margin'])
+        for a_, b_ in zip(lp, lp[1:] + lp[:1]):
+            out[(min(a_, b_), max(a_, b_))] = 1.0
+    return out
+
+
+def mask_loose_edges(F, hide):
+    """the loose edges Blender's Mask leaves (vertex group mode): both ends kept, every face on the edge dropped (a face
+    goes when any of its vertices does). -> (k, 2) vertex pairs."""
+    hide = np.asarray(hide, bool)
+    cnt = np.array([len(f) for f in F], np.int64)
+    if not len(cnt):
+        return np.zeros((0, 2), np.int64)
+    lv = np.concatenate([np.asarray(f, np.int64) for f in F])
+    st = np.r_[0, np.cumsum(cnt)[:-1]]
+    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
+    n = len(hide)
+    key = np.minimum(lv, lv[nxt]) * n + np.maximum(lv, lv[nxt])
+    fkeep = np.logical_and.reduceat(~hide[lv], st)
+    ek = np.unique(key)
+    ek = ek[~hide[ek // n] & ~hide[ek % n]]
+    loose = np.setdiff1d(ek, key[np.repeat(fkeep, cnt)])
+    return np.stack([loose // n, loose % n], 1)
+
+
+def mask_corners(F, hide):
+    """the vertices Blender's Subdivision Surface makes infinitely sharp corners after the build's Mask: the ends of the
+    loose edges it leaves (Blender's subdiv converter marks a loose edge's vertices infinitely sharp; the lab's
+    grid_loose_edge). Measured: the masked skin 0.0107 L -> 3.1e-6 L against Blender. -> vertex indices."""
+    return np.unique(mask_loose_edges(F, hide).ravel())
+
+
 def character_parts(A, hide=None, spec=None):
     """the skin (minus the vertices the garments hide, as the build's mask modifier does), the eyes and the mouth, with
     their materials' unlit tones and model-sheet classes per polygon (qa3d.scene_classes' rules: the skin by material,
@@ -625,6 +676,9 @@ def character_parts(A, hide=None, spec=None):
         out.append(Part(A.get('_name', 'char') + '_skin', 'skin', A['verts'], polys, lit, shd,
                         np.array([tone[m][2] for m in fm])))
         out[-1].role = role
+        out[-1].creases = skin_creases(A)
+        if role == 'masked' and hide is not None:
+            out[-1].corners = mask_corners(F, hide)
     if len(out) == 1:
         out[0].role = None
     IK = spec.get('iris')
@@ -706,7 +760,7 @@ class Geometry:
             from .bodyqa import CLASS as CL, family
             objs = []
             for p in self.parts:
-                n_ = lv.get(p.group, 0)
+                n_ = min(lv.get(p.group, 0), getattr(p, 'subdiv', 99))
                 if n_:
                     V, polys, parent, lit, shd, cls = p.subdivided(n_)
                     T, pid = triangulate(polys, with_poly=True)
@@ -1431,189 +1485,24 @@ def vertex_normals(V, polys):
     return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
 
 
-def recalc_normals(V, polys, uv=None):
-    """bmesh.ops.recalc_face_normals (garments._object runs it on every piece): each connected region's polygons wound
-    consistently, and the region turned so its outermost vertex's polygon faces away from the region's centre (the
-    polygons' area-weighted centres; at that vertex the edge most across the outward direction, and of its polygons the
-    one facing most along it). -> (polys, uv) with the flipped polygons (and their corner UVs) reversed."""
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import connected_components
-    V = np.asarray(V, float)
-    lv, st, cnt = _loops_of(polys)
-    nf, n = len(cnt), len(V)
-    fid = np.repeat(np.arange(nf), cnt)
-    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
-    a, b = lv, lv[nxt]
-    key = np.minimum(a, b) * n + np.maximum(a, b)
-    order = np.argsort(key, kind='stable')
-    ks = key[order]
-    same = np.nonzero(ks[1:] == ks[:-1])[0]
-    i, j = order[same], order[same + 1]                       # loops sharing an edge (consecutive pairs)
-    flip_rel = (a[i] == a[j])                                 # the same direction in both: one of them is reversed
-    nc, comp = connected_components(coo_matrix((np.ones(len(i)), (fid[i], fid[j])), shape=(nf, nf)), directed=False)
-    flip = np.zeros(nf, bool); seen = np.zeros(nf, bool)
-    adj = [[] for _ in range(nf)]
-    for x, y, r in zip(fid[i], fid[j], flip_rel):
-        adj[x].append((y, r)); adj[y].append((x, r))
-    for f0 in range(nf):                                       # breadth first from each region's first polygon
-        if seen[f0]:
-            continue
-        seen[f0] = True; queue = [f0]
-        while queue:
-            f = queue.pop()
-            for g, r in adj[f]:
-                if not seen[g]:
-                    seen[g] = True; flip[g] = flip[f] ^ r; queue.append(g)
-    FN = np.zeros((nf, 3)); np.add.at(FN, fid, np.cross(V[lv], V[lv[nxt]]))
-    area = np.linalg.norm(FN, axis=1) / 2
-    FN = FN / np.maximum(2 * area, 1e-30)[:, None] * np.where(flip, -1, 1)[:, None]
-    FC = np.zeros((nf, 3)); np.add.at(FC, fid, V[lv]); FC /= cnt[:, None]
-    for c in range(nc):
-        fs = np.nonzero(comp == c)[0]
-        w = area[fs]
-        cent = (FC[fs] * w[:, None]).sum(0) / max(w.sum(), 1e-30)
-        m = np.isin(fid, fs)
-        loops = np.nonzero(m)[0]
-        v = lv[loops[np.argmax(((V[lv[loops]] - cent) ** 2).sum(1))]]
-        d = V[v] - cent; d /= max(np.linalg.norm(d), 1e-30)
-        at = loops[(lv[loops] == v) | (b[loops] == v)]         # the edges at the vertex, by the loops that run them
-        ev = V[b[at]] - V[a[at]]; ev /= np.maximum(np.linalg.norm(ev, axis=1, keepdims=True), 1e-30)
-        ed = np.abs(ev @ d)
-        best = at[ed <= ed.min() + 1e-6]                        # the edge most across the outward direction
-        k_ = key[best]
-        cand = np.nonzero(np.isin(key, k_) & m)[0]
-        f = fid[cand[np.argmax(np.abs(FN[fid[cand]] @ d))]]
-        if FN[f] @ d < 0:
-            flip[fs] = ~flip[fs]
-    P = [tuple(int(x) for x in (lv[s_:s_ + c_][::-1] if flip[q] else lv[s_:s_ + c_])) for q, (s_, c_) in enumerate(zip(st, cnt))]
-    if uv is None:
-        return P, None
-    Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c_, float) for c_ in uv])
-    return P, [Uc[s_:s_ + c_][::-1] if flip[q] else Uc[s_:s_ + c_] for q, (s_, c_) in enumerate(zip(st, cnt))]
+def solidify(V, polys, t, uv=None, rim=True, **settings):
+    """Blender's Solidify (charkit.geom.solidify: simple, offset -1, as Blender lays it out: the input, then its copy t
+    in with its polygons reversed first corner kept, then the rim). uv: per-corner UVs. -> (V (2n, 3), polys, parent
+    polygon per polygon, per-polygon corner uvs or None)."""
+    from .geom import solidify as solid
+    R = solid.solidify(V, polys, t, use_rim=rim, uv=uv, **settings)
+    st = np.r_[0, np.cumsum(R['counts'])[:-1]]
+    P = [tuple(int(x) for x in R['loopv'][a:a + c]) for a, c in zip(st, R['counts'])]
+    U = [R['uv'][a:a + c] for a, c in zip(st, R['counts'])] if R['uv'] is not None else None
+    return R['V'], P, R['parent'], U
 
 
-def solidify(V, polys, t, uv=None, rim=True):
-    """Blender's Solidify (simple, offset -1, even thickness off): the surface moved t against its vertex normals and a
-    copy left where it was (its polygons reversed), each open edge joined across by a rim quad. uv: per-corner UVs as
-    subdivide takes them. -> (V (2n, 3), polys, parent polygon per polygon, uv or None)."""
-    V = np.asarray(V, float)
-    n = len(V)
-    lv, st, cnt = _loops_of(polys)
-    fid = np.repeat(np.arange(len(cnt)), cnt)
-    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
-    NV = np.vstack([V - t * vertex_normals(V, polys), V])
-    P = [tuple(int(x) for x in lv[s_:s_ + c]) for s_, c in zip(st, cnt)]
-    out = P + [tuple(x + n for x in f[::-1]) for f in P]
-    parent = list(range(len(P))) * 2
-    U = None
-    if uv is not None:
-        Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
-        U = [Uc[s_:s_ + c] for s_, c in zip(st, cnt)]
-        U = U + [u[::-1] for u in U]
-    if rim:
-        a, b = lv, lv[nxt]
-        key = np.minimum(a, b) * n + np.maximum(a, b)
-        _, inv, c_ = np.unique(key, return_inverse=True, return_counts=True)
-        for i in np.nonzero(c_[inv] == 1)[0]:
-            out.append((int(b[i]), int(a[i]), int(a[i]) + n, int(b[i]) + n))
-            parent.append(int(fid[i]))
-            if U is not None:
-                ua, ub = Uc[i], Uc[nxt[i]]
-                U.append(np.array([ub, ua, ua, ub]))
-    return NV, out, np.asarray(parent), U
-
-
-def subdivide(V, polys, uv=None, limit=True):
-    """one level of Catmull-Clark (Blender's Subdivision Surface at level 1: boundaries smooth, the result pushed to the
-    limit surface), numpy. polys: index tuples of any size; uv: optional per-corner UVs [[(u, v), ...] per polygon],
-    interpolated linearly. -> (V (n, 3), quads (m, 4), parent polygon per quad (m,), uv per corner (m, 4, 2) or None)."""
-    from scipy import sparse
-    V = np.asarray(V, float)
-    nv = len(V)
-    if isinstance(polys, np.ndarray) and polys.ndim == 2:
-        cnt = np.full(len(polys), polys.shape[1])
-        lv = polys.astype(np.int64).ravel()
-    else:
-        cnt = np.array([len(f) for f in polys])
-        lv = np.concatenate([np.asarray(f, np.int64) for f in polys])
-    st = np.r_[0, np.cumsum(cnt)[:-1]]
-    nf = len(polys)
-    fid = np.repeat(np.arange(nf), cnt)
-    nxt = np.arange(len(lv)) + 1
-    nxt[st + cnt - 1] = st
-    prv = np.arange(len(lv)) - 1
-    prv[st] = st + cnt - 1
-    FP = np.zeros((nf, 3)); np.add.at(FP, fid, V[lv]); FP /= cnt[:, None]
-    # edges: one per unordered pair; each loop's edge runs to the next corner
-    a, b = lv, lv[nxt]
-    key = np.minimum(a, b) * nv + np.maximum(a, b)
-    ukey, einv, ecnt = np.unique(key, return_inverse=True, return_counts=True)
-    ne = len(ukey)
-    ea, eb = ukey // nv, ukey % nv
-    efs = np.zeros((ne, 3)); np.add.at(efs, einv, FP[fid])
-    bnd = ecnt == 1
-    EP = np.where(bnd[:, None], (V[ea] + V[eb]) / 2, (V[ea] + V[eb] + efs) / 4)      # (two faces' points summed)
-    EP = np.where((ecnt > 2)[:, None], (V[ea] + V[eb]) / 2, EP)             # (non-manifold: the midpoint)
-    # vertices: interior (Q + 2R + (n - 3) S) / n; boundary (prev + 6 v + next) / 8
-    ones = np.ones(ne)
-    VE = sparse.coo_matrix((np.r_[ones, ones], (np.r_[ea, eb], np.r_[np.arange(ne), np.arange(ne)])), shape=(nv, ne)).tocsr()
-    val = np.asarray(VE.sum(1)).ravel()
-    R = (VE @ ((V[ea] + V[eb]) / 2)) / np.maximum(val, 1)[:, None]
-    VF = sparse.coo_matrix((np.ones(len(lv)), (lv, fid)), shape=(nv, nf)).tocsr()
-    nfv = np.asarray(VF.sum(1)).ravel()
-    Q = (VF @ FP) / np.maximum(nfv, 1)[:, None]
-    n_ = np.maximum(val, 1)[:, None]
-    VP = (Q + 2 * R + (n_ - 3) * V) / n_
-    VB = sparse.coo_matrix((np.r_[ones[bnd], ones[bnd]], (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
-    nb_ = np.asarray(VB.sum(1)).ravel()
-    onb = nb_ == 2
-    VP[onb] = ((VB @ V)[onb] + 6 * V[onb]) / 8
-    VP[(nb_ > 0) & ~onb] = V[(nb_ > 0) & ~onb]                             # (a corner of several boundaries: kept)
-    VP[val == 0] = V[val == 0]
-    # the new mesh: vertices, then face points, then edge points; a quad per corner
-    NV = np.vstack([VP, FP, EP])
-    e_next = einv                                                         # the edge from this corner to the next
-    e_prev = einv[prv]                                                    # the edge into this corner
-    quads = np.stack([lv, nv + nf + e_next, nv + fid, nv + nf + e_prev], 1)
-    # each child quad starts where Blender's does (corner c of its polygon: rotated by -c), so a fan triangulation
-    # (faceqa.triangles) cuts it along the same diagonal as Blender's evaluated mesh
-    corner = np.arange(len(lv)) - st[fid]
-    rot = (-corner) % 4
-    quads = quads[np.arange(len(quads))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
-    parent = fid
-    UV = None
-    if uv is not None:
-        U = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
-        fuv = np.zeros((nf, 2)); np.add.at(fuv, fid, U); fuv /= cnt[:, None]
-        UV = np.stack([U, (U + U[nxt]) / 2, fuv[fid], (U + U[prv]) / 2], 1)
-        UV = UV[np.arange(len(UV))[:, None], (np.arange(4)[None, :] + rot[:, None]) % 4]
-    if limit:
-        NV = limit_positions(NV, quads)
-    return NV, quads, parent, UV
-
-
-def limit_positions(V, quads):
-    """Catmull-Clark limit positions of an all-quad mesh's vertices: interior (n^2 v + 4 sum(edge neighbours) + sum(face
-    diagonals)) / (n (n + 5)); on a boundary the cubic B-spline's (prev + 4 v + next) / 6."""
-    from scipy import sparse
-    nv = len(V)
-    Qd = np.asarray(quads, np.int64)
-    a = Qd.ravel(); b = np.roll(Qd, -1, 1).ravel(); d = np.roll(Qd, -2, 1).ravel()
-    key = np.minimum(a, b) * nv + np.maximum(a, b)
-    ukey, cnt_e = np.unique(key, return_counts=True)
-    ea, eb = ukey // nv, ukey % nv
-    ne = len(ukey)
-    E = sparse.coo_matrix((np.ones(2 * ne), (np.r_[ea, eb], np.r_[eb, ea])), shape=(nv, nv)).tocsr()
-    val = np.asarray(E.sum(1)).ravel()
-    Dg = sparse.coo_matrix((np.ones(len(a)), (a, d)), shape=(nv, nv)).tocsr()
-    n = np.maximum(val, 1)[:, None]
-    out = (n * n * V + 4 * (E @ V) + Dg @ V) / (n * (n + 5))
-    bnd = cnt_e == 1
-    B = sparse.coo_matrix((np.ones(2 * bnd.sum()), (np.r_[ea[bnd], eb[bnd]], np.r_[eb[bnd], ea[bnd]])), shape=(nv, nv)).tocsr()
-    nb_ = np.asarray(B.sum(1)).ravel()
-    on = nb_ == 2
-    out[on] = ((B @ V)[on] + 4 * V[on]) / 6
-    odd = (nb_ > 0) & ~on
-    out[odd] = V[odd]
-    out[val == 0] = V[val == 0]                                          # (a loose vertex stays where it is)
-    return out
+def subdivide(V, polys, uv=None, limit=True, levels=1, creases=None, vcreases=None):
+    """Blender's Subdivision Surface (charkit.geom.subsurf: OpenSubdiv's Catmark rules as Blender 5.2 evaluates them,
+    creases, open borders, UVs smoothed inside their seams, the limit at the isolation level). polys: index tuples of
+    any size; uv: per-corner UVs [[(u, v), ...] per polygon]; creases: {(a, b): crease 0..1} or (pairs, creases);
+    vcreases: per-vertex crease (n,) (1: an infinitely sharp corner). -> (V (n, 3), quads (m, 4), parent polygon per
+    quad (m,), uv per corner (m, 4, 2) or None)."""
+    from .geom import subsurf
+    R = subsurf.subdivide(V, polys, levels=levels, creases=creases, vcreases=vcreases, uv=uv, limit_surface=limit)
+    return R['V'], R['quads'], R['parent'], R['uv']

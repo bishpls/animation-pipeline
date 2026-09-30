@@ -122,6 +122,38 @@ def test_skirt_width_with_no_row_free_in_both_compares_matching_rows():
     assert sw['value'] == 1.05 and sw['rows'] == 7 and sw['status'] == 'PASS', sw
 
 
+def test_absorb_on_its_window_reads_as_the_whole_grid():
+    """absorb works on the window of the pixels it can change (bodymeasure.window, padded by their neighbours): the same
+    classes as the whole grid's pass, lines in one corner, at the grid's edge and none at all."""
+    def whole(cls, fg, drop=(bodyqa.CLASS['line'], bodyqa.CLASS['other']), steps=6):
+        cls = cls.copy()
+        keep = [c for c in range(1, 11) if c not in drop]
+        for _ in range(steps):
+            todo = fg & np.isin(cls, drop)
+            if not todo.any():
+                break
+            best, cnt = np.zeros_like(cls), np.zeros(cls.shape, int)
+            for c in keep:
+                m = cls == c
+                n = sum(bodyqa._shift(m, dy, dx).astype(int) for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+                better = n > cnt
+                best[better], cnt[better] = c, n[better]
+            take = todo & (cnt > 0)
+            cls[take] = best[take]
+        return cls
+    rng = np.random.default_rng(1)
+    for k in range(8):
+        cls = np.where(rng.random((80, 90)) < 0.5, bodyqa.CLASS['skin'], bodyqa.CLASS['orange'])
+        fg = rng.random((80, 90)) < 0.9
+        r0, c0 = [(10, 20), (0, 0), (70, 75), (30, 0)][k % 4]
+        cls[r0:r0 + 10, c0:c0 + 15] = rng.choice([bodyqa.CLASS['line'], bodyqa.CLASS['other'], bodyqa.CLASS['cream']],
+                                                (10, 15))[:80 - r0, :90 - c0]
+        if k == 7:
+            cls[cls == bodyqa.CLASS['line']] = bodyqa.CLASS['skin']
+            cls[cls == bodyqa.CLASS['other']] = bodyqa.CLASS['skin']
+        assert (bodyqa.absorb(cls, fg) == whole(cls, fg)).all(), k
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

@@ -206,8 +206,9 @@ def test_subdivide_cube():
     NV, Q, parent, _ = bodyeval.subdivide(V, F, limit=False)
     assert Q.shape == (24, 4) and len(NV) == 8 + 6 + 12 and sorted(set(parent.tolist())) == list(range(6))
     assert np.allclose(NV[0], [-5 / 9] * 3)
-    edge = NV[8 + 6:]
+    edge = NV[8:8 + 12]                                                   # (Blender's order: vertices, edges, faces)
     assert np.any(np.all(np.isclose(edge, [-0.75, -0.75, 0.0]), 1))
+    assert np.allclose(np.sort(np.abs(NV[8 + 12:]), 1), [[0, 0, 1]] * 6)            # the face points
     NL, _, _, _ = bodyeval.subdivide(V, F, limit=True)                    # the limit surface lies further in
     assert np.linalg.norm(NL, axis=1).max() < np.linalg.norm(NV, axis=1).max()
 
@@ -399,14 +400,15 @@ def _tube(n=12, rows=3, inward=False):
     return V, F
 
 
-def test_recalc_normals_and_solidify():
-    """bmesh's recalc_face_normals turns a tube's polygons outward whichever way they were wound; Solidify (offset -1)
-    then puts its copy t inside, joins the two open ends with rim quads, and the Subdivision Surface keeps a loose
-    vertex where it is."""
+def test_winding_and_solidify():
+    """the garments' winding (charkit.geom.wind.orient, which the recording passes to Blender) turns a tube's polygons
+    outward whichever way they were wound; Solidify (offset -1) then puts its copy t inside, joins the two open ends
+    with rim quads, and the Subdivision Surface keeps a loose vertex where it is."""
     from charkit import bodyeval
+    from charkit.geom import wind
     for inward in (False, True):
         V, F = _tube(inward=inward)
-        P, _ = bodyeval.recalc_normals(V, F)
+        P = wind.orient(V, F)[0]
         N = bodyeval.vertex_normals(V, P)
         assert (N[:, :2] * V[:, :2]).sum(1).min() > 0.99                         # outward, every vertex
         V2, P2, parent, _ = bodyeval.solidify(V, P, 0.1)
@@ -417,6 +419,56 @@ def test_recalc_normals_and_solidify():
     V = np.vstack([V, [[5.0, 5.0, 5.0]]])                                           # a loose vertex
     Vs, Q, par, _ = bodyeval.subdivide(V, F)
     assert np.allclose(Vs[len(V) - 1], [5.0, 5.0, 5.0])
+
+
+def test_creased_rims_stay_flat_and_square():
+    """Michael's call L (garments._thick): a shell's open borders creased on both layers keep its rim a flat band square
+    to the layers under the Subdivision: a flat 3 x 3 grid solidified 0.1 and subdivided keeps every vertex on the two
+    layers' planes or on the rim's middle line (z 0, -0.05, -0.1). Uncreased, the Subdivision rounds the rim into a bead
+    (its border vertices pulled in between), which the outline's inward move turns inside out. The creases are the two
+    border loops only (8 edges each), not the rim's cross edges."""
+    from charkit import bodyeval
+    from charkit.geom import wind
+    g = np.linspace(0, 1, 4)
+    V = np.array([(x, y, 0.0) for y in g for x in g])
+    F = [(j * 4 + i, j * 4 + i + 1, (j + 1) * 4 + i + 1, (j + 1) * 4 + i) for j in range(3) for i in range(3)]
+    P = wind.orient(V, F)[0]
+    from charkit.geom import solidify, subsurf
+    t = 0.1
+    R = solidify.solidify(V, P, t, edge_crease_outer=1.0, edge_crease_inner=1.0)   # (garments._thick's settings)
+    sh, cw = R['creases']
+    V2 = R['V']
+    assert len(sh) == 2 * 12 and all(abs(V2[a, 2] - V2[b, 2]) < 1e-12 for a, b in sh)   # the loops, no cross edge
+    assert np.all(subsurf.crease_sharpness(cw) >= subsurf.INF)          # crease 1: OpenSubdiv's infinitely sharp
+    S = subsurf.subdivide(V2, (R['loopv'], R['counts']), creases=R['creases'])
+    z = np.unique(np.round(S['V'][:, 2], 9))
+    assert set(np.round(np.abs(z), 9)) <= {0.0, t / 2, t}, z
+    assert len(S['sharp'][0]) == 2 * len(sh)                             # (a closed shell: no open edges of its own)
+    Vs = bodyeval.subdivide(V2, [tuple(x) for x in np.split(R['loopv'], np.cumsum(R['counts'])[:-1])],
+                            creases=R['creases'])[0]
+    assert np.allclose(Vs, S['V'])                                       # the evaluator's wrapper is the same
+    V2, P2, _, _ = bodyeval.solidify(V, P, t)
+    Vs, _, _, _ = bodyeval.subdivide(V2, P2)
+    zs = np.abs(Vs[:, 2])
+    assert ((zs > 1e-6) & (zs < t / 2 - 1e-6)).any()                                # uncreased: a rounded bead
+
+
+def test_mask_loose_edges():
+    """Blender's Mask (vertex group mode) keeps an edge whose ends it keeps even when it drops every face on it; the
+    Subdivision Surface then makes that edge's ends corners (the lab's grid_loose_edge against Blender). Brute force on a
+    6 x 5 grid with two vertices hidden: the edge between them, 14-15, is loose."""
+    from charkit import bodyeval
+    nx, ny = 6, 5
+    F = [(y * nx + x, y * nx + x + 1, (y + 1) * nx + x + 1, (y + 1) * nx + x) for y in range(ny - 1) for x in range(nx - 1)]
+    hide = np.zeros(nx * ny, bool); hide[[8, 21]] = True
+    got = {tuple(e) for e in bodyeval.mask_loose_edges(F, hide).tolist()}
+    kept_f = [f for f in F if not hide[list(f)].any()]
+    on_kept = {tuple(sorted((f[i], f[(i + 1) % 4]))) for f in kept_f for i in range(4)}
+    every = {tuple(sorted((f[i], f[(i + 1) % 4]))) for f in F for i in range(4)}
+    want = {e for e in every if not hide[list(e)].any() and e not in on_kept}
+    assert got == want and (14, 15) in got, (got, want)
+    assert set(bodyeval.mask_corners(F, hide).tolist()) == {v for e in want for v in e}
+    assert len(bodyeval.mask_loose_edges(F, np.zeros(nx * ny, bool))) == 0
 
 
 if __name__ == '__main__':

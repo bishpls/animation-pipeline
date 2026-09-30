@@ -6,6 +6,20 @@ The outfit-source method applied to the hair: the layer masks (`hair_layers`: ba
 buns, ahoge, flyaways per view, and each bun by side) scored against a hand-checked labelling of the body sheet, then
 the tagging improved where the truth shows errors.
 
+## tool/hairtag-truth: the measurement alone (the fallback split, round 2)
+
+The coordinator held tool/hairtag because the hair pieces fitted to its new masks moved both ways. This branch, from
+pipeline-3d, lands the measurement without moving any geometry:
+- the truth (`charkit/refs/clawd/hair_truth.{json,npz}`, the manifest's `hair_truth`), the scorer (`hairlayers score`,
+  `hairlayers truth`), `charkit/tests/test_hairtruth.py`, the review page and the labs (`tools/hairtag/`);
+- the method (the drawing's structure: lock regions, cel tones, the vote, clips out, the buns' rim kept) **behind a
+  setting, off by default**: `hairlayers.STRUCT` is the old transfer (the produced hair layers are pipeline-3d's
+  exactly, checked array by array), `STRUCT_ON` the method. `python -m charkit hairlayers SPEC --struct --out DIR`
+  makes the method's masks off the manifest's path, and `hairlayers score --masks DIR/hair_layers.npz` grades them
+  (0.9585 against pipeline-3d's 0.892). No measurement step: the produced layers don't change.
+
+tool/hairtag carries the method on by default with the 2x2 below; the rest of this file is its record.
+
 ## The truth
 
 `charkit/refs/clawd/hair_truth.npz` (charkit-hair-truth/1), built from its source `hair_truth.json` by

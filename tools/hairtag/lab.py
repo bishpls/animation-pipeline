@@ -2,7 +2,8 @@
 sheet's views) made once and cached.
 
     python tools/hairtag/lab.py OUT_DIR [--outfit MASKS.npz] 'name|{"vote": 0, ...}' ...
-  -> OUT_DIR/NAME.npz (the masks), OUT_DIR/lab.json (the scores); prints a line per variant.
+  -> OUT_DIR/NAME.npz (the masks), OUT_DIR/lab.json (the scores); prints a line per variant. Each variant's keys
+  over hairlayers.STRUCT_ON (the method, the default); '{"vote": 0, "clips": false}' is the plain transfer (STRUCT_OFF).
 """
 import json, os, pickle, sys, time
 import numpy as np
@@ -44,7 +45,7 @@ def main(a):
         name, js = arg.split('|', 1)
         st = json.loads(js)
         t0 = time.time()
-        masks, _ = hl.transfer(C['lab'].copy(), C['reg'], C['figs'], C['views'], om, struct=st)
+        masks, _ = hl.transfer(C['lab'].copy(), C['reg'], C['figs'], C['views'], om, struct=dict(hl.STRUCT_ON, **st))
         np.savez_compressed(os.path.join(out, name + '.npz'), **masks)
         r = hl.score(masks, truth)
         res[name] = dict(struct=st, outfit=om_path, score=r)

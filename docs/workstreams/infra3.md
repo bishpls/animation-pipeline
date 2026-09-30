@@ -6,15 +6,97 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A merged (pipeline-3d b43c15e). Milestone B, subset 1 (g, the baseline finding, the boards): done and gated,
-waiting for the coordinator.
-- Gated: **3aaa9b7 into pipeline-3d ae7fd45: PASS** with pipeline-3d's gate code (`gate_tool-infra3_3aaa9b7_into_ae7fd45`:
-  no check changed, 54 test files ok, CPU 0.98x, 510 s). pipeline-3d then moved to 23492b6 (tool/face4-crown); the
-  branch merges into it cleanly (git merge-tree). Not re-gated (K: the coordinator decides). Commits after 3aaa9b7 are
-  notes only.
-- Throwaway branches tmp/infra3-* deleted. Their reports stay in this worktree's charkit/out/gate (untracked).
-- Next: subset 2, h + i (below: "Findings for subset 2" first: the function-precise code walk is the lever for both
-  h and g), then l, then k + j.
+**Run 3 (subset 3 on), first the coordinator's 2x2 gap** (cabfcf5): the 2x2's crossed old-measure cells read
+"unmeasured" in tool/hairtag 37c09cf's gate (a cached baseline's worktree never built, so it had no produced hair
+layers; the old measure's QA skipped hair_pieces) and the gate passed. Now each tree's produced references are made by
+its own code before its crossed QA (gate.produce_inputs), and under K a crossed cell a remeasured check can't get (the
+old measure has the check) or a crossed QA that can't run blocks (gate.unmeasured_cells; --accept by name reports it).
+Rejudged, the hairtag report is FAIL on its 10 cells. Validating on the real pair: tmp/infra3-hairtag (37c09cf) into
+tmp/infra3-into (4de65ab), gate code cabfcf5.
+
+**Box work stopped 2026-09-30 ~09:50 local: gcloud "Reauthentication failed"** (the laptop's gcloud token; Michael
+must `gcloud auth login`). Four detached box jobs were running then and are to be collected with
+`python -m charkit remote attach JID` once it's back:
+- `gate-infra3-0930-093759-d094`: the 2x2's real pair (tmp/infra3-hairtag 37c09cf into tmp/infra3-into 4de65ab, gate
+  code f7429ef). It ended on the box with exit 0 (PASS: the old-measure cells measured); its report wasn't fetched.
+  Expected in charkit/out/gate as gate_tmp-infra3-hairtag_37c09cf_into_4de65ab.md.
+- `gate-infra3-0930-094153-f251`: h's first validation gate (tmp/infra3-h1 into tmp/infra3-into, gate code c14b0ab,
+  also tmp/infra3-gatecode-h): fills ~/.cache/charkit/steps. Then gate tmp/infra3-h2 the same way with
+  `--code tmp/infra3-gatecode-h`: its candidate's pieces_hair (and code_head, code_body, garments_geom) must read
+  `hit` in the report's cache lines, where before every clone rebuilt them (pieces_hair 138-198 s).
+- `build-infra3-0930-094531-cfcf` (--out charkit/out/i_before: `--threads off --slot blender`, the old way) and
+  `build-infra3-0930-094541-9a90` (--out charkit/out/i_after: capped, whole-build slot), both `--cache off`, side by
+  side: i's A/B. Read each build_cpu.json (CPU, wall, cap) and compare bundle/bundle.json's array hashes and
+  qa/qa.json's checks (bit-identical, llvmpipe capped included). Then k: if the two bundles differ only in
+  o/clawd_skin/masked/*, that's the last-bit skin case on the default spec.
+
+**l, first cut (laptop only while the box is out; 38a5f5d on):** `python -m charkit pregate` (charkit/pregate.py):
+each tree runs the build's resolve and venv steps (cached; the pre-gate's trees share ~/.cache/charkit/steps as the
+gate's builds do) and then the fast evaluator's check set on the resolved spec (evaldrift.evaluator_checks: shape_*,
+ref_iou, body_*, palette_*, the face's sheet_*, the pieces; a spec file alone fails: no body_code), this worktree as it
+is against pipeline-3d's head (evaluated once per commit in a sparse worktree of it, kept in
+charkit/out/pregate/base_COMMIT_SPEC.json), judged with gate.compare_qa and gate.judge (K). `--pair TIP [--into HEAD]`
+for a merge of commits; `--against GATE_REPORT.json` for a real gate's pair plus the agreement (the checks both
+measure: moved in both, gate-only, pre-gate-only, the same way, recall and precision, the verdicts). Not the "full
+QA" yet: qa3d's full bundle needs Blender's evaluated meshes (GEOM_TRUTH 7b, Michael's decision), so art_*, hair_*,
+poke, mesh, eyes, expressions and the charkit.render drawing stay the gate's. First timing: the evaluator alone on a
+spec failed in 31 s (no body_code); the produced references cold on the laptop: hull 86 s, outfit masks 36 s.
+**Agreement, a real pair** (`pregate --against` tool/body a9aa137 into 2e3bdd5's gate report, PASS, 149 moved:
+charkit/out/pregate/pregate_tool-body_a9aa137_into_2e3bdd5.md): the evaluator measures 376 checks; 65 of the gate's
+149 moved checks are among them (84 are the full bundle's: boots, piece3d, face, hair). Of those 65 the pre-gate saw
+57 move (recall 0.877), 51 of them the same way; of its own moves on checks the gate's QA names, 57 of 64 the gate
+also moved (precision 0.891); verdicts PASS / PASS. The misses both ways are mostly the hair (body_*_hair_*, iou_hair:
+the evaluator's hair is the generated shape, not the cut pieces). The first cut said FAIL on 4 checks the gate's QA
+doesn't have (bodymeasure's per-view, per-side rows: piece_shorts_profile_top 0.066 -> 0.249 below): K now blocks only
+on names the gate's reports know (481 names), the rest listed apart. Precision over everything was 0.227 (251 moves,
+187 of them those piece rows). Time, cold on the laptop: 409 s (each side 203 s: resolve 105 s, the produced
+references made in a fresh worktree; pieces_hair 61 s; the evaluator 34-35 s).
+
+**h, the rest** (ec00b3a): the venv steps' keys portable (cache._port: the build's out folder as '<out>/', the
+worktree and its charkit/out links relative; reads the same; a hit notes the step's reads, inputs and code files in the
+build's closure via closure.note, else a restored step would drop them from the closure and the gate could skip a
+build it must do). Gate builds share ~/.cache/charkit/steps (gate._step_cache_env) with keys on all the code a step
+reaches (CHARKIT_STEP_DEPTH=all: a shared entry must not restore a stale product; pieces_hair 52 files at full depth
+against 39 at depth 2). The measure: tmp/infra3-h1 and -h2 (4de65ab plus a comment in qa3d.py's poke / hair_tips:
+the candidate builds, no step's key moves) gated one after the other into tmp/infra3-into with this gate code; the
+second's pieces_hair must hit.
+
+**i** (c864fc6, 6384864; not yet measured): a whole build in one machine-wide slot (procs.build_slot; what it starts
+sees CHARKIT_SLOT_HELD and takes none: its Blender, a worker's job, a nested build, so the laptop's one slot can't
+deadlock; `--slot blender` the old way), and the build-like commands (build, qa, tune, worker, bodyeval, bodyfit, fit,
+bodysens, flapchains) capped before numpy loads on a machine of 16+ cores (procs.cap_threads: numba, BLAS, OpenMP and
+llvmpipe's LP_NUM_THREADS at max(2, min(8, cores // 8)) = 4 on the box, OMP waits passive; `--threads N|off`,
+CHARKIT_THREADS; a variable already set wins, so a gate's own caps hold; the laptop, 12 cores, stays uncapped). Every
+build now writes OUT/build_cpu.json and prints CHARKIT_BUILD_CPU (CPU with the Blender it waited for, wall, cap, slot).
+Tests: test_procs (one slot for all a build starts, nesting, caps), 22 passed with test_gate.
+
+Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
+pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
+676 s; the candidate's resolve 225 s is the one-off key change). pipeline-3d then moved to f2ec090; merges cleanly;
+not re-gated. Commits after c5cafcc: notes only. i not started (next run).
+- **Real pairs (this gate code):** a garments.py-only code edit (`gate_tmp-infra3-garm_2ef04a4_into_c5cafcc`, PASS):
+  both sides restored the hull from the shared cache under one key (49cab93a-bf003dc1, 1.8-2.0 s instead of a
+  173 s build; resolve 8.2 s against 242.6 s one gate earlier and look4's 196 s). The builds' closure no longer holds
+  remote.py or gate.py (548 files; cli.py stays: it's the build's entry). `gate --carry` from that report across a
+  remote.py code edit (a function added): **carried, PASS, 8 s** on the laptop, the 4 test files that read remote.py
+  rerun here, all ok.
+- **cache.code_units follows definitions, not modules** (charkit/cache.py `_Mod`, `code_units`; memo SCHEMA 3, so
+  every cache key changes once, approved by the coordinator): names resolve as Python scopes them (hull.Owners' local
+  `main` no longer means hull.main), `m.f` and `from m import f` follow f alone, a module used bare, `import *`,
+  a dotted import or a side-effect import (nothing names it) is taken whole, each reached module's top-level
+  statements are a unit ('path:<top>'), and from the top level a same-module function is followed only when called
+  there (scene.py's table of stages ran none of them). Measured on the real code: the hull's shared-cache key (depth
+  2) 25 files, garments.py not among them (before: garments.py via hull.main -> bodyeval); artifactqa's design key
+  52 files, cli.py:_path in it, gate/remote/tune not (before: 101 modules); code_head's step key 10 files at any depth;
+  stage_hair's key no garments.py.
+- First gate (7fe4fcc into a4f91a3, `gate_tool-infra3_7fe4fcc_into_a4f91a3`): FAIL on test_manifest (it pinned the old
+  whole-module unit names; fixed, as test_cache and test_produced_cache were). The one-off key change showed: the
+  candidate's resolve 242.6 s (the hull rebuilt under its new key), pieces_hair 198 s, CPU 1.42x, 785 s end to end.
+- `gate --carry` also takes a report of an earlier tip of the branch (1916e4e: notes after a gate, the coordinator's
+  tool/face4 case: its bd671ea report is found now, but predates closures).
+- i (next): a slot for the whole build and THREAD_VARS for every box build (remote build/tune), then l, then k + j.
+- Also left in h: the venv file steps' keys aren't portable across clones (pieces_hair's `cut` holds absolute out
+  paths; file_step keys `inputs` by absolute path), so gate clones still rebuild pieces_hair (about 120 s).
 
 ## Milestone B (2026-09-30 night)
 
@@ -207,17 +289,42 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
   (capped) status doesn't: tool/hair4's PASS becomes a FAIL on art_terminator_hair. That's my reading of "regressions in
   the checks built from Michael's flags"; if Michael means status only, it's one line in gate.judge.
 
+## For Michael: box control without the nightly reauth (j; written up, nothing created)
+
+The 09:50 lapse stopped every agent's box work until morning: the laptop drives both boxes with Michael's own gcloud
+login (the IAP tunnel for ssh, OS Login, `compute instances describe/start`, the bucket's `gcloud storage` and
+bucketsync's access tokens), and "Reauthentication failed. cannot prompt during non-interactive execution" is Google
+Cloud session control asking that login to reauthenticate. Detached jobs ran on; nothing could start, follow or
+collect them. Options, least provisioning first:
+1. **Session control (an admin-console setting, no new identity):** Workspace Admin > Security > Google Cloud session
+   control: a longer reauthentication frequency (or "never" for the gcloud CLI) for Michael's account or an OU. It
+   fixes this exact error; the trade is a longer-lived laptop session.
+2. **A dedicated service account for box control**, used from the laptop by a key file (`gcloud auth
+   activate-service-account --key-file`, or a separate gcloud configuration used only by charkit's remote commands:
+   CLOUDSDK_CONFIG pointing at it). Least privilege: IAP-secured tunnel user on the two VMs only; OS Login (not admin)
+   on them; start/stop/describe on those two instances (a custom role, not instanceAdmin on the project); object
+   read/write on the one bucket. A key never expires by itself: keep it mode 600 outside every worktree, rotate it,
+   and check the organisation's key-creation policy first (it's often disabled). Impersonation (`--impersonate-
+   service-account`) doesn't help: it still needs Michael's login to mint tokens.
+3. Whichever: `remote` could check the login before starting a job and say "run gcloud auth login" in one line rather
+   than the traceback (a small code change; not done yet).
+
 ## Next steps
 
-Milestone B after the coordinator's go-ahead:
-- (g) carry a result over when pipeline-3d moves: the same test as the no-build path, the intervening commits'
-  changes against the candidate's closure (the candidate records one now); a command for the integrator's queue.
-- (h) shared stage caches across clones: the venv steps' keys need portable paths first (pieces_hair's `cut` holds
-  head_code and body_code as absolute out paths; file_step keys `inputs` by absolute path).
-- (i) a slot for the whole build, with the thread caps every build gets (not only the gate's): the A/B says about 60%
-  of the box's build CPU is spinning. Add llvmpipe (LP_NUM_THREADS) now that the QA draws with charkit.render, measured
-  bit-identical first.
-- (j) the sampler at boot: the crontab line exists on the build box; check why it stopped, and the render box.
-- (k) the masked-skin last bit (infra.md (c) cause 2), (l) the local pre-gate check.
-- Smaller: create the baseline worktree only when it's needed (the tests-only path spends 7 of its 14 s of setup on
-  it); a leftover clone from infra2's killed gate (/srv/work/gates/tool_infra2-2a85a869, from before the trap).
+Run 3 left off here (box out on gcloud auth from 09:50; tool/infra3 not gated since 7b2f9c8):
+1. After Michael re-logs in: `python -m charkit remote attach JID` for gate-infra3-0930-093759-d094 (the 2x2 pair),
+   gate-infra3-0930-094153-f251 (h1), build-infra3-0930-094531-cfcf (i_before), build-infra3-0930-094541-9a90
+   (i_after). Read them as the State section says.
+2. h's measure: gate tmp/infra3-h2 into tmp/infra3-into with `--code tmp/infra3-gatecode-h`; its candidate's cache
+   lines must say pieces_hair (and code_head, code_body, garments_geom) `hit`.
+3. i's measure: the A/B from the two builds (CPU, wall, bit-identical bundles and checks, LP_NUM_THREADS included);
+   then 4-6 capped builds at once and `remote load --hours 1 --fresh` (slot occupancy, queue, CPU busy, load).
+4. Gate tool/infra3's tip into pipeline-3d (the normal gate) and report. The 2x2 fix alone is cabfcf5..f7429ef if
+   the coordinator wants it first (gate.py and its test only: a tests-only gate).
+5. k: from the i A/B's bundles (masked skin arrays equal or not on the default spec), then infra.md's probe.
+6. j: why the build box's per-minute crontab stopped (it's a user crontab: it should survive a stop/start), add an
+   `@reboot` line in boxjob.install_sampler if needed, and the render box; plus Michael's auth decision above.
+7. l: measured warm: an iteration on this worktree with the target's baseline kept is **23 s** (resolve 0.5 s, the
+   venv steps restored, the evaluator 21.7 s); the first in a worktree 136 s (its steps and references made once).
+   Next: more real pairs (tool/hull-limbs cddbd12 into e11fadb,
+   tool/garments2), and the drawing: the evaluator has no charkit.render path yet.

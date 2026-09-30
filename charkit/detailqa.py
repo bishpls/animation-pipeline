@@ -31,11 +31,12 @@ Checks (qa3d part 'details'; lengths in L, angles in degrees):
         hanging against the thigh hides its edge in the dressed figure (the overskirt flaps did, on every build since
         3d0d5f2), and the design draws the leg whole. Calibrated: the design against itself 0; pipeline-3d db718ae's
         thigh (fitted to the hull's slab) 0.108 FAIL at z -2.80; tool/hull-limbs 0.019 PASS
-  body_profile_leg_outline (INFO)
+  body_profile_leg_outline
         the dressed figure's outline behind the leg in profile: per row, the leg's skin run followed back through
         whatever touches it (a garment hanging against the thigh), its back end against the design's, the bare leg's
         offset taken out: the largest step outward (L), and how many rows have something against the leg that the
-        design keeps clear (tool/skirt's flaps on pipeline-3d db718ae: 0.57 L, 82 of the leg's 242 rows; the design 3)
+        design keeps clear (tool/skirt's flaps on pipeline-3d db718ae: 0.57 L, 82 of the leg's 242 rows; the design 3).
+        Graded by tool/skirt: the step within 0.05 L (WARN 0.10), the hugging rows within 10 of the design's (WARN 30)
   body_front_panel_edge
         the cream panel's lower part above the band: its outline's roughness (how far it strays from its own smoothed
         outline: a staircase or a torn edge) beyond the design's, with its fragments and holes against the design's
@@ -75,7 +76,7 @@ MID_TOP = -0.95                     # L from the eye line: the torso band's top 
 PROFILE_FRONT_TOP = -1.22           # ... the profile's front edge's: the drawn bow tails hang free in front of it to -1.21
                                     # (their drawn masks run on down the bodice's front, which they cover in profile)
 TORSO_PIECES = ('top', 'bodice_panel', 'waistband')   # the drawn pieces whose pixels are the torso's outline
-TORSO_OBJECTS = ('top', 'waistband')                   # ours
+TORSO_OBJECTS = ('top', 'bodice_panel', 'waistband')   # ours (the bib its own object: garments2)
 CANDIDATES = ('top', 'bodice_panel', 'waistband', 'bow', 'bow_tail_L', 'bow_tail_R', 'collar', 'sleeve_L', 'sleeve_R',
               'sleeve_cuff_L', 'sleeve_cuff_R', 'cuff_L', 'cuff_R', 'skirt', 'skirt_panel', 'overskirt_panel_L',
               'overskirt_panel_R')                     # the drawn pieces an edge pixel of the torso band can belong to
@@ -100,6 +101,7 @@ LIMITS = {                          # (pass within, warn within); else fail
     'panel_edge': (0.01, 0.02),
     'overhang': (0.02, 0.04),
     'leg_back': (0.03, 0.06),
+    'leg_outline': (0.05, 0.10),     # (and the rows hugging the leg beyond the design's: 10, 30)
     'ankle_jog': (0.015, 0.03),
     'ankle_bend': (4.0, 8.0),
     'scrunch': (0.012, 0.025),
@@ -608,7 +610,7 @@ def _torso(O, D, masks, view, ppl, idx, pm):
     for who in ('ours', 'design'):
         if who == 'ours':
             lab = O['lab']
-            torso = _members(lab, idx, [m for p in ('top', 'waistband') for m in pm.get(p, [])])
+            torso = _members(lab, idx, [m for p in TORSO_OBJECTS for m in pm.get(p, [])])
             band = _members(lab, idx, pm.get('waistband', []))
             skirt = _members(lab, idx, pm.get('skirt', []))
             fg = O['fg']
@@ -677,7 +679,7 @@ def measure(B, design, out=None):
                         "a step between the top and the band" % (k, MID_TOP if (view, k) != ('profile', 'left') else
                                                                    PROFILE_FRONT_TOP)}
         lab = O[view]['lab']
-        top_ids = [idx[n] + s for n in ('top',) if n in idx for s in (0, 1000)]
+        top_ids = [idx[n] + s for n in ('top', 'bodice_panel') if n in idx for s in (0, 1000)]
         band_ids = [idx[n] + s for n in ('waistband',) if n in idx for s in (0, 1000)]
         bc = np.nonzero(np.isin(lab, band_ids))[1]
         if len(bc) and top_ids:
@@ -988,8 +990,11 @@ def outline_back(cls, ppl, face, edges, gap=OUTLINE_GAP):
 
 
 def leg_outline_check(ocls, dcls, ppl, offset=0.0, win=WIN):
-    """body_profile_leg_outline (INFO) from the dressed profile's class images, ours and the design's: the outline
-    behind the leg (outline_back) against the design's on the design's leg rows, `offset` (the bare leg's) taken out."""
+    """body_profile_leg_outline from the dressed profile's class images, ours and the design's: the outline behind the
+    leg (outline_back) against the design's on the design's leg rows, `offset` (the bare leg's) taken out. Graded
+    (tool/skirt, the flaps' clearance target): its largest step outward within LIMITS['leg_outline'], and the rows
+    hugging the leg beyond the design's within 10 (WARN 30). Calibrated: the design against itself 0 and its own 3
+    rows; pipeline-3d 120d197's flaps 0.57 L, 82 rows."""
     fd = face_side(dcls, ppl, win)
     a, b = leg_back(ocls, ppl, win=win, face=fd), leg_back(dcls, ppl, win=win, face=fd)
     b = {r: b[r] for r in leg_rows(b)}
@@ -1005,8 +1010,12 @@ def leg_outline_check(ocls, dcls, ppl, offset=0.0, win=WIN):
     k = int(np.argmax(d))
     z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
     hug = int(sum(oa[r] - a[r] > OUTLINE_HUG for r in rows))
-    return {'value': round(max(0.0, float(d[k])), 4), 'status': 'INFO', 'at': z(rows[k]), 'rows': len(rows),
-            'hugging': hug, 'hugging_design': int(sum(ob[r] - b[r] > OUTLINE_HUG for r in rows)),
+    hug_d = int(sum(ob[r] - b[r] > OUTLINE_HUG for r in rows))
+    v_ = round(max(0.0, float(d[k])), 4)
+    extra = hug - hug_d
+    st = worst(grade('leg_outline', v_), 'PASS' if extra <= 10 else 'WARN' if extra <= 30 else 'FAIL')
+    return {'value': v_, 'status': st, 'at': z(rows[k]), 'rows': len(rows),
+            'hugging': hug, 'hugging_design': hug_d,
             'note': "the dressed figure's outline behind the leg in profile (the leg's skin run followed back through "
                     "whatever touches it) against the design's, the bare leg's offset taken out: its largest step "
                     "outward (L); hugging: the rows where something runs over %.2f L past the leg's skin (a garment "
@@ -1023,7 +1032,7 @@ def panel_edge(O, D, masks, ppl, idx, pm, near=0.25):
     for who in ('ours', 'design'):
         if who == 'ours':
             band = _members(O['lab'], idx, pm.get('waistband', []))
-            own = _members(O['lab'], idx, [m for p in ('top', 'bow') for m in pm.get(p, [])])
+            own = _members(O['lab'], idx, [m for p in ('top', 'bodice_panel', 'bow') for m in pm.get(p, [])])
             cream = own & (O['cls'] == CL['cream'])
         else:
             band = masks.get('front__waistband')

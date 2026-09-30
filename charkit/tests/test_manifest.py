@@ -267,11 +267,34 @@ def test_a_read_references_data_counts_its_prose_doesnt():
         shutil.rmtree(d)
 
 
+def test_no_produced_reference_reads_an_input_nothing_tracks_or_makes():
+    """the outfit masks read a TRELLIS field from a gitignored folder that some copies had and some didn't, and came out
+    different without it (074d9a3f / bc0f48dc, 2026-09-30). Every produced reference now reads only tracked references,
+    produced ones, and tracked files: nothing under charkit/out, nothing git ignores."""
+    import glob, subprocess
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    R = manifest.load('charkit/refs/clawd/manifest.json')['references']
+    for rid, r in R.items():
+        if not r.get('produced_by'):
+            continue
+        for k in r.get('reads', ()):
+            assert R[k].get('tracked') or R[k].get('produced_by'), (rid, k)
+        for g in r.get('reads_files', ()):
+            assert not g.startswith('charkit/out/'), (rid, g)
+            hits = [os.path.relpath(f, root) for f in glob.glob(os.path.join(root, g)) if os.path.isfile(f)]
+            try:
+                tracked = set(subprocess.run(['git', 'ls-files', '--'] + hits, cwd=root, capture_output=True, text=True,
+                                             check=True).stdout.split())
+            except (OSError, subprocess.CalledProcessError):
+                continue                                               # not a git checkout
+            assert set(hits) <= tracked, (rid, sorted(set(hits) - tracked)[:5])
+
+
 def test_the_hulls_stamp_follows_its_own_code_not_all_of_charkit():
     """the hull's stamp covers its build function and what it imports, one import deep: an edit to the garments or the
     QA doesn't make it stale (it had reached all 74 modules, so any edit rebuilt the hull)."""
     units = manifest._producer_code({'produced_by': 'charkit.geom.hull', 'produced_fn': 'charkit.geom.hull:build'})
-    mods = {k for k in units if ':' not in k}
+    mods = {k.split(':')[0] for k in units}
     assert 'charkit/geom/volume.py' in mods and 'charkit/refcheck.py' in mods
     assert 'charkit/garments.py' not in mods and 'charkit/qa3d.py' not in mods and len(mods) < 30, sorted(mods)
 

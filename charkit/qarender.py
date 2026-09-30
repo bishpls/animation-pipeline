@@ -4,8 +4,10 @@ boards' passes and shader), so the QA measures the look the boards show.
 
 The setting: charkit.qa3d.DRAW ('numpy' | 'render'), overridden by the environment's CHARKIT_QA_DRAW. The render drawing
 needs the build's export beside its bundle (OUT/NAME.look.glb or OUT/NAME.vrm; every build writes one) and wgpu; without either, or for a
-surface the export doesn't hold (a bundle made in memory by an evaluator, the skin without its garment mask), the numpy
-drawing draws, and qa.json's `measured.draw` says which one measured.
+surface the export doesn't hold (a bundle made in memory by an evaluator), the numpy drawing draws, and qa.json's
+`measured.draw` says which one measured. The skin's 'bare' variant (its garment mask off: the look QA's bare head) draws
+from the export's bare skin (gltf.export look_only writes it: a mesh no scene node draws, Prim.variant 'bare'); an export
+without one draws it with numpy.
 
     from charkit import qarender
     Q = qarender.frames(B)                        # charkit.render.buffers.Frames over B's export, or None
@@ -91,9 +93,10 @@ class View:
     """one view of a qa3d surface list drawn by the renderer: draw_view's dict where the QA reads it (['mesh'],
     ['depth'], ['az']), draw_lit's picture and buffers by lit(), the mesh index per pixel by ids()."""
 
-    def __init__(self, B, Q, surfs, az, fr, draw, off, paint, line, index):
+    def __init__(self, B, Q, surfs, az, fr, draw, off, paint, line, index, variants=None):
         self.B, self.Q, self.surfs, self.az, self.fr = B, Q, surfs, az, fr
         self.draw, self.off, self.paint, self.line = draw, off, paint, line
+        self.variants = variants or {}                      # {object: variant}: the skin 'bare'
         self.index = index                                  # (part, hull) -> the surface's index in surfs
         self._aux = {}
 
@@ -118,7 +121,7 @@ class View:
                 self._aux.pop(next(iter(self._aux)))
             self._aux[key] = self.Q.frame(self.camera(1), draw=self.draw, off=self.off, paint=self.paint,
                                           light=ldir if ldir is not None else light(self.B, self.az), line=self.line,
-                                          **kw)
+                                          variants=self.variants, **kw)
             note(self.B, 'render')
         return self._aux[key]
 
@@ -153,7 +156,7 @@ class View:
             cam = self.camera(ss)
             px = self.Q.frame(cam, draw=self.draw, off=self.off, paint=self.paint,
                               light=ldir if ldir is not None else light(self.B, self.az), line=self.line,
-                              transparent=transparent, aux=False, world=qa3d.WORLD)['picture']
+                              transparent=transparent, aux=False, world=qa3d.WORLD, variants=self.variants)['picture']
             note(self.B, 'render')
         if aux is not None:
             F = self._frame(ldir, picture=False)
@@ -185,21 +188,25 @@ def view(B, surfs, az, fr):
         return None
     by_name = {}
     for k, name in enumerate(Q.objects):
-        by_name.setdefault(name, []).append(k)
-    draw, off, index, paint = set(), set(), {}, {}
+        by_name.setdefault((name, Q.prims[k].variant), []).append(k)
+    draw, off, index, paint, variants = set(), set(), {}, {}, {}
     widths = []
     for i, s in enumerate(surfs):
         o = s['o']
-        if o.name not in by_name or (o.group == 'skin' and s['variant'] != 'masked'):
-            note(B, 'numpy (%s not in the export as drawn)' % o.name)
+        var = s['variant'] if o.group == 'skin' and s['variant'] != 'masked' else None
+        if (o.name, var) not in by_name or var not in (None, 'bare'):
+            note(B, 'numpy (%s not in the export as drawn)' % (o.name if var is None else '%s %s' % (o.name, var)))
             return None
         draw.add(o.name)
-        for k in by_name[o.name]:
+        if var:
+            variants[o.name] = var
+        ks = by_name[(o.name, var)]
+        for k in ks:
             index.setdefault((k, bool(s['hull'])), i)
         if s.get('line_k') is not None and o.outline and not s['hull']:
             widths.append((o, float(s['line_k'])))
         if s.get('paint') is not None and not s['hull']:
-            paint.update(carry_paint(B, Q, o, s, by_name[o.name]))
+            paint.update(carry_paint(B, Q, o, s, ks))
     hulled = {s['o'].name for s in surfs if s['hull']}
     off = {s['o'].name for s in surfs if s['o'].outline and s['o'].name not in hulled}   # (qa3d.surfaces(outline=False))
     line = 0.0
@@ -208,7 +215,7 @@ def view(B, surfs, az, fr):
         if line is None:
             note(B, 'numpy (line widths not one screen width)')
             return None
-    return View(B, Q, surfs, az, fr, draw, off, paint, line, index)
+    return View(B, Q, surfs, az, fr, draw, off, paint, line, index, variants)
 
 
 def screen_line(Q, widths):

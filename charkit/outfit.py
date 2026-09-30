@@ -8,13 +8,17 @@ Sources, combined and cross-checked:
              it is a cuff (a boot's turned-down top), a band along an edge is a trim (the stepped hem), parts hanging free
              from the rest are tails (the bow's), two far-apart halves with nothing of the layer between them are a mirror
              pair (the back panels).
-  sheet      the model sheet's four figures (front, 3/4, profile, back), each segmented by colour family into cells
-             (the drawn lines as walls) and each cell matched to a piece by colour, position and what the 3D field
-             predicts there (below), or by landmarks (heights from the eye line) without a field.
-  field      the TRELLIS.2 field (surface voxels with colour, trellis_ext/field.py): aligned to the rig's front and to each
-             sheet figure by silhouette, labelled by a colour-aware geodesic competition seeded from the rig's pieces,
-             projected into each view (the prediction), then relabelled by the sheet's own masks voting in every view
-             where a voxel shows. Each piece gets a 3D extent and its coverage round the body.
+  sheet      the design's four figures (the manifest's body sheet: front, 3/4, profile, back), each segmented by colour
+             family into cells (the drawn lines as walls) and each cell matched to a piece by colour, position and what
+             the sheet field predicts there (below); a cell no drawn line divides is one piece.
+  field      the sheet field (sheet_field), a 3D stand-in built from the two sources above and nothing else: every rig
+             layer's whole drawing laid on shells as wide as the rig's front (its heights warped onto the sheet's) and as
+             deep as the sheet's profile, later layers outside earlier ones, pieces the front shows whole on the front
+             only, layers drawn behind the body on the back only, arms and legs round at their skin's depth in profile.
+             Seen from each view it predicts the pieces there (the front as the rig draws it); the views' matched cells
+             then relabel it where they see it face-on, and the views are matched again. Its voted points give each
+             piece a 3D extent and its coverage round the body. (It replaced a TRELLIS.2 field read from a gitignored
+             folder: docs/workstreams/outfit-source.md.)
   notes      an annotated vision pass (refs/NAME/outfit_notes.json): piece names, types, attachments and motion read off
              the sheet by eye, versioned with provenance. Every annotated piece is verified against the measurement and
              every disagreement is flagged.
@@ -24,8 +28,9 @@ under), colour (sRGB from the drawing), extent per view (bbox and outline in hea
 image's right), 3D extent, motion (rigid / spring / cloth, with the measured reason), trims, the template it maps to with
 first knob guesses, and spring-chain specs for the VRM exporter.
 
-    python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--no-manifest]
+    python -m charkit outfit SPEC [--out DIR] [--notes NOTES.json] [--no-manifest]
     python -m charkit outfit relayer [SPEC]      # the notes' layer order and chain bone names applied to the graphs
+    python -m charkit outfit score [SPEC] [--masks M.npz]   # the produced masks against the hand-checked truth
     from charkit import outfit; G = outfit.build(spec)
 """
 import json, math, os
@@ -851,77 +856,25 @@ def cells(raw, fg, rgb=None, min_px=6):
     return lab_, out
 
 
-# ------------------------------------------------------------------------------------------------------------- the field
-def load_field(path, R=384):
-    """a TRELLIS.2 field (trellis2-field/1, trellis_ext/field.py) as surface cells on an R^3 grid over its unit cube:
-    dict(P (n,3) mean surface point, C (n,3) mean sRGB 0..1, ijk (n,3), h (cell size), R). Frame: z up, the front
-    toward -y, x to her left."""
-    z = np.load(path, allow_pickle=False)
-    meta = json.loads(str(z['meta']))
-    if meta.get('format') != 'trellis2-field/1':
-        raise ValueError('%s: not a trellis2-field/1 file' % path)
-    dual = z['dual']
-    dual = dual.astype(np.float32) * (2.0 / 255) - 0.5 if dual.dtype == np.uint8 else dual.astype(np.float32)
-    aabb = np.asarray(z['aabb'], np.float32)
-    P = aabb[0] + (z['coords'].astype(np.float32) + dual) * float(z['voxel_size'])
-    C = z['base_color'].astype(np.float32) / 255 if 'base_color' in z.files else np.full((len(P), 3), 0.7, np.float32)
-    g = np.clip(((P - aabb[0]) / (aabb[1] - aabb[0]) * R).astype(np.int64), 0, R - 1)
-    key = (g[:, 0] * R + g[:, 1]) * R + g[:, 2]
-    u, inv, cnt = np.unique(key, return_inverse=True, return_counts=True)
-    Pm = np.stack([np.bincount(inv, P[:, k]) for k in range(3)], 1) / cnt[:, None]
-    Cm = np.stack([np.bincount(inv, C[:, k]) for k in range(3)], 1) / cnt[:, None]
-    ijk = np.stack([u // (R * R), (u // R) % R, u % R], 1)
-    return dict(P=Pm, C=Cm, ijk=ijk, h=float((aabb[1, 0] - aabb[0, 0]) / R), R=R, path=path, meta=meta)
+# ------------------------------------------------------------------------------------------------------ the sheet field
+# The views' predictions come from a 3D stand-in built from the character's own references, the rig and the sheet: every
+# rig layer's whole drawing (its hidden parts too) laid on shells whose width is the front's and whose depth is the
+# sheet's profile. Nothing outside the manifest's references is read. (It replaced a TRELLIS field, a pre-computed
+# image-to-3D run found in a gitignored folder: a copy without it made other masks. docs/workstreams/outfit-source.md.)
+SHEET_FIELD = dict(
+    step=0.01,          # L: the shells' row and arc spacing
+    shell=0.004,        # L: one layer's shell outside the one it is drawn over
+    under=0.3,          # L: how far under the visible surface a cell's class may find its label (an extent a little off)
+    rounds=1,           # vote rounds: the field relabelled by the views that see it face-on, the views matched again
+    warp_band=0.5,      # L: how far the height warp may move a row of the rig's front onto the sheet's
+    line_tol=0.03,      # L: a split of a cell follows a drawn line when its boundary runs this close to one...
+    line_support=0.3)   # ...along this share of it; else the cell is one piece
 
 
 def view_axes(az):
     """image-right and toward-camera axes (field frame) for an azimuth: 0 front, 90 her left side, 180 back."""
     a = math.radians(az)
     return np.array([math.cos(a), math.sin(a), 0.0]), np.array([math.sin(a), -math.cos(a), 0.0])
-
-
-def _raster_pts(x, z, grid, shape):
-    """points (L) onto a boolean grid: grid = (x0, z0, step) with rows running down from z0."""
-    x0, z0, st = grid
-    c = np.round((x - x0) / st).astype(np.int64)
-    r = np.round((z0 - z) / st).astype(np.int64)
-    ok = (c >= 0) & (c < shape[1]) & (r >= 0) & (r < shape[0])
-    out = np.zeros(shape, bool)
-    out[r[ok], c[ok]] = True
-    return out
-
-
-def fit_silhouette(X, Z, target, grid, s0, tx0, tz0, rows=None, spans=(0.06, 0.2, 0.12), steps=(0.01, 0.025, 0.02),
-                   levels=3):
-    """scale and offset of projected points (X, Z field units) onto a target silhouette (bool grid in L): x_L = (X -
-    tx) / s, z_L = (Z - tz) / s, by IoU over a coarse-to-fine search. rows: the grid rows to count (a figure cut by the
-    sheet's edge). -> (s, tx, tz, iou)."""
-    from scipy import ndimage
-    tgt = target if rows is None else target & rows[:, None]
-
-    def iou(s, tx, tz):
-        m = _raster_pts((X - tx) / s, (Z - tz) / s, grid, target.shape)
-        m = ndimage.binary_closing(m, iterations=1)
-        if rows is not None:
-            m &= rows[:, None]
-        return (m & tgt).sum() / max(1, (m | tgt).sum())
-    best = (iou(s0, tx0, tz0), s0, tx0, tz0)
-    for it in range(levels):
-        f = 0.5 ** it
-        _, s1, tx1, tz1 = best
-        for ds in np.arange(-spans[0], spans[0] + 1e-9, steps[0]) * f:
-            for dz in np.arange(-spans[1], spans[1] + 1e-9, steps[1]) * f:
-                s = s1 * (1 + ds); tz = tz1 + dz * s1
-                v = iou(s, tx1, tz)
-                if v > best[0]:
-                    best = (v, s, tx1, tz)
-        _, s1, tx1, tz1 = best
-        for dx in np.arange(-spans[2], spans[2] + 1e-9, steps[2]) * f:
-            tx = tx1 + dx * s1
-            v = iou(s1, tx, tz1)
-            if v > best[0]:
-                best = (v, s1, tx, tz1)
-    return best[1], best[2], best[3], round(float(best[0]), 4)
 
 
 def zbuffer(u, v, depth, W, H, r=1):
@@ -948,163 +901,464 @@ def zbuffer(u, v, depth, W, H, r=1):
     return best.reshape(H, W), bd.reshape(H, W)
 
 
-GRID = (-3.6, 1.6, 0.02)                     # the L grids the silhouettes are fitted on: x from -3.6, z down from +1.6
-GRID_SHAPE = (390, 360)
-
-
-def silhouette_L(mask, px_of, grid=GRID, shape=GRID_SHAPE):
-    """a pixel mask sampled onto the L grid: px_of(x_L, z_L) -> (px, py) arrays."""
-    x0, z0, st = grid
-    zz, xx = np.mgrid[0:shape[0], 0:shape[1]]
-    X, Z = x0 + xx * st, z0 - zz * st
-    px, py = px_of(X, Z)
-    px, py = np.round(px).astype(np.int64), np.round(py).astype(np.int64)
-    ok = (px >= 0) & (px < mask.shape[1]) & (py >= 0) & (py < mask.shape[0])
-    out = np.zeros(shape, bool)
-    out[ok] = mask[py[ok], px[ok]]
-    return out
-
-
-def fit_field(Fd, target, az, rows=None, init=None, spans=(0.06, 0.2, 0.12), levels=3):
-    """the field seen from az, fitted onto a silhouette in L (the rig's front, or a sheet figure). init (s, tx or None,
-    tz): start there (tx None: centred on the target's upper body). -> dict(az, s, tx, tz, iou)."""
-    r, _ = view_axes(az)
-    X, Z = Fd['P'] @ r, Fd['P'][:, 2]
-    zs = np.nonzero(target.any(1))[0]
-    x0, z0, st = GRID
-    top = z0 - zs.min() * st
-    if init is not None and init[1] is None:                        # the scale and height known: centre x
-        s, tz = init[0], init[2]
-        band = (Z > tz + s * (top - 1.6)) & (Z < tz + s * (top - 0.8))
-        rr = [r_ for r_ in range(zs.min(), zs.max()) if target[r_].any() and top - 1.6 < z0 - r_ * st < top - 0.8]
-        tmid = np.median([(np.nonzero(target[r_])[0].min() + np.nonzero(target[r_])[0].max()) / 2 * st + x0 for r_ in rr])
-        init = (s, float(np.median(X[band])) - s * tmid if band.any() else float(X.mean()), tz)
-    if init is None:
-        full_h = Z.max() - Z.min()
-        s = full_h / (top - (z0 - zs.max() * st))
-        tz = Z.max() - s * top
-        # x: the target's middle over its upper body, the field's likewise
-        band = (Z > tz + s * (top - 1.6)) & (Z < tz + s * (top - 0.8))
-        tmid = np.median([(np.nonzero(target[r_])[0].min() + np.nonzero(target[r_])[0].max()) / 2 * st + x0
-                          for r_ in range(zs.min(), zs.max()) if target[r_].any() and top - 1.6 < z0 - r_ * st < top - 0.8])
-        tx = float(np.median(X[band])) - s * tmid if band.any() else X.mean()
-    else:
-        s, tx, tz = init
-    s, tx, tz, iou = fit_silhouette(X, Z, target, GRID, s, tx, tz, rows, spans, levels=levels)
-    return dict(az=az, s=float(s), tx=float(tx), tz=float(tz), iou=iou)
-
-
-def _neighbours(ijk, R):
-    """26-neighbour pairs among grid cells -> (a, b, length in cells) with a < b."""
-    key = (ijk[:, 0] * R + ijk[:, 1]) * R + ijk[:, 2]
-    order = np.argsort(key)
-    ks = key[order]
-    A, B, D = [], [], []
-    for d in [(dx, dy, dz) for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1) if (dx, dy, dz) > (0, 0, 0)]:
-        q = ijk + np.array(d)
-        ok = (q >= 0).all(1) & (q < R).all(1)
-        kq = (q[:, 0] * R + q[:, 1]) * R + q[:, 2]
-        pos = np.clip(np.searchsorted(ks, kq), 0, len(ks) - 1)
-        hit = ok & (ks[pos] == kq)
-        A.append(np.nonzero(hit)[0]); B.append(order[pos[hit]]); D.append(np.full(hit.sum(), math.sqrt(sum(x * x for x in d))))
-    return np.concatenate(A), np.concatenate(B), np.concatenate(D)
-
-
-def project(Fd, fit, ppl, origin, shape, r=1):
-    """the field's cells into a picture seen from fit['az'] at ppl pixels per L with the eye line and axis at origin
-    (x, y) -> (index image of the front-most cell, depth image, per-cell (u, v, depth))."""
-    rv, tv = view_axes(fit['az'])
+def project(Fd, az, ppl, origin, shape, r=1):
+    """points (Fd['P'], the sheet's frame: x her left, y toward her back from the profile's near eye, z up from the eye
+    line, L) seen from az onto a view's grid (ppl pixels per L, its origin at `origin`) -> (index image of the front-most
+    point, depth image, per-point (u, v, depth))."""
+    rv, tv = view_axes(az)
     P = Fd['P']
-    u = origin[0] + (P @ rv - fit['tx']) / fit['s'] * ppl
-    v = origin[1] - (P[:, 2] - fit['tz']) / fit['s'] * ppl
+    u = origin[0] + (P @ rv) * ppl
+    v = origin[1] - P[:, 2] * ppl
     d = -(P @ tv)                                                   # smaller is nearer the camera
     idx, dep = zbuffer(u, v, d, shape[1], shape[0], r)
     return idx, dep, (u, v, d)
 
 
-def visible(Fd, fit, ppl, origin, shape, tol_L=0.03, r=1):
-    """per cell: shown in the view (within tol_L of the front-most surface at its pixel) -> (bool (n,), u, v)."""
-    _, dep, (u, v, d) = project(Fd, fit, ppl, origin, shape, r)
+def visible(Fd, az, ppl, origin, shape, tol_L=0.006, r=1):
+    """per point: shown in the view (within tol_L of the front-most surface at its pixel) -> (bool (n,), u, v)."""
+    _, dep, (u, v, d) = project(Fd, az, ppl, origin, shape, r)
     ui = np.clip(np.round(u).astype(int), 0, shape[1] - 1)
     vi = np.clip(np.round(v).astype(int), 0, shape[0] - 1)
     inside = (u >= 0) & (u < shape[1]) & (v >= 0) & (v < shape[0])
-    vis = inside & (d <= dep[vi, ui] + tol_L * fit['s'])
+    vis = inside & (d <= dep[vi, ui] + tol_L)
     return vis, u, v
 
 
-def field_labels(Fd, fit, label_img, F_rig, n_labels, body_labels=(), label_fam=None, fams=None, sizes=None, fam_img=None,
-                 front_only=(), hue_de=25.0, ctx=0.02, reach=(0.2, 1.0), depth=0.1):
-    """every field cell labelled by a colour-aware geodesic competition: seeds are the cells shown in the rig's front
-    whose rig pixel and its neighbours ctx L away all carry one label (a piece, or the body's skin / hair) and whose
-    colour is within hue_de of that label's median; edges between neighbouring cells cost their length times
-    1 + (colour difference / 10)^2, so a label spreads through its own colour and stops at another's. A piece reaches
-    at most max(reach[0] L, reach[1] x its seeds' diameter) from them (a clip's yellow doesn't run through the hair's
-    highlights; sizes: each label's size in L, its drawing's diagonal, else its seeds' spread), and a front_only piece
-    (whole in the front drawing: see complete()) no deeper than `depth` L behind its seeds (a bow doesn't run round the
-    neck into the back of a sailor collar). Cells past those limits go to the nearest label that may have them.
-    -> (labels (n,) int, -1 unreached; seed mask)."""
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import dijkstra
-    H, W = label_img.shape
-    ppl = F_rig['ppl']
-    vis, u, v = visible(Fd, fit, ppl, F_rig['eye'], (H, W))
-    ui, vi = np.round(u).astype(int), np.round(v).astype(int)
-    lab0 = np.full(len(u), -1)
-    ok = vis.copy()
-    for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
-        x = np.clip(ui + int(dx * ctx * ppl), 0, W - 1); y = np.clip(vi + int(dy * ctx * ppl), 0, H - 1)
-        l = label_img[y, x]
-        if dx == 0 and dy == 0:
-            lab0 = l.astype(int)
+def layer_labels(A, back=()):
+    """every rig layer's whole drawing (its alpha: parts other layers hide too) labelled: its visible pixels by the rig's
+    front (a piece, or the body's skin and hair), hidden ones by the nearest visible pixel of the same layer. A layer in
+    `back` (drawn behind the body) keeps its visible pixels only: what it hides behind the body is the rig's guess (the
+    back panels' layer is drawn right across behind the legs). -> {layer: (y0, x0, label crop int16 -1 outside, index)}."""
+    from scipy import ndimage
+    R, limg = A['R'], A['label_img']
+    out = {}
+    for i, nm in enumerate(R['names']):
+        al = R['alpha'][nm]
+        if not al.area:
+            continue
+        h, w = al.m.shape
+        own = R['own'][al.y0:al.y0 + h, al.x0:al.x0 + w] == i
+        lab = np.where(own, limg[al.y0:al.y0 + h, al.x0:al.x0 + w], -1).astype(np.int16)
+        vis = own & (lab >= 0)
+        if not vis.any():
+            continue
+        if nm in back:
+            full = lab
         else:
-            ok &= l == lab0
-    ok &= lab0 >= 0
-    L = lab(Fd['C']) * W_LAB
-    fam0 = fam_img[np.clip(vi, 0, H - 1), np.clip(ui, 0, W - 1)] if fam_img is not None else np.zeros(len(u), int)
-    if fam_img is not None:
-        # the field's own palette: each rig family's median over the candidate seeds drawn in it; a seed keeps only if
-        # its colour is nearest its own family's (the rig's skirt drawn longer than the field's lands on the shorts)
-        fs = sorted(set(fam0[ok].tolist()) - {-1, -2})
-        cen = {g: np.median(L[ok & (fam0 == g)], 0) for g in fs if (ok & (fam0 == g)).sum() >= 20}
-        if len(cen) >= 2:
-            keys = list(cen)
-            C = np.array([cen[g] for g in keys])
-            idx = np.nonzero(ok)[0]
-            near = np.array(keys)[np.argmin(((L[idx, None] - C[None]) ** 2).sum(-1), 1)]
-            ok[idx[(near != fam0[idx]) & np.isin(fam0[idx], keys)]] = False
-    seeds = np.nonzero(ok)[0]
-    a, b, dist = _neighbours(Fd['ijk'], Fd['R'])
-    dc = np.sqrt(((L[a] - L[b]) ** 2).sum(1))
-    w = dist * (1 + (dc / 10.0) ** 2)
-    n = len(u)
-    G = coo_matrix((np.r_[w, w], (np.r_[a, b], np.r_[b, a])), shape=(n, n)).tocsr()
-    if not len(seeds):
-        return np.full(n, -1), ok
-    dd, _, src = dijkstra(G, directed=False, indices=seeds, min_only=True, return_predecessors=True)
-    out = np.where(src >= 0, lab0[np.maximum(src, 0)], -1)
-    cell_L = Fd['h'] / fit['s']
-    far = np.zeros(n, bool)
-    _, tv = view_axes(0.0)
-    dep = -(Fd['P'] @ tv)                                           # distance behind the front, field units
-    for k in range(n_labels):
-        if k in body_labels:
+            _, (iy, ix) = ndimage.distance_transform_edt(~vis, return_indices=True)
+            full = lab[iy, ix]
+            full[~al.m] = -1
+        out[nm] = (al.y0, al.x0, full, i)
+    return out
+
+
+def class_rows(cls, to_px, zs, xs):
+    """a class image sampled on an L grid: rows zs, columns xs -> (len(zs), len(xs)) class ids, -1 background."""
+    Z, X = np.meshgrid(zs, xs, indexing='ij')
+    px, py = to_px(X, Z)
+    px, py = np.round(px).astype(int), np.round(py).astype(int)
+    ok = (px >= 0) & (px < cls.shape[1]) & (py >= 0) & (py < cls.shape[0])
+    out = np.full(Z.shape, -1, np.int16)
+    out[ok] = cls[py[ok], px[ok]]
+    return out
+
+
+def dtw(cost, band, step):
+    """the cheapest monotone path through a square cost matrix from (0, 0) to its far corner within `band` of the
+    diagonal (a vertical or horizontal step costs `step` more), an anti-diagonal at a time -> [(i, j)]."""
+    n = len(cost)
+    D = np.full((n + 1, n + 1), np.inf)
+    D[0, 0] = 0
+    for d in range(2, 2 * n + 1):
+        i = np.arange(max(1, d - n), min(n, d - 1) + 1)
+        j = d - i
+        ok = np.abs(i - j) <= band
+        i, j = i[ok], j[ok]
+        if len(i):
+            D[i, j] = cost[i - 1, j - 1] + np.minimum(D[i - 1, j - 1], np.minimum(D[i - 1, j] + step, D[i, j - 1] + step))
+    i, j, path = n, n, []
+    while i > 0 and j > 0:
+        path.append((i - 1, j - 1))
+        k = int(np.argmin([D[i - 1, j - 1], D[i - 1, j] + step, D[i, j - 1] + step]))
+        i, j = (i - 1, j - 1) if k == 0 else (i - 1, j) if k == 1 else (i, j - 1)
+    return path[::-1]
+
+
+def z_warp(A, dz=0.01, dx=0.02):
+    """the rig front's heights onto the sheet front's: two drawings of one design, not one scale apart (Clawd's sheet
+    hangs the skirt and panels 0.1-0.2 L lower and sits the buns 0.1 L higher than the rig). Each row's colours across x
+    (bodyqa's families; lines, background and unclassed pixels left out; the hair as orange), aligned by dynamic time
+    warping within SHEET_FIELD['warp_band'] and smoothed over 0.05 L. -> dict(fwd: z_rig -> z_sheet, inv: back,
+    samples)."""
+    from . import bodyqa
+    R, F = A['R'], A['F']
+    own = R['own']
+    ys, xs_ = np.nonzero(own >= 0)
+    y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs_.min(), xs_.max() + 1
+    rc = np.full(own.shape, -1, np.int16)
+    sub = (slice(y0, y1), slice(x0, x1))
+    rc[sub] = bodyqa.family(R['rgb'][sub])
+    rc[sub][lines(R['rgb'][sub], 0.011 * F['ppl'], black=0.12)] = -1
+    rc[own < 0] = -1
+    dv, V = A['sheet']['design']['front'], A['views']['front']
+    sc = dv['raw'].astype(np.int16).copy()
+    C = bodyqa.CLASS
+    sc[~dv['fg'] | np.isin(sc, (C['line'], C['none']))] = -1
+    for im in (rc, sc):
+        im[im == C['hair']] = C['orange']
+        im[im == C['other']] = -1
+    zs = np.arange(bodyqa.WIN['top'], bodyqa.WIN['bottom'], -dz)
+    xs = np.arange(-1.6, 1.6, dx)
+    ppl = A['sheet']['ppl']
+    Rr = class_rows(rc, lambda X, Z: (F['eye'][0] + X * F['ppl'], F['eye'][1] - Z * F['ppl']), zs, xs)
+    Ss = class_rows(sc, lambda X, Z: (V['origin'][0] + X * ppl, V['origin'][1] - Z * ppl), zs, xs)
+    ks = sorted((set(np.unique(Rr)) | set(np.unique(Ss))) - {-1})
+    oh = lambda M: np.concatenate([(M == k) for k in ks], 1).astype(np.float32)
+    agree = oh(Rr) @ oh(Ss).T
+    fr, fs = (Rr >= 0).astype(np.float32), (Ss >= 0).astype(np.float32)
+    either = fr.sum(1)[:, None] + fs.sum(1)[None] - fr @ fs.T
+    cost = np.where(either > 0, 1 - agree / np.maximum(either, 1), 0.0)
+    path = np.array(dtw(cost, int(SHEET_FIELD['warp_band'] / dz), 0.05))
+    zr, zsh = zs[path[:, 0]], zs[path[:, 1]]
+    u, inv = np.unique(zr, return_inverse=True)                     # one sheet height per rig row, ascending
+    m = np.bincount(inv, zsh) / np.bincount(inv)
+    k = max(1, int(0.05 / dz))
+    ms = np.maximum.accumulate(np.convolve(np.pad(m, k, mode='edge'), np.ones(2 * k + 1) / (2 * k + 1), mode='valid'))
+    fwd = lambda z: np.interp(z, u, ms)
+    zg = np.linspace(u[0] - 1, u[-1] + 1, 2000)
+    inv_ = lambda z: np.interp(z, fwd(zg), zg)
+    samples = [[round(float(a), 2), round(float(fwd(a)), 3)] for a in (0.8, 0.3, -0.5, -1.0, -1.5, -2.0, -2.5, -3.0, -4.0, -5.3)]
+    return dict(fwd=fwd, inv=inv_, samples=samples)
+
+
+def sheet_field(A, log=print):
+    """the sheet field: the rig's layers laid out in 3D by the sheet. Per row of every rig group (rig.json: head, torso,
+    each arm and leg) an elliptic shell: the torso's and head's as wide as the group's layers drawn at that height (in
+    the rig's front, its heights warped onto the sheet's: z_warp) and as deep as the sheet's profile there; an arm's or
+    leg's round, as wide as the limb there, centred at the depth of that limb's skin in the profile. Each layer lies on
+    the shell where it is drawn, later layers outside earlier ones by SHEET_FIELD['shell']:
+      - on the front half as drawn;
+      - on the back half the layers that wrap: not those the front shows whole inside the figure (complete(): a bow, a
+        clip) nor their tails, and a panel set into a piece shows its piece there (the skirt runs on behind its front
+        panel);
+      - a layer drawn behind the body (before its first skin layer: the back hair, the back panels) on the back half
+        only, outermost there;
+      - a head piece standing clear of the head (a bun, a clip's rays) on a round section of its own, centred at the
+        profile's depth where it stands clear (the largest run over its top fifth).
+    -> dict(P (n, 3) the sheet's frame, L labels (pieces, then skin, hair), N (n, 2) the shells' outward normals in x/y,
+    warp (z_warp's), y0 (the torso's middle depth), and what was found: back layers, front-only pieces, parts, limb and
+    part depths)."""
+    import time
+    from scipy import ndimage
+    from .bodyqa import CLASS
+    t0 = time.time()
+    R, F, P = A['R'], A['F'], A['pieces']
+    n = A['n']
+    ppl = A['sheet']['ppl']
+    h, eps = SHEET_FIELD['step'], SHEET_FIELD['shell']
+    groups_ = layer_groups(R.get('rig'))
+    grp = lambda nm: groups_.get(nm, 'torso')
+    names = R['names']
+    first_body = next((i for i, nm in enumerate(names) if (R['own'] == i).any() and layer_type(nm) == ''
+                       and not any(w in nm for w in HAIR_WORDS)), 0)
+    back = {nm for i, nm in enumerate(names) if i < first_body}
+    LL = layer_labels(A, back)
+    whole = complete(R, P)
+    front_only = np.zeros(n + 2, bool)
+    for k, p in enumerate(P):
+        front_only[k] = whole[k][0] or p['rel'] == 'panel'
+    for k, p in enumerate(P):
+        if p['rel'] == 'tail' and front_only[p['of']]:
+            front_only[k] = True
+    back_of = np.arange(n + 2)                   # a front-only piece's back: the piece it is set into, else nothing
+    for k, p in enumerate(P):
+        if front_only[k]:
+            par = p['of'] if p['rel'] == 'panel' else None
+            back_of[k] = par if (par is not None and not front_only[par]) else -1
+    part = np.zeros(n + 2, bool)
+    for k, p in enumerate(P):
+        part[k] = grp(p['layer']) == 'head' and not front_only[k] and p['layer'] not in back
+    W = z_warp(A)
+    zw = W['fwd']
+
+    def rig_L(px, py):                                              # rig pixels -> the sheet's frame (x, z)
+        x, z = to_L(F, px, py)
+        return x, zw(z)
+    # the profile: per row the figure's runs. The body's shells take the run on its axis (the middle of the rows between
+    # the chest and the hips that are one run); a layer drawn behind the body the whole row (the back panels' tail
+    # swings far behind the legs: the shorts' shell as deep as that sat on the tail in the other views)
+    dvp, Vp = A['sheet']['design']['profile'], A['views']['profile']
+    fgp = dvp['fg']
+    sk = F['skeleton']
+    gap = max(1, int(round(0.03 * ppl)))
+    prow = {}
+    for r in np.nonzero(fgp.any(1))[0]:
+        c = np.nonzero(fgp[r])[0]
+        br = np.nonzero(np.diff(c) > gap)[0]
+        runs = [((c[i0] - Vp['origin'][0]) / ppl, (c[i1] - Vp['origin'][0]) / ppl)
+                for i0, i1 in zip(np.r_[0, br + 1], np.r_[br, len(c) - 1])]
+        prow[(Vp['origin'][1] - r) / ppl] = runs
+    zp = np.array(sorted(prow))
+    zt = [zw(v[1]) for b in ('chest', 'spine', 'hips') if b in sk for v in sk[b]]
+    single = [(r[0][0] + r[0][1]) / 2 for z, r in prow.items() if len(r) == 1 and zt and min(zt) <= z <= max(zt)]
+    u_axis = float(np.median(single)) if single else 0.0
+
+    def depth_at(z):
+        """(front, back) of the run on the body's axis at height z, and of the whole row; None off the figure."""
+        if z < zp[0] or z > zp[-1]:
+            return None
+        i = int(np.clip(np.searchsorted(zp, z), 1, len(zp) - 1))
+        runs = prow[zp[i] if abs(zp[i] - z) < abs(zp[i - 1] - z) else zp[i - 1]]
+        main = min(runs, key=lambda t: 0.0 if t[0] <= u_axis <= t[1] else min(abs(t[0] - u_axis), abs(t[1] - u_axis)))
+        return main, (runs[0][0], runs[-1][1])
+    skin = (dvp['raw'] == CLASS['skin']) & fgp
+
+    def limb_depth(bones):
+        zz = [z for b in bones if b in sk for z in (sk[b][0][1], sk[b][1][1])]
+        if not zz:
+            return None
+        r0 = int(max(0, Vp['origin'][1] - zw(max(zz)) * ppl)); r1 = int(min(skin.shape[0], Vp['origin'][1] - zw(min(zz)) * ppl))
+        xs = np.nonzero(skin[r0:r1])[1]
+        return float(np.median((xs - Vp['origin'][0]) / ppl)) if len(xs) >= 50 else None
+    depth = {}
+    for kind, bones in (('arm', ('LowerArm', 'Hand')), ('leg', ('UpperLeg', 'LowerLeg'))):
+        d = {s: limb_depth([s + b for b in bones]) for s in ('left', 'right')}
+        for s in d:                                                 # the far limb is hidden in profile: the near one's
+            depth[(kind, s)] = d[s] if d[s] is not None else next((v for v in d.values() if v is not None), None)
+    part_depth = {}
+    for k in np.nonzero(part[:n])[0]:
+        ys, xs = P[k]['mask'].pixels()
+        zk = rig_L(xs, ys)[1]
+        z1 = float(zk.max()); z0 = z1 - 0.2 * (z1 - float(zk.min()))
+        cs = []
+        for r in range(int(max(0, Vp['origin'][1] - z1 * ppl)), int(min(fgp.shape[0], Vp['origin'][1] - z0 * ppl)) + 1):
+            if fgp[r].any():
+                lb, _ = ndimage.label(fgp[r])
+                c = np.nonzero(lb == int(np.argmax(np.bincount(lb)[1:])) + 1)[0]
+                cs.append((c.min() + c.max()) / 2)
+        if cs:
+            part_depth[k] = float((np.median(cs) - Vp['origin'][0]) / ppl)
+    # every layer's pixels (every second rig pixel) in the sheet's frame, by group
+    groups = {}
+    for nm, (y0, x0, lab, i) in LL.items():
+        g = grp(nm)
+        ys, xs = np.nonzero(lab[::2, ::2] >= 0)
+        x, z = rig_L(xs * 2 + x0, ys * 2 + y0)
+        groups.setdefault(g, []).append(dict(nm=nm, i=i, x=x, z=z, lab=lab[::2, ::2][ys, xs], back=nm in back))
+    pts, labs, nrm, torso_mid = [], [], [], []
+
+    def emit(X, Y, z, lv, xc, yc, a, b, rank):
+        gx, gy = (X - xc) / max(a, 1e-6) ** 2, (Y - yc) / max(b, 1e-6) ** 2
+        gn = np.hypot(gx, gy) + 1e-12
+        off = eps * rank
+        pts.append(np.stack([X + off * gx / gn, Y + off * gy / gn, np.full(len(X), z)], 1))
+        labs.append(lv)
+        nrm.append(np.stack([gx / gn, gy / gn], 1))
+
+    def ring(xc, yc, a, b):
+        k = max(16, int(2 * math.pi * max(a, b) / h))
+        th = np.linspace(0, 2 * math.pi, k, endpoint=False)
+        return xc + a * np.cos(th), yc + b * np.sin(th), np.sin(th) < 0
+
+    def cover(x, lv, X):
+        """a layer's label at each shell point: its nearest pixel in the row within 1.5 steps in x, else -1."""
+        o = np.argsort(x); x, lv = x[o], lv[o]
+        j = np.clip(np.searchsorted(x, X), 1, len(x) - 1)
+        j = np.where(np.abs(x[j] - X) < np.abs(x[j - 1] - X), j, j - 1)
+        return np.where(np.abs(x[j] - X) <= 1.5 * h, lv[j], -1)
+    for g, layers in groups.items():
+        limb = isinstance(g, tuple)
+        for z in np.arange(A['sheet']['design']['front']['win']['bottom'], A['sheet']['design']['front']['win']['top'], h):
+            rows_ = [(lay, np.abs(lay['z'] - z) < h / 2) for lay in layers]
+            rows_ = [(lay, s) for lay, s in rows_ if s.any()]
+            if not rows_:
+                continue
+            if limb:
+                xr = np.concatenate([lay['x'][s] for lay, s in rows_])
+                xc, a = (xr.min() + xr.max()) / 2, max(h, (xr.max() - xr.min()) / 2)
+                yc, b = depth.get(g), a
+                if yc is None:
+                    continue
+            else:
+                d = depth_at(z)
+                if d is None:
+                    continue
+                (f0, b0), (f1, b1) = d
+                yc, b = (f0 + b0) / 2, max(h, (b0 - f0) / 2)
+                if g == 'torso':
+                    torso_mid.append(yc)
+                xr = np.concatenate([lay['x'][s][~part[np.maximum(lay['lab'][s], 0)]] for lay, s in rows_])
+                xc, a = 0.0, max(h, np.abs(xr).max() if len(xr) else 0.0)
+                for lay, s in rows_:                                # parts: their own round sections
+                    for k in np.unique(lay['lab'][s]):
+                        if k >= 0 and part[k]:
+                            xk = lay['x'][s][lay['lab'][s] == k]
+                            pc, pr = (xk.min() + xk.max()) / 2, max(h, (xk.max() - xk.min()) / 2)
+                            yk = part_depth.get(k, yc)
+                            X, Y, _ = ring(pc, yk, pr, pr)
+                            emit(X, Y, z, np.full(len(X), k, np.int32), pc, yk, pr, pr, 0)
+            shells = [(xc, yc, a, b, rows_)]
+            if not limb and (f1, b1) != (f0, b0) and any(lay['back'] for lay, _ in rows_):
+                # the layers drawn behind the body on a shell of the whole row, the others on the body's
+                shells = [(xc, yc, a, b, [t for t in rows_ if not t[0]['back']]),
+                          (xc, (f1 + b1) / 2, a, max(h, (b1 - f1) / 2), [t for t in rows_ if t[0]['back']])]
+            for xc_, yc_, a_, b_, rows_s in shells:
+                X, Y, front = ring(xc_, yc_, a_, b_)
+                cov = []
+                for lay, s in rows_s:
+                    lv = cover(lay['x'][s], lay['lab'][s], X)
+                    lv = np.where((lv >= 0) & part[np.maximum(lv, 0)], -1, lv)
+                    if (lv >= 0).any():
+                        cov.append((lay, lv))
+                for half in (True, False):
+                    ranked = []
+                    for lay, lv in cov:
+                        if half:
+                            ok = front & (lv >= 0) & (not lay['back'])
+                        else:
+                            lv = np.where(lv >= 0, back_of[np.maximum(lv, 0)], -1)
+                            lv = np.where((lv >= 0) & front_only[np.maximum(lv, 0)], -1, lv)
+                            ok = ~front & (lv >= 0)
+                        if ok.any():
+                            ranked.append((lay['i'] + (1000 if lay['back'] and not half else 0), ok, lv))
+                    ranked.sort(key=lambda t: t[0])
+                    for rank, (_, ok, lv) in enumerate(ranked):
+                        emit(X[ok], Y[ok], z, lv[ok].astype(np.int32), xc_, yc_, a_, b_, rank)
+    Sf = dict(P=np.concatenate(pts), L=np.concatenate(labs).astype(np.int32), N=np.concatenate(nrm), warp=W,
+              y0=float(np.median(torso_mid)) if torso_mid else 0.0, LL=LL, layer_of={k: p['layer_index'] for k, p in enumerate(P)},
+              back=sorted(back), front_only=[P[k]['id'] for k in range(n) if front_only[k]],
+              parts={P[k]['id']: (round(part_depth[k], 3) if k in part_depth else None) for k in range(n) if part[k]},
+              limb_depth={'%s %s' % g: (None if v is None else round(v, 3)) for g, v in depth.items()}, relabelled=0)
+    log('sheet field: %d points; warp %s; back layers %s; front-only %s; parts %s; limbs %s (%.1fs)' % (
+        len(Sf['P']), ' '.join('%s>%s' % tuple(s) for s in W['samples'][::3]), Sf['back'], Sf['front_only'], Sf['parts'],
+        Sf['limb_depth'], time.time() - t0))
+    return Sf
+
+
+def _front_rig(A, Sf, shape):
+    """the front view as the rig draws it, resampled onto the sheet front's grid (its heights warped back): per pixel
+    the top-most layer's label; per sheet class the top-most layer whose label the class allows."""
+    F, V, ppl = A['F'], A['views']['front'], A['sheet']['ppl']
+    H, W = shape
+    zr = Sf['warp']['inv']((V['origin'][1] - np.arange(H)) / ppl)
+    py = np.round(F['eye'][1] - zr * F['ppl']).astype(int)
+    px = np.round(F['eye'][0] + (np.arange(W) - V['origin'][0]) / ppl * F['ppl']).astype(int)
+    top = np.full(shape, -1, np.int32)
+    per = {j: np.full(shape, -1, np.int32) for j in A['allowed']}
+    for nm, (y0, x0, lab, i) in sorted(Sf['LL'].items(), key=lambda t: t[1][3]):     # back to front
+        rr, cc = py - y0, px - x0
+        R_ = np.nonzero((rr >= 0) & (rr < lab.shape[0]))[0]
+        C_ = np.nonzero((cc >= 0) & (cc < lab.shape[1]))[0]
+        if not len(R_) or not len(C_):
             continue
-        sk = seeds[lab0[seeds] == k]
-        if not len(sk):
-            continue
-        P = Fd['P'][sk]
-        diam = sizes[k] if sizes is not None else 2 * float(np.percentile(np.linalg.norm(P - np.median(P, 0), axis=1), 80)) / fit['s']
-        lim = max(reach[0], reach[1] * diam) / cell_L
-        far |= (out == k) & (dd > lim)
-        if k in front_only:
-            far |= (out == k) & (dep > np.percentile(dep[sk], 95) + depth * fit['s'])
-    if far.any():
-        free = np.array([k not in front_only for k in range(n_labels)])
-        bs = np.nonzero((out >= 0) & ~far & free[np.maximum(out, 0)])[0]
-        if len(bs):
-            _, _, src2 = dijkstra(G, directed=False, indices=bs, min_only=True, return_predecessors=True)
-            out[far] = np.where(src2[far] >= 0, out[np.maximum(src2[far], 0)], -1)
-    return out, ok
+        blk = np.full(shape, -1, np.int32)
+        blk[np.ix_(R_, C_)] = lab[rr[R_]][:, cc[C_]]
+        m = blk >= 0
+        top[m] = blk[m]
+        for j, labs in A['allowed'].items():
+            mj = m & np.isin(blk, list(labs))
+            per[j][mj] = blk[mj]
+    return top, per
+
+
+def sheet_prediction(A, Sf, vn, shape):
+    """what a view should show: the front as the rig draws it (_front_rig), another view the sheet field seen from its
+    azimuth. -> (per pixel the front-most label, {sheet class: per pixel the front-most label that class allows, found
+    at most SHEET_FIELD['under'] under the visible surface})."""
+    if vn == 'front':
+        return _front_rig(A, Sf, shape)
+    V, ppl = A['views'][vn], A['sheet']['ppl']
+    idx, dep0, _ = project(Sf, V['az'], ppl, V['origin'], shape)
+    pred = np.where(idx >= 0, Sf['L'][np.maximum(idx, 0)], -1)
+    per = {}
+    for j, labs in A['allowed'].items():
+        sel = np.isin(Sf['L'], list(labs))
+        if sel.any():
+            ii, dj, _ = project(dict(P=Sf['P'][sel]), V['az'], ppl, V['origin'], shape)
+            ok = (ii >= 0) & (dj <= dep0 + SHEET_FIELD['under'])
+            per[j] = np.where(ok, Sf['L'][sel][np.maximum(ii, 0)], -1)
+    return pred, per
+
+
+def _over(A, Sf, vn, shape):
+    """which of two pieces lies over the other in a view, within a box: over(a, b, box) -> +1 a over b, -1 b over a, 0
+    unknown. The front by the rig's drawing order; another view by the sheet field's depths where both show (a nearer on
+    60% of their overlap)."""
+    n = A['n']
+    cache = {}
+    V, ppl = A['views'][vn], A['sheet']['ppl']
+
+    def depth(k):
+        if k not in cache:
+            cache[k] = project(dict(P=Sf['P'][Sf['L'] == k]), V['az'], ppl, V['origin'], shape)[1].astype(np.float32)
+        return cache[k]
+
+    def over(a, b, box):
+        if a >= n or b >= n or a == b:
+            return 0
+        if vn == 'front':
+            la, lb = Sf['layer_of'][a], Sf['layer_of'][b]
+            return 0 if la == lb else 1 if la > lb else -1
+        x0, y0, x1, y1 = box
+        da, db = depth(a)[y0:y1, x0:x1], depth(b)[y0:y1, x0:x1]
+        both = np.isfinite(da) & np.isfinite(db)
+        if both.sum() < 10:
+            return 0
+        tol = 0.4 * SHEET_FIELD['shell']
+        return 1 if (da[both] < db[both] - tol).mean() >= 0.6 else -1 if (db[both] < da[both] - tol).mean() >= 0.6 else 0
+    return over
+
+
+def relabel(A, Sf, log=print):
+    """the sheet field relabelled by the views: each point takes the label the view seeing it most face-on gives its
+    pixel, where that view labels it (the back view's panels reach the waistband though the rig draws them only below
+    the skirt). -> the number of points changed."""
+    ppl = A['sheet']['ppl']
+    best = np.full(len(Sf['P']), -np.inf)
+    new = Sf['L'].copy()
+    for vn, V in A['views'].items():
+        shape = A['assigned'][vn].shape
+        vis, u, v = visible(Sf, V['az'], ppl, V['origin'], shape, tol_L=1.5 * SHEET_FIELD['shell'])
+        face = Sf['N'] @ view_axes(V['az'])[1][:2]
+        lab = A['assigned'][vn][np.clip(np.round(v).astype(int), 0, shape[0] - 1), np.clip(np.round(u).astype(int), 0, shape[1] - 1)]
+        ok = vis & (lab >= 0) & (face > best)
+        new[ok] = lab[ok]
+        best[ok] = face[ok]
+    changed = int((new != Sf['L']).sum())
+    Sf['L'] = new
+    Sf['relabelled'] += changed
+    log('sheet field: relabelled by the views, %d of %d points changed' % (changed, len(new)))
+    return changed
+
+
+def match_views(A, Sf):
+    """every view's cells matched to pieces (match_view) from the sheet field's prediction, then the adjacency and
+    landmark passes; into A['pred'], A['assigned'], A['match'][view]."""
+    from .bodyqa import CLASS
+    ppl = A['sheet']['ppl']
+    for vn in A['views']:
+        dv = A['sheet']['design'][vn]
+        shape = dv['raw'].shape
+        pred, per = sheet_prediction(A, Sf, vn, shape)
+        pred[~dv['fg']] = -1
+        for j in per:
+            per[j][~dv['fg']] = -1
+        mt = A['match'][vn]
+        Av, res = match_view(mt['cell_lbl'], mt['cells'], pred, A['allowed'], ppl, per=per,
+                             lines=(dv['raw'] == CLASS['line']) | ridges(dv['rgb']), over=_over(A, Sf, vn, shape))
+        A['pred'][vn], A['assigned'][vn] = pred, Av
+        mt['result'] = res
+    for vn in A['views']:
+        A['match'][vn]['adjacency'] = adjacency_pass(A, vn)
+        A['match'][vn]['landmark'] = landmark_pass(A, vn)
+
+
+def field_iou(Sf, az, ppl, origin, fg):
+    """the sheet field's silhouette seen from az against a view's figure (IoU)."""
+    from scipy import ndimage
+    idx = project(Sf, az, ppl, origin, fg.shape)[0]
+    m = ndimage.binary_closing(idx >= 0, iterations=2)
+    return round(float((m & fg).sum() / max(1, (m | fg).sum())), 4)
 
 
 def complete(R, pieces, step=None):
@@ -1134,12 +1388,28 @@ def complete(R, pieces, step=None):
     return out
 
 
-def match_view(cell_lbl, cell_list, pred, allowed, ppl, r_max=0.12, whole=0.85):
+def line_support(cell, lab, lines_, a, b, tol_px):
+    """the share of the boundary between a's and b's pixels in a cell (both bool/label crops) that runs within tol_px of
+    a drawn line; 1 where they share no boundary."""
+    from scipy import ndimage
+    bd = cell & (lab == a) & ndimage.binary_dilation(cell & (lab == b))
+    if bd.sum() < 3:
+        return 1.0
+    return float(ndimage.binary_dilation(lines_, iterations=tol_px)[bd].mean())
+
+
+def match_view(cell_lbl, cell_list, pred, allowed, ppl, r_max=0.12, whole=0.85, per=None, lines=None, over=None):
     """a sheet view's cells to pieces: each cell takes the label predicted over most of its pixels among the labels its
     colour class allows (per pixel, the nearest such prediction within r_max L, so a slightly misplaced prediction
-    still reaches its cell). A cell where no label holds `whole` of it and another holds 15% and 20 pixels (two pieces
-    drawn without a line between) is split pixel by pixel. pred: (H,W) predicted label per pixel (-1 none); allowed: {class: set of labels}.
-    -> (assigned label per pixel (-1 none), per cell dict(label, share, dist, split))."""
+    still reaches its cell). per: {class: label image}, the prediction a cell of that class reads (the nearest label
+    the class allows, found under what shows: the collar's back flap under a predicted hair's edge); else pred. A cell
+    where no label holds `whole` of it and another holds 15% and 20 pixels (two pieces drawn without a line between) is
+    split pixel by pixel; with the drawn lines given (lines: bool image) only where the boundary between the two runs
+    along them (SHEET_FIELD['line_support'] of it within SHEET_FIELD['line_tol']: the back's sleeves and bodice, one
+    cell whose seams don't close). Else the cell is one piece, as line art draws a piece's edge: the one over(a, b, box)
+    says lies over the other (the back panels over the skirt in the back view: one cell from the waistband into the
+    tails), or the larger. pred: (H,W) predicted label per pixel (-1 none); allowed: {class: set of labels}.
+    -> (assigned label per pixel (-1 none), per cell dict(label, share, dist, split[, why]))."""
     from scipy import ndimage
     H, W = cell_lbl.shape
     out = np.full((H, W), -1, np.int32)
@@ -1147,14 +1417,16 @@ def match_view(cell_lbl, cell_list, pred, allowed, ppl, r_max=0.12, whole=0.85):
     by_fam = {}
     for c in cell_list:
         by_fam.setdefault(c['cls'], []).append(c)
+    tol_px = max(1, int(round(SHEET_FIELD['line_tol'] * ppl)))
     for j, cl in by_fam.items():
-        ok = np.isin(pred, list(allowed.get(j, ()))) & (pred >= 0)
+        pj = per.get(j, pred) if per else pred
+        ok = np.isin(pj, list(allowed.get(j, ()))) & (pj >= 0)
         if not ok.any():
             for c in cl:
                 res[c['id']] = dict(label=-1, share=0.0, dist=None, split=False)
             continue
         d, (iy, ix) = ndimage.distance_transform_edt(~ok, return_indices=True)
-        near = pred[iy, ix]
+        near = pj[iy, ix]
         near[d > r_max * ppl] = -1
         for c in cl:
             x0, y0, x1, y1 = c['box']
@@ -1169,10 +1441,20 @@ def match_view(cell_lbl, cell_list, pred, allowed, ppl, r_max=0.12, whole=0.85):
             k = int(np.argmax(cnt))
             lb = int(vals[k])
             share = float(cnt[k] / m.sum())
-            second = np.sort(cnt)[-2] if len(cnt) > 1 else 0
+            k2 = int(np.argmax(np.where(np.arange(len(cnt)) == k, -1, cnt))) if len(cnt) > 1 else k
+            second = cnt[k2] if len(cnt) > 1 else 0
             split = share < whole and second >= max(0.15 * m.sum(), 20)
-            res[c['id']] = dict(label=lb, share=round(share, 3), dist=round(float(np.mean(d[y0:y1, x0:x1][m]) / ppl), 4),
-                                split=split)
+            r = dict(label=lb, share=round(share, 3), dist=round(float(np.mean(d[y0:y1, x0:x1][m]) / ppl), 4), split=split)
+            if split and lines is not None:
+                lb2 = int(vals[k2])
+                sup = line_support(m, nv, lines[y0:y1, x0:x1], lb, lb2, tol_px)
+                if sup < SHEET_FIELD['line_support']:
+                    o = over(lb, lb2, c['box']) if over is not None else 0
+                    r.update(label=lb2 if o < 0 else lb, share=1.0, split=False,
+                             why='one piece: no drawn line between the two predicted (%.2f of the boundary on a line); %s' % (
+                                 sup, 'the one over the other' if o else 'the larger'))
+                    lb, share, split = r['label'], 1.0, False
+            res[c['id']] = r
             if split:
                 sub = out[y0:y1, x0:x1]
                 sub[m & (nv >= 0)] = nv[m & (nv >= 0)]
@@ -1368,17 +1650,6 @@ def _p(path):
     return path if os.path.isabs(path) else os.path.join(ROOT, path)
 
 
-def find_field(M):
-    """the TRELLIS field for the manifest's generated mesh: charkit/out/i3d/ext/*/<stem>_field.npz (gitignored)."""
-    import glob
-    tr = M['references'].get('trellis')
-    if not tr:
-        return None
-    stem = os.path.splitext(os.path.basename(tr['path']))[0]
-    hits = sorted(glob.glob(os.path.join(ROOT, 'charkit', 'out', 'i3d', 'ext', '*', stem + '_field.npz')))
-    return hits[0] if hits else None
-
-
 def load_image(path):
     from PIL import Image
     return np.asarray(Image.open(_p(path)).convert('RGB'), np.float64) / 255
@@ -1404,9 +1675,10 @@ def sheet_classes(p, R, F, split=None, share=0.08):
     return out
 
 
-def analyse(spec, field=None, use_field=True, log=print):
-    """the measurement: the rig's pieces, the sheet's views matched, the field labelled and voted. -> dict A (arrays;
-    graph() turns it into the JSON graph)."""
+def analyse(spec, log=print):
+    """the measurement: the rig's pieces; the sheet's views matched to them through the sheet field (sheet_field: the
+    rig's layers laid out in 3D by the sheet itself), which the views then relabel (relabel) and vote. Reads only the
+    rig and the sheet the spec's manifest names. -> dict A (arrays; graph() turns it into the JSON graph)."""
     import time
     from . import bodyqa, manifest, sheetqa
     t0 = time.time()
@@ -1422,8 +1694,6 @@ def analyse(spec, field=None, use_field=True, log=print):
     mirror_pairs(pieces, F)
     n = len(pieces)
     SKIN, HAIR = n, n + 1
-    hair_f = next(j for j, f in enumerate(fams) if f['body'] == 'hair')
-    skin_f = next(j for j, f in enumerate(fams) if f['body'] == 'skin')
     log('rig: %d pieces, %d colour families (%.1fs)' % (n, len(fams), time.time() - t0))
     limg = np.full(R['own'].shape, -1, np.int16)                   # the rig's front by label: pieces, then skin, hair
     for k, p in enumerate(pieces):
@@ -1472,102 +1742,43 @@ def analyse(spec, field=None, use_field=True, log=print):
             allowed.setdefault(j, set()).add(k)
     allowed.setdefault(bodyqa.CLASS['hair'], set()).add(HAIR)
     A.update(allowed=allowed, classes=classes)
-    # --- the field: fitted to the rig's front and to each figure, labelled from the rig, projected into each view
-    fpath = field or (find_field(M) if M else None)
-    Fd = load_field(_p(fpath)) if (use_field and fpath and os.path.exists(_p(fpath))) else None
-    A['field'] = Fd
-    if Fd is not None:
-        rigsil = silhouette_L(R['own'] >= 0, lambda X, Z: (F['eye'][0] + X * F['ppl'], F['eye'][1] - Z * F['ppl']))
-        fr = fit_field(Fd, rigsil, 0.0)
-        sizes = []
-        for p in pieces:
-            b = p['mask'].box(); sizes.append(float(np.hypot(b[2] - b[0], b[3] - b[1])) / F['ppl'])
-        whole = complete(R, pieces)
-        A['whole'] = whole
-        lab0, seeds = field_labels(Fd, fr, limg, F, n + 2, (SKIN, HAIR), [p['fam'] for p in pieces] + [skin_f, hair_f],
-                                   fams, sizes + [0, 0], fam_img, front_only={k for k, w in whole.items() if w[0]})
-        log('field: %d cells, rig fit IoU %.3f, %d seeds (%.1fs)' % (len(Fd['P']), fr['iou'], seeds.sum(), time.time() - t0))
-        fits = {}
-        zz = GRID[1] - np.arange(GRID_SHAPE[0]) * GRID[2]
-        for vn in ('front', 'three_quarter', 'profile', 'back'):
-            if vn not in V:
-                continue
-            v, dv = V[vn], design[vn]
-            sil = silhouette_L(dv['fg'], lambda X, Z, v=v: (v['origin'][0] + X * ppl, v['origin'][1] - Z * ppl))
-            rows = zz > v['cut'] + 0.05 if v['cut'] is not None else None
-            if vn == 'front' or 'front' not in fits:
-                fits[vn] = fit_field(Fd, sil, v['az'], rows)
-                continue
-            init = (fits['front']['s'], None, fits['front']['tz'])
-            azs = [v['az']] if vn != 'three_quarter' else [v['az'] + d for d in (-10, -5, 0, 5, 10, 15, 20)]
-            best = None
-            for az in azs:                                          # every azimuth coarsely, then the best one fully
-                f = fit_field(Fd, sil, az, rows, init, (0.03, 0.1, 0.12), levels=1 if len(azs) > 1 else 3)
-                if best is None or f['iou'] > best['iou']:
-                    best = f
-            if len(azs) > 1:
-                best = fit_field(Fd, sil, best['az'], rows, init, (0.03, 0.1, 0.12))
-            fits[vn] = best
-        A.update(field_fit_rig=fr, field_fits=fits, field_labels0=lab0, field_seeds=seeds)
-        log('fits: %s (%.1fs)' % (', '.join('%s %.3f' % (k, f['iou']) for k, f in fits.items()), time.time() - t0))
-    # --- the sheet's cells matched to pieces, view by view
-    match, assigned, preds, visib = {}, {}, {}, {}
-    for vn, v in V.items():
-        dv = design[vn]
-        shape = dv['raw'].shape
-        clbl, clist = cells(dv['raw'], dv['fg'], dv['rgb'])
-        if Fd is not None:
-            fit = A['field_fits'][vn]
-            idx, _, _ = project(Fd, fit, ppl, v['origin'], shape)
-            pred = np.where(idx >= 0, lab0[np.maximum(idx, 0)], -1)
-            pred[~dv['fg']] = -1
-            visib[vn] = visible(Fd, fit, ppl, v['origin'], shape)
-        else:
-            pred = landmark_prediction(A, vn, shape)
-        Av, res = match_view(clbl, clist, pred, allowed, ppl)
-        preds[vn], assigned[vn] = pred, Av
-        match[vn] = dict(cells=clist, result=res, cell_lbl=clbl)
-    A.update(match=match, assigned=assigned, pred=preds)
+    # --- the sheet's cells, view by view
+    match = {}
     for vn in V:
-        match[vn]['adjacency'] = adjacency_pass(A, vn)              # neighbours as in the rig
-        match[vn]['landmark'] = landmark_pass(A, vn)                # what no prediction reached, by landmarks
-    # --- the field relabelled by the sheet's votes
-    if Fd is not None:
-        votes = vote(len(Fd['P']), n + 2, [visib[vn] + (assigned[vn],) for vn in V])
-        tot = votes.sum(1)
-        lab1 = np.where(tot > 0, votes.argmax(1), lab0)
-        agree = (votes[np.arange(len(lab0)), np.maximum(lab0, 0)] == votes.max(1)) & (tot > 0)
-        A.update(field_labels=lab1, votes=votes, vote_agree=agree)
-        log('votes: %d cells voted, %.0f%% agree with the prediction (%.1fs)' % ((tot > 0).sum(), 100 * agree[tot > 0].mean(),
-                                                                                time.time() - t0))
+        dv = design[vn]
+        clbl, clist = cells(dv['raw'], dv['fg'], dv['rgb'])
+        match[vn] = dict(cells=clist, result={}, cell_lbl=clbl)
+    A.update(match=match, assigned={}, pred={})
+    # --- the sheet field; each view predicted from it and its cells matched; the field relabelled by the views (what a
+    # view sees face-on), the views matched again
+    Sf = sheet_field(A, log)
+    A['field'] = Sf
+    match_views(A, Sf)
+    for _ in range(SHEET_FIELD['rounds']):
+        relabel(A, Sf, log)
+        match_views(A, Sf)
+    A['field_iou'] = {vn: field_iou(Sf, v['az'], ppl, v['origin'], design[vn]['fg']) for vn, v in V.items()}
+    log('views matched: %s one-piece cells; the field against the figures %s (%.1fs)' % (
+        sum(1 for vn in V for r in match[vn]['result'].values() if r.get('why')),
+        ', '.join('%s %.3f' % t for t in A['field_iou'].items()), time.time() - t0))
+    # --- the field's points voted by the views that show them (the 3D extents, coverage and chains read the votes)
+    views = []
+    for vn, v in V.items():
+        views.append(visible(Sf, v['az'], ppl, v['origin'], design[vn]['raw'].shape, tol_L=1.5 * SHEET_FIELD['shell'])
+                     + (A['assigned'][vn],))
+    votes = vote(len(Sf['P']), n + 2, views)
+    tot = votes.sum(1)
+    lab0 = Sf['L']
+    lab1 = np.where(tot > 0, votes.argmax(1), lab0)
+    agree = (votes[np.arange(len(lab0)), np.maximum(lab0, 0)] == votes.max(1)) & (tot > 0)
+    A.update(field_labels=lab1, votes=votes, vote_agree=agree)
+    log('votes: %d points voted, %.0f%% agree with the field (%.1fs)' % ((tot > 0).sum(), 100 * agree[tot > 0].mean(),
+                                                                         time.time() - t0))
     return A
 
 
 def _grid_to_L(origin, ppl, px, py):
     return (np.asarray(px, float) - origin[0]) / ppl, (origin[1] - np.asarray(py, float)) / ppl
-
-
-def landmark_prediction(A, view, shape):
-    """without a field: each rig piece placed in a sheet view by landmarks alone (heights from the eye line kept; x as
-    drawn on the front, mirrored on the back, foreshortened by cos(az) at 3/4; any x in profile). -> label image."""
-    V, ppl, F = A['views'][view], A['sheet']['ppl'], A['F']
-    H, W = shape
-    out = np.full(shape, -1, np.int32)
-    for k, p in enumerate(A['pieces']):
-        yy, xx = p['mask'].pixels()
-        x, z = to_L(F, xx[::7], yy[::7])
-        if view == 'back':
-            x = -x
-        elif view == 'three_quarter':
-            x = x * math.cos(math.radians(V['az']))
-        elif view == 'profile':
-            x = np.zeros_like(x)
-        u = np.round(V['origin'][0] + x * ppl).astype(int)
-        v = np.round(V['origin'][1] - z * ppl).astype(int)
-        ok = (u >= 0) & (u < W) & (v >= 0) & (v < H)
-        out[v[ok], u[ok]] = k
-    out[~A['sheet']['design'][view]['fg']] = -1
-    return out
 
 
 # ----------------------------------------------------------------------------------------------------------- structure
@@ -1608,11 +1819,11 @@ def geometry(p, F):
 
 
 def field_frame(A):
-    """field cells in the rig's head-length frame (the field fitted to the rig's front): (x her left, y depth toward
-    the back, z up from the eye line)."""
-    fr, Fd = A['field_fit_rig'], A['field']
-    P = Fd['P']
-    return np.stack([(P[:, 0] - fr['tx']) / fr['s'], P[:, 1] / fr['s'], (P[:, 2] - fr['tz']) / fr['s']], 1)
+    """the sheet field's points in the rig's head-length frame: (x her left, y depth toward the back from the torso's
+    middle, z up from the rig's eye line: the height warp undone)."""
+    Sf = A['field']
+    P = Sf['P']
+    return np.stack([P[:, 0], P[:, 1] - Sf['y0'], Sf['warp']['inv'](P[:, 2])], 1)
 
 
 def _bone_frame(Q, bone_seg):
@@ -2286,10 +2497,11 @@ def _skirt_entry(g, A, st, G, wb):
     fr, bk = g['extent'].get('front'), g['extent'].get('back')
     if fr and bk:
         e['back'] = _r(max(0.0, fr['bbox'][1] - bk['bbox'][1]), 2); kn['back'] = 'measured (back hem below the front, sheet)'
+    main = _main_class(A, k)                   # the skirt's own cloth: its hem trim's cells are not pleats
     cells = [c for c in A['match'].get('front', {}).get('cells', [])
-             if A['match']['front']['result'][c['id']]['label'] == k and c['area'] >= 40]
+             if A['match']['front']['result'][c['id']]['label'] == k and c['area'] >= 40 and c['cls'] == main]
     if cells:
-        e['pleats'] = int(np.clip(2 * len(cells), 8, 40)); kn['pleats'] = 'measured (front cells, doubled)'
+        e['pleats'] = int(np.clip(2 * len(cells), 8, 40)); kn['pleats'] = 'measured (front cells of its cloth, doubled)'
     pan = [x for x in G['pieces'] if x['type'] == 'skirt panel' and x['attach']['parent'] == g['id']]
     if pan:
         gp = st[pan[0]['_k']]['geometry']
@@ -2661,18 +2873,20 @@ def _sources(A, notes, notes_path):
                         eye=[_r(v, 1) for v in A['F']['eye']], layers=len(A['R']['names'])))
     if A.get('views'):
         out['sheet'] = dict(path=A['sheet']['path'], ppl=_r(A['sheet']['ppl'], 2), az_three_quarter_eyes=A['sheet']['az3_eyes'],
-                            views={vn: dict(az=_r(A['field_fits'][vn]['az'], 1) if A.get('field_fits') else v['az'],
-                                            field_iou=A['field_fits'][vn]['iou'] if A.get('field_fits') else None,
+                            views={vn: dict(az=_r(v['az'], 1), field_iou=(A.get('field_iou') or {}).get(vn),
                                             cut=v['cut'], cells=len(A['match'][vn]['cells']),
+                                            one_piece_cells=sum(1 for r in A['match'][vn]['result'].values() if r.get('why')),
                                             adjacency_moves=len(A['match'][vn].get('adjacency', [])),
                                             landmark_cells=len(A['match'][vn].get('landmark', [])))
                                    for vn, v in A['views'].items()})
     if A.get('field') is not None:
-        Fd = A['field']
+        Sf = A['field']
         tot = A['votes'].sum(1) > 0
-        out['field'] = dict(path=Fd['path'].replace(ROOT + os.sep, ''), cells=int(len(Fd['P'])), grid=Fd['R'],
-                            rig_fit_iou=A['field_fit_rig']['iou'], seeds=int(A['field_seeds'].sum()), voted=int(tot.sum()),
-                            vote_agrees_with_prediction=_r(A['vote_agree'][tot].mean(), 3))
+        out['field'] = dict(kind="sheet field (outfit.sheet_field): the rig's layers on shells shaped by the sheet's front "
+                                 "and profile, relabelled by the views", points=int(len(Sf['P'])),
+                            height_warp=Sf['warp']['samples'], back_layers=Sf['back'], front_only=Sf['front_only'],
+                            parts=Sf['parts'], limb_depth=Sf['limb_depth'], relabelled=Sf['relabelled'],
+                            voted=int(tot.sum()), vote_agrees_with_field=_r(A['vote_agree'][tot].mean(), 3))
     if notes:
         out['notes'] = dict(path=notes_path, version=notes.get('version'), **notes.get('provenance', {}))
     return out
@@ -2687,7 +2901,7 @@ def palette(n):
 
 def picture(A, G, path, scale=2):
     """each sheet view with every piece outlined and labelled (what the matching gave it; red boxes: cells no piece
-    took), then the rig's front with its pieces (layer > piece) and the field from four sides coloured by its voted
+    took), then the rig's front with its pieces (layer > piece) and the sheet field from four sides coloured by its voted
     labels (skin pale, hair brown)."""
     from PIL import Image, ImageDraw, ImageFont
     from skimage import measure
@@ -2757,8 +2971,11 @@ def picture(A, G, path, scale=2):
         lab_ = A['field_labels']
         C = np.array([cols[l] if l < n else ((0.95, 0.88, 0.84) if l == n else (0.55, 0.38, 0.32)) for l in range(n + 2)])
         Pc = np.where(lab_[:, None] >= 0, C[np.maximum(lab_, 0)], 0.6)
+        Q = A['field']['P']
+        lo, hi = Q.min(0), Q.max(0)
+        Pn = (Q - (lo + hi) / 2) / max(1e-6, float((hi - lo).max()))       # the unit cube round it, its height framed
         for az, nm in ((0, 'front'), (45, '3/4'), (90, 'her left'), (180, 'back')):
-            tiles2.append(_splat(A['field']['P'], Pc, az, rim.height, 'field, %s' % nm, font))
+            tiles2.append(_splat(Pn, Pc, az, rim.height, 'sheet field, %s' % nm, font))
     row2 = _hstack(tiles2)
     W = max(row1.width, row2.width)
     out = Image.new('RGB', (W, row1.height + row2.height + 8), (255, 255, 255))
@@ -2778,7 +2995,8 @@ def _hstack(ims, pad=6):
 
 
 def _splat(P, C, az, size, label, font=None):
-    """field cells seen from az, flat-coloured by label, the unit cube's height framed, cropped to what shows."""
+    """field points (in a unit cube round them) seen from az, flat-coloured by label, the cube's height framed, cropped
+    to what shows."""
     from PIL import Image, ImageDraw
     r, t = view_axes(az)
     u = (P @ r + 0.5) * (size - 1)
@@ -2791,6 +3009,92 @@ def _splat(P, C, az, size, label, font=None):
     out = Image.fromarray((im[:, c0:c1] * 255).astype(np.uint8))
     ImageDraw.Draw(out).text((8, 6), label, fill=(0, 0, 0), font=font)
     return out
+
+
+# ------------------------------------------------------------------------------------------------------------ the truth
+def load_truth(path):
+    """a hand-checked labelling of the sheet's views by piece (charkit-outfit-truth/1: per view an index image into
+    `sets`, the piece ids a pixel may be, 'none' for no piece; -1 unscored), on the outfit masks' grids.
+    -> (images {view}, sets [[id]], meta)."""
+    Z = np.load(_p(path))
+    meta = json.loads(str(Z['meta']))
+    if meta.get('format') != 'charkit-outfit-truth/1':
+        raise ValueError('%s: not a charkit-outfit-truth/1 file' % path)
+    return {v: Z[v] for v in VIEWS if v in Z.files}, json.loads(str(Z['sets'])), meta
+
+
+def score(masks, truth):
+    """outfit masks ({VIEW__PIECE: bool image}) against a truth (load_truth's): per view and in all the garment
+    accuracy (of the pixels where the truth or the masks put a piece, the share whose piece the truth accepts) and the
+    wrong pixels; per piece the IoU with the truth resolved per pixel (the masks' piece where the truth accepts it, else
+    the truth's first); the largest confusions (view, truth, got, pixels). A grid other than the truth's is an error:
+    the truth holds for the sheet and scale it was drawn on. -> dict."""
+    T, sets, _ = truth
+    out, acc_p, conf = {}, {}, []
+    for v, t in T.items():
+        ks = sorted(k for k in masks if k.startswith(v + '__'))
+        if not ks:
+            continue
+        if masks[ks[0]].shape != t.shape:
+            raise ValueError('%s: masks on a %s grid, the truth on %s' % (v, masks[ks[0]].shape, t.shape))
+        names = [k.split('__', 1)[1] for k in ks] + ['none']
+        L = np.full(t.shape, len(names) - 1, np.int32)
+        for i, k in enumerate(ks):
+            L[masks[k]] = i
+        got = np.array(names, object)[L]
+        ok = np.zeros(t.shape, bool)
+        resolved = np.full(t.shape, 'none', object)
+        for i, st in enumerate(sets):
+            m = t == i
+            if not m.any():
+                continue
+            inset = m & np.isin(got, st)
+            ok |= inset
+            resolved[inset] = got[inset]
+            resolved[m & ~inset] = st[0]
+            bad = m & ~inset
+            if bad.any():
+                vals, cnt = np.unique(got[bad], return_counts=True)
+                conf += [(v, '|'.join(st), str(a), int(b)) for a, b in zip(vals, cnt)]
+        scored = t >= 0
+        garment = scored & ((resolved != 'none') | (got != 'none'))
+        iou = {}
+        for pid in names[:-1]:
+            a, b = scored & (got == pid), scored & (resolved == pid)
+            u = int((a | b).sum())
+            if u:
+                iou[pid] = round(float((a & b).sum() / u), 3)
+                acc_p.setdefault(pid, [0, 0])
+                acc_p[pid][0] += int((a & b).sum())
+                acc_p[pid][1] += u
+        out[v] = dict(accuracy=round(float(ok[garment].mean()), 4), wrong=int((garment & ~ok).sum()),
+                      garment=int(garment.sum()), iou=iou)
+    wrong, gar = sum(r['wrong'] for r in out.values()), sum(r['garment'] for r in out.values())
+    piou = {pid: round(a / b, 3) for pid, (a, b) in sorted(acc_p.items())}
+    out['all'] = dict(accuracy=round(1 - wrong / max(1, gar), 4), wrong=wrong, garment=gar,
+                      mean_iou=round(float(np.mean(list(piou.values()))), 3) if piou else None, iou=piou,
+                      confusions=[dict(view=a, truth=b, got=c, px=d) for a, b, c, d in sorted(conf, key=lambda x: -x[3])[:12]])
+    return out
+
+
+def score_main(args):
+    """python -m charkit outfit score [SPEC] [--masks MASKS.npz]: the produced masks (or MASKS) against the manifest's
+    outfit_truth, a table and the largest confusions."""
+    from . import manifest
+    spec_path = next((a for a in args if a.endswith('.json')), 'charkit/spec/clawd.json')
+    spec = manifest.resolve(json.load(open(_p(spec_path))))
+    R = manifest.load(spec['ref']['manifest'])['references']
+    mp = args[args.index('--masks') + 1] if '--masks' in args else R['outfit_masks']['path']
+    if not os.path.exists(_p(mp)):
+        raise SystemExit('%s: not made yet (python -m charkit build SPEC makes it, or outfit SPEC --out DIR)' % mp)
+    Z = np.load(_p(mp))
+    r = score({k: Z[k] for k in Z.files}, load_truth(R['outfit_truth']['path']))
+    print('%s against %s' % (mp, R['outfit_truth']['path']))
+    print('  '.join('%s %.3f (%d wrong)' % (v, x['accuracy'], x['wrong']) for v, x in r.items()) +
+          '; mean piece IoU %.3f' % r['all']['mean_iou'])
+    for c in r['all']['confusions']:
+        print('  %6d px  %-14s truth %-30s got %s' % (c['px'], c['view'], c['truth'], c['got']))
+    return r
 
 
 # ----------------------------------------------------------------------------------------------------- report, manifest
@@ -2989,7 +3293,8 @@ def register(manifest_path, graph_path, G, inputs):
                role=('the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, '
                      'extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains'),
                provenance=dict(tool='charkit.outfit', version=VERSION, command=G['generated_by']['command'], inputs=inputs),
-               cautions=['measured from the rig, the sheet and the generated field, cross-checked with the annotated '
+               cautions=['measured from the rig and the sheet (its four views, through the sheet field built from them), '
+                         'cross-checked with the annotated '
                          'vision pass (outfit_notes.json): read its flags before trusting a piece'])
     text = open(mp).read()
     text = set_member(text, 'references', 'outfit_graph', ref)
@@ -3000,7 +3305,7 @@ def register(manifest_path, graph_path, G, inputs):
     return rel
 
 
-def build(spec_path, out=None, field=None, use_field=True, notes=None, write_manifest=True, log=print):
+def build(spec_path, out=None, notes=None, write_manifest=True, log=print):
     """the whole intake for a spec: analysis, structure, graph, templates, comparison, springs; writes the graph, the
     picture, the report and the masks into `out` (default charkit/out/NAME/outfit), and with write_manifest the graph
     as the character's reference refs/NAME/outfit_graph.json, registered in its manifest. -> (graph, paths)."""
@@ -3011,7 +3316,7 @@ def build(spec_path, out=None, field=None, use_field=True, notes=None, write_man
     name = spec['name']
     out = _p(out or os.path.join('charkit', 'out', name, 'outfit'))
     os.makedirs(out, exist_ok=True)
-    A = analyse(spec, field, use_field, log)
+    A = analyse(spec, log)
     st = structure(A)
     mref = (spec.get('ref') or {}).get('manifest')
     npath = notes or (os.path.join(os.path.dirname(mref), 'outfit_notes.json') if mref else None)
@@ -3043,14 +3348,13 @@ def build(spec_path, out=None, field=None, use_field=True, notes=None, write_man
         g.pop('_k', None)
     if write_manifest and mref:
         inputs = {}
-        for key in ('sheet', 'rig', 'trellis'):
+        sheet_key = ((spec.get('ref') or {}).get('body_sheet') or {}).get('id') or 'sheet'
+        for key in ('rig', sheet_key):
             r = (A['manifest'] or {}).get('references', {}).get(key)
             if r and os.path.isfile(_p(r['path'])):
                 inputs[key] = dict(path=r['path'], sha256=manifest.sha256(r['path']))
             elif r:
                 inputs[key] = dict(path=r['path'])
-        if A.get('field') is not None:
-            inputs['field'] = dict(path=os.path.relpath(A['field']['path'], ROOT))
         if N:
             inputs['notes'] = dict(path=npath, version=N.get('version'))
         paths['manifest'] = register(mref, gp, G, inputs)
@@ -3062,9 +3366,10 @@ def main(args):
         print(__doc__); return
     if args[0] == 'relayer':
         relayer(args[1] if len(args) > 1 else 'charkit/spec/clawd.json'); return
+    if args[0] == 'score':
+        score_main(args[1:]); return
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
-    G, paths = build(args[0], opt('--out'), opt('--field'), '--no-field' not in args, opt('--notes'),
-                     '--no-manifest' not in args)
+    G, paths = build(args[0], opt('--out'), opt('--notes'), '--no-manifest' not in args)
     C = G['comparison']
     print('%d pieces: %s' % (len(G['pieces']), ', '.join('%s (%s)' % (g['id'], g['motion']['class']) for g in G['pieces'])))
     print('hand list: %d matched, %d only as a knob, %d missed by it, %d extra in it; %d template gaps; %d flags' % (

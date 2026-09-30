@@ -561,6 +561,17 @@ def piece_masks(spec):
     return {k: Z[k] for k in Z.files}, json.load(open(g)), (p, g)
 
 
+def window(m, pad=1):
+    """the slices of a mask's bounding box grown by pad pixels (clipped to the grid), or None for an empty mask. A
+    measure confined to a mask's pixels and those within pad of them reads the same on the window as on the whole grid
+    (outside it everything is background), at the window's cost: the QA's per-piece outline distances and morphology."""
+    r, c = np.nonzero(m.any(1))[0], np.nonzero(m.any(0))[0]
+    if not len(r):
+        return None
+    return (slice(max(0, r[0] - pad), min(m.shape[0], r[-1] + pad + 1)),
+            slice(max(0, c[0] - pad), min(m.shape[1], c[-1] + pad + 1)))
+
+
 def outline(m):
     """a mask's outline: its pixels with a 4-neighbour outside it."""
     from scipy import ndimage
@@ -572,7 +583,10 @@ def outline_f(ours, drawn, tol_px):
     (p), of the drawn outline within tol_px of ours (r), their harmonic mean (f), and each outline's mean distance to the
     other (px). Scale-free enough for a cuff and a skirt alike, where an IoU punishes the small piece."""
     from scipy import ndimage
-    a, b = outline(ours), outline(drawn)
+    w = window(ours | drawn)                  # (the pieces' own window: the same numbers, the grid's cost spared)
+    if w is None:
+        return dict(f=0.0, p=0.0, r=0.0, d_ours=None, d_drawn=None)
+    a, b = outline(ours[w]), outline(drawn[w])
     if not a.any() or not b.any():
         return dict(f=0.0, p=0.0, r=0.0, d_ours=None, d_drawn=None)
     to_b = ndimage.distance_transform_edt(~b)
@@ -587,6 +601,10 @@ def iou_tol(ours, drawn, tol_px):
     the masks themselves are unsure, and a thin piece (a cuff) loses most of a plain IoU to it. The band is at most half
     the drawn piece's inscribed half-width, so a piece thinner than the band still has a middle to compare."""
     from scipy import ndimage
+    w = window(ours | drawn)                  # (the pieces' own window: the same numbers, the grid's cost spared)
+    if w is None:
+        return 0.0
+    ours, drawn = ours[w], drawn[w]
     b = outline(drawn)
     if not b.any():
         keep = np.ones(drawn.shape, bool)

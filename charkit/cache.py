@@ -532,8 +532,13 @@ class Files:
                     rows.append((os.path.relpath(q, p), self.get(q)))
         return 'dir:' + digest(rows)
 
+    MAX = 20000                                 # paths remembered; past it the gone ones are dropped (a shared folder
+                                                # sees every gate clone's paths, each gone when its gate ends)
+
     def save(self):
         if self.dirty:
+            if len(self.memo) > self.MAX:
+                self.memo = {p: m for p, m in self.memo.items() if os.path.exists(p)}
             _write_json(self.path, self.memo)
             self.dirty = False
 
@@ -590,10 +595,51 @@ def _dump(node):
     return digest(ast.dump(node, annotate_fields=False, include_attributes=False))
 
 
+_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)
+_COMPS = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+
+
+def _bindings(node):
+    """the names a function (or comprehension) binds in its own scope: arguments, assignment and loop targets, imports,
+    nested definitions, handlers, with-as; not those declared global or nonlocal."""
+    out, glob_ = set(), set()
+    if isinstance(node, _SCOPES):
+        A = node.args
+        for x in A.posonlyargs + A.args + A.kwonlyargs + [A.vararg, A.kwarg]:
+            if x is not None:
+                out.add(x.arg)
+    stack = list(ast.iter_child_nodes(node)) if not isinstance(node, _COMPS) else [g.target for g in node.generators]
+    while stack:
+        n = stack.pop()
+        if isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
+            out.add(n.id)
+        elif isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(n.name)
+            stack += n.decorator_list + ([a for a in n.args.defaults + n.args.kw_defaults if a is not None]
+                                         if not isinstance(n, ast.ClassDef) else n.bases)
+            continue                                   # (its body is its own scope)
+        elif isinstance(n, (ast.Import, ast.ImportFrom)):
+            out |= {a.asname or a.name.split('.')[0] for a in n.names if a.name != '*'}
+        elif isinstance(n, ast.ExceptHandler) and n.name:
+            out.add(n.name)
+        elif isinstance(n, (ast.Global, ast.Nonlocal)):
+            glob_ |= set(n.names)
+        elif isinstance(n, ast.arg):
+            out.add(n.arg)
+        if isinstance(n, _SCOPES + _COMPS) and n is not node:
+            continue                                   # (a lambda's or comprehension's own names stay in it)
+        stack += list(ast.iter_child_nodes(n))
+    return out - glob_
+
+
 class _Mod:
-    """a parsed charkit module: its syntax tree's digest (docstrings dropped); per top-level definition its digest, the
-    names it uses and the charkit modules it imports; the digest of its other top-level statements and the names they bind
-    to charkit modules; the charkit modules it imports anywhere. Plain data, memoized on disk by file stamp."""
+    """a parsed charkit module: its syntax tree's digest (docstrings dropped); per top-level definition its digest and
+    what it refers to outside itself, as scoping resolves it (a name its own functions bind, a local `main` above all,
+    is not the module's `main`): free names (this module's definitions or imports), `module.attr` pairs, the charkit
+    modules it imports inside and binds; the digest of the other top-level statements and what they refer to; the
+    names the top level binds to charkit modules (bound) and to names in them (bound_from); the charkit modules it
+    imports anywhere. Plain data, memoized on disk by file stamp."""
+    SCHEMA = 3
 
     def __init__(self, name, path, d=None):
         self.name, self.path = name, path
@@ -606,33 +652,105 @@ class _Mod:
         _strip_docs(tree)
         self.digest = _dump(tree)
         self.pkg = name if path.endswith('__init__.py') else name.rpartition('.')[0]
-        self.defs, top, self.bound = {}, [], {}
+        self.defs, top, self.bound, self.bound_from = {}, [], {}, {}
         for n in tree.body:
+            if isinstance(n, (ast.Import, ast.ImportFrom)):
+                for k, v in self._binds(n).items():
+                    (self.bound if isinstance(v, str) else self.bound_from)[k] = v
+        used = set()
+        for n in tree.body:
+            refs = self._refs(n)
+            used |= set(refs['names']) | {x for x, _ in refs['attrs']}
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                names, imps = set(), set()
-                for s_ in ast.walk(n):
-                    if isinstance(s_, ast.Name):
-                        names.add(s_.id)
-                    elif isinstance(s_, (ast.Import, ast.ImportFrom)):
-                        for a in s_.names:
-                            imps |= set(self.resolve(s_, a.name))
-                self.defs[n.name] = [_dump(n), sorted(names), sorted(imps)]
+                self.defs[n.name] = [_dump(n), refs['names'], refs['imps'], refs['attrs'], refs['local']]
             else:
                 top.append(n)
-                if isinstance(n, (ast.Import, ast.ImportFrom)):
-                    for a in n.names:
-                        for m in self.resolve(n, a.name):
-                            self.bound[a.asname or a.name.split('.')[0]] = m
+                if not isinstance(n, (ast.Import, ast.ImportFrom)):
+                    self.top_refs = getattr(self, 'top_refs', {'names': [], 'attrs': [], 'local': [], 'called': []})
+                    for k in ('names', 'attrs', 'local', 'called'):
+                        self.top_refs[k] = self.top_refs[k] + [x for x in refs[k] if x not in self.top_refs[k]]
+        self.top_refs = getattr(self, 'top_refs', {'names': [], 'attrs': [], 'local': [], 'called': []})
         self.top = digest([ast.dump(n, annotate_fields=False, include_attributes=False) for n in top])
+        # a top-level import nothing here names: imported for what importing it does (registering parts): taken whole
+        self.side = sorted({v.lstrip('!') for k, v in self.bound.items() if k not in used} |
+                           {v[0] for k, v in self.bound_from.items() if k not in used and v[1] == '*'})
         self.imports = set()
         for n in ast.walk(tree):
             if isinstance(n, (ast.Import, ast.ImportFrom)):
                 for a in n.names:
                     self.imports |= set(self.resolve(n, a.name))
 
+    def _binds(self, node):
+        """an import statement's bindings: {local name: module} for a charkit module, {local name: [module, name]} for a
+        name from one ('*': every name); a dotted `import charkit.a.b` binds `charkit` to the whole of charkit.a.b."""
+        out = {}
+        for a in node.names:
+            for m in self.resolve(node, a.name):
+                if isinstance(node, ast.Import):
+                    # (`import charkit.a.b` binds `charkit`: '!' marks a binding only whole modules can resolve)
+                    out[a.asname or a.name.split('.')[0]] = m if a.asname or '.' not in a.name else '!' + m
+                elif a.name == '*':
+                    out['*' + m] = [m, '*']
+                elif m.endswith('.' + a.name):
+                    out[a.asname or a.name] = m
+                else:
+                    out[a.asname or a.name] = [m, a.name]
+        return out
+
+    def _refs(self, node):
+        """what a top-level statement refers to outside its own scopes -> {'names': free names, 'attrs': [[name, attr]]
+        (a free name's attribute), 'imps': charkit modules imported inside, 'local': [[module, attr or None]] (through
+        an import inside: None, the module used bare, whole)}."""
+        names, attrs, local, imps, called = set(), set(), set(), set(), set()
+        binds = {}
+        for n in ast.walk(node):
+            if isinstance(n, (ast.Import, ast.ImportFrom)) and n is not node:
+                b = self._binds(n)
+                binds.update(b)
+                imps |= {v if isinstance(v, str) else v[0] for v in b.values()}
+
+        def walk(n, bound):
+            if isinstance(n, _SCOPES + _COMPS):
+                bound = bound | _bindings(n)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id not in bound:
+                called.add(n.func.id)
+            if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and isinstance(n.value.ctx, ast.Load):
+                x = n.value.id
+                if x in binds and x in bound:
+                    v = binds[x]
+                    local.add((v, n.attr) if isinstance(v, str) and not v.startswith('!') else
+                              ((v.lstrip('!'), None) if isinstance(v, str) else tuple(v)))
+                elif x not in bound:
+                    attrs.add((x, n.attr))
+                return
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+                x = n.id
+                if x in binds and x in bound:
+                    v = binds[x]
+                    local.add((v.lstrip('!'), None) if isinstance(v, str) else tuple(v))
+                elif x not in bound:
+                    names.add(x)
+                return
+            for c in ast.iter_child_nodes(n):
+                walk(c, bound)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            for d in node.decorator_list + (node.bases if isinstance(node, ast.ClassDef) else
+                                            [a for a in node.args.defaults + node.args.kw_defaults if a is not None]):
+                walk(d, set())
+            body = node.body if isinstance(node, ast.ClassDef) else [node]
+            for b in body:
+                walk(b, set())
+        else:
+            walk(node, set())
+        for k, v in binds.items():
+            if isinstance(v, list) and v[1] == '*':
+                local.add((v[0], None))
+        return {'names': sorted(names), 'attrs': sorted([list(x) for x in attrs]), 'imps': sorted(imps),
+                'local': sorted([list(x) for x in local], key=str), 'called': sorted(called)}
+
     def data(self):
-        return dict(digest=self.digest, pkg=self.pkg, defs=self.defs, bound=self.bound, top=self.top,
-                    imports=sorted(self.imports))
+        return dict(digest=self.digest, pkg=self.pkg, defs=self.defs, bound=self.bound, bound_from=self.bound_from,
+                    top=self.top, top_refs=self.top_refs, side=self.side, imports=sorted(self.imports))
 
     def resolve(self, node, alias):
         """the charkit modules an import statement brings in."""
@@ -663,7 +781,7 @@ _DISK = [None, False]                   # the on-disk memo of parsed modules, an
 def _mod(name):
     p = _module_file(name)
     st = os.stat(p)
-    k = [p, st.st_mtime_ns, st.st_size, sys.version.split()[0]]
+    k = [p, st.st_mtime_ns, st.st_size, sys.version.split()[0], _Mod.SCHEMA]
     if _MODS.get(name, (None,))[0] != k:
         if _DISK[0] is None:
             try:
@@ -691,37 +809,76 @@ def save_code_memo():
 
 
 def code_units(*fns, modules=(), depth=None):
-    """the code the functions run, as {unit: digest}: each function and the top-level names it uses in its own module,
-    function by function (with that module's other top-level statements), and every charkit module they import, whole
-    and transitively; `modules` adds whole modules. depth: follow imports only this many modules deep (None: all)."""
-    units, mods = {}, set(modules)
-    for fn in fns:
-        M = _mod(fn.__module__)
-        units[M.rel + ':<top>'] = M.top
-        mods |= set(M.bound.values())                  # the charkit modules its module imports at the top run with it
-        todo, done = [fn.__name__], set()
-        while todo:
-            n = todo.pop()
-            if n in done or n not in M.defs:
-                continue
-            done.add(n)
-            dg, names, imps = M.defs[n]
-            units['%s:%s' % (M.rel, n)] = dg
-            todo += names
-            mods |= set(imps) | {M.bound[x] for x in names if x in M.bound}
-    seen = set()
-    level = {m: 1 for m in mods}
-    while mods:
-        m = mods.pop()
-        if m in seen:
+    """the code the functions run, as {unit: digest}, followed definition by definition across modules: each function
+    ('path:name'), the definitions it names in its own module, the definitions it reaches in other charkit modules
+    through their names (`from m import f`, `m.f`), and each module's top-level statements ('path:<top>': they run on
+    import); a module used other than through its attributes (passed, `import *`, a dotted import, imported only for
+    what importing does) is taken whole ('path': its digest, and every definition in it followed). `modules` adds whole
+    modules. depth: follow references only this many modules away (None: all). Names are resolved as Python scopes
+    them: a function's own local `main` is not the module's main. (Until 2026-09-30 a module was taken whole with every
+    module it imports anywhere: bodyeval's one use of `cli._path` brought cli.py's 42 imports into every QA key, and the
+    hull's shared-cache key covered garments.py through a local named `main`.)"""
+    import collections
+    units, seen, done_mod, whole = {}, set(), set(), set()
+    work = collections.deque((fn.__module__, fn.__name__, 0) for fn in fns)
+    work.extend((m, None, 1) for m in modules)
+
+    def ref(M, lvl, name=None, attr=None):
+        """a reference from module M (at lvl) to a name in it, or to a module's attribute ('module', attr)."""
+        if attr is not None or name is None:
+            return
+        if name in M.defs:
+            work.append((M.name, name, lvl))
+        elif name in M.bound_from:
+            m, n = M.bound_from[name]
+            work.append((m, None if n == '*' else n, lvl + 1))
+        elif name in M.bound:
+            work.append((M.bound[name].lstrip('!'), None, lvl + 1))      # a module used bare: whole
+
+    def follow(M, refs, lvl, top=False):
+        for x in refs['names']:
+            # (the top level: this module's own functions only when called on import; a table naming them doesn't
+            # run them: scene.py's list of stages would bring every stage into each one's key)
+            if not (top and x in M.defs and x not in refs.get('called', ())):
+                ref(M, lvl, name=x)
+        for x, a in refs['attrs']:
+            if x in M.bound and not M.bound[x].startswith('!'):
+                work.append((M.bound[x], a, lvl + 1))
+            elif x in M.bound:
+                work.append((M.bound[x][1:], None, lvl + 1))
+            elif x in M.defs or x in M.bound_from:
+                ref(M, lvl, name=x)
+        for m, a in refs['local']:
+            work.append((m, a, lvl + 1))
+    while work:
+        m, n, lvl = work.popleft()
+        if depth is not None and lvl > depth or (m, n) in seen:
             continue
-        seen.add(m)
-        P = _mod(m)
-        units[P.rel] = P.digest
-        if depth is None or level[m] < depth:
-            for q in P.imports:
-                level.setdefault(q, level[m] + 1)
-                mods.add(q)
+        seen.add((m, n))
+        try:
+            M = _mod(m)
+        except (TypeError, OSError, SyntaxError):
+            continue
+        if m not in done_mod:                          # its top-level statements run whenever it's imported
+            done_mod.add(m)
+            units[M.rel + ':<top>'] = M.top
+            follow(M, M.top_refs, lvl, top=True)
+            work.extend((x, None, lvl + 1) for x in M.side)
+        if n is None:
+            if m not in whole:
+                whole.add(m)
+                units[M.rel] = M.digest
+                work.extend((m, d, lvl) for d in M.defs)
+            continue
+        if n in M.defs:
+            dg, _, imps, _, _ = M.defs[n]
+            units['%s:%s' % (M.rel, n)] = dg
+            d = M.defs[n]
+            follow(M, {'names': d[1], 'attrs': d[3], 'local': d[4]}, lvl)
+        elif n in M.bound_from or n in M.bound:
+            ref(M, lvl, name=n)
+        elif _module_file(m + '.' + n):
+            work.append((m + '.' + n, None, lvl + 1))  # a submodule, as the package's attribute
     save_code_memo()
     return dict(sorted(units.items()))
 
@@ -2119,31 +2276,107 @@ def venv_env():
     return out
 
 
+def step_cap_gb():
+    """the shared step folder's size cap (CHARKIT_STEP_CACHE_GB, default 20; past it the least recently used go)."""
+    return float(os.environ.get('CHARKIT_STEP_CACHE_GB', 20))
+
+
+def _closure_note(paths):
+    """a restored step's dependencies into the build's input closure (charkit.closure), as reads: a hit opens none of
+    them, and a closure without them would let the gate skip a build a change to them reaches."""
+    from . import closure
+    for p in paths:
+        closure.note(p)
+        if os.path.isdir(p):                        # (charkit/assets: hashed whole)
+            closure.note(p, 'L')
+            for dd, ds, fs in os.walk(p):
+                for f in fs:
+                    closure.note(os.path.join(dd, f))
+
+
 STEP_DEPTH = 2      # a venv step's code: its functions and `modules`, two imports deep. Whole and transitive, every step
                     # reached all of charkit, so any edit anywhere re-ran the head, body and hair fits (minutes a
                     # build in every worktree). Deeper changes can restore a stale product: the gate's builds are
                     # cold, and `--cache verify` re-runs everything and flags a difference.
 
 
-def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=STEP_DEPTH):
+def step_dir():
+    """where the venv steps' entries live (file_step): CHARKIT_STEP_CACHE, else the build cache (cache_dir()). The gate
+    points its builds at one folder on the box (gate._build: ~/.cache/charkit/steps), so its clones share them; their
+    keys and reads are portable (_port), so an entry made in one clone's worktree and out folder hits in another's."""
+    return os.path.abspath(os.path.expanduser(os.environ.get('CHARKIT_STEP_CACHE') or cache_dir()))
+
+
+def step_depth():
+    """how deep a venv step's code key follows imports: CHARKIT_STEP_DEPTH ('all': every function reached, as the
+    Blender stages' keys do; the gate's builds, whose entries are shared), default STEP_DEPTH."""
+    v = os.environ.get('CHARKIT_STEP_DEPTH')
+    return STEP_DEPTH if not v else None if v == 'all' else int(v)
+
+
+def _port_prefixes(build_out):
+    """(absolute prefix, portable prefix), longest first: the build's out folder as '<out>/', the worktree (as named
+    and resolved) and each link in its charkit/out (the gate's i3d and gate folders, resolved) relative to it."""
+    from . import closure
+    with closure.paused():                          # (a look at the worktree's links, not an input)
+        pre = [(p, r) for p, r in closure._prefixes(ROOT)]
+    if build_out:
+        b = os.path.abspath(build_out).rstrip(os.sep) + os.sep
+        pre += [(b, '<out>/'), (os.path.realpath(b).rstrip(os.sep) + os.sep, '<out>/')]
+    return sorted(set(pre), key=lambda x: -len(x[0]))
+
+
+def _port(v, pre):
+    """v with every absolute path under a prefix made portable (strings in dicts, lists and tuples)."""
+    if isinstance(v, str):
+        if v.startswith(os.sep):
+            for a, r in pre:
+                if v.startswith(a) or v == a[:-1]:
+                    return r + v[len(a):]
+        return v
+    if isinstance(v, dict):
+        return {k: _port(x, pre) for k, x in dict.items(v)}
+    if isinstance(v, (list, tuple)):
+        return type(v)(_port(x, pre) for x in v)
+    return v
+
+
+def _unport(p, build_out):
+    """a portable path back to this build's: '<out>/x' under build_out, a relative one under the worktree."""
+    if p.startswith('<out>/'):
+        return os.path.join(build_out, p[len('<out>/'):])
+    return p if os.path.isabs(p) else os.path.join(ROOT, p)
+
+
+def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, refresh=False, depth=None,
+              build_out=None):
     """a venv-side step whose product is files under `out` (the geom hair cut, before Blender): restored by copying them
-    when its code (fns and `modules` with what they import, `depth` imports deep: STEP_DEPTH), the venv's packages, `key`
-    (what it is given, exactly), the content of `inputs` and of every file it opened are unchanged.
-    -> 'hit' | 'miss: why'."""
+    when its code (fns and `modules` with what they import, `depth` imports deep: step_depth()), the venv's packages,
+    `key` (what it is given, exactly), the content of `inputs` and of every file it opened are unchanged. Paths in the
+    key, the inputs and the reads are keyed portably (the build's out folder, build_out, default out's parent when out
+    is its geom folder, as '<out>/'; the worktree's relative), so entries hit across worktrees and gate clones (step_dir()).
+    A hit records what the step depends on in the build's input closure (charkit.closure: the files it would have read
+    and its code), as the step itself would have. -> 'hit' | 'miss: why'."""
     global _REC
-    d = cache_dir()
+    d = step_dir()
     files = Files(d)
     t0 = time.time()
+    depth = step_depth() if depth is None else depth
+    if build_out is None:
+        build_out = os.path.dirname(os.path.abspath(out)) if os.path.basename(os.path.normpath(out)) == 'geom' else out
+    build_out = os.path.abspath(build_out)
+    pre = _port_prefixes(build_out)
     units = code_units(*fns, modules=('charkit.cache',) + tuple(modules), depth=depth)
     units['charkit/assets'] = files.get(os.path.join(KIT, 'assets'))
     units = dict(sorted(units.items()))
     envv = venv_env()
-    static = digest([SCHEMA, 'venv', name, units, envv, key, sorted((os.path.abspath(p), files.get(p)) for p in inputs)])
+    static = digest([SCHEMA, 'venv', name, units, envv, _port(key, pre),
+                     sorted((_port(os.path.abspath(p), pre), files.get(p)) for p in inputs)])
     kd = os.path.join(d, 'venv', name, static[:20])
     for c in _entries(kd) if not refresh else []:
         try:
             E = Entry(c)
-            if all(files.get(p) == h for p, h in E.m['reads']):
+            if all(files.get(_unport(p, build_out)) == h for p, h in E.m['reads']):
                 for rel in E.m['files']:
                     dst = os.path.join(out, rel)
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -2152,6 +2385,8 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
                     print(line.replace(E.m.get('out', '\0'), os.path.abspath(out)))
                 os.utime(E.file('manifest.json'))
                 files.save()
+                _closure_note([_unport(p, build_out) for p, _ in E.m['reads']] + list(inputs) +
+                              sorted({os.path.join(ROOT, u.split(':', 1)[0]) for u in units}))
                 return 'hit'
         except (OSError, ValueError, KeyError):
             continue
@@ -2161,7 +2396,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
         L = json.load(open(last))
         ch = [u for u in sorted(set(L['units']) | set(units)) if L['units'].get(u) != units.get(u)]
         why = 'code ' + ', '.join(ch[:3]) if ch else 'packages' if L['env'] != envv else 'its input changed' \
-            if L['key'] != digest(key) else why
+            if L['key'] != digest(_port(key, pre)) else why
     except (OSError, ValueError, KeyError):
         pass
     _hook()
@@ -2180,7 +2415,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
         _REC = None
     after = _tree(out)
     outs = sorted(k for k, v in after.items() if before.get(k) != v)
-    reads = sorted((p, files.get(p)) for p in rec.files)
+    reads = sorted((_port(p, pre), files.get(p)) for p in rec.files)
     key2 = digest([static, reads])
     from . import closure
     with closure.paused():
@@ -2190,6 +2425,7 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
         return 'miss: charkit changed during the step (not stored)'
     if _caught(errs):
         return 'miss: %s (an error was caught while it ran: not stored)' % why
+    os.makedirs(d, exist_ok=True)                   # (room() asks its disk: a new shared folder has none yet)
     if not room(d):
         return 'miss: %s (the disk is nearly full: not stored)' % why
     tmp = tempfile.mkdtemp(prefix='.w-', dir=d)
@@ -2208,8 +2444,10 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
             os.rename(tmp, final)
         except OSError:
             shutil.rmtree(tmp, ignore_errors=True)
-        _write_json(last, dict(units=units, env=envv, key=digest(key)))
+        _write_json(last, dict(units=units, env=envv, key=digest(_port(key, pre))))
         files.save()
+        if d != os.path.abspath(cache_dir()):
+            prune(d, step_cap_gb())                 # (a folder of its own: no build's finish trims it)
     except OSError as e:
         shutil.rmtree(tmp, ignore_errors=True)
         return 'miss: %s (storing it failed: %s)' % (why, e)
@@ -2652,6 +2890,13 @@ def _read_state(path):
 
 
 # ------------------------------------------------------------------------------------------------------------ upkeep
+def _ls(d):
+    try:
+        return os.listdir(d)
+    except OSError:
+        return []
+
+
 def entries(d=None):
     """every entry: (kind, step, path, bytes, last used)."""
     d = d or cache_dir()
@@ -2660,20 +2905,25 @@ def entries(d=None):
         base = os.path.join(d, kind)
         if not os.path.isdir(base):
             continue
-        for step in sorted(os.listdir(base)):
-            for sk in os.listdir(os.path.join(base, step)):
-                for e in os.listdir(os.path.join(base, step, sk)):
+        for step in sorted(_ls(base)):
+            for sk in _ls(os.path.join(base, step)):
+                for e in _ls(os.path.join(base, step, sk)):
                     p = os.path.join(base, step, sk, e)
                     m = os.path.join(p, 'manifest.json')
-                    if os.path.exists(m):
+                    try:            # (another build may prune it meanwhile: a shared folder)
                         size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(p) for f in fs)
                         out.append((kind, step, p, size, os.path.getmtime(m)))
+                    except OSError:
+                        pass
     base = os.path.join(d, 'memo')
     if os.path.isdir(base):
-        for step in sorted(os.listdir(base)):
-            for f in os.listdir(os.path.join(base, step)):
+        for step in sorted(_ls(base)):
+            for f in _ls(os.path.join(base, step)):
                 p = os.path.join(base, step, f)
-                out.append(('memo', step, p, os.path.getsize(p), os.path.getmtime(p)))
+                try:
+                    out.append(('memo', step, p, os.path.getsize(p), os.path.getmtime(p)))
+                except OSError:
+                    pass
     return out
 
 

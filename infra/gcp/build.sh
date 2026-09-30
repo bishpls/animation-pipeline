@@ -16,25 +16,37 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); source "${CHARKIT_BOX_ENV:-$HERE/build.env}"
 G="gcloud --project=$PROJECT"; Z="--zone=$ZONE"
 CFG="$HOME/.ssh/charkit-$VM.config"
+# the gcloud config the box calls use: the env file's CLOUDSDK_CONFIG (the box-control service account's, which never
+# needs a reauth), else the default login. The ssh config names it in its ProxyCommand, so any `ssh -F` works without it
+# in the environment, and is rewritten when it changes (fresh), with the account's OS Login user
+GC="${CLOUDSDK_CONFIG:-default}"
+fresh() { [ -f "$CFG" ] && grep -qxF "# gcloud: $GC" "$CFG"; }
 config() {  # an ssh config whose ProxyCommand opens the IAP tunnel, so plain ssh and rsync work
-  local user; user=$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null)
+  local user; user=$(gcloud compute os-login describe-profile --format='value(posixAccounts[0].username)' 2>/dev/null) || true
+  [ -n "$user" ] || { echo "gcloud can't read the OS Login profile (config $GC): $(auth_hint)" >&2; exit 1; }
   mkdir -p "$HOME/.ssh"
-  cat > "$CFG" <<EOC
+  cat > "$CFG.$$" <<EOC
+# gcloud: $GC
 Host $VM
   User $user
   IdentityFile ~/.ssh/google_compute_engine
   StrictHostKeyChecking no
   UserKnownHostsFile ~/.ssh/charkit-$VM.known_hosts
   ServerAliveInterval 30
-  ProxyCommand gcloud compute start-iap-tunnel $VM 22 --listen-on-stdin --project=$PROJECT --zone=$ZONE --verbosity=warning
+  ProxyCommand env ${CLOUDSDK_CONFIG:+CLOUDSDK_CONFIG=$CLOUDSDK_CONFIG }gcloud compute start-iap-tunnel $VM 22 --listen-on-stdin --project=$PROJECT --zone=$ZONE --verbosity=warning
 EOC
+  mv "$CFG.$$" "$CFG"
 }
-ssh_() { [ -f "$CFG" ] || config; ssh -F "$CFG" "$VM" "$@"; }
+auth_hint() {  # what to run when gcloud can't act (one line)
+  if [ -n "${CLOUDSDK_CONFIG:-}" ]; then echo "the service account's config $CLOUDSDK_CONFIG has no working key: see docs/workstreams/infra-auth.md"
+  else echo "run: gcloud auth login"; fi
+}
+ssh_() { fresh || config; ssh -F "$CFG" "$VM" "$@"; }
 name() { basename "$(cd "$1" && pwd)"; }
 # bulk data through the bucket (charkit/bucketsync.py, standard library: any python3); the rsync paths below remain
 BS="$HERE/../../charkit/bucketsync.py"
 bucket() { [ "${CHARKIT_SYNC:-bucket}" != rsync ] && [ -n "${BUCKET:-}" ] && [ -f "$BS" ]; }
-bs() { [ -f "$CFG" ] || config; BUCKET=$BUCKET VM=$VM BS_SSHCFG=$CFG "${CHARKIT_PY:-python3}" "$BS" "$@"; }
+bs() { fresh || config; BUCKET=$BUCKET VM=$VM BS_SSHCFG=$CFG "${CHARKIT_PY:-python3}" "$BS" "$@"; }
 case "${1:-status}" in
   status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
   up)
@@ -49,7 +61,7 @@ case "${1:-status}" in
     echo "not ready after 15 min: infra/gcp/build.sh ssh 'sudo tail -40 /var/log/anim-build-startup.log'"; exit 1;;
   ssh) shift; ssh_ "$@";;
   sync)
-    WT=$2; [ -f "$CFG" ] || config
+    WT=$2; fresh || config
     # through the bucket: blobs by sha256, uploaded once for every worktree and box; the box links its copy from its blob
     # cache and deletes what the worktree no longer has, under the same excludes as the rsync below
     if bucket; then bs sync "$WT" "/srv/work/$(name "$WT")"; exit $?; fi
@@ -80,10 +92,10 @@ case "${1:-status}" in
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
       "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
-  push) [ -f "$CFG" ] || config
+  push) fresh || config
     if bucket; then bs push "$2" "${3:-/srv/work/}" ${4:+"$4"}; exit $?; fi
     rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;
-  fetch) WT=$2; P=$3; [ -f "$CFG" ] || config
+  fetch) WT=$2; P=$3; fresh || config
     if bucket; then bs fetch "/srv/work/$(name "$WT")/$P" "$WT/$P"; exit $?; fi
     mkdir -p "$WT/$P"; rsync -az -e "ssh -F $CFG" "$VM:/srv/work/$(name "$WT")/$P/" "$WT/$P/";;
   pull) bs pull "$2" "$3";;

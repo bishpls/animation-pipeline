@@ -18,6 +18,7 @@
     python -m charkit remote jobs | attach JID | kill JID | load         # detached box jobs; the boxes' load (charkit/boxjob.py)
     python -m charkit preview [REF] | hook install | serve               # after a merge: the combined preview (charkit/preview.py); serve: click-to-flag (charkit/flags.py)
     python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
+    python -m charkit evalmesh lab | build BUILD [--render]           # our Subdivision Surface and Solidify against Blender's (charkit/evalmesh.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -32,8 +33,9 @@
     python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
     python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
     python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
-    python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
+    python -m charkit outfit SPEC [--out DIR] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
+    python -m charkit outfit score [SPEC] [--masks MASKS.npz]   # the outfit masks against the hand-labelled truth
     python -m charkit hairlayers SPEC [--out DIR]   # the hair breakdown's families on the body sheet's hair
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
@@ -261,9 +263,24 @@ def sheets(spec, out):
 
 
 def build(args):
+    """`charkit build SPEC [--out DIR] ...`: the whole build in one machine-wide build slot (procs.build_slot; `--slot
+    blender`: only its Blender, as before), its thread pools capped on a many-core machine (procs.cap_threads, set by
+    main before anything loads numpy; `--threads N|off`)."""
+    from . import procs
+    name = json.load(open(args[0]))['name']
+    if '--slot' in args and args[args.index('--slot') + 1] == 'blender':
+        return _build(args)
+    with procs.build_slot('build ' + name):
+        return _build(args)
+
+
+def _build(args):
     spec_path = args[0]
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     name = json.load(open(spec_path))['name']
+    import time
+    t_build = time.time()
+    print('CHARKIT_THREADS %s' % (os.environ.get('NUMBA_NUM_THREADS') or 'uncapped'), flush=True)
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
     from . import cache
@@ -325,8 +342,22 @@ def build(args):
         except ValueError:
             pass
     history.append(out, name, note)
+    _cpu_line(out, t_build)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def _cpu_line(out, t0):
+    """the build's CPU seconds (this process and the children it waited for: its Blender; a worker's jobs aren't
+    counted), wall seconds and thread cap: CHARKIT_BUILD_CPU on stdout and OUT/build_cpu.json, so any build (not only
+    a gate's) says what it cost the machine."""
+    import resource, time
+    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    rec = {'cpu_seconds': round(a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime, 1),
+           'wall_seconds': round(time.time() - t0, 1), 'threads': os.environ.get('NUMBA_NUM_THREADS') or None,
+           'slot': 'build' if os.environ.get('CHARKIT_SLOT_HELD') else 'blender'}
+    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
+    print('CHARKIT_BUILD_CPU %s' % json.dumps(rec), flush=True)
 
 
 def _phases():
@@ -462,7 +493,8 @@ def code_body(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
-                            modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft'), name_key=spec['name'],
+                            modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell'),
+                            name_key=spec['name'],
                             refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_body', r)
     spec['body_code'] = path
@@ -674,11 +706,29 @@ def figures(args):
         print('wrote', mp)
 
 
+CAPPED = ('build', 'qa', 'tune', 'worker', 'bodyeval', 'bodyfit', 'fit', 'bodysens', 'flapchains')
+
+
+def _cap(args):
+    """the command's thread pools capped (procs.cap_threads: on a many-core machine, the box), before anything loads
+    numpy, numba or a BLAS; `--threads N` or `--threads off` (uncapped) sets CHARKIT_THREADS for it."""
+    from . import procs
+    if '--threads' in args:                 # (explicit: it wins over the environment, as qa's --threads did)
+        i = args.index('--threads')
+        os.environ['CHARKIT_THREADS'] = args[i + 1]
+        if args[i + 1] != 'off':
+            os.environ.update(procs.thread_env(int(args[i + 1])))
+        del args[i:i + 2]
+    procs.cap_threads()
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ('-h', '--help'):
         print(__doc__); return
     cmd, rest = argv[0], argv[1:]
+    if cmd in CAPPED:
+        _cap(rest)
     if cmd == 'build':
         build(rest)
     elif cmd == 'qa':
@@ -748,6 +798,9 @@ def main(argv=None):
     elif cmd == 'gate':
         from . import gate
         gate.main(rest)
+    elif cmd == 'pregate':
+        from . import pregate
+        sys.exit(pregate.main(rest))
     elif cmd == 'history':
         from . import history
         history.main(rest)
@@ -778,6 +831,9 @@ def main(argv=None):
     elif cmd == 'evaldrift':
         from . import evaldrift
         raise SystemExit(evaldrift.main(rest))
+    elif cmd == 'evalmesh':
+        from . import evalmesh
+        raise SystemExit(evalmesh.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)

@@ -22,7 +22,8 @@ from . import model as model_, normals as normals_, views as views_
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FLOATS = 13                                 # interleaved vertex: pos 3, hull 3, ow 1, uv0 2, uv1 2, mask 1, ink 1
-F_RIM, F_STREAKS, F_TEXTURE, F_FRINGE, F_BLUSH, F_INK, F_BLEND = 1, 2, 4, 8, 16, 32, 64
+F_RIM, F_STREAKS, F_TEXTURE, F_FRINGE, F_BLUSH, F_INK, F_BLEND, F_CAST = 1, 2, 4, 8, 16, 32, 64, 128
+CAST_FLOATS = 16                            # the cast shadows' stream: 4 vec4s, one value per baked light azimuth
 KIND = {'flat': 0, 'toon3': 1, 'hair': 1, 'face': 2, 'plate': 3}
 FILTER = {'linear': 0, 'cubic': 1, 'closest': 2, 'smart': 1}
 WRAP = {'extend': 0, 'clip': 1, 'repeat': 2, 'mirror': 2}
@@ -99,11 +100,12 @@ def _facing_exp(b):
     return 1.0 if b == 0.5 else (2 * b if b < 0.5 else 0.5 / (1 - b))
 
 
-UNIFORM_WORDS = 80                          # the MatU block: 3 u32 vec4s, 17 f32 vec4s
+UNIFORM_WORDS = 84                          # the MatU block: 3 u32 vec4s, 18 f32 vec4s
 
 
-def material_uniform(L, outline=None, region_factor=1.0, streaks=True, part=0):
-    """a material's look (+ its mesh's outline) -> the MatU block (toon.wgsl), as UNIFORM_WORDS float32 words."""
+def material_uniform(L, outline=None, region_factor=1.0, streaks=True, part=0, cast=True):
+    """a material's look (+ its mesh's outline) -> the MatU block (toon.wgsl), as UNIFORM_WORDS float32 words. cast:
+    its baked cast shadows read (when its primitive carries them: _CK_CAST0..3)."""
     u = np.zeros(UNIFORM_WORDS, np.float32)
     ui = u.view(np.uint32)
     kind = L.get('kind', 'flat')
@@ -146,6 +148,12 @@ def material_uniform(L, outline=None, region_factor=1.0, streaks=True, part=0):
             flags |= F_BLUSH; ui[6] = samp(F['blush'])
         if F.get('ink'):
             flags |= F_INK; ui[7] = samp(F['ink'])
+    C = L.get('cast')
+    if C and kind in ('toon3', 'face') and cast:        # the baked cast shadows (charkit.faceshade.cast_nodes)
+        if int(C['k']) > CAST_FLOATS:
+            raise ValueError('cast: %d azimuths (this renderer reads %d)' % (int(C['k']), CAST_FLOATS))
+        flags |= F_CAST
+        fld(17, [float(C['k']), float(C['at']), float(C['width']), float(C['half'])])
     if kind == 'plate':
         ui[8] = samp(L.get('texture'))
         if L.get('alpha') == 'blend':
@@ -175,6 +183,31 @@ def vertex_array(P):
     V[:, 12] = P.ink_w if P.ink_w is not None else 1.0
     nrm = P.normal / np.maximum(np.linalg.norm(P.normal, axis=1, keepdims=True), 1e-12)
     return V, np.ascontiguousarray(nrm, np.float32)
+
+
+def vertex_layout(wgpu):
+    """the vertex streams toon.wgsl's VIn reads: the interleaved one (vertex_array), the normals, the cast shadows
+    (Prim.cast; a zero stream for the rest)."""
+    attrs = [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 0},
+             {'format': wgpu.VertexFormat.float32x3, 'offset': 12, 'shader_location': 2},
+             {'format': wgpu.VertexFormat.float32, 'offset': 24, 'shader_location': 3},
+             {'format': wgpu.VertexFormat.float32x2, 'offset': 28, 'shader_location': 4},
+             {'format': wgpu.VertexFormat.float32x2, 'offset': 36, 'shader_location': 5},
+             {'format': wgpu.VertexFormat.float32, 'offset': 44, 'shader_location': 6},
+             {'format': wgpu.VertexFormat.float32, 'offset': 48, 'shader_location': 7}]
+    return [{'array_stride': FLOATS * 4, 'step_mode': wgpu.VertexStepMode.vertex, 'attributes': attrs},
+            {'array_stride': 12, 'step_mode': wgpu.VertexStepMode.vertex,
+             'attributes': [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 1}]},
+            {'array_stride': CAST_FLOATS * 4, 'step_mode': wgpu.VertexStepMode.vertex,
+             'attributes': [{'format': wgpu.VertexFormat.float32x4, 'offset': 16 * i, 'shader_location': 8 + i}
+                            for i in range(4)]}]
+
+
+def set_streams(rp, it):
+    """an item's vertex streams bound (vertex_layout)."""
+    rp.set_vertex_buffer(0, it['vb'])
+    rp.set_vertex_buffer(1, it['nb'])
+    rp.set_vertex_buffer(2, it['cb'])
 
 
 # ------------------------------------------------------------------------------------------------ the renderer
@@ -216,16 +249,7 @@ class Renderer:
             {'binding': 0, 'visibility': vis, 'buffer': {'type': wgpu.BufferBindingType.uniform}}] +
             [tex_entry(b) for b in range(1, 6)])
         self.layout = dev.create_pipeline_layout(bind_group_layouts=[self.bgl_view, self.bgl_mat])
-        attrs = [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 0},
-                 {'format': wgpu.VertexFormat.float32x3, 'offset': 12, 'shader_location': 2},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 24, 'shader_location': 3},
-                 {'format': wgpu.VertexFormat.float32x2, 'offset': 28, 'shader_location': 4},
-                 {'format': wgpu.VertexFormat.float32x2, 'offset': 36, 'shader_location': 5},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 44, 'shader_location': 6},
-                 {'format': wgpu.VertexFormat.float32, 'offset': 48, 'shader_location': 7}]
-        vbuf = [{'array_stride': FLOATS * 4, 'step_mode': wgpu.VertexStepMode.vertex, 'attributes': attrs},
-                {'array_stride': 12, 'step_mode': wgpu.VertexStepMode.vertex,
-                 'attributes': [{'format': wgpu.VertexFormat.float32x3, 'offset': 0, 'shader_location': 1}]}]
+        vbuf = vertex_layout(wgpu)
         self.hdr = wgpu.TextureFormat.rgba16float
         blend_over = {'color': {'src_factor': wgpu.BlendFactor.one, 'dst_factor': wgpu.BlendFactor.one_minus_src_alpha,
                                 'operation': wgpu.BlendOperation.add},
@@ -286,6 +310,8 @@ class Renderer:
         texv = {i: self._texture(a) for i, a in M.textures.items()}
         regions = (M.root.get('lines') or {}).get('regions') or {}
         self.items = []
+        n_max = max([len(P.position) for P in M.prims if P.cast is None] or [1])
+        zero_cast = dev.create_buffer(size=n_max * CAST_FLOATS * 4, usage=wgpu.BufferUsage.VERTEX)   # zero-filled
         for P in M.prims:
             L = P.look
             F = L.get('face') or {}
@@ -305,7 +331,9 @@ class Renderer:
             nb = dev.create_buffer_with_data(data=Nn.tobytes(), usage=wgpu.BufferUsage.VERTEX | wgpu.BufferUsage.COPY_DST)
             ib = dev.create_buffer_with_data(data=np.ascontiguousarray(P.index, np.uint32).tobytes(),
                                              usage=wgpu.BufferUsage.INDEX)
-            self.items.append(dict(P=P, vb=vb, nb=nb, ib=ib, n=len(P.index), bg=bg, mb=mb,
+            cb = zero_cast if P.cast is None else dev.create_buffer_with_data(
+                data=np.ascontiguousarray(P.cast, np.float32).tobytes(), usage=wgpu.BufferUsage.VERTEX)
+            self.items.append(dict(P=P, vb=vb, nb=nb, cb=cb, ib=ib, n=len(P.index), bg=bg, mb=mb, variant=P.variant,
                                    blend=L.get('alpha') == 'blend' and L.get('kind') == 'plate',
                                    cull='none' if L.get('doubleSided', True) else 'back',
                                    feature=bool(P.mx.get('feature')), holdout=bool(P.mx.get('holdout')),
@@ -316,11 +344,15 @@ class Renderer:
             by = {}
             for it in self.items:
                 if normals_.needs_recompute(it['P']):
-                    by.setdefault(it['P'].object, []).append(it)
-            for name, its in by.items():
+                    by.setdefault((it['P'].object, it['variant']), []).append(it)
+            for (name, _), its in by.items():
                 self.groups.append(dict(name=name, items=its, G=normals_.Group([i['P'] for i in its]), w=None,
                                         region=(its[0]['P'].outline or {}).get('region', ''),
                                         build=float(its[0]['P'].outline['width'])))
+
+    def drawn(self):
+        """the items a board draws: the character as it renders (not another state of an object: Prim.variant)."""
+        return [it for it in self.items if not it['variant']]
 
     def _update_normals(self, line):
         """the per-view normals of the groups (the surface moved inward by this view's width): written only when the
@@ -384,8 +416,7 @@ class Renderer:
     def _draw(self, rp, it, pipe):
         rp.set_pipeline(self.pipes[pipe])
         rp.set_bind_group(1, it['bg'])
-        rp.set_vertex_buffer(0, it['vb'])
-        rp.set_vertex_buffer(1, it['nb'])
+        set_streams(rp, it)
         rp.set_index_buffer(it['ib'], self.wgpu.IndexFormat.uint32)
         rp.draw_indexed(it['n'])
 
@@ -404,29 +435,30 @@ class Renderer:
         u, light, line = self.view_uniform(v, cam)
         dev.queue.write_buffer(self.view_buf, 0, u.tobytes())
         self._update_normals(line)
+        items = self.drawn()
         feats = v.features if features is None else features
-        feats = feats and any(it['feature'] for it in self.items)
+        feats = feats and any(it['feature'] for it in items)
         bg = [float(x) for x in views_.BG]
         enc = dev.create_command_encoder()
         rp = self._pass(enc, T, 'main', (*bg, 1.0))
-        for it in self.items:
+        for it in items:
             if not it['blend']:
                 self._draw(rp, it, ('surface', it['cull']))
-        for it in self.items:
+        for it in items:
             if it['outline']:
                 self._draw(rp, it, ('hull', 'front'))
-        for it in self._blend_order([i for i in self.items if i['blend']], cam):
+        for it in self._blend_order([i for i in items if i['blend']], cam):
             self._draw(rp, it, ('blend', it['cull']))
         rp.end()
         if feats:
             rp = self._pass(enc, T, 'feat', (0.0, 0.0, 0.0, 0.0))
-            for it in self.items:
+            for it in items:
                 if it['holdout']:
                     self._draw(rp, it, ('holdout', 'none'))
-            for it in self.items:
+            for it in items:
                 if it['feature'] and not it['blend']:
                     self._draw(rp, it, ('surface', it['cull']))
-            for it in self._blend_order([i for i in self.items if i['feature'] and i['blend']], cam):
+            for it in self._blend_order([i for i in items if i['feature'] and i['blend']], cam):
                 self._draw(rp, it, ('blend', it['cull']))
             rp.end()
         r = np.array([self.ss, self.sigma, self.radius, self.through, 1.0 if feats else 0.0, 0, 0, 0], np.float32)
@@ -472,9 +504,9 @@ class Renderer:
             depth_stencil_attachment={'view': dep.create_view(), 'depth_clear_value': 1.0,
                                       'depth_load_op': wgpu.LoadOp.clear, 'depth_store_op': wgpu.StoreOp.store})
         rp.set_bind_group(0, self.view_bg)
-        for it in self.items:
+        for it in self.drawn():
             self._draw(rp, it, ('surface_id', it['cull']))
-        for it in self.items:
+        for it in self.drawn():
             if it['outline']:
                 self._draw(rp, it, ('hull_id', 'front'))
         rp.end()

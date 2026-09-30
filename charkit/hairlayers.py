@@ -20,7 +20,10 @@ The body sheet stays the authority for the hair's silhouettes; the breakdown dec
 belongs to. Its registration overlap (hair about 0.67-0.79, face 0.57-0.69 on Clawd) is reported: two generations of
 one design, not one drawing.
 
-    python -m charkit hairlayers SPEC [--out DIR]     -> DIR/hair_layers.npz (VIEW__FAMILY), hair_layers.json, index.html
+    python -m charkit hairlayers SPEC [--out DIR] [--no-struct]
+                                                      -> DIR/hair_layers.npz (VIEW__FAMILY), hair_layers.json, index.html
+                                                         (the drawing's structure by default, STRUCT; --no-struct:
+                                                          the plain transfer, STRUCT_OFF; needs --out)
 """
 import json, os, sys
 
@@ -42,7 +45,12 @@ VIEWS = ('front', 'profile', 'back')
 # pieces other than the buns) are not hair, except within the buns' rim (clip_rim: the rim is bun, as without the clip
 # rule; hairtag round 2: the field's outfit masks call 52 px of the profile's left bun pin_star, which the hair truth
 # and the sheet-only outfit masks call bun, and the bun fit moved to another optimum without them).
-STRUCT = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False, clip_rim=True)
+STRUCT_ON = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False, clip_rim=True)
+# the produced hair layers' default: on (Michael, 2026-09-30: 0.892 -> 0.958 against the truth). STRUCT_OFF is the plain
+# transfer (the breakdown's nearest family per pixel, clips kept as hair): `hairlayers SPEC --no-struct --out DIR` makes
+# it (off the manifest's path), for the 2x2's old measure and comparisons.
+STRUCT_OFF = dict(STRUCT_ON, vote=0, clips=False)
+STRUCT = dict(STRUCT_ON)
 
 
 def _p(path):
@@ -182,7 +190,7 @@ def design_grid(view, ppl):
     return (cols - view.axis) / ppl, (view.eye_y - rows) / ppl, (H, W), (x0, y0)
 
 
-def lock_regions(v, us, zs, hair, h=STRUCT['h'], tone=True):
+def lock_regions(v, us, zs, hair, h=STRUCT_ON['h'], tone=True):
     """the sheet's hair on a design grid split into lock regions by its drawing: walls are the drawn lines (the raw
     class) and faint ridges (outfit.ridges); the hair's two cel tones apart (Otsu on its value); each tone's runs cut at
     their necks (watershed of the distance to the walls, markers its h-maxima). -> region image (0 none)."""
@@ -208,7 +216,7 @@ def lock_regions(v, us, zs, hair, h=STRUCT['h'], tone=True):
     return out
 
 
-def vote_regions(fam, regions, hair, vote=STRUCT['vote']):
+def vote_regions(fam, regions, hair, vote=STRUCT_ON['vote']):
     """each lock region whose transferred families agree to `vote` takes that family whole; the walls inside the
     hair (lines, ridges) take their nearest region pixel's family. -> family image."""
     from scipy import ndimage
@@ -320,9 +328,9 @@ def bun_sides(views, outfit_masks, fams):
     return out
 
 
-def produce(spec, out, page=True, log=print):
+def produce(spec, out, page=True, log=print, struct=None):
     """the breakdown's families on the body sheet's hair -> out/hair_layers.npz (VIEW__FAMILY on design grids) and
-    hair_layers.json (the registration and the counts)."""
+    hair_layers.json (the registration and the counts). struct: transfer's (STRUCT_ON: the drawing's structure)."""
     from . import manifest
     from .geom import hull
     M = manifest.load(spec['ref']['manifest'])
@@ -341,7 +349,7 @@ def produce(spec, out, page=True, log=print):
     if p:                                                # layers without them); none declared: the buns stay the
         Z = np.load(p)                                   # breakdown's nearest
         om = {k: Z[k] for k in Z.files}
-    masks, counts = transfer(lab, reg, figs, views, om)
+    masks, counts = transfer(lab, reg, figs, views, om, struct)
     os.makedirs(out, exist_ok=True)
     np.savez_compressed(os.path.join(out, 'hair_layers.npz'), **masks)
     rep = dict(families=list(FAMILIES), registration=reg, figures=figs, counts=counts, ppl=info['ppl'],
@@ -697,7 +705,9 @@ def main(args):
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = manifest.resolve(json.load(open(_p(args[0]))))
     out = _p(opt('--out', os.path.join('charkit', 'out', spec.get('name', 'char'), 'hair')))
-    produce(spec, out, page='--no-page' not in args)
+    if '--no-struct' in args and '--out' not in args:
+        raise SystemExit('hairlayers --no-struct: give --out DIR (the manifest\'s produced layers stay the default method\'s)')
+    produce(spec, out, page='--no-page' not in args, struct=STRUCT_OFF if '--no-struct' in args else None)
     print(os.path.join(out, 'index.html'))
     return 0
 
