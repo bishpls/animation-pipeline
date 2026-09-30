@@ -49,6 +49,7 @@ DEFAULT_EYE = {
                          # there (1: the edge follows the iris's outline as the face recedes)
     'anchor': 'min',     # the surface's depth: 'min' never in front of `depth`; 'mean' its mean over the opening
                          # there; 'corners' the opening's two corners there (their mean); 'fold' the fold there
+    'flick_turn': None,  # 'turned': the flick's own angle from facing front (degrees; None: the surface's at the corner)
     'converge': 0.0,     # the irises' rest place toward the nose (eye widths) when the spec's iris doesn't set it
     'iris': (0.285, 0.54, -0.01, 0.0),  # the iris at rest: half-width, half-height, centre height and convergence, in
                                         # eye widths (knobs() takes them from the iris knobs): the fold follows its
@@ -558,14 +559,15 @@ def _ribbon(F, side, eye_c, pts, thick, normal_sign, lift=-0.0006, tuck=0.35, su
     return verts, quads
 
 
-def _flick_depth(F, S, eye_c, side, xc, zc, fx, fz, h=0.05):
+def _flick_depth(F, S, eye_c, side, xc, zc, fx, fz, h=0.05, turn=None):
     """the flick's extra depth: the eye's surface at the outer corner (xc, zc), carried on at its slope there along
-    x (world y's rise per eye-local x over the last h of the eye's width), less the face's own depth under the flick."""
+    x (world y's rise per eye-local x over the last h of the eye's width; or at `turn` degrees from facing front), less
+    the face's own depth under the flick."""
     ex, ez = eye_c
     y = lambda x, z: F.y(ex + side * np.asarray(x, float), ez + np.asarray(z, float)) + S(x, z)
     xb = xc - h * S.W
     yc, yb = float(y(np.array([xc]), np.array([zc]))[0]), float(y(np.array([xb]), np.array([zc]))[0])
-    slope = (yc - yb) / (xc - xb)
+    slope = (yc - yb) / (xc - xb) if turn is None else math.tan(math.radians(turn))
     return yc + slope * (fx - xc) - F.y(ex + side * fx, ez + fz)
 
 
@@ -590,7 +592,7 @@ def lashes(F, K, L, side, eye_c, upper_fn=None, lower_fn=None, n=40):
     if S.on:
         # on a turned surface the lash stands at its lid line's depth, and the flick goes on along the surface's own
         # slope at the corner (not the face's steep turn behind it)
-        at = np.concatenate([S(x, z), _flick_depth(F, S, eye_c, side, x[-1], z[-1], fx, fz)])
+        at = np.concatenate([S(x, z), _flick_depth(F, S, eye_c, side, x[-1], z[-1], fx, fz, turn=K.get('flick_turn'))])
     up = _ribbon(F, side, eye_c, np.stack([np.concatenate([x, fx]), np.concatenate([z, fz])], 1),
                  np.concatenate([th, fth]), 1.0, surf=S, at=at)
     t2 = np.linspace(1 - K['lower_lash'], 1.0, 16)
