@@ -36,6 +36,9 @@ materials, and nothing here needs Blender. `python -m charkit build --qa blender
              distinct, and each expression's openness inside the range it is meant to have (FACE_EXPECT, warn only)
   face_folds skin faces round the eyes and the mouth facing away at rest or flipping under a lid or mouth key (folded lid
              and lip rings: the realistic lids stretched onto the anime outline, the lip rolls), summed over the keys
+  artifacts  jaggedness per region (hair, face, neck, collar, bow, top, skirt, boots) and view (charkit/artifactqa.py): the
+             outline's corners, the cel terminator's kinks, fragments and slivers, specks in the skin, each against the
+             design's turnarounds measured the same way (INFO, with a proposed grade); overlay qa_artifacts.png
   look       the render look (charkit/lookqa.py): the head and neck skin's shading noise under the boards' light and a
              sweep of lights (face_noise, face_noise_sweep, face_islands), its shadows against the design's
              (face_shadow_*), the outlines' widths and spread against the design's (line_width, line_spread); overlays
@@ -1814,6 +1817,13 @@ def look(B, design=None, out=None):
     return lookqa.measure(B, design, out)
 
 
+def artifacts(B, design=None, out=None):
+    """jaggedness per region and view (charkit.artifactqa): outline corners, terminator kinks, fragments and slivers,
+    skin specks, as ratios to the design's."""
+    from . import artifactqa
+    return artifactqa.measure(B, design, out)
+
+
 PARTS = [                       # (part, function, check prefix, table key)
     ('shape', shape, '', 'views'), ('scalp', scalp, '', None), ('poke', poke, '', None), ('hair_noise', hair_noise, '', None),
     ('face_folds', folds, '', None), ('mesh', mesh_info, '', None),
@@ -1823,7 +1833,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
-    ('look', look, '', 'look'),
+    ('look', look, '', 'look'), ('artifacts', artifacts, 'art_', 'artifacts'),
 ]
 
 
