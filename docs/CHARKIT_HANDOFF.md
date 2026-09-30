@@ -794,8 +794,17 @@ decisions already made:
 - **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
   docs/GEOM_TRUTH.md step 7.
-- **Sonnet checkpoint** (side quest, uncommitted): the worktree is tmp/sonnet-checkpoint and the page is
-  charkit/out/sonnet_checkpoint/. The anthology project is unpublished, so nothing Sonnet-specific is ever committed.
+- **Second-character checkpoint** (side quest, uncommitted; the character's files stay untracked because its project
+  is unpublished): the worktree is ~/animation-pipeline-sonnet, the page charkit/out/sonnet_checkpoint/. First
+  generality reading: QA pass share 30% against Clawd's 83% on the same code, and none of the references reached the
+  model (it built the MakeHuman default). Generic blockers, in order:
+  1. reference detection (views, eyes, hair) tuned to Clawd's colours; a floor line merges the views;
+  2. outfit pieces need a hand-built 2D rig;
+  3. 84 of 270 checks are named for Clawd's pieces, and the colour classes and hair families are fixed;
+  4. hand-written garment lists, and no builders for a tailcoat, two-sided material, trousers, a braid, an ear cuff or
+     a pin; one iris texture for both eyes;
+  5. hazards: a misread scale ran a QA step to 68 GB on the build box (a 6-line guard in sheetqa.py, uncommitted in that
+     worktree; land it generically), and a build that ignores every reference still reports success.
 
 ## State at the end of 2026-09-29 (read first)
 
