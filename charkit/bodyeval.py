@@ -807,7 +807,8 @@ class Geometry:
         Hd = A['head']
         self.L = float(Hd['L'])
         self.landmarks = dict(L=self.L, centre=np.asarray(Hd['centre'], float), chin=float(Hd['centre'][2] - Hd['H'].chin),
-                              waist=float(bone_seg(A, 'spine')[0][2]), knee=float(bone_seg(A, 'leftLowerLeg')[0][2]))
+                              waist=float(bone_seg(A, 'spine')[0][2]), knee=float(bone_seg(A, 'leftLowerLeg')[0][2]),
+                              eye_z=float(Hd['eye_z']) if Hd.get('eye_z') is not None else None)
         self.timings = timings or {}
 
     def bundle(self, levels='viewport'):

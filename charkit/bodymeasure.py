@@ -415,7 +415,10 @@ def sheet_face(bundle, sheet):
         else:
             meshes.append((o['V'], o['F'], np.where(lab == B['skin'], CL['skin'],
                                                     np.where(lab == B['line'], CL['line'], CL['other']))))
-    O = sheetqa.measure_ours(meshes, covers, np.asarray(lm['iris'], float), lm['centre'], lm['L'], D['ppl'],
+    iris = np.array(lm['iris'], float)
+    if lm.get('eye_z') is not None:                     # (registered on the head's eye line, as qa3d.eye_anchor: the
+        iris[:, 2] = float(lm['eye_z'])                 # iris plates' mean sits 0.0235 L over it, e9a6753)
+    O = sheetqa.measure_ours(meshes, covers, iris, lm['centre'], lm['L'], D['ppl'],
                              D.get('az_three_quarter', 35.0), face_region=face_region)
     C = sheetqa.compare(O, D)
     C.update(sheetqa.shown(O, D))

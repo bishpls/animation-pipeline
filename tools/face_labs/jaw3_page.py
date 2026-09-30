@@ -13,7 +13,7 @@ build: the jaw measured now (faceregion.jaw) and each build's QA (qa/qa.json).
 
 BUILD: a build folder (boards/, bundle/, qa/qa.json). --health: jaw_health.py pictures, one per build. --old: the
 builds' QA before the remeasure (the old measure's numbers, for the before/after columns). Prints the page's path."""
-import html, json, os, sys
+import html, json, os, re, sys
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -172,7 +172,8 @@ def main(args):
         Oj = fr.ours_jaw(meshes, (V, T_), qa3d.iris_centres(b), float(b.assembly['eye_z']), float(b.assembly['L']), ppl,
                          az, D['front'].get('chin', (0, None))[1], z0, design_tq_top=top_q)[0]
         Mk.append({vn: Oj[vn].get('taper') for vn in ('front', 'three_quarter')})
-    save = lambda im, name: (im.save(os.path.join(img, name)), 'img/' + name)[1]
+    slug = lambda s_: re.sub(r'[^A-Za-z0-9_.-]+', '_', s_).strip('_')
+    save = lambda im, name: (im.save(os.path.join(img, slug(name))), 'img/' + slug(name))[1]
     charts(Dt, Mk, labels, os.path.join(img, 'curves.png'))
     css = ('body{font:14px/1.45 -apple-system,system-ui,sans-serif;margin:24px;background:#f6f6f4;color:#222}'
            'h2{margin-top:30px;font-size:18px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start}'
