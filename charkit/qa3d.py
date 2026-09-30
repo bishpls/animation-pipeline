@@ -1278,10 +1278,57 @@ def sheet_pieces(B, design, out=None):
               for v in dv}
     S = bodymeasure.piece_shapes(labels, names, masks, graph, B.spec, ctx['ppl'])
     C, table = grade_pieces(S), {'tol_L': bodymeasure.OUTLINE_TOL, 'pieces': S}
+    C.update(spring_pieces(S, graph, B, meshes, names))
     table['confusion'] = {v: bodymeasure.piece_confusion(labels, names, masks, graph, B.spec, v) for v in labels}
     if out:
         _save_rgb(os.path.join(out, 'qa_sheet_pieces.png'), pieces_picture(labels, names, masks, graph, B.spec, dv))
     return table, C
+
+
+HANG_PASS, HANG_WARN = 0.1, 0.2             # L: a spring piece's attach height and reach against its drawn chain's
+EXT_PASS, EXT_WARN = 0.08, 0.16             # L: a spring piece's lowest row against the drawing's (bodyqa's lengths)
+
+
+def spring_pieces(S, graph, B, meshes, names):
+    """the pieces that swing on a spring chain (the graph's springs) and that we build, beside their iou: <id>_extent,
+    per view its lowest row, its outer edge (L, + ours lower / further out) and its visible area over the drawn one
+    (valued by the worst |lowest row| over the views showing at least a quarter of its largest drawing, graded as a
+    length); for a piece built on its own chain (a flap), <id>_hang: where it hangs from and to (its top and lowest
+    point, L from the eye line) against its drawn chain's root and tip (valued by the larger difference)."""
+    from . import bodymeasure
+    C = {}
+    L = B.assembly['L']
+    ez = float(np.mean(np.array(iris_centres(B))[:, 2]))
+    pm = bodymeasure.piece_map(graph, B.spec)
+    for sp in graph.get('springs') or []:
+        pid = sp['piece']
+        r = S.get(pid)
+        if not r or not r['members'] or not r['views']:
+            continue
+        ext = {v: {k: x.get(k) for k in ('bottom', 'outer', 'area')} for v, x in r['views'].items() if 'bottom' in x}
+        big = max((x['px'][1] for x in r['views'].values()), default=0)
+        decide = [v for v in ext if r['views'][v]['px'][1] >= 0.25 * big]      # (a sliver a view barely shows: not)
+        if decide:
+            worst = max(abs(ext[v]['bottom']) for v in decide)
+            C[pid + '_extent'] = {'value': round(worst, 4), 'status': 'PASS' if worst <= EXT_PASS else 'WARN'
+                                  if worst <= EXT_WARN else 'FAIL', 'views': ext,
+                                  'note': "per view: the lowest row and the outer edge against the drawing's (L, + "
+                                          'ours lower / further out), the visible area over the drawn'}
+        own = [i for i, n in enumerate(names) if any(n == m[0] for m in pm.get(pid) or [])]
+        J = np.array((sp.get('drawn_chains') or sp.get('chains') or [{}])[0].get('joints') or [])   # (the drawing's)
+        chained = any(g.get('source') == 'flap' for g in B.spec.get('garments') or []
+                      if g['name'] in {m[0] for m in pm.get(pid) or []})     # built on its own chain (a flap)
+        if own and len(J) and chained:
+            V = np.concatenate([meshes[i][0] for i in own])
+            top, low = (float(V[:, 2].max()) - ez) / L, (float(V[:, 2].min()) - ez) / L
+            da, dr = top - float(J[0, 2]), low - float(J[:, 2].min())
+            v = max(abs(da), abs(dr))
+            C[pid + '_hang'] = {'value': round(v, 4), 'status': 'PASS' if v <= HANG_PASS else 'WARN' if v <= HANG_WARN
+                                else 'FAIL', 'attach': [round(top, 3), round(float(J[0, 2]), 3)],
+                                'reach': [round(low, 3), round(float(J[:, 2].min()), 3)],
+                                'note': 'where it hangs from (its top) and to (its lowest point), ours and the drawn '
+                                        "chain's root and tip, L from the eye line"}
+    return C
 
 
 PIECE3D_PASS, PIECE3D_WARN = 0.04, 0.08     # L: a piece's median reach to the design's in 3D (bodymeasure.piece_depths)
@@ -1573,32 +1620,57 @@ def _face(B, o, variant, sh, N, view_d, t, w, ldir=None):
     """charkit.faceshade's material for pixels of triangles t (barycentric weights w): toon3 blended by the face mask
     with the SDF face (the threshold map at the light's angle, mirrored for light from her right; the fringe's shadow;
     the blush multiplied in) -> (linear colour, tone 0 lit .. 1 shade (.. 2 deep off the face))."""
-    col, tone = _toon(sh['toon'], N, view_d, ldir)
+    return _face_lit(B, sh, N, view_d, _face_maps(B, o, variant, sh, t, w), ldir)
+
+
+def _face_maps(B, o, variant, sh, t, w):
+    """_face's part that doesn't depend on the light, for pixels of triangles t (barycentric weights w): the face UV and
+    mask there and the fringe, blush and ink maps sampled at it (the SDF per light side, when first asked) -> dict, or
+    None (no face UV: toon3 alone)."""
     fuv, fm = o.a(variant, 'fuv'), o.a(variant, 'fmask')
     if fuv is None or fm is None:
-        return col, tone
+        return None
     Tv, _, Tl = o.tris(variant)
     uv = (fuv[Tl[t]] * w[:, :, None]).sum(1)
-    mk = (fm[Tv[t]] * w).sum(1)[:, None]
-    lh = np.asarray(ldir if ldir is not None else sh['ldir_head'], float)       # at rest the head's frame is the world's
-    ang = np.arctan2(abs(lh[0]), -lh[1]) / np.pi
-    u = 1 - uv[:, 0] if lh[0] < 0 else uv[:, 0]
-    thr = _sample(B.image(sh['sdf']), np.clip(np.stack([u, uv[:, 1]], 1), 0, 1))[:, 0]
-    s_ = np.clip((ang - thr + sh['soft']) / (2 * sh['soft']), 0, 1)
+    got = dict(uv=uv, mk=(fm[Tv[t]] * w).sum(1)[:, None], sdf={})
     if sh.get('fringe'):
-        a0, a1 = sh['fringe_at']
-        s_ = np.maximum(s_, np.clip((_sample(B.image(sh['fringe']), uv)[:, 0] - a0) / (a1 - a0), 0, 1))
-    fc = np.asarray(sh['lit']) * (1 - s_[:, None]) + np.asarray(sh['shade']) * s_[:, None]
+        got['fringe'] = _sample(B.image(sh['fringe']), uv)[:, 0]
     if sh.get('blush'):
         bt = _sample(B.image(sh['blush']), uv)
-        fc = fc * (1 - bt[:, 3:4]) + fc * _lin(bt[:, :3]) * bt[:, 3:4]
-    col = col * (1 - mk) + fc * mk
-    tone = tone * (1 - mk[:, 0]) + s_ * mk[:, 0]
+        got['blush'] = (bt[:, 3:4], _lin(bt[:, :3]))
     iw = o.a(variant, 'finkw')
     if sh.get('ink') and iw is not None:                # the drawn lines (faceshade.ink), off the neck: not shading
         it = _sample(B.image(sh['ink']), uv)
-        a = it[:, 3:4] * (iw[Tv[t]] * w).sum(1)[:, None]
-        col = col * (1 - a) + _lin(it[:, :3]) * a
+        got['ink'] = (it[:, 3:4] * (iw[Tv[t]] * w).sum(1)[:, None], _lin(it[:, :3]))
+    return got
+
+
+def _face_lit(B, sh, N, view_d, maps, ldir=None):
+    """_face from its maps (_face_maps) under ldir."""
+    col, tone = _toon(sh['toon'], N, view_d, ldir)
+    if maps is None:
+        return col, tone
+    uv, mk = maps['uv'], maps['mk']
+    lh = np.asarray(ldir if ldir is not None else sh['ldir_head'], float)       # at rest the head's frame is the world's
+    ang = np.arctan2(abs(lh[0]), -lh[1]) / np.pi
+    right = bool(lh[0] < 0)
+    if right not in maps['sdf']:
+        u = 1 - uv[:, 0] if right else uv[:, 0]
+        maps['sdf'][right] = _sample(B.image(sh['sdf']), np.clip(np.stack([u, uv[:, 1]], 1), 0, 1))[:, 0]
+    thr = maps['sdf'][right]
+    s_ = np.clip((ang - thr + sh['soft']) / (2 * sh['soft']), 0, 1)
+    if sh.get('fringe'):
+        a0, a1 = sh['fringe_at']
+        s_ = np.maximum(s_, np.clip((maps['fringe'] - a0) / (a1 - a0), 0, 1))
+    fc = np.asarray(sh['lit']) * (1 - s_[:, None]) + np.asarray(sh['shade']) * s_[:, None]
+    if sh.get('blush'):
+        ba, bc = maps['blush']
+        fc = fc * (1 - ba) + fc * bc * ba
+    col = col * (1 - mk) + fc * mk
+    tone = tone * (1 - mk[:, 0]) + s_ * mk[:, 0]
+    if 'ink' in maps:
+        a, ic = maps['ink']
+        col = col * (1 - a) + ic * a
         tone = np.where(a[:, 0] > 0.5, np.nan, tone)
     return col, tone
 
@@ -1638,65 +1710,107 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS, ldir=None, aux=None):
     (ldir, else the boards' for this view: view_light), the face's SDF shading, flat emissions, the world behind an
     opaque render; supersampled and filtered -> RGBA floats (H, W, 4): sRGB colour and straight alpha at 8 bits, as a
     saved PNG reads back. aux (a dict) gets the supersampled buffers: 'tone' (0 lit .. 1 shade .. 2 deep; NaN off the
-    toon materials), 'mesh' (the surface index per pixel, -1 empty), 'depth'."""
+    toon materials), 'mesh' (the surface index per pixel, -1 empty), 'depth', 'rgb' (linear colour, before the filter).
+    = draw_lit(B, draw_view(B, surfs, az, fr), ...): a view drawn under several lights keeps its draw_view."""
+    return draw_lit(B, draw_view(B, surfs, az, fr), ldir, transparent=transparent, ss=ss, aux=aux)
+
+
+def draw_view(B, surfs, az, fr):
+    """draw()'s part that doesn't depend on the light, for one view: the z-buffer and, per surface, its pixels (flat
+    indices, in row order), their triangles and barycentric weights, the shading normals, and per material slot the
+    face's and the textures' samples -> a view for draw_lit."""
     items = [(s['V'], s['T'], s['slots'], s['cull']) for s in surfs]
     zb, lab, mi, ti, bc = fr.zbuffer(items, az, ids=True)
     a = np.radians(az)
     view_d = np.array([-np.sin(a), np.cos(a), 0.0])
-    if ldir is None:
-        ldir = view_light(B, az)
-    H, W = zb.shape
-    rgb = np.zeros((H, W, 3))
-    tone = np.full((H, W), np.nan) if aux is not None else None
-    if not transparent:
-        rgb[:] = WORLD
+    flat = mi.ravel()
+    order = np.argsort(flat, kind='stable')                     # each surface's pixels together, in row order
+    ends = np.cumsum(np.bincount(flat + 1, minlength=len(surfs) + 1))
+    tif, bcf = ti.ravel(), bc.reshape(-1, 3)
+    parts = []
     for k, s in enumerate(surfs):
-        m = mi == k
-        if not m.any():
+        idx = order[ends[k]:ends[k + 1]]
+        if not len(idx):
             continue
-        o, V, T, Tl, t = s['o'], s['V'], s['T'], s['Tl'], ti[m]
+        o, V, T, Tl = s['o'], s['V'], s['T'], s['Tl']
+        t, w = tif[idx], bcf[idx]
         fn = np.cross(V[T[t, 1]] - V[T[t, 0]], V[T[t, 2]] - V[T[t, 0]])
         lnor = o.a(s['variant'], 'lnor')
         if s['hull']:
             N = fn
         elif lnor is not None:
-            N = (lnor[Tl[t]] * bc[m][:, :, None]).sum(1)
+            N = (lnor[Tl[t]] * w[:, :, None]).sum(1)
         else:                                                   # smooth shading without stored normals: vertex normals
             if 'vn' not in s:
                 from .geom.mesh import vertex_normals
                 s['vn'] = vertex_normals(V, T)
-            N = (s['vn'][T[t]] * bc[m][:, :, None]).sum(1)
+            N = (s['vn'][T[t]] * w[:, :, None]).sum(1)
         N = N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-12)
         back = fn @ view_d > 0
         N[back] = -N[back]
         slots = s['slots'][t]
-        col = np.zeros((len(t), 3))
         luv = o.a(s['variant'], 'luv') if not s['hull'] else None
-        tn = np.full(len(t), np.nan)
+        groups = []
         for k_ in np.unique(slots):
             sel = slots == k_
             mat = o.material(int(k_))[1]
+            g = dict(sel=sel, mat=mat, N=N[sel])
             if mat and mat.get('kind') == 'face' and not s['hull']:
-                col[sel], tn[sel] = _face(B, o, s['variant'], mat['shading'], N[sel], view_d, t[sel], bc[m][sel], ldir)
-            elif mat and mat.get('kind') == 'toon3':
-                col[sel], tn[sel] = _toon(mat['shading'], N[sel], view_d, ldir)
-            else:
-                col[sel] = _shade(B, o, mat, N[sel], view_d, ldir)
+                g['face'] = _face_maps(B, o, s['variant'], mat['shading'], t[sel], w[sel])
             img = mat and ((mat.get('shading') or {}).get('texture') or (mat.get('kind') == 'plate' and mat.get('image')))
             if img and luv is not None:                       # a texture multiplied in (a plate: the texture is the colour)
-                tl, w = Tl[t[sel]], bc[m][sel]
-                tx = _sample(B.image(img), luv[tl[:, 0]] * w[:, 0:1] + luv[tl[:, 1]] * w[:, 1:2] + luv[tl[:, 2]] * w[:, 2:3])
-                c = _lin(tx[:, :3])
-                col[sel] = col[sel] * c if mat.get('kind') == 'toon3' else c * tx[:, 3:4] + (1 - tx[:, 3:4])
+                tl, ww = Tl[t[sel]], w[sel]
+                tx = _sample(B.image(img), luv[tl[:, 0]] * ww[:, 0:1] + luv[tl[:, 1]] * ww[:, 1:2] + luv[tl[:, 2]] * ww[:, 2:3])
+                g['tex'] = (_lin(tx[:, :3]), tx[:, 3:4])
+            groups.append(g)
+        paint = None
         if s['paint'] is not None:
             p = np.asarray(s['paint'], float)[t]
-            ok = np.isfinite(p[:, 0])
+            paint = (p, np.isfinite(p[:, 0]))
+        parts.append(dict(k=k, o=o, idx=idx, groups=groups, paint=paint))
+    return dict(az=az, view_d=view_d, depth=zb, mesh=mi, parts=parts)
+
+
+def draw_lit(B, view, ldir=None, transparent=True, ss=FIG_SS, aux=None, only=None, picture=True):
+    """a view (draw_view) shaded under ldir (else the boards' light for its azimuth) -> draw()'s picture. only: the
+    surface indices to shade (the rest left unshaded: their tone NaN, their colour black); picture=False: no picture
+    (-> None), the buffers alone into aux."""
+    zb, mi, view_d = view['depth'], view['mesh'], view['view_d']
+    if ldir is None:
+        ldir = view_light(B, view['az'])
+    H, W = zb.shape
+    rgb = np.zeros((H * W, 3))
+    tone = np.full(H * W, np.nan) if aux is not None else None
+    if not transparent:
+        rgb[:] = WORLD
+    for P in view['parts']:
+        if only is not None and P['k'] not in only:
+            continue
+        o, n = P['o'], len(P['idx'])
+        col = np.zeros((n, 3))
+        tn = np.full(n, np.nan)
+        for g in P['groups']:
+            sel, mat, N = g['sel'], g['mat'], g['N']
+            if 'face' in g:
+                col[sel], tn[sel] = _face_lit(B, mat['shading'], N, view_d, g['face'], ldir)
+            elif mat and mat.get('kind') == 'toon3':
+                col[sel], tn[sel] = _toon(mat['shading'], N, view_d, ldir)
+            else:
+                col[sel] = _shade(B, o, mat, N, view_d, ldir)
+            if 'tex' in g:
+                c, ta = g['tex']
+                col[sel] = col[sel] * c if mat.get('kind') == 'toon3' else c * ta + (1 - ta)
+        if P['paint'] is not None:
+            p, ok = P['paint']
             col[ok] = p[ok]
-        rgb[m] = col
+        rgb[P['idx']] = col
         if tone is not None:
-            tone[m] = tn
+            tone[P['idx']] = tn
     if aux is not None:
-        aux.update(tone=tone, mesh=mi, depth=zb)
+        aux.update(tone=tone.reshape(H, W), mesh=mi, depth=zb, rgb=rgb.reshape(H, W, 3))
+    if not picture:
+        return None
+    rgb = rgb.reshape(H, W, 3)
     alpha = (mi >= 0).astype(float) if transparent else np.ones((H, W))
     img = _blur_down(np.concatenate([rgb * alpha[..., None], alpha[..., None]], -1), ss, FIG_FILTER)
     al = img[..., 3:4]
@@ -1877,7 +1991,11 @@ def mesh_info(B, design=None, out=None):
         from .trace import _components
         lab = _components(nv, e[:, 0], e[:, 1]) if len(e) else np.arange(nv)
         mh[o.name] = {'open_edges': int((uses == 1).sum()), 'parts': int(len(np.unique(lab)))}
-    return None, {'mesh': {'status': 'INFO', 'objects': mh}}
+    low = {o.name: o.rec['coverage'] for o in B.objects(groups=('garment',), visible=False) if 'coverage' in o.rec}
+    return None, {'mesh': {'status': 'INFO', 'objects': mh},
+                  'garment_coverage': {'value': min(low.values()) if low else 1.0, 'status': 'INFO', 'pieces': low,
+                                       'note': "the garments lofted from marginal hull coverage: the best row's share "
+                                               'of its circle the hull measured (1.0: none marginal)'}}
 
 
 # ------------------------------------------------------------------------------------------------------------------ run

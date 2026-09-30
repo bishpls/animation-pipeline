@@ -530,7 +530,7 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     elif k == 'band':
         G = gm.band_hull(A, s, hull) if s.get('source') == 'hull' else gm.band(A, s)
     elif k == 'shoe':
-        G = gm.shoe_hull(A, s, hull) if s.get('source') == 'hull' else gm.shoe(A, s)
+        G = gm.shoe_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.shoe(A, s)
         dom = gm.dominant(A)[0] if dom is None else dom
         hide = np.nonzero(np.isin(dom, [f"{s['side']}Foot", f"{s['side']}Toes"]))[0]
     elif k == 'belt':
@@ -540,13 +540,16 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     elif k == 'sleeve':
         G = gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
     elif k == 'skirt':
-        G = gm.skirt_hull(A, s, hull) if s.get('source') == 'hull' else gm.skirt(A, s)
+        G = gm.skirt_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.skirt(A, s)
     elif k == 'collar':
         G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
     elif k == 'bow':
         G = gm.bow_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.bow(A, s)
     elif k == 'panel':
-        G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
+        if s.get('source') == 'flap':
+            G = gm.flap(A, dict(s, _spec=spec_all or {}), hull)
+        else:
+            G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
     else:
         raise ValueError(k)
     lit, shade, tex = garment_tones(A, s, G)
@@ -627,7 +630,8 @@ def garment_tones(A, s, G):
     elif k == 'collar':
         flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
     elif k == 'panel' and s.get('hem') == 'stepped':
-        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6))
+        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6),
+                        **{k_: s[k_] for k_ in ('band', 'step_h') if k_ in s})
         U = np.asarray(G['uv'], float)
         uvc = [U[list(f)] for f in F]
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)

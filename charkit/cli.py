@@ -573,6 +573,9 @@ def main(argv=None):
     elif cmd == 'bodysens':
         from . import bodysens
         bodysens.main(rest)
+    elif cmd == 'flapchains':
+        from . import flapchains
+        flapchains.main(rest)
     elif cmd == 'bodyfit':
         from . import bodyfit
         bodyfit.main(rest)

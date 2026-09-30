@@ -1,0 +1,886 @@
+{
+ "name": "clawd",
+ "ref": {
+  "manifest": "charkit/refs/clawd/manifest.json",
+  "fit": [
+   "face",
+   "features",
+   "hair"
+  ]
+ },
+ "body": {
+  "height_m": 1.467976,
+  "heads_tall": 5.871906,
+  "proportions": {
+   "neck_w": 0.45767,
+   "leg_slim": 1.103,
+   "hip": 0.9541,
+   "arm_slim": 0.9,
+   "neck_len": 0.86099,
+   "leg": 1.07038,
+   "shin": 0.96034,
+   "arm": 1.03677,
+   "torso": 0.86278,
+   "waist": 1.00891
+  },
+  "pose": {
+   "arm_down": 11.05433,
+   "leg_in": 5.66828,
+   "elbow": 2.18607
+  }
+ },
+ "head": {
+  "chin": 1.87642,
+  "cheek": 1.06103,
+  "jaw_w": 1.60908,
+  "width": 1.0,
+  "face_len": 0.78636,
+  "chin_fwd": 1.33737,
+  "flat": 0.8486,
+  "low_flat": 2.0,
+  "depth": 1.13539,
+  "nose_tip": 0.04,
+  "neck_r": 1.3
+ },
+ "eyes": {
+  "width": 0.19028,
+  "height": 0.62371,
+  "tilt": 3.0,
+  "lash": 0.0364,
+  "flick": 0.13674,
+  "flick_angle": 18.0,
+  "peak": 0.45,
+  "upper_full": 0.7,
+  "lower": 0.45514
+ },
+ "iris": {
+  "top": [
+   0.48,
+   0.26,
+   0.05
+  ],
+  "mid": [
+   0.92,
+   0.64,
+   0.16
+  ],
+  "bottom": [
+   1.0,
+   0.9,
+   0.5
+  ],
+  "ring": [
+   0.36,
+   0.18,
+   0.04
+  ],
+  "pupil": [
+   0.18,
+   0.08,
+   0.02
+  ],
+  "pupil_rx": 0.03589,
+  "pupil_rz": 0.12374,
+  "rx": 0.25315,
+  "rz": 0.50932,
+  "glow": 0.9,
+  "cz": -0.01
+ },
+ "brows": {
+  "thick": 0.01,
+  "height": 0.44,
+  "arch": 0.08
+ },
+ "mouth": {
+  "smile": 0.22,
+  "width": 0.13
+ },
+ "lash_color": [
+  0.1,
+  0.06,
+  0.05
+ ],
+ "brow_color": [
+  0.62,
+  0.3,
+  0.18
+ ],
+ "skin": {
+  "lit": [
+   0.9765,
+   0.8431,
+   0.7451
+  ],
+  "shade": [
+   0.7961,
+   0.5765,
+   0.5059
+  ],
+  "deep": [
+   0.7132,
+   0.4551,
+   0.4216
+  ]
+ },
+ "hair": {
+  "part": -10.0,
+  "thick": 1.2,
+  "crown": 1.15,
+  "length": 0.09,
+  "flare": 0.1,
+  "hem": [
+   [
+    50,
+    -58
+   ],
+   [
+    75,
+    -70
+   ],
+   [
+    110,
+    -76
+   ],
+   [
+    150,
+    -76
+   ],
+   [
+    180,
+    -74
+   ]
+  ],
+  "hem_var": [
+   4,
+   -6,
+   2,
+   -9,
+   5,
+   -3,
+   -7,
+   3
+  ],
+  "flick": 0.14,
+  "wave": 1.0,
+  "back": {
+   "count": 18,
+   "width": 0.17,
+   "inner": 14,
+   "sway": 20.0
+  },
+  "sides": {
+   "count": 3,
+   "az": [
+    50,
+    78
+   ],
+   "width": 0.12,
+   "drop": 0.0
+  },
+  "bangs": {
+   "tips": [
+    [
+     -44,
+     10,
+     1.0
+    ],
+    [
+     -30,
+     16,
+     1.1
+    ],
+    [
+     -12,
+     -2,
+     1.3
+    ],
+    [
+     6,
+     -1,
+     1.2
+    ],
+    [
+     20,
+     -12,
+     1.0
+    ],
+    [
+     31,
+     -32,
+     1.4
+    ],
+    [
+     46,
+     -14,
+     1.0
+    ]
+   ],
+   "width": 0.15,
+   "bow": 0.05,
+   "tuck": 0.03,
+   "tip": 0.34,
+   "sharp": 1.1
+  },
+  "flyaways": [
+   [
+    -96,
+    -30
+   ],
+   [
+    98,
+    -34
+   ],
+   [
+    -112,
+    -48
+   ],
+   [
+    116,
+    -50
+   ],
+   [
+    150,
+    -52
+   ],
+   [
+    -150,
+    -50
+   ],
+   [
+    -70,
+    58
+   ],
+   [
+    66,
+    62
+   ]
+  ],
+  "shape": {
+   "glb": "ref:hull",
+   "below": 0.33,
+   "shoulder_x": 0.19,
+   "mode": "pieces",
+   "voxel": 0,
+   "decimate": 0.4,
+   "hue": 14,
+   "sat": 0.3,
+   "carries": [
+    "bun"
+   ],
+   "select": "outside",
+   "clear_skin": 0.01,
+   "vox": 0.008,
+   "inflate": 0.02,
+   "min_part": 20
+  }
+ },
+ "hair_colors": {
+  "lit": [
+   0.8353,
+   0.4863,
+   0.3373
+  ],
+  "shade": [
+   0.6196,
+   0.298,
+   0.2039
+  ],
+  "deep": [
+   0.4685,
+   0.1821,
+   0.1359
+  ],
+  "ring": [
+   1.0,
+   0.8,
+   0.62
+  ],
+  "line": [
+   0.42,
+   0.16,
+   0.1
+  ],
+  "strand": [
+   0.74,
+   0.34,
+   0.22
+  ]
+ },
+ "accessories": [
+  {
+   "kind": "bun",
+   "az": -44,
+   "el": 64,
+   "size": 0.3,
+   "tilt": 18,
+   "lean": -18,
+   "material": "hair"
+  },
+  {
+   "kind": "bun",
+   "az": 44,
+   "el": 64,
+   "size": 0.3,
+   "tilt": -18,
+   "lean": -18,
+   "material": "hair"
+  },
+  {
+   "kind": "star",
+   "az": 36,
+   "el": 30,
+   "size": 0.16,
+   "tilt": 8,
+   "lift": 0.01,
+   "color": [
+    1.0,
+    0.84,
+    0.22
+   ],
+   "line": [
+    0.6,
+    0.42,
+    0.06
+   ]
+  },
+  {
+   "kind": "crab",
+   "az": 22,
+   "el": 34,
+   "size": 0.12,
+   "tilt": -10,
+   "lift": 0.005,
+   "color": [
+    0.88,
+    0.3,
+    0.2
+   ]
+  }
+ ],
+ "garments": [
+  {
+   "kind": "shell",
+   "name": "top",
+   "region": [
+    [
+     "hips",
+     -1,
+     3
+    ],
+    [
+     "spine",
+     -1,
+     3
+    ],
+    [
+     "chest",
+     -1,
+     3
+    ],
+    [
+     "upperChest",
+     -1,
+     3
+    ],
+    [
+     "neck",
+     -1,
+     0.3
+    ],
+    [
+     "leftShoulder",
+     -1,
+     3
+    ],
+    [
+     "rightShoulder",
+     -1,
+     3
+    ],
+    [
+     "leftUpperArm",
+     -1,
+     0.12
+    ],
+    [
+     "rightUpperArm",
+     -1,
+     0.12
+    ]
+   ],
+   "offset": 0.012,
+   "thick": 0.01,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "cuts": [
+    [
+     "hips",
+     0.0,
+     "above",
+     0.1
+    ],
+    [
+     "neck",
+     0.0,
+     "below",
+     0.04
+    ]
+   ],
+   "panel": {
+    "color": [
+     0.97,
+     0.9,
+     0.72
+    ],
+    "from": [
+     "hips",
+     0.0
+    ],
+    "to": [
+     "upperChest",
+     0.25
+    ],
+    "half_top": 0.1,
+    "half_bottom": 0.17
+   },
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "source": "hull",
+   "fold": [
+    "bodice_panel"
+   ]
+  },
+  {
+   "kind": "shell",
+   "name": "shorts",
+   "region": [
+    [
+     "hips",
+     -1,
+     3
+    ],
+    [
+     "spine",
+     -1,
+     3
+    ],
+    [
+     "leftUpperLeg",
+     -1,
+     0.4
+    ],
+    [
+     "rightUpperLeg",
+     -1,
+     0.4
+    ]
+   ],
+   "offset": 0.008,
+   "thick": 0.006,
+   "color": [
+    0.3922,
+    0.3255,
+    0.298
+   ],
+   "cuts": [
+    [
+     "hips",
+     0.0,
+     "below",
+     0.16
+    ]
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "shell",
+   "name": "boots",
+   "region": [
+    [
+     "leftLowerLeg",
+     0.47616,
+     1.5
+    ],
+    [
+     "rightLowerLeg",
+     0.47616,
+     1.5
+    ]
+   ],
+   "offset": 0.016,
+   "thick": 0.01,
+   "color": [
+    0.9529,
+    0.9569,
+    0.953
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "shoe",
+   "name": "shoe_L",
+   "side": "left",
+   "offset": 0.02,
+   "sole": 0.07,
+   "instep": 0.12,
+   "color": [
+    0.9529,
+    0.9569,
+    0.953
+   ],
+   "sole_color": [
+    0.36,
+    0.314,
+    0.2988
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "shoe",
+   "name": "shoe_R",
+   "side": "right",
+   "offset": 0.02,
+   "sole": 0.07,
+   "instep": 0.12,
+   "color": [
+    0.9529,
+    0.9569,
+    0.953
+   ],
+   "sole_color": [
+    0.36,
+    0.314,
+    0.2988
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "boot_cuff_L",
+   "bone": "leftLowerLeg",
+   "t": 0.42616,
+   "width": 0.17,
+   "offset": 0.035,
+   "flare": 0.02,
+   "thick": 0.03,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "boot_cuff_R",
+   "bone": "rightLowerLeg",
+   "t": 0.42616,
+   "width": 0.17,
+   "offset": 0.035,
+   "flare": 0.02,
+   "thick": 0.03,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "skirt",
+   "name": "skirt",
+   "waist": 0.70734,
+   "length": 0.93088,
+   "back": 0.31438,
+   "flare": 32.82617,
+   "pleats": 22,
+   "pleat": 0.07,
+   "panel": 0.55,
+   "offset": 0.0,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "panel_color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "hem_color": [
+    0.4,
+    0.324,
+    0.2888
+   ],
+   "repeat": 8,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "source": "hull",
+   "under": "waistband"
+  },
+  {
+   "kind": "sleeve",
+   "name": "sleeve_L",
+   "side": "left",
+   "puff": 0.86564,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "t1": 0.57505,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "sleeve",
+   "name": "sleeve_R",
+   "side": "right",
+   "puff": 0.86564,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "t1": 0.57505,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "cuff_L",
+   "bone": "leftUpperArm",
+   "t": 0.57505,
+   "width": 0.04872,
+   "offset": 0.03,
+   "thick": 0.02,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "cuff_R",
+   "bone": "rightUpperArm",
+   "t": 0.57505,
+   "width": 0.04872,
+   "offset": 0.03,
+   "thick": 0.02,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "wrist_L",
+   "bone": "leftLowerArm",
+   "t": 0.77484,
+   "width": 0.31793,
+   "offset": 0.035,
+   "thick": 0.025,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "band",
+   "name": "wrist_R",
+   "bone": "rightLowerArm",
+   "t": 0.77484,
+   "width": 0.31793,
+   "offset": 0.035,
+   "thick": 0.025,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "collar",
+   "name": "collar",
+   "v_depth": 0.44485,
+   "back_depth": 0.51081,
+   "offset": 0.03,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "stripe_color": [
+    0.45,
+    0.344,
+    0.2888
+   ],
+   "side_depth": 0.45498,
+   "v_half": 36,
+   "rise": -0.01,
+   "stripe": [
+    0.74,
+    0.86
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "bow",
+   "name": "bow",
+   "size": 0.82963,
+   "height": 0.79939,
+   "offset": 0.06,
+   "color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "tail": 0.65822,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "source": "hull"
+  },
+  {
+   "kind": "belt",
+   "name": "waistband",
+   "waist": 0.70734,
+   "width": 0.38114,
+   "offset": 0.01,
+   "thick": 0.025,
+   "color": [
+    0.8274,
+    0.4667,
+    0.3216
+   ],
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "source": "hull"
+  },
+  {
+   "kind": "panel",
+   "name": "overskirt_panel_R",
+   "waist": 0.70734,
+   "color": [
+    0.6424,
+    0.3567,
+    0.2896
+   ],
+   "offset": 0.02,
+   "flare": 22.20511,
+   "az": -107.59733,
+   "width": 0.64732,
+   "length": 1.5418,
+   "hem_color": [
+    0.367,
+    0.304,
+    0.2728
+   ],
+   "hem": "stepped",
+   "repeat": 1,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  },
+  {
+   "kind": "panel",
+   "name": "overskirt_panel_L",
+   "waist": 0.70734,
+   "color": [
+    0.6424,
+    0.3527,
+    0.2896
+   ],
+   "offset": 0.02,
+   "flare": 22.20511,
+   "az": 107.59733,
+   "width": 0.64732,
+   "length": 1.5418,
+   "hem_color": [
+    0.367,
+    0.308,
+    0.2768
+   ],
+   "hem": "stepped",
+   "repeat": 1,
+   "shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ]
+  }
+ ]
+}

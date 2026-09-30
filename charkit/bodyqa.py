@@ -42,6 +42,11 @@ LIMITS = {                          # (pass within, warn within); else fail
     'iou_part': (0.70, 0.50),       # hair, skin, outfit IoU
     'length': (0.08, 0.16),         # |ours - design| of a height, L
     'width': (0.08, 0.15),          # |ours / design - 1| of a width
+    'leg_gap': (0.01, 0.03),        # L of rows where the design's legs stand apart and ours join (a bridge)
+    'boot_step': (0.015, 0.03),     # L: a boot outline's largest row-to-row jump beyond the design's
+    'aline': (0.05, 0.12),          # |ours - design| of the skirt's width near its hem over its widest
+    'chest': (0.03, 0.06),          # |mean| L the chest's front edge in profile stands behind (or before) the design's
+    'waist_skin': (0.01, 0.03),     # share of the waist's rows, across the body, that are skin beyond the design's
 }
 MIN_PX = 150                        # a part measured from fewer pixels (either side) is cautioned
 
@@ -299,6 +304,118 @@ def _grade(key, v):
     return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
 
 
+LEG_BAND = (-3.4, 0.05)             # L: from below the knee to this far above the feet: the lower legs and boots
+LEG_SPAN = 0.55                      # L either side of the axis: the legs (the overskirt tails hang further out)
+
+
+def _runs(row, min_px=2):
+    """the runs of True in a row, at least min_px long -> [(start, end)]."""
+    c = np.nonzero(row)[0]
+    if not len(c):
+        return []
+    parts = np.split(c, np.nonzero(np.diff(c) > 1)[0] + 1)
+    return [(p[0], p[-1]) for p in parts if len(p) >= min_px]
+
+
+def legs(ofg, dfg, ocls, dcls, ppl, axis_u, feet, win=WIN):
+    """the lower legs and boots row by row (front and back views): where the design's legs stand apart (two runs of the
+    figure within LEG_SPAN of the axis) and ours are one (a bridge: the feet or soles joined), and each boot's outline
+    (the white run on its side of the axis) as it steps from row to row. -> dict(bridge (L), bridge_rows [z top, z bottom]
+    or None, apart (L of rows the design shows apart), step {side: (ours, design) largest row-to-row jump of either edge,
+    L})."""
+    H, W = ofg.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    u = (np.arange(W) + 0.5) / ppl - win['x']
+    band = np.nonzero((z <= LEG_BAND[0]) & (z >= feet + LEG_BAND[1]))[0]
+    cols = np.abs(u - axis_u) <= LEG_SPAN
+    bridge, apart = [], 0
+    for r in band:
+        nd, no = len(_runs(dfg[r] & cols)), len(_runs(ofg[r] & cols))
+        if nd == 2:
+            apart += 1
+            if no == 1:
+                bridge.append(r)
+    # each boot's outline: on its side of the axis, the figure's run within LEG_SPAN (the one holding most of the side's
+    # boot white), over the rows its white spans less two at either end; the largest row-to-row jump of either edge
+    ax_c = int(round((axis_u + win['x']) * ppl))
+    step = {}
+    for side, sl in (('image_left', slice(0, ax_c)), ('image_right', slice(ax_c, W))):
+        jumps = []
+        for fg, cls in ((ofg, ocls), (dfg, dcls)):
+            wh = [r for r in band if (cls[r, sl] == CLASS['white']).any()]
+            edges = []
+            for r in range(wh[0] + 2, wh[-1] - 1) if len(wh) > 5 else []:
+                rr = _runs(fg[r, sl] & cols[sl])
+                white = cls[r, sl] == CLASS['white']
+                if rr:
+                    best = max(rr, key=lambda x: (white[x[0]:x[1] + 1].sum(), x[1] - x[0]))
+                    edges.append((r, best[0], best[1]))
+            j = 0.0
+            for (r0, a0, b0), (r1, a1, b1) in zip(edges, edges[1:]):
+                if r1 == r0 + 1:
+                    j = max(j, abs(a1 - a0), abs(b1 - b0))
+            jumps.append(round(j / ppl, 4))
+        step[side] = jumps
+    # the design's boots are mirror images: its cleaner side is the reference for both (the other's outline breaks where
+    # the drawing's shading splits the white)
+    ref = min(v[1] for v in step.values())
+    step = {k: (v[0], ref) for k, v in step.items()}
+    return dict(bridge=round(len(bridge) / ppl, 4),
+                bridge_rows=[round(float(z[min(bridge)]), 3), round(float(z[max(bridge)]), 3)] if bridge else None,
+                apart=round(apart / ppl, 4), step=step)
+
+
+CHEST_BAND = (-0.6, -0.95)           # L: the chest in profile, from the collarbone to under the bow
+WAIST_BAND = (-1.1, -1.6)            # L: the waist, from under the chest to the skirt's top
+
+
+def aline(M, ppl, win=WIN):
+    """the skirt's width near its hem (the 0.15 L above its hem at the middle, or the lowest row its run through the
+    axis reaches: the median run) over its widest row, the rows with no hand against it (else all): about 1 for an
+    A-line flaring to its hem, under 1 for a bubble."""
+    sk = M.get('skirt') or {}
+    rows, hem = sk.get('_rows') or {}, sk.get('hem_mid', sk.get('hem'))
+    if not rows or hem is None:
+        return None
+    z = {r: win['top'] - (r + 0.5) / ppl for r in rows}
+    hem = max(hem, min(z.values()))           # (the hem at the middle; the lowest orange row can be a panel's tail)
+    use = [r for r in rows if not rows[r][1] and z[r] >= hem] or [r for r in rows if z[r] >= hem]
+    near = [rows[r][0] for r in use if z[r] <= hem + 0.15]
+    if not use or not near:
+        return None
+    return float(np.median(near)) / max(rows[r][0] for r in use)
+
+
+def front_edge(fg, cls, ppl, band, win=WIN):
+    """in profile, the figure's front edge (its hair left out) per row of a band, L from the grid's left, turned so + is
+    toward the front: the face side is where the skin at the eyes stands off the hair. -> (per-row edge, facing -1/+1)."""
+    H, W = fg.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    eye = np.nonzero(np.abs(z) < 0.2)[0]
+    sk, hr = np.nonzero(cls[eye] == CLASS['skin'])[1], np.nonzero(cls[eye] == CLASS['hair'])[1]
+    face = -1 if (len(sk) and len(hr) and sk.mean() < hr.mean()) else 1
+    rows = np.nonzero((z <= band[0]) & (z >= band[1]))[0]
+    out = []
+    for r in rows:
+        c = np.nonzero(fg[r] & (cls[r] != CLASS['hair']))[0]
+        out.append(np.nan if not len(c) else (c.min() if face < 0 else c.max()) / ppl)
+    return np.array(out), face
+
+
+def waist_skin(fg, cls, ppl, axis_u, win=WIN):
+    """the share of the waist's rows (WAIST_BAND), across the body (the figure's run through the axis), that is skin."""
+    H, W = fg.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    ac = int(round((axis_u + win['x']) * ppl))
+    tot = sk = 0
+    for r in np.nonzero((z <= WAIST_BAND[0]) & (z >= WAIST_BAND[1]))[0]:
+        run = _run(fg[r], ac)
+        if run:
+            seg = cls[r, run[0]:run[1] + 1]
+            tot += len(seg); sk += int((seg == CLASS['skin']).sum())
+    return sk / tot if tot else None
+
+
 def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
     """ours against the design for one view -> {name: check}. O, D: measure()'s dicts; *cls, *fg: the class images and
     figures on the shared grid. caution: a note every check of this view carries (scale disagreement, a partial figure)."""
@@ -364,6 +481,13 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
         width('skirt_width', round(max(ro[r][0] for r in common), 4), round(max(rd[r][0] for r in common), 4),
               'the widest garment row through the axis between waist and knee, on the rows neither figure has a hand '
               'against')
+    elif [r for r in rd if not rd[r][1] and r in ro]:
+        # no row free in both (ours' hands hang against every row the design's leave free): ours' run on the design's
+        # free rows, where a hand of ours may touch it
+        fd = [r for r in rd if not rd[r][1] and r in ro]
+        width('skirt_width', round(max(ro[r][0] for r in fd), 4), round(max(rd[r][0] for r in fd), 4),
+              "the widest garment row through the axis between waist and knee, on the design's rows free of hands (no "
+              'row is free in both: ours measured there with a hand against it)')
     else:
         width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the '
               'axis between waist and knee, rows with a hand against it left out (no row free in both)')
@@ -371,8 +495,43 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
     if view in ('front', 'back', 'three_quarter'):
         length('hem_mid', g(O, 'skirt', 'hem_mid'), g(D, 'skirt', 'hem_mid'), 'the hem at the middle')
         width('sleeves', g(O, 'sleeves', 'width'), g(D, 'sleeves', 'width'), 'across both puffs at the shoulders')
+    a_o, a_d = aline(O, D['ppl']), aline(D, D['ppl'])
+    if a_o is not None and a_d is not None:
+        add('skirt_aline', {'value': round(a_o - a_d, 3), 'ours': round(a_o, 3), 'design': round(a_d, 3),
+                            'status': _grade('aline', abs(a_o - a_d)),
+                            'note': "the skirt's width near its hem over its widest row, ours less the design's: - = ours "
+                                    'narrows toward its hem (a bubble) where the design flares (an A-line)'})
+    if view == 'profile':
+        eo, fo = front_edge(ofg, ocls, D['ppl'], CHEST_BAND)
+        ed, fd = front_edge(dfg, dcls, D['ppl'], CHEST_BAND)
+        ok = np.isfinite(eo) & np.isfinite(ed)
+        if ok.sum() >= 5:
+            dd = (eo[ok] - ed[ok]) * fd                          # + = ours further toward the front
+            v_ = round(float(-np.mean(dd)), 4)
+            add('chest', {'value': v_, 'status': _grade('chest', abs(v_)), 'worst': round(float(-dd.min()), 4),
+                          'note': "the chest's front edge (hair left out) against the design's, mean over z %.2f .. %.2f "
+                                  'L: + = ours behind (flatter)' % CHEST_BAND})
+    if view in ('front', 'back', 'three_quarter') and D.get('axis') is not None:
+        wo, wd = waist_skin(ofg, ocls, D['ppl'], D['axis']), waist_skin(dfg, dcls, D['ppl'], D['axis'])
+        if wo is not None and wd is not None:
+            v_ = round(max(0.0, wo - wd), 4)
+            add('waist_skin', {'value': v_, 'status': _grade('waist_skin', v_), 'ours': round(wo, 4),
+                               'design': round(wd, 4), 'note': "the share of the waist's rows (z %.1f .. %.1f L), across "
+                               "the body, that is skin, beyond the design's: a bare band" % WAIST_BAND})
     if cut is None and view in ('front', 'back'):
         length('leg', g(O, 'leg'), g(D, 'leg'), 'where the legs show under the skirt, to the sole; + = ours longer')
+        if D.get('feet') is not None and D.get('axis') is not None:
+            lg = legs(ofg, dfg, ocls, dcls, D['ppl'], D['axis'], D['feet'])
+            add('leg_gap', {'value': lg['bridge'], 'status': _grade('leg_gap', lg['bridge']), 'rows': lg['bridge_rows'],
+                            'apart': lg['apart'], 'note': "L of rows over the lower legs and boots where the design's "
+                            'legs stand apart and ours join (a bridge); rows: its span (z top, bottom, L)'})
+            her = {'image_left': 'R', 'image_right': 'L'} if view == 'front' else {'image_left': 'L', 'image_right': 'R'}
+            for side, (a_, b_) in lg['step'].items():
+                d_ = round(max(0.0, a_ - b_), 4)
+                add('boot_step_' + her[side], {'value': d_, 'status': _grade('boot_step', d_), 'ours': a_, 'design': b_,
+                                          'note': "the boot's outline (its white run) on this side of the image: its "
+                                          "largest row-to-row jump of either edge beyond the design's cleaner side's "
+                                          "(L): a step where the shaft meets the foot (her side's boot)"})
         if O.get('arms') and D.get('arms'):
             dv = {k: round(O['arms'][k] - D['arms'][k], 1) for k in O['arms'] if k in D['arms']}
             if dv:
