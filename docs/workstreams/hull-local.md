@@ -180,3 +180,14 @@ both stages. At 10 um then all 20 perturbations move the buns under 5.4e-6 L (pr
 `~/animation-pipeline-face5hl/charkit/out/hl_b3a`); stability at 1 um / 100 um / 1 mm and the unit test running
 locally (`charkit/out/bunstab/stab_soft*.json`, `test_bun_fit.log`). pipeline-3d 07fa3c2 (xpbd, opt-in) merged at
 d10eb65. Pre-gate (1f854d7 into 07fa3c2): PASS, 14 moved, 0 blocking.
+- **Annealed variant reverted (2542d8b)**: B2a read art_terminator_hair **2.617 (grade FAIL**, back 2.617), B3a 2.61;
+  hair_piece_buns 0.867, hair_bun_outline 0.467. And its full 1 um run: bun_L 5.5e-7 L, but **bun_R 0.192 L on one of
+  10 perturbations**. The non-annealed fit (f3682b7: B2s) passed all 10 at 1 um (2.4e-7 L), fits bun_L better (soft
+  loss 0.2773 against 0.2918; IoUs 0.874 / 0.900 / 0.916 against 0.859 / 0.899 / 0.897) and reads 2.045. Kept: f3682b7's
+  fit (the revert makes hairpieces.py identical to it).
+- **Open (for the next round):** the kept fit still has near-equal minima close by: 1 of 20 perturbations at 10 um
+  switched bun_L's basin (0.017 L). The terminator's back view swings 1.79 (B2s) to 2.62 (B2a) between poses that fit
+  the drawing equally (IoUs within 0.02): the silhouettes don't fix the bun's 3D orientation, and the terminator reads
+  it. Candidates: a constraint the drawing gives on the orientation (the bun's drawn inner lines or the three-quarter
+  view in the fit: bun_views has no three_quarter by default), or fewer free parameters (the loops' place and size trade
+  off); the prior alone can't separate them without costing fit.
