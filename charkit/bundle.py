@@ -38,6 +38,8 @@ META, ARRAYS = 'bundle.json', 'arrays.npz'
 GROUPS = ('skin', 'eye', 'mouth', 'hair', 'accessory', 'garment')
 EYE_BOX = 0.42                      # the eye render's window (L, square round each eye centre; charkit.qa3d.EYE_SIZE)
 EYE_MARGIN = 0.03                   # the render patch reaches this far past the window (L)
+NORMAL_MODS = ('proxy_normals',)    # modifiers that carry shading normals only (charkit.faceshade): off for the reads that
+                                    # take positions alone (each evaluation with it costs 0.7 s, 2.3 s at render level)
 
 
 # ------------------------------------------------------------------------------------------------------ materials (bpy)
@@ -362,7 +364,7 @@ def export(S, out, ref_measure=None):
                 G.pop('parent', None)
             variants = {'eval': G}
             if ob.name == skin.name:
-                prev = _mods(ob, lambda m: m.show_viewport and m.name != oln)
+                prev = _mods(ob, lambda m: m.show_viewport and m.name != oln and m.name not in NORMAL_MODS)
                 try:
                     variants['masked'] = _read(ob, uv=uv)
                 finally:
@@ -422,12 +424,16 @@ def export(S, out, ref_measure=None):
         try:
             if sub is not None:
                 sub.levels = sub.render_levels
-            prev = _mods(skin, lambda m: m.show_viewport and m.name != 'outline')
+            prev = _mods(skin, lambda m: m.show_viewport and m.name != 'outline' and m.name not in NORMAL_MODS)
             try:
                 Gr = _read(skin)
             finally:
                 _restore(prev)
-            Go = _read(skin)
+            prev = _mods(skin, lambda m: m.show_viewport and m.name not in NORMAL_MODS)
+            try:
+                Go = _read(skin)
+            finally:
+                _restore(prev)
             n, nl = len(Gr['V']), len(Gr['loopv'])
             if len(Go['V']) >= 2 * n and np.array_equal(Go['loopv'][:nl], Gr['loopv']):
                 Gr['shrink'] = (Go['V'][:n] - Gr['V']).astype(np.float32)
