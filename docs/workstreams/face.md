@@ -1012,5 +1012,18 @@ WARN (the far cheek at z -0.289), the chin unchanged. `HIDDEN_TQ` (the three-qua
 lock, -0.154) measured and off: jaw_line_bend 42 FAIL, chin_tip 0.33 FAIL. The profile has no ramus line to fit (the
 construction draws none): the ramus is the front outline under the ear.
 
+**6. One subdivision (cd02007).** `charkit/subdiv.py` delegates to `charkit/geom/subsurf.py` (tool/evalmesh's,
+9ee0a9e, unchanged at 1939469: an identical add when both merge). The signature stays: positions through subsurf
+(limit on: Blender's evaluation at its adaptive level), the data columns carried as Blender carries vertex data
+(linear) instead of through the limit stencils; limit off (garments' refine) refines them with the positions, as
+before. `tools/face_labs/subdiv_lab.py` (a local assembly, old = d60486a's subdiv.py): the cage after the limit fit
+identical (9e-16 L); faceeval's skin at levels 1 and 2 within 1.8e-7 L mean, 0.00055 L at 12 open-border corners of
+its crop (z -0.9 L, under the neck); carried weights now linear (the outline's pull in faceeval reads them). The box
+builds' QA before and after it is below.
+
 Jobs:
 - render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (done).
+- render box build of c047273 (the remeasure and the jaw behind the hair, without the subdivision move) -> 
+  `charkit/out/f5_geom` (`build-face-0930-140341-60c7`).
+- review page: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
+  --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
