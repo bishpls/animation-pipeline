@@ -27,8 +27,7 @@ import numpy as np
 # a kind's shape knobs (the neutral defaults: a character's spec carries its measured ones)
 STAR = dict(points=4, up=0.5, down=0.5, side=0.4, minor=0.0, inner=0.14, curve=0.3, depth=0.09, thick=0.03, segs=4,
             minor_at=45.0, rings=1)
-CONFORM = dict(reach=0.1, clear=0.004, rings=8, curve=False)   # conform's defaults (L; a conformed star's rings, so it
-#                                                                 can bend; curve: to the hair's curvature first)
+CONFORM = dict(reach=0.1, clear=0.004, rings=8)   # conform's defaults (L; a conformed star's rings, so it can bend)
 CRAB = dict(body_h=0.72, body_d=0.42, claw=0.3, claw_at=(0.62, 0.52), claw_notch=55.0, claw_up=35.0, arm=0.07,
             eyes=0.055, eye_at=(0.13, 0.36), stalk=0.1, legs=3, leg=0.28, leg_r=0.035, leg_span=(-10.0, -60.0))
 
@@ -382,30 +381,6 @@ def _inside(P, poly):
     return ((cross & (x < xi)).sum(1) % 2) == 1
 
 
-def curve_to(w, Rm, hair, L, clear=0.004, near=0.12):
-    """a placed clip curved to the hair under it (a big flat clip on a round head floats at its tips and, from behind,
-    shows past the hair): the hair's height under each vertex (cast down along the facing; only hair within `near` L of
-    its back: a ray past the head's edge finds hair far behind it), a quadratic about its middle least-squares fitted to
-    them, every vertex moved along the facing by that quadratic's curvature (its constant and slope dropped: the
-    placement's plane and facing stay), then the whole moved along the facing so the vertex nearest the hair under it
-    is `clear` over it (its thickness kept: back and front move together). -> (world verts, the bend in L)."""
-    w = np.asarray(w, float)
-    q = (w - w.mean(0)) @ Rm
-    G = Ground(); G.meshes = list(hair)
-    H = 4.0 * L
-    back = q[:, 2].min()
-    hz = back + H - G.cast(w + Rm[:, 2][None] * (H - (q[:, 2] - back))[:, None], -Rm[:, 2], 2 * H)
-    hit = np.isfinite(hz) & (np.abs(hz - back) < near * L)
-    if hit.sum() < 12:
-        return w, 0.0
-    X = lambda P: np.c_[np.ones(len(P)), P[:, 0], P[:, 1], P[:, 0] ** 2, P[:, 0] * P[:, 1], P[:, 1] ** 2]
-    cf = np.linalg.lstsq(X(q[hit, :2]), hz[hit], rcond=None)[0]
-    cf[:3] = 0.0                                                    # the curvature only
-    dz = X(q[:, :2]) @ cf
-    gap = (q[hit, 2] + dz[hit]) - hz[hit]                           # each vertex's height over the hair under it
-    return w + Rm[:, 2][None] * (dz + clear * L - gap.min())[:, None], float(np.ptp(dz) / L)
-
-
 def conform(w, Rm, outline, under, L, reach=0.1, clear=0.004):
     """a placed clip bent over what lies under it (the star over the crab, Michael's call: shaped to the clip under
     it, so it neither floats on it nor lets it poke through): w its world verts (seated on the hair), Rm its axes
@@ -490,16 +465,13 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
                 v, f, mats = crab(s.get('shape'))                         # the body 1 wide (size L)
                 rim = None
             if cf and k == 'star' and G is not None and nh:
-                # resting on the hair alone (curved to it with 'curve'), then bent over the clips placed before it
+                # resting on the hair alone, then bent over the clips placed before it (conform())
                 gh = Ground(); gh.meshes = G.meshes[:nh]
                 w, Rm = place(v, s, L, V, centre, gh, frame=True)
-                bend = 0.0
-                if cf.get('curve'):
-                    w, bend = curve_to(w, Rm, gh.meshes, L, cf['clear'])
                 lift = 0.0
                 if len(G.meshes) > nh:
                     w, lift = conform(w, Rm, rim, G.meshes[nh:], L, cf['reach'], cf['clear'])
-                s = dict(s, conform_lift=round(lift, 4), conform_curve=round(bend, 4))   # (L: for the QA's table)
+                s = dict(s, conform_lift=round(lift, 4))                  # (the bend, L)
             else:
                 w = place(v, s, L, V, centre, G)
             if G is not None:
