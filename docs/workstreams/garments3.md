@@ -191,3 +191,11 @@ pipeline-3d's geometry reads the same; to report.
   `test_cache.test_code_closure` edited a line call L had replaced; it now edits the panel's `_thick` call. The hull's
   shell reader (`STRAY`, `shell_points`, `shell_patches`) moved to `charkit/geom/hullshell.py` (garments re-exports it):
   code_body importing garments had put garments.py into the hair stage's code closure. Tests: 56 files ok.
+- **flapchains** (`python -m charkit flapchains charkit/spec/clawd.json --build charkit/out/g3_b`): both flaps' chains
+  (7 joints) rewritten in `outfit_notes.json` for the template flaps (their root at the band's back corner, x 0.125,
+  z -1.463; the tail to z -2.956), the graphs relayered (`refs/clawd/outfit_graph.json`: the chains only; its full
+  regeneration from the sheet-only masks, outfit-source's step 6, isn't done), the manifest's sha256 updated.
+
+**Launched together at c0010c2+flapchains** (no edits while they run): `evaldrift --stages --out charkit/out/g3_c`
+(box build and the evaluator), `remote gate tool/garments3 --into pipeline-3d` (report in charkit/out/gate/),
+`remote --box render build charkit/spec/clawd.json --boards body --out charkit/out/g3_render`.
