@@ -427,7 +427,7 @@ def grade(d, o, part):
 
 
 # ------------------------------------------------------------------------------------------------------------ targets
-# the template's own combined expressions (charkit.scene.PRESETS) as what each must read as, in exprqa's measures: the
+# the template's own combined expressions (charkit.expressions.PRESETS) as what each must read as, in exprqa's measures: the
 # standard anime set for action shorts (effort, shout, focus, surprise, anger, pain, smug, embarrassed, sad) and the
 # heads the model sheet draws (laugh, angry, fluster, yawn). {preset: {feature: (low, high)}}, None an open end; the
 # *_rel features are against the same face's neutral (the mouth's width as a ratio, the brows' tilt in degrees (+ the
@@ -480,23 +480,44 @@ def target_features(s, neutral=None):
 
 def grade_targets(name, s, neutral=None):
     """a combined expression's summary against its TARGETS -> dict(status (the worst feature's; INFO with no targets),
-    features {feature: {value, want, status}})."""
+    miss (the furthest feature past its target, in its WARN margins: 0 every feature inside, up to 1 WARN, past 1
+    FAIL; a feature not found counts 9), features {feature: {value, want, status}})."""
     T = TARGETS.get(name)
     if not T:
-        return {'status': 'INFO', 'features': {}}
+        return {'status': 'INFO', 'miss': None, 'features': {}}
     f = target_features(s, neutral)
-    out = {}
+    out, miss = {}, 0.0
     for k, (lo, hi) in T.items():
         v = f.get(k)
         want = ('%s..%s' % ('' if lo is None else lo, '' if hi is None else hi))
         if v is None:
             out[k] = {'value': None, 'want': want, 'status': 'FAIL', 'why': 'not found'}
+            miss = max(miss, 9.0)
             continue
         d = max(0.0, (lo - v) if lo is not None else 0.0, (v - hi) if hi is not None else 0.0)
-        st = 'PASS' if d <= 1e-9 else 'WARN' if d <= TARGET_MARGIN.get(k, 0.0) else 'FAIL'
+        m = TARGET_MARGIN.get(k, 0.0)
+        st = 'PASS' if d <= 1e-9 else 'WARN' if d <= m else 'FAIL'
+        miss = max(miss, d / m if m > 0 else (0.0 if d <= 1e-9 else 9.0))
         out[k] = {'value': round(float(v), 4), 'want': want, 'status': st}
     worst = max((c['status'] for c in out.values()), key=['PASS', 'WARN', 'FAIL'].index)
-    return {'status': worst, 'features': out}
+    return {'status': worst, 'miss': round(float(miss), 3), 'features': out}
+
+
+# the model sheet's heads (exprqa.name's names) and the preset each draws: the targets' calibration (they pass on the
+# drawing), and the lab's contact sheet pairs them
+SHEET_PRESET = {'laugh': 'laugh', 'angry': 'angry', 'fluster': 'fluster', 'yawn': 'yawn'}
+
+
+def calibrate_targets(heads, design_neutral, rest):
+    """TARGETS calibrated (a new check passes on the design and fails on a known-bad example): each drawn head
+    (heads: [(sheet head name, its summary)], exprqa.summary's against the drawing's own neutral) graded against its
+    preset's targets, where it should pass; and the rest face (rest: (summary, its neutral)) against every preset's,
+    where each should fail -> dict(design {head: grade}, rest {preset: grade}, ok (every drawn head PASS or WARN and
+    every preset FAIL at rest))."""
+    D = {h: grade_targets(SHEET_PRESET[h], s, design_neutral) for h, s in heads if h in SHEET_PRESET}
+    R = {n: grade_targets(n, rest[0], rest[1]) for n in TARGETS}
+    ok = all(g['status'] in ('PASS', 'WARN') for g in D.values()) and all(g['status'] == 'FAIL' for g in R.values())
+    return {'design': D, 'rest': R, 'ok': ok}
 
 
 def name(s):
@@ -542,18 +563,20 @@ def paint(cls, M=None):
 
 # ------------------------------------------------------------------------------------------------------------ ours
 def render(data, combo, ppl, win=WIN):
-    """our face head-on with a combination's keys applied ({'eye': name, 'mouth': name, 'brow': name}; None or 'neutral'
-    = the basis): the parts' offsets summed onto the posed base meshes and z-buffered (charkit.faceqa) at ppl round the
-    eyes -> class image on the face window (eye line at row win.top * ppl, midline at column win.x * ppl)."""
+    """our face head-on with a combination's keys applied (a preset, charkit.expressions: {'eye': name, 'mouth': name,
+    'brow': name}, a component's value a name or {name: weight}; None or 'neutral' = the basis): the parts' offsets,
+    weighted, summed onto the posed base meshes and z-buffered (charkit.faceqa) at ppl round the eyes -> class image
+    on the face window (eye line at row win.top * ppl, midline at column win.x * ppl)."""
     from .faceqa import zbuffer
-    keys = ['%s_%s' % (p, n) for p, n in combo.items() if n and n != 'neutral']
+    from .expressions import weights
+    keys = weights(combo)
     meshes = []
     for _, V, T, lab, K in data['parts']:
         P = V.copy()
-        for k in keys:
+        for k, w in keys.items():
             if k in K:
                 idx, D = K[k]
-                P[idx] += D
+                P[idx] += D if w == 1.0 else w * D
         meshes.append((P, T, lab))
     _, cls = zbuffer(meshes, 0.0, (0.0, data['eye_z']), data['L'], 1.0 / ppl, win, thin=THIN)
     return np.where(cls < 0, 0, cls)

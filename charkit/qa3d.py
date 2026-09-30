@@ -66,7 +66,8 @@ LIMITS = {                     # (pass at or better, warn at or better); else fa
 COVER = (11, 13, 9, 4)         # exprqa classes an open mouth may show: its inside, tongue, teeth, the lip line
 # each eye expression's opening as a share of neutral: (low, high); outside it the check warns
 FACE_EXPECT = {'blink': (0.0, 0.03), 'half': (0.3, 0.7), 'wide': (1.05, 2.0), 'happy': (0.0, 0.35), 'squint': (0.2, 0.8),
-               'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05)}
+               'angry': (0.5, 1.05), 'sad': (0.5, 1.05), 'shock': (0.95, 1.05), 'focus': (0.55, 0.92),
+               'squeeze': (0.0, 0.05), 'wince': (0.3, 0.75), 'shy': (0.55, 0.95)}
 VISEMES = ('aa', 'ih', 'ou', 'ee', 'oh')
 FRAME = (360, 560)             # the full-figure views: width, height (pixels), the figure's height x 1.08 across
 EYE_SIZE = 0.42                # the eye render's window, in L
@@ -2137,9 +2138,27 @@ def mouth_cover(B, ppl=200.0, shapes=None):
     return out
 
 
+def face_presets(B, ppl=200.0, data=None):
+    """the combined expressions (charkit.expressions.PRESETS: the face's components together) as the head shows them
+    head-on (exprqa's class render with each preset's keys) against what each must read as (exprqa.TARGETS: the
+    template's intent; calibrated on the model sheet's heads and the rest face, exprqa.calibrate_targets)
+    -> {preset: dict(combo, s (its exprqa summary), grade (grade_targets'))}, the rest face's under 'rest'."""
+    from . import expressions, exprqa
+    data = data or expression_data(B)
+    ey, ax = exprqa._at(ppl)
+    on = exprqa.summary(exprqa.measure(exprqa.render(data, {}, ppl), ppl, ey, ax, ours=True))
+    out = {}
+    for name, P in expressions.PRESETS.items():
+        s = on if not P else exprqa.summary(exprqa.measure(exprqa.render(data, P, ppl), ppl, ey, ax, ours=True), on)
+        out[name] = dict(combo=P, s=s, grade=exprqa.grade_targets(name, s, on))
+    return out
+
+
 @qa_part('face', order=1900, prefix='face_', table='face')
 def face_part(B, design=None, out=None):
-    """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover)."""
+    """the face's expressions and mouth shapes (face()) as a part, with the open mouths' cover (mouth_cover) and the
+    combined expressions against the template's targets (face_presets: face_preset_<name>, value the furthest feature
+    past its target in WARN margins)."""
     table, C = face(B)
     mc = mouth_cover(B)
     if mc:
@@ -2147,6 +2166,16 @@ def face_part(B, design=None, out=None):
         C['mouth_cover'] = {'value': mc[k]['cover'], 'worst': k, 'skin': mc[k]['skin'], 'none': mc[k]['none'],
                             'status': _grade('mouth_cover', mc[k]['cover'])}
         table['mouth_cover'] = {s: {k_: v for k_, v in r.items() if k_ != 'cls'} for s, r in mc.items()}
+    table['presets'] = {}
+    for name, p in face_presets(B).items():
+        g = p['grade']
+        table['presets'][name] = {'combo': p['combo'], 'status': g['status'],
+                                  'features': {k: v['value'] for k, v in g['features'].items()}}
+        if g['status'] == 'INFO':
+            continue
+        C['preset_' + name] = {'value': g['miss'], 'status': g['status'], 'combo': p['combo'],
+                               'features': g['features'], 'note': 'the furthest feature past its target (exprqa.TARGETS), '
+                               'in its WARN margins: 0 all inside, up to 1 WARN'}
     return table, C
 
 

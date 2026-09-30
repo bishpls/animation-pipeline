@@ -1,5 +1,5 @@
 """Anime brows (docs/CHARKIT.md §2, face features): a tapered ribbon over each eye on the face surface, knob-driven (height,
-arch, length, thickness, tilt), with expression keys (raise, angry, sad, surprised, worried) from the same curve. Drawn over
+arch, length, thickness, tilt), with expression keys (raise, angry, sad, surprised, worried, relaxed, focus, knit, pained) from the same curve. Drawn over
 the hair later (the hair phase gives them their own layer); here they sit just in front of the skin.
 
 Brow-local coordinates are the eye's: x along the eye (+ outward), z up, metres, from the eye centre.
@@ -70,4 +70,12 @@ def expressions(BK):
         'sad': {'height': BK['height'] + 0.02, 'tilt': BK['tilt'] - 14, 'arch': BK['arch'] * 0.6, 'peak': 0.25},
         'worried': {'height': BK['height'] + 0.06, 'tilt': BK['tilt'] - 10, 'arch': BK['arch'] * 1.2, 'peak': 0.3},
         'relaxed': {'height': BK['height'] - 0.03, 'arch': BK['arch'] * 0.8},
+        # the action set (charkit.expressions.PRESETS). focus: lowered a little, the inner ends down
+        'focus': {'height': BK['height'] - 0.05, 'tilt': BK['tilt'] + 9, 'arch': BK['arch'] * 0.6, 'peak': 0.7},
+        # knit (effort): pulled down and together, the inner ends low
+        'knit': {'height': BK['height'] - 0.10, 'tilt': BK['tilt'] + 15, 'arch': BK['arch'] * 0.4, 'peak': 0.8,
+                 'inner': BK['inner'] - 0.05},
+        # pained: the inner ends pulled up hard, the brow bunched toward them
+        'pained': {'height': BK['height'] + 0.04, 'tilt': BK['tilt'] - 18, 'arch': BK['arch'] * 0.9, 'peak': 0.2,
+                   'inner': BK['inner'] - 0.03},
     }

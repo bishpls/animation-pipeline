@@ -22,7 +22,9 @@ DEFAULT_MOUTH = {
                         # 'tongue' overrides)
     'line_lo': 0.5,     # the lower lip's line (open mouths: the drawn mouth's outline), a share of the upper line's width
     'jaw': 0.45,        # how much the jaw follows the lower lip when open
-    'jaw_follow': 0.6,  # the same on an authored base, whose jaw region moves whole (the lips' rings take the rest)
+    'jaw_follow': 0.3,  # the same on an authored base, whose jaw region moves whole (the lips' rings take the rest): the
+                        # dial between a jaw that drops (1) and the drawn heads' kept outline (0); 0.6 -> 0.3 took the
+                        # laugh's chin drop 0.096 -> 0.069 L with every key's folds 0 (docs/workstreams/mouth.md)
 }
 
 RINGS = 9                                  # outer rings that can follow the lips (the spread decides how far)
@@ -159,21 +161,22 @@ SHAPES = {
     # (tests/test_mouth.py holds the block)
     'yawn': dict(width=1.32, open=1.38, up=0.391304347826087, corner=-0.1, smile=0.0, upper_round=0.5,
                  lower_round=0.5, teeth=0.1),
-    # the action set (docs/workstreams/mouth.md; exprqa.TARGETS). shout: wide open, a flatter top, the upper teeth and
-    # the tongue showing
-    'shout': dict(width=1.6, open=1.3, up=0.3, corner=-0.04, upper_round=0.35, lower_round=0.7, teeth=0.18, tongue=0.3),
+    # the action set (docs/workstreams/mouth.md; exprqa.TARGETS), each with its own smile (a shape without one takes the
+    # spec's, Clawd's 0.22: a grin's curve). shout: wide open, a flatter top, the upper teeth and the tongue showing
+    'shout': dict(width=1.6, open=1.3, up=0.3, corner=-0.04, smile=0.0, upper_round=0.35, lower_round=0.7, teeth=0.18,
+                  tongue=0.3),
     # clench (effort): stretched wide, barely parted, both rows of teeth filling it, a dark seam between
-    'clench': dict(width=1.45, open=0.32, up=0.45, corner=-0.03, upper_round=0.15, lower_round=0.15, teeth=0.5,
+    'clench': dict(width=1.45, open=0.32, up=0.45, corner=-0.03, smile=-0.02, upper_round=0.15, lower_round=0.15, teeth=0.5,
                    teeth_lo=0.42, tongue=0.0),
     # grimace (pain): as the clench, the corners pulled down
-    'grimace': dict(width=1.4, open=0.36, up=0.4, corner=-0.12, upper_round=0.2, lower_round=0.35, teeth=0.48,
+    'grimace': dict(width=1.4, open=0.36, up=0.4, corner=-0.12, smile=-0.08, upper_round=0.2, lower_round=0.35, teeth=0.48,
                     teeth_lo=0.4, tongue=0.0),
     # smirk (smug): closed, her left corner up
     'smirk': dict(width=1.0, open=0.0, smile=0.08, skew=0.16),
     # firm (focus): a short straight line, the corners a touch down
     'firm': dict(width=0.85, open=0.0, smile=-0.04),
     # wobble (embarrassed): small, a little open, wavy
-    'wobble': dict(width=1.2, open=0.28, up=0.5, corner=-0.02, upper_round=0.4, lower_round=0.5, wave=0.07, waves=2.5,
+    'wobble': dict(width=1.1, open=0.28, up=0.5, corner=-0.02, upper_round=0.4, lower_round=0.5, wave=0.07, waves=2.5,
                    teeth=0.0, tongue=0.25),
 }
 

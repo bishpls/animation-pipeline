@@ -7,7 +7,7 @@ measured without Blender, per key:
              the opening shows: teeth and tongue (shares of it), the line along its top and bottom edges;
   - design   the heads the model sheet draws (the source design idol_D: on Clawd the only drawing of her expressions; the
              manifest gives the expressions no authority, so this is information), matched part by part (exprqa.sheet_run);
-and per combined expression (charkit.scene.PRESETS: eyes, brows and mouth together) its measures against the template's
+and per combined expression (charkit.expressions.PRESETS: the face's components together) its measures against the template's
 own targets (exprqa.TARGETS).
 
     python -m charkit mouth BUILD [--against BUILD2] [--out DIR] [--boards DIR]
@@ -105,7 +105,7 @@ def measure(B):
     """-> dict(keys {shape: {folds, cover, skin, none, m (exprqa summary)}}, rest_folds, eye_folds, presets {name: {combo,
     m, targets}}, neutral, sheet (the drawn heads: table, checks))."""
     from . import exprqa, qa3d
-    from .scene import PRESETS
+    from .expressions import PRESETS, weights
     data = qa3d.expression_data(B)
     lib = exprqa.library(data)
     ey, ax = exprqa._at(PPL)
@@ -128,7 +128,7 @@ def measure(B):
         M = exprqa.measure(cls, PPL, ey, ax, ours=True)
         s = exprqa.summary(M, on)
         presets[name] = dict(combo=combo, m=s, cls=cls, targets=exprqa.grade_targets(name, s, on),
-                             folds={p: ff['keys'].get('%s_%s' % (p, n), 0) for p, n in combo.items() if p in ('eye', 'mouth')})
+                             folds={k: ff['keys'][k] for k in weights(combo) if k in ff['keys']})
     sheet = None
     try:
         D = qa3d.Design(B)
@@ -214,10 +214,65 @@ def proxy_summary(K, shape, ppl=PPL):
     return exprqa.summary({'eyes': [], 'brows': [], 'mouth': exprqa.mouth(proxy(K, shape, ppl), ppl, ax, ey)})
 
 
-def fit_shape(K, shape, design, free, bounds, keys=('width', 'open', 'area', 'lift', 'fill', 'wave'), ppl=PPL, iters=300):
+def design_mouths(B):
+    """the source sheet's drawn heads' mouths, measured as exprqa.sheet_run measures them: {head name: dict(s (the
+    head's exprqa summary), mask (the drawn mouth filled: its line and what it encloses, at the sheet's scale), ppl)}."""
+    from . import exprqa, qa3d
+    D = qa3d.Design(B)
+    ctx = D.expression_sheet()
+    if 'why' in ctx:
+        return {}
+    heads = ctx['D']['expressions']
+    ppl = float(np.median([h['ppl'] for h in heads]))
+    ey, ax = exprqa._at(ppl)
+    cls_all = exprqa.classes(ctx['rgb'])
+    out, seen = {}, {}
+    for h in heads:
+        M = exprqa.measure(exprqa.crop(cls_all, (h['axis_x'], h['eye_y']), ppl), ppl, ey, ax)
+        s = exprqa.summary(M)
+        nm = exprqa.name(s)
+        seen[nm] = seen.get(nm, 0) + 1
+        key = nm if seen[nm] == 1 else '%s%d' % (nm, seen[nm])
+        mk = M['mouth'].get('_mask')
+        out[key] = dict(s=s, mask=exprqa._fill_holes(mk[0]) if mk else None, ppl=ppl)
+    return out
+
+
+def mask_iou(a, b):
+    """two masks' IoU, each placed on its bounding box's centre (the shape, not where it sits) -> 0..1."""
+    if a is None or b is None or not a.any() or not b.any():
+        return 0.0
+
+    def cut(m):
+        ys, xs = np.nonzero(m)
+        return m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    a, b = cut(a), cut(b)
+    H, W = max(a.shape[0], b.shape[0]) + 2, max(a.shape[1], b.shape[1]) + 2
+
+    def pad(m):
+        y, x = (H - m.shape[0]) // 2, (W - m.shape[1]) // 2
+        o = np.zeros((H, W), bool)
+        o[y:y + m.shape[0], x:x + m.shape[1]] = m
+        return o
+    a, b = pad(a), pad(b)
+    return float((a & b).sum() / max(1, (a | b).sum()))
+
+
+def proxy_mask(K, shape, ppl):
+    """the proxy's drawn mouth filled (its line and what it encloses), at ppl."""
+    from . import exprqa
+    ey, ax = exprqa._at(ppl)
+    mo = exprqa.mouth(proxy(K, shape, ppl), ppl, ax, ey)
+    return exprqa._fill_holes(mo['_mask'][0]) if mo.get('found') else None
+
+
+def fit_shape(K, shape, design, free, bounds, keys=('width', 'open', 'area', 'lift', 'fill', 'wave'), ppl=PPL, iters=300,
+              mask=None, mask_ppl=None, iou_unit=0.1):
     """a shape's numbers `free` fitted so its proxy measures as the drawing does (design: the drawn head's exprqa
     summary): each measure's miss in exprqa's warn units (LIMITS; fill in 0.1s, wave in 0.005s), squared and summed;
-    Nelder-Mead inside `bounds` -> (the shape, the summary, the misses)."""
+    with the drawn mouth's `mask` (design_mouths, at mask_ppl) the shape's own miss too, (1 - IoU) in iou_units, the
+    proxy drawn at the drawing's scale (the mouth is drawn in the front view only: that is every view it has);
+    Nelder-Mead inside `bounds` -> (the shape, the summary, the misses (with 'iou': the fitted shape's IoU))."""
     from . import exprqa, mouth as ml
     base = dict(ml._shape(shape))
     unit = {'width': lambda o, d: (o / d - 1) / exprqa.LIMITS['mouth_width'][1],
@@ -234,7 +289,10 @@ def fit_shape(K, shape, design, free, bounds, keys=('width', 'open', 'area', 'li
         S, o = at(x)
         if 'mouth_width' not in o:
             return 1e3
-        return float(sum(unit[k](o['mouth_' + k], design['mouth_' + k]) ** 2 for k in keys))
+        c = float(sum(unit[k](o['mouth_' + k], design['mouth_' + k]) ** 2 for k in keys))
+        if mask is not None:
+            c += ((1.0 - mask_iou(proxy_mask(K, S, mask_ppl), mask)) / iou_unit) ** 2
+        return c
     x = np.array([base.get(k, 0.0) for k in free], float)
     n = len(x)
     simplex = [x] + [x + np.eye(n)[i] * max(0.05, 0.15 * abs(x[i])) for i in range(n)]
@@ -257,7 +315,10 @@ def fit_shape(K, shape, design, free, bounds, keys=('width', 'open', 'area', 'li
                 f = [f[0]] + [cost(v) for v in simplex[1:]]
     i = int(np.argmin(f))
     S, o = at(simplex[i])
-    return S, o, {k: round(unit[k](o['mouth_' + k], design['mouth_' + k]), 3) for k in keys}
+    miss = {k: round(unit[k](o['mouth_' + k], design['mouth_' + k]), 3) for k in keys}
+    if mask is not None:
+        miss['iou'] = round(mask_iou(proxy_mask(K, S, mask_ppl), mask), 3)
+    return S, o, miss
 
 
 COLS = ('folds', 'cover', 'chin', 'open', 'width', 'area', 'fill', 'lift', 'teeth', 'tongue', 'line_top', 'line_bottom', 'wave', 'skew')
@@ -365,7 +426,6 @@ def board_crop(path, L, box=(0.62, 0.55, 0.62)):
     return a[y0:y1, x0:x1]
 
 
-SHEET_MATCH = {'laugh': 'laugh', 'angry': 'angry', 'fluster': 'fluster', 'yawn': 'yawn'}   # a sheet head -> its preset
 
 
 def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions'):
@@ -415,7 +475,7 @@ def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions
         bp = os.path.join(boards, 'preset_%s.png' % name) if boards else None
         if bp and os.path.exists(bp):
             pics.append((save(board_crop(bp, M['L']), 'board_%s.png' % name, 300), 'ours (board)'))
-        hk = next((k for k, v in SHEET_MATCH.items() if v == name and k in heads), None)
+        hk = next((k for k, v in exprqa.SHEET_PRESET.items() if v == name and k in heads), None)
         if hk:
             pics.append((save(heads[hk], 'sheet_%s.png' % name, 300), 'sheet: %s head' % hk))
         cls = p['cls']
