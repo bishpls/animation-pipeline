@@ -376,3 +376,14 @@ infra3's 2x2 fix, evalmesh, infra-auth). Conflicts: `hairlayers.STRUCT` (tool/ha
 `STRUCT_ON` beside it): now `STRUCT = STRUCT_ON`, the plain transfer is `STRUCT_OFF` (`hairlayers SPEC --no-struct
 --out DIR`, for the old measure); crown_trim was the same change on both sides; the manifest takes outfit_truth; this
 file keeps tool/hairtag-truth's section. The suite the gate's way (`gate._tests`, each file a script): 66 files pass.
+
+**Gate 1** (d4d9033 into pipeline-3d 25b1936): `charkit/out/gate/gate_tool-hairtag_d4d9033_into_25b1936.md`, **FAIL
+under K**, one block: the flag check art_terminator_hair 2.286 -> 2.905 (its worst view the back: ratio 2.905 to the
+design's kinks per L). Reported, not blocking: hair_noise 0.0807 FAIL -> 0.0793 WARN (improved), art_speckle_neck
+2.606 WARN -> 1.34 PASS (improved), hair_folds 5 -> 4, art_peeks_hair 22 -> 16 (flag, value only), art_fragments_hair
+1.58 -> 1.23, hair_bun_outline 0.431 -> 0.456 (FAIL both), scalp_px 0 -> 4 (PASS), CPU 1.24x. The fixed 2x2 fills
+every cell now (old geometry old measure / new geometry old measure / old geometry new measure / candidate): lower back
+0.706 / 0.562 / 0.572 / 0.617 (worse under the old measure, better under the new), side locks 0.550 / 0.523 / 0.543 /
+0.534, upper back 0.768 / 0.721 / 0.701 / 0.768, bangs 0.760 / 0.758 / 0.785 / 0.792, buns 0.862 / 0.864 / 0.862 /
+0.864. On the merged base the folds and hair_noise premises changed: pipeline-3d's own build reads folds 5 (not round 2's
+6 -> 11 on the field's outfit masks) and the method lowers hair_noise under its line.
