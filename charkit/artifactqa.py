@@ -50,7 +50,7 @@ worst view's excess over the design's, or ratio to it. Calibration: see docs/wor
 """
 import numpy as np
 
-REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots', 'sleeves', 'flaps')
+REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots')
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 S1, S2 = 0.004, 0.02        # L: the band's fine and coarse smoothing along the outline (S1 at least 1 px)
 CORNER_ARC = 0.005          # L: a corner turns by CORNER_DEG or more between the chords this long either side of it
@@ -921,7 +921,8 @@ BODY_WIN = (1.6, -0.2, 6.3)     # the body frame from 0.2 L under the eye line t
                                 # -0.5 it cut the hull-lofted sleeves' pointed caps off at the neck)
 NECK = 0.5                   # L: the neck runs from our chin this far down (as charkit.lookqa's face_shadow)
 HEAD_REGIONS = ('hair', 'face', 'neck')
-BODY_REGIONS = ('collar', 'bow', 'top', 'skirt', 'boots', 'sleeves', 'flaps')
+BODY_REGIONS = ('collar', 'bow', 'top', 'skirt', 'boots')
+SHAPE_REGIONS = BODY_REGIONS + ('sleeves', 'flaps')      # the silhouettes' regions (SHAPE_CHECKS)
 DETECTORS = {                # check -> (detector, its headline measure, the floor under the design's value)
     'outline': ('outline', 'corners', 1.0),          # corners per L of outline
     'terminator': ('terminator', 'kinks', 1.0),      # kinks per L of terminator
@@ -1086,7 +1087,7 @@ def _figure(rgb, fg=None):
     return ndimage.binary_fill_holes(ndimage.binary_opening(fg, iterations=1))
 
 
-def drawing_kinds(rgb, fg, ppl, votes=None, whole=False):
+def drawing_kinds(rgb, fg, ppl, votes=None, whole=None):
     """a drawing's kinds (the design's, or a render of ours) from its cells: by a vote image (indices into KINDS, e.g.
     our numpy labels under a render of the same build), else by colour (orange hair, skin and cream skin, every other
     cell but a yellow one taking the kind of the cells round it; what is left is a feature). -> (kinds, lines, dots)."""
@@ -1094,8 +1095,8 @@ def drawing_kinds(rgb, fg, ppl, votes=None, whole=False):
     from . import bodyqa
     lab, fams, lines, dots = cells(rgb, fg, ppl)
     if votes is not None:
-        if whole:                               # (and each cell whole, by its majority: the silhouettes' kinds)
-            return (vote(lab, votes, KINDS), vote(lab, votes, KINDS, mixed=2.0)), lines, dots
+        if whole is not None:                   # (and by a second vote image, each cell whole by its majority: the
+            return (vote(lab, votes, KINDS), vote(lab, whole, KINDS, mixed=2.0)), lines, dots      # silhouettes')
         return vote(lab, votes, KINDS), lines, dots
     C = bodyqa.CLASS
     ck = np.full(len(fams), -1)
@@ -1124,12 +1125,13 @@ def drawing_kinds(rgb, fg, ppl, votes=None, whole=False):
     return kinds, lines, dots
 
 
-def drawing_view(rgb, fg, ppl, chin_row=None, regions=REGIONS, votes=None, pictures=None, view=None, z_of_row=None):
+def drawing_view(rgb, fg, ppl, chin_row=None, regions=REGIONS, votes=None, pictures=None, view=None, z_of_row=None,
+                 shape_votes=None):
     """the four detectors on a drawing (the design's view, a render), and given z_of_row (rows -> L from the eye line)
-    the silhouette detectors (shape_view) -> {region: measures}."""
-    whole = z_of_row is not None and votes is not None
+    the silhouette detectors (shape_view) on the kinds shape_votes gives whole cells (else votes') -> {region: measures}."""
+    whole = None if z_of_row is None or votes is None else (votes if shape_votes is None else shape_votes)
     kinds, lines, dots = drawing_kinds(rgb, fg, ppl, votes, whole=whole)
-    kinds, wkinds = kinds if whole else (kinds, kinds)
+    kinds, wkinds = kinds if whole is not None else (kinds, kinds)
     regs = view_regions(kinds, chin_row, NECK * ppl, line=lines, dots=dots, ppl=ppl, regions=regions)
     keep = frame_keep(rgb.shape[:2])
     M = measure_view(regs, lambda body: image_tone(rgb, body, lines), ppl, keep=keep, pictures=pictures)
@@ -1176,15 +1178,18 @@ def design_body(views, masks, graph, ppl):
         fam = bodyqa.family(rgb)
         votes[fg & (fam == bodyqa.CLASS['skin'])] = KINDS.index('skin')
         votes[fg & (dv['cls'] == bodyqa.CLASS['hair'])] = KINDS.index('hair')
+        shape = votes.copy()
         skin = fam == bodyqa.CLASS['skin']
         for r in PIECES:
             for pid, t in types.items():
                 m = masks.get('%s__%s' % (view, pid))
                 if m is not None and t in PIECES[r]:
-                    votes[m & fg & ~skin] = KINDS.index(r)      # (a piece's mask spilling onto the arm isn't the piece)
+                    if r in BODY_REGIONS:           # (the four detectors' regions voted as calibrated, 2026-09-29)
+                        votes[m & fg] = KINDS.index(r)
+                    shape[m & fg & ~skin] = KINDS.index(r)      # (a piece's mask spilling onto the arm isn't the piece)
         top = float((dv.get('win') or bodyqa.WIN)['top'])
         out[view] = drawing_view(rgb, fg, ppl, None, BODY_REGIONS, votes=votes, view=view,
-                                 z_of_row=lambda r: top - (r + 0.5) / ppl)
+                                 z_of_row=lambda r: top - (r + 0.5) / ppl, shape_votes=shape)
     return out
 
 
@@ -1211,9 +1216,9 @@ PEEKS = (4, 12)              # proposed grades on a region's peeking bits in its
 
 # Michael's flags on shapes, graded against the design in the same view (the calibration: docs/workstreams/artifacts.md)
 SHAPE_CHECKS = {             # check -> (measure, key, how it's compared, the design's floor, (pass, warn), regions)
-    'spikes': ('spikes', 'height', 'excess', 0.0, (0.015, 0.025), BODY_REGIONS),       # L: the tallest spike's
-    'points': ('points', 'turn', 'excess', CAP_MIN, (20.0, 30.0), BODY_REGIONS),       # deg: the sharpest cap's
-    'bumps': ('bumps', 'out', 'excess', BUMP_MIN, (20.0, 30.0), BODY_REGIONS + ('legs',)),  # deg: the sharpest knob's
+    'spikes': ('spikes', 'height', 'excess', 0.0, (0.015, 0.025), SHAPE_REGIONS),      # L: the tallest spike's
+    'points': ('points', 'turn', 'excess', CAP_MIN, (20.0, 30.0), SHAPE_REGIONS),      # deg: the sharpest cap's
+    'bumps': ('bumps', 'out', 'excess', BUMP_MIN, (20.0, 30.0), SHAPE_REGIONS + ('legs',)),  # deg: the sharpest knob's
     'mirror': ('mirror', 'asym', 'ratio', 0.02, (1.5, 2.5), ('waist',)),                # 1 - IoU with its mirror image
     'mirror_self': ('mirror_self', 'asym', 'ratio', 0.02, (1.5, 2.5), ('boots',)),     # (about its own axis)
     'band': ('band', 'kinks', 'ratio', 1.0, (1.5, 2.0), ('lower',)),                   # the hem band's edge kinks per L
