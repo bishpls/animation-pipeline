@@ -18,6 +18,10 @@ machine's GPU, from a saved build or a scratch scene.
         (the rim and two rings of faces round it: edge_zone), geometric flips, the layers' p90 / max corner turn, and
         the surface's inward move and the hull's outward move (median, m)
         -> OUT/normals.json
+    blender -b BUILD/NAME.blend --python charkit/boards/lookprobe.py -- OUT --thickness
+        per outlined object its measured thickness (shade.measured_thickness: the p5 of its vertices' inward rays to its
+        far side, the outline off), beside what the build stored (ck_line_thick, ck_line_cap) and its shell
+        -> OUT/thickness.json
 """
 import json, math, os, sys
 
@@ -290,6 +294,20 @@ def normals(out, bundle=None, height=None):
     return rep
 
 
+def thickness(out):
+    """per outlined object: its measured thickness now (the saved scene's evaluated mesh), and what the build stored."""
+    from charkit import shade
+    import bpy
+    rep = {}
+    for ob in [o for o in bpy.data.objects if o.type == 'MESH' and 'ck_line_w' in o and not o.hide_render]:
+        rep[ob.name] = {'region': ob.get('ck_line_region'), 'shell_m': shade.shell_of(ob),
+                        'thickness_m': shade.measured_thickness(ob), 'stored_thick_m': ob.get('ck_line_thick'),
+                        'cap_m': shade.line_cap(ob)}
+    json.dump(rep, open(os.path.join(out, 'thickness.json'), 'w'), indent=1)
+    print('LOOKPROBE thickness', json.dumps({k: v for k, v in rep.items() if v['stored_thick_m'] is not None}))
+    return rep
+
+
 if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:]
     opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
@@ -305,3 +323,5 @@ if __name__ == '__main__':
         boards(out, tuple(opt('--boards').split(',')), opt('--bundle'), height, opt('--streaks', 'on') != 'off')
     if '--normals' in argv:
         normals(out, opt('--bundle'), height)
+    if '--thickness' in argv:
+        thickness(out)

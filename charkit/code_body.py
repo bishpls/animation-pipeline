@@ -69,7 +69,7 @@ class Hull:
             if Z is None or 'shell' not in Z.files or 'shell_label' not in Z.files:
                 self._shell = False
             else:
-                from .garments import shell_points
+                from .geom.hullshell import shell_points
                 self._shell = shell_points(Z)
         if self._shell is False:
             return self.points(name)

@@ -408,7 +408,7 @@ def code_body(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
-                            modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.garments'),
+                            modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell'),
                             name_key=spec['name'],
                             refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_body', r)

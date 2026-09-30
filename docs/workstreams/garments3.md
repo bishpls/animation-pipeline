@@ -170,3 +170,24 @@ back): the template on the sides only (`sides` k: weight |sin th| ** k) fixes th
 Worse: `skirt_back_outline` 0.033 WARN -> 0.045 FAIL and `hemband_skirt_step` 0.040 WARN -> 0.052 FAIL; both are
 tool/skirt's new checks, FAIL on round 6's geometry (0.051, and no step found), so not new FAILs in the gate's 2x2 if
 pipeline-3d's geometry reads the same; to report.
+
+## Box builds g3_b (the body cap, call L) and g3_h1 (a hang variant); the pipeline-3d merge
+
+- **g3_b** (529da75) against g3_a: `piece_collar` 0.342 FAIL -> 0.771 PASS, `piece_top` 0.486 FAIL -> 0.653 WARN
+  (pipeline-3d 0.595), `neck_crease` 46.4 -> 39.6 FAIL (pipeline-3d 27.6 WARN), `sleeve_profile_rough_L` 0.0105 WARN ->
+  0.0021 PASS; worse `piece_sleeve_cuff_R` 0.508 WARN -> 0.496 FAIL (pipeline-3d 0.500 WARN), `flap_back_attach_R`
+  0.08 WARN -> 0.1035 FAIL, `flap_profile_attach_R`/`sweep_R` PASS -> WARN. Unchanged: `art_speckle_neck` 2.6 WARN (all
+  in profile: 130 against the design's 50), `art_mirror_waist` 1.65 WARN, `body_profile_torso_jump_front` 0.061 FAIL.
+  In profile the jacket's shoulder still covers the collar's side (the cap counts only the collar behind the torso's
+  axis within the back view's x +-0.40); `piece_collar`'s profile view was 0.016 on pipeline-3d too.
+- **g3_h1** (the jacket's `hang` from the new masks' drawn junction: side 90-100 deg 0 -> 0.04, back 180 0.06 ->
+  0.01): `waistband_profile_rows` 0.047 FAIL -> 0.009 PASS, `piece_waistband` 0.886 -> 0.922, but
+  `body_front_torso_jump_L` 0.009 PASS -> 0.038 FAIL and `waistband_back_rows` 0.005 PASS -> 0.042 FAIL, and the
+  profile's torso jump unchanged: **not taken** (the hang stays garments2's). Scratch `junction.py` measures the drawn
+  and our jacket hem per column per view.
+- **Merged pipeline-3d a3073f5** (tool/look4: call M, the bow and boots' measured outline cap; art_spikes_boots,
+  bumps_boots, bumps_legs and mirror_waist promoted to FAIL-capable): one conflict in garments.py (call L's `_thick`
+  beside look4's `LINE_CAP_MEASURED`; the skirt's optional Subdivision beside look4's `cap='measured'`), both kept.
+  `test_cache.test_code_closure` edited a line call L had replaced; it now edits the panel's `_thick` call. The hull's
+  shell reader (`STRAY`, `shell_points`, `shell_patches`) moved to `charkit/geom/hullshell.py` (garments re-exports it):
+  code_body importing garments had put garments.py into the hair stage's code closure. Tests: 56 files ok.

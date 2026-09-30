@@ -240,6 +240,12 @@ def test_calibrated_checks_warn_until_promoted_the_rest_stay_info():
     assert C['outline_neck']['status'] == 'WARN' and C['outline_neck']['flag']
     assert C['bumps_legs']['status'] == 'PASS'
     assert C['outline_top']['status'] == 'INFO'
+    # promoted (tool/look4): the grade is the status, a FAIL fails; the sleeves' and the band's wait at WARN
+    assert set(A.PROMOTED) == {'spikes_boots', 'bumps_boots', 'bumps_legs', 'mirror_waist'} <= set(A.CALIBRATED)
+    P = A.promote({'spikes_boots': {'value': 0.063, 'grade': 'FAIL'}, 'mirror_waist': {'value': 1.8, 'grade': 'WARN'},
+                   'bumps_sleeves': {'value': 45.6, 'grade': 'FAIL'}, 'band_lower': {'value': 2.2, 'grade': 'FAIL'}})
+    assert [P[k]['status'] for k in ('spikes_boots', 'mirror_waist', 'bumps_sleeves', 'band_lower')] == \
+        ['FAIL', 'WARN', 'WARN', 'WARN']
     assert set(A.CALIBRATED) <= {'%s_%s' % (d, r) for d in list(A.DETECTORS) + ['peeks'] for r in A.REGIONS} | \
         {'%s_%s' % (k, r) for k, v in A.SHAPE_CHECKS.items() for r in v[5]}
 

@@ -114,6 +114,29 @@ def test_compose_carries_the_head_frame():
     assert np.allclose(A['verts'][200:], V1[200:], atol=1e-12)                    # outside the wrap: the new body exactly
 
 
+def test_body_knobs_compose_only_on_makehumans_body():
+    """Evaluator.assembly composes a body-knob change (compose: the new body from MakeHuman's body.build_body_data) only
+    when the spec's body is MakeHuman's; the authored body (body.source 'code') is assembled afresh, as the build does
+    (tool/look4: composing it raised IndexError, 13380 vertices against 18478)."""
+    from charkit import body as bodylib
+    calls = []
+    saved = bodyeval.assemble_cached, bodyeval.compose, bodylib.build_body_data
+    bodyeval.assemble_cached = lambda spec, cache=True: calls.append(('assemble', spec['body']['height_m'])) or {}
+    bodyeval.compose = lambda A0, body, B1: calls.append(('compose', body['height_m'])) or {}
+    bodylib.build_body_data = lambda body, keep_head=False: {}
+    try:
+        for source, how in (('code', 'assembled'), ('makehuman', 'composed')):
+            E = bodyeval.Evaluator.__new__(bodyeval.Evaluator)
+            E.spec, E.cache, E._asm, E._bodies = {'name': 'c', 'base': 'code', 'body': {'source': source, 'height_m': 1.5}}, \
+                False, {}, {}
+            calls.clear()
+            assert E.assembly(E.spec)[1] == 'assembled'
+            assert E.assembly(bodyeval.with_knobs(E.spec, {'body.height_m': 1.6}))[1] == how
+            assert calls == [('assemble', 1.5), ('assemble' if how == 'assembled' else 'compose', 1.6)], calls
+    finally:
+        bodyeval.assemble_cached, bodyeval.compose, bodylib.build_body_data = saved
+
+
 def test_cull_face_matches_scene():
     """the vectorised face cull against scene.cull_face on random points round a real anime head."""
     from charkit import head as headlib, scene
