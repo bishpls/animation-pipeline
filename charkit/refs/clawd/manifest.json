@@ -562,5 +562,21 @@
   "face": "head_turnaround",
   "eyes": "head_turnaround",
   "body": "body_turnaround"
+ },
+ "design_light": {
+  "mode": "camera",
+  "key": [15.0, 47.5],
+  "role": "the key light the turnarounds' drawn shading implies (head_turnaround, body_turnaround): a camera key, 15 deg to the camera's left and 47.5 up, the same in every view (a world light fits worse: 0.472 against 0.547, the back view 0.204). A reference for the look's QA (charkit.lookqa.face_shadow grades under it); the boards' light is the style's look.light (Michael's call A: 30, 40)",
+  "fit": {
+   "command": "python -m charkit.designlight BUILD",
+   "build": "pipeline-3d d60486a (tool/look6's base), charkit/spec/clawd.json",
+   "score": "the mean over views of the shaded regions' mean IoU (shade and lit) with the drawing's, hair, skin, garments",
+   "joint": 0.547,
+   "board": 0.531,
+   "views": {"head/front": [2.5, 37.5], "head/three_quarter": [12.5, 42.5], "head/profile": [32.5, 47.5],
+             "body/front": [0.0, 42.5], "body/three_quarter": [-5.0, 57.5], "body/profile": [12.5, 52.5],
+             "body/back": [10.0, 57.5]}
+  },
+  "cautions": ["weakly determined: the best light scores 0.016 over the boards' (the garments barely shade under any light: their IoU ~0.45-0.49); the head's front wants a lower light (37.5 up), the body's back and three-quarter a higher one (57.5)"]
  }
 }

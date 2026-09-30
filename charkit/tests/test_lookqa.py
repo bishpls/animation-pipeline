@@ -103,30 +103,62 @@ def test_smooth_vertex_keeps_constants():
 
 
 def test_chin_separates_the_v_from_the_band():
-    """face_shadow_chin's measures on shapes: a V under the chin against itself and moved 0.01 L grade PASS; a band low
-    on the neck FAILs both, even a band as thick as the V's mean (the pixel count per column alone reads it as the V:
-    why the reach is graded). (On the real design the shadow is thinner: a pixel's move costs more; look.md round 5.)"""
+    """face_shadow_chin_edge on the jaw (lookqa.jaw_frame, chin_on_jaw) on shapes: a V under a V-shaped jaw against
+    itself moved 1-2 px against its jaw grades PASS; a band of the same thickness low on the neck, and the neck shaded
+    to its base (round 1's smear), FAIL. The jaw is found per column: the design's by its ink run, ours by the step back
+    in depth."""
     from charkit import lookqa
-    ppl, H, W = 200, 140, 200
+    ppl, H, W = 200, 200, 200
     rows, cols = np.mgrid[:H, :W]
-    r0 = 20                                                  # the chin's row: the window is r0 .. r0 + 0.5 L
-    neck = (cols >= 60) & (cols < 140) & (rows >= r0) & (rows < r0 + ppl // 2)
-    depth = 40 - 0.8 * np.abs(cols + 0.5 - 100)              # the V: 0.2 L deep under the chin, 0.04 L at the sides
-    V = neck & (rows < r0 + depth)
-    grade = lambda c: (lookqa._grade_chin(c['iou'], lookqa.CHIN_IOU, True),
-                       lookqa._grade_chin(c['edge'], lookqa.CHIN_EDGE, False))
-    c = lookqa._chin(V, V, neck, ppl)
-    assert c['iou'] == 1.0 and c['edge'] == 0.0 and grade(c) == ('PASS', 'PASS')
-    for sh in ((2, 0), (0, 2), (-2, 0), (0, -2)):            # 0.01 L either way
-        c = lookqa._chin(np.roll(V, sh, (0, 1)), V, neck, ppl)
-        assert grade(c) == ('PASS', 'PASS'), (sh, c)
-    mean = int(round(V.sum() / neck.any(0).sum()))           # the V's mean thickness (24 px)
-    band = neck & (rows >= r0 + 60) & (rows < r0 + 60 + mean)
-    c = lookqa._chin(band, V, neck, ppl)
-    assert grade(c) == ('FAIL', 'FAIL'), c
-    assert abs(c['ours_depth'] - c['design_depth']) < 0.01   # the count alone: the same
-    tilt = neck & (rows >= r0 + 30)                          # round 1's smear: the neck shaded from part way down
-    assert grade(lookqa._chin(tilt, V, neck, ppl))[0] == 'FAIL'
+    jaw = (40 + 0.5 * (40 - np.abs(cols[0] + 0.5 - 100))).astype(int)      # the jaw: a V, its point at column 100
+    neck_c = (cols >= 60) & (cols < 140)
+    skin = neck_c & (rows < 170)
+    under = rows >= jaw[None, :]
+    line = neck_c & (rows >= jaw[None, :] - 2) & (rows < jaw[None, :])        # the drawn jaw: 2 px of ink over it
+    Jd = lookqa.jaw_drawn(skin & ~line, line, 45, 100, ppl)
+    assert set(Jd.values()) <= set(jaw.tolist()) and len(Jd) >= 60
+    depth = np.where(under, 2.0, 1.9)                                          # ours: the neck 0.1 behind the jaw
+    Jo = lookqa.jaw_depth(skin, depth, 45, 100, ppl, 1.0)
+    assert all(Jo[c] == jaw[c] for c in Jo) and len(Jo) >= 60
+    V = skin & under & (rows < jaw[None, :] + 26)                            # the V: 0.13 L under the jaw
+    grade = lambda c: lookqa._grade_chin(c['edge'], lookqa.CHIN_EDGE, False)
+    gd = lookqa.jaw_frame(V, skin, Jd, ppl)
+    c = lookqa.chin_on_jaw(gd, gd, ppl)
+    assert c['iou'] == 1.0 and c['edge'] == 0.0
+    for sh in ((1, 0), (2, 0), (0, 2), (-2, 0), (0, -2)):
+        c = lookqa.chin_on_jaw(lookqa.jaw_frame(np.roll(V, sh, (0, 1)) & skin, skin, Jd, ppl), gd, ppl)
+        assert grade(c) == 'PASS' and c['iou'] >= 0.8, (sh, c)
+    band = skin & (rows >= 110) & (rows < 136)                               # as thick, low on the neck
+    assert grade(lookqa.chin_on_jaw(lookqa.jaw_frame(band, skin, Jo, ppl), gd, ppl)) == 'FAIL'
+    smear = skin & under                                                     # the neck shaded to its base
+    assert grade(lookqa.chin_on_jaw(lookqa.jaw_frame(smear, skin, Jo, ppl), gd, ppl)) == 'FAIL'
+
+
+def test_the_design_light_remeasures_face_shadow():
+    """tool/look6's steps read as the gate reads them (history.load_steps on this tree, steps_between, the checks
+    matched to the patterns): a merge bringing d1ad9ba (the chin on the jaw) and ec0c93c (the design light in the
+    manifest) remeasures every face_shadow_* check, so the gate scores them in its 2x2; the checks the round moved by
+    changing the look (face_lift) are not remeasured. The round's first gate missed these steps (a `+=` block the
+    registry never read)."""
+    import fnmatch
+    from charkit import history
+    look6 = {'d1ad9ba', 'ec0c93c'}
+    real = history.contains
+    history.contains = lambda ref, commit, repo=None: ref == 'tip' or commit not in look6
+    try:
+        steps = history.load_steps(os.path.join(os.path.dirname(os.path.abspath(lookqa.__file__)), 'history.py'))
+        rem = history.steps_between('base', 'tip', steps)
+        names = ['face_shadow_3q', 'face_shadow_face_3q', 'face_shadow_neck_3q', 'face_shadow_chin',
+                 'face_shadow_chin_edge', 'face_shadow_chin_soft', 'face_noise', 'face_noise_sweep', 'face_islands',
+                 'hair_noise', 'line_ink']
+        by_name = history.remeasured('base', 'tip', names, steps)
+    finally:
+        history.contains = real
+    shadow = {n for n in names if n.startswith('face_shadow_')}
+    assert set(rem) == {'face_shadow_*', 'face_shadow_chin', 'face_shadow_chin_edge'}, rem
+    assert {n for n in names if any(fnmatch.fnmatchcase(n, p) for p in rem)} == shadow        # gate.py's `stepped`
+    assert set(by_name) == shadow, by_name
+    assert 'jaw' in by_name['face_shadow_chin_edge'] and 'design light' in by_name['face_shadow_3q']
 
 
 if __name__ == '__main__':

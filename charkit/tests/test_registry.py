@@ -117,6 +117,25 @@ def test_load_steps_reads_old_and_new_trees():
     assert history.load_steps(here) == history.registered() == history.STEPS
 
 
+def test_a_modules_steps_are_one_literal():
+    """what the registry reads (a module's first MEASUREMENT_STEPS literal, by ast) is everything the module registers:
+    the name bound once and nothing added to it. tool/look6's `MEASUREMENT_STEPS += [...]` was never read, so its first
+    gate ran no 2x2 for the checks the round remeasured. A steps module run as a script holds exactly what's read."""
+    import ast, runpy
+    name = registry.STEPS_NAME
+    for path in registry._py_files(registry.HERE):
+        tree = ast.parse(open(path, encoding='utf-8').read())
+        uses = [n for n in ast.walk(tree) if isinstance(n, ast.Name) and n.id == name]
+        if uses:
+            assert len(uses) == 1 and isinstance(uses[0].ctx, ast.Store) and registry.module_steps(path) is not None, \
+                '%s: %s must be one module-level literal, bound once and not added to (%d uses)' % (path, name, len(uses))
+    steps_dir = os.path.join(registry.HERE, 'steps')
+    for f in sorted(os.listdir(steps_dir)):
+        if f.endswith('.py') and f != '__init__.py':
+            path = os.path.join(steps_dir, f)
+            assert [tuple(x) for x in runpy.run_path(path).get(name, [])] == registry.module_steps(path), path
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

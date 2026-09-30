@@ -438,6 +438,10 @@ def export(S, out, ref_measure=None):
                 lv = np.empty(len(me.loops), np.int32); me.loops.foreach_get('vertex_index', lv)
                 variants['raw'] = dict(V=co.reshape(-1, 3) @ Mw[:3, :3].T + Mw[:3, 3], loopv=lv, counts=cnt,
                                        pmat=np.zeros(len(cnt), np.int16))
+                lay = me.attributes.get('ck_layer')                  # (a final mesh's faces by layer: call J)
+                if lay is not None and lay.domain == 'FACE':
+                    la = np.empty(len(cnt), np.int32); lay.data.foreach_get('value', la)
+                    variants['raw']['layer'] = la.astype(np.int8)
             for vn, G in variants.items():
                 put(ob.name, vn, G)
                 rec['variants'].append(vn)

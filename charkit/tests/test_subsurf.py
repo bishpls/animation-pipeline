@@ -102,7 +102,9 @@ def test_finalize_a_recorded_garment():
     R = evalmesh.finalize(o)
     S = solid.solidify(V, F, 0.1)
     assert len(R['counts']) == 4 * len(S['counts']) and R['shell'] == 0.1 and R['levels'] == 1
-    assert np.allclose(R['weights']['b'][:2 * len(V)], np.r_[V[:, 0], V[:, 0]] / 3)   # kept at the vertices
+    from charkit.garments import group_weights                  # (as the coarse object's vertex group holds them)
+    w = group_weights(V[:, 0] / 3)
+    assert np.array_equal(R['weights']['b'][:2 * len(V)], np.r_[w, w])                # kept at the vertices
     assert set(R['mat_idx'].tolist()) == {0, 1}
     assert len(R['uv_corner']) == len(R['counts'])
 
