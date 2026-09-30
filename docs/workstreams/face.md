@@ -848,3 +848,18 @@ Improved: hair_penetration 0.0124 FAIL -> 0 PASS (the crown), chin_tip 0.557 WAR
 edges over 90 degrees; folded corners 60 -> 62). Options: TIP_BIAS / SIDE_RIMFIT_A back a notch for the taper (every
 lab variant sat at 0.0395-0.0402: the boards' taper is at its limit), or the chin's refit off and the crown fix alone
 (then check art_terminator_hair on it).
+
+### Round 4, second agent (2026-09-30 morning): landing what's mergeable
+
+State at start: fe9e386, gate FAIL under K (jaw_taper_shape 0.0401 FAIL; art_terminator_hair 2.376 -> 2.552 past
+its 2.5 line). The gate's trace: the candidate's hair pieces all moved (same counts and bbox): the hair follows the
+head (pieces_hair missed its cache because code_head changed).
+
+Jobs:
+- `tool/face4-crown` (0227351, from pipeline-3d b43c15e): the crown's normal-only limit fit and its test, reapplied
+  without the chin. Build box build `build-face-0930-081207-77df` -> `charkit/out/f4_crown` (attribution: its
+  art_terminator_hair against pipeline-3d's 2.376 and the full branch's 2.552).
+- Render box build of pipeline-3d b43c15e with boards views,body: `build-face-0930-081238-8298` ->
+  `charkit/out/f4_before` (the review page's before, the hair as the gate's baseline).
+- Chin back-off: chin_lab sweep on jaw_7's head code (`charkit/out/face4b/lab_*.json`; the lab reads the defaults'
+  0.0398 as before; the box reads the lab +0.0003, so the lab's taper must stay <= ~0.0395).
