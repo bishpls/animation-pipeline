@@ -9,6 +9,10 @@ kept in charkit/out/pregate/base_COMMIT_SPEC.json; each iteration then evaluates
     python -m charkit pregate --pair TIP [--into HEAD]              the merge of TIP into HEAD (commits), as a gate does
     python -m charkit pregate --against GATE_REPORT.json            that report's pair, then the agreement: which checks
                                                                     the gate and the pre-gate saw move, and which way
+    python -m charkit pregate --rejudge PREGATE_REPORT.json         judged again from the checks it holds
+
+K blocks only on checks the gate's QA names (gate_names: every check in this repository's gate reports); the
+evaluator's own rows (bodymeasure's per-view, per-side pieces) that would block are listed apart.
 
 The report: charkit/out/pregate/pregate_TAG_into_HEAD.{md,json}: K's verdict, what blocks, the moves, the coverage and
 the seconds. Exit 0 PASS, 1 FAIL.
@@ -134,17 +138,43 @@ def remeasured_here(head):
             if (s[0], s[1]) not in have}
 
 
-def judge(base, cand, remeasured):
-    """K on the evaluator's two check sets -> (verdict, blocking, report, rows)."""
+def gate_names(dirs=None):
+    """the check names the gate's QA gives, as far as its reports here show (every row of every gate report in this
+    repository's worktrees: the checks that ever moved or went) -> set. The evaluator also measures checks the build's
+    QA doesn't name (bodymeasure's per-view, per-side piece rows: piece_shorts_profile_top), which a gate can't block on."""
+    import glob
+    from . import gate
+    names = set()
+    for d in dirs or gate._report_dirs():
+        for p in glob.glob(os.path.join(d, 'gate_*.json')):
+            if p.endswith('.summary.json'):
+                continue
+            try:
+                R = json.load(open(p))
+            except (OSError, ValueError):
+                continue
+            names |= {r.get('check') for r in list(R.get('qa') or []) + list((R.get('twobytwo') or {}).get('rows') or [])
+                      if isinstance(r, dict)}
+    names.discard(None)
+    return names
+
+
+def judge(base, cand, remeasured, known=None):
+    """K on the evaluator's two check sets -> (verdict, blocking, report, rows). known: the checks the gate names
+    (gate_names()); a blocking row on a check outside them is reported (report['evaluator_only']), not blocking."""
     from . import gate
     qa_a, qa_b = {'checks': base['checks']}, {'checks': cand['checks']}
     rows = gate.compare_qa(qa_a, qa_b, remeasured)
     rep = {'qa': rows, 'hard': []}
     v, block, R = gate.judge(rep, qa_a, qa_b)
+    if known is not None:
+        R['evaluator_only'] = [b for b in block if b.get('check') not in known]
+        block = [b for b in block if b.get('check') in known]
+        v = 'FAIL' if block else 'PASS'
     return v, block, R, rows
 
 
-def agreement(gate_rep, rows, base, cand):
+def agreement(gate_rep, rows, base, cand, known=None):
     """the pre-gate's moves against a real gate's, over the checks both measure: a check moved (its value or status
     changed) in one and not the other, and for the moved in both whether they agree on the way (the status's, else the
     value's sign) -> dict."""
@@ -163,7 +193,7 @@ def agreement(gate_rep, rows, base, cand):
         return v
     same_way = [k for k in both if way(G[k]) == way(P[k])]
     gate_all = {r['check'] for r in gate_rep.get('qa') or ()}
-    return dict(measured=len(E), gate_moved=len(G), pregate_moved=len(P), both=len(both), same_way=len(same_way),
+    out = dict(measured=len(E), gate_moved=len(G), pregate_moved=len(P), both=len(both), same_way=len(same_way),
                 gate_only=sorted(set(G) - set(P)), pregate_only=sorted(set(P) - set(G)),
                 disagree=[dict(check=k, gate=[G[k]['base'], G[k]['cand'], G[k]['verdict']],
                                pregate=[P[k]['base'], P[k]['cand'], P[k]['verdict']]) for k in both if k not in same_way],
@@ -171,6 +201,11 @@ def agreement(gate_rep, rows, base, cand):
                 recall=round(len(both) / len(G), 3) if G else None,
                 precision=round(len(both) / len(P), 3) if P else None,
                 verdict=[gate_rep.get('verdict'), None])
+    if known:                                   # the pre-gate's moves on checks the gate's QA names at all
+        Pk = [k for k in P if k in known]
+        out.update(pregate_moved_named=len(Pk), precision_named=round(len(set(Pk) & set(G)) / len(Pk), 3) if Pk else None,
+                   pregate_only_named=sorted(set(Pk) - set(G)))
+    return out
 
 
 def run(into='pipeline-3d', spec=SPEC, pair=None, report=None, fresh=False, name=None):
@@ -199,7 +234,8 @@ def run(into='pipeline-3d', spec=SPEC, pair=None, report=None, fresh=False, name
     else:
         cand = evaluate(ROOT, spec)
         remeasured = remeasured_here(head)
-    v, block, R, rows = judge(base, cand, remeasured)
+    known = gate_names()
+    v, block, R, rows = judge(base, cand, remeasured, known if len(known) > 50 else None)
     rep = dict(tag=tag, tip=tip, into=into, head=head, spec=spec, verdict=v, blocking=block, report=R, qa=rows,
                remeasured=remeasured, checks=len(set(base['checks']) | set(cand['checks'])),
                seconds=dict(total=round(time.time() - t0, 1), baseline=None if kept else round(t1 - t0, 1),
@@ -207,7 +243,7 @@ def run(into='pipeline-3d', spec=SPEC, pair=None, report=None, fresh=False, name
                baseline=os.path.relpath(bpath, ROOT), t=time.strftime('%Y-%m-%dT%H:%M:%S'))
     if report:
         rep['against'] = os.path.basename(report['path'])
-        rep['agreement'] = agreement(report, rows, base, cand)
+        rep['agreement'] = agreement(report, rows, base, cand, known)
         rep['agreement']['verdict'][1] = v
     os.makedirs(OUT, exist_ok=True)
     stem = os.path.join(OUT, 'pregate_%s_into_%s' % (tag, head))
@@ -215,6 +251,27 @@ def run(into='pipeline-3d', spec=SPEC, pair=None, report=None, fresh=False, name
     open(stem + '.md', 'w').write(markdown(rep))
     rep['md'] = stem + '.md'
     return rep
+
+
+def rejudge(path):
+    """a pre-gate report (its json) judged again from the check sets it holds (no evaluation): the names the gate's
+    reports know now, the agreement with its gate report again -> the report dict (rewritten)."""
+    R = json.load(open(path))
+    base, cand = R.pop('base'), R.pop('cand')
+    known = gate_names()
+    v, block, Rep, rows = judge(base, cand, R.get('remeasured') or {}, known if len(known) > 50 else None)
+    R.update(verdict=v, blocking=block, report=Rep, qa=rows)
+    if R.get('against'):
+        from . import gate
+        g = next((os.path.join(d, R['against']) for d in gate._report_dirs()
+                  if os.path.exists(os.path.join(d, R['against']))), None)
+        if g:
+            R['agreement'] = agreement(json.load(open(g)), rows, base, cand, known)
+            R['agreement']['verdict'][1] = v
+    json.dump(dict(R, base=base, cand=cand), open(path, 'w'), indent=1, default=float)
+    open(path[:-5] + '.md', 'w').write(markdown(R))
+    R['md'] = path[:-5] + '.md'
+    return R
 
 
 def markdown(rep):
@@ -226,6 +283,10 @@ def markdown(rep):
              rep['seconds']['candidate'])]
     L.append('## Blocking\n')
     L += ['- ' + gate._why(b) for b in rep['blocking']] or ['Nothing.']
+    eo = (rep.get('report') or {}).get('evaluator_only') or []
+    if eo:
+        L.append('\nWould block, but the gate\'s QA has no such check (the evaluator\'s own rows; not blocking):\n')
+        L += ['- ' + gate._why(b) for b in eo]
     L.append('\n## Moved (%d)\n' % len(rep['qa']))
     if rep['qa']:
         L.append('| check | baseline | candidate | verdict |\n| --- | --- | --- | --- |')
@@ -239,6 +300,9 @@ def markdown(rep):
                                                                         A['gate_moved'], A['unseen']))
         L.append('- moved in both: %d (recall %s of the gate\'s, precision %s of the pre-gate\'s); the same way: %d' % (
             A['both'], A['recall'], A['precision'], A['same_way']))
+        if A.get('precision_named') is not None:
+            L.append("- on the checks the gate's QA names: the pre-gate moved %d, precision %s; moved here only: %s" % (
+                A['pregate_moved_named'], A['precision_named'], ', '.join(A['pregate_only_named'][:30]) or 'none'))
         L.append('- verdicts: gate %s, pre-gate %s' % tuple(A['verdict']))
         if A['gate_only']:
             L.append('- the gate only: ' + ', '.join(A['gate_only'][:40]))
@@ -259,6 +323,10 @@ def main(args):
         return 0
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     report = None
+    if opt('--rejudge'):
+        rep = rejudge(opt('--rejudge'))
+        print('pregate (rejudged): %s, %d blocking; %s' % (rep['verdict'], len(rep['blocking']), rep['md']))
+        return 0 if rep['verdict'] == 'PASS' else 1
     pair, into = opt('--pair'), opt('--into', 'pipeline-3d')
     spec = opt('--spec', SPEC)
     if opt('--against'):

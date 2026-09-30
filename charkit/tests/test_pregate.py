@@ -18,6 +18,18 @@ def test_judge_is_the_gates_k():
     assert {r['check'] for r in rows} == {'shape_iou', 'body_waist'}
     v, block, R, rows = pregate.judge(base, cand, {'body_*': 'a new measure'})
     assert v == 'PASS' and [r['verdict'] for r in rows if r['check'] == 'body_waist'] == ['remeasured']
+    # a check the gate's QA doesn't name (the evaluator's own rows) is reported, not blocking
+    v, block, R, rows = pregate.judge(base, cand, {}, known={'shape_iou', 'palette_skin'})
+    assert v == 'PASS' and not block and [b['check'] for b in R['evaluator_only']] == ['body_waist']
+
+
+def test_gate_names_come_from_the_reports(tmp_path=None):
+    import json, pathlib, tempfile
+    d = pathlib.Path(tmp_path or tempfile.mkdtemp())
+    json.dump({'qa': [{'check': 'body_waist'}], 'twobytwo': {'rows': [{'check': 'hair_piece_bangs'}]}},
+              open(d / 'gate_a_1_into_2.json', 'w'))
+    json.dump({'verdict': 'PASS'}, open(d / 'gate_a_1_into_2.summary.json', 'w'))
+    assert pregate.gate_names([str(d)]) == {'body_waist', 'hair_piece_bangs'}
 
 
 def test_agreement_with_a_gate():
