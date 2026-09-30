@@ -6,19 +6,19 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A (a-f) done and gated; waiting for the coordinator's merge and go-ahead for milestone B (g-l).
-- Gated: 472df97 into pipeline-3d a3073f5: **PASS** with pipeline-3d's gate code (`gate_tool-infra3_472df97_into_a3073f5`,
-  no check changed, 52 test files ok), and **PASS under K** with this branch's gate code on the same commit
-  (`gate_tmp-infra3-self_472df97_into_a3073f5`, no check changed, one note).
-- pipeline-3d then moved to 1141e74 (tool/toonrender2). Merged here (bf161b1): conflicts in charkit/cli.py (the build's
-  step timers around toonrender2's toon boards: kept both, the toon boards timed as their own step) and
-  charkit/remote.py (usage lines: both kept); gate.py auto-merged (toonrender2's cross_qa fallback check). Unit tests
-  pass; not re-gated (the coordinator decides).
-- Throwaway test branches tmp/infra3-* and tmp/hair4-gated: deleted.
+Milestone A merged (pipeline-3d b43c15e). Milestone B, subset 1 (g, the baseline finding, the boards): done and gated,
+waiting for the coordinator.
+- Gated: **3aaa9b7 into pipeline-3d ae7fd45: PASS** with pipeline-3d's gate code (`gate_tool-infra3_3aaa9b7_into_ae7fd45`:
+  no check changed, 54 test files ok, CPU 0.98x, 510 s). pipeline-3d then moved to 23492b6 (tool/face4-crown); the
+  branch merges into it cleanly (git merge-tree). Not re-gated (K: the coordinator decides). Commits after 3aaa9b7 are
+  notes only.
+- Throwaway branches tmp/infra3-* deleted. Their reports stay in this worktree's charkit/out/gate (untracked).
+- Next: subset 2, h + i (below: "Findings for subset 2" first: the function-precise code walk is the lever for both
+  h and g), then l, then k + j.
 
-## Milestone B (in progress, 2026-09-30 night)
+## Milestone B (2026-09-30 night)
 
-Subset 1 (g, the baseline finding, the boards), code done, unit-tested, being gated:
+Subset 1 (g, the baseline finding, the boards): done, gated (State above):
 - (g) **A gate carries over when pipeline-3d moves.** The report's json now holds three closures: the baseline's, the
   candidate's and each test file's (the tests run with CHARKIT_CLOSURE, one log per file, packed as indexes into one
   path list). `python -m charkit gate --carry BRANCH [--into pipeline-3d]` (laptop, no box, no build) finds the newest
