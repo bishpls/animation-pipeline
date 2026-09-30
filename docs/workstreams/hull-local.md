@@ -131,3 +131,23 @@ bun mesh's largest vertex move, in L (1 um = 4e-6 L).
   points (0.1 px); the parts' union 1 - prod(1 - c_i). Smooth everywhere (no edge or hull-membership switches), exact
   gradient (3e-10), numba kernels; L-BFGS converges in about half the evaluations (337 against 650). A pixel stride of
   s / 2 at the coarse softnesses.
+
+**The prior's strength** (support-function coverage, B2's inputs, 4 perturbations each; IoU front / profile / back):
+
+| BUN_SOFT_PRIOR | bun_L largest move (L) | bun_L IoU | bun_R largest move | bun_R IoU | s per fit L / R |
+|---|---|---|---|---|---|
+| Nelder-Mead (before) | 0.064 | 0.866 / 0.925 / 0.898 | 0.19 | 0.832 / 0.855 / 0.869 | 20 / 20 |
+| 0.001 | 2.0e-7 | 0.869 / 0.901 / 0.920 | 5.8e-8 | 0.839 / 0.908 / 0.868 | 41 / 25 |
+| **0.003 (kept)** | 1.3e-7 | 0.874 / 0.900 / 0.916 | 1.6e-7 | 0.839 / 0.907 / 0.867 | 26 / 16 |
+| 0.01 | 1.2e-6 | 0.855 / 0.885 / 0.889 | 5.7e-7 | 0.832 / 0.872 / 0.859 | 23 / 15 |
+| 0.03 | 9.3e-7 | 0.863 / 0.833 / 0.904 | 5.9e-7 | 0.818 / 0.857 / 0.831 | 15 / 11 |
+
+(The Nelder-Mead IoUs are its unperturbed fit's; across its perturbed refits they spread +-0.01-0.02.) Every lambda is
+stable once the loss is smooth; 0.003 fits best (only bun_L's profile under Nelder-Mead's, 0.900 against 0.925).
+The unit test (`charkit/tests/test_bun_fit.py`): a drawn ribbon bun whose views no one pose reproduces (each drawn
+from its own pose, rounder than our boxes), the hull's points a noisy inflated sampling; Nelder-Mead moves 0.0078 L
+under the points' 1 um move (fails), the soft fit under 1e-6 L.
+
+Jobs (2026-09-30 evening): box builds `--boards '' --no-blend` of f3682b7 (this branch: pipeline-3d 8b5ecae + the local
+hull + the stable fit) -> `charkit/out/hl_b2s`, and of tmp/face5-on-hull-local 317a41c (face5 2e4c1d6 + this branch)
+-> `~/animation-pipeline-face5hl/charkit/out/hl_b3s`. Laptop logs in `charkit/out/bunstab/build_b2s.log`, `build_b3s.log`.
