@@ -35,6 +35,12 @@ BUN_ZONE = 0.72                # L above the eye line: the buns' zone, left out 
 NECK = -0.6                    # L: the face's skin is compared above it
 BUN_RIM = 3                    # px: the outfit's bun masks grown into the hair by this much
 VIEWS = ('front', 'profile', 'back')
+# the drawing's own structure over the transferred families (docs/workstreams/hairtag.md): the sheet's hair split into
+# lock regions by its drawn lines, its faint ridges and its two cel tones (Otsu on the hair's value), each tone's runs cut
+# at their necks (a watershed of the distance to those walls, markers the h-maxima); a region whose transferred families
+# agree to `vote` takes that family whole, else keeps them per pixel. Clips drawn in the hair colour (the outfit's
+# pieces other than the buns) are not hair.
+STRUCT = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False)
 
 
 def _p(path):
@@ -174,7 +180,54 @@ def design_grid(view, ppl):
     return (cols - view.axis) / ppl, (view.eye_y - rows) / ppl, (H, W), (x0, y0)
 
 
-def transfer(fam_img, reg, figs, views, outfit_masks=None):
+def lock_regions(v, us, zs, hair, h=STRUCT['h'], tone=True):
+    """the sheet's hair on a design grid split into lock regions by its drawing: walls are the drawn lines (the raw
+    class) and faint ridges (outfit.ridges); the hair's two cel tones apart (Otsu on its value); each tone's runs cut at
+    their necks (watershed of the distance to the walls, markers its h-maxima). -> region image (0 none)."""
+    from scipy import ndimage
+    from skimage import filters, morphology, segmentation
+    from .bodyqa import CLASS
+    from .outfit import ridges
+    rgb = np.swapaxes(v.sample(v.rgb, us, zs), 0, 1).astype(float)
+    if rgb.max() > 1.5:
+        rgb = rgb / 255
+    raw = v.sample(v.raw, us, zs).T
+    inner = hair & (raw != CLASS['line']) & ~ridges(rgb)
+    val = rgb.max(-1)
+    if inner.sum() < 100:
+        return np.zeros(hair.shape, np.int32)
+    dark = (val < filters.threshold_otsu(val[inner])) if tone else np.zeros(hair.shape, bool)
+    out = np.zeros(hair.shape, np.int32)
+    for m in (inner & dark, inner & ~dark):
+        d = ndimage.distance_transform_edt(m)
+        mk, _ = ndimage.label(morphology.h_maxima(d, h) & m)
+        ws = segmentation.watershed(-d, mk, mask=m)
+        out[ws > 0] = ws[ws > 0] + out.max()
+    return out
+
+
+def vote_regions(fam, regions, hair, vote=STRUCT['vote']):
+    """each lock region whose transferred families agree to `vote` takes that family whole; the walls inside the
+    hair (lines, ridges) take their nearest region pixel's family. -> family image."""
+    from scipy import ndimage
+    out = fam.copy()
+    r = regions.ravel(); f = fam.ravel()
+    ok = (r > 0) & (f > 0)
+    n, k = int(regions.max()) + 1, len(FAMILIES) + 1
+    cnt = np.bincount(r[ok] * k + f[ok], minlength=n * k).reshape(n, k)
+    tot = cnt.sum(1)
+    top = cnt.argmax(1)
+    win = np.where((tot > 0) & (cnt.max(1) >= vote * np.maximum(tot, 1)), top, 0)
+    wv = win[regions]
+    out = np.where((regions > 0) & (wv > 0), wv, out)
+    wall = hair & (regions == 0)
+    if wall.any() and (regions > 0).any():
+        idx = ndimage.distance_transform_edt(regions == 0, return_distances=False, return_indices=True)
+        out[wall] = out[idx[0][wall], idx[1][wall]]
+    return np.where(hair, out, 0)
+
+
+def transfer(fam_img, reg, figs, views, outfit_masks=None, struct=None):
     """per view, the body sheet's hair pixels on its design grid, each with the family of the nearest breakdown family
     pixel (the buns left out) at its registered position; the outfit's bun pieces are the buns.
     -> {VIEW__FAMILY: bool image}, {view: hair pixels, per-family counts}."""
@@ -195,6 +248,11 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None):
         rows = np.clip(np.round(r['R0'] - r['S'] * zs).astype(int), 0, sub.shape[0] - 1)
         RR, CC = np.meshgrid(rows, cols, indexing='ij')
         fam = sub[idx[0][RR, CC], idx[1][RR, CC]]
+        st = dict(STRUCT, **(struct or {}))
+        if st.get('clips') and outfit_masks is not None:    # clips drawn in the hair colour: not hair
+            for k, m in outfit_masks.items():
+                if k.startswith(name + '__') and k.split('__', 1)[1] not in ('bun_L', 'bun_R') and m.shape == shape:
+                    hair &= ~m
         fam = np.where(hair, fam, 0)
         buns = np.zeros(shape, bool)
         if outfit_masks is not None:
@@ -202,6 +260,12 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None):
                 k = '%s__%s' % (name, b)
                 if k in outfit_masks and outfit_masks[k].shape == shape:
                     buns |= outfit_masks[k]
+        if st.get('vote'):
+            if st.get('bun_vote'):                           # the buns vote too: a region mostly bun is bun whole
+                fam[buns & hair] = BUNS
+            fam = vote_regions(fam, lock_regions(v, us, zs, hair, st['h'], st.get('tone', True)), hair, st['vote'])
+            if st.get('bun_vote'):
+                buns = fam == BUNS
         # the bun pieces' masks stop a pixel or two inside the drawn hair's outline: their rim is bun too
         buns = ndimage.binary_dilation(buns, iterations=BUN_RIM) & hair if buns.any() else buns
         fam[buns] = BUNS

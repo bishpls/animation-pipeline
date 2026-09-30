@@ -47,6 +47,22 @@ def test_score_known_answers():
         raise AssertionError('a grid other than the truth\'s must be refused')
 
 
+def test_a_lock_region_takes_its_agreeing_family_whole():
+    """vote_regions: a region 70% bangs becomes bangs whole; a 50/50 region keeps its pixels; a wall pixel inside the
+    hair takes its nearest region's family."""
+    hair = np.ones((10, 20), bool)
+    regions = np.zeros((10, 20), np.int32)
+    regions[:, :9] = 1; regions[:, 10:] = 2                 # column 9: a drawn line (a wall)
+    fam = np.zeros((10, 20), np.int32)
+    fam[:, :9] = 1; fam[:3, :9] = 3                        # region 1: 70% bangs (1), 30% upper_back (3)
+    fam[:, 10:] = 2; fam[:5, 10:] = 4                      # region 2: 50/50
+    fam[:, 9] = 4
+    out = hl.vote_regions(fam, regions, hair, 0.6)
+    assert (out[:, :9] == 1).all()
+    assert (out[:, 10:] == fam[:, 10:]).all()
+    assert (out[:, 9] == 1).all() or (out[:, 9] == np.where(np.arange(10) < 5, 4, 2)).all()
+
+
 def test_tracked_truth_matches_its_source():
     """hair_truth.npz is what `hairlayers truth` makes from hair_truth.json: the source is the record, the npz its
     product (tracked so a score needs no rebuild)."""

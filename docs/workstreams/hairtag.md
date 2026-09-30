@@ -82,3 +82,59 @@ across at the breakdown's height, the drawing's layer edge is the scalloped shad
 upper_back 2,036; profile lower_back called side_locks 1,388 and upper_back called lower_back 1,099 (bands across drawn
 locks); front flyaways spilling over the outer masses 938; profile upper_back called ahoge 916; the profile's bun strand
 called ahoge 552 (the breakdown's cyan strand segments as the ahoge's teal); the crab called bangs 291.
+
+## The method: the drawing's structure over the transferred families
+
+`hairlayers.transfer` gave every body-sheet hair pixel the family of the nearest breakdown pixel at its registered
+position, so a family boundary is wherever the other generation's boundary lands, straight across the body sheet's
+drawn locks (the back's layer edge cut at the breakdown's height through the central lobe). Now (`hairlayers.STRUCT`,
+default on):
+- **lock regions** (`lock_regions`): the sheet's hair split by its own drawing: the drawn lines (the raw class) and
+  faint ridges (`outfit.ridges`) as walls, the hair's two cel tones apart (Otsu on its value: base and shadow; no
+  palette), each tone's runs cut at their necks (a watershed of the distance to the walls, markers its h-maxima,
+  h = 1.5 px), so partial strokes still part locks;
+- **the vote** (`vote_regions`): a region whose transferred families agree to 0.6 takes that family whole, else keeps
+  them per pixel; the walls take their nearest region's family;
+- **clips** are not hair: the outfit's pieces other than the buns (the crab, drawn in the hair colour) leave the hair.
+
+The breakdown still decides the families; the body sheet now decides where they part. No colour tuning: the tones are
+the hair's own two modes.
+
+`tools/hairtag/lab.py OUT [--outfit M.npz] 'name|{struct}' ...` runs variants from a cached context (about 5 s each).
+
+| variant (field outfit masks) | front | profile | back | all | mean IoU | bangs | side | upper | lower | buns | ahoge | fly |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| before (pipeline-3d) | 0.904 | 0.855 | 0.907 | 0.892 | 0.732 | 0.937 | 0.806 | 0.792 | 0.649 | 0.978 | 0.560 | 0.401 |
+| clips only | 0.908 | 0.860 | 0.907 | 0.895 | 0.736 | 0.952 | 0.815 | 0.799 | 0.649 | 0.977 | 0.560 | 0.401 |
+| regions, no tone split | 0.933 | 0.909 | 0.911 | 0.917 | 0.820 | 0.972 | 0.888 | 0.835 | 0.670 | 0.969 | 0.973 | 0.434 |
+| **regions + tones, vote 0.6 (default)** | **0.918** | **0.944** | **0.995** | **0.958** | **0.826** | 0.963 | 0.846 | 0.955 | 0.870 | 0.977 | 0.786 | 0.383 |
+| vote 0.5 / 0.75 | 0.893 / 0.911 | 0.944 / 0.889 | 0.995 / 0.994 | 0.951 / 0.941 | 0.800 / 0.776 | | | | | | | |
+| h 1.0 / 3.0 | 0.918 / 0.881 | 0.938 / 0.947 | 0.990 / 0.993 | 0.955 / 0.947 | 0.823 / 0.809 | | | | | | | |
+| buns vote too | 0.915 | 0.946 | 0.993 | 0.957 | 0.826 | | | | | 0.971 | | |
+
+Wrong pixels 18,443 -> 7,128. Largest left (default): front lower_back called upper_back 1,784 (the right outer mass's
+shadowed underside votes with its lit part), profile lower_back called side_locks 1,050, front flyaways over the outer
+masses 937, front lower_back called side_locks 611, the profile's under-bun strand 552 (called pin_star by the field's
+outfit masks, so the clip rule drops it), the profile's far-bun peek 351 (bun_R side still 0.003).
+
+**Caveat on the numbers** (as outfit-source's): the truth's rule 2 (the shadow tone below the head is the under layer)
+and the method's tone split share a premise. The back's gain (0.907 -> 0.995) is that premise. Without the tone split
+the regions alone score 0.917 (front 0.933, profile 0.909, back 0.911); the tone split costs the front 0.015 (the
+ahoge's shaded half joins the crown's shadow and votes bangs: ahoge 0.973 -> 0.786) and gains the back and profile.
+
+## The coupling: the outfit masks the hair layers read
+
+`bun_sides` and the buns family are the outfit's bun pieces, and the clip rule reads its pin pieces. tool/garments3
+merges tool/outfit-source's sheet-only masks (read-only from `~/animation-pipeline-garments3`, its produced
+`outfit_masks.npz`: 0.9722 on the outfit truth, the field's 0.865).
+
+| hair layers | outfit masks | front | profile | back | all | mean IoU | buns | profile bun_L side |
+|---|---|---|---|---|---|---|---|---|
+| before | field (pipeline-3d) | 0.904 | 0.855 | 0.907 | 0.892 | 0.732 | 0.978 | 0.974 |
+| before | sheet-only (garments3) | 0.905 | 0.829 | 0.907 | 0.885 | 0.721 | 0.948 | 0.853 |
+| default | field | 0.918 | 0.944 | 0.995 | 0.958 | 0.826 | 0.977 | 0.968 |
+| default | sheet-only | 0.920 | 0.911 | 0.994 | 0.950 | 0.821 | 0.948 | 0.853 |
+
+The sheet-only masks cost the hair's buns in profile (profile buns called upper_back 1,258 px: outfit-source's known
+miss, the buns' undersides) and there is no profile bun_R at all (the field's masks had 2 px of it). The structure
+method's gain holds under both (+0.066 / +0.065).
