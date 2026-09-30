@@ -1,7 +1,9 @@
 # Workstream: artifact QA, measuring "obvious jaggedness" (`tool/artifacts`)
 
-**State (2026-09-30): round 2 done; final gates running at `9e3691c`** (see "Gates" below: fill in the verdicts).
-pipeline-3d `9397578` is merged in (`0976017`; conflicts in qa3d.PARTS and history.STEPS, both sides kept). Round 2:
+**State (2026-09-30): round 2 done; re-gating at `f87620c` into pipeline-3d `cfcdc3a`** (fill in below).
+pipeline-3d `9397578` merged (`0976017`), then `cfcdc3a` (`f87620c`: self-registration; qa3d.py and history.py took the
+new side; the part is `@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')` on `artifactqa.measure`;
+the steps are in `charkit/steps/artifactqa.py`, text unchanged; `test_registry.py` ok). Round 2:
 1. **Step 0, the design's stamp** (`2a963bb`, `15ec3f7`): the stamp now hashes the outfit masks' bytes and the graph's
    piece id/type pairs (what `design_body` reads), not the produced `outfit_graph.json` (its springs and comparison
    differ between copies and specs while the masks are bit-identical: laptop, the box's artifacts/3d/body copies and
@@ -17,12 +19,25 @@ pipeline-3d `9397578` is merged in (`0976017`; conflicts in qa3d.PARTS and histo
    the body frame started 0.5 L under the eyes and cut the hull sleeves' caps (and the collar's top) off: it starts
    at 0.2 L now; a wrong row-to-height map in the body frame (sign) is fixed before any check used it.
 
-**Gates** (fill in when the reports land: `charkit/out/gate/gate_tool-artifacts_9e3691c_into_9397578*.md`; logs
-`charkit/out/gate_default_4.log`, `gate_mh_4.log`). The earlier pair at `15ec3f7` (step 0 only, before the vote fix)
-is in `gate_*_3.log`. Expect PASS (every new check INFO), no `art_design` note, CPU seconds within 3%.
+**Gates:**
+- `9e3691c` into `301b661` (before the self-registration merge), both **PASS**: tests all ok, every art_* check new,
+  no `art_design` note (the stored design served both specs). Build CPU seconds: default 1381.3 -> 1275.3, clawd_mh
+  328.0 -> 324.2 (within 3%: step 0 done). Reports `charkit/out/gate/gate_tool-artifacts_9e3691c_into_301b661{,_clawd_mh}.md`.
+  (The earlier pair at `15ec3f7` lost its ssh session at the box's load 56; no report.)
+- `f87620c` into `cfcdc3a`: running (`charkit/out/gate_default_5.log`, `gate_mh_5.log`); fill in.
+- The gate's build diff shows `hair` knobs changed between base and candidate though this branch touches no spec or hair
+  file: the gate's own (the candidate is built as `+dirty`); for the integrator.
+
+**Statuses:** the checks calibrated on a flag (`artifactqa.CALIBRATED`, 15: outline_neck, speckle_neck,
+outline_collar, fragments_collar, terminator_hair, peeks_hair, spikes_boots, bumps_boots, points_boots,
+mirror_self_boots, mirror_waist, points_sleeves, bumps_sleeves, bumps_legs, band_lower) report their proposed grade
+capped at WARN until the integrator promotes them (`PROMOTED`); all other art_* checks stay INFO with the proposed grade
+beside. On the current build 8 read WARN: outline_neck, outline_collar, fragments_collar, terminator_hair, peeks_hair,
+points_sleeves, bumps_sleeves, band_lower. The perceptual result (8ae6ce9) found the region-mean metric blind to local
+defects; these per-flag geometric checks are the signal (the coordinator: rho 0.59 against Michael's labels).
 
 **Next steps, in order:**
-0. Read the two final gate reports; record the verdicts, the CPU line and the `art_design` note's absence here.
+0. Read the `f87620c` gate reports; record the verdicts here (expect PASS; the calibrated checks' WARNs are new).
 1. Report to the integrator (the summary table below, the review page, the open items).
 2. When a flagged area's fix lands (tool/garments2's sleeves, tool/skirt's band, tool/hull-limbs' thigh), re-read its
    check on that build: it should drop to PASS. That's the "good build" several flags still lack.
