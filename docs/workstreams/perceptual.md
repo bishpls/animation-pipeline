@@ -9,6 +9,8 @@ GPU render box), never in a gate.
 clearly beat the geometric checks** (primary LOO rho 0.007 against the checks' -0.138; the difference's 90% interval
 [-0.16, 0.46] spans 0). So no limits are proposed, `perceptual_calibration.json` isn't written (every grade stays INFO),
 and nothing is wired into the preview page. Nothing is running on the boxes. pipeline-3d 9397578 is merged in (92e8fe2).
+**Gate: PASS**, 5657ef1 into pipeline-3d 120d197 (build box): no check changed, all tests ok including
+test_perceptual.py; report `charkit/out/gate/gate_tool-perceptual_5657ef1_into_120d197.md`. Later commits are notes only.
 Review page: `charkit/out/perceptual_calibration/index.html` (the decision, the variants, the "why" numbers, each pair
 side by side, each flag's heat map). Every build's pass: `charkit/out/perceptual_runs/NAME/perceptual/` (json, heat maps,
 `maps.npz`), from the render box's `charkit/out/perceptual_in/`.
