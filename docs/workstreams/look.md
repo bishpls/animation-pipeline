@@ -334,6 +334,15 @@ now, and the line's edges carry the anti-aliasing difference (16 regular samples
 - Taste point: the garment lines now show at full width, so the body boards carry 21-30% more ink. If they read heavy,
   `look.lines.regions.garment` (1.0) is the dial (call B).
 
+### Gates (712a0a3 into pipeline-3d cfcdc3a)
+
+- `python -m charkit remote gate tool/look3 --into pipeline-3d`: **PASS**. Every test ok; moved: `line_width` 1.0 ->
+  1.133 INFO (remeasured; 2x2: new geometry under the old measure 0.942, old geometry under the new 1.0), `shape_iou`
+  0.884 -> 0.885, `shape_iou_torso` 0.933 -> 0.934 (INFO). Build 285.8 -> 291.0 s.
+- `... --spec charkit/spec/clawd_mh.json`: **PASS**. Moved: `line_width` 0.942 -> 1.133 INFO (remeasured; 2x2 0.912
+  under the old measure), `face_shadow_neck_3q` 0.1074 -> 0.1071 INFO. Build 205.3 -> 235.5 s.
+- Later commits (4c48e19, 189bb70) touch only these notes, `charkit/lookab.py` and the charkit-look harness's flag.
+
 ### Tools (the look's)
 
 | | |
