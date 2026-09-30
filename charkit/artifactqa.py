@@ -50,6 +50,8 @@ worst view's excess over the design's, or ratio to it. Calibration: see docs/wor
 """
 import numpy as np
 
+from .registry import qa_part
+
 REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots')
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 S1, S2 = 0.004, 0.02        # L: the band's fine and coarse smoothing along the outline (S1 at least 1 px)
@@ -1225,6 +1227,39 @@ SHAPE_CHECKS = {             # check -> (measure, key, how it's compared, the de
 }
 
 
+# The checks calibrated on Michael's flags: each passes on the design and warns or fails on the build where he saw the
+# flag (docs/workstreams/artifacts.md). They report their proposed grade capped at WARN until the integrator promotes
+# them (PROMOTED: then the grade itself); every other check stays INFO with its proposed grade beside it.
+CALIBRATED = {
+    'outline_neck': 'the wiggly neck outline, the collar tips across it (look_v5)',
+    'speckle_neck': 'the dotted neck seam (look_v5)',
+    'outline_collar': 'the torn collar tips (look_v5)',
+    'fragments_collar': 'the torn collar tips (look_v5)',
+    'terminator_hair': 'the torn hair shadow patches (look_v5)',
+    'peeks_hair': 'the fragments at the lock tips (look_v5)',
+    'spikes_boots': "the boots' jagged protrusion (round 4)",
+    'bumps_boots': "the boots' knobs: the twisted ankle, the heelless doubled toe (round 4)",
+    'points_boots': "the boots' pointed corners (round 4)",
+    'mirror_self_boots': 'the boots uneven between the feet (round 4)',
+    'mirror_waist': 'the midriff distorted on one side (round 5; round 4)',
+    'points_sleeves': "the puff sleeves' pointed caps (the hull sleeves)",
+    'bumps_sleeves': "the puff sleeves' spiky caps (the hull sleeves)",
+    'bumps_legs': 'the bump behind the thigh in profile (round 5)',
+    'band_lower': "the skirt and flaps' zigzag hem band (round 6)",
+}
+PROMOTED = ()               # calibrated checks the integrator has promoted: their grade is their status
+
+
+def promote(C):
+    """the checks' statuses: a CALIBRATED one's proposed grade capped at WARN (PROMOTED: uncapped), the rest INFO."""
+    for k, c in C.items():
+        g = c.get('grade')
+        if k in CALIBRATED and g and c.get('value') is not None:
+            c['status'] = g if k in PROMOTED else 'PASS' if g == 'PASS' else 'WARN'
+            c['flag'] = CALIBRATED[k]
+    return C
+
+
 def shape_checks(ours_m, design_m):
     """the silhouette checks (SHAPE_CHECKS): per view ours, the design's and ours beyond it (an excess in the measure's
     unit, or a ratio to the design's, the design's floored), the worst view's as the value; INFO, with the proposed
@@ -1488,9 +1523,11 @@ def store_design(bdir):
     return path
 
 
+@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')
 def measure(B, design=None, out=None):
-    """the artifact part: ours on the QA's numpy drawings, the design's turnarounds measured the same way (stored:
-    design_measures), graded as ratios -> (table, checks)."""
+    """the artifact part (QA part 'artifacts', after the look): ours on the QA's numpy drawings, the design's turnarounds
+    measured the same way (stored: design_measures), graded against the design -> (table, checks). A check CALIBRATED on
+    one of Michael's flags reports its proposed grade capped at WARN (promote() lifts the cap); the rest are INFO."""
     D, note = design_measures(B, design) if design is not None else ({}, 'no design')
     ctx = design.sheet_context() if design is not None else {'why': 'no design'}
     body_ppl = None if 'why' in ctx else ctx['ppl']
@@ -1498,7 +1535,7 @@ def measure(B, design=None, out=None):
     pics = [] if out else None
     O = ours(B, az3, body_ppl if D.get('body') else None,
              body_page=(ctx['rgb'].shape[0] if 'rgb' in ctx else 1440), pictures=pics)
-    C = checks(O, D)
+    C = promote(checks(O, D))
     if note:
         C['design'] = {'status': 'INFO' if D else 'SKIPPED', 'why': note}
     if out and pics:

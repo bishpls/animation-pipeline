@@ -12,7 +12,7 @@ pipeline-3d `9397578` is merged in (`0976017`; conflicts in qa3d.PARTS and histo
    (`$CHARKIT_PRODUCED_CACHE/artifacts_design/STAMP-EYEX.json`), not once per build.
 2. **Michael's flags as calibrated checks** (`2a963bb`..`b9bc3bd`): silhouette detectors on the body frame, graded
    against the design in the same view; each passes on the design and fails on the build where he saw the flag
-   (table below). Registered in `history.STEPS` at `b9bc3bd`.
+   (table below). Registered at `b9bc3bd` (since the self-registration merge: `charkit/steps/artifactqa.py`).
 3. **Fixed on the way:** the boots region read only the cuffs since round 5 (`boot_L`/`boot_R` weren't in OBJECTS);
    the body frame started 0.5 L under the eyes and cut the hull sleeves' caps (and the collar's top) off: it starts
    at 0.2 L now; a wrong row-to-height map in the body frame (sign) is fixed before any check used it.

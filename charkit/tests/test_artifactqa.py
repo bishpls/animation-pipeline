@@ -232,6 +232,24 @@ def test_a_stale_design_is_measured_once_per_machine(tmp_path, monkeypatch):
     assert made == [1, 1, 1]
 
 
+def test_calibrated_checks_warn_until_promoted_the_rest_stay_info():
+    C = {'outline_neck': {'value': 7.9, 'grade': 'FAIL', 'status': 'INFO'},
+         'bumps_legs': {'value': 0.0, 'grade': 'PASS', 'status': 'INFO'},
+         'outline_top': {'value': 3.6, 'grade': 'FAIL', 'status': 'INFO'}}
+    A.promote(C)
+    assert C['outline_neck']['status'] == 'WARN' and C['outline_neck']['flag']
+    assert C['bumps_legs']['status'] == 'PASS'
+    assert C['outline_top']['status'] == 'INFO'
+    assert set(A.CALIBRATED) <= {'%s_%s' % (d, r) for d in list(A.DETECTORS) + ['peeks'] for r in A.REGIONS} | \
+        {'%s_%s' % (k, r) for k, v in A.SHAPE_CHECKS.items() for r in v[5]}
+
+
+def test_the_part_is_registered_after_the_look():
+    from charkit import registry
+    P = {p.name: p for p in registry.parts()}
+    assert P['artifacts'].fn is A.measure and P['artifacts'].prefix == 'art_' and P['artifacts'].order > P['look'].order
+
+
 if __name__ == '__main__':
     import pytest
     sys.exit(pytest.main([__file__, '-q']))

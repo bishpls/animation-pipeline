@@ -507,7 +507,8 @@ def build(spec, until=None, skip=(), cache=None):
 
 # ------------------------------------------------------------------------------------------------------------------ boards
 def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
-    """render the review boards into out/: head views (front .. back), the expression and mouth sets, full-body views."""
+    """render the review boards into out/: head views (front .. back), the expression and mouth sets, full-body views,
+    the head in the design's projection ('design')."""
     import bpy
     from . import qa
     from .boards.face_board import set_expr, set_mouth, set_preset
@@ -532,6 +533,19 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
         H_ = S.spec.get('body', {}).get('height_m', 1.6)
         made += qa.render_views(cam, [V((0, 0, H_ * 0.52), az, 6.0, 0.0, os.path.join(out, f'body_{az:03d}.png'),
                                         ortho=H_ * 1.12) for az in (0, 35, 90, 180)])
+    if 'design' in which:
+        # the design's projection (head_turnaround's: level and orthographic), for review close-ups (charkit.preview crops
+        # them to the design's scale): centred on the head at its eye line, 2.4 L across at 400 px per L (head_turnaround
+        # is ~400 at its own size), at the design's azimuths (0, 35, 90, 180) and a turntable. The views above look from a
+        # perspective camera 1 m out, which rounds the chin. (Local constants: scene's top level keys every stage.)
+        DESIGN_WINDOW, DESIGN_PPL = 2.4, 400
+        DESIGN_AZ = (0, 30, 35, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330)
+        n = int(round(DESIGN_WINDOW * DESIGN_PPL))
+        sc.render.resolution_x, sc.render.resolution_y = n, n
+        c = A['head'].get('centre')
+        c = (0.0, 0.0, eye_z) if c is None else [float(x) for x in c]
+        made += qa.render_views(cam, [V((c[0], c[1], eye_z), az, 4.0, 0.0, os.path.join(out, f'design_{az:03d}.png'),
+                                        ortho=DESIGN_WINDOW * L) for az in DESIGN_AZ], features=feats)
     if 'expressions' in which:
         sc.render.resolution_x, sc.render.resolution_y = 600, 600
         made += qa.render_views(cam, [V((0, 0, eye_z - 0.02 * L), 0, 0.42, 0.0, os.path.join(out, f'expr_{e}.png'),
