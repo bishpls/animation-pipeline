@@ -221,9 +221,9 @@ def _skel_len(m, ppl):
     return float(skeletonize(m).sum()) / ppl if m.any() else 0.0
 
 
-def crease(lobe, line, ppl, side, band=EDGE_BAND, close=0.012):
+def crease(lobe, line, ppl, side, band=EDGE_BAND, close=0.012, band_px=None):
     """the lines drawn inside a lobe: its silhouette (the lobe's mask closed over its own lines and filled) less a band
-    `band` L inside its edge; the line pixels there. side 'L' (the picture's right: outward is +x) or 'R'.
+    `band` L inside its edge (or band_px pixels: a picture at an unknown scale); the line pixels there. side 'L' (the picture's right: outward is +x) or 'R'.
     -> dict(len (their skeleton's length over the lobe's width), dir (degrees from the horizontal, outward and up +),
     u, v (their centre across the lobe: u 0 at the knot's end .. 1 at the outer end, v 0 top .. 1 bottom), px) or None
     when the lobe is too small."""
@@ -233,7 +233,7 @@ def crease(lobe, line, ppl, side, band=EDGE_BAND, close=0.012):
         return None
     F = ndimage.binary_fill_holes(ndimage.binary_closing(lobe | (line & ndimage.binary_dilation(lobe, iterations=3)),
                                                          structure=pq.disk(max(1, int(round(close * ppl))))))
-    inner = ndimage.distance_transform_edt(F) > band * ppl
+    inner = ndimage.distance_transform_edt(F) > (band * ppl if band_px is None else band_px)
     L_ = line & inner
     ys, xs = np.nonzero(F)
     w = (np.ptp(xs) + 1) / ppl
@@ -258,11 +258,22 @@ def crease(lobe, line, ppl, side, band=EDGE_BAND, close=0.012):
     return out
 
 
-def part_measures(knot, lobes, line, ppl):
+def line_width(line):
+    """a line mask's typical width (px): twice the median distance to its edge along its skeleton."""
+    from scipy import ndimage
+    from skimage.morphology import skeletonize
+    if not line.any():
+        return 0.0
+    d = ndimage.distance_transform_edt(line)
+    sk = skeletonize(line)
+    return 2.0 * float(np.median(d[sk])) if sk.any() else 1.0
+
+
+def part_measures(knot, lobes, line, ppl, band_px=None):
     """the knot's rectangle and outlined share and each lobe's crease on one picture's masks (lobes {'L', 'R'})."""
     other = lobes.get('L', np.zeros_like(knot)) | lobes.get('R', np.zeros_like(knot))
     return dict(knot=knot_rect(knot, ppl), knot_line=outline_share(knot, line, other),
-                crease={s: crease(m, line, ppl, s) for s, m in lobes.items()})
+                crease={s: crease(m, line, ppl, s, band_px=band_px) for s, m in lobes.items()})
 
 
 def design_lines(dvv, sh=None):
