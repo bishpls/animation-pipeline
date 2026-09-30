@@ -1,5 +1,115 @@
 # Garments as pieces (tool/garments)
 
+## Checkpoint: end of round 3 (2026-09-29). Start here.
+
+**Branch** `tool/body` in `~/animation-pipeline-body`. The head is the commit that adds this section (see
+`git log -1`). It contains `pipeline-3d` f3e8747 (merged at a456834). Round 2 is merged into `pipeline-3d` at 76d5bdc.
+The authored specs are `charkit/spec/clawd_body.json` (tracked) and `charkit/out/remote/clawd_body_pieces.json`
+(gitignored; it carries the same garment edits; the box sync includes `charkit/out/remote/*.json`).
+
+**Gate state** (both into `pipeline-3d` 966ad22, on a456834, before the refit at be410e0):
+
+| gate | verdict | detail | report |
+|---|---|---|---|
+| default spec | **PASS** | | `charkit/out/gate/gate_tool-body_a456834_into_966ad22.md` |
+| `--spec charkit/spec/clawd_body.json` | **FAIL** | one check worse: `body_back_iou_skin` 0.731 PASS → 0.671 WARN (the flap tails hid the backs of the thighs) | `…_into_966ad22_clawd_body.md` |
+
+The flap refit at be410e0 targets that failure: the evaluator reads 0.728 PASS. It hasn't been box-built or gated
+yet. **Next step: box-build and re-gate both specs.**
+
+**Round 3 box numbers:** `charkit/out/body3` (clawd_body.json, a456834's garments, before the refit).
+
+| | check | round 2 | round 3 |
+|---|---|---|---|
+| Boots | `body_{front,back}_leg_gap` | 0.108 / 0.127 L FAIL (bridge at z −5.19 … −5.32) | 0 PASS |
+| | `boot_step` (all four) | | ≤ 0.005 L PASS |
+| | `piece_boot_L` / `_R` | 0.804 / 0.838 | 0.863 / 0.894 |
+| Poke | `poke_share` | 0.0203 FAIL | 0.0134 WARN (wrist cuffs 44 / 37 → 0) |
+| Skirt | `front_skirt_width` | 0.795 FAIL | 1.047 PASS |
+| | `three_quarter_hem` | WARN | 0.0235 PASS |
+| | `back_skirt_width` | | 1.102 WARN (remeasured) |
+| | `front_skirt_aline` | | 0.001 PASS |
+| | `three_quarter_skirt_aline` | | −0.219 FAIL (see below) |
+| | `piece_skirt` | | 0.804 |
+| Flaps | `piece_overskirt_panel_L` / `_R` | 0.451 FAIL / 0.526 WARN | 0.348 / 0.453 FAIL |
+| | `_extent` L / R | | 0.075 / 0.042 PASS |
+| | `_hang` L / R | | 0.083 / 0.095 PASS |
+| Other | `body_profile_chest` | | 0.036 WARN |
+| | `waist_skin` (all views) | | 0 |
+| | wrist cuffs L / R | | 0.403 / 0.774 |
+
+- The piece checks for the skirt and flaps are registered as *remeasured* (same-colour layers), but the flaps'
+  geometry changed at the same step. Don't read "remeasured" as neutral.
+- The refit (be410e0) in the evaluator: flap fit 0.234 → 0.329, with front 0.61 / 0.67, back 0.50 / 0.64,
+  three-quarter 0.23 / 0.44, profile L 0.13.
+- The review renders are on the render box's output: `charkit/out/body3_render/sheet_body.png` (the design over
+  ours at 0 / 35 / 90 / 180). Its `boards/` came back empty; find out why before relying on it.
+- Round 2's page is `charkit/out/review_body2/index.html`. Round 3's generator is `review3.py` in the old session's
+  scratch folder, which is lost. Rebuild it from `review.py`'s pattern: the design over ours at four views, a
+  MakeHuman / checkpoint / round 2 / round 3 table, crops of the boots and flaps.
+
+**Not done: the 2 × 2 the coordinator asked for.** Score round 2's flap geometry (template panels under the skirt,
+clawd_body.json at 849b9a7) and round 3's (be410e0) under both the old measure (the graph's old layer: panels
+*under* the skirt) and the new one (panels *over* it, the same-colour rule in `bodymeasure.piece_shapes`). The rule
+fires only when the graph's `layer.over` holds the same-coloured piece, so toggle the overskirt entries' `layer`
+in a copy of the graph. Keep the masks. Then judge the flaps against the design views on the page: Michael's
+complaint was "too small, tucked under", so the render comparison outweighs the piece IoU.
+
+**Chain ownership** (one owner per stage, keeping stages cacheable):
+- garments shapes the flap and defines its chain's path as data;
+- tool/rig makes the bones and weights in the rig stage from the outfit graph's `springs`;
+- tool/motion simulates and exports them.
+
+`garments.flap` no longer adds bones (that made the garments stage uncacheable). It rides `hips` rigidly and
+returns `chain` (bone names `overskirt_panel_L_0`…, joints, per-vertex arc length). `charkit/flapchains.py`
+(`python -m charkit flapchains SPEC [--build DIR]`) writes each flap's chain into the notes as `chain`, then
+relayers. `outfit.apply_notes` puts a noted `chain` into the graph's springs.
+- **Its bug:** notes entries aren't all one line (lines 19, 22 and 26 span several), and `write()` parses line by
+  line. It raises before writing anything. Fix: parse the whole file, set `chain`, and re-emit only the flaps'
+  entries.
+- Until it runs, the graph's overskirt chains are the design's (a vertical drop at the hem's radius). Tell tool/rig
+  once they're written.
+
+**Open items:**
+1. **The flaps.** Box-build and gate the refit; the 2 × 2; three-quarter is still weak because the drawn tails show
+   broad beside the legs and ours sit behind (try letting the tail roll outward like a flag, then refit). The tails
+   are 0.40 L from the legs, which is ample for colliders.
+2. **The collar onto the neck's flare.** tool/face made the neck slender, flaring into the shoulders
+   (`code_base._join_neck` in their worktree, not merged yet). Our collar rides up to the torso's top ring like a
+   turtleneck; the design lays a sailor collar on the shoulders and chest. Seat it on the flare: a hull-lofted
+   collar, or seat the template on the body's surface below the neck. Coordinate against tool/face's branch.
+3. **Torn collar tips and bow edges** near the neck in three-quarter and side views (jagged fragments). Measure
+   them: small disconnected fragments per piece and outline roughness against the design's. An artifact-measurement
+   workstream will provide a shared detector. Then fix them; the likely cause is near-coincident surfaces between the
+   collar, bow and top.
+4. **The loft on marginal coverage:** done (2c01410). `loft.field` lets the best rows stand in, warns, and records
+   `LOW_COVERAGE`; the build keeps `charkit_coverage` on the object and QA reports `garment_coverage` (INFO). Still
+   to confirm: a render-box build of clawd_body.json that used to die in garments.
+5. **Wrist-cuff clearance:** done (cec59df). `band_hull` clears the skin by 0.006 L plus its thickness. The left
+   wrist cuff's piece score is still 0.40 FAIL: the drawn cuffs are boxy, and rounding costs silhouette score.
+6. **Waistband (0.45 FAIL) and shorts (0.42 FAIL):** not started.
+7. The three-quarter skirt A-line (−0.22) goes with the flaps: at the hem the design's rows are widened by the
+   drawn tails, which ours hide from that camera.
+
+**Gotchas:**
+- `charkit/out/hull/clawd` and `charkit/out/clawd/outfit` were hard-linked across five worktrees until 18:08, so one
+  worktree's rebuild wrote through to all. They're private now, rebuilt here from this worktree's code (hull 18:18,
+  outfit 18:19). Evaluator numbers from before then may differ from box builds.
+- Box builds build their own hull and outfit from code plus tracked notes (the sync leaves gitignored files at home,
+  except `charkit/out/remote/*.json`), so graph edits must come from `outfit.py` and the notes. That's why chains
+  go through the notes.
+- The render box needs `infra/gcp/render.env` (gitignored). It was copied here from `~/animation-pipeline-3d`.
+- Hull labels differ by about 3% between machines at piece boundaries (a hull-determinism workstream is on it). The
+  loft now degrades rather than raising.
+- Gates run in parallel on `pipeline-3d` ≥ f3e8747. A non-default spec's report ends in `_clawd_body.md`.
+- Interactive git (`git add -p`) doesn't work here: commit whole files.
+- Fast evaluator loop: build a `bodyeval.Evaluator` on clawd_body.json with `head_code` / `body_code` from a build's
+  `geom/` (e.g. `charkit/out/body3/geom`). Then run `E.geometry(spec=…).bundle('viewport')`,
+  `bodymeasure.piece_views`, `piece_shapes`, `qa3d.grade_pieces` and `bodymeasure.sheet_body`: about 20 s per run,
+  about 0.5 s per flap candidate when only the flap objects are swapped in a cached bundle.
+- The poke proxy on the evaluator's bundle (qa3d.poke's rays against the masked skin) overcounts against the build
+  (skirt 780 against 153) but ranks changes correctly.
+
 ## What changed
 
 Each outfit piece can take its shape from the visual hull (`source: "hull"` on a garment spec), rather than from the

@@ -1,5 +1,21 @@
 # The authored body, fitted to the hull (plan)
 
+## Checkpoint: end of round 3 (2026-09-29). Start here.
+
+The branch, gates, numbers, open items and gotchas are in `docs/workstreams/garments.md` (its checkpoint section);
+the body and the garments share `tool/body`.
+
+The body-side state:
+- **Chest in profile:** `body_profile_chest` is 0.036 L flatter than the design (WARN). What remains is the bow's
+  very top and bottom rows (z −0.65 and −0.90 L).
+- **Waist:** `waist_skin` is 0 in every view (the checkpoint's bare waist read 0.09 FAIL).
+- **Torso bounds:** the torso stays behind the bow and its tails by their measured depth (`code_body.IN_FRONT`,
+  counting only the bow's hull points inside its drawn extent).
+- **Owned elsewhere:** tool/face owns the torso's top rows and the neck join (its new slender neck isn't merged
+  yet; the collar will need re-seating on it). tool/rig owns the skin and garment weights, joints and twist bones.
+- **Hull and outfit:** private to this worktree since 18:08, rebuilt from its own code at 18:18.
+
+
 Why: garments lying on the body (the collar, a hull-true top, sleeves, cuffs) end up inside the MakeHuman body, which
 isn't the design's. Its waist sits about 0.3 L low, it's up to 0.12 L wider at the sides, and its back stands out.
 The loose pieces (skirt, waistband, bow) work only because they sit outside the body or hide it.
