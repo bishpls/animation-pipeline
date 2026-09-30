@@ -235,6 +235,25 @@ Residuals, explained:
 - The VRM checks its own skin weights (`gltf.check` -> `skin_weights`): per skinned primitive, weights >= 0, the sum
   within 1e-5 of 1, every weighted joint inside its skin; faults are errors (the export fails). On existing exports:
   0 errors, sums within 1.4e-7. gltf.py is EXPORT_CODE, so the gate's candidate builds with --vrm and runs it.
+- **crab_1's stage drift (2.05e-4 L, since face4), attributed** (local, m4_clawd's own code products, scripts in
+  `charkit/out/evalmesh/crab/`). The crab moves rigidly: rotated 0.24 deg and shifted 9.8e-5 L, residual 2.5e-7 L.
+  Its anchor is nearly the same; the hair volume's slope under it isn't. The star, 14 deg away, is 2.4e-7 L. Ruled out:
+  - the volume's ray cast (mathutils float32 against charkit.geom): the same 7,139 rays, 0 hit/miss flips, the grid
+    within 3.5e-7 L, the crab within 6e-8 L between the two;
+  - the gridded `bodyeval.cull_face` against the build's exact `Face.y`: 1 vertex decided differently (az 28, el -62),
+    the crab unchanged;
+  - the analytic clipping: no cell round either accessory is clipped.
+  **The cause: the selection's signed distance** (`i3d.hair_by_outside` in Blender, `bodyeval.hair_by_outside` in
+  the venv: (p - nearest) . normal). Blender's `find_nearest` returns the polygon's normal (Newell's to 0.03 deg), and
+  on a tie (the nearest point on a shared edge or vertex, usual 0.5 L out) whichever polygon its float32 BVH reaches
+  first. The port takes its own triangle. On the same inputs, 1,804 of 75,006 generated vertices get the other sign at
+  `clear` (normals a median 103 deg apart at the same nearest point, 2.2e-7 L apart). 117 survive the masks (24 only
+  ours, 93 only Blender's, one at az 12, el 27 beside the crab). **With Blender's selection the evaluator's crab is
+  2.7e-7 L from the bundle's.** face4 moved the head's vertices and exposed a latent tie near the crab; it isn't a
+  face4 fault.
+  Not fixed here: matching Blender means its BVH traversal order, which isn't a small change. The fix is structural:
+  one selection for both sides (GEOM_TRUTH step 2, the hair volume venv-side), ideally with a tie-free sign (the
+  angle-weighted pseudo-normal at the nearest feature). That's hair3's round.
 
 ## Next
 - The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
