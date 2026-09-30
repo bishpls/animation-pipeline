@@ -896,3 +896,16 @@ camera; the level camera's taper is 0.018 throughout.
   over 3 degrees: bangs 1,911, side locks 2,312 / 2,207, upper back 5,259, lower back 1,442; the block buns' own flat
   normals up to 137 degrees off at ~30 vertices each, the ahoge and flyaways 6-8 degrees mean). The exact normals will
   move every hair check that reads shading: read on the box builds before the gates.
+
+**Box readings** (QA identical across the boxes for the face and the terminator: f4_before, render box, reads the gate's
+build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow and hair_noise differ a little by box):
+- `f4_crown_n` (tool/face4-crown 925b469, build box) against `f4_crown` (the crown alone): **only**
+  art_terminator_hair moves, 2.552 -> 2.433 (per view 9.108 / 7.815 / 7.429 / 1.587: the lab's exact-normals
+  emulation to the digit). Against pipeline-3d: art_terminator_hair 2.376 -> 2.433 (WARN grade both), hair_penetration
+  0.0124 FAIL -> 0 PASS, the rest a few units in the 4th digit.
+- `f4_after` (tool/face4 0aa014d: crown, exact normals, the chin at share 0.59; render box, boards views,body):
+  chin_angle 116.7 -> 118.8 WARN (level 126.1 -> 128.1), chin_tip 0.557 WARN -> 0.826 PASS, jaw_taper_shape 0.0388 ->
+  **0.0399 WARN** (the lab read 0.0394: +0.0005 here, +0.0003 on the two before), jaw_line_bend 4.6, notch 0,
+  chin_underside 12.8 -> 14.2, hair_penetration FAIL -> PASS, art_terminator_hair 2.376 -> 2.433.
+- pipeline-3d moved to ae7fd45 (tool/mouth2); merged into both branches (clean).
+- Gate: tool/face4-crown (0790749) into pipeline-3d ae7fd45: `gate-face-0930-084209-4180`.

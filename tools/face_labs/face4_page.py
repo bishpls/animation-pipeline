@@ -6,10 +6,10 @@ jaw checks' own traces, ours with the hair hidden). Then the lower outline and t
 build: the jaw's checks as graded (the boards' camera) with the level camera's beside, the crown (skin faces facing
 in over the head's top), hair_penetration and the face's folds from each build's QA.
 
-    python face4_page.py OUT_DIR BUILD [BUILD ...] [--labels a,b] [--level DIR,DIR]
+    python face4_page.py OUT_DIR BUILD [BUILD ...] [--labels a,b] [--level DIR,DIR] [--also LABEL=BUILD,...]
 
-BUILD: a build folder (bundle/, qa/qa.json). --level: each build's face_level.py output (default BUILD/level). Prints
-the page's path."""
+BUILD: a build folder (bundle/, qa/qa.json, boards/). --level: each build's face_level.py output (default BUILD/level).
+--also: more builds whose art_terminator_hair goes in the hair's table (e.g. the crown alone). Prints the page's path."""
 import html, json, math, os, re, sys
 
 import numpy as np
@@ -27,7 +27,10 @@ CROP = jaw3_page.CROP
 VIEWS = (('front', 0.0), ('three_quarter', None), ('profile', 90.0))
 SHOW = ('chin_angle', 'chin_tip', 'jaw_line_bend', 'jaw_taper_shape', 'tq_jaw_notch', 'tq_cheek_hollow', 'jaw_taper',
         'chin_point_z', 'chin_v', 'chin_underside', 'neck_front_wiggle', 'jaw_line_front', 'jaw_line_three_quarter')
-QA = ('hair_penetration', 'face_folds', 'neck_crease', 'profile_edge', 'sheet_width', 'body_profile_iou_skin')
+QA = ('hair_penetration', 'art_terminator_hair', 'hair_noise', 'face_folds', 'neck_crease', 'profile_edge', 'sheet_width',
+      'body_profile_iou_skin')
+BOARDS = (('face_000', 'front'), ('face_030', '30 degrees'), ('face_090', 'profile'))
+CHIN_BOX = (250, 430, 650, 830)                    # the boards' face pictures (900 px): the chin and jaw, 1:1
 
 
 def level_crop(level_dir, view, B, top, bot, half, tag='hair'):
@@ -82,7 +85,8 @@ def cell(v):
 def main(args):
     out, rest = args[0], args[1:]
     opt = lambda k: rest[rest.index(k) + 1] if k in rest else None
-    flags = {'--labels', '--level'}
+    flags = {'--labels', '--level', '--also'}
+    also = [a.split('=', 1) for a in opt('--also').split(',')] if opt('--also') else []
     builds = [a for i, a in enumerate(rest) if a not in flags and (i == 0 or rest[i - 1] not in flags)]
     labels = (opt('--labels') or ','.join(os.path.basename(b.rstrip('/')) for b in builds)).split(',')
     levels = opt('--level').split(',') if opt('--level') else [os.path.join(b, 'level') for b in builds]
@@ -154,6 +158,45 @@ def main(args):
                     save(im, '%s_%s_%s.png' % (lab, view, tag)), im.size[0], html.escape(lab),
                     html.escape(os.path.abspath(os.path.join(lv, 'level_%s_%s.png' % (view, tag)))), view, tag))
             P.append('</div>')
+    P.append('<h2>The boards\' camera (the one the jaw checks grade: 85 mm, 1 m, 6 degrees over the chin)</h2>'
+             '<p class="note">Each build\'s own boards (EEVEE, the render box), whole at half size and the chin 1:1. The hair '
+             'is in these: the side locks\' shading is the terminator section\'s.</p>')
+    for board, name in BOARDS:
+        P.append('<div class="row">')
+        for b, lab in zip(builds, labels):
+            fp = os.path.join(b, 'boards', board + '.png')
+            if not os.path.exists(fp):
+                continue
+            im = Image.open(fp).convert('RGB')
+            P.append('<div class="tile"><img src="%s" width="450">%s, %s <a href="%s">%s.png</a></div>' % (
+                save(im, '%s_%s.png' % (lab, board)), html.escape(lab), name, html.escape(os.path.abspath(fp)), board))
+            if board == 'face_000':
+                P.append('<div class="tile"><img src="%s" width="400">%s, the chin 1:1</div>' % (
+                    save(im.crop(CHIN_BOX), '%s_%s_chin.png' % (lab, board)), html.escape(lab)))
+        P.append('</div>')
+    P.append('<h2>The hair\'s shading: art_terminator_hair (the torn hair shadow patches, look_v5)</h2>'
+             '<p class="note">Kinks per L of the hair\'s cel terminators per view (the check: the worst view\'s ratio to '
+             'the design\'s; PASS 2.0, WARN 2.5, capped at WARN). The crown\'s skin moves the side locks by at most 0.3 mm; '
+             'with the hair\'s normals transferred from a proxy by position, 400 of a side lock\'s vertices took a '
+             'coincident or near neighbour\'s normal (up to 12.7 degrees off), and which ones re-seeded with the move: '
+             'front 8.90 -> 9.55. With each piece\'s own normals (geom.blender.set_normals) the crown\'s real effect is '
+             'front 8.92 -> 9.11.</p><table><tr><th>build</th><th>value</th><th>grade</th><th>front</th>'
+             '<th>three-quarter</th><th>profile</th><th>back</th></tr>')
+    for lab, b in list(zip(labels, builds)) + also:
+        q = json.load(open(os.path.join(b, 'qa', 'qa.json')))['checks'].get('art_terminator_hair') or {}
+        pv = q.get('per_view') or {}
+        P.append('<tr><td>%s</td><td>%s</td><td class="%s">%s</td>%s</tr>' % (
+            html.escape(lab), q.get('value'), q.get('grade', ''), q.get('grade', ''),
+            ''.join('<td>%s</td>' % pv.get(v) for v in ('front', 'three_quarter', 'profile', 'back'))))
+    P.append('</table><div class="row">')
+    for b, lab in zip(builds, labels):
+        fp = os.path.join(b, 'qa', 'qa_artifacts.png')
+        if os.path.exists(fp):
+            im = Image.open(fp).convert('RGB')
+            P.append('<div class="tile"><img src="%s" width="900">%s: the QA\'s artifact marks <a href="%s">'
+                     'qa_artifacts.png</a></div>' % (save(im, '%s_qa_artifacts.png' % lab), html.escape(lab),
+                                                     html.escape(os.path.abspath(fp))))
+    P.append('</div>')
     P.append('<h2>The outlines</h2><img src="img/curves.png" width="1200">')
     P.append('<h2>The numbers</h2><table><tr><th>check</th><th>design</th>' +
              ''.join('<th colspan="2">%s</th>' % html.escape(l) for l in labels) + '</tr>')
