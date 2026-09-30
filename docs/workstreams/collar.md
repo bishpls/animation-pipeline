@@ -348,3 +348,19 @@ code commits. Variant D's knobs: round 1's table above and mkspec.py. Then:
 - The collar fragment in three-quarter beside the ribbons (collar_three_quarter_torn PASS -> WARN in M1's gate).
 - Review page for Michael: design | before | after, the back view, the bow close-up, the profile (round 1's
   review.py in charkit/out/collar_review/ builds one).
+
+## Round 3 (third agent, branch tool/collar3 from pipeline-3d 0744ffe): M2 the garments' frame, M3 collar D + shoulders
+
+Harness: `charkit/out/collar_round3/harness/` (untracked): round 2's, with var.py's `--frame knobs` (the builders' old
+frame, monkeypatched, to measure both frames from one tree; default base bw_v1, `--quiet`), `qadiff.py A B` (a build's
+qa.json or a var output's res.json: every moved check), `../irisz.py BUILD` (the assembly's iris plates' mean z against
+eye_z, and the bundle's). Before build (box): `charkit/out/c3_before` (0744ffe as it stands).
+
+### M2: the garment builders' eye line on the QA's frame
+
+The coordinator's decision: only the garments' frame moves; the body (code body, hull fit, the face) keeps eye_z.
+Measured (irisz.py on bw_v1): the assembly's iris plates' mean z = the bundle's to 1e-9, eye_z + 0.02354 L.
+The one place: `garments._eye_z(A)` = the iris plates' mean z (knob line only without irises), which every drawn
+height in the builders now reads (the `eye` cuts, opening_cut, outline_dist, the drape's `from`, the lofts' `rows`,
+drawn_extent), and `garments.hull_target(A, shape)` (i3d.eye_target with eye_anchor 'iris', as the hair pieces
+already align) for the hull's pieces (hull_pieces) and flapchains.chains' mapping into the graph's frame.
