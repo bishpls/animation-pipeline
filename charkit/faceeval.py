@@ -76,6 +76,7 @@ def skin_quads(A, below=0.55, levels=1, box=None, carry=None):
     for E in A['eyes']:
         lp = E['eye']['margin']
         sharp += [(remap[a], remap[b]) for a, b in zip(lp, lp[1:] + lp[:1]) if remap[a] >= 0 and remap[b] >= 0]
+    sharp += [(remap[a], remap[b]) for a, b in (A['body'].get('jaw_crease') or ()) if remap[a] >= 0 and remap[b] >= 0]
     V1, quads, parent = subdiv.catmull_clark(Vr, fr, sharp, levels=levels)
     fm = np.asarray(A['fmat'])[fi][parent]
     if carry is not None:

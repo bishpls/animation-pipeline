@@ -201,9 +201,11 @@ JAW_BAND_END = 0.11      # L under the mouth block: the band ends at the first c
                          # evenly from the band's to the cage's own)
 JAW_TOP_GAP = 0.012      # L: the underside kept this far under the band's top row (the mouth block's bottom)
 POCKET_FADE = 0.02       # L: the pocket under the jaw, whole over the neck's width, fades out over this past it
-TIP_BIAS = (0.006, 0.06) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
+TIP_BIAS = (0.003, 0.04) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
                          # subdivision rounds the V's point across the cage's columns (0.033 L apart there), which
-                         # raises it that much (headfit.CHIN_BIAS does the same in profile)
+                         # raises it that much (headfit.CHIN_BIAS does the same in profile). (0.006, 0.06) before the
+                         # chin's rims were put on their targets (SIDE_RIMFIT): it had made up for rims 0.002 L low
+                         # beside the point
 UNDER_ROUND = (0.75, 1.15, 0.12)  # the underside's slope: this share of the rise at the rim, this share UNDER_ROUND[2] L in
                                   # (the start kept steeper than the boards' camera looks down at the chin, 6.5 degrees)
 POCKET_MIN = 0.005       # L: the least depth of the pocket at a column's rim (less: the column is the envelope's)
@@ -249,10 +251,38 @@ SIDE_EASE = (0.4, 0.7)   # rad round the band's centre: the rows' map eases from
                          # rim and the throat fall on rows 3-5 and 8-12 of the band) to SIDE_ROWS over this
 SIDE_UOLD = None         # rad (a, b): the chin's columns keep U's height (the polar form) under a, the per-column form
                          # over b. (0.45, 0.7): the board's chin_angle 116.3 -> 119.9, but a kink where the V crosses
-                         # the neck's edge (jaw_line_bend 4.9 -> 7.8): off
+                         # the neck's edge (jaw_line_bend 4.9 -> 7.8): off. (Round 4: its 4 degrees are one column's
+                         # rim crossing a cage row, a 0.0034 L dip at the end of the arms' window, not the V's shape)
 SIDE_RELAX = 1.0         # rad past the jaw's angle: behind it the rows (the rim's at the jaw angle's height there) ease
                          # back to level over this (dropped over the pocket's fade alone, 0.1 L in two columns, they folded)
 SIDE_DROP = 0.05         # L: behind the jaw's angle the throat's row runs this far under the rim's (no underside there)
+SIDE_RIMFIT = 3          # secant rounds re-hanging each chin column's underside so its rim (where the column's envelope
+                         # crosses it) lands on the edge's height at the rim's own x: hung from the edge's point, the
+                         # rims sat -0.0024..+0.0020 L off it (the envelope's front isn't through the edge's point near
+                         # the tip, EDGE_TIP), and the level outline's arms read 1.8 degrees steep each (round 4)
+SIDE_RIMFIT_A = 0.29     # rad round the band's centre: the refit in the chin's columns under this, fading out over
+                         # SIDE_RIMFIT_FADE (the point and the next column whole, x < 0.035; the second, x 0.057, 0.59 of
+                         # its gap). Whole to the second column (0.2, no fade): chin_angle 119.1 but jaw_taper_shape
+                         # 0.0398 in the lab, 0.0401 FAIL on the box (the chin narrows near its point in the boards'
+                         # camera); its share 0 / 0.36-0.52 / 0.6 / 0.75 / 0.9: angle 117.0 / 117.8 / 118.0 / 118.4 /
+                         # 119.1, taper 0.0391 / 0.0393 / 0.0394 / 0.0396 / 0.0398 (the box reads the lab +0.0003; round 4).
+                         # 0.3 whole: the bend 4.6 -> 5.1; 0.45: a column at x 0.09 crosses a cage row, a kink (bend 9.3)
+SIDE_RIMFIT_FADE = 0.16  # rad: the refit's share of a column's gap fades from whole at SIDE_RIMFIT_A less this to none
+                         # at SIDE_RIMFIT_A (0: whole under SIDE_RIMFIT_A, none over it)
+
+
+def _rimfit_weight(a):
+    """the share of the rim's gap the refit hangs a chin column by, at a rad round the band's centre."""
+    if SIDE_RIMFIT_FADE > 0:
+        return float(np.clip((SIDE_RIMFIT_A - a) / SIDE_RIMFIT_FADE, 0.0, 1.0))
+    return 1.0 if a < SIDE_RIMFIT_A else 0.0
+
+
+SIDE_RIM_ROW = False     # the rim on its row (SIDE_ROWS[0]) at the chin too: the jaw line one edge loop from the chin
+                         # round to the jaw's angle. With the refit the level outline is the design's V (130.2, tip
+                         # 0.79), but the boards' camera reads its point round (chin_tip 0.42): off (round 4)
+JAW_CREASE = 0           # the rim's loop (SIDE_RIM_ROW) creased this many columns either side of the chin's: the boards'
+                         # tip 0.30 at 1, 0.21 at 2 (0: none; round 4)
 
 
 def jaw_depth(jaw):
@@ -552,20 +582,41 @@ class UnderJaw:
         st_ = float(np.sin(theta))
         bu = 1.0 if SIDE_UOLD is None else float(_smoothstep((info['a'] - SIDE_UOLD[0]) / (SIDE_UOLD[1] - SIDE_UOLD[0])))
 
+        hang = [z_e]                                      # (the height it hangs from: SIDE_RIMFIT corrects it)
+
         def Uc(rho, z):                                   # the column's underside: hung from its point of the edge,
             d = (r_e - rho) + (self.centre(z) - c_e) * ct    # rising over how far in from it it lies in plan (the
-            u = z_e + self.rise(d)                           # column's centre line moves with the height)
+            u = hang[0] + self.rise(d)                       # column's centre line moves with the height)
             u = cap - np.logaddexp(0.0, (cap - u) / 0.004) * 0.004     # (a soft min with the cap, as U's)
             if bu < 1.0:
                 u = bu * u + (1 - bu) * self.U(rho * st_, self.centre(z) - rho * ct, fade=False)
             return u
-        g = zg - Uc(rS, zg)
-        cand = np.nonzero((g < 0) & (rS > rN + POCKET_MIN))[0]
-        if not len(cand) or cand[0] == 0:
-            return Pe, se, info
-        i = int(cand[0])
-        f = g[i - 1] / (g[i - 1] - g[i])
-        z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
+        for it in range(SIDE_RIMFIT + 1):
+            g = zg - Uc(rS, zg)
+            cand = np.nonzero((g < 0) & (rS > rN + POCKET_MIN))[0]
+            if not len(cand) or cand[0] == 0:
+                return Pe, se, info
+            i = int(cand[0])
+            f = g[i - 1] / (g[i - 1] - g[i])
+            z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
+            w_fit = _rimfit_weight(info['a'])
+            if it == SIDE_RIMFIT or info['a'] >= float(self.rim_th[-1]) or w_fit <= 0.0:
+                break
+            if not it:
+                z_r0 = z_r
+            # the rim where the column's envelope crosses the underside lies off the edge's height at its own x
+            # (the envelope's front bulges past the edge's point or falls short of it): hang it again by the gap
+            # (a share w_fit of it: SIDE_RIMFIT_FADE)
+            z_t = float(np.interp(abs(r_r * st_), self.jx, self.jz))
+            z_t = z_r0 + w_fit * (z_t - z_r0)
+            if abs(z_t - z_r) < 1e-4:
+                break
+            if it:                                        # (a secant step: the rim moves less than the hang)
+                gain = float(np.clip((z_r - prev[1]) / (hang[0] - prev[0]) if hang[0] != prev[0] else 1.0, 0.2, 2.0))
+            else:
+                gain = 1.0
+            prev = (hang[0], z_r)
+            hang[0] += (z_t - z_r) / gain
         rho_u = np.arange(r_r, 0.0, -self.dz)
         lo, hi = np.full(len(rho_u), z_r - 0.02), np.full(len(rho_u), zt)     # (its height per radius: bisection)
         for _ in range(32):
@@ -668,7 +719,7 @@ class UnderJaw:
         s_r, s_j, s_e = info['s_rim'], info['s_throat'], s[-1]
         b = float(_smoothstep((info['a'] - SIDE_EASE[0]) / (SIDE_EASE[1] - SIDE_EASE[0])))
         span = zt - self.z_bottom                         # (the linear map's own breakpoints, eased to the fixed rows)
-        z_R = (1 - b) * (zt - s_r / s_e * span) + b * self.side['rows'][0]
+        z_R = self.side['rows'][0] if SIDE_RIM_ROW else (1 - b) * (zt - s_r / s_e * span) + b * self.side['rows'][0]
         z_T = (1 - b) * (zt - s_j / s_e * span) + b * self.side['rows'][1]
         q = np.where(z >= z_R, (zt - z) / max(zt - z_R, 1e-9) * s_r,
                      np.where(z >= z_T, s_r + (z_R - z) / (z_R - z_T) * (s_j - s_r),
@@ -832,7 +883,8 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
                 w_ = _smoothstep((a_ - t_b - EDGE_TOP_COLS[0]) / EDGE_TOP_COLS[1]) * _smoothstep((back[1] - a_) / (back[1] - back[0]))
                 return z_a + (z_lat - z_a) * float(w_)
             rows_ = (z_a - SIDE_ROWS[0] * d_band, z_a - SIDE_ROWS[1] * d_band)
-            under = UnderJaw(S_env, jaw, z_a, z_n, top=top, side=dict(z_angle=edge['z_angle'], rows=rows_))
+            under = UnderJaw(S_env, jaw, z_a, z_n, top=top, side=dict(z_angle=edge['z_angle'], rows=rows_, z_a=z_a,
+                                                                       d_band=d_band))
             back[0] = float(under.rim_th[-1]) + SIDE_RELAX
             back[1] = back[0] + (EDGE_TOP_BACK[1] - EDGE_TOP_BACK[0])
         elif EDGE_BAND and edge and edge.get('z_angle') is not None:
@@ -893,6 +945,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         Cg.F = np.array(orient_faces(Cg.V, Cg.F), np.int64)
     Cg.under = under
     Cg.jaw_edge = edge
+    Cg.rim_row = under.side['rows'][0] if under is not None and under.side is not None else None
     got = [chart.get(tuple(np.round(p, 7)), (p[2], 0, np.nan)) for p in Cg.V]
     Cg.chart_z = np.array([g[0] for g in got])
     Cg.under_part = np.array([g[1] for g in got], int)          # (UnderJaw.place's parts: 1 the underside)

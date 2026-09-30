@@ -6,15 +6,67 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A (a-f) done and gated; waiting for the coordinator's merge and go-ahead for milestone B (g-l).
-- Gated: 472df97 into pipeline-3d a3073f5: **PASS** with pipeline-3d's gate code (`gate_tool-infra3_472df97_into_a3073f5`,
-  no check changed, 52 test files ok), and **PASS under K** with this branch's gate code on the same commit
-  (`gate_tmp-infra3-self_472df97_into_a3073f5`, no check changed, one note).
-- pipeline-3d then moved to 1141e74 (tool/toonrender2). Merged here (bf161b1): conflicts in charkit/cli.py (the build's
-  step timers around toonrender2's toon boards: kept both, the toon boards timed as their own step) and
-  charkit/remote.py (usage lines: both kept); gate.py auto-merged (toonrender2's cross_qa fallback check). Unit tests
-  pass; not re-gated (the coordinator decides).
-- Throwaway test branches tmp/infra3-* and tmp/hair4-gated: deleted.
+Milestone A merged (pipeline-3d b43c15e). Milestone B, subset 1 (g, the baseline finding, the boards): done and gated,
+waiting for the coordinator.
+- Gated: **3aaa9b7 into pipeline-3d ae7fd45: PASS** with pipeline-3d's gate code (`gate_tool-infra3_3aaa9b7_into_ae7fd45`:
+  no check changed, 54 test files ok, CPU 0.98x, 510 s). pipeline-3d then moved to 23492b6 (tool/face4-crown); the
+  branch merges into it cleanly (git merge-tree). Not re-gated (K: the coordinator decides). Commits after 3aaa9b7 are
+  notes only.
+- Throwaway branches tmp/infra3-* deleted. Their reports stay in this worktree's charkit/out/gate (untracked).
+- Next: subset 2, h + i (below: "Findings for subset 2" first: the function-precise code walk is the lever for both
+  h and g), then l, then k + j.
+
+## Milestone B (2026-09-30 night)
+
+Subset 1 (g, the baseline finding, the boards): done, gated (State above):
+- (g) **A gate carries over when pipeline-3d moves.** The report's json now holds three closures: the baseline's, the
+  candidate's and each test file's (the tests run with CHARKIT_CLOSURE, one log per file, packed as indexes into one
+  path list). `python -m charkit gate --carry BRANCH [--into pipeline-3d]` (laptop, no box, no build) finds the newest
+  report of the branch's tip into an ancestor H0 (this worktree's charkit/out/gate, then every worktree's), checks the
+  merge into the new head with `git merge-tree`, and carries the verdict when no change H0..HEAD reaches the baseline's
+  closure and no difference between the two merged trees reaches the candidate's. The test files a difference reaches
+  (and test files added) run again here, in a throwaway sparse worktree of the merge (a commit object no ref names); a
+  failure there makes it a FAIL. It writes gate_TAG_into_HEAD.{md,json,summary.json} with `carried`. Exit 0 PASS, 1
+  FAIL, 3 not carried (gate it). In the gate itself the same test reuses an earlier candidate of the same tip
+  (`_cand_reference`: its merged tree from `git merge-tree H0 TIP` against this merge's index), as the baseline already
+  was, so a re-gate after a move is tests only.
+- **The first gate into a fresh commit** (the smoke-docs finding, 705 s for a one-line doc): a merge that changes only
+  docs/ and charkit/tests/, or docs files no nearby closure read or listed (`closure.unreadable`), builds nothing,
+  not even the baseline. When the baseline must be built, the candidate starts beside it only if the newest baseline
+  closure (a nearby commit's) is reached by the merge; otherwise it waits for the baseline's own closure.
+- **Boards:** gate builds pass `--boards ''` (the toon boards took 16 s a build, nothing in the gate reads them).
+- **The box's git is 2.34** (no `merge-tree --write-tree`, 2.38): `_merge_tree` falls back to merging in a throwaway
+  sparse worktree and writing its index as a tree (the same tree id on a real pair: b5dac2b for 611cc58 into b43c15e).
+  The first gates of 611cc58 failed test_gate on the box for this (`gate_tool-infra3_611cc58_into_b43c15e`,
+  `gate_tmp-infra3-self_611cc58_into_b43c15e`); both carry tests now also run through the fallback.
+- Measured: the static rule, `gate_tmp-infra3-docs_30fb226_into_c3d0bd1` (a docs line into a commit with no baseline
+  whose move reaches the build): **87.9 s**, nothing built (the smoke-docs gate of the same shape: 705 s). The
+  closure recording costs the tests nothing measurable (0.41 s vs 0.41 s, 1.15 vs 1.15 s a file). No boards: the
+  candidate's steps have no toon_boards row (16 s before).
+- **Measured on real pairs** (tip 2c25504; stand-ins for pipeline-3d moving: b43c15e plus a docs line (775a1ce), plus
+  that and a comment in charkit/tests/test_trace.py (69b7c2d), plus a comment in charkit/cli.py (4b55075)):
+  - the normal gate, pipeline-3d's gate code: **PASS** (`gate_tool-infra3_2c25504_into_b43c15e`): no check changed,
+    53 test files ok, CPU 0.79x (850.9 s, capped, against the cached uncapped baseline's 1,081 s), 495 s.
+  - the in-gate carry, this gate code (`gate_tmp-infra3-self_2c25504_into_775a1ce`): the baseline linked to
+    b43c15e's, the candidate carried over from the normal gate's build (the merged trees differ in one doc): **62.2 s**,
+    tests only (the same tip's gate with a candidate build: 480-510 s).
+  - `gate --carry` on the laptop from that report: into 69b7c2d **carried, PASS, 1 s** (test_trace.py rerun here in
+    a throwaway worktree of the merge; the first cut reran 24 test files that list charkit/tests: a listed folder now
+    counts a file added or deleted, not one edited, which a read already covers); into 4b55075 **not carried**
+    (exit 3: the baseline and candidate read charkit/cli.py), 1 s; into 775a1ce: already gated.
+  - **The limit of (g) today:** the builds read nearly every charkit module (the baseline's closure: 571 files,
+    cli.py, gate.py, remote.py, boxjob.py among them), so a pipeline-3d move that touches any .py file won't carry.
+    The cause is the cache keys' code walks (next item); narrowing them is subset 2 (h) and is what makes (g) pay.
+- Findings for subset 2: (1) **the hull's shared-cache key covers garments.py through a name collision**: `Owners`
+  (charkit/geom/hull.py) has a local `main`, which cache.code_units resolves to the module's top-level `main`; that
+  imports bodyeval, which imports garments. The stamp (depth 1) doesn't cover garments.py; code2 (depth 2, the shared
+  cache's key) does, so a fresh gate clone misses and rebuilds the hull (196 s). Fix: locals out of a def's names
+  (one-off key change). (2) **The build reads charkit/gate.py** (the closure says so): a code walk follows cli.py's
+  function-level `from . import gate`; every gate-code change builds a candidate. The walk: artifactqa's design cache key is
+  `code_units(design_heads)` with no depth limit: design_heads imports refcheck, whose module imports bodyeval, whose
+  resolve() uses `cli._path`, and a module is taken whole with its function-level imports, so cli.py's 42 imports
+  (gate, remote, tune, preview...) follow: 101 modules. A function-precise walk across modules (follow `mod.attr` to
+  that def, classes whole) would fix both findings; it changes every key once.
 
 ## What changed (milestone A)
 

@@ -113,6 +113,10 @@ def test_only_changes_that_reach_the_build_count():
         hits = closure.affected(C, _change(root, edit), root)
         assert len(hits) == 1 and why in hits[0][1], (edit, hits)
     _git(root, 'reset', '-q', '--hard')
+    # a listed folder's file edited, not added or removed: the listing is the same, and the build didn't read it
+    open(os.path.join(root, 'kit/steps/one.txt'), 'w').write('edited')
+    assert closure.affected(C, [('M', 'kit/steps/one.txt')], root, cone_dirs=['docs']) == []
+    _git(root, 'reset', '-q', '--hard')
     # an untracked input whose content differs
     open(os.path.join(root, 'gen', 'input.npz'), 'w').write('v2')
     assert closure.affected(C, [], root) == [('gen/input.npz', 'an untracked input whose content differs')]

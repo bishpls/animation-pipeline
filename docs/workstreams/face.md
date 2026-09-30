@@ -745,3 +745,190 @@ hidden), the curves, the jaw's shading before and after (jaw_health), and the ch
 5. The side pocket's fade behind the jaw's angle curls up to the band's top (under the ear, behind the side locks):
    a ramus going up to the ear would be the design's.
 6. sheet_width's evaluator drift (+0.023); the body QA's registration (`qa3d.sheet_body` on the iris mean).
+
+## Round 4 (2026-09-30, overnight): the chin in the design's projection, the crown, the ramus
+
+Branch `tool/face4` from pipeline-3d a3073f5. Labs on jaw_7's head code (`charkit/out/jaw_7/geom`), the local assembly
+(the skin subdivided once, as the QA's eval mesh; the lab now creases the eye margins and the jaw's crease as the
+modifier does).
+
+**1. The crown's inward triangles (hair4's false hair_penetration; fixed).** Not duplicates: `code_base.fit_limit` (the
+cage moved so its level-1 surface passes through the placed points) turned 60 of the crown's quads over (120
+triangles; x +-0.064, z 0.630-0.641 L), dragging the dome's top rows up to 0.043 L along the surface. It fits all three
+coordinates, so it tries to reproduce where along the surface each vertex was placed, which the crown's cap (a Coons
+grid, three-valent corners) can't; the placed cage has none turned. The same fit folds 60 on a plain ellipsoid
+(`test_the_limit_fit_keeps_the_crown_facing_out`, the known-bad case). Now the dome's vertices (groups skull and
+crown) move only along the placed surface's normal (`code_base.SKULL_NORMAL`): 0 turned over, the fit's largest move
+there 0.043 -> 0.007 L, the level-1 surface within 0.0013 L of the placed points (0.0001 before), the skin's top
+0.6406 (unchanged). hair_penetration on the default spec should read the hair's true clearance (+0.013 L) after a build.
+
+**2. The chin: what the measure can resolve.** The jaw checks read ours off a picture at the head sheet's scale (401 px
+per L: a pixel is 0.0025 L). chin_angle fits each arm over 0.06 L of arc (24 px): a pixel at one end of an arm is 2.4
+degrees. `tools/face_labs/chin_lab.py` reads the same measures on ours drawn K times finer (K=4) beside the sheet's
+scale, and prints each chin column's rim against its target. jaw_7 at the sheet's scale / 4x: level 126.1 / 126.3,
+boards' 116.4 / 116.1 (the design 129.7).
+
+**3. Why the chin reads 126 level (the V's arms 1.8 degrees steep each).** Per chin column the rim UnderJaw finds (where
+the column's envelope crosses its underside) against its target (the design's V less TIP_BIAS), and where it falls
+between the cage's rows (chin_lab): the rims sat -0.0024..+0.0020 L off their targets (the envelope's front bulges past
+the edge's point near the tip, where EDGE_TIP fades the edge's shaping out), and at rows 3.3-4.9 of the band: a rim
+half-way between two rows is cut off by the subdivision (the level-1 edge points inside the corner), one on a row
+isn't. So the level outline sits 0.002-0.004 L over the rim by column, a wave the arms' 24 px window reads:
+- **SIDE_UOLD (round 3's fallback) is a bump, not a recovery.** Its 4 degrees (level 126.1 -> 130.2) come from one
+  column (0.39 rad, x 0.09) whose rim crosses from just over row 4 to just under it: a 0.0034 L dip at the far end of
+  the arms' window, and the nick (bend 7.9).
+- **The rim as one edge loop at the chin too** (`SIDE_RIM_ROW`: the rim on band row 3 in every pocket column, as round
+  the sides) with every rim on its target (`SIDE_RIMFIT`): the level outline is the design's V (level 130.2 / 131.0 at
+  4x, tip 0.79, bend 5.3 / 3.3), but the boards' camera reads its point round (chin_tip 0.61 -> 0.42 FAIL, bend 6.5):
+  6 degrees over the chin the recession near the point (the prow, y as |x|^1.5) lifts the rim beside the point. Creasing
+  the loop's edges at the point (`JAW_CREASE` 1-2 columns: the build's crease attribute, faceeval, the labs and the limit
+  fit all carry it) made the boards' tip worse (0.30 / 0.21) and the bend 9.7. Both stay off.
+- **Each chin column's rim on its target** (`SIDE_RIMFIT` 3 secant rounds, only under `SIDE_RIMFIT_A` 0.3 rad round
+  the band's centre: x < 0.075; over it the refit flips the 0.39 column's row and kinks the arm, bend 9.3), with the
+  tip's bias narrowed (`TIP_BIAS`: the rim lowered at the point, fading out over 0.03 L instead of 0.06: the refit leaves
+  less of the point to the subdivision's rounding). Numbers below.
+
+**4. sheet_width's evaluator drift (+0.023): not in the face's code path.** The measure is shared: both sides call
+`sheetqa.measure_ours` / `compare`, and `bodymeasure.face_region` is `faceqa.face_region` vectorised (the same graph,
+the same pixels); both register on the head's eye line since 9a85cf5. On the box's own bundle (jaw_7) `qa3d`'s
+sheet_width reads 0.987 with the hair's covers and without them (d55 0.253, d75 0.193 against the design's 0.2564,
+0.1911): the hair doesn't reach the widths' rows, so the evaluator's different hair (infra: it doesn't build the
+build's cut-piece hair) isn't it either. It enters in the evaluator's inputs: the scene `bodymeasure.objects` hands
+the measure (its skin's per-face classes, `lab == skin`, against qa3d's material names skin/face_skin, cavity and
+eyeline as line) or the geometry `bodyeval` rebuilds (its cranium fit and assembly). `evaldrift SPEC --build DIR --here
+--stages` on a fresh build pins which: owner infra / body (bodyeval, bodymeasure).
+
+**Numbers** (lab: jaw_7's head code, local assembly, the graded boards' camera with the level camera's in brackets,
+and the level camera at 4x; before = jaw_7's constants, after = this branch's defaults; `charkit/out/face4/
+chin_lab_{before,after}.json`):
+
+| check | design | before | after |
+|---|---|---|---|
+| chin_angle (deg) | 129.7 | 116.4 WARN (level 126.1; 4x 126.3) | 119.1 WARN (level 128.5; 4x 128.9) |
+| chin_tip | 0.833 | 0.612 WARN (level 0.951) | 0.897 PASS (level 0.833) |
+| jaw_line_bend (deg) | 4.2 | 4.6 PASS | 4.6 PASS (level 4x 2.9) |
+| tq_jaw_notch (L) | 0 | 0 PASS | 0 PASS |
+| jaw_taper_shape | 0 | 0.0385 WARN (level 0.0168) | 0.0398 WARN (level 0.0188): 0.0002 under FAIL |
+| tq_cheek_hollow / chin_point_z / chin_v | | 0.0048 / 0 / 1.127 | unchanged |
+| chin_underside (deg) | 13.7 | 12.8 | 14.1 |
+| crown: faces turned over by the fit | 0 | 60 quads (120 tris) | 0 |
+
+The boards' chin_angle is 0.6 short of PASS (119.7): what's left is the boards' 6-degree look down on the design's
+own recession, not the V's shape (level 128.5-128.9 against 129.7).
+
+**Jobs at this checkpoint** (both launched from 3e8d8bc, pipeline-3d b43c15e merged in):
+- gate (build box, default spec): `gate-face-0930-075757-5090`; report into `charkit/out/gate/` (`remote attach
+  gate-face-0930-075757-5090` to follow it again).
+- render build with face boards (render box): `build-face-0930-075753-ff76`, out `charkit/out/face4_after`.
+
+**Next steps** (the next agent):
+1. Read the gate's report under K; watch jaw_taper_shape (0.0398 in the lab, the box read jaw_7 0.0003 higher) and
+   hair_penetration (the crown fix: should drop from its false 0.0124 FAIL).
+2. The review page: `python tools/face_labs/level_slot.py charkit/out/face4_after` and `... charkit/out/jaw_7` (the
+   head orthographic and level in a laptop build slot: face_level.py), then `python tools/face_labs/face4_page.py
+   charkit/out/face_review/round4 charkit/out/jaw_7 charkit/out/face4_after --labels before,after` (design | before |
+   after in the design's projection, the traces, the numbers, the crown count). jaw_7 is round 3's build of the same
+   head, before hair4's merge: its hair-shown pictures carry the older hair.
+3. The ramus: the head sheet's side locks cover the jaw behind its angle in every view (the three-quarter's jaw line
+   leaves view at z -0.27), so there is no design silhouette to fit it to; not built. For Michael: whether a ramus is
+   wanted for bare or hair-in-motion shots, and from which reference.
+4. For Michael / the coordinator: whether the chin's V is graded in the level camera (the design's projection; the
+   boards' value beside it). Under it the rim loop (`SIDE_RIM_ROW` with the refit) reads the design's V exactly
+   (130.2, tip 0.79) but the boards' tip 0.42; it stays off.
+5. sheet_width's drift: `evaldrift SPEC --build DIR --here --stages` (owner infra / body).
+
+**Gate** (3e8d8bc into pipeline-3d b43c15e, default spec; `charkit/out/gate/gate_tool-face4_3e8d8bc_into_b43c15e.md`):
+FAIL under K, two blockers:
+- new FAIL: jaw_taper_shape 0.0388 WARN -> 0.0401 FAIL (the lab read 0.0398: the box +0.0003, as predicted; the chin
+  refit narrows the near-chin width the boards' camera reads, w90);
+- flag check: art_terminator_hair 2.376 -> 2.552 (WARN both): not the chin; most likely the crown fix (the dome's
+  skin moved up to 0.007 L under the hair, which reads the skin for its trim / shading); unconfirmed.
+Improved: hair_penetration 0.0124 FAIL -> 0 PASS (the crown), chin_tip 0.557 WARN -> 0.831 PASS. Values: chin_angle
+116.7 -> 119.1 WARN. jaw_line_bend (4.6) and tq_jaw_notch (0) unchanged. CPU 0.87x. Jaw cage health unchanged (0
+edges over 90 degrees; folded corners 60 -> 62). Options: TIP_BIAS / SIDE_RIMFIT_A back a notch for the taper (every
+lab variant sat at 0.0395-0.0402: the boards' taper is at its limit), or the chin's refit off and the crown fix alone
+(then check art_terminator_hair on it).
+
+### Round 4, second agent (2026-09-30 morning): landing what's mergeable
+
+State at start: fe9e386, gate FAIL under K (jaw_taper_shape 0.0401 FAIL; art_terminator_hair 2.376 -> 2.552 past
+its 2.5 line). The gate's trace: the candidate's hair pieces all moved (same counts and bbox): the hair follows the
+head (pieces_hair missed its cache because code_head changed).
+
+Jobs:
+- `tool/face4-crown` (0227351, from pipeline-3d b43c15e): the crown's normal-only limit fit and its test, reapplied
+  without the chin. Build box build `build-face-0930-081207-77df` -> `charkit/out/f4_crown` (attribution: its
+  art_terminator_hair against pipeline-3d's 2.376 and the full branch's 2.552).
+- Render box build of pipeline-3d b43c15e with boards views,body: `build-face-0930-081238-8298` ->
+  `charkit/out/f4_before` (the review page's before, the hair as the gate's baseline).
+- Chin back-off: chin_lab sweep on jaw_7's head code (`charkit/out/face4b/lab_*.json`; the lab reads the defaults'
+  0.0398 as before; the box reads the lab +0.0003, so the lab's taper must stay <= ~0.0395).
+
+**The terminator's attribution (measured).** The crown-only build (`f4_crown`, build box) reads art_terminator_hair
+2.552 exactly as the gate's candidate (per view front 9.552, three-quarter 8.399, profile 8.306, back 2.703; pipeline-3d
+`f4_before`: 8.895, 8.294, 8.755, 2.708): **the crown, all of it; the chin none.** The QA's artifacts part runs alone on
+a bundle in 8 s and reproduces both builds' readings exactly (`tools/face_labs/hair_normals_lab.py`: the check
+alone, with another build's hair corner normals, with the pieces' own, and each piece's corner errors). The cause, narrowed by swapping arrays between the two bundles:
+- the hair's vertices moved <= 0.3 mm (the hair builder reads the skin's cage at the crown), but the pipeline-3d bundle
+  with **only the crown build's hair corner normals** swapped in reads 2.552; per piece: side_lock_L +0.43, side_lock_R
+  +0.23 kinks per L in front (bangs, backs: 0);
+- the build's corner normals weren't the pieces' own: `scene.hair_pieces_objects` gave each piece its envelope normals
+  through a hidden proxy and a Data Transfer (NEAREST_NORMAL: by position). A lock's inner and outer surfaces meet at
+  its edges: 210 of side_lock_L's 5,280 vertices coincide with a twin whose normal differs 7.6 degrees (median), 438
+  lie within 1 mm of another (the outline's inward move is 0.7-1.4 mm): 400 vertices took a neighbour's normal, up to
+  12.7 degrees off (reproduced in Blender 5.2 locally: 398). Which ones is re-seeded by any sub-millimetre change.
+- With every hair corner given its piece's own normal (the QA on the bundles, lnor swapped): pipeline-3d 2.382, the
+  crown 2.433 (front 8.92 -> 9.11: the crown's real effect, under the 2.5 line; three-quarter, profile and back all
+  fall, back 2.71 -> 1.81).
+- **Fix** (tool/face4-crown 925b469): `geom.blender.set_normals`: the normals as a point attribute, set by Geometry
+  Nodes' Set Mesh Normal (tangent space, so they follow the head's armature) after the outline: 0.003 degrees mean, 0.35
+  max; `scene.PIECE_NORMALS` 'transfer' keeps the old way; `test_hair_normals` (Blender). Box build `f4_crown_n`
+  (`build-face-0930-083440-2c18`) to read every check before the gate.
+
+**The chin backed off** (db981bd): `SIDE_RIMFIT_FADE` (a column refitted by a share of its gap): the point and its
+neighbour whole, the second column (x 0.057) 0.59. Its share 0 / 0.36-0.52 / 0.6 / 0.75 / 0.9 / 1: chin_angle 117.0 /
+117.8 / 118.0 / 118.4 / 119.1 / 119.1, jaw_taper_shape 0.0391 / 0.0393 / 0.0394 / 0.0396 / 0.0398 / 0.0398 (lab;
+the box +0.0003). TIP_BIAS moves the chin's pixel row and swings the taper 0.023-0.048 (a pixel of the chin point
+shifts the normalised taper curve): (0.002-0.0035, 0.04) read as the default, (0.0045-0.006, *) FAIL, the refit off
+PASSes the taper (0.0233) but chin_tip goes WARN (0.663). The taper can't take the refit's whole angle in the boards'
+camera; the level camera's taper is 0.018 throughout.
+- `hair_normals_lab.py f4_before --errors`: the transfer's misses are on every piece, not only the side locks (corners
+  over 3 degrees: bangs 1,911, side locks 2,312 / 2,207, upper back 5,259, lower back 1,442; the block buns' own flat
+  normals up to 137 degrees off at ~30 vertices each, the ahoge and flyaways 6-8 degrees mean). The exact normals will
+  move every hair check that reads shading: read on the box builds before the gates.
+
+**Box readings** (QA identical across the boxes for the face and the terminator: f4_before, render box, reads the gate's
+build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow and hair_noise differ a little by box):
+- `f4_crown_n` (tool/face4-crown 925b469, build box) against `f4_crown` (the crown alone): **only**
+  art_terminator_hair moves, 2.552 -> 2.433 (per view 9.108 / 7.815 / 7.429 / 1.587: the lab's exact-normals
+  emulation to the digit). Against pipeline-3d: art_terminator_hair 2.376 -> 2.433 (WARN grade both), hair_penetration
+  0.0124 FAIL -> 0 PASS, the rest a few units in the 4th digit.
+- `f4_after` (tool/face4 0aa014d: crown, exact normals, the chin at share 0.59; render box, boards views,body):
+  chin_angle 116.7 -> 118.8 WARN (level 126.1 -> 128.1), chin_tip 0.557 WARN -> 0.826 PASS, jaw_taper_shape 0.0388 ->
+  **0.0399 WARN** (the lab read 0.0394: +0.0005 here, +0.0003 on the two before), jaw_line_bend 4.6, notch 0,
+  chin_underside 12.8 -> 14.2, hair_penetration FAIL -> PASS, art_terminator_hair 2.376 -> 2.433.
+- pipeline-3d moved to ae7fd45 (tool/mouth2); merged into both branches (clean).
+- Gate: tool/face4-crown (0790749) into pipeline-3d ae7fd45: `gate-face-0930-084209-4180`.
+- **Gate tool/face4-crown** (0790749 into pipeline-3d ae7fd45): **PASS under K**
+  (`charkit/out/gate/gate_tool-face4-crown_0790749_into_ae7fd45.md`). Nothing blocks. hair_penetration 0.0124 FAIL -> 0
+  PASS; flag check art_terminator_hair 2.376 -> 2.433 (WARN grade both, +2.4%); values: expr_*_brow 0.3-13% (INFO),
+  hair_noise 0.0748 -> 0.0745, the face's shading within 0.5%. CPU 1.11x. The jaw checks don't move (ae7fd45's are
+  b43c15e's: mouth2's gate moved only art_fragments_face on the rest face).
+- Gate tool/face4 (crown, exact normals, the chin at share 0.59) into pipeline-3d ae7fd45 next; the review page:
+  `charkit/out/face_review/round4/index.html`.
+- **Gate tool/face4** (bd671ea into pipeline-3d ae7fd45): **PASS under K**
+  (`charkit/out/gate/gate_tool-face4_bd671ea_into_ae7fd45.md`). Nothing blocks. Improved: chin_tip 0.557 WARN -> 0.826
+  PASS, hair_penetration 0.0124 FAIL -> 0 PASS. Flag check art_terminator_hair 2.376 -> 2.433 (WARN grade both).
+  Values: chin_angle 116.7 -> 118.8 WARN, jaw_taper_shape 0.0388 -> 0.0399 WARN (0.0001 under FAIL), chin_underside
+  12.8 -> 14.2, jaw_taper 0.0055 -> 0.0059, art_outline_hair 0.689 -> 0.71 INFO, expr_*_brow (INFO), the face's
+  shading within 1%. CPU 1.09x. pipeline-3d moved to a4f91a3 (infra3 milestone B) after both gates: not re-gated.
+- Merge order: tool/face4-crown can merge alone; tool/face4 contains it.
+- Review page: `charkit/out/face_review/round4/index.html` (`face4_page.py ... --also ... --head head.html`): the
+  summary and the open decisions, design | before | after in the level projection (hair shown and hidden, the traces),
+  the boards' camera (whole and the chin), the hair's terminator per view with the crown alone and with exact normals,
+  the side locks' crops and the QA's artifact marks, the outlines, the numbers.
+
+**Open for Michael:** the chin's V graded in the level camera (there the taper reads 0.021 and the whole refit
+128.5-128.9; the rim loop 130.2 but the boards' chin_tip 0.42 FAIL); the ramus (no drawn reference: the side locks
+cover it in every view); sheet_width's drift (the evaluator's inputs: infra / body); the hair's exact normals as a look
+change (a hair-round call; hair4's crown_trim, blocked on the same check at 2.607, worth re-measuring on them).

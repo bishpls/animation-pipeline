@@ -268,6 +268,49 @@ def test_side_pocket_follows_the_jaw_round_its_sides():
     assert np.abs(got - P[k]).max() < 0.003, (got, P[k])
 
 
+def test_the_chin_columns_rims_land_on_the_v():
+    """the per-column form hangs each column's underside from its point of the jaw's edge, but the rim (where the
+    column's envelope crosses it) lands off the edge's height where the envelope's front isn't through the edge's point:
+    0.0014-0.0019 L over it here. Re-hung by the gap (SIDE_RIMFIT, the chin's columns under SIDE_RIMFIT_A), every chin
+    column's rim is on the drawn V at its own x."""
+    S, jaw = _head()
+    got = {}
+    keep = headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE
+    try:
+        for fit in (0, 3):
+            headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = fit, 0.3, 0.0
+            U = headgeom.UnderJaw(S, jaw, -0.2, -0.55, side=dict(z_angle=-0.25, rows=(-0.24, -0.33)))
+            err = []
+            for deg in range(0, 17, 2):
+                t = math.radians(deg)
+                info = U.meridian(t)[2]
+                x = info['rim'][0] * math.sin(t)
+                err.append(abs(info['rim'][1] - float(np.interp(x, U.jx, U.jz))))
+            got[fit] = max(err)
+    finally:
+        headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = keep
+    assert got[0] > 0.0013 and got[3] < 0.001, got
+
+
+def test_the_rim_refit_fades_by_its_share():
+    """SIDE_RIMFIT_FADE: a chin column refitted by a share w of its rim's gap keeps (1 - w) of it (the default hangs the
+    point's neighbour whole, the next column 0.59 of the way: the boards' taper stays under its FAIL line)."""
+    S, jaw = _head()
+    keep = headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE
+    gap = {}
+    t = math.radians(12)
+    try:
+        for fit, fade in ((0, 0.0), (3, 0.4)):
+            headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = fit, t + 0.2, fade
+            U = headgeom.UnderJaw(S, jaw, -0.2, -0.55, side=dict(z_angle=-0.25, rows=(-0.24, -0.33)))
+            info = U.meridian(t)[2]
+            x = info['rim'][0] * math.sin(t)
+            gap[fit] = info['rim'][1] - float(np.interp(x, U.jx, U.jz))
+    finally:
+        headgeom.SIDE_RIMFIT, headgeom.SIDE_RIMFIT_A, headgeom.SIDE_RIMFIT_FADE = keep
+    assert abs(gap[0]) > 0.001 and abs(gap[3] - 0.5 * gap[0]) < 0.25 * abs(gap[0]), gap
+
+
 def test_under_jaw_leaves_the_rows_under_its_band_on_the_sections():
     """rows under the band's foot (the neck down to the join) are the sections' own, not the meridians' end."""
     S, jaw = _head()
