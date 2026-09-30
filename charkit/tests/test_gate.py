@@ -42,10 +42,10 @@ def test_manifest_resolves_refs():
     d = tempfile.mkdtemp()
     mp = os.path.join(d, 'manifest.json')
     json.dump({'name': 'x', 'references': {'rig': {'path': 'rigs/x'}, 'key3d': {'path': 'keys/x.png'},
-                                           'trellis': {'path': 'out/x.glb'},
+                                           'hull': {'path': 'out/x.glb'},
                                            'sheet': {'path': 'refs/x.png', 'figures': {'heads': {'front': [0, 0, 1, 1]}}}},
                'authority': {'chin': 'sheet'}}, open(mp, 'w'))
-    spec = {'ref': {'manifest': mp, 'fit': ['face']}, 'hair': {'shape': {'glb': 'ref:trellis'}}}
+    spec = {'ref': {'manifest': mp, 'fit': ['face']}, 'hair': {'shape': {'glb': 'ref:hull'}}}
     s = manifest.resolve(spec)
     assert s['ref']['rig'] == 'rigs/x' and s['ref']['image'] == 'keys/x.png'
     assert s['ref']['sheet']['image'] == 'refs/x.png' and s['ref']['sheet']['heads']['front'] == [0, 0, 1, 1]

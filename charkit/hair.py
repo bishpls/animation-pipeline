@@ -201,9 +201,9 @@ def _cast_in(V, F, O, D, R):
 
 
 class MeshVolume(Volume):
-    """The hair volume from a generated hair surface (charkit.i3d: a TRELLIS.2 mesh's hair part, in world): its outermost
-    radius along each direction from the hair centre (a ray-cast grid, cast inward from outside so inner layers don't
-    count), gently smoothed; directions that miss (the face, below the hair) fall back to the head-based volume. hem(az):
+    """The hair volume from a generated hair surface (charkit.target3d: the 3D target's hair part, in world; the visual
+    hull's today, TRELLIS.2's before): its outermost radius along each direction from the hair centre (a ray-cast grid,
+    cast inward from outside so inner layers don't count), gently smoothed; directions that miss (the face, below the hair) fall back to the head-based volume. hem(az):
     where the generated hair ends at each azimuth."""
 
     def __init__(self, H, centre, S, target, hair_mesh, step=3.0, smooth=6):

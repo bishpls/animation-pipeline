@@ -273,7 +273,7 @@ def test_fit_terms_and_paired_knobs():
     assert h.residual({'y': {'value': 0.85, 'status': 'FAIL'}})[0] == 0.0                    # nearer its target
     assert abs(h.residual({'y': {'value': 0.78, 'status': 'FAIL'}})[0] - 2.0) < 1e-9          # 0.02 further away
     R = fitkit.residuals({'x': {'value': 0.55, 'status': 'FAIL'}},
-                         [t, bodyfit._iou_term('x', (0.85, 0.70), 'body_silhouette', 'trellis', 'shape', 'body')],
+                         [t, bodyfit._iou_term('x', (0.85, 0.70), 'body_silhouette', 'hull', 'shape', 'body')],
                          bodyfit.AUTHORITY)
     assert R[0]['w'] == 1.0 and R[1]['w'] == 0.25                 # the sheet decides the body's silhouette
 

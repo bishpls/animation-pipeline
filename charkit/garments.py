@@ -735,7 +735,7 @@ def belt(A, spec):
 # ---------------------------------------------------------------------------------------------------- the hull's pieces
 def hull_pieces(spec, A, source='shell'):
     """the visual hull's outfit pieces as world points on this character: the generated shape (the spec's hair.shape.glb,
-    charkit.geom.hull's), aligned by its eyes as the build aligns its target (i3d.eye_target, i3d.align_by_eyes)
+    charkit.geom.hull's), aligned by its eyes as the build aligns its target (target3d.eye_target, target3d.align_by_eyes)
     -> {piece id: (n, 3)}, or None when the shape carries no pieces. The points are its labelled shell (hull.npz beside
     it: shell_points, one per surface voxel of the occupancy, on a regular grid), not the mesh's vertices: the mesh is
     decimated, and which vertices a decimation keeps (denser at curvature, fewer on flat stretches) moved the lofts'
@@ -744,7 +744,7 @@ def hull_pieces(spec, A, source='shell'):
     the decimated mesh's vertices split by the per-vertex pieces the sidecar names, as before. Names come from the
     sidecar either way."""
     import json, os
-    from . import i3d
+    from . import target3d
     shape = ((spec.get('hair') or {}).get('shape') or {})
     glb = shape.get('glb')
     if not glb:
@@ -767,8 +767,8 @@ def hull_pieces(spec, A, source='shell'):
         lab = np.load(os.path.join(os.path.dirname(path), J['pieces']))
         if len(lab) != len(V):
             raise ValueError('%s: %d piece labels for %d vertices' % (J['pieces'], len(lab), len(V)))
-    eye_mid, spacing = i3d.eye_target(A, shape)
-    W = i3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
+    eye_mid, spacing = target3d.eye_target(A, shape)
+    W = target3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
     return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
 
 

@@ -11,7 +11,8 @@ Builds (each into its own out folder; `fresh` ones with --cache off):
   head         head.width: garments run too (the head wrap drags the neck and shoulder joints the outfit hangs from)
   outfit       a garment's colour: character, hair, face shading restored; garments run; in the QA the parts that
                don't look at the clothes (eyes, face, expressions, the sheet's figures) restored
-  glb          the TRELLIS GLB at the same path rewritten turned 0.5 degrees: the fit and the hair run
+  glb          the 3D target (the hull's GLB, copied with its eyes) at the same path rewritten turned 0.5 degrees: the
+               fit and the hair run
   code         a code edit in garments.py: garments (and the products) run; a comment-only edit: nothing runs
   verify       eyes.width again with --cache verify: every stage runs and is compared with the entry a lookup would take
 The changed builds are each diffed against a fresh build of the same spec: `no differences` (stage times left out).
@@ -24,11 +25,10 @@ PY = sys.executable
 
 
 def copy_checkout(dst):
-    """the kit's sources into dst (a throwaway root), the generated inputs and the references linked, not copied."""
+    """the kit's sources into dst (a throwaway root), the references linked, not copied."""
     shutil.copytree(os.path.join(REPO, 'charkit'), os.path.join(dst, 'charkit'),
                     ignore=shutil.ignore_patterns('out', '__pycache__'))
     os.makedirs(os.path.join(dst, 'charkit', 'out'))
-    os.symlink(os.path.join(REPO, 'charkit', 'out', 'i3d'), os.path.join(dst, 'charkit', 'out', 'i3d'))
     os.symlink(os.path.join(REPO, 'projects'), os.path.join(dst, 'projects'))
 
 
@@ -189,7 +189,9 @@ def main(args):
         # the same path, other content: the build reads the GLB by path, so only its content can tell
         glb = os.path.join(root, 'glb', 'clawd.glb')
         os.makedirs(os.path.dirname(glb))
-        shutil.copyfile(os.path.join(REPO, 'charkit', 'out', 'i3d', 'clawd', 'clawd_3dstyle_s1.glb'), glb)
+        src = os.path.join(REPO, 'charkit', 'out', 'hull', 'clawd', 'hull.glb')      # (made by any build of the repo)
+        shutil.copyfile(src, glb)
+        shutil.copyfile(src + '.json', glb + '.json')                               # its eyes (target3d.glb_eyes)
 
         def to_copy(s):
             s['hair']['shape']['glb'] = glb
@@ -197,7 +199,7 @@ def main(args):
         a = build(root, p, out('glb_a'), *B, env=env); show('glb_a', a)
         b = build(root, p, out('glb_b'), *B, env=env); show('glb_b', b)
         check(not ran(b), 'glb: a second build with the copy restores everything')
-        turned_glb(os.path.join(REPO, 'charkit', 'out', 'i3d', 'clawd', 'clawd_3dstyle_s1.glb'), glb)
+        turned_glb(src, glb)
         c = build(root, p, out('glb'), *B, env=env); show('glb', c)
         f = build(root, p, out('glb_fresh'), *B, '--cache', 'off', env=env)
         check({'fit_cranium', 'hair'} <= set(ran(c)) and 'file ' in c['steps']['hair'].get('why', ''),

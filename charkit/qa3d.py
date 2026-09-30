@@ -5,7 +5,7 @@ FAIL per check (a check that couldn't run says SKIPPED and why) and overlay imag
 materials, and nothing here needs Blender. `python -m charkit build --qa blender` still runs the old Blender pass
 (charkit/qa3d_blender.py) for comparison.
 
-  shape      silhouette overlap (IoU) with the generated shape (a TRELLIS.2 GLB, aligned as the build aligned it) from six
+  shape      silhouette overlap (IoU) with the 3D target (the visual hull's GLB, aligned as the build aligned it) from six
              azimuths, overall and per height band (hair, torso, skirt, legs)
   ref        front silhouette overlap with the reference image (both cropped to their bounding boxes)
   scalp      pixels of scalp showing through the hair (the upper cranium and the back of the head, flagged), per view

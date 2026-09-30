@@ -262,7 +262,7 @@ def skin_classes(rgb):
     """a drawing's skin split into its lit and shaded tones: -> labels (0 other, 1 lit skin, 5 shaded skin, 4 line).
     Skin is the sheet's skin hues (charkit.sheetqa.SKIN's, its shade allowed down to v 0.55); lit from shaded at the
     luminance threshold between the two (Otsu), when there are two."""
-    from .i3d import hsv
+    from .target3d import hsv
     from . import sheetqa
     H, W, _ = rgb.shape
     h, s_, v = (a.reshape(H, W) for a in hsv(rgb.reshape(-1, 3)))

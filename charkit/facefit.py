@@ -62,7 +62,7 @@ GROUP_WHAT = {'eyes': ('eyes',), 'face': ('sheet', 'face_shape')}
 # the model sheet's measures are smoothed over these sub-pixel grids while the fit searches (a pixel is 0.009 L there)
 JITTER = [(0, 0, 0), (0.5, 0.5, 0.5), (0.25, 0.75, 0.5), (0.75, 0.25, 0.25)]
 AUTHORITY = {'face_front': 'sheet', 'face_three_quarter': 'sheet', 'face_profile': 'sheet', 'chin': 'sheet',
-             'feature_heights': 'sheet', 'face_depth': 'trellis', 'eyes': 'sheet'}
+             'feature_heights': 'sheet', 'face_depth': 'hull', 'eyes': 'sheet'}
 VIEWS = ('front', 'three_quarter', 'profile', 'depth', 'eyes', 'coverage')
 NECK_RUN = 0.10                 # L of neck the fit keeps showing under the chin (the neck check reads 0.06 L down)
 LOSS = {'eyes': 'linear', 'face': 'soft_l1'}   # the eyes' terms are smooth; the face's sheet terms can flip a pixel row
@@ -89,13 +89,13 @@ def terms():
             ('sheet_nose_reach', None, 'abs', S['reach'][0], 'face_profile', 'sheet', 'profile'),
             ('sheet_chin_reach', None, 'abs', S['reach'][0], 'face_profile', 'sheet', 'profile'),
             ('sheet_profile_chin', None, 'abs', S['chin'][0], 'chin', 'sheet', 'profile'),
-            ('face_shape_width', 'mouth', 'ratio', F['width'][0], 'face_front', 'trellis', 'front'),
-            ('face_shape_width', 'jaw', 'ratio', F['width'][0], 'face_front', 'trellis', 'front'),
-            ('face_shape_cheek', None, 'abs', F['cheek'][0], 'face_three_quarter', 'trellis', 'three_quarter'),
-            ('face_shape_profile', None, 'abs', F['profile'][0], 'face_profile', 'trellis', 'profile'),
-            ('face_shape_chin', None, 'abs', F['chin'][0], 'chin', 'trellis', 'profile'),
-            ('face_shape_depth', 'cheeks', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth'),
-            ('face_shape_depth', 'chin', 'abs', F['depth'][0], 'face_depth', 'trellis', 'depth')):
+            ('face_shape_width', 'mouth', 'ratio', F['width'][0], 'face_front', 'hull', 'front'),
+            ('face_shape_width', 'jaw', 'ratio', F['width'][0], 'face_front', 'hull', 'front'),
+            ('face_shape_cheek', None, 'abs', F['cheek'][0], 'face_three_quarter', 'hull', 'three_quarter'),
+            ('face_shape_profile', None, 'abs', F['profile'][0], 'face_profile', 'hull', 'profile'),
+            ('face_shape_chin', None, 'abs', F['chin'][0], 'chin', 'hull', 'profile'),
+            ('face_shape_depth', 'cheeks', 'abs', F['depth'][0], 'face_depth', 'hull', 'depth'),
+            ('face_shape_depth', 'chin', 'abs', F['depth'][0], 'face_depth', 'hull', 'depth')):
         lim = (S if chk.startswith('sheet_') else F)[{'sheet_width': 'width', 'sheet_neck_to_jaw': 'width', 'sheet_cheek': 'cheek',
                                                         'sheet_cheek_chin': 'chin', 'sheet_profile': 'profile',
                                                         'sheet_nose_reach': 'reach', 'sheet_chin_reach': 'reach',
@@ -106,7 +106,7 @@ def terms():
     # kept, not aimed at (a token weight; their status band protected): how much face the hair leaves showing. A fuller
     # face culls more of the generated hair, so these follow the head only once the hair is rebuilt for it (the refresh)
     for view in ('front', 'three_quarter'):
-        T.append(Term('face_shape_coverage_' + view, None, 'ratio', F['coverage'][0], 'coverage', 'trellis', 'coverage',
+        T.append(Term('face_shape_coverage_' + view, None, 'ratio', F['coverage'][0], 'coverage', 'hull', 'coverage',
                       'face', warn=F['coverage'][1] / F['coverage'][0], weight=0.02))
     return T
 

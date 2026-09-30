@@ -127,38 +127,38 @@ def cull_face(S, hv, hf, shape):
 
 
 def eye_target(A, shape):
-    """i3d.eye_target (where a generated character's eyes land on ours)."""
-    from . import i3d
-    return i3d.eye_target(A, shape)
+    """target3d.eye_target (where a generated character's eyes land on ours)."""
+    from . import target3d
+    return target3d.eye_target(A, shape)
 
 
 def hair_shape_volume(S, shape, hc):
-    """the hair volume from a generated character (TRELLIS.2 GLB): aligned by its eyes onto ours, its hair taken by colour
-    above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
-    from . import hair, i3d
+    """the hair volume from the 3D target (charkit.target3d; the visual hull's GLB): aligned by its eyes onto ours, its
+    hair taken by colour above the chin (not the same-coloured clothes), as a charkit.hair.MeshVolume."""
+    from . import hair, target3d
     A = S.character['data']; Hd = A['head']; L = Hd['L']
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), shape['glb'])
-    V, F, C = i3d.load_glb(path)
-    eyes = i3d.glb_eyes(path, V, C)
+    V, F, C = target3d.load_glb(path)
+    eyes = target3d.glb_eyes(path, V, C)
     if eyes is None:
         raise RuntimeError('no eyes found on the generated shape')
     eye_mid, spacing = eye_target(A, shape)
-    V = i3d.align_by_eyes(V, eyes, eye_mid, spacing)
+    V = target3d.align_by_eyes(V, eyes, eye_mid, spacing)
     S.shape_full = (V, F)                                   # the whole aligned shape (QA compares against it)
     S.shape_colors = C                                      # its per-vertex colours (the face QA finds its skin by them)
     cols = shape.get('colors') or [hc.get('lit', (0.95, 0.5, 0.3)), hc.get('shade', (0.8, 0.35, 0.22)),
                                    hc.get('deep', (0.6, 0.22, 0.16))]
     chin_z = Hd['centre'][2] - Hd['H'].chin
     if shape.get('select') == 'outside':
-        hv, hf = i3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
+        hv, hf = target3d.hair_by_outside(V, C, F, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
                                      below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
     elif shape.get('select') == 'exclude':
-        hv, hf = i3d.hair_by_exclusion(V, C, F, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
+        hv, hf = target3d.hair_by_exclusion(V, C, F, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
     elif 'hue' in shape:
-        hv, hf = i3d.hair_by_hue(V, C, F, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
+        hv, hf = target3d.hair_by_hue(V, C, F, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
                                  below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
     else:
-        hv, hf = i3d.hair_part(V, C, F, cols, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L,
+        hv, hf = target3d.hair_part(V, C, F, cols, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L,
                                max_d=shape.get('max_d', 0.22))
     hv, hf = cull_face(S, hv, hf, shape)
     S.hair_shape = (hv, hf)
@@ -457,21 +457,21 @@ DEPS = {
 def fit_cranium(spec, root, load=None):
     """the cranium knob from a generated shape: aligned by its eyes (the spec's eye spacing and head length, no build needed),
     the hair's top along the midline sets our skull's top `under` (head lengths) below it: the head fits inside the hair.
-    load: the GLB reader, path -> (V, F, C) (default charkit.i3d.load_glb, in Blender; charkit.geom.parts.load_generated
+    load: the GLB reader, path -> (V, F, C) (default charkit.target3d.load_glb, in Blender; charkit.geom.parts.load_generated
     reads the same numbers in the venv)."""
-    from . import i3d
+    from . import target3d
     shape = (spec.get('hair') or {}).get('shape') or {}
     if not shape.get('glb') or not shape.get('fit_cranium', True):
         return spec
     P = spec.get('body', {})
     L = P.get('height_m', 1.6) / P.get('heads_tall', 6.5)
     path = shape['glb'] if os.path.isabs(shape['glb']) else os.path.join(root, shape['glb'])
-    V, F, C = (load or i3d.load_glb)(path)
-    eyes = i3d.glb_eyes(path, V, C)
+    V, F, C = (load or target3d.load_glb)(path)
+    eyes = target3d.glb_eyes(path, V, C)
     if eyes is None:
         return spec
     ex = spec.get('eyes', {}).get('x', 0.168)
-    V = i3d.align_by_eyes(V, eyes, np.zeros(3), 2 * ex * L)            # eye line at z = 0, the midline at x = 0
+    V = target3d.align_by_eyes(V, eyes, np.zeros(3), 2 * ex * L)            # eye line at z = 0, the midline at x = 0
     ey = (eyes[0][1] + eyes[1][1]) / 2
     # the crown: the middle of the head (behind the fringe and the ahoge, in front of the back), the hair's highest points
     # per thin slice along the midline, their median (an ahoge or a bun is an outlier)

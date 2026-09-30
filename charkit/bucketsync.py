@@ -398,20 +398,13 @@ def skipped(rel):
 
 def sync_paths(wt):
     """build.sh sync's set: tracked and untracked-not-ignored files on disk (a sparse checkout's absent ones aren't),
-    plus charkit/out/i3d (the builds' generated inputs) and charkit/out/remote/*.json (portable specs); nothing else
-    under charkit/out, nothing under .git, __pycache__ or .cache. -> (paths, the ignored paths the box must keep)."""
+    plus charkit/out/remote/*.json (portable specs); nothing else under charkit/out (charkit/out/i3d, TRELLIS's output,
+    is no longer sent: no build reads it since the sheet-only outfit masks, decision 8), nothing under .git, __pycache__
+    or .cache. -> (paths, the ignored paths the box must keep)."""
     out = []
     for rel in git_paths(wt, '--cached', '--others', '--exclude-standard'):
         if not rel.startswith('charkit/out/') and not skipped(rel):
             out.append(rel)
-    i3d = os.path.join(wt, 'charkit', 'out', 'i3d')
-    if os.path.islink(i3d):
-        out.append('charkit/out/i3d')
-    elif os.path.isdir(i3d):
-        for d, ds, fs in os.walk(i3d):
-            ds[:] = sorted(x for x in ds if x not in SKIP)
-            for f in fs:
-                out.append(os.path.relpath(os.path.join(d, f), wt))
     rem = os.path.join(wt, 'charkit', 'out', 'remote')
     if os.path.isdir(rem):
         out += ['charkit/out/remote/' + f for f in os.listdir(rem) if f.endswith('.json')]
@@ -578,8 +571,7 @@ def cmd_sync(wt, dest):
     sent = [0, 0]
     if sum(size_of[x] for x in miss) <= ADOPT_OVER:
         sent = list(upload_blobs(bk, miss, known, where, miss=miss))
-    no_i3d = not os.path.lexists(os.path.join(wt, 'charkit', 'out', 'i3d'))
-    m = dict(v=1, kind='sync', files=files, links=links, keep=keep, no_i3d=no_i3d)
+    m = dict(v=1, kind='sync', files=files, links=links, keep=keep)
     msha = put_manifest(bk, m, known)
     ck.lap('upload')
     rc = box_apply(bk, known, msha, dest, where, sent=sent)
@@ -716,8 +708,7 @@ def cmd_verify(wt, dest):
     rels, keep = sync_paths(wt)
     files, links, where = scan(wt, rels, StatCache(os.path.join(CACHE_HOME, 'stat', hashlib.sha256(wt.encode())
                                                                 .hexdigest()[:16] + '.json')))
-    no_i3d = not os.path.lexists(os.path.join(wt, 'charkit', 'out', 'i3d'))
-    msha = put_manifest(bk, dict(v=1, kind='sync', files=files, links=links, keep=keep, no_i3d=no_i3d), known)
+    msha = put_manifest(bk, dict(v=1, kind='sync', files=files, links=links, keep=keep), known)
     rc, out = box_run(['check', msha, dest])
     print(out.rstrip())
     return rc
@@ -738,18 +729,16 @@ def cmd_pull(name, local):
 
 
 # ----------------------------------------------------------------------------------------------------------- on the box
-def managed(rel, keep_files, keep_dirs, no_i3d):
+def managed(rel, keep_files, keep_dirs):
     """whether the sync owns rel on the box (else it's left alone: build.sh's rsync --delete excludes): not under a
-    SKIP directory, not under charkit/out except i3d (when the laptop sends one) and remote/*.json, not an ignored
-    path the laptop has."""
+    SKIP directory, not under charkit/out except remote/*.json, not an ignored path the laptop has. (A copy's
+    charkit/out/i3d, which the sync used to send, is left alone like the rest of charkit/out.)"""
     parts = rel.split('/')
     if any(c in SKIP for c in parts):
         return False
     if rel.startswith('charkit/out/') or rel == 'charkit/out':
         if len(parts) < 3:
             return True                               # charkit/out itself: a directory, kept
-        if parts[2] == 'i3d':
-            return not no_i3d
         if parts[2] == 'remote':
             return len(parts) == 3 or (len(parts) == 4 and parts[3].endswith('.json'))
         return False
@@ -911,8 +900,6 @@ def box_materialize(msha, dest, copy=False, delete=True):
     ck.lap('place')
     removed = 0
     if delete and m.get('kind') == 'sync':
-        if m.get('no_i3d'):
-            seed_i3d(dest)
         removed = prune(dest, m)
     ck.lap('delete')
     gc_cache()
@@ -998,7 +985,6 @@ def prune(dest, m):
     keep = m.get('keep', ())
     keep_files = {k for k in keep if not k.endswith('/')}
     keep_dirs = {k.rstrip('/') for k in keep if k.endswith('/')}
-    no_i3d = m.get('no_i3d', False)
     removed, empty = 0, []
     for d, ds, fs in os.walk(dest, topdown=True):
         rd = os.path.relpath(d, dest)
@@ -1011,12 +997,12 @@ def prune(dest, m):
             full = os.path.join(d, x)
             if os.path.islink(full):
                 fs.append(x)
-            elif managed(rel, keep_files, keep_dirs, no_i3d):
+            elif managed(rel, keep_files, keep_dirs):
                 kept.append(x)
         ds[:] = kept
         for f in fs:
             rel = rd + f
-            if rel in have or not managed(rel, keep_files, keep_dirs, no_i3d):
+            if rel in have or not managed(rel, keep_files, keep_dirs):
                 continue
             os.remove(os.path.join(d, f))
             removed += 1
@@ -1026,25 +1012,6 @@ def prune(dest, m):
         except OSError:
             pass
     return removed
-
-
-def seed_i3d(dest):
-    """a worktree without charkit/out/i3d must not leave its box copy without one (the outfit masks read its TRELLIS
-    field: 11 copies built wrong masks, 2026-09-29): the copy keeps its own, or takes the box's fullest by links."""
-    mine = os.path.join(dest, 'charkit', 'out', 'i3d')
-    def count(d):
-        return sum(len(fs) for _, _, fs in os.walk(d))
-    best, bn = None, 0
-    for c in os.listdir(WORK):
-        d = os.path.join(WORK, c, 'charkit', 'out', 'i3d')
-        if os.path.join(WORK, c) != dest.rstrip('/') and os.path.isdir(d):
-            n = count(d)
-            if n > bn:
-                best, bn = d, n
-    if best and count(mine) < bn:
-        shutil.rmtree(mine, ignore_errors=True)
-        os.makedirs(os.path.dirname(mine), exist_ok=True)
-        subprocess.run(['cp', '-al', best, mine], check=True)
 
 
 def gc_cache(days=3):
@@ -1090,8 +1057,8 @@ def box_check(msha, dest):
         for d, ds, fs in os.walk(dest):
             rd = os.path.relpath(d, dest)
             rd = '' if rd == '.' else rd + '/'
-            ds[:] = [x for x in ds if managed(rd + x, kf, kd, m.get('no_i3d', False))]
-            bad['extra'] += [rd + f for f in fs if rd + f not in have and managed(rd + f, kf, kd, m.get('no_i3d'))]
+            ds[:] = [x for x in ds if managed(rd + x, kf, kd)]
+            bad['extra'] += [rd + f for f in fs if rd + f not in have and managed(rd + f, kf, kd)]
     print('BUCKETSYNC check: %d files, %d links; %s' % (len(m['files']), len(m.get('links', ())),
                                                         ', '.join('%s %d' % (k, len(v)) for k, v in bad.items())))
     for k, v in bad.items():

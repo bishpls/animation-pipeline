@@ -57,7 +57,7 @@ THIN = (CLASS['line'], CLASS['brow'])                # ours drawn at least a pix
 # ------------------------------------------------------------------------------------------------------------ classes
 def classes(rgb):
     """a drawn face's class image (see the module)."""
-    from .i3d import hsv
+    from .target3d import hsv
     H, W, _ = rgb.shape
     h, s, v = (a.reshape(H, W) for a in hsv(rgb.reshape(-1, 3)))
     out = np.zeros((H, W), int)
