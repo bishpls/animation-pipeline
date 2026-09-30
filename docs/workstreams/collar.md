@@ -251,7 +251,7 @@ collar's visible outline in front is two small pieces above the loops, 1.34 L lo
 collar's edge meets the loop's top edge: a round cap drops the loop's top there (0.035 L at p2, 0.024 p3, 0.020 p4,
 from the lobe's own taper plus the cap). Box: end 0 (open) 0.745 PASS, loop_end 0.593 FAIL; p2 (the gate) 2.193 WARN,
 0.059 PASS; p3 1.48 PASS (2 corners), 0.215 WARN; p4 0.743 PASS, 0.316 FAIL. No single power passes both, so
-`end_p` [upper, lower] (fd.. garments: the powers at the section's top and bottom, blended round it; the drawn loops'
+`end_p` [upper, lower] (5fded59: the powers at the section's top and bottom, blended round it; the drawn loops'
 upper outer corners are square, their lower ones round): the top as p4's (no corner), the bottom round. Harness
 loop_end: [4,2] 0.186 WARN, [5,2] 0.222, [4,1.6] 0.143 PASS, [6,1.6] 0.200.
 
@@ -259,3 +259,24 @@ loop_end: [4,2] 0.186 WARN, [5,2] 0.222, [4,1.6] 0.143 PASS, [6,1.6] 0.200.
 jacket (0.107 L back at the ends against 0.07 of stand): no line along them there (rows 240-320 of the bleed frame).
 Round 1's narrow ribbon kept its outer edge ~0.008 L clear. `ribbon.hinge` (0..1): each row forward by that share of
 its turned half-depth (1: the outer edge on the wrap; `stand` then its clearance), the front view unchanged.
+
+**Box builds of the fix (the merged tree, pipeline-3d 3ebc3fb):**
+
+| check | gate 1 candidate | v1 (taken) | v2 |
+|---|---|---|---|
+| bow: end_p / ribbon | 2 / stand .07, w [.27,.45] | [4, 1.4] / hinge 1, stand .015, w [.25,.415] | = v1, stand .03 |
+| art_outline_collar (flag) | 2.193 WARN | **0.742 PASS** (1 corner, base's) | 0.742 PASS |
+| bow_front_loop_end | 0.059 PASS | 0.121 PASS | 0.121 PASS |
+| bow_front_bleed | 0.3425 FAIL | **0.0325 WARN** | 0.035 WARN |
+| bow_profile_ribbon | 0.092 PASS | 0.079 PASS | 0.053 PASS |
+| bow_front_tail_width / gap | 0.0125 / 0.0 PASS | 0.0 / 0.014 PASS | = v1 |
+| piece_bow (front / 3q / profile) | 0.754 PASS | 0.735 WARN (0.867 / 0.746 / 0.341) | 0.719 (… / 0.715 / 0.314) |
+| art_fragments_collar (flag) | 4.917 WARN | 4.741 WARN | 4.693 WARN |
+| art_speckle_neck (flag) | | **1.34 PASS** (tool/hairtag's masks, as the coordinator said) | 1.34 |
+| hair_noise | | 0.0785 WARN | 0.0785 |
+
+The cost: the bow's profile IoU (pipeline-3d's 0.52 -> 0.34): our ribbons now show their face in profile clear of
+the jacket, as drawn, but our jacket's front under them sits up to 0.10 L forward of the drawn ribbons' back edges (the
+drawn jacket's visible front below them 0.04-0.05 L behind ours), so they stand forward of the drawn ones. The fix is
+the jacket's front in profile under the ribbons (a decision; not this milestone). piece_bodice_panel's profile view
+0.139 (the panel behind the ribbons in profile; the check overall 0.927 PASS, base 0.899).
