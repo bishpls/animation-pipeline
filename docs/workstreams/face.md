@@ -1139,3 +1139,35 @@ it is unchanged at ba51e43. CPU 1.34x (591.4 -> 790.7 s). jaw_taper_shape's 2x2 
 moves anything): the back view carries the value (the worst view's ratio), and hair_bun_L carries the back view's
 move (0.39 of 0.45; hair_bun_R 0.05). The buns move 0.02 L with no hull change under them: an input of the bun fit the
 face changes. The same swap on the gate's own pair (old decimation) is running.
+
+**The terminator's carrier found: the buns' fit, from a 0.8 um move of the head's centre** (`tools/hull_local/hairswap.py`
+in tool/hull-local: the hair pieces rebuilt venv-side on B3's inputs with one input from B2;
+`$SCRATCH/hl/hairswap_b2b3.json`). B3's own inputs reproduce its bun_L to 8.9e-16 L. With B2's head (head_code.npz),
+bun_L matches B2's to 7.6e-6 L. With B2's hull, bun_L is B3's exactly. The bun points (the hull's samples labelled
+buns) are identical in every variant (3,326, the same sum). What the head changes is `Case.centre`, y 0.0230835 ->
+0.0230843 m: 0.8 um, 3.2e-6 L. `centre = [Ox, Oy + y0 L, Oz]` (code_base.wrap). y0 (the eye row's section centre) is
+unchanged, so it is the head's placement Oy. The bun fit (`hairpieces.fit_block`: Nelder-Mead, 600 + 900
+evaluations, on a pixel-counting loss, started from `block_frame(P, head_c)`) takes that to a different optimum 0.027 L
+away, about 8,000x. The back view's terminator follows (bun_L 0.39 of the 0.45). Neither the hull nor the face's
+geometry carries it. The fit amplifies any input move. hull-local alone (B2: every bun point moves once) reads
+art_terminator_hair 2.514 against 2.308 by the same route, most likely.
+
+**State and next steps** (for the next agent; this agent stopped at the coordinator's budget):
+- heads: tool/face5 b4b25ea+ (this note), 2e4c1d6 the last code (pipeline-3d 3a0ad37 merged); tool/hull-local 7fe6f0d+
+  (`~/animation-pipeline-hulllocal`; not gated); tmp/face5-on-hull-local f6137bd (`~/animation-pipeline-face5hl`: a
+  build tree only, delete when done).
+- running when this agent stopped: the piece swaps on the gate's own pair (old decimation, B0 = gate-out
+  base_ba51e43_clawd_default, B1 = cand_tool-face5_2e4c1d6_into_ba51e43_default) -> tool/hull-local's
+  `charkit/out/hl_term/term_b0_b1.json` (fetched by the laptop command when it ends; else fetch it with `infra/gcp/build.sh fetch`).
+  Expect the buns again.
+1. Make the bun fit stable under tiny input moves, at its source (hairpieces.fit_block / block_frame): measure bun_L's
+   move under +-1e-6 L of head_c and of the bun points first; that's the regression test. Candidates: the bun's frame
+   from the hull's eye frame instead of Case.centre (a head edit then can't reach it); a fit whose optimum doesn't
+   jump (multi-start keeping the best, or a smooth silhouette loss); or why Oy moves 0.8 um with a jaw edit. Any of
+   these moves the buns once for everyone, so art_terminator_hair must be read on it (it must end at or under 2.5 and
+   not regress: Michael's flag).
+2. Rebuild B2 and B3 with it (`remote build` from each worktree, `--boards '' --no-blend`). Then gate tool/hull-local
+   into pipeline-3d, and tool/face5 into tool/hull-local (what face5 does once hull-local lands). Accept only
+   jaw_taper_shape. sleeve_profile_rough_L no longer blocks.
+3. `--accept` can't take a new FAIL under policy K (above). It's moot for sleeve_profile_rough_L now; for Michael if
+   he wants a way to record such an acceptance in the gate.
