@@ -86,7 +86,8 @@ MEASUREMENT_STEPS = [
      'mouths) and face_folds sums its folds over every key'),
     ('face_mouth_cover', 'dee61e7', 'the library grew (the open shout, clench, grimace and wobble; cover is the worst '
      'key) and COVER counts the tongue, a new class (tool/mouth)'),
-    ('face_mouth_asym', 'dee61e7', 'the library grew (tool/mouth: the smirk is asymmetric by design; the worst key)'),
+    ('face_mouth_asym', 'dee61e7', 'the library grew (tool/mouth: the worst key); a shape skewed by design (the smirk) '
+     'is left out (tool/mouth2)'),
     ('face_folds', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy) and face_folds sums every key'),
     ('face_expr_range', 'bf797d4', 'FACE_EXPECT gained focus, squeeze, wince, shy (tool/mouth2)'),
     ('face_eye_asym', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy; the worst key)'),

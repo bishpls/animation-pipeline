@@ -510,7 +510,7 @@ def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions
         pics = [(save(exprqa.paint(crop), 'key_%s.png' % name, 150), 'class')]
         bp = os.path.join(boards, 'mouth_%s.png' % name) if boards else None
         if bp and os.path.exists(bp):
-            pics.insert(0, (save(np.asarray(Image.open(bp).convert('RGB')).astype(float)[150:450, 100:500] / 255,
+            pics.insert(0, (save(np.asarray(Image.open(bp).convert('RGB')).astype(float)[60:360, 60:540] / 255,
                                  'mboard_%s.png' % name, 150), 'board'))
         L.append('<div class="card"><b>%s</b> folds %s, cover %s<div class="pair">%s</div></div>' % (
             name, k['folds'], f(k['cover']), ''.join('<div><img src="%s" height="150"><div class="lab">%s</div></div>' % pc

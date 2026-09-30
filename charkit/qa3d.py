@@ -285,7 +285,9 @@ def face_from(A, spec, key_xz, expressions=None, mouths=None):
     out = {k: E_[k]['L']['open'] for k, (lo_, hi_) in FACE_EXPECT.items()
            if k in E_ and not (lo_ <= (E_[k]['L']['open'] or 0) <= hi_)}
     checks['expr_range'] = {'value': len(out), 'outside': out, 'status': 'PASS' if not out else 'WARN'}
-    ma = {k: r['asym'] for k, r in M_.items() if r['area_L2'] > 1e-4}
+    from .mouth import SHAPES as _shapes
+    ma = {k: r['asym'] for k, r in M_.items()             # (a shape skewed by design, the smirk, left out)
+          if r['area_L2'] > 1e-4 and not (_shapes.get(k) or {}).get('skew')}
     if ma:
         k = max(ma, key=ma.get)
         checks['mouth_asym'] = {'value': ma[k], 'worst': k, 'status': _grade('mouth_asym', ma[k], False)}
