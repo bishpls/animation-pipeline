@@ -577,3 +577,104 @@ def _bary(X, A, B_, C):
     w /= np.maximum(w.sum(1, keepdims=True), 1e-12)
     p = w[:, :1] * A + w[:, 1:2] * B_ + w[:, 2:] * C
     return w, np.linalg.norm(X - p, axis=1)
+
+
+# ------------------------------------------------------------------------------------------------------ the review
+def _tint(rgb, masks, col=(0.2, 0.3, 0.9), a=0.45):
+    img = np.clip(np.asarray(rgb, float)[..., :3], 0, 1).copy()
+    m = np.zeros(img.shape[:2], bool)
+    for s in masks:
+        m[:s.shape[0], :s.shape[1]] |= s[:img.shape[0], :img.shape[1]]
+    img[m] = img[m] * (1 - a) + np.array(col) * a
+    return img
+
+
+def _diff(O, Dm):
+    """ours against the design over the pixels both show, per region: both shaded (dark red), ours only (orange), the
+    design's only (blue), both lit (pale); a region one side alone shows (grey)."""
+    H, W = O['hair'][0].shape
+    img = np.full((H, W, 3), 0.93)
+    for r in REGIONS:
+        mo, so = O[r]
+        md, sd = (a[:H, :W] for a in Dm[r])
+        if md.shape != (H, W):
+            md = np.pad(md, ((0, H - md.shape[0]), (0, W - md.shape[1])))
+            sd = np.pad(sd, ((0, H - sd.shape[0]), (0, W - sd.shape[1])))
+        both = mo & md
+        img[(mo | md) & ~both] = (0.80, 0.80, 0.82)
+        img[both] = (0.99, 0.94, 0.90)
+        img[both & so & ~sd] = (0.95, 0.55, 0.20)
+        img[both & sd & ~so] = (0.25, 0.45, 0.90)
+        img[both & so & sd] = (0.60, 0.12, 0.15)
+    return img
+
+
+def review(builds, out, keys=None):
+    """the review page: per build (name -> BUILD dir) and view, the design (its shade tinted), and ours under each light
+    (keys: name -> camera key; default the boards' and the manifest's design light) with the shade against the
+    design's (diff), and each region's mean IoU and shade share. -> the page's path."""
+    import html
+    from PIL import Image
+    from . import bundle, lookqa, qa3d, qarender
+    os.makedirs(out, exist_ok=True)
+    save = lambda name, img, k=1: Image.fromarray((np.clip(img, 0, 1)[::k, ::k] * 255).astype(np.uint8)).save(
+        os.path.join(out, name)) or name
+    rows, first = [], True
+    for bname, bdir in builds.items():
+        B = bundle.load(os.path.join(bdir, 'bundle'))
+        Q = qarender.frames(B)
+        design = qa3d.Design(B)
+        DL = lookqa.design_light(design)
+        ks = dict(keys or {})
+        if not ks:
+            look = B.meta('look') or {}
+            ks['board'] = tuple(((look.get('light') or {}).get('key')) or (30.0, 40.0))
+            if DL:
+                ks['design light'] = tuple(DL['key'])
+        setups = {'head': head_setup(B, Q, head_design(design)), 'body': body_setup(B, Q, body_design(design))}
+        Fi = Fitter(B, Q, setups)
+        for sh, vs in setups.items():
+            k = 1 if sh == 'head' else 2
+            for v, s in vs.items():
+                tag = '%s_%s_%s' % (bname, sh, v)
+                cells = []
+                if first or True:
+                    dm = s['design']
+                    cells.append(('design', save(tag + '_design.png', _tint(s['rgb'], [dm[r][1] for r in REGIONS]), k),
+                                  'shade share: ' + ', '.join('%s %.2f' % (r, dm[r][1].sum() / max(1, dm[r][0].sum()))
+                                                               for r in REGIONS if dm[r][0].sum() > MIN_PX)))
+                for lname, key in ks.items():
+                    d = camera_key(s['az'], *key)
+                    el = key[1]
+                    Qd = (lookqa.light_frames(B, el) or Q)
+                    kw = dict(light=d, line=0.0, transparent=False)
+                    if sh == 'head':
+                        kw.update(draw=Fi.draw_head, variants={Fi.skin: 'bare'})
+                    F = Qd.frame(s['cam'], **kw)
+                    O = ours_masks(F, Fi.reg)
+                    S = Fi.view_score(sh, v, d)
+                    txt = '; '.join('%s IoU %.3f, shade %.2f / %.2f' % (r, S[r]['miou'], S[r]['ours'], S[r]['design'])
+                                    for r in list(REGIONS) + ['face', 'neck'] if S.get(r, {}).get('px', 0) >= MIN_PX)
+                    cells.append(('%s (%g, %g): score %.3f' % (lname, key[0], key[1], objective(S)),
+                                  save(tag + '_%s.png' % lname.replace(' ', '_'), _tint(F['picture'], [O[r][1] for r in REGIONS], a=0.3), k),
+                                  txt))
+                    cells.append(('%s: against the design' % lname, save(tag + '_%s_diff.png' % lname.replace(' ', '_'),
+                                                                          _diff(O, s['design']), k), ''))
+                rows.append((bname, sh, v, s['az'], cells))
+        first = False
+    H = ['<!doctype html><meta charset=utf-8><title>Design light review</title><style>body{font:13px system-ui;'
+         'margin:16px;background:#fafafa;color:#222}td{vertical-align:top;padding:4px}img{max-width:100%;border:1px '
+         'solid #ddd}figcaption{font-size:12px;max-width:420px}h2{margin-top:28px}</style>',
+         '<h1>The design light: design | board light | design light</h1><p>The design\'s shade tinted blue; ours drawn by '
+         'charkit.render (the head bare, as the head sheet draws it), our shade tinted; against the design: both shaded '
+         '(dark red), ours only (orange), the design\'s only (blue), both lit (pale), one side only (grey). Numbers: per '
+         'region the shade and lit mean IoU with the drawing, and the shade share ours / the design\'s.</p>']
+    for bname, sh, v, az, cells in rows:
+        H.append('<h2>%s: %s %s (az %.1f)</h2><table><tr>' % (html.escape(bname), sh, v, az))
+        for cap, img, txt in cells:
+            H.append('<td><figure><img src="%s"><figcaption><b>%s</b><br>%s</figcaption></figure></td>' % (
+                img, html.escape(cap), html.escape(txt)))
+        H.append('</tr></table>')
+    path = os.path.join(out, 'index.html')
+    open(path, 'w').write('\n'.join(H))
+    return path
