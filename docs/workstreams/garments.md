@@ -1,14 +1,156 @@
 # Garments as pieces (tool/garments)
 
-## Round 5 in progress (2026-09-30)
+## Checkpoint: end of round 5 (2026-09-30). Start here.
 
-Michael's review of round 4: the midriff sliced and shifted, the boots twisted with no heel. Done so far (tool/body):
-the measures (`charkit/detailqa.py`, QA part `details`, 30 checks, registered at 843922c; round 4 reads 18 FAIL,
-8 WARN), the boots as a template (`garments.boot`), the midriff (`ease_to_band`, `belt_hull` straight, the texture
-panel), the right flap as the left's mirror (`flap_mirror`), chains rewritten (flapchains). Next: the box build and
-render, the gates, the review page, this checkpoint.
+**Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`; gated at ac461eb); it contains `pipeline-3d`
+5cb5256. The build of this state: `charkit/out/body5b_render` (boards, bundle, QA). The Clawd
+specs `clawd.json`, `clawd_body.json` and `clawd_body_pieces.json` carry the same garments (clawd_code.json the same
+boots, for the shared outfit masks).
 
-## Checkpoint: end of round 4 (2026-09-30). Start here.
+**Gates** (tool/body into pipeline-3d 5cb5256, build box):
+
+| gate | verdict | detail |
+|---|---|---|
+| ac461eb default (clawd.json, the authored character) | FAIL | one check: body_three_quarter_hem_mid 0.014 PASS -> -0.334 FAIL (the mirrored right tail's tip between the thighs); improved: back and profile skin IoU WARN -> PASS, overskirt_panel_R FAIL -> WARN, skirt_extent WARN -> PASS; the 30 new checks all PASS; tests ok. `charkit/out/gate/gate_tool-body_ac461eb_into_5cb5256.md` |
+| ac461eb clawd_body | FAIL | the same one check; improved overskirt_panel_R, skirt_extent. `..._clawd_body.md` |
+| fc3344b (tails 0.33 L), both specs | FAIL | six: the hems (front, back, three-quarter), hem_mid still -0.297 on the box's hull, both flap extents; reverted |
+| 65ec126, both specs | FAIL | boot_step_L front and back (the cuff's rows: remeasured at 196eace) and hem_mid |
+
+**Michael's review of round 4** (the pleated skirt "MUCH better"): the midriff looked sliced and shifted (the top's
+hem stepped short of the band, a torn cream panel, the band a separate ring), and the boots twisted at the ankle,
+with a spiked front fold, none at the back, uneven soles unlike each other, a doubled line at the toe and no heel.
+
+**Measured first** (`charkit/detailqa.py`, QA part `details`, 30 checks, registered in history.STEPS at 843922c;
+tests `charkit/tests/test_detailqa.py`). The design is measured the same way wherever it has a view:
+- the torso outline's steps outward and inward, bust to skirt, front L/R and profile front/back (edges only where
+  they are the silhouette; the profile's front below the drawn bow tails, z -1.22);
+- the top's hem against the band (a see-through gap or the top over it);
+- the cream panel's lower 0.25 L: outline roughness (p95 distance to its smoothed outline), fragments, holes;
+- boots: the ankle's jog and bend (front, back), the ankle's folds front and back in profile (as drawn at 3x the
+  grid, with the far boot where it shows past the near one), the heel (height, depth, raised arch), doubled outline
+  strokes, the bottom face in 3D (flat, twist = roll difference / yaw / tilt), mirror IoUs (front, back, soles from
+  below on one grid).
+Round 4 (body4b_render) reads 18 FAIL, 6 WARN, 6 PASS. What they found: the doubled toe line is the far boot's toe
+0.02 L ahead of the near one (the boots weren't mirror images), and so is the profile's front spike (shoe_R's top).
+
+**Boots as a template** (`garments.boot`, kind `boot`; tests `charkit/tests/test_boots.py`). One watertight upper:
+sections from knot tables (`profile` [h, front, back], `width` [h, outer, inner]: offsets from the ankle joint, the
+two joints made mirror images about the legs' midline x 0.0107 L), heights over the ground (`ankle_h` 0.667 L under
+the ankle). The knots are the drawn boots' silhouettes (front and back views averaged with the mirrored right boot;
+profile), so a section's extents are the silhouette. The foot rows bend onto the sole's underside (forefoot on the
+ground, the arch raised to `heel.lift` 0.15 L, level over the heel); the sole is the lowest `sole_t` 0.06 L; a heel
+block island (inset 0.012 L at its top, flared 0.02 L to the ground, its front at the ankle); the ankle's fold is a
+bulge over a crease per quadrant (`scrunch`: at h 0.545, the drawn sizes). `boot_R` is `boot_L` mirrored. The leg and
+foot inside are hidden. Every number is in the spec.
+
+**Midriff.** The top's hem drops 0.08 L under the band, kept 0.03 L above its lower edge; its rows above the band
+ease out over 0.25 L onto the band's face (`ease_to_band`), so the outline runs into the band without a step. The
+band's columns stand upright (`belt_hull` `straight`: its rows had flared into a lip and narrowed 0.07 L to the
+bottom). The cream panel is a front-projected texture from a knot table (`panel.profile`, `panel_inside`) that
+follows the bow tails' outer edges and runs on under the band, not whole faces (a torn staircase).
+
+**Flaps.** `overskirt_panel_R` mirrors `overskirt_panel_L` about the legs' midline (`flap_mirror`), lifted clear of
+the skirt where its right side stands further out (up to 0.21 L: the hull skirt itself is lopsided at the back
+sides, its right 0.1-0.2 L wider at 120-145 degrees). Chains rewritten into the notes. Mirrored, the right tail's
+tip shows between the thighs in three-quarter (4 px on the QA grid; body_three_quarter_hem_mid 0.014 -> -0.334 FAIL,
+the gate's one regression). Shortening the tails to 0.33 L cleared it on the laptop's hull but not on the box's (-0.297)
+and regressed the hems and both extents (gate fc3344b), so they stay 0.36 L (ac461eb). The left tail does the same
+from her other side, which no check views.
+
+**Measures fixed on the way** (registered): `body_*_boot_step_*` leaves out rows whose outline ends on the cuff
+(its rounded lower edge over the narrower shaft read as a 0.02 L step; 196eace). The sole's bottom face is its
+down-facing triangles (the subdivision's rounded rim and the arch's slope aren't unevenness).
+
+**Round 4 (body4b_render) against round 5 (body5b_render, the state gated)**, the new checks:
+
+| check | round 4 | round 5 |
+|---|---|---|
+| body_front_midriff_gap | 0.0 PASS | 0.0 PASS |
+| body_front_panel_edge | 0.0251 FAIL | 0.0 PASS |
+| body_front_torso_jump_L | 0.0283 FAIL | 0.0 PASS |
+| body_front_torso_jump_R | 0.0235 FAIL | 0.0 PASS |
+| body_profile_midriff_gap | 0.0706 FAIL | 0.0 PASS |
+| body_profile_torso_jump_back | 0.0518 FAIL | 0.0 PASS |
+| body_profile_torso_jump_front | 0.0282 FAIL | 0.0 PASS |
+| boot_back_ankle_bend_L | 4.44 WARN | 2.47 PASS |
+| boot_back_ankle_bend_R | 3.63 PASS | 1.02 PASS |
+| boot_back_ankle_jog_L | 0.0576 FAIL | 0.0117 PASS |
+| boot_back_ankle_jog_R | 0.0423 FAIL | 0.0009 PASS |
+| boot_front_ankle_bend_L | 1.58 PASS | 0.76 PASS |
+| boot_front_ankle_bend_R | 4.08 WARN | 0.78 PASS |
+| boot_front_ankle_jog_L | 0.0742 FAIL | 0.0053 PASS |
+| boot_front_ankle_jog_R | 0.0462 FAIL | 0.0055 PASS |
+| boot_mirror_back | 0.9098 WARN | 0.9883 PASS |
+| boot_mirror_front | 0.9187 WARN | 0.9893 PASS |
+| boot_profile_double_L | 0.2275 FAIL | 0.0173 PASS |
+| boot_profile_double_R | 0.0455 WARN | 0.0157 PASS |
+| boot_profile_heel_L | 0.16 FAIL | 0.0094 PASS |
+| boot_profile_heel_R | 0.1459 FAIL | 0.0094 PASS |
+| boot_profile_scrunch_back_L | 0.0086 FAIL | 0.0015 PASS |
+| boot_profile_scrunch_back_R | 0.0086 FAIL | 0.0015 PASS |
+| boot_profile_scrunch_front_L | 0.0785 FAIL | 0.0039 PASS |
+| boot_profile_scrunch_front_R | 0.0777 FAIL | 0.0039 PASS |
+| boot_sole_flat_L | 0.0014 PASS | 0.0027 PASS |
+| boot_sole_flat_R | 0.0015 PASS | 0.0027 PASS |
+| boot_sole_mirror | 0.8458 FAIL | 1.0 PASS |
+| boot_sole_twist_L | 0.63 PASS | 0.19 PASS |
+| boot_sole_twist_R | 3.57 WARN | 0.33 PASS |
+
+And the existing boot, midriff and flap checks:
+
+| check | round 4 | round 5 |
+|---|---|---|
+| piece_boot_L | 0.863 PASS | 0.904 PASS |
+| piece_boot_R | 0.894 PASS | 0.951 PASS |
+| piece_boot_cuff_L | 0.876 PASS | 0.877 PASS |
+| piece_boot_cuff_R | 0.831 PASS | 0.831 PASS |
+| body_front_leg_gap | 0.0 PASS | 0.0 PASS |
+| body_back_leg_gap | 0.0 PASS | 0.0 PASS |
+| piece_top | 0.613 WARN | 0.629 WARN |
+| piece_waistband | 0.451 FAIL | 0.445 FAIL |
+| piece_overskirt_panel_L | 0.47 FAIL | 0.47 FAIL |
+| piece_overskirt_panel_R | 0.448 FAIL | 0.521 WARN |
+| piece_overskirt_panel_L_extent | 0.0424 PASS | 0.0424 PASS |
+| piece_overskirt_panel_R_extent | 0.0565 PASS | 0.0377 PASS |
+| body_three_quarter_hem_mid | 0.0141 PASS | -0.3342 FAIL |
+| poke_share | 0.0008 PASS | 0.0009 PASS |
+| body_front_iou | 0.882 PASS | 0.882 PASS |
+| body_profile_iou | 0.873 PASS | 0.876 PASS |
+| body_back_iou | 0.89 PASS | 0.888 PASS |
+| body_three_quarter_iou | 0.839 WARN | 0.842 WARN |
+
+**Decision for Michael (unchanged default):** the flap train, `charkit/out/decisions/body/flap_train/{hang,sweep}.png`
+(the design above ours on its grids, front / three-quarter / profile / back) and `numbers.json`. The fitted hang
+(sweep 0.36, out -0.22) against the stronger sweep (1.2, 0.3), which reads more like the drawn profile train and
+scores lower (flap IoUs, extents).
+
+**Review page:** `charkit/out/review_body5/index.html`.
+
+**Open items:**
+1. The waistband's height and place (piece_waistband 0.445 FAIL, as round 4) and the shorts (0.41): not started. The
+   band now stands upright and joins the top; its span is still the hull's (taller than the drawn band).
+2. The hull skirt is lopsided at the back sides (its right 0.1-0.2 L wider); the right flap is lifted to clear it.
+   Symmetrising the skirt belongs with the garment-sampling work (tool/garment-sampling is changing that path).
+3. body_three_quarter_hem_mid FAIL: the mirrored right tail's tip between the thighs in three-quarter (above). Fix
+   candidates: the tails' direction per side once the skirt is symmetric (item 2), or the train (Michael's call).
+4. The profile's front edge of the band stands a little proud of the top's front (the design's jacket overhangs the
+   band by 0.038 L there); the check passes (our bow tails cover those rows).
+5. The outfit drafter (outfit.py) still drafts boots as a shell plus shoes; the hand spec uses the template.
+6. tool/rig: the boots are new objects (`boot_L`/`boot_R`, kind boot, weighted lowerLeg / foot / toes by
+   construction); the top is still a shell under the band (their `under_belts` still applies); the right flap's chain
+   moved (notes).
+
+**Gotchas (round 5):**
+- detailqa renders ours at 3x the grid for the folds and doubled strokes (qa3d.draw_view); the venv renderer can't
+  shade the hair's material (close-ups leave it out).
+- An open tube (the band, the top) has no volume sign: orient its normals away from its middle (the scratch swap
+  harness got this wrong once and inflated the band by its thickness).
+- Scratch harness (swap garments into a built bundle, measure, render close-ups; the flap-train renders; the review
+  page generator) is in the session's scratchpad, not tracked.
+- Coordination: tool/garment-sampling is changing hull_pieces, _hull_points and the hull-reading paths; round 5 kept
+  to the builders' post-processing (belt_hull's straight columns and its returned field) and new functions.
+
+## Checkpoint: end of round 4 (2026-09-30), superseded by round 5 above
 
 **Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`); it contains `pipeline-3d` f2d0ea7 (the sync
 that keeps i3d) and `tool/loft-robust`. Both specs, `clawd_body.json` and the now-tracked `clawd_body_pieces.json`,
