@@ -178,8 +178,71 @@ def test_k_reads_the_2x2():
     assert [(x['check'], x['kind'][:8]) for x in block] == [('p_l', 'new FAIL'), ('art_band_lower', 'flag che')], block
     assert [r['check'] for r in R['twobytwo']] == ['p_r']
     rows[0]['accepted'] = True
+    v, block, R = _judge(base, base, qa=[], twobytwo={'rows': rows, 'errors': {}})
+    assert [x['check'] for x in block] == ['art_band_lower'] and len(R['twobytwo']) == 2
+    # a crossed QA that couldn't run blocks: its remeasured checks are unverified (the 2x2 never skips silently)
     v, block, R = _judge(base, base, qa=[], twobytwo={'rows': rows, 'errors': {'old measure on the new geometry': 'x'}})
-    assert [x['check'] for x in block] == ['art_band_lower'] and len(R['twobytwo']) == 2 and R['notes']
+    assert v == 'FAIL' and block[0]['kind'] == 'the 2x2 could not run the old measure on the new geometry', block
+    for r in rows:
+        r['accepted'] = True                                     # unless every row is accepted by name: a note
+    v, block, R = _judge(base, base, qa=[], twobytwo={'rows': rows, 'errors': {'old measure on the new geometry': 'x'}})
+    assert v == 'PASS' and R['notes'], block
+
+
+def test_the_2x2_blocks_a_crossed_cell_it_could_not_measure():
+    """tool/hairtag 37c09cf's gate (into 4de65ab): the baseline cached, so its worktree had never built and had no
+    produced hair layers; the old measure's QA there skipped hair_pieces, and every old-measure cell read 'unmeasured'
+    while the gate passed. Now a missing crossed cell of a check the old measure has blocks, read from the cells (so
+    --rejudge catches the old report's rows too), and each tree's produced references are made before its crossed QA."""
+    q = lambda **c: {'checks': {k: {'value': v, 'status': s} for k, (v, s) in c.items()}}
+    base = q(hair_piece_bangs=(0.762, 'PASS'), hair_piece_ahoge=(0.267, 'INFO'), hair_tips_front=(5, 'INFO'))
+    cand = q(hair_piece_bangs=(0.786, 'PASS'), hair_piece_ahoge=(0.323, 'INFO'), hair_tips_front=(5, 'INFO'),
+             hair_piece_new=(0.5, 'PASS'))
+    new_on_old = q(hair_piece_bangs=(0.786, 'PASS'), hair_piece_ahoge=(0.356, 'INFO'), hair_tips_front=(5, 'INFO'))
+    old_on_new = {'checks': {'hair_pieces': {'status': 'SKIPPED', 'why': 'no hair_layers produced'}}}
+    rem = {'hair_piece_*': 'the remade layers', 'hair_tips_*': 'the remade layers'}
+    rows = {r['check']: r for r in gate.twobytwo(base, cand, old_on_new, new_on_old, rem)}
+    assert rows['hair_piece_bangs']['old'] == 'unmeasured'
+    assert rows['hair_piece_bangs']['unmeasured'] == ['old measure on the new geometry']
+    assert 'hair_piece_new' not in rows          # a check the branch adds, unmeasured on the old geometry: no 2x2 row
+    v, block, R = _judge(base, cand, qa=[], twobytwo={'rows': list(rows.values()), 'errors': {}})
+    assert v == 'FAIL' and sorted(b['check'] for b in block) == ['hair_piece_ahoge', 'hair_piece_bangs',
+                                                                 'hair_tips_front'], block
+    assert "couldn't measure" in gate._why(block[0]) and 'old measure on the new geometry' in gate._why(block[0])
+    # an old report's rows (no 'unmeasured' key, old_on_new None): read the same way
+    old = [{k: v for k, v in r.items() if k != 'unmeasured'} for r in rows.values()]
+    for r in old:
+        r['old_on_new'] = None
+    assert _judge(base, cand, qa=[], twobytwo={'rows': old, 'errors': {}})[0] == 'FAIL'
+    # the new measure unmeasured on the old geometry blocks too, and a SKIPPED cell counts as unmeasured
+    new_on_old2 = q(hair_piece_bangs=(None, 'SKIPPED'))
+    rows = {r['check']: r for r in gate.twobytwo(base, cand, q(hair_piece_bangs=(0.7, 'PASS')), new_on_old2,
+                                                   {'hair_piece_bangs': 'x'})}
+    assert rows['hair_piece_bangs']['unmeasured'] == ['new measure on the old geometry']
+    assert rows['hair_piece_bangs']['new'] == 'unmeasured'
+    # everything measured: nothing blocks
+    rows = gate.twobytwo(base, cand, base, new_on_old, rem)
+    assert not any(r['unmeasured'] for r in rows)
+    assert _judge(base, cand, qa=[], twobytwo={'rows': rows, 'errors': {}})[0] == 'PASS'
+
+
+def test_produce_inputs_runs_the_trees_own_code():
+    """the produced references made in a tree by that tree's charkit (a stand-in package), from the gate's spec; a
+    failure is reported, not swallowed."""
+    t = tempfile.mkdtemp()
+    os.makedirs(os.path.join(t, 'charkit', 'spec'))
+    open(os.path.join(t, 'charkit', '__init__.py'), 'w').write('')
+    open(os.path.join(t, 'charkit', 'character.py'), 'w').write('def check_spec(s):\n    return s\n')
+    open(os.path.join(t, 'charkit', 'manifest.py'), 'w').write(
+        'import os\n'
+        'def resolve(s):\n    return s\n'
+        'def load(p):\n    return {"references": {"layers": {"path": "out/l.npz", "produced_by": "x"}, "sheet": {"path": "s"}}}\n'
+        'def produced(s, k):\n'
+        '    os.makedirs("out", exist_ok=True); open("out/%s.made" % k, "w").write(s["name"]); return "out/l.npz"\n')
+    json.dump({'name': 'n', 'ref': {'manifest': 'm.json'}}, open(os.path.join(t, 'charkit', 'spec', 'n.json'), 'w'))
+    assert gate.produce_inputs(t, 'charkit/spec/n.json') is None
+    assert os.listdir(os.path.join(t, 'out')) == ['layers.made']                 # only the produced ones
+    assert 'exit 1' in gate.produce_inputs(t, 'charkit/spec/missing.json')
 
 
 def test_the_report_and_its_summary(tmp_path=None):
