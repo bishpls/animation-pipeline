@@ -19,6 +19,7 @@ from charkit import bundle as bl, faceregion as fr, manifest, refcheck  # noqa: 
 
 PPL = 420                                       # px per L on the page
 VIEWS = (('front', 'face_000.png'), ('three_quarter', 'face_030.png'), ('profile', 'face_090.png'))
+AZ = {'front': 0.0, 'three_quarter': 30.0, 'profile': 90.0}        # the boards' azimuths (charkit.scene.boards)
 CROPS = {'head': (0.35, 0.8, 0.55), 'chin': (-0.15, 0.6, 0.32)}   # (L over the eyes, L under, L either side)
 CHECKS_JAW = ('jaw_taper', 'chin_point_z', 'chin_v', 'neck_to_face', 'jaw_line_front', 'jaw_line_three_quarter',
               'chin_underside', 'neck_front_wiggle')
@@ -38,11 +39,28 @@ def design_crop(rgb0, f, H, view, top, bot, half):
     return im.crop(tuple(int(round(v)) for v in box)).resize((int(2 * half * PPL), int((top + bot) * PPL)), Image.LANCZOS)
 
 
-def board_crop(build, fn, L, eye_u, top, bot, half):
-    """a face board cut round the eyes' point: eye_u, the eyes' point's offset right of the picture's centre (L)."""
+def eye_point(B, view):
+    """a build's eyes' point for a view (the design side's: the eyes' middle, the profile's near eye; world)."""
+    from charkit import qa3d
+    iris = np.asarray(qa3d.iris_centres(B), float)
+    return iris[np.argmax(iris[:, 0])] if view == 'profile' else iris.mean(0)
+
+
+def board_crop(build, fn, L, az, eye, top, bot, half, eye_z=None):
+    """a face board cut round a world point `eye` (the eyes' point) at its own depth's px per L: the boards' camera
+    (charkit.qa.render_view: 85 mm on a 36 mm sensor, 1 m out from (0, 0, eye line + 0.06 L), level)."""
+    import math
     im = Image.open(os.path.join(build, 'boards', fn)).convert('RGB')
-    ppl = 85 / 36 * im.size[0] * L                     # px per L at the target's distance (1 m)
-    cx, ey = im.size[0] / 2 + eye_u * ppl, im.size[1] / 2 + 0.06 * ppl
+    Wp = im.size[0]
+    a = math.radians(az)
+    target = np.array([0.0, 0.0, (eye_z if eye_z is not None else eye[2]) + 0.06 * L])
+    cam = target + np.array([math.sin(a), -math.cos(a), 0.0])
+    r, fw = np.array([math.cos(a), math.sin(a), 0.0]), np.array([-math.sin(a), math.cos(a), 0.0])
+    q = np.asarray(eye, float) - cam
+    X, Y, Z = q @ r, q @ fw, q[2]
+    k = 85 / 36 * Wp                                   # px per unit of X / Y
+    cx, ey = Wp / 2 + X / Y * k, im.size[1] / 2 - Z / Y * k
+    ppl = k * L / Y                                    # px per L at the eye's depth
     box = (cx - half * ppl, ey - top * ppl, cx + half * ppl, ey + bot * ppl)
     return im.crop(tuple(int(round(v)) for v in box)).resize((int(2 * half * PPL), int((top + bot) * PPL)), Image.LANCZOS)
 
@@ -75,13 +93,6 @@ def main(args):
         return 'img/' + name
     B = [bl.load(os.path.join(b, 'bundle')) for b in builds]
     Ls = [float(b.assembly['L']) for b in B]
-    # the eyes' point off the picture's centre (the board's camera aims at x 0 on the axis): the three-quarter's eyes
-    eye_u = []
-    for b in B:
-        c = np.asarray(b.assembly['centre'], float); L = float(b.assembly['L'])
-        iris = np.array([np.asarray(E['c'], float) for E in b.assembly['eyes']]) if len(b.assembly['eyes'][0].get('c', ())) == 3 \
-            else None
-        eye_u.append(iris)
     Q = [json.load(open(os.path.join(b, 'qa', 'qa.json'))) for b in builds]
     Q = [q.get('checks', q) for q in Q]
     # the jaw's checks, measured now on each build (the measures' current code), with their pictures
@@ -141,8 +152,9 @@ def main(args):
             im = ticks(design_crop(rgb0, f, H, view, top, bot, half), top)
             L_.append('<div class="tile"><img src="%s" width="%d">design (head sheet)</div>' % (
                 save(im, 'design_%s_%s.png' % (crop, view)), im.size[0] * 0.5 if crop == 'head' else im.size[0] * 0.75))
-            for b, lab, L in zip(builds, labels, Ls):
-                im = ticks(board_crop(b, fn, L, 0.0, top, bot, half), top)
+            for b, bb, lab, L in zip(builds, B, labels, Ls):
+                az = AZ[view]
+                im = ticks(board_crop(b, fn, L, az, eye_point(bb, view), top, bot, half, float(bb.assembly['eye_z'])), top)
                 L_.append('<div class="tile"><img src="%s" width="%d">%s <a href="%s">%s</a></div>' % (
                     save(im, '%s_%s_%s.png' % (lab, crop, view)), im.size[0] * 0.5 if crop == 'head' else im.size[0] * 0.75,
                     html.escape(lab), html.escape(os.path.abspath(os.path.join(b, 'boards', fn))), fn))

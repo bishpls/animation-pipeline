@@ -273,3 +273,7 @@ State before the final build and gates, for a resumer:
   `tools/face_labs/carve_lab.py` on the build box: every carved voxel is hair in some view, so "hair in any view" would
   have kept a layer over the side locks' gap too; the carve never took a lock over the eyes, it took the bangs' inner
   layer over the forehead (z 0.1-0.3, 0.006-0.24 L in front of it).
+- **Gotcha (2026-09-29): don't run remote builds in parallel from one worktree when a produced reference is stale.** The
+  hull and the outfit masks live per character (`charkit/out/hull/clawd`, `charkit/out/clawd/outfit`), not per spec,
+  and every build in the box's copy of the worktree rebuilds a stale one at once: one read a half-written npz
+  (`BadZipFile`). Build once (it refreshes them), then fan out.
