@@ -35,7 +35,7 @@ docs/workstreams/artifacts.md.
 """
 import numpy as np
 
-REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots')
+REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots', 'sleeves', 'flaps')
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 S1, S2 = 0.004, 0.02        # L: the band's fine and coarse smoothing along the outline (S1 at least 1 px)
 CORNER_ARC = 0.005          # L: a corner turns by CORNER_DEG or more between the chords this long either side of it
@@ -364,6 +364,258 @@ def speckle(clear, tone, ppl, foreign=None, keep=None, dots=None, line=None, mar
     return dict(n=int(n), per_L2=round(n / max(area, 1e-9), 2), area=round(area, 4))
 
 
+# ------------------------------------------------------------------------------------------------------ silhouettes
+# Michael's flags on shapes (spiky puff sleeves, a jagged boot, a leg's bump, a midriff's one-sided distortion, the
+# hem band's zigzag): measured on the figure's silhouette (each point or piece given to the region inside it), on the
+# regions' own masks (mirror) and on the drawn picture (the band), on both sides alike, graded as ours beyond the
+# design's in the same view (shape_checks).
+SPIKE_R = 0.03              # L: the opening's disk radius: a part of a silhouette narrower than twice this is cut off ...
+SPIKE_H = 0.012             # L: ... and is a spike where it stands this far out of what the opening keeps
+MIRROR_SHIFT = 0.08         # L: the mirror axis is the figure's (its best mirror within this of its middle column)
+LEG_TOP = -2.62             # L from the eye line: the legs are the skin under this (the thighs under the shorts)
+
+
+SOLID = 0.01                # L: a silhouette's gaps under this closed (a drawn outline parted from its fill by a pale seam)
+
+
+def solid(mask, ppl):
+    """a silhouette as a solid: closed by a disk SOLID across and its holes filled (a drawing's lines and seams, our
+    outline hulls' gaps are not its shape)."""
+    from scipy import ndimage
+    from skimage.morphology import disk
+    r = max(1, int(round(SOLID / 2 * ppl)))
+    m = np.pad(mask, r + 1)
+    m = ndimage.binary_fill_holes(ndimage.binary_closing(m, structure=disk(r)))
+    return m[r + 1:-r - 1, r + 1:-r - 1]
+
+
+def figure_spikes(fg, kinds, ppl, keep=None, marks=None):
+    """the figure's silhouette spikes: what an opening by a disk SPIKE_R across cuts off its solid() that stands SPIKE_H
+    or more out of what it keeps (a horn, a jagged protrusion, a tail's tooth), each given to the kind holding most of
+    its pixels. On the whole figure, as its silhouette doesn't hang on how a drawing's same-coloured pieces are told
+    apart (a region's own mask on the design gave the jacket's side to the sleeves) -> [(kind, height (L), area (L^2),
+    top row, bottom row)]."""
+    from scipy import ndimage
+    from skimage.morphology import disk
+    if fg.sum() < 50:
+        return []
+    rad = max(1, int(round(SPIKE_R * ppl)))
+    r0, r1, c0, c1 = bb = _bbox(fg, rad + 2)
+    m = solid(fg[r0:r1, c0:c1], ppl)
+    kept = ndimage.binary_opening(m, structure=disk(rad))
+    lab, k = ndimage.label(m & ~kept, structure=np.ones((3, 3)))
+    if not k:
+        return []
+    d = ndimage.distance_transform_edt(~kept) if kept.any() else np.full(m.shape, float(rad))
+    idx = np.arange(1, k + 1)
+    h = ndimage.maximum(d, lab, idx) / ppl
+    area = np.bincount(lab.ravel(), minlength=k + 1)[1:]
+    ok = h >= SPIKE_H
+    if keep is not None:
+        ok &= np.bincount(lab[keep[r0:r1, c0:c1]], minlength=k + 1)[1:] >= 0.5 * area
+    names = [n for n in kinds]
+    own = np.stack([np.bincount(lab[kinds[n][r0:r1, c0:c1]], minlength=k + 1)[1:] for n in names], 1)
+    sl = ndimage.find_objects(lab)
+    out = []
+    for j in np.nonzero(ok)[0]:
+        if own[j].max() == 0:
+            continue
+        out.append((names[int(own[j].argmax())], round(float(h[j]), 4), round(float(area[j]) / ppl ** 2, 5),
+                    r0 + sl[j][0].start, r0 + sl[j][0].stop))
+    if marks is not None and out:
+        marks.append(('spikes', bb, np.isin(lab, [j + 1 for j in np.nonzero(ok)[0]])))
+    return out
+
+
+CAP_ARC = 0.02              # L: a point of the silhouette turns outward by CAP_DEG or more between chords this long
+CAP_DEG = 55.0              # either side of it (a sleeve cap's pointed corner; a drawn puff rounds it)
+CAP_MIN = 25.0              # (turns from this up are listed: a region's sharpest is its `turn`)
+BUMP_ARC = 0.06             # L: a bump turns between chords this long (a knob behind the thigh; a tuck's pinch, inward),
+BUMP_MIN = 10.0             # from this up, where the silhouette is its region's own for BUMP_PURE round it (a junction
+BUMP_PURE = 0.015           # with another piece is a corner by design)
+
+
+def _peaks(a, keep, lo, k):
+    """a closed outline's turns a (signed: the outward ones here) at their peaks: from lo up, kept, the largest within
+    twice k samples of each (a knob between two concave junctions is its own peak) -> [index]."""
+    n = len(a)
+    k = max(1, int(round(k)))
+    cand = np.nonzero((a >= lo) & (a >= np.roll(a, 1)) & (a > np.roll(a, -1)) & keep)[0]
+    taken = np.zeros(n, bool)
+    out = []
+    for i in cand[np.argsort(-a[cand])]:
+        if not taken[i]:
+            taken[np.arange(i - 2 * k, i + 2 * k + 1) % n] = True
+            out.append(int(i))
+    return sorted(out)
+
+
+def figure_points(fg, kinds, ppl, keep=None, marks=None):
+    """the figure's silhouette points (its outline smoothed at S1): its outward turns of CAP_MIN or more over CAP_ARC
+    either side ('cap'), and its turns either way of BUMP_MIN or more over BUMP_ARC where every figure pixel within
+    BUMP_PURE is of one kind ('bump'), each given to the kind just inside it -> [(tag, kind, turn (deg, + outward), row)]."""
+    from scipy import ndimage
+    from scipy.ndimage import gaussian_filter1d
+    m = solid(fg, ppl)
+    names = list(kinds)
+    lab = np.full(fg.shape, -1, int)
+    for i, n in enumerate(names):
+        lab[kinds[n]] = i
+    # each pixel of the figure takes its nearest kind (the outline hulls and seams belong to what they wrap)
+    _, (iy, ix) = ndimage.distance_transform_edt(lab < 0, return_indices=True)
+    lab = np.where(m, lab[iy, ix], -1)
+    rp = max(1, int(round(BUMP_PURE * ppl)))
+    mixed = np.zeros(fg.shape, bool)                       # figure pixels with another kind within BUMP_PURE
+    for i in np.unique(lab[lab >= 0]):
+        near = ndimage.binary_dilation(lab == i, iterations=rp)
+        mixed |= near & m & (lab != i)
+    mixed = ndimage.binary_dilation(mixed, iterations=rp)
+    out = []
+    for c in contours(m):
+        if np.linalg.norm(np.diff(c, axis=0), axis=1).sum() < MIN_LEN * ppl:
+            continue
+        p, h = _resample(c)
+        p = gaussian_filter1d(p, max(S1 * ppl, 1.0) / h, axis=0, mode='wrap')
+        k = _lookup(keep, p) if keep is not None else np.ones(len(p), bool)
+        _, fine = corners(p, np.ones(len(p), bool), ppl, arc=S1, deg=(360.0, 361.0))
+        sgn = 1.0 if fine.sum() >= 0 else -1.0             # (the outline's way round: its turns sum to +-360)
+        q = np.rint(p).astype(int)
+        q[:, 0] = np.clip(q[:, 0], 0, fg.shape[0] - 1)
+        q[:, 1] = np.clip(q[:, 1], 0, fg.shape[1] - 1)
+        for tag, arc, lo, kk in (('cap', CAP_ARC, CAP_MIN, k), ('bump', BUMP_ARC, BUMP_MIN, k & ~_lookup(mixed, p))):
+            _, turn = corners(p, kk, ppl, arc=arc, deg=(360.0, 361.0))
+            turn = sgn * turn
+            for i in _peaks(turn, kk, lo, arc * ppl / h) + ([] if tag == 'cap' else _peaks(-turn, kk, lo, arc * ppl / h)):
+                t = turn[i]
+                r_, c_ = q[i]
+                win = lab[max(0, r_ - 2):r_ + 3, max(0, c_ - 2):c_ + 3]      # (the kind just inside the point)
+                win = win[win >= 0]
+                kind = names[int(np.bincount(win).argmax())] if len(win) else 'other'
+                out.append((tag, kind, round(float(t), 1), int(r_)))
+                if marks is not None and tag == 'cap' and t >= CAP_DEG and 3 <= r_ < fg.shape[0] - 3 \
+                        and 3 <= c_ < fg.shape[1] - 3:
+                    mm = np.ones((7, 7), bool)
+                    marks.append(('points', (r_ - 3, r_ + 4, c_ - 3, c_ + 4), mm))
+    return out
+
+
+BAND_IN = 0.012             # L: the band's edge counts this far inside its region (its hem is the region's own outline)
+
+
+def band_edge(rgb, region, ppl, line=None, keep=None, parts=None):
+    """the dark band's edge inside a region (the skirt's and the flaps' stepped hem band, a texture on ours, drawn on the
+    design): the dark colour family's outline where it runs inside the region (BAND_IN from its outline), as outline()
+    reads it: corners per L (a few clean steps; pixel stairs are many) -> dict(len, corners, ...) or None."""
+    from scipy import ndimage
+    from . import bodyqa
+    if region.sum() < 50:
+        return None
+    r0, r1, c0, c1 = _bbox(region, 4)
+    reg = region[r0:r1, c0:c1]
+    ln = line[r0:r1, c0:c1] if line is not None else np.zeros_like(reg)
+    fam = bodyqa.family(np.asarray(rgb, float)[r0:r1, c0:c1, :3])
+    dark = (fam == bodyqa.CLASS['dark']) & reg & ~ln
+    dark = ndimage.binary_opening(dark) if dark.sum() > 20 else dark
+    if dark.sum() < 20:
+        return None
+    inner = ndimage.binary_erosion(solid(reg, ppl), iterations=max(1, int(round(BAND_IN * ppl))))
+    kp = inner if keep is None else inner & keep[r0:r1, c0:c1]
+    P = []
+    rec = outline(dark, ppl, keep=kp, parts=P)
+    if parts is not None:
+        parts.extend([(d, k, h, p + (r0, c0), ck) for d, k, h, p, ck in P])
+    return rec
+
+
+def mirror_axis(fg, ppl):
+    """the figure's mirror axis (a column, px, between two): the shift within MIRROR_SHIFT of its middle column whose
+    mirror image overlaps it most (front and back views)."""
+    rows, cols = np.nonzero(fg.any(1))[0], np.nonzero(fg.any(0))[0]
+    if not len(cols):
+        return None
+    fg = fg[rows[0]:rows[-1] + 1]
+    mid = (cols[0] + cols[-1]) / 2.0
+    best = None
+    for a2 in np.arange(int(round(2 * (mid - MIRROR_SHIFT * ppl))), int(round(2 * (mid + MIRROR_SHIFT * ppl))) + 1):
+        m = _mirrored(fg, a2 / 2.0)
+        iou = (fg & m).sum() / max((fg | m).sum(), 1)
+        if best is None or iou > best[0]:
+            best = (iou, a2 / 2.0)
+    return best[1]
+
+
+def _mirrored(mask, axis):
+    """a mask mirrored about a column (px; x -> 2 axis - x), on the same grid."""
+    W = mask.shape[1]
+    src = np.rint(2 * axis - np.arange(W)).astype(int)
+    ok = (src >= 0) & (src < W)
+    out = np.zeros_like(mask)
+    out[:, ok] = mask[:, src[ok]]
+    return out
+
+
+def mirror(mask, axis, ppl):
+    """a region's asymmetry about the figure's axis (mirror_axis): 1 - IoU with its mirror image, and the area off it per
+    L of the region's height (L^2 / L: a skirt jutting out on one side, a boot unlike its pair) -> dict or None."""
+    if axis is None or mask.sum() < 50:
+        return None
+    m = _mirrored(mask, axis)
+    rows = np.nonzero(mask.any(1))[0]
+    off = (mask & ~m).sum() + (m & ~mask).sum()
+    return dict(asym=round(1 - (mask & m).sum() / max((mask | m).sum(), 1), 4),
+                off=round(float(off) / 2 / ppl ** 2 / max((rows[-1] - rows[0] + 1) / ppl, 1e-9), 5))
+
+
+BANDS = ('lower',)          # the regions whose dark hem band is measured (band_edge): the skirt with its flaps (the
+                            # drawing's cells don't part a flap's tail from the skirt's band reliably)
+MIRROR_FIGURE = ('waist',)              # asymmetry about the figure's axis (a skirt jutting out on one side)
+MIRROR_SELF = ('boots',)                # ... about its own axis (a pair unlike each other, wherever the legs stand)
+SHAPES = {                  # the silhouettes measured for shape: region -> the kinds it unites (and rows it keeps)
+    'collar': ('collar',), 'bow': ('bow',), 'top': ('top',), 'skirt': ('skirt',), 'boots': ('boots',),
+    'sleeves': ('sleeves',), 'flaps': ('flaps',),
+    'waist': ('top', 'band', 'skirt', 'flaps'),            # the torso from the jacket to the skirt: ledges, the tuck
+    'lower': ('skirt', 'flaps'),                           # the skirt with its flaps: their steps and teeth
+    'legs': ('skin',),                                     # under LEG_TOP
+}
+
+
+def shape_view(kinds, fg, ppl, view, z_of_row, keep=None, marks=None, rgb=None, line=None, band_parts=None):
+    """the silhouette detectors on a view's kinds ({kind: mask}; fg the figure; z_of_row(rows) -> L from the eye line;
+    rgb the picture, for the hem band; line its drawn lines) -> {region (SHAPES): dict(spikes, points, bumps, and where
+    they apply band (BANDS), mirror (MIRROR_FIGURE), mirror_self (MIRROR_SELF): front and back)}."""
+    H, W = fg.shape
+    axis = mirror_axis(fg, ppl) if view in ('front', 'back') and MIRROR_FIGURE else None
+    zr = z_of_row(np.arange(H))
+    fsp = figure_spikes(fg, kinds, ppl, keep, marks)
+    fpt = figure_points(fg, kinds, ppl, keep, marks)
+    out = {}
+    for r, ks in SHAPES.items():
+        m = np.zeros((H, W), bool)
+        for k in ks:
+            if k in kinds:
+                m |= kinds[k]
+        if r == 'legs':
+            m &= (zr < LEG_TOP)[:, None]
+        if m.sum() < 50:
+            continue
+        mine = [x for x in fsp if x[0] in ks and (r != 'legs' or zr[min(x[4], H) - 1] < LEG_TOP)]
+        rec = dict(spikes=dict(n=len(mine), height=max([x[1] for x in mine] or [0.0]),
+                               area=round(sum(x[2] for x in mine), 5)))
+        pts = [x for x in fpt if x[1] in ks and (r != 'legs' or zr[x[3]] < LEG_TOP)]
+        cap = [x[2] for x in pts if x[0] == 'cap']
+        bump = [x[2] for x in pts if x[0] == 'bump']
+        rec['points'] = dict(n=sum(t >= CAP_DEG for t in cap), turn=max(cap or [0.0]))
+        if rgb is not None and r in BANDS:
+            rec['band'] = band_edge(rgb, m, ppl, line, keep, band_parts)
+        rec['bumps'] = {'out': max([t for t in bump if t > 0] or [0.0]), 'in': max([-t for t in bump if t < 0] or [0.0])}
+        if axis is not None and r in MIRROR_FIGURE:
+            rec['mirror'] = mirror(m, axis, ppl)
+        if view in ('front', 'back') and r in MIRROR_SELF:
+            rec['mirror_self'] = mirror(m, mirror_axis(m, ppl), ppl)     # (about its own axis: its shape, not its place)
+        out[r] = rec
+    return out
+
+
 # ------------------------------------------------------------------------------------------------------ drawings
 WALL_THICK = 0.006          # L: dark runs thinner than this are drawn lines (walls between cells), thicker are colour
 ABSORB = 0.02               # L: a wall pixel joins the nearest cell within this
@@ -487,11 +739,13 @@ def image_tone(rgb, region, wall, blur=0.7, split=0.08, third=0.06, share=0.03):
 # ------------------------------------------------------------------------------------------------------ our buffers
 # our garments by region: object names (charkit.garments' pieces; a name matching a pattern's start)
 OBJECTS = {'collar': ('collar',), 'bow': ('bow',), 'top': ('top',), 'skirt': ('skirt',),
-           'boots': ('boots', 'shoe_', 'boot_cuff_')}
+           'boots': ('boots', 'shoe_', 'boot_'),          # (boot_L, boot_R: the template since round 5; boot_cuff_*)
+           'sleeves': ('sleeve_',), 'flaps': ('overskirt_panel_',), 'band': ('waistband',)}
 # the design's garments by region: the outfit graph's piece types (charkit.outfit)
 PIECES = {'collar': ('collar',), 'bow': ('bow', 'bow tail'), 'top': ('top', 'bodice panel'),
-          'skirt': ('skirt', 'skirt panel'), 'boots': ('boot', 'boot cuff')}
-KINDS = ('hair', 'skin', 'feature', 'collar', 'bow', 'top', 'skirt', 'boots', 'other')
+          'skirt': ('skirt', 'skirt panel'), 'boots': ('boot', 'boot cuff'), 'sleeves': ('sleeve',),
+          'flaps': ('overskirt panel',), 'band': ('waistband',)}
+KINDS = ('hair', 'skin', 'feature', 'collar', 'bow', 'top', 'skirt', 'boots', 'sleeves', 'flaps', 'band', 'other')
 
 
 def object_kind(o):
@@ -617,7 +871,7 @@ def rec_len(parts):
 
 # ------------------------------------------------------------------------------------------------------ pictures
 MARK = {'islands': (1.0, 0.85, 0.1), 'specks': (1.0, 0.85, 0.1), 'fragments': (0.1, 0.85, 0.95),
-        'slivers': (1.0, 0.55, 0.1)}
+        'slivers': (1.0, 0.55, 0.1), 'spikes': (0.95, 0.1, 0.55), 'points': (0.55, 0.1, 0.95)}
 
 
 def overlay(rgb, pics, dim=0.45):
@@ -648,10 +902,11 @@ def overlay(rgb, pics, dim=0.45):
 # ------------------------------------------------------------------------------------------------------ the part
 HEAD_PPL = 400               # the head frame's px per L (the head sheet's own is ~399; the look review's pages 399.4)
 HEAD_WIN = (0.85, 1.25, 1.0)    # L round the eye line: half-width, above, below (the hair, the face, the neck zone)
-BODY_WIN = (1.6, -0.5, 6.3)     # the body frame from 0.5 L under the eye line to the feet (at the body sheet's scale)
+BODY_WIN = (1.6, -0.2, 6.3)     # the body frame from 0.2 L under the eye line to the feet, at the body sheet's scale (from
+                                # -0.5 it cut the hull-lofted sleeves' pointed caps off at the neck)
 NECK = 0.5                   # L: the neck runs from our chin this far down (as charkit.lookqa's face_shadow)
 HEAD_REGIONS = ('hair', 'face', 'neck')
-BODY_REGIONS = ('collar', 'bow', 'top', 'skirt', 'boots')
+BODY_REGIONS = ('collar', 'bow', 'top', 'skirt', 'boots', 'sleeves', 'flaps')
 DETECTORS = {                # check -> (detector, its headline measure, the floor under the design's value)
     'outline': ('outline', 'corners', 1.0),          # corners per L of outline
     'terminator': ('terminator', 'kinks', 1.0),      # kinks per L of terminator
@@ -728,8 +983,15 @@ def buffers(B, surfs, az, fr, ldir=None):
     return mi, tone
 
 
-def _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pictures=None):
-    mesh, tone = buffers(B, surfs, az, fr)
+def _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pictures=None, view=None, z_of_row=None):
+    rgb = None
+    if z_of_row is not None:        # (the body frame: drawn whole, for the hem band's texture; its mesh and tone buffers
+        from . import qa3d          # are buffers()' to the bit, 2026-09-30)
+        aux = {}
+        rgb = qa3d.draw(B, surfs, az, fr, ss=1, aux=aux)[..., :3]
+        mesh, tone = aux['mesh'], aux['tone']
+    else:
+        mesh, tone = buffers(B, surfs, az, fr)
     kimg = kinds_of[np.where(mesh >= 0, mesh, len(kinds_of) - 1)]
     kinds = {k: kimg == i for i, k in enumerate(KINDS)}
     line = line_of[np.where(mesh >= 0, mesh, len(line_of) - 1)]
@@ -744,6 +1006,14 @@ def _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pict
             ids = [i for i in range(len(surfs)) if kinds_of[i] == KINDS.index(kind) and not line_of[i]]
             zone = regs[r]['zone']
             rec['fragments']['peeks'] = peeks(mesh, surfs, ids, ppl, fk if zone is None else fk & zone)
+    if z_of_row is not None:
+        mk = [] if pictures is not None else None
+        bp = [] if pictures is not None else None
+        for r, rec in shape_view(kinds, mesh >= 0, ppl, view, z_of_row, keep=fk, marks=mk, rgb=rgb, line=line,
+                                 band_parts=bp).items():
+            M.setdefault(r, {}).update(rec)
+        if mk or bp:
+            P['_shapes'] = dict(outline=[], terminator=bp or [], marks=mk)
     if pictures is not None:
         pictures.append((flat_picture(kimg, tone, line), P))
     return M
@@ -751,7 +1021,8 @@ def _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pict
 
 PALETTE = {'hair': (0.84, 0.47, 0.33), 'skin': (0.98, 0.86, 0.80), 'feature': (0.55, 0.45, 0.40),
            'collar': (0.96, 0.90, 0.72), 'bow': (0.93, 0.86, 0.66), 'top': (0.80, 0.42, 0.30),
-           'skirt': (0.75, 0.38, 0.28), 'boots': (0.95, 0.95, 0.95), 'other': (0.70, 0.70, 0.72)}
+           'skirt': (0.75, 0.38, 0.28), 'boots': (0.95, 0.95, 0.95), 'sleeves': (0.84, 0.44, 0.32),
+           'flaps': (0.86, 0.50, 0.30), 'band': (0.30, 0.22, 0.20), 'other': (0.70, 0.70, 0.72)}
 
 
 def flat_picture(kimg, tone, line):
@@ -782,10 +1053,11 @@ def ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None):
         kinds_of = np.array([KINDS.index(object_kind(s['o'])) for s in surfs] + [-1])
         line_of = np.array([bool(s['hull']) for s in surfs] + [False])
         chin_row = (win[1] + chin_L) * ppl if name == 'head' else None
+        zr = None if name == 'head' else (lambda r, ppl=ppl, top=win[1]: top - (r + 0.5) / ppl)
         out[name] = {}
         for v, az in views.items():
             pics = [] if pictures is not None else None
-            out[name][v] = _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pics)
+            out[name][v] = _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pics, v, zr)
             if pictures is not None:
                 pictures.append((name, v, ppl) + pics[0])
     return out
@@ -799,7 +1071,7 @@ def _figure(rgb, fg=None):
     return ndimage.binary_fill_holes(ndimage.binary_opening(fg, iterations=1))
 
 
-def drawing_kinds(rgb, fg, ppl, votes=None):
+def drawing_kinds(rgb, fg, ppl, votes=None, whole=False):
     """a drawing's kinds (the design's, or a render of ours) from its cells: by a vote image (indices into KINDS, e.g.
     our numpy labels under a render of the same build), else by colour (orange hair, skin and cream skin, every other
     cell but a yellow one taking the kind of the cells round it; what is left is a feature). -> (kinds, lines, dots)."""
@@ -807,6 +1079,8 @@ def drawing_kinds(rgb, fg, ppl, votes=None):
     from . import bodyqa
     lab, fams, lines, dots = cells(rgb, fg, ppl)
     if votes is not None:
+        if whole:                               # (and each cell whole, by its majority: the silhouettes' kinds)
+            return (vote(lab, votes, KINDS), vote(lab, votes, KINDS, mixed=2.0)), lines, dots
         return vote(lab, votes, KINDS), lines, dots
     C = bodyqa.CLASS
     ck = np.full(len(fams), -1)
@@ -835,12 +1109,21 @@ def drawing_kinds(rgb, fg, ppl, votes=None):
     return kinds, lines, dots
 
 
-def drawing_view(rgb, fg, ppl, chin_row=None, regions=REGIONS, votes=None, pictures=None):
-    """the four detectors on a drawing (the design's view, a render) -> {region: measures}."""
-    kinds, lines, dots = drawing_kinds(rgb, fg, ppl, votes)
+def drawing_view(rgb, fg, ppl, chin_row=None, regions=REGIONS, votes=None, pictures=None, view=None, z_of_row=None):
+    """the four detectors on a drawing (the design's view, a render), and given z_of_row (rows -> L from the eye line)
+    the silhouette detectors (shape_view) -> {region: measures}."""
+    whole = z_of_row is not None and votes is not None
+    kinds, lines, dots = drawing_kinds(rgb, fg, ppl, votes, whole=whole)
+    kinds, wkinds = kinds if whole else (kinds, kinds)
     regs = view_regions(kinds, chin_row, NECK * ppl, line=lines, dots=dots, ppl=ppl, regions=regions)
-    return measure_view(regs, lambda body: image_tone(rgb, body, lines), ppl, keep=frame_keep(rgb.shape[:2]),
-                        pictures=pictures)
+    keep = frame_keep(rgb.shape[:2])
+    M = measure_view(regs, lambda body: image_tone(rgb, body, lines), ppl, keep=keep, pictures=pictures)
+    if z_of_row is not None:
+        # the silhouettes from whole cells: a cell two same-coloured pieces share goes to its majority, not split along
+        # the outfit masks' rough edge (0.77-0.85 IoU: a split sliver of the jacket read as a 0.45 L sleeve spike)
+        for r, rec in shape_view(wkinds, fg, ppl, view, z_of_row, keep=keep, rgb=rgb, line=lines).items():
+            M.setdefault(r, {}).update(rec)
+    return M
 
 
 def design_heads(rgb, eye_x, facing, ppl=HEAD_PPL):
@@ -878,12 +1161,15 @@ def design_body(views, masks, graph, ppl):
         fam = bodyqa.family(rgb)
         votes[fg & (fam == bodyqa.CLASS['skin'])] = KINDS.index('skin')
         votes[fg & (dv['cls'] == bodyqa.CLASS['hair'])] = KINDS.index('hair')
-        for r in BODY_REGIONS:
+        skin = fam == bodyqa.CLASS['skin']
+        for r in PIECES:
             for pid, t in types.items():
                 m = masks.get('%s__%s' % (view, pid))
                 if m is not None and t in PIECES[r]:
-                    votes[m & fg] = KINDS.index(r)
-        out[view] = drawing_view(rgb, fg, ppl, None, BODY_REGIONS, votes=votes)
+                    votes[m & fg & ~skin] = KINDS.index(r)      # (a piece's mask spilling onto the arm isn't the piece)
+        top = float((dv.get('win') or bodyqa.WIN)['top'])
+        out[view] = drawing_view(rgb, fg, ppl, None, BODY_REGIONS, votes=votes, view=view,
+                                 z_of_row=lambda r: top - (r + 0.5) / ppl)
     return out
 
 
@@ -907,6 +1193,43 @@ def grade(ratio, det):
 
 PEEKS = (4, 12)              # proposed grades on a region's peeking bits in its worst view (ours only): pass at or under,
                              # warn at or under (one build's numbers: look_v5's hair read 10-24)
+
+# Michael's flags on shapes, graded against the design in the same view (the calibration: docs/workstreams/artifacts.md)
+SHAPE_CHECKS = {             # check -> (measure, key, how it's compared, the design's floor, (pass, warn), regions)
+    'spikes': ('spikes', 'height', 'excess', 0.0, (0.015, 0.025), BODY_REGIONS),       # L: the tallest spike's
+    'points': ('points', 'turn', 'excess', CAP_MIN, (20.0, 30.0), BODY_REGIONS),       # deg: the sharpest cap's
+    'bumps': ('bumps', 'out', 'excess', BUMP_MIN, (20.0, 30.0), BODY_REGIONS + ('legs',)),  # deg: the sharpest knob's
+    'mirror': ('mirror', 'asym', 'ratio', 0.02, (1.5, 2.5), ('waist',)),                # 1 - IoU with its mirror image
+    'mirror_self': ('mirror_self', 'asym', 'ratio', 0.02, (1.5, 2.5), ('boots',)),     # (about its own axis)
+    'band': ('band', 'kinks', 'ratio', 1.0, (1.5, 2.0), ('lower',)),                   # the hem band's edge kinks per L
+}
+
+
+def shape_checks(ours_m, design_m):
+    """the silhouette checks (SHAPE_CHECKS): per view ours, the design's and ours beyond it (an excess in the measure's
+    unit, or a ratio to the design's, the design's floored), the worst view's as the value; INFO, with the proposed
+    grade -> {check: dict}. A view where the design's own reading is high (a junction the drawing's cells can't part)
+    can't fail there: the worst view is what's graded."""
+    C = {}
+    for name, (meas, key, how, floor, (p, w), regions) in SHAPE_CHECKS.items():
+        for r in regions:
+            get = lambda M, v: ((((M.get('body') or {}).get(v) or {}).get(r) or {}).get(meas) or {}).get(key)
+            o = {v: get(ours_m, v) for v in VIEWS}
+            d = {v: get(design_m, v) for v in VIEWS}
+            by = {}
+            for v in VIEWS:
+                if o[v] is None or d[v] is None:
+                    continue
+                by[v] = round(max(0.0, o[v] - max(d[v], floor)), 4) if how == 'excess' else \
+                    round(o[v] / max(d[v], floor), 3)
+            if not by:
+                continue
+            worst = max(by, key=by.get)
+            v = by[worst]
+            C['%s_%s' % (name, r)] = {'value': v, 'worst': worst, 'per_view': {k: x for k, x in o.items() if x is not None},
+                                      'design': {k: x for k, x in d.items() if x is not None}, how: by,
+                                      'status': 'INFO', 'grade': 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'}
+    return C
 
 
 def checks(ours_m, design_m):
@@ -942,6 +1265,7 @@ def checks(ours_m, design_m):
                                      'grade': 'PASS' if o[w] <= PEEKS[0] else 'WARN' if o[w] <= PEEKS[1] else 'FAIL',
                                      'note': 'small visible bits of the region\'s own pieces (no design ratio: the '
                                              'drawing has no pieces)'}
+    C.update(shape_checks(ours_m, design_m))
     return C
 
 
@@ -954,9 +1278,9 @@ def _sha(path):
     return hashlib.sha256(open(path, 'rb').read()).hexdigest()[:16]
 
 
-def _graph_path(spec):
-    """the outfit graph beside the produced outfit masks (charkit.bodymeasure.piece_masks' paths, without loading the
-    masks) or None."""
+def _mask_paths(spec):
+    """the produced outfit masks and the outfit graph beside them (charkit.bodymeasure.piece_masks' paths, without
+    loading the masks) or None."""
     import os
     from . import manifest, qa3d
     ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
@@ -967,28 +1291,39 @@ def _graph_path(spec):
         return None
     p = qa3d._path(r['path'])
     g = os.path.join(os.path.dirname(p), 'outfit_graph.json')
-    return g if os.path.exists(p) and os.path.exists(g) else None
+    return (p, g) if os.path.exists(p) and os.path.exists(g) else None
+
+
+def _piece_types(graph_path):
+    """what design_body reads of the outfit graph: each piece's id and type, as a digest. The produced graph's other
+    contents (spring chains, the comparison with the spec's hand list) differ between copies and specs while the masks
+    stay bit-identical (2026-09-30: one mask file, three graphs, on the laptop and two box copies), so the whole file's
+    hash made every build on the box re-measure the design (~20 s, +6% CPU on clawd_body)."""
+    import json
+    from . import cache
+    G = json.load(open(graph_path))
+    return cache.digest(sorted((str(p['id']), str(p.get('type'))) for p in G.get('pieces', ())))[:16]
 
 
 def design_inputs(B, design):
-    """what the design's measures are made from: the head and body sheets, the outfit graph (its piece masks are cut
-    from those), the eye spacing that scales them, and the design side's code -> (stamp, inputs, the stored file's path)
-    or (None, why, None)."""
-    import json, os
-    from . import bodymeasure, cache, qa3d
+    """what the design's measures are made from: the head and body sheets, the outfit's piece masks (their bytes: the
+    body sheet's cells are voted by them) and the graph's piece types (which piece is which region), the eye spacing
+    that scales the sheets, and the design side's code -> (stamp, inputs, the stored file's path) or (None, why, None)."""
+    import os
+    from . import cache, qa3d
     ref = design.ref()
     fs, bs = ref.get('face_sheet'), ref.get('body_sheet')
     man = ref.get('manifest')
     if not fs or not bs:
         return None, 'the spec names no face_sheet and body_sheet', None
-    graph = _graph_path(B.spec)
-    if graph is None:
+    mp = _mask_paths(B.spec)
+    if mp is None:
         return None, 'no outfit masks produced for this spec', None
     code = {k: v for k, v in cache.code_units(design_heads, design_body).items()      # (this module's design-side
             if k.startswith('charkit/artifactqa.py:')}                                  # functions and constants)
     inp = dict(face_sheet=_sha(qa3d._path(fs['image'])), face_facing=fs.get('facing', -1),
-               body_sheet=_sha(qa3d._path(bs['image'])), graph=_sha(graph), head_ppl=HEAD_PPL,
-               code=cache.digest(sorted(code.items()))[:16])
+               body_sheet=_sha(qa3d._path(bs['image'])), masks=_sha(mp[0]), pieces=_piece_types(mp[1]),
+               head_ppl=HEAD_PPL, code=cache.digest(sorted(code.items()))[:16])
     path = os.path.join(os.path.dirname(qa3d._path(man)), DESIGN_FILE) if man else None
     stamp = cache.digest(sorted(inp.items()))[:16]
     inp['eye_x'] = round(float(B.assembly['eye_knobs']['x']), 6)        # (the sheets' scale: within EYE_X_TOL, not stamped)
@@ -1005,38 +1340,89 @@ def design_compute(B, design):
     ctx = design.sheet_context()
     masks, graph, paths = bodymeasure.piece_masks(B.spec)
     dv = design.design_views()
-    views = {v: dict(rgb=x['rgb'], fg=x['fg'], cls=x['cls']) for v, x in dv.items()}
+    views = {v: dict(rgb=x['rgb'], fg=x['fg'], cls=x['cls'], win=x.get('win')) for v, x in dv.items()}
     body = design.memo(design_body, views, masks, graph, ctx['ppl'])
     return dict(head=head, body=body, chin=chin, body_ppl=round(float(ctx['ppl']), 3))
 
 
+def _records(S):
+    """the stored design file's records (one per stamp: the specs' outfit masks differ) -> [record]."""
+    return list(S.get('records') or ([S] if S.get('stamp') else []))
+
+
 def design_measures(B, design):
-    """the design's measures: the stored ones (DESIGN_FILE) when their stamp matches, else made here (with a note to
-    store them: `python -m charkit.artifactqa design BUNDLE`) -> (dict(head, body, ...), note or None)."""
+    """the design's measures: the stored ones (DESIGN_FILE: a record per stamp) when one matches, else from the shared
+    cache or made here (with a note to store them: `python -m charkit.artifactqa design BUNDLE`) -> (dict(head, body,
+    ...), note or None)."""
     import json, os
     stamp, inp, path = design_inputs(B, design)
     if stamp is None:
         return {}, inp
     if path and os.path.exists(path):
         design._rec(path)
-        S = json.load(open(path))
+        recs = _records(json.load(open(path)))
+        for S in recs:
+            ex = (S.get('inputs') or {}).get('eye_x') or 0
+            if S.get('stamp') == stamp and ex and abs(ex / inp['eye_x'] - 1) <= EYE_X_TOL:
+                return S, None
+        S = recs[0] if recs else {}
         ex = (S.get('inputs') or {}).get('eye_x') or 0
-        if S.get('stamp') == stamp and abs(ex / inp['eye_x'] - 1) <= EYE_X_TOL:
-            return S, None
         why = 'the stored design measures are stale (%s changed): made here, ~20 s; store them with ' \
               '`python -m charkit.artifactqa design BUNDLE`' % ', '.join(
                   k for k in inp if (S.get('inputs') or {}).get(k) != inp[k] and k != 'eye_x' or
-                  k == 'eye_x' and abs(ex / inp['eye_x'] - 1) > EYE_X_TOL)
+                  k == 'eye_x' and (not ex or abs(ex / inp['eye_x'] - 1) > EYE_X_TOL))
     else:
         why = 'no stored design measures (%s): made here, ~20 s; store them with `python -m charkit.artifactqa design ' \
               'BUNDLE`' % DESIGN_FILE
-    return design_compute(B, design), why
+    D, hit = _shared_design(stamp, inp, lambda: design_compute(B, design))
+    return D, why.replace('made here, ~20 s', 'taken from the shared cache (made here once)') if hit else why
+
+
+SHARED_KEEP = 30            # stale-stamp design measures kept in the shared cache (newest first)
+
+
+def _shared_design(stamp, inp, make):
+    """the design's measures for a stamp the tracked file doesn't hold, from the produced references' shared cache
+    (charkit.manifest.cache_root(): CHARKIT_PRODUCED_CACHE, per user, so a box's gate clones share it), else made and
+    stored there: a branch whose outfit masks differ from the tracked stamp's measures the design once per machine, not
+    once per build. -> (measures, from the cache?)"""
+    import glob, json, os
+    from . import manifest
+    root = manifest.cache_root()
+    if not root:
+        return make(), False
+    d = os.path.join(root, 'artifacts_design')
+    p = os.path.join(d, '%s-%.4f.json' % (stamp, inp['eye_x']))
+    for q in [p] + sorted(glob.glob(os.path.join(d, stamp + '-*.json'))):
+        try:
+            S = json.load(open(q))
+        except (OSError, ValueError):
+            continue
+        ex = (S.get('inputs') or {}).get('eye_x') or 0
+        if S.get('stamp') == stamp and ex and abs(ex / inp['eye_x'] - 1) <= EYE_X_TOL:
+            os.utime(q)
+            return S, True
+    D = make()
+    try:
+        os.makedirs(d, exist_ok=True)
+        with open(p + '.%d.tmp' % os.getpid(), 'w') as f:
+            json.dump(dict(stamp=stamp, inputs=inp, **D), f, default=float)
+        os.replace(p + '.%d.tmp' % os.getpid(), p)
+        for old in sorted(glob.glob(os.path.join(d, '*.json')), key=os.path.getmtime)[:-SHARED_KEEP]:
+            os.remove(old)
+    except OSError:
+        pass
+    return D, False
+
+
+STORE_KEEP = 4              # records kept in the stored file (a spec's masks each; the newest first)
 
 
 def store_design(bdir):
     """python -m charkit.artifactqa design BUNDLE_DIR: the design's measures made and stored beside the spec's manifest
-    (DESIGN_FILE, tracked: a build reads them instead of re-measuring the sheets)."""
-    import json, platform, time
+    (DESIGN_FILE, tracked: a build reads them instead of re-measuring the sheets), as the record for this bundle's
+    stamp; records made from other sheets or design-side code are dropped, other specs' (their masks) kept."""
+    import json, os, platform, time
     from . import bundle as bundlelib, qa3d
     B = bundlelib.load(bdir)
     design = qa3d.Design(B)
@@ -1045,10 +1431,16 @@ def store_design(bdir):
         raise SystemExit('artifactqa design: %s' % inp)
     D = design_compute(B, design)
     rec = dict(stamp=stamp, inputs=inp, made=time.strftime('%Y-%m-%d'), where=platform.machine(),
-               note='the design turnarounds measured by charkit.artifactqa (head sheet at %d px/L, body sheet at its '
-                    'own scale); refresh with python -m charkit.artifactqa design BUNDLE_DIR' % HEAD_PPL, **D)
-    json.dump(rec, open(path, 'w'), indent=1, default=float)
-    print('artifactqa design: stored', path, 'stamp', stamp)
+               spec=B.spec.get('name'), **D)
+    same = ('face_sheet', 'face_facing', 'body_sheet', 'head_ppl', 'code')
+    old = _records(json.load(open(path))) if os.path.exists(path) else []
+    keep = [r for r in old if r.get('stamp') != stamp and all((r.get('inputs') or {}).get(k) == inp[k] for k in same)]
+    S = dict(note='the design turnarounds measured by charkit.artifactqa (head sheet at %d px/L, body sheet at its own '
+                  'scale), a record per stamp (the outfit masks differ between specs); refresh with python -m '
+                  'charkit.artifactqa design BUNDLE_DIR (a bundle of each spec)' % HEAD_PPL,
+             records=[rec] + keep[:STORE_KEEP - 1])
+    json.dump(S, open(path, 'w'), indent=1, default=float)
+    print('artifactqa design: stored', path, 'stamp', stamp, '(%d records)' % len(S['records']))
     return path
 
 
