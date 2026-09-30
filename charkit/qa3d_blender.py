@@ -771,9 +771,10 @@ def run(S, out, ref_image=None):
         v = float(np.mean(vals))
         rep['checks']['hair_noise'] = {'value': round(v, 4), 'status': _grade('hair_noise', v, False)}
     # --- face folds: the skin round the openings at rest and under the keys
+    from .character import base_of
     ff = face_folds(A)
     rep['checks']['face_folds'] = {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
-                                   'base': S.spec.get('base', 'makehuman'), 'status': _grade('face_folds', ff['total'], False)}
+                                   'base': base_of(S.spec), 'status': _grade('face_folds', ff['total'], False)}
     # --- mesh health (information)
     import bmesh
     mh = {}

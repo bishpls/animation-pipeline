@@ -146,7 +146,7 @@ def test_assembly_key_covers_what_assemble_reads():
 
         def write(self, path):
             pass
-    spec = {'name': 'probe', 'base': 'makehuman', 'garments': [{'kind': 'band', 'name': 'x'}], 'accessories': [],
+    spec = {'name': 'probe', 'base': 'makehuman', 'body': {'source': 'makehuman'}, 'garments': [{'kind': 'band', 'name': 'x'}], 'accessories': [],
             'hair': {'shape': {'eye_depth': 0.01}}, 'look': {}}
     T = cache.track(json.loads(json.dumps(spec)), ('spec',))
     r = Reads()

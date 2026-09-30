@@ -27,7 +27,8 @@
    "arm_down": 11.05433,
    "leg_in": 5.66828,
    "elbow": 2.18607
-  }
+  },
+  "source": "makehuman"
  },
  "head": {
   "chin": 1.87642,
@@ -883,5 +884,6 @@
     0.6762
    ]
   }
- ]
+ ],
+ "base": "makehuman"
 }

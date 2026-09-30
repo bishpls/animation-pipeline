@@ -232,13 +232,10 @@ def produce(spec, out, page=True, log=print):
     reg = register(lab, rgb_k, views, figs)
     lab = fringe_rule(lab, reg, figs)
     om = None
-    try:
-        p = manifest.produced(spec, 'outfit_masks', log)
-        if p and os.path.exists(p):
-            Z = np.load(p)
-            om = {k: Z[k] for k in Z.files}
-    except Exception as e:                                           # (the buns then stay the breakdown's nearest)
-        log('hair layers: no outfit masks (%s)' % e)
+    p = manifest.produced(spec, 'outfit_masks', log)     # declared by the manifest: made, or this stops (no silent
+    if p:                                                # layers without them); none declared: the buns stay the
+        Z = np.load(p)                                   # breakdown's nearest
+        om = {k: Z[k] for k in Z.files}
     masks, counts = transfer(lab, reg, figs, views, om)
     os.makedirs(out, exist_ok=True)
     np.savez_compressed(os.path.join(out, 'hair_layers.npz'), **masks)

@@ -1,7 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
-                                     [--base makehuman|anime] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
+                                     [--base code|anime|makehuman] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
@@ -45,8 +45,10 @@ and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D 
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
 out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). --base overrides the spec's base
-mesh (spec['base']: 'makehuman', the default, wraps MakeHuman's own head; 'anime' builds on charkit's derived anime base,
-charkit/base_anime.py). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
+mesh. A spec declares its base (spec['base']: 'code' authors the head from the references, charkit/code_base.py; 'anime'
+builds on charkit's derived anime base, charkit/base_anime.py; 'makehuman' wraps MakeHuman's own head) and its body
+(spec['body']['source']: 'code' or 'makehuman'); one without them fails before any build work (character.check_spec:
+there is no default). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
 charkit.geom first (out/geom/hair.npz) and the Blender stage loads that closed surface (docs/GEOM.md).
 
 The build cache (charkit/cache.py, docs/CHARKIT.md §3): each stage (the cranium fit, character, hair, face shading,
@@ -81,9 +83,11 @@ def _path(p):
 def resolve(spec_path, out, do_fit=True, base=None):
     from . import refs
     from . import manifest
-    spec = manifest.produce(manifest.resolve(json.load(open(spec_path))))
+    from . import character
+    spec = manifest.resolve(json.load(open(spec_path)))
     if base:
         spec['base'] = base
+    spec = manifest.produce(character.check_spec(spec))        # its base and body declared, before any build work
     from . import styles
     # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
     # the stage cache keys on it)
@@ -353,7 +357,8 @@ def code_head(spec, resolved, out, mode='on'):
     """venv-side, for spec['base'] == 'code': the authored head (charkit/code_base.py, from the reference images) ->
     out/geom/head_code.npz, and the resolved spec pointed at it (spec['head_code']) for the Blender side. A cached step:
     it runs again when the references it reads, the spec's eyes or style, or the code change."""
-    if spec.get('base') != 'code':
+    from . import character
+    if character.base_of(spec) != 'code':
         return spec
     from . import cache, code_base, manifest
     gdir = os.path.join(out, 'geom')
@@ -384,7 +389,8 @@ def code_body(spec, resolved, out, mode='on'):
     """venv-side, for spec['body']['source'] == 'code': the authored body fitted to the hull (charkit/code_body.py; the
     fit needs scipy) -> out/geom/body_code.npz, and the resolved spec pointed at it (spec['body_code']). A cached step:
     it runs again when the hull, the outfit graph or the code change."""
-    if (spec.get('body') or {}).get('source') != 'code':
+    from . import character
+    if character.body_source(spec) != 'code':
         return spec
     from . import bodypage, cache, manifest
     gdir = os.path.join(out, 'geom')

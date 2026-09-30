@@ -92,14 +92,19 @@ def _h(x):
 
 
 # ------------------------------------------------------------------------------------------------------------ resolving
-def resolve(spec_path, base=None):
+def resolve(spec_path, base=None, check=False):
     """the spec as the Blender build sees it (cli.resolve: the manifest, the design rig's fit; then scene.fit_cranium with
-    the numpy GLB reader), without writing anything."""
-    from . import cli, manifest, refs, scene
+    the numpy GLB reader), without writing anything. check: its base and body must be declared (character.check_spec),
+    raised before any build work: the evaluator's and the fits' specs (a produced reference's tools read cut-down specs
+    without them)."""
+    from . import character, cli, manifest, refs, scene
     from .geom.parts import load_generated
-    spec = manifest.produce(manifest.resolve(json.load(open(cli._path(spec_path)))))
+    spec = manifest.resolve(json.load(open(cli._path(spec_path))))
     if base:
         spec['base'] = base
+    if check:
+        character.check_spec(spec)
+    spec = manifest.produce(spec)
     ref = spec.get('ref', {})
     if isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(cli._path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
@@ -743,7 +748,8 @@ class Evaluator:
 
     def __init__(self, spec, base=None, cache=True, verbose=False):
         t = time.time()
-        self.spec = resolve(spec, base) if isinstance(spec, str) else spec
+        from . import character
+        self.spec = resolve(spec, base, check=True) if isinstance(spec, str) else character.check_spec(spec)
         self.cache = cache
         self.verbose = verbose
         self._asm = {}               # character key -> assembly (the base spec's, and the latest other)
@@ -787,7 +793,8 @@ class Evaluator:
             if bk == self._base_bk:
                 return A0, 'assembled'
             base = ((ck, self._base_bk), A0)
-        if base is not None and spec.get('base', 'makehuman') != 'anime':
+        from .character import base_of
+        if base is not None and base_of(spec) != 'anime':
             if bk not in self._bodies:
                 from . import body as bodylib
                 self._bodies = {bk: bodylib.build_body_data(spec.get('body'), keep_head=True)}

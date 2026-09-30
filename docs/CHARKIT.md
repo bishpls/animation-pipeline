@@ -51,9 +51,13 @@ component that reads them; `charkit/spec/schema.json` collects them.
 
 ### The base mesh: `spec['base']`
 
-Two bases build the same character (`python -m charkit build SPEC.json --base anime`, or `"base": "anime"` in the spec):
+A spec declares its base (`"base": "code" | "anime" | "makehuman"`; `--base` overrides it) and its body's source
+(`"body": {"source": "code" | "makehuman"}`, `code` on base `code` only). There is no default: a spec without them stops
+at load with the allowed values (`character.check_spec`), where it used to build MakeHuman and report success. The
+default spec, `charkit/spec/clawd.json`, is `code` on a `code` body (`charkit/code_base.py`, `charkit/code_body.py`).
+Of the two MakeHuman-derived bases:
 
-- **`makehuman`** (the default): MakeHuman's own realistic head wrapped onto the anime head on every build
+- **`makehuman`**: MakeHuman's own realistic head wrapped onto the anime head on every build
   (`charkit/anime_head.reshape`), its eye margins, mouth corners and cavities detected in the realistic topology each time.
 - **`anime`**: charkit's own anime base (`charkit/base_anime.py`, asset `charkit/assets/base_anime/base_anime.npz`, 0.6 MB,
   CC0): derived once from MakeHuman through the neutral anime wrap and cleaned for anime use: shallow eye sockets behind the

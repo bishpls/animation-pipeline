@@ -3,7 +3,7 @@ default anime wrap and cleaned for anime use, stored with its regions and landma
 (eye margins by normals, mouth corners by fold curvature, cavities by flood fill) and fighting realistic topology.
 
     python -m charkit.base_anime derive        # once: writes charkit/assets/base_anime/base_anime.npz
-    spec['base'] = 'anime'                     # a build on it (charkit/character.py); 'makehuman' (the default) as before
+    spec['base'] = 'anime'                     # a build on it (charkit/character.py); 'code' | 'makehuman' the others
 
 derive(): MakeHuman's body with its own head wrapped onto the anime head at neutral knobs (character.assemble, base
 'makehuman': eyes on the default outline, the neutral mouth), then cleaned:
@@ -412,7 +412,7 @@ def _ears(BB, faces, nb, head_w):
 def derive(path=ASSET, log=print):
     """build the anime base from MakeHuman + the neutral anime wrap, clean it, and save it (see the module doc)."""
     from . import anime_head as ah, character, eyes as eyelib, head as headlib, mouth as mouthlib
-    A = character.assemble({'name': 'base', 'base': 'makehuman'})
+    A = character.assemble({'name': 'base', 'base': 'makehuman', 'body': {'source': 'makehuman'}})
     B = A['body']; Hd = A['head']; L = Hd['L']; H = Hd['H']; c0 = Hd['centre']; info = Hd['info']
     EK = eyelib._knobs(None); MK = mouthlib._knobs(None)
     Fc = eyelib.Face(H, c0)
