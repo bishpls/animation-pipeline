@@ -7,7 +7,8 @@ MANIFEST: {"out": DIR, "before": BUILD, "after": BUILD,
            "streaks": {"before": {LABEL: [BOARDS_DIR, BOARDS_DIR_WITHOUT_STREAKS], ...}, "after": {...}},
            "normals": {"before": normals.json, "after": normals.json},      (charkit/boards/lookprobe.py --normals)
            "compare": {"before": compare.json, "after": compare.json},      (python -m charkit.render compare)
-           "crops": {NAME: [BOARD, x0, y0, x1, y1], ...}}
+           "crops": {NAME: [BOARD, x0, y0, x1, y1], ...},              (a NAME with 'streak': per renderer too)
+           "title", "intro": [HTML], "normals_note": [HTML], "tables": [{title, note, header, rows}]}
 
 What it measures:
   streaks     per phase, per board, per pair of renderers (EEVEE on each GPU, charkit.render on each): each one's streak
@@ -21,7 +22,7 @@ What it measures:
   lines       per board: the ink's mean width (charkit.render.compare.line_stats) before and after
   page        per board EEVEE before | after | difference at the same scale, the close-ups (x4, nearest), the tables
 """
-import html, json, os, shutil, sys
+import html, json, os, re, sys
 
 import numpy as np
 
@@ -133,6 +134,10 @@ def pieces(vrm_a, vrm_b, bundle, ss=4):
     return res
 
 
+def _slug(x):
+    return re.sub(r'[^a-z0-9]+', '_', x.lower()).strip('_')
+
+
 def _crop(a, box, k=4):
     x0, y0, x1, y1 = box
     c = a[y0:y1, x0:x1]
@@ -178,14 +183,14 @@ def main(manifest, open_=False):
         files = {}
         a, b = _img(os.path.join(A, 'boards', nm + '.png')), _img(os.path.join(B, 'boards', nm + '.png'))
         for tag, im in (('before', a), ('after', b), ('diff', compare.heatmap(a, b))):
-            f = f'crops/{cn}_{tag}.png'
+            f = f'crops/{_slug(cn)}_{tag}.png'
             _save(os.path.join(out, f), _crop(im, box))
             files[tag] = f
         for phase, sets in ((C.get('streaks') or {}).items() if 'streak' in cn else ()):   # per renderer
             for lb, (don, _) in sets.items():
                 p = os.path.join(don, nm + '.png')
                 if os.path.exists(p):
-                    f = f'crops/{cn}_{phase}_{lb}.png'.replace(' ', '_')
+                    f = f'crops/{_slug(cn)}_{phase}_{_slug(lb)}.png'
                     _save(os.path.join(out, f), _crop(_img(p), box))
                     files[f'{phase}: {lb}'] = f
         rep['crops'][cn] = {'board': nm, 'box': box, 'files': files}
@@ -268,6 +273,14 @@ def page(out, rep, C):
             cap = b.get('cap_m')
             H.append(f'<tr><td>{e(n)}</td><td>{1e3 * a.get("shell_m", 0):.2f}</td><td>{"-" if not cap else "%.2f" % (1e3 * cap)}'
                      '</td>' + ''.join(f'<td>{c}</td>' for c in cells) + '</tr>')
+        H.append('</table>')
+    for T in C.get('tables', []):                                       # the manifest's own tables (experiments)
+        H.append(f'<h3>{e(T["title"])}</h3>')
+        if T.get('note'):
+            H.append(f'<p class="mute">{T["note"]}</p>')
+        H.append('<table><tr>' + ''.join(f'<th>{e(str(h))}</th>' for h in T['header']) + '</tr>')
+        for r in T['rows']:
+            H.append('<tr>' + ''.join(f'<td>{e(str(x))}</td>' for x in r) + '</tr>')
         H.append('</table>')
     # per board numbers
     H.append('<h2>Per board (EEVEE, the render box)</h2><table><tr><th>board</th><th>mean diff lv</th><th>&gt;8 lv</th>'

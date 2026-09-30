@@ -10,6 +10,31 @@ Why: Blender renders are CPU-bound (a still re-evaluates ~130 modifiers); the bu
 draws with a separate numpy rasteriser (`qa3d.draw`) that doesn't match the boards; the web viewer (`look.js`) is a
 third renderer nobody had checked. One toon renderer we own should serve the boards, the QA and the web.
 
+## Since phase 1: the look's calls H and I (tool/look3; docs/workstreams/look.md, round 3)
+
+The renderer mirrors two look changes:
+- **The streaks' hash** (finding 1, resolved): `toon.wgsl` computes Jenkins' lookup3 of the column index's float bits
+  per pixel (`hash_uint`, `hash_uint2`: Blender's White Noise, which `shade.hair_toon` now uses), instead of reading a
+  per-column table computed from `sin()`. The uniform block lost the table (`UNIFORM_WORDS` 80, was 204);
+  `gpu.streak_table(hl)` is now the numpy reference (`shade.streak_columns`); `--hash f64|f32|nv` is gone; a highlight
+  whose export names another hash is refused. Measured: bit-identical to numpy on Metal and the T4's Vulkan
+  (`test_streak_hash_gpu`); streak pixels against EEVEE IoU 0.995, 0.56 levels in their region (were 0.06, 56 levels).
+- **The outline's inward move capped** (finding 2, resolved as Michael's call I): a mesh's `outline.maxInward` (the
+  export) caps the surface's inward move, `inward(w) = min(w, maxInward)`; `vs_surface` moves POSITION by
+  `inward(build) - inward(view)`, `vs_hull` puts the hull `w - inward(w)` outside the original surface, and the skin's
+  holdout has its own `vs_holdout` (at co). `Prim.co()` and `normals.Group` use the capped move (the garments' normals
+  no longer come from crossed layers).
+- `compare` includes the streaks: `diff` is every pixel; `diff_streaks` the streak region (`compare.region_stats`),
+  `diff_excl` the rest (phase 1's measure). `boards --no-streaks` renders the streak-free base.
+- Tests: `test_streak_hash`, `test_streak_hash_gpu`, `test_line_cap`, `test_sphere_thin_shell` (a capped sphere's
+  silhouette at r + w - cap and its line still w wide), `test_sphere_streaks` (the kept columns are
+  `streak_columns`'). All pass on the laptop (Metal) and the render box (T4).
+- Findings 3 and 5 stand. Finding 4 (look.js): its surface now moves per view as Blender's does (for `_HULL_NORMAL`
+  meshes along that attribute, exact in the build pose); not yet measured in a browser.
+
+The acceptance on the tool/look3 build (look3_after, render box, ss 4, streaks included): mean 0.51-0.87 levels,
+silhouette IoU 0.99904-0.9999, tones agree 0.9993-0.9997 (table in look.md).
+
 ## What was built (`charkit/render/`)
 
 | File | What |
@@ -107,13 +132,14 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
 
 ## Findings for other workstreams (the look is paused; these are for it and the integrator)
 
-1. **The streak hash is GPU-dependent.** `hair_toon` keeps a column by `fract(sin(i k) 43758.5453)` with i k up to
+1. **(Resolved by the look's call H, tool/look3: an integer hash.) The streak hash is GPU-dependent.** `hair_toon` keeps a column by `fract(sin(i k) 43758.5453)` with i k up to
    ~2700 rad: every GPU's `sin` reduces such arguments differently. Emulating NVIDIA's (argument scaled to
    revolutions in float32 first, `gpu.streak_table(..., 'nv')`) recovers some of the T4's columns, not all. So EEVEE on
    the laptop, on the T4 and look.js in a browser all place the streaks differently. Fix in the look: an integer hash,
    or the kept columns and elevations exported as a table (the export already carries the parameters). Ours computes it
    exactly (`f64`) and the comparison measures streaks apart.
-2. **Screen lines turn thin garment shells inside out on the body boards.** The outline SOLIDIFY moves every surface
+2. **(Resolved by the look's call I, tool/look3: the inward move capped at half the shell.) Screen lines turn thin
+   garment shells inside out on the body boards.** The outline SOLIDIFY moves every surface
    inward by the line width: 3.6 mm at the body boards' scale, 0.93 mm on the face boards, 1.2 mm build. The garments'
    'thick' shells are 1.5-3 mm, and both of a shell's layers move toward each other, so wherever twice the width passes
    the shell (every garment on the body boards; the 1.5 mm shorts and 2 mm sleeves at build width) the layers cross
@@ -161,7 +187,7 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
 
 ## Open items
 
-- The streak hash (finding 1) and the crossed garment shells (finding 2) need look decisions.
+- The streak hash (finding 1) and the crossed garment shells (finding 2): done in the look (tool/look3, above).
 - Hair and skin normals re-sampled after the outline (finding 3): the export's limit; the largest remaining tone patches.
 - Only the build pose, and only the 'views' and 'body' boards: no morph targets or skinning applied yet.
 - The analytic hair material (`kind: hair`: ring, gradient, strands) isn't ported (Clawd's spec uses cut pieces); it
