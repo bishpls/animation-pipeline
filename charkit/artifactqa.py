@@ -22,6 +22,8 @@ body sheet's px per L) the garments. Outlines are traced at sub-pixel precision 
                lines, a stepped edge), per L of outline (L^2 / L)
   speckle      skin only: specks under SPECK L^2 in the skin away from the features (tone islands, another surface
                showing through, a drawing's short strokes: the neck seam's dots), per L^2 of skin
+  peeks        ours only (the drawing has no pieces): small visible bits of a region's own pieces, each object's
+               components but its largest under FRAG L^2 (a lock tip peeking past the lock in front of it); a count
 
 Checks art_<detector>_<region>: the worst view's ratio to the design's (the design's floored: DETECTORS), per view
 ours, the design's and the ratio beside it; INFO, with the grade PROPOSED limits would give. Calibration: see
@@ -298,6 +300,37 @@ def fragments(inner, ppl, keep=None, outline_len=None, marks=None):
                 per_L=round((n + ns) / max(L, 1e-9), 3))
 
 
+def peeks(mesh, surfs, members, ppl, keep=None):
+    """small visible bits of a region's own pieces (ours only: the drawing has no pieces): each object's pixels (its
+    outline hull off) in components, every one but its largest that is over 3 px and under FRAG L^2 (a lock's tip peeking
+    past the lock in front of it, a torn collar tip cut off by the bow) -> count."""
+    from scipy import ndimage
+    if not members:
+        return 0
+    names = sorted({surfs[i]['o'].name for i in members})
+    of = np.zeros(len(surfs) + 1, np.int32)
+    for i in members:
+        of[i] = names.index(surfs[i]['o'].name) + 1
+    obj = of[np.where(mesh >= 0, mesh, len(surfs))]
+    lim = FRAG * ppl ** 2
+    n = 0
+    for j, sl in enumerate(ndimage.find_objects(obj)):
+        if sl is None:
+            continue
+        mm = obj[sl] == j + 1
+        lab, k = ndimage.label(mm, structure=np.ones((3, 3)))
+        if k < 2:
+            continue
+        area = np.bincount(lab.ravel(), minlength=k + 1)
+        area[0] = 0
+        small = (area > 3) & (area < lim)
+        small[np.argmax(area)] = False
+        if keep is not None:
+            small &= np.bincount(lab[keep[sl]], minlength=k + 1) > 0.5 * area
+        n += int(small.sum())
+    return n
+
+
 def speckle(clear, tone, ppl, foreign=None, keep=None, dots=None, line=None, marks=None):
     """specks in the skin away from the features (clear): its tone islands between SPECK_MIN and SPECK L^2, and small
     components (under SPECK) of foreign (another surface's pixels showing inside the skin's filled outline) and of dots
@@ -552,10 +585,11 @@ def view_regions(kinds, chin_row=None, neck_rows=None, line=None, dots=None, ppl
     return out
 
 
-def measure_view(regs, tone_fn, ppl, keep=None, pictures=None):
-    """the four detectors on a view's regions (view_regions'); tone_fn(body mask) -> its cel tones. -> {region: dict(
-    outline, terminator, fragments, speckle (face and neck))}. pictures: a dict to receive each region's outlines,
-    terminators and the islands, fragments, slivers and specks found, for the overlays."""
+def measure_view(regs, tone_fn, ppl, keep=None, pictures=None, speck_tone_fn=None):
+    """the four detectors on a view's regions (view_regions'); tone_fn(body mask) -> its cel tones (speck_tone_fn: the
+    tones specks are read from, else the same). -> {region: dict(outline, terminator, fragments, speckle (face and
+    neck))}. pictures: a dict to receive each region's outlines, terminators and the islands, fragments, slivers and
+    specks found, for the overlays."""
     out = {}
     for r, g in regs.items():
         zk = g['zone']
@@ -567,7 +601,8 @@ def measure_view(regs, tone_fn, ppl, keep=None, pictures=None):
                    terminator=terminator(g['body'], tone, ppl, keep=k, parts=pt, line=g['line'], marks=mk))
         rec['fragments'] = fragments(g['inner'], ppl, keep=zk, outline_len=rec_len(po), marks=mk)
         if r in ('face', 'neck'):
-            rec['speckle'] = speckle(g['clear'], tone, ppl, foreign=g['foreign'], keep=zk, dots=g.get('dots'),
+            st = speck_tone_fn(g['body']) if speck_tone_fn is not None else tone
+            rec['speckle'] = speckle(g['clear'], st, ppl, foreign=g['foreign'], keep=zk, dots=g.get('dots'),
                                      line=g['line'], marks=mk)
         out[r] = rec
         if pictures is not None:
@@ -623,8 +658,11 @@ DETECTORS = {                # check -> (detector, its headline measure, the flo
     'fragments': ('fragments', 'ragged', 0.0002),    # fragment and sliver area per L of outline (L^2 / L)
     'speckle': ('speckle', 'per_L2', 10.0),          # specks per L^2 of skin
 }
-PROPOSED = {                 # proposed grades on the worst view's ratio to the design: (pass at or under, warn at or under)
-    'outline': (1.5, 2.5), 'terminator': (1.5, 2.0), 'fragments': (1.5, 2.5), 'speckle': (2.0, 3.0),
+PROPOSED = {                 # proposed grades on the worst view's ratio to the design: (pass at or under, warn at or under),
+    'outline': (1.5, 2.5),   # set from the calibration (docs/workstreams/artifacts.md): the flagged neck and collar read
+    'terminator': (2.0, 2.5),    # 2.2-7.4, clean regions 0.2-0.8; our buffers read hair terminators ~1.8x a render's,
+    'fragments': (1.5, 2.5),     # so a render at the design's 1.0 reads ~1.8 here, the flagged hair 2.4-2.9
+    'speckle': (1.5, 2.5),
 }
 
 
@@ -697,7 +735,15 @@ def _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pict
     line = line_of[np.where(mesh >= 0, mesh, len(line_of) - 1)]
     regs = view_regions(kinds, chin_row, NECK * ppl, line=line, ppl=ppl, regions=regions)
     P = {} if pictures is not None else None
-    M = measure_view(regs, lambda body: buffer_tone(tone, body), ppl, keep=frame_keep(mesh.shape), pictures=P)
+    M = measure_view(regs, lambda body: buffer_tone(tone, body), ppl, keep=frame_keep(mesh.shape), pictures=P,
+                     speck_tone_fn=lambda body: buffer_tone(tone, body, blur=0))     # (a render keeps a pixel's speck)
+    fk = frame_keep(mesh.shape)
+    for r, rec in M.items():
+        kind = 'skin' if r in ('face', 'neck') else r
+        if rec.get('fragments') is not None and kind in KINDS:
+            ids = [i for i in range(len(surfs)) if kinds_of[i] == KINDS.index(kind) and not line_of[i]]
+            zone = regs[r]['zone']
+            rec['fragments']['peeks'] = peeks(mesh, surfs, ids, ppl, fk if zone is None else fk & zone)
     if pictures is not None:
         pictures.append((flat_picture(kimg, tone, line), P))
     return M
@@ -859,6 +905,10 @@ def grade(ratio, det):
     return 'PASS' if ratio <= p else 'WARN' if ratio <= w else 'FAIL'
 
 
+PEEKS = (4, 12)              # proposed grades on a region's peeking bits in its worst view (ours only): pass at or under,
+                             # warn at or under (one build's numbers: look_v5's hair read 10-24)
+
+
 def checks(ours_m, design_m):
     """per detector and region: ours, the design's and their ratio per view (the design's value floored:
     DETECTORS), the worst view's ratio as the value; INFO, with the proposed grade beside it -> {check: dict}."""
@@ -880,6 +930,18 @@ def checks(ours_m, design_m):
                 worst = max(ratio, key=ratio.get)
                 C['%s_%s' % (det, r)] = {'value': ratio[worst], 'worst': worst, 'per_view': o, 'design': d,
                                          'ratio': ratio, 'status': 'INFO', 'grade': grade(ratio[worst], det)}
+    for frame, regions in (('head', HEAD_REGIONS), ('body', BODY_REGIONS)):
+        for r in regions:
+            if r in ('face', 'neck'):
+                continue
+            o = {v: ((ours_m.get(frame, {}).get(v) or {}).get(r) or {}).get('fragments') for v in VIEWS}
+            o = {v: x['peeks'] for v, x in o.items() if x and 'peeks' in x}
+            if o:
+                w = max(o, key=o.get)
+                C['peeks_%s' % r] = {'value': o[w], 'worst': w, 'per_view': o, 'status': 'INFO',
+                                     'grade': 'PASS' if o[w] <= PEEKS[0] else 'WARN' if o[w] <= PEEKS[1] else 'FAIL',
+                                     'note': 'small visible bits of the region\'s own pieces (no design ratio: the '
+                                             'drawing has no pieces)'}
     return C
 
 
