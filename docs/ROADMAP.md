@@ -163,6 +163,38 @@ Speed-ups, largest first:
 7. **Iterate locally, gate once.** An exact evaluator (single-source geometry) and QA boards from `charkit.render`
    (0.02 s a board on the laptop) let agents converge before the first gate, instead of using gates to iterate.
 
+**Are the gates earning their keep? (2026-09-30: partly; the next session's first priority.)**
+
+Today's 33 default-spec gates:
+- 13 (40%) passed with nothing changed. These were tooling and infra branches: full builds to confirm geometry nobody
+  touched.
+- 6 passed with values moved.
+- 14 failed, about 12 of them on real regressions between workstreams that a local loop couldn't see: hems moved by
+  the hull, the skirt overhang from the new band, the collar and waistband from the new masks, a 1.8x CPU build, the
+  chin trade-off.
+
+So the gates earn their keep on interactions between workstreams. What they cost:
+- builds that couldn't have changed anything;
+- agents using them to iterate (body 9 gates, face 6, hull-limbs 6), at about 15 min a gate even on an idle box;
+- a hard FAIL on tiny moves: hair round 3 traded bun outline accuracy to pass a 0.002 IoU change;
+- re-gates whenever pipeline-3d moved.
+
+The workflow is built to protect pipeline-3d, not for fast iteration.
+
+**Redesign (targets: local iteration about 1 min on the laptop; a geometry-changing gate 5 min or less; a
+no-geometry gate 2 min or less):**
+1. **No build when geometry can't change.** If the candidate's stage cache keys equal the baseline's, the gate runs the
+   tests only.
+2. **A local pre-gate check on every iteration.** QA on the full character from the evaluator plus `charkit.render`,
+   compared with pipeline-3d's result, in about a minute. It surfaces the interactions before any box build, so agents
+   gate once, to confirm.
+3. **The gate blocks only on new FAILs, the checks built from Michael's flags, and CPU.** WARNs and small value moves
+   are reported to the integrator, not enforced.
+4. **An integrator's merge queue.** A gate result carries over when the intervening commits don't touch the branch's
+   stages. Batches build once. Agents never re-gate because the target moved.
+5. **A faster gate.** Time its phases, share stage caches across clones, run tests in parallel, skip the VRM export,
+   and fix the last-bit skin nondeterminism that triggers needless 2x2 runs.
+
 **Box provisioning (checked 2026-09-30): no change yet.** 33 minutes of build-box samples:
 - CPU median 44% busy, and 90% or more busy in only 3% of minutes;
 - load above 32 in 29% of minutes (peak 54.6);
