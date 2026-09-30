@@ -1,8 +1,8 @@
 # Workstream: our own toon renderer (`tool/toonrender`)
 
-State: phase 1 done (boards from a build's export, measured against EEVEE, three machines). Phase 2 in progress on
-`tool/toonrender2` (`~/animation-pipeline-toonrender2`): "Phase 2, round 2" below, then the checkpoint before it; the
-QA's default drawing is still numpy.
+State: phase 1 done (boards from a build's export, measured against EEVEE, three machines). Phase 2 on
+`tool/toonrender2` (`~/animation-pipeline-toonrender2`): **the QA draws with charkit.render by default** ("Phase 2, round
+2" below; the checkpoint before it for what was built).
 
 Gate: `python -m charkit remote gate tool/toonrender --into pipeline-3d`: **PASS** at 75fe37b into e11fadb (no check
 changed; `test_render.py` ok on the build box's llvmpipe). Later commits touch only `charkit/render/page.py`,
@@ -201,24 +201,119 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
 - The T4's OpenGL adapter in wgpu loses its device (Vulkan works). lavapipe on the build box needs
   `mesa-vulkan-drivers libvulkan1` (apt; not done; llvmpipe through GL works).
 
-## Phase 2, round 2 (overnight 2026-09-30, `tool/toonrender2`)
+## Phase 2, round 2 (overnight 2026-09-30, `tool/toonrender2`): the default drawing
 
-In progress. Merged pipeline-3d 08f93e2 (look3's H and I, artifacts, face round 3, geom-truth, nofallback, infra2) at
-0f82d34: conflicts in cli.py's docstring and lookqa._scaled (look3's capped outline model kept, with this branch's
-`line_k` tag on the scaled surface: toon.wgsl's inward() applies the cap itself). Tests: 402 of 403, and the one
-(test_cache.test_code_closure) was this branch's: cache.qa_part's `from . import qarender` put the whole QA into every
-stage's code closure (a QA edit would have invalidated the garments stage's cache); now imported by name (928ea2d).
+**Decision: the QA draws with charkit.render by default** (`qa3d.DRAW = 'render'`, 32e9b1e; registered as a remeasure,
+ac2f515). Every QA frame is nearer EEVEE's under it, no check changes status, and on the build box it costs +18 s wall
+per QA (+17%) at 8 llvmpipe threads, with +198 CPU s (2.6x the QA's CPU; about +15% of a gate build's ~1350).
 
-New since the checkpoint: **artifactqa's body frame draws through qa3d.draw**, so under the render drawing the art_*
-checks of the collar, bow, top, skirt and boots (and the silhouette checks built from Michael's flags) move too; the
-head frame's art_* read artifactqa.buffers() (its own z-buffer) and don't. The calibration now covers them.
+### What changed this round
 
-Tools added: `python -m charkit qa BUNDLE --draw numpy|render [--threads N]` (LP_NUM_THREADS for llvmpipe); qa.json
-`measured.cpu_s` and `measured.parts` {part: [wall s, CPU s]} (process CPU, every thread); `remote run --fetch DIR CMD`.
+- Merged pipeline-3d 08f93e2 (look3's H and I, artifacts, face round 3, geom-truth, nofallback, infra2) at 0f82d34.
+  Conflicts in cli.py's docstring and lookqa._scaled (look3's capped outline model kept, with the `line_k` tag on the
+  scaled surface: toon.wgsl's inward() applies the cap itself).
+- **test_cache.test_code_closure failed on this branch** (928ea2d): cache.qa_part's `from . import qarender` put qarender,
+  and through it qa3d and the whole QA, into every stage's code closure, so a QA edit would have invalidated the
+  garments stage's cache. It's now imported by name.
+- **The render drawing never ran on the build box** (fixed in d0443d1). wgpu's GL backend on llvmpipe can't render to rgba32float, so every frame fell back to numpy (qa.json's
+  `measured.draw` said so; the boards, in rgba16float, drew). The measure and resolve targets are now rgba32uint holding
+  the float bits (`bitcast`). Integer targets are colour-renderable in core GLES 3.0. The 73 drawn checks are identical
+  on Metal before and after.
+- llvmpipe and lavapipe default to 8 threads (`gpu.CPU_THREADS`, unless LP_NUM_THREADS is set); see the timing below.
+- **artifactqa's body frame draws through qa3d.draw**, so its checks move with the drawing: the collar, bow, top,
+  skirt, boots, sleeves, flaps, legs, the waist mirror and the hem band, including the silhouette checks built from
+  Michael's flags. The head frame's (hair, face, neck) read artifactqa.buffers() and don't move.
+- Tools: `python -m charkit qa BUNDLE --draw numpy|render [--threads N]`; qa.json `measured.cpu_s` and `measured.parts`
+  {part: [wall s, CPU s]}; `remote run --fetch DIR CMD`; calibrate: placements from the R2 sequence (off every
+  supersample grid), artifactqa's checks and statuses; qaref: artifactqa's body frame against EEVEE's point samples
+  (eevee_frames takes a per-object `line_k`); gate.cross_qa: a crossed run whose render drawing fell back to numpy on
+  every frame (a baseline without an export) is an error of the 2x2, not a cell.
 
-Plan: box builds of clawd.json and clawd_body.json (hair pieces vs the geom shell: the second geometry for the 2x2) at
-the merged head, with the look export and toon boards; the QA timed on the box under both drawings; calibrate (placements
-off the 3x grid) and qaref on those builds; decide; register the step; gate.
+### The builds
+
+`charkit/out/tr3_a` (clawd.json) and `tr3_b` (clawd_body.json: the geom hair shell instead of pieces, the 2x2's second
+geometry), both on the build box at 3270232 (the merged head), with the look export and the toon boards.
+
+### The checks that move (calibrate: `charkit/out/calib3/calibrate.md`, laptop Metal, 6 placements)
+
+Noise = the standard deviation over the 6 sub-pixel placements (old drawing / new).
+
+| check | tr3_a numpy -> render (noise) | tr3_b numpy -> render | EEVEE evidence (qaref on tr3_a) |
+|---|---|---|---|
+| hair_noise (WARN both) | 0.0739 -> 0.0744 (0.0009 / 0.0007) | 0.0238 -> 0.0240 (PASS) | hair pixels 0.15 levels from EEVEE's (numpy 0.25; 0.70 with streaks), >8 levels 0.05% (numpy 0.37% / 1.31%); hair_noise on EEVEE's picture 0.0837 (both drawings ~0.074: not explained yet) |
+| face_noise | 0.0552 -> 0.0546 (0.0002 / 0.0002) | 0.0301 -> 0.0297 | tone edges on colour-classified maps: render 0.0565, EEVEE 0.0566, numpy 0.0569 |
+| face_noise_sweep | 0.0568 -> 0.0568 (0.0002 / 0.0001) | 0.0365 -> 0.0364 | sweep tones 99.966% EEVEE's (numpy 99.786%); edges 0.0608 / EEVEE 0.0609 / numpy 0.0610 |
+| face_shadow_3q | 0.3700 -> 0.3685 (0.006 / 0.005) | 0.3954 -> 0.3946 | the face and neck shade shares equal EEVEE's to 4 decimals in every head frame; numpy's up to 0.003 off (neck at 30 deg 0.9304 vs 0.9327) |
+| face_shadow_face_3q | -0.0589 -> -0.0588 (0.0014 / 0.0015) | -0.1363 -> -0.1363 | as above |
+| face_shadow_neck_3q | 0.4705 -> 0.4733 (0.009 / 0.010) | 0.4050 -> 0.4086 | as above |
+| art_band_lower (WARN) | 2.164 -> 2.163 (0.11 / 0.15) | the same | body frame, below |
+| art_fragments_collar (WARN) | 8.39 -> 8.675 (1.29 / 1.18) | 7.985 -> 8.28 | |
+| art_points_sleeves (WARN) | 28.0 -> 27.9 (2.1) | 13.6 -> 13.7 (PASS) | |
+| art_outline_bow | 0.901 -> 0.958 (0.027 / 0.042) | the same | the largest move in noise (1.3-2): the silhouettes, below |
+| art_outline_top | 5.083 -> 5.316 (0.37 / 0.44) | the same | |
+| art_fragments_bow | 0.74 -> 0.655 (0.15 / 0.14) | the same | |
+| art_terminator_boots | 4.822 -> 4.333 (0.65 / 0.40) | the same | |
+| art_terminator_collar | 7.971 -> 7.931 (2.0 / 3.0) | 8.161 -> 8.153 | |
+| art_bumps_collar, art_bumps_flaps, art_points_boots, art_points_flaps | +-0.1-0.2 | +-0.1 | noise 0.9-2.8 |
+
+Unmoved on both builds: face_islands, scalp_px, line_width, line_spread, line_ink, boot_profile_*, and the other 32
+art_* (every spike and mirror check, the other bumps and points, the head frame's). **No status changes** at the frame's
+placement on either build. **The 2x2** (tr3_a -> tr3_b under each drawing): every geometry change reads the same
+direction under both, except the four art_* silhouette rows above, whose changes (0.1-0.2) are a tenth of their noise.
+
+The body frame against EEVEE (artifactqa's frame, one sample a pixel; each drawing's unfiltered samples against EEVEE's
+point frame, `qaref.json` "body"):
+
+| view | silhouette pixels off: numpy / render | mean levels: numpy / render | >8 levels: numpy / render |
+|---|---|---|---|
+| front | 16 / 0 | 0.72 / 0.18 | 0.79% / 0.50% |
+| three-quarter | 18 / 1 | 0.68 / 0.20 | 0.85% / 0.54% |
+| profile | 9 / 1 | 0.68 / 0.24 | 0.93% / 0.65% |
+| back | 19 / 1 | 7.95 / 0.17 | 4.21% / 0.45% |
+
+(numpy's back view paints the top's back wrong: 171 levels mean on it. A filtered picture against EEVEE's point frame
+reads the other way, 2.8 against 3.7 levels; that measures the film filter, not the drawing.) Head pictures (the boards'
+film): render 0.40-0.45 levels from EEVEE's, >8 levels 0.56-0.69%; numpy 1.9-2.25 and 2.5-2.9%.
+
+**Noise and limits.** The round-1 zeros for face_noise, face_noise_sweep and face_islands were the placements (whole
+samples of the 3x grid); off the grid, face_noise's noise is 0.0002 under both drawings and face_islands' count holds
+over all 6. No limit needs to move for the switch: no graded check changes status. One status flips with the
+placement: **art_mirror_waist reads 1.19-1.735 over the 6 placements on unchanged garments (limit 1.5), under both
+drawings alike**. tr3_a reads PASS and tr3_b WARN at the frame's own placement. It's a flag check due for promotion to
+FAIL (handoff, integrator item 6), and as measured it would be a coin toss. It needs its noise handled first (the
+placements' mean, or a limit clear of it).
+
+### Cost
+
+Build box (32 vCPU, llvmpipe via GL), tr3_a's QA, `--cache off`, one run each:
+
+| QA drawing | whole QA wall / CPU s | the drawn parts (scalp, hair_noise, details, look, artifacts) wall / CPU s |
+|---|---|---|
+| numpy | 110.1 / 123.3 | 44.7 / 44.8 |
+| render, Mesa's default (32 threads) | 150.8 / 488.1 | 54.0 / 376.8 |
+| **render, 8 threads (the default now)** | **128.4 / 321.1** | 61.1 / 239.7 |
+| render, 4 threads | 175.7 / 337.4 | 92.1 / 248.2 |
+| render, 2 threads | 232.9 / 358.5 | 161.5 / 274.9 |
+
+The values are identical at every thread count. llvmpipe's real work for the 40 frames is ~240 CPU s (6 a frame; numpy's
+rasteriser draws what the checks read in 45): full shading at 3-4 samples a pixel, colour and measure passes apart.
+Per part at 8 threads: look 106 CPU s (numpy 18), artifacts 91 (11), hair_noise 22 (3), scalp 10 (3).
+
+Laptop (M2 Pro, Metal): the drawn checks per placement 11-13 s render against 18-19 s numpy.
+
+Other build-box costs this branch adds to a build: the look export 8.1 s wall / 34 CPU s (tr3_a; 7.4 / 28 tr3_b);
+the toon boards (boards_toon, 9 boards: views and body) 13.8 s wall / 298 CPU s at Mesa's 32 threads, before the
+8-thread default (face boards 1.4-1.8 s wall, body 0.9-1.1 s). A gate build draws the 5 'views' boards.
+
+**Box against laptop** (the render drawing, tr3_a): 71 of 73 drawn checks identical; hair_noise 0.0748 box / 0.0744
+laptop, face_noise 0.0551 / 0.0546 (2.5 noise: rasteriser ties). The gate compares box with box.
+
+### For the gate
+
+The baseline (pipeline-3d) writes no export, so this branch's QA on the baseline's bundle can't draw with the renderer:
+gate.cross_qa now reports that as an error of the 2x2 (the 2x2 WARNs "unverified") instead of a numpy cell passing as
+the new measure. If the two builds' geometry is the same, no crossed run is needed: base -> candidate is then the
+drawing change alone. The 2x2 across two geometries is the calibration above (tr3_a -> tr3_b).
 
 ## Phase 2: state at the checkpoint (2026-09-30, `tool/toonrender2`, from pipeline-3d cfcdc3a)
 
@@ -312,7 +407,8 @@ are under 0.0003. **The noise of face_noise, face_noise_sweep and face_islands r
 multiples of 1/3 px, i.e. whole samples of their 3x grid: the next calibration must use placements that aren't (e.g.
 1/6 and 1/2 of a sample). Not yet: clawd_mh.json, a post-look3 build, the box's llvmpipe drawing.
 
-### Next steps (in order)
+### Next steps at the checkpoint (1-4 done in round 2, above; the clawd_mh calibration dropped: MakeHuman is retired
+from gating)
 
 1. Finish the evidence: rerun `python -m charkit.render qaref BUILD` with the dither off, on a post-look3 build (the
    streak hash then matches EEVEE's; hair_noise's streaks decision: keep them on, as the boards draw them, if ours
@@ -326,8 +422,8 @@ multiples of 1/3 px, i.e. whole samples of their 3x grid: the next calibration m
    check degrades unexplained; then a follow-up commit with MEASUREMENT_STEPS (charkit/steps/qa3d.py or the modules'
    own: hair_noise, face_noise*, face_islands, face_shadow_*; scalp, line_*, boot_profile_* only if they move) naming
    the switching commit.
-5. Gates: `python -m charkit remote gate tool/toonrender2 --into pipeline-3d` and `--spec charkit/spec/clawd_mh.json`;
-   report every drop; no --accept. Note: the gate's crossed QA run on the baseline's bundle has no look export (older
+5. Gates: `python -m charkit remote gate tool/toonrender2 --into pipeline-3d` (the default spec only: MakeHuman is
+   retired from gating); report every drop; no --accept. Note: the gate's crossed QA run on the baseline's bundle has no look export (older
    builds): the render drawing falls back to numpy there and qa.json's measured.draw says so.
 6. Review page (numpy | ours | EEVEE per QA frame: qaref's strips are the start) and the preview's parity section on
    the next preview.
