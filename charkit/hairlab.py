@@ -61,8 +61,24 @@ def context(build, shape_over=None):
     Z = np.load(manifest.produced(spec, 'hair_layers'))
     masks = {k: Z[k] for k in Z.files}
     fam, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views, masks, info['ppl'])
+    samples = {'mesh': (fam, None)}
+    S = hp.hull_samples(glb)
+    if S is not None:                       # (the labelled shell: docs/HULL_CONTRACT.md, hair round 4)
+        f2, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views, masks,
+                              info['ppl'], P=S[0], NP=S[3])
+        samples['shell'] = (f2, S[0] * C.align['scale'] + np.asarray(C.align['translate']))
+        if os.environ.get('HAIRLAB_SHELL_BLOCK'):          # (a lab comparison: the shell thinned to one per block^3)
+            b_ = int(os.environ['HAIRLAB_SHELL_BLOCK'])
+            S2 = hp.hull_samples(glb, block=b_)
+            f4, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S2[1], S2[2], side['piece_names'], views, masks,
+                                  info['ppl'], P=S2[0], NP=S2[3])
+            samples['shell_b'] = (f4, S2[0] * C.align['scale'] + np.asarray(C.align['translate']))
+        if os.environ.get('HAIRLAB_SHELL_MESHN'):          # (a lab comparison: the shell with the mesh's normals)
+            f3, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views, masks,
+                                  info['ppl'], P=S[0])
+            samples['shell_meshn'] = (f3, samples['shell'][1])
     style = styles.load(spec.get('style', 'anime'))['hair_pieces']
-    return dict(B=B, D=D, C=C, masks=masks, views=views, fam=fam, style=style, spec=spec)
+    return dict(B=B, D=D, C=C, masks=masks, views=views, fam=fam, style=style, spec=spec, samples=samples)
 
 
 def labels_for(ctx, hair, views=('front', 'profile', 'back'), only=None):
@@ -180,6 +196,45 @@ def bun_views(ctx, hair, views=BUN_VIEWS, labels=None):
     return out
 
 
+def crown_rise(ctx, hair, views=('front', 'profile', 'back'), labels=None):
+    """how far our crown stands above the drawn crown (hair round 4): per view, over the columns whose topmost drawn
+    hair is the mass's (bangs, side locks, upper or lower back: not a bun, the ahoge or a flyaway), our mass's topmost
+    pixel against the drawing's, in L (positive: ours higher), on the QA's grids. -> {view: {median, p90, max, share
+    of columns over 0.01 L, columns}}."""
+    from . import bodyqa, qa3d
+    B, D, masks = ctx['B'], ctx['D'], ctx['masks']
+    sc = D.sheet_context()
+    ppl = sc['ppl']
+    fam_k = {f: k + 1 for k, f in enumerate(qa3d.HAIR_FAMILIES)}
+    mass = [fam_k[f] for f in ('bangs', 'side_locks', 'upper_back', 'lower_back')]
+    if labels is None:
+        labels = labels_for(ctx, hair, views)
+    out = {}
+    for v in views:
+        if v not in labels:
+            continue
+        lab = labels[v][1]
+        drawn = np.zeros(lab.shape, np.int16)
+        for f, k in fam_k.items():
+            m = masks.get('%s__%s' % (v, f))
+            if m is not None and m.shape == lab.shape:
+                drawn[m & (drawn == 0)] = k
+        cols = np.nonzero((drawn > 0).any(0) & np.isin(lab, mass).any(0))[0]
+        d = []
+        for c in cols:
+            r_d = int(np.argmax(drawn[:, c] > 0))
+            if drawn[r_d, c] not in mass:
+                continue
+            r_o = int(np.argmax(np.isin(lab[:, c], mass)))
+            d.append((r_d - r_o) / ppl)
+        if not d:
+            continue
+        d = np.array(d)
+        out[v] = dict(median=round(float(np.median(d)), 4), p90=round(float(np.percentile(d, 90)), 4),
+                      max=round(float(d.max()), 4), over=round(float((d > 0.01).mean()), 3), columns=len(d))
+    return out
+
+
 def bun_picture(ctx, bv, path, scale=3, pad=12):
     """per view, each bun's crop: the drawn bun filled blue with its outline, ours orange with its outline red, the rest
     of our hair grey (bun_views' labels on the design's grids), side by side at one scale."""
@@ -222,9 +277,11 @@ def run(ctx, style_over=None, opts=None):
     from . import qa3d
     from .geom import hairpieces as hp
     C = ctx['C']
-    R = hp.build(C, ctx['fam'], ctx['masks'], dict(ctx['style'], **(style_over or {})), views=ctx['views'],
-                 hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
-                 opts=dict(ctx['spec']['hair']['shape'].get('pieces_opts') or {}, **(opts or {})), log=lambda *a: None)
+    o = dict(ctx['spec']['hair']['shape'].get('pieces_opts') or {}, **(opts or {}))
+    fam, pts = ctx['samples'].get(o.get('samples', hp.OPTS['samples']), ctx['samples']['mesh'])
+    R = hp.build(C, fam, ctx['masks'], dict(ctx['style'], **(style_over or {})), views=ctx['views'],
+                 hull_frame=(C.align['scale'], np.asarray(C.align['translate'])), opts=o, log=lambda *a: None,
+                 points=pts)
     hair = {n: ((p['V'], np.asarray(p['T'])),) * 2 for n, p in R['pieces'].items()}
     _, Cq = qa3d.hair_pieces_measure(ctx['B'], ctx['D'], hair)
     return R, Cq, face_shown(ctx, hair), hair

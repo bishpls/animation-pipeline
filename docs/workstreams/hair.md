@@ -393,3 +393,121 @@ Regressions, by cause:
 3. Her right side lock: untrimmed, it keeps its edge shards (front fragments 5 -> 11 against both-sided). Trim it to
    the three-quarter view's edge, not the mirrored profile's.
 4. Three-quarter lower-edge steps: tips at the collar (lower back) and the side-lock tips; each is one lobe.
+
+## Round 4 (`tool/hair4`, `~/animation-pipeline-hair4`): in progress
+
+Branched from pipeline-3d e11fadb; tool/hull-limbs merged (f317326), then pipeline-3d 120d197 (hull-limbs landed,
+db7a67e). Baselines, round 3's hair on the new hull (hull-limbs), box builds:
+- `charkit/out/h4m_base` (default spec, build box), `h4m_mh_base` (clawd_mh), `h4m_base_r` (default, render box,
+  boards `views,body`). The old-hull ones are `h4_base_oldhull`, `h4_base_r_oldhull`.
+- Default: hair_bun_outline 0.397 FAIL, upper back 0.760, side locks 0.545, folds 6, hair_penetration 0.0124 FAIL
+  (the upper back's crown, 9 vertices), body_three_quarter_iou 0.855. clawd_mh: hair_penetration 0.0484 FAIL
+  (lower back in the MakeHuman shoulder, 47 vertices), folds 11.
+
+The loop: `tools/hair4/lab.py BUILD OUT 'name|{"opts": ...}' ...` (hairlab's context once, then per variant the hair
+checks, each bun per view, fragments, steps, face shown, folds, penetration with where, the three-quarter figure's
+IoU as the body QA draws it, and the crown's rise over the drawn crown). Round 3 reproduced exactly in the lab with
+`{"bun_occlude": false, "bun_per_side": false, "bun_views": ["front", "profile", "back"]}` (r3x = built).
+
+**New measures (hairlab):**
+- `--buns` / `bun_views`: each bun (L, R, both) per view, the three-quarter and back too: IoU and outline at
+  HAIR_BUN_TOL against the hair layers' new bun sides (`hairlayers.bun_sides`: `VIEW__bun_L/_R` in all four views,
+  the outfit's bun pieces rimmed into the view's hair; the three-quarter has no `three_quarter__buns`, so the QA's
+  hair_bun_outline keeps its views, front and profile). `--buns-png` the crops.
+- `crown_rise`: per view, over the columns whose topmost drawn hair is the mass's, our mass's top against the drawn
+  one (L; median, p90, max, share over 0.01 L).
+
+**Findings so far (lab, h4m_base / h4m_mh_base):**
+- **Item 0, the MakeHuman shoulder** (`hairpieces.body_clearance`, opts `body_clear` on, `body_push_max` 0.03 L): below
+  the chin, the radii a layer's outer surface may take in a cell (from 0.04 L under the envelope out to where the
+  push over the skin takes it) are tested against the build's own body (case.A: the QA's plane test, without its
+  0.05 L cut-off); where one is inside, the ray is marched out to the body's exit: within 0.03 L of the envelope the
+  cell's skin becomes the exit (every layer pushed over it), further the cell and those below it are cut (the lock ends
+  above the shoulder; `drawn_tips` never refines below the cut). Pushing along the chart's rays alone bulged the lower
+  back 0.26 L out and still penetrated (0.0457): the rays from the head's centre run on into the shoulder. clawd_mh:
+  hair_penetration 0.0484 FAIL -> 0.0034 PASS, lower back 0.688 -> 0.688, folds 11 -> 10. Default spec: no change
+  (its authored body doesn't collide).
+- **Default spec's hair_penetration 0.0124 FAIL is a measurement artifact:** the hair at the crown is 0.013 L *outside*
+  the skin (z 0.643 over the head's centre, the skin's top 0.641), but the skin mesh has 120 inward-facing triangles
+  at the crown (case.A; 240 in the evaluated skin), coincident with outward ones (x +-0.067 L, z 0.63-0.64). The QA's
+  median of the 4 nearest triangles' planes reads 3 inward ones. The head's mesh is tool/face's; the check's robustness
+  (a winding test) would be a remeasure.
+- **Hull samples** (coordinator: hair_folds moved with the hull's decimation, not its shape): `hairpieces.hull_samples`
+  reads the labelled shell (hull.npz), each point moved onto the smooth surface the mesh is cut from (the occupancy's
+  signed distance blurred a voxel, before decimation), the shell's own point kept where the field is too flat to settle.
+  Stability, clawd_mh, the hull's mesh re-decimated 150k -> 140k faces (same occupancy): from the mesh's vertices the
+  bangs' folds 7 -> 4, side_lock_R 5 -> 4 locks, bun_R moved 0.045 L, the outline 0.303 -> 0.335; from the shell every
+  piece identical (max move 0; bun_L 0.0004 L). The shell's class labels differ from the mesh's over the fringe (skin,
+  iris and the clips' pieces where the mesh's vertices read hair: 1,900 samples), which shortened the fringe (face shown
+  front 1.11 -> 1.21): shell samples are hair where the views' hair families label them, and the clips are hair.
+- **Crown** (`crown_trim`, th up to 110 deg): our crown against the drawn one, per view, where the drawing shows the head's
+  top (the bridge only under a bun or the ahoge). Round 3's hull-limbs baseline stood up to 0.02 L above in front and
+  back (p90), 0.024 L in profile (the back of the head under the bun, theta 84-108, and 4 columns at the pole): trimmed,
+  front and back p90 0, profile p90 0.009.
+- **Bun fit, round 4** (`fit_block` with `scene`: our bun z-buffered behind our own hair and skin on each view's drawn
+  pixels, the per-side targets in all four views, the three-quarter's from `hairlayers.bun_sides`; `bun_outline_w` adds
+  per view 1 - the outline F at hair_bun_outline's tolerance; `bun_tails`: a fan of tapered blades from the knot's
+  underside, flaring down and out, fitted after the knot and loops from four starts). Measured on the shell samples
+  with the crown trim (h4m_base), hair_bun_outline (QA: front + profile) and each bun both-sides IoU/outline per view:
+
+  | variant | QA outline | front | three-quarter | profile | back | buns IoU | fragments f/3q/p/b |
+  |---|---|---|---|---|---|---|---|
+  | round 3's fit (hv_crown) | 0.440 | 0.844 / 0.483 | 0.524 / 0.139 | 0.836 / 0.362 | 0.849 / 0.489 | 0.844 | 9/14/13/11 |
+  | occlusion, area only (shell_occ) | 0.397 | 0.825 / 0.401 | 0.695 / 0.292 | 0.874 / 0.389 | 0.876 / 0.707 | 0.856 | 8/16/10/14 |
+  | occlusion + outline 1 (hv_o1) | 0.496 | 0.820 / 0.540 | 0.739 / 0.384 | 0.808 / 0.428 | 0.778 / 0.342 | 0.800 | 9/16/13/9 |
+  | + tails (hv_o1_t) | 0.502 | 0.827 / 0.557 | 0.735 / 0.365 | 0.806 / 0.413 | 0.791 / 0.414 | 0.808 | 15/16/14/14 |
+  | outline 0.5 + tails (hv_o05_t) | 0.460 | 0.814 / 0.510 | 0.738 / 0.324 | 0.829 / 0.368 | 0.825 / 0.572 | 0.822 | 13/18/16/17 |
+
+  The area-only fit trades the front's outline for the three-quarter and back. With the outline term the QA outline
+  reaches 0.50 (0.397 -> 0.50, a third of the way to 0.7) and the three-quarter bun IoU 0.52 -> 0.74, the lab's
+  three-quarter figure IoU 0.857 -> 0.867, but the back's bun IoU drops 0.85 -> 0.78 and hair_piece_buns 0.844 -> 0.800
+  (the design's views disagree on the far bun: her right bun in three-quarter scores 0.33-0.66 whatever the fit). The
+  fitted tails are wide blades filling the silhouette, partly hidden: +6 front and +5 back shards, and bun_R's reach
+  0.010 L into the scalp. Not default yet.
+
+### Round 4 checkpoint (2026-09-30, wrapped at the usage limit)
+
+**Committed defaults** (`hairpieces.OPTS`): round 3's hair plus `body_clear` (item 0) and `crown_trim` (crown_th 70,
+the bridged outline). Everything else is behind a setting, measured but not better on every check. Lab over the same
+bundles (hull-limbs hull), round 3 as built -> the committed defaults:
+
+| check | default spec (h4m_base) | clawd_mh (h4m_mh_base) |
+|---|---|---|
+| hair_bun_outline (front, profile) | 0.397 (0.409, 0.375) -> 0.437 (0.472, 0.376) | 0.303 -> 0.314 |
+| buns per view, IoU / outline: front | 0.791 / 0.409 -> 0.845 / 0.472 | 0.830 / 0.425 -> 0.831 / 0.441 |
+| three-quarter | 0.518 / 0.150 -> 0.519 / 0.151 | 0.623 / 0.244 -> 0.623 / 0.246 |
+| profile | 0.834 / 0.375 -> 0.834 / 0.376 | 0.470 / 0.093 -> 0.470 / 0.093 |
+| back | 0.853 / 0.524 -> 0.855 / 0.536 | 0.847 / 0.471 -> 0.841 / 0.443 |
+| hair_piece_buns | 0.826 -> 0.846 | 0.725 -> 0.724 |
+| hair_piece_upper_back | 0.760 -> 0.771 | 0.779 -> 0.778 |
+| bangs / side locks / lower back | 0.762 / 0.545 / 0.703 -> 0.759 / 0.547 / 0.703 | 0.715 / 0.498 / 0.688 -> 0.713 / 0.497 / 0.688 |
+| fragments f/3q/p/b | 12/16/7/8 -> 11/12/8/11 | 10/18/4/18 -> 12/18/4/19 |
+| steps/L profile front, profile lower, 3q lower, back lower | 0.5 / 0.63 / 1.84 / 0.0 -> unchanged | 0.0 / 1.26 / 1.34 / 0.36 -> 0.0 / 1.26 / 1.78 / 0.36 |
+| hair_penetration (L) | 0.0124 -> 0.0124 (the skin's crown artifact) | 0.0484 FAIL -> 0.0034 PASS |
+| hair_folds (builder) | 6 (bangs 1, side L 2, R 1, upper back 1, lower back 1) -> 5 (bangs 0) | 11 (bangs 7, side L 1, upper back 1, lower back 2) -> 8 (bangs 5, side L 1, upper back 1, lower back 1) |
+| three-quarter figure IoU (lab, the body QA's scene) | 0.8555 -> 0.8552 | 0.7267 -> 0.7266 |
+| crown rise p90 (L) front / profile / back | 0.020 / 0.024 / 0.014 -> 0.0 / 0.024 / 0.0 | 0.005 / 0.075 / 0.0 -> 0.0 / 0.071 / 0.0 |
+
+Not done: the gates, the render build of the final code, and the review page (`tools/hair4/page.py` is written:
+`python tools/hair4/page.py OUT h4m_base_r AFTER_R charkit/out/h4lab/d2/r3x charkit/out/h4lab/final/default TABLE.json`).
+pipeline-3d cfcdc3a (tool/infra: self-registering parts and steps, the gate's 2x2) is not merged yet; this branch adds
+no QA part or step (the hair layers gain keys only; the QA's hair checks read what they read).
+
+**The right side lock (item 3):** on the hull-limbs hull the both-sided trim no longer helps: front fragments 12 either
+way (the right lock's 2 go, the lower back gains 2), folds 6 -> 12 (side_lock_R 1 -> 6), the lab's three-quarter figure
+IoU 0.8555 -> 0.8542. `trim_sides: "three_quarter"` (her right pulled to the mirrored profile but never in past the
+three-quarter's drawn figure edge) pulls nothing: every right side-lock cell already projects at or inside that edge.
+`trim_tq_slack` (L) lets it in by that much; not swept.
+
+**Next, in order (a lean relaunch):**
+1. Merge pipeline-3d (cfcdc3a+), run `charkit/tests/test_registry.py` and the hair tests, gate both specs with the
+   committed defaults (the expected deltas are the table's). Then the render build and the review page.
+2. The shell samples as the default (the coordinator's stability item): they hold every piece still under a
+   re-decimation, but on this bundle folds 6 -> 12 (side locks 5, lower back 3, flyaways 4 with the 'mid' plane) and
+   the profile's fragments 7 -> 13 (the fringe's and upper back's lock shards). Look at where the side locks' and lower
+   back's lock partition moves (the family field per cell against the mesh's), and at the upper back's profile shards.
+3. The bun: the outline-weighted fit (0.50) without costing the back's IoU (a floor per view, or the far bun's
+   three-quarter weighed by how well any rigid pose can match it); tails kept clear of the scalp and either fully
+   visible or hidden (no partial shards).
+4. The default spec's hair_penetration artifact: tool/face's head mesh (inward crown triangles), or a winding-number
+   test in the QA (a remeasure, the 2x2).

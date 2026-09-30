@@ -481,11 +481,19 @@ def pieces_hair(spec, resolved, out, mode='on'):
         views, info = hull.views_from_sheet(rgb, (spec.get('eyes') or {}).get('x', 0.168), -1)
         Z = np.load(layers)
         masks = {k: Z[k] for k in Z.files}
-        fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views, masks,
-                                    info['ppl'])
+        o = dict(hp.OPTS, **(shape.get('pieces_opts') or {}))
+        S = hp.hull_samples(glb) if o.get('samples') == 'shell' else None
+        pts = None
+        if S is not None:       # (the labelled shell, not the decimated mesh's vertices: docs/HULL_CONTRACT.md)
+            fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views,
+                                        masks, info['ppl'], P=S[0], NP=S[3])
+            pts = S[0] * C.align['scale'] + np.asarray(C.align['translate'])
+        else:
+            fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views,
+                                        masks, info['ppl'])
         style = styles.load(spec.get('style', 'anime'))['hair_pieces']
         R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
-                     opts=shape.get('pieces_opts'))
+                     opts=shape.get('pieces_opts'), points=pts)
         R['report']['labelled'] = counts
         hp.save_parts(R, pdir, meta=dict(style=spec.get('style', 'anime'), normals=style['normals']))
         print('pieces hair', pdir, json.dumps({k: (r['locks'], r['tris']) for k, r in R['report']['pieces'].items()}))
@@ -493,10 +501,13 @@ def pieces_hair(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('pieces_hair', run, [pieces_hair], cut, gdir,
-                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] +
+                            inputs=_glb_inputs(shape['glb']) + [layers, sheet] + [
+                                p_ for p_ in [os.path.join(os.path.dirname(_path(shape['glb'])), 'hull.npz')]
+                                if os.path.exists(p_)] +
                             ([spec['head_code']] if spec.get('head_code') else []),
                             modules=('charkit.geom.parts', 'charkit.geom.hairpieces', 'charkit.geom.hull',
-                                     'charkit.styles'), name_key=spec['name'], refresh=mode == 'refresh')
+                                     'charkit.styles', 'charkit.garments'), name_key=spec['name'],
+                            refresh=mode == 'refresh')
         print('CHARKIT_CACHE pieces_hair', r)
     shape['pieces'] = pdir
     json.dump(spec, open(resolved, 'w'), indent=1)

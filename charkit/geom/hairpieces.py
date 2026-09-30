@@ -44,7 +44,19 @@ LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
             chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
-            trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0})
+            trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0},
+            samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=True, crown_th=70.0,
+            bun_occlude=False, bun_per_side=False, bun_views=('front', 'profile', 'back'), bun_tails=False,
+            bun_outline_w=0.0)
+# (hair round 4's defaults, each measured against round 3 on the hull-limbs hull (docs/workstreams/hair.md): body_clear
+# (the hair clear of the build's own body below the chin: clawd_mh's shoulder 0.0484 -> 0.0034 L) and crown_trim (the
+# crown down to the drawn crown: upper back 0.760 -> 0.771, hair_bun_outline 0.397 -> 0.437). Behind settings, measured
+# but not better on every check yet: samples 'shell' (hull_samples: the labelled shell, stable under the hull's
+# decimation, but folds 6 -> 12 and the profile's fragments 7 -> 13), the bun fit with occlusion in all four views
+# (bun_occlude, bun_per_side, bun_views BUN_VIEWS, bun_outline_w 1: hair_bun_outline -> 0.50, the three-quarter's bun
+# IoU 0.52 -> 0.74, but the back's 0.85 -> 0.78), bun_tails (shards and the scalp), flyaway_plane 'mid', crown_th 110,
+# trim_sides 'three_quarter', nothair_tol, vote_depth, crown_edge 'drawn': the drawn crown where it shows, not only
+# the bridged outline: back fragments +3)
 # (hair round 3's defaults: the crown's one cover (crown_cap 20, crown_blend 8, cap_top 0.006 L under the envelope at
 # the pole: the pole's slivers gone), side_lock_trim pulling without cutting, from 0.01 L ahead of the drawn edge, smoothed
 # over 3 cells, on the side the sheet's profile draws (her left: the mirrored edge on her right moved the three-
@@ -70,11 +82,85 @@ def fam_id(name):
 
 
 # ------------------------------------------------------------------------------------------------ the hull's families
-def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl):
-    """each hull vertex's family (0 none): the family mask (hairlayers' VIEW__FAMILY, design grids) at its pixel in the view
-    that faces it most squarely among those that see it (front, profile and its mirror for her right side, back); the
-    hull's bun pieces are buns; hair vertices no view labels take their nearest labelled neighbour's. Vh, Fh: the hull
-    in its own frame (L, z up from the eye line: the views' frame). -> (fam (n,) int16, per-view counts)."""
+FREE_LABEL = 1000               # charkit.geom.hull.FREE: a shell label no piece claims is FREE + its class
+
+
+def hull_samples(glb, zmin=-1.8, blur=1.0, block=1):
+    """the hull's surface samples the hair is built from (docs/HULL_CONTRACT.md): the labelled shell (hull.npz), one
+    point per surface voxel, not the decimated mesh's vertices, whose positions, count and density move with any change
+    to the hull (hair round 4: the limb carve left the head's voxels identical but re-ran the decimation everywhere, and
+    hair_folds went 4 -> 11 on clawd_mh). Each shell point (charkit.garments.shell_points: on the occupancy's boundary)
+    is moved onto the smooth surface the mesh is cut from (the occupancy's signed distance blurred `blur` voxels, its
+    zero level: charkit.geom.volume.to_mesh's, before any decimation) along the field's gradient; where the field is too
+    flat to settle within 1.5 voxels (two surfaces close: between locks, a thin tip) the shell's own point stays. Only
+    the head's part of the grid (z above zmin L) is read. The same voxels give the same samples. -> (P (n, 3) in the hull's frame, cls (n,) the bodyqa CLASS its view
+    draws (0 on an outfit piece), pieces (n,) the piece label (0 on free surface), N (n, 3) the surface's outward
+    normals), or None when the hull has no labelled shell."""
+    from scipy.ndimage import map_coordinates
+    from charkit.garments import shell_points
+    from . import volume
+    p = os.path.join(os.path.dirname(glb), 'hull.npz')
+    if not os.path.exists(p):
+        return None
+    Z = np.load(p)
+    if 'shell' not in Z.files or 'shell_label' not in Z.files:
+        return None
+    P, lab = shell_points(Z, stray=None)
+    P, lab = np.asarray(P, float), np.asarray(lab)
+    xs, ys, zs = (np.asarray(Z[k], float) for k in ('xs', 'ys', 'zs'))
+    h = abs(xs[1] - xs[0])
+    keep_z = zs >= zmin - 4 * h                                       # (zs runs down)
+    Vc = np.asarray(Z['V'], bool)[:, :, keep_z][:, :, ::-1]           # z ascending, as hull.surface grids it
+    zc = zs[keep_z][::-1]
+    S = volume.as_sdf(volume.Grid((xs[0], ys[0], zc[0]), h, Vc), blur).data
+    org = np.array([xs[0], ys[0], zc[0]])
+    sel = P[:, 2] >= zmin
+    P, lab = P[sel], lab[sel]
+    if block > 1:
+        # (one sample per block^3 voxels: the one nearest the block's centre, the same for the same voxels)
+        ij = np.floor((P - np.array([xs[0], ys[0], zs[-1]])) / (block * h)).astype(np.int64)
+        cen = (ij + 0.5) * block * h + np.array([xs[0], ys[0], zs[-1]])
+        d = np.linalg.norm(P - cen, axis=1)
+        key = (ij[:, 0] * 100003 + ij[:, 1]) * 100019 + ij[:, 2]
+        o = np.lexsort((d, key))
+        first = np.r_[True, key[o][1:] != key[o][:-1]]
+        keep = np.sort(o[first])
+        P, lab = P[keep], lab[keep]
+
+    def at(Q):
+        return map_coordinates(S, ((Q - org) / h).T, order=1, mode='nearest')
+
+    def grad(Q, dh=0.5):
+        g = np.zeros_like(Q)
+        for k in range(3):
+            e = np.zeros(3); e[k] = dh * h
+            g[:, k] = (at(Q + e) - at(Q - e)) / (2 * dh * h)
+        return g
+    Q = P.copy()
+    for _ in range(6):
+        s, g = at(Q), grad(Q)
+        st = -(s / np.maximum((g * g).sum(1), 0.04))[:, None] * g
+        n_ = np.linalg.norm(st, axis=1, keepdims=True)
+        Q = Q + st * np.minimum(1.0, 0.5 * h / np.maximum(n_, 1e-12))        # (steps of at most half a voxel)
+    s = at(Q)
+    # where the field is too flat to settle (two surfaces a voxel apart: between locks, a thin tip), the shell's own
+    # point stays: it is on the occupancy's boundary, within half a voxel of the surface
+    bad = (np.abs(s) > 0.1 * h) | (np.linalg.norm(Q - P, axis=1) > 1.5 * h)
+    Q[bad] = P[bad]
+    g = grad(Q, 1.0)
+    gn = np.linalg.norm(g, axis=1, keepdims=True)
+    free = lab >= FREE_LABEL
+    return (Q, np.where(free, lab - FREE_LABEL, 0).astype(np.int16), np.where(free, 0, lab).astype(np.int16),
+            np.where(gn > 1e-6, g / np.maximum(gn, 1e-12), 0.0))
+
+
+def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl, P=None, NP=None):
+    """each hull sample's family (0 none): the family mask (hairlayers' VIEW__FAMILY, design grids) at its pixel in the
+    view that faces it most squarely among those that see it (front, profile and its mirror for her right side, back);
+    the hull's bun pieces are buns; hair samples no view labels take their nearest labelled neighbour's. Vh, Fh: the
+    hull's mesh in its own frame (L, z up from the eye line: the views' frame), the surface the views see; the samples
+    are its vertices, or P (hull_samples': the labelled shell, with cls and pieces per point, and its normals NP, else
+    each takes its nearest mesh vertex's). -> (fam (n,) int16, per-view counts)."""
     from scipy.spatial import cKDTree
     from charkit.bodyqa import WIN as W
     from . import raster
@@ -83,8 +169,12 @@ def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl):
     for i in range(3):
         np.add.at(N, Fh[:, i], fn)
     N /= np.linalg.norm(N, axis=1, keepdims=True) + 1e-12
-    best = np.full(len(Vh), -np.inf)
-    fam = np.zeros(len(Vh), np.int16)
+    Q = Vh
+    if P is not None:
+        Q = np.asarray(P, float)
+        N = np.asarray(NP, float) if NP is not None else N[cKDTree(Vh).query(Q)[1]]
+    best = np.full(len(Q), -np.inf)
+    fam = np.zeros(len(Q), np.int16)
     counts = {}
     for name, az, mirror in (('front', 0.0, False), ('profile', 90.0, False), ('profile', 270.0, True),
                              ('back', 180.0, False)):
@@ -93,14 +183,14 @@ def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl):
         org = (-ox if mirror else ox, (v.eye_y - v.grid_eye[1]) / ppl)
         depth, _ = raster.window_zbuffer([(Vh, Fh, np.zeros(len(Fh), int))], az, org, 1.0, 1.0 / ppl, W)
         a = np.radians(az)
-        u = Vh[:, 0] * np.cos(a) + Vh[:, 1] * np.sin(a)
-        z = Vh[:, 2]
-        d = -Vh[:, 0] * np.sin(a) + Vh[:, 1] * np.cos(a)                  # (faceqa.view's: smaller is nearer)
+        u = Q[:, 0] * np.cos(a) + Q[:, 1] * np.sin(a)
+        z = Q[:, 2]
+        d = -Q[:, 0] * np.sin(a) + Q[:, 1] * np.cos(a)                    # (faceqa.view's: smaller is nearer)
         col = np.floor((u - org[0] + W['x']) * ppl).astype(int)
         row = np.floor((W['top'] - (z - org[1])) * ppl).astype(int)
         H, Wd = depth.shape
         ok = (col >= 0) & (col < Wd) & (row >= 0) & (row < H)
-        vis = np.zeros(len(Vh), bool)
+        vis = np.zeros(len(Q), bool)
         vis[ok] = d[ok] <= depth[row[ok], col[ok]] + 0.01
         score = N @ np.array([np.sin(a), -np.cos(a), 0.0])
         img = np.zeros((H, Wd), np.int16)
@@ -110,7 +200,7 @@ def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl):
                 img[m] = k + 1
         if mirror:
             img = img[:, ::-1]
-        got = np.zeros(len(Vh), np.int16)
+        got = np.zeros(len(Q), np.int16)
         got[ok] = img[row[ok], col[ok]]
         take = vis & (score > best) & (got > 0)
         fam[take] = got[take]
@@ -118,13 +208,19 @@ def label_hull(Vh, Fh, cls, pieces, piece_names, views, masks, ppl):
         counts['%s%s' % (name, ' (mirror)' if mirror else '')] = int(take.sum())
     bun_ids = [int(k) for k, n in piece_names.items() if n in ('bun_L', 'bun_R')]
     hair = (cls == 2) | np.isin(pieces, bun_ids)
+    if P is not None:
+        # (the shell's own class is its voxel's facing view's, pieces first: over the fringe it reads skin, iris or the
+        # clips' pieces where the mesh's vertices read hair, 1,900 samples on Clawd. A sample the views' hair families
+        # label is hair, and so is a clip's: the hair runs on under it)
+        pin_ids = [int(k) for k, n in piece_names.items() if str(n).startswith('pin_')]
+        hair |= (fam > 0) | np.isin(pieces, pin_ids)
     spill = (fam == fam_id('buns')) & ~np.isin(pieces, bun_ids)
     fam[np.isin(pieces, bun_ids)] = fam_id('buns')
     fam[spill] = BUN_BASE              # (buns only where the outfit's bun pieces are; the drawn bun's base apart)
     lab = hair & (fam > 0)
     miss = hair & (fam == 0)
     if miss.any() and lab.any():
-        fam[miss] = fam[lab][cKDTree(Vh[lab]).query(Vh[miss])[1]]
+        fam[miss] = fam[lab][cKDTree(Q[lab]).query(Q[miss])[1]]
     fam[~hair] = 0
     counts['filled'] = int(miss.sum())
     return fam, counts
@@ -182,6 +278,15 @@ class Grid:
         i0 %= self.nph; i1 = (i0 + 1) % self.nph
         j1 = np.minimum(j0 + 1, self.nth - 1)
         return ((1 - fx) * ((1 - fy) * A[i0, j0] + fy * A[i0, j1]) + fx * ((1 - fy) * A[i1, j0] + fy * A[i1, j1]))
+
+
+def _tris(faces):
+    """polygons fanned into triangles -> (m, 3) int64."""
+    tris = []
+    for f in faces:
+        for k in range(1, len(f) - 1):
+            tris.append((f[0], f[k], f[k + 1]))
+    return np.array(tris, np.int64).reshape(-1, 3)
 
 
 def surface_points(V, faces, spacing):
@@ -285,6 +390,16 @@ def mass_fields(case, hullV_world, fam, opts):
     top_fam[cell_o[last]] = fam[inreg][o][last]
     seen[cell_o[last]] = True
     nothair = (seen & (top_fam == 0)).reshape(G.nph, G.nth)
+    if opts.get('nothair_tol', 0.0) > 0:
+        # (a cell is the face's only where its outermost other point stands clearly outside its outermost hair: with
+        # the shell's dense samples a skin sample between two fringe tips was often a hair's breadth outermost, and cut
+        # the fringe's cells)
+        fr_ = fam[inreg]
+        hr = np.isin(fr_, [fam_id(f) for f in FAMILIES]) & (fr_ > 0)
+        oi, oj, ook = G.cell(aph, ath)
+        rh = _max_field(G, oi[hr], oj[hr], ook[hr], ar[hr])
+        rn = _max_field(G, oi[~hr], oj[~hr], ook[~hr], ar[~hr])
+        nothair &= ~(np.isfinite(rh) & (rn - rh <= opts['nothair_tol'] * case.L))
     mass = np.isin(fam, [fam_id(f) for f in MASS]) & inreg
     ph, th, r = ch.coords(hullV_world[mass])
     i, j, ok = G.cell(ph, th)
@@ -296,7 +411,13 @@ def mass_fields(case, hullV_world, fam, opts):
     Rn = _pole(_smooth(Rf, opts['shade_smooth'], opts['shade_smooth']), G, opts['pole'])   # the shading's envelope
     # families per cell: the majority of the labelled hair in it (the side locks split by side)
     fcell = np.zeros((G.nph, G.nth, len(FAMILIES) + 1))
-    np.add.at(fcell, (i[ok], j[ok], fam[mass][ok]), 1)
+    vote = ok.copy()
+    if opts.get('vote_depth', 0.0) > 0:
+        # (the family a cell shows from outside: only points within vote_depth L of its outermost mass point vote, not
+        # the hair's underside toward the cheek or the neck)
+        vote &= r >= np.where(ok, Rmax[np.clip(i, 0, G.nph - 1), np.clip(j, 0, G.nth - 1)], np.inf) - \
+            opts['vote_depth'] * case.L
+    np.add.at(fcell, (i[vote], j[vote], fam[mass][vote]), 1)
     Lc = np.where(fcell.sum(2) > 0, fcell.argmax(2), 0)
     Lc = _mode_filter(Lc, len(FAMILIES))
     Lc[nothair] = 0
@@ -313,7 +434,91 @@ def mass_fields(case, hullV_world, fam, opts):
     have = S > -1e2
     Ss = _smooth(np.where(have, S, 0.0), 1.2, 1.2) / np.maximum(_smooth(have.astype(float), 1.2, 1.2), 1e-6)
     S = np.where(have, np.maximum(Ss, S - 0.01 * L), -np.inf)    # smoothed, never more than 0.01 L under its bumps
-    return dict(chart=ch, grid=G, R=R, Rn=Rn, S=S, L=Lc, reach=reach, valid=valid, nothair=nothair)
+    clear, bcut = {}, None
+    if opts.get('body_clear', OPTS['body_clear']):
+        S, bcut, clear = body_clearance(case, ch, G, R, S, opts.get('body_clear_depth', 0.04) * L, L,
+                                        opts.get('body_push_max', 0.03))
+    return dict(chart=ch, grid=G, R=R, Rn=Rn, S=S, L=Lc, reach=reach, valid=valid, nothair=nothair, clear=clear,
+                body_cut=bcut)
+
+
+def body_clearance(case, ch, G, R, S, depth, L, push_max=0.03, step=0.004, reach=0.3):
+    """the body the build uses, below the chin, where the hair would lie inside it (hair round 4: on clawd_mh the
+    MakeHuman shoulder's top stands outside the design's hull, and the lower back hung 0.048 L inside it once the hull
+    lost the slab that had held it out). mass_fields' skin below the chin keeps only the body inside the envelope (the
+    shoulders the hanging hair falls in front of or behind are not under it), so a shoulder the envelope passes through
+    was never cleared. Per cell below the chin, the radii the layers' outer surfaces may take (from `depth` under the
+    envelope, the deepest layer's, out to the envelope or to where the locks' push over the skin already cleared takes
+    them) are tested against the body's surface (the QA's own test, charkit.qa3d's hair_penetration: the median signed
+    distance to the 4 nearest triangles' planes). Where one is inside, the ray is marched out (`step` L) from there to
+    where it leaves the body:
+      push  the exit within push_max L beyond the envelope: the cell's skin is the exit, so every layer is pushed out
+            over it (lock_shell's push): the hair lies on the body's surface;
+      cut   further (the ray runs on into the shoulder or the chest: pushing out along it would bulge the hair out a
+            quarter L, and still not clear it): the cell is cut, and every cell below it in its column (piece_regions:
+            the lock's tip ends above the body, as side_lock_trim's cut ends one above the cheek).
+    -> (S, cut (nph, nth) bool, report {pushed, cut, most (L)})."""
+    from scipy.spatial import cKDTree
+    Vb = np.asarray(case.A['verts'], float)
+    Tb = _tris(case.A['faces'])
+    fn = np.cross(Vb[Tb[:, 1]] - Vb[Tb[:, 0]], Vb[Tb[:, 2]] - Vb[Tb[:, 0]])
+    fn /= np.linalg.norm(fn, axis=1, keepdims=True) + 1e-18
+    cen = Vb[Tb].mean(1)
+    tree = cKDTree(cen)
+
+    def sd(P):
+        # (no 0.05 L cut-off as the QA's: a point deep in a shoulder is still inside; the median of 4 planes holds there)
+        d, j = tree.query(P, 4)
+        near = d[:, 0] < reach * L
+        out = np.full(len(P), np.inf)
+        if near.any():
+            out[near] = np.median(np.einsum('ikj,ikj->ik', P[near][:, None] - cen[j[near]], fn[j[near]]), axis=1)
+        return out
+    PH, TH = np.meshgrid(G.ph, G.th, indexing='ij')
+    # the radii the layers' outer surfaces may take in a cell: from `depth` under the envelope out to where the locks'
+    # push over the skin they already clear takes them (S + gap + a tip), whichever is further out
+    r0 = R - depth
+    top = np.maximum(R, np.where(np.isfinite(S), S, -1e3) + 0.012 * L)
+    below = ch.point(PH, TH, r0)[..., 2] < case.chin_z
+    ii, jj = np.nonzero(below)
+    first = np.full(len(ii), np.nan)
+    n_k = int(np.ceil((top[ii, jj] - r0[ii, jj]).max() / (step * L))) + 1 if len(ii) else 0
+    for k in range(n_k):
+        rk = np.minimum(r0[ii, jj] + k * step * L, top[ii, jj])
+        todo = np.isnan(first)
+        if not todo.any():
+            break
+        ins = sd(ch.point(PH[ii[todo], jj[todo]], TH[ii[todo], jj[todo]], rk[todo])) < 0
+        first[np.nonzero(todo)[0][ins]] = rk[todo][ins]
+    inside = np.isfinite(first)
+    ii, jj, first = ii[inside], jj[inside], first[inside]
+    cut = np.zeros(R.shape, bool)
+    rep = dict(pushed=0, cut=0, most=0.0)
+    if not len(ii):
+        return S, cut, rep
+    S = S.copy()
+    rr = first.copy()
+    left = np.ones(len(ii), bool)
+    lim = float((R[ii, jj] + push_max * L - first).max())    # (the march stops once past the push a cell may take)
+    for _ in range(int(np.ceil(max(lim, 0.0) / (step * L))) + 1):
+        rr[left] += step * L
+        left[left] = sd(ch.point(PH[ii[left], jj[left]], TH[ii[left], jj[left]], rr[left])) < 0
+        if not left.any():
+            break
+    far = left | (rr - R[ii, jj] > push_max * L)
+    cut[ii[far], jj[far]] = True
+    ok = ~far
+    rep.update(pushed=int(ok.sum()), cut=int(far.sum()))
+    if ok.any():
+        # (grown a cell: the locks sample the skin bilinearly, and a neighbour with no skin would pull the edge cells'
+        # in)
+        from scipy.ndimage import grey_dilation
+        E = np.full(S.shape, -1e3)
+        E[ii[ok], jj[ok]] = rr[ok]
+        E = grey_dilation(E, size=(3, 3), mode=('wrap', 'nearest'))
+        S = np.where(E > -1e2, np.maximum(np.where(np.isfinite(S), S, -1e3), E), S)
+        rep['most'] = round(float((rr[ok] - R[ii[ok], jj[ok]]).max() / L), 4)
+    return S, cut, rep
 
 
 def carve_under_buns(Vw, fam, masks, views, hull_frame, tol=0.01):
@@ -349,6 +554,109 @@ def carve_under_buns(Vw, fam, masks, views, hull_frame, tol=0.01):
     fam = fam.copy()
     fam[out] = BUN_BASE
     return fam, int(out.sum())
+
+
+def drawn_head_top(masks, name, mirror, er, tol_px=0, drawn=False):
+    """the drawn head's top edge per column in one view (the design grid; mirrored: the flipped drawing's columns):
+    the first row of the drawn mass's convex outline above the eye line (row er), as carve_under_buns takes it (the buns
+    and the ahoge hide the head's top beneath them: the outline bridges them), grown by tol_px. nan where no head.
+    -> (H,) per column... (W,) float rows."""
+    from scipy.ndimage import binary_dilation, label
+    from skimage.morphology import convex_hull_image
+    mm = None
+    for f in MASS:
+        q = masks.get('%s__%s' % (name, f))
+        if q is not None:
+            mm = q.copy() if mm is None else (mm | q)
+    if mm is None:
+        return None
+    if mirror:
+        mm = mm[:, ::-1]
+    top = np.arange(mm.shape[0])[:, None] < er
+    lab, n = label(mm & top)
+    if not n:
+        return None
+    mm = lab == 1 + int(np.argmax(np.bincount(lab.ravel())[1:]))
+    head = convex_hull_image(mm)
+    if tol_px > 0:
+        head = binary_dilation(head, iterations=int(tol_px))
+    out = np.full(mm.shape[1], np.nan)
+    cols = np.nonzero(head.any(0))[0]
+    out[cols] = head[:, cols].argmax(0)
+    if not drawn:
+        return out
+    # (drawn: where the drawing shows the head's top (its topmost hair there is the mass's), the edge is the drawn
+    # one; the bridge only where a bun, the ahoge or a flyaway hides it)
+    alls = mm.copy()
+    for f in FAMILIES:
+        q = masks.get('%s__%s' % (name, f))
+        if q is not None and f not in MASS:
+            alls |= (q[:, ::-1] if mirror else q) & top
+    shown = np.nonzero(mm.any(0))[0]
+    first_any = alls[:, shown].argmax(0)
+    first_mass = mm[:, shown].argmax(0)
+    vis = first_any == first_mass
+    out[shown[vis]] = first_mass[vis] - tol_px
+    return out
+
+
+def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smooth=1.0,
+               names=(('profile', 90.0, False), ('profile', 270.0, True), ('front', 0.0, False),
+                      ('back', 180.0, False)), drawn=False):
+    """the crown lowered to the drawn crown (hair round 4: in profile our crown stood above the drawn one, the visual
+    hull's union of head and bun where the profile draws the bun over the crown, which carve_under_buns (front and
+    back) leaves; the crown's cover made it a solid band, upper back -0.015). Per cell within th_max of the crown, in
+    each view that draws the head's top (the profile both sides, her right the mirrored one; the front; the back), where
+    the envelope point projects above the drawn head's top edge in its column (drawn_head_top, less margin L), its
+    radius is drawn in along its ray until it projects onto the edge, never below `floor` (per cell: the skin's
+    clearance, as side_lock_trim's). The pull is the most any view asks, smoothed over `smooth` cells (never less
+    than a cell's own). F['R'] and F['Rn'] take it; F['crown_trim'] counts. -> F."""
+    from scipy.ndimage import gaussian_filter
+    ch, G = F['chart'], F['grid']
+    R = F['R']
+    PH, TH = np.meshgrid(G.ph, G.th, indexing='ij')
+    sel = TH < th_max
+    ii, jj = np.nonzero(sel)
+    D = np.zeros_like(R)
+    s = np.linspace(0.0, 1.0, 41)[1:]
+    lo = np.minimum(floor[ii, jj], R[ii, jj])
+    rad = R[ii, jj][:, None] - s[None] * (R[ii, jj] - lo)[:, None]
+    _, tr = hull_frame
+    for name, az, mirror in names:
+        if name not in views:
+            continue
+        v = views[name]
+        _, er = view_px(np.array([[0.0, 0.0, tr[2]]]), v, az, mirror, hull_frame)
+        edge = drawn_head_top(masks, name, mirror, er[0], drawn=drawn)
+        if edge is None:
+            continue
+        m_px = margin * v.ppl
+
+        def above(k, r):
+            cc, rr = view_px(ch.point(np.repeat(PH[ii[k], jj[k]], r.shape[1]), np.repeat(TH[ii[k], jj[k]], r.shape[1]),
+                                      r.ravel()), v, az, mirror, hull_frame)
+            c = np.floor(cc).astype(int)
+            ok = (c >= 0) & (c < len(edge))
+            e = np.full(len(c), np.nan)
+            e[ok] = edge[c[ok]]
+            # rows above the edge (smaller) by more than the margin; columns with no head: not above
+            return (np.isfinite(e) & (rr < e - m_px)).reshape(r.shape)
+        a0 = above(np.arange(len(ii)), R[ii, jj][:, None])[:, 0]
+        if not a0.any():
+            continue
+        A = above(np.nonzero(a0)[0], rad[a0])
+        fit = ~A
+        got = fit.any(1)
+        first = np.argmax(fit, 1)
+        rstar = np.where(got, rad[a0][np.arange(a0.sum()), first], lo[a0])
+        k = np.nonzero(a0)[0]
+        D[ii[k], jj[k]] = np.maximum(D[ii[k], jj[k]], R[ii[k], jj[k]] - rstar)
+    F['crown_trim'] = dict(cells=int((D > 0).sum()), pull_max=float(D.max()))
+    if D.any():
+        Ds = np.maximum(D, gaussian_filter(D, smooth, mode=('wrap', 'nearest')))
+        F['R'] = R - Ds
+        F['Rn'] = F['Rn'] - gaussian_filter(Ds, 1.5, mode=('wrap', 'nearest'))
+    return F
 
 
 def fill_families(Lc, reach, nothair=None):
@@ -402,6 +710,14 @@ def piece_regions(F, opts, trim=None):
             Lc[i, :cr] = np.bincount(below).argmax()
     if trim is not None:
         Lc = trim(Lc)
+    if F.get('body_cut') is not None and F['body_cut'].any():
+        # (body_clearance: where the body is too far out to push the hair over, the column's hair ends above it; the
+        # drawn tips never refine below it either)
+        F['body_cut_th'] = np.full(G.nph, np.inf)
+        for i in np.nonzero(F['body_cut'].any(1))[0]:
+            j0 = int(np.argmax(F['body_cut'][i]))
+            Lc[i, j0:] = 0
+            F['body_cut_th'][i] = j0 * G.dth
     F['Lfill'] = Lc
     out = {}
     specs = [('bangs', 'bangs', None), ('side_lock_L', 'side_locks', 1), ('side_lock_R', 'side_locks', -1),
@@ -465,7 +781,7 @@ def drawn_front(masks, mirror, hair_fams=MASS, look=3):
 
 
 def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor=None, pull=True, cut_ahead=True,
-                   smooth=0.7, spread=0.0, zmin=None, sides='drawn'):
+                   smooth=0.7, spread=0.0, zmin=None, sides='drawn', tq_slack=0.0):
     """the side locks held to the drawn profile before any lock is shaped (Michael's flag, hair round 3: the visual
     hull fills the gap between a side lock and the cheek, which no view shows, so the locks stood in front of the face
     in profile; moving built locks back crumpled them). Per side, her own profile (the mirror for her right), per
@@ -480,7 +796,12 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
              cut_ahead=False pulls those to the floor instead (the lock hugs the cheek: the front view keeps it); a
              number cuts only where the floor is still ahead by more than that (L), pulling the rest to it.
     F['R'] and F['Rn'] take the pull (smoothed over `smooth` cells, never less than each cell's own); F['trim_cut'] keeps each
-    column's cut (theta, deg; inf where none) for drawn_tips; F['trim'] counts. -> Lc."""
+    column's cut (theta, deg; inf where none) for drawn_tips; F['trim'] counts.
+    sides: 'drawn' her left only (the side the sheet's profile draws); 'both' her right too, to the mirrored profile;
+    'three_quarter' (hair round 4) her right to the mirrored profile but never pulled in past the three-quarter view's
+    drawn edge: the sheet's three-quarter draws her right side lock at the figure's far silhouette beside the face, so
+    each of its cells may move in only until it projects onto that edge (the drawn figure's outer column in its row,
+    less tq_slack L), or not at all if it projects inside it already. -> Lc."""
     from scipy.ndimage import gaussian_filter
     ch, G = F['chart'], F['grid']
     m = masks.get('profile__side_locks')
@@ -505,6 +826,16 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
         fr[ok] = front[r_[ok]]
         return (cc - fr) * dirn_of[mirror] - margin * v.ppl      # px beyond the drawn edge, toward the face
     Pz = ch.point(PH, TH, R)[..., 2]
+    tq = None
+    if sides == 'three_quarter' and 'three_quarter' in views:
+        # the three-quarter's drawn figure: its outer column per row on her right's side (the picture's left)
+        from charkit.hairlayers import design_grid
+        v3 = views['three_quarter']
+        us3, zs3, _, _ = design_grid(v3, v3.ppl)
+        fig3 = v3.sample(v3.mask.astype(np.uint8), us3, zs3).T > 0
+        e3 = np.where(fig3.any(1), fig3.argmax(1), -1).astype(float)
+        e3[e3 < 0] = np.nan
+        tq = (v3, e3)
     for sgn, az, mirror in ((1, 90.0, False), (-1, 270.0, True)):
         if mirror and sides == 'drawn':
             # (her right: the sheet draws no profile of it; the mirrored left one moved its front edge in from where the
@@ -538,6 +869,24 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
             soft_ = ~got & (ov[:, -1] <= lim)
             rstar[soft_] = lo[soft_]
             got |= soft_
+            if mirror and tq is not None:
+                # held at the three-quarter's drawn edge: the smallest radius on the way in whose projection is no
+                # further in (toward larger columns) than the edge or where the cell already was
+                v3, e3 = tq
+                P3 = ch.point(np.repeat(PH[ii[a], jj[a]], len(s) + 1), np.repeat(TH[ii[a], jj[a]], len(s) + 1),
+                              np.c_[R[ii[a], jj[a]], rad].ravel())
+                c3, r3 = view_px(P3, v3, v3.az, False, hull_frame)
+                c3, r3 = c3.reshape(len(a), -1), np.floor(r3).astype(int).reshape(len(a), -1)
+                okr = (r3 >= 0) & (r3 < len(e3))
+                e = np.full(r3.shape, np.nan)
+                e[okr] = e3[r3[okr]]
+                lim3 = np.maximum(c3[:, :1], e + tq_slack * v3.ppl)
+                bad = np.isfinite(e) & (c3 > lim3)                  # past the edge on the way in
+                bad = np.maximum.accumulate(bad, axis=1)             # (once past, every radius further in is too)
+                rad_all = np.c_[R[ii[a], jj[a]], rad]
+                last_ok = np.where(bad.any(1), np.argmax(bad, 1) - 1, rad_all.shape[1] - 1)
+                r_min = rad_all[np.arange(len(a)), np.maximum(last_ok, 0)]
+                rstar = np.maximum(rstar, r_min)
             D[ii[a[got]], jj[a[got]]] = share * (R[ii[a[got]], jj[a[got]]] - rstar[got])
             kill[a[~got]] = True
             npull += int(got.sum())
@@ -617,6 +966,8 @@ def drawn_tips(F, piece, phs, top, tip, masks, views, hull_frame, step=0.5, reac
         out[k] = min(th[last] + step / 2, max(cap, tip[k]))
         if 'trim_cut' in F and FAM_OF[piece] == 'side_locks':
             out[k] = min(out[k], max(F['trim_cut'][ic], top[k] + 2 * step))     # (never below side_lock_trim's cut)
+        if 'body_cut_th' in F:                                  # (nor below body_clearance's: the body is there)
+            out[k] = min(out[k], max(F['body_cut_th'][ic], top[k] + 2 * step))
         done[k] = True
     return out, done
 
@@ -1045,22 +1396,53 @@ def _hull_fill(cols, rows, shape):
     return m
 
 
-def bun_targets(masks, views, hull_frame, head_c, side):
-    """the drawn bun one side, per view it's seen in: (view, az, mirror, drawn bun mask, other hair) — the front and back
-    halves on her side of the head's axis, her own profile (the mirror for her right: its far bun is the near one's)."""
+def _view_hair(view):
+    """a view's drawn hair on its design grid (charkit.hairlayers' transfer: the sheet's hair class within the figure)."""
+    from charkit.hairlayers import design_grid
+    us, zs, shape, _ = design_grid(view, view.ppl)
+    return (view.sample(view.labels, us, zs).T == 2) & (view.sample(view.mask.astype(np.uint8), us, zs).T > 0)
+
+
+BUN_VIEWS = ('front', 'three_quarter', 'profile', 'back')
+
+
+def bun_targets(masks, views, hull_frame, head_c, side, names=BUN_VIEWS, per_side=True):
+    """the drawn bun one side, per view it's seen in: (view, az, mirror, drawn bun mask, other hair). With the hair
+    layers' bun sides (VIEW__bun_L / _R, hairlayers.bun_sides) every view the sheet draws (front, three-quarter,
+    profile, back), each bun its own piece's pixels; her right bun in profile is the mirrored left one (the sheet draws
+    her left side). Without them (older layers), the front and back halves on her side of the head's axis and her own
+    profile, as round 3 fitted."""
     out = []
-    for name, az, mirror in (('front', 0.0, False), ('profile', 90.0 if side > 0 else 270.0, side < 0),
-                             ('back', 180.0, False)):
-        m = masks.get('%s__buns' % name)
-        if m is None or name not in views:
+    sname = 'bun_L' if side > 0 else 'bun_R'
+    per_side = per_side and any(k.endswith('__bun_L') for k in masks)
+    for name in names:
+        if name not in views:
             continue
+        az = {'front': 0.0, 'profile': 90.0 if side > 0 else 270.0, 'back': 180.0}.get(name, views[name].az)
+        mirror = name == 'profile' and side < 0
+        if per_side:
+            m = masks.get('%s__%s' % (name, 'bun_L' if name == 'profile' else sname))
+            if m is None or m.sum() < 40:
+                continue
+            hair = None
+            if masks.get('%s__buns' % name) is None:
+                hair = _view_hair(views[name])
+        else:
+            if name == 'three_quarter':
+                continue
+            m = masks.get('%s__buns' % name)
+            if m is None:
+                continue
+            hair = None
         other = np.zeros_like(m, bool)
+        if hair is not None:
+            other = hair.copy()
         for f in FAMILIES:
             if f != 'buns' and masks.get('%s__%s' % (name, f)) is not None:
                 other |= masks['%s__%s' % (name, f)]
         if mirror:
             m, other = m[:, ::-1], other[:, ::-1]
-        if name != 'profile':
+        if not per_side and name != 'profile':
             cc, _ = view_px(np.asarray(head_c, float)[None], views[name], az, mirror, hull_frame)
             cols = np.arange(m.shape[1])
             keep = (cols > cc[0]) if (side > 0) == (name == 'front') else (cols < cc[0])
@@ -1069,45 +1451,171 @@ def bun_targets(masks, views, hull_frame, head_c, side):
     return out
 
 
-def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25, loop_starts=1):
+def view_window(view, az, mirror, hull_frame, box=None):
+    """the world -> design-grid projection view_px makes, as charkit.geom.raster.window_zbuffer's (origin, L, pix, win),
+    optionally cropped to box (r0, r1, c0, c1): a z-buffer on these pixels is view_px's."""
+    from charkit.bodyqa import WIN as W
+    s_, tr = hull_frame
+    ppl = view.ppl
+    ox = (view.grid_eye[0] - view.axis) / ppl
+    org = (-ox if mirror else ox, (view.eye_y - view.grid_eye[1]) / ppl)
+    a = np.radians(az)
+    tr = np.asarray(tr, float)
+    origin = [tr[0] * np.cos(a) + tr[1] * np.sin(a) + s_ * org[0], tr[2] + s_ * org[1]]
+    win = dict(W)
+    if box is not None:
+        r0, r1, c0, c1 = box
+        win = dict(x=(c1 - c0) / (2 * ppl), top=W['top'] - r0 / ppl, bottom=W['top'] - r1 / ppl)
+        origin[0] += (c0 / ppl - W['x'] + win['x']) * s_
+    return tuple(origin), float(s_), 1.0 / ppl, win
+
+
+def bun_tails(mid, R, half, head_c, style, tails):
+    """the bun's tails (bun_detail: the gathered hair flaring from under the knot; the sheet draws one or two curling
+    out from the bun's base in front and behind): n tapered blades rooted in the knot's underside, a fan round the
+    vertical centred on the bun's outward side, each leaving downward and flaring out as it goes. tails: (flare deg
+    from straight down toward its fan direction, length (share of the knot's height), spread deg between tails round the
+    vertical, curl deg (the flare's growth root to tip), root width (share of the knot's half-width), fan centre deg
+    (round the vertical from outward toward the front)); style bun_tails the count. -> [blade dicts]."""
+    n = int(style.get('bun_tails', 3))
+    if n <= 0 or tails is None:
+        return []
+    fl, ln, sp, cu, wd, ps = tails
+    up = R[:, 2]
+    down = np.array([0.0, 0.0, -1.0])
+    o = np.asarray(mid, float) - np.asarray(head_c, float)
+    o[2] = 0.0
+    o /= np.linalg.norm(o) + 1e-12                                         # outward, level
+    f = np.array([0.0, -1.0, 0.0]) - o * (-o[1])
+    f /= np.linalg.norm(f) + 1e-12                                         # the front, level, across it
+    k = style.get('bun_knot', 0.6)
+    hx, hz = half[0] * k, half[2] * 0.95
+    out = []
+    m = 8
+    for i in range(n):
+        psi = np.radians(ps + sp * (i - (n - 1) / 2))
+        e = np.cos(psi) * o + np.sin(psi) * f
+        root = np.asarray(mid, float) - up * 0.7 * hz + e * 0.5 * hx
+        P = [root]
+        for j in range(m):
+            t = (j + 0.5) / m
+            a = np.radians(fl + cu * t)
+            P.append(P[-1] + (np.cos(a) * down + np.sin(a) * e) * (ln * 2 * hz) / m)
+        P = np.array(P)
+        w = wd * hx * np.linspace(1.0, 0.08, len(P))
+        out.append(blade(P, w, depth_ratio=0.35, n_ring=6))
+    return out
+
+
+BUN_OUTLINE_TOL = 0.012    # L: an outline pixel within this of the other's agrees (qa3d.HAIR_BUN_TOL, hair_bun_outline's)
+
+
+def _outline(m):
+    from scipy.ndimage import binary_erosion
+    return m & ~binary_erosion(m, border_value=0)
+
+
+def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), kind='block', over=0.25, loop_starts=1,
+              scene=None, tails=False, tail_iters=500, outline_w=0.0):
     """a block bun's pose and size fitted to the drawn bun: from bun_block's frame and extents (the hull's points), the
     centre, a rotation and the three half-sizes that best cover each view's drawn bun, then with the fold's slab free
-    too (its place and size in the bun's frame) (Nelder-Mead on the silhouettes: the drawn bun missed and ours outside
-    any drawn hair count whole, ours over the drawing's other hair (it may pass behind it) a quarter).
-    -> (bun_block's fit {c, R, half, slab}, per-view IoU before/after)."""
+    too (its place and size in the bun's frame), then (tails) the tails' fan (bun_tails) with the rest held
+    (Nelder-Mead on the silhouettes).
+    scene: the rest of our hair and the skin [(V, T)]: each view's bun is our bun as it shows past them (z-buffered on
+    the drawing's pixels), and the drawn bun missed and ours showing anywhere else count whole in every view, each view
+    over its drawn bun's area (hair round 4: the sheet's four views, no view weighted); outline_w adds, per view, that
+    much of the outlines' disagreement (1 - the boundary F-score at BUN_OUTLINE_TOL, hair_bun_outline's measure): the
+    shape (the area in every view) and the check it serves, each view alike. Without a scene (round 3), the silhouette
+    is the boxes' outline and ours over the drawing's other hair counts `over` (a number or per view).
+    -> (bun_block's fit {c, R, half, slab, tails}, per-view IoU before/after, and outline F after)."""
+    from scipy.ndimage import distance_transform_edt
     from scipy.optimize import minimize
     from scipy.spatial.transform import Rotation as Rot
+    from . import raster
     c0, R0, half0 = block_frame(P, head_c, style)
     o0, s0 = (loops_default if kind == 'ribbon' else slab_default)(c0, R0, head_c, style)
     e = style.get('bun_e', 0.3)
-    U1, _ = superellipsoid(np.ones(3), e, 16, 8)
+    U1, T1 = superellipsoid(np.ones(3), e, 16, 8)
+    nx = 16 if kind == 'ribbon' else 15              # (the ribbon: its two loops' asymmetry too)
+    t0 = np.array([35.0, 0.8, 60.0, 45.0, 0.45, 0.0])
 
-    def sil(c, R, half, slab, name, az, mirror, shp):
+    def unpack(x, xt=None):
+        x = np.r_[x, np.zeros(nx - len(x))]
+        R = Rot.from_rotvec(x[3:6]).as_matrix() @ R0
+        tl = None
+        if xt is not None:
+            tl = t0 * np.r_[1.0, np.exp(xt[1]), 1.0, 1.0, np.exp(xt[4]), 1.0] + np.r_[xt[0] * 30, 0, xt[2] * 30,
+                                                                                         xt[3] * 30, 0, xt[5] * 40]
+        return c0 + x[:3] * np.linalg.norm(half0), R, half0 * np.exp(x[6:9]), (o0 + x[9:12], s0 * np.exp(x[12:15]),
+                                                                                  *x[15:]), tl
+
+    # each view's pixels: the drawn bun and a margin (the crop the z-buffers draw), the scene's depth there
+    crops = []
+    for name, az, mirror, m, other in targets:
+        rr, cc = np.nonzero(m)
+        pad = int(0.35 * views[name].ppl)
+        box = (max(0, rr.min() - pad), min(m.shape[0], rr.max() + pad), max(0, cc.min() - pad),
+               min(m.shape[1], cc.max() + pad))
+        win = view_window(views[name], az, mirror, hull_frame, box)
+        dz = None
+        if scene is not None:
+            dz, _ = raster.window_zbuffer([(V, T, 0) for V, T in scene], az, *win)
+        mc = m[box[0]:box[1], box[2]:box[3]]
+        ob = _outline(mc)
+        crops.append((box, win, dz, mc, ob, distance_transform_edt(~ob) if ob.any() else None,
+                      BUN_OUTLINE_TOL * views[name].ppl))
+
+    def meshes(c, R, half, slab, tl):
+        Vs, Ts, n = [], [], 0
+        for off, hs in block_parts(c, R, half, head_c, style, slab, kind):
+            Vs.append(off + (U1 * hs) @ R.T); Ts.append(T1 + n); n += len(U1)
+        for b in bun_tails(c, R, half, head_c, style, tl):
+            Vs.append(b['V']); Ts.append(b['T'] + n); n += len(b['V'])
+        return np.concatenate(Vs), np.concatenate(Ts)
+
+    def sil(c, R, half, slab, tl, k, name, az, mirror, shp):
+        box, win, dz = crops[k][:3]
         m = np.zeros(shp, bool)
+        if scene is not None or tl is not None:
+            V, T = meshes(c, R, half, slab, tl)
+            d, _ = raster.window_zbuffer([(V, T, 1)], az, *win)
+            sub = np.isfinite(d) if dz is None else d < dz
+            m[box[0]:box[1], box[2]:box[3]] = sub
+            return m
         for off, hs in block_parts(c, R, half, head_c, style, slab, kind):
             cc, rr = view_px(off + (U1 * hs) @ R.T, views[name], az, mirror, hull_frame)
             m |= _hull_fill(cc, rr, shp)
         return m
 
-    nx = 16 if kind == 'ribbon' else 15              # (the ribbon: its two loops' asymmetry too)
-
-    def unpack(x):
-        x = np.r_[x, np.zeros(nx - len(x))]
-        R = Rot.from_rotvec(x[3:6]).as_matrix() @ R0
-        return c0 + x[:3] * np.linalg.norm(half0), R, half0 * np.exp(x[6:9]), (o0 + x[9:12], s0 * np.exp(x[12:15]),
-                                                                                  *x[15:])
+    def outline_f(k, sm):
+        box, _, _, mc, ob, to_b, tol = crops[k]
+        oa = _outline(sm[box[0]:box[1], box[2]:box[3]])
+        if to_b is None or not oa.any():
+            return 0.0
+        p_ = float((to_b[oa] <= tol).mean())
+        r_ = float((distance_transform_edt(~oa)[ob] <= tol).mean())
+        return 2 * p_ * r_ / (p_ + r_) if p_ + r_ else 0.0
 
     w_over = over
 
-    def loss(x, detail=False):
-        c, R, half, slab = unpack(x)
-        tot, per = 0.0, {}
-        for name, az, mirror, m, other in targets:
-            sm = sil(c, R, half, slab, name, az, mirror, m.shape)
-            miss = (m & ~sm).sum(); out = (sm & ~m & ~other).sum(); over = (sm & other).sum()
-            wv = w_over.get(name, 0.25) if isinstance(w_over, dict) else w_over
-            tot += (miss + out + wv * over) / max(1, m.sum())
+    def loss(x, detail=False, xt=None):
+        c, R, half, slab, tl = unpack(x, xt)
+        tot, per, fs = 0.0, {}, {}
+        for k, (name, az, mirror, m, other) in enumerate(targets):
+            sm = sil(c, R, half, slab, tl, k, name, az, mirror, m.shape)
+            miss = (m & ~sm).sum()
+            if scene is not None:
+                tot += (miss + (sm & ~m).sum()) / max(1, m.sum())
+                if outline_w or detail:
+                    fs[name] = outline_f(k, sm)
+                    tot += outline_w * (1.0 - fs[name])
+            else:
+                out = (sm & ~m & ~other).sum(); ov = (sm & other).sum()
+                wv = w_over.get(name, 0.25) if isinstance(w_over, dict) else w_over
+                tot += (miss + out + wv * ov) / max(1, m.sum())
             per[name] = round(float((sm & m).sum()) / max(1, (sm | m).sum()), 3)
+        if detail == 'outline':
+            return {k_: round(v_, 3) for k_, v_ in fs.items()}
         return per if detail else tot
     before = loss(np.zeros(9), True)
     x = np.zeros(0)
@@ -1128,8 +1636,27 @@ def fit_block(P, head_c, style, targets, views, hull_frame, iters=(600, 900), ki
                                                                     fatol=1e-4)).x
         if loss(x1) < loss(x):
             x = x1
-    c, R, half, slab = unpack(x)
-    return dict(c=c, R=R, half=half, slab=slab), dict(before=before, after=loss(x, True))
+    xt = None
+    if tails and int(style.get('bun_tails', 3)) > 0:
+        # the tails' fan with the knot and loops held; kept only if they show the drawing better than none
+        # (from a few starts: straight out, steeper, fanned toward the front or the back; a thin blade's area moves the
+        # loss little, so one start stalls)
+        lt = lambda q: loss(x, xt=q)
+        steps = np.r_[0.5, 0.3, 0.5, 0.5, 0.3, 0.5]
+        best = (loss(x), None)
+        for q0 in (np.zeros(6), np.r_[1.0, 0, 0, 0, 0, 0], np.r_[0, 0, 0, 0, 0, 1.0], np.r_[0, 0, 0, 0, 0, -1.0]):
+            simplex = np.vstack([q0] + [q0 + d for d in np.eye(6) * steps])
+            q = minimize(lt, q0, method='Nelder-Mead', options=dict(maxfev=tail_iters, initial_simplex=simplex,
+                                                                     xatol=1e-3, fatol=1e-4)).x
+            v = lt(q)
+            if v < best[0]:
+                best = (v, q)
+        xt = best[1]
+    c, R, half, slab, tl = unpack(x, xt)
+    rep_ = dict(before=before, after=loss(x, True, xt), tails=None if tl is None else [round(float(v), 3) for v in tl])
+    if scene is not None:
+        rep_['outline'] = loss(x, 'outline', xt)
+    return dict(c=c, R=R, half=half, slab=slab, tails=tl), rep_
 
 
 def slab_default(mid, R, head_c, style):
@@ -1451,7 +1978,7 @@ def flyaways(mask, to_world, anchor_fn, min_px=40, n=7, depth_ratio=0.4, tuck=No
 
 
 # ------------------------------------------------------------------------------------------------------------ build
-def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=print):
+def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=print, points=None):
     """every piece. case: charkit.geom.parts.Case (the hull aligned: case.gen, our character: case.A); fam: the hull's
     per-vertex family (label_hull); masks: hairlayers' VIEW__FAMILY; style: the profile's hair_pieces; hull_frame:
     (scale, translate) from the hull's frame to the world (the case's align) for the flyaways' front view.
@@ -1460,11 +1987,18 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     o = dict(OPTS, **(opts or {}))
     style = dict(style, **(o.pop('style', None) or {}))      # (a design's own construction settings over the profile's)
     L = case.L
-    V = np.asarray(case.gen.V, float)
+    V = np.asarray(case.gen.V if points is None else points, float)   # (the hull's samples, world: fam's order)
     carved = 0
     if views is not None and hull_frame is not None and o.get('carve_buns', True):
         fam, carved = carve_under_buns(V, fam, masks, views, hull_frame)
     F = mass_fields(case, V, fam, o)
+    if views is not None and hull_frame is not None and o.get('crown_trim', False):
+        # (hair round 4: the crown down to the drawn crown, clear of the skin as the locks' outer surfaces must be)
+        Sk = F['S']
+        cfloor = np.where(np.isfinite(Sk), Sk + o['gap'] * L + style['tip_thick'] * L +
+                          LAYER['upper_back'] * style['inset'] * L, F['R'] - 0.1 * L)
+        crown_trim(F, masks, views, hull_frame, cfloor, o.get('crown_margin', 0.0), o['crown_th'],
+                   o.get('crown_smooth', 1.0), drawn=o.get('crown_edge', 'bridge') == 'drawn')
     trim = None
     # side_lock_trim (a quality fix: the hull's fill between lock and cheek out of the envelope before the locks are
     # shaped), or the clamp (Michael's call F, deferred) in its envelope mode
@@ -1480,12 +2014,14 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                          o.get('trim_cut', True), o.get('trim_smooth', 0.7),
                                          o.get('trim_spread', -1.0) * L if o.get('trim_spread', -1.0) >= 0 else 0.0,
                                          None if o.get('trim_below_chin', False) else case.chin_z,
-                                         o.get('trim_sides', 'drawn'))
+                                         o.get('trim_sides', 'drawn'), o.get('trim_tq_slack', 0.0))
     regions = piece_regions(F, o, trim)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
     if 'trim' in F:
         report['side_lock_trim'] = dict(F['trim'], pull_max=round(F['trim']['pull_max'] / L, 4))
+    if 'crown_trim' in F:
+        report['crown_trim'] = dict(F['crown_trim'], pull_max=round(F['crown_trim']['pull_max'] / L, 4))
 
     def add(name, family, parts):
         Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou = [], [], [], [], [], [], [], 0, [], 0, []
@@ -1536,13 +2072,24 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                     continue
                 fit = None
                 if views is not None and hull_frame is not None and o.get('bun_fit', True):
-                    tg = bun_targets(masks, views, hull_frame, case.centre, sgn)
+                    tg = bun_targets(masks, views, hull_frame, case.centre, sgn, tuple(o['bun_views']),
+                                     o['bun_per_side'])
                     if tg:
+                        # (hair round 4: the bun as it shows past our own hair and skin in each view, the mass built)
+                        scene = None
+                        if o['bun_occlude']:
+                            scene = [(p_['V'], np.asarray(p_['T'])) for p_ in pieces.values()] + [
+                                (np.asarray(case.A['verts'], float), _tris(case.A['faces']))]
                         fit, iou = fit_block(P, case.centre, style, tg, views, hull_frame,
                                              tuple(o.get('bun_iters', (600, 900))), kind, o['bun_over'],
-                                             o.get('bun_loop_starts', 1))
+                                             o.get('bun_loop_starts', 1), scene=scene,
+                                             tails=o.get('bun_tails', False), tail_iters=o.get('bun_tail_iters', 300),
+                                             outline_w=o.get('bun_outline_w', 0.0))
                         report.setdefault('bun_fit', {})[side] = iou
-                add(side, 'buns', [bun_block(P, case.centre, style, sgn, fit, kind)])
+                parts_ = [bun_block(P, case.centre, style, sgn, fit, kind)]
+                if fit is not None and fit.get('tails') is not None:
+                    parts_ += bun_tails(fit['c'], fit['R'], fit['half'], case.centre, style, fit['tails'])
+                add(side, 'buns', parts_)
     # the ahoge: from the drawings' strokes (the hull carves so thin a crescent poorly), else its hull points
     ah = ahoge_2d(masks, views, hull_frame) if views is not None and hull_frame is not None else None
     ap = V[fam == fam_id('ahoge')]
@@ -1571,8 +2118,22 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         def to_world(cols, rows):
             x = (x0 + np.asarray(cols) - v.axis) / ppl
             z = (v.eye_y - (y0 + np.asarray(rows))) / ppl
-            _, j = tree2.query(np.c_[x, z], 24)
-            y = np.median(hx[j, 1], axis=1)                         # the mass's mid-plane there (front and back averaged)
+            if o['flyaway_plane'] == 'mid':
+                # the mass's mid-plane there: the midpoint of its front and back within 0.03 L of (x, z) (hair round 4:
+                # the median of the 24 nearest points split between front and back, and jumped with the hull's
+                # sampling; hull-limbs saw the blades turn and fold, 0 -> 41)
+                dd, j = tree2.query(np.c_[x, z], 96, distance_upper_bound=0.03)
+                ok_ = np.isfinite(dd)
+                jj_ = np.where(ok_, j, 0)
+                yy = hx[jj_, 1]
+                lo_ = np.where(ok_, yy, np.inf).min(1); hi_ = np.where(ok_, yy, -np.inf).max(1)
+                _, j1 = tree2.query(np.c_[x, z], 24)
+                y = np.median(hx[j1, 1], axis=1)
+                has = ok_.any(1)
+                y[has] = (lo_[has] + hi_[has]) / 2
+            else:
+                _, j = tree2.query(np.c_[x, z], 24)
+                y = np.median(hx[j, 1], axis=1)                     # the mass's mid-plane there (front and back averaged)
             return np.c_[x, y, z] * s + tr
 
         def anchor_fn(cc, rr):
@@ -1604,7 +2165,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     if style.get('normals', 'envelope') == 'envelope':
         shade_normals(pieces, L, style)
     report['fields'] = dict(columns_with_hair=int((F['reach'] >= 0).sum()), cells=int(F['valid'].sum()),
-                            crown_tilt=o['crown_tilt'])
+                            crown_tilt=o['crown_tilt'], body_clear=F.get('clear'))
     log('hair pieces: %s' % ', '.join('%s %d locks' % (k, r['locks']) for k, r in report['pieces'].items()))
     return dict(pieces=pieces, fields=F, report=report)
 
