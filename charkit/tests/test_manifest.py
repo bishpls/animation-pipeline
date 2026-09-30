@@ -5,6 +5,9 @@ import json, os, shlex, shutil, sys, tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from charkit import manifest
 
+# these are one copy's own staleness and rebuilds; the shared cache in front of them is test_produced_cache.py's
+os.environ['CHARKIT_PRODUCED_CACHE'] = 'off'
+
 
 def _setup():
     """a manifest in a temp dir with one produced reference whose command appends a line to it each run."""
