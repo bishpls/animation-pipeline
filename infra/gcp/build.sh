@@ -53,8 +53,19 @@ case "${1:-status}" in
       find $D/charkit/out -mindepth 1 -maxdepth 1 ! -name i3d -exec rm -rf {} +; }; }"
     # what git ignores stays home (a full worktree's projects/*/out, node_modules, the mocap and bone refs, the env
     # files: 1.7 GB, 15+ min through the tunnel), except the outputs kept above; excluded paths on the box are left alone
+    # a worktree without charkit/out/i3d (tools/worktree.sh's sparse ones had none) must not wipe the box copy's: the
+    # outfit masks built without its TRELLIS field are wrong (11 copies were, 2026-09-29), so the copy keeps or is
+    # seeded with one, and the sync then leaves it alone
+    NOI3D=()
+    if [ ! -d "$WT/charkit/out/i3d" ]; then
+      NOI3D=(--exclude 'charkit/out/i3d/')
+      # the fullest copy on the box (a partial one, e.g. an earlier seed from a partial copy, is replaced)
+      ssh_ "B=\$(for d in /srv/work/*/charkit/out/i3d; do [ \$d = $D/charkit/out/i3d ] || echo \"\$(find \$d -type f | wc -l) \$d\"; done | sort -rn | head -1); \
+        have=\$(find $D/charkit/out/i3d -type f 2>/dev/null | wc -l); \
+        [ -z \"\$B\" ] || [ \$have -ge \${B%% *} ] || { rm -rf $D/charkit/out/i3d; mkdir -p $D/charkit/out && cp -al \${B#* } $D/charkit/out/i3d; }"
+    fi
     IGN=$(mktemp); { git -C "$WT" ls-files -o -i --exclude-standard --directory | grep -v '^charkit/out' | sed 's|^|/|' || true; } > "$IGN"
-    rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
+    rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' ${NOI3D[@]+"${NOI3D[@]}"} \
       --include 'charkit/out/' --include 'charkit/out/i3d/***' --include 'charkit/out/remote/' \
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
       "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
