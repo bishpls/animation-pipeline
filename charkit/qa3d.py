@@ -304,11 +304,14 @@ def face_folds(A):
     mouth = (fm == 1) & (np.abs(q[:, 0]) < 0.16) & (np.abs(q[:, 2] + 0.28) < 0.1) & (q[:, 1] < -0.2)
     eyes = (fm == 1) & (np.abs(np.abs(q[:, 0]) - 0.17) < 0.14) & (np.abs(q[:, 2]) < 0.12) & (q[:, 1] < -0.15)
     n0 = _face_normals(V, F)
-    rest = int(((mouth | eyes) & (n0[:, 1] > 0.2)).sum())
+    # the chin's underside faces down at rest (the authored head's chin overhangs the neck: charkit.geom.headgeom.
+    # UnderJaw): it leans back by its own rise, and further as the jaw opens, which isn't a fold; a flip still counts
+    down = n0[:, 2] < -0.7
+    rest = int(((mouth & ~down | eyes) & (n0[:, 1] > 0.2)).sum())
     keys = {}
     for sh, D in A['mouth']['keys'].items():
         n1 = _face_normals(V + D, F)
-        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | ((n1[:, 1] > 0.2) & ~down))).sum())
     for sh in A['eyes'][0]['keys']:
         n1 = _face_normals(V + sum(E['keys'][sh][0] for E in A['eyes']), F)
         keys['eye_' + sh] = int((eyes & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
