@@ -14,8 +14,15 @@ Subset 1 (items 1-3, plus the coordinator's --vrm drawing artifact): code done, 
   (b7d8dc4), the --vrm look export (ed6f902), notes: gate.py, closure.py, cli.py, qa3d.py and tests.
 - Real pairs with this gate code: evalmesh 0c9eb95 into 25b1936 **FAIL** (poke_share, the unregistered remeasure: below);
   look6 bb3fdf1 into 4007276 **PASS** (the face_shadow_* found and scored, as look6's registered gate did).
-- Running: evalmesh 0c9eb95 again (the rebase: hair_folds must drop out); tmp/infra4-vrm (evalmesh ed0f91a with this
-  branch) into 9eba0b0 (the 7 face_shadow values must equal the baseline's); the carry-rate variants.
+- evalmesh 0c9eb95 again with the rebase (1766073): hair_folds gone from the found checks (only poke_share), the same
+  FAIL; 2x2 209 s, the gate 572 s.
+- tmp/infra4-vrm (evalmesh ed0f91a with this branch) into 9eba0b0, the candidate built with --vrm: **PASS, no check
+  changed** (the 7 face_shadow moves gone; 720 s). Its measure-code check flagged all 24 parts for this branch's own
+  cache.py and the 2x2 (217 s) found every check alike: the kit's bookkeeping (cache, closure, trace, procs, registry)
+  is now left out of a part's measure (2a0a39e; the pair then flags nothing, evalmesh and look6 unchanged).
+- Carry measurement: the definition rule first measured 2/151 like the file rule; the refusals were the measure guard
+  counting cache.py (fixed above) and the unseen-data rule counting infra/*.sh, env examples and engine/*.js (closure:
+  only the kinds Blender's C code loads count unread, e02b2c5). Rerunning the four variants.
 
 ## 1. Unregistered remeasures (charkit/codediff.py, gate.py)
 
