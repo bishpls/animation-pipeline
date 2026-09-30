@@ -511,3 +511,13 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
    visible or hidden (no partial shards).
 4. The default spec's hair_penetration artifact: tool/face's head mesh (inward crown triangles), or a winding-number
    test in the QA (a remeasure, the 2x2).
+
+### Round 4, overnight relaunch (2026-09-30 evening)
+
+- **pipeline-3d 08f93e2 merged** (03d14ce, clean: pipeline-3d's only hair-side change is hairlayers' outfit masks
+  without the silent fallback, which our bun sides read as before). `test_registry.py`, `test_hairpieces.py` and the
+  whole suite (57 files, 104 s) pass. This branch adds no QA part or step.
+- **Gate** (default spec only, policy K): running.
+- **Render builds for the review page** (`--box render`, boards views,body), both on the merged code: `h4n_r3_r` (the
+  default spec with round 3's hair: `pieces_opts` body_clear and crown_trim off, spec in charkit/out/h4spec/) and
+  `h4n_final_r` (the committed defaults). The page's before and after then differ only in the hair.
