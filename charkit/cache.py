@@ -1182,7 +1182,13 @@ def _sources():
     """the kit's source files' stats {path: (mtime_ns, size)}. Linux stamps mtimes from a coarse clock that can trail
     time.time() by a tick, so an mtime alone can't tell an edit just after a build loaded its code from one just before;
     a changed stat can."""
+    from . import closure
     out = {}
+    with closure.paused():                  # a look for edits, not inputs (the gate's record, charkit/closure.py)
+        return _sources_walk(out)
+
+
+def _sources_walk(out):
     for d, dirs, files in os.walk(KIT):
         dirs[:] = [x for x in dirs if x not in ('out', '__pycache__', 'tests')]
         for f in files:
@@ -2176,8 +2182,11 @@ def file_step(name, run, fns, key, out, inputs=(), modules=(), name_key=None, re
     outs = sorted(k for k, v in after.items() if before.get(k) != v)
     reads = sorted((p, files.get(p)) for p in rec.files)
     key2 = digest([static, reads])
-    if any(os.stat(os.path.join(dd, f)).st_mtime > t0 for dd, ds, fs in os.walk(KIT) for f in fs if f.endswith('.py')
-           and not dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests')))):
+    from . import closure
+    with closure.paused():
+        edited = any(os.stat(os.path.join(dd, f)).st_mtime > t0 for dd, ds, fs in os.walk(KIT) for f in fs
+                     if f.endswith('.py') and not dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests'))))
+    if edited:
         return 'miss: charkit changed during the step (not stored)'
     if _caught(errs):
         return 'miss: %s (an error was caught while it ran: not stored)' % why
@@ -2218,6 +2227,12 @@ _T0 = time.time()                        # when this process loaded charkit: a s
 def kit_edited(t0=None):
     """a charkit source changed since t0 (default: since this process loaded charkit) -> its path, or None."""
     t0 = _T0 if t0 is None else t0
+    from . import closure
+    with closure.paused():
+        return _kit_edited(t0)
+
+
+def _kit_edited(t0):
     for dd, ds, fs in os.walk(KIT):
         if dd.startswith((os.path.join(KIT, 'out'), os.path.join(KIT, 'tests'))):
             ds[:] = []
@@ -2281,7 +2296,11 @@ def qa_part(name, fn, B, design, out, args=(), mode='on'):
     else:                                               # (a function from outside charkit: its own source)
         import inspect
         units = dict(code_units(modules=('charkit.bundle',)), **{'<%s>' % fn.__qualname__: digest(inspect.getsource(fn))})
-    static = digest([SCHEMA, 'qa', name, units, venv_env(), args])
+    # (the QA's drawing: imported by name, so this module's import closure, which every stage's code key follows,
+    # doesn't take in the QA through qarender; the part's own closure has it, through qa3d)
+    import importlib
+    qarender = importlib.import_module(__package__ + '.qarender')
+    static = digest([SCHEMA, 'qa', name, units, venv_env(), args] + qarender.cache_key())
     kd = os.path.join(d, 'qa', name, static[:20])
     E, why = None, 'no entry' if mode in ('on', 'verify') else 'cache %s' % mode
     if mode in ('on', 'verify'):

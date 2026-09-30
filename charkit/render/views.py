@@ -35,17 +35,24 @@ class BoardView:
     features: bool = False             # the features laid through the hair (qa.features_through), as scene.boards does
 
 
+SETS = ('views', 'body', 'design')     # the sets drawn here; scene.boards' expressions and mouths need the shape keys
+DESIGN_WINDOW, DESIGN_PPL = 2.4, 400
+DESIGN_AZ = (0, 30, 35, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330)
+
+
 def board_views(M, which=('views', 'body'), eye_z=None, L=None, height_m=None, covers=True):
     """scene.boards' views for a model: 'views' (the head at 0, 30, 60, 90, 150 degrees, 900 x 900, 85 mm, the features
-    through the hair when there are covers) and 'body' (0, 35, 90, 180 degrees, 600 x 1000, orthographic).
-    eye_z, L: the head's (charkit.bundle's assembly meta; default the export's head centre and length). height_m: the
-    spec's body height (default the export's `height`, else 1.6)."""
+    through the hair when there are covers), 'body' (0, 35, 90, 180 degrees, 600 x 1000, orthographic) and 'design'
+    (the head level and orthographic at its eye line, 2.4 L across at 400 px per L, round the turntable).
+    eye_z, L: the head's (default the export's `boards`, which the build writes from what scene.boards frames on; an
+    older export's head centre and length). height_m: the spec's body height (default the export's `height`, else 1.6)."""
     hd = M.head
+    bd = M.root.get('boards') or {}
     if L is None:
-        L = float(hd['L'])
+        L = float(bd.get('L', hd['L']))
     if eye_z is None:
-        eye_z = float(hd['centre'][1])             # glTF y = Blender z (the head centre: charkit.bundle's eye_z on code heads)
-    H = float(height_m if height_m is not None else M.root.get('height', 1.6))
+        eye_z = float(bd['eye_z']) if 'eye_z' in bd else float(hd['centre'][1])   # (glTF y = Blender z)
+    H = float(height_m if height_m is not None else bd.get('height_m', M.root.get('height', 1.6)))
     out = []
     if 'views' in which:
         for az in (0, 30, 60, 90, 150):
@@ -54,6 +61,12 @@ def board_views(M, which=('views', 'body'), eye_z=None, L=None, height_m=None, c
     if 'body' in which:
         for az in (0, 35, 90, 180):
             out.append(BoardView(f'body_{az:03d}', (0.0, 0.0, H * 0.52), az, 6.0, 0.0, (600, 1000), ortho=H * 1.12))
+    if 'design' in which:
+        c = bd.get('centre') or [0.0, 0.0, eye_z]
+        n = int(round(DESIGN_WINDOW * DESIGN_PPL))
+        for az in DESIGN_AZ:
+            out.append(BoardView(f'design_{az:03d}', (float(c[0]), float(c[1]), eye_z), az, 4.0, 0.0, (n, n),
+                                 ortho=DESIGN_WINDOW * L, features=covers))
     return out
 
 

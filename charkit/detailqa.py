@@ -1087,7 +1087,7 @@ def profile_render(B, members, cuff_members, ppl, az, ss=3, others=()):
         variant = 'masked' if o.group == 'skin' and o.has('masked') else 'eval'
         if o.has(variant) and o.group in ('skin', 'garment'):
             surfs += qa3d.surfaces(B, o, variant)
-    mi = qa3d.draw_view(B, surfs, az, fr)['mesh']
+    mi = qa3d.draw_ids(B, surfs, az, fr)
     hull = np.array([s['hull'] for s in surfs])
     nm = np.array([s['o'].name for s in surfs])
     ok = mi >= 0

@@ -76,6 +76,11 @@ EYE_SIZE = 0.42                # the eye render's window, in L
 EYE_SS, EYE_FILTER = 5, 0.55   # the eye renders
 TEX_BLUR = 0.3                 # the eye textures' prefilter, sigma in texels per output pixel (the renderer's mipmaps)
 FIG_SS, FIG_FILTER = 3, 0.44   # the full-figure renders: silhouettes, scalp, hair noise
+DRAW = 'render'                # the QA's drawing (draw_view / draw_lit / draw_ids): 'render', charkit's toon renderer on
+                               # the build's export (charkit.qarender: the boards' passes and shader; this module's numpy
+                               # rasteriser where a bundle has no export or a surface isn't in it), or 'numpy', that
+                               # rasteriser throughout; CHARKIT_QA_DRAW overrides it. 'render' since 2026-09-30: every QA
+                               # frame nearer EEVEE's (docs/workstreams/toonrender.md, "the default drawing")
 WORLD = (0.86, 0.86, 0.90)     # the world colour behind an opaque render (linear; charkit.scene.reset)
 STATUS = ['PASS', 'WARN', 'FAIL', 'SKIPPED']
 
@@ -1768,7 +1773,12 @@ def draw(B, surfs, az, fr, transparent=True, ss=FIG_SS, ldir=None, aux=None):
 def draw_view(B, surfs, az, fr):
     """draw()'s part that doesn't depend on the light, for one view: the z-buffer and, per surface, its pixels (flat
     indices, in row order), their triangles and barycentric weights, the shading normals, and per material slot the
-    face's and the textures' samples -> a view for draw_lit."""
+    face's and the textures' samples -> a view for draw_lit. With the render drawing (DRAW, charkit.qarender) a
+    qarender.View, read the same way (['mesh'], ['depth'], draw_lit)."""
+    from . import qarender
+    rv = qarender.view(B, surfs, az, fr)
+    if rv is not None:
+        return rv
     items = [(s['V'], s['T'], s['slots'], s['cull']) for s in surfs]
     zb, lab, mi, ti, bc = fr.zbuffer(items, az, ids=True)
     a = np.radians(az)
@@ -1825,6 +1835,9 @@ def draw_lit(B, view, ldir=None, transparent=True, ss=FIG_SS, aux=None, only=Non
     """a view (draw_view) shaded under ldir (else the boards' light for its azimuth) -> draw()'s picture. only: the
     surface indices to shade (the rest left unshaded: their tone NaN, their colour black); picture=False: no picture
     (-> None), the buffers alone into aux."""
+    from . import qarender
+    if isinstance(view, qarender.View):
+        return view.lit(ldir, transparent=transparent, ss=ss, aux=aux, only=only, picture=picture)
     zb, mi, view_d = view['depth'], view['mesh'], view['view_d']
     if ldir is None:
         ldir = view_light(B, view['az'])
@@ -1866,6 +1879,16 @@ def draw_lit(B, view, ldir=None, transparent=True, ss=FIG_SS, aux=None, only=Non
     al = img[..., 3:4]
     out = np.concatenate([_srgb(np.where(al > 1e-6, img[..., :3] / np.maximum(al, 1e-6), 0.0)), al], -1)
     return np.floor(np.clip(out, 0, 1) * 255 + 0.5) / 255.0
+
+
+def draw_ids(B, surfs, az, fr):
+    """the surface (its index in surfs) each pixel of frame fr shows, -1 none: draw_view's 'mesh' without its shading
+    (the numpy drawing: the z-buffer alone; the render drawing: its part and hull buffers)."""
+    from . import qarender
+    rv = qarender.view(B, surfs, az, fr)
+    if rv is not None:
+        return rv.ids()
+    return fr.zbuffer([(s['V'], s['T'], i, s['cull']) for i, s in enumerate(surfs)], az)[1]
 
 
 def _to_shape(m, shape):
@@ -1922,11 +1945,11 @@ def hair_noise(B, design=None, out=None):
             surfs.append(x); groups.append(hair_noise_group(o))
     occ = [x for o in B.objects() if o.group != 'hair' and o.has('eval')
            for x in surfaces(B, o, 'masked' if o.group == 'skin' else 'eval', outline=False)]
+    grp_of = np.array(groups + [-1] * len(occ) + [-1])             # per surface (and -1 for none)
     for az in (0, 90, 180):
-        px = draw(B, surfs + occ, az, fr)
-        items = [(s_['V'], s_['T'], np.full(len(s_['T']), groups[k] if k < len(surfs) else -1), s_['cull'])
-                 for k, s_ in enumerate(surfs + occ)]
-        lab = _to_shape(fr.zbuffer(items, az)[1], px.shape[:2])
+        view = draw_view(B, surfs + occ, az, fr)
+        px = draw_lit(B, view)
+        lab = _to_shape(grp_of[view['mesh']], px.shape[:2])
         grp = np.where((px[..., 3] > 0.5) & (lab >= 1), lab, 0)
         lum = px[..., :3] @ np.array([0.3, 0.59, 0.11])
         e, n = tone_edges(lum, grp)
@@ -2172,14 +2195,18 @@ def run(B, out, ref_image=None, mode='on', parts=None):
         ref = B.spec.get('ref')
         ref_image = ref.get('image') if isinstance(ref, dict) else None
     rep = {'checks': {}, 'views': {}}
-    t0 = time.perf_counter()
+    t0, c0 = time.perf_counter(), time.process_time()
+    timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
             continue
         args = (ref_image,) if P.ref_image else ()
         try:
-            with trace.span('qa.' + P.name):
+            with trace.span('qa.' + P.name) as sp:
+                t1, c1 = time.perf_counter(), time.process_time()
                 table, C = cache.qa_part(P.name, P.fn, B, design, out, args, mode=mode)
+                timing[P.name] = [round(time.perf_counter() - t1, 2), round(time.process_time() - c1, 2)]
+                sp['cpu_s'] = timing[P.name][1]
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
@@ -2195,7 +2222,10 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
     graded = [c['status'] for c in rep['checks'].values() if c.get('status') in order]
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
-    rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2)}
+    from . import qarender
+    rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
+                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing,
+                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B))}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
         cache.prune()                                           # (the cache's size cap, once per pass)
@@ -2204,12 +2234,19 @@ def run(B, out, ref_image=None, mode='on', parts=None):
 
 def main(args):
     """python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl]
+                              [--draw numpy|render] [--threads N]
     the QA on a build's geometry bundle (default out: the build's qa folder); --trace appends its records to a trace
-    (a build's own does it: python -m charkit build)."""
+    (a build's own does it: python -m charkit build). --draw: the QA's drawing for this run (CHARKIT_QA_DRAW,
+    charkit/qarender.py); --threads: llvmpipe's threads for the render drawing on a CPU box (LP_NUM_THREADS)."""
     if not args or args[0] in ('-h', '--help'):
         print(main.__doc__); return
     from . import trace
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if opt('--draw'):
+        from . import qarender
+        os.environ[qarender.ENV] = opt('--draw')
+    if opt('--threads'):
+        os.environ['LP_NUM_THREADS'] = str(int(opt('--threads')))
     bdir = os.path.abspath(args[0])
     out = os.path.abspath(opt('--out', os.path.join(os.path.dirname(bdir), 'qa')))
     tp = opt('--trace')
