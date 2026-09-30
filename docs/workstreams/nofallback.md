@@ -40,3 +40,9 @@ reported success.
 - `eyes.knobs` reads `spec.get('base') != 'code'` (plate eyes unless `code`) and is left as is: cut-down specs reach it.
 
 ## Gates
+- 1f426ec into pipeline-3d 36e7ea2, default spec (clawd.json): **PASS**. No check changed, no values moved, and all
+  51 tests ok (test_spec_declared and test_spec_alias included). The trace shows only the routine `knobs hair changed`
+  and spec_hash, which every gate shows (the build folder's paths). Base build 537.6 s, candidate 576.7 s (the
+  produced references were rebuilt).
+- Local, before the gate: at 36e7ea2 and at 1f426ec, clawd.json's outfit masks, hull and hair layers were rebuilt
+  from their new stamps. All 14 files are byte-identical except hull.json's `seconds` (89.0 against 86.8).
