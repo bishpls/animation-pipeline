@@ -2448,7 +2448,7 @@ def bow_hull(A, spec, hull):
         zmin = np.percentile(np.concatenate(tails)[:, 2], 2)
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
-                  wing=spec.get('wing'), ribbon=spec.get('ribbon'))
+                  wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -2479,7 +2479,7 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
     centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
     lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
@@ -2529,23 +2529,40 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None):
                     fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
             add(vs, fs, us)
         else:
-            # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold
-            for i in range(nv + 1):
-                th = math.pi * i / nv                       # 0 .. pi along the lobe
+            # a lobe: an ellipsoid along x, tapering toward the knot, tilted up a touch, with a fold. With `end` (a share
+            # of its length) its far end is closed round: the section shrinks by a quarter ellipse over that share to a
+            # point (a fan), where the old open ring read as a straight cut with no line (Michael, 2026-09-30)
+            u_rows = [(1 - math.cos(math.pi * i / nv)) / 2 for i in range(nv + 1)]
+            if end:
+                # the old rows up to the cap, then rows closing it (denser toward its tip)
+                u_rows = [u for u in u_rows if u < 1 - end]
+                u_rows += [1 - end + end * math.sin(0.5 * math.pi * q / 8) for q in range(8)]
+            for i, u_ in enumerate(u_rows):
+                th = math.acos(max(-1.0, min(1.0, 1 - 2 * u_)))      # 0 .. pi along the lobe
+                k_ = 1.0
+                if end and u_ > 1 - end:
+                    e_ = (u_ - (1 - end)) / end
+                    k_ = math.sqrt(max(0.0, 1 - e_ * e_))
                 for j in range(nu):
                     ph = 2 * math.pi * j / nu
-                    u_ = (1 - math.cos(th)) / 2              # 0 at the knot end .. 1 at the far end
-                    taper = knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8
+                    taper = (knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8) * k_
                     x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                     zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
                     yy = -math.cos(ph) * depth * taper
-                    fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) if math.cos(ph) > 0 else 0.0
+                    fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) * k_ \
+                        if math.cos(ph) > 0 else 0.0
                     vs.append(c + np.array([x, yy - fold, zz])); us.append((j / nu, u_))
+            nr_ = len(u_rows) - 1
             fs = []
-            for i in range(nv):
+            for i in range(nr_):
                 for j in range(nu):
                     j2 = (j + 1) % nu
                     fs.append((i * nu + j, i * nu + j2, (i + 1) * nu + j2, (i + 1) * nu + j))
+            if end:
+                # the tip: a fan from the last ring to one point on the lobe's end
+                tip = len(vs)
+                vs.append(c + np.array([sx * (0.05 + (LOBE - 0.05)) * sz, 0.0, 0.05 * sz])); us.append((0.5, 1.0))
+                fs += [(nr_ * nu + j, nr_ * nu + (j + 1) % nu, tip) for j in range(nu)]
             add(vs, fs, us)
         # a tail: a flat ribbon with thickness, out and down, widening, a V notch at the end (or, with `ribbon`, its
         # own width and spread and a slanted cut)
