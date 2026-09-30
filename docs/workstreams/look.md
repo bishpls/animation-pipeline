@@ -679,3 +679,26 @@ hair's shadow on the face.
 5. Before / after renders for Michael's call on the board default (not changed here).
 
 Base build: `charkit/out/look6_base` (render box, charkit/spec/clawd.json at d60486a).
+
+### Progress (checkpoint 1)
+
+- `charkit/designlight.py`: the fit (`python -m charkit.designlight BUILD`). The design's views classed by colour family
+  (bodyqa.family; each family split lit / shade by Otsu over the whole sheet), ours drawn by charkit.render on the same
+  grids (the head sheet at FACE_PPL aligned on the eyes as face_shadow is; the body sheet on bodyqa's grid), the tone
+  buffer cut at 0.5, the hulls and the drawn lines left out. Score per region (hair, skin, garment; the head's skin also
+  split face / neck): the mean of the shade and lit IoUs. Grid 10 deg, then 2.5 deg round the best. ~4500 frames, 4 min
+  on the laptop (M2).
+- First fit on look5_after (pipeline-3d 4de65ab's geometry): joint camera key 12.5 deg left, 55 up (score 0.546);
+  board key (30, 40) 0.524; one world light 0.480 (the back view falls to 0.226: the drawing is lit from the viewer's
+  side in every view, a camera key, not a world light). Per view: head front (-2.5, 40), 3/4 (-5, 57.5), profile
+  (40, 47.5); body front (-2.5, 42.5), 3/4 (-17.5, 57.5), profile (10, 55), back (5, 57.5).
+- `designlight.rebake`: faceshade.cast_maps in the venv on the bundle's own inputs (the skin's base mesh, the hair's
+  own meshes): **bit-identical** to the build's bake at 40 deg (18478 x 16 values, max difference 0). `carry` puts a
+  base-mesh bake on the export's render-level skin (barycentric on the nearest base triangle): the main skin and face
+  primitives agree with the build's own carried values to 1e-4 mean (threshold agreement 0.9999). So the QA can draw
+  under any light's elevation, or any cast setting, in ~3 s without a build.
+- The chin, aligned on the jaw (scratch `chinlab.py`, to land in lookqa): the jaw per column (the design: its lowest ink
+  run with skin over and under it; ours: the largest depth step back between skin pixels, the neck behind the jaw), the
+  shadow in jaw coordinates (columns from the chin point, rows under the jaw). The design's shadow moved 1-2 px against
+  its own jaw: IoU 0.81-0.94, lower-edge error 0.003-0.012 L. Round 1's band (look5_before, board light): IoU 0.75
+  front / 0.60 3/4, edge 0.039 / 0.088 L. The cast (look5_after, board light): IoU 0.73 / 0.62, edge 0.041 / 0.084.
