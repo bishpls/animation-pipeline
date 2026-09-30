@@ -77,29 +77,12 @@ def device(pref=None):
 
 
 # ------------------------------------------------------------------------------------------------ the streaks' hash
-def streak_table(hl, mode='f64'):
-    """charkit.shade.hair_toon's per-column hash, evaluated once on the CPU: kept (0 / 1) and the streak's middle
-    elevation (rad) for each column. Blender computes fract(sin(i k) 43758.5453) per pixel on the GPU, where sin of an
-    argument in the thousands is only as good as the GPU's range reduction, so the pattern differs between GPUs; here it
-    is exact ('f64'), float32 with a correctly rounded sin ('f32'), or NVIDIA's MUFU.SIN emulated ('nv': the argument
-    scaled to revolutions in float32 first)."""
-    n = int(hl['count'])
-    idx = np.arange(n, dtype=np.float64)
-
-    def h(k):
-        if mode == 'f64':
-            return np.mod(np.sin(idx * k) * 43758.5453, 1.0)
-        x = (idx.astype(np.float32) * np.float32(k)).astype(np.float32)
-        if mode == 'nv':
-            rev = (x * np.float32(1 / (2 * math.pi))).astype(np.float32)
-            s = np.sin(2 * math.pi * (rev.astype(np.float64) - np.floor(rev))).astype(np.float32)
-        else:
-            s = np.sin(x.astype(np.float64)).astype(np.float32)
-        m = (s * np.float32(43758.5453)).astype(np.float32)
-        return (m - np.floor(m)).astype(np.float64)
-    keep = (h(12.9898) < hl['keep']).astype(np.float32)
-    el0 = math.radians(hl['elevation'] - hl['jitter']) + h(78.233) * math.radians(2 * hl['jitter'])
-    return keep, el0.astype(np.float32)
+def streak_table(hl):
+    """charkit.shade.hair_toon's per-column table (kept 0 / 1, the streak's middle elevation in rad) for columns
+    0..count-1: toon.wgsl computes the same per pixel (Jenkins' lookup3 on the column index's bits, Blender's White
+    Noise: charkit.shade.streak_hash), so this is the reference the tests and measures read, not an input."""
+    from charkit import shade
+    return shade.streak_columns(hl)
 
 
 def _facing_exp(b):
@@ -107,9 +90,12 @@ def _facing_exp(b):
     return 1.0 if b == 0.5 else (2 * b if b < 0.5 else 0.5 / (1 - b))
 
 
-def material_uniform(L, outline=None, region_factor=1.0, hash_mode='f64', streaks=True, part=0):
-    """a material's look (+ its mesh's outline) -> the MatU block (toon.wgsl), as 204 float32 words."""
-    u = np.zeros(204, np.float32)
+UNIFORM_WORDS = 80                          # the MatU block: 3 u32 vec4s, 17 f32 vec4s
+
+
+def material_uniform(L, outline=None, region_factor=1.0, streaks=True, part=0):
+    """a material's look (+ its mesh's outline) -> the MatU block (toon.wgsl), as UNIFORM_WORDS float32 words."""
+    u = np.zeros(UNIFORM_WORDS, np.float32)
     ui = u.view(np.uint32)
     kind = L.get('kind', 'flat')
     flags = 0
@@ -130,16 +116,13 @@ def material_uniform(L, outline=None, region_factor=1.0, hash_mode='f64', streak
         hl = L.get('highlight')
         if hl and hl.get('kind') == 'streaks' and streaks:
             flags |= F_STREAKS
-            n = int(hl['count'])
-            if n > 64:
-                raise ValueError('streaks: at most 64 columns')
-            fld(7, [*hl['centre'], n])
-            fld(8, [math.radians(hl['length']), hl['duty'], hl['amount']])
+            if hl.get('hash', 'lookup3') != 'lookup3':
+                raise ValueError(f"streaks: hash {hl.get('hash')!r} (this renderer computes lookup3, charkit.shade)")
+            fld(7, [*hl['centre'], int(hl['count'])])
+            fld(8, [math.radians(hl['length']), hl['duty'], hl['amount'], hl['keep']])
             fld(9, [*hl.get('facing', (0.55, 0.25)), _facing_exp(hl.get('facingBlend', 0.5))])
             fld(10, col(hl['color']))
-            keep, el0 = streak_table(hl, hash_mode)
-            u[76:76 + n] = keep
-            u[140:140 + n] = el0
+            fld(16, [math.radians(hl['elevation'] - hl['jitter']), math.radians(2 * hl['jitter'])])
         if L.get('texture'):
             flags |= F_TEXTURE
             ui[8] = samp(L['texture'])
@@ -159,7 +142,7 @@ def material_uniform(L, outline=None, region_factor=1.0, hash_mode='f64', streak
         if L.get('alpha') == 'blend':
             flags |= F_BLEND
     if outline:
-        fld(14, [float(outline['width']), float(region_factor), 1.0])
+        fld(14, [float(outline['width']), float(region_factor), 1.0, float(outline.get('maxInward') or 0.0)])
         fld(15, col(outline.get('color', (0.05, 0.03, 0.03))))
     ui[1] = flags
     ui[3] = part
@@ -189,8 +172,8 @@ def vertex_array(P):
 class Renderer:
     """one character on one device: its buffers, materials and pipelines; render(view) per board."""
 
-    def __init__(self, M, adapter=None, ss=4, sigma=None, radius=EEVEE_FILTER, hash_mode='f64', through=None,
-                 streaks=True, live_normals=True):
+    def __init__(self, M, adapter=None, ss=4, sigma=None, radius=EEVEE_FILTER, through=None, streaks=True,
+                 live_normals=True):
         import wgpu
         self.wgpu = wgpu
         t0 = time.time()
@@ -198,7 +181,6 @@ class Renderer:
         self.dev, self.info = device(adapter)
         self.ss, self.radius = int(ss), float(radius)
         self.sigma = float(sigma) if sigma else SIGMA_FAC * self.radius
-        self.hash_mode = hash_mode
         self.streaks = streaks
         self.live_normals = live_normals
         self.through = float(through if through is not None else (M.root.get('features') or {}).get('through', 0.55))
@@ -259,7 +241,7 @@ class Renderer:
             ('blend', 'none'): pipe('vs_surface', 'fs_surface', C.none, write=False, blend=blend_over),
             ('blend', 'back'): pipe('vs_surface', 'fs_surface', C.back, write=False, blend=blend_over),
             ('hull', 'front'): pipe('vs_hull', 'fs_hull', C.front),
-            ('holdout', 'none'): pipe('vs_hull', 'fs_holdout', C.none),
+            ('holdout', 'none'): pipe('vs_holdout', 'fs_holdout', C.none),
             ('surface_id', 'none'): pipe('vs_surface', 'fs_surface_id', C.none),
             ('surface_id', 'back'): pipe('vs_surface', 'fs_surface_id', C.back),
             ('hull_id', 'front'): pipe('vs_hull', 'fs_hull_id', C.front),
@@ -299,8 +281,8 @@ class Renderer:
             L = P.look
             F = L.get('face') or {}
             slot = lambda info: texv.get(info['index'], dummy) if info else dummy
-            ub = material_uniform(L, P.outline, regions.get((P.outline or {}).get('region', ''), 1.0), self.hash_mode,
-                                    self.streaks, part=len(self.items) + 1)
+            ub = material_uniform(L, P.outline, regions.get((P.outline or {}).get('region', ''), 1.0), self.streaks,
+                                  part=len(self.items) + 1)
             mb = dev.create_buffer_with_data(data=ub.tobytes(), usage=wgpu.BufferUsage.UNIFORM)
             bg = dev.create_bind_group(layout=self.bgl_mat, entries=[
                 {'binding': 0, 'resource': {'buffer': mb, 'offset': 0, 'size': ub.nbytes}},

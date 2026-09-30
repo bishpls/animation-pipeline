@@ -778,8 +778,9 @@ def _flat_tone(m, default=(0.5, 0.5, 0.5)):
 
 def render_surfaces(B, o, variant):
     """an object as its render draws it: the surface pulled in by its outline (V + shrink) with its own material slots,
-    and the hull on the original surface (flipped, back-face culled, the hull's slot) -> [(V, T, slot per tri, cull
-    per tri, tris' corner loops, is hull)]."""
+    and the hull (flipped, back-face culled, the hull's slot) on the original surface, or for a thin shell whose inward
+    move is capped (charkit.shade.outline: the SOLIDIFY's offset o < 1) the rest of the width outside it, shrink x
+    (1 - o) / (1 + o) -> [(V, T, slot per tri, cull per tri, tris' corner loops, is hull)]."""
     V, T, tm, poly = o.mesh(variant)
     _, _, Tl = o.tris(variant)
     cull = np.array([bool((o.material(int(s))[1] or {}).get('cull')) for s in range(max(1, len(o.materials)))])
@@ -788,7 +789,9 @@ def render_surfaces(B, o, variant):
     if sh is not None and o.outline:
         slot = int(o.outline['slot'])
         hc = bool((o.material(slot)[1] or {}).get('cull', True))
-        out.append((V, T[:, ::-1], np.full(len(T), slot), np.full(len(T), hc), Tl[:, ::-1], True))
+        off = float(o.outline.get('offset', 1.0))
+        Vh = V - sh * ((1 - off) / (1 + off)) if -1 < off < 1 else V
+        out.append((Vh, T[:, ::-1], np.full(len(T), slot), np.full(len(T), hc), Tl[:, ::-1], True))
     return out
 
 

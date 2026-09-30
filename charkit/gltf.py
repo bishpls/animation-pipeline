@@ -14,8 +14,9 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
                default 2 = the skin's render level (level 1 visibly moves the creased eye margins), garment thickness, the
                hair's transferred envelope normals baked into NORMAL), without its armature and outline modifiers; one
                primitive per material, each with its own compacted vertices. POSITION is the surface Blender draws: charkit's
-               outline SOLIDIFY (offset 1, negative thickness) moves the surface inward by the line width, so it is baked in,
-               and the hull (drawn by the runtime, or MToon) goes back out by the same amount.
+               outline SOLIDIFY (negative thickness) moves the surface inward by the line width, so it is baked in, and the
+               hull (drawn by the runtime, or MToon) goes back out by the same amount; a thin shell's inward move is capped
+               at its outline's maxInward (charkit.shade.line_inward) and the hull goes the rest of the width outward.
   attributes   JOINTS_0/WEIGHTS_0 (top four), TEXCOORD_0 = the 'uv' layer, TEXCOORD_1 = 'face' (the skin's front projection:
                the SDF, fringe and blush maps) or 'lock' (analytic hair: across, along); custom: _OUTLINE_WIDTH (0..1, the
                outline's per-vertex factor: 0 round the eye and mouth openings, fading at hair tips), _FACE_MASK (1 on the
@@ -41,11 +42,17 @@ The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linea
   material  {kind: toon3 | face | hair | flat | plate, role, doubleSided, alpha: opaque | blend,
              toon3/face/hair: lit, shade, deep, threshold, deepThreshold, softness, rim: {color, amount, facing, range}, texture?,
              highlight?: {kind: 'streaks', centre, elevation, length, jitter, count, duty, keep, amount, color, facing,
-                          facingBlend} (shade.hair_toon: the cut hair's drawn streaks),
+                          facingBlend, hash: 'lookup3'} (shade.hair_toon: the cut hair's drawn streaks; a column is kept
+                          and placed by Jenkins' lookup3 of its index's float32 bits, Blender's White Noise:
+                          shade.streak_hash),
              face: {sdf, fringe, blush, ink? (textureInfo), softness, fringeRange, mask: '_FACE_MASK', inkWeight?: '_INK_W'},
              hair: {lock: texCoord, ring: {color, elevation, centre, width, soft, facing, mid, amount}, gradient, strands},
              flat: color; plate: texture}
-  mesh      {object, outline?: {width (m), color, region, widthAttribute?, normalAttribute?}, feature?: true, holdout?: true}
+  mesh      {object, outline?: {width (m), color, region, widthAttribute?, normalAttribute?, maxInward? (m)}, feature?: true,
+             holdout?: true}
+             (at line width w the surface moves inward by inward(w) = min(w, maxInward), or w without one, times the
+             vertex's factor, and the hull sits w - inward(w) outside the original surface: a thin shell's cap, half its
+             thickness, Michael's call I)
   (the skin's proxy normals, charkit.faceshade, are its NORMAL: they are the render's corner normals; _INK_W is where
   the face's drawn lines may show)
 """
@@ -273,7 +280,7 @@ def material_look(m):
         d['highlight'] = {'kind': 'streaks', 'centre': r6(g3(P['centre'])), 'elevation': P['elevation'],
                           'length': P['length'], 'jitter': P['jitter'], 'count': P['count'], 'duty': P['duty'],
                           'keep': P['keep'], 'amount': P['amount'], 'color': r6(np.array(_lin3(P['color']))),
-                          'facing': P['facing'], 'facingBlend': 0.5}
+                          'facing': P['facing'], 'facingBlend': 0.5, 'hash': P.get('hash', 'sin')}
     if 'ldir_head' in N:                                           # faceshade.material
         tex = [n for n in N if n.type == 'TEX_IMAGE']
         sdf = next(n for n in tex if any(l.to_node.type == 'MATH' and l.to_node.operation == 'SUBTRACT'
@@ -664,10 +671,10 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
         co, surf = xf(E.co), xf(E.surf)
         if ob.name in roles['holdouts'] and head_info is None:
             head_info = head_frame(ob)
-        # outline: width (m), colour, per-vertex factor. Blender's SOLIDIFY (offset 1, negative thickness) draws the surface
-        # moved inward (surf) and the hull at the original surface (co): hull direction = co - surf where it moved
+        # outline: width (m), colour, per-vertex factor, the inward move's cap. Blender's SOLIDIFY (negative thickness)
+        # draws the surface moved inward (surf) and the hull outside it: hull direction = co - surf where it moved
         om = _outline_mod(ob)
-        outline, ow = None, None
+        outline, ow, cap_in = None, None, None
         cn = E.loop_n @ Nm.T
         bad = np.linalg.norm(cn, axis=1) < 1e-6                 # degenerate corners (the mouth cavity's folds)
         cn = unit(cn)
@@ -687,6 +694,13 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
             d = co - surf
             moved = np.linalg.norm(d, axis=1) > 1e-7
             hulln = np.where(moved[:, None], unit(d), vavg)
+            # a thin shell's cap (shade.outline), exported when the scene's outline is capped as it says (a scene saved
+            # before call I has offset 1: its surface moved the whole width, and no cap is exported)
+            if ROOT not in sys.path:
+                sys.path.insert(0, ROOT)
+            from charkit import shade
+            cap, w_ = shade.line_cap(ob), abs(float(om.thickness))
+            cap_in = round(float(cap), 7) if cap and abs(w_ * (1 + om.offset) / 2 - min(w_, cap)) < 1e-6 else None
         # skin weights: top four bones
         bone_w = {g: w for g, w in E.groups.items() if g in idx}
         if not bone_w and ob.parent_type == 'BONE' and ob.parent_bone in idx:
@@ -782,6 +796,8 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
             mx = {'object': ob.name}
             if outline:
                 mx['outline'] = {'width': outline[0], 'color': list(outline[1]), 'region': ob.get('ck_line_region', 'skin')}
+                if cap_in is not None:
+                    mx['outline']['maxInward'] = cap_in
                 if ow is not None:
                     mx['outline']['widthAttribute'] = '_OUTLINE_WIDTH'
                 if need_hull:
