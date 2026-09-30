@@ -194,12 +194,47 @@ IoU held over 0.53.
 WARN, profile 0.55 WARN, three-quarter under 0.1 FAIL; fit C's state on round 6's body: back 0.75, profile 0.75,
 attach, sweep, hang and clearance PASS). The flap band at fit G: two main risers of 0.165 against the design's
 0.15-0.16, treads 0.09 against 0.10, but the band reads heavy (median 0.32 against 0.19): band 0.13 was the fit's last
-move toward it. A box build of fit F's state (`charkit/spec/_skirt_try.json`, untracked; out
-`charkit/out/skirt_try`) was running at the checkpoint: its QA is the first Blender check of the template.
+move toward it. A box build of fit F's state is recorded below.
+
+**The box build of fit F's state** (`charkit/out/skirt_try`, build box, the tree before the geometry-truth merge, from the
+untracked `charkit/spec/_skirt_try.json`) built and QA'd cleanly: the Blender path takes the template flaps, their band
+material, no subdivision, the skirt's geometric band, the tuck and 18 pleats. Round 6 (its box QA and its bundle
+measured with skirtqa) against it:
+
+| check | round 6 | fit F, box |
+|---|---|---|
+| flap_back_iou L / R | 0.616 / 0.625 WARN | 0.800 / 0.803 PASS |
+| flap_back_width L / R | 0.117 / 0.114 FAIL | 0.070 / 0.071 WARN |
+| flap_back_attach L / R | 0.122 / 0.132 FAIL | 0.014 PASS / 0.057 WARN |
+| flap_back_hang L / R | -9.9 / 9.8 FAIL | 0.5 / -0.5 PASS |
+| flap_profile_iou L / R | 0.248 FAIL | 0.705 PASS |
+| flap_profile_width | 0.181 FAIL | 0.085 FAIL |
+| flap_profile_attach | 0.08 WARN | 0.014 PASS |
+| flap_profile_hang | -44.8 FAIL | -4.9 WARN |
+| flap_profile_sweep | -0.946 FAIL | 0.047 / 0.014 PASS |
+| flap_profile_clear | 0.739 FAIL | 0.165 WARN |
+| flap_front_iou L / R | 0.668 / 0.666 WARN | 0.664 / 0.661 WARN |
+| flap_front_width L / R | 0.058 / 0.060 WARN | 0.109 / 0.112 FAIL |
+| flap_three_quarter_iou L / R | 0.144 / 0.470 FAIL | 0.047 / 0.042 FAIL |
+| hemband_skirt_steps / step / height | 13 / None / 0.118 FAIL | -1 PASS / 0.052 FAIL / 0.089 FAIL |
+| hemband_overskirt_panel_L steps / step / height | -2 WARN / None / -0.066 FAIL | -2 WARN / None / 0.118 FAIL |
+| skirt_back_flap_gap | 0.348 FAIL | 0.029 PASS |
+| skirt_back_gap_dark | 0.216 FAIL | 0.0 PASS |
+| skirt_back_outline | 0.051 FAIL | 0.044 WARN |
+| skirt_tuck_jut | 0.081 FAIL | 0.0 PASS |
+| skirt_pleats | 4.5 FAIL (19 against 14.5) | 0.5 PASS |
+| body_profile_leg_outline | (INFO) | 0.014 PASS |
+| held: every hem and hem_mid | PASS | PASS (front 0.038, back 0.024, three-quarter 0.052, profile -0.028) |
+| held: skirt overhang L / R / mirror | PASS | PASS (0 / 0 / 0) |
+| piece_overskirt_panel_L / R | 0.421 FAIL / 0.619 WARN | 0.444 FAIL / 0.527 WARN |
+| piece_skirt | 0.767 PASS | 0.770 PASS |
+
+The flaps' band still reads wrong there (fit F had four treads and a 0.17 L band; fit G's three treads and 0.13 are
+the next state), and the three-quarter view stays FAIL (its drawn tails disagree with the other views).
 
 **Next steps, in order:**
-1. Record the box build's QA (`charkit/out/skirt_try/qa/qa.json`) and check the template in Blender (materials, no
-   subdivision, the band) and `python -m charkit evaldrift --stages` on it.
+1. Rebuild on the merged tree (geometry truth) and run `python -m charkit evaldrift --stages` on it (the fit F box
+   build predates the merge).
 2. Write the best state into the three specs: `python charkit/out/skirt_scratch/make_garments.py
    charkit/out/skirt_scratch/fitG_best.json /tmp/g.json` then `apply_spec.py /tmp/g.json charkit/spec/clawd.json
    charkit/spec/clawd_body_pieces.json charkit/spec/clawd_body.json`; delete `_skirt_try.json`.
