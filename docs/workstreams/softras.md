@@ -280,6 +280,10 @@ no-overlap cases, with length-weighted samples if it's used.
   --into pipeline-3d`, expected to move no check (nothing on the build path imports softras or softfit; fitkit's
   default is unchanged and only the fit commands import it).
 - Merged into pipeline-3d as ba51e43 (gate --carry); round 3 on top (the chamfer, call A, the sleeve).
+- **Round 3 gate PASS** (d18d8cf into pipeline-3d ba51e43, policy K): nothing blocks, 0 items reported, no candidate
+  build (4 files changed, none the baseline build read), 70 test files 0 failing (test_softras.py's chamfer test among
+  them). Report charkit/out/gate/gate_tool-softras_d18d8cf_into_ba51e43.md. Round 3's decisions: soft occlusion before
+  builder derivatives (the sleeve's evidence); keep the chamfer opt-in.
 - **Gate PASS** (161f9af into pipeline-3d 3a0ad37, policy K): nothing blocks, 0 items reported; no candidate build
   (6 files changed, none among the 560 the baseline build read); 70 test files, 0 failing, test_softras.py and
   test_fitkit.py among them on the build box. Report charkit/out/gate/gate_tool-softras_161f9af_into_3a0ad37.md.
