@@ -8,6 +8,8 @@ silhouettes from the same start.
     python -m charkit.render.softfit scene [--spec SPEC] [--out DIR]      # the flap's frozen scene (once, ~minutes)
     python -m charkit.render.softfit fit cd|grad [--start g|far] [--s 0.5] [--anneal 2,1] [--sweeps 12|0]
                                                                           # a fit from a named start -> OUT/fit_*.json
+    python -m charkit.render.softfit fitkit fd|grad [--start g|far]       # fitkit.optimise on the same IoUs, its
+                                                                          # finite differences or its gradient path
     python -m charkit.render.softfit scan [--start g]                      # the objective along each knob -> scan.json
     python -m charkit.render.softfit page                                  # the review page, OUT/index.html
 
@@ -204,8 +206,9 @@ class Flaps:
             out[side] = z
         return out
 
-    def render(self, geo, s=0.5, grad=False, soft=True):
-        """-> (J, {term: iou}, {side: dJ/dV} or None). soft False: the hard silhouettes (the QA's) for J."""
+    def render(self, geo, s=0.5, grad=False, soft=True, per_term=None):
+        """-> (J, {term: iou}, {side: dJ/dV} or None). soft False: the hard silhouettes (the QA's) for J. per_term (a
+        dict, with grad): filled with {term: {side: d iou / dV}}."""
         t = time.time()
         J, ious = 0.0, {}
         dV = {side: np.zeros_like(V) for side, (V, _) in geo.items()} if grad else None
@@ -226,7 +229,10 @@ class Flaps:
                 ious[name] = iou
                 J += w * (1 - iou)
                 if grad:
-                    dV[side] += S_.backward(-w * g)
+                    d_ = S_.backward(g)
+                    dV[side] -= w * d_
+                    if per_term is not None:
+                        per_term[name] = {side: d_}
         self.n['soft' if soft else 'hard'] += 1
         self.n['render_s'] += time.time() - t
         return J, ious, dV
@@ -235,20 +241,22 @@ class Flaps:
         J, ious, _ = self.render(self.build(x), soft=False)
         return J, ious
 
-    def value_and_grad(self, x, s=0.5, h=0.01, info=None):
+    def value_and_grad(self, x, s=0.5, h=0.01, info=None, per_term=False):
         """the soft J at x and dJ/dx: dJ/dV from the silhouettes, dV/dx by central differences of the builder at h steps,
         a vertex whose two one-sided differences disagree (the builder re-sampled its rows or columns there: a
         topology event) taking the smaller; a knob whose builds change the faces on both sides by differences of the
-        soft J itself."""
+        soft J itself. per_term: info['terms'] = {term: d iou / d step} as well."""
         geo = self.build(x)
-        J, ious, dV = self.render(geo, s=s, grad=True)
+        pt = {} if per_term else None
+        J, ious, dV = self.render(geo, s=s, grad=True, per_term=pt)
+        gt = {t: np.zeros(len(x)) for t in (pt or {})}
         self.n['grad'] += 1
         g = np.zeros(len(x))
         how = []
         for k, (name, _, step, _, _) in enumerate(self.params):
             e = np.zeros(len(x)); e[k] = h * step
             gp, gm_ = self.build(x + e), self.build(x - e)
-            tot, ok = 0.0, True
+            tot, ok, ds = 0.0, True, {}
             for side, (V0, T0) in geo.items():
                 Vp, Tp = gp[side]; Vm, Tm = gm_[side]
                 sp = Vp.shape == V0.shape and np.array_equal(Tp, T0)
@@ -264,14 +272,20 @@ class Flaps:
                     ok = False
                     break
                 tot += float((dV[side] * d).sum())
+                ds[side] = d
             if ok:
                 g[k] = tot * step; how.append('chain')        # (d/d step units)
+                for t, dd in (pt or {}).items():
+                    gt[t][k] = step * sum(float((dv * ds[sd]).sum()) for sd, dv in dd.items())
             else:
-                Jp = self.render(gp, s=s)[0]; Jm = self.render(gm_, s=s)[0]
+                Jp, ip, _ = self.render(gp, s=s); Jm, im, _ = self.render(gm_, s=s)
                 g[k] = (Jp - Jm) / (2 * h); how.append('loss')
+                for t in gt:
+                    gt[t][k] = (ip[t] - im[t]) / (2 * h)
         if info is not None:
             info['how'] = how
             info['ious'] = ious
+            info['terms'] = gt
         return J, g
 
     def pieces(self, x):
@@ -394,6 +408,69 @@ def run_fit(method, start='g', out=OUT, s=0.5, anneal=(), sweeps=12, log=print):
     p = os.path.join(out, 'fit_%s_%s.json' % (tag, start))
     json.dump(rec, open(p, 'w'), indent=1, default=float)
     log('%s from %s: J %.4f -> %.4f in %.1f s; %s -> %s' % (method, start, J0, J1, wall, n, p))
+    return rec
+
+
+# ------------------------------------------------------------------------------------------------------------ fitkit
+class FlapChecks:
+    """the flap's IoUs as a fitkit evaluator (fitkit's worker protocol), on the knobs spec['flap'][knob]:
+    checks(spec, group, fine): fine the QA's hard IoUs, else the soft ones (the smooth reading, as facefit's jitter is
+    for the face); jacobian(spec, group, names): the soft IoUs and d IoU / d knob through the chain (the gradient
+    path, fitkit.optimise(gradient=True))."""
+
+    def __init__(self, path=os.path.join(OUT, 'flap_scene.pkl'), s=0.5):
+        self.F, self.s = Flaps(path), s
+
+    def x(self, spec):
+        f = spec.get('flap', {})
+        return np.array([float(f[k]) for k, _, _, _, _ in self.F.params])
+
+    def checks(self, spec, group, fine=False):
+        geo = self.F.build(self.x(spec))
+        _, ious, _ = self.F.render(geo, s=self.s, soft=not fine)
+        return {k: {'value': v, 'status': 'PASS'} for k, v in ious.items()}
+
+    def jacobian(self, spec, group, names):
+        info = {}
+        self.F.value_and_grad(self.x(spec), s=self.s, info=info, per_term=True)
+        col = {k: i for i, (k, _, _, _, _) in enumerate(self.F.params)}
+        steps = {k: st for k, _, st, _, _ in self.F.params}
+        D = {t: {n: float(g[col[n]]) / steps[n] for n in names} for t, g in info['terms'].items()}   # per knob unit
+        return {k: {'value': v, 'status': 'PASS'} for k, v in info['ious'].items()}, D
+
+
+def run_fitkit(start='g', gradient=False, out=OUT, s=0.5, log=print):
+    """fitkit.optimise on the flap's IoUs (each term 'ratio' at tol 0.1: (IoU - 1) / 0.1, weighted by fit G's view
+    weight; no protection: every IoU may trade), finite-difference Jacobians or the gradient path, from a named start.
+    -> its record, OUT/fitkit_{fd|grad}_START.json."""
+    from charkit import fitkit
+    ev = FlapChecks(os.path.join(out, 'flap_scene.pkl'), s)
+    F = ev.F
+    knobs = [fitkit.Knob(k, ('flap', k), None, st, (lo, hi), 'flap') for k, _, st, lo, hi in F.params]
+    x0 = F.start(start)
+    for k, v in zip(knobs, x0):
+        k.default = float(v)                             # (the regulariser pulls toward the start)
+    terms = [fitkit.Term(name, None, 'ratio', 0.1, name, 'sheet', view, 'flap', weight=w)
+             for name, view, side, ov, m, w in F.terms]
+    spec = {'flap': {k.name: float(v) for k, v in zip(knobs, x0)}}
+    pool = fitkit.Pool('charkit.render.softfit:FlapChecks', (os.path.join(out, 'flap_scene.pkl'), s), workers=1)
+    pool.map([(spec, 'flap', True), (spec, 'flap', False)])  # (warm)
+    t = time.time()
+    fitted, info = fitkit.optimise(pool, spec, knobs, terms, 'flap', protect=False, gradient=gradient,
+                                   log=lambda *a: None)
+    wall = time.time() - t
+    x = np.array([fitted['flap'][k.name] for k in knobs])
+    J0, i0 = F.hard(x0)
+    J1, i1 = F.hard(x)
+    rec = dict(method='fitkit ' + ('gradient' if gradient else 'fd'), start=start, s=s, wall=wall,
+               evaluations=info['evaluations'], phases=info['phases'], knobs=[k.name for k in knobs], x0=x0.tolist(),
+               x=x.tolist(), J0=J0, J=J1, iou0=i0, iou=i1, pieces0=F.pieces(x0), pieces=F.pieces(x),
+               history=[dict(t=None, J=h['cost']) for h in info['history']])
+    p = os.path.join(out, 'fitkit_%s_%s.json' % ('grad' if gradient else 'fd', start))
+    json.dump(rec, open(p, 'w'), indent=1, default=float)
+    log('fitkit %s from %s: J %.4f -> %.4f in %.1f s, %d evaluations %s -> %s' % (
+        'gradient' if gradient else 'fd', start, J0, J1, wall, info['evaluations'],
+        {k: v['evaluations'] for k, v in info['phases'].items()}, p))
     return rec
 
 
@@ -576,6 +653,8 @@ if __name__ == '__main__':
         build_scene(a.spec, a.out)
     elif a.cmd == 'fit':
         run_fit(a.method, a.start, a.out, a.s, tuple(float(v) for v in a.anneal.split(',') if v), a.sweeps or None)
+    elif a.cmd == 'fitkit':
+        run_fitkit(a.start, a.method == 'grad', a.out, a.s)
     elif a.cmd == 'scan':
         F = Flaps(os.path.join(a.out, 'flap_scene.pkl'))
         json.dump(scan(F, F.start(a.start), s=a.s), open(os.path.join(a.out, 'scan.json'), 'w'), default=float)
