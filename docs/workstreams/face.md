@@ -461,15 +461,35 @@ as numbers: ours is narrower than the design at t 0.9 (w90 0.055 against 0.067),
 The design's jaw edge in 3D, triangulated from its front V and its three-quarter jaw line (`headfit.jaw_depth`), recedes
 about as fast as it widens (0.9-1.1 L back per L out) up to where the hair covers it (z -0.27).
 
-**The construction (`headgeom.jaw_envelope`, UnderJaw; the mesh only: the sections are bit-identical, so the hull's face
-carve, the eyes and the hair read the same).**
-- the rim's depth: per row, the outline made to pass through the design's edge point (x_V, y_J), y_J the design's
-  recession placed at our chin's own depth: brought out radially where the point is outside, held behind a prow
-  (y from the midline's front to the edge as s^1.5, a soft max) where inside. A straight wedge put a ridge down the
-  chin that the cage crumpled; a radial pull-in pinched the front into a beak (both dropped);
-- the side: UnderJaw's band top per column, raised outside the mouth block's columns (+-33 degrees) to 0.04 L over the
-  jaw's angle (-0.215), so the lateral columns run down the face's side to the rim, back along the underside, down the
-  neck, as the chin's columns do; the pocket reaches round the sides to the jaw's angle (`phi_end`). A per-row carve of
-  the sections behind the edge (tried first) left fins where the neck met the jaw and folds along the junction: the
-  underside there needs the band's rows;
-- style key `face.jaw_edge` ('design' in DEFAULT: both profiles).
+**The construction (`headgeom.jaw_envelope`; the mesh only: the sections are bit-identical to jaw_4's, so the hull's
+face carve, the eyes and the hair read the same).** Per row up to the jaw's angle (-0.215, where the design's edge reaches
+the side's depth), the outline made to pass through the design's edge point (x_V, y_J), y_J the design's recession
+(`headgeom.jaw_depth`: a quadratic through the chin point, D = 1.14 x - 1.24 x^2 on Clawd) placed at our chin's own depth
+over x 0.06-0.16 (`EDGE_REF`):
+- brought out radially where the point lies outside the outline (rows -0.33 to -0.30: the rim had sat 0.02-0.05 L too far
+  back where the V crosses the neck's edge);
+- where it lies inside (the rows near the tip: our chin's flat front), the front held behind a prow from the midline's
+  front to it, y as (|x| / x_V)^1.5, a soft max (`EDGE_PROW`, `EDGE_SOFT`); faded in over x_V 0.03-0.07 (`EDGE_TIP`);
+- style key `face.jaw_edge` ('design' in DEFAULT: both profiles; None: the rim on the envelope's front as before).
+
+The prow is what moves the checks: without it (the bump alone) the hollow stays 0.0097 and the chin 110 / 0.37.
+
+Tried and dropped (don't retry as they were):
+- a straight wedge (EDGE_PROW 1): a ridge down the chin's midline that the cage crumpled; 1.2: hollow 0.0055, chin 110;
+- a radial pull-in near the tip: pinched the chin's front into a beak;
+- the side carved per row behind the edge (the face's front wedge and the neck's own section): sharp (turn 1.2, round
+  0.03 L) it scalloped the jaw's silhouette row by row and left fins where the neck met the jaw; soft (0.8, 0.08) and
+  only over the band's top it changed nothing measured (the soft chamfer under the edge stays in view in three-quarter,
+  so no line draws there); reaching into the band it fixed the notch (0.0075) but folded the neck's side (12-30 edges
+  over 90 degrees);
+- the side as UnderJaw's pocket (`EDGE_BAND`, kept, off): the band's top raised per column outside the mouth block
+  (`UnderJaw(top=...)`, `phi_end`), so the side's columns would run face, rim, underside, neck as the chin's do. The
+  side's columns found no rim: U is parametrised round the neck's axis, and going inward along a side column the angle
+  sweeps across a rim that climbs 0.08 L, so the underside steps and the continuity test drops the pocket; the rows then
+  twisted along the neck's sides (6-30 edges over 90 degrees), and a small raise (0.02-0.03 L) made the three-quarter's
+  jaw line fade out past du 0.2. A piecewise row map (the rim held to the band's top row, `EDGE_PIECEWISE`) twisted them
+  more.
+
+**Cage health** (`tools/face_labs`: the fitted cage in the jaw region, z -0.45 to -0.25, and its subdivision): jaw_4 18
+folded corners, 0 edges over 90 degrees (max 72.5); now 22 and 2 (93: the concave crease where the jaw's underside
+meets the neck's side, x 0.13, z -0.315, where jaw_4's sharpest are too).
