@@ -583,7 +583,7 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
     if smooth > 0:
         from scipy.ndimage import distance_transform_edt
         d = distance_transform_edt(~V) - distance_transform_edt(V)          # signed distance in voxels (+ outside)
-        d = det.gaussian(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h))
+        d = det.gaussian(d.astype(np.float32), (0.3 * smooth / A.h, 0.3 * smooth / A.h, smooth / A.h), mode='reflect')
         Vs = (d < 0) & plain
         if not restore:
             return Vs
@@ -656,7 +656,7 @@ def _shell(V):
 
 def _normals(V, ix, iy, iz, sigma=1.5):
     """outward unit normals at voxels, from the gradient of the occupancy blurred `sigma` voxels -> (N, 3)."""
-    G = det.gaussian(V.astype(np.float32), sigma)
+    G = det.gaussian(V.astype(np.float32), sigma, mode='reflect')
     I = [ix, iy, iz]
     n = []
     for ax in range(3):

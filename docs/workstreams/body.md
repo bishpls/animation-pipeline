@@ -5,6 +5,10 @@
 The branch, gates, numbers, open items and gotchas are in `docs/workstreams/garments.md` (its checkpoint section);
 the body and the garments share `tool/body`.
 
+Round 5 (2026-09-30), body-side: the boots are a template on the leg joints (the two ankle joints made mirror images
+about the legs' midline, x 0.0107 L: the body's legs are symmetric about it, not about 0), hiding the leg and foot
+inside; the top eases onto the waistband. Details in garments.md's round 5 checkpoint.
+
 Round 4 (2026-09-30), body-side: the collar now seats on the design's neckline per azimuth (below tool/face's cut, so
 it holds on their slender neck); the skirt clears the hands, forearms and wrist bands at bind (`clear_hands`, tool/rig's
 finding). Details in garments.md's round 4 checkpoint.

@@ -11,7 +11,7 @@ power-of-two grid far coarser than an ulp:
 
     cs(az)                  cos and sin of an angle in degrees: numpy's values at multiples of 90 (QUADRANTS), else
                             libm's snapped to 2^-40
-    gaussian(x, sigma)      a separable Gaussian blur (scipy.ndimage.gaussian_filter's kernel and 'nearest' edges),
+    gaussian(x, sigma)      a separable Gaussian blur (scipy.ndimage.gaussian_filter's kernel, order and edge modes),
                             as a fixed sequence of elementwise multiply-adds with snapped weights
     snap(x, q)              x rounded to multiples of q (a power of two, so the result is exact)
     dot3(P, v)              rows of P dotted with a 3-vector, term by term (not BLAS)
@@ -62,23 +62,29 @@ def kernel(sigma, truncate=4.0):
     return np.array([float(snap(x / s, KERNEL_Q)) for x in w])
 
 
-def gaussian(x, sigma, mode='nearest', dtype=np.float32):
-    """a separable Gaussian blur of an N-d array (sigma a number or one per axis; 0 skips an axis), computed in `dtype`
-    as elementwise operations in a fixed order (the centre tap, then each symmetric pair summed and weighted, outward)
-    -> dtype array. Only 'nearest' edges (scipy's default for the hull's uses). Within a float32 ulp or two of
-    scipy.ndimage.gaussian_filter, and the same bits on every machine."""
-    if mode != 'nearest':
-        raise ValueError("det.gaussian: only mode='nearest'")
+PAD = {'reflect': 'symmetric', 'nearest': 'edge'}      # scipy.ndimage's edge modes as np.pad's
+
+
+def gaussian(x, sigma, mode='reflect', dtype=np.float32):
+    """a separable Gaussian blur of an N-d array (sigma a number or one per axis; 0 skips an axis), as
+    scipy.ndimage.gaussian_filter computes it: per axis, the centre tap then each symmetric pair summed and weighted,
+    accumulated in float64, the axis's result stored in `dtype` before the next -> dtype array. Edges as scipy's
+    'reflect' (its default: d c b a | a b c d) or 'nearest' (a a a | a b c d).
+    Elementwise IEEE operations in a fixed order and snapped weights, so the same bits on every machine; scipy's own
+    sums (float64 too) differ only in the weights' last bits, so a threshold on the result falls where scipy's does
+    (accumulated in float32, 5,502 voxels of the hull's smoothing changed sign, 2026-09-30)."""
+    if mode not in PAD:
+        raise ValueError("det.gaussian: mode 'reflect' or 'nearest'")
     x = np.asarray(x, dtype)
     sig = [float(sigma)] * x.ndim if np.ndim(sigma) == 0 else [float(s) for s in sigma]
     for ax, sg in enumerate(sig):
         if sg <= 0:
             continue
-        w = kernel(sg).astype(dtype)
+        w = kernel(sg)
         r = len(w) // 2
         pad = [(0, 0)] * x.ndim
         pad[ax] = (r, r)
-        xp = np.pad(x, pad, mode='edge')
+        xp = np.pad(x, pad, mode=PAD[mode]).astype(np.float64)
         n = x.shape[ax]
 
         def tap(k):
@@ -91,7 +97,7 @@ def gaussian(x, sigma, mode='nearest', dtype=np.float32):
             np.add(tap(r - k), tap(r + k), out=pair)
             np.multiply(pair, w[r - k], out=pair)
             np.add(out, pair, out=out)
-        x = out
+        x = out.astype(dtype)
     return x
 
 

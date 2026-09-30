@@ -18,6 +18,27 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
+    # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
+    ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
+     "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
+    ('body_*_skirt_width', '854776f', "no row free of hands in both figures: the design's widest free row against ours "
+     "on that same row (each figure's own widest over the design's free rows had sat at different heights)"),
+    ('piece_*_hang', '854776f', "the reach against the drawn piece's lowest point (the outfit graph's extents), not the "
+     "drawn chain's last joint (a skeleton ends short of the tip by the half-width: 0.13 L on the flaps)"),
+    ('body_front_skirt_overhang_*', '854776f', "new: the skirt's top beside the band, per side and left against right, "
+     "beyond the design's (a ledge jutting out sideways)"),
+    ('body_profile_leg_back', '854776f', "new: the legs' back edge in profile, its largest bump against the design's"),
+    # tool/body round 5 (charkit/detailqa.py): Michael's review of round 4's midriff and boots
+    ('body_*_torso_jump_*', '843922c', "new: the torso outline's largest step from under the bust to the skirt, "
+     "outward and inward, beyond the design's (the top and the band sliced and shifted)"),
+    ('body_*_midriff_gap', '843922c', "new: the top's hem against the band's top: a see-through gap or the top over "
+     'the band'),
+    ('body_front_panel_edge', '843922c', "new: the cream panel's lower part: its outline's roughness, fragments and "
+     "holes against the design's (a torn edge)"),
+    ('boot_*', '843922c', "new: the boots' ankle jog and bend, the ankle's folds front and back, the heel block, doubled "
+     'outline strokes, the soles in 3D (flat, twist) and the left/right mirror'),
+    ('body_*_boot_step_*', '196eace', "rows whose outline ends on the cuff (orange) left out: the cuff's rounded "
+     "lower edge over the narrower shaft had counted as a 0.02 L step (round 5's boots meet the cuff at its edge)"),
     ('body_*_leg_gap', 'd35fbaf', "new: rows over the lower legs and boots where the design's legs stand apart and ours join (a bridge)"),
     ('body_*_boot_step_*', 'd35fbaf', "new: each boot's outline's largest row-to-row jump beyond the design's (the shaft/foot seam)"),
     ('body_*_skirt_aline', 'd35fbaf', "new: the skirt's width near its hem over its widest row against the design's (a bubble)"),

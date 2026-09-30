@@ -262,7 +262,7 @@ def as_sdf(G, blur=0.0):
         D = signed_edt(G.data, G.h)
     if blur > 0:
         from . import det                   # the same bits on every machine: marching cubes thresholds this
-        D = det.gaussian(D, blur)
+        D = det.gaussian(D, blur, mode='nearest')
     return G.like(D.astype(np.float32))
 
 
