@@ -54,6 +54,45 @@ def test_junction_gap_and_overlap():
     assert dq.junction(lab2, dep, [1], [2], PPL, 1.0, range(40))['over'] == 0.04
 
 
+def test_skirt_overhang_finds_a_ledge_beside_the_band():
+    # a band 60 px wide on rows 20-40; a skirt from row 36 (under the band's lower rows) flaring below it; on the image's
+    # left the skirt's top juts 12 px past the band level with it (a ledge), on the right it stays inside
+    band = rect((80, 200), 20, 40, 70, 130)
+    skirt = np.zeros((80, 200), bool)
+    for r in range(36, 80):
+        w = 28 + (r - 36) // 2
+        skirt[r, 100 - w:100 + w] = True
+    skirt[34:40, 58:70] = True
+    o = dq.skirt_overhang(band, skirt, PPL)
+    assert o['left'] == 0.12 and o['right'] == 0.0, o
+    C = dq.overhang_checks(o, dict(left=0.0, right=0.0))
+    assert C['body_front_skirt_overhang_R']['status'] == 'FAIL' and C['body_front_skirt_overhang_L']['status'] == 'PASS'
+    assert C['body_front_skirt_overhang_mirror']['value'] == 0.12
+    same = dq.overhang_checks(dict(left=0.05, right=0.05), dict(left=0.08, right=0.08))
+    assert all(v['status'] == 'PASS' for v in same.values()), same
+
+
+def test_leg_back_bump_against_the_design():
+    # profile class images: a face to the image's left of the hair at the eye line; a leg (skin) whose back edge runs
+    # straight, and ours with a 10 px bump behind it on a few rows and the whole leg 3 px further back
+    win = dict(x=2.0, top=1.0, bottom=-4.5)
+    H, W = int(5.5 * PPL), 400
+    z = win['top'] - (np.arange(H) + 0.5) / PPL
+    def fig(shift=0, bump=0):
+        c = np.zeros((H, W), int)
+        eye = np.abs(z) < 0.2
+        c[eye, 150:180] = dq.CL['skin']; c[eye, 180:230] = dq.CL['hair']
+        leg = (z <= -2.6) & (z >= -4.0)
+        c[leg, 170 + shift:230 + shift] = dq.CL['skin']
+        b = (z <= -2.8) & (z >= -2.9)
+        c[b, 230 + shift:230 + shift + bump] = dq.CL['skin']
+        return c
+    back = dq.leg_back(fig(), PPL, win=win)
+    assert len(back) > 100 and abs(max(back.values()) - 2.29) < 1e-6, max(back.values())
+    C = dq.leg_back_check(fig(3, 10), fig(), PPL, win=win)
+    assert C['value'] == 0.1 and C['offset'] == 0.03 and C['status'] == 'FAIL', C
+
+
 def test_outline_roughness_staircase_against_straight():
     straight = np.zeros((100, 200), bool)
     for c in range(200):

@@ -18,6 +18,16 @@ Checks (qa3d part 'details'; lengths in L, angles in degrees):
   body_{front,profile}_midriff_gap
         the top's hem against the waistband per column across the torso: a see-through gap between them (nothing, or
         something behind them), or the top hanging over the band; the larger
+  body_front_skirt_overhang_{L,R}, body_front_skirt_overhang_mirror
+        the skirt's top against the band, per side: level with the band's lower half, how far the skirt's outermost
+        pixel stands past the band's outer edge (a ledge where the skirt juts out sideways; the design's skirt starts
+        under the band), beyond the design's on that side; and the two sides' difference beyond the design's (a
+        lopsided skirt: Michael's review of round 5, her right jutting out past the band and her left meeting it)
+  body_profile_leg_back
+        the legs' back edge in profile (the skin's run per row, from under the shorts to the boot cuffs; LEG_BAND): its
+        largest outward bump against the design's once their median offset is taken out (a pointed bump behind the
+        thigh, Michael's review of round 5: the hull's skin at the thigh's top rows ran the whole side run behind the
+        leg, tool/hull-limbs)
   body_front_panel_edge
         the cream panel's lower part above the band: its outline's roughness (how far it strays from its own smoothed
         outline: a staircase or a torn edge) beyond the design's, with its fragments and holes against the design's
@@ -61,6 +71,7 @@ TORSO_OBJECTS = ('top', 'waistband')                   # ours
 CANDIDATES = ('top', 'bodice_panel', 'waistband', 'bow', 'bow_tail_L', 'bow_tail_R', 'collar', 'sleeve_L', 'sleeve_R',
               'sleeve_cuff_L', 'sleeve_cuff_R', 'cuff_L', 'cuff_R', 'skirt', 'skirt_panel', 'overskirt_panel_L',
               'overskirt_panel_R')                     # the drawn pieces an edge pixel of the torso band can belong to
+LEG_BAND = (-2.6, -4.2)             # L from the eye line: the rows the legs' back edge is looked for in profile
 CHORD = 0.08                        # L: half the chord a scrunch's bump is measured against
 SCRUNCH_ZONE = (0.30, 0.64)         # fraction of the boot's height from its top: where the ankle's folds are looked for
                                     # (above the heel's top corner, at 0.72 of the design's)
@@ -79,6 +90,8 @@ LIMITS = {                          # (pass within, warn within); else fail
     'torso_jump': (0.01, 0.02),
     'midriff_gap': (0.005, 0.015),
     'panel_edge': (0.01, 0.02),
+    'overhang': (0.02, 0.04),
+    'leg_back': (0.03, 0.06),
     'ankle_jog': (0.015, 0.03),
     'ankle_bend': (4.0, 8.0),
     'scrunch': (0.012, 0.025),
@@ -664,6 +677,22 @@ def measure(B, design, out=None):
                                           "outline) beyond the design's (L); its fragments and holes against the "
                                           "design's (a torn or stepped edge)" % 0.25}
 
+    if 'front' in dv:
+        sk = [masks.get('front__' + p) for p in ('skirt', 'skirt_panel')]
+        dsk = np.logical_or.reduce([m for m in sk if m is not None]) if any(m is not None for m in sk) else None
+        a = skirt_overhang(_members(O['front']['lab'], idx, pm.get('waistband', [])),
+                           _members(O['front']['lab'], idx, [m for p in ('skirt', 'skirt_panel') for m in pm.get(p, [])]),
+                           ppl)
+        b = skirt_overhang(masks.get('front__waistband'), dsk, ppl)
+        if a and b:
+            T['skirt_overhang'] = dict(ours=a, design=b)
+            C.update(overhang_checks(a, b))
+
+    if 'profile' in dv:
+        lb = leg_back_check(O['profile']['cls'], dv['profile']['cls'], ppl)
+        if lb:
+            C['body_profile_leg_back'] = lb
+
     # ---- the boots, per view
     boots = {}
     for side in ('L', 'R'):
@@ -793,6 +822,89 @@ def measure(B, design, out=None):
                                              "about the boots' shafts' midline (x %.4f L), in place: IoU" % (mid / L)}
     T['boots'] = {'%s_%s' % k: None if v[0] is None else dict(top=v[0][1], bottom=v[0][2]) for k, v in boots.items()}
     return T, C
+
+
+def skirt_overhang(band, skirt, ppl):
+    """the skirt's top beside the band per side of the image: the band's outer edge (its outermost pixel per row over its
+    lower half, the median), and over those rows down to the band's lowest row at that edge, the skirt's outermost pixel
+    past it (L, 0 when the skirt stays inside: it starts under the band): a ledge, the skirt jutting out sideways level
+    with the band. -> dict(left, right, rows (z top, bottom)) or None."""
+    if band is None or skirt is None or not band.any() or not skirt.any():
+        return None
+    rows = np.nonzero(band.any(1))[0]
+    low = rows[rows >= rows.max() - (rows.max() - rows.min()) // 2]
+    out = {}
+    for side, sgn in (('left', -1), ('right', 1)):
+        e = [(np.nonzero(band[r])[0].min() if sgn < 0 else np.nonzero(band[r])[0].max()) for r in low]
+        edge = float(np.median(e))
+        near = np.abs(np.arange(band.shape[1]) - edge) <= 0.1 * ppl
+        rb = int(np.nonzero(band[:, near].any(1))[0].max())
+        best = 0.0
+        for r in range(int(low.min()), rb + 1):
+            c = np.nonzero(skirt[r])[0]
+            if len(c):
+                best = max(best, sgn * ((c.min() if sgn < 0 else c.max()) - edge) / ppl)
+        out[side] = round(float(best), 4)
+        out.setdefault('rows', [round(float(WIN['top'] - (int(low.min()) + 0.5) / ppl), 3)]).append(
+            round(float(WIN['top'] - (rb + 0.5) / ppl), 3))
+    return out
+
+
+def overhang_checks(ours, design):
+    """skirt_overhang's for ours and the design's front view -> the checks (the image's left is her right)."""
+    if not ours or not design:
+        return {}
+    C = {}
+    for side, her in (('left', 'R'), ('right', 'L')):
+        v_ = round(max(0.0, ours[side] - design[side]), 4)
+        C['body_front_skirt_overhang_' + her] = {
+            'value': v_, 'status': grade('overhang', v_), 'ours': ours[side], 'design': design[side],
+            'note': "the skirt's top against the band on her %s side (the image's %s): how far the skirt stands past the "
+                    "band's outer edge, level with the band's lower half (L: a ledge jutting out sideways), beyond the "
+                    "design's" % ('right' if her == 'R' else 'left', side)}
+    a, b = abs(ours['left'] - ours['right']), abs(design['left'] - design['right'])
+    v_ = round(max(0.0, a - b), 4)
+    C['body_front_skirt_overhang_mirror'] = {
+        'value': v_, 'status': grade('overhang', v_), 'ours': round(a, 4), 'design': round(b, 4),
+        'note': "the skirt's overhang past the band, left against right: the sides' difference beyond the design's (L)"}
+    return C
+
+
+def leg_back(cls, ppl, band=LEG_BAND, win=WIN):
+    """in profile, the legs' back edge per row of `band`: the widest skin run's end away from the face (the face side
+    found as bodyqa.front_edge finds it: the skin at the eyes against the hair), runs under 0.1 L left out. -> {row: L
+    from the grid's left edge, + toward the back}."""
+    H, W = cls.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    eye = np.nonzero(np.abs(z) < 0.2)[0]
+    sk, hr = np.nonzero(cls[eye] == CL['skin'])[1], np.nonzero(cls[eye] == CL['hair'])[1]
+    face = -1 if (len(sk) and len(hr) and sk.mean() < hr.mean()) else 1
+    out = {}
+    for r in np.nonzero((z <= band[0]) & (z >= band[1]))[0]:
+        c = np.nonzero(cls[r] == CL['skin'])[0]
+        if not len(c):
+            continue
+        p = max(np.split(c, np.nonzero(np.diff(c) > 2)[0] + 1), key=len)
+        if len(p) >= 0.1 * ppl:
+            out[int(r)] = (p[-1] if face < 0 else -p[0]) / ppl
+    return out
+
+
+def leg_back_check(ocls, dcls, ppl, win=WIN):
+    """body_profile_leg_back from the profile's class images, ours and the design's (None when they share < 10 rows)."""
+    a, b = leg_back(ocls, ppl, win=win), leg_back(dcls, ppl, win=win)
+    rows = sorted(set(a) & set(b))
+    if len(rows) < 10:
+        return None
+    d = np.array([a[r] - b[r] for r in rows])
+    off = float(np.median(d))
+    k = int(np.argmax(d - off))
+    v_ = round(max(0.0, float(d[k] - off)), 4)
+    z = lambda r: round(float(win['top'] - (r + 0.5) / ppl), 3)
+    return {'value': v_, 'status': grade('leg_back', v_), 'at': z(rows[k]), 'offset': round(off, 4),
+            'rows': [z(rows[0]), z(rows[-1])],
+            'note': "the legs' back edge in profile against the design's, row by row from under the shorts to the "
+                    "boot cuffs: its largest outward bump (L) once the median offset between them is taken out"}
 
 
 def panel_edge(O, D, masks, ppl, idx, pm, near=0.25):
