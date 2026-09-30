@@ -944,6 +944,73 @@ Branch `tool/face5` from pipeline-3d d60486a (worktree `~/animation-pipeline-fac
 4. `charkit/subdiv.py` (faceeval, code_base, headfit) onto the exact `charkit/geom/subsurf.py`, its own commit, every
    face check before and after.
 
+**1. The mouth line doesn't bias the outline (measured; call 3).** `tools/face_labs/face5_lab.py mouth` masks the
+mouth's line out (the face region's holes inside a box round the mouth made skin: 306 / 193 px on the design's front /
+three-quarter, 288-338 on ours) on the design and on ours (f4_after), and reruns every jaw check: **0 checks move**
+(value and board/level alike), the design's taper curve moves 0.00000, its z0, w0, chin, hair top, chin_angle,
+tip_share, three-quarter top and hollow are identical. `face5_lab.py mouth_fit` paints the mouth out of the head sheet
+itself (1,023 px, front and three-quarter) and rereads the head fit's own contours (`headfit.contours`, via
+refcheck.face_design): w, mid and lead3 move 0.0 L. `test_half_widths_close_over_the_mouth` already pins it. No fix
+needed.
+
+**2. head_construction against head_turnaround** (`face5_lab.py agree`; both read as the QA reads the head sheet,
+calibrated on their eyes; `charkit/out/face5/agree/`). Where both show the face (z -0.18 to the chin):
+- as drawn they disagree: the construction's chin is 0.030 L lower (-0.393 against -0.363) and its outline 0.036 L
+  wider per side on average (rms 0.040, IoU of the regions 0.83); its chin_angle 127.5 (sheet 129.7), tip 0.575 (0.833:
+  the "more pointed" caution is its longer face, the V's own point is rounder);
+- **registered** (its rows scaled about the eye line so the chins meet, sz 0.923; its widths by one factor fitted over
+  those rows, sx 0.968) it reads the sheet's outline to **0.002 L rms** (0.038 unregistered);
+- over the sheet's hair-occlusion row (-0.179) the construction's face keeps widening to the cheek under the ear (0.31
+  L at z -0.07), where the sheet's rows are the side locks' tips and inner edges (0.23-0.29) and ours had followed them
+  in: ours 0.007-0.013 L narrower per row from -0.18 to -0.05 (the flag).
+- The profile: front edge rms 0.029 L as drawn (the construction's longer face), its underside 11.3 degrees (sheet
+  13.7); the profile checks stay on the sheet.
+
+**3. The remeasure (07ebd58; its steps registered in the next commit).** The level camera is orthographic (was 100 m out:
+at most a pixel). jaw_taper_shape, jaw_line_bend, chin_angle, chin_tip, tq_cheek_hollow, tq_jaw_notch and
+jaw_line_front/three_quarter are graded on ours in it (the design's projection), the boards' camera's value beside as
+`board` (they were graded in the boards' camera, or on the worse camera). head_construction is the outline's authority
+from the sheet's hair-occlusion row to z -0.05 (`faceregion.construction_front`); the new flag check
+`jaw_outline_hidden` grades ours' half-width (the two sides' mean; level, hair hidden; the regions' outermost extent per
+row, `_outer`, which reads past an eye's lines where the scan from the chin's column stops) against it: PASS 0.006,
+WARN 0.01 (the references agree to 0.002; the flagged head reads 0.011, FAIL). Tests in test_jaw.py.
+
+The base (f5_before, pipeline-3d d60486a) under both measures:
+
+| check | design | old measure (boards) | new measure (level, ortho) |
+|---|---|---|---|
+| chin_angle | 129.7 | 118.8 WARN (level 128.1) | 128.3 PASS (board 118.8) |
+| chin_tip | 0.833 | 0.826 PASS | 0.829 PASS (board 0.826) |
+| jaw_taper_shape | 0 | 0.0399 WARN (level 0.0212) | 0.0193 PASS (board 0.0399) |
+| jaw_line_bend | 4.2 | 4.6 PASS | 4.7 PASS (board 3.5) |
+| jaw_line_front / three_quarter | | 0.937 / 1.106 | 1.158 / 1.133 |
+| tq_cheek_hollow / notch | 0.0017 / 0 | 0.005 / 0 | 0.005 / 0 |
+| jaw_outline_hidden | 0 | (none) | 0.0111 FAIL |
+
+**4. The rim loop under level grading (not taken).** chin_lab on f5_before's code (level graded, the boards' beside;
+`charkit/out/face5/rim/`):
+
+| variant | chin_angle | chin_tip | jaw_taper_shape | bend | tq_cheek_hollow |
+|---|---|---|---|---|---|
+| default (refit share 0.59) | 128.3 | 0.829 | 0.0184 | 4.7 | 0.0048 PASS |
+| refit whole to 0.3 rad | 128.7 | 0.836 | 0.0186 | 5.2 | 0.0048 |
+| SIDE_RIM_ROW | 124.6 | 0.682 WARN | 0.0132 | 3.9 | 0.0062 WARN |
+| SIDE_RIM_ROW + refit whole 0.3 | 124.8 | 0.684 WARN | 0.0131 | 3.1 | 0.0064 WARN |
+| SIDE_RIM_ROW + TIP_BIAS (0.006, 0.06) | 123.8 | 0.327 FAIL | 0.0119 | 2.9 | 0.007 WARN |
+| SIDE_RIM_ROW + refit whole 0.6 | 129.3 | 0.745 | 0.0138 | 3.7 | 0.0064 WARN |
+
+Round 4's 130.2 / 0.79 doesn't reproduce on today's head (TIP_BIAS and the refit have moved since). Its best form
+(refit whole to 0.6 rad) gains a degree on the angle and the taper but loses the tip (0.745 against the design's
+0.833; the default's 0.829) and the three-quarter hollow (PASS -> WARN). It doesn't win: off.
+
+**5. The jaw behind the hair (c047273).** `headfit.contours(hidden=)`: the front half-width over the sheet's
+hair-occlusion row is head_construction's registered outline up to CHEEK_TOP + 0.03 (`headfit.HIDDEN`); the jaw's side
+and the ramus in front of the ear follow it. Lab (a local assembly on f5_before's body; `charkit/out/face5/geom_hidden`):
+ours -0.007..-0.013 L per row -> -0.003..+0.006 (the top rows blend into the skull), jaw_outline_hidden 0.0111 FAIL ->
+0.0025 PASS, jaw_taper_shape 0.0184 -> 0.0165, jaw_line_front 1.369 -> 1.442, tq_cheek_hollow 0.0048 PASS -> 0.0055
+WARN (the far cheek at z -0.289), the chin unchanged. `HIDDEN_TQ` (the three-quarter's far cheek unfitted over its own
+lock, -0.154) measured and off: jaw_line_bend 42 FAIL, chin_tip 0.33 FAIL. The profile has no ramus line to fit (the
+construction draws none): the ramus is the front outline under the ear.
+
 Jobs:
-- render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (the review
-  page's before).
+- render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (done).
