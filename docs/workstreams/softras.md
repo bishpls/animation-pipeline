@@ -271,6 +271,14 @@ occluders made soft and differentiated, as the contour is) comes before analytic
 that sits against the body (sleeves, collar, boots at the cuff); the distance term stays opt-in (`--dist`) for
 no-overlap cases, with length-weighted samples if it's used.
 
+## Round 4: soft occlusion (in progress)
+
+Coordinator's call: soft occlusion before analytic builder derivatives (the sleeve's outline is 23-54% occlusion).
+Branch at pipeline-3d 004efc3 (merged; the frozen scenes are round 3's, symlinked into `charkit/out/softras/r4`, so the
+fits compare like for like with round 3). Runs: `charkit/out/softras/r4/runs.sh` (laptop, one process), log
+`r4/runs.log`; the measurement `python -m charkit.render.softfit occ --template sleeve|flap [--weights a] --out
+charkit/out/softras/r4` -> `r4/occ_*.json` and `.log`.
+
 ## Log
 
 - 2026-09-30: started; notes skeleton. The rasteriser and its tests (3593734); the pilot harness (softfit); fitkit's
