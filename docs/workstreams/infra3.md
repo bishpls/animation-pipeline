@@ -112,6 +112,19 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
   were rebuilt (a one-off per such change). The candidate was built only because numba's cache files
   (`__pycache__/*.nbi`) counted as inputs: fixed (c8cdb4c), and the docs gates above then skipped it.
 
+**This branch, gated (d5452dd into pipeline-3d a3073f5, which had moved to include tool/look4):**
+- pipeline-3d's own gate code (the normal gate): **PASS**, no check changed, 52 test files ok; CPU 1,353 -> 512 s;
+  1,109 s end to end (it built the baseline a3073f5 itself). `gate_tool-infra3_d5452dd_into_a3073f5.md`.
+- this branch's gate code on the same commit (as tmp/infra3-self): **PASS** under K, no check changed, one note (CPU not
+  judged: an uncapped cached baseline against a capped candidate, 0.49x); 1,059 s, of which 415 s waiting for the
+  baseline lock the other gate held before starting its candidate build. Fixed after (af1477d): while another gate
+  builds the baseline, the candidate now builds beside the wait (dry-run: the wait, the candidate stopped once the
+  baseline's closure showed it the same).
+- The trace diff still shows "knobs hair changed" and a spec_hash change: the baseline was built with the old trace
+  code (absolute paths hashed). It goes once both sides are built with trace.portable().
+- (f) live: a second gate of one branch stopped the first (exit 143, "stopped the older gate ... still running"), and
+  the trap removed the stopped gate's clone, inputs and temporary files; the second then ran to PASS.
+
 ## Validation
 
 - Unit tests: test_closure (the record from a real subprocess; which changes reach a build; changes between commits;
