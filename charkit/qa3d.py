@@ -2043,6 +2043,14 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
+def details(B, design=None, out=None):
+    """the midriff's and the boots' details against the design (charkit.detailqa): the torso outline's steps and the
+    top's junction with the band, the cream panel's edge; the boots' ankle, folds, heel, doubled lines, soles and
+    symmetry."""
+    from . import detailqa
+    return detailqa.measure(B, design, out)
+
+
 def look(B, design=None, out=None):
     """the look's measures (charkit.lookqa): the face's shading noise, its shadows against the design's, the outlines'
     widths."""
@@ -2058,6 +2066,7 @@ PARTS = [                       # (part, function, check prefix, table key)
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
+    ('details', details, '', 'details'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
     ('look', look, '', 'look'),
 ]
