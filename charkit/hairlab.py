@@ -4,7 +4,8 @@ variant. The loop behind each hair piece default (docs/workstreams/hair.md).
 
     python -m charkit hairlab BUILD [--style KEY=VALUE ...] [--opts KEY=VALUE ...] [--shape KEY=VALUE ...]
                                     [--labels OUT.png] [--noise] [--edges] [--edges-json J] [--edges-png P]
-    python -m charkit hairlab BUILD --built [--edges-json J] [--edges-png P]   # the build's own hair, as built
+                                    [--buns] [--buns-png P]
+    python -m charkit hairlab BUILD --built [--buns] [--edges-json J] [--edges-png P]   # the build's own hair, as built
 
   BUILD    a build with its hair in pieces (its bundle, geom/pieces.spec.json and the hull it read)
   --style  the style profile's hair_pieces keys (e.g. notch=3 relief=0.015)
@@ -15,6 +16,8 @@ variant. The loop behind each hair piece default (docs/workstreams/hair.md).
   --edges  torn tips and jagged edges (round 3): fragments per view and the outline's teeth, ours against the design's
            own (hair_fragments_<view>, hair_rough_<view>, hair_rough_back_lower, hair_rough_profile_front, ...)
   --built  measure the build's hair as built (its bundle's hair objects), no rebuild: any build, e.g. a flagged one
+  --buns   the buns per view, the three-quarter and back too (round 4), each bun apart and both: IoU and outline against
+           the hair layers' bun sides (hairlayers.bun_sides); --buns-png P the crops
 
 Prints the hair checks (value, drawn or piece, status), the face shown against the design's per view (our skin above
 the chin over the drawing's: the hair hiding or showing the face), the builder's folds and the bun fit's IoU.
@@ -113,6 +116,105 @@ def face_shown(ctx, hair):
         dsk = (dv[v]['cls'] == bodyqa.CLASS['skin']) & head
         out[v] = round(float(((lb == 1) & head).sum()) / max(1, dsk.sum()), 3)
     return out
+
+
+BUN_VIEWS = ('front', 'three_quarter', 'profile', 'back')
+BUN_CODE = {'bun_L': 21, 'bun_R': 22}      # (the scene's other hair 11, the rest 0: clear of bodyqa.CLASS['line'])
+
+
+def bun_views(ctx, hair, views=BUN_VIEWS, labels=None):
+    """the buns against the drawn ones in every view the sheet draws them (hair round 4): per view, each bun apart
+    (L, R) and both together, our visible bun (the QA's scene z-buffered on the design's grids) against the hair
+    layers' bun sides (VIEW__bun_L / _R, hairlayers.bun_sides): IoU and the outline agreement at qa3d.HAIR_BUN_TOL
+    (bodymeasure.outline_f, as hair_bun_outline). 'qa' pools both buns' outline over the views hair_bun_outline reads
+    (those with a VIEW__buns layer: front and profile), 'all' over the four. -> dict."""
+    from . import bodymeasure, bodyqa, qa3d
+    B, D, masks = ctx['B'], ctx['D'], ctx['masks']
+    sc = D.sheet_context()
+    As = B.assembly
+    ppl = sc['ppl']
+    if labels is None:
+        meshes = []
+        V, T = B.skin().mesh('masked')[:2]
+        meshes.append((V, T, np.zeros(len(T), int)))
+        for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
+            if o.has('eval'):
+                V, T = o.mesh('eval')[:2]
+                meshes.append((V, T, np.zeros(len(T), int)))
+        for n, (ev, _) in hair.items():
+            meshes.append((ev[0], ev[1], np.full(len(ev[1]), BUN_CODE.get(n, 11))))
+        dv = D.design_views()
+        labels = bodyqa.zbuffer_views(meshes, sc['az3'], np.array(qa3d.iris_centres(B)), As['centre'], As['L'], ppl,
+                                      [v for v in views if v in dv])
+    tol = qa3d.HAIR_BUN_TOL * ppl
+    out, pool = {}, {'qa': [0.0, 0], 'all': [0.0, 0]}
+    for v in views:
+        if v not in labels:
+            continue
+        lab = labels[v][1]
+        row = {}
+        both_d = np.zeros(lab.shape, bool)
+        for s, code in BUN_CODE.items():
+            m = masks.get('%s__%s' % (v, s))
+            if m is None or m.shape != lab.shape or m.sum() < 40:
+                continue
+            both_d |= m
+            ours = lab == code
+            o = bodymeasure.outline_f(ours, m, tol)
+            row[s[-1]] = dict(iou=round(float((ours & m).sum() / max(1, (ours | m).sum())), 3), f=round(o['f'], 3),
+                              p=round(o['p'], 3), r=round(o['r'], 3), px=[int(ours.sum()), int(m.sum())])
+        if not row:
+            continue
+        ours = np.isin(lab, list(BUN_CODE.values()))
+        drawn = masks.get('%s__buns' % v)
+        drawn = both_d if drawn is None or drawn.shape != lab.shape else drawn
+        o = bodymeasure.outline_f(ours, drawn, tol)
+        npx = int(bodymeasure.outline(drawn).sum()) + int(bodymeasure.outline(ours).sum())
+        row['both'] = dict(iou=round(float((ours & drawn).sum() / max(1, (ours | drawn).sum())), 3), f=round(o['f'], 3),
+                           p=round(o['p'], 3), r=round(o['r'], 3))
+        out[v] = row
+        for k in (('qa', 'all') if masks.get('%s__buns' % v) is not None and v != 'back' else ('all',)):
+            pool[k][0] += o['f'] * npx; pool[k][1] += npx
+    out['pooled'] = {k: round(a / max(1, n), 3) for k, (a, n) in pool.items()}
+    out['_labels'] = labels
+    return out
+
+
+def bun_picture(ctx, bv, path, scale=3, pad=12):
+    """per view, each bun's crop: the drawn bun filled blue with its outline, ours orange with its outline red, the rest
+    of our hair grey (bun_views' labels on the design's grids), side by side at one scale."""
+    from PIL import Image, ImageDraw
+    from . import bodymeasure
+    tiles = []
+    for v in BUN_VIEWS:
+        if v not in bv:
+            continue
+        lab = bv['_labels'][v][1]
+        drawn = np.zeros(lab.shape, bool)
+        for s in BUN_CODE:
+            m = ctx['masks'].get('%s__%s' % (v, s))
+            if m is not None and m.shape == lab.shape:
+                drawn |= m
+        ours = np.isin(lab, list(BUN_CODE.values()))
+        img = np.full(lab.shape + (3,), 250.0)
+        img[lab == 11] = (205, 205, 205)
+        img[lab == 0] = (235, 225, 215)
+        img[drawn] = (170, 200, 245)
+        img[ours] = (250, 190, 130)
+        img[ours & drawn] = (215, 190, 190)
+        img[bodymeasure.outline(drawn)] = (20, 70, 210)
+        img[bodymeasure.outline(ours)] = (215, 40, 20)
+        rr, cc = np.nonzero(drawn | ours)
+        t = img[max(0, rr.min() - pad):rr.max() + pad, max(0, cc.min() - pad):cc.max() + pad].astype(np.uint8)
+        im = Image.fromarray(t).resize((t.shape[1] * scale, t.shape[0] * scale), Image.NEAREST)
+        d = ImageDraw.Draw(im)
+        b = bv[v]['both']
+        d.text((6, 4), '%s  IoU %.3f  outline %.3f' % (v, b['iou'], b['f']), fill=(0, 0, 0))
+        tiles.append(np.asarray(im))
+    H = max(t.shape[0] for t in tiles)
+    pic = np.concatenate([np.pad(t, ((0, H - t.shape[0]), (0, 10), (0, 0)), constant_values=255) for t in tiles], 1)
+    Image.fromarray(pic).save(path)
+    return path
 
 
 def run(ctx, style_over=None, opts=None):
@@ -812,6 +914,19 @@ def report_edges(ctx, hair, args, tag=''):
     return C
 
 
+def report_buns(ctx, hair, args):
+    """--buns: bun_views printed per view (each bun and both: IoU, outline); --buns-png P its picture."""
+    bv = bun_views(ctx, hair)
+    for v in BUN_VIEWS:
+        if v in bv:
+            print('bun %-14s %s' % (v, '  '.join('%s IoU %.3f outline %.3f' % (s, r['iou'], r['f'])
+                                                   for s, r in bv[v].items())))
+    print('bun outline pooled       %s' % bv['pooled'])
+    if '--buns-png' in args:
+        print('buns png', bun_picture(ctx, bv, os.path.abspath(args[args.index('--buns-png') + 1])))
+    return bv
+
+
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
@@ -819,7 +934,11 @@ def main(args):
     t = time.time()
     if '--built' in args:                   # the build's own hair as built, no rebuild (any build, no hull needed)
         ctx = light_context(build)
-        report_edges(ctx, built_hair(ctx), args)
+        hair = built_hair(ctx)
+        if '--buns' in args:
+            report_buns(ctx, hair, args)
+        if '--edges' in args or '--edges-json' in args or '--edges-png' in args:
+            report_edges(ctx, hair, args)
         print('(%.0f s)' % (time.time() - t))
         return 0
     ctx = context(build, _kv(args, '--shape'))
@@ -837,6 +956,8 @@ def main(args):
         print('%-24s %s %s %s' % ('hair_noise', v, per, by))
     if '--labels' in args:
         print('labels', label_image(ctx, hair, os.path.abspath(args[args.index('--labels') + 1])))
+    if '--buns' in args:
+        report_buns(ctx, hair, args)
     if '--edges' in args or '--edges-json' in args or '--edges-png' in args:
         report_edges(ctx, hair, args)
     print('(%.0f s)' % (time.time() - t))
