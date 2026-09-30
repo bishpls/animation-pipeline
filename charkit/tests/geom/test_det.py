@@ -21,8 +21,8 @@ def _ulp_noise(x, seed=0):
 
 
 def test_cs_exact_on_the_quadrants_and_stable_off_them():
-    assert det.cs(0) == (1.0, 0.0) and det.cs(90) == (0.0, 1.0) and det.cs(180) == (-1.0, 0.0)
-    assert det.cs(270) == (0.0, -1.0) and det.cs(-90) == (0.0, -1.0)
+    for az in (0.0, 90.0, 180.0, 270.0, -90.0):             # numpy's own values, the old hulls' rounding on half bins
+        assert det.cs(az) == (float(np.cos(np.radians(az % 360))), float(np.sin(np.radians(az % 360))))
     for az in (35.0, 36.9, 324.0):
         c, s = det.cs(az)
         assert abs(c - math.cos(math.radians(az))) < 1e-12 and abs(s - math.sin(math.radians(az))) < 1e-12

@@ -411,7 +411,7 @@ def limb_image(v, P):
     out = P.limb[v.pieces]
     free = (v.pieces == 0) & (v.labels == SKIN) & v.mask
     ca, sa = det.cs(v.az)
-    if sa == 0.0 and P.skeleton:
+    if abs(sa) < 1e-9 and P.skeleton:
         r, c = np.nonzero(free)
         x = (c - v.axis) / v.ppl * ca; z = (v.eye_y - r) / v.ppl
         best, lim = np.full(len(x), np.inf), np.zeros(len(x), np.int8)
@@ -492,9 +492,9 @@ def carve(views, A, use):
         v = views[n]
         ca, sa = det.cs(v.az)
         off = ~v.band(A.zs)                                                # heights it doesn't speak for: no carve
-        if sa == 0.0:                                                      # front / back: u = +-x
+        if abs(sa) < 1e-9:                                                 # front / back: u = +-x
             V &= (v.sample(v.mask, ca * A.xs, A.zs) | off[None, :])[:, None, :]
-        elif ca == 0.0:                                                    # the profiles: u = +-y
+        elif abs(ca) < 1e-9:                                               # the profiles: u = +-y
             V &= (v.sample(v.mask, sa * A.ys, A.zs) | off[None, :])[None, :, :]
         else:                                                              # an oblique view: per (x, y) column
             U = A.xs[:, None] * ca + A.ys[None, :] * sa
