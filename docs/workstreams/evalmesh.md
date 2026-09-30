@@ -235,6 +235,30 @@ Residuals, explained:
 - The VRM checks its own skin weights (`gltf.check` -> `skin_weights`): per skinned primitive, weights >= 0, the sum
   within 1e-5 of 1, every weighted joint inside its skin; faults are errors (the export fails). On existing exports:
   0 errors, sums within 1.4e-7. gltf.py is EXPORT_CODE, so the gate's candidate builds with --vrm and runs it.
+- pregate: PASS (0 moved, 0 blocking, 268 s; `charkit/out/pregate/pregate_tool-evalmesh_ed0f91a_into_9eba0b0.md`).
+- **R3a gate: PASS under K** (ed0f91a into pipeline-3d 9eba0b0; `charkit/out/gate/gate_tool-evalmesh_ed0f91a_into_9eba0b0.md`).
+  Nothing blocks; 66 test files ok; build CPU 721.1 -> 814.2 s (1.13x, the candidate with --vrm: gltf.py is
+  EXPORT_CODE). 7 values moved, statuses unchanged: face_shadow_neck_3q 0.0986 -> 0.0398 INFO, face_shadow_chin_edge
+  0.0568 -> 0.0479 (FAIL both, better), face_shadow_3q 0.313 -> 0.342, face_shadow_face_3q -0.0558 -> -0.0596,
+  face_shadow_chin 0.694 -> 0.676 (FAIL both), face_noise(_sweep) 1e-4 to 2e-4. Attribution (weights or the export
+  the QA draws from: the candidate drew from its .vrm, the baseline from look.glb) below.
+- **The R3a build** (box, `charkit/out/evalmesh/r3a_clawd`, ed0f91a with --vrm): its QA equals the gate candidate's
+  to the digit. The VRM carries valid, normalised weights: 58 skinned primitives, `skin_weights` 0 errors, sums
+  within 1.25e-7 of 1, at most 3 bones per vertex; all 19 garments.
+- **Motion QA on it** (`r3a_clawd/motion/motion.md`; 19 pieces, 7 poses): every multi-bone piece ships stencil (the
+  single-bone ones are identical under either rule). Worst max per pose, linear -> stencil:
+
+  | piece | arms_up | elbows_bent | arms_fwd | kick | squat | twist_bend | split |
+  |---|---|---|---|---|---|---|---|
+  | skirt | 1e-6 | 1e-6 | 1e-6 | **0.040 -> 0.019** | 0.019 -> 0.019 | 1e-6 | **0.014 -> 0.0066** |
+  | collar | 1.2e-5 | 1.2e-5 | 1.2e-5 | 1.2e-5 | 1.2e-5 | **0.020 -> 0.016** (mean 1.3e-3 -> 7.7e-4) | 1.2e-5 |
+  | bodice_panel | 1.4e-6 | 1.4e-6 | 1.4e-6 | 1.4e-6 | 1.9e-6 | 0.0016 -> 0.0010 | 1.4e-6 |
+  | top | 4.8e-6 | 4.3e-6 | 4.8e-6 | 4.8e-6 | 4.3e-6 | 0.0091 -> 0.0092 (mean 1.6e-4 -> 1.4e-4) | 4.8e-6 |
+  | the other 15 | <= 1e-5 at every pose, identical under both rules | | | | | | |
+
+  Worst over all pieces and poses: 0.040 L -> 0.019 L. The top's twist is the one max that grows (1%); its mean falls.
+- poke_share's M4 remeasure registered in `charkit/steps/qa3d.py` (the coordinator's bookkeeping for infra4's rule;
+  3569e1b).
 - **crab_1's stage drift (2.05e-4 L, since face4), attributed** (local, m4_clawd's own code products, scripts in
   `charkit/out/evalmesh/crab/`). The crab moves rigidly: rotated 0.24 deg and shifted 9.8e-5 L, residual 2.5e-7 L.
   Its anchor is nearly the same; the hair volume's slope under it isn't. The star, 14 deg away, is 2.4e-7 L. Ruled out:
