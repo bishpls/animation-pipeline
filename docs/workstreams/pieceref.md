@@ -69,7 +69,13 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
    _knot_rect (0.13), _refcheck (0.762). **No test file for isoqa yet** (add: ref_piece on a synthetic five-cell bow,
    compare's scale invariance).
 
-Not done: the bow close-up generation (no paid call made yet), the bow fix, loop_end / bleed, the review page, the
+6. **isoqa tests** (6bd720d, `charkit/tests/test_isoqa.py`): a synthetic five-cell bow names its parts; scaled 0.8-1.25
+   and moved it reads itself (body 0.98+, tails 0.97+, knot size within 4%, creases within 6%); a rounder bow 0.90.
+7. **The bow close-up call** (round 2, 2026-09-30): prompt `bow_closeup` in prompts.json; one call, n=2, 2560x1440
+   high, refs body_turnaround then garment_breakdown, out `charkit/out/pieceref/gen/bow_closeup_1|2.png`, logged to
+   this worktree's tools/ledger.jsonl (a gitignored `.env` symlink to the main checkout's, removed after).
+
+Not done: the bow fix, loop_end / bleed, the review page, the
 gate, the cuffs and boots.
 
 ## Next steps, in order
