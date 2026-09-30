@@ -484,23 +484,35 @@
     "the buns are the outfit's bun pieces (outfit_masks), not the breakdown's"
    ]
   },
+  "outfit_truth": {
+   "kind": "piece_truth",
+   "path": "charkit/refs/clawd/outfit_truth.npz",
+   "tracked": true,
+   "sha256": "f692b2cb8477bcaf6db4acb3b11dfbd9eae8048f1d6876b48348ddb6e7635d4d",
+   "role": "a hand-checked labelling of body_turnaround's four views by outfit piece, on the outfit masks' grids (bodyqa.design_views at the sheet's 212.5 px/L): what `python -m charkit outfit score` grades the produced masks against (outfit.score)",
+   "provenance": {"by": "annotated by Claude (claude-opus-5-5) for tool/outfit-source", "date": "2026-09-30", "method": "every cell of 25 px or more (outfit.cells: 263 in the four views) labelled by eye from zoomed crops beside the cells; the file's meta holds the calls"},
+   "cautions": [
+    "one reading by eye: where the drawing allows either (the profile's two bow tails, a tuft under a bun, the hem's pixels at the shorts' edge) a set is accepted",
+    "it takes the overskirt panels as hanging from the waistband over the skirt (Michael, 2026-09-29): the back's and the profile's unbroken cells from the waistband into the tails are the panels, which a line-art reading (one cell, one piece) shares with outfit.match_view",
+    "valid for the grids it records only: a new sheet, a new eye spacing or a new window needs it redrawn, and outfit.score refuses a grid that differs"
+   ]
+  },
   "outfit_masks": {
    "kind": "piece_masks",
    "tracked": false,
    "produced_by": "charkit.outfit",
    "produced_fn": "charkit.outfit:main",
-   "reads": ["rig", "body_turnaround", "trellis"],
+   "reads": ["rig", "body_turnaround"],
    "reads_spec": ["name", "ref", "eyes.x", "garments[].{name,kind,side,bone}", "garments[].region[].0",
                   "accessories[].{name,kind,side,az}"],
-   "reads_files": ["charkit/out/i3d/ext/*/clawd_3dstyle_s1_field.npz", "charkit/refs/clawd/outfit_notes.json",
-                   "projects/tsuzuku/rig/clawd/build/*", "projects/tsuzuku/rig/clawd/rig.json",
-                   "projects/tsuzuku/rig/clawd/base.png"],
+   "reads_files": ["charkit/refs/clawd/outfit_notes.json", "projects/tsuzuku/rig/clawd/build/*",
+                   "projects/tsuzuku/rig/clawd/rig.json", "projects/tsuzuku/rig/clawd/base.png"],
    "path": "charkit/out/clawd/outfit/outfit_masks.npz",
    "command": "python -m charkit outfit {spec} --out {out} --no-manifest",
    "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced)",
    "cautions": [
-    "the masks are the outfit field's votes (a TRELLIS field fitted to the 2D rig): 0.77-0.85 IoU per view against the sheet's figures",
-    "the field is gitignored (charkit/out/i3d/ext, found by outfit.find_field): a copy without it places the pieces by landmarks instead, which gives other masks and so another hull. Its sha256 (or its absence) is in the stamp (reads_files), so the two never share one",
+    "made from the rig and body_turnaround alone (outfit.sheet_field: the rig's layers laid out in 3D by the sheet's front and profile, then relabelled by the views); nothing gitignored is read. Until 2026-09-30 a TRELLIS field found in charkit/out/i3d/ext steered them, and copies without it made other masks (docs/workstreams/outfit-source.md)",
+    "scored against the hand-checked truth (outfit_truth): 0.956 of the garment pixels agree (front 0.993, three-quarter 0.911, profile 0.899, back 0.994); the TRELLIS-steered masks scored 0.865. The largest misses: the near back panel's tail in the three-quarter view (the sheet's 3/4 and profile disagree on how far it swings back), the crab clip",
     "the graph's comparison with the spec's hand list is made against the garments' and accessories' roles only (reads_spec: names, kinds, sides, bones, region bones, az), so its matches are the spec's own but it lists no knob deltas; `python -m charkit outfit SPEC` gives the full comparison",
     "a piece a view hides has an empty mask there"
    ]
