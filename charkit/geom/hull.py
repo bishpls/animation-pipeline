@@ -912,15 +912,13 @@ VERTEX_Q = 2.0 ** -20        # L: a millionth of L, a ten-thousandth of a voxel;
 
 
 def _facing(m, views):
-    """per vertex, the index (in views' order) of the view whose camera faces it most, among the views whose height
-    band holds it (a banded view speaks only for its heights): area-weighted normals and dot products in a fixed order
-    (det), the first view winning a tie -> int (N,)."""
+    """per vertex, the index (in views' order) of the view whose camera faces it most among those speaking for its
+    height (View.band): area-weighted normals and dot products in a fixed order (det), the first view winning a tie
+    -> int (N,)."""
     N = det.normals_area(m.V, m.F)
     W = np.stack([det.dot3(N, (sa, -ca, 0.0)) for ca, sa in (det.cs(v.az) for v in views.values())], 1)
-    for i, v in enumerate(views.values()):
-        if getattr(v, 'zband', None) is not None:
-            W[~v.band(m.V[:, 2]), i] = -np.inf
-    return np.argmax(W, 1)
+    band = np.stack([v.band(m.V[:, 2]) for v in views.values()], 1)       # (a view speaks only for its heights)
+    return np.argmax(np.where(band, W, -np.inf), 1)
 
 
 def label_vertices(m, views):
@@ -940,14 +938,21 @@ def label_vertices(m, views):
 
 FACE_CLASSES = (1, 3)                # bodyqa.CLASS skin and iris: where a view draws the face, nothing stands in front of it
 FACE_MARGIN = 0.006                  # L: the hull's voxels this close in front of the face's surface stay (its own skin)
+HAIR_KEEP = 0.03                     # L: hair the front view draws over the face stays this close in front of it, though
+                                     # another view draws the face clear past it (docs/workstreams/face.md, decision 4 (a))
+HAIR_CLASS = 2                       # bodyqa.CLASS['hair']
 
 
-def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
+def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print, hair_keep=HAIR_KEEP, detail=None):
     """the hull without what stands in front of the face: where a view draws skin or iris (at the head's heights), every
     voxel between its camera and the face's surface on that pixel's ray goes. No view's silhouette shows the gap between
     a side lock and the cheek, so the carve fills it; the face drawn there says it's empty. head: the face's surface,
     charkit.geom.headfit.Sections in the head's eye frame (the eyes at y = 0; the hull's are at y_e). The views'
-    mirrors (the far side) carve too. In place -> voxels removed."""
+    mirrors (the far side) carve too. Hair the front view draws over the face (a hair pixel with face either side of it
+    in its row: the fringe) stays within hair_keep L in front of the face, though the side views draw the forehead's
+    skin past it (they took the bangs' inner layer, and the hair built on the hull ended higher). detail: a dict filled with what the carve looked at (the voxels it
+    would carve without the hair rule: position, how far in front of the face (the most over the views carving it),
+    hair or not, kept or not). In place -> voxels removed."""
     from .headfit import sections_mesh
     m = sections_mesh(head, step=1)
     Vm = m.V + np.array([0.0, y_e, 0.0])
@@ -963,6 +968,23 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
             if abs(np.sin(np.radians(v.az))) > 1e-9:
                 LV[n + '_mirror'] = mirrored(v, None)
     from scipy.ndimage import maximum_filter
+    # the hair the front view draws over the face: on each voxel's ray a hair pixel with the face (skin or iris) either
+    # side of it in its row (the fringe hanging over the forehead; not a side lock at the face's edge, whose gap to the
+    # cheek the carve is for)
+    hairy = np.zeros(len(ix), bool)
+    fv = next((v for v in views.values() if abs(v.az) < 1e-9 and v.labels is not None), None)
+    if fv is not None:
+        XYZ = np.stack([X, Y, Z], 1)
+        ca, sa = det.cs(fv.az)
+        c, r = fv.pixel(det.dot3(XYZ, (ca, sa, 0.0)), Z)
+        Hh, Ww = fv.labels.shape
+        fc = np.isin(fv.labels, FACE_CLASSES) & fv.mask
+        cmin = np.where(fc.any(1), np.argmax(fc, 1), Ww)
+        cmax = np.where(fc.any(1), Ww - 1 - np.argmax(fc[:, ::-1], 1), -1)
+        okp = near & (c >= 0) & (c < Ww) & (r >= 0) & (r < Hh)
+        rr, cc = r[okp], c[okp]
+        hairy[okp] = (fv.labels[rr, cc] == HAIR_CLASS) & fv.mask[rr, cc] & (cc > cmin[rr]) & (cc < cmax[rr])
+    ahead = np.full(len(ix), -np.inf)                  # how far in front of the face, the most over the views carving it
     for n, v in LV.items():
         ca, sa = det.cs(v.az)
         u0 = -3.0
@@ -985,10 +1007,18 @@ def carve_face(V, A, views, head, y_e, zlo=-0.45, zhi=0.3, P=None, log=print):
         vd = X * sa - Y * ca
         okv = near & (vu >= 0) & (vu < nu)
         hit = np.zeros(len(ix), bool)
-        hit[okv] = face[vu[okv], iz[okv]] & (D[vu[okv], iz[okv]] > -1e8) & (vd[okv] > D[vu[okv], iz[okv]] + FACE_MARGIN)
+        by = np.full(len(ix), -np.inf)
+        by[okv] = vd[okv] - D[vu[okv], iz[okv]]
+        hit[okv] = face[vu[okv], iz[okv]] & (D[vu[okv], iz[okv]] > -1e8) & (by[okv] > FACE_MARGIN)
+        ahead = np.where(hit, np.maximum(ahead, by), ahead)
         gone |= hit
+    keep = gone & hairy & (ahead <= hair_keep)
+    if detail is not None:
+        detail.update(xyz=np.stack([X[gone], Y[gone], Z[gone]], 1), ahead=ahead[gone], hair=hairy[gone], kept=keep[gone])
+    gone &= ~keep
     V[ix[gone], iy[gone], iz[gone]] = False
-    log('hull: %d voxels in front of the drawn face carved' % gone.sum())
+    log('hull: %d voxels in front of the drawn face carved, %d of the hair within %.3f L of it kept' % (
+        gone.sum(), keep.sum(), hair_keep))
     return int(gone.sum())
 
 
