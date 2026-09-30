@@ -1251,7 +1251,11 @@ CALIBRATED = {
     'bumps_legs': 'the bump behind the thigh in profile (round 5)',
     'band_lower': "the skirt and flaps' zigzag hem band (round 6)",
 }
-PROMOTED = ()               # calibrated checks the integrator has promoted: their grade is their status
+# calibrated checks the integrator has promoted: their grade is their status. tool/look4 (2026-09-30), on the tree
+# with call M, this module's code: known-bad against the current build (clawd.json), each >= 2x and the current PASS:
+# spikes_boots body4b 0.0628 vs 0.0133; bumps_boots body4b 63.1 vs 11.0; bumps_legs body4b and body5b 42.4 vs 0;
+# mirror_waist body4b 6.43, body5b 6.92 vs 1.19. points_sleeves, bumps_sleeves and band_lower wait for the garments round.
+PROMOTED = ('spikes_boots', 'bumps_boots', 'bumps_legs', 'mirror_waist')
 
 
 def promote(C):
