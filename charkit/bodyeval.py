@@ -558,6 +558,8 @@ def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
     lit, shade, tex = garment_tones(A, s, G)
     P = Part(nm, 'garments', G['verts'], G['faces'], lit, shade)
     P.tex = tex
+    if 'subdiv' in G:                                          # (the build gives it no subdivision surface)
+        P.subdiv = int(G['subdiv'])
     if k in SOLID:                                             # the thickness the build's Solidify gives it (evaluated)
         P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
     elif k == 'belt' and s.get('source') == 'hull':
@@ -601,6 +603,7 @@ def garment_tones(A, s, G):
     V = G['verts']
     flat = np.zeros(nf, bool)                              # faces on a second, flat material
     second = None
+    third = None                                           # (faces, colour) on a third (the skirt's band as geometry)
     fn, uvc = None, None
     if k == 'shell':
         if 'sole' in s:
@@ -628,6 +631,8 @@ def garment_tones(A, s, G):
         flat = np.asarray(G['sole'], bool); second = np.asarray(s.get('sole_color', (0.26, 0.21, 0.21)), float)
     elif k == 'collar':
         flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
+    elif k == 'panel' and 'band' in G:                             # the band as geometry (garments.flap_template)
+        flat = np.asarray(G['band'], bool); second = np.asarray(s.get('hem_color', (0.28, 0.2, 0.18)), float)
     elif k == 'panel' and s.get('hem') == 'stepped':
         img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6),
                         **{k_: s[k_] for k_ in ('band', 'step_h') if k_ in s})
@@ -638,7 +643,9 @@ def garment_tones(A, s, G):
         flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
         pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * np.pi)
         img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), panel=(0.5 - pw, 0.5 + pw), repeat=s.get('repeat', 8),
-                        pleats=s.get('pleats', 24))
+                        pleats=s.get('pleats', 24), **({'dark': False} if 'band' in G else {}))
+        if 'band' in G:                                                # the band as geometry: a third material
+            third = (np.asarray(G['band'], bool), np.asarray(s.get('hem_color', (0.28, 0.2, 0.18)), float))
         U = np.asarray(G['uv'], float)
         uvc = [U[list(f)] for f in F]
         fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
@@ -649,6 +656,8 @@ def garment_tones(A, s, G):
         lit = np.tile(col, (len(parent), 1)) if fn is None else fn(uv_centre, parent)
         if second is not None:
             lit = np.where(flat[parent][:, None], second, lit)
+        if third is not None:
+            lit = np.where(third[0][parent][:, None], third[1], lit)
         shade = lit * mul
         return lit, shade
     base_uv = np.array([np.mean(c, 0) for c in uvc]) if uvc is not None else np.zeros((nf, 2))
@@ -822,7 +831,7 @@ class Geometry:
             from .bodyqa import CLASS as CL, family
             objs = []
             for p in self.parts:
-                n_ = lv.get(p.group, 0)
+                n_ = min(lv.get(p.group, 0), getattr(p, 'subdiv', 99))
                 if n_:
                     V, polys, parent, lit, shd, cls = p.subdivided(n_)
                     T, pid = triangulate(polys, with_poly=True)

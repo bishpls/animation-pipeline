@@ -56,6 +56,57 @@ their stepped band), and the skirt's back and its tuck into the waistband. tool/
 Spec edits go into clawd.json and clawd_body_pieces.json together (test_spec_alias), and clawd_body.json where it
 applies.
 
+## Measurement (charkit/skirtqa.py, QA part `skirt`; 9153f09, 4a2bac1, d61ae88)
+
+Registered in history.STEPS (0860201, a595dac). Tests: `charkit/tests/test_skirtqa.py` (synthetic stairs, fills, gaps;
+calibration: every check PASSes on the design itself, `design_as_ours`, and the flap, band, outline and clearance checks
+fail on a round-6-like corruption of it).
+
+- **The drawn flaps.** The outfit masks hold only the flaps' tails in back and profile: the flap's face over the skirt is
+  the same colour and was cut as the skirt. `drawn_flaps` fills that face between the drawn lines (gaps closed by 2 px)
+  from seeds in `charkit/refs/clawd/skirt_marks.json`, with wall segments where a drawn line fades or breaks (the back's
+  right flap's inner edge; the profile's front edge, drawn as two offset strokes), plus the outfit mask's tail.
+- **The drawn bands.** The outfit masks leave the trims out (the skirt's band almost wholly) and cut the skirt's band as
+  the shorts where both are dark. `design_bands` reads them as dark cells between the drawn lines, each given to the
+  face it borders most, clipped to 0.15 L of it.
+- **Steps** are read on the band's top edge under the face (per column, the row under the face's lowest pixel where the
+  band lies beneath it), simplified to a polyline (2 px): a step is a riser (steeper than 45 deg, at least 0.015 L)
+  between two treads at least 0.02 L wide. The drawn stairs tilt with the flap's hem, so treads needn't be level.
+  The design reads: flaps two risers (three treads under the face) of 0.13-0.16 L, treads 0.10-0.12 L, band 0.15-0.20 L
+  high; the skirt's band 0.13-0.15 L high, level at the back and sides, climbing in steps of about 0.1 L beside the
+  cream panel (front three per side, three-quarter three, profile two).
+- **Round 6** (its box bundle, `~/animation-pipeline-body/charkit/out/body6_render/bundle`): 36 of the 44 checks FAIL.
+  The evaluator reproduces the box's hems exactly (front 0.0424, back 0.0236, three-quarter 0.0471, profile -0.0517).
+
+## The flap template (garments.flap_template; `shape: template` on a `source: flap` panel)
+
+Knot tables fitted to the design's silhouettes: the outer and inner edges' azimuths down the skirt (`edges` [s, outer,
+inner]), the standoff (`stand`), a stepped tail per column (`tail`: steps, outer and inner lengths, widths), the tail's
+hang (`droop` toward plumb, `out`), the band's thickness (`band`). The band is geometry (a second material on the faces
+within `band` of the stepped edge; rows and columns on the stair's corners), not subdivided. The right flap mirrors the
+left (`flap_mirror`). The flaps lie on the skirt's band-free surface.
+
+**The skirt's band as geometry** (`skirt_hull`'s `band`: height, and `stair` knots [degrees out from the panel's edge,
+height]; `band_rows`): rows per column on the band's levels, a third material. A first try (the stair's rises at 0.1 L)
+reads the design's rises exactly in front (0.099 against 0.099) and a level band at the back; its treads are too narrow
+(0.10 against 0.14 L) and the back gap's dark share went 0.216 FAIL -> 0.0 PASS.
+
+**Fitting** (scratch `sk/fast.py`, `sk/fit.py`): the scene without the flaps z-buffered once per view, each candidate's
+flaps z-buffered and composited by depth (3-6 s a candidate); coordinate descent. The objective is the flaps' shape in
+every view (IoU, width, hang, attach, sweep, clearance), the gated piece IoUs and extents, the band per view, with the
+hem checks held as penalties (no gaming: the piece's IoU in all views is in the objective and the log).
+
+**The three-quarter view disagrees with the others.** Projected, the drawn three-quarter tails sit at about +-100 deg
+azimuth (beside the thighs), while the back, front and profile place them at 118-155 deg. A flap fitting the back and
+profile hides its three-quarter tails behind the legs (IoU near 0). The fit weights the three-quarter at 0.25.
+
+## For other workstreams
+
+- **clawd_mh body_three_quarter_skirt_aline** (coordinator, from tool/hull-limbs): it reads only 12-13 rows near the hem,
+  as the MakeHuman hands block the rest (bodyqa.aline keeps the rows within 0.15 L above the middle hem with no hand
+  against the run). Fragile. Proposal: measure each side's half-width from the axis and drop only the side a hand
+  blocks. Not changed here: bodyqa.py is covered by the hull's stamp (an edit rebuilds the hull and masks everywhere).
+
 ## Paused (2026-09-30, the usage limit), resumed after db718ae
 
 No box jobs were running. Scratch harness (design masks, zooms with an L grid, line fills) is in the session scratchpad
