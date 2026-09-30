@@ -256,3 +256,45 @@ flaps back and profile, the back tuck; every check whose status moved). Generato
 7. Not done: the collar's V from the template (piece_collar front 0.63, three-quarter 0.49 already above
    pipeline-3d's 0.55/0.24); outfit_graph.json's full regeneration from the sheet-only masks (outfit-source step 6);
    the TRELLIS cleanup; promoting art_points/bumps_sleeves and art_band_lower (they PASS here).
+
+## Round 2 (the second agent): clearing the gate's blockers under K
+
+Scratch harness (session scratchpad `g4/`, not tracked): `qaprof.py` (cProfile per QA part), `qadump.py BUNDLE OUT
+parts` (every check and table of the named parts, for exactness), `front.py` (the profile's front edges, design masks
+against a bundle), `ev4.py`/`ev5.py OUT [--set garments.NAME.KEY=JSON]` (the evaluator: piece IoUs per view, the
+profile's front edges per height, ev5 also the neck crease on the masked skin; `RIM_CREASE=0` env for call L off),
+`evshow.py DIR...`, `collarside.py` (the collar's hull shell against the torso and the top by azimuth and height).
+
+### Build CPU 1.52x: measured, it is the new QA, not the top's refine
+
+The candidate's trace (g3_c): Blender 97 s (the garments stage 7 s), QA 246 s against look4's 154 s. The new parts:
+`piece_details` 36.6 s and `skirt` 34.7 s (neither on pipeline-3d), `sheet_pieces` 28.7 -> 38.3 s. Profiled locally: the
+z-buffer of all 975k faces (the top's refine: 2 is 395k of them) is 1.8 s for four views; the time is morphology on the
+whole design grid per piece (distance transforms, openings, closings, absorbing lines). **bdeeb8e**: those measures on
+each piece's own window (`bodymeasure.window`), exact: every check and table of sheet_pieces, piece_details, skirt,
+details and sheet_body identical on g3_c's bundle; sheet_pieces 15.8 -> 2.6 s, piece_details 21.3 -> 11.7 s (laptop).
+
+### The jacket's fronts in profile (torso_jump_front, bow_profile_torn)
+
+Measured (`front.py`, profile, x of the front edge, L): the design's bib stands at -0.097..-0.102 (z -1.23..-1.32; the
+figure's ink edge -0.116..-0.121), its hem comes in to the band (-0.050..-0.055) by z -1.35. Ours hangs straight from
+the bust at -0.144 down to z -1.37, then the band at -0.060: the 0.085 step. The bow's tails in profile hang at the
+jacket's front (-0.144), so the jacket covers their lower edge (bow_profile_torn). On the evaluator: `drape.taper` 3
+brings the front in to the band (-0.144 at z -1.11, -0.10 at -1.23..-1.26, -0.079 at -1.32, -0.064 at -1.35) and the
+bow's tails show in front of it; piece IoUs top 0.657 -> 0.669 (profile 0.47 -> 0.53), waistband 0.886 -> 0.907,
+bodice_panel 0.804 -> 0.828, bow 0.604 -> 0.598. `from` -1.05 with taper 3: top 0.674, bow 0.633 (front 0.668 ->
+0.712), waistband 0.907. `from` -1.05 alone changes nothing in profile.
+
+### The neck (neck_crease, art_speckle_neck)
+
+pipeline-3d's masked skin shows no neck column at +-115..175 degrees near the cut (the jacket hides it); ours shows
++-125..145 (crease 39.5-39.6 there; g3_a +-115..175). At the shoulders' sides (90 deg, z -0.62..-0.78) our torso stands
+at 0.404-0.416 L from its axis, pipeline-3d's 0.31-0.365; the hull's collar has no points there (only above z -0.58
+and behind, 105-180 deg). A cap over the collar's side points (tried, reverted) bound only at 50 deg (the lapels).
+Next: the top's `refine` (garments2's; pipeline-3d has none, thick 0.01) against the crease on the evaluator.
+
+### The three-quarter flaps
+
+The flaps' template edges run 126-166 deg (fit G); the drawn three-quarter tails sit at about +-100 deg while front,
+back and profile place them at 118-155 (skirt.md). g3_c three-quarter px ours/drawn: R 305/5409, L 6348/11607 (IoU
+0.0 / 0.013); the other views 0.73-0.88. The design's views disagree: Michael's call.
