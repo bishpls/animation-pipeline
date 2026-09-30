@@ -2,7 +2,7 @@
  "note": "the design turnarounds measured by charkit.artifactqa (head sheet at 400 px/L, body sheet at its own scale), a record per stamp (the outfit masks differ between specs); refresh with python -m charkit.artifactqa design BUNDLE_DIR (a bundle of each spec)",
  "records": [
   {
-   "stamp": "ea08e1638744cd48",
+   "stamp": "4602cde412168141",
    "inputs": {
     "face_sheet": "bf2e85f067120c0a",
     "face_facing": -1,
@@ -10,7 +10,7 @@
     "masks": "074d9a3f4374ca9a",
     "pieces": "f443644a518f15c6",
     "head_ppl": 400,
-    "code": "d936c847d69621b9",
+    "code": "6e510a92c51df812",
     "eye_x": 0.168
    },
    "made": "2026-09-30",

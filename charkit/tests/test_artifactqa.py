@@ -207,6 +207,15 @@ def test_the_design_stamp_reads_only_the_graphs_piece_types(tmp_path):
     assert A._piece_types(str(a)) != A._piece_types(str(b))
 
 
+def test_the_design_code_covers_its_detectors_constants_not_the_grades(monkeypatch):
+    c = A.design_code()
+    monkeypatch.setattr(A, 'PEEKS', (1, 2))                                   # a grade's limit: not the design's
+    monkeypatch.setattr(A, 'SHAPE_CHECKS', {})
+    assert A.design_code() == c
+    monkeypatch.setattr(A, 'SPIKE_R', A.SPIKE_R * 2)                          # a detector's constant: the design's
+    assert A.design_code() != c
+
+
 def test_a_stale_design_is_measured_once_per_machine(tmp_path, monkeypatch):
     monkeypatch.setenv('CHARKIT_PRODUCED_CACHE', str(tmp_path))
     made = []

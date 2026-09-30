@@ -119,6 +119,27 @@ STEPS = [
     ('art_fragments_*', '1b2a283', 'new (tool/artifacts): the area in small pieces and slivers between drawn lines per L of '
      'outline against the design turnarounds\''),
     ('art_speckle_*', '1b2a283', 'new (tool/artifacts): specks per L^2 of face and neck skin against the design\'s'),
+    ('art_peeks_*', '0db2e9b', 'new (tool/artifacts): small visible bits of a region\'s own pieces, a count (ours only)'),
+    ('art_*_collar', '2a963bb', 'the body frame from 0.2 L under the eyes (0.5 cut the pieces at the neck); the design\'s '
+     'garment votes kept off skin (tool/artifacts)'),
+    ('art_*_bow', '2a963bb', 'the body frame from 0.2 L under the eyes; the design\'s garment votes kept off skin'),
+    ('art_*_top', '2a963bb', 'the body frame from 0.2 L under the eyes; the design\'s garment votes kept off skin'),
+    ('art_*_skirt', '2a963bb', 'the design\'s garment votes kept off skin, the flaps voted their own'),
+    ('art_*_boots', '2a963bb', 'the template boots (boot_L, boot_R) counted: since round 5 only the cuffs were read'),
+    ('art_*_sleeves', '2a963bb', 'new (tool/artifacts): the puff sleeves as a region'),
+    ('art_*_flaps', '2a963bb', 'new (tool/artifacts): the overskirt flaps as a region'),
+    ('art_spikes_*', '2a963bb', 'new (tool/artifacts): the silhouette\'s tallest spike (what an opening by a 0.03 L disk '
+     'cuts off, 0.012 L or more out) per region, beyond the design\'s (Michael\'s jagged boot protrusion)'),
+    ('art_points_*', '2a963bb', 'new (tool/artifacts): the silhouette\'s sharpest outward turn over 0.02 L per region, '
+     'beyond the design\'s (the hull sleeves\' pointed caps)'),
+    ('art_bumps_*', '2a963bb', 'new (tool/artifacts): the sharpest outward turn over 0.06 L where the silhouette is one '
+     'region\'s own, beyond the design\'s (the knob behind the thigh in profile, a jagged boot)'),
+    ('art_mirror_waist', '2a963bb', 'new (tool/artifacts): the jacket, band, skirt and flaps\' asymmetry about the '
+     'figure\'s axis against the design\'s (the skirt jutting past the band on one side)'),
+    ('art_mirror_self_boots', '2a963bb', 'new (tool/artifacts): the boots\' asymmetry about their own axis against the '
+     'design\'s (a pair unlike each other)'),
+    ('art_band_lower', '2a963bb', 'new (tool/artifacts): the skirt and flaps\' dark hem band\'s edge, kinks per L on the '
+     'picture drawn with its textures, against the design\'s (pixel stairs against a few clean steps)'),
     # tool/look2: the look QA's speedup
     ('line_ink', '0b6e9cd', 'the lines\' own colour (their supersampled pixels before the pixel filter), not the pixels a '
      'line covers wholly after it (blended with their neighbours): the inked hair, garment and accessory lines read '

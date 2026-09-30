@@ -25,9 +25,24 @@ body sheet's px per L) the garments. Outlines are traced at sub-pixel precision 
   peeks        ours only (the drawing has no pieces): small visible bits of a region's own pieces, each object's
                components but its largest under FRAG L^2 (a lock tip peeking past the lock in front of it); a count
 
+Silhouettes (body frame; Michael's flags as regression checks, each calibrated to pass on the design and fail on the
+build where he saw it: docs/workstreams/artifacts.md):
+  spikes       the figure's silhouette opened by a disk SPIKE_R across: what it cuts off standing SPIKE_H or more out,
+               given to the region inside it; its tallest (L) beyond the design's (a jagged boot protrusion)
+  points       the silhouette's sharpest outward turn over CAP_ARC per region (deg), beyond the design's (floored at
+               CAP_MIN): the hull-lofted sleeves' pointed caps
+  bumps        its sharpest outward turn over BUMP_ARC where the silhouette is one region's own for BUMP_PURE round it
+               (a junction with another piece is a corner by design): the knob behind the thigh in profile, a jagged boot
+  mirror       1 - IoU of a region with its mirror image: the waist (jacket, band, skirt, flaps) about the figure's axis
+               (the skirt jutting past the band on one side), the boots about their own (a pair unlike each other); a
+               ratio to the design's
+  band         the skirt and flaps' dark hem band's edge on the picture drawn with its textures: kinks per L (pixel
+               stairs), a ratio to the design's (its few clean steps)
+
 Checks art_<detector>_<region>: the worst view's ratio to the design's (the design's floored: DETECTORS), per view
-ours, the design's and the ratio beside it; INFO, with the grade PROPOSED limits would give. Calibration: see
-docs/workstreams/artifacts.md.
+ours, the design's and the ratio beside it; INFO, with the grade PROPOSED limits would give. The silhouettes' checks
+(SHAPE_CHECKS: art_spikes_*, art_points_*, art_bumps_*, art_mirror_waist, art_mirror_self_boots, art_band_lower): the
+worst view's excess over the design's, or ratio to it. Calibration: see docs/workstreams/artifacts.md.
 
     from charkit import artifactqa
     artifactqa.outline(mask, ppl)                        # -> dict(len, corners, kinks, rms, ...) for any boolean mask
@@ -1305,6 +1320,32 @@ def _piece_types(graph_path):
     return cache.digest(sorted((str(p['id']), str(p.get('type'))) for p in G.get('pieces', ())))[:16]
 
 
+def design_code():
+    """the design side's code as a digest: this module's functions design_heads and design_body run (cache.code_units)
+    and the values of the constants they read, not the module's other top-level lines (the grades' limits, the notes:
+    changing those doesn't change the design's measures)."""
+    import types
+    from . import cache
+    g = globals()
+    units = {k: v for k, v in cache.code_units(design_heads, design_body).items()
+             if k.startswith('charkit/artifactqa.py:') and not k.endswith(':<top>')}
+    names = set()
+
+    def walk(co):
+        names.update(co.co_names)
+        for c in co.co_consts:
+            if isinstance(c, types.CodeType):
+                walk(c)
+    defaults = {}
+    for k in units:
+        f = g.get(k.split(':', 1)[1])
+        if hasattr(f, '__code__'):
+            walk(f.__code__)
+            defaults[k] = repr((f.__defaults__, f.__kwdefaults__))      # (a default's value: arc=CORNER_ARC)
+    consts = {n: repr(g[n]) for n in sorted(names) if n in g and n.isupper()}
+    return cache.digest([sorted(units.items()), sorted(consts.items()), sorted(defaults.items())])[:16]
+
+
 def design_inputs(B, design):
     """what the design's measures are made from: the head and body sheets, the outfit's piece masks (their bytes: the
     body sheet's cells are voted by them) and the graph's piece types (which piece is which region), the eye spacing
@@ -1319,11 +1360,9 @@ def design_inputs(B, design):
     mp = _mask_paths(B.spec)
     if mp is None:
         return None, 'no outfit masks produced for this spec', None
-    code = {k: v for k, v in cache.code_units(design_heads, design_body).items()      # (this module's design-side
-            if k.startswith('charkit/artifactqa.py:')}                                  # functions and constants)
     inp = dict(face_sheet=_sha(qa3d._path(fs['image'])), face_facing=fs.get('facing', -1),
                body_sheet=_sha(qa3d._path(bs['image'])), masks=_sha(mp[0]), pieces=_piece_types(mp[1]),
-               head_ppl=HEAD_PPL, code=cache.digest(sorted(code.items()))[:16])
+               head_ppl=HEAD_PPL, code=design_code())
     path = os.path.join(os.path.dirname(qa3d._path(man)), DESIGN_FILE) if man else None
     stamp = cache.digest(sorted(inp.items()))[:16]
     inp['eye_x'] = round(float(B.assembly['eye_knobs']['x']), 6)        # (the sheets' scale: within EYE_X_TOL, not stamped)
