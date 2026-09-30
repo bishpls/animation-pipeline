@@ -657,3 +657,25 @@ IoU 0.88-0.99. The QA's two drawings agree on the bare head: face_shadow_chin 0.
   shadow ends 0.15-0.2 L under the chin, the design's 0.3-0.35). A call on the neck's own terminator (e.g. the neck
   lit but for the cast) is the lever the flag points at.
 - **The chin checks ship INFO** (not calibrated, above). Promotion waits on a calibrated measure.
+
+## Round 6: the design light (`tool/look6`, from pipeline-3d d60486a; tool/look5 merged)
+
+Michael asked whether shadows should be part of model optimisation at all. They belong to the look layer (shaders, the
+SDF face maps, the baked cast attributes), authored against a key light; no geometry fit reads shading. The gap: the look
+is graded under the board light (call A: the camera key, 30 deg left of the camera, 40 up), which was never derived from
+the design. The design's drawn shading implies a light (the V under the chin, the hair's shadow on the face, the skin's,
+hair's and garments' terminators). This round fits that light, stores it as a reference light for QA (the board light
+stays call A's style setting), grades the look under it, recalibrates the chin measures on the jaw, and re-measures the
+hair's shadow on the face.
+
+### Plan
+1. Fit the design light: our shaded regions (charkit.render's tone buffer, under a candidate light) against the design's
+   drawn ones (head_turnaround and body_turnaround: skin, hair, garments), per view and jointly (one camera-relative key
+   for every view, or one world light), with the per-view residuals.
+2. Store it as a reference light (the manifest), and grade face_shadow_*, the chin, the hair's share of the face and the
+   terminators under it.
+3. The chin measures aligned on the jaw, calibrated (pass on the design moved 1-2 px, fail on round 1's band).
+4. The hair's cast on the face (34% against the design's 8% in front) under the design light; tune the cast if over.
+5. Before / after renders for Michael's call on the board default (not changed here).
+
+Base build: `charkit/out/look6_base` (render box, charkit/spec/clawd.json at d60486a).
