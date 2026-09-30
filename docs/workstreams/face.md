@@ -1025,5 +1025,16 @@ Jobs:
 - render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (done).
 - render box build of c047273 (the remeasure and the jaw behind the hair, without the subdivision move) -> 
   `charkit/out/f5_geom` (`build-face-0930-140341-60c7`).
+- **f5_geom's QA against f5_before** (render box; 103 checks moved, most in the 3rd-4th digit): chin_angle 118.8 WARN ->
+  128.2 PASS and jaw_taper_shape 0.0399 WARN -> 0.0157 PASS (both remeasured), jaw_outline_hidden (new) 0.0025 PASS,
+  jaw_line_front 0.937 -> 1.137, sheet_width 0.987 -> 1.01, sheet_cheek 0.0193 -> 0.0164, neck_front_wiggle 6.9 -> 5.4.
+  Worse grades: tq_cheek_hollow 0.005 PASS -> 0.0056 WARN (as the lab), and **sleeve_profile_rough_L 0.0107 WARN ->
+  0.0146 FAIL** (FAIL at 0.014): ours' visible sleeve in profile loses 3 px at its top (9572 -> 9569 px; its top width
+  0.2151 -> 0.2186), where the collar covers the cap; the collar moved (169 of its 10,082 vertices over 0.005 L, up to
+  0.032 L; it reads the neck and jaw), the side lock L followed the wider face (up to 0.041 L, z -0.36 up: not over the
+  sleeve). A knife-edge check (the base 0.0034 under FAIL) moved by the collar's occlusion, not the sleeve: for the
+  coordinator.
+- merged pipeline-3d 25b1936 (infra-auth, evalmesh M2+M3: subsurf.py identical; infra3 run 3) at 253a702.
+- render box build of the tip (everything) -> `charkit/out/f5_after`; the gate into pipeline-3d (build box).
 - review page: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
   --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
