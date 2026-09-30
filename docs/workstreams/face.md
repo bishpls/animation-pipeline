@@ -836,3 +836,15 @@ own recession, not the V's shape (level 128.5-128.9 against 129.7).
    boards' value beside it). Under it the rim loop (`SIDE_RIM_ROW` with the refit) reads the design's V exactly
    (130.2, tip 0.79) but the boards' tip 0.42; it stays off.
 5. sheet_width's drift: `evaldrift SPEC --build DIR --here --stages` (owner infra / body).
+
+**Gate** (3e8d8bc into pipeline-3d b43c15e, default spec; `charkit/out/gate/gate_tool-face4_3e8d8bc_into_b43c15e.md`):
+FAIL under K, two blockers:
+- new FAIL: jaw_taper_shape 0.0388 WARN -> 0.0401 FAIL (the lab read 0.0398: the box +0.0003, as predicted; the chin
+  refit narrows the near-chin width the boards' camera reads, w90);
+- flag check: art_terminator_hair 2.376 -> 2.552 (WARN both): not the chin; most likely the crown fix (the dome's
+  skin moved up to 0.007 L under the hair, which reads the skin for its trim / shading); unconfirmed.
+Improved: hair_penetration 0.0124 FAIL -> 0 PASS (the crown), chin_tip 0.557 WARN -> 0.831 PASS. Values: chin_angle
+116.7 -> 119.1 WARN. jaw_line_bend (4.6) and tq_jaw_notch (0) unchanged. CPU 0.87x. Jaw cage health unchanged (0
+edges over 90 degrees; folded corners 60 -> 62). Options: TIP_BIAS / SIDE_RIMFIT_A back a notch for the taper (every
+lab variant sat at 0.0395-0.0402: the boards' taper is at its limit), or the chin's refit off and the crown fix alone
+(then check art_terminator_hair on it).
