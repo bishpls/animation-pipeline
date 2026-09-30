@@ -697,6 +697,18 @@ flagged once. chin_angle's design value is 129.7 degrees (PASS within 10: at lea
 0.671, jaw_taper_shape 0.0371 in the lab), at a nick of 7.9 degrees (WARN) where the V crosses the neck's edge instead
 of 4.6. Turn it on if the chin's V matters more than that nick.
 
+**Gates** (9a85cf5 into pipeline-3d cfcdc3a, build box; the commits after it are notes only):
+- default (`clawd.json`): FAIL on one line, the 2x2's chin_angle under the old measure (119.7 PASS -> 116.7 WARN),
+  accepted by the coordinator. chin_tip (0.59 -> 0.557) and jaw_taper_shape (0.0281 -> 0.0291 old, 0.0388 new) moved
+  within their grades (value). Improved: tq_jaw_notch 0.0573 FAIL -> 0 PASS, jaw_line_bend 41.2 FAIL -> 4.6 PASS.
+  Values within grade: jaw_line_three_quarter 1.333 -> 1.106, jaw_line_front 0.968 -> 0.937, chin_v 1.084 -> 1.127,
+  chin_underside 12.5 -> 12.8, sheet_width 1.01 -> 0.987, the face's shadow and noise INFO. The side locks and the
+  collar moved slightly (the hair's trim and the collar read the new jaw), with no check moved by them.
+  body_profile_iou_skin, piece_collar and neck_crease are unchanged against the base: jaw_7's 0.713, 0.754 and 27.6
+  are pipeline-3d's (hair round 3, hull-limbs).
+- `clawd_mh.json`: PASS; the MakeHuman head's jaw checks only remeasured, the same under both measures.
+- Reports: `charkit/out/gate/gate_tool-face_9a85cf5_into_cfcdc3a.md`, `..._clawd_mh.md`.
+
 **3. The evaluator's eye line** (evaldrift; 9a85cf5). `bodymeasure.sheet_face` registered ours on the iris plates'
 mean; it now sets them level with the head's eye line (`bodyeval`'s landmarks carry `eye_z`), as `qa3d.eye_anchor`
 does since e9a6753. On jaw_7's spec, sheet_cheek_chin, sheet_profile_chin and sheet_neck_to_jaw now match the box
