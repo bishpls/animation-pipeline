@@ -21,14 +21,13 @@ surface, solidify or outline modifiers (the silhouette is the base mesh: the QA'
 hulls, and the subdivision's shrinkage is under a pixel), the generated hair is not decimated, and a body knob keeps the
 hair selection it had (the selection reads the body only round the neck).
 """
-import copy, functools, hashlib, json, os, pickle, time
+import copy, hashlib, json, os, pickle, time
 
 import numpy as np
 
 from .bodymeasure import AZ, iou as _iou                    # (the measurements live in charkit/bodymeasure.py)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE = os.path.join(ROOT, 'charkit', 'out', 'bodyeval', 'cache')
 SUBDIV = {'viewport': {'skin': 1, 'garments': 1}, 'render': {'skin': 2, 'garments': 1}, 'base': {}}   # the build's levels
 BODY_KEYS = ('body',)                                                     # spec sections compose() can take over
 
@@ -119,34 +118,11 @@ def _glb(spec):
 
 
 # ------------------------------------------------------------------------------------------------------------- assembly
-def _code_version():
-    """a hash of the modules the assembly runs (so a cached assembly goes stale when they change)."""
-    h = hashlib.sha1()
-    for m in ('character', 'body', 'anime_head', 'eyes', 'mouth', 'brows', 'head', 'mh', 'base_anime'):
-        p = os.path.join(ROOT, 'charkit', m + '.py')
-        if os.path.exists(p):
-            h.update(open(p, 'rb').read())
-    return h.hexdigest()[:8]
-
-
 def assemble_cached(spec, cache=True):
-    """character.assemble, pickled under charkit/out/bodyeval/cache by the spec's hash and the assembly code's."""
-    from . import character
-    key = hashlib.sha1((json.dumps(spec, sort_keys=True, default=str) + _code_version()).encode()).hexdigest()[:16]
-    path = os.path.join(CACHE, f'{spec.get("name", "char")}_{key}.pkl')
-    if cache and os.path.exists(path):
-        try:
-            return pickle.load(open(path, 'rb'))
-        except Exception:
-            pass
-    A = character.assemble(spec)
-    if cache:
-        os.makedirs(CACHE, exist_ok=True)
-        try:
-            open(path, 'wb').write(pickle.dumps(A))
-        except (TypeError, pickle.PicklingError):
-            pass
-    return A
+    """character.assemble, kept on disk by charkit.geomstage.assemble (the build's own venv stages share it): keyed by the
+    spec, the content of the code head and body it names, and the assembly's code closure (charkit.cache.code_units)."""
+    from . import geomstage
+    return geomstage.assemble(spec, keep=cache)
 
 
 def _smoothstep(a, b, x):
@@ -504,70 +480,60 @@ def triangulate(polys, with_poly=False):
     return (T, np.concatenate(pid) if pid else np.zeros(0, np.int64)) if with_poly else T
 
 
-def _loops(A):
-    """the assembly's faces as flat (loop verts, starts, counts), computed once per assembly."""
-    if '_loops' not in A:
-        ct = np.array([len(f) for f in A['faces']])
-        st = np.r_[0, np.cumsum(ct)[:-1]]
-        A['_loops'] = (np.array([v for f in A['faces'] for v in f]), st, ct)
-    return A['_loops']
-
-
 def garment_piece(A, s, nrm=None, dom=None, hull=None, spec_all=None):
-    """one garment piece as garments.build makes it (numpy) and the skin vertices it hides; hull: garments.hull_pieces'
-    points, for a garment whose `source` is 'hull'. -> (Part, hide indices)."""
-    from . import garments as gm
-    k, nm = s['kind'], s['name']
-    hide = np.zeros(0, np.int64)
-    if k == 'shell':
-        G = gm.shell(A, dict(s, _spec=spec_all or {}), nrm, hull)
-        src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
-        lv, st, ct = _loops(A)
-        c = np.add.reduceat(inside[lv].astype(int), st)
-        border = np.zeros(len(inside), bool)
-        border[lv[np.repeat((c > 0) & (c < ct), ct)]] = True
-        hide = src[~border[src]]
-    elif k == 'band':
-        G = gm.band_hull(A, s, hull) if s.get('source') == 'hull' else gm.band(A, s)
-    elif k == 'shoe':
-        G = gm.shoe_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.shoe(A, s)
-        dom = gm.dominant(A)[0] if dom is None else dom
-        hide = np.nonzero(np.isin(dom, [f"{s['side']}Foot", f"{s['side']}Toes"]))[0]
-    elif k == 'boot':
-        G = gm.boot(A, dict(s, _spec=spec_all or {}))
-        hide = np.asarray(G['hide'], np.int64)
-    elif k == 'belt':
-        G = gm.belt_hull(A, s, hull) if s.get('source') == 'hull' else gm.belt(A, s)
-        if 'hide' in G:
-            hide = np.asarray(G['hide'], np.int64)
-    elif k == 'sleeve':
-        G = gm.sleeve_hull(A, s, hull) if s.get('source') == 'hull' else gm.sleeve(A, s)
-    elif k == 'skirt':
-        G = gm.skirt_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.skirt(A, s)
-    elif k == 'collar':
-        G = gm.collar_hull(A, s, nrm, hull) if s.get('source') == 'hull' else gm.collar(A, s, nrm)
-    elif k == 'bow':
-        G = gm.bow_hull(A, dict(s, _spec=spec_all or {}), hull) if s.get('source') == 'hull' else gm.bow(A, s)
-    elif k == 'panel':
-        if s.get('source') == 'flap':
-            G = gm.flap(A, dict(s, _spec=spec_all or {}), hull)
-        else:
-            G = gm.panel_hull(A, s, hull) if s.get('source') == 'hull' else gm.panel(A, s)
+    """one garment piece as the build makes it: garments.build itself, run on the assembly with its Blender calls
+    recorded (charkit.geomstage, the build's own garments stage: the same product the Blender side replays), read back
+    as a Part (garment_part) and the skin vertices it hides; hull: garments.hull_pieces' points, for a garment whose
+    `source` is 'hull'. (nrm, dom: unused, kept for callers; build() computes its own.) -> (Part, hide indices)."""
+    from . import geomstage
+    P = geomstage.product('garments', geomstage.record(A, [s], hull=hull, spec_all=spec_all))
+    obs, hide = geomstage.pieces(P)
+    if len(obs) != 1:
+        raise ValueError('%s: garments.build made %d objects' % (s.get('name'), len(obs)))
+    return garment_part(obs[0]), (np.nonzero(hide)[0] if hide is not None else np.zeros(0, np.int64))
+
+
+def garment_part(o):
+    """a recorded garment object (charkit.geomstage.pieces) as an evaluator Part: its mesh; per face the tones its material
+    slot renders unlit (a toon's colour; a textured toon's texel at the face's UV centre, the texture as Blender's byte
+    image holds it; the shade tone the material's multiplier times it); the thickness its Solidify gives it."""
+    from . import garments as gm, geomstage
+    polys = o['polys']
+    nf = len(polys)
+    slot = np.asarray(o['mat_idx'], int) if o['mat_idx'] is not None else np.zeros(nf, int)
+    if o['uv_corner'] is not None:
+        uvc = [np.asarray(c, float) for c in o['uv_corner']]
+    elif o['uv'] is not None:
+        U = np.asarray(o['uv'], float)
+        uvc = [U[list(f)] for f in polys]
     else:
-        raise ValueError(k)
-    lit, shade, tex = garment_tones(A, s, G)
-    P = Part(nm, 'garments', G['verts'], G['faces'], lit, shade)
-    P.tex = tex
-    if k in SOLID:                                             # the thickness the build's Solidify gives it (evaluated)
-        P.solid = (s.get('thick', SOLID[k]) if k == 'shell' else SOLID[k]) * A['head']['L']
-    elif k == 'belt' and s.get('source') == 'hull':
-        P.solid = s.get('thick', 0.025) * A['head']['L']
-    elif k == 'band' and s.get('source') == 'hull':
-        P.solid = s.get('thick', 0.02) * A['head']['L']
-    return P, hide
+        uvc = None
+    cols, texs, muls = [], {}, []
+    for k, m in enumerate(o['materials']):
+        muls.append(np.asarray(m['shade'] if m['shade'] is not None else gm.SHADE_MUL, float))
+        if m['fn'] == 'toon_tex':
+            texs[k] = geomstage.blender_bytes(m['image'])
+            cols.append(None)
+        else:
+            cols.append(np.asarray(m['color'], float))
+    muls = np.array(muls)
 
-
-SHADE_MUL = np.array([0.86, 0.80, 0.84])               # garments.SHADE_MUL: a garment's shade tone (its 'shade' replaces it)
+    def tones(uv_centre, parent):
+        sl = slot[parent]
+        lit = np.zeros((len(parent), 3))
+        for k in range(len(cols)):
+            sel = sl == k
+            if sel.any():
+                lit[sel] = _texel(texs[k], uv_centre[sel])[:, :3] if k in texs else cols[k]
+        return lit, lit * muls[sl]
+    base_uv = np.array([c.mean(0) for c in uvc]) if uvc is not None else np.zeros((nf, 2))
+    lit, shade = tones(base_uv, np.arange(nf))
+    P = Part(o['name'], 'garments', o['V'], polys, lit, shade)
+    P.tex = dict(uvc=uvc, fn=tones)
+    sol = o['mods'].get('thick')
+    if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
+        P.solid = float(sol['settings']['thickness'])
+    return P
 
 
 def _texel(img, uv):
@@ -586,91 +552,6 @@ def _face_uv(faces, uv):
     return np.array([U[list(f)].mean(0) for f in faces])
 
 
-def garment_tones(A, s, G):
-    """per face of a garment piece, the sRGB tones its material renders unlit, as garments.build makes the materials: a
-    colour toon (lit, lit * its 'shade' or SHADE_MUL), a second material by face (the skirt's panel, a shoe's or boot's sole, the collar's
-    stripe), a textured toon (the skirt's stepped hem, a shell's front panel) sampled at the face's UV centre.
-    -> (lit (nf, 3), shade (nf, 3), tex): tex, for a textured piece, dict(uvc (per face, its corners' UVs), fn (UV
-    centres, parent faces) -> lit) so a subdivided face samples at its own centre, as Blender's evaluated mesh does."""
-    from . import garments as gm
-    L = A['head']['L']
-    k = s['kind']
-    col = np.asarray(s.get('color', (0.8, 0.8, 0.8)), float)
-    F = G['faces']
-    nf = len(F)
-    V = G['verts']
-    flat = np.zeros(nf, bool)                              # faces on a second, flat material
-    second = None
-    fn, uvc = None, None
-    if k == 'shell':
-        if 'sole' in s:
-            zmin = V[:, 2].min()
-            flat = np.array([V[list(f), 2].max() < zmin + s['sole']['height'] * L for f in F])
-            second = np.asarray(s['sole']['color'], float)
-        if 'panel_faces' in G:                                     # the hull's panel: a second material by face
-            flat = np.asarray(G['panel_faces'], bool); second = np.asarray(s['panel']['color'], float)
-        elif 'panel' in s:
-            P_ = s['panel']
-            cyf = A['head']['centre'][1]
-            zlo, zhi = gm.panel_inside(A, P_, 0.0, 0.0)[1]
-            front = np.array([V[list(f)].mean(0)[1] < cyf + 0.02 for f in F])
-            uvc = [[((V[v][0] / L + 0.5) if fr else 5.0, (V[v][2] - zlo) / (zhi - zlo)) for v in f] for f, fr in zip(F, front)]
-            pc = np.asarray(P_['color'], float)
-
-            def fn(uv, parent):
-                n_ = 512                                          # the build's texture, at its texel centres
-                uv = np.clip(uv, 0, 1 - 1e-6)
-                uc = (np.floor(uv[:, 0] * n_) + 0.5) / n_; vc = (np.floor(uv[:, 1] * n_) + 0.5) / n_
-                X, Z = (uc - 0.5) * L, zlo + vc * (zhi - zlo)
-                inside = gm.panel_inside(A, P_, X, Z)[0]
-                return np.where(inside[:, None], pc, col)
-    elif k in ('shoe', 'boot'):
-        flat = np.asarray(G['sole'], bool); second = np.asarray(s.get('sole_color', (0.26, 0.21, 0.21)), float)
-    elif k == 'collar':
-        flat = np.asarray(G['edge'], bool); second = np.asarray(s.get('stripe_color', (0.3, 0.2, 0.18)), float)
-    elif k == 'panel' and s.get('hem') == 'stepped':
-        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), repeat=s.get('repeat', 1), steps=s.get('steps', 6),
-                        **{k_: s[k_] for k_ in ('band', 'step_h') if k_ in s})
-        U = np.asarray(G['uv'], float)
-        uvc = [U[list(f)] for f in F]
-        fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
-    elif k == 'skirt':
-        flat = np.asarray(G['panel'], bool); second = np.asarray(s.get('panel_color', col), float)
-        pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * np.pi)
-        img = hem_image(col, s.get('hem_color', (0.28, 0.2, 0.18)), panel=(0.5 - pw, 0.5 + pw), repeat=s.get('repeat', 8),
-                        pleats=s.get('pleats', 24))
-        U = np.asarray(G['uv'], float)
-        uvc = [U[list(f)] for f in F]
-        fn = lambda uv, parent: _texel(img, uv)[:, :3].astype(float)
-
-    mul = np.asarray(s.get('shade', SHADE_MUL), float)
-
-    def tones(uv_centre, parent):
-        lit = np.tile(col, (len(parent), 1)) if fn is None else fn(uv_centre, parent)
-        if second is not None:
-            lit = np.where(flat[parent][:, None], second, lit)
-        shade = lit * mul
-        return lit, shade
-    base_uv = np.array([np.mean(c, 0) for c in uvc]) if uvc is not None else np.zeros((nf, 2))
-    lit, shade = tones(base_uv, np.arange(nf))
-    return lit, shade, (dict(uvc=uvc, fn=tones) if uvc is not None else dict(uvc=None, fn=tones))
-
-
-def hem_image(col, hem_color, **kw):
-    """garments.stepped_hem's texture, shared: it depends on its colours and pattern, not on the body, and at 1024 x 1024
-    RGBA in float64 it is 32 MB, which the garment cache otherwise kept once per body a fit tried (read-only)."""
-    return _hem_image((tuple(float(c) for c in col), tuple(float(c) for c in hem_color)),
-                      tuple(sorted((k, tuple(v) if isinstance(v, (list, tuple)) else v) for k, v in kw.items())))
-
-
-@functools.lru_cache(maxsize=16)
-def _hem_image(colors, kw):
-    from . import garments as gm
-    img = gm.stepped_hem(colors=colors, **dict(kw))
-    img.setflags(write=False)
-    return img
-
-
 GARMENT_BODIES = 4       # the garment cache keeps the pieces of this many bodies (assemblies), the most recently used
 
 
@@ -679,16 +560,12 @@ def garment_parts(A, specs, cache=None, akey=None, hull=None, spec_all=None):
     does. cache: a dict reused across calls; a piece is rebuilt only when its spec or the assembly (akey) changed. The
     cache keeps the pieces of the GARMENT_BODIES most recently used assemblies (a fit tries a new body every body-knob
     step: unbounded, it grew by the pieces of every one). -> ([Part], hide (N,) bool)."""
-    from . import garments as gm
-    nrm = dom = None
     hide = np.zeros(len(A['verts']), bool)
     parts = []
     for s in specs or []:
         key = (akey, _h(s)) if akey is not None else None
         if cache is None or key not in cache:
-            if nrm is None:
-                nrm = gm.vertex_normals(A['verts'], A['faces']); dom = gm.dominant(A)[0]
-            r = garment_piece(A, s, nrm, dom, hull, spec_all)
+            r = garment_piece(A, s, hull=hull, spec_all=spec_all)
             if cache is not None:
                 cache[key] = r
         else:
@@ -950,7 +827,7 @@ class Evaluator:
         head = _h({k: spec.get(k) for k in ('head', 'eyes', 'head_detail', 'base', 'mouth')})
         style = {k: v for k, v in hs.items() if k != 'shape'}
         acc = spec.get('accessories') or []
-        if shape and shape.get('mode') in ('mesh', 'geom'):
+        if shape and shape.get('mode') in ('mesh', 'geom', 'pieces'):         # (as scene.stage_hair: the hair carries them)
             acc = [a for a in acc if a['kind'] not in shape.get('carries', ['bun'])]
         objects, full, align = [], None, None
         if shape:
@@ -991,12 +868,26 @@ class Evaluator:
                         self.assembly(S0)[0])
                 gv, gf = self._memo('geom', gk, cut)
                 objects.append(('hair_shape', gv, gf))
+            elif mode == 'pieces':
+                # the hair's pieces as the build makes them (charkit.geom.hairpieces, the build's venv step): read from the
+                # product a build wrote (shape['pieces']), else made by that same step (cli.pieces_hair, cached). Keyed
+                # and carried in the head frame as the geom mode's cut; exact_geom makes them for each spec
+                hk = {k: v for k, v in shape.items() if k not in ('mode', 'pieces', 'geom')}
+                if self.exact_geom:
+                    pk = _h([head, hk, {k: v for k, v in spec.items() if k != 'hair'}])
+                    make = lambda: [(n, to_head(v, A), f) for n, v, f in self.pieces_hair(spec)]
+                else:
+                    pk = _h([head, hk, shape.get('pieces')])
+                    S0 = dict(spec, body=self.spec.get('body'), garments=self.spec.get('garments'))
+                    make = lambda: (lambda A0: [(n, to_head(v, A0), f) for n, v, f in self.pieces_hair(S0)])(
+                        self.assembly(S0)[0])
+                objects += self._memo('pieces', pk, make)
             if mode in ('mesh', 'geom') and (mode == 'mesh' or shape.get('cap', False)):
                 objects.append(('hair_cap',) + self._memo('cap', _h([head, style]), lambda: (lambda r: (to_head(r[0], A), r[1]))(
                     hair_cap(A, spec))))
             vkey = _h([skey, style])
             vol = lambda: self._memo('volume', _h([vkey, list(c), L]), lambda: mesh_volume(A, spec, sel_w()))
-            if mode not in ('mesh', 'geom'):
+            if mode not in ('mesh', 'geom', 'pieces'):
                 meshes = self._memo('locks', _h([vkey, 'locks']), lambda: {n: (to_head(v, A), f) for n, (v, f, _) in
                                                                           hairlib.generate(A['head']['H'], c, A['head']['info']['target'], hs, vol())[0].items()})
                 objects += [(n, q, f) for n, (q, f) in meshes.items()]
@@ -1021,6 +912,28 @@ class Evaluator:
             parts.append(Part(n, 'accessories', from_head(q, A), f))
             parts[-1].spec = a
         return parts, full, align
+
+    def pieces_hair(self, spec):
+        """mode 'pieces': the hair's pieces in world, [(hair_NAME, V, F)] in the product's order: the product a build
+        wrote (shape['pieces'], pieces.json and a part per piece), else the build's own step run for this spec
+        (cli.pieces_hair, its file_step cache) into charkit/out/bodyeval/pieces/KEY."""
+        from . import cli
+        from .geom.io import load_npz
+        shape = spec['hair']['shape']
+        pdir = shape.get('pieces')
+        if not (pdir and os.path.exists(os.path.join(cli._path(pdir), 'pieces.json'))):
+            key = _h({k: v for k, v in spec.items() if k != 'garments'})
+            out = os.path.join(ROOT, 'charkit', 'out', 'bodyeval', 'pieces', key)
+            os.makedirs(out, exist_ok=True)
+            S = cli.pieces_hair(copy.deepcopy(spec), os.path.join(out, 'spec.json'), out)
+            pdir = S['hair']['shape']['pieces']
+        pdir = cli._path(pdir)
+        index = json.load(open(os.path.join(pdir, 'pieces.json')))
+        out = []
+        for p in index['pieces']:
+            m = load_npz(os.path.join(pdir, p['file']))
+            out.append(('hair_' + p['name'], np.asarray(m.V, float), np.asarray(m.F)))
+        return out
 
     def geom_hair(self, spec, A):
         """mode 'geom': charkit.geom's extracted hair (shape['geom'] when the build wrote it, else extracted here and cached
@@ -1405,8 +1318,6 @@ def main(args):
 
 
 # ------------------------------------------------------------------------------------------------------ subdivision
-SOLID = {'shell': 0.008, 'sleeve': 0.008, 'skirt': 0.01, 'collar': 0.012, 'panel': 0.01}
-"""garments.build's 'thick' Solidify per kind (L; a shell's own 'thick' first): offset -1, the rim filled."""
 
 
 def _loops_of(polys):

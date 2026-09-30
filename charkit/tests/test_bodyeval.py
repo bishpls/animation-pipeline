@@ -318,12 +318,15 @@ def test_garment_shade_knob():
     assert gm._muls() == (gm.SHADE_MUL, gm.DEEP_MUL)
     sm, dm = gm._muls((0.74, 0.64, 0.64))
     assert np.allclose(sm, (0.74, 0.64, 0.64)) and np.allclose(np.array(dm) / np.array(sm), np.array(gm.DEEP_MUL) / gm.SHADE_MUL)
-    A = {'head': {'L': 0.25}}
-    G = {'faces': [(0, 1, 2)], 'verts': np.zeros((3, 3)), 'sole': [0]}
-    lit, shade, _ = bodyeval.garment_tones(A, {'kind': 'shoe', 'color': [0.5, 0.5, 0.5]}, G)
-    assert np.allclose(shade, lit * gm.SHADE_MUL)
-    lit, shade, _ = bodyeval.garment_tones(A, {'kind': 'shoe', 'color': [0.5, 0.5, 0.5], 'shade': [0.7, 0.6, 0.6]}, G)
-    assert np.allclose(shade, lit * np.array([0.7, 0.6, 0.6]))
+    # the evaluator's tones come from the materials build() made (charkit.geomstage's recording): a toon's shade tone is
+    # its colour times the garment's multiplier, SHADE_MUL unset
+    toon = lambda c, sh: dict(fn='toon', name='shoe', color=c, shade=sh)
+    o = dict(name='shoe', V=np.zeros((3, 3)), polys=[(0, 1, 2)], uv=None, uv_corner=None, mat_idx=[0], mods={},
+             materials=[toon([0.5, 0.5, 0.5], None)])
+    P = bodyeval.garment_part(o)
+    assert np.allclose(P.shade, P.lit * gm.SHADE_MUL) and np.allclose(P.lit, 0.5)
+    P = bodyeval.garment_part(dict(o, materials=[toon([0.5, 0.5, 0.5], [0.7, 0.6, 0.6])]))
+    assert np.allclose(P.shade, P.lit * np.array([0.7, 0.6, 0.6]))
 
 
 def test_ties_follow_attachments():

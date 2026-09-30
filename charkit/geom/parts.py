@@ -64,8 +64,8 @@ class Case:
     @classmethod
     def load(cls, spec_path, glb=None, cache=True, fit=True, verbose=True):
         """resolve the spec as `python -m charkit build` does (refs fit, then the cranium fitted to the generated hair),
-        assemble our character (numpy, cached under charkit/out/geom/cache by the resolved spec's hash) and align the
-        generated character by its eyes."""
+        assemble our character (numpy, charkit.geomstage.assemble's memo, shared with the build's other venv steps) and
+        align the generated character by its eyes."""
         from .. import character, cli, i3d, manifest, refs, scene
         spec = manifest.resolve(json.load(open(spec_path)))          # ref.manifest: the rig, the image, "ref:KEY" paths
         shape = (spec.get('hair') or {}).get('shape') or {}
@@ -80,28 +80,9 @@ class Case:
             R = refs.measure(cli._path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
             spec = refs.fit(spec, R, ref.get('fit', ('face', 'features', 'hair')))
         spec = scene.fit_cranium(spec, ROOT, load=lambda p: load_generated(p, compat=True))
-        from .. import cache as kcache                  # the assembly's code (charkit.cache.code_units): an edit re-assembles
-        code = kcache.digest(kcache.code_units(character.assemble))
-        key = hashlib.sha1((json.dumps(spec, sort_keys=True, default=str) + code).encode()).hexdigest()[:16]
-        cdir = os.path.join(ROOT, 'charkit', 'out', 'geom', 'cache')
-        cpath = os.path.join(cdir, f'{spec.get("name", "char")}_{key}.pkl')
         t = time.time()
-        A = None
-        if cache and os.path.exists(cpath):
-            try:
-                A = pickle.load(open(cpath, 'rb'))
-            except Exception:                              # a truncated or stale cache: assemble again
-                A = None
-        if A is None:
-            A = character.assemble(spec)
-            if cache:
-                os.makedirs(cdir, exist_ok=True)
-                try:
-                    blob = pickle.dumps(A)
-                except (TypeError, pickle.PicklingError):
-                    blob = None                        # (an assembly holding open files, e.g. the anime base: no cache)
-                if blob is not None:
-                    open(cpath, 'wb').write(blob)
+        from .. import geomstage                         # the build's shared assembly memo (the garments step reads it
+        A = geomstage.assemble(spec, keep=cache)         # too): keyed on the sections it reads and its code closure
         if verbose:
             print('assembled %s in %.1fs' % (spec.get('name'), time.time() - t))
         gc = gio.load(path, blender_compat=True)
