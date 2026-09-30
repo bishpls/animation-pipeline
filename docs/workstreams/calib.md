@@ -16,21 +16,45 @@ anti-gaming guard; (4) recorded acceptance of a named new FAIL; (5) the process 
 - The known-bad store (local, hard links, gitignored): `charkit/out/calib/builds/{g3_render3,co_render,hl_base,
   look5_before}`; what each is: `charkit/calib/known_bad/NAME.json`.
 
-## Running at the last checkpoint, and next steps
+## Done, validated, and next steps (stopped at the coordinator's call, 2026-09-30 evening)
 
-- Box gate A: `remote gate tmp/calib-bow --into 3ebc3fb --code tool/calib` (tmp/calib-bow = cbca3ad; gate code 9b4f17b);
-  log `charkit/out/calib/gateA_bow.log`. Expected FAIL: the anti-gaming guard on bow_front_bleed, bow_front_loop_end,
-  bow_profile_ribbon (piece_bow profile 0.553 -> 0.341, -38%), and no calibration record for the collar_flags checks.
-  (9b4f17b also counted bow_front_loop_width as improved "new, no old-geometry reading" though the 2x2 read it on both
-  geometries; fixed after: a 2x2 row decides.) Offline check: `python charkit/out/calib/harness/bow_pair.py` (FAIL, the
-  same blocks, 0.05 s).
-- Box gate B: `remote gate tmp/calib-bow-accept --into 3ebc3fb --code tool/calib` (59f5b7e = cbca3ad + the 9 records +
-  validation-only acceptances of the three guard-blocked bow checks, never merged); log `charkit/out/calib/gateB_accept.log`.
-  Expected: the guard blocks reported under "Accepted by name"; records found; collar_back_iou (blind) and
-  collar_back_lay (miscalibrated) still block on their verdicts.
-- The art_* records: `charkit/out/calib/run_art.log` (the Art adapter; the head sheet moved after refcheck.at_scale).
-- Then: pregate, `python -m charkit remote gate tool/calib --into pipeline-3d`, the review page
-  (`python charkit/out/calib/harness/page.py` -> charkit/out/calib/review/index.html).
+Branch head: see `git log -1 tool/calib`. Items 1-5 are done. **tool/calib has NOT been gated into pipeline-3d yet.**
+
+**Real-pair validation (box, `--code tool/calib` at 9b4f17b, into 3ebc3fb):**
+- **A: tmp/calib-bow (= tool/bow cbca3ad): FAIL, as required.** Report
+  `charkit/out/gate/gate_tmp-calib-bow_cbca3ad_into_3ebc3fb.md`. Blocks: the anti-gaming guard on bow_profile_ribbon
+  (0.8684 FAIL -> 0.0789 PASS under the new measure on both geometries), bow_front_loop_end and bow_front_bleed, each
+  while piece_bow's profile fell 0.553 -> 0.341 (-38%); plus no calibration record for the 9 collar_flags checks and
+  collar_back_torn (remeasured). The old gate code passed this pair.
+- **B: tmp/calib-bow-accept (59f5b7e = cbca3ad + the records + validation-only acceptances): FAIL, as intended.** Report
+  `charkit/out/gate/gate_tmp-calib-bow-accept_59f5b7e_into_3ebc3fb.md`. The three accepted guard blocks show under
+  "Accepted by name", with who, when and why. The records were read from the merged tree: collar_back_iou (blind)
+  and collar_back_lay (miscalibrated) block on their verdicts, and collar_back_torn has no record.
+- Both reports also block bow_front_loop_width through the guard ("new, with no old-geometry reading"). That came from
+  9b4f17b's rule and was fixed at 3d66737: a 2x2 row reads it on both geometries (0.0 -> 0.002 PASS: not improved).
+  The offline check agrees: `python charkit/out/calib/harness/bow_pair.py`.
+- **Added gate time: the `calibration` phase took 0.0 s in both reports** (laptop: records 0.1 s via git, registry 0.12 s).
+  It runs only when some check moved.
+- The tmp branches `tmp/calib-bow` and `tmp/calib-bow-accept` are validation only. Never merge them; delete them when done.
+
+**art_* records** (the Art adapter; defect detectors, no floor): 11 calibrated. art_speckle_neck is **blind** (look_v5
+reads 2.178 WARN) and art_mirror_self_boots is **blind** (body4b_render 1.787 WARN; artifacts.md already called its
+separation weak). art_peeks_hair is **unmeasured against the design**: it counts our pieces, and the drawing has none.
+Records: charkit/calib/records (31 total). hair_truth_accuracy is calibrated as a score: the truth moved 1-2 px reads
+0.930-0.971, the transfer masks 0.885, the floor 0.357, current 0.950. Past about 0.95 the score can't tell our masks
+from the truth moved a pixel.
+
+**Next steps (a fresh agent):**
+1. `python -m charkit pregate`, then `python -m charkit remote gate tool/calib --into pipeline-3d` (export
+   CLOUDSDK_CONFIG first). Merge pipeline-3d in first if it moved. Expect a candidate build (cli.py changed) and no
+   check moving.
+2. Registry entries and records for the checks the gate will ask about next: collar_back_torn and the other
+   piece_details checks (their part reads our_section and alone(): check the Garments stand-in covers them first).
+3. The review page: `python charkit/out/calib/harness/page.py` writes charkit/out/calib/review/index.html (the records'
+   table and the stand-ins). Open it for Michael.
+4. For the owners (no check changed here): collar_back_lay's design side is closed and ours isn't, so the design reads
+   0.0141 WARN against itself. collar_back_iou can't fail its flagged build. The chin IoU, art_speckle_neck and
+   art_mirror_self_boots are blind to their known-bads.
 
 ## How it works
 
