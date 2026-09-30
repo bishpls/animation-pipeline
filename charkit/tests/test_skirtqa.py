@@ -138,10 +138,20 @@ def test_design_passes_and_a_bad_version_fails():
                 k = int(0.06 * sh.ppl)
                 for a_, b_ in ((c[0] - k, c[0]), (c[-1] + 1, c[-1] + 1 + k)):
                     lab[r, a_:b_] = sk
+        if v in ('profile', 'profile_R'):                         # the train hugging the back of the leg
+            fl = L_ if v == 'profile' else R_
+            fg = o['fg'].copy()
+            for r, g in sq.leg_clearance(cls, fg, sh.ppl).items():
+                if g:
+                    c = np.nonzero(cls[r] == sq.CL['skin'])[0].max()
+                    k = int(round(g * sh.ppl))
+                    lab[r, c + 1:c + 1 + k] = fl; cls[r, c + 1:c + 1 + k] = sq.CL['orange']; fg[r, c + 1:c + 1 + k] = True
+            O[v] = dict(o, lab=lab, cls=cls, fg=fg)
+            continue
         O[v] = dict(o, lab=lab, cls=cls)
     T, C2 = sq.evaluate(O, names, sh.design, masks, marks, sh.ppl)
     for k in ('flap_back_width_L', 'flap_back_width_R', 'flap_profile_width_L', 'hemband_skirt_height', 'hemband_skirt_steps',
-              'skirt_back_outline'):
+              'skirt_back_outline', 'flap_profile_clear_L', 'flap_profile_clear_R'):
         assert C2[k]['status'] != 'PASS', (k, C2[k])
 
 

@@ -23,6 +23,11 @@ Checks (QA part 'skirt'; lengths in L, angles in degrees; SIDE L or R):
                               (where the drawing shows the attach: the back and the profile)
   flap_{view}_hang_{SIDE}     the angle of its centreline (the middle of each row, a weighted line fit) against the
                               drawing's
+  flap_profile_clear_{SIDE}   the tail's clearance behind the leg in profile: per row where the drawing shows the flap
+                              hanging clear behind the leg (the background between the leg's back edge and the flap),
+                              how much less clearance ours has (L; 0 where ours has as much or no flap there), the
+                              median (tool/hull-limbs: round 6's train hung against the thigh on 82 of 114 rows, where
+                              the drawn flaps hang 0.55-1.0 L clear of it)
   flap_profile_sweep_{SIDE}   the train's sweep in profile: its lowest point's distance behind its attach (+ ours
                               further back than the drawing; Michael's call is "hang": no sweep beyond the skirt's flare)
   hemband_{piece}_steps / _step / _height
@@ -65,6 +70,7 @@ EDGE_EPS = 2.0                # px: the band's top edge simplified to a polyline
 BAND_REACH = 0.15             # L: a drawn dark pixel this close to a drawn piece can be its band
 BAND_MIN_PX = 40              # a band with fewer pixels is left out (specks, a sliver past an occluder)
 BAND_GAP = 0.03               # L: the band's top within this under the face (the drawing's line between them)
+LEG_ROWS = (-2.62, -3.4)      # L from the eye line: the rows the flap's clearance behind the leg is read over (profile)
 GAP_ROWS = (-1.5, -2.45)      # L from the eye line: the rows the back's flap gap and its content are compared over
                               # (the waist to the drawn skirt's centre-back hem)
 LIMITS = {                    # (pass within, warn within); else fail
@@ -79,6 +85,7 @@ LIMITS = {                    # (pass within, warn within); else fail
     'outline': (0.025, 0.045),
     'gap': (0.04, 0.08),
     'gap_dark': (0.05, 0.12),
+    'clear': (0.10, 0.25),
 }
 
 
@@ -285,6 +292,39 @@ def width_diff(a, b):
     return float(np.abs(a['width'][rows] - b['width'][rows]).mean()) if len(rows) else None
 
 
+def leg_clearance(cls, fg, ppl, z0=LEG_ROWS[0], z1=LEG_ROWS[1], facing=-1):
+    """in profile (the figure facing the image's left: facing -1), per row over z0..z1 the background between the legs'
+    back edge (the skin's last column toward the back) and the next figure pixel behind it (L), None where nothing is
+    behind the leg. -> {row: gap}."""
+    z = rows_z(cls.shape[0], ppl)
+    out = {}
+    for r in np.nonzero((z <= z0) & (z >= z1))[0]:
+        sk = np.nonzero(cls[r] == CL['skin'])[0]
+        if not len(sk):
+            continue
+        if facing < 0:
+            c = sk.max()
+            behind = np.nonzero(fg[r, c + 1:])[0]
+            out[int(r)] = (behind[0] / ppl) if len(behind) else None
+        else:
+            c = sk.min()
+            behind = np.nonzero(fg[r, :c][::-1])[0]
+            out[int(r)] = (behind[0] / ppl) if len(behind) else None
+    return out
+
+
+def clearance_diff(ours, design):
+    """per row where the drawing shows a flap clear behind the leg: how much less clearance ours has (0 where ours has
+    as much, or nothing behind the leg) -> (median L, share of those rows where ours hangs within 0.05 L of the leg,
+    rows)."""
+    rows = [r for r, g in design.items() if g is not None and g > 0.05 and r in ours]
+    if not rows:
+        return None
+    d = [max(0.0, design[r] - (ours[r] if ours[r] is not None else np.inf)) for r in rows]
+    hug = [ours[r] is not None and ours[r] < 0.05 for r in rows]
+    return round(float(np.median(d)), 4), round(float(np.mean(hug)), 3), len(rows)
+
+
 # ------------------------------------------------------------------------------------------------------ the band
 def design_bands(faces, rgb, dark, ppl, close=1, reach=BAND_REACH, touch=3):
     """the drawing's bands per piece: the outfit masks leave the trims out (the skirt's band almost wholly), and cut
@@ -457,16 +497,24 @@ def gap_region(left, right, ppl, z0=GAP_ROWS[0], z1=GAP_ROWS[1]):
 
 
 # ------------------------------------------------------------------------------------------------------ the checks
-def evaluate(O, names, dv, masks, marks, ppl):
+def evaluate(O, names, dv, masks, marks, ppl, only=None, memo=None):
     """every check from our views (our_views) and the design's (bodyqa.design_views) with the outfit masks and the
-    marks -> (table, checks)."""
+    marks -> (table, checks). only: the groups to measure ('flaps', 'band', 'back'; the band's pieces as 'band:PIECE'),
+    default all; memo: a dict the design's side is kept in across calls on one design (a fit's)."""
     C, T = {}, {'flaps': {}, 'band': {}, 'back': {}}
-    P = drawn_pieces(dv, masks, marks, ppl)
+    memo = {} if memo is None else memo
+    want = lambda g: only is None or g in only or (g.startswith('band:') and 'band' in only)
+
+    def kept(key, fn):
+        if key not in memo:
+            memo[key] = fn()
+        return memo[key]
+    P = kept('pieces', lambda: drawn_pieces(dv, masks, marks, ppl))
     D = {v: {f: P[v]['full'][f] for f in FLAPS} for v in P}
     dark = CL['dark']
 
     # ---- the flaps' shape, per view
-    for view in VIEWS:
+    for view in (VIEWS if want('flaps') else ()):
         if view not in dv:
             continue
         for pid in FLAPS:
@@ -477,7 +525,7 @@ def evaluate(O, names, dv, masks, marks, ppl):
             if d.sum() < MIN_PX:
                 continue
             o = obj_mask(O[ov]['lab'], names, (pid,))
-            a, b = shape(o, ppl), shape(d, ppl)
+            a, b = shape(o, ppl), kept(('shape', view, dp), lambda: shape(d, ppl))
             rec = dict(px=[int(o.sum()), int(d.sum())])
             T['flaps'].setdefault(pid, {})[view] = rec
             v_ = round(iou(o, d), 4)
@@ -510,6 +558,14 @@ def evaluate(O, names, dv, masks, marks, ppl):
                     'note': "where it hangs from: its top row and the middle of its top %.2f L (x, z L) against the "
                             "drawing's; the larger difference" % TOP_BAND}
             if view == 'profile':
+                gd = kept(('clear',), lambda: leg_clearance(dv['profile']['cls'], dv['profile']['fg'], ppl))
+                r_ = clearance_diff(leg_clearance(O[ov]['cls'], O[ov]['fg'], ppl), gd)
+                if r_:
+                    C['flap_profile_clear_%s' % side] = {
+                        'value': r_[0], 'status': grade('clear', r_[0]), 'hug': r_[1], 'rows': r_[2],
+                        'note': "the tail's clearance behind the leg in profile: per row where the drawing shows the "
+                                "flap hanging clear of the leg, how much less clearance ours has (L), the median; "
+                                "beside it the share of those rows where ours hangs within 0.05 L of the leg"}
                 sw_o, sw_d = a['low_x'] - a['top_x'], b['low_x'] - b['top_x']
                 v_ = round(sw_o - sw_d, 4)
                 C['flap_profile_sweep_%s' % side] = {
@@ -518,7 +574,7 @@ def evaluate(O, names, dv, masks, marks, ppl):
                             "the drawing's (+ ours further back); Michael's call: hang, no sweep beyond the skirt's flare"}
 
     # ---- the stepped band, per piece and view
-    for piece in ('skirt',) + FLAPS:
+    for piece in [p_ for p_ in ('skirt',) + FLAPS if want('band:' + p_)]:
         per = {}
         for view in VIEWS:
             if view not in dv:
@@ -527,7 +583,7 @@ def evaluate(O, names, dv, masks, marks, ppl):
             ov = 'profile_R' if (view == 'profile' and side == 'R') else view
             dp = 'overskirt_panel_L' if (view == 'profile' and side == 'R') else piece
             db = P[view]['band'].get(dp)
-            b = band(P[view]['face'][dp], db, ppl) if db is not None else None
+            b = kept(('band', view, dp), lambda: band(P[view]['face'][dp], db, ppl) if db is not None else None)
             if b is None:
                 continue
             om = obj_mask(O[ov]['lab'], names, (piece,))
@@ -573,7 +629,7 @@ def evaluate(O, names, dv, masks, marks, ppl):
                 'note': note}
 
     # ---- the back
-    if 'back' in dv:
+    if 'back' in dv and want('back'):
         Ob, Db = O['back'], dv['back']
         ours = obj_mask(Ob['lab'], names, LOWER)
         drawn = np.logical_or.reduce([P['back']['full'][p] for p in LOWER if p in P['back']['full']])
