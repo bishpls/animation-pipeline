@@ -590,3 +590,16 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
   mesh's envelope 1), the back's 11 -> 19 (side_lock_R 10: one lock's thin strip along the lower back's edge, the
   partition), and the bun outline in profile 0.376 -> 0.298 (the bun's points: dropping the unsettled points thins
   the buns' too). With the mesh's partition the side_lock_R folds go (5 -> 1). Not the default; behind the setting.
+- **Confirming gate** (ad1872a into pipeline-3d a3073f5, default spec):
+  `charkit/out/gate/gate_tool-hair4_ad1872a_into_a3073f5.md`, PASS, no check changed, build CPU 1353 -> 1529 s (1.13x).
+  **Mergeable under K** (no new FAILs, no flag-check regressions, CPU under 1.5x).
+
+**Next (a lean relaunch):**
+1. The crown trim, Michael's call (the page): or fix the terminator at its source, the bun blocks' own flat normals
+   where the trimmed crown shows their bases (the buns shade with the mass, or their base faces rounded), then gate
+   with crown_trim on.
+2. Shell samples: 'shell_smooth' folds as the mesh does; what's left is the bangs' profile shards (the envelope over
+   the fringe's sides, where the shell covers cells the mesh leaves to the fill) and side_lock_R's strip along the lower
+   back in back view (the partition). The buns' outline in profile drops because dropping the unsettled points thins
+   the buns' points too: take the buns' points from the plain shell. foldlab `--b shell_smooth` is the loop.
+3. The bun's outline-weighted fit (0.50) without costing the back view; the default spec's hair_penetration (tool/face).
