@@ -52,6 +52,26 @@ branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling
 - Tests: `charkit/tests/test_jacket.py` (the cuts on their lines, the bib's margin, the hem over the band and lower in
   front, the flare), `test_pieceqa.py` (the ink core, the depth-aware junction).
 
+**Box build `charkit/out/g2_m3` (68ae58c) against pipeline-3d's (db718ae):** piece_waistband 0.454 FAIL -> 0.892
+PASS; piece_top 0.620 -> 0.653; piece_bodice_panel 0.66 (new: front IoU 0.80); top_front_over_band and
+three-quarter 0.0 PASS (0.977/0.968 FAIL on the round-6 build), top_front_hem_step 0.007 PASS; waistband rows PASS in
+front, three-quarter and back; the midriff gaps and panel edge PASS. top_front_opening FAILed there (0.040: a sliver
+of bib beside our tails at z -1.05); the opening now narrows under the tails (ff1a053: 0.007 in the evaluator).
+Worse: `body_front_skirt_overhang_{L,R}` PASS -> FAIL 0.113-0.115 and the band's widths (see Coordination: the
+skirt's top stands out past the drawn-width band, since milestone 2's `fit_rows`), `body_front_torso_jump_L` PASS ->
+WARN 0.014 (the jacket's side corner steps in 0.0235 L to the band; drawn 0.009), `sleeve_profile_rough_L` 0 -> 0.0096
+WARN.
+
+**Bow and cuffs: not into the spec this round.**
+- Bow `wing`/`ribbon` (b1) on the jacket state (evaluator, skin mask rebuilt): piece_bow 0.703 -> 0.81 PASS,
+  bow_front_flare 0.994 -> 0.468 WARN, tail width 0.308 -> 0.180 WARN, but bow_front_tail_gap 0.038 WARN -> 0.353
+  FAIL, bow_front_torn 0.0002 -> 0.082 FAIL, collar_three_quarter_torn 0 -> 0.124 FAIL (the far wing cut where it
+  passes the collar), collar_front_torn 0.137 -> 0.194. Needs the tails' parting and the wings' back edge first.
+- Cuff template (k2 knobs) on the same harness: all four views' IoU up on the left cuff (0.57/0.64/0.52/0.60 ->
+  0.66/0.68/0.61/0.71), the trims FAIL -> PASS (4), but the right cuff's three-quarter IoU 0.506 -> 0.442 and
+  piece_cuff_R 0.668 -> 0.593, and the flares still FAIL (the back right's worse, 0.299 -> 0.381). The milestone-3
+  figures (0.80-0.85) were read with the base build's skin mask; with the mask rebuilt for the variant they don't hold.
+
 **The collar (item 3): the template is built, not in the spec. Blocked on the shoulders' height.**
 - Built: a shell `outline` (`outline_dist`: the lapels between an inner V and an outer edge by height in front, the
   back flap to a bottom, signed distances in the front/back projections) and a `stripe` (faces a band in from the
