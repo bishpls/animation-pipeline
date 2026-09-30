@@ -62,3 +62,19 @@ a little. Every mesh reader sees a new mesh once (the stamp changes): code_body,
 bundle.target_pieces.
 
 ## Jobs
+- box builds (build box, `--boards '' --no-blend`, as a gate builds): B2 = pipeline-3d 3a0ad37 + hull-local
+  (`charkit/out/hl_b2`, CPU 908.7 s cold) and B3 = tool/face5 2e4c1d6 + hull-local (`tmp/face5-on-hull-local` f6137bd,
+  worktree `~/animation-pipeline-face5hl`, `charkit/out/hl_b3`).
+
+## What face5 does on a local hull (B2 -> B3)
+
+- body_code.npz identical (every array). The collar's checks are identical: sleeve_profile_rough_L 0.0 PASS both,
+  collar_back_iou 0.7461, art_fragments_collar 6.515, art_outline_collar 1.379. The chain is cut.
+- art_terminator_hair 2.514 -> 2.964 (worst view: the back, ratio 2.514 -> 2.964). Piece swaps (`tools/hairtag/termlab.py`
+  on the box, `charkit/out/hl_term/term_b2_b3.json`): **hair_bun_L carries it**. B2 with B3's bun_L reads 2.903 (back),
+  and B3 with B2's bun_L reads 2.61 (back 2.56). hair_bun_R adds about 0.05 (2.563 / 2.894). The side locks, bangs,
+  upper and lower back, ahoge and flyaways move the back view by 0.01 at most. The buns move 0.020 / 0.011 L (1,923 /
+  1,766 vertices over 1e-3 L) though the hull is identical there. So the carrier isn't the hull: it's an input of the
+  bun fit that the face changes (`tools/hull_local/hairswap.py`, below).
+- hull-local alone (B2) reads art_terminator_hair 2.514 against pipeline-3d's 2.308: the new mesh everywhere moves the
+  flag check past its 2.5 line by itself. Its own gate would block on it.
