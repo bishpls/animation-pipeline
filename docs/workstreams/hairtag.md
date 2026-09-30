@@ -145,4 +145,51 @@ method's gain holds under both (+0.066 / +0.065).
   under K, tool/toonrender2's QA drawing), cleanly; test_hairtruth, test_manifest, test_registry, test_hairpieces,
   test_outfit pass. This branch adds no QA part or step (the hair layers' keys are unchanged; the QA's hair checks read
   them as before).
-- Gate (default spec): running, `python -m charkit remote gate tool/hairtag --into pipeline-3d`.
+- **Gate** (default spec): `charkit/out/gate/gate_tool-hairtag_b2b06d0_into_b43c15e.md`, **PASS** under K: no new
+  FAIL, no flag check changed status or grade, build CPU 1081 -> 937 s (0.87x). 54 test files pass.
+
+## The downstream effect (the gate's build, default spec, b2b06d0 against pipeline-3d b43c15e)
+
+| check | before | after |
+|---|---|---|
+| hair_piece_bangs | 0.762 PASS | 0.788 PASS |
+| hair_piece_side_locks | 0.545 WARN | 0.528 WARN |
+| hair_piece_upper_back | unchanged | |
+| hair_piece_lower_back | 0.703 PASS | 0.606 PASS |
+| hair_piece_buns | 0.826 PASS | 0.825 PASS |
+| hair_piece_ahoge / flyaways (INFO) | 0.267 / 0.19 | 0.336 / 0.15 |
+| hair_bun_outline | 0.397 FAIL | 0.358 FAIL |
+| hair_folds | 6 WARN | 11 WARN |
+| hair_penetration (the skin's crown artifact, hair4) | 0.0124 FAIL | 0.0141 FAIL |
+| hair_noise | 0.0748 WARN | 0.0725 WARN |
+| art_peeks_hair (flag) | 19 WARN | 15 WARN |
+| art_terminator_hair (flag) | 2.376 WARN | 2.428 WARN (grade unchanged) |
+| art_fragments_hair / art_outline_hair (INFO) | 1.29 / 0.689 | 1.17 / 0.605 |
+| body_{front,profile,back}_top | 0.0048 PASS | 0.0142 PASS (the ahoge piece 0.005 L taller: its whole curl is ahoge now) |
+
+**Read with care:** the hair_piece_* checks grade the pieces against the hair layers, which this branch changes, so
+each reading compares the new pieces with a new target. The targets moved (old against new masks, pooled over front,
+profile and back): bangs IoU 0.920, side locks 0.827, upper back 0.790 (57.5 k -> 65.7 k px: the back's central lobe),
+lower back 0.730 (34.8 k -> 30.7 k), buns 0.999, ahoge 0.656, flyaways 0.546 (6.2 k -> 3.6 k). The 2x2 (each build's
+pieces against both mask sets, hairlab `--built` with the layers swapped) is not run: next step 1. The truth score is
+the target's own accuracy (0.892 -> 0.958); the pieces' fits are the geometry's.
+
+## State (end of round, 2026-09-30)
+
+- Branch `tool/hairtag`: `ecc1358` truth and scorer, `97d9449` the method, `018f297` pipeline-3d b43c15e merged,
+  `b2b06d0` notes (gated), then these notes. Never pushed.
+- Review page: `charkit/out/hairtag/review/index.html` (sheet | truth | before | its errors | after | its errors, with
+  both outfit mask sets; scores, rules and calls).
+
+## Next steps
+
+1. The 2x2 for the hair pieces: each build's pieces scored against both the old and the new hair layers (hairlab
+   `--built`, the produced layers swapped), so the pieces' moves (lower back -0.097, folds 6 -> 11, bun outline -0.039)
+   split into target and geometry.
+2. hair_folds 6 -> 11: which locks fold on the new partition (the upper back now reaches the back's central lobe;
+   tools/hair4/foldlab.py).
+3. The front (0.918): the ahoge's shaded half votes bangs under the tone split (ahoge 0.973 without it), the right outer
+   mass's shadowed underside votes upper back (1.8 k px; call B/C decide it), flyaways over the outer masses.
+4. The profile's far-bun peek (bun_R side 0.003; none at all with the sheet-only outfit masks) and, with them, the
+   buns' undersides in profile (1.3 k px): outfit-source's open item.
+5. Stretch not done: lock-level labels within the bangs and side locks.

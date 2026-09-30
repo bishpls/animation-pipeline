@@ -101,7 +101,8 @@ def main(a):
                 else:                                          # sides only: the buns' sides
                     sd = [q for q in st if q in ('bun_L', 'bun_R')]
                     if sd:
-                        ok |= m & np.isin(gs, sd); bad |= m & ~np.isin(gs, sd)
+                        acc = sd + ([''] if st[0] not in ('bun_L', 'bun_R') else [])
+                        ok |= m & np.isin(gs, acc); bad |= m & ~np.isin(gs, acc)
                     else:
                         bad |= m & (gs != ''); ok |= m & (gs == '')
             err = rgb * 0.25 + 0.75
