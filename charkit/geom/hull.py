@@ -895,6 +895,24 @@ def sections(views, A, use, class_share=0.6, limbs=True, split_min=0.04, tracks=
     return out
 
 
+SRC_CODE = {'only': 1, 'limb': 2, 'piece': 3, 'interp': 4, 'skin': 5, 'side': 6, 'owned': 7}
+
+
+def sections_table(views, A, use, prior):
+    """sections() with a style's prior as one int array for the build's stages (a machine's run compared bit for bit):
+    per side run (k, x0, x1, limb, y0, y1, source code), then per limb and height the LimbTrack's rejected runs
+    (k, -1, -1, limb, y0, y1, 0) and the Owners' changes (k, x0, x1, CORE, y0, y1, -1 - the columns kept)."""
+    T = {}
+    S = sections(views, A, use, **{k: prior[k] for k in ('class_share', 'limbs', 'split_min') if k in prior}, tracks=T)
+    rows = [(k, x0, x1, t, y0, y1, SRC_CODE[src]) for k, x0, x1, t, ys, src in S for y0, y1 in ys]
+    for t, tr in _limb_tracks(T).items():
+        rows += [(k, -1, -1, t, y0, y1, 0) for k, R in enumerate(tr.rejected) for y0, y1 in R]
+    if 'owners' in T:
+        rows += [(k, x0, x1, CORE, y0, y1, -1 - sum(b - a + 1 for a, b in spans))
+                 for k, x0, x1, y0, y1, spans in T['owners'].log]
+    return np.array(rows, np.int32).reshape(-1, 7)
+
+
 def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, split_min=0.04, restore=True):
     """the shape prior's hull (see the module): superellipse sections |x/rx|^p + |y/ry|^p <= 1 per (front run x side
     run), class-aware, smoothed across heights by `smooth` L (a Gaussian on its signed distance), inside the plain hull
@@ -1367,7 +1385,7 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
     rep['pieces'] = {'masks': masks and os.path.relpath(masks, manifest.ROOT), 'n': len(P.ids) if P else 0}
     if P is not None:
         for n, v in views.items():
-            stage('pieces_' + n, pieces=v.pieces)
+            stage('pieces_' + n, pieces=v.pieces, limbs=v.limbs)
     if validate_views:
         rep['leave_one_out_eyes_only'], _ = validate(views, A, 'rounded', **prior)      # the eyes' calibration alone
     info['refined_L'] = refine(views, A, prior)
@@ -1399,6 +1417,8 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
                                                         'rounded', **prior)[0] for g in groups}
     else:
         V = rounded(views, A, list(views), **prior)
+    if stages is not None:
+        stage('sections', rows=sections_table(views, A, list(views), prior))
     stage('rounded', V=V.copy())
     if face and sheet == 'body':
         # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
