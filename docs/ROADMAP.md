@@ -77,7 +77,20 @@ Our gap is vocabulary: a builder, or a generic fallback, for every piece type.
    - brows and eyes drawn through the hair (a stencil pass).
 6. **UVs, textures and decals.** Garment UVs are ad hoc, and nothing covers prints or small details (pins,
    emblems).
-7. **Hands.** Gesture-level hand rigging isn't planned.
+7. **Hands (planned, Michael, 2026-09-30).** Today the authored body's hand is a mitten. The armature already carries the
+   VRM finger chain (thumb to little, three segments each), but those bones are weightless, so posing a finger moves
+   nothing. The plan, driven by the skeleton rather than shape keys (fingers are rigid segments on joint chains, unlike
+   the soft face):
+   - **Hand geometry:** a hand template fitted to the design's drawn hands, templates first, with joint loops at the
+     knuckles and stylised anime proportions. It replaces the mitten.
+   - **Weights** on the existing finger bones, by construction along each finger's chain.
+   - **A hand-pose library:** relaxed, fist, open, point, peace, grip, pinch and so on, each a few parameters per finger
+     (curl, spread, the thumb's opposition), combinable and blendable per hand. It is a `hands` component in the modular
+     expression API, so a preset can carry hand poses. Template-owned and additive: references add targets.
+   - **Shape keys only as correctives** at the knuckles and the thumb's base (with item 1's pose-space correctives).
+   - **QA:** silhouettes against drawn hands, plus the motion QA at a fist (no finger interpenetration, knuckle volume).
+     The design sheets show hands only in the A-pose, so grading poses needs a generated hand breakdown sheet
+     (relaxed, open, fist, point; front and side). That's a paid image call, so it needs Michael's go-ahead.
 8. **Weights for pieces we didn't build** (the generic fallback): a hand-rolled heat-diffusion or
    bounded-biharmonic solver. UniRig's code is MIT, but its weights' licence is unstated.
 

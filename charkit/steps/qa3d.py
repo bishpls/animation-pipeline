@@ -118,4 +118,20 @@ MEASUREMENT_STEPS = [
      "sits t inside the surface and read skin under it as poking through; a bundle without the layer reads every face, "
      "as before. The 2x2 (by hand, M4's gate): old measure 0.0028 on the old meshes, 0.020 on the final ones; new "
      "measure 0.0028 on the old, 0.003 on the final (tool/evalmesh)"),
+    # tool/acc-reclass (charkit.accqa, qa3d.Design.design_views, qa3d._scene_classes, bodymeasure.Sheet, bodyeval.hair_tones):
+    # the hair clips their own class on both sides. Measured on pipeline-3d 07fa3c2's geometry (the placeholders, the
+    # gate's 2x2 of tool/accessories2 aec2fda: old measure -> new measure on the old geometry)
+    ('body_*_iou_*', '9bfbc8b', "the drawn hair clips in the accessory class (charkit.accqa.reclass: found as the outfit "
+     "graph's pieces), ours by object, not hair, iris or outfit by their colour: iou_hair 0.842 -> 0.829 (front), "
+     "0.757 -> 0.743 (three-quarter), 0.829 -> 0.809 (profile; the placeholders sit where the design draws hair), "
+     "iou_outfit +0.002 to +0.005, iou_cream +0.006 to +0.010"),
+    ('palette_iris_*', '9bfbc8b', "ours' iris without our clips (qa3d._scene_classes: an accessory its own class, by "
+     "object; the old code classed it by its colour family, and a yellow star is the iris's): ours' iris lit #ffd638 "
+     "-> #f4ce67, palette_iris_lit 7.06 -> 1.65, palette_iris_shade 4.63 -> 4.65; the design's iris is the same under "
+     "both (481 px, #f8d173 / #dbab54). Landed alone because the old measure can't read the fitted star's geometry "
+     "(tool/accessories2): it pools the star (#fada7d, ~10x the iris plate's area) into ours' iris, whose shade share "
+     "falls to 0.065 (under paletteqa.SHADE_MIN), and paletteqa.compare drops palette_iris_shade with no entry"),
+    ('hair_piece_*', '9bfbc8b', "the hair layers without the drawn clips (qa3d.hair_layers_masks: ours are occluders): "
+     "bangs 0.792 -> 0.772, side_locks 0.534 -> 0.526, ahoge 0.318 -> 0.322, upper_back 0.768 -> 0.769"),
+    ('hair_bun_*', '9bfbc8b', "the hair layers without the drawn clips: hair_bun_outline 0.456 -> 0.458"),
 ]
