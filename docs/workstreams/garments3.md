@@ -432,3 +432,24 @@ from the skin are the same). Not the skin gap: the pieces rebuilt with `pieces_o
 0.006) read 2.602 / 2.603. Not fixed this round (the lock partition is the hair builder's, from the hull's back of the
 head; the fix is either there or in the hull's carve from the new masks). The merged pipeline-3d a4f91a3 (face4-crown:
 the crown's skin moves the side locks; hair normals set per vertex under the outline) may move it: the re-gate reads it.
+
+### The three-quarter flaps: options A and B for Michael (`charkit/out/g3_flaps/index.html`)
+
+A sweep of the flaps' edge azimuths on the evaluator, spliced into g3_render2 (`splice.py`, the QA's skirt and
+sheet_pieces parts; the splice reads within ~0.005 of the box's A: the evaluator's flap is a single sheet, the build's
+solidified). rotN: every edge knot N degrees forward; hemN: the waist held, the shift growing to N at the hem.
+flap IoU L / R per view, and the panels' piece IoU:
+
+| variant | back | front | profile | three-quarter | piece panel L / R | piece skirt |
+|---|---|---|---|---|---|---|
+| **A** (fit G, default) | 0.882 / 0.854 | 0.729 / 0.745 | 0.740 / 0.741 | 0.009 / 0.0 | 0.699 / 0.807 | 0.867 |
+| rot10 | 0.420 / 0.401 | 0.299 / 0.305 | 0.504 / 0.498 | 0.0 / 0.168 | 0.379 / 0.389 | 0.830 |
+| **rot20 = B** | 0.159 / 0.149 | 0.078 / 0.080 | 0.192 / 0.187 | 0.0 / **0.636** (width_R 0.061 WARN) | 0.138 / 0.199 | 0.803 |
+| rot25 | 0.073 / 0.066 | 0.032 / 0.033 | 0.099 / 0.096 | 0.0 / 0.571 | 0.053 / 0.098 | 0.793 |
+| rot30 | 0.017 / 0.011 | 0.005 / 0.006 | 0.030 / 0.029 | 0.0 / 0.397 | 0.022 / 0.036 | 0.788 |
+| rot35 | 0.007 / 0.001 | 0.0 / 0.0 | 0.006 / 0.005 | 0.037 / 0.213 | 0.021 / 0.017 | 0.790 |
+| hem25 | 0.232 / 0.218 | 0.029 / 0.030 | 0.221 / 0.214 | 0.0 / 0.467 | 0.183 / 0.208 | 0.819 |
+| hem35 | 0.155 / 0.140 | 0.0 / 0.0 | 0.134 / 0.128 | 0.035 / 0.139 | 0.128 / 0.113 | 0.807 |
+
+The drawn three-quarter's left flap matches no turn (0.0-0.04 throughout). Following the three-quarter costs every
+other view: B is rot20 (the three-quarter R's best). The default is A; nothing changed in the specs or the checks.
