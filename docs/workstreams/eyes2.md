@@ -212,3 +212,26 @@ eye's three-quarter gaze_off WARNs (-0.044 against 0.013), a new check. At 0.010
 
 The anchor's fix belongs in the QA: a per-view visible-iris anchor, or the iris's own vertices' mean, registered as a
 `sheet_*` measurement step. That is qa3d/sheetqa, shared with tool/face, so it's left as an open item.
+
+## Final state (2026-09-30)
+
+pipeline-3d 5cb5256 is merged: `clawd.json` is now the authored character, `clawd_mh.json` the MakeHuman spec. Its
+iris got the same pupil and shine as clawd_body.
+
+**Boards:** `charkit/out/eyes2_d` (render box, `clawd.json`, views and body boards). Its QA:
+- every old eye check passes (pupil_run 0.402 against 0.405, remeasured);
+- every per-view check passes except the far eye's three-quarter pair: front_gap 0.103 against 0.158 and gaze_off
+  -0.044 against 0.013, both WARN;
+- eye_hollow 0.0121 PASS, eye_bowl 0.0243 WARN (0.0228 before), eye widths 1.000 (three-quarter) and 0.889 (profile).
+
+**Gates, all FAIL, none on an eye check:**
+- **Default, `clawd.json`** (1fc236f into 5cb5256): face_folds 4 → 450, hair_folds 9 → 43, the sheet's cheek_chin
+  and profile_chin, body_front_waist_skin, piece_collar, body_front_skirt_aline gone.
+  - The first four read the same on tool/face's own tip.
+  - The garment checks sit on the hull and the torso. The eye change moves no joint and no vertex outside the eye
+    block (checked: every joint 0.000 m).
+- **`clawd_mh.json`** (27b61b4 into 5cb5256): hair_folds, three-quarter hair width, back skirt width, three-quarter
+  skirt A-line. The character stage shows only the eye knobs' hash (no geometry), so these are all the hull's.
+
+**Review page:** `charkit/out/eyes2_review/index.html` (`tools/eye_labs/review.py OUT BEFORE AFTER`). Before is
+tool/face's jaw_0 (what Michael reviewed), after is eyes2_d.
