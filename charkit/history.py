@@ -39,6 +39,10 @@ STEPS = [
     ('top_front_hem_step', 'b3aaf2c', "the design's band inside its ink: the bib's hem is 0.037 L higher than the "
      "jacket's fronts (the masks had read the fronts' corners as band, +0.033)"),
     ('waistband_profile_overhang', 'b3aaf2c', "ours takes the bib (its own object now) with the top"),
+    ('top_*_over_band', 'a7a6845', "the jacket alone below the junction is tucked only within 0.08 L behind the band "
+     "(a jacket over the band all round showed its back panel there)"),
+    ('waistband_profile_overhang', 'a7a6845', "the figures' front edges at fixed rows (the jacket's -1.33..-1.26, the "
+     "band's -1.47..-1.40): the masks' profile band is the jacket's lower part"),
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
     ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
      "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
