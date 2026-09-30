@@ -77,6 +77,11 @@ Progress and results:
   - art_mirror_self_boots' whole-sheet moves read exactly 1.0 (translation invariant); the probe boot_nudge (one
     boot's masks 2 px up) reads 1.163, per-boot moves 1.005-1.163 (charkit/out/calib/r2/art_jitter.py).
 - Review page: `charkit/out/calib/review2/index.html` (python charkit/out/calib/harness/page2.py).
+- Commits: 9d5f649 (records, adapters, limits), 66eb6df (the steps for the three limit changes; gate.py: a cached build
+  missing bundle/arrays.npz is moved aside and built again, `gate._whole`), bc85e5d (pipeline-3d eb7ac94 merged:
+  tool/hairlocks; cli.py's conflict kept both commands). Pregate on bc85e5d: PASS (0 moved).
+- Gates running: tool/calib bc85e5d+ into pipeline-3d (log charkit/out/calib/r2/gate_final.log); the bow pair with the
+  fixed gate code (gate_bowA3.log). Then delete tmp/calib-bow and tmp/calib-bow-accept.
 
 ## State (read first when resuming)
 
