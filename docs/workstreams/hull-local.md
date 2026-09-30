@@ -78,3 +78,14 @@ bundle.target_pieces.
   bun fit that the face changes (`tools/hull_local/hairswap.py`, below).
 - hull-local alone (B2) reads art_terminator_hair 2.514 against pipeline-3d's 2.308: the new mesh everywhere moves the
   flag check past its 2.5 line by itself. Its own gate would block on it.
+- **What moves the buns** (`tools/hull_local/hairswap.py`, the hair pieces rebuilt on B3's inputs with one input from
+  B2): the head, not the hull. With B2's head, bun_L matches B2's to 7.6e-6 L; with B2's hull, it matches B3's
+  exactly. The bun points are identical. The head's centre (Case.centre, the bun fit's head_c) moves 0.8 um in y. The
+  fit (hairpieces.fit_block, Nelder-Mead on a pixel loss) lands 0.027 L away. The hull is local; the bun fit isn't
+  stable. B2's own 2.514 most likely comes the same way (its bun points all move once with the new mesh).
+
+## Status
+
+Not gated: B2 reads art_terminator_hair 2.514 (pipeline-3d ba51e43: 2.308), past the flag's 2.5 line, through the
+buns' fit. Under K it would block. Next (docs/workstreams/face.md, round 5's finish): make the bun fit stable under
+tiny input moves, then rebuild B2/B3 and gate this branch into pipeline-3d, and tool/face5 into it.
