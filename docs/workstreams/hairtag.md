@@ -278,3 +278,11 @@ from another, key by key; `charkit/out/hairtag/r2/a1`, `a2`):
   pull carried on below the chin, easing out (`trim_fade` 6 / 12 / 20 deg): 11 / 10 / 10 (the step is above the chin,
   where the drawn edge stops being passed). The trim off: 9 (side_lock_L 3), side locks 0.528 -> 0.524. Taking the
   temple's old labels (bangs and side locks) gives side_lock_L 0 folds, but those labels are the masks'.
+- The pull's smoothing wider (`trim_smooth` 5 / 8): folds 11 / 13 (the old geometry 6 -> 7 / 7). **The folds stay
+  11 (WARN, the band runs to 40): diagnosed, not fixed this round.** A fix is the trim's pull itself (the pulled cells
+  ending in a step), and it has to hold on both geometries.
+
+**pipeline-3d 4de65ab merged** (`ebc8582`: face4-crown's exact hair normals and crown fit, face4's chin, infra3's
+carry-over gates, mouth2); only the qa3d steps list conflicted (both kept). Box builds of the merged head, default
+spec, `crown_trim` off (`charkit/out/h5_off`) and on (`h5_crown`, spec `charkit/out/h5spec/clawd_crown.json`): the
+coordinator's question, whether the crown trim holds art_terminator_hair under 2.5 on the exact normals.
