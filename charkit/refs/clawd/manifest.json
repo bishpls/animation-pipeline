@@ -512,7 +512,7 @@
    "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced)",
    "cautions": [
     "made from the rig and body_turnaround alone (outfit.sheet_field: the rig's layers laid out in 3D by the sheet's front and profile, then relabelled by the views); nothing gitignored is read. Until 2026-09-30 a TRELLIS field found in charkit/out/i3d/ext steered them, and copies without it made other masks (docs/workstreams/outfit-source.md)",
-    "scored against the hand-checked truth (outfit_truth): 0.956 of the garment pixels agree (front 0.993, three-quarter 0.911, profile 0.899, back 0.994); the TRELLIS-steered masks scored 0.865. The largest misses: the near back panel's tail in the three-quarter view (the sheet's 3/4 and profile disagree on how far it swings back), the crab clip",
+    "scored against the hand-checked truth (outfit_truth, `python -m charkit outfit score`): 0.972 of the garment pixels agree (front 0.993, three-quarter 0.966, profile 0.909, back 0.993; mean piece IoU 0.913); the TRELLIS-steered masks scored 0.865 (0.786). The largest misses: the profile's panel side and skirt hem, the buns' undersides, the crab clip",
     "the graph's comparison with the spec's hand list is made against the garments' and accessories' roles only (reads_spec: names, kinds, sides, bones, region bones, az), so its matches are the spec's own but it lists no knob deltas; `python -m charkit outfit SPEC` gives the full comparison",
     "a piece a view hides has an empty mask there"
    ]

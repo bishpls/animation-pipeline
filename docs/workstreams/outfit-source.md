@@ -111,3 +111,47 @@ the sheet-only masks already score 0.878 against the field's 0.865.
 nearer the body than its profile does, so no one 3D shape fits both), the profile's panel side (3.6 k) and a band
 of skirt called panel (2.1 k), the profile's bun underside (1.6 k), 3/4 hem vs skirt panel (1.5 k), bib vs tails in
 3/4 (2 k), the crab clip (0.8 k).
+
+## Merges and gates
+
+- `f2fd29a`: the change (outfit.py, the manifest's outfit_masks and outfit_truth, tests, notes).
+- `d74ea46`: pipeline-3d `cfcdc3a` (tool/infra: self-registering QA parts and steps, the gate's 2x2) merged in,
+  cleanly; this branch adds no QA part or measurement step. `test_registry.py`, test_outfit, test_manifest pass.
+- Produced stamps on the merged tree: default spec masks `1917b45a`, hull `3aa7453d`; clawd_mh masks `ad8a1377`,
+  hull `4627103d` (baseline pipeline-3d: hull `0daa9204` / `42475be8`). The masks' bytes are one set for every spec
+  (`44f63918`); only the graph's comparison differs by spec.
+
+### Gate round 1: f2fd29a into pipeline-3d 8ae6ce9 (before tool/infra's 2x2)
+
+Both **FAIL**; tests all ok. Baseline masks `074d9a3f` (the gate clone had the field), candidate `44f63918`.
+
+**Default spec (clawd.json)**, worse: every hem (front -0.22, back -0.23, profile -0.31, 3/4 -0.21 L: ours higher),
+`body_front_skirt_aline` 0 -> -0.145, `body_front_skirt_overhang_L/R` 0 -> 0.05/0.04, `body_profile_iou` 0.852 ->
+0.849, `body_profile_iou_skin` 0.713 -> 0.669, `neck_crease` 27.6 -> 46.4, `piece_collar` 0.754 -> 0.318,
+`piece_skirt_extent` 0.127 -> 0.353, the panels' `_extent` 0.07/0.04 -> 0.18/0.15 and `_hang` 0.02/0.03 -> 0.15/0.14.
+Better: `piece_waistband` 0.453 -> 0.945, `piece_shorts` 0.393 -> 0.656, `piece_overskirt_panel_L` 0.422 -> 0.553,
+`piece_cuff_L` 0.659 -> 0.786. Garments moved: skirt 0.087, waistband 0.025 (9,984 -> 6,144 verts), top 0.013,
+collar 0.009, panels 0.029.
+
+**clawd_mh**, worse: `body_front_midriff_gap` 0 -> 0.061, `body_front_skirt_aline` -0.016 -> -0.073,
+`body_profile_torso_jump_back` 0.005 -> 0.405, `body_three_quarter_waist_skin` 0.029 -> 0.059, `piece_skirt` 0.831 ->
+0.739, `piece_skirt_extent` 0.028 -> 0.278, `piece_sleeve_L` 0.759 -> 0.738. Better: `piece_waistband` 0.497 -> 0.877,
+`piece_top` 0.487 -> 0.546, `body_front_skirt_overhang_L/R` 0.118/0.113 -> 0.019/0.028.
+
+**Why.** The skirt, waistband and collar are `source: "hull"`: built from the hull's piece-labelled surface. The new
+masks give the back view's cells 14/15 and the profile's cell 27 to the overskirt panels (they hang from the
+waistband over the skirt: the truth, and Michael's call), so the hull labels the skirt only where the drawing shows it
+at the back (the centre pleats, the outer sides). A skirt lofted from its visible hull points loses its back and comes
+out short: the hem FAILs. The field's masks called the upper half of those panel cells skirt (wrong per the
+drawing), which gave the loft a whole skirt. `piece_skirt_extent` also read the one real mask error of `44f63918`:
+the 3/4's near panel tail labelled skirt (z to -3.04), fixed since (below).
+
+### The tail fix (after round 1)
+
+Below the skirt the profile has two runs (legs and shorts; the tail far behind). Each row's shell took the whole row,
+so the shorts' and hem's shells were 1.5 L deep and in the 3/4 projected onto the tail (the 3/4's near tail went to
+the skirt and shorts). Now the body's layers take the run on the body's axis (the middle of the one-run rows between
+the chest and the hips) and only layers drawn behind the body span the whole row. Masks `73a6eed4`: **0.972** (front
+0.993, 3/4 0.966, profile 0.909, back 0.993), mean piece IoU **0.913**, 20,108 px wrong (was 31,568). Left: the
+profile's panel side (cell 27: 69% panel, split by partial lines with skirt and the far panel, 4 k px), its skirt hem
+cell 69 called panel (2.1 k), the buns' undersides (2.3 k), 3/4 hem vs the skirt's panel (1.5 k), bib vs tails (1.9 k).

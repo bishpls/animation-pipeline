@@ -160,7 +160,7 @@ def test_score_accepts_a_set_and_refuses_another_grid():
 
 def test_clawds_masks_against_the_truth():
     """Clawd's produced outfit masks (built from the rig and body_turnaround alone) against the hand-checked truth:
-    0.956 of the garment pixels at 2026-09-30, where the TRELLIS-steered masks scored 0.865 and the no-field ones 0.729.
+    0.972 of the garment pixels at 2026-09-30, where the TRELLIS-steered masks scored 0.865 and the no-field ones 0.729.
     Calibrated: the same masks with every piece's sides swapped (a known-bad) fail it. Builds the masks when this copy
     has none (about 45 s)."""
     from charkit import manifest
@@ -171,7 +171,7 @@ def test_clawds_masks_against_the_truth():
     truth = O.load_truth(manifest.load(spec['ref']['manifest'])['references']['outfit_truth']['path'])
     r = O.score(M, truth)
     views = {v: r[v]['accuracy'] for v in O.VIEWS}
-    assert r['all']['accuracy'] >= 0.95 and min(views.values()) >= 0.88 and r['all']['mean_iou'] >= 0.88, (r['all'], views)
+    assert r['all']['accuracy'] >= 0.96 and min(views.values()) >= 0.9 and r['all']['mean_iou'] >= 0.9, (r['all'], views)
     swap = lambda k: k[:-2] + {'_L': '_R', '_R': '_L'}[k[-2:]] if k.endswith(('_L', '_R')) else k
     bad = O.score({swap(k): v for k, v in M.items()}, truth)
     assert bad['all']['accuracy'] < 0.9, bad['all']['accuracy']

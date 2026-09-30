@@ -1084,25 +1084,34 @@ def sheet_field(A, log=print):
     def rig_L(px, py):                                              # rig pixels -> the sheet's frame (x, z)
         x, z = to_L(F, px, py)
         return x, zw(z)
-    # the profile: per row the figure's front and back (the torso's and head's shells), the limbs' skin
+    # the profile: per row the figure's runs. The body's shells take the run on its axis (the middle of the rows between
+    # the chest and the hips that are one run); a layer drawn behind the body the whole row (the back panels' tail
+    # swings far behind the legs: the shorts' shell as deep as that sat on the tail in the other views)
     dvp, Vp = A['sheet']['design']['profile'], A['views']['profile']
     fgp = dvp['fg']
-    rows = np.nonzero(fgp.any(1))[0]
-    zp = (Vp['origin'][1] - rows) / ppl
-    fr_p = np.array([np.nonzero(fgp[r])[0].min() for r in rows])
-    bk_p = np.array([np.nonzero(fgp[r])[0].max() for r in rows])
-    fr_p, bk_p = (fr_p - Vp['origin'][0]) / ppl, (bk_p - Vp['origin'][0]) / ppl
-    o_ = np.argsort(zp)
-    zp, fr_p, bk_p = zp[o_], fr_p[o_], bk_p[o_]
+    sk = F['skeleton']
+    gap = max(1, int(round(0.03 * ppl)))
+    prow = {}
+    for r in np.nonzero(fgp.any(1))[0]:
+        c = np.nonzero(fgp[r])[0]
+        br = np.nonzero(np.diff(c) > gap)[0]
+        runs = [((c[i0] - Vp['origin'][0]) / ppl, (c[i1] - Vp['origin'][0]) / ppl)
+                for i0, i1 in zip(np.r_[0, br + 1], np.r_[br, len(c) - 1])]
+        prow[(Vp['origin'][1] - r) / ppl] = runs
+    zp = np.array(sorted(prow))
+    zt = [zw(v[1]) for b in ('chest', 'spine', 'hips') if b in sk for v in sk[b]]
+    single = [(r[0][0] + r[0][1]) / 2 for z, r in prow.items() if len(r) == 1 and zt and min(zt) <= z <= max(zt)]
+    u_axis = float(np.median(single)) if single else 0.0
 
     def depth_at(z):
+        """(front, back) of the run on the body's axis at height z, and of the whole row; None off the figure."""
         if z < zp[0] or z > zp[-1]:
             return None
         i = int(np.clip(np.searchsorted(zp, z), 1, len(zp) - 1))
-        a = i if abs(zp[i] - z) < abs(zp[i - 1] - z) else i - 1
-        return fr_p[a], bk_p[a]
+        runs = prow[zp[i] if abs(zp[i] - z) < abs(zp[i - 1] - z) else zp[i - 1]]
+        main = min(runs, key=lambda t: 0.0 if t[0] <= u_axis <= t[1] else min(abs(t[0] - u_axis), abs(t[1] - u_axis)))
+        return main, (runs[0][0], runs[-1][1])
     skin = (dvp['raw'] == CLASS['skin']) & fgp
-    sk = F['skeleton']
 
     def limb_depth(bones):
         zz = [z for b in bones if b in sk for z in (sk[b][0][1], sk[b][1][1])]
@@ -1174,7 +1183,8 @@ def sheet_field(A, log=print):
                 d = depth_at(z)
                 if d is None:
                     continue
-                yc, b = (d[0] + d[1]) / 2, max(h, (d[1] - d[0]) / 2)
+                (f0, b0), (f1, b1) = d
+                yc, b = (f0 + b0) / 2, max(h, (b0 - f0) / 2)
                 if g == 'torso':
                     torso_mid.append(yc)
                 xr = np.concatenate([lay['x'][s][~part[np.maximum(lay['lab'][s], 0)]] for lay, s in rows_])
@@ -1187,27 +1197,33 @@ def sheet_field(A, log=print):
                             yk = part_depth.get(k, yc)
                             X, Y, _ = ring(pc, yk, pr, pr)
                             emit(X, Y, z, np.full(len(X), k, np.int32), pc, yk, pr, pr, 0)
-            X, Y, front = ring(xc, yc, a, b)
-            cov = []
-            for lay, s in rows_:
-                lv = cover(lay['x'][s], lay['lab'][s], X)
-                lv = np.where((lv >= 0) & part[np.maximum(lv, 0)], -1, lv)
-                if (lv >= 0).any():
-                    cov.append((lay, lv))
-            for half in (True, False):
-                ranked = []
-                for lay, lv in cov:
-                    if half:
-                        ok = front & (lv >= 0) & (not lay['back'])
-                    else:
-                        lv = np.where(lv >= 0, back_of[np.maximum(lv, 0)], -1)
-                        lv = np.where((lv >= 0) & front_only[np.maximum(lv, 0)], -1, lv)
-                        ok = ~front & (lv >= 0)
-                    if ok.any():
-                        ranked.append((lay['i'] + (1000 if lay['back'] and not half else 0), ok, lv))
-                ranked.sort(key=lambda t: t[0])
-                for rank, (_, ok, lv) in enumerate(ranked):
-                    emit(X[ok], Y[ok], z, lv[ok].astype(np.int32), xc, yc, a, b, rank)
+            shells = [(xc, yc, a, b, rows_)]
+            if not limb and (f1, b1) != (f0, b0) and any(lay['back'] for lay, _ in rows_):
+                # the layers drawn behind the body on a shell of the whole row, the others on the body's
+                shells = [(xc, yc, a, b, [t for t in rows_ if not t[0]['back']]),
+                          (xc, (f1 + b1) / 2, a, max(h, (b1 - f1) / 2), [t for t in rows_ if t[0]['back']])]
+            for xc_, yc_, a_, b_, rows_s in shells:
+                X, Y, front = ring(xc_, yc_, a_, b_)
+                cov = []
+                for lay, s in rows_s:
+                    lv = cover(lay['x'][s], lay['lab'][s], X)
+                    lv = np.where((lv >= 0) & part[np.maximum(lv, 0)], -1, lv)
+                    if (lv >= 0).any():
+                        cov.append((lay, lv))
+                for half in (True, False):
+                    ranked = []
+                    for lay, lv in cov:
+                        if half:
+                            ok = front & (lv >= 0) & (not lay['back'])
+                        else:
+                            lv = np.where(lv >= 0, back_of[np.maximum(lv, 0)], -1)
+                            lv = np.where((lv >= 0) & front_only[np.maximum(lv, 0)], -1, lv)
+                            ok = ~front & (lv >= 0)
+                        if ok.any():
+                            ranked.append((lay['i'] + (1000 if lay['back'] and not half else 0), ok, lv))
+                    ranked.sort(key=lambda t: t[0])
+                    for rank, (_, ok, lv) in enumerate(ranked):
+                        emit(X[ok], Y[ok], z, lv[ok].astype(np.int32), xc_, yc_, a_, b_, rank)
     Sf = dict(P=np.concatenate(pts), L=np.concatenate(labs).astype(np.int32), N=np.concatenate(nrm), warp=W,
               y0=float(np.median(torso_mid)) if torso_mid else 0.0, LL=LL, layer_of={k: p['layer_index'] for k, p in enumerate(P)},
               back=sorted(back), front_only=[P[k]['id'] for k in range(n) if front_only[k]],
