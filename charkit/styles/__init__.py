@@ -10,7 +10,10 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            how far a piece under another sits inside it), lock_min (deg: the narrowest lock), normals ('envelope': the
            mass's smoothed normals as custom normals, one clean shadow shape; 'geometric': each lock shades on its own),
            shade_close and shade_blur (L: the envelope those normals come from, closed across the gaps between locks and
-           blurred to the shadow shapes' scale)
+           blurred to the shadow shapes' scale), relief (L: each lock's ridge across it, the grooves between locks),
+           lock_shading (0..1: how much of each lock's own outer normal, smoothed within the lock lock_shading_smooth
+           times, is blended into the mass's, so its relief and grooves shade), bun_e, bun_q, bun_slab (a block bun's squareness (0 a box, 1 an ellipsoid), the share of the hull's bun
+           points its extent ignores at either end, its folded slab's share of its width)
   look     the render look (charkit.shade, faceshade; the boards, turntables and the glTF export's look extension):
            light: mode 'world' (one fixed art-directed light, `dir` toward it) or 'camera' (a key that turns with the
            camera: `key` = [degrees to the camera's left, degrees above], so a turntable's back is lit as its front is);
@@ -43,7 +46,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT = {
     'hull': {'p': 2.0, 'class_share': 0.6, 'smooth': 0.09},
     'hair_pieces': {'notch': 3.0, 'thick': 0.22, 'tip_thick': 0.012, 'inset': 0.012, 'lock_min': 6.0,
-                    'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06},
+                    'normals': 'geometric', 'shade_close': 0.1, 'shade_blur': 0.06,
+                    'relief': 0.0, 'lock_shading': 0.0, 'lock_shading_smooth': 8, 'bun_e': 0.3, 'bun_q': 0.06, 'bun_slab': 0.38},
     'look': {'light': {'mode': 'world', 'dir': [-0.45, -0.55, 0.70], 'key': [39.3, 44.6]},
              'lines': {'mode': 'world', 'frac': 0.0025, 'regions': {'skin': 1.0, 'hair': 1.0, 'garment': 1.0, 'accessory': 1.0},
                        'color': 'build', 'ink': [0.24, 0.13, 0.11]},
