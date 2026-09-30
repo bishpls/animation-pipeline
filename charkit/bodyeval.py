@@ -1277,11 +1277,74 @@ def validate(build, out=None, base=None, knobs=None, probes=None, log=print):
     return rep
 
 
+def _asm_diff(A, B):
+    """two assemblies apart: vertex counts, and where they agree the vertex distances (all, body faces', head faces'),
+    the shared joints' largest distance, and the head frame (L, eye line) -> dict, metres."""
+    VA, VB = np.asarray(A['verts'], float), np.asarray(B['verts'], float)
+    r = {'verts': [int(len(VA)), int(len(VB))]}
+    if len(VA) == len(VB):
+        d = np.linalg.norm(VA - VB, axis=1)
+        r.update(max_m=float(d.max()), mean_m=float(d.mean()), p99_m=float(np.percentile(d, 99)))
+        F, fm = A.get('faces'), A.get('fmat')
+        if F is not None and fm is not None and len(fm) == len(F):
+            for tag, k in (('body', 0), ('head', 1)):
+                vi = np.unique(np.concatenate([np.asarray(f) for f, m in zip(F, fm) if m == k] or [np.zeros(0, int)]))
+                if len(vi):
+                    r['%s_mean_m' % tag] = float(d[vi].mean())
+    JA, JB = A.get('joints') or {}, B.get('joints') or {}
+    ks = [k for k in JA if k in JB]
+    if ks:
+        r['joints_max_m'] = float(max(np.linalg.norm(np.asarray(JA[k], float) - np.asarray(JB[k], float)) for k in ks))
+    r['L'] = [float(A['head']['L']), float(B['head']['L'])]
+    r['eye_z'] = [float(A['head']['eye_z']), float(B['head']['eye_z'])]
+    return r
+
+
+def knob_path(spec, knobs, log=print):
+    """a knob set's fast path measured: Evaluator.assembly at the knobs (composed for body knobs, else assembled) against
+    the spec assembled afresh with them (character.assemble: the build's own code, which the Blender build runs), vertex
+    by vertex, joint by joint and in the head frame; how far the knobs move the fresh assembly from the base beside it
+    (the knobs' own effect); and qa()'s shape checks at the base, by the fast path and by a fresh evaluator on the knob
+    spec. spec: a build's resolved spec (BUILD/NAME.spec.json: a code head and body are files it names). -> report."""
+    from . import character
+    E = Evaluator(spec)
+    A0, _ = E.assembly(E.spec)
+    Sk = with_knobs(E.spec, knobs)
+    rep = dict(spec=spec if isinstance(spec, str) else E.spec.get('name'), knobs=knobs, base=E.spec.get('base'),
+               body_source=character.body_source(E.spec))
+    t = time.time()
+    try:
+        Af, how = E.assembly(Sk)
+    except Exception as e:                                               # noqa: BLE001 (reported: the path is the finding)
+        Af, how = None, 'error: %s: %s' % (type(e).__name__, e)
+    rep['how'], rep['fast_s'] = how, round(time.time() - t, 2)
+    t = time.time()
+    Aa = assemble_cached(Sk, E.cache)
+    rep['assembled_s'] = round(time.time() - t, 2)
+    rep['fast_vs_assembled'] = _asm_diff(Af, Aa) if Af is not None else None
+    rep['base_vs_assembled'] = _asm_diff(A0, Aa)
+    log('%s: %s; fast vs assembled %s; the knobs move the assembly %s' % (
+        knobs, how, rep['fast_vs_assembled'], rep['base_vs_assembled']))
+    Q0 = E.qa(E.geometry())['checks']
+    Qf = {}
+    if Af is not None:
+        try:
+            Qf = E.qa(E.geometry(knobs))['checks']
+        except Exception as e:                                           # noqa: BLE001
+            rep['fast_qa_error'] = '%s: %s' % (type(e).__name__, e)
+    E2 = Evaluator(Sk, cache=E.cache)
+    Qa = E2.qa(E2.geometry())['checks']
+    rep['qa'] = {k: {'base': Q0.get(k), 'fast': Qf.get(k), 'assembled': v} for k, v in Qa.items()}
+    return rep
+
+
 def main(args):
     """python -m charkit bodyeval SPEC [--knob PATH=VALUE ...] [--out DIR]    the QA checks and measurements, numpy
        python -m charkit bodyeval --validate BUILD [--out DIR]               against a finished Blender build
        python -m charkit bodyeval --validate BUILD --from SPEC --knob PATH=VALUE ...
-                                                    (BUILD made from SPEC with those knobs: checks the fast knob path)"""
+                                                    (BUILD made from SPEC with those knobs: checks the fast knob path)
+       python -m charkit bodyeval --knob-path SPEC --knob PATH=VALUE ... [--out FILE]
+                                                    the fast knob path against the spec assembled afresh (knob_path)"""
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); print(main.__doc__); return
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
@@ -1290,6 +1353,13 @@ def main(args):
         if a == '--knob':
             p, v = args[i + 1].split('=', 1)
             knobs[p] = json.loads(v)
+    if '--knob-path' in args:
+        rep = knob_path(opt('--knob-path'), knobs)
+        for k, v in rep['qa'].items():
+            print('  %-22s base %-8s fast %-8s assembled %s' % (k, v['base'], v['fast'], v['assembled']))
+        if opt('--out'):
+            json.dump(rep, open(opt('--out'), 'w'), indent=1, default=float)
+        return
     if '--validate' in args:
         rep = validate(opt('--validate'), opt('--out'), base=opt('--from'), knobs=knobs or None)
         print('objects (%s): max %.2g m, mean %.2g m, evaluated garments max %.2g m; hair_shape bbox %.4f m, silhouette IoU %s' % (
