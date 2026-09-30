@@ -912,6 +912,20 @@ Drawn from the session's recurring failure patterns:
    orthographic), not the boards' elevated camera.
 6. **Process.** A lean agent per round, briefed from its notes; about 5 at once; no polling; milestone reports;
    smaller, more frequent merges.
+7. **MakeHuman retired from gating (Michael, 2026-09-30).** Gates run the default spec (`charkit/spec/clawd.json`)
+   only. The `clawd_mh.json` gate cost 20-30% of gate CPU and caught only MakeHuman-specific problems (hair into its
+   shoulder, a check reading past its hands). It couldn't catch overfitting to Clawd: it shares her references,
+   palette, piece lists and checks. **No silent fallback:** a spec that doesn't declare its base and body fails loudly
+   instead of building MakeHuman. The generality check becomes a real second character, gated from private references
+   outside the public repo, once the multi-character refactor gets one through. MakeHuman's CC0 assets still
+   underpin the default build (the code head's placement uses the MakeHuman head's chin and marks; the joint names;
+   the eye and mouth topology via base_anime), and they get replaced as that refactor reaches them.
+8. **TRELLIS is on its way out.** After the sheet-only outfit masks (tool/outfit-source) merge, no build reads TRELLIS
+   output. The `glb` the QA's shape checks, face-shape checks and hair volume read is our own visual hull. Cleanup:
+   - stop shipping charkit/out/i3d (sync, worktree.sh, gate clones);
+   - rename `i3d` (it's the generated-GLB loader and aligner) and the checks' 'trellis' reference labels;
+   - retire tools/imageto3d/trellis_remote.sh;
+   - give the perceptual metric its own environment on the render box.
 
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
