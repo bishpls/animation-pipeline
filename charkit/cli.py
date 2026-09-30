@@ -270,16 +270,16 @@ def build(args):
     n = cache.unshare(out)                      # the build rewrites its outputs: not through links to another worktree
     if n:
         print('build: %d files in %s were hard-linked elsewhere; unshared' % (n, out))
-    spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
+    phase = _phases()
+    with phase('resolve'):                      # the references produced, the design measured, the knobs fitted
+        spec, resolved = resolve(spec_path, out, do_fit='--no-fit' not in args, base=opt('--base'))
     if opt('--hair') and (spec.get('hair') or {}).get('shape'):
         spec['hair']['shape']['mode'] = opt('--hair')
         json.dump(spec, open(resolved, 'w'), indent=1)
     mode = opt('--cache', 'off' if '--no-cache' in args else 'on')
-    spec = code_head(spec, resolved, out, mode)
-    spec = code_body(spec, resolved, out, mode)
-    spec = geom_hair(spec, resolved, out, mode)
-    spec = pieces_hair(spec, resolved, out, mode)
-    spec = garments_geom(spec, resolved, out, mode)
+    for step in (code_head, code_body, geom_hair, pieces_hair, garments_geom):
+        with phase(step.__name__):
+            spec = step(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     # the boards' renderer: EEVEE in the build's Blender, or charkit's toon renderer from the build's export afterwards
     # (charkit.render.buildboards: the views, body and design sets). A machine without a GPU (the CPU build box,
@@ -300,20 +300,24 @@ def build(args):
         {'venv': ['--bundle'], 'blender': ['--qa'], None: []}[qa] + export + ['--cache', mode]
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
     from . import history, procs, worker
-    r = worker.submit(job, out, 'build ' + name) if '--no-worker' not in args else None
-    if r is None:
-        r = procs.run(cmd, out, 'build ' + name)
+    with phase('blender'):
+        r = worker.submit(job, out, 'build ' + name) if '--no-worker' not in args else None
+        if r is None:
+            r = procs.run(cmd, out, 'build ' + name)
     if 'CHARKIT_BUILD_DONE' not in r.stdout:
         sys.stderr.write(r.stdout[-4000:] + r.stderr[-4000:])
         raise SystemExit('blender build failed')
     for line in r.stdout.splitlines():
         if line.startswith(('CHARKIT_QA', 'CHARKIT_GLTF', 'CHARKIT_CACHE', 'CHARKIT_WORKER', 'CHARKIT_BUNDLE', 'CHARKIT_LOOK')):
             print(line)
-    measure(out, mode, qa=qa == 'venv', blender_peak=None if str(r.args[0]) == 'worker' else _peak_mb('children'))
+    with phase('qa'):
+        measure(out, mode, qa=qa == 'venv', blender_peak=None if str(r.args[0]) == 'worker' else _peak_mb('children'))
     if toon_boards:
-        toon(out, toon_boards.split(','))
-    for p in sheets(spec, out):
-        print('sheet', p)
+        with phase('toon_boards'):
+            toon(out, toon_boards.split(','))
+    with phase('sheets'):
+        for p in sheets(spec, out):
+            print('sheet', p)
     note = opt('--note')
     if note:
         try:
@@ -323,6 +327,21 @@ def build(args):
     history.append(out, name, note)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def _phases():
+    """a timer for the build's steps: `with phase(NAME):` prints CHARKIT_PHASE NAME SECONDS when the step ends (the merge
+    gate reports them: charkit/gate.py)."""
+    import contextlib, time
+
+    @contextlib.contextmanager
+    def phase(name):
+        t = time.time()
+        try:
+            yield
+        finally:
+            print('CHARKIT_PHASE %s %.1f' % (name, time.time() - t), flush=True)
+    return phase
 
 
 def toon(out, which):
