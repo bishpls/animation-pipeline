@@ -14,6 +14,15 @@ old measure has the check) or a crossed QA that can't run blocks (gate.unmeasure
 Rejudged, the hairtag report is FAIL on its 10 cells. Validating on the real pair: tmp/infra3-hairtag (37c09cf) into
 tmp/infra3-into (4de65ab), gate code cabfcf5.
 
+**h, the rest** (ec00b3a): the venv steps' keys portable (cache._port: the build's out folder as '<out>/', the
+worktree and its charkit/out links relative; reads the same; a hit notes the step's reads, inputs and code files in the
+build's closure via closure.note, else a restored step would drop them from the closure and the gate could skip a
+build it must do). Gate builds share ~/.cache/charkit/steps (gate._step_cache_env) with keys on all the code a step
+reaches (CHARKIT_STEP_DEPTH=all: a shared entry must not restore a stale product; pieces_hair 52 files at full depth
+against 39 at depth 2). The measure: tmp/infra3-h1 and -h2 (4de65ab plus a comment in qa3d.py's poke / hair_tips:
+the candidate builds, no step's key moves) gated one after the other into tmp/infra3-into with this gate code; the
+second's pieces_hair must hit.
+
 Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
 pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
 676 s; the candidate's resolve 225 s is the one-off key change). pipeline-3d then moved to f2ec090; merges cleanly;
