@@ -304,11 +304,14 @@ def face_folds(A):
     mouth = (fm == 1) & (np.abs(q[:, 0]) < 0.16) & (np.abs(q[:, 2] + 0.28) < 0.1) & (q[:, 1] < -0.2)
     eyes = (fm == 1) & (np.abs(np.abs(q[:, 0]) - 0.17) < 0.14) & (np.abs(q[:, 2]) < 0.12) & (q[:, 1] < -0.15)
     n0 = _face_normals(V, F)
-    rest = int(((mouth | eyes) & (n0[:, 1] > 0.2)).sum())
+    # the chin's underside faces down at rest (the authored head's chin overhangs the neck: charkit.geom.headgeom.
+    # UnderJaw): it leans back by its own rise, and further as the jaw opens, which isn't a fold; a flip still counts
+    down = n0[:, 2] < -0.7
+    rest = int(((mouth & ~down | eyes) & (n0[:, 1] > 0.2)).sum())
     keys = {}
     for sh, D in A['mouth']['keys'].items():
         n1 = _face_normals(V + D, F)
-        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
+        keys['mouth_' + sh] = int((mouth & (((n0 * n1).sum(1) < 0) | ((n1[:, 1] > 0.2) & ~down))).sum())
     for sh in A['eyes'][0]['keys']:
         n1 = _face_normals(V + sum(E['keys'][sh][0] for E in A['eyes']), F)
         keys['eye_' + sh] = int((eyes & (((n0 * n1).sum(1) < 0) | (n1[:, 1] > 0.2))).sum())
@@ -523,6 +526,16 @@ def _visible(B, groups):
 def iris_centres(B):
     """each iris plate's evaluated vertices' mean (world), in the bundle's eye order."""
     return [o.V('eval').mean(0) for o in B.objects(groups=('eye',), parts=('iris',), visible=False)]
+
+
+def eye_anchor(B, irc=None):
+    """the eyes' points the sheet's face measures register ours on: the iris centres set level with the head's eye line
+    (the assembly's eye_z: the design's eye row, which the head is built on). The design's are its iris blobs on that
+    row; the iris plates' vertex mean sits 0.0235 L over it on the authored head (the visible iris 0.018 L), which read
+    every height under the eyes that much low (the chin, the widths' rows, the neck's row)."""
+    P = np.array(iris_centres(B) if irc is None else irc, float)
+    P[:, 2] = float(B.assembly['eye_z'])
+    return list(P)
 
 
 def sheet_meshes(B):
@@ -891,7 +904,8 @@ def sheet_measure(B, design, covers=True):
     D, ppl = got
     az3 = D.get('az_three_quarter', 35.0)
     meshes, cov, irc = sheet_meshes(B)
-    O = sheetqa.measure_ours(meshes, cov if covers else [], irc, B.assembly['centre'], B.assembly['L'], ppl, az3)
+    O = sheetqa.measure_ours(meshes, cov if covers else [], eye_anchor(B, irc), B.assembly['centre'], B.assembly['L'],
+                             ppl, az3)
     C = sheetqa.compare(O, D)
     if covers:
         C.update(sheetqa.shown(O, D))
@@ -2060,6 +2074,21 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
+def eye_views(B, design=None, out=None):
+    """each eye the head sheet draws, ours from the same azimuth (front, three-quarter, profile; charkit.eyeqa.views):
+    where the iris sits in the opening, the front's pupil, the profile's edge and lash flick."""
+    from . import eyeqa
+    return eyeqa.views(B, design, out)
+
+
+def face_region(B, design=None, out=None):
+    """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
+    eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
+    crease where the head meets the body: what the head's own sheet checks, graded on the head alone, can't see."""
+    from . import faceregion
+    return faceregion.measure(B)
+
+
 def details(B, design=None, out=None):
     """the midriff's and the boots' details against the design (charkit.detailqa): the torso outline's steps and the
     top's junction with the band, the cream panel's edge; the boots' ankle, folds, heel, doubled lines, soles and
@@ -2086,13 +2115,14 @@ def look(B, design=None, out=None):
 PARTS = [                       # (part, function, check prefix, table key)
     ('shape', shape, '', 'views'), ('scalp', scalp, '', None), ('poke', poke, '', None), ('hair_noise', hair_noise, '', None),
     ('face_folds', folds, '', None), ('mesh', mesh_info, '', None),
-    ('eyes', eyes, 'eye_', 'eyes'), ('sheet', sheet, 'sheet_', 'sheet'),
+    ('eyes', eyes, 'eye_', 'eyes'), ('eye_views', eye_views, 'eye_', 'eye_views'), ('sheet', sheet, 'sheet_', 'sheet'),
     ('sheet_figures', sheet_figures, 'figures_', 'sheet_figures'), ('sheet_body', sheet_body, 'body_', 'sheet_body'),
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),
     ('sheet_pieces', sheet_pieces, 'piece_', 'sheet_pieces'), ('pieces_3d', pieces_3d, 'piece3d_', 'pieces_3d'),
     ('details', details, '', 'details'), ('piece_details', piece_details, '', 'piece_details'),
     ('face_shape', face_shape, 'face_shape_', 'face_shape'), ('face', face_part, 'face_', 'face'),
+    ('face_region', face_region, '', 'face_region'),
     ('look', look, '', 'look'),
 ]
 
