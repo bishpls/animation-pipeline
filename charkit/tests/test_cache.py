@@ -375,3 +375,62 @@ def test_unshare_breaks_hard_links_without_touching_the_other_copy(tmp_path):
         f.write(b'rebuilt')
     assert (a / 'hull.npz').read_bytes() == b'original'
     assert cache.unshare(str(b)) == 0 and cache.unshare(str(tmp_path / 'missing')) == 0
+
+
+_STEP_RUN = r'''
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+from charkit import cache, closure
+bout, log = sys.argv[2], sys.argv[3]
+if log:
+    closure.start(log)
+gdir = os.path.join(bout, 'geom')
+os.makedirs(gdir, exist_ok=True)
+open(os.path.join(bout, 'head.npz'), 'w').write('head')          # an earlier step's product, in the out folder
+side = os.path.join(bout, 'side.json')                             # a file the step opens (a read, in the out folder)
+open(side, 'w').write('{"s": 1}')
+ins = os.path.join(sys.argv[1], 'charkit', 'assets')                  # an input in the worktree
+
+def run():
+    json.load(open(side))
+    open(os.path.join(gdir, 'made.txt'), 'w').write('made')
+
+key = {'head_code': os.path.join(bout, 'head.npz'), 'knob': 3}
+print(cache.file_step('t_port', run, [cache.venv_env], key, gdir, inputs=[os.path.join(bout, 'head.npz'), ins]))
+print(open(os.path.join(gdir, 'made.txt')).read())
+'''
+
+
+def test_a_venv_step_hits_across_out_folders_and_notes_its_closure():
+    """the venv steps' keys are portable (h): the key's paths, the inputs and the reads in the build's out folder key as
+    '<out>/...', the worktree's relative, so gate clones (each its own worktree and out folder) share the entries
+    (gate._step_cache_env). pieces_hair's key held absolute out paths: every gate clone rebuilt it (120-200 s). A hit
+    records what the step would have read in the build's input closure."""
+    import glob
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    tmp = tempfile.mkdtemp()
+    env = dict(os.environ, CHARKIT_STEP_CACHE=os.path.join(tmp, 'steps'), CHARKIT_STEP_DEPTH='all', CHARKIT_CLOSURE='')
+    run = lambda b, log='': subprocess.run([sys.executable, '-c', _STEP_RUN, root, os.path.join(tmp, b), log],
+                                           capture_output=True, text=True, env=env, cwd=tmp).stdout.split('\n')
+    assert run('a')[0].startswith('miss')
+    log = os.path.join(tmp, 'closure.log')
+    r = run('b', log)
+    assert r[:2] == ['hit', 'made'], r
+    lines = set(open(log).read().splitlines())
+    assert 'R charkit/cache.py' in lines and any(l.startswith('R charkit/assets/') for l in lines), lines
+    assert 'L charkit/assets' in lines
+    # the out folder's read changed: a miss (keyed by content, found by its portable path)
+    E = json.load(open(glob.glob(os.path.join(tmp, 'steps', 'venv', 't_port', '*', '*', 'manifest.json'))[0]))
+    assert ['<out>/side.json', cache.Files(tmp).get(os.path.join(tmp, 'a', 'side.json'))] in E['reads'], E['reads']
+    assert os.listdir(os.path.join(tmp, 'steps', 'venv', 't_port')).__len__() == 1
+
+
+def test_port_and_unport():
+    pre = [('/w/clone1/', ''), ('/srv/gi/', 'charkit/out/i3d/'), ('/o/cand/', '<out>/')]
+    v = {'a': '/o/cand/geom/head.npz', 'b': ['/w/clone1/charkit/refs/x.png', '/srv/gi/c.glb', '/elsewhere/y', 'rel/z'],
+         'n': 3}
+    assert cache._port(v, pre) == {'a': '<out>/geom/head.npz', 'b': ['charkit/refs/x.png', 'charkit/out/i3d/c.glb',
+                                                                    '/elsewhere/y', 'rel/z'], 'n': 3}
+    assert cache._unport('<out>/geom/head.npz', '/o/other') == '/o/other/geom/head.npz'
+    assert cache._unport('charkit/refs/x.png', '/o/other') == os.path.join(cache.ROOT, 'charkit/refs/x.png')
+    assert cache._unport('/elsewhere/y', '/o/other') == '/elsewhere/y'
