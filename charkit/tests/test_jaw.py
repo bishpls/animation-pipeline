@@ -48,6 +48,61 @@ def test_jaw_front_sees_no_jaw_where_the_face_runs_into_the_neck():
     assert M['chin'][1] < -0.55                                     # the face's skin runs on to the neck's foot
 
 
+def _lower(bottom, kink=None):
+    """a drawn front whose lower face ends at z = bottom(u) (|u| < 0.3), inked 0.01 L, over a neck 0.12 L wide."""
+    U, Z = _grid()
+    jaw = bottom(U)
+    cls = np.zeros(U.shape, int)
+    cls[(Z < 0.0) & (Z > jaw) & (np.abs(U) < 0.3)] = 1
+    cls[(np.abs(U) < 0.12) & (Z <= jaw) & (Z > -0.6)] = 1
+    cls[(Z <= jaw) & (Z > jaw - 0.01) & (np.abs(U) < 0.3)] = 4
+    return cls
+
+
+def test_taper_reads_a_v_against_a_u():
+    """a V (straight arms rising 0.5 per L) reads its opening and a sharp point; a U (an ellipse's bottom) turns all the
+    way round: a low tip share."""
+    V = fr.taper_front(_lower(lambda u: -0.36 + 0.5 * np.abs(u)), PPL)
+    assert abs(V['chin_angle'] - (180 - 2 * math.degrees(math.atan(0.5)))) < 3.0, V['chin_angle']
+    assert V['tip_share'] > 0.7, V['tip_share']
+    assert max(a['bend'] for a in V['arms'].values()) < 4.0         # straight arms
+    Uc = fr.taper_front(_lower(lambda u: -0.36 + 0.16 * (1 - np.sqrt(np.clip(1 - (u / 0.3) ** 2, 0, 1)))), PPL)
+    assert Uc['tip_share'] < 0.4, Uc['tip_share']
+    assert Uc['r'][int(round(0.5 / fr.TAPER_T))] > V['r'][int(round(0.5 / fr.TAPER_T))]   # the U stays wide further down
+
+
+def test_taper_sees_a_kink_in_the_arms():
+    """arms rising 0.3 per L to the neck's edge, then 0.9: a kink where they meet, read as a bend."""
+    kinked = lambda u: -0.36 + np.where(np.abs(u) < 0.12, 0.3 * np.abs(u), 0.036 + 0.9 * (np.abs(u) - 0.12))
+    K = fr.taper_front(_lower(kinked), PPL)
+    assert max(a['bend'] for a in K['arms'].values()) > fr.ARM_BEND[0], K['arms']
+
+
+def _three_quarter(notch=0.0, dent=0.0):
+    """a three-quarter facing -u: the face's lower edge rising 0.3 per L from the chin (u 0) to u 0.25, `notch` L lower
+    beyond u 0.2 (a step where the jaw meets the neck); the far cheek's contour at u -0.2 + 0.5 (z + 0.36) under z -0.2,
+    dented `dent` L inward at z -0.28."""
+    U, Z = _grid()
+    edge = -0.36 + 0.3 * np.clip(U, 0, None) - np.where(U > 0.2, notch, 0.0)
+    far = np.where(Z < -0.2, -0.18 * (Z + 0.36) / 0.16 + 0.0, -0.18) + dent * np.exp(-0.5 * ((Z + 0.28) / 0.015) ** 2)
+    far = np.minimum(far, 0.0)
+    cls = np.zeros(U.shape, int)
+    face = (Z < 0.0) & (Z > edge) & (U > far) & (U < 0.3)
+    cls[face] = 1
+    cls[(Z <= edge) & (Z > edge - 0.01) & (U >= 0) & (U < 0.3)] = 4
+    cls[(U > 0.1) & (U < 0.28) & (Z <= edge - 0.01) & (Z > -0.6)] = 1          # the neck behind the jaw line
+    return cls
+
+
+def test_tq_jaw_reads_the_notch_and_the_hollow():
+    clean = fr.tq_jaw(_three_quarter(), PPL)
+    assert clean['notch'] < 0.004 and clean['hollow'] < 0.003, clean
+    step = fr.tq_jaw(_three_quarter(notch=0.02), PPL)
+    assert abs(step['notch'] - 0.02) < 0.006, step['notch']
+    dent = fr.tq_jaw(_three_quarter(dent=0.012), PPL)
+    assert dent['hollow'] > 0.005 and abs(dent['hollow_z'] + 0.28) < 0.02, (dent['hollow'], dent['hollow_z'])
+
+
 def _profile(rise=15.0):
     """a drawn profile facing -u: the face down to the chin (front u -0.05, bottom -0.36), its underside rising `rise`
     degrees back to a neck whose front is at u 0.18, down to -0.8."""

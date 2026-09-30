@@ -528,6 +528,16 @@ def iris_centres(B):
     return [o.V('eval').mean(0) for o in B.objects(groups=('eye',), parts=('iris',), visible=False)]
 
 
+def eye_anchor(B, irc=None):
+    """the eyes' points the sheet's face measures register ours on: the iris centres set level with the head's eye line
+    (the assembly's eye_z: the design's eye row, which the head is built on). The design's are its iris blobs on that
+    row; the iris plates' vertex mean sits 0.0235 L over it on the authored head (the visible iris 0.018 L), which read
+    every height under the eyes that much low (the chin, the widths' rows, the neck's row)."""
+    P = np.array(iris_centres(B) if irc is None else irc, float)
+    P[:, 2] = float(B.assembly['eye_z'])
+    return list(P)
+
+
 def sheet_meshes(B):
     """sheetqa.measure_ours' inputs from a bundle: every surface but the hair as (V, tris, sheet class), the hair and
     accessories as covers, the iris centres."""
@@ -894,7 +904,8 @@ def sheet_measure(B, design, covers=True):
     D, ppl = got
     az3 = D.get('az_three_quarter', 35.0)
     meshes, cov, irc = sheet_meshes(B)
-    O = sheetqa.measure_ours(meshes, cov if covers else [], irc, B.assembly['centre'], B.assembly['L'], ppl, az3)
+    O = sheetqa.measure_ours(meshes, cov if covers else [], eye_anchor(B, irc), B.assembly['centre'], B.assembly['L'],
+                             ppl, az3)
     C = sheetqa.compare(O, D)
     if covers:
         C.update(sheetqa.shown(O, D))

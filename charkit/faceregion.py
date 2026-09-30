@@ -170,7 +170,7 @@ def profile_edge(B, z_top=None, z_bottom=-0.85, step=0.01):
         return None
     meshes, _ = qa3d.scene_classes(B)
     az = bodyqa.azimuths(ctx['az3'])['profile']
-    iw = np.array(qa3d.iris_centres(B))
+    iw = eye_anchor(qa3d.iris_centres(B), float(B.assembly['eye_z']))     # (the head's eye line: the design's eye row)
     org = bodyqa.origin('profile', az, iw, B.assembly['centre'])
     W, ppl = bodyqa.WIN, ctx['ppl']
     ours = zbuffer(meshes, az, org, B.assembly['L'], 1.0 / ppl, W)[1] >= 0
@@ -562,25 +562,348 @@ def jaw_compare(D, O, ppl):
     return C
 
 
+# ------------------------------------------------------------------------------------ the taper's shape: a V, not a U
+# Michael (2026-09-30), the head sheet against the boards: the design's jaw lines run from the cheekbones to a sharp V
+# chin; ours "rounds sharply into a broad, blunt, shallow chin: a U, not a V", and in three-quarter a hollow under the
+# cheek and a notch where the jaw meets the neck. The row-by-row widths (jaw_taper) and the chin's height don't see a
+# shape. These read the outline as a curve: in front its half-width w(t) from the cheekbone row (t 0) to the chin point
+# (t 1) and its direction along its arc length (the arms' bends, the V's opening near the chin, how much of the V's turn
+# its point makes); in three-quarter the far cheek's contour (a local hollow) and the near jaw line (a notch). Graded in
+# the boards' camera (what the boards show), each with the level camera's value beside it (the drawing's projection).
+TAPER_TOP = (-0.05, 0.1)         # the cheekbone row: the design's widest row under the first z and this far over its chin
+TAPER_T = 0.02                   # the taper curve's step in t
+TAPER_SHAPE = (0.025, 0.04)      # rms of w(t)/w(0) against the design's: PASS / WARN
+TAPER_START = 0.9                # the taper starts where w(t)/w(0) first falls under this
+ARMS = (0.4, 0.95)               # t: the jaw lines (their straightness and bends)
+ARC_STEP = 0.25                  # px: the outline resampled by arc length this often, smoothed over ARC_SMOOTH
+ARC_SMOOTH = 0.003               # L (a pixel's steps)
+ARM_SMOOTH = 0.006               # L: the jaw lines smoothed this much more before their bends are read (the sheet's
+                                 # 401 px per L steps a pixel's direction by 5-10 degrees)
+BEND_SMOOTH = 0.03               # L of arc: a bend is the direction less its smoothing over this
+ARM_BEND = (6.0, 10.0)           # deg: the jaw lines' sharpest local bend (a kink where the silhouette jumps in depth;
+                                 # the design's own 4.4)
+CHIN_ARMS = (0.06, 0.12)         # L of arc from the chin point: the V's arms, fitted as lines
+CHIN_ANGLE = (10.0, 20.0)        # deg: |ours - design| of the V's opening between them
+TIP_ARC = 0.02                   # L of arc either side of the chin point: the V's point
+TIP_SHARE = (0.7, 0.55)          # the share of the V's turn its point makes: PASS / WARN at least (a U turns all
+                                 # the way round its bottom; the design's arms run straight to within TIP_ARC of it)
+TQ_TOP = -0.12                   # z: the three-quarter's far contour read from the chin up to here
+HOLLOW_ARC = 0.05                # L of arc either side: the far contour's local chord
+TQ_HOLLOW = (0.005, 0.008)       # L: the far contour's deepest local hollow (inside its local chord)
+TQ_NOTCH = (0.008, 0.016)        # L: the near jaw line's largest drop under its own rise
+NOTCH_JUMP = 0.05                # L: the near jaw line ends where the next column's foot jumps this far (hair, a gap)
+
+
+def face_outline(cls, ppl, win=JAW_WIN, seeds=FACE_SEEDS):
+    """the face region's outline (the skin reached from the seeds, the ink its walls, holes filled) as a closed
+    polyline by marching squares, and the chin point (jaw_front's) -> (X (n, 2) (u, z) L, chin (u, z)) or None."""
+    from scipy import ndimage
+    from skimage import measure as skm
+    face = ndimage.binary_fill_holes(_region(cls, seeds, ppl, win))
+    M = jaw_front(cls, ppl, win=win, seeds=seeds)
+    if not face.any() or 'chin' not in M:
+        return None
+    c = max(skm.find_contours(np.pad(face, 1).astype(float), 0.5), key=len) - 1
+    return np.stack([(c[:, 1] + 0.5) / ppl - win['x'], win['top'] - (c[:, 0] + 0.5) / ppl], 1), M['chin']
+
+
+def _walk(X, i0, dirn, stop):
+    """indices along a closed polyline from i0 one way (dirn +-1) until stop(point)."""
+    out, j, n = [], i0, len(X)
+    for _ in range(n):
+        if stop(X[j]):
+            break
+        out.append(j)
+        j = (j + dirn) % n
+    return out
+
+
+def _by_arc(P, ppl):
+    """a polyline resampled by arc length (ARC_STEP px) and smoothed (ARC_SMOOTH) -> (points, step L)."""
+    from scipy.ndimage import gaussian_filter1d
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*np.diff(P, axis=0).T))])
+    step = ARC_STEP / ppl
+    sg = np.arange(0.0, s[-1] + 1e-12, step)
+    Q = np.stack([np.interp(sg, s, P[:, 0]), np.interp(sg, s, P[:, 1])], 1)
+    return gaussian_filter1d(Q, ARC_SMOOTH / step, axis=0, mode='nearest'), step
+
+
+def _direction(Q):
+    """the direction of a polyline (degrees, unwrapped) at each point."""
+    d = np.gradient(Q, axis=0)
+    return np.degrees(np.unwrap(np.arctan2(d[:, 1], d[:, 0])))
+
+
+def _half_widths(cls, ppl, chin, win=JAW_WIN, seeds=FACE_SEEDS):
+    """the face's half-width either side of the chin's column per row, scanned out through the face region from that
+    column, above the chin; a hair lock's tip cutting a row short bridged (each side's running maximum from the chin
+    up) -> (z (rows), left, right) L."""
+    face = _region(cls, seeds, ppl, win)
+    H, W = cls.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    u = (np.arange(W) + 0.5) / ppl - win['x']
+    uc, zc = chin
+    c0 = int(round((uc + win['x']) * ppl - 0.5))
+    xl, xr = np.full(H, np.nan), np.full(H, np.nan)
+    for r in range(H):
+        if z[r] < zc - 0.5 / ppl or not face[r, c0]:
+            continue
+        run = face[r]
+        a = c0
+        while a > 0 and run[a - 1]:
+            a -= 1
+        b = c0
+        while b < W - 1 and run[b + 1]:
+            b += 1
+        xl[r], xr[r] = uc - u[a] + 0.5 / ppl, u[b] - uc + 0.5 / ppl
+    ok = np.nonzero(np.isfinite(xl))[0][::-1]                  # from the chin up
+    if len(ok):
+        xl[ok] = np.maximum.accumulate(xl[ok]); xr[ok] = np.maximum.accumulate(xr[ok])
+    return z, xl, xr
+
+
+def taper_front(cls, ppl, z0=None, win=JAW_WIN, seeds=FACE_SEEDS):
+    """the front's lower outline, from the cheekbone row z0 (default: the picture's own, its widest row under
+    TAPER_TOP[0] and TAPER_TOP[1] over its chin) to the chin point -> dict:
+      t, r        the taper curve: w(t) / w(0) on t = 0..1 (TAPER_T), w the half-width, t = (z0 - z) / (z0 - chin);
+      w0, w90     the half-width at t 0 and 0.9 (L); start: the t where r first falls under TAPER_START;
+      arms        per side ('L' the picture's left, 'R'), over t in ARMS: a line's fit (rms, orthogonal, L), its bow (the
+                  mean distance from the chord, + outward: convex) and its sharpest local bend (degrees: the direction
+                  less its smoothing over BEND_SMOOTH of arc) and where (z);
+      chin_angle  the V's opening between its arms fitted as lines CHIN_ARMS of arc from the chin point (degrees);
+      tip_share   how much of the V's turn (180 less the opening) the outline makes within TIP_ARC of the chin point;
+      outline     the lower outline by arc length (u, z)."""
+    got = face_outline(cls, ppl, win, seeds)
+    if got is None:
+        return None
+    X, (uc, zc) = got
+    z, xl, xr = _half_widths(cls, ppl, (uc, zc), win, seeds)
+    w = 0.5 * (xl + xr)
+    if z0 is None:
+        sel = (z <= TAPER_TOP[0]) & (z >= zc + TAPER_TOP[1]) & np.isfinite(w)
+        if not sel.any():
+            return None
+        z0 = float(z[sel][np.nonzero(w[sel] >= 0.98 * np.nanmax(w[sel]))[0].max()])
+    t = (z0 - z) / (z0 - zc)
+    ok = np.isfinite(w) & (t >= -1e-9) & (t <= 1 + 1e-9)
+    if ok.sum() < 10:
+        return None
+    o = np.argsort(t[ok])
+    tg = np.arange(0.0, 1.0 + 1e-9, TAPER_T)
+    wg = np.interp(tg, t[ok][o], w[ok][o])
+    wg[-1] = 0.0                                                   # (the chin point)
+    r = wg / wg[0]
+    below = np.nonzero(r < TAPER_START)[0]
+    out = dict(z0=round(z0, 4), chin=(round(float(uc), 4), round(float(zc), 4)), t=tg, r=r, w0=round(float(wg[0]), 4),
+               w90=round(float(np.interp(0.9, tg, wg)), 4), start=round(float(tg[below[0]]), 3) if len(below) else None)
+    # the outline under z0, from the picture's left through the chin to its right, by arc length
+    i0 = int(np.argmin(np.hypot(X[:, 0] - uc, X[:, 1] - zc)))
+    a, b = _walk(X, i0, -1, lambda p: p[1] > z0), _walk(X, i0, 1, lambda p: p[1] > z0)
+    P = X[a[::-1] + b[1:]]
+    if len(P) < 10:
+        return out
+    if P[0, 0] > P[-1, 0]:
+        P = P[::-1]
+    Q, step = _by_arc(P, ppl)
+    psi = _direction(Q)
+    from scipy.ndimage import gaussian_filter1d
+    k0 = int(np.argmin(np.hypot(Q[:, 0] - uc, Q[:, 1] - zc)))
+    out['outline'] = Q
+    z_hi, z_lo = z0 - ARMS[0] * (z0 - zc), z0 - ARMS[1] * (z0 - zc)
+    arms = {}
+    for side, idx in (('L', np.arange(0, k0)), ('R', np.arange(k0 + 1, len(Q)))):
+        idx = idx[(Q[idx, 1] <= z_hi) & (Q[idx, 1] >= z_lo)]
+        if len(idx) < 8:
+            continue
+        A = Q[idx]
+        c = A.mean(0)
+        e = np.linalg.svd(A - c)[2][0]
+        res = (A - c) @ np.array([-e[1], e[0]])
+        p0, p1 = A[np.argmax(A[:, 1])], A[np.argmin(A[:, 1])]
+        tc = (p1 - p0) / max(np.linalg.norm(p1 - p0), 1e-12)
+        nrm = np.array([-tc[1], tc[0]])
+        if nrm[0] * (p0[0] - uc) < 0:                              # outward: away from the chin's column
+            nrm = -nrm
+        As = gaussian_filter1d(A, ARM_SMOOTH / step, axis=0, mode='nearest')      # (on the arm alone: the hair
+        pa = _direction(As)                                                      # over the cheek stays out)
+        bd = np.abs(pa - gaussian_filter1d(pa, BEND_SMOOTH / step, mode='nearest'))
+        m = min(int(0.01 / step), len(bd) // 4)
+        k = m + int(np.argmax(bd[m:len(bd) - m]))
+        arms[side] = dict(rms=round(float(np.sqrt(np.mean(res ** 2))), 4), bow=round(float(np.mean((A - p0) @ nrm)), 4),
+                          bend=round(float(bd[k]), 1), bend_z=round(float(As[k, 1]), 3))
+    out['arms'] = arms
+    # the chin: the V's arms as lines CHIN_ARMS of arc either side of its point; the turn its point makes
+    n0, n1 = int(round(CHIN_ARMS[0] / step)), int(round(CHIN_ARMS[1] / step))
+    nt = int(round(TIP_ARC / step))
+    if k0 - n1 >= 0 and k0 + n1 < len(Q):
+        rise = []
+        for seg in (Q[k0 - n1:k0 - n0 + 1], Q[k0 + n0:k0 + n1 + 1]):
+            e = np.linalg.svd(seg - seg.mean(0))[2][0]
+            rise.append(math.degrees(math.atan2(abs(e[1]), abs(e[0]))))    # each arm's angle over the horizontal
+        opening = 180.0 - sum(rise)
+        out['chin_angle'] = round(opening, 1)
+        out['chin_arms'] = [round(v, 1) for v in rise]
+        turn = abs(psi[k0 + nt] - psi[k0 - nt])
+        out['tip_share'] = round(float(turn / max(sum(rise), 1e-6)), 3)
+    return out
+
+
+def tq_jaw(cls, ppl, facing=-1, win=JAW_WIN, seeds=FACE_SEEDS):
+    """a three-quarter's jaw -> dict:
+      hollow      the far contour (from the chin up to TQ_TOP, on the facing side) its deepest local hollow: how far a
+                  point lies inside the chord between the points HOLLOW_ARC of arc either side (L, + a hollow), and where
+                  (z); curv: its most concave signed curvature (1/L, - concave);
+      notch       the near jaw line (per column from the chin away from the facing side, the face's foot: its lowest skin
+                  before ink or another class, from under the mouth) its largest drop under its own running maximum (L),
+                  and where (u from the chin); line: [(du, z)] (to where a column's foot jumps NOTCH_JUMP: hair, a gap)."""
+    got = face_outline(cls, ppl, win, seeds)
+    if got is None:
+        return None
+    X, (uc, zc) = got
+    out = dict(chin=(round(float(uc), 4), round(float(zc), 4)))
+    i0 = int(np.argmin(np.hypot(X[:, 0] - uc, X[:, 1] - zc)))
+    n = len(X)
+    far = max((-1, 1), key=lambda d: facing * X[(i0 + 12 * d) % n, 0])       # the way round toward the facing side
+    idx = _walk(X, i0, far, lambda p: p[1] > TQ_TOP)
+    if len(idx) > 10:
+        Q, step = _by_arc(X[idx], ppl)
+        m = int(round(HOLLOW_ARC / step))
+        if len(Q) > 2 * m + 2:
+            A, Bp, C = Q[:-2 * m], Q[2 * m:], Q[m:-m]
+            t = Bp - A
+            t = t / np.maximum(np.linalg.norm(t, axis=1, keepdims=True), 1e-12)
+            nrm = np.stack([-t[:, 1], t[:, 0]], 1)
+            nrm = np.where((nrm[:, :1] * -facing) > 0, nrm, -nrm)   # inward: toward the face (away from its facing side)
+            dev = np.einsum('ij,ij->i', C - A, nrm)
+            k = int(np.argmax(dev))
+            from scipy.ndimage import gaussian_filter1d
+            psi = np.radians(gaussian_filter1d(_direction(Q), HOLLOW_ARC / step / 2, mode='nearest'))
+            kap = np.gradient(psi) / step
+            s = np.sign(np.median(kap)) or 1.0                     # (the contour's own convex turning: +)
+            out['hollow'] = round(float(dev[k]), 4)
+            out['hollow_z'] = round(float(C[k, 1]), 3)
+            out['curv'] = round(float(np.min(s * kap[m:-m])), 2)
+            out['far'] = Q
+    # the near jaw line, column by column
+    skin = cls == 1
+    H, W = cls.shape
+    z = win['top'] - (np.arange(H) + 0.5) / ppl
+    rs = int(round((win['top'] - SCAN_TOP) * ppl - 0.5))
+    c0 = int(round((uc + win['x']) * ppl - 0.5))
+    line, prev = [], None
+    for c in range(c0, W) if facing < 0 else range(c0, -1, -1):
+        if not skin[rs, c]:
+            break
+        stop = np.nonzero(~skin[rs:, c])[0]
+        if not len(stop):
+            break
+        zf = float(z[rs + stop[0] - 1])
+        if prev is not None and abs(zf - prev) > NOTCH_JUMP:
+            break
+        line.append((abs(c - c0) / ppl, zf))
+        prev = zf
+    if len(line) > 5:
+        L_ = np.array(line)
+        drop = np.maximum.accumulate(L_[:, 1]) - L_[:, 1]
+        k = int(np.argmax(drop))
+        out['notch'] = round(float(drop[k]), 4)
+        out['notch_du'] = round(float(L_[k, 0]), 3)
+        out['line'] = L_
+    return out
+
+
+def taper_compare(D, O, Ol=None):
+    """the taper's checks: the design's taper_front / tq_jaw measures D ({'front': , 'three_quarter': }) against ours O
+    (the boards' camera), Ol (the level camera's, shown beside) -> checks."""
+    C = {}
+    df, of = D.get('front'), O.get('front')
+    lf = (Ol or {}).get('front') or {}
+    if df and of:
+        dr = of['r'] - df['r']
+        k = int(np.argmax(np.abs(dr)))
+        rms = float(np.sqrt(np.mean(dr ** 2)))
+        lvl = float(np.sqrt(np.mean((lf['r'] - df['r']) ** 2))) if lf.get('r') is not None else None
+        C['jaw_taper_shape'] = dict(value=round(rms, 4), worst=[round(float(df['t'][k]), 2), round(float(dr[k]), 4)],
+                                    start=[of.get('start'), df.get('start')], w0=[of['w0'], df['w0']],
+                                    level=None if lvl is None else round(lvl, 4), status=_grade(rms, TAPER_SHAPE),
+                                    note='rms of w(t)/w(0), t 0 at the cheekbone row %.3f, 1 at the chin; worst [t, ours - '
+                                         'design]; start [ours, design]: where it first falls under %.1f' % (df['z0'], TAPER_START))
+        if of.get('arms') and df.get('arms'):
+            bb = max(a['bend'] for a in of['arms'].values())
+            bl = max(a['bend'] for a in lf['arms'].values()) if lf.get('arms') else None
+            b = max(bb, bl or 0.0)
+            C['jaw_line_bend'] = dict(value=b, board=bb, level=bl, design=max(a['bend'] for a in df['arms'].values()),
+                                      arms=of['arms'], arms_level=lf.get('arms'), arms_design=df['arms'],
+                                      status=_grade(b, ARM_BEND),
+                                      note='the jaw lines (t %.2f-%.2f) sharpest local bend (deg), the worse camera\'s; per '
+                                           'side a line fit\'s rms (L) and bow (L, + convex)' % ARMS)
+        if of.get('chin_angle') is not None and df.get('chin_angle') is not None:
+            d = of['chin_angle'] - df['chin_angle']
+            C['chin_angle'] = dict(value=of['chin_angle'], design=df['chin_angle'], arms=of.get('chin_arms'),
+                                   level=lf.get('chin_angle'), w90=[of['w90'], df['w90']], status=_grade(d, CHIN_ANGLE),
+                                   note="the V's opening between its arms %.2f-%.2f L of arc from the chin point (deg); "
+                                        'w90 [ours, design]: the half-width at t 0.9 (L)' % CHIN_ARMS)
+        if of.get('tip_share') is not None and df.get('tip_share') is not None:
+            v = of['tip_share']
+            C['chin_tip'] = dict(value=v, design=df['tip_share'], level=lf.get('tip_share'),
+                                 status='PASS' if v >= TIP_SHARE[0] else 'WARN' if v >= TIP_SHARE[1] else 'FAIL',
+                                 note="the share of the V's turn made within %.3f L of arc of its point (1 a sharp V, "
+                                      'low a round U)' % TIP_ARC)
+    dq, oq = D.get('three_quarter'), O.get('three_quarter')
+    lq = (Ol or {}).get('three_quarter') or {}
+    if dq and oq:
+        if oq.get('hollow') is not None:
+            h = max(oq['hollow'], lq.get('hollow') or -1.0)
+            C['tq_cheek_hollow'] = dict(value=h, board=oq['hollow'], level=lq.get('hollow'), z=oq.get('hollow_z'),
+                                        z_level=lq.get('hollow_z'), curv=oq.get('curv'), design=dq.get('hollow'),
+                                        status=_grade(max(0.0, h), TQ_HOLLOW),
+                                        note='the far cheek contour\'s deepest local hollow inside its chord over %.2f L of arc '
+                                             'either side (L), the worse camera\'s; curv: its most concave curvature (1/L)'
+                                             % HOLLOW_ARC)
+        if oq.get('notch') is not None:
+            nn = max(oq['notch'], lq.get('notch') or 0.0)
+            C['tq_jaw_notch'] = dict(value=nn, board=oq['notch'], level=lq.get('notch'), du=oq.get('notch_du'),
+                                     du_level=lq.get('notch_du'), design=dq.get('notch'), status=_grade(nn, TQ_NOTCH),
+                                     note="the near jaw line's largest drop under its own rise from the chin (L), the worse "
+                                          "camera's: a notch or step where the jaw meets the neck")
+    return C
+
+
 def design_jaw(spec, eye_x):
-    """the head sheet's jaw measures -> ({view: measures}, ppl, {view: class image})."""
+    """the head sheet's jaw measures -> ({view: measures}, ppl, {view: class image}, {view: azimuth}); the front's and
+    the three-quarter's taper (taper_front, tq_jaw) under 'taper'."""
     from . import refcheck
     fs = spec['ref']['face_sheet']
     views, ppl = design_jaw_views(refcheck._load(fs['image']), eye_x, fs.get('facing', -1))
     D = {vn: jaw_profile(v["cls"], ppl, neck_band=DESIGN_NECK_BAND) if vn == 'profile' else jaw_front(v['cls'], ppl)
          for vn, v in views.items()}
+    if 'front' in views:
+        D['front']['taper'] = taper_front(views['front']['cls'], ppl)
+    if 'three_quarter' in views:
+        D['three_quarter']['taper'] = tq_jaw(views['three_quarter']['cls'], ppl, fs.get('facing', -1))
     return D, ppl, {vn: v['cls'] for vn, v in views.items()}, {vn: v['az'] for vn, v in views.items()}
 
 
-def ours_jaw(meshes, skin, iris, eye_z, L, ppl, az, design_chin=None):
+def eye_anchor(iris, eye_z):
+    """the iris centres (world, one row per eye) set on the head's eye line: the eyes' point the QA registers ours on,
+    level with the head frame's eye line (the design's eye row, which the head is built on). The iris plates' vertex mean
+    sits 0.0235 L over it on the authored head (their visible centre 0.018 L), which read every measure under the eyes
+    that much low against the design's."""
+    P = np.array(iris, float)
+    P[:, 2] = eye_z
+    return P
+
+
+def ours_jaw(meshes, skin, iris, eye_z, L, ppl, az, design_chin=None, design_z0=None, facing=-1):
     """our jaw measures from a scene (meshes [(V, T, class)], skin (V, T) for the outline, the iris centres (world), the
-    eye line's z), each view at its azimuth az {view: degrees}, in two cameras: the jaw's lines (does the jaw line
-    draw over the neck, in front and three-quarter) in the boards' camera, as the boards show them; its shape (the
-    outline, the chin, the V, the widths, the profile's underside and neck) in a level camera far out (LEVEL_CAM), as the
-    design is drawn: the boards' look down 6 degrees at the chin in perspective, which alone raises the V's arms 0.01 L
-    and narrows the cheeks, further back than the eyes, by 5% -> ({view: measures}, {view: the board's classes},
-    {view: the level's classes})."""
-    iris = np.asarray(iris, float)
+    eye line's z), each view at its azimuth az {view: degrees}, registered on the eyes at the head's eye line
+    (eye_anchor), in two cameras: the jaw's lines (does the jaw line draw over the neck, in front and three-quarter) in
+    the boards' camera, as the boards show them; its shape (the outline, the chin, the V, the widths, the profile's
+    underside and neck) in a level camera far out (LEVEL_CAM), as the design is drawn: the boards' look down 6 degrees at
+    the chin in perspective, which alone raises the V's arms 0.01 L and narrows the cheeks, further back than the eyes,
+    by 5%. The taper's shape (taper_front from design_z0, the design's cheekbone row; tq_jaw) in both: 'taper' the
+    boards', 'taper_level' the level's -> ({view: measures}, {view: the board's classes}, {view: the level's classes})."""
+    iris = eye_anchor(iris, eye_z)
     O, P, Q = {}, {}, {}
     for vn, a in az.items():
         ref = iris[np.argmax(iris[:, 0])] if vn == 'profile' else iris.mean(0)
@@ -595,8 +918,20 @@ def ours_jaw(meshes, skin, iris, eye_z, L, ppl, az, design_chin=None):
             M = jaw_front(cams['level'], ppl, design_chin if vn == 'front' else None)
             Mb = jaw_front(cams['board'], ppl)
             M.update(jaw_line_L=Mb['jaw_line_L'], jaw_cols=Mb['jaw_cols'])
+            if vn == 'front':
+                M['taper'] = taper_front(cams['board'], ppl, design_z0)
+                M['taper_level'] = taper_front(cams['level'], ppl, design_z0)
+            else:
+                M['taper'] = tq_jaw(cams['board'], ppl, facing)
+                M['taper_level'] = tq_jaw(cams['level'], ppl, facing)
             O[vn] = M
     return O, P, Q
+
+
+def taper_checks(D, O):
+    """the taper's checks from design_jaw's and ours_jaw's measures."""
+    pick = lambda M, k: {vn: (M.get(vn) or {}).get(k) for vn in ('front', 'three_quarter')}
+    return taper_compare(pick(D, 'taper'), pick(O, 'taper'), pick(O, 'taper_level'))
 
 
 def jaw(B):
@@ -608,10 +943,16 @@ def jaw(B):
     D, ppl, _, az = Dz.memo(design_jaw, B.spec, ex)
     meshes, _ = qa3d.scene_classes(B)
     V, T, _, _ = B.skin().mesh('masked')
+    z0 = ((D.get('front') or {}).get('taper') or {}).get('z0')
     O = ours_jaw(meshes, (V, T), qa3d.iris_centres(B), float(B.assembly['eye_z']), float(B.assembly['L']), ppl, az,
-                 (D.get('front') or {}).get('chin', (0, None))[1])[0]
+                 (D.get('front') or {}).get('chin', (0, None))[1], z0,
+                 (B.spec.get('ref') or {}).get('face_sheet', {}).get('facing', -1))[0]
     C = jaw_compare(D, O, ppl)
-    slim = lambda M: {vn: {k: v for k, v in m.items() if not isinstance(v, np.ndarray)} for vn, m in M.items()}
+    C.update(taper_checks(D, O))
+
+    arr = lambda v: isinstance(v, np.ndarray)
+    slim = lambda M: {vn: {k: ({a: b for a, b in v.items() if not arr(b)} if isinstance(v, dict) else v)
+                           for k, v in m.items() if not arr(v)} for vn, m in M.items()}
     return dict(design=slim(D), ours=slim(O)), C
 
 
