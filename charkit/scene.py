@@ -384,7 +384,8 @@ def stage_face_shading(S):
     ln = look.get('lines') or {}
     look = dict(look, face=dict(look.get('face') or {}, ink_color=tuple(
         ln['ink'] if ln.get('color') == 'ink' else S.spec.get('skin_line', (0.42, 0.24, 0.20)))))
-    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors, look=look)
+    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors, look=look,
+                    hair=[o for o in S.hair if o.type == 'MESH' and not o.hide_render])
 
 
 def stage_garments(S):
@@ -435,9 +436,14 @@ def body_below_neck(verts, S):
 
 
 def fringe(objs, S):
-    """face shading reads which hair objects there are and the fringe (hair_front*: its shadow on the face), not the
-    rest of the hair."""
-    return [o.name for o in objs], [o for o in objs if o.name.startswith('hair_front')]
+    """face shading reads which hair objects there are and the fringe (hair_front*, the cut pieces' bangs and side
+    locks: its shadow on the face), not the rest of the hair; with the look's face.cast every hair object whole (the
+    hair's shadows baked onto the skin: charkit.faceshade.cast_maps)."""
+    from . import shade
+    if (shade.look_of(S.spec).get('face') or {}).get('cast'):
+        return [o.name for o in objs], list(objs)
+    return [o.name for o in objs], [o for o in objs if o.name.startswith('hair_front') or o.name == 'hair_bangs'
+                                    or o.get('charkit_family') in ('bangs', 'side_locks')]
 
 
 DEPS = {

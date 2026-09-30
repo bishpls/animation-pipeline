@@ -97,7 +97,7 @@ def test_code_closure():
             cache._MODS.clear()
         edit('garments.py', '"""Garments', '# a comment\n"""Garments (a docstring edit)')
         assert cache.code_units(_fn('charkit.scene', 'stage_garments')) == g             # comments and docs don't count
-        edit('garments.py', "sol.thickness = 0.01 * L", "sol.thickness = 0.011 * L")
+        edit('garments.py', "_thick(ob, 0.01 * L)\n        else:", "_thick(ob, 0.011 * L)\n        else:")
         g2 = cache.code_units(_fn('charkit.scene', 'stage_garments'))
         moved = [u for u in g if g[u] != g2.get(u)]
         assert moved and all(u.startswith('charkit/garments.py') for u in moved), moved

@@ -5,7 +5,10 @@ charkit.lookqa.design_heads' native_ppl), `win` L across and down round the eye 
 line and the head's axis land.
 
     blender -b OUT/NAME.blend --python charkit/boards/lookboard.py -- OUTDIR [--ppl 399.4] [--az3 35.7] [--L 0.25]
-        [--look JSON] [--views front,three_quarter,profile,back]
+        [--look JSON] [--views front,three_quarter,profile,back] [--bare]
+
+--bare leaves the garments out (and the skin's mask under them off): the neck and shoulders bare, as head_turnaround
+draws them (the chin's shadow on the neck, set beside the design's).
 """
 import json, os, sys
 
@@ -16,7 +19,7 @@ import numpy as np
 WIN = (1.6, 1.25, 1.35)            # L: width, above the eye line, below it
 
 
-def main(out, ppl=399.4, az3=35.7, look=None, L=None, only=None):
+def main(out, ppl=399.4, az3=35.7, look=None, L=None, only=None, bare=False):
     import bpy
     from charkit import qa, shade, styles
     os.makedirs(out, exist_ok=True)
@@ -25,6 +28,13 @@ def main(out, ppl=399.4, az3=35.7, look=None, L=None, only=None):
         shade.set_look(styles.merge(shade.get_look(), look))
         shade.line_colors()
     skin = next(o for o in bpy.data.objects if o.type == 'MESH' and o.name.endswith('_skin'))
+    if bare:
+        for o in bpy.data.objects:
+            if o.get('ck_line_region') == 'garment':
+                o.hide_render = True
+        for md in skin.modifiers:
+            if md.name == 'under_garments':
+                md.show_render = False
     zs = np.array([(skin.matrix_world @ v.co).z for v in skin.data.vertices])
     H = float(zs.max())
     irises = [o for o in bpy.data.objects if o.type == 'MESH' and o.name.startswith('iris_')]
@@ -61,4 +71,4 @@ if __name__ == '__main__':
     argv = sys.argv[sys.argv.index('--') + 1:]
     opt = lambda k, d=None: argv[argv.index(k) + 1] if k in argv else d
     main(argv[0], float(opt('--ppl', 399.4)), float(opt('--az3', 35.7)), json.loads(opt('--look')) if opt('--look') else None,
-         opt('--L'), opt('--views', '').split(',') if opt('--views') else None)
+         opt('--L'), opt('--views', '').split(',') if opt('--views') else None, '--bare' in argv)

@@ -132,6 +132,19 @@ Residuals, explained:
   (lab, local Blender, Solidify + Subsurf) to 8e-8. The lab carries vertex groups now (`piece['groups']`). Not wired
   into the build yet.
 
+- **Merged pipeline-3d d60486a** (garments3: call L's creased rims, the garment changes, the QA per-piece crops). One
+  conflict, bodyeval: both sides changed the evaluator's Solidify and Subdivision. Kept: this branch's exact ports
+  (geom.solidify, geom.subsurf) and `Part.solid_settings`, which already carries `edge_crease_outer/_inner/_rim` to
+  geom.solidify; its creases go to geom.subsurf as OpenSubdiv sharpness 10·c² (call L's crease 1 is sharpness 10,
+  infinitely sharp). Kept from garments3: `Part.subdiv = 0` for a piece built without a Subdivision Surface, and the
+  QA's `min(level, subdiv)`. garments3's hand-rolled `sharp=`/`with_sharp` in the old ports went with them;
+  `test_creased_rims_stay_flat_and_square` now runs on the exact API with the same assertions (24 loop edges, no cross
+  edge, crease 1 infinitely sharp, every vertex at z 0, t/2 or t, 48 child sharp edges, uncreased a bead) and checks
+  the evaluator's wrapper gives the same mesh.
+- The lab gained a garment shell (`grid_shell`, `grid_shell_rim_creased`: Solidify 0.08, then Subsurf, UVs with a
+  seam). Against local Blender: 1.0e-6 / 9.9e-7 L, all 232 faces, windings and first corners equal, UVs 3.3e-7.
+  garments3's port gives the same positions there (9.9e-7 L: crease 1 is level-independent); it differed in winding.
+
 ## Next
 - **The M2+M3 gate is pending.** It is job `gate-evalmesh-0930-094156-a574` on the build box, gating 0f2f4cf (M2
   9ee0a9e and M3 16c0040, with pipeline-3d e3cd020 merged) into pipeline-3d. gcloud auth lapsed at 09:50, so its

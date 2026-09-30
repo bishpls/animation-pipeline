@@ -99,8 +99,13 @@ def dilate(m, r):
 def absorb(cls, fg, drop=(CLASS['line'], CLASS['other']), steps=6):
     """lines (and unclassed anti-aliasing) handed to the class most of their neighbours have, a few pixels deep; what is
     left stays as it was."""
-    cls = cls.copy()
+    from .bodymeasure import window
+    out = cls.copy()
     keep = [c for c in range(1, 11) if c not in drop]
+    w = window(fg & np.isin(cls, drop))    # (only these pixels change, each from its 8 neighbours: their window, padded
+    if w is None:                          # by one, reads as the whole grid does)
+        return out
+    cls, fg = out[w], fg[w]                # (a view: the window's changes are the copy's)
     for _ in range(steps):
         todo = fg & np.isin(cls, drop)
         if not todo.any():
@@ -113,7 +118,7 @@ def absorb(cls, fg, drop=(CLASS['line'], CLASS['other']), steps=6):
             best[better], cnt[better] = c, n[better]
         take = todo & (cnt > 0)
         cls[take] = best[take]
-    return cls
+    return out
 
 
 def classes(rgb, fg, eye_y, ppl, split=HAIR_SPLIT, thick=2):

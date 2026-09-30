@@ -318,6 +318,11 @@ def shapes():
     P2 = np.vstack([P, [[0, 0, 1.4]]])
     out.append(piece('prism_tris', P2, TF, mods=sub()))
     out.append(piece('prism_tris_l2', P2, TF, mods=sub(2)))
+    # a garment's shell (garments._thick): Solidify then the Subdivision, its rim rounded, then squared by Michael's
+    # call L (both layers' open borders creased 1: OpenSubdiv's infinitely sharp), the UVs through both
+    sol = lambda **k: [('SOLIDIFY', dict(thickness=0.08, offset=-1.0, use_rim=True, **k))] + sub()
+    out.append(piece('grid_shell', G, GF, uv=uvc, mods=sol()))
+    out.append(piece('grid_shell_rim_creased', G, GF, uv=uvs, mods=sol(edge_crease_outer=1.0, edge_crease_inner=1.0)))
     return out
 
 

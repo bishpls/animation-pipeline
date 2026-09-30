@@ -421,6 +421,38 @@ def test_winding_and_solidify():
     assert np.allclose(Vs[len(V) - 1], [5.0, 5.0, 5.0])
 
 
+def test_creased_rims_stay_flat_and_square():
+    """Michael's call L (garments._thick): a shell's open borders creased on both layers keep its rim a flat band square
+    to the layers under the Subdivision: a flat 3 x 3 grid solidified 0.1 and subdivided keeps every vertex on the two
+    layers' planes or on the rim's middle line (z 0, -0.05, -0.1). Uncreased, the Subdivision rounds the rim into a bead
+    (its border vertices pulled in between), which the outline's inward move turns inside out. The creases are the two
+    border loops only (8 edges each), not the rim's cross edges."""
+    from charkit import bodyeval
+    from charkit.geom import wind
+    g = np.linspace(0, 1, 4)
+    V = np.array([(x, y, 0.0) for y in g for x in g])
+    F = [(j * 4 + i, j * 4 + i + 1, (j + 1) * 4 + i + 1, (j + 1) * 4 + i) for j in range(3) for i in range(3)]
+    P = wind.orient(V, F)[0]
+    from charkit.geom import solidify, subsurf
+    t = 0.1
+    R = solidify.solidify(V, P, t, edge_crease_outer=1.0, edge_crease_inner=1.0)   # (garments._thick's settings)
+    sh, cw = R['creases']
+    V2 = R['V']
+    assert len(sh) == 2 * 12 and all(abs(V2[a, 2] - V2[b, 2]) < 1e-12 for a, b in sh)   # the loops, no cross edge
+    assert np.all(subsurf.crease_sharpness(cw) >= subsurf.INF)          # crease 1: OpenSubdiv's infinitely sharp
+    S = subsurf.subdivide(V2, (R['loopv'], R['counts']), creases=R['creases'])
+    z = np.unique(np.round(S['V'][:, 2], 9))
+    assert set(np.round(np.abs(z), 9)) <= {0.0, t / 2, t}, z
+    assert len(S['sharp'][0]) == 2 * len(sh)                             # (a closed shell: no open edges of its own)
+    Vs = bodyeval.subdivide(V2, [tuple(x) for x in np.split(R['loopv'], np.cumsum(R['counts'])[:-1])],
+                            creases=R['creases'])[0]
+    assert np.allclose(Vs, S['V'])                                       # the evaluator's wrapper is the same
+    V2, P2, _, _ = bodyeval.solidify(V, P, t)
+    Vs, _, _, _ = bodyeval.subdivide(V2, P2)
+    zs = np.abs(Vs[:, 2])
+    assert ((zs > 1e-6) & (zs < t / 2 - 1e-6)).any()                                # uncreased: a rounded bead
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

@@ -4,7 +4,8 @@ OPENADS_charkit_look extension) read back with numpy and Pillow, no Blender. The
     from charkit.render import model; M = model.load('charkit/out/NAME/clawd.vrm')
     M.root            the extension's root: light (mode, key), lines (mode, frac, regions), head (centre, L), height
     M.prims           one Prim per glTF primitive: its arrays in the glTF frame (Y up, facing +Z, her left +X), its
-                      material's look (M.materials[i]) and its mesh's (outline, feature, holdout)
+                      material's look (M.materials[i]) and its mesh's (outline, feature, holdout, variant: the skin's
+                      'bare' state, a mesh no scene node draws)
     M.textures[i]     (h, w, 4) float32, row 0 = the image's top: colour maps decoded to linear, data maps (the face's
                       SDF, fringe) as stored, the SDF's 16 bits unpacked from R (high) and G (low)
 
@@ -106,11 +107,18 @@ class Prim:
     outline_w: np.ndarray = None       # (n,): the outline's per-vertex factor (1 where the export left it out)
     face_mask: np.ndarray = None
     ink_w: np.ndarray = None
+    cast: np.ndarray = None            # (n, 4 x 4): the baked cast shadows per light azimuth (_CK_CAST0..3; the look's cast)
     targets: dict = field(default_factory=dict)    # shape key name -> (n, 3) POSITION delta
 
     @property
     def outline(self):
         return self.mx.get('outline')
+
+    @property
+    def variant(self):
+        """None for what the character renders; else another state of the object (the skin's 'bare': its garment mask
+        off), drawn only when asked for (the QA's bare head), never on a board."""
+        return self.mx.get('variant')
 
     def hull_dir(self):
         return self.hull_normal if self.hull_normal is not None else self.normal
@@ -210,6 +218,9 @@ def load(path, targets=False):
                      np.arange(A.js['accessors'][at['POSITION']]['count'], dtype=np.uint32),
                      uv0=get('TEXCOORD_0'), uv1=get('TEXCOORD_1'), hull_normal=get('_HULL_NORMAL'),
                      outline_w=get('_OUTLINE_WIDTH'), face_mask=get('_FACE_MASK'), ink_w=get('_INK_W'))
+            cast = [get('_CK_CAST%d' % i) for i in range(4)]
+            if all(c is not None for c in cast):
+                P.cast = np.ascontiguousarray(np.concatenate(cast, 1), np.float32)
             if P.normal is None:
                 raise ValueError(f'{mesh["name"]}: no NORMAL')
             if targets:

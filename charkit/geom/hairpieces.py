@@ -45,9 +45,14 @@ BUN_CORE = 1.6          # a bun's points further than this many times their medi
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
             chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
             trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0},
-            samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=False, crown_th=70.0,
+            samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=True, crown_th=70.0,
             bun_occlude=False, bun_per_side=False, bun_views=('front', 'profile', 'back'), bun_tails=False,
             bun_outline_w=0.0)
+# (hairtag round 2: crown_trim on. On face4-crown's exact hair normals (pipeline-3d 4de65ab) the box pair h5_off /
+# h5_crown reads art_terminator_hair 2.252 -> 2.236 (front 2.192 -> 2.190: the 2.376 -> 2.607 it cost before was the
+# proxy normals' edge flips), upper back 0.760 -> 0.772, buns 0.826 -> 0.847, hair_bun_outline 0.385 -> 0.436, bangs
+# 0.788 -> 0.786, side locks 0.528 -> 0.527, hair_noise 0.0735 -> 0.076, body_three_quarter_iou_hair 0.740 -> 0.739,
+# no status or grade changed; docs/workstreams/hairtag.md)
 # (hair round 4's default, measured against round 3 on the hull-limbs hull (docs/workstreams/hair.md): body_clear
 # (the hair clear of the build's own body below the chin: clawd_mh's shoulder 0.0484 -> 0.0034 L; the default spec's
 # hair unchanged). Behind settings, measured but not better on every check yet: crown_trim (the crown down to the

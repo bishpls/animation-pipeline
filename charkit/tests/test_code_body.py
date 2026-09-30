@@ -29,6 +29,44 @@ def test_blend_weights_sum_to_one_and_ease_at_the_joint():
     assert abs(W[100, 0] - 0.5) < 1e-9
 
 
+def test_the_collars_back_flap_holds_the_torso_behind_it():
+    """the collar is IN_FRONT only by its points behind the torso's axis, within the back view's drawn extent: the back
+    flap caps the torso at its surface less the collar's depth; its lapels in front and a stray label below the flap
+    don't (tool/garments3: the jacket beside the flap, labelled top by the sheet-only masks, had pulled the torso's back
+    out through the flap)."""
+    from charkit.geom import loft
+
+    class Stub:
+        def __init__(self, P):
+            self.P = P
+
+        def points(self, name):
+            return self.P.get(name, np.zeros((0, 3)))
+
+        shell_points = points
+
+    ax = loft.Axis((0.0, 0.0, cb.CUT), (0, 0, -1), (0, -1, 0))
+    nz, nth = 12, 72
+    ts = np.linspace(0, 0.66, nz)
+    th = -np.pi + (np.arange(nth) + 0.5) * 2 * np.pi / nth
+    a = np.radians(np.linspace(150, 210, 13))
+    flap = np.array([(0.30 * np.sin(x), -0.30 * np.cos(x), z) for x in a for z in (-0.62, -0.70, -0.78)])  # behind
+    lapel = np.array([(0.20 * np.sin(x), -0.20 * np.cos(x), -0.62) for x in np.radians(np.linspace(-20, 20, 5))])
+    stray = np.array([[0.30, 0.10, -0.95]])                          # behind, below the flap's drawn extent
+    H = Stub({'collar': np.vstack([flap, lapel, stray])})
+    B = cb._behind(H, ax, ts, th, nz, nth, drawn={'collar': (-0.4, -0.7, 0.4, -0.35)},
+                   drawn_back={'collar': (-0.4, -0.91, 0.4, -0.5)})
+    back = np.abs(np.abs(th) - np.pi) < np.radians(20)
+    front = np.abs(th) < np.radians(40)
+    CUT_ = cb.CUT
+    rows = CUT_ - np.array([-0.62, -0.70, -0.78])
+    ii = [int(np.argmin(np.abs(ts - r))) for r in rows]
+    assert np.allclose(B[np.ix_(ii, np.nonzero(back)[0])], 0.30 - cb.IN_FRONT['collar'], atol=1e-6)
+    assert np.isinf(B[:, front]).all()                               # the lapels don't cap the chest
+    i_st = int(np.argmin(np.abs(ts - (CUT_ + 0.95))))
+    assert 0 < i_st < nz - 1 and np.isinf(B[i_st]).all()             # the stray label below the flap doesn't count
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):

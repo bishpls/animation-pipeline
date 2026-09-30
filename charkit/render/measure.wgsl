@@ -33,8 +33,9 @@ fn m_depth(wpos: vec3<f32>) -> f32 {
   return dot(V.cam_pos.xyz - wpos, V.cam_back.xyz);
 }
 
-// face(): the SDF threshold at the light's angle (mirrored for light from her right), the fringe's shadow over it
-fn m_face_shade(uv1: vec2<f32>) -> f32 {
+// face(): the SDF threshold at the light's angle (mirrored for light from her right), the fringe's shadow and the cast
+// shadow (cs) over it
+fn m_face_shade(uv1: vec2<f32>, cs: f32) -> f32 {
   let lh = V.head_light.xyz;
   let t = atan2(abs(lh.x), lh.z) / PI;
   var u = uv1.x;
@@ -46,20 +47,21 @@ fn m_face_shade(uv1: vec2<f32>) -> f32 {
     let fr = tex(t_fringe, uv1, M.samp.y).x;
     sh = max(sh, map_range(fr, M.face.y, M.face.z));
   }
-  return sat(sh);
+  return sat(max(sat(sh), cs));
 }
 
 fn m_tone(n: vec3<f32>, v: VOut) -> f32 {
   let kind = M.kind.x;
   if (kind != 1u && kind != 2u) { return -1.0; }
-  let h = dot(n, V.light.xyz) * 0.5 + 0.5;
+  let cs = cast_shadow(v.shadow);
+  let h = half_lambert(n, cs);
   let s = M.tone.z;
   let s_lit = sat((h - (M.tone.x - s)) / (2.0 * s));
   let s_deep = sat((h - (M.tone.y - s)) / (2.0 * s));
   var tone = (1.0 - s_lit) * (2.0 - s_deep);
   if (kind == 2u) {
     let mk = sat(v.fmask);
-    tone = tone * (1.0 - mk) + m_face_shade(v.uv1) * mk;
+    tone = tone * (1.0 - mk) + m_face_shade(v.uv1, cs) * mk;
     if ((M.kind.y & F_INK) != 0u) {
       if (tex(t_ink, v.uv1, M.samp.w).w * v.inkw > 0.5) { tone = -2.0; }
     }
