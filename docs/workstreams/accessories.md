@@ -5,7 +5,7 @@ placeholders in `charkit/accessories.py` were a thin stretched four-point star a
 them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
 remodels and places them.
 
-## State: Round 3 (`tool/accessories2`): the three blockers of Round 2's gate (below), in progress
+## State: Round 3 (`tool/accessories2`, aec2fda), gated: FAIL under K on one item (palette_iris_shade's crossed cell, unmeasurable by construction: the coordinator's call); decisions for Michael
 
 Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
 pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
@@ -79,6 +79,33 @@ further off (both clips' three-quarter pos to FAIL, the crab's profile iou to FA
 profile). Specs: the star's and the crab's at / facing / tilt / size, the star's `"conform": true`, in all six specs.
 Against the gate's baseline (pipeline-3d's placeholders) none of these is a new FAIL. Pictures: `acc_work/r3/pic_r3.png`
 (accqa.picture on the harness), `backzoom_r3.png` (the back, round 2 over round 3).
+
+### The gate (aec2fda: pipeline-3d 8b5ecae and 07fa3c2 merged in, into 07fa3c2)
+`charkit/out/gate/gate_tool-accessories2_aec2fda_into_07fa3c2.md`: **FAIL under K, one blocker** (before K: PASS).
+Pregate PASS (14 moved, 0 blocking). Tests: all files ok.
+1. `acc_star_back_shown` 1501 FAIL -> **31 PASS** (harness 30); `acc_star_seat` 0.0003 PASS: cleared.
+2. `palette_iris_shade`: the 2x2's old measure on the new geometry still can't measure it (below): the one blocker.
+3. CPU **1.11x** (685.1 -> 761.5 s): cleared. Round 2's 1.63x was one-time misses: the candidate's `resolve` (the
+   produced references, whose code the branch changes) 182.6 s then, 4.4 s now from the shared cache; `hair_select`
+   64.7 s and `pieces_hair` 72.0 s still ran (their keys follow the branch's code and the spec).
+Reported, not blocking: 9 new acc_* FAILs (star front iou 0.57; the positions; crab profile iou 0.492; pos3d);
+art_outline_face 0.481 -> 0.300, art_speckle_face 0.233 -> 0.332, art_outline_hair 0.734 -> 0.840 (INFO); the flag check
+art_peeks_hair 16 -> 18 (WARN both, its grade FAIL both); body_profile_iou_hair 0.829 -> 0.795 (remeasured, PASS).
+Review page (local): `charkit/out/acc_work/review/round3.html` (per view round 2 | round 3, the back zoomed, the
+numbers, the palette cells, the gate).
+
+### Decisions for Michael (round 3)
+1. **Hiding the star from behind costs the side views.** The design hides it; on our hair a seated star hides only
+   further forward on the head, so both clips moved forward: front on the drawing (star front pos 0.018), three-quarter
+   and profile further off (both clips' three-quarter pos to FAIL, the crab's profile iou 0.627 -> 0.492). The
+   alternative is round 2's placement with the star conformed (no float, no poke-through) and the back check failing
+   (1,184 px), which the gate blocks. Or widen our hair where the design's star sits (0.40, 0.29, 0.34): the drawn
+   place is inside our hair.
+2. **palette_iris_shade's crossed cell** (for the coordinator): land the QA's reclass on its own first (accqa.py,
+   qa3d.py, bodymeasure.py, checks.py, bodyeval.hair_tones, the steps: a measure-only merge with the geometry
+   unchanged, so no 2x2), then this branch's geometry under one measure; or accept it by name with the evidence below.
+3. The bend is flat-shaded in 8 bands: the toon ramp may split a bent facet into stripes; check the boards before a
+   default (the gate builds no boards).
 
 ### Blocker 2: `palette_iris_shade` (the 2x2's crossed cell, unmeasured)
 **The cause is the palette's classes, not the crab's reclass.** Measured with each tree's own code on the box builds'
