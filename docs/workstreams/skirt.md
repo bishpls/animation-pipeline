@@ -100,6 +100,38 @@ hem checks held as penalties (no gaming: the piece's IoU in all views is in the 
 azimuth (beside the thighs), while the back, front and profile place them at 118-155 deg. A flap fitting the back and
 profile hides its three-quarter tails behind the legs (IoU near 0). The fit weights the three-quarter at 0.25.
 
+## Round 1 progress (2026-09-30, later)
+
+- **Merged** pipeline-3d 120d197 (tool/hull-limbs) and cfcdc3a (self-registering QA parts and steps): the skirt part is
+  `@qa_part('skirt', order=2200)`; its steps are in `charkit/steps/skirtqa.py`, the leg outline's grading step in
+  `charkit/steps/detailqa.py`.
+- **More checks** (all with round 6 failing them):
+  - `flap_profile_clear_{L,R}` (tool/hull-limbs' hand-off): per row where the drawing shows the flap hanging clear behind
+    the leg, how much less clearance ours has. Round 6 0.739 FAIL, hugging on 98% of those rows.
+  - `body_profile_leg_outline` graded (was INFO; the coordinator's call): the step outward within 0.05 L (WARN 0.10),
+    the hugging rows within 10 of the design's. Calibrated: the design 0 and 3 rows, pipeline-3d's flaps 0.57 L and 82.
+  - `skirt_tuck_jut` (3D): the skirt and flaps past the band's outer surface where they come out from under it. Round
+    6 0.0805 FAIL at the centre back. A 2D version (the silhouette just under the band) doesn't discriminate: the
+    design's skirt flares out right from the band's corner (0.08 L within 0.05 L), round 6's reads less.
+  - `skirt_pleats`, `skirt_pleats_cream`, `skirt_pleat_order`: tool/garments2 cda2b7f's measure, moved here (garments2
+    dropped it, 74fdc64). Round 6: 19 orange against the design's 14.5 FAIL, 3 cream against 3.
+- **The tuck** (`tuck_fit` on the skirt; `tuck_under`, `tuck_pull`): the skirt pulled in to come out half the band's
+  thickness inside its lower edge, easing back over 0.25 L; capped inside the band above that edge; the flap template's
+  top follows, just over the skirt. At the back the skirt now comes out 0.01-0.02 L inside the band (was 0.04-0.05 out).
+- **The skirt's band** swept on the evaluator: two steps of 14 deg beside the panel, base 0.15 L, rise 0.10 L, with 18
+  pleats. It reads the design's rise and tread in every view (profile two risers of 0.104 against 0.099) and the step
+  count PASSes; its front median height reads 0.245 against 0.155 (FAIL): the front's median sits on the stair's
+  columns. Three narrower steps swap that for a WARN on step size and a FAIL on the count. Round 6: 13-16 fine stairs,
+  a 0.25 L band.
+- **Pleats**: 18 round the skirt gives 15 orange and 3 cream (the design 14.5 and 3); 22 gave 19 and 3.
+- **The flap fit** (on the evaluator, round 6's body): back IoU 0.75, profile IoU 0.75, attach, sweep, hang and leg
+  clearance PASS, every hem PASS, no row hugging the leg. The irregular stair it found (lengths 0.18, 0.47, 0.55, 0.52)
+  is replaced by a regular one (first + rise) and the fit rerun.
+- **The leg outline's 0.10 L on the evaluator is the body's thigh, not the flap**: with the flap clear of the leg the
+  dressed outline shows our thigh 0.10 L behind the design's at z -2.8, round 6's body (the evaluator ran on
+  body6_render's head and body codes). pipeline-3d now carries tool/hull-limbs' thigh fix (the bare leg 0.019 PASS), so
+  the codes are rebuilt from the current tree for the final fit.
+
 ## For other workstreams
 
 - **clawd_mh body_three_quarter_skirt_aline** (coordinator, from tool/hull-limbs): it reads only 12-13 rows near the hem,
