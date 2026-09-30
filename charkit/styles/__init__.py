@@ -48,6 +48,15 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            its column wide about `elevation` +- `jitter`; `amount`, `color`), deep_at (the deep tone's step on
            half-lambert: lower keeps the deep tone to hair turned right away from the light), lock_shade (the families
            in `under`, the layers under others, drawn that far from their lit tone toward their shade: 0 off .. 1)
+  eyes     the eye's surface behind its opening (charkit.eyes: Surface, the knobs in eyes.DEFAULT_EYE): surface 'plate'
+           (on the face, `depth` behind it: every view sees the whole opening, as a plate on the face) or 'turned' (a
+           vertical fold following the iris's nasal outline; nasal of it the surface faces the front, turn[0] degrees
+           toward the nose, so a side view can't see it; past it the surface turns outward from turn[1] to turn[2] at
+           the outer corner; the lids, lashes, pocket and the skin within fold_reach L of the opening follow it, every
+           (x, z) kept: the front view is the plate's), anchor (where it sits against the face: 'corners', 'min',
+           'mean', 'fold'), fold_follow (0: the profile's front edge upright; 1: each row's fold at the face's depth
+           there), converge (the irises' rest place toward the nose, eye widths, when the spec's iris doesn't set it;
+           only with a turned surface: a plate's far eye in three-quarter loses its nasal white)
   physics  the planned drape and spring solvers (not built yet): how far a garment holds its drawn shape against
            gravity, cloth stiffness and damping, hair spring stiffness and damping, gravity scale. Declared here so the
            solvers are written against a profile from the start
@@ -75,6 +84,7 @@ DEFAULT = {
                       'under': []}},
     'physics': {'hold_shape': 0.5, 'cloth_stiffness': 0.5, 'cloth_damping': 0.2, 'hair_stiffness': 0.5,
                 'hair_damping': 0.2, 'gravity': 1.0},
+    'eyes': {'surface': 'plate'},
 }
 
 
