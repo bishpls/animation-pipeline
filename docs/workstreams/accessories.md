@@ -30,12 +30,22 @@ palette_iris_shade's crossed cell can't be measured while the branch changes the
   `test_hair_tones_class_an_accessory_by_object` (calibrated: the old rule's family() reads the fitted star as iris).
   Pregate PASS (`charkit/out/pregate/pregate_tool-acc-reclass_6e3757b_into_859f610.md`: 11 moved, all remeasured:
   iou_hair -0.013 to -0.020, palette_iris_lit 7.06 WARN -> 2.06 PASS, palette_iris_shade 4.68 -> 4.79 on the
-  evaluator). Box gate: job `gate-accessories-0930-185553-72fb` (log `charkit/out/acc_work/r4/gate_reclass.log`).
+  evaluator). **Box gate PASS under K** (`charkit/out/gate/gate_tool-acc-reclass_9e9f5aa_into_eb7ac94.md`): the
+  geometry the same (4ce7f0a76355 both), 16 remeasured (the measure alone: palette_iris_lit 7.06 WARN -> 1.65 PASS,
+  palette_iris_shade 4.63 -> 4.65, iou_hair -0.013 to -0.020, hair_piece_bangs 0.792 -> 0.772), no unregistered move,
+  23 new acc_* FAILs on the placeholders (reported); tests 73 files ok; CPU 1.47x (614 -> 902 s: one-time misses, the
+  hull produced reference rebuilt 143.8 s and pieces_hair 118 s, their keys reading the changed QA modules). Reported
+  to the coordinator as mergeable.
 - `tool/accessories2` dc7a40a: tool/acc-reclass merged in (steps files resolved to the reclass's; test_accessories
   without the accqa tests). What's left against the reclass: the geometry only (accessories.py, scene, cli.hair_select,
   bodyeval.hair_selection / hair_by_outside / the evaluator's ground, bodysens, the six specs).
-- Next: the render-box boards of dc7a40a (`charkit/out/acc_r4_render`); when the coordinator has merged the reclass,
-  merge pipeline-3d here, pregate, gate.
+- Pregate of this branch's geometry under one measure (`pregate --pair tool/accessories2 --into tool/acc-reclass`,
+  `charkit/out/pregate/pregate_tool-accessories2_3b706fc_into_9e9f5aa.md`): PASS, 6 values moved, none remeasured
+  (iou_hair front 0.829 -> 0.837, profile 0.809 -> 0.795, three-quarter 0.741 -> 0.737; palette_iris unchanged).
+- Render box: job `build-accessories-0930-185625-20ee` (3b706fc's worktree, `--boards views,body`) ->
+  `charkit/out/acc_r4_render` (log `charkit/out/acc_work/r4/render_build.log`).
+- Next: when the coordinator has merged the reclass, merge pipeline-3d here, pregate, gate; the review page
+  `charkit/out/acc_work/review/round4.html`.
 
 ## Round 3 (`tool/accessories2`, continued): the gate's three blockers
 
