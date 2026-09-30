@@ -316,13 +316,15 @@ def cross_qa(tree, bundle_dir, out):
     return q
 
 
-def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
+def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=(), detected=()):
     """the 2x2 for each remeasured check: its value and status in base (the old geometry, the old measure), old_on_new
     (the new geometry, the old measure), new_on_old (the old geometry, the new measure) and cand (the new geometry, the
     new measure) -> rows, each with `old` (the new geometry against the old under the old measure: regressed, improved,
     value, same, unmeasured) and `new` (the same under the new measure), and `accepted` (a pattern in accept covers it).
-    A check the old measure doesn't have is new with its step: it has no old-measure row."""
+    A check the old measure doesn't have is new with its step: it has no old-measure row. detected: checks whose
+    measure changed with no registered step (measure_moved); their rows carry `detected`."""
     import fnmatch
+    detected = set(detected or ())
 
     def cell(q, k):
         c = (q or {}).get('checks', {}).get(k)
@@ -342,10 +344,13 @@ def twobytwo(base, cand, old_on_new, new_on_old, remeasured, accept=()):
         names |= set((q or {}).get('checks', {}))
     rows = []
     for k in sorted(names):
-        if not any(fnmatch.fnmatchcase(k, p) for p in remeasured or {}):
+        stepped = any(fnmatch.fnmatchcase(k, p) for p in remeasured or {})
+        if not stepped and k not in detected:
             continue
         r = dict(check=k, base=cell(base, k), old_on_new=cell(old_on_new, k), new_on_old=cell(new_on_old, k),
                  cand=cell(cand, k))
+        if not stepped:
+            r['detected'] = True
         r['old'] = verdict(r['base'], r['old_on_new'])
         r['new'] = verdict(r['new_on_old'], r['cand'])
         r['unmeasured'] = unmeasured_cells(r)
@@ -371,6 +376,34 @@ def unmeasured_cells(r):
     if ok(r.get('base')) and ok(r.get('cand')) and not ok(r.get('new_on_old')):
         out.append('new measure on the old geometry')
     return out
+
+
+def part_owners(meas, *reports):
+    """the checks each changed QA part owns -> {part: [checks] or None (unknown)}: the part's own record in a build's
+    qa.json (measured.part_checks; the candidate's first), else its registration's naming (a prefix, or a kept name
+    start) over the checks the reports have; a part with neither is unknown (any check may be its)."""
+    from . import codediff
+    names = set()
+    for q in reports:
+        names |= set((q or {}).get('checks', {}))
+    out = {}
+    for part, m in meas.items():
+        got = next((c for c in (codediff.part_checks(q, part) for q in reports) if c is not None), None)
+        if got is None:
+            P = m.get('part') or {}
+            pre = [x for x in (P.get('prefix'), P.get('keep')) if x]
+            got = sorted(k for k in names if k.startswith(tuple(pre)) or k == P.get('skip_key')) if pre else None
+        out[part] = got
+    return out
+
+
+def measure_moved(base, cand, old_on_new, new_on_old, names):
+    """the checks (of names) that the two measures read differently on the same geometry, on the old or the new one
+    -> sorted names: the measure changed for them, whatever the registry says."""
+    def cell(q, k):
+        c = (q or {}).get('checks', {}).get(k)
+        return [c.get('value'), c.get('status')] if c else None
+    return sorted(k for k in names if cell(base, k) != cell(new_on_old, k) or cell(old_on_new, k) != cell(cand, k))
 
 
 def geometry(out):
@@ -722,12 +755,35 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             steps = history.load_steps(os.path.join(wc, 'charkit', 'history.py'))
             rep['remeasured'] = history.steps_between(head, tip, steps, repo=wc)
             rep['qa'] = compare_qa(qa_a, qa_b, rep['remeasured'])
+        # a check whose measuring code the merge changes, registered or not (charkit.codediff: each QA part's code, the
+        # baseline's tree against the merged; tool/evalmesh 0c9eb95 changed qa3d.poke with the geometry and registered
+        # nothing, and the gate compared poke_share across both changes at once)
+        meas = {}
+        if cand_q != base_out:
+            from . import codediff
+            with clock('measure code', "each QA part's measuring code, the baseline's tree against the merged") as ph:
+                try:
+                    meas = codediff.measure_changes(wb, wc)
+                except Exception as e:                  # (never the gate's failure: the note says it wasn't looked at)
+                    rep.setdefault('notes', []).append("the QA's code wasn't compared (%s: %s)" % (type(e).__name__, e))
+                ph['note'] = '%d part%s changed' % (len(meas), 's' * (len(meas) != 1))
+        owners = part_owners(meas, qa_b, qa_a)
         # the 2x2: a remeasured check on changed geometry scored under both measures: the candidate's code (the merged
         # worktree) measures the baseline's bundle, the baseline's measures the candidate's
         (ga, ha), (gb, hb) = geometry(base_out), geometry(cand_q)
         stepped = [k for k in set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
                    if any(fnmatch.fnmatchcase(k, p) for p in rep["remeasured"])]
-        if stepped and ga != gb:
+        every = set(qa_a.get('checks', {})) | set(qa_b.get('checks', {}))
+        owned = every if any(v is None for v in owners.values()) else {k for v in owners.values() for k in v}
+        owned = {k for k in owned if not any(fnmatch.fnmatchcase(k, p) for p in rep['remeasured'])}
+        if meas:
+            rep['unregistered'] = {'parts': {p: v['units'][:12] for p, v in meas.items()},
+                                   'owners': {p: (v[:40] if v is not None else None) for p, v in owners.items()},
+                                   'geometry': 'changed' if ga != gb else 'unchanged', 'checks': []}
+            if ga == gb:
+                # the same geometry: every move of these checks is the measure's (judged as usual: nothing registered)
+                rep['unregistered']['checks'] = sorted(r['check'] for r in rep['qa'] if r['check'] in owned)
+        if (stepped or (meas and owned)) and ga != gb:
             with clock('2x2', 'both QA codes on both bundles'):
                 # each tree's produced references first: a tree that didn't build (a cached baseline's, a carried
                 # candidate's) has none, and its QA would skip the checks that read them
@@ -740,8 +796,12 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                 new_on_old, old_on_new = f1.result(), f2.result()
             errs = {k: q['error'] for k, q in (('new measure on the old geometry', new_on_old),
                                                ('old measure on the new geometry', old_on_new)) if 'error' in q}
+            # the checks whose measure changed with no registered step: the two measures read them differently
+            detected = [] if errs or not meas else measure_moved(qa_a, qa_b, old_on_new, new_on_old, owned)
+            if meas:
+                rep['unregistered']['checks'] = detected
             rep['twobytwo'] = {'rows': twobytwo(qa_a, qa_b, None if errs else old_on_new, None if errs else new_on_old,
-                                                rep['remeasured'], accept), 'errors': errs,
+                                                rep['remeasured'], accept, detected), 'errors': errs,
                                'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
         elif stepped:
             rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
@@ -1000,7 +1060,16 @@ def judge(rep, qa_a, qa_b):
     is_flag = lambda k: registry.is_flag(ca.get(k)) or registry.is_flag(cb.get(k))
     block = [dict(h) for h in rep.get('hard') or ()]
     R = {k: [] for k in ('warn', 'new_failing', 'flag_values', 'values', 'gone', 'new', 'improved', 'removed',
-                         'remeasured', 'twobytwo', 'notes')}
+                         'remeasured', 'unregistered', 'twobytwo', 'notes')}
+    R['notes'] += list(rep.get('notes') or ())
+    # a QA part whose measuring code changed with no registered step (charkit.codediff): its checks' moves are judged
+    # as any others (nothing is relaxed), and on changed geometry the 2x2 scores them under each measure too
+    ur = rep.get('unregistered') or {}
+    for part, units in sorted((ur.get('parts') or {}).items()):
+        own = (ur.get('owners') or {}).get(part)
+        checks = [k for k in ur.get('checks') or () if own is None or k in own]
+        R['unregistered'].append(dict(part=part, units=units, checks=checks, geometry=ur.get('geometry'),
+                                      owners_known=own is not None))
     for r in rep.get('qa') or ():
         k, v = r['check'], r['verdict']
         (vx, sx), (vy, sy) = r['base'], r['cand']
@@ -1034,7 +1103,8 @@ def judge(rep, qa_a, qa_b):
             if r.get('accepted'):
                 R['twobytwo'].append(dict(row, note='unmeasured: %s; accepted (--accept)' % ', '.join(cells)))
             else:
-                block.append(dict(row, kind="the 2x2 couldn't measure it"))
+                block.append(dict(row, kind="the 2x2 couldn't measure it" + (
+                    ' (its measure changed with no registered step)' if r.get('detected') else '')))
     for k in sorted(tb.get('errors') or {}):
         if all(r.get('accepted') for r in tb.get('rows') or ()) and tb.get('rows'):
             R['notes'].append('the 2x2 could not run the %s: its remeasured checks (all accepted) are unverified '
@@ -1051,12 +1121,15 @@ def judge(rep, qa_a, qa_b):
                    new_on_old=r.get('new_on_old'), cand=r.get('cand'),
                    **{'from': r.get('base' if m0 == 'old' else 'new_on_old'),
                       'to': r.get('old_on_new' if m0 == 'old' else 'cand')})
+        why = '; its measure changed with no registered step: register a remeasure' if r.get('detected') else ''
+        if r.get('detected'):
+            row['detected'] = True
         if r.get('accepted'):
             R['twobytwo'].append(dict(row, note='accepted (--accept)'))
         elif any(after[m] == 'FAIL' for m in worse):
-            block.append(dict(row, kind='new FAIL under one measure on both geometries (the 2x2)'))
+            block.append(dict(row, kind='new FAIL under one measure on both geometries (the 2x2%s)' % why))
         elif is_flag(r['check']):
-            block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2)'))
+            block.append(dict(row, kind='flag check worse under one measure on both geometries (the 2x2%s)' % why))
         else:
             R['twobytwo'].append(row)
     ca_, cb_ = (rep.get('cpu_seconds') or [None, None])[:2]
@@ -1211,11 +1284,24 @@ def _write(rep, gdir, tag):
                                                                                       'grade unchanged)'),
                        ('values', 'Values moved (status unchanged), the biggest first'), ('gone', 'Checks gone or ungraded'),
                        ('new', 'New checks'), ('improved', 'Improved'), ('removed', 'Retired by a measurement step'),
-                       ('remeasured', 'Remeasured'), ('twobytwo', "The 2x2's drops (not blocking)")):
+                       ('remeasured', 'Remeasured'),
+                       ('unregistered', 'Measuring code changed with no registered step (register a remeasure in '
+                                        'charkit/steps/ if intended)'),
+                       ('twobytwo', "The 2x2's drops (not blocking)")):
         rows = R.get(key) or []
         if not rows:
             continue
         L.append('**%s** (%d):\n' % (title, len(rows)))
+        if key == 'unregistered':
+            L += _table(rows, [('QA part', lambda r: r['part']),
+                               ('its code that changed', lambda r: ', '.join(r['units'][:6]) + (
+                                   ' and %d more' % (len(r['units']) - 6) if len(r['units']) > 6 else '')),
+                               ('checks read differently' if rows[0].get('geometry') == 'changed' else 'checks that moved'
+                                ' (the geometry is the same)', lambda r: ', '.join(r['checks'][:8]) + (
+                                    ' and %d more' % (len(r['checks']) - 8) if len(r['checks']) > 8 else '') or '-'),
+                               ('', lambda r: '' if r['owners_known'] else "(the part's checks unrecorded: any)")])
+            L.append('')
+            continue
         if key == 'twobytwo':
             L += _table(rows, [('check', lambda r: r['check']), ('worse under', lambda r: ', '.join(r['measures'])),
                                ('old geometry, old measure', cell('base')), ('new geometry, old measure', cell('old_on_new')),
@@ -1252,7 +1338,7 @@ def _write(rep, gdir, tag):
                 else r[m] or '-'
             for r in sorted(tb['rows'], key=lambda r: ('regressed' not in (r['old'], r['new']), r['check'])):
                 L.append('| %s | %s | %s | %s | %s | %s | %s |' % (
-                    r['check'], c2(r['base']), c2(r['old_on_new']), c2(r['new_on_old']), c2(r['cand']),
+                    r['check'] + (' (unregistered)' if r.get('detected') else ''), c2(r['base']), c2(r['old_on_new']), c2(r['new_on_old']), c2(r['cand']),
                     mark(r, 'old'), mark(r, 'new')))
     L.append('\n## Build\n')
     bb, cb = rep.get('base_build') or {}, rep.get('cand_build') or {}

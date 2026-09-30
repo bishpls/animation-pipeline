@@ -2294,6 +2294,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     rep = {'checks': {}, 'views': {}}
     t0, c0 = time.perf_counter(), time.process_time()
     timing = {}                     # per part: wall and CPU seconds (the process's, every thread: llvmpipe's included)
+    owner = {}                      # per part: the checks it reported (the gate's measure-change check: charkit.codediff)
     for P in registry.parts():
         if parts is not None and P.name not in parts:
             continue
@@ -2307,6 +2308,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
         except Exception as e:
             import traceback; traceback.print_exc()
             rep['checks'][P.skip_key] = {'status': 'SKIPPED', 'why': '%s: %s' % (type(e).__name__, e)}
+            owner[P.name] = [P.skip_key]
             continue
         if P.table == 'views':
             rep['views'] = table
@@ -2314,6 +2316,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
             rep[P.table] = _strip(table)
         for k, v in C.items():
             rep['checks'][_check_name(P, k)] = v
+        owner[P.name] = [_check_name(P, k) for k in C]
     from . import checks as checklib
     checklib.authorize(rep['checks'], design.ref().get('authority') or {})
     order = {'FAIL': 0, 'WARN': 1, 'PASS': 2}
@@ -2321,7 +2324,7 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     rep['summary'] = min(graded, key=lambda s: order[s]) if graded else 'SKIPPED'
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
-                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing,
+                       'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
                        'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B))}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
