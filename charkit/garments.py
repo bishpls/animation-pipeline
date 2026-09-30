@@ -2469,7 +2469,7 @@ def bow_hull(A, spec, hull):
         tail = max(0.1, (z - zmin) / sz - TAIL0)                  # the tails' outer corners are their lowest point
     G = _bow_mesh(np.array([0.5 * (lo + hi), y, z]), sz, tail, L, depth=depth, knot=spec.get('knot', 0.35),
                   wing=spec.get('wing'), ribbon=spec.get('ribbon'), end=spec.get('end', 0.0),
-                  end_p=spec.get('end_p', 2.0))
+                  end_p=spec.get('end_p', 2.0), drop=spec.get('drop', 0.0), drop_p=spec.get('drop_p', 1.5))
     if spec.get('conform', True):
         # the flat template wrapped onto the design's bow: each vertex moved in depth by where the hull's front is at its
         # (x, z) against where the template's front plane is, so the lobes follow the chest round as drawn
@@ -2500,7 +2500,7 @@ def bow_hull(A, spec, hull):
     return G
 
 
-def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0):
+def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end=0.0, end_p=2.0, drop=0.0, drop_p=1.5):
     """bow()'s mesh round centre c at size sz (m) with tails `tail` sizes long, lobes `depth` (m) deep either side of the
     centre (default 0.09 sizes), each lobe's height at the knot `knot` of its full height. `wing` (dict, sizes): the
     lobes as a bow tie's wings (the design's: pinched at the knot, flaring to tall ends cut nearly square), their half-
@@ -2513,6 +2513,9 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
     Its `hinge` (0 .. 1, default 0): each row brought forward by that share of its turned half-depth, so at 1 the outer
     edge stays on the wrap (the jacket's front) where a turn about the middle sank it into the jacket with no line
     between; `stand` is then the outer edge's clearance.
+    `drop` (sizes, default 0): the pillow lobes' lower edge lowered toward their outer ends by drop u^drop_p (u 0 at the
+    knot .. 1 at the end; the top edge kept), shrinking with the end cap: the drawn loops flare to tall ends, their
+    lower corners hanging (in profile they hang fullest low; the pillows sat high and read as tipped disks).
     The tails' vertices' share of their length (0 at the knot .. 1 at the end; NaN off the tails) -> the result's
     'tail_s'."""
     depth = 0.09 * sz if depth is None else depth
@@ -2578,6 +2581,8 @@ def _bow_mesh(c, sz, tail, L, depth=None, knot=0.35, wing=None, ribbon=None, end
                     taper = (knot + (1 - knot) * math.sin(min(math.pi, th * 1.15)) ** 0.8) * k_
                     x = sx * (0.05 + (LOBE - 0.05) * u_) * sz
                     zz = math.sin(ph) * 0.20 * sz * taper + 0.05 * sz * u_
+                    if drop and math.sin(ph) < 0:
+                        zz += math.sin(ph) * drop * sz * u_ ** drop_p * k_
                     yy = -math.cos(ph) * depth * taper
                     fold = -0.03 * sz * math.exp(-((math.sin(ph) - 0.1) / 0.25) ** 2) * math.sin(th) * k_ \
                         if math.cos(ph) > 0 else 0.0

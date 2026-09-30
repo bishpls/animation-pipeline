@@ -65,3 +65,29 @@ known-bad (the current build). tool/calib (not in pipeline-3d yet) would want re
 (`python -m charkit calibrate bow_profile_*`); its Garments adapter patches pieceqa's label functions, and this part
 labels through `bowqa.split_labels`, so the adapter needs that patched too (the design's loops as LOOPS, its tails
 as TAILS).
+
+## The refit: what the jacket allows (measured)
+
+`probe3d.py` (b2_before, the profile frame: u = (y - y_near_eye) / L, forward negative): with `hinge` 1 the tails'
+outer edge already sits on the jacket (z -1.05: outer edge x 0.257 at u -0.133, the jacket there -0.129) and the 40
+degree turn swings the inner edge 0.165 L forward (u -0.298). The jacket's front at z -1.05 by |x|: -0.147 (the bib,
+0-0.1), -0.138 (0.2), -0.129 (0.25), -0.105 (0.3), -0.07 (0.35). The drawn tails in front span |x| 0.08-0.26..0.29
+(ours the same: tail_width 0.0), and in profile from -0.21 (front) back to -0.03..-0.04: a ribbon turned ~43 degrees
+whose outer edge would lie 0.07-0.09 L inside our jacket. So a ribbon whose front edge is at the drawn one and which
+doesn't sink can show only jacket_u(x_out) - front = 0.08-0.11 L of face in profile, against the drawn 0.179:
+`bow_profile_ribbon` (PASS within 25%: 0.134 L) and `bow_profile_tail_reach` (PASS within 0.03 L) can't both pass on
+this jacket with the tails' front width held (tail_width). The drawing's profile tails are deeper than its front view
+and our jacket allow; our jacket's centre front matches the drawn one where it shows (z -1.2: -0.104 against
+-0.09..-0.10).
+
+Sweep s1 (`sweep.py s1.json`; one evaluator process, ~16-21 s a variant; summary lines in harness/sweep.log):
+
+| variant | reach | hang | ribbon (flag) | tail width | gap | bow IoU front / 3q / profile |
+|---|---|---|---|---|---|---|
+| b2_before (hinge 1, turn 40) | 0.109 F | 12.6 F | 0.053 P | 0.0 P | 0.014 P | 0.896 / 0.758 / 0.346 |
+| hinge 0 (turned about the middle) | 0.035 W | 2.5 P | 0.526 F | 0.436 F | 0.014 P | 0.792 / 0.664 / 0.520 |
+| hinge -1 (the inner edge on the wrap) | 0.066 F | - | 0.97 F | 0.92 F | 0.21 F | 0.543 / 0.543 / 0.524 |
+| hinge 0, turn 60 | 0.063 F | 2.5 P | 0.368 W | 0.62 F | 0.089 F | 0.770 / 0.672 / 0.487 |
+
+Hinge 0 and -1 sink the ribbons' outer halves into the jacket (the ribbon and tail width checks fail, and front and
+three-quarter IoU drop 12%+).
