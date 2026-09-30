@@ -629,17 +629,33 @@ def folded(masks, graph, pm):
     return out
 
 
+WIN_X = 2.3                      # L: the design grids' eyes' middle from their left edge (bodyqa.WIN['x'])
+
+
 def piece_shapes(labels, names, masks, graph, spec, ppl, min_px=40, tol=OUTLINE_TOL):
     """each outfit piece's visible shape against its drawn mask, per view. labels: {view: object-index image
     (piece_views')}; names: the objects' names by index; masks: piece_masks()'s. -> {piece id: {'members': our objects
     or None (no object of ours builds it), 'views': {view: dict(iou, iou_tol (iou_tol at tol), f, p, r (outline_f at
     tol), d_ours, d_drawn (L), px (ours, drawn))}}}.
     A view where the drawing shows fewer than min_px of the piece is left out (a piece a view hides has an empty mask).
-    A piece we don't build is compared as part of the piece of ours it belongs to (folded); its record says which."""
+    A piece we don't build is compared as part of the piece of ours it belongs to (folded); its record says which.
+    Where a piece lies over another of the same colour (the graph's layer order: the overskirt panels over the skirt),
+    the drawing can't tell them apart: our over-piece's pixels on the other's drawing, and the other's drawn pixels
+    under our over-piece, count for neither (px_same_colour: those pixels, per view)."""
     idx = {n: i for i, n in enumerate(names)}
     pm = piece_map(graph, spec)
     up = built_parent(graph, pm)
     masks = folded(masks, graph, pm)
+    col = {pc['id']: (pc.get('colour') or {}).get('name') for pc in graph['pieces']}
+    lies_on = {}                                         # piece -> the same-coloured pieces it lies over
+    for pc in graph['pieces']:
+        for q in (pc.get('layer') or {}).get('over') or []:
+            if col.get(q) and col.get(q) == col.get(pc['id']) and pm.get(pc['id']) and pm.get(q):
+                lies_on.setdefault(pc['id'], []).append(q)
+    under = {}                                           # piece -> the same-coloured pieces lying over it
+    for a, qs in lies_on.items():
+        for q in qs:
+            under.setdefault(q, []).append(a)
     out = {}
     for pc in graph['pieces']:
         pid = pc['id']
@@ -653,14 +669,29 @@ def piece_shapes(labels, names, masks, graph, spec, ppl, min_px=40, tol=OUTLINE_
             if d.shape != lab.shape:
                 raise ValueError('%s: mask %s against labels %s' % (view, d.shape, lab.shape))
             m = member_mask(lab, idx, members) if members else np.zeros(lab.shape, bool)
+            amb = np.zeros(lab.shape, bool)
+            for q in lies_on.get(pid, ()):                  # ours over the drawn other
+                dq = masks.get('%s__%s' % (view, q))
+                if dq is not None:
+                    amb |= m & dq & ~d
+            for a in under.get(pid, ()):                    # the drawn this under our other
+                amb |= d & member_mask(lab, idx, pm[a]) & ~masks.get('%s__%s' % (view, a), np.zeros(lab.shape, bool))
+            m, d = m & ~amb, d & ~amb
             inter, union = (m & d).sum(), (m | d).sum()
+            ext = {}
+            if m.any() and d.any():                          # its reach against the drawing's (L): the lowest row, and
+                ro, co = np.nonzero(m); rd, cd = np.nonzero(d)   # the column farthest from the eyes' middle
+                c0 = WIN_X * ppl
+                ext = dict(bottom=round(float(ro.max() - rd.max()) / ppl, 4),
+                           outer=round(float(np.abs(co - c0).max() - np.abs(cd - c0).max()) / ppl, 4),
+                           area=round(float(m.sum()) / float(d.sum()), 3))
             o = outline_f(m, d, tol * ppl)
             rec['views'][view] = dict(iou=round(float(inter / union), 4) if union else 0.0,
                                       iou_tol=round(iou_tol(m, d, tol * ppl), 4), f=round(o['f'], 4),
                                       p=round(o['p'], 4), r=round(o['r'], 4),
                                       d_ours=None if o['d_ours'] is None else round(o['d_ours'] / ppl, 4),
                                       d_drawn=None if o['d_drawn'] is None else round(o['d_drawn'] / ppl, 4),
-                                      px=[int(m.sum()), int(d.sum())])
+                                      px=[int(m.sum()), int(d.sum())], px_same_colour=int(amb.sum()), **ext)
     return out
 
 

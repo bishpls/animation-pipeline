@@ -21,7 +21,11 @@ _shape() {  # _shape MACHINE_TYPE: switch the stopped VM to it, with its GPU (re
 }
 
 box_start() {
-  [ "$(_state)" = RUNNING ] && { echo "running as $(_state 'machineType.basename()')"; return 0; }
+  local st
+  # an unreadable state is gcloud, not the box: say so rather than go on to a misleading "could not switch"
+  st=$(_state 2>&1) || { echo "can't read $VM's state from gcloud: ${st##*ERROR: }" >&2
+    echo "(expired login? run: gcloud auth login)" >&2; return 1; }
+  [ "$st" = RUNNING ] && { echo "running as $(_state 'machineType.basename()')"; return 0; }
   local shape err
   for shape in ${BOX_SHAPES:-${MACHINE_TYPE:-} ${FALLBACK_MACHINE_TYPE:-}}; do
     _shape "$shape" || { echo "could not switch $VM to $shape" >&2; return 1; }

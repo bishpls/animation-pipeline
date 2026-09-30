@@ -21,8 +21,8 @@ def _ulp_noise(x, seed=0):
 
 
 def test_cs_exact_on_the_quadrants_and_stable_off_them():
-    assert det.cs(0) == (1.0, 0.0) and det.cs(90) == (0.0, 1.0) and det.cs(180) == (-1.0, 0.0)
-    assert det.cs(270) == (0.0, -1.0) and det.cs(-90) == (0.0, -1.0)
+    for az in (0.0, 90.0, 180.0, 270.0, -90.0):             # numpy's own values, the old hulls' rounding on half bins
+        assert det.cs(az) == (float(np.cos(np.radians(az % 360))), float(np.sin(np.radians(az % 360))))
     for az in (35.0, 36.9, 324.0):
         c, s = det.cs(az)
         assert abs(c - math.cos(math.radians(az))) < 1e-12 and abs(s - math.sin(math.radians(az))) < 1e-12
@@ -34,11 +34,13 @@ def test_gaussian_matches_scipy_and_ignores_memory_layout():
     from scipy.ndimage import gaussian_filter
     rng = np.random.default_rng(1)
     x = (rng.random((21, 17, 30)) > 0.5).astype(np.float32)
-    for sig in (1.0, 1.5, (0.6, 0.6, 2.0)):
-        a = det.gaussian(x, sig)
-        assert np.abs(a - gaussian_filter(x, sig, mode='nearest')).max() < 1e-6
-        b = det.gaussian(np.asfortranarray(x), sig)                  # another layout: the same elementwise sums
-        assert a.tobytes() == np.ascontiguousarray(b).tobytes()
+    for mode in ('reflect', 'nearest'):                          # the edge modes are scipy's, reflect its default
+        for sig in (1.0, 1.5, (0.6, 0.6, 2.0), (2.7, 2.7, 9.0)):
+            a = det.gaussian(x, sig, mode=mode)
+            assert np.abs(a - gaussian_filter(x, sig, mode=mode)).max() < 1e-6
+            b = det.gaussian(np.asfortranarray(x), sig, mode=mode)  # another layout: the same elementwise sums
+            assert a.tobytes() == np.ascontiguousarray(b).tobytes()
+    assert det.gaussian(x, 1.5).tobytes() == det.gaussian(x, 1.5, mode='reflect').tobytes()
     w = det.kernel(1.5)
     assert w.tobytes() == det.kernel(np.nextafter(1.5, 2.0)).tobytes()   # weights snapped: an ulp in sigma is nothing
 
@@ -95,6 +97,9 @@ def test_facing_view_is_the_first_on_an_exact_tie():
     class _V:
         def __init__(self, az):
             self.az = az
+
+        def band(self, z):
+            return np.ones(np.shape(z), bool)
     # one triangle whose normal is (1, -1, 0) / sqrt 2: 45 degrees between the front's and the profile's cameras
     m = Mesh(np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]]), np.array([[0, 1, 2]]))
     assert list(hull._facing(m, {'front': _V(0.0), 'profile': _V(90.0)})) == [0, 0, 0]

@@ -25,6 +25,7 @@ image's right), 3D extent, motion (rigid / spring / cloth, with the measured rea
 first knob guesses, and spring-chain specs for the VRM exporter.
 
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--no-manifest]
+    python -m charkit outfit relayer [SPEC]      # the notes' layer order and chain bone names applied to the graphs
     from charkit import outfit; G = outfit.build(spec)
 """
 import json, math, os
@@ -2908,6 +2909,76 @@ def set_member(text, parent, key, value, indent=2):
     return text[:last] + ',\n' + ' ' * indent + item + text[last:]
 
 
+def apply_notes(G, notes):
+    """what the notes decide over the drawing, applied to a graph in place: a piece noted `over` others lies on them in
+    the layer order (the drawing's stack can't tell same-coloured layers apart: the overskirt panels lie over the skirt,
+    Michael's call, 2026-09-29), each change flagged; a piece's noted `chain` (joints, L in the graph's frame: the path
+    the built garment hangs along, written by charkit.flapchains) replaces its spring chain; and each spring chain's
+    bone names, the names the rig stage gives the chain's bones (PIECE_0 .. from the root; PIECE_c_i for a piece with
+    several chains)."""
+    ids = {g['id']: g for g in G.get('pieces', [])}
+    sp_of = {sp['piece']: sp for sp in G.get('springs') or []}
+    for a in (notes or {}).get('pieces', []):
+        if a.get('chain') and a['id'] in sp_of:          # a chain the build's garment defines (charkit.flapchains)
+            sp = sp_of[a['id']]
+            J = [list(map(float, j)) for j in a['chain']]
+            if 'drawn_chains' not in sp and not any('notes' in (c.get('source') or '') for c in sp.get('chains') or []):
+                sp['drawn_chains'] = sp.get('chains') or []  # the drawing's, kept: what the QA's hang check measures by
+            sp['chains'] = [dict(joints=J, root='at %s' % a.get('parent', 'its parent'), source='notes (the built flap)')]
+            sp['length'] = round(float(sum(np.linalg.norm(np.subtract(b, c)) for b, c in zip(J[1:], J[:-1]))), 3)
+        g = ids.get(a['id'])
+        for q in a.get('over') or []:
+            h = ids.get(q)
+            if g is None or h is None:
+                continue
+            lg, lh = g.setdefault('layer', {}), h.setdefault('layer', {})
+            was = 'under' if q in (lg.get('under') or []) else None
+            lg['over'] = sorted(set(lg.get('over') or []) | {q})
+            lg['under'] = [x for x in lg.get('under') or [] if x != q]
+            lh['under'] = sorted(set(lh.get('under') or []) | {g['id']})
+            lh['over'] = [x for x in lh.get('over') or [] if x != g['id']]
+            if was:
+                g.setdefault('flags', []).append(dict(piece=g['id'], field='layer', notes='over %s' % q,
+                                                      measured='under %s' % q, note='the notes put it over'))
+    for sp in G.get('springs') or []:
+        chains = sp.get('chains') or []
+        for c, ch in enumerate(chains):
+            pre = sp['piece'] if len(chains) == 1 else '%s_%d' % (sp['piece'], c)
+            ch['bones'] = ['%s_%d' % (pre, i) for i in range(max(0, len(ch.get('joints') or []) - 1))]
+    return G
+
+
+def relayer(spec_path, log=print):
+    """apply_notes to the character's graphs as they are (the tracked reference refs/NAME/outfit_graph.json and the
+    copy beside the produced masks) without rerunning the intake, and the reference's hash refreshed in its manifest."""
+    from . import manifest
+    spec = json.load(open(_p(spec_path)))
+    mref = (spec.get('ref') or {}).get('manifest')
+    N = load_notes(os.path.join(os.path.dirname(mref), 'outfit_notes.json'))
+    M = json.load(open(_p(mref)))
+    paths = [M['references']['outfit_graph']['path'],
+             os.path.join(os.path.dirname(M['references']['outfit_masks']['path']), 'outfit_graph.json')]
+    for gp in paths:
+        if not os.path.exists(_p(gp)):
+            continue
+        G = json.load(open(_p(gp)))
+        apply_notes(G, N)
+        open(_p(gp), 'w').write(dumps(G) + '\n')
+        log('relayered', gp)
+    rehash(mref)
+    return paths
+
+
+def rehash(mref):
+    """the manifest's outfit_graph reference's hash refreshed after the graph changed in place."""
+    from . import manifest
+    M = json.load(open(_p(mref)))
+    ref = dict(M['references']['outfit_graph'], sha256=manifest.sha256(M['references']['outfit_graph']['path']))
+    text = set_member(open(_p(mref)).read(), 'references', 'outfit_graph', ref)
+    json.loads(text)
+    open(_p(mref), 'w').write(text)
+
+
 def register(manifest_path, graph_path, G, inputs):
     """the graph as the character's reference `outfit_graph` in its manifest (kind, role, provenance, hash), and the
     authority for its pieces; the rest of the manifest's text left as it was."""
@@ -2949,6 +3020,7 @@ def build(spec_path, out=None, field=None, use_field=True, notes=None, write_man
     G['templates'] = draft(G, A, st)
     G['comparison'] = compare_spec(G['templates'], raw, G)
     G['springs'] = springs(G, A, st)
+    apply_notes(G, N)
     for g in G['pieces']:
         g.pop('_k', None)
     paths = {}
@@ -2988,6 +3060,8 @@ def build(spec_path, out=None, field=None, use_field=True, notes=None, write_man
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return
+    if args[0] == 'relayer':
+        relayer(args[1] if len(args) > 1 else 'charkit/spec/clawd.json'); return
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     G, paths = build(args[0], opt('--out'), opt('--field'), '--no-field' not in args, opt('--notes'),
                      '--no-manifest' not in args)
