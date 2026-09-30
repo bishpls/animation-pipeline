@@ -5,7 +5,7 @@ eye and mouth engine is `docs/workstreams/eyes.md`; this round owns the mouth an
 `brows.py`, the lid shapes in `eyes.expressions`, `scene.PRESETS`, `exprqa`), not the iris, pupil or sclera
 (`tool/eyes2`) or the face's shape below the mouth (`tool/face`).
 
-## State: round 1 PAUSED 2026-09-29; round 2 (`tool/mouth2`) below, at the end of this file.
+## State: round 1 PAUSED 2026-09-29; round 2 (`tool/mouth2`) and round 3 (`tool/mouth3`, the chevron) below, at the end of this file.
 
 No box jobs running. Local outputs (gitignored, in this worktree):
 - `charkit/out/base_mh`: the MakeHuman baseline build (`clawd.json`, pipeline-3d code), bundle and QA.
