@@ -166,6 +166,26 @@ then a clawd_body build; the laptop-side script fetches when done):
 attribute it: gate 562bfe2 (the before, hull-det without this fix) the same way, and compare the hair's source (the
 hull round the head and shoulders: the puffs now interpolated) before/after.
 
+**Landed after the pause** (real masks `074d9a3f` in both; the hulls fetched into `charkit/out/hl2/{before,after}` in
+each worktree, with their pages and `*_stages`):
+
+| held out | before (562bfe2) | after (e803c34) | no limb split | plain |
+|---|---|---|---|---|
+| front | 0.9449 | 0.9449 | 0.9449 | 0.9449 |
+| three-quarter | 0.8759 | 0.8781 | 0.8614 | 0.7149 |
+| back | 0.9467 | 0.9467 | 0.9458 | 0.9458 |
+
+Pieces labels, held-out agree: front 0.7648 -> 0.7643, profile 0.6679 -> 0.6672, three-quarter 0.7225 -> 0.7212,
+back 0.6927 -> 0.6847. With the real masks the limb split already helps before the fix (0.8759 against 0.8614 without
+it), and the fix adds 0.002: the large before/after gaps above were the no-TRELLIS masks'. The per-height borrowing
+table with the real masks is still to measure (step 1). Both body builds died at the start: the box stopped answering
+ssh ("server anim-build-1 not responding"), so rerun them (`scratchpad/hl/redo.sh` is not needed: `python -m charkit
+remote build charkit/spec/clawd_body.json --out charkit/out/hl2_body_TAG --no-blend` from each worktree).
+
+The clawd_body gate of a9a84a8 into 01f2cdd: **FAIL**, checks worse: `body_back_hem_mid`, `body_front_hair_length`,
+`piece_sleeve_cuff_R` (report `charkit/out/gate/gate_tool-hull-limbs_a9a84a8_into_01f2cdd_clawd_body.md`). Attribute
+it with the default gate's regressions (step 2).
+
 **Next steps, in order:**
 1. When the two jobs land: check the masks are `074d9a3f` in both; rerun the scratchpad measurements on them
    (`measure.py before|after HULL_NPZ` with `WT=before_tree` for before, `pageimgs.py`, `bodym.py`, `bodyalone.py`,
