@@ -17,8 +17,10 @@ Checks (qa3d part 'piece_details'; lengths in L):
         3D: the puff seen along its arm, its radius over the arm's under its band, against sleeve_closeup's
         cross-section (segmented from the reference)
   waistband_{view}_rows, waistband_{view}_width, waistband_profile_overhang
-        the band's top and bottom edges and its width against the design's; in profile, the top's front edge over the
-        band's against the design's (the jacket overhangs the band)
+        the band's top and bottom edges and its width against the design's (its drawn mask's part inside the ink,
+        ink_core: the masks give it the jacket's lower part where the jacket hangs over it; not in profile, where the
+        mask holds none of the band); in profile, the top's (and bib's) front edge over the band's against the
+        design's (the jacket overhangs the band)
   shorts_{view}_hem, shorts_{front,back}_width
         the shorts' lower edge and their width against the design's
   top_{front,three_quarter}_over_band
@@ -789,7 +791,7 @@ def jacket(B, O, names, masks, pm, ppl, az3, dv, cls_o):
             mid = [rs[c] for c in rs if abs(c - cx) / ppl < 0.06]
             side = [rs[c] for c in rs if 0.2 <= abs(c - cx) / ppl <= 0.3]
             return round((np.median(mid) - np.median(side)) / ppl, 4) if mid and side else None
-        dd = drop(clean(masks['front__top'] | masks['front__bodice_panel'], ppl), clean(masks['front__waistband'], ppl))
+        dd = drop(masks['front__top'], clean(ink_core(masks['front__waistband'], dv['front'].get('cls')), ppl))
         do = drop(members(O['front']['lab'], names, pm, 'top') | members(O['front']['lab'], names, pm, 'bodice_panel'),
                   members(O['front']['lab'], names, pm, 'waistband'))
         if dd is not None:
@@ -800,9 +802,29 @@ def jacket(B, O, names, masks, pm, ppl, az3, dv, cls_o):
                 v_ = round(abs(do - dd), 4)
                 C['top_front_hem_step'] = {'value': v_, 'status': grade('hem_step', v_), 'ours': do, 'design': dd,
                                            'note': "the junction's drop from the jacket's fronts (0.2-0.3 L out) to the "
-                                                   "bib's middle (L: the band's visible top lower in the middle, where the "
-                                                   "bib hangs over it), against the design's"}
+                                                   "bib's middle (L: the band's visible top, the design's inside its ink "
+                                                   "(ink_core); negative: the bib's hem higher than the jacket's fronts, "
+                                                   "which hang lower over the band), against the design's"}
     return T, C
+
+
+def ink_core(band, cls):
+    """a drawn band's own region: the largest part of its piece mask that the drawing's ink (the line class, grown a
+    pixel) leaves connected. The outfit masks give the band the jacket's lower part where the jacket hangs over it (the
+    front's notched corners, the three-quarter's near front, the back's hem: 13%, 46% and 38% of the band's mask), and
+    the jacket's hem stroke cuts that part off. None without ink (a synthetic mask): the mask itself."""
+    from scipy import ndimage
+    if band is None or not band.any():
+        return band
+    ink = cls == bodyqa.CLASS['line'] if cls is not None else None
+    if ink is None or not ink.any():
+        return band
+    lab, n = ndimage.label(band & ~ndimage.binary_dilation(ink))
+    if not n:
+        return band
+    sz = np.bincount(lab.ravel())
+    sz[0] = 0
+    return lab == int(np.argmax(sz))
 
 
 def edges(m, mid=(0.2, 0.8)):
@@ -831,9 +853,10 @@ def x_of(col, ppl):
     return (col + 0.5) / ppl - WIN['x']
 
 
-def waist(O, names, masks, pm, ppl):
+def waist(O, names, masks, pm, ppl, dv=None):
     """the waistband's edges and width per view, the top's overhang over it in profile, and the shorts' hem and width
-    (see the module doc) -> (table, checks)."""
+    (see the module doc) -> (table, checks). The design's band is its ink-bounded part (ink_core; not in profile, where
+    the outfit masks' band is the jacket's lower part and the band itself is labelled skirt)."""
     T, C = {}, {}
     for view in ('front', 'three_quarter', 'profile', 'back'):
         if view not in O:
@@ -842,6 +865,8 @@ def waist(O, names, masks, pm, ppl):
             Md = masks.get('%s__%s' % (view, pid))
             if Md is None or pid not in pm:
                 continue
+            if pid == 'waistband' and dv and view in dv and view != 'profile':
+                Md = ink_core(Md, dv[view].get('cls'))
             ed = edges(clean(Md, ppl))
             if ed is None:
                 continue
@@ -896,7 +921,8 @@ def waist(O, names, masks, pm, ppl):
         d_ = overhang(clean(bd, ppl), td) if bd is not None and td is not None else None
         if d_ is not None:
             o_ = overhang(clean(members(O['profile']['lab'], names, pm, 'waistband'), ppl),
-                          members(O['profile']['lab'], names, pm, 'top'))
+                          members(O['profile']['lab'], names, pm, 'top') |
+                          members(O['profile']['lab'], names, pm, 'bodice_panel'))
             T['overhang'] = dict(ours=o_, design=d_)
             if o_ is None:
                 C['waistband_profile_overhang'] = {'value': None, 'status': 'FAIL', 'design': d_,
@@ -957,7 +983,7 @@ def measure(B, design, out=None):
             'value': v_, 'status': grade('standoff', v_), 'ours': o_, 'design': cl,
             'note': "the puff seen along its arm, as sleeve_closeup's cross-section: its radius over the arm's under the "
                     "band (the balloon's stand-off), ours over the design's, less one (area-equivalent radii)"}
-    t, c = waist(O, names, masks, pm, ppl)
+    t, c = waist(O, names, masks, pm, ppl, design.design_views())
     T['waist'] = t
     C.update(c)
     t, c = cuffs(O, names, masks, pm, ppl, design.design_views(), skin, our_classes(B, ppl, ctx['az3']))

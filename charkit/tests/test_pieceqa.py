@@ -142,6 +142,20 @@ def test_half_widths_round_the_middle():
     assert abs(w[0] - 20.5 / PPL) < 1e-6 and w[1] is None
 
 
+def test_ink_core_leaves_the_jackets_part_of_the_band_mask_out():
+    """the outfit masks give the band the jacket's lower part where it hangs over the band: the jacket's hem stroke
+    (ink) cuts it off, and the band's own part is the larger one left."""
+    from charkit import bodyqa
+    band = np.zeros((60, 80), bool)
+    band[10:50, 10:70] = True                       # the mask: the jacket's hem (rows 10-19) and the band (21-49)
+    cls = np.zeros((60, 80), np.int32)
+    cls[20, :] = bodyqa.CLASS['line']               # the jacket's hem stroke across it
+    core = pq.ink_core(band, cls)
+    rows = np.nonzero(core.any(1))[0]
+    assert rows.min() >= 21 and rows.max() == 49    # the band below the stroke (its grown pixel), the jacket's left out
+    assert pq.ink_core(band, np.zeros_like(cls)) is band      # no ink: the mask itself
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
