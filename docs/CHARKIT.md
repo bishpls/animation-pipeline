@@ -342,19 +342,20 @@ view. For Clawd that means 51 armatures, 47 solidify outlines, 20 subdivisions a
 on any GPU (L4 2.4 s, T4 2.2 s, M2 Pro 2.0 s). The frame is CPU-bound. An animation render keeps its depsgraph and
 re-evaluates only what a frame changed.
 
-`qa.render_views(cam, views, view=None, features=None)` renders each board set this way. Consecutive `qa.View`s that
-share a camera type and scale (metres per pixel) become the frames of one animation render. A `frame_change_pre`
-handler sets each frame's state (an expression, a mouth), its camera, and the per-view hook `view(az, m_per_px, res_y)`
-(the look's `shade.set_view`). The features-through-the-hair pass (`features_pass`, `features_blend`) batches the same
-way, as a second animation render.
+`qa.render_views(cam, views, features=None)` renders each board set this way (and so does
+`charkit/boards/turntable.py`). Consecutive `qa.View`s that share a camera type and scale (metres per pixel) become the
+frames of one animation render. A `frame_change_pre` handler sets each frame's state (an expression, a mouth), its
+camera and its look, through the same `qa._look_at` as `render_view`'s stills (`shade.set_view`: the light, the
+outlines' widths at that scale). The features-through-the-hair pass (`features_pass`, `features_blend`) batches the
+same way, as a second animation render.
 
 The frames match stills exactly: `charkit/tests/test_render_views.py`, and `python -m charkit.boarddiff A B` on two
 builds (every board, QA overlay and sheet, and every QA check). A scene with anything frame-dependent (an action, NLA, a
 frame driver, motion blur), a lone view, or a handler that missed a frame renders stills as before.
 
-The hook must write only the values it changes. A write to a modifier re-evaluates that object on the next frame:
-rewriting every outline's unchanged width per frame cost 2.4–2.8 s a frame against 0.8–1.1 s when it skipped them.
-Changing the light's node inputs per frame is a uniform update, with no shader compile.
+`shade.set_view` writes only the values it changes. A write to a modifier re-evaluates that object on the next
+frame: rewriting every outline's unchanged width per frame cost 2.4–2.8 s a frame against 0.8–1.1 s when it skipped
+them. Changing the light's node inputs per frame is a uniform update, with no shader compile.
 
 Measured on `clawd.json` with all four sets (34 boards; the boards match to the bit):
 
@@ -364,9 +365,11 @@ Measured on `clawd.json` with all four sets (34 boards; the boards match to the 
 | boards, laptop (M2 Pro) | 123.4 s (3.52 s a view) | 54.2 s (1.52 s a view) |
 | the Blender build, box / laptop | 172.9 s / 152.6 s | 95.6 s / 76.0 s |
 
-What's left is:
-- each animation render's first frame, a full evaluation: 8 of them here, 5 sets and 3 feature passes;
-- the subdivided skin, re-evaluated in each of the 25 frames whose expression or mouth changes.
+What's left, measured on the laptop in 8-frame batches at 600×600:
+- each animation render's first frame, a full evaluation (about 2–2.5 s): 8 of them here, 5 sets and 3 feature passes;
+- the render itself, about 0.5 s a frame at the look's 64 samples;
+- on each of the 25 frames whose expression or mouth changes, the skin's level-2 subdivision re-evaluated: about 0.25 s
+  a frame (nothing at level 1). The shape keys already change within the batch.
 
 A set that moves only the camera (the body views, a turntable) runs about 3–4× faster.
 

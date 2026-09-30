@@ -38,21 +38,7 @@ def render_view(cam, target, az, dist, height, path, lens=50, ortho=None):
     """a still from azimuth az (degrees, 0 in front of her), `dist` out and `height` up from the target, in the style's
     look for that view (charkit.shade.set_view: its light, and its outlines' width at this view's scale)."""
     import bpy
-    from mathutils import Vector
-    from . import shade
-    a = math.radians(az)
-    eye = Vector(target) + Vector((math.sin(a) * dist, -math.cos(a) * dist, height))
-    d = (Vector(target) - eye).normalized()
-    cam.location = eye; cam.rotation_mode = 'QUATERNION'; cam.rotation_quaternion = d.to_track_quat('-Z', 'Y')
-    r = bpy.context.scene.render
-    big = max(r.resolution_x, r.resolution_y)
-    if ortho:
-        cam.data.type = 'ORTHO'; cam.data.ortho_scale = ortho
-        m_per_px = ortho / big
-    else:
-        cam.data.type = 'PERSP'; cam.data.lens = lens
-        m_per_px = (Vector(target) - eye).length * cam.data.sensor_width / lens / big
-    shade.set_view(az, m_per_px, r.resolution_y)
+    _look_at(cam, View(target, az, dist, height, path, lens, ortho))
     bpy.context.scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
@@ -77,6 +63,14 @@ def _aim(cam, v):
         return v.ortho / big
     cam.data.type = 'PERSP'; cam.data.lens = v.lens
     return (Vector(v.target) - eye).length * cam.data.sensor_width / v.lens / big
+
+
+def _look_at(cam, v):
+    """the camera for View v, and the look for it (charkit.shade.set_view: the light, the outlines' widths at its
+    scale): what render_view does before each still and render_views before each frame."""
+    import bpy
+    from . import shade
+    shade.set_view(v.az, _aim(cam, v), bpy.context.scene.render.resolution_y)
 
 
 def _scale(cam, v):
@@ -110,21 +104,18 @@ def _static(sc):
     return True
 
 
-def _animate(cam, views, paths, view=None):
-    """views rendered as the frames of one animation, into paths. Each frame's state, camera and hook are set by a
+def _animate(cam, views, paths):
+    """views rendered as the frames of one animation, into paths. Each frame's state, camera and look are set by a
     frame_change_pre handler, so the render's depsgraph re-evaluates only what they change (a still re-evaluates every
     modifier in the file). -> False, with nothing written, if the handler didn't set every frame."""
     import bpy
     sc = bpy.context.scene; r = sc.render
-    res_y = r.resolution_y
 
     def frame(i):
         v = views[i]
         if v.state:
             v.state()
-        m = _aim(cam, v)
-        if view is not None:
-            view(v.az, m, res_y)
+        _look_at(cam, v)
     done = [0]
 
     def pre(scene, depsgraph=None):
@@ -154,13 +145,12 @@ def _animate(cam, views, paths, view=None):
     return True
 
 
-def render_views(cam, views, view=None, features=None):
+def render_views(cam, views, features=None):
     """render Views (render_view's pictures), consecutive ones sharing a camera type and scale as one animation render.
     A still re-evaluates every modifier in the file (for Clawd ~2 s a frame); an animation's later frames re-evaluate
-    only what changed (the camera, a state's shape keys): 0.5 s. The frames match stills bit for bit.
-    view: the per-view hook f(az, m_per_px, res_y) that render_view applies to its stills (charkit.shade.set_view, the
-    look's light and line widths), applied here to batched frames from a frame handler. It must leave values it doesn't
-    change unwritten: any write re-evaluates that object on the next frame.
+    only what changed (the camera, a state's shape keys): 0.5 s. The frames match stills bit for bit: each frame gets
+    the look for its view as a still does (charkit.shade.set_view, which writes only what changes: a write re-evaluates
+    that object on the next frame, and the outlines' widths change only between groups).
     features: (feature_objs, hide_objs, holdout_objs), features_through on every view, as a second batch.
     -> the paths."""
     import bpy
@@ -179,11 +169,11 @@ def render_views(cam, views, view=None, features=None):
         paths = [v.path for v in g]
         if batch and len(g) > 1:
             with trace.span('board_batch', n=len(g), first=os.path.basename(paths[0])) as rec:
-                ok = _animate(cam, g, paths, view)
+                ok = _animate(cam, g, paths)
                 if ok and features:
                     tmps = [p[:-4] + '_feat.png' for p in paths]
                     with features_pass(features[0], features[2]):
-                        ok = _animate(cam, g, tmps, view)
+                        ok = _animate(cam, g, tmps)
                     if ok:
                         for p, t in zip(paths, tmps):
                             features_blend(p, t)
