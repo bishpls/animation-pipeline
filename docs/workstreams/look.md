@@ -176,6 +176,77 @@ fetched with `infra/gcp/build.sh fetch $PWD charkit/out/NAME/lookboard`. The rev
    `charkit/styles/anime.json` (`look.light.key`, `look.lines.color` / `ink_regions` / `frac`). Inking the skin line
    waits on the eye QA masking the face contour by geometry (queued for tool/face).
 
+### Round 2 progress
+
+**1. The QA speedup (done: `0b6e9cd`, `5f90e76`).**
+- `qa3d.draw` is now `draw_lit(draw_view(...))`. `draw_view` holds everything that doesn't depend on the light: the
+  z-buffer, each surface's pixels, triangles and weights, normals, and the face's and textures' samples. `draw_lit`
+  shades a view under one light. It is bit-identical to the old draw: 60 of 60 pictures, tones, labels and depths on
+  the default bundle match, and `charkit/tests/test_lookqa.py` checks it. face_noise rasterizes each view once; its
+  sweep's four lights shade the skin alone, with no picture. face_shadow reuses face_noise's board views (`board_tones`,
+  memoized per bundle, frame and azimuth).
+- **line_width stays at the design's scale (401 px per L x 4); the plan's 200 x 3 doesn't measure the same thing.**
+  The per-skeleton-pixel width (2 d - 1, the distance transform) is quantized to the sub-pixel, so the median sits on
+  a lattice point. It holds at 1.812 px across 5 sub-pixel offsets at 401 x 4, but jumps with the resolution: 1.997
+  at 200 x 3, 1.498 at 200 x 4 (default bundle; 1.733 on the pieces bundle), 1.772 at 300 x 4. The p10 is the
+  sub-pixel slivers' floor, so line_spread follows the sub-pixel too: 11.6 at x4, 4.66 at 200 x 3. A
+  resolution-free estimator (local line area over Kulpa-corrected skeleton length) holds at 2.02-2.10 across all of
+  them, but it reads the design's short strokes 27-39% wider (their ends and junctions): a different measure, left as
+  an option (`widthlab`, scratch). The cost went elsewhere:
+  - the lines come from the z-buffer's labels alone, each in its hull's flat colour (`_hull_colours`), so there's no
+    per-pixel preparation;
+  - the widths are cut to their box (the same distances and skeleton);
+  - the design's widths are measured per group of lines and memoized (bit-identical to the whole sheet's; 4.4 -> 2.6 s
+    cold).
+- **line_ink now reads the lines' own colour**: their supersampled pixels, not the pixels a line covers wholly after
+  the pixel filter, which blended thin lines with their neighbours. The inked hair, garment and accessory lines read
+  0.48 from the design's ink (were 4.5, 7.8, 15.6); the skin's brown 24.67 (was 24.9). It's registered as a
+  measurement step (`history.STEPS`, `0b6e9cd`).
+- **The Blender side**: the skin's `proxy_normals` Data Transfer costs 0.66 s an evaluation at the viewport's
+  subdivision and 2.3 s at the render's (measured on the saved scene). Every trace snapshot and every bundle read
+  evaluated it, though it moves no vertex: a full snapshot took 8.3 s with it and 4.6 s without. It is now off where
+  only positions are read (`trace.OUTLINE_MODS`, `bundle.NORMAL_MODS`): the bundle went 13.3 -> 5.7 s, and every
+  array is identical but the skin's masked V (7e-9 m). Other loop mappings aren't faster, and they turn the normals
+  (NEAREST_POLYNOR: mean 6.0 deg, p99 54; POLYINTERP_LNORPROJ: 0.9 / 13 and slower), so they were rejected.
+  faceshade.apply has trace spans: proxy_normals 1.05 s, fringe 1.73 s (a Python loop over 41,872 faces), sdf 0.03 s.
+
+Per check on the box (median of 5 runs at 5 sub-pixel offsets; the box shared with other gates, so CPU time is the
+steadier number):
+
+| check | before, wall / CPU s | after, wall / CPU s |
+|---|---|---|
+| face_noise (+ sweep, islands) | 44.8 / 56.1 | 9.7 / 16.3 |
+| face_shadow | 8.6 / 10.9 | 2.2 / 5.0 |
+| line_width (+ spread, ink) | 82.3 / 158.1 | ~10 / ~12.5 |
+
+The values against their sampling spread (the same 5 offsets, before / after; each after equals its before at the
+same offset):
+
+| check | default: spread over offsets | pieces: spread over offsets |
+|---|---|---|
+| face_noise | 0.0647-0.0652, the same at every offset | 0.0459-0.0468, the same |
+| face_noise_sweep | 0.0523-0.0524, the same | 0.0508-0.0511, the same |
+| face_islands | 7, the same | 11-12, the same |
+| face_shadow_3q | 0.4382-0.4466, the same | 0.3639-0.3853, the same |
+| line_width | 0.912 at all 5, the same | 0.912, the same |
+| line_spread | 11.649 at all 5, the same | 11.649, the same |
+| line_ink | 24.9 -> 24.67 (the step above) | 24.9 -> 24.67 |
+
+Whole builds of the default spec (the QA and its caches cold, stages cached alike), three at once on the build box
+under the same load:
+
+| build | total s | look part s | ratio to pre-look |
+|---|---|---|---|
+| 966ad22, pre-look | 142.7 | none | 1.00 |
+| 0122617, round 1 | 243.9 | 95.2 | 1.71 |
+| 5928f93, round 2 (lines ~4 s slower than 5f90e76) | 168.9 | 27.3 | 1.18 |
+
+Gates at `61b9368` (task 1 merged with pipeline-3d 6ca18da), both **PASS**, the only change line_ink remeasured:
+- default: 282.8 -> 171.5 s wall, 778 -> 554 s CPU;
+- clawd_body: 265.1 -> 235.2 s wall, 1578 -> 1351 s CPU.
+
+(Reports: `charkit/out/gate/gate_tool-look2_61b9368_into_6ca18da*.md`.)
+
 ### Ownership
 
 Yours: `charkit/shade.py`, `charkit/faceshade.py`, `charkit/lookqa.py`, the look parts of `charkit/gltf.py` (the
