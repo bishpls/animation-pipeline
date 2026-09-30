@@ -710,9 +710,11 @@ def _cap(args):
     """the command's thread pools capped (procs.cap_threads: on a many-core machine, the box), before anything loads
     numpy, numba or a BLAS; `--threads N` or `--threads off` (uncapped) sets CHARKIT_THREADS for it."""
     from . import procs
-    if '--threads' in args:
+    if '--threads' in args:                 # (explicit: it wins over the environment, as qa's --threads did)
         i = args.index('--threads')
         os.environ['CHARKIT_THREADS'] = args[i + 1]
+        if args[i + 1] != 'off':
+            os.environ.update(procs.thread_env(int(args[i + 1])))
         del args[i:i + 2]
     procs.cap_threads()
 
