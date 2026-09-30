@@ -144,7 +144,7 @@ def neck_front(rgb, eye_x, facing=-1, z0=-0.5, dz=0.005):
     return zs, ys
 
 
-JAW_UNDER = {'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design'}   # the style's face section
+JAW_UNDER = {'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design', 'jaw_side': True}   # the style's face section
                                  # overrides these (charkit/styles: DEFAULT says what each is)
 
 
@@ -208,7 +208,8 @@ def jaw_under(C, face=None):
     and the style's face section (JAW_UNDER's keys): None when the style builds the chin as rows alone (jaw_under off) or
     the design's jaw can't be read -> dict(x, z (the jaw line in front), rise (degrees: the underside's rise from the jaw
     line toward the throat, the design's measured in profile or the style's, within jaw_rise_range), neck, depth (the
-    jaw edge's depth behind the chin per x, jaw_depth's, where the style's jaw_edge is 'design': headgeom.jaw_envelope))."""
+    jaw edge's depth behind the chin per x, jaw_depth's, where the style's jaw_edge is 'design': headgeom.jaw_envelope),
+    side (the style's jaw_side: the pocket carried round the jaw's sides per column, headgeom.SIDE))."""
     st = dict(JAW_UNDER, **(face or {}))
     J = C.get('jaw_design')
     if not st['jaw_under'] or not J or len(J.get('x') or ()) < 5:
@@ -217,7 +218,8 @@ def jaw_under(C, face=None):
     rise = J.get('rise') if st['jaw_rise'] == 'design' else st['jaw_rise']
     rise = float(np.clip(12.0 if rise is None else rise, lo, hi))
     return dict(x=J['x'], z=J['z'], chin=J['chin'], neck=J['neck'], rise=round(rise, 1),
-                rise_design=J.get('rise'), depth=J.get('depth') if st.get('jaw_edge') == 'design' else None)
+                rise_design=J.get('rise'), depth=J.get('depth') if st.get('jaw_edge') == 'design' else None,
+                side=bool(st.get('jaw_side', True)))
 
 
 def relief_split(z, mid, nose_z, top=-0.02, bottom=None):

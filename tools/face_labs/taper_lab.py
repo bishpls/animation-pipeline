@@ -53,7 +53,8 @@ def run(out=None, build=None, geom=None, design_only=False, log=print):
         O, Ob, Ol = D, Dc, Dc
     else:
         meshes, skin, iris, ez, L, _ = scene(build, geom, log)
-        O, Ob, Ol = fr.ours_jaw(meshes, skin, iris, ez, L, ppl, az, D['front'].get('chin', (0, None))[1], z0)
+        O, Ob, Ol = fr.ours_jaw(meshes, skin, iris, ez, L, ppl, az, D['front'].get('chin', (0, None))[1], z0,
+                                design_tq_top=D['three_quarter']['taper'].get('top'))
         C = fr.jaw_compare(D, O, ppl)
         C.update(fr.taper_checks(D, O))
     for k in SHOW:
