@@ -726,9 +726,10 @@ def character_parts(A, hide=None, spec=None):
 
 def hair_tones(parts, spec):
     """the hair's and accessories' unlit tones and classes (in place): the hair objects all hair (scene's materials:
-    the generated hair's toon3 of lit/shade, the cap's of shade/deep, the locks' 'hair'), an accessory by its colour
-    family (an orange one sits in the hair; one made of the hair's material is hair)."""
-    from .bodyqa import CLASS as CL, family
+    the generated hair's toon3 of lit/shade, the cap's of shade/deep, the locks' 'hair'), an accessory its own class
+    (charkit.accqa.ACCESSORY, as qa3d.scene_classes has it; one made of the hair's material is hair)."""
+    from .accqa import ACCESSORY
+    from .bodyqa import CLASS as CL
     C = dict(lit=(0.96, 0.93, 0.98), shade=(0.72, 0.74, 0.90), deep=(0.52, 0.52, 0.72))
     C.update({k: tuple(v) for k, v in (spec.get('hair_colors') or {}).items()})
     for p in parts:
@@ -739,12 +740,12 @@ def hair_tones(parts, spec):
             p.cls = np.full(n, CL['hair'])
         elif p.group == 'accessories':
             a = getattr(p, 'spec', {})
-            if a.get('material', a.get('kind')) == 'hair':
+            hair = a.get('material', a.get('kind')) == 'hair'
+            if hair:
                 p.lit, p.shade = _flat(n, C['lit'])[0], _flat(n, C['shade'])[0]
             else:
                 p.lit = p.shade = _flat(n, a.get('color', (0.9, 0.9, 0.9)))[0]
-            fam = family(p.lit)
-            p.cls = np.where(fam == CL['orange'], CL['hair'], fam)
+            p.cls = np.full(n, CL['hair'] if hair else ACCESSORY)
 
 
 class Geometry:
