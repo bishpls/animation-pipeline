@@ -537,6 +537,7 @@ def assembly_meta(A, spec):
     """what the checks read of an assembly (charkit.character.assemble's dict) as plain metadata: the head's length,
     centre, chin, top, mouth height and eye knobs; each eye's side, centre, lid chains and key names; the mouth's centre,
     lip chains and key names; the waist's and knee's heights; the base."""
+    from .character import base_of
     from .garments import bone_seg
     Hd = A['head']; H = Hd['H']; L = float(Hd['L'])
     return dict(L=L, centre=[float(x) for x in Hd['centre']], chin=float(H.chin), top=float(H.top),
@@ -549,7 +550,7 @@ def assembly_meta(A, spec):
                 mouth=dict(c=[float(x) for x in A['mouth']['c']], upper=[int(i) for i in A['mouth']['m']['upper']],
                            lower=[int(i) for i in A['mouth']['m']['lower']], keys=list(A['mouth'].get('keys') or {})),
                 waist_z=float(bone_seg(A, 'spine')[0][2]), knee_z=float(bone_seg(A, 'leftLowerLeg')[0][2]),
-                base=spec.get('base', 'makehuman'))
+                base=base_of(spec))
 
 
 def bytes_to_float(px):

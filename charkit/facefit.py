@@ -180,7 +180,8 @@ def fit(spec, out, budget=None, base=None, workers=None, groups=('eyes', 'face')
     T = terms()
     workers = workers or max(1, min(8, (os.cpu_count() or 2) - 2))
     pool = fitkit.Pool('charkit.facefit:FaceChecks', (spec, R, cache), workers)
-    rep = {'spec': spec['name'], 'base': spec.get('base', 'makehuman'), 'authority': authority, 'declare': declare(),
+    from .character import base_of
+    rep = {'spec': spec['name'], 'base': base_of(spec), 'authority': authority, 'declare': declare(),
            'groups': {}}
     if isinstance(baseline, str):
         baseline = json.load(open(baseline))['checks']

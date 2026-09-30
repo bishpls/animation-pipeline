@@ -324,9 +324,10 @@ def face_folds(A):
 @qa_part('face_folds', order=500)
 def folds(B, design=None, out=None):
     """the face_folds check on a bundle -> ({}, checks)."""
+    from .character import base_of
     ff = face_folds(assembly(B))
     return None, {'face_folds': {'value': ff['total'], 'rest': ff['rest'], 'per_key': ff['keys'],
-                                 'base': B.spec.get('base', 'makehuman'), 'status': _grade('face_folds', ff['total'], False)}}
+                                 'base': base_of(B.spec), 'status': _grade('face_folds', ff['total'], False)}}
 
 
 # --------------------------------------------------------------------------------------------------- the references

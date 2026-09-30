@@ -59,7 +59,7 @@ def append(out, name, note=None):
     if os.path.exists(sp):
         spec = json.load(open(sp))
     row = {'t': time.strftime('%Y-%m-%dT%H:%M:%S'), 'git': begin.get('git'), 'spec_hash': begin.get('spec_hash'),
-           'base': spec.get('base', 'makehuman'), 'hair': ((spec.get('hair') or {}).get('shape') or {}).get('mode'),
+           'base': spec.get('base'), 'hair': ((spec.get('hair') or {}).get('shape') or {}).get('mode'),
            'out': os.path.relpath(out, ROOT), 'summary': qa.get('summary'),
            'checks': {k: [c.get('value'), c.get('status')] for k, c in qa.get('checks', {}).items()
                       if c.get('status') in ('PASS', 'WARN', 'FAIL', 'INFO')}}
