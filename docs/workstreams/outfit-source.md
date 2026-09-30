@@ -138,13 +138,15 @@ collar 0.009, panels 0.029.
 0.739, `piece_skirt_extent` 0.028 -> 0.278, `piece_sleeve_L` 0.759 -> 0.738. Better: `piece_waistband` 0.497 -> 0.877,
 `piece_top` 0.487 -> 0.546, `body_front_skirt_overhang_L/R` 0.118/0.113 -> 0.019/0.028.
 
-**Why.** The skirt, waistband and collar are `source: "hull"`: built from the hull's piece-labelled surface. The new
-masks give the back view's cells 14/15 and the profile's cell 27 to the overskirt panels (they hang from the
-waistband over the skirt: the truth, and Michael's call), so the hull labels the skirt only where the drawing shows it
-at the back (the centre pleats, the outer sides). A skirt lofted from its visible hull points loses its back and comes
-out short: the hem FAILs. The field's masks called the upper half of those panel cells skirt (wrong per the
-drawing), which gave the loft a whole skirt. `piece_skirt_extent` also read the one real mask error of `44f63918`:
-the 3/4's near panel tail labelled skirt (z to -3.04), fixed since (below).
+**Why (measured in the two hulls, the box's produced cache: baseline `0daa9204`, candidate `3aa7453d`).** The skirt,
+waistband and collar are `source: "hull"`: built from the hull's piece-labelled surface. Same mesh (75,006 vertices,
+identical), other labels: the skirt's label grew from 7,375 to 8,458 vertices and reached down to z -3.03 at the sides
+(azimuth +-75..105: the panels' tails; the baseline's lowest skirt vertex was -2.56), from the one real error of
+`44f63918`, the 3/4's near tail (and part of the profile's panel side) labelled skirt. The hull-sourced skirt followed
+it down: the hem checks read "- = ours longer", 0.21-0.31 L too long. Other label counts: shorts 2,401 -> 1,142 (the
+hems no longer called shorts), top 1,175 -> 1,807 and waistband 595 -> 485 (the bodice's lower part no longer called
+waistband), pin_star 481 -> 235, pin_crab 19 -> 0.
+(A first reading here, that the skirt lost its back to the panels and came out short, had the hem sign backwards.)
 
 ### The tail fix (after round 1)
 
@@ -155,3 +157,64 @@ the chest and the hips) and only layers drawn behind the body span the whole row
 0.993, 3/4 0.966, profile 0.909, back 0.993), mean piece IoU **0.913**, 20,108 px wrong (was 31,568). Left: the
 profile's panel side (cell 27: 69% panel, split by partial lines with skirt and the far panel, 4 k px), its skirt hem
 cell 69 called panel (2.1 k), the buns' undersides (2.3 k), 3/4 hem vs the skirt's panel (1.5 k), bib vs tails (1.9 k).
+
+### Gate round 2: aff284a into pipeline-3d 8a7d4ea (masks 73a6eed4)
+
+Both **FAIL**; tests all ok; no check remeasured (the branch changes an input, not a measure), so no 2x2 rows.
+
+**Default spec**, worse: `body_front_skirt_aline` 0.0 PASS -> -0.122 FAIL, `body_front_skirt_overhang_L` 0.0 PASS ->
+0.042 FAIL, `body_front_skirt_overhang_R` 0.0 PASS -> 0.028 WARN, `neck_crease` 27.6 WARN -> 46.4 FAIL, `piece_collar`
+0.754 PASS -> 0.336 FAIL. Better: `piece_waistband` 0.453 FAIL -> 0.945 PASS, `piece_skirt_extent` 0.127 WARN -> 0.009
+PASS, `piece_shorts` 0.393 FAIL -> 0.672 WARN, `piece_overskirt_panel_L` 0.422 FAIL -> 0.547 WARN,
+`piece_overskirt_panel_R` 0.623 WARN -> 0.76 PASS, `piece_cuff_L` 0.659 WARN -> 0.786 PASS. Round 1's four hem FAILs are
+gone (the tail fix).
+
+**clawd_mh**, worse: `body_front_midriff_gap` 0.0 PASS -> 0.061 FAIL, `body_front_skirt_aline` -0.016 PASS -> -0.078
+WARN, `body_profile_torso_jump_back` 0.005 PASS -> 0.405 FAIL, `body_three_quarter_waist_skin` 0.029 WARN -> 0.059 FAIL,
+`piece_skirt` 0.831 PASS -> 0.746 WARN, `piece_sleeve_L` 0.759 PASS -> 0.738 WARN. Better: `piece_waistband` 0.497 FAIL
+-> 0.878 PASS, `piece_top` 0.487 FAIL -> 0.547 WARN, `body_front_skirt_overhang_L/R` 0.118/0.113 FAIL -> 0.014 PASS /
+0.028 WARN. (`piece_skirt_extent`'s round-1 FAIL is gone.)
+
+**Attribution, from the hulls** (the box's produced cache, default spec: baseline `a308121d`, candidate `b95ea53b`;
+`scratchpad` script hullcmp.py, per piece the labelled vertices and the lowest per 30 degrees round the body):
+- **skirt**: 7,375 -> 7,392 vertices; its label now reaches its dark hem (lowest -2.62..-2.64 at most azimuths, was
+  -2.47..-2.56) and starts under the waistband (top -1.476, was -1.347). The drawn hem is the skirt's (the rig's skirt
+  piece carries it), so the labels are right; the hull-sourced skirt's A-line and overhang respond (tool/skirt).
+- **collar**: 1,112 -> 1,085; at the front (azimuth -45..+45) its lowest vertex is now -0.62..-0.67 (was -0.90..-0.91).
+  The field's masks gave the collar part of the bow in the 3/4 and profile; the drawing shows the collar's V only down
+  to -0.69, the bow covers the rest. A collar lofted from its visible hull points gets a shallow V: `piece_collar` and
+  `neck_crease` (tool/garments2's collar).
+- **waistband**: 595 -> 485 vertices, **top** 1,175 -> 1,816: the field's masks called the bodice's lower part
+  waistband (its IoU with the truth 0.46, now 0.96). clawd_mh's waistband shell shrinks (area 0.066 -> 0.039,
+  9,984 -> 6,144 vertices): `body_front_midriff_gap`, `waist_skin`; the default spec's `piece_waistband` 0.45 -> 0.95.
+- **shorts** 2,401 -> 1,196: the skirt's hems are no longer called shorts.
+- `body_profile_torso_jump_back` (clawd_mh, 0.405 in both rounds) is not attributed yet.
+
+## State (end of session, 2026-09-30)
+
+- Branch `tool/outfit-source`: `f2fd29a` the change, `b3002d0` the tail fix, `aff284a` pipeline-3d `8a7d4ea` merged
+  in, then these notes. Never pushed.
+- Masks `73a6eed4`: 0.972 against the truth (field 0.865), bit-identical run to run on the laptop; the box's hash not
+  yet compared (the gates build them there).
+- Gates: FAIL both specs (above). The regressions are garments built from the hull's labels (`source: "hull"`: skirt,
+  collar, waistband) meeting labels that now follow the drawing where the field's masks did not.
+
+## Next steps
+
+1. **Coordinate the garment side** (not this branch's files): the skirt's A-line and overhang with tool/skirt; the
+   collar's V depth (hidden under the bow) and the waistband/midriff with tool/garments2. Per "templates first", the
+   collar's `v_depth` and the waistband's height should come from the template fitted to the drawing, not from the
+   hull's visible labels. If they need the hidden extents, this branch can add amodal masks (`VIEW__PIECE__amodal`:
+   the sheet field's piece seen whole; readers ignore unknown keys).
+2. Attribute clawd_mh's `body_profile_torso_jump_back` (0.005 -> 0.405).
+3. Masks: the profile's panel side (cell 27 split three ways by partial lines) and its hem cell 69, the buns'
+   undersides, the 3/4 bib vs tails: 20 k px left.
+4. Compare the masks' hash on the box against the laptop's (`73a6eed4`).
+5. cli.py's usage line still lists `outfit --field/--no-field` (removed); `charkit/out/i3d` is no longer read by the
+   outfit: whether remote.py's i3d shipping, tools/worktree.sh's i3d clone and the manifest's `trellis` reference are
+   still needed is the integrator's call.
+6. The tracked `refs/clawd/outfit_graph.json` (bodyfit's first guesses) was made with the field; regenerate it with
+   `python -m charkit outfit charkit/spec/clawd.json` when the garment owners are ready (its knobs move: the panels'
+   width 0.745 -> 0.975, the skirt panel measured as a spring piece as the notes say).
+7. Review page (local): `charkit/out/os/review/index.html` (sheet | truth | field | no field | sheet only per view,
+   error maps, per-piece IoU).
