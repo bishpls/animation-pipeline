@@ -76,9 +76,11 @@ EYE_SIZE = 0.42                # the eye render's window, in L
 EYE_SS, EYE_FILTER = 5, 0.55   # the eye renders
 TEX_BLUR = 0.3                 # the eye textures' prefilter, sigma in texels per output pixel (the renderer's mipmaps)
 FIG_SS, FIG_FILTER = 3, 0.44   # the full-figure renders: silhouettes, scalp, hair noise
-DRAW = 'numpy'                 # the QA's drawing (draw_view / draw_lit / draw_ids): 'numpy', this module's own rasteriser
-                               # below, or 'render', charkit's toon renderer on the build's export (charkit.qarender: the
-                               # boards' passes and shader); CHARKIT_QA_DRAW overrides it
+DRAW = 'render'                # the QA's drawing (draw_view / draw_lit / draw_ids): 'render', charkit's toon renderer on
+                               # the build's export (charkit.qarender: the boards' passes and shader; this module's numpy
+                               # rasteriser where a bundle has no export or a surface isn't in it), or 'numpy', that
+                               # rasteriser throughout; CHARKIT_QA_DRAW overrides it. 'render' since 2026-09-30: every QA
+                               # frame nearer EEVEE's (docs/workstreams/toonrender.md, "the default drawing")
 WORLD = (0.86, 0.86, 0.90)     # the world colour behind an opaque render (linear; charkit.scene.reset)
 STATUS = ['PASS', 'WARN', 'FAIL', 'SKIPPED']
 
