@@ -1,32 +1,130 @@
 # Garments as pieces (tool/garments)
 
-## Round 6 (2026-09-30, in progress)
+## Checkpoint: end of round 6 (2026-09-30). Start here.
 
-**Branch** `tool/body` now contains tool/garment-sampling 47b401f (on tool/hull-det 3267aea): merged at d9d9b27,
-auto-resolved (garment-sampling changed only hull_pieces, shell_points, shell_patches, STRAY and _knn_mean). The hull
-is rebuilt from the merged code in this worktree.
+**Branch** `tool/body` in `~/animation-pipeline-body`: it contains tool/hull-det 3267aea and tool/garment-sampling
+47b401f (merged at d9d9b27, auto-resolved: garment-sampling changed only hull_pieces, shell_points, shell_patches,
+STRAY and _knn_mean; round 5 the boots, the midriff and flap_mirror) and pipeline-3d 2e3bdd5 (merged at a9aa137). The
+Clawd specs `clawd.json`, `clawd_body.json`, `clawd_body_pieces.json` carry the same garments; clawd_mh's skirt `q` is
+0.6. Build of this state: `charkit/out/body6_render` (boards, bundle, QA; the GPU box). Review page:
+`charkit/out/review_body6/index.html`.
 
-Found so far (evaluator, default spec, notes in progress; the full write-up replaces this section at the checkpoint):
-- **The skirt's hem at the sides and back is cut short by labels, not hidden.** Per sector, where the skirt's label
-  stops, another piece carries its surface on (points within 0.12 L below at the skirt's radius): the flaps over it
-  (+-115..162 deg), the hands (+-88..98), and elsewhere `shorts`: the skirt's own dark hem band, labelled as the shorts
-  (both dark) at r 1.0-1.08 L, far outside the shorts. True hem sectors (the front, the cream panel) have 0-15 such
-  points, cut ones 40-100. `hem_cut` drops them and fills round the circle from the rest: a level hem at 1.19 L all
-  round, as drawn. The old occlusion test also dropped the centre back (the flap's profile-view labels lie below it).
-- **The skirt's axis:** about the ring's median (x +0.05, y -0.105 L) the skirt read 0.1-0.12 L lopsided; about the
-  ellipse fit's centre it is within 0.02 L left against right. `axis: midline` puts it on the hips' x (0: the band's
-  and the waist's extents are centred there; the legs' midline, 0.0107 L, is the boots'). `symmetric` mirrors the
-  hem, waist line and radius field about that plane; flap_mirror mirrors about it too.
-- **The flaps were 0.14 L short** (lowest point -3.064 against the drawn -3.19..-3.21 in every view), and the hang
-  check hid it: its reach was the drawn chain's last joint (-3.07), a skeleton's end. Remeasured against the drawn
-  piece's lowest point (854776f, registered).
-- **Michael's review of round 5:** the midriff ledge on her right is measured (body_front_skirt_overhang_*; round 5
-  reads her right 0.155 L past the band against the design's 0.08, mirror 0.15 FAIL); the leg bump in profile is
-  tool/hull-limbs' (the hull's skin at z -2.72..-2.76 runs the whole side run behind the thigh; body_profile_leg_back
-  0.099 FAIL, reported to the coordinator); the sleeves, band and shorts moved to tool/garments2.
-- clawd_mh: skirt `q` 0.6; body_*_skirt_width compares matching heights when no row is free of hands (854776f).
+**Gates** (build box):
 
-## Checkpoint: end of round 5 (2026-09-30). Start here.
+| gate | verdict | detail |
+|---|---|---|
+| a9aa137 default (clawd.json) into 2e3bdd5 | **PASS** | 0 regressed; improved back hem_mid 0.1364 WARN -> 0.0517 PASS, three-quarter IoU 0.833 WARN -> 0.851 PASS, three-quarter A-line -0.189 FAIL -> 0.09 WARN, overskirt_panel_R 0.448 FAIL -> 0.619 WARN, back and profile skin IoU WARN -> PASS, cuff_L FAIL -> WARN (the shell); remeasured the skirt widths and flap hangs; new: the overhang checks PASS, leg_back FAIL (hull-limbs); tests ok. `charkit/out/gate/gate_tool-body_a9aa137_into_2e3bdd5.md` |
+| a9aa137 clawd_mh into 2e3bdd5 | **PASS** | 0 regressed; back skirt width 0.941 PASS -> 1.067 PASS (remeasured), front A-line -0.040 -> -0.021 PASS; tests ok. `..._clawd_mh.md` |
+| **30f958c default into 2e3bdd5** (the state; the flaps' band trim 0.12) | **PASS** | as a9aa137, 0 regressed, 7 improved; the hems front 0.0424, back 0.0236, three-quarter 0.0471, profile -0.0517 (a9aa137 at trim 0.10: 0.0188, 0.0, 0.0235, -0.0753, the profile a pixel inside its line); tests ok. `charkit/out/gate/gate_tool-body_30f958c_into_2e3bdd5.md`. clawd_mh's gate at a9aa137 stands: 30f958c changes only the default specs' flap band |
+
+**The skirt's hem at the sides and back was cut short by labels, not hidden** (`garments.hem_cut`, knob `hem_cut`).
+Per sector, where the skirt's label stops, another piece's points carry its surface on (within 0.12 L below, within
+0.08 L of the skirt's radius): the flaps over it (+-115..162 deg), the hands (+-88..98), and elsewhere `shorts`: the
+skirt's own dark hem band, labelled as the shorts (both dark) at r 1.0-1.08 L, far outside the shorts. True hem
+sectors (the front, the cream panel) have 0-15 such points, cut ones 40-100. Cut sectors (and stretches under 7.5 deg
+the test kept between cut ones: one sector in a hand's notch at 0.92 L pinned the whole filled back) are filled round
+the circle from the rest: a level hem at 1.19 L all round, as the design draws it. The old occlusion test (occluders,
+occluded_span) also dropped the centre back, where the flaps' profile-view labels lie below a hem the back view shows.
+
+**The skirt's axis and symmetry** (`garments.ring_axis`, knobs `axis`, `symmetric`). About the waist ring's median
+(x +0.05, y -0.105 L: the bow and panel hide its front and its points crowd elsewhere) the skirt read 0.1-0.12 L
+lopsided left against right; about the ring's fitted ellipse centre within 0.02. `axis: midline` puts the axis on the
+hips' x (0: the band's and the waist's extents are centred there; the legs' midline, 0.0107 L, is the boots' plane and
+put the skirt 0.011 L to her left of the band: overhang mirror 0.0235 WARN). `symmetric` mirrors the hem, the waist
+line and the radius field about the axis's plane; flap_mirror mirrors about it too, so the right flap needs no lift.
+
+**Michael's review of round 5:**
+- *Midriff, the skirt jutting past the band on her right:* `body_front_skirt_overhang_{L,R,mirror}` (detailqa): level
+  with the band's lower half, how far the skirt stands past the band's outer edge, beyond the design's per side, and
+  left against right. Round 5 (its box bundle): her right 0.075 FAIL (0.155 L out against the design's 0.08), mirror
+  0.151 FAIL. Round 6: 0.0 / 0.0 / 0.0094, all PASS.
+- *The bump behind the thigh in profile:* `body_profile_leg_back` (detailqa): the legs' back edge per row against the
+  design's, its largest outward bump once the median offset is out. Round 5 0.202, round 6 0.207 FAIL (the box's;
+  evaluator 0.099). Diagnosis: tool/hull-limbs'. The hull's thigh skin is right from z -2.78 down (back edge u 0.57 vs
+  the design's 0.55), but at z -2.72..-2.76 (the thigh's top rows at the shorts' hem) the hull labels skin from u 0.03
+  to 1.35: the profile's whole side run behind the leg, where the flap train is. code_body's thigh fit takes those
+  rows and bulges 0.07-0.11 L behind the design's over -2.74..-2.91. hull-limbs.md describes this row ("z -2.72 fell
+  back to the whole side run"); its LimbTrack fix leaves 2-3 outline cells. Reported to the coordinator.
+- *Spiky puff sleeves:* moved to tool/garments2 (with the band, shorts, pleats, collar, bow and wrist cuffs).
+
+**The flaps, refitted jointly with the hem.** They were 0.14 L short: lowest point -3.064 against the drawn flaps'
+-3.19..-3.21 in every view (the outfit graph's extents). The hang check hid it: its reach was the drawn chain's last
+joint (-3.07), a skeleton's end, which stops short of the tip by the half-width. Now it is the drawn piece's lowest
+point (`qa3d.drawn_low`, registered at 854776f). With the level hem the tails start 0.2 L lower, and three things
+pull: the four hems (the lowest orange row per view; the design's profile draws the flap 0.05-0.09 L shorter than its
+other views), the extents (the flap's lowest row per view) and the three-quarter hem_mid (the right tail's tip showing
+between the thighs). Fitted on the evaluator (a coordinate descent, then grids over az, out, tip, length, trim;
+scratch `fit.py`, `grid.py`): **az 128** (143.8: the tails hang further to the sides, as drawn in front and
+three-quarter), **tip 0.5** (0.907: the V's point mid-width, as the design's back view has it; at 0.85 the point sat
+behind the thigh in front), **out -0.3**, width 0.808, az_waist 175.4, **length 0.36**, **trim 0.12** (the stepped
+band). Their chains rewritten into the outfit notes (charkit flapchains): mirror images now (roots x +-0.03; round 5's
+0.226 / -0.205), ending at the drawn tip (-3.20). The train is hang (Michael's call, 2e3bdd5); in profile the tails
+lean slightly forward where the drawn chain sweeps back.
+
+**clawd_mh.** Skirt `q` 0.6 (front A-line -0.040 PASS base, -0.055 WARN on the shell, -0.021 PASS now). The back width
+with no row free of hands in both figures compares matching heights: the design's free rows (the waist, z -1.40..-1.56)
+against ours on the same rows, the row whose ratio is the median (26c6bbb). One row alone (the design's widest)
+fell where ours' run through the axis breaks for 0.075 L: the MakeHuman body's skin shows at the band's sides in the
+back view (0.727 FAIL at that row; median 1.067 PASS).
+
+**Evaluator against the box.** On the shell path the evaluator reads the box's numbers exactly for the hems, hem_mids,
+extents, hangs and widths (this round's gates). Garment-sampling's gate read its hems 0.024-0.028 higher than its
+evaluator run; that offset didn't recur. The IoUs read 0.01-0.04 lower in the evaluator.
+
+**Hem and flap checks, round 5 (box, ac461eb into 5cb5256) against round 6 (box):** in the table below.
+
+| check | pipeline-3d (gate base) | round 5 (ac461eb) | round 6 (30f958c) |
+|---|---|---|---|
+| body_front_hem | 0.0471 PASS | 0.0706 PASS | 0.0424 PASS |
+| body_back_hem | 0.033 PASS | 0.0565 PASS | 0.0236 PASS |
+| body_three_quarter_hem | 0.08 PASS | 0.08 PASS | 0.0471 PASS |
+| body_profile_hem | -0.0376 PASS | -0.0188 PASS | -0.0517 PASS |
+| body_front_hem_mid | 0.0376 PASS | 0.0376 PASS | 0.0094 PASS |
+| body_back_hem_mid | 0.1364 WARN | 0.1364 WARN | 0.0517 PASS |
+| body_three_quarter_hem_mid | 0.0141 PASS | -0.3342 FAIL | 0.0094 PASS |
+| piece_overskirt_panel_L_extent | 0.0424 PASS | 0.0424 PASS | 0.0659 PASS |
+| piece_overskirt_panel_R_extent | 0.0565 PASS | 0.0377 PASS | 0.0377 PASS |
+| piece_overskirt_panel_L_hang | 0.0887 PASS | 0.0887 PASS | 0.0236 PASS |
+| piece_overskirt_panel_R_hang | 0.0947 PASS | 0.0817 PASS | 0.0286 PASS |
+| piece_overskirt_panel_L | 0.47 FAIL | 0.47 FAIL | 0.421 FAIL |
+| piece_overskirt_panel_R | 0.448 FAIL | 0.521 WARN | 0.619 WARN |
+| piece_skirt | 0.839 PASS | 0.846 PASS | 0.767 PASS |
+| piece_skirt_extent | 0.113 WARN | 0.0612 PASS | 0.1271 WARN |
+| body_back_skirt_width | 1.091 WARN | 1.091 WARN | 0.995 PASS |
+| body_three_quarter_skirt_aline | -0.189 FAIL | -0.208 FAIL | 0.09 WARN |
+| body_front_skirt_overhang_R | - | 0.0753 FAIL | 0.0 PASS |
+| body_front_skirt_overhang_L | - | 0.0 PASS | 0.0 PASS |
+| body_front_skirt_overhang_mirror | - | 0.1506 FAIL | 0.0094 PASS |
+| body_profile_leg_back | - | 0.2024 FAIL | 0.2071 FAIL |
+
+The hang rows are remeasured between round 5 and round 6 (reach against the drawn piece's lowest point, not the chain's last joint); the round 5 overhang and leg_back values are the new checks run on its box bundle.
+
+**Open items:**
+1. body_profile_leg_back FAIL: tool/hull-limbs (above).
+2. piece_skirt_extent 0.127 WARN (base 0.113 WARN): the level hem at the sides. The drawn skirt in profile ends at
+   -2.505 (t 1.08: its sides rise), ours at -2.632. The sides' hem is unmeasured on the hull (the hands and the dark
+   band cut it); the profile view's drawn skirt could anchor the fill at +-90 deg.
+3. The flaps' IoUs: L 0.421 FAIL (base 0.47), R 0.619 WARN (base 0.448 FAIL); the left reads worse than its mirror in
+   every grid point (0.42 against 0.62): the design's flaps aren't mirror images in the sheet, or the views disagree.
+   With the V's point mid-width the stepped band reads as a dark tip more than round 5's staircase (review page, the
+   back close-up); the band's steps (`stair`, `steps`) weren't refitted.
+4. The flap train (hang): the tails lean forward in profile; the drawn train sweeps back.
+5. clawd_mh: the MakeHuman body's skin shows at the waist's sides in the back view; its overhang reads 0.089 / 0.113
+   FAIL (new check; the MakeHuman base is retired).
+6. The waistband's height (piece_waistband 0.454 FAIL) and the band's front in profile: tool/garments2 now.
+7. From round 5: the outfit drafter (outfit.py) still drafts boots as a shell plus shoes; tool/rig: the flaps' chains
+   moved (the notes), the boots are `boot_L`/`boot_R`.
+
+**Gotchas (round 6):**
+- clawd.json and clawd_mh.json produce different outfit masks (garment kinds differ) and so different hulls, rebuilt in
+  place in one worktree: run one spec's evaluator at a time, and never while another process reads the hull.
+- The hull's stamp covers bodyqa.py (the hull uses its classes): a bodyqa edit rebuilds the hull and the masks (the
+  same content; 100-180 s).
+- An empty dict knob is falsy: `hem_cut: {}` did nothing until the test became `is not None`.
+- Scratch harness (evaluator variants, fitter, grids, class-image viz, the review page generator) is in the session's
+  scratchpad `r6/`, not tracked.
+
+## Checkpoint: end of round 5 (2026-09-30), superseded by round 6 above
 
 **Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`; gated at ac461eb); it contains `pipeline-3d`
 5cb5256. The build of this state: `charkit/out/body5b_render` (boards, bundle, QA). The Clawd
