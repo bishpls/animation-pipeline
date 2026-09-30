@@ -166,16 +166,16 @@ Residuals, explained:
   5.2 on the skin), compared on-face; `grid_loose_edge` 9.2e-7 L (0.039 L without the rule), level 2 1.3e-6,
   `grid_shell_loose_vertex` 9.8e-7; `skin_masked` with the Mask's loose edges 3.1e-6 L against local Blender.
 
+- **evaldrift --stages at 1939469** (merged_clawd, the box): 0 of 110 checks drift. Stage drift: only crab_1
+  (2.05e-4 L, face4's, above). Masked skin 3.8e-6 L on-face (n 49156/49156; the build's 95 loose vertices reported,
+  0.199 L with them), overskirt panels 5.6e-7 L, every garment ≤ 1.2e-5 L (the collar).
+- **Gate: PASS under K** (1939469 into pipeline-3d 4007276, infra3 run 3; report
+  `charkit/out/gate/gate_tool-evalmesh_1939469_into_4007276.md`): 0 items, no check changed, 65 test files ok, build
+  CPU 758.7 -> 751.6 s (0.99x). 4007276 merges into the branch cleanly (the gate's own merge). **M2+M3 mergeable at
+  1939469**; the commits after it are notes only.
+
 ## Next
-- **The M2+M3 gate is pending.** It is job `gate-evalmesh-0930-094156-a574` on the build box, gating 0f2f4cf (M2
-  9ee0a9e and M3 16c0040, with pipeline-3d e3cd020 merged) into pipeline-3d. gcloud auth lapsed at 09:50, so its
-  result wasn't collected. Once Michael logs in again, run `python -m charkit remote attach gate-evalmesh-0930-094156-a574`.
-  The report lands in `charkit/out/gate/gate_tool-evalmesh_0f2f4cf_into_*.md`. Read it under K. The evaluator isn't in
-  the build's geometry, so no check should move; the tests include the new test_subsurf.py.
-  pipeline-3d has since moved to ce69b1b (infra3's cache-key hashing and the 2x2 fix, crown_trim on). Merge it before
-  M4's work, but don't re-gate M2+M3 for it: the coordinator decides.
-- The commits after 0f2f4cf are the lab and notes only (evalmesh.finalize, vertex groups in the lab,
-  test_finalize_a_recorded_garment). The build doesn't read them.
+- Waiting on the coordinator's merge and go-ahead for M4.
 - M4, the switch (plan):
   1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
      above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
