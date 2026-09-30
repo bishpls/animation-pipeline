@@ -479,3 +479,34 @@ evalmesh's pass-through kept (no recalc_normals: the recorded faces are already 
 `solidify(..., crease=solid_crease, with_sharp=True)` and the sharp edges through `subdivide`; the crease test
 (test_bodyeval) winds with `wind.orient` as evalmesh's own test does. Tests, each file as a script (the gate's way,
 `gate._tests`): 62 files ok after the first merge, 63 after the second (test_bow_tails.py among them).
+
+### art_speckle_neck: what the specks are (round 4, measured)
+
+Scratch harness (session scratchpad `g6/`, not tracked): `specks.py BUNDLE [view]` (each speck component's pixels by
+surface, lock and depth against the skin), `labmap.py` (the QA head frame's surface and lock map, specks marked;
+`--swap DIR`: a rebuilt hair set swapped in), `swap.py` (hairswap's swap as a function), `lockdump.py` / `rulevar.py`
+(a local hair rebuild dumping `locks()`' edge and cuts; variant partition rules), `evalset.py` (the candidate bundle
+with a hair set swapped in, scored: hair_pieces, artifacts, hair_noise), `edgerows.py` (the hair's front edge per row
+over the neck in profile), `frontprobe.py` (inside a build: lock 0 against the drawn profile's hair front).
+
+- The four profile specks (g3_render3; `specks.py`): a 12 px island of side_lock_L at the chin row (the base has it
+  too), **a 58 px strip of lower-back lock 0 along its edge over the clear neck skin**, 1 px of lock 0 and 3 px of the
+  collar's hull where lock 0's lowest point meets the collar's back line. The detector counts a foreign component 1 px
+  from clear skin under SPECK (0.0004 L^2 = 64 px at 400 px/L): lock 0's edge strip is 58 px and stops 1 px short of
+  the collar's line; on the base (and the TRELLIS-hull rebuild) the same strip runs into the collar's line and is one
+  large component. Hair is 0.28-0.44 L in front of the skin there (no z-fight).
+- **Not the partition.** On our hull the notch between locks 0 and 1 sits at phi 114 (the TRELLIS hull's at 122): the
+  first end of a 152-degree plateau on an edge still falling (a 1-degree step; `locks()` takes a plateau's end as a
+  notch), which leaves lock 1 degenerate (114-126, its tip at its own notch). But lock 0 widened (R1: a lock whose tip
+  lies at a cut merges across it, lock 0 94-126: 2.602; R2: plateau-aware minima, 94-130: 2.647) and the TRELLIS cuts
+  forced onto our hull (2.609) leave it. Both general rules move every piece's partition (R2: the upper back 10 cuts
+  -> 4; builder folds 6 -> 3 / 4; terminator_hair 2.08 -> 2.21 / 2.43 on the swap), so neither is a small fix.
+- **The envelope.** The hair's front edge over the neck per profile row (`edgerows.py`, QA frame, cols from the chin
+  row 642 down by 4): ours 394, 418, 418, 419, 432, 436 ... ; the base and the TRELLIS rebuild 393, 419, 434, 437, 437
+  ... (identical): ours has a tongue 0.04 L forward for 0.03 L under the chin. It is lock 0's two front columns (phi
+  94-98): their lower edge stops at theta 132 (the TRELLIS hull's 129) where the lock behind reaches 147-157, a stub
+  whose end on our hull dips under the chin into the neck zone.
+- Swap calibration: the candidate's own local rebuild swapped in reads speckle_neck and the piece IoUs exactly
+  (within 0.004); terminator_hair / fragments_hair read 2.08 / 1.43 there against the box's 1.966 / 1.235 (the swap's
+  corner normals), so variants are compared with that swap, not the box. hair_folds without the builder's report is
+  the dihedral count (1368): the builder's fold count (pieces.json) is used instead (6 on both hulls).
