@@ -1,0 +1,68 @@
+{
+ "check": "art_outline_neck",
+ "part": "artifacts",
+ "adapter": "Art",
+ "module": "charkit.calib.art",
+ "at": "2026-09-30T18:10:57",
+ "better": null,
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.047,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.147,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.01,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.02,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.147,
+  "spread": 0.147,
+  "median": 1.005
+ },
+ "known_bad": {
+  "name": "look_v5",
+  "value": 7.864,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.685,
+  "status": "WARN",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.147), look_v5 reads 7.864 FAIL; a random stand-in fails it; shape guarded by NONE: name one",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 101.8
+}
