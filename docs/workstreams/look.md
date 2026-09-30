@@ -624,16 +624,17 @@ IoU 0.88-0.99. The QA's two drawings agree on the bare head: face_shadow_chin 0.
 
 ### Stopped 2026-09-30 ~09:50: gcloud "Reauthentication failed" (box work stopped)
 
-- **The gate is running unfollowed** on the build box: job `gate-look4-0930-094431-f250` (tool/look5 at 40f1d62 into
-  pipeline-3d 4de65ab), started before auth expired; its report can't be fetched until Michael re-logs in.
+- **The gate finished with exit 0** (a PASS under K by its exit code) on the build box: job
+  `gate-look4-0930-094431-f250` (tool/look5 at 40f1d62 into pipeline-3d 4de65ab). Its report couldn't be fetched
+  (auth expired); the moves and the CPU ratio are unread.
 - **The option build `look5_castneck`** (`charkit/out/look5_specs/clawd_castneck.json`: `look.face.cast.face` false)
   built on the render box (exit 0) but its outputs weren't fetched, and its lookboards and look QA didn't run.
 - Review page: `charkit/out/look5_review/index.html` (design | before | after on the bare head, the chin and temple
   close-ups, the QA's chin overlays, the numbers).
 
 **Next, in order (after `gcloud auth login`):**
-1. `python -m charkit remote attach gate-look4-0930-094431-f250`: collects the report into `charkit/out/gate/`. Read it
-   under K. Expect: the look part's bare-head checks `remeasured` (steps at d082a27); face_shadow_chin* new INFO; the
+1. `python -m charkit remote attach gate-look4-0930-094431-f250`: collects the report into `charkit/out/gate/`
+   (`gate_tool-look5_40f1d62_into_4de65ab.md`). Read it under K. Expect: the look part's bare-head checks `remeasured` (steps at d082a27); face_shadow_chin* new INFO; the
    hull rebuilt once in the candidate (scene.py is in its produced-cache key: DEPS changed), so CPU may read high;
    attribute it from the report's CHARKIT_PRODUCED lines as look4 did. The 2x2's "old geometry, new measure" cell is
    the old measure in practice (a pre-look5 build has no bare skin, so it draws dressed).
