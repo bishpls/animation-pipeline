@@ -353,6 +353,8 @@ def export(S, out, ref_measure=None):
                     mats[m.name] = m
             if ol is not None:
                 rec['outline'] = dict(slot=int(ol.material_offset), thickness=float(ol.thickness), offset=float(ol.offset))
+                if 'ck_line_cap' in ob:                      # a thin shell's inward move cap (charkit.shade.outline)
+                    rec['outline']['cap'] = float(ob['ck_line_cap'])
             uv = bool(ob.data.uv_layers.get('uv') or ob.data.uv_layers.get('face'))
             hair = group == 'hair'
             # eval: no outline, no garment mask

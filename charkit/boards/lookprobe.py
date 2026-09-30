@@ -13,8 +13,10 @@ machine's GPU, from a saved build or a scratch scene.
         -> OUT/boards.json {device, boards}
     blender -b BUILD/NAME.blend --python charkit/boards/lookprobe.py -- OUT --normals [--bundle DIR] [--height M]
         per outlined object and line width (the build's, the face boards', the body boards': shade.set_view's), the
-        render's shading normals with the outline on against off: faces whose normal turns more than 90 degrees (their
-        corners' mean), the p90 / max turn, and the surface's inward move and the hull's outward move (median, m)
+        render's shading normals with the outline on against off: faces whose shading turns more than 90 degrees (their
+        corners' mean cos < 0), on a thin shell's two layers and on its rim band apart, and away from its rounded edge
+        (the rim and two rings of faces round it: edge_zone), geometric flips, the layers' p90 / max corner turn, and
+        the surface's inward move and the hull's outward move (median, m)
         -> OUT/normals.json
 """
 import json, math, os, sys
@@ -135,7 +137,8 @@ def boards(out, which, bundle=None, height=None, streaks=True):
 
 
 def _eval(ob):
-    """the evaluated mesh: (vertex positions (n, 3), face corner normals averaged per face (f, 3), loop totals)."""
+    """the evaluated mesh -> dict: co (n, 3); per corner: vertex, face, normal (the render's shading normal); per face:
+    normal (geometric), loop_total."""
     import bpy
     bpy.context.view_layer.update()
     dg = bpy.context.evaluated_depsgraph_get()
@@ -144,21 +147,83 @@ def _eval(ob):
     nv, nl, nf = len(me.vertices), len(me.loops), len(me.polygons)
     co = np.empty(nv * 3, np.float32); me.vertices.foreach_get('co', co)
     cn = np.empty(nl * 3, np.float32); me.corner_normals.foreach_get('vector', cn)
-    ls = np.empty(nf, np.int32); me.polygons.foreach_get('loop_start', ls)
+    lv = np.empty(nl, np.int32); me.loops.foreach_get('vertex_index', lv)
     lt = np.empty(nf, np.int32); me.polygons.foreach_get('loop_total', lt)
     fn = np.empty(nf * 3, np.float32); me.polygons.foreach_get('normal', fn)
     oe.to_mesh_clear()
-    cn = cn.reshape(-1, 3)
-    face_of = np.repeat(np.arange(nf), lt)
-    acc = np.zeros((nf, 3)); np.add.at(acc, face_of, cn)
-    acc /= np.maximum(np.linalg.norm(acc, axis=1, keepdims=True), 1e-12)
-    return co.reshape(-1, 3), acc, fn.reshape(-1, 3)
+    return dict(co=co.reshape(-1, 3), lv=lv, lf=np.repeat(np.arange(nf), lt), ln=cn.reshape(-1, 3), fn=fn.reshape(-1, 3),
+                lt=lt)
+
+
+def _faces(ob, **show):
+    """the evaluated face count with some modifiers shown or hidden (name=True/False), restored after."""
+    import bpy
+    saved = {k: ob.modifiers[k].show_viewport for k in show if k in ob.modifiers}
+    try:
+        for k, v in show.items():
+            if k in ob.modifiers:
+                ob.modifiers[k].show_viewport = v
+        bpy.context.view_layer.update()
+        oe = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = oe.to_mesh()
+        lt = np.empty(len(me.polygons), np.int32); me.polygons.foreach_get('loop_total', lt)
+        oe.to_mesh_clear()
+        return lt
+    finally:
+        for k, v in saved.items():
+            ob.modifiers[k].show_viewport = v
+
+
+def rim_faces(ob, nf):
+    """which of the rendered faces (outline off, nf of them) are a thin shell's rim: the 'thick' SOLIDIFY's rim faces
+    (its output after the two layers) as the subdivision after it splits them (each face into its corner count, in
+    order, so they come last) -> bool (nf,)."""
+    rim = np.zeros(nf, bool)
+    th = ob.modifiers.get('thick')
+    if th is None or th.type != 'SOLIDIFY' or not th.use_rim:
+        return rim
+    base = _faces(ob, thick=False, sub=False, outline=False)
+    lt = _faces(ob, thick=True, sub=False, outline=False)
+    sub = ob.modifiers.get('sub')
+    k = int(lt.sum()) if sub is not None and sub.show_viewport and sub.levels == 1 else len(lt)
+    n_rim = int(lt[2 * len(base):].sum()) if k == int(lt.sum()) else len(lt) - 2 * len(base)
+    if k != nf:
+        return None                                              # not the layout assumed: unknown
+    rim[nf - n_rim:] = True
+    return rim
+
+
+def edge_zone(off, rim, rings=2):
+    """the rim band and the faces within `rings` rings of it (their vertices shared): the rounded edge the subdivision
+    makes of a shell's rim -> bool (nf,)."""
+    z = rim.copy()
+    nv = int(off['lv'].max()) + 1 if len(off['lv']) else 0
+    for _ in range(rings):
+        vz = np.zeros(nv, bool); vz[off['lv'][z[off['lf']]]] = True
+        z = np.zeros_like(z); np.logical_or.at(z, off['lf'], vz[off['lv']])
+        z |= rim
+    return z
+
+
+def _match(off, on):
+    """the outline-on mesh's corners on the original faces, matched to the outline-off mesh's by (face, vertex) (the
+    SOLIDIFY keeps the original faces and vertices first) -> (off corner index, on corner index)."""
+    nf = len(off['lt'])
+    sel = np.nonzero(on['lf'] < nf)[0]
+    ka = off['lf'].astype(np.int64) * (1 << 32) + off['lv']
+    kb = on['lf'][sel].astype(np.int64) * (1 << 32) + on['lv'][sel]
+    ia, ib = np.argsort(ka, kind='stable'), np.argsort(kb, kind='stable')
+    if len(ia) != len(ib) or not np.array_equal(ka[ia], kb[ib]):
+        return None
+    return ia, sel[ib]
 
 
 def normals(out, bundle=None, height=None):
-    """outline on against off, per outlined object and board width (module doc)."""
-    import bpy
+    """outline on against off, per outlined object and board width (module doc): a face's shading is flipped where its
+    corners' normals turn more than 90 degrees on average (mean cos < 0); geometric flips by its face normal; a thin
+    shell's rim band (rim_faces) apart from its two layers."""
     from charkit import shade
+    import bpy
     meta = _bundle_meta(bundle)
     if height is None:
         height = (meta.get('spec') or {}).get('body', {}).get('height_m') or 1.6
@@ -174,36 +239,51 @@ def normals(out, bundle=None, height=None):
         r = rep['objects'].setdefault(ob.name, {'region': ob.get('ck_line_region'), 'shell_m': shade.shell_of(ob),
                                                 'cap_m': shade.line_cap(ob), 'widths': {}})
         mod.show_viewport = False
-        co0, n0, f0 = _eval(ob)
+        off = _eval(ob)
         mod.show_viewport = True
+        nf, nv = len(off['lt']), len(off['co'])
+        rim = rim_faces(ob, nf)
+        r['rim_faces'] = None if rim is None else int(rim.sum())
+        if rim is None:
+            rim = np.zeros(nf, bool)
+        edge = edge_zone(off, rim)
+        r['edge_faces'] = int(edge.sum())
         for key, (mpp, ry) in widths.items():
             shade.set_view(0, mpp, ry)
-            co, n1, f1 = _eval(ob)
-            nf, nv = len(n0), len(co0)
-            if len(n1) < nf or len(co) < 2 * nv:
+            on = _eval(ob)
+            m = _match(off, on) if len(on['co']) >= 2 * nv else None
+            if m is None:
                 r['widths'][key] = {'unmatched': True}
                 continue
-            ang = np.degrees(np.arccos(np.clip(np.einsum('ij,ij->i', n0, n1[:nf]), -1, 1)))
-            angf = np.degrees(np.arccos(np.clip(np.einsum('ij,ij->i', f0, f1[:nf]), -1, 1)))
-            d_s, d_h = co[:nv] - co0, co[nv:2 * nv] - co0              # the surface's and the hull's moves
+            ia, ib = m
+            cos = np.einsum('ij,ij->i', off['ln'][ia], on['ln'][ib])
+            fcos = np.bincount(off['lf'][ia], cos, minlength=nf) / np.maximum(off['lt'], 1)
+            flip = fcos < 0                                         # the face's shading turned > 90 degrees
+            gflip = np.einsum('ij,ij->i', off['fn'], on['fn'][:nf]) < 0
+            turn = np.degrees(np.arccos(np.clip(cos, -1, 1)))
+            layer_c = ~rim[off['lf'][ia]]
+            d_s, d_h = on['co'][:nv] - off['co'], on['co'][nv:2 * nv] - off['co']   # the surface's and the hull's moves
             span = d_h - d_s
             u = span / np.maximum(np.linalg.norm(span, axis=1, keepdims=True), 1e-12)
-            inward = -np.einsum('ij,ij->i', d_s, u)
-            outward = np.einsum('ij,ij->i', d_h, u)
             moved = np.linalg.norm(span, axis=1) > 1e-7
             r['widths'][key] = {
                 'w_m': round(float(shade.line_width(ob, mpp, ry)), 7), 'offset': round(float(mod.offset), 5),
-                'faces': int(nf), 'flipped_90': int((ang > 90).sum()), 'flipped_90_geom': int((angf > 90).sum()),
-                'turn_p90': round(float(np.percentile(ang, 90)), 2), 'turn_max': round(float(ang.max()), 2),
-                'turn_mean': round(float(ang.mean()), 3),
-                'inward_m': round(float(np.median(inward[moved])), 7) if moved.any() else 0.0,
-                'outward_m': round(float(np.median(outward[moved])), 7) if moved.any() else 0.0}
+                'faces': int(nf), 'flipped_90': int(flip.sum()), 'flipped_90_layers': int((flip & ~rim).sum()),
+                'flipped_90_rim': int((flip & rim).sum()), 'flipped_90_away': int((flip & ~edge).sum()),
+                'geom_flipped_layers': int((gflip & ~rim).sum()), 'geom_flipped_away': int((gflip & ~edge).sum()),
+                'geom_flipped_rim': int((gflip & rim).sum()),
+                'turn_p90_layers': round(float(np.percentile(turn[layer_c], 90)), 2) if layer_c.any() else 0.0,
+                'turn_max_layers': round(float(turn[layer_c].max()), 2) if layer_c.any() else 0.0,
+                'inward_m': round(float(np.median(-np.einsum('ij,ij->i', d_s, u)[moved])), 7) if moved.any() else 0.0,
+                'outward_m': round(float(np.median(np.einsum('ij,ij->i', d_h, u)[moved])), 7) if moved.any() else 0.0}
         shade.set_view(0)
     tot = {}
     for nm, r in rep['objects'].items():
         for key, w in r['widths'].items():
-            t = tot.setdefault(r['region'] or '?', {}).setdefault(key, {'faces': 0, 'flipped_90': 0})
-            t['faces'] += w.get('faces', 0); t['flipped_90'] += w.get('flipped_90', 0)
+            t = tot.setdefault(r['region'] or '?', {}).setdefault(key, {'faces': 0, 'flipped_90': 0, 'flipped_90_layers': 0,
+                                                                         'flipped_90_rim': 0, 'flipped_90_away': 0})
+            for k in t:
+                t[k] += w.get(k, 0)
     rep['totals'] = tot
     json.dump(rep, open(os.path.join(out, 'normals.json'), 'w'), indent=1)
     print('LOOKPROBE normals', json.dumps(tot))

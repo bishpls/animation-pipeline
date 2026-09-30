@@ -1,7 +1,7 @@
 """python -m charkit.render COMMAND ... (docs: charkit/render/__init__.py)
 
     probe                                    the adapters wgpu sees here, and one small frame's time on each
-    boards VRM --out DIR [--which views,body] [--bundle DIR] [--ss 4] [--adapter A]
+    boards VRM --out DIR [--which views,body] [--bundle DIR] [--ss 4] [--adapter A] [--no-streaks]
                                              the boards drawn from an export, as scene.boards frames them
     compare BUILD [--out DIR] [--ss 4] [--adapter A] [--open]
                                              BUILD's EEVEE boards (BUILD/boards/*.png) against ours from its export
@@ -54,7 +54,7 @@ def boards(args):
     t = time.time()
     M = model.load(vrm)
     eye_z, L = _head(_opt(args, '--bundle', os.path.join(os.path.dirname(vrm), 'bundle')))
-    R = gpu.Renderer(M, adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)))
+    R = gpu.Renderer(M, adapter=_opt(args, '--adapter'), ss=int(_opt(args, '--ss', 4)), streaks='--no-streaks' not in args)
     rep = {'adapter': R.info, 'load_s': round(time.time() - t, 3), 'boards': {}}
     for v in views.board_views(M, which, eye_z=eye_z, L=L):
         t = time.time()
