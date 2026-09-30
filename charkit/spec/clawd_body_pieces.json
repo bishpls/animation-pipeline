@@ -295,7 +295,7 @@
    "inflate": 0.02,
    "min_part": 20,
    "pieces_opts": {
-    "bun": "block",
+    "bun": "ribbon",
     "eye_anchor": "iris"
    }
   },
