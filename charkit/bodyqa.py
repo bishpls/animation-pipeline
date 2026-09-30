@@ -349,6 +349,10 @@ def legs(ofg, dfg, ocls, dcls, ppl, axis_u, feet, win=WIN):
                 white = cls[r, sl] == CLASS['white']
                 if rr:
                     best = max(rr, key=lambda x: (white[x[0]:x[1] + 1].sum(), x[1] - x[0]))
+                    # a row whose run ends on the cuff (orange: its rounded lower edge over the narrower shaft) is
+                    # the cuff's outline, not the boot's
+                    if CLASS['orange'] in (cls[r, sl][best[0]], cls[r, sl][best[1]]):
+                        continue
                     edges.append((r, best[0], best[1]))
             j = 0.0
             for (r0, a0, b0), (r1, a1, b1) in zip(edges, edges[1:]):

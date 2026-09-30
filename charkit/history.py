@@ -27,6 +27,8 @@ STEPS = [
      "holes against the design's (a torn edge)"),
     ('boot_*', '843922c', "new: the boots' ankle jog and bend, the ankle's folds front and back, the heel block, doubled "
      'outline strokes, the soles in 3D (flat, twist) and the left/right mirror'),
+    ('body_*_boot_step_*', 'BOOTSTEP', "rows whose outline ends on the cuff (orange) left out: the cuff's rounded "
+     "lower edge over the narrower shaft had counted as a 0.02 L step (round 5's boots meet the cuff at its edge)"),
     ('body_*_leg_gap', 'd35fbaf', "new: rows over the lower legs and boots where the design's legs stand apart and ours join (a bridge)"),
     ('body_*_boot_step_*', 'd35fbaf', "new: each boot's outline's largest row-to-row jump beyond the design's (the shaft/foot seam)"),
     ('body_*_skirt_aline', 'd35fbaf', "new: the skirt's width near its hem over its widest row against the design's (a bubble)"),
