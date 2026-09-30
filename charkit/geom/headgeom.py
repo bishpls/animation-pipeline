@@ -213,11 +213,16 @@ POCKET_DROP = 0.1        # L: where the pocket fades out the underside sinks thi
 
 EDGE_TIP = (0.03, 0.07)  # L of the V's half-width: the edge's depth correction fades in over this (at the point the cage
                          # rounds the V anyway)
+EDGE_BAND = False        # the band's top raised round the sides, UnderJaw's pocket under the jaw's side (off: the side
+                         # columns found no rim, their rows twisted along the neck's sides, the three-quarter's jaw
+                         # line broke off; face.md, the chin's taper)
 EDGE_FADE = 0.05         # L: the edge's shaping fades out over this under the jaw angle (where it reaches the side's depth)
 EDGE_TOP = 0.04          # L: round the sides the band's top is this far over the jaw's angle
 EDGE_TOP_COLS = (0.1, 0.3)   # rad past the mouth block's columns: the band's top starts rising, and over this
 EDGE_TOP_BACK = (1.6, 2.0)   # rad round from the front: behind the jaw's angle it comes back down to the block's
 EDGE_PHI_FADE = 0.12     # rad round the neck's axis past the jaw's angle: the side's pocket fades out over this
+EDGE_Y_FADE = 0.05       # L: the side's pocket fades out over this toward the neck's axis
+EDGE_PIECEWISE = False   # the side's rows split at the band's top (the rim held to one row): it twisted them more
 EDGE_WEDGE = True        # where the edge lies inside the outline, hold the front behind a prow to it
 EDGE_PROW = 1.5          # the prow's shape: y from the midline's front to the edge as (|x| / x_V)^this (1 a wedge,
                          # with a ridge down the chin's midline that the cage crumpled; 1.2 left the three-quarter's
@@ -341,6 +346,8 @@ class UnderJaw:
         self.reach = float(reach)                         # L: the pocket kept whole this far past the neck's width
         self.top = top                                    # the band's top per column (theta -> z; default z_top)
         self.phi_end = phi_end                            # the pocket ends past this angle round the neck's axis
+        self.y_fade = 0.05                                # L: ... and fades out over this toward the neck's axis
+        self.lat_rise = 0.05                              # L of the top's rise over which the rim's row eases in
         ok = np.isfinite(S.cy) & np.isfinite(S.r).all(1)
         self.S, self.th = S, S.th
         self.zs, self.cy, self.r = S.zs[ok], S.cy[ok], S.r[ok]
@@ -440,9 +447,9 @@ class UnderJaw:
         else:                                             # (the band's top where the point's column is)
             cap = np.vectorize(self.z_top_at)(np.arctan2(ax, self.y_c - y)) - JAW_TOP_GAP
         u = cap - np.logaddexp(0.0, (cap - u) / 0.004) * 0.004          # a soft min with the cap (0.004 L round it)
-        w = _smoothstep((self.x_neck + self.reach + POCKET_FADE - ax) / POCKET_FADE) * _smoothstep((self.y_axis - y) / 0.05)
+        w = _smoothstep((self.x_neck + self.reach + POCKET_FADE - ax) / POCKET_FADE) * _smoothstep((self.y_axis - y) / self.y_fade)
         if self.phi_end is not None:                      # (round the side the pocket ends at the jaw's angle)
-            w = w * _smoothstep((self.phi_end - phi) / EDGE_PHI_FADE)
+            w = w * _smoothstep((self.phi_end + EDGE_PHI_FADE - phi) / EDGE_PHI_FADE)
         return u - POCKET_DROP * (1 - w)
 
     def centre(self, z):
@@ -522,6 +529,26 @@ class UnderJaw:
         self._mer[key] = (P, s, info)
         return self._mer[key]
 
+    def arc(self, theta, z, s, info):
+        """chart heights z on column theta -> arc lengths along its meridian (s its arc lengths, info its rim): linear
+        from the column's top to the band's foot; where the top is raised over the band's own (round the sides), the
+        rows over the band's top run down to the rim and those under it the rest (the underside, the neck), so the rim
+        keeps to one chart row across the side's columns (a linear map put a row on the underside in one column and on
+        the neck in the next: the quads twisted along the neck's sides), eased in as the top rises."""
+        zt = self.z_top_at(theta)
+        span = zt - self.z_bottom
+        lin = np.clip((zt - np.asarray(z, float)) / span, 0, 1) * s[-1]
+        if not EDGE_PIECEWISE or self.top is None or zt <= self.z_top + 1e-9 or info['rim'] is None:
+            return lin
+        b_lin = (zt - self.z_top) / span * s[-1]
+        w = float(np.clip((zt - self.z_top) / max(self.lat_rise, 1e-9), 0, 1))
+        b = w * info['s_rim'] + (1 - w) * b_lin
+        z = np.asarray(z, float)
+        above = z >= self.z_top
+        q_a = (zt - z) / max(zt - self.z_top, 1e-9) * b
+        q_b = b + (self.z_top - z) / (self.z_top - self.z_bottom) * (s[-1] - b)
+        return np.clip(np.where(above, q_a, q_b), 0, s[-1])
+
     def place(self, theta, z, part=None):
         """chart points (theta, z) -> (N, 3): at or over z_top and under z_bottom the sections' own (place); between,
         along the column's meridian by arc length (z_top at its start, z_bottom at its end). part: an array (N,) filled with where each point
@@ -536,8 +563,7 @@ class UnderJaw:
         for t in np.unique(theta[band]):
             sel = band & (theta == t)
             P, s, info = self.meridian(t)
-            span = self.z_top_at(t) - self.z_bottom
-            q = np.clip((self.z_top_at(t) - z[sel]) / span, 0, 1) * s[-1]
+            q = self.arc(t, z[sel], s, info)
             out[sel] = np.stack([np.interp(q, s, P[:, k]) for k in range(3)], 1)
             if part is not None and info['rim'] is not None:
                 part[sel] = np.where(q >= info['s_throat'] - 1e-9, 2, np.where(q > info['s_rim'] + 1e-9, 1, 0))
@@ -638,7 +664,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
         # underside of its own, as the chin has, up to the jaw's angle
         S_env, edge = jaw_envelope(S, jaw)
         top = None
-        if edge and edge.get('z_angle') is not None:
+        if EDGE_BAND and edge and edge.get('z_angle') is not None:
             t_b = abs(theta_of(S, mw, mz))                 # (the mouth block's columns)
             z_lat = min(edge['z_angle'] + EDGE_TOP, -EYE_BLOCK[1] - 0.05)
 
@@ -651,6 +677,7 @@ def cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, eye_
             xg = float(np.interp(edge['z_angle'], jaw['z'], jaw['x']))
             yg = float(np.interp(xg, under.jx, under.y0))
             under.phi_end = float(np.arctan2(xg, under.y_axis - yg))
+            under.y_fade = EDGE_Y_FADE
     th = 2 * np.pi * np.arange(nth) / nth - np.pi
     col = lambda t: int(np.argmin(np.abs(th - t)))
     row = lambda z: int(np.argmin(np.abs(zs - z)))
