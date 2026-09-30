@@ -202,3 +202,7 @@ against its new gradient path:
 
 - 2026-09-30: started; notes skeleton. The rasteriser and its tests (3593734); the pilot harness (softfit); fitkit's
   opt-in gradient path (6bc550e).
+- The pilot runs (round 1 kept in charkit/out/softras/round1: before the flap build memo; round 2 the numbers above),
+  the scan, fitkit's runs, the review page. Then the gate, once (policy K): `python -m charkit remote gate tool/softras
+  --into pipeline-3d`, expected to move no check (nothing on the build path imports softras or softfit; fitkit's
+  default is unchanged and only the fit commands import it).
