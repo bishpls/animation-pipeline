@@ -393,10 +393,11 @@ def crop(P2, shape, pad):
     return y0, max(y0, y1), x0, max(x0, x1)
 
 
-def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN):
+def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN, soft=True):
     """V (N, 3) in view's frame, F triangles (or faces: triangles() splits them), view a SheetView or CameraView, s the
     softness (px), occ (H, W) the depth of whatever else is in the view (inf where nothing: this mesh shows where it is
-    nearer, as the QA composites by depth), kernel 'sigmoid' or 'linear'. -> Silhouette (on a crop round the mesh)."""
+    nearer, as the QA composites by depth), kernel 'sigmoid' or 'linear'. soft False: the hard silhouette only (cov is
+    it; no contour, no backward). -> Silhouette (on a crop round the mesh)."""
     import time
     assert kernel in KERNELS
     t0 = time.time()
@@ -413,6 +414,9 @@ def silhouette(V, F, view, s=0.5, occ=None, kernel='sigmoid', margin=MARGIN):
     occ = np.full((H, W), np.inf) if occ is None else np.asarray(occ, float)[y0:y1, x0:x1]
     vis = cov & (zb < occ)
     t1 = time.time()
+    if not soft:
+        return Silhouette(V=V, F=F, view=view, box=(y0, y1, x0, x1), s=float(s), kernel=kernel, P2=P2, depth=dep,
+                          zbuf=zb, face=fb, cov_hard=cov, hard=vis, cov=vis.astype(float), seconds={'raster': t1 - t0})
     start, tris = _bins(P2, F, W, H)
     X, ev = _crossings(P2, F, start, tris, cov, vis, W, H)
     t2 = time.time()
