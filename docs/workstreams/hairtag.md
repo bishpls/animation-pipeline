@@ -364,3 +364,15 @@ this round's gate.
    (1,258 px of profile bun are called upper back with them; buns 0.977 -> 0.948), and the far bun's peek as bun_R
    (none at all with them). The clip rule now spares the buns' rim, so a pin piece that overlaps a bun's edge no
    longer takes the bun's pixels, with either outfit mask set.
+
+## Round 3 (2026-09-30): the method on by default, the merge, hair_noise, the folds
+
+Michael's decisions (2026-09-30): the structure-based masks go on by default (0.892 -> 0.958 against the truth); the
+truth's calls A-E are accepted as truth. Lock 0 of the lower back (behind the jaw, its junction with the collar) is
+tool/collar's this round (art_speckle_neck): its trim is left alone here.
+
+**The merge** (`b7f63ff`, pipeline-3d 25b1936: crowntrim, the garments round's sheet-only outfit masks, look5 and look6,
+infra3's 2x2 fix, evalmesh, infra-auth). Conflicts: `hairlayers.STRUCT` (tool/hairtag-truth landed it off, as
+`STRUCT_ON` beside it): now `STRUCT = STRUCT_ON`, the plain transfer is `STRUCT_OFF` (`hairlayers SPEC --no-struct
+--out DIR`, for the old measure); crown_trim was the same change on both sides; the manifest takes outfit_truth; this
+file keeps tool/hairtag-truth's section. The suite the gate's way (`gate._tests`, each file a script): 66 files pass.
