@@ -53,6 +53,47 @@ def test_manifest_resolves_refs():
     assert manifest.resolve({'ref': {'rig': 'r'}}) == {'ref': {'rig': 'r'}}          # no manifest: unchanged
 
 
+def test_twobytwo_scores_a_remeasured_check_under_the_old_measure():
+    """the known case (tool/body round 3, d35fbaf): the flaps' measure changed (same-colour layers) as their geometry
+    did; 'remeasured' hid a drop the old measure shows. Numbers: the evaluator's 2 x 2 in docs/workstreams/garments.md."""
+    q = lambda **c: {'checks': {k: {'value': v, 'status': s} for k, (v, s) in c.items()}}
+    base = q(piece_overskirt_panel_L=(0.525, 'WARN'), piece_overskirt_panel_R=(0.582, 'WARN'), piece_skirt=(0.80, 'PASS'),
+             sheet_width=(1.0, 'PASS'))
+    old_on_new = q(piece_overskirt_panel_L=(0.312, 'FAIL'), piece_overskirt_panel_R=(0.381, 'FAIL'), piece_skirt=(0.80, 'PASS'))
+    new_on_old = q(piece_overskirt_panel_L=(0.456, 'FAIL'), piece_overskirt_panel_R=(0.526, 'WARN'), piece_skirt=(0.81, 'PASS'))
+    cand = q(piece_overskirt_panel_L=(0.348, 'FAIL'), piece_overskirt_panel_R=(0.449, 'FAIL'), piece_skirt=(0.81, 'PASS'),
+             piece_skirt_extent=(0.1, 'WARN'), sheet_width=(0.9, 'PASS'))
+    rem = {'piece_overskirt_panel_*': 'same-colour layers', 'piece_skirt': 'same-colour layers',
+           'piece_*_extent': 'new: a spring piece\'s lowest row'}
+    rows = {r['check']: r for r in gate.twobytwo(base, cand, old_on_new, new_on_old, rem)}
+    assert set(rows) == {'piece_overskirt_panel_L', 'piece_overskirt_panel_R', 'piece_skirt'}   # a new check has no 2 x 2
+    L, R = rows['piece_overskirt_panel_L'], rows['piece_overskirt_panel_R']
+    assert L['old'] == 'regressed' and R['old'] == 'regressed'          # WARN -> FAIL under the old measure
+    assert L['new'] == 'value' and R['new'] == 'regressed'
+    assert L['old_on_new'] == [0.312, 'FAIL'] and L['new_on_old'] == [0.456, 'FAIL']
+    assert rows['piece_skirt']['old'] == 'same' and rows['piece_skirt']['new'] == 'same'
+    assert gate.twobytwo_drops(rows.values()) == [('piece_overskirt_panel_L', ['old']),
+                                                   ('piece_overskirt_panel_R', ['old', 'new'])]
+    acc = gate.twobytwo(base, cand, old_on_new, new_on_old, rem, ['*_R'])
+    assert {r['check']: r['accepted'] for r in acc}['piece_overskirt_panel_R']
+    assert gate.twobytwo_drops(acc) == [('piece_overskirt_panel_L', ['old'])]          # accepted by name
+    # the old measure couldn't read the new bundle: no old-measure verdicts, nothing flagged
+    rows = gate.twobytwo(base, cand, None, None, rem)
+    assert all(r['old'] in ('unmeasured', None) for r in rows)
+
+
+def test_geometry_is_the_bundles_arrays_not_its_metadata():
+    """two builds of one geometry differ in their bundles' metadata (the resolved spec's output paths, the time): the
+    2x2 asks whether the arrays changed."""
+    d = tempfile.mkdtemp()
+    for k, (spec, arr) in {'a': ('/x/a', 'h1'), 'b': ('/x/b', 'h1'), 'c': ('/x/a', 'h2')}.items():
+        os.makedirs(os.path.join(d, k, 'bundle'))
+        json.dump({'spec': {'head_code': spec}, 'hashes': {'o/skin/eval/V': arr, 'img/iris': 'i'}, 'content': k},
+                  open(os.path.join(d, k, 'bundle', 'bundle.json'), 'w'))
+    g = {k: gate.geometry(os.path.join(d, k))[0] for k in 'abc'}
+    assert g['a'] == g['b'] != g['c'] and gate.geometry(os.path.join(d, 'none')) == (None, {})
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

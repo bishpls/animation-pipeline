@@ -575,6 +575,9 @@ def produced(spec, rid, log=print):
                 args[0] = sys.executable
             log('%s: %s' % (rid, cmd))
             subprocess.run(args, cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+        if not os.path.exists(p):               # a producer that ran without making it: never stamped, and the build
+            raise RuntimeError('%s: its producer (%s) ran but made no %s; the build stops rather than going on '
+                               'without it' % (rid, r['produced_by'], r['path']))
         dt = time.time() - t0
         with open(sp + '.json.tmp', 'w') as f:
             json.dump(dict(parts, stamp=st), f, indent=1, sort_keys=True)

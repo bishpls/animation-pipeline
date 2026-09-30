@@ -37,6 +37,8 @@ if [ ! -x /opt/anim-build/venv/bin/python ] || ! readlink -f /opt/anim-build/ven
   VIRTUAL_ENV=/opt/anim-build/venv uv pip install numpy scipy scikit-image numba pillow manifold3d matplotlib \
     opencv-python-headless pytest
 fi
+# charkit.render (the toon renderer, docs/workstreams/toonrender.md): wgpu, on the CPU through Mesa llvmpipe (GL/EGL); also into an existing venv
+VIRTUAL_ENV=/opt/anim-build/venv uv pip install -q 'wgpu>=0.32' || echo "wgpu install failed"
 
 # no GPU here: EEVEE would render in software, minutes a board (charkit skips the boards; the QA doesn't read them)
 printf '%s\n' 'export BLENDER=/opt/blender/blender' 'export VIRTUAL_ENV=/opt/anim-build/venv' \

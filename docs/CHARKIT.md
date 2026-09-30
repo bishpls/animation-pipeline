@@ -51,9 +51,13 @@ component that reads them; `charkit/spec/schema.json` collects them.
 
 ### The base mesh: `spec['base']`
 
-Two bases build the same character (`python -m charkit build SPEC.json --base anime`, or `"base": "anime"` in the spec):
+A spec declares its base (`"base": "code" | "anime" | "makehuman"`; `--base` overrides it) and its body's source
+(`"body": {"source": "code" | "makehuman"}`, `code` on base `code` only). There is no default: a spec without them stops
+at load with the allowed values (`character.check_spec`), where it used to build MakeHuman and report success. The
+default spec, `charkit/spec/clawd.json`, is `code` on a `code` body (`charkit/code_base.py`, `charkit/code_body.py`).
+Of the two MakeHuman-derived bases:
 
-- **`makehuman`** (the default): MakeHuman's own realistic head wrapped onto the anime head on every build
+- **`makehuman`**: MakeHuman's own realistic head wrapped onto the anime head on every build
   (`charkit/anime_head.reshape`), its eye margins, mouth corners and cavities detected in the realistic topology each time.
 - **`anime`**: charkit's own anime base (`charkit/base_anime.py`, asset `charkit/assets/base_anime/base_anime.npz`, 0.6 MB,
   CC0): derived once from MakeHuman through the neutral anime wrap and cleaned for anime use: shallow eye sockets behind the
@@ -335,6 +339,68 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+### Registering a QA part or a measurement step
+
+There are no central lists: a branch that adds a part or a step edits only its own files, so two branches never
+conflict on a registry (`charkit/registry.py`; before 2026-09-30 every merge conflicted on `qa3d.PARTS` and
+`history.STEPS`).
+
+**A QA part** is a venv function `(B, design, out, ...) -> (table, checks)`. Register it with a decorator where it's
+defined, in the module you own:
+
+```python
+from .registry import qa_part
+
+@qa_part('pieces_2d', order=1550, prefix='piece_', table='pieces_2d')
+def pieces_2d(B, design=None, out=None):
+    ...
+    return table, {'skirt': {'value': 0.81, 'status': 'PASS'}}      # -> qa.json's 'piece_skirt'
+```
+
+- `order` sets where it runs in the QA pass: ascending, so qa.json's checks come out in a fixed order however the
+  modules are imported. The existing parts are 100 apart (shape 100 … look 2100; `registry.parts()` lists them):
+  pick a free number between the parts yours should follow and precede. Two parts can't share an order.
+- `prefix` goes before each check name. `keep` leaves names that already start with it alone (face_shape's).
+  `table` is the key its table goes under in qa.json (`None`: not reported). `ref_image=True` passes the spec's
+  reference image as a fourth argument. `skip_key` names the SKIPPED check when the part raises (default: its name).
+- `registry.parts()` finds a part by `@qa_part(` at the start of a line in any `charkit/*.py` (or a subpackage) and
+  imports that module, so the module must import in the venv without Blender.
+- The existing parts are still defined in `qa3d.py`, decorated in place. A new part belongs in its owner's module.
+
+**A measurement step** says that a check's measurement changed (not the character), so the gate and the tune loop call
+it `remeasured` rather than better or worse. Add it to `charkit/steps/<module>.py`, the file for the module whose
+measurement changed (create it if it doesn't exist; `charkit/steps/bodyqa.py` holds bodyqa's):
+
+```python
+MEASUREMENT_STEPS = [
+    # (check pattern, the commit that changed the measurement, what changed)
+    ('body_*_skirt_width', '26c6bbb', "the design's widest free row against ours on that same row"),
+]
+```
+
+- The list must be a literal: `registry.steps()` reads it with `ast` and never imports it. The gate reads the merged
+  tree's steps without running its code (`history.load_steps`), and nothing importing it keeps the build's code keys
+  (every stage's, the hull's stamp) unchanged when a step is added.
+- The commit is the one that changes the measurement: add the step in a follow-up commit once you have that SHA, as
+  before.
+- Keep one pattern's steps in one file, in the order they happened: where two steps match one check, the later one's
+  reason is reported. Files are read in their module names' order (`charkit.steps.bodyqa`, `charkit.steps.detailqa`, …).
+- `history.registered()` (or `history.STEPS`) is the full list; `python -m charkit history NAME --check CHECK` marks
+  each step a check's trend crosses.
+- A remeasured check whose geometry also changed is scored under the old measure too (the gate's 2×2, below): a step
+  can't hide a regression.
+
+**Merging a branch from before self-registration** into one after it: git reports conflicts in `charkit/qa3d.py` (the
+removed `PARTS` list) and `charkit/history.py` (the removed `STEPS` list). Resolve them this way:
+1. Take the new side of both hunks: no `PARTS` list in qa3d.py, no `STEPS` list in history.py.
+2. For each part the branch added to `PARTS` as `('name', fn, 'prefix', 'table')`, put
+   `@qa_part('name', order=N, prefix='prefix', table='table')` above `def fn`, with N placing it where it stood in
+   the list.
+3. Move each step the branch added to `STEPS` into `charkit/steps/<the module it measures>.py`, keeping its text.
+4. Run `python charkit/tests/test_registry.py`. It checks that the pre-migration parts keep their order and that no
+   legacy step is lost. Then run `python -c "from charkit import registry; print([p.name for p in registry.parts()])"`
+   and check your part is where you meant it.
+
 ### The boards' renders: one animation per set
 
 A still render (`bpy.ops.render.render`) evaluates a fresh depsgraph, so every modifier in the file runs again for each
@@ -492,8 +558,9 @@ eye, silhouette, scalp and hair-noise renders drawn from the bundle.
 - **Measurement steps.** When a check's measurement changes rather than the character, its numbers step. `hair_noise`
   read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `face_folds`
   rose from 1014 to 1257 on the same skin when the expression library grew, because it sums over every key (8017ff3,
-  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). `history.STEPS`
-  lists each step (the check, the commit, what changed). A build is before or after a step by whether that commit is in
+  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). The files in
+  `charkit/steps/` list each step (the check, the commit, what changed; see "Registering a QA part or a measurement
+  step"). A build is before or after a step by whether that commit is in
   its history. `history --check` draws a line at each step, `history.trend` reads only the builds since the latest one,
   and the gate's and the tune loop's comparisons call such a check `remeasured`, neither better nor worse. Add a step
   whenever a QA change moves a check's numbers.
@@ -504,6 +571,24 @@ eye, silhouette, scalp and hair-noise renders drawn from the bundle.
   - FAIL: a conflict, a failing test, a failed build, or a graded check that got worse or disappeared.
   - WARN: the build is 1.5x slower.
   - No branch moves.
+  - **The 2×2 (no gaming).** When the branch brings a measurement step and its build's geometry differs from the
+    baseline's, the gate measures both ways: the merged tree's QA on the baseline's bundle (the new measure on the old
+    geometry), then, the merge undone, the baseline's QA on the candidate's bundle (the old measure on the new geometry;
+    the bundle's schema is stable and read by name, so older code reads it). A remeasured check that gets worse under
+    the old measure fails the gate unless it's accepted by name: `--accept PATTERN[,PATTERN]` (also through `remote
+    gate`). If a crossed run can't run, the gate WARNs that the remeasured checks are unverified.
+- `python -m charkit preview [REF]` (charkit/preview.py), right after a merge to pipeline-3d, in the background: REF
+  (default HEAD) built on the render box in its own worktree (`../animation-pipeline-autopreview`) with the boards
+  views, body and `design` (the head orthographic and level at the eye line, the design's projection), stored under
+  `charkit/out/previews/<sha7>/`, and `review.html`: the QA tally against the previous preview (FAIL -> PASS, PASS ->
+  FAIL, ...), the design, previous and current full figures at one height, the head beside head_turnaround's four
+  views at one px per L with the eye lines level, a turntable. `charkit/out/previews/latest.html` opens the newest.
+  `python -m charkit preview hook install` adds a post-merge hook to this worktree only; it starts the preview in
+  the background and never blocks the merge.
+- `python -m charkit evaldrift [SPEC]` (charkit/evaldrift.py): a build on the build box and the fast evaluator (as the
+  body fit reads it) on the same synced copy; every check both give is compared (0.01 by default, 0.5 for palette's
+  CIEDE2000). The report is `charkit/out/evaldrift/<spec>/drift.md`; it exits 1 on drift. Run it when a fit's
+  evaluator numbers and the box's disagree, and after changes to either side.
 - Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
   worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
 - Builds share a machine-wide number of slots, and start only when memory is available.

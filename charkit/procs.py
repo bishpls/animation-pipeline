@@ -57,35 +57,69 @@ def available_gb():
     return pages * page / 2 ** 30 if vals else None
 
 
+def _waiting(label, why, since):
+    """slots/wait/<pid>.json while this process waits (the box's load sampler counts the queue from these)."""
+    try:
+        d = os.path.join(SLOTS_DIR, 'wait')
+        os.makedirs(d, exist_ok=True)
+        p = os.path.join(d, '%d.json' % os.getpid())
+        json.dump({'pid': os.getpid(), 'label': label, 'root': ROOT, 'since': since, 'why': why}, open(p, 'w'))
+        return p
+    except OSError:
+        return None
+
+
+def _got(slot, label, since, why):
+    """one line per slot taken in slots/waits.jsonl: how long it waited and for what (slots, memory, or nothing)."""
+    try:
+        with open(os.path.join(SLOTS_DIR, 'waits.jsonl'), 'a') as f:
+            f.write(json.dumps({'at': round(time.time(), 1), 'pid': os.getpid(), 'label': label,
+                                'root': os.path.basename(ROOT), 'slot': slot, 'of': slots(),
+                                'waited': round(time.time() - since, 1), 'why': why}) + '\n')
+    except OSError:
+        pass
+
+
 def acquire_slot(label='build', poll=2.0, mem=None):
     """take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short
-    -> the open lock file (keep it; closing releases)."""
+    -> the open lock file (keep it; closing releases). The wait is recorded (slots/wait/<pid>.json while waiting, a
+    line in slots/waits.jsonl once a slot is taken): the numbers behind the box's capacity (charkit/boxjob.py)."""
     os.makedirs(SLOTS_DIR, exist_ok=True)
     need = float(os.environ.get('CHARKIT_BUILD_MEM_GB', '3')) if mem is None else mem
-    waited = False
-    while True:
-        free = available_gb()
-        if free is not None and free < need:
-            if not waited:
-                sys.stderr.write('charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
-                waited = True
-            time.sleep(poll)
-            continue
-        for i in range(slots()):
-            f = open(os.path.join(SLOTS_DIR, str(i)), 'a+')
-            try:
-                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                f.close()
+    waited, why, wf, t0 = False, None, None, time.time()
+    try:
+        while True:
+            free = available_gb()
+            if free is not None and free < need:
+                if not waited:
+                    sys.stderr.write('charkit: %.1f GB free, waiting for %.1f GB (CHARKIT_BUILD_MEM_GB)\n' % (free, need))
+                    waited, why = True, 'memory'
+                    wf = _waiting(label, why, t0)
+                time.sleep(poll)
                 continue
-            f.seek(0); f.truncate(); f.write('%d %s %s\n' % (os.getpid(), label, ROOT)); f.flush()
-            if waited:
-                sys.stderr.write('charkit: got build slot %d\n' % i)
-            return f
-        if not waited:
-            sys.stderr.write('charkit: all %d build slots busy (CHARKIT_BUILD_SLOTS); waiting\n' % slots())
-            waited = True
-        time.sleep(poll)
+            for i in range(slots()):
+                f = open(os.path.join(SLOTS_DIR, str(i)), 'a+')
+                try:
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    f.close()
+                    continue
+                f.seek(0); f.truncate(); f.write('%d %s %s\n' % (os.getpid(), label, ROOT)); f.flush()
+                if waited:
+                    sys.stderr.write('charkit: got build slot %d\n' % i)
+                _got(i, label, t0, why)
+                return f
+            if not waited:
+                sys.stderr.write('charkit: all %d build slots busy (CHARKIT_BUILD_SLOTS); waiting\n' % slots())
+                waited, why = True, 'slots'
+                wf = _waiting(label, why, t0)
+            time.sleep(poll)
+    finally:
+        if wf:
+            try:
+                os.remove(wf)
+            except OSError:
+                pass
 
 
 def write(out, pid, label, cmd):

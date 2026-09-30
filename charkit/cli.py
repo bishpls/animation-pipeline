@@ -1,7 +1,7 @@
 """charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
     python -m charkit build SPEC.json [--out DIR] [--boards views,body,expressions,mouths] [--no-blend] [--no-fit] [--no-qa] [--vrm]
-                                     [--base makehuman|anime] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
+                                     [--base code|anime|makehuman] [--hair geom|mesh] [--note JSON] [--qa venv|blender]
                                      [--cache on|off|refresh|stages|verify] [--no-cache] [--no-worker]
     python -m charkit qa OUT/bundle [--out OUT/qa] [--cache on|off|refresh]   # the QA on a build's geometry bundle
     python -m charkit export BUILD.blend [--out OUT.vrm] [--subdiv 2]
@@ -14,12 +14,16 @@
     python -m charkit ps | kill OUT_DIR | wait OUT_DIR                 # running builds, by their own records
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
     python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
+    python -m charkit remote jobs | attach JID | kill JID | load         # detached box jobs; the boxes' load (charkit/boxjob.py)
+    python -m charkit preview [REF] | hook install | serve               # after a merge: the combined preview (charkit/preview.py); serve: click-to-flag (charkit/flags.py)
+    python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
     python -m charkit refcheck SPEC [--refs A,B] [--no-open]           # generated head sheets against the model sheet
     python -m charkit checkpoint SPEC --build LABEL=DIR ... [--decisions F.md]  # the checkpoint review page
+    python -m charkit perceptual BUILD [--remote] [--open]    # DINOv3 similarity to the design per view and region (boards)
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
                                     [--write-spec]                     # the face, eye and neck knobs from the QA
                                                                        # (charkit/facefit.py; build takes DIR/NAME.fit.json)
@@ -41,8 +45,10 @@ and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D 
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
 out/sheet_body.png, out/sheet_face.png. --vrm also writes out/NAME.vrm (charkit/gltf.py). --base overrides the spec's base
-mesh (spec['base']: 'makehuman', the default, wraps MakeHuman's own head; 'anime' builds on charkit's derived anime base,
-charkit/base_anime.py). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
+mesh. A spec declares its base (spec['base']: 'code' authors the head from the references, charkit/code_base.py; 'anime'
+builds on charkit's derived anime base, charkit/base_anime.py; 'makehuman' wraps MakeHuman's own head) and its body
+(spec['body']['source']: 'code' or 'makehuman'); one without them fails before any build work (character.check_spec:
+there is no default). With hair.shape.mode 'geom' (or --hair geom) the generated hair is cut out venv-side by
 charkit.geom first (out/geom/hair.npz) and the Blender stage loads that closed surface (docs/GEOM.md).
 
 The build cache (charkit/cache.py, docs/CHARKIT.md §3): each stage (the cranium fit, character, hair, face shading,
@@ -77,9 +83,11 @@ def _path(p):
 def resolve(spec_path, out, do_fit=True, base=None):
     from . import refs
     from . import manifest
-    spec = manifest.produce(manifest.resolve(json.load(open(spec_path))))
+    from . import character
+    spec = manifest.resolve(json.load(open(spec_path)))
     if base:
         spec['base'] = base
+    spec = manifest.produce(character.check_spec(spec))        # its base and body declared, before any build work
     from . import styles
     # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
     # the stage cache keys on it)
@@ -265,6 +273,7 @@ def build(args):
     spec = code_body(spec, resolved, out, mode)
     spec = geom_hair(spec, resolved, out, mode)
     spec = pieces_hair(spec, resolved, out, mode)
+    spec = garments_geom(spec, resolved, out, mode)
     boards = opt('--boards', 'views,body,expressions,mouths')
     if os.environ.get('CHARKIT_NO_RENDER') == '1' and boards:
         # a machine without a GPU (the CPU build box) renders EEVEE in software, minutes a board: the QA reads the geometry
@@ -348,7 +357,8 @@ def code_head(spec, resolved, out, mode='on'):
     """venv-side, for spec['base'] == 'code': the authored head (charkit/code_base.py, from the reference images) ->
     out/geom/head_code.npz, and the resolved spec pointed at it (spec['head_code']) for the Blender side. A cached step:
     it runs again when the references it reads, the spec's eyes or style, or the code change."""
-    if spec.get('base') != 'code':
+    from . import character
+    if character.base_of(spec) != 'code':
         return spec
     from . import cache, code_base, manifest
     gdir = os.path.join(out, 'geom')
@@ -379,7 +389,8 @@ def code_body(spec, resolved, out, mode='on'):
     """venv-side, for spec['body']['source'] == 'code': the authored body fitted to the hull (charkit/code_body.py; the
     fit needs scipy) -> out/geom/body_code.npz, and the resolved spec pointed at it (spec['body_code']). A cached step:
     it runs again when the hull, the outfit graph or the code change."""
-    if (spec.get('body') or {}).get('source') != 'code':
+    from . import character
+    if character.body_source(spec) != 'code':
         return spec
     from . import bodypage, cache, manifest
     gdir = os.path.join(out, 'geom')
@@ -514,6 +525,46 @@ def pieces_hair(spec, resolved, out, mode='on'):
     return spec
 
 
+def garments_geom(spec, resolved, out, mode='on'):
+    """venv-side, the garments stage's geometry (charkit/geomstage.py, docs/GEOM_TRUTH.md): the character assembled as
+    the Blender side assembles it, the hull's pieces aligned onto it, and garments.build run with its Blender calls
+    recorded -> out/geom/garments.npz, and the resolved spec pointed at it (spec['garments_geom']): the Blender side
+    replays it, and the evaluator (charkit.bodyeval) makes the same product. The character is assembled with the
+    cranium the Blender side fits first (scene.fit_cranium, with the venv's GLB reader as the other venv steps use it);
+    the product keeps the body it was built on, and the Blender side notes how far its own is from it (the trace's
+    garments_body). CHARKIT_GARMENTS=blender keeps the old path (garments computed inside Blender). A cached step
+    (file_step): it runs again when the resolved spec, a file it reads (the hull, the code head and body, the outfit
+    graph) or the code change."""
+    if not spec.get('garments') or os.environ.get('CHARKIT_GARMENTS') == 'blender':
+        return spec
+    from . import cache, geomstage, scene
+    from .geom.parts import load_generated
+    import contextlib, copy, io
+    key = copy.deepcopy({k: v for k, v in spec.items() if k != 'garments_geom'})
+    with contextlib.redirect_stdout(io.StringIO()):
+        key = scene.fit_cranium(key, ROOT, load=lambda p: load_generated(p, compat=True))
+    gdir = os.path.join(out, 'geom')
+    os.makedirs(gdir, exist_ok=True)
+    path = os.path.join(gdir, 'garments.npz')
+
+    def run():
+        geomstage.garments_step(key, path)
+    if mode == 'off':
+        run()
+    else:
+        ins = [spec[k] for k in ('head_code', 'body_code') if spec.get(k)]
+        glb = ((spec.get('hair') or {}).get('shape') or {}).get('glb')
+        r = cache.file_step('garments_geom', run, [garments_geom], key, gdir,
+                            inputs=ins + (_glb_inputs(glb) if glb else []),
+                            modules=('charkit.geomstage', 'charkit.garments', 'charkit.character', 'charkit.code_base',
+                                     'charkit.code_body', 'charkit.geom.loft', 'charkit.scene'),
+                            name_key=spec['name'], refresh=mode == 'refresh')
+        print('CHARKIT_CACHE garments_geom', r)
+    spec['garments_geom'] = path
+    json.dump(spec, open(resolved, 'w'), indent=1)
+    return spec
+
+
 def export(args):
     blend = _path(args[0])
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
@@ -612,6 +663,9 @@ def main(argv=None):
     elif cmd == 'checkpoint':
         from . import checkpoint
         checkpoint.main(rest)
+    elif cmd == 'perceptual':
+        from . import perceptual
+        sys.exit(perceptual.main(rest) or 0)
     elif cmd == 'outfit':
         from . import outfit
         outfit.main(rest)
@@ -659,6 +713,12 @@ def main(argv=None):
     elif cmd == 'remote':
         from . import remote
         raise SystemExit(remote.main(rest))
+    elif cmd == 'preview':
+        from . import preview
+        raise SystemExit(preview.main(rest))
+    elif cmd == 'evaldrift':
+        from . import evaldrift
+        raise SystemExit(evaldrift.main(rest))
     elif cmd == 'slots':
         from . import procs
         procs.set_slots(rest)

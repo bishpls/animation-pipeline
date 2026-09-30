@@ -726,6 +726,158 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Overnight run plan (2026-09-30 evening; start here)
+
+Read, in order: this section, the checkpoint below, then docs/ROADMAP.md. Relaunch each workstream as a fresh, lean
+agent from its docs/workstreams/NAME.md.
+
+**Michael's calls for this run:**
+- **K. Gate policy:** a merge is blocked only by new FAILs, regressions in the checks built from Michael's flags, and
+  build CPU over 1.5x. WARNs and small value moves go into a morning report instead. Until tool/infra3 lands this in
+  gate.py, the integrator applies it by reading each gate report.
+- **L. Rim beads:** the garment builders make flat, square open rims. The outline cap stays at half the shell (no
+  smaller share). It goes into the combined garments round.
+- **M. Bow and boots:** they get the outline cap at half their measured thickness (flips: bow 501 -> 144, boots 226 -> 78).
+- **Concurrency:** about 5 lean agents at once. No polling. Never push, and never provision.
+
+**Order:**
+1. **tool/infra3, the gate-loop redesign** (ROADMAP "Iteration speed"), first because it speeds up everything else:
+   - skip the build when the stage keys are unchanged;
+   - a local pre-gate check;
+   - K in gate.py;
+   - carry a gate result over when pipeline-3d moves;
+   - share stage caches across clones;
+   - one live gate per branch;
+   - time the gate's phases;
+   - skip the VRM export;
+   - a slot covers the whole build, with thread caps;
+   - the load sampler starts at boot on both boxes;
+   - the last-bit skin nondeterminism;
+   - the resolved spec's absolute hair path.
+2. **The combined garments round,** one agent, sequenced:
+   - merge tool/outfit-source (the sheet-only masks), then tool/garments2, then tool/skirt;
+   - adapt the collar V, the waistband, the skirt A-line and the tuck under the band garment;
+   - flat rims (L);
+   - write the skirt's fit G into the specs;
+   - one gate.
+
+   Then promote art_points/bumps_sleeves and art_band_lower if they pass, and do the TRELLIS cleanup (decision 8).
+3. **tool/hair4:** merge pipeline-3d, gate, review page. Then investigate why the shell samples fold more.
+4. **tool/toonrender2:** recalibrate the noise, add the measured default, decide the default drawing.
+5. **Small look round:** M.
+6. **Integrator items:**
+   - promote art_spikes_boots, art_bumps_boots, art_bumps_legs and art_mirror_waist to FAIL;
+   - check whether the body fits evaluate on MakeHuman's body for body-knob changes on the code base (a
+     tool/nofallback finding);
+   - the garment builders' 0.0235 L eye-line offset.
+7. **After the garments round:** call J (tool/evalmesh, subdivision and Solidify in the venv), and face round 4 (the
+   chin angle back toward 129.7, the 120 inward crown triangles, the ramus).
+
+**Waits for Michael:** the streak seed and garment line weight (a taste call, from the preview), provisioning, the
+multi-character refactor, and whether to rewrite two unpushed handoff commits that name the second character before
+pushing.
+
+**Morning deliverable:** the latest preview (charkit/out/previews/latest.html, built after each merge), plus one
+report of what merged, the WARN-level moves under K, and the decisions needed.
+
+## Checkpoint 2026-09-30, morning (read first; paused near the usage limit)
+
+**Direction:** `docs/ROADMAP.md` covers our approach against the commercial default, the missing rig pieces, the ranked
+architecture changes, what to hand-roll, and the gate-loop speed-ups.
+
+**Merged into pipeline-3d today** (each gated on both specs):
+- hair round 3 (e11fadb);
+- hull limb labels + the bare-leg check + docs/HULL_CONTRACT.md (a524c3b);
+- bucket sync (11f95b6);
+- our toon renderer phase 1 (charkit/render, wgpu; 6be2b39);
+- the perceptual metric (8ae6ce9; failed its calibration, kept as INFO heat maps);
+- infra: preview, registries, 2x2, evaldrift (cfcdc3a);
+- single geometry source, pilot (8a7d4ea).
+
+Michael's calls H, I and J are in "Michael's calls" below. The first combined preview is
+charkit/out/previews/cfcdc3a/review.html (179 PASS / 27 WARN / 7 FAIL; the previous one, at 9397578, was 176 / 29 / 8).
+
+**The post-merge preview hook is REMOVED.** Git exports GIT_DIR to hooks, and preview._git inherited it. The hook's
+preview therefore ran `checkout -f --detach` in the pipeline-3d worktree, not in ../animation-pipeline-autopreview, and
+built stale code. tool/infra2 has the fix (strip GIT_* from the env). Reinstall the hook
+(`python -m charkit preview hook install`) only after it merges; until then run `python -m charkit preview` by hand
+after merges.
+
+**Branches at checkpoint:** each has its notes in docs/workstreams/NAME.md; relaunch lean from them. Integrator
+decisions already made:
+- **tool/face (round 3): MERGED (bbf1c04).** The notch 0.057 -> 0, jaw_line_bend 41 -> 4.6, with the accepted chin 2x2
+  drops (chin_angle 116.7 in the boards' camera, about 126 level; design 129.7). **Next face round:**
+  - recover the chin (crease the V's point in character.py, or denser cage columns);
+  - the ramus behind the jaw angle;
+  - **120 inward-facing skin triangles at the crown**, which make the default spec's hair_penetration 0.0124 FAIL a false
+    reading (found by tool/hair4);
+  - sheet_width's +0.023 evaluator drift.
+- **tool/look3 (calls H and I): MERGED (18b740a).** Streaks now agree across GPUs and renderers (IoU 1.000 / 0.995).
+  Thin garments are fully inked. **Open for Michael** (look.md round 3):
+  - the rim beads: a cap of 0.3 or 0.2 of the shell (214 / 84 flips left), or flat rims from the garments side;
+  - caps for the bow and boots at half their measured thickness (501 -> 144 and 226 -> 78 flips);
+  - a streak seed, if the big highlight on the right bun reads wrong;
+  - the garment line weight: ink area +21-30% now that the lines draw at full width; the multiplier is the dial.
+- **tool/hair4: checkpoint bb189f9, not gated.** Defaults: body clearance (clawd_mh hair_penetration 0.0484 -> 0.0034)
+  and the crown trim (upper back 0.771); buns 0.397 -> 0.437. Behind settings: shell samples (stable, but folds 6 -> 12
+  on this bundle) and the outline-weighted bun fit (0.50, costs the back view). Next: merge pipeline-3d, gate, review
+  page.
+- **tool/skirt: checkpoint 73fe12c, not gated.** Template flaps and stepped band, tuck and 18 pleats, built on the box:
+  flap profile IoU 0.25 -> 0.71, band steps PASS, back gap PASS, tuck PASS. Next: write fit G into the specs, merge
+  tool/garments2 (see below), flapchains, gate both together.
+- **tool/toonrender2: checkpoint 0b16765, not gated.** The QA can draw with charkit.render (`CHARKIT_QA_DRAW`), and its
+  head pictures sit half as far from EEVEE (0.84-0.91 levels against 1.6-2.1). Default unchanged. Next: merge look3,
+  recalibrate the noise, add clawd_mh, time the build box, decide the default.
+- **tool/garments2** (jacket over band, 2bf75d1; gated 3d81679): Michael's flag is fixed (the over-band check 0.97 FAIL
+  -> 0 PASS, piece_waistband 0.45 FAIL -> 0.89 PASS). MakeHuman gate PASS; **default gate FAIL, merge held**:
+  - body_front_skirt_overhang_L/R 0 -> 0.118/0.115: the band now has its drawn width, and the skirt's tuck follows the
+    hull's band label, which the drawn masks put about 0.09 L too high at the sides;
+  - body_front_torso_jump_L WARN;
+  - 2x2 drops: bow_profile_torn 0 -> 0.018 FAIL, bow_front_tail_gap WARN, sleeve_profile_rough_L WARN.
+  **Plan:** tool/skirt merges tool/garments2 into its branch, tucks the skirt under the band garment's bottom row, and
+  both land through one gate. Decide the bow and sleeve 2x2 drops then. At merge, drop garments2's edits to the
+  evaluator's garment dispatch (geom-truth removed it; this includes the collar-stripe tone) and keep a single
+  `hem_drop` in the shorts entry.
+- **Cross-cutting, from garments2:** the garment builders' eye line (the eye knobs) sits 0.0235 L below the QA's (the
+  irises), so every garment lands that much low in the checks. Fix it in one place, not per garment. Our shoulders sit
+  0.06-0.09 L below the drawn collar line (tool/body), which blocks the sailor-collar template.
+- **tool/artifacts**: flag-calibrated checks capped at WARN, the rest INFO. MakeHuman gate PASS.
+- **tool/hair4** (buns, crown, MakeHuman shoulder clearance, placement off the decimated mesh). Accepted at the
+  hull-limbs merge, fixed here: clawd_mh hair_penetration 0.0484 FAIL, and hair_folds 4 -> 11.
+- **tool/skirt**: the flap train touches the back of the thigh (body_profile_leg_outline 0.57, 82 rows against the
+  design's 3); clawd_mh body_three_quarter_skirt_aline 0.078 WARN is accepted and belongs here.
+- **tool/outfit-source**: masks without the TRELLIS field (or the field made a required produced reference).
+- **tool/outfit-source (3d9f456): the masks come from the design sheets alone, merge held.** Scored against a hand-labelled
+  truth (charkit/refs/clawd/outfit_truth.npz, `charkit outfit score`): 0.972, against 0.865 with the TRELLIS field and
+  0.729 for the old code without it. Both gates FAIL because the garments were fitted to the old masks' errors:
+  - the waistband took part of the bodice (IoU with the truth 0.46 -> 0.96);
+  - the collar took part of the bow (its V now stops at -0.65 L as drawn, so piece_collar 0.754 -> 0.336);
+  - the skirt label now reaches its dark hem.
+  **Next round, combined:** the masks, then tool/garments2 (collar V, waistband) and tool/skirt (A-line, tuck) adapted
+  on top, through one gate. Integrator cleanups: cli.py still lists `--field`; decide whether remote.py and worktree.sh
+  still ship charkit/out/i3d; outfit_graph.json was made with the field.
+- **tool/artifacts: MERGED (815c836).** Twelve of Michael's flags are calibrated checks, capped at WARN. **Promote to FAIL
+  next** (the bad build reads at least 2x the clean one, and the current build passes): spikes_boots, bumps_boots,
+  bumps_legs, mirror_waist. Hold points_sleeves/bumps_sleeves at WARN until garments2's template sleeves merge (the
+  current hull sleeves would FAIL), and band_lower until tool/skirt's band lands. Not measurable by these detectors: the
+  rear tuck (tool/skirt), jacket over band (garments2), the neck nick (tool/face's jaw_line_bend). Review page:
+  ~/animation-pipeline-artifacts/charkit/out/artifacts_review/flags/index.html.
+- **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
+- **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
+- **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
+  docs/GEOM_TRUTH.md step 7.
+- **Second-character checkpoint** (side quest, uncommitted; the character's files stay untracked because its project
+  is unpublished): its worktree and page are in the integrator's memory, not here. First
+  generality reading: QA pass share 30% against Clawd's 83% on the same code, and none of the references reached the
+  model (it built the MakeHuman default). Generic blockers, in order:
+  1. reference detection (views, eyes, hair) tuned to Clawd's colours; a floor line merges the views;
+  2. outfit pieces need a hand-built 2D rig;
+  3. 84 of 270 checks are named for Clawd's pieces, and the colour classes and hair families are fixed;
+  4. hand-written garment lists, and no builders for a tailcoat, two-sided material, trousers, a braid, an ear cuff or
+     a pin; one iris texture for both eyes;
+  5. hazards: a misread scale ran a QA step to 68 GB on the build box (a 6-line guard in sheetqa.py, uncommitted in that
+     worktree; land it generically), and a build that ignores every reference still reports success.
+
 ## State at the end of 2026-09-29 (read first)
 
 - **The default spec is the authored character** (`8e2797e`): `charkit/spec/clawd.json` is the code-built head and
@@ -780,6 +932,15 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   - E. flap train: hang (the current default);
   - F. hair relief and clamp: deferred until relevant;
   - G. Kimodo licence: deferred until motion options are reviewed.
+  - H. hair streaks (from tool/toonrender): replace the `sin()` hash, whose large angles every GPU rounds differently, with
+    an integer hash. The streaks then fall in the same place in EEVEE on every GPU, in charkit.render, and in look.js.
+  - I. screen-width lines on thin shells (from tool/toonrender): the outline's inward move is capped at half each
+    piece's shell thickness, and the rest of the line width goes outward. The shells no longer turn inside out
+    (garments are 1.5-3 mm thick, the move was 3.6 mm), and thin pieces' silhouettes grow by a fraction of a pixel.
+  - J. subdivision and Solidify (docs/GEOM_TRUTH.md step 7) move out of Blender into the venv: no reason to keep them
+    there. They're computed at rest and then skinned (the game-engine way; the VRM export needs final meshes anyway),
+    and the motion QA checks the bends at extreme poses against Blender's per-frame modifiers. The outline's inverted
+    hull stays render-time (call I), not geometry.
 - **Follow-ups not assigned:**
   - key gate baselines on the produced references' stamps;
   - make a missing TRELLIS field fail loudly;
@@ -808,6 +969,20 @@ Drawn from the session's recurring failure patterns:
    orthographic), not the boards' elevated camera.
 6. **Process.** A lean agent per round, briefed from its notes; about 5 at once; no polling; milestone reports;
    smaller, more frequent merges.
+7. **MakeHuman retired from gating (Michael, 2026-09-30).** Gates run the default spec (`charkit/spec/clawd.json`)
+   only. The `clawd_mh.json` gate cost 20-30% of gate CPU and caught only MakeHuman-specific problems (hair into its
+   shoulder, a check reading past its hands). It couldn't catch overfitting to Clawd: it shares her references,
+   palette, piece lists and checks. **No silent fallback:** a spec that doesn't declare its base and body fails loudly
+   instead of building MakeHuman. The generality check becomes a real second character, gated from private references
+   outside the public repo, once the multi-character refactor gets one through. MakeHuman's CC0 assets still
+   underpin the default build (the code head's placement uses the MakeHuman head's chin and marks; the joint names;
+   the eye and mouth topology via base_anime), and they get replaced as that refactor reaches them.
+8. **TRELLIS is on its way out.** After the sheet-only outfit masks (tool/outfit-source) merge, no build reads TRELLIS
+   output. The `glb` the QA's shape checks, face-shape checks and hair volume read is our own visual hull. Cleanup:
+   - stop shipping charkit/out/i3d (sync, worktree.sh, gate clones);
+   - rename `i3d` (it's the generated-GLB loader and aligner) and the checks' 'trellis' reference labels;
+   - retire tools/imageto3d/trellis_remote.sh;
+   - give the perceptual metric its own environment on the render box.
 
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
@@ -899,11 +1074,18 @@ infra/gcp/build.sh status | up | ssh | stop
 How the gate gets its code:
 - The box keeps one clone (`/srv/work/repo`). A gate sends a git bundle of only the commits that clone lacks. The
   first bundle is the whole history, 1.8 GB; later ones are small.
-- A file over 100 MB goes through the bucket, not the IAP tunnel, which carries about 1–3 MB/s.
-- A worktree's first sync is seeded on the box by hard links from the most recently synced copy there (its builds and
-  caches dropped), so it takes about 5 s rather than 4–9 minutes.
-- `charkit/out/i3d` (526 MB, gitignored) is seeded from the box's synced copy of the worktree, then rsynced.
-- Gates from several worktrees queue on a lock there, so parallel workstreams can gate whenever they're ready.
+- **Bulk data goes through the bucket, not the IAP tunnel** (`charkit/bucketsync.py`, merged 2026-09-30). Syncs,
+  fetches and pushes go through a content-addressed store (`cas/<aa>/<sha256>` blobs, manifests, named pointers) in
+  the existing bucket; ssh stays on IAP for control. A box fetches missing blobs inside GCP (884 MB in about 6 s),
+  reuses matching files from its own copies before asking the laptop, and hard-links inputs from a read-only blob cache
+  (always replaced by rename, never written through). Outputs are never linked. A fresh copy syncs in about 3 s
+  (rsync: 5-8 min). Builds and gates publish their outputs in-session and the laptop pulls them.
+- The slow link is the laptop's upload (about 1.8 MB/s either way), so new content costs the same once, and then
+  never again for any worktree or box. A saturated uplink is what dropped IAP ssh ("not responding").
+- `CHARKIT_SYNC=rsync` keeps the old rsync-over-IAP path (with its hard-link seeding and the `charkit/out/i3d` rule).
+  `infra/gcp/build.sh verify WT` compares a box copy with the worktree file by file.
+- Gates from several worktrees run in parallel, each in its own clone, with a lock per baseline.
+- Open: bucket garbage collection (about 1 GB of blobs now); ssh multiplexing (1.2-3.8 s per IAP ssh).
 
 The box runs 8 build slots, shared by every worktree's builds there. **The laptop runs 1** (`charkit slots 1`): other
 sessions share its 16 GB.

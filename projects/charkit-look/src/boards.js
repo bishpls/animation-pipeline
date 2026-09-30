@@ -19,6 +19,7 @@ async function setupBoards(q) {
   BCK = await CK.load(BCTX, q.get('vrm') || `../../charkit/out/${name}/${alt ? alt.slice(4) : name}.vrm`);
   BSCENE.add(BCK.scene);
   if (FLAGS.has('nohull')) BCK.hulls.forEach(h => h.removeFromParent());
+  if (FLAGS.has('noring')) CK.U.ring.value = 0;                   // the hair's ring and streaks off (their own base)
   BCK.buildPose(); BCK.update();
   BP = CK.pipeline(BCTX, { ss: +(q.get('ss') || 2) });
   BINFO = { name, dir: `../../charkit/out/${name}/boards/`, backend: BCTX.backend, gpu: BCTX.gpu, load_ms: 0 };

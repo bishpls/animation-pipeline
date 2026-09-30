@@ -30,7 +30,10 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            read in the head sheet's profile, or degrees) within jaw_rise_range (degrees; Clawd's design reads 13.7),
            jaw_edge ('design': the jaw line an edge in 3D at the depth the head sheet's three-quarter draws it, its
            underside carried round the sides to the jaw's angle, charkit.geom.headgeom.jaw_envelope; None: the rim on
-           the envelope's front under the neck's width only)
+           the envelope's front under the neck's width only), jaw_side (True: the pocket under the jaw carried round its
+           sides to its angle, each cage column's underside hung from its own point of the jaw's edge, the rim and the
+           throat edge loops along the jaw line, charkit.geom.headgeom.SIDE; False: the pocket ends at the neck's width
+           and the jaw's side is a ledge under the mouth's block)
   look     the render look (charkit.shade, faceshade; the boards, turntables and the glTF export's look extension):
            light: mode 'world' (one fixed art-directed light, `dir` toward it) or 'camera' (a key that turns with the
            camera: `key` = [degrees to the camera's left, degrees above], so a turntable's back is lit as its front is);
@@ -76,7 +79,8 @@ DEFAULT = {
                     'relief': 0.0, 'lock_shading': 0.0, 'lock_shading_smooth': 8, 'bun_e': 0.3, 'bun_q': 0.06, 'bun_slab': 0.38},
     'face': {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
              'hold': True, 'curve': 2.0, 'release': 0.5, 'cheek_peak': 0.5,
-             'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design'},
+             'jaw_under': True, 'jaw_rise': 'design', 'jaw_rise_range': [8.0, 25.0], 'jaw_edge': 'design',
+             'jaw_side': True},
     'look': {'light': {'mode': 'world', 'dir': [-0.45, -0.55, 0.70], 'key': [39.3, 44.6]},
              'lines': {'mode': 'world', 'frac': 0.0025, 'regions': {'skin': 1.0, 'hair': 1.0, 'garment': 1.0, 'accessory': 1.0},
                        'color': 'build', 'ink': [0.24, 0.13, 0.11]},

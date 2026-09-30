@@ -43,6 +43,11 @@ def test_slots_queue_and_release():
     a.close()                                                     # release one
     out, _ = p.communicate(timeout=10)
     assert float(out.strip()) >= 0.9
+    # every slot taken is logged with its wait (the box's load sampler reads these); nothing is left waiting
+    import json
+    W = [json.loads(l) for l in open(os.path.join(procs.SLOTS_DIR, 'waits.jsonl'))]
+    assert [w['label'] for w in W] == ['a', 'b', 'c'] and W[0]['why'] is None and W[2]['why'] == 'slots'
+    assert W[2]['waited'] >= 0.9 and W[0]['waited'] < 0.5 and not os.listdir(os.path.join(procs.SLOTS_DIR, 'wait'))
     b.close()
     # run() records the pid and releases its slot afterwards
     d = tempfile.mkdtemp()
