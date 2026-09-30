@@ -44,15 +44,39 @@ every copy without it (10). No exceptions.
 
 ## The fix
 
-- Each produced reference in `charkit/refs/clawd/manifest.json` declares what it is made from:
-  - `reads_spec`: spec section paths (`eyes.x`, `ref`, `garments[].{name,kind,side,bone}`, `garments[].region[].0`);
-  - `reads_files`: files no reference hashes (the outfit's gitignored TRELLIS field, its tracked notes);
-  - `reads`: the produced references it reads (as before).
-- `manifest.stamp()` digests exactly those (plus the producer's code and the tracked references, as before).
-- `manifest.produced()` runs each producer on the build's own spec cut down to the declared sections (with those of
-  what it reads), written to `PATH.spec.json`; the manifest's commands take `{spec}` and `{out}`, not
-  `charkit/spec/clawd.json`. The stamp's parts go to `PATH.stamp.json`, so two copies can be told apart.
-- A rebuild is under a lock (`PATH.lock`), and unshares hard links first (`cache.unshare`, as before).
+Each produced reference in `charkit/refs/clawd/manifest.json` declares what it is made from, and
+`manifest.stamp()` digests exactly that, with the producer's code (one import deep, as before), its own entry (its
+command and declarations) and the tracked references' sha256s (as before):
+
+| | outfit_masks | hull | hair_layers |
+|---|---|---|---|
+| `reads_files` (each match by sha256, none if absent) | the TRELLIS field, `outfit_notes.json`, the rig's `build/*`, `rig.json`, `base.png` | | |
+| `reads` (a produced one by its stamp, another by its entry's data) | rig, body_turnaround, trellis | outfit_masks, body_turnaround, body_turnaround_back34, head_turnaround, head_construction | outfit_masks, hair_breakdown, body_turnaround |
+| `reads_spec` | name, ref, eyes.x, the garments' and accessories' roles | name, ref, style, eyes.x | name, ref, eyes.x |
+
+- **Files** are the part that fixes the bug. The field is gitignored; the notes and the rig are tracked but had no
+  sha256 in the manifest, so an edit to them rebuilt nothing either. A read reference's entry counts by its data
+  (path, hash, scale, layout, views), not its prose (role, cautions, provenance, checks).
+- **Spec sections, kept as far as they change an output.** `eyes.x` and `ref` set the frame and the pictures the
+  masks are measured in: clawd.json with `eyes.x` 0.172 (not the rig's 0.168) gives masks `4fe07bb3`, every one of
+  the 104 on a grid of another size. The garments don't change the masks or the hull (A = C, B = D above); they change only the
+  graph's `comparison`, whose matched draft-to-hand names the QA's piece checks read (`bodymeasure.piece_map`, from
+  the graph beside the produced masks). So the stamp takes only what that matching reads: each garment's name, kind,
+  side, bone and region bones, each accessory's name, kind, side and az (`outfit._role`), not a knob. The four Clawd
+  specs have the same roles, so they share every stamp; a flare, a boot's region extent (bodyfit's knobs), a body or
+  face knob move none. Dropping the garments altogether would leave the comparison either against a fixed spec (a
+  hidden file input) or empty (the piece checks lose the hand mapping).
+- **The producer runs on the build's own spec, cut down to those sections** (with those of what it reads), written to
+  `PATH.spec.json` and passed as the command's `{spec}`; `charkit/spec/clawd.json` is no longer named. What a
+  producer doesn't declare, it can't read. The produced graph's comparison therefore has the same matches, misses and
+  extras as one made from the whole spec (checked on clawd_body_pieces: 23 matched pairs, equal to clawd.json's and
+  clawd_body.json's), but no knob deltas, and its `knob_only` notes don't see knobs (a skirt's `panel`) the cut-down
+  hand list lacks. Nothing reads either (only outfit.md); `python -m charkit outfit SPEC` still gives the full one.
+- The stamp's parts go to `PATH.stamp.json` (code, entry, refs, each read's stamp or digest, spec, each file and its
+  sha256), and a rebuild logs which field it read or that the copy has none.
+- A rebuild runs under a lock (`PATH.lock`) and unshares hard links first (`cache.unshare`, as before).
+- A copy holding masks made without the field (or by older code) rebuilds them on its own once the field arrives:
+  its stamp no longer matches (`test_a_declared_file_coming_or_going_makes_it_stale`).
 
 ## One version per copy, rebuilt on change (not variant folders)
 
