@@ -932,3 +932,18 @@ build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow
 128.5-128.9; the rim loop 130.2 but the boards' chin_tip 0.42 FAIL); the ramus (no drawn reference: the side locks
 cover it in every view); sheet_width's drift (the evaluator's inputs: infra / body); the hair's exact normals as a look
 change (a hair-round call; hair4's crown_trim, blocked on the same check at 2.607, worth re-measuring on them).
+
+## Round 5 (2026-09-30, afternoon): the chin graded level, head_construction behind the hair, the mouth line, one subdivision
+
+Branch `tool/face5` from pipeline-3d d60486a (worktree `~/animation-pipeline-face`). Michael's calls (2026-09-30):
+1. Grade the chin and jaw checks in the design's projection (level, orthographic, at eye height) as a registered
+   remeasure (the 2x2 shows it); then re-evaluate round 4's parked rim loop (`SIDE_RIM_ROW` + refit) under it.
+2. The jaw behind the hair: measure head_construction (the bald head) against head_turnaround where both show the
+   face outline; make it the authority where head_turnaround is hair-occluded; fit the jaw there, the ramus included.
+3. The mouth line: mask it out on the design and on ours; the outline numbers must not move (fix them if they do).
+4. `charkit/subdiv.py` (faceeval, code_base, headfit) onto the exact `charkit/geom/subsurf.py`, its own commit, every
+   face check before and after.
+
+Jobs:
+- render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (the review
+  page's before).
