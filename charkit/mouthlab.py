@@ -10,7 +10,7 @@ measured without Blender, per key:
 and per combined expression (charkit.expressions.PRESETS: the face's components together) its measures against the template's
 own targets (exprqa.TARGETS).
 
-    python -m charkit mouth BUILD [--against BUILD2] [--out DIR] [--boards DIR] [--before-boards DIR]
+    python -m charkit mouth BUILD [--against BUILD2] [--out DIR] [--boards DIR] [--before-boards DIR [--before-label T]]
         a build's bundle -> DIR/mouth.json, DIR/index.html (default BUILD/mouth); --boards: a build's rendered boards
         (preset_*.png, mouth_*.png, expr_*.png) for the contact sheet, at the board's face camera, beside the sheet's
         heads; --before-boards: an earlier build's, its presets beside ours
@@ -464,11 +464,12 @@ def board_crop(path, L, box=(0.62, 0.55, 0.62)):
 
 
 
-def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions', before=None):
+def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions', before=None, before_label='before'):
     """the contact sheet: every combined expression as the build's face board draws it (when `boards` has them) beside
     the sheet's drawn head where it draws one, at one scale, with its class render and measures; the closed eyes' lid
-    boards side by side, and each calibrated target on its variants (CALIBRATE); then every mouth key. before: an
-    earlier build's boards folder, its preset boards set beside ours. -> the page's path."""
+    boards side by side, and each calibrated target on its variants (CALIBRATE, first: the preset before and after); then
+    every mouth key. before: an earlier build's boards folder, its preset boards set beside ours (before_label names
+    it). -> the page's path."""
     from PIL import Image
     from . import exprqa
     img = os.path.join(out, 'img')
@@ -503,6 +504,35 @@ def page(M, out, B=None, boards=None, against=None, title='Mouth and expressions
              '(skin, line, iris, white, the mouth\'s inside, the tongue pink, brows purple) and the template\'s targets '
              '(exprqa.TARGETS). Folds: skin faces turned or flipped under the key (qa3d.face_folds).</p>'
              % (('%.0f' % ppl_b) if ppl_b else '-'))
+    # the focus: each calibrated preset before and after, and its component's variants as the lid boards draw them
+    for name, c in (M.get('calibration') or {}).items():
+        V = c['variants']
+        pics = []
+        for d, lab in ((before, before_label), (boards, 'after (this build)')):
+            bp = os.path.join(d, 'preset_%s.png' % name) if d else None
+            if bp and os.path.exists(bp):
+                pics.append((save(board_crop(bp, M['L']), 'focus_%s_%s.png' % (name, lab.split()[0]), 360),
+                             '%s: %s' % (lab, html.escape(', '.join('%s %s' % kv for kv in M['presets'][name]['combo'].items())))))
+        lids = []
+        for v, g in V.items():
+            bp = os.path.join(boards, 'expr_%s.png' % v) if boards and v != 'rest' else None
+            if bp and os.path.exists(bp):
+                a = np.asarray(Image.open(bp).convert('RGB')).astype(float) / 255
+                h_, w_ = a.shape[:2]
+                fk = g['features'].get('eye_fork', {}).get('value')
+                lids.append((save(a[int(0.28 * h_):int(0.72 * h_)], 'focus_lid_%s.png' % v, 180),
+                             '%s: %s under %s\'s target (miss %s, eye_fork %s)' % (v, g['status'], name, f(g['miss']), f(fk)),
+                             g['status']))
+        L.append('<h2>%s: before and after</h2><p class="note">The preset\'s face board before and after (the same camera: '
+                 '85 mm, 0.5 m); under it each %s the calibration swaps in, as the expression row draws it (the lid alone '
+                 'with its brow, the mouth at rest; one camera: 85 mm, 0.42 m), graded against %s\'s target on the preset '
+                 'with that %s. Calibration %s: it passes on the first and fails on the rest face and the others.</p>'
+                 '<div class="row">%s</div><div class="row">%s</div>' % (
+                     name, c['component'], name, c['component'], 'ok' if c['ok'] else 'NOT ok',
+                     ''.join('<div class="card"><img src="%s" height="360"><div class="lab">%s</div></div>' % pc
+                             for pc in pics),
+                     ''.join('<div class="card"><img src="%s" height="180"><div class="lab"><span class="%s">%s</span>'
+                             '</div></div>' % (src, st, html.escape(lab)) for src, lab, st in lids)))
     # the expressions
     L.append('<h2>Expressions</h2><div class="row">')
     A = against or {}
@@ -643,7 +673,8 @@ def main(args):
         aj = os.path.join(a, 'mouth.json') if os.path.isdir(a) and os.path.exists(os.path.join(a, 'mouth.json')) else a
         A = json.load(open(aj)) if aj.endswith('.json') else strip(measure(build_bundle(a)))
     if '--no-page' not in args:
-        print(page(M, out, B, opt('--boards'), A, before=opt('--before-boards')))
+        print(page(M, out, B, opt('--boards'), A, before=opt('--before-boards'),
+                   before_label=opt('--before-label', 'before')))
     print('%.1f s' % (time.time() - t))
     return 0
 

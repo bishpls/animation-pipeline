@@ -251,3 +251,129 @@ build CPU 1.10x. Tests: 54 files, 0 failing. Not blocking, for the morning repor
 4. Cover: wavy and grimace lap 5.7% skin over their corners (the lips' rings); try a corner-ring pull in mouth.key.
 5. The fills sit above the drawing's (their outline is heavier than our lip line): measure the drawn line's width and
    compare line weight separately from the shape.
+
+## Round 3 (`tool/mouth3`, 2026-09-30)
+
+Branch `tool/mouth3` in `~/animation-pipeline-mouth`, from pipeline-3d d60486a; pipeline-3d 25b1936 (tool/infra-auth,
+tool/evalmesh M2+M3) merged at eeeff82. Box commands run with `CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud` (the
+service account; the env files export it).
+
+**Michael's call (2026-09-30):** the effort face's eye is a `>` `<` chevron (round 2's squeeze read close to the happy
+closed eye).
+
+### The chevron (`eyes.CHEVRON`, `eyes.expressions()['chevron']`)
+
+A new lid shape in the modular system (`eye_chevron`: skin, lashes, sclera, iris), available to any preset; the effort
+preset uses it (`effort: eye chevron, mouth clench, brow knit`).
+- **The fold.** A lid curve over x can't draw a chevron (a closed line has one z per x). The lid functions take the
+  margin's t (0 inner .. 1 outer corner) to any (x, z), so each lid's margin runs out along its stroke's outer side to
+  the stroke's end, then back along the wedge side to the apex, where the outer corner meets the inner one: the loop
+  folds at the inner corner and encloses nothing. Each lid turns back (`fold`) between the last margin vertex whose rim
+  (the eye block's outer loop) lies on the stroke's outer side and the first on its inner side (upper 0.913 | 0.935,
+  lower 0.954 | 0.991 on the authored block): every spoke then reaches its stroke from its own side and the rings stay
+  nested. A first try at lower 0.9 flipped 4 faces (the spokes between 0.877 and 0.916 crossed the lower stroke);
+  at 0.972 the key flips none.
+- **The strokes** are the lash ribbons re-laid (`eyes.LASHES['chevron']` = `chevron_lashes`: lashes()' vertices, so the
+  key is valid), each 0.11 eye widths wide, centred on its stroke, tapering over its last quarter; they meet in a point
+  1.1 stroke widths behind the apex (their square ends had crossed in a notch). The crease folds away 2 mm behind
+  the skin (folded at the strokes' depth it z-fought with the upper stroke: a dashed line along it on the first board).
+- **The pocket** (`lid_key(seat=True)`, `eyes.KEY_OPTS`): the outer corner going to the apex carried the deep outer
+  pocket forward into the shallow inner part, and it showed through the skin between the strokes (a dark blob in the
+  class render); seated at least as far behind the eye's surface as at rest, it doesn't. Only the chevron's key is
+  seated (the pocket's walls draw the open eyes' line, so the other keys are left bit-identical).
+- **The plates** sink under it as under blink and happy (`eyes.CLOSED`, read by `character.build_eyes` and
+  `faceeval.features`, where the list was written out twice). The squeeze is listed too: round 2's boards showed its
+  iris and sclera through the skin (yellow under each eye, white over it: the "before" effort board has them); the
+  class render at 600 px/L read 19 iris and 63 white pixels, now 0.
+- Geometry: apex (-0.42, 0.06) eye widths from the eye's centre (by the inner corner), the ends at x 0.38, 0.27 over
+  and under the apex (a 38 degree opening).
+
+### Measurement
+
+- **`eye_fork`** (`exprqa._fork`, a closed eye's): per column of the lid stroke's outer half (away from the midline),
+  the longest run of other pixels between its line pixels, the mean over the stroke's span. A chevron reads its
+  strokes' spread less their width (a straight one: 1.5 tan(a) - (w / S) / cos(a)); a single stroke about 0.
+  At the lab's 200 px/L: chevron 0.272, happy 0.022, squeeze 0.000, blink 0.000; at the sheet's scale (111 px/L)
+  0.252 against 0.008-0.019. The drawn heads (laugh, yawn) read 0.0.
+- **effort's target** (`exprqa.TARGETS`): `eye_fork >= 0.15` (margin 0.05) replaces `eye_arc >= 0.02`: 0.15 is a chevron
+  whose strokes open at least about 20 degrees; under it the strokes run into a line. Set from what a chevron is, not
+  from our number.
+- **Calibrated** (`mouthlab.CALIBRATE`: effort's target on effort with its eye swapped; the lab page's calibration
+  section; `tests/test_mouth.py`): chevron PASS (miss 0.0); the rest face FAIL (9.0), the squeeze (round 2's effort
+  eye) FAIL (3.0), happy FAIL (2.56), blink FAIL (3.0).
+- **The 2x2** (target x eye, the same mouth and brows): the old target (`eye_arc`) passed the squeeze (0.0) and the
+  happy arc alike (0.0: it couldn't tell effort's eye from a laugh's) and WARNs the chevron (0.785: its arc is 0.004);
+  the new passes the chevron (0.0) and fails the squeeze (3.0) and happy (2.56).
+- **A folded lid's opening** (`qa3d.folds_back`, `loop_opening`): face_from read each lid as heights over x, so the
+  chevron's two folded lids read the wedge between their strokes as an opening (0.319 of neutral, the iris 0.321
+  visible) where the loop encloses nothing. A lid whose x runs back on itself past 5% of its range is now read by its
+  loop's winding (0.0, iris 0.0). Unfolded keys keep the old path (bit-identical); read by the loop too they agree
+  within 0.002 of neutral on every key (the check on the new measure). face_expr_range under the old measure: 1 WARN
+  (the chevron at 0.319); under the new, 0 PASS.
+- The sheet's match (`exprqa._eye_dist`) adds the fork past its pass band (0.05), so two single strokes match as
+  before (every expr_*_eye value unchanged) and a chevron is far from a single stroke; `grade` reports eye_fork;
+  `exprqa.name` calls a drawn chevron `effort` and `SHEET_PRESET` pairs it with the effort preset, so a drawing's
+  `> <` would calibrate the same target.
+- Measurement steps at 8ea2634 (charkit/steps/qa3d.py): face_preset_effort, face_folds, face_expr_range,
+  face_eye_asym, expr_*_eye.
+
+### Numbers
+
+- face_folds: 8 PASS (the chevron's key 0; angry, sad, squeeze, wince 2 each, as before).
+- Every preset PASS in the lab (13), effort 0.0 with the chevron.
+- The components still add: no vertex moved by both an eye key and a mouth key (the test, on a head dumped at
+  pipeline-3d d60486a: `charkit/out/mouthlab/h3/head.pkl.gz`).
+- expr_* unchanged (laugh eye 0.092 squeeze, yawn eye 0.255 blink).
+
+### Boards and the contact sheet
+
+`python -m charkit remote --box render build charkit/spec/clawd.json --out charkit/out/mouth3_boards_b --boards
+expressions,mouths --boards-renderer eevee` (at 1c282c6), then `python -m charkit mouth charkit/out/mouth3_boards_b
+--boards charkit/out/mouth3_boards_b/boards --before-boards charkit/out/mouth_boards/boards --before-label "..."
+--against charkit/out/mouth_boards/mouth --out charkit/out/mouth3_boards_b/mouth`.
+**The contact sheet: `charkit/out/mouth3_boards_b/mouth/index.html`** (in this worktree). Its first section is effort
+before (round 2's board: tool/mouth2 on pipeline-3d b43c15e, so the face's shading predates look5's cast shadows) and
+after (this build), at the preset camera, and under them the chevron, the squeeze, the happy closed eye and the blink as
+the expression row draws them (one camera), each graded against effort's target. Then the closed eyes with their arc,
+fork and folds, the calibration's class renders, every preset (before / after boards, class render, targets) and the
+mouth keys. `mouthlab.page` gained the focus section, `--before-boards` and `--before-label`.
+
+The first board build (`charkit/out/mouth3_boards`, at b4f049f) showed two faults the class renders don't draw: a
+faint dashed line along each upper stroke (the crease ribbon, folded to a hairline at the strokes' own depth,
+z-fighting with the lash) and the squeeze's plates through its skin (round 2's). Both fixed at 1c282c6.
+
+That build's QA (the default spec): face_folds 8 PASS (eye_chevron 0), face_expr_range 0 PASS, face_eye_asym 0.0 PASS,
+face_preset_effort 0.0 PASS, every face_preset_* 0.0 PASS, face_mouth_cover 0.942 WARN (wavy, as before), expr_laugh_eye
+0.092, expr_yawn_eye 0.255 (INFO, unchanged).
+
+Looking at the boards: the chevron reads as `> <` at the preset camera, with the strokes' weight near the lashes'. The
+effort face (chevron, clench, knit) no longer reads as the laugh's eyes. The brows still sit under the fringe.
+
+### The gate
+
+`python -m charkit remote gate tool/mouth3 --into pipeline-3d`: **PASS under K** (1c282c6 into 9a12d01; report
+`charkit/out/gate/gate_tool-mouth3_1c282c6_into_9a12d01.md`). Nothing blocks: no new FAIL, no flag-check regression,
+build CPU 1.21x (598.5 -> 724.9 s; Blender and QA 330.4 -> 311.8 s). Tests: 66 files, 0 failing. 0 items reported: no
+check's value moved, no new WARN (face_mouth_cover 0.942 WARN is round 2's, unchanged).
+The 2x2 (five remeasured checks): face_folds 8 PASS and face_eye_asym 0.0 PASS in all four cells; expr_*_eye unchanged
+in all four; face_preset_effort 0.0 PASS on the candidate under both measures (the baseline's QA grades its own
+preset, the squeeze effort, which the candidate still carries), and 9.0 FAIL under the new measure on the old geometry
+(no eye_chevron key there: the feature isn't found); face_expr_range 0 PASS, but 1 WARN under the new measure on the old
+geometry (the missing key reads as the open rest eye). Neither gets worse under one measure across geometries.
+
+The earlier gates, for the record:
+- b4f049f into 4007276: PASS, CPU 1.15x, the same 2x2 (before the crease and squeeze fixes).
+- 1c282c6 into 25b1936: FAIL on CPU alone, 1.52x (577.3 -> 878.3 s). The candidate built the shared hull (a produced
+  cache miss, "no entry", 151 s of its 157 s resolve) that the cached baseline's figure didn't include; Blender and QA
+  323.6 -> 329.2 s. Rerun with the hull stored (it hit, 150 s saved), the same commit read 1.21x (above). No --accept.
+
+### Next steps
+
+1. Michael: the chevron's look on the contact sheet: its size (0.8 eye widths long, a 38 degree opening), stroke weight
+   (0.11 eye widths) and the pointed join are knobs in `eyes.CHEVRON`; a bowed stroke (`bow`) is there untried.
+2. The chevron's folds (`CHEVRON['fold']`) are set for the authored eye block's margin; another base (another margin
+   spacing) needs them set again from its rims (the rule and the test are in place; a base without loops, the retired
+   MakeHuman, is untested).
+3. The eye match and `exprqa.name` now know a chevron: a drawing with `> <` eyes would calibrate the effort target
+   against a drawn head (SHEET_PRESET), which none of Clawd's sheets draws.
+4. Round 2's next steps 2-5 stand (the brows under the fringe, a face component, the cover at the corners, line weight).
