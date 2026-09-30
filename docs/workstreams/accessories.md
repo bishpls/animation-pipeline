@@ -5,7 +5,7 @@ placeholders in `charkit/accessories.py` were a thin stretched four-point star a
 them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
 remodels and places them.
 
-## State: Round 2 (`tool/accessories2`, from pipeline-3d 3ebc3fb), in progress
+## State: Round 2 (`tool/accessories2`), gated: FAIL under K (3 blockers, below); decisions for Michael
 
 Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
 pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
@@ -127,6 +127,38 @@ outline). Only the accessories block's text changes in each file. Only clawd.jso
   (GEOM_TOL 1e-5); 0 of 110 checks drift. With the fitted specs the clips no longer read the volume at all (placed by
   `at`, seated on the built pieces).
 - Test: `test_hair_by_outside_sign_is_tie_free` (a cube's edge and corner).
+
+### 6. The box builds, the review page, the gate
+- After (box build `charkit/out/acc_new`, clawd.json at 7d1ab98) against before (`acc_base2/qa_new`): the harness's
+  numbers reproduce exactly. Graded acc_* checks: before 23 FAIL; after 19 PASS, 4 WARN, 9 FAIL. Colour dE: star
+  7.19 -> 0.04, crab 5.51 -> 0.30. pos3d: star 0.427 -> 0.277, crab 0.337 -> 0.254 (both still FAIL).
+- Render box: `charkit/out/acc_new_render` (boards views, body). Review page (local, gitignored):
+  `charkit/out/acc_work/review/index.html` (per view the QA's close-ups before and after at one scale, the numbers,
+  the face boards before / after / EEVEE after).
+- Merged pipeline-3d 3a0ad37 into the branch (b9d9823; one conflict in bodyeval.hair_by_outside: i3d renamed
+  target3d). Tests 544 passed. Pregate PASS (31 moved, 0 blocking; body_profile_chest 0.013 -> 0.045 WARN on the
+  evaluator, not seen by the gate).
+- **Gate** (`charkit/out/gate/gate_tool-accessories2_b9d9823_into_3a0ad37.md`): **FAIL under K**, 3 blockers:
+  1. `palette_iris_shade`: the 2x2 couldn't measure it under the old measure on the new geometry (4.63 PASS on the
+     old geometry, 4.65 PASS on the candidate): unverified, not worse;
+  2. `acc_star_back_shown` 0 -> 1501 px FAIL under the new measure on both geometries: the star, resting on the crab,
+     shows from behind (the known fault of step 3);
+  3. CPU 1.63x (591 -> 966 s). My like-for-like box builds: 890 -> 952 CPU s (+7%); the gate's baseline likely
+     restored stages the candidate had to run (the new hair_select step; `hair.shape.selection` in the spec changes
+     garments_geom's and pieces_hair's keys). Unverified.
+  Reported, not blocking: 9 new acc_* FAILs, art_outline_face 0.481 -> 0.376 INFO, art_outline_hair 0.734 -> 0.799
+  INFO, hair_noise 0.0791 -> 0.0776 WARN.
+
+### Decisions for Michael
+1. **Which view the clips honour.** The drawings put both clips face-on in every view and at no single 3D place. The
+   fit weights front and 3/4 at 1 and profile at 0.6: the front star reads foreshortened (iou 0.54), and the profile
+   places are 0.23-0.28 L forward of the drawn ones. The options: re-weight, let the clips turn toward the camera per
+   view (a rig or shader trick, not geometry), or widen our hair at the clips' height so the drawn place lies on it.
+2. **The star over the crab.** Resting on the crab lifts the star 0.046 L and shows it from behind (the blocker);
+   resting on the hair alone lets the crab's claw poke through it. The fix is to shape the star to the crab (tilt or
+   bend it where they overlap), or to accept the float.
+3. The CPU blocker: re-gate with warm caches, or accept the one-time misses.
+4. The outline colour of the clips (the default dark brown; the golden star line was dropped).
 
 ## Round 1 (tool/accessories, d45f27e): PAUSED (2026-09-29, coordinator's request to cut concurrency)
 
