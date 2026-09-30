@@ -542,7 +542,8 @@ def boards(S, out, which=('views', 'expressions', 'mouths', 'body')):
         DESIGN_AZ = (0, 30, 35, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330)
         n = int(round(DESIGN_WINDOW * DESIGN_PPL))
         sc.render.resolution_x, sc.render.resolution_y = n, n
-        c = A['head'].get('centre') or (0.0, 0.0, eye_z)
+        c = A['head'].get('centre')
+        c = (0.0, 0.0, eye_z) if c is None else [float(x) for x in c]
         made += qa.render_views(cam, [V((c[0], c[1], eye_z), az, 4.0, 0.0, os.path.join(out, f'design_{az:03d}.png'),
                                         ortho=DESIGN_WINDOW * L) for az in DESIGN_AZ], features=feats)
     if 'expressions' in which:

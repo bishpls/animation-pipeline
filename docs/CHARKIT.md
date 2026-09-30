@@ -554,8 +554,9 @@ eye, silhouette, scalp and hair-noise renders drawn from the bundle.
 - **Measurement steps.** When a check's measurement changes rather than the character, its numbers step. `hair_noise`
   read about 0.31 instead of 0.35 to 0.7 once the QA renders stopped dithering (c500f21, the geom merge). `face_folds`
   rose from 1014 to 1257 on the same skin when the expression library grew, because it sums over every key (8017ff3,
-  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). `history.STEPS`
-  lists each step (the check, the commit, what changed). A build is before or after a step by whether that commit is in
+  tool/sheet). `face_shape_coverage_*` became INFO once the sheet took over grading framing (5652f64). The files in
+  `charkit/steps/` list each step (the check, the commit, what changed; see "Registering a QA part or a measurement
+  step"). A build is before or after a step by whether that commit is in
   its history. `history --check` draws a line at each step, `history.trend` reads only the builds since the latest one,
   and the gate's and the tune loop's comparisons call such a check `remeasured`, neither better nor worse. Add a step
   whenever a QA change moves a check's numbers.
@@ -566,6 +567,24 @@ eye, silhouette, scalp and hair-noise renders drawn from the bundle.
   - FAIL: a conflict, a failing test, a failed build, or a graded check that got worse or disappeared.
   - WARN: the build is 1.5x slower.
   - No branch moves.
+  - **The 2×2 (no gaming).** When the branch brings a measurement step and its build's geometry differs from the
+    baseline's, the gate measures both ways: the merged tree's QA on the baseline's bundle (the new measure on the old
+    geometry), then, the merge undone, the baseline's QA on the candidate's bundle (the old measure on the new geometry;
+    the bundle's schema is stable and read by name, so older code reads it). A remeasured check that gets worse under
+    the old measure fails the gate unless it's accepted by name: `--accept PATTERN[,PATTERN]` (also through `remote
+    gate`). If a crossed run can't run, the gate WARNs that the remeasured checks are unverified.
+- `python -m charkit preview [REF]` (charkit/preview.py), right after a merge to pipeline-3d, in the background: REF
+  (default HEAD) built on the render box in its own worktree (`../animation-pipeline-autopreview`) with the boards
+  views, body and `design` (the head orthographic and level at the eye line, the design's projection), stored under
+  `charkit/out/previews/<sha7>/`, and `review.html`: the QA tally against the previous preview (FAIL -> PASS, PASS ->
+  FAIL, ...), the design, previous and current full figures at one height, the head beside head_turnaround's four
+  views at one px per L with the eye lines level, a turntable. `charkit/out/previews/latest.html` opens the newest.
+  `python -m charkit preview hook install` adds a post-merge hook to this worktree only; it starts the preview in
+  the background and never blocks the merge.
+- `python -m charkit evaldrift [SPEC]` (charkit/evaldrift.py): a build on the build box and the fast evaluator (as the
+  body fit reads it) on the same synced copy; every check both give is compared (0.01 by default, 0.5 for palette's
+  CIEDE2000). The report is `charkit/out/evaldrift/<spec>/drift.md`; it exits 1 on drift. Run it when a fit's
+  evaluator numbers and the box's disagree, and after changes to either side.
 - Builds record their Blender process in their output folder (`.pid.json`). `python -m charkit ps` lists them across
   worktrees, and `python -m charkit kill OUT_DIR` stops that one only. Never stop builds by pattern.
 - Builds share a machine-wide number of slots, and start only when memory is available.
