@@ -158,6 +158,63 @@ profile hides its three-quarter tails behind the legs (IoU near 0). The fit weig
   side, as above, registered as a measurement step (charkit/steps/bodyqa.py). Not changed here: bodyqa.py is covered
   by the hull's stamp (an edit rebuilds the hull and the outfit masks), so it wants the integrator's slot.
 
+## Checkpoint (2026-09-30, the usage limit): start here
+
+**Branch** `tool/skirt` in `~/animation-pipeline-skirt`, HEAD 9bea979 (contains pipeline-3d 8a7d4ea: geometry truth,
+tool/infra, tool/hull-limbs). No gate run yet. **The specs don't use the new geometry yet**: the template flaps, the
+skirt's geometric band, the tuck and 18 pleats are code, fitted on the evaluator, not yet written into clawd.json,
+clawd_body_pieces.json and clawd_body.json.
+
+**Done and committed:** the measurement (charkit/skirtqa.py, QA part `skirt`, steps in charkit/steps/skirtqa.py; tests
+charkit/tests/test_skirtqa.py: every check passes on the design itself and fails on a round-6-like corruption); the
+graded leg outline (detailqa); the pleat checks moved from garments2; the flap template (garments.flap_template,
+flap_stair: first + rise, twist), the skirt's band as geometry (band_rows), the tuck (tuck_under, tuck_pull) with
+tests (charkit/tests/test_skirt_geometry.py).
+
+**Scratch** (gitignored, this worktree): `charkit/out/skirt_scratch/` holds the harness (`fast.py` the flap evaluator
+compositing each candidate into the scene z-buffered once; `fit.py` the coordinate descent and its objective;
+`edges.py` the edge azimuths from the drawn back flap; `skband.py` the skirt band sweep; `apply_spec.py` the
+span-preserving spec editor; `make_garments.py` the final entries from a knobs file; `closeup.py`, `review.py`,
+`tables.py` the review page; `aline.py` the per-side A-line) and the fit states (`fitG_best.json` the best, `t8.json`
+its start, `r6qa/skirt.json` round 6's new checks). The harness predates the geometry-truth merge: `fast.py` reads
+bodyeval's internals (`E._garments`' hull key, `Part.subdiv`) and may need adjusting; run it from this worktree with
+`~/animation-pipeline/.venv/bin/python`, GEOM=charkit/out/skirt_codes/geom (head and body codes from this tree; round
+6's codes carry the old thigh bump).
+
+**The best state (fit G, evaluator, fresh codes):** the left flap (the right mirrors it):
+`edges` [[0, 130, 166], [0.25, 128.7, 163.8], [0.5, 128.7, 161.2], [0.75, 126.2, 158.8], [1, 127, 157]],
+`stand` [[0, 0], [0.5, -0.02], [1, 0.16]], `tail` {steps 3, first 0.18, rise 0.17}, `droop` 0.4, `out` 0.2,
+`twist` 0, `band` 0.13, clear 0.02, thick 0.01, bones 6, cols 24, rows 20, tail_rows 12, `hem` band, `shape` template.
+The skirt: `pleats` 18, `band` {height 0.15, stair [[0, 0.35], [14, 0.25], [28, 0.15]]}, `tuck_fit` {inset 0.5,
+clear 0.005, blend 0.25}. Objective 33.4 (fit C's irregular-stair state 29.8 on round 6's body; round 6 itself far
+worse): every hem PASS, the flaps' extents PASS, the leg outline PASS (0.014 on the fresh body), the right flap's piece
+IoU held over 0.53.
+
+**Numbers so far** (evaluator; fit F's state, a step before G, on fresh codes: back IoU 0.78 PASS both, front 0.64
+WARN, profile 0.55 WARN, three-quarter under 0.1 FAIL; fit C's state on round 6's body: back 0.75, profile 0.75,
+attach, sweep, hang and clearance PASS). The flap band at fit G: two main risers of 0.165 against the design's
+0.15-0.16, treads 0.09 against 0.10, but the band reads heavy (median 0.32 against 0.19): band 0.13 was the fit's last
+move toward it. A box build of fit F's state (`charkit/spec/_skirt_try.json`, untracked; out
+`charkit/out/skirt_try`) was running at the checkpoint: its QA is the first Blender check of the template.
+
+**Next steps, in order:**
+1. Record the box build's QA (`charkit/out/skirt_try/qa/qa.json`) and check the template in Blender (materials, no
+   subdivision, the band) and `python -m charkit evaldrift --stages` on it.
+2. Write the best state into the three specs: `python charkit/out/skirt_scratch/make_garments.py
+   charkit/out/skirt_scratch/fitG_best.json /tmp/g.json` then `apply_spec.py /tmp/g.json charkit/spec/clawd.json
+   charkit/spec/clawd_body_pieces.json charkit/spec/clawd_body.json`; delete `_skirt_try.json`.
+3. `python -m charkit flapchains charkit/spec/clawd.json --build charkit/out/skirt_codes` (the flaps' chains into the
+   outfit notes; it restamps the outfit masks).
+4. The test suite, then the gates: `python -m charkit remote gate tool/skirt --into pipeline-3d` and with
+   `--spec charkit/spec/clawd_mh.json` (clawd_mh keeps its own skirt and panels: only the new checks reach it). Don't
+   use --accept; report regressions.
+5. A render-box build with boards for the review (`remote --box render build charkit/spec/clawd.json --boards body`),
+   then `review.py OUT charkit/out/.. (round 6: ~/animation-pipeline-body/charkit/out/body6_render) NEW` and
+   `tables.py` for the before/after tables.
+6. Open: the flap band's median height (make the band thinner or the treads wider: `widths`); the three-quarter view
+   (the design's tails there disagree with its back, front and profile); the skirt band's front median height
+   (0.245 against 0.155); clawd_mh's three-quarter A-line (below).
+
 ## Paused (2026-09-30, the usage limit), resumed after db718ae
 
 No box jobs were running. Scratch harness (design masks, zooms with an L grid, line fills) is in the session scratchpad
