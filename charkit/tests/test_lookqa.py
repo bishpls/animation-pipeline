@@ -134,6 +134,33 @@ def test_chin_separates_the_v_from_the_band():
     assert grade(lookqa.chin_on_jaw(lookqa.jaw_frame(smear, skin, Jo, ppl), gd, ppl)) == 'FAIL'
 
 
+def test_the_design_light_remeasures_face_shadow():
+    """tool/look6's steps read as the gate reads them (history.load_steps on this tree, steps_between, the checks
+    matched to the patterns): a merge bringing d1ad9ba (the chin on the jaw) and ec0c93c (the design light in the
+    manifest) remeasures every face_shadow_* check, so the gate scores them in its 2x2; the checks the round moved by
+    changing the look (face_lift) are not remeasured. The round's first gate missed these steps (a `+=` block the
+    registry never read)."""
+    import fnmatch
+    from charkit import history
+    look6 = {'d1ad9ba', 'ec0c93c'}
+    real = history.contains
+    history.contains = lambda ref, commit, repo=None: ref == 'tip' or commit not in look6
+    try:
+        steps = history.load_steps(os.path.join(os.path.dirname(os.path.abspath(lookqa.__file__)), 'history.py'))
+        rem = history.steps_between('base', 'tip', steps)
+        names = ['face_shadow_3q', 'face_shadow_face_3q', 'face_shadow_neck_3q', 'face_shadow_chin',
+                 'face_shadow_chin_edge', 'face_shadow_chin_soft', 'face_noise', 'face_noise_sweep', 'face_islands',
+                 'hair_noise', 'line_ink']
+        by_name = history.remeasured('base', 'tip', names, steps)
+    finally:
+        history.contains = real
+    shadow = {n for n in names if n.startswith('face_shadow_')}
+    assert set(rem) == {'face_shadow_*', 'face_shadow_chin', 'face_shadow_chin_edge'}, rem
+    assert {n for n in names if any(fnmatch.fnmatchcase(n, p) for p in rem)} == shadow        # gate.py's `stepped`
+    assert set(by_name) == shadow, by_name
+    assert 'jaw' in by_name['face_shadow_chin_edge'] and 'design light' in by_name['face_shadow_3q']
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

@@ -25,10 +25,11 @@ MEASUREMENT_STEPS = [
     ('face_shadow_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
     ('face_shadow_face_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
     ('face_shadow_neck_3q', 'd082a27', "the head drawn bare, as head_turnaround draws it (tool/look2 d082a27, landed by tool/look5): the garments left out and the skin unmasked under them (the bundle's 'bare' skin; the render drawing reads the look export's NAME.bare). With the collar on, the neck window held only a strip between the chin and the collar (round 1's band read IoU 0.85 there). A build without a bare skin (before tool/look5) is still drawn dressed"),
-]
-MEASUREMENT_STEPS += [
-    # tool/look6: the design light (docs/workstreams/look.md round 6)
-    ('face_shadow_*', 'd1ad9ba', "measured under the design light (the manifest's design_light: the camera key the "
+    # tool/look6: the design light (docs/workstreams/look.md round 6). One literal: charkit.registry reads the first
+    # MEASUREMENT_STEPS assignment with ast, so a `+=` block is never read (the round's first gate missed these steps).
+    # The design light's step is ec0c93c, the commit that puts design_light in the manifest (d1ad9ba's code reads it
+    # when there; a build at d1ad9ba still measures under the boards' light).
+    ('face_shadow_*', 'ec0c93c', "measured under the design light (the manifest's design_light: the camera key the "
      "turnarounds' drawn shading implies, 15 deg left, 47.5 up; charkit.designlight), not the boards' (30, 40), the cast "
      "rebaked at its elevation (designlight.rebake: bit-identical to the build's bake at the build's elevation); the "
      "boards' light's values beside ('board')"),

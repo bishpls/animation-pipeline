@@ -809,6 +809,21 @@ and after, the shade overlaid against the design's, per region IoU and shares). 
 `charkit/out/look6_{base,after}/qa_look6/` (qa_face_shadow.png, qa_chin_shadow.png: the jaw found in red, the
 jaw-aligned grids).
 
+### The remeasure steps, read (the 2x2)
+
+Why the first gate ran no 2x2: charkit/steps/lookqa.py added the round's three steps in a second
+`MEASUREMENT_STEPS += [...]` block, and `registry.module_steps` reads only the first literal (by ast), so the gate's
+`steps_between` never saw them. Fixed by folding them into the one literal. The design light's `face_shadow_*` step now
+names ec0c93c (the manifest's design_light; a build at d1ad9ba still measured under the boards' light). The chin's two
+steps stay at d1ad9ba. No other check's measure changed this round: face_noise*, face_islands and hair_noise read the
+boards' light as before and moved with the look (`face_lift`). Tests:
+- test_registry `test_a_modules_steps_are_one_literal`: any module that binds MEASUREMENT_STEPS more than once, or adds
+  to it, fails. A steps file run as a script must equal what's read.
+- test_lookqa `test_the_design_light_remeasures_face_shadow`: the gate's path (load_steps, steps_between, the pattern
+  match) marks all six face_shadow_* checks remeasured and none of the others.
+
+Both tests fail on the old file.
+
 ### Next, in order
 1. `python -m charkit remote gate tool/look6 --into pipeline-3d --carry` (export CLOUDSDK_CONFIG first) if the
    coordinator wants the gate at the branch head (271ae94 and later add the pipeline-3d merge, docs, review code).
