@@ -2325,7 +2325,8 @@ def run(B, out, ref_image=None, mode='on', parts=None):
     from . import qarender
     rep['measured'] = {'where': 'venv', 'bundle': B.meta('content'), 'seconds': round(time.perf_counter() - t0, 2),
                        'cpu_s': round(time.process_time() - c0, 2), 'parts': timing, 'part_checks': owner,
-                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B))}
+                       'draw': dict(setting=qarender.setting(), frames=qarender.drawn(B),
+                                    export=os.path.basename(qarender.export_of(B) or '') or None)}
     json.dump(rep, open(os.path.join(out, 'qa.json'), 'w'), indent=1, default=_json)
     if mode != 'off':
         cache.prune()                                           # (the cache's size cap, once per pass)

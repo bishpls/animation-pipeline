@@ -521,6 +521,17 @@ def test_a_crossed_qa_reads_a_moved_builds_own_files():
     assert gate.rebased_bundle(os.path.join(out, 'bundle'), os.path.join(root, 'y')) == os.path.join(out, 'bundle')
 
 
+def test_both_sides_draw_from_the_same_export():
+    q = lambda f: {'measured': {'draw': {'setting': 'render', 'export': f}}}
+    assert gate.draw_exports(q('clawd.look.glb'), q('clawd.look.glb')) is None
+    assert 'different exports' in gate.draw_exports(q('clawd.look.glb'), q('clawd.vrm'))
+    assert gate.draw_exports({'checks': {}}, q('clawd.vrm')) is None           # (a report from before the record)
+    import inspect
+    from charkit import cli
+    src = inspect.getsource(cli._build)
+    assert "(['--vrm'] if '--vrm' in args else []) + ([] if '--no-look' in args else ['--look'])" in src
+
+
 def test_docs_and_tests_can_reach_no_build():
     from charkit import closure
     C = {'reads': ['charkit/x.py', 'charkit/README.md'], 'listed': ['charkit/notes']}

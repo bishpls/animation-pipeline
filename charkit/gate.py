@@ -452,6 +452,18 @@ def measure_moved(base, cand, old_on_new, new_on_old, names):
     return sorted(k for k in names if cell(base, k) != cell(new_on_old, k) or cell(old_on_new, k) != cell(cand, k))
 
 
+def draw_exports(qa_a, qa_b):
+    """both QAs must draw from the same kind of export (the look export): a --vrm candidate that had none drew from its
+    VRM, and 7 face_shadow values moved with no change (tool/evalmesh ed0f91a, 2026-09-30; builds now write the look
+    export beside the VRM) -> a note when the two reports (measured.draw.export) name different kinds, else None."""
+    dx = [(((q or {}).get('measured') or {}).get('draw') or {}).get('export') for q in (qa_a, qa_b)]
+    kind = lambda f: 'look' if f.endswith('.look.glb') else os.path.splitext(f)[1].lstrip('.')
+    if all(dx) and kind(dx[0]) != kind(dx[1]):
+        return "the two QAs drew from different exports (%s -> %s): the drawn checks' moves may be the export's, not " \
+               "the branch's" % tuple(dx)
+    return None
+
+
 def geometry(out):
     """a build's geometry, for the 2x2's "did the geometry change": its bundle's array hashes (charkit/bundle.py's
     bundle.json), not the bundle's content hash, which also covers the metadata (the resolved spec's absolute output
@@ -814,6 +826,9 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                     rep.setdefault('notes', []).append("the QA's code wasn't compared (%s: %s)" % (type(e).__name__, e))
                 ph['note'] = '%d part%s changed' % (len(meas), 's' * (len(meas) != 1))
         owners = part_owners(meas, qa_b, qa_a)
+        n = draw_exports(qa_a, qa_b)
+        if n:
+            rep.setdefault('notes', []).append(n)
         # the 2x2: a remeasured check on changed geometry scored under both measures: the candidate's code (the merged
         # worktree) measures the baseline's bundle, the baseline's measures the candidate's
         (ga, ha), (gb, hb) = geometry(base_out), geometry(cand_q)
