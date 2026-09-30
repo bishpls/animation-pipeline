@@ -728,6 +728,9 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
 
 ## Checkpoint 2026-09-30, morning (read first; paused near the usage limit)
 
+**Direction:** `docs/ROADMAP.md` covers our approach against the commercial default, the missing rig pieces, the ranked
+architecture changes, what to hand-roll, and the gate-loop speed-ups.
+
 **Merged into pipeline-3d today** (each gated on both specs):
 - hair round 3 (e11fadb);
 - hull limb labels + the bare-leg check + docs/HULL_CONTRACT.md (a524c3b);
