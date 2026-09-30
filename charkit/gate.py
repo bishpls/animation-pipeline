@@ -6,7 +6,7 @@ candidate; the tests run, each side is built when it has to be, and the two buil
                                   [--build]
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
     python -m charkit gate --carry BRANCH [--into pipeline-3d] [--spec SPEC] [--args ".."] [--no-tests] [--dry-run]
-                                  [--json]
+                                  [--json] [--rule definitions|files]
         # an earlier gate of BRANCH's tip carried to INTO's head without a build: the tests the move reaches rerun
         # here (exit 0 PASS, 1 FAIL, 3 not carried: gate it)
 
@@ -880,8 +880,56 @@ def _report_dirs():
     return out
 
 
+def _kit_py(p):
+    """charkit's own Python, as the code walk compares it (its tests and outputs aside)."""
+    return p.startswith('charkit/') and p.endswith('.py') and not p.startswith(('charkit/tests/', 'charkit/out/'))
+
+
+def _carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff):
+    """what stops an earlier gate (tip into h0, merged tree t0) carrying to head (t1): the definition rule -> {kind:
+    [(what, why)]}.
+      - charkit's Python: the move's changed definitions (h0 -> head) and the branch's (h0 -> t0) meet: one side's among
+        what the other's reach, in either tree (charkit.codediff.interacts). A file both touch, or one the builds read,
+        no longer stops it by itself: an infra-only move (gate.py, cache.py, remote.py) reaches nothing the branch
+        changed.
+      - the QA's boundary, where data rather than calls joins the two: the move changes a QA part's measuring code (or
+        adds a part) while the branch changes what the QA reads (its candidate was built); or the branch changes a
+        measure (registered or not) while the move changes a file the baseline read.
+      - anything else (data files, Python outside charkit): as before, the files the two builds read."""
+    from . import cache, closure, codediff
+    trees = {}
+    T = lambda r: trees.setdefault(r, cache.Tree(repo=root, rev=r))
+    other = lambda ch: [(st, p) for st, p in ch if not _kit_py(p)]
+    hits = {'baseline': closure.affected(Cs['base'], other(moved), root, cone, rev=h0, new=head, untracked=False),
+            'candidate': closure.affected(Cs['cand'], other(diff), root, cone, rev=t0, new=t1, untracked=False)}
+    mv = sorted(p for _, p in moved if _kit_py(p))
+    br = sorted(p for _, p in closure.changes(root, h0, t0) if _kit_py(p))
+    if mv and br:
+        M = codediff.changed(T(h0), T(head), paths=mv, repo=root)
+        B = codediff.changed(T(h0), T(t0), paths=br, repo=root)
+        if M and B:
+            hits['definitions'] = codediff.interacts(M, B, [T(head), T(t1)], [T(t0), T(t1)])
+    built = (old.get('build') or {}).get('candidate') in ('built', 'carried')
+    if mv and built:
+        mq = codediff.measure_changes(T(h0), T(head))
+        new_parts = sorted({P['name'] for P in codediff.part_defs(T(head))} -
+                           {P['name'] for P in codediff.part_defs(T(h0))})
+        hits['measure'] = [(p, 'the move changes its measuring code (%s) and the branch changes what the QA reads' % (
+            ', '.join(v['units'][:3]))) for p, v in mq.items()] + [
+            (p, 'the move adds this QA part and the branch changes what the QA reads') for p in new_parts]
+    if br and moved:
+        bq = codediff.measure_changes(T(h0), T(t0)) if built else {}
+        if bq or old.get('remeasured'):
+            reach = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
+            if reach:
+                hits.setdefault('measure', []).extend(
+                    (p, 'the branch changes a measure (%s) and the move changes what the baseline build read' % (
+                        ', '.join(sorted(bq) or sorted(old.get('remeasured') or ()))[:120])) for p, _ in reach[:4])
+    return hits
+
+
 def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), write=True, reports=None, root=ROOT,
-          run_tests=True):
+          run_tests=True, rule='definitions'):
     """the newest gate of the branch's tip (any branch name) into an ancestor H0 of INTO, carried over to INTO with no
     build and no box, when the verdict can't differ there (ROADMAP "Reuse a gate when pipeline-3d moves"):
       - the branch still merges into INTO cleanly (git merge-tree);
@@ -891,6 +939,10 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
         deleted counts);
       - or, for a gate that built nothing because the branch changes only docs and tests, the merge into INTO still
         changes only those, and the tests' closure is untouched.
+    rule 'definitions' (the default since tool/infra4): charkit's Python counts at the level of definitions (the move's
+    changed definitions against the branch's and what they reach; _carry_hits), data and other files as before; 'files':
+    every file either build read (the first rule: an infra-only move or a shared file with no shared definition stopped
+    it).
     The report's json holds the three closures (reports from before this can't carry). -> dict: carried (bool),
     verdict (the old one, when carried), why, from (the report), hits ({baseline, candidate, tests: [(path, why)]}),
     report (the new report's .md, written as gate_TAG_into_HEAD when write)."""
@@ -967,21 +1019,28 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
             hits['candidate'] = [] if closure.unreadable(mine) else [
                 (p_, 'the merge now changes more than docs and tests') for _, p_ in mine[:8]]
         elif Cs.get('base') and Cs.get('cand'):
-            hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
-            hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
+            if rule == 'files':
+                hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
+                hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
+            else:
+                hits.update(_carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff))
         else:
             reasons.append('%s: its builds recorded no closure' % name)
             continue
         if any(hits.values()):
             res.setdefault('hits', {k: v[:20] for k, v in hits.items() if v})
             res.setdefault('from', name)
-            reasons.append('%s (into %s): %s' % (name, h0, '; '.join('%s reads %s' % (k, ', '.join(
+            head_ = {'baseline': 'the baseline reads', 'candidate': 'the candidate reads',
+                     'definitions': 'the move and the branch meet at', 'measure': 'the QA boundary:'}
+            reasons.append('%s (into %s): %s' % (name, h0, '; '.join('%s %s' % (head_.get(k, k), ', '.join(
                 '%s (%s)' % h for h in v[:4]) + (' and %d more' % (len(v) - 4) if len(v) > 4 else ''))
                 for k, v in hits.items() if v)))
             continue
         why = '%s moved %d files since %s%s and the merged trees differ in %d; none reaches the baseline or the ' \
-              'candidate build' % (into, len(moved), h0, '' if tip0 == tip else ' (and the branch since %s: %d files)'
-                                   % (tip0, len(closure.changes(root, tip0, tip))), len(diff))
+              'candidate build%s' % (into, len(moved), h0, '' if tip0 == tip else ' (and the branch since %s: %d files)'
+                                     % (tip0, len(closure.changes(root, tip0, tip))), len(diff),
+                                     ' (charkit\'s Python by definition: the move\'s changes and the branch\'s don\'t '
+                                     'meet)' if rule != 'files' and any(_kit_py(p_) for _, p_ in moved) else '')
         tests = dict(old.get('tests') or {})
         res.update(rerun={t: h[:4] for t, h in rerun.items()})
         if rerun and not run_tests:
@@ -1431,7 +1490,7 @@ def main(args):
         # (then gate it: `python -m charkit remote gate BRANCH --into INTO`)
         r = carry(args[1], into=opt('--into', 'pipeline-3d'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                   args=shlex.split(opt('--args', '')), write='--dry-run' not in args, reports=opt('--reports'),
-                  run_tests='--no-tests' not in args)
+                  run_tests='--no-tests' not in args, rule=opt('--rule', 'definitions'))
         if '--json' in args:
             print(json.dumps(r, default=str))
         else:

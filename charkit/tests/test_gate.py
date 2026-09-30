@@ -298,6 +298,50 @@ def test_remote_reads_a_gate_jobs_branch_and_spec():
     assert remote._gate_label('tool/x into pipeline-3d --build (gate code tool/infra3)') == ('tool/x', None)
 
 
+def test_remote_gate_names_its_own_report_never_the_newest(tmp_path=None):
+    """a gate job's report is the one in its own folder (by the gate's id) of its branch at its sha into its head,
+    copied into charkit/out/gate and named; another branch's report, newer or not, is never taken for it, and a gate
+    with none says so and doesn't exit 0 (tool/mouth3's follow printed tool/infra-auth's PASS, 2026-09-30)."""
+    import io, contextlib
+    from charkit import remote
+    root = tmp_path or tempfile.mkdtemp()
+    own = os.path.join(root, 'charkit', 'out', 'remote', 'gates', 'tool_mouth3-5b6fd763')
+    os.makedirs(own)
+
+    def put(folder, branch, tip, head, verdict, t):
+        stem = os.path.join(folder, 'gate_%s_%s_into_%s' % (branch.replace('/', '-'), tip, head))
+        json.dump(dict(branch=branch, tip=tip, head=head, verdict=verdict, t=t), open(stem + '.json', 'w'))
+        json.dump(dict(verdict=verdict), open(stem + '.summary.json', 'w'))
+        open(stem + '.md', 'w').write('# %s %s\n' % (branch, verdict))
+        return stem + '.md'
+    mine = put(own, 'tool/mouth3', 'b4f049f', '4007276', 'FAIL', '2026-09-30T14:18')
+    # (an older report of the same branch at another sha, in the same folder: not this gate's)
+    put(own, 'tool/mouth3', '1111111', '4007276', 'PASS', '2026-09-30T14:30')
+    other = os.path.join(root, 'charkit', 'out', 'gate')
+    os.makedirs(other)
+    put(other, 'tool/infra-auth', 'c488918', '4007276', 'PASS', '2026-09-30T14:19')       # newer, another branch
+    assert remote.gate_report(own, 'tool/mouth3', 'b4f049f074051ab7', '4007276b7a3e') == mine
+    assert remote.gate_report(own, 'tool/infra-auth', 'c488918', '4007276') is None
+    assert remote.gate_report(other, 'tool/mouth3', 'b4f049f', '4007276') is None
+    old = remote.ROOT
+    remote.ROOT = root
+    try:
+        what = dict(gate='tool_mouth3-5b6fd763', to=os.path.relpath(own, root), reports='charkit/out/gate',
+                    report=dict(branch='tool/mouth3', tip='b4f049f0740', head='4007276b7a3', into='pipeline-3d'))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = remote.gate_result(what, 1)
+        assert code == 1 and 'tool/mouth3 (b4f049f) into pipeline-3d (4007276): FAIL' in buf.getvalue(), buf.getvalue()
+        assert os.path.exists(os.path.join(other, os.path.basename(mine)))
+        # a job whose report didn't come back: named as missing, and no PASS claimed
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = remote.gate_result(dict(what, report=dict(what['report'], tip='2222222')), 0)
+        assert code == 1 and 'no report of tool/mouth3 (2222222)' in buf.getvalue(), buf.getvalue()
+    finally:
+        remote.ROOT = old
+
+
 
 def _carry_repo():
     """a tiny repo: main at H0, a branch changing the code the build reads, and a gate report of it into H0 holding the
@@ -390,6 +434,59 @@ def _carry_cases():
     open(os.path.join(root, 'kit/core.py'), 'w').write('X = 3\n'); g('commit', '-qam', 'clash')
     r = gate.carry('br', write=False, **kw)
     assert not r['carried'] and 'cleanly' in r['why'], r
+
+
+def test_the_carry_by_definition():
+    """the move and the branch both touch files the builds read: at the level of definitions an infra-only move and a
+    change beside the branch's carry, a move that meets the branch's change doesn't, and the file rule refused all."""
+    import subprocess
+    root = tempfile.mkdtemp()
+    g = lambda *a: subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', *a], cwd=root,
+                                  capture_output=True, text=True, check=True).stdout.strip()
+    files = {'charkit/__init__.py': '', 'charkit/tests/test_x.py': 'assert True\n', '.gitignore': 'charkit/out/\n',
+             'charkit/geo.py': 'def area():\n    return 1\n\n\ndef build():\n    return area() + 1\n\n\n'
+                               'def trim():\n    return 0\n',
+             'charkit/gate.py': 'def verdict():\n    return "PASS"\n', 'charkit/clawd.json': '{}\n'}
+    for p, t in files.items():
+        os.makedirs(os.path.dirname(os.path.join(root, p)), exist_ok=True)
+        open(os.path.join(root, p), 'w').write(t)
+    g('init', '-q', '-b', 'main'); g('add', '-A'); g('commit', '-qm', 'h0')
+    h0 = g('rev-parse', '--short', 'HEAD')
+
+    def edit(p, a, b):
+        s = open(os.path.join(root, p)).read()
+        assert a in s
+        open(os.path.join(root, p), 'w').write(s.replace(a, b))
+    g('checkout', '-qb', 'br'); edit('charkit/geo.py', 'return area() + 1', 'return area() + 2')   # the branch: build
+    g('commit', '-qam', 'br'); tip = g('rev-parse', '--short', 'HEAD'); g('checkout', '-q', 'main')
+    gd = os.path.join(root, 'charkit', 'out', 'gate')
+    os.makedirs(gd)
+    reads = ['charkit/geo.py', 'charkit/gate.py', 'charkit/clawd.json']      # (the old hashing read gate.py too)
+    rep = dict(branch='br', tip=tip, into='main', head=h0, spec='charkit/clawd.json', args=[], suffix='',
+               t='2026-09-30T01:00', hard=[], blocking=[], report={}, verdict='PASS', tests={'test_x.py': 'ok'},
+               build={'candidate': 'skipped'}, base_build={'ok': True}, cand_build={'ok': True}, qa=[], phases=[],
+               closures={'base': {'reads': reads}, 'cand': {'reads': reads},
+                         'tests': {'paths': ['charkit/tests/test_x.py'],
+                                   'files': {'test_x.py': {'reads': [0], 'listed': [], 'scans': {}}}}})
+    json.dump(rep, open(os.path.join(gd, 'gate_br_%s_into_%s.json' % (tip, h0)), 'w'))
+    kw = dict(into='main', spec='charkit/clawd.json', reports=gd, root=root, write=False)
+    # an infra-only move (gate.py): carries by definition; the file rule refused it (the baseline read gate.py)
+    edit('charkit/gate.py', '"PASS"', '"FAIL"'); g('commit', '-qam', 'infra')
+    assert gate.carry('br', **kw)['carried']
+    r = gate.carry('br', rule='files', **kw)
+    assert not r['carried'] and 'baseline' in r['hits'], r
+    # a move in the branch's own file, beside its change (trim: neither reaches the other): carries
+    edit('charkit/geo.py', 'return 0', 'return 1'); g('commit', '-qam', 'trim')
+    assert gate.carry('br', **kw)['carried']
+    # a move changing what the branch's change calls (area): the two meet, not carried
+    edit('charkit/geo.py', 'return 1\n\n\ndef build', 'return 3\n\n\ndef build'); g('commit', '-qam', 'area')
+    r = gate.carry('br', **kw)
+    assert not r['carried'] and 'charkit/geo.py:area' in str(r['hits'].get('definitions')), r
+    g('reset', '-q', '--hard', 'HEAD~1')
+    # a data file the builds read: as before, not carried
+    edit('charkit/clawd.json', '{}', '{"a": 1}'); g('commit', '-qam', 'data')
+    r = gate.carry('br', **kw)
+    assert not r['carried'] and 'baseline' in r['hits'], r
 
 
 def test_docs_and_tests_can_reach_no_build():
