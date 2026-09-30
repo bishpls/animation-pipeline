@@ -95,6 +95,9 @@ def test_facing_view_is_the_first_on_an_exact_tie():
     class _V:
         def __init__(self, az):
             self.az = az
+
+        def band(self, z):
+            return np.ones(np.shape(z), bool)
     # one triangle whose normal is (1, -1, 0) / sqrt 2: 45 degrees between the front's and the profile's cameras
     m = Mesh(np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]]), np.array([[0, 1, 2]]))
     assert list(hull._facing(m, {'front': _V(0.0), 'profile': _V(90.0)})) == [0, 0, 0]

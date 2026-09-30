@@ -59,6 +59,15 @@ class View:
         self.axis, self.eye_y, self.labels, self.rgb = float(axis), float(eye_y), labels, rgb
         self.pieces = self.limbs = None       # attach_pieces: piece labels (0 none, k + 1 piece k) and limbs per pixel
         self.grid_eye = None                  # the sheet pixel its bodyqa.design_views grid is centred on
+        self.zband = None                     # (lo, hi) L: the heights it speaks for (an extra view's band); None all
+
+    def band(self, z):
+        """which heights z (L) this view speaks for -> bool array."""
+        z = np.asarray(z)
+        if self.zband is None:
+            return np.ones(z.shape, bool)
+        lo, hi = self.zband
+        return ((z >= lo) if lo is not None else True) & ((z < hi) if hi is not None else True)
 
     def pixel(self, u, z):
         """(cols, rows) of picture positions (L) as rounded ints."""
@@ -118,6 +127,141 @@ def views_from_sheet(rgb, eye_x, facing=-1):
         v.grid_eye = bodyqa.view_eye(n, F[n])
     info['axes'] = {k: round(v.axis, 2) for k, v in views.items()}
     return views, info
+
+
+# ---------------------------------------------------------------------------------------------------------- extra views
+# More views of the sheet's figure, drawn on another picture (a generated reference that 'extends' the body sheet in the
+# manifest: the sheet extended by an edit, or a fresh sheet drawn at its scale). Only azimuths modulo 180 carve (the view
+# from az + 180 is the same silhouette mirrored), so a view adds shape only at an angle the sheet's four don't cover;
+# Clawd's are at 0, 35.5 and 90 (the back repeats the front), which leaves 90..180 open: the back's quarters.
+# Calibration: the sheet's lines give the scale and the eye line (it promises one ground line and one scale: the view's
+# figure height against the sheet's view of that kind, its soles on the ground line); a back view has no eyes, so its
+# azimuth and axis are fitted, its silhouette against the hull of the sheet's own views (as refine() fits the
+# three-quarter's axis).
+EXTRA_FIT = dict(az=30.0, az_step=2.5, az_fine=0.5, axis=0.35)     # +-deg round the nominal azimuth, +-L of axis
+
+
+def figure_masks(rgb):
+    """a picture's full figures, left to right (the sheet's foreground and blobs as sheetqa.detect_figures finds them,
+    without its eyes: a back view has none) -> ([(box (x0, y0, x1, y1), mask)], foreground)."""
+    from charkit import sheetqa
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    blobs, n = sheetqa.label(fg)
+    B, area = sheetqa.boxes(blobs, n)
+    H, W = fg.shape
+    keep = [i for i in range(n) if area[i] >= sheetqa.FIGURE_MIN * H * W]
+    tall = max(B[i, 3] - B[i, 1] for i in keep)
+    figs = [([int(b) for b in B[i]], blobs == i + 1) for i in keep if B[i, 3] - B[i, 1] >= 0.5 * tall]
+    return sorted(figs, key=lambda f: f[0][0]), fg
+
+
+def sheet_lines(views):
+    """the sheet's lines from its calibrated views: per view the figure's top and sole rows and their heights (L) from
+    the eye line, and the median ground line -> {view: {...}, 'ground_L': L}."""
+    out = {}
+    for n, v in views.items():
+        rows = np.nonzero(v.mask.any(1))[0]
+        out[n] = dict(top=int(rows[0]), sole=int(rows[-1]), top_L=round((v.eye_y - rows[0]) / v.ppl, 4),
+                      sole_L=round((v.eye_y - rows[-1]) / v.ppl, 4))
+    out['ground_L'] = float(np.median([d['sole_L'] for d in out.values()]))
+    return out
+
+
+def _torso_axis(mask, eye_y, ppl, band=(1.2, 2.2)):
+    """a figure's column of its body's middle: per row of the torso's band (L below the eye line), the centre of the
+    row's longest run (the arms hang apart from it), the median."""
+    c = []
+    for r in range(int(eye_y + band[0] * ppl), int(eye_y + band[1] * ppl)):
+        if 0 <= r < mask.shape[0] and mask[r].any():
+            runs = _runs(mask[r])
+            a, b = max(runs, key=lambda t: t[1] - t[0])
+            c.append((a + b) / 2)
+    return float(np.median(c)) if c else float(np.nonzero(mask.any(0))[0].mean())
+
+
+def fit_view(v, V0, A, az0, span=None, log=None):
+    """a view's azimuth and axis fitted by its silhouette against a hull's (V0: the sheet's own views): a coarse sweep of
+    the azimuth round az0, then a fine one, each with the axis's best offset; in place -> {az, axis_L, iou}."""
+    S = dict(EXTRA_FIT, **(span or {}))
+    ax0 = v.axis
+
+    rows = v.band(A.zs)
+
+    def best_axis(az):
+        P, us = project(V0, A, az)
+        P = P[:, rows]
+        best = (-1.0, 0.0)
+        for d in _steps(-S['axis'], S['axis'] + 1e-9, A.h):
+            b = iou(P, v.sample(v.mask, us + d, A.zs)[:, rows])
+            if b > best[0]:
+                best = (b, d)
+        return best
+
+    tried = {}
+    for az in _steps(az0 - S['az'], az0 + S['az'] + 1e-9, S['az_step']):
+        tried[round(float(az), 3)] = best_axis(az)
+    a1 = max(tried, key=lambda k: tried[k][0])
+    for az in _steps(a1 - S['az_step'], a1 + S['az_step'] + 1e-9, S['az_fine']):
+        k = round(float(az), 3)
+        if k not in tried:
+            tried[k] = best_axis(az)
+    a = max(tried, key=lambda k: tried[k][0])
+    s, d = tried[a]
+    v.az = a % 360.0
+    v.axis = ax0 + d * v.ppl
+    return {'az': round(v.az, 2), 'axis_L': round(float(d), 4), 'iou': round(float(s), 4),
+            'sweep': {k: round(t[0], 4) for k, t in sorted(tried.items())}}
+
+
+def extra_views(ref, lines, ppl, V0, A, like='back'):
+    """the extra views a manifest reference draws ({path, views: {name: {figure (index left to right among the picture's
+    full figures), az (nominal), like (the sheet's view of that kind, for the figure height: default the back), bands
+    (optional: {band: [lo, hi] L from the eye line, null open}), pieces (false: it carves and colours, and the pieces'
+    labels stay the sheet's)}}}), calibrated to the sheet's frame (see above). With
+    bands, each band of the figure is a view of its own (NAME.BAND), its azimuth and axis fitted on its heights alone: a
+    generated view can be drawn twisted (Clawd's three-quarter backs turn the head and bodice ~20 degrees further than
+    the legs), which no one azimuth fits -> ({name: View}, {name: registration and fit})."""
+    from charkit import bodyqa, refcheck
+    rgb = refcheck._load(ref['path'])
+    figs, fg = figure_masks(rgb)
+    out, info = {}, {}
+    for name, d in ref['views'].items():
+        box, m = figs[d['figure']]
+        rows = np.nonzero(m.any(1))[0]
+        top, sole = int(rows[0]), int(rows[-1])
+        L = lines[d.get('like', like)]
+        s = (sole - top) / ((L['top_L'] - L['sole_L']) * ppl)             # its figure height against the sheet's
+        vppl = ppl * s
+        eye = sole + lines['ground_L'] * vppl                             # its soles on the sheet's ground line
+        cls, raw = bodyqa.classes(rgb, fg, eye, vppl)
+        ax0 = _torso_axis(m, eye, vppl)
+        z = (eye - np.arange(m.shape[0])) / vppl
+        for b, zb in (d.get('bands') or {None: None}).items():
+            vn = name if b is None else '%s.%s' % (name, b)
+            v = View(vn, d['az'], m, vppl, ax0, eye, cls.astype(np.uint8), rgb)
+            v.raw = raw.astype(np.uint8)                                  # the classes with the drawn lines: its cells
+            if zb is not None:
+                v.zband = (zb[0], zb[1])
+                v.mask = m & v.band(z)[:, None]
+            fit = fit_view(v, V0, A, d['az'])
+            v.labels_pieces = d.get('pieces', True)                         # False: it shapes, the sheet labels
+            out[vn] = v
+            info[vn] = dict(figure=d['figure'], box=box, scale=round(float(s), 4), ppl=round(float(vppl), 2),
+                            eye_row=round(float(eye), 1), top_L=round(float((eye - top) / vppl), 4),
+                            nominal_az=d['az'], band=zb, **fit)
+    return out, info
+
+
+def extras_for(spec, bs):
+    """the manifest's references that extend the body sheet `bs` (their 'extends' is its id, 'views' say which figures),
+    those the hull takes (not 'hull': false, not 'rejected') -> [reference dict with its path absolute]."""
+    from charkit import manifest
+    mp = (spec.get('ref') or {}).get('manifest')
+    if not mp or not bs.get('id'):
+        return []
+    R = manifest.load(mp)['references']
+    return [dict(r, id=k, path=manifest._p(r['path'])) for k, r in R.items()
+            if r.get('extends') == bs['id'] and r.get('views') and r.get('hull', True) and not r.get('rejected')]
 
 
 NECK_BAND = (-0.62, -0.50)          # L from the eye line: a head sheet's neck, under the chin, above the bust's vignette
@@ -294,6 +438,7 @@ def mirrored(v, P):
     if v.pieces is not None:
         m.pieces = P.mirror[v.pieces[:, ::-1]].astype(np.int16)
         m.limbs = v.limbs[:, ::-1]
+    m.zband = v.zband
     return m
 
 
@@ -346,17 +491,19 @@ def carve(views, A, use):
     for n in use:
         v = views[n]
         ca, sa = det.cs(v.az)
+        off = ~v.band(A.zs)                                                # heights it doesn't speak for: no carve
         if sa == 0.0:                                                      # front / back: u = +-x
-            V &= v.sample(v.mask, ca * A.xs, A.zs)[:, None, :]
+            V &= (v.sample(v.mask, ca * A.xs, A.zs) | off[None, :])[:, None, :]
         elif ca == 0.0:                                                    # the profiles: u = +-y
-            V &= v.sample(v.mask, sa * A.ys, A.zs)[None, :, :]
+            V &= (v.sample(v.mask, sa * A.ys, A.zs) | off[None, :])[None, :, :]
         else:                                                              # an oblique view: per (x, y) column
             U = A.xs[:, None] * ca + A.ys[None, :] * sa
             c, r = v.pixel(U, A.zs)
             H, W = v.mask.shape
             ok = (c >= 0) & (c < W)
             cc = np.clip(c, 0, W - 1); rr = np.clip(r, 0, H - 1)
-            V &= v.mask[rr[None, None, :], cc[:, :, None]] & ok[:, :, None] & ((r >= 0) & (r < H))[None, None, :]
+            V &= (v.mask[rr[None, None, :], cc[:, :, None]] & ok[:, :, None] & ((r >= 0) & (r < H))[None, None, :]) \
+                | off[None, None, :]
     return V
 
 
@@ -448,7 +595,7 @@ def rounded(views, A, use, p=2.0, class_share=0.6, smooth=0.02, limbs=True, spli
             ca, sa = det.cs(v.az)
             Ps, us = project(Vs, A, v.az)
             Dm = v.sample(v.mask, us, A.zs)
-            miss = Dm & ~Ps
+            miss = Dm & ~Ps & v.band(A.zs)[None, :]
             ix, iy, iz = np.nonzero(V & ~Vs)
             iu = np.clip(np.round((A.xs[ix] * ca + A.ys[iy] * sa - us[0]) / A.h).astype(int), 0, len(us) - 1)
             back = miss[iu, iz]
@@ -489,11 +636,13 @@ def score(V, A, view):
     """a hull against one view's drawing: IoU of its silhouette there, and the horizontal offset (L) at which the
     drawing fits it best (0 for a well calibrated view) -> dict."""
     P, us = project(V, A, view.az)
-    Dm = view.sample(view.mask, us, A.zs)
+    rows = view.band(A.zs)                                              # an extra view's band: its heights only
+    P = P[:, rows]
+    Dm = view.sample(view.mask, us, A.zs)[:, rows]
     s = iou(P, Dm)
     best = (s, 0.0)
-    for d in np.arange(-0.1, 0.1 + 1e-9, A.h):                          # the calibration check
-        b = iou(P, view.sample(view.mask, us + d, A.zs))
+    for d in _steps(-0.1, 0.1 + 1e-9, A.h):                             # the calibration check
+        b = iou(P, view.sample(view.mask, us + d, A.zs)[:, rows])
         if b > best[0] + 1e-9:
             best = (b, d)
     return {'iou': round(s, 4), 'best_offset_L': round(best[1], 3), 'iou_at_best': round(best[0], 4)}
@@ -621,21 +770,75 @@ def label_views(views, P):
     return out
 
 
-def validate_labels(V, A, views, P):
+def extra_pieces(v, V, A, L, P, min_share=0.5):
+    """an extra view's pieces (the outfit's masks draw only the sheet's four): the hull's surface labelled from the
+    sheet's views (L), seen from the view's azimuth, voted per drawn cell of the view (a region of one class between
+    its drawn lines, View.raw): each cell takes the piece most of its pixels see there, where pieces cover at least
+    `min_share` of it; a line's pixels take what they see. The pieces keep the sheet's identities and take the new
+    drawing's own edges (a back panel's steps where this view draws them). In place (View.pieces, View.limbs) -> the
+    share of the figure given a piece."""
+    from charkit import sheetqa
+    from charkit.bodyqa import CLASS
+    img, us = render_labels(L, A, v.az)
+    rows, cols = np.nonzero(v.mask)
+    iu = np.clip(np.round(((cols - v.axis) / v.ppl - us[0]) / A.h).astype(int), 0, len(us) - 1)
+    iz = np.clip(np.round((A.zs[0] - (v.eye_y - rows) / v.ppl) / A.h).astype(int), 0, len(A.zs) - 1)
+    pred = np.zeros(v.mask.shape, np.int32)
+    pred[rows, cols] = img[iu, iz]
+    pred[pred >= FREE] = 0
+    raw = getattr(v, 'raw', None)
+    raw = v.labels if raw is None else raw
+    out = np.zeros(v.mask.shape, np.int16)
+    K = len(P.ids) + 1
+    for c in np.unique(raw[v.mask]):
+        if c in (CLASS['none'], CLASS['line']):
+            continue
+        cell, n = sheetqa.label(v.mask & (raw == c))
+        if not n:
+            continue
+        r, q = np.nonzero(cell)
+        k = cell[r, q] - 1
+        pk = pred[r, q]
+        size = np.bincount(k, minlength=n)
+        votes = np.bincount(k * K + pk, minlength=n * K).reshape(n, K)
+        votes[:, 0] = 0
+        top = votes.argmax(1)
+        ok = votes[np.arange(n), top] >= min_share * np.maximum(size, 1)
+        out[r, q] = np.where(ok[k], top[k], 0)
+    line = v.mask & np.isin(raw, (CLASS['line'],))
+    out[line] = pred[line]
+    v.pieces = out
+    v.limbs = limb_image(v, P)
+    return round(float((out[v.mask] > 0).mean()), 4)
+
+
+def validate_labels(V, A, views, P, extras=None):
     """the pieces' labels checked two ways: 'used', every view against the labels from all of them; 'held_out', each
     drawn view against the labels from the others (its own mirror left out too) -> (scores, the labels from all; each
-    held-out labelling under Lall['held'][view])."""
+    held-out labelling under Lall['held'][view]). extras: views without drawn pieces (extra_pieces gives them theirs
+    from the others' labels), labelling with the rest; for each held-out view their pieces are made again without it,
+    so its score reads nothing of its own masks."""
     LV = label_views(views, P)
-    Lall = label_volume(V, A, LV, list(LV))
+
+    def with_extras(names):
+        L0 = label_volume(V, A, LV, names)
+        for e in extras.values():
+            extra_pieces(e, V, A, L0, P)
+        LX = dict(LV, **label_views(extras, P))
+        return label_volume(V, A, LX, list(names) + [k for k in LX if k not in LV], normals=L0['normals'])
+    Lall = with_extras(list(LV)) if extras else label_volume(V, A, LV, list(LV))
     Lall['held'] = {}
     out = {'used': {}, 'held_out': {}}
     for n, v in views.items():
         img, us = render_labels(Lall, A, v.az)
         out['used'][n] = label_scores(img, drawn_labels(v, us, A), P)
-        L = Lall['held'][n] = label_volume(V, A, LV, [k for k in LV if k.split('_mirror')[0] != n],
-                                           normals=Lall['normals'])
+        names = [k for k in LV if k.split('_mirror')[0] != n]
+        L = Lall['held'][n] = with_extras(names) if extras else label_volume(V, A, LV, names, normals=Lall['normals'])
         img, us = render_labels(L, A, v.az)
         out['held_out'][n] = label_scores(img, drawn_labels(v, us, A), P)
+    if extras:                                                   # their pieces back as the whole sheet gives them
+        L0 = label_volume(V, A, LV, list(LV), normals=Lall['normals'])
+        out['extra_share'] = {n: extra_pieces(e, V, A, L0, P) for n, e in extras.items()}
     return out, Lall
 
 
@@ -658,7 +861,7 @@ def refine(views, A, prior, bound=0.1):
         V = rounded(views, A, fixed, **prior)
         P, us = project(V, A, v.az)
         best = (-1.0, 0.0)
-        for d in np.arange(-bound, bound + 1e-9, A.h / 2):
+        for d in _steps(-bound, bound + 1e-9, A.h / 2):
             b = iou(P, v.sample(v.mask, us + d, A.zs))
             if b > best[0]:
                 best = (b, d)
@@ -711,10 +914,12 @@ VERTEX_Q = 2.0 ** -20        # L: a millionth of L, a ten-thousandth of a voxel;
 
 
 def _facing(m, views):
-    """per vertex, the index (in views' order) of the view whose camera faces it most: angle-weighted normals (as
-    mesh.vertex_normals) and dot products in a fixed order (det), the first view winning a tie -> int (N,)."""
+    """per vertex, the index (in views' order) of the view whose camera faces it most, among those whose height band
+    holds it (View.band): angle-weighted normals (as mesh.vertex_normals) and dot products in a fixed order (det), the
+    first view winning a tie -> int (N,)."""
     N = det.normals_angle(m.V, m.F)
-    W = np.stack([det.dot3(N, (sa, -ca, 0.0)) for ca, sa in (det.cs(v.az) for v in views.values())], 1)
+    W = np.stack([np.where(v.band(m.V[:, 2]), det.dot3(N, (sa, -ca, 0.0)), -np.inf)
+                  for v, (ca, sa) in ((v, det.cs(v.az)) for v in views.values())], 1)
     return np.argmax(W, 1)
 
 
@@ -831,28 +1036,59 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
     if validate_views:
         rep['leave_one_out_eyes_only'], _ = validate(views, A, 'rounded', **prior)      # the eyes' calibration alone
     info['refined_L'] = refine(views, A, prior)
+    # the extra views (the manifest's references extending the sheet): calibrated against the sheet's own hull, then
+    # carving with the rest. They carry no pieces (the outfit's masks are the sheet's four views): the face's carve and
+    # the pieces' labels stay the sheet's; their silhouettes shape the hull, their pixels colour and class its surface
+    base = dict(views)
+    extra = extras_for(spec, bs) if sheet == 'body' else []
+    if extra:
+        V0 = rounded(views, A, list(views), **prior)
+        lines = sheet_lines(views)
+        info['extra'] = {}
+        for r in extra:
+            ev, ei = extra_views(r, lines, info['ppl'], V0, A)
+            views.update(ev)
+            info['extra'].update({n: dict(ei[n], ref=r['id']) for n in ei})
+        info['sheet_lines'] = lines
+        log('hull: extra views %s' % ', '.join('%s (az %.1f, fit IoU %.4f)' % (n, e['az'], e['iou'])
+                                               for n, e in info['extra'].items()))
     if validate_views:
         rep['leave_one_out'], V = validate(views, A, 'rounded', **prior)
         rep['plain_leave_one_out'], _ = validate(views, A, 'carve')
         if P is not None:
             rep['leave_one_out_no_limbs'], _ = validate(views, A, 'rounded', **dict(prior, limbs=False))
+        if extra:                           # with and without each: an extra view is kept if the others hold or improve
+            rep['leave_one_out_sheet_only'], _ = validate(base, A, 'rounded', **prior)
+            groups = sorted({n.split('.')[0] for n in views if n not in base})          # a view's bands go together
+            rep['leave_one_out_without'] = {g: validate({k: v for k, v in views.items() if k.split('.')[0] != g}, A,
+                                                        'rounded', **prior)[0] for g in groups}
     else:
         V = rounded(views, A, list(views), **prior)
-    stage('rounded', V=V)
+    stage('rounded', V=V.copy())
     if face and sheet == 'body':
         # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
         from charkit import code_base
         Sh, Ch, _ = code_base.head_sections(spec, log)
         stage('head_sections', zs=Sh.zs, cy=Sh.cy, r=Sh.r)
-        rep['face_carved'] = carve_face(V, A, views, Sh, info['y_e'], P=P, log=log)
-        stage('face_carved', V=V)
+        rep['face_carved'] = carve_face(V, A, base, Sh, info['y_e'], P=P, log=log)
+        stage('face_carved', V=V.copy())
     L = None
+    ext = {n: v for n, v in views.items() if n not in base and getattr(v, 'labels_pieces', True)}
     if P is not None:
         if validate_views:
-            rep['pieces']['labels'], L = validate_labels(V, A, views, P)
+            rep['pieces']['labels'], L = validate_labels(V, A, base, P, ext or None)
+            if ext:
+                rep['pieces']['labels_sheet_only'], _ = validate_labels(V, A, base, P)
+                validate_labels_extras = rep['pieces']['labels'].get('extra_share')
+                log('hull: extra views\' pieces cover %s of their figures' % validate_labels_extras)
         else:
-            LV = label_views(views, P)
+            LV = label_views(base, P)
             L = label_volume(V, A, LV, list(LV))
+            if ext:
+                for e in ext.values():
+                    extra_pieces(e, V, A, L, P)
+                LX = dict(LV, **label_views(ext, P))
+                L = label_volume(V, A, LX, list(LX), normals=L['normals'])
         stage('label_volume', label=L['label'], cls=L['cls'], normals=L['normals'])
     m = surface(V, A, views)
     stage('surface', V=m.V, F=m.F, vc=m.vc if m.vc is not None else np.zeros(0))
@@ -880,7 +1116,7 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
                                        'health': repair.report(m)}, seconds=round(time.time() - t0, 1))
     json.dump(rep, open(os.path.join(out, 'hull.json'), 'w'), indent=1, default=str)
     if page and validate_views:
-        rep['page'] = _page(rep, views, A, V, m, out, P, L)
+        rep['page'] = _page(rep, views, A, V, m, out, P, L, base)
     log('hull: %s, %d faces, three-quarter axis refined %+.3f L (%.0fs)' % (
         out, len(m.F), info['refined_L'].get('three_quarter', 0.0), time.time() - t0))
     return rep
@@ -989,7 +1225,7 @@ def main(args):
         for n in [k for k in loo if k != 'used']:
             print('%-14s held out: IoU %.4f (%seyes only %.4f, plain %.4f)   used: %.4f   offset left %+.3f L' % (
                 n, loo[n]['iou'], 'no limb split %.4f, ' % nol[n]['iou'] if nol else '',
-                rep['leave_one_out_eyes_only'][n]['iou'], rep['plain_leave_one_out'][n]['iou'],
+                rep['leave_one_out_eyes_only'].get(n, {}).get('iou', float('nan')), rep['plain_leave_one_out'][n]['iou'],
                 loo['used'][n]['iou'], loo[n]['best_offset_L']))
     S = rep['pieces'].get('labels')
     if S:
@@ -1023,7 +1259,33 @@ def label_colours(labels, P=None):
 LIMB_COLOURS = {CORE: (0.72, 0.72, 0.75), ARM: (0.25, 0.45, 0.95), LEG: (0.2, 0.7, 0.35), FREE_SKIN: (0.98, 0.6, 0.6)}
 
 
-def _page(rep, views, A, V, m, out, P=None, L=None):
+def _extra_section(rep, views, base):
+    """the page's extra views: their calibration, and each view held out with them, without each, and from the sheet's
+    views alone."""
+    import html
+    E = rep['calibration']['extra']
+    out = ['<h2>Extra views</h2><p class="note">Views beyond the sheet\'s four (the manifest\'s references that extend it): '
+           'scale and eye line from the sheet\'s lines (figure height against the sheet\'s back, soles on its ground '
+           'line), azimuth and axis fitted by silhouette against the hull of the sheet\'s own views.</p><table><tr>'
+           '<th>view</th><th>reference</th><th>nominal az</th><th>fitted az</th><th>axis offset, L</th><th>scale</th>'
+           '<th>fit IoU</th></tr>']
+    for n, e in E.items():
+        out.append('<tr><td>%s</td><td>%s</td><td>%.1f</td><td>%.1f</td><td>%+.3f</td><td>%.4f</td><td>%.4f</td></tr>' % (
+            n, html.escape(e['ref']), e['nominal_az'], e['az'], e['axis_L'], e['scale'], e['iou']))
+    W = rep['leave_one_out_without']
+    out.append('</table><h3>Held out, IoU: with every view, without each extra, the sheet\'s views alone</h3><table><tr>'
+               '<th>view held out</th><th>all views</th>%s<th>sheet only</th></tr>' % ''.join(
+                   '<th>without %s</th>' % html.escape(n) for n in W))
+    S = rep['leave_one_out_sheet_only']
+    for n in views:
+        out.append('<tr><td>%s</td><td>%.4f</td>%s<td>%s</td></tr>' % (
+            n, rep['leave_one_out'][n]['iou'], ''.join('<td>%s</td>' % ('%.4f' % W[x][n]['iou'] if n in W[x] else '-')
+                                                       for x in W), '%.4f' % S[n]['iou'] if n in S else '-'))
+    out.append('</table>')
+    return out
+
+
+def _page(rep, views, A, V, m, out, P=None, L=None, base=None):
     """the review page: per view the held-out prediction against the drawing, renders of the surface, the numbers."""
     import html
     from PIL import Image
@@ -1056,11 +1318,11 @@ def _page(rep, views, A, V, m, out, P=None, L=None):
     for n, v in views.items():
         use = [k for k in views if k != n]
         Vh = rounded(views, A, use, **rep['prior'])
-        P, us = project(Vh, A, v.az)
+        Pr, us = project(Vh, A, v.az)
         Dm = v.sample(v.mask, us, A.zs)
-        im = np.full(P.shape + (3,), 0.96)
-        im[P & Dm] = (0.55, 0.55, 0.6); im[P & ~Dm] = (0.9, 0.2, 0.2); im[Dm & ~P] = (0.2, 0.35, 0.95)
-        cols = np.nonzero((P | Dm).any(1))[0]
+        im = np.full(Pr.shape + (3,), 0.96)
+        im[Pr & Dm] = (0.55, 0.55, 0.6); im[Pr & ~Dm] = (0.9, 0.2, 0.2); im[Dm & ~Pr] = (0.2, 0.35, 0.95)
+        cols = np.nonzero((Pr | Dm).any(1))[0]
         im = im[max(0, cols[0] - 10):cols[-1] + 10]
         L.append('<div class="tile"><img src="%s" height="520">%s: IoU %.4f</div>' % (
             save(np.transpose(im, (1, 0, 2)), 'held_%s.png' % n), n, loo[n]['iou']))
@@ -1076,8 +1338,10 @@ def _page(rep, views, A, V, m, out, P=None, L=None):
                 save(im, 'render_%s_%03d.png' % ('colour' if col is m.vc else 'clay', az)), az))
         L.append('</div>')
     L.append('</div>')
+    if rep.get('leave_one_out_sheet_only'):
+        L += _extra_section(rep, views, base)
     if P is not None and Lab is not None and rep['pieces'].get('labels'):
-        L += _pieces_section(rep, views, A, m, P, Lab, save, N, fr)
+        L += _pieces_section(rep, base or views, A, m, P, Lab, save, N, fr)
     p = os.path.join(out, 'index.html')
     open(p, 'w').write('\n'.join(L))
     return p
