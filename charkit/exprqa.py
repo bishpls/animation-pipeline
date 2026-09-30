@@ -10,7 +10,8 @@ The found eyes' spacing against 2 * eye_x L is kept as a check on the scale.
 Measured (lengths in L):
   eye     open or closed (iris showing). Open: the opening's width, height and aspect, the iris's width over the
           opening's (a shrunken, shocked iris is small). Closed: the lid line's arc, (ends - middle) / span: + an arch
-          (a smile's ^), - a sag (a sleepy or plain blink)
+          (a smile's ^), - a sag (a sleepy or plain blink); its fork: the gap between its strokes over the outer half,
+          over its span (a > < chevron pointing to the nose about 0.3, a single stroke about 0)
   mouth   the lip line and what it encloses: width, open height and area, fill (area over width x height: a round O is
           near 0.8, a D lower), corner lift ((corners - middle) / width, each column taken midway between its top and
           bottom edge: + a smile, an O level), wave (the edges' wobble round a smooth curve, over the width: a
@@ -43,6 +44,7 @@ LIMITS = {                                           # (pass within, warn within
     'mouth_area': (0.30, 0.60),                      # |ours / design - 1| of the open area (open mouths)
     'mouth_lift': (0.08, 0.16),                      # |corner lift - design's|
     'eye_arc': (0.08, 0.16),                         # |closed arc - design's|
+    'eye_fork': (0.05, 0.10),                        # |closed fork - design's| (a > < chevron against a single stroke)
     'eye_aspect': (0.15, 0.30),                      # |ours / design - 1| of an open eye's aspect
     'iris_ratio': (0.15, 0.30),                      # |ours / design - 1|
     'brow_tilt': (8.0, 16.0),                        # |tilt - design's|, degrees
@@ -117,8 +119,26 @@ def _arc(m, ppl):
                 centre=(float(cols.mean()), float(np.mean(my))))
 
 
-def eye(cls, ppl, c):
-    """one eye round its expected centre c (column, row) -> dict(open, ...)."""
+def _fork(m, inward):
+    """a closed eye's stroke forking (a > < chevron): per column of its outer half (away from the midline; inward: +1
+    the nose to the right), the longest run of other pixels between its line pixels (0 where the column is one run),
+    their mean over the stroke's span. A single stroke reads about 0; a chevron its strokes' spread at their open
+    ends, less their width (Clawd's: 0.33)."""
+    ys, xs = np.nonzero(m)
+    cols = np.unique(xs)
+    span = cols.max() - cols.min() + 1
+    mid = 0.5 * (cols.min() + cols.max())
+    outer = cols[(cols - mid) * (inward or 1.0) < 0] if inward else cols
+    gaps = []
+    for c in outer:
+        r = np.nonzero(m[:, c])[0]
+        gaps.append(int((np.diff(r) - 1).max()) if len(r) > 1 else 0)
+    return float(np.mean(gaps)) / span if gaps else 0.0
+
+
+def eye(cls, ppl, c, inward=None):
+    """one eye round its expected centre c (column, row) -> dict(open, ...). inward: +1 when the midline is to its right
+    (-1 left; the fork's orientation: None reads both halves)."""
     H, W = cls.shape
     x0, x1 = int(c[0] - EYE_BOX['x'] * ppl), int(c[0] + EYE_BOX['x'] * ppl) + 1
     y0, y1 = int(c[1] - EYE_BOX['up'] * ppl), int(c[1] + EYE_BOX['down'] * ppl) + 1
@@ -141,7 +161,8 @@ def eye(cls, ppl, c):
     if a is None:
         return dict(out, open=None)
     b = _box(lid)
-    out.update(open=False, arc=a['arc'], span=a['span'], centre=(x0 + a['centre'][0], y0 + a['centre'][1]), top=y0 + b[2])
+    out.update(open=False, arc=a['arc'], span=a['span'], centre=(x0 + a['centre'][0], y0 + a['centre'][1]), top=y0 + b[2],
+               fork=round(_fork(lid, inward), 4))
     return out
 
 
@@ -284,7 +305,7 @@ def measure(cls, ppl, eye_y, axis, eye_x=EYE_X, ours=False, refine=True):
     """a face's expression measures from its class image: eye_y, axis: the eye row and midline column (refined to the
     found eyes' centres when refine is on); ppl: the scale -> dict(eyes [left, right], mouth, brows, ppl, spacing: the found
     eyes' spacing over 2 * eye_x L, a check on the scale)."""
-    E = [eye(cls, ppl, (axis + s * eye_x * ppl, eye_y)) for s in (-1, 1)]
+    E = [eye(cls, ppl, (axis + s * eye_x * ppl, eye_y), -s) for s in (-1, 1)]
     out = {}
     eye_y0 = eye_y                                              # the eye line as given (the brows' z is over it)
     if all(e.get('centre') for e in E):
@@ -292,7 +313,7 @@ def measure(cls, ppl, eye_y, axis, eye_x=EYE_X, ours=False, refine=True):
         if refine:
             eye_y = float(np.mean([e['centre'][1] for e in E]))
             axis = float(np.mean([e['centre'][0] for e in E]))
-            E = [eye(cls, ppl, (axis + s * eye_x * ppl, eye_y)) for s in (-1, 1)]
+            E = [eye(cls, ppl, (axis + s * eye_x * ppl, eye_y), -s) for s in (-1, 1)]
     out.update(ppl=round(float(ppl), 2), eye_y=round(eye_y, 2), axis=round(axis, 2))
     out['eyes'] = E
     out['mouth'] = mouth(cls, ppl, axis, eye_y)
@@ -319,6 +340,7 @@ def summary(M, neutral=None):
             s['iris_ratio'] = float(np.mean([e['iris_ratio'] for e in op]))
         if cl:
             s['eye_arc'] = float(np.mean([e['arc'] for e in cl]))
+            s['eye_fork'] = float(np.mean([e['fork'] for e in cl]))
     mo = M['mouth']
     if mo.get('found'):
         s.update({'mouth_' + k: mo[k] for k in ('width', 'open', 'area', 'fill', 'lift', 'wave', 'aspect', 'skew', 'teeth',
@@ -345,7 +367,10 @@ def _eye_dist(d, o):
         a = abs(o.get('eye_aspect' + k, 0) / max(1e-6, d['eye_aspect' + k]) - 1) / LIMITS['eye_aspect'][1]
         b = abs(o.get('iris_ratio' + k, 0) / max(1e-6, d['iris_ratio' + k]) - 1) / LIMITS['iris_ratio'][1]
         return float(np.hypot(a, b))
-    return abs(o.get('eye_arc', 0) - d['eye_arc']) / LIMITS['eye_arc'][1]
+    # a closed eye: its arc; its fork only past the pass band (a chevron against a single stroke: two single strokes'
+    # distance is their arcs' alone)
+    f = max(0.0, abs(o.get('eye_fork', 0) - d.get('eye_fork', 0)) - LIMITS['eye_fork'][0]) / LIMITS['eye_fork'][1]
+    return float(np.hypot(abs(o.get('eye_arc', 0) - d['eye_arc']) / LIMITS['eye_arc'][1], f))
 
 
 def _mouth_dist(d, o):
@@ -404,6 +429,11 @@ def grade(d, o, part):
                 dv = o['eye_arc'] - d['eye_arc']
                 C['eye_arc'] = {'value': round(dv, 4), 'ours': round(o['eye_arc'], 4), 'design': round(d['eye_arc'], 4),
                                 'status': _grade('eye_arc', abs(dv)), 'note': '+ arch (a smile), - sag'}
+                if 'eye_fork' in o and 'eye_fork' in d:
+                    dv = o['eye_fork'] - d['eye_fork']
+                    C['eye_fork'] = {'value': round(dv, 4), 'ours': round(o['eye_fork'], 4),
+                                     'design': round(d['eye_fork'], 4), 'status': _grade('eye_fork', abs(dv)),
+                                     'note': '+ forked (a > < chevron)'}
     elif part == 'mouth':
         kk = 'mouth_width_rel' if 'mouth_width_rel' in d and 'mouth_width_rel' in o else 'mouth_width'
         r = o[kk] / d[kk]
@@ -433,9 +463,11 @@ def grade(d, o, part):
 # *_rel features are against the same face's neutral (the mouth's width as a ratio, the brows' tilt in degrees (+ the
 # inner ends lower) and height over the eye line in L as differences); mouth_skew_abs the corners' height difference over the width.
 # No reference grades these (the manifest gives expressions no authority): they are the template's intent, set from
-# what each expression means, not fitted to our numbers.
+# what each expression means, not fitted to our numbers. effort's eye is a > < chevron (Michael, 2026-09-30): eye_fork
+# at least 0.15 is a chevron whose strokes open at least about 20 degrees (a straight chevron of half-angle a and stroke
+# width w over its span S reads 1.5 tan(a) - (w / S) / cos(a); w / S about 0.12); under it the strokes run into a line.
 TARGETS = {
-    'effort': {'eye_open': (0, 0.5), 'eye_arc': (0.02, None), 'mouth_open': (0.015, 0.07), 'mouth_teeth': (0.5, None),
+    'effort': {'eye_open': (0, 0.5), 'eye_fork': (0.15, None), 'mouth_open': (0.015, 0.07), 'mouth_teeth': (0.5, None),
                'mouth_width_rel': (1.1, None), 'mouth_lift': (None, 0.02), 'brow_tilt_rel': (8, None)},
     'shout': {'eye_open': (0.5, 1), 'mouth_open': (0.10, None), 'mouth_width_rel': (1.0, None),
               'mouth_teeth': (0.03, 0.45), 'mouth_tongue': (0.05, None), 'mouth_line_top': (0.6, None),
@@ -458,7 +490,7 @@ TARGETS = {
     'fluster': {'eye_open': (0.5, 1), 'iris_ratio_rel': (None, 0.6), 'mouth_wave': (0.008, None)},
     'yawn': {'eye_open': (0, 0.5), 'mouth_open': (0.10, None), 'mouth_fill': (0.6, None)},
 }
-TARGET_MARGIN = {'eye_open': 0.0, 'eye_arc': 0.02, 'eye_aspect_rel': 0.1, 'iris_ratio_rel': 0.1, 'mouth_open': 0.015,
+TARGET_MARGIN = {'eye_open': 0.0, 'eye_arc': 0.02, 'eye_fork': 0.05, 'eye_aspect_rel': 0.1, 'iris_ratio_rel': 0.1, 'mouth_open': 0.015,
                  'mouth_width_rel': 0.1, 'mouth_lift': 0.03, 'mouth_teeth': 0.1, 'mouth_tongue': 0.03, 'mouth_fill': 0.1,
                  'mouth_wave': 0.004, 'mouth_skew_abs': 0.02, 'mouth_line_top': 0.15, 'brow_tilt_rel': 4.0,
                  'brow_z_rel': 0.015}          # how far past a target is WARN, not FAIL
@@ -505,7 +537,7 @@ def grade_targets(name, s, neutral=None):
 
 # the model sheet's heads (exprqa.name's names) and the preset each draws: the targets' calibration (they pass on the
 # drawing), and the lab's contact sheet pairs them
-SHEET_PRESET = {'laugh': 'laugh', 'angry': 'angry', 'fluster': 'fluster', 'yawn': 'yawn'}
+SHEET_PRESET = {'laugh': 'laugh', 'angry': 'angry', 'fluster': 'fluster', 'yawn': 'yawn', 'effort': 'effort'}
 
 
 def calibrate_targets(heads, design_neutral, rest):
@@ -523,6 +555,8 @@ def calibrate_targets(heads, design_neutral, rest):
 def name(s):
     """a readable name for a sheet head from what it shows."""
     eyes = 'open' if s.get('eye_open', 1) >= 0.5 else ('arched' if s.get('eye_arc', 0) > 0 else 'shut')
+    if eyes != 'open' and s.get('eye_fork', 0) >= TARGETS['effort']['eye_fork'][0]:
+        return 'effort'                                          # > < (a chevron: charkit.eyes.CHEVRON)
     op = s.get('mouth_open', 0) > 0.03
     if eyes == 'arched' and op:
         return 'laugh'

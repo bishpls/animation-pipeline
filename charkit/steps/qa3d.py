@@ -93,4 +93,15 @@ MEASUREMENT_STEPS = [
     ('face_eye_asym', 'bf797d4', 'the library grew (tool/mouth2: lids focus, squeeze, wince, shy; the worst key)'),
     ('face_preset_*', 'bf797d4', 'new: the combined expressions (charkit.expressions.PRESETS) against exprqa.TARGETS, '
      'the furthest feature past its target in WARN margins (tool/mouth2)'),
+    # tool/mouth3: the effort eye as a > < chevron (Michael, 2026-09-30)
+    ('face_preset_effort', '8ea2634', "effort's eye target is the chevron (exprqa eye_fork >= 0.15, a closed eye's strokes "
+     "forking) where it was an arched shut line (eye_arc >= 0.02); the preset's eye is the chevron (tool/mouth3)"),
+    ('face_folds', '8ea2634', 'the library grew (tool/mouth3: the chevron lid) and face_folds sums every key'),
+    ('face_expr_range', '8ea2634', 'FACE_EXPECT gained the chevron, and a lid folded back over x (its) opens by its '
+     "loop's winding, not its heights over x (which read the wedge between its strokes: 0.32 open); unfolded keys as "
+     'before (tool/mouth3)'),
+    ('face_eye_asym', '8ea2634', 'the library grew (tool/mouth3: the chevron lid; the worst key), a folded lid read by '
+     "its loop's winding"),
+    ('expr_*_eye', '8ea2634', "a closed eye's fork (exprqa eye_fork) graded against the drawing's, and in the match past "
+     'its pass band (a chevron against a single stroke); two single strokes match as before (tool/mouth3)'),
 ]

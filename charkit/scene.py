@@ -12,7 +12,8 @@ import functools, json, os
 import numpy as np
 
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
-EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint', 'shock', 'focus', 'squeeze', 'wince', 'shy']
+EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint', 'shock', 'focus', 'squeeze', 'wince', 'shy',
+        'chevron']
 MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised', 'laugh', 'wavy', 'yawn', 'pout',
          'shout', 'clench', 'grimace', 'smirk', 'firm', 'wobble']
 # combined expressions: the face's components (eyes, brows, mouth, gaze) together, the rest face one of them
