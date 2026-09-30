@@ -7,7 +7,9 @@ last-bit masked-skin nondeterminism; (7) j, the load sampler at boot.
 
 ## State (read first when resuming)
 
-Subset 1 (items 1-3) in progress. Code for item 1 done and unit-tested; real-pair gates on the box next.
+Subset 1 (items 1-3): code done and unit-tested (test_codediff, test_gate). Running: the real-pair gates with this gate
+code (evalmesh 0c9eb95 into 25b1936, look6 bb3fdf1 into 4007276: `remote gate tmp/infra4-* --code tool/infra4`), the
+carry-rate measurement (after), and the normal gate of tool/infra4 into pipeline-3d.
 
 ## 1. Unregistered remeasures (charkit/codediff.py, gate.py)
 
@@ -66,9 +68,29 @@ tmp-*), carried to each later first-parent pipeline-3d commit up to 9a12d01: **1
 (harness: carry_rate.py in the session scratchpad; `gate.carry(tip, into=T, write=False, run_tests=False)`, a carry
 waiting only on tests counted as carried.)
 
+**Item 2's fix anyway** (remote.py): a gate's report comes back into its own folder
+(`charkit/out/remote/gates/<gate id>/`), and `remote gate` / `remote attach` take from it only the report of that branch
+at that sha into that head (`remote.gate_report`), copy it into charkit/out/gate and print it by name with its verdict:
+`remote gate: exit 1, gate tool_mouth3-5b6fd763: tool/mouth3 (b4f049f) into pipeline-3d (4007276): FAIL, report ...`.
+No report of it: it says so and doesn't exit 0. Each job's followed log is also kept by its id
+(`charkit/out/remote/jobs/<jid>.log`), whatever the caller redirects to. For agents: never share a redirect file
+between two commands (use one per branch or job). Test: test_gate's test_remote_gate_names_its_own_report_never_the_newest.
+
+## 3. The carry: by definition (gate.py `_carry_hits`)
+
+The rule (the default; `gate --carry --rule files` the old one): for charkit's own Python, the move's changed
+definitions (H0 -> HEAD) and the branch's (H0 -> the merged tree at H0) must not meet: neither side's changed definitions
+among what the other's reach (itself included), in either tree (the move's in HEAD and the new merge, the branch's in
+its merge at H0 and the new one). The brief's rule is the first half (the move's among what the branch's reach); the
+second half also stops a move that changes a caller of the branch's change. Data files and Python outside charkit stay
+file-level against the two builds' closures. Guarded at the QA boundary, where data (the bundle), not calls, joins the
+two sides: the move changes a QA part's measuring code or adds a part while the branch's candidate was built; or the
+branch changes a measure (registered or not) while the move changes a file the baseline read. Those refuse.
+
 ## Next steps
 
 - Gate the real pairs with this gate code (`remote gate ... --code tool/infra4`): evalmesh 0c9eb95 into 25b1936, look6
   bb3fdf1 into 4007276.
-- Item 2: `remote gate` names its own report (by the job's gid, branch and sha), a local copy of each job's log by JID.
-- Item 3: the definition-level carry rule; the after numbers.
+- Item 3's after numbers (variants: the rule, one-directional, no QA guard, the file rule again).
+- Then subset 2: item 4 (pregate: piece_details' sleeve checks and the face parts need a real bundle: bodyeval's is
+  plain data; faceeval's Builder bundle needs a Blender-cached hair and garments), item 5 (TRELLIS), 6 (k), 7 (j).
