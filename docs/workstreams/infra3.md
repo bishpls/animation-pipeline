@@ -30,6 +30,19 @@ must `gcloud auth login`). Four detached box jobs were running then and are to b
   qa/qa.json's checks (bit-identical, llvmpipe capped included). Then k: if the two bundles differ only in
   o/clawd_skin/masked/*, that's the last-bit skin case on the default spec.
 
+**l, first cut (laptop only while the box is out; 38a5f5d on):** `python -m charkit pregate` (charkit/pregate.py):
+each tree runs the build's resolve and venv steps (cached; the pre-gate's trees share ~/.cache/charkit/steps as the
+gate's builds do) and then the fast evaluator's check set on the resolved spec (evaldrift.evaluator_checks: shape_*,
+ref_iou, body_*, palette_*, the face's sheet_*, the pieces; a spec file alone fails: no body_code), this worktree as it
+is against pipeline-3d's head (evaluated once per commit in a sparse worktree of it, kept in
+charkit/out/pregate/base_COMMIT_SPEC.json), judged with gate.compare_qa and gate.judge (K). `--pair TIP [--into HEAD]`
+for a merge of commits; `--against GATE_REPORT.json` for a real gate's pair plus the agreement (the checks both
+measure: moved in both, gate-only, pre-gate-only, the same way, recall and precision, the verdicts). Not the "full
+QA" yet: qa3d's full bundle needs Blender's evaluated meshes (GEOM_TRUTH 7b, Michael's decision), so art_*, hair_*,
+poke, mesh, eyes, expressions and the charkit.render drawing stay the gate's. First timing: the evaluator alone on a
+spec failed in 31 s (no body_code); the produced references cold on the laptop: hull 86 s, outfit masks 36 s.
+Agreement run: tool/body a9aa137 into 2e3bdd5 (the gate: PASS, 149 rows: body 71, boot 23, piece 23, piece3d 17).
+
 **h, the rest** (ec00b3a): the venv steps' keys portable (cache._port: the build's out folder as '<out>/', the
 worktree and its charkit/out links relative; reads the same; a hit notes the step's reads, inputs and code files in the
 build's closure via closure.note, else a restored step would drop them from the closure and the gate could skip a
