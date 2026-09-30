@@ -201,9 +201,11 @@ JAW_BAND_END = 0.11      # L under the mouth block: the band ends at the first c
                          # evenly from the band's to the cage's own)
 JAW_TOP_GAP = 0.012      # L: the underside kept this far under the band's top row (the mouth block's bottom)
 POCKET_FADE = 0.02       # L: the pocket under the jaw, whole over the neck's width, fades out over this past it
-TIP_BIAS = (0.006, 0.06) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
+TIP_BIAS = (0.003, 0.04) # L: the rim's target lowered this much at the chin point, tapering to nothing this far out: the
                          # subdivision rounds the V's point across the cage's columns (0.033 L apart there), which
-                         # raises it that much (headfit.CHIN_BIAS does the same in profile)
+                         # raises it that much (headfit.CHIN_BIAS does the same in profile). (0.006, 0.06) before the
+                         # chin's rims were put on their targets (SIDE_RIMFIT): it had made up for rims 0.002 L low
+                         # beside the point
 UNDER_ROUND = (0.75, 1.15, 0.12)  # the underside's slope: this share of the rise at the rim, this share UNDER_ROUND[2] L in
                                   # (the start kept steeper than the boards' camera looks down at the chin, 6.5 degrees)
 POCKET_MIN = 0.005       # L: the least depth of the pocket at a column's rim (less: the column is the envelope's)
@@ -249,15 +251,23 @@ SIDE_EASE = (0.4, 0.7)   # rad round the band's centre: the rows' map eases from
                          # rim and the throat fall on rows 3-5 and 8-12 of the band) to SIDE_ROWS over this
 SIDE_UOLD = None         # rad (a, b): the chin's columns keep U's height (the polar form) under a, the per-column form
                          # over b. (0.45, 0.7): the board's chin_angle 116.3 -> 119.9, but a kink where the V crosses
-                         # the neck's edge (jaw_line_bend 4.9 -> 7.8): off
+                         # the neck's edge (jaw_line_bend 4.9 -> 7.8): off. (Round 4: its 4 degrees are one column's
+                         # rim crossing a cage row, a 0.0034 L dip at the end of the arms' window, not the V's shape)
 SIDE_RELAX = 1.0         # rad past the jaw's angle: behind it the rows (the rim's at the jaw angle's height there) ease
                          # back to level over this (dropped over the pocket's fade alone, 0.1 L in two columns, they folded)
 SIDE_DROP = 0.05         # L: behind the jaw's angle the throat's row runs this far under the rim's (no underside there)
-SIDE_RIMFIT = 0          # (lab) rounds of re-hanging each column's underside so its rim lands on the edge's height at its x
-SIDE_RIMFIT_A = 9.0      # (lab) rad: ... in the columns under this angle round the band's centre only
+SIDE_RIMFIT = 3          # secant rounds re-hanging each chin column's underside so its rim (where the column's envelope
+                         # crosses it) lands on the edge's height at the rim's own x: hung from the edge's point, the
+                         # rims sat -0.0024..+0.0020 L off it (the envelope's front isn't through the edge's point near
+                         # the tip, EDGE_TIP), and the level outline's arms read 1.8 degrees steep each (round 4)
+SIDE_RIMFIT_A = 0.2      # rad round the band's centre: the refit in the chin's columns under this (the point and two
+                         # columns either side, x < 0.06). 0.3: the bend 4.6 -> 5.1; 0.45: a column at x 0.09 crosses
+                         # a cage row, a kink in the arm (jaw_line_bend 9.3)
 SIDE_RIM_ROW = False     # the rim on its row (SIDE_ROWS[0]) at the chin too: the jaw line one edge loop from the chin
-                         # round to the jaw's angle
-JAW_CREASE = 0           # the rim's loop creased this many columns either side of the chin's (0: none)
+                         # round to the jaw's angle. With the refit the level outline is the design's V (130.2, tip
+                         # 0.79), but the boards' camera reads its point round (chin_tip 0.42): off (round 4)
+JAW_CREASE = 0           # the rim's loop (SIDE_RIM_ROW) creased this many columns either side of the chin's: the boards'
+                         # tip 0.30 at 1, 0.21 at 2 (0: none; round 4)
 
 
 def jaw_depth(jaw):

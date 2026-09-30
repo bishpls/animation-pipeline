@@ -767,3 +767,33 @@ per L: a pixel is 0.0025 L). chin_angle fits each arm over 0.06 L of arc (24 px)
 degrees. `tools/face_labs/chin_lab.py` reads the same measures on ours drawn K times finer (K=4) beside the sheet's
 scale, and prints each chin column's rim against its target. jaw_7 at the sheet's scale / 4x: level 126.1 / 126.3,
 boards' 116.4 / 116.1 (the design 129.7).
+
+**3. Why the chin reads 126 level (the V's arms 1.8 degrees steep each).** Per chin column the rim UnderJaw finds (where
+the column's envelope crosses its underside) against its target (the design's V less TIP_BIAS), and where it falls
+between the cage's rows (chin_lab): the rims sat -0.0024..+0.0020 L off their targets (the envelope's front bulges past
+the edge's point near the tip, where EDGE_TIP fades the edge's shaping out), and at rows 3.3-4.9 of the band: a rim
+half-way between two rows is cut off by the subdivision (the level-1 edge points inside the corner), one on a row
+isn't. So the level outline sits 0.002-0.004 L over the rim by column, a wave the arms' 24 px window reads:
+- **SIDE_UOLD (round 3's fallback) is a bump, not a recovery.** Its 4 degrees (level 126.1 -> 130.2) come from one
+  column (0.39 rad, x 0.09) whose rim crosses from just over row 4 to just under it: a 0.0034 L dip at the far end of
+  the arms' window, and the nick (bend 7.9).
+- **The rim as one edge loop at the chin too** (`SIDE_RIM_ROW`: the rim on band row 3 in every pocket column, as round
+  the sides) with every rim on its target (`SIDE_RIMFIT`): the level outline is the design's V (level 130.2 / 131.0 at
+  4x, tip 0.79, bend 5.3 / 3.3), but the boards' camera reads its point round (chin_tip 0.61 -> 0.42 FAIL, bend 6.5):
+  6 degrees over the chin the recession near the point (the prow, y as |x|^1.5) lifts the rim beside the point. Creasing
+  the loop's edges at the point (`JAW_CREASE` 1-2 columns: the build's crease attribute, faceeval, the labs and the limit
+  fit all carry it) made the boards' tip worse (0.30 / 0.21) and the bend 9.7. Both stay off.
+- **Each chin column's rim on its target** (`SIDE_RIMFIT` 3 secant rounds, only under `SIDE_RIMFIT_A` 0.3 rad round
+  the band's centre: x < 0.075; over it the refit flips the 0.39 column's row and kinks the arm, bend 9.3), with the
+  tip's bias narrowed (`TIP_BIAS`: the rim lowered at the point, fading out over 0.03 L instead of 0.06: the refit leaves
+  less of the point to the subdivision's rounding). Numbers below.
+
+**4. sheet_width's evaluator drift (+0.023): not in the face's code path.** The measure is shared: both sides call
+`sheetqa.measure_ours` / `compare`, and `bodymeasure.face_region` is `faceqa.face_region` vectorised (the same graph,
+the same pixels); both register on the head's eye line since 9a85cf5. On the box's own bundle (jaw_7) `qa3d`'s
+sheet_width reads 0.987 with the hair's covers and without them (d55 0.253, d75 0.193 against the design's 0.2564,
+0.1911): the hair doesn't reach the widths' rows, so the evaluator's different hair (infra: it doesn't build the
+build's cut-piece hair) isn't it either. It enters in the evaluator's inputs: the scene `bodymeasure.objects` hands
+the measure (its skin's per-face classes, `lab == skin`, against qa3d's material names skin/face_skin, cavity and
+eyeline as line) or the geometry `bodyeval` rebuilds (its cranium fit and assembly). `evaldrift SPEC --build DIR --here
+--stages` on a fresh build pins which: owner infra / body (bodyeval, bodymeasure).
