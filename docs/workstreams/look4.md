@@ -12,14 +12,67 @@ A small round, one gate (default spec only, policy K):
 
 ## State
 
-- Before build (pipeline-3d 08f93e2, render box): `charkit/out/look4_before` (`--boards views,body --vrm`), done.
-  After build (this branch at d7c8333: call M): `charkit/out/look4_after`, running.
-- Call M code: 423e831 (shade.outline cap='measured', garments LINE_CAP_MEASURED = bow, boot; lookprobe --thickness;
-  tests test_line_cap_measured (Blender stand-ins) and test_geomstage's boots). Not yet built.
-- The known-bad builds re-measured with this tree's artifactqa (outfit masks from the local produced cache): body4b
-  spikes_boots 0.0628, bumps_boots 63.1, bumps_legs 42.4, mirror_waist 6.425; body5b bumps_legs 42.4, mirror_waist
-  6.915 (artifacts.md's numbers reproduce).
-- bodyeval --knob-path (d7c8333): the measuring tool for item 3.
+- Branch `tool/look4`: call M (423e831), the bodyeval fix (e12f6cc), the promotion (f0f4286). pipeline-3d still
+  08f93e2 at the gate. Review page: `charkit/out/look4_review/index.html` (the bow and boots on the body boards, EEVEE
+  and charkit.render, before | after | change at 3x, and the tables below).
+- Builds (render box, `--boards views,body --vrm`, charkit/spec/clawd.json): before = pipeline-3d 08f93e2
+  (`charkit/out/look4_before`), after = this branch at d7c8333 with call M (`charkit/out/look4_after`).
+
+## Item 1: call M (the bow and boots capped at half their measured thickness)
+
+- `shade.outline(..., cap='measured')`: a closed thin piece without a shell modifier gets `ck_line_cap` = SHELL_CAP
+  (0.5) x `shade.measured_thickness` (look.md round 3's measure, now in the code: per vertex of the evaluated mesh,
+  outline off, a ray along the inward normal to the far side within 5 cm; the p5 of the hits, to the micrometre), and
+  keeps the thickness in `ck_line_thick`. `garments.LINE_CAP_MEASURED = ('bow', 'boot')` asks for it; geomstage records
+  the kwarg (replayed in Blender, shown in the evaluator's view). The crab and star (accessories.py) are unchanged.
+  Everything downstream already reads `ck_line_cap` through `shade.line_cap`: set_view's offsets, the bundle's
+  `outline.cap`, the VRM's `outline.maxInward` and charkit.render's inward move and normals.
+- Measured at the build (outline time) = measured on the saved scene (`lookprobe --thickness`), to the micrometre:
+  bow 2.654 mm (cap 1.327), boot_L 4.913 (2.4565), boot_R 4.907 (2.4535); look3's experiment read 2.654 / 4.913 /
+  4.907. At the build width (1.2 mm) and the face boards' (0.93) the caps don't bind; at the body boards' (3.62) the
+  bow's surface moves 1.327 mm in and its hull 2.29 mm out, the boots' 2.46 in and 1.16 out.
+- **Flips** (`lookprobe --normals`, faces whose shading turns > 90 degrees, outline on against off; laptop):
+
+  | piece | body width: before | after | build width: before / after |
+  |---|---|---|---|
+  | bow | 501 | **144** | 22 / 22 |
+  | boot_L + boot_R | 113 + 113 = 226 | **39 + 39 = 78** | 0 / 0 |
+  | crab_1, star_0 (not capped) | 260, 8 | 260, 8 | 0 / 0 |
+  | all garments | 9193 | 8688 | 5756 / 5756 |
+
+- **Across renderers** (`python -m charkit.render compare BUILD`: charkit.render on the laptop's M2 against the box's
+  EEVEE boards): face boards identical before and after (both renderers bit-identical to themselves: the caps don't
+  bind there); body boards before mean 0.839-0.871 lv, > 8 lv 0.321-0.460%, after 0.837-0.869, 0.316-0.442% (a hair
+  closer), silhouette IoU 0.9991-0.9993, tones agree 0.9993-0.9996. What changed between the builds (> 8 lv) is a
+  thin band along the bow's and the boots' outlines: EEVEE 3341-6369 px a body board, charkit.render 3342-6349, the two
+  change masks' IoU 0.957-0.968. The bow's line now sits partly outside it (about 1.4 px on the body boards; the boots
+  0.7 px), as call I did for the thin garments.
+- **The QA.** The bundles' geometry is identical (every object's V and shrink); only `outline.cap` is new on the bow and
+  boots. The QA's design-scale drawings (lookqa._scaled, line scale 3.1 x the build width, 3.73 mm) now cap them too,
+  so the art_* measures that see the bow and boots moved (no measure changed, so no 2x2): calibrated
+  art_bumps_boots 13.3 -> 11.0 PASS, art_mirror_self_boots 0.511 -> 0.497 PASS, art_outline_collar 4.435 -> 4.234 WARN,
+  art_fragments_collar 8.775 -> 6.495 WARN, art_points_sleeves 28.0 -> 27.9 WARN; INFO: art_outline_bow 0.846 -> 1.027,
+  art_fragments_bow 0.56 -> 2.12 (profile), art_terminator_bow none -> 6.0 (front: the bow's own shading is drawn
+  now; before, its surface pulled 3.7 mm into a 2.65 mm piece and the view showed mostly its line), art_fragments_top
+  1.58 -> 2.60, art_outline_top 5.08 -> 4.92, art_terminator_boots 4.82 -> 5.16, art_peeks_collar 3 -> 2,
+  art_bumps_skirt/flaps +-0.1. line_width (INFO) unchanged at 1.133.
+
+## Item 2: four flag checks promoted to FAIL
+
+Re-verified on this tree (call M in): the known-bad builds re-measured with this code (`artifactqa.measure` on their
+bundles; outfit masks from the produced cache) against the after build's QA:
+
+| check | known-bad | current (after M) | ratio | promoted |
+|---|---|---|---|---|
+| art_spikes_boots | body4b 0.0628 L | 0.0133 PASS (pass <= 0.015) | 4.7x | yes |
+| art_bumps_boots | body4b 63.1 deg | 11.0 PASS (13.3 before M) | 5.7x | yes |
+| art_bumps_legs | body4b 42.4, body5b 42.4 | 0.0 PASS | inf | yes |
+| art_mirror_waist | body4b 6.43, body5b 6.92 | 1.19 PASS | 5.4x | yes |
+
+`artifactqa.PROMOTED` holds the four (their grade is their status); points_sleeves (28 WARN), bumps_sleeves (45.6,
+graded FAIL, shown WARN) and band_lower (2.16, graded FAIL, shown WARN) stay capped for the garments round. Note:
+art_spikes_boots' current 0.0133 is the template boots' known borderline back spike, 0.0017 L under the pass line (a
+move over it reads WARN, not FAIL; FAIL is over 0.025).
 
 ## Item 3: the evaluator's body knobs on the code body (measured, fixed)
 
