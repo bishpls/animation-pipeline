@@ -2,14 +2,9 @@
 pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened."""
 
 MEASUREMENT_STEPS = [
-    # tool/accessories2: the hair clips against the design's, per clip and view (docs/workstreams/accessories.md)
-    ('acc_*', 'fc6269c', "new: each hair clip's shape (IoU aligned on centroid and area), size, position and axis per "
-     "view against the head turnaround's drawn clip, whether it shows where the design does, its seat on the hair, its "
-     "triangulated 3D place and its colour; limits calibrated on the design against itself (the body turnaround's clips "
-     "pass), the 3ebc3fb placeholders fail 26 of 30 graded"),
-    ('acc_*_seat', 'e89c90c', "the least of the clip's vertices' heights over the hair under them (along its thin axis), "
-     "not its lowest point over the plane of its middle's hair: a clip bent over another (round 3's star) has no one "
-     "plane (that read -0.0096 for a star with no vertex under the hair; this reads +0.0099). On the 3ebc3fb "
-     "placeholders star 0.0204 -> 0.0153 (FAIL both), crab -0.0144 -> -0.0127 (WARN both); round 2's floating star "
-     "0.0462 -> 0.0412 (FAIL both)"),
+    # tool/acc-reclass: the hair clips against the design's, per clip and view (docs/workstreams/accessories.md)
+    ('acc_*', '9bfbc8b', "new: each hair clip's shape (IoU aligned on centroid and area), size, position and axis per "
+     "view against the head turnaround's drawn clip, whether it shows where the design does, its seat on the hair (the "
+     "least of its vertices' heights over the hair under them), its triangulated 3D place and its colour; limits "
+     "calibrated on the design against itself (the body turnaround's clips pass), the placeholders fail 26 of 30 graded"),
 ]
