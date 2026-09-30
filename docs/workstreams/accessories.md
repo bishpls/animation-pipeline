@@ -1,0 +1,213 @@
+# Workstream: hair accessories (`tool/accessories`)
+
+Clawd's two hair clips, the yellow star and the little red crab, which Michael called "very off-model". The
+placeholders in `charkit/accessories.py` were a thin stretched four-point star and a blob; this workstream measures
+them against the design, clip by clip and view by view, classes them as accessories in the QA on both sides, and
+remodels and places them.
+
+## State: Round 2 (`tool/accessories2`, from pipeline-3d 3ebc3fb), in progress
+
+Round 1 (`tool/accessories`, d45f27e, below) was paused 571 commits behind; it is not merged. Round 2 ported it onto
+pipeline-3d, measured first, fitted the templates, placed them with the harness, updated the specs and made one hair
+selection for the build and the evaluator. Harness, logs and pictures (gitignored): `charkit/out/acc_work/`; the
+3ebc3fb baseline box build `charkit/out/acc_base2` (its own QA `qa/`, the new code's QA on its bundle `qa_new/`).
+
+## Round 2
+
+### The port
+- Taken whole from d45f27e: `charkit/accessories.py`, `charkit/accqa.py`, `charkit/tests/test_accessories.py`.
+- Re-applied to the current files: `bodyeval.hair_tones` and the evaluator's clips on the built hair (ground),
+  `bodymeasure.Sheet` (the reclass on both sheet paths), `bodysens.ACCESSORY_AT`, `checks` (acc_* overlays and
+  sections), `qa3d` (`Design.design_views` reclass, `Design.clips`, `_scene_classes`' accessory class,
+  `hair_layers_masks` minus the drawn clips), `scene.stage_hair` (ground).
+- The QA part registers itself in `accqa.py`: `@qa_part('accessories', order=2400, table='accessories')`.
+- Steps: `charkit/steps/accqa.py` (`acc_*`, new) and, where those patterns already live, `charkit/steps/qa3d.py`
+  (`body_*_iou_*`, `palette_iris_*`, `hair_piece_*`, `hair_bun_*`), all at fc6269c.
+
+### 1. Measure first
+**The design side against the hand-checked truth** (`outfit_truth.npz`, body turnaround, bodyqa grids;
+`acc_work/m_truth.py`): accqa's colour-plus-region finder against the new sheet-only outfit masks, IoU per view.
+
+| clip | view | accqa | outfit masks |
+|---|---|---|---|
+| star | front / 3/4 / profile | 1.000 / 1.000 / 1.000 | 0.936 / 1.000 / 1.000 (+93 px in the back) |
+| crab | front / 3/4 / profile | 1.000 / 1.000 / 1.000 | 0.881 / 0 / 0 |
+
+So the QA keeps accqa's finder for the design's clips (the outfit masks lose the crab in two views).
+
+**The reclass alone** (the new code's QA on the 3ebc3fb baseline's bundle, same geometry; `acc_work/reclass_diff.json`):
+16 checks move, all remeasures: `body_*_iou_hair` 0.840 -> 0.827 (front), 0.757 -> 0.743 (3/4), 0.829 -> 0.809
+(profile): the placeholders sit where the design draws hair, and now count against it on both sides; `iou_outfit`
++0.002..+0.004, `iou_cream` +0.005..+0.011; `palette_iris_lit` 7.06 WARN -> 1.65 PASS (the star's pale facets had been
+the design's iris); `hair_piece_bangs` 0.792 -> 0.772, `side_locks` 0.534 -> 0.526, `ahoge`, `upper_back`,
+`hair_bun_outline` within 0.004. Registered as steps (above); the gate's 2x2 checks them under the old measure.
+
+**Calibration** (`acc_work/calib.py`): the body turnaround's clips (an independent drawing of the same design) moved
+onto the head turnaround's grids and measured as "ours": worst iou 0.736 (the crab's profile), size 1.064, pos 0.033 L
+(the star's profile), angle 6.5 deg. The limits were set from this before any fit: iou pass 0.72 (was 0.75), pos pass
+0.035 L (was 0.03); size, angle, seat and pos3d unchanged. The design passes every graded check; the placeholders
+fail 26 of 30.
+
+**Baseline at 3ebc3fb** (the placeholders under the new code's QA; ours / design):
+
+| clip | view | iou | size | pos (L) | angle |
+|---|---|---|---|---|---|
+| star | front | 0.500 FAIL | 0.533 FAIL | 0.096 FAIL | -3.1 PASS |
+| star | 3/4 | 0.547 FAIL | 0.531 FAIL | 0.245 FAIL | -1.6 PASS |
+| star | profile | 0.552 FAIL | 0.447 FAIL | 0.453 FAIL | 2.9 PASS |
+| crab | front | 0.518 FAIL | 0.402 FAIL | 0.124 FAIL | -32.6 FAIL |
+| crab | 3/4 | 0.523 FAIL | 0.395 FAIL | 0.237 FAIL | -31.5 FAIL |
+| crab | profile | 0.492 FAIL | 0.281 FAIL | 0.343 FAIL | 81.2 INFO |
+
+pos3d star 0.427 FAIL, crab 0.337 FAIL; seat star +0.020 FAIL, crab -0.014 WARN; colour dE star 7.19, crab 5.51 WARN.
+
+### 2. Templates fitted to the design's clips (`acc_work/fit2d.py`)
+One shape for all three views of the head turnaround, a similarity per view (rotation, x-squash, size, offset),
+Nelder-Mead from explicit simplices with real steps on every parameter (round 1's crab rotations never left 0), three
+restarts. The crab is scored where the star doesn't cover it. Per view: the fit's IoU and the QA's shape IoU.
+
+| template | front | 3/4 | profile | the shape |
+|---|---|---|---|---|
+| star, round 1's shape | 0.809 / 0.761 | 0.826 / 0.795 | 0.854 / 0.804 | |
+| star, fitted | **0.825 / 0.767** | **0.845 / 0.791** | **0.891 / 0.815** | up 0.542, down 0.538, side 0.373, minor 0.295, inner 0.159, curve 0.045 |
+| crab, round 1's shape | 0.673 / 0.638 | 0.673 / 0.615 | 0.623 / 0.594 | |
+| crab, fitted free | 0.861 / 0.843 | 0.814 / 0.794 | 0.782 / 0.754 | legs shrank to 0.061: dropped |
+| crab, fitted, legs >= 0.15 | **0.855 / 0.838** | **0.796 / 0.758** | **0.802 / 0.786** | body_h 0.892, claw 0.588 at (0.566, 0.377), claw_up 9, arm 0.131, leg 0.165, leg_span (-22, -73) |
+
+The free fit bought 0.001 of loss by dropping the drawn legs (ours pointed the wrong way); bounded, the legs stay and
+turn down-left as drawn at no real cost, so the bounded fit ships (a model feature, not a number).
+
+## Round 1 (tool/accessories, d45f27e): PAUSED (2026-09-29, coordinator's request to cut concurrency)
+
+Nothing is running: no box jobs, no local jobs (the local placement fit was stopped; its best-so-far is below).
+Local outputs (gitignored): the baseline box build `charkit/out/acc_base` (bundle and its QA), the fit harness, logs
+and pictures in `charkit/out/acc_work`.
+
+**Work in progress: don't gate or merge this commit as it stands.** The new generators and the seating already change
+the build, but the specs still carry the placeholders' knobs (az / el, `size` 0.16 meaning the old star's scale where
+it is now the height tip to tip), so the clips come out smaller and elsewhere until step 3 lands.
+
+| step | state |
+|---|---|
+| 1. measure first (`charkit/accqa.py`) | done: design clip crops, our silhouettes, per-clip checks; baseline numbers below (all FAIL) |
+| 2. classify by object | code done, **not yet measured**: `qa3d.Design.design_views` reclasses the drawn clips, `qa3d._scene_classes` and `bodyeval.hair_tones` class ours as `accqa.ACCESSORY` (5), `qa3d.hair_layers_masks` drops the drawn clips from the hair families; STEPS entry not yet added (needs the commit that lands it) |
+| 3. remodel (`charkit/accessories.py`) | generators and placement rewritten; a fit harness found placements (below); **the spec is not yet updated** |
+| 4. gate | not run |
+
+### Code written so far (committed on `tool/accessories`)
+
+- `charkit/accqa.py`: the design's clips (`clip_pieces`, `design_clips`, `design`, `design_sheets`, `design_all`),
+  measures (`measure`, `shape_iou`, `compare`, `triangulate`, `seat`), ours (`clip_objects`, `our_labels`,
+  `evaluate`), the reclass (`window_to_grid`, `grid_masks`, `reclass`), pictures (`picture`).
+- `charkit/qa3d.py`: QA part `accessories` (checks `acc_KIND_VIEW_{iou,size,pos,angle,shown}`, `acc_KIND_pos3d`,
+  `acc_KIND_seat`, `acc_KIND_colour`; overlays `qa_accessories.png`, `qa_accessories_body.png`); `Design.clips()`;
+  the reclass in `Design.design_views()`; `_hair_material`; hair layers minus the drawn clips.
+- `charkit/checks.py`: `acc_*` sections and overlays (not in MEASURES: graded as the piece checks are).
+- `charkit/bodymeasure.py` `Sheet`, `charkit/bodyeval.py` `hair_tones` and `hair_parts`: the same classing and the
+  hair ground for the fast evaluator.
+- `charkit/accessories.py`: `star_outline` / `star` (n major points with up / down / side lengths, optional minor
+  points, valleys, concave edges as a radial pull, a raised faceted middle), `crab` (body, notched claws on arms, eyes
+  on stalks, legs; per-face materials: 1 = the eyes), placement `at` (L from the head centre) + `facing` [az, el] +
+  `tilt`, seating on `ground` (the built hair; each clip also rests on the clips listed before it), `hair_ground`
+  (Blender objects -> meshes), `build(..., ground=)` with a second material for the crab's eyes. Buns keep the old
+  volume placement (`_frame`). Old specs (az / el, no `at`) still build: the clip is anchored at `V.point(az, el)`
+  and, with ground, seated along its facing.
+- `charkit/scene.py` `stage_hair`: passes `ground=accessories.hair_ground(S.hair)`.
+- `charkit/bodysens.py`: `ACCESSORY_AT` knobs for `at` / `facing` clips.
+- `charkit/tests/test_accessories.py`: 8 tests (pass).
+- Not touched on purpose: `bodyqa.py` and `paletteqa.py` (both are in the hull's and outfit masks' produced-reference
+  stamps: editing them rebuilds the hull in every worktree), so `ACCESSORY = 5` lives in `accqa` (bodyqa's free id),
+  and `bodyqa.PALETTE` has no colour for it (the clips paint black in `qa_sheet_body.png`). `qa3d_blender.py` (the old
+  `--qa blender` pass) still classes clips by colour family.
+
+### Exact next steps
+
+1. **Measure the reclass alone** on the baseline bundle, before any remodel:
+   `python -m charkit qa charkit/out/acc_base/bundle --out charkit/out/acc_base/qa_reclass --cache off`, then diff
+   its `qa.json` against `charkit/out/acc_base/qa/qa.json` (the box build's own QA, pre-reclass): the hair checks
+   (`body_*_iou_hair`, `body_*_hair_*`, `body_*_top`, `palette_hair_*`, `palette_iris_*`, `hair_piece_*`,
+   `hair_bun_*`, `hair_fringe_*`, `sheet_shown_*`) and the outfit ones (the star's pale facets were `cream` on the
+   design side: 500 px of front "outfit"). Record the movement here; add a STEPS entry in `charkit/history.py` for
+   each pattern whose measurement changes (`body_*`, `palette_*`, `hair_piece_*`, `hair_bun_*`, `hair_tips_*`) with
+   the commit that lands the reclass. Commit.
+2. **Finish the placement fit** (harness in `charkit/out/acc_work/`, gitignored: `fitlib.py` + `t_fit3d.py`; run from
+   the worktree root with `PYTHONPATH=.`; ~1.3 s an evaluation on the laptop). Best so far, eye-frame at (x her left,
+   y toward her back from the eyes' middle, z up from the eye line; the spec's `at` adds `Harness.eye_off` =
+   (0, -0.344, 0.003) L to get the head-centre frame):
+   - star: at (0.419, 0.103, 0.336), facing (58.7, 0.8), tilt 2.2, size 0.424 (height tip to tip, L), shape from the
+     2D fit (`star2d.json`: up 0.52, down 0.471, side 0.371, minor 0.283, inner 0.168, curve 0.02), loss 2.985 (three
+     views summed; per view (1 - IoU) + 1.5 |log size ratio| + 4 pos);
+   - crab (with that star over it): at (0.289, 0.020, 0.285), facing (45.9, -0.6), tilt 3.4, size 0.159 (body
+     width, L), shape body_h 0.78, claw 0.31, claw_at (0.5, 0.55), claw_up 36, leg 0.2, leg_r 0.03; loss 2.512 and
+     still falling when stopped (iteration 155).
+   The fit ran before the concave-edge change (edges are now pulled radially; `curve` 0.02 is negligible either way)
+   and before `accqa._tones` handled flat regions (no effect on real drawings). Look at the per-view numbers and
+   pictures (`H.measure(..., verbose=True)`, `H.picture`, `H.scene_picture`) before trusting the loss: the star is
+   at its best a compromise, because the drawings put the clips face-on in every view and not at one 3D place
+   (triangulation residual ~0.045 L; `accqa.triangulate`).
+   Open question found on the way: our hair at the clips' height is narrower than the drawing's (the star sits 0.44 L
+   out in the front drawing, near our hair's silhouette edge), so the design's 3D place is inside our hair and seating
+   pushes the clips out; the front and three-quarter positions are weighted 1, the profile 0.6.
+3. Put the fitted clips into `charkit/spec/clawd.json` and `clawd_body.json` (and `clawd_body_pieces.json`,
+   `clawd_code.json`, `clawd_locks.json`, which carry the same accessories): order crab then star (the star rests on
+   the crab), `at`, `facing`, `tilt`, `size`, `shape`, and the measured colours (star lit #fada7d, crab #d26544; the
+   outline is the look's ink in the anime style). Check the crab 2D shape against the design (`t_crabfit.py`: IoU
+   0.60-0.66 on its first fit; its rotation parameters never moved off 0 in Nelder-Mead: give them a real initial
+   step).
+4. Box builds of both specs (`python -m charkit remote build SPEC --out charkit/out/acc_new --boards views
+   --no-blend`), the QA's `acc_*` checks before/after, the review page (design crops beside ours, before and after,
+   per view, at one scale: `accqa.picture` per sheet), board renders on the render box
+   (`python -m charkit remote --box render build SPEC --out DIR --boards views,body`).
+5. Gates: `python -m charkit remote gate tool/accessories --into pipeline-3d` and the same with
+   `--spec charkit/spec/clawd_body.json`.
+
+## The design's clips
+
+Sources: the head turnaround (`sheets.face`, ~401 px/L at its own resolution; graded) and the body turnaround
+(`sheets.body`, the bodyqa grids at ~212 px/L; information, and the source of the design-side reclassing). The
+outfit graph has both clips as pieces (`pin_star`, `pin_crab`, type `hair accessory`), with their colours, but its
+per-view extents are the outfit field's votes (the crab's front extent is 0.05 L wide against a drawn 0.17 L), so
+`accqa.design_clips` finds them in each view by a colour-plus-region rule:
+
+- every pixel of the head window takes the nearest (CIELAB) of the clips' colours and the view's own hair, skin and
+  paper tones; dark pixels are line;
+- two passes: the graph's colours find each clip's seeds; the seeds' own median, lit and shade tones then class every
+  pixel again (the graph's crab colour, measured on the rig, is more saturated than the turnarounds' crab);
+- each region between the drawn lines takes the clip most of its pixels are nearest to, when that is most of them;
+- a clip is its colour's components above the eye line, clear of the eyes and the window's edge (a neighbouring
+  head's clip), within 0.12 L of the largest; closed over the lines inside it, holes filled, plus the outline's inner
+  half (the QA's convention: lines are absorbed into what they bound);
+- on the body turnaround the crab's body reads closer to the hair's tone than its seeds, so the head turnaround's
+  clips, registered by the star's centroid, are a prior: a cell mostly inside it is the clip's.
+
+What the design draws (all three views; the back hides both):
+- **the star** has eight points, not four: four major (up and down about equal, the sides about 0.7 of them) and four
+  minor diagonal ones (about 0.55), straight edges, a valley radius about 0.17 of the height, and a bevelled face (each
+  point a lit and a shaded half). 2D fit of `star_outline` to the three views' masks (aligned on centroid and area):
+  up 0.52, down 0.47, side 0.37, minor 0.28, inner 0.17, curve 0.02 (of the height), IoU 0.73 / 0.78 / 0.82.
+- **the crab**: a flattened round body, a big notched claw raised on an arm at its upper left, the other claw behind
+  the star, eyes on stalks, three thin legs a side.
+- The generated turnarounds draw both clips nearly face-on in every view, and not quite at one 3D place: triangulated
+  from the three views' centroids, the star's front, three-quarter and profile positions disagree by up to 0.05 L.
+
+## Baseline (pipeline-3d at 6b1d500, box build `charkit/out/acc_base`)
+
+The placeholders measured against the head turnaround (`accqa.evaluate` on the box build's bundle; ours / design):
+
+| clip | view | shape IoU | size (sqrt area) | position off | axis | notes |
+|---|---|---|---|---|---|---|
+| star | front | 0.522 FAIL | 0.528 FAIL (0.085 / 0.160 L) | 0.103 L FAIL (dx -0.036, dz +0.096) | -1.3 deg PASS | h 0.21 / 0.38 L |
+| star | three-quarter | 0.548 FAIL | 0.533 FAIL | 0.225 L FAIL (dx -0.204, dz +0.094) | -1.9 PASS | |
+| star | profile | 0.558 FAIL | 0.453 FAIL | 0.472 L FAIL (dx -0.465, dz +0.083) | 0.6 PASS | ours 0.14 L in front of the eyes, the design's 0.32 L behind |
+| star | back | hidden in both PASS | | | | |
+| crab | front | 0.513 FAIL | 0.399 FAIL (0.051 / 0.127 L) | 0.186 L FAIL (dx -0.046, dz +0.181) | -33 FAIL | |
+| crab | three-quarter | 0.514 FAIL | 0.394 FAIL | 0.273 L FAIL | -32 FAIL | |
+| crab | profile | 0.491 FAIL | 0.300 FAIL | 0.393 L FAIL | -64 FAIL | |
+| crab | back | hidden in both PASS | | | | |
+
+3D: the star's triangulated place is 0.44 L from the design's, the crab's 0.38 L (both too far forward, and 0.08-0.18
+L too high); seat: star 0.0085 L over the hair, crab 0.007 L into it; colour dE00: star 7.2 WARN (#ffd638 against the
+drawn #fada7d), crab 5.5 WARN (#e04c33 against #d26544).
+
+In short: both clips are about half the design's size, sit high and on the front of the head where the design puts
+them on its side under the bun, and the star is thin with no minor points.

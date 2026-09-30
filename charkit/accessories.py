@@ -14,8 +14,9 @@ An accessory spec:
                          near the world's up as it gets)
   seat                   with the hair's surfaces given (generate's `ground`), a clip is pushed out along its facing
                          until its lowest point rests on the outermost hair under it (and on the clips listed before
-                         it: list the one drawn underneath first), plus 'lift' L; buns are the hair volume's pads and
-                         keep the volume's placement
+                         it: list the one drawn underneath first; rests_on 'hair': on the hair alone, for a clip that
+                         only overlaps the edge of the one under it), plus 'lift' L; buns are the hair volume's pads
+                         and keep the volume's placement
   color, eye_color, material, line
 """
 import math
@@ -362,6 +363,7 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
     centre: the head's centre ('at' placements)."""
     out = []
     G = Ground(ground) if ground is not None else None
+    Gh = Ground(ground) if ground is not None else None          # the hair alone (a clip with rests_on 'hair')
     for i, s in enumerate(specs or []):
         k = s['kind']
         size = s.get('size', 0.2) * L
@@ -385,7 +387,7 @@ def generate(V, L, specs, ground=None, centre=None, with_mats=False):
                 v = v / max(1e-9, v[:, 1].max() - v[:, 1].min())       # the height tip to tip: 1 (then size L)
             else:
                 v, f, mats = crab(s.get('shape'))                         # the body 1 wide (size L)
-            w = place(v, s, L, V, centre, G)
+            w = place(v, s, L, V, centre, Gh if s.get('rests_on') == 'hair' else G)
             if G is not None:
                 G.add(w, f)
         else:
