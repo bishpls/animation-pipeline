@@ -191,13 +191,17 @@ def outline(K, L, t, which):
     return x, z
 
 
-def closed_line(K, L, t, happy=False):
-    """the closed eye: a gentle downward arc (blink) or an upward one (a smile's closed eye)."""
+def closed_line(K, L, t, happy=False, arch=None, sharp=1.0, drop=0.0):
+    """the closed eye: a gentle downward arc (blink) or an upward one (a smile's closed eye). arch: the arc's height in
+    tenths of the width, + up (default: happy 1.6, else -1); sharp: its profile's exponent (under 1 squares it off: steep
+    ends, a flat top, the squeezed-shut eye); drop: the whole line lowered this share of the width."""
     W = K['width'] * L
     x, zb = outline(K, L, t, 'lower')
     base = x * math.tan(math.radians(K['tilt'])) - K['inner_drop'] * W * (1 - np.asarray(t)) ** 2
     arc = np.sin(np.pi * np.asarray(t)) * 0.10 * W
-    return x, (base + arc * 1.6 if happy else base - arc)
+    if arch is None:
+        return x, (base + arc * 1.6 if happy else base - arc)
+    return x, base + np.sin(np.pi * np.asarray(t)) ** sharp * 0.10 * W * arch - drop * W
 
 
 # ------------------------------------------------------------------------------------------------------------ surface
@@ -684,8 +688,9 @@ def expressions(K, L):
         'happy': (lambda t: (closed_line(K, L, t, True)[0], closed_line(K, L, t, True)[1] - 0.003 * L), closed(True)),
         'half': (up({'height': K['height'] * 0.66, 'lower': K['lower'] / 0.66}), None),
         'wide': (up({'height': K['height'] * 1.14, 'lower': K['lower'] / 1.14}), lo({'height': K['height'] * 1.06})),
-        'angry': (up({'peak': min(0.85, K['peak'] + 0.3), 'tilt': K['tilt'] + 9, 'height': K['height'] * 0.86,
-                      'lower': K['lower'] / 0.86}), None),
+        # (0.86 -> 0.8 of the height: its opening read 0.96 of the neutral's aspect, the sheet's angry head 0.92)
+        'angry': (up({'peak': min(0.85, K['peak'] + 0.3), 'tilt': K['tilt'] + 9, 'height': K['height'] * 0.8,
+                      'lower': K['lower'] / 0.8}), None),
         'sad': (up({'peak': max(0.15, K['peak'] - 0.2), 'tilt': K['tilt'] - 9, 'height': K['height'] * 0.9,
                     'lower': K['lower'] / 0.9}), None),
         'squint': (up({'height': K['height'] * 0.8, 'lower': K['lower'] / 0.8}),
@@ -693,6 +698,21 @@ def expressions(K, L):
         # shocked (asked for by the model sheet's flustered head, charkit/exprqa.py): the lids as they are, the iris
         # shrunk (IRIS_SCALE)
         'shock': (None, None),
+        # the action set (charkit.expressions.PRESETS; docs/workstreams/mouth.md). focus: the upper lid lowered and
+        # squared off, the lower raised a touch (a steady, narrowed look)
+        'focus': (up({'height': K['height'] * 0.8, 'lower': K['lower'] / 0.8, 'upper_full': min(1.0, K['upper_full'] + 0.3)}),
+                  lo({'height': K['height'] * 0.86})),
+        # squeeze (effort): shut tight, the line arched and squared off (steep ends, a flat top) and pressed down
+        'squeeze': (lambda t: (closed_line(K, L, t, arch=1.2, sharp=0.55, drop=0.02)[0],
+                               closed_line(K, L, t, arch=1.2, sharp=0.55, drop=0.02)[1] - 0.003 * L),
+                    lambda t: closed_line(K, L, t, arch=1.2, sharp=0.55, drop=0.02)),
+        # wince (pain): narrowed, the upper lid down with its peak to the inside and the outer corner dropped, the lower
+        # lid pushed up
+        'wince': (up({'height': K['height'] * 0.64, 'lower': K['lower'] / 0.64, 'tilt': K['tilt'] - 7,
+                      'peak': max(0.15, K['peak'] - 0.15)}), lo({'height': K['height'] * 0.76})),
+        # shy (embarrassed): the upper lid softly lowered, drooping to the outside
+        'shy': (up({'height': K['height'] * 0.8, 'lower': K['lower'] / 0.8, 'tilt': K['tilt'] - 5,
+                    'peak': max(0.15, K['peak'] - 0.1)}), None),
     }
 
 
