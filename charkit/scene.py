@@ -381,7 +381,8 @@ def stage_face_shading(S):
     ln = look.get('lines') or {}
     look = dict(look, face=dict(look.get('face') or {}, ink_color=tuple(
         ln['ink'] if ln.get('color') == 'ink' else S.spec.get('skin_line', (0.42, 0.24, 0.20)))))
-    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors, look=look)
+    faceshade.apply(S.character, bangs=bangs, colors=S.skin_colors, look=look,
+                    hair=[o for o in S.hair if o.type == 'MESH' and not o.hide_render])
 
 
 def stage_garments(S):

@@ -57,14 +57,23 @@
   "face": {
    "normals": "proxy",
    "blur": 0.22,
-   "chin_tilt": 85.0,
+   "chin_tilt": 0.0,
    "tilt_power": 0.25,
    "fringe": true,
    "jaw_line": false,
    "jaw_width": 0.0045,
    "jaw_reach": 0.9,
    "fringe_drop": 0.07,
-   "fringe_sides": true
+   "fringe_sides": true,
+   "cast": {
+    "k": 16,
+    "px": 0.012,
+    "soft": 2.0,
+    "smooth": 2,
+    "at": 0.5,
+    "width": 0.12,
+    "half": 0.47
+   }
   },
   "hair": {
    "highlight": "streaks",

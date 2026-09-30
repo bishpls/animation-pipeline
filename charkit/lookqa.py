@@ -11,7 +11,9 @@ as the QA reads them (charkit.refcheck at FACE_PPL).
   face_shadow    the skin's shadow against the design's (head_turnaround's skin split into its lit and shaded tones:
                  skin_classes) per view at the design's scale, aligned by the eyes, over the skin both show: the shadow's
                  share of the face (above our chin) and of the neck (the chin to 0.5 L under it), ours and drawn, and the
-                 shadows' IoU. The three-quarter is the headline view (the design shades it most)
+                 shadows' IoU. The three-quarter is the headline view (the design shades it most). `chin` (graded):
+                 the shadow under the chin in the front and three-quarter views, over the neck window: its IoU with
+                 the design's, and its depth under the jaw per column against the design's (the V: `chin_edge`, L)
   line_width     the outlines' drawn widths in the design's framing (a head sheet 1440 px tall at the design's px per L:
                  the style's 'screen' lines at that page, or each object's build width), from 0, 30 and 90 degrees: the
                  hull's pixels' widths (twice the distance to the line's edge, along its skeleton) per region (skin,
@@ -78,14 +80,18 @@ def key_light(az, a0, el):
     return R @ d
 
 
-def _scene(B, skin_outline=False, line_scale=None):
+def _scene(B, skin_outline=False, line_scale=None, bare=False):
     """the skin (its outline off unless asked: its own line is not shading) first, then every other visible object as it
-    renders; line_scale {object name: k} draws an object's outline k times its build width."""
+    renders; line_scale {object name: k} draws an object's outline k times its build width. bare: the garments left
+    out and the skin unmasked under them (the bundle's 'bare' variant, when it has one), as head_turnaround draws the
+    head: its neck and shoulders bare."""
     from . import qa3d
     sk = B.skin()
-    surfs = _scaled(B, sk, 'masked', line_scale) if skin_outline else qa3d.surfaces(B, sk, 'masked', outline=False)
+    bare = bare and sk.has('bare')
+    var = 'bare' if bare else 'masked'
+    surfs = _scaled(B, sk, var, line_scale) if skin_outline else qa3d.surfaces(B, sk, var, outline=False)
     for o in B.objects():
-        if o.group != 'skin' and o.has('eval'):
+        if o.group != 'skin' and o.has('eval') and not (bare and o.group == 'garment'):
             surfs += _scaled(B, o, 'eval', line_scale)
     return surfs
 
@@ -125,23 +131,29 @@ def skin_tones(B, fr, az, ldir=None, surfs=None):
     return _tones(B, qa3d.draw_view(B, surfs, az, fr), fr, ldir)
 
 
-def _tones(B, view, fr, ldir=None, picture=True):
+def _tones(B, view, fr, ldir=None, picture=True, soft=False):
     """skin_tones from a view of _scene (charkit.qa3d.draw_view): picture=False shades the skin alone (surface 0) and
-    draws no picture (-> q, m, None)."""
+    draws no picture (-> q, m, None); soft adds the pixels between tone steps (-> q, m, px, soft)."""
     from . import qa3d
     aux = {}
     px = qa3d.draw_lit(B, view, ldir, ss=fr.ss, aux=aux, only=None if picture else (0,), picture=picture)
     m = (aux['mesh'] == 0) & np.isfinite(aux['tone'])
-    q = np.where(m, np.rint(np.nan_to_num(aux['tone'])), -1).astype(int)
+    t = np.nan_to_num(aux['tone'])
+    q = np.where(m, np.rint(t), -1).astype(int)
+    if soft:                                                    # the tone steps' soft pixels
+        return q, m, px, m & (np.abs(t - np.rint(t)) > 0.1)
     return q, m, px
 
 
 def board_tones(B, fr, az, view=None):
-    """skin_tones under the boards' light, once per bundle, frame and azimuth (face_noise and face_shadow share it);
+    """skin_tones under the boards' light, once per bundle, frame and azimuth (face_noise and face_shadow share it),
+    and its soft pixels (a tone between steps: a ramp's width on the skin, 0.1 .. 0.9 of a step) -> (q, m, px, soft);
     view: the azimuth's draw_view when the caller has one."""
     from . import qa3d
+
     return B.memo(('lookqa.board_tones', fr.key, float(az)),
-                  lambda: _tones(B, view if view is not None else qa3d.draw_view(B, _scene(B), az, fr), fr))
+                  lambda: _tones(B, view if view is not None else qa3d.draw_view(B, _scene(B, bare=True), az, fr), fr,
+                                 soft=True))
 
 
 def design_noise(D, chin):
@@ -166,7 +178,7 @@ def face_noise(B, out=None, design=None, fr=None):
     (charkit.qa3d.draw_view) and shaded under the board light and the sweep's four (the skin alone, no picture)."""
     from . import qa3d
     fr = fr or HeadFrame(B)
-    surfs = _scene(B)
+    surfs = _scene(B, bare=True)
     ss = fr.ss
     min_px = ISLAND * (fr.ppl * ss) ** 2
     chin_L = float(B.assembly['chin']) / fr.L
@@ -174,7 +186,7 @@ def face_noise(B, out=None, design=None, fr=None):
     per, sweep, isl, pics = {}, {}, {}, []
     for az in VIEWS:
         view = qa3d.draw_view(B, surfs, az, fr)
-        q, m, px = board_tones(B, fr, az, view)
+        q, m, px, _ = board_tones(B, fr, az, view)
         rows = np.arange(q.shape[0])[:, None]
         m = m & (rows < chin_row + 0.5 * fr.ppl * ss)              # the face and the neck (as design_noise's)
         if m.sum() < 100:
@@ -290,7 +302,9 @@ def _ours_eyes(B, fr, az):
 
 def face_shadow(B, design, out=None, fr=None):
     """-> (table, checks face_shadow_3q (the three-quarter's shadow IoU), face_shadow_face_3q, face_shadow_neck_3q (the
-    share of face and neck skin in shadow, ours less the design's)): see the module."""
+    share of face and neck skin in shadow, ours less the design's), face_shadow_chin (graded: the shadow under the chin,
+    its IoU with the design's over the neck window in the front and three-quarter views) and face_shadow_chin_edge
+    (graded: how far our shadow's depth under the jaw is from the design's, per column, L)): see the module."""
     D = design_heads(design) if design is not None else None
     if D is None:
         return None, {'face_shadow_3q': {'status': 'SKIPPED', 'why': 'no spec.ref.face_sheet'}}
@@ -298,12 +312,13 @@ def face_shadow(B, design, out=None, fr=None):
     ss = fr.ss
     chin_z = fr.eye_z - float(B.assembly['chin'])
     rows_ours = fr.row(chin_z)
-    table, C, pics = {}, {}, []
+    table, C, pics, chin_pics = {}, {}, [], []
     for view, az in (('front', 0.0), ('three_quarter', D['az3']), ('profile', 90.0)):
         h = D['heads'].get(view)
         if not h or not h['eyes']:
             continue
-        q, m, px = board_tones(B, fr, az)
+        q, m, px, soft = board_tones(B, fr, az)
+        chin_soft = _soft_width(q, m, soft, int(rows_ours * ss), int((rows_ours + 0.5 * fr.ppl) * ss), fr.ppl * ss)
         q, m = q[ss // 2::ss, ss // 2::ss], m[ss // 2::ss, ss // 2::ss]
         ours_sh = m & (q >= 1)
         # the design's view, cut to our window round its eyes (translation only: one scale, one eye line)
@@ -337,9 +352,32 @@ def face_shadow(B, design, out=None, fr=None):
         u = (ours_sh | d_sh) & both
         rec['iou'] = round(float((ours_sh & d_sh & both).sum() / u.sum()), 4) if u.sum() > 50 else None
         rec['az'] = az
+        if view in CHIN_VIEWS:
+            rec['chin'] = dict(_chin(ours_sh, d_sh, both & neck_r, fr.ppl), soft=chin_soft)
         table[view] = rec
         if out:
             pics += [_crop_design(D['rgb'], dy, dx, H, W), qa_px(px), _shadow_pic(m, ours_sh, d_skin, d_sh)]
+            if view in CHIN_VIEWS:
+                cx = int(round(o_c[0]))
+                r0, r1 = int(rows_ours - CHIN_PIC[0] * fr.ppl), int(rows_ours + CHIN_PIC[1] * fr.ppl)
+                c0, c1 = cx - int(CHIN_PIC[2] * fr.ppl), cx + int(CHIN_PIC[2] * fr.ppl)
+                cut = lambda a: _cut(a, r0, r1, c0, c1)
+                chin_pics += [cut(_crop_design(D['rgb'], dy, dx, H, W)), cut(qa_px(px)),
+                              cut(_shadow_pic(m, ours_sh, d_skin, d_sh))]
+    ch = {v: r['chin'] for v, r in table.items() if r.get('chin') and r['chin'].get('iou') is not None}
+    if ch:
+        iou = float(np.mean([c['iou'] for c in ch.values()]))
+        edge = float(np.mean([c['edge'] for c in ch.values()]))
+        C['face_shadow_chin'] = {'value': round(iou, 4), 'per_view': {v: c['iou'] for v, c in ch.items()},
+                                 'status': _grade_chin(iou, CHIN_IOU, True)}
+        sw = [c['soft'] for c in ch.values() if c.get('soft') is not None]
+        if sw:
+            C['face_shadow_chin_soft'] = {'value': round(float(np.mean(sw)), 4), 'status': 'INFO',
+                                          'per_view': {v: c['soft'] for v, c in ch.items()}}
+        C['face_shadow_chin_edge'] = {'value': round(edge, 4), 'per_view': {v: c['edge'] for v, c in ch.items()},
+                                      'ours_depth': {v: c['ours_depth'] for v, c in ch.items()},
+                                      'design_depth': {v: c['design_depth'] for v, c in ch.items()},
+                                      'status': _grade_chin(edge, CHIN_EDGE, False)}
     t = table.get('three_quarter')
     if t:
         C['face_shadow_3q'] = {'value': t['iou'], 'status': 'INFO', 'per_view': {v: r['iou'] for v, r in table.items()}}
@@ -349,7 +387,60 @@ def face_shadow(B, design, out=None, fr=None):
                 C['face_shadow_%s_3q' % nm] = {'value': round(o - d, 4), 'ours': o, 'design': d, 'status': 'INFO'}
     if out and pics:
         _save_row(os.path.join(out, 'qa_face_shadow.png'), pics)
+    if out and chin_pics:
+        _save_row(os.path.join(out, 'qa_chin_shadow.png'), chin_pics)
     return table, C
+
+
+CHIN_VIEWS = ('front', 'three_quarter')
+CHIN_IOU = (0.6, 0.4)            # face_shadow_chin: PASS at or over, WARN at or over (the neck's shadow IoU)
+CHIN_EDGE = (0.03, 0.06)         # face_shadow_chin_edge, L: PASS at or under, WARN at or under
+CHIN_PIC = (0.25, 0.55, 0.45)    # the chin close-up round our chin, L: above, below, either side
+
+
+def _grade_chin(v, lim, higher_better):
+    p, w = lim
+    if higher_better:
+        return 'PASS' if v >= p else 'WARN' if v >= w else 'FAIL'
+    return 'PASS' if v <= p else 'WARN' if v <= w else 'FAIL'
+
+
+def _chin(ours_sh, d_sh, region, ppl):
+    """the shadow under the chin (region: the neck window, the chin to 0.5 L under it, over the skin both show),
+    ours against the design's: their IoU, and the shadow's depth per column (its pixels in the column, in L: the V
+    under the jaw drawn as a profile) -> dict(iou, edge (the mean |our depth - the design's| over the columns both
+    show, L), ours_depth, design_depth (their means, L), px)."""
+    a = region
+    if a.sum() < 50:
+        return dict(iou=None, edge=None, ours_depth=None, design_depth=None, px=int(a.sum()))
+    u = (ours_sh | d_sh) & a
+    iou = float((ours_sh & d_sh & a).sum() / max(1, u.sum()))
+    cols = a.sum(0) >= 0.05 * ppl                       # columns with neck skin both show
+    do = (ours_sh & a).sum(0)[cols] / ppl
+    dd = (d_sh & a).sum(0)[cols] / ppl
+    return dict(iou=round(iou, 4), edge=round(float(np.mean(np.abs(do - dd))), 4) if cols.any() else None,
+                ours_depth=round(float(do.mean()), 4) if cols.any() else None,
+                design_depth=round(float(dd.mean()), 4) if cols.any() else None, px=int(a.sum()))
+
+
+def _soft_width(q, m, soft, r0, r1, ppl):
+    """how wide the tone steps run on the skin in rows r0..r1 (the neck window, supersampled): the soft pixels (a tone
+    between steps) per pixel of step edge, in L (a clean cel edge ~0: a smeared band wide) -> float or None."""
+    q, m, soft = q[r0:r1], m[r0:r1], soft[r0:r1]
+    e = ((q[:, 1:] != q[:, :-1]) & m[:, 1:] & m[:, :-1]).sum() + ((q[1:] != q[:-1]) & m[1:] & m[:-1]).sum()
+    if e < 10:
+        return None
+    return round(float(soft.sum() / e / ppl), 4)
+
+
+def _cut(a, r0, r1, c0, c1):
+    """a window of an image (padded pale where it runs off)."""
+    H, W = a.shape[:2]
+    out = np.full((r1 - r0, c1 - c0) + a.shape[2:], 0.93)
+    y0, y1, x0, x1 = max(0, r0), min(H, r1), max(0, c0), min(W, c1)
+    if y1 > y0 and x1 > x0:
+        out[y0 - r0:y1 - r0, x0 - c0:x1 - c0] = a[y0:y1, x0:x1]
+    return out
 
 
 def qa_px(px):
@@ -546,3 +637,24 @@ def measure(B, design=None, out=None):
         table[name] = t
         C.update(c)
     return table, C
+
+
+def main(args):
+    """python -m charkit.lookqa BUILD_OUT [--out DIR] [--note TEXT]: the look's QA alone on a build's bundle (its pictures
+    and look.json {checks, table, note} into DIR, default BUILD_OUT/qa_look: what charkit.lookpage reads)."""
+    import json
+    from . import bundle, qa3d
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    B = bundle.load(os.path.join(args[0], 'bundle'))
+    out = opt('--out', os.path.join(args[0], 'qa_look'))
+    os.makedirs(out, exist_ok=True)
+    table, C = measure(B, qa3d.Design(B), out)
+    json.dump(dict(checks=C, table=table, note=opt('--note', '')), open(os.path.join(out, 'look.json'), 'w'), indent=1,
+              default=qa3d._json)
+    print(json.dumps({k: (v.get('value'), v.get('status')) for k, v in C.items()}, default=qa3d._json))
+
+
+if __name__ == '__main__':
+    import sys
+    from charkit import lookqa as _lq            # the module's own functions (the venv memo keys on their module)
+    _lq.main(sys.argv[1:])

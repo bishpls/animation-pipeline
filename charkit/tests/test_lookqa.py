@@ -68,6 +68,40 @@ def test_widths_cut_is_whole():
                           np.sort(_widths_whole(np.repeat(np.repeat(m, 2, 0), 2, 1), 2)))
 
 
+def test_cast_shadow_overhang():
+    # a floor under a roof overhanging its front half: points under the roof are in its shadow for a light from above,
+    # the points in front of it lit; a light from below (el < 0) shadows nothing
+    from charkit import faceshade as fs
+    xs, ys = np.meshgrid(np.linspace(-0.4, 0.4, 9), np.linspace(-0.4, 0.4, 9))
+    P = np.stack([xs.ravel(), ys.ravel(), np.zeros(xs.size)], 1)
+    N = np.tile([0.0, 0.0, 1.0], (len(P), 1))
+    roof = (np.array([[-1, 0.0, 0.3], [1, 0.0, 0.3], [1, 1, 0.3], [-1, 1, 0.3]]), [(0, 1, 2, 3)])
+    up = np.array([[0.0, 0.0, 1.0]]); down = np.array([[0.0, 0.2, -1.0]])
+    c = fs.cast_shadow(P, N, [roof], np.concatenate([up, down]), 1.0, px=0.02)
+    under = P[:, 1] > 0.05
+    front = P[:, 1] < -0.05
+    assert (c[under, 0] > 0.9).all() and (c[front, 0] < 0.1).all()
+    assert (c[:, 1] == 0).all()
+    # the baked azimuths: phi = atan2(x, -y), 0 in front of her; qa3d._cast interpolates between them
+    D = fs.cast_dirs(16, 40.0)
+    assert np.allclose(np.degrees(np.arctan2(D[4, 0], -D[4, 1])), 90.0) and np.allclose(D[:, 2], np.sin(np.radians(40)))
+    smp = np.zeros((1, 16), np.float32); smp[0, 4] = 1.0
+    P_ = dict(k=16, at=0.5, width=0.12)
+    assert qa3d._cast(P_, smp, D[4])[0] == 1.0 and qa3d._cast(P_, smp, D[6])[0] == 0.0
+    mid = D[4] + D[5]
+    assert abs(qa3d._cast(P_, smp, mid / np.linalg.norm(mid))[0] - 0.5) < 1e-6      # half way: the step's middle
+
+
+def test_smooth_vertex_keeps_constants():
+    from charkit import faceshade as fs
+    T = np.array([[0, 1, 2], [1, 3, 2]])
+    X = np.ones((4, 3), np.float32)
+    assert np.allclose(fs.smooth_vertex(X, T, np.ones(4, bool), 3), 1.0)
+    X[0] = 0.0
+    Y = fs.smooth_vertex(X, T, np.array([True, True, True, False]), 1)
+    assert Y[3].tolist() == [1.0, 1.0, 1.0] and 0 < Y[0, 0] < 1
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
