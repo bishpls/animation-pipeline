@@ -37,6 +37,21 @@ remesh.decimate is unchanged: it reproduces today's hull.ply exactly.
   surface the edit touches.
 - decimation 6 s instead of 12 s (the heap stops at the bound).
 
+**The body fit on the two hulls** (`tools/hull_local/bodyfit.py`: bodypage.save_body, code_body's rings, the spec held,
+only the hull differing):
+
+| body array (max change, L) | fixed 150,000 faces | quadric-error bound |
+|---|---|---|
+| torso rings (torso_P), rows moved | 0.0011, 56 of 56 | 0, 0 of 56 |
+| torso centre (torso_cy) | 0.00065 | 0 |
+| feet (right / left) | 0.00107 / 0.00032 | 0 / 0 |
+| legs (left / right) | 0.00013 / 5.3e-6 | 0 / 0 |
+| arms, joints, sole, eyes | 0 | 0 |
+
+Under the budget a face edit moved every torso row, as round 5's trace found (1.6e-4 to 1.4e-3 L per row; the
+collar amplified it to 0.035 L). Under the bound the body is bit-identical: the collar's chain is cut at the body.
+The hull's per-vertex labels: 0 of 73,402 shared vertices change class or piece.
+
 Test: `charkit/tests/geom/test_hull_local.py` (an ellipsoid with a dent: under the bound nothing moves beyond the dent's
 own reach, 0.26 against the surface's 0.24; a budget of the same density moves 59 vertices beyond 0.42, up to 2.27).
 A capsule's exact cylinder chains zero-cost collapses from end to end, so the test uses an ellipsoid. The hull has no
