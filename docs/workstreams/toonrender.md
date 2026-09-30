@@ -204,7 +204,7 @@ The differing pixels sit on part and line edges (rasteriser ties). The T4's extr
 ## Phase 2, round 2 (overnight 2026-09-30, `tool/toonrender2`): the default drawing
 
 **Decision: the QA draws with charkit.render by default** (`qa3d.DRAW = 'render'`, 32e9b1e; registered as a remeasure,
-ac2f515). Every QA frame is nearer EEVEE's under it, no check changes status, and on the build box it costs +18 s wall
+ac2f515). **Gate PASS** (73534a7 into a3073f5; below). Every QA frame is nearer EEVEE's under it, no check changes status, and on the build box it costs +18 s wall
 per QA (+17%) at 8 llvmpipe threads, with +198 CPU s (2.6x the QA's CPU; about +15% of a gate build's ~1350).
 
 ### What changed this round
@@ -308,6 +308,21 @@ the toon boards (boards_toon, 9 boards: views and body) 13.8 s wall / 298 CPU s 
 
 **Box against laptop** (the render drawing, tr3_a): 71 of 73 drawn checks identical; hair_noise 0.0748 box / 0.0744
 laptop, face_noise 0.0551 / 0.0546 (2.5 noise: rasteriser ties). The gate compares box with box.
+
+### The gate: PASS (73534a7 into pipeline-3d a3073f5, default spec)
+
+Report: `charkit/out/gate/gate_tool-toonrender2_73534a7_into_a3073f5.md`. Read under K:
+- **No new FAILs; no flag-check regressions.** 52 of 52 tests ok (test_render_buffers on the box's llvmpipe among them).
+- **The geometry is the same** (0c6365151a2a both sides), so base -> candidate is the drawing change alone; 16 checks
+  moved, all `remeasured`, **no status changes**: art_band_lower 2.147 -> 2.163 (WARN), art_fragments_collar 6.45 ->
+  6.52 (WARN), art_points_sleeves 27.9 -> 28.0 (WARN), hair_noise 0.0739 -> 0.0748 (WARN), art_outline_top 4.915 ->
+  5.149, art_outline_bow 0.974 -> 1.031, art_terminator_boots 5.161 -> 4.937, art_fragments_top 2.6 -> 2.69, face_noise
+  0.0558 -> 0.0551, face_shadow_neck_3q 0.4705 -> 0.4733, and five moves of 0.1 or less (INFO).
+- **Build CPU 1353.1 -> 1906.6 s (1.41x)**, under the 1.5x line. Blender and the QA took 229.8 -> 304.8 s wall. Accounted
+  for by this round's measurements: the QA +198 CPU s (8 threads), the look export +34, and the 5 toon 'views' boards
+  (~100-165 CPU s: measured at 298 for 9 boards at 32 threads, not yet at 8). The rest (~150-220) isn't attributed: the
+  baseline was cached from an earlier run, and the candidate's trace was gone from the box. **The toon boards buy a gate
+  nothing** (it compares the QA): gate builds could pass `--boards ''` (a gate.py change, tool/infra3's file).
 
 ### For the gate
 
