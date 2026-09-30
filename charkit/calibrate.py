@@ -43,7 +43,8 @@ nothing imported, so the gate reads the merged tree's without running it; no cen
 
 The verdict (a record's `verdict`): calibrated; guard (calibrated without a known-bad: a guard check); miscalibrated
 (the design fails its own check moved 1-2 px); blind (the known-bad passes); coarse (a random baseline passes, or the
-current build passes at the floor); unmeasured (the triple couldn't run).
+current build passes at the floor); unmeasured (the triple couldn't run, or the check has neither a known-bad nor a
+random floor: nothing it must fail).
 """
 import ast, contextlib, fnmatch, glob, importlib, json, os, subprocess, sys, time
 
@@ -309,6 +310,10 @@ def verdict(rec):
             '/'.join(sorted({D['moves'][m][1] or 'none' for m in bad})), ', '.join(bad[:4]), len(bad), len(st))
     if K.get('name') and K.get('status') != 'FAIL':
         return 'blind', 'the known-bad %s reads %s %s' % (K['name'], K.get('value'), K.get('status'))
+    if not K.get('name') and not F:
+        # (nothing it must fail: the design passing its own check proves nothing; sleeve_standoff, a 3D measure)
+        return 'unmeasured', 'no known-bad (%s) and no random floor: nothing it must fail' % (
+            rec.get('no_known_bad') or '?')
     passing = [g for g, f in F.items() if f.get('status') == 'PASS']
     if rec.get('kind') == 'defect':
         # a defect detector: a random stand-in lacks the defect it looks for and may pass; its shape is the guard's

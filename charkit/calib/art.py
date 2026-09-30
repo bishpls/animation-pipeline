@@ -9,13 +9,20 @@ import numpy as np
 
 CALIBRATION = [
     dict(check='art_outline_neck', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
-    dict(check='art_speckle_neck', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
+    # (the probe head_subpx: the head sheet resampled half a pixel down, its figure masks alike: the design itself at
+    # another sampling phase; the whole-sheet moves are whole pixels, which a speck count can't see)
+    dict(check='art_speckle_neck', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect',
+         probes=['head_subpx'], shape=[]),
     dict(check='art_outline_collar', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect',
          shape=['piece_collar']),
     dict(check='art_fragments_collar', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect',
          shape=['piece_collar']),
     dict(check='art_terminator_hair', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
     dict(check='art_peeks_hair', part='artifacts', adapter='Art', known_bad='look_v5', kind='defect', shape=[]),
+    # (the probe boot_nudge: the right boot's piece masks moved 2 px up: the pair's own asymmetry, which a whole-sheet
+    # move can't change)
+    dict(check='art_mirror_self_boots', part='artifacts', adapter='Art', known_bad='body4b_render', kind='defect',
+         probes=['boot_nudge'], shape=['piece_boot_L', 'piece_boot_R']),
     dict(check='art_*_boots', part='artifacts', adapter='Art', known_bad='body4b_render', kind='defect', shape=[]),
     dict(check='art_mirror_waist', part='artifacts', adapter='Art', known_bad='body4b_render', kind='defect',
          shape=['piece_waistband']),
@@ -33,9 +40,24 @@ def _shift(a, dy, dx, fill=None):
     return np.roll(np.roll(a, dy, 0), dx, 1)
 
 
+def _subpx(a, dy, dx, fill=None):
+    """a picture moved a fraction of a pixel (bilinear; a mask resampled alike and cut at 0.5; a label image nearest),
+    its far edge wrapped round."""
+    from scipy import ndimage
+    if a.dtype == bool:
+        return ndimage.shift(a.astype(float), (dy, dx), order=1, mode='wrap') >= 0.5
+    if a.ndim == 2:
+        return ndimage.shift(a, (dy, dx), order=0, mode='wrap')
+    return np.stack([ndimage.shift(a[..., c], (dy, dx), order=1, mode='wrap') for c in range(a.shape[2])], -1)
+
+
 class Art:
     part = 'artifacts'
-    generators = {}
+    generators = {
+        'head_subpx': '(probe) the head sheet resampled half a pixel down (bilinear), its figure masks alike: the '
+                      'design at another sampling phase',
+        'boot_nudge': "(probe) the right boot's piece masks (boot_R, boot_cuff_R) moved 2 px up in every view",
+    }
 
     def __init__(self, B, design):
         from .. import artifactqa
@@ -69,17 +91,30 @@ class Art:
         return out
 
     def run(self, kind, arg):
-        """the design's drawings moved (kind 'design', arg (dy, dx)) measured as ours against the stored design ->
-        {art_check: dict}."""
+        """the design's drawings moved (kind 'design', arg (dy, dx)) measured as ours against the stored design, or a
+        probe's (head_subpx, boot_nudge) -> {art_check: dict}."""
         from .. import artifactqa, bodymeasure
-        dy, dx = arg
-        head = self.heads(dy, dx)
+        global _shift
+        nudge = None
+        if kind == 'head_subpx':
+            whole, _shift = _shift, _subpx
+            try:
+                head = self.heads(0.5, 0)
+            finally:
+                _shift = whole
+            dy, dx = 0, 0
+        else:
+            dy, dx = arg if kind == 'design' else (0, 0)
+            nudge = ('boot_R', 'boot_cuff_R') if kind == 'boot_nudge' else None
+            head = self.heads(dy, dx)
         ctx = self.design.sheet_context()
         masks, graph, _ = bodymeasure.piece_masks(self.B.spec)
         views = {v: dict(rgb=_shift(np.asarray(x['rgb'], float), dy, dx, 1.0), fg=_shift(x['fg'], dy, dx, False),
                          cls=_shift(x['cls'], dy, dx, 0), win=x.get('win'))
                  for v, x in self.design.design_views().items()}
         mk = {k: _shift(m, dy, dx, False) for k, m in masks.items()}
+        if nudge:
+            mk = {k: np.roll(m, -2, 0) if k.split('__', 1)[-1] in nudge else m for k, m in mk.items()}
         body = artifactqa.design_body(views, mk, graph, ctx['ppl'])
         C = artifactqa.promote(artifactqa.checks(dict(head=head, body=body), self.D))
         return {'art_' + k: v for k, v in C.items()}

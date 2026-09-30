@@ -3,7 +3,7 @@
  "part": "artifacts",
  "adapter": "Art",
  "module": "charkit.calib.art",
- "at": "2026-09-30T18:10:57",
+ "at": "2026-09-30T18:40:53",
  "better": null,
  "kind": "defect",
  "shape": [],
@@ -53,7 +53,12 @@
   "status": "WARN"
  },
  "floor": {},
- "probes": {},
+ "probes": {
+  "head_subpx": {
+   "value": 4.965,
+   "status": "FAIL"
+  }
+ },
  "blind_to": [],
  "current": {
   "value": 0.833,
@@ -63,6 +68,8 @@
  "verdict": "blind",
  "why": "the known-bad look_v5 reads 2.178 WARN",
  "build": "charkit/out/calib/cur_8b5ecae",
- "generators": {},
- "seconds": 101.8
+ "generators": {
+  "head_subpx": "(probe) the head sheet resampled half a pixel down (bilinear), its figure masks alike: the design at another sampling phase"
+ },
+ "seconds": 131.3
 }

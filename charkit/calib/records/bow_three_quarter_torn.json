@@ -1,0 +1,118 @@
+{
+ "check": "bow_three_quarter_torn",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_bow"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0016,
+    "FAIL"
+   ],
+   "+0,+2": [
+    0.0016,
+    "FAIL"
+   ],
+   "+1,+0": [
+    0.0016,
+    "FAIL"
+   ],
+   "+2,+0": [
+    0.0016,
+    "FAIL"
+   ],
+   "+0,-1": [
+    0.0016,
+    "FAIL"
+   ],
+   "+0,-2": [
+    0.0016,
+    "FAIL"
+   ],
+   "-1,+0": [
+    0.0016,
+    "FAIL"
+   ],
+   "-2,+0": [
+    0.0016,
+    "FAIL"
+   ]
+  },
+  "min": 0.0016,
+  "max": 0.0016,
+  "spread": 0.0,
+  "median": 0.0016
+ },
+ "known_bad": {
+  "name": "g3_d",
+  "value": 0.0108,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": null,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "affine_pieces": {
+   "values": [
+    0.0038,
+    0.0016,
+    0.0053,
+    0.002,
+    0.0023
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL"
+   ],
+   "median": 0.0023,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {
+  "torn_edges": {
+   "value": 0.0126,
+   "status": "FAIL"
+  }
+ },
+ "blind_to": [],
+ "current": {
+  "value": 0.0011,
+  "status": "PASS",
+  "margin": 1.714
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads FAIL moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
+  "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random",
+  "torn_edges": "(probe) every drawn piece's outline bitten: a disk 0.016-0.03 L across per 0.06 L of outline, given to the nearest other label"
+ },
+ "seconds": 204.7
+}

@@ -3,7 +3,7 @@
  "part": "collar_flags",
  "adapter": "Garments",
  "module": "charkit.calib.labels",
- "at": "2026-09-30T18:01:38",
+ "at": "2026-09-30T18:38:41",
  "better": "lower",
  "kind": "defect",
  "shape": [
@@ -13,35 +13,35 @@
   "moves": {
    "+0,+1": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "+0,+2": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "+1,+0": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "+2,+0": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "+0,-1": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "+0,-2": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "-1,+0": [
     0.0141,
-    "WARN"
+    "PASS"
    ],
    "-2,+0": [
     0.0141,
-    "WARN"
+    "PASS"
    ]
   },
   "min": 0.0141,
@@ -83,15 +83,15 @@
     0.0
    ],
    "statuses": [
-    "WARN",
+    "PASS",
     "FAIL",
     "FAIL",
     "PASS",
     "PASS"
    ],
    "median": 0.0141,
-   "status": "WARN",
-   "passing": 2
+   "status": "PASS",
+   "passing": 3
   }
  },
  "probes": {},
@@ -101,12 +101,12 @@
   "status": "FAIL",
   "margin": 7.021
  },
- "verdict": "miscalibrated",
- "why": "the design reads WARN moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), g3_render3 reads 0.0471 FAIL; a random stand-in passes it (voronoi_pieces, affine_pieces); shape guarded by piece_collar",
  "build": "charkit/out/calib/cur_8b5ecae",
  "generators": {
   "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece",
   "affine_pieces": "each drawn piece moved 0.03-0.06 L and scaled 0.9-1.1 about its middle at random"
  },
- "seconds": 23.3
+ "seconds": 28.4
 }

@@ -14,16 +14,69 @@ art_mirror_self_boots and collar_back_lay's grading (its one-sided design smooth
 on the design moved 1-2 px and fails its known-bad, the limit change registered as a remeasure; (4) delete
 tmp/calib-bow and tmp/calib-bow-accept after use (never merge them).
 
-Progress:
-- pipeline-3d moved to 07fa3c2 (tool/xpbd, charkit/sim only): merged at ec133ef. Pregate PASS (0 moved, 316 s):
-  charkit/out/pregate/pregate_tool-calib_4db2b0a+dirty_into_07fa3c2.md.
-- Gates launched (box): tool/calib ec133ef into pipeline-3d; the real pair tmp/calib-bow into 3ebc3fb with the gate
-  code from tool/calib (--code) to show bow_front_loop_width no longer blocks through the guard. Logs:
-  charkit/out/calib/r2/gate_calib.log, gate_bowA.log.
-- piece_details: charkit/calib/details.py (the Details adapter: Garments' stand-ins plus our_classes moved with the
-  labels, alone() from the stand-in, our_section from sleeve_closeup); labels.py's collar_flags patterns made explicit
-  (collar_back_[ls]*, the three bow checks) so they no longer swallow piece_details' collar_back_torn and bow_*.
-  Harness: charkit/out/calib/r2/pd_measure.py (piece_details on candidate known-bads, pd_kb.json), pd_design.py.
+Progress and results:
+- **Gate 1: tool/calib edc786e into pipeline-3d 07fa3c2: PASS under K** (nothing blocks, 0 items reported; candidate
+  built for cli.py, CPU 685.1 -> 683.4 s, 1.00x; 72 test files ok). Report
+  `charkit/out/gate/gate_tool-calib_edc786e_into_07fa3c2.md`. pipeline-3d had moved to 07fa3c2 (tool/xpbd,
+  charkit/sim only): merged at ec133ef; pregate PASS (0 moved, 316 s).
+- **The guard fix on a real gate:** tmp/calib-bow into 3ebc3fb with `--code tool/calib` (edc786e) FAILed for another
+  reason first: the 2x2's "new measure on the old geometry" couldn't load the cached baseline's bundle
+  (`base_3ebc3fb_clawd_default/bundle/arrays.npz` missing on the box: an old cached baseline lost its arrays; the gate
+  should rebuild or refuse such a reference, for the infra owner), so every bow check fell to "new, with no
+  old-geometry reading". Report kept: charkit/out/calib/r2/gate_bowA_2x2fail.md. Re-run with `--build` (fresh builds):
+  see below.
+- **piece_details records (59):** charkit/calib/details.py (the Details adapter: Garments' stand-ins plus our_classes
+  moved with the labels, alone() from the stand-in, our_section from sleeve_closeup; the band's drawn mask cut to its
+  ink core with the rest the jacket's, as pieceqa reads the drawn band; the probe torn_edges bites every drawn piece's
+  outline). labels.py's collar_flags patterns made explicit (they had swallowed collar_back_torn and the bow's
+  piece_details checks). Known-bads: body6_render (round 6, reviewed by Michael: hull sleeves, the tucked jacket, hull
+  cuffs and shorts), look_v5 (torn collar tips), g3_d (stored now: tool/garments3 18f3b41, the bow tails' torn lower
+  edge), g3_render3 (the bow's tails). Floors: voronoi for shape and proportions, affine only where a place is
+  measured, affine alone for a silhouette measure (voronoi keeps the silhouette).
+  Verdicts: 30 calibrated, 19 blind, 7 miscalibrated, 2 unmeasured, 1 guard.
+  - calibrated: the cuffs (8), the shorts' hems (4) and back width, the waistband's rows (front, three-quarter,
+    profile), widths (front, three-quarter, back) and profile overhang, sleeve_back_profile_L/R, sleeve_front_spikes_R,
+    collar_front_torn, bow_profile_torn, bow_front_tail_width, top_*_over_band, top_front_opening, top_front_hem_step.
+  - collar_back_torn: **guard** (no build has ever read a torn back panel: look_v5, body6, g2_before, g3_render3,
+    current all 0.0); the torn_edges probe reads 0.0053 WARN on it.
+  - blind (the known-bad passes): the sleeves' rough (8: ours is closed by a 0.012 L disk before the roughness is
+    read, so nothing under ~0.024 L can show; the torn_edges probe reads 0 on every one) and spikes but front_R (6:
+    since cda2b7f only the cap's silhouette counts; the hull sleeves read 0 there), sleeve_front_profile_R,
+    sleeve_profile_profile_L (the hull sleeves 0.027-0.031 WARN), shorts_front_width, bow_front_tail_gap,
+    bow_front_torn, collar_three_quarter_torn, collar_profile_torn (look_v5 WARN).
+  - miscalibrated (the design as ours fails its own check): sleeve_front_profile_L 0.0237 WARN and
+    sleeve_three_quarter_profile_L 0.021 WARN, waistband_profile_width 0.068 WARN, waistband_back_rows 0.0235 WARN at
+    a 2 px move (the design's side stops at the drawn outline stroke or the ink core, ours reaches the silhouette or
+    the line's middle: about half a line, 0.01 L, on each edge); bow_three_quarter_torn (fragments: the design's side
+    is closed, ours isn't), sleeve_three_quarter_spikes_R (count +1: the cuff's keep-away zone differs), bow_front_flare
+    (the design as ours reads 0.53-0.59 FAIL; every build 0.99-1.0: the two sides measure different lobes). For
+    pieceqa's owner.
+  - unmeasured: sleeve_standoff_L/R (3D; no build has failed it, and a label image has no section to randomise).
+    New verdict rule (calibrate.verdict): no known-bad and no floor is unmeasured, not guard.
+- **The four flag checks (item 3).** Rule: limits at the thirds of the gap between the design's worst reading (the
+  jitter probes included) and the known-bad. Registered as remeasures (charkit/steps/collarqa.py, artifactqa.py).
+  | check | old | new | design worst | known-bad | current (old -> new) |
+  |---|---|---|---|---|---|
+  | collar_back_iou (higher) | 0.80 / 0.65 | 0.87 / 0.81 | 0.9252 (2 px down) | g3_render3 0.7537 WARN -> FAIL | 0.7473 WARN -> FAIL |
+  | collar_back_lay | 0.01 / 0.02 | 0.025 / 0.036 | 0.0141 (every move) | g3_render3 0.0471 FAIL | 0.0424 FAIL -> FAIL |
+  | art_mirror_self_boots | 1.5 / 2.5 | 1.37 / 1.58 | 1.163 (one boot 2 px up; whole-sheet 1.0) | body4b 1.787 WARN -> FAIL | 0.5 PASS |
+  | art_speckle_neck | 1.5 / 2.5 | unchanged | 1.004 whole-pixel; **4.97** half a pixel | look_v5 2.178 WARN | 0.833 PASS |
+  Margins: iou design 0.055 above PASS, known-bad 0.056 under the FAIL line; lay 0.011 / 0.011; mirror_self 0.207 /
+  0.207. The current build's collar_back_iou goes WARN -> FAIL (its flag is open: square 0.345 and lay 0.0424 FAIL
+  already); nothing else on it changes status.
+  - collar_back_lay's design reads 0.0141 only because its design side is closed (pieceqa.clean) and ours isn't:
+    tool/collar4's to fix (not messaged); once fixed, recalibrate (the design should read ~0 and the limits tighten).
+  - art_speckle_neck **can't be calibrated as measured**: whole-pixel moves are invisible to a speck count (1.000-1.004),
+    but the head sheet resampled a quarter pixel down reads 2.41, half a pixel 4.97 (front 32.7 -> 155 specks per L^2),
+    across (0.5 px) 1.26 (harness: charkit/out/calib/r2/art_subpx.py; probe head_subpx in its record). The design's
+    own reading (the ratio's denominator) depends on the sheet's arbitrary resampling phase by up to 5x, and look_v5's
+    2.18 lies inside it. Missing: the seam's structure. Proposed fix (artifactqa's owner): read the design's specks as
+    the median over 4 half-pixel phases (a stable denominator), and measure the flag itself as specks in runs along a
+    row or column (the dotted seam), not specks per L^2; then recalibrate on look_v5. Limits left at 1.5 / 2.5 (its
+    record says blind).
+  - art_mirror_self_boots' whole-sheet moves read exactly 1.0 (translation invariant); the probe boot_nudge (one
+    boot's masks 2 px up) reads 1.163, per-boot moves 1.005-1.163 (charkit/out/calib/r2/art_jitter.py).
+- Review page: `charkit/out/calib/review2/index.html` (python charkit/out/calib/harness/page2.py).
 
 ## State (read first when resuming)
 
@@ -56,10 +109,9 @@ Branch head: see `git log -1 tool/calib`. Items 1-5 are done. **tool/calib has N
   It runs only when some check moved.
 - The tmp branches `tmp/calib-bow` and `tmp/calib-bow-accept` are validation only. Never merge them; delete them when done.
 
-**art_* records** (the Art adapter; defect detectors, no floor): 11 calibrated. art_speckle_neck is **blind** (look_v5
-reads 2.178 WARN) and art_mirror_self_boots is **blind** (body4b_render 1.787 WARN; artifacts.md already called its
-separation weak). art_peeks_hair is **unmeasured against the design**: it counts our pieces, and the drawing has none.
-Records: charkit/calib/records (31 total). hair_truth_accuracy is calibrated as a score: the truth moved 1-2 px reads
+**art_* records** (the Art adapter; defect detectors, no floor): 11 calibrated (round 2: art_mirror_self_boots
+recalibrated, 12). art_speckle_neck is **blind** (look_v5 reads 2.178 WARN; round 2: not calibratable as measured). art_peeks_hair is **unmeasured against the design**: it counts our pieces, and the drawing has none.
+Records: charkit/calib/records (31 total; 90 after round 2). hair_truth_accuracy is calibrated as a score: the truth moved 1-2 px reads
 0.930-0.971, the transfer masks 0.885, the floor 0.357, current 0.950. Past about 0.95 the score can't tell our masks
 from the truth moved a pixel.
 

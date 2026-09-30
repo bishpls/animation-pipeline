@@ -29,12 +29,18 @@ CALIBRATION = [
          baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_collar'], better='higher'),
     # (the rest are detectors of one flagged defect: a squareness, a trough, a straight end, a bleed, a width; a random
     # stand-in lacks the defect and may pass; the piece's shape is the anti-gaming guard's)
-    dict(check='collar_back_*', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
+    # (patterns name collar_flags' own checks only: piece_details has collar_back_torn and the bow's torn edges, flare
+    # and tails: charkit/calib/details.py)
+    dict(check='collar_back_[ls]*', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
          baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_collar'], better='lower'),
     dict(check='bow_front_loop_width', part='collar_flags', adapter='Garments', known_bad=None, kind='defect',
          no_known_bad='a guard: the bow is sized to the drawn span, so the flagged build reads 0',
          baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_bow'], better='lower'),
-    dict(check='bow_*', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
+    dict(check='bow_front_loop_end', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
+         baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_bow'], better='lower'),
+    dict(check='bow_front_bleed', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
+         baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_bow'], better='lower'),
+    dict(check='bow_profile_ribbon', part='collar_flags', adapter='Garments', known_bad='g3_render3', kind='defect',
          baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_bow'], better='lower'),
     # the sleeves' shape (qa3d.sheet_pieces): passed while the puffs' caps rose above the shoulder line (co_render:
     # tool/collar 5ffd446, the puffs' tops ~0.05 L up)

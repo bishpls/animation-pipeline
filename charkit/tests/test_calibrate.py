@@ -57,6 +57,7 @@ def test_the_verdicts():
     assert _rec(ok, (0.5, 'FAIL'), (0.9, 'PASS'), (0.8, 'PASS', 0.8)) == 'coarse'             # a random floor passes
     assert _rec(ok, (0.5, 'FAIL'), (0.4, 'WARN'), (0.45, 'PASS', 0.1)) == 'coarse'            # passes at the floor
     assert _rec(ok, None, (0.2, 'FAIL'), (0.8, 'PASS', 0.8)) == 'guard'
+    assert _rec(ok, None, None, (0.8, 'PASS', None)) == 'unmeasured'      # nothing it must fail (sleeve_standoff)
     # a defect detector: a random stand-in may pass (it lacks the defect); its shape is guarded
     assert _rec(ok, (0.6, 'FAIL'), (0.0, 'PASS'), (0.1, 'PASS', 1.0), kind='defect', shape=['piece_bow']) == \
         'calibrated'

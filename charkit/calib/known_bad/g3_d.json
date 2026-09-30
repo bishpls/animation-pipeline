@@ -1,0 +1,10 @@
+{
+ "name": "g3_d",
+ "why": "tool/garments3 18f3b41 (g3_d): the jacket's fronts drawn back left the bow's tails' lower edge as the outline in profile and three-quarter, a 1-2 px sliver along the jacket's edge, torn (bow_profile_torn 0.066, bow_three_quarter_torn 0.0108 FAIL; garments3.md round 3; cleared by ribbon.stand)",
+ "flag": "the bow's tails' lower edge torn (tool/garments3 round 2)",
+ "commit": "18f3b41",
+ "source": "~/animation-pipeline-garments3/charkit/out/g3_d",
+ "stored": "2026-09-30",
+ "bundle": "1c446f25440de82c",
+ "qa_checks": 461
+}
