@@ -264,3 +264,17 @@ from another, key by key; `charkit/out/hairtag/r2/a1`, `a2`):
   ahoge / bangs / upper back move 12 / 12 / 7 px; the sheet-only outfit masks score the same (0.9496).
 - **The front's bun outline (0.409 -> 0.387)** comes from the ahoge built from the new ahoge masks (profile 1,848 -> 1,047
   px: truth profile ahoge 0.315 -> 0.779, front 0.846 -> 0.827, back 0.795 -> 0.758).
+
+**The side_lock_L folds, diagnosed** (scratch diagnostics over the lab's builds):
+- The new labels move 267 of the hull's 22,531 hair points, 226 of them between bangs and side locks at the temple (the
+  truth's rule 7 accepts either there). The envelope R is identical where the folds are. What moves is side_lock_L's
+  top in the columns at phi 66-78 (theta 51 against 42-48), and so the phase of each column's theta samples (each
+  column is sampled from its own top in 1.5-degree steps).
+- The folds sit where the side-lock trim's pull stops: pulled cells hold the lock at about 0.38 L from the chart's
+  centre, and the next cell down is not ahead of the drawn edge and stays at about 0.49 L. So each column has a step of
+  about 0.1 L in one row, at phi 76-78, theta 125-129. Columns sampled out of phase across that step stitch into
+  flipped faces. Round 3's geometry already had 2 folds on the same spot, lock 2 of side_lock_L.
+- Tried, not taken: every column on one theta grid (`th_aligned`): folds 11 -> 13, and the old geometry 6 -> 9. The
+  pull carried on below the chin, easing out (`trim_fade` 6 / 12 / 20 deg): 11 / 10 / 10 (the step is above the chin,
+  where the drawn edge stops being passed). The trim off: 9 (side_lock_L 3), side locks 0.528 -> 0.524. Taking the
+  temple's old labels (bangs and side locks) gives side_lock_L 0 folds, but those labels are the masks'.
