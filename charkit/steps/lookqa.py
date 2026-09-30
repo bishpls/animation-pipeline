@@ -13,4 +13,9 @@ MEASUREMENT_STEPS = [
      'build the garment lines\' median at the design\'s scale reads 2.75 px, was 1.99; line_width 1.133, was 0.942 '
      '(tool/look3)'),
     ('line_spread', '22a1ae7', 'the same capped outline model as line_width (tool/look3)'),
+    # tool/toonrender2: the default drawing
+    ('face_noise', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); tone edges on colour-classified maps 0.0565 against EEVEE's 0.0566 (numpy 0.0569); tr3_a 0.0552 -> 0.0546, noise 0.0002"),
+    ('face_noise_sweep', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); sweep tones 99.97% EEVEE's (numpy 99.79%)"),
+    ('face_islands', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md)"),
+    ('face_shadow_*', '32e9b1e', "the QA draws with charkit.render (qa3d.DRAW 'render', tool/toonrender2): the boards' shader and passes on the build's export, not qa3d's numpy rasteriser; every QA frame nearer EEVEE's (docs/workstreams/toonrender.md); the face and neck shade shares equal EEVEE's to 4 decimals (numpy up to 0.003 off)"),
 ]
