@@ -96,16 +96,20 @@ def main(out, before, after):
             col.append((tag, name, Mc))
         tiles.append((view, side, col))
     section_plot(Bb, Ba, os.path.join(out, 'img', 'section.png'))
-    # the table: every graded per-view check, before / after / design
-    keys = sorted(set(Cb) | set(Ca))
-    cls = lambda s: {'PASS': 'p', 'WARN': 'w', 'FAIL': 'f'}.get(s, '')
-    T = ['<table><tr><th>check</th><th>design</th><th>before</th><th>after</th></tr>']
-    for k in keys:
-        b, a = Cb.get(k, {}), Ca.get(k, {})
-        d = a.get('design', b.get('design'))
-        T.append('<tr><td>%s <span class="n">(%s)</span></td><td>%s</td><td class="%s">%s %s</td><td class="%s">%s %s</td></tr>' % (
-            k.replace('view_', ''), a.get('eye', b.get('eye', '')), d, cls(b.get('status')), b.get('ours'), b.get('status', ''),
-            cls(a.get('status')), a.get('ours'), a.get('status', '')))
+    # the table: every graded per-view measure, per eye: the design's, before and after, each graded against it
+    cls = lambda st: {'PASS': 'p', 'WARN': 'w', 'FAIL': 'f'}.get(st, '')
+    T = ['<table><tr><th>view, eye</th><th>measure</th><th>design</th><th>before</th><th>after</th></tr>']
+    for view, side in VIEWS:
+        key = '%s_%s' % (view, side)
+        if key not in ta or key not in tb:
+            continue
+        d, b, a = ta[key]['design'], tb[key]['ours'], ta[key]['ours']
+        cb = eyeqa.compare_view(b, d, eyeqa.VIEW_CHECKS[view])
+        ca = eyeqa.compare_view(a, d, eyeqa.VIEW_CHECKS[view])
+        for i, k in enumerate(eyeqa.VIEW_CHECKS[view]):
+            T.append('<tr><td>%s</td><td>%s</td><td>%s</td><td class="%s">%s %s</td><td class="%s">%s %s</td></tr>' % (
+                ('%s, %s' % (view.replace('_', '-'), side)) if i == 0 else '', k, d.get(k), cls(cb[k]['status']), b.get(k),
+                cb[k]['status'], cls(ca[k]['status']), a.get(k), ca[k]['status']))
     T.append('</table>')
     rel = lambda p: html.escape(os.path.relpath(p, out))
     Hs = ['<!doctype html><meta charset="utf-8"><title>Eyes round 2</title>',
