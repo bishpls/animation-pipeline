@@ -102,6 +102,26 @@ def test_evaluate_takes_a_zbuffer_label_image():
     assert views and views[0][0] == 'front' and 'skirt' in table['views']['front']['ours']
 
 
+def test_skirt_width_with_no_row_free_in_both_compares_matching_rows():
+    """no row is free of hands in both figures: the design's free rows and ours on the same rows, the row whose ratio is
+    the median (each figure's own widest over the design's free rows sat at different heights: ours' top row against
+    the design's bottom one; and one row alone can fall where ours' run breaks)."""
+    im, fg = figure()
+    cls, _ = bodyqa.classes(im, fg, WIN['top'] * PPL, PPL)
+    D = bodyqa.measure(cls, fg, PPL, 'front')
+    D['ppl'] = PPL
+    O = dict(D)
+    # the design's free rows 10..16 widening downward (0.70 .. 0.88); ours blocked on every row, 5% wider than the
+    # design on each, but its run broken (0.4) on the last two rows, where the design's is widest
+    D['skirt'] = dict(D['skirt'], _rows={r: (0.70 + 0.03 * (r - 10), False) for r in range(10, 17)})
+    D['skirt']['_rows'].update({r: (1.0, True) for r in range(17, 20)})
+    O['skirt'] = dict(O['skirt'], _rows={r: (1.05 * (0.70 + 0.03 * (r - 10)), True) for r in range(10, 20)})
+    O['skirt']['_rows'].update({15: (0.4, True), 16: (0.4, True)})
+    C_ = bodyqa.compare(O, D, cls, cls, fg, fg, 'front')
+    sw = C_['skirt_width']
+    assert sw['value'] == 1.05 and sw['rows'] == 7 and sw['status'] == 'PASS', sw
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

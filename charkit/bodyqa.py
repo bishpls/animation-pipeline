@@ -349,6 +349,10 @@ def legs(ofg, dfg, ocls, dcls, ppl, axis_u, feet, win=WIN):
                 white = cls[r, sl] == CLASS['white']
                 if rr:
                     best = max(rr, key=lambda x: (white[x[0]:x[1] + 1].sum(), x[1] - x[0]))
+                    # a row whose run ends on the cuff (orange: its rounded lower edge over the narrower shaft) is
+                    # the cuff's outline, not the boot's
+                    if CLASS['orange'] in (cls[r, sl][best[0]], cls[r, sl][best[1]]):
+                        continue
                     edges.append((r, best[0], best[1]))
             j = 0.0
             for (r0, a0, b0), (r1, a1, b1) in zip(edges, edges[1:]):
@@ -482,12 +486,20 @@ def compare(O, D, ocls, dcls, ofg, dfg, view, caution=None):
               'the widest garment row through the axis between waist and knee, on the rows neither figure has a hand '
               'against')
     elif [r for r in rd if not rd[r][1] and r in ro]:
-        # no row free in both (ours' hands hang against every row the design's leave free): ours' run on the design's
-        # free rows, where a hand of ours may touch it
+        # no row free in both (ours' hands hang against every row the design's leave free): the design's free rows and
+        # ours on the same rows, the row whose ratio is their median. Each figure's own widest over those rows sat at
+        # different heights (clawd_mh's back: the design's free rows are the waist, widening downward, and ours' widest
+        # was its top row against the design's bottom one), and one row alone (the design's widest) fell where ours'
+        # run through the axis breaks for a few rows at the waist
         fd = [r for r in rd if not rd[r][1] and r in ro]
-        width('skirt_width', round(max(ro[r][0] for r in fd), 4), round(max(rd[r][0] for r in fd), 4),
-              "the widest garment row through the axis between waist and knee, on the design's rows free of hands (no "
-              'row is free in both: ours measured there with a hand against it)')
+        by = sorted(fd, key=lambda r: (ro[r][0] / rd[r][0] if rd[r][0] else 0.0, r))
+        r_ = by[len(by) // 2]
+        width('skirt_width', round(ro[r_][0], 4), round(rd[r_][0], 4),
+              "the garment row through the axis between waist and knee on the design's rows free of hands, ours on the "
+              "same rows: the row whose ratio is the median (no row is free in both: ours measured there with a hand "
+              "against it)")
+        C['skirt_width']['z'] = round(float(WIN['top'] - (r_ + 0.5) / D['ppl']), 4)
+        C['skirt_width']['rows'] = len(fd)
     else:
         width('skirt_width', g(O, 'skirt', 'width'), g(D, 'skirt', 'width'), 'the widest garment row through the '
               'axis between waist and knee, rows with a hand against it left out (no row free in both)')
