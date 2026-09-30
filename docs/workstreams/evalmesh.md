@@ -240,8 +240,15 @@ Residuals, explained:
   Nothing blocks; 66 test files ok; build CPU 721.1 -> 814.2 s (1.13x, the candidate with --vrm: gltf.py is
   EXPORT_CODE). 7 values moved, statuses unchanged: face_shadow_neck_3q 0.0986 -> 0.0398 INFO, face_shadow_chin_edge
   0.0568 -> 0.0479 (FAIL both, better), face_shadow_3q 0.313 -> 0.342, face_shadow_face_3q -0.0558 -> -0.0596,
-  face_shadow_chin 0.694 -> 0.676 (FAIL both), face_noise(_sweep) 1e-4 to 2e-4. Attribution (weights or the export
-  the QA draws from: the candidate drew from its .vrm, the baseline from look.glb) below.
+  face_shadow_chin 0.694 -> 0.676 (FAIL both), face_noise(_sweep) 1e-4 to 2e-4. **All 7 are the export the QA draws
+  from, not the weights:** the candidate drew from its .vrm, the baseline from look.glb. The same code built without
+  --vrm (`charkit/out/evalmesh/r3a_novrm`) gives the baseline's values to the digit (face_shadow_neck_3q 0.0986, ...),
+  and it differs from the --vrm build (`r3a_clawd`) in exactly these 7 of 487 checks. So the stencil weights move no
+  QA check. For infra: a gate whose branch touches gltf.py compares a VRM-drawn candidate with a look.glb-drawn
+  baseline, and the face shadows read the two exports differently (up to 0.059 on face_shadow_neck_3q).
+- **Carried to 6f2e1a4** (`python -m charkit gate --carry`: after ed0f91a only notes and the steps literal, which reach
+  neither build; test_cache, test_gate, test_lookqa and test_registry ran again, all ok):
+  `charkit/out/gate/gate_tool-evalmesh_6f2e1a4_into_9eba0b0.md`, PASS. **R3a mergeable at 6f2e1a4.**
 - **The R3a build** (box, `charkit/out/evalmesh/r3a_clawd`, ed0f91a with --vrm): its QA equals the gate candidate's
   to the digit. The VRM carries valid, normalised weights: 58 skinned primitives, `skin_weights` 0 errors, sums
   within 1.25e-7 of 1, at most 3 bones per vertex; all 19 garments.
@@ -280,6 +287,11 @@ Residuals, explained:
   angle-weighted pseudo-normal at the nearest feature). That's hair3's round.
 
 ## Next
+- R3b, the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2) once tool/face5 has merged
+  into pipeline-3d (it moves charkit/subdiv.py onto geom/subsurf.py). Not started. geom.subsurf's carry_rule='limit'
+  is ready for the skin's weights if motion QA says so.
+- crab_1: one selection for build and evaluator (hair3's round, above).
+- infra: the gate's VRM-vs-look.glb drawing difference (above).
 - The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
   the 2x2 not triggered for a QA change that comes with a geometry change (infra); the stencil weights as an option
   for the skirt and collar if the bends matter in motion.
