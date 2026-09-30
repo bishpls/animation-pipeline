@@ -795,6 +795,9 @@ def main(argv=None):
     elif cmd == 'gate':
         from . import gate
         gate.main(rest)
+    elif cmd == 'pregate':
+        from . import pregate
+        sys.exit(pregate.main(rest))
     elif cmd == 'history':
         from . import history
         history.main(rest)
