@@ -17,6 +17,11 @@ i not started (next run).
   2) 25 files, garments.py not among them (before: garments.py via hull.main -> bodyeval); artifactqa's design key
   52 files, cli.py:_path in it, gate/remote/tune not (before: 101 modules); code_head's step key 10 files at any depth;
   stage_hair's key no garments.py.
+- First gate (7fe4fcc into a4f91a3, `gate_tool-infra3_7fe4fcc_into_a4f91a3`): FAIL on test_manifest (it pinned the old
+  whole-module unit names; fixed, as test_cache and test_produced_cache were). The one-off key change showed: the
+  candidate's resolve 242.6 s (the hull rebuilt under its new key), pieces_hair 198 s, CPU 1.42x, 785 s end to end.
+- `gate --carry` also takes a report of an earlier tip of the branch (1916e4e: notes after a gate, the coordinator's
+  tool/face4 case: its bd671ea report is found now, but predates closures).
 - Real pairs being run: (1) the gate of tool/infra3 into pipeline-3d (every key misses once); (2) a garments.py-only
   edit gated into tool/infra3 with this gate code (the hull must restore from the shared cache, not rebuild); (3)
   `gate --carry` from (2)'s report across a remote.py code edit.
