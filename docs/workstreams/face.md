@@ -688,8 +688,14 @@ separates them).
 | tq_cheek_hollow | 0.005 PASS | 0.005 PASS | 0.005 PASS | 0.005 PASS |
 
 The geometry costs chin_angle 3 degrees and chin_tip 0.03 under both measures, and jaw_taper_shape 0.001 under the
-old: the gate fails on them unless they're accepted. The coordinator decides; the alternative is `SIDE_UOLD` (0.45,
-0.7): no drop under either measure, at a nick of 7.9 degrees (WARN) at the neck's edge instead of 4.6.
+old: the gate fails on them unless they're accepted. **The coordinator accepted the three (2026-09-30)**: the notch
+and the neck-edge bend are the flags Michael raised, and the alternative trades them for a neck nick he already
+flagged once. chin_angle's design value is 129.7 degrees (PASS within 10: at least 119.7; WARN within 20: at least
+109.7); 116.7 is 13 short in the boards' camera, 126 in the level one.
+
+**The fallback: `SIDE_UOLD` (0.45, 0.7)** (headgeom; off). No drop under either measure (chin_angle 119.8, chin_tip
+0.671, jaw_taper_shape 0.0371 in the lab), at a nick of 7.9 degrees (WARN) where the V crosses the neck's edge instead
+of 4.6. Turn it on if the chin's V matters more than that nick.
 
 **3. The evaluator's eye line** (evaldrift; 9a85cf5). `bodymeasure.sheet_face` registered ours on the iris plates'
 mean; it now sets them level with the head's eye line (`bodyeval`'s landmarks carry `eye_z`), as `qa3d.eye_anchor`
@@ -718,7 +724,7 @@ hidden), the curves, the jaw's shading before and after (jaw_health), and the ch
   reach the local assembly (`jaw_lab.local`), never a box build.
 
 **Open, in order:**
-1. The coordinator's call on the 2x2 (chin_angle, chin_tip, jaw_taper_shape) or `SIDE_UOLD`.
+1. (Settled: the 2x2's three drops accepted; `SIDE_UOLD` the fallback.)
 2. The chin in the boards' camera: chin_tip 0.557, chin_angle 116.7 (the design 0.83 / 129.7; level camera 0.95 /
    126). The look down on the design's recession, and the subdivision rounding the V's point across columns 0.033 L
    apart; a crease on the V's rim near its point (character.py, not this workstream's) or denser columns at the chin.
