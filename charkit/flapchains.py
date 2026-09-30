@@ -52,25 +52,54 @@ def chains(spec_path, build=None):
     return out
 
 
+def piece_spans(text):
+    """each entry of the notes' `pieces` array as (id, start, end, object): its span in the text, whatever lines it
+    takes (the notes' entries are hand-wrapped over several lines)."""
+    dec = json.JSONDecoder()
+    k = text.index('"pieces"')
+    i = text.index('[', k) + 1
+    out = []
+    while True:
+        while text[i] in ' \t\r\n,':
+            i += 1
+        if text[i] == ']':
+            return out
+        obj, j = dec.raw_decode(text, i)
+        out.append((obj.get('id'), i, j, obj))
+        i = j
+
+
+def set_chains(text, C):
+    """the notes' text with each piece in C given its `chain` (replacing any it had): only those entries re-emitted, the
+    joints one per line at the entry's indent; the rest of the file byte for byte. -> (text, ids changed)."""
+    done = []
+    for pid, a, b, obj in reversed(piece_spans(text)):
+        if pid not in C:
+            continue
+        obj = dict(obj, chain=C[pid])
+        ind = text[text.rfind('\n', 0, a) + 1:a]
+        body = [json.dumps({k: v for k, v in obj.items() if k != 'chain'}, ensure_ascii=False)[:-1] + ', "chain": [']
+        body += [ind + '    ' + json.dumps(j) + (',' if n < len(obj['chain']) - 1 else '') for n, j in
+                 enumerate(obj['chain'])]
+        text = text[:a] + '\n'.join(body) + ']}' + text[b:]
+        done.append(pid)
+    json.loads(text)
+    return text, done[::-1]
+
+
 def write(spec_path, C, log=print):
-    """the chains into the notes (each piece's own line, the rest of the file as it was), then outfit.relayer."""
+    """the chains into the notes (only the flaps' entries re-emitted, the rest of the file as it was), then
+    outfit.relayer."""
     from . import outfit
     spec = json.load(open(spec_path))
     mref = spec['ref']['manifest']
     npath = os.path.join(ROOT, os.path.dirname(mref), 'outfit_notes.json')
-    lines = open(npath).read().split('\n')
-    for i, ln in enumerate(lines):
-        st = ln.strip()
-        if not st.startswith('{"id": '):
-            continue
-        comma = st.endswith(',')
-        obj = json.loads(st.rstrip(','))
-        if obj['id'] in C:
-            obj['chain'] = C[obj['id']]
-            lines[i] = ln[:len(ln) - len(ln.lstrip())] + json.dumps(obj, ensure_ascii=False) + (',' if comma else '')
-            log('chain', obj['id'], len(C[obj['id']]), 'joints')
-    text = '\n'.join(lines)
-    json.loads(text)
+    text, done = set_chains(open(npath).read(), C)
+    for pid in done:
+        log('chain', pid, len(C[pid]), 'joints')
+    missing = sorted(set(C) - set(done))
+    if missing:
+        raise ValueError('flapchains: no notes entry for %s' % ', '.join(missing))
     open(npath, 'w').write(text)
     return outfit.relayer(spec_path, log=log)
 
