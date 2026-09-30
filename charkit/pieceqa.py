@@ -19,8 +19,8 @@ Checks (qa3d part 'piece_details'; lengths in L):
   waistband_{view}_rows, waistband_{view}_width, waistband_profile_overhang
         the band's top and bottom edges and its width against the design's (its drawn mask's part inside the ink,
         ink_core: the masks give it the jacket's lower part where the jacket hangs over it; not in profile, where the
-        mask holds none of the band); in profile, the top's (and bib's) front edge over the band's against the
-        design's (the jacket overhangs the band)
+        mask holds none of the band); in profile, the jacket's front edge over the band's (the figures' front edges at
+        fixed rows: OVERHANG_TOP, OVERHANG_BAND) against the design's (the jacket overhangs the band)
   shorts_{view}_hem, shorts_{front,back}_width
         the shorts' lower edge and their width against the design's
   top_{front,three_quarter}_over_band
@@ -676,8 +676,9 @@ def collar_bow(B, O, names, masks, pm, ppl, az3, dv):
     return T, C
 
 
-def alone(B, names, view, az3, ppl, keep):
-    """the objects `keep` (names) z-buffered alone on the design's grid for a view -> bool silhouette."""
+def alone(B, names, view, az3, ppl, keep, depth=False):
+    """the objects `keep` (names) z-buffered alone on the design's grid for a view -> bool silhouette (with depth: and
+    the depth image)."""
     from . import qa3d
     from .faceqa import zbuffer
     meshes, nm = qa3d.scene_objects(B)
@@ -688,14 +689,18 @@ def alone(B, names, view, az3, ppl, keep):
     iw = np.array(qa3d.iris_centres(B))
     az = bodyqa.azimuths(az3)
     org = bodyqa.origin(view, az[view], iw, As['centre'])
-    return zbuffer(obj, az[view], org, As['L'], 1.0 / ppl, WIN)[1] >= 0
+    d, lab = zbuffer(obj, az[view], org, As['L'], 1.0 / ppl, WIN)
+    return (lab >= 0, d) if depth else lab >= 0
 
 
-def junction_order(top, band, top_alone, band_alone, ppl, reach=0.05):
+def junction_order(top, band, top_alone, band_alone, ppl, reach=0.05, depths=None, near=None):
     """at the jacket/band junction (the columns where a jacket pixel sits right above a band pixel, within 2 px): per
     column, which hides which: the band alone reaching up behind the jacket (the jacket over it) or the jacket alone
-    reaching down behind the band (tucked under it). -> dict(cols, over (share: the jacket in front), under (share:
-    the band in front), boundary (per column: the junction's row)) or None."""
+    reaching down behind the band (tucked under it). depths (the jacket alone's depth image, the composite's) and near
+    (depth units): the jacket alone below the junction counts as tucked only within `near` behind the band there (a
+    jacket hung over the band all round shows its back panel through its open front and below its front hem, far
+    behind the band: not tucked). -> dict(cols, over (share: the jacket in front), under (share: the band in front),
+    boundary (per column: the junction's row)) or None."""
     H, W = top.shape
     k = int(round(reach * ppl))
     cols, over, under, rows = [], 0, 0, {}
@@ -712,8 +717,13 @@ def junction_order(top, band, top_alone, band_alone, ppl, reach=0.05):
         rows[c] = b0
         if band_alone[max(0, b0 - k):b0 - 1, c].sum() >= 2:
             over += 1
-        elif top_alone[b0 + 1:min(H, b0 + k), c].sum() >= 2:
-            under += 1
+        else:
+            below = top_alone[b0 + 1:min(H, b0 + k), c]
+            if depths is not None and near is not None:
+                dt, dc = depths[0][b0 + 1:min(H, b0 + k), c], depths[1][b0 + 1:min(H, b0 + k), c]
+                below = below & band[b0 + 1:min(H, b0 + k), c] & (np.abs(dt - dc) <= near)
+            if below.sum() >= 2:
+                under += 1
     if not cols:
         return None
     return dict(cols=len(cols), over=round(over / len(cols), 3), under=round(under / len(cols), 3), rows=rows)
@@ -733,6 +743,10 @@ def half_widths(m, ppl, zs, cx=None):
     return out
 
 
+OVERHANG_TOP = (-1.33, -1.26)        # L from the eye line: the jacket's front in profile (below the bow's tails, -1.21)
+OVERHANG_BAND = (-1.47, -1.40)      # ... the band's (below the jacket's hem, above the skirt)
+NEAR = 0.08                         # L: the jacket alone below the junction counts as tucked under the band only this
+                                    # near behind it (its front hem inside the band: the band's thickness and clearance)
 OPENING_Z = (-1.0, -1.05, -1.1, -1.15, -1.2, -1.25, -1.3)    # L: the bib's rows below the bow's tails, above the band
 
 
@@ -749,8 +763,9 @@ def jacket(B, O, names, masks, pm, ppl, az3, dv, cls_o):
             continue
         top = members(O[view]['lab'], names, pm, 'top') | members(O[view]['lab'], names, pm, 'bodice_panel')
         band = members(O[view]['lab'], names, pm, 'waistband')
-        ta, ba = alone(B, names, view, az3, ppl, tops), alone(B, names, view, az3, ppl, bands)
-        j = junction_order(top, band, ta, ba, ppl) if ta is not None and ba is not None else None
+        ta, ba = alone(B, names, view, az3, ppl, tops, depth=True), alone(B, names, view, az3, ppl, bands)
+        j = junction_order(top, band, ta[0], ba, ppl, depths=(ta[1], O[view]['depth']),
+                           near=NEAR * float(B.assembly['L'])) if ta is not None and ba is not None else None
         name = 'top_%s_over_band' % view
         if j is None:
             C[name] = {'value': None, 'status': 'FAIL', 'why': 'no jacket/band junction seen'}
@@ -904,36 +919,30 @@ def waist(O, names, masks, pm, ppl, dv=None):
                     'value': v_, 'status': grade('width', v_), 'ours': zo['width'], 'design': zd['width'],
                     'note': "the piece's median row width over its middle columns' rows, ours over the design's, less "
                             "one"}
-    # the top's front edge over the band's in profile (the design's jacket overhangs the band)
-    if 'profile' in O and 'waistband' in pm and 'top' in pm:
-        def overhang(band, top):
-            e = edges(band)
-            if e is None or not top.any():
-                return None
-            r0 = int(round(e['top']))
-            bf = [np.nonzero(band[r])[0].min() for r in range(r0 + 2, int(e['bottom']) - 1) if band[r].any()]
-            above = range(max(0, r0 - int(0.05 * ppl)), max(0, r0 - int(0.01 * ppl)))
-            tf = [np.nonzero(top[r])[0].min() for r in above if top[r].any()]
+    # the jacket's front edge over the band's in profile, from the figures' front edges at fixed rows (the outfit masks'
+    # profile band is the jacket's lower part, and the jacket hanging over the band hides the band's own front)
+    if 'profile' in O and dv and 'profile' in dv:
+        def overhang(fg):
+            rows = lambda z0, z1: range(int(round((WIN['top'] - z1) * ppl)), int(round((WIN['top'] - z0) * ppl)) + 1)
+            bf = [np.nonzero(fg[r])[0].min() for r in rows(*OVERHANG_BAND) if fg[r].any()]
+            tf = [np.nonzero(fg[r])[0].min() for r in rows(*OVERHANG_TOP) if fg[r].any()]
             if not bf or not tf:
                 return None
             return round((float(np.median(bf)) - float(np.min(tf))) / ppl, 4)
-        bd, td = masks.get('profile__waistband'), masks.get('profile__top')
-        d_ = overhang(clean(bd, ppl), td) if bd is not None and td is not None else None
+        d_ = overhang(dv['profile']['fg'])
+        o_ = overhang(O['profile']['lab'] >= 0)
         if d_ is not None:
-            o_ = overhang(clean(members(O['profile']['lab'], names, pm, 'waistband'), ppl),
-                          members(O['profile']['lab'], names, pm, 'top') |
-                          members(O['profile']['lab'], names, pm, 'bodice_panel'))
             T['overhang'] = dict(ours=o_, design=d_)
             if o_ is None:
                 C['waistband_profile_overhang'] = {'value': None, 'status': 'FAIL', 'design': d_,
-                                                   'why': 'our band or the top above it not seen in profile'}
+                                                   'why': 'our figure not seen at the band or above it in profile'}
             else:
                 v_ = round(abs(o_ - d_), 4)
                 C['waistband_profile_overhang'] = {
                     'value': v_, 'status': grade('overhang', v_), 'ours': o_, 'design': d_,
-                    'note': "in profile, how far the top's front edge (just above the band) stands in front of the "
-                            "band's (L; + the top overhangs), against the design's: the band's front proud of the top "
-                            "where the design's jacket overhangs it"}
+                    'note': "in profile, how far the jacket's front edge (the figure's, z %.2f..%.2f: below the bow's "
+                            "tails, above the band) stands in front of the band's (the figure's median, z %.2f..%.2f), "
+                            "L, against the design's" % (OVERHANG_TOP + OVERHANG_BAND)}
     return T, C
 
 

@@ -134,6 +134,21 @@ def test_junction_order_tells_which_hides_which():
     assert j['over'] == 1.0 and j['under'] == 0.0
 
 
+def test_a_jacket_hung_over_all_round_is_not_tucked_by_its_back_panel():
+    """drawn alone, a jacket over the band shows its back panel below its front hem (through its open front, and past
+    the hem), far behind the band: with depths that isn't tucked; a front hem just inside the band is."""
+    comp_top, comp_band, top_a, band_a = junction(tucked=False)
+    n = top_a.shape[0]
+    top_a = top_a.copy(); top_a[70:88, 20:100] = True             # the back panel, seen below the front hem
+    d_top = np.full((n, n), 5.0); d_comp = np.full((n, n), 1.0)    # it lies 4 behind the band
+    band_a2 = band_a.copy(); band_a2[60:70] = False                # the band not reaching up behind: only `under` counts
+    j = pq.junction_order(comp_top, comp_band, top_a, band_a2, PPL, depths=(d_top, d_comp), near=0.3)
+    assert j['under'] == 0.0
+    d_top[70:88] = 1.1                                             # a front hem just inside the band: tucked
+    j = pq.junction_order(comp_top, comp_band, top_a, band_a2, PPL, depths=(d_top, d_comp), near=0.3)
+    assert j['under'] == 1.0
+
+
 def test_half_widths_round_the_middle():
     m = np.zeros((700, 400), bool)
     r = int(round((pq.WIN['top'] + 1.1) * PPL - 0.5))
