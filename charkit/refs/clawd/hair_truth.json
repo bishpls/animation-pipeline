@@ -1,0 +1,794 @@
+{
+ "format": "charkit-hair-truth-src/1",
+ "sheet": "body_turnaround",
+ "views": {
+  "front": {
+   "cuts": [
+    {
+     "p": [
+      [
+       463,
+       131
+      ],
+      [
+       493,
+       139
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       437,
+       172
+      ],
+      [
+       428,
+       205
+      ],
+      [
+       424,
+       244
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       437,
+       172
+      ],
+      [
+       386,
+       172
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       340,
+       245
+      ],
+      [
+       426,
+       243
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       365,
+       248
+      ],
+      [
+       348,
+       282
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       614,
+       243
+      ],
+      [
+       636,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       345,
+       300
+      ],
+      [
+       343,
+       332
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       647,
+       312
+      ],
+      [
+       635,
+       348
+      ]
+     ],
+     "snap": false
+    }
+   ],
+   "tones": [
+    {
+     "zone": [
+      305,
+      400,
+      300,
+      690
+     ],
+     "v": 0.75,
+     "dark": "lower_back"
+    }
+   ],
+   "seeds": [
+    [
+     385,
+     127,
+     "bun_R"
+    ],
+    [
+     426,
+     111,
+     "bun_R"
+    ],
+    [
+     359,
+     159,
+     "bun_R"
+    ],
+    [
+     601,
+     127,
+     "bun_L"
+    ],
+    [
+     560,
+     111,
+     "bun_L"
+    ],
+    [
+     625,
+     159,
+     "bun_L"
+    ],
+    [
+     369,
+     192,
+     "flyaways|bun_R"
+    ],
+    [
+     613,
+     192,
+     "flyaways|bun_L"
+    ],
+    [
+     538,
+     202,
+     "none"
+    ],
+    [
+     555,
+     216,
+     "none"
+    ],
+    [
+     595,
+     200,
+     "bangs|side_locks|upper_back"
+    ],
+    [
+     587,
+     184,
+     "bangs|side_locks|upper_back"
+    ],
+    [
+     480,
+     110,
+     "ahoge"
+    ],
+    [
+     480,
+     180,
+     "bangs"
+    ],
+    [
+     410,
+     200,
+     "bangs|side_locks"
+    ],
+    [
+     405,
+     270,
+     "side_locks"
+    ],
+    [
+     572,
+     264,
+     "side_locks"
+    ],
+    [
+     340,
+     262,
+     "flyaways|side_locks|upper_back"
+    ],
+    [
+     640,
+     262,
+     "flyaways|side_locks|upper_back"
+    ],
+    [
+     370,
+     290,
+     "side_locks|upper_back"
+    ],
+    [
+     400,
+     310,
+     "side_locks|lower_back"
+    ],
+    [
+     537,
+     343,
+     "lower_back"
+    ],
+    [
+     598,
+     235,
+     "side_locks|upper_back"
+    ],
+    [
+     585,
+     322,
+     "side_locks|lower_back"
+    ],
+    [
+     375,
+     215,
+     "bangs|side_locks"
+    ],
+    [
+     376,
+     247,
+     "bangs|side_locks"
+    ],
+    [
+     469,
+     131,
+     "ahoge|bangs"
+    ],
+    [
+     334,
+     321,
+     "flyaways|side_locks|upper_back|lower_back"
+    ],
+    [
+     655,
+     328,
+     "flyaways|side_locks|upper_back|lower_back"
+    ]
+   ]
+  },
+  "back": {
+   "cuts": [
+    {
+     "p": [
+      [
+       482,
+       141
+      ],
+      [
+       513,
+       131
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       372,
+       248
+      ],
+      [
+       356,
+       275
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       608,
+       248
+      ],
+      [
+       624,
+       275
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       634,
+       300
+      ],
+      [
+       641,
+       342
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       330,
+       299
+      ],
+      [
+       346,
+       302
+      ],
+      [
+       340,
+       342
+      ]
+     ],
+     "snap": false
+    }
+   ],
+   "tones": [
+    {
+     "zone": [
+      270,
+      410,
+      300,
+      680
+     ],
+     "v": 0.75,
+     "dark": "lower_back"
+    },
+    {
+     "zone": [
+      352,
+      410,
+      300,
+      680
+     ],
+     "v": 0.0,
+     "dark": "lower_back",
+     "light": "lower_back"
+    }
+   ],
+   "seeds": [
+    [
+     383,
+     129,
+     "bun_L"
+    ],
+    [
+     422,
+     111,
+     "bun_L"
+    ],
+    [
+     357,
+     160,
+     "bun_L"
+    ],
+    [
+     593,
+     128,
+     "bun_R"
+    ],
+    [
+     554,
+     110,
+     "bun_R"
+    ],
+    [
+     619,
+     160,
+     "bun_R"
+    ],
+    [
+     368,
+     193,
+     "flyaways|bun_L"
+    ],
+    [
+     609,
+     193,
+     "flyaways|bun_R"
+    ],
+    [
+     495,
+     105,
+     "ahoge"
+    ],
+    [
+     490,
+     220,
+     "upper_back"
+    ],
+    [
+     635,
+     258,
+     "flyaways|upper_back|lower_back"
+    ],
+    [
+     351,
+     263,
+     "flyaways|upper_back|lower_back"
+    ],
+    [
+     326,
+     322,
+     "flyaways|upper_back|lower_back"
+    ],
+    [
+     655,
+     322,
+     "flyaways|upper_back|lower_back"
+    ],
+    [
+     507,
+     131,
+     "ahoge|upper_back"
+    ]
+   ]
+  },
+  "profile": {
+   "cuts": [
+    {
+     "p": [
+      [
+       496,
+       141
+      ],
+      [
+       521,
+       134
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       500,
+       138
+      ],
+      [
+       505,
+       170
+      ],
+      [
+       525,
+       230
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       557,
+       164
+      ],
+      [
+       590,
+       178
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       636,
+       186
+      ],
+      [
+       652,
+       175
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       635,
+       232
+      ],
+      [
+       596,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       596,
+       284
+      ],
+      [
+       606,
+       305
+      ],
+      [
+       607,
+       329
+      ],
+      [
+       601,
+       343
+      ],
+      [
+       592,
+       354
+      ]
+     ]
+    },
+    {
+     "p": [
+      [
+       579,
+       275
+      ],
+      [
+       596,
+       284
+      ]
+     ],
+     "snap": false
+    },
+    {
+     "p": [
+      [
+       686,
+       245
+      ],
+      [
+       693,
+       273
+      ]
+     ],
+     "snap": false
+    }
+   ],
+   "tones": [
+    {
+     "zone": [
+      265,
+      420,
+      540,
+      745
+     ],
+     "v": 0.75,
+     "dark": "lower_back"
+    }
+   ],
+   "seeds": [
+    [
+     614,
+     121,
+     "bun_L"
+    ],
+    [
+     632,
+     160,
+     "bun_L"
+    ],
+    [
+     560,
+     106,
+     "bun_R|bun_L"
+    ],
+    [
+     628,
+     204,
+     "flyaways|bun_L"
+    ],
+    [
+     509,
+     203,
+     "none"
+    ],
+    [
+     527,
+     217,
+     "none"
+    ],
+    [
+     574,
+     217,
+     "none|side_locks|upper_back"
+    ],
+    [
+     551,
+     267,
+     "side_locks"
+    ],
+    [
+     510,
+     110,
+     "ahoge"
+    ],
+    [
+     470,
+     200,
+     "bangs"
+    ],
+    [
+     540,
+     160,
+     "side_locks|bangs"
+    ],
+    [
+     595,
+     215,
+     "side_locks|upper_back"
+    ],
+    [
+     660,
+     250,
+     "upper_back"
+    ],
+    [
+     580,
+     320,
+     "side_locks|lower_back"
+    ],
+    [
+     703,
+     256,
+     "flyaways|upper_back"
+    ]
+   ]
+  },
+  "three_quarter": {
+   "note": "families unresolved in the mass (no family masks in this view): buns by side, the ahoge, the clips and the side lock under the star only",
+   "cuts": [
+    {
+     "p": [
+      [
+       484,
+       139
+      ],
+      [
+       511,
+       133
+      ]
+     ],
+     "snap": false
+    }
+   ],
+   "seeds": [
+    [
+     432,
+     122,
+     "bun_R"
+    ],
+    [
+     468,
+     113,
+     "bun_R"
+    ],
+    [
+     410,
+     154,
+     "bun_R"
+    ],
+    [
+     635,
+     126,
+     "bun_L"
+    ],
+    [
+     600,
+     107,
+     "bun_L"
+    ],
+    [
+     656,
+     161,
+     "bun_L"
+    ],
+    [
+     654,
+     194,
+     "flyaways|bun_L"
+    ],
+    [
+     590,
+     185,
+     "none|bangs|side_locks|upper_back"
+    ],
+    [
+     538,
+     202,
+     "none"
+    ],
+    [
+     556,
+     216,
+     "none"
+    ],
+    [
+     577,
+     264,
+     "side_locks"
+    ],
+    [
+     500,
+     105,
+     "ahoge"
+    ],
+    [
+     554,
+     240,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ],
+    [
+     437,
+     257,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ],
+    [
+     434,
+     349,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ],
+    [
+     435,
+     287,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ],
+    [
+     442,
+     331,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ],
+    [
+     564,
+     329,
+     "bangs|side_locks|upper_back|lower_back|flyaways"
+    ]
+   ]
+  }
+ },
+ "provenance": {
+  "by": "annotated by Claude (claude-opus-5-5) for tool/hairtag",
+  "date": "2026-09-30",
+  "method": "every hair cell of 25 px or more (outfit.cells) labelled by eye from zoomed crops (tools/hairtag/truthpic.py); cells holding several families cut along the drawn lines (snapped) and straight across their gaps; the shadow tone in a zone below the head splits the under layer"
+ },
+ "rules": [
+  "one drawn lock, one family: family boundaries run along the drawn lines where they exist and straight across their gaps (cuts snapped to the lines between waypoints)",
+  "the under layer is drawn in the shadow tone: in a zone below the head (front rows 305+, profile 265+, back 270+) hair darker than 0.75 is lower_back unless a seed says otherwise; in the back the lit lock tips below the dark band (rows 352+) are lower_back too",
+  "the ahoge ends at the head's outline (a straight cut across its base)",
+  "the flick tips at the outer silhouette (cut straight across the base where the flick leaves the mass's outline) accept flyaways or their mass's families: hair_breakdown draws them as flyaway strands, the body sheet joins them to the mass",
+  "the strands under the buns (a cell each) accept flyaways or their bun (bun tails)",
+  "clips drawn in the hair colour (the crab) are none",
+  "the side of the head above the side lock (front: the temple strip down to the eyes' top; profile: from the fringe's back line to the star) accepts bangs or side_locks; below the eyes' top the face-framing lock is side_locks",
+  "the outer masses behind the side locks, lit, accept side_locks or upper_back (hair_breakdown paints them side-lock yellow with upper-back purple at the edge); the inner locks by the jaw accept side_locks or lower_back",
+  "the profile's far-bun peek accepts either bun (as the outfit truth)",
+  "the three-quarter's mass is unresolved (any mass family): only buns by side, the ahoge, the clips and the side lock under the star are scored there"
+ ],
+ "calls": [
+  "the flick tips as flyaways-or-mass (front 4, back 4, profile 1 at the back): hair_breakdown's green strands sit at the body sheet's flicks, which the body sheet draws joined to the mass",
+  "the shadow tone below the head as the under layer (lower_back), which puts the back's central lit lobe (down to the V at row 355) in the upper back",
+  "the temple strip and the profile's side-of-head region as bangs-or-side_locks, the outer masses as side_locks-or-upper_back",
+  "the crab as none (the masks label it hair)",
+  "the profile's small flick at the side lock's back edge (the 'crescent over the side lock') is labelled with its lock (side_locks|upper_back), not as a flyaway"
+ ]
+}
