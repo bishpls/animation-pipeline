@@ -133,6 +133,17 @@ def _cpu_children():
     return u.ru_utime + u.ru_stime
 
 
+def _step_cache_env():
+    """the venv steps' entries (charkit.cache.file_step: the code head and body, the hair pieces, the garments) in one
+    folder the box's gate builds share (CHARKIT_GATE_STEP_CACHE, default ~/.cache/charkit/steps; 'off': each worktree's
+    own, cold, as before), keyed portably and on all the code each step reaches (CHARKIT_STEP_DEPTH=all), so a branch
+    that doesn't reach a step restores it in every clone: pieces_hair took 120-200 s a gate, rebuilt each time."""
+    v = os.environ.get('CHARKIT_GATE_STEP_CACHE', '~/.cache/charkit/steps')
+    if v == 'off':
+        return {}
+    return {'CHARKIT_STEP_CACHE': os.path.abspath(os.path.expanduser(v)), 'CHARKIT_STEP_DEPTH': 'all'}
+
+
 def _build(wt, spec, out, args, record=True, procs=None):
     """a build of the tree in wt into out -> {ok, seconds, cpu, log (its output's tail), steps ({step: seconds}: its
     CHARKIT_PHASE lines), cache (its CHARKIT_CACHE and CHARKIT_PRODUCED lines), killed}. Its CPU seconds (it and
@@ -150,6 +161,7 @@ def _build(wt, spec, out, args, record=True, procs=None):
         env['CHARKIT_CLOSURE'] = log
     if _threads():
         env.update({k: str(_threads()) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
+    env.update(_step_cache_env())
     t = time.time()
     # (no boards: nothing the gate reads draws from them, and the box's toon boards took 16 s a build)
     p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', '', '--no-blend'] + list(args),
