@@ -234,3 +234,33 @@ three-quarter 0.7406 -> 0.7381, profile 0.8316 -> 0.8345, back 0.9216 -> 0.9214.
 So the lower back's -0.097 at the gate is the target (-0.134 on the same geometry) with the geometry gaining +0.036 on
 the new target, and the upper back's 0.760 -> 0.760 hides a -0.063 target move and a +0.063 geometry gain. The real
 geometry losses are the side locks, the bun outline, the folds (and the INFO ahoge and flyaways).
+
+**What moves the pieces** (`tools/hairtag/attrib.py`: the hull's labels from one mask set and the build's own mask reads
+from another, key by key; `charkit/out/hairtag/r2/a1`, `a2`):
+
+| variant (labels / build's reads) | folds | side_lock_L | side_lock_R | bangs | bun outline (old measure: front, profile) |
+|---|---|---|---|---|---|
+| old / old (A) | 6 | 2 | 1 | 1 | 0.397 (0.409, 0.375) |
+| new / new (B) | 11 | 5 | 2 | 2 | 0.361 (0.387, 0.311) |
+| new / old | 16 | 5 | 2 | 7 | 0.398 (0.410, 0.375) |
+| old / new | 8 | 1 | 2 | 3 | 0.354 (0.376, 0.311) |
+| old / new, the profile's reads old | 7 | 2 | 1 | 2 | 0.385 (0.389, 0.375) |
+| old / new, the bun masks old | 8 | 1 | 2 | 3 | 0.377 (0.378, 0.375) |
+| new, the profile's labels old / new | 7 | 1 | 2 | 2 | 0.361 |
+| new, the profile's bangs and side-lock labels old / new | 6 | **0** | 2 | 2 | 0.361 |
+| new / new, the ahoge's reads old | 11 | 5 | 2 | 2 | 0.377 (**0.408**, 0.319) |
+| new / new, the bun masks old | 11 | 5 | 2 | 2 | 0.385 (0.390, **0.375**) |
+
+- **side_lock_L's folds (2 -> 5, all on lock 2 at phi 77, theta 125-127, outer and inner)** come from the hull's labels
+  under the new profile bangs and side-lock masks alone. Those masks are nearer the truth (profile side locks 0.798 ->
+  0.860, bangs 0.925 -> 0.974), so it is the builder's to fix.
+- side_lock_R +1 and bangs +1 come from the build's reads of the new profile masks (the drawn tips).
+- **The profile's bun outline (0.375 -> 0.311)** is 52 px of the profile's left bun: the field's outfit masks call them
+  pin_star, the new clip rule dropped them from the hair, and the truth (and the sheet-only outfit masks) call them
+  bun_L. A 0.5% change to one bun mask moved the bun fit to another optimum (its own IoU up in every view, 0.843 ->
+  0.847 profile, 0.875 -> 0.893 back; the outline down). A mask error against the truth: **fixed in the mask**
+  (`STRUCT['clip_rim']`, default on: within the buns' rim the clips don't take the hair). Truth 0.9581 -> 0.9585,
+  profile bun_L side 0.968 -> 0.974 (the old masks' value), the bun keys now identical to the old masks'; profile
+  ahoge / bangs / upper back move 12 / 12 / 7 px; the sheet-only outfit masks score the same (0.9496).
+- **The front's bun outline (0.409 -> 0.387)** comes from the ahoge built from the new ahoge masks (profile 1,848 -> 1,047
+  px: truth profile ahoge 0.315 -> 0.779, front 0.846 -> 0.827, back 0.795 -> 0.758).

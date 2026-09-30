@@ -39,8 +39,10 @@ VIEWS = ('front', 'profile', 'back')
 # lock regions by its drawn lines, its faint ridges and its two cel tones (Otsu on the hair's value), each tone's runs cut
 # at their necks (a watershed of the distance to those walls, markers the h-maxima); a region whose transferred families
 # agree to `vote` takes that family whole, else keeps them per pixel. Clips drawn in the hair colour (the outfit's
-# pieces other than the buns) are not hair.
-STRUCT = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False)
+# pieces other than the buns) are not hair, except within the buns' rim (clip_rim: the rim is bun, as without the clip
+# rule; hairtag round 2: the field's outfit masks call 52 px of the profile's left bun pin_star, which the hair truth
+# and the sheet-only outfit masks call bun, and the bun fit moved to another optimum without them).
+STRUCT = dict(vote=0.6, h=1.5, clips=True, tone=True, bun_vote=False, clip_rim=True)
 
 
 def _p(path):
@@ -249,17 +251,19 @@ def transfer(fam_img, reg, figs, views, outfit_masks=None, struct=None):
         RR, CC = np.meshgrid(rows, cols, indexing='ij')
         fam = sub[idx[0][RR, CC], idx[1][RR, CC]]
         st = dict(STRUCT, **(struct or {}))
-        if st.get('clips') and outfit_masks is not None:    # clips drawn in the hair colour: not hair
-            for k, m in outfit_masks.items():
-                if k.startswith(name + '__') and k.split('__', 1)[1] not in ('bun_L', 'bun_R') and m.shape == shape:
-                    hair &= ~m
-        fam = np.where(hair, fam, 0)
         buns = np.zeros(shape, bool)
         if outfit_masks is not None:
             for b in ('bun_L', 'bun_R'):
                 k = '%s__%s' % (name, b)
                 if k in outfit_masks and outfit_masks[k].shape == shape:
                     buns |= outfit_masks[k]
+        if st.get('clips') and outfit_masks is not None:    # clips drawn in the hair colour: not hair
+            # (the buns' rim stays hair: it is bun below, as it was before the clip rule)
+            keep = ndimage.binary_dilation(buns, iterations=BUN_RIM) if st.get('clip_rim') and buns.any() else None
+            for k, m in outfit_masks.items():
+                if k.startswith(name + '__') and k.split('__', 1)[1] not in ('bun_L', 'bun_R') and m.shape == shape:
+                    hair &= ~(m & ~keep) if keep is not None else ~m
+        fam = np.where(hair, fam, 0)
         if st.get('vote'):
             if st.get('bun_vote'):                           # the buns vote too: a region mostly bun is bun whole
                 fam[buns & hair] = BUNS
