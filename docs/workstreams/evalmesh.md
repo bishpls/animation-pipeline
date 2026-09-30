@@ -174,8 +174,57 @@ Residuals, explained:
   CPU 758.7 -> 751.6 s (0.99x). 4007276 merges into the branch cleanly (the gate's own merge). **M2+M3 mergeable at
   1939469**; the commits after it are notes only.
 
+- **M2+M3 merged** into pipeline-3d (81ffcb1); pipeline-3d 25b1936 (infra-auth: box control on a service account,
+  `CLOUDSDK_CONFIG=$HOME/.config/charkit/gcloud` in every box shell) fast-forwarded in. Coordinator's go-ahead for M4:
+  skin weights linear (Blender's), the panels' loose vertices kept as Blender keeps them, charkit/subdiv.py left to
+  tool/face5.
+
+## M4, the switch (in progress)
+- `geomstage.finalize(P)`: every recorded garment with a Solidify or Subsurf gets its final mesh at rest
+  (`evalmesh.finalize`) in its `_object` call (`final=True`); its 'thick'/'sub' events go; where they stood, its
+  object gets `ck_shell` (the outline's cap: `shade.shell_of` reads it) and `ck_final_levels`. The recording as made
+  stays in `meta['coarse_events']` (`pieces(P, coarse=True)`: the lab, motion QA). `garments_product` and the
+  evaluator's `garment_piece` finalize, so the evaluator's garments are the build's meshes by construction (no
+  solid, no subdivision left in their Parts).
+- Weights: `garments.group_weights` (3 decimals, 1e-4 and under dropped, clamped to 1) is what `_object` gives the
+  coarse vertex groups and what finalize carries; a final object's weights go in as carried (not rounded again).
+  `_object` sets corner UVs, smooth flags and material indices with foreach_set (the final meshes are 8x larger).
+- On merged_clawd's product: finalize 0.9 s for 19 pieces, the product 13 MB (save 1.0 s). Against the bundle's
+  Blender-evaluated meshes: all 19 one to one, ≤ 1.2e-5 L (the collar), every face, winding and first corner
+  equal, UVs ≤ 1.2e-6.
+- **The M4 build** (box, `charkit/out/evalmesh/m4_clawd`, cf5053a + the UV-centre fix):
+  - evaldrift --stages: 0 of 110 checks drift; the only stage drift crab_1 (face4's). Every garment's raw f32-identical
+    to the evaluator's, evaluated ≤ 7.2e-7 L (exact by construction); masked skin 3.8e-6 L.
+  - The export (NAME.look.glb, gltf.export's own writer, as the VRM): every garment mesh against the base build's
+    (merged_clawd, Blender's modifiers) within 1e-5 L, the collar 1.07e-4 L (the export's build pose moves the
+    shoulders: the collar's blended weights, see motion QA); the skirt 22563 against 22562 exported vertices (one seam
+    split). Every other mesh identical (0 L).
+  - boarddiff merged_clawd -> m4_clawd: 487 QA checks, 1 differs: poke_share 0.0028 PASS -> 0.02 FAIL. Not geometry:
+    the check casts rays at 'raw', which is now the final mesh with the Solidify's inner layer t inside the surface;
+    skin within the shell's thickness (under the surface) read as poking through (shorts 166, bodice 30, skirt 31).
+    Rescored on the surface layer only: 0.003 (bodice 19, skirt 10, panels 3 + 3, collar 1, top 1; the base 0.0028:
+    bodice 18, skirt 10, panels 3 + 3, collar 1): the subdivided surface against the coarse one. Remeasured: a final
+    mesh's faces carry their layer (`evalmesh.finalize` 'layer': 0 surface, 1 inner copy, 2 rim; `_object` sets the
+    face attribute `ck_layer`; the bundle's raw exports it as 'layer'); `qa3d.poke` reads layer 0 when there is one.
+    The gate scores it both ways (the 2x2). 13 of 26 images differ by a few levels (sheet_body/pieces max 186-204 on a
+    handful of pixels: the subdivided hems at float32; face boards max 12).
+- **Motion QA** (`python -m charkit evalmesh motion BUILD`, `m4_clawd/motion/motion.md`): each garment at 7 extreme
+  poses in a local Blender with the build's armature; Blender's per-frame stack on the coarse mesh against the final
+  mesh under the Armature alone. 15 of 19 pieces within 1.1e-5 L at every pose (their weights one bone where they
+  bend). The bends: skirt 0.040 L max at the kick (p99 0.018, moved 1 L; limit-stencil weights 0.019), collar 0.020
+  at twist_bend (stencil 0.016), top 0.0091 (p99 0.0019), bodice 0.0016. Linear weights shipped (the coordinator's
+  call); the stencil halves the skirt's worst.
+- **M4 gate: PASS under K** (0c9eb95 into pipeline-3d 25b1936; `charkit/out/gate/gate_tool-evalmesh_0c9eb95_into_25b1936.md`):
+  nothing blocks, 1 item: poke_share 0.0028 -> 0.003 PASS (value moved). 66 test files ok, build CPU 577.3 -> 684.0 s
+  (1.18x). The gate's report has no 2x2 section for poke's remeasure; its four cells measured by hand: old code, old
+  geometry 0.0028 PASS; old code on the final meshes 0.020 FAIL (the inner layer read as skin through clothes); new
+  code on the old geometry 0.0028 PASS (no layer attribute: every face, as before); new code, new geometry 0.003 PASS.
+  **M4 mergeable at 0c9eb95.**
+
 ## Next
-- Waiting on the coordinator's merge and go-ahead for M4.
+- The coordinator's merge. Then: the skin's subdivision (rollout step 4: shape keys, two UV layers, render level 2);
+  the 2x2 not triggered for a QA change that comes with a geometry change (infra); the stencil weights as an option
+  for the skirt and collar if the bends matter in motion.
 - M4, the switch (plan):
   1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
      above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
