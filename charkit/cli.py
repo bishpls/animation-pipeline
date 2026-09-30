@@ -276,6 +276,8 @@ def _build(args):
     spec_path = args[0]
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     name = json.load(open(spec_path))['name']
+    import time
+    t_build = time.time()
     print('CHARKIT_THREADS %s' % (os.environ.get('NUMBA_NUM_THREADS') or 'uncapped'), flush=True)
     out = _path(opt('--out', f'charkit/out/{name}'))
     os.makedirs(out, exist_ok=True)
@@ -338,8 +340,22 @@ def _build(args):
         except ValueError:
             pass
     history.append(out, name, note)
+    _cpu_line(out, t_build)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
+
+
+def _cpu_line(out, t0):
+    """the build's CPU seconds (this process and the children it waited for: its Blender; a worker's jobs aren't
+    counted), wall seconds and thread cap: CHARKIT_BUILD_CPU on stdout and OUT/build_cpu.json, so any build (not only
+    a gate's) says what it cost the machine."""
+    import resource, time
+    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    rec = {'cpu_seconds': round(a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime, 1),
+           'wall_seconds': round(time.time() - t0, 1), 'threads': os.environ.get('NUMBA_NUM_THREADS') or None,
+           'slot': 'build' if os.environ.get('CHARKIT_SLOT_HELD') else 'blender'}
+    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
+    print('CHARKIT_BUILD_CPU %s' % json.dumps(rec), flush=True)
 
 
 def _phases():
