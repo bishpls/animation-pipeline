@@ -530,10 +530,17 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
   committed defaults). The pair reproduces the gate's 14 moved checks exactly (the art checks are deterministic across
   the boxes), so the page's before and after differ only in the hair. The front's new terminator kinks (44 -> 49 marks
   in qa_artifacts.png) are at the crown under the buns and on her left at the cheek.
-- **The terminator:** `crown_trim` pulls up to 0.18 L over 442 cells and takes the pull into Rn (the shading's
-  envelope, blurred over shade_smooth 2.5 cells) blurred over only 1.5 cells, so the shading bends harder round the
-  trimmed crown than anywhere else. `crown_shade` ('shade': the pull blurred as Rn is; default 1.5 as committed).
-  Build-box builds `h4n_nocrown` (crown_trim off) and `h4n_crownshade` measure it.
+- **The terminator is the crown trim's:** a build-box build with crown_trim off (`h4n_nocrown`, body_clear on) reads
+  round 3's every hair check (terminator 2.376, per view identical): body_clear changes nothing on the default spec,
+  the crown trim makes every move, the gains and art_terminator_hair both. Not through Rn: a build with the trim's
+  pull blurred into Rn at shade_smooth's 2.5 cells (`h4n_crownshade`) reads the committed defaults' every value; the
+  shading normals don't come from Rn (shade_normals: the whole hair as one solid, closed 0.5 L and blurred 0.45 L,
+  with lock_shading 0.2 of each lock's own outer normal blended in; Rn gives only vn_env, the folds' reference). The
+  option is gone. The trim is per cell (up to 0.18 L over 442 cells) with a 1-cell blur (crown_smooth 1.0), so the
+  crown's locks carry its steps and a fifth of their normals shows them. `crown_smooth` 2.5 and 4 on the build box
+  (`h4n_cs25`, `h4n_cs4`) and in the lab (f4).
+- **Review page:** `charkit/out/h4n_page/index.html` (`tools/hair4/page.py`, table in charkit/out/h4lab/page_table.json;
+  lab pictures from 'built' on both render builds, charkit/out/h4lab/page/).
 - **Why the shell samples fold more (next step 2), measured** (`tools/hair4/foldlab.py BUILD OUT [--fine]`: the pieces
   from the mesh's vertices and from the shell's samples, then with the chart's fields swapped between the two right
   after mass_fields; per lock the folds with where, every view's shards with where, the partition's differing cells):
@@ -558,4 +565,18 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
   front to back), blocks behind the eyes, and thin fins on the side locks' and lower back's outer edges that the mesh's
   blur erases. hull_samples keeps each such point where it is (the field too flat to settle), so the "shell samples"
   were not the surface the mesh is cut from. `hull_samples(flat='drop')`, samples 'shell_smooth': the settled samples
-  only.
+  only (lab f3, foldlab fold3 with `--b shell_smooth`):
+
+  | h4m_base, committed defaults | mesh (default) | shell | shell_smooth |
+  |---|---|---|---|
+  | folds (flyaways) | 5 (0) | 16 (4) | 5 (0), all side_lock_R |
+  | fragments f/3q/p/b | 11/12/8/11 | 10/13/16/8 | 7/15/14/19 |
+  | hair_bun_outline (front, profile) | 0.437 (0.472, 0.376) | 0.440 (0.483, 0.362) | 0.412 (0.475, 0.298) |
+  | buns / upper back / side locks / bangs / lower back | 0.846 / 0.771 / 0.547 / 0.759 / 0.703 | 0.844 / 0.777 / 0.542 / 0.757 / 0.714 | 0.851 / 0.780 / 0.559 / 0.760 / 0.703 |
+  | steps pf/pl/3ql/bl | 0.5 / 1.26 / 1.84 / 0.0 | 0.47 / 1.2 / 1.45 / 0.33 | 0.0 / 0.0 / 1.03 / 0.0 |
+
+  The settled samples fold as the mesh does (the flyaways' 4 folds went too: the inner walls pulled their mid-plane),
+  and five of the checks improve, but not every one: the profile's fragments 8 -> 14 (bangs 7: the envelope; with the
+  mesh's envelope 1), the back's 11 -> 19 (side_lock_R 10: one lock's thin strip along the lower back's edge, the
+  partition), and the bun outline in profile 0.376 -> 0.298 (the bun's points: dropping the unsettled points thins
+  the buns' too). With the mesh's partition the side_lock_R folds go (5 -> 1). Not the default; behind the setting.

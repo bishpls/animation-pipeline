@@ -628,7 +628,7 @@ def drawn_head_top(masks, name, mirror, er, tol_px=0, drawn=False):
 
 def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smooth=1.0,
                names=(('profile', 90.0, False), ('profile', 270.0, True), ('front', 0.0, False),
-                      ('back', 180.0, False)), drawn=False, shade=1.5):
+                      ('back', 180.0, False)), drawn=False):
     """the crown lowered to the drawn crown (hair round 4: in profile our crown stood above the drawn one, the visual
     hull's union of head and bun where the profile draws the bun over the crown, which carve_under_buns (front and
     back) leaves; the crown's cover made it a solid band, upper back -0.015). Per cell within th_max of the crown, in
@@ -636,9 +636,7 @@ def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smoo
     the envelope point projects above the drawn head's top edge in its column (drawn_head_top, less margin L), its
     radius is drawn in along its ray until it projects onto the edge, never below `floor` (per cell: the skin's
     clearance, as side_lock_trim's). The pull is the most any view asks, smoothed over `smooth` cells (never less
-    than a cell's own). F['R'] and F['Rn'] take it, the shading's envelope blurred over `shade` cells (Rn is the
-    envelope blurred over shade_smooth: a sharper pull there bends the toon terminator round the trimmed crown);
-    F['crown_trim'] counts. -> F."""
+    than a cell's own). F['R'] and F['Rn'] take it; F['crown_trim'] counts. -> F."""
     from scipy.ndimage import gaussian_filter
     ch, G = F['chart'], F['grid']
     R = F['R']
@@ -683,7 +681,7 @@ def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smoo
     if D.any():
         Ds = np.maximum(D, gaussian_filter(D, smooth, mode=('wrap', 'nearest')))
         F['R'] = R - Ds
-        F['Rn'] = F['Rn'] - gaussian_filter(Ds, shade, mode=('wrap', 'nearest'))
+        F['Rn'] = F['Rn'] - gaussian_filter(Ds, 1.5, mode=('wrap', 'nearest'))
     return F
 
 
@@ -2026,8 +2024,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         cfloor = np.where(np.isfinite(Sk), Sk + o['gap'] * L + style['tip_thick'] * L +
                           LAYER['upper_back'] * style['inset'] * L, F['R'] - 0.1 * L)
         crown_trim(F, masks, views, hull_frame, cfloor, o.get('crown_margin', 0.0), o['crown_th'],
-                   o.get('crown_smooth', 1.0), drawn=o.get('crown_edge', 'bridge') == 'drawn',
-                   shade=o['shade_smooth'] if o.get('crown_shade') == 'shade' else o.get('crown_shade', 1.5))
+                   o.get('crown_smooth', 1.0), drawn=o.get('crown_edge', 'bridge') == 'drawn')
     trim = None
     # side_lock_trim (a quality fix: the hull's fill between lock and cheek out of the envelope before the locks are
     # shaped), or the clamp (Michael's call F, deferred) in its envelope mode

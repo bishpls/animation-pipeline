@@ -1,5 +1,6 @@
 """hair round 4: why the shell samples fold and shard more than the mesh's vertices. usage:
-    python tools/hair4/foldlab.py BUILD OUTDIR [OPTS_JSON] [--fine]
+    python tools/hair4/foldlab.py BUILD OUTDIR [OPTS_JSON] [--fine] [--b SAMPLES]
+--b: the samples compared with the mesh's ('shell', or 'shell_smooth' with HAIRLAB_SHELL_SMOOTH=1); named 'shell' here.
 --fine: the envelope's swap split three ways (R and Rn; reach and valid; the skin S with the body cut), shell with the
 mesh's each. Every variant's chart fields are kept in OUTDIR/fields.npz (NAME__R, __Rn, __S, __L, __Lfill, __reach).
 The pieces built from the mesh's vertices and from the shell's samples, then twice more with the chart's fields swapped
@@ -195,6 +196,9 @@ if __name__ == '__main__':
     build, out = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     fine = '--fine' in sys.argv
     argv = [a for a in sys.argv if a != '--fine']
+    SB = 'shell'                               # --b KEY: the samples set against the mesh's (hairlab.context's keys)
+    if '--b' in argv:
+        k = argv.index('--b'); SB = argv[k + 1]; argv = argv[:k] + argv[k + 2:]
     opts = json.loads(argv[3]) if len(argv) > 3 else {}
     os.makedirs(out, exist_ok=True)
     t = time.time()
@@ -203,11 +207,11 @@ if __name__ == '__main__':
     print('context %.0f s' % (time.time() - t), flush=True)
     sw = Swap()
     res, keep = {}, {}
-    plan = [('mesh', 'mesh', None), ('shell', 'shell', None),
-            ('shell_envmesh', 'shell', ('mesh', ENV)), ('shell_partmesh', 'shell', ('mesh', PART)),
+    plan = [('mesh', 'mesh', None), ('shell', SB, None),
+            ('shell_envmesh', SB, ('mesh', ENV)), ('shell_partmesh', SB, ('mesh', PART)),
             ('mesh_envshell', 'mesh', ('shell', ENV)), ('mesh_partshell', 'mesh', ('shell', PART))]
     if fine:
-        plan += [('shell_%smesh' % k, 'shell', ('mesh', v)) for k, v in FINE.items()]
+        plan += [('shell_%smesh' % k, SB, ('mesh', v)) for k, v in FINE.items()]
     for name, samples, swap in plan:
         t = time.time()
         R, fo, sh = variant(ctx, design, sw, name, samples, swap, opts)
