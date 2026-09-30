@@ -1,5 +1,31 @@
 # Garments as pieces (tool/garments)
 
+## Round 6 (2026-09-30, in progress)
+
+**Branch** `tool/body` now contains tool/garment-sampling 47b401f (on tool/hull-det 3267aea): merged at d9d9b27,
+auto-resolved (garment-sampling changed only hull_pieces, shell_points, shell_patches, STRAY and _knn_mean). The hull
+is rebuilt from the merged code in this worktree.
+
+Found so far (evaluator, default spec, notes in progress; the full write-up replaces this section at the checkpoint):
+- **The skirt's hem at the sides and back is cut short by labels, not hidden.** Per sector, where the skirt's label
+  stops, another piece carries its surface on (points within 0.12 L below at the skirt's radius): the flaps over it
+  (+-115..162 deg), the hands (+-88..98), and elsewhere `shorts`: the skirt's own dark hem band, labelled as the shorts
+  (both dark) at r 1.0-1.08 L, far outside the shorts. True hem sectors (the front, the cream panel) have 0-15 such
+  points, cut ones 40-100. `hem_cut` drops them and fills round the circle from the rest: a level hem at 1.19 L all
+  round, as drawn. The old occlusion test also dropped the centre back (the flap's profile-view labels lie below it).
+- **The skirt's axis:** about the ring's median (x +0.05, y -0.105 L) the skirt read 0.1-0.12 L lopsided; about the
+  ellipse fit's centre it is within 0.02 L left against right. `axis: midline` puts it on the hips' x (0: the band's
+  and the waist's extents are centred there; the legs' midline, 0.0107 L, is the boots'). `symmetric` mirrors the
+  hem, waist line and radius field about that plane; flap_mirror mirrors about it too.
+- **The flaps were 0.14 L short** (lowest point -3.064 against the drawn -3.19..-3.21 in every view), and the hang
+  check hid it: its reach was the drawn chain's last joint (-3.07), a skeleton's end. Remeasured against the drawn
+  piece's lowest point (854776f, registered).
+- **Michael's review of round 5:** the midriff ledge on her right is measured (body_front_skirt_overhang_*; round 5
+  reads her right 0.155 L past the band against the design's 0.08, mirror 0.15 FAIL); the leg bump in profile is
+  tool/hull-limbs' (the hull's skin at z -2.72..-2.76 runs the whole side run behind the thigh; body_profile_leg_back
+  0.099 FAIL, reported to the coordinator); the sleeves, band and shorts moved to tool/garments2.
+- clawd_mh: skirt `q` 0.6; body_*_skirt_width compares matching heights when no row is free of hands (854776f).
+
 ## Checkpoint: end of round 5 (2026-09-30). Start here.
 
 **Branch** `tool/body` in `~/animation-pipeline-body` (see `git log -1`; gated at ac461eb); it contains `pipeline-3d`

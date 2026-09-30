@@ -1621,12 +1621,11 @@
    ],
    "source": "hull",
    "under": "waistband",
-   "occluded_span": [
-    70,
-    180
-   ],
    "aline": true,
-   "clear_hands": 0.05
+   "clear_hands": 0.05,
+   "axis": "midline",
+   "symmetric": true,
+   "hem_cut": true
   },
   {
    "kind": "sleeve",
@@ -1864,12 +1863,12 @@
     0.6891,
     0.6762
    ],
-   "az": 143.8,
-   "width": 0.688,
+   "az": 128.0,
+   "width": 0.808,
    "narrow": 1.033,
    "length": 0.36,
    "train": 0.806,
-   "out": -0.224,
+   "out": -0.3,
    "sweep": 0.364,
    "source": "flap",
    "over": "skirt",
@@ -1878,8 +1877,9 @@
    "bones": 6,
    "cols": 32,
    "stair": 4,
-   "az_waist": 170.4,
-   "tip": 0.907
+   "az_waist": 175.4,
+   "tip": 0.5,
+   "trim": 0.1
   }
  ],
  "base": "code"

@@ -652,6 +652,78 @@ def _vertical_axis(P, top):
     return loft.Axis((c[0], c[1], top), (0, 0, -1), (0, -1, 0))
 
 
+def ring_axis(A, R, top, how='median'):
+    """a vertical axis down through a ring of a piece's points (a skirt's waist), from height `top`, front toward -y:
+    'median' their median x and y (_vertical_axis); 'ellipse' the centre of the axis-aligned ellipse fitted to them
+    (algebraic least squares), which a partial ring doesn't pull toward where its points crowd (the median of the
+    skirt's waist, whose front the bow and panel hide, sat 0.05 L to her left and 0.1 L forward of it: the skirt's right
+    back read 0.1 L further out than its left); 'midline' the ellipse's y on the body's midline x (the hips', 0: the
+    design is aligned on its eyes, and the band's and the waist's extents are centred on it; the legs' midline, which
+    the boots mirror about, stands 0.011 L to her left of it, and a skirt centred there jutted out past the band on her
+    left). A fit that isn't an ellipse falls back to the median."""
+    from .geom import loft
+    if how == 'median' or len(R) < 20:
+        return _vertical_axis(R, top)
+    x, y = R[:, 0], R[:, 1]
+    a, b, c, d = np.linalg.lstsq(np.c_[x * x, y * y, x, y], np.ones_like(x), rcond=None)[0]
+    if a <= 0 or b <= 0:
+        return _vertical_axis(R, top)
+    cx, cy = -c / (2 * a), -d / (2 * b)
+    if how == 'midline':
+        cx = float(bone_seg(A, 'hips')[0][0])
+    return loft.Axis((cx, cy, top), (0, 0, -1), (0, -1, 0))
+
+
+def hem_cut(ax, t, th, r, hem, others, L, gap=0.12, reach=0.08, share=0.3, min_arc=7.5):
+    """which sectors of a piece's measured hem (per sector: where its points end, `hem` over the circle's n sectors) are
+    where its label stops but its surface carries on: another piece's points (`others`) lie within `gap` L below that
+    end and within `reach` L of the piece's radius there, at least `share` of the piece's own points in the `gap` above
+    it. There the label's end isn't the hem: a flap lying over the skirt, a hand before it, or the skirt's own dark hem
+    band labelled as the shorts (both dark; at the skirt's radius, well outside the shorts'). A stretch the test keeps
+    between cut sectors narrower than `min_arc` degrees is cut too: a hem the design shows runs over a stretch, and one
+    sector the test missed in a hand's notch (0.92 L against 1.18 at the front) pinned the whole filled back.
+    -> bool per sector."""
+    n = len(hem)
+    j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
+    tq, thq, rq = ax.coords(others)
+    jq = np.clip(((thq + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
+    cut = np.zeros(n, bool)
+    for k in np.nonzero(np.isfinite(hem))[0]:
+        own = (j == k) & (t > hem[k] - gap * L) & (t <= hem[k])
+        if own.sum() < 5:
+            continue
+        rh = np.median(r[own])
+        more = (jq == k) & (tq > hem[k] - 0.02 * L) & (tq < hem[k] + gap * L) & (np.abs(rq - rh) < reach * L)
+        cut[k] = more.sum() >= share * own.sum()
+    keep = ~cut & np.isfinite(hem)
+    if cut.any() and keep.any():
+        short = int(np.ceil(min_arc / 360.0 * n))
+        k0 = int(np.argmax(~keep))                        # start the walk on a sector that isn't kept (periodic runs)
+        k = 0
+        while k < n:
+            i = (k0 + k) % n
+            if keep[i]:
+                e = k
+                while e + 1 < n and keep[(k0 + e + 1) % n]:
+                    e += 1
+                if e - k + 1 < short:
+                    cut[[(k0 + x) % n for x in range(k, e + 1)]] = True
+                k = e + 1
+            else:
+                k += 1
+    return cut
+
+
+def mirror_sectors(x):
+    """a per-sector array (sector k centred on -pi + (k + 0.5) 2pi / n; theta 0 the axis's front) averaged with its mirror
+    about the axis's front-back plane (theta -> -theta: sector k <-> n - 1 - k), NaN where both are; along the last
+    axis."""
+    x = np.asarray(x, float)
+    m = x[..., ::-1]
+    both = np.isfinite(x) & np.isfinite(m)
+    return np.where(both, (x + m) / 2, np.where(np.isfinite(x), x, m))
+
+
 def belt_hull(A, spec, hull):
     """a band round the torso lofted through the hull's points of its piece (charkit.geom.loft): rows every `step` L
     between the points' `span` percentiles of height, the section measured per angle and filled where no view shows it;
@@ -770,15 +842,21 @@ def skirt_hull(A, spec, hull):
     row by row (geom.loft, in v = 0 at the waist .. 1 at the hem, per column); `pleats` knife folds of depth `pleat` L
     deepening toward the hem on top (the hull's section can't show them: a visual hull fills folds); the front panel's
     half-width measured from the panel's points (else the spec's `panel`); with `aline`, each column never narrowing
-    toward the hem. UV and weights as skirt()'s.
+    toward the hem. `axis`: ring_axis's way to its waist ring's centre ('median', the default; 'ellipse'; 'midline').
+    `hem_cut` (True or hem_cut()'s knobs): the hem's sectors where the skirt's label stops but its surface carries on
+    (a flap over it, a hand, its dark hem band labelled as the shorts) are filled round the circle from the rest, in
+    place of the `occluders` / `occluded_span` test. `symmetric`: the hem, the waist line and the radius field averaged
+    with their mirror images about the axis's front-back plane (the design's skirt is its own mirror image). UV and
+    weights as skirt()'s.
     -> dict(verts, faces, weights, uv, panel, z_waist)."""
     from .geom import loft
     L = A['head']['L']
     P = _hull_points(hull, spec, fold=('skirt_panel',))
     top = np.percentile(P[:, 2], 99.5)
-    ax = _vertical_axis(P[P[:, 2] > top - 0.1 * L], top)
+    ax = ring_axis(A, P[P[:, 2] > top - 0.1 * L], top, spec.get('axis', 'median'))
     t, th, r = ax.coords(P)
     n = spec.get('cols', 144); rows = spec.get('rows', 16)
+    sym = bool(spec.get('symmetric'))              # the design's skirt is its own mirror image about the axis's plane
     # the hem: per sector, where the points end (a high percentile of t), filled round and smoothed
     j = np.clip(((th + np.pi) / (2 * np.pi) * n).astype(int), 0, n - 1)
     hem = np.full(n, np.nan)
@@ -786,9 +864,18 @@ def skirt_hull(A, spec, hull):
         tk = t[j == k]
         if len(tk) >= 5:
             hem[k] = np.percentile(tk, spec.get('hem_q', 97))
+    # where the skirt's label stops but its surface carries on (a flap over it, a hand before it, its dark hem band
+    # labelled as the shorts), its points' end isn't the hem: those sectors are filled round the circle from the rest
+    cut = spec.get('hem_cut')                     # True, or hem_cut()'s gap / reach / share
+    cut = None if cut is None or cut is False else cut
+    if cut is not None:
+        own = {spec.get('piece', spec['name'])} | set(spec.get('fold', ('skirt_panel',)))
+        others = [hull[k] for k in hull if k not in own and len(hull[k])]
+        if others:
+            hem[hem_cut(ax, t, th, r, hem, np.concatenate(others), L, **(cut if isinstance(cut, dict) else {}))] = np.nan
     # where a piece hangs over the skirt (the overskirt panels), the skirt's points stop at its edge, not at the hem: those
     # sectors' hems are hidden, and filled round the circle from the ones the design shows
-    for occ in spec.get('occluders', ('overskirt_panel_L', 'overskirt_panel_R')):
+    for occ in (() if cut is not None else spec.get('occluders', ('overskirt_panel_L', 'overskirt_panel_R'))):
         Po = hull.get(occ) if hull else None
         if Po is None or not len(Po):
             continue
@@ -800,6 +887,8 @@ def skirt_hull(A, spec, hull):
             ak = abs(-math.pi + (k + 0.5) * 2 * math.pi / n)
             if len(tk) >= 5 and np.isfinite(hem[k]) and np.percentile(tk, 90) > hem[k] and lo_ <= ak <= hi_:
                 hem[k] = np.nan
+    if sym:
+        hem = mirror_sectors(hem)
     hem = loft._fill_periodic(hem)
     if hem is None:
         raise ValueError('%s: too few hull points to find its hem' % spec['name'])
@@ -814,11 +903,16 @@ def skirt_hull(A, spec, hull):
         # skin showing between the band and the skirt
         low = hull_edge(hull[band], ax, q=5.0)
         top_z = lambda a: low(a) + spec.get('tuck', 0.01) * L
+    if sym:
+        top_z0 = top_z
+        top_z = lambda a: (top_z0(a) + top_z0(-np.asarray(a))) / 2
     t0_at = lambda a: top - top_z(a)
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
     F = loft.field(v, th, r, vs, nth=n, q=spec.get('q', 0.5), smooth=(1.0, 1.0), name=spec['name'],
                    prior=float(np.median(r)) if len(r) else None)
+    if sym:
+        F.R = mirror_sectors(F.R)
     if spec.get('aline'):
         # an A-line flares to its hem: each column's radius never narrows going down (a visual hull rounds the
         # hem's corners in, where the views' silhouettes cut it, and the skirt read as a bubble)
@@ -1034,8 +1128,9 @@ def flap(A, spec, hull):
 
 
 def flap_mirror(A, spec, hull):
-    """a flap as the mirror image of another (`mirror`: its name) about the legs' midline (boot_frame's), lifted clear
-    of the skirt where the skirt's side stands further out than its mirror (the rows over the skirt pushed out to its
+    """a flap as the mirror image of another (`mirror`: its name) about the skirt's plane (a `symmetric` skirt's axis;
+    else the legs' midline, boot_frame's), lifted clear of the skirt where the skirt's side stands further out than its
+    mirror (the rows over the skirt pushed out to its
     pleats' crests plus the flap's clearance, the tail carried with its hem): the flaps built each round the skirt's
     hull axis, which sits 0.14 L off the body's midline, and the right one hung 0.2 L further back than the left.
     Its chain is the mirrored chain, its bones named after it. -> flap()'s dict."""
@@ -1043,12 +1138,13 @@ def flap_mirror(A, spec, hull):
     whole = spec.get('_spec') or {}
     src = next(g for g in whole.get('garments', []) if g['name'] == spec['mirror'])
     G = flap(A, dict(src, _spec=whole), hull)
-    _, xm = boot_frame(A)
-    V = np.asarray(G['verts'], float).copy()
-    V[:, 0] = 2 * xm - V[:, 0]
     sk = next(g for g in whole.get('garments', []) if g['name'] == src.get('over', 'skirt'))
     Gs = skirt_hull(A, dict(sk, _spec=whole), hull)
     ax = Gs['axis']
+    # the plane: a symmetric skirt's own (its axis), else the legs' midline
+    xm = float(ax.o[0]) if sk.get('symmetric') else boot_frame(A)[1]
+    V = np.asarray(G['verts'], float).copy()
+    V[:, 0] = 2 * xm - V[:, 0]
     nr, n = Gs['grid']
     t, th, r = ax.coords(np.asarray(Gs['verts']))
     R = r.reshape(nr, n)
