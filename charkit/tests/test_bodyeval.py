@@ -471,6 +471,25 @@ def test_mask_loose_edges():
     assert len(bodyeval.mask_loose_edges(F, np.zeros(nx * ny, bool))) == 0
 
 
+def test_no_loose_hides_what_the_mask_leaves_in_no_face():
+    """k (infra5): the mask hides the vertices it would leave in no face, so the masked skin has no loose vertices
+    (Blender's threaded subdivision of loose geometry varies in the last bit), and changes nothing else: a loose edge
+    between two vertices that keep faces stays (its ends are the evaluator's corners)."""
+    from charkit import bodyeval, garments
+    nx, ny = 6, 5
+    F = [(y * nx + x, y * nx + x + 1, (y + 1) * nx + x + 1, (y + 1) * nx + x) for y in range(ny - 1) for x in range(nx - 1)]
+    hide = np.zeros(nx * ny, bool); hide[[8, 21]] = True               # test_mask_loose_edges' case
+    got = garments.no_loose(hide, F)
+    assert set(np.nonzero(got & ~hide)[0]) == {2, 27}                   # the border vertices both of whose faces drop
+    assert (14, 15) in {tuple(e) for e in bodyeval.mask_loose_edges(F, got).tolist()}
+    hide = np.zeros(nx * ny, bool); hide[[1, 7]] = True                 # 0's one face and 6's two drop
+    got = garments.no_loose(hide, F)
+    assert set(np.nonzero(got)[0]) == {0, 1, 6, 7}
+    kept = [f for f in F if not got[list(f)].any()]
+    assert set(np.nonzero(~got)[0]) == {v for f in kept for v in f}      # every kept vertex is on a kept face
+    assert not garments.no_loose(np.zeros(nx * ny, bool), F).any()
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

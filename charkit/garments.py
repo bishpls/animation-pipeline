@@ -2991,8 +2991,26 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             _loft.LOW_COVERAGE.clear()
         obs.append(ob)
     if hide.any():
-        mask_skin(skin, hide)
+        mask_skin(skin, no_loose(hide, A['faces']))
     return obs
+
+
+def no_loose(hide, faces):
+    """the hidden vertices plus those the mask would leave in no face (every face on them dropped: a face goes when any
+    of its vertices does): Blender's Mask keeps them, with the edges between them, as loose geometry, and its
+    Subdivision Surface evaluates loose vertices and edges on a threaded path whose last bit varies from one evaluation
+    to the next (k, docs/workstreams/infra5.md: clawd_mh's 65 loose vertices, 1 float32 ulp, 7-18 of them per read; with
+    -t 1 or no loose geometry, bit-identical). Nothing renders there. The default spec's mask leaves none (unchanged).
+    -> (N,) bool."""
+    hide = np.asarray(hide, bool)
+    if not len(faces):
+        return hide
+    cnt = np.array([len(f) for f in faces], np.int64)
+    lv = np.concatenate([np.asarray(f, np.int64) for f in faces])
+    fkeep = np.logical_and.reduceat(~hide[lv], np.r_[0, np.cumsum(cnt)[:-1]])
+    used = np.zeros(len(hide), bool)
+    used[lv[np.repeat(fkeep, cnt)]] = True
+    return hide | ~used
 
 
 def mask_skin(skin, hide):
