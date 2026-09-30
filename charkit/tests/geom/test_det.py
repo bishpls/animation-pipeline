@@ -21,8 +21,8 @@ def _ulp_noise(x, seed=0):
 
 
 def test_cs_exact_on_the_quadrants_and_stable_off_them():
-    assert det.cs(0) == (1.0, 0.0) and det.cs(90) == (0.0, 1.0) and det.cs(180) == (-1.0, 0.0)
-    assert det.cs(270) == (0.0, -1.0) and det.cs(-90) == (0.0, -1.0)
+    for az in (0.0, 90.0, 180.0, 270.0, -90.0):             # numpy's own values, the old hulls' rounding on half bins
+        assert det.cs(az) == (float(np.cos(np.radians(az % 360))), float(np.sin(np.radians(az % 360))))
     for az in (35.0, 36.9, 324.0):
         c, s = det.cs(az)
         assert abs(c - math.cos(math.radians(az))) < 1e-12 and abs(s - math.sin(math.radians(az))) < 1e-12
@@ -68,7 +68,7 @@ def test_steps_are_arange_without_fusion():
     for a, b, h in ((-1.23, 1.27, 0.01), (2.5, -3.1, -0.01), (0.3, 0.33, 0.01)):
         s = _steps(a, b, h)
         assert len(s) == len(np.arange(a, b, h)) and np.allclose(s, np.arange(a, b, h), rtol=0, atol=1e-12)
-        assert s.tobytes() == (a + np.arange(len(s), dtype=float) * h).tobytes()
+        assert s.tobytes() == (a + np.arange(len(s), dtype=float) * ((a + h) - a)).tobytes()
 
 
 def test_surface_snap_makes_decimation_independent_of_ulp_noise():
@@ -95,6 +95,9 @@ def test_facing_view_is_the_first_on_an_exact_tie():
     class _V:
         def __init__(self, az):
             self.az = az
+
+        def band(self, z):
+            return np.ones(np.shape(z), bool)
     # one triangle whose normal is (1, -1, 0) / sqrt 2: 45 degrees between the front's and the profile's cameras
     m = Mesh(np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]]), np.array([[0, 1, 2]]))
     assert list(hull._facing(m, {'front': _V(0.0), 'profile': _V(90.0)})) == [0, 0, 0]

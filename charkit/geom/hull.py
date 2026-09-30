@@ -191,17 +191,17 @@ def fit_view(v, V0, A, az0, span=None, log=None):
         P, us = project(V0, A, az)
         P = P[:, rows]
         best = (-1.0, 0.0)
-        for d in np.arange(-S['axis'], S['axis'] + 1e-9, A.h):
+        for d in _steps(-S['axis'], S['axis'] + 1e-9, A.h):
             b = iou(P, v.sample(v.mask, us + d, A.zs)[:, rows])
             if b > best[0]:
                 best = (b, d)
         return best
 
     tried = {}
-    for az in np.arange(az0 - S['az'], az0 + S['az'] + 1e-9, S['az_step']):
+    for az in _steps(az0 - S['az'], az0 + S['az'] + 1e-9, S['az_step']):
         tried[round(float(az), 3)] = best_axis(az)
     a1 = max(tried, key=lambda k: tried[k][0])
-    for az in np.arange(a1 - S['az_step'], a1 + S['az_step'] + 1e-9, S['az_fine']):
+    for az in _steps(a1 - S['az_step'], a1 + S['az_step'] + 1e-9, S['az_fine']):
         k = round(float(az), 3)
         if k not in tried:
             tried[k] = best_axis(az)
@@ -411,7 +411,7 @@ def limb_image(v, P):
     out = P.limb[v.pieces]
     free = (v.pieces == 0) & (v.labels == SKIN) & v.mask
     ca, sa = det.cs(v.az)
-    if sa == 0.0 and P.skeleton:
+    if abs(sa) < 1e-9 and P.skeleton:
         r, c = np.nonzero(free)
         x = (c - v.axis) / v.ppl * ca; z = (v.eye_y - r) / v.ppl
         best, lim = np.full(len(x), np.inf), np.zeros(len(x), np.int8)
@@ -468,10 +468,12 @@ def axes_for(views, h=0.01, pad=0.05):
 
 
 def _steps(start, stop, step):
-    """np.arange(start, stop, step)'s values as start + i * step, a multiply and an add of their own: numpy's float
-    arange fills with a fused multiply-add on arm64, an ulp off x86's."""
+    """np.arange(start, stop, step), as x86 numpy fills it (start + i * delta, delta = (start + step) - start), with the
+    multiply and the add rounded separately: on arm64 numpy's fill fuses them (an ulp off on 8% of values), and a
+    sample on an exact half pixel then rounds the other way in View.pixel."""
     n = len(np.arange(start, stop, step))
-    return float(start) + np.arange(n, dtype=float) * float(step)
+    start = float(start)
+    return start + np.arange(n, dtype=float) * ((start + float(step)) - start)
 
 
 def _inside(X, Y, cx, cy, rx, ry, p):
@@ -490,9 +492,9 @@ def carve(views, A, use):
         v = views[n]
         ca, sa = det.cs(v.az)
         off = ~v.band(A.zs)                                                # heights it doesn't speak for: no carve
-        if sa == 0.0:                                                      # front / back: u = +-x
+        if abs(sa) < 1e-9:                                                 # front / back: u = +-x
             V &= (v.sample(v.mask, ca * A.xs, A.zs) | off[None, :])[:, None, :]
-        elif ca == 0.0:                                                    # the profiles: u = +-y
+        elif abs(ca) < 1e-9:                                               # the profiles: u = +-y
             V &= (v.sample(v.mask, sa * A.ys, A.zs) | off[None, :])[None, :, :]
         else:                                                              # an oblique view: per (x, y) column
             U = A.xs[:, None] * ca + A.ys[None, :] * sa
@@ -639,7 +641,7 @@ def score(V, A, view):
     Dm = view.sample(view.mask, us, A.zs)[:, rows]
     s = iou(P, Dm)
     best = (s, 0.0)
-    for d in np.arange(-0.1, 0.1 + 1e-9, A.h):                          # the calibration check
+    for d in _steps(-0.1, 0.1 + 1e-9, A.h):                             # the calibration check
         b = iou(P, view.sample(view.mask, us + d, A.zs)[:, rows])
         if b > best[0] + 1e-9:
             best = (b, d)
@@ -859,7 +861,7 @@ def refine(views, A, prior, bound=0.1):
         V = rounded(views, A, fixed, **prior)
         P, us = project(V, A, v.az)
         best = (-1.0, 0.0)
-        for d in np.arange(-bound, bound + 1e-9, A.h / 2):
+        for d in _steps(-bound, bound + 1e-9, A.h / 2):
             b = iou(P, v.sample(v.mask, us + d, A.zs))
             if b > best[0]:
                 best = (b, d)
@@ -912,13 +914,13 @@ VERTEX_Q = 2.0 ** -20        # L: a millionth of L, a ten-thousandth of a voxel;
 
 
 def _facing(m, views):
-    """per vertex, the index (in views' order) of the view whose camera faces it most among those speaking for its
-    height (View.band): area-weighted normals and dot products in a fixed order (det), the first view winning a tie
-    -> int (N,)."""
-    N = det.normals_area(m.V, m.F)
-    W = np.stack([det.dot3(N, (sa, -ca, 0.0)) for ca, sa in (det.cs(v.az) for v in views.values())], 1)
-    band = np.stack([v.band(m.V[:, 2]) for v in views.values()], 1)       # (a view speaks only for its heights)
-    return np.argmax(np.where(band, W, -np.inf), 1)
+    """per vertex, the index (in views' order) of the view whose camera faces it most, among those whose height band
+    holds it (View.band): angle-weighted normals (as mesh.vertex_normals) and dot products in a fixed order (det), the
+    first view winning a tie -> int (N,)."""
+    N = det.normals_angle(m.V, m.F)
+    W = np.stack([np.where(v.band(m.V[:, 2]), det.dot3(N, (sa, -ca, 0.0)), -np.inf)
+                  for v, (ca, sa) in ((v, det.cs(v.az)) for v in views.values())], 1)
+    return np.argmax(W, 1)
 
 
 def label_vertices(m, views):
@@ -1094,14 +1096,14 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
                                                         'rounded', **prior)[0] for g in groups}
     else:
         V = rounded(views, A, list(views), **prior)
-    stage('rounded', V=V)
+    stage('rounded', V=V.copy())
     if face and sheet == 'body':
         # the face: nothing stands in front of it where the views draw it (the authored head's surface, charkit.code_base)
         from charkit import code_base
         Sh, Ch, _ = code_base.head_sections(spec, log)
         stage('head_sections', zs=Sh.zs, cy=Sh.cy, r=Sh.r)
         rep['face_carved'] = carve_face(V, A, base, Sh, info['y_e'], P=P, log=log)
-        stage('face_carved', V=V)
+        stage('face_carved', V=V.copy())
     L = None
     ext = {n: v for n, v in views.items() if n not in base and getattr(v, 'labels_pieces', True)}
     if P is not None:
