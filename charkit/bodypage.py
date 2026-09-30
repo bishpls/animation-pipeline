@@ -33,7 +33,8 @@ def save_body(spec, path, log=print):
     H = Hull(os.path.dirname(hull_path))
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
     sk = skeleton(graph)
-    B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'))
+    B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'),
+             shoulder=(spec.get('body') or {}).get('shoulder'))
     T_ = B['torso']
     ax, F = T_['ax'], T_['F']
     TT, TH = np.meshgrid(F.ts, F.th, indexing='ij')
@@ -188,7 +189,8 @@ def main(args):
     H = Hull(os.path.dirname(hull_path))
     graph = json.load(open(os.path.join(os.path.dirname(masks), 'outfit_graph.json')))
     sk = skeleton(graph)
-    B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'))
+    B = body(H, sk, drawn=drawn_extents(graph), drawn_back=drawn_extents(graph, 'back'),
+             shoulder=(spec.get('body') or {}).get('shoulder'))
     T = B['torso']
     rep = {'out': measure(H, T, sk), 'measured_rows': [round(float(x), 3) for x in T['measured']],
            'rows': [round(float(z), 3) for z in T['rows']],
