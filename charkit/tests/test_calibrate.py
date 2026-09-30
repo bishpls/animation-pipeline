@@ -103,10 +103,16 @@ def _bow_pair():
                                'verdict': 'new'},
                               {'check': 'piece_bow', 'base': [0.696, 'WARN'], 'cand': [0.735, 'WARN'], 'verdict': 'value'},
                               {'check': 'art_outline_collar', 'base': [0.743, 'PASS'], 'cand': [0.742, 'PASS'],
-                               'verdict': 'value'}],
+                               'verdict': 'value'},
+                              {'check': 'bow_front_loop_width', 'base': [None, None], 'cand': [0.002, 'PASS'],
+                               'verdict': 'new'}],
            'twobytwo': {'rows': [{'check': 'bow_profile_ribbon', 'base': None, 'old_on_new': None,
                                   'new_on_old': [0.8684, 'FAIL'], 'cand': [0.0789, 'PASS'], 'old': None,
-                                  'new': 'improved', 'accepted': False}]}}
+                                  'new': 'improved', 'accepted': False},
+                                 # (read on both geometries and no better: not an improvement, though it's new)
+                                 {'check': 'bow_front_loop_width', 'base': None, 'old_on_new': None,
+                                  'new_on_old': [0.0, 'PASS'], 'cand': [0.002, 'PASS'], 'old': None, 'new': 'value',
+                                  'accepted': False}]}}
     return rep, qa_a, qa_b
 
 

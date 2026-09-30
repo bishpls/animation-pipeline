@@ -16,6 +16,22 @@ anti-gaming guard; (4) recorded acceptance of a named new FAIL; (5) the process 
 - The known-bad store (local, hard links, gitignored): `charkit/out/calib/builds/{g3_render3,co_render,hl_base,
   look5_before}`; what each is: `charkit/calib/known_bad/NAME.json`.
 
+## Running at the last checkpoint, and next steps
+
+- Box gate A: `remote gate tmp/calib-bow --into 3ebc3fb --code tool/calib` (tmp/calib-bow = cbca3ad; gate code 9b4f17b);
+  log `charkit/out/calib/gateA_bow.log`. Expected FAIL: the anti-gaming guard on bow_front_bleed, bow_front_loop_end,
+  bow_profile_ribbon (piece_bow profile 0.553 -> 0.341, -38%), and no calibration record for the collar_flags checks.
+  (9b4f17b also counted bow_front_loop_width as improved "new, no old-geometry reading" though the 2x2 read it on both
+  geometries; fixed after: a 2x2 row decides.) Offline check: `python charkit/out/calib/harness/bow_pair.py` (FAIL, the
+  same blocks, 0.05 s).
+- Box gate B: `remote gate tmp/calib-bow-accept --into 3ebc3fb --code tool/calib` (59f5b7e = cbca3ad + the 9 records +
+  validation-only acceptances of the three guard-blocked bow checks, never merged); log `charkit/out/calib/gateB_accept.log`.
+  Expected: the guard blocks reported under "Accepted by name"; records found; collar_back_iou (blind) and
+  collar_back_lay (miscalibrated) still block on their verdicts.
+- The art_* records: `charkit/out/calib/run_art.log` (the Art adapter; the head sheet moved after refcheck.at_scale).
+- Then: pregate, `python -m charkit remote gate tool/calib --into pipeline-3d`, the review page
+  (`python charkit/out/calib/harness/page.py` -> charkit/out/calib/review/index.html).
+
 ## How it works
 
 `python -m charkit calibrate CHECK[,CHECK] [--build DIR]` runs the check's QA part (this tree's code) on:

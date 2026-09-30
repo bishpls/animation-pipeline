@@ -544,9 +544,10 @@ def improvements(rep, qa_a, qa_b, is_flag):
     out, seen = [], set()
     for r in (rep.get('twobytwo') or {}).get('rows') or ():
         a, b = r.get('new_on_old'), r.get('cand')
-        if a and b and _better(r['check'], a, b, None):
-            out.append(dict(check=r['check'], how='the new measure on both geometries', **{'from': a, 'to': b}))
-            seen.add(r['check'])
+        if a and b:
+            seen.add(r['check'])                # (it has an old-geometry reading: improved or not, that decides)
+            if _better(r['check'], a, b, None):
+                out.append(dict(check=r['check'], how='the new measure on both geometries', **{'from': a, 'to': b}))
     R = None
     for r in rep.get('qa') or ():
         k = r['check']
