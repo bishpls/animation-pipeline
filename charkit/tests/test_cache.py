@@ -340,3 +340,21 @@ if __name__ == '__main__':
         for k, f in list(globals().items()):
             if k.startswith('test_'):
                 f(); print('ok', k)
+
+
+def test_unshare_breaks_hard_links_without_touching_the_other_copy(tmp_path):
+    """a worktree seeded with `cp -al` shares outputs by link; unshare gives this side its own copy (same content), so a
+    rewrite here leaves the other worktree's file alone."""
+    import os
+    from charkit import cache
+    a, b = tmp_path / 'wt_a' / 'hull', tmp_path / 'wt_b' / 'hull'
+    a.mkdir(parents=True); b.mkdir(parents=True)
+    (a / 'hull.npz').write_bytes(b'original')
+    os.link(a / 'hull.npz', b / 'hull.npz')
+    (b / 'own.json').write_text('{}')
+    assert cache.unshare(str(b)) == 1
+    assert os.stat(b / 'hull.npz').st_nlink == 1 and (b / 'hull.npz').read_bytes() == b'original'
+    with open(b / 'hull.npz', 'wb') as f:          # a writer that truncates in place, as np.save does
+        f.write(b'rebuilt')
+    assert (a / 'hull.npz').read_bytes() == b'original'
+    assert cache.unshare(str(b)) == 0 and cache.unshare(str(tmp_path / 'missing')) == 0

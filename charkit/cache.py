@@ -82,6 +82,30 @@ class _Absent:
 ABSENT = _Absent()
 
 
+def unshare(path):
+    """give every regular file under path (a directory or one file) that is hard-linked elsewhere (st_nlink > 1) its own
+    copy, in place and atomically (copy, then os.replace), so writing it can't change another worktree's. Worktrees
+    seeded with `cp -al` share outputs by link, and a writer that opens an existing file ('wb', shutil.copyfile, np.save)
+    writes through the link: a produced hull rebuilt in one worktree silently replaced it in four others
+    (2026-09-29). Readers holding the old file keep it. -> the number of files unshared."""
+    if not os.path.exists(path):
+        return 0
+    files = [path] if os.path.isfile(path) else [os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs]
+    n = 0
+    for f in files:
+        try:
+            st = os.lstat(f)
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink < 2:
+            continue
+        tmp = f + '.unshare.tmp'
+        shutil.copy2(f, tmp)
+        os.replace(tmp, f)
+        n += 1
+    return n
+
+
 # ------------------------------------------------------------------------------------------------------------ hashing
 def digest(x, facet=None):
     """an exact, typed, order-keeping hash of a value (equal digests: equal values). Blender objects by their full state

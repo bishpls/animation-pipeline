@@ -35,16 +35,24 @@ def studio():
 
 
 def render_view(cam, target, az, dist, height, path, lens=50, ortho=None):
+    """a still from azimuth az (degrees, 0 in front of her), `dist` out and `height` up from the target, in the style's
+    look for that view (charkit.shade.set_view: its light, and its outlines' width at this view's scale)."""
     import bpy
     from mathutils import Vector
+    from . import shade
     a = math.radians(az)
     eye = Vector(target) + Vector((math.sin(a) * dist, -math.cos(a) * dist, height))
     d = (Vector(target) - eye).normalized()
     cam.location = eye; cam.rotation_mode = 'QUATERNION'; cam.rotation_quaternion = d.to_track_quat('-Z', 'Y')
+    r = bpy.context.scene.render
+    big = max(r.resolution_x, r.resolution_y)
     if ortho:
         cam.data.type = 'ORTHO'; cam.data.ortho_scale = ortho
+        m_per_px = ortho / big
     else:
         cam.data.type = 'PERSP'; cam.data.lens = lens
+        m_per_px = (Vector(target) - eye).length * cam.data.sensor_width / lens / big
+    shade.set_view(az, m_per_px, r.resolution_y)
     bpy.context.scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
 
