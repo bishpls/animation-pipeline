@@ -61,7 +61,7 @@ hand; the legs and boots below the shorts):
 4. **Determinism.** Integer image ops (scipy `label`, `binary_dilation`, the EDT's feature transform), IEEE `+ − × ÷`
    in a fixed order, `_round` (floor of x + 0.5) for interpolated grid indices, `det.cs` untouched.
 
-## Results
+## Results (with the no-TRELLIS masks `bc0f48dc`: see PAUSED below)
 
 Hull pair on the box, validated (before tool/hull-det 24fa199; after, that plus this fix):
 
@@ -129,6 +129,55 @@ outline the truth gives to the skirt. Legs: z −2.73 (×2), the thigh's outline
 - `band_hull` (and likely `sleeve_hull`) should take only points within reach of their bone.
 - The hull-det stages hook stores `rounded`'s V by reference, so its hash is the face-carved V's (`carve_face` edits
   it in place); copy it at the stage.
+
+## PAUSED (2026-09-30, coordinator's request): state and next steps
+
+**Read this first when resuming.** Head `tool/hull-limbs` (the SHA in the pause reply). Worktrees: this one and
+`~/animation-pipeline-hlbase` on `tmp/hull-limbs-base` = 562bfe2, the exact before (this branch at de6c007 with the
+three hull commits 6626176, f2cfa0f, de6c007 reverted; it lacks e803c34 too, which only touches the fix).
+
+**The numbers above were measured with the wrong outfit masks.** Both worktrees lacked `charkit/out/i3d` locally, and
+`infra/gcp/build.sh sync` (rsync `--delete`, `charkit/out/i3d/***` included) deletes the box copy's seeded i3d when
+the laptop has none, so the outfit masks were built without the TRELLIS field (`i3d/ext/runA/clawd_3dstyle_s1_field.npz`,
+read by `outfit.find_field`). That gives mask set `bc0f48dc…` instead of `074d9a3f…`, and the masks' stamp doesn't
+include the field, so nothing rebuilds. On the box, every copy without the field has `bc0f48dc` (accessories,
+artifacts, bis0122617, bis42df0c8, defspec, face-base, hdbase, hulldet, loft, mouth) and every copy with it has
+`074d9a3f`; the gate clones link i3d, so gates and production use `074d9a3f`. With `bc0f48dc`, the profile's arm
+pieces sit on the skirt panel and the bow, and clawd_body fails at `sleeve_L`/`cuff_L` on pipeline-3d and
+tool/hull-det: the inputs, not the code. Fixes for other owners: sync shouldn't delete a box copy's i3d the laptop
+lacks; the masks' stamp should cover the TRELLIS field.
+- The fix itself still stands (it made the `bc0f48dc` case build and removed 288 of 296 borrowing arm parts there),
+  but the before/after tables must be redone with `074d9a3f`. Done since: the TRELLIS mesh and field copied (plain
+  copies, not links) into both worktrees' `charkit/out/i3d/{clawd,ext/runA}`; stale masks and hulls deleted on the
+  box; e803c34 widened the track's overlap test (a correctly labelled puff is deeper than the forearm's track: overlap
+  over the shorter of the two, and at most TRACK_ASPECT 2x the limb's front width).
+
+**Box jobs still running at the pause** (started with `scratchpad/hl/redo.sh WORKTREE TAG`: sync, a validated hull,
+then a clawd_body build; the laptop-side script fetches when done):
+- after, this worktree at e803c34: hull -> box `charkit/out/hl2/after` (+ `after_stages`, `after.log`), body ->
+  `charkit/out/hl2_body_after` (+ `.log`), then `charkit/out/hl2` and `charkit/out/clawd/outfit` fetched here.
+- before, hlbase at 562bfe2: the same under `~/animation-pipeline-hlbase/charkit/out/hl2/before`,
+  `hl2_body_before`. Its masks are `074d9a3f` (checked).
+- the clawd_body gate of a9a84a8 into pipeline-3d: report into `charkit/out/gate/` here.
+
+**Gate, default spec, a9a84a8 into 01f2cdd: FAIL**, checks worse: `hair_folds` 7 WARN -> 47 FAIL, `hair_penetration`
+0.0009 -> 0.0476 FAIL, `body_three_quarter_hair_width` 0.956 -> 0.896 WARN (report
+`charkit/out/gate/gate_tool-hull-limbs_a9a84a8_into_01f2cdd.md`). The candidate carries tool/hull-det too, so first
+attribute it: gate 562bfe2 (the before, hull-det without this fix) the same way, and compare the hair's source (the
+hull round the head and shoulders: the puffs now interpolated) before/after.
+
+**Next steps, in order:**
+1. When the two jobs land: check the masks are `074d9a3f` in both; rerun the scratchpad measurements on them
+   (`measure.py before|after HULL_NPZ` with `WT=before_tree` for before, `pageimgs.py`, `bodym.py`, `bodyalone.py`,
+   `bandcov.py`, `radii` in `mkpage.py`'s inputs) and replace the tables above. The scratchpad scripts are not
+   tracked; if they're gone, `sections(..., tracks=T)` and `LimbTrack.rejected` give every limb part's source.
+2. Attribute the default gate's hair regressions (gate 562bfe2 into pipeline-3d; if they're hull-det's, say so; if
+   they're this fix's, look at the hull's shoulders and the hair's labels there).
+3. Merge pipeline-3d (01f2cdd, infra only) and gate the head on both specs:
+   `python -m charkit remote gate tool/hull-limbs --into pipeline-3d [--spec charkit/spec/clawd_body.json]`.
+4. With real masks, recheck the wrist cuffs: with `bc0f48dc`, 31% of the hull's `cuff_L` points lay on the other arm
+   (the profile's mislabelled panel, mirrored) and `band_hull` made the cuff a forearm-long gauntlet.
+5. Regenerate the review page (`scratchpad/hl/mkpage.py` -> `charkit/out/hl/review/index.html`) and `open` it.
 
 ## Measurement tools
 
