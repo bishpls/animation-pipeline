@@ -271,13 +271,120 @@ occluders made soft and differentiated, as the contour is) comes before analytic
 that sits against the body (sleeves, collar, boots at the cuff); the distance term stays opt-in (`--dist`) for
 no-overlap cases, with length-weighted samples if it's used.
 
-## Round 4: soft occlusion (in progress)
+## Round 4: soft occlusion
 
 Coordinator's call: soft occlusion before analytic builder derivatives (the sleeve's outline is 23-54% occlusion).
-Branch at pipeline-3d 004efc3 (merged; the frozen scenes are round 3's, symlinked into `charkit/out/softras/r4`, so the
-fits compare like for like with round 3). Runs: `charkit/out/softras/r4/runs.sh` (laptop, one process), log
-`r4/runs.log`; the measurement `python -m charkit.render.softfit occ --template sleeve|flap [--weights a] --out
-charkit/out/softras/r4` -> `r4/occ_*.json` and `.log`.
+Branch at pipeline-3d 004efc3 (merged). The frozen scenes are round 3's (symlinked into `charkit/out/softras/r4`), so
+the fits compare like for like with round 3 (the scene holds its own hull; garments.py hasn't changed since).
+Runs: `charkit/out/softras/r4/runs.sh` (laptop, one process, sequential), log `r4/runs.log`, records `r4/fit_*.json`;
+measurement `python -m charkit.render.softfit occ --template sleeve|flap [--weights a] --out charkit/out/softras/r4`
+-> `r4/occ_*_g.json` and `.log`; smoothness `r4/smooth.py` -> `r4/smooth_*.json`; review `r4/review.py` ->
+**`r4/occ.html`** (summary box), view by view `r4/index_sleeve.html`, `r4/index.html` (the flap).
+
+### What it is (`softras.silhouette(..., occlusion='soft')`, opt-in; 'hard' the default, unchanged)
+
+- **Where the visible outline runs** (`softfit.boundary_kinds`, the QA's pixels, 4-neighbour pairs of a visible pixel
+  and one that isn't): *free* (the piece's own contour), *depth-order* (the occluder covers both pixels on one surface,
+  continuous in depth: where the piece passes into or behind it), *occluder edge* (the occluder's own outline over the
+  piece: fixed while only the piece moves, so its gradient is rightly 0), *other piece*. At the sleeve's start: free
+  47-78%, depth-order 7-28% (the cuffs, the bodice `top`, the collar), occluder edge 7-46%, other piece 0%. The flap:
+  free 26-99%, depth-order 0-6% (the skirt), occluder edge 0-73% (the legs, in front and three-quarter), other 0%.
+- **The depth-order edge made soft.** A covered pixel's visibility is v = k(delta / s), delta the first-order signed
+  distance (px) to where the piece's plane passes behind the occluder's: (z_occ - z) / |grad z_occ - grad z|, z and its
+  screen gradient from the covering triangle's plane, the occluder's gradient by differences on its depth image, per
+  surface (the frozen scene's object labels; the central difference where the one-sided ones agree within 20%, else the
+  smaller: a fold or an edge on one side). |grad| is floored at 0.02 and capped at 3 pixel widths of depth a pixel
+  (GMIN, GMAX). Beyond R (3 s) v is the hard 0 / 1. cov = F (the contour's) x v; the contour search runs on into the
+  soft band behind. Its derivative: d v / d delta analytic, d delta / d the triangle's corners (2D and depth) by complex
+  steps (exact to rounding), pulled back through the view's projection and its depth (`pullback_depth`).
+- **The cap (GMAX 3)**, measured: without it, edge-on contact (the flap lying on the skirt in three-quarter, surfaces
+  steeper than 100 pixel widths of depth a pixel) reads delta a few hundredths of a pixel and v about 0.5 at any
+  softness: that term's area came out 1.25-1.31% short at s 0.25-1. Caps 30 / 10 / 5 / 3: -0.97 / -0.49 / -0.30 /
+  -0.22%; the sleeve's chain against differences improved with it (at 3: 0.99-1.07x, against 0.93-1.13x uncapped).
+- **Not done**: the other piece's depth isn't differentiated when it is the occluder (0% of both pilots' outlines);
+  the band pixels outside the piece keep hard visibility at their contour point's depth, as before.
+
+### Tests (`charkit/tests/test_softras.py`, all pass)
+
+| test | result |
+|---|---|
+| gradient vs central differences, the panel cut by a tilted plane (a depth-order edge across it), soft occlusion | cosine 1.000000; median 2e-9 / 1e-8, p95 3e-8 / 4e-8 (s 1 / 0.5) |
+| a depth-only move (only the depth-order edge moves): chain against the hard IoU's differences over 2-8 px | hard occlusion 0 (the round-3 blind spot); soft at s 1 +1.7985 against +1.72-1.84 (median +1.811); at s 0.5 +2.0125 (+11%: a 0.23 px kernel aliases on one straight edge at one angle to the grid) |
+| convergence as s -> 0, soft occlusion | sum \|F - C\| 90.4, 46.3, 10.0, 0.92, 0.000 px at s 1, 0.5, 0.1, 0.01, 0.001; IoU(F >= 0.5, C) 1.0 |
+| the default (hard) | every earlier test unchanged |
+
+### The measurement before building on it (at each template's start g; `r4/occ_*_g.log`)
+
+Agreement with the QA's hard z-buffered masks at s 0.5 (hard / soft occlusion): IoU(cov >= 0.5, hard) 1.0000 /
+0.9999-1.0000 in every term, outline distance 0.000 / <= 0.003 px, area bias within 0.15% (flap three-quarter R,
+weight 0: -0.03 / -0.22%), soft IoU minus hard IoU within 0.0007 (0.0013 flap front L).
+
+The chain's dJ/dstep against differences of the soft J at 0.01 step (and of the hard J at 0.1 / 0.3 / 1 step):
+
+| knob | chain, hard occl. | soft J fd | ratio | chain, soft occl. | soft J fd | ratio | hard J 0.1 / 0.3 / 1 |
+|---|---|---|---|---|---|---|---|
+| sxp | -0.0699 | -0.0698 | 1.00x | -0.0698 | -0.0697 | 1.00x | -0.0686 / -0.0720 / -0.0706 |
+| syp | +0.0197 | +0.0157 | 1.25x | +0.0244 | +0.0245 | 0.99x | +0.0255 / +0.0248 / +0.0234 |
+| sxm | +0.0218 | +0.0407 | 0.54x | +0.0371 | +0.0370 | 1.00x | +0.0433 / +0.0364 / +0.0344 |
+| sym | +0.0146 | +0.0181 | 0.81x | +0.0178 | +0.0177 | 1.00x | +0.0187 / +0.0180 / +0.0157 |
+| taper | +0.0132 | +0.0167 | 0.79x | +0.0146 | +0.0145 | 1.00x | +0.0152 / +0.0173 / +0.0106 |
+| cap | -0.0057 | -0.0019 | 2.98x | -0.0035 | -0.0033 | 1.07x | -0.0040 / -0.0019 / -0.0013 |
+| round | +0.0100 | +0.0221 | 0.46x | +0.0151 | +0.0150 | 1.01x | +0.0215 / +0.0158 / +0.0120 |
+| flap standm (the only flap knob that moved) | +0.0429 | +0.0413 | 1.04x | +0.0406 | +0.0406 | 1.00x | +0.0372 / +0.0376 / +0.0202 |
+
+Smoothness (`smooth.py`: the soft J over +-0.1 step at 41 points, the residual RMS of a quadratic, x1e4): the sleeve
+at g, hard occlusion s 0.5 0.17-1.13, soft 0.06-0.31 (s 1: 0.04-0.15); the flap at g unchanged but standm (0.29 ->
+0.01); at the flap's far soft-occlusion endpoint e1i reads 14.5 in both modes (the builder's re-sampling, not the
+occlusion).
+
+### The pilots (`r4/fit_*.json`; laptop, one process; J the QA's hard objective; evaluations incl. 2 hard)
+
+| template | start | fit | wall s | evals | builds | J | piece L | piece R |
+|---|---|---|---|---|---|---|---|---|
+| sleeve | g | CD to convergence | 6.6 | 106 | 106 | 1.8235 | 0.932 PASS | 0.830 PASS |
+| sleeve | g | L-BFGS s 0.5, occlusion hard | 24.6 | 51 | 737 | 1.8540 | 0.925 PASS | 0.819 PASS |
+| sleeve | g | L-BFGS s 0.5, soft occlusion | 29.5 | 63 | 917 | **1.8192** | 0.932 PASS | 0.834 PASS |
+| sleeve | g | L-BFGS s 1, soft occlusion | 32.0 | 68 | 992 | 1.8218 | 0.932 PASS | 0.833 PASS |
+| sleeve | far | CD to convergence | 22.3 | 308 | 308 | 1.8254 | 0.934 PASS | 0.830 PASS |
+| sleeve | far | L-BFGS s 0.5, occlusion hard | 18.8 | 37 | 527 | 1.8382 | 0.937 PASS | 0.831 PASS |
+| sleeve | far | L-BFGS s 0.5, soft occlusion | 68.2 | 111 | 1637 | **1.8204** | 0.933 PASS | 0.831 PASS |
+| sleeve | far | L-BFGS s 1, soft occlusion | 22.6 | 41 | 587 | 1.8215 | 0.934 PASS | 0.833 PASS |
+| flap (call A) | g | CD | 13.0 | 235 | 235 | 1.0351 | 0.712 WARN | 0.818 PASS |
+| flap | g | L-BFGS s 0.5, hard | 9.5 | 38 | 686 | 1.0189 | 0.714 WARN | 0.823 PASS |
+| flap | g | L-BFGS s 0.5, soft occlusion | 18.7 | 102 | 1902 | **1.0184** | 0.714 WARN | 0.823 PASS |
+| flap | far | CD | 20.6 | 383 | 383 | 1.1238 | 0.692 WARN | 0.794 PASS |
+| flap | far | L-BFGS s 0.5, hard | 21.3 | 88 | 1636 | **1.0199** | 0.712 WARN | 0.821 PASS |
+| flap | far | L-BFGS s 0.5, soft occlusion | 22.7 | 101 | 1883 | 1.0304 | 0.709 WARN | 0.807 PASS |
+
+Per view (every fit's piece IoU per view is in the records and on the page): no view of any fit falls more than 15%
+below its start except the terms call A weighs 0 (the flap's three-quarter: L 0.034 -> 0.002-0.012, R from far 0.515
+-> 0 in every fit, CD included) and the sleeve R's three-quarter from g (0.306 -> 0.282-0.285, -7%, CD the same).
+
+Reading it:
+- **Soft occlusion fixes the sleeve.** With the depth-order edge hard the gradient fit stopped at 1.8540 / 1.8382 on a
+  biased gradient (sxm 0.965 from g against CD's 0.875); with it soft it reaches 1.8192 / 1.8204 (s 0.5) and 1.8218 /
+  1.8215 (s 1), below CD's 1.8235 / 1.8254 from both starts, at CD's point (sxm 0.86-0.88, cap 0.118-0.121, round
+  2.22-2.36 against CD's 0.85-0.875, 0.12, 2.3-2.5). Piece IoUs equal or up (sleeve R 0.830 -> 0.833-0.834).
+- **s 1 for soft occlusion.** At s 0.5 both sleeve runs ended ABNORMAL in the line search and the far run took 111
+  evaluations (68 s); at s 1 they converged (68 / 41 evaluations), 0.1% above s 0.5's J. The unit test says why: a kernel
+  narrower than a pixel aliases on a straight depth-order edge (+11% at s 0.5, within 1% at s 1).
+- **The flap (control) gains nothing**: its outline is 0-6% depth-order. From g the same point (1.0184 against 1.0189)
+  for 2.7x the evaluations (the smoother standm keeps the relative-reduction test going); from far the path took the
+  other valley (droop at its bound -0.5, first 0.42: CD's far valley of round 1) to 1.0304 against 1.0199 (both at the
+  60-iteration cap), still below CD's 1.1238. Use soft occlusion where the measurement finds depth-order edges.
+- **Wall time is now the builds.** Sleeve: builds are 26.3 of 29.5 s (89%) from g, 60.6 of 68.2 s and 19.7 of 22.6 s
+  from far: 15 builds a gradient (dV/dknob by central differences, 29 ms a build of both sleeves) against one soft
+  render and backward (~50 ms, soft occlusion +5 ms). So from g the gradient fit takes 4.5-4.8x CD's wall time for its
+  better J, and from far (s 1) the same wall time as CD.
+
+### The next step: analytic builder derivatives, yes
+
+The gradient is now unbiased on both pilots (the chain within 0.99-1.07x of the soft J's own differences on every
+knob), so what's left between it and coordinate descent is cost, and the cost is the builder: 85-90% of the sleeve's
+gradient fit, ~50% of the flap's. An analytic dV/dknob (or a builder Jacobian by forward-mode / complex step through
+the builder) removes 14 of the 15 builds a gradient; the sleeve's fit from g would take ~3.5 s against CD's 6.6, from
+far ~3 s against 22.3. Cheaper stopgaps: one-sided differences (7 builds, half; the limiter needs both sides at
+re-sampling events, which the sleeve's knobs don't have) or the builds in parallel (fitkit's Pool).
 
 ## Log
 
@@ -295,6 +402,10 @@ charkit/out/softras/r4` -> `r4/occ_*.json` and `.log`.
 - **Gate PASS** (161f9af into pipeline-3d 3a0ad37, policy K): nothing blocks, 0 items reported; no candidate build
   (6 files changed, none among the 560 the baseline build read); 70 test files, 0 failing, test_softras.py and
   test_fitkit.py among them on the build box. Report charkit/out/gate/gate_tool-softras_161f9af_into_3a0ad37.md.
+
+- **Round 4** (soft occlusion): 955a7d0 and on; measured (agreement 0.9999-1.0000 IoU against the hard masks, the
+  sleeve's chain 0.99-1.07x from 0.46-2.98x), the pilots (sleeve: the gradient fit below CD from both starts, 1.8218 /
+  1.8215 at s 1 against 1.8235 / 1.8254; flap control unchanged); page r4/occ.html. Gate: see below.
 
 ## Decisions for Michael
 

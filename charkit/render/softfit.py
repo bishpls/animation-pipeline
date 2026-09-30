@@ -296,7 +296,11 @@ class Flaps:
         """the QA's J (hard IoUs, this fit's weights), the IoUs, and the outline chamfers (L) with their weighted sum."""
         geo = self.build(x)
         J, ious, _ = self.render(geo, soft=False)
-        self.render(geo, s=0.5, chamfer=True)
+        mode, self.occlusion = self.occlusion, 'hard'       # (the chamfer read the same way for every fit)
+        try:
+            self.render(geo, s=0.5, chamfer=True)
+        finally:
+            self.occlusion = mode
         ch = dict(self.last_chamfer)
         wt = {t[0]: t[5] for t in self.terms}
         return J, ious, ch, float(sum(wt[k] * v for k, v in ch.items()))
@@ -877,14 +881,15 @@ def page(out=OUT, open_it=True, template='flap'):
                               ' '.join(f(t, y) for t, y in zip(d['t'], d['soft'])), name, 100 * d['hard_flat'],
                               d['grad']['chain'], d['grad']['hard_0.01'], d['grad']['hard_0.1'], d['grad']['hard_1']))
         sc = '<h2>The objective along each knob, round fit G\'s start</h2><div class="row">%s</div>' % ''.join(blocks)
-    doc = ('<!doctype html><meta charset="utf-8"><title>Softras flap pilot</title><style>%s</style>'
-           '<h1>Differentiable silhouettes: the flap template fitted by gradients against coordinate descent</h1>'
-           '<p>J = sum over the flap\'s QA IoUs (flap_VIEW_iou_SIDE) of VW[view] (1 - IoU); VW back 1, profile 1, front '
-           '0.7, three-quarter 0.4 (fit G\'s). J and every IoU are read on the QA\'s hard pixels; piece_* is qa3d\'s graded '
-           'piece IoU (bodymeasure.piece_shapes) over the views. Starts: g = fit G\'s own start (skirt_scratch/t8.json), '
-           'far = every knob 2-6 steps off it. Panels: rows z -1.2 .. -3.6 L; drawn only blue, ours only red, both dark. '
-           'Data: charkit/out/softras/fit_*.json, scan.json.</p><table>%s%s</table><h2>J against wall time</h2>%s%s'
-           '<h2>The fits, view by view</h2>%s' % (PAGE_CSS, th, ''.join(tr), svg, sc, ''.join(rows)))
+    wts = ', '.join('%s %g' % (t[0].replace('_iou', ''), t[5]) for t in F.terms)
+    doc = ('<!doctype html><meta charset="utf-8"><title>Softras %s pilot</title><style>%s</style>'
+           '<h1>Differentiable silhouettes: the %s template fitted by gradients against coordinate descent</h1>'
+           '<p>J = sum over the piece\'s QA IoUs (one per view and side) of its weight (1 - IoU); weights: %s. J and '
+           'every IoU are read on the QA\'s hard pixels; piece_* is qa3d\'s graded piece IoU (bodymeasure.piece_shapes) '
+           'over the views. Starts: g = the template\'s own start, far = every knob several steps off it. Panels: drawn '
+           'only blue, ours only red, both dark. Data: %s/fit_*.json.</p><table>%s%s</table><h2>J against wall time</h2>'
+           '%s%s<h2>The fits, view by view</h2>%s' % (template, PAGE_CSS, template, wts, os.path.relpath(out, ROOT), th,
+                                                       ''.join(tr), svg, sc, ''.join(rows)))
     path = os.path.join(out, 'index.html' if template == 'flap' else 'index_%s.html' % template)
     open(path, 'w').write(doc)
     if open_it:
