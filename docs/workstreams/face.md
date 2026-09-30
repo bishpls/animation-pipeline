@@ -1040,5 +1040,17 @@ Jobs:
   subdivision move plus pipeline-3d 25b1936, whose own gates moved nothing): every check's value and grade identical.
 - pre-gate (253a702 into 25b1936): PASS, 21 values moved, none blocking
   (`charkit/out/pregate/pregate_tool-face5_253a702_into_25b1936.md`; it doesn't cover the piece details or the face).
-- review page: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
+- **The chin checks, before (f5_before, pipeline-3d d60486a) and after (f5_after), both projections** (the page's
+  numbers; level graded, the boards' camera in brackets): chin_angle 128.3 (118.8) -> 128.2 (117.8), design 129.7;
+  chin_tip 0.829 (0.826) -> 0.828 (0.813), design 0.833; jaw_taper_shape 0.0193 (0.0399) -> 0.0157 (**0.0411**);
+  jaw_line_bend 4.7 (3.5) -> 4.7 (4.0); tq_cheek_hollow 0.005 (0.0034) -> 0.0056 WARN (0.0034); jaw_outline_hidden
+  0.0112 FAIL -> 0.0025 PASS. The 2x2's old measure (the boards' camera) reads jaw_taper_shape 0.0399 WARN -> 0.0411
+  FAIL on the new geometry: the widening under the locks raises w at the design's t 0 row (z -0.183), which the boards'
+  look-down narrows below it. Level it improves (0.0193 -> 0.0157). A 2x2 drop to FAIL blocks under K unless accepted:
+  for the coordinator (Michael's call 1 is the level measure).
+- Review page: `charkit/out/face_review/round5/index.html` (`face5_page.py`): design | before | after in the level
+  projection (hair shown and hidden, front, three-quarter, profile), head_construction's registered outline (green)
+  where the sheet's hair covers the face, the agreement, the chin checks in both projections, the QA diffs (base ->
+  geometry -> the subdivision move).
+- review page command: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
   --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
