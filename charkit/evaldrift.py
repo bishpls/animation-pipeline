@@ -230,8 +230,13 @@ def stages(build):
     sk = ours.get(skin.name)
     if sk is not None and skin.has('masked'):
         V1, polys = sk.subdivided(1)[:2]
-        used = np.unique(np.concatenate([np.asarray(q).ravel() for q in polys]))      # (the mask drops the rest)
-        ch['skin_evaluated'] = nearest(V1[used], skin.V('masked'), L)
+        used = np.unique(np.concatenate([np.asarray(q).ravel() for q in polys]))      # (the surface the mask leaves)
+        # Blender's Mask keeps a kept vertex whose faces it dropped (and Subsurf carries it): loose, never drawn. The
+        # surface is compared, on-face vertices on both sides; the loose ones and the all-vertex measure are reported
+        Vm = skin.V('masked')
+        on = np.zeros(len(Vm), bool); on[np.asarray(skin.a('masked', 'loopv'), np.int64)] = True
+        ch['skin_evaluated'] = dict(nearest(V1[used], Vm[on], L), loose_build=int((~on).sum()),
+                                    all_vertices=nearest(V1[used], Vm, L))
     S['character'] = ch
     from .geom.raster import Frame
     for grp, bg in (('hair', 'hair'), ('accessories', 'accessory')):
@@ -254,7 +259,8 @@ def stages(build):
     for o in B.objects(groups=('garment',), visible=False):
         p = ours.get(o.name)
         gs[o.name] = 'build only' if p is None else dict(raw=pair(p.V, o.V('raw'), L),
-                                                         evaluated=nearest(p.subdivided(1)[0], o.V('eval'), L))
+                                                         evaluated=nearest(p.subdivided(min(1, getattr(p, 'subdiv', 1)))[0],
+                                                                           o.V('eval'), L))   # (its own level: 0 without a Subsurf)
     gs.update({n: 'evaluator only' for n, p in ours.items() if p.group == 'garments' and n not in gs})
     hull = gm.hull_pieces(spec, A) if any(g.get('source') == 'hull' for g in spec.get('garments') or []) else None
     hide = bodyeval.garment_parts(A, spec.get('garments'), None, None, hull, spec)[1]
@@ -318,7 +324,12 @@ def _fmt(r):
         return 'max %.3g L (mean %.2g), %s' % (r['max_L'], r['mean_L'],
                                                'exact' if r['exact'] else 'f32 %d/%d' % (r['f32'], r['n']))
     if 'hausdorff_L' in r:
-        return 'n %d/%d, nearest-vertex max %.3g L, mean %.2g' % (r['n'], r['n_build'], r['hausdorff_L'], r['mean_nn_L'])
+        s = 'n %d/%d, nearest-vertex max %.3g L, mean %.2g' % (r['n'], r['n_build'], r['hausdorff_L'], r['mean_nn_L'])
+        if r.get('loose_build'):
+            a = r['all_vertices']
+            s += ' (on-face vertices; the build also keeps %d loose ones: with them n %d/%d, max %.3g L)' % (
+                r['loose_build'], a['n'], a['n_build'], a['hausdorff_L'])
+        return s
     return 'n %s/%s' % (r.get('n'), r.get('n_build'))
 
 

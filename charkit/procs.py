@@ -80,10 +80,76 @@ def _got(slot, label, since, why):
         pass
 
 
+HELD = 'CHARKIT_SLOT_HELD'           # set (to the holder's pid) while a build holds its slot: what it starts takes none
+
+
+class _Held:
+    """the slot a build already holds, standing in for a lock of its own (closing it releases nothing)."""
+
+    def close(self):
+        pass
+
+
+@contextlib.contextmanager
+def build_slot(label='build'):
+    """a machine-wide build slot held for the block: a whole build, its produced references, venv steps, Blender and
+    QA (only Blender took one before, and the Python stages ran unbounded: 8.3 builds at once on the 8-slot box, load
+    32.6), with CHARKIT_SLOT_HELD set meanwhile, so what it starts (its Blender, a worker's job, a build inside it)
+    doesn't wait for a second slot. Inside another's block: nothing more taken."""
+    if os.environ.get(HELD):
+        yield None
+        return
+    lock = acquire_slot(label)
+    os.environ[HELD] = str(os.getpid())
+    try:
+        yield lock
+    finally:
+        os.environ.pop(HELD, None)
+        lock.close()
+
+
+THREAD_VARS = ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS', 'BLIS_NUM_THREADS',
+               'VECLIB_MAXIMUM_THREADS', 'LP_NUM_THREADS')
+
+
+def thread_cap():
+    """the threads each of a build's pools gets (numba, BLAS, OpenMP, llvmpipe: THREAD_VARS): CHARKIT_THREADS (a
+    number, or 'off'), else on a machine of 16 cores or more a slot's share of them (max(2, min(8, cores // 8)): 4 on
+    the 32-core box, 8 slots), else None (uncapped: the laptop). Milestone A's A/B on the box: capped at 4, the same
+    wall time at 527 s of CPU against 1,313 s, outputs bit-identical: uncapped pools spin."""
+    v = os.environ.get('CHARKIT_THREADS', '')
+    if v == 'off':
+        return None
+    if v:
+        return max(1, int(v))
+    n = os.cpu_count() or 1
+    return max(2, min(8, n // 8)) if n >= 16 else None
+
+
+def thread_env(n=None):
+    """the environment that caps a process's pools at n threads (default thread_cap()), OpenMP's waits passive."""
+    n = thread_cap() if n is None else n
+    if not n:
+        return {}
+    return dict({k: str(n) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
+
+
+def cap_threads():
+    """this process and what it starts capped (thread_env), called before numpy, numba or a BLAS loads (they read these
+    once); a variable already set wins (a gate's own caps). -> the cap in force, or None."""
+    for k, v in thread_env().items():
+        os.environ.setdefault(k, v)
+    v = os.environ.get('NUMBA_NUM_THREADS')
+    return int(v) if v and v.isdigit() else None
+
+
 def acquire_slot(label='build', poll=2.0, mem=None):
     """take a machine-wide build slot once enough memory is free, waiting while all slots are held or memory is short
     -> the open lock file (keep it; closing releases). The wait is recorded (slots/wait/<pid>.json while waiting, a
-    line in slots/waits.jsonl once a slot is taken): the numbers behind the box's capacity (charkit/boxjob.py)."""
+    line in slots/waits.jsonl once a slot is taken): the numbers behind the box's capacity (charkit/boxjob.py). Inside
+    a build that holds one (build_slot: CHARKIT_SLOT_HELD) -> a stand-in: the build's slot covers it."""
+    if os.environ.get(HELD):
+        return _Held()
     os.makedirs(SLOTS_DIR, exist_ok=True)
     need = float(os.environ.get('CHARKIT_BUILD_MEM_GB', '3')) if mem is None else mem
     waited, why, wf, t0 = False, None, None, time.time()

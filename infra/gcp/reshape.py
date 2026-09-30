@@ -5,11 +5,28 @@ mounts by UUID, so it boots either way).
 
     python3 reshape.py PROJECT ZONE VM MACHINE_TYPE [GPU]      (no GPU: none attached)
 """
-import json, subprocess, sys, urllib.error, urllib.request
+import glob, json, os, subprocess, sys, urllib.error, urllib.request
 
 project, zone, vm, mt = sys.argv[1:5]
 gpu = sys.argv[5] if len(sys.argv) > 5 else ''
-tok = subprocess.run(['gcloud', 'auth', 'print-access-token'], capture_output=True, text=True, check=True).stdout.strip()
+# the gcloud config: CLOUDSDK_CONFIG (gpu-start.sh's env file exports it), else the one set by this VM's env file
+# beside this script (the box-control service account's: docs/workstreams/infra-auth.md), else the default login
+if not os.environ.get('CLOUDSDK_CONFIG'):
+    for env in sorted(glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), '*.env'))):
+        kv = {}
+        for line in open(env):
+            line = line[len('export '):] if line.startswith('export ') else line
+            if '=' in line and not line.startswith('#'):
+                k, v = line.split('=', 1)
+                kv[k.strip()] = os.path.expanduser(os.path.expandvars(v.split('#')[0].strip()))
+        if kv.get('VM') == vm and kv.get('CLOUDSDK_CONFIG'):
+            os.environ['CLOUDSDK_CONFIG'] = kv['CLOUDSDK_CONFIG']
+            break
+r = subprocess.run(['gcloud', 'auth', 'print-access-token'], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+if r.returncode or not r.stdout.strip():
+    sys.exit('reshape: gcloud (config %s) has no token: %s' % (os.environ.get('CLOUDSDK_CONFIG', 'default'),
+                                                               (r.stderr.strip().splitlines() or ['?'])[-1]))
+tok = r.stdout.strip()
 base = 'https://compute.googleapis.com/compute/v1/projects/%s/zones/%s' % (project, zone)
 
 

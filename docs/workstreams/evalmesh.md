@@ -112,13 +112,73 @@ Residuals, explained:
   No check changed, all 56 test files ok, build CPU 819.9 -> 934.6 s (1.14x), Blender and QA 315.7 -> 283.1 s.
   **M1 is mergeable at 73be408**; the commits after it are notes only.
 
+- **M2 in the evaluator** (box: a build of the merged tree `charkit/out/evalmesh/m2_clawd`, evaldrift --stages with
+  the M2 evaluator). 0 of 110 checks drift. The masked skin's subdivision went from 0.00879 L nearest-vertex (mean
+  1.4e-5) to **3.42e-6 L (mean 3.6e-7)**. The garments are unchanged, ≤ 1.1e-5 L. One new stage drift, crab_1 2.05e-4
+  L, isn't this branch's: the M1 evaluator on the same build shows it too (`m2_drift_M1evaluator.md`). It came with
+  face4's merge (the accessories sit on the hair volume, step 2's two volume ports).
+- **M3 in the evaluator** (local, the evaluator's own garment Parts against m2_clawd's bundle, per vertex one to
+  one): every piece ≤ 1.1e-5 L (the collar), all faces, windings and first corners Blender's (the old port had every
+  shell's winding inside out).
+
+- **M3 evaldrift** (box, 16c0040's evaluator on m2_clawd): 0 of 110 checks drift. The stage drift is only crab_1
+  (face4's, above). Masked skin 3.42e-6 L, garments ≤ 1.1e-5 L. Commits: M2 9ee0a9e, M3 16c0040. The gate on
+  M2 and M3 together follows: the evaluator isn't in the build's geometry, so the QA should not move.
+
+- **M4 groundwork: `evalmesh.finalize(o)`**, a recorded garment's final mesh at rest (geom.solidify, then
+  geom.subsurf with the carried weights; materials through the parents). On m2_clawd, against the build's bundle:
+  every piece ≤ 9.8e-6 L per vertex (one to one), UVs ≤ 1.2e-6 per corner, materials 100% per face, winding and
+  first corners 100%. The weights, rounded as `_object` rounds them, match Blender's own evaluated vertex groups
+  (lab, local Blender, Solidify + Subsurf) to 8e-8. The lab carries vertex groups now (`piece['groups']`). Not wired
+  into the build yet.
+
+- **Merged pipeline-3d d60486a** (garments3: call L's creased rims, the garment changes, the QA per-piece crops). One
+  conflict, bodyeval: both sides changed the evaluator's Solidify and Subdivision. Kept: this branch's exact ports
+  (geom.solidify, geom.subsurf) and `Part.solid_settings`, which already carries `edge_crease_outer/_inner/_rim` to
+  geom.solidify; its creases go to geom.subsurf as OpenSubdiv sharpness 10·c² (call L's crease 1 is sharpness 10,
+  infinitely sharp). Kept from garments3: `Part.subdiv = 0` for a piece built without a Subdivision Surface, and the
+  QA's `min(level, subdiv)`. garments3's hand-rolled `sharp=`/`with_sharp` in the old ports went with them;
+  `test_creased_rims_stay_flat_and_square` now runs on the exact API with the same assertions (24 loop edges, no cross
+  edge, crease 1 infinitely sharp, every vertex at z 0, t/2 or t, 48 child sharp edges, uncreased a bead) and checks
+  the evaluator's wrapper gives the same mesh.
+- The lab gained a garment shell (`grid_shell`, `grid_shell_rim_creased`: Solidify 0.08, then Subsurf, UVs with a
+  seam). Against local Blender: 1.0e-6 / 9.9e-7 L, all 232 faces, windings and first corners equal, UVs 3.3e-7.
+  garments3's port gives the same positions there (9.9e-7 L: crease 1 is level-independent); it differed in winding.
+- **Gate on the merge: PASS under K** (f35db5a into d60486a; `charkit/out/gate/gate_tool-evalmesh_f35db5a_into_d60486a.md`):
+  0 items, no check changed, 64 test files ok, build CPU 717.8 -> 827.2 s (1.15x). Superseded by the fixes below.
+- **evaldrift --stages on the merge** (box build `charkit/out/evalmesh/merged_clawd`, f35db5a): 0 of 110 checks drift,
+  but three stage rows new with garments3 (the first report kept as `drift_oldmeasure.md`):
+  - overskirt_panel_L/R evaluated: n 7526 against 2072. The panels have no Subsurf (garments3's `Part.subdiv = 0`);
+    evaldrift subdivided every garment once. Fixed in evaldrift (each Part at its own level, as the QA's Geometry
+    does). Then 0.01 L, n equal: a real miss, below.
+  - the masked skin: n 49156 against 49251, 0.199 L. Blender's Mask keeps kept vertices whose faces it drops, and
+    Subsurf carries them: 95 loose vertices (44 isolated, 51 loose-edge points) under the jacket, 0.02-0.2 L from any
+    drawn vertex. evaldrift compared all of Blender's vertices with only our on-face ones. Remeasured on-face on both
+    sides, the loose count and the all-vertex measure still in the row. Then 0.0107 L, n equal: a real miss, below.
+- **Solidify, a loose vertex** (the template flaps' panels have 126): Blender's vertex normal has a fallback. Where the
+  angle-weighted sum has no length, the normalised position. The copy moves t along it (measured to 1.2e-7 L; ours
+  left it in place: exactly t = 0.01 L off). `geom.solidify.vertex_normals` takes the fallback: the panels 0.01 ->
+  5.7e-7 L, vertex order identical, every face, winding and first corner equal.
+- **Subsurf after the Mask, loose edges** (51 on the masked skin): Blender's subdiv converter marks both ends of a loose
+  edge infinitely sharp, so a face vertex with a dangling edge subdivides as a corner. The evaluator's masked skin takes
+  them as vertex creases (`bodyeval.mask_loose_edges`, `mask_corners`; `Part.corners`): 0.0107 L -> 3.1e-6 L (mean
+  3.4e-7) against the bundle. The lab: pieces take `loose_edges` (Blender gets them through bmesh: `edges.add` crashes
+  5.2 on the skin), compared on-face; `grid_loose_edge` 9.2e-7 L (0.039 L without the rule), level 2 1.3e-6,
+  `grid_shell_loose_vertex` 9.8e-7; `skin_masked` with the Mask's loose edges 3.1e-6 L against local Blender.
+
+- **evaldrift --stages at 1939469** (merged_clawd, the box): 0 of 110 checks drift. Stage drift: only crab_1
+  (2.05e-4 L, face4's, above). Masked skin 3.8e-6 L on-face (n 49156/49156; the build's 95 loose vertices reported,
+  0.199 L with them), overskirt panels 5.6e-7 L, every garment ≤ 1.2e-5 L (the collar).
+- **Gate: PASS under K** (1939469 into pipeline-3d 4007276, infra3 run 3; report
+  `charkit/out/gate/gate_tool-evalmesh_1939469_into_4007276.md`): 0 items, no check changed, 65 test files ok, build
+  CPU 758.7 -> 751.6 s (0.99x). 4007276 merges into the branch cleanly (the gate's own merge). **M2+M3 mergeable at
+  1939469**; the commits after it are notes only.
+
 ## Next
-- M2 and M3 in the evaluator: `bodyeval.subdivide` delegates to `charkit/geom/subsurf.py` (Part.subdivided runs all
-  levels at once, the skin's eye margins creased: `skin_creases`). `bodyeval.solidify` and Part.subdivided go through
-  `charkit/geom/solidify.py`, with the recorded settings (SOLID_SETTINGS) and the creases it leaves. Measured by
-  evaldrift --stages on a box build of the same tree (`charkit/out/evalmesh/m2_clawd`).
+- Waiting on the coordinator's merge and go-ahead for M4.
 - M4, the switch (plan):
-  1. Garments first; they're already a venv product. After `garments_geom` records build(), a venv pass gives each
+  1. Garments first; they're already a venv product. The mesh content is done and measured (`evalmesh.finalize`,
+     above). What's left is wiring it into the product. After `garments_geom` records build(), a venv pass gives each
      `_object` its final mesh at rest: geom.solidify then geom.subsurf at the modifier's `levels` (garments: 1 for
      viewport and render). Polygons come as (loopv, counts), per-corner UVs from subsurf, mat_idx through `parent`,
      and weights copied to the Solidify copies and carried linearly through Subsurf, as Blender carries vertex data.
