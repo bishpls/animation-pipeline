@@ -234,7 +234,7 @@ OVERLAYS = [
     ('scalp_px', ['qa/qa_scalp_front.png']), ('hair_noise', ['sheet_views.png']), ('poke_share', ['sheet_body.png']),
     ('face_folds', ['sheet_face.png']), ('face_*', ['sheet_face.png']), ('body_*', ['qa/qa_sheet_body.png', 'sheet_body.png']),
     ('expr_*', ['qa/qa_sheet_expr.png', 'sheet_face.png']), ('palette*', ['qa/qa_sheet_palette.png']),
-    ('figures_*', ['qa/qa_sheet_figures.png']),
+    ('figures_*', ['qa/qa_sheet_figures.png']), ('acc_*', ['qa/qa_accessories.png', 'qa/qa_accessories_body.png']),
 ]
 
 
@@ -292,6 +292,7 @@ SECTIONS = [
     ('palette_orange_*', ['garments', 'outfit']), ('palette_cream_*', ['garments', 'outfit']),
     ('palette_dark_*', ['garments', 'outfit']), ('palette_white_*', ['garments', 'outfit']),
     ('palette*', ['garments', 'outfit', 'accessories', 'skin', 'hair_colors', 'iris']),
+    ('acc_*', ['accessories']),
 ]
 
 

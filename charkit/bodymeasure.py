@@ -45,10 +45,24 @@ def _png(path):
     return (np.asarray(Image.open(path).convert('RGBA'), np.float32) / np.float32(255)).astype(float)
 
 
+def _clip_grids(spec, eye_x, ppl):
+    """the design's hair clips (charkit.accqa.design_all: the head and body turnarounds) as masks on the design grids
+    at ppl, or None (no clip pieces or sheets)."""
+    from . import accqa, cache
+    clips = accqa.design_all(spec, eye_x, memo=cache.venv_memo)[0]
+    return accqa.grid_masks(clips, ppl) if clips else None
+
+
 class Sheet:
     """the design's model sheet measured once, as qa3d._sheet_context and qa3d.sheet_body read it: its scale (the front
     figure's height against the rig's), the figures, the three-quarter's angle, the design's views as class images
-    (bodyqa.design_views) and its palette (paletteqa.extract_views). spec: the resolved spec (bodyeval.resolve)."""
+    (bodyqa.design_views, the hair clips in the accessory class: charkit.accqa.reclass) and its palette (paletteqa.extract_views). spec: the resolved spec (bodyeval.resolve)."""
+
+    def _reclass(self, spec, design):
+        """the drawn hair clips in the accessory class, as qa3d.Design.design_views has them (charkit.accqa)."""
+        from . import accqa
+        g = _clip_grids(spec, self.eye_x, self.ppl)
+        return accqa.reclass(design, g) if g else design
 
     def __init__(self, spec):
         from . import bodyqa, eyes as eyelib, paletteqa, refs, sheetqa
@@ -68,7 +82,7 @@ class Sheet:
             te = self.D['figures'].get('three_quarter', {}).get('eyes') or []
             self.az3 = round(float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * self.eye_x * self.ppl), 0, 1))))
                              if len(te) == 2 else 35.0, 1)
-            self.design = bodyqa.design_views(self.rgb, self.D, self.ppl)
+            self.design = self._reclass(spec, bodyqa.design_views(self.rgb, self.D, self.ppl))
             self.palette = paletteqa.extract_views(self.design)
             self.caution = None
             return
@@ -87,7 +101,7 @@ class Sheet:
         te = self.D['figures'].get('three_quarter', {}).get('eyes') or []
         self.az3 = round(float(np.degrees(np.arccos(np.clip(abs(te[1][0] - te[0][0]) / (2 * self.eye_x * self.ppl), 0, 1))))
                          if len(te) == 2 else 35.0, 1)
-        self.design = bodyqa.design_views(self.rgb, self.D, self.ppl)
+        self.design = self._reclass(spec, bodyqa.design_views(self.rgb, self.D, self.ppl))
         self.palette = paletteqa.extract_views(self.design)
         self.caution = None
         if self.ppl_eyes:

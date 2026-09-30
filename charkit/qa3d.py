@@ -509,10 +509,25 @@ class Design:
         return self._keep(key, got if 'why' in got else dict(got, source=self.ref()['sheet']['image']), files)
 
     def design_views(self):
-        """the design's full figures cut and classified (charkit.bodyqa.design_views)."""
-        from . import bodyqa
+        """the design's full figures cut and classified (charkit.bodyqa.design_views), the hair clips in the accessory
+        class (charkit.accqa.reclass: the drawn clips found as the outfit graph's pieces, as ours are by object)."""
+        from . import accqa, bodyqa
         ctx = self.sheet_context()
-        return self.memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
+        dv = self.memo(bodyqa.design_views, ctx['rgb'], ctx['D'], ctx['ppl'])
+        clips = self.clips()
+        return accqa.reclass(dv, accqa.grid_masks(clips[0], ctx['ppl'])) if clips else dv
+
+    def clips(self):
+        """the design's hair clips per sheet (charkit.accqa.design_all: the head turnaround's and the body's) ->
+        (designs, pieces) or None (no clip pieces in the outfit graph, or no sheets)."""
+        key = ('clips', self.B.assembly['eye_knobs']['x'], json.dumps(self.ref(), sort_keys=True, default=str))
+        got = self._kept(key)
+        if got is not None:
+            return got or None
+        from . import accqa
+        D, P, files = accqa.design_all(self.B.spec, self.B.assembly['eye_knobs']['x'],
+                                       load=lambda p: self.rgba(p)[..., :3].astype(float), memo=self.memo)
+        return self._keep(key, (D, P) if D else (), files) or None
 
     def sheet_measures(self):
         """charkit.sheetqa.measure_sheet on the sheet's own float32 pixels, at the rig-matched scale -> (D, ppl) or
@@ -713,7 +728,8 @@ def scene_classes(B):
     """every visible surface of the character as triangles with a model-sheet class each (charkit.bodyqa.CLASS), by
     object: the skin (its garment mask on: what the clothes hide stays hidden) by material (skin, the mouth's cavity and
     the eye line as line), the eye plates (iris where its texture is opaque, the sclera white), lashes and brows as line,
-    the teeth white, the hair, accessories and garments by their colour family (an orange accessory sits in the hair).
+    the teeth white, the hair, the garments by their colour family, the accessories their own class (charkit.accqa:
+    as the design's drawn clips are; one of the hair's material is hair).
     -> ([(V, T, labels)], {class: (lit (n, 3), shade (n, 3), area (n,))}) (the colours per class for the palette).
     Made once per bundle (the body, the palette and the pieces read it)."""
     return B.memo('scene_classes', lambda: _scene_classes(B))[:2]
@@ -725,8 +741,14 @@ def scene_objects(B):
     return got[0], got[2]
 
 
+def _hair_material(B, o):
+    """is an object's main material the hair's (a bun built as an accessory)?"""
+    m = next((x for x in o.materials if x), '') or ''
+    return m.split('.')[0] in ('hair', 'hair_shape')
+
+
 def _scene_classes(B):
-    from . import bodyqa
+    from . import accqa, bodyqa
     CL = bodyqa.CLASS
     meshes, cols, names = [], {}, []
 
@@ -761,7 +783,10 @@ def _scene_classes(B):
     for o in _visible(B, ('hair',)):
         put(o, lambda mi, c, a: np.full(len(mi), CL['hair']))
     for o in _visible(B, ('accessory',)):
-        put(o, lambda mi, c, a: np.where(bodyqa.family(c) == CL['orange'], CL['hair'], bodyqa.family(c)))
+        # an accessory is its own class (charkit.accqa.ACCESSORY), as the design's drawn clips are; one made of the
+        # hair's material (a bun built as an accessory) is hair
+        c_ = CL['hair'] if _hair_material(B, o) else accqa.ACCESSORY
+        put(o, lambda mi, c, a, c_=c_: np.full(len(mi), c_))
     for o in _visible(B, ('garment',)):
         put(o, lambda mi, c, a: bodyqa.family(c))
     return meshes, {c: tuple(np.concatenate([r[i] for r in rows]) for i in range(3)) for c, rows in cols.items()}, names
@@ -1092,7 +1117,15 @@ def hair_layers_masks(B, design):
         return None
     design._rec(path)
     Z = np.load(path)
-    return {k: Z[k] for k in Z.files}
+    out = {k: Z[k] for k in Z.files}
+    # the drawn clips are no hair family (the layers take the sheet's hair class, which held the crab): ours are drawn
+    # as occluders, so the design's lose them too
+    dv = design.design_views()
+    for k, m in out.items():
+        acc = (dv.get(k.split('__')[0]) or {}).get('accessory')
+        if acc is not None and m.shape == acc.shape:
+            out[k] = m & ~acc
+    return out
 
 
 def hair_pieces_report(B, design):
