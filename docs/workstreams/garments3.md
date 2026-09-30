@@ -62,3 +62,34 @@ loops, `subdivide` and `limit_positions` treat them as sharp and pass their chil
 shell: evaluator vs Blender vertices 6e-8 m apart creased (7.6e-3 m without the evaluator's crease support), 6e-8
 uncreased. Test: `test_bodyeval.test_creased_rims_stay_flat_and_square`. The real build's flip count is measured on
 the render-box build below.
+
+## The first box build (g3_a: the three merges plus fit G, before call L)
+
+`python -m charkit evaldrift charkit/spec/clawd.json --stages --out charkit/out/g3_a` (box build, then the evaluator on
+the box). Against the latest pipeline-3d preview (1583cd6, 186 PASS / 36 WARN / 5 FAIL): 244 / 57 / 35, most of the new
+FAILs being checks new in this round (garments2's pieceqa, the skirt's skirtqa), which the gate scores on the old
+geometry too. Regressions on existing checks: `piece_collar` 0.754 PASS -> 0.342 FAIL (its **back** view 0.95 -> 0.28;
+front and three-quarter better), `piece_top` 0.595 WARN -> 0.486 FAIL (back 0.85 -> 0.58), `neck_crease` 27.6 WARN ->
+46.4 FAIL, `body_front_skirt_aline` 0 -> -0.161 FAIL, `body_profile_torso_jump_front` 0 -> 0.0565 FAIL, and two of
+Michael's flag checks (blocking under K): `art_speckle_neck` 1.289 PASS -> 2.552 WARN (profile 30.7 -> 127),
+`art_mirror_waist` 1.19 PASS -> 1.825 WARN. (That run's evaluator step synced the tree after call L's commit, so its
+stage drifts compare creased with uncreased garments: rerun on a consistent build.)
+
+### The collar's back: the body grew through its flap (code_body)
+
+Measured (scratch `depth.py`, `depth2.py`, `hullback.py`, `torsoback.py`): at the flap's heights the **skin** stood
+0.07-0.13 L further back than on garments2's build (same garment code, old masks), the jacket lifted off it, and the
+jacket then sat at the collar's own depth (within 0.007 L) and hid it. The authored body is fitted to the hull
+(code_body.torso: rows measured by the tight pieces' points). With the sheet-only masks the jacket beside the flap is
+labelled top (it had been sleeve: the old hull has no top label behind the body above z -0.91; the new one from -0.53,
+52-77 points per row at |x| 0.34-0.43), so those rows are now measured, and the per-row section carried them round the
+back: the torso's back at z -0.60..-0.84 went from 0.07-0.10 L inside the hull's collar surface to 0.03 L outside it.
+
+Fix (code_body, tool/body's file; the smallest change that holds): the collar joins `IN_FRONT` (depth 0.04 L: its
+thickness, the jacket's under it, a clearance), counting only its points behind the torso's axis, on the hull's
+labelled shell (the decimated mesh keeps 0-10 collar vertices near the back midline at z -0.60..-0.68), judged by the
+back view's drawn extent (`drawn_back`; the front view's extents had judged every point, which would have dropped
+the flap below -0.69). The torso's back under the flap moves in 0.03-0.11 L (z -0.56..-0.94: 0.055-0.066 L inside the
+collar's surface, garments2's body sat 0.07-0.10); nothing else moves over 6e-5 L (the front, the lapels, the bow's
+cap unchanged). Test: `test_code_body.test_the_collars_back_flap_holds_the_torso_behind_it`. The body-code step's
+cache now covers charkit.garments (shell_points).

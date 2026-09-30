@@ -21,10 +21,19 @@ CUT = -0.52                      # L: the neck cut (code_base.CUT)
 TIGHT = {'top': 0.022, 'waistband': 0.035, 'skin': 0.0}     # L: what the body sits under, by the piece's thickness
 CLEAR = 0.012                    # L: the body stays this far inside the hull's envelope where nothing measures it
 ENVELOPE_SKIP = ('bow', 'bow_tail_L', 'bow_tail_R', 'collar')   # pieces in front of the chest, not bounding the torso
-IN_FRONT = {'bow': 0.08, 'bow_tail_L': 0.04, 'bow_tail_R': 0.04}
+IN_FRONT = {'bow': 0.08, 'bow_tail_L': 0.04, 'bow_tail_R': 0.04, 'collar': 0.04}
+IN_FRONT_SHELL = ('collar',)     # measured on the hull's labelled shell (Hull.shell_points), the rest on its mesh
+IN_FRONT_BACK = ('collar',)      # only its points behind the torso's axis count: the collar's back flap, which hides the
+                                 # upper back (in front the torso is measured: the skin in the V, the bib and jacket under
+                                 # the lapels; the collar round the neck's base there would pull the chest in 0.085 L)
 # L: a piece that stands in front of the body, and how deep it is: the torso stays behind its surface less that depth
 # where the piece shows (the chest behind the bow: a torso reaching its surface leaves the bow inside the top). The
-# design's bow and tails lie flat, 0.02-0.06 L proud of the chest (measured on the hull); the collar lies on the skin
+# design's bow and tails lie flat, 0.02-0.06 L proud of the chest (measured on the hull). The collar lies on the jacket:
+# its own thickness (0.012) and the jacket's under it (0.018) and a clearance. Its back flap hides the upper back from
+# every view, and with the sheet-only masks the jacket beside the flap is labelled top (it had been sleeve): the rows
+# the torso measures there pulled its back out through the flap (0.03 L past the collar's surface at z -0.68; the
+# jacket, lifted off the body, covered the flap: piece_collar's back view 0.95 -> 0.28, tool/garments3). Under the
+# front lapels the cap doesn't bind (the torso already sits 0.022 L under the jacket there).
 CROTCH = 0.08                    # L: the torso ends this far under the hip joints
 NECK_R = 0.13                    # L: the neck's radius at the cut when the hull shows too little of it
 ARM_R = 0.22                     # L: hull points this close to an arm's bone (in the front view) are the arm's
@@ -43,10 +52,30 @@ class Hull:
         self.names = {int(k): v for k, v in J['piece_names'].items()}
         self.ids = {v: k for k, v in self.names.items()}
         self.eyes = J['eyes']
+        self.dir = hull_dir
+        self._shell = None
 
     def points(self, name):
         k = self.ids.get(name)
         return self.V[self.piece == k] if k is not None else np.zeros((0, 3))
+
+    def shell_points(self, name):
+        """a piece's points on the hull's labelled shell (hull.npz: one per surface voxel, charkit.garments.shell_points,
+        what the hull garments read), or its mesh vertices when the hull has no shell. The decimated mesh keeps few
+        vertices on flat stretches: the collar's back flap had 0-10 near the back midline at z -0.60..-0.68."""
+        if self._shell is None:
+            p = os.path.join(self.dir, 'hull.npz')
+            Z = np.load(p) if os.path.exists(p) else None
+            if Z is None or 'shell' not in Z.files or 'shell_label' not in Z.files:
+                self._shell = False
+            else:
+                from .garments import shell_points
+                self._shell = shell_points(Z)
+        if self._shell is False:
+            return self.points(name)
+        k = self.ids.get(name)
+        P, lab = self._shell
+        return P[lab == k] if k is not None else np.zeros((0, 3))
 
 
 def skeleton(graph):
@@ -143,17 +172,26 @@ def fit_sections(meas, Rc, th_c, ay, x0, anchors=(), depth=None, n=None, w_smoot
     return sol.x.reshape(nz, 5)
 
 
-def _behind(H, ax, ts, th_c, nz, nth, grow=1, drawn=None):
+def _behind(H, ax, ts, th_c, nz, nth, grow=1, drawn=None, drawn_back=None):
     """per cell, how far out the torso may reach behind the pieces in front of it (IN_FRONT): the smallest radius of a
     piece's points in the cell less the piece's depth, spread `grow` cells round (inf where none). drawn: the pieces'
     drawn front extents {piece: (x0, z0, x1, z1) L}: only the points inside count (the hull labels some of the collar's
-    lapels as bow, both cream, and the chest under them had been pulled in 0.07 L)."""
+    lapels as bow, both cream, and the chest under them had been pulled in 0.07 L). IN_FRONT_BACK's pieces count only
+    their points behind the axis, judged by drawn_back (the back view's extents)."""
     B = np.full((nz, nth), np.inf)
+    ay = float(ax.o[1])
     for name, depth in IN_FRONT.items():
-        Q = H.points(name)
-        if drawn and name in drawn and len(Q):
-            x0, z0, x1, z1 = drawn[name]
-            Q = Q[(Q[:, 0] >= x0) & (Q[:, 0] <= x1) & (Q[:, 2] >= z0) & (Q[:, 2] <= z1)]
+        Q = H.shell_points(name) if name in IN_FRONT_SHELL else H.points(name)
+        inside = lambda Q, e, sx=1.0: ((sx * Q[:, 0] >= e[0]) & (sx * Q[:, 0] <= e[2]) & (Q[:, 2] >= e[1]) &
+                                       (Q[:, 2] <= e[3]))
+        if name in IN_FRONT_BACK:
+            # its points behind the axis only, judged by the back view's extents (the back view shows her left on the
+            # image's right: x mirrored; the collar's stray labels at the sides below its flap left out)
+            Q = Q[Q[:, 1] > ay]
+            if drawn_back and name in drawn_back and len(Q):
+                Q = Q[inside(Q, drawn_back[name], -1.0)]
+        elif drawn and name in drawn and len(Q):
+            Q = Q[inside(Q, drawn[name])]
         if not len(Q):
             continue
         t, th, r = ax.coords(Q)
@@ -180,7 +218,7 @@ def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
     return fit_sections(meas, Rc, th_c, ay, X0, anchors)
 
 
-def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None):
+def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None, drawn_back=None):
     """the torso: one superellipse section per row (section_r) between the neck cut and the crotch, round a vertical
     axis, all fitted at once (fit_torso) to the cells the hull measures (tight pieces pulled in by their thickness, bare
     skin as it is, mirrored across the midline), anchored at the neck ring and the hips, then held inside the hull's
@@ -257,7 +295,7 @@ def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None):
     Pi = fit_torso(meas, Rc, th_c, ay, neck, hw, hy)
     R = np.stack([section_r(Pi[k], th_c, ay) for k in range(nz)])
     R = np.minimum(R, env.R - CLEAR)
-    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth, drawn=drawn))
+    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth, drawn=drawn, drawn_back=drawn_back))
     return dict(ax=ax, F=loft.Field(ts, th_c, R, meas), params=Pi, rows=rows, measured=share, env=env, src=src)
 
 
@@ -455,9 +493,9 @@ def foot(H, side, ankle, step=0.03, nth=48):
                 back=float(Q[:, 1].max() - FOOT_PULL))
 
 
-def body(H, sk, drawn=None):
+def body(H, sk, drawn=None, drawn_back=None):
     """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)})."""
-    T_ = torso(H, sk, drawn=drawn)
+    T_ = torso(H, sk, drawn=drawn, drawn_back=drawn_back)
     hy = float(T_['params'][-1, 4])
     limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}
