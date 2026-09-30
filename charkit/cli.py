@@ -84,6 +84,8 @@ def resolve(spec_path, out, do_fit=True, base=None):
     # the style profile's render look, laid under the spec's own `look` (the build reads it from the resolved spec, so
     # the stage cache keys on it)
     spec['look'] = styles.merge(styles.load(spec.get('style', 'anime'))['look'], spec.get('look'))
+    # and its eye section (the eye's surface: charkit.eyes.knobs) under the spec's own `eyes`, for the same reason
+    spec['eyes'] = styles.merge(styles.load(spec.get('style', 'anime')).get('eyes') or {}, spec.get('eyes'))
     ref = spec.get('ref', {})
     if do_fit and isinstance(ref, dict) and ref.get('rig'):
         R = refs.measure(_path(ref['rig']), spec.get('eyes', {}).get('x', 0.168))
@@ -354,7 +356,9 @@ def code_head(spec, resolved, out, mode='on'):
     path = os.path.join(gdir, 'head_code.npz')
     M = manifest.load(spec['ref']['manifest'])['references']
     imgs = [_path(spec['ref']['face_sheet']['image']), _path(M['head_construction']['path'])]
-    key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime')}
+    from . import styles
+    key = {'ref': imgs, 'eyes': spec.get('eyes'), 'style': spec.get('style', 'anime'),
+           'face': styles.load(spec.get('style', 'anime'))['face']}          # (the profile's own settings, not just its name)
 
     def run():
         code_base.save_head(spec, path)
@@ -573,6 +577,9 @@ def main(argv=None):
     elif cmd == 'bodysens':
         from . import bodysens
         bodysens.main(rest)
+    elif cmd == 'flapchains':
+        from . import flapchains
+        flapchains.main(rest)
     elif cmd == 'bodyfit':
         from . import bodyfit
         bodyfit.main(rest)

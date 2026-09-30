@@ -726,6 +726,89 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## State at the end of 2026-09-29 (read first)
+
+- **The default spec is the authored character** (`8e2797e`): `charkit/spec/clawd.json` is the code-built head and
+  body with hair pieces. The MakeHuman base is `clawd_mh.json`, and `clawd_body_pieces.json` is an identical alias
+  (edit both until the notes stop naming it). On the default spec: 91 PASS, 20 WARN, 9 FAIL.
+- **Merged today:**
+  - body rounds 2 and 4 (Michael: "much better"; the pleated skirt a "massive improvement");
+  - the look (camera key, ink lines, face shadow) and its QA speedup;
+  - hair detail (block buns, fringe);
+  - render batching (boards 2.3× faster, bit-identical);
+  - references extension (off);
+  - stamps covering file inputs;
+  - loft robustness;
+  - parallel gates (CPU-time slowness check);
+  - unshare;
+  - the sync fixes.
+- **Two root causes found today; don't reintroduce them:**
+  - A sync from a worktree without `charkit/out/i3d` wiped the box copy's. The outfit masks were then built without
+    the TRELLIS field: a wrong hull, and `garments.sleeve_hull` failing. Sync now leaves `i3d` alone and seeds it, and
+    new worktrees clone it.
+  - The masks' stamp didn't cover that field (tool/stamp-spec fixes this). Worktrees seeded with `cp -al` rewrote
+    produced files through hard links (cache.unshare fixes this).
+- **Concurrency:** about 5 lean agents at once. The five-hour usage limit is shared with Michael's other sessions,
+  and 13 at once used 63% of it in 100 minutes. Pause to notes and relaunch lean, per the memory note.
+- **Running at the end of the day:**
+  - tool/face: the chin and jaw overhang;
+  - tool/eyes2: profile gaze and pupil shape;
+  - tool/hull-det: bit-identical hulls on three machines;
+  - tool/body round 5: the midriff seam, and boots rebuilt as a template (heel, scrunch, flat symmetric sole, no
+    doubled toe line).
+- **Paused, each with a notes file with state and next steps:**
+  - tool/look2: cast shadows built but not validated; `docs/workstreams/look.md` "Paused";
+  - tool/rig: R1 and all volumes PASS; sleeves at a raised arm and a cache test left; `rig.md`;
+  - tool/hull-limbs: side-view limb labels; a gate regression to attribute; `hull-limbs.md`;
+  - tool/artifacts: jaggedness detectors; both gates PASS; fix the design-measure stamp first; `artifacts.md`;
+  - tool/accessories: an 8-point star and the crab, placement fit unfinished; `accessories.md`;
+  - tool/perceptual: DINOv3 review metric, calibration not yet run; `perceptual.md`;
+  - tool/hair3: fragments and edge measures done, fixes next; `hair.md` "Round 3";
+  - tool/mouth: a mouth lab, laugh and yawn refit, new mouths started; `mouth.md`;
+  - tool/motion: ring constraints and foot IK, ungated; `motion.md`.
+- **Michael's calls (2026-09-30, from the decisions page):**
+  - A. board light: the camera key (`look.light.mode: camera`, 30°/40°), already the default;
+  - B. outlines: ink on hair, garments and accessories, the skin warm brown, 0.22%, already the default. Line
+    thickness is a per-production taste choice: keep it a style setting (`look.lines.frac`, per-region multipliers).
+    A future production can set its own.
+  - C. eye flatness: (a), the design's plane (coordinator's call; the eye surface builds on it);
+  - D. brow: (a), the slight recess under the fringe (coordinator's call). It's the forehead's fixed shape under the
+    bangs, not brow motion.
+  - Michael envisions a modular expression system (eyes, brows, mouth and face moving as combinable components). The
+    expression keys already work that way. tool/mouth's relaunch should build toward it, with the rest face as one
+    preset.
+  - E. flap train: hang (the current default);
+  - F. hair relief and clamp: deferred until relevant;
+  - G. Kimodo licence: deferred until motion options are reviewed.
+- **Follow-ups not assigned:**
+  - key gate baselines on the produced references' stamps;
+  - make a missing TRELLIS field fail loudly;
+  - benchmark the render box's SLOTS;
+  - prune the box's temporary copies (bis*, stampspec-*, render-*).
+
+## Process and architecture decisions (Michael, 2026-09-30)
+
+Drawn from the session's recurring failure patterns:
+1. **Templates first.** Garments, and any other part a template can describe, are built from a few parameters fitted
+   to the design's per-view silhouettes (the boots and puff sleeves are the model). The hull gives initial guesses,
+   depth and measurement, not surface geometry. Geometry lofted straight from the hull caused spikes, twisted soles,
+   doubled lines, torn tips and bubble skirts.
+2. **Michael's flags become regression tests,** and every new check ships calibrated: it passes on the design itself
+   and fails on a known-bad example. After every merge to pipeline-3d, a combined preview and review page (design |
+   previous | current) is rendered automatically, so review never depends on someone asking for it. The artifact
+   detectors and the perceptual metric are relaunched when there's room.
+3. **No gaming.** Every fit includes its piece's shape (IoU in all views) alongside the check it targets. When a check
+   is remeasured in a branch that also changes geometry, the gate scores the new geometry under the old measure too
+   (the 2×2).
+4. **Less coupling.** QA parts and measurement steps register themselves, with no central lists to conflict on. The
+   hull has a written contract (its outputs, labels and guarantees), and downstream work pins a hull version within a
+   round. Ownership is in `docs/OWNERSHIP.md`.
+5. **Trustworthy local loops.** A standing test compares the numpy evaluator against the box on the same build, so
+   drift like the 0.024–0.028 L hem offset shows at once. Review close-ups use the design's own projection (level,
+   orthographic), not the boards' elevated camera.
+6. **Process.** A lean agent per round, briefed from its notes; about 5 at once; no polling; milestone reports;
+   smaller, more frequent merges.
+
 ## Parallel workstreams (2026-09-29): read this first when resuming
 
 Michael's next steps after the code-authored head: cut-piece hair and garments, the eye and mouth engine overhaul,

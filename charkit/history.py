@@ -18,6 +18,40 @@ DIR = os.path.join(ROOT, 'charkit', 'out', 'history')
 
 # (check pattern, the commit that changed the measurement, what changed)
 STEPS = [
+    # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5
+    ('body_*_skirt_width', '26c6bbb', "no row free of hands in both figures: the design's free rows against ours on the "
+     "same rows, the row whose ratio is the median (one row alone fell where clawd_mh's run breaks at the waist)"),
+    ('body_*_skirt_width', '854776f', "no row free of hands in both figures: the design's widest free row against ours "
+     "on that same row (each figure's own widest over the design's free rows had sat at different heights)"),
+    ('piece_*_hang', '854776f', "the reach against the drawn piece's lowest point (the outfit graph's extents), not the "
+     "drawn chain's last joint (a skeleton ends short of the tip by the half-width: 0.13 L on the flaps)"),
+    ('body_front_skirt_overhang_*', '854776f', "new: the skirt's top beside the band, per side and left against right, "
+     "beyond the design's (a ledge jutting out sideways)"),
+    ('body_profile_leg_back', '854776f', "new: the legs' back edge in profile, its largest bump against the design's"),
+    # tool/body round 5 (charkit/detailqa.py): Michael's review of round 4's midriff and boots
+    ('body_*_torso_jump_*', '843922c', "new: the torso outline's largest step from under the bust to the skirt, "
+     "outward and inward, beyond the design's (the top and the band sliced and shifted)"),
+    ('body_*_midriff_gap', '843922c', "new: the top's hem against the band's top: a see-through gap or the top over "
+     'the band'),
+    ('body_front_panel_edge', '843922c', "new: the cream panel's lower part: its outline's roughness, fragments and "
+     "holes against the design's (a torn edge)"),
+    ('boot_*', '843922c', "new: the boots' ankle jog and bend, the ankle's folds front and back, the heel block, doubled "
+     'outline strokes, the soles in 3D (flat, twist) and the left/right mirror'),
+    ('body_*_boot_step_*', '196eace', "rows whose outline ends on the cuff (orange) left out: the cuff's rounded "
+     "lower edge over the narrower shaft had counted as a 0.02 L step (round 5's boots meet the cuff at its edge)"),
+    ('body_*_leg_gap', 'd35fbaf', "new: rows over the lower legs and boots where the design's legs stand apart and ours join (a bridge)"),
+    ('body_*_boot_step_*', 'd35fbaf', "new: each boot's outline's largest row-to-row jump beyond the design's (the shaft/foot seam)"),
+    ('body_*_skirt_aline', 'd35fbaf', "new: the skirt's width near its hem over its widest row against the design's (a bubble)"),
+    ('body_profile_chest', 'd35fbaf', "new: the chest's front edge in profile against the design's"),
+    ('body_*_waist_skin', 'd35fbaf', "new: the waist's skin across the body beyond the design's (a bare band)"),
+    ('piece_*_extent', 'd35fbaf', "new: a spring piece's lowest row, outer edge and area per view against the drawing's"),
+    ('piece_*_hang', 'd35fbaf', "new: a chained piece's top and lowest point against its drawn chain's root and tip"),
+    ('garment_coverage', 'd35fbaf', 'new (INFO): garments lofted from marginal hull coverage'),
+    ('piece_skirt', 'd35fbaf', "same-colour layers: pixels where a piece lies over another of its colour count for neither (the overskirt panels over the skirt); the flaps' geometry changed at the same time"),
+    ('piece_overskirt_panel_*', 'd35fbaf', "same-colour layers (as piece_skirt); the flaps' geometry changed at the same time"),
+    ('piece_cuff_*', 'e34aeff', 'same-colour layers: the wrist cuffs lie over the skirt (the notes; both orange), so where they overlap the pixels count for neither; the skirt was cleared of the arms at the same time'),
+    ('piece_skirt', 'e34aeff', 'same-colour layers: the wrist cuffs over it too; the skirt was cleared of the arms at the same time'),
+    ('body_*_skirt_width', '4053ecd', "the skirt's width measured on the design's rows free of hands when no row is free in both (the back view had fallen back to each figure's own widest free row)"),
     ('body_*_skirt_width', 'ecd4d79', "the skirt's width compared on the rows neither figure has a hand against (each figure's widest free row had sat at different heights)"),
     ('hair_noise', 'c500f21', 'QA renders undithered (charkit/geom merge): hair_noise reads ~0.31 on the default hair and '
                               '~0.19 on geom hair, where dither noise split the toon tones before'),
@@ -85,6 +119,31 @@ STEPS = [
     ('art_fragments_*', '1b2a283', 'new (tool/artifacts): the area in small pieces and slivers between drawn lines per L of '
      'outline against the design turnarounds\''),
     ('art_speckle_*', '1b2a283', 'new (tool/artifacts): specks per L^2 of face and neck skin against the design\'s'),
+    # tool/look2: the look QA's speedup
+    ('line_ink', '0b6e9cd', 'the lines\' own colour (their supersampled pixels before the pixel filter), not the pixels a '
+     'line covers wholly after it (blended with their neighbours): the inked hair, garment and accessory lines read '
+     '0.48 from the design\'s ink, were 4.5, 7.8 and 15.6; the skin\'s brown 24.67, was 24.9 (tool/look2)'),
+    # tool/face: the QA's eyes on the head's eye line; the taper's shape
+    ('sheet_*', 'e9a6753', 'ours registered on the eyes at the head\'s eye line (qa3d.eye_anchor: the design\'s eye row, '
+                          'which the head is built on), not the iris plates\' vertex mean 0.0235 L over it: every height '
+                          'under the eyes had read that much low (jaw_4: cheek_chin -0.0277 -> -0.0027, profile_chin '
+                          '-0.0247 -> 0.0003, profile 0.0136 -> 0.0053)'),
+    ('profile_edge', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor), not the iris plates\' mean: '
+                               'jaw_4 0.0622 -> 0.0278 (its worst row had been the chin\'s corner)'),
+    ('jaw_*', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor): jaw_4 jaw_taper 0.0271 -> 0.0095'),
+    ('chin_*', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor): jaw_4 chin_point_z -0.0224 -> 0'),
+    ('neck_to_face', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor)'),
+    ('neck_front_wiggle', 'e9a6753', 'registered on the head\'s eye line (faceregion.eye_anchor)'),
+    ('jaw_taper_shape', 'e9a6753', 'new: the front outline\'s w(t)/w(0) from the cheekbone row to the chin against the '
+                                  'design\'s, in the boards\' camera'),
+    ('jaw_line_bend', 'e9a6753', 'new: the jaw lines\' sharpest local bend (a kink where the silhouette jumps in depth)'),
+    ('chin_angle', 'e9a6753', 'new: the V\'s opening near the chin against the design\'s, in the boards\' camera'),
+    ('chin_tip', 'e9a6753', 'new: the share of the V\'s turn made at its point (a V, not a U)'),
+    ('tq_*', 'e9a6753', 'new: the three-quarter\'s far-cheek hollow and the near jaw line\'s notch at the neck'),
+    ('eye_pupil_*', 'b9055f7', 'the pupil read from its coverage map (sub-pixel; a value threshold had cut its soft ends) '
+                               'and against the whole iris\'s height (its lid-shadowed top had fallen out of the iris): '
+                               'the pre-round-2 build reads pupil_run 0.297 against the design\'s 0.405 (it had read 0.341 '
+                               'against 0.394)'),
 ]
 
 

@@ -400,7 +400,7 @@ STAGES = [('character', stage_character), ('hair', stage_hair), ('face_shading',
 # What a stage reads of earlier stages' output only in part (charkit/cache.py keys every other read whole, exactly).
 # 'structure': a Blender object's names, modifier stack, groups, slots and transform, not its geometry (a stage that only
 # parents to the rig, or adds a group and a modifier to the skin). A function: the part of the value that matters.
-GARMENT_KINDS = ('shell', 'band', 'shoe', 'belt', 'sleeve', 'skirt', 'panel', 'collar', 'bow')
+GARMENT_KINDS = ('shell', 'band', 'shoe', 'boot', 'belt', 'sleeve', 'skirt', 'panel', 'collar', 'bow')
 
 
 def body_below_neck(verts, S):

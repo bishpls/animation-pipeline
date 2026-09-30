@@ -96,7 +96,7 @@
    "kind": "outfit_graph",
    "path": "charkit/refs/clawd/outfit_graph.json",
    "tracked": true,
-   "sha256": "308d5dcc960281a574bf9972bf1163dfd15e40432a596ca769431f13fd803788",
+   "sha256": "f6da702dd5a6e1bfc8c3857bd93d1f9ed24c684abe8e3cc237d2cac1f8ce08af",
    "role": "the outfit as pieces: types, sides and mirror pairs, attachments (bone, parent), layer order, colours, extents per sheet view and in 3D, motion classes with reasons, template mapping and spring chains",
    "provenance": {
     "tool": "charkit.outfit",
@@ -123,9 +123,7 @@
      }
     }
    },
-   "cautions": [
-    "measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"
-   ]
+   "cautions": ["measured from the rig, the sheet and the generated field, cross-checked with the annotated vision pass (outfit_notes.json): read its flags before trusting a piece"]
   },
   "head_turnaround": {
    "kind": "generated_reference",
@@ -461,9 +459,10 @@
    "tracked": false,
    "produced_by": "charkit.geom.hull",
    "produced_fn": "charkit.geom.hull:build",
-   "reads": ["outfit_masks", "body_turnaround_back34"],
+   "reads": ["outfit_masks", "body_turnaround", "body_turnaround_back34", "head_turnaround", "head_construction"],
+   "reads_spec": ["name", "ref", "style", "eyes.x"],
    "path": "charkit/out/hull/clawd/hull.glb",
-   "command": "python -m charkit.geom hull charkit/spec/clawd.json",
+   "command": "python -m charkit.geom hull {spec} --out {out} --fast",
    "role": "the character's 3D shape carved from body_turnaround's calibrated orthographic views (charkit.geom.hull): the hair's source (hair.shape.glb) and the aligned 3D target in place of TRELLIS; coloured from the views, its vertices labelled with the QA's classes, its eyes known exactly (the sidecar hull.glb.json). Built where missing or stale (manifest.produced)",
    "cautions": [
     "a visual hull: concavities no view shows are filled (the eye sockets, between the locks); the hair is one mass, not locks",
@@ -474,10 +473,11 @@
    "kind": "piece_masks",
    "tracked": false,
    "produced_by": "charkit.hairlayers",
-   "reads": ["outfit_masks"],
+   "reads": ["outfit_masks", "hair_breakdown", "body_turnaround"],
+   "reads_spec": ["name", "ref", "eyes.x"],
    "path": "charkit/out/clawd/hair/hair_layers.npz",
-   "command": "python -m charkit hairlayers charkit/spec/clawd.json --no-page",
-   "role": "the hair's families (hair_breakdown's legend: bangs, side locks, upper and lower back, buns, ahoge, flyaways) on body_turnaround's hair, per view (front, profile, back; bodyqa.design_views grids, keys VIEW__FAMILY): the targets of the hair's pieces (charkit.geom.hairpieces). Built where missing (manifest.produced)",
+   "command": "python -m charkit hairlayers {spec} --out {out} --no-page",
+   "role": "the hair's families (hair_breakdown's legend: bangs, side locks, upper and lower back, buns, ahoge, flyaways) on body_turnaround's hair, per view (front, profile, back; bodyqa.design_views grids, keys VIEW__FAMILY): the targets of the hair's pieces (charkit.geom.hairpieces). Built where missing or stale (manifest.produced)",
    "cautions": [
     "the breakdown is another generation of the design: registered onto the body sheet at hair IoU 0.68-0.80, so only which family a body-sheet hair pixel belongs to comes from it; the body sheet is the silhouettes' authority",
     "no three-quarter view: the hair's pieces predict it in 3D",
@@ -489,11 +489,19 @@
    "tracked": false,
    "produced_by": "charkit.outfit",
    "produced_fn": "charkit.outfit:main",
+   "reads": ["rig", "body_turnaround", "trellis"],
+   "reads_spec": ["name", "ref", "eyes.x", "garments[].{name,kind,side,bone}", "garments[].region[].0",
+                  "accessories[].{name,kind,side,az}"],
+   "reads_files": ["charkit/out/i3d/ext/*/clawd_3dstyle_s1_field.npz", "charkit/refs/clawd/outfit_notes.json",
+                   "projects/tsuzuku/rig/clawd/build/*", "projects/tsuzuku/rig/clawd/rig.json",
+                   "projects/tsuzuku/rig/clawd/base.png"],
    "path": "charkit/out/clawd/outfit/outfit_masks.npz",
-   "command": "python -m charkit outfit charkit/spec/clawd.json --out charkit/out/clawd/outfit --no-manifest",
+   "command": "python -m charkit outfit {spec} --out {out} --no-manifest",
    "role": "the outfit graph's pieces as per-view masks on body_turnaround (bodyqa.design_views grids, keys VIEW__PIECE), the graph they were cut with beside them (outfit_graph.json): the visual hull's per-piece carving and labels. Built where missing or stale (manifest.produced)",
    "cautions": [
     "the masks are the outfit field's votes (a TRELLIS field fitted to the 2D rig): 0.77-0.85 IoU per view against the sheet's figures",
+    "the field is gitignored (charkit/out/i3d/ext, found by outfit.find_field): a copy without it places the pieces by landmarks instead, which gives other masks and so another hull. Its sha256 (or its absence) is in the stamp (reads_files), so the two never share one",
+    "the graph's comparison with the spec's hand list is made against the garments' and accessories' roles only (reads_spec: names, kinds, sides, bones, region bones, az), so its matches are the spec's own but it lists no knob deltas; `python -m charkit outfit SPEC` gives the full comparison",
     "a piece a view hides has an empty mask there"
    ]
   }
