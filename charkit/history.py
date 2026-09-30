@@ -27,6 +27,10 @@ STEPS = [
     ('shorts_*', '12c3b97', "new: the shorts' hem height per view and width in front and back against the design's"),
     ('cuff_*', 'cda2b7f', "new: the wrist cuffs' flare (top over bottom width) and cream trim in front and back "
      "against the design's"),
+    ('top_*', 'GARMENTS2C', "new: the jacket over the band (which hides which at their junction, the jacket and the band "
+     "each drawn alone), its open front's width and the junction's drop to the bib, against the design's"),
+    ('collar_*', 'GARMENTS2C', "new: the collar's torn edges (roughness, fragments; ours drawn 3x finer)"),
+    ('bow_*', 'GARMENTS2C', "new: the bow's torn edges, its lobes' flare and its tails' width and parting"),
     ('sleeve_*', 'cda2b7f', "the spikes on the cap's silhouette only (the drawn masks' inner corners are cutting "
      "slivers), the check set by the design alone, the stand-off against sleeve_closeup"),
     # tool/body round 6: the merged hull-det and garment-sampling, the hidden back hem and flaps, Michael's review of round 5

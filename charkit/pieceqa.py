@@ -21,6 +21,12 @@ Checks (qa3d part 'piece_details'; lengths in L):
         band's against the design's (the jacket overhangs the band)
   shorts_{view}_hem, shorts_{front,back}_width
         the shorts' lower edge and their width against the design's
+  top_{front,three_quarter}_over_band
+        at the jacket/band junction, the share of its columns where our band hides the jacket (drawn alone, the jacket
+        reaches down behind the band: its hem tucked under), where the design's jacket and bib hang over the band's top
+  top_front_opening, top_front_hem_step
+        the jacket's open front: the cream bib's half-width between its fronts below the bow's tails, RMS against the
+        design's; the junction's drop from the jacket's fronts to the bib's middle, against the design's
   {collar,bow}_{view}_torn
         the piece's outline roughness, ours drawn FINE x finer round the chest, beyond the design's, and its fragments
         against the design's (the torn lapel tips and bow edges)
@@ -63,6 +69,9 @@ LIMITS = {                          # (pass within, warn within); else fail
     'overhang': (0.015, 0.03),      # L: the top's front edge over the band's in profile against the design's
     'flare': (0.08, 0.15),          # |ours - design| of a cuff's width at its top over its width at its bottom
     'trim': (0.08, 0.15),           # |ours - design| of the cream share of a cuff's pixels
+    'order': (0.1, 0.3),            # share of the jacket/band junction's columns where our band hides the jacket
+    'opening': (0.02, 0.04),        # L: RMS of the jacket's front opening's half-width (the cream bib) against the design's
+    'hem_step': (0.015, 0.03),      # L: |ours - design| of the junction's drop from the jacket to the bib's middle
     'torn': (0.004, 0.008),         # L: a piece's outline roughness (ours drawn at FINE x the grid) beyond the design's
     'bow_flare': (0.25, 0.5),       # |ours - design| of the bow's lobes' height at their ends over at the knot
     'tail_width': (0.15, 0.3),      # |ours / design - 1| of the bow tails' width
@@ -665,6 +674,137 @@ def collar_bow(B, O, names, masks, pm, ppl, az3, dv):
     return T, C
 
 
+def alone(B, names, view, az3, ppl, keep):
+    """the objects `keep` (names) z-buffered alone on the design's grid for a view -> bool silhouette."""
+    from . import qa3d
+    from .faceqa import zbuffer
+    meshes, nm = qa3d.scene_objects(B)
+    obj = [(V, T, np.full(len(T), i)) for i, (V, T, _) in enumerate(meshes) if nm[i] in keep]
+    if not obj:
+        return None
+    As = B.assembly
+    iw = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    org = bodyqa.origin(view, az[view], iw, As['centre'])
+    return zbuffer(obj, az[view], org, As['L'], 1.0 / ppl, WIN)[1] >= 0
+
+
+def junction_order(top, band, top_alone, band_alone, ppl, reach=0.05):
+    """at the jacket/band junction (the columns where a jacket pixel sits right above a band pixel, within 2 px): per
+    column, which hides which: the band alone reaching up behind the jacket (the jacket over it) or the jacket alone
+    reaching down behind the band (tucked under it). -> dict(cols, over (share: the jacket in front), under (share:
+    the band in front), boundary (per column: the junction's row)) or None."""
+    H, W = top.shape
+    k = int(round(reach * ppl))
+    cols, over, under, rows = [], 0, 0, {}
+    for c in range(W):
+        rt = np.nonzero(top[:, c])[0]
+        rb = np.nonzero(band[:, c])[0]
+        if not len(rt) or not len(rb):
+            continue
+        b0 = rb.min()
+        t1 = rt[rt < b0].max() if (rt < b0).any() else None
+        if t1 is None or b0 - t1 > 2:
+            continue
+        cols.append(c)
+        rows[c] = b0
+        if band_alone[max(0, b0 - k):b0 - 1, c].sum() >= 2:
+            over += 1
+        elif top_alone[b0 + 1:min(H, b0 + k), c].sum() >= 2:
+            under += 1
+    if not cols:
+        return None
+    return dict(cols=len(cols), over=round(over / len(cols), 3), under=round(under / len(cols), 3), rows=rows)
+
+
+def half_widths(m, ppl, zs, cx=None):
+    """a mask's half-width round the middle `cx` (px; default its own) at heights zs (L from the eye line)."""
+    rs, cs = np.nonzero(m)
+    if not len(rs):
+        return [None] * len(zs)
+    cx = 0.5 * (cs.min() + cs.max()) if cx is None else cx
+    out = []
+    for z in zs:
+        r = int(round((WIN['top'] - z) * ppl - 0.5))
+        c = np.nonzero(m[max(0, r - 1):r + 2].any(0))[0] if 0 <= r < m.shape[0] else []
+        out.append(round(float(max(cx - c.min(), c.max() - cx) + 0.5) / ppl, 4) if len(c) else None)
+    return out
+
+
+OPENING_Z = (-1.0, -1.05, -1.1, -1.15, -1.2, -1.25, -1.3)    # L: the bib's rows below the bow's tails, above the band
+
+
+def jacket(B, O, names, masks, pm, ppl, az3, dv, cls_o):
+    """the jacket over the band and its open front (see the module doc) -> (table, checks)."""
+    from .bodyqa import CLASS as CL
+    T, C = {}, {}
+    tops = [m[0] for m in pm.get('top', [])] + [m[0] for m in pm.get('bodice_panel', [])]
+    bands = [m[0] for m in pm.get('waistband', [])]
+    if not tops or not bands:
+        return T, C
+    for view in ('front', 'three_quarter'):
+        if view not in O:
+            continue
+        top = members(O[view]['lab'], names, pm, 'top') | members(O[view]['lab'], names, pm, 'bodice_panel')
+        band = members(O[view]['lab'], names, pm, 'waistband')
+        ta, ba = alone(B, names, view, az3, ppl, tops), alone(B, names, view, az3, ppl, bands)
+        j = junction_order(top, band, ta, ba, ppl) if ta is not None and ba is not None else None
+        name = 'top_%s_over_band' % view
+        if j is None:
+            C[name] = {'value': None, 'status': 'FAIL', 'why': 'no jacket/band junction seen'}
+            continue
+        T['order_' + view] = {k: v for k, v in j.items() if k != 'rows'}
+        v_ = j['under']
+        C[name] = {'value': v_, 'status': grade('order', v_), 'over': j['over'], 'cols': j['cols'],
+                   'note': "at the jacket/band junction, the share of its columns where our band hides the jacket (the "
+                           "jacket's hem tucked under the band); the design's jacket and bib hang over the band's top "
+                           "(Michael's review of round 6; the drawn junction steps with the bodice's hem, not a level "
+                           "band edge)"}
+    # the open front: the bib's half-width between the jacket's fronts, and the junction's drop to it
+    if 'front' in O and masks.get('front__bodice_panel') is not None:
+        Pd = clean(masks['front__bodice_panel'], ppl)
+        if 'bodice_panel' in pm:
+            Po = members(O['front']['lab'], names, pm, 'bodice_panel')
+        else:
+            Po = members(O['front']['lab'], names, pm, 'top') & (cls_o['front'] == CL['cream'])
+        Po = clean(Po, ppl)
+        cx = WIN['x'] * ppl - 0.5                                      # the grid's middle (the eyes' midpoint)
+        wd, wo = half_widths(Pd, ppl, OPENING_Z, cx), half_widths(Po, ppl, OPENING_Z, cx)
+        pairs = [(a, b) for a, b in zip(wo, wd) if b is not None]
+        T['opening'] = dict(z=list(OPENING_Z), ours=wo, design=wd)
+        if pairs:
+            dw = [(a if a is not None else 0.0) - b for a, b in pairs]
+            v_ = round(float(np.sqrt(np.mean(np.square(dw)))), 4)
+            C['top_front_opening'] = {'value': v_, 'status': grade('opening', v_), 'ours': wo, 'design': wd,
+                                      'z': list(OPENING_Z),
+                                      'note': "the jacket's open front: the cream bib's half-width between its fronts at "
+                                              "heights below the bow's tails (L), RMS against the design's"}
+        # the junction's drop from the jacket's fronts (0.2-0.3 L out) to the bib's middle (within 0.06 L)
+        def drop(top, band):
+            rs = {}
+            for c in range(top.shape[1]):
+                rb = np.nonzero(band[:, c])[0]
+                if len(rb):
+                    rs[c] = rb.min()
+            mid = [rs[c] for c in rs if abs(c - cx) / ppl < 0.06]
+            side = [rs[c] for c in rs if 0.2 <= abs(c - cx) / ppl <= 0.3]
+            return round((np.median(mid) - np.median(side)) / ppl, 4) if mid and side else None
+        dd = drop(clean(masks['front__top'] | masks['front__bodice_panel'], ppl), clean(masks['front__waistband'], ppl))
+        do = drop(members(O['front']['lab'], names, pm, 'top') | members(O['front']['lab'], names, pm, 'bodice_panel'),
+                  members(O['front']['lab'], names, pm, 'waistband'))
+        if dd is not None:
+            T['hem_step'] = dict(ours=do, design=dd)
+            if do is None:
+                C['top_front_hem_step'] = {'value': None, 'status': 'FAIL', 'design': dd, 'why': 'ours not measured'}
+            else:
+                v_ = round(abs(do - dd), 4)
+                C['top_front_hem_step'] = {'value': v_, 'status': grade('hem_step', v_), 'ours': do, 'design': dd,
+                                           'note': "the junction's drop from the jacket's fronts (0.2-0.3 L out) to the "
+                                                   "bib's middle (L: the band's visible top lower in the middle, where the "
+                                                   "bib hangs over it), against the design's"}
+    return T, C
+
+
 def edges(m, mid=(0.2, 0.8)):
     """a piece mask's top and bottom edges: per column its first and last row, their medians over the middle `mid`
     of its columns (a band's ends curve round), and its rows' median width there. -> dict(top, bottom (rows), width
@@ -825,5 +965,8 @@ def measure(B, design, out=None):
     C.update(c)
     t, c = collar_bow(B, O, names, masks, pm, ppl, ctx['az3'], design.design_views())
     T['collar_bow'] = t
+    C.update(c)
+    t, c = jacket(B, O, names, masks, pm, ppl, ctx['az3'], design.design_views(), our_classes(B, ppl, ctx['az3']))
+    T['jacket'] = t
     C.update(c)
     return T, C

@@ -114,6 +114,34 @@ def test_cuff_shape_reads_the_flare_and_the_trim():
     assert c2['flare'] < 1.0 and c2['trim'] == 0.0
 
 
+def junction(tucked):
+    """a jacket over a band (or tucked under it): the composite and each drawn alone."""
+    n = 120
+    top_a = np.zeros((n, n), bool); band_a = np.zeros((n, n), bool)
+    top_a[10:70, 20:100] = True                                   # the jacket down to row 69
+    band_a[60:90, 20:100] = True                                  # the band from row 60
+    if tucked:
+        comp_band = band_a.copy(); comp_top = top_a & ~band_a      # the band in front
+    else:
+        comp_top = top_a.copy(); comp_band = band_a & ~top_a        # the jacket in front
+    return comp_top, comp_band, top_a, band_a
+
+
+def test_junction_order_tells_which_hides_which():
+    j = pq.junction_order(*junction(tucked=True), PPL)
+    assert j['under'] == 1.0 and j['over'] == 0.0
+    j = pq.junction_order(*junction(tucked=False), PPL)
+    assert j['over'] == 1.0 and j['under'] == 0.0
+
+
+def test_half_widths_round_the_middle():
+    m = np.zeros((700, 400), bool)
+    r = int(round((pq.WIN['top'] + 1.1) * PPL - 0.5))
+    m[r - 5:r + 5, 180:221] = True                                 # 41 px wide round column 200
+    w = pq.half_widths(m, PPL, [-1.1, -2.0], cx=200)
+    assert abs(w[0] - 20.5 / PPL) < 1e-6 and w[1] is None
+
+
 if __name__ == '__main__':
     for name, fn in list(globals().items()):
         if name.startswith('test_'):
