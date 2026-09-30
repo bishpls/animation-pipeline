@@ -254,6 +254,7 @@ SIDE_RELAX = 1.0         # rad past the jaw's angle: behind it the rows (the rim
                          # back to level over this (dropped over the pocket's fade alone, 0.1 L in two columns, they folded)
 SIDE_DROP = 0.05         # L: behind the jaw's angle the throat's row runs this far under the rim's (no underside there)
 SIDE_RIMFIT = 0          # (lab) rounds of re-hanging each column's underside so its rim lands on the edge's height at its x
+SIDE_RIMFIT_A = 9.0      # (lab) rad: ... in the columns under this angle round the band's centre only
 SIDE_RIM_ROW = False     # the rim on its row (SIDE_ROWS[0]) at the chin too: the jaw line one edge loop from the chin
                          # round to the jaw's angle
 JAW_CREASE = 0           # the rim's loop creased this many columns either side of the chin's (0: none)
@@ -573,7 +574,7 @@ class UnderJaw:
             i = int(cand[0])
             f = g[i - 1] / (g[i - 1] - g[i])
             z_r, r_r = zg[i - 1] + f * (zg[i] - zg[i - 1]), rS[i - 1] + f * (rS[i] - rS[i - 1])
-            if it == SIDE_RIMFIT or info['a'] >= float(self.rim_th[-1]):
+            if it == SIDE_RIMFIT or info['a'] >= min(float(self.rim_th[-1]), SIDE_RIMFIT_A):
                 break
             # the rim where the column's envelope crosses the underside lies off the edge's height at its own x
             # (the envelope's front bulges past the edge's point or falls short of it): hang it again by the gap

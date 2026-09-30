@@ -88,9 +88,16 @@ def main(argv):
     spec = jaw_lab.spec_of()
     D, ppl, _, az = design(spec)
     z0 = D['front']['taper']['z0']
-    V, T, iris, ez, L, A = jaw_lab.local(geom)
-    out = dict(design={kk: D['front']['taper'].get(kk) for kk in ('chin_angle', 'chin_arms', 'tip_share', 'w90')})
-    for scale in (1, k):
+    import taper_lab
+    meshes, (V, T), iris, ez, L, _ = taper_lab.scene(geom=geom, log=lambda *a: None)
+    O = fr.ours_jaw(meshes, (V, T), iris, ez, L, ppl, az, D['front'].get('chin', (0, None))[1], z0,
+                    design_tq_top=D['three_quarter']['taper'].get('top'))[0]
+    C = fr.jaw_compare(D, O, ppl)
+    C.update(fr.taper_checks(D, O))
+    out = dict(design={kk: D['front']['taper'].get(kk) for kk in ('chin_angle', 'chin_arms', 'tip_share', 'w90')},
+               checks={kk: dict(value=C[kk].get('value'), status=C[kk]['status'], level=C[kk].get('level'))
+                       for kk in taper_lab.SHOW if kk in C})
+    for scale in (k,):
         F = front(V, T, iris, ez, L, ppl * scale, az, z0)
         for cam, M in F.items():
             arms = M.get('arms') or {}
@@ -98,8 +105,16 @@ def main(argv):
                                                 tip_share=M.get('tip_share'), w90=M.get('w90'), chin=M.get('chin'),
                                                 bend=max([a['bend'] for a in arms.values()] or [None]))
     out['rims'] = rims(geom, spec)
+    print("the graded checks (the sheet's scale; the level camera's beside):")
+    for kk, v in out['checks'].items():
+        print('  %-24s %-8s %-5s level %s' % (kk, v['value'], v['status'], v['level']))
+    for cam in ('board', 'level'):
+        t = O['front']['taper' if cam == 'board' else 'taper_level']
+        arms = t.get('arms') or {}
+        out['%s_x1' % cam] = dict(chin_angle=t.get('chin_angle'), chin_arms=t.get('chin_arms'), tip_share=t.get('tip_share'),
+                                  w90=t.get('w90'), chin=t.get('chin'), bend=max([a['bend'] for a in arms.values()] or [None]))
     print('%-10s %8s %14s %6s %7s %6s' % ('', 'angle', 'arms', 'tip', 'w90', 'bend'))
-    for key in ['design'] + [kk for kk in out if kk.startswith(('board', 'level'))]:
+    for key in ['design'] + sorted(kk for kk in out if kk.startswith(('board', 'level'))):
         m = out[key]
         print('%-10s %8s %14s %6s %7s %6s' % (key, m.get('chin_angle'), m.get('chin_arms'), m.get('tip_share'),
                                              m.get('w90'), m.get('bend', '')))
