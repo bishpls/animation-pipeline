@@ -10,6 +10,11 @@ changed).
     python -m charkit preview --tip BRANCH   the same for BRANCH's tip as it is once the previous preview is done (the
                                              hook's form: merges in a burst preview their last commit once)
     python -m charkit preview --page SHA     the page again from the stored build
+    python -m charkit preview serve [--port 8765] [--open]
+                                             the previews at http://localhost:8765/ with click-to-flag on every picture:
+                                             a point or a box, a severity (0 praise .. 3 severe), a note; saved to
+                                             charkit/out/previews/flags.jsonl with the board, view and part under it
+                                             (charkit/flags.py)
     python -m charkit preview hook install|remove|status
                                              a post-merge hook in this worktree (per-worktree core.hooksPath) that runs
                                              `preview --tip BRANCH` in the background after a merge on BRANCH
@@ -44,8 +49,19 @@ RANK = {'PASS': 0, 'WARN': 1, 'FAIL': 2}
 DESIGN_WINDOW, DESIGN_PPL = 2.4, 400      # the build's design board (charkit.scene.boards): L across, px per L
 
 
+# what git exports to a hook's processes: a git command run with them acts on the hooked repository whatever its cwd
+# (the post-merge hook's preview once detached pipeline-3d's HEAD and force-checked-out there, 2026-09-30)
+GIT_HOOK_ENV = ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY',
+                'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_QUARANTINE_PATH', 'GIT_NAMESPACE')
+
+
+def _clean_env():
+    """the environment without git's hook variables (GIT_HOOK_ENV)."""
+    return {k: v for k, v in os.environ.items() if k not in GIT_HOOK_ENV}
+
+
 def _git(*a, cwd=ROOT, check=True):
-    r = subprocess.run(['git', *a], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(['git', *a], cwd=cwd, capture_output=True, text=True, env=_clean_env())
     if check and r.returncode:
         raise SystemExit('git %s: %s' % (' '.join(a), r.stderr.strip()))
     return r.stdout.strip()
@@ -85,7 +101,7 @@ def build(sha, spec=SPEC, box='render', log=print):
     t = time.time()
     cmd = [PY, '-m', 'charkit', 'remote', '--box', box, 'build', spec, '--out', rel, '--boards', BOARDS, '--no-blend']
     log('preview %s: %s (in %s)' % (short, ' '.join(cmd[2:]), wt))
-    r = subprocess.run(cmd, cwd=wt, capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=wt, capture_output=True, text=True, env=_clean_env())
     src = os.path.join(wt, rel)
     if r.returncode or not os.path.exists(os.path.join(src, 'qa', 'qa.json')):
         raise SystemExit('preview %s: the build failed (exit %d)\n%s' % (short, r.returncode, (r.stdout + r.stderr)[-3000:]))
@@ -136,10 +152,11 @@ def _cut(rgb, x0, y0, x1, y1, fill):
     return out
 
 
-def head_crop(rgb, eye_y, ppl, cx=None, xlim=None, bg=None, clip=False):
+def head_crop(rgb, eye_y, ppl, cx=None, xlim=None, bg=None, clip=False, want_map=False):
     """the close-up window (WIN, in L) round the eye line at eye_y, centred on the head's columns (the foreground's
     extent from the window's top to 0.4 L under the eyes, within the columns xlim; or cx), resampled to PPL_OUT px per
-    L. clip: the columns outside xlim blanked (a sheet's neighbouring figures)."""
+    L. clip: the columns outside xlim blanked (a sheet's neighbouring figures). want_map: also the crop's map back to
+    the source's pixels (source = x0 + crop * sx; charkit.flags anchors a review flag on the board with it)."""
     fill = np.median(rgb[:8, :8].reshape(-1, 3), 0) if bg is None else bg
     if clip and xlim is not None:
         rgb = rgb.copy()
@@ -154,22 +171,31 @@ def head_crop(rgb, eye_y, ppl, cx=None, xlim=None, bg=None, clip=False):
     hw = int(round(WIN['half'] * ppl))
     x0 = int(round(cx)) - hw
     c = _cut(rgb, x0, y0, x0 + 2 * hw, y1, fill)
-    return _resize(c, 2 * WIN['half'] * PPL_OUT, (WIN['up'] + WIN['down']) * PPL_OUT)
+    out = _resize(c, 2 * WIN['half'] * PPL_OUT, (WIN['up'] + WIN['down']) * PPL_OUT)
+    if want_map:
+        return out, dict(x0=x0, y0=y0, sx=c.shape[1] / out.shape[1], sy=c.shape[0] / out.shape[0])
+    return out
 
 
-def figure_crop(rgb, box=None, bg=None, pad=0.02):
-    """a full figure cut to its box (or its foreground's) with a little room, scaled to BODY_H px tall."""
+def figure_crop(rgb, box=None, bg=None, pad=0.02, want_map=False):
+    """a full figure cut to its box (or its foreground's) with a little room, scaled to BODY_H px tall. want_map: also
+    the map back to the source's pixels (head_crop's)."""
     if box is None:
         m = _fg(rgb, bg)
         rows, cols = np.nonzero(m.any(1))[0], np.nonzero(m.any(0))[0]
         if not len(rows):
-            return _resize(rgb, rgb.shape[1] * BODY_H / rgb.shape[0], BODY_H)
+            out = _resize(rgb, rgb.shape[1] * BODY_H / rgb.shape[0], BODY_H)
+            mp = dict(x0=0, y0=0, sx=rgb.shape[1] / out.shape[1], sy=rgb.shape[0] / out.shape[0])
+            return (out, mp) if want_map else out
         box = [cols[0], rows[0], cols[-1] + 1, rows[-1] + 1]
     x0, y0, x1, y1 = box
     p = int(round(pad * (y1 - y0)))
     fill = np.median(rgb[:8, :8].reshape(-1, 3), 0)
     c = _cut(rgb, int(x0) - p, int(y0) - p, int(x1) + p, int(y1) + p, fill)
-    return _resize(c, c.shape[1] * BODY_H / c.shape[0], BODY_H)
+    out = _resize(c, c.shape[1] * BODY_H / c.shape[0], BODY_H)
+    if want_map:
+        return out, dict(x0=int(x0) - p, y0=int(y0) - p, sx=c.shape[1] / out.shape[1], sy=c.shape[0] / out.shape[0])
+    return out
 
 
 def design_refs(eye_x=0.168):
@@ -215,15 +241,18 @@ def draw_design_view(B, az, ppl=PPL_OUT, ss=2):
     return img[..., :3] * a + np.asarray(qa3d._srgb(np.array(qa3d.WORLD)))[None, None] * (1 - a)
 
 
-def our_heads(d, log=print):
+def our_heads(d, log=print, maps=None):
     """ours in the design's projection for each design view: the build's design board cropped (its eye line is the
-    board's middle row; DESIGN_PPL px per L), else drawn from its bundle. -> ({view: crop}, source)."""
+    board's middle row; DESIGN_PPL px per L), else drawn from its bundle. -> ({view: crop}, source). maps (a dict):
+    gets each board crop's map back to its board (head_crop's want_map), as 'head_<view>'."""
     out = {}
     boards = os.path.join(d, 'boards')
     if all(os.path.exists(os.path.join(boards, 'design_%03d.png' % az)) for _, az in DESIGN_VIEWS):
         for v, az in DESIGN_VIEWS:
             rgb = _load(os.path.join(boards, 'design_%03d.png' % az))
-            out[v] = head_crop(rgb, rgb.shape[0] / 2, rgb.shape[0] / DESIGN_WINDOW)
+            out[v], mp = head_crop(rgb, rgb.shape[0] / 2, rgb.shape[0] / DESIGN_WINDOW, want_map=True)
+            if maps is not None:
+                maps['head_' + v] = dict(mp, src='boards/design_%03d.png' % az)
         return out, 'EEVEE design board (orthographic, level, %d px/L)' % DESIGN_PPL
     if not os.path.isdir(os.path.join(d, 'bundle')):
         return {}, 'none (no design board and no bundle)'
@@ -291,42 +320,55 @@ def _prune_bundles():
 
 
 # ------------------------------------------------------------------------------------------------------------ the page
-def crops(d, design, log=print):
+def crops(d, design, log=print, save=True):
     """the page's pictures for one preview, written under d/page/: our close-ups and full figures, and (once per
-    preview, so a page never depends on another worktree's files) the design's. -> {name: relative path}, source."""
+    preview, so a page never depends on another worktree's files) the design's. Each crop's map back to the picture it
+    was cut from (a board, or a design sheet) goes into crops.json's `maps` (charkit.flags anchors review flags on the
+    board with it). save=False: only the maps (for a page made before they were recorded). -> {name: relative path},
+    source, maps."""
     pd = os.path.join(d, 'page')
     os.makedirs(pd, exist_ok=True)
-    got = {}
-    heads, source = our_heads(d, log)
+    got, maps = {}, {}
+    put = (lambda img, name: _save(img, os.path.join(pd, name + '.png'))) if save else (lambda img, name: None)
+    heads, source = our_heads(d, log, maps)
     for v, img in heads.items():
-        _save(img, os.path.join(pd, 'head_%s.png' % v)); got['head_' + v] = 'page/head_%s.png' % v
+        put(img, 'head_' + v); got['head_' + v] = 'page/head_%s.png' % v
     for az in BODY_AZ:
         p = os.path.join(d, 'boards', 'body_%03d.png' % az)
         if os.path.exists(p):
-            _save(figure_crop(_load(p)), os.path.join(pd, 'body_%03d.png' % az)); got['body_%03d' % az] = 'page/body_%03d.png' % az
+            img, mp = figure_crop(_load(p), want_map=True)
+            put(img, 'body_%03d' % az); got['body_%03d' % az] = 'page/body_%03d.png' % az
+            maps['body_%03d' % az] = dict(mp, src='boards/body_%03d.png' % az)
     hr = _load(design['head'])
     for v, _ in DESIGN_VIEWS:
         h = design['heads'].get(v)
         if h:
             m = 0.03 * design['head_ppl']
-            _save(head_crop(hr, h['eye_y'], design['head_ppl'], xlim=(h['box'][0] - m, h['box'][2] + m), clip=True),
-                  os.path.join(pd, 'design_head_%s.png' % v))
+            img, mp = head_crop(hr, h['eye_y'], design['head_ppl'], xlim=(h['box'][0] - m, h['box'][2] + m), clip=True,
+                                want_map=True)
+            put(img, 'design_head_' + v)
             got['design_head_' + v] = 'page/design_head_%s.png' % v
+            maps['design_head_' + v] = dict(mp, src='ref:' + os.path.relpath(design['head'], ROOT), view=v)
     br = _load(design['body'])
     for v in ('front', 'three_quarter', 'profile', 'back'):
         if v in design['figures']:
-            _save(figure_crop(br, design['figures'][v]), os.path.join(pd, 'design_body_%s.png' % v))
+            img, mp = figure_crop(br, design['figures'][v], want_map=True)
+            put(img, 'design_body_' + v)
             got['design_body_' + v] = 'page/design_body_%s.png' % v
+            maps['design_body_' + v] = dict(mp, src='ref:' + os.path.relpath(design['body'], ROOT), view=v)
     tt = sorted(glob.glob(os.path.join(d, 'boards', 'design_*.png')))
     for p in tt:
         rgb = _load(p)
         name = os.path.basename(p)[:-4]
-        _save(_resize(head_crop(rgb, rgb.shape[0] / 2, rgb.shape[0] / DESIGN_WINDOW),
-                      180 * 2 * WIN['half'] / (WIN['up'] + WIN['down']), 180),
-              os.path.join(pd, 'tt_%s.png' % name))
+        hc, mp = head_crop(rgb, rgb.shape[0] / 2, rgb.shape[0] / DESIGN_WINDOW, want_map=True)
+        img = _resize(hc, 180 * 2 * WIN['half'] / (WIN['up'] + WIN['down']), 180)
+        put(img, 'tt_' + name)
         got['tt_' + name] = 'page/tt_%s.png' % name
-    json.dump(dict(got=got, source=source), open(os.path.join(pd, 'crops.json'), 'w'), indent=1)
-    return got, source
+        maps['tt_' + name] = dict(x0=mp['x0'], y0=mp['y0'], sx=mp['sx'] * hc.shape[1] / img.shape[1],
+                                  sy=mp['sy'] * hc.shape[0] / img.shape[0], src='boards/%s.png' % name)
+    if save:
+        json.dump(dict(got=got, source=source, maps=maps), open(os.path.join(pd, 'crops.json'), 'w'), indent=1)
+    return got, source, maps
 
 
 def _fig(src, cap, h=None):
@@ -348,7 +390,7 @@ def page(sha, spec=SPEC, log=print):
     except Exception:
         pass
     design = design_refs(eye_x)
-    got, source = crops(d, design, log)
+    got, source, _ = crops(d, design, log)
     prev = previous(sha)
     pgot = {}
     if prev:
@@ -438,6 +480,12 @@ def page(sha, spec=SPEC, log=print):
     P.append('<h2>Files</h2><div class="box">QA overlays: %s<br>boards: <a href="boards/">boards/</a> &middot; '
              '<a href="qa/qa.json">qa.json</a> &middot; <a href="trace.jsonl">trace</a></div>' % ' &middot; '.join(
                  '<a href="%s">%s</a>' % (os.path.relpath(p, d), os.path.basename(p)[:-4]) for p in links))
+    # the flag tools (charkit/flagui.js, served by `preview serve`; opened as a file the page says the flags need it)
+    P.append('<script src="../flags.js"></script>')
+    try:
+        shutil.copyfile(os.path.join(ROOT, 'charkit', 'flagui.js'), os.path.join(OUT, 'flags.js'))
+    except OSError:
+        pass
     path = os.path.join(d, 'review.html')
     open(path, 'w').write('\n'.join(P) + '\n')
     latest = max(index(), key=lambda r: r['t'])
@@ -453,6 +501,9 @@ HOOK = """#!/bin/sh
 # It runs in the background and always exits 0: it never blocks or fails the merge.
 [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "%(branch)s" ] || exit 0
 cd "$(git rev-parse --show-toplevel)" || exit 0
+# git's hook variables would point every git command the preview runs (in its own worktree too) at this one
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+  GIT_QUARANTINE_PATH GIT_NAMESPACE
 mkdir -p charkit/out/previews
 nohup %(py)s -m charkit preview --tip %(branch)s >> charkit/out/previews/hook.log 2>&1 < /dev/null &
 exit 0
@@ -509,9 +560,16 @@ def preview(ref='HEAD', spec=SPEC, box='render', force=False, tip=None, log=prin
 def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__); return 0
+    # run from a hook (an older hook script, or a user's), git's variables must not reach the build's git commands (the
+    # box sync lists files with git too): dropped for this process and every child
+    for k in GIT_HOOK_ENV:
+        os.environ.pop(k, None)
     if args[0] == 'hook':
         hook(args[1] if len(args) > 1 else 'status', args[2] if len(args) > 2 else None)
         return 0
+    if args[0] == 'serve':
+        from . import flags
+        return flags.main(args[1:])
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
     spec = opt('--spec', SPEC)
     if '--page' in args:
