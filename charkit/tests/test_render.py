@@ -122,6 +122,40 @@ def test_model_roundtrip():
         assert views.look_of(M)['lines']['frac'] == 0.0022
 
 
+def test_quad_normals():
+    """normals.Group: the export's triangles paired back into quads, each vertex's normal the corner-angle-weighted sum
+    of its faces' (Newell's for a quad), as Blender computes them; the surface moved inward by w before."""
+    from charkit.render import normals
+
+    class P:                                                          # a Prim's fields Group reads
+        def __init__(self, pos, idx, n):
+            self.position, self.index, self.normal = pos, idx, n
+            self.outline, self.hull_normal, self.outline_w = {'width': 0.0}, None, None
+            self.look = {'kind': 'toon3'}
+
+        def co(self):
+            return self.position
+
+        def hull_dir(self):
+            return self.normal
+
+        def width_factor(self):
+            return np.ones(len(self.position), np.float32)
+    # a twisted quad (0, 1, 2, 3) split on its diagonal, and a lone triangle after it
+    V = np.array([[0, 0, 0], [1, 0, 0.3], [1, 1, 0], [0, 1, 0.3], [2, 0, 0], [2, 1, 0]], np.float32)
+    T = np.array([[0, 1, 2], [0, 2, 3], [1, 4, 5]], np.uint32)
+    G = normals.Group([P(V, T.ravel(), np.tile([0, 0, 1.0], (6, 1)).astype(np.float32))])
+    tris, quads = G.polys
+    assert len(quads) == 1 and len(tris) == 1 and sorted(quads[0].tolist()) == [0, 1, 2, 3]
+    n = G.normals(0.0)[0]
+    q = V[quads[0]].astype(float)
+    newell = sum(np.cross(q[j], q[(j + 1) % 4]) for j in range(4))
+    newell /= np.linalg.norm(newell)
+    assert np.allclose(n[3], newell, atol=1e-6) and np.allclose(n[0], n[3], atol=1e-6)   # vertices only in the quad
+    # moved inward by w along the hull direction: a flat plane's normals don't change
+    assert np.allclose(G.normals(0.01)[0][[0, 2, 3]], n[[0, 2, 3]], atol=1e-6)
+
+
 def _gpu():
     try:
         from charkit.render import gpu
@@ -154,8 +188,7 @@ def test_sphere_render():
         fg = np.abs(img.astype(int) - bg).max(-1) > 64
         # the silhouette is the hull: the original surface, radius 0.1 m (50 px), filtered edge within 1 px
         assert fg[rr < 0.1 - 1.2 * mpp].all() and not fg[rr > 0.1 + 1.2 * mpp].any()
-        # the ink ring: screen lines 0.22% of the height x 160 px = 0.352 px at this scale... drawn from the surface
-        # moved inward by it: dark pixels only at the rim
+        # screen lines: 0.22% of the picture's height at this view's scale (the surface moved inward by it)
         line = keep['line']
         assert abs(line - 0.0022 * 160 * mpp) < 1e-12
         # the terminator: light from her left (+x in glTF, the picture's right from the front): the camera key turns
@@ -170,13 +203,11 @@ def test_sphere_render():
         nz = np.sqrt(np.clip(1 - (px ** 2 + py ** 2) / s ** 2, 0, 1))
         Nn = np.stack([px / s, py / s, nz], -1)                                      # the front's normals (camera +z)
         h = (Nn @ np.asarray(L)) * 0.5 + 0.5
-        lit = compare.srgb8([0.9, 0.5, 0.3]) / 255.0
         col = H[..., :3]
         is_lit = np.abs(col - np.array([0.9, 0.5, 0.3])).max(-1) < 0.02
         sure = inside & (np.abs(h - 0.5) > 0.02)
         agree = (is_lit[sure] == (h[sure] > 0.5)).mean()
         assert agree > 0.999, agree
-        assert lit is not None
 
 
 if __name__ == '__main__':

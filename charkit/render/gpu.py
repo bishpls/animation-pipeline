@@ -361,7 +361,9 @@ class Renderer:
                 {'binding': 0, 'resource': {'buffer': self.res_buf, 'offset': 0, 'size': 32}},
                 {'binding': 1, 'resource': T['main'].create_view()},
                 {'binding': 2, 'resource': T['feat'].create_view()}])
-            self._targets = {key: T}                   # one size at a time (the hi-res targets are large)
+            while len(self._targets) >= 2:             # the two board sizes (face, body); the hi-res targets are large
+                self._targets.pop(next(iter(self._targets)))
+            self._targets[key] = T
         return self._targets[key]
 
     # ---- a frame
