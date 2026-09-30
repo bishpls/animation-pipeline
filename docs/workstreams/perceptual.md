@@ -5,7 +5,9 @@ Michael's severity calls (the handoff's "Michael's review of the end-to-end run"
 phase 4 item 4). It complements the geometric checks. It reads the EEVEE boards, so it runs where boards render (the
 GPU render box), never in a gate.
 
-**State: relaunched 2026-09-30 (the integrator approved it).** pipeline-3d 9397578 merged in (92e8fe2): the default
+**State: relaunched 2026-09-30 (the integrator approved it).** Running: the pass over all 33 staged builds on the render
+box (`--hi`, two lanes, script in the session scratchpad `perc/run_all.sh`; each build's `perceptual/` fetched into
+`charkit/out/perceptual_runs/`). A build already scored with `maps.npz` is skipped, so a relaunch resumes. pipeline-3d 9397578 merged in (92e8fe2): the default
 spec is the authored character, produced references are cached. The calibration run is below ("Calibration run,
 2026-09-30").
 
@@ -131,6 +133,26 @@ which agrees with Michael's profile calls.
    gate-time variant. That variant would run the same features on qa3d.draw's numpy drawings of the bundle, which the
    build box can make. It needs the weights on the build box (the gated download, token from the secret manager) and
    CPU inference: ViT-L at fp32 is about 2-5 s a picture on 32 vCPU.
+
+## What the metric needs to read tool/toonrender's boards
+
+The metric reads EEVEE boards now (`boards/body_{000,035,090,180}.png`, `boards/face_{000,030,090}.png`). To read the
+new renderer's boards, per board:
+1. **The camera, written beside the picture** (a JSON sidecar): orthographic scale and target for the body views,
+   lens, sensor, distance and the look-at lift for the head views, the azimuth, the resolution. `Ours.on_grid` hard-codes
+   `BODY_BOARD` and `FACE_BOARD` (charkit.scene.boards' values); a sidecar replaces them, and a changed framing then
+   can't silently misregister.
+2. **A flat background colour distinct from every material** (the figure is its pixels off the background at 0.012:
+   EEVEE's world 239 239 244 against the white boots' 243 244 243 is already the tightest case), or better an alpha
+   channel.
+3. **Depth and object-ID passes** (float depth along the view; an ID per object, or the region name map): the head scale
+   rectifies the perspective board on our z-buffered depth of the bundle, and the regions come from z-buffering the
+   bundle's objects. The renderer's own passes would make both exact and drop the bundle z-buffer (and its 0.975
+   registration IoU).
+4. **The same file names and azimuths**, or a `boards.json` index naming them.
+5. **Recalibration:** the floors (the drawn-against-rendered gap) and the limits are EEVEE's. A toon renderer changes
+   that gap everywhere, so its boards need their own pool and floors; the weights and labels carry over only if a pair
+   of the same build rendered both ways shows the per-region distances move together (a check to run once both exist).
 
 ## Gotchas
 
