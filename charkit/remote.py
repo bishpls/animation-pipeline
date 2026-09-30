@@ -4,9 +4,13 @@ fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the
 
     python -m charkit remote build SPEC [build args]     sync, build there, fetch its --out
     python -m charkit remote tune SPEC [tune args]       sync, tune there, fetch its --out
-    python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS] [--accept PATTERN,...]
+    python -m charkit remote gate BRANCH --into BASE [--spec SPEC] [--args ARGS] [--accept PATTERN,...] [--build]
+                              [--code REF] [--keep-older]
                                                          the gate there, in a clone kept current by git bundles, its
-                                                         report fetched into charkit/out/gate (SPEC a path on the box)
+                                                         report fetched into charkit/out/gate (SPEC a path on the box).
+                                                         It stops the branch's older gate still running (same spec;
+                                                         --keep-older doesn't). --code REF: the gate's own code from REF,
+                                                         not BASE's (to try a change to the gate itself)
     python -m charkit remote run CMD...                  anything, in the synced copy
     python -m charkit remote jobs [--days N]             every box's jobs: running, finished (N days, default 1), lost
     python -m charkit remote attach JID                  follow a job again (its log from the start) and collect its outputs
@@ -188,6 +192,7 @@ def gate(args):
     queued for hours on a box two-thirds idle (2026-09-29)."""
     import uuid
     branch, into = args[0], _opt(args, '--into', 'pipeline-3d')
+    gate_code = _opt(args, '--code')
     tag = re.sub(r'[^A-Za-z0-9._-]', '_', branch)
     gid = '%s-%s' % (tag, uuid.uuid4().hex[:8])
     bundle = os.path.join(ROOT, 'charkit', 'out', 'remote', 'repo-%s.bundle' % gid)
@@ -201,8 +206,8 @@ def gate(args):
                retry=True).split()
     known = sorted({c for c in have if subprocess.run(['git', '-C', ROOT, 'cat-file', '-e', c + '^{commit}'],
                                                       capture_output=True).returncode == 0})
-    r = subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch] + ['^' + c for c in known],
-                       capture_output=True, text=True)
+    r = subprocess.run(['git', '-C', ROOT, 'bundle', 'create', bundle, into, branch] + ([gate_code] if gate_code else []) +
+                       ['^' + c for c in known], capture_output=True, text=True)
     if r.returncode != 0 and 'empty bundle' not in r.stderr:
         raise SystemExit(r.stderr)
     if r.returncode == 0:
@@ -219,7 +224,7 @@ def gate(args):
     if os.path.isdir(i3d):
         _sh('push', i3d + '/', GI + '/', '--link', retry=True)
     sha = {b: subprocess.run(['git', '-C', ROOT, 'rev-parse', b], capture_output=True, text=True, check=True).stdout.strip()
-           for b in (into, branch)}
+           for b in (into, branch) + ((gate_code,) if gate_code else ())}
     q = shlex.quote
     install, publish, script = '', '', None
     if _bucket():                               # the report goes back through the bucket (charkit/bucketsync.py)
@@ -230,24 +235,32 @@ def gate(args):
              'git clone -q --shared --no-checkout /srv/work/repo %(G)s'
              % dict(b=boxed, gid=gid, G=G))
     more = ''.join(' %s %s' % (k, q(_opt(args, k))) for k in ('--spec', '--args', '--accept') if k in args)
-    step = ('rc=1; flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
+    more += ' --build' if '--build' in args else ''
+    # a killed gate (remote kill: SIGTERM to its processes) still removes its clone, its inputs and its temporary
+    # files (its worktrees and the builds' scratch live under G.tmp)
+    step = ('rc=1; cleanup() { cd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log %(G)s.tmp; }; '
+            'trap "cleanup; exit 143" TERM INT HUP; '
+            'mkdir -p %(G)s.tmp && export TMPDIR=%(G)s.tmp && '
+            'flock /srv/work/.gate-fetch.lock bash -c %(fetch)s && cd %(G)s && '
             'git config user.name charkit-gate && git config user.email gate@localhost && '
             'git sparse-checkout set --cone charkit && '
             'git update-ref refs/heads/%(into)s %(si)s && git update-ref refs/heads/%(branch)s %(sb)s && '
-            'git checkout -q -f %(into)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/_gate/%(gid)s && '
+            'git checkout -q -f %(checkout)s && mkdir -p charkit/out /srv/work/gate-out /srv/work/_gate/%(gid)s && '
             'ln -s %(GI)s charkit/out/i3d && ln -s /srv/work/gate-out charkit/out/gate && '
             'python -m charkit slots %(slots)d >/dev/null && '
             '{ python -m charkit gate %(branch)s --into %(into)s%(more)s 2>&1 | tee %(G)s.log; rc=${PIPESTATUS[0]}; } ; '
             'for r in $(sed -n "s/^report //p" %(G)s.log); do cp "${r%%.md}.md" "${r%%.md}.json" /srv/work/_gate/%(gid)s/ '
-            '2>/dev/null; done; %(publish)scd /srv/work && rm -rf %(G)s %(GI)s %(G)s.log; '
+            '2>/dev/null; cp "${r%%.md}.summary.json" /srv/work/_gate/%(gid)s/ 2>/dev/null; done; %(publish)scleanup; '
             'find /srv/work/gate-out -maxdepth 1 -name "cand_*" -mtime +3 -exec rm -rf {} + 2>/dev/null; exit $rc'
             % dict(fetch=q(fetch), G=G, GI=GI, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
-                   slots=_slots(), more=more, publish=publish))
+                   slots=_slots(), more=more, publish=publish, checkout=sha[gate_code] if gate_code else q(into)))
     # with the box's environment, not in this worktree's synced copy (a worktree that has only ever gated has none)
     what = dict(pull='gate-' + gid, to=os.path.join('charkit', 'out', 'gate'), gate=gid)
+    label = '%s into %s%s' % (branch, into, more) + (' (gate code %s)' % gate_code if gate_code else '')
+    if '--keep-older' not in args:
+        supersede(branch, _opt(args, '--spec'))
     if _detach():
-        code = job('gate', 'source /opt/anim-build/env && bash -c %s' % q(step), '%s into %s%s' % (branch, into, more),
-                   collect=what)
+        code = job('gate', 'source /opt/anim-build/env && bash -c %s' % q(step), label, collect=what)
         if code == STILL_RUNNING:
             return code
     else:
@@ -259,6 +272,35 @@ def gate(args):
     collect(what)
     print('remote gate: exit %d, report in %s' % (code, local))
     return code
+
+
+def _gate_label(label):
+    """a gate job's label -> (branch, spec or None): '<branch> into <base>[ --spec S][ --args ...]...'."""
+    branch, _, rest = (label or '').partition(' into ')
+    m = re.search(r"--spec ('[^']*'|\S+)", rest)
+    return branch, (shlex.split(m.group(1))[0] if m else None)
+
+
+def supersede(branch, spec=None):
+    """one live gate per branch: this branch's gates still running on the box for the same spec are stopped (remote
+    kill: their processes only; a gate's trap then removes its clone), since a new gate replaces them."""
+    from charkit import boxjob
+    cfg, vm = _cfg()
+    r = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - list --days 0'], input=open(boxjob.__file__, 'rb').read(),
+                       capture_output=True)
+    if r.returncode:
+        print('remote gate: could not list the box\'s jobs (exit %d): older gates of %s left alone' % (r.returncode, branch),
+              file=sys.stderr)
+        return []
+    rows = [json.loads(l) for l in r.stdout.decode().splitlines() if l.startswith('{')]
+    old = [x['jid'] for x in rows if x.get('kind') == 'gate' and x.get('state') == 'running' and
+           _gate_label(x.get('label')) == (branch, spec)]
+    for jid in old:
+        k = subprocess.run(['ssh', '-F', cfg, vm, 'python3 - kill %s' % shlex.quote(jid)],
+                           input=open(boxjob.__file__, 'rb').read(), capture_output=True)
+        print('remote gate: stopped the older gate of %s still running, %s (%s)' % (
+            branch, jid, (k.stdout.decode().strip() or k.stderr.decode().strip())[-120:]), file=sys.stderr, flush=True)
+    return old
 
 
 # ------------------------------------------------------------------------------------------------ detached box jobs

@@ -50,6 +50,7 @@ worst view's excess over the design's, or ratio to it. Calibration: see docs/wor
 """
 import numpy as np
 
+from . import registry
 from .registry import qa_part
 
 REGIONS = ('hair', 'face', 'neck', 'collar', 'bow', 'top', 'skirt', 'boots')
@@ -1259,7 +1260,7 @@ def promote(C):
         g = c.get('grade')
         if k in CALIBRATED and g and c.get('value') is not None:
             c['status'] = g if k in PROMOTED else 'PASS' if g == 'PASS' else 'WARN'
-            c['flag'] = CALIBRATED[k]
+            registry.flag_check(c, CALIBRATED[k])            # a flag check: the gate blocks on its regressions
     return C
 
 
