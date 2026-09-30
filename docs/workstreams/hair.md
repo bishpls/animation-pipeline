@@ -517,7 +517,45 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
 - **pipeline-3d 08f93e2 merged** (03d14ce, clean: pipeline-3d's only hair-side change is hairlayers' outfit masks
   without the silent fallback, which our bun sides read as before). `test_registry.py`, `test_hairpieces.py` and the
   whole suite (57 files, 104 s) pass. This branch adds no QA part or step.
-- **Gate** (default spec only, policy K): running.
-- **Render builds for the review page** (`--box render`, boards views,body), both on the merged code: `h4n_r3_r` (the
-  default spec with round 3's hair: `pieces_opts` body_clear and crown_trim off, spec in charkit/out/h4spec/) and
-  `h4n_final_r` (the committed defaults). The page's before and after then differ only in the hair.
+- **Gate** (default spec only): `charkit/out/gate/gate_tool-hair4_14d9e42_into_08f93e2.md`, **PASS** as gate.py grades
+  it. The moves are the checkpoint table's: hair_bun_outline 0.397 -> 0.437 (FAIL both sides), hair_piece_buns 0.826 ->
+  0.846, upper back 0.760 -> 0.771, hair_folds 6 -> 5, side locks 0.545 -> 0.548, bangs 0.762 -> 0.759, hair_noise
+  0.0739 -> 0.0762 (WARN both), bun corners 21 -> 19; build CPU 579 -> 379 s. **Under K it is not mergeable:**
+  `art_terminator_hair` (a check calibrated on Michael's look_v5 flag, the torn hair shadow patches; capped at WARN,
+  pass 2.0, warn 2.5) 2.376 -> 2.607, the front view's ratio (kinks per L of the hair's cel terminator, 8.90 -> 9.76;
+  three-quarter 1.91 -> 2.05; profile and back fall). The flagged build read 2.6. Also art_fragments_hair 1.29 -> 1.49
+  (the back view) and art_outline_hair 0.689 -> 0.661, both INFO (not calibrated).
+- **Render builds** (`--box render`, boards views,body), both on the merged code: `h4n_r3_r` (the default spec with
+  round 3's hair: `pieces_opts` body_clear and crown_trim off, spec in charkit/out/h4spec/) and `h4n_final_r` (the
+  committed defaults). The pair reproduces the gate's 14 moved checks exactly (the art checks are deterministic across
+  the boxes), so the page's before and after differ only in the hair. The front's new terminator kinks (44 -> 49 marks
+  in qa_artifacts.png) are at the crown under the buns and on her left at the cheek.
+- **The terminator:** `crown_trim` pulls up to 0.18 L over 442 cells and takes the pull into Rn (the shading's
+  envelope, blurred over shade_smooth 2.5 cells) blurred over only 1.5 cells, so the shading bends harder round the
+  trimmed crown than anywhere else. `crown_shade` ('shade': the pull blurred as Rn is; default 1.5 as committed).
+  Build-box builds `h4n_nocrown` (crown_trim off) and `h4n_crownshade` measure it.
+- **Why the shell samples fold more (next step 2), measured** (`tools/hair4/foldlab.py BUILD OUT [--fine]`: the pieces
+  from the mesh's vertices and from the shell's samples, then with the chart's fields swapped between the two right
+  after mass_fields; per lock the folds with where, every view's shards with where, the partition's differing cells):
+
+  | h4m_base, committed defaults | mass-piece folds | flyaway folds | profile fragments |
+  |---|---|---|---|
+  | mesh | 5 | 0 | 8 |
+  | shell | 12 | 4 | 16 (bangs 7, upper back 7) |
+  | shell, the mesh's envelope (R, Rn, S, reach, valid, body cut) | 5 | 4 | 9 |
+  | shell, the mesh's partition (L, nothair) | 13 | 4 | 15 |
+  | shell, the mesh's R and Rn only | 5 | 4 | 8 |
+  | shell, the mesh's reach and valid / skin and body cut | 11 / 12 | 4 / 4 | 16 / 16 |
+
+  The partition does move (828 of 3,749 hair cells differ after the fill: 215 cells the shell reaches below the mesh's
+  lower back, 143 upper back -> bangs at the crown's fill), but it moves no fold and 2 upper-back shards. The folds and
+  the bangs' profile shards are the envelope radius R. Not the samples' density: R as the median of each cell's outer
+  sheet (`env_stat` 'sheet', `env_sheet` L) folds as much (15), and the shell thinned to the mesh's density (one sample
+  per 2^3 voxels) still folds 11. It is where the samples are: in the 291 cells where the shell's envelope stands 0.02 L
+  or more beyond the mesh's (6 the other way), the shell's outermost mass point is off the mesh's surface. 6,652 of the
+  head's 127,543 shell samples (5%) lie 0.02-0.2 L off the mesh (the BVH's distance), 4,416 beyond 0.05 L: flat slabs
+  inside the head (the occupancy's inner walls where the hull's height bands meet, across the face at the nose and
+  front to back), blocks behind the eyes, and thin fins on the side locks' and lower back's outer edges that the mesh's
+  blur erases. hull_samples keeps each such point where it is (the field too flat to settle), so the "shell samples"
+  were not the surface the mesh is cut from. `hull_samples(flat='drop')`, samples 'shell_smooth': the settled samples
+  only.

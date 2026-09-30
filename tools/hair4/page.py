@@ -126,6 +126,12 @@ for tag, p in (('round 3', lb), ('round 4', la)):
         im = Image.open(src); im.save(os.path.join(out, name))
         h.append('<figure><a href="%s"><img src="%s" width=%d></a><figcaption>%s: %s</figcaption></figure>' % (
             name, name, min(im.size[0], 2400), tag, html.escape(src)))
+for ex in T.get('extra', []):              # [{title, src, caption}]: other pictures (copied beside the page)
+    if os.path.exists(ex['src']):
+        name = 'extra_' + os.path.basename(ex['src'])
+        im = Image.open(ex['src']); im.save(os.path.join(out, name))
+        h.append('<h2>%s</h2><figure><a href="%s"><img src="%s" width=%d></a><figcaption>%s</figcaption></figure>' % (
+            html.escape(ex['title']), name, name, min(im.size[0], 1600), html.escape(ex.get('caption', ''))))
 h.append('<h2>Open items</h2><ul>%s</ul>' % ''.join('<li>%s</li>' % html.escape(x) for x in T.get('open', [])))
 open(os.path.join(out, 'index.html'), 'w').write('\n'.join(h))
 print(os.path.join(out, 'index.html'), 's_design %.3f s_back %.3f' % (s_design, s_back))

@@ -85,7 +85,7 @@ def fam_id(name):
 FREE_LABEL = 1000               # charkit.geom.hull.FREE: a shell label no piece claims is FREE + its class
 
 
-def hull_samples(glb, zmin=-1.8, blur=1.0, block=1):
+def hull_samples(glb, zmin=-1.8, blur=1.0, block=1, flat='keep'):
     """the hull's surface samples the hair is built from (docs/HULL_CONTRACT.md): the labelled shell (hull.npz), one
     point per surface voxel, not the decimated mesh's vertices, whose positions, count and density move with any change
     to the hull (hair round 4: the limb carve left the head's voxels identical but re-ran the decimation everywhere, and
@@ -147,6 +147,12 @@ def hull_samples(glb, zmin=-1.8, blur=1.0, block=1):
     # point stays: it is on the occupancy's boundary, within half a voxel of the surface
     bad = (np.abs(s) > 0.1 * h) | (np.linalg.norm(Q - P, axis=1) > 1.5 * h)
     Q[bad] = P[bad]
+    if flat == 'drop':
+        # (hair round 4: the unsettled points are not on the surface the mesh is cut from: the occupancy's inner walls,
+        # flat slabs inside the head where the hull's height bands meet and blocks behind the eyes, and thin fins the
+        # blur erases, 0.02-0.2 L off the mesh (6,652 of Clawd's head samples, 5%). As mass they moved the envelope
+        # 0.02 L out in 291 cells and the locks folded 5 -> 12. 'drop': every sample on the smooth surface)
+        Q, lab = Q[~bad], lab[~bad]
     g = grad(Q, 1.0)
     gn = np.linalg.norm(g, axis=1, keepdims=True)
     free = lab >= FREE_LABEL
@@ -319,6 +325,23 @@ def _max_field(G, i, j, ok, r):
     return A
 
 
+def _sheet_field(G, i, j, ok, r, Rmax, depth):
+    """per cell the median radius of its outermost sheet (the samples within `depth` of the cell's outermost): on a
+    smooth surface crossing the cell, its value at the cell's centre ray whatever the sampling. The maximum rises with
+    the samples' density toward the cell's most outward corner (hair round 4: the shell's 12 samples a cell against
+    the mesh's 3 moved the envelope 0.02 L out in 300 cells, and the locks folded 5 -> 12). -> (nph, nth), -inf empty."""
+    ii, jj = np.clip(i, 0, G.nph - 1), np.clip(j, 0, G.nth - 1)
+    sel = ok & (r >= Rmax[ii, jj] - depth)
+    key, rs = (ii * G.nth + jj)[sel], r[sel]
+    o = np.lexsort((rs, key))
+    key, rs = key[o], rs[o]
+    u, start, cnt = np.unique(key, return_index=True, return_counts=True)
+    med = 0.5 * (rs[start + (cnt - 1) // 2] + rs[start + cnt // 2])
+    A = np.full(G.nph * G.nth, -np.inf)
+    A[u] = med
+    return A.reshape(G.nph, G.nth)
+
+
 def _fill(A, valid):
     """cells not valid filled along theta in their column (from the crown down to the column's last valid cell), then
     columns without any from their neighbours round phi. -> (filled, reach: the last valid row per column, -1 none)."""
@@ -405,7 +428,10 @@ def mass_fields(case, hullV_world, fam, opts):
     i, j, ok = G.cell(ph, th)
     Rmax = _max_field(G, i, j, ok, r)
     valid = np.isfinite(Rmax)
-    Rf, reach = _fill(np.where(valid, Rmax, 0.0), valid)
+    Renv = Rmax
+    if opts.get('env_stat', 'max') == 'sheet':
+        Renv = _sheet_field(G, i, j, ok, r, Rmax, opts.get('env_sheet', 0.03) * case.L)
+    Rf, reach = _fill(np.where(valid, Renv, 0.0), valid)
     # hanging hair: below each column's reach the envelope continues flat (the pieces stop at their own tips)
     R = _pole(_smooth(Rf, 1.0, 1.0), G, opts['pole'])
     Rn = _pole(_smooth(Rf, opts['shade_smooth'], opts['shade_smooth']), G, opts['pole'])   # the shading's envelope
@@ -602,7 +628,7 @@ def drawn_head_top(masks, name, mirror, er, tol_px=0, drawn=False):
 
 def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smooth=1.0,
                names=(('profile', 90.0, False), ('profile', 270.0, True), ('front', 0.0, False),
-                      ('back', 180.0, False)), drawn=False):
+                      ('back', 180.0, False)), drawn=False, shade=1.5):
     """the crown lowered to the drawn crown (hair round 4: in profile our crown stood above the drawn one, the visual
     hull's union of head and bun where the profile draws the bun over the crown, which carve_under_buns (front and
     back) leaves; the crown's cover made it a solid band, upper back -0.015). Per cell within th_max of the crown, in
@@ -610,7 +636,9 @@ def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smoo
     the envelope point projects above the drawn head's top edge in its column (drawn_head_top, less margin L), its
     radius is drawn in along its ray until it projects onto the edge, never below `floor` (per cell: the skin's
     clearance, as side_lock_trim's). The pull is the most any view asks, smoothed over `smooth` cells (never less
-    than a cell's own). F['R'] and F['Rn'] take it; F['crown_trim'] counts. -> F."""
+    than a cell's own). F['R'] and F['Rn'] take it, the shading's envelope blurred over `shade` cells (Rn is the
+    envelope blurred over shade_smooth: a sharper pull there bends the toon terminator round the trimmed crown);
+    F['crown_trim'] counts. -> F."""
     from scipy.ndimage import gaussian_filter
     ch, G = F['chart'], F['grid']
     R = F['R']
@@ -655,7 +683,7 @@ def crown_trim(F, masks, views, hull_frame, floor, margin=0.0, th_max=70.0, smoo
     if D.any():
         Ds = np.maximum(D, gaussian_filter(D, smooth, mode=('wrap', 'nearest')))
         F['R'] = R - Ds
-        F['Rn'] = F['Rn'] - gaussian_filter(Ds, 1.5, mode=('wrap', 'nearest'))
+        F['Rn'] = F['Rn'] - gaussian_filter(Ds, shade, mode=('wrap', 'nearest'))
     return F
 
 
@@ -1998,7 +2026,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         cfloor = np.where(np.isfinite(Sk), Sk + o['gap'] * L + style['tip_thick'] * L +
                           LAYER['upper_back'] * style['inset'] * L, F['R'] - 0.1 * L)
         crown_trim(F, masks, views, hull_frame, cfloor, o.get('crown_margin', 0.0), o['crown_th'],
-                   o.get('crown_smooth', 1.0), drawn=o.get('crown_edge', 'bridge') == 'drawn')
+                   o.get('crown_smooth', 1.0), drawn=o.get('crown_edge', 'bridge') == 'drawn',
+                   shade=o['shade_smooth'] if o.get('crown_shade') == 'shade' else o.get('crown_shade', 1.5))
     trim = None
     # side_lock_trim (a quality fix: the hull's fill between lock and cheek out of the envelope before the locks are
     # shaped), or the clamp (Michael's call F, deferred) in its envelope mode

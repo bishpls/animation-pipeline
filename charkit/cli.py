@@ -493,7 +493,8 @@ def pieces_hair(spec, resolved, out, mode='on'):
         Z = np.load(layers)
         masks = {k: Z[k] for k in Z.files}
         o = dict(hp.OPTS, **(shape.get('pieces_opts') or {}))
-        S = hp.hull_samples(glb) if o.get('samples') == 'shell' else None
+        S = hp.hull_samples(glb, flat='drop' if o.get('samples') == 'shell_smooth' else 'keep') \
+            if o.get('samples') in ('shell', 'shell_smooth') else None
         pts = None
         if S is not None:       # (the labelled shell, not the decimated mesh's vertices: docs/HULL_CONTRACT.md)
             fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views,

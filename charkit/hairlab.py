@@ -73,6 +73,11 @@ def context(build, shape_over=None):
             f4, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S2[1], S2[2], side['piece_names'], views, masks,
                                   info['ppl'], P=S2[0], NP=S2[3])
             samples['shell_b'] = (f4, S2[0] * C.align['scale'] + np.asarray(C.align['translate']))
+        if os.environ.get('HAIRLAB_SHELL_SMOOTH'):         # (a lab comparison: the shell's settled samples only)
+            S5 = hp.hull_samples(glb, flat='drop')
+            f5, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S5[1], S5[2], side['piece_names'], views, masks,
+                                  info['ppl'], P=S5[0], NP=S5[3])
+            samples['shell_smooth'] = (f5, S5[0] * C.align['scale'] + np.asarray(C.align['translate']))
         if os.environ.get('HAIRLAB_SHELL_MESHN'):          # (a lab comparison: the shell with the mesh's normals)
             f3, _ = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), S[1], S[2], side['piece_names'], views, masks,
                                   info['ppl'], P=S[0])
