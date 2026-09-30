@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# The CPU build box, from the laptop (config: infra/gcp/build.env; SSH and rsync go through IAP, the box has no external IP).
+# The CPU build box, from the laptop (config: infra/gcp/build.env; SSH goes through IAP, the box has no external IP).
 # CHARKIT_BOX_ENV names another box's config (infra/gcp/render.env: the GPU box, where boards render); the commands are
-# the same.
+# the same. Bulk data goes through the box's bucket (charkit/bucketsync.py: content-addressed, only missing blobs move);
+# CHARKIT_SYNC=rsync sends it through the IAP tunnel as before.
 #   infra/gcp/build.sh up                        start it if stopped and wait until the boot script is done
 #   infra/gcp/build.sh ssh [cmd...]              a shell, or one command
-#   infra/gcp/build.sh sync WORKTREE             rsync a worktree's code and inputs to /srv/work/<its name> (only changes)
+#   infra/gcp/build.sh sync WORKTREE             a worktree's code and inputs to /srv/work/<its name> (only changes)
 #   infra/gcp/build.sh run WORKTREE cmd...       run a command in that copy, with Blender and the venv (/opt/anim-build/env)
-#   infra/gcp/build.sh fetch WORKTREE PATH       rsync PATH (a build's out dir) back into the worktree
-#   infra/gcp/build.sh push LOCAL [REMOTE]       rsync a file or directory to the box (default /srv/work/)
+#   infra/gcp/build.sh fetch WORKTREE PATH       PATH (a build's out dir) back into the worktree (only what differs)
+#   infra/gcp/build.sh push LOCAL [REMOTE] [--link]  a file or directory to the box (default /srv/work/); --link: inputs
+#   infra/gcp/build.sh pull NAME LOCAL           a tree the box published under NAME (bucketsync publish --name)
+#   infra/gcp/build.sh verify WORKTREE           check the box's copy against the worktree, file by file
 #   infra/gcp/build.sh status | stop             it also stops itself after IDLE_MINUTES idle
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); source "${CHARKIT_BOX_ENV:-$HERE/build.env}"
@@ -28,6 +31,10 @@ EOC
 }
 ssh_() { [ -f "$CFG" ] || config; ssh -F "$CFG" "$VM" "$@"; }
 name() { basename "$(cd "$1" && pwd)"; }
+# bulk data through the bucket (charkit/bucketsync.py, standard library: any python3); the rsync paths below remain
+BS="$HERE/../../charkit/bucketsync.py"
+bucket() { [ "${CHARKIT_SYNC:-bucket}" != rsync ] && [ -n "${BUCKET:-}" ] && [ -f "$BS" ]; }
+bs() { [ -f "$CFG" ] || config; BUCKET=$BUCKET VM=$VM BS_SSHCFG=$CFG "${CHARKIT_PY:-python3}" "$BS" "$@"; }
 case "${1:-status}" in
   status) $G compute instances describe "$VM" $Z --format="table(status,machineType.basename(),lastStartTimestamp,lastStopTimestamp)";;
   up)
@@ -43,6 +50,9 @@ case "${1:-status}" in
   ssh) shift; ssh_ "$@";;
   sync)
     WT=$2; [ -f "$CFG" ] || config
+    # through the bucket: blobs by sha256, uploaded once for every worktree and box; the box links its copy from its blob
+    # cache and deletes what the worktree no longer has, under the same excludes as the rsync below
+    if bucket; then bs sync "$WT" "/srv/work/$(name "$WT")"; exit $?; fi
     # a worktree's first sync: seeded by hard links from the most recently synced worktree copy on the box (the tracked
     # files, ~0.3 GB, and charkit/out/i3d, ~0.5 GB, are mostly the same across worktrees), so the tunnel (~1-3 MB/s)
     # carries only what differs; rsync replaces a changed file rather than writing through the shared link. Of the
@@ -70,9 +80,14 @@ case "${1:-status}" in
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
       "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
-  push) [ -f "$CFG" ] || config; rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;
+  push) [ -f "$CFG" ] || config
+    if bucket; then bs push "$2" "${3:-/srv/work/}" ${4:+"$4"}; exit $?; fi
+    rsync -az -e "ssh -F $CFG" "$2" "$VM:${3:-/srv/work/}";;
   fetch) WT=$2; P=$3; [ -f "$CFG" ] || config
+    if bucket; then bs fetch "/srv/work/$(name "$WT")/$P" "$WT/$P"; exit $?; fi
     mkdir -p "$WT/$P"; rsync -az -e "ssh -F $CFG" "$VM:/srv/work/$(name "$WT")/$P/" "$WT/$P/";;
+  pull) bs pull "$2" "$3";;
+  verify) bs verify "$2" "/srv/work/$(name "$2")";;
   stop) $G compute instances stop "$VM" $Z;;
-  *) sed -n '2,10p' "$0"; exit 1;;
+  *) sed -n '2,14p' "$0"; exit 1;;
 esac

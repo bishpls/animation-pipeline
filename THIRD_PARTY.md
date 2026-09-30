@@ -22,3 +22,7 @@
   exception) for the BVH, remeshing and rasteriser kernels; [Pillow](https://python-pillow.org) 12.3 (MIT-CMU) to
   decode glTF textures; and, for tests only, [pytest](https://pytest.org) 9.1 (MIT) with pluggy (MIT) and iniconfig
   (MIT). The Blender side (`charkit/geom/io.py`, `charkit/geom/blender.py`) needs only numpy.
+- `charkit/render/` (the toon renderer, docs/workstreams/toonrender.md) runs on [wgpu-py](https://github.com/pygfx/wgpu-py)
+  0.32 (BSD-2-Clause), which bundles [wgpu-native](https://github.com/gfx-rs/wgpu-native) (MIT OR Apache-2.0), with cffi
+  (MIT), rendercanvas (BSD-2-Clause) and, on macOS, rubicon-objc (BSD-3-Clause); installed with pip, not vendored
+  (`charkit/render/requirements.txt`). Without a GPU it uses the system's Mesa (MIT: llvmpipe, lavapipe).
