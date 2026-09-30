@@ -6,7 +6,7 @@ QA frames it: its orthographic window, its light, each object's outline at its b
 
 FRAMES.json: {"frames": [{"path": PNG, "az": deg, "origin": [u, z], "pix": m, "win": {"x", "top", "bottom"} (m),
 "light": [x, y, z] (world, toward the key), "off": [objects drawn without their outline], "transparent": bool,
-"streaks": bool, "point": bool}]}. point: one sample at each pixel's centre and no film filter (the measuring grid's
+"streaks": bool, "point": bool, "line_k": {object: k} (its outline k x its build width)}]}. point: one sample at each pixel's centre and no film filter (the measuring grid's
 samples, as the QA's buffers are); else the boards' film (64 samples, the 1.5 px filter). No dither (the boards' 1 level
 of it on flat tones reads as tone edges to the QA's percentile cuts).
 """
@@ -58,6 +58,12 @@ def main(path):
         off = set(F.get('off') or ())
         for name, (ob, mod) in outlines.items():
             mod.show_render = name not in off
+        for name, k in (F.get('line_k') or {}).items():  # an outline k x its build width (lookqa._scaled: the design's
+            if name in outlines:                         # framing's screen lines), a thin shell's inward move capped
+                ob, mod = outlines[name]
+                w = float(ob.get('ck_line_w', abs(mod.thickness))) * float(k)
+                mod.thickness = float(-w)
+                mod.offset = float(shade.line_offset(w, shade.line_cap(ob)))
         for n in amounts:
             n.inputs[1].default_value = amount0[id(n)] if F.get('streaks', True) else 0.0
         r.film_transparent = bool(F.get('transparent', True))

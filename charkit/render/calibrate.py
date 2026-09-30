@@ -15,7 +15,13 @@ import json, os, sys, time
 
 import numpy as np
 
-OFFSETS = ((0.0, 0.0), (1 / 3, 0.0), (0.0, 1 / 3), (2 / 3, 1 / 3), (1 / 3, 2 / 3), (2 / 3, 2 / 3))
+# the frame's own placement, then sub-pixel placements from the R2 sequence (Roberts' additive recurrence: frac(0.5 + n
+# (1/g2, 1/g2^2)), g2 the plastic number): spread over the pixel and off every supersample grid. The round-1 offsets
+# (thirds) were whole samples of the head frames' 3x grid, so the checks read there showed no noise at all
+_G2 = 1.32471795724474602596
+OFFSETS = ((0.0, 0.0),) + tuple((round((0.5 + n / _G2) % 1.0, 4), round((0.5 + n / _G2 ** 2) % 1.0, 4))
+                                for n in range(1, 8))
+N_OFFSETS = 6
 DETAIL = ('boot_profile_double_', 'boot_profile_scrunch_')
 
 
@@ -32,34 +38,56 @@ def _figure_offset(off):
     return orig, fr
 
 
-def checks(build, drawing, off=(0.0, 0.0), details=False):
-    """the drawn checks of one build under one drawing, its frames moved by off -> {check: value}."""
-    from charkit import bundle, detailqa, lookqa, qa3d, qarender
+def checks(build, drawing, off=(0.0, 0.0), details=False, art=True):
+    """the drawn checks of one build under one drawing, its frames moved by off -> {check: value} (and '_status':
+    {check: status}, '_seconds': {group: s}). art: artifactqa's checks (its body frame draws through qa3d.draw; its head
+    frame reads its own z-buffer, the same under both drawings)."""
+    from charkit import artifactqa, bundle, detailqa, lookqa, qa3d, qarender
     os.environ[qarender.ENV] = drawing
     B = bundle.load(os.path.join(build, 'bundle'))                  # (fresh: the memos hold one drawing's frames)
     design = qa3d.Design(B)
-    out = {}
+    out, status, secs = {}, {}, {}
+
+    def take(C, keep=lambda k: True):
+        for k, v in C.items():
+            if keep(k) and isinstance(v, dict):
+                out[k] = v.get('value')
+                status[k] = v.get('status')
     orig, shifted = _figure_offset(off)
     qa3d.figure_frame = shifted
+    t = time.time()
     try:
         for fn in (qa3d.hair_noise, qa3d.scalp):
-            _, C = fn(B, design)
-            out.update({k: v.get('value') for k, v in C.items()})
+            take(fn(B, design)[1])
     finally:
         qa3d.figure_frame = orig
+    secs['figure'] = round(time.time() - t, 2)
+    t = time.time()
     fr = lookqa.HeadFrame(B, off=off)
     for fn in (lambda: lookqa.face_noise(B, None, design, fr=fr), lambda: lookqa.face_shadow(B, design, fr=fr),
                lambda: lookqa.line_width(B, design, off=off)):
-        _, C = fn()
-        out.update({k: v.get('value') for k, v in C.items()})
+        take(fn()[1])
+    secs['look'] = round(time.time() - t, 2)
     if details:
-        _, C = detailqa.measure(B, design, None)
-        out.update({k: v.get('value') for k, v in C.items() if k.startswith(DETAIL)})
+        t = time.time()
+        take(detailqa.measure(B, design, None)[1], lambda k: k.startswith(DETAIL))
+        secs['details'] = round(time.time() - t, 2)
+    if art:
+        t = time.time()
+        frame = artifactqa._frame
+        artifactqa._frame = lambda B_, ppl, win: lookqa.HeadFrame(B_, ppl=ppl, ss=1, win=win, off=off)
+        try:
+            take(artifactqa.measure(B, design, None)[1], lambda k: k.startswith('art_'))
+        finally:
+            artifactqa._frame = frame
+        secs['art'] = round(time.time() - t, 2)
     out['_drawn'] = qarender.drawn(B)
+    out['_status'] = status
+    out['_seconds'] = secs
     return out
 
 
-def run(builds, out, n_off=len(OFFSETS)):
+def run(builds, out, n_off=N_OFFSETS):
     from charkit import qarender
     t0 = time.time()
     rep = {'builds': builds, 'offsets': OFFSETS[:n_off], 'values': {}}
@@ -100,8 +128,10 @@ def table(rep):
                                 noise=round(float(np.std(xs)), 5) if len(xs) > 1 else None, n=len(xs))
             o, n = cells['numpy']['value'], cells['render']['value']
             noise = max([c['noise'] or 0.0 for c in cells.values()])
+            st = lambda d: (V[d][0].get('_status') or {}).get(k)
             row = dict(old=o, new=n, noise_old=cells['numpy']['noise'], noise_new=cells['render']['noise'],
-                       mean_old=cells['numpy']['mean'], mean_new=cells['render']['mean'])
+                       mean_old=cells['numpy']['mean'], mean_new=cells['render']['mean'], status_old=st('numpy'),
+                       status_new=st('render'))
             if _num(o) and _num(n):
                 row['diff'] = round(float(n) - float(o), 5)
                 row['in_noise'] = round(abs(float(n) - float(o)) / noise, 2) if noise > 0 else (0.0 if n == o else None)
@@ -128,15 +158,16 @@ def markdown(rep):
          'Builds: %s. Noise: the standard deviation over %d sub-pixel placements of each frame (the old drawing\'s / the '
          'new\'s). in noise: |new - old| over the larger noise.' % (', '.join(builds), len(rep['offsets'])), '']
     for b in builds:
-        L += ['## %s' % b, '', '| check | old | new | new - old | noise old / new | in noise | offsets\' means old / new |',
-              '| --- | --- | --- | --- | --- | --- | --- |']
+        L += ['## %s' % b, '', '| check | old | new | new - old | noise old / new | in noise | offsets\' means old / new '
+              '| status old / new |', '| --- | --- | --- | --- | --- | --- | --- | --- |']
         for k, per in sorted(rep['table'].items()):
             r = per.get(b)
             if not r:
                 continue
-            L.append('| %s | %s | %s | %s | %s / %s | %s | %s / %s |' % (
+            flag = '' if r.get('status_old') == r.get('status_new') else ' **'
+            L.append('| %s | %s | %s | %s | %s / %s | %s | %s / %s | %s / %s%s |' % (
                 k, r['old'], r['new'], r.get('diff', ''), r['noise_old'], r['noise_new'], r.get('in_noise', ''),
-                r['mean_old'], r['mean_new']))
+                r['mean_old'], r['mean_new'], r.get('status_old'), r.get('status_new'), flag))
         L.append('')
     if len(builds) == 2:
         L += ['## The 2x2 (%s -> %s)' % tuple(builds), '',
@@ -157,7 +188,7 @@ def main(args):
     builds = [os.path.abspath(a) for i, a in enumerate(args) if not a.startswith('--') and
               (i == 0 or args[i - 1] not in ('--out', '--offsets'))]
     out = os.path.abspath(opt('--out', os.path.join(builds[0], 'calibrate')))
-    rep = run(builds, out, int(opt('--offsets', len(OFFSETS))))
+    rep = run(builds, out, int(opt('--offsets', N_OFFSETS)))
     print(markdown(rep))
     return 0
 

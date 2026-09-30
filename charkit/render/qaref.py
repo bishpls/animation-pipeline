@@ -13,6 +13,11 @@ Blender (charkit/render/eevee_frames.py: the same window, light and outlines). T
             samples, the 1.5 px filter), streaks off and on: hair_noise on each picture over one hair mask, and the
             pictures' differences on the hair (levels)
   pictures  the head frames' pictures (the boards' film) against EEVEE's: mean and share over 8 levels
+  body      artifactqa's body frame (the body sheet's px per L, one sample a pixel, the design's framing's line widths:
+            what the art_* checks of the collar, bow, top, skirt and boots and the silhouette checks read) from the
+            front, three-quarter, profile and back: each drawing's picture against EEVEE's point-sampled one (the
+            figure's IoU, mean levels and share over 8 levels on the figure), and each drawing's part buffer against the
+            other's
 
     python -m charkit.render qaref BUILD [--out DIR] [--no-eevee] [--blender PATH]     # DIR/qaref.json, DIR/*.png
 """
@@ -87,6 +92,20 @@ def head_frames(B, design=None):
     return out
 
 
+def body_frames(B, design):
+    """artifactqa's body frame as its checks draw it: (name, az, frame, surfaces) for the front, three-quarter, profile
+    and back, or [] without the design's body sheet."""
+    from charkit import artifactqa, lookqa
+    ctx = design.sheet_context() if design is not None else {'why': 'no design'}
+    if 'why' in ctx:
+        return []
+    ppl, page = ctx['ppl'], (ctx['rgb'].shape[0] if 'rgb' in ctx else 1440)
+    fr = artifactqa._frame(B, ppl, artifactqa.BODY_WIN)
+    surfs = lookqa._scene(B, skin_outline=True, line_scale=lookqa.line_scale(B, ppl, page))
+    views = (('front', 0.0), ('three_quarter', float(ctx['az3'])), ('profile', 90.0), ('back', 180.0))
+    return [('body_' + v, az, fr, surfs) for v, az in views]
+
+
 def run(build, out=None, eevee=True, blender=None, streaks=(False, True)):
     """the comparison for a build directory (bundle, export, .blend) -> the report (DIR/qaref.json)."""
     from charkit import bundle, lookqa, qa3d, qarender
@@ -120,6 +139,12 @@ def run(build, out=None, eevee=True, blender=None, streaks=(False, True)):
                                                                                  (az, 'streaks' if st else 'plain')),
                              pix=hfr.pix * qa3d.FIG_SS, win=_win_out(hfr.win, hfr.pix, qa3d.FIG_SS), point=False,
                              streaks=st))
+    body = body_frames(B, design)
+    for name, az, fr, surfs in body:
+        jobs.append(dict(az=az, origin=list(fr.origin), light=[float(x) for x in qa3d.view_light(B, az)], off=[],
+                         transparent=True, path=os.path.join(out, 'eevee', name + '_point.png'), pix=fr.pix,
+                         win=dict(fr.win), point=True, streaks=True,
+                         line_k={s['o'].name: float(s['line_k']) for s in surfs if s.get('line_k') is not None}))
     rep = {'build': build, 'export': Q.M.path, 'adapter': Q.info, 'created': time.strftime('%Y-%m-%d %H:%M'),
            'palette': {'colours': pal[0].tolist(), 'tone': pal[1].tolist()}}
     if eevee:
@@ -245,6 +270,35 @@ def run(build, out=None, eevee=True, blender=None, streaks=(False, True)):
         hrows[az] = row
         print('hair', az, row, flush=True)
     rep['hair'] = hrows
+    # ---- artifactqa's body frame
+    brows = {}
+    for name, az, fr, surfs in body:
+        pics, mesh = {}, {}
+        for d in ('numpy', 'render'):
+            os.environ[qarender.ENV] = d
+            aux = {}
+            pics[d] = qa3d.draw(B, surfs, az, fr, ss=1, aux=aux)
+            mesh[d] = aux['mesh']
+        row = {'az': az, 'parts_agree': round(float((mesh['numpy'] == mesh['render']).mean()), 5),
+               'parts_agree_figure': round(float((mesh['numpy'] == mesh['render'])[(mesh['numpy'] >= 0) |
+                                                                                 (mesh['render'] >= 0)].mean()), 5)}
+        pe = os.path.join(out, 'eevee', name + '_point.png')
+        if have(pe):
+            e = _read_png(pe)
+            pics['eevee'] = e
+            for k in ('numpy', 'render'):
+                p = pics[k]
+                fa, fb = p[..., 3] > 0.5, e[..., 3] > 0.5
+                fg = fa | fb
+                d = np.abs(p[..., :3] - e[..., :3]).max(-1) * 255
+                row['iou_' + k] = round(float((fa & fb).sum() / max(fg.sum(), 1)), 5)
+                row['mean_' + k] = round(float(d[fg].mean()), 3)
+                row['over8_' + k] = round(float((d[fg] > 8).mean()), 5)
+                row['over24_' + k] = round(float((d[fg] > 24).mean()), 5)
+        _strip(os.path.join(out, name + '.png'), list(pics.values()), list(pics))
+        brows[name] = row
+        print(name, row, flush=True)
+    rep['body'] = brows
     rep['summary'] = summary(rep)
     os.environ.pop(qarender.ENV, None)
     json.dump(rep, open(os.path.join(out, 'qaref.json'), 'w'), indent=1, default=float)
@@ -278,6 +332,10 @@ def summary(rep):
     for k in sorted({k for r in H.values() for k in r}):
         v = [r[k] for r in H.values() if k in r]
         S['hair_' + k] = round(float(np.mean(v)), 5)
+    Bd = rep.get('body') or {}
+    for k in sorted({k for r in Bd.values() for k in r if k != 'az'}):
+        v = [r[k] for r in Bd.values() if k in r]
+        S['body_' + k] = round(float(np.mean(v)), 5)
     return S
 
 
