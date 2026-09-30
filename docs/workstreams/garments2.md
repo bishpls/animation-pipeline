@@ -5,9 +5,44 @@ shorts, the skirt's pleat detail, the collar and bow, the wrist cuffs. Worktree 
 branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling 47b401f merged) plus pipeline-3d
 2e3bdd5.
 
-## State (in progress)
+## State (2026-09-30, milestone 3). Start here.
 
-Milestone 1: the measurement (`charkit/pieceqa.py`, QA part `piece_details`, 12c3b97) and the puff sleeve as a template.
+**Branch** `tool/garments2` (see `git log -1`), with pipeline-3d b571f28 merged (tool/body round 6, hull-det,
+garment-sampling). **Rescoped** (coordinator, after Michael's review of round 6): this workstream owns the UPPER
+garments: the top/jacket and its cream bodice panel (bib), the waistband, collar, bow, puff sleeves, wrist cuffs and
+shorts. The pleats moved to tool/skirt (their checks were dropped here; the code is in cda2b7f: `closeup_pleats`,
+`our_pleats`, `pleat_checks` in pieceqa, and a knife-pleat layout that was never committed). The band's seam with the
+skirt is coordinated with tool/skirt through these notes only.
+
+**Done and in the spec** (clawd.json = clawd_body_pieces.json, clawd_body.json the same garments):
+- puff sleeves as a template (`source: template`, `garments.puff`): spikes FAIL -> PASS in every view;
+- waistband: `fit_rows` (the band's drawn width): piece_waistband 0.448 FAIL -> 0.652 WARN;
+- shorts: `hem_level`, `hem_snap`, `hem_drop` 0.03: piece_shorts 0.408 FAIL -> 0.518 WARN, hems PASS (three-quarter
+  FAIL: the drawn three-quarter hem is 0.05 L above the other three views').
+
+**Built, not in the spec yet:** the wrist cuff template (`garments.cuff`, `source: template`, piece_cuff 0.67 -> 0.80-0.85
+in the evaluator; front flare still off where the hand overlaps: see below); the bow's `wing`/`ribbon` knobs
+(bow_front_flare 0.99 FAIL -> 0.47 WARN, piece_bow 0.662 -> 0.717).
+
+**Measured, failing, next (priority order):**
+1. **The jacket over the band** (Michael's new top item): `top_{front,three_quarter}_over_band` 0.977 / 0.968 FAIL
+   (our band hides the jacket's hem: tucked under), `top_front_hem_step` 0.033 FAIL (the bib hangs lower in the middle),
+   `top_front_opening` 0.142 FAIL (our cream is a flat trapezoid 0.18-0.27 L half-wide; the drawn bib is 0.05 L at z
+   -1.0 widening to 0.105 at -1.2, then 0.18-0.19 in the jacket's notched corners at -1.25..-1.30).
+   Plan: the bib as its own object (a `bodice_panel` shell of the top's front faces inside the opening, behind the
+   jacket, tucked under the band at its foot) and the jacket's front opening cut out of the top (its edges then carry
+   the outline rim); the jacket's hem hung over the band (outside it, 0.03-0.05 L below its top edge) with the notched
+   front corners; `ease` gains an "over" mode. The midriff checks (detailqa) read `top` and `waistband`: add
+   `bodice_panel` to their piece lists (the top is this workstream's now). Adding a garment restamps the outfit masks
+   and the hull (reads_spec names the garments' names).
+2. The band's height: `rows: [-1.33, -1.505]` once the jacket hangs over it (see "Coordination").
+3. Collar: `collar_front_torn` 0.14 FAIL (only its two tips show above the bow, as thin horns), profile 0.018 FAIL;
+   smoothing the conform doesn't help (cl1, cl2). The design's lapels lie on the chest between the neck and the bow's
+   lobes; ours stand at the neck under the bow.
+4. Bow: `wing`/`ribbon` (b1 in the scratch runs) into the spec; `bow_front_tail_width` 0.35 -> 0.23; the tails lie
+   flat on the cream bib (no outline between them): the bib behind (item 1) gives them a depth step.
+5. Cuffs: the template into the spec once its front flare reads right (the hand's base overlaps the cuff's lower
+   inner corner in front: the rows now grow clear of the skin; re-measure).
 
 ## Measurement first (charkit/pieceqa.py)
 
