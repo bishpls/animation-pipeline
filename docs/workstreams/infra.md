@@ -169,6 +169,8 @@ same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differentl
   - 264 only the evaluator gives: `bodymeasure.piece_checks`' per-view sub-measures such as
     `piece_boot_L_back_bottom`, which the box's QA reports under other names.
 - Report: `charkit/out/evaldrift/clawd/drift.md`.
+- **Rerun at 4fa804a** (a fresh box build; the tree was dirty only in this notes file; the evaluator took 47 s with
+  its cache warm): the same 38 checks drift and 12 grade differently; the hems still agree exactly.
 
 ## Verification
 
@@ -178,6 +180,8 @@ same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differentl
   - The clawd_mh gate (c1016fa into e11fadb, build box) PASSes with "no check changed".
   - `python -m charkit.boarddiff` on its baseline and candidate: 16 QA overlay images, 0 differ; 292 checks, 0 differ.
     qa.json is identical apart from `measured` (timings): the same 292 checks in the same order, the same tables.
+  - The default-spec gate (c1016fa into e11fadb) PASSes with "no check changed". boarddiff: 16 images and 294 checks,
+    0 differ; qa.json identical but for timings; all 733 bundle arrays identical (the geometry bit for bit).
   - On the render box, preview 3bc7b86 against preview 9397578 (the same boards and QA): no graded check changed
     status, and the counts are identical (176/29/8/78).
 - **The 2×2's "did the geometry change".** The two gate builds' bundles have different content hashes: the resolved
@@ -193,7 +197,8 @@ same synced copy, 128 s): 38 of the 110 shared checks drift, 12 grade differentl
 
 - **Masked skin differs between builds.** The skin's garment-masked vertices (`o/clawd_skin/masked/V`, `shrink`)
   differ between the clawd_mh gate's baseline and candidate, though no geometry code differs between them and every
-  QA number is identical. It looks like run-to-run nondeterminism in the garment mask (not measured further). It makes
+  QA number is identical. The default spec's two builds match in all 733 arrays, so this is the MakeHuman base's
+  garment mask, apparently nondeterministic run to run (not measured further). It makes
   the 2×2 run where it isn't needed, which costs time but not correctness.
 - **The evaluator's drift** (task 4's result) belongs to the hair and face owners: the evaluator doesn't build the
   cut-piece hair, and its face registration lacks e9a6753's eye line.
