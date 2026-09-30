@@ -5,6 +5,10 @@ candidate; the tests run, each side is built when it has to be, and the two buil
     python -m charkit gate BRANCH [--into REF] [--spec SPEC] [--args "--base anime"] [--accept PATTERN,...] [--keep]
                                   [--build]
     python -m charkit gate --rejudge REPORT.json|PATTERN ... [--json]   # earlier reports read under policy K
+    python -m charkit gate --carry BRANCH [--into pipeline-3d] [--spec SPEC] [--args ".."] [--no-tests] [--dry-run]
+                                  [--json]
+        # an earlier gate of BRANCH's tip carried to INTO's head without a build: the tests the move reaches rerun
+        # here (exit 0 PASS, 1 FAIL, 3 not carried: gate it)
 
 The worktrees are sparse checkouts (charkit/sparse.py's charkit profile: the code, plus the paths the character's
 manifest names): a few hundred MB instead of every film's assets. The gate refuses to start with under 5 GB free.
@@ -106,13 +110,17 @@ def _test_jobs():
     return int(v) if v else max(1, min(8, (os.cpu_count() or 2) // 4))
 
 
-def _tests(wt, jobs=None):
-    """every charkit/tests/test_*.py, JOBS at a time -> ({file: 'ok' or its output's tail}, {file: seconds})."""
-    files = sorted(glob.glob(os.path.join(wt, 'charkit', 'tests', 'test_*.py')))
+def _tests(wt, jobs=None, logs=None, only=None):
+    """every charkit/tests/test_*.py (only: those names), JOBS at a time -> ({file: 'ok' or its output's tail}, {file:
+    seconds}). logs: a folder; each test file's input closure is recorded there as NAME.log (CHARKIT_CLOSURE;
+    charkit/closure.py), so a later target's changes can be tested against what each test read (`gate --carry`)."""
+    files = sorted(t for t in glob.glob(os.path.join(wt, 'charkit', 'tests', 'test_*.py'))
+                   if only is None or os.path.basename(t) in only)
 
     def one(t):
         t0 = time.time()
-        r = subprocess.run([PY, t], cwd=wt, capture_output=True, text=True)
+        env = dict(os.environ, CHARKIT_CLOSURE=os.path.join(logs, os.path.basename(t) + '.log')) if logs else None
+        r = subprocess.run([PY, t], cwd=wt, capture_output=True, text=True, env=env)
         return os.path.basename(t), 'ok' if r.returncode == 0 else (r.stdout + r.stderr)[-600:], round(time.time() - t0, 1)
     with concurrent.futures.ThreadPoolExecutor(jobs or _test_jobs()) as ex:
         got = list(ex.map(one, files))
@@ -143,7 +151,8 @@ def _build(wt, spec, out, args, record=True, procs=None):
     if _threads():
         env.update({k: str(_threads()) for k in THREAD_VARS}, OMP_WAIT_POLICY='PASSIVE')
     t = time.time()
-    p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', 'views', '--no-blend'] + list(args),
+    # (no boards: nothing the gate reads draws from them, and the box's toon boards took 16 s a build)
+    p = subprocess.Popen([PY, '-m', 'charkit', 'build', spec, '--out', out, '--boards', '', '--no-blend'] + list(args),
                          cwd=wt, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env,
                          start_new_session=True)
     if procs is not None:
@@ -377,6 +386,48 @@ def _link_base(ref, base_out):
             os.remove(tmp)
 
 
+def _newest_closure(gdir, stem, opts):
+    """the newest baseline closure of this spec and options (any commit) -> (its folder, the closure) or (None, None):
+    what a nearby build read, for the static no-build rule and for guessing whether a candidate will be needed."""
+    suffix = '_%s_%s' % (stem, opts)
+    for d in sorted(glob.glob(os.path.join(gdir, 'base_*' + suffix)), key=lambda d: os.path.getmtime(d)
+                    if os.path.exists(d) else 0, reverse=True)[:6]:
+        C = _closure_of(d) if os.path.isdir(d) else None
+        if C:
+            return d, C
+    return None, None
+
+
+def _merge_tree(wt, a, b):
+    """the tree `git merge` of b into a makes (a clean merge) -> its id, or None (a conflict, or a commit missing)."""
+    r = _git('merge-tree', '--write-tree', a, b, cwd=wt, check=False)
+    return r.stdout.split()[0] if r.returncode == 0 and r.stdout.strip() else None
+
+
+def _cand_reference(gdir, tip, suffix, opts, head, wc):
+    """an earlier candidate of this tip (any branch name), built into another commit H0, that stands for this one: no
+    difference between its merged tree (tip into H0) and this merge (the index in wc) reaches its closure -> (its
+    folder, H0, the changes) or None. This carries a gate over when the integration branch moves under it."""
+    import re
+    from . import closure
+    pat = re.compile(r'cand_.+_%s_into_([0-9a-f]{7,40})%s_%s$' % (re.escape(tip), re.escape(suffix), re.escape(opts)))
+    cone = closure.cone(wc)
+    dirs = [d for d in glob.glob(os.path.join(gdir, 'cand_*_%s_into_*' % tip)) if os.path.isdir(d)
+            and not os.path.islink(d) and pat.match(os.path.basename(d))]
+    for d in sorted(dirs, key=os.path.getmtime, reverse=True)[:8]:
+        h0 = pat.match(os.path.basename(d)).group(1)
+        C = _closure_of(d)
+        if h0 == head or C is None or not os.path.exists(os.path.join(d, 'qa', 'qa.json')):
+            continue
+        t0 = _merge_tree(wc, h0, tip)
+        if t0 is None:
+            continue
+        ch = closure.changes(wc, t0)
+        if not closure.affected(C, ch, wc, cone, rev=t0):
+            return d, h0, ch
+    return None
+
+
 def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=False, accept=(), force_build=False,
          parallel=None):
     from . import closure, history, trace
@@ -422,10 +473,31 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         export = sorted(p for _, p in changed if p in EXPORT_CODE)
         cand_args = list(args) + (['--vrm'] if export and '--vrm' not in args else [])
         rep['build']['vrm'] = bool(export)
+        rep['closures'] = {}
 
         def tests():
+            logs = tempfile.mkdtemp(prefix='charkit-gate-tests-')
             with clock('tests', '%d at a time' % _test_jobs()):
-                return _tests(wc)
+                r = _tests(wc, logs=logs)
+            rep['closures']['tests'] = _tests_closures(logs, wc)
+            shutil.rmtree(logs, ignore_errors=True)
+            return r
+        # no build at all when nothing the merge changes can reach one whatever its code (docs, tests): the baseline
+        # isn't needed either (the smoke-docs gate into a fresh commit built both sides: 705 s for a one-line doc)
+        near_d, near_C = _newest_closure(gdir, stem, opts)
+        if not (force_build or export) and closure.unreadable(changed, near_C):
+            rep['build'].update(candidate='skipped', static=True, why='nothing the merge changes can reach a build (%d '
+                                'files, all docs or tests%s)' % (len(changed), ', none read by %s' % os.path.basename(
+                                    near_d) if near_d else ''))
+            rep['base_build'], rep['cand_build'] = {'ok': True, 'skipped': True}, {'ok': True, 'skipped': True}
+            rep['qa'] = []
+            return _finish(rep, gdir, tag, clock, tests_r=tests())
+        # the candidate carried over from an earlier gate of this tip into another commit, when nothing between that
+        # merge and this one reaches its closure (the integration branch moved under the branch)
+        cref = None if (force_build or export) else _cand_reference(gdir, tip, suffix, opts, head, wc)
+        if cref:
+            _link_base(cref[0], cand_out)
+            rep['build']['carried_from'] = os.path.basename(cref[0])
 
         def build(side, wt, out, **kw):
             with clock('%s build' % side) as ph:
@@ -480,6 +552,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         C = _closure_of(base_out) if base_f is None else None
         decide = lambda C: closure.affected(C, changed, wc, closure.cone(wc), rev=head)
         cand_f, why = None, None
+        start_cand = lambda: None if cref else ex.submit(build, 'candidate', wc, cand_out, record=True)
         if force_build:
             why = '--build'
         elif export:
@@ -493,8 +566,13 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             rep['build']['affected'] = hits[:50]
         else:
             why = 'the baseline is being built (its closure decides afterwards)'
-        if why and (parallel or base_f is None):
-            cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
+        # beside an unfinished baseline only when the candidate looks needed: the newest baseline's closure (a nearby
+        # commit's) is reached by the merge; when it isn't, the baseline builds first and its own closure decides
+        guess = near_C is not None and not closure.affected(near_C, changed, wc, closure.cone(wc), rev=head,
+                                                            untracked=False)
+        rep['build']['speculative'] = bool(why and base_f is not None and parallel and not guess and not cref)
+        if why and (base_f is None or (parallel and not guess)):
+            cand_f = start_cand()
         base_r = base_f.result() if base_f is not None else None
         if base_r is not None and base_r.get('cached'):
             rep['base_build'], base_r = base_r, None
@@ -509,7 +587,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                     if not hits and cand_f is not None and not cand_f.done():
                         _stop(running)
             if why and cand_f is None:
-                cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
+                cand_f = start_cand()
         if base_r is not None:
             rep['base_build'] = {k: base_r.get(k) for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['base_build']['parts'] = build_steps(base_out, base_r['seconds'])
@@ -533,12 +611,13 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                 else:
                     why = 'the merge changes what the build reads: ' + ', '.join('%s (%s)' % h for h in hits[:8])
             if why and cand_f is None:
-                cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
+                cand_f = start_cand()
         cand_r = cand_f.result() if cand_f is not None else None
         if cand_r is not None and cand_r['killed'] and not why:
             cand_r = None                               # stopped: the baseline's closure showed it the same build
             rep['build']['stopped'] = True
-        rep['build']['candidate'] = 'built' if cand_r is not None else 'skipped'
+        carried = bool(cref and why)
+        rep['build']['candidate'] = 'built' if cand_r is not None else 'carried' if carried else 'skipped'
         rep['build']['why'] = why or 'nothing the merge changes reaches the baseline build (%d files changed, none among ' \
             'the %d it read, its scans or its data)' % (len(changed), len((C or {}).get('reads') or ()))
         if cand_r is not None:
@@ -548,9 +627,14 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                 rep['hard'].append({'kind': 'the candidate build failed'})
                 rep['log'] = cand_r['log']
                 return _finish(rep, gdir, tag, clock, tests_f, tests_r)
+        elif carried:
+            rep['cand_build'] = {'ok': True, 'cached': True, 'same_as': os.path.basename(cref[0]),
+                                 'why': 'no difference between %s merged into %s and this merge reaches its build (%d '
+                                        'files differ)' % (tip, cref[1], len(cref[2]))}
         else:
             rep['cand_build'] = {'ok': True, 'skipped': True}
-        cand_q = cand_out if cand_r is not None else base_out
+        cand_q = cand_out if (cand_r is not None or carried) else base_out
+        rep['closures'].update(base=closure.compact(_closure_of(base_out)), cand=closure.compact(_closure_of(cand_q)))
         with clock('compare'):
             qa_a = json.load(open(os.path.join(base_out, 'qa', 'qa.json')))
             qa_b = json.load(open(os.path.join(cand_q, 'qa', 'qa.json')))
@@ -576,7 +660,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
                                'bundles': [ga, gb], 'arrays_changed': sum(ha.get(k) != hb.get(k) for k in set(ha) | set(hb))}
         elif stepped:
             rep['twobytwo'] = {'rows': [], 'errors': {}, 'bundles': [ga, gb], 'same_geometry': True}
-        if cand_r is not None:
+        if cand_q == cand_out:
             rep['trace'] = trace.diff(trace.read(os.path.join(base_out, 'trace.jsonl')),
                                       trace.read(os.path.join(cand_out, 'trace.jsonl')))
             # (the last end: a build whose QA runs in the venv after Blender appends its own, with the whole build's time)
@@ -595,6 +679,187 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             else:
                 _git('worktree', 'remove', '--force', wt, check=False)
                 shutil.rmtree(wt, ignore_errors=True)
+
+
+# ----------------------------------------------------------------------------------- carrying a verdict to a new target
+def _tests_closures(logs, wt):
+    """each test file's recorded closure, packed: {'paths': every tracked path read, 'files': {test: {'reads': indexes
+    into paths, 'listed', 'scans'}}} (53 files read about 300 paths between them, most of them each)."""
+    from . import closure
+    per = {}
+    for f in sorted(glob.glob(os.path.join(logs, 'test_*.py.log'))):
+        per[os.path.basename(f)[:-len('.log')]] = closure.summarise(f, wt)
+    paths = sorted({p for C in per.values() for p in C['reads']})
+    ix = {p: i for i, p in enumerate(paths)}
+    return {'paths': paths, 'files': {t: {'reads': [ix[p] for p in C['reads']], 'listed': C['listed'],
+                                          'scans': C['scans']} for t, C in per.items()}}
+
+
+def _tests_at(root, tree, head, tip, spec, names):
+    """the named test files run in a throwaway sparse worktree of TREE (the merge of tip into head, as a commit object
+    no ref points to) -> ({file: 'ok' or its tail}, {file: seconds})."""
+    from . import sparse
+    c = _git('commit-tree', tree, '-p', head, '-p', tip, '-m', 'gate --carry: %s into %s' % (tip, head), cwd=root)
+    wt = tempfile.mkdtemp(prefix='charkit-carry-')
+    os.rmdir(wt)
+    try:
+        _git('worktree', 'add', '--no-checkout', '--detach', wt, c.stdout.strip(), cwd=root)
+        try:
+            _git('sparse-checkout', 'set', '--cone', *sparse.dirs('charkit', spec, root=root), cwd=wt)
+        except (Exception, SystemExit):
+            pass                                       # (no manifest: the whole tree)
+        _git('checkout', '--detach', c.stdout.strip(), cwd=wt)
+        _link_inputs(wt)
+        return _tests(wt, jobs=min(4, _test_jobs()), only=set(names))
+    finally:
+        _git('worktree', 'remove', '--force', wt, cwd=root, check=False)
+        shutil.rmtree(wt, ignore_errors=True)
+
+
+def _test_closure(T, name):
+    """one test file's closure from _tests_closures' packing."""
+    f = T['files'][name]
+    return dict(f, reads=[T['paths'][i] for i in f['reads']])
+
+
+def _report_dirs():
+    """where gate reports land: this worktree's charkit/out/gate, then every other worktree's of this repository (a
+    `remote gate` pulls its report into the worktree that ran it)."""
+    out = [os.path.join(ROOT, 'charkit', 'out', 'gate')]
+    for l in _git('worktree', 'list', '--porcelain', check=False).stdout.splitlines():
+        if l.startswith('worktree '):
+            d = os.path.join(l[len('worktree '):], 'charkit', 'out', 'gate')
+            if d not in out and os.path.isdir(d):
+                out.append(d)
+    return out
+
+
+def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), write=True, reports=None, root=ROOT,
+          run_tests=True):
+    """the newest gate of the branch's tip (any branch name) into an ancestor H0 of INTO, carried over to INTO with no
+    build and no box, when the verdict can't differ there (ROADMAP "Reuse a gate when pipeline-3d moves"):
+      - the branch still merges into INTO cleanly (git merge-tree);
+      - no change from H0 to INTO reaches the baseline's closure (so INTO's baseline is H0's build);
+      - no difference between the two merged trees (the tip into H0, the tip into INTO) reaches the candidate's closure
+        (so the candidate is the same build) or the tests' (so the tests read the same files; a test file added or
+        deleted counts);
+      - or, for a gate that built nothing because the branch changes only docs and tests, the merge into INTO still
+        changes only those, and the tests' closure is untouched.
+    The report's json holds the three closures (reports from before this can't carry). -> dict: carried (bool),
+    verdict (the old one, when carried), why, from (the report), hits ({baseline, candidate, tests: [(path, why)]}),
+    report (the new report's .md, written as gate_TAG_into_HEAD when write)."""
+    import re
+    from . import closure, sparse
+    head = _git('rev-parse', '--short', into, cwd=root).stdout.strip()
+    tip = _git('rev-parse', '--short', branch, cwd=root).stdout.strip()
+    stem = os.path.basename(spec).split('.')[0]
+    suffix = '' if stem == 'clawd' else '_' + stem
+    pat = re.compile(r'gate_.+_%s_into_([0-9a-f]{7,40})%s\.json$' % (re.escape(tip), re.escape(suffix)))
+    found = []
+    for d in ([reports] if isinstance(reports, str) else reports or _report_dirs()):
+        for p in glob.glob(os.path.join(d, 'gate_*_%s_into_*.json' % tip)):
+            if pat.search(os.path.basename(p)):
+                try:
+                    r = json.load(open(p))
+                except ValueError:
+                    continue
+                if r.get('spec') == spec and list(r.get('args') or ()) == list(args) and r.get('tip') == tip:
+                    found.append((r.get('t') or '', p, r))
+    res = dict(branch=branch, tip=tip, into=into, head=head, carried=False, verdict=None, why=None, report=None)
+    if not found:
+        res['why'] = 'no gate report of %s (%s) with this spec and options in %s' % (branch, tip, ', '.join(
+            _report_dirs() if reports is None else [str(reports)]))
+        return res
+    t1 = _merge_tree(root, head, tip)
+    if t1 is None:
+        res['why'] = 'the branch no longer merges into %s cleanly (or a commit is missing here)' % head
+        return res
+    try:
+        cone = sparse.dirs('charkit', spec, root=root)
+    except Exception:                               # (no manifest to read: the whole checkout counts)
+        cone = None
+    reasons = []
+    for _, p, old in sorted(found, key=lambda x: x[0], reverse=True):
+        h0, name = old['head'], os.path.basename(p)
+        if h0 == head:
+            res.update(carried=True, verdict=old['verdict'], why='already gated into %s' % head, report=p[:-5] + '.md',
+                       **{'from': name})
+            return res
+        if old.get('conflicts') or not old.get('tests'):
+            reasons.append('%s: the gate stopped before its tests' % name)
+            continue
+        if _git('merge-base', '--is-ancestor', h0, head, cwd=root, check=False).returncode:
+            reasons.append('%s: %s is not an ancestor of %s' % (name, h0, head))
+            continue
+        t0 = _merge_tree(root, h0, tip)
+        Cs = old.get('closures') or {}
+        if t0 is None or 'tests' not in Cs:
+            reasons.append('%s: %s' % (name, 'its merge tree is missing here' if t0 is None else
+                                       'it holds no closures (a gate from before carrying)'))
+            continue
+        moved, diff = closure.changes(root, h0, head), closure.changes(root, t0, t1)
+        T = Cs['tests'] if 'files' in (Cs['tests'] or {}) else {'paths': [], 'files': {}}
+        # the tests a difference reaches (each file's own closure), and the test files added: these run again
+        rerun = {os.path.basename(p_): [(p_, 'a test file added')] for st, p_ in diff
+                 if st == 'A' and p_.startswith('charkit/tests/test_') and p_.endswith('.py')}
+        for t in sorted(T['files']):
+            h = closure.affected(_test_closure(T, t), diff, root, cone, rev=t0, new=t1, untracked=False)
+            if h and ('charkit/tests/' + t) not in {p_ for st, p_ in diff if st == 'D'}:
+                rerun[t] = h
+        hits = {}
+        if (old.get('build') or {}).get('static'):
+            mine = closure.changes(root, head, t1)
+            hits['candidate'] = [] if closure.unreadable(mine) else [
+                (p_, 'the merge now changes more than docs and tests') for _, p_ in mine[:8]]
+        elif Cs.get('base') and Cs.get('cand'):
+            hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
+            hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
+        else:
+            reasons.append('%s: its builds recorded no closure' % name)
+            continue
+        if any(hits.values()):
+            res.setdefault('hits', {k: v[:20] for k, v in hits.items() if v})
+            res.setdefault('from', name)
+            reasons.append('%s (into %s): %s' % (name, h0, '; '.join('%s reads %s' % (k, ', '.join(
+                '%s (%s)' % h for h in v[:4]) + (' and %d more' % (len(v) - 4) if len(v) > 4 else ''))
+                for k, v in hits.items() if v)))
+            continue
+        why = '%s moved %d files since %s and the merged trees differ in %d; none reaches the baseline or the ' \
+              'candidate build' % (into, len(moved), h0, len(diff))
+        tests = dict(old.get('tests') or {})
+        res.update(rerun={t: h[:4] for t, h in rerun.items()})
+        if rerun and not run_tests:
+            res.update(why=why + '; the tests %s read what moved: run them (or drop --no-tests)' % ', '.join(sorted(rerun)),
+                       **{'from': name})
+            return res
+        if rerun:
+            t_start = time.time()
+            got, secs = _tests_at(root, t1, head, tip, spec, sorted(rerun))
+            tests.update(got)
+            res['tests_run'] = {'files': sorted(got), 'seconds': round(time.time() - t_start, 1),
+                                'failed': sorted(k for k, v in got.items() if v != 'ok')}
+            why += '; %d test file%s the move reaches ran again here (%s): %s' % (
+                len(got), 's' * (len(got) != 1), ', '.join(sorted(got)), 'all ok' if not res['tests_run']['failed'] else
+                'FAILING: ' + ', '.join(res['tests_run']['failed']))
+        else:
+            why += ', nor any test'
+        verdict = old['verdict'] if not (res.get('tests_run') or {}).get('failed') else 'FAIL'
+        res.update(carried=True, verdict=verdict, why=why, hits={}, **{'from': name})
+        if write:
+            new = dict(old, into=into, head=head, t=time.strftime('%Y-%m-%dT%H:%M:%S'), phases=[], seconds=None,
+                       tests=tests, carried={'report': name, 'from_head': h0, 'why': why, 'moved': len(moved),
+                                             'differ': len(diff), 'tests_run': res.get('tests_run')})
+            if (res.get('tests_run') or {}).get('failed'):
+                bad = {'kind': 'tests failing', 'files': res['tests_run']['failed']}
+                new.update(hard=list(new.get('hard') or ()) + [bad], blocking=list(new.get('blocking') or ()) + [bad],
+                           verdict='FAIL')
+                new['why'] = '; '.join(_why(b) for b in new['blocking'])
+            new.pop('summary', None)
+            tag = '%s_%s' % (old['branch'].replace('/', '-'), tip)
+            res['report'] = _write(new, os.path.join(root, 'charkit', 'out', 'gate'), tag)['summary']['md']
+        return res
+    res['why'] = 'not carried: ' + ' | '.join(reasons[:4])
+    return res
 
 
 def _finish(rep, gdir, tag, clock, tests_f=None, tests_r=None, qa_a=None, qa_b=None):
@@ -744,7 +1009,7 @@ def summary(rep, md=None):
                 cpu_seconds=rep.get('cpu_seconds'), cpu_ratio=rep.get('cpu_ratio'),
                 tests=dict(n=len(t), failed=sorted(k for k, v in t.items() if v != 'ok'),
                            seconds=round(sum((rep.get('test_seconds') or {}).values()), 1)),
-                phases=rep.get('phases'), seconds=rep.get('seconds'), md=md)
+                phases=rep.get('phases'), seconds=rep.get('seconds'), carried=rep.get('carried'), md=md)
 
 
 def _brief(b):
@@ -808,6 +1073,10 @@ def _write(rep, gdir, tag):
         n_rep, 's' * (n_rep != 1))
     if B.get('candidate') == 'skipped':
         line += ' **No candidate build:** %s.' % B.get('why')
+    elif B.get('candidate') == 'carried':
+        line += ' **The candidate carried over** from %s.' % B.get('carried_from')
+    if rep.get('carried'):
+        line += ' **Carried over** from %s: %s.' % (rep['carried'].get('report'), rep['carried'].get('why'))
     if rep.get('verdict_pre_k') and rep['verdict_pre_k'] != rep['verdict']:
         line += ' (Before K: %s.)' % rep['verdict_pre_k']
     L.append('\n' + line)
@@ -873,9 +1142,14 @@ def _write(rep, gdir, tag):
     L.append('\n## Build\n')
     bb, cb = rep.get('base_build') or {}, rep.get('cand_build') or {}
     L.append('- baseline: %s' % ('same as %s (%s)' % (bb['same_as'], bb.get('why') or 'linked') if bb.get('same_as') else
-                                 'cached' if bb.get('cached') else 'built, %s s wall, %s s CPU' % (bb.get('seconds'), bb.get('cpu'))))
+                                 'cached' if bb.get('cached') else 'not built' if bb.get('skipped') else
+                                 'built, %s s wall, %s s CPU' % (bb.get('seconds'), bb.get('cpu'))))
     L.append('- candidate: %s' % ('**not built**: ' + B.get('why', '') if cb.get('skipped') else
+                                  '**carried over**: the build of %s (%s)' % (cb['same_as'], cb.get('why')) if
+                                  cb.get('same_as') else
                                   'built, %s s wall, %s s CPU: %s' % (cb.get('seconds'), cb.get('cpu'), B.get('why', ''))))
+    if B.get('speculative'):
+        L.append('- the candidate was started beside the baseline (the newest baseline closure said it would be needed)')
     if B.get('stopped'):
         L.append('- the candidate build was started beside the baseline and stopped once the baseline showed it the same')
     if rep.get('files'):
@@ -950,6 +1224,21 @@ def main(args):
                     (': ' + r['why_k']) if r['why_k'] else '', '' if r['flags_read'] else ' (flags not read: builds gone)'))
         return
     opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    if args[0] == '--carry':
+        # the integrator's merge queue: exit 0 when a PASS carries to INTO, 1 when a FAIL does, 3 when nothing carries
+        # (then gate it: `python -m charkit remote gate BRANCH --into INTO`)
+        r = carry(args[1], into=opt('--into', 'pipeline-3d'), spec=opt('--spec', 'charkit/spec/clawd.json'),
+                  args=shlex.split(opt('--args', '')), write='--dry-run' not in args, reports=opt('--reports'),
+                  run_tests='--no-tests' not in args)
+        if '--json' in args:
+            print(json.dumps(r, default=str))
+        else:
+            print('%s (%s) into %s (%s): %s%s' % (r['branch'], r['tip'], r['into'], r['head'],
+                                                 'carried: %s from %s' % (r['verdict'], r.get('from')) if r['carried']
+                                                 else 'NOT carried', ': ' + r['why'] if r['why'] else ''))
+            if r.get('report'):
+                print('report', r['report'])
+        raise SystemExit(3 if not r['carried'] else 0 if r['verdict'] == 'PASS' else 1)
     rep = gate(args[0], into=opt('--into', 'HEAD'), spec=opt('--spec', 'charkit/spec/clawd.json'),
                args=shlex.split(opt('--args', '')), keep='--keep' in args,
                accept=[a for a in opt('--accept', '').split(',') if a], force_build='--build' in args)

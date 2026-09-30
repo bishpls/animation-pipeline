@@ -16,6 +16,26 @@ Milestone A (a-f) done and gated; waiting for the coordinator's merge and go-ahe
   pass; not re-gated (the coordinator decides).
 - Throwaway test branches tmp/infra3-* and tmp/hair4-gated: deleted.
 
+## Milestone B (in progress, 2026-09-30 night)
+
+Subset 1 (g, the baseline finding, the boards), code done, unit-tested, being gated:
+- (g) **A gate carries over when pipeline-3d moves.** The report's json now holds three closures: the baseline's, the
+  candidate's and each test file's (the tests run with CHARKIT_CLOSURE, one log per file, packed as indexes into one
+  path list). `python -m charkit gate --carry BRANCH [--into pipeline-3d]` (laptop, no box, no build) finds the newest
+  report of the branch's tip into an ancestor H0 (this worktree's charkit/out/gate, then every worktree's), checks the
+  merge into the new head with `git merge-tree`, and carries the verdict when no change H0..HEAD reaches the baseline's
+  closure and no difference between the two merged trees reaches the candidate's. The test files a difference reaches
+  (and test files added) run again here, in a throwaway sparse worktree of the merge (a commit object no ref names); a
+  failure there makes it a FAIL. It writes gate_TAG_into_HEAD.{md,json,summary.json} with `carried`. Exit 0 PASS, 1
+  FAIL, 3 not carried (gate it). In the gate itself the same test reuses an earlier candidate of the same tip
+  (`_cand_reference`: its merged tree from `git merge-tree H0 TIP` against this merge's index), as the baseline already
+  was, so a re-gate after a move is tests only.
+- **The first gate into a fresh commit** (the smoke-docs finding, 705 s for a one-line doc): a merge that changes only
+  docs/ and charkit/tests/, or docs files no nearby closure read or listed (`closure.unreadable`), builds nothing,
+  not even the baseline. When the baseline must be built, the candidate starts beside it only if the newest baseline
+  closure (a nearby commit's) is reached by the merge; otherwise it waits for the baseline's own closure.
+- **Boards:** gate builds pass `--boards ''` (the toon boards took 16 s a build, nothing in the gate reads them).
+
 ## What changed (milestone A)
 
 **(a) Michael's policy K in gate.py.** The verdict is PASS or FAIL. FAIL (blocking) only on:

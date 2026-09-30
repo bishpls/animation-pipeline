@@ -235,6 +235,85 @@ def test_remote_reads_a_gate_jobs_branch_and_spec():
     assert remote._gate_label('tool/x into pipeline-3d --build (gate code tool/infra3)') == ('tool/x', None)
 
 
+
+def _carry_repo():
+    """a tiny repo: main at H0, a branch changing the code the build reads, and a gate report of it into H0 holding the
+    three closures (the baseline and candidate read kit/core.py and kit/clawd.json; the tests read their file and
+    kit/core.py)."""
+    import subprocess
+    root = tempfile.mkdtemp()
+    g = lambda *a: subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', *a], cwd=root,
+                                  capture_output=True, text=True, check=True).stdout.strip()
+    files = {'kit/core.py': 'X = 1\n', 'kit/clawd.json': '{}\n', 'kit/unused.py': 'U = 1\n', 'docs/n.md': 'n\n',
+             'kit/helper.py': 'H = 1\n', '.gitignore': 'charkit/out/\n',
+             'charkit/tests/test_x.py': "assert 'BAD' not in open('kit/helper.py').read()\n"}
+    for p, t in files.items():
+        os.makedirs(os.path.dirname(os.path.join(root, p)) or root, exist_ok=True)
+        open(os.path.join(root, p), 'w').write(t)
+    g('init', '-q', '-b', 'main'); g('add', '-A'); g('commit', '-qm', 'h0')
+    h0 = g('rev-parse', '--short', 'HEAD')
+    g('checkout', '-qb', 'br'); open(os.path.join(root, 'kit/core.py'), 'w').write('X = 2\n')
+    g('commit', '-qam', 'geometry'); tip = g('rev-parse', '--short', 'HEAD'); g('checkout', '-q', 'main')
+    gd = os.path.join(root, 'charkit', 'out', 'gate')
+    os.makedirs(gd)
+    rep = dict(branch='br', tip=tip, into='main', head=h0, spec='kit/clawd.json', args=[], suffix='', t='2026-09-30T01:00',
+               hard=[], blocking=[], report={}, verdict='PASS', tests={'test_x.py': 'ok'}, build={'candidate': 'built'},
+               base_build={'ok': True}, cand_build={'ok': True}, qa=[], phases=[],
+               closures={'base': {'reads': ['kit/core.py', 'kit/clawd.json']},
+                         'cand': {'reads': ['kit/core.py', 'kit/clawd.json']},
+                         'tests': {'paths': ['charkit/tests/test_x.py', 'kit/core.py', 'kit/helper.py'],
+                                   'files': {'test_x.py': {'reads': [0, 1, 2], 'listed': [], 'scans': {}}}}})
+    json.dump(rep, open(os.path.join(gd, 'gate_br_%s_into_%s.json' % (tip, h0)), 'w'))
+    return root, g, gd
+
+
+def test_a_gate_carries_over_when_the_target_moves_without_reaching_it():
+    import subprocess
+    root, g, gd = _carry_repo()
+    kw = dict(into='main', spec='kit/clawd.json', reports=gd, root=root)
+    # main moves: docs and a module nothing read -> the PASS carries, and a report for the new head is written
+    open(os.path.join(root, 'docs/n.md'), 'w').write('m\n'); open(os.path.join(root, 'kit/unused.py'), 'w').write('U=2\n')
+    g('commit', '-qam', 'docs'); h1 = g('rev-parse', '--short', 'HEAD')
+    r = gate.carry('br', **kw)
+    assert r['carried'] and r['verdict'] == 'PASS' and r['report'].endswith('_into_%s.md' % h1), r
+    S = json.load(open(r['report'][:-3] + '.summary.json'))
+    assert S['verdict'] == 'PASS' and S['carried']['from_head'] != h1 and S['head'] == h1
+    assert 'Carried over' in open(r['report']).read()
+    # now gated into h1 (the carried report): asking again says so
+    assert gate.carry('br', **kw)['why'].startswith('already gated')
+    # main changes what the baseline reads -> not carried (the baseline and candidate would both differ)
+    open(os.path.join(root, 'kit/clawd.json'), 'w').write('{"k": 1}\n'); g('commit', '-qam', 'spec')
+    r = gate.carry('br', write=False, **kw)
+    assert not r['carried'] and {'baseline', 'candidate'} <= set(r['hits']), r
+    g('reset', '-q', '--hard', 'HEAD~1')
+    # a test file added on main: it runs here, in a worktree of the merge; the builds carry
+    open(os.path.join(root, 'charkit/tests/test_y.py'), 'w').write('pass\n'); g('add', '-A'); g('commit', '-qm', 't')
+    r = gate.carry('br', write=False, **kw)
+    assert r['carried'] and r['verdict'] == 'PASS' and r['tests_run']['files'] == ['test_y.py'], r
+    assert not gate.carry('br', write=False, run_tests=False, **kw)['carried']
+    # main changes what a test reads, and the test fails on the merge: carried as a FAIL
+    open(os.path.join(root, 'kit/helper.py'), 'w').write('BAD\n'); g('commit', '-qam', 'h')
+    r = gate.carry('br', **kw)
+    assert r['carried'] and r['verdict'] == 'FAIL' and r['tests_run']['failed'] == ['test_x.py'], r
+    assert json.load(open(r['report'][:-3] + '.summary.json'))['verdict'] == 'FAIL'
+    assert subprocess.run(['git', 'worktree', 'list'], cwd=root, capture_output=True, text=True).stdout.count('\n') == 1
+    g('reset', '-q', '--hard', 'HEAD~2')
+    # main edits the branch's line: the merge conflicts
+    open(os.path.join(root, 'kit/core.py'), 'w').write('X = 3\n'); g('commit', '-qam', 'clash')
+    r = gate.carry('br', write=False, **kw)
+    assert not r['carried'] and 'cleanly' in r['why'], r
+
+
+def test_docs_and_tests_can_reach_no_build():
+    from charkit import closure
+    C = {'reads': ['charkit/x.py', 'charkit/README.md'], 'listed': ['charkit/notes']}
+    assert closure.unreadable([('M', 'docs/a.md'), ('A', 'charkit/tests/test_q.py')])
+    assert closure.unreadable([('M', 'charkit/other.md')], C)
+    assert not closure.unreadable([('M', 'charkit/other.md')])                 # no closure to check a doc against
+    assert not closure.unreadable([('M', 'charkit/README.md')], C)             # a doc the build read
+    assert not closure.unreadable([('A', 'charkit/notes/x.txt')], C)           # in a folder the build lists
+    assert not closure.unreadable([('M', 'docs/a.md'), ('M', 'charkit/gate.py')], C)
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
