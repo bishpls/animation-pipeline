@@ -49,7 +49,8 @@ and timings. build: 1) measures the spec's design reference (spec.ref.rig, a 2D 
 (out/NAME.spec.json; knobs the spec sets itself are kept), 2) builds the scene in Blender, renders the boards and saves
 out/NAME.blend, 3) composes review sheets next to the reference image (spec.ref.image): out/sheet_views.png,
 out/sheet_body.png, out/sheet_face.png. Every build writes what charkit's toon renderer draws: out/NAME.look.glb (the
-export without shape keys or weights; --no-look leaves it out) or, with --vrm, the full out/NAME.vrm (charkit/gltf.py).
+export without shape keys or weights; --no-look leaves it out) and, with --vrm, the full out/NAME.vrm besides
+(charkit/gltf.py); the QA and the toon boards draw the look export when there is one.
 The QA draws with the renderer from it when its drawing is set so (charkit.qa3d.DRAW, CHARKIT_QA_DRAW; charkit/qarender.py),
 and so do the boards with --boards-renderer toon, the default where CHARKIT_NO_RENDER=1 (the CPU build box: the views,
 body and design sets; expressions and mouths need the shape keys and are skipped there). --base overrides the spec's base
@@ -310,9 +311,12 @@ def _build(args):
     qa = None if '--no-qa' in args else opt('--qa', 'venv')
     if qa not in (None, 'venv', 'blender'):
         raise SystemExit('--qa venv|blender')
-    # every build exports what charkit.render draws (the QA's drawing, the toon boards): the full VRM with --vrm, else
-    # NAME.look.glb (the export without shape keys or weights: gltf.export look_only); --no-look leaves it out
-    export = ['--vrm'] if '--vrm' in args else [] if '--no-look' in args else ['--look']
+    # every build exports what charkit.render draws (the QA's drawing, the toon boards): NAME.look.glb (the export
+    # without shape keys or weights: gltf.export look_only; --no-look leaves it out), and with --vrm the full NAME.vrm
+    # besides. The drawing takes the look export first (render.buildboards.export_of), so a --vrm build's QA draws what
+    # every other build's draws: a gate whose candidate built with --vrm and no look export drew it from the VRM, and 7
+    # face_shadow values moved with no change (tool/evalmesh ed0f91a's gate, 2026-09-30)
+    export = (['--vrm'] if '--vrm' in args else []) + ([] if '--no-look' in args else ['--look'])
     job = [resolved, out, boards] + ([] if '--no-blend' in args else ['--blend']) + \
         {'venv': ['--bundle'], 'blender': ['--qa'], None: []}[qa] + export + ['--cache', mode]
     cmd = [BLENDER, '-b', '--factory-startup', '--python', os.path.join(ROOT, 'charkit', 'build_blender.py'), '--'] + job
@@ -425,7 +429,7 @@ def measure(out, mode='on', qa=True, blender_peak=None):
 
 
 def _glb_inputs(glb):
-    """a generated GLB and what it carries beside it (charkit.i3d.glb_eyes' sidecar and the per-vertex labels it names):
+    """a generated GLB and what it carries beside it (charkit.target3d.glb_eyes' sidecar and the per-vertex labels it names):
     everything the geom hair step reads, for its cache key."""
     p = _path(glb)
     out = [p]
@@ -492,7 +496,8 @@ def code_body(spec, resolved, out, mode='on'):
     if mode == 'off':
         run()
     else:
-        r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
+        r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime'),
+                                                                 'shoulder': (spec.get('body') or {}).get('shoulder')}, gdir, inputs=ins,
                             modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell'),
                             name_key=spec['name'],
                             refresh=mode == 'refresh')
@@ -573,7 +578,7 @@ def hair_select(spec, resolved, out, mode='on'):
         ins = [spec[k] for k in ('head_code', 'body_code') if spec.get(k)]
         r = cache.file_step('hair_select', run, [hair_select], key, gdir, inputs=ins + _glb_inputs(shape['glb']),
                             modules=('charkit.bodyeval', 'charkit.geomstage', 'charkit.character', 'charkit.code_base',
-                                     'charkit.code_body', 'charkit.geom.bvh', 'charkit.geom.parts', 'charkit.i3d',
+                                     'charkit.code_body', 'charkit.geom.bvh', 'charkit.geom.parts', 'charkit.target3d',
                                      'charkit.scene'), name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE hair_select', r)
     shape['selection'] = path
@@ -599,7 +604,7 @@ def pieces_hair(spec, resolved, out, mode='on'):
     sheet = _path(M['references']['body_turnaround']['path'])
     cut = {k: v for k, v in spec.items() if k != 'garments'}
     cut['hair'] = dict(spec['hair'], shape={k: v for k, v in shape.items() if k not in ('geom', 'pieces')})
-    # the pieces' own eye anchor (pieces_opts.eye_anchor, i3d.eye_target): the hair aligned to our irises without
+    # the pieces' own eye anchor (pieces_opts.eye_anchor, target3d.eye_target): the hair aligned to our irises without
     # moving the body's and the garments' fits to the hull, which align by hair.shape's own
     if (shape.get('pieces_opts') or {}).get('eye_anchor'):
         cut['hair']['shape']['eye_anchor'] = shape['pieces_opts']['eye_anchor']

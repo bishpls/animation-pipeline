@@ -2,7 +2,7 @@
  "name": "clawd_locks",
  "ref": {
   "rig": "projects/tsuzuku/rig/clawd",
-  "image": "charkit/out/i3d/in/clawd_3dstyle.png",
+  "image": "charkit/refs/clawd/clawd_3dstyle.png",
   "fit": [
    "face",
    "features",

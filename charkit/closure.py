@@ -17,19 +17,20 @@ per process, to LOG:
                reads left out; a change there counts when the marker is in the file's old or new text
 Code that looks at files without depending on them (the cache's check for sources edited mid-build) runs under
 `paused()`: nothing it opens or lists is recorded, in its own thread.
-Paths are relative to the worktree; a path through a link in charkit/out (the gate's charkit/out/i3d and
-charkit/out/gate) is recorded as the link's. Paths outside the worktree (the venv, Blender, the shared caches) are the
+Paths are relative to the worktree; a path through a link in charkit/out (the gate's charkit/out/gate) is recorded
+as the link's. Paths outside the worktree (the venv, Blender, the shared caches) are the
 environment's, which the gate doesn't compare.
 
     closure.summarise(LOG, root, skip=(out,)) -> the closure (what OUT/closure.json holds): tracked paths read, untracked
-        inputs by sha256 (charkit/out/i3d), folders listed, the counts
+        inputs by sha256, folders listed, the counts
     closure.affected(C, changes, root) -> [(path, why)]: the changes that can reach a build whose closure is C
 
 What can change a build, given its closure (affected()):
   - a file it read, or ran, changed (tracked: the merge's changes; untracked: its sha256 differs);
   - a file added or deleted (or changed in type) in a folder its own code listed (one whose content it used was read);
-  - a data file (not Python, not documentation) changed anywhere in the checkout: Blender's C code reads images and
-    libraries the audit hook can't see, so a data file the record doesn't name still counts (conservative);
+  - a file of a kind Blender's C code loads (UNSEEN: images, .blend libraries, fonts, meshes) changed anywhere in
+    the checkout: the audit hook can't see those reads, so one the record doesn't name still counts (conservative);
+    other data is read through Python, and counts when the record names it;
   - a Python file under a scanned folder whose old or new text has the scan's marker;
 A Python module the build never imported, parsed or ran, documentation (*.md, docs/) and the tests can't change it.
 """
@@ -40,6 +41,12 @@ ENV = 'CHARKIT_CLOSURE'
 DOCS = ('.md', '.rst', '.txt')
 NEVER = ('docs/', 'charkit/tests/')          # (prefixes) nothing a build reads lives here
 CACHES = ('charkit/out/.cache/',)            # (prefixes) derived from what the build reads: never an input
+# what Blender's C code loads, which the audit hook can't see (images, .blend libraries, fonts, the C++ importers'
+# formats, volumes): a changed file of these kinds counts whether or not it was recorded. Anything else is read through
+# Python and recorded when read, so a shell script, an env example or the three.js engine no longer counts unread
+# (they stopped `gate --carry` for infra-only moves: tool/infra4, 2026-09-30).
+UNSEEN = ('.png', '.jpg', '.jpeg', '.exr', '.hdr', '.tif', '.tiff', '.tga', '.bmp', '.webp', '.blend', '.ttf', '.otf',
+          '.obj', '.fbx', '.ply', '.stl', '.abc', '.usd', '.usda', '.usdc', '.usdz', '.glb', '.gltf', '.vdb', '.mtl')
 _STATE = {}
 _TLS = threading.local()                    # this thread's pause depth
 
@@ -47,7 +54,7 @@ _TLS = threading.local()                    # this thread's pause depth
 # ---------------------------------------------------------------------------------------------------------- recording
 def _prefixes(root):
     """(absolute prefix, worktree-relative prefix): the worktree itself (as named and resolved) and each link in
-    charkit/out (the gate's i3d and gate folders), resolved."""
+    charkit/out (the gate's gate folder), resolved."""
     out = [(root + os.sep, ''), (os.path.realpath(root) + os.sep, '')]
     d = os.path.join(root, 'charkit', 'out')
     try:
@@ -287,7 +294,9 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None, untracked=T
     scans = C.get('scans') or {}
     out = []
     for st, p in changed:
-        marks = [m for d, ms in scans.items() if p.endswith('.py') and (not d or p.startswith(d + '/')) for m in ms]
+        # (the registry's scans skip the tests and outputs: charkit.registry.SKIP_DIRS)
+        marks = [m for d, ms in scans.items() if p.endswith('.py') and (not d or p.startswith(d + '/'))
+                 and not p.startswith(NEVER) for m in ms]
         hit = next((m for m in marks if re.search(m, _text(root, new, p), re.M) or
                     re.search(m, _text(root, rev, p), re.M)), None) if marks else None
         if p in reads:
@@ -301,8 +310,8 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None, untracked=T
             continue
         elif not _in_cone(p, cone_dirs):
             continue                                     # outside the checkout: the build can't read it
-        else:
-            out.append((p, 'a data file (Blender reads some unseen: counted whether or not it was recorded)'))
+        elif p.lower().endswith(UNSEEN):
+            out.append((p, 'a file of a kind Blender reads unseen (counted whether or not it was recorded)'))
     for p, h in sorted((C.get('untracked') or {}).items() if untracked else ()):
         if '__pycache__/' in p or p.startswith(CACHES):
             continue                                     # (a record from before these were left out)

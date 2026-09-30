@@ -1502,7 +1502,7 @@ def build(spec, out, h=0.01, style=None, faces=150000, validate_views=True, page
         np.save(os.path.join(out, 'hull_pieces.npy'), vl)                       # per vertex, Pieces labels
         side.update(pieces='hull_pieces.npy', piece_names={int(l): P.name(int(l)) for l in np.unique(vl)})
         shell = dict(shell=np.stack([L['ix'], L['iy'], L['iz']], 1).astype(np.int16), shell_label=L['label'])
-    ey = info['y_e']                                      # its eyes, known exactly (charkit.i3d.glb_eyes reads them)
+    ey = info['y_e']                                      # its eyes, known exactly (charkit.target3d.glb_eyes reads them)
     json.dump(sidecar(ex, ey, **side), open(os.path.join(out, 'hull.glb.json'), 'w'), indent=1)
     np.savez_compressed(os.path.join(out, 'hull.npz'), V=V, xs=A.xs, ys=A.ys, zs=A.zs, **shell)
     rep.update(calibration=info, mesh={'vertices': len(m.V), 'faces': len(m.F), 'faces_before_decimation': full,

@@ -39,7 +39,7 @@ import numpy as np
 from . import fitkit
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-AUTHORITY = {'body_silhouette': 'sheet', 'hair_silhouette': 'sheet', 'hair_shape': 'trellis', 'palette': 'sheet',
+AUTHORITY = {'body_silhouette': 'sheet', 'hair_silhouette': 'sheet', 'hair_shape': 'hull', 'palette': 'sheet',
              'outfit_pieces': 'outfit_graph'}
 VIEWS = ('front', 'three_quarter', 'profile', 'back')
 FIT_GROUP = {'body': 'figure', 'skirt': 'figure', 'boots': 'figure', 'details': 'details', 'hair': 'hair'}
@@ -294,10 +294,10 @@ def terms(spec):
               _iou_term('body_%s_iou_hair' % v, B['iou_part'], 'hair_silhouette', 'sheet', v, 'hair'),
               Term('body_%s_top' % v, None, 'abs', B['length'][0], 'hair_silhouette', 'sheet', v, 'hair', warn=lw)]
     for band, grp in (('torso', 'body'), ('legs', 'body'), ('skirt', 'skirt')):
-        T.append(_iou_term('shape_iou_' + band, Q['shape_iou'], 'body_silhouette', 'trellis', 'shape', grp))
-    T.append(_iou_term('shape_iou', Q['shape_iou'], 'body_silhouette', 'trellis', 'shape', 'body'))
+        T.append(_iou_term('shape_iou_' + band, Q['shape_iou'], 'body_silhouette', 'hull', 'shape', grp))
+    T.append(_iou_term('shape_iou', Q['shape_iou'], 'body_silhouette', 'hull', 'shape', 'body'))
     T.append(_iou_term('ref_iou', Q['ref_iou'], 'body_silhouette', 'key3d', 'front', 'body'))
-    T.append(_iou_term('shape_iou_hair', Q['shape_iou_hair'], 'hair_shape', 'trellis', 'shape', 'hair'))
+    T.append(_iou_term('shape_iou_hair', Q['shape_iou_hair'], 'hair_shape', 'hull', 'shape', 'hair'))
     return T
 
 

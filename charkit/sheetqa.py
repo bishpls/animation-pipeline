@@ -44,7 +44,7 @@ LIMITS = {'width': (0.08, 0.15), 'profile': (0.02, 0.04), 'reach': (0.02, 0.04),
 
 def classes(rgb):
     """-> label image: 0 other, 1 skin, 2 hair, 3 iris, 4 line, 5 shaded skin (a drawn neck under the chin)."""
-    from .i3d import hsv
+    from .target3d import hsv
     H, W, _ = rgb.shape
     h, s, v = (a.reshape(H, W) for a in hsv(rgb.reshape(-1, 3)))
     lab = np.zeros((H, W), int)

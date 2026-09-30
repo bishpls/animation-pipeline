@@ -11,7 +11,8 @@ slot taken, from builds running code that has it).
 Per box: minutes sampled; CPU busy (mean, median, p90, the share of minutes at 90% or more); 1-minute load (mean, p90,
 peak, when); memory used and the least available; slot occupancy (mean held, the share of minutes with every slot held,
 slot-minutes held over offered); the queue (minutes with a build waiting for a slot, the longest queue); slot waits
-(builds that waited, how long: median, p90, longest, total); Blender processes; GPU use; and a reading of what binds.
+(builds that waited, how long: median, p90, longest, total); Blender processes; GPU use; the gaps (the box down, by the
+boot time each sample carries, or the sampler missing minutes); and a reading of what binds.
 """
 import json, os, subprocess, sys, time
 
@@ -110,7 +111,30 @@ def summarise(samples, waits):
                         p50=pct(waited, .5), p90=pct(waited, .9), max=max(waited) if waited else None,
                         total_h=sum(waited) / 3600,
                         why={k: sum(1 for w in waits if w.get('why') == k and w['waited'] > 1) for k in ('slots', 'memory')})
+    out['gaps'] = gaps(samples)
     out['reading'] = reading(out)
+    return out
+
+
+GAP = 180                           # s between two samples that count as a gap (the sampler runs once a minute)
+
+
+def gaps(samples):
+    """the gaps of GAP s or more between consecutive samples, each read by the kernel's boot time the samples carry
+    (boxjob.sample's `boot`): 'down' when the box booted in between (a stop and start, or a reboot: `booted` is when), 'missed'
+    when both samples are of one boot (the box was up and the sampler didn't run), '?' for samples from before the boot
+    time was recorded -> [dict(kind, start, end, minutes, booted?)]."""
+    import time as _t
+    out = []
+    for a, b in zip(samples, samples[1:]):
+        if b['ts'] - a['ts'] < GAP:
+            continue
+        ba, bb = a.get('boot'), b.get('boot')
+        kind = '?' if not (ba and bb) else ('down' if bb != ba else 'missed')
+        g = dict(kind=kind, start=a['t'], end=b['t'], minutes=round((b['ts'] - a['ts']) / 60))
+        if kind == 'down':
+            g['booted'] = _t.strftime('%Y-%m-%dT%H:%M:%SZ', _t.gmtime(bb))
+        out.append(g)
     return out
 
 
@@ -203,6 +227,11 @@ def text(name, s, hours_rows=None):
                                                                                   key=lambda kv: -kv[1])))
     if s.get('gpu'):
         L.append('  GPU          mean %.0f%%  p90 %.0f%%  max %.0f%%' % (s['gpu']['mean'], s['gpu']['p90'], s['gpu']['max']))
+    for g in s.get('gaps') or ():
+        L.append('  gap          %s .. %s (%d min): %s' % (
+            g['start'], g['end'], g['minutes'],
+            {'down': 'the box was down (booted %s)' % g.get('booted'), 'missed': 'the box was up, the sampler missed it',
+             '?': 'samples without a boot time (before the sampler recorded it)'}[g['kind']]))
     L.append('  reading      ' + s['reading'])
     if hours_rows:
         L.append('  hour (UTC)      min  cpu%  load-peak  builds-max  held/slots  queue-max')

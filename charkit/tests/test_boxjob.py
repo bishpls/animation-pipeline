@@ -185,6 +185,36 @@ def test_summary():
     assert 'peak 56.0' in txt and '3 waited' in txt
 
 
+def test_cron_lines_at_boot_and_each_minute():
+    """j: the sampler's crontab has the per-minute line and the @reboot one; an older form of ours is replaced, the
+    owner's other lines kept, and a crontab that has both is left alone."""
+    dst = '/srv/work/.jobs/bin/boxjob.py'
+    old = '* * * * * python3 %s sample >/dev/null 2>&1 %s' % (dst, boxjob.CRON_MARK)
+    other = '0 3 * * * echo keep  # the owner\'s own'
+    new = boxjob.cron_merge('%s\n%s\n' % (other, old), dst)
+    lines = new.splitlines()
+    assert lines[0] == other and set(lines[1:]) == set(boxjob.cron_lines(dst)), lines
+    assert any(l.startswith('@reboot ') and ' sample --boot ' in l for l in lines)
+    assert boxjob.cron_merge(new, dst) is None                       # installed: nothing to do
+    assert set(boxjob.cron_merge('', dst).splitlines()) == set(boxjob.cron_lines(dst))
+    moved = boxjob.cron_merge(new.replace(dst, '/elsewhere/boxjob.py'), dst)   # another path of ours: replaced
+    assert moved.count(boxjob.CRON_MARK) == 2 and '/elsewhere/' not in moved and other in moved
+
+
+def test_gaps_read_by_boot_time():
+    """a gap between samples of two boots is the box down; of one boot, the sampler missing; before `boot`, unknown."""
+    def smp(ts, boot):
+        d = dict(t='T%d' % ts, ts=ts)
+        if boot:
+            d['boot'] = boot
+        return d
+    S = [smp(0, 1), smp(60, 1), smp(4000, 3900), smp(4060, 3900), smp(5000, 3900), smp(5060, None), smp(9000, None)]
+    g = boxload.gaps(S)
+    assert [x['kind'] for x in g] == ['down', 'missed', '?'], g
+    assert g[0]['minutes'] == 66 and g[0]['booted'].endswith('01:05:00Z')
+    assert boxload.gaps(S[:2]) == []
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

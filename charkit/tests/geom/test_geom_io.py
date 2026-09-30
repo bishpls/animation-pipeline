@@ -99,13 +99,15 @@ def test_gltf_base_colour_sampling():
 
 
 def test_real_generated_glb_if_present():
-    glb = os.environ.get('CHARKIT_GEOM_GLB', os.path.join(_common.ROOT, 'charkit/out/i3d/clawd/clawd_3dstyle_s1.glb'))
-    if not os.path.exists(glb):
+    # a real generated GLB to try (a textured one, as TRELLIS.2 wrote them; since decision 8 none is shipped with the
+    # worktrees, so only when named)
+    glb = os.environ.get('CHARKIT_GEOM_GLB')
+    if not glb or not os.path.exists(glb):
         return
-    from charkit import i3d
+    from charkit import target3d
     m = gio.load(glb, blender_compat=True)
-    assert m.nv > 1000 and m.vc is not None and m.uv is not None
-    assert i3d.find_eyes(m.V, m.vc) is not None
+    assert m.nv > 1000 and m.vc is not None
+    assert target3d.glb_eyes(glb, m.V, m.vc) is not None
 
 
 if __name__ == '__main__':

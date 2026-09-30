@@ -1982,7 +1982,8 @@
     0.6762
    ],
    "source": "hull",
-   "piece": "cuff_L"
+   "piece": "cuff_L",
+   "bell": 0.015
   },
   {
    "kind": "band",
@@ -2003,7 +2004,8 @@
     0.6762
    ],
    "source": "hull",
-   "piece": "cuff_R"
+   "piece": "cuff_R",
+   "bell": 0.015
   },
   {
    "kind": "collar",
@@ -2054,10 +2056,22 @@
    ],
    "source": "hull",
    "knot": 0.6,
-   "lift": 0.03,
+   "lift": 0.0065,
    "ribbon": {
-    "stand": 0.03
-   }
+    "stand": 0.015,
+    "turn": 40,
+    "w": [
+     0.25,
+     0.415
+    ],
+    "out": 0.3,
+    "hinge": 1.0
+   },
+   "end": 0.2,
+   "end_p": [
+    4.0,
+    1.4
+   ]
   },
   {
    "kind": "belt",
@@ -2083,8 +2097,8 @@
     -1.47
    ],
    "rows": [
-    -1.31,
-    -1.47
+    -1.3335,
+    -1.4935
    ]
   },
   {
@@ -2175,7 +2189,7 @@
    ],
    "tail": {
     "steps": 3,
-    "first": 0.18,
+    "first": 0.2035,
     "rise": 0.17
    },
    "droop": 0.4,

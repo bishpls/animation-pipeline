@@ -54,10 +54,10 @@ def variant(hdir, faces, remesh_file, cache):
 
 def mesh_pieces(hdir, V, lab, spec, A):
     """hull_pieces' dict from a variant's vertices and labels (the sidecar's names and eyes): the mesh source."""
-    from charkit import i3d
+    from charkit import target3d
     J = json.load(open(os.path.join(hdir, 'hull.glb.json')))
-    eye_mid, spacing = i3d.eye_target(A, spec['hair']['shape'])
-    W = i3d.align_by_eyes(np.asarray(V, float), (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)),
+    eye_mid, spacing = target3d.eye_target(A, spec['hair']['shape'])
+    W = target3d.align_by_eyes(np.asarray(V, float), (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)),
                           eye_mid, spacing)
     return {pid: W[lab == int(k)] for k, pid in J['piece_names'].items() if (lab == int(k)).any()}
 

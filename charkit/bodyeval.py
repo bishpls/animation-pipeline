@@ -285,7 +285,7 @@ def _vertex_adjacency(F, n):
 
 
 def hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clear=0.006, grow=2):
-    """i3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin in the head region; low
+    """target3d.hair_by_outside with charkit.geom's BVH: the generated surface lying outside our skin in the head region; low
     pale texels out; `grow` rings back. The signed distance takes its sign from the angle-weighted pseudo-normal at the
     nearest feature (face, edge or vertex: BVH.signed_distance's 'normal'), so a tie between faces sharing the nearest
     edge or vertex can't flip it (Blender's find_nearest signs along whichever face its BVH reaches first: 1,804 of
@@ -293,7 +293,7 @@ def hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clea
     Blender's."""
     from .geom.bvh import BVH
     from .geom.mesh import Mesh
-    from .i3d import hsv
+    from .target3d import hsv
     bm = Mesh.from_polys(np.asarray(body_v, float), [tuple(f) for f in body_f])
     sd = BVH(bm).signed_distance(np.asarray(V, float), sign='normal')
     _, s_, v_ = hsv(C)
@@ -353,7 +353,7 @@ def hair_selection(spec, load=None):
     resolve() does), its generated character loaded (geom.parts.load_generated, compat), select_hair on the gridded face.
     One function for both sides: crab_1's stage drift (evalmesh R3) came from two selections. -> (hv (n, 3) world, hf
     (m, k)) or None (a selection only Blender makes: hair_part)."""
-    from . import i3d, scene
+    from . import scene, target3d
     from .geom.parts import load_generated
     load = load or (lambda p: load_generated(p, compat=True))
     import contextlib, io
@@ -362,7 +362,7 @@ def hair_selection(spec, load=None):
     A = assemble_cached(spec)
     p = _glb(spec)
     V, F, C = load(p)
-    gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), i3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
+    gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), target3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
     try:
         R = select_hair(A, spec, gen[0], gen[1], face_y_grid(A))
     except NotImplementedError:
@@ -374,21 +374,21 @@ def select_hair(A, spec, gen, eyes_gen, grid=None):
     """the generated hair as scene.hair_shape_volume selects it (numpy): the generated character aligned by its eyes
     (scene.eye_target), its hair selected (hair.shape.select) and culled off our face. -> dict(sel (V, F) the selection the
     volume and the mesh-mode hair are built on, full (V, F) the aligned shape, align (eye_mid, spacing))."""
-    from . import i3d, scene
+    from . import target3d, scene
     shape = spec['hair']['shape']
     Hd = A['head']; L = Hd['L']
     GV, GF, GC = gen
     mid, spacing = scene.eye_target(A, shape)
-    V = i3d.align_by_eyes(GV, eyes_gen, mid, spacing)
+    V = target3d.align_by_eyes(GV, eyes_gen, mid, spacing)
     chin_z = Hd['centre'][2] - Hd['H'].chin
     sel = shape.get('select')
     if sel == 'outside':
         hv, hf = hair_by_outside(V, GC, GF, A['verts'], A['faces'], chin_z, shape.get('shoulder_x', 0.16),
                                  below=shape.get('below', 0.25) * L, clear=shape.get('clear_skin', 0.025) * L)
     elif sel == 'exclude':
-        hv, hf = i3d.hair_by_exclusion(V, GC, GF, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
+        hv, hf = target3d.hair_by_exclusion(V, GC, GF, chin_z, shape.get('shoulder_x', 0.16), below=shape.get('below', 0.25) * L)
     elif 'hue' in shape:
-        hv, hf = i3d.hair_by_hue(V, GC, GF, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
+        hv, hf = target3d.hair_by_hue(V, GC, GF, shape['hue'], chin_z, shape.get('shoulder_x', 0.16),
                                  below=shape.get('below', 0.25) * L, sat=shape.get('sat', 0.38))
     else:
         raise NotImplementedError('bodyeval: hair.shape.select %r needs Blender' % sel)
@@ -857,15 +857,15 @@ class Evaluator:
 
     # ---- the heavy inputs
     def generated(self):
-        """the generated character (GLB frame, i3d-compatible colours as the build's find_eyes sees them) and its eyes."""
+        """the generated character (GLB frame, target3d.load_glb's colours, as the build's find_eyes sees them) and its eyes."""
         if self._gen is None:
-            from . import i3d
+            from . import target3d
             from .geom.parts import load_generated
             p = _glb(self.spec)
             if not p:
                 return None
             V, F, C = load_generated(p, compat=True)
-            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), i3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
+            self._gen = ((np.asarray(V), np.asarray(F), np.asarray(C)), target3d.glb_eyes(p, np.asarray(V), np.asarray(C)))
         return self._gen
 
     @staticmethod
@@ -1004,10 +1004,10 @@ class Evaluator:
             base_shape = (self.spec.get('hair') or {}).get('shape')
             if base_shape and self.generated() is not None:
                 # (the build's QA skips the shape check without hair.shape; the generated character still measures us)
-                from . import i3d, scene
+                from . import target3d, scene
                 gen = self.generated()
                 mid, spacing = scene.eye_target(A, base_shape)
-                full = (i3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
+                full = (target3d.align_by_eyes(gen[0][0], gen[1], mid, spacing), gen[0][1])
                 align = dict(eye_mid=mid, spacing=spacing)
         # the clips rest on the hair the build makes (accessories.generate's ground), keyed by its shape in the head frame
         gkey = [(n, len(q), round(float(np.asarray(q).sum()), 5)) for n, q, f in objects]
