@@ -251,7 +251,10 @@ def shell(A, spec, normals=None, hull=None):
     if rf:
         W = {b: w[used] for b, w in Wr.items() if w[used].max() > 1e-4}
         tot = np.maximum(sum(W.values()), 1e-9)
-        W = {b: w / tot for b, w in W.items()}
+        # normalised, then held to 0.01: the refined weights interpolate, and _object adds a vertex group's vertices
+        # once per distinct weight (a thousand calls a bone at 0.001 tripled the garments stage on the box)
+        W = {b: np.round(w / tot, 2) for b, w in W.items()}
+        W = {b: w for b, w in W.items() if w.max() > 0}
         src = body_of[used]
         G = dict(verts=sv, faces=sf, weights=W, uvs=None, src=src[src >= 0], faces_src=[int(faces_body[i]) for i in keep])
     else:
@@ -322,27 +325,36 @@ def snap_cuts(V, F, used, keep, sv, cuts, ins):
     vertices it shares a face with that a cut drops (g(them) < 0 <= g(it), g one of `cuts`: a signed function of world
     points, >= 0 kept), to where that cut crosses the line between them (the mean over them and the cuts), carrying the
     shell's offset. -> the moved shell vertices."""
+    V = np.asarray(V, float)
     kept = np.zeros(len(V), bool)
     for i in keep:
         kept[list(F[i])] = True
     G = [np.asarray(g(V), float) for g in cuts]
-    moves = {}
-    for f in F:
-        for u in f:                                        # every pair sharing a face: a quad's diagonal too, or a
-            if not kept[u]:                                # border vertex whose only dropped neighbour is across its
-                continue                                   # face (a slanted cut's staircase) would stay put
-            for w in f:
-                if w == u or ins[w]:
-                    continue
-                for g in G:
-                    if g[w] < 0 <= g[u]:
-                        k = g[u] / max(1e-12, g[u] - g[w])
-                        moves.setdefault(u, []).append(V[u] + (V[w] - V[u]) * k)
-    idx = {o: n for n, o in enumerate(used)}
+    # every ordered pair of vertices sharing a face (numpy: faces padded to their largest size)
+    k = max(len(f) for f in F)
+    P = np.full((len(F), k), -1, np.int64)
+    for n in set(len(f) for f in F):
+        sel = [i for i, f in enumerate(F) if len(f) == n]
+        P[sel, :n] = np.array([F[i] for i in sel])
+    U = np.repeat(P, k, 1).ravel()
+    Wv = np.tile(P, (1, k)).ravel()
+    ok = (U >= 0) & (Wv >= 0) & (U != Wv)
+    U, Wv = U[ok], Wv[ok]
+    ok = kept[U] & ~ins[Wv]
+    U, Wv = U[ok], Wv[ok]
+    acc = np.zeros((len(V), 3))
+    cnt = np.zeros(len(V))
+    for g in G:
+        c = (g[Wv] < 0) & (g[U] >= 0)
+        u, w = U[c], Wv[c]
+        t = g[u] / np.maximum(1e-12, g[u] - g[w])
+        np.add.at(acc, u, V[u] + (V[w] - V[u]) * t[:, None])
+        np.add.at(cnt, u, 1)
     sv = sv.copy()
-    for u, ps in moves.items():
-        if u in idx:
-            sv[idx[u]] += np.mean(ps, 0) - V[u]
+    idx = np.full(len(V), -1)
+    idx[np.asarray(used)] = np.arange(len(used))
+    m = (cnt > 0) & (idx >= 0)
+    sv[idx[m]] += acc[m] / cnt[m, None] - V[m]
     return sv
 
 
