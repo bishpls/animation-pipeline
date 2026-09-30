@@ -231,3 +231,9 @@ our jacket.
 
 `out` 0.30 keeps the gap between the tails (a wider ribbon's inner edges move in). The bow's profile IoU 0.521 -> 0.446
 is the cost; restoring it is the jacket's front under the ribbons (profile), not the bow.
+
+pipeline-3d moved twice during M1 (9a12d01 tool/look6, 6ddcb5b evalmesh M4); tool/bow rebased onto 6ddcb5b (no
+conflicts; the steps file names the rebased collarqa commit, a12f99d: the gate matches steps by ancestry). Pre-gate
+(`charkit/out/pregate/pregate_tool-bow_5629e58_into_6ddcb5b.md`): PASS under K, 26 moved, 0 blocking;
+body_profile_chest 0.045 WARN -> 0.024 PASS; the evaluator's bodice-panel rows move (the wider ribbons cover more of the
+panel: its three-quarter top -0.085 -> -0.160 WARN, its profile rows gone, hidden behind the ribbons).
