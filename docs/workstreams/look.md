@@ -824,6 +824,28 @@ boards' light as before and moved with the look (`face_lift`). Tests:
 
 Both tests fail on the old file.
 
+**Gate** `charkit/out/gate/gate_tool-look6_6e5c1f9_into_25b1936.md`: **PASS** under K, with the 2x2. The six
+face_shadow_* checks are now read as remeasured; face_shadow_chin_edge is no longer "a new check that FAILs". Values are
+as in the first gate. The 2x2 cells (old geometry, old measure | new geometry, old measure | old geometry, new measure |
+new geometry, new measure):
+
+| check | old / old | new / old | old / new | new / new |
+|---|---|---|---|---|
+| face_shadow_3q | 0.3338 | 0.3068 | 0.3754 | 0.313 |
+| face_shadow_chin | 0.435 | 0.435 | 0.6985 | 0.6939 |
+| face_shadow_chin_edge | 0.1467 | 0.1467 | 0.0568 FAIL | 0.0568 FAIL |
+| face_shadow_chin_soft | 0.0034 | 0.0034 | 0.0023 | 0.0023 |
+| face_shadow_face_3q | 0.0679 | -0.0561 | 0.1298 | -0.0558 |
+| face_shadow_neck_3q | 0.1068 | 0.1068 | 0.0986 | 0.0986 |
+
+- The chin's FAIL is all measure: `face_lift` leaves the neck alone.
+- The face's share of shade gets closer to the design's under both measures: 0.068 -> 0.056 on the boards' light,
+  0.130 -> 0.056 on the design light.
+- The look's one cost is face_shadow_3q, the three-quarter IoU, which drops under both measures (-0.027 on the boards'
+  light, -0.062 on the design light). It's INFO, so it doesn't block. It's the same 3/4 drop as in Results.
+- Build CPU 1.28x: the baseline at 25b1936 is cheaper (577 s against 759 s at 4007276), while the candidate's cost is
+  about the same (738 s). 66 test files, 0 failing.
+
 ### Next, in order
 1. `python -m charkit remote gate tool/look6 --into pipeline-3d --carry` (export CLOUDSDK_CONFIG first) if the
    coordinator wants the gate at the branch head (271ae94 and later add the pipeline-3d merge, docs, review code).
