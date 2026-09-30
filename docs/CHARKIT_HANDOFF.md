@@ -767,7 +767,7 @@ piece_waistband, piece_shorts and piece_overskirt_panel_L. The fourth is hair_bu
 
 **Ready to finish:**
 - tool/evalmesh (0b7e9ba): M2 and M3 are exact; attach the gate, then merge. M4 is planned in evalmesh.md.
-- tool/infra3: subset 3 and the 2x2 fix (cabfcf5); see infra3.md.
+- tool/infra3 (57b023e): the 2x2 fix, relative venv cache keys with a shared step cache, whole-build slots with 4-thread caps on every box build, and `charkit pregate` (23 s an iteration; it gives the real gate's verdict on a real pair). Attach its 4 box jobs, gate, merge. The auth-lapse options (session control or a least-privilege service account) are in infra3.md.
 
 Each workstream's notes are in docs/workstreams/NAME.md. Relaunch lean from them.
 
