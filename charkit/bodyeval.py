@@ -447,7 +447,11 @@ class Part:
             uvc = tex['uvc'] if tex else None
             creases = getattr(self, 'creases', None)          # (the skin's eye margins, as character.build creases them)
             if getattr(self, 'solid', None):                   # the build's Solidify, before its Subdivision Surface
-                V, polys, parent, uvc = solidify(V, polys, self.solid, uvc)   # (the faces wound as recorded: geom.wind)
+                from .geom import solidify as solid           # (the faces wound as recorded: geom.wind)
+                st = getattr(self, 'solid_settings', None) or {}
+                R = solid.solidify(V, polys, self.solid, uv=uvc, **{k: v for k, v in st.items() if k != 'thickness'})
+                V, polys, parent, uvc = R['V'], (R['loopv'], R['counts']), R['parent'], R['uv']
+                creases = R['creases'] if len(R['creases'][0]) else None
             if levels:
                 V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases)
                 parent = parent[par]
@@ -539,7 +543,12 @@ def garment_part(o):
     sol = o['mods'].get('thick')
     if sol is not None and sol['type'] == 'SOLIDIFY':            # the thickness the build's Solidify gives it (evaluated)
         P.solid = float(sol['settings']['thickness'])
+        P.solid_settings = {k: v for k, v in sol['settings'].items() if k in SOLID_SETTINGS}
     return P
+
+
+SOLID_SETTINGS = ('offset', 'use_rim', 'edge_crease_outer', 'edge_crease_inner', 'edge_crease_rim', 'use_even_offset',
+                  'use_quality_normals', 'use_flip_normals')      # the Solidify settings charkit.geom.solidify takes
 
 
 def _texel(img, uv):
@@ -1442,35 +1451,16 @@ def vertex_normals(V, polys):
     return N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-30)
 
 
-def solidify(V, polys, t, uv=None, rim=True):
-    """Blender's Solidify (simple, offset -1, even thickness off): the surface moved t against its vertex normals and a
-    copy left where it was (its polygons reversed), each open edge joined across by a rim quad. uv: per-corner UVs as
-    subdivide takes them. -> (V (2n, 3), polys, parent polygon per polygon, uv or None)."""
-    V = np.asarray(V, float)
-    n = len(V)
-    lv, st, cnt = _loops_of(polys)
-    fid = np.repeat(np.arange(len(cnt)), cnt)
-    nxt = np.arange(len(lv)) + 1; nxt[st + cnt - 1] = st
-    NV = np.vstack([V - t * vertex_normals(V, polys), V])
-    P = [tuple(int(x) for x in lv[s_:s_ + c]) for s_, c in zip(st, cnt)]
-    out = P + [tuple(x + n for x in f[::-1]) for f in P]
-    parent = list(range(len(P))) * 2
-    U = None
-    if uv is not None:
-        Uc = uv.reshape(-1, 2) if isinstance(uv, np.ndarray) else np.concatenate([np.asarray(c, float) for c in uv])
-        U = [Uc[s_:s_ + c] for s_, c in zip(st, cnt)]
-        U = U + [u[::-1] for u in U]
-    if rim:
-        a, b = lv, lv[nxt]
-        key = np.minimum(a, b) * n + np.maximum(a, b)
-        _, inv, c_ = np.unique(key, return_inverse=True, return_counts=True)
-        for i in np.nonzero(c_[inv] == 1)[0]:
-            out.append((int(b[i]), int(a[i]), int(a[i]) + n, int(b[i]) + n))
-            parent.append(int(fid[i]))
-            if U is not None:
-                ua, ub = Uc[i], Uc[nxt[i]]
-                U.append(np.array([ub, ua, ua, ub]))
-    return NV, out, np.asarray(parent), U
+def solidify(V, polys, t, uv=None, rim=True, **settings):
+    """Blender's Solidify (charkit.geom.solidify: simple, offset -1, as Blender lays it out: the input, then its copy t
+    in with its polygons reversed first corner kept, then the rim). uv: per-corner UVs. -> (V (2n, 3), polys, parent
+    polygon per polygon, per-polygon corner uvs or None)."""
+    from .geom import solidify as solid
+    R = solid.solidify(V, polys, t, use_rim=rim, uv=uv, **settings)
+    st = np.r_[0, np.cumsum(R['counts'])[:-1]]
+    P = [tuple(int(x) for x in R['loopv'][a:a + c]) for a, c in zip(st, R['counts'])]
+    U = [R['uv'][a:a + c] for a, c in zip(st, R['counts'])] if R['uv'] is not None else None
+    return R['V'], P, R['parent'], U
 
 
 def subdivide(V, polys, uv=None, limit=True, levels=1, creases=None):
