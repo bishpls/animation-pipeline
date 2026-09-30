@@ -27,7 +27,7 @@ environment's, which the gate doesn't compare.
 
 What can change a build, given its closure (affected()):
   - a file it read, or ran, changed (tracked: the merge's changes; untracked: its sha256 differs);
-  - a file added, changed or deleted in a folder its own code listed;
+  - a file added or deleted (or changed in type) in a folder its own code listed (one whose content it used was read);
   - a data file (not Python, not documentation) changed anywhere in the checkout: Blender's C code reads images and
     libraries the audit hook can't see, so a data file the record doesn't name still counts (conservative);
   - a Python file under a scanned folder whose old or new text has the scan's marker;
@@ -270,10 +270,11 @@ def _text(root, rev, p):
     return _git(root, 'show', '%s:%s' % (rev, p)) or ''
 
 
-def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None):
+def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None, untracked=True):
     """the changes (from changes()) that can reach a build whose closure is C -> [(path, why)], empty when none can.
-    Untracked inputs are compared by content in root; a scanned file's old text is read at rev, its new one at new
-    (None: the worktree)."""
+    Untracked inputs are compared by content in root (untracked False: not compared, as when root isn't the machine
+    that built); a scanned file's old text is read at rev, its new one at new (None: the worktree; rev and new may be
+    commits or trees)."""
     reads, listed = set(C.get('reads') or ()), set(C.get('listed') or ())
     scans = C.get('scans') or {}
     out = []
@@ -283,7 +284,8 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None):
                     re.search(m, _text(root, rev, p), re.M)), None) if marks else None
         if p in reads:
             out.append((p, 'the build read it'))
-        elif os.path.dirname(p) in listed:
+        elif os.path.dirname(p) in listed and st != 'M':
+            # (a listing changes when a file comes or goes; a file whose content the build used was read, above)
             out.append((p, 'in a folder the build lists (%s)' % (os.path.dirname(p) or '.')))
         elif hit:
             out.append((p, 'the build scans for %r, which it has' % hit))
@@ -293,9 +295,30 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None):
             continue                                     # outside the checkout: the build can't read it
         else:
             out.append((p, 'a data file (Blender reads some unseen: counted whether or not it was recorded)'))
-    for p, h in sorted((C.get('untracked') or {}).items()):
+    for p, h in sorted((C.get('untracked') or {}).items() if untracked else ()):
         if '__pycache__/' in p or p.startswith(CACHES):
             continue                                     # (a record from before these were left out)
         if sha256(os.path.join(root, p)) != h:
             out.append((p, 'an untracked input whose content differs'))
     return out
+
+
+def unreadable(changed, C=None):
+    """no build can read any of these changes, whatever its code: each is under docs/ or charkit/tests/, or is
+    documentation (*.md, *.rst, *.txt) that the closure C (a build of a nearby commit, when there is one) neither read
+    nor listed the folder of -> True. Needs no build of the target: a docs or tests merge into a commit with no
+    baseline yet builds nothing."""
+    reads, listed = set((C or {}).get('reads') or ()), set((C or {}).get('listed') or ())
+    for _, p in changed:
+        if p.startswith(NEVER):
+            continue
+        if C is not None and p.endswith(DOCS) and p not in reads and os.path.dirname(p) not in listed:
+            continue
+        return False
+    return True
+
+
+def compact(C):
+    """a closure as a gate report carries it (what `gate --carry` tests a later target's changes against, on a machine
+    without the builds): the tracked reads, the listed folders, the scans, the commit."""
+    return {k: C[k] for k in ('reads', 'listed', 'scans', 'commit') if C and C.get(k) is not None} if C else None
