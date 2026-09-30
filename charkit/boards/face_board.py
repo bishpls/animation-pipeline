@@ -20,7 +20,8 @@ HAIR = os.environ.get('CHARKIT_HAIR', '1') == '1'
 
 
 def set_expr(C, name):
-    brow = {'angry': 'angry', 'sad': 'sad', 'wide': 'surprised', 'happy': 'relaxed', 'shock': 'worried'}.get(name)
+    brow = {'angry': 'angry', 'sad': 'sad', 'wide': 'surprised', 'happy': 'relaxed', 'shock': 'worried', 'focus': 'focus',
+            'squeeze': 'knit', 'wince': 'pained', 'shy': 'worried'}.get(name)
     for p in C['eyes']:
         for kb in (p['brow'].data.shape_keys.key_blocks[1:] if p['brow'].data.shape_keys else []):
             kb.value = 1.0 if kb.name == f'brow_{brow}' else 0.0
@@ -40,11 +41,17 @@ def set_brow(C, name):
 
 
 def set_preset(C, name):
-    """a combined expression (charkit.scene.PRESETS): its eyes, mouth and brows; None: all neutral."""
-    P = PRESETS.get(name) or {}
-    set_expr(C, P.get('eye'))
-    set_mouth(C, P.get('mouth') or 'neutral')
-    set_brow(C, P.get('brow'))
+    """a combined expression (charkit.expressions: a preset's name, or a preset {component: name or {name: weight}}):
+    every component key on every object set to the preset's weight, the rest to 0; None: the rest face."""
+    from charkit import expressions
+    W = expressions.weights(name)
+    pre = tuple(c + '_' for c in expressions.COMPONENTS)
+    obs = [C['skin']] + list(C['mouth'].values()) + [p[k] for p in C['eyes'] for k in ('lash', 'sclera', 'iris', 'brow')]
+    for ob in obs:
+        ks = ob.data.shape_keys
+        for kb in (ks.key_blocks[1:] if ks else []):
+            if kb.name.startswith(pre):
+                kb.value = W.get(kb.name, 0.0)
 
 
 def set_mouth(C, name):

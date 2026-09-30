@@ -12,16 +12,13 @@ import functools, json, os
 import numpy as np
 
 SKIN = dict(lit=(1.0, 0.90, 0.86), shade=(0.95, 0.76, 0.74), deep=(0.84, 0.60, 0.62))
-EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint', 'shock']
-MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised', 'laugh', 'wavy', 'yawn']
-# combined expressions: the eyes, mouth and brows together (the template's own; the model sheet's heads are matched to them
-# in charkit/exprqa.py, and a head none of them covers asks for a new one)
-PRESETS = {
-    'laugh': dict(eye='happy', mouth='laugh', brow='raise'),
-    'angry': dict(eye=None, mouth='frown', brow='angry'),
-    'fluster': dict(eye='shock', mouth='wavy', brow='surprised'),
-    'yawn': dict(eye='blink', mouth='yawn', brow='raise'),
-}
+EXPR = ['blink', 'happy', 'half', 'wide', 'angry', 'sad', 'squint', 'shock', 'focus', 'squeeze', 'wince', 'shy']
+MOUTH = ['neutral', 'aa', 'ih', 'ou', 'ee', 'oh', 'smile', 'grin', 'frown', 'surprised', 'laugh', 'wavy', 'yawn', 'pout',
+         'shout', 'clench', 'grimace', 'smirk', 'firm', 'wobble']
+# combined expressions: the face's components (eyes, brows, mouth, gaze) together, the rest face one of them
+# (charkit/expressions.py: the presets and their API; the model sheet's heads are matched to the library in
+# charkit/exprqa.py, and a head none of it covers asks for a new one)
+from .expressions import PRESETS  # noqa: E402
 
 
 class Scene:
@@ -324,12 +321,18 @@ def hair_geom_mesh(S, shape, hc):
     return ob
 
 
+PIECE_NORMALS = 'exact'   # the hair pieces' envelope normals: 'exact' (geom.blender.set_normals, one per vertex) or
+                          # 'transfer' (a hidden proxy's by position: 400 of a side lock's vertices took a coincident or
+                          # near neighbour's, up to 12.7 degrees off; face round 4)
+
+
 def hair_pieces_objects(S, shape, hc):
     """the hair's pieces (shape['pieces']: charkit.geom.hairpieces' parts and pieces.json, written venv-side) as one
     object each (hair_NAME), with charkit's hair look and outline, rigged to the head; the style's 'envelope' normals ride
     in after the outline from a hidden proxy (as the geom hair's do), so the pieces shade as one mass."""
     from . import character, shade, trace
-    from .geom.blender import load_part, normals_proxy, transfer_normals
+    from .geom.blender import load_part, normals_proxy, set_normals, transfer_normals
+    from .geom.io import load_npz
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pdir = shape['pieces'] if os.path.isabs(shape['pieces']) else os.path.join(root, shape['pieces'])
     index = json.load(open(os.path.join(pdir, 'pieces.json')))
@@ -349,7 +352,7 @@ def hair_pieces_objects(S, shape, hc):
                              normals=None if envelope else 'geometric')
         ob['charkit_family'] = p['family']
         shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
-        if envelope:
+        if envelope and not (PIECE_NORMALS == 'exact' and set_normals(ob, load_npz(path).vn) is not None):
             proxy = normals_proxy(path, 'hair_%s_normals' % p['name'])
             transfer_normals(ob, proxy)
             character._to_head(proxy, S.character['arm'])

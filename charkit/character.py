@@ -72,6 +72,12 @@ def assemble(spec, keys=True, cache=None):
     (charkit/code_body.py), its eyes and mouth from its own loops. keys=False leaves out the shape keys (the rest pose
     only); cache: an optional dict that keeps the body and the wrap's knob-independent part between calls
     (charkit.faceeval: one body, many head knob sets)."""
+    return features(geometry(spec, cache), keys=keys, cache=cache)
+
+
+def geometry(spec, cache=None):
+    """assemble()'s first half: the body, the head wrapped or authored, the eyes' margins placed -> the dict features()
+    reads (spec, B, V, H, centre, L, F, the eyes' labels and centres, ...)."""
     import json as _json
     base = base_of(spec)
     anime = base in ('anime', 'code')                                     # a derived base: labels, not detection
@@ -121,6 +127,18 @@ def assemble(spec, keys=True, cache=None):
                  c=(side * EK['x'] * L, centre[2] + EK['z'] * L))
         V, _ = eyelib.place(V, E['eye'], F, EK, L, side, E['c'])
         eyes.append(E)
+    return dict(spec=spec, bkey=bkey, anime=anime, B=B, V=V, H=H, centre=centre, info=info, L=L, V0=V0, EK=EK, F=F,
+                eyes=eyes)
+
+
+def features(G, keys=True, cache=None):
+    """assemble()'s second half: the face's features on the placed head (G: the geometry with the eyes' margins placed,
+    as assemble makes it): the eye plates, lashes, brows and their keys, the mouth placed and keyed, its teeth, tongue and
+    line, then the materials per face and the head's joints. Split out so the expression keys can be remade over a kept
+    head (charkit.mouthlab: the mouth's and the expressions' loop, in seconds) -> assemble()'s dict."""
+    spec, bkey, anime, B, V, H, centre, info, L, V0, EK, F = (G[k] for k in (
+        'spec', 'bkey', 'anime', 'B', 'V', 'H', 'centre', 'info', 'L', 'V0', 'EK', 'F'))
+    eyes = [dict(E) for E in G['eyes']]
     gaze = {'look_left': (0.13, 0.0), 'look_right': (-0.13, 0.0), 'look_up': (0.0, 0.07), 'look_down': (0.0, -0.06)}
     conv = EK['iris'][3]                                  # (the spec's iris convergence, or the style's: eyes.knobs)
     for E in eyes:
@@ -157,14 +175,16 @@ def assemble(spec, keys=True, cache=None):
         Mo = dict(m=_kept(cache, ('mouth', bkey), lambda: mouthlib.detect(B['base_body'], B['faces'], lips_b, uw, lw)),
                   c=(0.0, centre[2] + H.mouth_z))
     V = mouthlib.place(V, Mo['m'], F, MK, L, Mo['c'], faces=B['faces'])
-    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'])
+    hold = mouthlib.held(eyes)                          # (the eye keys' vertices: the components' keys don't overlap)
+    Mo['keys'] = {sh: mouthlib.key(V, Mo['m'], F, MK, L, Mo['c'], sh, jaw_w=fw.get('jaw'), faces=B['faces'], hold=hold)
                   for sh in mouthlib.SHAPES if sh != 'neutral'} if keys else {}
-    Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'])
-    Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'])
-    Mo['teeth_keys'] = {sh: mouthlib.teeth(F, MK, L, Mo['c'], sh)[0] - Mo['teeth'][0] for sh in Mo['keys']}
-    Mo['line'] = mouthlib.line(F, MK, L, Mo['c'])
-    Mo['line_keys'] = {sh: mouthlib.line(F, MK, L, Mo['c'], sh)[0] - Mo['line'][0] for sh in Mo['keys']}
-    Mo['tongue_keys'] = {sh: mouthlib.tongue(F, MK, L, Mo['c'], sh)[0] - Mo['tongue'][0] for sh in Mo['keys']}
+    au = dict(authored=bool(Mo['m'].get('loops')))     # an authored base's lower lip rides the jaw's frame (mouth.jaw_drop)
+    Mo['teeth'] = mouthlib.teeth(F, MK, L, Mo['c'], **au)
+    Mo['tongue'] = mouthlib.tongue(F, MK, L, Mo['c'], **au)
+    Mo['teeth_keys'] = {sh: mouthlib.teeth(F, MK, L, Mo['c'], sh, **au)[0] - Mo['teeth'][0] for sh in Mo['keys']}
+    Mo['line'] = mouthlib.line(F, MK, L, Mo['c'], **au)
+    Mo['line_keys'] = {sh: mouthlib.line(F, MK, L, Mo['c'], sh, **au)[0] - Mo['line'][0] for sh in Mo['keys']}
+    Mo['tongue_keys'] = {sh: mouthlib.tongue(F, MK, L, Mo['c'], sh, **au)[0] - Mo['tongue'][0] for sh in Mo['keys']}
     hw = B['head_w']
     fmat = [1 if hw[list(f)].mean() > 0.5 else 0 for f in B['faces']]
     inside = set(Mo['m']['cavity'])
