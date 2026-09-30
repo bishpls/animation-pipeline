@@ -218,7 +218,7 @@ def fit_torso(meas, Rc, th_c, ay, neck, hw=None, hy=None):
     return fit_sections(meas, Rc, th_c, ay, X0, anchors)
 
 
-def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None, drawn_back=None):
+def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None, drawn_back=None, shoulder=None):
     """the torso: one superellipse section per row (section_r) between the neck cut and the crotch, round a vertical
     axis, all fitted at once (fit_torso) to the cells the hull measures (tight pieces pulled in by their thickness, bare
     skin as it is, mirrored across the midline), anchored at the neck ring and the hips, then held inside the hull's
@@ -295,8 +295,65 @@ def torso(H, sk, nz=56, nth=72, hip_z=None, drawn=None, drawn_back=None):
     Pi = fit_torso(meas, Rc, th_c, ay, neck, hw, hy)
     R = np.stack([section_r(Pi[k], th_c, ay) for k in range(nz)])
     R = np.minimum(R, env.R - CLEAR)
-    R = np.minimum(R, _behind(H, ax, ts, th_c, nz, nth, drawn=drawn, drawn_back=drawn_back))
+    Bh = _behind(H, ax, ts, th_c, nz, nth, drawn=drawn, drawn_back=drawn_back)
+    R = np.minimum(R, Bh)
+    if shoulder:
+        rows, ts, R, Pi, meas = shoulders(shoulder, rows, ts, th_c, R, Pi, meas, ay, env, Bh)
+        share = meas.mean(1)
     return dict(ax=ax, F=loft.Field(ts, th_c, R, meas), params=Pi, rows=rows, measured=share, env=env, src=src)
+
+
+SHOULDER_ROWS = (0.006, 0.013, 0.021, 0.03)   # L under the cut: rows added where the shoulders' level top turns over
+
+
+def shoulder_width(z, sh):
+    """the shoulders' half-width at heights z (the hull's frame, L): a level top at `z` out to the shoulder point `x`,
+    its outer edge a quarter ellipse `round` L across and tall, held at `x` for `hold` L below that, then eased back
+    into the fitted torso over `fall` L (a smoothstep). -> (half-width (n,), its weight (n,): 1 in the shoulders, 0 where
+    the fitted torso takes over; NaN half-width above the top)."""
+    z = np.asarray(z, float)
+    zt, x, rd = float(sh['z']), float(sh['x']), float(sh.get('round', 0.05))
+    hold, fall = float(sh.get('hold', 0.05)), float(sh.get('fall', 0.12))
+    d = zt - z                                            # depth under the shoulders' top
+    a = np.full(z.shape, np.nan)
+    top = (d >= 0) & (d < rd)
+    a[top] = x - rd + np.sqrt(np.maximum(0.0, rd * rd - (rd - d[top]) ** 2))
+    a[d >= rd] = x
+    u = np.clip((d - rd - hold) / max(fall, 1e-9), 0, 1)
+    w = np.where(d >= 0, 1 - u * u * (3 - 2 * u), 0.0)
+    return a, w
+
+
+def shoulders(sh, rows, ts, th_c, R, Pi, meas, ay, env, Bh):
+    """the torso's shoulders as a template (Michael's flag, 2026-09-30: the steep shoulders under the sailor collar;
+    the fitted sections, smooth down the rows from the neck ring, fall from the cut to 0.41 L half-width 0.12 L down):
+    rows added under the cut (SHOULDER_ROWS), each row's section widened to shoulder_width's half-width (its front and
+    back depths, exponent and centre kept: the chest and back don't move), eased back into the fitted torso below,
+    then held inside the hull's envelope less CLEAR and behind the pieces in front (IN_FRONT) as the fit is.
+    sh: {z (the level top, L from the eye line), x (the shoulder point's half-width), round, hold, fall (L)}.
+    -> (rows, ts, R, params, measured) on the new rows."""
+    extra = [rows[0] - e for e in SHOULDER_ROWS if rows[0] - e > rows[1]]
+    rows2 = np.sort(np.r_[rows, extra])[::-1]
+    ts2 = rows[0] - rows2
+    idx = np.interp(ts2, ts, np.arange(len(ts)))
+    i0 = np.floor(idx).astype(int)
+    i1 = np.minimum(i0 + 1, len(ts) - 1)
+    f = (idx - i0)[:, None]
+    R2 = (1 - f) * R[i0] + f * R[i1]
+    P2 = (1 - f) * Pi[i0] + f * Pi[i1]
+    B2 = np.minimum(Bh[i0], Bh[i1])
+    M2 = meas[np.rint(idx).astype(int)]
+    a, w = shoulder_width(rows2, sh)
+    for k in range(1, len(rows2)):                        # (the cut's ring stays the neck ring: the head's zip)
+        if not np.isfinite(a[k]) or w[k] <= 0 or a[k] <= P2[k, 0]:
+            continue
+        p = P2[k].copy()
+        p[0] = P2[k, 0] + w[k] * (a[k] - P2[k, 0])
+        Rs = section_r(p, th_c, ay)
+        Rs = np.minimum(Rs, env.at(np.full(len(th_c), ts2[k]), th_c) - CLEAR)
+        Rs = np.minimum(Rs, B2[k])
+        R2[k] = np.maximum(R2[k], Rs)
+    return rows2, ts2, R2, P2, M2
 
 
 LIMBS = {'leg': (('UpperLeg', 'LowerLeg'), {'skin': 0.0, 'boot': 0.016}, 0.32),
@@ -493,9 +550,10 @@ def foot(H, side, ankle, step=0.03, nth=48):
                 back=float(Q[:, 1].max() - FOOT_PULL))
 
 
-def body(H, sk, drawn=None, drawn_back=None):
-    """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)})."""
-    T_ = torso(H, sk, drawn=drawn, drawn_back=drawn_back)
+def body(H, sk, drawn=None, drawn_back=None, shoulder=None):
+    """the authored body's parts: the torso and the four limbs -> dict(torso, limbs {name: limb()}, meshes {name: (V, T)}).
+    shoulder: the shoulders' template knobs (the spec's body.shoulder: shoulders()), or None for the fitted sections."""
+    T_ = torso(H, sk, drawn=drawn, drawn_back=drawn_back, shoulder=shoulder)
     hy = float(T_['params'][-1, 4])
     limbs = {'%s_%s' % (k, s_): limb(H, sk, s_, k, hy=hy if k == 'leg' else None)
              for k in ('leg', 'arm') for s_ in ('left', 'right')}

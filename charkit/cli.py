@@ -497,7 +497,8 @@ def code_body(spec, resolved, out, mode='on'):
     if mode == 'off':
         run()
     else:
-        r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime')}, gdir, inputs=ins,
+        r = cache.file_step('code_body', run, [code_body], {'style': spec.get('style', 'anime'),
+                                                                 'shoulder': (spec.get('body') or {}).get('shoulder')}, gdir, inputs=ins,
                             modules=('charkit.code_body', 'charkit.bodypage', 'charkit.geom.loft', 'charkit.geom.hullshell'),
                             name_key=spec['name'],
                             refresh=mode == 'refresh')

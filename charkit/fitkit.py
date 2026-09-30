@@ -9,7 +9,11 @@ body, garment or hair fitter can use for its own (docs/CHARKIT.md §4).
             the reference that measured it (the character's authority map, charkit/refs/NAME/manifest.json, weights it:
             full where that reference is the measure's authority, a quarter otherwise); the view it is seen in
   evaluator a picklable class, built once in each worker process, with checks(spec, group, fine) -> {name: check};
-            fine=True measures exactly as the QA does, fine=False may smooth (charkit.facefit's jitters the sheet's grid)
+            fine=True measures exactly as the QA does, fine=False may smooth (charkit.facefit's jitters the sheet's grid).
+            Optionally jacobian(spec, group, knob_names) -> (checks as checks(spec, group, False) gives them,
+            {measure ('check' or 'check.sub', as measures() names them): {knob: d value / d knob}}): the gradient path
+            (optimise(gradient=True), off by default: GRADIENT), e.g. silhouettes differentiated by
+            charkit.render.softras and chained through the template's builder (charkit.render.softfit)
 
 The objective: every term's residual (1 = its tolerance), again beyond the tolerance (a hinge: a check that fails costs
 more than two that nearly pass), a missing check at MISSING, and a regulariser pulling each knob toward its template
@@ -40,6 +44,9 @@ CYCLES = 3                      # trust region then polish, restarted from the p
 FAST = True                     # optimise(fast=): Broyden updates between full Jacobians, and a model-guided polish
 BROYDEN_REFRESH = 4             # fast: a full finite-difference Jacobian at least every this many trust-region steps
 POLISH_SHARE = 0.25             # fast: the polish first tries this share of its moves, those the Jacobian predicts best
+GRADIENT = False                # optimise(gradient=): the trust region's Jacobian from the evaluator's own jacobian()
+                                # (one call, the analytic chain) instead of a finite difference per knob. Opt-in: an
+                                # evaluator that has no jacobian() can't take it
 PROTECT = 6.0                   # a term leaving the status band it started in (PASS, or WARN) costs this much more per
                                 # tolerance: the merge gate fails any graded check that gets worse
 
@@ -114,6 +121,23 @@ class Term:
             r = r * (1 - miss) + MISSING * miss
         return float(r), v
 
+    def dresidual(self, checks, D, names):
+        """d residual / d knob (the knobs `names`, in knob units) from the evaluator's jacobian() D: the reading's own
+        derivative (ratio and abs 1 / tol; gap 2 / tol past half the tolerance, else 0; floor -1 / tol below the floor,
+        else 0), 0 where the check is missing. -> (len(names),)."""
+        r, v = self.residual(checks)
+        if v is None:
+            return np.zeros(len(names))
+        dv = np.array([float((D.get(self.name) or {}).get(n, 0.0)) for n in names])
+        if self.kind == 'gap':
+            k = 2.0 / self.tol if 2 * v / self.tol - 1 > 0 else 0.0
+        elif self.kind == 'floor':
+            k = -1.0 / self.tol if self.floor - v > 0 else 0.0
+        else:
+            k = 1.0 / self.tol
+        miss = (checks.get(self.check) or {}).get('missing') or 0.0
+        return k * dv * (1 - miss)
+
     def declare(self):
         return {'check': self.check, 'sub': self.sub, 'kind': self.kind, 'tol': self.tol, 'measure': self.measure,
                 'ref': self.ref, 'view': self.view, 'group': self.group, 'floor': self.floor, 'weight': self.weight}
@@ -155,6 +179,19 @@ def vector(res, x=None, knobs=(), keep=None):
     return np.concatenate(parts)
 
 
+def vector_jacobian(res, dres, knobs=(), keep=None):
+    """vector()'s Jacobian from each residual's gradient dres (terms x knobs, knob units): the weighted residual, its
+    hinge past the tolerance, the protection past its band, the regulariser's diagonal."""
+    r = np.array([t['r'] for t in res]); w = np.sqrt([t['w'] for t in res])[:, None]
+    parts = [w * dres, w * HINGE * (np.abs(r) > 1)[:, None] * dres]
+    if keep is not None:
+        lim = np.array([b if b is not None else np.inf for b in keep])
+        parts.append(PROTECT * (np.abs(r) > lim)[:, None] * dres)
+    if len(knobs):
+        parts.append(np.diag([REG / (k.bounds[1] - k.bounds[0]) for k in knobs]))
+    return np.concatenate(parts, 0)
+
+
 def cost(res, x=None, knobs=(), loss='linear', keep=None):
     """0.5 sum of the loss over the vector, as scipy's least_squares counts it ('linear' or 'soft_l1' at LOSS_SCALE)."""
     return loss_of(vector(res, x, knobs, keep), loss)
@@ -188,6 +225,18 @@ def _run(job):
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss                 # bytes on macOS, KB on Linux
     return c, {'seconds': time.time() - t, 'stages': dict(getattr(_W, 'timing', None) or {}), 'pid': os.getpid(),
                'peak_mb': rss / (1 << 20) if sys.platform == 'darwin' else rss / 1024}
+
+
+def _run_jac(job):
+    """one gradient in a worker (the evaluator's jacobian()) -> (checks, {measure: {knob: d/d knob}}, meta)."""
+    import resource
+    spec, group, names = job
+    t = time.time()
+    c, D = _W.jacobian(spec, group, names)
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    D = {m: {k: float(v) for k, v in d.items()} for m, d in D.items()}
+    return plain(c), D, {'seconds': time.time() - t, 'stages': dict(getattr(_W, 'timing', None) or {}),
+                         'pid': os.getpid(), 'peak_mb': rss / (1 << 20) if sys.platform == 'darwin' else rss / 1024}
 
 
 def plain(x):
@@ -234,6 +283,21 @@ class Pool:
                 s['stages'][k] = s['stages'].get(k, 0.0) + v
             self.peak[m['pid']] = max(self.peak.get(m['pid'], 0.0), m['peak_mb'])
         return [c for c, _ in R]
+
+    def jacobian(self, jobs, phase='jacobian'):
+        """the evaluator's jacobian() for each job (spec, group, knob names), counted as map() counts evaluations.
+        -> [(checks, {measure: {knob: d/d knob}})]."""
+        t = time.time()
+        self.calls += len(jobs)
+        R = self.p.map(_run_jac, jobs) if self.p else [_run_jac(j) for j in jobs]
+        s = self.stats.setdefault(phase, {'calls': 0, 'evaluations': 0, 'seconds': 0.0, 'eval_seconds': 0.0, 'stages': {}})
+        s['calls'] += 1
+        s['evaluations'] += len(jobs)
+        s['seconds'] += time.time() - t
+        for _, _, m in R:
+            s['eval_seconds'] += m['seconds']
+            self.peak[m['pid']] = max(self.peak.get(m['pid'], 0.0), m['peak_mb'])
+        return [(c, D) for c, D, _ in R]
 
     def report(self):
         """-> {workers, seconds (since the pool started), phases {phase: {calls, evaluations, seconds (wall),
@@ -320,16 +384,20 @@ class Budget(Exception):
 
 
 def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss='soft_l1', protect=True, baseline=None,
-             fast=None, log=print):
+             fast=None, log=print, gradient=None):
     """least squares over one group's knobs and terms from the spec's values (see the module). protect: each term kept
     in the status band it started in (or had in `baseline`, a check set, where it has the check). fast (default FAST):
     the trust region's Jacobian is updated from each step's own evaluation (Broyden) between full finite-difference ones
     (at least every BROYDEN_REFRESH steps), one evaluation a step instead of one per knob; and the polish tries the moves
     the Jacobian predicts best first (POLISH_SHARE of them), sweeping them all only to confirm it has stopped at its
-    finest step, where the plain polish sweeps every move every time.
-    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, phases, fast, history, stopped})."""
+    finest step, where the plain polish sweeps every move every time. gradient (default GRADIENT, off): every Jacobian
+    from the evaluator's jacobian() at the point (one call, counted as one evaluation, phase 'jacobian'), no finite
+    differences and no Broyden updates; the polish is unchanged.
+    -> (spec with the fitted knobs, info {start, fitted, at_bound, evaluations, phases, fast, gradient, history,
+    stopped})."""
     from scipy.optimize import least_squares
     fast = FAST if fast is None else fast
+    gradient = GRADIENT if gradient is None else gradient
     knobs = [k for k in knobs if k.group == group]
     terms = [t for t in terms if t.group == group]
     st = np.array([k.step for k in knobs])
@@ -387,8 +455,26 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
         f0 = vector(R[0], x0 + u * st, knobs, keep)
         return np.stack([(vector(R[i + 1], x0 + pts[i] * st, knobs, keep) - f0) / (pts[i] - u)[i] for i in range(len(u))], 1)
 
+    def jac_grad(u):
+        """the analytic Jacobian (the evaluator's jacobian()) at u, in step units; its checks go into the memo."""
+        key = (tuple(np.round(u, 6)), False)
+        if budget is not None and used[0] + 1 > budget:
+            raise Budget()
+        used[0] += 1
+        t = time.time()
+        c, D = pool.jacobian([(with_knobs(spec, x0 + u * st, knobs), group, [k.name for k in knobs])])[0]
+        P = phases.setdefault('jacobian', {'evaluations': 0, 'calls': 0, 'seconds': 0.0})
+        P['evaluations'] += 1; P['calls'] += 1; P['seconds'] = round(P['seconds'] + time.time() - t, 2)
+        memo.setdefault(key, residuals(c, terms, authority))
+        dres = np.array([t_.dresidual(c, D, [k.name for k in knobs]) for t_ in terms]).reshape(len(terms), len(knobs))
+        return vector_jacobian(memo[key], dres, knobs, keep) * st[None, :]
+
     def jac(u):
         u = np.asarray(u, float)
+        if gradient:
+            Jm = jac_grad(u)
+            model.update(J=Jm, u=u.copy(), f=f(u), age=0)
+            return Jm
         fu = f(u)                                    # trf evaluated fun(u) before asking for its Jacobian: no evaluation
         if fast and model['J'] is not None and model['age'] < BROYDEN_REFRESH:
             s_ = u - model['u']
@@ -463,7 +549,8 @@ def optimise(pool, spec, knobs, terms, group, authority=None, budget=None, loss=
     info = {'group': group, 'start': dict(zip([k.name for k in knobs], x0.round(5).tolist())),
             'fitted': dict(zip([k.name for k in knobs], x.round(5).tolist())),
             'at_bound': {k.name: k.at_bound(xi) for k, xi in zip(knobs, x) if k.at_bound(xi)},
-            'evaluations': used[0], 'phases': phases, 'fast': fast, 'stopped': stopped, 'history': hist}
+            'evaluations': used[0], 'phases': phases, 'fast': fast, 'gradient': bool(gradient), 'stopped': stopped,
+            'history': hist}
     return with_knobs(spec, x, knobs), info
 
 

@@ -158,7 +158,7 @@ def shell(A, spec, normals=None, hull=None):
     # height cuts at body landmarks: [bone, t, 'above' | 'below', offset in L]
     for bone, t, side, o in spec.get('cuts', []):
         if bone == 'eye':                                        # a height from the eye line (L)
-            zc = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + o * L
+            zc = _eye_z(A) + o * L
         else:
             h, tl = bone_seg(A, bone)
             zc = (h + (tl - h) * t)[2] + o * L
@@ -363,7 +363,7 @@ def opening_cut(A, op):
     front (y before the chest's head), else 1 L (kept). op: `half` [[z, half], ...] (L from the eye line; held past its
     ends). -> fn(world points) -> (n,) (>= 0 outside the opening)."""
     L = A['head']['L']
-    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    ez = _eye_z(A)
     K = np.asarray(sorted(op['half']), float)
     yc = bone_seg(A, op.get('front_of', 'chest'))[0][1]
 
@@ -375,7 +375,16 @@ def opening_cut(A, op):
 
 
 def _eye_z(A):
+    """the garments' eye line (world z), the one frame every height the builders read from the drawing is placed in
+    (the cuts at 'eye', the opening, the collar's outline, the drape, the lofts' rows, the drawn extents, the hull's
+    alignment): the QA's. The body QA (bodyqa.origin) registers our iris plates' mean on the design's eye row (the
+    drawn irises' centroid), so the drawn heights are the irises' too; the head's knob line (eye_knobs.z, the face's
+    and the body's frame) sits 0.0235 L under it on the authored head, and every garment landed that much low in the
+    checks. Without irises (a bare assembly): the knob line."""
     L = A['head']['L']
+    I = [np.asarray(E['iris'][0], float) for E in (A.get('eyes') or []) if E.get('iris') is not None]
+    if I:
+        return float(np.mean([i[:, 2].mean() for i in I]))
     return A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
 
 
@@ -480,7 +489,7 @@ def ease_over_band(A, sv, ez, band, source=None):
         # it reaches above, per column across the body (its forward depth's running maximum down the axis, in columns
         # of `step` L sideways): a jacket's front panels fall from the bust, forward of the midriff (in profile they
         # stand before the bib, as drawn), and stay where they are across (the opening keeps its width in front)
-        ez_ = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+        ez_ = _eye_z(A)
         t_from = float(ax.o[2] - (ez_ + dr['from'] * L))
         step = dr.get('step', 0.02) * L
         fwd, side = r * np.cos(th), r * np.sin(th)
@@ -601,7 +610,9 @@ def band_hull(A, spec, hull):
     to the ellipse fitted to it (a visual hull's sections are polygons: the cuffs read as blocks), its ends rolled in
     over `roll` of its rows by `round` of its thickness (a quarter circle), and it clears the skin under it (its limb's
     vertices there, as a field on the same rows and angles) by `clear` L plus its thickness, which the Solidify grows
-    inward: the hull's section can sit inside the limb, and the skin showed through. Rigid on its bone.
+    inward: the hull's section can sit inside the limb, and the skin showed through. `bell` (L, default 0) grows its
+    top rows out, tapering to its bottom (the drawn wrist cuffs flare toward the elbow; the hull's are near straight).
+    Rigid on its bone.
     -> dict(verts, faces, weights, uv, clear (per cell: the inner surface's distance out from the skin, m))."""
     from .geom import loft
     L = A['head']['L']
@@ -616,6 +627,8 @@ def band_hull(A, spec, hull):
     nth = spec.get('cols', 48)
     F = loft.field(t, th, r, ts, nth=nth, min_row=0.2, name=spec['name'], prior=float(np.median(r)) if len(r) else None)
     R = F.R + spec.get('offset', 0.0) * L
+    if spec.get('bell'):                               # grown by `bell` L at its top (the bone's head end), to 0 at its
+        R = R + spec['bell'] * L * np.linspace(1.0, 0.0, len(R))[:, None]       # bottom: a wrist cuff's flare, as drawn
     k = spec.get('round_xs', 0.3)
     if k > 0:                                          # toward each row's ellipse: 1/r^2 = cos^2/a^2 + sin^2/b^2
         M = np.stack([np.cos(F.th) ** 2, np.sin(F.th) ** 2], 1)
@@ -733,6 +746,13 @@ def belt(A, spec):
 
 
 # ---------------------------------------------------------------------------------------------------- the hull's pieces
+def hull_target(A, shape):
+    """where the hull's eyes land on ours for the garments (target3d.eye_target): at our irises' height, _eye_z's frame,
+    so the hull's pieces, the drawn heights and the QA agree. -> (eye_mid (3,), spacing)."""
+    from . import target3d
+    return target3d.eye_target(A, dict(shape, eye_anchor='iris'))
+
+
 def hull_pieces(spec, A, source='shell'):
     """the visual hull's outfit pieces as world points on this character: the generated shape (the spec's hair.shape.glb,
     charkit.geom.hull's), aligned by its eyes as the build aligns its target (target3d.eye_target, target3d.align_by_eyes)
@@ -767,7 +787,7 @@ def hull_pieces(spec, A, source='shell'):
         lab = np.load(os.path.join(os.path.dirname(path), J['pieces']))
         if len(lab) != len(V):
             raise ValueError('%s: %d piece labels for %d vertices' % (J['pieces'], len(lab), len(V)))
-    eye_mid, spacing = target3d.eye_target(A, shape)
+    eye_mid, spacing = hull_target(A, shape)
     W = target3d.align_by_eyes(V, (np.asarray(J['eyes'][0], float), np.asarray(J['eyes'][1], float)), eye_mid, spacing)
     return {pid: W[lab == int(k)] for k, pid in (J.get('piece_names') or {}).items() if (lab == int(k)).any()}
 
@@ -797,7 +817,7 @@ def drawn_extent(spec, A, pid, view='front'):
     if not e:
         return None
     L = A['head']['L']
-    ez = A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L
+    ez = _eye_z(A)
     x0, z0, x1, z1 = e['bbox']
     return (x0 * L, ez + z0 * L, x1 * L, ez + z1 * L)
 
@@ -979,7 +999,7 @@ def belt_hull(A, spec, hull):
     ax = _vertical_axis(P, top_z)
     t, th, r = ax.coords(P)
     # L from the eye line -> t along the axis (read only when the spec gives rows by height)
-    tz = lambda z: top_z - (A['head']['centre'][2] + A['head']['eye_knobs']['z'] * L + z * L)
+    tz = lambda z: top_z - (_eye_z(A) + z * L)
     if spec.get('rows'):
         lo, hi = tz(spec['rows'][0]), tz(spec['rows'][1])
     else:
@@ -2847,6 +2867,10 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
+COLLAR_TEMPLATE = dict(       # the template collar's shell (build: kind 'collar', source 'template'), under its own knobs
+    region=[['neck', -1, 0.6], ['upperChest', -1, 3], ['chest', -1, 3], ['spine', -1, 3], ['leftShoulder', -1, 3],
+            ['rightShoulder', -1, 3]],
+    offset=0.03, thick=0.005)
 RIM_CREASE = 1.0    # a thin shell's open rim kept flat and square under the Subdivision (Michael's call L; 0: rounded)
 
 
@@ -2973,6 +2997,24 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 midx = [2 if b_ else p_ for p_, b_ in zip(G['panel'], G['band'])]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
             _thick(ob, 0.01 * L)
+        elif k == 'collar' and s.get('source') == 'template':
+            # the sailor collar as a template (tool/collar): a shell over the neck's base, the shoulders and the upper
+            # back and chest, cut to its outline (outline_dist: the lapels' V in front, the square back panel), its
+            # stripe a band in from the outline's edge in a second material; it lies over the jacket (`offset`)
+            G = shell(A, dict(COLLAR_TEMPLATE, **s), nrm, hull)
+            st_ = s.get('stripe') or {}
+            mats = [_toon(nm, col, sh), _toon(nm + '_stripe', st_.get('color', s.get('stripe_color', (0.3, 0.2, 0.18))), sh)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv_corner=G['uvs'],
+                         mat_idx=[int(v) for v in G.get('panel_faces', np.zeros(len(G['faces']), int))])
+            _thick(ob, s.get('thick', 0.005) * L)
+            src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
+            border = set()
+            for f in A['faces']:
+                if any(inside[v] for v in f) and not all(inside[v] for v in f):
+                    border.update(f)
+            for v in src:
+                if v not in border:
+                    hide[v] = True
         elif k == 'collar' and s.get('source') == 'hull':
             G = collar_hull(A, s, nrm, hull)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
