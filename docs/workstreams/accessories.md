@@ -19,6 +19,41 @@ selection for the build and the evaluator. Harness, logs and pictures (gitignore
    placement fit keeps its view weighting (front and three-quarter 1, profile 0.6).
 2. **The star's outline:** the default dark brown outline is fine for the star (the golden `line` stays dropped).
 
+### Blocker 1: `acc_star_back_shown` (the star shows from behind)
+Harness: `acc_work/r3/lab.py` (round 2's `fitlib.Harness` on the round 2 box build `acc_new`'s hair, each clip optionally
+seated on the hair alone, and a poke-through count: per view the crab's visible pixels inside the star's own silhouette).
+It reproduces the gate: star back 1502 px (gate 1501), seat 0.0462.
+
+**The float is not the whole cause.** The same pose seated on the hair alone (rigid): back 454 px (still FAIL), and
+the crab pokes through the star (849 / 968 / 689 px in front / three-quarter / profile). A coarse scan round that pose
+(`scan.py`: 'at' down to -0.1 L, forward / back 0.06 L, facing az 66-90, size 0.42-0.47) never got under 371 px, and
+raising the facing's elevation to lie on the head made it worse (`scan_el.py`: 1,068-1,702 px). The hair's height under
+the star's plane (`hmap.py`) shows why: the star faces almost level (el 3.7) on the upper side of the head, where the
+hair falls away; its top tip stands 0.15-0.2 L off the hair and is what shows past the back silhouette (next to the
+notch between the bun and the side lock). The design's triangulated star is 0.25 L further back and 0.12 L further in
+than ours ((0.40, 0.29, 0.34) against (0.51, 0.04, 0.37), both sheets agree): the drawn place is inside our hair.
+A placement scan round the head (`scan_place.py`) finds the seated star hidden from behind only further forward (the
+'at' direction about 40 deg from the front): where the crab is.
+
+**Shaping the star to the crab** (`accessories.conform`, spec `"conform": true`): the star rests on the hair alone
+(seated as before, the clips before it not ground), then bends over what lies under its outline: every point of the
+earlier clips inside the outline (or within `clear` of it), and the top of what lies under each of its own vertices
+(cast down along its facing), needs its back `clear` (0.004 L) over it; each vertex is lifted along the facing by the
+smooth envelope of those needs, each spread over `reach` (0.1 L) as (1 - s^2)^2, back and front together (its thickness
+kept). The star gets `rings` (8) so it can bend: the same facets split into bands from the rim in (`rings` 1 is the old
+mesh, byte for byte). At round 2's pose: poke-through 0 in every view, the bend 0.057 L, back 1,184 px.
+- Tried and dropped: curving the star to the hair's quadratic under it first (`curve_to`): a 0.13 L bend, every view's
+  IoU down (front 0.35, three-quarter 0.48, profile 0.57), back 2,222 px. The code is removed.
+- **The seat measure** misread a bent clip: its lowest point over the plane of its middle's hair read -0.0096 for a
+  star with no vertex under the hair (per vertex +0.0099). `accqa.seat`'s gap is now the least of the vertices' heights
+  over the hair under them (`plane` kept in the table); registered as `acc_*_seat` (e89c90c). On the 3ebc3fb
+  placeholders star 0.0204 -> 0.0153, crab -0.0144 -> -0.0127 (the same statuses); round 2's floating star
+  0.0462 -> 0.0412.
+- **A star-only refit that hides it** (`fit_star2.py`, from the scan's hidden start; round 2's loss and weights, the back
+  + 2 + px / 40 when it shows): back 33 px, seat 0.0065, front pos 0.085 -> 0.005, but three-quarter pos 0.031 -> 0.155
+  and profile iou 0.797 -> 0.705, and **it covers the crab** (crab iou 0.74 / 0.75 / 0.63 -> 0.20 / 0.12 / 0.28): the
+  fit never scored the crab. Not shipped. Hence the joint fit (below).
+
 ### Blocker 2: `palette_iris_shade` (the 2x2's crossed cell, unmeasured)
 **The cause is the palette's classes, not the crab's reclass.** Measured with each tree's own code on the box builds'
 bundles (`acc_work/r3`, `pal_probe.py`; the old code from a detached worktree at 3a0ad37):
