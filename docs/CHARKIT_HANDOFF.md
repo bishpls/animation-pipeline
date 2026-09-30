@@ -726,6 +726,60 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Overnight run plan (2026-09-30 evening; start here)
+
+Read, in order: this section, the checkpoint below, then docs/ROADMAP.md. Relaunch each workstream as a fresh, lean
+agent from its docs/workstreams/NAME.md.
+
+**Michael's calls for this run:**
+- **K. Gate policy:** a merge is blocked only by new FAILs, regressions in the checks built from Michael's flags, and
+  build CPU over 1.5x. WARNs and small value moves go into a morning report instead. Until tool/infra3 lands this in
+  gate.py, the integrator applies it by reading each gate report.
+- **L. Rim beads:** the garment builders make flat, square open rims. The outline cap stays at half the shell (no
+  smaller share). It goes into the combined garments round.
+- **M. Bow and boots:** they get the outline cap at half their measured thickness (flips: bow 501 -> 144, boots 226 -> 78).
+- **Concurrency:** about 5 lean agents at once. No polling. Never push, and never provision.
+
+**Order:**
+1. **tool/infra3, the gate-loop redesign** (ROADMAP "Iteration speed"), first because it speeds up everything else:
+   - skip the build when the stage keys are unchanged;
+   - a local pre-gate check;
+   - K in gate.py;
+   - carry a gate result over when pipeline-3d moves;
+   - share stage caches across clones;
+   - one live gate per branch;
+   - time the gate's phases;
+   - skip the VRM export;
+   - a slot covers the whole build, with thread caps;
+   - the load sampler starts at boot on both boxes;
+   - the last-bit skin nondeterminism;
+   - the resolved spec's absolute hair path.
+2. **The combined garments round,** one agent, sequenced:
+   - merge tool/outfit-source (the sheet-only masks), then tool/garments2, then tool/skirt;
+   - adapt the collar V, the waistband, the skirt A-line and the tuck under the band garment;
+   - flat rims (L);
+   - write the skirt's fit G into the specs;
+   - one gate.
+
+   Then promote art_points/bumps_sleeves and art_band_lower if they pass, and do the TRELLIS cleanup (decision 8).
+3. **tool/hair4:** merge pipeline-3d, gate, review page. Then investigate why the shell samples fold more.
+4. **tool/toonrender2:** recalibrate the noise, add the measured default, decide the default drawing.
+5. **Small look round:** M.
+6. **Integrator items:**
+   - promote art_spikes_boots, art_bumps_boots, art_bumps_legs and art_mirror_waist to FAIL;
+   - check whether the body fits evaluate on MakeHuman's body for body-knob changes on the code base (a
+     tool/nofallback finding);
+   - the garment builders' 0.0235 L eye-line offset.
+7. **After the garments round:** call J (tool/evalmesh, subdivision and Solidify in the venv), and face round 4 (the
+   chin angle back toward 129.7, the 120 inward crown triangles, the ramus).
+
+**Waits for Michael:** the streak seed and garment line weight (a taste call, from the preview), provisioning, the
+multi-character refactor, and whether to rewrite two unpushed handoff commits that name the second character before
+pushing.
+
+**Morning deliverable:** the latest preview (charkit/out/previews/latest.html, built after each merge), plus one
+report of what merged, the WARN-level moves under K, and the decisions needed.
+
 ## Checkpoint 2026-09-30, morning (read first; paused near the usage limit)
 
 **Direction:** `docs/ROADMAP.md` covers our approach against the commercial default, the missing rig pieces, the ranked
