@@ -1,0 +1,10 @@
+{
+ "name": "body4b_render",
+ "why": "tool/body round 4: the boots' jagged protrusion and knobs, the boots uneven, the midriff distorted on one side (artifactqa.PROMOTED's calibration)",
+ "flag": "round 4 (Michael)",
+ "commit": null,
+ "source": "~/animation-pipeline-body/charkit/out/body4b_render",
+ "stored": "2026-09-30",
+ "bundle": "d08f5df669e9db18",
+ "qa_checks": 203
+}

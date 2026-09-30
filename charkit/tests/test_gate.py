@@ -521,6 +521,41 @@ def test_a_crossed_qa_reads_a_moved_builds_own_files():
     assert gate.rebased_bundle(os.path.join(out, 'bundle'), os.path.join(root, 'y')) == os.path.join(out, 'bundle')
 
 
+def test_a_crossed_qa_mirror_outlives_the_gate_that_made_it():
+    """a gate reaches gate-out through its clone's charkit/out/gate link; the 2x2's mirror of a moved baseline lives in
+    the candidate's folder, which the next gate of the same pair reuses after the first clone is gone: its links must
+    name the real folders, and a stale mirror's links are repointed (tool/calib's re-gates of the bow pair: arrays.npz
+    not found, 2026-09-30)."""
+    root = tempfile.mkdtemp()
+    real = os.path.join(root, 'gate-out')
+    out = os.path.join(real, 'base_abc_clawd_default')
+    os.makedirs(os.path.join(out, 'bundle'))
+    open(os.path.join(out, 'bundle', 'arrays.npz'), 'w').write('npz')
+    open(os.path.join(out, 'clawd.look.glb'), 'w').write('glb')
+    gone = '/srv/work/gates/old/charkit/out/gate/base_abc_clawd_default'
+    json.dump({'schema': 1, 'spec': {'x': gone + '/clawd.look.glb'}},
+              open(os.path.join(out, 'bundle', 'bundle.json'), 'w'))
+    rel = os.path.join('cand_t_into_abc_default', 'x_new_measure_old_geometry', 'rebased')
+    tmp = os.path.join(real, rel)
+    for clone in ('clone1', 'clone2'):
+        os.makedirs(os.path.join(root, clone, 'out'))
+        os.symlink(real, os.path.join(root, clone, 'out', 'gate'))
+        gdir = os.path.join(root, clone, 'out', 'gate')
+        b = os.path.realpath(gate.rebased_bundle(os.path.join(gdir, 'base_abc_clawd_default', 'bundle'),
+                                                 os.path.join(gdir, rel)))
+        assert open(os.path.join(b, 'arrays.npz')).read() == 'npz'
+        assert open(os.path.join(os.path.dirname(b), 'clawd.look.glb')).read() == 'glb'
+        import shutil
+        shutil.rmtree(os.path.join(root, clone))                       # the gate's clone goes
+        assert open(os.path.join(b, 'arrays.npz')).read() == 'npz'
+    # a mirror an older gate left, its links through a clone since removed, is repointed
+    os.remove(os.path.join(b, 'arrays.npz'))
+    os.symlink('/srv/work/gates/old/charkit/out/gate/base_abc_clawd_default/bundle/arrays.npz',
+               os.path.join(b, 'arrays.npz'))
+    b2 = gate.rebased_bundle(os.path.join(out, 'bundle'), tmp)
+    assert os.path.realpath(b2) == os.path.realpath(b) and open(os.path.join(b2, 'arrays.npz')).read() == 'npz'
+
+
 def test_both_sides_draw_from_the_same_export():
     q = lambda f: {'measured': {'draw': {'setting': 'render', 'export': f}}}
     assert gate.draw_exports(q('clawd.look.glb'), q('clawd.look.glb')) is None
@@ -546,3 +581,4 @@ if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
             f(); print('ok', k)
+

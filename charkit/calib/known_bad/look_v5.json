@@ -1,0 +1,10 @@
+{
+ "name": "look_v5",
+ "why": "tool/look round 1's proposal (look_v5): Michael flagged the wiggly neck outline, the dotted neck seam, the torn collar tips, the torn hair shadow patches and the fragments at the lock tips (artifacts.md, Calibration)",
+ "flag": "look_v5 (Michael 2026-09-29)",
+ "commit": null,
+ "source": "~/animation-pipeline-look/charkit/out/look_v5",
+ "stored": "2026-09-30",
+ "bundle": "98f53d8cd036a257",
+ "qa_checks": 195
+}

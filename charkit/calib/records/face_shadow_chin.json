@@ -1,0 +1,90 @@
+{
+ "check": "face_shadow_chin",
+ "part": "look",
+ "adapter": "Chin",
+ "module": "charkit.calib.chin",
+ "at": "2026-09-30T18:03:49",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.9263,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.8734,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.8994,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.8308,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.9273,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.8692,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.9266,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.8755,
+    "PASS"
+   ]
+  },
+  "min": 0.8308,
+  "max": 0.9273,
+  "spread": 0.0965,
+  "median": 0.88745
+ },
+ "known_bad": {
+  "name": "look5_before",
+  "value": 0.7046,
+  "status": "WARN"
+ },
+ "floor": {
+  "shadow_moved": {
+   "values": [
+    0.6697,
+    0.6532,
+    0.7152,
+    0.8038,
+    0.6572
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "PASS",
+    "FAIL"
+   ],
+   "median": 0.6697,
+   "status": "FAIL",
+   "passing": 1
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.695,
+  "status": "FAIL",
+  "margin": 0.116
+ },
+ "verdict": "blind",
+ "why": "the known-bad look5_before reads 0.7046 WARN",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "shadow_moved": "the design's own shadow moved 4-8 px in a random direction against its jaw"
+ },
+ "seconds": 31.4
+}

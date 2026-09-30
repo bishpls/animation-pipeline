@@ -1227,9 +1227,12 @@ SHAPE_CHECKS = {             # check -> (measure, key, how it's compared, the de
     'points': ('points', 'turn', 'excess', CAP_MIN, (20.0, 30.0), SHAPE_REGIONS),      # deg: the sharpest cap's
     'bumps': ('bumps', 'out', 'excess', BUMP_MIN, (20.0, 30.0), SHAPE_REGIONS + ('legs',)),  # deg: the sharpest knob's
     'mirror': ('mirror', 'asym', 'ratio', 0.02, (1.5, 2.5), ('waist',)),                # 1 - IoU with its mirror image
-    'mirror_self': ('mirror_self', 'asym', 'ratio', 0.02, (1.5, 2.5), ('boots',)),     # (about its own axis)
+    'mirror_self': ('mirror_self', 'asym', 'ratio', 0.02, (1.37, 1.58), ('boots',)),   # (about its own axis)
     'band': ('band', 'kinks', 'ratio', 1.0, (1.5, 2.0), ('lower',)),                   # the hem band's edge kinks per L
 }
+# mirror_self calibrated (tool/calib, 2026-09-30; was 1.5 / 2.5, where round 4's uneven boots read 1.787 WARN): the
+# design's boots with one boot's masks moved 1-2 px read 1.005-1.163 (a whole-sheet move reads 1.0), body4b_render
+# 1.787; the limits at the thirds of that gap
 
 
 # The checks calibrated on Michael's flags: each passes on the design and warns or fails on the build where he saw the

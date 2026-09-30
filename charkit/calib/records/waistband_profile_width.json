@@ -1,0 +1,92 @@
+{
+ "check": "waistband_profile_width",
+ "part": "piece_details",
+ "adapter": "Details",
+ "module": "charkit.calib.details",
+ "at": "2026-09-30T18:44:22",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "piece_waistband"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.068,
+    "WARN"
+   ],
+   "+0,+2": [
+    0.068,
+    "WARN"
+   ],
+   "+1,+0": [
+    0.068,
+    "WARN"
+   ],
+   "+2,+0": [
+    0.068,
+    "WARN"
+   ],
+   "+0,-1": [
+    0.068,
+    "WARN"
+   ],
+   "+0,-2": [
+    0.068,
+    "WARN"
+   ],
+   "-1,+0": [
+    0.068,
+    "WARN"
+   ],
+   "-2,+0": [
+    0.068,
+    "WARN"
+   ]
+  },
+  "min": 0.068,
+  "max": 0.068,
+  "spread": 0.0,
+  "median": 0.068
+ },
+ "known_bad": {
+  "name": "body6_render",
+  "value": 1.39,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.068,
+    0.83,
+    null,
+    null,
+    null
+   ],
+   "statuses": [
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.44899999999999995,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.051,
+  "status": "FAIL",
+  "margin": -1.58
+ },
+ "verdict": "miscalibrated",
+ "why": "the design reads WARN moved +0,+1, +0,+2, +1,+0, +2,+0 px (8 of 8 moves)",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 204.7
+}

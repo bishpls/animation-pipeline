@@ -1,0 +1,70 @@
+{
+ "check": "art_mirror_waist",
+ "part": "artifacts",
+ "adapter": "Art",
+ "module": "charkit.calib.art",
+ "at": "2026-09-30T18:10:57",
+ "better": null,
+ "kind": "defect",
+ "shape": [
+  "piece_waistband"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "body4b_render",
+  "value": 6.425,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.215,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), body4b_render reads 6.425 FAIL; a random stand-in fails it; shape guarded by piece_waistband",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 101.8
+}

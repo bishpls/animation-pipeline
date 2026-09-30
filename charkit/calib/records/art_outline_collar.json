@@ -1,0 +1,70 @@
+{
+ "check": "art_outline_collar",
+ "part": "artifacts",
+ "adapter": "Art",
+ "module": "charkit.calib.art",
+ "at": "2026-09-30T18:10:57",
+ "better": null,
+ "kind": "defect",
+ "shape": [
+  "piece_collar"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0
+ },
+ "known_bad": {
+  "name": "look_v5",
+  "value": 5.505,
+  "status": "FAIL"
+ },
+ "floor": {},
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 1.381,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), look_v5 reads 5.505 FAIL; a random stand-in fails it; shape guarded by piece_collar",
+ "build": "charkit/out/calib/cur_8b5ecae",
+ "generators": {},
+ "seconds": 101.8
+}
