@@ -313,3 +313,40 @@ trim off in hair round 4 (art_terminator_hair 2.376 -> 2.607, the proxy normals'
 
 No status or grade changed; the flag checks both improve. **crown_trim is on by default** (`hairpieces.OPTS`), riding
 this round's gate.
+
+### Round 2 gates and state (2026-09-30 night)
+
+- **tool/hairtag** `37c09cf` into pipeline-3d 4de65ab: `charkit/out/gate/gate_tool-hairtag_37c09cf_into_4de65ab.md`,
+  **PASS** under K (no new FAIL; the flag checks improve: art_terminator_hair 2.433 -> 2.236, art_peeks_hair 19 -> 15;
+  CPU 0.98x). Moved: hair_folds 6 -> 11 WARN, hair_bun_outline 0.397 -> 0.436 (FAIL both), hair_noise 0.0745 -> 0.076
+  (WARN both), art_outline_hair 0.71 -> 0.623 (INFO), body_three_quarter_iou_hair 0.742 -> 0.739. The hair_piece_*
+  checks are remeasured (the step at 97d9449). The gate's 2x2 fills the new-measure column only (old geometry ->
+  new: lower back 0.570 -> 0.606 improved, upper back 0.697 -> 0.772, buns 0.826 -> 0.847, bangs 0.786 -> 0.786, side
+  locks 0.537 -> 0.527, ahoge 0.356 -> 0.323, flyaways 0.171 -> 0.150). Its old-measure column is "unmeasured": the
+  crossed QA runs in the baseline's worktree, which reads the hair layers that worktree produced, and a cached
+  baseline worktree produced none. **A gate gap (infra's):** a 2x2 over a produced reference needs the crossed
+  worktree to produce it first. The lab's 2x2 above is that column.
+- **tool/hairtag-truth** `257aac0` (from pipeline-3d 4de65ab: the truth, the scorer, the review page and the labs, the
+  method behind `--struct`, off by default) into 4de65ab: `charkit/out/gate/gate_tool-hairtag-truth_257aac0_into_4de65ab.md`,
+  **PASS**, nothing reported (no check moved), CPU 1.10x.
+- pipeline-3d moved after both gates (f2ec090, tool/evalmesh M1): not re-gated.
+- Review page: `charkit/out/hairtag/r2page/index.html` (the 2x2, the pieces by family old and new, the crown-trim
+  pair's QA pictures side by side).
+
+**For Michael:**
+1. Which branch lands: tool/hairtag (the method on, crown_trim on: the back layers fit the truer target better, the
+   bun outline +0.039 and both flag checks improve, but folds 6 -> 11 and side locks -0.01 to -0.02), or
+   tool/hairtag-truth (the measurement alone, no geometry moved), with the method's geometry waiting on the next
+   items.
+2. Call B (the shadow tone below the head is the under layer) drives the side locks' loss through the hull's
+   labeller. Keep it and make the labeller weigh the views' agreement, or relax it at the jaw.
+
+**Next:**
+1. The hull's labeller: weigh the views that see a point, not only the squarest (the side locks' loss at the jaw).
+2. The side-lock trim's pull ending in a step (0.1 L in one row at phi 76-78, theta 125-129): the folds' spot.
+3. The front ahoge's shaded half (the tone split votes it bangs: truth front ahoge 0.846 -> 0.827), which moves the
+   ahoge piece and the front bun outline (-0.019).
+4. What the hair side needs from the sheet-only outfit masks (tool/garments3): the profile buns' undersides as bun
+   (1,258 px of profile bun are called upper back with them; buns 0.977 -> 0.948), and the far bun's peek as bun_R
+   (none at all with them). The clip rule now spares the buns' rim, so a pin piece that overlaps a bun's edge no
+   longer takes the bun's pixels, with either outfit mask set.
