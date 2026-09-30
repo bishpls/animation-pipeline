@@ -31,4 +31,7 @@ MEASUREMENT_STEPS = [
      'design\'s (a pair unlike each other)'),
     ('art_band_lower', 'b9bc3bd', 'new (tool/artifacts): the skirt and flaps\' dark hem band\'s edge, kinks per L on the '
      'picture drawn with its textures, against the design\'s (pixel stairs against a few clean steps)'),
+    ('art_*_neck', 'f771ec1', 'a view showing under 0.01 L^2 of neck skin is left out (the back view\'s slivers between '
+     'the hair and the collar read 740 specks per L^2)'),
+    ('art_*_face', 'f771ec1', 'a view showing under 0.01 L^2 of face skin is left out'),
 ]
