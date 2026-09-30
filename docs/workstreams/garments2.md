@@ -52,6 +52,21 @@ branch `tool/garments2` from tool/body d9d9b27 (rounds 4 and 5, garment-sampling
 - Tests: `charkit/tests/test_jacket.py` (the cuts on their lines, the bib's margin, the hem over the band and lower in
   front, the flare), `test_pieceqa.py` (the ink core, the depth-aware junction).
 
+**The collar (item 3): the template is built, not in the spec. Blocked on the shoulders' height.**
+- Built: a shell `outline` (`outline_dist`: the lapels between an inner V and an outer edge by height in front, the
+  back flap to a bottom, signed distances in the front/back projections) and a `stripe` (faces a band in from the
+  outer edge, a second material, its edges snapped onto the lines); `cuts` take `eye` (a height from the eye line).
+  The jacket's `opening` can carry the collar's V above the bib's opening (scratch `fitcol.py`: `top_open`).
+- Measured: our shoulder line stands 0.06-0.09 L under the design's (the garments' top edge at x +-0.3..0.4: front
+  -0.547..-0.571 against the drawn -0.463..-0.486; back -0.547..-0.571 against -0.491..-0.514; 0.0235 of it is the
+  eye-line frame above). The drawn lapels start at -0.50 at x +-0.16..0.39, where our body is still the neck (x +-0.12).
+  A collar lying on our body can't reach them: its front IoU against the drawn collar 0.04 (the standing hull collar's
+  0.43-0.47), piece_collar would fall from 0.757 PASS. So the spec keeps the hull collar (collar_front_torn 0.137 FAIL,
+  its tips standing at the neck) until the shoulders rise (tool/body, and the eye-line frame), or a collar template
+  standing off the body.
+- The harness now rebuilds the skin's mask for a variant's garments (`g3lib.with_skin`): the swapped bundles had kept
+  the base build's mask, which hid the chest in the collar's V.
+
 **Coordination (tool/skirt):** the skirt's top follows the hull's band label's lower edge (`skirt_hull`, `under`),
 which the masks put about 0.09 L high at the sides (the band's lower part labelled skirt): in front the skirt's top
 stands out past the band from z -1.40 (x +-0.33 at -1.40, +-0.35 at -1.45 against the band's +-0.315) and in profile

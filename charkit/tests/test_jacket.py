@@ -124,6 +124,23 @@ def test_a_flare_stands_the_hem_off_the_band():
     assert ((r[mid] > 0.3 - 1e-9) & (r[mid] < 0.4 + 1e-9)).all()     # eased out, only ever outward
 
 
+def test_a_collar_outline_keeps_the_lapels_and_the_back_flap_with_a_stripe_along_its_edge():
+    """the sailor collar's outline: in front the lapels between the V and the outer edge, behind the flap down to its
+    bottom; the stripe the faces a band in from the outer edge."""
+    A = torso(r=0.3, z0=-1.3, z1=-0.4)
+    ol = dict(front=[[-0.4, 0.1, 0.3], [-0.9, 0.0, 0.1], [-0.95, 0.05, 0.0]], back=[[-0.4, 0.25], [-0.9, 0.25]], bottom=-0.8)
+    g = gm.outline_cut(A, ol)
+    X = np.array([[0.0, -0.3, -0.5], [0.2, -0.22, -0.5], [0.25, -0.15, -0.5], [0.0, 0.3, -0.6], [0.0, 0.3, -0.85],
+                  [0.0, -0.3, -1.1]])
+    inside = g(X) >= 0
+    assert list(inside) == [False, True, True, True, False, False]  # the V; a lapel; its edge; the flap; below it; below the V
+    sv, F, used = cut_shell(A, [g])
+    sv2, st = gm.stripe_faces(A, sv, F, ol, dict(**{'in': 0.02}, width=0.03))
+    C = np.array([sv2[list(f)].mean(0) for f in F])
+    d_out = gm.outline_dist(A, ol, C)[1]
+    assert st.sum() >= 4 and (d_out[st == 1] >= 0.02 - 1e-9).all() and (d_out[st == 1] <= 0.05 + 1e-9).all()
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
