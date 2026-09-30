@@ -17,6 +17,7 @@ import numpy as np
 
 from . import settings as simset, xpbd
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 QA_PARTS = ('skirt', 'sheet_pieces', 'sheet_body', 'poke')
 LOOSE = ('overskirt_panel_L', 'overskirt_panel_R', 'skirt')      # the loose garments the pilots drape
 
@@ -133,13 +134,16 @@ def rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, co
     thick = max([abs(float(m['settings'].get('thickness', 0))) for m in o['mods'].values()
                  if m['type'] == 'SOLIDIFY'] or [0.0])
     radius = thick + clear * L
-    dials = dict(dict(substeps=10, iterations=10), **dials)
-    st = simset.cloth(C, style, L=L, radius=radius, **dials)
-    st.update(rest_from=rest_from, rest_ramp=0.5 * seconds)
-    S = xpbd.Solver(C, st)
     t0 = time.time()
     G = Bd.grid(tuple(c for c in colliders if c.split(':')[0] != name), grid_h or 0.01 * L)
     tg = time.time() - t0
+    # each vertex's radius capped at its own rest clearance: the template at rest is never pushed (its tucked top sits
+    # on the skirt closer than the radius, pinned), only a new approach is resisted
+    rad = np.clip(G.distance(C.V), 0.0, radius)
+    dials = dict(dict(substeps=10, iterations=10), **dials)
+    st = simset.cloth(C, style, L=L, radius=rad, **dials)
+    st.update(rest_from=rest_from, rest_ramp=0.5 * seconds)
+    S = xpbd.Solver(C, st)
     S.colliders = [G]
     free = S.w > 0
     V0 = K.carry(C.V)
@@ -163,7 +167,7 @@ def rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, co
     stats = dict(piece=name, style=style, rest=rest, dials={k: v for k, v in st['physics'].items()},
                  n=int(len(X)), cage=int(C.n), cage_free=int(free.sum()), cage_edge_L=[float(C.rest_len.min() / L),
                                                                                      float(C.rest_len.max() / L)],
-                 radius_L=radius / L, grid_h_L=G.h / L, seconds=seconds, fps=fps, substeps=S.substeps,
+                 radius_L=radius / L, radius_capped=int((rad < radius).sum()), grid_h_L=G.h / L, seconds=seconds, fps=fps, substeps=S.substeps,
                  iterations=S.iterations, rest_carry_L=float(np.abs(V0 - o['V']).max() / L),
                  moved_max_L=float(mv.max()), moved_mean_L=float(mv.mean()),
                  strain_max=float(sn.max()), strain_p99=float(np.percentile(sn, 99)),

@@ -270,6 +270,32 @@ def _layer(p, w, P, I, tri, bary, gap):
 
 
 @nb.njit(**_OPT)
+def _layer2(p, w, I, tri, bary, gap):
+    """vertex I[k] kept gap[k] outside triangle tri[k] of the same system (its point at bary[k], its normal (b - a) x
+    (c - a) pointing out): C = n . (x - q) - gap >= 0, both sides moved by their inverse masses."""
+    for k in range(I.shape[0]):
+        i = I[k]
+        a, b, c = tri[k, 0], tri[k, 1], tri[k, 2]
+        n = np.cross(p[b] - p[a], p[c] - p[a])
+        ln = math.sqrt((n * n).sum())
+        if ln < 1e-18:
+            continue
+        n = n / ln
+        q = bary[k, 0] * p[a] + bary[k, 1] * p[b] + bary[k, 2] * p[c]
+        C = ((p[i] - q) * n).sum() - gap[k]
+        if C >= 0.0:
+            continue
+        den = w[i] + bary[k, 0] ** 2 * w[a] + bary[k, 1] ** 2 * w[b] + bary[k, 2] ** 2 * w[c]
+        if den <= 0.0:
+            continue
+        dl = -C / den
+        p[i] += w[i] * dl * n
+        p[a] -= w[a] * bary[k, 0] * dl * n
+        p[b] -= w[b] * bary[k, 1] * dl * n
+        p[c] -= w[c] * bary[k, 2] * dl * n
+
+
+@nb.njit(**_OPT)
 def _friction(p, x, i, n, depth, surf_disp, mu_s, mu_k):
     """position-based friction for vertex i pushed `depth` out along n: its tangential move relative to the surface
     this substep removed (static) or reduced (kinetic)."""
@@ -478,6 +504,7 @@ class Solver:
         self.T1 = cloth.V.copy()
         self.colliders = []
         self.layers = []
+        self.self_layers = []
         # rest angles eased from `rest_from` to the cloth's own over `rest_ramp` s (a flat pattern let go from the
         # template's shape: the same equilibrium, reached without one huge first projection)
         self.rest_to = cloth.rest_angle.copy()
@@ -500,6 +527,13 @@ class Solver:
             self.T0 = self.T1
         if colliders is not None:
             self.colliders = list(colliders)
+
+    def add_self_layer(self, I, tri, bary, gap):
+        """keep vertices I outside triangles tri (barycentric bary, outward normal by their winding) of this same cloth
+        (a flap over the skirt, simulated together): two-way."""
+        self.self_layers.append((np.ascontiguousarray(I, np.int64), np.ascontiguousarray(tri, np.int64),
+                                 np.ascontiguousarray(bary, np.float64),
+                                 np.ascontiguousarray(np.broadcast_to(np.asarray(gap, float), (len(I),)))))
 
     def add_layer(self, P_ref, I, tri, bary, gap):
         """keep vertices I outside triangles tri (barycentric bary) of the positions P_ref() (a callable: another
@@ -549,6 +583,8 @@ class Solver:
                     _hold(p, self.w, T, a_hold, lam_h)
                 for P_, I, tri, bary, gap in lay:
                     _layer(p, self.w, P_, I, tri, bary, gap)
+                for I, tri, bary, gap in self.self_layers:
+                    _layer2(p, self.w, I, tri, bary, gap)
                 for C0, C1 in capk:
                     _collide_capsules(p, self.x, self.w, self.rad, C0, C1, a1, self.mu_s, self.mu_k, self.hits)
                 for sd, (R0, t0), (R1, t1) in sdfk:
