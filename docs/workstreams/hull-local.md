@@ -151,3 +151,21 @@ under the points' 1 um move (fails), the soft fit under 1e-6 L.
 Jobs (2026-09-30 evening): box builds `--boards '' --no-blend` of f3682b7 (this branch: pipeline-3d 8b5ecae + the local
 hull + the stable fit) -> `charkit/out/hl_b2s`, and of tmp/face5-on-hull-local 317a41c (face5 2e4c1d6 + this branch)
 -> `~/animation-pipeline-face5hl/charkit/out/hl_b3s`. Laptop logs in `charkit/out/bunstab/build_b2s.log`, `build_b3s.log`.
+
+**The box builds** (`--boards '' --no-blend`, as a gate builds; CPU 635.9 s B2s, 648.5 s B3s):
+
+| check | B2 (local hull, Nelder-Mead) | **B2s (local hull, stable fit)** | B3s (face5 on B2s) | pipeline-3d (ba51e43, gate base) |
+|---|---|---|---|---|
+| art_terminator_hair (grade) | 2.514 (FAIL) | **2.045 (WARN)** | 2.179 (WARN) | 2.308 (WARN) |
+| its views f / 3q / p / back | 2.233 / 2.065 / 1.160 / 2.514 | 2.045 / 1.789 / 1.208 / 1.788 | 2.179 / 2.160 / 0.847 / 1.979 | |
+| hair_piece_buns f / p / back | 0.858 / 0.856 / 0.871 (0.863) | 0.864 / 0.850 / 0.875 (0.865 PASS) | 0.864 / 0.849 / 0.875 (0.865) | 0.864 PASS |
+| hair_bun_outline f / p | 0.513 / 0.347 (0.456 FAIL) | 0.544 / 0.327 (0.470 FAIL) | 0.544 / 0.324 (0.469) | 0.456 FAIL |
+| hair_bun_corners | 21 | 19 | | 21 |
+
+- B2 -> B2s: 15 checks move, all hair (the buns and what the hair's silhouettes and shading read); every other flag
+  check identical. art_fragments_hair 1.242 -> 1.414 and art_outline_hair 0.712 -> 0.692 (INFO, not flags).
+- The fit on the box reproduces the laptop's exactly (soft loss 0.277316 / 0.357697, the same IoUs); Nelder-Mead's bun_R
+  differed 0.028 L between the two machines.
+- **face5's move of the buns** (the build pairs' bun meshes): Nelder-Mead B2 -> B3 0.0266 / 0.0158 L (bun_L / R);
+  stable B2s -> B3s **3.9e-8 / 5.7e-8 L**. face5's terminator move is now +0.134 (2.045 -> 2.179, same grade), carried
+  by the pieces face5 reshapes (side locks, bangs), not the buns (before: +0.45 through the buns).
