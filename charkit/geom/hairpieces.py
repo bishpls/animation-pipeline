@@ -1448,6 +1448,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
     -> dict(pieces {name: dict(family, V, T, vn_env, strand, lock (per vertex), chains [joints], push)}, fields, report)."""
     from scipy.ndimage import median_filter
     o = dict(OPTS, **(opts or {}))
+    style = dict(style, **(o.pop('style', None) or {}))      # (a design's own construction settings over the profile's)
     L = case.L
     V = np.asarray(case.gen.V, float)
     carved = 0
