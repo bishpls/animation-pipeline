@@ -535,8 +535,12 @@ def garments_product(A, specs, hull=None, spec_all=None):
     """the garments stage's product for assembly A: garments.build recorded (numpy), with the body it was built on kept
     for the Blender side's check (check/body: the assembly's vertices in float32)."""
     rec = record(A, specs, hull=hull, spec_all=spec_all)
-    return finalize(product('garments', rec, meta=dict(garments=[g.get('name') for g in specs or []], numpy=np.__version__),
-                            checks={'body': np.asarray(A['verts'], np.float32)}))
+    P = product('garments', rec, meta=dict(garments=[g.get('name') for g in specs or []], numpy=np.__version__),
+                checks={'body': np.asarray(A['verts'], np.float32)})
+    if any(isinstance(g.get('drape'), dict) for g in specs or []):     # opt-in: a garment settled by charkit.sim (no
+        from .sim import hook                                         # spec asks, so no build changes)
+        P = hook.apply(P, A, specs, spec_all)
+    return finalize(P)
 
 
 def garments_step(spec, path, log=print):
