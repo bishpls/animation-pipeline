@@ -6,8 +6,16 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Subset 1 merged (pipeline-3d a4f91a3). Subset 2 (h + i): h's code-walk narrowing done and unit-tested, being gated;
-i not started (next run).
+Subset 1 merged (pipeline-3d a4f91a3). Subset 2's h (the code-walk narrowing) done and **gated: c5cafcc into
+pipeline-3d 4de65ab PASS** (`gate_tool-infra3_c5cafcc_into_4de65ab`: nothing blocks, nothing reported, CPU 1.10x,
+676 s; the candidate's resolve 225 s is the one-off key change). pipeline-3d then moved to f2ec090; merges cleanly;
+not re-gated. Commits after c5cafcc: notes only. i not started (next run).
+- **Real pairs (this gate code):** a garments.py-only code edit (`gate_tmp-infra3-garm_2ef04a4_into_c5cafcc`, PASS):
+  both sides restored the hull from the shared cache under one key (49cab93a-bf003dc1, 1.8-2.0 s instead of a
+  173 s build; resolve 8.2 s against 242.6 s one gate earlier and look4's 196 s). The builds' closure no longer holds
+  remote.py or gate.py (548 files; cli.py stays: it's the build's entry). `gate --carry` from that report across a
+  remote.py code edit (a function added): **carried, PASS, 8 s** on the laptop, the 4 test files that read remote.py
+  rerun here, all ok.
 - **cache.code_units follows definitions, not modules** (charkit/cache.py `_Mod`, `code_units`; memo SCHEMA 3, so
   every cache key changes once, approved by the coordinator): names resolve as Python scopes them (hull.Owners' local
   `main` no longer means hull.main), `m.f` and `from m import f` follow f alone, a module used bare, `import *`,
@@ -22,9 +30,6 @@ i not started (next run).
   candidate's resolve 242.6 s (the hull rebuilt under its new key), pieces_hair 198 s, CPU 1.42x, 785 s end to end.
 - `gate --carry` also takes a report of an earlier tip of the branch (1916e4e: notes after a gate, the coordinator's
   tool/face4 case: its bd671ea report is found now, but predates closures).
-- Real pairs being run: (1) the gate of tool/infra3 into pipeline-3d (every key misses once); (2) a garments.py-only
-  edit gated into tool/infra3 with this gate code (the hull must restore from the shared cache, not rebuild); (3)
-  `gate --carry` from (2)'s report across a remote.py code edit.
 - i (next): a slot for the whole build and THREAD_VARS for every box build (remote build/tune), then l, then k + j.
 - Also left in h: the venv file steps' keys aren't portable across clones (pieces_hair's `cut` holds absolute out
   paths; file_step keys `inputs` by absolute path), so gate clones still rebuild pieces_hair (about 120 s).
