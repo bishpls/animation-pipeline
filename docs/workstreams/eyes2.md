@@ -163,3 +163,24 @@ pre-round-2 build is 0.297 against 0.405 (WARN). `measure()` now reads them that
   shader or view-dependent cost. A realistic style keeps the plate (DEFAULT). A physical eyeball (a sphere at the
   gaze) would be its own surface kind, but the design can't use one (see above).
 - **clawd_locks.json** keeps its old pupil knobs (not a gated spec).
+
+## Gates (603d62a into pipeline-3d f2d0ea7)
+
+Both FAIL, and neither failure is the eyes'.
+
+- **clawd_body.** face_folds 4 → 450, body_front_hair_length, body_profile_iou(_outfit) and sheet_profile /
+  profile_chin / cheek_chin / chin_reach / nose_reach, all PASS → WARN except face_folds. Every eye check passes, and
+  every new eye_view check but one (three-quarter front_gap WARN, above). The old pupil checks are remeasured.
+  - The folds are tool/face's new jaw underside (bb6b39b, headgeom.UnderJaw). I rebuilt that head venv-side and
+    counted folds with the eye's plate and with the turned surface: 30 at rest, 420 over the keys, identical in both
+    (every mouth key 30-36; eye_angry and eye_sad 2 each, as before). 30 + 420 is the gate's 450.
+  - The sheet_* moves are the new chin's profile.
+- **Default spec (MakeHuman base).** hair_folds 7 → 49 (FAIL) and body_three_quarter_hair_width (WARN). This spec's
+  character is unchanged by the eye work: it keeps the plate, and the trace shows only its eye knobs' hash moved. The
+  hair moved: the bangs have 8 shells, were 6. That is the hull's face carve keeping the fringe (tool/face decision
+  4a) with hull-det's facing view.
+- **The hull differs between the boxes.** A board build on the render box (n1) failed in `garments.band_hull` (a
+  sleeve or boot cuff: "no row of the piece is measured on 20% of its circle") on a hull it built itself. It failed
+  again with tool/hull-det's latest (ced2f92: angle-weighted facing normals, det.cs by tolerance). The gate's candidate,
+  built on the build box (n2), didn't fail. The garment bands are arm and leg cuffs, and the eye change can't reach
+  them (joints follow their 8 nearest vertices). This is the non-determinism face.md reports and hull-det is chasing.
