@@ -1807,6 +1807,13 @@ def face_part(B, design=None, out=None):
     return table, C
 
 
+def eye_views(B, design=None, out=None):
+    """each eye the head sheet draws, ours from the same azimuth (front, three-quarter, profile; charkit.eyeqa.views):
+    where the iris sits in the opening, the front's pupil, the profile's edge and lash flick."""
+    from . import eyeqa
+    return eyeqa.views(B, design, out)
+
+
 def face_region(B, design=None, out=None):
     """the face's region on the assembled figure (charkit.faceregion): the eye's hollow, bowl and the cheek's lead, the
     eye's width in three-quarter and profile against the design's, the profile's edge from the chin to the chest and the
@@ -1825,7 +1832,7 @@ def look(B, design=None, out=None):
 PARTS = [                       # (part, function, check prefix, table key)
     ('shape', shape, '', 'views'), ('scalp', scalp, '', None), ('poke', poke, '', None), ('hair_noise', hair_noise, '', None),
     ('face_folds', folds, '', None), ('mesh', mesh_info, '', None),
-    ('eyes', eyes, 'eye_', 'eyes'), ('sheet', sheet, 'sheet_', 'sheet'),
+    ('eyes', eyes, 'eye_', 'eyes'), ('eye_views', eye_views, 'eye_', 'eye_views'), ('sheet', sheet, 'sheet_', 'sheet'),
     ('sheet_figures', sheet_figures, 'figures_', 'sheet_figures'), ('sheet_body', sheet_body, 'body_', 'sheet_body'),
     ('sheet_expr', sheet_expressions, '', 'sheet_expr'), ('sheet_palette', sheet_palette, 'palette_', 'sheet_palette'),
     ('hair_pieces', hair_pieces, '', 'hair_pieces'),

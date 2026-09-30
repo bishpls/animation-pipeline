@@ -19,6 +19,24 @@ Measured, in head lengths L and as ratios:
     from charkit import eyeqa
     M = eyeqa.measure(rgba, ppl)             # rgba (H, W, 4) floats 0..1, ppl: pixels per head length
     C = eyeqa.compare(ours, design)          # graded checks
+
+Per view (front, three-quarter, profile; `nasal` is the picture direction of the nose from the eye, -1 left, +1 right),
+measured the same way on the design's eye and ours from the same azimuth (views(), a QA part: eye_view_*):
+
+  gaze       front_gap: the sclera between the iris's nasal edge and the opening's, over the iris's middle rows, as a
+             share of the opening's width (a forward-looking eye in profile: 0); gaze_off: the visible iris's centroid
+             across the opening (+ toward the nose, in opening widths); behind: the sclera's share on the far side of
+             the iris (1: all of it behind)
+  pupil      from a coverage map (each pixel's darkness between the iris round it and the pupil's core: sub-pixel, a
+             6 px pupil measures to a tenth of a pixel): its height; its width at 25/50/75% of its height over the
+             iris's width at the same rows (a slit is thin and even, an ellipse widest at 50%, a lens pointed); its area
+             over the visible iris's; the second-moment ellipse (axis ratio minor / major, tilt from vertical in degrees,
+             fill: area over the moment ellipse's, 1 for an ellipse); its centroid in the iris (+ nasal, + up, in iris
+             half-widths / half-heights); its width at 50% over the opening's width
+  edge       the opening's nasal edge over the middle 80% of its height: its angle from vertical (+ the top toward the
+             nose), its straightness (rms off a line, in opening heights)
+  flick      the upper lash line's far tip against the opening's far corner: out (past the corner, in opening widths),
+             up (above it, in opening heights) and its angle (degrees above the horizontal)
 """
 import numpy as np
 
@@ -196,6 +214,275 @@ def compare(ours, design):
         p, w = LIMITS[k]
         C[k] = {'value': round(r, 3), 'ours': a, 'design': b, 'status': 'PASS' if abs(r - 1) <= p else 'WARN' if abs(r - 1) <= w else 'FAIL'}
     return C
+
+
+# ------------------------------------------------------------------------------------------------------ per view
+PUPIL_W = 0.5                    # px: a row belongs to the pupil while its coverage sums to this much (the tips' cut)
+VIEW_LIMITS = {                  # |ours - design| (absolute measures) or |ours / design - 1| (ratios): (pass, warn)
+    'front_gap': (0.05, 0.10), 'gaze_off': (0.05, 0.10), 'behind': (0.15, 0.30),
+    'pupil_w50': (0.15, 0.30), 'pupil_area': (0.20, 0.40), 'pupil_axis': (0.15, 0.30), 'pupil_h': (0.15, 0.30),
+    'pupil_open': (0.15, 0.30), 'pupil_taper': (0.10, 0.20),
+    'pupil_cy': (0.10, 0.20), 'edge_angle': (10.0, 20.0), 'edge_rms': (0.01, 0.02), 'flick_out': (0.10, 0.20),
+}
+RATIO = ('pupil_w50', 'pupil_area', 'pupil_axis', 'pupil_h', 'pupil_open')
+
+
+def _rows(m):
+    """per row of a mask: (first, last) set column, or (-1, -1)."""
+    any_ = m.any(1)
+    first = np.where(any_, np.argmax(m, 1), -1)
+    last = np.where(any_, m.shape[1] - 1 - np.argmax(m[:, ::-1], 1), -1)
+    return first, last
+
+
+def pupil_cover(rgba, S):
+    """the pupil as a coverage map (H, W) in 0..1: each pixel near the pupil's mask, its value placed between the iris's
+    round it on its row (the median over a ring 2-6 px out, clear of highlights) and the pupil's core (its darkest
+    fifth). Anti-aliased edges count by how dark they are, so widths and areas are sub-pixel. None when no pupil."""
+    p = S['pupil']
+    if not p.any():
+        return None
+    _, _, v = _hsv(rgba[..., :3])
+    iris = S['iris']
+    band = _grow(p, iris, 2)
+    ring = _grow(band, iris, 4) & ~band & iris & ~S['highlight']
+    core = float(np.percentile(v[p], 20))
+    ref_all = float(np.median(v[ring])) if ring.any() else float(np.median(v[iris & ~band]))
+    c = np.zeros(v.shape)
+    for r in np.nonzero(band.any(1))[0]:
+        rr = v[max(0, r - 1):r + 2][ring[max(0, r - 1):r + 2]]
+        ref = float(np.median(rr)) if len(rr) >= 2 else ref_all
+        if ref - core < 0.05:
+            continue
+        cols = band[r]
+        c[r, cols] = np.clip((ref - v[r, cols]) / (ref - core), 0, 1)
+    return c
+
+
+def pupil_shape(rgba, S, ppl, nasal=-1):
+    """the pupil's shape and size (see the module): from pupil_cover, the iris's row widths (the opening less its
+    sclera) and the opening -> dict, or {} when there's no pupil."""
+    c = pupil_cover(rgba, S)
+    if c is None or c.sum() < 1:
+        return {}
+    O = S['opening']
+    I = O & ~S['sclera']
+    w = c.sum(1)
+    on = w >= PUPIL_W
+    if not on.any():
+        return {}
+    # the longest run of rows at the pupil's width or more; its ends where the width crosses PUPIL_W (sub-pixel)
+    r = np.nonzero(on)[0]
+    splits = np.split(r, np.nonzero(np.diff(r) > 1)[0] + 1)
+    run = max(splits, key=lambda a: w[a].sum())
+    r0, r1 = int(run[0]), int(run[-1])
+    top = r0 - (w[r0] - PUPIL_W) / max(1e-9, w[r0] - w[r0 - 1]) if r0 > 0 else float(r0)
+    bot = r1 + (w[r1] - PUPIL_W) / max(1e-9, w[r1] - w[r1 + 1]) if r1 + 1 < len(w) else float(r1)
+    top, bot = max(top, r0 - 1.0), min(bot, r1 + 1.0)
+    h = bot - top
+    iw = I.sum(1).astype(float)
+    rows = np.arange(len(w))
+    out = {'pupil_h': round(h / ppl, 4)}
+    for f in (0.25, 0.5, 0.75):
+        rf = top + f * h
+        pw, ww = float(np.interp(rf, rows, w)), float(np.interp(rf, rows, iw))
+        out['pupil_w%d' % int(f * 100)] = round(pw / ww, 4) if ww > 0 else None
+    out['pupil_w50_L'] = round(float(np.interp(top + 0.5 * h, rows, w)) / ppl, 4)
+    if out['pupil_w50']:
+        out['pupil_taper'] = round(0.5 * ((out['pupil_w25'] or 0) + (out['pupil_w75'] or 0)) / out['pupil_w50'], 3)
+    out['pupil_area'] = round(float(c.sum() / max(1, I.sum())), 4)
+    # the second-moment ellipse
+    yy, xx = np.mgrid[0:c.shape[0], 0:c.shape[1]]
+    m = c.sum()
+    cx, cy = float((c * xx).sum() / m), float((c * yy).sum() / m)
+    cxx = float((c * (xx - cx) ** 2).sum() / m); cyy = float((c * (yy - cy) ** 2).sum() / m)
+    cxy = float((c * (xx - cx) * (yy - cy)).sum() / m)
+    ev, evec = np.linalg.eigh(np.array([[cxx, cxy], [cxy, cyy]]))
+    major = evec[:, 1] if evec[1, 1] <= 0 else -evec[:, 1]                # pointing up the picture (rows run down)
+    tilt = float(np.degrees(np.arctan2(major[0], -major[1])))           # + : the top toward the picture's right
+    out['pupil_axis'] = round(float(np.sqrt(max(ev[0], 0) / max(ev[1], 1e-12))), 4)
+    out['pupil_tilt'] = round(tilt * nasal, 1)                          # + : the top toward the nose
+    out['pupil_fill'] = round(float(m / (4 * np.pi * np.sqrt(max(ev[0], 1e-12) * max(ev[1], 1e-12)))), 3)
+    out['pupil_ellipse'] = [round(cx, 2), round(cy, 2), round(2 * float(np.sqrt(max(ev[1], 0))), 2),
+                            round(2 * float(np.sqrt(max(ev[0], 0))), 2), round(tilt, 1)]   # px: centre, semi-axes, tilt
+    # the centroid in the iris: across, at its row (+ nasal); up, in the visible iris's rows
+    i0, i1 = _rows(I)
+    k = int(round(cy))
+    if 0 <= k < len(i0) and i0[k] >= 0:
+        half = (i1[k] - i0[k] + 1) / 2
+        out['pupil_cx'] = round(float((cx - (i0[k] + i1[k]) / 2) / half * nasal), 3)
+    ir = np.nonzero(I.any(1))[0]
+    if len(ir):
+        out['pupil_cy'] = round(float(((ir[0] + ir[-1]) / 2 - cy) / ((ir[-1] - ir[0] + 1) / 2)), 3)
+    ob = _box(O)
+    if ob is not None:
+        out['pupil_open'] = round(float(np.interp(top + 0.5 * h, rows, w)) / (ob[1] - ob[0] + 1), 4)
+    out['_cover'] = c
+    out['_pupil_rows'] = (top, bot)
+    return out
+
+
+def gaze(S, nasal=-1, mid=0.6):
+    """where the iris sits in the opening (see the module): over the visible iris's middle `mid` of its rows -> dict."""
+    O = S['opening']
+    I = O & ~S['sclera']
+    ob = _box(O)
+    ir = np.nonzero(I.any(1))[0]
+    if ob is None or not len(ir):
+        return {}
+    ow = ob[1] - ob[0] + 1
+    lo, hi = ir[0] + (1 - mid) / 2 * (ir[-1] - ir[0]), ir[-1] - (1 - mid) / 2 * (ir[-1] - ir[0])
+    o0, o1 = _rows(O)
+    i0, i1 = _rows(I)
+    gaps, backs, rows = [], [], []
+    for r in range(int(np.ceil(lo)), int(np.floor(hi)) + 1):
+        if i0[r] < 0 or o0[r] < 0:
+            continue
+        g, b = (i0[r] - o0[r], o1[r] - i1[r]) if nasal < 0 else (o1[r] - i1[r], i0[r] - o0[r])
+        gaps.append(g); backs.append(b); rows.append(r)
+    if not rows:
+        return {}
+    ys, xs = np.nonzero(I)
+    off = (xs.mean() - (ob[0] + ob[1]) / 2) / ow * nasal
+    tot = sum(gaps) + sum(backs)
+    return {'front_gap': round(float(np.median(gaps)) / ow, 3), 'gaze_off': round(float(off), 3),
+            'behind': round(sum(backs) / tot, 3) if tot else None, '_gaze_rows': rows, '_gaps': gaps}
+
+
+def front_edge(S, nasal=-1, mid=0.8):
+    """the opening's nasal edge over the middle `mid` of its height: a line fitted to it -> dict(edge_angle (degrees from
+    vertical, + the top toward the nose), edge_rms (rms off the line, in opening heights), the line's ends in px)."""
+    O = S['opening']
+    ob = _box(O)
+    if ob is None:
+        return {}
+    oh = ob[3] - ob[2] + 1
+    o0, o1 = _rows(O)
+    e = o0 if nasal < 0 else o1
+    lo, hi = ob[2] + (1 - mid) / 2 * oh, ob[3] - (1 - mid) / 2 * oh
+    rows = np.array([r for r in range(int(np.ceil(lo)), int(np.floor(hi)) + 1) if e[r] >= 0])
+    if len(rows) < 3:
+        return {}
+    x = e[rows].astype(float)
+    a, b = np.polyfit(rows, x, 1)
+    res = x - (a * rows + b)
+    ang = float(np.degrees(np.arctan(a))) * -nasal
+    return {'edge_angle': round(ang, 1), 'edge_rms': round(float(np.sqrt(np.mean(res ** 2))) / oh, 4),
+            '_edge': [(float(a * rows[0] + b), float(rows[0])), (float(a * rows[-1] + b), float(rows[-1]))]}
+
+
+def flick(S, nasal=-1):
+    """the upper lash line's far tip against the opening's far corner (see the module) -> dict."""
+    O = S['opening']
+    ob = _box(O)
+    if ob is None:
+        return {}
+    ow, oh = ob[1] - ob[0] + 1, ob[3] - ob[2] + 1
+    H, W = O.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    win = (yy < (ob[2] + ob[3]) / 2) & (yy > ob[2] - 0.6 * oh) & (xx > ob[0] - 0.6 * ow) & (xx < ob[1] + 0.9 * ow)
+    line = S['line'] & win
+    # the lash line: the dark component lying most along the opening's top edge (not a hair strand or the face's line)
+    o0, o1 = _rows(O)
+    top = np.full(W, -1)
+    for cc in range(ob[0], ob[1] + 1):
+        rr = np.nonzero(O[:, cc])[0]
+        if len(rr):
+            top[cc] = rr[0]
+    rest, best, best_n = line.copy(), None, 0
+    while rest.any():
+        comp = _largest(rest)
+        rest &= ~comp
+        if comp.sum() < 4:
+            break
+        n = sum(int(comp[max(0, top[cc] - 4):top[cc] + 1, cc].any()) for cc in range(ob[0], ob[1] + 1) if top[cc] >= 0)
+        if n > best_n:
+            best, best_n = comp, n
+    if best is None:
+        return {}
+    ys, xs = np.nonzero(best)
+    far = xs * -nasal
+    k = np.nonzero(far == far.max())[0]
+    k = k[np.argmin(ys[k])]
+    tx, ty = float(xs[k]), float(ys[k])
+    cxc = ob[1] if nasal < 0 else ob[0]
+    rr = np.nonzero(O[:, cxc])[0]
+    cy = float(rr.mean())
+    out_ = (tx - cxc) * -nasal
+    return {'flick_out': round(out_ / ow, 3), 'flick_up': round((cy - ty) / oh, 3),
+            'flick_angle': round(float(np.degrees(np.arctan2(cy - ty, out_))), 1), '_tip': (tx, ty), '_corner': (float(cxc), cy)}
+
+
+def measure_view(rgba, ppl, nasal=-1, iris_hue=IRIS_HUE):
+    """measure() with the per-view measures (gaze, pupil, edge, flick; see the module) for an eye whose nose lies
+    `nasal` (-1 the picture's left, +1 its right)."""
+    M = measure(rgba, ppl, iris_hue)
+    if not M.get('found'):
+        return M
+    S = M['_masks']
+    for part in (gaze(S, nasal), pupil_shape(rgba, S, ppl, nasal), front_edge(S, nasal), flick(S, nasal)):
+        M.update(part)
+    M['nasal'] = nasal
+    return M
+
+
+def compare_view(ours, design, keys):
+    """graded per-view checks for the named measures (VIEW_LIMITS; ratios in RATIO) -> {name: check}."""
+    C = {}
+    for k in keys:
+        a, b = ours.get(k), design.get(k)
+        if a is None or b is None:
+            C[k] = {'status': 'SKIPPED', 'why': 'not found', 'ours': a, 'design': b}
+            continue
+        p, w = VIEW_LIMITS[k]
+        d = (a / b - 1) if k in RATIO else (a - b)
+        C[k] = {'value': round(float(a / b if k in RATIO else a - b), 3), 'ours': a, 'design': b,
+                'status': 'PASS' if abs(d) <= p else 'WARN' if abs(d) <= w else 'FAIL'}
+    return C
+
+
+# what each view grades: the front keeps its flat read (its pupil is the design's size and shape); three-quarter and
+# profile follow from the geometry (where the iris sits; the profile's edge and flick)
+VIEW_CHECKS = {
+    'front': ('front_gap', 'gaze_off', 'pupil_w50', 'pupil_taper', 'pupil_area', 'pupil_axis', 'pupil_h', 'pupil_open',
+              'pupil_cy'),
+    'three_quarter': ('front_gap', 'gaze_off', 'behind'),
+    'profile': ('front_gap', 'gaze_off', 'behind', 'edge_angle', 'edge_rms', 'flick_out'),
+}
+NASAL = {('front', 'L'): -1, ('front', 'R'): 1, ('three_quarter', 'L'): -1, ('three_quarter', 'R'): 1,
+         ('profile', 'L'): -1}
+
+
+def views(B, design=None, out=None, ss=3):
+    """the QA part: each eye the head sheet draws (front both, three-quarter both, profile), ours rendered from the same
+    azimuth (charkit.qa3d.eye_image) at the sheet's scale, both measured by measure_view and graded (VIEW_CHECKS): the
+    front's pupil, where the iris sits in every view, the profile's edge and flick -> (table, checks view_<view>_<k>)."""
+    from . import eyepage, qa3d
+    des, ppl = eyepage.design_eyes(B.spec)
+    if not des:
+        return None, {'view': {'status': 'SKIPPED', 'why': 'no eyes sheet'}}
+    Dz = design or qa3d.Design(B)
+    got = Dz.sheet_measures()
+    az3 = float(got[0].get('az_three_quarter', 35.0)) if got else 35.0
+    azs = {'front': 0.0, 'three_quarter': az3, 'profile': 90.0}
+    table, C = {'ppl': ppl, 'az_three_quarter': az3}, {}
+    for view, pairs in des.items():
+        for side, px in pairs:
+            if not B.skin().has('render_eye_' + side):
+                continue
+            n = NASAL.get((view, side), -1)
+            md = measure_view(px, ppl, n)
+            mo = measure_view(qa3d.eye_image(B, side, ppl, ss=ss, az=azs[view]), ppl, n)
+            strip = lambda M: {k: v for k, v in M.items() if not k.startswith('_')}
+            table['%s_%s' % (view, side)] = {'ours': strip(mo), 'design': strip(md)}
+            if not (mo.get('found') and md.get('found')):
+                continue
+            for k, v in compare_view(mo, md, VIEW_CHECKS[view]).items():
+                name = 'view_%s_%s' % (view, k)
+                prev = C.get(name)
+                if prev is None or qa3d.STATUS.index(v['status']) > qa3d.STATUS.index(prev['status']):
+                    C[name] = dict(v, eye=side)
+    return table, C
 
 
 def picture(ours_rgba, design_rgba, ours, design, scale=3):
