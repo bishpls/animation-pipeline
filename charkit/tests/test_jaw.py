@@ -78,10 +78,56 @@ def test_taper_sees_a_kink_in_the_arms():
     assert max(a['bend'] for a in K['arms'].values()) > fr.ARM_BEND[0], K['arms']
 
 
-def _three_quarter(notch=0.0, dent=0.0):
+def _hairy_front(lock=True, behind=True, mouth=False):
+    """a drawn front: the V of _lower (rising 0.5 per L) over a neck, its sides at |u| 0.3 up to z -0.21 and widening 0.3
+    per L above, inked; hair `behind` the jaw (beside the face and under its arms, the jaw's ink between: the head
+    sheet's jaw is drawn over its hanging locks); a side lock over each side of the face from z -0.2 up, its tip at
+    |u| 0.22, z -0.16 (`lock`); a mouth line across the chin's column at z -0.2 (`mouth`)."""
+    U, Z = _grid()
+    A = np.abs(U)
+    jaw = -0.36 + 0.5 * A
+    side = 0.3 + 0.3 * np.clip(Z + 0.21, 0, None)
+    cls = np.zeros(U.shape, int)
+    if behind:
+        cls[(A < 0.45) & (Z < 0.0) & (Z > -0.4)] = 2
+    face = (Z < 0.0) & (Z > jaw) & (A < side)
+    cls[face] = 1
+    cls[(A < 0.12) & (Z <= jaw) & (Z > -0.6)] = 1
+    cls[(Z <= jaw) & (Z > jaw - 0.01) & (A < 0.3)] = 4
+    cls[face & (A >= side - 0.01)] = 4
+    if lock:
+        cls[(A >= 0.22 + 0.5 * np.clip(Z + 0.16, 0, None)) & (Z >= -0.16 - 0.5 * (A - 0.22)) & (Z < 0.0) & (A < 0.45)] = 2
+    if mouth:
+        cls[(A < 0.05) & (np.abs(Z + 0.2) < 0.004)] = 4
+    return cls
+
+
+def test_taper_drops_the_rows_the_hair_covers():
+    """hair behind the jaw masks nothing (the widest row in view is near the window's top, -0.05: the face's region runs
+    to 0.015 L inside its drawn side, 0.335); a lock over each side of the face takes the rows from under its tip up (it
+    meets the region's edge at z -0.19), and the taper is normalised on the face's own width under it (0.29, not the
+    lock's inner edge, 0.26-0.28 over the tip)."""
+    bare = fr.taper_front(_hairy_front(lock=False), PPL)
+    assert bare['top'] is None and bare['z0'] > -0.08 and abs(bare['w0'] - 0.333) < 0.006, (bare['z0'], bare['w0'])
+    lock = fr.taper_front(_hairy_front(), PPL)
+    assert lock['top'] is not None and -0.21 < lock['top'] < -0.19, lock['top']
+    assert lock['z0'] <= lock['top'] and abs(lock['w0'] - 0.29) < 0.006, (lock['z0'], lock['w0'])
+    # the old reading: the lock's inner edge had set the row and its width (a running maximum over the tip)
+    z, xl, xr, top = fr._half_widths(_hairy_front(), PPL, lock['chin'])
+    assert np.all(np.isnan(xl[z > top])) and np.all(np.isfinite(xl[(z <= top) & (z > -0.3)]))
+
+
+def test_half_widths_close_over_the_mouth():
+    """a mouth line across the chin's column doesn't cut its rows short (the scan runs through the region's holes)."""
+    a = fr.taper_front(_hairy_front(lock=False), PPL)
+    b = fr.taper_front(_hairy_front(lock=False, mouth=True), PPL)
+    assert np.allclose(a['r'], b['r'], atol=1e-6), np.abs(a['r'] - b['r']).max()
+
+
+def _three_quarter(notch=0.0, dent=0.0, lock=False):
     """a three-quarter facing -u: the face's lower edge rising 0.3 per L from the chin (u 0) to u 0.25, `notch` L lower
     beyond u 0.2 (a step where the jaw meets the neck); the far cheek's contour at u -0.2 + 0.5 (z + 0.36) under z -0.2,
-    dented `dent` L inward at z -0.28."""
+    dented `dent` L inward at z -0.28; `lock`: hair behind the far cheek and a lock over it."""
     U, Z = _grid()
     edge = -0.36 + 0.3 * np.clip(U, 0, None) - np.where(U > 0.2, notch, 0.0)
     far = np.where(Z < -0.2, -0.18 * (Z + 0.36) / 0.16 + 0.0, -0.18) + dent * np.exp(-0.5 * ((Z + 0.28) / 0.015) ** 2)
@@ -91,7 +137,24 @@ def _three_quarter(notch=0.0, dent=0.0):
     cls[face] = 1
     cls[(Z <= edge) & (Z > edge - 0.01) & (U >= 0) & (U < 0.3)] = 4
     cls[(U > 0.1) & (U < 0.28) & (Z <= edge - 0.01) & (Z > -0.6)] = 1          # the neck behind the jaw line
+    if lock:                        # hair behind the far cheek, and a lock over it, its tip at u -0.09, z -0.26
+        cls[(U <= far) & (U > -0.45) & (Z < 0.0) & (Z > -0.4)] = 2
+        cls[(U <= -0.09 - 0.5 * np.clip(Z + 0.26, 0, None)) & (Z >= -0.215 + 0.5 * U) & (Z < 0.0) & (U > -0.45)] = 2
     return cls
+
+
+def test_tq_jaw_stops_the_far_cheek_under_a_lock():
+    """a lock over the far cheek (its lower edge meets the contour at z -0.267) ends the contour there: the hollow is
+    the cheek's (none), not the lock's tip, which read as one when the contour ran on up its edge."""
+    got = fr.tq_jaw(_three_quarter(lock=True), PPL)
+    assert -0.29 < got['top'] < -0.26 and got['hollow'] < 0.003, (got['top'], got['hollow'])
+    keep = fr.OCC_DROP
+    try:
+        fr.OCC_DROP = 1.0                                           # (the edge followed up the lock, as before)
+        old = fr.tq_jaw(_three_quarter(lock=True), PPL)
+    finally:
+        fr.OCC_DROP = keep
+    assert old['hollow'] > 0.005, old['hollow']
 
 
 def test_tq_jaw_reads_the_notch_and_the_hollow():
