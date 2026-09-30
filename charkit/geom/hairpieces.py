@@ -44,10 +44,12 @@ LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
             chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
-            trim_smooth=3.0, trim_margin=0.01, tuck_flyaways=True)
+            trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0})
 # (hair round 3's defaults: the crown's one cover (crown_cap 20, crown_blend 8, cap_top 0.006 L under the envelope at
 # the pole: the pole's slivers gone), side_lock_trim pulling without cutting, from 0.01 L ahead of the drawn edge, smoothed
-# over 3 cells (face in profile 0.63 -> 0.69 of the design's, side-lock folds 4 -> 3), the flyaways tucked;
+# over 3 cells, on the side the sheet's profile draws (her left: the mirrored edge on her right moved the three-
+# quarter silhouette in), face in profile 0.63 -> 0.69 of the design's; the flyaways tucked; the bun fit weighing our
+# bun over the drawing's other hair whole in profile (it stands in front of the head there);
 # crown_blend 0 and crown_cap 8 give the old fan)
 # (build's opts also: bun 'round' | 'block' (the design's bun template: a round shell or fitted block loops), bun_fit,
 # carve_buns; clamp_side_locks (a taste call, off by default: the side locks held behind the drawn profile's front
@@ -463,7 +465,7 @@ def drawn_front(masks, mirror, hair_fams=MASS, look=3):
 
 
 def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor=None, pull=True, cut_ahead=True,
-                   smooth=0.7, spread=0.0, zmin=None):
+                   smooth=0.7, spread=0.0, zmin=None, sides='drawn'):
     """the side locks held to the drawn profile before any lock is shaped (Michael's flag, hair round 3: the visual
     hull fills the gap between a side lock and the cheek, which no view shows, so the locks stood in front of the face
     in profile; moving built locks back crumpled them). Per side, her own profile (the mirror for her right), per
@@ -504,6 +506,10 @@ def side_lock_trim(F, Lc, masks, views, hull_frame, margin=0.0, share=1.0, floor
         return (cc - fr) * dirn_of[mirror] - margin * v.ppl      # px beyond the drawn edge, toward the face
     Pz = ch.point(PH, TH, R)[..., 2]
     for sgn, az, mirror in ((1, 90.0, False), (-1, 270.0, True)):
+        if mirror and sides == 'drawn':
+            # (her right: the sheet draws no profile of it; the mirrored left one moved its front edge in from where the
+            # three-quarter view draws it, at the silhouette beside the face: body_three_quarter_iou 0.851 -> 0.849)
+            continue
         sel = (Lc == k) & (np.sign(PH) == sgn)
         if zmin is not None:                     # (the face's cells only: below the chin a side lock hangs beside
             sel &= Pz > zmin                     # the neck, in front of the lower back, as the front view draws it)
@@ -1473,7 +1479,8 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                                          o.get('clamp_share', 1.0), floor, o.get('trim_pull', True),
                                          o.get('trim_cut', True), o.get('trim_smooth', 0.7),
                                          o.get('trim_spread', -1.0) * L if o.get('trim_spread', -1.0) >= 0 else 0.0,
-                                         None if o.get('trim_below_chin', False) else case.chin_z)
+                                         None if o.get('trim_below_chin', False) else case.chin_z,
+                                         o.get('trim_sides', 'drawn'))
     regions = piece_regions(F, o, trim)
     refined = refine_tips(F, regions, masks, views, hull_frame) if views is not None and hull_frame is not None else {}
     pieces, report = {}, {'pieces': {}, 'tips_from_drawing': refined, 'carved_under_buns': carved}
@@ -1532,7 +1539,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                     tg = bun_targets(masks, views, hull_frame, case.centre, sgn)
                     if tg:
                         fit, iou = fit_block(P, case.centre, style, tg, views, hull_frame,
-                                             tuple(o.get('bun_iters', (600, 900))), kind, o.get('bun_over', 0.25),
+                                             tuple(o.get('bun_iters', (600, 900))), kind, o['bun_over'],
                                              o.get('bun_loop_starts', 1))
                         report.setdefault('bun_fit', {})[side] = iou
                 add(side, 'buns', [bun_block(P, case.centre, style, sgn, fit, kind)])
