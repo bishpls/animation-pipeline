@@ -20,6 +20,7 @@
     python -m charkit refs-check SPEC                                  # the character's references (ref.manifest)
     python -m charkit refcheck SPEC [--refs A,B] [--no-open]           # generated head sheets against the model sheet
     python -m charkit checkpoint SPEC --build LABEL=DIR ... [--decisions F.md]  # the checkpoint review page
+    python -m charkit perceptual BUILD [--remote] [--open]    # DINOv3 similarity to the design per view and region (boards)
     python -m charkit fit SPEC.json [--out DIR] [--base anime] [--only eyes|face] [--budget N] [--views] [--verify]
                                     [--write-spec]                     # the face, eye and neck knobs from the QA
                                                                        # (charkit/facefit.py; build takes DIR/NAME.fit.json)
@@ -594,6 +595,9 @@ def main(argv=None):
     elif cmd == 'checkpoint':
         from . import checkpoint
         checkpoint.main(rest)
+    elif cmd == 'perceptual':
+        from . import perceptual
+        sys.exit(perceptual.main(rest) or 0)
     elif cmd == 'outfit':
         from . import outfit
         outfit.main(rest)
