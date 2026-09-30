@@ -77,11 +77,44 @@ Progress and results:
   - art_mirror_self_boots' whole-sheet moves read exactly 1.0 (translation invariant); the probe boot_nudge (one
     boot's masks 2 px up) reads 1.163, per-boot moves 1.005-1.163 (charkit/out/calib/r2/art_jitter.py).
 - Review page: `charkit/out/calib/review2/index.html` (python charkit/out/calib/harness/page2.py).
-- Commits: 9d5f649 (records, adapters, limits), 66eb6df (the steps for the three limit changes; gate.py: a cached build
-  missing bundle/arrays.npz is moved aside and built again, `gate._whole`), bc85e5d (pipeline-3d eb7ac94 merged:
-  tool/hairlocks; cli.py's conflict kept both commands). Pregate on bc85e5d: PASS (0 moved).
-- Gates running: tool/calib bc85e5d+ into pipeline-3d (log charkit/out/calib/r2/gate_final.log); the bow pair with the
-  fixed gate code (gate_bowA3.log). Then delete tmp/calib-bow and tmp/calib-bow-accept.
+- Commits: 9d5f649 (records, adapters, limits), 66eb6df (the steps for the three limit changes), bc85e5d (pipeline-3d
+  eb7ac94 merged: tool/hairlocks; cli.py's conflict kept both commands), e7268c4 (gate.py: the 2x2's mirror fix below;
+  66eb6df's cached-baseline check reverted, a wrong diagnosis). Pregate on bc85e5d: PASS (0 moved).
+- **Final gate: tool/calib e7268c4 into pipeline-3d eb7ac94: PASS under K** (nothing blocks; 3 items reported:
+  collar_back_iou remeasured 0.7473 WARN -> FAIL, the measure alone, geometry unchanged; the artifacts and collar_flags
+  parts listed as measuring code changed (LIMITS, SHAPE_CHECKS: codediff is per part, the steps cover the checks; no
+  unregistered check moved); CPU 614.2 -> 624.1 s (1.02x); 73 test files ok). Report
+  `charkit/out/gate/gate_tool-calib_e7268c4_into_eb7ac94.md`. (e999b94, before the gate.py fix, PASSed the same way.)
+- **The guard fix on a real gate: shown.** tmp/calib-bow (cbca3ad) into 3ebc3fb with `--code tool/calib` (e7268c4):
+  FAIL as required, 13 blocks: 10 records missing in tool/bow's tree, and the guard on bow_front_bleed, loop_end and
+  profile_ribbon (piece_bow's profile 0.553 -> 0.341, -38%). **bow_front_loop_width no longer blocks**: its 2x2 row
+  reads 0.0 PASS on the old geometry, 0.002 PASS on the new (value, not improved). Copy:
+  charkit/out/calib/r2/gate_bowA4_e7268c4.md. Getting there took the gate fix: re-gates of the same pair failed the
+  2x2 ("new measure on the old geometry": arrays.npz not found) because the candidate folder's mirror of the moved
+  baseline (rebased_bundle) kept links through the first gate's clone (`charkit/out/gate` is a per-clone link to
+  gate-out), gone with it; the mirror now links real paths and repoints stale links (test_gate
+  test_a_crossed_qa_mirror_outlives_the_gate_that_made_it). Any workstream's re-gate of an identical pair was exposed.
+- tmp/calib-bow and tmp/calib-bow-accept deleted (never merged).
+
+**Next steps (a fresh agent):**
+1. The anti-gaming guard should ignore pieces barely visible in a view (coordinator, from tool/sleeves: piece_collar's
+   profile IoU 0.053 -> 0.026 trips the 15% rule as noise). Today calibrate.guard skips a view only when the shape
+   check's own record says the design reads under SHAPE_FLOOR 0.5 there, and needs the base value over 0.05; a piece
+   without a record, or one at 0.053, isn't covered. Proposed visibility floor, independent of records: skip a view
+   where the piece's drawn mask shows under a share of its largest view (e.g. 25%, as pieceqa.HIDDEN's 0.4 does for the
+   sleeves) or under ~300 px on the sheet grid, and raise the base-IoU floor from 0.05 to ~0.2 (an IoU that low is
+   noise for a relative drop); report the skipped views beside the guard's findings. Test on tool/sleeves' pair and
+   keep tool/bow's profile block (0.553, well visible).
+2. For pieceqa's owner (records say miscalibrated): the design-side/our-side asymmetries listed above (sleeve profile,
+   waistband profile width and back rows: half a line at each edge; bow_three_quarter_torn: one side closed;
+   sleeve_three_quarter_spikes_R: the count; bow_front_flare: the two sides measure different lobes).
+3. For artifactqa's owner: art_speckle_neck's phase-stable design reading and a seam (runs) measure, then recalibrate on
+   look_v5 (limits left 1.5 / 2.5). art_mirror_self_boots is calibrated but capped at WARN until promoted
+   (artifactqa.PROMOTED: the integrator's call).
+4. For tool/collar4: collar_back_lay's one-sided design smoothing; then recalibrate its limits (tighter).
+5. tool/bow's step pattern `collar_back_*` swallows piece_details' collar_back_torn (the gate then asks for its record
+   to be refreshed): narrow it to its own checks.
+6. The review page: `open charkit/out/calib/review2/index.html`.
 
 ## State (read first when resuming)
 
@@ -95,7 +128,8 @@ Progress and results:
 
 ## Done, validated, and next steps (stopped at the coordinator's call, 2026-09-30 evening)
 
-Branch head: see `git log -1 tool/calib`. Items 1-5 are done. **tool/calib has NOT been gated into pipeline-3d yet.**
+Branch head: see `git log -1 tool/calib`. Items 1-5 are done. Round 2: gated PASS into pipeline-3d eb7ac94 at e7268c4
+(see "Round 2" above).
 
 **Real-pair validation (box, `--code tool/calib` at 9b4f17b, into 3ebc3fb):**
 - **A: tmp/calib-bow (= tool/bow cbca3ad): FAIL, as required.** Report
