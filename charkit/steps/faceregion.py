@@ -31,4 +31,23 @@ MEASUREMENT_STEPS = [
     ('tq_cheek_hollow', '1129dd5', 'the far contour stops under the lock over the far cheek (the design\'s 0.0035 at '
                                   'z -0.146 was its tip; now 0.0017 at -0.315), ours on the same rows with the hair '
                                   'hidden'),
+    # tool/face5: graded in the design's projection (Michael, 2026-09-30); head_construction under the sheet's hair
+    ('jaw_taper_shape', '07ebd58', 'graded in the level camera, orthographic (the design\'s projection), the boards\' '
+                                  'camera\'s value beside (board): f4_after 0.0399 board -> 0.0193'),
+    ('jaw_line_bend', '07ebd58', 'the level camera\'s bend, orthographic (was the worse of the two cameras)'),
+    ('chin_angle', '07ebd58', 'graded in the level camera, orthographic (the design\'s projection; the boards\' raised '
+                             'perspective shortens the V): f4_after 118.8 -> 128.3'),
+    ('chin_tip', '07ebd58', 'graded in the level camera, orthographic: f4_after 0.826 -> 0.829'),
+    ('tq_*', '07ebd58', 'the level camera\'s, orthographic (was the worse of the two cameras)'),
+    ('jaw_line_*', '07ebd58', 'ours read in the level camera, orthographic (was the boards\'): f4_after front 0.937 -> '
+                             '1.158, three-quarter 1.106 -> 1.133'),
+    ('jaw_taper', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('chin_point_z', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('chin_v', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('neck_to_face', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('chin_underside', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('neck_front_wiggle', '07ebd58', 'the level camera orthographic (was 100 m out)'),
+    ('jaw_outline_hidden', '07ebd58', 'new: ours\' front outline against head_construction\'s (registered on the head '
+                                     'sheet: 0.002 L rms where both show the face) from the sheet\'s hair-occlusion row '
+                                     'to z -0.05 (a flag check: the face curving in under the locks)'),
 ]
