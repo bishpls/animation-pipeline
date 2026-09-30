@@ -411,3 +411,43 @@ drawing, each piece's pixels and tone-edge pixels per view; the lab reads 0.0791
 50, flyaways 21), profile 0.065 (bun_L 175, upper back 156, bangs 113), back 0.048 (upper back 173, lower back 137,
 bun_L 133, bun_R 64). bun_L's block facets carry 2-3x bun_R's edges in every view (its fit, not the light: the light is
 camera-relative). h6_off (pipeline-3d's hair) reads 0.0807 (front 0.1223, profile 0.0689, back 0.0508).
+
+**pipeline-3d 9eba0b0 merged** (`76b55cb`: tool/look6's design light, tool/evalmesh M4, tool/mouth3): the qa3d
+measurement steps conflicted (both kept); anime.json merged clean (look6's face_lift beside strand_tone). Suite: 66 pass.
+Pregate PASS (12 moved, 0 blocking): `charkit/out/pregate/pregate_tool-hairtag_76b55cb_into_9eba0b0.md`.
+
+**Gate 2** (76b55cb into 9eba0b0, with strand_tone): box job `gate-hair4-0930-150450-121a` (running at this writing;
+`python -m charkit remote attach gate-hair4-0930-150450-121a` collects it; its report lands as
+`charkit/out/gate/gate_tool-hairtag_76b55cb_into_9eba0b0.md`). Expected from the bundle lab: art_terminator_hair
+2.286 -> about 2.31 WARN (grade unchanged: a value move under K); the base is now 9eba0b0 (look6's design light may move
+the art checks on both sides).
+
+**The folds** (the merged build h6_m, `wherefolds.py` over foldlab's piece_folds; `charkit/out/hairtag/r3/`): 4 against
+pipeline-3d's 5: bangs lock 6 (phi 77.4, theta 68, the temple), side_lock_L lock 2 (phi 72.9, theta 126.9: round 2's
+spot, the trim's step at the jaw), side_lock_R lock 0 (phi -66.9, theta 119.2), upper back lock 7 inner (the crown).
+Round 2's 6 -> 11 was on the field's outfit masks; on the sheet-only masks' hull the new labels fold less than the old.
+Tried, not taken: the trim's pull eased along each column (`trim_slope`, a cone over the pulls, 0.005-0.03 L a row):
+the side_lock_L fold follows the ease's end (theta 127 -> 134-141; folds 4 / 5 / 5 / 4 / 5) and the lower back drops
+0.617 -> 0.602-0.605 (`charkit/out/hairtag/r3/slope1.txt`). Reverted.
+
+**The side locks** (step 5): the gate's 2x2 reads a geometry loss under both measures (0.550 -> 0.523 old, 0.543 ->
+0.534 new). Round 2 traced it to the hull labeller's squarest view (the profile's call-B lower back at the jaw). In the
+lab now: `label_hull(weigh=p)`, every view that sees a point votes its family with score ** p
+(`charkit/out/hairtag/r3/label_weigh.patch`, not committed; `labvote.py BUILD P...` beside it; results to
+`r3/vote1.txt`, running at this writing).
+
+**hair_noise:** 0.0807 FAIL -> 0.0793 WARN at gate 1 (the method's masks lower it); where it sits is above (front view:
+bangs round the star clip, the side locks, bun_L's facets). Not fixed further this round. noiselab's drawing doesn't
+take the rebuilt flyaways' per-vertex normals (strand_tone reads the same there), so the build is its measure.
+
+**Next (a lean relaunch):**
+1. Read gate 2 (the job above). If PASS under K, tool/hairtag is mergeable; if pipeline-3d moved, `python -m charkit gate
+   --carry tool/hairtag --into pipeline-3d` (everything after 76b55cb is notes).
+2. The labeller vote: read `r3/vote1.txt` (weigh 1, 2, 4 against the squarest view: side locks, lower back, folds, the
+   shape IoU per view). If a weight gains the side locks without costing the lower back or the shape, apply the patch
+   as a pieces option, lab it, then box-build and gate it.
+3. hair_noise's margin (0.0793 against 0.08): bun_L's block facets (2-3x bun_R's edges in every view: its fit) and the
+   bangs' tone loops round the star clip are the largest movable parts.
+4. For tool/collar: this round didn't touch lock 0 of the lower back or its trim. art_speckle_neck reads 2.606 -> 1.34
+   (PASS) on this branch's masks at gate 1 (the profile 2.606 -> 0.628), so the method's lower-back labels alone clear
+   the profile's specks; the front's 1.34 is unchanged.
