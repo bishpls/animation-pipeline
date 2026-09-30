@@ -511,7 +511,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
             if why and cand_f is None:
                 cand_f = ex.submit(build, 'candidate', wc, cand_out, record=True)
         if base_r is not None:
-            rep['base_build'] = {k: base_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
+            rep['base_build'] = {k: base_r.get(k) for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['base_build']['parts'] = build_steps(base_out, base_r['seconds'])
             if not base_r['ok']:
                 _stop(running)
@@ -542,7 +542,7 @@ def gate(branch, into='HEAD', spec='charkit/spec/clawd.json', args=(), keep=Fals
         rep['build']['why'] = why or 'nothing the merge changes reaches the baseline build (%d files changed, none among ' \
             'the %d it read, its scans or its data)' % (len(changed), len((C or {}).get('reads') or ()))
         if cand_r is not None:
-            rep['cand_build'] = {k: cand_r[k] for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
+            rep['cand_build'] = {k: cand_r.get(k) for k in ('ok', 'seconds', 'cpu', 'steps', 'cache', 'threads')}
             rep['cand_build']['parts'] = build_steps(cand_out, cand_r['seconds'])
             if not cand_r['ok']:
                 rep['hard'].append({'kind': 'the candidate build failed'})

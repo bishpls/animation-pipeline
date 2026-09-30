@@ -6,14 +6,15 @@ in 2 min or less; a geometry-changing gate in 5 min or less; local iteration abo
 
 ## State (read first when resuming)
 
-Milestone A (a-f) done, unit-tested and validated on the box (see "Numbers" and "Validation"); the branch's own gate
-(`remote gate tool/infra3 --into pipeline-3d`, pipeline-3d's old gate code) is the last step. Milestone B (g-l) not
-started: it waits for the coordinator's go-ahead after the merge. Throwaway test branches: tmp/infra3-* and
-tmp/hair4-gated (local only; delete freely).
-
-Gate code comes from the `into` branch: none of this helps a gate until pipeline-3d has it. To try gate changes before
-that: `python -m charkit remote gate BRANCH --into pipeline-3d --code tool/infra3` (the clone checks out the gate's own
-code from REF; the builds still run BASE's and the merge's code).
+Milestone A (a-f) done and gated; waiting for the coordinator's merge and go-ahead for milestone B (g-l).
+- Gated: 472df97 into pipeline-3d a3073f5: **PASS** with pipeline-3d's gate code (`gate_tool-infra3_472df97_into_a3073f5`,
+  no check changed, 52 test files ok), and **PASS under K** with this branch's gate code on the same commit
+  (`gate_tmp-infra3-self_472df97_into_a3073f5`, no check changed, one note).
+- pipeline-3d then moved to 1141e74 (tool/toonrender2). Merged here (bf161b1): conflicts in charkit/cli.py (the build's
+  step timers around toonrender2's toon boards: kept both, the toon boards timed as their own step) and
+  charkit/remote.py (usage lines: both kept); gate.py auto-merged (toonrender2's cross_qa fallback check). Unit tests
+  pass; not re-gated (the coordinator decides).
+- Throwaway test branches tmp/infra3-* and tmp/hair4-gated: deleted.
 
 ## What changed (milestone A)
 
@@ -156,8 +157,15 @@ and its temporary files (TMPDIR is the clone's `.tmp`, where the gate's worktree
 
 ## Next steps
 
-Milestone B after the coordinator's go-ahead: (g) carry a result over when pipeline-3d moves (the closure makes this the
-same test: the intervening commits' changes against the candidate's closure), (h) shared stage caches across clones (the
-venv steps' keys need portable paths first), (i) slots for the whole build with thread caps (and the CPU noise), (j) the
-sampler at boot (the crontab line exists on the build box; check why it stopped), (k) the masked-skin last bit, (l) the
-local pre-gate check.
+Milestone B after the coordinator's go-ahead:
+- (g) carry a result over when pipeline-3d moves: the same test as the no-build path, the intervening commits'
+  changes against the candidate's closure (the candidate records one now); a command for the integrator's queue.
+- (h) shared stage caches across clones: the venv steps' keys need portable paths first (pieces_hair's `cut` holds
+  head_code and body_code as absolute out paths; file_step keys `inputs` by absolute path).
+- (i) a slot for the whole build, with the thread caps every build gets (not only the gate's): the A/B says about 60%
+  of the box's build CPU is spinning. Add llvmpipe (LP_NUM_THREADS) now that the QA draws with charkit.render, measured
+  bit-identical first.
+- (j) the sampler at boot: the crontab line exists on the build box; check why it stopped, and the render box.
+- (k) the masked-skin last bit (infra.md (c) cause 2), (l) the local pre-gate check.
+- Smaller: create the baseline worktree only when it's needed (the tests-only path spends 7 of its 14 s of setup on
+  it); a leftover clone from infra2's killed gate (/srv/work/gates/tool_infra2-2a85a869, from before the trap).
