@@ -99,8 +99,71 @@ Review page: `charkit/out/hairlocks/review/index.html` (`tools/hairlocks/review.
 per view the sheet | the truth | ours | the labeller, each lock coloured as the truth lock it matches; the per-lock
 numbers; the calibration; the rules and calls).
 
-## Next
+## The pilot, step 0: what limits our locks (measured before cutting anything)
 
-1. The side locks' lock truth (front, three-quarter, profile), then the back layers.
-2. The pilot (the bangs cut from the drawing): first the ceiling of the builder's lock model (the wedges' cuts placed
-   to fit the truth in all three views at once), then the drawn locks lifted into 3D through the hull, then ribbons.
+Baseline QA of `charkit/out/hl_base` (pipeline-3d 2f42155, default spec): hair_noise 0.0785 WARN, hair_piece_bangs
+0.792, side locks 0.534 WARN, hair_folds 4 WARN, art_terminator_hair 2.308 WARN, art_peeks_hair 16 WARN,
+hair_fringe_low 0.0094, body hair IoU front 0.840 / three-quarter 0.757 / profile 0.829.
+
+**The wedge model's ceiling** (`tools/hairlocks/wedge.py BUILD OUT.json [--own] [--shear] [--k ...]`): the bangs
+piece's own surface re-cut into K phi wedges on the crown chart (the builder's lock model: straight meridians), the
+cuts placed by coordinate descent on the mean lock IoU of front, three-quarter and profile at once; `--shear` lets each
+cut lean (phi = a + b (theta - 60)), the drawn lines' sideways sweep. The path reads the builder's own partition as the
+scorer does (0.439). Results: below.
+
+**Correspondence across views** (`tools/hairlocks/corr.py BUILD OUT.json`): the drawn locks read back onto our bangs
+surface; each triangle takes the truth lock most of its pixels lie in per view, and two views agree where they give it
+the same lock. Results: below.
+
+First wedge run (equal-spaced start, k = 5, straight cuts): 0.411 (front 0.380, three-quarter 0.312, profile 0.593),
+below the builder's own 7 wedges (0.439): the descent stalls in a local optimum from that start.
+
+**Probe jobs at checkpoint (laptop, background, one chained job):** `wedge.py charkit/out/hl_base
+charkit/out/hairlocks/wedge_own.json --own --shear` (descent from the builder's own 6 cuts, then with shear; log
+`wedge_own.log`), then `corr.py charkit/out/hl_base charkit/out/hairlocks/corr_base.json` (log `corr_base.log`). If
+the session ends first, rerun both (about 3-5 min each on the laptop).
+
+## Next steps for the bangs pilot (a lean relaunch)
+
+1. Read `wedge_own.json` and `corr_base.json` (above). If the straight wedges with the best cuts stay near 0.44-0.5
+   and shear lifts them clearly, the builder's lock model (meridian wedges) is the limit: the pilot needs curved lock
+   boundaries on the chart (a boundary phi(theta) per lock line), i.e. ribbons. If even shear stays low, the bangs
+   piece's own outline and family edges dominate (compare `lock_iou_in`).
+2. A drawn-lock source that isn't the truth (no gaming): `hairlayers.lock_regions` per view, with the front's partial
+   strokes continued across their gaps (each stroke end extended along its direction to the next wall, the outline or
+   the crown cut; the truth's move automated). Score it with `tools/hairlocks/score.py` as a labeller variant (target:
+   the labeller's 0.745 / 0.714 in three-quarter and profile, and the front well above 0.308).
+3. Lift onto the crown chart: each bangs chart cell's envelope point projected into front, three-quarter and profile
+   (hairpieces.view_px / label_hull's view mapping), taking the region of the view that sees it most squarely; link
+   regions across views by the cells they share (a region graph: same lock where the shared cells agree). Report the
+   links and the disagreement (corr.py's number is the floor through our current surface).
+4. Behind a setting (`hairpieces.OPTS['lock_source'] = 'drawn'`, default 'notches'): `locks()` takes per theta row the
+   lifted lock boundaries instead of the lower edge's notches; `lock_shell` samples each lock between two boundary
+   curves (the ribbon: two contour curves, the strand direction from the boundaries' mean tangent).
+5. Measure in the lab (tools/hair4/lab.py or hairlab over `charkit/out/hl_base`): the lock scores (score.py), every
+   hair check (hair_noise's margin: 0.0785 at hl_base against its 0.08 line), the folds, the shape IoU in all views
+   (body_*_iou_hair). Default on only if the lock scores improve and nothing FAILs; then
+   `python -m charkit pregate` and `python -m charkit remote gate tool/hairlocks --into pipeline-3d`.
+6. The side locks' lock truth (front, three-quarter, profile), then the back layers. tool/accessories2 changes the
+   star (hair_piece_bangs 0.792 -> 0.772 in its measurement): l_clip sits under it; don't edit accessories.py or the
+   shared hair selection. Lock 0 of the lower back is tool/collar3's.
+
+## State (checkpoint, 2026-09-30)
+
+- Branch `tool/hairlocks`: `f1c33ec` the truth, the scorer, the tests, the tools, these notes; then this checkpoint
+  (wedge.py, corr.py, the pilot plan). Never pushed; not gated (the branch adds a measurement only: no QA part or step,
+  no produced reference changes content; hairlayers.truth_regions gained a defaulted argument).
+- Local: `charkit/out/hl_base` (the baseline build), `charkit/out/hairlocks/` (ctx.pkl, ours_base.npz, score_base.json,
+  review/, pics/).
+
+## For Michael (decisions)
+
+1. **Lock-level accuracy is worth measuring:** our lock partition scores at the random-partition level against the
+   drawing (0.439 against 0.441), while the family IoU (hair_piece_bangs 0.792) calls the bangs PASS. The family checks
+   can't see it. Keep the lock scores as a measure (INFO) now; a graded check after the pilot shows what a good
+   partition reaches.
+2. **The crown above the drawn lines is unscored** (rule 2): the lines stop short of the part. Accept, or extend each
+   line straight to the part (more of every lock scored, but a guess).
+3. **Call C's correspondence** (front c = profile's front fringe lock; the three-quarter's outer sweep unscored).
+4. **The lock source for a pilot:** the structure labeller's regions where its strokes close (three-quarter, profile),
+   continued across the gaps in front (the truth's own move, automated), lifted onto the crown chart.
