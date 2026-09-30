@@ -396,6 +396,30 @@ def test_recalc_normals_and_solidify():
     assert np.allclose(Vs[len(V) - 1], [5.0, 5.0, 5.0])
 
 
+def test_creased_rims_stay_flat_and_square():
+    """Michael's call L (garments._thick): a shell's open borders creased on both layers keep its rim a flat band square
+    to the layers under the Subdivision: a flat 3 x 3 grid solidified 0.1 and subdivided keeps every vertex on the two
+    layers' planes or on the rim's middle line (z 0, -0.05, -0.1). Uncreased, the Subdivision rounds the rim into a bead
+    (its border vertices pulled in between), which the outline's inward move turns inside out. The creases are the two
+    border loops only (8 edges each), not the rim's cross edges."""
+    from charkit import bodyeval
+    g = np.linspace(0, 1, 4)
+    V = np.array([(x, y, 0.0) for y in g for x in g])
+    F = [(j * 4 + i, j * 4 + i + 1, (j + 1) * 4 + i + 1, (j + 1) * 4 + i) for j in range(3) for i in range(3)]
+    P, _ = bodyeval.recalc_normals(V, F)
+    t = 0.1
+    V2, P2, _, _, sh = bodyeval.solidify(V, P, t, crease=(1.0, 1.0, 0.0), with_sharp=True)
+    assert len(sh) == 2 * 12 and all(abs(V2[a, 2] - V2[b, 2]) < 1e-12 for a, b in sh)   # the loops, no cross edge
+    Vs, _, _, _, sh1 = bodyeval.subdivide(V2, P2, sharp=sh, with_sharp=True)
+    z = np.unique(np.round(Vs[:, 2], 9))
+    assert set(np.round(np.abs(z), 9)) <= {0.0, t / 2, t}, z
+    assert len(sh1) == 2 * len(sh)
+    V2, P2, _, _ = bodyeval.solidify(V, P, t)
+    Vs, _, _, _ = bodyeval.subdivide(V2, P2)
+    zs = np.abs(Vs[:, 2])
+    assert ((zs > 1e-6) & (zs < t / 2 - 1e-6)).any()                                # uncreased: a rounded bead
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

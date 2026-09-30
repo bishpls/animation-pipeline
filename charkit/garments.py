@@ -2843,6 +2843,23 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
+RIM_CREASE = 1.0    # a thin shell's open rim kept flat and square under the Subdivision (Michael's call L; 0: rounded)
+
+
+def _thick(ob, t):
+    """a garment's thickness: a SOLIDIFY t (m) inward from its surface (offset -1) with a rim across each open edge,
+    both layers' open borders creased (edge_crease_outer: the surface's, edge_crease_inner: the inner layer's), so the
+    Subdivision after it keeps the rim a flat band meeting the layers square (Michael's call L). Uncreased, the
+    Subdivision rounds the rim into a bead of about a third of the shell, which the outline's inward move (up to half the
+    shell, call I) turns inside out: every rim face flipped (charkit/boards/lookprobe.py --normals). The rim's own
+    cross edges stay smooth, so the hem line keeps its curve along the edge. charkit.bodyeval's solidify/subdivide read
+    the same creases."""
+    sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = t; sol.offset = -1; sol.use_rim = True
+    if RIM_CREASE:
+        sol.edge_crease_inner = RIM_CREASE; sol.edge_crease_outer = RIM_CREASE
+    return sol
+
+
 def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
@@ -2890,8 +2907,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                     uvc.append([((G['verts'][v][0] / L + 0.5) if front else 5.0,
                                  (G['verts'][v][2] - zlo) / (zhi - zlo)) for v in f])
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv_corner=uvc, mat_idx=midx)
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.008) * L; sol.offset = -1
-            sol.use_rim = True
+            _thick(ob, s.get('thick', 0.008) * L)
             # mask the body under it, but keep its border vertices (so no gap shows at the hem)
             src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
             border = set()
@@ -2905,14 +2921,12 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             G = cuff(A, s)
             mats = [_toon(nm, col, sh), _toon(nm + '_trim', s.get('trim_color', (0.97, 0.9, 0.72)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['trim'])
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
-            sol.use_rim = True
+            _thick(ob, s.get('thick', 0.02) * L)
         elif k == 'band':
             G = band_hull(A, s, hull) if s.get('source') == 'hull' else band(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
             if s.get('source') == 'hull':                            # the loft is the band's outside: its thickness
-                sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.02) * L; sol.offset = -1
-                sol.use_rim = True
+                _thick(ob, s.get('thick', 0.02) * L)
         elif k == 'shoe':
             G = shoe_hull(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'hull' else shoe(A, s)
             mats = [_toon(nm, col, sh), _toon(nm + '_sole', s.get('sole_color', (0.26, 0.21, 0.21)), sh)]
@@ -2932,13 +2946,12 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             if 'hide' in G:
                 hide[G['hide']] = True
             if s.get('source') == 'hull':                            # the loft is the band's outside: give it a thickness
-                sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = s.get('thick', 0.025) * L; sol.offset = -1
-                sol.use_rim = True
+                _thick(ob, s.get('thick', 0.025) * L)
         elif k == 'sleeve':
             G = puff(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'template' else \
                 sleeve_hull(A, s, hull) if s.get('source') == 'hull' else sleeve(A, s)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.008 * L; sol.offset = -1
+            _thick(ob, 0.008 * L)
         elif k == 'skirt':
             G = skirt_hull(A, dict(s, _spec=spec_all), hull) if s.get('source') == 'hull' else skirt(A, s)
             pw = G.get('panel_half', s.get('panel', 0.0)) / (2 * math.pi)
@@ -2951,17 +2964,17 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 mats.append(_toon(nm + '_band', s.get('hem_color', (0.28, 0.2, 0.18)), sh))
                 midx = [2 if b_ else p_ for p_, b_ in zip(G['panel'], G['band'])]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
+            _thick(ob, 0.01 * L)
         elif k == 'collar' and s.get('source') == 'hull':
             G = collar_hull(A, s, nrm, hull)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
+            _thick(ob, 0.012 * L)
         elif k == 'collar':
             G = collar(A, s, nrm)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=G['edge'])
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.012 * L; sol.offset = -1; sol.use_rim = True
+            _thick(ob, 0.012 * L)
         elif k == 'bow' and s.get('source') == 'hull':
             G = bow_hull(A, dict(s, _spec=spec_all), hull)
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, [_toon(nm, col, sh)], uv=G['uv'])
@@ -2984,7 +2997,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
             else:
                 mats = [_toon(nm, col, sh)]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
-            sol = ob.modifiers.new('thick', 'SOLIDIFY'); sol.thickness = 0.01 * L; sol.offset = -1
+            _thick(ob, 0.01 * L)
         else:
             raise ValueError(k)
         if G.get('subdiv', 1):                                   # (a template with crisp corners asks for none)

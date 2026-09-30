@@ -34,3 +34,31 @@ the template flaps (`shape: template`, `hem: band`, the edges, stand, a three-tr
 (0.15 L, stair 0.35/0.25/0.15), `tuck_fit`, 18 pleats (garments2's spec had 22). `_skirt_try.json` was never tracked
 (it's untracked in ~/animation-pipeline-skirt, which this round doesn't touch): nothing to delete in the branch.
 `flapchains` waits for a box build of this tree.
+
+## Call L: flat, square open rims (garments._thick)
+
+**Measured first** (scratch `rimlab.py`: a garment-scale open shell, 2.5 mm, a partial tube with a hem, a top edge and
+two cut edges, built as `garments.build` builds a shell and counted by `lookprobe.normals` itself, faces whose shading
+the outline turns past 90 degrees, at the build / face-board / body-board widths):
+
+| rim | flips (build 1.2 mm / face 0.93 / body 3.94) | of which rim faces |
+|---|---|---|
+| as built (Solidify rim, then Subdivision: a bead) | 486 / 462 / 486 | 480 of 480 |
+| `edge_crease_rim` 1 (look round 3's try: "doesn't help") | 480 / 460 / 480 | 480 |
+| **`edge_crease_inner` and `_outer` 1 (the border loops)** | **24 / 0 / 30** | 12 |
+| all three | 18 / 0 / 18 | 6 |
+| no Subdivision | 0 / 0 / 0 | 0 |
+
+Look round 3 creased the wrong edges: in Blender (checked on a solidified grid) `edge_crease_rim` creases the rim's
+cross edges, `_outer` the surface's open border loop and `_inner` the moved layer's. Creasing the two border loops keeps
+the rim a flat band square to the layers under the Subdivision, so the outline's inward move (still half the shell,
+call I unchanged) no longer turns it inside out. Creasing the cross edges as well makes every border vertex a corner
+(the hem a polyline) for 6-12 fewer flips; not taken.
+
+**Built:** every garment's thickness goes through `garments._thick` (the ten `thick` SOLIDIFY sites: shells, bands,
+belts, cuffs, sleeves, the skirt, collars, panels), which sets both border creases (`RIM_CREASE` 1.0; 0 restores the
+bead). The evaluator follows (`bodyeval.garment_part` reads the recorded creases; `solidify` returns the creased border
+loops, `subdivide` and `limit_positions` treat them as sharp and pass their children on). Against Blender on the lab's
+shell: evaluator vs Blender vertices 6e-8 m apart creased (7.6e-3 m without the evaluator's crease support), 6e-8
+uncreased. Test: `test_bodyeval.test_creased_rims_stay_flat_and_square`. The real build's flip count is measured on
+the render-box build below.
