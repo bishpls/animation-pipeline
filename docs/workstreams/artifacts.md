@@ -1,6 +1,6 @@
 # Workstream: artifact QA, measuring "obvious jaggedness" (`tool/artifacts`)
 
-**State (2026-09-30): round 2 done; re-gating at `f87620c` into pipeline-3d `cfcdc3a`** (fill in below).
+**State (2026-09-30): round 2 done; final gates at `b745759` into pipeline-3d `cfcdc3a` running** (fill in below).
 pipeline-3d `9397578` merged (`0976017`), then `cfcdc3a` (`f87620c`: self-registration; qa3d.py and history.py took the
 new side; the part is `@qa_part('artifacts', order=2200, prefix='art_', table='artifacts')` on `artifactqa.measure`;
 the steps are in `charkit/steps/artifactqa.py`, text unchanged; `test_registry.py` ok). Round 2:
@@ -24,13 +24,19 @@ the steps are in `charkit/steps/artifactqa.py`, text unchanged; `test_registry.p
   no `art_design` note (the stored design served both specs). Build CPU seconds: default 1381.3 -> 1275.3, clawd_mh
   328.0 -> 324.2 (within 3%: step 0 done). Reports `charkit/out/gate/gate_tool-artifacts_9e3691c_into_301b661{,_clawd_mh}.md`.
   (The earlier pair at `15ec3f7` lost its ssh session at the box's load 56; no report.)
-- `f87620c` into `cfcdc3a`: running (`charkit/out/gate_default_5.log`, `gate_mh_5.log`); fill in.
+- `f87620c` into `cfcdc3a` (after the self-registration merge), both **PASS**: CPU seconds default 1390.2 -> 1424.9
+  (+2.5%), clawd_mh 510.8 -> 339.5; the 2x2: default geometry unchanged, clawd_mh geometry changed with the hair knobs
+  (below). Its default build read `art_speckle_neck` 16.5 and `art_outline_neck` 9.7 from the back view's neck
+  slivers (0.005 L^2 between the hair and the collar), and `art_points_boots` 20.6 on the template boots: fixed at
+  `f771ec1` (face and neck left out of a view showing under 0.01 L^2; points_boots back to INFO), step registered at
+  `b745759`.
+- `b745759` into `cfcdc3a`: running (`charkit/out/gate_default_6.log`, `gate_mh_6.log`); fill in.
 - The gate's build diff shows `hair` knobs changed between base and candidate though this branch touches no spec or hair
   file: the gate's own (the candidate is built as `+dirty`); for the integrator.
 
-**Statuses:** the checks calibrated on a flag (`artifactqa.CALIBRATED`, 15: outline_neck, speckle_neck,
-outline_collar, fragments_collar, terminator_hair, peeks_hair, spikes_boots, bumps_boots, points_boots,
-mirror_self_boots, mirror_waist, points_sleeves, bumps_sleeves, bumps_legs, band_lower) report their proposed grade
+**Statuses:** the checks calibrated on a flag (`artifactqa.CALIBRATED`, 14: outline_neck, speckle_neck,
+outline_collar, fragments_collar, terminator_hair, peeks_hair, spikes_boots, bumps_boots, mirror_self_boots,
+mirror_waist, points_sleeves, bumps_sleeves, bumps_legs, band_lower) report their proposed grade
 capped at WARN until the integrator promotes them (`PROMOTED`); all other art_* checks stay INFO with the proposed grade
 beside. On the current build 8 read WARN: outline_neck, outline_collar, fragments_collar, terminator_hair, peeks_hair,
 points_sleeves, bumps_sleeves, band_lower. The perceptual result (8ae6ce9) found the region-mean metric blind to local
@@ -64,13 +70,14 @@ design's raw values in that view. The design reads PASS against itself; its raw 
 
 | flag | check | design (raw) | bad build: value | current: value | proposed pass / warn |
 |---|---|---|---|---|---|
-| jaggedness, three-quarter and side (hull-lofted pieces) | art_outline_neck | 0.85 corners/L (front) | look_v5 7.9 FAIL (7.9 vs 0.85, front) | 6.3 FAIL (back: 13.6 vs 2.2) | x1.5 / x2.5 |
+| jaggedness, three-quarter and side (hull-lofted pieces) | art_outline_neck | 0.85 corners/L (front) | look_v5 7.9 FAIL (7.9 vs 0.85, front) | 1.6 WARN (three-quarter: 1.59 vs 0.78) | x1.5 / x2.5 |
+| | art_speckle_neck (the dotted seam) | 32.6 specks/L^2 (front) | look_v5 2.2 WARN (front) | 1.3 PASS | x1.5 / x2.5 |
 | | art_outline_collar | 0.84 (front) | look_v5 5.5 FAIL | 4.3 FAIL | x1.5 / x2.5 |
 | | art_fragments_collar | 0.13e-3 L (front) | look_v5 3.5 FAIL | 8.0 FAIL | x1.5 / x2.5 |
 | | art_terminator_hair, art_peeks_hair | 4.35 kinks/L; none | look_v5 2.6 FAIL; 27 FAIL | 2.1 WARN; 21 FAIL | x2.0 / x2.5; 4 / 12 |
 | boots: twisted ankle, jagged protrusion, uneven soles, doubled toe, no heel | art_spikes_boots | 0 L | body4b 0.063 FAIL (profile) | 0 PASS | 0.015 / 0.025 L |
 | | art_bumps_boots | 73 deg (profile) | body4b 63 FAIL (136 vs 73) | 13 PASS (82 vs 68, front) | 20 / 30 deg |
-| | art_points_boots | 52 deg (front) | body4b 35 FAIL (87 vs 52) | 16 PASS (68 vs 52) | 20 / 30 deg |
+| | art_points_boots (INFO: too thin) | 52 deg (front) | body4b 35 FAIL (87 vs 52) | 16 (20.6 on cfcdc3a) | 20 / 30 deg |
 | | art_mirror_self_boots | 0.037 (front) | body4b 1.79 WARN | 0.54 PASS | x1.5 / x2.5 |
 | midriff: one-sided distortion (skirt past the band on her right) | art_mirror_waist | 0.012 (back), 0.034 (front) | body5b 6.9 FAIL (0.138); body4b 6.4 FAIL | 1.12 PASS (0.022) | x1.5 / x2.5 |
 | | art_bumps_skirt, art_points_skirt | | body5b 59 FAIL, 38 FAIL (the lopsided back) | 13 PASS, 0 PASS | 20 / 30 deg |
@@ -113,8 +120,9 @@ What each separation rests on, and what it can't see:
 - **The jacket over the band:** layering, measured by pieceqa on tool/garments2.
 - **The chin's taper and the nick** as artifacts: see above (face_region measures them).
 
-**Other findings on the current build** (INFO, not flagged by Michael): `art_fragments_neck` 11.1 and
-`art_outline_neck` 6.3 in the back view (the neck's skin in bits between the back hair locks: tool/hair3);
+**Other findings on the current build** (INFO, not flagged by Michael): the back view's neck shows only slivers of skin
+between the hair and the collar (0.003-0.005 L^2; left out of the rates since `f771ec1`; whether they read as a defect
+is tool/hair3's and the collar's to judge);
 `art_terminator_collar` 20.7 (three-quarter) and `art_fragments_collar` 8.0 (front): the collar's torn tips
 (tool/garments2's collar item); `art_bumps_collar` 44 and `art_bumps_flaps` 49 (the collar's back knob in profile, the
 flap tail's point in three-quarter); `art_spikes_flaps` 0.057 (three-quarter: the tail tip).
