@@ -20,6 +20,13 @@ module of its own (`charkit/bowqa.py`, QA part `bow_profile`, order 1765) so the
   0.053 PASS, bow_front_flare 1.005 FAIL (the pillows), art_*_bow INFO.
 - **Checks built and calibrated** (d179a05; steps `charkit/steps/bowqa.py`; tests `charkit/tests/test_bowqa.py`).
 - **Knob added:** `bow.drop` (358a6d6; the pillow lobes' lower edge lowered toward their outer ends; default 0).
+- **Box build of the option** `charkit/out/b2_close` (ribbon turn 20, w held, drop 0.2) against b2_before: piece_bow
+  0.754 -> 0.844 (front 0.896 -> 0.926, three-quarter 0.758 -> 0.828, profile 0.346 -> 0.654); tail_reach 0.109 F ->
+  0.029 P, tail_hang 12.6 F -> 4.2 P, loop_thick 0.076 F -> 0.035 W, loop_lean 20.0 F -> 2.6 P; art_outline_collar
+  1.381 -> 1.382 P. Worse (flag checks, so blocking under K): bow_profile_ribbon 0.053 P -> 0.553 F (Michael's
+  call), bow_front_loop_end 0.121 P -> 0.244 W (the drop; retune end_p), bow_front_bleed 0.0 P -> 0.205 F (box
+  only; not yet located: bleedpic.py from collar_round2's harness on b2_close, the dropped loops' lower corners or
+  the closer ribbons' outer edges).
 - **Not gated; the spec (clawd.json) unchanged.** The ribbons hit a conflict that is Michael's call (below, "The
   ribbon conflict"). Option build running at handoff: `charkit/out/b2_close` (spec `charkit/spec/_v_close.json`,
   untracked: ribbon turn 20, w [0.204, 0.338], drop 0.2); review page `charkit/out/bow2/review/index.html`
@@ -31,7 +38,8 @@ module of its own (`charkit/bowqa.py`, QA part `bow_profile`, order 1765) so the
    bow_profile_ribbon's measure with what the old flag meant, an ink line between ribbon and jacket, calibrated).
 2. The loops, independent of 1: `drop` 0.2 fixes loop_thick / loop_lean and raises piece_bow in every view, but
    bow_front_loop_end (flag) PASS -> WARN (0.121 -> 0.244: the dropped outer ends read straight). Retune `end_p`
-   ([upper, lower]: the lower corner rounder, e.g. [4, 1.0-1.2]) or `end` with drop, against loop_end,
+   ([upper, lower]: the lower corner rounder, e.g. [4, 1.0-1.2]) or `end` with drop, and locate the bleed (0.205 on
+   b2_close), against loop_end,
    art_outline_collar (box: corners where the collar meets the loops' top) and bow_front_bleed (box only).
 3. Then the spec lines, pregate, box build, gate `python -m charkit remote gate tool/bow2 --into pipeline-3d`.
 
