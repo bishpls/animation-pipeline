@@ -460,8 +460,7 @@ class Part:
                 V, polys, par, uvc = subdivide(V, polys, uvc, levels=levels, creases=creases, vcreases=vcr)
                 parent = parent[par]
             if tex:
-                uvm = uvc.mean(1) if uvc is not None else np.zeros((len(polys), 2))
-                lit, shade = tex['fn'](uvm, parent)
+                lit, shade = tex['fn'](_uv_centres(uvc, polys), parent)
             else:
                 lit = self.lit[parent] if self.lit is not None else None
                 shade = self.shade[parent] if self.shade is not None else None
@@ -470,6 +469,19 @@ class Part:
 
     def __repr__(self):
         return 'Part(%s, %s, %d verts)' % (self.name, self.group, len(self.V))
+
+
+def _uv_centres(uvc, polys):
+    """each polygon's UV centre from its corner UVs in any of the layouts Part.subdivided meets: (m, k, 2) quads', per
+    loop (loops, 2) with the polygons as (loopv, counts), or a list of per-polygon (k, 2) arrays."""
+    cnt = np.asarray(polys[1]) if isinstance(polys, tuple) else np.array([len(f) for f in polys])
+    if uvc is None:
+        return np.zeros((len(cnt), 2))
+    if isinstance(uvc, np.ndarray) and uvc.ndim == 3:
+        return uvc.mean(1)
+    if isinstance(uvc, np.ndarray):
+        return np.add.reduceat(uvc, np.r_[0, np.cumsum(cnt)[:-1]], axis=0) / cnt[:, None]
+    return np.array([np.asarray(c, float).reshape(-1, 2).mean(0) for c in uvc])
 
 
 def triangulate(polys, with_poly=False):
