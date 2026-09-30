@@ -931,7 +931,7 @@ def _kit_py(p):
     return p.startswith('charkit/') and p.endswith('.py') and not p.startswith(('charkit/tests/', 'charkit/out/'))
 
 
-def _carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff):
+def _carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff, later=()):
     """what stops an earlier gate (tip into h0, merged tree t0) carrying to head (t1): the definition rule -> {kind:
     [(what, why)]}.
       - charkit's Python: the move's changed definitions (h0 -> head) and the branch's (h0 -> t0) meet: one side's among
@@ -941,13 +941,16 @@ def _carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff):
       - the QA's boundary, where data rather than calls joins the two: the move changes a QA part's measuring code (or
         adds a part) while the branch changes what the QA reads (its candidate was built); or the branch changes a
         measure (registered or not) while the move changes a file the baseline read.
-      - anything else (data files, Python outside charkit): as before, the files the two builds read."""
+      - anything else (data files, Python outside charkit), and every file the branch itself changed since the gated
+        tip (later): as before, the files the two builds read."""
     from . import cache, closure, codediff
     trees = {}
     T = lambda r: trees.setdefault(r, cache.Tree(repo=root, rev=r))
     other = lambda ch: [(st, p) for st, p in ch if not _kit_py(p)]
+    own = [(st, p) for st, p in diff if p in later]
     hits = {'baseline': closure.affected(Cs['base'], other(moved), root, cone, rev=h0, new=head, untracked=False),
-            'candidate': closure.affected(Cs['cand'], other(diff), root, cone, rev=t0, new=t1, untracked=False)}
+            'candidate': closure.affected(Cs['cand'], other([x for x in diff if x not in own]) + own, root, cone,
+                                          rev=t0, new=t1, untracked=False)}
     mv = sorted(p for _, p in moved if _kit_py(p))
     br = sorted(p for _, p in closure.changes(root, h0, t0) if _kit_py(p))
     if mv and br:
@@ -1069,7 +1072,8 @@ def carry(branch, into='pipeline-3d', spec='charkit/spec/clawd.json', args=(), w
                 hits['baseline'] = closure.affected(Cs['base'], moved, root, cone, rev=h0, new=head, untracked=False)
                 hits['candidate'] = closure.affected(Cs['cand'], diff, root, cone, rev=t0, new=t1, untracked=False)
             else:
-                hits.update(_carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff))
+                hits.update(_carry_hits(root, cone, Cs, old, h0, head, t0, t1, moved, diff,
+                                        {p_ for _, p_ in closure.changes(root, tip0, tip)} if tip0 != tip else set()))
         else:
             reasons.append('%s: its builds recorded no closure' % name)
             continue

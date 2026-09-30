@@ -483,6 +483,12 @@ def test_the_carry_by_definition():
     r = gate.carry('br', **kw)
     assert not r['carried'] and 'charkit/geo.py:area' in str(r['hits'].get('definitions')), r
     g('reset', '-q', '--hard', 'HEAD~1')
+    # the branch itself changes code the build reads after its gate: its candidate isn't the gated one, not carried
+    g('checkout', '-q', 'br'); edit('charkit/geo.py', 'area() + 2', 'area() + 9'); g('commit', '-qam', 'more')
+    g('checkout', '-q', 'main')
+    r = gate.carry('br', **kw)
+    assert not r['carried'] and 'charkit/geo.py' in str(r['hits'].get('candidate')), r
+    g('checkout', '-q', 'br'); g('reset', '-q', '--hard', 'HEAD~1'); g('checkout', '-q', 'main')
     # a data file the builds read: as before, not carried
     edit('charkit/clawd.json', '{}', '{"a": 1}'); g('commit', '-qam', 'data')
     r = gate.carry('br', **kw)

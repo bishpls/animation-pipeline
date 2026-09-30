@@ -287,7 +287,9 @@ def affected(C, changed, root, cone_dirs=None, rev='HEAD', new=None, untracked=T
     scans = C.get('scans') or {}
     out = []
     for st, p in changed:
-        marks = [m for d, ms in scans.items() if p.endswith('.py') and (not d or p.startswith(d + '/')) for m in ms]
+        # (the registry's scans skip the tests and outputs: charkit.registry.SKIP_DIRS)
+        marks = [m for d, ms in scans.items() if p.endswith('.py') and (not d or p.startswith(d + '/'))
+                 and not p.startswith(NEVER) for m in ms]
         hit = next((m for m in marks if re.search(m, _text(root, new, p), re.M) or
                     re.search(m, _text(root, rev, p), re.M)), None) if marks else None
         if p in reads:
