@@ -20,7 +20,8 @@ Per clip and view (acc_KIND_VIEW_*):
   angle    the principal axis' angle from the vertical (second moments), ours - design, degrees mod 180; INFO when either
            shape is too round to have an axis
   shown    what shows of it where the design hides it (the back), or hidden where the design shows it
-Per clip (3D): acc_KIND_seat, the gap between the clip's back and the hair surface under it (L; - = sunk into the hair),
+Per clip (3D): acc_KIND_seat, the gap between the clip's back and the hair surface under it (L; - = sunk into the hair:
+each vertex's height over the hair under it along the clip's thin axis, the least),
 and acc_KIND_pos3d, the design's clip triangulated from its front, three-quarter and profile centroids against ours.
 
 The QA part `accessories` (order 2400) runs it in every QA pass; its steps are in charkit/steps/accqa.py.
@@ -441,8 +442,10 @@ def clip_objects(B):
 def seat(clip_V, hair, L, centre):
     """how a clip sits on the hair (world): its thin axis (the smallest principal axis, away from the head's centre),
     the hair's outer surface under its middle along that axis (a ray cast in from outside) and under each vertex
-    -> dict(gap: the clip's lowest point over the hair surface under its middle, L (- = sunk into it); sunk: the share of
-    its vertices under the hair surface under them; normal, anchor) or None (no hair under it)."""
+    -> dict(gap: the least of its vertices' heights over the hair under them, L (- = sunk into it; the plane over its
+    middle's hair where no vertex has hair under it); sunk: the share of its vertices under the hair surface under them;
+    plane: its lowest point over the hair under its middle (round 2's gap: a bent clip has no one plane); normal, anchor)
+    or None (no hair under its middle)."""
     from .hair import _cast_in
     P = np.asarray(clip_V, float)
     c = P.mean(0)
@@ -458,11 +461,15 @@ def seat(clip_V, hair, L, centre):
     if not np.isfinite(t):
         return None
     h = c + n * R - n * t                                    # the hair's outer surface under the clip's middle
-    gap = float(((P - h) @ n).min()) / L
     tv = _cast_in(hv, hf, P + n * R, np.repeat(-n[None], len(P), 0), 2 * R)
     under = np.isfinite(tv) & (tv < R - 1e-3 * L)            # the hair surface under a vertex lies above it: sunk
-    return dict(gap=round(gap, 4), sunk=round(float(under.mean()), 3), normal=[round(float(x), 3) for x in n],
-                anchor=[round(float(x), 4) for x in h])
+    # the gap: each vertex's height over the hair under it, the least (a clip bent to what's under it, round 3's star,
+    # has no one plane: over its middle's hair the plane read -0.0096 for a clip with no vertex under the hair)
+    hv_ = np.isfinite(tv)
+    gap = float((tv[hv_] - R).min()) / L if hv_.any() else float(((P - h) @ n).min()) / L
+    plane = float(((P - h) @ n).min()) / L
+    return dict(gap=round(gap, 4), sunk=round(float(under.mean()), 3), plane=round(plane, 4),
+                normal=[round(float(x), 3) for x in n], anchor=[round(float(x), 4) for x in h])
 
 
 def sheets(spec):
@@ -628,7 +635,8 @@ def evaluate(B, designs, pieces, az3=None):
             continue
         table['seat'][kind] = s
         C['acc_%s_seat' % kind] = {'value': s['gap'], 'sunk': s['sunk'], 'status': _grade('seat', s['gap']),
-                                   'note': "the clip's lowest point over the hair surface under its middle, L "
+                                   'plane': s['plane'],
+                                   'note': "the least of the clip's vertices' heights over the hair under them, L "
                                            "(- = sunk); sunk: the share of its vertices under the hair"}
     # colours: our material's lit tone against the drawn clip's (the head sheet's inner pixels)
     for sname, D in designs.items():
