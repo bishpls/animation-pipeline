@@ -25,3 +25,12 @@ rims (Michael's call L), the skirt's fit G written into the specs, one gate unde
    Subdivision modifier evaluates unsubdivided: the template flaps' crisp corners) comes along. One registry clash:
    the skirt's QA part and tool/artifacts' both took order 2200; the skirt's moves to 2300 (after the artifacts, which
    test_artifactqa wants after the look). Tests: 55 files ok.
+
+## The skirt's fit G into the specs (step 4, done first: the tuck and A-line adapt on top of it)
+
+`make_garments.py fitG_best.json` then `apply_spec.py` (the skirt's scratch harness, copied into this session's
+scratchpad and pointed at this worktree) into clawd.json, clawd_body_pieces.json (still identical) and clawd_body.json:
+the template flaps (`shape: template`, `hem: band`, the edges, stand, a three-tread stair), the skirt's geometric band
+(0.15 L, stair 0.35/0.25/0.15), `tuck_fit`, 18 pleats (garments2's spec had 22). `_skirt_try.json` was never tracked
+(it's untracked in ~/animation-pipeline-skirt, which this round doesn't touch): nothing to delete in the branch.
+`flapchains` waits for a box build of this tree.

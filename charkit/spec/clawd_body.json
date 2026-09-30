@@ -1704,7 +1704,7 @@
    "length": 0.93088,
    "back": 0.31438,
    "flare": 32.82617,
-   "pleats": 22,
+   "pleats": 18,
    "pleat": 0.07,
    "panel": 0.55,
    "offset": 0.0,
@@ -1735,7 +1735,29 @@
    "clear_hands": 0.05,
    "axis": "midline",
    "symmetric": true,
-   "hem_cut": true
+   "hem_cut": true,
+   "band": {
+    "height": 0.15,
+    "stair": [
+     [
+      0,
+      0.35
+     ],
+     [
+      14,
+      0.25
+     ],
+     [
+      28,
+      0.15
+     ]
+    ]
+   },
+   "tuck_fit": {
+    "inset": 0.5,
+    "clear": 0.005,
+    "blend": 0.25
+   }
   },
   {
    "kind": "sleeve",
@@ -2027,8 +2049,7 @@
     0.324,
     0.2888
    ],
-   "hem": "stepped",
-   "repeat": 1,
+   "hem": "band",
    "shade": [
     0.7692,
     0.6891,
@@ -2036,7 +2057,6 @@
    ],
    "source": "flap",
    "over": "skirt",
-   "steps": 3,
    "mirror": "overskirt_panel_L"
   },
   {
@@ -2052,30 +2072,71 @@
     0.324,
     0.2888
    ],
-   "hem": "stepped",
-   "repeat": 1,
+   "hem": "band",
    "shade": [
     0.7692,
     0.6891,
     0.6762
    ],
-   "az": 128.0,
-   "width": 0.808,
-   "narrow": 1.033,
-   "length": 0.36,
-   "train": 0.806,
-   "out": -0.3,
-   "sweep": 0.364,
    "source": "flap",
+   "shape": "template",
    "over": "skirt",
-   "clear": 0.03,
-   "steps": 3,
+   "edges": [
+    [
+     0.0,
+     130.0,
+     166.0
+    ],
+    [
+     0.25,
+     128.7,
+     163.8
+    ],
+    [
+     0.5,
+     128.7,
+     161.2
+    ],
+    [
+     0.75,
+     126.2,
+     158.8
+    ],
+    [
+     1.0,
+     127.0,
+     157.0
+    ]
+   ],
+   "stand": [
+    [
+     0.0,
+     0.0
+    ],
+    [
+     0.5,
+     -0.02
+    ],
+    [
+     1.0,
+     0.16
+    ]
+   ],
+   "tail": {
+    "steps": 3,
+    "first": 0.18,
+    "rise": 0.17
+   },
+   "droop": 0.4,
+   "out": 0.2,
+   "twist": 0.0,
+   "band": 0.13,
+   "clear": 0.02,
+   "thick": 0.01,
    "bones": 6,
-   "cols": 32,
-   "stair": 4,
-   "az_waist": 175.4,
-   "tip": 0.5,
-   "trim": 0.12
+   "cols": 24,
+   "rows": 20,
+   "tail_rows": 12
   }
  ],
  "base": "code"
