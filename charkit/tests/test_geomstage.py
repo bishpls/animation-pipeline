@@ -107,6 +107,20 @@ def test_replay_calls_the_seam_in_order():
     assert ('set', 'thick', 'thickness', 0.0025) in log
 
 
+def test_boots_outline_capped_at_their_measured_thickness():
+    """Michael's call M: the bow and the boots ask shade.outline for the measured cap (the recording carries it to the
+    Blender side and to the evaluator's view); the other pieces don't (test_record_and_read_back's skirt: no 'cap')."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import test_boots as tb
+    assert garments.LINE_CAP_MEASURED == ('bow', 'boot')
+    A = dict(tb.assembly(), faces=np.array([[0, 1, 2], [3, 4, 0]]))
+    with geomstage.recording() as rec:
+        C = dict(data=A, arm=geomstage._Ref(rec, 'arm', 'a'), skin=geomstage._Ref(rec, 'skin', 's'))
+        garments.build(C, tb.WHOLE['garments'], spec_all=tb.WHOLE)
+    obs, _ = geomstage.pieces(geomstage.product('garments', rec))
+    assert [(o['name'], o['outline'].get('cap')) for o in obs] == [('boot_L', 'measured'), ('boot_R', 'measured')]
+
+
 def test_outside_the_seam_fails_loudly():
     with geomstage.recording() as rec:
         ob = garments._object('x', np.zeros((3, 3)), [(0, 1, 2)], {}, geomstage._Ref(rec, 'arm', 'a'), [])

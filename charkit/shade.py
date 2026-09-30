@@ -6,7 +6,8 @@ The style profile's `look` (charkit.styles) says how a view is lit and lined: se
 scene, so a saved .blend's turntable renders it the same way), set_view() applies it for one camera: the light ('world':
 fixed; 'camera': a key that turns with the camera) into every material's 'ldir' and 'ldir_head' node, and the outlines'
 widths ('screen': the same share of the picture in every view; a thin shell's inward move capped at half its thickness,
-the rest of the width outward: outline()). charkit.qa.render_view calls set_view for each shot.
+and a closed thin piece's (the bow, the boots) at half its measured thickness, the rest of the width outward: outline()).
+charkit.qa.render_view calls set_view for each shot.
 """
 import json, math
 
@@ -248,9 +249,11 @@ def plate(name, image, alpha=True):
 
 
 SHELL_CAP = 0.5         # the outline's inward move is at most this share of a thin shell's thickness (Michael's call I)
+THICK_PCT = 5           # a closed thin piece's thickness for its cap: this percentile of its vertices' (Michael's call M)
+THICK_REACH = 0.05      # m: how far a vertex's inward ray looks for the piece's far side
 
 
-def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None):
+def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None, cap=None):
     """inverted hull: a flipped, back-face-culled solidify shell in the line colour. The object keeps its build width
     and its region (skin, hair, garment, accessory) for set_view's screen-width lines.
 
@@ -258,12 +261,22 @@ def outline(ob, thick=0.0012, color=(0.30, 0.20, 0.22), name='line', region=None
     w (1 - o) / 2 outside the original surface: a line w wide. A thin shell (a garment's own 'thick' SOLIDIFY, below
     this one) keeps its inward move under line_cap (SHELL_CAP of its thickness; its two layers moving toward each other
     would cross, and Blender's recomputed normals turn by up to 180 degrees there), and the rest of the width goes
-    outward (line_offset). The cap is kept on the object ('ck_line_cap', m) for set_view and the export."""
+    outward (line_offset). cap='measured': a closed thin piece without a shell modifier (the bow, the boots; Michael's
+    call M) is capped the same way at SHELL_CAP of its measured thickness (measured_thickness, of the object as it is
+    now: its modifiers so far, the outline not yet on). The cap is kept on the object ('ck_line_cap', m; a measured
+    piece's thickness in 'ck_line_thick') for set_view and the export."""
     ob['ck_line_w'] = float(thick)
     ob['ck_line_region'] = region or _region(ob, name)
     shell = shell_of(ob)
     if shell > 0:
         ob['ck_line_cap'] = SHELL_CAP * shell
+    elif cap == 'measured':
+        t = measured_thickness(ob)
+        if t:
+            ob['ck_line_thick'] = t
+            ob['ck_line_cap'] = SHELL_CAP * t
+    elif cap is not None:
+        raise ValueError('outline: cap is None or \'measured\', not %r' % (cap,))
     m = flat(name, color)
     ob['ck_line_mat'] = m.name                       # its build colour, kept for line_colors('build')
     m.use_fake_user = True
@@ -285,10 +298,47 @@ def shell_of(ob):
                 and md.name != 'outline'] or [0.0])
 
 
+def measured_thickness(ob, pct=THICK_PCT, reach=THICK_REACH):
+    """a closed piece's thickness (m), measured as look.md round 3 measured it for call M: per vertex of its evaluated
+    mesh (every modifier on but the outline), a ray from the vertex along its inward normal to the same mesh's far side
+    (a face that faces along the ray) within `reach`; the `pct` percentile of the hits, to the micrometre. None without
+    a hit (nothing thin: no cap)."""
+    import bpy
+    from mathutils import Vector
+    from mathutils.bvhtree import BVHTree
+    mod = ob.modifiers.get('outline')
+    shown = mod.show_viewport if mod is not None else None
+    if mod is not None:
+        mod.show_viewport = False
+    try:
+        bpy.context.view_layer.update()
+        oe = ob.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        me = oe.to_mesh()
+        try:
+            nv, npoly = len(me.vertices), len(me.polygons)
+            co = np.empty(3 * nv, np.float32); me.vertices.foreach_get('co', co)
+            vn = np.empty(3 * nv, np.float32); me.vertices.foreach_get('normal', vn)
+            fn = np.empty(3 * npoly, np.float32); me.polygons.foreach_get('normal', fn)
+            co, vn, fn = co.reshape(-1, 3), vn.reshape(-1, 3), fn.reshape(-1, 3)
+            bvh = BVHTree.FromPolygons(co.tolist(), [tuple(p.vertices) for p in me.polygons])
+        finally:
+            oe.to_mesh_clear()
+    finally:
+        if mod is not None:
+            mod.show_viewport = shown
+    d = []
+    for p, n in zip(co.tolist(), vn.tolist()):
+        n_ = Vector(n)
+        loc, _, idx, dist = bvh.ray_cast(Vector(p) - n_ * 1e-6, -n_, reach)
+        if loc is not None and float(np.dot(fn[idx], -np.asarray(n))) > 0:      # the far side, facing away from the start
+            d.append(dist)
+    return round(float(np.percentile(d, pct)), 6) if d else None
+
+
 def line_cap(ob):
-    """the outline's largest inward move (m) for an outlined object: SHELL_CAP of its shell's thickness, or None (no
-    cap: the whole width goes inward, as before call I). Objects built before the cap was stored get it from their
-    modifiers."""
+    """the outline's largest inward move (m) for an outlined object: SHELL_CAP of its shell's thickness (or, for a closed
+    thin piece built with cap='measured', of its measured thickness: outline()), or None (no cap: the whole width goes
+    inward, as before call I). Objects built before the cap was stored get it from their modifiers."""
     if 'ck_line_cap' in ob:
         return float(ob['ck_line_cap'])
     s = shell_of(ob)
