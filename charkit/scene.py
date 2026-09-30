@@ -436,9 +436,14 @@ def body_below_neck(verts, S):
 
 
 def fringe(objs, S):
-    """face shading reads which hair objects there are and the fringe (hair_front*: its shadow on the face), not the
-    rest of the hair."""
-    return [o.name for o in objs], [o for o in objs if o.name.startswith('hair_front')]
+    """face shading reads which hair objects there are and the fringe (hair_front*, the cut pieces' bangs and side
+    locks: its shadow on the face), not the rest of the hair; with the look's face.cast every hair object whole (the
+    hair's shadows baked onto the skin: charkit.faceshade.cast_maps)."""
+    from . import shade
+    if (shade.look_of(S.spec).get('face') or {}).get('cast'):
+        return [o.name for o in objs], list(objs)
+    return [o.name for o in objs], [o for o in objs if o.name.startswith('hair_front') or o.name == 'hair_bangs'
+                                    or o.get('charkit_family') in ('bangs', 'side_locks')]
 
 
 DEPS = {

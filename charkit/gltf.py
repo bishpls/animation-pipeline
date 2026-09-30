@@ -17,11 +17,14 @@ What is written (one GLB with a .vrm extension; readable by any glTF 2.0 loader)
                outline SOLIDIFY (negative thickness) moves the surface inward by the line width, so it is baked in, and the
                hull (drawn by the runtime, or MToon) goes back out by the same amount; a thin shell's inward move is capped
                at its outline's maxInward (charkit.shade.line_inward) and the hull goes the rest of the width outward.
+               A look-only export (NAME.look.glb) adds the skin's bare variant, NAME.bare: its garment mask off (mesh
+               extension variant 'bare'), a mesh no node places, so no viewer draws it (charkit.qarender's bare head).
   attributes   JOINTS_0/WEIGHTS_0 (top four), TEXCOORD_0 = the 'uv' layer, TEXCOORD_1 = 'face' (the skin's front projection:
                the SDF, fringe and blush maps) or 'lock' (analytic hair: across, along); custom: _OUTLINE_WIDTH (0..1, the
                outline's per-vertex factor: 0 round the eye and mouth openings, fading at hair tips), _FACE_MASK (1 on the
                face, where the SDF shading replaces toon3), _HULL_NORMAL (the direction the hull extrudes along, where it differs
-               from NORMAL: custom or flat normals).
+               from NORMAL: custom or flat normals), _CK_CAST0..3 (vec4s: the baked cast shadows per light azimuth,
+               charkit.faceshade.cast_maps, read by the material's `cast`).
   morphs       every shape key (eye_*, mouth_*, brow_*, look_*) as a sparse POSITION morph target (names in
                extras.targetNames), plus NORMAL targets on outlined meshes from the keyed hull directions (Blender rebuilds
                the outline after the keys). A keyed mesh splits into NAME (the triangles its keys move, with the targets) and
@@ -55,7 +58,7 @@ The extension OPENADS_charkit_look (version 1), in the glTF frame, colours linea
              hair: {lock: texCoord, ring: {color, elevation, centre, width, soft, facing, mid, amount}, gradient, strands},
              flat: color; plate: texture}
   mesh      {object, outline?: {width (m), color, region, widthAttribute?, normalAttribute?, maxInward? (m)}, feature?: true,
-             holdout?: true}
+             holdout?: true, variant?: 'bare' (another state of the object: the skin with its garment mask off)}
              (at line width w the surface moves inward by inward(w) = min(w, maxInward), or w without one, times the
              vertex's factor, and the hull sits w - inward(w) outside the original surface: a thin shell's cap, half its
              thickness, Michael's call I)
@@ -416,6 +419,9 @@ def skeleton(arm, tpose=True):
 
 
 # --------------------------------------------------------------------------------------------------------- evaluation
+BARE_MASK = 'under_garments'           # the skin's garment mask (charkit.garments): off in its bare variant
+
+
 def _outline_mod(ob):
     for md in ob.modifiers:
         if md.type == 'SOLIDIFY' and md.use_flip_normals:
@@ -428,15 +434,16 @@ class Eval:
     off (co: the original surface), and with it on (surf: the first N vertices of its result, the surface Blender draws,
     moved inward by the line width; the hull is the original surface), for the base and for every shape key."""
 
-    def __init__(self, ob, subdiv=2, keys=True, groups=None):
-        """keys=False: the base alone (no shape key evaluated); groups: the vertex groups to read (None: all)."""
+    def __init__(self, ob, subdiv=2, keys=True, groups=None, hide=()):
+        """keys=False: the base alone (no shape key evaluated); groups: the vertex groups to read (None: all); hide:
+        modifiers left off (the skin's 'under_garments' mask: its bare variant)."""
         import bpy
         self.want_groups = groups
         self.ob = ob
         om = _outline_mod(ob)
         saved, levels = [], []
         for md in ob.modifiers:
-            if md.type == 'ARMATURE' or (om is not None and md.name == om.name):
+            if md.type == 'ARMATURE' or (om is not None and md.name == om.name) or md.name in hide:
                 saved.append((md, md.show_viewport)); md.show_viewport = False
             if md.type == 'SUBSURF':
                 levels.append((md, md.levels)); md.levels = min(md.render_levels, subdiv)
@@ -686,13 +693,18 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
         rep['materials'][mat['name']] = look['kind']
         return mat_index[key]
 
-    # meshes
-    skinned = [o for o in objects]
+    # meshes (look_only: and the skin's bare variant, its garment mask off: a mesh no scene node draws, for the look QA's
+    # bare head, charkit.qarender)
+    skinned = [(o, None) for o in objects]
+    if look_only:
+        skinned += [(o, 'bare') for o in objects if o.name in roles['holdouts']
+                    and any(md.name == BARE_MASK and md.show_viewport for md in o.modifiers)]
     head_info = None
-    for ob in skinned:
+    for ob, variant in skinned:
         if look_only:
             om_ = _outline_mod(ob)
-            E = Eval(ob, subdiv, keys=False, groups={om_.vertex_group} if om_ is not None and om_.vertex_group else set())
+            E = Eval(ob, subdiv, keys=False, groups={om_.vertex_group} if om_ is not None and om_.vertex_group else set(),
+                     hide=(BARE_MASK,) if variant == 'bare' else ())
         else:
             E = Eval(ob, subdiv)
         mw = np.array(ob.matrix_world)
@@ -700,7 +712,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
         Nm = np.linalg.inv(mw[:3, :3]).T
         unit = lambda x: x / np.maximum(np.linalg.norm(x, axis=1, keepdims=True), 1e-12)
         co, surf = xf(E.co), xf(E.surf)
-        if ob.name in roles['holdouts'] and head_info is None:
+        if ob.name in roles['holdouts'] and head_info is None and variant is None:
             head_info = head_frame(ob)
         # outline: width (m), colour, per-vertex factor, the inward move's cap. Blender's SOLIDIFY (negative thickness)
         # draws the surface moved inward (surf) and the hull outside it: hull direction = co - surf where it moved
@@ -825,7 +837,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                 prims.append(prim)
             if not prims:
                 continue
-            mesh = {'name': ob.name + suffix, 'primitives': prims}
+            mesh = {'name': ob.name + ('.' + variant if variant else '') + suffix, 'primitives': prims}
             if knames:
                 mesh['extras'] = {'targetNames': knames}
                 mesh['weights'] = [0.0] * len(knames)
@@ -842,21 +854,25 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
                 mx['feature'] = True
             if ob.name in roles['holdouts']:
                 mx['holdout'] = True
+            if variant:
+                mx['variant'] = variant
             mesh['extensions'] = {EXT: mx}
             W.js['meshes'].append(mesh)
-            W.js['nodes'].append({'name': ob.name + suffix, 'mesh': len(W.js['meshes']) - 1, 'skin': 0})
-            W.js['scenes'][0]['nodes'].append(len(W.js['nodes']) - 1)
+            if not variant:                                  # (a variant: no node, so no viewer draws it)
+                W.js['nodes'].append({'name': ob.name + suffix, 'mesh': len(W.js['meshes']) - 1, 'skin': 0})
+                W.js['scenes'][0]['nodes'].append(len(W.js['nodes']) - 1)
             made += prims
         if not made:
             continue
         prims = made
-        rep['objects'][ob.name] = {'vertices': int(sum(W.js['accessors'][p['attributes']['POSITION']]['count'] for p in prims)),
+        rep['objects'][ob.name + ('.' + variant if variant else '')] = {'vertices': int(sum(W.js['accessors'][p['attributes']['POSITION']]['count'] for p in prims)),
                                    'triangles': int(sum(W.js['accessors'][p['indices']]['count'] for p in prims) // 3),
                                    'primitives': len(prims), 'keys': len(key_names),
                                    'moving_vertices': int(sum(W.js['accessors'][p['attributes']['POSITION']]['count']
                                                               for p in prims if p.get('targets'))),
                                    'outline': bool(outline), 'custom_normals': bool(need_hull)}
-        log(f'[gltf] {ob.name}: {rep["objects"][ob.name]}')
+        log(f'[gltf] {ob.name}{"." + variant if variant else ""}: '
+            f'{rep["objects"][ob.name + ("." + variant if variant else "")]}')
 
     # the root extension and VRMC_vrm
     mesh_node = {W.js['meshes'][W.js['nodes'][i]['mesh']]['name']: i for i in range(len(W.js['nodes']))
