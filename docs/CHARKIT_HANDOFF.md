@@ -790,6 +790,12 @@ decisions already made:
 - **tool/skirt**: the flap train touches the back of the thigh (body_profile_leg_outline 0.57, 82 rows against the
   design's 3); clawd_mh body_three_quarter_skirt_aline 0.078 WARN is accepted and belongs here.
 - **tool/outfit-source**: masks without the TRELLIS field (or the field made a required produced reference).
+- **tool/artifacts: MERGED (815c836).** Twelve of Michael's flags are calibrated checks, capped at WARN. **Promote to FAIL
+  next** (the bad build reads at least 2x the clean one, and the current build passes): spikes_boots, bumps_boots,
+  bumps_legs, mirror_waist. Hold points_sleeves/bumps_sleeves at WARN until garments2's template sleeves merge (the
+  current hull sleeves would FAIL), and band_lower until tool/skirt's band lands. Not measurable by these detectors: the
+  rear tuck (tool/skirt), jacket over band (garments2), the neck nick (tool/face's jaw_line_bend). Review page:
+  ~/animation-pipeline-artifacts/charkit/out/artifacts_review/flags/index.html.
 - **tool/infra2**: detached box jobs, box load logging, click-to-flag (`charkit preview serve`), the hook fix.
 - **tool/toonrender2**: the QA drawing on charkit.render behind a setting.
 - **tool/evalmesh** (call J, subdivision and Solidify into the venv): stopped before any work. Relaunch from
