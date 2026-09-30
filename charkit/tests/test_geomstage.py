@@ -1,6 +1,6 @@
 """charkit.geomstage: the garments stage's recording (garments.build's Blender calls, venv-side), its product on disk, and
 its replay, on stand-ins with known answers (venv: run this file, or pytest). The whole-outfit check (every garment of a
-spec, per-piece recordings against the build's one) is `python -m charkit.stagedrift` on a build."""
+spec, per-piece recordings against the build's one) is `python -m charkit evaldrift --stages` on a build."""
 import json, os, sys, tempfile
 
 import numpy as np

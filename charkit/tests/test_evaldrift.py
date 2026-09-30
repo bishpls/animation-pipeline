@@ -36,6 +36,31 @@ def test_markdown_lists_every_compared_check():
     assert md.startswith('# evaldrift: s.json at abc1234: 1 of 1 checks drift') and '| a_hem | 0.04 PASS | 0.01 WARN | -0.0300' in md
 
 
+def test_stages_flag_geometry_past_its_tolerance():
+    """--stages: an object's vertices compared exactly (float32 as Blender keeps them), evaluated meshes by nearest
+    vertex; an object only one side has, a silhouette under GEOM_TOL's IoU or a differing mask drifts."""
+    import numpy as np
+    L = 0.25
+    V = np.random.default_rng(0).normal(size=(50, 3))
+    r = evaldrift.pair(V, V.astype(np.float32).astype(float), L)            # Blender's float32 copy of ours
+    assert r['f32'] == 50 and not r['exact'] and r['max_L'] < 1e-6
+    far = V.copy(); far[3] += 0.001
+    assert evaldrift.pair(V, far, L)['max_L'] > evaldrift.GEOM_TOL['raw_L']
+    assert 'hausdorff_L' in evaldrift.pair(V, V[:40], L)                     # counts differ: nearest vertex
+    S = {'fit_cranium': dict(evaluator=1.1, build=1.1, spec_set=False),
+         'character': dict(assembly=evaldrift.pair(V, V, L), parts={}, landmarks_L={'chin': 0.0}),
+         'hair': dict(objects={'hair_bangs': evaldrift.pair(V, V, L), 'hair_main': 'evaluator only'},
+                      silhouette_iou={0: 1.0, 90: 0.67, 180: 1.0}),
+         'accessories': dict(objects={}),
+         'garments': dict(objects={'skirt': dict(raw=evaldrift.pair(V, V, L), evaluated=evaldrift.nearest(V, far, L))},
+                          mask=dict(evaluator=10, build=10, differ=0))}
+    D = evaldrift.stage_drift(S)
+    assert D == ['hair: hair_main: evaluator only', 'hair: silhouette IoU {90: 0.67}',
+                 'garments (evaluated): skirt: 0.00693 L apart (nearest vertex; 50 against 50 vertices)'], D
+    md = evaldrift.stages_markdown(S, D)
+    assert md.startswith('## stages') and '| garments | skin mask | evaluator 10, build 10, 0 differ |' in md
+
+
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):

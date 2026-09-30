@@ -16,8 +16,8 @@ tool/garments2 (garments.py), tool/face (code_base.py), tool/hair3 (hair).
 - Before builds (clean 9397578) come from a second worktree, `~/animation-pipeline-geomtruth-base` (branch
   tmp/geomtruth-base), so a sync of this worktree's edits can't reach them. A box build synced from here at 03:45 took
   the pilot code in; it's kept as `charkit/out/pilot0_mh` (a smoke test), not a before build.
-- The drift comparison: `charkit/stagedrift.py` (`python -m charkit stagedrift BUILD`): the evaluator on the build's
-  own spec (the bundle's), stage by stage, against the bundle; and its checks against qa.json.
+- The drift comparison was `charkit/stagedrift.py` at first; it's now folded into tool/infra's evaldrift
+  (`python -m charkit evaldrift [SPEC] --stages`, below).
 
 ## Pilot design (garments)
 - `garments.build` talks to Blender only through a seam: `garments._object`, `_toon`, `_toon_tex`, `mask_skin`,
@@ -91,8 +91,8 @@ implementation (they agreed only by coincidence), and the evaluator reads the ha
   gone here, and the recording covers every kind build() makes. Check a change with
   `python charkit/tests/test_geomstage.py` and `python -m charkit stagedrift BUILD`.
 - **tool/hair3:** nothing to do; the evaluator now reads your pieces product (or runs `cli.pieces_hair` for a spec
-  without one). Rollout step 4 (the hair volume, target and accessories venv-side) is yours with tool/accessories.
-- **tool/face:** nothing now. Rollout step 3 (the character product) splits `character.py`, not `code_base.py`; it
+  without one). Rollout step 2 (the hair volume, target and accessories venv-side, second after the pilot) is yours with tool/accessories.
+- **tool/face:** nothing now. Rollout step 4 (the character product) splits `character.py`, not `code_base.py`; it
   waits for your jaw round. The cross-machine assembly difference (laptop vs box, up to 0.0027 L on 1,726 vertices of
   the code head) is worth a determinism pass in `code_base.wrap` some time.
 - **tool/infra:** fold `charkit/stagedrift.py` into `evaldrift --stages` when you merge (or I do, if this branch
@@ -106,3 +106,14 @@ implementation (they agreed only by coincidence), and the evaluator reads the ha
   the ~960 s CPU). Fix: the pieces step (parts.Case.load) and the garments step share one assembly memo, keyed on the
   spec sections the assembly reads (measured with charkit.cache's tracked dicts, guarded by a test).
   ("stage hair: knobs hair changed" in both reports is the pieces path, which names the build's own folder.)
+
+- Coordinator (later): tool/infra merged into pipeline-3d (cfcdc3a). Merged here at 80c5944. **stagedrift is folded
+  into evaldrift**: `python -m charkit evaldrift [SPEC] --stages` (or `--build DIR --here --stages`) adds the per-stage
+  geometry comparison (evaldrift.stages, stage_drift, GEOM_TOL, a `## stages` section in drift.md; exit 1 on stage drift
+  too). `charkit/stagedrift.py` and the `stagedrift` command are gone. Its own check comparison is dropped in favour of
+  evaldrift's (the evaluator as the body fit reads it).
+- Rollout reordered at the coordinator's request: the rest of the hair stage (volume, target, accessories) is step 2.
+  evaldrift's first result on clawd.json showed the same thing: the hems agree, the evaluator has no cut-piece hair
+  (fixed on this branch), and sheet_face lacks the eye-line registration (0.025 L; tool/face has it; step 8).
+- Gates of 83cadf4 (the shared memo) were launched into pipeline-3d before the infra merge; the final gates are rerun
+  on the branch head after it.

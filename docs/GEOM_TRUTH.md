@@ -22,14 +22,14 @@ geometry step, exact by construction.
 
 ## Where the geometry is computed today
 
-Measured with `python -m charkit stagedrift` on clean builds of pipeline-3d 9397578. The evaluator ran on the build
+Measured per stage on clean builds of pipeline-3d 9397578, with the comparison that is now `python -m charkit evaldrift --stages`. The evaluator ran on the build
 box on the build's own spec, so every difference is the stage's own computation, on one machine. Both gate specs were
 measured: `clawd.json` (code head and body) and `clawd_mh.json` (MakeHuman). Distances are in head lengths L (about
 0.25 m). "f32" means equal once both sides are rounded to float32, as Blender stores them.
 
 | stage | computed in Blender (its Python: numpy 2.3.4, no scipy) | computed in the venv (numpy 2.5.3, scipy) | in the evaluator (`bodyeval`) | drift, clawd / clawd_mh |
 |---|---|---|---|---|
-| resolve | — | `cli.resolve`: produced references, the design rig's fit, the style's look and eyes merged in | `bodyeval.resolve`: the same, without the style merge | not measured here (stagedrift gives the evaluator the build's spec); `evaldrift` covers it end to end |
+| resolve | — | `cli.resolve`: produced references, the design rig's fit, the style's look and eyes merged in | `bodyeval.resolve`: the same, without the style merge | not measured here (the stage comparison gives the evaluator the build's spec); `evaldrift`'s check comparison covers it end to end |
 | fit_cranium | `scene.fit_cranium`, the GLB read by Blender's glTF importer | `parts.Case.load` (the hair-pieces step), with charkit.geom's reader | `bodyeval.resolve`, charkit.geom's reader | none: 1.1 both (the fit clamps at 1.1) |
 | character | `character.assemble`, all numpy: the body, the code head's wrap, eyes, mouth, brows and their keys. Then the mesh, UVs, groups, armature and shape keys | the code head's and body's sections (`head_code.npz`, `body_code.npz`); `Case.load` assembles again for the hair pieces | `assemble_cached` (venv; its cache key missed code_base and code_body); `compose()` for body knobs | assembly 9e-16 L, f32-identical / 1.8e-14 L, **18 of 13,380 vertices differ in f32** (numpy 2.3.4 against 2.5.3, same code). Eye and mouth parts 7e-7 L: Blender's float32 armature at rest |
 | character, evaluated | Subdivision level 1, Armature, the garments' Mask | — | `bodyeval.subdivide` (a numpy port) | SKINEVAL |
@@ -91,9 +91,10 @@ modules it names), its explicit key (the resolved spec it's given), the content 
 It writes the product and points the resolved spec at it (`spec['garments_geom']`). A step that is restored copies its
 files back; one that reruns and makes the same bytes leaves the Blender stage's cache hitting.
 
-The venv steps share one assembly: `geomstage.assemble(spec)` memoises `character.assemble` on disk, keyed by the spec
-without the outfit, the content of the code head and body files, and the assembly's code closure
-(`charkit.cache.code_units`). The evaluator uses the same memo (`bodyeval.assemble_cached`).
+The venv steps share one assembly: `geomstage.assemble(spec)` memoises `character.assemble` on disk and in memory. Its
+key is the spec sections the assembly reads (`ASM_KEYS`), the content of the code head and body files (not their
+paths, which name the build's folder), and the assembly's code closure (`charkit.cache.code_units`). The hair pieces'
+`parts.Case.load`, the garments step and the evaluator (`bodyeval.assemble_cached`) all use it.
 
 ### The Blender stages (`scene.STAGES`)
 
@@ -132,10 +133,12 @@ ends up with the same datablocks build() would have made, including materials bu
 
 ### Drift monitoring
 
-- `python -m charkit stagedrift BUILD` runs the evaluator on a build's own spec (the bundle's) and compares every stage
-  object by object: the assembly, eye and mouth parts, landmarks, hair, accessories, garments (raw and evaluated), the
-  skin mask, and the checks the evaluator measures (body, palette, sheet). It writes `BUILD/stagedrift/drift.md` and
-  `drift.json`. It is a stand-in for tool/infra's `charkit evaldrift`, and should fold into it.
+- `python -m charkit evaldrift [SPEC] --stages` (tool/infra's evaldrift, with the stage comparison folded in) runs the
+  evaluator on a build's own spec (the bundle's) and compares every stage object by object: the cranium fit, the
+  assembly, the eye and mouth parts, the landmarks, the masked skin's subdivision, the hair, the QA target, the
+  accessories, the garments (raw and evaluated) and the skin mask. `GEOM_TOL` sets what counts as drift. evaldrift's
+  check comparison (the evaluator as the body fit reads it, against qa.json) runs alongside. Both go in `drift.md`; the
+  command exits 1 on either.
 - Every build notes `garments_body` in its trace: the largest distance between the body the garments product was built on
   (venv) and Blender's own assembly. It is 0 when the character stage agrees. Until the character stage moves, this is
   the standing test for its drift.
@@ -167,7 +170,7 @@ the spring chains (`springs.plan`, numpy) and adds their bones and groups (`spri
 The QA reads Blender's evaluated meshes: Subdivision Surface (skin level 1 in the viewport, 2 at render; garments 1),
 Solidify (garment thickness and the outlines), Armature and Mask. The evaluator ports them to numpy
 (`bodyeval.subdivide`, `solidify`, `limit_positions`), and the residual is measured separately from the stages' drift
-(stagedrift's `evaluated` column). Two ways to close it:
+(`evaldrift --stages`' evaluated rows). Two ways to close it:
 
 - keep Blender as the truth for evaluated meshes, and hold the ports to a measured tolerance;
 - or own it: bake Solidify venv-side (it's an offset along normals plus a rim), make `bodyeval.subdivide` match
@@ -205,7 +208,7 @@ where the computation runs moves.
 **The shared assembly.** `geomstage.assemble` memoises `character.assemble` for the venv steps and the evaluator.
 `bodyeval.assemble_cached` now keys on the assembly's code closure: its old key listed nine modules by hand.
 
-**Before and after** (build box; before = pipeline-3d 9397578 with the old evaluator, after = this branch; stagedrift
+**Before and after** (build box; before = pipeline-3d 9397578 with the old evaluator, after = this branch; the stage comparison
 on each build's own spec; boarddiff between the before and after builds):
 
 | | clawd before | clawd after | clawd_mh before | clawd_mh after |
@@ -227,30 +230,29 @@ The checks still differing come from elsewhere:
 
 **Cost.**
 - Blender's garments stage fell from 11.5 s to 5.7 s (clawd); it now only replays.
-- The venv step costs 10.6 s of garments plus an assembly when the memo misses. The assembly is 81 s on the box for
-  the code head, which the build now does three times (the pieces step, the garments step and Blender) until step 3.
-- A rebuild in the same copy hits the memo. A gate's fresh clone doesn't.
+- The venv step costs 10.6 s of garments and 0.7 s of hull points. Its assembly is shared with the hair pieces' step:
+  `parts.Case.load` and the garments step both call `geomstage.assemble`, keyed on the spec sections the assembly
+  reads (`ASM_KEYS`, measured with charkit.cache's tracked dicts; a test fails if the assembly reads another).
+- The first gate (851fd15) warned on 1.8x the build's CPU time. That was a second assembly (about 80 s wall; the code
+  head's fit is multithreaded) before the memo was shared. Blender still assembles once more, until step 4.
 
 ## Rollout
 
 Each step merges on its own, gated as usual (`charkit remote gate BRANCH --into pipeline-3d`, both specs). Its exit
-test is the same every time: stagedrift (or `evaldrift --stages`, once folded) shows the stage exact on one machine,
+test is the same every time: `evaldrift --stages` shows the stage exact on one machine,
 boarddiff shows the QA unchanged except where the old evaluator was wrong, and the stage's Blender side reads a product.
 Owners come from `docs/OWNERSHIP.md`.
 
 | # | stage | owner(s) | what moves | exit test | when |
 |---|---|---|---|---|---|
-| 1 | garments, and the hair pieces in the evaluator | integrator (this branch); skirt, garments2 affected | the pilot (below) | done: garments f32-identical by construction, hair identical | now |
-| 2 | resolve and fit_cranium | integrator / infra (`cli.py`, `scene.py`, `bodyeval.resolve`) | one resolve for the build and the evaluator (the evaluator's lacks the style merge); `fit_cranium` run once venv-side and written into the resolved spec (Blender's becomes a no-op; measured equal) | evaldrift: no difference traced to resolve | small; any time |
-| 3 | character | integrator for the split; face (tool/face: `code_base.py`), mouth (expression keys), eyes | `character.build` split into `character.arrays(A, spec)` (venv: UVs per loop, face UVs, crease pairs, outline weights, group weights, shape-key offsets, eye and mouth parts, material descriptors) and `character.instantiate` (Blender). Every venv step and the evaluator share one assembly; Blender's 46 s character stage becomes a load | assembly f32-identical on both specs (mh's 18 vertices); `garments_body` 0 by construction; face checks unchanged | after tool/face's jaw round merges (the split touches `character.py`, not `code_base.py`) |
-| 4 | hair volume, QA target, accessories | hair (tool/hair3) with accessories (tool/accessories) | `scene.hair_shape_volume` venv-side: the GLB through `geom.io`'s Blender-compatible reader (the target is already identical to 1e-16 L), the selection through charkit.geom's BVH instead of mathutils (measure it equal first); `accessories.generate` venv-side (recorded like the garments, or split) | accessories f32-identical (7e-7 L now), target identical, hair checks unchanged | hair3's next round |
-| 5 | rig and springs | rig (tool/rig), motion (tool/motion: `springs.py`) | `rigstage.scene_rig` built from products, not the live scene (weights read as `_object` stores them: 3 decimals, over 1e-4); `springs.plan` venv-side (scipy for `nearest` and `components`); a rig product; Blender adds bones and groups only. Rest frames from the character product | the springs plan identical to the in-Blender plan on both specs; motion QA unchanged | after 3, and after tool/rig's R1–R6 gate |
+| 1 | garments, and the hair pieces in the evaluator | integrator (this branch); skirt, garments2 affected | the pilot (below) | done: garments f32-identical by construction; hair pieces identical, IoU 1.0 | now |
+| 2 | **the rest of the hair stage**: the hair volume, the QA target, the accessories | hair (tool/hair3) with accessories (tool/accessories) | The biggest drift left, and what one geometry removes by construction. `scene.hair_shape_volume` goes venv-side: the GLB through `geom.io`'s Blender-compatible reader (the target is already identical, to 1e-16 L) and the selection through charkit.geom's BVH instead of mathutils (measure it equal first). `accessories.generate` goes venv-side too, recorded like the garments or split. The build and the evaluator then read one hair product (pieces, volume, target, accessories) | accessories f32-identical (7e-7 L now, from the two volume ports agreeing), target identical, hair checks unchanged | hair3's next round |
+| 3 | resolve and fit_cranium | integrator / infra (`cli.py`, `scene.py`, `bodyeval.resolve`) | One resolve for the build and the evaluator (the evaluator's lacks the style merge). `fit_cranium` runs once venv-side and is written into the resolved spec; Blender's becomes a no-op (measured equal) | evaldrift: no difference traced to resolve | small; any time |
+| 4 | character | integrator for the split; face (tool/face: `code_base.py`), mouth (expression keys), eyes | `character.build` splits into `character.arrays(A, spec)` (venv: UVs per loop, face UVs, crease pairs, outline weights, group weights, shape-key offsets, eye and mouth parts, material descriptors) and `character.instantiate` (Blender). Every venv step and the evaluator share one assembly, and Blender's 46 s character stage becomes a load | assembly f32-identical on both specs (mh's 18 vertices); `garments_body` 0 by construction; face checks unchanged | after tool/face's jaw round merges (the split touches `character.py`, not `code_base.py`) |
+| 5 | rig and springs | rig (tool/rig), motion (tool/motion: `springs.py`) | `rigstage.scene_rig` builds from products, not the live scene (weights read as `_object` stores them: 3 decimals, over 1e-4). `springs.plan` runs venv-side (scipy for `nearest` and `components`) into a rig product; Blender adds bones and groups only. Rest frames come from the character product | the springs plan identical to the in-Blender plan on both specs; motion QA unchanged | after 4, and after tool/rig's R1–R6 gate |
 | 6 | face shading | look (tool/look2: `faceshade.py`) | the SDF, fringe shadow, ink maps and proxy normals venv-side; Blender makes the images and the transfer | the bundle's images and corner normals identical; look checks unchanged | when look2 resumes |
-| 7 | evaluated meshes | integrator, with body and garments | fix the shell side on the hull puff sleeves (0.008 L now). `bodyeval.recalc_normals`, the port of
-`bmesh.ops.recalc_face_normals` that `_object` runs, winds them opposite to Blender: 0 of 1,856 polygons agree, against
-100% on every other piece. The bundle's `raw` loops hold Blender's winding, so a test can compare the two per piece.
-The exact fix is to decide the winding venv-side and pass it through, instead of re-deriving it in Blender; then choose: Blender stays the truth for evaluated meshes (ports held to a tolerance), or the subdivision and Solidify move venv-side and the QA measures a venv-made bundle | evaluated garments within 1e-5 L; the skin's subdivision residual bounded | 7a now (small); 7b a decision for Michael |
-| 8 | measurement | infra (evaldrift, the QA registry) | one implementation per check: `bodymeasure` re-implements qa3d's (the 0.025 L chin anchor); stagedrift folded into `evaldrift --stages` | evaldrift: no check drifts on a build's own spec | after tool/infra merges |
+| 7 | evaluated meshes | integrator, with body and garments | 7a: the shell side on the hull puff sleeves (0.008 L now). `bodyeval.recalc_normals`, the port of `bmesh.ops.recalc_face_normals` that `_object` runs, winds them opposite to Blender: 0 of 1,856 polygons agree, against 100% on every other piece. The bundle's `raw` loops hold Blender's winding, so a test can compare the two per piece. The exact fix is to decide the winding venv-side and pass it through, instead of re-deriving it in Blender. 7b: either Blender stays the truth for evaluated meshes (ports held to a tolerance), or subdivision and Solidify move venv-side and the QA measures a venv-made bundle | evaluated garments within 1e-4 L (`GEOM_TOL`); the skin's subdivision residual bounded | 7a small; 7b a decision for Michael |
+| 8 | measurement | infra (evaldrift, the QA registry), face | One implementation per check: `bodymeasure` re-implements qa3d's. The sheet measures' 0.025 L is the eye-line registration, which tool/face has on its side and bodymeasure's `sheet_face` lacks | evaldrift: no check drifts on a build's own spec | with tool/face's merge |
 
 While a stage waits, its owners work as they do now. The only rule the pilot adds is for `garments.build`: Blender
 calls go through the seam. tool/garments2's template cuff and puff sleeve already do (`_object`, `_toon`,
@@ -262,9 +264,8 @@ kinds. When a stage moves, its numpy stand-ins for scipy (`_knn_mean`, `_grow`, 
 
 - **`CHARKIT_GARMENTS=blender`** keeps the old in-Blender garments path for one round, as a fallback and for A/B
   checks. Remove it once gates have run on the product path.
-- **The garments step's cost.** It assembles the character venv-side: 37 s on the laptop, about 68 s on the box for the
-  code head, unless the memo has it. The memo is per copy, and a gate's fresh clone assembles once per build. Step 3
-  removes the duplicate outright.
+- **Assemblies per build.** The venv now assembles once (shared by the pieces and garments steps), and Blender once
+  more. A gate's fresh clone misses the memo on its first build. Step 4 makes it one assembly per build: Blender loads.
 - **Cross-machine.** The code head's assembly differs by up to 0.0027 L on 1,726 vertices between laptop (ARM) and box
   (x86), and it reaches the collar. Laptop loops against box gates will see it until `code_base.wrap` is made
   deterministic, as hull-det did for the hull (face owner), or until evaluations run on the box.

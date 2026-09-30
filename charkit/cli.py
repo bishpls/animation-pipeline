@@ -15,7 +15,7 @@
     python -m charkit slots [N]                                        # the machine's concurrent Blender builds
     python -m charkit remote build|tune|gate|run ...                    # the same, on the CPU build box (charkit/remote.py)
     python -m charkit preview [REF] | hook install                       # after a merge: the combined preview (charkit/preview.py)
-    python -m charkit evaldrift [SPEC]                                 # the numpy evaluator against a box build (charkit/evaldrift.py)
+    python -m charkit evaldrift [SPEC] [--stages]                      # the numpy evaluator against a box build (charkit/evaldrift.py)
     python -m charkit tune SPEC [--out DIR] [--budget N|Nm] [--review]   # fit, build, check, triage (charkit/tune.py)
     python -m charkit triage DIR                                       # the residual checks as ranked work items
     python -m charkit review board|serve|note|ticket|tickets ...       # the human review checkpoint (charkit/review.py)
@@ -29,7 +29,6 @@
     python -m charkit figures SPEC [--write]     # find the model sheet's figures; check (or write) the manifest's boxes
     python -m charkit bodyeval SPEC [--knob PATH=VALUE] | --validate BUILD   # the fast numpy body/garment/hair evaluator
     python -m charkit bodysens SPEC [--only body,garments,hair]        # every body/garment/hair knob's silhouette effect
-    python -m charkit stagedrift BUILD                                 # the evaluator against a build, stage by stage
     python -m charkit bodyfit SPEC [--pieces figure,details,hair] [--palette] [--write-spec]   # fit them to the model sheet
     python -m charkit outfit SPEC [--out DIR] [--field FIELD.npz] [--no-field] [--notes NOTES.json] [--no-manifest]
                                                  # the outfit component graph from the references (charkit/outfit.py)
@@ -622,9 +621,6 @@ def main(argv=None):
     elif cmd == 'bodysens':
         from . import bodysens
         bodysens.main(rest)
-    elif cmd == 'stagedrift':
-        from . import stagedrift
-        stagedrift.main(rest)
     elif cmd == 'flapchains':
         from . import flapchains
         flapchains.main(rest)
