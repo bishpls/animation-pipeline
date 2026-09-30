@@ -243,7 +243,7 @@ def band_hull(A, spec, hull):
     rows = max(3, int(round((hi - lo) / (spec.get('step', 0.015) * L))) + 1)
     ts = np.linspace(lo, hi, rows)
     nth = spec.get('cols', 48)
-    F = loft.field(t, th, r, ts, nth=nth, min_row=0.2)
+    F = loft.field(t, th, r, ts, nth=nth, min_row=0.2, name=spec['name'], prior=float(np.median(r)) if len(r) else None)
     R = F.R + spec.get('offset', 0.0) * L
     k = spec.get('round_xs', 0.3)
     if k > 0:                                          # toward each row's ellipse: 1/r^2 = cos^2/a^2 + sin^2/b^2
@@ -302,7 +302,8 @@ def shoe_hull(A, spec, hull):
     t, th, r = ax.coords(P)
     rows = max(4, int(round((top - sole_z) / (spec.get('step', 0.02) * L))) + 1)
     ts = np.linspace(0.0, top - sole_z, rows)
-    F = loft.field(t, th, r, ts, nth=spec.get('cols', 48), min_row=0.2)
+    F = loft.field(t, th, r, ts, nth=spec.get('cols', 48), min_row=0.2, name=spec['name'],
+                    prior=float(np.median(r)) if len(r) else None)
     R = F.R + spec.get('offset', 0.0) * L
     # the seam with the shaft: the shell's radius at the top, eased into the hull's over `blend` L
     shaft = next((g for g in (spec.get('_spec') or {}).get('garments', []) if g.get('kind') == 'shell' and
@@ -515,7 +516,8 @@ def belt_hull(A, spec, hull):
     t, th, r = ax.coords(P)
     lo, hi = np.percentile(t, spec.get('span', (2, 98)))
     rows = max(3, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
-    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 96))
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 96), name=spec['name'],
+                    prior=float(np.median(r)) if len(r) else None)
     R = F.R + spec.get('offset', 0.0) * L
     pull = spec.get('round', 0.4) * spec.get('thick', 0.025) * L
     R[0] -= pull; R[-1] -= pull
@@ -658,7 +660,8 @@ def skirt_hull(A, spec, hull):
     t0_at = lambda a: top - top_z(a)
     v = np.clip((t - t0_at(th)) / np.maximum(1e-9, hem_at(th) - t0_at(th)), -0.2, 1.2)
     vs = np.linspace(0, 1, rows + 1)
-    F = loft.field(v, th, r, vs, nth=n, q=spec.get('q', 0.5), smooth=(1.0, 1.0))
+    F = loft.field(v, th, r, vs, nth=n, q=spec.get('q', 0.5), smooth=(1.0, 1.0), name=spec['name'],
+                   prior=float(np.median(r)) if len(r) else None)
     if spec.get('aline'):
         # an A-line flares to its hem: each column's radius never narrows going down (a visual hull rounds the
         # hem's corners in, where the views' silhouettes cut it, and the skirt read as a bubble)
@@ -1080,7 +1083,8 @@ def sleeve_hull(A, spec, hull):
     t, th, r = ax.coords(P)
     lo, hi = np.percentile(t, spec.get('span', (1, 99)))
     rows = max(4, int(round((hi - lo) / (spec.get('step', 0.02) * L))) + 1)
-    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 64), min_row=0.15)
+    F = loft.field(t, th, r, np.linspace(lo, hi, rows), nth=spec.get('cols', 64), min_row=0.15, name=spec['name'],
+                    prior=float(np.median(r)) if len(r) else None)
     V, quads, uv = loft.loft(ax, F, F.R + spec.get('offset', 0.0) * L)
     return dict(verts=V, faces=quads, weights={side + 'UpperArm': np.ones(len(V))}, uv=[tuple(x) for x in uv])
 
@@ -1419,17 +1423,17 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
 
 
 def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
-    from .geom import loft as _loft
-    _loft.LOW_COVERAGE.clear()
     """Blender objects for an outfit on a built character C (charkit.character.build): each garment rigged to C's armature,
     toon-shaded and outlined; the body under the tight shells masked away. hull: hull_pieces()' points, for the garments
     whose `source` is 'hull'. -> [objects]."""
     from . import eyetex, shade
     A, arm, skin = C['data'], C['arm'], C['skin']
     L = A['head']['L']
+    from .geom import loft as _loft
     nrm = vertex_normals(A['verts'], A['faces'])
     hide = np.zeros(len(A['verts']), bool)
     obs = []
+    _loft.LOW_COVERAGE.clear()
     for s in specs or []:
         k, nm = s['kind'], s['name']
         col = s.get('color', (0.8, 0.8, 0.8))
@@ -1550,7 +1554,7 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
         shade.outline(ob, thick=s.get('line', 0.0012), color=line, name='garment_line')
         if _loft.LOW_COVERAGE:                                   # built from marginal hull coverage: kept as a number
             ob['charkit_coverage'] = min(_loft.LOW_COVERAGE)
-            print('garments: %s built from marginal hull coverage (its best row measured on %.0f%% of its circle)'
+            print('garments: %s lofted from marginal hull coverage (its best row measured on %.0f%% of its circle)'
                   % (nm, 100 * min(_loft.LOW_COVERAGE)))
             _loft.LOW_COVERAGE.clear()
         obs.append(ob)
