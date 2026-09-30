@@ -2867,6 +2867,10 @@ def _object(name, verts, faces, weights, arm, mats, uv=None, uv_corner=None, mat
     return ob
 
 
+COLLAR_TEMPLATE = dict(       # the template collar's shell (build: kind 'collar', source 'template'), under its own knobs
+    region=[['neck', -1, 0.6], ['upperChest', -1, 3], ['chest', -1, 3], ['spine', -1, 3], ['leftShoulder', -1, 3],
+            ['rightShoulder', -1, 3]],
+    offset=0.03, thick=0.005)
 RIM_CREASE = 1.0    # a thin shell's open rim kept flat and square under the Subdivision (Michael's call L; 0: rounded)
 
 
@@ -2993,6 +2997,24 @@ def build(C, specs, line=(0.30, 0.18, 0.16), hull=None, spec_all=None):
                 midx = [2 if b_ else p_ for p_, b_ in zip(G['panel'], G['band'])]
             ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv=G['uv'], mat_idx=midx)
             _thick(ob, 0.01 * L)
+        elif k == 'collar' and s.get('source') == 'template':
+            # the sailor collar as a template (tool/collar): a shell over the neck's base, the shoulders and the upper
+            # back and chest, cut to its outline (outline_dist: the lapels' V in front, the square back panel), its
+            # stripe a band in from the outline's edge in a second material; it lies over the jacket (`offset`)
+            G = shell(A, dict(COLLAR_TEMPLATE, **s), nrm, hull)
+            st_ = s.get('stripe') or {}
+            mats = [_toon(nm, col, sh), _toon(nm + '_stripe', st_.get('color', s.get('stripe_color', (0.3, 0.2, 0.18))), sh)]
+            ob = _object(nm, G['verts'], G['faces'], G['weights'], arm, mats, uv_corner=G['uvs'],
+                         mat_idx=[int(v) for v in G.get('panel_faces', np.zeros(len(G['faces']), int))])
+            _thick(ob, s.get('thick', 0.005) * L)
+            src = G['src']; inside = np.zeros(len(A['verts']), bool); inside[src] = True
+            border = set()
+            for f in A['faces']:
+                if any(inside[v] for v in f) and not all(inside[v] for v in f):
+                    border.update(f)
+            for v in src:
+                if v not in border:
+                    hide[v] = True
         elif k == 'collar' and s.get('source') == 'hull':
             G = collar_hull(A, s, nrm, hull)
             mats = [_toon(nm, col, sh), _toon(nm + '_stripe', s.get('stripe_color', (0.3, 0.2, 0.18)), sh)]
