@@ -229,7 +229,7 @@ garment edges and streaks (per renderer and GPU), every table below.
 - Measured: `charkit/boards/lookprobe.py --hash` renders the node for columns 0..63 and reads it back in three 11-bit
   windows (EEVEE's film is half float): **64/64 columns match on the laptop (M2, Metal) and on the T4**, worst 0.99 of
   an fp16 step. `test_streak_hash_gpu` runs toon.wgsl's hash in a compute pass: bit-identical to numpy on Metal and
-  on the T4's Vulkan. look.js isn't run in a browser here (open item).
+  on the T4's Vulkan. look.js runs it in headless Chrome's WebGPU (M2): the same columns (below).
 
 Streak agreement (`lookab`: each renderer's streak pixels are its board against its own board without streaks, > 4
 levels; IoU over all nine boards, and the two boards' difference inside the union):
@@ -241,6 +241,11 @@ levels; IoU over all nine boards, and the two boards' difference inside the unio
 | EEVEE laptop / charkit.render (M2) | 0.054 | 58.2 lv | **0.995** | 0.56 lv |
 | EEVEE T4 / charkit.render (T4) | - | - | 0.995 | 0.57 lv |
 | charkit.render M2 / T4 | - | - | 1.000 | 0.07 lv |
+| EEVEE T4 / look.js (Chrome WebGPU, M2) | - | - | 0.861 | 9.7 lv (35% > 8) |
+
+look.js (`projects/charkit-look` boards, `~noring` for its streak-free base; ss 2, a box filter against EEVEE's
+Gaussian): the same kept columns and positions; its streak edges differ (face boards IoU 0.84-0.94, the body boards'
+few-hundred-pixel streaks 0.58-0.77).
 
 The kept set changed with the hash: 10 of 36 columns (1, 4, 12, 18, 20, 23, 26, 27, 28, 33); one now lands on the right
 bun as a large highlight (face_030). A taste point: a `seed` added to the index would pick another set.
@@ -346,8 +351,9 @@ charkit/boards/lookprobe.py -- ...'` then `build.sh fetch` (`remote run` runs ch
 - The rim beads and the collar's thin regions still flip (above): Michael's call on a smaller share (0.2-0.3), or
   garments2 keeping rims flat / the collar at its thickness.
 - Closed thin pieces (bow, boots, crab, star) have no cap: a measured thickness would give them one (experiment above).
-- look.js isn't measured in a browser: the hash and the per-view surface / hull are ported, not run
-  (`projects/charkit-look`, phase 2 B.1). For meshes with `_HULL_NORMAL` (skin, hair) the per-view surface move uses
+- look.js: its streaks are measured (above); its per-view surface and hull aren't yet measured against EEVEE board by
+  board (phase 2 B.1: `node engine/render.mjs projects/charkit-look --loop=views~BUILD~vrm:clawd`; needs
+  `node_modules` linked into the worktree). For meshes with `_HULL_NORMAL` (skin, hair) the per-view surface move uses
   that attribute unskinned: exact in the build pose, off by the bone's rotation when posed.
 - The streak set changed (one on the right bun): a seed if Michael prefers another set.
 - OWNERSHIP.md's look row could list `lookab.py` and `boards/lookprobe.py`.
