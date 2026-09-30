@@ -256,7 +256,11 @@ def gate(args):
             % dict(fetch=q(fetch), G=G, GI=GI, gid=gid, into=q(into), branch=q(branch), si=sha[into], sb=sha[branch],
                    slots=_slots(), more=more, publish=publish, checkout=sha[gate_code] if gate_code else q(into)))
     # with the box's environment, not in this worktree's synced copy (a worktree that has only ever gated has none)
-    what = dict(pull='gate-' + gid, to=os.path.join('charkit', 'out', 'gate'), gate=gid)
+    # (the report comes back into this gate's own folder, keyed by its id, and only a report of this branch at this
+    # sha into this head is taken from it: never "the newest report" in charkit/out/gate)
+    what = dict(pull='gate-' + gid, to=os.path.join(GATES_HERE, gid), gate=gid,
+                report=dict(branch=branch, tip=sha[branch], head=sha[into], into=into),
+                reports=os.path.join('charkit', 'out', 'gate'))
     label = '%s into %s%s' % (branch, into, more) + (' (gate code %s)' % gate_code if gate_code else '')
     if '--keep-older' not in args:
         supersede(branch, _opt(args, '--spec'))
@@ -267,11 +271,59 @@ def gate(args):
     else:
         code = _sh('ssh', '%ssource /opt/anim-build/env && bash -c %s' % (install and install + '; ', q(step)),
                    check=False, input=script)
-    local = os.path.join(ROOT, 'charkit', 'out', 'gate')
-    os.makedirs(local, exist_ok=True)
     # the report was published to the bucket when the gate ended: no second connection through the tunnel
     collect(what)
-    print('remote gate: exit %d, report in %s' % (code, local))
+    return gate_result(what, code)
+
+
+GATES_HERE = os.path.join('charkit', 'out', 'remote', 'gates')   # each gate's report as it came back, by the gate's id
+
+
+def gate_report(folder, branch, tip, head):
+    """the report in a gate's own folder (its collected files) of branch at tip into head (shas: a prefix of either
+    side matches) -> the .md's path, or None. Never another gate's: the folder is this gate's, and its json must say
+    this branch and these commits."""
+    import glob
+    same = lambda a, b: bool(a and b) and (a.startswith(b) or b.startswith(a))
+    for j in sorted(glob.glob(os.path.join(folder, 'gate_*_into_*.json'))):
+        if j.endswith('.summary.json'):
+            continue
+        try:
+            r = json.load(open(j))
+        except (OSError, ValueError):
+            continue
+        if r.get('branch') == branch and same(r.get('tip'), tip) and same(r.get('head'), head):
+            return j[:-5] + '.md'
+    return None
+
+
+def gate_result(what, code):
+    """a finished gate job's own report (what: its collect record) copied into charkit/out/gate and named, with its
+    verdict -> the exit code: the job's, or 1 when no report of this branch and sha came back (a PASS is never
+    claimed without its report)."""
+    import shutil
+    want = what.get('report')
+    if not want:                                   # (a job recorded before reports were keyed: its folder only)
+        print('remote gate: exit %s, report in %s' % (code, os.path.join(ROOT, what['to'])))
+        return code
+    md = gate_report(os.path.join(ROOT, what['to']), want['branch'], want['tip'], want['head'])
+    if md is None:
+        print('remote gate: exit %s, but no report of %s (%s) into %s (%s) came back from gate %s (its folder: %s)' % (
+            code, want['branch'], want['tip'][:7], want['into'], want['head'][:7], what['gate'], what['to']))
+        return code if code not in (0, None) else 1
+    dst = os.path.join(ROOT, what.get('reports') or os.path.join('charkit', 'out', 'gate'))
+    os.makedirs(dst, exist_ok=True)
+    for ext in ('.md', '.json', '.summary.json'):
+        src = md[:-3] + ext
+        if os.path.exists(src):
+            shutil.copyfile(src, os.path.join(dst, os.path.basename(src)))
+    try:
+        v = json.load(open(md[:-3] + '.summary.json')).get('verdict')
+    except (OSError, ValueError):
+        v = None
+    print('remote gate: exit %s, gate %s: %s (%s) into %s (%s): %s, report %s' % (
+        code, what['gate'], want['branch'], want['tip'][:7], want['into'], want['head'][:7], v or '?',
+        os.path.join(dst, os.path.basename(md))))
     return code
 
 
@@ -435,7 +487,13 @@ def attach(jid, rec=None, out=None):
     from charkit import boxjob
     out = out or sys.stdout.buffer
     rec = rec or {'jid': jid}
-    fr = boxjob.Frames(lambda b: (out.write(b), out.flush()))
+    # (a copy of the job's log here, by its id, whatever this command's own output is redirected to: two commands
+    # sharing one redirect file garbled each other's output, 2026-09-30; a reattach appends from the byte it reached)
+    os.makedirs(JOBS_HERE, exist_ok=True)
+    keep = open(os.path.join(JOBS_HERE, jid + '.log'), 'ab')
+    if keep.tell():
+        keep.truncate(0)                          # (a follow from the start: attach replays the whole log)
+    fr = boxjob.Frames(lambda b: (out.write(b), out.flush(), keep.write(b), keep.flush()))
     cfg, vm = _cfg()
     drops, failing_since, errors = 0, None, 0
     while True:
@@ -589,6 +647,8 @@ def main_attach(args):
     code = attach(jid, rec)
     if rec and rec.get('collect') and code not in (STILL_RUNNING, 130):
         collect(rec['collect'])
+        if rec['collect'].get('gate'):
+            return gate_result(rec['collect'], code)
         print('remote attach: exit %s, outputs in %s' % (code, rec['collect']['to']))
     return code
 
