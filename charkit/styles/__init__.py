@@ -51,7 +51,8 @@ from the character's profile (spec['style'], default 'anime') instead of hard-co
            turn from the camera, so no outline draws it); cast (None, or the head's and hair's shadows baked per skin
            vertex for `k` light azimuths at the key's elevation, charkit.faceshade.cast_maps: the jaw's on the neck, the
            hair's on the face; shadow maps of `px` L pixels, filtered `soft` pixels round, the values smoothed over the
-           mesh `smooth` times; read where they cross `at` +- `width`; the toon held at or under `half` in them);
+           mesh `smooth` times; read where they cross `at` +- `width`; the toon held at or under `half` in them; `face` False:
+           the neck alone takes them, the face keeps the fringe map);
            hair: highlight None or 'streaks' (short drawn streaks down the hair on the crown's lit side: `count`
            columns of azimuth round the head, a share `keep` of them carrying one `length` degrees long and `duty` of
            its column wide about `elevation` +- `jitter`; `amount`, `color`), deep_at (the deep tone's step on

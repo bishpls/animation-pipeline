@@ -346,7 +346,8 @@ def cast_maps(V, faces, fmat, head_w, neck_w, hair, L, dirs, z_chin, **kw):
     1 in shadow (cast_shadow): the face (the head's polygons, fmat 1, above the chin's height z_chin) in the hair's
     shadow; under the chin (the neck, neck_w > 0, and the head's own polygons below the chin) in the head's and the
     hair's (the jaw and chin over it). Nothing else is shadowed: the face's own shading is the SDF's, the body's the
-    toon's. hair: [(V, triangles)] world. -> (n, len(dirs)) float32."""
+    toon's. hair: [(V, triangles)] world. face=False: the face takes no cast (the neck alone: the jaw's and the hair's
+    shadows under the chin; the face keeps the fringe map). -> (n, len(dirs)) float32."""
     from . import anime_head as ah
     V = np.asarray(V, float)
     T = _triangles(faces)
@@ -359,7 +360,7 @@ def cast_maps(V, faces, fmat, head_w, neck_w, hair, L, dirs, z_chin, **kw):
     face_v = head_v & ~under
     neck_v = ((np.asarray(neck_w) > 1e-3) | head_v) & under
     smooth = kw.pop('smooth', 0)
-    if face_v.any() and hair:
+    if face_v.any() and hair and kw.pop('face', True):
         out[face_v] = cast_shadow(V[face_v], N[face_v], hair, dirs, L, **kw)
     if neck_v.any():
         out[neck_v] = cast_shadow(V[neck_v], N[neck_v], [(V, T[fm == 1])] + list(hair), dirs, L, **kw)
@@ -402,7 +403,7 @@ def cast_params(look_cast, el):
     c = dict(look_cast) if isinstance(look_cast, dict) else {}
     return dict(k=int(c.get('k', CAST_K)), el=float(el), at=float(c.get('at', 0.5)), width=float(c.get('width', 0.12)),
                 half=float(c.get('half', 0.47)), attrs=list(CAST_ATTRS), px=float(c.get('px', 0.012)),
-                soft=float(c.get('soft', 2.0)), smooth=int(c.get('smooth', 2)))
+                soft=float(c.get('soft', 2.0)), smooth=int(c.get('smooth', 2)), face=bool(c.get('face', True)))
 
 
 def cast_nodes(m, P):
@@ -639,7 +640,7 @@ def apply(C, bangs=None, colors=None, size=512, look=None, hair=()):
             occ = [_mesh_world(o) for o in hair]
             cm = cast_maps(A['verts'], A['faces'], A['fmat'], A['body']['head_w'], nk, occ, H.L,
                            cast_dirs(P['k'], P['el']), centre[2] - H.chin, px=P['px'], soft=P['soft'],
-                           smooth=P['smooth'])
+                           smooth=P['smooth'], face=P['face'])
             sp_['shadowed'] = round(float((cm > 0.5).mean()), 4)
         for i, name in enumerate(P['attrs']):
             at = me.color_attributes.new(name, 'FLOAT_COLOR', 'POINT')

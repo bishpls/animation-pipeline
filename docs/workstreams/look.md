@@ -565,3 +565,27 @@ face4's chin) and validates them.
   cut pieces' bangs and side locks, which the fringe reads, otherwise).
 - Builds next (render box): `look5_before` (`charkit/out/look5_specs/clawd_nocast.json`: clawd.json with
   `look.face.cast` null and `chin_tilt` 85, this branch's code) and `look5_after` (clawd.json), then both lookboards.
+
+### First numbers (render box builds, bare head, the QA's render drawing; box and laptop agree to 4 decimals)
+
+`look5_before` (cast off, chin_tilt 85) -> `look5_after` (the cast):
+
+| check | before | after | reading |
+|---|---|---|---|
+| face_shadow_chin (IoU, front / 3q) | 0.528 (0.716 / 0.340) | 0.508 (0.673 / 0.343) | no separation |
+| face_shadow_chin_edge, count per column (round 2's) | 0.0249 | 0.0269 | no separation |
+| face_shadow_chin_edge, reach per column | 0.148 | 0.146 | no separation |
+| face_shadow_chin_soft (the tone steps' soft width on the neck, L) | 0.0056 | 0.0037 | -34%: the smear |
+| face share in shadow, ours / design: front | 0.196 / 0.076 | 0.342 / 0.076 | the hair's cast overshoots |
+| three-quarter | 0.135 / 0.194 | 0.261 / 0.194 | |
+| profile | 0.079 / 0.207 | 0.304 / 0.207 | |
+| face_shadow IoU front / 3q / profile | 0.470 / 0.309 / 0.256 | 0.393 / 0.339 / 0.387 | |
+| face_noise, face_islands | 0.0372, 15 | 0.0333, 10 | |
+
+Per column in the chin window (0.5 L under our chin), before and after have the same shadow top (at the window's
+top in the middle columns, none at the sides) and nearly the same reach (0.15-0.2 L; the design's 0.3-0.35 L): the
+difference from the design is the neck's own toon shading and extent, not the cast. In the EEVEE close-ups the cast
+removes the lit haze under the jaw (three-quarter: the shade starts at the jaw line) but the edge is wavy. The hair's
+cast shades the forehead under the bangs from the front (34% of the face against the design's 8%).
+Option build next: `look5_castneck` (`look.face.cast.face` false: the neck takes the cast, the face keeps the fringe
+map).
