@@ -223,6 +223,7 @@ EDGE_TOP_BACK = (1.6, 2.0)   # rad round from the front: behind the jaw's angle 
 EDGE_PHI_FADE = 0.12     # rad round the neck's axis past the jaw's angle: the side's pocket fades out over this
 EDGE_Y_FADE = 0.05       # L: the side's pocket fades out over this toward the neck's axis
 EDGE_PIECEWISE = False   # the side's rows split at the band's top (the rim held to one row): it twisted them more
+EDGE_BUMP = 1.0          # the share of the way out to the edge's point the outline is brought
 EDGE_WEDGE = True        # where the edge lies inside the outline, hold the front behind a prow to it
 EDGE_PROW = 1.5          # the prow's shape: y from the midline's front to the edge as (|x| / x_V)^this (1 a wedge,
                          # with a ridge down the chin's midline that the cage crumpled; 1.2 left the three-quarter's
@@ -301,7 +302,7 @@ def jaw_envelope(S, jaw, log=None):
         w_tip = float(_smoothstep((xV - EDGE_TIP[0]) / (EDGE_TIP[1] - EDGE_TIP[0])))
         d = rJ - float(np.interp(tJ, th, r, period=2 * np.pi))
         if d >= 0:                                        # the edge further out: the outline brought out to it
-            r = r + beta * w_tip * d * bump
+            r = r + beta * w_tip * EDGE_BUMP * d * bump
         elif EDGE_WEDGE:                                  # further in: the front held behind a convex curve from
             ym = cy - float(r[int(np.argmin(np.abs(th)))])     # the midline's front to the edge (a prow, round at the
             x, y = np.sin(th) * r, cy - np.cos(th) * r         # midline: no ridge down the chin; a soft max, no kink)

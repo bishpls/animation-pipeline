@@ -493,3 +493,34 @@ Tried and dropped (don't retry as they were):
 **Cage health** (`tools/face_labs`: the fitted cage in the jaw region, z -0.45 to -0.25, and its subdivision): jaw_4 18
 folded corners, 0 edges over 90 degrees (max 72.5); now 22 and 2 (93: the concave crease where the jaw's underside
 meets the neck's side, x 0.13, z -0.315, where jaw_4's sharpest are too).
+
+**Numbers** (jaw_4: the round Michael reviewed; jaw_5: this construction, render box, `clawd.json`, views and body boards,
+built at 816ada9; the new checks measured on jaw_4's bundle with the same code; boards' camera, level in brackets):
+
+| check | design | jaw_4 | jaw_5 |
+|---|---|---|---|
+| jaw_taper_shape (rms of w(t)/w(0)) | 0 | 0.0353 WARN (0.0192) | 0.0281 WARN (0.0247) |
+| jaw_line_bend (deg) | 4.4 | 24.4 FAIL (board 9.9) | 41.2 FAIL (board 13.5): the neck-edge T-junction, below |
+| chin_angle (deg) | 129.7 | 107.6 FAIL (121.4) | 119.7 PASS (129.5) |
+| chin_tip (share of the V's turn at its point) | 0.843 | 0.301 FAIL (0.448) | 0.59 WARN (0.83) |
+| w90 (L) | 0.067 | 0.055 | 0.051 |
+| tq_cheek_hollow (L) | 0.0035 | 0.0097 FAIL | 0.005 PASS |
+| tq_jaw_notch (L) | 0 | 0.0573 FAIL | 0.0573 FAIL (open, below) |
+| jaw_taper / chin_point_z (anchor) | | 0.0271 WARN / -0.0224 WARN | 0.0093 / 0 PASS |
+| chin_underside (deg) | 13.7 | 12.8 PASS | 12.5 PASS |
+| neck_front_wiggle (deg) | | 6.2 PASS | 6.9 PASS |
+| jaw_line_front / three_quarter | | 0.979 / 1.333 PASS | 0.968 / 1.333 PASS |
+| face_folds | | 4 (530 on the old check) | 4 PASS |
+| sheet_cheek_chin / profile_chin (anchor) | | -0.0277 / -0.0247 WARN | -0.0027 / 0.0003 PASS |
+| profile_edge | | 0.0622 FAIL (0.0278 remeasured) | 0.0391 WARN |
+| eye_hollow / eye_bowl | | 0.0164 / 0.0228 | 0.0121 PASS / 0.0243 WARN (eyes2's) |
+
+- The level camera's bend is a 0.005 L nick where the neck's silhouette line meets the jaw's (a T-junction in the
+  emulated outline; the design's drawn neck lines stop at the jaw line). The outward bump at rows -0.33 to -0.30 sharpens
+  it: without it (EDGE_BUMP 0) 25 degrees, but the chin reads 116 and the hollow 0.0053 WARN; kept at 1.
+- profile_edge: every row from the chin to the chest reads 0.019 L further back than jaw_4's: the profile's horizontal
+  registration is still the iris plate's depth, which eyes2's turned surface moved (sheet_nose_reach and chin_reach
+  shift the same way, still PASS). The depth anchor (the head frame's eye depth) needs the build to record it: open.
+- The boards' chin angle (119.7 against 129.7) is what the design's own recession gives under the boards' 6-degree
+  look down (a camera at the chin's height reads 127); flattening the chin's recession to close it would undo the
+  three-quarter.
