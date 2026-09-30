@@ -530,6 +530,13 @@ over the neck in profile), `frontprobe.py` (inside a build: lock 0 against the d
   the garments; (b) the hull's carve at the back of the neck from the sheet-only masks (the TRELLIS hull's envelope
   gives the base's components exactly, but a hull change moves everything downstream). (c) For Michael: a clean hair
   edge over the neck reads as a speck when its 1 px strip is under SPECK (64 px): the base passes by 5 px. Not changed.
+- **How much the junction needs** (`rulevar.py` with TIPD: the lower back's whole lower edge moved in theta, an
+  experiment, not a fix; on the swap, against our own rebuild's): -3 deg (shorter) reads speckle_neck **1.34 PASS**
+  (the base's components exactly: strip 71 px, the collar's outline to col 460), terminator_hair 2.08 -> 1.925,
+  fragments_hair 1.43 -> 1.37, but **hair_piece_lower_back 0.707 -> 0.675 and hair_piece_upper_back 0.758 -> 0.732**
+  (folds 6); +3 deg reads 2.056 (a 15 px dot of tip and collar outline), terminator_hair 2.40, lower back 0.678. Not
+  taken: a global length change trades the pieces' shape IoU for the detector. The target for option (a) is local:
+  about 3 deg of the lowest tip where it meets the collar's back corner in profile, clear of it or over it.
 
 ### The review page (round 4)
 
