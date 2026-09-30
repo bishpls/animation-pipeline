@@ -539,6 +539,16 @@ three-quarter's drawn figure edge) pulls nothing: every right side-lock cell alr
   option is gone. The trim is per cell (up to 0.18 L over 442 cells) with a 1-cell blur (crown_smooth 1.0), so the
   crown's locks carry its steps and a fifth of their normals shows them. `crown_smooth` 2.5 and 4 on the build box
   (`h4n_cs25`, `h4n_cs4`) and in the lab (f4).
+- **crown_smooth doesn't fix it** (build box): the front's terminator ratio 2.607 (smooth 1), 2.675 (2.5), 2.516 (4),
+  against 2.376 untrimmed; the hair gains hold at every smoothing (bun outline 0.439, buns 0.846, upper back 0.770,
+  folds 5; lab f4). The new kinks are on the buns: the trimmed crown shows more of the bun blocks' bases (their own
+  flat normals, faceted terminators; qa_artifacts front: the right bun's lower edge, the left bun's base, under the
+  ahoge), so they come with the trim's depth, not its roughness. A fix is the bun's shading or fit, not the trim.
+- **Decision (this run): crown_trim goes behind the setting** (`OPTS['crown_trim'] = False`): not better on every check,
+  and under K a regression in a flag check blocks the merge. The default spec's hair is then round 3's exactly
+  (`h4n_nocrown` reads every hair check as pipeline-3d's), body_clear stays (clawd_mh's shoulder). **Michael's call:**
+  the crown trim's bun outline 0.397 -> 0.437, buns 0.826 -> 0.846, upper back 0.760 -> 0.771, folds 6 -> 5 against
+  art_terminator_hair 2.376 -> 2.607 (front, past its 2.5 line); `crown_trim: true` in the spec's pieces_opts turns it on.
 - **Review page:** `charkit/out/h4n_page/index.html` (`tools/hair4/page.py`, table in charkit/out/h4lab/page_table.json;
   lab pictures from 'built' on both render builds, charkit/out/h4lab/page/).
 - **Why the shell samples fold more (next step 2), measured** (`tools/hair4/foldlab.py BUILD OUT [--fine]`: the pieces

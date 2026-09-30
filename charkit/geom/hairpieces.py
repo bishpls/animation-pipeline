@@ -45,14 +45,17 @@ BUN_CORE = 1.6          # a bun's points further than this many times their medi
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
             chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
             trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0},
-            samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=True, crown_th=70.0,
+            samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=False, crown_th=70.0,
             bun_occlude=False, bun_per_side=False, bun_views=('front', 'profile', 'back'), bun_tails=False,
             bun_outline_w=0.0)
-# (hair round 4's defaults, each measured against round 3 on the hull-limbs hull (docs/workstreams/hair.md): body_clear
-# (the hair clear of the build's own body below the chin: clawd_mh's shoulder 0.0484 -> 0.0034 L) and crown_trim (the
-# crown down to the drawn crown: upper back 0.760 -> 0.771, hair_bun_outline 0.397 -> 0.437). Behind settings, measured
-# but not better on every check yet: samples 'shell' (hull_samples: the labelled shell, stable under the hull's
-# decimation, but folds 6 -> 12 and the profile's fragments 7 -> 13), the bun fit with occlusion in all four views
+# (hair round 4's default, measured against round 3 on the hull-limbs hull (docs/workstreams/hair.md): body_clear
+# (the hair clear of the build's own body below the chin: clawd_mh's shoulder 0.0484 -> 0.0034 L; the default spec's
+# hair unchanged). Behind settings, measured but not better on every check yet: crown_trim (the crown down to the
+# drawn crown: upper back 0.760 -> 0.771, hair_bun_outline 0.397 -> 0.437, hair_folds 6 -> 5, but it shows the buns'
+# bases and the flag check art_terminator_hair goes 2.376 -> 2.607 in front, 2.52-2.68 at crown_smooth 1-4: Michael's
+# call), samples 'shell' (hull_samples: the labelled shell, stable under the hull's decimation, but folds 5 -> 16 and
+# the profile's fragments 8 -> 16: its unsettled samples off the smooth surface move the envelope; 'shell_smooth'
+# drops them: folds 5, but profile fragments 14, back 19), the bun fit with occlusion in all four views
 # (bun_occlude, bun_per_side, bun_views BUN_VIEWS, bun_outline_w 1: hair_bun_outline -> 0.50, the three-quarter's bun
 # IoU 0.52 -> 0.74, but the back's 0.85 -> 0.78), bun_tails (shards and the scalp), flyaway_plane 'mid', crown_th 110,
 # trim_sides 'three_quarter', nothair_tol, vote_depth, crown_edge 'drawn': the drawn crown where it shows, not only
