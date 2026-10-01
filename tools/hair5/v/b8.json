@@ -83,7 +83,7 @@
 ]
 }
 },
-"prom4": {
+"cuts_nofine": {
 "opts": {
 "ahoge": "fit",
 "flyaway_root": "hair",
@@ -94,19 +94,17 @@
 },
 "ink_phi": 120,
 "fine_tips": [
-"bangs",
-"lower_back"
+"bangs"
 ],
 "notch_piece": {
 "lower_back": 6
 },
 "drawn_cuts": [
 "lower_back"
-],
-"ribbon_prom": 4.0
+]
 }
 },
-"prom6": {
+"cuts_notch10": {
 "opts": {
 "ahoge": "fit",
 "flyaway_root": "hair",
@@ -121,35 +119,11 @@
 "lower_back"
 ],
 "notch_piece": {
-"lower_back": 6
+"lower_back": 10
 },
 "drawn_cuts": [
 "lower_back"
-],
-"ribbon_prom": 6.0
-}
-},
-"sep8": {
-"opts": {
-"ahoge": "fit",
-"flyaway_root": "hair",
-"flyaway_reach": 0.01,
-"ink_fade": {
-"upper_back": 0.0,
-"lower_back": 0.25
-},
-"ink_phi": 120,
-"fine_tips": [
-"bangs",
-"lower_back"
-],
-"notch_piece": {
-"lower_back": 6
-},
-"drawn_cuts": [
-"lower_back"
-],
-"ribbon_nsep": 8.0
+]
 }
 }
 }
