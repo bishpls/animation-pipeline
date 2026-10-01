@@ -3,8 +3,7 @@ outline_w honoured): per dir the placement-0 reading, the mean +- std and the pe
     python tools/hairshell3/term6p.py BASE [LABEL=]PIECES_DIR ... [--json OUT]   (PIECES_DIR '-' = the base as built)"""
 import json, os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'charkit', 'out', 'hairshell2'))
-sys.path.insert(0, os.path.join(ROOT, 'charkit', 'out', 'hairshell3'))
+sys.path.insert(0, ROOT); sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from charkit import bundle
 from charkit.render.calibrate import OFFSETS

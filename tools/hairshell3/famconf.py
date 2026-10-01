@@ -28,7 +28,7 @@ if __name__ == '__main__':
     opt = lambda k, d=None: a[a.index(k) + 1] if k in a else d
     B = bundle.load(os.path.join(a[0], 'bundle'))
     if opt('--pieces'):
-        sys.path.insert(0, os.path.join(ROOT, 'charkit', 'out', 'hairshell3'))
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from splice2x2 import splice
         B = splice(B, opt('--pieces'))
     D = qa3d.Design(B)

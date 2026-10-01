@@ -4,7 +4,7 @@ and the angle between the two normals; a picture of the disagreement.
     python tools/hairshell3/flickoff.py BUILD PIECES_WITH PIECES_WITHOUT OUT.png [--view back]"""
 import os, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, 'charkit', 'out', 'hairshell3'))
+sys.path.insert(0, ROOT); sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 from PIL import Image
