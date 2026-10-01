@@ -187,3 +187,12 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   its edge a clean vertex column); crease strokes in `space: 'panel'` (f across the panel, v down: ride with its shape).
   Sweep k1 (tools/garments4/k1.json, out sweeps/k1): top/power/scale and panel-space creases (+ edge strokes t15e).
 - Tools: charkit/out/garments4/tools/side.py (design vs builds side by side round a drawn piece), paneliou.py, tri.py.
+- Sweeps k1-k2 (sweeps/k1, k2; stab.py tabulates): the taper (panel_shape top .15, power 1, scale 1.1) takes the panel's
+  front shape 0.695 -> 0.91 P; its 3q 0.689 -> 0.665 W; profile 0.232 -> 0.155 F (both FAIL). Recessing the panel (an
+  inverted box pleat, `depth` > 0) hides the cream in profile (0.04) and broke skirt_pleats_cream (0 -> 3 F: the knife
+  pleats were turned off on the panel): rejected; the knife pleats stay on the panel. Panel-space creases at f 0.55
+  read (relative) front 0.34 P, 3q 0.68 F; edges 0.26 P / 0.42 W. Running: k3 (protruding panel, crease placement),
+  k4 (the bow's stroke subsets: none, knot sides, + almond tops, + spokes, all but the lower creases).
+- Cuffs (item 2) measured: `cuffqa.py` declared `cuff_{view}_area_{L,R}` (new family `area`: |ours/design - 1|):
+  0.47-0.65 FAIL, 3q R 1.435 FAIL on g4_ink1. Seed for the template (tools/cuffseed.py): our band span 0.455-0.760 L,
+  radii top 0.20/0.16, bottom 0.14-0.17 L.
