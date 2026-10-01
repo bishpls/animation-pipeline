@@ -24,7 +24,7 @@ CHECKS = [('face_noise', 'face tone edges / skin px (design shown)'), ('face_isl
           ('face_shadow_chin', 'the chin\'s shadow on the neck: IoU with the design, front and 3/4 (INFO, proposed grade)'),
           ('face_shadow_chin_edge', 'its reach under the chin per column vs the design\'s, L (INFO, proposed grade)'),
           ('face_shadow_chin_soft', 'its tone steps\' soft width on the neck, L'),
-          ('hair_noise', 'hair shading noise'), ('palette_hair_lit', 'palette: hair lit dE'),
+          ('hair_noise', 'hair speckle'), ('palette_hair_lit', 'palette: hair lit dE'),
           ('palette_skin_lit', 'palette: skin lit dE'), ('palette_skin_shade', 'palette: skin shade dE')]
 
 
