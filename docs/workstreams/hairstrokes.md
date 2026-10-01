@@ -117,12 +117,15 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   0.0743 (W); folds 9 = ; hair_back_lines 0.894 -> 0.928 (W); lock lines 3q 0.176 -> 0.281, profile 0.104 -> 0.167
   (FAIL both, better); hem 3 = ; attached 0 = ; build CPU 1426 -> 1089 s.
 - Calibration (lab labb_v2, calib3.log): 13 CALIBRATED; bun_R_profile had no drawn bun (views fixed, 3daa50b).
-  Records being written on hst_s1 (calib_s1.log).
+  Records on hst_s1: all 13 CALIBRATED, committed (54a0c57).
+- Pregate (54a0c57 into 3168961): PASS, 2 moved, 0 blocking
+  (charkit/out/pregate/pregate_tool-hairstrokes_54a0c578_into_31689611.md).
+- **Box gate running:** job gate-hairstrokes-1001-061007-9305 (tool/hairstrokes 54a0c57 into pipeline-3d 3168961; log
+  charkit/out/hairstrokes/gate.log; `python -m charkit remote attach gate-hairstrokes-1001-061007-9305` to follow).
 
 ## Exact next steps (lean relaunch)
-1. When calib_s1 lands: commit charkit/calib/records/* (the 13 checks), `python -m charkit pregate`, then
-   `python -m charkit remote gate tool/hairstrokes --into pipeline-3d` (export CLOUDSDK_CONFIG first; merge
-   pipeline-3d first if it moved; don't commit while the gate starts). If the gate asks for remeasure steps
+1. Read the gate (charkit/out/gate/gate_tool-hairstrokes_54a0c57_into_3168961.md; attach the job above if the
+   report isn't there). If it asks for remeasure steps
    (hairflagqa's lines/parts and qa3d.hair_noise now read ink-slot faces as lines; values unchanged without strokes),
    register them in charkit/steps/hairflagqa.py and steps/qa3d.py against ae33ac8.
 2. Review page (charkit review page): design | today (hst_base) | strokes (hst_s1) per view at matching scale, the
@@ -135,5 +138,5 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
    (e) the underside tone (hair_toon `inner` / under families), (f) highlight marks (traced, view-aware), gate.
 
 ## Jobs
-- Done: box build charkit/out/hst_s1 (build_s1.log); calib3 (lab). Running: calibration records on hst_s1
-  (charkit/out/hairstrokes/calib_s1.log, local).
+- Done: box build charkit/out/hst_s1 (build_s1.log); calib3 (lab); calib_s1 (records); pregate. Running: the gate
+  gate-hairstrokes-1001-061007-9305.
