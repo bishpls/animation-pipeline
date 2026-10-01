@@ -16,7 +16,7 @@ The placement fit (fit_place): both clips' at / facing / tilt / size on a build'
 on, everything else drawn once per view as what can cover them), the shapes fixed, by Nelder-Mead. The loss per clip
 and view (front, three-quarter 1, profile 0.6: Michael's balance, 2026-09-30) is (1 - IoU) + 1.5 |log size| + 4 pos
 (round 2's), plus the rules: VIS_W per unit of a clip's share hidden below VIS_MIN in a view the design draws it (pieces
-don't hide each other), the star shown from behind (+2 + px / 40), the seat beyond 0.004 L (x 20).
+don't hide each other), the star shown from behind past BACK_PX (+2 + px / 40), the seat beyond 0.004 L (x 20).
 
     python -m charkit accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
     python -m charkit accfit place BUILD SPEC [--minutes M] [--out DIR] [--start JSON]
@@ -33,6 +33,7 @@ KINDS = ('crab', 'star')
 W_ARMS = 2.0                          # the star fit's tip-reach term, per unit of arms() off the drawn star's
 VIS_MIN, VIS_W = 0.985, 20.0          # the non-occlusion term: VIS_W per unit of share hidden below VIS_MIN
 SEAT_TOL, SEAT_W = 0.004, 20.0
+BACK_PX = 20                          # the star shown from behind past this many pixels costs (the QA fails it at 40)
 # the shape knobs each template fit moves, with their starting steps (the shape's own units: fractions of the star's
 # height, of the crab's body width; degrees)
 SHAPE_KNOBS = {
@@ -336,7 +337,7 @@ class Scene:
             res[kind]['seat'] = None if g is None else round(g, 4)
             if g is not None:
                 loss += SEAT_W * max(0.0, abs(g) - SEAT_TOL)
-            if res[kind]['back'] > accqa.MIN_PX:
+            if res[kind]['back'] > BACK_PX:
                 loss += 2 + res[kind]['back'] / 40.0
         res['loss'] = round(loss, 5)
         if detail:

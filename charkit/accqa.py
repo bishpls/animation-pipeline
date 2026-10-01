@@ -78,12 +78,13 @@ DECLARED_CHECKS = [
     dict(check='acc_crab_{view}_visible', family='visible', piece='pin_crab', part='accessories',
          views=['front', 'three_quarter', 'profile'], limits=[0.97, 0.90], better='higher',
          note="the share of our crab's own silhouette (drawn alone) that shows (Michael: pieces don't hide each other)",
-         calibrate=dict(known_bad='acc_r4_overlap', kind='defect', shape=['acc_crab_shape'])),
+         calibrate=dict(known_bad='acc_r4_overlap', kind='defect', probes=['touching'], shape=['acc_crab_shape'])),
     dict(check='acc_star_{view}_visible', family='visible', piece='pin_star', part='accessories',
          views=['front', 'three_quarter', 'profile'], limits=[0.97, 0.90], better='higher',
          note="the share of our star's own silhouette (drawn alone) that shows (Michael: pieces don't hide each other)",
          calibrate=dict(no_known_bad='no build hides the star: the drawn arrangement, the star moved over the crab, is '
-                                     'the probe', kind='defect', probes=['star_under_crab'], shape=['acc_star_shape'])),
+                                     'the probe', kind='defect', probes=['touching', 'star_under_crab'],
+                       shape=['acc_star_shape'])),
 ]
 
 
@@ -756,9 +757,11 @@ def piece_of(kind, spec_acc=None):
     return (spec_acc or {}).get('piece') or PIECE.get(kind)
 
 
-def evaluate(B, designs, pieces, az3=None, alone=None):
+def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
     """ours against every sheet's clips -> (table, checks, pictures {sheet: {view: (design rgb, masks, ours label,
-    ids)}}). alone: the clips-alone drawings (alone_clips()) for the face-on structure checks."""
+    ids)}}). alone: the clips-alone drawings (alone_clips()) for the face-on structure checks. labels: a stand-in for
+    ours in the views (the calibration's: charkit.calib.clips), labels(sheet, view, dv, kinds) -> (label image: clip k
+    + 1, else 0 or an occluder's OCC_ID + i; each clip drawn alone [mask]) or None; then only the views' checks."""
     from . import qa3d
     As = B.assembly
     L = float(As['L']); centre = np.asarray(As['centre'], float)
@@ -786,12 +789,19 @@ def evaluate(B, designs, pieces, az3=None, alone=None):
         if D['graded']:
             I['ppl'] = ppl
         for v, dv in D['views'].items():
-            org = origin(v, azs[v], iris, centre)
-            lab_ids = our_labels(occ, geo, azs[v], org, L, ppl, ids=True)
+            if labels is not None:
+                got = labels(sname, v, dv, kinds)
+                if got is None:
+                    continue
+                lab_ids, solo = got
+            else:
+                org = origin(v, azs[v], iris, centre)
+                lab_ids = our_labels(occ, geo, azs[v], org, L, ppl, ids=True)
+                solo = [our_labels([], [g], azs[v], org, L, ppl) == 1 for g in geo]   # each clip drawn alone
             H_, W_ = min(lab_ids.shape[0], dv['rgb'].shape[0]), min(lab_ids.shape[1], dv['rgb'].shape[1])
             lab_ids = lab_ids[:H_, :W_]
+            solo = [m[:H_, :W_] for m in solo]
             lab = np.where(lab_ids < OCC_ID, lab_ids, 0)
-            solo = [our_labels([], [g], azs[v], org, L, ppl)[:H_, :W_] == 1 for g in geo]   # each clip drawn alone
             pics[sname][v] = (dv['rgb'][:H_, :W_], {p: m[:H_, :W_] for p, m in dv['masks'].items()}, lab, kinds)
             if D['graded']:
                 I['O'][v] = {'lab': lab}
@@ -835,6 +845,20 @@ def evaluate(B, designs, pieces, az3=None, alone=None):
                                             'ours': T_['pos3d'][kind]['ours'], 'design': T_['pos3d'][kind]['design'],
                                             'note': 'the centroid triangulated from the front, three-quarter and profile '
                                                     '(x her left, y toward her back from the eyes, z up from the eye line; L)'}
+    # the declared checks (DECLARED_CHECKS: each clip's visible share, Michael's non-occlusion rule), what covers it
+    if I.get('ppl') is not None and I['O']:
+        from . import declared
+        _, Cd = declared.evaluate_part('accessories', I)
+        for name, c in Cd.items():
+            for sname, D in designs.items():
+                if D['graded']:
+                    for v, per in table['sheets'][sname]['views'].items():
+                        for kind, rec in per.items():
+                            if name == 'acc_%s_%s_visible' % (kind, v) and rec.get('visible'):
+                                c['covered_by'] = rec['visible']['covered_by']
+        C.update(Cd)
+    if labels is not None:
+        return table, C, pics
     # the seat on the hair (3D)
     hair = [o.mesh('eval')[:2] for o in B.objects(groups=('hair',)) if o.has('eval')]
     for (kind, o), (V, _) in zip(clips, geo):
@@ -867,18 +891,6 @@ def evaluate(B, designs, pieces, az3=None, alone=None):
             C['acc_%s_colour' % kind] = {'value': round(float(dE), 2), 'ours': _hex(rec['lit']), 'design': _hex(T['lit']),
                                         'status': 'PASS' if dE <= 5 else 'WARN' if dE <= 10 else 'FAIL',
                                         'note': "our material's lit tone against the drawn clip's (dE00)"}
-    # the declared checks (DECLARED_CHECKS: each clip's visible share, Michael's non-occlusion rule), what covers it
-    if I.get('ppl') is not None and I['O']:
-        from . import declared
-        _, Cd = declared.evaluate_part('accessories', I)
-        for name, c in Cd.items():
-            for sname, D in designs.items():
-                if D['graded']:
-                    for v, per in table['sheets'][sname]['views'].items():
-                        for kind, rec in per.items():
-                            if name == 'acc_%s_%s_visible' % (kind, v) and rec.get('visible'):
-                                c['covered_by'] = rec['visible']['covered_by']
-        C.update(Cd)
     C.update(structure(clips, geo, centre, alone))
     return table, C, pics
 
