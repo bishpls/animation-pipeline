@@ -87,3 +87,22 @@ tool/hair5's ground). Stopped there as the coordinator asked; for Michael as a n
   per_side, tq (the three-quarter added), tq_near (the near bun only in the three-quarter).
 - Running (laptop): bunstab stab at 1 um and 10 um on base_inputs.pkl -> `charkit/out/bo/stab_1um.json`,
   `stab_10um.json`; orient spread default / tq / per_side / tq_near -> `charkit/out/bo/spread_*.json`.
+
+**Stability (bunstab on base_inputs.pkl = bo_base, pipeline-3d 3f7b730's fit; `charkit/out/bo/stab_1um.json`,
+`stab_10um.json`):** 1 um: bun_L max 2.4e-7 L (median 4.3e-8), bun_R 1.6e-7 L (6.3e-8), 10 of 10 each. 10 um: bun_R
+1.5e-6 L; bun_L 1 of 10 jumps 0.017 L (the points' random seed 0), the rest 4.3e-7 L median. face5's head (the gate
+pair, section 1): the buns 4.8e-7 L, 0.000 deg.
+
+**The multistart spread** (orient.py spread; 13 starts per bun: block_frame's pose and +-10 / 20 deg about each axis):
+- default targets (front, profile, back; the halves of the views' buns): **the kept fit is not its own loss's
+  minimum.** bun_L's basins: 0.2412 (z-20), 0.2439 (x+20), 0.2773 (the kept fit, from block_frame's pose), 0.2835,
+  0.2852, 0.2864; the two lowest are 62 / 65 deg from the kept fit and 33.5 deg from each other. bun_R: 0.3464 (x+20,
+  65 deg away), 0.3577 (kept), 0.3669, 0.3979, 0.4010. The held-out three-quarter agrees with bun_L's lowest basin:
+  its IoU 0.850 there against 0.758 for the kept fit (front 0.871 / 0.874, profile 0.932 / 0.900, back 0.907 / 0.916).
+- tq (the three-quarter added, per-side masks): bun_L's lowest basin (0.3667) is 2.9 deg from the default targets'
+  lowest: the two target sets agree on bun_L's orientation, about 63 deg from the kept fit (IoUs front 0.851, 3q
+  0.883, profile 0.925, back 0.906). But the tq landscape's next basins are within 0.3% (0.3678 at 42.7 deg, 0.3679 at
+  6.5 deg): adding the view doesn't make the optimum unique. bun_R (the far bun, no occlusion in the soft fit): the
+  three-quarter pulls it off (profile 0.907 -> 0.79): the guard fails; tq_near (the near bun only) is the variant.
+- per_side and tq_near: killed at the 30-minute background limit, relaunched (-> spread_tq_near.json,
+  spread_per_side.json).
