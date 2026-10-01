@@ -255,6 +255,7 @@ def test_stall_alarm_flags_silent_and_overrun_jobs():
     f = rows['b_quiet25']['flags'][0]
     assert f['limit'] == 20 and 24.5 < f['minutes'] < 26 and rows['g_quiet50']['flags'][0]['limit'] == 45
     assert rows['own_limit']['flags'][0]['limit'] == 5
+    assert 24.5 * 60 < rows['b_quiet25']['quiet'] < 26 * 60 and 'quiet' not in rows['finished']
     txt = remote.flag_text(f, 'b_quiet25')
     assert txt.startswith('SILENT') and 'not stopped' in txt and 'remote kill b_quiet25' in txt
     assert 'OVERRUN' in remote.flag_text(rows['s_over']['flags'][0])

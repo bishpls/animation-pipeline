@@ -349,6 +349,8 @@ def info(d):
                rc=ex[0] if ex else None, started=started, ended=ex[1] if ex else None, log_bytes=size, tail=tail,
                sent_from=meta.get('host'), last_write=wrote, expect_min=meta.get('expect_min'),
                stall_min=meta.get('stall_min'))
+    if st == 'running':                                     # (read on the box's clock, as the flags are)
+        row['quiet'] = round(max(0.0, time.time() - wrote), 1) if wrote else None
     row['flags'] = flags(row)
     return row
 

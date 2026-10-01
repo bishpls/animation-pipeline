@@ -800,8 +800,8 @@ def jobs(args):
         for x in sorted(rows, key=lambda x: (x['state'] != 'running', -(x['started'] or 0))):
             dur = ((x['ended'] or time.time()) - x['started']) if x['started'] else 0
             quiet = ''
-            if x['state'] == 'running' and x.get('last_write'):
-                quiet = ' quiet %.0f' % ((time.time() - x['last_write']) / 60)
+            if x['state'] == 'running' and x.get('quiet') is not None:
+                quiet = ' quiet %.0f' % (x['quiet'] / 60)
             print('  %-44s %-8s %-5s %s %6.1f min%-9s %-26s %s' % (
                 x['jid'], x['state'], '' if x['rc'] is None else 'rc %d' % x['rc'],
                 time.strftime('%m-%d %H:%M', time.localtime(x['started'])) if x['started'] else '--',
