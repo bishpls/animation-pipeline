@@ -1179,3 +1179,18 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   holds no Clawd numbers: shoulder_width needs z and x (a missing key raises); SOCKET's code defaults are the older
   generic ones (top 0.30, lift (25, 75), pivot 0 ...), not Clawd's tuned ones; a spec without body.shoulder builds the
   old body, never Clawd's shoulder.
+- **Flat lapels on the joined shoulder** (new, opt-in): lapel 'smooth' {grid, dilate, blur} (the projected lapels laid
+  on a dilated, blurred height field of the torso's front: laid point by point they folded between the neck, the
+  shoulder's top and the chest) and 'inner'/'bottom_a' (the V's point apart from the outer edge's low end).
+  tools/garments7/lapelview.py draws the collar alone: the smooth lapels are clean bands (lapelview3.png). Sweep s5
+  (re-mask on; tools/garments7/stab.py charkit/out/garments7/sweeps/s5/sweep.json): art_outline_neck 7.1-15.0 (F4
+  best: inner (0.03, -0.64), bottom_a 40, v_half 34), bow_front_bleed 0.15-0.18 F (the lapels' cream at the bow's lower
+  edges), collar 3q IoU 0.21-0.36 (< the 0.397 floor), neck_crease 100+ F in F0/F2/F3/F6 (the mask under the new
+  collar), art_mirror_waist PASS everywhere (1.15-1.24). Not a quick win: the flat lapels need their own round, and
+  their shape under the bow is unknown (no drawing of the collar without the bow: Michael's separated-layer rule).
+- **Conclusion of round 7**: K PASS with the joined shoulder ON isn't reachable this round. The garment knobs (opt1:
+  230 evaluations; s2-s5: ~45 rows, re-mask on from s3) reach art_outline_neck 5.8 at best (limit 1.5; the old
+  body passes with one corner), piece_top front 0.50 (floor 0.637). Building the best measured candidate (g7_c7 = c4 +
+  gj: opt1's puff and tuck knobs + collar back_depth 0.51; g7_c7b + side_depth 0.364) for the review page and the
+  decision: switch on now with named regressions accepted (motion testing unblocked) or hold for the flat lapels and
+  the puffs' dome.
