@@ -472,14 +472,16 @@ def calibrate(patterns, build=None, seeds=SEEDS, write=True, log=print):
     Q = json.load(open(q)) if os.path.exists(q) else {}
     names = set(Q.get('checks', {}))
     owned = ((Q.get('measured') or {}).get('part_checks')) or {}
+    drafts = set()
     try:                        # (a declared check not in the build's qa.json yet: a draft, CHARKIT_DECLARED's)
         from . import declared
-        names |= {n for n, _, _ in declared.expand(declared.declarations())}
+        drafts = {n for n, _, _ in declared.expand(declared.declarations())} - names
+        names |= drafts
     except Exception:
         pass
     for e in E:
         got = [k for k in names if fnmatch.fnmatchcase(k, e['check']) and any(fnmatch.fnmatchcase(k, p) for p in patterns)
-               and (not owned.get(e.get('part')) or k in owned[e['part']])]
+               and (not owned.get(e.get('part')) or k in owned[e['part']] or k in drafts)]
         if not got and any(fnmatch.fnmatchcase(e['check'], p) or e['check'] == p for p in patterns) and \
                 not any(c in e['check'] for c in '*?['):
             got = [e['check']]                  # (a scorer, not a qa.json check: its adapter measures it)
