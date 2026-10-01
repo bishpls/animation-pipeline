@@ -726,6 +726,47 @@ purpose when Michael paused the Clawd demo for the toolkit round, and its files 
   | Move the springs into charkit, and fix the shoulder skinning | open (secondary phase: spring bones) |
   | `hair.py`'s "Mean of empty slice" warning | probably open (`errstate` doesn't silence it) |
 
+## Evening run (2026-09-30, 19:30-24:00 EDT, Michael reviewing): start here, then the day run below
+
+**Merged tonight** (pipeline-3d 1580f95 -> b30a7e0):
+- tmp/batch-0930 (004efc3): accessories2, calib (calibration records required; the anti-gaming guard in gate.py), hull-local.
+- softras r4 (soft occlusion, opt-in); xpbd r2-3 (waistband on body weights, pins on skin, calibrated motion checks,
+  style-profile hold dials, the bake path). Cloth is then PARKED (Michael: our own solver, deferred until the base model
+  is good and complex motion testing starts).
+- face5 (jaw/chin; the 7 jaw checks made discriminating; art_terminator_hair 2.111 WARN accepted by name by Michael).
+- hair5 (7 calibrated hair flag checks, the 52-lock truth, the ahoge, the flyaway, the back seams A).
+- hands (the default hand replacing the mitten, rest orientation A; the arm fitted to the drawing; 22 hand checks).
+- sweep (deterministic tooling from a 69-round transcript audit: `charkit sweep`, `sweep swap`, declared checks plus
+  generic calibration, `charkit review page`, `docs/CODEMAP.md`; agents must use them: charkit-worker.md "Tools").
+- tmp/batch-1001 (ca489f3): face6 (Michael's 7 face flags as 28 calibrated checks: 16 PASS / 7 WARN / 4 FAIL from 0)
+  and pieceref (the bow's sub-pieces and calibrated checks; close-hung and the pleated bow behind switches, OFF).
+- hairsplit (b30a7e0): the algorithmic lock splitter, 0.583 against the 52-lock truth (random 0.392, the build 0.331).
+
+**Michael's decisions tonight:** the canonical view rule (ours? -> better reference or sub-cut -> compromise); hands
+rest orientation A; hand-pose library, non-default expressions (12 presets, eye/brow variants, visemes) PAUSED for a
+dedicated session (presets follow the rest shape structurally, named acceptances "expressions paused"); cloth deferred;
+agents run to natural boundaries (checkpoint only near ~600k; relaunches measured cheap: ~23 calls, ~2 min); hair calls:
+back seams A, one-tone ahoge for now, lock truth F/G/H yes; hem flicks read the cel tone where no strokes (relative).
+
+**Focus now (Michael): hair, then garments.** Running at 23:45:
+- tool/hairshell (`~/animation-pipeline-hairshell`): option B, each drawn lock as its own tapered layered shell, built
+  on the splitter (hem tone cue, a bounded merge-rule attempt, a pilot on the side locks and a back flick group).
+- tool/garments4 (`~/animation-pipeline-garments4`): Part 1, the bow's geometry on (close-hung + w4 + t12) in one gate
+  with its neighbours (lapels ending inside the bow's top edge, sleeve caps raised 0.06 L, the bust/loop contact behind
+  the bleed); Part 2, Michael's list: a crease system (the skirt's cream section first, then the bow), the cuffs (the
+  missing cream, 1.5-2.4x the drawn size), the shoulders with the back collar's cream section, the neck-to-bow V.
+
+**Waiting on Michael:** face round 2's four (3/4 mouth rigid by default with a per-shot override; head-fit rounds for
+the lower face's width and the forehead; an eye-shape round for the profile eye; recommended yes, queued after hair);
+hands' two (keep the elbow-only arm; the cuff to garments; recommended yes); the bow's three compromises (knot graded
+front only, slanted loop ends, loops' bottom 0.30; on the garments review page).
+
+**Queued after the focus:** infra (gate fixes: acceptances covering a batch's branches, no-op remeasure detection, the
+CPU rule warm against warm, motion QA reading the skin from the bundle, gate latency: idle was 44% of agent wall time);
+the bun orientation (the kept fit isn't its loss's minimum; `docs/workstreams/bunorient.md`); the face follow-ups above;
+softras r5 (analytic builder derivatives); the Sonnet-vs-Opus paired test; accessories placement under the
+non-occlusion rule; the jaw's three honest WARNs.
+
 ## Day run (2026-09-30, 10:00-20:00 EDT, Michael reviewing): start here
 
 The morning report (`charkit/out/overnight/20260930/index.html`) and today's progress page
