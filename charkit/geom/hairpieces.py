@@ -1448,6 +1448,20 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
     if (np.einsum('ij,ij->i', fn, tri.mean(1) - ch.c) < 0).mean() > 0.5:
         T = T[:, [0, 2, 1]]
     vn = np.concatenate(vn)
+    # the outline's width per vertex (the outline_w vertex group; tool/hair5): a piece in opts' ink_fade draws no line
+    # where its locks meet, down to where they part (the last `keep` of each lock's length, eased in over 0.1 of it), as
+    # the design draws its back as one smooth mass with the locks parting only at the hem; elsewhere the full width
+    ink = np.ones(no)
+    keep = (opts.get('ink_fade') or {}).get(piece)
+    if keep is not None:
+        for k in range(nu + 1):
+            d = min(k, nu - k)
+            if d >= 2:
+                continue
+            s_ = (colth[k] - top[k]) / max(1e-9, tip[k] - top[k])
+            x = np.clip((s_ - (1.0 - keep - 0.1)) / 0.1, 0, 1)
+            w = x * x * (3 - 2 * x)
+            ink[cols[k]] = np.maximum(w, 0.5 * d)
     # the chain: at its tip's phi, halfway through its depth, root to tip
     kt = int(np.argmin(np.abs(phs - ph_tip))) if colphi is None else int(np.argmax(tip))
     c = cols[kt]
@@ -1455,7 +1469,7 @@ def lock_shell(F, piece, ph0, ph1, ph_tip, ph_cols, top_cols, edge_cols, style, 
     chain = (Vo[c[sel]] + Vi[c[sel]]) / 2
     return dict(V=V, T=T, outer=np.r_[np.ones(no, bool), np.zeros(no, bool)],
                 strand=np.concatenate([np.concatenate(strand)] * 2), vn_env=np.concatenate([vn, -vn]), chain=chain,
-                push=float(push_g.max() / L), vn_shade=np.concatenate([vn, vn]))
+                push=float(push_g.max() / L), vn_shade=np.concatenate([vn, vn]), outline_w=np.r_[ink, ink])
 
 
 def cap_inset(th, opts, style, L):
@@ -2788,7 +2802,7 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
         report['crown_trim'] = dict(F['crown_trim'], pull_max=round(F['crown_trim']['pull_max'] / L, 4))
 
     def add(name, family, parts):
-        Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou = [], [], [], [], [], [], [], 0, [], 0, []
+        Vs, Ts, vn, vs, st, lk, chains, off, pushes, nf, ou, ow = [], [], [], [], [], [], [], 0, [], 0, [], []
         own = any(p.get('own_normals') for p in parts)
         for k, p in enumerate(parts):
             Vs.append(p['V']); Ts.append(p['T'] + off); vn.append(p['vn_env']); st.append(p['strand'])
@@ -2796,10 +2810,12 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
             lk.append(np.full(len(p['V']), k)); chains.append(np.asarray(p['chain']).tolist())
             pushes.append(p.get('push', 0.0)); off += len(p['V'])
             ou.append(np.asarray(p.get('outer', np.ones(len(p['V']), bool)), bool))
+            ow.append(np.asarray(p.get('outline_w', np.ones(len(p['V']))), float))
             nf += folds(p['V'], p['T'], p.get('outer', np.ones(len(p['V']), bool)), p['vn_env'])
         pieces[name] = dict(family=family, V=np.concatenate(Vs), T=np.concatenate(Ts), vn_env=np.concatenate(vn),
                             vn_shade=np.concatenate(vs), own_normals=own, outer=np.concatenate(ou),
-                            strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains)
+                            strand=np.concatenate(st), lock=np.concatenate(lk), chains=chains,
+                            outline_w=np.concatenate(ow))
         report['pieces'][name] = dict(family=family, locks=len(parts), verts=int(off),
                                       tris=int(sum(len(t) for t in Ts)), push_L=round(float(max(pushes)), 4), folds=nf)
     sectors = {}
@@ -3171,7 +3187,9 @@ def save_parts(R, out, meta=None):
         path = os.path.join(out, name + '.npz')
         save_npz(Mesh(p['V'], p['T'], vn=p['vn_shade']), path,
                  meta=dict(family=p['family'], chains=p['chains'], report=R['report']['pieces'].get(name)),
-                 vn_geom=geometric_normals(p['V'], np.asarray(p['T'])), strand=p['strand'], lock=p['lock'])
+                 vn_geom=geometric_normals(p['V'], np.asarray(p['T'])), strand=p['strand'], lock=p['lock'],
+                 **({'outline_w': np.asarray(p['outline_w'], np.float32)} if 'outline_w' in p and
+                    np.any(np.asarray(p['outline_w']) < 1) else {}))
         index['pieces'].append(dict(name=name, family=p['family'], file=name + '.npz', locks=len(p['chains'])))
     path = os.path.join(out, 'pieces.json')
     json.dump(index, open(path, 'w'), indent=1)

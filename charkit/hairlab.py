@@ -1008,7 +1008,8 @@ def batch(ctx, variants, outdir, with_noise=False):
         else:
             R, _, _, h2 = run(ctx, var.get('style'), var.get('opts'))
             hair = {n: vt for n, (vt, _) in h2.items()}
-        m, ours, pieces = hf.lab_measure(ctx['B'], ctx['D'], hair)
+        wts = {n: p['outline_w'] for n, p in R['pieces'].items() if 'outline_w' in p} if R is not None else None
+        m, ours, pieces = hf.lab_measure(ctx['B'], ctx['D'], hair, wts)
         if R is not None:
             m['folds_builder'] = {n: r.get('folds', 0) for n, r in R['report']['pieces'].items()}
             m['ahoge_fit'] = R['report'].get('ahoge_fit')
@@ -1016,7 +1017,7 @@ def batch(ctx, variants, outdir, with_noise=False):
                 m['hair_noise_lab'] = noise(ctx, R)[0]
             np.savez_compressed(os.path.join(outdir, name + '.pieces.npz'), names=json.dumps(sorted(R['pieces'])),
                                 **{'%s__%s' % (n, k): np.asarray(p[k]) for n, p in R['pieces'].items()
-                                   for k in ('V', 'T', 'vn_shade', 'lock') if k in p})
+                                   for k in ('V', 'T', 'vn_shade', 'lock', 'outline_w') if k in p})
         np.savez_compressed(os.path.join(outdir, name + '.npz'), names=json.dumps(pieces), pieces=json.dumps(pieces),
                             ppl=hf.design_inputs(ctx['B'], ctx['D'])[1], **ours)
         m['seconds'] = round(time.time() - t0, 1)

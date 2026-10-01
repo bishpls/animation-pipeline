@@ -497,7 +497,8 @@ def our_labels(B, design, hair=None):
     return {v: np.maximum(l[1], 0).astype(np.int32) for v, l in lab.items()}, pieces
 
 
-INK = 2                     # our ink's label in our_ink's z-buffer (an outline hull's visible face)
+INK = 4                     # our ink's label in our_ink's z-buffer (an outline hull's visible face; bodyqa's line
+                            # class, which the raster draws at least a pixel wide)
 LINE_W = 0.0014             # m: the hair's outline width (scene.hair_pieces_objects' shade.outline), for rebuilt pieces
 
 
@@ -599,17 +600,18 @@ def measure(B, design=None, out=None):
     if D is None:
         return None, {'hair_flags': {'status': 'SKIPPED', 'why': ppl}}
     ours, pieces = our_labels(B, design)
-    table, C = measure_labels(ours, pieces, D, ppl, lines=our_lines(B, design, ours))
+    lines = our_lines(B, design, ours)
+    table, C = measure_labels(ours, pieces, D, ppl, lines=lines)
     if out:
         import os
         from .qa3d import _save_rgb
-        _save_rgb(os.path.join(out, 'qa_hair_flags.png'), picture(ours, pieces, D, ppl))
+        _save_rgb(os.path.join(out, 'qa_hair_flags.png'), picture(ours, pieces, D, ppl, lines))
     return table, C
 
 
-def picture(ours, pieces, D, ppl, views=VIEWS):
+def picture(ours, pieces, D, ppl, lines=None, views=VIEWS):
     """per view the hair cropped: ours (each part a shade, detached parts red), the drawn lines inside the mass (blue)
-    and ours (dark red); the drawn ahoge's outline (green) at our ahoge."""
+    and our ink (dark red: lines, else our parts' boundaries); the drawn ahoge's outline (green) at our ahoge."""
     rows = []
     rng = np.random.default_rng(5)
     shade = rng.uniform(0.75, 1.0, len(pieces) + 1)
@@ -633,7 +635,8 @@ def picture(ours, pieces, D, ppl, views=VIEWS):
                 img[L == PART0 + i] = (0.9, 0.05, 0.05)
         keep = D['keep'][v][w]
         img[(skeleton(D['lines'][v][w]) & keep)] = (0.2, 0.35, 1.0)
-        img[(skeleton(part_lines(L)) & mass_interior(h, None, ppl))] = (0.35, 0.05, 0.05)
+        ink = lines[v][w] if lines is not None and v in lines else part_lines(L)
+        img[(skeleton(ink) & mass_interior(h, None, ppl))] = (0.35, 0.05, 0.05)
         img[outline(D['ahoge'][v][w])] = (0.1, 0.7, 0.2)
         rows.append(np.pad(img, ((0, 0), (0, 8), (0, 0)), constant_values=1.0))
     if not rows:
