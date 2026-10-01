@@ -208,13 +208,14 @@ class PoseGrade:
         rings = posed(self.H, self.open_pose)
         self.ppl = {}
         for row in handsheet.ROW_AXES:
-            h = handsheet.draw(self.H, row, 400.0, handsheet.CUFF_END, rings=rings)
+            h = handsheet.draw(self.H, row, 400.0, handsheet.CUFF_END, rings=rings, turn=handsheet.TURN[row])
             r = handqa.reach(h, h['ppl'])
             self.ppl[row] = self.D[('open', row)]['reach'] * self.S[('open', row)]['ppl'] / max(r, 1e-6)
 
     def ours(self, P, row):
         from . import handsheet
-        h = handsheet.draw(self.H, row, self.ppl[row], handsheet.CUFF_END, rings=posed(self.H, P))
+        h = handsheet.draw(self.H, row, self.ppl[row], handsheet.CUFF_END, rings=posed(self.H, P),
+                           turn=handsheet.TURN[row])
         return h, handsheet.digits(h)
 
     def grade(self, name, P, row):

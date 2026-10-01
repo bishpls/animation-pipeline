@@ -462,3 +462,12 @@ hands2 | hands3, per pose and view; 3q rest close-ups), calibrate, pregate --box
 - **rest1** running (build box): open3's structure fixed; length, curl, spread, thumb_out/down, bend, dev fitted to
   the turnaround, floors the comb's QA hand_shape views + 0.02 (charkit/out/hands3/floors_rest.json).
 - The seam gap: `tip_gap` (fingertips apart, the hulls draw the hairline) and code_hand.SEAM_MAX 0.005 L.
+- **rest1** (charkit/out/hands3/rest1): fit-scale IoU front 0.775/0.792, 3q 0.792/0.707, back 0.782/0.779, **profile
+  0.583** (comb 0.51, hands2 0.48), but the thumb folded in (thumb_out 1 deg): 3q L cleftpos 0.16 vs 0.62 and profile
+  taper 0.35 vs 0.51 would FAIL (new FAILs once hands2 is the base). Fit change: FAIL_COST 0.5 per graded term past its
+  WARN limit. **rest2** running (from rest1, thumb_out 14).
+- **poses1** (`charkit handposes fit`, build box; the rest = open3's structure with hands2's rest angles; LBS on the
+  template's own weights): open back 0.640 (5/5 tips) / side 0.548; relaxed 0.874 / 0.620; fist 0.799 / 0.654 (reach
+  0.70 of the open hand vs the sheet's 0.80); point 0.714 / 0.685 (0.95 vs 1.01). Fitted angles: fist MCP 31, PIP 98,
+  DIP 24, thumb oppose 79; point index -1, others 69/105/62. The side row now drawn at the sheet's turn (handsheet.TURN
+  side -13.4, open3's fit) for every pose.

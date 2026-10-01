@@ -207,6 +207,8 @@ CUFF_END = 0.034         # L: our wrist cuff's far edge past the wrist joint (th
                          # chain: code_hand.cuff_end, hands2's builds 0.034 / 0.046 L, left / right)
 DIGIT_LIMITS = dict(length=0.03, width=0.01, angle=8.0, palm_w=0.03, knuckles=0.03)   # each term's unit (its PASS)
 CHAIN = np.array([[0.5, 0, -1.0], [0.6, 0, -1.8], [0.62, 0, -2.5], [0.63, 0, -2.8]])   # a left arm (the frame only)
+TURN = {'back': 0.0, 'side': -13.4}      # degrees: how the sheet's rows are drawn turned about the hand's long axis (the
+                                         # 'side' partly toward the back of the hand: open3's fitted view_turn_side)
 
 
 def sheet_iou(hs, ho):
@@ -290,7 +292,7 @@ class SheetFit:
         V, T, _ = code_hand.mesh(H_)
         reach = float(np.percentile((V - W) @ R[:, 0], 99.9)) - CUFF_END
         ppl = self.D[row]['reach'] * self.sheet[row]['ppl'] / max(reach, 1e-6)
-        h = draw(H_, row, ppl, CUFF_END, turn=P.get('view_turn_' + row, 0.0))
+        h = draw(H_, row, ppl, CUFF_END, turn=P.get('view_turn_' + row, TURN[row]))
         return h, digits(h)
 
     def score(self, P, detail=False):
