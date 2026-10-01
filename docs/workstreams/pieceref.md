@@ -136,6 +136,52 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
    g3_render3 (stored) for all; kinds: knot_iou, lobe_iou, iso_bow_body 'shape'; knot_line, knot_rect, crease_*
    'defect'; shape ['piece_bow'].
 
+12. **Round 3 (2026-09-30, relaunched lean; coordinator: split authority accepted, take 2's front only).**
+   - Diagnosis (harness `probe.py SRC` [each connected part its colour, hull lines black, 1200 ppl], `dcrease.py SRC`
+     [the counted crease pixels, design | ours, and per-u stations: top, bottom, crease rows in L from the knot's
+     centre], `partov.py SRC` [what bow_part_*_iou compares, per view], `depth.py SRC`, `isofill.py SRC..`): the panel's
+     lower edge WAS drawn, but as the lobe's own lower silhouette (the strip showed only as a sag sliver), so the crease
+     measure (lines over 0.018 L inside the lobe) read only 0.39-0.42 widths. The design's lower crease sits a quarter of
+     the lobe's height above its lower edge mid-lobe (0.055-0.1 sizes of strip), closing at the lower outer corner, and
+     an upper almond (two strokes, u 0.1-0.45, 0.65-0.7 of the height) makes its direction -37/-40 (the lower crease
+     alone runs ~-24).
+   - garments.py pleat keys (all off unless set): `crease` [share at the knot, at the end] + `crease_p` + `close` (the
+     crease its own line; the strip below closes onto it before the end cap), `almond` {u, f, h, d, gap} (a thin lens
+     standing `gap` proud of the panel: its outline draws the fold), `bulge` [amount, u] (lobes' middles forward:
+     hurt: the 3q far lobe and the lean), `seat` (L; knot's back in front of the side lobes; `stand`'s rule followed the
+     lobes' frontmost and floated the knot), `top_p`, `bottom_p`.
+   - isoqa remeasure: iso_bow_body compares silhouettes (`isoqa.silhouette`: the parts with the lines next to them,
+     holes filled), both sides: the drawn creases cost the old body IoU a share per line (p6 0.598 with its silhouette
+     unchanged). Calibration set, old -> new: turnaround 0.871 -> 0.917 PASS, v0/b2_close 0.744 -> 0.772 WARN, b2_before
+     0.616 -> 0.679 FAIL, g3_render3 0.659 -> 0.724 FAIL (same grades). Step to register (steps/isoqa.py).
+   - Calibration adapter `charkit/calib/parts.py` (BowParts for bow_parts, IsoParts for iso_pieces; the turnaround's
+     part masks and lines as ours; generators voronoi_parts, affine_parts; known-bad g3_render3, now stored here:
+     `charkit/out/calib/builds/g3_render3`), labels.py Garments patches `collarqa.ribbon_line` (design moved: its own
+     reading; generators: no line between). Records need a box build of this branch (`calibrate ... --build`).
+
+   | run (b2_close splice) | piece_bow F/3q/P | knot_iou F/3q/P | crease len/dir | iso body (silh.) | thick/lean/hang |
+   |---|---|---|---|---|---|
+   | v0 (b2_close) | 0.926/0.828/0.654 | 0.536/0.127/0 | 1.0 F / None F | 0.772 W | 0.035 W / 2.6 P / 4.2 P |
+   | p2 (round 2) | 0.948/0.874/0.582 | 1.0/0/0 | 0.748 F / 21 W | 0.864 | 0.066 F / 34 F / 15 F |
+   | q1 crease [.27,0] p2, almond, sag .06, no stand | 0.949/0.873/0.675 | 1.0/0.012/0 | 0.134 P / 5.8 P | 0.850 P | 0.064 F / 2.75 P / 0 P |
+
+   q1's knot isn't stood (no `stand`/`seat`): its front 0.016 L proud of the side lobes, outlined all round in front
+   (knot_line 0 P), seated in the loops in profile (hang 0, lean 2.75). Its 3q knot sits ~0.05-0.08 L left of the
+   drawn one (a stood knot projects further left still: p2): the turnaround's 3q knot can't be met by a knot that shows
+   in front (reference step 3: reported per view). Open: loop_thick (rows 1-2 and 5-10 thin: the loops end at row ~7.5
+   in profile).
+   - **The 3q knot is drawn view-dependently** (`azfit.py SRC`: ours z-buffered at other azimuths against the drawn
+     3q parts, r1): at the sheet's 35.5 deg the lobes and the whole bow fit best (body 0.928, lobes 0.85/0.91) and the
+     knot reads 0.01; at 15-20 deg the knot reads 0.67-0.84 while the body falls to 0.75-0.80. The turnaround draws the
+     3q knot as if seen nearly face-on: the rule's step 2-3 (front-exact knot; the 3q knot a per-shot override). Asked
+     of Michael: grade bow_part_knot_iou on the front only (the views that agree), the 3q/profile knot reported?
+   - Calibration stand-ins tried (`caltry.py SRC`, b2_close): the design moved passes all (knot_iou 0.62-1.0, iso body
+     0.93), voronoi/affine fail the shape checks; adapters committed (c808df7).
+   - r-runs (knot .07-.08, top_p .6, bottom_p .7, bottom .24-.30; no stand): front lobes 0.99, thick 0.058 (r1) ->
+     0.045 W at bottom .30 (r4) but crease_dir 20 W (the almond too high: ours -48..-57 deg against -37/-40) and iso
+     body 0.84 W; depth .08 (r3) no help, profile 0.64. Next: `hang` (the strip's lower layer lower by the knot, behind
+     the tails in front) and the almond lower (f .57-.63): s1-s3.
+
 ## Next steps, in order
 1. **The crease line** (State 10a): probe, then fix the fold so the hull draws it; tune pleat to the design:
    crease_dir (-37/-40 deg; ours ~-17 to -20), crease_len (1.45-1.53 lobe widths), the almond fold near the top if the
