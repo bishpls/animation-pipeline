@@ -22,7 +22,8 @@ Checks (qa3d part 'piece_details'; lengths in L):
         mask holds none of the band); in profile, the jacket's front edge over the band's (the figures' front edges at
         fixed rows: OVERHANG_TOP, OVERHANG_BAND) against the design's (the jacket overhangs the band)
   shorts_{view}_hem, shorts_{front,back}_width
-        the shorts' lower edge and their width against the design's
+        the shorts' lower edge and their width against the design's: declared checks (DECLARED_CHECKS below:
+        charkit.declared's edge and width families, evaluated in this part), ported from waist() with identical values
   top_{front,three_quarter}_over_band
         at the jacket/band junction, the share of its columns where our band hides the jacket (drawn alone, the jacket
         reaches down behind the band: its hem tucked under), where the design's jacket and bib hang over the band's top
@@ -877,19 +878,34 @@ def x_of(col, ppl):
     return (col + 0.5) / ppl - WIN['x']
 
 
+DECLARED_CHECKS = [
+    # the shorts' hem and width (tool/sweep: ported from waist()'s hand-written code to charkit.declared's families,
+    # evaluated in piece_details with the same values; calibration: charkit/calib/details.py's records stand)
+    dict(check='shorts_{view}_hem', family='edge', piece='shorts', views=['front', 'three_quarter', 'profile', 'back'],
+         params=dict(edge='bottom', mid=[0.2, 0.8], round=4), limits='charkit.pieceqa.LIMITS.rows', part='piece_details',
+         note="the shorts' lower edge (their middle columns' last rows, L from the eye line) against the design's",
+         calibrate=dict(known_bad='body6_render', baseline=['voronoi_pieces', 'affine_pieces'], shape=['piece_shorts'])),
+    dict(check='shorts_{view}_width', family='width', piece='shorts', views=['front', 'back'],
+         params=dict(mid=[0.2, 0.8], round=3), limits='charkit.pieceqa.LIMITS.width', part='piece_details',
+         note="the piece's median row width over its middle columns' rows, ours over the design's, less one",
+         calibrate=dict(known_bad='body6_render', baseline=['voronoi_pieces'], shape=['piece_shorts'])),
+]
+
+
 def waist(O, names, masks, pm, ppl, dv=None):
-    """the waistband's edges and width per view, the top's overhang over it in profile, and the shorts' hem and width
-    (see the module doc) -> (table, checks). The design's band is its ink-bounded part (ink_core; not in profile, where
-    the outfit masks' band is the jacket's lower part and the band itself is labelled skirt)."""
+    """the waistband's edges and width per view and the top's overhang over it in profile (see the module doc; the
+    shorts' hem and width are declared: DECLARED_CHECKS) -> (table, checks). The design's band is its ink-bounded part
+    (ink_core; not in profile, where the outfit masks' band is the jacket's lower part and the band itself is labelled
+    skirt)."""
     T, C = {}, {}
     for view in ('front', 'three_quarter', 'profile', 'back'):
         if view not in O:
             continue
-        for pid in ('waistband', 'shorts'):
+        for pid in ('waistband',):
             Md = masks.get('%s__%s' % (view, pid))
             if Md is None or pid not in pm:
                 continue
-            if pid == 'waistband' and dv and view in dv and view != 'profile':
+            if dv and view in dv and view != 'profile':
                 Md = ink_core(Md, dv[view].get('cls'))
             ed = edges(clean(Md, ppl))
             if ed is None:
@@ -897,37 +913,24 @@ def waist(O, names, masks, pm, ppl, dv=None):
             eo = edges(clean(members(O[view]['lab'], names, pm, pid), ppl))
             if eo is None:
                 why = {'value': None, 'status': 'FAIL', 'why': 'ours shows too little of the piece here'}
-                if pid == 'waistband':
-                    C['waistband_%s_rows' % view] = dict(why); C['waistband_%s_width' % view] = dict(why)
-                else:
-                    C['shorts_%s_hem' % view] = dict(why)
-                    if view in ('front', 'back'):
-                        C['shorts_%s_width' % view] = dict(why)
+                C['waistband_%s_rows' % view] = dict(why); C['waistband_%s_width' % view] = dict(why)
                 continue
             zo = dict(top=z_of(eo['top'], ppl), bottom=z_of(eo['bottom'], ppl), width=eo['width'] / ppl)
             zd = dict(top=z_of(ed['top'], ppl), bottom=z_of(ed['bottom'], ppl), width=ed['width'] / ppl)
             zo = {k: round(v, 4) for k, v in zo.items()}
             zd = {k: round(v, 4) for k, v in zd.items()}
             T['%s_%s' % (pid, view)] = dict(ours=zo, design=zd)
-            if pid == 'waistband':
-                v_ = round(max(abs(zo['top'] - zd['top']), abs(zo['bottom'] - zd['bottom'])), 4)
-                C['waistband_%s_rows' % view] = {
-                    'value': v_, 'status': grade('rows', v_), 'ours': [zo['top'], zo['bottom']],
-                    'design': [zd['top'], zd['bottom']],
-                    'note': "the band's top and bottom edges (the medians of its middle columns' first and last rows, L "
-                            "from the eye line) against the design's: the larger difference (its height and place)"}
-            else:
-                v_ = round(abs(zo['bottom'] - zd['bottom']), 4)
-                C['shorts_%s_hem' % view] = {
-                    'value': v_, 'status': grade('rows', v_), 'ours': zo['bottom'], 'design': zd['bottom'],
-                    'note': "the shorts' lower edge (their middle columns' last rows, L from the eye line) against the "
-                            "design's"}
-            if view in ('front', 'back') or pid == 'waistband':
-                v_ = round(abs(zo['width'] / max(zd['width'], 1e-6) - 1), 3)
-                C['%s_%s_width' % (pid, view)] = {
-                    'value': v_, 'status': grade('width', v_), 'ours': zo['width'], 'design': zd['width'],
-                    'note': "the piece's median row width over its middle columns' rows, ours over the design's, less "
-                            "one"}
+            v_ = round(max(abs(zo['top'] - zd['top']), abs(zo['bottom'] - zd['bottom'])), 4)
+            C['waistband_%s_rows' % view] = {
+                'value': v_, 'status': grade('rows', v_), 'ours': [zo['top'], zo['bottom']],
+                'design': [zd['top'], zd['bottom']],
+                'note': "the band's top and bottom edges (the medians of its middle columns' first and last rows, L "
+                        "from the eye line) against the design's: the larger difference (its height and place)"}
+            v_ = round(abs(zo['width'] / max(zd['width'], 1e-6) - 1), 3)
+            C['%s_%s_width' % (pid, view)] = {
+                'value': v_, 'status': grade('width', v_), 'ours': zo['width'], 'design': zd['width'],
+                'note': "the piece's median row width over its middle columns' rows, ours over the design's, less "
+                        "one"}
     # the jacket's front edge over the band's in profile, from the figures' front edges at fixed rows (the outfit masks'
     # profile band is the jacket's lower part, and the jacket hanging over the band hides the band's own front)
     if 'profile' in O and dv and 'profile' in dv:
@@ -1011,6 +1014,11 @@ def measure(B, design, out=None):
                     "band (the balloon's stand-off), ours over the design's, less one (area-equivalent radii)"}
     t, c = waist(O, names, masks, pm, ppl, design.design_views())
     T['waist'] = t
+    C.update(c)
+    from . import declared                  # (this part's declared checks: the shorts' hem and width)
+    t, c = declared.evaluate_part('piece_details', dict(O=O, names=names, masks=masks, pm=pm, ppl=ppl,
+                                                        dv=design.design_views(), graph=graph, spec=B.spec))
+    T['declared'] = t
     C.update(c)
     t, c = cuffs(O, names, masks, pm, ppl, design.design_views(), skin, our_classes(B, ppl, ctx['az3']))
     T['cuffs'] = t

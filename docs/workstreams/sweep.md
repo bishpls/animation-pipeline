@@ -62,6 +62,32 @@ OUT/sweep.md, OUT/ROW/res.json (+ board.png).
   66 s with the evaluator's context, then 5 s a row; boards cropped to the bow), hair stage (`hair_demo`: pieces_opts.gap
   0.004; 50 s a row, the pieces step), qa stage with --jobs 2 (`jobs_demo`).
 
+## 2. Declared checks with generic calibration (charkit/declared.py; docs/CHARKIT.md "Declaring a check")
+
+- Families (one function each, on pieceqa's primitives): shape_iou (as qa3d.sheet_pieces measures: bodymeasure.
+  piece_shapes, iou_tol by default, exactly piece_<id>'s per-view values: bow front 0.8962, profile 0.3459 on
+  hair5_b3; or close=True, collar_back_iou's closed-mask IoU), width (ratio or rms of tenths), edge (top/bottom),
+  tips (pieceqa.spikes on the silhouette; graded the worse of depth and count), angle (PCA axis), ink_between (two
+  pieces' boundary with no ink: ours from the outline hulls drawn on the design's grid, our_lines; the design's masks
+  less its line class), position (centroid). `fold`: the drawn pieces we don't build folded in (the bow's tails).
+- A declaration is a literal DECLARED_CHECKS in any charkit module (ast-read, no central list); `part` 'declared' (the
+  generic part, order 1790; nothing declared: nothing measured) or a part that evaluates its own (evaluate_part);
+  limits a list or a reference to a part's table ('charkit.pieceqa.LIMITS.rows'); `flag`; `note`; `calibrate`.
+- Generic calibration: calibrate.entries() adds each declaration's `calibrate` block as an entry (after calib/*.py's own,
+  which keep priority), the adapter chosen by the part (declared.ADAPTERS: Declared for 'declared', a subclass of
+  calib.details.Details whose our_lines is the drawing's ink moved with the labels, none for a floor).
+  `calibrate CHECK --declared draft.json` (or CHARKIT_DECLARED) measures and calibrates a draft before it's committed.
+- **Port:** piece_details' shorts_{view}_hem (edge family) and shorts_{front,back}_width (width family) are now
+  declarations in pieceqa.py (waist() keeps the waistband). **Identity: 413 checks (all of piece_details) on 7 builds
+  (body6_render and co_render known-bads, hair5_b3, h5_base, b2_close, preview 342e88c, hair5_1580f95), 0 differences**
+  against 342e88c's pieceqa (`charkit/out/sweep/families/port_identity.py`), and a synthetic test with the old code
+  kept verbatim (test_port_identity, 12 random trials).
+- **Generic calibration = the hand adapter's:** the six shorts checks declared again in the generic 'declared' part
+  from a JSON draft (`charkit/out/sweep/families/draft_shorts.json`, no adapter code), calibrated on cur_8b5ecae with
+  known-bad body6_render: design moves, known-bad, floors, current and verdict **identical (30 fields, 0 differences)**
+  to the hand path (Details adapter, piece_details) and to the committed records (5 calibrated, shorts_front_width
+  blind as recorded). (body6_render is linked into charkit/out/calib/builds from ~/animation-pipeline-infra3's store.)
+
 ## State
 - Deliverable 1 written and tested (charkit/tests/test_sweep.py: 8 tests, 49 s with the acceptance test).
 - Next: commit, pregate, gate deliverable 1; then 2 (check families), 3 (review page: charkit/reviewpage.py drafted,
