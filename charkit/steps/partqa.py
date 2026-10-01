@@ -11,4 +11,7 @@ MEASUREMENT_STEPS = [
     ('bow_part_knot_iou', '2a71baff', "graded on the front only (partqa.GRADED; coordinator, round 4: the turnaround "
      "draws its three-quarter knot face-on, ours matching it only turned 15-20 deg against the sheet's 35.5, and in "
      "profile a sliver in the loops); the three-quarter and profile knots reported as info"),
+    ('bow_part_knot_iou', '480f0a19', "graded on its own tighter lines (LIMITS 'knot_iou' 0.9 / 0.7, was the lobes' "
+     "0.6 / 0.45) from its calibration triple: at the grid's scale it reads the knot's placement (the design moved "
+     "1-4 px 0.94-1.0); the flagged knots (pipeline-3d's 0.536, g3_render3's 0.467) read WARN before (blind), FAIL now"),
 ]
