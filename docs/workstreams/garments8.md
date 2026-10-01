@@ -14,6 +14,18 @@ the garment regressions accepted by name (tool/garments4-shoulders); this round 
 2. When tool/garments4-shoulders merges (the coordinator messages): merge pipeline-3d; rebuild the flat lapels
    ('smooth' mode) and the puffs' dome against the truths with `sweep optimize`; recover art_outline_neck (5.8 vs 1.5),
    piece_top front (0.50 vs 0.75 before) and the rest in charkit/accepted/; clear each acceptance as it passes.
+   **Added (coordinator, 2026-10-01: Michael routed the range-of-motion suite's garment failures here)**, measured by
+   the ROM suite (tool/rom, merging soon; its posed checks and boards in ~/animation-pipeline-rom/charkit/out/rom/,
+   compare.md; QA part romqa: 17 poses, ~95 s on the laptop):
+   - the puffs going into the arm on raised poses (sleeve_body 0.16-0.24 L; limit 0.01 / 0.03): default 0.07-0.235,
+     joined 0.04-0.178 (raise_side_90 0.235 / 0.164, arm_twist_90 0.113 / 0.178, arms_up 0.071 / 0.175);
+   - the sleeves poking through the jacket (sleeve_top_L/R 1-4% of their edges; joined up to 4.1% arm_across);
+   - the collar stretched 0.58 (garment_strain p95) by a head turn: the collar's weights are copied from the nearest
+     body vertex (garments.collar: W = body weights at nearest(verts)), so its band by the neck carries neck weight:
+     the garment-side part (the collar riding the chest bones, the neck left out of its weights) is mine; the shoulder
+     bridge's stray neck weight (rom_weights_stray, 10% of the jacket on the joined body) is the motion round's (rig).
+     Also garment-side to check: the joined body's sleeves move with the head turn (sleeve_body 0.04, sleeve_top
+     1.3%): the cap weighted from the body (sleeve weights {from body}) inherits the bridge's neck weight.
 3. Review page (summary box): design | new references | before | after; `pregate --box auto`; gate.
 
 ## Step 1: the references (2026-10-01)
