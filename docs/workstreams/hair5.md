@@ -64,10 +64,23 @@ The flyaway by her left bun (picture right in front, left in back) floated at th
 0.033 L between b43c15e and 25b1936 (hair_piece_flyaways moves at d60486a, the sheet-only outfit masks). In 3-d it is
 0.077 L from any hair surface. The ahoge also floats in profile (0.0086 L) in every build since the start.
 
-## Step 2: truth granularity (a sub-agent, notes in docs/workstreams/hair5-truth.md)
+## Step 2: truth granularity (a sub-agent; its notes: docs/workstreams/hair5-truth.md; committed 0f77b9b)
 
-(running: refcheck hair_breakdown per lock; a lock-level close-up sheet if inadequate; the lock truth extended to the
-side locks, lower-back flicks, flyaways and the ahoge)
+- **hair_breakdown is family-level, not a lock reference**: blended fills (front 41% flat colour), the back two flat
+  masses; registered on the body sheet its lock boundaries' line F (2.5 px) is 0.237 / 0.231 / 0.281 (front, profile,
+  back) against random floors 0.160 / 0.151 / 0.077; it recovers 0 of the sheet's 11 hem flicks, 4 of 8 bang locks.
+- **The generated lock-level close-up** (one call, n=2, prompt `hair_lock_closeup`, ledger): both takes copied the
+  breakdown's blended colours; one scale within 4%, hair IoU 0.82-0.91, but line F 0.17-0.29 against floors
+  0.07-0.16. Not adequate in any view; nothing registered.
+- **The lock truth extended** (charkit/refs/clawd/hair_locks_truth.json/.npz; the bangs' 12 locks pixel-identical): 52
+  locks: front 18 (bangs 5, side locks 4, lower back 2, flyaways 6, ahoge 1), three-quarter 10 (4, 4, -, 1, 1), profile
+  10 (3, 2, 2, 2, 1), back 14 (lower back 7 flicks, flyaways 6, ahoge 1). The scorer (hairlocks) per family, the ahoge
+  and flyaways as lock families. h5_base: all 0.331 (a random split 0.392); bangs 0.435 (random 0.398), side locks
+  0.382 (0.429), lower back 0.316 (0.294), flyaways 0.211 (0.375), ahoge 0.379 (0.609); worst: the profile's side
+  locks 0.232, the three-quarter's flyaways 0.000.
+- **Calls for Michael** (from the sub-agent): F, the side flick tips scored as flyaways rather than mass locks? G, the
+  outer side masses unscored (no lock-level reference)? H, the front's and back's side flicks and lowest outer flicks
+  the same physical flicks? And one more paid call (the turnaround alone as reference, line art only), or stop?
 
 ## Step 3: fixes (lab: tools/hair5/lab.py over charkit/out/h5_base)
 
@@ -84,6 +97,12 @@ side locks, lower-back flicks, flyaways and the ahoge)
 |---|---|---|---|---|
 | 2-d pairing (today) | 0.363 | 104 | profile 0.0086 | 0.29 / 0.35 / 0.33 |
 | fit | 0.506 (0.516 / 0.555 / 0.701 / 0.506) | 6.8 PASS | 0 | 0.48 / 0.50 / 0.65 |
+| fit, width and depth from the drawn strands (6a, lab) | **0.689** | 19 PASS | 0 | 0.622 pooled |
+
+The centreline fit is within 1.2 px of the drawn centreline in front, profile and back (mean) jointly: the views agree
+on the ahoge's 3-d curve (a front-only fit reaches F 0.571 front against the joint 0.516: the joint fit isn't the
+limit). The shape deficit was the width: the drawn ahoge is widest at its base and nearly round (profile width 0.8 of
+the front's), the crescent template thin at the root and flat (depth 0.45).
 
 ### The lines are our ink (31e6654)
 
