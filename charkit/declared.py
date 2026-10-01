@@ -1261,7 +1261,8 @@ def evaluate(decls, I):
             if r.get('count_status'):
                 st = pieceqa.worst(st, r['count_status'])
             c = {'value': r['value'], 'status': st, 'ours': r.get('ours'), 'design': r.get('design')}
-            for k in ('count', 'ratio', 'fill', 'ratio_fill') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()):
+            for k in ('count', 'ratio', 'fill', 'ratio_fill') + (('recall', 'place', 'precision', 'dir', 'density') if d['family'] == 'strokes' else ()) + \
+                    (('f1', 'recall', 'precision', 'zone') if d['family'] == 'tones' else ()):
                 if k in r:
                     c[k] = r[k]
             if d.get('note'):
@@ -1319,6 +1320,8 @@ TONE_FLOORS = {            # (the tones family's: the drawn tones moved about th
     'scattered_shadow': "the drawn shadow's patches (the shade tone's connected pieces inside the hair) each put anywhere "
                         "in the hair at random (their shapes and the share kept: the shadow in the wrong places)",
     'scattered_highlights': "the drawn highlight marks each put anywhere in the hair at random",
+    'moved_highlights': "(probe) the drawn highlight marks each moved 0.05-0.15 L at random inside the hair (the "
+                        "highlight density's scale: marks near where drawn, not on them)",
 }
 WEIGHT_FLOORS = {          # (the line_weight family's: the head sheet's strands repainted, charkit.hairweight.redraw)
     'heavy_strokes': "the head sheet's strands repainted in the outline's ink at the outline's weight (inner strokes as "
@@ -1368,6 +1371,8 @@ class Declared(_calib_base()):
                 shade = self._scatter(shade, T['inside'], arg, v)
             elif kind == 'scattered_highlights':
                 mark = self._scatter(mark, T['inside'], arg, v)
+            elif kind == 'moved_highlights':
+                mark = self._scatter(mark, T['inside'], arg, v, reach=(0.05, 0.15))
             elif kind != 'design':
                 shade, mark = np.zeros_like(shade), np.zeros_like(mark)
             tone = np.where(T['inside'], np.where(shade, 1.0, 0.0), np.nan)
@@ -1377,8 +1382,9 @@ class Declared(_calib_base()):
                           hair=_shift(hair, dy, dx, False))
         return out
 
-    def _scatter(self, m, inside, seed, v):
-        """m's connected pieces each moved to a random place inside (kept wholly inside where it can be)."""
+    def _scatter(self, m, inside, seed, v, reach=None):
+        """m's connected pieces each moved to a random place inside (kept wholly inside where it can be), or with reach
+        (lo, hi) L a random distance in that range in a random direction."""
         from scipy import ndimage
         rng = np.random.default_rng(6000 + 97 * int(seed) + VIEWS.index(v))
         out = np.zeros(m.shape, bool)
@@ -1388,8 +1394,13 @@ class Declared(_calib_base()):
             rr, cc = np.nonzero(lab == k)
             c = np.array([rr.mean(), cc.mean()])
             for _ in range(50):
-                j = rng.integers(len(ky))
-                P = np.round(np.c_[rr, cc] - c + np.array([ky[j], kx[j]])).astype(int)
+                if reach is not None:
+                    t = rng.uniform(0, 2 * np.pi)
+                    P = np.round(np.c_[rr, cc] + rng.uniform(*reach) * self.ppl * np.array([np.sin(t), np.cos(t)])
+                                 ).astype(int)
+                else:
+                    j = rng.integers(len(ky))
+                    P = np.round(np.c_[rr, cc] - c + np.array([ky[j], kx[j]])).astype(int)
                 ok = (P[:, 0] >= 0) & (P[:, 0] < m.shape[0]) & (P[:, 1] >= 0) & (P[:, 1] < m.shape[1])
                 if ok.all() and inside[P[:, 0], P[:, 1]].mean() > 0.9:
                     out[P[:, 0], P[:, 1]] = True

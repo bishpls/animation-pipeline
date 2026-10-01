@@ -203,6 +203,22 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   and fits elevation/length/keep/jitter/duty/count to the drawn marks (F1 per view); the fit goes in the spec's
   look.hair (the character's), confirmed on a real build.
 
+- K correction (coordinator, 2026-10-01): a brand-new check shipping at FAIL is reported, not blocking (garments4-v,
+  hair5 precedents). Grade the intent where the views agree, report exact placement per view as its cost.
+- Highlight check now graded on density (hairtones.compare 'highlight': density fields at HL_SCALE 0.06 L, L1 over
+  the sum, lower better; F1 within 0.02 L, recall, precision reported), probe moved_highlights (0.05-0.15 L), floor
+  scattered_highlights; limits to be set from that triple (provisional [0.5, 0.75]). Shadow stays IoU [0.6, 0.5].
+- Streak fit (tools/hlfit.py; evaluator vs the render: F1 0.99-1.0, areas equal): on hst_s1's normals the best is
+  elevation 38-39, length 5-6, keep 1.0, jitter 0, duty 0.7, facing [0.9, 0.6] (F1 F/3q/P/B 0.55/0.48/0.20/0.21) or
+  facing [0.8, 0.5] (0.54/0.46/0.15/0.29); today's style values 0/0.10/0.05/0. Refit on the chosen normals; the values
+  go in clawd.json look.hair (the character's), not the style.
+- Strokes: lock lines per family (sweep sw_lockfam on hst_b2, build box): the back families carry hair_back_lines
+  (1.027 F with all; 0.928 W with bangs + side locks, = strands alone); spec now lock_lines [bangs, side_locks]
+  (06b...). hair_noise's rise with ink was the render drawing drawing the ink (qarender fix 99970f7, step 29203fa).
+  Weight/taper on the build box reproduce the laptop's exactly (gate-1 candidate 0.322/0.197/0.422, 0.636/0.667/0.682);
+  with all lock lines (hst_b2) taper front 0.364 F, 3q None (strand ends meet the lock lines). hst_b3 (build box,
+  bangs + side locks, the qarender fix) reads it. The hst_base store pushed to the build box copy.
+
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
    `~/animation-pipeline-hair4/charkit/out/calib/builds/hair5_1580f95` into this worktree's

@@ -7,8 +7,11 @@ where both draw it, off both drawings' lines:
              their IoU in the zone. The drawn shadow: the lower halves of the locks, the back's hem lobes, the buns'
              lower faces, a band under the bangs
   highlight  the design's highlight marks (value HL_OVER over its lit tone: the short pale marks on the crown and the
-             bangs) against ours (our picture's value HL_OVER over our lit tone): F1 of the two within HL_TOL L of
-             each other (recall: the drawn marks' pixels with one of ours near; precision: ours with a drawn one near)
+             bangs) against ours (our picture's value HL_OVER over our lit tone), graded as the strands are (the views
+             draw their marks view by view; the canonical rule's step 3: the intent graded, exact placement each view's
+             cost): their density fields (a Gaussian at HL_SCALE L over the zone), the L1 difference over their sum (0
+             the same marks, 1 none where the other has them); F1 within HL_TOL L (recall: the drawn marks' pixels with
+             one of ours near; precision: ours with a drawn one near) reported beside it, the exact placement
 
     T = design_tones(dv_view, hair_mask)       # dict(shade, mark, zone, lit, shade_v)
     O = our_tones(B, ppl, az3, views)          # {view: dict(tone, value, hair)} on the design grids
@@ -17,7 +20,8 @@ import numpy as np
 
 
 HL_OVER = 0.06          # value over the lit tone: a highlight mark
-HL_TOL = 0.02           # L: a mark this near another counts as matched
+HL_TOL = 0.02           # L: a mark this near another counts as matched (the exact placement, reported)
+HL_SCALE = 0.06         # L: the highlight density fields' Gaussian (the band's scale: a mark's length)
 LINE_PAD = 1            # px: the lines' own pixels and this round them are left out of the zone
 
 
@@ -123,6 +127,11 @@ def compare(T, O, ppl, measure):
         rec = float((a & (db <= tol)).sum()) / max(1, a.sum())
         pre = float((b & (da <= tol)).sum()) / max(1, b.sum()) if b.any() else 0.0
         f1 = 2 * rec * pre / (rec + pre) if rec + pre > 0 else 0.0
-        return dict(value=round(f1, 3), recall=round(rec, 3), precision=round(pre, 3),
+        area = ndimage.binary_dilation(T['inside'] | O['inside'], iterations=2)
+        g = lambda m: ndimage.gaussian_filter((m & area).astype(float), max(1.0, HL_SCALE * ppl))
+        Da, Db = g(a), g(b)
+        den = float((Da + Db).sum())
+        dens = float(np.abs(Da - Db).sum()) / den if den > 0 else 1.0
+        return dict(value=round(dens, 3), f1=round(f1, 3), recall=round(rec, 3), precision=round(pre, 3),
                     design=round(float(a.sum()) / ppl ** 2, 5), ours=round(float(b.sum()) / ppl ** 2, 5))
     raise KeyError(measure)
