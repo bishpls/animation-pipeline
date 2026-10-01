@@ -18,3 +18,19 @@ Brief (coordinator, 2026-09-30 night):
 ## State
 
 Started. Nothing built yet.
+
+## 1. Measure first
+
+**face5's re-gate pair is not a bun flip** (the box's gate-out base_004efc3_clawd_default and
+cand_tool-face5_6fed167_into_004efc3_default; `charkit/out/bo/pair_face5.json`, `term_face5.json`):
+- `tools/bunorient/pairmove.py` (each hair object's largest vertex move, and the buns' rigid rotation by Kabsch):
+  hair_bun_L / R 4.8e-7 L, rotation 0.000 deg. side_lock_L moves (0.88 L at its largest vertex: re-indexed), the
+  bangs and side_lock_R change vertex counts (10460 -> 10464, 4390 -> 4386), lower_back 0.0032 L.
+- `tools/hairtag/termlab.py` piece swaps (art_terminator_hair, the worst view's ratio to the design's: front 3.743, 3q
+  4.351, profile 5.919, back 1.355 kinks per L): before 1.804 (front), after 2.111 (3q). Swapping either bun changes
+  nothing (identical readings). before + face5's side_lock_L 2.114, after + base side_lock_L 1.979; after + base
+  side_lock_R 1.989, before + face5's side_lock_R 1.973; before + face5's lower_back 1.976; bangs 2.052 / 1.788.
+  **The side locks carry it** (face5's own reshaping of the locks round the jaw), with the lower back. Reported to
+  the coordinator 2026-09-30 20:15. This branch can't clear face5's terminator.
+- The orientation ambiguity is real all the same: hull-local's B2s (the kept fit) against B2a (the annealed prior),
+  IoUs within 0.02: bun_L turned 16.3 deg, bun_R 28.6 deg (pairmove.py), terminator 2.045 against 2.617.
