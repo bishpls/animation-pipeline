@@ -901,3 +901,25 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - pipeline-3d 07f305e8 (the clips) merged in: 1425a80c (declared.py: both families side_line + visible kept).
 - Fresh candidate base: charkit/out/garments6/specs/c0.json (clawd.json + tools/garments5/v/candidate_shoulder.json),
   box build g6_c0 on render2 (log charkit/out/garments6/build_c0.log).
+- g6_c0 built (render2; = g5_c1 + the clips). Diagnosis on it / g5_c1 (tools/garments6, outputs charkit/out/garments6/lab):
+  - shoulderlab.py (design | ours | diff per view): front, the jacket stands in front of the puffs' inner part at
+    x 0.3-0.5, z -0.55..-0.95, and over the shoulder top; back, the jacket's shoulders over the collar's flap region.
+  - xsec.py (sections x = 0.3/0.45/0.55, z = -0.55/-0.65/-0.75): the jacket (region leftShoulder + leftUpperArm t <
+    0.12) now wraps the whole deltoid (the bridge's vertices are dominated by the clavicle and the upper arm): at z
+    -0.65/-0.75 it is a full loop round the arm, the same size as the puff, coming out at its inner front and back.
+  - depthgap.py: front view, the jacket nearer than the puff inside the drawn puff 0.0345 L^2, by p50 0.045 / max 0.117 L
+    (z -0.5..-0.8, x 0.39-0.59); back 0.017 L^2; profile 0.0035.
+  - contain.py (the skin of the bridge + arm in the puff's frame): 28% outside the puff, the bridge's front and back
+    columns by the torso (angles +-60..150, t -0.45..0): the puff's inner front/back, and the shoulder top above the
+    dome.
+  - neckring.py: the neck ring at z -0.544 (r 0.117 sides .. 0.2 back), the jacket's plane cut at -0.563; the bridge's
+    top loops rise to -0.505 beside the neck (the skin wings over the collar in the c1 renders: the round-5 defect).
+  - The design (sleeve_closeup): the puff sits over the shoulder, its seam at the armhole, the bodice up to it.
+- Plan: (1) the body first (the garments fit the final body): the neck flare (A: code_base.flare_neck, body.neck_flare
+  {h, share by azimuth, to, p}) with the bridge's top lift lowered; measured by tools/garments6/bodyj6.py (score vs the
+  sheet, whole-skin neck crease, bridge over the ring, posed, a zoomed picture). (2) the garments: the jacket tucked under
+  the puffs (top.tuck {under, margin}: the bridge/arm vertices inside a puff left out), the puffs grown round the
+  deltoid by part (sleeve_L.clear_body {gap, parts [shoulder, arm], inner 0}), the jacket's neck cut a neckline
+  (cuts' 5th element r round the neck's axis); then the collar walk, the back flap bed, bow_front_bleed.
+- Running: sweep d1 (render2, base g6_c0, tools/garments6/v/d1.json -> charkit/out/garments6/sweeps/d1, log
+  sweep_d1.log): tuck / clear by parts / neck r; local bodyj6 test (T0, F1) -> charkit/out/garments6/bodyj6_test.
