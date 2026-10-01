@@ -382,3 +382,10 @@ Harness scripts and outputs: `charkit/out/xpbd/r3/`.
   enough. Spring settings stay out of the outfit graph (decision 2).
 - **Review page** `charkit/out/xpbd/r3/review/index.html` (review.page3, made by `charkit/out/xpbd/r3/page.py`): the
   summary box, the waistband (numbers and pictures), the calibration, the CPU, the chains, the bake and its replay.
+- **Chains, roots riding the skin with the hips' rest direction** (`--root skin_pos`, tune_skinpos/, stiffness 1..32): skirt
+  best 2, 0, 0.9 (interior: 4 -> 0.0664, 32 -> 0.0683) err 0.066 L (the hips' roots 0.069); flaps best 1, 0, 0.9 (the
+  grid's bottom edge) err 0.046 (0.050). The squat's skirt: worst inside 0.066 at 0.141 L, stretch 0.23 (hips' roots:
+  0.064 at 0.185 L, 0.09): the depth drops a quarter, the share doesn't; the flaps at the squat 0.027 / 0.008 L (hips' roots:
+  0). Eight chains round the skirt (each column carried by its azimuth blend, its top bone rigid) can't follow the
+  thighs as the cloth does: the roots aren't the limit. Not ready for the outfit graph (decision 2 stands). Next, if
+  wanted: more chains (16-24) or the skirt's chain colliders on the thighs; the realistic alternative is the bake.

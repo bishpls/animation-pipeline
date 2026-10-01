@@ -163,8 +163,9 @@ class Springs:
     def __init__(self, S, colliders=False, settings=None, caps='legs', root='hips'):
         """colliders: run the chains against capsules (caps: S.colliders' set, shrunk to clear the chains' rest joints
         by their hit radius); settings: {piece: dict(stiffness, drag, gravity)} over the graph's (a tuning's); root:
-        what carries each chain's first joint, 'hips' (the graph's parent bone) or 'skin' (the skin under it: its
-        weights there, chain_root)."""
+        what carries each chain's first joint, 'hips' (the graph's parent bone), 'skin' (the skin under it: its
+        weights there, chain_root) or 'skin_pos' (the joint rides the skin, the chain's rest direction stays the
+        hips': as the cloth's pins ride the skin while its hold follows the hips-carried shape)."""
         self.S = S
         self.col = colliders
         L = S.L
@@ -223,7 +224,8 @@ class Springs:
                 self.chains[n] = [(ch, u, w / np.maximum(tot, 1e-12)) for ch, u, w in out]
         for cs in self.chains.values():
             for ch, _, _ in cs:
-                ch.root_w = root_weights(S, ch.J[0]) if root == 'skin' else None
+                ch.root_w = root_weights(S, ch.J[0]) if root in ('skin', 'skin_pos') else None
+                ch.root_rot = 'hips' if root == 'skin_pos' else 'skin'
         J = [ch.J[1:] for cs in self.chains.values() for ch, _, _ in cs]
         hit = max([ch.hit for cs in self.chains.values() for ch, _, _ in cs] or [0.0])
         self.caps = riglib.rest_clear(S.colliders(caps), np.concatenate(J) if J else np.zeros((0, 3)), hit) \
@@ -264,11 +266,14 @@ def chain_root(ch, D):
     if not w:
         return D['hips']
     M = sum(x * D[b] for b, x in w.items()) / sum(w.values())
-    U, _, Vt = np.linalg.svd(M[:3, :3])
-    R = U @ Vt
-    if np.linalg.det(R) < 0:
-        U[:, -1] *= -1
+    if getattr(ch, 'root_rot', 'skin') == 'hips':
+        R = D['hips'][:3, :3]
+    else:
+        U, _, Vt = np.linalg.svd(M[:3, :3])
         R = U @ Vt
+        if np.linalg.det(R) < 0:
+            U[:, -1] *= -1
+            R = U @ Vt
     j = ch.J[0]
     out = np.eye(4)
     out[:3, :3] = R
@@ -655,7 +660,7 @@ def tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None
             chs = [springbone.Chain(ch.J, stiffness=st['stiffness'], drag=st['drag'], gravity=st['gravity'],
                                     gravity_dir=ch.gdir, hit_radius=ch.hit) for ch, _, _ in chains]
             for c, (ch, _, _) in zip(chs, chains):
-                c.root_w = ch.root_w
+                c.root_w, c.root_rot = ch.root_w, ch.root_rot
             P = _run_chains(chs, Ds[pose], cap_rows)
             d = np.linalg.norm(P - R, axis=2).mean(1) / S.L
             e['motion'].append(d[n0s[pose] - 1:].mean())

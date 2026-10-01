@@ -1,6 +1,6 @@
 """python -m charkit.sim rest BUILD [--out DIR] [--pieces a,b] [--variants v,w] [--seconds S]
 python -m charkit.sim motion BUILD [--out DIR] [--poses kick,...]
-python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat] [--root hips|skin] [--stiffness 4,8,16,..]
+python -m charkit.sim tune BUILD [--out DIR] [--poses kick,squat] [--root hips|skin|skin_pos] [--stiffness 4,8,16,..]
 python -m charkit.sim review BUILD REST_DIR|- MOTION_DIR|- OUT_DIR [INTRO.html]
 python -m charkit.sim bake BUILD --clip kick [--out DIR] [--method M] [--pc2] [--replay [--blender PATH]]
 python -m charkit.sim waist BUILD [--out DIR]        the waistband's weights at motion QA's poses (charkit.sim.waist)

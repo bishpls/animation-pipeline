@@ -385,6 +385,9 @@ def test_a_chain_rooted_on_the_skin_rides_the_skin_under_its_first_joint():
     j = ch.J[0]
     assert np.allclose(M[:3, :3] @ M[:3, :3].T, np.eye(3))                       # a rotation (polar of the blend)
     assert np.allclose(M[:3, :3] @ j + M[:3, 3], 0.5 * (j + R @ j))              # the joint where the skin takes it
+    ch.root_rot = 'hips'                                                          # (skin_pos: the hips' rotation)
+    M = motion.chain_root(ch, Ds)
+    assert np.allclose(M[:3, :3], np.eye(3)) and np.allclose(M[:3, :3] @ j + M[:3, 3], 0.5 * (j + R @ j))
 
 
 
