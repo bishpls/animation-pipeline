@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T08:07:02",
+ "at": "2026-10-01T21:54:21",
  "better": "higher",
  "kind": "shape",
  "shape": [
@@ -15,42 +15,42 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "+0,+2": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "+1,+0": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "+2,+0": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "+0,-1": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "+0,-2": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "-1,+0": [
-    0.909,
+    0.955,
     "PASS"
    ],
    "-2,+0": [
-    0.909,
+    0.955,
     "PASS"
    ]
   },
-  "min": 0.909,
-  "max": 0.909,
+  "min": 0.955,
+  "max": 0.955,
   "spread": 0.0,
-  "median": 0.909
+  "median": 0.955
  },
  "known_bad": {
   "name": "hst_base",
@@ -64,7 +64,7 @@
     0.273,
     0.273,
     0.273,
-    0.273
+    0.182
    ],
    "statuses": [
     "FAIL",
@@ -81,15 +81,16 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.636,
-  "status": "PASS",
-  "margin": 0.571
+  "value": 0.591,
+  "status": "WARN",
+  "margin": 0.466
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.0), hst_base reads None FAIL, the floor blunt_strokes FAIL",
- "build": "charkit/out/hst_s1",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "blunt_strokes": "the head sheet's strands repainted at their own colour and middle weight with square ends (no taper)"
  },
- "seconds": 304.1
+ "seconds": 1025.1
 }

@@ -1,0 +1,87 @@
+{
+ "check": "rom_finger_finger",
+ "part": "rom",
+ "adapter": "Rom",
+ "module": "charkit.calib.rom",
+ "at": "2026-10-01T15:50:30",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "piece_cuff_L",
+  "piece_cuff_R"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "rom_fingers_shifted",
+  "value": 0.0228,
+  "status": "FAIL"
+ },
+ "floor": {
+  "shuffled_weights": {
+   "values": [
+    0.0,
+    0.0
+   ],
+   "statuses": [
+    "PASS",
+    "PASS"
+   ],
+   "median": 0.0,
+   "status": "PASS",
+   "passing": 2
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": null
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), rom_fingers_shifted reads 0.0228 FAIL; a random stand-in passes it (shuffled_weights); shape guarded by piece_cuff_L, piece_cuff_R",
+ "build": "charkit/out/rom_base2",
+ "generators": {
+  "shuffled_weights": "the skin's weights shuffled among its vertices (seeded): a random rig"
+ },
+ "seconds": 925.8
+}

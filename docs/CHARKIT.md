@@ -339,6 +339,21 @@ Numbers first, pictures second. `python -m charkit build` writes two records int
 
 When something can only be judged by eye, name the measurement that would close the loop and add it here.
 
+### A piece's shape truth: the layer without what covers it
+
+Michael (2026-10-01): each piece's shape truth is its layer without what lies on it, and "if we aren't yet comparing
+hair checks against the no-accessories references, we absolutely should be". A character's manifest names it per piece
+(`shape_truth: {hair: {shape: REF, rows: top, views: [...], placement: head_turnaround}}`): a redraw of a turnaround
+without the piece's covers (Clawd's hair without the star and crab: `hair_clips_layers`' top row; the second
+character's hair without his crown). `charkit/shapetruth.py` registers it on every turnaround view (by the eyes, then
+scale and shift to the piece's IoU over the head and in a ring round the covers) and repaints only the pixels under the
+covers the QA finds (`charkit.accqa`'s drawn clips, grown a little, and the turnaround's pixels near them that differ
+from the redraw); the turnaround stands everywhere else and stays the placement authority. The QA's hair checks read
+that composite (`qa3d.Design.shape_views`, `shape_head`) and draw ours without our accessories (`Design.hidden`), so
+each side's hair is compared alone and the clips' placement can't move a hair score (the clips have their own checks).
+Refcheck: `python -m charkit.shapetruth SPEC` (pictures with `--out`); `CHARKIT_SHAPE_TRUTH=off` reads the turnarounds
+as drawn (a lab's before).
+
 ### Registering a QA part or a measurement step
 
 There are no central lists: a branch that adds a part or a step edits only its own files, so two branches never

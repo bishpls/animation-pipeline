@@ -1,0 +1,10 @@
+{
+ "name": "rom_rigid_shoulder",
+ "why": "the default body before the joined shoulder (pipeline-3d 60c0f1a4 + the weighted look export): the arm a capped tube beside the torso; at the 90 deg forward raise the arm goes 0.0355 L into the torso (garments4 round 5 read 0.04 L)",
+ "flag": null,
+ "commit": "8c54de62",
+ "source": "~/animation-pipeline-rom/charkit/out/rom_base2",
+ "stored": "2026-10-01",
+ "bundle": "a96475a9d640556f",
+ "qa_checks": 702
+}

@@ -1,0 +1,103 @@
+{
+ "check": "hair_piece_upper_back",
+ "part": "hair_pieces",
+ "adapter": "Hair",
+ "module": "charkit.calib.labels",
+ "at": "2026-10-01T21:37:37",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.96,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.928,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.964,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.938,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.96,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.928,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.964,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.938,
+    "PASS"
+   ]
+  },
+  "min": 0.928,
+  "max": 0.964,
+  "spread": 0.036,
+  "median": 0.949,
+  "views": {
+   "back": [
+    0.9489,
+    0.9745
+   ],
+   "front": [
+    0.7661,
+    0.8744
+   ],
+   "profile": [
+    0.9039,
+    0.9549
+   ]
+  }
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "a shape check, the anti-gaming guard's measure: no single flagged build",
+ "floor": {
+  "voronoi_families": {
+   "values": [
+    0.326,
+    0.342,
+    0.259,
+    0.365,
+    0.32
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.326,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.77,
+  "status": "PASS",
+  "margin": 0.713
+ },
+ "verdict": "guard",
+ "why": "no known-bad (a shape check, the anti-gaming guard's measure: no single flagged build); the design passes and the floor does not",
+ "build": "charkit/out/hairtruth/base",
+ "generators": {
+  "voronoi_families": "the hair's drawn area cut into random cells (8 per family a view shows), each a random family (weighted by the families' drawn areas)"
+ },
+ "seconds": 22.4
+}

@@ -586,9 +586,10 @@ def _roles(objects):
 def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=None, tpose=True, extra=None, log=print,
            look_only=False):
     """write the character in the current Blender scene (its armature and visible, rigged meshes) to path (.vrm / .glb).
-    look_only: what charkit.render draws and nothing a runtime poses with (the build pose: no shape keys evaluated, no
-    morph targets, every vertex bound to the hips; the skeleton, OPENADS_charkit_look and the textures as usual): a
-    build's NAME.look.glb, a fraction of the full export's cost. -> a report dict."""
+    look_only: what charkit.render draws (the build pose: no shape keys evaluated, no morph targets; the skeleton, the
+    skin weights (top four, as the full export's), OPENADS_charkit_look and the textures as usual): a build's
+    NAME.look.glb, a fraction of the full export's cost, posable by its weights (charkit.rom: the range-of-motion suite
+    poses it in the venv; tool/rom, 2026-10-01: it was bound to the hips alone until then). -> a report dict."""
     import bpy
     arm = arm or next(o for o in bpy.context.scene.objects if o.type == 'ARMATURE')
     if objects is None:
@@ -703,7 +704,8 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
     for ob, variant in skinned:
         if look_only:
             om_ = _outline_mod(ob)
-            E = Eval(ob, subdiv, keys=False, groups={om_.vertex_group} if om_ is not None and om_.vertex_group else set(),
+            E = Eval(ob, subdiv, keys=False, groups=set(idx) | ({om_.vertex_group} if om_ is not None and om_.vertex_group
+                                                                 else set()),
                      hide=(BARE_MASK,) if variant == 'bare' else ())
         else:
             E = Eval(ob, subdiv)
@@ -745,7 +747,7 @@ def export(path, arm=None, objects=None, name=None, subdiv=2, roles=None, meta=N
             cap, w_ = shade.line_cap(ob), abs(float(om.thickness))
             cap_in = round(float(cap), 7) if cap and abs(w_ * (1 + om.offset) / 2 - min(w_, cap)) < 1e-6 else None
         # skin weights: top four bones
-        bone_w = {g: w for g, w in E.groups.items() if g in idx} if not look_only else {}
+        bone_w = {g: w for g, w in E.groups.items() if g in idx}
         if not bone_w and ob.parent_type == 'BONE' and ob.parent_bone in idx:
             bone_w = {ob.parent_bone: np.ones(len(co), np.float32)}
         if not bone_w:

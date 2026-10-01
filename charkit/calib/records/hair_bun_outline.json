@@ -1,0 +1,102 @@
+{
+ "check": "hair_bun_outline",
+ "part": "hair_pieces",
+ "adapter": "Hair",
+ "module": "charkit.calib.labels",
+ "at": "2026-10-01T21:37:37",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [
+  "hair_piece_buns"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    1.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    1.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    1.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    1.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    1.0,
+    "PASS"
+   ]
+  },
+  "min": 1.0,
+  "max": 1.0,
+  "spread": 0.0,
+  "median": 1.0,
+  "views": {
+   "front": [
+    1.0,
+    1.0
+   ],
+   "profile": [
+    1.0,
+    1.0
+   ]
+  }
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the buns' drawn block outline against ours; no stored build was flagged for it (the current build FAILs it)",
+ "floor": {
+  "voronoi_families": {
+   "values": [
+    0.196,
+    0.107,
+    0.092,
+    0.025,
+    0.132
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.107,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.468,
+  "status": "FAIL",
+  "margin": 0.404
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the buns' drawn block outline against ours; no stored build was flagged for it (the current build FAILs it)); the design passes and the floor does not",
+ "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
+ "build": "charkit/out/hairtruth/base",
+ "generators": {
+  "voronoi_families": "the hair's drawn area cut into random cells (8 per family a view shows), each a random family (weighted by the families' drawn areas)"
+ },
+ "seconds": 22.4
+}
