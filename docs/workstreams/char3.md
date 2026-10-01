@@ -185,6 +185,11 @@ Item diagnoses (coordinator's read of b1, 2026-10-01):
   z -0.525, x 0.38, socket top 0.36), not read from the base body sheet; the harness's shoulder point misreads an
   A-pose (it lands near the elbow). Box build with it on (chiton's sleeves over it): s1, job build-char3-1001-151614-f06c
   on the build box (log charkit/private/c3/out/s1_build.log; spec charkit/private/c3/spec_shoulder.json).
+  s1 DONE: with the chiton's short sleeves over it the QA body IoU moves -0.002..-0.006 (front / 3q / profile / back
+  0.861 / 0.806 / 0.833 / 0.855 -> 0.855 / 0.804 / 0.830 / 0.849); the template's high, narrow top shows skin above the
+  chiton's neckline at the neck in front and three-quarter (charkit/private/c3/out/s1/boards; the harness picture
+  charkit/private/c3/out/shoulder_bodyj/bodyj.png: his drawn shoulder slopes to |x| ~1.0 L, the template steps down at
+  ~0.5). Verdict: generalises as a structure (one closed surface), not as fitted knobs.
 
 Running (15:35): b2 on render2 (job build-char3-1001-145743-6f02, log charkit/private/c3/out/b2_build.log; fixes 18-20);
 the gate of e64f2bbb on render2 (job gate-char3-1001-150917-ca4e, log charkit/private/c3/out/gate1.log; it predates
@@ -237,6 +242,20 @@ fallback): b1 (the body on the clothed hull) and b2 (fixes 18-20); b3 (all fixes
   (template, handref cuffs); (9) eye checks calibrated on large eyes; (10) the review page's regions; (11) MakeHuman
   legacies in the code path: mh.VRM_JOINTS (the joint names) and base_anime's SOCKET / CAVITY (hm08's eye and mouth
   rings); (12) infra: the produced hull's key misses head_sections' runtime imports.
+
+## Gate of b39d996b (2026-10-01 16:05, render2): FAIL under K, one blocker, attributed to a stale baseline input
+
+Report charkit/out/gate/gate_tool-char3_b39d996b_into_60c0f1a4.md. Blocking: the flag check
+hair_strokes_three_quarter_taper 0.667 PASS -> 0.583 WARN. No new FAILs, build CPU 1.15x, tests 99/99 ok. The 2x2
+(both QA codes on both bundles): no check reads differently under the branch's QA code (34 parts' code changed, all
+`checks: []`): the measuring changes are inert. The moves are the geometry's (47 arrays): the baseline is a CACHED
+pipeline-3d build whose produced Clawd hull is stale (the hull's key misses code_base.head_sections' runtime headfit
+imports, so face7's headfit commits never invalidated it); the candidate rebuilt it. Built fresh with pipeline-3d's own
+code the hull is byte-identical to the branch's (sha 1c4094a4; face carve 126,062 voxels) and differs from the cached
+entry (786abaad; 123,774). Every moved check is a hair, face-carve or hair-clip reading (hair_strokes_*,
+art_terminator_hair, art_peeks_hair, hair_lock_lines_*, face_shadow, art_outline_face/hair, acc_crab_* angles). For the
+coordinator: re-gate against a fresh baseline hull (the stale entry invalidated on render2, or the hull key fixed in
+pipeline-3d first), or accept hair_strokes_three_quarter_taper by name.
 
 ## Exact next steps
 
