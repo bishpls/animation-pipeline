@@ -434,7 +434,28 @@ a kinked objective probed by 1 mm secants, so the end is the path's, not the inp
 Fix (`lock_shells.det`, default on for shells): a smooth objective (drawn centrelines through cubic splines, the curve
 sampled 4x, the fields and the envelope's depth by cubic splines, softplus limits, smooth abs, the widths' Gaussian on
 squared distance), central-difference Jacobian (1e-6), converged (tol 1e-12); the fit's inputs snapped to 2^-12 m, its
-parameters to 2^-14 m, the tube's arrays to 2^-26 m. (Measuring.)
+parameters to 2^-12 m, the tube's arrays to 2^-26 m (`lockshell.det_inputs`: fields, chart centre, hull frame, L, the
+views' calibration). trf on the smooth objective converged too slowly (some fits > 3000 evaluations, 13 min a
+pilot); MINPACK's LM (`det_method 'lm'`, the twist through tanh) converges in 9-350 evaluations, and a fit's end
+moves 2e-10..6e-8 m for inputs moved 1e-10 m (trf, round 2: 5e-7..2.5e-3). The 4 fits that stop at det_nfev 600
+are trial joins the fit can't follow (costs 9-17 px against view_cost_max 4): dropped either way.
+**Result** (`charkit/out/hairshell3/determ/det3.log`): 17 of 17 locks bit-identical between the context and it moved
+1e-10 m (two seeds: the fields, the chart, the hull frame, the views), and between the two box builds' contexts
+(CPU box hs_base, render box hs_shells_r; round 2: 0 of 17). A pilot fit takes 196 s (round 2: 57 s). The splitter's
+product is identical laptop vs box (`split_box`: every image bit-identical; hairsplit.json differs only in width_L
+of 4 locks, which the fit doesn't read). Test: `charkit/tests/test_lockshell.py::test_fit_bit_identical_under_input_noise`
+(det on unsnapped inputs moved 1e-12: same bits, where round 2's fit moves 1e-12..1e-11, its calibration; inputs moved
+1e-10 and snapped: same bits in 5 seeds). Laptop vs box on a real build: `tools/hairshell3/xmachine.py BUILD OUT`
+(the build's pieces step made again here, compared bit for bit) on the candidate's box build.
+
+## The reference attempt (3): failed (sub-agent; `charkit/out/hairshell3/ref/result.md`, `index.html`)
+
+One call, n=2 (ledger 2026-10-01T03:58:50), an exploded lock breakdown with the body turnaround as the ref;
+criteria pre-registered (`ref/criteria.md`). Take 1: scale spread 7.0% (FAIL), pilot locks matched 8/19 (FAIL),
+identity 5/8 (FAIL); take 2: scale 1.4% (PASS), pilot locks 8/19 (FAIL: front 3/4, 3q 3/4, profile 1/4, back 1/7),
+identity 14/14 (but the back numbered as a mirror of the front). Neither draws the turnaround's back hem or profile
+flicks; line F and the 52-lock IoU at or below their random floors. Not registered. So the canonical rule's step 3:
+the best joint fit with per-view costs (sweep rows `joint_all*`: view_cost_max 1000, every associated view kept).
 
 ## hair_noise remeasure (side branch tool/hairshell3-noise, aa7b3e6)
 
