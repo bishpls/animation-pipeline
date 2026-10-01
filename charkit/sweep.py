@@ -3,10 +3,10 @@ QA's own parts, in one table with every piece's shape IoU per view beside the ch
 replaces the per-round variant harnesses (tool/sweep, docs/workstreams/sweep.md: 22% of the agents' active time on
 2026-09-30 went to writing, running and tabulating them).
 
-    python -m charkit sweep run DECL.json [--out DIR] [--jobs N] [--only NAME,..] [--box [NAME]] [--code ROOT]
+    python -m charkit sweep run DECL.json [--out DIR] [--jobs N] [--only NAME,..] [--box [NAME|auto]] [--code ROOT]
     python -m charkit sweep BASE --stage garments|hair|face|qa [--spec SPEC] [--set PATH=JSON ..] [--variant NAME=JSON ..]
                                  [--grid PATH=JSONLIST ..] [--oat PATH=JSONLIST ..] [--parts P,..] [--checks PAT,..]
-                                 [--objects NAME,..] [--no-control] [--no-rebase] [--out DIR] [--jobs N] [--box [NAME]]
+                                 [--objects NAME,..] [--no-control] [--no-rebase] [--out DIR] [--jobs N] [--box [NAME|auto]]
                                  [--code ROOT]
     python -m charkit sweep swap A B --check CHECK [--part PART] [--parts P,..] [--objects PAT,..] [--drop]
                                  [--groups hair,garment,accessory] [--inputs PATH[=VALUE],..] [--stage hair|garments]
@@ -68,7 +68,8 @@ object's move between the builds (its largest vertex move in L, and its rigid ro
 hair.*, else garments) and measured the same way (tools/hull_local/hairswap.py's question: which input moves a piece).
 
 Parallel: --jobs N runs the rows in N processes, each in a machine build slot (charkit.procs: the laptop has one, so
-keep 1 there). On the box: --box [NAME] runs it there (`remote run --fetch OUT`); the base must be a build on the box.
+keep 1 there). On a box: --box [NAME | auto] runs it there (`remote run --fetch OUT`; auto, or --box alone: the box
+with the most free CPU, charkit.remote.pick_box); the base must be a build on that box.
 --code ROOT runs the sweep with another tree's charkit (an unmerged branch's checks, or the code a historical harness
 ran: the acceptance reproductions in charkit/tests/test_sweep.py and docs/workstreams/sweep.md).
 
@@ -1449,7 +1450,8 @@ def _recode(args):
 
 
 def _box(args):
-    """--box [NAME]: this command on the box (remote run --fetch OUT), its outputs fetched."""
+    """--box [NAME | auto]: this command on a box (remote run --fetch OUT; auto, or no name: remote's pick), its outputs
+    fetched."""
     from charkit import remote
     i = args.index('--box')
     name = args[i + 1] if i + 1 < len(args) and not args[i + 1].startswith('-') else None
