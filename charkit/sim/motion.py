@@ -180,7 +180,7 @@ class Springs:
             kw = dict(stiffness=s['stiffness'], drag=s['drag'], gravity=s['gravity'], gravity_dir=s['gravity_dir'],
                       hit_radius=s['hit_radius'] * L)
             NR, NC = drape.grid_of(o)
-            G = o['V'].reshape(NR, NC, 3)
+            G = o['V'][:NR * NC].reshape(NR, NC, 3)
             V = o['V']
             if n.startswith('overskirt'):
                 nj = len((s.get('chains') or s.get('drawn_chains'))[0]['joints'])
