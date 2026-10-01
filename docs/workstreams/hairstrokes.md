@@ -81,3 +81,5 @@ declared calibrated check):
   (base 2.006 +- 0.081): neutral; peeks 17.5 -> 17.7.
 
 ## Jobs
+- Box build `charkit/out/hst_s1` (619659c, render box, boards views,body,design): the first real strokes build (log
+  charkit/out/hairstrokes/build_s1.log). Calibration on the lab build labb_v2: calib3.log (local).
