@@ -532,3 +532,35 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   follow-up (after this gate) = re-measure the stair family against skirt_layers (the pleat widths at the sides: the
   flat band beyond the stair still crosses the side pleats, 2 front / 1 3q, reported not counted) and the flaps-alone
   row (the flap square dial 2.0).
+
+## Stop point (2026-10-01, lean agent 3, wrap-up: weekly capacity 95%; box SSH dropping)
+- **Branch tool/garments4-stairs** (head = this notes commit; code at d29f54c4 + notes): pipeline-3d 393539e7 merged.
+  Carries: declared family `stair` + `our_folds` (charkit/declared.py), charkit/stairqa.py (stair_{front,three_quarter}
+  _crossed [0, 0], stair_skirt_{view}_corner and stair_flaps_{view}_corner [3, 5], known-bad g4_stairs0 stored in
+  this worktree's calib store), calibrate's draft-check fix, the flap `square` knob, the spec (skirt stair knots
+  [[0,.35],[13,.25],[23,.15],[33,.10]], overskirt_panel_L square 2.0), test_declared's stair test, CODEMAP.
+- **Running when stopped**: box build g4_stairs1 of the default spec, job `build-garments4-1001-065031-2168`
+  (out charkit/out/g4_stairs1, log charkit/out/garments4/build_stairs1.log). If the local follow died: `python -m
+  charkit remote attach build-garments4-1001-065031-2168` to collect it (or rebuild: `remote build
+  charkit/spec/clawd.json --out charkit/out/g4_stairs1 --boards '' --no-blend`).
+- **Exact next steps, the staircase** (no gate run yet):
+  1. On g4_stairs1: `python -m charkit calibrate 'stair_*' --build charkit/out/g4_stairs1` (a dry run on g4_cuffs2
+     before the crossing fix: corners CALIBRATED (skirt and flaps, front and 3q); crossed was MISCALIBRATED by the
+     panel-edge folds, fixed since (margin 0.035 L, steps only) and must be re-run; the spacing measure was dropped
+     from the declarations: the turnaround draws only some folds). Commit charkit/calib/records/stair_*.json and
+     charkit/calib/known_bad/g4_stairs0.json (committed).
+  2. Expected on g4_stairs1 (local rebuild deg4_sq2 against g4_cuffs2): crossed 0 / 0, skirt corners 2.9 / 0.5 P,
+     flaps 4.0 W / 0.0 P; art_band_lower 1.62 W (control 1.69 W); skirt_panel_*, skirt_pleats*, bow creases unchanged;
+     piece_overskirt_panel_L/R 0.697 / 0.821 (0.691 / 0.812). Check the guard and flap_profile_sweep_L (0.075 -> 0.08,
+     its PASS limit).
+  3. `python -m charkit pregate` locally, then `python -m charkit remote gate tool/garments4-stairs --into pipeline-3d`.
+  4. Review page (charkit/out/garments4/review/stairs.json -> `charkit review page ... --open`): design | before
+     (g4_cuffs2) | after (g4_stairs1) front and 3q crops, the stair overlays (tools/stairdbg.py), the numbers above.
+     Ask Michael: (a) the flap square dial 2.0 (1.0 is perpendicular in 3D; 2.0 reads square in front) yes/no;
+     (b) the flat band beyond the fourth step still crosses the side pleats (2 front / 1 3q, reported, not counted):
+     leave it, or step every side pleat (crenellation tried: read as pixel stairs) or widen the side pleats per
+     skirt_layers; (c) lean treads (squarer in front, rounded by the subdivision) declined.
+  5. Follow-up with the new references: skirt_layers take 1 (panel/pleat structure) and its flaps-alone row (the
+     staircase edges' shape authority): re-measure the stair family against them.
+- **Neck join, bodice reference, V, flat lapels**: the exact steps are in "Next, milestone 2" above; use
+  base_body_turnaround (Michael: yes to its profile for the torso) for the join.
