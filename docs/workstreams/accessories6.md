@@ -70,7 +70,22 @@ with poses 0.848 / 0.797 / 0.768). accfit.shape_checks / shape_loss: a template 
   rested on their PASS edges (leg reach 0.198 of 0.2, stalks 0.247 of 0.25: legs 20% shorter than the sheet's), the
   face-on 0.883 -> 0.781, side 0.651 -> 0.540: the loss had no pull inside PASS.
 - opt_crab3 (from opt_crab2's best; w_alone 1.0, w_side 0.3, w_parts 0.3 with pull: each parts check's value over its
-  pass limit inside PASS too): running/see below.
+  pass limit inside PASS too; 2,697 evaluations): every parts check on the sheet's reading, face-on 0.855, side 0.626,
+  turnaround 0.780 / 0.699 / 0.740. But the legs came out sticks (width 0.055 of the body against the sheet's 0.087):
+  thick legs bunched at the body read as body, so the fit escaped through thin ones. Added acc_crab_leg_width (limbs
+  'width': twice the median depth along each leg's medial line; floor thin_legs; 3f7fdfd5).
+- **opt_crab4** (the width in, w_side 0.5; 3,114 evaluations): **the crab** (in the six specs, 9ea... see git log):
+  legs 3 / 3, reach 0.2473 (sheet 0.2474), width 0.001 off, roots -7.8 (sheet -7.7), fingers 2 / 2, notch 0.2459
+  (0.2469), stalks 0.2071 (0.2078); face-on IoU 0.893 (A3's crab 0.728), side 0.661 (0.740); turnaround as-drawn IoU
+  0.772 / 0.691 / 0.740 (the template posed; round 5's template 0.848 / 0.797 / 0.768: the turnaround draws short
+  legs). CRAB_AXIS = 90 + its rolls: 89.2 / 80.9 / 87.4. Figures: work/faceon_parts.png, edgeon.png, shape_fits.png.
+
+## Part B: the ring (tools/acc6/ring.py, four box jobs; charkit/out/acc6/ring/ring.json)
+Each bearing solved (the crab 0.012 L clear, its axis the bearing + the drawn turn -99.5), measured with accfit's loss
+(W_REL 0.5, ANGLE_NEAR 0.05): b000 / b045 / b315 unsolvable (behind the star toward the ear: the crab hidden, cost 30-87);
+b090 loss 24.9 (profile visible 0.82); b135 13.2; **b180 7.9**; b225 11.6; b270 18.3 (vis 0.94); Michael's 16.7 (turn
+FAIL 98-100 deg off); the drawn arrangement nudged clear 7.2 (profile visible 0.959: under 0.97); 'rotated slightly'
+(bearing 140, axis 115) 12.7.
 
 ## Part B: diagnosis (tools: charkit/out/acc6/work/diag.py, diag2.py; terms.py: accfit's loss by term; the A3 crab
 template as built: pipeline-3d's accessories.crab)
@@ -113,6 +128,12 @@ on the build box (charkit/out/calib/builds/acc_a3_crab; charkit/calib/known_bad/
 | build | single | six-placement mean +- std | per view f / 3q / p / back | peeks |
 |---|---|---|---|---|
 | A3 (pipeline-3d 25ff0f25, charkit/out/acc6/base) | 2.432 | 2.204 +- 0.151 | 8.25 / 7.71 / 4.46 / 1.87 | 17.3 |
+
+## Running
+- opt_place (charkit/out/remote/opt_place.json -> charkit/out/acc6/opt_place): 14 knobs, 8 starts b000..b315, refs
+  michael / drawn_nudged / ul_slight; objective accfit_loss (W_REL 0.5, ANGLE_NEAR 0.05); keep acc_*_visible,
+  acc_*_seat PASS; guard 15%; no new FAIL. Box job on the build box.
+- ring_M: Michael's and the drawn-nudged placement re-solved with the fit-4 crab (for their builds).
 
 ## Next steps
 1. opt_crab3 -> the crab shape; CRAB_AXIS from its poses; the specs (tools/acc6/specs.py).
