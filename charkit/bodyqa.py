@@ -155,7 +155,8 @@ def classes(rgb, fg, eye_y, ppl, split=HAIR_SPLIT, thick=2):
 def crop(a, eye, ppl, win=WIN, fill=0):
     """the window round an eye point (x, y pixels) of an image at ppl: the same grid as faceqa.zbuffer's at pix = 1 / ppl
     with the origin on the eyes."""
-    Wd = int(round(2 * win['x'] * ppl)); Hd = int(round((win['top'] - win['bottom']) * ppl))
+    from .faceqa import check_window
+    Wd, Hd = check_window(int(round(2 * win['x'] * ppl)), int(round((win['top'] - win['bottom']) * ppl)), 'a design window')
     x0 = int(round(eye[0] - win['x'] * ppl)); y0 = int(round(eye[1] - win['top'] * ppl))
     out = np.full((Hd, Wd) + a.shape[2:], fill, a.dtype)
     H, W = a.shape[:2]

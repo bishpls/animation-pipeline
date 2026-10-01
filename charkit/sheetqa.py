@@ -496,6 +496,9 @@ def foreground(rgb, bg=None, thr=0.12, paper=0.012):
 # centre round the eye line from the back
 HEAD_BOX = dict(size=1.74, above=0.77, back=0.04, axis=0.27, band=0.2)
 FIGURE_MIN = 0.002                  # blobs under this share of the sheet are specks (a boot's shadow, a sweat drop)
+MIN_FIGURE_L = 1.0                  # an eye-spacing scale making the tallest figure shorter than one head length is a misread
+                                    # pair of eyes (a second character's merged sheet read 0.37 L at 3719 px/L, and the QA's
+                                    # body grids at that scale ran to 68 GB on the build box, 2026-09-30)
 
 
 def _row_centre(mask, y0, y1):
@@ -574,6 +577,11 @@ def detect_figures(rgb, ppl=None, eye_x=0.168, facing=None):
             raise RuntimeError('no two-eyed figure to scale the sheet by: pass ppl')
         ppl = abs(front['eyes'][1][0] - front['eyes'][0][0]) / (2 * eye_x)
         scale = 'eyes'
+        if tall / ppl < MIN_FIGURE_L:
+            raise RuntimeError('implausible scale: the front pair of eyes (%.0f px apart) makes %.1f px per head length '
+                               'and the tallest figure (%d px) %.2f L, under a head: the eyes are misread (figures merged, '
+                               'or the eye colours not found): pass ppl' % (abs(front['eyes'][1][0] - front['eyes'][0][0]),
+                                                                             ppl, tall, tall / ppl))
     # views
     out = dict(size=[W, H], bg=[round(float(v), 4) for v in bg], ppl=round(float(ppl), 2), scale=scale, figures={},
                expressions=[], skipped=skipped, _fg=fg, _blobs=blobs, _lab=lab)
