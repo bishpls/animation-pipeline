@@ -88,9 +88,35 @@ OUT/sweep.md, OUT/ROW/res.json (+ board.png).
   to the hand path (Details adapter, piece_details) and to the committed records (5 calibrated, shorts_front_width
   blind as recorded). (body6_render is linked into charkit/out/calib/builds from ~/animation-pipeline-infra3's store.)
 
+## 3. `charkit review page` (charkit/reviewpage.py)
+
+`python -m charkit review page PAGE.json [--out DIR] [--open]`: title, summary {recommended, asked, numbers}, builds
+[{label, path}], views, regions, checks, sweep, notes -> DIR/index.html and DIR/img (default
+charkit/out/review_pages/<slug>). Order: the summary box (Recommended, Asked of Michael, Key numbers: given, or the
+first named checks across the builds), per view the design beside each build (full figures at 560 px, heads at
+300 px/L), close-ups by region (REGIONS: face, hair, bow, hands, cut in L round the eye line as the all-in page did,
+one row per view at one height: a column's scale is the next's), a sweep's table and boards, the numbers (qa.json, flag
+checks [F]). Build folders are only read: a preview's page crops when present, else cut from its boards as
+charkit.preview does, else drawn from its bundle. Demo: `charkit/out/sweep/review_demo/` (the 342e88c preview, hair5_b3,
+h5_base, the garments demo sweep), 8 s.
+
+## 4. The code map (docs/CODEMAP.md, charkit/codemap.py)
+
+`python -m charkit.codemap` (ast only, under a second; `--check` says whether the file is current; no test enforces
+freshness, so a stale map never blocks a gate). A curated header (where the build, builders, evaluators, QA parts,
+calibration, sweep, gate, review pages, sim, renderer and geometry kernel live), then generated: the QA parts by
+registry order (part, check prefix, table, function), the commands (cli.main's dispatch), the calibration entries,
+the declared checks, and every module under charkit/, geom/, render/, sim/, calib/, steps/, boards/, styles/ with its
+docstring's opening and each public function's signature and first docstring sentence. 3559 lines.
+
+## Gates
+- Gate 1 (deliverable 1, sweep): **tool/sweep 1381b4f into pipeline-3d 961037c: PASS under K**; nothing blocks, 0 items
+  reported (no check moved); the candidate built (cli.py changed: its venv steps' keys missed, CPU 737 -> 940 s,
+  1.28x); 78 test files ok. Report `charkit/out/gate/gate_tool-sweep_1381b4f_into_961037c.md`. Pregate PASS (0 moved).
+
 ## State
-- Deliverable 1 written and tested (charkit/tests/test_sweep.py: 8 tests, 49 s with the acceptance test).
-- Next: commit, pregate, gate deliverable 1; then 2 (check families), 3 (review page: charkit/reviewpage.py drafted,
-  `review page` wired in review.py), 4 (CODEMAP).
+- Commits: 3d75bb3 sweep, 1381b4f merge of pipeline-3d 961037c, 49d073b declared checks, 927ba74 review page, then the
+  code map.
+- Next: pregate and gate deliverables 2-4 (the tip; and tmp/sweep-declared at 49d073b alone).
 - Throwaway worktree for the w4 reproduction: the scratchpad's pr_beb14922 (git worktree, detached at beb14922): remove
   with `git worktree remove --force` when done.
