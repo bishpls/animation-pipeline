@@ -77,6 +77,25 @@ def test_front_view_unchanged():
     assert np.abs(v1[:, 1] - v0[:, 1]).max() > 0.001
 
 
+def test_wrap_takes_the_upper_outer_lid_back_and_keeps_the_front():
+    """eyes.wrap (tool/face7): the opening's points above the outer corner, outward of wrap_from, go back by wrap x their
+    height over the corner; the lower lid and the inner half keep their depth; every (x, z) is kept."""
+    F = Window()
+    base = dict(surface='turned', turn=(-10.0, 5.0, 50.0), anchor='corners', fold_follow=0.5)
+    K0, K1 = knobs(**base), knobs(wrap=0.3, wrap_from=0.2, wrap_reach=0.07, **base)
+    S0, S1 = eyelib.Surface(F, K0, L, 1, (EX, EZ)), eyelib.Surface(F, K1, L, 1, (EX, EZ))
+    W = K0['width'] * L
+    zc = eyelib.outline(K0, L, np.array([1.0]), 'upper')[1][0]
+    up = (np.array([0.45 * W]), np.array([zc + 0.1 * W]))          # over the outer corner
+    lo = (np.array([0.45 * W]), np.array([zc - 0.1 * W]))          # under it
+    inner = (np.array([-0.2 * W]), np.array([zc + 0.2 * W]))       # the inner half
+    assert S1(*up)[0] - S0(*up)[0] > 0.02 * W                      # the upper outer lid back
+    assert abs(S1(*lo)[0] - S0(*lo)[0]) < 1e-9 and abs(S1(*inner)[0] - S0(*inner)[0]) < 1e-9
+    v0, f0, uv0 = eyelib.plate(F, K0, L, 1, (EX, EZ))
+    v1, f1, uv1 = eyelib.plate(F, K1, L, 1, (EX, EZ))
+    assert np.allclose(v0[:, [0, 2]], v1[:, [0, 2]]) and f0 == f1
+
+
 def test_no_scipy_in_the_eye_engine():
     """charkit.eyes runs in Blender's Python, which has no scipy."""
     src = open(eyelib.__file__).read()
