@@ -124,6 +124,66 @@ def test_half_widths_close_over_the_mouth():
     assert np.allclose(a['r'], b['r'], atol=1e-6), np.abs(a['r'] - b['r']).max()
 
 
+def test_the_level_camera_is_orthographic():
+    """the design's projection: a point's place in the picture doesn't depend on its depth (the boards' camera, 1 m out
+    in perspective, draws a point 0.1 m nearer 11% further out)."""
+    ref = np.array([0.0, 0.0, 1.5])
+    P = np.array([[0.05, -0.1, 1.45], [0.05, 0.1, 1.45]])
+    o = fr.cam_points(P, 0.0, ref, ref, 0.2, dist=None)
+    assert np.allclose(o[:, 0], 0.05) and np.allclose(o[:, 2], -0.05) and o[0, 1] < o[1, 1]
+    b = fr.cam_points(P, 0.0, ref, ref, 0.2, dist=1.0)
+    assert b[0, 0] > 0.055 and b[1, 0] < 0.046
+
+
+def test_the_taper_checks_grade_the_level_camera():
+    """the chin's and the taper's checks are graded on ours in the design's projection, the boards' value beside."""
+    t = np.arange(0.0, 1.0 + 1e-9, fr.TAPER_T)
+    r = 1.0 - t
+    arms = {'L': dict(rms=0.001, bow=0.0, bend=3.0, bend_z=-0.3)}
+    D = {'front': dict(t=t, r=r, z0=-0.18, w0=0.26, w90=0.05, chin_angle=129.7, tip_share=0.83, arms=arms)}
+    lvl = dict(D['front'], chin_angle=129.0, tip_share=0.8)
+    brd = dict(D['front'], r=r * 0.9, chin_angle=118.0, tip_share=0.4, arms={'L': dict(arms['L'], bend=12.0)})
+    C = fr.taper_compare(D, {'front': lvl}, {'front': brd})
+    # (the value is |ours - the design's| since face5 round 7; ours beside)
+    assert C['chin_angle']['value'] == 0.7 and C['chin_angle']['ours'] == 129.0 and C['chin_angle']['board'] == 118.0
+    assert C['chin_angle']['status'] == 'PASS'
+    assert fr.taper_compare(D, {'front': dict(lvl, chin_angle=127.0)})['chin_angle']['status'] == 'WARN'
+    assert C['chin_tip']['status'] == 'PASS' and C['chin_tip']['board'] == 0.4
+    assert C['jaw_taper_shape']['value'] == 0.0 and C['jaw_taper_shape']['board'] > 0.05
+    assert C['jaw_line_bend']['value'] == 3.0 and C['jaw_line_bend']['board'] == 12.0
+
+
+def test_the_outer_extent_reads_past_an_eye_on_the_edge():
+    """an eye whose lines run out to the face's edge (not a hole the fill closes) stops the scan from the chin's column
+    (_extents) at the eye, but not the region's outermost extent (_outer), which reads the outline past it."""
+    cls = _hairy_front(lock=False, behind=False)
+    U, Z = _grid()
+    e = ((U - 0.15) / 0.05) ** 2 + ((Z + 0.07) / 0.02) ** 2
+    cls[e < 1.3] = 4
+    cls[e < 0.7] = 3
+    cls[(np.abs(U - 0.15) < 0.003) & (Z > -0.07)] = 4                  # (its lashes up to the face's top edge)
+    chin = fr.jaw_front(cls, PPL)['chin']
+    z, xl, xr, _, _ = fr._extents(cls, PPL, chin)
+    zo, ol, orr = fr._outer(cls, PPL, chin)
+    r = int(np.argmin(np.abs(z + 0.07)))
+    assert xr[r] < 0.12 and abs(orr[r] - xl[r]) < 0.01, (xr[r], orr[r], xl[r])
+
+
+def test_the_hidden_outline_passes_the_design_and_fails_a_face_curving_in():
+    """ours against head_construction's outline over the rows the sheet's hair covers: 0 on the design itself; a face
+    whose sides curve in under the hair (0.015 L at the rows' middle) FAILs; below the rows nothing counts."""
+    zg = np.arange(-0.36, -0.05 + 1e-9, fr.HIDDEN_DZ)
+    w = 0.28 + 0.1 * (zg + 0.18)
+    H = dict(z=zg, xl=w, xr=w, rows=[-0.18, -0.05], fit=0.002, sx=0.97, sz=0.92)
+    same = fr.hidden_compare(H, dict(z=zg, xl=w, xr=w))
+    assert same['value'] == 0.0 and same['status'] == 'PASS' and same['flag']
+    dent = w - 0.015 * np.sin(np.clip((zg + 0.18) / 0.13, 0, 1) * np.pi)
+    bad = fr.hidden_compare(H, dict(z=zg, xl=dent, xr=dent))
+    assert bad['status'] == 'FAIL' and bad['mean'] < 0, bad
+    low = fr.hidden_compare(H, dict(z=zg, xl=np.where(zg < -0.2, w - 0.05, w), xr=w))
+    assert low['value'] == 0.0
+
+
 def _three_quarter(notch=0.0, dent=0.0, lock=False):
     """a three-quarter facing -u: the face's lower edge rising 0.3 per L from the chin (u 0) to u 0.25, `notch` L lower
     beyond u 0.2 (a step where the jaw meets the neck); the far cheek's contour at u -0.2 + 0.5 (z + 0.36) under z -0.2,
@@ -360,3 +420,20 @@ if __name__ == '__main__':
         if name.startswith('test_'):
             fn()
             print('ok', name)
+
+
+def test_the_face_share_over_the_chin_reads_a_face_running_into_the_neck():
+    """neck_to_face (face5 round 7): over the rows just above the design's chin, the face's share of the figure's width:
+    a V chin with its jaw lines over the neck reads low; a face running straight into a neck as wide as it (no jaw line,
+    Michael's jaw_0 flag) reads near 1."""
+    from scipy.ndimage import binary_erosion
+    U, Z = _grid()
+    head = (Z > -0.2) & (np.abs(U) < 0.25)
+    neck = (Z <= -0.2) & (np.abs(U) < 0.12)
+    v_ = (Z <= -0.2) & (Z > -0.36) & (np.abs(U) < 0.25 * (Z + 0.36) / 0.16)
+    V = np.where(head | neck | v_, 1, 0)
+    V[v_ & ~binary_erosion(v_) & (Z < -0.21)] = 4                                # the V's jaw lines
+    run = np.where(head | neck, 1, 0)                                            # no jaw line: the face into the neck
+    a = fr.jaw_front(V, PPL, -0.36)['chin_share']
+    b = fr.jaw_front(run, PPL, -0.36)['chin_share']
+    assert a is not None and b is not None and a < 0.6 and b > 0.9, (a, b)

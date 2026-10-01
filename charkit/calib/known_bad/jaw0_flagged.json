@@ -1,0 +1,10 @@
+{
+ "name": "jaw0_flagged",
+ "why": "tool/face's jaw baseline (render box, HEAD 91e44ca, clawd_body.json): the MakeHuman head on the authored body; the face running straight into a neck as wide as the lower face, no chin point, no jaw line, the neck's front wiggling in profile",
+ "flag": "the chin and neck 'still very obviously visually glitched' (Michael, 2026-09-29)",
+ "commit": "91e44ca",
+ "source": "~/animation-pipeline-face/charkit/out/jaw_0",
+ "stored": "2026-09-30",
+ "bundle": "17270e60a8ff7ced",
+ "qa_checks": 196
+}
