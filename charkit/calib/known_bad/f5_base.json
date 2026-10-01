@@ -1,0 +1,10 @@
+{
+ "name": "f5_base",
+ "why": "pipeline-3d d60486a (render box), face5's base: the face's outline follows the side locks' tips in under the head sheet's hair (jaw_outline_hidden 0.0112 FAIL)",
+ "flag": "the face curving in where the head sheet's hair covers its edge (Michael, 2026-09-30)",
+ "commit": "d60486a",
+ "source": "~/animation-pipeline-face/charkit/out/f5_before",
+ "stored": "2026-09-30",
+ "bundle": "caf8c35e8ed42297",
+ "qa_checks": 487
+}

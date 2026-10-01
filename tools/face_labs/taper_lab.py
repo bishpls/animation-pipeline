@@ -18,7 +18,7 @@ import jaw_lab
 
 SHOW = ('jaw_taper_shape', 'jaw_line_bend', 'chin_angle', 'chin_tip', 'tq_cheek_hollow', 'tq_jaw_notch', 'jaw_taper',
         'chin_point_z', 'chin_v', 'neck_to_face', 'jaw_line_front', 'jaw_line_three_quarter', 'chin_underside',
-        'neck_front_wiggle')
+        'neck_front_wiggle', 'jaw_outline_hidden')
 
 
 def scene(build=None, geom=None, log=print):

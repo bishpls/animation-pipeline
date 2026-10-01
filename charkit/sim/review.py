@@ -164,3 +164,275 @@ def main(a):
     intro = open(a[4]).read() if len(a) > 4 else ''
     print(page(a[0], a[1] if a[1] != '-' else None, a[2] if a[2] != '-' else None, a[3], intro))
     return 0
+
+
+# ------------------------------------------------------------------------------------------------------------ round 2
+NAMES = {'skinned': 'skinned, as shipped', 'xpbd_hips_r1': 'cloth held on the pelvis, round 1 (pins on the skirt\'s '
+         'own weights)', 'xpbd_hips': 'cloth held toward the drawn shape on the pelvis, pins on the skin (the anime '
+         'default)', 'xpbd_physics': 'cloth, no hold (the realistic default)', 'springs_body': 'spring chains, the '
+         'graph\'s settings', 'springs_tuned': 'spring chains tuned to the cloth, roots on the hips',
+         'springs_tuned_skin': 'spring chains tuned to the cloth, roots riding the skin', 'pelvis_rigid': 'carried by the '
+         'pelvis alone (known-bad)', 'springs_col': 'spring chains, graph settings, leg colliders'}
+
+
+def _worst(M, m, n='skirt'):
+    fr = M[m]['frames']
+    return dict(inside=max(x['pieces'][n]['new_share'] for x in fr), depth=max(x['pieces'][n]['new_depth'] for x in fr),
+                stretch=max(x['pieces'][n]['stretch_p99'] for x in fr))
+
+
+def summary_box(rep, recs, tune, rec_text, ask):
+    P = rep['poses']
+    ms = [m for m in next(iter(P.values()))]
+    H = ['<div class="box"><p><b>Recommended:</b> %s</p><p><b>Asked of Michael:</b></p><ol>%s</ol>' % (
+        rec_text, ''.join('<li>%s</li>' % a for a in ask)),
+         '<p><b>Key numbers</b> (the skirt, worst over the motion: the share of its surface newly inside the skin, its '
+         'depth, the coarse stretch p99; the gated checks PASS at inside &le; 0.01, stretch &le; 0.25):</p>',
+         '<table><tr><th>option</th>' + ''.join('<th>%s inside</th><th>%s depth (L)</th><th>%s stretch</th>' % (p, p, p)
+                                                for p in P) + '</tr>']
+    for m in ms:
+        cells = []
+        for p in P:
+            w = _worst(P[p], m)
+            cells += ['<td class="%s">%.3f</td>' % ('pass' if w['inside'] <= 0.01 else 'warn' if w['inside'] <= 0.03
+                                                    else 'fail', w['inside']), '<td>%.3f</td>' % w['depth'],
+                      '<td class="%s">%.2f</td>' % ('pass' if w['stretch'] <= 0.25 else 'warn' if w['stretch'] <= 0.5
+                                                    else 'fail', w['stretch'])]
+        H.append('<tr><td>%s <small><code>%s</code></small></td>%s</tr>' % (NAMES.get(m, m), m, ''.join(cells)))
+    H.append('</table></div>')
+    return '\n'.join(H)
+
+
+def calib_section(recs):
+    if not recs:
+        return '<h2>Calibration</h2><p>No records yet.</p>'
+    H = ['<h2>The motion checks and their calibration</h2>', '<p>Each check must PASS on the held solve with one '
+         'nuisance setting nudged per move (substeps 16/24, ramp 0.35/0.45 s, 3 iterations, colliders +0.005 L, hold '
+         '&plusmn;0.05) and FAIL on its known-bad (computed from the same build). Records: '
+         '<code>charkit/calib/records/motion_*.json</code>.</p>',
+         '<table><tr><th>check</th><th>verdict</th><th>design (nudged) min..max</th><th>known-bad</th>'
+         '<th>floor (a random rig: the skirt\'s weights shuffled)</th><th>current</th></tr>']
+    for k, r in sorted(recs.items()):
+        D, K, C = r.get('design') or {}, r.get('known_bad') or {}, r.get('current') or {}
+        fl = '; '.join('%s median %s (%d of %d seeds PASS)' % (g, _f(f.get('median')), f.get('passing', 0),
+                                                                 len(f.get('values') or ())) for g, f in
+                       (r.get('floor') or {}).items()) or '—'
+        H.append('<tr><td>%s</td><td class="%s">%s</td><td>%s..%s</td><td>%s %s <b>%s</b></td><td>%s</td>'
+                 '<td>%s %s</td></tr>' % (
+            k, 'pass' if r['verdict'] in ('calibrated', 'guard') else 'fail', r['verdict'], _f(D.get('min')),
+            _f(D.get('max')), K.get('name'), _f(K.get('value')), K.get('status'), fl, _f(C.get('value')),
+            C.get('status')))
+    H.append('</table>')
+    return '\n'.join(H)
+
+
+def _f(x):
+    return ('%.4g' % x) if isinstance(x, (int, float)) and not isinstance(x, bool) else str(x)
+
+
+def tune_section(tune, out):
+    if not tune:
+        return ''
+    H = ['<h2>The spring chains tuned to the cloth (real-time VRM)</h2>',
+         '<p>Reference: %s through %s. Each chain joint follows the cloth point it starts on; the error is the joints\' '
+         'mean distance from those points (L) over the motion after the settle, settled at rest, and at the end, '
+         'averaged over the poses. Colliders (VRM capsules, shrunk to clear the chains\' rest joints): %s.</p>' % (
+             tune['ref'], ', '.join(tune['poses']), ', '.join('%s %.3f' % (c['name'], c['r_L']) for c in tune['caps'])),
+         '<table><tr><th>piece</th><th>settings</th><th>stiffness</th><th>gravity</th><th>drag</th><th>err motion</th>'
+         '<th>err rest</th><th>err end</th>' + ''.join('<th>%s: rest inside / worst / depth / stretch</th>' % p
+                                                       for p in tune['poses']) + '</tr>']
+    for n, r in tune['pieces'].items():
+        for k, g in (('graph', 'graph'), ('best', 'tuned')):
+            if k not in r:
+                continue
+            x = r[k]
+            gm = r.get('garment', {}).get(g, {})
+            H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td><td>%.3f</td><td>%.3f</td>%s'
+                     '</tr>' % (n, g, x['stiffness'], x['gravity'], x['drag'], x['err_motion'], x['err_rest'],
+                                x['err_end'], ''.join('<td>%.3f / %.3f / %.3f / %.2f</td>' % (
+                                    gm[p]['rest_inside'], gm[p]['worst_inside'], gm[p]['worst_depth'],
+                                    gm[p]['worst_stretch']) if p in gm else '<td></td>' for p in tune['poses'])))
+    H.append('</table>')
+    return '\n'.join(H)
+
+
+def bake_section(build, cache, out, frames=None, log=print):
+    from ..geom import raster
+    from . import bake as bk, motion as mo, rig as riglib
+    from .drape import _fan
+    if not cache or not os.path.exists(os.path.join(cache, 'cloth.json')):
+        return ''
+    man, X, bones = bk.load(cache)
+    rp = os.path.join(cache, 'replay.json')
+    replay = json.load(open(rp)) if os.path.exists(rp) else None
+    files = sorted(os.listdir(cache))
+    sizes = ', '.join('%s %.1f MB' % (f, os.path.getsize(os.path.join(cache, f)) / 1e6) for f in files)
+    frames = frames or [man['first'] - 1, man['first'] + 12, man['first'] + 24, man['frames'] - 1]
+    S = mo.Scene(build, pieces=list(man['pieces']), log=log)
+    fin = bk.finals(build, cache, frames)
+    cols = {'skirt': (0.93, 0.55, 0.25)}
+    allV, items_by = [], {}
+    for k in frames:
+        D = {b: bones[b][k].astype(float) for b in bones}
+        Xs = riglib.lbs(S.skin_V, S.skin_W, D)
+        items = [((Xs, S.skin_F), dict(color=(0.78, 0.78, 0.8), shade='lambert'))]
+        for n in man['pieces']:
+            F = S.fin[n]
+            items.append(((fin[k][n], _fan(F['loopv'], F['counts'])),
+                          dict(color=cols.get(n, (0.35, 0.5, 0.95) if n.endswith('L') else (0.35, 0.8, 0.45)),
+                               shade='lambert')))
+        items_by[k] = items
+        allV += [Xs] + [fin[k][n] for n in man['pieces']]
+    lo, hi = np.min([v.min(0) for v in allV], 0), np.max([v.max(0) for v in allV], 0)
+    fr = raster.Frame.around([(np.array([lo, hi]), np.zeros((0, 3), int))], res=260, aspect=0.8)
+    cells = []
+    for k in frames:
+        for az in (0, 90):
+            img = raster.render(items_by[k], az, fr)
+            p = 'bake_%s_%d_%d.png' % (man['clip'], k, az)
+            raster.save_png(img, os.path.join(out, p))
+            cells.append('<td><img src="%s"><small>frame %d (%s), %s</small></td>' % (
+                p, k, 'settled' if k < man['first'] else '%+.2f s' % ((k - man['first'] + 1) / man['fps']),
+                'front' if az == 0 else 'her left'))
+    meas = man['measures'][-1]
+    H = ['<h2>The bake: cloth caches for rendered shots (pilot: the kick)</h2>',
+         '<p><code>%s</code>: %s. %d frames at %d fps (the first %d the settle, pre-roll), method <b>%s</b> (hold %s, '
+         'style %s), %.0f s to bake. Pieces: %s. The render mesh is the build\'s own finalize of the cached coarse '
+         'positions; the PC2 caches hold that render mesh per frame (the build\'s objects hold the finalized mesh: '
+         'Blender\'s Mesh Cache modifier first in the stack, Armature off, the outline following).</p>' % (
+             html.escape(os.path.relpath(cache, out)), sizes, man['frames'], man['fps'], man['first'], man['method'],
+             man['hold_shape'], man['style'], man['seconds'], ', '.join('%s (%d coarse, %d render vertices)' % (
+                 n, p['coarse'], p['final']) for n, p in man['pieces'].items())),
+         '<p>Measured as it baked (the last frame): %s.</p>' % '; '.join(
+             '%s new inside %.3f at %.3f L, stretch p99 %.3f' % (n, meas[n]['new_share'], meas[n]['new_depth'],
+                                                                   meas[n]['stretch_p99']) for n in man['pieces']),
+         '<p>The replay (Blender\'s Mesh Cache against our finalize, max vertex distance in L per frame): %s</p>' % (
+             html.escape(json.dumps(replay)) if replay else 'not run'),
+         '<table class="grid"><tr>%s</tr></table>' % ''.join(cells)]
+    return '\n'.join(H)
+
+
+def page2(build, motion_dir, out, tune_dir=None, cache=None, rec_text='', ask=(), extra='', log=print):
+    """round 2's page: the summary box, the motion pictures (every method's end frame per pose at one framing), the
+    calibration, the bake, the spring tuning."""
+    import glob
+    os.makedirs(out, exist_ok=True)
+    rep = json.load(open(os.path.join(motion_dir, 'motion.json')))
+    recs = {}
+    for p in glob.glob(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                    'charkit', 'calib', 'records', 'motion_*.json')):
+        r = json.load(open(p))
+        recs[r['check']] = r
+    tune = json.load(open(os.path.join(tune_dir, 'tune.json'))) if tune_dir else None
+    css = CSS + '.box{border:2px solid #333;padding:8px 14px;margin:10px 0 18px;background:#fafafa}'
+    parts = ['<!doctype html><meta charset="utf-8"><title>XPBD round 2</title><style>%s</style>' % css,
+             '<h1>The skirt in motion: cloth held toward the drawn shape, the squat, the checks, the bake, the chains</h1>',
+             summary_box(rep, recs, tune, rec_text, ask), extra, calib_section(recs),
+             motion_section(build, motion_dir, out, log), bake_section(build, cache, out, log=log),
+             tune_section(tune, out)]
+    p = os.path.join(out, 'index.html')
+    open(p, 'w').write('\n'.join(parts))
+    return p
+
+
+# ------------------------------------------------------------------------------------------------------------ round 3
+WAIST_NAMES = {'hips': 'rigid on the hips (as built)', 'body': "the body's weights per vertex (shipped)",
+               'body_cols': "the body's, each column one blend", 'body_mean': "the body's, one blend for the band"}
+
+
+def waist_section(waist_dir, out):
+    """the waistband's weights: the numbers per pose and variant, and the pictures (charkit.sim.waist)."""
+    W = json.load(open(os.path.join(waist_dir, 'waist.json')))
+    H = ['<h2>1. The waistband takes the body\'s weights near the waist</h2>',
+         '<p>The band sits across the spine/chest joint (joint heights above its bottom edge, L: %s); the skin under it '
+         'is weighted %s by row, top to bottom, and not at all to the hips it was rigidly bound to. Per pose: the band\'s '
+         'surface newly inside the posed skin (share / depth L), its coarse edge stretch p99, and the skirt\'s top '
+         'that the band covers at rest and that shows posed (its ray out from the hips axis misses the band and the '
+         'skin), for the cloth skirt (the anime default, pins on the skin) and the skinned one (VRM\'s real-time path). '
+         'Rest geometry is unchanged by weights, so the band\'s shape IoU in every view is unchanged (the box build '
+         'confirms it below).</p>' % (
+             ', '.join('%s %+.2f' % kv for kv in W['joints_above_band_L'].items()),
+             '; '.join('%s %s' % (b, '/'.join('%.2f' % x for x in r)) for b, r in W['weights_rows'].items())),
+         '<table><tr><th>pose</th><th>weights</th><th>band inside</th><th>depth (L)</th><th>band stretch p99</th>'
+         '<th>skirt top shows: cloth</th><th>skirt top shows: skinned</th></tr>']
+    for pose, row in W['poses'].items():
+        if all(v['new_inside'] == 0 and v.get('exposed_skinned', 0) == row['hips'].get('exposed_skinned', 0)
+               for v in row.values()) and pose not in ('kick', 'split'):
+            continue                                    # (the arm poses: nothing moves at the waist)
+        for k, v in row.items():
+            cls = lambda x, a, b: 'pass' if x <= a else 'warn' if x <= b else 'fail'
+            H.append('<tr><td>%s</td><td>%s</td><td class="%s">%.3f</td><td>%.3f</td><td class="%s">%.2f</td>'
+                     '<td>%s</td><td>%.3f</td></tr>' % (
+                         pose, WAIST_NAMES.get(k, k), cls(v['new_inside'], 0.01, 0.03), v['new_inside'], v['depth'],
+                         cls(v['stretch_p99'], 0.25, 0.5), v['stretch_p99'],
+                         '%.3f' % v['exposed_cloth'] if 'exposed_cloth' in v else '—', v['exposed_skinned']))
+    H.append('</table><p>Arm poses (arms up, elbows bent, arms crossed): nothing at the waist moves, 0 everywhere. '
+             'The skin itself stretches 1.34 p99 under the band at twist_bend (LBS across the chest joint): the body\'s '
+             'weights inherit it.</p>')
+    for pose, cols in (W.get('pictures') or {}).items():
+        H.append('<h3>%s, end of the pose</h3><p>Grey the skin, brown the band (<b style="color:#d00">red</b> where '
+                 'newly inside the skin), orange the skirt (<b style="color:#c0c">magenta</b> where its top, under the '
+                 'band at rest, now shows). Same framing in every image.</p><table class="grid"><tr><th>view</th>%s</tr>'
+                 % (pose, ''.join('<th>%s<br><small>skirt: %s</small></th>' % (
+                     WAIST_NAMES[c.split('/')[0]], 'cloth (anime default)' if c.endswith('cloth') else 'skinned')
+                     for c in cols)))
+        for i, vn in enumerate(('front', 'her left')):
+            H.append('<tr><td>%s</td>%s</tr>' % (vn, ''.join(
+                '<td><img src="%s"></td>' % os.path.relpath(os.path.join(waist_dir, ps[i]), out) for ps in cols.values())))
+        H.append('</table>')
+    H.append('<p>Numbers: <a href="%s">waist.json</a>.</p>' % os.path.relpath(os.path.join(waist_dir, 'waist.json'), out))
+    return '\n'.join(H)
+
+
+def tune_compare(tunes, out):
+    """the chain tunings side by side (roots on the hips, roots riding the skin): per piece the best of the grid and
+    the garments on it."""
+    H = ['<h2>4. The spring chains: roots on the skin, the stiffness grid past 8</h2>',
+         '<p>Each tuning runs its grid (the first: stiffness %s, gravity %s, drag %s) against the cloth (the anime default); the error '
+         'is the chain joints\' mean distance from the cloth\'s points (L) over the motion. Then the garments ride the '
+         'best chains and are measured as motion QA measures them (worst over the motion: new inside share / depth L / '
+         'stretch p99; at rest settled: inside share).</p>' % tuple(
+             '/'.join(str(x) for x in next(iter(tunes.values()))['grid'][k]) for k in ('stiffness', 'gravity', 'drag')),
+         '<table><tr><th>piece</th><th>chain roots</th><th>settings</th><th>stiffness</th><th>gravity</th><th>drag</th>'
+         '<th>err motion</th><th>err rest</th>%s</tr>' % ''.join(
+             '<th>%s: rest / worst / depth / stretch</th>' % p for p in next(iter(tunes.values()))['poses'])]
+    for n in next(iter(tunes.values()))['pieces']:
+        for label, T in tunes.items():
+            r = T['pieces'][n]
+            for k, g in (('graph', 'graph'), ('best', 'tuned')):
+                if k == 'graph' and label != next(iter(tunes)):
+                    continue
+                x = r[k]
+                gm = r.get('garment', {}).get(g, {})
+                H.append('<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%.3f</td>'
+                         '<td>%.3f</td>%s</tr>' % (
+                             n, label if k == 'best' else 'the hips', g, x['stiffness'], x['gravity'], x['drag'],
+                             x['err_motion'], x['err_rest'], ''.join(
+                                 '<td>%.3f / %.3f / %.3f / %.2f</td>' % (gm[p]['rest_inside'], gm[p]['worst_inside'],
+                                                                        gm[p]['worst_depth'], gm[p]['worst_stretch'])
+                                 if p in gm else '<td></td>' for p in T['poses'])))
+    H.append('</table>')
+    return '\n'.join(H)
+
+
+def page3(build, out, waist_dir, motion_dir=None, tunes=None, cache=None, box='', cpu='', log=print):
+    """round 3's page: the summary box (box: its HTML), the waistband, the calibration, motion QA's CPU (cpu: HTML),
+    the chains, the bake and its replay, the motion pictures."""
+    import glob
+    os.makedirs(out, exist_ok=True)
+    recs = {}
+    for p in glob.glob(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                    'charkit', 'calib', 'records', 'motion_*.json')):
+        r = json.load(open(p))
+        recs[r['check']] = r
+    css = CSS + '.box{border:2px solid #333;padding:8px 14px;margin:10px 0 18px;background:#fafafa}'
+    parts = ['<!doctype html><meta charset="utf-8"><title>XPBD round 3</title><style>%s</style>' % css,
+             '<h1>Round 3: the waistband on the body, the motion checks calibrated, motion QA 5x cheaper, the replay, '
+             'the chains on the skin</h1>', box, waist_section(waist_dir, out),
+             calib_section(recs).replace('<h2>The motion checks', '<h2>2. The motion checks'), cpu,
+             tune_compare(tunes, out) if tunes else '',
+             bake_section(build, cache, out, log=log).replace('<h2>The bake', '<h2>5. The bake'),
+             motion_section(build, motion_dir, out, log).replace('<h2>Motion', '<h2>6. Motion') if motion_dir else '']
+    p = os.path.join(out, 'index.html')
+    open(p, 'w').write('\n'.join(parts))
+    return p

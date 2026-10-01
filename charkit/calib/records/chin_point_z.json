@@ -1,0 +1,98 @@
+{
+ "check": "chin_point_z",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T21:20:53",
+ "better": "higher",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.0025,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.005,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0025,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.005,
+    "PASS"
+   ]
+  },
+  "min": -0.005,
+  "max": 0.005,
+  "spread": 0.01,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": -0.1919,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    -0.0449,
+    -0.0324,
+    -0.0374,
+    0.0374,
+    0.0374,
+    0.0424,
+    -0.0498,
+    0.0299,
+    -0.0523
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL"
+   ],
+   "median": -0.0324,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.01), jaw0_flagged reads -0.1919 FAIL, the floor affine_jaw FAIL",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15"
+ },
+ "seconds": 86.3
+}
