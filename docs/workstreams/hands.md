@@ -558,3 +558,41 @@ palm_line, JointFit's silhouette-IoU structure fit (kept as tools, not the struc
   **thumb_only (the thumb alone turned 10-30 deg) 0.000-0.0096 in all 5 seeds** (before the fixes: 3 seeds unmeasured,
   one -0.145 on the index's base, one -0.058 through the wrist line). Known-bad comb_hand (its spec's template).
 - **ratio2** running (build box): palm_len + rest angles, the ratio1-era ratios; rerun with fit_ratios.json's after.
+- **ratio2 invalid** (the ratio mode derived the knobs once at params(): palm_len moved to its bound with no effect);
+  fixed (code_hand.geometry: derived when the hand is built; test_ratio_mode_is_live).
+- **ratio3** (charkit/out/hands3/ratio3, fit_ratios' ratios, palm_len live): reach right (errors < 0.03 L), palm_len
+  0.314; but fit-scale IoU front 0.626/0.637, back 0.630/0.629, 3q 0.781/0.490, profile 0.545 (the comb's QA 0.76-0.77
+  front/back: -17%, the guard) and gaps 0.03-0.05. Cause: the template's thumb, fitted to the open hand's wrist-corner
+  to tip distance (1.31 PL measured -> 1.907 template), came out 0.6 L long: that one measure can't separate the thumb's
+  length from its angle, and its CMC is under the cuff. **The thumb takes the prior (1.0 PL), flagged** (single local
+  evaluations, ratio3's angles: thumb 1.0, thumb_down 10: front 0.707/0.727, back 0.723/0.717, 3q 0.780/0.751, profile
+  0.602, gaps 0.027-0.057 WARN). Still ~6% under the comb's front/back.
+- **ratio4 RUNNING** (build box: `remote --box build run ... hand fit`, charkit/out/hands3/ratio4, log ratio4.log):
+  the prior thumb, knobs palm_len, curl, spread, thumb_out, thumb_down, bend, dev, overlap; floors the comb's + 0.02.
+
+## Checkpoint (2026-10-01 evening, ~750k context): exact next steps for a relaunch
+1. Read ratio4 (charkit/out/hands3/ratio4/fit.json). If front/back stay under the comb's QA (0.761/0.769, 0.754/0.771)
+   by more than ~0.02, that is the turnaround and the sheet disagreeing on the rest silhouette with the structure from
+   landmarks (the canonical rule's step 3): report per-view costs to the coordinator rather than move the structure off
+   the sheet's landmarks. The fingertip gaps (0.03-0.06 at rest: the sheet's slimmer tips, taper 0.44) can be held by
+   `overlap` (in ratio4's knobs) or tip_gap negative; keep every graded hand check out of FAIL (hands2 is the base now:
+   back L cleftpos WARN 0.054 must not FAIL).
+2. Write the spec (setknobs.py or by hand: body.hand = palm_len, wrist_offset 0.034, ratios (fit_ratios.json's with
+   thumb 1.0, wrist the prior's), overlap, rest angles, yaw 61.88, out 5.5, line 1.0, tip_gap, fans 0, thumb_across 0.3).
+   Then `handsheet.fit_ratios(spec, over)` again at the new rest (the open pose is posed from the rest) and rewrite the
+   ratios; the hand_sheet checks (handsheet_open_span / _fingers) should then PASS on our hand.
+3. `charkit handposes fit --poses relaxed,fist,point` on the box (pose validation only: angles, IoU per row) and record.
+4. Builds: render2 with boards (`remote --box render2 build charkit/spec/clawd.json --out charkit/out/hands3_after
+   --boards body,design`), optionally a tip_gap variant (0.004) to measure the seam lines (fingerlines_*: the paddle
+   read 0.72-0.83 FAIL). Push the chosen build to the build box (`infra/gcp/build.sh push` with CHARKIT_BOX_ENV=build.env)
+   and re-push the known-bad stores there (comb_hand, mitten, paddle_hand under charkit/out/calib/builds).
+5. Calibrate on the build box: `remote --box build run --fetch charkit/calib/records calibrate
+   'fingerlines_*,handsheet_open_*' --build charkit/out/hands3_after` (7 records). The hand_* checks aren't remeasured
+   since hands2 (handqa unchanged but its DECLARED_CHECKS literal).
+6. Review page (charkit review page): the open hand with its landmarks and ratios drawn (landmarks_probe.py's picture),
+   ours vs the sheet per pose (handposes picture), the rest close-ups in 3q (hands_board, hands_close), before (comb,
+   hands2_base) | interim (hands2_after) | hands3; then `python -m charkit pregate --box auto` and `remote gate
+   tool/hands2 --into pipeline-3d` (merge pipeline-3d first).
+7. What's left beyond: the hands-only ink colour (a per-vertex outline ink through the Blender line material, the export,
+   charkit/render and look.js); c3's hand sheet (handsheet.cells needs a cuff for the wrist line: the uncuffed path,
+   the narrowest run, exists in landmarks(cuffed=False); scale by wrist width: palm_len_over_wrist).
