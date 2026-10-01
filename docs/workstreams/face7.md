@@ -139,6 +139,15 @@ unchanged by construction.
 - Coordinator: the neck-to-shoulder join belongs to tool/garments4-shoulders: don't change the head's neck here (none
   of this round's changes touch it); the mouth block's outward rounding (headgeom, item 2's) backed out.
 
+- **sw11**: the forehead with a tighter band (dz 0.08) and a stronger middle bump (fB: 0.04 at 0.55 + 0.04 at 0.85):
+  brow_len_closeup_profile 0.721 F -> 0.861 W, brow_shape 0.472 F -> 0.742 W, arch 0.009 -> -0.006 P, profile spikes
+  kept 0.75 P; with brows.arch 0.1: shape 0.755 P, arch 0.001, front arch 0.003 -> 0.009 P, front shape 0.832 -> 0.808
+  P. fA (0.03 + 0.045): len 0.909 W but arch -0.014 W (a regression from gate 1's 0.009 P). The override on the rigid
+  head: slide 0.11 -> mouth_place_three_quarter_override 0.0025 PASS (lead 0.1703 vs 0.1726); 0.12: 0.0069, 0.13: 0.0093.
+- Merged pipeline-3d 9be5b32 (gate 1 merged there by the coordinator, with the clips and hair strokes).
+- **Gate 2 = items 3 and 1** (commit after db97f7ed): anime face.forehead fB, spec brows.arch 0.1, spec mouth.view
+  slide 0.11. Render2 build `charkit/out/face7_g2` running (log charkit/out/face7/build_g2.log). Item 2 stays open.
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
