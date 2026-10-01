@@ -470,8 +470,9 @@ def our_labels(B, design, hair=None):
     meshes = []
     V, T = B.skin().mesh('masked')[:2]
     meshes.append((V, T, np.full(len(T), OTHER)))
+    hide = design.hidden('hair')                 # (against the hair's shape truth: ours without our clips)
     for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
-        if o.has('eval'):
+        if o.has('eval') and o.name not in hide:
             V, T = o.mesh('eval')[:2]
             meshes.append((V, T, np.full(len(T), OTHER)))
     pieces = []
@@ -491,7 +492,7 @@ def our_labels(B, design, hair=None):
             if len(t):
                 meshes.append((np.asarray(V, float), t, np.full(len(t), PART0 + len(pieces))))
                 pieces.append(pc)
-    dv = design.design_views()
+    dv = design.shape_views('hair')
     lab = bodyqa.zbuffer_views(meshes, sc['az3'], np.array(qa3d.iris_centres(B)), As['centre'], As['L'], sc['ppl'],
                                [v for v in VIEWS if v in dv])
     return {v: np.maximum(l[1], 0).astype(np.int32) for v, l in lab.items()}, pieces
@@ -530,8 +531,9 @@ def our_ink(B, design, hair=None, weights=None):
     others = []
     V, T = B.skin().mesh('masked')[:2]
     others.append((V, T, np.full(len(T), OTHER)))
+    hide = design.hidden('hair')
     for o in B.objects(groups=('eye', 'mouth', 'accessory', 'garment')):
-        if o.has('eval'):
+        if o.has('eval') and o.name not in hide:
             V, T = o.mesh('eval')[:2]
             others.append((V, T, np.full(len(T), OTHER)))
     surf, hulls, strokes = [], [], []
@@ -561,7 +563,7 @@ def our_ink(B, design, hair=None, weights=None):
             n = vertex_normals(V, T)
             surf.append((V - n * w[:, None], T))
             hulls.append((V, T[w[T].max(1) > 0.1 * LINE_W][:, ::-1]))
-    dv = design.design_views()
+    dv = design.shape_views('hair')
     out = {}
     az = bodyqa.azimuths(sc['az3'])
     iw = np.array(qa3d.iris_centres(B))
@@ -595,6 +597,23 @@ def truth_path(B):
     return r['path'] if r else None
 
 
+def truth_for(design, truth):
+    """the hair truth as the hair's shape truth reads it (charkit.shapetruth): its labels under the drawn clips cleared,
+    so the redraw's hair there joins the nearest drawn lock (design_labels' rule for the drawn hair it doesn't label);
+    the truth itself where the hair declares none."""
+    if not design.hidden('hair'):
+        return truth
+    T, sets, meta = truth
+    sv = design.shape_views('hair')
+    out = {}
+    for v, t in T.items():
+        cov = (sv.get(v) or {}).get('covered')
+        if cov is not None and cov.shape == t.shape and cov.any():
+            t = np.where(cov, -1, t)
+        out[v] = t
+    return out, sets, meta
+
+
 def design_inputs(B, design):
     """design_side() for the bundle's references, made once per Design -> (D, ppl) or (None, why)."""
     from . import hairlayers
@@ -607,7 +626,8 @@ def design_inputs(B, design):
     else:
         p = hairlayers._p(tp)
         design._rec(p)
-        got = (design_side(hairlayers.load_truth(p), design.design_views(), ctx['ppl']), ctx['ppl'])
+        got = (design_side(truth_for(design, hairlayers.load_truth(p)), design.shape_views('hair'), ctx['ppl']),
+               ctx['ppl'])
     design._m[('hair_flags', 'D')] = got
     return got
 

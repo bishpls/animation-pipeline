@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T06:05:55",
+ "at": "2026-10-01T21:54:21",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -15,15 +15,15 @@
  "design": {
   "moves": {
    "+0,+1": [
-    4.1,
+    4.3,
     "PASS"
    ],
    "+0,+2": [
-    4.1,
+    4.7,
     "PASS"
    ],
    "+1,+0": [
-    4.2,
+    4.3,
     "PASS"
    ],
    "+2,+0": [
@@ -39,18 +39,18 @@
     "PASS"
    ],
    "-1,+0": [
-    4.1,
+    4.2,
     "PASS"
    ],
    "-2,+0": [
-    4.1,
+    4.5,
     "PASS"
    ]
   },
-  "min": 4.1,
-  "max": 4.6,
+  "min": 4.2,
+  "max": 4.7,
   "spread": 0.5,
-  "median": 4.15
+  "median": 4.3
  },
  "known_bad": {
   "name": "hst_base",
@@ -60,11 +60,11 @@
  "floor": {
   "turned_strokes": {
    "values": [
-    64.5,
-    58.2,
-    71.0,
-    69.8,
-    65.9
+    68.9,
+    53.2,
+    68.6,
+    64.6,
+    65.4
    ],
    "statuses": [
     "FAIL",
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 65.9,
+   "median": 65.4,
    "status": "FAIL",
    "passing": 0
   }
@@ -81,15 +81,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 9.4,
+  "value": 11.1,
   "status": "PASS",
-  "margin": 0.915
+  "margin": 0.889
  },
  "verdict": "calibrated",
  "why": "the design passes every move (spread 0.5), hst_base reads None FAIL, the floor turned_strokes FAIL",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "turned_strokes": "the drawn strands inside the hair's mass each turned 30-90 degrees about its middle (in their places, across the hair's flow)"
  },
- "seconds": 251.7
+ "seconds": 1025.1
 }

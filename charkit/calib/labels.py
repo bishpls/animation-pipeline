@@ -55,9 +55,31 @@ CALIBRATION = [
          no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
          baseline=['voronoi_pieces', 'affine_pieces'], shape=[], better='higher'),
     # the bangs as a family (qa3d.hair_pieces): read 0.79 PASS while our bang locks scored at a random split's level
-    # against the lock truth (tool/hairlocks: 0.439 against 0.441). hl_base: pipeline-3d 2f42155 (that measurement's)
-    dict(check='hair_piece_bangs', part='hair_pieces', adapter='Hair', known_bad='hl_base',
+    # against the lock truth (tool/hairlocks: 0.439 against 0.441). hl_base: pipeline-3d 2f42155 (that measurement's).
+    # tool/calib recorded it blind (hl_base reads 0.792 PASS: a family's IoU can't see its locks' partition, which is
+    # the lock truth's, charkit.hairlocks score). tool/hairtruth (the hair against its shape truth, 2026-10-01): the
+    # graded families are the anti-gaming guard's shape measure, as piece_bow is: no single flagged build
+    dict(check='hair_piece_bangs', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure (the bangs' family per view): its flag (hl_base, "
+                      "the bang locks at a random split's level) is a lock partition the family IoU is blind to "
+                      "(tool/calib: hl_base 0.792 PASS), graded by the lock truth (charkit.hairlocks score)",
          baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_side_locks', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_upper_back', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_lower_back', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    dict(check='hair_piece_buns', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="a shape check, the anti-gaming guard's measure: no single flagged build",
+         baseline=['voronoi_families'], shape=[], better='higher'),
+    # the buns' outline (blocky or a blob): no single flagged build reads it (the current build FAILs it: an open flag)
+    dict(check='hair_bun_outline', part='hair_pieces', adapter='Hair', known_bad=None,
+         no_known_bad="the buns' drawn block outline against ours; no stored build was flagged for it (the current "
+                      "build FAILs it)", baseline=['voronoi_families'], shape=['hair_piece_buns'], better='higher'),
 ]
 
 
@@ -134,7 +156,9 @@ class Garments:
         pm = bodymeasure.piece_map(graph, B.spec)
         _, names = qa3d.scene_objects(B)
         self.names = list(names)
-        self.dv = design.design_views()
+        # (an adapter whose checks read a part's shape truth: the design's views as they read them, qa3d.Design's)
+        vf = getattr(self, 'views_for', None)
+        self.dv = design.shape_views(vf) if vf else design.design_views()
         skin = [o.name for o in B.objects(groups=('skin',))]
         hair = [n for n in self.names if n.startswith('hair')]
         # our surfaces meet with no ink between them: the drawing's lines (and the masks' rough edges) inside the
@@ -188,7 +212,7 @@ class Garments:
         from ..geom.raster import window_shape
         names, az = self.names, self.az
 
-        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
+        def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
             return {v: dict(lab=L[v], depth=np.zeros(L[v].shape, np.float32), az=az[v], org=(0.0, 0.0))
                     for v in views if v in L}, names
 
@@ -299,7 +323,7 @@ class Hair:
         from .. import qa3d
         self.B, self.design = B, design
         masks = qa3d.hair_layers_masks(B, design)
-        dv = design.design_views()
+        dv = design.shape_views('hair')
         fam = {f: k + 1 for k, f in enumerate(qa3d.HAIR_FAMILIES)}
         self.lab, self.px = {}, {}
         for v, d in dv.items():

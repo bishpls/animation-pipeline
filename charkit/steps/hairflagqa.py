@@ -18,4 +18,13 @@ MEASUREMENT_STEPS = [
      "outline hulls (unchanged without strokes)"),
     ('hair_lock_lines_*', 'ae33ac8', "our ink strokes (an ink slot's faces) drawn as ink inside the mass beside the "
      "outline hulls (unchanged without strokes)"),
+    # tool/hairtruth: the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the
+    # no-accessories references): the drawn hair, its lines and the hair truth's parts from the turnaround with its clips
+    # repainted from hair_clips_layers (the truth's labels under the clips cleared: the nearest drawn lock), ours drawn
+    # without our clips. Measured on pipeline-3d cd1c327f's default build (old measure -> new, the same geometry)
+    ('hair_lock_lines_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): three-quarter 0.2872 -> 0.2876, profile 0.1668 -> 0.2050"),
+    ('hair_back_lines', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): 0.928 -> 0.932 (the back unchanged on the design's side; ours without our clips)"),
+    ('hair_ahoge_*', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): unchanged on cd1c327f's build"),
+    ('hair_attached', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): unchanged on cd1c327f's build"),
+    ('hair_back_hem', '7f189116', "the hair against its shape truth (charkit.shapetruth; Michael 2026-10-01: hair checks against the no-accessories references): unchanged on cd1c327f's build"),
 ]

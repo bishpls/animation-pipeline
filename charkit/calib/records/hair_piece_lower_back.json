@@ -1,5 +1,5 @@
 {
- "check": "hair_piece_bangs",
+ "check": "hair_piece_lower_back",
  "part": "hair_pieces",
  "adapter": "Hair",
  "module": "charkit.calib.labels",
@@ -10,65 +10,69 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.948,
+    0.94,
     "PASS"
    ],
    "+0,+2": [
-    0.91,
+    0.888,
     "PASS"
    ],
    "+1,+0": [
-    0.957,
+    0.944,
     "PASS"
    ],
    "+2,+0": [
-    0.926,
+    0.892,
     "PASS"
    ],
    "+0,-1": [
-    0.948,
+    0.94,
     "PASS"
    ],
    "+0,-2": [
-    0.91,
+    0.888,
     "PASS"
    ],
    "-1,+0": [
-    0.957,
+    0.944,
     "PASS"
    ],
    "-2,+0": [
-    0.926,
+    0.892,
     "PASS"
    ]
   },
-  "min": 0.91,
-  "max": 0.957,
-  "spread": 0.047,
-  "median": 0.937,
+  "min": 0.888,
+  "max": 0.944,
+  "spread": 0.056,
+  "median": 0.9159999999999999,
   "views": {
+   "back": [
+    0.9005,
+    0.9496
+   ],
    "front": [
-    0.9092,
-    0.9526
+    0.8627,
+    0.937
    ],
    "profile": [
-    0.9117,
-    0.9652
+    0.8706,
+    0.9499
    ]
   }
  },
  "known_bad": {
   "name": null
  },
- "no_known_bad": "a shape check, the anti-gaming guard's measure (the bangs' family per view): its flag (hl_base, the bang locks at a random split's level) is a lock partition the family IoU is blind to (tool/calib: hl_base 0.792 PASS), graded by the lock truth (charkit.hairlocks score)",
+ "no_known_bad": "a shape check, the anti-gaming guard's measure: no single flagged build",
  "floor": {
   "voronoi_families": {
    "values": [
-    0.138,
-    0.183,
-    0.234,
-    0.243,
-    0.128
+    0.121,
+    0.045,
+    0.037,
+    0.061,
+    0.035
    ],
    "statuses": [
     "FAIL",
@@ -77,7 +81,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 0.183,
+   "median": 0.045,
    "status": "FAIL",
    "passing": 0
   }
@@ -85,12 +89,12 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.833,
+  "value": 0.622,
   "status": "PASS",
-  "margin": 0.862
+  "margin": 0.662
  },
  "verdict": "guard",
- "why": "no known-bad (a shape check, the anti-gaming guard's measure (the bangs' family per view): its flag (hl_base, the bang locks at a random split's level) is a lock partition the family IoU is blind to (tool/calib: hl_base 0.792 PASS), graded by the lock truth (charkit.hairlocks score)); the design passes and the floor does not",
+ "why": "no known-bad (a shape check, the anti-gaming guard's measure: no single flagged build); the design passes and the floor does not",
  "build": "charkit/out/hairtruth/base",
  "generators": {
   "voronoi_families": "the hair's drawn area cut into random cells (8 per family a view shows), each a random family (weighted by the families' drawn areas)"
