@@ -1074,3 +1074,9 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   known_bad/g5_base.json (the links made; the JSON is committed locally); calibrate job
   calibrate-garments4-1001-133646-695d -> tools/garments7/box_records/cal_body_c2.json (log
   charkit/out/garments6/cal_body.log).
+- opt1 status at the checkpoint: the box job (sweep-garments4-1001-132917-edb4, build box) is still running; the local
+  follow was stopped at the 30 min background limit, so its outputs aren't fetched: `python -m charkit remote attach
+  sweep-garments4-1001-132917-edb4` (run_in_background, timeout 7200000) collects them. Generation 0: 0/13 feasible
+  (every row breaks a constraint against the control g6_c2), best f 33.2 (the from_t low probe); rows take ~6 min each
+  on 13 workers. If it stays infeasible, read history.md for the broken constraints (likely a flag check or a
+  no-new-fail on the control's WARN/FAIL set) before relaunching with `keep`/looser knob bounds.
