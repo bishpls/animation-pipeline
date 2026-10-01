@@ -512,3 +512,16 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 4. **Flat lapels**: a lapel template lying flat along the V's edges, scored per view on lapel shape and width along its
    length (declared width-profile family against the new reference); then re-judge art_outline_collar (its FAILs
    likely the stand-up lumps). Supersedes the shoulders branch's E2/A3 question.
+- **Sweeps st1-st5** (tools/garments4/st*.json; outs charkit/out/garments4/sweeps/st1, st4; local rebuilds
+  tools stairrow.py / rowqa.py): anchoring the pleats on the panel's edge (a valley on it) + the stair on those folds
+  fixed crossing and corners but broke skirt_panel_three_quarter_creases (W -> F: the cream's edge face changed) and
+  art_band_lower (W -> F, 2.09: the flag) and moved skirt_pleats P -> W; keeping the panel's own pleats (outer-only
+  anchoring) still broke the 3q creases; leaning treads (per-level rows) helped corners but rounded under the
+  subdivision. **The fix that holds**: the original pleats, the knots in degrees on the existing folds (40/50/60 deg:
+  13/23/33 out from the panel's edge at 27) with a fourth step 0.10 L, and the flaps' treads squared to their hang
+  (flap `square` 2.0: 1.0 is perpendicular to the columns in 3D, 2.0 reads square in front; a dial). deg4_sq2 (local,
+  vs g4_cuffs2): crossed 0 / 0 (2 F / 1 F), skirt corners 2.9 P / 0.5 P (8.9 F / 6.0 F), flaps 4.0 W / 0.0 P (11.4 F /
+  22.2 F), art_band_lower 1.623 W (1.693 W), skirt_panel_* and skirt_pleats* unchanged, piece_overskirt_panel_L/R
+  0.697 / 0.821 (0.691 / 0.812). The anchoring/lean code was removed (7a6d6af5); calibrate's draft-check filter fixed.
+- Merged pipeline-3d 393539e7 (92cfd7f5). Box build g4_stairs1 (the default spec) next; then calibrate 'stair_*' on it,
+  pregate, gate.
