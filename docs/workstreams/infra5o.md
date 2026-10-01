@@ -211,3 +211,31 @@ resolve (the stale entry moved aside), which computed the head and the design's 
 and b2's `--cache off` turned the venv memo off entirely, so face_region, piece_details, skirt and code_body
 recomputed their design side at every call (+60 s). Fixed (a3...: the memo stays in memory with the cache off); the
 clean pair (b3, bb2) is running.
+
+## The gate (33edd0a7 into pipeline-3d 27a4b6c3, `remote gate --code tool/infra5-o`, build2 box)
+
+**PASS under K, nothing blocks, no check changed** (charkit/out/gate/gate_tool-infra5-o_33edd0a7_into_27a4b6c3.md;
+902 s; 104 test files, 0 failing). The QA part statuses all ok against their counts (accessories measures 71, declares
+50: raised to 71 in 880d2188). The budget table is in the report (venv/* 522 > 500 s WARN: the candidate ran the venv
+steps cold, below). Measure-code changes listed for 32 parts (manifest.produced and the frame log reached through the
+QA's shared code), geometry unchanged, no check moved. Build CPU 1103 -> 1418 s (1.29x): **the baseline restored the
+venv steps and produced references, the candidate ran them** (resolve 4 -> 200 s, hair_select 3 -> 53 s, pieces_hair
+0.5 -> 116 s: this branch's new cache keys and runtime records miss the old entries once). Like for like (below):
+QA 886 -> 709 s CPU (-20%), wall 464 -> 371 s; declared 273 -> 178, skirt 31 -> 20.
+
+## The CPU rule like for like (the coordinator's fairness item, 18:05)
+
+The 1.5x rule compared a baseline that restored stages from the shared caches against a candidate that ran them cold
+(the hair shells' switch: 871 -> 1406 s, 1.61x, blocking; cold against cold ~1.04x). Design chosen: **compare only
+the stages both builds ran.** Each build records what it restored (build_cpu.json `restored`: each venv step's
+file_step outcome, cache.STEP_RESULTS; each produced reference kept, restored or built, manifest.PRODUCED_RESULTS)
+beside its phases' CPU. gate.like_for_like: a venv step counts when both ran it (one restored: left out of both);
+`resolve` (the produced references and the design measured) counts when both built the same references; Blender, the
+QA and the rest always count (a gate's worktrees are fresh: both run them cold); the CPU outside the phases as it is.
+Policy K's 1.5x then reads that pair; the report shows the totals, the like-for-like pair and what was left out. A
+build from before the record: the totals, as before. The alternative (each side's cold figure, a restored stage
+counted at the CPU its cache entry recorded) would need every entry to record its CPU and older entries have none;
+the chosen one needs nothing stored. What it can't see: a branch that makes a cached step slower while the baseline
+restored it (the candidate's cold cost isn't compared); the budget table still shows the candidate's figure per stage.
+Test: test_gate `test_build_cpu_is_compared_like_for_like` (the hair-shell numbers: 1.61x raw, 1.02x like for like;
+cold against cold at 1.62x still blocks; no record: the totals).
