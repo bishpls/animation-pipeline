@@ -19,9 +19,12 @@ Box side (python3 JOBS/<jid>/boxjob.py CMD ...):
     start JID                   launch the job detached, once; prints BOXJOB-STARTED or BOXJOB-RUNNING
     follow JID OFFSET           the log from byte OFFSET as frames until the job ends: "D <n>\\n" + n bytes, "H <t>\\n" (a
                                 heartbeat every HEARTBEAT s), then "E <rc>\\n" (or "E lost\\n": no exit and no supervisor)
-    list [--days N]             every job as a JSON line (running, done, lost), finished ones from the last N days
+    list [--days N]             every job as a JSON line (running, done, lost), finished ones from the last N days;
+                                a running job's alarms in `flags` (silent past its limit, past 2x its expected time)
     kill JID                    SIGTERM to the job's processes (its process group and descendants; nothing else)
     sample [--boot]             one load sample into LOAD/load-YYYYMMDD.jsonl (cron, once a minute and at boot; see below)
+    silences [--days N]         each kind's longest silences (the sampler's `quiet`), one JSON line per kind
+    slots                       the slots, cores, load and memory now, one JSON line (charkit.remote's box picker)
     supervise JID charkit-job   (internal) the detached supervisor; its command line names charkit so the build box's
                                 idle stop (`pgrep -f charkit`) counts a running job as busy
 
@@ -33,14 +36,15 @@ sampler missing minutes, across two boots the box was down):
 the 1/5/15-minute load, CPU busy share since the last sample (user, system, iowait), memory used and available, the
 build slots (~/.cache/charkit/slots: count and holders, read from /proc/locks without touching the locks), builds waiting
 for a slot (charkit.procs writes slots/wait/<pid>.json while it waits and slots/waits.jsonl when it gets one), running
-jobs, the processes and their CPU share by class (charkit build, qa, gate, ...; Blender; other: from /proc/PID/stat, so the
+jobs and each one's silence (`quiet`: its log's bytes and the seconds since its last write, the stall alarm's record),
+the processes and their CPU share by class (charkit build, qa, gate, ...; Blender; other: from /proc/PID/stat, so the
 work outside the slots shows too: a build's Python stages run before it takes a slot, which only its Blender step
 holds), GPU use where nvidia-smi exists, and /srv/work's free disk. A job's supervisor publishes LOAD
 to the bucket when the job ends (bucketsync publish --name load-<host>), and `python -m charkit remote load` reads it.
 """
 import glob, json, os, signal, subprocess, sys, time
 
-VERSION = 3
+VERSION = 4
 JOBS = os.environ.get('BOXJOB_ROOT', '/srv/work/.jobs')
 LOAD = os.environ.get('BOXJOB_LOAD', '/srv/work/.load')
 WORK = os.environ.get('BOXJOB_WORK', '/srv/work')
@@ -50,6 +54,16 @@ FRAME = 64 << 10
 KEEP_DAYS = 14                                             # finished jobs' directories are kept this long
 LOAD_DAYS = 60                                             # and the daily load logs
 CRON_MARK = '# boxjob load sampler'
+# The stall alarm (`remote jobs`, never a kill). A running job whose log hasn't been written for its limit is flagged
+# SILENT: its own (meta 'stall_min', `remote --stall MIN`), else its kind's, else 20 min. The kinds that print only at
+# the end get longer, from the box's kept jobs on 2026-10-01 (those that ended rc 0): a gate prints 3 lines at its end
+# (100 of 102: silent throughout; p90 17 min, max 36.5), a pregate one (max 20 min); the others write as they go. A job
+# may declare the duration it expects (meta 'expect_min', `remote --expect MIN`): flagged OVERRUN past 2x that. The
+# load sampler records each running job's silence every minute (`quiet`), and `remote jobs --silences` reads, per kind,
+# the longest silence of the jobs that ended well: the numbers these limits are checked against.
+STALL_MIN = {'default': 20, 'gate': 45, 'pregate': 30}
+OVERRUN = 2.0
+GATE_KINDS = ('gate', 'pregate')                           # their builds take build slots first (charkit.procs PRIO)
 
 
 # ------------------------------------------------------------------------------------------------------------- helpers
@@ -177,6 +191,8 @@ def supervise(jid):
     d = jdir(jid)
     meta = json.loads(_read(os.path.join(d, 'meta.json'), '{}') or '{}')
     env = dict(os.environ, BOXJOB_ID=jid, BOXJOB_DIR=d)
+    if meta.get('kind') in GATE_KINDS:                      # its builds take a free slot first (charkit.procs)
+        env.setdefault('CHARKIT_SLOT_PRIO', 'gate')
     with open(os.path.join(d, 'log'), 'ab', buffering=0) as log:
         p = subprocess.Popen(['bash', os.path.join(d, 'run.sh')], cwd=d, stdin=subprocess.DEVNULL, stdout=log,
                              stderr=subprocess.STDOUT, env=env, preexec_fn=os.setpgrp)
@@ -329,9 +345,38 @@ def info(d):
             f.seek(max(0, size - 400))
             lines = [l for l in f.read().decode('utf-8', 'replace').splitlines() if l.strip()]
             tail = lines[-1][-160:] if lines else ''
-    return dict(jid=jid, kind=meta.get('kind'), wt=meta.get('wt'), label=meta.get('label'), state=st,
-                rc=ex[0] if ex else None, started=started, ended=ex[1] if ex else None, log_bytes=size, tail=tail,
-                sent_from=meta.get('host'))
+    wrote = os.path.getmtime(log) if os.path.exists(log) else started       # (no log yet: it has been quiet since it began)
+    row = dict(jid=jid, kind=meta.get('kind'), wt=meta.get('wt'), label=meta.get('label'), state=st,
+               rc=ex[0] if ex else None, started=started, ended=ex[1] if ex else None, log_bytes=size, tail=tail,
+               sent_from=meta.get('host'), last_write=wrote, expect_min=meta.get('expect_min'),
+               stall_min=meta.get('stall_min'))
+    if st == 'running':                                     # (read on the box's clock, as the flags are)
+        row['quiet'] = round(max(0.0, time.time() - wrote), 1) if wrote else None
+    row['flags'] = flags(row)
+    return row
+
+
+def stall_limit(kind, stall_min=None):
+    """minutes of silence after which a running job of this kind is flagged: its own (stall_min), else its kind's, else 20."""
+    return float(stall_min) if stall_min else float(STALL_MIN.get(kind or '', STALL_MIN['default']))
+
+
+def flags(row, now=None):
+    """the alarms on one job row (info's), for a RUNNING job only: [{'flag': 'silent', 'minutes': quiet, 'limit': N}] when
+    its log has not been written for stall_limit minutes, [{'flag': 'overrun', 'minutes': elapsed, 'expect': E}] when it
+    has run longer than OVERRUN (2x) the duration it declared. Both may hold. Nothing is stopped."""
+    if row.get('state') != 'running' or not row.get('started'):
+        return []
+    now = now or time.time()
+    out = []
+    quiet = (now - (row.get('last_write') or row['started'])) / 60
+    lim = stall_limit(row.get('kind'), row.get('stall_min'))
+    if quiet >= lim:
+        out.append({'flag': 'silent', 'minutes': round(quiet, 1), 'limit': lim})
+    exp = row.get('expect_min')
+    if exp and (now - row['started']) / 60 > OVERRUN * float(exp):
+        out.append({'flag': 'overrun', 'minutes': round((now - row['started']) / 60, 1), 'expect': float(exp)})
+    return out
 
 
 def list_jobs(days=1):
@@ -485,6 +530,27 @@ def slots_now(slots_dir=SLOTS_DIR):
                 waiters=waiting)
 
 
+def reading(slots_dir=SLOTS_DIR):
+    """what charkit.remote.pick_box routes by, now: the build slots (slots_now) with the box's cores (ncpu), its 1-, 5-
+    and 15-minute load, the memory available (GB) and the GPU's use where there is one. A build holds a slot only for
+    its Blender step, so the slots alone miss a box whose cores are oversubscribed (the build box at load 129 on 32
+    vCPUs with slots to spare, 2026-10-01): the load shows it."""
+    r = slots_now(slots_dir)
+    try:
+        r['load'] = [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        r['load'] = None
+    r['ncpu'] = os.cpu_count()
+    try:
+        r['mem_avail_gb'] = round(_meminfo().get('MemAvailable', 0), 1)
+    except OSError:
+        pass
+    g = _gpu()
+    if g:
+        r['gpu'] = g
+    return r
+
+
 def _classify(argv):
     """a process's class for the CPU accounting: blender, charkit <sub> (build, tune, qa, gate, fit, ...), or other."""
     if not argv:
@@ -542,6 +608,56 @@ def running_jobs():
     return sorted(out)
 
 
+def quiet_now(jids, now=None):
+    """each running job's log now -> {jid: [bytes, seconds since its last write]} (the sampler's `quiet`: a job's
+    longest silence is the largest of its samples', to the minute)."""
+    now = time.time() if now is None else now
+    out = {}
+    for j in jids:
+        try:
+            st = os.stat(os.path.join(JOBS, j, 'log'))
+        except OSError:
+            continue
+        out[j] = [st.st_size, round(max(0.0, now - st.st_mtime), 1)]
+    return out
+
+
+def silences(days=7, load_dir=None):
+    """the longest silence of each job the sampler saw (its samples' largest `quiet`), by kind, for the jobs that ended
+    rc 0 -> [{kind, jobs, p50, p90, max (minutes), limit, worst}] (and the jobs that ended otherwise, apart)."""
+    cut = time.strftime('%Y%m%d', time.gmtime(time.time() - days * 86400))
+    worst = {}
+    for f in sorted(glob.glob(os.path.join(load_dir or LOAD, 'load-*.jsonl'))):
+        if os.path.basename(f)[5:13] < cut:
+            continue
+        with open(f) as fh:
+            for line in fh:
+                if '"quiet"' not in line:
+                    continue
+                try:
+                    q = json.loads(line).get('quiet') or {}
+                except ValueError:
+                    continue
+                for j, (_, s) in q.items():
+                    if s > worst.get(j, -1):
+                        worst[j] = s
+    by = {}
+    for j, s in worst.items():
+        d = os.path.join(JOBS, j)
+        meta = json.loads(_read(os.path.join(d, 'meta.json'), '{}') or '{}')
+        ex = exit_of(d)
+        key = (meta.get('kind') or '?', 'ok' if ex and ex[0] == 0 else 'running' if not ex else 'failed')
+        by.setdefault(key, []).append((s / 60, j))
+    out = []
+    for (kind, how), v in sorted(by.items()):
+        v.sort()
+        m = [x[0] for x in v]
+        out.append(dict(kind=kind, ended=how, jobs=len(v), p50=round(m[len(m) // 2], 1),
+                        p90=round(m[min(len(m) - 1, int(0.9 * (len(m) - 1) + 0.5))], 1), max=round(m[-1], 1),
+                        limit=stall_limit(kind), worst=v[-1][1]))
+    return out
+
+
 def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None, boot=False):
     """one sample appended to load_dir/load-<UTC day>.jsonl -> the sample. boot: the @reboot line's (event 'boot')."""
     os.makedirs(load_dir, exist_ok=True)
@@ -566,6 +682,7 @@ def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None, boot=False):
     with open('/proc/loadavg') as f:
         la = [float(x) for x in f.read().split()[:3]]
     blender = nproc.get('blender', 0)
+    jobs = running_jobs()
     charkit = sum(v for k, v in nproc.items() if k.startswith('charkit'))
     try:
         sv = os.statvfs(WORK)
@@ -577,7 +694,7 @@ def sample(load_dir=LOAD, slots_dir=SLOTS_DIR, now=None, boot=False):
              mem=dict(total=round(m.get('MemTotal', 0), 2), avail=round(m.get('MemAvailable', 0), 2),
                       used=round(m.get('MemTotal', 0) - m.get('MemAvailable', 0), 2),
                       swap_used=round(m.get('SwapTotal', 0) - m.get('SwapFree', 0), 2)),
-             slots=slots_now(slots_dir), jobs=running_jobs(), blender=blender, charkit=charkit,
+             slots=slots_now(slots_dir), jobs=jobs, quiet=quiet_now(jobs, now), blender=blender, charkit=charkit,
              procs={k: v for k, v in sorted(nproc.items()) if k != 'other'}, disk_free_gb=disk, boot=_btime())
     if boot:
         s['event'] = 'boot'
@@ -624,6 +741,10 @@ def main(argv):
         return follow(a[0], int(a[1]) if len(a) > 1 else 0)
     if cmd == 'list':
         return list_jobs(float(a[a.index('--days') + 1]) if '--days' in a else 1)
+    if cmd == 'silences':                   # (remote jobs --silences: each kind's longest silences, from the sampler)
+        for r in silences(float(a[a.index('--days') + 1]) if '--days' in a else 7):
+            print(json.dumps(r))
+        return 0
     if cmd == 'kill':
         return kill(a[0])
     if cmd == 'sample':
@@ -631,6 +752,9 @@ def main(argv):
         return 0
     if cmd == 'version':
         print(VERSION)
+        return 0
+    if cmd == 'slots':                      # (charkit.remote.box_slots: the slots, cores and load now, one JSON line)
+        print(json.dumps(reading()))
         return 0
     print(__doc__)
     return 1

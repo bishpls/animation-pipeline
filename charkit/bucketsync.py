@@ -33,6 +33,9 @@ import urllib.parse, urllib.request
 HOST = 'storage.googleapis.com'
 PREFIX = 'cas'                                       # blobs: cas/<aa>/<sha>; manifests: cas/m/<sha>; names: cas/n/<name>
 SKIP = {'.git', '__pycache__', '.cache'}             # never synced, never deleted (build.sh's rsync excludes)
+PRIVATE = 'charkit/private/'                         # gitignored (kept out of the public repo) but synced: a private
+                                                     # character's references, spec and manifest. Its outputs
+                                                     # (charkit/private/<name>/out/) stay on each side, as charkit/out does
 WORK = os.environ.get('BS_WORK', '/srv/work')        # the box's copies (tests point it elsewhere)
 BOXCAS = os.path.join(WORK, '.cas')                  # the box's blob cache (same filesystem as the copies: hard links)
 CHUNK = 1 << 20
@@ -396,9 +399,16 @@ def skipped(rel):
     return any(c in SKIP for c in rel.split('/'))
 
 
+def private_out(rel):
+    """a private character's outputs (charkit/private/<name>/out and below): never synced, never deleted on the box."""
+    parts = rel.rstrip('/').split('/')
+    return rel.startswith(PRIVATE) and len(parts) >= 4 and parts[3] == 'out'
+
+
 def sync_paths(wt):
     """build.sh sync's set: tracked and untracked-not-ignored files on disk (a sparse checkout's absent ones aren't),
-    plus charkit/out/remote/*.json (portable specs); nothing else under charkit/out (charkit/out/i3d, TRELLIS's output,
+    plus charkit/out/remote/*.json (portable specs) and the gitignored charkit/private/ (a private character's inputs)
+    except its outputs (charkit/private/<name>/out/); nothing else under charkit/out (charkit/out/i3d, TRELLIS's output,
     is no longer sent: no build reads it since the sheet-only outfit masks, decision 8), nothing under .git, __pycache__
     or .cache. -> (paths, the ignored paths the box must keep)."""
     out = []
@@ -408,8 +418,11 @@ def sync_paths(wt):
     rem = os.path.join(wt, 'charkit', 'out', 'remote')
     if os.path.isdir(rem):
         out += ['charkit/out/remote/' + f for f in os.listdir(rem) if f.endswith('.json')]
+    if os.path.isdir(os.path.join(wt, PRIVATE)):
+        out += [rel for rel in git_paths(wt, '--others', '--ignored', '--exclude-standard', '--', PRIVATE)
+                if rel.startswith(PRIVATE) and not private_out(rel) and not skipped(rel)]
     keep = [p for p in git_paths(wt, '--others', '--ignored', '--exclude-standard', '--directory')
-            if not p.startswith('charkit/out')]
+            if not p.startswith('charkit/out') and not p.startswith(PRIVATE)]
     return sorted(set(out)), keep
 
 
@@ -731,11 +744,14 @@ def cmd_pull(name, local):
 # ----------------------------------------------------------------------------------------------------------- on the box
 def managed(rel, keep_files, keep_dirs):
     """whether the sync owns rel on the box (else it's left alone: build.sh's rsync --delete excludes): not under a
-    SKIP directory, not under charkit/out except remote/*.json, not an ignored path the laptop has. (A copy's
+    SKIP directory, not under charkit/out except remote/*.json, not a private character's outputs
+    (charkit/private/<name>/out), not an ignored path the laptop has (charkit/private/ is synced, so it isn't one). (A copy's
     charkit/out/i3d, which the sync used to send, is left alone like the rest of charkit/out.)"""
     parts = rel.split('/')
     if any(c in SKIP for c in parts):
         return False
+    if private_out(rel):
+        return False                                  # a private character's outputs: the box's own, like charkit/out
     if rel.startswith('charkit/out/') or rel == 'charkit/out':
         if len(parts) < 3:
             return True                               # charkit/out itself: a directory, kept

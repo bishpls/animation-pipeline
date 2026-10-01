@@ -5,6 +5,25 @@ import os, subprocess, sys, tempfile, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from charkit import procs
 
+# every test on a slots directory of its own, never the live ~/.cache/charkit/slots (agents' builds hold slots there),
+# and without the slot variables other test modules set at import (test_optimize and test_sweep set CHARKIT_SLOT_HELD,
+# which made acquire_slot hand back a stand-in here when the whole suite ran)
+SLOT_VARS = (procs.HELD, 'CHARKIT_BUILD_SLOTS', 'CHARKIT_BUILD_MEM_GB')
+_SAVED = {}
+
+
+def setup_function(f=None):
+    _SAVED.update(dir=procs.SLOTS_DIR, env={k: os.environ.pop(k, None) for k in SLOT_VARS})
+    procs.SLOTS_DIR = tempfile.mkdtemp()
+
+
+def teardown_function(f=None):
+    procs.SLOTS_DIR = _SAVED['dir']
+    for k, v in _SAVED['env'].items():
+        os.environ.pop(k, None)
+        if v is not None:
+            os.environ[k] = v
+
 
 def test_slot_count_setting_and_memory_wait():
     procs.SLOTS_DIR = tempfile.mkdtemp()
@@ -127,4 +146,8 @@ def test_thread_caps():
 if __name__ == '__main__':
     for k, f in list(globals().items()):
         if k.startswith('test_'):
-            f(); print('ok', k)
+            setup_function()
+            try:
+                f(); print('ok', k)
+            finally:
+                teardown_function()

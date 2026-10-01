@@ -78,6 +78,19 @@ def _raster():
         return None
 
 
+MAX_WINDOW_PX = 100_000_000         # one measuring grid's pixels at most (~0.8 GB for its depth and labels): Clawd's largest,
+                                    # the body window at ~212 px/L, is ~1.5 M; a misread sheet scale (3719 px/L, 2026-09-30)
+                                    # sized ~480 M per view and ran the QA to 68 GB on the build box
+
+
+def check_window(W, H, what='a measuring window'):
+    """(W, H) back, or RuntimeError when the grid is over MAX_WINDOW_PX: the scale it was sized at is implausible."""
+    if W * H > MAX_WINDOW_PX:
+        raise RuntimeError('%s of %d x %d px (%.0f M) is over the %.0f M limit: the scale it is sized at is implausible '
+                           '(a misread sheet scale?)' % (what, W, H, W * H / 1e6, MAX_WINDOW_PX / 1e6))
+    return W, H
+
+
 def zbuffer(meshes, az, origin, L, pix=PIX, win=WIN, method=None, thin=()):
     """the nearest surface per pixel over the face window: meshes [(V, tris, tri_label)] -> (depth (H, W), label (H, W));
     label -1 = nothing, else the label of the nearest surface. method 'raster' (the default where numba is: the venv)
@@ -98,7 +111,7 @@ def zbuffer(meshes, az, origin, L, pix=PIX, win=WIN, method=None, thin=()):
 def zbuffer_splat(meshes, az, origin, L, pix=PIX, win=WIN):
     """zbuffer's point-splat path (numpy only): each triangle sampled on a barycentric grid, each sample in its pixel."""
     ox, oz = origin                                     # the window's centre: x of the midline, z of the eye line
-    W = int(round(2 * win['x'] / pix)); H = int(round((win['top'] - win['bottom']) / pix))
+    W, H = check_window(int(round(2 * win['x'] / pix)), int(round((win['top'] - win['bottom']) / pix)))
     px_all, d_all, l_all = [], [], []
     for V, T, lab in meshes:
         if len(T) == 0:

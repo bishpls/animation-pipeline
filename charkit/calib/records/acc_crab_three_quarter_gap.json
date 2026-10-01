@@ -1,0 +1,91 @@
+{
+ "check": "acc_crab_three_quarter_gap",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T18:48:47",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "acc_crab_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0,
+  "spread": 0.0,
+  "median": 0.0
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "no build parts the clips: its floor is the drawn crab moved off the star",
+ "floor": {
+  "apart": {
+   "values": [
+    0.0755,
+    0.0711,
+    0.0711,
+    0.0494,
+    0.057
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "WARN",
+    "FAIL"
+   ],
+   "median": 0.0711,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0,
+  "status": "PASS",
+  "margin": 1.0
+ },
+ "verdict": "guard",
+ "why": "a defect detector with no known-bad (no build parts the clips: its floor is the drawn crab moved off the star); the design passes; shape guarded by acc_crab_shape",
+ "build": "charkit/out/acc6/after",
+ "generators": {
+  "apart": "the drawn crab moved 0.06-0.1 L further from the star"
+ },
+ "seconds": 370.5
+}

@@ -78,6 +78,24 @@ def resolve(spec):
         if key not in ref and rid in R:
             ref[key] = dict(id=rid, image=R[rid]['path'], layout=R[rid].get('layout'), facing=-1)
     ref['authority'] = M.get('authority', {})
+    # the character's palette (charkit.palette): carried in the resolved spec for every process that loads it, and
+    # made this process's active one (a manifest without one: the readers' constants)
+    if M.get('palette'):
+        ref['palette'] = M['palette']
+    if M.get('window'):                     # its full-body measuring window (bodyqa.use_window)
+        ref['window'] = M['window']
+    from . import palette
+    palette.activate_spec(spec)
+    # a character with a hull and no hair in its spec: the hull's hair (decision 8: the hull is the hair's source), cut
+    # as one surface (geom), with its facial hair where the manifest says the design draws it ('facial_hair')
+    if 'hair' not in spec and 'hull' in R:
+        spec['hair'] = dict(shape=dict(glb=R['hull']['path'], mode='geom', facial=bool(M.get('facial_hair'))))
+    # the design's own colours where the spec gives none (else the code's defaults, which are Clawd's): skin, hair,
+    # iris, brows and lashes from the palette's roles (palette.spec_colours)
+    if palette.active() is not None:
+        for k, v in palette.spec_colours(palette.active()).items():
+            if k not in spec:
+                spec[k] = v
 
     def sub(x):
         if isinstance(x, str) and x.startswith('ref:'):
@@ -91,6 +109,15 @@ def resolve(spec):
         if k != 'ref':
             spec[k] = sub(spec[k])
     return spec
+
+
+def body_hull(spec):
+    """the produced reference the authored body is fitted to: 'body_hull' (the base body sheet's hull, where the
+    manifest declares one: the body under the costume, not the costume's volume), else 'hull'."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    if ref.get('manifest') and 'body_hull' in load(ref['manifest'])['references']:
+        return 'body_hull'
+    return 'hull'
 
 
 def produce(spec):
@@ -215,6 +242,50 @@ def read_files(r):
             for g in r.get('reads_files', ())]
 
 
+def shape_sheet(spec, part, default='face_sheet'):
+    """the sheet a piece's shape is read from: the manifest's shape_truth[part]['shape'] when it names a reference
+    picture (the piece's layer redrawn without what covers it: a jaw under a beard, Michael 2026-10-01: each piece's
+    shape truth is its layer without what lies on it), drawn in the default sheet's layout and facing; else
+    spec.ref[default] -> dict(id, image, layout, facing), or None."""
+    ref = spec.get('ref') if isinstance(spec.get('ref'), dict) else {}
+    base = ref.get(default)
+    if not ref.get('manifest'):
+        return base
+    M = load(ref['manifest'])
+    sid = ((M.get('shape_truth') or {}).get(part) or {}).get('shape')
+    R = M['references']
+    if not sid or sid not in R or not str(R[sid].get('path', '')).endswith('.png'):
+        return base
+    return dict(id=sid, image=R[sid]['path'], layout=R[sid].get('layout'),
+                facing=(base or {}).get('facing', -1))
+
+
+def hull_args(r):
+    """a hull reference's in-process build (produced(): charkit.geom.hull.build, not its command) given what its command
+    asks of `python -m charkit.geom hull` (its main's defaults): the sheet it carves (--head, --sheet NAME), --h and
+    --faces -> the keyword arguments that differ from build()'s defaults ({} for a plain hull). The fast path called
+    build() with none of them, so a body hull (--sheet base_body: the body under the costume) was carved from the
+    clothed sheet, byte-identical to the hull (a second character, 2026-10-01). stamp() takes them when there are any,
+    so a reference stamped before this rebuilds and a plain hull's stamp stays as it was."""
+    import shlex
+    if r.get('produced_by') != 'charkit.geom.hull':
+        return {}
+    a = shlex.split(r.get('command') or '')
+    opt = lambda k: a[a.index(k) + 1] if k in a and a.index(k) + 1 < len(a) else None
+    head = '--head' in a
+    sheet = 'head' if head else (opt('--sheet') or 'body')
+    kw = {}
+    if sheet != 'body':
+        kw['sheet'] = sheet
+    h = float(opt('--h')) if opt('--h') else (0.005 if head else None)
+    if h is not None and h != 0.01:
+        kw['h'] = h
+    faces = int(opt('--faces')) if opt('--faces') else (150000 if head else None)
+    if faces is not None:
+        kw['faces'] = faces
+    return kw
+
+
 PROSE = ('role', 'cautions', 'provenance', 'checks', 'notes')      # a manifest entry's words and records, not its data
 
 
@@ -242,7 +313,8 @@ def stamp(spec, r, parts=False):
     code = _producer_code(r)
     sec = sections(spec, r.get('reads_spec', READS_SPEC))
     files = read_files(r)
-    st = cache.digest([code, entry(r), refs, reads, sec, files])
+    fast = hull_args(r)
+    st = cache.digest([code, entry(r), refs, reads, sec, files] + ([fast] if fast else []))
     if not parts:
         return st
     return st, {'code': cache.digest(code), 'entry': cache.digest(entry(r)), 'refs': cache.digest(refs),
@@ -565,7 +637,7 @@ def produced(spec, rid, log=print):
         t0 = time.time()
         if r['produced_by'] == 'charkit.geom.hull':
             from .geom import hull
-            hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False)
+            hull.build(json.loads(json.dumps(cut)), d, validate_views=False, page=False, **hull_args(r))
         else:
             import shlex, subprocess, sys
             rel = lambda x: os.path.relpath(x, ROOT) if x.startswith(ROOT + os.sep) else x
