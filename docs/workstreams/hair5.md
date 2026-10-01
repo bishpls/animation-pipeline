@@ -255,6 +255,29 @@ structure**: the base model takes the best fit across views with per-view costs;
 (call G); the lock-lines checks are judged against their intent (the drawn lines) rather than a closed-lock truth.
 Pictures with the truth: `charkit/out/hair5/truthpics/VIEW.png` (sheet | lock truth | take 1 | take 2).
 
+### The render-box builds of the defaults (A) and of option B
+
+`charkit/out/hair5_b` (A, the default spec at 5e1f388) and `charkit/out/hair5_bB` (B, tools/hair5/v/clawd_seamsB.json);
+both `--boards views,body,design --no-blend`. The hair flags read exactly the lab's P6 / P5: ahoge F 0.371 -> 0.689
+(WARN), bend 108 -> 19 PASS, attached 0.029 -> 0 PASS, back ink 3.77 -> 0.558 (A, WARN) / 2.027 (B, FAIL), hem 5 -> 2
+PASS, lines 3q 0.205 -> 0.195 / 0.193, profile 0.162 -> 0.088 / 0.158. Guard: every hair_piece_* within 0.004 per view
+of the base, the flyaways' back 0.131 -> 0.170, the ahoge 0.29-0.35 -> 0.55-0.75; body_*_iou_hair all up 0.002-0.004.
+
+**But art_terminator_hair 1.804 PASS -> 2.575 WARN (grade FAIL) in A, 2.59 in B**: a flag check whose grade worsens
+blocks under K. The worst view moved to the back (2.42 -> 3.49 kinks per L). `tools/hair5/term.py` (the artifact
+part's own measure on a bundle with hair objects dropped or swapped from another build's; reproduces 2.575 exactly,
+8 s) found it: the fitted ahoge. A without its ahoge 1.900; A with the base's ahoge 1.899; the base with A's ahoge
+3.262; the base with A's upper and lower back 1.878 (the seams without ink don't add terminator: the back 1.788 ->
+1.54). The ahoge, now as wide as the drawn one, shades with the envelope's normals, which turn along a strand
+standing out of the mass: a staircase shadow patch on its lower half from behind (the flyaways' problem in hairtag
+round 3, fixed there by strand_tone 'root'). **Fix: strand_tone 'root' covers the ahoge too**
+(hairpieces.STRAND_TONE_FAMILIES = flyaways, ahoge; the style may set strand_tone_families): one tone, its root's. On
+a bundle copy with the ahoge's normals set to its root's (charkit/out/hair5/tA): back 3.489 -> 0.964 ratio, worst
+1.900 (front: the lower back's new hem, 1.804 -> 1.878 alone), PASS. The drawn front ahoge has a shaded lower half;
+one tone loses it (the flyaways' trade-off). Test: test_strand_tone_root_shades_the_ahoge_in_one_tone.
+
+Rebuilt both with the fix: `charkit/out/hair5_b2` (A), `charkit/out/hair5_bB2` (B).
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed

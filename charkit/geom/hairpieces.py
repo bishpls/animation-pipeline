@@ -3160,6 +3160,9 @@ def folds(V, T, outer, vn_env):
     return int((surf & (against | flipped)).sum())
 
 
+STRAND_TONE_FAMILIES = ('flyaways', 'ahoge')     # the strands strand_tone 'root' shades in one tone (the root's)
+
+
 def shade_normals(pieces, L, style):
     """every piece's shading normals from the whole hair's envelope (charkit.geom.smooth.envelope_normals, as the geom
     hair's are): the union of the pieces as a solid, closed by the style's shade_close and blurred by shade_blur (L), the
@@ -3194,10 +3197,13 @@ def shade_normals(pieces, L, style):
             G_ = np.where((np.einsum('ij,ij->i', G_, Ne) < 0)[:, None], -G_, G_)
             Ne = np.where(out[:, None], (1 - w) * Ne + w * G_, Ne)
             Ne /= np.linalg.norm(Ne, axis=1, keepdims=True) + 1e-12
-        if p.get('family') == 'flyaways' and style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
+        if p.get('family') in style.get('strand_tone_families', STRAND_TONE_FAMILIES) and \
+                style.get('strand_tone', 'surface') == 'root' and p.get('lock') is not None:
             # each strand one tone, its root's (the mass's normal where it grows from, the vertex nearest the chain's
             # first point): the envelope's normal turns along a blade standing out of the mass, and a cel terminator
-            # across a thin strand draws as a torn shadow patch (hairtag round 3: the back view's kinks, 7 -> 14)
+            # across a thin strand draws as a torn shadow patch (hairtag round 3: the back view's kinks, 7 -> 14;
+            # tool/hair5: the fitted ahoge, as wide as the drawn one, drew a staircase patch in the back view:
+            # art_terminator_hair back 2.42 -> 3.49 kinks per L, 1.804 PASS -> 2.575 WARN; in one tone 0.96, 1.90)
             Ne = Ne.copy()
             for k, ch in enumerate(p.get('chains') or ()):
                 m = np.nonzero(p['lock'] == k)[0]
