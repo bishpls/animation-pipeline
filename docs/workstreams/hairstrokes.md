@@ -171,8 +171,37 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
   ...'`, outputs fetched with `build.sh fetch $PWD DIR` (the sync leaves charkit/out alone). On the render box:
   hst_base, hst_s1, the store charkit/out/calib/builds/hst_base (linked; the box copy's synced files are read-only,
   so `calibrate store` fails writing the tracked record after linking: harmless).
+- **Boxes (coordinator, 08:40): the render box has 3 slots and is saturated; sweeps, calibrations, QA-only builds,
+  gates go to the build box (8 slots; omit --box render).** The build box's QA draws with charkit's toon renderer too
+  (gate builds' qa.json measured.draw: render, 65 frames, clawd.look.glb), so the highlight checks read the streaks
+  there; a sweep's spliced bundle is drawn with numpy (no streaks): highlights need real builds or tools/hlfit.py.
+  Render box only for builds whose boards go on a review page.
 - Box jobs (2026-10-01 ~08:10): the lock-line sweep (charkit/out/hairstrokes/sw_locklines, sw_locklines.log), the
   tones triple on hst_s1 (box_tonecal.log: QA re-run there, calibrate --no-write), the shadow blame (blame/).
+
+## Tones milestone: the measure
+- Checks (charkit/hairtoneqa.py, uncommitted until gated with the tones: family `tones`, charkit/hairtones.py):
+  hair_shadow_{view} IoU [0.6, 0.5] higher, hair_highlight_{view} F1 within 0.02 L [0.5, 0.25] higher. The triple on
+  hst_s1 (render box, --no-write; box_tonecal.log): shadow design 0.86-0.95, hst_base 0.36/0.36/0.45/0.46 FAIL,
+  scattered 0.02-0.04 FAIL; highlight design 1.0, hst_base 0/0.10/0.05/0 FAIL, scattered 0-0.07 FAIL: all
+  CALIBRATED with these limits (set before any tones change). Records to write on the tones build.
+- Shadow blame (tools/toneblame.py, blame/s1.png, s1.log): the drawn shadow is height-driven and symmetric (the
+  locks' lower ends both sides, the hem band ~ the back's lower third, the buns' undersides); ours follows the camera
+  key (30 deg left, 40 up): the right side lock shaded (front: ours 0.38 vs drawn 0.27), the left lock's hem lit, the
+  back's hem band too thin (lower_back back 0.63 vs 0.90), the buns' undersides lit (0.08-0.20 vs 0.16-0.30), the
+  profile's side lock unshaded (0.01 vs 0.17).
+  (d): hairpieces shade_ellipsoid / shade_squash (769465a, off by default): the mass envelope's normals blended toward
+  an ellipsoid round the hair's mass, its vertical semi-axis squashed: normals turn down below the middle, so the
+  camera key shades by height in every view. Sweep on the render box (queued): grid ellipsoid [0.5, 1] x squash
+  [0.5, 0.8] (sw_normals). Touches shade_normals, which also shades the lock shells when they're on (tool/hairshell3):
+  flag to the coordinator.
+- Highlights (tools/hlmap.py: marks cast onto our hair, elevation/azimuth about the streaks' centre): the drawn marks
+  sit at elevation 36-46 deg (median 39-41) in every view, spread over the crown facing the camera (az within ~45 deg
+  of the view); ours at 42-52 (median 49), clustered at az 94 and -135 (streaks landing on the buns): the style's
+  streaks (anime.json look.hair: elevation 47, length 5, jitter 4, count 36, duty 0.25, keep 0.3) miss the crown.
+  (f): tools/hlfit.py evaluates the streak function (shade.streak_columns, facing map, lit only) on our hair's pixels
+  and fits elevation/length/keep/jitter/duty/count to the drawn marks (F1 per view); the fit goes in the spec's
+  look.hair (the character's), confirmed on a real build.
 
 ## Exact next steps (lean relaunch)
 1. Refresh the three remeasured flags' records: copy the known-bad store
