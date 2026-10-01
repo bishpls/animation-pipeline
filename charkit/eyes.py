@@ -57,6 +57,13 @@ DEFAULT_EYE = {
     'anchor': 'min',     # the surface's depth: 'min' never in front of `depth`; 'mean' its mean over the opening
                          # there; 'corners' the opening's two corners there (their mean); 'fold' the fold there
     'flick_turn': None,  # 'turned': the flick's own angle from facing front (degrees; None: the surface's at the corner)
+    'wrap': 0.0,         # 'turned': the upper lid's outer part wrapped back round the head: depth (eye widths) per eye
+                         # width of height above the outer corner, at the outer corner, eased in from `wrap_from` (eye
+                         # widths outward of the centre). In profile the opening's backmost point (its far corner as
+                         # drawn) climbs from the corner up the upper lid; the front view is unchanged (every (x, z) kept).
+                         # Michael (2026-10-01): the profile's far corner sits below the opening's middle, the design's
+                         # above it (the lash band slants, the profile spikes don't read)
+    'wrap_from': 0.0,
     'converge': 0.0,     # the irises' rest place toward the nose (eye widths) when the spec's iris doesn't set it
     'iris': (0.285, 0.54, -0.01, 0.0),  # the iris at rest: half-width, half-height, centre height and convergence, in
                                         # eye widths (knobs() takes them from the iris knobs): the fold follows its
@@ -302,6 +309,8 @@ class Surface:
         self.at, self.soft = float(K['fold_at']), max(1e-3, float(K['fold_soft']))
         self.shape = float(K.get('fold_shape', 1.0))
         self.follow = float(K.get('fold_follow', 0.0))
+        self.wrap, self.wrap_from = float(K.get('wrap', 0.0)), float(K.get('wrap_from', 0.0))
+        self.wrap_z = float(outline(K, 1.0, np.array([1.0]), 'upper')[1][0] / K['width']) if self.wrap else 0.0
         tn, tf, tc = (math.radians(a) for a in K['turn'])
         # G(u): the surface's depth (eye widths, + back) at u eye widths outward of the row's fold, 0 at the fold
         e0 = -(rx + conv) + self.at                          # the fold at the iris's middle row
@@ -346,6 +355,9 @@ class Surface:
         if self.follow:
             z = np.asarray(z, float)
             out = out + self.follow * (self._face(xf, z) - self._face(self.fold_x(np.zeros(1)), np.zeros(1)))
+        if self.wrap:                                       # the upper lid's outer part wrapped back (K['wrap'])
+            x, z = np.asarray(x, float), np.asarray(z, float)
+            out = out + self.wrap * np.maximum(z - self.wrap_z, 0.0) * _smooth(self.wrap_from, 0.5, x)
         return out
 
     def _face(self, x, z):

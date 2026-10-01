@@ -558,6 +558,8 @@ def assembly_variant(A):
             keys['eye_' + name] = _sparse(both)
         for sh, D in A['mouth']['keys'].items():
             keys['mouth_' + sh] = _sparse(D)
+    for name, P in (A['mouth'].get('view_keys') or {}).items():      # the per-shot mouth keys (charkit.mouth.VIEW)
+        keys[name] = _sparse(P['skin'])
     G['keys'] = keys
     return G
 
@@ -824,6 +826,49 @@ class Bundle:
             return None
         return self.array('target/pieces'), {int(k): v for k, v in (self._meta['target'].get('piece_names') or {}).items()}
 
+    def keyed(self, weights, variants=('eval', 'bare', 'masked')):
+        """the same bundle with shape keys applied at weights {key: weight} to its evaluated variants (a pose without
+        Blender: a shot's per-shot keys, charkit.mouth.view_weights). An object whose variant has its base's vertices
+        takes the keys' offsets directly; the subdivided skin takes them through `parent` (each evaluated polygon's base
+        polygon): per vertex, the offsets of its polygon's base corners weighted by inverse distance (a key's offsets
+        vary smoothly over the cage, so the subdivision's own weights differ by little). `bare` without a parent shares
+        `eval`'s vertices (the same count) and takes its offsets. -> Bundle (in memory, no content hash)."""
+        weights = {k: float(w) for k, w in (weights or {}).items() if w}
+        rep = {}
+        for o in self.objects(visible=False):
+            if not weights or not o.has('base'):
+                continue
+            K = o.keys('base')
+            use = {k: w for k, w in weights.items() if k in K}
+            if not use:
+                continue
+            Vb = np.asarray(o.V('base'), float)
+            D = np.zeros_like(Vb)
+            for k, w in use.items():
+                idx, d = K[k]
+                D[idx] += w * np.asarray(d, float)
+            moved = np.nonzero(np.abs(D).max(1) > 0)[0]
+            done = {}
+            for vn in variants:
+                if not o.has(vn):
+                    continue
+                V = np.asarray(o.V(vn), float)
+                if len(V) == len(Vb):
+                    Dv = D
+                elif o.a(vn, 'parent') is not None:
+                    Dv = _carry(V, o.polys(vn), o.a(vn, 'parent'), Vb, o.polys('base'), D, moved)
+                elif vn == 'bare' and 'eval' in done and len(V) == len(done['eval']):
+                    Dv = done['eval']
+                else:
+                    continue
+                done[vn] = Dv
+                rep['o/%s/%s/V' % (o.name, vn)] = (V + Dv).astype(np.asarray(o.V(vn)).dtype)
+        if not rep:
+            return self
+        arrays = {k: (rep[k] if k in rep else self._arrays[k]) for k in _names(self)}
+        meta = {k: v for k, v in self._meta.items() if k not in ('hashes', 'content')}
+        return Bundle(meta, arrays, self.path)
+
     def moved(self, d):
         """the same bundle rigidly moved by d (world): every object's geometry, the head's centre and eye centres, the
         target (the same scene on another pixel grid: the fit's jitter)."""
@@ -913,6 +958,29 @@ class Obj:
     def material(self, slot):
         nm = self.materials[slot] if 0 <= slot < len(self.materials) else None
         return nm, (self.B.materials.get(nm) if nm else None)
+
+
+def _carry(V, polys, parent, Vb, base_polys, D, moved):
+    """a base mesh's per-vertex offsets D carried to a subdivided mesh's vertices V (Bundle.keyed): each vertex's first
+    polygon's base polygon (parent), its corners' offsets weighted by inverse distance -> (len(V), 3)."""
+    loopv, starts, counts = polys
+    bl, bs, bc = base_polys
+    out = np.zeros((len(V), 3))
+    if not len(moved):
+        return out
+    hot = np.zeros(len(D), bool); hot[moved] = True
+    poly_of_loop = np.repeat(np.arange(len(counts)), counts)
+    first = np.full(len(V), -1, np.int64)
+    first[loopv[::-1]] = poly_of_loop[::-1]                     # (each vertex's first polygon)
+    ok = first >= 0
+    bp = np.where(ok, np.asarray(parent, np.int64)[np.maximum(first, 0)], -1)
+    hot_poly = np.add.reduceat(hot[bl].astype(np.int64), bs) > 0
+    for v in np.nonzero(ok & hot_poly[np.maximum(bp, 0)])[0]:
+        p = bp[v]
+        cs = bl[bs[p]:bs[p] + bc[p]]
+        w = 1.0 / np.maximum(np.linalg.norm(Vb[cs] - V[v], axis=1), 1e-9)
+        out[v] = (w[:, None] * D[cs]).sum(0) / w.sum()
+    return out
 
 
 def _names(self):

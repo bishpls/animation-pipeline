@@ -170,7 +170,8 @@ def features(b, A, S, keys=False):
         G = dict(V=v, faces=q)
         var = {'eval': G}
         if keys:
-            var['base'] = dict(G, keys={'mouth_' + sh: D for sh, D in Mo[kk].items()})
+            var['base'] = dict(G, keys=dict({'mouth_' + sh: D for sh, D in Mo[kk].items()},
+                                            **{n: P[nm] for n, P in (Mo.get('view_keys') or {}).items()}))
         b.add(nm, 'mouth', var, part=nm, materials=[nm])
     if Mo.get('nose') is not None:                       # the nose's mark (charkit.nose): ink and highlight, no keys
         v, q, sl = Mo['nose']

@@ -586,6 +586,25 @@ SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and
 EYE_REGION = {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
               'hold': True, 'curve': 2.0, 'release': 0.5, 'forward': None, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
                                                              # section overrides it: styles.DEFAULT says what each is)
+CHEEK = {'cheek_smooth': 0.08, 'cheek_lead_smooth': 0.0, 'cheek_refit': None, 'cheek_drop_bound': False}
+                                 # the cheek term's row smoothing (L, a Gaussian's sigma), the three-quarter contour's
+                                 # before the fit (0: none), and cheek_refit (None, or a height z in L): the term fitted
+                                 # again on the rows under z (eased in over CHEEK_REFIT_EASE) with the anime eye window's
+                                 # correction in place, which spreads down from the eye and held the far cheek 0.015-0.023
+                                 # L behind the three-quarter's contour at the mouth's rows (Michael's item 2, 2026-10-01;
+                                 # docs/workstreams/face7.md); cheek_drop_bound: a row whose fit ends at the search's
+                                 # bound (the term can't meet the contour there: the chin's) left out of the smoothing
+                                 # (kept, it pulled the rows above it back). The style's face section overrides them
+CHEEK_REFIT_EASE = 0.04          # L of rows over which the refit eases in under its top
+FOREHEAD = None                  # the style face section's `forehead` (None: off): {depth (L), z (L above the eye line),
+                                 # dz (L), peak (a share of the face's half-width)}: the forehead's front rounded back at
+                                 # the brow's height, `depth` L at the bump's peak across the face (charkit.geom.headfit.
+                                 # _cheek's shape: 0 at the midline and the outline, so the profile and the front
+                                 # silhouettes stay), over a band of rows round z eased out `dz` above and below. The
+                                 # brow lies on the surface: its profile length is the forehead's depth between its ends
+                                 # (Michael's item 3, 2026-10-01: the profile brow 0.097 L deep against the drawn 0.136;
+                                 # docs/workstreams/face7.md)
+CHEEK_BOUND = 0.12               # L: the cheek term's search range; a row whose fit ends at its bound met no contour
 WINDOW_RELEASE = (0.02, 0.2)     # L: toward the midline the window's hold lets go, from `release` of the window's
                                  # half-width in from the eye (the style's) to this x, by up to this much (the nose's
                                  # side is the profile's midline, not the eye's plane)
@@ -716,12 +735,14 @@ def skull_chin(S):
     return float(S.zs[np.nanargmax(np.where(np.isfinite(front), -S.zs * 0 + np.arange(len(S.zs)), np.nan))])
 
 
+LAST = {}                        # the last assemble()'s per-row fit (the cheek term raw and smoothed, the contour): labs
+
 CHIN_BIAS = -0.01                # L: the chin's rows warped this far past the design's chin: the QA reads a chin where the
                                  # front edge starts turning under (faceqa.drawn_chin), a row or two above the corner's
                                  # own (swept on Clawd: -0.01 reads the chin exactly and keeps the outline within 0.021 L)
 
 
-def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, chin_bias=CHIN_BIAS,
+def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
              terms=('corr', 'rel', 'cheek', 'scale', 'warp', 'socket'), face=None):
     """the head (see the module) -> (Sections, report). The skull's sections (head_construction), then per row:
       - its chin moved to the design's (the rows between the nose and the chin stretched or squeezed in z);
@@ -753,7 +774,11 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
     a = np.radians(F.C['az3'])
     wf = np.interp(-zs, -F.z, F.w, left=np.nan, right=np.nan)
     sig = np.interp(-zs, -F.z, F.sigma)
-    l3 = np.interp(-zs, -F.z, F.C['lead3'], left=np.nan, right=np.nan)
+    cst = dict(CHEEK, **{k: v for k, v in (face or {}).items() if k in CHEEK})
+    lead3 = np.asarray(F.C['lead3'], float)
+    if cst['cheek_lead_smooth'] > 0:                   # the drawn contour's pixel steps smoothed before the fit
+        lead3 = _smooth_rows(lead3, cst['cheek_lead_smooth'] / abs(F.z[1] - F.z[0]))
+    l3 = np.interp(-zs, -F.z, lead3, left=np.nan, right=np.nan)
     # the midline onto the design's, in two parts: a broad correction, smooth over BROAD L of height, spread across the
     # face by the falloff; and the exact remainder (the nose, the lips, the bridge), kept narrow at the midline. A
     # correction that changes quickly with height and spreads across the face bands it
@@ -810,14 +835,16 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         if not (np.isfinite(l3[k]) and zs[k] <= CHEEK_FIT[0]):
             continue
         x, shaped = row(k)
-        lo_c, hi_c = -0.12, 0.12
+        lo_c, hi_c = -CHEEK_BOUND, CHEEK_BOUND
         for _ in range(30):                        # the lead grows as the cheeks come forward (c < 0)
             m = (lo_c + hi_c) / 2
             lead = (-F.C['eye_x'] * np.cos(a)) - (x * np.cos(a) + shaped(m) * np.sin(a)).min()
             lo_c, hi_c = (m, hi_c) if lead > l3[k] else (lo_c, m)
-        cheek[k] = (lo_c + hi_c) / 2
+        c_ = (lo_c + hi_c) / 2
+        cheek[k] = c_ if abs(c_) < 0.99 * CHEEK_BOUND or not cst['cheek_drop_bound'] else np.nan
     raw_cheek = cheek.copy()
-    cheek = _smooth_rows(cheek, smooth_terms / A.h)
+    cheek = _smooth_rows(cheek, cst['cheek_smooth'] / A.h)
+    LAST.clear(); LAST.update(z=zs, cheek_raw=raw_cheek, cheek_smooth=cheek.copy(), l3=l3)   # (the fit's rows, for labs)
     top = np.nonzero(np.isfinite(cheek))[0]
     if len(top):                                        # held at the top fitted row's value, faded out above it
         k0 = top.min()
@@ -848,12 +875,39 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, smooth_terms=0.08, c
         dfill = np.zeros_like(Xg)
         run = np.nonzero(rows_ok)[0]
         dfill[run] = eye_fill(zs[run], Xg[run], Yg[run], F.C['eye_x'], win)
+        if cst['cheek_refit'] is not None:
+            # the cheek term again under cheek_refit, fitted on the surface with the window's correction in it (the
+            # correction stays as solved: under the window it is its smooth spread, not a hold the refit undoes)
+            top_r = float(cst['cheek_refit'])
+            c2 = np.full(len(zs), np.nan)
+            for k in valid:
+                if not (np.isfinite(l3[k]) and zs[k] <= top_r and np.isfinite(cheek[k])):
+                    continue
+                x, shaped = row(k)
+                lo_c, hi_c = -CHEEK_BOUND, CHEEK_BOUND
+                for _ in range(30):
+                    m = (lo_c + hi_c) / 2
+                    yy = shaped(cheek[k] + m).copy()
+                    yy[jr] += dfill[k]; yy[jl] += dfill[k]
+                    lead = (-F.C['eye_x'] * np.cos(a)) - (x * np.cos(a) + yy * np.sin(a)).min()
+                    lo_c, hi_c = (m, hi_c) if lead > l3[k] else (lo_c, m)
+                c_ = (lo_c + hi_c) / 2
+                c2[k] = c_ if abs(c_) < 0.99 * CHEEK_BOUND else np.nan
+            raw_c2 = c2.copy()
+            c2 = np.nan_to_num(_smooth_rows(c2, cst['cheek_smooth'] / A.h), nan=0.0)
+            c2 *= _smoothstep((top_r - zs) / CHEEK_REFIT_EASE)
+            cheek = cheek + c2
+            LAST.update(cheek_refit_raw=raw_c2, cheek_refit=c2)
+    fh = (face or {}).get('forehead', FOREHEAD)
     for k in valid:
         x, shaped = row(k)
         yy = shaped(cheek[k])
         if dfill is not None:
             yy = yy.copy()
             yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
+        if fh and abs(zs[k] - fh['z']) < fh['dz']:                    # the forehead rounded at the brow's height
+            band = 0.5 * (1 + np.cos(np.pi * (zs[k] - fh['z']) / fh['dz']))
+            yy = yy + front * fh['depth'] * band * _cheek(x / max(wc_all[k], 1e-3), fh.get('peak', 0.75))
         if sock > 0 and abs(zs[k]) < 4 * SOCKET[1]:
             yy = yy + fr * sock * np.exp(-0.5 * ((np.abs(x) - F.C['eye_x']) / SOCKET[0]) ** 2 - 0.5 * (zs[k] / SOCKET[1]) ** 2)
         tn = np.arctan2(x, -(yy - cy[k])); o = np.argsort(tn)
