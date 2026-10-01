@@ -1131,3 +1131,15 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   under the raised shoulder), not under its mask (rim 1). Full builds on render2 (the mask is the build's):
   g7_c5a = c4 + hide_under rim 0; g7_c5b = c4 without the neck flare; g7_c5c = both (specs charkit/out/garments7/specs,
   script build_c5.sh: builds then neckcorners).
+- **Sweep re-mask (5066ae6d)**: the garments stage now re-masks the skin per row from the evaluator's hide set (the
+  base's subdivided skin restricted to the cage faces that stay, the boundary moved as Blender's masked subdivision
+  puts it). Validated g7_c4 -> g7_c5a (collar hide_under rim 0): masked skin within 5e-7 L p99; neck_crease 40 (real
+  40.0), art_outline_neck 11.79 (12.16), art_speckle_neck 0.854 (0.848). Collar, mask and cut changes can now be
+  screened; body changes (the flare) still need real builds.
+- c5a/b/c (real): hide_under rim 0: 13 corners, neck_crease 40 F; no flare: 8 corners but art_speckle_neck 3.2 W and
+  neck_v_front_skin FAIL (flags): the flare stays. neck_crease isn't a flag.
+- **opt2 running** (render2, 8 workers): tools/garments7/opt2.json, base g7_c4 (re-mask on): 12 knobs (the puffs'
+  clear_body gap/from_t/taper/blur, the bow bed gap, the collar's side/back depth, rise, neck_drop, lift, v_half,
+  hide_under.neck); every blocking flag and new FAIL toward pass with limits; the pieces pass-with-limits (pass at the old
+  body's IoU, fail at the K floor); guard 0.25 vs its control. Out charkit/out/optimize/g7_opt2 (log
+  charkit/out/garments7/opt2.log).
