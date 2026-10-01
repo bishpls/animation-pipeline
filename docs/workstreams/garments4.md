@@ -196,3 +196,11 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
 - Cuffs (item 2) measured: `cuffqa.py` declared `cuff_{view}_area_{L,R}` (new family `area`: |ours/design - 1|):
   0.47-0.65 FAIL, 3q R 1.435 FAIL on g4_ink1. Seed for the template (tools/cuffseed.py): our band span 0.455-0.760 L,
   radii top 0.20/0.16, bottom 0.14-0.17 L.
+- k3: protruding the panel (depth < 0) also lost profile cream (0.13/0.10) and broke skirt_pleats_cream: box-pleat depth
+  removed. Shape compromise: power 0.7 (ep07) front 0.894 P, 3q 0.698 W (up from 0.689), profile 0.169 (down from
+  0.232: the drawn profile shows the pleat's side faces as a cream wedge, which our panel doesn't model; measured by
+  tools/paneliou.py, reported, not declared this round: no geometry here reaches it).
+- k4/k5 (the bow's strokes): the knot's side strokes break bow_part_knot_iou (1.0 P -> 0.0 F: they split the knot);
+  `tops_tips` (strokes 0, 1, 2, 7 of ink1.json: the almond tops and tips) reads front 0.46 W -> 0.337 P, 3q 0.407 ->
+  0.379 W, bow_part_crease_len 0.221 -> 0.026 P, knot_iou 1.0 P, piece_bow unchanged (0.934/0.855/0.683).
+- k6 running: the skirt creases' f at top/bottom (power 0.7 panel).
