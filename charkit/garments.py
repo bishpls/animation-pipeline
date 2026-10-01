@@ -3119,6 +3119,8 @@ def puff(A, spec, hull=None):
         Rn = np.where(TT > t_b0, (1 - w) * np.minimum(Rn, tgt) + w * np.minimum(Rn, inside), Rn)
         k = np.where(R > 1e-9, Rn / np.maximum(R, 1e-9), 1.0)
         X, Y = X * k, Y * k
+    if spec.get('clear_body'):
+        X, Y = puff_clear(A, side, spec['clear_body'], h, d, o, f, ts, th, X, Y, t_last)
     P = (h[None, None, :] + (TT[..., None] * d + X[..., None] * o + Y[..., None] * f) * L)
     nr = len(ts)
     V = np.concatenate([(h + (t_top - cap) * L * d)[None], P.reshape(-1, 3)])
@@ -3136,6 +3138,43 @@ def puff(A, spec, hull=None):
     uv = [(0.5, 0.0)] + [((j + 0.5) / nth, i / max(1, nr - 1)) for i in range(nr) for j in range(nth)]
     return dict(verts=V, faces=faces, weights={side + 'UpperArm': np.ones(len(V))}, uv=uv,
                 frame=dict(origin=h, d=d, o=o, f=f), t_band=t_b0, t_end=t_end)
+
+
+def puff_clear(A, side, cb, h, d, o, f, ts, th, X, Y, t_last):
+    """a puff grown where the body under it would come through (spec `clear_body` {gap L: the jacket's offset, its
+    thickness and a clearance; bones: the body's parts it must hold, by dominant bone suffix; inner: degrees round the
+    inner direction left alone, the cap's inner side running into the torso by design; smooth: passes}): per section
+    cell the body's outermost point there plus gap, the section taken out to it (never in), the growth eased over the
+    neighbouring cells. The tool/garments4 joined shoulder (2026-10-01): the puff's knots were fitted round the old
+    capped arm tube; the new deltoid and the jacket over it came out through its inner front. Tables (rows ts down the
+    arm, columns th round it) as puff()'s; the rows past t_last (the tuck into the band) kept. -> (X, Y)."""
+    from scipy import ndimage
+    L = A['head']['L']
+    gap = float(cb.get('gap', 0.03))
+    bones = [side + b for b in cb.get('bones', ('UpperArm', 'Shoulder'))]
+    dom, _ = dominant(A)
+    Q = A['verts'][np.isin(dom, bones)] - h
+    if not len(Q):
+        return X, Y
+    tq, xq, yq = Q @ d / L, Q @ o / L, Q @ f / L
+    thq, rq = np.arctan2(yq, xq), np.hypot(xq, yq)
+    keep = np.abs(np.angle(np.exp(1j * (thq - np.pi)))) > np.radians(float(cb.get('inner', 45)))
+    keep &= (tq >= ts[0] - 0.02) & (tq <= t_last)
+    if not keep.any():
+        return X, Y
+    nth = len(th)
+    ii = np.clip(np.rint(np.interp(tq[keep], ts, np.arange(len(ts)))).astype(int), 0, len(ts) - 1)
+    jj = np.clip(((thq[keep] + np.pi) / (2 * np.pi) * nth).astype(int), 0, nth - 1)
+    need = np.full((len(ts), nth), -np.inf)
+    np.maximum.at(need, (ii, jj), rq[keep] + gap)
+    R = np.hypot(X, Y)
+    grow = np.where(np.isfinite(need), np.maximum(0.0, need - R), 0.0)
+    grow[ts > t_last] = 0.0
+    for _ in range(int(cb.get('smooth', 2))):
+        g2 = ndimage.uniform_filter(grow, size=3, mode=('nearest', 'wrap'))
+        grow = np.maximum(grow, g2)
+    k = np.where(R > 1e-9, (R + grow) / np.maximum(R, 1e-9), 1.0)
+    return X * k, Y * k
 
 
 def puff_knots(A, hull, side, t_step=0.05, cap=0.12, q=90, smooth=1.0):
