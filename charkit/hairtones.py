@@ -89,9 +89,9 @@ def our_tones(B, ppl, az3, views):
 
 
 def ours_classes(o, sh):
-    """our tones in a view (our_tones' dict), cut to the design grid's shape sh -> dict(shade, mark, inside, lit)."""
-    from scipy import ndimage
-
+    """our tones in a view (our_tones' dict), cut to the design grid's shape sh, read as the design's are: the hair's
+    values off its lines split into two tones (two_tones: the shade tone is what the picture shows darker, an under
+    layer's darker lit tone included) -> dict(shade, mark, inside, lit)."""
     def cut(a, fill):
         out = np.full(sh, fill, dtype=np.asarray(a).dtype)
         h, w = min(sh[0], a.shape[0]), min(sh[1], a.shape[1])
@@ -101,9 +101,12 @@ def ours_classes(o, sh):
     tone = cut(np.nan_to_num(o['tone'], nan=-1.0), -1.0)
     val = cut(o['value'], 0.0)
     inside = hair & (tone >= 0)
-    lit_px = inside & (tone < 0.5)
-    lit = float(np.median(val[lit_px])) if lit_px.sum() > 20 else 1.0
-    return dict(shade=inside & (tone >= 0.5), mark=inside & (val > lit + HL_OVER), inside=inside, lit=lit)
+    if inside.sum() < 20:
+        return dict(shade=np.zeros(sh, bool), mark=np.zeros(sh, bool), inside=inside, lit=1.0)
+    v = val[inside]
+    lit, shade_v = two_tones(v[v < np.percentile(v, 99)])
+    return dict(shade=inside & (val < 0.5 * (lit + shade_v)), mark=inside & (val > lit + HL_OVER), inside=inside,
+                lit=lit)
 
 
 def compare(T, O, ppl, measure):

@@ -662,7 +662,9 @@ def pieces_hair(spec, resolved, out, mode='on'):
         else:
             fam, counts = hp.label_hull(np.asarray(Vh.V), np.asarray(Vh.F), lab, pcs, side['piece_names'], views,
                                         masks, info['ppl'])
-        style = styles.load(spec.get('style', 'anime'))['hair_pieces']
+        # (hair.shape.style: this character's overrides of the style profile's hair_pieces section, e.g. its shading
+        # normals' head envelope, tool/hairstrokes (d))
+        style = styles.merge(styles.load(spec.get('style', 'anime'))['hair_pieces'], shape.get('style') or {})
         R = hp.build(C, fam, masks, style, views=views, hull_frame=(C.align['scale'], np.asarray(C.align['translate'])),
                      opts=popts, points=pts)
         R['report']['labelled'] = counts

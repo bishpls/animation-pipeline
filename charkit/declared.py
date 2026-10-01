@@ -1486,7 +1486,7 @@ class Declared(_calib_base()):
             elif kind != 'design':
                 shade, mark = np.zeros_like(shade), np.zeros_like(mark)
             tone = np.where(T['inside'], np.where(shade, 1.0, 0.0), np.nan)
-            value = np.where(mark, T['lit'] + 2 * hairtones.HL_OVER, T['lit'])
+            value = np.where(mark, T['lit'] + 2 * hairtones.HL_OVER, np.where(shade, T['shade_v'], T['lit']))
             dy, dx = arg if kind == 'design' else (0, 0)
             out[v] = dict(tone=_shift(tone, dy, dx, np.nan), value=_shift(value, dy, dx, 0.0),
                           hair=_shift(hair, dy, dx, False))
