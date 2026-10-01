@@ -1208,3 +1208,34 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   jacket strain p95 1.17 / 1.13; puff p95 2.09 / 2.36, folded 1.3% / 4.3%; the armpit wedge of skin under the puff
   when raised (skin showing 236 vs 144 at rest; old body 258 vs 240): for round 8 (the puff's underarm or the jacket's
   armhole under it).
+
+### Round 8 handoff (for a fresh agent): the flat lapels and the puffs' dome from separated references
+State at hand-off: the joined shoulder ON by default (charkit/spec/clawd.json + alias = g7_c7's spec); the garment
+regressions accepted by name (charkit/accepted/*.json, "garments round 8" in their why). The old body's readings are
+the targets (g7_base, pipeline-3d's default before the switch; builds g7_base / g7_c7 under charkit/out).
+- **What to recover** (g7_base -> g7_c7): art_outline_neck 1.47 -> 10.3 (one corner allowed: tools/garments7/
+  neckcorners.py lists them, neckover.py draws artifactqa's overlay); art_outline_collar 1.44 -> 3.47 (worst back: the
+  puffs' inner backs and the jacket over the flap's upper corners); bow_front_bleed 0 -> 0.147; collar torn back /
+  front / profile; sleeve_L profile 0.031 -> 0.114 (the dome grown flat); piece_top front/3q 0.749/0.799 -> 0.507/0.669;
+  piece_sleeve_L profile 0.942 -> 0.769; neck_crease 12.7 -> 24.2 (W, not a flag).
+- **The flat lapels** (code in, opt-in): collar 'lapel' {mode 'project', a, spread, off, point (the outer edge's low
+  end), shoulder, inner (the V's point), bottom_a, smooth {grid, dilate, blur}} with collar_hull flat_front {a, fade}.
+  The smooth height field makes them clean bands (tools/garments7/lapelview.py: the collar alone, front and 3q); sweep
+  s5's F4 (inner (0.03,-0.64), bottom_a 40, v_half 34, point (0.2,-0.66), shoulder (0.34,-0.49)) read art_outline_neck
+  7.1, but collar 3q IoU fell to 0.21-0.36 and bow_front_bleed rose to 0.15-0.18 (the lapels' cream beside the bow's
+  lower edges), neck_crease 100+ in some rows (the mask under the new collar). Their shape under the bow and how wide
+  they run over the shoulder is what the separated references must settle (Michael: the collar never had a reference
+  without the bow; bodice_layers.png exists but only necklineqa reads it).
+- **The puffs' dome**: at z -0.55 the dome is a small ring (x 0.4-0.6, y 0..0.2) while the jacket over the bridge spans
+  y -0.1..0.27 (tools/garments6/xsec.py): the jacket shows over it (piece_top's extra, +0.06 L^2 at z -0.5..-0.7). The
+  grown dome (clear_body from_t -0.375, dilate 7) recovers piece_top to 0.51 but flattens the profile (sleeve profile
+  FAIL). A dome that holds the bridge's top with the drawn profile (the knot table's first stations / the cap) is the
+  template fix; tools/garments6/depthgap.py and contain.py measure it. Also: a wedge of skin at the armpit under the
+  puff's lower edge at a 90 deg raise (posed.py: skin showing 236 vs 144 at rest).
+- **Tools to use**: `charkit sweep` / `sweep optimize` now re-mask the skin per row (5066ae6d): collar/mask/cut changes
+  read faithfully; set `confirm.spec` in optimize declarations (the confirm otherwise builds charkit/spec/clawd.json
+  with the overrides). Body changes (the neck flare) need real builds. tools/garments7/stab.py tabulates a sweep;
+  look.py --decl draws its rows; compose.py composes specs; kcmp.py (charkit/out/garments4/tools) reads two builds
+  under K.
+- **Checks waiting**: tools/garments7/drafts/lapelqa.py (collar_three_quarter_lapel_width / _v, from the lapels round:
+  calibrate on the chosen build before moving it into charkit/).
