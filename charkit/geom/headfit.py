@@ -73,10 +73,49 @@ def eye_views(rgb, eye_x, facing=-1):
     return out
 
 
-def contours(rgb, eye_x, facing=-1, dz=0.005):
+HIDDEN = True                    # the front outline over the head sheet's hair-occlusion row from head_construction, as
+                                 # the QA registers it (charkit.faceregion.construction_front; face round 5): the sheet's
+                                 # rows there are its side locks' inner edges and tips, and the face had curved in along
+                                 # them (Michael, 2026-09-30). False: the sheet's own rows throughout
+
+
+HIDDEN_TQ = False                # the three-quarter's far cheek contour not fitted over its own hair-occlusion row (the
+                                 # lock over the far cheek from z -0.154: faceregion.tq_jaw's top), the cheek term held at
+                                 # its highest fitted row's value there, faded out. Off: in the lab it moved the jaw under
+                                 # it (jaw_line_bend 4.7 -> 42 FAIL, chin_tip 0.83 -> 0.33 FAIL, tq_cheek_hollow 0.0055 ->
+                                 # 0.0086 FAIL; face round 5)
+
+
+def hidden_outline(spec, eye_x=0.168, facing=-1):
+    """head_construction's front outline where the head sheet's hair covers the face's edge, registered on the sheet
+    as the QA grades it (charkit.faceregion.construction_front: the rows scaled so the chins meet, the widths fitted
+    where both show the face) -> dict(z, w (the half-width, L), start (the sheet's hair-occlusion row), sx, sz, fit,
+    tq_start (the three-quarter's, HIDDEN_TQ)) or None."""
+    import importlib
+    fr = importlib.import_module('charkit.faceregion')
+    refcheck = importlib.import_module('charkit.refcheck')
+    fs = spec['ref']['face_sheet']
+    views, ppl = fr.design_jaw_views(refcheck._load(fs['image']), eye_x, facing, which=('front',))
+    cls = views['front']['cls']
+    chin = fr.jaw_front(cls, ppl)['chin']
+    top = (fr.taper_front(cls, ppl) or {}).get('top')
+    H = fr.construction_front(spec, eye_x, facing, chin, top, cls, ppl)
+    if not H or top is None:
+        return None
+    tq = None
+    if HIDDEN_TQ:
+        v3, _ = fr.design_jaw_views(refcheck._load(fs['image']), eye_x, facing, which=('three_quarter',))
+        if 'three_quarter' in v3:
+            tq = (fr.tq_jaw(v3['three_quarter']['cls'], ppl, facing) or {}).get('top')
+    return dict(z=H['z'], w=0.5 * (H['xl'] + H['xr']), start=float(top), sx=H['sx'], sz=H['sz'], fit=H['fit'],
+                tq_start=tq)
+
+
+def contours(rgb, eye_x, facing=-1, dz=0.005, hidden=None):
     """the design's face contours on a common z grid (rows every dz L, from the forehead to the chin) -> dict(z, mid
     (y of the midline), w (the outline's half-width), lead3 (the three-quarter's leading contour, forward of its far eye),
-    az3, chin, nose_z)."""
+    az3, chin, nose_z). hidden: hidden_outline's: w over its start row (where the sheet's hair covers the face's edge) is
+    head_construction's, up to CHEEK_TOP + 0.03 (the rows the head's scaling reads)."""
     from charkit import refcheck
     D = refcheck.face_design(rgb, eye_x, facing)
     P, F, T = D['profile'], D['front'], D['three_quarter']
@@ -104,6 +143,14 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
         idx = np.arange(len(z))
         span = (idx >= idx[good][0]) & (idx <= idx[good][-1])
         w[span] = np.interp(idx[span], idx[good], half[good])
+    w_sheet = w.copy()
+    if hidden is not None:
+        wh = np.interp(z, hidden['z'], np.where(np.isfinite(hidden['w']), hidden['w'], np.nan), left=np.nan,
+                       right=np.nan)
+        up = (z > hidden['start']) & (z <= CHEEK_TOP + 0.03) & np.isfinite(wh)
+        w[up] = wh[up]
+        if hidden.get('tq_start') is not None:           # the three-quarter's far cheek under its lock: not the face's
+            lead3 = np.where(z > hidden['tq_start'], np.nan, lead3)
     below = (z < -0.02) & (z > -0.2)
     nose_z = float(z[below][np.nanargmax(lead_p[below])]) if np.isfinite(lead_p[below]).any() else -0.1
     nz, ny = neck_front(rgb, eye_x, facing)
@@ -121,7 +168,8 @@ def contours(rgb, eye_x, facing=-1, dz=0.005):
             jd['depth'] = jaw_depth(rgb, eye_x, jd, facing)
         except Exception:                     # (no three-quarter jaw line: the rim on the envelope's front, as before)
             jd['depth'] = None
-    return dict(z=z, mid=-lead_p, w=_smooth(w, 2), lead3=lead3, az3=float(D['az_three_quarter']), chin=chin,
+    return dict(z=z, mid=-lead_p, w=_smooth(w, 2), w_sheet=_smooth(w_sheet, 2), hidden=hidden, lead3=lead3,
+                az3=float(D['az_three_quarter']), chin=chin,
                 nose_z=nose_z, eye_x=eye_x, design=D, neck_z=nz, neck_y=ny, eyes=ev, jaw_design=jd)
 
 
@@ -959,7 +1007,8 @@ def build(spec, out, against=None, log=print):
     t0 = time.time()
     os.makedirs(out, exist_ok=True)
     fs = spec['ref']['face_sheet']
-    C = contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
+    ex, fc = spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1)
+    C = contours(refcheck._load(fs['image']), ex, fc, hidden=hidden_outline(spec, ex, fc) if HIDDEN else None)
     F = Face(C)
     V, A = skull_analytic(spec, log=log), None
     S, rep = assemble(F, V, A, face=face_style(spec))

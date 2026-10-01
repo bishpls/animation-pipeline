@@ -470,7 +470,8 @@ def code_head(spec, resolved, out, mode='on'):
         run()
     else:
         r = cache.file_step('code_head', run, [code_head], key, gdir, inputs=imgs,
-                            modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull', 'charkit.mouth'),
+                            modules=('charkit.code_base', 'charkit.geom.headfit', 'charkit.geom.hull', 'charkit.mouth',
+                                     'charkit.faceregion'),
                             name_key=spec['name'], refresh=mode == 'refresh')
         print('CHARKIT_CACHE code_head', r)
     spec['head_code'] = path

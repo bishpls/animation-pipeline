@@ -133,7 +133,9 @@ def head_sections(spec, log=print):
     key = json.dumps([spec['ref'].get('manifest'), fs.get('image'), spec.get('style', 'anime'),
                       spec.get('eyes', {}).get('x', 0.168)])
     if key not in _HEADS:
-        C = headfit.contours(refcheck._load(fs['image']), spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1))
+        ex, fc = spec.get('eyes', {}).get('x', 0.168), fs.get('facing', -1)
+        C = headfit.contours(refcheck._load(fs['image']), ex, fc,
+                             hidden=headfit.hidden_outline(spec, ex, fc) if headfit.HIDDEN else None)
         S, rep = headfit.assemble(headfit.Face(C), headfit.skull_analytic(spec, log=log), face=headfit.face_style(spec))
         # the jaw's underside (the mesh's own: the sections stay the envelope, so the hull's face carve and every
         # reader of the sections are unchanged): the design's jaw line and its rise, as the style builds it

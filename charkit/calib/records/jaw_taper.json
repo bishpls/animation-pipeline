@@ -1,0 +1,154 @@
+{
+ "check": "jaw_taper",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T21:20:53",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0039,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0077,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0043,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0079,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0079,
+  "spread": 0.0079,
+  "median": 0.00195
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 0.0343,
+  "status": "FAIL"
+ },
+ "floor": {
+  "affine_jaw": {
+   "values": [
+    0.0377,
+    0.0276,
+    0.0582,
+    0.0626,
+    0.0628,
+    0.0646,
+    0.0738,
+    0.0528,
+    0.0425
+   ],
+   "statuses": [
+    "FAIL",
+    "WARN",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0582,
+   "status": "FAIL",
+   "passing": 0
+  },
+  "widths_jaw": {
+   "values": [
+    0.0117,
+    0.0173,
+    0.0108,
+    0.0192,
+    0.0125,
+    0.0029,
+    0.0144,
+    0.0112,
+    0.0136
+   ],
+   "statuses": [
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "WARN",
+    "PASS",
+    "WARN",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.0125,
+   "status": "WARN",
+   "passing": 1
+  },
+  "other_view": {
+   "values": [
+    0.0536,
+    0.0658,
+    0.0607,
+    0.0536,
+    0.0689,
+    0.0671,
+    0.0595,
+    0.0671,
+    0.0536
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.0607,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0052,
+  "status": "PASS",
+  "margin": 0.942
+ },
+ "verdict": "calibrated",
+ "why": "the design passes every move (spread 0.0079), jaw0_flagged reads 0.0343 FAIL, the floor affine_jaw FAIL, widths_jaw WARN, other_view FAIL",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "affine_jaw": "each view's picture (and head_construction's region) under a random affine about the eyes' point: widths and heights scaled 8-15% up or down independently, sheared 0.08-0.15",
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 86.3
+}

@@ -1,0 +1,154 @@
+{
+ "check": "chin_tip",
+ "part": "face_region",
+ "adapter": "Jaw",
+ "module": "charkit.calib.jaw",
+ "at": "2026-09-30T21:20:53",
+ "better": "higher",
+ "kind": "defect",
+ "shape": [],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.833,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.833,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.833,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.833,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.833,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.833,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.833,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.833,
+    "PASS"
+   ]
+  },
+  "min": 0.833,
+  "max": 0.833,
+  "spread": 0.0,
+  "median": 0.833
+ },
+ "known_bad": {
+  "name": "jaw0_flagged",
+  "value": 0.089,
+  "status": "FAIL"
+ },
+ "floor": {
+  "widths_jaw": {
+   "values": [
+    0.908,
+    0.788,
+    0.827,
+    0.596,
+    0.564,
+    0.833,
+    0.833,
+    0.582,
+    0.575
+   ],
+   "statuses": [
+    "PASS",
+    "PASS",
+    "PASS",
+    "WARN",
+    "WARN",
+    "PASS",
+    "PASS",
+    "WARN",
+    "WARN"
+   ],
+   "median": 0.788,
+   "status": "PASS",
+   "passing": 5
+  },
+  "warp_jaw": {
+   "values": [
+    0.807,
+    0.017,
+    2.111,
+    0.811,
+    1.152,
+    2.229,
+    0.892,
+    0.821,
+    0.518
+   ],
+   "statuses": [
+    "PASS",
+    "FAIL",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "PASS",
+    "FAIL"
+   ],
+   "median": 0.821,
+   "status": "PASS",
+   "passing": 7
+  },
+  "other_view": {
+   "values": [
+    0.174,
+    0.174,
+    0.174,
+    0.174,
+    0.174,
+    0.174,
+    0.174,
+    0.174,
+    0.174
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.174,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.828,
+  "status": "PASS",
+  "margin": 0.889
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0), jaw0_flagged reads 0.089 FAIL; a random stand-in passes it (widths_jaw, warp_jaw); shape guarded by NONE: name one",
+ "build": "charkit/out/f5m",
+ "generators": {
+  "widths_jaw": "the face's widths re-proportioned: each row from the eye line to the design's chin stretched across about the chin's column by 1 + A g(t) (t 0 at the eye line, 1 at the chin; A 8-15%; g a random smooth curve, three sines sin(pi (i + 1/2) t), zero at the eye line, its largest 1)",
+  "warp_jaw": "each view's picture (and head_construction's region) displaced by a smooth random field: three sines 0.004-0.008 L, wavelengths 0.06-0.2 L, across and down (slope under 0.5)",
+  "other_view": "another view's jaw: the front's picture for the three-quarter's, the three-quarter's (mirrored) for the front's, shifted 0-3 px; the profile kept"
+ },
+ "seconds": 86.3
+}
