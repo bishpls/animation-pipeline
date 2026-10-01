@@ -261,3 +261,9 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   (pipeline-3d: L 0.614/0.831/0.742/0.636, R 0.604/0.305/0.602). In the spec (tools/garments4/cuffs.json); box build
   g4_cuffs running. Next: calibrate cuff_*_area_* (known-bad g4_before), pregate, gate tool/garments4-cuffs (after the
   creases gate's result; merge pipeline-3d first if it moved).
+- Cuffs branch: part2 merged (e39cb1a7, notes conflict resolved by keeping both). The size checks renamed
+  cuff_<side>_<view>_size (01eab65c: calib/details.py's cuff_*_L / cuff_*_R entries matched cuff_*_area_L first).
+  calibrate filters names by the build's qa.json part_checks, so the QA is rerun locally on g4_cuffs under the new names
+  (charkit/out/g4_cuffs_q: symlinks to g4_cuffs + qa/ rerun; log charkit/out/garments4/qa_cuffs_q.log), then
+  `calibrate 'cuff_L_*_size,cuff_R_*_size' --build charkit/out/g4_cuffs_q` (log calib_cuffs.log). Then pregate, gate
+  tool/garments4-cuffs. Review JSON: charkit/out/garments4/review/cuffs.json.
