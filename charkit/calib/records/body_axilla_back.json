@@ -1,0 +1,93 @@
+{
+ "check": "body_axilla_back",
+ "part": "declared",
+ "adapter": "Declared",
+ "module": "charkit.declared",
+ "at": "2026-10-01T18:06:16",
+ "better": "lower",
+ "kind": "defect",
+ "shape": [
+  "body_shoulder_front_iou",
+  "body_shoulder_back_iou"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,+2": [
+    0.0,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "+2,+0": [
+    0.0094,
+    "PASS"
+   ],
+   "+0,-1": [
+    0.0,
+    "PASS"
+   ],
+   "+0,-2": [
+    0.0,
+    "PASS"
+   ],
+   "-1,+0": [
+    0.0047,
+    "PASS"
+   ],
+   "-2,+0": [
+    0.0094,
+    "PASS"
+   ]
+  },
+  "min": 0.0,
+  "max": 0.0094,
+  "spread": 0.0094,
+  "median": 0.00235
+ },
+ "known_bad": {
+  "name": "g5_base",
+  "value": 0.1553,
+  "status": "FAIL"
+ },
+ "floor": {
+  "voronoi_pieces": {
+   "values": [
+    0.1177,
+    0.1177,
+    0.1177,
+    0.1177,
+    0.1177
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": 0.1177,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.0471,
+  "status": "WARN",
+  "margin": 0.612
+ },
+ "verdict": "calibrated",
+ "why": "a defect detector: the design passes every move (spread 0.0094), g5_base reads 0.1553 FAIL; a random stand-in fails it; shape guarded by body_shoulder_front_iou, body_shoulder_back_iou",
+ "build": "charkit/out/g6_c2",
+ "generators": {
+  "voronoi_pieces": "the garments' drawn area cut into random cells (3 per piece a view shows), each a random piece"
+ },
+ "seconds": 596.3
+}
