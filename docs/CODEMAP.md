@@ -203,11 +203,11 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 
 ### charkit/
 
-#### `charkit/__init__.py` (7 lines)
+#### `charkit/__init__.py`
 
 charkit: a parametric anime character kit (docs/CHARKIT.md). Import inside Blender with the repo root on sys.path.
 
-#### `charkit/accessories.py` (523 lines)
+#### `charkit/accessories.py`
 
 Hair accessories and small props (docs/CHARKIT.md §2): meshes placed on the hair and oriented to it. Kinds: 'bun' (stacked rounded pads, the hair's own material), 'star' (a sparkle clip: n major points, optional minor points between them, curved edges, a raised faceted middle), 'crab' (a little crab clip: a flattened body, two raised notched claws, eyes ...
 
@@ -225,7 +225,7 @@ Hair accessories and small props (docs/CHARKIT.md §2): meshes placed on the hai
 - `hair_ground(objects)`: the hair's surfaces for generate's `ground` from Blender objects (world, the base meshes: no outline shell).
 - `build(A, arm, V, specs, mats, ground=None)`: Blender objects for the accessories, parented to the head.
 
-#### `charkit/accqa.py` (743 lines); QA parts: `accessories`
+#### `charkit/accqa.py` (QA parts: `accessories`)
 
 Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) against the design, clip by clip and view by view, and the QA's accessory class (bodyqa.CLASS 'accessory': a clip is neither hair nor iris on either side).
 
@@ -259,7 +259,7 @@ Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) aga
 - `picture(pics, ppl, pieces_of, scale=2)`: a sheet's views as rows of panels (panels()), zoomed to the clips at one scale -> image.
 - `qa_accessories(B, design=None, out=None)`: the hair clips against the design's: each clip found in the head and body turnarounds by the outfit graph's ...
 
-#### `charkit/anime_head.py` (470 lines)
+#### `charkit/anime_head.py`
 
 Reshape MakeHuman's realistic head (CC0, artist topology: eyelid and mouth loops, the mouth cavity, ears, a seamless neck, a proper face UV layout) into the anime head that charkit/head.py defines, so the kit gets professional topology AND knob-driven anime shape.
 
@@ -280,7 +280,7 @@ Reshape MakeHuman's realistic head (CC0, artist topology: eyelid and mouth loops
 - `follow(points, V0, V1, k=8)`: move points (M,3) with the displacement of their k nearest mesh vertices (inverse-distance weighted).
 - `rewrap(q0, region, shell, shell_rad, shell_P, lm_r, profile, warps, Vbody, ...)`: Re-wrap a derived anime base (charkit/base_anime.py) to a spec's head knobs: reshape()'s wrap without MakeHuman's ...
 
-#### `charkit/artifactqa.py` (1592 lines); QA parts: `artifacts`
+#### `charkit/artifactqa.py` (QA parts: `artifacts`)
 
 Artifact QA: the jaggedness a viewer sees as "torn", "stepped" or "dotted", measured per region and view as numbers (numpy, scipy and skimage; venv-side on a build's bundle, from the QA's own numpy drawings: buffers(), qa3d.draw's mesh and tone buffers without its picture). Every measure is in head lengths (L), so a drawing at another scale reads the ...
 
@@ -331,7 +331,7 @@ Artifact QA: the jaggedness a viewer sees as "torn", "stepped" or "dotted", meas
 - `measure(B, design=None, out=None)`: the artifact part (QA part 'artifacts', after the look): ours on the QA's numpy drawings, the design's ...
 - `save_overlays(out, pics, name='qa_artifacts.png')`: the head views in a row over the body views in a row, each the detector overlay (overlay()).
 
-#### `charkit/base_anime.py` (787 lines)
+#### `charkit/base_anime.py`
 
 charkit's anime base mesh (docs/CHARKIT.md §2): our topology, derived once from MakeHuman's CC0 base (hm08) through the default anime wrap and cleaned for anime use, stored with its regions and landmarks as data, so a build stops re-detecting (eye margins by normals, mouth corners by fold curvature, cavities by flood fill) and fighting realistic topology.
 
@@ -341,7 +341,7 @@ charkit's anime base mesh (docs/CHARKIT.md §2): our topology, derived once from
 - `load(path=ASSET)`
 - `wrap(spec, body=None)`: the build-time path for spec['base'] == 'anime': MakeHuman's body for the spec's body knobs (same vertex indices, ...
 
-#### `charkit/boarddiff.py` (60 lines)
+#### `charkit/boarddiff.py`
 
 Two builds' pictures and QA compared exactly: each PNG under boards/ and qa/ and the build's sheets (the max and mean absolute difference per image, 0-255 per channel) and each QA check's value and status (qa/qa.json). Prints every image and every changed check, and exits 1 on any difference: a change to how the boards render (such as qa.render_views) ...
 
@@ -350,7 +350,7 @@ Two builds' pictures and QA compared exactly: each PNG under boards/ and qa/ and
 - `qa_diff(a, b)`: -> [(check, (value, status) in a, in b)] for each check whose value or status differs.
 - `main(argv)`
 
-#### `charkit/body.py` (357 lines)
+#### `charkit/body.py`
 
 The body: MakeHuman's CC0 base mesh -> macro morph -> anime proportions -> the realistic head removed at the neck -> scaled to the spec's height and head count -> a VRM 1.0 humanoid armature (fingers included) with merged skin weights.
 
@@ -363,7 +363,7 @@ The body: MakeHuman's CC0 base mesh -> macro morph -> anime proportions -> the r
 - `build_armature(joints, name='rig')`: a Blender armature from the stylised joints with VRM humanoid names; bones rolled so +Z points forward-ish.
 - `build_body(spec_body=None, name='body', material=None)`: Blender objects: (armature, body mesh) with UVs and weights; returns them and the data dict.
 
-#### `charkit/bodyeval.py` (1550 lines)
+#### `charkit/bodyeval.py`
 
 The body, garments and hair as numpy geometry, fast, for fitting and sensitivity (docs/CHARKIT.md §4, the fast evaluator): every object the Blender build makes for the character, in world space at the rest pose, without Blender, and qa3d's silhouette checks measured on it through a numpy z-buffer (charkit.geom.raster, pixel centres, per-triangle labels).
 
@@ -407,11 +407,11 @@ The body, garments and hair as numpy geometry, fast, for fitting and sensitivity
 - `solidify(V, polys, t, uv=None, rim=True, **settings)`: Blender's Solidify (charkit.geom.solidify: simple, offset -1, as Blender lays it out: the input, then its copy t ...
 - `subdivide(V, polys, uv=None, limit=True, levels=1, creases=None, vcreases=None)`: Blender's Subdivision Surface (charkit.geom.subsurf: OpenSubdiv's Catmark rules as Blender 5.2 evaluates them, ...
 
-#### `charkit/bodyeval_blender.py` (61 lines)
+#### `charkit/bodyeval_blender.py`
 
 Blender entry for `python -m charkit bodyeval SPEC --validate` (charkit/bodyeval.py): build a resolved spec's scene (no boards, no QA) and dump every character object's geometry to an npz, so the numpy evaluator is checked against Blender object by object. blender -b --factory-startup --python charkit/bodyeval_blender.py -- SPEC.json OUT.npz
 
-#### `charkit/bodyfit.py` (985 lines)
+#### `charkit/bodyfit.py`
 
 Per-piece fitting of the body, garments and hair (docs/CHARKIT.md §4). The model sheet's body checks and the generated shape's silhouettes choose the body's proportions and rest pose, each garment piece's cut and the hair's extent, measured by the fast evaluator (charkit.bodyeval): a couple of seconds an evaluation instead of a Blender build.
 
@@ -440,7 +440,7 @@ Per-piece fitting of the body, garments and hair (docs/CHARKIT.md §4). The mode
 - `main(args)`
 - `write_fitted(spec_path, fitted, rep, pieces=SCHEDULE)`: a fit's result into its spec file: the knobs of the fitted pieces, the palette's colours, the pieces the outfit ...
 
-#### `charkit/bodymeasure.py` (811 lines)
+#### `charkit/bodymeasure.py`
 
 Measurement on a geometry bundle (docs/CHARKIT.md §4): the QA's body, garment and hair measures as functions of plain data, so any geometry source can be measured the same way: the fast evaluator (charkit.bodyeval) now, a Blender export later.
 
@@ -480,7 +480,7 @@ Measurement on a geometry bundle (docs/CHARKIT.md §4): the QA's body, garment a
 - `piece_confusion(labels, names, masks, graph, spec, view)`: where each drawn piece's pixels land in ours for one view: {drawn piece: {our piece, 'other' (an object of ours ...
 - `piece_depths(meshes, names, target_V, labels, piece_names, graph, spec, L)`: each outfit piece of ours against the target's points of that piece in 3D (the visual hull's per-vertex pieces, ...
 
-#### `charkit/bodypage.py` (225 lines)
+#### `charkit/bodypage.py`
 
 The authored body's venv side: its fit saved for the build (save_body: the fit needs scipy and the produced references), its measures and its review page (charkit/code_body.py builds it): each part against the hull's points that measure it, the torso's sections, and the parts z-buffered over the drawing through the QA's projection. Apart from code_body ...
 
@@ -493,7 +493,7 @@ The authored body's venv side: its fit saved for the build (save_body: the fit n
 - `page(H, T, sk, out, rep)`: the torso's review page: sections at several heights (the hull's envelope points, the measured points, our ...
 - `main(args)`
 
-#### `charkit/bodyqa.py` (727 lines)
+#### `charkit/bodyqa.py`
 
 Full-body model-sheet QA: the whole character against the design's front, three-quarter, profile and back figures, both measured the same way from a class image (pure numpy; ours is the scene z-buffered with a class per triangle).
 
@@ -520,7 +520,7 @@ Full-body model-sheet QA: the whole character against the design's front, three-
 - `paint(cls)`
 - `picture(views, scale=1)`: per view (a row): the design's classes, ours, the silhouettes (grey both, red ours only, blue the design only) ...
 
-#### `charkit/bodysens.py` (532 lines)
+#### `charkit/bodysens.py`
 
 The body, garment and hair knobs, and what each does to the silhouette (docs/CHARKIT.md §4): an inventory of every knob the body, the garment builders and the hair read (the spec's value or the builder's default, a step and a range), and a sensitivity table measured through the fast evaluator (charkit.bodyeval): each knob moved a step each way from the ...
 
@@ -533,7 +533,7 @@ The body, garment and hair knobs, and what each does to the silhouette (docs/CHA
 - `report(T, spec_name='')`: a readable summary (markdown) of a sensitivity table.
 - `main(args)`
 
-#### `charkit/boxjob.py` (641 lines)
+#### `charkit/boxjob.py`
 
 Box jobs that outlive their ssh, and the boxes' load, measured (standard library only, Python 3.9+: the box runs this file with its system python3).
 
@@ -560,7 +560,7 @@ Box jobs that outlive their ssh, and the boxes' load, measured (standard library
 - `publish_load(d, meta)`: the load log into the bucket under load-<host> (the job's own bucketsync.py), when a job ends.
 - `main(argv)`
 
-#### `charkit/boxload.py` (271 lines)
+#### `charkit/boxload.py`
 
 Each box's load, summarised: the numbers for the build-box capacity call (more slots, a bigger machine, or a second box) that the integrator brings to Michael. The samples are charkit/boxjob.py's, taken once a minute on the box and published to the bucket (load-<VM>) whenever a job ends; slot waits are charkit.procs's (slots/waits.jsonl, one line per ...
 
@@ -574,7 +574,7 @@ Each box's load, summarised: the numbers for the build-box capacity call (more s
 - `text(name, s, hours_rows=None)`
 - `main(args, BOX)`: `remote load`: pull each box's samples from the bucket (or have it publish now: --fresh) and summarise.
 
-#### `charkit/brows.py` (82 lines)
+#### `charkit/brows.py`
 
 Anime brows (docs/CHARKIT.md §2, face features): a tapered ribbon over each eye on the face surface, knob-driven (height, arch, length, thickness, tilt), with expression keys (raise, angry, sad, surprised, worried, relaxed, focus, knit, pained) from the same curve. Drawn over the hair later (the hair phase gives them their own layer); here they sit just ...
 
@@ -583,7 +583,7 @@ Anime brows (docs/CHARKIT.md §2, face features): a tapered ribbon over each eye
 - `ribbon(F, BK, EK, L, side, eye_c, n=32, knobs=None)`: the brow as a ribbon (verts, quads) centred on its curve.
 - `expressions(BK)`: named brow shapes as knob overrides.
 
-#### `charkit/bucketsync.py` (1125 lines)
+#### `charkit/bucketsync.py`
 
 Bulk data between the laptop and the boxes through their bucket, not the IAP tunnel (1-3 MB/s, and ssh drops under load). A content-addressed store in the boxes' existing bucket: every file is a blob named by its sha256 (<bucket>/cas/<aa>/<sha>), a manifest (itself a blob, cas/m/<sha>) lists a tree's paths, blobs, modes and mtimes, and each side moves ...
 
@@ -632,13 +632,13 @@ Bulk data between the laptop and the boxes through their bucket, not the IAP tun
 - `box_publish(path, name=None)`: path's files (a build's outputs, a gate's report) into the bucket: hashed here, the blobs the bucket lacks ...
 - `main(argv)`
 
-#### `charkit/build_blender.py` (124 lines)
+#### `charkit/build_blender.py`
 
 Blender entry for `python -m charkit build` (charkit/cli.py): build a resolved spec's scene, render its boards, export its geometry bundle for the QA, save it. blender -b --factory-startup --python charkit/build_blender.py -- SPEC.json OUT_DIR BOARDS [--blend] [--bundle] [--qa] [--vrm] [--look] [--cache on|off|refresh|verify] --look writes ...
 
 - `main(a, worker=False, t0=None)`
 
-#### `charkit/bundle.py` (1041 lines)
+#### `charkit/bundle.py`
 
 The geometry bundle (schema charkit.bundle/1, docs/CHARKIT.md §4): everything the QA measures of one build, written once by the Blender stage and read in the venv, where every check runs (charkit.qa3d). The fast evaluators (charkit.faceeval) make the same object in memory, so a fit's objective and the build's QA are one measurement.
 
@@ -659,7 +659,7 @@ The geometry bundle (schema charkit.bundle/1, docs/CHARKIT.md §4): everything t
 - `target_pieces(glb, n)`: the outfit piece of each vertex of a generated shape, when its sidecar (GLB.json, charkit.geom.hull's) names a ...
 - `load(path)`: a bundle folder (or its bundle.json) -> Bundle.
 
-#### `charkit/cache.py` (3096 lines)
+#### `charkit/cache.py`
 
 The build cache (docs/CHARKIT.md §3): each scene stage's output is checkpointed under charkit/out/.cache/ and restored, instead of rebuilt, when nothing the stage read has changed; the boards, the QA and the VRM are cached the same way on the whole scene, each QA part (eyes, sheet, figures, body...) on what it reads (`part`), the model sheet's ...
 
@@ -709,7 +709,7 @@ The build cache (docs/CHARKIT.md §3): each scene stage's output is checkpointed
 - `size_line(d=None, es=None)`: 'build cache: 1.23 GB of 5 GB, 40 entries (charkit/out/.cache); 8.4 GB free on the disk'.
 - `main(args)`
 
-#### `charkit/calibrate.py` (701 lines)
+#### `charkit/calibrate.py`
 
 Calibration: a check proven before it is trusted (Michael's rule: a new check passes on the design and fails on a known-bad example; docs/CHARKIT_HANDOFF.md, "When a check and Michael's eye disagree"). Several checks passed while the thing they claim to measure was wrong (tool/calib, 2026-09-30): look5's chin read the design's own shadow moved 1-2 px as ...
 
@@ -737,7 +737,7 @@ Calibration: a check proven before it is trusted (Michael's rule: a new check pa
 - `covers(rec, branch=None)`: does an acceptance record cover this gate (its branch, when it names one)?
 - `main(args)`
 
-#### `charkit/character.py` (405 lines)
+#### `charkit/character.py`
 
 Assemble a character from a spec (docs/CHARKIT.md §3): the MakeHuman body with its own head reshaped into the anime head (charkit/anime_head.py: one seamless skin, artist topology, MakeHuman's UVs), the armature with the head joints following the new head, weights, UVs and the face-bone region masks. from charkit import character; C = ...
 
@@ -752,7 +752,7 @@ Assemble a character from a spec (docs/CHARKIT.md §3): the MakeHuman body with 
 - `outline_weights(A)`: where the skin's outline shell may draw (its thickness per vertex, 0..1): not round the eye and mouth openings ...
 - `build_eyes(A, arm, skin, spec, look=None)`: the eye plates (sclera, iris with gaze keys), lash ribbons, and the lid shape keys on the skin and lashes: per ...
 
-#### `charkit/checkpoint.py` (314 lines)
+#### `charkit/checkpoint.py`
 
 The checkpoint review page (docs/CHARKIT_HANDOFF.md, step 5): one local HTML page, opened in the browser, with the design (the generated references, the manifest's sheets) next to our builds view by view, the QA across the builds, and the open decisions. Nothing to find or arrange by hand: every picture is cut, scaled alike and labelled.
 
@@ -760,7 +760,7 @@ The checkpoint review page (docs/CHARKIT_HANDOFF.md, step 5): one local HTML pag
 - `page(spec, builds, out, decisions=None, links=())`: -> the page's path. builds: [(label, dir)] oldest first.
 - `main(args)`
 
-#### `charkit/checks.py` (305 lines)
+#### `charkit/checks.py`
 
 What each graded QA check means, in one table, so the tune loop, the triage and the review read a check the same way:
 
@@ -778,7 +778,7 @@ What each graded QA check means, in one table, so the tune loop, the triage and 
 - `capability(name)`
 - `sections(name)`
 
-#### `charkit/cli.py` (907 lines)
+#### `charkit/cli.py`
 
 charkit's command line (run with the venv's python, which has PIL; Blender is called for the scene):
 
@@ -798,7 +798,7 @@ charkit's command line (run with the venv's python, which has PIL; Blender is ca
 - `figures(args)`: the model sheet's figures found from the picture (charkit.sheetqa.detect_figures), scaled by the rig: the head ...
 - `main(argv=None)`
 
-#### `charkit/closure.py` (342 lines)
+#### `charkit/closure.py`
 
 A build's input closure: every file under the worktree that a build read (the charkit modules it imported, the spec, the manifest and its references, the generated inputs), recorded while it ran, so the merge gate can tell that a branch can't change the build without building it: none of the files the baseline build read changed, so the candidate's stage ...
 
@@ -815,7 +815,7 @@ A build's input closure: every file under the worktree that a build read (the ch
 - `unreadable(changed, C=None)`: no build can read any of these changes, whatever its code: each is under docs/ or charkit/tests/, or is ...
 - `compact(C)`: a closure as a gate report carries it (what `gate --carry` tests a later target's changes against, on a machine ...
 
-#### `charkit/code_base.py` (809 lines)
+#### `charkit/code_base.py`
 
 charkit's code-authored base (spec['base'] = 'code'): MakeHuman's body below the neck, the head authored in code from the design's references and stitched on at a level cut through the neck, with no MakeHuman head.
 
@@ -837,7 +837,7 @@ charkit's code-authored base (spec['base'] = 'code'): MakeHuman's body below the
 - `wrap(spec, body=None, log=print)`: the build-time path for spec['base'] == 'code' (see the module) -> (B, V, H, centre, info) as base_anime.wrap: B ...
 - `eye_front(S, C)`: the face's front at the eyes' column on the eye line, in the head's frame (L): what the generated target's eyes ...
 
-#### `charkit/code_body.py` (748 lines)
+#### `charkit/code_body.py`
 
 The authored body, fitted to the visual hull (docs/workstreams/body.md): the body as the design's inner envelope, where the drawings show skin or a tight garment, and bounded by the hull's envelope everywhere else, so no part of it stands out of the design (a piece lying on it would be buried). Built in the hull's own frame (L, eye line z = 0, x toward ...
 
@@ -861,7 +861,7 @@ The authored body, fitted to the visual hull (docs/workstreams/body.md): the bod
 - `foot_mesh(F_)`
 - `build_body_data(spec, chin, log=print)`: the authored body as the build's body data (charkit.body.build_body_data's contract, for code_base.wrap): verts ...
 
-#### `charkit/codediff.py` (218 lines)
+#### `charkit/codediff.py`
 
 Code compared between two trees at the level of definitions, with the build cache's code walk (charkit.cache.code_units: functions, classes and each module's top-level statements, followed as Python scopes names). Two uses in the merge gate (charkit/gate.py):
 
@@ -877,7 +877,7 @@ Code compared between two trees at the level of definitions, with the build cach
 - `interacts(move, change, move_trees, change_trees, symmetric=True)`: whether two code changes meet (`gate --carry`'s rule): the move's changed definitions among what the change's ...
 - `git_changes(repo, a, b)`: [(status, path)] between two revisions or trees (closure.changes' shape).
 
-#### `charkit/codemap.py` (250 lines)
+#### `charkit/codemap.py`
 
 The code map (docs/CODEMAP.md), generated from the code: every charkit module's docstring opening and its public functions and classes with their first docstring lines, the QA parts the registry holds (name, order, prefix, module), the command line's commands, the calibration entries and declared checks per module, under a short curated header (where the ...
 
@@ -887,7 +887,7 @@ The code map (docs/CODEMAP.md), generated from the code: every charkit module's 
 - `generate(root=ROOT)`: the map's text for a tree.
 - `main(args)`
 
-#### `charkit/collarqa.py` (375 lines); QA parts: `collar_flags`
+#### `charkit/collarqa.py` (QA parts: `collar_flags`)
 
 Michael's flags on the shoulders, the sailor collar and the bow (2026-09-30; tool/collar, docs/workstreams/collar.md), each measured on the design's grids (bodyqa's: the body sheet's scale, pieceqa's labels and the outfit's drawn piece masks) against the design measured the same way. Every check here carries its flag (charkit.registry.flag_check): the ...
 
@@ -904,7 +904,7 @@ Michael's flags on the shoulders, the sailor collar and the bow (2026-09-30; too
 - `measure(B, design, out=None)`: the checks on a bundle against the design (qa3d.Design) -> (table, checks).
 - `bleed(B, design, dvf, bow_d, ppl)`: the bow's cream against the jacket with no line between: ours drawn with the build's outlines (lookqa's frame at ...
 
-#### `charkit/declared.py` (479 lines); QA parts: `declared`
+#### `charkit/declared.py` (QA parts: `declared`)
 
 Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, its views, a family, the family's parameters, the limits) instead of measuring code, and calibrated by one generic path (`python -m charkit calibrate`), so a new flag needs neither a measure nor a calibration adapter written for it. Most of the checks written on 2026-09-30 ...
 
@@ -930,7 +930,7 @@ Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, i
 - `declared(B, design=None, out=None)`: the declared checks of no other part (DECLARED_CHECKS with part 'declared', and CHARKIT_DECLARED's): each family ...
 - class `Declared`: the generic calibration stand-in for the 'declared' part: charkit.calib.details.Details (calib.labels.Garments: ...
 
-#### `charkit/designlight.py` (681 lines)
+#### `charkit/designlight.py`
 
 The design's light (docs/workstreams/look.md, round 6): the key light the design's drawn shading implies, fitted from the turnarounds' shaded regions against ours drawn by charkit.render under candidate lights.
 
@@ -958,7 +958,7 @@ The design's light (docs/workstreams/look.md, round 6): the key light the design
 - `carry(B, M, base_cast, objects=None)`: per-vertex values on the skin's base mesh (rebake's) onto the export's skin primitives (charkit.render.model's M; ...
 - `review(builds, out, keys=None)`: the review page: per build (name -> BUILD dir) and view, the design (its shade tinted), and ours under each light ...
 
-#### `charkit/detailqa.py` (1127 lines)
+#### `charkit/detailqa.py`
 
 Detail checks for the midriff and the boots (tool/body round 5, docs/workstreams/garments.md).
 
@@ -1000,7 +1000,7 @@ Detail checks for the midriff and the boots (tool/body round 5, docs/workstreams
 - `profile_render(B, members, cuff_members, ppl, az, ss=3, others=())`: our boot drawn in profile as the boards draw it (qa3d.draw_view: each object's surface pulled in, its outline ...
 - `double_design(D, M, cuff, ppl)`: the design's drawn lines (its raw classes' line pixels) on its boot in profile, below the cuff: doubled().
 
-#### `charkit/evaldrift.py` (410 lines)
+#### `charkit/evaldrift.py`
 
 The numpy evaluator against the box (Michael, 2026-09-30: trustworthy local loops). For one spec, a box build and the fast evaluator (charkit.bodyeval, as the body fit reads it: bodyfit.BodyChecks) measure the same commit, and every check both produce is compared. A check whose values differ by more than its tolerance is drift: a fit tuned on the ...
 
@@ -1017,7 +1017,7 @@ The numpy evaluator against the box (Michael, 2026-09-30: trustworthy local loop
 - `stages_markdown(S, drift)`: the --stages section: a row per stage object, then what drifts.
 - `main(args)`
 
-#### `charkit/evalmesh.py` (802 lines)
+#### `charkit/evalmesh.py`
 
 Evaluated meshes (Michael's call J; docs/GEOM_TRUTH.md rollout step 7): the lab that measures charkit's own Subdivision Surface and Solidify against Blender's, piece by piece.
 
@@ -1041,7 +1041,7 @@ Evaluated meshes (Michael's call J; docs/GEOM_TRUTH.md rollout step 7): the lab 
 - `weight_stats(W, slots=4)`: a final mesh's skin weights (n, bones) as the VRM writer takes them (gltf: the top `slots`, renormalised): the ...
 - `motion_markdown(rep)`
 
-#### `charkit/export.py` (982 lines)
+#### `charkit/export.py`
 
 charkit export: a character built in Blender to VRM 1.0 (and a plain glTF fallback), for three.js + three-vrm (docs/CHARKIT.md §2 "export and QA", docs/PIPELINE_3D.md §1: one character, two runtimes).
 
@@ -1063,7 +1063,7 @@ charkit export: a character built in Blender to VRM 1.0 (and a plain glTF fallba
 - `springs_from(spring_table)`: clawd.SPRINGS {bone: (k, c, limit_deg)} (motion.bake's damped rotational springs) -> VRM joint settings.
 - `export_clawd(out_dir)`
 
-#### `charkit/expressions.py` (97 lines)
+#### `charkit/expressions.py`
 
 The expression system: the face as combinable components (Michael, 2026-09-30), each a family of shape keys the build makes on the character (charkit.character.features), named '<component>_<name>':
 
@@ -1074,7 +1074,7 @@ The expression system: the face as combinable components (Michael, 2026-09-30), 
 - `library()`: the template's shapes per component, from the modules that make them: {component: [names]}.
 - `check()`: every preset's shapes are in the library -> [problems] (empty: fine).
 
-#### `charkit/exprqa.py` (692 lines)
+#### `charkit/exprqa.py`
 
 Expression QA: the model sheet's expression heads against the kit's expression library, both measured the same way from a class image (pure numpy; ours is the head z-buffered head-on with the shape keys applied, no render).
 
@@ -1097,7 +1097,7 @@ Expression QA: the model sheet's expression heads against the kit's expression l
 - `library(data)`: the template's expression library as the built character carries it: {part: [names]} from the shape keys.
 - `sheet_run(data, rgb, D, eye_x=EYE_X)`: every expression head on the sheet (sheetqa.detect_figures' D['expressions']) measured, matched part by part to ...
 
-#### `charkit/eyepage.py` (223 lines)
+#### `charkit/eyepage.py`
 
 The eyes' and mouth's review page: a build's eyes against the design's in every view the head sheet draws, each expression of the library side by side with its measures, the blink's closure, the folds per key, and how much of each open mouth the cavity covers.
 
@@ -1106,7 +1106,7 @@ The eyes' and mouth's review page: a build's eyes against the design's in every 
 - `page(build, out, against=None)`
 - `main(args)`
 
-#### `charkit/eyeqa.py` (597 lines)
+#### `charkit/eyeqa.py`
 
 Eye QA: our eyes against the design's, both measured the same way from a picture (pure numpy).
 
@@ -1125,7 +1125,7 @@ Eye QA: our eyes against the design's, both measured the same way from a picture
 - `overlay(rgba, M, scale=4, bg=0.93)`: an eye picture with its per-view measures drawn (measure_view's M), `scale` times up -> RGB floats: the opening's ...
 - `picture(ours_rgba, design_rgba, ours, design, scale=3)`: the two eyes side by side, each above its segmentation (sclera blue, iris amber, pupil black, highlight white, ...
 
-#### `charkit/eyes.py` (825 lines)
+#### `charkit/eyes.py`
 
 Anime eyes (docs/CHARKIT.md §2, face features): the eye opening, its lids and pocket re-shaped from MakeHuman's eye topology onto a knob-driven anime outline; the eye plate behind it (a procedural iris: gaze, pupil, highlights); the lash ribbons; and the lid shape keys (blink and the expression shapes), all from the same outline machinery.
 
@@ -1150,7 +1150,7 @@ Anime eyes (docs/CHARKIT.md §2, face features): the eye opening, its lids and p
 - `expressions(K, L)`: named lid shapes: {name: (upper_to, lower_to)} as eye-local curve functions of t.
 - `iris_scale(verts, uvs, cz, s)`: offsets (N, 3) scaling an iris plate by s about the iris's centre (uv (0.5, 0.5 + cz)): the plate's point there, ...
 
-#### `charkit/eyetex.py` (130 lines)
+#### `charkit/eyetex.py`
 
 Eye textures drawn in numpy (resolution-independent knobs; exported as images so VRM/three.js get the same eyes): the sclera (with the upper lid's shadow), the iris (a HoYo-style layered iris: dark top, lit bottom, limbal ring, striations, pupil, the bottom glow) and the shine (fixed highlights). Texture space = the eye plate's UV: u = x / W + 0.5 (x ...
 
@@ -1160,7 +1160,7 @@ Eye textures drawn in numpy (resolution-independent knobs; exported as images so
 - `to_blender_image(name, rgba, linear=False)`: a packed Blender image from an (n, n, 4) sRGB array (row 0 = top).
 - `save_png(path, rgba)`
 
-#### `charkit/faceeval.py` (365 lines)
+#### `charkit/faceeval.py`
 
 The face measured without Blender, in a second or two: our face, eyes and neck for a spec's knobs, and the same graded checks the build's QA writes (charkit/qa3d.py: eye_*, sheet_*, face_shape_*, face_*, face_folds, expr_*), so charkit/facefit.py can search the knobs. It makes the geometry bundle a build would export (charkit/bundle.py, in memory) and ...
 
@@ -1173,7 +1173,7 @@ The face measured without Blender, in a second or two: our face, eyes and neck f
 - `mean_checks(runs)`: checks measured several times (jittered) -> one set: each numeric value (and the numbers in 'ratios') averaged ...
 - class `Evaluator`: one character's face, measured for any knob set.
 
-#### `charkit/facefit.py` (477 lines)
+#### `charkit/facefit.py`
 
 The face QA closes its loop: its measurements choose the face, eye and neck knobs (docs/CHARKIT.md §4). The generic machinery (knobs, terms, the pool, the optimiser, the sensitivity table, triage) is charkit/fitkit.py; this module says which knobs the face owns, which checks it answers to, and how to measure them fast (charkit/faceeval.py).
 
@@ -1194,7 +1194,7 @@ The face QA closes its loop: its measurements choose the face, eye and neck knob
 - `prepare_cache(resolved, cache, log=print)`: fit_blender's arrays for a resolved spec, into cache.
 - `main(args)`
 
-#### `charkit/faceqa.py` (454 lines)
+#### `charkit/faceqa.py`
 
 Face shape QA: our face against the design's face, measured (pure numpy; the Blender side only hands over arrays).
 
@@ -1214,7 +1214,7 @@ Face shape QA: our face against the design's face, measured (pure numpy; the Ble
 - `checks(R)`: the graded face-shape checks from measure()'s result -> {name: {value, status, ...}}.
 - `contours_image(R, scale=3)`: per view: the visible skin (ours pink, the target's blue, both lilac; hair and clothes grey), our contour red, ...
 
-#### `charkit/faceregion.py` (1346 lines)
+#### `charkit/faceregion.py`
 
 The face's region measures on a built character (a QA module; charkit/qa3d.py's part 'face_region'): what the head checks graded alone against the head sheet can't see, measured on the final, assembled figure.
 
@@ -1248,7 +1248,7 @@ The face's region measures on a built character (a QA module; charkit/qa3d.py's 
 - `measure(B)`: -> (table, checks).
 - `main(args)`
 
-#### `charkit/faceshade.py` (664 lines)
+#### `charkit/faceshade.py`
 
 The face's anime shading (docs/CHARKIT.md §2, materials): an SDF threshold map (the Genshin method: per face pixel, the light angle past which it falls into shadow, so the shadow is a designed shape, not the geometry's), the fringe's shadow on the forehead, a blush, and a per-vertex face mask (rest pose, head space) that blends it with ordinary toon ...
 
@@ -1272,11 +1272,11 @@ The face's anime shading (docs/CHARKIT.md §2, materials): an SDF threshold map 
 - `set_light(ldir_world, head_matrix=None)`: the face materials' light, in head space (head_matrix: the head bone's world 3x3 rotation, or None at rest).
 - `apply(C, bangs=None, colors=None, size=512, look=None, hair=())`: give an assembled, built character (charkit.character.build's dict) the face shading on its head faces, and with ...
 
-#### `charkit/fit_blender.py` (58 lines)
+#### `charkit/fit_blender.py`
 
 The Blender side of `python -m charkit fit` (charkit/facefit.py): what the numpy face evaluator (charkit/faceeval.py) can't make itself, saved once as arrays.
 
-#### `charkit/fitkit.py` (619 lines)
+#### `charkit/fitkit.py`
 
 Fitting spec knobs to QA checks, generically: the machinery charkit/facefit.py uses for the face, eyes and neck, and a body, garment or hair fitter can use for its own (docs/CHARKIT.md §4).
 
@@ -1299,7 +1299,7 @@ Fitting spec knobs to QA checks, generically: the machinery charkit/facefit.py u
 - `guard(pool, start, fitted, knobs, before, names, steps=(0.75, 0.5, 0.25, ...)`: checks the fit doesn't aim at but mustn't break (names(check) -> bool): while any reads a worse status than at ...
 - `triage(res, table, knobs, spec, thresh=0.25)`: each term still outside its tolerance after a fit, sorted into why: 'needs a knob' (no knob moves it by `thresh` ...
 
-#### `charkit/fitters.py` (628 lines)
+#### `charkit/fitters.py`
 
 The tune loop's fitters (docs/CHARKIT.md §4): each fast fitter behind one interface, declaring which checks it targets and which knobs it owns, so the loop can run them in turn and the triage can say who moves what.
 
@@ -1319,7 +1319,7 @@ The tune loop's fitters (docs/CHARKIT.md §4): each fast fitter behind one inter
 - class `OptionsFitter`: build options as a discrete choice: each option in the character's tune config (`options`: {name, set: {spec ...
 - `registry(config=None, budget=None, only=None, workers=None)`: the fitters in the order the loop runs them (budget: each fast fitter's evaluations).
 
-#### `charkit/flags.py` (510 lines)
+#### `charkit/flags.py`
 
 Michael's review flags as data (the perceptual study found free-text flags can't be anchored to a region and view): click a point or drag a box on any board image of a preview page, pick a severity and type a note. Each flag is kept in charkit/out/previews/flags.jsonl, anchored on the board it was drawn on, whichever picture of it was clicked.
 
@@ -1341,7 +1341,7 @@ Michael's review flags as data (the perceptual study found free-text flags can't
 - `serve(port=8765, open_page=False)`
 - `main(args)`
 
-#### `charkit/flapchains.py` (112 lines)
+#### `charkit/flapchains.py`
 
 The flaps' spring chains as data: each flap (a garment panel with source 'flap') built on the character as the build builds it (garments.flap on the evaluator's assembly and the hull's pieces), its chain (the joints along its middle column) carried into the outfit graph's frame (the hull's: L from the eye line, x her left, y toward her back) and written ...
 
@@ -1352,7 +1352,7 @@ The flaps' spring chains as data: each flap (a garment panel with source 'flap')
 - `write(spec_path, C, log=print)`: the chains into the notes (only the flaps' entries re-emitted, the rest of the file as it was), then outfit.relayer.
 - `main(args)`
 
-#### `charkit/garments.py` (3130 lines)
+#### `charkit/garments.py`
 
 Garments (docs/CHARKIT.md §2): an outfit is a list of garment specs built on the assembled body, in two families. - shells: tight garments taken from the body's own surface (a region picked by bone and position along the bone), lifted off it and given thickness; they carry the body's weights exactly, and the body under them is masked away (no ...
 
@@ -1433,7 +1433,7 @@ Garments (docs/CHARKIT.md §2): an outfit is a list of garment specs built on th
 - `no_loose(hide, faces)`: the hidden vertices plus those the mask would leave in no face (every face on them dropped: a face goes when any ...
 - `mask_skin(skin, hide)`: the body under the garments masked away: the hidden vertices in the skin's 'under_garments' group, a Mask ...
 
-#### `charkit/gate.py` (1715 lines)
+#### `charkit/gate.py`
 
 The merge gate: what a branch would do to the integration branch, measured before it lands. Nothing is merged and no branch moves: throwaway worktrees at the integration head take the baseline and, with `git merge --no-commit`, the candidate; the tests run, each side is built when it has to be, and the two builds' QA and traces are compared.
 
@@ -1459,7 +1459,7 @@ The merge gate: what a branch would do to the integration branch, measured befor
 - `rejudge(path)`: an earlier gate report (its json) read under policy K: the check rows it holds, the flags from the two builds' ...
 - `main(args)`
 
-#### `charkit/geomstage.py` (585 lines)
+#### `charkit/geomstage.py`
 
 Geometry truth (docs/GEOM_TRUTH.md): a build stage's geometry is computed once, venv-side, and saved as a product (arrays and a JSON record); Blender only instantiates meshes, materials and modifiers from it; the evaluator (charkit.bodyeval) makes the same product in memory, so the two agree by construction. The garments are the pilot.
 
@@ -1480,7 +1480,7 @@ Geometry truth (docs/GEOM_TRUTH.md): a build stage's geometry is computed once, 
 - `garments_step(spec, path, log=print)`: venv-side, the build's garments stage: the character assembled as the Blender side assembles it ...
 - `garments_instantiate(S, path)`: Blender, the garments stage from its product: the objects replayed onto the scene's character, and the body the ...
 
-#### `charkit/gltf.py` (1145 lines)
+#### `charkit/gltf.py`
 
 charkit/gltf.py: our own glTF 2.0 / VRM 1.0 writer for a built charkit character (numpy + bpy, no add-on), so the look runs in code we control (engine/three/charkit/, docs/CHARKIT.md §2 "export and QA").
 
@@ -1502,7 +1502,7 @@ charkit/gltf.py: our own glTF 2.0 / VRM 1.0 writer for a built charkit character
 - `check(path)`: parse the file back and check it: the VRM checks (charkit.export.validate_vrm) plus our extension and accessors.
 - `skin_weights(js, bin_, errors)`: each skinned primitive's JOINTS_0/WEIGHTS_0 as a player reads them: weights non-negative and summing to 1 ...
 
-#### `charkit/hair.py` (590 lines)
+#### `charkit/hair.py`
 
 Anime hair (docs/CHARKIT.md §2, hair): a hair volume fitted to the character's head (ray-cast from the head's centre, then thickened, hung below the jaw), and a hairstyle of designed locks laid over it: each lock a spline through a few control points (root, the S-bend, the tip) with a width profile that ends in a clean point; the silhouette set by a hem ...
 
@@ -1518,7 +1518,7 @@ Anime hair (docs/CHARKIT.md §2, hair): a hair volume fitted to the character's 
 - `material(name, lit, shade_c, deep, ring=(1.0, 0.86, 0.8), head_z=0.0, ...)`: toon3 plus the angel ring: a band at ring_el above the hair centre, on each clump's centre line, on the lit side.
 - `build(A, arm, style=None, colors=None, volume=None)`: Blender objects for the hairstyle on an assembled character A (charkit.character.assemble), parented to the head bone.
 
-#### `charkit/hairflagqa.py` (672 lines); QA parts: `hair_flags`
+#### `charkit/hairflagqa.py` (QA parts: `hair_flags`)
 
 Michael's flags on the hair (2026-09-30 evening review of preview 1580f95; tool/hair5, docs/workstreams/hair5.md), each measured on the design's grids (bodyqa.design_views: the body sheet's scale) against the design measured the same way. Ours: every hair component (a lock of a mass piece, a bun's part, the ahoge, each flyaway blade) z-buffered with its ...
 
@@ -1549,7 +1549,7 @@ Michael's flags on the hair (2026-09-30 evening review of preview 1580f95; tool/
 - `picture(ours, pieces, D, ppl, lines=None, views=VIEWS)`: per view the hair cropped: ours (each part a shade, detached parts red), the drawn lines inside the mass (blue) ...
 - `lab_measure(B, design, hair, weights=None)`: the hair flags and the hair pieces' checks (every family's IoU per view: the anti-gaming guard's shapes) for hair ...
 
-#### `charkit/hairlab.py` (1072 lines)
+#### `charkit/hairlab.py`
 
 The hair pieces' lab: charkit.geom.hairpieces rebuilt venv-side over a finished build's bundle with style, opts and shape overrides, and measured by the QA's own hair checks (qa3d.hair_pieces_measure) without Blender, in about 20 s a variant. The loop behind each hair piece default (docs/workstreams/hair.md).
 
@@ -1583,7 +1583,7 @@ The hair pieces' lab: charkit.geom.hairpieces rebuilt venv-side over a finished 
 - `batch(ctx, variants, outdir, with_noise=False)`: named variants ({name: {opts, style}} in a JSON file, or {"built": true}) in one context, each measured by the ...
 - `main(args)`
 
-#### `charkit/hairlayers.py` (718 lines)
+#### `charkit/hairlayers.py`
 
 The hair's layers: the generated breakdown (the manifest's `hair_breakdown`: the hair as colour-coded families in front, profile and back, with a legend) turned into per-view family masks on the body sheet's hair, so the hair's pieces have targets the way the outfit's pieces do (charkit.outfit's `outfit_masks`).
 
@@ -1609,7 +1609,7 @@ The hair's layers: the generated breakdown (the manifest's `hair_breakdown`: the
 - `truth_main(args)`: python -m charkit hairlayers truth [SPEC]: the manifest's hair_truth rebuilt from its source (hair_truth.json).
 - `main(args)`
 
-#### `charkit/hairlocks.py` (467 lines)
+#### `charkit/hairlocks.py`
 
 The hair's locks against a hand-checked lock-level truth (tool/hairlocks, docs/workstreams/hairlocks.md).
 
@@ -1630,7 +1630,7 @@ The hair's locks against a hand-checked lock-level truth (tool/hairlocks, docs/w
 - `score_main(args)`
 - `main(args)`
 
-#### `charkit/hairpage.py` (338 lines)
+#### `charkit/hairpage.py`
 
 The hair pieces' review page: a build with its hair in pieces (hair.shape.mode 'pieces', charkit.geom.hairpieces) against the design and against a build before it.
 
@@ -1641,7 +1641,7 @@ The hair pieces' review page: a build with its hair in pieces (hair.shape.mode '
 - `page(build, out, against=None)`
 - `main(args)`
 
-#### `charkit/head.py` (251 lines)
+#### `charkit/head.py`
 
 The anime head shape (docs/CHARKIT.md §2): a knob-driven analytic surface (spline profiles for the face and the back of the skull, an elliptical dome cranium, superellipse sections) that charkit/anime_head.py wraps MakeHuman's head topology onto.
 
@@ -1650,7 +1650,7 @@ The anime head shape (docs/CHARKIT.md §2): a knob-driven analytic surface (spli
 - class `Head`
 - `jaw_z(H, a)`: the head's lower boundary height at azimuth a: the chin at the front, the jaw corner at the sides, the nape behind.
 
-#### `charkit/history.py` (193 lines)
+#### `charkit/history.py`
 
 QA over time: every build appends its checks to charkit/out/history/NAME.jsonl (git commit, spec hash, base, hair mode, the out folder, each check's value and status; the build's Blender time, whether a worker ran it, and what the build cache restored and ran, with why; and a note: the tune run and checkpoint that made it), so a check's trend across ...
 
@@ -1665,7 +1665,7 @@ QA over time: every build appends its checks to charkit/out/history/NAME.jsonl (
 - `trend(rows, check, steps=None)`: the rows since the check's latest measurement step (the latest row's epoch), as (row, value, status).
 - `main(args)`
 
-#### `charkit/lookab.py` (355 lines)
+#### `charkit/lookab.py`
 
 The look's A/B review (docs/workstreams/look.md): two builds of one spec, before and after a look change, compared on their boards and measured. Written for Michael's calls H (the streaks' hash) and I (lines on thin shells).
 
@@ -1677,14 +1677,14 @@ The look's A/B review (docs/workstreams/look.md): two builds of one spec, before
 - `page(out, rep, C)`
 - `compare_legend()`
 
-#### `charkit/lookpage.py` (250 lines)
+#### `charkit/lookpage.py`
 
 The look's review page (docs/workstreams/look.md): a build's head at the design's scale and angles beside the design's own panels (charkit/boards/lookboard.py's views, head_turnaround's heads cut at the same px per L round the same eye line), before and after; the turntables, the body boards, zoomed outlines and highlights; the look's measures ...
 
 - `design_panels(spec_ref, eye_x, ppl_view, win, out)`: head_turnaround's heads cut round their eye line at the look board's framing -> {view: file}.
 - `build(page, before, after, options=(), note='', ...)`
 
-#### `charkit/lookqa.py` (986 lines)
+#### `charkit/lookqa.py`
 
 The look's measures (charkit.shade, faceshade; docs/workstreams/look.md): how clean the skin's shading is, where its shadows fall against the design's, and how even the outlines are. Venv-side on a build's bundle (charkit.qa3d draws it as the boards light it: the style's look, a camera key turned with each view), the design's head and body sheets read as ...
 
@@ -1713,7 +1713,7 @@ The look's measures (charkit.shade, faceshade; docs/workstreams/look.md): how cl
 - `measure(B, design=None, out=None)`: the look's part: face_noise, face_shadow, line_width -> (table, checks).
 - `main(args)`: python -m charkit.lookqa BUILD_OUT [--out DIR] [--note TEXT]: the look's QA alone on a build's bundle (its ...
 
-#### `charkit/manifest.py` (637 lines)
+#### `charkit/manifest.py`
 
 A character's references in one place: charkit/refs/NAME/manifest.json lists every picture, rig and generated asset the build, the fit and the QA read, with what each is for, how it is scaled, where it came from, and which reference is the authority for which measurement (so when two disagree, say the 2D design and the 3D rebuild, the choice is written ...
 
@@ -1735,7 +1735,7 @@ A character's references in one place: charkit/refs/NAME/manifest.json lists eve
 - `check(path)`: -> list of (key, status, detail): present, hash matching for untracked files, the cautions.
 - `main(args)`
 
-#### `charkit/mh.py` (198 lines)
+#### `charkit/mh.py`
 
 MakeHuman's CC0 assets as plain data (no MakeHuman code): the hm08 base mesh with its groups and UVs, macro targets, the default skeleton's joints (vertex lists, so they follow every morph) and its skin weights; merged onto VRM 1.0 humanoid bones. Coordinates come out in Blender's frame: metres, Z up, the body facing -Y, her left at +X.
 
@@ -1748,7 +1748,7 @@ MakeHuman's CC0 assets as plain data (no MakeHuman code): the hm08 base mesh wit
 - `vrm_bone(mh)`
 - `vrm_weights(skel, n_verts)`: per-vertex weights merged onto VRM bones: {vrm bone: (N,) array}, normalised.
 
-#### `charkit/mouth.py` (543 lines)
+#### `charkit/mouth.py`
 
 The anime mouth (docs/CHARKIT.md §2, face features): MakeHuman's mouth loop (the lips' parting, from corner to corner along the upper and the lower lip) re-shaped onto knob-driven curves; the neutral mouth a closed line (a hair's gap onto the dark cavity reads as the drawn mouth line); the visemes and expression mouths as other curves; the lip rings, the ...
 
@@ -1764,7 +1764,7 @@ The anime mouth (docs/CHARKIT.md §2, face features): MakeHuman's mouth loop (th
 - `teeth(F, K, L, mc, shape='neutral', n=28, authored=False)`: the teeth: the upper row a white band just behind the upper lip's edge, following its curve, as tall as the ...
 - `tongue(F, K, L, mc, shape='neutral', nu=16, nv=6, authored=False)`: the tongue: a pad riding the lower lip, its front edge tucked under the lip, rising to an arched top `tongue` of ...
 
-#### `charkit/mouthlab.py` (684 lines)
+#### `charkit/mouthlab.py`
 
 The mouth's and the expressions' lab (docs/workstreams/mouth.md): a character's mouth keys and combined expressions measured without Blender, per key: - folds skin faces round the mouth that flip or turn away under the key (qa3d.face_folds); - cover the share of the open mouth's opening that shows its inside, tongue, teeth or lip line (qa3d.mouth_cover; ...
 
@@ -1789,7 +1789,7 @@ The mouth's and the expressions' lab (docs/workstreams/mouth.md): a character's 
 - `page(M, out, B=None, boards=None, against=None, ...)`: the contact sheet: every combined expression as the build's face board draws it (when `boards` has them) beside ...
 - `main(args)`
 
-#### `charkit/outfit.py` (3380 lines)
+#### `charkit/outfit.py`
 
 Outfit intake (docs/CHARKIT.md §8): a character's references into an outfit component graph, so layered and flowy attire becomes separately built, rigged and measured pieces. Pure numpy/scipy (PIL for pictures); no Blender, no paid API.
 
@@ -1877,7 +1877,7 @@ Outfit intake (docs/CHARKIT.md §8): a character's references into an outfit com
 - `build(spec_path, out=None, notes=None, write_manifest=True, log=print)`: the whole intake for a spec: analysis, structure, graph, templates, comparison, springs; writes the graph, the ...
 - `main(args)`
 
-#### `charkit/paint.py` (1657 lines)
+#### `charkit/paint.py`
 
 Painted textures for charkit characters (docs/CHARKIT.md §2 "paint").
 
@@ -1922,7 +1922,7 @@ Painted textures for charkit characters (docs/CHARKIT.md §2 "paint").
 - `demo_bake(out=OUT, size_head=2048, size_hair=4096)`: (run in Blender on work/clawd_atlas.blend) bake the head and the hair, render before/after, save the scene.
 - `demo_board(out=OUT)`: compose the before/after board (venv, PIL).
 
-#### `charkit/paletteqa.py` (223 lines)
+#### `charkit/paletteqa.py`
 
 Palette QA: the design's colours against ours, class by class (pure numpy).
 
@@ -1935,7 +1935,7 @@ Palette QA: the design's colours against ours, class by class (pure numpy).
 - `compare(O, D)`: dE00 per class and tone -> {name: check} ('<class>_lit', '<class>_shade').
 - `picture(O, D, size=48)`: per class a column: the design's lit tone over ours, then the design's shade over ours; a bar under each pair in ...
 
-#### `charkit/perceptual.py` (1636 lines)
+#### `charkit/perceptual.py`
 
 A learned perceptual similarity to the design, per view and region (docs/workstreams/perceptual.md): DINOv3 patch features of the design's view and of our EEVEE board of the same view, registered on one grid at the design's scale, compared patch by patch and pooled per region (face, eyes, hair, neck, collar, bow, top, skirt, flaps, arms, legs, boots, ...
 
@@ -1975,7 +1975,7 @@ A learned perceptual similarity to the design, per view and region (docs/workstr
 - `remote(build, args, log=print)`: from the laptop: the build's boards, bundle, spec and trace sent to the render box (infra/gcp/render.env), the ...
 - `main(args)`
 
-#### `charkit/piecepage.py` (152 lines)
+#### `charkit/piecepage.py`
 
 The outfit's review page, piece by piece: each piece of a build against the design's drawn piece (the outfit's per-view masks, as the QA's sheet_pieces grades it), with another build beside it when given.
 
@@ -1984,7 +1984,7 @@ The outfit's review page, piece by piece: each piece of a build against the desi
 - `page(build, out, against=None)`
 - `main(args)`
 
-#### `charkit/pieceqa.py` (1033 lines); QA parts: `piece_details`; 2 declared checks
+#### `charkit/pieceqa.py` (QA parts: `piece_details`; 2 declared checks)
 
 Garment piece details (tool/garments2, docs/workstreams/garments2.md): the faults Michael sees in the outfit's pieces that the piece IoUs (qa3d.sheet_pieces) average away, each measured on the design's grids (bodyqa's: the sheet's scale, aligned on the eyes) against the design's own drawn piece masks measured the same way.
 
@@ -2022,7 +2022,7 @@ Garment piece details (tool/garments2, docs/workstreams/garments2.md): the fault
 - `piece_details(B, design=None, out=None)`: the outfit pieces' details against the design: the puff sleeves' spikes, outline and width along the arm and ...
 - `measure(B, design, out=None)`: the piece details' checks on a bundle against the design (qa3d.Design) -> (table, checks).
 
-#### `charkit/pregate.py` (345 lines)
+#### `charkit/pregate.py`
 
 The local pre-gate check (docs/ROADMAP.md "Iteration speed", redesign item 2): the fast evaluator's checks on this worktree as it is (uncommitted edits included) against pipeline-3d's, judged as the gate judges them (charkit.gate's compare_qa and judge: policy K), on the laptop, before a box gate. The evaluator is charkit.bodyeval as the body fit reads ...
 
@@ -2037,7 +2037,7 @@ The local pre-gate check (docs/ROADMAP.md "Iteration speed", redesign item 2): t
 - `markdown(rep)`
 - `main(args)`
 
-#### `charkit/preview.py` (645 lines)
+#### `charkit/preview.py`
 
 The combined preview after a merge (Michael, 2026-09-30: review never depends on someone asking for it): a pipeline-3d commit built on the render box with boards, stored per commit under charkit/out/previews/<sha>/, and a review page: the design, the previous preview and this one at matching figure height; the head in the design's own projection (level, ...
 
@@ -2060,7 +2060,7 @@ The combined preview after a merge (Michael, 2026-09-30: review never depends on
 - `preview(ref='HEAD', spec=SPEC, box='render', force=False, tip=None, log=print)`: build ref (or, with tip, that branch's tip once the lock is ours) and write its page -> the page's path.
 - `main(args)`
 
-#### `charkit/procs.py` (321 lines)
+#### `charkit/procs.py`
 
 Builds that know their own processes: every Blender a charkit command starts is recorded in its output folder (`.pid.json`: pid, command, start time) while it runs, so a build can be listed and stopped by its own record, never by a pattern that would match another worktree's builds.
 
@@ -2081,7 +2081,7 @@ Builds that know their own processes: every Blender a charkit command starts is 
 - `wait(args)`: block until the build recorded in an output folder ends (its pid gone), or --timeout seconds pass; exit 0 when it ...
 - `kill(args)`: stop the build recorded in an output folder (only that pid).
 
-#### `charkit/qa.py` (277 lines)
+#### `charkit/qa.py`
 
 Review boards for charkit (docs/CHARKIT.md §4): orthographic and perspective views of a character or a lineup, rendered with a neutral clay or the character's own materials, composed into one image. from charkit import qa; qa.lineup([objs...], out_png, views=('front','side','three_q'))
 
@@ -2094,7 +2094,7 @@ Review boards for charkit (docs/CHARKIT.md §4): orthographic and perspective vi
 - `features_pass(feature_objs, holdout_objs)`: the scene as features_through's second render sees it: only the features and the holdouts (a holdout material, ...
 - `features_blend(path, tmp, amount=0.55)`: the features pass (tmp, removed after) laid over the picture at path, at `amount` of its alpha.
 
-#### `charkit/qa3d.py` (2468 lines); QA parts: `face_folds`, `eyes`, `sheet`, `sheet_expr`, `sheet_body`, `hair_pieces`, `sheet_pieces`, `pieces_3d`, `sheet_palette`, `sheet_figures`, `face_shape`, `shape`, `hair_noise`, `scalp`, `poke`, `mesh`, `face`, `eye_views`, `face_region`, `details`, `look`, `skirt`
+#### `charkit/qa3d.py` (QA parts: `face_folds`, `eyes`, `sheet`, `sheet_expr`, `sheet_body`, `hair_pieces`, `sheet_pieces`, `pieces_3d`, `sheet_palette`, `sheet_figures`, `face_shape`, `shape`, `hair_noise`, `scalp`, `poke`, `mesh`, `face`, `eye_views`, `face_region`, `details`, `look`, `skirt`)
 
 Measured QA for a built character (docs/CHARKIT.md §4): numbers instead of eyeballing, measured in the venv on the build's geometry bundle (charkit/bundle.py: Blender builds and exports; this measures), written as a report with PASS / WARN / FAIL per check (a check that couldn't run says SKIPPED and why) and overlay images. Every view is a numba z-buffer ...
 
@@ -2174,7 +2174,7 @@ Measured QA for a built character (docs/CHARKIT.md §4): numbers instead of eyeb
 - `main(args)`: python -m charkit qa BUNDLE_DIR [--out QA_DIR] [--cache on|off|refresh|verify] [--trace TRACE.jsonl] [--draw ...
 - `measure(bdir, out, mode='on', ref_image=None)`: the QA pass on a bundle folder as a build runs it: the report, its trace records ('qa' span, parts, the checks) ...
 
-#### `charkit/qa3d_blender.py` (843 lines)
+#### `charkit/qa3d_blender.py`
 
 The Blender-side QA pass, kept for comparison during the move to the venv (`python -m charkit build --qa blender`): the checks of charkit/qa3d.py measured inside Blender, as before the geometry bundle, with EEVEE renders for the silhouettes, the scalp, the hair's shading and the eyes, and the point-splat z-buffer (charkit.faceqa.zbuffer_splat: Blender's ...
 
@@ -2192,7 +2192,7 @@ The Blender-side QA pass, kept for comparison during the move to the venv (`pyth
 - class `Cam`: an orthographic camera round the character: azimuth, framing the whole figure.
 - `run(S, out, ref_image=None)`
 
-#### `charkit/qarender.py` (263 lines)
+#### `charkit/qarender.py`
 
 The QA's drawing by charkit's toon renderer (docs/workstreams/toonrender.md, phase 2): what charkit.qa3d.draw_view / draw_lit / draw_ids draw with their own numpy rasteriser, drawn instead by charkit.render from the build's export (the boards' passes and shader), so the QA measures the look the boards show.
 
@@ -2208,7 +2208,7 @@ The QA's drawing by charkit's toon renderer (docs/workstreams/toonrender.md, pha
 - `screen_line(Q, widths)`: the screen-line width (m, before the regions' factors) that gives each (object, k) its build width x k, or None ...
 - `carry_paint(B, Q, o, s, prims)`: a surface's paint (per triangle of the bundle's mesh: linear RGB, NaN unpainted) onto the export's triangles of ...
 
-#### `charkit/refcheck.py` (504 lines)
+#### `charkit/refcheck.py`
 
 Generated references checked for consistency (docs/CHARKIT.md §4, the manifest's authority map). The references generated for the 3D pipeline (charkit/refs/NAME/gen/: turnarounds, construction drawings) are the base to build on: at several times the model sheet's resolution, drawn for 3D, they resolve what the small 2D sheet can't. What decides whether ...
 
@@ -2227,7 +2227,7 @@ Generated references checked for consistency (docs/CHARKIT.md §4, the manifest'
 - `page(res, S, out, spec_name)`: the review page: the verdict (the pairs and each sheet's own views), then the departures from the model sheet.
 - `main(args)`
 
-#### `charkit/refs.py` (152 lines)
+#### `charkit/refs.py`
 
 Design references into kit data (docs/CHARKIT.md §5): read a 2D rig's layers (a front design split into parts, like projects/tsuzuku/rig/clawd) and measure what the kit fits to, in head space (units of the head length L, z up from the eye line, x = her left): - the hair's outline: its half-width on each side at every height (the hair volume's ...
 
@@ -2235,7 +2235,7 @@ Design references into kit data (docs/CHARKIT.md §5): read a 2D rig's layers (a
 - `sheet_chin(spec, R)`: the chin under the eye line (L, negative) of the design's model sheet (spec.ref.sheet: its front figure's face, ...
 - `fit(spec, R, parts=('face', 'features', 'hair'))`: a spec with knobs fitted to a design's measurements (measure()'s dict), where the spec doesn't set them itself: ...
 
-#### `charkit/refviews.py` (498 lines)
+#### `charkit/refviews.py`
 
 Extra views of the body sheet's figure, checked before they carve (charkit.geom.hull's extra views; the QA side, no build stage imports it). A candidate is a generated picture with more views of the figure: the sheet extended by an edit (its four views redrawn beside the new ones) or a fresh picture drawn at the sheet's scale. Measured per candidate:
 
@@ -2251,7 +2251,7 @@ Extra views of the body sheet's figure, checked before they carve (charkit.geom.
 - `detail_check(S, path, piece, extra_views=None)`: a detail sheet's views at the sheet's angles against the sheet's drawing of the piece -> dict per view (and the ...
 - `main(args)`
 
-#### `charkit/registry.py` (153 lines)
+#### `charkit/registry.py`
 
 Self-registering QA parts and measurement steps (Michael, 2026-09-30: less coupling). There is no central list to edit, so two branches that each add a part or a step never conflict on one. How to register either is in docs/CHARKIT.md ("Registering a QA part or a measurement step").
 
@@ -2264,7 +2264,7 @@ Self-registering QA parts and measurement steps (Michael, 2026-09-30: less coupl
 - `steps(root=HERE)`: every module's MEASUREMENT_STEPS under root (a charkit package directory, this tree's or another's), module by ...
 - `step_sources(root=HERE)`: -> {module: its steps} (the registry's view by module, for tests and docs).
 
-#### `charkit/remote.py` (725 lines)
+#### `charkit/remote.py`
 
 Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infra/gcp/build.env is gitignored): the same charkit commands, run in a copy of this worktree there (rsync through IAP, only what changed), their outputs fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the box has its own.
 
@@ -2286,7 +2286,7 @@ Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infr
 - `put(local, remote)`: a file onto the box: through its bucket (build.sh push: charkit/bucketsync.py); with CHARKIT_SYNC=rsync, through ...
 - `main(args)`
 
-#### `charkit/review.py` (624 lines)
+#### `charkit/review.py`
 
 The review checkpoint: a person looks at the build beside the design, writes down what the numbers missed, and each note becomes a ticket, either a measurement to add or a work item (docs/CHARKIT.md §4). Every check is a proxy; the face checks exist because someone saw a problem the metrics didn't, so review feeds the metrics.
 
@@ -2305,7 +2305,7 @@ The review checkpoint: a person looks at the build beside the design, writes dow
 - `serve(build, port=8765)`: the review page over http on 127.0.0.1: GET serves the repo's files (read only, inside the repo); POST /api/note ...
 - `main(args)`
 
-#### `charkit/reviewpage.py` (450 lines)
+#### `charkit/reviewpage.py`
 
 The standard review page (`charkit review page`): what every round's hand-made page did, from one small JSON. Michael's order (charkit-worker rules, "Review pages for Michael"): the summary box first (Recommended, Asked of Michael, Key numbers), then per view the design beside each build at matching scale, then close-ups by named region at matching scale ...
 
@@ -2327,7 +2327,7 @@ The standard review page (`charkit review page`): what every round's hand-made p
 - `make(spec, out=None, log=print)`: the page from a PAGE.json's dict -> its index.html path.
 - `main(args)`
 
-#### `charkit/scene.py` (609 lines)
+#### `charkit/scene.py`
 
 A character scene from a spec (docs/CHARKIT.md §3), Blender-side: the stages in order, each a function of the spec and what came before, so a build can stop after any stage, swap one out (the hair from a generated shape instead of the analytic volume, say), or render boards from the result.
 
@@ -2353,7 +2353,7 @@ A character scene from a spec (docs/CHARKIT.md §3), Blender-side: the stages in
 - `boards(S, out, which=('views', 'expressions', 'mouths', 'body'))`: render the review boards into out/: head views (front ..
 - `save(path)`
 
-#### `charkit/shade.py` (497 lines)
+#### `charkit/shade.py`
 
 charkit's cel shading (docs/CHARKIT.md §2, materials): three-tone toon on an art-directed light (emission, so the look is the shader's, not the lights'), flat colours, alpha-textured plates (the eyes), and inverted-hull outlines. Blender-side; the VRM export maps these onto MToon.
 
@@ -2381,7 +2381,7 @@ charkit's cel shading (docs/CHARKIT.md §2, materials): three-tone toon on an ar
 - `line_width(ob, m_per_px=None, res_y=None, look=None)`: an outlined object's width (m) in a view: its build width, or ('screen' lines) the look's share of the picture's ...
 - `set_view(az, m_per_px=None, res_y=None, look=None)`: the look for one camera (azimuth az, degrees; m_per_px at the target, res_y the picture's height): the light, and ...
 
-#### `charkit/sheetqa.py` (700 lines)
+#### `charkit/sheetqa.py`
 
 Model-sheet QA: our face against the design's model sheet (front, three-quarter, profile), both measured the same way from pictures (pure numpy; the Blender side renders ours in flat class colours).
 
@@ -2407,7 +2407,7 @@ Model-sheet QA: our face against the design's model sheet (front, three-quarter,
 - `verify_figures(D, figures, tol=5)`: detected head boxes against a manifest's (hand-typed) ones -> {view: {'detected', 'typed', 'off' (max |px|), 'ok'}}.
 - `figures_picture(rgb, D)`: the sheet with what detect_figures found: figure boxes blue, head boxes green, expression heads orange, skipped ...
 
-#### `charkit/skirtqa.py` (983 lines)
+#### `charkit/skirtqa.py`
 
 The skirt and the overskirt flaps against the design (tool/skirt, docs/workstreams/skirt.md).
 
@@ -2450,21 +2450,21 @@ The skirt and the overskirt flaps against the design (tool/skirt, docs/workstrea
 - `tuck_check(verts, L)`: skirt_tuck_jut from the objects' vertices by name (world).
 - `picture(O, names, dv, masks, marks, ppl, z0=-1.3, z1=-3.4)`: per view over the skirt's rows: the drawing dimmed with its flaps tinted (blue her left, green her right), and ...
 
-#### `charkit/sparse.py` (59 lines)
+#### `charkit/sparse.py`
 
 Sparse checkouts: what a worktree actually needs from the repo. The repo tracks about 1.8 GB, mostly other films' rig art and audio (projects/tsuzuku's 2D rigs alone are 1.4 GB), and every full worktree duplicates it; a charkit worktree reads a few hundred MB of it. Standard library only (tools/worktree.sh and the gate both use it).
 
 - `manifest_dirs(spec, root=ROOT)`: the tracked paths a character's reference manifest names (directories as they are, files' folders).
 - `dirs(profile='charkit', spec='charkit/spec/clawd.json', extra=(), root=ROOT)`: the cone for a profile -> sorted directory list, or None for 'full'.
 
-#### `charkit/subdiv.py` (41 lines)
+#### `charkit/subdiv.py`
 
 Catmull-Clark subdivision as Blender's Subdivision Surface modifier evaluates it (limit surface on, creases used, boundaries 'ALL': open edges sharp), for charkit.faceeval, charkit.code_base (the cage's limit fit) and charkit.geom.headfit: a thin front on charkit.geom.subsurf, the evaluator's exact port of the modifier (OpenSubdiv's rules, measured ...
 
 - `catmull_clark(V, faces, sharp=(), limit=True, levels=1)`: Catmull-Clark subdivision (charkit.geom.subsurf.subdivide).
 - `region(V, faces, keep)`: the faces with every vertex in `keep` (bool per vertex), compacted: -> (V', faces', face indices, vertex indices).
 
-#### `charkit/sweep.py` (1216 lines)
+#### `charkit/sweep.py`
 
 charkit sweep: declared variants of a finished build, rebuilt in-process at the stage they change and measured by the QA's own parts, in one table with every piece's shape IoU per view beside the checks (the anti-gaming guard). It replaces the per-round variant harnesses (tool/sweep, docs/workstreams/sweep.md: 22% of the agents' active time on 2026-09-30 ...
 
@@ -2501,7 +2501,7 @@ charkit sweep: declared variants of a finished build, rebuilt in-process at the 
 - `inline_decl(args)`: the inline form's flags as a declaration.
 - `main(args)`
 
-#### `charkit/target3d.py` (310 lines)
+#### `charkit/target3d.py`
 
 The 3D target as kit data: a generated character's GLB (the spec's hair.shape.glb: today the visual hull, charkit.geom.hull, carved from the design's views; until 2026-09-28 a TRELLIS.2 image-to-3D mesh, tools/imageto3d) loaded with its vertices coloured from the base-colour texture (load_glb), its eyes read (glb_eyes: the sidecar a producer writes, else ...
 
@@ -2519,7 +2519,7 @@ The 3D target as kit data: a generated character's GLB (the spec's hair.shape.gl
 - `hair_by_exclusion(V, C, F, chin_z, shoulder_x, below=0.1, skin_sat=0.32, skin_val=0.6)`: the hair of an aligned generated character as everything in the head region that isn't skin (pale, low-saturation ...
 - `hair_by_outside(V, C, F, body_v, body_f, chin_z, shoulder_x, below=0.1, clear=0.006, ...)`: the hair of an aligned generated character by geometry: its surface lying clearly outside our own body (signed ...
 
-#### `charkit/trace.py` (632 lines)
+#### `charkit/trace.py`
 
 A build's state log, the way Dolphin's game-state log serves the Melee work: every stage writes what the scene holds after it, so a bad board traces back to the stage, object and number that made it, and two builds diff to exactly what changed.
 
@@ -2551,7 +2551,7 @@ A build's state log, the way Dolphin's game-state log serves the Melee work: eve
 - `main(args)`
 - `portable(x, out=None)`: a spec value with the paths that name where it was built made portable, for hashing: a path in the build's own ...
 
-#### `charkit/triage.py` (643 lines)
+#### `charkit/triage.py`
 
 Residual triage: every check still WARN or FAIL after the tune loop, classified by why the loop couldn't fix it, with its evidence, and ranked into work items (docs/CHARKIT.md §4).
 
@@ -2569,7 +2569,7 @@ Residual triage: every check still WARN or FAIL after the tune loop, classified 
 - `from_dir(d, spec_path=None, config=None)`: re-triage a tune run's folder (from its tune.jsonl and the fits' tables) or a single build's.
 - `main(args)`
 
-#### `charkit/tune.py` (731 lines)
+#### `charkit/tune.py`
 
 The tune loop: a character from its spec to a fitted, checked build, and whatever error is left turned into ranked work items (docs/CHARKIT.md §4).
 
@@ -2593,7 +2593,7 @@ The tune loop: a character from its spec to a fitted, checked build, and whateve
 - `disagreement(fit, ck, start=None, band=0.5)`: checks where the fitter's fast evaluator measured a severity the full build's QA doesn't reproduce (by more than ...
 - `main(args)`
 
-#### `charkit/worker.py` (241 lines)
+#### `charkit/worker.py`
 
 The build worker: one long-running Blender that keeps charkit loaded and takes build jobs over a local socket, so a build skips Blender's start-up and keeps its warm render state (shaders compiled, add-ons registered).
 
@@ -2607,7 +2607,7 @@ The build worker: one long-running Blender that keeps charkit loaded and takes b
 - `rss_mb(pid)`: a process's resident memory, MB (None when it can't be read).
 - `main(args)`
 
-#### `charkit/worker_blender.py` (198 lines)
+#### `charkit/worker_blender.py`
 
 Blender entry for the build worker (charkit/worker.py): serve build jobs on a Unix socket until asked to stop. blender -b --factory-startup --python charkit/worker_blender.py -- SOCKET INFO.json
 
@@ -2621,11 +2621,11 @@ Blender entry for the build worker (charkit/worker.py): serve build jobs on a Un
 
 ### charkit/geom/
 
-#### `charkit/geom/__init__.py` (29 lines)
+#### `charkit/geom/__init__.py`
 
 charkit.geom: a deterministic geometry kernel for charkit (docs/GEOM.md), so the pipeline doesn't lean on Blender's modifiers for geometry. Runs in the venv (numpy, scipy, scikit-image, numba; manifold3d for exact booleans); the results (npz / ply / glb) go to the Blender stage, which needs only numpy to read them (charkit.geom.io, charkit.geom.blender).
 
-#### `charkit/geom/blender.py` (117 lines)
+#### `charkit/geom/blender.py`
 
 The Blender side of charkit.geom: numpy + bpy only (no scipy / numba), so it runs in Blender's bundled Python.
 
@@ -2634,7 +2634,7 @@ The Blender side of charkit.geom: numpy + bpy only (no scipy / numba), so it run
 - `set_normals(ob, N, name='volume_normals')`: custom normals onto `ob`, exactly one per vertex: N (the mesh's vertices in order) kept as a point attribute and ...
 - `transfer_normals(ob, proxy, name='volume_normals', mapping='NEAREST_NORMAL')`: custom normals onto `ob` from `proxy` (the same surface) by a Data Transfer modifier.
 
-#### `charkit/geom/boolean.py` (92 lines)
+#### `charkit/geom/boolean.py`
 
 Mesh booleans: exact and robust through manifold3d (Apache-2.0) when both inputs are manifold (closed, every edge on two faces, consistently wound), and through the volume path (voxel SDF booleans, marching cubes) otherwise: bodies with internal cavities, self-intersections, holes or double shells, where exact booleans refuse or fail.
 
@@ -2647,13 +2647,13 @@ Mesh booleans: exact and robust through manifold3d (Apache-2.0) when both inputs
 - `difference(a, b, **kw)`
 - `intersection(a, b, **kw)`
 
-#### `charkit/geom/bvh.py` (555 lines)
+#### `charkit/geom/bvh.py`
 
 A bounding-volume hierarchy over a triangle mesh and vectorised queries on large point / ray sets (numba, parallel over queries; deterministic: each query is independent).
 
 - class `BVH`: a BVH over a mesh's triangles (leaf size `leaf`). The mesh's arrays are kept (not copied); don't mutate them.
 
-#### `charkit/geom/det.py` (178 lines)
+#### `charkit/geom/det.py`
 
 Deterministic numerics: the same bits on every machine, for code whose output feeds discrete decisions (a voxel in or out, which view a vertex takes, which edge collapses next).
 
@@ -2667,7 +2667,7 @@ Deterministic numerics: the same bits on every machine, for code whose output fe
 - `normals_angle(V, F)`: unit vertex normals weighted by each face's corner angle (mesh.vertex_normals' default, the pseudo-normal): the ...
 - `nearest(P, Q, k=8)`: the index into P of each Q's nearest point, the same on every machine.
 
-#### `charkit/geom/hairpieces.py` (3259 lines)
+#### `charkit/geom/hairpieces.py`
 
 The hair as authored pieces (Michael, 2026-09-29: cut-piece hair): the families of the hair breakdown (charkit.hairlayers: bangs, side locks, upper and lower back, buns, ahoge, flyaways) built as separate clean meshes, each lock of a family its own closed shell with a root on the scalp, a strand direction per vertex and a centreline chain from root to ...
 
@@ -2731,7 +2731,7 @@ The hair as authored pieces (Michael, 2026-09-29: cut-piece hair): the families 
 - `save_parts(R, out, meta=None)`: the pieces as the Blender stage loads parts (charkit.geom.blender.load_part): out/NAME.npz per piece (V, F, vn: ...
 - `load(path)`: save()'s file -> (pieces {name: dict(family, V, F, vn, strand, lock, chains)}, meta).
 
-#### `charkit/geom/headfit.py` (1399 lines)
+#### `charkit/geom/headfit.py`
 
 The head's shape from the design's own measured contours (the ones the QA grades), for the authored head (charkit.geom.headmesh): the face surface first.
 
@@ -2770,7 +2770,7 @@ The head's shape from the design's own measured contours (the ones the QA grades
 - `fairness_image(S, res, ok, span=0.0012)`: the residual as a heat map on the (angle, height) chart, the front in the middle: blue dents, red lumps, white ...
 - `normal_fairness(S, scale=0.04)`: what shading sees: the angle (degrees) between the surface's normal and its normal field smoothed by a local ...
 
-#### `charkit/geom/headgeom.py` (958 lines)
+#### `charkit/geom/headgeom.py`
 
 The authored head's geometry, apart from how it's fitted to the design (charkit/geom/headfit.py): its sections, the placement of chart points on them, the cage on the head's own chart (charkit.geom.headmesh.cylinder), and a fitted mesh's health. The build's side (charkit/code_base.py, in Blender) reads only this and headmesh: the fitting reads the ...
 
@@ -2787,7 +2787,7 @@ The authored head's geometry, apart from how it's fitted to the design (charkit/
 - `orient_faces(V, F)`: a manifold mesh's faces wound consistently (every shared edge run opposite ways by its two faces), from the face ...
 - `cylinder_cage(S, C, nth=64, dz=0.03, z_top=0.25, z_bottom=-0.6, dome=7, ...)`: the authored cage on the head's own chart (charkit.geom.headmesh.cylinder): rows of the sections from z_top down ...
 
-#### `charkit/geom/headmesh.py` (331 lines)
+#### `charkit/geom/headmesh.py`
 
 A head's topology authored in code: a quad cage with concentric loops round each eye and round the mouth, and a neck of rings under the jaw, so the head is all quads with the edge flow a face rig needs (lid loops, a mouth loop) and nothing inherited from a scanned or realistic base. charkit.geom.headfit gives it the design's shape.
 
@@ -2799,7 +2799,7 @@ A head's topology authored in code: a quad cage with concentric loops round each
 - `cylinder(nth, zs, dome, place, dome_place, features=(), cap=True)`: the head's cage on a cylinder chart: columns at nth angles round the head (theta_j = 2 pi j / nth - pi, 0 = the ...
 - `compact(C)`: a cage without the vertices no face uses (a feature block's inner lattice points), its loops remapped.
 
-#### `charkit/geom/hull.py` (1905 lines)
+#### `charkit/geom/hull.py`
 
 Visual hulls from calibrated orthographic reference views (docs/GEOM.md): a character's 3D shape carved from its turnaround's silhouettes, the way a modeller blocks a figure out from front, side and back drawings.
 
@@ -2850,14 +2850,14 @@ Visual hulls from calibrated orthographic reference views (docs/GEOM.md): a char
 - `main(args)`: python -m charkit.geom hull SPEC [--head] [--out DIR] [--h 0.01] [--style anime] [--faces N] [--fast] [--no-open] ...
 - `label_colours(labels, P=None)`: label images (or per-vertex labels) as colours: pieces on a golden-angle hue wheel, free pixels in bodyqa's class ...
 
-#### `charkit/geom/hullshell.py` (87 lines)
+#### `charkit/geom/hullshell.py`
 
 The hull's labelled shell as points (charkit.geom.hull's hull.npz): one point per labelled surface voxel, and the stray patches a view's labels leave round a piece. Moved out of charkit.garments (which re-exports them) so that charkit.code_body can read the shell without the garments' module in its code closure (the hair stage reads the body code: every ...
 
 - `shell_points(Z, stray=STRAY)`: the hull's labelled shell as points on its surface (hull.npz, charkit.geom.hull.build's: the occupancy V on the ...
 - `shell_patches(S, lab)`: each shell voxel's patch: the voxels of its label it connects to (26-neighbours) -> (the patch's size, the size ...
 
-#### `charkit/geom/io.py` (510 lines)
+#### `charkit/geom/io.py`
 
 Mesh IO in plain numpy (PIL only to decode glTF textures), so the same readers run in the venv and in Blender's Python:
 
@@ -2875,7 +2875,7 @@ Mesh IO in plain numpy (PIL only to decode glTF textures), so the same readers r
 - `save_npz(m, path, meta=None, **extra)`: V, F and the set attributes (vc, vn, uv), plus `meta` (a JSON-able dict, stored as a string) and any extra arrays.
 - `load_npz(path, with_meta=False)`
 
-#### `charkit/geom/loft.py` (177 lines)
+#### `charkit/geom/loft.py`
 
 Pieces lofted through the visual hull's labelled points: a garment piece (a band, a skirt, a sleeve) as a radius field r(t, theta) round its own axis, measured from the hull's points of that piece (charkit.geom.hull's per-vertex pieces, bundle.target_pieces), smoothed and filled where no view shows it, then lofted into a clean quad grid. The piece's ...
 
@@ -2885,7 +2885,7 @@ Pieces lofted through the visual hull's labelled points: a garment piece (a band
 - `field(t, th, r, ts, nth=96, q=0.5, smooth=(1.0, 1.5), min_row=0.15, ...)`: the radius field of a piece's points: per cell (the row nearest each point's t, a theta sector) the q-quantile of ...
 - `loft(ax, F, R=None, ts=None)`: a quad grid through a field: rows ts (default the field's), one column per sector, closed round the axis.
 
-#### `charkit/geom/mesh.py` (291 lines)
+#### `charkit/geom/mesh.py`
 
 The triangle mesh the kernel passes around, and its topology (numpy only).
 
@@ -2913,7 +2913,7 @@ The triangle mesh the kernel passes around, and its topology (numpy only).
 - `y_up_to_z_up(m)`: glTF's frame (y up, -z forward...
 - `z_up_to_y_up(m)`
 
-#### `charkit/geom/parts.py` (794 lines)
+#### `charkit/geom/parts.py`
 
 Part extraction from a generated character (the real case): a generated GLB (TRELLIS.2's when this was written; the 3D target is the visual hull now) aligned onto our assembled body the way the Blender build aligns it (charkit.scene.eye_target + charkit.target3d.align_by_eyes), and a part of it (the hair, the skirt) cut out as one clean closed surface:
 
@@ -2943,7 +2943,7 @@ Part extraction from a generated character (the real case): a generated GLB (TRE
 - `render_sheet(case, R, out_path, res=360, with_body=True, azimuths=(0, 45, 90, ...)`: the part per azimuth: toon-shaded with its envelope normals (row 1), with its own geometric normals (row 2), then ...
 - `save_part(R, path, meta=None)`: write a part for the Blender stage: .npz (V, F, vn = envelope normals, vn_geom, meta json) and a .ply next to it ...
 
-#### `charkit/geom/primitives.py` (94 lines)
+#### `charkit/geom/primitives.py`
 
 Small synthetic meshes for tests and cutters: closed and outward-oriented unless said otherwise.
 
@@ -2953,7 +2953,7 @@ Small synthetic meshes for tests and cutters: closed and outward-oriented unless
 - `cylinder(r=0.5, h=1.0, n=32, rows=8, capped=True, centre=(0, 0, 0))`: along z; capped=False leaves two open boundary loops.
 - `grid(n=10, size=1.0, z=0.0)`: an open square sheet in the xy plane, facing +z.
 
-#### `charkit/geom/raster.py` (337 lines)
+#### `charkit/geom/raster.py`
 
 A small z-buffer rasteriser in numpy/numba for measuring and looking at meshes without Blender: orthographic views round the character by azimuth (qa3d's convention: az 0 looks at the front from -y, x to the right, z up), silhouettes, IoU, and shaded renders (flat / lambert / toon from per-vertex normals, optional vertex colours) saved as PNG.
 
@@ -2970,14 +2970,14 @@ A small z-buffer rasteriser in numpy/numba for measuring and looking at meshes w
 - `save_png(img, path)`
 - `sheet(images, cols=None, pad=4, bg=1.0)`: tile equally sized images (H, W, 3) into one.
 
-#### `charkit/geom/remesh.py` (582 lines)
+#### `charkit/geom/remesh.py`
 
 Remeshing and decimation on a small dynamic triangle mesh in numba (sequential, deterministic):
 
 - `isotropic(m, target, iters=5, project=True, relax=0.8, cos_min=0.3, verbose=False)`: isotropic remeshing to edge length `target` (Botsch and Kobbelt 2004).
 - `decimate(m, target_faces, cos_min=0.2, max_edge=None, max_cost=None, info=None)`: quadric-error edge collapse down to `target_faces` (or as far as the checks allow).
 
-#### `charkit/geom/repair.py` (390 lines)
+#### `charkit/geom/repair.py`
 
 Mesh repair and a health report.
 
@@ -2992,7 +2992,7 @@ Mesh repair and a health report.
 - `fix_self_intersections(m, iters=16, rings=1, lam=0.5, steps=3)`: relax the surface where it crosses itself: the vertices of self-intersecting faces (and `rings` rings round them, ...
 - `cut_intersections(m, iters=8, grow=1, smooth_steps=4)`: remove self-crossings that smoothing can't untangle (folds in features thinner than an edge): the crossing faces ...
 
-#### `charkit/geom/smooth.py` (171 lines)
+#### `charkit/geom/smooth.py`
 
 Smoothing and normal fields (numpy + scipy.sparse, vectorised).
 
@@ -3002,14 +3002,14 @@ Smoothing and normal fields (numpy + scipy.sparse, vectorised).
 - `smooth_normals(m, vn=None, iters=10, lam=0.5)`: diffuse a per-vertex normal field over the surface (umbrella averaging, renormalised).
 - `envelope_normals(m, h=None, close=None, blur=None, grid=None, occ=None, fallback_mix=0.0)`: per-vertex normals from a smoothed envelope: the mesh's solid (winding number; or `occ`, an occupancy Grid), ...
 
-#### `charkit/geom/solidify.py` (123 lines)
+#### `charkit/geom/solidify.py`
 
 Blender's Solidify modifier (simple mode), in numpy (Michael's call J: Solidify leaves Blender). The settings charkit builds with: offset -1 (the shell goes in against the normals), even thickness off, quality normals off, normals not flipped, the rim on or off, the edge creases the rims take (garments._thick: the flat, square rims of call L).
 
 - `vertex_normals(V, lv, st, cnt)`: Blender's vertex normals: each polygon's unit normal (Newell's, which for a quad is the cross of its diagonals, ...
 - `solidify(V, polys, thickness, offset=-1.0, use_rim=True, uv=None, ...)`: Blender's Solidify (simple; its settings by the modifier's names too: edge_crease_outer ...) -> dict(V, loopv, ...
 
-#### `charkit/geom/subsurf.py` (396 lines)
+#### `charkit/geom/subsurf.py`
 
 Blender's Subdivision Surface, in numpy (Michael's call J: subdivision leaves Blender). Catmull-Clark as OpenSubdiv (Sdc, the Catmark scheme; Apache-2.0, its rules read, not its code) refines and evaluates it with the modifier's settings as charkit builds them: limit surface on, creases on (sharp and semi-sharp edges, vertex creases), boundaries smooth ...
 
@@ -3022,7 +3022,7 @@ Blender's Subdivision Surface, in numpy (Michael's call J: subdivision leaves Bl
 - `uv_values(T, luv, limit_=UV_LIMIT, use_winding=True)`: face-varying UV topology as Blender's converter builds it: per vertex, its corners grouped by UV (within ...
 - `subdivide(V, polys, levels=1, creases=None, vcreases=None, uv=None, ...)`: Blender's Subdivision Surface on a mesh.
 
-#### `charkit/geom/volume.py` (576 lines)
+#### `charkit/geom/volume.py`
 
 Volumes: meshes to voxel grids and back, and boolean / morphological operations on them, with world-space voxel size.
 
@@ -3056,7 +3056,7 @@ Volumes: meshes to voxel grids and back, and boolean / morphological operations 
 - `restrict(G, keep)`: zero out (make outside) voxels where keep(points (N,3)) -> bool (N,) is False; `keep` may also be a bool array of ...
 - `component_count(G, connectivity=1)`
 
-#### `charkit/geom/wind.py` (105 lines)
+#### `charkit/geom/wind.py`
 
 The garments' winding, decided once in the venv (GEOM_TRUTH rollout step 7a). garments._object used to leave it to Blender (bmesh.ops.recalc_face_normals) and the evaluator re-derived it with a port (bodyeval.recalc_normals); the two disagreed on the hull puff sleeves (0 of 1,856 polygons), putting the Solidify shell on opposite sides. Now the recording ...
 
@@ -3067,11 +3067,11 @@ The garments' winding, decided once in the venv (GEOM_TRUTH rollout step 7a). ga
 
 ### charkit/render/
 
-#### `charkit/render/__init__.py` (22 lines)
+#### `charkit/render/__init__.py`
 
 charkit's own toon renderer (docs/workstreams/toonrender.md): the look's cel shading drawn from a build's export on the GPU through wgpu, headless, with no Blender in the loop. It draws the boards as EEVEE does (the same cameras, light, screen-width lines, face shadow, streaks, features through the hair, film filter), about a hundred times faster.
 
-#### `charkit/render/buffers.py` (434 lines)
+#### `charkit/render/buffers.py`
 
 What the QA reads of a frame, drawn by the toon renderer (docs/workstreams/toonrender.md, phase 2): the picture as the boards draw it (EEVEE's film filter, over a transparent or the world's background) and, on the measuring grid, per pixel: the part (the export's primitive, so its object), whether it is an outline hull, the tone class, the depth along ...
 
@@ -3082,14 +3082,14 @@ What the QA reads of a frame, drawn by the toon renderer (docs/workstreams/toonr
 - `picture_from(img)`: a resolved frame (H, W, 4: linear premultiplied colour, coverage) -> charkit.qa3d.draw's picture: sRGB and ...
 - `load(path, adapter=None, ss=4)`: an export -> Frames (one per process and export: cached).
 
-#### `charkit/render/buildboards.py` (60 lines)
+#### `charkit/render/buildboards.py`
 
 A build's boards drawn by charkit's toon renderer (docs/workstreams/toonrender.md, phase 2): what `python -m charkit build --boards` renders where there is no GPU for EEVEE (the CPU build box: CHARKIT_NO_RENDER=1), or with --boards-renderer toon anywhere. The sets the renderer draws (views, body, design) from the build's export (NAME.look.glb, else ...
 
 - `export_of(out)`: a build's export for the renderer: NAME.look.glb, else NAME.vrm (not the springs file) -> path or None.
 - `draw(out, which=('views', 'body'), adapter=None, ss=4)`: the boards of `which` the renderer draws, into out/boards -> the report (also out/boards/toon.json): the adapter, ...
 
-#### `charkit/render/calibrate.py` (199 lines)
+#### `charkit/render/calibrate.py`
 
 The QA's drawn checks under its two drawings (charkit.qa3d's numpy rasteriser, charkit.render: charkit.qarender), check by check, with each check's own noise (Michael's decisions 2 and 3: a new measure ships calibrated; a check that moves more than its noise is explained, not re-baselined). For each build: every drawn check under each drawing at the ...
 
@@ -3099,7 +3099,7 @@ The QA's drawn checks under its two drawings (charkit.qa3d's numpy rasteriser, c
 - `markdown(rep)`
 - `main(args)`
 
-#### `charkit/render/compare.py` (186 lines)
+#### `charkit/render/compare.py`
 
 Our boards against EEVEE's, pixel by pixel: the numbers that say whether the toon renderer draws what Blender draws.
 
@@ -3116,13 +3116,13 @@ Our boards against EEVEE's, pixel by pixel: the numbers that say whether the too
 - `streak_mask(ref, ours, base, M, grow=2)`: the hair streaks of either picture: where ours differs from ours drawn without them (base), or where EEVEE's is ...
 - `heatmap(ref, ours)`: the per-pixel difference (largest channel, levels) coloured: black 0, blue 4-8, yellow 24, red 64, white 160+.
 
-#### `charkit/render/eevee_frames.py` (90 lines)
+#### `charkit/render/eevee_frames.py`
 
 EEVEE's pictures of the QA's measuring frames (Blender side; charkit/render/qaref.py writes the list and reads them): the reference the QA's two drawings (charkit.qa3d's numpy one, charkit.render's) are measured against, each frame as the QA frames it: its orthographic window, its light, each object's outline at its build width or off.
 
 - `main(path)`
 
-#### `charkit/render/gpu.py` (521 lines)
+#### `charkit/render/gpu.py`
 
 charkit's toon renderer on wgpu (wgpu-py, BSD-2-Clause, on wgpu-native, MIT OR Apache-2.0): Metal on the Mac, Vulkan on the render box's GPU, and on a machine without one Mesa's CPU drivers (llvmpipe through GL, or lavapipe through Vulkan). No window: every frame renders into textures and is read back.
 
@@ -3136,7 +3136,7 @@ charkit's toon renderer on wgpu (wgpu-py, BSD-2-Clause, on wgpu-native, MIT OR A
 - `set_streams(rp, it)`: an item's vertex streams bound (vertex_layout).
 - class `Renderer`: one character on one device: its buffers, materials and pipelines; render(view) per board.
 
-#### `charkit/render/model.py` (233 lines)
+#### `charkit/render/model.py`
 
 A built character as the toon renderer draws it: our export (charkit/gltf.py: glTF 2.0 / VRM 1.0 with the OPENADS_charkit_look extension) read back with numpy and Pillow, no Blender. The same data look.js reads.
 
@@ -3148,7 +3148,7 @@ A built character as the toon renderer draws it: our export (charkit/gltf.py: gl
 - class `Model`
 - `load(path, targets=False)`: our export -> Model. targets: also read the morph targets (the shape keys; not needed for the build pose).
 
-#### `charkit/render/normals.py` (104 lines)
+#### `charkit/render/normals.py`
 
 The shading normals Blender renders an outlined object with, per line width.
 
@@ -3156,13 +3156,13 @@ The shading normals Blender renders an outlined object with, per line width.
 - class `Group`
 - `quads(tri, weld)`: the export's triangles paired back into Blender's quads: consecutive triangles sharing an edge (two welded ...
 
-#### `charkit/render/page.py` (88 lines)
+#### `charkit/render/page.py`
 
 The review page for a comparison (charkit.render compare): per board EEVEE | ours | the difference heatmap at the same scale, each labelled with its numbers, the files linked; the summary tables above. One local HTML file.
 
 - `write(out)`
 
-#### `charkit/render/parity.py` (160 lines)
+#### `charkit/render/parity.py`
 
 The standing laptop-against-build-box test for charkit's toon renderer (Michael's decision 5, trustworthy local loops): one build's export drawn on this machine (Metal on the laptop) and on the CPU build box (Mesa's llvmpipe), and every number the renderer feeds compared: the boards pixel by pixel, the QA's buffers (part and tone per pixel) and the drawn ...
 
@@ -3172,7 +3172,7 @@ The standing laptop-against-build-box test for charkit's toon renderer (Michael'
 - `markdown(rep)`
 - `main(args)`
 
-#### `charkit/render/qaref.py` (388 lines)
+#### `charkit/render/qaref.py`
 
 The QA's two drawings against EEVEE on the QA's own frames (docs/workstreams/toonrender.md, phase 2): the evidence for which drawing measures the look the boards show. For one build (its bundle, export and .blend), every frame a drawn QA check reads is drawn three ways: charkit.qa3d's numpy rasteriser, charkit.render (the render drawing), and EEVEE in ...
 
@@ -3185,7 +3185,7 @@ The QA's two drawings against EEVEE on the QA's own frames (docs/workstreams/too
 - `summary(rep)`: per measure, the drawings' mean over frames: tone agreement with EEVEE, and each check's value on each map.
 - `main(args)`
 
-#### `charkit/render/softfit.py` (1008 lines)
+#### `charkit/render/softfit.py`
 
 Template fits by gradients through the soft silhouettes (charkit.render.softras; docs/workstreams/softras.md): the pilot harness, behind no default. The chain is template knobs -> vertices (the template's builder, its Jacobian by finite differences with a limiter, since no builder here has an analytic one) -> per-view soft silhouettes (softras, analytic ...
 
@@ -3208,7 +3208,7 @@ Template fits by gradients through the soft silhouettes (charkit.render.softras;
 - `page(out=OUT, open_it=True, template='flap')`: the review page (OUT/index.html): the fits' table, J against wall time, the objective along each knob ...
 - `occ_page(out=OUT, summary='', open_it=True, templates=(('sleeve', 'g'), ...)`: the soft-occlusion review (OUT/occ.html): the summary box, then per template the measurement (occ_*_g.json: where ...
 
-#### `charkit/render/softras.py` (720 lines)
+#### `charkit/render/softras.py`
 
 Soft silhouettes with analytic gradients with respect to vertex positions (docs/workstreams/softras.md; the roadmap's "differentiable silhouettes", hand-rolled: nvdiffrast is non-commercial). numpy + numba, no GPU, no new dependency.
 
@@ -3223,7 +3223,7 @@ Soft silhouettes with analytic gradients with respect to vertex positions (docs/
 - `soft_iou(cov, mask, weight=None)`: soft IoU of a whole-view coverage (H, W) in [0, 1] against a bool mask: sum(cov m) / sum(cov + m - cov m) (the ...
 - `aggregate(V, F, view, s=0.5)`: SoftRas's per-triangle probabilistic union at softness s (forward only): the comparison the module's note gives.
 
-#### `charkit/render/views.py` (146 lines)
+#### `charkit/render/views.py`
 
 The board cameras and each view's look, in the glTF frame, as Blender renders the boards (no Blender needed).
 
@@ -3237,11 +3237,11 @@ The board cameras and each view's look, in the glTF frame, as Blender renders th
 
 ### charkit/sim/
 
-#### `charkit/sim/__init__.py` (14 lines)
+#### `charkit/sim/__init__.py`
 
 charkit.sim: our own cloth and spring solvers (docs/ROADMAP.md, "To hand-roll" item 1; docs/workstreams/xpbd.md).
 
-#### `charkit/sim/bake.py` (198 lines)
+#### `charkit/sim/bake.py`
 
 Cloth caches for rendered shots: the loose garments moved as the style profile says (charkit.sim.motionqa's settings: the anime default holds toward the drawn shape carried by the pelvis), baked per clip from a build, measured as they are baked, and written where a render reads them.
 
@@ -3253,14 +3253,14 @@ Cloth caches for rendered shots: the loose garments moved as the style profile s
 - `blender_check(build, cache, frames=(0, 70, 95), blender=None, blend=None, log=print)`: Blender's Mesh Cache modifier replaying the PC2 caches first in each piece's stack (its Armature off) against our ...
 - `main(a)`
 
-#### `charkit/sim/cage.py` (133 lines)
+#### `charkit/sim/cage.py`
 
 A simulation cage for a grid-built garment (the way production cloth runs: simulate a clean mesh, carry the render mesh on it). The templates' grids are built for the render and the QA, not for a solver: the flaps' stair puts rows and columns on every riser and band edge (edges from 0.002 L to 0.12 L on Clawd's flap), and the skirt's pleats are many ...
 
 - class `Cage`: the cage of a grid (NR, NC) of vertices V with face blocks Fm (NR-1, NC-1; periodic: (NR-1, NC), the last block ...
 - `of_piece(o, spacing, keep_rows=(0, 1))`: the cage of a recorded grid-built garment (charkit.sim.drape.grid_of's layout; a ring when a face joins its last ...
 
-#### `charkit/sim/drape.py` (329 lines)
+#### `charkit/sim/drape.py`
 
 The pilots: garments draped by charkit.sim.xpbd from a build's own products, measured by the build's own QA.
 
@@ -3276,14 +3276,14 @@ The pilots: garments draped by charkit.sim.xpbd from a build's own products, mea
 - `moved_checks(rep, names=None, pat=None)`: the checks whose status or value differ between any two variants (or the named / matching ones).
 - `rest_markdown(rep)`
 
-#### `charkit/sim/hook.py` (62 lines)
+#### `charkit/sim/hook.py`
 
 The opt-in hook (charkit.geomstage.garments_product): a garment whose spec asks for it is settled by the cloth solver at rest before the build finalizes it. Off unless asked: no spec sets it, so no build changes.
 
 - `wants(specs)`: the garments that ask for the solver.
 - `apply(P, A, specs, spec_all=None, log=None)`: the product (before finalize) with each asking garment's coarse vertices settled against the body (the assembly ...
 
-#### `charkit/sim/motion.py` (730 lines)
+#### `charkit/sim/motion.py`
 
 The motion pilot: the skirt and the flaps at motion QA's extreme leg poses (the kick first: docs/ROADMAP.md, "Missing from a production rig" item 3, the skirt's penetration during a kick), moved four ways and measured the same way.
 
@@ -3301,7 +3301,7 @@ The motion pilot: the skirt and the flaps at motion QA's extreme leg poses (the 
 - `main(a)`
 - `tune_springs(build, out, poses=('kick', 'squat'), ref='xpbd_hips', grid=None, ...)`: the spring chains' settings fitted to the cloth (real-time VRM from the bake's reference): the reference method ...
 
-#### `charkit/sim/motionqa.py` (170 lines); QA parts: `motion`
+#### `charkit/sim/motionqa.py` (QA parts: `motion`)
 
 Motion QA: the loose garments moving as the style profile says they move, measured at motion QA's leg poses (the kick and the squat), gated like any check (docs/workstreams/xpbd.md, round 2).
 
@@ -3315,7 +3315,7 @@ Motion QA: the loose garments moving as the style profile says they move, measur
 - `measure(B, gm=None, poses=POSES, log=None, settle=None, **over)`: -> (table, checks): the loose garments at each pose under the build's garment motion (gm: another, for the ...
 - `motion_qa(B, design=None, out=None)`: the loose garments (the skirt and the panels) at the kick and the squat, moved as the style profile says ...
 
-#### `charkit/sim/review.py` (439 lines)
+#### `charkit/sim/review.py`
 
 The pilots' review page: one local HTML page (Michael's rule: review in the browser), everything compared side by side at matching scale and labelled with its numbers.
 
@@ -3332,7 +3332,7 @@ The pilots' review page: one local HTML page (Michael's rule: review in the brow
 - `tune_compare(tunes, out)`: the chain tunings side by side (roots on the hips, roots riding the skin): per piece the best of the grid and the ...
 - `page3(build, out, waist_dir, motion_dir=None, tunes=None, cache=None, ...)`: round 3's page: the summary box (box: its HTML), the waistband, the calibration, motion QA's CPU (cpu: HTML), the ...
 
-#### `charkit/sim/rig.py` (223 lines)
+#### `charkit/sim/rig.py`
 
 Venv-side posing for the motion pilot: the skeleton's skinning matrices from a build's joints (bundle landmarks) and motion QA's poses (charkit.evalmesh.POSES: per bone a rotation (axis, degrees) in the armature's frame about its head, composed down the chain, as evalmesh.motion_main poses Blender's armature), linear blend skinning, and capsule colliders ...
 
@@ -3345,14 +3345,14 @@ Venv-side posing for the motion pilot: the skeleton's skinning matrices from a b
 - `capsule_rows(caps, D, shrink=0.0)`: the capsules posed by D: rows (a, b, r, r) for xpbd.Capsules (radius less `shrink`).
 - `smoothstep(x)`
 
-#### `charkit/sim/settings.py` (69 lines)
+#### `charkit/sim/settings.py`
 
 The cloth solver's settings from a style profile (charkit/styles: the `physics` section, declared ahead of the solvers). Physics is the baseline; every departure is a named, deterministic dial (docs/CHARKIT_HANDOFF.md, "Production principles": liberties are dials, tuned in code).
 
 - `physics(style='anime', **over)`: the profile's physics section with the solver's dials: -> dict.
 - `cloth(cloth_, style='anime', L=1.0, region_of=None, radius=0.0, **over)`: the Solver settings for a Cloth in a style: per-hinge bending compliance, per-vertex hold compliance, gravity, ...
 
-#### `charkit/sim/springbone.py` (118 lines)
+#### `charkit/sim/springbone.py`
 
 VRMC_springBone chains, simulated as the VRM 1.0 spec describes (a verlet tail per joint: inertia less drag, a pull toward the rest direction carried by the parent (stiffness), gravity, the bone's length kept, sphere and capsule colliders pushing the tail out by its hit radius; each bone then aimed at its tail). The rig's spring chains for the flaps and ...
 
@@ -3360,13 +3360,13 @@ VRMC_springBone chains, simulated as the VRM 1.0 spec describes (a verlet tail p
 - class `Chain`
 - `arc_param(P, J)`: each point's place along the polyline J (0 ..
 
-#### `charkit/sim/waist.py` (141 lines)
+#### `charkit/sim/waist.py`
 
 The waistband's weights at motion QA's poses (round 3, decision 1: the waistband takes the body's weights near the waist). Variants: rigid on the hips (a belt's default), the body's per vertex (garments.body_weights: the spec's `"weights": "body"`), per column (each column's rows averaged: no shear across the band), one blend for the whole band. Per ...
 
 - `run(build, out, pictures=('squat', 'twist_bend'), log=print)`
 
-#### `charkit/sim/xpbd.py` (687 lines)
+#### `charkit/sim/xpbd.py`
 
 XPBD cloth (Macklin, Mueller and Chentanez 2016, "XPBD: position-based simulation of compliant constrained dynamics"; Macklin et al. 2019, "Small steps in physics simulation": many substeps, one Gauss-Seidel pass each). numpy for the set up, numba for the constraint loops; single-threaded and in a fixed order, so a run is bit-identical to any re-run.
 
@@ -3381,48 +3381,48 @@ XPBD cloth (Macklin, Mueller and Chentanez 2016, "XPBD: position-based simulatio
 
 ### charkit/calib/
 
-#### `charkit/calib/__init__.py` (4 lines)
+#### `charkit/calib/__init__.py`
 
 The calibration registry and its adapters (charkit/calibrate.py): each module here holds a CALIBRATION literal naming its checks' part, known-bad build, floor generators and shape guards, and the adapter classes that stand the design (or a random baseline) in for ours when the part runs. Records: records/CHECK.json; the named known-bad builds: known_bad/.
 
-#### `charkit/calib/art.py` (121 lines); 12 calibration entries
+#### `charkit/calib/art.py` (12 calibration entries)
 
 Calibration adapter for the artifact detectors calibrated on Michael's flags (charkit.artifactqa: art_*, each the worst view's ratio to, or excess over, the design's own reading; docs/workstreams/artifacts.md). The design against itself: the head and body sheets (with the outfit's masks) moved 1-2 px and measured by the same detectors, against the stored ...
 
 - class `Art`
 
-#### `charkit/calib/chin.py` (58 lines); 2 calibration entries
+#### `charkit/calib/chin.py` (2 calibration entries)
 
 Calibration adapter for the chin's shadow on the jaw (charkit.lookqa: face_shadow_chin_edge, face_shadow_chin; Michael's chin-shadow flag). look5's first chin measure failed its own calibration (the design's shadow moved 1-2 px read IoU 0.55-0.87, eye-aligned); look6 measured on the jaw (designlight.chin_calibration). Here that same code moves the ...
 
 - `floor_move(seed)`: a seed's move for the floor: 4-8 px in a random direction (rows, columns).
 - class `Chin`
 
-#### `charkit/calib/details.py` (200 lines); 22 calibration entries
+#### `charkit/calib/details.py` (22 calibration entries)
 
 Calibration adapter for the garment pieces' details (charkit.pieceqa's piece_details: the sleeves' spikes, roughness, width along the arm and stand-off, the waistband's and the shorts' edges and widths, the cuffs, the collar's and the bow's torn edges, the bow's shape, the jacket over the band and its open front). The stand-in for ours is labels.py's ...
 
 - class `Details`: piece_details: Garments' stand-ins, with the drawing's classes, a piece drawn alone and the puff's section.
 
-#### `charkit/calib/hairflags.py` (222 lines); 6 calibration entries
+#### `charkit/calib/hairflags.py` (6 calibration entries)
 
 Calibration adapter for Michael's hair flags (charkit.hairflagqa, part 'hair_flags'; tool/hair5). Ours is our hair's label images on the design's grids and our ink inside the hair; here the design stands in: the hand-checked hair truth's regions as our parts (its drawn lines and cut paths absorbed into the nearest region, as our shells meet with no ink ...
 
 - class `HairFlags`
 
-#### `charkit/calib/hairtruth.py` (88 lines); 1 calibration entries
+#### `charkit/calib/hairtruth.py` (1 calibration entries)
 
 Calibration adapter for the hair truth's score (charkit.hairlayers.score: the hair layer masks against the hand-checked truth, charkit/refs/clawd/hair_truth.npz; tool/hairtag). A score, not a graded check: its calibration is its separations. The design: the truth's own regions as masks (each region its accepted set's first family and bun side), moved 1-2 ...
 
 - class `HairTruth`
 
-#### `charkit/calib/jaw.py` (288 lines); 15 calibration entries
+#### `charkit/calib/jaw.py` (15 calibration entries)
 
 Calibration adapter for the jaw, the chin, the three-quarter's jaw and the neck under it (charkit.faceregion, part face_region: jaw_compare's and taper_compare's checks, and jaw_outline_hidden, Michael's flag on the face curving in under the head sheet's hair).
 
 - class `Jaw`
 
-#### `charkit/calib/labels.py` (344 lines); 12 calibration entries
+#### `charkit/calib/labels.py` (12 calibration entries)
 
 Calibration adapters for the QA parts that read our pieces as label images on the design's grids (the body sheet's scale): collar_flags (charkit.collarqa), sheet_pieces (piece_*: charkit.qa3d) and hair_pieces (hair_piece_*). Ours is what our z-buffer draws (pieceqa.our_labels / fine_labels, qa3d.bodyqa_zbuffer, bodyqa.zbuffer_views); here the design's ...
 
@@ -3433,7 +3433,7 @@ Calibration adapters for the QA parts that read our pieces as label images on th
 - class `Pieces`: sheet_pieces (piece_*): the same stand-ins through qa3d's z-buffer.
 - class `Hair`: hair_pieces (hair_piece_*): the hair layers' drawn families as our hair's family labels (bodyqa.zbuffer_views'), ...
 
-#### `charkit/calib/motion.py` (74 lines); 3 calibration entries
+#### `charkit/calib/motion.py` (3 calibration entries)
 
 Calibration adapter for motion QA (charkit.sim.motionqa: the skirt's new penetration into the skin and its stretch, worst over the kick and the squat, moved as the style profile says). Defect detectors: a random stand-in has no motion to be wrong in, so there is no floor; the shape they could be gamed against is the skirt's (piece_skirt; the rest shape ...
 
@@ -3442,73 +3442,73 @@ Calibration adapter for motion QA (charkit.sim.motionqa: the skirt's new penetra
 
 ### charkit/steps/
 
-#### `charkit/steps/__init__.py` (5 lines)
+#### `charkit/steps/__init__.py`
 
 Measurement steps, one file per measuring module (charkit/steps/<module>.py holds the steps of the checks charkit/<module>.py measures): each a module-level MEASUREMENT_STEPS literal that charkit.registry.steps() reads with ast. Nothing imports these files, so adding a step never changes a build's code keys (the stages, the hull's stamp). How to add one: ...
 
-#### `charkit/steps/accqa.py` (11 lines); 1 measurement steps
+#### `charkit/steps/accqa.py` (1 measurement steps)
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/artifactqa.py` (52 lines); 30 measurement steps
+#### `charkit/steps/artifactqa.py` (30 measurement steps)
 
 The measurement steps of the checks charkit/artifactqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/bodyqa.py` (21 lines); 10 measurement steps
+#### `charkit/steps/bodyqa.py` (10 measurement steps)
 
 The measurement steps of the checks charkit/bodyqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/collarqa.py` (23 lines); 7 measurement steps
+#### `charkit/steps/collarqa.py` (7 measurement steps)
 
 The measurement steps of the checks charkit/collarqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/detailqa.py` (29 lines); 10 measurement steps
+#### `charkit/steps/detailqa.py` (10 measurement steps)
 
 The measurement steps of the checks charkit/detailqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/eyeqa.py` (11 lines); 1 measurement steps
+#### `charkit/steps/eyeqa.py` (1 measurement steps)
 
 The measurement steps of the checks charkit/eyeqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/faceregion.py` (72 lines); 36 measurement steps
+#### `charkit/steps/faceregion.py` (36 measurement steps)
 
 The measurement steps of the checks charkit/faceregion.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/hairflagqa.py` (16 lines); 5 measurement steps
+#### `charkit/steps/hairflagqa.py` (5 measurement steps)
 
 The measurement steps of the checks charkit/hairflagqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/lookqa.py` (44 lines); 16 measurement steps
+#### `charkit/steps/lookqa.py` (16 measurement steps)
 
 The measurement steps of the checks charkit/lookqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/pieceqa.py` (31 lines); 14 measurement steps
+#### `charkit/steps/pieceqa.py` (14 measurement steps)
 
 The measurement steps of the checks charkit/pieceqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/qa3d.py` (138 lines); 59 measurement steps
+#### `charkit/steps/qa3d.py` (59 measurement steps)
 
 The measurement steps of the checks charkit/qa3d.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/skirtqa.py` (19 lines); 6 measurement steps
+#### `charkit/steps/skirtqa.py` (6 measurement steps)
 
 The measurement steps of the checks charkit/skirtqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
 ### charkit/boards/
 
-#### `charkit/boards/body_lineup.py` (47 lines)
+#### `charkit/boards/body_lineup.py`
 
 Board: three body types from the one base (petite idol, the default heroine, a tall action heroine), front / side / three-quarter, in clay. Proves the proportion knobs. (Heads come from charkit/head.py; here the neck is open.) blender -b --factory-startup --python charkit/boards/body_lineup.py -- OUTDIR
 
 - `main(out)`
 
-#### `charkit/boards/char_board.py` (74 lines)
+#### `charkit/boards/char_board.py`
 
 Board: a character spec (charkit/spec/*.json) built and rendered in charkit's look: head views (front, 30, 60, 90, 150), an expression row and a mouth row; next to the spec's reference art when it has one. blender -b --factory-startup --python charkit/boards/char_board.py -- SPEC.json OUTDIR [--fast]
 
 - `main(spec_path, out, fast=False, nohair=False)`
 
-#### `charkit/boards/face_board.py` (115 lines)
+#### `charkit/boards/face_board.py`
 
 Board: the face in charkit's toon look: head close-ups (85 mm: front, 30, 60, 90 degrees) and an expression row (the lid shapes at the front), with the eyes, lashes and the skin's outline. blender -b --factory-startup --python charkit/boards/face_board.py -- OUTDIR [variant ...]
 
@@ -3518,19 +3518,19 @@ Board: the face in charkit's toon look: head close-ups (85 mm: front, 30, 60, 90
 - `set_mouth(C, name)`
 - `main(out, names)`
 
-#### `charkit/boards/head_board.py` (44 lines)
+#### `charkit/boards/head_board.py`
 
 Board: the assembled character (body + head + lofted neck) in clay: a full-body front/three-quarter/side, and head close-ups (85 mm: front, 30, 60, 90, 150 degrees) for the default head and two variants. blender -b --factory-startup --python charkit/boards/head_board.py -- OUTDIR [variant ...]
 
 - `main(out, names)`
 
-#### `charkit/boards/lookboard.py` (75 lines)
+#### `charkit/boards/lookboard.py`
 
 Board: a built character's head at the design's own scale and angles (head_turnaround: front, three-quarter, profile, back), orthographic, from its saved scene in its look (qa.render_view: each view's light and line widths), for the look review page to set beside the design's panels at matching scale. Each view is `ppl` px per L (the design sheet's own, ...
 
 - `main(out, ppl=399.4, az3=35.7, look=None, L=None, only=None, bare=False)`
 
-#### `charkit/boards/lookprobe.py` (328 lines)
+#### `charkit/boards/lookprobe.py`
 
 The look's measurements in Blender (calls H and I, docs/workstreams/look.md): what EEVEE itself computes, on this machine's GPU, from a saved build or a scratch scene.
 
@@ -3541,7 +3541,7 @@ The look's measurements in Blender (calls H and I, docs/workstreams/look.md): wh
 - `normals(out, bundle=None, height=None)`: outline on against off, per outlined object and board width (module doc): a face's shading is flipped where its ...
 - `thickness(out)`: per outlined object: its measured thickness now (the saved scene's evaluated mesh), and what the build stored.
 
-#### `charkit/boards/turntable.py` (82 lines)
+#### `charkit/boards/turntable.py`
 
 Board: a built character turned round, from its saved scene (a build without --no-blend), in the boards' own look and cameras (scene.boards, qa.render_view: the style's look is stored in the scene, so each view gets its light and line widths as the boards do): the full body (orthographic, as the body board) and the face (85 mm, as the face board, the ...
 
@@ -3550,7 +3550,7 @@ Board: a built character turned round, from its saved scene (a build without --n
 
 ### charkit/styles/
 
-#### `charkit/styles/__init__.py` (126 lines)
+#### `charkit/styles/__init__.py`
 
 Style profiles: the settings that make charkit build a character in one 3D style rather than another (Michael, 2026-09-28: the kit is meant for any 3D style, not only anime). Every stage that assumes something about a style reads it from the character's profile (spec['style'], default 'anime') instead of hard-coding it.
 

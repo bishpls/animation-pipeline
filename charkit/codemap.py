@@ -217,7 +217,7 @@ def generate(root=ROOT):
                 tags.append('%d calibration entries' % len(m['cal']))
             if m['declared']:
                 tags.append('%d declared checks' % len(m['declared']))
-            L.append('#### `%s` (%d lines)%s' % (m['rel'], m.get('lines', 0), ('; ' + '; '.join(tags)) if tags else ''))
+            L.append('#### `%s`%s' % (m['rel'], (' (%s)' % '; '.join(tags)) if tags else ''))
             L.append('')
             if m['doc']:
                 L += [m['doc'], '']

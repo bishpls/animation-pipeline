@@ -6,13 +6,17 @@ replaces the per-round variant harnesses (tool/sweep, docs/workstreams/sweep.md:
     python -m charkit sweep run DECL.json [--out DIR] [--jobs N] [--only NAME,..] [--box [NAME]] [--code ROOT]
     python -m charkit sweep BASE --stage garments|hair|qa [--spec SPEC] [--set PATH=JSON ..] [--variant NAME=JSON ..]
                                  [--grid PATH=JSONLIST ..] [--oat PATH=JSONLIST ..] [--parts P,..] [--checks PAT,..]
-                                 [--objects NAME,..] [--no-control] [--out DIR] [--jobs N] [--code ROOT]
-    python -m charkit sweep swap A B --check CHECK [--part PART] [--objects PAT,..] [--groups hair,garment,accessory]
-                                 [--drop] [--inputs PATH[=VALUE],..] [--stage hair|garments] [--out DIR] [--jobs N]
+                                 [--objects NAME,..] [--no-control] [--no-rebase] [--out DIR] [--jobs N] [--box [NAME]]
+                                 [--code ROOT]
+    python -m charkit sweep swap A B --check CHECK [--part PART] [--parts P,..] [--objects PAT,..] [--drop]
+                                 [--groups hair,garment,accessory] [--inputs PATH[=VALUE],..] [--stage hair|garments]
+                                 [--out DIR] [--no-rebase]
     python -m charkit sweep table OUT/sweep.json [--checks PAT,..]       # the table again (markdown) from a result
 
 The declaration (JSON; the inline form writes one to OUT/decl.json):
-  base      a finished build's folder (bundle/, geom/; a box build fetched here, or one on the box with --box)
+  base      a finished build's folder (bundle/, geom/; a box build fetched here, or one on the box with --box; a
+            preview without geom/ has its head and body codes remade by the build's own steps, cli.code_head and
+            code_body, each a cache.file_step)
   stage     what each variant rebuilds; everything else is the base's, restored from the cache:
               qa        nothing: the base bundle measured (variants patch the measurement: `qa:MODULE.NAME` keys)
               garments  the fast evaluator (charkit.bodyeval) at the variant's spec: the garments and accessories it
@@ -30,7 +34,8 @@ The declaration (JSON; the inline form writes one to OUT/decl.json):
             time: a default argument bound at import, spikes(min_depth=SPIKE_MIN), keeps its value)
   control   true (default): a first row, the base spec through the same stage with `set` alone. Deltas are against
             it, so the stage's own drift from the Blender build (evaldrift) cancels
-  objects   the objects spliced (default: those whose geometry any row's rebuild changed against the control's)
+  objects   the objects spliced (default: those whose geometry any row's rebuild changed against the control's; every
+            row splices the same set: with --jobs, a shard that spliced another set runs again with the union)
   parts     the QA parts run per row (registry names); the shape parts (sheet_pieces, hair_pieces: shape_parts) are
             added
   checks    the checks tabulated (fnmatch patterns; default: every check of the named parts)
@@ -48,9 +53,10 @@ cell, flag checks marked [F]; the shape table: every piece's IoU per view that m
 improving while a piece's shape IoU drops more than calibrate.DROP in a view), and per row OUT/NAME/res.json.
 
 Swap mode (attribution): A and B two finished builds (before, after). The check's part (from A's qa.json, or --part) on
-A, on B, then on A with each of B's objects in place of its own (A + B.name) and on B with each of A's (B + A.name);
---drop adds B without each (B - name). Each row: the check's value, its per-view readings and the share of the A -> B
-move it carries; with every object's move between the builds (its largest vertex move in L, and its rigid rotation).
+A, on B, then on A with each of B's objects in place of its own (A + B.name) and on B with each of A's (B + A.name; an
+object only B has: B - name); --drop adds each build without each (A - name, B - name). Each row: the check's value,
+its per-view readings, the share of the A -> B move a swap carries, and its delta against its own build; with every
+object's move between the builds (its largest vertex move in L, and its rigid rotation).
 --inputs PATH[=VALUE],..: B's spec with A's value at PATH (or VALUE), rebuilt at --stage (hair for head_code and
 hair.*, else garments) and measured the same way (tools/hull_local/hairswap.py's question: which input moves a piece).
 
