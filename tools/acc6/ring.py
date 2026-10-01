@@ -56,11 +56,11 @@ def solve(S, specs, bearing, axis, gap_t):
         b = math.radians(bearing)
         x0 = [sa[0] + d * math.cos(b) - a0[0], sa[2] + d * math.sin(b) - a0[2], float(declared._wrap(axis - 90.0))]
         simplex = [x0, [x0[0] + 0.03, x0[1], x0[2]], [x0[0], x0[1] + 0.03, x0[2]], [x0[0], x0[1], x0[2] + 10]]
-        r = minimize(cost, x0, method='Nelder-Mead', options=dict(xatol=1e-3, fatol=1e-4, maxfev=300,
+        r = minimize(cost, x0, method='Nelder-Mead', options=dict(xatol=1e-3, fatol=1e-4, maxfev=160,
                                                                   initial_simplex=simplex))
         if best is None or r.fun < best.fun:
             best = r
-        if best.fun < 0.01:
+        if best.fun < 0.02:
             break
     return make(best.x), float(best.fun)
 
@@ -90,8 +90,8 @@ def main(a):
     rd = declared.pair_read(D['star'], D['crab'], S.ppl, accqa.CRAB_AXIS['front'])
     turn = rd['turn']
     gap_t = float(opt(a, '--gap', 0.012))
-    jobs = [('b%03d' % int(b), float(b), float(b) + turn) for b in
-            (opt(a, '--bearings') or '0,45,90,135,180,225,270,315').split(',')]
+    bs = opt(a, '--bearings') or '0,45,90,135,180,225,270,315'
+    jobs = [] if bs == 'none' else [('b%03d' % int(b), float(b), float(b) + turn) for b in bs.split(',')]
     for e in (opt(a, '--extra') or '').split(','):
         if e:
             n, b, ax = e.split(':')
