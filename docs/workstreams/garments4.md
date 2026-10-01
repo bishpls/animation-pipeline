@@ -745,3 +745,28 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
 - Box builds running: g5_base (the merged head's default spec, charkit/out/garments5/specs/base.json; log
   charkit/out/garments5/build_base.log), g5_sh0 (+ body.shoulder {z -0.525, x 0.47, join}: specs/sh0.json; log
   build_sh0.log). Outputs charkit/out/g5_base, charkit/out/g5_sh0.
+- **Scope expansion (coordinator, Michael's diagnosis, 2026-10-01):** the body has no real shoulder (separate meshes:
+  the torso tube and capped arm tubes; the torso's top fitted from the hull, i.e. the costume; body.shoulder off). Order:
+  (1) the body's shoulder, structurally: measured against base_body_turnaround, a continuous shoulder joining the arms
+  to the torso (welded, or a joined region with edge loops), skinnable (clavicle and upper-arm weights; garments'
+  transferred weights valid), the shoulder template on; guard skin/arm/sleeve/top IoUs, hands, cuffs, motion, art_bumps_*;
+  a posed check (arm raised 90 deg front and side) in the notes; gate. (2) the garment shoulders and back collar on the
+  new body; gate. (3) the flat lapels; gate; re-judge art_outline_collar.
+- Baseline g5_base (the merged head's default; qa charkit/out/g5_base/qa/qa.json): shoulder_front_top 0.033 F, _dip
+  0.052 F, _tilt 0.203 F, back top 0.019 W, dip 0.042 F, collar_back_rows 0.147 F, collar_back_iou 0.73 F;
+  art_outline_collar 1.442 P (3q 3.29), art_outline_neck 1.472 P, neck_crease 12.7 P, neck_v_front 0.765 W, 3q 0.566 F;
+  motion kick inside 0.0071 W. g5_sh0 (+ body.shoulder level template): dips 0.005 P, front top 0.028 W, tilt 0.104 W;
+  but art_outline_collar 1.44 P -> 2.83 W, art_outline_neck 1.47 -> 2.84 W (flags), neck_crease 12.7 -> 28.2 W.
+- **The body's shoulder measured** (tool tools/garments5/shm.py, box: `remote run --fetch charkit/out/garments5/shm
+  script tools/garments5/shm.py BUILD..`; our skin alone z-buffered, triangles labelled torso/arm/head by the nearest
+  body_code part; against base_body_turnaround's figures less hair (opened 3x3) on the design grid; picture
+  charkit/out/garments5/shm/v1b.png, numbers v1b.json). The reference (front; back within 0.01): shoulder top line z at
+  |x| 0.3 / 0.4 / 0.5 / 0.6 = -0.50 / -0.525 / -0.535 / -0.615 (an upper bound under the hair's edge at |x| < 0.5: the
+  first body pixel under the hair); shoulder point (0.585, -0.595); outer edge |x| at z -0.6 / -0.7 / -0.8 / -0.9 / -1.0 /
+  -1.2 = 0.585 / 0.64 / 0.673 / 0.696 / 0.73 / 0.80; armpit z -1.005; profile: the deltoid's back edge x 0.50 / 0.53 /
+  0.53 / 0.51 / 0.49 at z -0.62 / -0.75 / -0.85 / -0.9 / -1.0. Ours (g4_v1 = default body): the top line at |x| 0.3 /
+  0.4 / 0.5 / 0.6 = -0.637 / -0.696 / -0.93 / -0.89 (0.14-0.40 L low); the outer edge 0.41 / 0.40 at z -0.7 / -0.8 (the
+  torso's vertical side wall: no deltoid), then the arm tube's flat cap at z -0.86 (its corner the "shoulder point"
+  (0.74, -0.856)); armpit -0.85; no arm in profile above z -0.85. The arm below z -1.0 is within 0.03 L (outer edge
+  0.759 / 0.792 at -1.0 / -1.2 against 0.73 / 0.80). The skeleton's shoulder joint (the 2D rig's, outfit.rig_frame) sits
+  at (0.544, -0.886): ~0.16 L under where the deltoid's centre would be.
