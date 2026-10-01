@@ -349,6 +349,39 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      t9 also: knot_line 0 P, crease len 0.23 P / dir 16.4 W, loop_end 0.123 P, thick 0.042 W, lean 4.5 P, hang 0 P,
      reach 0.033 W, ribbon 0 P. (zsh doesn't split an unquoted variable: pass sets literally or via `batch5.sh`, bash.)
 
+   - **Corners, the bleed, the knot's ring (round 5's end; coordinator: stop compensating in the bow).**
+
+     | run (on t9 unless said) | sleeve spikes L/R | art_outline_collar (flag) | loop_end (flag) | bleed (flag) | other |
+     |---|---|---|---|---|---|
+     | t9 | 0.0286 F / 0.0188 F | 2.096 W | 0.123 P | 0.2775 F | |
+     | r1 rounder upper corner (end_p [2.5,1.4]) | 0.0188 F / 0 P | 2.091 W | **0.242 W** | | collar_3q_torn 0.0084 F |
+     | r2 top .22 | 0.0235 F / 0.0133 W | **0.731 P** | **0.163 W** | | piece_collar F 0.655 -> 0.573 |
+     | c1 clear column gap .015 | | | | **0.0 P** (0 flips) | lobes F .92/.92, 3q .78/.86, P .84 (-6..-8%); piece_bow P 0.651; offsets 0.07-0.08 L at mid-lobe: the loops balloon off the chest in profile, streaks across the lower lobes (427 tris turned > 45 deg) |
+     | c2 c1 + ramp .08 | | | | 0.0 P | 243 flipped |
+     | c3/c4 c1 + cover | | | | 0.0125 P / 0.045 W | 327/323 flipped, torn back to F/W |
+
+     The knot's ring (`harness/knotring.py SRC`: the share of the knot's edge, per side, with a line beside it, front,
+     line_picture): pr3 1.0; t9 0.767 (bottom 0.5); t10 (t9 + root_seat 1) 0.642; t11 (root behind the knot's back
+     0.006 L + seat 1) 1.0 but collar_front_torn 0.0031 F, front torn 0.0051 W, knot_line 0.164 W; t12 (seat 0.5) 0.983
+     (bottom 0.917), torn all P, collar_front_torn P, knot_line 0.179 W, tail_reach 0.043 W. The root fixes the torn
+     edges but costs the knot's outline (pinned at its centre depth it hides the back half of the knot's outline shell;
+     behind it, the tails' turned top row still covers the knot's lower line). Neither met the coordinator's bar (torn
+     and collar cleared with the knot lined all round 1.0 and the guard intact): **the default spec stays w4 (pr3) as
+     drawn**; the knobs stay in code, off (6671831d, and the root_back/root_seat/cover commit).
+
+     **Attribution of what remains (for the coordinator):**
+     - bow_front/three_quarter/profile_torn, collar_front_torn: **bow-caused** (the pleat's junctions: a hole under
+       the fitted knot, gaps by its rounded corners where the collar shows, slits between the tails and the strips).
+       A fix exists (t12: root .155 behind the knot, seat .5, tuck [.04,.3], strip_ov .07: all four PASS, guard up)
+       at the cost of knot_line 0 -> 0.18 WARN and the ring 1.0 -> 0.983.
+     - bow_front_bleed: **bow-caused** (the strips' lower rims buried in the bust, which comes toward the camera under
+       them). The non-folding column push clears it but moves mid-lobe 0.08 L forward (c1): named acceptance.
+     - sleeve_front_spikes_L/R: **neighbour off-design**: the lobes' upper outer corners sit where drawn (1-3 px), our
+       sleeve caps 13 px (0.06 L) lower than drawn, so the corner bites 7 px into the cap's inner top and leaves a horn.
+     - art_outline_collar (flag): **neighbour off-design**: the lapels reach out to the lobes' upper outer corners
+       (drawn, they end inside the bow's top), so the collar region's outline turns a corner there (front: 3 corners
+       against the pillows' 1). Lowering the bow's corners clears it (r2) but regresses loop_end (flag).
+
 ## Next steps (round 5)
 1. The new FAILs from the pleated bow: the bow's torn outline (round the square upper corners, the strips' ends; measure
    with piece_details' roughness per corner), the collar's fragments and the sleeves' spikes under the lobes' ends,
