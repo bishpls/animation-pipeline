@@ -76,9 +76,10 @@ case "${1:-status}" in
       find $D/charkit/out -mindepth 1 -maxdepth 1 -exec rm -rf {} +; }; }"
     # what git ignores stays home (a full worktree's projects/*/out, node_modules, the mocap and bone refs, the env
     # files: 1.7 GB, 15+ min through the tunnel); excluded paths on the box are left alone
-    IGN=$(mktemp); { git -C "$WT" ls-files -o -i --exclude-standard --directory | grep -v '^charkit/out' | sed 's|^|/|' || true; } > "$IGN"
+    # (charkit/private/, a private character's inputs, is gitignored but sent; its outputs, charkit/private/*/out, aren't)
+    IGN=$(mktemp); { git -C "$WT" ls-files -o -i --exclude-standard --directory | grep -v '^charkit/out' | grep -v '^charkit/private/' | sed 's|^|/|' || true; } > "$IGN"
     rsync -az --delete -e "ssh -F $CFG" --exclude .git --exclude '__pycache__' --exclude '.cache' \
-      --include 'charkit/out/' --include 'charkit/out/remote/' \
+      --exclude '/charkit/private/*/out/' --include 'charkit/out/' --include 'charkit/out/remote/' \
       --include 'charkit/out/remote/*.json' --exclude 'charkit/out/*' --exclude-from="$IGN" \
       "$WT/" "$VM:/srv/work/$(name "$WT")/"; rc=$?; rm -f "$IGN"; exit $rc;;
   run) WT=$2; shift 2; ssh_ "source /opt/anim-build/env && cd /srv/work/$(name "$WT") && $*";;
