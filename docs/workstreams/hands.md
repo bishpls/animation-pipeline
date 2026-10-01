@@ -212,6 +212,25 @@ Against b2 (qa.json; CPU 1028 s):
   when the free ones miss the hem band) would be a remeasure: not done here.
 - **Box gate** launched: `python -m charkit remote gate tool/hands --into pipeline-3d`, log charkit/out/hands/gate_r3.log.
 
+### Gate 1 (397ffa1 into pipeline-3d 342e88c): FAIL, 7 blockers, all the motion QA's
+Report charkit/out/gate/gate_tool-hands_397ffa1_into_342e88c.md (948 s; CPU 1.32x). Nothing of the hands' own blocks:
+the 3q aline improved, no new FAIL among existing checks, no flag regression (art_bumps_legs 0, art_band_lower,
+art_mirror_waist PASS), the hand checks' calibration accepted, the guard quiet. The 7: motion_kick_skirt_inside/stretch,
+motion_squat_skirt_inside/stretch "the 2x2 couldn't measure it (its measure changed with no registered step)" and 3
+"calibration record not refreshed". Cause: the motion QA (tool/xpbd, merged 640ca7c) builds its scene with
+bodyeval's assembly, i.e. this tree's code_body.build_body_data, and requires the bundle's skin vertex count to match
+(charkit/sim/motion.py Scene). So (1) codediff counts code_body/code_hand (our hands, the arm pose) as motion's measuring
+code; (2) the crossed cell "old measure on the new geometry" (342e88c's code on our bundle) can't run: the base code
+rebuilds a body with no hands, the counts differ, the part raises. The candidate's measure on the old geometry reads
+the base's values exactly (0.00244, 0.0635, 0.00601, 0.10386): the measure didn't change; ours moves <= 0.0002.
+- Done: the step registered (charkit/steps/code_body.py: motion_* at 5d18d38 and c8c4991, saying so); the 3 graded
+  motion records to refresh on a merged build: box build b4 (render box) `charkit/out/hands_b4`, log
+  charkit/out/hands/b4.log, then `python -m charkit calibrate motion_kick_skirt_inside,motion_kick_skirt_stretch,
+  motion_squat_skirt_stretch --build charkit/out/hands_b4`.
+- Left for the coordinator: the 4 unmeasurable 2x2 cells (any branch that changes the body's topology hits this:
+  base code can't rebuild the new body). Either `--accept motion_*` named by the coordinator, or the motion scene reads
+  the skin's weights from the bundle instead of rebuilding them (a tool/xpbd change; the base side still rebuilds).
+
 ## Next steps (exact)
 1. **The 3q skirt aline blocker** (new FAIL under K). Its cause is placement: our far hand hangs 43% behind the
    skirt's 3q flare, because our forearm hangs 6 deg steeper than drawn (tips.py: 22.5 vs 28.2-28.6 deg off vertical near
