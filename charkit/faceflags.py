@@ -87,13 +87,30 @@ def draw_ours(B, view, ppl, az3, win=WIN):
 
 
 # ------------------------------------------------------------------------------------------------------------ design
+DEFAULT_MANIFEST = 'charkit/refs/clawd/manifest.json'    # the kit's default spec's (charkit/spec/clawd.json)
+_SOURCE = {'manifest': DEFAULT_MANIFEST}                  # the manifest the sheets are read from: the build's (part())
+
+
+def sheet_path(name, manifest_path=None):
+    """a head sheet's picture: the reference `name` in the build's manifest (part() sets it from the bundle's spec; the
+    default spec's otherwise). It read charkit/refs/clawd/gen/NAME.png whatever the character (a second character's
+    QA measured Clawd's drawings under its own palette, and failed in at_scale). A manifest without it raises."""
+    from . import manifest
+    import os
+    mp = manifest_path or _SOURCE['manifest']
+    R = manifest.load(mp)['references']
+    if name not in R:
+        raise ValueError('face flags: the manifest %s has no %s reference' % (mp, name))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    p = R[name]['path']
+    return p if os.path.isabs(p) else os.path.join(root, p)
+
+
 def design_sheet(name, ppl):
     """a head sheet at ppl (charkit.refcheck.at_scale, its guide lines painted out) -> (rgb, heads {view: dict(box,
     eyes)})."""
     from . import refcheck
-    import os
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    rgb = refcheck._load(os.path.join(root, 'charkit', 'refs', 'clawd', 'gen', name + '.png'))
+    rgb = refcheck._load(sheet_path(name))
     rgb0, _ = refcheck.without_guides(np.asarray(rgb, float))
     small, f, H = refcheck.at_scale(rgb0, 0.168, 2 * 0.168 * ppl, FACING, guess=1.0)
     return small, H['heads']
@@ -784,12 +801,13 @@ _DESIGN = {}
 def design_read(sheet, view, shift=(0, 0)):
     """the design's features for a read (a sheet's view), with its eyes' masks; shift (rows, columns): the picture moved
     that many pixels against the anchor ours is aligned on (the calibration's moves). Memoized."""
-    key = (sheet, view, tuple(shift))
+    src = _SOURCE['manifest']
+    key = (src, sheet, view, tuple(shift))
     if key not in _DESIGN:
         name, ppl, _ = SHEETS[sheet]
-        if (name, ppl) not in _DESIGN:
-            _DESIGN[(name, ppl)] = design_sheet(name, ppl)
-        rgb, heads = _DESIGN[(name, ppl)]
+        if (src, name, ppl) not in _DESIGN:
+            _DESIGN[(src, name, ppl)] = design_sheet(name, ppl)
+        rgb, heads = _DESIGN[(src, name, ppl)]
         d = design_window(rgb, heads, view, ppl)
         if shift != (0, 0):
             d = _shift(d, shift)
@@ -1209,6 +1227,8 @@ def part(B, design=None, out=None):
     """Michael's face flags (2026-09-30) measured against head_turnaround and head_construction per view (this module):
     the iris against the opening, the lashes' detail, the brows, the default smile, the mouth's place in three-quarter
     and profile, the nose's mark; each piece's shape IoU per view beside them (face_piece_*)."""
+    ref = B.spec.get('ref') if isinstance(B.spec.get('ref'), dict) else {}
+    _SOURCE['manifest'] = ref.get('manifest') or DEFAULT_MANIFEST       # the character's own sheets
     reads, shapes, feats = measure_reads(B, design, picture=bool(out))
     if out:
         import os

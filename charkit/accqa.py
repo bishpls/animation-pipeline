@@ -85,7 +85,80 @@ DECLARED_CHECKS = [
          calibrate=dict(no_known_bad='no build hides the star: its floor is the drawing with the crab moved 0.05 L '
                                      'onto the star, over it (star_under_crab)', kind='defect',
                        baseline=['star_under_crab'], probes=['touching'], shape=['acc_star_shape'])),
+    # Michael on the crab (2026-10-01, tool/accessories6): "Legs on the current version are too short, and... all on the
+    # bottom of the crab, not actually on the sides. Also the pinchers are solid circles." Our crab face-on in its own
+    # frame (the FACE view: accqa.face_masks) against the clips-alone sheet's crab (the structure authority), read by
+    # charkit.limbs (family 'limbs'). Calibrated as defect detectors: the sheet's crab moved 1-2 px passes; pipeline-3d
+    # 25ff0f25's crab (round 5's, A3) fails every one; each floor is the sheet's crab with that one part spoiled
+    dict(check='acc_crab_legs', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='count'), limits=[0, 0], flag="the crab's legs (Michael, 2026-10-01)",
+         note="the crab face-on: its legs per side against the clips-alone sheet's (3), the larger difference",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['legless'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_leg_reach', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='reach'), limits=[0.2, 0.35], flag="the crab's legs (Michael, 2026-10-01)",
+         note="the crab face-on: its legs' reach off the body over the body's width, |ours / sheet's - 1|",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['short_legs'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_leg_width', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='width'), limits=[0.2, 0.35], flag="the crab's legs (Michael, 2026-10-01)",
+         note="the crab face-on: its legs' width over the body's (twice the median depth along each leg's medial line), "
+              "|ours / sheet's - 1|: the sheet's sausage legs, not sticks",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['thin_legs'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_leg_roots', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='root'), limits=[12.0, 25.0], flag="the crab's legs (Michael, 2026-10-01)",
+         note="the crab face-on: where its legs leave the body (the elliptical angle on the body, 0 at the side, - "
+              "below), their mean against the sheet's, degrees: the sides, not the bottom",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['bottom_legs'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_claw_fingers', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='fingers'), limits=[0, 0], flag="the crab's pincers (Michael, 2026-10-01)",
+         note="the crab face-on: each claw's fingers (1 + its notches deeper than 0.12 of its size) against the "
+              "sheet's (2 each), the larger difference",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['solid_claws'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_claw_notch', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='notch'), limits=[0.06, 0.1], flag="the crab's pincers (Michael, 2026-10-01)",
+         note="the crab face-on: the claws' deepest notch over their size (sqrt area), |ours - sheet's|",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['solid_claws'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_stalks', family='limbs', piece='pin_crab', part='accessories', views=['face'],
+         params=dict(measure='stalks'), limits=[0.25, 0.5],
+         note="the crab face-on: its eye stalks' reach above the body over its width, |ours / sheet's - 1| (one "
+              "missing reads 1)",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['no_stalks'], shape=['acc_crab_shape'])),
+    # the crab against the star (Michael 2026-10-01, tool/accessories6: the crab moved under the star's lower tip; "a
+    # moved piece keeps its relations, not its absolute drawn angle"): per view, ours each drawn alone against the drawn
+    # pair (family 'pair'). Calibrated: the drawn clips standing for ours pass; the round-5 build (A3, the crab under the
+    # star's lower tip, turned with it) fails the bearing and the turn; floors move or turn the drawn crab
+    dict(check='acc_crab_{view}_bearing', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='bearing'), limits=[30.0, 55.0],
+         flag="the crab's place against the star (Michael, 2026-10-01)",
+         note="the direction from the star's centroid to the crab's (each drawn alone) against the drawn pair's, "
+              "degrees: where the crab sits round the star",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['orbit'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_gap', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='gap'), limits=[0.025, 0.05],
+         note="the clear distance between the crab and the star (each drawn alone) past the drawn pair's, L: the pair "
+              "kept together",
+         calibrate=dict(no_known_bad='no build parts the clips: its floor is the drawn crab moved off the star',
+                        kind='defect', baseline=['apart'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_turn', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='turn'), limits=[25.0, 45.0],
+         flag="the crab's turn against the star (Michael, 2026-10-01)",
+         note="the crab's own axis (toward its claws) less the bearing from the star, against the drawn pair's, "
+              "degrees: the crab turned against the star as drawn (the target turns as the crab moves round it)",
+         calibrate=dict(known_bad='acc_a3_crab', kind='defect', baseline=['pointing_away'], shape=['acc_crab_shape'])),
+    dict(check='acc_crab_{view}_flow', family='pair', piece=['pin_star', 'pin_crab'], part='accessories',
+         views=['front', 'three_quarter', 'profile'], params=dict(measure='flow'), limits=[25.0, 45.0],
+         note="the crab's own axis less the hair's flow under it (our hair's strands), against the drawn crab's (the "
+              "flow under the drawn crab), degrees: the crab along the hair as drawn",
+         calibrate=dict(no_known_bad="round 5's crab keeps the drawn crab's turn against the hair: its floor is the "
+                                     "drawn crab turned across the flow", kind='defect', baseline=['across_flow'],
+                        shape=['acc_crab_shape'])),
 ]
+# the drawn crab's own up (toward its claws) in each view's picture, degrees (0 the picture's right, 90 up): 90 + the
+# roll of the crab template fitted to the drawn crab in that view (charkit.accfit's template fit, tool/accessories6:
+# charkit/out/acc6/opt_crab4: rolls -0.8 / -9.1 / -2.6; the drawing hides its right claw under the star, so its
+# axis is the template's)
+CRAB_AXIS = {'front': 89.2, 'three_quarter': 80.9, 'profile': 87.4}
+FACE = 'face'                          # the clips-alone sheet's straight-on drawing as a view of the declared checks
+FACE_SHEET = 'clips_alone'             # (the stand-in's labels() sheet name for it)
 
 
 # ------------------------------------------------------------------------------------------------------------ helpers
@@ -486,6 +559,113 @@ def clip_axes(V, centre=None):
     return np.stack([np.cross(y, z), y, z], 1)
 
 
+def own_axes(V, spec=None, centre=None):
+    """a placed clip's own frame (columns x, y, z = its facing; y its up, toward a crab's claws): from its spec's facing
+    and tilt as charkit.accessories places it, else clip_axes() (the vertices' principal axes)."""
+    if spec and spec.get('facing') is not None:
+        from . import accessories as acc
+        return acc._axes(acc._dir(*spec['facing']), spec.get('tilt', 0.0))
+    return clip_axes(V, centre)
+
+
+def face_masks(geo, axes, alone):
+    """each clip face-on in its own frame (axes per clip), scaled to the clips-alone drawing's of its kind (equal areas;
+    the declared FACE view reads parts in the body's width, so only the raster's grain matters) -> [mask]."""
+    out = []
+    for (V, F), ax, al in zip(geo, axes, alone):
+        V = np.asarray(V, float)
+        q = (V - V.mean(0)) @ np.asarray(ax, float)
+        ext = max(np.ptp(q[:, 0]), np.ptp(q[:, 1]), 1e-9)
+        m = face_on(V, F, ax, ppl=300.0 / ext)
+        if al is not None and m.any():
+            m = face_on(V, F, ax, ppl=300.0 / ext * float(np.sqrt(al.sum() / m.sum())))
+        out.append(m)
+    return out
+
+
+def face_labels(masks, gap=8):
+    """clips' face-on masks side by side on one label image (clip k: k + 1) -> label image."""
+    ms = [m[np.ix_(m.any(1), m.any(0))] if m.any() else m for m in masks]
+    H = max(m.shape[0] for m in ms) + 2 * gap
+    W = sum(m.shape[1] + gap for m in ms) + gap
+    lab = np.zeros((H, W), np.int64)
+    x = gap
+    for k, m in enumerate(ms):
+        lab[gap:gap + m.shape[0], x:x + m.shape[1]][m] = k + 1
+        x += m.shape[1] + gap
+    return lab
+
+
+def axis_in_view(R, az):
+    """a clip's own up (its frame's y: a crab's claws) in a view's picture -> degrees (0 the picture's right, 90 up)."""
+    y = np.asarray(R, float)[:, 1]
+    a = np.radians(az)
+    return float(np.degrees(np.arctan2(y[2], y[0] * np.cos(a) + y[1] * np.sin(a)))) % 360.0
+
+
+def hair_flow(B, azs, iris, centre, L, ppl, views=('front', 'three_quarter', 'profile'), win=WIN):
+    """the hair's flow in each view's picture: our hair drawn alone (its nearest surface), each pixel its triangle's
+    strand direction (root to tip: the hair pieces' `strand`, geom/hair_pieces beside the bundle) projected -> {view:
+    (H, W, 2)}, {} without the pieces' strands."""
+    import os
+    from .faceqa import zbuffer
+    gdir = os.path.join(os.path.dirname(os.path.abspath(B.path)), 'geom', 'hair_pieces')
+    Vs, Ts, St, off = [], [], [], 0
+    for o in B.objects(groups=('hair',)):
+        if not o.has('eval'):
+            continue
+        p = os.path.join(gdir, o.name.replace('hair_', '', 1) + '.npz')
+        if not os.path.exists(p):
+            continue
+        V, T = o.mesh('eval')[:2]
+        st = np.load(p)['strand']
+        if len(st) != len(V):
+            continue
+        Vs.append(V); Ts.append(np.asarray(T) + off); St.append(st[np.asarray(T)].mean(1)); off += len(V)
+    if not Vs:
+        return {}
+    V, T, st = np.vstack(Vs), np.vstack(Ts), np.vstack(St)
+    out = {}
+    for v in views:
+        az = azs[v]
+        _, lab = zbuffer([(V, T, np.arange(len(T)))], az, origin(v, az, iris, centre), L, 1.0 / ppl, win)
+        a = np.radians(az)
+        F = np.zeros(lab.shape + (2,))
+        ok = lab >= 0
+        F[ok, 0] = st[lab[ok], 0] * np.cos(a) + st[lab[ok], 1] * np.sin(a)
+        F[ok, 1] = st[lab[ok], 2]
+        out[v] = F
+    return out
+
+
+def flow_under(F, m):
+    """the hair's flow under a mask: its strands' mean direction there (picture degrees) and coherence (0..1)."""
+    h, w = min(F.shape[0], m.shape[0]), min(F.shape[1], m.shape[1])
+    sel = m[:h, :w]
+    if not sel.any():
+        return None
+    s = F[:h, :w][sel].sum(0)
+    n = float(np.linalg.norm(s))
+    if n < 1e-9:
+        return None
+    return float(np.degrees(np.arctan2(s[1], s[0]))) % 360.0, n / float(sel.sum())
+
+
+def edge_body(m, keep=0.3):
+    """the clips-alone sheet's edge-on clip less its hair-clip loop (drawn behind it, the back on the right; we don't
+    build it: hidden in the hair once worn): the columns past the deepest one where fewer than `keep` of the deepest
+    column's pixels remain -> mask."""
+    occ = m.sum(0)
+    if not occ.any():
+        return m
+    j = int(np.argmax(occ))
+    low = np.nonzero(occ[j:] < keep * occ[j])[0]
+    out = m.copy()
+    if len(low):
+        out[:, j + int(low[0]):] = False
+    return out
+
+
 def compare(mo, md, ppl, kind, view, occ=None):
     """ours against the design for one clip in one view -> {measure: check}. occ: the drawing's other clips' masks over
     this one (ours is measured as the drawing shows the clip: as_drawn())."""
@@ -775,6 +955,7 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
     kinds = [k for k, _ in clips]
     spec_acc = {a['kind']: a for a in (B.spec.get('accessories') or [])}
     table, C, pics = {'sheets': {}, 'seat': {}}, {}, {}
+    flows = None
     # the declared checks' inputs (DECLARED_CHECKS, part 'accessories'): the graded sheet's labels per view (clip k + 1),
     # the drawn clips, each clip's own silhouette drawn alone
     I = dict(O={}, names=['-'] + [o.name for _, o in clips], masks={}, alone={}, dv={},
@@ -789,11 +970,13 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
         if D['graded']:
             I['ppl'] = ppl
         for v, dv in D['views'].items():
+            extra = {}
             if labels is not None:
                 got = labels(sname, v, dv, kinds)
                 if got is None:
                     continue
-                lab_ids, solo = got
+                lab_ids, solo = got[:2]
+                extra = got[2] if len(got) > 2 else {}
             else:
                 org = origin(v, azs[v], iris, centre)
                 lab_ids = our_labels(occ, geo, azs[v], org, L, ppl, ids=True)
@@ -807,6 +990,22 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
                 I['O'][v] = {'lab': lab}
                 I['alone'][v] = {o.name: a for (_, o), a in zip(clips, solo)}
                 I['dv'][v] = {}
+                # the pair checks' inputs (the crab against the star): each clip drawn alone, the crab's own axis in
+                # the picture (ours from its frame, the drawing's CRAB_AXIS; a stand-in's from its labels), the hair's
+                # flow under a mask (our hair's strands: hair_flow)
+                if v in CRAB_AXIS:
+                    if 'crab' in kinds and labels is None:
+                        k_ = kinds.index('crab')
+                        ax_o = axis_in_view(own_axes(geo[k_][0], spec_acc.get('crab'), centre), azs[v])
+                    else:
+                        ax_o = extra.get('axis', CRAB_AXIS[v])
+                    if flows is None:
+                        flows = hair_flow(B, azs, iris, centre, L, ppl)
+                    F = flows.get(v)
+                    I.setdefault('pair', {})[v] = dict(
+                        alone={piece_of(k, spec_acc.get(k)): m for k, m in zip(kinds, solo)},
+                        axis=dict(ours=ax_o, design=CRAB_AXIS[v]),
+                        flow=None if F is None else (lambda m, F=F: flow_under(F, m)))
             for k, kind in enumerate(kinds):
                 pid = piece_of(kind, spec_acc.get(kind))
                 md = dv['masks'].get(pid)
@@ -845,7 +1044,22 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
                                             'ours': T_['pos3d'][kind]['ours'], 'design': T_['pos3d'][kind]['design'],
                                             'note': 'the centroid triangulated from the front, three-quarter and profile '
                                                     '(x her left, y toward her back from the eyes, z up from the eye line; L)'}
-    # the declared checks (DECLARED_CHECKS: each clip's visible share, Michael's non-occlusion rule), what covers it
+    # the FACE view (the declared parts checks): our clips face-on, each in its own frame, against the clips-alone
+    # sheet's (the stand-in's: labels(FACE_SHEET, FACE, None, kinds) -> (label image, None) or None)
+    if I.get('ppl') is not None and alone:
+        if labels is not None:
+            got = labels(FACE_SHEET, FACE, None, kinds)
+        else:
+            axes = [own_axes(V, spec_acc.get(k), centre) for (V, _), k in zip(geo, kinds)]
+            got = (face_labels(face_masks(geo, axes, [alone.get(k) for k in kinds])), None)
+        if got is not None:
+            I['O'][FACE] = {'lab': got[0]}
+            I['dv'][FACE] = {}
+            for k in kinds:
+                if alone.get(k) is not None:
+                    I['masks']['%s__%s' % (FACE, piece_of(k, spec_acc.get(k)))] = alone[k]
+    # the declared checks (DECLARED_CHECKS: each clip's visible share, Michael's non-occlusion rule; the crab's parts
+    # face-on), what covers it
     if I.get('ppl') is not None and I['O']:
         from . import declared
         _, Cd = declared.evaluate_part('accessories', I)
@@ -891,17 +1105,19 @@ def evaluate(B, designs, pieces, az3=None, alone=None, labels=None):
             C['acc_%s_colour' % kind] = {'value': round(float(dE), 2), 'ours': _hex(rec['lit']), 'design': _hex(T['lit']),
                                         'status': 'PASS' if dE <= 5 else 'WARN' if dE <= 10 else 'FAIL',
                                         'note': "our material's lit tone against the drawn clip's (dE00)"}
-    C.update(structure(clips, geo, centre, alone))
+    C.update(structure(clips, geo, centre, alone, spec_acc))
     return table, C, pics
 
 
-def structure(clips, geo, centre, alone=None):
-    """each clip face-on (its own facing: clip_axes): the star's arms against head_turnaround's proportions (STAR_ARMS:
-    acc_star_arms, acc_star_minor), and every clip against the clips-alone drawing (acc_KIND_alone, INFO: the structure
-    authority, its proportions the sheet's own) -> checks."""
+def structure(clips, geo, centre, alone=None, spec_acc=None):
+    """each clip face-on (its own frame: own_axes, from its spec's facing and tilt): the star's arms against
+    head_turnaround's proportions (STAR_ARMS: acc_star_arms, acc_star_minor), and every clip against the clips-alone
+    drawing (acc_KIND_alone, INFO: the structure authority, its proportions the sheet's own) and edge-on against its
+    side drawing (acc_KIND_side, INFO: the hair-clip loop drawn behind it left out, edge_body) -> checks."""
     C = {}
     for (kind, o), (V, F) in zip(clips, geo):
-        m = face_on(V, F, clip_axes(V, centre))
+        ax = own_axes(V, (spec_acc or {}).get(kind), centre)
+        m = face_on(V, F, ax)
         if kind == 'star':
             a = arms(m)
             if a is not None:
@@ -918,6 +1134,12 @@ def structure(clips, geo, centre, alone=None):
             C['acc_%s_alone' % kind] = {'value': round(shape_iou(m, alone[kind]) or 0.0, 3), 'status': 'INFO',
                                         'note': 'our clip face-on against the clips-alone drawing (shape IoU: its '
                                                 'structure; the proportions are head_turnaround\'s)'}
+        if alone and alone.get(kind + '_edge') is not None:
+            e = face_on(V, F, ax, edge=True)[:, ::-1]               # (its back on the right, as the sheet draws it)
+            C['acc_%s_side' % kind] = {'value': round(shape_iou(e, edge_body(alone[kind + '_edge'])) or 0.0, 3),
+                                       'status': 'INFO',
+                                       'note': "our clip edge-on against the clips-alone sheet's side drawing (shape "
+                                               "IoU; the hair-clip loop drawn behind it left out)"}
     return C
 
 

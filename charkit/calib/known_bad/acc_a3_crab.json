@@ -1,0 +1,10 @@
+{
+ "name": "acc_a3_crab",
+ "why": "round 5's crab (pipeline-3d 25ff0f25, tool/accessories5's A3): legs 0.15 of the body under it, the claws round with no notch, the eyes on stubs; placed under the star's lower tip, turned with it (bearing from the star 59-66 deg off the drawn pair's, its turn against the star 58-79 deg off)",
+ "flag": "Michael 2026-10-01: the legs too short and all on the bottom, the pincers solid circles; the crab moved under the star's lower tip (his eye: upper-left of the star, turned so the pincers' midpoint points upper-left)",
+ "commit": "25ff0f25",
+ "source": "/srv/work/animation-pipeline-acc6/charkit/out/acc6/base",
+ "stored": "2026-10-01",
+ "bundle": "f4e58772c09381e8",
+ "qa_checks": 682
+}

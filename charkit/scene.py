@@ -87,8 +87,11 @@ def stage_hair(S):
         S.hair = hair_pieces_objects(S, shape, hc)
         S.hair_volume = vol
     elif shape and shape.get('mode') == 'geom':
-        # the generated hair cut out venv-side by charkit.geom (python -m charkit build runs it): one closed surface
+        # the generated hair cut out venv-side by charkit.geom (python -m charkit build runs it): one closed surface;
+        # a design's facial hair (shape.facial) a second one, cut from the lower face
         S.hair = [hair_geom_mesh(S, shape, hc)]
+        if shape.get('geom_facial'):
+            S.hair.append(hair_geom_mesh(S, dict(shape, geom=shape['geom_facial']), hc, name='hair_facial'))
         S.hair_volume = vol
         if shape.get('cap', False):
             cap = hair_cap(S, hc)
@@ -306,7 +309,7 @@ def hair_shape_mesh(S, shape, hc):
     return ob
 
 
-def hair_geom_mesh(S, shape, hc):
+def hair_geom_mesh(S, shape, hc, name='hair_shape'):
     """the hair charkit.geom extracted (shape['geom']: its .npz, written by `python -m charkit build` venv-side): a closed,
     manifold surface in world space with envelope normals as custom split normals, given charkit's hair look and outline
     and rigged to the head. No remesh, smoothing or culling here: the kernel did it."""
@@ -318,15 +321,15 @@ def hair_geom_mesh(S, shape, hc):
     m = shade.toon3('hair_shape', C['lit'], C['shade'], C['deep'], rim_amt=0.0)
     from .geom.blender import normals_proxy, transfer_normals
     envelope = shape.get('normals', 'envelope') == 'envelope'
-    ob, meta = load_part(path, 'hair_shape', material=m, normals=None if envelope else 'geometric')
+    ob, meta = load_part(path, name, material=m, normals=None if envelope else 'geometric')
     from . import trace
     rep = (meta or {}).get('report') or {}
     trace.note('hair_geom', path=os.path.basename(path), faces=rep.get('faces'), open_edges=rep.get('open_edges'),
                shells=rep.get('shells', rep.get('parts')), self_intersecting=rep.get('self_intersecting_faces_est'))
-    shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line')
+    shade.outline(ob, thick=0.0014, color=C['line'], name='hair_line' if name == 'hair_shape' else name + '_line')
     if envelope:
         # the envelope normals ride in after the outline (Solidify would re-derive custom normals set on the mesh)
-        proxy = normals_proxy(path, 'hair_shape_normals')
+        proxy = normals_proxy(path, name + '_normals')
         transfer_normals(ob, proxy)
         character._to_head(proxy, S.character['arm'])
     character._to_head(ob, S.character['arm'])

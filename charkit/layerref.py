@@ -35,6 +35,12 @@ Kinds:
          the V (front and three-quarter: the skin in V_WIN) against the turnaround's visible skin there, the bow free.
 
     python -m charkit.layerref SPEC SHEET.png --kind body|clips|skirt|bodice [--out DIR]
+    python -m charkit.layerref SPEC SHEET.png --kind edit --cover NAMES [--against REF] [--band z0,z1]
+                                              [--revealed NAMES] [--ungraded cover_left] [--grade-views V,..]
+    python -m charkit.layerref SPEC SHEET.png --kind alone --piece NAMES --views V,.. [--against REF] [--hidden NAMES]
+                                              [--on mannequin|figure|object] [--band z0,z1] [--rows top] [--merge PX]
+                                              [--sheet-mask saturated] [--rows bottom] [--scale figure]
+                                              [--closing PX] [--main]
 """
 import json, os, sys
 
@@ -681,6 +687,299 @@ def check_bodice(spec, path, log=print, rgb=None):
 
 
 # ---------------------------------------------------------------------------------------------------------------- main
+# ------------------------------------------------------------------ any character: edits and pieces alone, by palette
+# The kinds above read Clawd's pieces (her clips, skirt, bodice; her bands in L). These two read any character with a
+# palette (charkit.palette, the manifest's): the pieces are named by their swatches (a name matches every swatch whose
+# name contains it), so a sheet is checked by what it draws, in the character's own colours.
+#
+#   edit   the turnaround (or head turnaround) redrawn in place with pieces removed (--cover): per view, once registered
+#          (a scale within EDIT_SCALE and a shift within EDIT_SHIFT, fitted on what the edit keeps): the kept parts'
+#          silhouette IoU outside the cover (kept_iou), the cover's own colours left where it was (cover_left: the share
+#          of its pixels still drawn in them), and the edit standing outside the turnaround's silhouette and the cover
+#          (outside). --band z0,z1 (L from the eye line) bounds the cover to rows (a beard drawn in the hair's colour).
+#   alone  a piece drawn alone (--piece), on a mannequin (--on mannequin: its colour sampled from the mannequin's head)
+#          or as an object, in views matched to the authority's (--views, '-' for a view it has no counterpart for):
+#          per matched view the piece's shape IoU against its pixels on the authority sheet (--hidden: what covers it
+#          there, left out), both brought to one size (the piece's height) and aligned (shape_iou), and its height
+#          against the authority's (size: the piece's height over the authority's, at the sheet's own figure scale when
+#          the piece is on a mannequin of the figures' height).
+EDIT_SCALE = (0.96, 1.04)           # edit: the scale searched (an edit is redrawn in place)
+EDIT_SHIFT = 12                     # edit: px searched either way
+GEN_TOL = dict(kept_iou=0.90,       # edit: the kept parts' silhouette IoU outside the cover (declared 2026-10-01, before
+               cover_left=0.10,     #   any c3 sheet was measured; layerref.TOL's values where one exists)
+               outside=0.03,
+               revealed=0.30,       # edit with --revealed: the cover's core drawn in what it hid (declared before
+                                    #   any sheet was read: a beard's core holds the jaw and neck, and a tunic's neckline)
+               shape_iou=0.60,      # alone: the piece's shape (layerref.TOL['clip_shape'])
+               size=0.15)           # alone: |height ratio - 1| where the piece shares the figures' scale
+
+
+def _pal(spec):
+    from charkit import palette
+    P = palette.active()
+    if P is None:
+        raise SystemExit('layerref edit/alone: the manifest declares no palette (charkit.palette)')
+    return P
+
+
+def _names_mask(P, k, names):
+    """pixels whose nearest swatch's name contains one of names."""
+    idx = [i for i, n in enumerate(P.names) if any(x in n for x in names)]
+    if not idx:
+        raise SystemExit('no swatch named like %s in %s' % (names, P.names))
+    return np.isin(k, idx)
+
+
+def _figures(rgb, min_share=0.15):
+    """the sheet's figures or heads: foreground blobs at least min_share the largest, left to right -> [(box, mask)]."""
+    from charkit import sheetqa
+    fg = sheetqa.foreground(rgb, sheetqa.background(rgb))
+    lab, n = sheetqa.label(fg)
+    B, area = sheetqa.boxes(lab, n)
+    if not n:
+        return []
+    keep = [i for i in range(n) if area[i] >= min_share * area.max()]
+    return [([int(v) for v in B[i]], lab == i + 1) for i in sorted(keep, key=lambda i: B[i][0])]
+
+
+def _eye_line(rgb, layout, ex):
+    """per figure, left to right, its eye line (px) and the sheet's px per L, from the character's detection."""
+    from charkit import refcheck, sheetqa
+    if layout == 'heads':
+        H = refcheck.detect_heads(rgb, ex)
+        return [(h['box'], h['eye_y']) for h in sorted(H['heads'].values(), key=lambda h: h['box'][0])], H['ppl']
+    D = sheetqa.detect_figures(rgb, None, ex, -1)
+    return [(f['box'], f['eye_y']) for f in sorted(D['figures'].values(), key=lambda f: f['box'][0])], D['ppl']
+
+
+def _crop_fig(m, box, pad=16):
+    x0, y0, x1, y1 = box
+    return m[max(0, y0 - pad):y1 + pad + 1, max(0, x0 - pad):x1 + pad + 1], (max(0, y0 - pad), max(0, x0 - pad))
+
+
+def _resize_mask(m, s):
+    from PIL import Image
+    im = Image.fromarray(m.astype(np.uint8) * 255)
+    return np.asarray(im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.NEAREST)) > 127
+
+
+def _pad_to(m, H, W, at):
+    out = np.zeros((H, W), bool)
+    y, x = at
+    h, w = min(H - y, m.shape[0]), min(W - x, m.shape[1])
+    if h > 0 and w > 0:
+        out[max(0, y):y + h, max(0, x):x + w] = m[max(0, -y):h, max(0, -x):w]
+    return out
+
+
+def check_edit(spec, path, args=(), log=print):
+    """the 'edit' kind (see above). args: --cover NAMES (comma), --against REF (body_turnaround), --band z0,z1."""
+    from charkit import bodyqa, eyes as eyelib, manifest
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    P = _pal(spec)
+    R = manifest.load(spec['ref']['manifest'])['references']
+    against = opt('--against', 'body_turnaround')
+    layout = R[against].get('layout', 'figures')
+    cover = opt('--cover').split(',')
+    band = [float(v) for v in opt('--band').split(',')] if opt('--band') else None
+    revealed = opt('--revealed').split(',') if opt('--revealed') else None
+    ungraded = opt('--ungraded').split(',') if opt('--ungraded') else ()
+    ex = eyelib._knobs(spec.get('eyes'))['x']
+    T, S = _load(R[against]['path']), _load(path)
+    eT, ppl = _eye_line(T, layout, ex) if band else (None, None)
+    rep, imgs = edit_views(T, S, P, cover, band, eT, ppl, log, revealed=revealed, ungraded=ungraded)
+    rep.update(sheet=os.path.relpath(path, ROOT), against=against)
+    if opt('--grade-views'):                # the cover's removal graded where it faces the viewer (a beard: front and
+        gv = opt('--grade-views').split(',')    # three-quarter); the kept parts in every view
+        for v, r in rep['views'].items():
+            if v not in gv:
+                r['pass'] = bool(r['kept_iou'] >= GEN_TOL['kept_iou'] and r['outside'] <= GEN_TOL['outside'])
+                r['graded'] = 'kept parts only'
+        rep['pass'] = all(r['pass'] for r in rep['views'].values())
+    return rep, imgs
+
+
+def edit_views(T, S, P, cover, band=None, eT=None, ppl=None, log=print, revealed=None, ungraded=()):
+    """check_edit's measure on two pictures (the authority T, the edit S) with palette P -> (report, overlays).
+    revealed: swatch names the edit should draw where the cover was (reported: the share of the cover's core drawn in
+    them); ungraded: measures reported but not graded (cover_left where the cover shares a colour with what it hides:
+    a beard over a white tunic's neckline)."""
+    from charkit import bodyqa
+    kT, kS = P.nearest(T), P.nearest(S)
+    fT, fS = _figures(T), _figures(S)
+    eT = eT or [(None, None)] * len(fT)
+    views = list(VIEWS)[:len(fT)]
+    rep = dict(kind='edit', cover=cover, band=band, views={}, revealed=revealed, ungraded=list(ungraded),
+               tol={k: GEN_TOL[k] for k in ('kept_iou', 'cover_left', 'outside')})
+    imgs = {}
+    if len(fS) != len(fT):
+        rep['pass'] = False
+        rep['error'] = 'the edit has %d figures, the turnaround %d' % (len(fS), len(fT))
+        return rep, imgs
+    for v, (bt, mt), (bs, ms), (_, ey) in zip(views, fT, fS, eT):
+        cov = _names_mask(P, kT, cover) & mt
+        if band:
+            z = (ey - np.arange(T.shape[0]))[:, None] / ppl
+            cov &= (z <= band[1]) & (z >= band[0])
+        cov = bodyqa.dilate(cov, 2) & mt
+        ct, ot = _crop_fig(mt, bt)
+        cc, _ = _crop_fig(cov, bt)
+        Hc, Wc = ct.shape
+        cs, os_ = _crop_fig(ms, bs)
+        kcs, _ = _crop_fig(_names_mask(P, kS, cover) & ms, bs)
+        best = None
+        for sc in np.arange(EDIT_SCALE[0], EDIT_SCALE[1] + 1e-9, 0.01):
+            m = _resize_mask(cs, sc)
+            # bottoms and centres aligned, then a shift search
+            y0 = (bt[3] - ot[0]) - round((bs[3] - os_[0]) * sc)
+            x0 = round((bt[0] + bt[2]) / 2 - ot[1] - ((bs[0] + bs[2]) / 2 - os_[1]) * sc)
+            for dy in range(-EDIT_SHIFT, EDIT_SHIFT + 1, 2):
+                for dx in range(-EDIT_SHIFT, EDIT_SHIFT + 1, 2):
+                    mm = _pad_to(m, Hc, Wc, (y0 + dy, x0 + dx))
+                    k = _iou(mm & ~cc, ct & ~cc)
+                    if best is None or k > best[0]:
+                        best = (k, sc, y0 + dy, x0 + dx)
+        k, sc, yy, xx = best
+        mm = _pad_to(_resize_mask(cs, sc), Hc, Wc, (yy, xx))
+        kc = _pad_to(_resize_mask(kcs, sc), Hc, Wc, (yy, xx))
+        core = bodyqa.erode(cc, 2) & ~bodyqa.dilate(ct & ~cc, 1)
+        left = float((kc & core).sum() / max(1, core.sum()))
+        outside = float((mm & ~ct & ~cc).sum() / max(1, mm.sum()))
+        rec = dict(kept_iou=round(k, 4), cover_left=round(left, 4), outside=round(outside, 4), scale=round(float(sc), 3),
+                   cover_share=round(float(cc.sum() / max(1, ct.sum())), 4))
+        if revealed:
+            rv, _ = _crop_fig(_names_mask(P, kS, revealed) & ms, bs)
+            rv = _pad_to(_resize_mask(rv, sc), Hc, Wc, (yy, xx))
+            rec['revealed'] = round(float((rv & core).sum() / max(1, core.sum())), 4)
+        rec['pass'] = bool(rec['kept_iou'] >= GEN_TOL['kept_iou'] and rec['outside'] <= GEN_TOL['outside']
+                           and ('cover_left' in ungraded or rec['cover_left'] <= GEN_TOL['cover_left'])
+                           and (not revealed or rec['revealed'] >= GEN_TOL['revealed']))
+        rep['views'][v] = rec
+        log('%s: kept %.3f cover left %.3f outside %.3f scale %.2f %s' % (v, k, left, outside, sc,
+                                                                           'PASS' if rec['pass'] else 'FAIL'))
+        imgs['edit_' + v] = _overlay(ct, mm, R=None, DC=cc, crop=False)
+    rep['pass'] = all(r['pass'] for r in rep['views'].values())
+    return rep, imgs
+
+
+def check_alone(spec, path, args=(), log=print):
+    """the 'alone' kind (see above). args: --piece NAMES, --against REF, --views v1,v2,.. ('-': none),
+    --hidden NAMES, --on mannequin|object, --band z0,z1 (on the authority, L from its eye line), --rows top|all."""
+    from charkit import bodyqa, eyes as eyelib, manifest
+    opt = lambda k, d=None: args[args.index(k) + 1] if k in args else d
+    P = _pal(spec)
+    R = manifest.load(spec['ref']['manifest'])['references']
+    against = opt('--against', 'body_turnaround')
+    layout = R[against].get('layout', 'figures')
+    piece = opt('--piece').split(',')
+    hidden = opt('--hidden').split(',') if opt('--hidden') else []
+    on = opt('--on', 'object')
+    band = [float(v) for v in opt('--band').split(',')] if opt('--band') else None
+    want = opt('--views').split(',')
+    ex = eyelib._knobs(spec.get('eyes'))['x']
+    T, S = _load(R[against]['path']), _load(path)
+    kT, kS = P.nearest(T), P.nearest(S)
+    eT, ppl = _eye_line(T, layout, ex)
+    fT = _figures(T)
+    tv = dict(zip(VIEWS, zip(fT, eT)))
+    smask = opt('--sheet-mask')             # 'saturated': the sheet draws the piece in coded colours (a breakdown)
+    from charkit.bodyqa import _hsv
+    sat = (lambda im: (_hsv(im)[1] > 0.3) & (_hsv(im)[2] > 0.3)) if smask == 'saturated' else None
+    if on in ('mannequin', 'figure'):       # figure: the sheet's own figures, nothing excluded (a breakdown's heads)
+        figs = _figures(S)
+    else:                                   # objects: the piece's own blobs (--merge N: blobs N px apart are one)
+        from charkit import sheetqa
+        pm = sat(S) if sat else _names_mask(P, kS, piece)
+        pm = bodyqa.dilate(pm, 2 + int(opt('--merge', 0)))
+        lab, n = sheetqa.label(pm)
+        B, area = sheetqa.boxes(lab, n)
+        keep = [i for i in range(n) if area[i] >= 0.1 * area.max()] if n else []
+        figs = [([int(v) for v in B[i]], lab == i + 1) for i in sorted(keep, key=lambda i: B[i][0])]
+    if opt('--rows') in ('top', 'bottom') and figs:     # one row of the sheet: its topmost or bottommost figures
+        if opt('--rows') == 'top':
+            top = min(b[1] for b, _ in figs)
+            h0 = max(b[3] - b[1] for b, _ in figs if b[1] - top < 40)
+            figs = [f for f in figs if f[0][1] - top < 0.3 * h0]
+        else:
+            bot = max(b[3] for b, _ in figs)
+            h0 = max(b[3] - b[1] for b, _ in figs if bot - b[3] < 40)
+            figs = [f for f in figs if bot - f[0][3] < 0.3 * h0]
+    rep = dict(kind='alone', sheet=os.path.relpath(path, ROOT), against=against, piece=piece, hidden=hidden, on=on,
+               band=band, figures=len(figs), views={}, tol={k: GEN_TOL[k] for k in ('shape_iou', 'size')})
+    imgs = {}
+    for v, (bs, ms) in zip(want, figs):
+        if v == '-' or v not in tv:
+            continue
+        (bt, mt), (_, ey) = tv[v]
+        pt = _names_mask(P, kT, piece) & mt
+        if band:
+            z = (ey - np.arange(T.shape[0]))[:, None] / ppl
+            pt &= (z <= band[1]) & (z >= band[0])
+        dc = (_names_mask(P, kT, hidden) & mt) if hidden else np.zeros_like(mt)
+        ps = (sat(S) if sat else _names_mask(P, kS, piece)) & ms
+        if on == 'mannequin':                # the mannequin's own colours (its bare head and feet, lit and shaded) are
+            x0, y0, x1, y1 = bs              # not the piece
+            from charkit.palette import lab as tolab
+            L = tolab(S)
+            hh = max(4, (y1 - y0) // 12)
+            for ya, yb in ((y0, y0 + hh), (y1 - hh, y1 + 1)):
+                cut = L[ya:yb, x0:x1 + 1][ms[ya:yb, x0:x1 + 1]]
+                if len(cut):
+                    for q in (25, 50, 75):           # its lit, mid and shaded greys
+                        col = np.percentile(cut, q, axis=0)
+                        ps &= np.sqrt(((L - col) ** 2).sum(-1)) > 8
+        ps = bodyqa.dilate(bodyqa.erode(ps, 1), 1)
+        pt = bodyqa.dilate(bodyqa.erode(pt, 1), 1)
+        cl = int(opt('--closing', 0))               # fill a piece's shading (its shadow tones read as other colours)
+        if cl:
+            ps, pt = (bodyqa.erode(bodyqa.dilate(m, cl), cl) & (ms if m is ps else mt) for m in (ps, pt))
+        if '--main' in args:                        # the piece's main blob on each side (stray specks of its colours)
+            from charkit import sheetqa
+            def main_blob(m):
+                lab, n = sheetqa.label(m)
+                if not n:
+                    return m
+                _, area = sheetqa.boxes(lab, n)
+                return lab == int(np.argmax(area)) + 1
+            ps, pt = main_blob(ps), main_blob(pt)
+        if pt.sum() < 50 or ps.sum() < 50:
+            rep['views'][v] = dict(note='too few pixels', px_sheet=int(ps.sum()), px_authority=int(pt.sum()))
+            continue
+        yt, xt = np.nonzero(pt); ys, xs = np.nonzero(ps)
+        ht, hs = np.ptp(yt) + 1, np.ptp(ys) + 1
+        size = None
+        fs = (bt[3] - bt[1]) / max(1, bs[3] - bs[1])           # the figures' scale (sheet to authority)
+        if on == 'mannequin':                # the figures share a scale: compare the piece's height at the figures'
+            size = round(float(hs * fs / ht), 4)
+        H, W = T.shape[:2]
+        if opt('--scale') == 'figure':       # the whole figure's scale and place (a breakdown drawn in the figure's
+            sc = fs                          # frame: the piece's own extent may differ, a band may cut it)
+            m = _resize_mask(ps[bs[1]:bs[3] + 1, bs[0]:bs[2] + 1], sc)
+            cy, cx = bt[1], int(round((bt[0] + bt[2]) / 2 - m.shape[1] / 2))
+        else:
+            sc = ht / hs
+            m = _resize_mask(ps[ys.min():ys.max() + 1, xs.min():xs.max() + 1], sc)
+            cy, cx = yt.min(), int(np.mean(xt) - np.nonzero(m)[1].mean())
+        best = None
+        for dy in range(-8, 9, 2):
+            for dx in range(-12, 13, 2):
+                mm = _pad_to(m, H, W, (cy + dy, cx + dx))
+                sc_ = scores(mm, pt & ~dc, dc)
+                if best is None or sc_['iou_dc'] > best[0]['iou_dc']:
+                    best = (sc_, mm)
+        rec = dict(shape_iou=best[0]['iou_dc'], recall=best[0]['recall'], outside=best[0]['outside'],
+                   height_px=[int(hs), int(ht)], size=size)
+        rec['pass'] = bool(rec['shape_iou'] >= GEN_TOL['shape_iou'] and (size is None or abs(size - 1) <= GEN_TOL['size']))
+        rep['views'][v] = rec
+        log('%s: shape %.3f size %s %s' % (v, rec['shape_iou'], size, 'PASS' if rec['pass'] else 'FAIL'))
+        x0, y0, x1, y1 = bt
+        sl = (slice(max(0, y0 - 10), y1 + 10), slice(max(0, x0 - 10), x1 + 10))
+        imgs['alone_' + v] = _overlay(pt[sl], best[1][sl], R=None, DC=dc[sl], crop=False)
+    graded = [r for r in rep['views'].values() if 'pass' in r]
+    rep['pass'] = bool(graded) and all(r['pass'] for r in graded)
+    return rep, imgs
+
+
 def save_images(imgs, out_dir):
     from PIL import Image
     os.makedirs(out_dir, exist_ok=True)
@@ -698,8 +997,11 @@ def main(args):
     spec = manifest.resolve(json.load(open(args[0] if os.path.isabs(args[0]) else os.path.join(ROOT, args[0]))))
     path = os.path.abspath(args[1])
     kind = opt('--kind')
-    fn = dict(body=check_body, clips=check_clips, skirt=check_skirt, bodice=check_bodice)[kind]
-    rep, imgs = fn(spec, path)
+    if kind in ('edit', 'alone'):
+        rep, imgs = dict(edit=check_edit, alone=check_alone)[kind](spec, path, args)
+    else:
+        fn = dict(body=check_body, clips=check_clips, skirt=check_skirt, bodice=check_bodice)[kind]
+        rep, imgs = fn(spec, path)
     out = opt('--out', os.path.join(ROOT, 'charkit/out/layerref', os.path.splitext(os.path.basename(path))[0]))
     rep['images'] = {k: os.path.relpath(p, ROOT) for k, p in save_images(imgs, out).items()}
     json.dump(rep, open(os.path.join(out, 'layerref.json'), 'w'), indent=1)
