@@ -12,6 +12,8 @@ replaces the per-round variant harnesses (tool/sweep, docs/workstreams/sweep.md:
                                  [--groups hair,garment,accessory] [--inputs PATH[=VALUE],..] [--stage hair|garments]
                                  [--out DIR] [--no-rebase]
     python -m charkit sweep table OUT/sweep.json [--checks PAT,..]       # the table again (markdown) from a result
+    python -m charkit sweep optimize DECL.json [--box] [--out DIR] ...   # the knobs tuned by a batch optimizer (CMA-ES)
+                                                                         # over rows of this sweep: charkit/optimize.py
 
 The declaration (JSON; the inline form writes one to OUT/decl.json):
   base      a finished build's folder (bundle/, geom/; a box build fetched here, or one on the box with --box; a
@@ -1206,6 +1208,12 @@ def main(args):
     if not args or args[0] in ('-h', '--help'):
         print(__doc__)
         return 0
+    if args[0] in ('optimize', '--optimize') or '--optimize' in args:
+        from charkit import optimize                    # (a batch optimizer over a sweep's rows: charkit/optimize.py)
+        return optimize.main([a for a in args if a not in ('optimize', '--optimize')])
+    if args[0] == 'worker':                             # (one of optimize's persistent workers)
+        from charkit import optimize
+        return optimize.serve(args[1], _opt(args, '--out'), int(_opt(args, '--id', 0)))
     if '--code' in args:
         return _recode(args)
     if '--box' in args:
