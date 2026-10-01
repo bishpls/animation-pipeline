@@ -38,12 +38,15 @@ DEFAULT = dict(
                           # relaxed hand shows no background between them, 0-0.01 of its span at the tips)
     fingers=(0.93, 1.0, 0.95, 0.78),    # index, middle, ring, little: lengths over the middle's
     spread=0.0,           # degrees each finger fans out from the middle's line beyond the touching layout (- closer)
+    fan_index=0.0, fan_middle=0.0, fan_ring=0.0, fan_little=0.0,   # degrees each finger turns toward the thumb's side
+                          # beyond that (the sheet's open hand: index +14, ring -16, little -34 about the middle)
     curl=6.0,             # degrees each finger joint bends toward the palm at rest (the drawn relaxed hand)
     thumb_len=0.27,       # L: the thumb from its CMC to its tip
     thumb_w=0.05,         # L: its width at its MCP
     thumb_out=20.0,       # degrees the thumb opens from the hand's axis toward its side (radial; the drawn V cleft)
     thumb_down=15.0,      # degrees it turns toward the palm (opposition)
     thumb_base=0.06,      # L: its CMC from the wrist along the hand
+    thumb_across=0.3,     # its CMC across the palm toward the thumb's side, over the wrist's width
     yaw=40.0,             # degrees the back of the hand turns from her side toward the viewer, about the forearm
     bend=0.0,             # degrees the hand bends at the wrist toward the palm (flexion; - extension)
     dev=0.0,              # degrees it bends toward the little finger's side (ulnar deviation; - radial)
@@ -57,7 +60,9 @@ FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper', 'overlap'
 BOUNDS = dict(length=(0.45, 0.85), palm=(0.38, 0.56), palm_w=(0.09, 0.24), wrist_w=(0.07, 0.18),
               palm_t=(0.04, 0.085), taper=(0.35, 0.9), overlap=(0.0, 0.35), spread=(-4.0, 8.0), curl=(0.0, 30.0),
               thumb_len=(0.16, 0.46), thumb_w=(0.03, 0.085), thumb_out=(0.0, 60.0), thumb_down=(0.0, 60.0),
-              thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0))
+              thumb_base=(0.0, 0.16), yaw=(-60.0, 110.0), bend=(-20.0, 20.0), dev=(-20.0, 20.0),
+              fan_index=(-10.0, 30.0), fan_middle=(-15.0, 15.0), fan_ring=(-30.0, 10.0), fan_little=(-50.0, 10.0),
+              thumb_across=(0.0, 0.6))
 FINGERS = ('index', 'middle', 'ring', 'little')
 PHALANGES = (0.45, 0.3, 0.25)         # a finger's proximal, intermediate and distal shares of its length
 THUMB_BONES = (0.36, 0.36, 0.28)      # the thumb's metacarpal, proximal and distal shares
@@ -177,10 +182,11 @@ def digits(W, R, P):
         lens = [fl * P['fingers'][i] * s for s in PHALANGES]
         # toward its tip's place beside its neighbours (the tips converge on the middle's), plus the spread's fan
         conv = np.degrees(np.arctan2(c1[i] - c0[i], sum(lens)))
-        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=conv + P['spread'] * (1 - i))
+        fan = P.get('fan_' + name, 0.0)
+        J, F = _chain(base, R, lens, [P['curl']] * 3, spread_deg=conv + P['spread'] * (1 - i) + fan)
         out[name] = (J, F, (w0[i], w0[i] * P['taper']))
     # the thumb: from its CMC inside the palm's radial edge near the wrist, opened out (radial) and toward the palm
-    base = W + ex * P['thumb_base'] + ey * 0.3 * P['wrist_w'] - ez * 0.15 * P['palm_t']
+    base = W + ex * P['thumb_base'] + ey * P.get('thumb_across', 0.3) * P['wrist_w'] - ez * 0.15 * P['palm_t']
     lens = [P['thumb_len'] * s for s in THUMB_BONES]
     J, F = _chain(base, R, lens, [0.0, P['curl'] * 0.6, P['curl'] * 0.6], out_deg=P['thumb_out'],
                   down_deg=P['thumb_down'])
@@ -472,73 +478,110 @@ class Fit:
 
     def run(self, knobs=FIT_KNOBS, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40, popsize=12,
             maxfev=400):
-        """Powell's method over the knobs within BOUNDS (scaled to their ranges), from the spec's knobs, `rounds` times
-        from the best so far; or method 'de': differential evolution over the box (scipy; `workers` processes, forked
-        with this fit), then Powell from its best -> (P, cost, per)."""
-        from scipy.optimize import minimize
-        P0 = dict(self.base)
-        lo = np.array([BOUNDS[k][0] for k in knobs])
-        hi = np.array([BOUNDS[k][1] for k in knobs])
-        x0 = (np.clip([P0[k] for k in knobs], lo, hi) - lo) / (hi - lo)
-        best = {'c': np.inf}
-        to_P = lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)) for i, k in enumerate(knobs)})
+        """search() over the knobs from the spec's -> (P, cost, per)."""
+        return search(self, knobs, rounds=rounds, log=log, method=method, workers=workers, seed=seed, maxiter=maxiter,
+                      popsize=popsize, maxfev=maxfev)
 
-        def f(x):
-            P = to_P(x)
-            c, per = self.score(P)
-            if c < best['c']:
-                best.update(c=c, P=P, per=per)
-            return c
-        c0 = f(x0)
-        log('start %.4f %s' % (c0, best['per']))
-        if method == 'de':
-            # (workers spawned, each building its own fit from self.src: a pool forked after this process has
-            # evaluated once hung on the old render box, fit2 at 110 min with no generation done)
-            from scipy.optimize import differential_evolution
-            global _DE
-            _DE = (self, to_P)
-            pool, gen = None, [0]
-            if workers > 1:
-                import multiprocessing as mp
-                for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS'):
-                    os.environ[k] = '1'
-                pool = mp.get_context('spawn').Pool(workers, initializer=_de_init,
-                                                    initargs=(self.src, self.floors, P0, list(knobs), lo, hi))
 
-            def progress(xk, convergence=None):
-                gen[0] += 1
-                c, per = self.score(to_P(xk))
-                log('de generation %d: best %.4f (convergence %.3f) iou %s' % (
-                    gen[0], c, convergence or 0.0, ' '.join('%s %.3f' % (k, v[0]) for k, v in per.items())))
-            try:
-                res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
-                                             popsize=popsize, tol=1e-4, polish=False, init='sobol',
-                                             workers=pool.map if pool else 1, callback=progress,
-                                             updating='deferred' if pool else 'immediate')
-            finally:
-                if pool:
-                    pool.close()
-            f(res.x)
-            log('de %.4f (%d evaluations) %s' % (best['c'], res.nfev, {k: round(best['P'][k], 4) for k in knobs}))
-        for r in range(rounds):
-            xs = (np.array([best['P'][k] for k in knobs]) - lo) / (hi - lo)
-            res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
-                           options=dict(xtol=0.01, ftol=1e-4, maxfev=maxfev))
-            log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
-                                                        {k: round(best['P'][k], 4) for k in knobs}))
-        return best['P'], best['c'], best['per']
+def get_knob(P, k):
+    """a knob's value; 'fingers.I' is the I-th of the fingers' lengths."""
+    if k.startswith('fingers.'):
+        return P['fingers'][int(k.split('.')[1])]
+    return P[k]
+
+
+def set_knob(P, k, v):
+    """P with knob k set (a copy of the fingers' tuple for 'fingers.I')."""
+    if k.startswith('fingers.'):
+        f = list(P['fingers'])
+        f[int(k.split('.')[1])] = v
+        P['fingers'] = tuple(f)
+    else:
+        P[k] = v
+    return P
+
+
+KNOB_BOUNDS = dict(BOUNDS, **{'fingers.0': (0.75, 1.05), 'fingers.2': (0.75, 1.05), 'fingers.3': (0.6, 0.95)})
+
+
+def _to_P(P0, knobs, lo, hi, x):
+    P = dict(P0)
+    for i, k in enumerate(knobs):
+        set_knob(P, k, float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1)))
+    return P
+
+
+def search(fit, knobs, rounds=3, log=print, method='powell', workers=1, seed=0, maxiter=40, popsize=12, maxfev=400):
+    """Powell's method over the knobs within KNOB_BOUNDS (scaled to their ranges), from fit.base, `rounds` times from
+    the best so far; or method 'de': differential evolution over the box first (scipy; `workers` processes spawned,
+    each rebuilding the fit from fit.src = ('module:factory', args)), a progress line per generation. fit: .score(P)
+    -> (cost, per), .base, .floors, .src -> (P, cost, per)."""
+    from scipy.optimize import minimize
+    P0 = dict(fit.base)
+    lo = np.array([KNOB_BOUNDS[k][0] for k in knobs])
+    hi = np.array([KNOB_BOUNDS[k][1] for k in knobs])
+    x0 = (np.clip([get_knob(P0, k) for k in knobs], lo, hi) - lo) / (hi - lo)
+    best = {'c': np.inf}
+    to_P = lambda x: _to_P(P0, knobs, lo, hi, x)
+
+    def f(x):
+        P = to_P(x)
+        c, per = fit.score(P)
+        if c < best['c']:
+            best.update(c=c, P=P, per=per)
+        return c
+    c0 = f(x0)
+    log('start %.4f %s' % (c0, best['per']))
+    if method == 'de':
+        # (workers spawned, each building its own fit from fit.src: a pool forked after this process had evaluated
+        # once hung on the old render box, fit2 at 110 min with no generation done)
+        from scipy.optimize import differential_evolution
+        global _DE
+        _DE = (fit, to_P)
+        pool, gen = None, [0]
+        if workers > 1:
+            import multiprocessing as mp
+            for k in ('OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'NUMBA_NUM_THREADS'):
+                os.environ[k] = '1'
+            pool = mp.get_context('spawn').Pool(workers, initializer=_de_init,
+                                                initargs=(fit.src, fit.floors, P0, list(knobs), lo, hi))
+
+        def progress(xk, convergence=None):
+            gen[0] += 1
+            c, per = fit.score(to_P(xk))
+            log('de generation %d: best %.4f (convergence %.3f) %s' % (
+                gen[0], c, convergence or 0.0, ' '.join('%s %s' % (k, v[0] if isinstance(v, tuple) else v)
+                                                        for k, v in per.items())))
+        try:
+            res = differential_evolution(_de_cost, [(0, 1)] * len(knobs), x0=x0, seed=seed, maxiter=maxiter,
+                                         popsize=popsize, tol=1e-4, polish=False, init='sobol',
+                                         workers=pool.map if pool else 1, callback=progress,
+                                         updating='deferred' if pool else 'immediate')
+        finally:
+            if pool:
+                pool.close()
+        f(res.x)
+        log('de %.4f (%d evaluations) %s' % (best['c'], res.nfev, {k: round(get_knob(best['P'], k), 4) for k in knobs}))
+    for r in range(rounds):
+        xs = (np.array([get_knob(best['P'], k) for k in knobs]) - lo) / (hi - lo)
+        res = minimize(f, xs, method='Powell', bounds=[(0, 1)] * len(knobs),
+                       options=dict(xtol=0.01, ftol=1e-4, maxfev=maxfev))
+        log('round %d %.4f (%d evaluations) %s' % (r, best['c'], res.nfev,
+                                                    {k: round(get_knob(best['P'], k), 4) for k in knobs}))
+    return best['P'], best['c'], best['per']
 
 
 _DE = None
 
 
 def _de_init(src, floors, P0, knobs, lo, hi):
-    """a spawned worker's fit (src: _fit_for's arguments), its knobs' mapping as the parent's."""
+    """a spawned worker's fit (src: ('module:factory', args)), its knobs' mapping as the parent's."""
     global _DE
-    F, _ = _fit_for(*src)
+    import importlib
+    mod, name = src[0].split(':')
+    F = getattr(importlib.import_module(mod), name)(*src[1])
     F.floors = floors
-    _DE = (F, lambda x: dict(P0, **{k: float(lo[i] + (hi[i] - lo[i]) * np.clip(x[i], 0, 1))
-                                    for i, k in enumerate(knobs)}))
+    _DE = (F, lambda x: _to_P(P0, knobs, lo, hi, x))
 
 
 def _de_cost(x):
@@ -557,8 +600,12 @@ def _fit_for(build, spec_path, over=None):
     hull = manifest.produced(B.spec, 'hull')
     masks = manifest.produced(B.spec, 'outfit_masks')
     F = Fit(B, D, spec, os.path.dirname(hull), os.path.join(os.path.dirname(masks), 'outfit_graph.json'))
-    F.src = (build, spec_path, over)
+    F.src = ('charkit.code_hand:_fit_only', (build, spec_path, over))
     return F, spec
+
+
+def _fit_only(build, spec_path, over=None):
+    return _fit_for(build, spec_path, over)[0]
 
 
 def show(F, P, out):

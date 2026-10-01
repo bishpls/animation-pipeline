@@ -47,6 +47,7 @@
     python -m charkit hairpage BUILD [--against BASE] [--out DIR]   # the hair pieces' review page
     python -m charkit hairlab BUILD [--style K=V ..] [--opts K=V ..] [--shape K=V ..] [--labels PNG]
     python -m charkit hand fit|show --build BUILD [--spec S] [--over JSON] [--png P]   # the hand template vs the drawn hands
+    python -m charkit handsheet fit|show [--pose open] [--over JSON]   # the template's structure vs the hand sheet's poses
                                                  # the hair pieces rebuilt over a build with overrides and measured
     python -m charkit pieces BUILD_DIR [--against OTHER_BUILD] [--out DIR]   # the outfit piece by piece against the design
     python -m charkit eyes BUILD_DIR [--against OTHER_BUILD] [--out DIR]     # the eyes and mouth against the design
@@ -889,6 +890,9 @@ def main(argv=None):
     elif cmd == 'hand':
         from . import code_hand
         sys.exit(code_hand.main(rest))
+    elif cmd == 'handsheet':
+        from . import handsheet
+        sys.exit(handsheet.main(rest))
     elif cmd == 'pieces':
         from . import piecepage
         piecepage.main(rest)
