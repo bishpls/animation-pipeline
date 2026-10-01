@@ -1,0 +1,824 @@
+{
+ "base": "charkit/out/g4_shA3",
+ "stage": "garments",
+ "parts": [
+  "declared",
+  "collar_flags",
+  "piece_details",
+  "artifacts"
+ ],
+ "checks": [
+  "shoulder_*",
+  "collar_*",
+  "art_outline_collar",
+  "art_outline_neck",
+  "art_fragments_collar",
+  "art_speckle_neck",
+  "piece_top",
+  "piece_collar",
+  "piece_sleeve_*",
+  "piece_bow",
+  "piece_bodice_panel",
+  "bow_front_bleed"
+ ],
+ "boards": {
+  "az": [
+   0,
+   35,
+   180
+  ],
+  "crop": "collar",
+  "pad": 0.2
+ },
+ "variants": {
+  "H1": {
+   "garments.collar.kind": "collar",
+   "garments.collar.name": "collar",
+   "garments.collar.offset": 0.03,
+   "garments.collar.color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "garments.collar.stripe": {
+    "in": 0.033,
+    "width": 0.034,
+    "front": {
+     "in": 0.037,
+     "width": 0.03
+    },
+    "cut": true,
+    "color": [
+     0.45,
+     0.344,
+     0.2888
+    ]
+   },
+   "garments.collar.shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "garments.collar.source": "template",
+   "garments.collar.thick": 0.005,
+   "garments.collar.refine": 1,
+   "garments.collar.cuts": [
+    [
+     "eye",
+     0,
+     "below",
+     -0.43
+    ]
+   ],
+   "garments.collar.outline": {
+    "front": [
+     [
+      -0.4,
+      0.169,
+      0.42
+     ],
+     [
+      -0.48,
+      0.169,
+      0.42
+     ],
+     [
+      -0.5,
+      0.164,
+      0.413
+     ],
+     [
+      -0.52,
+      0.159,
+      0.399
+     ],
+     [
+      -0.54,
+      0.15,
+      0.39
+     ],
+     [
+      -0.56,
+      0.14,
+      0.376
+     ],
+     [
+      -0.58,
+      0.131,
+      0.362
+     ],
+     [
+      -0.6,
+      0.122,
+      0.352
+     ],
+     [
+      -0.62,
+      0.112,
+      0.34
+     ],
+     [
+      -0.64,
+      0.098,
+      0.328
+     ],
+     [
+      -0.66,
+      0.089,
+      0.316
+     ],
+     [
+      -0.68,
+      0.079,
+      0.3
+     ],
+     [
+      -0.7,
+      0.071,
+      0.2
+     ],
+     [
+      -0.715,
+      0.07,
+      0.07
+     ]
+    ],
+    "back": [
+     [
+      -0.4235,
+      0.4
+     ],
+     [
+      -0.5235,
+      0.4
+     ],
+     [
+      -0.7235,
+      0.38
+     ],
+     [
+      -0.9035,
+      0.355
+     ]
+    ],
+    "bottom": -0.905,
+    "split": {
+     "about": "neck",
+     "deg": 90,
+     "soft": 30
+    },
+    "top": [
+     [
+      0,
+      -0.54
+     ],
+     [
+      120,
+      -0.54
+     ],
+     [
+      170,
+      -0.5
+     ],
+     [
+      180,
+      -0.5
+     ]
+    ],
+    "perp": true
+   }
+  },
+  "H2": {
+   "garments.collar.kind": "collar",
+   "garments.collar.name": "collar",
+   "garments.collar.offset": 0.03,
+   "garments.collar.color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "garments.collar.stripe": {
+    "in": 0.033,
+    "width": 0.034,
+    "front": {
+     "in": 0.037,
+     "width": 0.03
+    },
+    "cut": true,
+    "color": [
+     0.45,
+     0.344,
+     0.2888
+    ]
+   },
+   "garments.collar.shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "garments.collar.source": "template",
+   "garments.collar.thick": 0.005,
+   "garments.collar.refine": 1,
+   "garments.collar.cuts": [
+    [
+     "eye",
+     0,
+     "below",
+     -0.43
+    ]
+   ],
+   "garments.collar.outline": {
+    "front": [
+     [
+      -0.4,
+      0.169,
+      0.42
+     ],
+     [
+      -0.48,
+      0.169,
+      0.42
+     ],
+     [
+      -0.5,
+      0.164,
+      0.413
+     ],
+     [
+      -0.52,
+      0.159,
+      0.399
+     ],
+     [
+      -0.54,
+      0.15,
+      0.39
+     ],
+     [
+      -0.56,
+      0.14,
+      0.376
+     ],
+     [
+      -0.58,
+      0.131,
+      0.362
+     ],
+     [
+      -0.6,
+      0.122,
+      0.352
+     ],
+     [
+      -0.62,
+      0.112,
+      0.34
+     ],
+     [
+      -0.64,
+      0.098,
+      0.328
+     ],
+     [
+      -0.66,
+      0.089,
+      0.316
+     ],
+     [
+      -0.68,
+      0.079,
+      0.3
+     ],
+     [
+      -0.7,
+      0.071,
+      0.2
+     ],
+     [
+      -0.715,
+      0.07,
+      0.07
+     ]
+    ],
+    "back": [
+     [
+      -0.4235,
+      0.4
+     ],
+     [
+      -0.5235,
+      0.4
+     ],
+     [
+      -0.7235,
+      0.38
+     ],
+     [
+      -0.9035,
+      0.355
+     ]
+    ],
+    "bottom": -0.905,
+    "split": {
+     "about": "neck",
+     "deg": 90,
+     "soft": 30
+    },
+    "top": [
+     [
+      0,
+      -0.54
+     ],
+     [
+      120,
+      -0.54
+     ],
+     [
+      170,
+      -0.5
+     ],
+     [
+      180,
+      -0.5
+     ]
+    ],
+    "perp": true
+   },
+   "garments.collar.over": [
+    "top"
+   ],
+   "garments.collar.over_gap": 0.004
+  },
+  "H3": {
+   "garments.collar.kind": "collar",
+   "garments.collar.name": "collar",
+   "garments.collar.offset": 0.03,
+   "garments.collar.color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "garments.collar.stripe": {
+    "in": 0.033,
+    "width": 0.034,
+    "front": {
+     "in": 0.037,
+     "width": 0.03
+    },
+    "cut": true,
+    "color": [
+     0.45,
+     0.344,
+     0.2888
+    ]
+   },
+   "garments.collar.shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "garments.collar.source": "template",
+   "garments.collar.thick": 0.005,
+   "garments.collar.refine": 1,
+   "garments.collar.cuts": [
+    [
+     "eye",
+     0,
+     "below",
+     -0.43
+    ]
+   ],
+   "garments.collar.outline": {
+    "front": [
+     [
+      -0.4,
+      0.169,
+      0.34
+     ],
+     [
+      -0.48,
+      0.169,
+      0.34
+     ],
+     [
+      -0.5,
+      0.164,
+      0.34
+     ],
+     [
+      -0.52,
+      0.159,
+      0.34
+     ],
+     [
+      -0.54,
+      0.15,
+      0.34
+     ],
+     [
+      -0.56,
+      0.14,
+      0.34
+     ],
+     [
+      -0.58,
+      0.131,
+      0.34
+     ],
+     [
+      -0.6,
+      0.122,
+      0.34
+     ],
+     [
+      -0.62,
+      0.112,
+      0.34
+     ],
+     [
+      -0.64,
+      0.098,
+      0.328
+     ],
+     [
+      -0.66,
+      0.089,
+      0.316
+     ],
+     [
+      -0.68,
+      0.079,
+      0.3
+     ],
+     [
+      -0.7,
+      0.071,
+      0.2
+     ],
+     [
+      -0.715,
+      0.07,
+      0.07
+     ]
+    ],
+    "back": [
+     [
+      -0.4235,
+      0.4
+     ],
+     [
+      -0.5235,
+      0.4
+     ],
+     [
+      -0.7235,
+      0.38
+     ],
+     [
+      -0.9035,
+      0.355
+     ]
+    ],
+    "bottom": -0.905,
+    "split": {
+     "about": "neck",
+     "deg": 90,
+     "soft": 30
+    },
+    "top": [
+     [
+      0,
+      -0.54
+     ],
+     [
+      120,
+      -0.54
+     ],
+     [
+      170,
+      -0.5
+     ],
+     [
+      180,
+      -0.5
+     ]
+    ],
+    "perp": true
+   }
+  },
+  "H4": {
+   "garments.collar.kind": "collar",
+   "garments.collar.name": "collar",
+   "garments.collar.offset": 0.03,
+   "garments.collar.color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "garments.collar.stripe": {
+    "in": 0.033,
+    "width": 0.034,
+    "front": {
+     "in": 0.037,
+     "width": 0.03
+    },
+    "cut": true,
+    "color": [
+     0.45,
+     0.344,
+     0.2888
+    ]
+   },
+   "garments.collar.shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "garments.collar.source": "template",
+   "garments.collar.thick": 0.005,
+   "garments.collar.refine": 1,
+   "garments.collar.cuts": [
+    [
+     "eye",
+     0,
+     "below",
+     -0.43
+    ]
+   ],
+   "garments.collar.outline": {
+    "front": [
+     [
+      -0.4,
+      0.169,
+      0.42
+     ],
+     [
+      -0.48,
+      0.169,
+      0.42
+     ],
+     [
+      -0.5,
+      0.164,
+      0.413
+     ],
+     [
+      -0.52,
+      0.159,
+      0.399
+     ],
+     [
+      -0.54,
+      0.15,
+      0.39
+     ],
+     [
+      -0.56,
+      0.14,
+      0.376
+     ],
+     [
+      -0.58,
+      0.131,
+      0.362
+     ],
+     [
+      -0.6,
+      0.122,
+      0.352
+     ],
+     [
+      -0.62,
+      0.112,
+      0.34
+     ],
+     [
+      -0.64,
+      0.098,
+      0.328
+     ],
+     [
+      -0.66,
+      0.089,
+      0.316
+     ],
+     [
+      -0.68,
+      0.079,
+      0.3
+     ],
+     [
+      -0.7,
+      0.071,
+      0.2
+     ],
+     [
+      -0.715,
+      0.07,
+      0.07
+     ]
+    ],
+    "back": [
+     [
+      -0.4235,
+      0.4
+     ],
+     [
+      -0.5235,
+      0.4
+     ],
+     [
+      -0.7235,
+      0.38
+     ],
+     [
+      -0.9035,
+      0.355
+     ]
+    ],
+    "bottom": -0.905,
+    "split": {
+     "about": "neck",
+     "deg": 90,
+     "soft": 30
+    },
+    "top": [
+     [
+      0,
+      -0.5
+     ],
+     [
+      120,
+      -0.5
+     ],
+     [
+      170,
+      -0.48
+     ],
+     [
+      180,
+      -0.48
+     ]
+    ],
+    "perp": true
+   }
+  },
+  "H5": {
+   "garments.collar.kind": "collar",
+   "garments.collar.name": "collar",
+   "garments.collar.offset": 0.03,
+   "garments.collar.color": [
+    0.97,
+    0.9,
+    0.72
+   ],
+   "garments.collar.stripe": {
+    "in": 0.033,
+    "width": 0.034,
+    "front": {
+     "in": 0.037,
+     "width": 0.03
+    },
+    "cut": true,
+    "color": [
+     0.45,
+     0.344,
+     0.2888
+    ]
+   },
+   "garments.collar.shade": [
+    0.7692,
+    0.6891,
+    0.6762
+   ],
+   "garments.collar.source": "template",
+   "garments.collar.thick": 0.005,
+   "garments.collar.refine": 1,
+   "garments.collar.cuts": [
+    [
+     "eye",
+     0,
+     "below",
+     -0.43
+    ]
+   ],
+   "garments.collar.outline": {
+    "front": [
+     [
+      -0.4235,
+      0.169,
+      0.3
+     ],
+     [
+      -0.48,
+      0.169,
+      0.42
+     ],
+     [
+      -0.5,
+      0.164,
+      0.413
+     ],
+     [
+      -0.52,
+      0.159,
+      0.399
+     ],
+     [
+      -0.54,
+      0.15,
+      0.39
+     ],
+     [
+      -0.56,
+      0.14,
+      0.376
+     ],
+     [
+      -0.58,
+      0.131,
+      0.362
+     ],
+     [
+      -0.6,
+      0.122,
+      0.352
+     ],
+     [
+      -0.62,
+      0.112,
+      0.34
+     ],
+     [
+      -0.64,
+      0.098,
+      0.328
+     ],
+     [
+      -0.66,
+      0.089,
+      0.316
+     ],
+     [
+      -0.68,
+      0.079,
+      0.3
+     ],
+     [
+      -0.7,
+      0.071,
+      0.2
+     ],
+     [
+      -0.715,
+      0.07,
+      0.07
+     ]
+    ],
+    "back": [
+     [
+      -0.4235,
+      0.4
+     ],
+     [
+      -0.5235,
+      0.4
+     ],
+     [
+      -0.7235,
+      0.38
+     ],
+     [
+      -0.9035,
+      0.355
+     ]
+    ],
+    "bottom": -0.905,
+    "split": {
+     "about": "neck",
+     "deg": 90,
+     "soft": 30
+    },
+    "top": [
+     [
+      0,
+      -0.54
+     ],
+     [
+      120,
+      -0.54
+     ],
+     [
+      170,
+      -0.5
+     ],
+     [
+      180,
+      -0.5
+     ]
+    ],
+    "perp": true
+   }
+  }
+ }
+}

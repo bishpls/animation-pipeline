@@ -287,3 +287,44 @@ def test_band_rows_reads_the_lapels_width_and_the_v():
     assert i['value'] == 0.0
     v = declared.band_rows(bands(inset=3), bands(), ctx, z=(-0.47, -0.77), measure='inner')
     assert abs(v['value'] - 0.03) < 1e-9
+
+
+def stair_masks(shear=0.0, fold_cols=(), H=300, W=400):
+    """a piece over a stepped dark band (classes: 6 orange, 8 dark): three steps 100 px wide, each 30 px lower than
+    the one before, its treads sheared by `shear` px of rise over a tread; drawn folds (lines) at fold_cols."""
+    from charkit import bodyqa
+    cls = np.zeros((H, W), int)
+    M = rect(50, 280, 50, 350, (H, W))
+    cls[M] = bodyqa.CLASS['orange']
+    for k in range(3):
+        c0, c1 = 50 + 100 * k, 150 + 100 * k
+        for c in range(c0, c1):
+            top = 150 + 30 * k - int(round(shear * (c - c0) / 100.0))
+            cls[top:280, c] = bodyqa.CLASS['dark']
+    lines = np.zeros((H, W), bool)
+    for c in fold_cols:
+        lines[60:280, c:c + 2] = True
+    lines &= cls == bodyqa.CLASS['orange']                                  # (drawn down to the band's top)
+    return M, cls, lines
+
+
+def test_stair_corners_folds_and_spacing():
+    # the stepped band (tool/garments4, Michael 2026-10-01): square steps read square; a sheared tread reads its
+    # angle; a fold through a tread's middle is a crossing; folds on the risers are not, and space as the steps
+    M, cls, lines = stair_masks(fold_cols=(149, 249))
+    rd, runs, cr = declared.stair_of(M, cls, lines, PPL)
+    assert rd['risers'] == 2 and rd['treads'] == 3
+    assert max(rd['corners']) < 2.0 and rd['crossed'] == 0 and rd['off'] == 0
+    assert abs(np.median(rd['tread_len']) - 1.0) < 0.05 and abs(np.median(rd['spacing']) - 1.0) < 0.05
+    Ms, cls_s, _ = stair_masks(shear=25)                                       # treads rising 25 px over 100: 14 deg
+    rs = declared.stair_of(Ms, cls_s, None, PPL)[0]
+    assert 11 < np.median(rs['corners']) < 17
+    Mx, cls_x, lines_x = stair_masks(fold_cols=(99, 199))                      # folds through the treads' middles
+    rx = declared.stair_of(Mx, cls_x, lines_x, PPL)[0]
+    assert rx['crossed'] == 2 and rx['off'] == 2
+    ctx = dict(ppl=PPL, view='front', cls=cls, dv=dict(raw=cls_x * 0 + np.where(lines, 4, cls), rgb=None),
+               cls_ours=cls_x, lines=lines_x)
+    c = declared.stair(Mx, M, ctx, measure='crossed')
+    # the zigzag's step crossed (the middle tread, a riser at either end) counts; the end tread crossed is reported
+    assert c['value'] == 1 and c['design'] == 0 and c['count'][0][:2] == [1, 2]
+    assert declared.stair(Ms, M, dict(ctx, cls_ours=cls_s, lines=None), measure='corner')['value'] > 10

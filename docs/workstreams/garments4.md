@@ -575,6 +575,10 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   0-2.6 every move; known-bad g4_stairs0 crossed 2 / 1, skirt corners 8.9 / 6.0, flaps 11.4 / 18.8 FAIL; the voronoi
   floor passes crossed and skirt_front_corner: a defect detector's floor).
 - Pregate (30610f7a into 00494dec): PASS, 36 moved, 0 blocking.
+- **Stairs gate 1: FAIL under K, one blocker: test_spec_alias** (clawd_body_pieces.json must equal clawd.json; the stair
+  knots and the flap square reached clawd.json only): fixed (the alias copied). Otherwise: no new FAIL, no flag
+  regression (art_band_lower 1.185 -> 1.111 P, art_mirror_waist 0.715 -> 0.72 P); report
+  charkit/out/gate/gate_tool-garments4-stairs_7134ff6d_into_00494dec.md. Gate 2 running.
 - **Stairs gate** running: job gate-garments4-1001-074750-2f1e (log charkit/out/garments4/gate_stairs.log), branch
   tool/garments4-stairs 7134ff6d into pipeline-3d 00494dec.
 
@@ -667,3 +671,14 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   front; garments.front_hits) with flat_front over the same azimuths; the jacket's opening must reach under the lapels
   (x1.0-1.1 of the drawn V; nv2's x0.85 leaves orange inside a drawn-width V). Sweep l2 running (tools/garments4/l2.json:
   a 60/75, opening x0.85/1.0/1.1, v_half 40/48).
+- **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
+  nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
+  ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).
+- **V gate 2: PASS under K** (tool/garments4-v a3bb4a8b, pipeline-3d 0d53cb8 merged in (declared families unioned),
+  into 0d53cb84; charkit/out/gate/gate_tool-garments4-v_a3bb4a8b_into_0d53cb84.md): CPU 1.01x; the one new FAIL is the
+  branch's own neck_v_three_quarter_skin 0.566 (reported). Mergeable at a3bb4a8b. Review page
+  charkit/out/garments4/review/v_page/index.html.
+- Lapels: sweeps l2 (the Coons patch) and l3 (the walk cut at the drawn outer edge) both worse than the hull collar
+  (collar front IoU 0.657 -> 0.41-0.54, 3q 0.468 -> 0.24-0.37, lap3q width 0.061 -> 0.095-0.128): the walk crumples over
+  the neck's flare. l4 running: mode 'project' (straight front-view columns laid on the torso). tool/garments4-v merged
+  into lapels (a3bb4a8b; declared families unioned: top_line, class_iou, stair, band_rows).

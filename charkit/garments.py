@@ -1959,7 +1959,8 @@ def flap_template(A, spec, hull):
     the hem), the mesh's rows and columns set on the stair's corners and the band's edges, so it is as crisp as drawn
     in the render and exactly what the QA reads (it labels faces at their UV centre: a texture's steps were quantised
     to faces). Not subdivided (a subdivision surface rounds the stair's corners): `rows` rows over the skirt, `cols`
-    columns across at least, `tail_rows` down the tail at least. The chain and weights as flap()'s.
+    columns across at least, `tail_rows` down the tail at least. `square` (0..1+): the treads turned toward
+    perpendicular to the columns' hang (0: along the hem, as before). The chain and weights as flap()'s.
     -> flap()'s dict, with band (per face: 1 on the band) and subdiv 0."""
     L = A['head']['L']
     whole = spec.get('_spec') or {}
@@ -2031,7 +2032,20 @@ def flap_template(A, spec, hull):
     if spec.get('twist'):                                     # turning toward its outer edge's side as it falls
         e_th = np.stack([ax.point(0.0, a_ + 1e-3, 1.0) - ax.point(0.0, a_, 1.0) for a_ in ah]) / 1e-3
         dirs = dirs + spec['twist'] * np.sign(knot(E, 1.0, 1) - knot(E, 1.0, 2)) * e_th
-    tails = np.array([hem + l_ * dirs for l_ in tl])                              # (len(tl), len(us), 3)
+    sq = float(spec.get('square', 0.0))
+    if sq:
+        # the stair square to the flap's hang (tool/garments4, Michael 2026-10-01: the design draws its steps with exact
+        # right angles): the columns hang at a slant to the hem, so treads at one length below it ran along the hem,
+        # sheared against the risers down the columns. Each column's rows move along it by its hem's offset along the
+        # hang from the middle column's (`square` of it: 1 a tread perpendicular to the columns), easing in from the
+        # hem to the shortest tread's band top, so the risers keep their heights and the faces their rows
+        du = dirs / np.linalg.norm(dirs, axis=1)[:, None]
+        ref = np.array([np.interp(0.5, us, hem[:, k]) for k in range(3)])
+        l_ramp = max(1e-6, float(ln.min()) - band)
+        c_ = np.clip(-sq * np.einsum('ij,ij->i', hem - ref, du), -0.8 * l_ramp, 0.8 * l_ramp)
+        tails = np.array([hem + (l_ + c_ * min(1.0, l_ / l_ramp))[:, None] * dirs for l_ in tl])
+    else:
+        tails = np.array([hem + l_ * dirs for l_ in tl])                          # (len(tl), len(us), 3)
     G = np.concatenate([over, tails], 0)
     NR, NC = G.shape[:2]
     verts = G.reshape(-1, 3)
