@@ -278,6 +278,31 @@ one tone loses it (the flyaways' trade-off). Test: test_strand_tone_root_shades_
 
 Rebuilt both with the fix: `charkit/out/hair5_b2` (A), `charkit/out/hair5_bB2` (B).
 
+**The rebuilds** (hair5_b2 A, hair5_bB2 B, at 2c520e5): art_terminator_hair 1.900 PASS (A; back 0.964), 1.918 PASS
+(B); every hair flag and piece IoU as hair5_b. Against pipeline-3d's preview 3f7b730 (render box) the only other flag
+check whose grade worsens: **art_speckle_neck 0.833 PASS -> 1.68 WARN** (profile 41.6 -> 83.9 specks per L^2: one
+more, a few-pixel island of neck skin between the hem and the collar). Also reported, not blocking: art_peeks_hair 18
+-> 17, collar_back_square 0.345 -> 0.325 (FAIL both: the hem over the collar), collar_back_iou 0.7461 -> 0.7454.
+
+**Attribution** (term.py --check speckle_neck): A with the base's lower back 0.833; every other piece swapped: 1.68.
+`tools/hair5/labart.py` (the artifact checks for a lab variant: the build's bundle with the lab's pieces; the shrink
+from the angle-weighted normals; P6's pieces on hair5_b reproduce it, 2.576 / 1.68 against 2.575 / 1.68): b1's lower
+backs: fine tips + notch 6 without the drawn cuts 0.837, with them (P3) 1.68.
+
+Batch b8 (lower back only; flags from b8/lab.json, artifacts b8/labart.json on hair5_b2; every piece IoU as P6 but
+cuts_nofine's lower 0.609):
+
+| variant | hem (tips off) | back ink | lines 3q / prof | art_terminator_hair | art_speckle_neck | peeks | fragments |
+|---|---|---|---|---|---|---|---|
+| P6 (cuts, notch 6: the default) | 2 PASS | 0.554 | 0.195 / 0.088 | 1.906 | **1.68 WARN** | 17 | 1.48 |
+| no drawn cuts | 3 | 0.895 | 0.196 / 0.086 | 2.124 WARN | 1.355 | 18 | 1.557 WARN |
+| cuts, notch 3 | 3 | 0.570 | 0.193 / 0.088 | **1.752** | **0.836** | 17 | 1.482 |
+| cuts, notch 0 (style's) | 3 | 0.566 | 0.194 / 0.088 | 1.822 | 0.836 | 17 | 1.486 |
+| cuts, no fine tips | 4 | 0.525 | 0.188 / 0.082 | 1.674 | 1.355 | 16 | 1.422 |
+| cuts, notch 10 | 2 | 0.543 | 0.195 / 0.088 | 1.907 | 1.679 WARN | 17 | 1.482 |
+
+b9 (notch 4, 5) running: the deepest notch that keeps the neck clean.
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
