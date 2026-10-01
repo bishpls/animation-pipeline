@@ -695,6 +695,7 @@ def _wrap_head(spec, Bm, S, C, rep, L, Oz, z_cut, Vb, Fb, keep, gone_set, Fk, ri
     nc = Vb[ring_b].mean(0)
     ring_r = _ring_polar((Vb[ring_b, :2] - np.array([Ox, Oy])) / L, (0.0, cy_cut), S.th)
     Sb = blend_neck(S, CUT, cy_cut, ring_r, curve=curve)
+    Sb.layout = getattr(S, 'layout', None)          # (the cage's layout: the feature blocks' columns, above the neck)
     Hmesh = head_mesh(Sb, C, CUT + ZIP_GAP, eye_outline(spec), mouth_block(spec))
     Vh = np.array([Ox, Oy, Oz]) + L * Hmesh['V']
     # assemble: the kept body, the head, the zip
