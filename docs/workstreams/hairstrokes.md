@@ -121,7 +121,8 @@ Reproduces the lab exactly (base hst_base -> hst_s1):
 - Pregate (54a0c57 into 3168961): PASS, 2 moved, 0 blocking
   (charkit/out/pregate/pregate_tool-hairstrokes_54a0c578_into_31689611.md).
 - **Box gate running:** job gate-hairstrokes-1001-061007-9305 (tool/hairstrokes 54a0c57 into pipeline-3d 3168961; log
-  charkit/out/hairstrokes/gate.log; `python -m charkit remote attach gate-hairstrokes-1001-061007-9305` to follow).
+  charkit/out/hairstrokes/gate.log; the first follower died on ssh drops, reattached: gate_attach.log; if that dies too,
+  `python -m charkit remote attach gate-hairstrokes-1001-061007-9305` collects the report).
 
 ## Exact next steps (lean relaunch)
 1. Read the gate (charkit/out/gate/gate_tool-hairstrokes_54a0c57_into_3168961.md; attach the job above if the
