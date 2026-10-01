@@ -138,3 +138,13 @@ Truth checks on fetched builds (tools/garments8/truthlab.py, the views front/3q/
 - Known-bad g8_lapels0 stored (622f6344; locally and on build2). Calibration running on build2 -> fetched
   charkit/out/g8_base/qa/cal_g8.json (log charkit/out/garments8/cal_g8.log); then write the records locally
   (calibrate._write_json into charkit/calib/records/) and set the collar truth's limits from the triple.
+
+### Calibration (local, g8_base as current; known-bads g8_lapels0, g4_v0 stored locally)
+First triple (a-priori limits): collar front/3q BLIND (g8_lapels0 0.617 / 0.514 WARN; design moves 0.927-0.964 /
+0.928-0.953; affine floor 0.26 / 0.35), collar back BLIND and the affine floor passes (0.81); top_* BLIND (no top defect
+in g8_lapels0: 0.80 / 0.74 / 0.83 / 0.91; design 0.94-1.0; floors 0-0.47); neck_v_front CALIBRATED (design 0.90-0.97,
+g4_v0 0.352, voronoi 0.728 WARN); neck_v_three_quarter MISCALIBRATED (the design moved +0,+2 reads 0.794 < 0.8).
+Grading set from it (a1480b81): collar truth front/3q [0.85, 0.70], back dropped; top truth a guard; neck_v 3q
+[0.75, 0.6]. Re-run writing the records: log charkit/out/garments8/cal_g8_local2.log.
+Step 2's targets from these: collar_front/3q_truth >= 0.70 (FAIL below: a new check, a new FAIL blocks), neck_v_*
+up from 0.574 / 0.505 (the base under the new measure; a flag check: no regression), top_* WARN or better.
