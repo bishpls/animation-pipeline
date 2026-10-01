@@ -57,6 +57,16 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
   the kick (lighting on the leaned-back head).
 - Known-bad stored: rom_rigid_shoulder (charkit/out/calib/builds, + charkit/calib/known_bad/rom_rigid_shoulder.json).
 
+## QA part (romqa)
+- 20 checks over 17 poses: 95 s wall / 133 s CPU on the laptop (default build), 1.7 GB peak. Calibrated (records
+  pending): rom_vol_elbow/_knee/_fingers (RomVolume: dual quaternion reference, known-bad rom_lbs = the build as it
+  ships), rom_shoulder_torso/_open (RomShoulder on rom_cand2, known-bad stored rom_rigid_shoulder), rom_hair_shoulders,
+  rom_finger_finger, rom_weights_stray (Rom: the build itself; known-bads hair_on_chest, fingers_shifted, stray),
+  rom_garment_strain (RomRigid). The rest INFO (calib/rom.py says why: no reference rig passes them yet).
+- Calibration A (calibrate-rom-1001-140816-7e7a, follower re-attached) ran with the old thumb flexion: re-run
+  rom_finger_finger after it (the thumb's flex changed in pose.py, THUMB_PALM 0.15). B
+  (shoulder_torso + shoulder_open on rom_cand2) relaunched after adding rom_shoulder_open.
+
 ## Box jobs
 - Boards: charkit/out/rom/box_base2/boards, rom-cand's charkit/out/rom/box_cand2/boards (112 each, toon renderer).
 - Calibration (build box): A (logs charkit/out/rom/calibA.log, -> charkit/out/rom/calibA/cal.json), B (calibB, the
