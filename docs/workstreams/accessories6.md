@@ -167,7 +167,20 @@ QA (base A3 -> after; Michael's):
   hold the gate's rules, four box jobs (charkit/out/acc6/termscreen_*).
 - Calibration (box, records committed): 13 calibrated against acc_a3_crab, 6 guard (flow, gap: floors only).
 
+### The terminator recovered (sb180_g17_07)
+Screen (tools/acc6/termscreen.py, 40 candidates, charkit/out/acc6/termscreen_*): 2.453 (sb180_g17_07, sb180_g11_11) ..
+2.509 (sb180_g16_11, reproducing the real build). Six placements: g17_07 2.198, g11_11 2.197, g16_11 2.254 (A3 2.204).
+Picked **sb180_g17_07** (visible 0.987 in profile against g11_11's 0.973). Specs at it; box build
+`charkit/out/acc6/after2` (base -> after2): no new FAIL, no flag grade moved (art_terminator_hair 2.432 -> 2.453 WARN
+both; art_peeks_hair 17 -> 21, grade FAIL both); every parts check PASS; relations bearing 16.1 / 8.1 / 12.8, turn 25.2 W
+/ 7.1 / 10.4, flow 6.9 / 0.6 / 1.8, gap 0; crab IoU 0.711 / 0.698 / 0.680 (A3 0.724 / 0.769 / 0.650: -1.8 / -9.2 /
++4.6%); visible 1.0 / 0.999 / 0.987; pos front 0.193 F -> 0.049 W; angle 3.0 / -9.7 / 17.2 W; acc_crab_alone 0.798;
+hair_piece_bangs 0.759 -> 0.743, side_locks 0.505 -> 0.520.
+
+Review page: `charkit/out/acc6/review/index.html` (page.json, make_page.py beside it): A3 | Michael's | the fit.
+pipeline-3d 60c0f1a4 (hands2) merged (1056491c); CODEMAP regenerated; pregate on the box running.
+
 ## Next steps
-1. opt_crab3 -> the crab shape; CRAB_AXIS from its poses; the specs (tools/acc6/specs.py).
-2. tools/acc6/ring.py on the box (starts round the star, Michael's and the drawn-nudged placements); sweep optimize
-   placement with starts; build the fit and Michael's placement; term6; calibrate; review page; pregate; gate.
+1. Pregate (box), then `remote gate tool/accessories6 --into pipeline-3d`; read under K.
+2. Michael's A/B (the crab's place: the drawing's arrangement vs his upper-left with the pincers along the bearing);
+   if B: the turn check's target 'pincers along the bearing' (accqa CRAB_AXIS -> a relation constant), refit.
