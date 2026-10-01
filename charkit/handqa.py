@@ -25,6 +25,10 @@ Checks (QA part 'hands', prefix hand_; lengths in L):
                              the gaps between spread fingers), ours over the design's; only in views where the design's
                              is at least CLEFT_MIN deep (drawn)
 A view where either side shows less than MIN_PX of the cuff or the hand isn't measured (the far hand in profile).
+Where something of ours stands in front of our hand (the three-quarter's far hand behind the skirt: our_hidden, the
+hand z-buffered alone against the whole figure), the shape is graded on the visible part only: ours' whole silhouette
+laid on the drawn hand, the IoU over the pixels not hidden (`views`), its whole-silhouette IoU and visible share
+beside it (`whole`, `visible`); the reach is the whole hand's; digits and cleft are not read below VISIBLE_MIN.
 
     table, checks = handqa.measure(B, design)          # the 'hands' QA part
 """
@@ -46,6 +50,10 @@ LIMITS = {                                       # (pass within, warn within); e
                                                  # by 1 from band to band), ours showing at least 2
     'cleft': ((0.6, 1.67), (0.4, 2.5)),          # ours over the design's deepest silhouette pocket
 }
+HAND_3D = 0.9           # L: our hand is the skin's shells lying wholly within this of its wrist band's centre, below
+                        # it (the palm and each digit are shells of their own: charkit/code_hand.py)
+VISIBLE_MIN = 0.75      # our hand less visible than this in a view (behind the skirt): its digits and cleft there are
+                        # not read (what the picture shows of them is the occluder's edge), its shape on what shows
 CLEFT_MIN = 0.03        # L: a drawn pocket this deep is a cleft the hand's shape carries (the three-quarter's far hand,
                         # its thumb behind the fingers: 0.015)
 
@@ -196,6 +204,35 @@ def shape_iou(a, b, ua=None, ub=None):
     return len(pa & pb) / float(len(pa | pb))
 
 
+def shape_iou_visible(a, b, hid, ua=None, ub=None):
+    """shape_iou over what shows: b (our whole hand) and hid (its hidden pixels, a subset) turned and moved as b is (on
+    b's whole centroid), the IoU over the pixels not hidden -> (IoU, b's visible share)."""
+    if ua is not None and ub is not None:
+        lab = rotated_labels(b.astype(np.uint8) + hid.astype(np.uint8), ub, ua)
+        b, hid = lab >= 1, lab >= 2
+    ya, xa = np.nonzero(a)
+    yb, xb = np.nonzero(b)
+    if not len(ya) or not len(yb):
+        return 0.0, 0.0
+    dy, dx = int(round(ya.mean() - yb.mean())), int(round(xa.mean() - xb.mean()))
+    yh, xh = np.nonzero(hid)
+    ph = set(zip((yh + dy).tolist(), (xh + dx).tolist()))
+    pa = set(zip(ya.tolist(), xa.tolist())) - ph
+    pb = set(zip((yb + dy).tolist(), (xb + dx).tolist())) - ph
+    return len(pa & pb) / float(max(1, len(pa | pb))), 1.0 - len(yh) / float(len(yb))
+
+
+def rotated_labels(m, u_from, u_to):
+    """rotated() for a small label image (nearest: labels kept)."""
+    from scipy import ndimage
+    ang = np.degrees(np.arctan2(u_to[1], u_to[0]) - np.arctan2(u_from[1], u_from[0]))
+    from .bodymeasure import window
+    w = window(m > 0, pad=2)
+    if abs(ang) < 0.25:
+        return m[w]
+    return ndimage.rotate(m[w], -ang, order=0, reshape=True)
+
+
 def aligned_pair(a, b, pad=4):
     """two masks cropped and laid on their centroids, on one canvas -> (A, B) (for pictures)."""
     ya, xa = np.nonzero(a)
@@ -261,6 +298,67 @@ def our_seams(B, ppl, az3, O, names, views=VIEWS):
     return out
 
 
+def our_hidden(B, ppl, az3, names, pm, views=VIEWS):
+    """our hands z-buffered alone (each hand's shells: the skin's shells lying wholly within HAND_3D L of its wrist
+    band's centre and below it; with the band) against the whole figure, per view and side -> {(view, side):
+    dict(hand (the hand alone), cuff (its band alone), hidden (the hand alone where the figure shows something else in
+    front))}, on the design's grids (pieceqa.our_labels'). Empty where the skin or a band isn't found."""
+    from . import bodyqa, qa3d
+    from .faceqa import zbuffer
+    meshes, names_ = qa3d.scene_objects(B)
+    sk = [i for i, n in enumerate(names_) if n in _skin_names(B, names_)]
+    if not sk:
+        return {}
+    V, T, _ = meshes[sk[0]]
+    V, T = np.asarray(V, float), np.asarray(T)
+    L = float(B.assembly['L'])
+    sh = shells(T, len(V))
+    obj = [(V_, T_, np.full(len(T_), i)) for i, (V_, T_, _) in enumerate(meshes)]
+    HAND = {'L': 10000, 'R': 10001}
+    hand_tri, band_ids = {}, {}
+    for side in ('L', 'R'):
+        want = {m[0] if isinstance(m, (tuple, list)) else m for m in pm.get('cuff_' + side, [])}
+        ids = [i for i, n in enumerate(names_) if n in want]
+        if not ids:
+            continue
+        C = np.concatenate([np.asarray(meshes[i][0], float) for i in ids])
+        c = C.mean(0)
+        far = np.linalg.norm(V[T].reshape(-1, 3) - c, axis=1).reshape(len(T), 3).max(1) > HAND_3D * L
+        out = np.zeros(sh.max() + 1, bool)
+        np.logical_or.at(out, sh, far)
+        cz = np.zeros(sh.max() + 1)
+        np.add.at(cz, sh, V[T].mean(1)[:, 2])
+        cz /= np.maximum(np.bincount(sh, minlength=len(cz)), 1)
+        mine = ~out[sh] & (cz[sh] < c[2])
+        if mine.any():
+            hand_tri[side], band_ids[side] = mine, ids
+    if not hand_tri:
+        return {}
+    rest = ~np.any(list(hand_tri.values()), axis=0)
+    full = [o for i, o in enumerate(obj) if i != sk[0]] + [(V, T[rest], np.full(rest.sum(), sk[0]))]
+    full += [(V, T[m], np.full(m.sum(), HAND[s])) for s, m in hand_tri.items()]
+    As = B.assembly
+    iw = np.array(qa3d.iris_centres(B))
+    az = bodyqa.azimuths(az3)
+    got = {}
+    for v in views:
+        org = bodyqa.origin(v, az[v], iw, As['centre'])
+        _, lab = zbuffer(full, az[v], org, L, 1.0 / ppl, bodyqa.WIN)
+        for s, m in hand_tri.items():
+            if s not in sides(v):
+                continue
+            alone = [(V, T[m], np.full(m.sum(), HAND[s]))] + [obj[i] for i in band_ids[s]]
+            _, la = zbuffer(alone, az[v], org, L, 1.0 / ppl, bodyqa.WIN)
+            hand = la == HAND[s]
+            hid = hand & (lab != HAND[s])
+            by = {}
+            for k in np.unique(lab[hid]):
+                n = 'nothing' if k < 0 else 'her own skin' if k == sk[0] else 'the other hand' if k >= 10000 else names_[k]
+                by[n] = by.get(n, 0) + int((lab[hid] == k).sum())
+            got[(v, s)] = dict(hand=hand, cuff=np.isin(la, band_ids[s]), hidden=hid, by=by)
+    return got
+
+
 def _skin_names(B, names):
     got = [o.name for o in B.objects(groups=('skin',))]
     return [n for n in names if n in got] or [n for n in names if n.endswith('_skin')]
@@ -314,8 +412,10 @@ def measure(B, design, out=None):
     O, names = pieceqa.our_labels(B, ppl, az3)
     seams_o = our_seams(B, ppl, az3, O, names)
     seams_d = design_seams(dv)
+    hidden = our_hidden(B, ppl, az3, names, pm)
     skin_ids = [i + k for i, n in enumerate(names) if n in _skin_names(B, names) for k in (0, 1000)]
     T, C, shape = {}, {}, {'L': {}, 'R': {}}
+    whole, seen = {'L': {}, 'R': {}}, {'L': {}, 'R': {}}
     pics = []
     for v in VIEWS:
         if v not in dv or v not in O:
@@ -347,9 +447,19 @@ def measure(B, design, out=None):
                         continue
                     C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'FAIL', 'design': fd[k], 'why': why}
                 continue
-            iou = shape_iou(hd['mask'], ho['mask'], hd['u'], ho['u'])
+            H = hidden.get((v, s))
+            ha = hand_mask(H['hand'], H['cuff'], ppl) if H is not None and H['cuff'].sum() >= MIN_PX else None
+            hid = H['hidden'] & ha['mask'] if ha is not None else None
+            if ha is not None and hid.sum() > 0.02 * ha['mask'].sum():
+                iou, vis = shape_iou_visible(hd['mask'], ha['mask'], hid, hd['u'], ha['u'])
+                whole[s][v] = round(shape_iou(hd['mask'], ha['mask'], hd['u'], ha['u']), 4)
+                fo['reach'] = round(reach(ha, ppl), 4)          # (the whole hand's)
+            else:
+                iou, vis = shape_iou(hd['mask'], ho['mask'], hd['u'], ho['u']), 1.0
             shape[s][v] = round(iou, 4)
+            seen[s][v] = round(vis, 3)
             T[key]['iou'] = round(iou, 4)
+            T[key]['visible'] = round(vis, 3)
             for k, note in (('reach', "how far the hand reaches past its cuff along the arm (L), ours minus the "
                                       "design's"),
                             ('digits', "the digits a band across the fingers shows (runs and the seams inside them, "
@@ -358,34 +468,55 @@ def measure(B, design, out=None):
                                       "thumb's cleft, spread fingers), ours over the design's")):
                 if (k == 'digits' and fd['digits'] < 2) or (k == 'cleft' and fd['cleft'] < CLEFT_MIN):
                     continue
+                if k in ('digits', 'cleft') and vis < VISIBLE_MIN:
+                    C['%s_%s_%s' % (v, k, s)] = {'value': None, 'status': 'INFO', 'design': fd[k], 'ours': fo[k],
+                                                 'why': 'our hand is %d%% hidden in this view (behind %s)'
+                                                        % (round(100 * (1 - vis)), max(H['by'], key=H['by'].get)),
+                                                 'note': note}
+                    continue
                 d_ = fo[k] / fd[k] if k == 'cleft' else fo[k] - fd[k]
                 C['%s_%s_%s' % (v, k, s)] = {'value': round(d_, 4) if k != 'digits' else int(d_),
                                              'status': grade(k, d_, fo[k]), 'ours': fo[k], 'design': fd[k],
                                              'note': note}
             if out:
-                pics.append((key, hd['mask'], rotated(ho['mask'], ho['u'], hd['u']), iou))
+                if vis < 1.0:
+                    lab_ = rotated_labels(ha['mask'].astype(np.uint8) + hid.astype(np.uint8), ha['u'], hd['u'])
+                    pics.append((key, hd['mask'], lab_ >= 1, iou, lab_ >= 2))
+                else:
+                    pics.append((key, hd['mask'], rotated(ho['mask'], ho['u'], hd['u']), iou, None))
     for s in ('L', 'R'):
         if not shape[s]:
             continue
         worst = min(shape[s].values())
         C['shape_' + s] = {'value': round(worst, 4), 'status': grade('shape', worst), 'views': shape[s],
+                           'visible': seen[s], 'whole': whole[s] or None,
                            'note': "the hand's silhouette IoU with the drawn hand's per view, laid on their centroids "
-                                   "(its own shape; the arm's pose is body_*_arms'), the worst view"}
+                                   "(its own shape; the arm's pose is body_*_arms'), the worst view; where ours is "
+                                   "partly hidden, over what shows (visible: its share; whole: the whole silhouette's)"}
     if out and pics:
         _picture(pics, out)
     return T, C
 
 
 def _picture(pics, out):
-    """qa_hands.png: per view and side the drawn hand (grey), ours (red outline) laid on it, the IoU above."""
+    """qa_hands.png: per view and side the drawn hand (grey), ours (red outline) laid on it, the IoU above; where ours
+    is partly hidden, its whole silhouette, the hidden part blue (not graded)."""
     import os
     from PIL import Image, ImageDraw
     from scipy import ndimage
     tiles = []
-    for key, d, o, iou in pics:
+    for key, d, o, iou, hid in pics:
         A, Bm = aligned_pair(d, o)
         img = np.full(A.shape + (3,), 255, np.uint8)
         img[A] = (170, 170, 170)
+        if hid is not None:
+            _, Hm = aligned_pair(o, hid)                 # (hid in o's frame: laid as o is)
+            ya, xa = np.nonzero(d); yo, xo = np.nonzero(o); yh, xh = np.nonzero(hid)
+            dy, dx = int(round(ya.mean() - yo.mean())), int(round(xa.mean() - xo.mean()))
+            y0, x0 = min(ya.min(), yo.min() + dy) - 4, min(xa.min(), xo.min() + dx) - 4
+            yy, xx = yh + dy - y0, xh + dx - x0
+            ok = (yy >= 0) & (yy < img.shape[0]) & (xx >= 0) & (xx < img.shape[1])
+            img[yy[ok], xx[ok]] = (150, 190, 235)
         img[Bm & ~ndimage.binary_erosion(Bm)] = (220, 30, 30)
         img = np.kron(img, np.ones((2, 2, 1), np.uint8))
         canvas = np.full((img.shape[0] + 16, max(img.shape[1], 120), 3), 255, np.uint8)

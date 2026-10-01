@@ -46,6 +46,9 @@ DEFAULT = dict(
     yaw=40.0,             # degrees the back of the hand turns from her side toward the viewer, about the forearm
     bend=0.0,             # degrees the hand bends at the wrist toward the palm (flexion; - extension)
     dev=0.0,              # degrees it bends toward the little finger's side (ulnar deviation; - radial)
+    out=0.0,              # degrees the hand turns away from her side in her frontal plane (about the forward axis)
+    line=1.0,             # the hand's outline width over the skin's (charkit.character.outline_weights): the drawn
+                          # hands' finer line (their fill share, charkit/out/hands/ink.py)
 )
 FIT_KNOBS = ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'finger_w', 'taper', 'yaw', 'bend', 'dev', 'thumb_base',
              'thumb_len', 'thumb_out', 'thumb_down', 'spread', 'curl')
@@ -113,6 +116,10 @@ def frame(J, side, P):
     ex, ey, ez = Rb @ ex, Rb @ ey, Rb @ ez
     Rd = _rot(ez, -sgn * P['dev'])
     ex, ey, ez = Rd @ ex, Rd @ ey, Rd @ ez
+    # out: the whole hand turned away from her side in her frontal plane (about the forward axis at the wrist): the
+    # drawn hands flare out past the forearm's line (front and back: 4-6 degrees more than their forearms)
+    Ro = _rot(np.array([0.0, -sgn, 0.0]), P.get('out', 0.0))
+    ex, ey, ez = Ro @ ex, Ro @ ey, Ro @ ez
     return W, np.stack([ex, ey, ez], 1)
 
 

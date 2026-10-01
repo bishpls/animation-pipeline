@@ -95,7 +95,9 @@ class Hands(Garments):
 
         def our_seams(B, ppl, az3, O, names, views=handqa.VIEWS):
             return {v: S[v] for v in views if v in S}
-        with patched(self.patches(L, kind) + [(handqa, 'our_seams', our_seams)]):
+        # (the stand-in's labels hide nothing of its hands: our_hidden reads the real geometry, so it's off here)
+        with patched(self.patches(L, kind) + [(handqa, 'our_seams', our_seams),
+                                               (handqa, 'our_hidden', lambda *a, **k: {})]):
             yield
 
 

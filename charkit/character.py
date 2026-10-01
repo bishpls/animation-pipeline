@@ -262,7 +262,7 @@ def build(spec, clay=None, look=None):
         pairs.add((min(a_, b_), max(a_, b_)))
     vals = [1.0 if (min(e.vertices[0], e.vertices[1]), max(e.vertices[0], e.vertices[1])) in pairs else 0.0 for e in me.edges]
     cr.data.foreach_set('value', vals)
-    ow = outline_weights(A)
+    ow = outline_weights(A, spec)
     g = ob.vertex_groups.new(name='outline_w')
     for w_ in np.unique(ow):
         g.add([int(i) for i in np.nonzero(ow == w_)[0]], float(w_), 'REPLACE')
@@ -270,10 +270,20 @@ def build(spec, clay=None, look=None):
     return {'arm': arm, 'skin': ob, 'data': A, 'eyes': parts, 'mouth': mouth_parts}
 
 
-def outline_weights(A):
+HAND_BONES = ('Hand', 'Thumb', 'Index', 'Middle', 'Ring', 'Little')
+
+
+def outline_weights(A, spec=None):
     """where the skin's outline shell may draw (its thickness per vertex, 0..1): not round the eye and mouth openings
-    (their own lines draw them), fading in over the rings round them."""
+    (their own lines draw them), fading in over the rings round them; on the hands the spec's body.hand.line (its
+    share of the skin's line: the line moves the surface inward by its whole width, and a finger 0.014 m wide lost half
+    of it to ink at full figure, b1; charkit/code_hand.py), by the hand's and fingers' bones' weight."""
     ow = np.ones(len(A['verts']))
+    k = float(((((spec or {}).get('body') or {}).get('hand') or {}).get('line', 1.0)))
+    if k != 1.0 and A.get('weights'):
+        W = A['weights']
+        wh = sum((np.asarray(W[b], float) for b in W if any(h in b for h in HAND_BONES)), np.zeros(len(ow)))
+        ow = 1.0 - (1.0 - k) * np.clip(wh, 0.0, 1.0)
     for E in A['eyes']:
         for v in list(E['eye']['pocket']) + list(E['eye']['margin']):
             ow[v] = 0.0
