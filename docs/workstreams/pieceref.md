@@ -278,12 +278,32 @@ Done and committed (head 9ebcf51); nothing gated, no box build of this branch ye
      the lower edge comes toward the camera, so the outline's lower band needs ~0.015 L clear along the normal.
    - The x9 box build (build-pieceref-0930-210737-312d) was killed when the spec went back to w4.
 
-## Next steps, in order (round 4, after the bleed fix)
-1. Box build of db98f8a+ (`remote build charkit/spec/clawd.json --out charkit/out/pr3`), then calibration records:
-   `python -m charkit calibrate 'bow_part_*,iso_bow_*,bow_profile_*' --build charkit/out/pr3` (bow_profile_ribbon's
-   record is for the old measure: rerun; bow_part_knot_iou remeasured), commit charkit/calib/records/*.json.
-2. Review page (tiles.py on b2_before and pr3, review.py with summary.json; the three compromises as yes/no), then the
-   gate `python -m charkit remote gate tool/pieceref --into pipeline-3d`.
+   - **Box build pr3** (charkit/out/pr3, w4 without clear, db98f8a): shape numbers match the splice (piece_bow
+     0.951/0.852/0.685; lobes F .989/.980, 3q .834/.886, P .894; knot F 1.0). Line checks differ from the splice (the
+     splice's outline from normals diverges on the pleat's thin parts): knot_rect 0.270 W (splice 0.094), crease_dir
+     19.0 W (11.4; ours -56 deg), bleed 0.275 F (0.25), iso crease_dir 16.8 W, iso body 0.810 W.
+     **New FAILs against pipeline-3d (block the gate; same in the coordinator's all-in build with clear on):**
+     bow_front/three_quarter/profile_torn (outline roughness 0.020-0.035 L vs design 0.0047: the pleat's square corners,
+     the sag sliver, the strips' ragged ends), collar_front_torn 0.0031 -> 0.0033 (3 fragments), sleeve_front_spikes_L/R
+     0 -> 0.029/0.019; flag regression art_outline_collar 1.379 P -> 2.096 W.
+   - Calibration records (856e536, from pr3): CALIBRATED bow_part_knot_line/rect/crease_*, bow_profile_ribbon (rerun,
+     remeasured), bow_profile_tail_*/loop_*, iso_bow_body, iso_bow_knot_line; GUARD bow_part_lobe_iou; **BLIND
+     bow_part_knot_iou** (front only, the known-bad g3_render3's front knot reads 0.467 WARN). iso_bow_crease_* not yet:
+     `calibrate 'iso_bow_crease_*' --build charkit/out/pr3` (a list of names doesn't match the registry's pattern).
+   - Fixes for the coordinator's findings: isoqa lost its doubled part prefix (17106263: the box named them
+     iso_iso_bow_*); QA part orders unique (e9319b8: bow_profile 1767, bow_parts 1772, iso_pieces 1776; with tool/hands
+     merged (merge-tree) the registry loads, 31 parts, no shared orders); pipeline-3d 640ca7c merged (e9a670a);
+     clawd_body_pieces.json = clawd.json (3ae7e5e, test_spec_alias ok). tool/sleeves conflicts with this branch in
+     collarqa.py and steps/collarqa.py (textual; the coordinator's merge).
+   - Review page: `charkit/out/pieceref/review/index.html` (review.py b2_before_res pr3 x9; summary.json).
+
+## Next steps (round 5)
+1. The new FAILs from the pleated bow: the bow's torn outline (round the square upper corners, the strips' ends; measure
+   with piece_details' roughness per corner), the collar's fragments and the sleeves' spikes under the lobes' ends,
+   art_outline_collar's front. Then the bleed without folding (options in State 13).
+2. bow_part_knot_iou BLIND under front-only grading: the coordinator/Michael choose (keep 3q graded, or let knot_line +
+   knot_rect carry the front knot and record the IoU as a guard).
+3. Calibrate iso_bow_crease_*; rerun the gate when pipeline-3d's blockers are cleared.
 
 ## Round 3's next steps (done but as noted in State 13)
 1. **bow_front_bleed on w4** (flag; baseline b2_before 0.0 P: must PASS, <= 0.03): add u (along the lobe) to
