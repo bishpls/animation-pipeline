@@ -834,22 +834,6 @@ def _cap(args):
 
 
 def main(argv=None):
-    """the command line; with CHARKIT_RAN_OUT=FILE (a produced reference's producer, charkit.manifest), the code the
-    command ran is recorded there (charkit.cache.ran: the produced cache keeps it and checks it on a restore)."""
-    rp = os.environ.pop('CHARKIT_RAN_OUT', None)
-    if not rp:
-        return _main(argv)
-    from . import cache
-    R = {'<unrecorded>': 'the command did not start'}
-    try:
-        with cache.ran() as R:                  # (its exit fills R, on a return and on a SystemExit alike)
-            return _main(argv)
-    finally:
-        with open(rp, 'w') as f:
-            json.dump(R, f)
-
-
-def _main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ('-h', '--help'):
         print(__doc__); return
