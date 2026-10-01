@@ -21,6 +21,8 @@ Michael's review of round 5 (A3):
   and every fit, recover it if the crab's spot allows; it's a flag check, don't worsen it.
 
 ## State
+Round DONE: gate 2 PASS under K (f5afc94e into 59c93f38). Review page `charkit/out/acc6/review/index.html`.
+
 - Baseline box build of pipeline-3d 25ff0f25: `charkit/out/acc6/base` (art_terminator_hair 2.432 WARN single
   placement, art_peeks_hair 17 WARN). A local copy of acc5's A3 build (the same clips): `charkit/out/acc6/a3_local`.
 - Work files: `charkit/out/acc6/work/` (alone_*.png the sheet's masks; parts_proto.py, limbs_try.py, clips_try.py,
@@ -180,7 +182,23 @@ hair_piece_bangs 0.759 -> 0.743, side_locks 0.505 -> 0.520.
 Review page: `charkit/out/acc6/review/index.html` (page.json, make_page.py beside it): A3 | Michael's | the fit.
 pipeline-3d 60c0f1a4 (hands2) merged (1056491c); CODEMAP regenerated; pregate on the box running.
 
+## Gates
+- Pregate (box): PASS, 6 moved, 0 blocking (charkit/out/pregate/pregate_tool-accessories6_5da2372b_into_60c0f1a4.md).
+- Gate 1 (48e5898d into 59c93f38): FAIL under K, 2 blockers, both mine: acc_star_arms / acc_star_minor remeasured with
+  no fresh record (structure() reads every clip face-on in its own frame since 6bcf6e39: the star's too). Fixed: their
+  steps (a4fa5426), records refreshed on the build box (guard, as before).
+- pipeline-3d 59c93f38 (tool/build2: box choice by CPU load) merged (f7e30919). Note: `remote run` now picks a box by
+  load; a run that reads a build must name its box (`remote --box build run ...`).
+- **Gate 2: PASS under K** (f5afc94e into 59c93f38, `charkit/out/gate/gate_tool-accessories6_f5afc94e_into_59c93f38.md`):
+  nothing blocks; build CPU 1316 -> 1345 s (1.02x); 97 test files, 0 failing; 21 records needed, all good, 0 guard
+  findings. Reported: acc_crab_front_iou 0.724 -> 0.713 and three_quarter 0.770 -> 0.698 (PASS -> WARN, -1.5 / -9.3%),
+  three_quarter size 1.098 -> 1.131 WARN; flags moved, grades unchanged: art_terminator_hair 2.178 -> 2.134 (the
+  gate's own reading), art_peeks_hair 18 -> 22 (FAIL grade both), hair_strokes_front_weight 0.308 -> 0.229 (PASS both).
+
 ## Next steps
-1. Pregate (box), then `remote gate tool/accessories6 --into pipeline-3d`; read under K.
-2. Michael's A/B (the crab's place: the drawing's arrangement vs his upper-left with the pincers along the bearing);
-   if B: the turn check's target 'pincers along the bearing' (accqa CRAB_AXIS -> a relation constant), refit.
+1. For the coordinator to merge (head f5afc94e plus notes).
+2. Michael's A/B on the review page (the crab's place: the drawing's arrangement vs his upper-left with the pincers along
+   the bearing); if B: the turn check's target 'pincers along the bearing' (accqa.CRAB_AXIS against a relation
+   constant), refit (opt_place declarations in charkit/out/remote/, the ring in tools/acc6/ring.py).
+3. Follow-ups: sweep optimize could take constraints against an external reference build (the gate's base: here the
+   pick filtered the history by hand); art_peeks_hair and hair_strokes_front_weight read the crab over the bangs.
