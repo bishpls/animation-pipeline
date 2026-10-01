@@ -19,19 +19,19 @@ for the crab's visible share; it passes the other checks in some views, so those
 """
 import numpy as np
 
-SHAPES = ['acc_crab_shape', 'acc_star_shape']
-NO_BAD = "the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled"
+# (a literal: charkit.calibrate reads it with ast. The known-bad, round 4's placement, passes these in some views, so
+# their floors are the drawn clips spoiled)
 CALIBRATION = [
-    dict(check='acc_*_iou', part='accessories', adapter='Clips', known_bad=None, no_known_bad=NO_BAD,
+    dict(check='acc_*_iou', part='accessories', adapter='Clips', known_bad=None, no_known_bad="the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
          baseline=['swap'], shape=[], better='higher'),
-    dict(check='acc_*_size', part='accessories', adapter='Clips', known_bad=None, no_known_bad=NO_BAD,
-         baseline=['scaled'], shape=SHAPES),
-    dict(check='acc_*_pos', part='accessories', adapter='Clips', known_bad=None, no_known_bad=NO_BAD,
-         baseline=['moved'], shape=SHAPES, better='lower'),
-    dict(check='acc_*_angle', part='accessories', adapter='Clips', known_bad=None, no_known_bad=NO_BAD,
-         baseline=['turned'], shape=SHAPES),
-    dict(check='acc_*_pos3d', part='accessories', adapter='Clips', known_bad=None, no_known_bad=NO_BAD,
-         baseline=['moved'], shape=SHAPES, better='lower'),
+    dict(check='acc_*_size', part='accessories', adapter='Clips', known_bad=None, no_known_bad="the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+         baseline=['scaled'], shape=['acc_crab_shape', 'acc_star_shape']),
+    dict(check='acc_*_pos', part='accessories', adapter='Clips', known_bad=None, no_known_bad="the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+         baseline=['moved'], shape=['acc_crab_shape', 'acc_star_shape'], better='lower'),
+    dict(check='acc_*_angle', part='accessories', adapter='Clips', known_bad=None, no_known_bad="the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+         baseline=['turned'], shape=['acc_crab_shape', 'acc_star_shape']),
+    dict(check='acc_*_pos3d', part='accessories', adapter='Clips', known_bad=None, no_known_bad="the stored known-bad (round 4's placement) passes this in some views: the floors are the drawn clips spoiled",
+         baseline=['moved'], shape=['acc_crab_shape', 'acc_star_shape'], better='lower'),
     dict(check='acc_star_arms', part='accessories', adapter='Clips', known_bad=None,
          no_known_bad="no stored build has the compass star; the floor is the clips-alone sheet's",
          baseline=['compass'], shape=['acc_star_shape'], better='lower'),

@@ -575,6 +575,10 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   0-2.6 every move; known-bad g4_stairs0 crossed 2 / 1, skirt corners 8.9 / 6.0, flaps 11.4 / 18.8 FAIL; the voronoi
   floor passes crossed and skirt_front_corner: a defect detector's floor).
 - Pregate (30610f7a into 00494dec): PASS, 36 moved, 0 blocking.
+- **Stairs gate 1: FAIL under K, one blocker: test_spec_alias** (clawd_body_pieces.json must equal clawd.json; the stair
+  knots and the flap square reached clawd.json only): fixed (the alias copied). Otherwise: no new FAIL, no flag
+  regression (art_band_lower 1.185 -> 1.111 P, art_mirror_waist 0.715 -> 0.72 P); report
+  charkit/out/gate/gate_tool-garments4-stairs_7134ff6d_into_00494dec.md. Gate 2 running.
 - **Stairs gate** running: job gate-garments4-1001-074750-2f1e (log charkit/out/garments4/gate_stairs.log), branch
   tool/garments4-stairs 7134ff6d into pipeline-3d 00494dec.
 
@@ -604,3 +608,31 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   collar), behind below -0.78; rms 0.062 L (z -0.36..-0.95), 0.045 in the join window. Not changed this step (the head's
   neck is the face workstream's, the torso's top the body fit's): reported for the V and the lapels.
 - Next: box gate tool/garments4-neck (after the stairs gate finishes); then step 2 (the reference).
+- **Neck gate** running: job via charkit/out/garments4/gate_neck.log (tool/garments4-neck 6598251b into 00494dec).
+
+## Milestone 2, steps 2-3 (branch tool/garments4-v from tool/garments4-neck 6598251b)
+- Coordinator 2026-10-01 ~08:10: the laptop's memory is critical: no new local heavy jobs; fits, sweeps, builds, labs,
+  calibrations and pregates on the boxes (`remote run|build`, `sweep --box`); local work = reading results, small
+  scripts. charkit/out isn't synced to the box: box-run tools go under tools/garments4/ (untracked).
+- **Step 2, the reference: registered** (71d7dbe4). layerref's new `bodice` kind (the turnaround redrawn in its layout
+  without the bow: kept parts' IoU; the bodice/collar layer against the outfit truth's collar, top and bodice_panel with
+  the bow and its tails free; the V's skin against the turnaround's visible skin), tolerances declared before measuring,
+  calibrated on the turnaround (itself moved 2 px PASS every view, iou_dc 0.995-0.999; torso band widened 6% FAIL every
+  view, outside 0.10-0.14; tool charkit/out/garments4/tools/bodicecal.py). One call, n=2 (prompt `bodice_layers`,
+  ledger): take 1 PASS every view (kept 0.987-0.990; layer iou_dc 0.974 / 0.996 / 0.924 / 0.995; V recall 0.99 / 0.998,
+  outside 0.098 / 0.047), take 2 FAIL (profile outside 0.045). Registered as charkit/refs/clawd/gen/bodice_layers.png:
+  shape authority for what the bow hides (the lapels flat along the V, wide at the shoulders narrowing to the point; the
+  V's point at z -0.88 under the knot, -0.72..-0.83; the bodice front), placement the turnaround's; cautions: its V
+  0.005-0.015 L wider each side than the turnaround's visible V, cleavage lines not ours. (.env: a gitignored symlink to
+  the main checkout's, read only.)
+- **Step 3, the V:** cherry-picked the declared families top_line + `ref` 'silhouette' (be1a47f9 = ca32ff7a) and
+  class_iou (88e572f9 = fed2ef44). Spec: top.opening carries nv2's V rows (z -0.70..-0.50, half 0.052..0.128 L: the
+  drawn V's x0.85; nv1's x1.0 regressed art_outline_collar 1.44 -> 2.17 WARN, a flag) in clawd.json and the alias
+  (tools/garments4/setspec.py). charkit/necklineqa.py declares neck_v_front_skin (x -0.2..0.2) and
+  neck_v_three_quarter_skin (x -0.1..0.35: the drawn 3q V lies right of the eyes' middle), z -0.45..-0.75, limits
+  [0.8, 0.6], Michael's item-4 flag, known-bad g4_cuffs2. Box build g4_v1 running (log
+  charkit/out/garments4/build_v1.log). Next: compare with g4_cuffs2 / g4_stairs1 (kcmp), calibrate neck_v_* on the box,
+  gate.
+- **Stairs gate 2: PASS under K** (0425973b into 00494dec; charkit/out/gate/gate_tool-garments4-stairs_0425973b_into_00494dec.md):
+  nothing blocks, CPU 1.04x, 6 new checks calibrated, art_band_lower 1.185 -> 1.111, guard flat or up. pipeline-3d
+  ff41ca2 (the neck merged) merged in afterwards (notes and CODEMAP conflicts resolved, CODEMAP regenerated).

@@ -1,0 +1,5 @@
+{"base": "charkit/out/g4_p1", "stage": "garments",
+ "parts": ["collar_flags", "piece_details", "bow_parts", "bow_profile", "iso_pieces", "artifacts"],
+ "checks": ["bow_*", "collar_*", "sleeve_*", "art_outline_collar", "art_fragments_collar", "iso_bow_body", "piece_*", "puff*", "shoulder_*", "body_profile_chest"],
+ "oat": {"garments.sleeve_L.cap": [0.15, 0.18]},
+ "boards": {"az": [0, 35, 90], "crop": "bow", "pad": 0.3}}

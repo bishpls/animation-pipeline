@@ -1,0 +1,12 @@
+{"base": "charkit/out/g4_p1", "stage": "garments",
+ "parts": ["collar_flags", "piece_details", "bow_parts", "bow_profile", "iso_pieces", "artifacts"],
+ "checks": ["bow_*", "collar_*", "sleeve_*", "art_outline_collar", "art_fragments_collar", "art_*_sleeves", "iso_bow_body", "piece_*", "shoulder_*", "body_profile_chest", "top_*"],
+ "variants": {
+   "bedL": {"garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}, "garments.bodice_panel.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}},
+   "bedLt": {"garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}},
+   "bedL15": {"garments.top.bed": {"gap": 0.015, "margin": 0.03, "ease": 0.05}, "garments.bodice_panel.bed": {"gap": 0.015, "margin": 0.03, "ease": 0.05}},
+   "v1f": {"garments.sleeve_L.profile": [[-0.30,0.1725,0.17,0.1058,0.145],[-0.25,0.19,0.1881,0.124,0.175],[-0.20,0.207,0.2058,0.142,0.20],[-0.15,0.224,0.223,0.16,0.222],[-0.10,0.24,0.242,0.178,0.24],[-0.05,0.253,0.259,0.197,0.254],[-0.0018,0.263,0.2744,0.2161,0.2654],[0.0481,0.2648,0.2589,0.2315,0.2501],[0.0982,0.2548,0.2315,0.2287,0.2243],[0.1482,0.242,0.199,0.211,0.1924]]},
+   "v1_bedL": {"garments.sleeve_L.profile": [[-0.30,0.1725,0.14,0.1058,0.145],[-0.25,0.19,0.172,0.124,0.175],[-0.20,0.207,0.20,0.142,0.20],[-0.15,0.224,0.223,0.16,0.222],[-0.10,0.24,0.242,0.178,0.24],[-0.05,0.253,0.259,0.197,0.254],[-0.0018,0.263,0.2744,0.2161,0.2654],[0.0481,0.2648,0.2589,0.2315,0.2501],[0.0982,0.2548,0.2315,0.2287,0.2243],[0.1482,0.242,0.199,0.211,0.1924]],
+               "garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}, "garments.bodice_panel.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}}
+ },
+ "boards": {"az": [0, 35, 90], "crop": "bow", "pad": 0.3}}

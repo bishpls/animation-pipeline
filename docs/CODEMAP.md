@@ -63,7 +63,6 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | 1772 | `bow_parts` | - | bow_parts | `charkit/partqa.py:bow_parts` |
 | 1776 | `iso_pieces` | - | iso_pieces | `charkit/isoqa.py:iso_pieces` |
 | 1785 | `hands` | `hand_` | hands | `charkit/handqa.py:hands` |
-| 1790 | `declared` | - | declared | `charkit/declared.py:declared` |
 | 1800 | `face_shape` | `face_shape_` | face_shape | `charkit/qa3d.py:face_shape` |
 | 1900 | `face` | `face_` | face | `charkit/qa3d.py:face_part` |
 | 2000 | `face_region` | - | face_region | `charkit/qa3d.py:face_region` |
@@ -243,8 +242,13 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `creaseqa.py` | `bow_{view}_creases` | ink_inside | bow | declared | [0.35, 0.6] |
 | `cuffqa.py` | `cuff_L_{view}_size` | area | cuff_L | declared | [0.1, 0.2] |
 | `cuffqa.py` | `cuff_R_{view}_size` | area | cuff_R | declared | [0.1, 0.2] |
+| `necklineqa.py` | `neck_v_front_skin` | class_iou | top | declared | [0.8, 0.6] |
+| `necklineqa.py` | `neck_v_three_quarter_skin` | class_iou | top | declared | [0.8, 0.6] |
 | `pieceqa.py` | `shorts_{view}_hem` | edge | shorts | piece_details | charkit.pieceqa.LIMITS.rows |
 | `pieceqa.py` | `shorts_{view}_width` | width | shorts | piece_details | charkit.pieceqa.LIMITS.width |
+| `stairqa.py` | `stair_{view}_crossed` | stair | ['skirt', 'overskirt_panel_L', 'overskirt_panel_R'] | declared | [0, 0] |
+| `stairqa.py` | `stair_skirt_{view}_corner` | stair | skirt | declared | [3, 5] |
+| `stairqa.py` | `stair_flaps_{view}_corner` | stair | ['overskirt_panel_L', 'overskirt_panel_R'] | declared | [3, 5] |
 
 ## Modules
 
@@ -1026,37 +1030,9 @@ Creases, folds and pleats measured (tool/garments4; Michael's garment list, 2026
 
 The wrist cuffs measured (tool/garments4; Michael's garment list, 2026-09-30, item 2: "the design's cuffs have a cream band that ours lack entirely"; the hands round measured ours at 1.5-2.4x the drawn area). The cream band is charkit.pieceqa's cuff_{front,back}_trim_{L,R} (calibrated: FAIL 0.29-0.30 on every build, ours have no cream); the size is ...
 
-#### `charkit/declared.py` (QA parts: `declared`)
+#### `charkit/declared.py`
 
-Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, its views, a family, the family's parameters, the limits) instead of measuring code, and calibrated by one generic path (`python -m charkit calibrate`), so a new flag needs neither a measure nor a calibration adapter written for it. Most of the checks written on 2026-09-30 ...
-
-- `declarations(root=None, files=None)`: every declaration: each charkit module's DECLARED_CHECKS (charkit/*.py, in name order; root: another tree's ...
-- `expand(decls)`: the declarations per view: [(check name, view, declaration)] in their order.
-- `calibration_entries(decls=None)`: the calibration registry entries the declarations carry (charkit.calibrate.entries reads them after the calib ...
-- `shape_iou(Mo, Md, ctx, metric='iou_tol', close=False, round_=4)`: the piece's shape against the drawn piece's in a view: as qa3d.sheet_pieces measures it (the default: ...
-- `width(Mo, Md, ctx, mid=(0.2, 0.8), mode='ratio', round_=3)`: the piece's median row width (pieceqa.edges over its middle columns), ours over the design's less one; 'rms': the ...
-- `tenths(m, e)`: a mask's row widths (px) at 0.1 .. 0.9 of the way from its top edge to its bottom edge (edges()'s rows).
-- `edge(Mo, Md, ctx, edge='bottom', mid=(0.2, 0.8), round_=4)`: a piece's top or bottom edge in L from the eye line (pieceqa.z_of), |ours - design|.
-- `tips(Mo, Md, ctx, r=None, min_depth=None, silhouette=True, round_=4)`: spikes on the piece's outline (pieceqa.spikes; silhouette: only those on the figure's silhouette): the deepest ...
-- `axis_angle(m)`: a mask's principal axis in degrees from vertical (-90, 90], or None.
-- `angle(Mo, Md, ctx, round_=1)`: the piece's principal axis (degrees from vertical), |ours - design| modulo 180.
-- `ink_between(Mo, Md, ctx, round_=4)`: the boundary between pieces a and b with no ink between: ours drawn with the build's outlines (ctx 'lines': our ...
-- `area(Mo, Md, ctx, round_=3, ref='silhouette')`: the piece's size: its pixels over the drawn piece's, less one, |.| (ours / design reported as `ratio`).
-- `position(Mo, Md, ctx, axis='both', round_=4)`: the piece's centroid (L from the midline and the eye line: pieceqa.x_of, z_of) against the design's: the larger ...
-- `remap_rows(m, Ro, Rd)`: a mask's pixels moved row by row from region Ro's span onto region Rd's, keeping their share across it (rows ...
-- `ink_inside(Mo, Md, ctx, region=None, band=0.02, faint=True, min_len=0.1, ...)`: the lines drawn inside a piece (its creases, folds and pleats: tool/garments4, Michael 2026-09-30): the design's ...
-- `visible(Mo, Md, ctx, round_=3)`: the share of the piece that shows: its pixels with everything drawn (Mo) over its own silhouette, its objects ...
-- `grade(v, limits, better='lower')`
-- `inputs(B, design, views=VIEWS, lines=False, classes=False)`: what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the ...
-- `our_lines(B, ppl, az3, views=VIEWS)`: our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls ...
-- `silhouette(I, view, pid)`: the drawn piece's silhouette in a view: its pixels in the drawing drawn as our label image ...
-- `alone(I, view, pid)`: the piece's own silhouette in a view: its objects each drawn alone (the inputs' `alone` {view: {object: mask}}), ...
-- `fit(m, shape)`: a mask cropped or padded to shape (the drawn masks against our label image's grid).
-- `limits_of(d)`: a declaration's [pass, warn]: a list, or a reference 'charkit.MODULE.NAME.KEY' to a part's own limits (a ported ...
-- `evaluate(decls, I)`: the declarations measured on the inputs I (inputs(), or a part's own: O, names, masks, pm, ppl, dv, lines?) -> ...
-- `evaluate_part(part, I, decls=None)`: a part's own declarations (part == `part`) measured on its inputs -> (table, checks).
-- `declared(B, design=None, out=None)`: the declared checks of no other part (DECLARED_CHECKS with part 'declared', and CHARKIT_DECLARED's): each family ...
-- class `Declared`: the generic calibration stand-in for the 'declared' part: charkit.calib.details.Details (calib.labels.Garments: ...
+(does not parse: invalid decimal literal (<unknown>, line 823))
 
 #### `charkit/designlight.py`
 
@@ -1940,6 +1916,8 @@ Separated layer references checked against the turnaround before they are regist
 - `star_arms(m)`: a star's arm lengths from its centroid (up, down, the sides' mean, the four diagonals' mean) as fractions of its ...
 - `check_clips(spec, path, log=print)`
 - `check_skirt(spec, path, log=print, keep_masks=None)`
+- `sheet_views(spec, path, rgb=None, log=print)`: a sheet in the turnaround's layout on the turnaround's design grids (bodyqa.design_views at the turnaround's ppl ...
+- `check_bodice(spec, path, log=print, rgb=None)`
 - `save_images(imgs, out_dir)`
 - `main(args)`
 
@@ -2067,6 +2045,10 @@ The mouth's and the expressions' lab (docs/workstreams/mouth.md): a character's 
 - `board_crop(path, L, box=(0.62, 0.55, 0.62))`: a preset board cut to the same window round the eyes as sheet_heads (the eye line BOARD['below'] L over the ...
 - `page(M, out, B=None, boards=None, against=None, ...)`: the contact sheet: every combined expression as the build's face board draws it (when `boards` has them) beside ...
 - `main(args)`
+
+#### `charkit/necklineqa.py` (2 declared checks)
+
+The neckline's V (tool/garments4, Michael's garment list 2026-09-30, item 4: "the neck-to-bow V: skin, not orange"): the design draws bare skin between the sailor collar's lapels from the neck down to the bow's knot; ours had the jacket's orange there (its open front started under the knot, z -0.72 L).
 
 #### `charkit/nose.py`
 
@@ -2772,6 +2754,10 @@ Sparse checkouts: what a worktree actually needs from the repo. The repo tracks 
 
 - `manifest_dirs(spec, root=ROOT)`: the tracked paths a character's reference manifest names (directories as they are, files' folders).
 - `dirs(profile='charkit', spec='charkit/spec/clawd.json', extra=(), root=ROOT)`: the cone for a profile -> sorted directory list, or None for 'full'.
+
+#### `charkit/stairqa.py` (3 declared checks)
+
+The staircase hem (tool/garments4, Michael 2026-10-01): the skirt's and the overskirt flaps' dark stepped band, drawn with exact right angles (vertical risers, horizontal treads), each step one pleat: its risers on the pleats' folds and its treads within a pleat's face. Ours was sheared: its risers mid-pleat, its treads across the folds ("our zigzag runs ...
 
 #### `charkit/subdiv.py`
 

@@ -1,0 +1,10 @@
+{"base": "charkit/out/g4_p1", "stage": "garments",
+ "parts": ["collar_flags", "piece_details", "bow_parts", "bow_profile", "iso_pieces", "artifacts"],
+ "checks": ["bow_*", "collar_*", "sleeve_*", "art_outline_collar", "iso_bow_body", "piece_*", "shoulder_*", "body_profile_chest", "top_*"],
+ "variants": {
+   "bedB25": {"garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}, "garments.bodice_panel.bed": {"gap": 0.025, "margin": 0.02, "ease": 0.04}},
+   "bedB35": {"garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}, "garments.bodice_panel.bed": {"gap": 0.035, "margin": 0.03, "ease": 0.05}},
+   "bedB25all": {"garments.top.bed": {"gap": 0.01, "margin": 0.02, "ease": 0.04}, "garments.bodice_panel.bed": {"gap": 0.025, "margin": 0.02, "ease": 0.04, "parts": "all"}},
+   "bed08B25": {"garments.top.bed": {"gap": 0.008, "margin": 0.015, "ease": 0.03}, "garments.bodice_panel.bed": {"gap": 0.025, "margin": 0.02, "ease": 0.04}}
+ },
+ "boards": {"az": [0, 35, 90], "crop": "bow", "pad": 0.3}}
