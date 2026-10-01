@@ -713,6 +713,7 @@ class Context:
                    spliced=sorted(objs), changed=ch)
         if board:
             try:
+                os.makedirs(os.path.dirname(board), exist_ok=True)
                 rec['board'] = sw.board(B, os.path.dirname(board), name=os.path.basename(board),
                                         **(self.decl.get('boards') or {}))
             except Exception as e:                      # (a picture is optional)
@@ -1037,6 +1038,8 @@ class Run:
             h = dict(head(c), set=rs(c), checks=rec.get('checks'), seconds=rec.get('seconds'),
                      seconds_build=rec.get('seconds_build'), spliced=rec.get('spliced'), changed=rec.get('changed'),
                      worker=r.get('worker'), error=r.get('error'), board=rec.get('board'), **sc)
+            if rec.get('board_error'):
+                h['board_error'] = rec['board_error']
             if objects is not None and rec.get('changed') and set(rec['changed']) - set(objects):
                 h['unspliced'] = sorted(set(rec['changed']) - set(objects))
             with lock:
@@ -1235,13 +1238,18 @@ class Run:
             s = k.unit_step(self.P.sigma0)
             if k.int:
                 s = max(s, 1.0 / (k.hi - k.lo))
-            for side, sgn in (('lo', -1), ('hi', 1)):
+            seen = set()
+            for sgn in (-1, 1):
                 u = u0 + sgn * s
-                if u < 0 or u > 1:
+                if u < 0 or u > 1:                      # (at a bound: two steps the other way instead)
                     u = u0 - sgn * 2 * s if 0 <= u0 - sgn * 2 * s <= 1 else min(max(u, 0), 1)
                 v = dict(x0, **{k.name: k.from_unit(u)})
-                if v[k.name] == x0[k.name]:
+                if v[k.name] == x0[k.name] or v[k.name] in seen:
                     continue
+                seen.add(v[k.name])
+                side = 'lo' if v[k.name] < x0[k.name] else 'hi'
+                if any(r['name'] == 'probe_%s_%s' % (sw._safe(k.name), side) for r in rows):
+                    side += '2'
                 rows.append(dict(name='probe_%s_%s' % (sw._safe(k.name), side), vals=v, kind='probe', gen=-1,
                                  knob=k.name))
         return rows
@@ -1701,12 +1709,14 @@ def _sens_md(out, P, sens):
          'of the start (the probe); range: its move across the knob\'s whole range (a linear fit on every feasible '
          'point); near best: the same fit on the better half; rho: the rank correlation with the objective (+: '
          'raising the knob worsens it); spread: the search\'s final standard deviation (knob units).' % sens['points'],
-         '', '| knob | oat lo | oat hi | range | near best | rho | spread |', '|---|---|---|---|---|---|---|']
+         '', '| knob | start | oat (value: objective move) | range | near best | rho | spread |',
+         '|---|---|---|---|---|---|---|']
     for k in P.knobs:
         r = sens['knobs'].get(k.name) or {}
         o = r.get('oat') or {}
         L.append('| %s | %s | %s | %s | %s | %s | %s |' % (
-            k.name, _fmt((o.get('lo') or {}).get('df')), _fmt((o.get('hi') or {}).get('df')),
+            k.name, _fmt(k.value(k.x0)), '; '.join('%s: %+.4g' % (_fmt(x['value']), x['df']) for _, x in
+                                                   sorted(o.items(), key=lambda kv: kv[1]['value'])) or '-',
             _fmt(r.get('range_effect')), _fmt(r.get('near_best_effect')), _fmt(r.get('spearman')),
             _fmt(r.get('final_spread'))))
     if sens.get('terms'):
