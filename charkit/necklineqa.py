@@ -18,7 +18,7 @@ DECLARED_CHECKS = [                 # (a literal: read with ast)
               "2026-09-30, item 4)",
          note="the skin in the V between the collar's lapels above the bow, front: our skin pixels' IoU with the "
               "drawing's in x -0.2..0.2, z -0.45..-0.75 L",
-         calibrate=dict(known_bad='g4_cuffs2', baseline=['voronoi_pieces'], shape=['piece_top', 'piece_collar'],
+         calibrate=dict(known_bad='g4_v0', baseline=['voronoi_pieces'], shape=['piece_top', 'piece_collar'],
                         kind='defect')),
     dict(check='neck_v_three_quarter_skin', family='class_iou', piece='top', views=['three_quarter'],
          params=dict(cls='skin', window=[-0.1, 0.35, -0.45, -0.75]), limits=[0.8, 0.6],
@@ -26,6 +26,6 @@ DECLARED_CHECKS = [                 # (a literal: read with ast)
               "2026-09-30, item 4)",
          note="the skin in the V between the collar's lapels above the bow, three-quarter: our skin pixels' IoU with "
               "the drawing's in x -0.1..0.35, z -0.45..-0.75 L",
-         calibrate=dict(known_bad='g4_cuffs2', baseline=['voronoi_pieces'], shape=['piece_top', 'piece_collar'],
+         calibrate=dict(known_bad='g4_v0', baseline=['voronoi_pieces'], shape=['piece_top', 'piece_collar'],
                         kind='defect')),
 ]
