@@ -128,3 +128,43 @@ restores of a hull entry stored before a merge that changed code its key couldn'
 Whether each restore was actually wrong depends on whether that change moved the hull (the third is confirmed by c3).
 Where base and candidate both restored the same entry, nothing moved between them (the gate compared like with like);
 the risk is a side that rebuilt (its key changed for another reason) against one that restored.
+
+## 1 (continued). The cold default build, b0 (this branch at 60c0f1a4 + the instrumentation)
+
+`remote build charkit/spec/clawd.json --out charkit/out/infra5/b0 --boards '' --no-blend --cache off` (build box,
+threads 4): **1790 s CPU, 1133 s wall.** venv steps 407 s CPU (pieces_hair 209, hair_select 95, code_head 76; a gate
+restores these from the shared step cache), Blender 190 (character 59, look_export 56, bundle 26, garments 19, the
+trace's own snapshots 16), **QA 1192 (67%)**: declared 364, look 192, artifacts 141, face_flags 93, motion 45,
+face_region 44, skirt 39, hair_noise 38, scalp 34, hands 33.
+
+**Where the QA's CPU goes** (`profile qa` on b0's bundle under cProfile: charkit/out/infra5/qaprof/qa_profile.json):
+the toon renderer drawing on the CPU box's software rasteriser (wgpu on lavapipe: `proxy_func` inside `submit`, its
+threads making CPU about 2.5x wall): declared 7 draws, 80 s of its 136 s wall; look 22 draws, 40 s of 68; artifacts 4
+draws, 33 of 45; face_flags 5 draws, 13 of 40. The look export is 2.03M triangles and every frame drew all of it, the
+picture 4 x 4 supersampled. The design side (the references measured, per build) ~100 s a pass, much of it already
+kept on disk by Design.memo (cache.venv_memo); not kept: the skirt's drawn bands (20 s), the hair weight's head sheet
+(8 s), the face flags' design reads (11 s).
+
+**Top 5 costs and what they buy** (b0, CPU s): (1) qa/declared 364: Michael's flags as declared checks (41: the hair's
+strokes, line weight and tones, the stairs, creases, cuffs, neckline); (2) venv/pieces_hair 209: the hair pieces, lock
+shells and strokes (restored in most gates); (3) qa/look 192: the look checks (face shadows, noise, line widths);
+(4) qa/artifacts 141: the art_* flag checks; (5) venv/hair_select 95 (restored in most gates), then qa/face_flags 93,
+venv/code_head 76, blender/character 59, blender/look_export 56, qa/motion 45 (105 at 25ff0f25: the box's load).
+
+## 3. The cuts
+
+1. **The iterate profile** (motion QA skipped explicitly, section 3a): 45-120 s CPU an iteration's QA.
+2. **declared's line images drew a picture they threw away** (cbe69922^^): `qa3d.draw(..., aux=aux)` renders the
+   picture 4 x 4 supersampled and the buffers; _line_images read only the buffers. Now draw_lit(picture=False): the
+   same buffers. 35 s of the part's 136 s wall on b0.
+3. **Culling in the renderer** (render/buffers.py `_cull`): an orthographic frame leaves out the primitives wholly
+   outside its window (their extent grown by CULL_PAD 0.1 m, many times an outline's push) before drawing; what's
+   left draws exactly as before. CHARKIT_RENDER_CULL=0 turns it off. Laptop check (Metal): look, face_flags, artifacts
+   on b0's bundle, readings equal with and without (`profile same`). The box's numbers: pending (b2).
+4. **Design-side measures kept on disk** (venv_memo): the skirt's drawn bands, the hair weight's head sheet (pure
+   functions of the drawing's arrays). Iteration only: a gate's builds are cold. And a `--cache off` (or verify)
+   build now skips the venv memo too (CHARKIT_CACHE=off): it had restored the design side from earlier builds.
+
+Running: b1 (this branch before the culling and the memos, `--box build`, `--cache off`) into charkit/out/infra5/b1
+(log charkit/out/infra5/b1.log); its venv memo is warm from b0 (the --cache off fix came after), so b1's QA isn't a
+cold figure; b2 will be.
