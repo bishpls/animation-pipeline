@@ -1,0 +1,91 @@
+{
+ "check": "acc_star_minor",
+ "part": "accessories",
+ "adapter": "Clips",
+ "module": "charkit.calib.clips",
+ "at": "2026-10-01T13:30:15",
+ "better": "lower",
+ "kind": "shape",
+ "shape": [
+  "acc_star_shape"
+ ],
+ "design": {
+  "moves": {
+   "+0,+1": [
+    -0.009,
+    "PASS"
+   ],
+   "+0,+2": [
+    -0.009,
+    "PASS"
+   ],
+   "+1,+0": [
+    -0.009,
+    "PASS"
+   ],
+   "+2,+0": [
+    -0.009,
+    "PASS"
+   ],
+   "+0,-1": [
+    -0.009,
+    "PASS"
+   ],
+   "+0,-2": [
+    -0.009,
+    "PASS"
+   ],
+   "-1,+0": [
+    -0.009,
+    "PASS"
+   ],
+   "-2,+0": [
+    -0.009,
+    "PASS"
+   ]
+  },
+  "min": -0.009,
+  "max": -0.009,
+  "spread": 0.0,
+  "median": -0.009
+ },
+ "known_bad": {
+  "name": null
+ },
+ "no_known_bad": "the 4-point placeholder build is not stored; the floor is its structure",
+ "floor": {
+  "four_point": {
+   "values": [
+    -0.103,
+    -0.103,
+    -0.103,
+    -0.103,
+    -0.103
+   ],
+   "statuses": [
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL",
+    "FAIL"
+   ],
+   "median": -0.103,
+   "status": "FAIL",
+   "passing": 0
+  }
+ },
+ "probes": {},
+ "blind_to": [],
+ "current": {
+  "value": 0.002,
+  "status": "PASS",
+  "margin": 1.117
+ },
+ "verdict": "guard",
+ "why": "no known-bad (the 4-point placeholder build is not stored; the floor is its structure); the design passes and the floor does not",
+ "build": "charkit/out/acc5/after2",
+ "generators": {
+  "four_point": "the star template without its minor points as ours face-on"
+ },
+ "seconds": 35.7
+}

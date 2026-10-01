@@ -77,6 +77,7 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 
 | command | module |
 |---|---|
+| `accfit` | `accfit` |
 | `bodyeval` | `bodyeval` |
 | `bodyfit` | `bodyfit` |
 | `bodysens` | `bodysens` |
@@ -138,6 +139,13 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 | `art.py` | `art_band_lower` | artifacts | Art | body6_render |
 | `chin.py` | `face_shadow_chin_edge` | look | Chin | look5_before |
 | `chin.py` | `face_shadow_chin` | look | Chin | look5_before |
+| `clips.py` | `acc_*_iou` | accessories | Clips | - |
+| `clips.py` | `acc_*_size` | accessories | Clips | - |
+| `clips.py` | `acc_*_pos` | accessories | Clips | - |
+| `clips.py` | `acc_*_angle` | accessories | Clips | - |
+| `clips.py` | `acc_*_pos3d` | accessories | Clips | - |
+| `clips.py` | `acc_star_arms` | accessories | Clips | - |
+| `clips.py` | `acc_star_minor` | accessories | Clips | - |
 | `details.py` | `sleeve_*_spikes_L` | piece_details | Details | body6_render |
 | `details.py` | `sleeve_*_spikes_R` | piece_details | Details | body6_render |
 | `details.py` | `sleeve_*_rough_L` | piece_details | Details | body6_render |
@@ -227,6 +235,8 @@ A check named `PREFIX + name` comes from its part's function; `python -m charkit
 
 | module | check | family | piece | part | limits |
 |---|---|---|---|---|---|
+| `accqa.py` | `acc_crab_{view}_visible` | visible | pin_crab | accessories | [0.97, 0.9] |
+| `accqa.py` | `acc_star_{view}_visible` | visible | pin_star | accessories | [0.97, 0.9] |
 | `creaseqa.py` | `skirt_panel_{view}_creases` | ink_inside | skirt | declared | [0.35, 0.6] |
 | `creaseqa.py` | `skirt_panel_{view}_edges` | ink_inside | skirt | declared | [0.35, 0.6] |
 | `creaseqa.py` | `skirt_panel_{view}_shape` | shape_iou | skirt | declared | [0.8, 0.65] |
@@ -267,7 +277,27 @@ Hair accessories and small props (docs/CHARKIT.md §2): meshes placed on the hai
 - `hair_ground(objects)`: the hair's surfaces for generate's `ground` from Blender objects (world, the base meshes: no outline shell).
 - `build(A, arm, V, specs, mats, ground=None)`: Blender objects for the accessories, parented to the head.
 
-#### `charkit/accqa.py` (QA parts: `accessories`)
+#### `charkit/accfit.py`
+
+The hair clips' fits (tool/accessories5, docs/workstreams/accessories5.md): charkit.accessories' star and crab built from a few shape knobs fitted to the design's clips, then placed on a build's hair; every fit is scored as the QA measures (charkit.accqa): each clip's shape IoU per view as the drawing shows it (accqa.as_drawn), and the placement's size, ...
+
+- `design(spec)`: the design's clips -> dict(ppl, az3, views {view: {kind: mask}}, alone {kind, kind_edge: mask}, files).
+- `occluder(D, view, kind)`: the drawing's other clips over this one in a view (their drawn masks), or None.
+- `get(shape, key)`
+- `put(shape, key, v)`
+- `template(kind, shape)`: a clip's local mesh (its back on z = 0, facing +z): the star's height 1, the crab's body 1 wide -> (V, F).
+- `posed(V, yaw=0.0, roll=0.0)`: local verts turned yaw degrees about their up axis (y) and spun roll degrees in their plane (about z).
+- `silhouette(V, F, px=240)`: local verts drawn along -z (face-on), about px across -> bool mask (orthographic; the QA's raster).
+- `score_shape(kind, shape, poses, D, w_alone=0.0, views=VIEWS, w_arms=W_ARMS)`: a template's per-view as-drawn IoU (poses {view: (yaw, roll)}) and its face-on IoU against the clips-alone ...
+- `fit_shape(kind, D, shape0, minutes=10.0, w_alone=0.25, log=print)`: the template's shape knobs (SHAPE_KNOBS) and each view's pose fitted -> dict(shape, poses, score).
+- class `Scene`: a build's scene for placing its clips: the hair they rest on (accessories.Ground, its BVHs built once), and per ...
+- `fit_place(S, specs, minutes=30.0, kinds=KINDS, log=print)`: both clips' placements fitted on the scene S (the shapes fixed) -> dict(specs, result).
+- `clean(r)`: a measure() result without its meshes, for JSON.
+- `picture(S, specs, scale=2, pad=0.08)`: per view: the drawing, ours (the clips over the scene's grey: crab red, star yellow, what covers them dark) and ...
+- `shape_picture(kind, shape, poses, D, S=96)`: a template fit's picture: per view (and the clips-alone drawing face-on) ours aligned on the drawn clip as the QA ...
+- `main(args)`
+
+#### `charkit/accqa.py` (QA parts: `accessories`; 2 declared checks)
 
 Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) against the design, clip by clip and view by view, and the QA's accessory class (bodyqa.CLASS 'accessory': a clip is neither hair nor iris on either side).
 
@@ -282,20 +312,27 @@ Hair accessories (the clips charkit.accessories builds: a star, a crab, ...) aga
 - `measure(m, ppl, win=WIN)`: one clip mask on a window grid -> dict(px, u, z (centroid, L), size (sqrt area, L), w, h (extent, L), angle ...
 - `normalised(m, S=64, N=None)`: a mask moved to its centroid and scaled so sqrt(area) = S px, on an N x N canvas (default 3 S) -> bool.
 - `shape_iou(a, b)`: the IoU of two masks after aligning their centroids and scaling to equal areas.
-- `compare(mo, md, ppl, kind, view)`: ours against the design for one clip in one view -> {measure: check}.
+- `as_drawn(mo, md, occ, lw=2, it=10)`: ours as the drawing shows the clip: the drawing's other clips (occ: their drawn masks, grown lw px over the ...
+- `arms(m, width=20.0)`: a star's arms from its centroid as fractions of its height (the up and down reaches' sum), each the furthest ...
+- `face_on(V, F, axes, ppl=400.0, edge=False)`: a clip drawn alone along its own facing (axes: columns x, y, z = its facing; world verts V), orthographic at ppl ...
+- `clip_axes(V, centre=None)`: a placed clip's own frame from its vertices: columns x, y, z = its thin axis (the smallest principal axis, away ...
+- `compare(mo, md, ppl, kind, view, occ=None)`: ours against the design for one clip in one view -> {measure: check}.
 - `triangulate(M, az3)`: a clip's 3D centroid (x her left, y toward her back from the eyes, z up from the eye line; L) from its centroids ...
-- `our_labels(meshes, clips, az, origin, L, ppl, win=WIN)`: ours on a view's window grid: meshes [(V, T)] drawn as occluders, clips [(V, T)] labelled 1..n -> label image (0 ...
+- `our_labels(meshes, clips, az, origin, L, ppl, win=WIN, ids=False)`: ours on a view's window grid: meshes [(V, T)] drawn as occluders, clips [(V, T)] labelled 1..n -> label image (0 ...
+- `covered_by(lab_ids, alone, shown, names, kinds)`: what covers a clip where it doesn't show: the pixels of its own silhouette (alone) that it doesn't show, by the ...
 - `origin(view, az, iris, centre)`
 - `clip_objects(B)`: the bundle's visible accessory objects with their spec kind -> [(kind, obj)] (an object named KIND_i, as ...
 - `seat(clip_V, hair, L, centre)`: how a clip sits on the hair (world): its thin axis (the smallest principal axis, away from the head's centre), ...
 - `sheets(spec)`: the design's sheets for the clips: [(name, image path, kind 'head' | 'body', graded)] from the spec's ref (the ...
+- `alone_clips(spec, load=None)`: the clips-alone drawings (the manifest's ALONE_REF, its bottom row under the widest empty band of rows; each clip ...
 - `design_sheets(items, eye_x, pieces)`: every sheet's clips (design()), the head sheet's registered as the body sheet's prior: items [(name, kind, ...
 - `design_all(spec, eye_x, load=None, memo=None)`: the spec's sheets' clips (design_sheets) -> ({name: design}, pieces, files read).
 - `window_to_grid(m, eye, ppl, src=WIN, dst=None)`: a mask on a window round a sheet pixel (crop()'s grid, window src) moved onto another window's grid round the ...
 - `grid_masks(designs, ppl, kind='body')`: the clips of the sheet of that kind (the body turnaround: the bodyqa grids') on the bodyqa.design_views grids -> ...
 - `reclass(dv, masks)`: bodyqa.design_views' views with the clips' pixels (grid_masks) in the accessory class, cls and raw alike (a drawn ...
 - `piece_of(kind, spec_acc=None)`: a spec accessory's outfit graph piece: its 'piece', else PIECE by kind.
-- `evaluate(B, designs, pieces, az3=None)`: ours against every sheet's clips -> (table, checks, pictures {sheet: {view: (design rgb, masks, ours label, ids)}}).
+- `evaluate(B, designs, pieces, az3=None, alone=None, labels=None)`: ours against every sheet's clips -> (table, checks, pictures {sheet: {view: (design rgb, masks, ours label, ids)}}).
+- `structure(clips, geo, centre, alone=None)`: each clip face-on (its own facing: clip_axes): the star's arms against head_turnaround's proportions (STAR_ARMS: ...
 - `zoom_box(pics, ppl, pad=0.06, win=WIN)`: the rows and columns (one box for every view of a sheet) that hold the clips, both sides, padded by pad L.
 - `panels(rgb, masks, lab, kinds, box, pieces_of)`: one view's three panels over the zoom box: the drawing, ours (the clips in their colours over grey), and the ...
 - `picture(pics, ppl, pieces_of, scale=2)`: a sheet's views as rows of panels (panels()), zoomed to the clips at one scale -> image.
@@ -1022,6 +1059,7 @@ Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, i
 - `stair_inputs(M, cls, lines, ppl, reach=0.4, inset=3)`: a piece's face and band from its pixels and the model-sheet classes over them: the face the piece's pixels ...
 - `stair_of(M, cls, lines, ppl, gap=STAIR_GAP, above=0.08, tol=0.02, folds=None)`: stair_runs, stair_creases and stair_read on a piece's mask, the classes over it, the lines (ink: the band left ...
 - `stair(Mo, Md, ctx, measure='corner', above=0.08, tol=0.02, round_=2)`: the stepped band (stair_of) on ours and the drawn piece (or pieces: a list, their readings pooled): ours from our ...
+- `visible(Mo, Md, ctx, round_=3)`: the share of the piece that shows: its pixels with everything drawn (Mo) over its own silhouette, its objects ...
 - `grade(v, limits, better='lower')`
 - `inputs(B, design, views=VIEWS, lines=False, classes=False, folds=False)`: what the families read, on the design's grids (the body sheet's scale): ours z-buffered (pieceqa.our_labels: the ...
 - `our_lines(B, ppl, az3, views=VIEWS)`: our outline pixels per view on the design's grids: the build's surfaces drawn with their outline hulls ...
@@ -1030,6 +1068,7 @@ Declared checks (tool/sweep, 2026-09-30): a check as a declaration (the piece, i
 - `silhouette(I, view, pid)`: the drawn piece's silhouette in a view: its pixels in the drawing drawn as our label image ...
 - `drawn_lab(I, view)`: the drawing as our label image in a view (bodymeasure.drawn_labels, cached on I), or None without the outfit graph.
 - `hair_of(lab, names)`: the pixels of a label image that are hair (an object named hair*).
+- `alone(I, view, pid)`: the piece's own silhouette in a view: its objects each drawn alone (the inputs' `alone` {view: {object: mask}}), ...
 - `fit(m, shape)`: a mask cropped or padded to shape (the drawn masks against our label image's grid).
 - `limits_of(d)`: a declaration's [pass, warn]: a list, or a reference 'charkit.MODULE.NAME.KEY' to a part's own limits (a ported ...
 - `evaluate(decls, I)`: the declarations measured on the inputs I (inputs(), or a part's own: O, names, masks, pm, ppl, dv, lines?) -> ...
@@ -3590,7 +3629,9 @@ A simulation cage for a grid-built garment (the way production cloth runs: simul
 The pilots: garments draped by charkit.sim.xpbd from a build's own products, measured by the build's own QA.
 
 - class `Build`: a build's products for the pilots: the bundle, the garments' recording (coarse and final), L.
-- `grid_of(o)`: a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on.
+- `ink_slots(o)`: a piece's material slots that are ink (drawn lines riding on it) -> set of indices.
+- `grid_polys(o)`: a grid-built garment's own faces: its polygons less those on an ink slot (garments.with_ink appends a piece's ...
+- `grid_of(o)`: a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on; its grid is the ...
 - `piece_cloth(o, pin_rows=2, rest='template', density=0.2)`: a grid-built garment as cloth: rows 0..pin_rows-1 pinned (where it hangs from), vertices on no face pinned ...
 - `collider(Bd, names, box, h)`: the union (min) of signed-distance grids of closed bundle meshes over a box, spacing h: -> xpbd.SDFGrid.
 - `rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, ...)`: settle one of a build's garments against its bundle's meshes (settle()): -> dict(V, stats, cage, solver).
@@ -3723,6 +3764,12 @@ Calibration adapter for the chin's shadow on the jaw (charkit.lookqa: face_shado
 - `floor_move(seed)`: a seed's move for the floor: 4-8 px in a random direction (rows, columns).
 - class `Chin`
 
+#### `charkit/calib/clips.py` (7 calibration entries)
+
+Calibration adapter for the hair clips (charkit.accqa's 'accessories' part, tool/accessories5): the views' checks (acc_KIND_VIEW_{iou,size,pos,angle}, measured as the drawing shows each clip since accessories5, and acc_KIND_pos3d), its declared checks (acc_KIND_VIEW_visible: the share of a clip that shows, Michael's non-occlusion rule) and the star's ...
+
+- class `Clips`
+
 #### `charkit/calib/details.py` (22 calibration entries)
 
 Calibration adapter for the garment pieces' details (charkit.pieceqa's piece_details: the sleeves' spikes, roughness, width along the arm and stand-off, the waistband's and the shorts' edges and widths, the cuffs, the collar's and the bow's torn edges, the bow's shape, the jacket over the band and its open front). The stand-in for ours is labels.py's ...
@@ -3807,7 +3854,7 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 
 Measurement steps, one file per measuring module (charkit/steps/<module>.py holds the steps of the checks charkit/<module>.py measures): each a module-level MEASUREMENT_STEPS literal that charkit.registry.steps() reads with ast. Nothing imports these files, so adding a step never changes a build's code keys (the stages, the hull's stamp). How to add one: ...
 
-#### `charkit/steps/accqa.py` (1 measurement steps)
+#### `charkit/steps/accqa.py` (14 measurement steps)
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
@@ -3862,6 +3909,10 @@ The measurement steps of the checks charkit/isoqa.py measures (charkit.registry;
 #### `charkit/steps/lookqa.py` (16 measurement steps)
 
 The measurement steps of the checks charkit/lookqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
+
+#### `charkit/steps/motionqa.py` (2 measurement steps)
+
+The measurement steps of the checks charkit/sim/motionqa.py reports (motion_<pose>_<garment>_*; charkit.registry). A step: (check pattern, the commit that changed the measurement, what changed).
 
 #### `charkit/steps/partqa.py` (5 measurement steps)
 
