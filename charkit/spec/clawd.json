@@ -29,7 +29,7 @@
    "elbow": 2.18607
   },
   "source": "code",
-  "hand": {"length": 0.6972, "palm": 0.4918, "palm_w": 0.1858, "wrist_w": 0.1684, "palm_t": 0.0529, "taper": 0.4206, "overlap": 0.2298, "fingers": [0.93, 1.0, 0.95, 0.78], "spread": 0.3801, "curl": 11.9065, "thumb_len": 0.3412, "thumb_w": 0.0528, "thumb_out": 8.7539, "thumb_down": 7.5618, "thumb_base": 0.1167, "yaw": 61.8814, "bend": 5.4953, "dev": 0.0, "out": 5.5, "line": 0.5},
+  "hand": {"length": 0.6847, "palm": 0.4345, "palm_w": 0.2191, "wrist_w": 0.1692, "palm_t": 0.0809, "taper": 0.5666, "overlap": 0.2151, "fingers": [0.93, 1.0, 0.95, 0.78], "spread": -1.0599, "curl": 6.2618, "thumb_len": 0.3454, "thumb_w": 0.0469, "thumb_out": 14.1641, "thumb_down": 1.8665, "thumb_base": 0.1003, "yaw": 61.8814, "bend": -2.2646, "dev": -0.841, "out": 5.5, "line": 0.5},
   "arm": {"elbow_out": 3.9, "elbow_fwd": 0.7}
  },
  "head": {
