@@ -40,9 +40,11 @@ _Z = dict(curl=(0.0, 0.0, 0.0), spread=0.0)
 # the curled index and middle; open straightens the rest's curl and fans the fingers; point keeps the index straight
 POSES = {
     'relaxed': {},
-    'open': dict(thumb=dict(curl=(-5.0, -8.0, -8.0), spread=22.0, oppose=-10.0),
-                 index=dict(curl=-6.0, spread=8.0), middle=dict(curl=-6.0, spread=0.0),
-                 ring=dict(curl=-6.0, spread=8.0), little=dict(curl=-6.0, spread=16.0)),
+    # (open: fitted to the hand sheet's open hand per row, round 6's poses1: curl -6.4, spread 11.5, the thumb's
+    # spread 33, opposition 19, curl 12; handposes.from_knobs('open', ...))
+    'open': dict(thumb=dict(curl=(4.8, 11.9, 13.7), spread=33.3, oppose=19.1),
+                 index=dict(curl=-6.4, spread=11.5), middle=dict(curl=-6.4, spread=0.0),
+                 ring=dict(curl=-6.4, spread=11.5), little=dict(curl=-6.4, spread=22.9)),
     'fist': dict(thumb=dict(curl=(15.0, 35.0, 40.0), spread=-10.0, oppose=55.0),
                  index=dict(curl=(85.0, 95.0, 60.0), spread=-2.0), middle=dict(curl=(85.0, 95.0, 60.0)),
                  ring=dict(curl=(85.0, 95.0, 60.0), spread=-2.0), little=dict(curl=(85.0, 95.0, 60.0), spread=-4.0)),
@@ -196,10 +198,11 @@ class PoseGrade:
     from the turnaround), so a fist's shortening is graded too."""
     WEIGHT = 0.05
 
-    def __init__(self, spec_path=None, open_pose=None, over=None):
+    def __init__(self, spec_path=None, open_pose=None, over=None, spec=None):
         import numpy as np
         from . import code_hand, handsheet
-        spec = json.load(open(spec_path or os.path.join(ROOT_, 'charkit', 'spec', 'clawd.json')))
+        if spec is None:
+            spec = json.load(open(spec_path or os.path.join(ROOT_, 'charkit', 'spec', 'clawd.json')))
         self.P = code_hand.params(spec, **(over or {}))
         self.H = code_hand.hand(handsheet.CHAIN, 'left', self.P)
         self.S = handsheet.cells()

@@ -805,3 +805,56 @@ def sheet_ratios(path=SHEET, style='anime', pose='open'):
                               mcp_s=round(L['mcp_s'], 4)),
                 palm_len_over_wrist=round(PL / (L['wrist_w'] * r), 4),
                 palm_len_over_cuff=round(L['palm_len'] * D['reach'], 4))
+
+
+def ratios_of(h):
+    """an open hand's structural ratios off its landmarks, the same for the sheet's drawn hand and ours drawn alike ->
+    dict(span (the MCP span as 4 x the webs' spacing: the thumb not in it, over PL), wrist (over the span), middle (over
+    PL), index, ring, little (over the middle), taper (the fingers' width at 0.9 of their length over at 0.1), thumb (the
+    wrist line's thumb-side end to its tip, over PL), thumb_w (its width at its base, over PL)) or None."""
+    D = digits(h)
+    if len(D['digits']) < 5:
+        return None
+    L = landmarks(h, open_hand=D)
+    if not L.get('palm_len') or not L.get('mcp_span_est') or len(L.get('webs', [])) < 3:
+        return None
+    r = L['reach_px']
+    PL = L['palm_len'] * r
+    f = sorted(L['fingers_open'], key=lambda d: d['angle'])          # little .. index
+    lit, ring, mid, idx = [x['length'] * r for x in f]
+    th = L['thumb_open']
+    wp = np.array(L['wrist_pts'])
+    cmc = wp[np.argmin([np.linalg.norm(p - th['tip']) for p in wp])]
+    span = L['mcp_span_est'] * r
+    return dict(span=span / PL, wrist=L['wrist_w'] * r / span, middle=mid / PL, index=idx / mid, ring=ring / mid,
+                little=lit / mid, taper=float(np.mean([x['widths'][-1] / max(x['widths'][0], 1e-9) for x in f])),
+                thumb=float(np.linalg.norm(th['tip'] - cmc)) / PL, thumb_w=th['widths'][0] * r / PL)
+
+
+FIT_RATIOS = ('span', 'wrist', 'middle', 'index', 'ring', 'little', 'taper', 'thumb', 'thumb_w')
+
+
+def fit_ratios(spec, over, target=None, iters=8, gain=1.0, keys=FIT_RATIOS, log=print):
+    """the template's ratios fitted to the sheet's open hand's landmarks (Michael, 2026-10-01: from the open hand's
+    landmarks, not by silhouette IoU): each ratio moved by the measured difference between the sheet's and ours (our
+    open hand posed by the pose library and drawn as the sheet draws it, read by ratios_of alike), `iters` times; over:
+    the ratio mode's knobs (palm_len, wrist_offset, the rest angles; its 'ratios' the start) -> (ratios, history)."""
+    from . import code_hand, handposes
+    tgt = target or ratios_of(cells()[('open', 'back')])
+    R = dict(code_hand.hand_ratios(spec))
+    R.update(over.get('ratios') or {})
+    hist = []
+    for it in range(iters):
+        G = handposes.PoseGrade(spec=spec, over=dict(over, ratios=R))
+        h = G.ours(handposes.POSES['open'], 'back')[0]
+        got = ratios_of(h)
+        if got is None:
+            log('iteration %d: our open hand shows fewer than five digits or three webs' % it)
+            break
+        err = {k: tgt[k] - got[k] for k in keys}
+        hist.append(dict(ours={k: round(got[k], 4) for k in keys}, err={k: round(v, 4) for k, v in err.items()}))
+        log('iteration %d: max |err| %.4f %s' % (it, max(abs(v) for v in err.values()),
+                                                  ' '.join('%s %+.3f' % (k, v) for k, v in err.items())))
+        for k in keys:
+            R[k] = R[k] + gain * err[k]
+    return R, hist
