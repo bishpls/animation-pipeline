@@ -122,6 +122,15 @@ hair, the merged spec), 14 knobs as accfit.fit_place's.
 - Per view (crab iou / visible): optimize 0.727/0.736/0.716, 1.0/0.998/0.992; NM 0.764/0.789/0.679, 0.991/0.990/0.985;
   star iou optimize 0.545/0.831/0.785, NM 0.501/0.731/0.815; star back px 3 vs 19. No clip IoU fell >15% from the start.
 
+## Coordinator asks folded in (2026-10-01)
+- Progress visible within minutes: a line per ready worker and per finished row (the workers are fresh interpreters:
+  subprocess fork+exec before any driver thread, no fork-after-threads hazard).
+- Overflow instead of waiting: `--box auto` (remote.pick_box: every running box's free slots over ssh; the build box
+  while it has 4 free beyond the reserve, else the most free); the pool grows as workers get slots.
+- `pregate --box [NAME | auto]` (remote.pregate): the pre-gate in a shared clone on the box (as remote gate does; a
+  box's worktree copy has no .git), the target's baseline kept per commit in /srv/work/pregate-out, the report back
+  into charkit/out/pregate. The committed tip only.
+
 ## Next steps
 1. Pregate, then `remote gate tool/optimize --into pipeline-3d` (tooling: no check should move; sweep.py,
    optimize.py, remote.py, boxjob.py, codemap.py are outside the build).
