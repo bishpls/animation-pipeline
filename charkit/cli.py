@@ -354,36 +354,48 @@ def _build(args):
         except ValueError:
             pass
     history.append(out, name, note)
-    _cpu_line(out, t_build)
+    _cpu_line(out, t_build, phase.rows)
     print('trace', os.path.join(out, 'trace.jsonl'))
     print('built', out)
 
 
-def _cpu_line(out, t0):
+def _cpu_line(out, t0, phases=None):
     """the build's CPU seconds (this process and the children it waited for: its Blender; a worker's jobs aren't
     counted), wall seconds and thread cap: CHARKIT_BUILD_CPU on stdout and OUT/build_cpu.json, so any build (not only
-    a gate's) says what it cost the machine."""
-    import resource, time
-    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
-    rec = {'cpu_seconds': round(a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime, 1),
+    a gate's) says what it cost the machine. phases: {step: [wall, cpu]} (the build's _phases), kept in the file only."""
+    import time
+    rec = {'cpu_seconds': round(_rusage_cpu(), 1),
            'wall_seconds': round(time.time() - t0, 1), 'threads': os.environ.get('NUMBA_NUM_THREADS') or None,
            'slot': 'build' if os.environ.get('CHARKIT_SLOT_HELD') else 'blender'}
-    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
     print('CHARKIT_BUILD_CPU %s' % json.dumps(rec), flush=True)
+    if phases:
+        rec['phases'] = phases
+    json.dump(rec, open(os.path.join(out, 'build_cpu.json'), 'w'))
+
+
+def _rusage_cpu():
+    """CPU seconds so far of this process (every thread) and the children it has waited for (the build's Blender)."""
+    import resource
+    a, b = resource.getrusage(resource.RUSAGE_SELF), resource.getrusage(resource.RUSAGE_CHILDREN)
+    return a.ru_utime + a.ru_stime + b.ru_utime + b.ru_stime
 
 
 def _phases():
     """a timer for the build's steps: `with phase(NAME):` prints CHARKIT_PHASE NAME SECONDS when the step ends (the merge
-    gate reports them: charkit/gate.py)."""
+    gate reports them: charkit/gate.py), and keeps each step's wall and CPU seconds in phase.rows ({name: [wall, cpu]}:
+    this process and the children it waited for), which build_cpu.json carries (charkit.profile's per-stage table)."""
     import contextlib, time
+    rows = {}
 
     @contextlib.contextmanager
     def phase(name):
-        t = time.time()
+        t, c = time.time(), _rusage_cpu()
         try:
             yield
         finally:
+            rows[name] = [round(time.time() - t, 2), round(_rusage_cpu() - c, 2)]
             print('CHARKIT_PHASE %s %.1f' % (name, time.time() - t), flush=True)
+    phase.rows = rows
     return phase
 
 
