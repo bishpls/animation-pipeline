@@ -205,6 +205,29 @@ the drawing's, WARN), but the profile loses lines (0.162 -> 0.088; ours sat at p
 drawing's are). B, P5: the profile keeps its lines (0.158) and the back keeps half its stripes (2.02, FAIL). The
 layering round (drawn lock lines in profile and three-quarter) is the real fix for the profile either way.
 
+## Round 2 (relaunched lean, 2026-09-30 night)
+
+Merged pipeline-3d 3f7b730 (softras round 4; no hair code) -> fcc73c5. Coordinator's decisions: one more paid reference
+attempt then stop; the back seams' default stays A (P6), B (P5: keep 0.15 / 0.35, ink_phi 135) rendered beside it for
+Michael (spec `tools/hair5/v/clawd_seamsB.json`: the default spec with those pieces_opts); calls F / G / H on the
+review page as yes/no questions with the recommended defaults meanwhile.
+
+### The last reference attempt: a lock-level line-art sheet (one call, n=2)
+
+Unlike the close-up (colour-coded, the breakdown as a reference: both takes copied its blended fills), this asks for
+line art: one flat orange fill, every lock outlined in closed black lines, the turnaround the only `--ref`. The refcheck
+(tools/hair5truth/refcheck.py, regions split by its black lines) and score5 read it as before.
+
+**Pass rule, fixed before the call** (a view passes when all hold; the sheet is registered, for its passing views only,
+when at least one view passes and its scale holds):
+- silhouette: hair IoU >= 0.80 on the design grid (the breakdown's level);
+- lock lines: line F within 2.5 px >= 0.40 and >= 2x its random-partition floor (the breakdown and the close-up
+  reached 0.17-0.29);
+- locks: score5's lock IoU against the extended truth >= the random within-family split in that view (front 0.522,
+  three-quarter 0.552, profile 0.661, back 0.495), and no family below the plain random split;
+- one scale: the four views' S within 5%.
+If no view passes: stop generating, and the canonical rule's step 3 (compromise) holds for the bulk's lock structure.
+
 ## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
 
 Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
