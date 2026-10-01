@@ -227,6 +227,11 @@ the base's values exactly (0.00244, 0.0635, 0.00601, 0.10386): the measure didn'
   motion records to refresh on a merged build: box build b4 (render box) `charkit/out/hands_b4`, log
   charkit/out/hands/b4.log, then `python -m charkit calibrate motion_kick_skirt_inside,motion_kick_skirt_stretch,
   motion_squat_skirt_stretch --build charkit/out/hands_b4`.
+- b4 (the merged tree, 397ffa1's code; `charkit/out/hands_b4`) reads as the gate's candidate (motion 0.00244 /
+  0.06346 / 0.00619 / 0.10404; aline -0.017; art_bumps_legs 0). **Motion records refreshed, all 3 CALIBRATED on b4**
+  (calib_motion.log): kick inside design 0.0017-0.0039, known-bad motion_nocol 0.0125 FAIL, current 0.00244 PASS; kick
+  stretch 0.056-0.070 / motion_skinned 1.99 FAIL / 0.0635; squat stretch 0.096-0.136 / 0.872 FAIL / 0.104.
+- Gate 2 launched (log charkit/out/hands/gate_r3b.log) to confirm only the 2x2 cells remain.
 - Left for the coordinator: the 4 unmeasurable 2x2 cells (any branch that changes the body's topology hits this:
   base code can't rebuild the new body). Either `--accept motion_*` named by the coordinator, or the motion scene reads
   the skin's weights from the bundle instead of rebuilding them (a tool/xpbd change; the base side still rebuilds).
