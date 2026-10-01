@@ -932,3 +932,372 @@ build-box baseline's jaw checks and art_terminator_hair exactly; the collar, bow
 128.5-128.9; the rim loop 130.2 but the boards' chin_tip 0.42 FAIL); the ramus (no drawn reference: the side locks
 cover it in every view); sheet_width's drift (the evaluator's inputs: infra / body); the hair's exact normals as a look
 change (a hair-round call; hair4's crown_trim, blocked on the same check at 2.607, worth re-measuring on them).
+
+## Round 5 (2026-09-30, afternoon): the chin graded level, head_construction behind the hair, the mouth line, one subdivision
+
+Branch `tool/face5` from pipeline-3d d60486a (worktree `~/animation-pipeline-face`). Michael's calls (2026-09-30):
+1. Grade the chin and jaw checks in the design's projection (level, orthographic, at eye height) as a registered
+   remeasure (the 2x2 shows it); then re-evaluate round 4's parked rim loop (`SIDE_RIM_ROW` + refit) under it.
+2. The jaw behind the hair: measure head_construction (the bald head) against head_turnaround where both show the
+   face outline; make it the authority where head_turnaround is hair-occluded; fit the jaw there, the ramus included.
+3. The mouth line: mask it out on the design and on ours; the outline numbers must not move (fix them if they do).
+4. `charkit/subdiv.py` (faceeval, code_base, headfit) onto the exact `charkit/geom/subsurf.py`, its own commit, every
+   face check before and after.
+
+**1. The mouth line doesn't bias the outline (measured; call 3).** `tools/face_labs/face5_lab.py mouth` masks the
+mouth's line out (the face region's holes inside a box round the mouth made skin: 306 / 193 px on the design's front /
+three-quarter, 288-338 on ours) on the design and on ours (f4_after), and reruns every jaw check: **0 checks move**
+(value and board/level alike), the design's taper curve moves 0.00000, its z0, w0, chin, hair top, chin_angle,
+tip_share, three-quarter top and hollow are identical. `face5_lab.py mouth_fit` paints the mouth out of the head sheet
+itself (1,023 px, front and three-quarter) and rereads the head fit's own contours (`headfit.contours`, via
+refcheck.face_design): w, mid and lead3 move 0.0 L. `test_half_widths_close_over_the_mouth` already pins it. No fix
+needed.
+
+**2. head_construction against head_turnaround** (`face5_lab.py agree`; both read as the QA reads the head sheet,
+calibrated on their eyes; `charkit/out/face5/agree/`). Where both show the face (z -0.18 to the chin):
+- as drawn they disagree: the construction's chin is 0.030 L lower (-0.393 against -0.363) and its outline 0.036 L
+  wider per side on average (rms 0.040, IoU of the regions 0.83); its chin_angle 127.5 (sheet 129.7), tip 0.575 (0.833:
+  the "more pointed" caution is its longer face, the V's own point is rounder);
+- **registered** (its rows scaled about the eye line so the chins meet, sz 0.923; its widths by one factor fitted over
+  those rows, sx 0.968) it reads the sheet's outline to **0.002 L rms** (0.038 unregistered);
+- over the sheet's hair-occlusion row (-0.179) the construction's face keeps widening to the cheek under the ear (0.31
+  L at z -0.07), where the sheet's rows are the side locks' tips and inner edges (0.23-0.29) and ours had followed them
+  in: ours 0.007-0.013 L narrower per row from -0.18 to -0.05 (the flag).
+- The profile: front edge rms 0.029 L as drawn (the construction's longer face), its underside 11.3 degrees (sheet
+  13.7); the profile checks stay on the sheet.
+
+**3. The remeasure (07ebd58; its steps registered in the next commit).** The level camera is orthographic (was 100 m out:
+at most a pixel). jaw_taper_shape, jaw_line_bend, chin_angle, chin_tip, tq_cheek_hollow, tq_jaw_notch and
+jaw_line_front/three_quarter are graded on ours in it (the design's projection), the boards' camera's value beside as
+`board` (they were graded in the boards' camera, or on the worse camera). head_construction is the outline's authority
+from the sheet's hair-occlusion row to z -0.05 (`faceregion.construction_front`); the new flag check
+`jaw_outline_hidden` grades ours' half-width (the two sides' mean; level, hair hidden; the regions' outermost extent per
+row, `_outer`, which reads past an eye's lines where the scan from the chin's column stops) against it: PASS 0.006,
+WARN 0.01 (the references agree to 0.002; the flagged head reads 0.011, FAIL). Tests in test_jaw.py.
+
+The base (f5_before, pipeline-3d d60486a) under both measures:
+
+| check | design | old measure (boards) | new measure (level, ortho) |
+|---|---|---|---|
+| chin_angle | 129.7 | 118.8 WARN (level 128.1) | 128.3 PASS (board 118.8) |
+| chin_tip | 0.833 | 0.826 PASS | 0.829 PASS (board 0.826) |
+| jaw_taper_shape | 0 | 0.0399 WARN (level 0.0212) | 0.0193 PASS (board 0.0399) |
+| jaw_line_bend | 4.2 | 4.6 PASS | 4.7 PASS (board 3.5) |
+| jaw_line_front / three_quarter | | 0.937 / 1.106 | 1.158 / 1.133 |
+| tq_cheek_hollow / notch | 0.0017 / 0 | 0.005 / 0 | 0.005 / 0 |
+| jaw_outline_hidden | 0 | (none) | 0.0111 FAIL |
+
+**4. The rim loop under level grading (not taken).** chin_lab on f5_before's code (level graded, the boards' beside;
+`charkit/out/face5/rim/`):
+
+| variant | chin_angle | chin_tip | jaw_taper_shape | bend | tq_cheek_hollow |
+|---|---|---|---|---|---|
+| default (refit share 0.59) | 128.3 | 0.829 | 0.0184 | 4.7 | 0.0048 PASS |
+| refit whole to 0.3 rad | 128.7 | 0.836 | 0.0186 | 5.2 | 0.0048 |
+| SIDE_RIM_ROW | 124.6 | 0.682 WARN | 0.0132 | 3.9 | 0.0062 WARN |
+| SIDE_RIM_ROW + refit whole 0.3 | 124.8 | 0.684 WARN | 0.0131 | 3.1 | 0.0064 WARN |
+| SIDE_RIM_ROW + TIP_BIAS (0.006, 0.06) | 123.8 | 0.327 FAIL | 0.0119 | 2.9 | 0.007 WARN |
+| SIDE_RIM_ROW + refit whole 0.6 | 129.3 | 0.745 | 0.0138 | 3.7 | 0.0064 WARN |
+
+Round 4's 130.2 / 0.79 doesn't reproduce on today's head (TIP_BIAS and the refit have moved since). Its best form
+(refit whole to 0.6 rad) gains a degree on the angle and the taper but loses the tip (0.745 against the design's
+0.833; the default's 0.829) and the three-quarter hollow (PASS -> WARN). It doesn't win: off.
+
+**5. The jaw behind the hair (c047273).** `headfit.contours(hidden=)`: the front half-width over the sheet's
+hair-occlusion row is head_construction's registered outline up to CHEEK_TOP + 0.03 (`headfit.HIDDEN`); the jaw's side
+and the ramus in front of the ear follow it. Lab (a local assembly on f5_before's body; `charkit/out/face5/geom_hidden`):
+ours -0.007..-0.013 L per row -> -0.003..+0.006 (the top rows blend into the skull), jaw_outline_hidden 0.0111 FAIL ->
+0.0025 PASS, jaw_taper_shape 0.0184 -> 0.0165, jaw_line_front 1.369 -> 1.442, tq_cheek_hollow 0.0048 PASS -> 0.0055
+WARN (the far cheek at z -0.289), the chin unchanged. `HIDDEN_TQ` (the three-quarter's far cheek unfitted over its own
+lock, -0.154) measured and off: jaw_line_bend 42 FAIL, chin_tip 0.33 FAIL. The profile has no ramus line to fit (the
+construction draws none): the ramus is the front outline under the ear.
+
+**6. One subdivision (cd02007).** `charkit/subdiv.py` delegates to `charkit/geom/subsurf.py` (tool/evalmesh's,
+9ee0a9e, unchanged at 1939469: an identical add when both merge). The signature stays: positions through subsurf
+(limit on: Blender's evaluation at its adaptive level), the data columns carried as Blender carries vertex data
+(linear) instead of through the limit stencils; limit off (garments' refine) refines them with the positions, as
+before. `tools/face_labs/subdiv_lab.py` (a local assembly, old = d60486a's subdiv.py): the cage after the limit fit
+identical (9e-16 L); faceeval's skin at levels 1 and 2 within 1.8e-7 L mean, 0.00055 L at 12 open-border corners of
+its crop (z -0.9 L, under the neck); carried weights now linear (the outline's pull in faceeval reads them). The box
+builds' QA before and after it is below.
+
+Jobs:
+- render box build of the base (pipeline-3d d60486a) with boards views,body -> `charkit/out/f5_before` (done).
+- render box build of c047273 (the remeasure and the jaw behind the hair, without the subdivision move) -> 
+  `charkit/out/f5_geom` (`build-face-0930-140341-60c7`).
+- **f5_geom's QA against f5_before** (render box; 103 checks moved, most in the 3rd-4th digit): chin_angle 118.8 WARN ->
+  128.2 PASS and jaw_taper_shape 0.0399 WARN -> 0.0157 PASS (both remeasured), jaw_outline_hidden (new) 0.0025 PASS,
+  jaw_line_front 0.937 -> 1.137, sheet_width 0.987 -> 1.01, sheet_cheek 0.0193 -> 0.0164, neck_front_wiggle 6.9 -> 5.4.
+  Worse grades: tq_cheek_hollow 0.005 PASS -> 0.0056 WARN (as the lab), and **sleeve_profile_rough_L 0.0107 WARN ->
+  0.0146 FAIL** (FAIL at 0.014): ours' visible sleeve in profile loses 3 px at its top (9572 -> 9569 px; its top width
+  0.2151 -> 0.2186), where the collar covers the cap; the collar moved (169 of its 10,082 vertices over 0.005 L, up to
+  0.032 L; it reads the neck and jaw), the side lock L followed the wider face (up to 0.041 L, z -0.36 up: not over the
+  sleeve). A knife-edge check (the base 0.0034 under FAIL) moved by the collar's occlusion, not the sleeve: for the
+  coordinator.
+- merged pipeline-3d 25b1936 (infra-auth, evalmesh M2+M3: subsurf.py identical; infra3 run 3) at 253a702.
+- render box build of the tip (everything) -> `charkit/out/f5_after`; the gate into pipeline-3d (build box).
+- **The subdivision move on the box: 0 QA checks move** (f5_geom, c047273 on d60486a, against f5_after, 253a702: the
+  subdivision move plus pipeline-3d 25b1936, whose own gates moved nothing): every check's value and grade identical.
+- pre-gate (253a702 into 25b1936): PASS, 21 values moved, none blocking
+  (`charkit/out/pregate/pregate_tool-face5_253a702_into_25b1936.md`; it doesn't cover the piece details or the face).
+- **The chin checks, before (f5_before, pipeline-3d d60486a) and after (f5_after), both projections** (the page's
+  numbers; level graded, the boards' camera in brackets): chin_angle 128.3 (118.8) -> 128.2 (117.8), design 129.7;
+  chin_tip 0.829 (0.826) -> 0.828 (0.813), design 0.833; jaw_taper_shape 0.0193 (0.0399) -> 0.0157 (**0.0411**);
+  jaw_line_bend 4.7 (3.5) -> 4.7 (4.0); tq_cheek_hollow 0.005 (0.0034) -> 0.0056 WARN (0.0034); jaw_outline_hidden
+  0.0112 FAIL -> 0.0025 PASS. The 2x2's old measure (the boards' camera) reads jaw_taper_shape 0.0399 WARN -> 0.0411
+  FAIL on the new geometry: the widening under the locks raises w at the design's t 0 row (z -0.183), which the boards'
+  look-down narrows below it. Level it improves (0.0193 -> 0.0157). A 2x2 drop to FAIL blocks under K unless accepted:
+  for the coordinator (Michael's call 1 is the level measure).
+- Review page: `charkit/out/face_review/round5/index.html` (`face5_page.py`): design | before | after in the level
+  projection (hair shown and hidden, front, three-quarter, profile), head_construction's registered outline (green)
+  where the sheet's hair covers the face, the agreement, the chin checks in both projections, the QA diffs (base ->
+  geometry -> the subdivision move).
+- review page command: `tools/face_labs/face5_page.py charkit/out/face_review/round5 charkit/out/f5_before charkit/out/f5_after
+  --mid charkit/out/f5_geom --head charkit/out/face5/head.html` (after `level_slot.py` on each build).
+
+**Gate** (2d3f594 into pipeline-3d 25b1936, build box; `charkit/out/gate/gate_tool-face5_2d3f594_into_25b1936.md`):
+**FAIL under K, three blockers**, none of them a face check getting worse in the design's projection:
+1. new FAIL sleeve_profile_rough_L 0.0107 WARN -> 0.0146 FAIL: 3 px at the top of the near sleeve in profile, where the
+   collar covers its cap; the collar moved (up to 0.032 L; it reads the neck and jaw). The base sat 0.0034 under FAIL.
+2. the 2x2: jaw_taper_shape under the old measure (the boards' camera) 0.0399 WARN -> 0.0411 FAIL on the new geometry;
+   under the new (level) 0.0193 -> 0.0157 PASS on both geometries. Michael's call 1 is the level measure.
+3. CPU 1.53x (577.3 -> 885.3 s): the baseline was a cached (warm) build; the candidate rebuilt resolve (155.9 s: the
+   design-side measures read faceregion) and pieces_hair (129.4 s: the head moved). Blender and QA 323.6 -> 333.0 s
+   (1.03x); face4's gate, both sides cold, read 1.09x.
+Reported: flag values art_terminator_hair 2.286 -> 2.438 (WARN both), art_speckle_neck 2.606 -> 1.956, art_peeks_hair
+22 -> 18, art_fragments_collar 4.69 -> 4.75; new jaw_outline_hidden 0.0025 PASS; improved hair_noise 0.0807 FAIL ->
+0.0796 WARN; remeasured chin_angle 118.8 WARN -> 128.2 PASS, jaw_taper_shape 0.0399 WARN -> 0.0157 PASS,
+tq_cheek_hollow 0.005 PASS -> 0.0056 WARN (the 2x2: 0.0052 WARN under the old measure too); values: hair_folds 5 ->
+8 (WARN), art_terminator_face 0.83 -> 1.344 (INFO), face_shadow_face_3q 0.068 -> 0.100 (INFO), sheet_cheek 0.0193 ->
+0.0164. Tests: 66 files, 0 failing.
+
+**For Michael / the coordinator:**
+1. Accept jaw_taper_shape's 2x2 drop (the boards' camera, which call 1 retires from grading)?
+2. sleeve_profile_rough_L: accept (the collar's occlusion over the cap, 3 px; a collar/sleeve round), or hold the
+   branch for one?
+3. The CPU ratio: the gate's cold candidate against a warm baseline (Blender and QA 1.03x): re-gate on a warm cache, or
+   accept.
+4. tq_cheek_hollow PASS -> WARN (0.0056; the three-quarter's far cheek at z -0.289): the three-quarter's own contour
+   over its lock (-0.154) is still the sheet's hair edge; `HIDDEN_TQ` (fit it from under the lock only) broke the jaw
+   in the lab. A three-quarter reference without hair would settle it.
+5. The rim loop stays off (under level grading it loses the tip and the three-quarter hollow).
+
+**The collar's move traced (the finish; no fix: nothing in its anchoring reads the head).**
+`tools/face_labs/collar_trace.py` (venv; `charkit/out/face5/collar/collar_trace.json`) rebuilds `collar_hull` on every
+mix of f5_before's and f5_geom's head_code, body_code and hull (pipeline-3d's and this branch's produced hulls). The
+local builds reproduce both recorded collars (0 and 4e-5 L). Swapping the head alone moves the collar 1.2e-4 L, the
+hull alone 0, and **the body fit alone 0.035 L** (0.0088 m on the cage: all of it). The chain:
+1. headfit's jaw changes the hull's face carve (`hull.carve_face` reads headfit's sections): 754 voxels, all at z -0.37
+   to +0.20 L.
+2. The hull mesh is decimated to a fixed face budget, so hull.ply differs at the face (about 1,700 vertices) and by 1-2
+   vertices each at the waistband, skirt, shorts, sleeve_L and collar, far below it.
+3. code_body's torso reads hull.ply in one least-squares solve with the rows smoothed together, so every row moves
+   1.6e-4 to 1.4e-3 L. The fit is deterministic (a repeat run is identical; the box's pair is reproduced to 2e-5). Its
+   neck ring (skin up to CUT + 0.1) reads the same on both hulls.
+4. The collar's anchors hold: the neck bone moves 2e-5 L, the neckline 0 and the walks' starts 1.1e-4 L, while the
+   body under the collar moves 0.0009 L at most (median 3.5e-5). The surface walk (it snaps to the nearest vertex's
+   tangent plane) takes one column to 0.019 L, and conform takes the collar to 0.035 L: about 40 times the body's move.
+
+Both real couplings are outside the collar's anchoring. The body fit reads the decimated mesh, which a face change
+reshuffles anywhere (the voxel-exact shell would decouple it but moves the body for every branch), and the collar's
+walk and conform amplify by about 40 (tool/collar's template, being reworked). sleeve_profile_rough_L stays 0.0146
+FAIL for the coordinator: accept it as body-fit noise, or hold for tool/collar. Merged pipeline-3d 6ddcb5b (fa84d84).
+Pre-gate PASS (fa84d84 into 6ddcb5b: 21 moved, 0 blocking, 150 s).
+
+### Round 5, the finish (2026-09-30, evening): the re-gate's two blockers, the hull made local
+
+**The re-gate** (36908d0 into pipeline-3d 2f42155, `--accept sleeve_profile_rough_L,jaw_taper_shape`;
+`charkit/out/gate/gate_tool-face5_36908d0_into_2f42155.md`): FAIL under K, two blockers. The first is the new FAIL
+sleeve_profile_rough_L 0.0107 WARN -> 0.0146 FAIL. The second is the flag check art_terminator_hair 2.308 -> 2.751
+(past its 2.5 line; the hair changed since the last gate: tool/hairtag's structure masks, the flyaways in one tone).
+jaw_taper_shape's 2x2 was accepted. CPU 1.47x (890.4 / 605.7 s: a cold candidate rebuilt resolve 162 s and
+pieces_hair 127 s against a cached baseline).
+
+**Why --accept didn't take sleeve_profile_rough_L** (charkit/gate.py `judge`): `--accept` applies only to the 2x2's
+rows, remeasured checks that get worse under one measure on both geometries (`twobytwo(..., accept)` sets
+`accepted`; `judge` reads it only in the 2x2 loop). A plain new FAIL (a check PASSing or WARNing on the baseline and
+FAILing on the candidate) blocks in `judge`'s first loop before any accept is consulted. Policy K has no accept for a new
+FAIL: no flag spelling or pattern reaches it. The gate can't record Michael's acceptance of it. It is the
+coordinator's to record at merge (or a change to policy K, which is Michael's). The better answer is that the FAIL
+goes: the collar moved through the hull's decimation (below), and a local hull stops that move at its source.
+
+**The chain, measured** (tool/hull-local, `~/animation-pipeline-hulllocal`, docs/workstreams/hull-local.md): the hull
+built twice with one hull code, only the head's sections differing (pipeline-3d 3a0ad37 and this branch 36908d0). The
+face's carve changes 754 voxels, all in the face's box. The surface before decimation changes within 0.070 L of them.
+The fixed 150,000-face decimation then moves 401 vertices away from the edit (202 over 1e-6 L, up to 0.0008 L):
+the head's sides and back, the crown, the neck, the torso (24) and the legs (21). These are the body fit's input
+(round 5's trace: the body moves 1.6e-4 to 1.4e-3 L per row, the collar 0.035 L) and the hair envelope's.
+tool/hull-local decimates to a quadric error instead. The neck, torso, legs, crown and the head's back are then
+bit-identical, and what differs is the face and the sides it reaches.
+
+**The re-gate at pipeline-3d ba51e43** (merged pipeline-3d 3a0ad37 at 2e4c1d6; the gate took pipeline-3d's head
+ba51e43; `charkit/out/gate/gate_tool-face5_2e4c1d6_into_ba51e43.md`): FAIL, **one blocker**, the flag check
+art_terminator_hair 2.308 -> 2.751. sleeve_profile_rough_L no longer blocks: tool/collar3 M2 moved the garments, and
+it is unchanged at ba51e43. CPU 1.34x (591.4 -> 790.7 s). jaw_taper_shape's 2x2 accepted.
+
+**The terminator's attribution** (tool/hull-local's B2/B3 builds: face5 on a local hull, so only face5's own change
+moves anything): the back view carries the value (the worst view's ratio), and hair_bun_L carries the back view's
+move (0.39 of 0.45; hair_bun_R 0.05). The buns move 0.02 L with no hull change under them: an input of the bun fit the
+face changes. The same swap on the gate's own pair (old decimation) is running.
+
+**The terminator's carrier found: the buns' fit, from a 0.8 um move of the head's centre** (`tools/hull_local/hairswap.py`
+in tool/hull-local: the hair pieces rebuilt venv-side on B3's inputs with one input from B2;
+`$SCRATCH/hl/hairswap_b2b3.json`). B3's own inputs reproduce its bun_L to 8.9e-16 L. With B2's head (head_code.npz),
+bun_L matches B2's to 7.6e-6 L. With B2's hull, bun_L is B3's exactly. The bun points (the hull's samples labelled
+buns) are identical in every variant (3,326, the same sum). What the head changes is `Case.centre`, y 0.0230835 ->
+0.0230843 m: 0.8 um, 3.2e-6 L. `centre = [Ox, Oy + y0 L, Oz]` (code_base.wrap). y0 (the eye row's section centre) is
+unchanged, so it is the head's placement Oy. The bun fit (`hairpieces.fit_block`: Nelder-Mead, 600 + 900
+evaluations, on a pixel-counting loss, started from `block_frame(P, head_c)`) takes that to a different optimum 0.027 L
+away, about 8,000x. The back view's terminator follows (bun_L 0.39 of the 0.45). Neither the hull nor the face's
+geometry carries it. The fit amplifies any input move. hull-local alone (B2: every bun point moves once) reads
+art_terminator_hair 2.514 against 2.308 by the same route, most likely.
+
+**State and next steps** (for the next agent; this agent stopped at the coordinator's budget):
+- heads: tool/face5 b4b25ea+ (this note), 2e4c1d6 the last code (pipeline-3d 3a0ad37 merged); tool/hull-local 7fe6f0d+
+  (`~/animation-pipeline-hulllocal`; not gated); tmp/face5-on-hull-local f6137bd (`~/animation-pipeline-face5hl`: a
+  build tree only, delete when done).
+- running when this agent stopped: the piece swaps on the gate's own pair (old decimation, B0 = gate-out
+  base_ba51e43_clawd_default, B1 = cand_tool-face5_2e4c1d6_into_ba51e43_default) -> tool/hull-local's
+  `charkit/out/hl_term/term_b0_b1.json` (done, fetched). **The buns again, both**: B0 with B1's bun_L 2.308 -> 2.569,
+  with B1's bun_R -> 2.502; B1 with B0's bun_L 2.751 -> 2.503, with B0's bun_R -> 2.57. Every other piece moves it by
+  0.03 at most.
+1. Make the bun fit stable under tiny input moves, at its source (hairpieces.fit_block / block_frame): measure bun_L's
+   move under +-1e-6 L of head_c and of the bun points first; that's the regression test. Candidates: the bun's frame
+   from the hull's eye frame instead of Case.centre (a head edit then can't reach it); a fit whose optimum doesn't
+   jump (multi-start keeping the best, or a smooth silhouette loss); or why Oy moves 0.8 um with a jaw edit. Any of
+   these moves the buns once for everyone, so art_terminator_hair must be read on it (it must end at or under 2.5 and
+   not regress: Michael's flag).
+2. Rebuild B2 and B3 with it (`remote build` from each worktree, `--boards '' --no-blend`). Then gate tool/hull-local
+   into pipeline-3d, and tool/face5 into tool/hull-local (what face5 does once hull-local lands). Accept only
+   jaw_taper_shape. sleeve_profile_rough_L no longer blocks.
+3. `--accept` can't take a new FAIL under policy K (above). It's moot for sleeve_profile_rough_L now; for Michael if
+   he wants a way to record such an acceptance in the gate.
+
+## Round 6 (2026-09-30 night): the re-gate's blockers (tool/bunorient's agent)
+
+Merged pipeline-3d 3f7b730 (hull-local, calib, accessories2, softras round 4) at aac435e. Box build `charkit/out/f5m`
+(`--boards '' --no-blend`): art_terminator_hair 2.111 WARN, jaw_outline_hidden 0.0025 PASS, jaw_taper_shape 0.0157
+PASS, hair_piece_side_locks 0.519 WARN: the gate's candidate reproduced.
+
+**The terminator is not the buns** (docs/workstreams/bunorient.md, section 1): on the gate's own pair the buns move
+4.8e-7 L, 0 deg; piece swaps put it on the side locks (before + face5's side_lock_L 2.114; after + the base's 1.979;
+side_lock_R 1.989 / 1.973; lower_back 1.976). The input swap (`charkit/out/f5swap/swap.json`, hairswap.py on the box):
+the hull's carve near the cheek carries it (with the base's hull the bangs and lower back are the base's, side_lock_R
+takes its counts), the skin's clearance from the new jaw adds about 0.01 L to the side locks. No clean local fix here
+(the lock partition is tool/hair5's); the coordinator takes it to Michael as a named acceptance.
+
+**The 15 calibration records: not started.** No registry entry covers the jaw / chin / tq / neck checks
+(`python -m charkit calibrate list 'jaw*'` is empty). Plan: `charkit/calib/jaw.py`, CALIBRATION entries for
+jaw_outline_hidden, chin_*, jaw_line_*, jaw_taper*, neck_front_wiggle, neck_to_face, tq_* (part face_region), an
+adapter `Jaw` with `run(kind, arg)` (as calib/chin.py's): 'design' = the head sheet's own class images
+(faceregion.design_jaw_views) moved (dy, dx) standing for ours' level / board / bare cameras, measured by jaw_front /
+jaw_profile / taper_front / tq_jaw and compared by jaw_compare + taper_checks (jaw_outline_hidden: head_construction's
+outline moved, through hidden_compare); a floor generator (the design's jaw views under a random affine: scaled 8-15%,
+sheared, or another view's jaw); known-bads: the base build (pipeline-3d's head: jaw_outline_hidden 0.0112 FAIL under
+the new measure) stored with `calibrate store`, older face rounds' builds for the others where one FAILs; checks with no
+known-bad that the floor separates get verdict guard; any the design fails moved 1-2 px, or the floor passes, reported
+as miscalibrated / coarse, not loosened. Current build: `charkit/out/f5m`.
+
+## Round 7 (2026-09-30 night, relaunched lean): the 15 calibration records
+
+**The adapter** `charkit/calib/jaw.py` (class `Jaw`, part face_region; 15 CALIBRATION entries). The stand-in for ours:
+the head sheet's own pictures on the jaw window (`faceregion.design_jaw_views`), moved 1-2 px, in place of each of
+ours' cameras (level, bare, boards'), measured by ours' code path (`jaw_front`, `taper_front`, `tq_jaw`,
+`jaw_profile`, then `jaw_compare` + `taper_checks`). jaw_outline_hidden's stand-in for ours' bare front is
+head_construction's face region, registered as the check registers it (sz, sx) and resampled linearly to the sheet's
+px per L (unmoved it reads 0.0004). Floors (a generator is a check's floor when it moves what the check reads):
+affine_jaw (8-15% scale per axis, shear 0.08-0.15), widths_jaw (rows stretched across by 1 + A g(t), A 8-15%, g a
+random smooth curve zero at the eye line), warp_jaw (three sines 0.004-0.008 L: the local defects' floor), other_view
+(the front's and the three-quarter's pictures swapped). Kinds: graded against the design's value = shape; against an
+absolute limit for one flagged defect = defect. Known-bads stored (`calibrate store`, hard links in
+charkit/out/calib/builds): jaw0_flagged (jaw_0: the MakeHuman head on the authored body, Michael's 2026-09-29 chin and
+neck flag), jaw4_review (jaw_4: his taper review: the three-quarter's hollow and notch, the jaw lines' kink),
+f5_base (f5_before = pipeline-3d d60486a: the face curving in under the locks). The candidates measured with this
+tree's code: `charkit/out/calib_jaw/known_bads.json`.
+
+**The records** (`python -m charkit calibrate ... --build charkit/out/f5m --seeds 9`; `charkit/out/calib_jaw/calib.json`):
+
+| check | verdict | design 1-2 px | known-bad | floors (seeds PASS of 9) | current |
+|---|---|---|---|---|---|
+| jaw_outline_hidden | calibrated | 0.0004-0.0019 | f5_base 0.0112 FAIL | affine 0, widths 0 | 0.0025 PASS |
+| chin_point_z | calibrated | -0.005-0.005 | jaw0 -0.1919 FAIL | affine 0 | 0 PASS |
+| chin_tip (defect) | calibrated | 0.833 | jaw0 0.089 FAIL | widths 9, warp 7, other 0 | 0.828 PASS |
+| jaw_line_bend (defect) | calibrated | 4.2-5.6 | jaw4 24.6 FAIL | warp 0, other 0 | 4.7 PASS |
+| jaw_line_front (defect) | calibrated | 1.0 | jaw0 0.042 FAIL | affine, other pass | 1.137 PASS |
+| jaw_line_three_quarter (defect) | calibrated | 1.0 | jaw0 0.067 FAIL | affine, other pass | 1.12 PASS |
+| tq_cheek_hollow (defect) | calibrated | 0.0017 | jaw4 0.0097 FAIL | warp median 0.0049 PASS | 0.0056 WARN (worse than the wobble floor) |
+| tq_jaw_notch (defect) | calibrated | 0 | jaw4 0.0573 FAIL | warp 0.0025 PASS | 0 PASS |
+| chin_angle | **coarse** | 129.7 | jaw0 89.3 FAIL | affine 6, widths 9, other 0 | 128.2 PASS |
+| chin_underside | **coarse** | 13.7 | jaw0 -7.5 FAIL | affine 9, widths 9 | 14.1 PASS |
+| chin_v | **coarse** | 1.0-1.003 | jaw0 2.418 FAIL | affine 6, widths 7, other 0 | 1.084 PASS |
+| jaw_taper | **coarse** | 0-0.0079 | jaw0 0.0343 FAIL | affine 0, widths 7, other 0 | 0.0052 PASS |
+| jaw_taper_shape | **coarse** | 0.0024-0.0105 | jaw0 0.1799 FAIL | widths 3 (median 0.0251 WARN) | 0.0157 PASS, margin 0.43 |
+| neck_to_face | **blind** | 0.97-1.06 | jaw0 0.777 WARN | affine 1, widths 9, other 6 | 0.972 PASS |
+| neck_front_wiggle | **miscalibrated** | SKIPPED | jaw0 31.4 FAIL | SKIPPED | 5.4 PASS |
+
+- Coarse: the PASS bands (±10 deg, ±6 deg, ±15%, 0.015 L, 0.025) admit an 8-15% sloppy fit of the design.
+  jaw_taper_shape: its PASS line sits at the re-proportioning floor's median (0.0251); ours 0.0157 is 43% of the way from
+  it to the design. Tightening it to about 0.012 (the design's worst move 0.0105) would calibrate it with the current
+  build WARN (an open flag): Michael's call.
+- neck_to_face: jaw_0, the flagged head, reads WARN (0.777), and widths_jaw passes it at every seed.
+- neck_front_wiggle: the drawing's neck front under the throat (ours' band, 0.1 L) is behind a lock; read lower (the
+  design's 0.25 L band) it bends 14.5 deg, WARN on the check's own 12. Not loosened.
+- jaw_4 (Michael's U flag in the boards) reads jaw_taper_shape 0.0197 PASS, chin_angle 127.7 PASS, chin_tip 0.651
+  WARN in the level camera: the U was the boards' look down; jaw0_flagged is their known-bad.
+- calibrate.py's floor status is the median-valued seed's: for a two-sided check that seed sits nearest the design
+  (neck_to_face's affine floor reads "PASS" with 1 of 9 seeds passing). The per-seed counts above are the reading.
+  For tool/calib: decide a two-sided floor by the seeds' median status.
+- Review page: `charkit/out/calib_jaw/review/index.html` (`charkit/out/calib_jaw/page.py`).
+- **The gate's calibration rule blocks the 7 that don't calibrate** (a remeasured check needs a calibrated record).
+  For Michael: INFO for them until tightened or remeasured (yes/no), jaw_taper_shape tightened to ~0.012 (A/B).
+- **A recorded acceptance can't reach art_terminator_hair's regression**: `gate --accept-fail` covers a new FAIL or an
+  anti-gaming guard block (gate.judge: kinds 'new FAIL', 'anti-gaming guard'), not a 'flag check regressed' block
+  (1.804 PASS -> 2.111 WARN). Recording Michael's acceptance of it needs gate.py to take that kind too: tool/calib's /
+  the coordinator's change, not this branch's (a branch widening its own gate is the gaming the guard is for).
+
+**The gate** (7ff9272 into pipeline-3d 3f7b730, `--accept jaw_taper_shape`;
+`charkit/out/gate/gate_tool-face5_7ff9272_into_3f7b730.md`): **FAIL under K, 8 blockers**: art_terminator_hair 1.804
+PASS -> 2.111 WARN (flag check regressed: the side locks, tool/hair5's; `--accept-fail` can't record it, above) and
+the 7 calibration records that aren't calibrated (chin_angle, chin_underside, chin_v, jaw_taper, jaw_taper_shape coarse;
+neck_front_wiggle miscalibrated; neck_to_face blind). The 8 calibrated records pass the gate's calibration rule
+(jaw_outline_hidden new; the 7 remeasured). jaw_taper_shape's 2x2 accepted (0.0399 WARN -> 0.0157 PASS). No guard
+findings. CPU 1.01x (candidate built, baseline cached). Tests 76 files, 0 failing. Flag values: art_speckle_neck
+0.833 -> 0.678, art_peeks_hair 18 -> 17.
+- To land: Michael's calls on the 7 (INFO, or tighten: jaw_taper_shape to ~0.012 calibrates it with the current build
+  WARN) and on the terminator (an acceptance the gate can record: gate.judge's accepted kinds to include 'flag check
+  regressed', tool/calib's change). Then recalibrate any check whose grading changes (`python -m charkit calibrate CHECK
+  --build charkit/out/f5m --seeds 9`), commit, re-gate. tool/face6 merges face5 after it lands.
+
+## Round 7, second part (2026-09-30 night): the jaw checks made discriminating; Michael's terminator acceptance
+
+The coordinator's brief: each check discriminating from its triple, never looser; neck_front_wiggle must measure under a
+1-2 px move; neck_to_face must FAIL Michael's flagged jaw. Michael accepted art_terminator_hair 1.804 PASS -> 2.111
+WARN for tool/face5 by name (2026-09-30: the side locks' partition, tool/hair5's).
+
+- **The acceptance**: `gate --accept-fail` now takes `--status` (gate.py: a recorded acceptance covers a 'flag check
+  regressed' block when the candidate reads the recorded status and its value is within ACCEPT_TOL 1% of the recorded
+  one; test_calibrate's test_an_accepted_flag_regression_covers_its_reading_only). Recorded in
+  `charkit/accepted/art_terminator_hair.json` (WARN, 2.111, branch tool/face5), commit 4dda46b.
+- **The measures** (72eb64a; steps 6a57a71): chin_angle, chin_underside, chin_v valued as the graded deviation;
+  chin_v's rise sub-pixel on the outline; neck_to_face remeasured as the face's share of the figure's width over the
+  0.05 L above the design's chin against the design's; neck_front_wiggle read on the design's 0.25 L band, ended at
+  the neck's foot (NECK_STEP 0.01 L). PASS lines from the triple (min of halfway design median -> floor, and midway
+  design worst move -> nearest floor generator's median); WARN lines kept (neck_to_face's new: 0.24, its floor).
+- **All 15 records calibrated** (`charkit/out/calib_jaw/calib_r7.json`, `calib_r7c.json`). f5m now reads:
+  chin_angle 1.5 WARN (PASS <= 1.45), chin_v 0.09 WARN (PASS <= 0.042), jaw_taper_shape 0.0157 WARN (PASS <= 0.0141),
+  chin_underside 0.4 PASS (on its line), jaw_taper 0.0052 PASS, neck_to_face 0.0465 PASS, neck_front_wiggle 4.8 PASS,
+  tq_cheek_hollow 0.0056 WARN (unchanged). Findings for Michael: face5's V opening, its rise and its taper's shape
+  sit about halfway between the design and an 8-15% sloppy fit (margins 0.69, -0.07, 0.43).
+- Merged pipeline-3d 640ca7c (tool/xpbd rounds 2-3).
+
+**The re-gate** (ad0e28e into pipeline-3d 640ca7c, `--accept jaw_taper_shape`, still applies: the old measure reads
+the new geometry 0.0411 FAIL; `charkit/out/gate/gate_tool-face5_ad0e28e_into_640ca7c.md`; pregate PASS first):
+**FAIL under K, one blocker: art_terminator_hair 1.804 PASS -> 2.111 WARN**, Michael's accepted reading exactly. The
+report carries the acceptance (`accepted` read from the merged tree), but the gate judges with pipeline-3d's gate.py
+(remote gate runs BASE's code unless `--code REF`), whose judge honours a recorded acceptance only for a new FAIL or a
+guard block. face5's 4dda46b extends it to a flag check's regression at the recorded reading (gate.py
+`_accepted_reading`, test_calibrate). To honour it: land 4dda46b's gate.py and test (not the record) in pipeline-3d
+first and re-gate or carry face5, or gate with `--code tool/face5` (the branch's own judge: the coordinator's call).
+- All 15 calibration records pass the gate's rule. The 2x2's drops (not blocking): chin_angle new measure 1.4 PASS
+  (base) -> 1.5 WARN; jaw_taper_shape accepted; tq_cheek_hollow 0.005 PASS -> 0.0052 / 0.0056 WARN both measures.
+- CPU 1.31x; 76 test files, 0 failing.

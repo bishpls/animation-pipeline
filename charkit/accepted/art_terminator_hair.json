@@ -1,0 +1,10 @@
+{
+ "check": "art_terminator_hair",
+ "status": "WARN",
+ "value": 2.111,
+ "by": "Michael",
+ "why": "Michael, 2026-09-30, by name for tool/face5 (relayed by the coordinator): face5's hull carve near the cheek moves the side locks' partition; the fix belongs to tool/hair5's side-lock stability work. Reading accepted: 1.804 PASS -> 2.111 WARN.",
+ "at": "2026-09-30T21:09:23",
+ "branch": "tool/face5",
+ "recorded_by": "tool/face5's agent, on the coordinator's relay of Michael's call"
+}
