@@ -40,6 +40,11 @@ MEASUREMENT_STEPS = [
     # pipeline-3d 25ff0f25: acc_crab_alone 0.585 -> 0.694; acc_star_alone 0.716 -> 0.713
     ('acc_*_alone', '6bcf6e39', "the clip face-on in its own frame (its spec's facing and tilt) instead of its vertices' "
      "principal axes, then the shape IoU against the clips-alone drawing as before"),
+    ('acc_star_arms', '6bcf6e39', "the star face-on in its own frame (its spec's facing and tilt) instead of its "
+     "vertices' principal axes, then its longer side arm over its height as before (pipeline-3d 25ff0f25: 0.018 -> "
+     "0.007)"),
+    ('acc_star_minor', '6bcf6e39', "the star face-on in its own frame, then its minor points over its height as before "
+     "(0.002 -> -0.002)"),
     ('acc_*_side', '6bcf6e39', "new (INFO): the clip edge-on in its own frame against the clips-alone sheet's side "
      "drawing (its hair-clip loop drawn behind it cut: accqa.edge_body), shape IoU"),
     ('acc_crab_legs', '6bcf6e39', "new (declared, family 'limbs', view face): the crab face-on, its legs per side "
