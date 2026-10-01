@@ -586,7 +586,8 @@ SOCKET = (0.07, 0.05)            # the eyes' sockets' half-widths (L) across and
 EYE_REGION = {'eye_region': 'socket', 'margin': 0.03, 'reach': [0.2, 0.3], 'yaw': 'design', 'max_yaw': 40.0,
               'hold': True, 'curve': 2.0, 'release': 0.5, 'forward': None, 'cheek_peak': 0.5}   # the eye region's construction (charkit/styles' face
                                                              # section overrides it: styles.DEFAULT says what each is)
-CHEEK = {'cheek_smooth': 0.08, 'cheek_lead_smooth': 0.0, 'cheek_refit': None, 'cheek_drop_bound': False}
+CHEEK = {'cheek_smooth': 0.08, 'cheek_lead_smooth': 0.0, 'cheek_refit': None, 'cheek_drop_bound': False,
+         'cheek_refit_peak': None}
                                  # the cheek term's row smoothing (L, a Gaussian's sigma), the three-quarter contour's
                                  # before the fit (0: none), and cheek_refit (None, or a height z in L): the term fitted
                                  # again on the rows under z (eased in over CHEEK_REFIT_EASE) with the anime eye window's
@@ -594,7 +595,11 @@ CHEEK = {'cheek_smooth': 0.08, 'cheek_lead_smooth': 0.0, 'cheek_refit': None, 'c
                                  # L behind the three-quarter's contour at the mouth's rows (Michael's item 2, 2026-10-01;
                                  # docs/workstreams/face7.md); cheek_drop_bound: a row whose fit ends at the search's
                                  # bound (the term can't meet the contour there: the chin's) left out of the smoothing
-                                 # (kept, it pulled the rows above it back). The style's face section overrides them
+                                 # (kept, it pulled the rows above it back); cheek_refit_peak: the refit's own bump's
+                                 # peak (a share of the half-width; None: the cheek term's): further out, it carries the
+                                 # far contour and leaves the face nearer the mouth (the mouth block's edge, 0.16 L out,
+                                 # crossed a cage column at the cheek's 0.75 and the cage's topology moved). The style's
+                                 # face section overrides them
 CHEEK_REFIT_EASE = 0.04          # L of rows over which the refit eases in under its top
 FOREHEAD = None                  # the style face section's `forehead` (None: off): {depth (L), z (L above the eye line),
                                  # dz (L), peak (a share of the face's half-width)}, or a list of them (bumps added): the
@@ -864,6 +869,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
     sock = max(0.0, -y_eye) * ('socket' in terms) * (not window)
     R = np.full_like(R0, np.nan)
     dfill = None
+    refit = None                                       # (the cheek's refit: its term per row and its bump's peak)
     if window:
         # the anime eye region (eye_fill): the smoothest correction that lays the eye's opening on the design's plane
         # and holds the brow and the cheek behind it, in place of the socket; on the right half's front columns, mirrored
@@ -882,15 +888,17 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
             # the cheek term again under cheek_refit, fitted on the surface with the window's correction in it (the
             # correction stays as solved: under the window it is its smooth spread, not a hold the refit undoes)
             top_r = float(cst['cheek_refit'])
+            pk_r = float(cst['cheek_refit_peak'] if cst['cheek_refit_peak'] is not None else win['cheek_peak'])
             c2 = np.full(len(zs), np.nan)
             for k in valid:
                 if not (np.isfinite(l3[k]) and zs[k] <= top_r and np.isfinite(cheek[k])):
                     continue
                 x, shaped = row(k)
+                bump = front * _cheek(x / max(wc_all[k], 1e-3), pk_r)
                 lo_c, hi_c = -CHEEK_BOUND, CHEEK_BOUND
                 for _ in range(30):
                     m = (lo_c + hi_c) / 2
-                    yy = shaped(cheek[k] + m).copy()
+                    yy = shaped(cheek[k]) + m * bump
                     yy[jr] += dfill[k]; yy[jl] += dfill[k]
                     lead = (-F.C['eye_x'] * np.cos(a)) - (x * np.cos(a) + yy * np.sin(a)).min()
                     lo_c, hi_c = (m, hi_c) if lead > l3[k] else (lo_c, m)
@@ -899,7 +907,7 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
             raw_c2 = c2.copy()
             c2 = np.nan_to_num(_smooth_rows(c2, cst['cheek_smooth'] / A.h), nan=0.0)
             c2 *= _smoothstep((top_r - zs) / CHEEK_REFIT_EASE)
-            cheek = cheek + c2
+            refit = (c2, pk_r)
             LAST.update(cheek_refit_raw=raw_c2, cheek_refit=c2)
 
     def finish(cheek_v):
@@ -910,6 +918,8 @@ def assemble(F, V, A=None, smooth_th=0.008, smooth_z=0.004, chin_bias=CHIN_BIAS,
         for k in valid:
             x, shaped = row(k)
             yy = shaped(cheek_v[k])
+            if refit is not None:
+                yy = yy + front * refit[0][k] * _cheek(x / max(wc_all[k], 1e-3), refit[1])
             if dfill is not None:
                 yy = yy.copy()
                 yy[jr] += dfill[k]; yy[jl] += dfill[k]                     # (the midline's 0 either way)
