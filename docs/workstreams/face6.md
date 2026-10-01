@@ -149,6 +149,25 @@ mark's ink 0.36 of the drawn one passed the 0.35 band at margin 0.375 from the f
 face_flags record re-reads calibrated on B (eye_iris_fit_profile and eye_lash_spikes_three_quarter are INFO reads,
 miscalibrated as recorded). The first gate (6db6973) was stopped for this change.
 
+**Gate 1** (e719b40 into 342e88c, `charkit/out/gate/gate_tool-face6_e719b40_into_342e88c.md`): FAIL, 6 blockers.
+- test_geomstage: character.assemble reads the spec's `nose` (since round 1); geomstage.ASM_KEYS now carries it
+  (a35628e: without it a nose edit could reuse a cached assembly; build D was stopped and relaunched for it).
+- sheet_shown_front / three_quarter "unregistered remeasure" (0.469 -> 0.468 on the new geometry only): round 1's
+  qa3d.sheet_meshes classed the nose tick a line; reverted (15b889a: 'other', as every mouth-group part but lines).
+- the build's CPU 1.50x (722 -> 1083.9 s): the produced hull missed (eccda020, built 168 s wall: face5's code_base
+  changed its producer; pipeline-3d's own next build pays it too); now stored on the build box.
+- face_preset_effort FAIL: expressions paused; for the coordinator's named acceptance.
+- the 2x2 on eye_view_profile_flick_out: the new geometry under the old window reads -0.445 FAIL (old geometry 0.038
+  PASS both ways; candidate -0.056 PASS). The old window (rows above the opening's middle) cuts our flick off its lash
+  line wherever the flick's root lies under the middle row: our profile opening's far corner sits under its middle
+  (row 81 of 41-107), the design's over it (44 of 20-79). A steeper flick doesn't reach it (lab, flick_angle 18/26/32:
+  the old reading 0.111 each; the new 0.50/0.47/0.42; `run_flick.log`). The corner's height in profile is the profile
+  eye's shape (the turned surface), the same root as the profile lash spikes. For the coordinator's named acceptance
+  (the remeasure's evidence: d6c5ee7's step, the record).
+Not blocking: new FAILs brow_shape_closeup_profile 0.471, eye_lash_spikes_closeup_profile 0, mouth_place_three_quarter
+0.0748, nose_mark_at_three_quarter 0.0337 (all four reported, 4 of the "new checks that FAIL"); chin_underside and
+face_preset_angry PASS -> WARN; face_folds 8 -> 35 (PASS). The guard: 0 findings.
+
 ## Checkpoint (2026-09-30 night, context limit): state for the next agent
 
 Branch `tool/face6` head: see `git log -1` (2bdfc58 = the fixes; later commits notes only). Nothing gated, nothing
