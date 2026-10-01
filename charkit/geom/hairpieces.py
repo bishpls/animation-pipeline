@@ -43,14 +43,25 @@ FAMILY_PHI = {'bangs': (0, 100), 'upper_back': (50, 180), 'lower_back': (50, 180
 LAYER = {'bangs': 0.0, 'side_lock_L': 1.0, 'side_lock_R': 1.0, 'upper_back': 1.5, 'lower_back': 2.5}
 BUN_CORE = 1.6          # a bun's points further than this many times their median distance from its median are dropped
 OPTS = dict(shade_smooth=2.5, pole=20.0, crown_rows=24.0, crown_tilt=-10.0, dphi=4.0, dth=3.0, th_max=168.0, gap=0.006, up=24.0, side=1, step=1.5, crown_cap=20.0,
-            chain=6, fine_tips=('bangs',), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
+            chain=6, fine_tips=('bangs', 'lower_back'), crown_blend=8.0, cap_top=0.006, side_lock_trim=True, trim_cut=False,
             trim_smooth=3.0, trim_margin=0.01, trim_sides='drawn', tuck_flyaways=True, bun_over={'profile': 1.0},
             samples='mesh', flyaway_plane='median', body_clear=True, body_push_max=0.03, crown_trim=True, crown_th=70.0,
             bun_occlude=False, bun_per_side=False, bun_views=('front', 'profile', 'back'), bun_tails=False,
             bun_outline_w=0.0, lock_model='wedge', ribbon_pieces=('bangs',),
             ribbon_views=('front', 'three_quarter', 'profile'), ribbon_face=0.3, ribbon_rel=0.4, ribbon_kmax=8,
             ribbon_th0=30.0, ribbon_erode=3, ribbon_bend=8.0, ribbon_lines='anchored', ribbon_slide=3.0, ribbon_prior=0.02,
-            ribbon_keep=0.0, ribbon_anchors='wedge', ribbon_prom=3.0, ribbon_nsep=4.0)
+            ribbon_keep=0.0, ribbon_anchors='wedge', ribbon_prom=3.0, ribbon_nsep=4.0,
+            ahoge='fit', flyaway_root='hair', flyaway_reach=0.01, notch_piece={'lower_back': 6.0},
+            drawn_cuts=('lower_back',), ink_fade={'upper_back': 0.0, 'lower_back': 0.25}, ink_phi=120.0)
+# (tool/hair5, Michael's flags of 2026-09-30 evening; the lab over h5_base (004efc3), docs/workstreams/hair5.md, batch
+# b5 P6 against the base: ahoge 'fit' (a 3-d Bezier fitted to the drawn strokes, their widths): hair_ahoge_shape
+# 0.371 -> 0.689, hair_ahoge_bend 108 -> 19 PASS, hair_piece_ahoge front/profile/back 0.29/0.35/0.33 -> 0.60/0.55/0.75;
+# flyaway_root 'hair' (each root carried 0.01 L into the nearest drawn hair, buns included): hair_attached 0.029 ->
+# 0 PASS, flyaways front/back 0.222/0.131 -> 0.221/0.170; the hem (the lower back cut at its drawn notches, its tips the
+# drawing's, notch 6): hair_back_hem 5 -> 2 PASS (6 tips, drawn 8); ink_fade (no line where the back's locks meet but
+# at the lower back's last quarter): hair_back_lines 3.77 -> 0.55, at a cost in profile: hair_lock_lines_profile 0.162
+# -> 0.088 (FAIL both; ink_phi 135 with keep 0.15 / 0.35 holds it at 0.158 with the back's ink at 2.02);
+# hair_lock_lines_three_quarter 0.205 -> 0.195; the other families' IoUs within 0.01 in every view; builder folds 4 -> 6)
 # (tool/hairlocks round 2: lock_model 'ribbon' builds ribbon_pieces' locks between the drawing's lock lines lifted onto the
 # chart (lock_lines, ribbon_bounds), not the wedge's phi cuts at the lower edge's notches; measured against the lock
 # truth (charkit.hairlocks) in docs/workstreams/hairlocks.md)

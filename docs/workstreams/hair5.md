@@ -173,48 +173,71 @@ swap.json, read only). When the side locks are templated, their partition and ti
 truth, not the hull labels; and a stability check: a face-only edit (the face5 swap) leaves the side locks put
 (their lock bounds and tips within a tolerance). face5 will likely land first with that terminator WARN accepted.
 
-## State at the checkpoint (context limit; relaunch lean from here)
+### Batches 3-6 (the thin-ink measure; base h5_base: back ink 3.77, lines 3q / profile 0.205 / 0.162, folds 4)
 
-Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Every new builder path is behind a setting:
-the default build is unchanged (`ahoge` '2d', `flyaway_root` 'mass', no `ink_fade`, no per-piece overrides), so a gate
-now would land the 7 new flag checks (all FAIL on 004efc3: new FAILs block under K unless accepted) — land them with the
-fix, not alone, or have the coordinator accept them by name as the measurement-only gate.
+| variant (all: ahoge fit, flyaway root) | ahoge F | attached | back ink | hem (diff) | lines 3q | lines profile | upper (prof / back) | lower (front / prof / back) | flyaways (front / back) | side | folds |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| base | 0.371 | 0.029 | 3.77 | 5 | 0.205 | 0.162 | 0.618 / 0.888 | 0.502 / 0.664 / 0.673 | 0.222 / 0.131 | 0.53 | 4 |
+| A2 (b3: taper fixed, crescent width) | 0.516 | 0 | 3.68 | 5 | 0.178 | 0.151 | | | 0.197 pooled (r 0.01: 0.208) | 0.529 | |
+| H3_hem6 (ink upper 0, lower 0.25; hem notch 6) | 0.516 | 0 | 0.74 | 3 | 0.190 | 0.096 | | | | 0.529 | |
+| P3 (drawn width; ink 0.15 / 0.35; hem: drawn cuts, fine tips, notch 6) | 0.689 | 0 | 1.52 | **2 PASS** | 0.195 | 0.112 | 0.621 / 0.890 | 0.502 / 0.666 / 0.670 | 0.221 / 0.170 | 0.531 | 6 |
+| P5 (P3 + ink_phi 135) | 0.689 | 0 | 2.02 | 2 | 0.193 | **0.158** | same | same | same | 0.531 | 6 |
+| **P6 (ink upper 0, lower 0.25, ink_phi 120; hem as P3): the default** | **0.689** | **0** | **0.55** | **2** | 0.195 | 0.088 | 0.621 / 0.890 | 0.502 / 0.666 / 0.670 | 0.221 / 0.170 | 0.531 | 6 |
+| F4 (P3's hem + the upper back cut at its drawn notches too) | 0.689 | 0 | 2.35 | 2 | 0.190 | 0.147 | / (pooled 0.776) | (pooled 0.628) | | 0.529 | |
+| R1 (ribbons for the side locks) | 0.689 | 0 | 1.53 | 2 | 0.201 | 0.113 | | | | 0.535 | **38** |
+| R2 (ribbons for the side locks and upper back) | 0.688 | 0 | 2.89 | 2 | 0.203 | 0.153 | | lower 0.604 | | 0.534 | **40** |
+| R3 (the side locks cut at their drawn notches, fine tips) | 0.689 | 0 | 1.45 | 2 | 0.185 | 0.148 | | front 0.463 | | 0.522 | 11 |
 
-Local builds: `charkit/out/h5_base` (box, 004efc3 default spec; qa.json has the hair flags added by
-tools/hair5/addqa.py), known-bad `hair5_1580f95` stored (charkit/out/calib/builds). Tools: tools/hair5/ (ctx, pic,
-flags, ahogepic, ahogemask, linepic, lab, table, review, addqa, v/*.json).
+(ink_phi 120 and 105 equal no cut-off: the upper back's side columns all lie beyond 120 deg; at 135 the side seams keep
+their line.) The single-view ahoge lab (lab3) was stopped at its time limit after the front-only fit (front F 0.571
+against the joint 0.516): the joint fit isn't the limit (centrelines within 1.2 px in all three views), the width was.
 
-**Running at the checkpoint (mine):**
-- sub-agent (step 2, truth granularity), writing `docs/workstreams/hair5-truth.md`, `tools/hair5truth/`,
-  `charkit/out/hair5truth/`, `charkit/refs/clawd/hair_locks_truth.json/.npz`, `charkit/refs/clawd/gen/prompts.json`
-  (`hair_lock_closeup`), maybe `charkit/refs/clawd/gen/hair_lock_closeup.png`, `charkit/hairlocks.py` (a small scorer
-  extension), `tools/ledger.jsonl` (its paid call). It was told not to run git: commit its files after reading its notes
-  (`git status`: those paths only).
-- a laptop lab, the ahoge fitted to single views (front / profile / back / front+back / front+profile) ->
-  `charkit/out/hair5/lab3.json` (the standing rule's step 1: is the joint fit limited by the drawings disagreeing?).
-- box batches b1 (charkit/out/hair5/b1/lab.json) and b2 (b2/lab.json): see the table above when filled.
+**Defaults chosen (hairpieces.OPTS, uncommitted build not yet made):** ahoge 'fit'; flyaway_root 'hair' with
+flyaway_reach 0.01; the hem: fine_tips ('bangs', 'lower_back'), notch_piece {'lower_back': 6}, drawn_cuts
+('lower_back',); the seam ink: ink_fade {'upper_back': 0.0, 'lower_back': 0.25}, ink_phi 120 (P6). Side locks:
+unchanged (wedge): ribbons fold (38-40), the drawn cuts gain little and fold 11, and the stability item stays open.
+Guard (anti-gaming): every family's IoU per view within 0.01 of the base, the flyaways' up; the flag checks moved:
+ahoge F 0.371 -> 0.689 (WARN), bend 108 -> 19 PASS, attached 0.029 -> 0 PASS, back ink 3.77 -> 0.55 (WARN), hem 5 ->
+2 PASS; **profile lines 0.162 -> 0.088 and three-quarter 0.205 -> 0.195 (both FAIL before and after: value moves)**.
 
-**Next, in order:**
-1. Read b1/b2 (`python tools/hair5/table.py charkit/out/hair5/b1/lab.json charkit/out/hair5/b2/lab.json`), then run b3
-   (`tools/hair5/v/b3.json`: base, the fix candidates with the thin-ink measure) on the box the same way. Pick the
-   defaults: ahoge 'fit' + flyaway_root 'hair' (b1: ahoge F 0.37 -> 0.52, bend 108 -> 6.6 PASS, attached 0.029 -> 0
-   PASS), ink_fade for the back (choose keep by back_lines vs the lock lines in 3q/profile: removing seam ink must
-   not drop lines the drawing has there), the hem (fine_tips lower_back + notch_piece) by hair_back_hem and the
-   lower back's IoU. Guard: every hair_piece_* per view within 15% (anti-gaming), hair_noise, folds.
-2. Set the chosen settings in `hairpieces.OPTS` (with the measured numbers in the comment block above OPTS), then a
-   render-box build with the previews' boards: `python -m charkit remote --box render build charkit/spec/clawd.json
-   --out charkit/out/h5_fix --boards views,body,design --no-blend` (art_terminator_hair < 2.5, art_peeks_hair,
-   hair_noise, folds from its qa.json; the base's: 1.804 PASS, 18, 0.0716, 4).
-3. Step 2's results into these notes; the review page: `python tools/hair5/review.py charkit/out/hair5/review
-   charkit/out/h5_fix --summary SUMMARY.json` (summary box: Recommended / Asked of Michael / Key numbers).
+**For Michael (the seam ink's trade-off):** A, P6 (the default): the back reads as one smooth mass (ink 0.55 against
+the drawing's, WARN), but the profile loses lines (0.162 -> 0.088; ours sat at precision 0.17: mostly not where the
+drawing's are). B, P5: the profile keeps its lines (0.158) and the back keeps half its stripes (2.02, FAIL). The
+layering round (drawn lock lines in profile and three-quarter) is the real fix for the profile either way.
+
+## State (2026-09-30 night; the coordinator relaunches lean for the build, page and gate)
+
+Branch `tool/hair5` (from pipeline-3d 004efc3), never pushed, not gated. Step 2's sub-agent finished (committed
+0f77b9b). Nothing of mine is running. Local: `charkit/out/h5_base` (box, 004efc3, its qa.json with the hair flags added
+by tools/hair5/addqa.py), the known-bad `hair5_1580f95` stored, lab batches `charkit/out/hair5/b1`-`b6` (lab.json,
+NAME.npz labels, NAME.pieces.npz). Tools: tools/hair5/ (lab via `hairlab --batch`, table, review, inkpic, flypic,
+ahogepic, ahogemask, stability, addqa; variants in tools/hair5/v/, tracked so the box sees them).
+
+**Next steps, in order:**
+1. (Optional, one lab variant first, ~2 min on the box) ink upper 0 / lower 0.25 with ink_phi 135: if it holds the
+   profile's lines (about 0.15) with the back's ink near 1, it beats both A and B: put it in OPTS. Command:
+   `python -m charkit remote run --fetch charkit/out/hair5/b7 hairlab charkit/out/h5_base --batch tools/hair5/v/b7.json
+   charkit/out/hair5/b7` (write b7.json like b5's P6 with "ink_phi": 135).
+2. The render-box build with the previews' boards: `python -m charkit remote --box render build charkit/spec/clawd.json
+   --out charkit/out/h5_fix --boards views,body,design --no-blend` (export CLOUDSDK_CONFIG first). Read from its
+   qa.json: the 7 hair flags (expect the lab's P6 numbers), every hair_piece_* per view (the guard), art_terminator_hair
+   (base 1.804 PASS; keep < 2.5), art_peeks_hair (18), hair_noise (0.0716), hair_folds (4 -> ~6), body_*_iou_hair. Check
+   the render's back for the seams (the outline_w vertex group: scene.hair_pieces_objects) and the ahoge's look.
+3. The review page: `python tools/hair5/review.py charkit/out/hair5/review charkit/out/h5_fix --summary S.json`
+   (S.json: recommended = the defaults with their numbers; asked = the seam-ink A/B above, the sub-agent's calls F, G,
+   H and the one-more-reference question (docs/workstreams/hair5-truth.md); notes = the bisect). Open it.
 4. `python -m charkit pregate`, then `python -m charkit remote gate tool/hair5 --into pipeline-3d` (merge pipeline-3d
-   first if it moved). The flag checks are new: they need their calibration records (done: charkit/calib/records/
-   hair_*.json; rerun `python -m charkit calibrate 'hair_ahoge_*,hair_attached,hair_back_*,hair_lock_lines_*' --build
-   charkit/out/h5_base` if the measuring code changes, and move the steps' commit in charkit/steps/hairflagqa.py).
-5. Then the layering (step 3's second half): side locks and lower-back flicks as templates from the drawing / the
-   extended lock truth (not the hull labels: the coordinator's stability item below), the ribbons pilot's lock model,
-   the envelope-depth test queued from hairlocks round 3.
+   first if it moved). The 7 hair flags are new: records exist (charkit/calib/records/hair_*.json, eeafe0e); if the
+   measuring code changed since, rerun `python -m charkit calibrate 'hair_ahoge_*,hair_attached,hair_back_*,
+   hair_lock_lines_*' --build charkit/out/h5_base` and move the steps' commit (charkit/steps/hairflagqa.py: 31e6654;
+   the ink's zero-width faces changed at 1587dec, the build's numbers unchanged since its shrink has no zeros). New FAILs
+   under K: hair_lock_lines_three_quarter / _profile stay FAIL (new checks, failing on the base too): the coordinator
+   accepts them by name or they block.
+5. The layering round: the side locks and the back's locks from the drawing / the extended lock truth (not the hull
+   labels), so a face edit can't move them; the stability check: `python tools/hair5/stability.py BUILD_A BUILD_B`
+   on a face-only pair (face5's f5_before / f5_after: side_lock_L tips 38/58/74/102 -> 34/58/82/102, side_lock_R gains a
+   lock); the envelope-depth test from hairlocks round 3; the back's dark band (a tone measure, not built).
 
 ## Jobs
 
-See "Running at the checkpoint".
+None running.
