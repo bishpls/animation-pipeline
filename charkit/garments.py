@@ -307,6 +307,8 @@ def shell(A, spec, normals=None, hull=None):
         sv = ease_over_band(A, sv, ez, band, tor) if over else ease_to_band(A, sv, ez, band)
     if spec.get('bed') and hull is not None:
         sv = bed(A, sv, sf, spec, hull)
+    if spec.get('pad'):
+        sv = shoulder_pad(A, sv, sf, spec['pad'])
     if rf:
         W = {b: w[used] for b, w in Wr.items() if w[used].max() > 1e-4}
         tot = np.maximum(sum(W.values()), 1e-9)
@@ -339,6 +341,36 @@ def shell(A, spec, normals=None, hull=None):
         if pp is not None and len(pp) >= 10:
             G['panel_faces'] = panel_faces(sv, sf, pp, L)
     return G
+
+
+def shoulder_pad(A, sv, sf, pad):
+    """a jacket's shoulders built up to a level line (Michael's flag, 2026-10-01: the shoulders still misshapen; the
+    drawn shoulder line runs level from the collar to the puff, ours dipped 0.07-0.09 L between them): the shell's
+    upward-facing vertices raised by the `lift` table's dz at their |x| ([[|x| L, dz L], ...], 0 outside it), times
+    how much their surface faces up (`nz` [lo, hi]: the normal's z, 0 at lo or under, 1 at hi or over), the raise eased
+    over the mesh (`smooth` passes of the 1-ring's mean) so the pad's edge has no step. The body is untouched (its
+    neck join, the hair's clearance), and a collar lying `over` the jacket follows it (collar_drape). -> the moved
+    points."""
+    from scipy import sparse
+    L = A['head']['L']
+    sv = np.asarray(sv, float).copy()
+    if not len(sv):
+        return sv
+    K = np.asarray(sorted(pad['lift']), float)
+    lo, hi = pad.get('nz', (0.2, 0.7))
+    nz = vertex_normals(sv, sf)[:, 2]
+    dz = np.interp(np.abs(sv[:, 0]) / L, K[:, 0], K[:, 1], left=0.0, right=0.0)
+    dz = dz * np.clip((nz - lo) / max(hi - lo, 1e-6), 0, 1)
+    n = len(sv)
+    rows = [v for f in sf for v in f]
+    cols = [f[(k + 1) % len(f)] for f in sf for k in range(len(f))]
+    Adj = sparse.coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n)).tocsr()
+    Adj = ((Adj + Adj.T) > 0).astype(float)
+    deg = np.maximum(np.asarray(Adj.sum(1)).ravel(), 1)
+    for _ in range(int(pad.get('smooth', 4))):
+        dz = 0.5 * dz + 0.5 * (Adj @ dz) / deg
+    sv[:, 2] += dz * L
+    return sv
 
 
 def bed(A, sv, sf, spec, hull):
