@@ -2932,8 +2932,16 @@ def build(case, fam, masks, style, views=None, hull_frame=None, opts=None, log=p
                 if R['family'] in LS['opts']['families']:
                     sh = [q for q in LS['parts'].get(R['family'], []) if side is None or q['fit']['side'] == side]
                     if sh:
-                        # (lock_shells under: the family's wedges stay as the base under its shells)
-                        parts = (parts + sh) if R['family'] in (LS['opts'].get('under') or ()) else sh
+                        # (lock_shells under: the family's wedges stay as the base under its shells, set in by
+                        # under_inset L along the envelope's outward normal so they show only in the shells' gaps)
+                        if R['family'] in (LS['opts'].get('under') or ()):
+                            d_ = float(LS['opts'].get('under_inset') or 0.0) * L
+                            if d_ > 0:
+                                parts = [dict(w_, V=w_['V'] - d_ * np.where(np.asarray(w_.get('outer', np.ones(len(
+                                    w_['V']), bool)), bool)[:, None], w_['vn_env'], -w_['vn_env'])) for w_ in parts]
+                            parts = parts + sh
+                        else:
+                            parts = sh
                 for g in LS['opts']['groups']:
                     if g['family'] == R['family']:
                         parts = parts + LS['parts'].get(g.get('name', '%s_%s' % (g['family'], g.get('view', ''))), [])

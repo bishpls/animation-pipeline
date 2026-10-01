@@ -296,7 +296,66 @@ pieces seen in slivers between the narrow side-lock shells (their coverage of th
 `under` (lock_shells: families whose own wedges stay under their shells, the shells laid over them by `over`, the
 front-most layer furthest out): any gap shows the side lock's own mass, connected to its large component.
 
+More rows (sw3-sw5; all shade_lock 0, proxy; folds from each row's pieces report, since the sweep's hair_folds
+reads the base's: an infra note):
+
+| row | terminator place / mean | peeks place / mean | hair_noise | folds | side locks F / P | lower back F / P / B | lock lines 3q / P |
+|---|---|---|---|---|---|---|---|
+| hull (hs_hull_r, the build) | 2.009 / 2.007 | 17 / 17.5 | 0.0717 W | 9 | 0.560 / 0.469 | 0.514 / 0.665 / 0.672 | 0.176 / 0.104 |
+| shells, union, sl 0 | 1.482 / - | 29 | 0.086 F | 5 | 0.559 / 0.607 | 0.480 / 0.603 / 0.719 | 0.268 / 0.229 |
+| widen_lw 2 | 1.828 | 22 | 0.0832 F | 7 | 0.593 / 0.610 | 0.493 / 0.597 / 0.714 | 0.256 / 0.219 |
+| widen_lw 3 | 1.551 | 23 | 0.0803 F | - | 0.613 / 0.599 | 0.502 / 0.589 / 0.707 | 0.249 / 0.192 |
+| **widen_lw 4** | **1.441 / 1.548 +- 0.141** | **19 / 17.7** | 0.0768 W | 7 | 0.620 / 0.581 | 0.507 / 0.580 / 0.701 | 0.237 / 0.168 |
+| widen_lw 5 | 1.168 | 19 | 0.0746 W | 7 | 0.619 / 0.558 | 0.512 / 0.569 / 0.695 | 0.238 / 0.159 |
+| widen_lw 6 | 1.18 | 19 | 0.0721 W | 11 | 0.617 / 0.535 | 0.515 / **0.556** / 0.688 | 0.228 / 0.123 |
+| under, widen 2 | 2.266 | 19 | 0.0685 W | - | 0.552 / 0.488 | 0.531 / 0.594 / 0.715 | 0.239 / 0.189 |
+| under, widen 4 | 2.023 | 21 | 0.0655 W | - | 0.545 / 0.478 | 0.529 / 0.574 / 0.703 | 0.228 / 0.191 |
+
+Bold lower back profile: past the guard's 15% (0.665 -> 0.556). Reading: widening closes the gaps (peeks 29 -> 19,
+the six-placement mean 17.7 = the hull's 17.5) and lowers the noise; the lower back's profile pays (the side shells
+cover it there). The underlayer brings the side locks' IoU back to the hull's (it is the hull's piece) and the
+terminator with it. hair_noise by object (`noisemap.py`): front view, the hull 0.121 / widen 4 0.143; its extra edges
+are the lower back's (224 -> 484): the lower back seen in the gaps beside the side shells, a shade tone against the
+shells' lit one. Without outlines (as hair_noise draws) every occlusion boundary between two pieces of different tone
+counts as noise: a question for the check's owner, not changed here.
+
+## Step 4: identity across views (in progress)
+
+`charkit/out/hairshell2/assoc2.py CTX [OPTS]` (the dev copy `lsdev.py`) and now each lock's `fit.assoc` in the pieces
+report: per other view faces away / no candidate (nearest, claimed?) / joined / dropped (its joint cost, the primary's).
+Found: (1) **the three-quarter had no targets at all**: `targets()` skipped a view that has any `VIEW__*` mask but not
+the family's, and the three-quarter has the buns' masks (`three_quarter__bun_L/R`): fixed (only hair families' masks
+count). (2) Registration is not the problem: the hull's hair projected into each view is best within 2 px; the
+splitter's matched tips' heights agree with ours to the digit (front-profile 0.054 L mean apart: the splitter's links
+disagree in height, they are weak). (3) The joint fits fail on cost: the primary view's cost rises 1-3 px -> 5-9 px
+when another view's drawn lock joins. Secondary views are now trimmed to the heights the shell spans and their root
+end isn't pulled (`trim_other`, `root_w_other` 0): 0 -> 2 of 17 locks in two views at view_cost_max 4 (f20.1 front +
+three-quarter, f52.1 front + profile); 3 of 17 at view_cost_max 6 with primary_slack 1.5 px; 5 of 17 at 8 / 2.0.
+The splitter's own links (hairsplit.json matches, xid) point 35-95 px away from the shells' projections for these
+locks: not usable as association yet.
+
+Then (sw6-sw8): the three-quarter fix and joins per view (`join` 'sequential': each other view tried alone, nearest
+first, kept when the fit follows it, so one bad view no longer takes the others out: round 1's joint drop). Every row
+shade_lock 0. Lock IoU against the 52-lock truth (`tools/hairshell/lockpics.py`, lp1 / lp2):
+
+| row | locks 2+ views | truth all / side locks / lower back | side F / P | terminator place / mean | peeks place / mean | back_lines | hem | noise | folds |
+|---|---|---|---|---|---|---|---|---|---|
+| hull | - | 0.355 / 0.394 / 0.304 | 0.560 / 0.469 | 2.009 / 2.007 | 17 / 17.5 | 0.894 W | 3 W | 0.0717 | 9 |
+| round 1 shells (hs_shells_r) | 1 / 17 | 0.387 / 0.521 / 0.333 | 0.589 / 0.612 | 2.32 / 1.989 | 39 / 34.2 | 1.305 F | 2 P | 0.098 | 15 |
+| widen 4, 3q off (sw3 wide4) | 1 / 17 | **0.407 / 0.589 / 0.350** | 0.620 / 0.581 | 1.441 / 1.548 | 19 / 17.7 | 1.255 F | 3 W | 0.0768 | 7 |
+| widen 4, 3q on, trim (sw6 id_w4) | 2 / 17 | 0.401 / 0.557 / 0.350 | 0.586 / 0.602 | 1.631 / 1.739 | 21 / 19.8 | 1.259 F | 3 W | 0.0776 | 7 |
+| widen 4, sequential (sw7 seq_w4) | 2 / 17 | - | 0.583 / 0.604 | 1.632 / - | 19 | 1.255 F | 3 W | 0.0777 | 7 |
+| side 4 / flicks 2 (sw8 s4f2) | 2 / 17 | - | 0.583 / 0.603 | 1.628 | 20 | 1.343 F | 2 P | 0.0781 | 7 |
+| **+ over_ink 0.3 (sw8 s4f2_ink30)** | 2 / 17 | 0.397 / 0.559 / 0.328 | 0.583 / 0.603 | 1.628 / 1.806 +- 0.123 | 19 / 18.2 | **0.462 P** | 2 P | 0.0781 | 7 |
+| + over_ink 0.15 | 2 / 17 | - | 0.583 / 0.603 | 1.628 | 19 | 0.316 P | 2 P | 0.0781 | 7 |
+
+Readings: (a) **hair_back_lines** (a flag check, the back's ink inside the mass) was a FAIL on round 1's build too
+(1.305 against the hull's 0.894 WARN), missing from round 1's table: the hem flicks laid over the back drew their
+whole outlines. `over_ink` (a laid-over group's shells ink only their last 30% toward the tip, as the design's
+flicks: a tick at each notch) takes it to 0.462 PASS. (b) The flicks widened 4 line widths lose a hem tip (hem 2 ->
+3); flicks at 2, side locks at 4 keep hem 2 PASS. (c) Joining the three-quarter (f20.1) costs the front's side-lock
+IoU (0.620 -> 0.583) and the truth score (side locks 0.589 -> 0.559): the joined views compromise rather than agree.
+
 ## Jobs
 
-- sw1 (laptop): `charkit/out/hairshell2/sw1.json` -> `sw1/` (control = proxy shading + the soft fit; hull; union;
-  shade_lock0), all hair objects spliced.
+- sw1-sw5 done (`charkit/out/hairshell2/swN.json` -> `swN/`). sw6-sw8 done. sw9 running: the underlayer set in (under_inset 0.02 / 0.04 L).
