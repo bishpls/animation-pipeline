@@ -3629,7 +3629,9 @@ A simulation cage for a grid-built garment (the way production cloth runs: simul
 The pilots: garments draped by charkit.sim.xpbd from a build's own products, measured by the build's own QA.
 
 - class `Build`: a build's products for the pilots: the bundle, the garments' recording (coarse and final), L.
-- `grid_of(o)`: a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on.
+- `ink_slots(o)`: a piece's material slots that are ink (drawn lines riding on it) -> set of indices.
+- `grid_polys(o)`: a grid-built garment's own faces: its polygons less those on an ink slot (garments.with_ink appends a piece's ...
+- `grid_of(o)`: a grid-built garment's (rows, columns): its quads join j*NC + i to its neighbours 1 and NC on; its grid is the ...
 - `piece_cloth(o, pin_rows=2, rest='template', density=0.2)`: a grid-built garment as cloth: rows 0..pin_rows-1 pinned (where it hangs from), vertices on no face pinned ...
 - `collider(Bd, names, box, h)`: the union (min) of signed-distance grids of closed bundle meshes over a box, spacing h: -> xpbd.SDFGrid.
 - `rest_drape(Bd, name, style='anime', rest='template', seconds=3.0, fps=60, ...)`: settle one of a build's garments against its bundle's meshes (settle()): -> dict(V, stats, cage, solver).
@@ -3852,7 +3854,7 @@ Calibration adapters for the bow: its parts and the lines inside them (charkit.p
 
 Measurement steps, one file per measuring module (charkit/steps/<module>.py holds the steps of the checks charkit/<module>.py measures): each a module-level MEASUREMENT_STEPS literal that charkit.registry.steps() reads with ast. Nothing imports these files, so adding a step never changes a build's code keys (the stages, the hull's stamp). How to add one: ...
 
-#### `charkit/steps/accqa.py` (10 measurement steps)
+#### `charkit/steps/accqa.py` (14 measurement steps)
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
@@ -3907,6 +3909,10 @@ The measurement steps of the checks charkit/isoqa.py measures (charkit.registry;
 #### `charkit/steps/lookqa.py` (16 measurement steps)
 
 The measurement steps of the checks charkit/lookqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
+
+#### `charkit/steps/motionqa.py` (2 measurement steps)
+
+The measurement steps of the checks charkit/sim/motionqa.py reports (motion_<pose>_<garment>_*; charkit.registry). A step: (check pattern, the commit that changed the measurement, what changed).
 
 #### `charkit/steps/partqa.py` (5 measurement steps)
 
