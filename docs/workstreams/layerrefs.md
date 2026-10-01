@@ -130,6 +130,19 @@ is a decision for Michael. The flaps alone are drawn too wide in both takes.
 - docs/CODEMAP.md not regenerated: on pipeline-3d it is stale by ~360 lines of other branches' modules (freshness is
   not tested); `charkit/layerref.py` is listed when it next is.
 
+## 6. Michael's follow-up (2026-10-01): registered for structure
+
+- `skirt_layers` take 1 registered with a split: the skirt row is the structure authority (the panel and pleats
+  without the flaps, the hidden back hem's level: level); the flaps row the flaps' own shape only (the staircase
+  edges and their right angles, the outline's form); every size and position stays body_turnaround's. Cautions: the
+  skirt drawn 3-9% fuller at the sides; the flaps drawn wider (drapery drawn without its underlying layer spreads).
+- `hair_clips_layers`: the bottom row registered too, as the clips' structure authority (the crab's claws and legs, the
+  star's point count and shape); proportions stay head_turnaround's. Re-checked against head_turnaround at 401 px/L
+  (the refcheck already used it, not the body turnaround's small clips): the star's left arm is shortened there by
+  the crab over it (0.26-0.33 of its height), but even the unoccluded right arm is 0.35-0.41 against the sheet's 0.48,
+  so the star is drawn wider; the crab's IoU 0.49-0.52 is against a crab partly under the star. Both in the cautions.
+- `base_body_turnaround`: Michael's yes on the profile for the torso, in its caution.
+
 ## State
 
 - Review page: `charkit/out/layerrefs/review/index.html` (from `charkit/out/layerrefs/page.py` -> page.json).
