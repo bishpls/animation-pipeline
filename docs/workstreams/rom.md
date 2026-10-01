@@ -78,6 +78,13 @@ default; the joined-shoulder candidate), calibrated against known-bads, wired in
 - The candidate's skin has stray neck weight on its bridge (0.53% of the skin, 10% of the jacket): rom_weights_stray
   (calibrated) will FAIL on tool/garments4-shoulders' merge until the bridge drops it (a new FAIL under K: blocks).
 
+## Gate
+- tool/rom merged pipeline-3d 27a4b6c3 (4ccdc339); pre-gate on the earlier tip bc06dc6d into 60c0f1a4: PASS (0 moved).
+  Gate launched: `remote gate tool/rom --into pipeline-3d` (log charkit/out/rom/gate.log).
+- Expected under K: the nine graded rom_* checks are new (records calibrated); five FAIL on the default (vol_elbow,
+  vol_knee, vol_fingers, shoulder_torso, shoulder_open, garment_strain: reported, not blocking); the candidate builds
+  with --vrm (gltf.py changed: EXPORT_CODE) and runs the rom QA part (about 95 s wall, 133 s CPU on the laptop).
+
 ## Box jobs
 - Boards: charkit/out/rom/box_base2/boards, rom-cand's charkit/out/rom/box_cand2/boards (112 each, toon renderer).
 - Calibration (build box): A (logs charkit/out/rom/calibA.log, -> charkit/out/rom/calibA/cal.json), B (calibB, the
