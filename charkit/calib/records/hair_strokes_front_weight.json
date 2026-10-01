@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T08:07:02",
+ "at": "2026-10-01T21:54:21",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -15,42 +15,42 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "+0,+2": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "+1,+0": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "+2,+0": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "+0,-1": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "+0,-2": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "-1,+0": [
-    0.017,
+    0.027,
     "PASS"
    ],
    "-2,+0": [
-    0.017,
+    0.033,
     "PASS"
    ]
   },
-  "min": 0.017,
-  "max": 0.017,
-  "spread": 0.0,
-  "median": 0.017
+  "min": 0.027,
+  "max": 0.033,
+  "spread": 0.006,
+  "median": 0.027
  },
  "known_bad": {
   "name": "hst_base",
@@ -60,11 +60,11 @@
  "floor": {
   "heavy_strokes": {
    "values": [
-    1.97,
-    1.97,
-    1.973,
-    1.969,
-    1.966
+    1.936,
+    1.941,
+    1.942,
+    1.938,
+    1.938
    ],
    "statuses": [
     "FAIL",
@@ -73,7 +73,7 @@
     "FAIL",
     "FAIL"
    ],
-   "median": 1.97,
+   "median": 1.938,
    "status": "FAIL",
    "passing": 0
   }
@@ -81,15 +81,15 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.322,
+  "value": 0.244,
   "status": "PASS",
-  "margin": 0.844
+  "margin": 0.886
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.0), hst_base reads None FAIL, the floor heavy_strokes FAIL",
- "build": "charkit/out/hst_s1",
+ "why": "the design passes every move (spread 0.006), hst_base reads None FAIL, the floor heavy_strokes FAIL",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "heavy_strokes": "the head sheet's strands repainted in the outline's ink at the outline's weight (inner strokes as heavy as the silhouette's line)"
  },
- "seconds": 304.1
+ "seconds": 1025.1
 }

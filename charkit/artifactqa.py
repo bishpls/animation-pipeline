@@ -71,6 +71,10 @@ SPECK_MIN = 0.00001         # L^2: ... and over this
 MIN_SKIN = 0.01             # L^2: a view shows less face or neck skin than this: not measured there (the back view's neck
                             # is slivers between the hair and the collar, 0.003-0.005 L^2, where specks per L^2 read 740)
 EDGE_BAND = 0.006           # L: tone patches within this of a region's outline are the outline's fringe
+HAIR_SHAPE_TRUTH = False    # the hair region against its shape truth (charkit.shapetruth: the head sheet with its clips
+                            # repainted from the redraw, ours drawn without our clips; tool/hairtruth). Held off until
+                            # art_terminator_hair's and art_peeks_hair's known-bad (look_v5) can be measured again: their
+                            # calibration records can't be refreshed without it (tool/hairtruth-art flips it)
 TONE_BLUR = 0.9             # px: our tone buffer softened as a render's pixel filter (~0.5) and a drawing's cut (0.7)
 
 
@@ -1057,10 +1061,11 @@ def flat_picture(kimg, tone, line):
     return img
 
 
-def ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None):
+def ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None, hide=()):
     """our regions measured on the QA's own numpy drawings (buffers(): qa3d.draw's mesh and tone buffers, as the boards
     light each view): the head frame at HEAD_PPL (hair, face, neck) and, given body_ppl (the body sheet's), the body
-    frame (collar, bow, top, skirt, boots). -> {'head': {view: {region: measures}}, 'body': ...}."""
+    frame (collar, bow, top, skirt, boots); hide: objects the hair's region is drawn without (its shape truth: our
+    clips), the face and neck drawn with them. -> {'head': {view: {region: measures}}, 'body': ...}."""
     from . import lookqa
     L = float(B.assembly['L'])
     chin_L = float(B.assembly['chin']) / L
@@ -1078,9 +1083,23 @@ def ours(B, az3=35.5, body_ppl=None, body_page=1440, pictures=None):
         chin_row = (win[1] + chin_L) * ppl if name == 'head' else None
         zr = None if name == 'head' else (lambda r, ppl=ppl, top=win[1]: top - (r + 0.5) / ppl)
         out[name] = {}
+        split = name == 'head' and bool(hide) and 'hair' in regions
+        if split:
+            sh = [s for s in surfs if s['o'].name not in hide]
+            kinds_h = np.array([KINDS.index(object_kind(s['o'])) for s in sh] + [-1])
+            line_h = np.array([bool(s['hull']) for s in sh] + [False])
         for v, az in views.items():
             pics = [] if pictures is not None else None
-            out[name][v] = _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pics, v, zr)
+            if not split:
+                out[name][v] = _ours_view(B, surfs, fr, az, regions, ppl, line_of, kinds_of, chin_row, pics, v, zr)
+            else:
+                # the hair drawn without our clips (its shape truth), the face and neck as the scene stands
+                ph = [] if pictures is not None else None
+                out[name][v] = _ours_view(B, surfs, fr, az, tuple(r for r in regions if r != 'hair'), ppl, line_of,
+                                          kinds_of, chin_row, pics, v, zr)
+                out[name][v].update(_ours_view(B, sh, fr, az, ('hair',), ppl, line_h, kinds_h, chin_row, ph, v, zr))
+                if pictures is not None:
+                    pics = [(ph[0][0], dict(pics[0][1] or {}, **(ph[0][1] or {})))]
             if pictures is not None:
                 pictures.append((name, v, ppl) + pics[0])
     return out
@@ -1417,19 +1436,44 @@ def design_inputs(B, design):
     inp = dict(face_sheet=_sha(qa3d._path(fs['image'])), face_facing=fs.get('facing', -1),
                body_sheet=_sha(qa3d._path(bs['image'])), masks=_sha(mp[0]), pieces=_piece_types(mp[1]),
                head_ppl=HEAD_PPL, code=design_code())
+    hs = _hair_shape(B, design)
+    if hs:                                  # (the hair's shape truth: its sheet, its entry and charkit.shapetruth's code)
+        inp['hair_shape'] = hs
     path = os.path.join(os.path.dirname(qa3d._path(man)), DESIGN_FILE) if man else None
     stamp = cache.digest(sorted(inp.items()))[:16]
     inp['eye_x'] = round(float(B.assembly['eye_knobs']['x']), 6)        # (the sheets' scale: within EYE_X_TOL, not stamped)
     return stamp, inp, path
 
 
+def _hair_shape(B, design):
+    """the hair's shape truth as the design's measures read it (charkit.shapetruth: the head sheet with its clips
+    repainted from the redraw), as a digest of what makes it, or None when the hair declares none."""
+    import os
+    from . import cache, qa3d, shapetruth
+    if shapetruth.MODE == 'off' or not HAIR_SHAPE_TRUTH:
+        return None
+    e = shapetruth.entry(B.spec, 'hair')
+    if e is None:
+        return None
+    return cache.digest([_sha(qa3d._path(e['path'])), {k: e[k] for k in ('id', 'rows', 'views', 'covers')},
+                         _sha(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shapetruth.py'))])[:16]
+
+
 def design_compute(B, design):
-    """the design's measures made (slow: the sheets cut and measured, ~20 s) -> dict(head, body, chin)."""
+    """the design's measures made (slow: the sheets cut and measured, ~20 s) -> dict(head, body, chin). The hair's
+    against its shape truth when it declares one (qa3d.Design.shape_head: the head sheet with its clips repainted from
+    the redraw; the face and neck from the sheet as drawn)."""
     from . import bodymeasure
     ref = design.ref()
     fs = ref['face_sheet']
     head, chin = design.memo(design_heads, design.rgba(fs['image'])[..., :3], B.assembly['eye_knobs']['x'],
                              fs.get('facing', -1))
+    st = design.shape_head('hair') if HAIR_SHAPE_TRUTH and design.hidden('hair') else None
+    if st is not None:
+        hh, _ = design.memo(design_heads, st, B.assembly['eye_knobs']['x'], fs.get('facing', -1))
+        for v, rec in head.items():
+            if 'hair' in (hh.get(v) or {}):
+                rec['hair'] = hh[v]['hair']
     ctx = design.sheet_context()
     masks, graph, paths = bodymeasure.piece_masks(B.spec)
     dv = design.design_views()
@@ -1548,7 +1592,8 @@ def measure(B, design=None, out=None):
     az3 = 35.5 if 'why' in ctx else ctx['az3']
     pics = [] if out else None
     O = ours(B, az3, body_ppl if D.get('body') else None,
-             body_page=(ctx['rgb'].shape[0] if 'rgb' in ctx else 1440), pictures=pics)
+             body_page=(ctx['rgb'].shape[0] if 'rgb' in ctx else 1440), pictures=pics,
+             hide=design.hidden('hair') if design is not None and HAIR_SHAPE_TRUTH else ())
     C = promote(checks(O, D))
     if note:
         C['design'] = {'status': 'INFO' if D else 'SKIPPED', 'why': note}

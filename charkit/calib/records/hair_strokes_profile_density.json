@@ -3,7 +3,7 @@
  "part": "declared",
  "adapter": "Declared",
  "module": "charkit.declared",
- "at": "2026-10-01T06:05:55",
+ "at": "2026-10-01T21:54:21",
  "better": "lower",
  "kind": "shape",
  "shape": [
@@ -15,42 +15,42 @@
  "design": {
   "moves": {
    "+0,+1": [
-    0.031,
-    "PASS"
-   ],
-   "+0,+2": [
-    0.057,
-    "PASS"
-   ],
-   "+1,+0": [
     0.027,
     "PASS"
    ],
+   "+0,+2": [
+    0.049,
+    "PASS"
+   ],
+   "+1,+0": [
+    0.023,
+    "PASS"
+   ],
    "+2,+0": [
-    0.045,
+    0.04,
     "PASS"
    ],
    "+0,-1": [
-    0.031,
+    0.027,
     "PASS"
    ],
    "+0,-2": [
-    0.057,
+    0.049,
     "PASS"
    ],
    "-1,+0": [
-    0.025,
+    0.023,
     "PASS"
    ],
    "-2,+0": [
-    0.045,
+    0.04,
     "PASS"
    ]
   },
-  "min": 0.025,
-  "max": 0.057,
-  "spread": 0.032,
-  "median": 0.038
+  "min": 0.023,
+  "max": 0.049,
+  "spread": 0.026,
+  "median": 0.0335
  },
  "known_bad": {
   "name": "hst_base",
@@ -60,20 +60,20 @@
  "floor": {
   "scattered_strokes": {
    "values": [
-    0.798,
-    0.896,
-    0.909,
-    0.581,
-    0.665
+    0.685,
+    0.861,
+    0.732,
+    0.644,
+    0.6
    ],
    "statuses": [
     "FAIL",
     "FAIL",
     "FAIL",
     "WARN",
-    "FAIL"
+    "WARN"
    ],
-   "median": 0.798,
+   "median": 0.685,
    "status": "FAIL",
    "passing": 0
   }
@@ -81,16 +81,16 @@
  "probes": {},
  "blind_to": [],
  "current": {
-  "value": 0.594,
+  "value": 0.414,
   "status": "WARN",
-  "margin": 0.268
+  "margin": 0.416
  },
  "verdict": "calibrated",
- "why": "the design passes every move (spread 0.032), hst_base reads 1.0 FAIL, the floor scattered_strokes FAIL",
+ "why": "the design passes every move (spread 0.026), hst_base reads 1.0 FAIL, the floor scattered_strokes FAIL",
  "note": "the current build sits near the floor and fails the check (an open flag, not a coarse check)",
- "build": "charkit/out/hst_s1",
+ "build": "charkit/out/hairtruth/base",
  "generators": {
   "scattered_strokes": "the drawn strands inside the hair's mass each put anywhere in the mass at random (their length and direction kept: strokes in the wrong places)"
  },
- "seconds": 251.7
+ "seconds": 1025.1
 }

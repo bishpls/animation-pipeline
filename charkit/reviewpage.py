@@ -20,6 +20,8 @@ PAGE.json:
   sweep       a sweep's result (charkit/sweep.py: OUT/sweep.json): its table (with deltas against its control) and each
               row's board
   notes       extra paragraphs (HTML-escaped) after the summary
+  tables      extra tables after the notes: [{"title", "text", "columns": [...], "rows": [[cell, ...], ...]}], a cell
+              a string or [text, status] (PASS / WARN / FAIL / INFO: coloured as the checks are)
   figures     extra sections of given pictures after the notes: [{"title", "text", "height", "images": [{"path",
               "caption"}]}] (a round's own measurement pictures: the drawn locks, a fit's overlay)
 
@@ -404,6 +406,21 @@ def sweep_section(page, path):
     return ''.join(H)
 
 
+def table_section(sec):
+    """a given table: {"title", "text", "columns", "rows"}, a cell a string or [text, status]."""
+    def cell(x, tag='td'):
+        if isinstance(x, (list, tuple)) and len(x) == 2:
+            return '<%s class="%s">%s</%s>' % (tag, esc(str(x[1])), esc(str(x[0])), tag)
+        return '<%s>%s</%s>' % (tag, esc(str(x)), tag)
+    H = ['<h2>%s</h2>' % esc(sec.get('title') or '')]
+    if sec.get('text'):
+        H.append('<p class="k">%s</p>' % esc(sec['text']))
+    H.append('<div style="overflow-x:auto"><table><tr>%s</tr>%s</table></div>' % (
+        ''.join(cell(c, 'th') for c in sec.get('columns') or ()),
+        ''.join('<tr>%s</tr>' % ''.join(cell(x) for x in r) for r in sec.get('rows') or ())))
+    return ''.join(H)
+
+
 def figures_section(page, sec):
     """a section of given pictures (a round's own measurement pictures: the drawn locks, a fit's overlay): {"title",
     "text", "height", "images": [{"path", "caption"}]}, each copied under img/ and shown in one row at one height."""
@@ -461,6 +478,8 @@ def make(spec, out=None, log=print):
     H.append('</div>')
     for p in spec.get('notes') or ():
         H.append('<p>%s</p>' % esc(p))
+    for sec in spec.get('tables') or ():
+        H.append(table_section(sec))
     for sec in spec.get('figures') or ():
         H.append(figures_section(page, sec))
     # per view: the design beside every build, the full figure at one height, the head at one px per L

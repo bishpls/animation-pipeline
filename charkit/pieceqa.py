@@ -345,13 +345,15 @@ def our_section(B, sleeve, band, skin, nth=72):
 
 
 # ------------------------------------------------------------------------------------------------------------ our views
-def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back')):
+def our_labels(B, ppl, az3, views=('front', 'three_quarter', 'profile', 'back'), hide=()):
     """our objects z-buffered on the design's grids: per view the object label image (index into names; + 1000 for a
-    two-sided object's right half: world x < 0) and its depth. -> ({view: dict(lab, depth)}, names)."""
+    two-sided object's right half: world x < 0) and its depth; hide: object names left out (a part's shape truth: the
+    hair without our clips). -> ({view: dict(lab, depth)}, names)."""
     from . import qa3d
     from .faceqa import zbuffer
     meshes, names = qa3d.scene_objects(B)
-    obj = [(V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)) for i, (V, T, _) in enumerate(meshes)]
+    obj = [(V, T, np.where(V[T].mean(1)[:, 0] >= 0, i, i + 1000)) for i, (V, T, _) in enumerate(meshes)
+           if names[i] not in hide]
     As = B.assembly
     iw = np.array(qa3d.iris_centres(B))
     az = bodyqa.azimuths(az3)
