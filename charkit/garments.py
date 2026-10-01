@@ -2532,6 +2532,9 @@ def bow_hull(A, spec, hull):
         # pieces don't interpenetrate (the placement rules outrank the reference's exact placement): the lobes held
         # off the jacket. The wrap puts the bow's front on the hull's, so its lower layer's back sank up to 0.03 L into
         # the jacket and the lower edge's outline, drawn behind the jacket's surface, didn't show (bow_front_bleed).
+        # Off in the default spec (round 4): bleed 0.25 -> 0.018 at gap 0.018, but every gap tried (0.006-0.018) folds
+        # the strips (110-300 triangles flipped against the bake alone; crumpled lower outer corners in front): the
+        # soft floor squeezes the strips' backs, buried up to 0.03 L, against their fronts along differing normals
         sel = np.ones(len(G['verts']), bool)
         if clr.get('parts', 'lobes') == 'lobes':
             if G.get('knot_v') is not None:
