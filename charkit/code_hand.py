@@ -137,11 +137,22 @@ def params(spec=None, **over):
     if P.get('palm_len') is not None:
         R = hand_ratios(spec)
         R.update(P.get('ratios') or {})
-        P.update(from_ratios(R, P['palm_len'], P.get('wrist_offset', 0.0)))
-        P.update({k: v for k, v in over.items() if k in ('length', 'palm', 'palm_w', 'wrist_w', 'palm_t', 'taper',
-                                                          'thumb_base', 'thumb_len', 'thumb_w')})
+        P['ratios'] = R                                # (the full set: geometry() derives the knobs from it, live)
+        P = geometry(P)
     P['fingers'] = tuple(P['fingers'])
     return P
+
+
+def geometry(P):
+    """the knobs a hand is built from: in the ratio mode (palm_len set) the geometric knobs derived from P['ratios'] at
+    P['palm_len'] (from_ratios), so a fit moving palm_len or a ratio moves the hand (ratio2 moved palm_len to its bound
+    with no effect: the knobs had been derived once); else P as it is."""
+    if P.get('palm_len') is None or not P.get('ratios'):
+        return P
+    Q = dict(P)
+    Q.update(from_ratios(P['ratios'], P['palm_len'], P.get('wrist_offset', 0.0)))
+    Q['fingers'] = tuple(Q['fingers'])
+    return Q
 
 
 def _shares(seg, default):
@@ -354,6 +365,7 @@ def palm_rings(W, R, P, nth=NTH['palm']):
 def hand(J, side, P):
     """a hand at the arm chain's wrist -> dict(parts {name: (rings, W, bones)}, joints {MakeHuman name: point},
     frame (W, R))."""
+    P = geometry(P)
     W, R = frame(J, side, P)
     s_ = side
     D = digits(W, R, P)
