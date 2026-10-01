@@ -190,11 +190,30 @@ their drawn locks mean 0.650; only 1 lock fitted jointly in two views (the ident
 ## Gate
 
 Merged pipeline-3d c18b0c1 (garments4 Part 1) -> 9509442. Pregate at 9509442: PASS, 0 moved, 0 blocking
-(`charkit/out/pregate/pregate_tool-hairshell_9509442e_into_c18b0c10.md`; the first pregate before the merge read
-garments4's 57 moves). Box gate running (`python -m charkit remote gate tool/hairshell --into pipeline-3d`, log
-`charkit/out/hairshell/gate.log`).
+(`charkit/out/pregate/pregate_tool-hairshell_9509442e_into_c18b0c10.md`). **Box gate: PASS** under K, tool/hairshell
+e28fd7f into pipeline-3d c18b0c1: nothing blocks; reported: the motion part's code closure reaches the changed
+pieces_hair / hairpieces.build / lockshell (no check moved: the geometry is the same); build CPU 1.18x
+(`charkit/out/gate/gate_tool-hairshell_e28fd7f_into_c18b0c1.md`). Commits after e28fd7f: notes only.
+
+## Render builds and the review page
+
+`charkit/out/hs_hull_r` (default) and `charkit/out/hs_shells_r` (`tools/hairshell/clawd_shells.json`), render box,
+boards views,body,design. Their QA (render drawing) against the sweep's numpy reading: side locks front 0.560 -> 0.589,
+profile 0.469 -> 0.612; lower back 0.514 / 0.665 / 0.672 -> 0.481 / 0.607 / 0.717 (no piece down more than 10%); lock lines
+3q 0.176 -> 0.271, profile 0.104 -> 0.223; hem 3 -> 2 PASS; **art_terminator_hair 2.009 -> 2.32** (the brief's limit
+2.064; the sweep's numpy drawing read 2.126 -> 2.018: the render drawing's terminator disagrees, so it is the first fix
+next round, measured on a render build); art_peeks_hair 17 -> 39; hair_noise 0.072 -> 0.098 (FAIL); folds 9 -> 15. Lock
+IoU against the truth (`tools/hairshell/lockpics.py`, lp7): 0.355 -> 0.387 (side locks 0.394 -> 0.521, lower back 0.304 ->
+0.333). Review page: `charkit/out/hairshell/review/index.html` (`python -m charkit review page
+charkit/out/hairshell/review.json --out charkit/out/hairshell/review`; the page tool gained `figures` sections).
+
+**Decision for Michael (on the page):** lock shells the default for the pilot region now? Recommended no (terminator,
+gaps, identity first); extend B to the whole head next? Recommended yes; hem flicks over (A) or in place (B)? A.
+
+**First steps of the next round** (before step 6's list): the terminator on the render build (swap the shells' shading
+normals: lock_shading 0 for shells, or the shells out of the envelope normals' union: `charkit sweep swap
+charkit/out/hs_hull_r charkit/out/hs_shells_r --check art_terminator_hair` names the carrier), then the gaps (peeks).
 
 ## Jobs
 
-- the box gate (log above); render builds `charkit/out/hs_hull_r` (default) and `charkit/out/hs_shells_r` (the pilot
-  spec), boards views,body,design, for the review page.
+None running.
