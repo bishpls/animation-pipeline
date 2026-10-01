@@ -1101,3 +1101,17 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
   (-0.38): f 33.19 v 0 (control 37.50). Its follower died at 13:58; reattached (log charkit/out/garments6/opt1_attach.log).
 - Builds running (render2): g7_base (today's clawd.json, the K baseline with the hands2 hand) and g7_c4 (clawd.json +
   body_F1_fl3 + gi; specs charkit/out/garments7/specs; logs charkit/out/garments7/build_*.log).
+- **g7_base / g7_c4 built (render2).** c4 (gi) against g7_base under K: art_speckle_neck back to PASS (0.88), art_mirror_waist
+  2.1 -> 1.57 W (the mirrored collar), the strip gone (look_neck_c4.png), the body checks all PASS but the axilla (W);
+  still blocking: piece_top front/3q 0.378/0.597 (base 0.749/0.799), bow_front_bleed 0.065 F, art_outline_neck 11.1 W,
+  art_outline_collar 3.86 W (worst back 8.0: the puffs' inner backs and the jacket over the flap's upper corners),
+  collar torn back 0.0136 F / profile 0.0165 F / 3q F (fragments), sleeve spikes/profile/rough F.
+- The V's edge: the jacket alone in front view (tools/garments7/vedge.py) is clean with no beds or the bow's bed alone;
+  the collar's bed along its normal (the crumpled lapels' normals sideways) notches it. The continuous opening cut
+  (tried, reverted): no change. Bedding along the shell's normal (tried, reverted): blew the jacket apart. New opt-in
+  bed `hold` L: within it outside the opening's edge the collar bed keeps x and z (sinks back only); left edge clean,
+  right still notched (not a slide: likely faces sunk behind). Sweep s1 (render2, base g7_c4: hold 0.06 / 0.12 / no
+  collar bed; art_outline_*, art_speckle_*, collar torn) -> charkit/out/garments7/sweeps/s1.
+- Profile/back (look_collar_back.png): the puff's dome rises over the collar's shoulder band in profile (the design lays
+  the band over a lower puff) and the puffs' inner backs lap over the flap's corners: the same crowded shoulder top
+  opt1 searches (the dome's growth vs the collar's lengths).
