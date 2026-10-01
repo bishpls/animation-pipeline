@@ -923,7 +923,7 @@ Calibration: a check proven before it is trusted (Michael's rule: a new check pa
 - `guard(rep, qa_a, qa_b, is_flag, E=None, drop=DROP, R=None)`: the anti-gaming guard (Michael, 2026-09-30): a merge that improves its own new or flag check while that check's ...
 - `shape_report(rep, qa_a, qa_b, E=None)`: every improved or new check's pieces' shape IoU in all views, before and after (the guard's evidence; reported ...
 - `accept(check, by, why, value=None, status='FAIL', branch=None, ...)`: record Michael's acceptance of a named new FAIL (or a guard block on it): who decided, when and why, into ...
-- `covers(rec, branch=None)`: does an acceptance record cover this gate (its branch, when it names one)?
+- `covers(rec, branch=None, batch=())`: does an acceptance record cover this gate? A record naming no branch covers any gate; one naming a branch covers ...
 - `main(args)`
 
 #### `charkit/character.py`
@@ -2949,6 +2949,7 @@ Self-registering QA parts and measurement steps (Michael, 2026-09-30: less coupl
 
 Builds off the laptop, on the CPU build box (infra/gcp/build.sh; its config infra/gcp/build.env is gitignored): the same charkit commands, run in a copy of this worktree there (rsync through IAP, only what changed), their outputs fetched back. The laptop keeps one build slot (`python -m charkit slots 1`); the box has its own.
 
+- `gate_passthrough(args)`: the options `remote gate` passes through to the box's `charkit gate` (GATE_OPTS with their values, quoted for its ...
 - `up()`: the box started if stopped, and kept awake: its idle stop honours /srv/work/.keepalive for two hours (a long ...
 - `seed()`: a box with no copy of any worktree yet (the render box's first sync) gets this one through the bucket: a tarball ...
 - `charkit(cmd, publish=None, collect=None)`: a charkit command in the box's copy of this worktree (synced first), as a detached job.
@@ -4348,7 +4349,7 @@ Measurement steps, one file per measuring module (charkit/steps/<module>.py hold
 
 The measurement steps of the checks charkit/accqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
-#### `charkit/steps/artifactqa.py` (32 measurement steps)
+#### `charkit/steps/artifactqa.py` (33 measurement steps)
 
 The measurement steps of the checks charkit/artifactqa.py measures (charkit.registry; docs/CHARKIT.md). A step: (check pattern, the commit that changed the measurement, what changed). Keep a pattern's steps in the order they happened.
 
