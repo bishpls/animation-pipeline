@@ -15,7 +15,7 @@ the star W_ARMS times its tips' reach off the drawn star's (accqa.arms, accqa.ST
 The placement fit (fit_place): both clips' at / facing / tilt / size on a build's hair (its bundle: the hair they rest
 on, everything else drawn once per view as what can cover them), the shapes fixed, by Nelder-Mead. The loss per clip
 and view (front, three-quarter 1, profile 0.6: Michael's balance, 2026-09-30) is (1 - IoU) + 1.5 |log size| + 4 pos
-(round 2's), plus the rules: VIS_W per unit of a clip's share hidden below VIS_MIN in a view the design draws it (pieces
+(round 2's) + ANGLE_W a degree of its axis past ANGLE_OK off the drawn, plus the rules: VIS_W per unit of a clip's share hidden below VIS_MIN in a view the design draws it (pieces
 don't hide each other), the star shown from behind past BACK_PX (+2 + px / 40), the seat beyond 0.004 L (x 20).
 
     python -m charkit accfit shape star|crab SPEC [--minutes M] [--out DIR] [--w-alone W]
@@ -35,6 +35,8 @@ W_ARMS = 2.0                          # the star fit's tip-reach term, per unit 
 VIS_MIN, VIS_W = 0.985, 20.0          # the non-occlusion term: VIS_W per unit of share hidden below VIS_MIN
 SEAT_TOL, SEAT_W = 0.004, 20.0
 BACK_PX = 20                          # the star shown from behind past this many pixels costs (the QA fails it at 40)
+ANGLE_OK, ANGLE_W = 8.0, 0.05         # a clip's axis off the drawn past this many degrees costs ANGLE_W a degree (the QA
+                                      # passes 10, warns 20: an IoU aligned on centroid and area barely sees a turn)
 # the shape knobs each template fit moves, with their starting steps (the shape's own units: fractions of the star's
 # height, of the crab's body width; degrees)
 SHAPE_KNOBS = {
@@ -333,6 +335,9 @@ class Scene:
                 sz = r['size'] or 1e-3
                 loss += w * ((1 - iou) + 1.5 * abs(math.log(max(sz, 1e-3))) + 4 * (r['pos'] or 1.0))
                 loss += VIS_W * max(0.0, VIS_MIN - vis)
+                ang = C.get(tag + 'angle', {})
+                if ang.get('status') not in (None, 'INFO') and r['angle'] is not None:
+                    loss += w * ANGLE_W * max(0.0, abs(r['angle']) - ANGLE_OK)
         for i, (kind, V, F, s) in enumerate(clips):
             g = self.seat(V)
             res[kind]['seat'] = None if g is None else round(g, 4)
