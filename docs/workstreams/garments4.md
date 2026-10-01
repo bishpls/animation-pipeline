@@ -564,3 +564,14 @@ Coordinator's order (Michael's review): (1) the staircase, branch `tool/garments
      staircase edges' shape authority): re-measure the stair family against them.
 - **Neck join, bodice reference, V, flat lapels**: the exact steps are in "Next, milestone 2" above; use
   base_body_turnaround (Michael: yes to its profile for the torso) for the join.
+
+## Relaunch 4 (2026-10-01, lean agent 4): the staircase's gate, then milestone 2
+- pipeline-3d 00494dec merged (c197e2fd: refs and docs only). g4_stairs1 collected (`remote attach`; 874 CPU s):
+  stair_{front,three_quarter}_crossed 0 / 0 P, skirt corners 2.9 / 0.5 P, flaps 4.0 W / 0.0 P; art_band_lower 1.185 ->
+  1.111 P; flap_profile_sweep_R W -> P; piece_overskirt_panel_L/R front 0.902/0.923 -> 0.925/0.947, back 0.977/0.958 ->
+  0.984/0.965; nothing worse against g4_cuffs2 (tools/kcmp.py). (motion SKIPPED "skirt: not a grid" since the creases
+  milestone: the ink strokes ride on the skirt object; pre-existing on pipeline-3d, a follow-up.)
+- Calibrated on g4_stairs1 (log charkit/out/garments4/calib_stairs1.log, records 30610f7a): all six CALIBRATED (design
+  0-2.6 every move; known-bad g4_stairs0 crossed 2 / 1, skirt corners 8.9 / 6.0, flaps 11.4 / 18.8 FAIL; the voronoi
+  floor passes crossed and skirt_front_corner: a defect detector's floor).
+- Pregate (30610f7a into 00494dec): PASS, 36 moved, 0 blocking.
