@@ -388,7 +388,7 @@ def tune_compare(tunes, out):
     """the chain tunings side by side (roots on the hips, roots riding the skin): per piece the best of the grid and
     the garments on it."""
     H = ['<h2>4. The spring chains: roots on the skin, the stiffness grid past 8</h2>',
-         '<p>Each tuning runs the grid (stiffness %s, gravity %s, drag %s) against the cloth (the anime default); the error '
+         '<p>Each tuning runs its grid (the first: stiffness %s, gravity %s, drag %s) against the cloth (the anime default); the error '
          'is the chain joints\' mean distance from the cloth\'s points (L) over the motion. Then the garments ride the '
          'best chains and are measured as motion QA measures them (worst over the motion: new inside share / depth L / '
          'stretch p99; at rest settled: inside share).</p>' % tuple(
