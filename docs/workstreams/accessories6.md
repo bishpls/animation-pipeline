@@ -129,11 +129,18 @@ on the build box (charkit/out/calib/builds/acc_a3_crab; charkit/calib/known_bad/
 |---|---|---|---|---|
 | A3 (pipeline-3d 25ff0f25, charkit/out/acc6/base) | 2.432 | 2.204 +- 0.151 | 8.25 / 7.71 / 4.46 / 1.87 | 17.3 |
 
-## Running
-- opt_place (charkit/out/remote/opt_place.json -> charkit/out/acc6/opt_place): 14 knobs, 8 starts b000..b315, refs
-  michael / drawn_nudged / ul_slight; objective accfit_loss (W_REL 0.5, ANGLE_NEAR 0.05); keep acc_*_visible,
-  acc_*_seat PASS; guard 15%; no new FAIL. Box job on the build box.
-- ring_M: Michael's and the drawn-nudged placement re-solved with the fit-4 crab (for their builds).
+## Part B: the placement fit (sweep optimize with starts; charkit/out/acc6/opt_place, render2, 5,009 evaluations)
+8 starts (b000..b315), each ~630 evaluations (34 generations of 18): best per start (f = accfit loss with W_REL 0.5,
+ANGLE_NEAR 0.05): **b180 5.57**, b225 6.61, b135 7.25 (it moved round to the drawn bearing too), b090 9.98, b315
+20.4, b270 21.8, b000 26.1, b045 30.7; control (A3 with the fit-4 crab) 13.56; refs: Michael's 16.49 (infeasible: no
+new FAIL / turn), the drawn arrangement nudged 7.56 (infeasible: profile visible 0.952), 'rotated slightly' 12.21.
+sb180_g34_10: bearing 2.0 / 5.4 / 5.6 off, turn 2.5 / 8.1 / 2.1, flow 1.1 / 1.5 / 4.5, gap 0; crab visible 1.0 /
+0.998 / 0.982; crab IoU 0.758 / 0.677 / 0.620 (A3 build 0.724 / 0.769 / 0.650); crab pos 0.038 / 0.183 / 0.339; back 10
+px; but the star shrank 10% (lsize -0.106: front size 0.941 PASS -> 0.847 WARN) and moved: the star is not this round's,
+so polished again with A3's star kept: opt_place2 (crab knobs only, starts the three best crabs), running.
+Fixed on the way: `--box auto` picked render2, whose copy lacked the python stage's args.build: optimize._box now pushes
+it (as a sweep's base). Michael's placement build: charkit/out/remote/clawd_michael.json -> charkit/out/acc6/michael
+(ring_M's solve: bearing 127 not 135, cost 0.61), running.
 
 ## Next steps
 1. opt_crab3 -> the crab shape; CRAB_AXIS from its poses; the specs (tools/acc6/specs.py).
