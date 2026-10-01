@@ -109,6 +109,14 @@ unchanged by construction.
 - **Gate 1** launched: tool/face7 (afe44421: pipeline-3d 15e9c55 merged) into pipeline-3d, log charkit/out/face7/gate1.log.
   No local pregate (the coordinator's memory call: the pregate builds the evaluator locally).
 
+- **sw9/sw9b** (the refit's own bump, peak 0.85-0.9, topology kept: faces equal): the far contour 0.935 W and mouth
+  3/4 0.043, chin_angle 1.5 W -> 0.2 P, chin_v 0.09 W -> 0.04 P, but the bump next to the outline kinks the jaw
+  (jaw_line_bend 4.7 -> 36-40 FAIL, tq_jaw_notch 0 -> 0.06 FAIL, chin_tip 0.83 -> 0.6, eye_hollow 0.012 -> 0.031-0.044)
+  and the mouth's front reads 0.47 -> 0.33: rejected. The sweep now compares the skin's faces, not only its counts.
+- The mouth block's edge columns rounded outward (headgeom.cylinder_cage): the default keeps 26/38, the refit at peak
+  0.75 keeps them too (nearest had taken 27/37). sw10: the refit at 0.75 with the topology kept, fh2c, the combination,
+  the override slide (0.09 on the refit; 0.16 on the rigid head).
+
 ## State
 
 - Coordinator (2026-10-01): the render box has 3 slots and is saturated: sweeps, QA-only builds, calibrations, gates go
