@@ -309,3 +309,22 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   0.614/0.831/0.742/0.636) L 0.620/0.751/0.688/0.857: 3q -9.6%, p -7.3%. `out` +0.015 makes every size PASS but costs
   the profile/3q IoU 16-18% vs control (13.7% vs pipeline-3d: too near the guard). In the spec (tools/garments4/
   cuffs2.json via setspec.py); box build g4_cuffs2 running (log charkit/out/garments4/build_cuffs2.log).
+- Cuffs pregate (`pregate --pair tool/garments4-cuffs --into pipeline-3d`, 76826e3f into d0d6304c): PASS, 47 moved, 0
+  blocking (charkit/out/pregate/pregate_tool-garments4-cuffs_76826e3f_into_d0d6304c.md).
+
+## Milestone 3: the shoulders and the back collar (branch tool/garments4-shoulders from the cuffs head 76826e3f)
+- Seen (review/shoulders/top_g4_cuffs.png, shline_g4_cuffs.png): ours dips 0.07-0.09 L at |x| 0.30-0.35 in front and
+  back between the collar's edge and the puff (the drawn line is level there, -0.47..-0.50); the outer puff 0.03-0.05 L
+  low; the drawn back panel is square (half-width 0.40 -> 0.36, top -0.49, flat bottom -0.90), ours a rounded flap
+  (0.15 at the top, a point at -0.94). The drawn line at the figure's edge is 5 px (0.0235 L) wide and our_lines put
+  ours inside our silhouette: our geometry compares with the drawn silhouette (collarqa's shoulder_back_line reads the
+  fill: 0.0047 PASS there is 0.019 L under the silhouette).
+- Code: c95cd257 = tool/collar4's garments.py + code_base.py (off by default: outline split/top, stand, drape, stripe
+  cut, body.shoulder.join), its checks left out. ca32ff7a: declared family `top_line` (dz / slope / trough over x bands,
+  the lower edge not under hair) + `ref` 'silhouette' for any family; tests.
+- Draft declarations charkit/out/garments4/drafts/shoulders.json (tools/declm.py): g4_cuffs front top 0.033 F, tilt
+  0.203 F, dip 0.052 F; back top 0.019 W, tilt 0.086 P, dip 0.042 F; 3q top 0.042 F (ours ABOVE: the views disagree,
+  Part 1's far-sleeve note) -> 3q reported, not declared; collar_back_rows (width rms, silhouette) 0.147 F.
+- Box builds (collar4's body.shoulder {z -.525, x .47, join} + collars; specs charkit/out/garments4/specs/, overrides
+  tools/garments4/sh_*.json): g4_sh0 (body.shoulder only) build-garments4-1001-034242-aa9c, g4_shA3 (+ collar A3)
+  -034301-4999, g4_shE2 (+ collar E2) -034321-8333; logs charkit/out/garments4/build_sh*.log.
