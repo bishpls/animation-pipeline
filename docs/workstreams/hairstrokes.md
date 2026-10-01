@@ -105,6 +105,35 @@ declared calibrated check):
 - Highlights (value 0.06 over lit): design 0.004-0.009 L^2 per view (short pale marks on the crown), ours 0.002-0.015
   (the streaks and the buns' diamond), IoU 0.000 in every view.
 
+## Strokes milestone: the real build (charkit/out/hst_s1, 619659c, render box, boards views/body/design)
+Reproduces the lab exactly (base hst_base -> hst_s1):
+- hair_strokes_{front,3q,profile}_density 1.0/1.0/1.0 FAIL -> 0.384/0.420/0.594 WARN; _dir none (FAIL) -> 12.2/9.4/14.4
+  PASS; recall (0.04 L) 0.71/0.51/0.41, place (0.015 L) 0.62/0.48/0.35, precision 0.99/0.94/0.91.
+- bun lines L front/3q/profile/back 0.791/0.646/0.969/1.0 FAIL -> 0.009/0.254/0.269/0.059 PASS; R front/3q/back
+  0.785/0.848/0.959 FAIL -> 0.118/0.291/0.235 PASS.
+- Guard: every hair piece IoU per view unchanged (bangs F/P 0.849/0.630, side locks 0.560/0.469, upper back P/B
+  0.621/0.890, lower back F/P/B 0.514/0.665/0.672, buns 0.856/0.851/0.875); art_terminator_hair 2.002 W -> 1.979 P
+  (six placements on the lab: 2.006 +- 0.081 -> 2.020 +- 0.088); art_peeks_hair 17 -> 18 (W); hair_noise 0.0717 ->
+  0.0743 (W); folds 9 = ; hair_back_lines 0.894 -> 0.928 (W); lock lines 3q 0.176 -> 0.281, profile 0.104 -> 0.167
+  (FAIL both, better); hem 3 = ; attached 0 = ; build CPU 1426 -> 1089 s.
+- Calibration (lab labb_v2, calib3.log): 13 CALIBRATED; bun_R_profile had no drawn bun (views fixed, 3daa50b).
+  Records being written on hst_s1 (calib_s1.log).
+
+## Exact next steps (lean relaunch)
+1. When calib_s1 lands: commit charkit/calib/records/* (the 13 checks), `python -m charkit pregate`, then
+   `python -m charkit remote gate tool/hairstrokes --into pipeline-3d` (export CLOUDSDK_CONFIG first; merge
+   pipeline-3d first if it moved; don't commit while the gate starts). If the gate asks for remeasure steps
+   (hairflagqa's lines/parts and qa3d.hair_noise now read ink-slot faces as lines; values unchanged without strokes),
+   register them in charkit/steps/hairflagqa.py and steps/qa3d.py against ae33ac8.
+2. Review page (charkit review page): design | today (hst_base) | strokes (hst_s1) per view at matching scale, the
+   boards' close-ups of the side locks and buns; tools/ovl.py, bunov.py pictures. Asked of Michael: the per-view cost
+   (strokes from one view don't match another view's texture: density WARN in every view, by design of the rule);
+   draw the lock lines as ink too on the hull shell until the lock shells cover the head (set 'all')?
+3. (a) line weight and taper check (head frame at 400 px/L against the head sheet's strokes: inner/outline effective
+   width, end/middle width), then the tones milestone: declared checks from tools/tones.py (shadow IoU per view,
+   highlight marks), (d) lock normals (shade_normals' lock_shading; art_terminator_hair <= 2.064 on six placements),
+   (e) the underside tone (hair_toon `inner` / under families), (f) highlight marks (traced, view-aware), gate.
+
 ## Jobs
-- Box build `charkit/out/hst_s1` (619659c, render box, boards views,body,design): the first real strokes build (log
-  charkit/out/hairstrokes/build_s1.log). Calibration on the lab build labb_v2: calib3.log (local).
+- Done: box build charkit/out/hst_s1 (build_s1.log); calib3 (lab). Running: calibration records on hst_s1
+  (charkit/out/hairstrokes/calib_s1.log, local).
