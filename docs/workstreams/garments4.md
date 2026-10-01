@@ -296,3 +296,10 @@ Built and unit-tested (charkit/tests/test_ink.py, test_bed.py pass), not yet box
   as drawn, outer 0.033-0.037 short; profile: ours 0.334 tall x 0.268 wide vs drawn 0.301 x 0.311.
 - Refit sweep k10 (tools/garments4/k10.json, base g4_cuffs, box; out sweeps/k10): `out` radius +0.03/+0.04, shift out
   0.01, front/back radii +0.02, span [0.45, 0.73], scale 1.1, combinations.
+- **k10** (648 s; sweeps/k10/sweep.md): sizes (L f/3q/p/b, R f/b) and the guard (piece_cuff_L f/3q/p/b, R f/3q/b):
+  control 0.196/0.168/0.177/0.206, 0.214/0.208 | L 0.665/0.869/0.753/0.874, R 0.676/0.741/0.905. **span [0.45, 0.73]**:
+  0.057/0.033/0.054/0.066, 0.079/0.072 all PASS | L 0.620/0.761/0.667/0.841 (3q -12%, p -11% vs control; vs pipeline-3d
+  0.614/0.831/0.742/0.636: -8%/-10%), R 0.635/0.687/0.873; trim front 0.092 W, flare front 0.089 W (was 0.079 P).
+  `out` +0.03 cost the profile IoU 16-36% (guard), `fb` +0.02 alone fixes the profile size (0.059) but front/back
+  sizes worsen (0.22-0.24). The views disagree on the cuff's top: front's drawn top -1.724, profile's -1.79 (ours
+  -1.766 in both): the longer span is the compromise. k11 running: span x fb {0, .01} x out {0, .015}.
